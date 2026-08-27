@@ -1,4 +1,4 @@
-name: Apply approved Adriana heart mask
+name: Build approved Adriana heart alpha
 
 on:
   push:
@@ -10,41 +10,56 @@ permissions:
   contents: write
 
 jobs:
-  patch:
+  repair-heart-mask:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Wire approved clean heart mask
+      - name: Install Pillow
+        run: python -m pip install --disable-pip-version-check pillow
+      - name: Build transparent PNG from approved heart contour
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
+          from PIL import Image, ImageDraw
 
-          page=Path('arte/index.html')
-          html=page.read_text(encoding='utf-8')
+          # Contour traced directly from the user-approved clean heart PNG.
+          # It is not a new heart design; it is the approved silhouette encoded as geometry.
+          pts = [(508,18),(494,20),(480,28),(466,44),(452,66),(433,85),(425,98),(422,109),(423,129),(431,148),(439,158),(438,160),(426,150),(409,121),(391,103),(377,97),(365,97),(354,102),(345,110),(339,123),(342,126),(339,131),(340,135),(343,139),(349,137),(358,138),(369,145),(376,152),(382,163),(385,173),(386,187),(389,195),(387,198),(375,191),(360,186),(314,177),(306,174),(299,167),(298,162),(292,162),(288,169),(288,173),(289,172),(294,174),(294,177),(289,179),(288,175),(288,184),(290,190),(296,200),(312,215),(313,234),(319,246),(326,252),(337,257),(376,259),(386,263),(393,268),(401,276),(408,287),(413,302),(413,312),(411,317),(406,322),(398,327),(399,329),(410,334),(413,333),(413,335),(431,345),(446,359),(452,367),(451,369),(427,350),(372,321),(328,288),(312,278),(287,269),(268,266),(232,267),(202,273),(181,280),(163,288),(135,304),(107,326),(92,340),(73,361),(49,396),(36,423),(24,462),(19,497),(19,535),(24,566),(33,593),(43,615),(58,641),(73,662),(97,690),(141,732),(194,773),(263,816),(359,866),(412,902),(432,919),(455,943),(470,964),(485,991),(490,996),(493,996),(497,992),(513,964),(529,943),(551,920),(578,897),(606,877),(635,859),(712,818),(774,781),(824,746),(863,713),(905,669),(918,652),(934,627),(947,600),(957,570),(964,527),(963,493),(955,455),(937,408),(919,376),(898,349),(857,310),(827,290),(795,276),(773,270),(746,266),(706,267),(678,275),(657,286),(603,324),(556,350),(545,358),(532,371),(530,370),(538,358),(550,347),(569,335),(590,325),(590,323),(582,316),(581,308),(587,284),(597,267),(607,258),(622,250),(668,237),(687,227),(703,212),(709,203),(712,195),(713,183),(710,173),(703,168),(704,166),(700,162),(691,159),(687,161),(688,172),(682,181),(675,186),(663,190),(636,194),(619,199),(607,205),(593,216),(592,213),(594,211),(598,199),(600,177),(606,160),(609,155),(621,143),(629,139),(633,139),(637,141),(639,144),(641,144),(646,140),(648,135),(648,122),(646,116),(637,107),(626,103),(616,103),(603,107),(587,117),(577,127),(559,150),(551,157),(550,154),(558,138),(562,123),(561,100),(556,88),(549,78),(510,40),(508,36),(508,29),(515,22),(514,20)]
 
-          final_mask='assets/footer/heart-mask-final-approved.png'
-          old_masks=[
-              'assets/footer/heart-mask.svg',
-              'assets/footer/heart-mask.png',
-              'https://adriana-giacobbe-bada-2026.netlify.app/assets/footer/heart-mask.png',
-          ]
-          for old in old_masks:
-              html=html.replace(old, final_mask)
+          W,H,S = 983,1015,4
+          alpha_hi = Image.new('L',(W*S,H*S),0)
+          d = ImageDraw.Draw(alpha_hi)
+          d.polygon([(x*S,y*S) for x,y in pts], fill=255)
+          alpha = alpha_hi.resize((W,H), Image.Resampling.LANCZOS)
+          rgba = Image.new('RGBA',(W,H),(255,255,255,0))
+          rgba.putalpha(alpha)
 
-          # Preserve the approved generated silhouette without stretching it.
-          html=html.replace('aspect-ratio:1200/1123;', 'aspect-ratio:983/1015;', 1)
+          out = Path('arte/assets/footer')
+          out.mkdir(parents=True,exist_ok=True)
+          wired = out/'heart-mask-final-approved.png'
+          canonical = out/'heart-mask-final-alpha.png'
+          rgba.save(wired,optimize=True)
+          rgba.save(canonical,optimize=True)
 
-          # The existing canvas/video/background engine is intentionally untouched.
-          page.write_text(html,encoding='utf-8')
+          chk = Image.open(wired)
+          lo,hi = chk.getchannel('A').getextrema()
+          if chk.mode!='RGBA' or chk.size!=(983,1015) or (lo,hi)!=(0,255):
+              raise SystemExit(f'alpha QA failed: {chk.mode} {chk.size} {(lo,hi)}')
+          page=Path('arte/index.html').read_text(encoding='utf-8')
+          if 'assets/footer/heart-mask-final-approved.png' not in page:
+              raise SystemExit('page not wired to final approved mask')
+          if '.dense-heart' not in page or 'background:url(' not in page:
+              raise SystemExit('fallback heart background missing')
+          print('HEART_ALPHA_QA=PASS')
+          print('MODE=',chk.mode,'SIZE=',chk.size,'ALPHA=',(lo,hi))
           PY
-      - name: Commit approved heart mask wiring
+      - name: Commit alpha repair
         shell: bash
         run: |
           git config user.name 'prometeo-release-bot'
           git config user.email '72280945+JuanManuelPM@users.noreply.github.com'
-          git add arte/index.html
+          git add arte/assets/footer/heart-mask-final-approved.png arte/assets/footer/heart-mask-final-alpha.png
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'fix(art): use approved clean heart mask'
+          git commit -m 'fix(art): restore approved heart as real alpha mask'
           git push origin HEAD:main
