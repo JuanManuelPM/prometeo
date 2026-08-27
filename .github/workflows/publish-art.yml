@@ -16,51 +16,50 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Pillow
         run: python -m pip install --disable-pip-version-check pillow
-      - name: Rebuild exact approved heart as real alpha PNG
+      - name: Build transparent PNG from approved heart contour
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-          from PIL import Image
-          import base64, io
+          from PIL import Image, ImageDraw
 
-          # Exact thresholded bitmap derived from the user-approved clean PNG.
-          APPROVED_BW_B64 = '''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'''
+          # Contour traced directly from the user-approved clean heart PNG.
+          # It is not a new heart design; it is the approved silhouette encoded as geometry.
+          pts = [(508,18),(494,20),(480,28),(466,44),(452,66),(433,85),(425,98),(422,109),(423,129),(431,148),(439,158),(438,160),(426,150),(409,121),(391,103),(377,97),(365,97),(354,102),(345,110),(339,123),(342,126),(339,131),(340,135),(343,139),(349,137),(358,138),(369,145),(376,152),(382,163),(385,173),(386,187),(389,195),(387,198),(375,191),(360,186),(314,177),(306,174),(299,167),(298,162),(292,162),(288,169),(288,173),(289,172),(294,174),(294,177),(289,179),(288,175),(288,184),(290,190),(296,200),(312,215),(313,234),(319,246),(326,252),(337,257),(376,259),(386,263),(393,268),(401,276),(408,287),(413,302),(413,312),(411,317),(406,322),(398,327),(399,329),(410,334),(413,333),(413,335),(431,345),(446,359),(452,367),(451,369),(427,350),(372,321),(328,288),(312,278),(287,269),(268,266),(232,267),(202,273),(181,280),(163,288),(135,304),(107,326),(92,340),(73,361),(49,396),(36,423),(24,462),(19,497),(19,535),(24,566),(33,593),(43,615),(58,641),(73,662),(97,690),(141,732),(194,773),(263,816),(359,866),(412,902),(432,919),(455,943),(470,964),(485,991),(490,996),(493,996),(497,992),(513,964),(529,943),(551,920),(578,897),(606,877),(635,859),(712,818),(774,781),(824,746),(863,713),(905,669),(918,652),(934,627),(947,600),(957,570),(964,527),(963,493),(955,455),(937,408),(919,376),(898,349),(857,310),(827,290),(795,276),(773,270),(746,266),(706,267),(678,275),(657,286),(603,324),(556,350),(545,358),(532,371),(530,370),(538,358),(550,347),(569,335),(590,325),(590,323),(582,316),(581,308),(587,284),(597,267),(607,258),(622,250),(668,237),(687,227),(703,212),(709,203),(712,195),(713,183),(710,173),(703,168),(704,166),(700,162),(691,159),(687,161),(688,172),(682,181),(675,186),(663,190),(636,194),(619,199),(607,205),(593,216),(592,213),(594,211),(598,199),(600,177),(606,160),(609,155),(621,143),(629,139),(633,139),(637,141),(639,144),(641,144),(646,140),(648,135),(648,122),(646,116),(637,107),(626,103),(616,103),(603,107),(587,117),(577,127),(559,150),(551,157),(550,154),(558,138),(562,123),(561,100),(556,88),(549,78),(510,40),(508,36),(508,29),(515,22),(514,20)]
 
-          bw = Image.open(io.BytesIO(base64.b64decode(APPROVED_BW_B64))).convert('L')
-          rgba = Image.new('RGBA', bw.size, (255,255,255,0))
-          rgba.putalpha(bw)
+          W,H,S = 983,1015,4
+          alpha_hi = Image.new('L',(W*S,H*S),0)
+          d = ImageDraw.Draw(alpha_hi)
+          d.polygon([(x*S,y*S) for x,y in pts], fill=255)
+          alpha = alpha_hi.resize((W,H), Image.Resampling.LANCZOS)
+          rgba = Image.new('RGBA',(W,H),(255,255,255,0))
+          rgba.putalpha(alpha)
 
           out = Path('arte/assets/footer')
-          out.mkdir(parents=True, exist_ok=True)
-          wired = out / 'heart-mask-final-approved.png'
-          canonical = out / 'heart-mask-final-alpha.png'
-          rgba.save(wired, optimize=True)
-          rgba.save(canonical, optimize=True)
+          out.mkdir(parents=True,exist_ok=True)
+          wired = out/'heart-mask-final-approved.png'
+          canonical = out/'heart-mask-final-alpha.png'
+          rgba.save(wired,optimize=True)
+          rgba.save(canonical,optimize=True)
 
-          check = Image.open(wired)
-          alpha = check.getchannel('A')
-          lo, hi = alpha.getextrema()
-          if check.mode != 'RGBA' or check.size != (983,1015) or lo != 0 or hi != 255:
-              raise SystemExit(f'alpha QA failed: mode={check.mode} size={check.size} extrema={(lo,hi)}')
-
-          page = Path('arte/index.html').read_text(encoding='utf-8')
+          chk = Image.open(wired)
+          lo,hi = chk.getchannel('A').getextrema()
+          if chk.mode!='RGBA' or chk.size!=(983,1015) or (lo,hi)!=(0,255):
+              raise SystemExit(f'alpha QA failed: {chk.mode} {chk.size} {(lo,hi)}')
+          page=Path('arte/index.html').read_text(encoding='utf-8')
           if 'assets/footer/heart-mask-final-approved.png' not in page:
-              raise SystemExit('page is not wired to approved mask')
+              raise SystemExit('page not wired to final approved mask')
           if '.dense-heart' not in page or 'background:url(' not in page:
-              raise SystemExit('existing heart fallback engine not found')
-
+              raise SystemExit('fallback heart background missing')
           print('HEART_ALPHA_QA=PASS')
-          print('SIZE=', check.size)
-          print('MODE=', check.mode)
-          print('ALPHA_EXTREMA=', (lo, hi))
+          print('MODE=',chk.mode,'SIZE=',chk.size,'ALPHA=',(lo,hi))
           PY
-      - name: Commit alpha-only repair
+      - name: Commit alpha repair
         shell: bash
         run: |
           git config user.name 'prometeo-release-bot'
           git config user.email '72280945+JuanManuelPM@users.noreply.github.com'
           git add arte/assets/footer/heart-mask-final-approved.png arte/assets/footer/heart-mask-final-alpha.png
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'fix(art): make approved heart mask truly transparent'
+          git commit -m 'fix(art): restore approved heart as real alpha mask'
           git push origin HEAD:main
