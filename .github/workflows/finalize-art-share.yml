@@ -1,0 +1,100 @@
+name: Finalize Adriana permanent share
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/finalize-art-share.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch permanent QR, WhatsApp and mobile share scene
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          p=Path('arte/index.html')
+          s=p.read_text(encoding='utf-8')
+
+          # Permanent contact destination.
+          s=s.replace('https://wa.me/549113683554','https://wa.me/5491136835546')
+
+          # One local, user-approved QR asset everywhere.
+          old='https://adriana-giacobbe-bada-2026.netlify.app/assets/qr/QR_ADRIANA_GIACOBBE_BADA_2026.png'
+          s=s.replace(old,'assets/qr/adriana-giacobbe-bada-qr.png')
+
+          # Permanent public share destination used by any share/copy behavior.
+          s=s.replace("const PUBLIC_URL='https://adriana-giacobbe-bada-2026.netlify.app';", "const PUBLIC_URL='https://tinyurl.com/adrianagiacobbe-bada';")
+
+          marker='id="permanent-mobile-share-qr"'
+          if marker not in s:
+              block='''\n<section class="permanent-mobile-share-qr" id="permanent-mobile-share-qr" aria-label="Compartir esta exposición">\n  <div class="permanent-mobile-share-inner">\n    <p>Compartir esta exposición</p>\n    <a href="https://tinyurl.com/adrianagiacobbe-bada" target="_blank" rel="noopener" aria-label="Abrir enlace permanente de la exposición">\n      <img src="assets/qr/adriana-giacobbe-bada-qr.png" alt="Código QR para abrir la exposición de Adriana Giacobbe" width="2048" height="2048"/>\n    </a>\n    <small>tinyurl.com/adrianagiacobbe-bada</small>\n  </div>\n</section>\n'''
+              anchor='</main>'
+              if anchor not in s: raise SystemExit('main close not found')
+              s=s.replace(anchor,block+anchor,1)
+
+          css_marker='id="permanent-mobile-share-css"'
+          if css_marker not in s:
+              css='''\n<style id="permanent-mobile-share-css">\n.permanent-mobile-share-qr{display:none}\n@media(max-width:700px){\n  /* Mobile ending: a separate, clean sharing scene after the animated contact footer. */\n  .github-mobile-qr{display:none!important}\n  .permanent-mobile-share-qr{\n    display:grid!important;\n    min-height:100svh;\n    place-items:center;\n    padding:72px 20px max(72px,env(safe-area-inset-bottom));\n    background:#f1eee9;\n    color:#51453d;\n    text-align:center;\n    border-top:1px solid rgba(81,69,61,.12);\n  }\n  .permanent-mobile-share-inner{width:min(100%,430px);display:grid;justify-items:center}\n  .permanent-mobile-share-inner p{margin:0 0 28px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#82766c}\n  .permanent-mobile-share-inner a{display:block;width:min(88vw,390px);padding:0;background:transparent}\n  .permanent-mobile-share-inner img{display:block;width:100%;height:auto;padding:16px;background:#fff}\n  .permanent-mobile-share-inner small{margin-top:18px;font-size:12px;line-height:1.45;color:#82766c;overflow-wrap:anywhere}\n}\n@media(min-width:701px){.permanent-mobile-share-qr{display:none!important}}\n</style>\n'''
+              s=s.replace('</head>',css+'</head>',1)
+
+          p.write_text(s,encoding='utf-8')
+
+          # QA: exact permanent values and a guaranteed mobile QR scene.
+          t=p.read_text(encoding='utf-8')
+          assert 'https://wa.me/5491136835546' in t
+          assert 'https://wa.me/549113683554"' not in t
+          assert t.count('assets/qr/adriana-giacobbe-bada-qr.png') >= 3
+          assert 'https://tinyurl.com/adrianagiacobbe-bada' in t
+          assert 'id="permanent-mobile-share-qr"' in t
+          assert 'min-height:100svh' in t
+          print('ART_SHARE_QA=PASS')
+          PY
+
+      - name: Commit source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'prometeo-release-bot'
+          git config user.email '72280945+JuanManuelPM@users.noreply.github.com'
+          git add arte/index.html arte/assets/qr/adriana-giacobbe-bada-qr.png
+          if ! git diff --cached --quiet; then
+            git commit -m 'art: permanent QR, corrected WhatsApp, mobile share scene'
+            git push origin HEAD:main
+          fi
+
+      - name: Publish exact art files to gh-pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main gh-pages
+          git checkout main
+          git pull --ff-only origin main
+          SOURCE="$PWD"
+          git worktree add /tmp/prometeo-pages origin/gh-pages
+          mkdir -p /tmp/prometeo-pages/arte/assets/qr
+          cp "$SOURCE/arte/index.html" /tmp/prometeo-pages/arte/index.html
+          cp "$SOURCE/arte/assets/qr/adriana-giacobbe-bada-qr.png" /tmp/prometeo-pages/arte/assets/qr/adriana-giacobbe-bada-qr.png
+          cd /tmp/prometeo-pages
+          git config user.name 'prometeo-release-bot'
+          git config user.email '72280945+JuanManuelPM@users.noreply.github.com'
+          git add arte/index.html arte/assets/qr/adriana-giacobbe-bada-qr.png
+          if git diff --cached --quiet; then
+            echo 'Published art already current.'
+            exit 0
+          fi
+          git commit -m 'release(art): permanent QR and mobile sharing'
+          git pull --rebase origin gh-pages
+          git push origin HEAD:gh-pages
