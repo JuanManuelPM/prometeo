@@ -1,4 +1,4 @@
-name: Apply approved Adriana heart mask
+name: Build approved Adriana heart alpha
 
 on:
   push:
@@ -10,41 +10,54 @@ permissions:
   contents: write
 
 jobs:
-  patch:
+  repair-heart-mask:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Wire approved clean heart mask
+      - name: Install Pillow
+        run: python -m pip install --disable-pip-version-check pillow
+      - name: Convert approved PNG to real alpha mask
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
+          from PIL import Image
 
-          page=Path('arte/index.html')
-          html=page.read_text(encoding='utf-8')
+          src = Path('arte/assets/footer/heart-mask-final-approved.png')
+          if not src.exists():
+              raise SystemExit(f'missing approved mask source: {src}')
 
-          final_mask='assets/footer/heart-mask-final-approved.png'
-          old_masks=[
-              'assets/footer/heart-mask.svg',
-              'assets/footer/heart-mask.png',
-              'https://adriana-giacobbe-bada-2026.netlify.app/assets/footer/heart-mask.png',
-          ]
-          for old in old_masks:
-              html=html.replace(old, final_mask)
+          original = Image.open(src).convert('L')
+          rgba = Image.new('RGBA', original.size, (255,255,255,0))
+          rgba.putalpha(original)
 
-          # Preserve the approved generated silhouette without stretching it.
-          html=html.replace('aspect-ratio:1200/1123;', 'aspect-ratio:983/1015;', 1)
+          # Preserve the exact approved silhouette; only encode opacity correctly.
+          rgba.save(src, optimize=True)
+          rgba.save(src.with_name('heart-mask-final-alpha.png'), optimize=True)
 
-          # The existing canvas/video/background engine is intentionally untouched.
-          page.write_text(html,encoding='utf-8')
+          check = Image.open(src)
+          alpha = check.getchannel('A')
+          lo, hi = alpha.getextrema()
+          if check.mode != 'RGBA' or lo != 0 or hi != 255:
+              raise SystemExit(f'alpha QA failed: mode={check.mode} extrema={(lo,hi)}')
+
+          page = Path('arte/index.html').read_text(encoding='utf-8')
+          if 'assets/footer/heart-mask-final-approved.png' not in page:
+              raise SystemExit('page is not wired to approved mask')
+          if '.dense-heart' not in page or 'background:url(' not in page:
+              raise SystemExit('existing heart fallback engine not found')
+
+          print('HEART_ALPHA_QA=PASS')
+          print('SIZE=', check.size)
+          print('MODE=', check.mode)
+          print('ALPHA_EXTREMA=', (lo, hi))
           PY
-      - name: Commit approved heart mask wiring
+      - name: Commit alpha-only repair
         shell: bash
         run: |
           git config user.name 'prometeo-release-bot'
           git config user.email '72280945+JuanManuelPM@users.noreply.github.com'
-          git add arte/index.html
+          git add arte/assets/footer/heart-mask-final-approved.png arte/assets/footer/heart-mask-final-alpha.png
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'fix(art): use approved clean heart mask'
+          git commit -m 'fix(art): make approved heart mask truly transparent'
           git push origin HEAD:main
