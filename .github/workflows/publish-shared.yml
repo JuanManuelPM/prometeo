@@ -8,6 +8,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: prometeo-shared-pages
+  cancel-in-progress: false
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -16,6 +19,27 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Validate Study v1 before publication
+        run: |
+          set -euo pipefail
+          node --check shared/study/v1/components.js
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for name in ['shared/study/current.json','shared/study/v1/contract.json','shared/study/v1/WHERE_USED.json','shared/study/v1/NEGATIVE_TARGETS.json']:
+              json.loads(Path(name).read_text(encoding='utf-8'))
+          c=json.loads(Path('shared/study/v1/contract.json').read_text())
+          assert c['id']=='prometeo-study-ui' and c['major']==1
+          js=Path('shared/study/v1/components.js').read_text()
+          for symbol in ['subjectState','formula','inputHTML','renderMath','resourceLink','hintSteps','bindActivation']:
+              assert symbol in js, symbol
+          css=Path('shared/study/v1/components.css').read_text()
+          assert css.count('{')==css.count('}'), 'Unbalanced CSS braces'
+          for selector in ['.ps-subject-state','.ps-resource','.ps-math','.ps-inline-input','.ps-hint-step']:
+              assert selector in css, selector
+          assert Path('shared/study/v1/showcase.html').exists()
+          print('Study Commons v1 validation PASS')
+          PY
       - name: Materialize shared commons on Pages branch
         run: |
           set -euo pipefail
@@ -32,4 +56,5 @@ jobs:
             exit 0
           fi
           git commit -m 'shared: publish Prometeo Commons from main'
+          git pull --rebase origin gh-pages
           git push origin HEAD:gh-pages
