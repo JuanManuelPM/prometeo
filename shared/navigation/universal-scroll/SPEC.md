@@ -21,6 +21,27 @@ Preferred morphology under test: **Universal Focus Rail**.
 12. **Progressive density:** 5, 20, 100, or more destinations remain conceptually valid because only the current level is rendered as a rail.
 13. **Neighbour signal, not neighbour real estate:** nearby destinations may peek at edges; distant destinations may disappear outside viewport.
 14. **Preserve iterations:** rejected candidates remain durable evidence; never overwrite historical versions.
+15. **Blank app surface by default:** never add counters, progress such as `1 / 5`, scroll hints, keyboard hints, status dots, product names, `Prometeo` labels, breadcrumbs such as `Root`, mode names, debug copy, descriptions, helper microcopy, version labels, technical metadata, or decorative chrome unless the human explicitly requests that exact element. The default surface must look like a finished application with only content and controls that are necessary to perform the current action.
+16. **Silence beats explanation:** if an interaction can be understood from layout, motion, affordance, or the operating-system/browser Back behavior, do not add explanatory text.
+17. **No speculative chrome:** a designer/AI may not add UI merely because there is empty space. Empty space is valid and preferred over unrequested interface furniture.
+
+## Blank-surface law
+
+By default the shell renders **zero informational chrome**. The following are opt-in only:
+- app/product name in the viewport
+- current/total counters
+- breadcrumbs/path labels
+- `Scroll`, `Tap`, `Enter`, keyboard or gesture hints
+- state/status dots
+- descriptions/subtitles added only to explain navigation
+- developer/debug/version/candidate metadata
+- persistent headers or footers with no required user action
+
+Allowed by default:
+- the focused destination/content itself
+- minimal neighbouring destination signals when needed for navigation
+- a necessary Enter/Open control
+- a necessary Back control only when native/browser Back is insufficient or unavailable
 
 ## Data contract
 
@@ -79,6 +100,9 @@ Changes:
 - recursive data tree demonstrated: Root → Design → Material and Root → Students → José → Matemática
 - no page-specific thumbnail or drawing required
 
+New rejection learned from V3:
+- persistent `Prometeo`, `Root`, `01 / 05`, status dot, `Scroll`, keyboard hints, and explanatory chrome polluted the finished-app surface and are now forbidden by default under the Blank App Surface law.
+
 Local mechanical evidence before source publication:
 - 1440×900: no horizontal overflow, no JS errors, recursive enter/back pass
 - 390×844: no horizontal overflow, no JS errors, recursive enter/back pass
@@ -97,3 +121,4 @@ Do not call this universal/current until a human-preferred iteration passes:
 - no label clipping
 - no horizontal overflow
 - real destinations loaded from one canonical data owner rather than hard-coded demo data
+- default viewport contains no unrequested informational chrome
