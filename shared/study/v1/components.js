@@ -55,5 +55,5 @@
     el.addEventListener('pointerdown',down);el.addEventListener('pointermove',move);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',cancel);el.addEventListener('keydown',key);
     return()=>{el.removeEventListener('pointerdown',down);el.removeEventListener('pointermove',move);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',cancel);el.removeEventListener('keydown',key)};
   }
-  global.PrometeoStudy=Object.freeze({version:'1.0.0',canaryRevision:2,esc,icons,subjectState,formula,inputHTML,renderMath,resourceLink,hintSteps,bindActivation});
+  global.PrometeoStudy=Object.freeze({version:'1.0.0',esc,icons,subjectState,formula,inputHTML,renderMath,resourceLink,hintSteps,bindActivation});
 })(window);
