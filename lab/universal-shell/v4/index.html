@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="es" data-p-material="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Universal Surface V4</title>
+
+<link rel="stylesheet" href="https://juanmanuelpm.github.io/prometeo/shared/material/v1/material.css">
+<link rel="stylesheet" href="https://juanmanuelpm.github.io/prometeo/shared/interaction/touch-first/v1/interaction.css">
+
+<style>
+:root{
+  --bg:#171816;
+  --ink:#ece9df;
+  --muted:#8b8c84;
+  --near:#b2b1a7;
+  --accent:#c7aa70;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --pad:clamp(14px,2.4vw,30px);
+  --font:"Avenir Next","Century Gothic",Avenir,"Helvetica Neue",Arial,sans-serif;
+}
+
+*{box-sizing:border-box}
+
+html,body{
+  margin:0;
+  width:100%;
+  min-height:100%;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--font);
+}
+
+body{
+  min-height:100vh;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 16% 5%,rgba(255,255,255,.035),transparent 25%),
+    radial-gradient(circle at 85% 88%,rgba(199,170,112,.018),transparent 28%),
+    linear-gradient(145deg,#191a18,#121310);
+}
+
+.app{
+  position:relative;
+  width:100%;
+  height:100vh;
+  overflow:hidden;
+}
+
+.rail{
+  position:absolute;
+  inset:0;
+  display:flex;
+  gap:clamp(16px,2.2vw,30px);
+  padding:
+    clamp(24px,5vh,52px)
+    clamp(7vw,9vw,12vw);
+  scroll-snap-type:x mandatory;
+  scroll-padding-inline:clamp(7vw,9vw,12vw);
+  scrollbar-width:none;
+}
+.rail::-webkit-scrollbar{display:none}
+
+.surface{
+  position:relative;
+  flex:0 0 min(82vw,1180px);
+  height:100%;
+  min-width:0;
+  scroll-snap-align:center;
+  scroll-snap-stop:always;
+  overflow:hidden;
+  border-radius:clamp(28px,3vw,42px);
+  background:
+    linear-gradient(145deg,rgba(255,255,255,.025),rgba(0,0,0,.012)),
+    var(--pm-surface,#20211e);
+  box-shadow:
+    var(--pm-bevel,inset 1px 1px rgba(255,255,255,.055),inset -1px -1px rgba(0,0,0,.55)),
+    var(--pm-raised,-12px -12px 24px rgba(255,255,255,.055),12px 12px 24px rgba(0,0,0,.48));
+  opacity:.18;
+  transform:scale(.975);
+  transition:
+    opacity .26s var(--ease),
+    transform .26s var(--ease);
+}
+
+.surface.is-near{
+  opacity:.38;
+  transform:scale(.988);
+}
+
+.surface.is-active{
+  opacity:1;
+  transform:scale(1);
+}
+
+.surface-body{
+  position:absolute;
+  inset:0;
+  padding:clamp(28px,5vw,70px);
+  display:grid;
+  grid-template-columns:minmax(0,1.35fr) minmax(190px,.65fr);
+  gap:clamp(30px,6vw,100px);
+  align-items:end;
+}
+
+.title{
+  align-self:start;
+  margin:0;
+  max-width:8ch;
+  font-size:clamp(58px,9vw,132px);
+  line-height:.88;
+  letter-spacing:-.072em;
+  font-weight:540;
+  overflow:visible;
+  text-wrap:balance;
+}
+
+.preview{
+  align-self:end;
+  display:grid;
+  gap:0;
+  min-width:0;
+}
+
+.preview-item{
+  min-height:58px;
+  display:flex;
+  align-items:center;
+  border-top:1px solid rgba(255,255,255,.075);
+  color:var(--near);
+  font-size:clamp(17px,1.7vw,24px);
+  letter-spacing:-.02em;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.preview-item:last-child{
+  border-bottom:1px solid rgba(255,255,255,.075);
+}
+
+.surface:not(.is-active) .preview{
+  opacity:0;
+}
+
+.enter{
+  position:absolute;
+  right:clamp(24px,3vw,42px);
+  top:clamp(24px,3vw,42px);
+  width:58px;
+  height:58px;
+  border:0;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  color:var(--ink);
+}
+.enter svg{
+  width:25px;
+  height:25px;
+  display:block;
+}
+
+.back{
+  position:absolute;
+  left:clamp(18px,2.3vw,30px);
+  top:50%;
+  z-index:40;
+  width:52px;
+  height:52px;
+  margin-top:-26px;
+  border:0;
+  display:none;
+  place-items:center;
+  cursor:pointer;
+}
+.back.is-visible{display:grid}
+.back svg{width:22px;height:22px}
+
+.edge-stack{
+  position:absolute;
+  z-index:30;
+  right:0;
+  top:50%;
+  width:clamp(54px,6vw,86px);
+  transform:translateY(-50%);
+  pointer-events:none;
+}
+
+.edge-tab{
+  position:absolute;
+  right:calc(var(--depth) * -7px);
+  top:calc((var(--slot) - 1) * 70px);
+  width:clamp(54px,6vw,86px);
+  height:60px;
+  border-radius:18px 0 0 18px;
+  background:var(--pm-surface,#20211e);
+  box-shadow:
+    inset 1px 1px rgba(255,255,255,.04),
+    -7px 7px 18px rgba(0,0,0,.24);
+  opacity:calc(.68 - (var(--depth) * .12));
+  transform:translateY(-50%) scale(calc(1 - var(--depth) * .035));
+  transform-origin:right center;
+  overflow:hidden;
+  transition:
+    opacity .22s var(--ease),
+    transform .22s var(--ease);
+}
+
+.edge-tab span{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  writing-mode:vertical-rl;
+  transform:rotate(180deg);
+  font-size:10px;
+  letter-spacing:.06em;
+  color:var(--near);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  padding:8px 0;
+}
+
+.edge-previous{
+  position:absolute;
+  z-index:29;
+  left:0;
+  top:50%;
+  width:12px;
+  height:35%;
+  transform:translateY(-50%);
+  border-radius:0 10px 10px 0;
+  background:linear-gradient(180deg,transparent,rgba(255,255,255,.085),transparent);
+  opacity:0;
+  transition:opacity .2s var(--ease);
+}
+.edge-previous.is-visible{opacity:.8}
+
+@media (orientation:portrait) and (max-width:900px){
+  body{overflow:auto}
+
+  .app{
+    height:auto;
+    min-height:100vh;
+    overflow:visible;
+  }
+
+  .rail{
+    position:relative;
+    inset:auto;
+    display:block;
+    height:auto;
+    padding:
+      14vh
+      14px
+      18vh;
+    overflow:visible;
+    scroll-snap-type:y proximity;
+  }
+
+  .surface{
+    width:100%;
+    height:min(70vh,660px);
+    min-height:470px;
+    margin:0 0 14px;
+    scroll-snap-align:center;
+    transform:scale(.985);
+    border-radius:30px;
+  }
+
+  .surface.is-active{transform:scale(1)}
+
+  .surface-body{
+    padding:26px;
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    justify-content:space-between;
+    gap:30px;
+  }
+
+  .title{
+    max-width:8ch;
+    font-size:clamp(54px,16vw,88px);
+    line-height:.91;
+  }
+
+  .preview{
+    width:100%;
+  }
+
+  .preview-item{
+    min-height:54px;
+    font-size:clamp(17px,5vw,23px);
+  }
+
+  .enter{
+    top:22px;
+    right:22px;
+    width:56px;
+    height:56px;
+  }
+
+  .back{
+    position:fixed;
+    left:16px;
+    top:auto;
+    bottom:max(16px,env(safe-area-inset-bottom));
+    margin:0;
+    width:50px;
+    height:50px;
+  }
+
+  .edge-stack{
+    position:fixed;
+    top:auto;
+    right:auto;
+    left:50%;
+    bottom:0;
+    width:70%;
+    height:54px;
+    transform:translateX(-50%);
+  }
+
+  .edge-tab{
+    top:auto;
+    right:auto;
+    bottom:calc(var(--depth) * -7px);
+    left:calc((var(--slot) - 1) * 32px);
+    width:calc(100% - ((var(--slot) - 1) * 64px));
+    height:38px;
+    border-radius:16px 16px 0 0;
+    transform:scale(calc(1 - var(--depth) * .025));
+    transform-origin:center bottom;
+  }
+
+  .edge-tab span{
+    writing-mode:horizontal-tb;
+    transform:none;
+    justify-content:flex-start;
+    padding:0 18px;
+    font-size:9px;
+  }
+
+  .edge-previous{
+    position:fixed;
+    left:50%;
+    top:0;
+    width:46%;
+    height:10px;
+    transform:translateX(-50%);
+    border-radius:0 0 10px 10px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.085),transparent);
+  }
+}
+
+@media(max-width:380px){
+  .surface-body{padding:22px}
+  .title{font-size:clamp(48px,15vw,66px)}
+  .enter{width:52px;height:52px}
+}
+
+@media(hover:hover) and (pointer:fine){
+  .enter:hover,.back:hover{
+    transform:translateY(-1px);
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .surface,.edge-tab,.edge-previous{transition:none!important}
+}
+</style>
+</head>
+
+<body>
+<main class="app" id="app">
+  <button class="back p-control" id="back" type="button" data-p-touch aria-label="Volver">
+    <svg viewBox="0 0 28 28" fill="none">
+      <path d="M23 14H5M11 8l-6 6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </button>
+
+  <div class="edge-previous" id="edgePrevious" aria-hidden="true"></div>
+  <div class="edge-stack" id="edgeStack" aria-hidden="true"></div>
+
+  <nav class="rail" id="rail" data-p-scroll="x" aria-label="Destinos"></nav>
+</main>
+
+<script src="https://juanmanuelpm.github.io/prometeo/shared/interaction/touch-first/v1/interaction.js"></script>
+
+<script>
+(() => {
+  const tree = {
+    id:"root",
+    children:[
+      {
+        id:"design",
+        title:"Design",
+        children:[
+          {id:"material",title:"Material",children:[
+            {id:"surface",title:"Surface",url:"#surface"},
+            {id:"inset",title:"Inset",url:"#inset"},
+            {id:"control",title:"Control",url:"#control"}
+          ]},
+          {id:"type",title:"Type",children:[
+            {id:"display",title:"Display",url:"#display"},
+            {id:"interface",title:"Interface",url:"#interface"},
+            {id:"mono",title:"Mono",url:"#mono"}
+          ]},
+          {id:"motion",title:"Motion",children:[
+            {id:"press",title:"Press",url:"#press"},
+            {id:"enter",title:"Enter",url:"#enter"},
+            {id:"return",title:"Return",url:"#return"}
+          ]}
+        ]
+      },
+      {
+        id:"students",
+        title:"Students",
+        children:[
+          {id:"jose",title:"José",children:[
+            {id:"math",title:"Matemática",url:"https://juanmanuelpm.github.io/jose-study/"},
+            {id:"physics",title:"Física",url:"#physics"},
+            {id:"chem",title:"Química",url:"#chem"}
+          ]},
+          {id:"sofi",title:"Sofi",url:"#sofi"},
+          {id:"tadeo",title:"Tadeo",url:"#tadeo"}
+        ]
+      },
+      {
+        id:"tools",
+        title:"Tools",
+        children:[
+          {id:"timer",title:"Timer",url:"#timer"},
+          {id:"board",title:"Board",url:"#board"},
+          {id:"notes",title:"Notes",url:"#notes"},
+          {id:"player",title:"Player",url:"#player"}
+        ]
+      },
+      {
+        id:"projects",
+        title:"Projects",
+        children:[
+          {id:"adriana",title:"Adriana",url:"#adriana"},
+          {id:"prometeo",title:"Prometeo",url:"https://juanmanuelpm.github.io/prometeo/"},
+          {id:"labs",title:"Labs",url:"#labs"}
+        ]
+      },
+      {
+        id:"calendar",
+        title:"Calendar",
+        children:[
+          {id:"today",title:"Today",url:"#today"},
+          {id:"week",title:"Week",url:"#week"},
+          {id:"month",title:"Month",url:"#month"}
+        ]
+      },
+      {
+        id:"archive",
+        title:"Archive",
+        children:[
+          {id:"current",title:"Current",url:"#current"},
+          {id:"history",title:"History",url:"#history"},
+          {id:"older",title:"Older",url:"#older"}
+        ]
+      }
+    ]
+  };
+
+  const rail = document.getElementById("rail");
+  const stackEl = document.getElementById("edgeStack");
+  const previousEl = document.getElementById("edgePrevious");
+  const back = document.getElementById("back");
+
+  const frames = [{node:tree,active:0}];
+  let cards = [];
+  let active = 0;
+  let raf = 0;
+
+  const portrait = () =>
+    matchMedia("(orientation:portrait) and (max-width:900px)").matches;
+
+  const reduced = () =>
+    matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function frame(){ return frames[frames.length-1]; }
+
+  function children(){ return frame().node.children || []; }
+
+  function render(){
+    rail.innerHTML = "";
+    cards = [];
+    active = Math.min(frame().active || 0, Math.max(0,children().length-1));
+
+    rail.dataset.pScroll = portrait() ? "y" : "x";
+
+    children().forEach((node,index) => {
+      const section = document.createElement("section");
+      section.className = "surface";
+      section.tabIndex = 0;
+      section.dataset.index = index;
+
+      const body = document.createElement("div");
+      body.className = "surface-body";
+
+      const title = document.createElement("h1");
+      title.className = "title";
+      title.textContent = node.title;
+
+      const preview = document.createElement("div");
+      preview.className = "preview";
+
+      const kids = node.children || [];
+      kids.slice(0,5).forEach(child => {
+        const line = document.createElement("div");
+        line.className = "preview-item";
+        line.textContent = child.title;
+        preview.appendChild(line);
+      });
+
+      const enter = document.createElement("button");
+      enter.className = "enter p-control";
+      enter.type = "button";
+      enter.dataset.pTouch = "";
+      enter.setAttribute("aria-label","Entrar en " + node.title);
+      enter.innerHTML = `
+        <svg viewBox="0 0 28 28" fill="none">
+          <path d="M4 14h18M16 8l6 6-6 6"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"/>
+        </svg>`;
+
+      enter.addEventListener("click",event => {
+        event.stopPropagation();
+        openNode(index);
+      });
+
+      section.addEventListener("click",event => {
+        if(event.target.closest("button")) return;
+        if(index !== active) center(index);
+      });
+
+      section.addEventListener("keydown",event => {
+        if(event.key === "Enter"){
+          event.preventDefault();
+          openNode(index);
+        }
+      });
+
+      body.append(title,preview);
+      section.append(body,enter);
+      rail.appendChild(section);
+      cards.push(section);
+    });
+
+    back.classList.toggle("is-visible",frames.length > 1);
+
+    requestAnimationFrame(() => {
+      applyState();
+      center(active,"auto");
+    });
+  }
+
+  function applyState(){
+    cards.forEach((card,index) => {
+      const d = Math.abs(index-active);
+      card.classList.toggle("is-active",d===0);
+      card.classList.toggle("is-near",d===1);
+      if(d===0) card.setAttribute("aria-current","page");
+      else card.removeAttribute("aria-current");
+    });
+
+    frame().active = active;
+    previousEl.classList.toggle("is-visible",active > 0);
+    renderEdgeStack();
+  }
+
+  function renderEdgeStack(){
+    stackEl.innerHTML = "";
+    const nodes = children();
+
+    for(let offset=1; offset<=3; offset++){
+      const node = nodes[active + offset];
+      if(!node) break;
+
+      const tab = document.createElement("div");
+      tab.className = "edge-tab";
+      tab.style.setProperty("--depth",offset-1);
+      tab.style.setProperty("--slot",offset);
+
+      const label = document.createElement("span");
+      label.textContent = node.title;
+
+      tab.appendChild(label);
+      stackEl.appendChild(tab);
+    }
+  }
+
+  function measure(){
+    if(!cards.length) return;
+
+    const center = portrait()
+      ? innerHeight / 2
+      : innerWidth / 2;
+
+    let best = active;
+    let bestDistance = Infinity;
+
+    cards.forEach((card,index) => {
+      const r = card.getBoundingClientRect();
+      const c = portrait()
+        ? r.top + r.height/2
+        : r.left + r.width/2;
+
+      const d = Math.abs(c-center);
+      if(d < bestDistance){
+        bestDistance = d;
+        best = index;
+      }
+    });
+
+    if(best !== active){
+      active = best;
+      applyState();
+    }
+  }
+
+  function requestMeasure(){
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(measure);
+  }
+
+  function center(index,behavior="smooth"){
+    active = Math.max(0,Math.min(cards.length-1,index));
+    applyState();
+
+    cards[active]?.scrollIntoView({
+      behavior:reduced() ? "auto" : behavior,
+      block:"center",
+      inline:"center"
+    });
+  }
+
+  function openNode(index){
+    const node = children()[index];
+    frame().active = index;
+
+    if(node.children?.length){
+      frames.push({node,active:0});
+      render();
+      return;
+    }
+
+    if(node.url && !node.url.startsWith("#")){
+      location.href = node.url;
+      return;
+    }
+
+    const card = cards[index];
+    if(card && card.animate && !reduced()){
+      card.animate(
+        [
+          {transform:"scale(1)"},
+          {transform:"scale(.992)"},
+          {transform:"scale(1)"}
+        ],
+        {duration:180,easing:"cubic-bezier(.2,.8,.2,1)"}
+      );
+    }
+  }
+
+  function goBack(){
+    if(frames.length <= 1) return;
+    frames.pop();
+    render();
+  }
+
+  rail.addEventListener("scroll",requestMeasure,{passive:true});
+  addEventListener("scroll",requestMeasure,{passive:true});
+  addEventListener("resize",() => {
+    rail.dataset.pScroll = portrait() ? "y" : "x";
+    requestMeasure();
+  },{passive:true});
+
+  back.addEventListener("click",goBack);
+
+  addEventListener("keydown",event => {
+    if(event.metaKey || event.ctrlKey || event.altKey) return;
+    if(["INPUT","TEXTAREA","SELECT"].includes(document.activeElement?.tagName)) return;
+
+    const previousKey = portrait() ? "ArrowUp" : "ArrowLeft";
+    const nextKey = portrait() ? "ArrowDown" : "ArrowRight";
+
+    if(event.key === previousKey){
+      event.preventDefault();
+      center(active-1);
+    }
+
+    if(event.key === nextKey){
+      event.preventDefault();
+      center(active+1);
+    }
+
+    if(event.key === "Enter"){
+      event.preventDefault();
+      openNode(active);
+    }
+
+    if(event.key === "Escape"){
+      event.preventDefault();
+      goBack();
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
