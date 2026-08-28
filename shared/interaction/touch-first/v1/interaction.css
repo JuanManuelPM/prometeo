@@ -1,0 +1,78 @@
+/* PROMETEO TOUCH-FIRST INTERACTION v1
+   Canonical interaction layer for touch, mouse and pen.
+   Principle: design for finger first; mouse emulates contact.
+*/
+
+:root{
+  --pi-hit:44px;
+  --pi-contact:30px;
+  --pi-press-scale:.985;
+  --pi-press-ms:160ms;
+  --pi-ease:cubic-bezier(.2,.8,.2,1);
+}
+
+/* Universal interactive primitive. */
+[data-p-touch]{
+  min-inline-size:var(--pi-hit);
+  min-block-size:var(--pi-hit);
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  user-select:none;
+  -webkit-user-select:none;
+}
+
+/* Native scrolling owns navigation. Never simulate scroll with pointermove. */
+[data-p-scroll="x"]{
+  overflow-x:auto;
+  overflow-y:hidden;
+  overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-x;
+}
+
+[data-p-scroll="y"]{
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior-y:contain;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-y;
+}
+
+/* Press feedback begins on contact, not delayed click. */
+[data-p-touch][data-p-pressed="true"]{
+  transform:scale(var(--pi-press-scale));
+}
+
+/* Mouse/pen contact proxy. Hidden for actual touch because the finger is already visible. */
+.p-contact-indicator{
+  position:fixed;
+  z-index:2147483000;
+  left:0;
+  top:0;
+  width:var(--pi-contact);
+  height:var(--pi-contact);
+  border-radius:50%;
+  pointer-events:none;
+  opacity:0;
+  transform:translate(-50%,-50%) scale(.72);
+  background:color-mix(in srgb,currentColor 10%,transparent);
+  border:1px solid color-mix(in srgb,currentColor 28%,transparent);
+  box-shadow:0 3px 14px rgba(0,0,0,.16);
+  transition:opacity 90ms linear,transform var(--pi-press-ms) var(--pi-ease);
+}
+
+html[data-p-contact="mouse"] .p-contact-indicator,
+html[data-p-contact="pen"] .p-contact-indicator{
+  opacity:.72;
+  transform:translate(-50%,-50%) scale(1);
+}
+
+/* Hover is enhancement only and never the sole affordance. */
+@media(hover:hover) and (pointer:fine){
+  [data-p-hover-lift]:hover{transform:translateY(-1px)}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .p-contact-indicator{transition:none!important}
+  [data-p-touch]{transition:none!important}
+}
