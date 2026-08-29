@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Prometeo — Edge Stack Final v2</title>
+<style>
+:root{--page:#DED4C6}
+*{
+  box-sizing:border-box;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none;
+  -webkit-user-select:none;
+}
+html,body{
+  margin:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:var(--page);
+}
+body{
+  display:grid;
+  place-items:center;
+  padding:18px;
+  font-family:"Arial Narrow","Helvetica Neue Condensed","Liberation Sans Narrow",Arial,sans-serif;
+}
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 18% 14%,rgba(255,255,255,.33),transparent 34%),
+    radial-gradient(circle at 82% 78%,rgba(76,61,25,.065),transparent 38%),
+    repeating-linear-gradient(0deg,rgba(76,61,25,.017) 0,rgba(76,61,25,.017) 1px,transparent 1px,transparent 4px),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.018) 0,rgba(255,255,255,.018) 1px,transparent 1px,transparent 5px);
+  mix-blend-mode:multiply;
+  opacity:.72;
+}
+#widget{
+  position:relative;
+  width:min(94vw,980px);
+  height:min(84dvh,700px);
+  min-height:450px;
+  overflow:hidden;
+  touch-action:none;
+  cursor:grab;
+  isolation:isolate;
+  border-radius:clamp(15px,1.65vw,23px);
+  background:#E5D7C4;
+  box-shadow:
+    0 3px 2px rgba(255,255,255,.40) inset,
+    0 -1px 1px rgba(76,61,25,.09) inset,
+    0 18px 36px rgba(76,61,25,.11),
+    0 5px 12px rgba(76,61,25,.07);
+}
+#widget.dragging{cursor:grabbing}
+#widget::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:9000;
+  pointer-events:none;
+  border-radius:inherit;
+  background:
+    repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0,rgba(255,255,255,.022) 1px,transparent 1px,transparent 4px),
+    repeating-linear-gradient(90deg,rgba(76,61,25,.018) 0,rgba(76,61,25,.018) 1px,transparent 1px,transparent 5px);
+  opacity:.48;
+  mix-blend-mode:soft-light;
+}
+#widget::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:9001;
+  pointer-events:none;
+  border-radius:inherit;
+  box-shadow:
+    inset 0 0 0 1px rgba(76,61,25,.09),
+    inset 8px 8px 18px rgba(255,255,255,.045),
+    inset -8px -8px 16px rgba(76,61,25,.025);
+}
+.layer{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  will-change:transform;
+}
+.layer svg{
+  width:100%;
+  height:100%;
+  display:block;
+  overflow:visible;
+}
+.transition-train,
+.transition-curtain{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+}
+.transition-train{z-index:210}
+.transition-curtain{z-index:220}
+.transition-train svg,
+.transition-curtain svg{
+  width:100%;
+  height:100%;
+  display:block;
+  overflow:visible;
+}
+.page-label,.page-prefix-segment{
+  font-family:"Arial Narrow","Helvetica Neue Condensed","Liberation Sans Narrow",Arial,sans-serif;
+  font-weight:900;
+  font-stretch:condensed;
+  letter-spacing:-1.35px;
+  dominant-baseline:middle;
+  text-anchor:start;
+}
+@media(max-width:600px){
+  body{padding:8px}
+  #widget{
+    width:calc(100vw - 16px);
+    height:calc(100dvh - 16px);
+    min-height:0;
+  }
+}
+</style>
+</head>
+<body>
+<div id="widget"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  const widget=document.getElementById('widget');
+
+  const COLOR_PAIRS=[
+    {bg:'#4C3D19',fg:'#E5D7C4'},
+    {bg:'#354024',fg:'#E5D7C4'},
+    {bg:'#889063',fg:'#4C3D19'},
+    {bg:'#CFBB99',fg:'#354024'},
+    {bg:'#E5D7C4',fg:'#4C3D19'},
+    {bg:'#546745',fg:'#F7F6E3'},
+    {bg:'#F7F6E3',fg:'#4E351E'},
+    {bg:'#4E351E',fg:'#F7F6E3'},
+    {bg:'#6C5234',fg:'#F7F6E3'},
+    {bg:'#AFA386',fg:'#4E351E'},
+    {bg:'#766DA7',fg:'#F7F6E3'},
+    {bg:'#15191E',fg:'#F7F6E3'},
+    {bg:'#7A9663',fg:'#15191E'},
+    {bg:'#556842',fg:'#F7F6E3'},
+    {bg:'#A0AE91',fg:'#15191E'},
+    {bg:'#792E29',fg:'#F7F6E3'},
+    {bg:'#24201D',fg:'#D9D4C8'},
+    {bg:'#565538',fg:'#F7F6E3'},
+    {bg:'#ABA38F',fg:'#24201D'},
+    {bg:'#D9D4C8',fg:'#565538'},
+    {bg:'#CFA96F',fg:'#342B22'},
+    {bg:'#ECE1C9',fg:'#793B2B'},
+    {bg:'#793B2B',fg:'#ECE1C9'},
+    {bg:'#514C34',fg:'#ECE1C9'},
+    {bg:'#342B22',fg:'#CFA96F'},
+    {bg:'#546745',fg:'#ECE1C9'},
+    {bg:'#4E351E',fg:'#CFA96F'},
+    {bg:'#6C5234',fg:'#D9D4C8'},
+    {bg:'#792E29',fg:'#D9D4C8'},
+    {bg:'#565538',fg:'#CFA96F'},
+    {bg:'#15191E',fg:'#A0AE91'},
+    {bg:'#A0AE91',fg:'#4E351E'}
+  ];
+
+  const pair=(id)=>COLOR_PAIRS[
+    ((id%COLOR_PAIRS.length)+COLOR_PAIRS.length)%COLOR_PAIRS.length
+  ];
+
+  let NODE_SEQ=0;
+
+  function page(title,pairId,children=[]){
+    const c=pair(pairId);
+    return {
+      id:`node-${++NODE_SEQ}`,
+      title,
+      pairId,
+      bg:c.bg,
+      fg:c.fg,
+      runtimeBg:null,
+      runtimeFg:null,
+      lastChildIndex:0,
+      children
+    };
+  }
+
+  /*
+    Deep folder test data.
+    Slash is semantic: it is derived from children, never stored with spaces.
+  */
+  const ROOT=[
+    page('Prometeo',0,[
+      page('proyectos',10,[
+        page('José',12,[
+          page('matemática',20),
+          page('física',11),
+          page('química',22),
+          page('biología',14),
+          page('historia',26)
+        ]),
+        page('Arte',15,[
+          page('obras',21),
+          page('biografía',5),
+          page('contacto',23),
+          page('archivo',8),
+          page('BADA',29)
+        ]),
+        page('Workspace',17,[
+          page('notas',3),
+          page('fuentes',25),
+          page('cambios',28),
+          page('historial',6),
+          page('estado',13)
+        ]),
+        page('Educación',20),
+        page('Diseño',31)
+      ]),
+      page('archivos',20),
+      page('herramientas',14),
+      page('sistema',22,[
+        page('memoria',19,[
+          page('current',5),
+          page('historia',16),
+          page('recetas',13),
+          page('evidencia',24),
+          page('archivo',11)
+        ]),
+        page('workers',7),
+        page('publicación',12),
+        page('config',18),
+        page('kernel',30)
+      ]),
+      page('mapa',17)
+    ]),
+    page('materia',5),
+    page('árbol',12,[
+      page('raíces',9),
+      page('ramas',23),
+      page('hojas',21),
+      page('anillos',7),
+      page('semillas',20)
+    ]),
+    page('fuego',15),
+    page('memoria',19,[
+      page('actual',18),
+      page('historia',16),
+      page('recetas',13),
+      page('evidencia',24),
+      page('archivo',11)
+    ]),
+    page('arquitectura',27),
+    page('ritmo',10),
+    page('sistema',29),
+    page('materia oscura',6),
+    page('constelación',31),
+    page('archivo',8),
+    page('movimiento',28),
+    page('origen',25),
+    page('taller',30),
+    page('mapa',26)
+  ];
+
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  const ease=t=>1-Math.pow(1-t,3);
+
+  const measureCanvas=document.createElement('canvas');
+  const measureCtx=measureCanvas.getContext('2d');
+
+  /*
+    ROOT is the already-tested mirrored starting state.
+    EVERY folder interior is side='left'.
+
+    This is the final directional law:
+      ENTER always reveals content from the physical RIGHT.
+      EXIT always restores toward the physical LEFT.
+      Depth NEVER alternates orientation.
+  */
+  const frames=[
+    {
+      items:ROOT,
+      index:0,
+      side:'right',
+      pathSegments:[],
+      viaNode:null
+    }
+  ];
+
+  let leafOpen=false;
+
+  let state='IDLE';
+  let axis='NONE';
+  let gesture=null;
+  let verticalQ=0;
+  let action=null;
+  let actionProgress=0;
+  let transitionContext=null;
+  let wheelLock=false;
+  let resizeTimer=null;
+  let G=null;
+  let renderSeq=0;
+
+  let discreteGateUntil=0;
+
+  function discreteInputReady(){
+    return performance.now()>=
+      discreteGateUntil;
+  }
+
+  function armDiscreteGate(ms){
+    discreteGateUntil=
+      performance.now()+ms;
+  }
+
+  /*
+    ============================================================
+    UNIVERSAL INPUT + SOUND
+    ============================================================
+
+    Keyboard aliases:
+      Up    = ArrowUp / W / K
+      Down  = ArrowDown / S / J
+      Left  = ArrowLeft / A / H   -> EXIT
+      Right = ArrowRight / D / L  -> ENTER
+
+    Vim grammar is H J K L:
+      H left, J down, K up, L right.
+
+    Sound grammar:
+      - one acoustic Brown-switch family
+      - subtle directional variation
+      - never delays controls
+      - blocked/no-change actions are silent
+      - sound is emitted only after a committed movement
+  */
+
+  const SOUND_PROFILE='BROWN';
+  let audioCtx=null;
+  let noiseBuffer=null;
+
+  function ensureAudio(){
+    if(audioCtx){
+      if(audioCtx.state==='suspended'){
+        audioCtx.resume().catch(()=>{});
+      }
+      return audioCtx;
+    }
+
+    const AC=
+      window.AudioContext ||
+      window.webkitAudioContext;
+
+    if(!AC){
+      return null;
+    }
+
+    try{
+      audioCtx=new AC();
+
+      const sampleRate=
+        audioCtx.sampleRate;
+
+      const length=
+        Math.max(
+          1,
+          Math.floor(
+            sampleRate*.075
+          )
+        );
+
+      noiseBuffer=
+        audioCtx.createBuffer(
+          1,
+          length,
+          sampleRate
+        );
+
+      const data=
+        noiseBuffer.getChannelData(0);
+
+      /*
+        Slightly "oily" mechanical noise:
+        correlated random values instead of clean white-noise clicks.
+      */
+      let last=0;
+
+      for(let i=0;i<length;i++){
+        const white=
+          Math.random()*2-1;
+
+        last=
+          last*.70+
+          white*.30;
+
+        data[i]=
+          last*.82+
+          white*.18;
+      }
+
+      return audioCtx;
+    }catch{
+      audioCtx=null;
+      noiseBuffer=null;
+      return null;
+    }
+  }
+
+  function brownParams(direction){
+    const map={
+      up:{
+        band:1120,
+        low:104,
+        pan:-.03,
+        gain:.105
+      },
+      down:{
+        band:820,
+        low:82,
+        pan:.03,
+        gain:.115
+      },
+      left:{
+        band:950,
+        low:91,
+        pan:-.18,
+        gain:.12
+      },
+      right:{
+        band:760,
+        low:76,
+        pan:.18,
+        gain:.11
+      }
+    };
+
+    return map[direction] || map.up;
+  }
+
+  function playBrownSwitch(direction){
+    if(SOUND_PROFILE!=='BROWN'){
+      return;
+    }
+
+    const ctx=
+      ensureAudio();
+
+    if(
+      !ctx ||
+      !noiseBuffer
+    ){
+      return;
+    }
+
+    const p=
+      brownParams(direction);
+
+    const now=
+      ctx.currentTime;
+
+    /*
+      Mechanical body: filtered correlated noise.
+    */
+    const noise=
+      ctx.createBufferSource();
+
+    noise.buffer=
+      noiseBuffer;
+
+    const band=
+      ctx.createBiquadFilter();
+
+    band.type='bandpass';
+    band.frequency.setValueAtTime(
+      p.band,
+      now
+    );
+    band.Q.setValueAtTime(
+      1.15,
+      now
+    );
+
+    const lowpass=
+      ctx.createBiquadFilter();
+
+    lowpass.type='lowpass';
+    lowpass.frequency.setValueAtTime(
+      2600,
+      now
+    );
+
+    const noiseGain=
+      ctx.createGain();
+
+    noiseGain.gain.setValueAtTime(
+      .0001,
+      now
+    );
+    noiseGain.gain.exponentialRampToValueAtTime(
+      p.gain,
+      now+.004
+    );
+    noiseGain.gain.exponentialRampToValueAtTime(
+      .0001,
+      now+.058
+    );
+
+    /*
+      Low tactile thock. Very short, deliberately non-musical.
+    */
+    const thock=
+      ctx.createOscillator();
+
+    thock.type='triangle';
+    thock.frequency.setValueAtTime(
+      p.low,
+      now
+    );
+    thock.frequency.exponentialRampToValueAtTime(
+      Math.max(
+        55,
+        p.low*.72
+      ),
+      now+.045
+    );
+
+    const thockGain=
+      ctx.createGain();
+
+    thockGain.gain.setValueAtTime(
+      .0001,
+      now
+    );
+    thockGain.gain.exponentialRampToValueAtTime(
+      .055,
+      now+.003
+    );
+    thockGain.gain.exponentialRampToValueAtTime(
+      .0001,
+      now+.052
+    );
+
+    /*
+      Tiny tactile bump before the body, like a Brown switch leaf.
+    */
+    const bump=
+      ctx.createOscillator();
+
+    bump.type='square';
+    bump.frequency.setValueAtTime(
+      p.band*1.45,
+      now
+    );
+
+    const bumpGain=
+      ctx.createGain();
+
+    bumpGain.gain.setValueAtTime(
+      .020,
+      now
+    );
+    bumpGain.gain.exponentialRampToValueAtTime(
+      .0001,
+      now+.010
+    );
+
+    const master=
+      ctx.createGain();
+
+    master.gain.setValueAtTime(
+      .72,
+      now
+    );
+
+    let destination=
+      master;
+
+    if(ctx.createStereoPanner){
+      const pan=
+        ctx.createStereoPanner();
+
+      pan.pan.setValueAtTime(
+        p.pan,
+        now
+      );
+
+      master.connect(pan);
+      pan.connect(ctx.destination);
+    }else{
+      master.connect(
+        ctx.destination
+      );
+    }
+
+    noise.connect(band);
+    band.connect(lowpass);
+    lowpass.connect(noiseGain);
+    noiseGain.connect(destination);
+
+    thock.connect(thockGain);
+    thockGain.connect(destination);
+
+    bump.connect(bumpGain);
+    bumpGain.connect(destination);
+
+    noise.start(now);
+    noise.stop(now+.065);
+
+    thock.start(now);
+    thock.stop(now+.060);
+
+    bump.start(now);
+    bump.stop(now+.012);
+  }
+
+  function horizontalSoundForAction(kind){
+    return (
+      kind==='ENTER_FOLDER' ||
+      kind==='ENTER_LEAF'
+    )
+      ? 'right'
+      : 'left';
+  }
+
+  function currentFrame(){
+    return frames[frames.length-1];
+  }
+
+  function normalizeIndex(i,n){
+    return ((i%n)+n)%n;
+  }
+
+  function nodeAt(frame,offset){
+    return frame.items[
+      normalizeIndex(
+        frame.index+offset,
+        frame.items.length
+      )
+    ];
+  }
+
+  function currentNode(){
+    return nodeAt(currentFrame(),0);
+  }
+
+  function isFolder(node){
+    return !!(
+      node &&
+      node.children &&
+      node.children.length
+    );
+  }
+
+  /*
+    Semantic path remains:
+      Prometeo/
+      Prometeo/sistema/
+      Prometeo/sistema/memoria/
+
+    Rendering adds ONE small stable gap after each accumulated prefix.
+    The slash itself remains attached to the folder name.
+  */
+  function localLabel(node){
+    return node.title+(isFolder(node)?'/':'');
+  }
+
+  /*
+    ============================================================
+    UNIVERSAL TERMINAL SLOT
+    ============================================================
+
+    Folder-ness may change ONLY:
+      1. whether "/" is painted
+      2. what ENTER does
+
+    It may NOT change:
+      - physical label width
+      - page boundary
+      - 4:2:1 geometry
+      - vertical positions
+      - curve geometry
+      - mirror projection
+
+    Every label owns:
+      [ TITLE ][ TERMINAL SLOT ]
+
+    Folder:
+      slash is painted at the start of the terminal slot.
+
+    Leaf:
+      terminal slot remains empty.
+
+    Therefore changing a node from leaf -> folder with the same title
+    must leave every page boundary pixel-identical.
+  */
+  function titleText(node){
+    return node?.title || '';
+  }
+
+  function terminalSlotWidth(){
+    const slashW=
+      measure(
+        '/',
+        G.fontSize
+      );
+
+    const opticalTail=
+      clamp(
+        G.fontSize*.085,
+        2,
+        4
+      );
+
+    return slashW+opticalTail;
+  }
+
+  function physicalLabelWidth(node){
+    return (
+      measure(
+        titleText(node),
+        G.fontSize
+      )+
+      terminalSlotWidth()
+    );
+  }
