@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prometeo V25 candidate loader</title></head>
+<body>
+<script>
+(async()=>{
+  const m=await fetch('./SOURCE_MANIFEST.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('manifest '+r.status);return r.json()});
+  const b64=await fetch('./'+m.storage.filename,{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error(m.storage.filename+' '+r.status);return r.text()});
+  if(!('DecompressionStream' in window)) throw new Error('This browser lacks DecompressionStream(gzip)');
+  const raw=atob(b64.trim()); const bytes=new Uint8Array(raw.length); for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+  const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  const text=await new Response(stream).text();
+  document.open(); document.write(text); document.close();
+})().catch(err=>{document.body.innerHTML='<pre style="white-space:pre-wrap;font:14px monospace;padding:24px">V25 loader error: '+String(err)+'</pre>'});
+</script>
+</body>
+</html>
