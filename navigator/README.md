@@ -38,7 +38,9 @@ La ruta estable del navegador debe ser:
 
 `https://juanmanuelpm.github.io/prometeo/navigator/`
 
-Las páginas que ya tenían URL se conservan donde están. Los artefactos recuperados fueron publicados en rutas locales del mismo sitio. Los 29 destinos del catálogo son páginas vivas y se abren dentro del terminal fullscreen; el agarre lateral conserva Exact Back.
+Las páginas que ya tenían URL se conservan donde están. Los artefactos recuperados fueron publicados en rutas locales del mismo sitio. Los 31 destinos del catálogo son páginas vivas y se abren dentro del terminal fullscreen; el agarre lateral conserva Exact Back.
+
+Las cuatro referencias históricas que no conservaban bytes recuperables —Sofi submarino, Página Materia de José, Student Visual Vault y Controles V9— se reconstruyeron como ejemplos explícitamente identificados. Visual Vault reutiliza los dos archivos reales de stickers como vistas internas y evita duplicar sus recursos.
 
 ## Verificación local
 
