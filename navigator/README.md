@@ -7,9 +7,9 @@ Este paquete conserva la física de `PROMETEO_V50_VERTICAL_X_LOCK_RIGHTMOST_SEAL
 - `navigator/index.html`: física espacial, transición a página terminal y Exact Back.
 - `catalog/tree.json`: jerarquía semántica. Sólo contiene IDs de página.
 - `catalog/pages.json`: registro de páginas, URLs, estado y procedencia.
-- Cada página: código y recursos propios en su repositorio o ruta estable.
+- Cada página: código y recursos propios en su repositorio o en `pages/`.
 
-El navegador no contiene contenido de José, Adriana, Study ni PageKit. Sólo resuelve un ID estable y abre su URL.
+El navegador no acopla contenido de José, Adriana, Study ni PageKit a su física. Sólo resuelve un ID estable y abre su URL; los HTML históricos sin publicación previa viven ahora bajo `pages/` para que también sean destinos reales.
 
 ## Ley de colapso
 
@@ -38,7 +38,7 @@ La ruta estable del navegador debe ser:
 
 `https://juanmanuelpm.github.io/prometeo/navigator/`
 
-Las páginas que ya tienen URL se conservan donde están. Los artefactos recuperados se muestran como tales y no se presentan falsamente como enlaces públicos. Cuando uno se publique, sólo se agrega `href` y se cambia su estado a `live` en `pages.json`; no se toca el árbol ni el navegador.
+Las páginas que ya tenían URL se conservan donde están. Los artefactos recuperados fueron publicados en rutas locales del mismo sitio. Los 29 destinos del catálogo son páginas vivas y se abren dentro del terminal fullscreen; el agarre lateral conserva Exact Back.
 
 ## Verificación local
 

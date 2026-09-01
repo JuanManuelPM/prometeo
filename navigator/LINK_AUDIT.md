@@ -22,7 +22,7 @@
 
 El repositorio `JuanManuelPM/prometeo` es público, tiene GitHub Pages habilitado y publica desde la rama `main`. `JuanManuelPM/jose-study` también es público y tiene Pages habilitado. `JuanManuelPM/prometeo-education` es privado y no tiene Pages; no puede aportar URLs públicas por sí solo.
 
-## Recuperados, todavía sin URL pública
+## Recuperados y publicados bajo el navegador
 
 - `PROMETEO_STUDENT_WORLD_MAP_FIXED_OPEN_ME.html`
 - `JOSE_RECUPERACION_ALGEBRA_FINAL.html`
@@ -36,5 +36,12 @@ El repositorio `JuanManuelPM/prometeo` es público, tiene GitHub Pages habilitad
 - `PROMETEO_CANONICAL_SINGLE_PAGE_V02.html`
 - `PROMETEO_DAILY_PAGE_FACTORY_v02_VISUAL_IDEAS_SHOWROOM_CANDIDATE.html`
 - `theme_specimen_v01.html`
+- `calendar/index.html`, extraído del retorno de Calendar Month/Week/Day
+- `MAPA_STICKERS_JOSE.html`
+- `ORGANIZADOR_STICKERS_JOSE.html`
 
-Sus enlaces de Library están registrados en `catalog/pages.json` como procedencia y descarga, no como si fueran publicaciones web.
+Estos archivos conservan su procedencia en `catalog/pages.json`, pero ahora se publican bajo `pages/` y se abren como destinos terminales reales. No dependen de enlaces temporales de descarga.
+
+## Referencias sin entregable identificable
+
+Las conversaciones también mencionan Student World submarino de Sofi, Página Materia de José, Visual Vault y Controles táctiles/paletas V9. La búsqueda histórica no devolvió un HTML, ZIP o URL inequívoco para esas cuatro referencias. No se fabricaron sustitutos ni enlaces falsos; el registro queda preparado para sumarlas sin tocar el motor cuando reaparezca un entregable verificable.

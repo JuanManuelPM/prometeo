@@ -1,0 +1,5210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Prometeo Page Kit — v37 laser dot tracking fix candidate</title>
+
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [["\\(", "\\)"]], displayMath: [["\\[", "\\]"]] },
+      svg: { fontCache: "global" }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+  <style>
+    :root {
+      --bg:#f4efe6;
+      --paper:#fffdf8;
+      --soft:#faf5ec;
+      --ink:#15120f;
+      --muted:#756c62;
+      --line:#ded3c3;
+      --accent:#b9822d;
+      --laser:#d92d20;
+      --ok:#15803d;
+      --bad:#b91c1c;
+      --blue:#1d4ed8;
+      --soft-red:#ffe0dc;
+      --soft-blue:#dce9ff;
+      --soft-green:#dff4ea;
+      --soft-gold:#ffe7a6;
+      --shadow:0 24px 80px rgba(45,31,12,.10);
+      --max:1120px;
+      --slide-pad:clamp(26px,4vw,54px);
+      --title-size:clamp(32px,4.55vw,60px);
+      --lead-size:clamp(15px,1.55vw,20px);
+    }
+
+    * { box-sizing:border-box; }
+
+    body {
+      margin:0;
+      min-height:100svh;
+      background:
+        radial-gradient(circle at 10% 10%, rgba(185,130,45,.12), transparent 28%),
+        radial-gradient(circle at 90% 10%, rgba(47,123,98,.09), transparent 28%),
+        var(--bg);
+      color:var(--ink);
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      line-height:1.42;
+    }
+
+    button { font:inherit; }
+
+    .page {
+      min-height:100svh;
+      display:grid;
+      place-items:center;
+      padding:clamp(12px,2.4vw,26px);
+    }
+
+    .app {
+      width:min(var(--max),100%);
+      display:grid;
+      gap:12px;
+    }
+
+    .brand {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-weight:950;
+      letter-spacing:-.04em;
+      font-size:19px;
+    }
+
+    .mark {
+      width:36px;
+      height:36px;
+      border-radius:13px;
+      background:var(--ink);
+      color:white;
+      display:grid;
+      place-items:center;
+      font-weight:950;
+    }
+
+    .stage-card {
+      background:rgba(255,253,248,.94);
+      border:1px solid var(--line);
+      border-radius:28px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      display:grid;
+      grid-template-rows:auto 1fr auto;
+    }
+
+    .slide-head {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:10px 12px;
+      border-bottom:1px solid var(--line);
+      background:rgba(250,245,236,.72);
+    }
+
+    .slide-title {
+      min-width:0;
+      display:grid;
+      gap:2px;
+    }
+
+    .slide-title strong {
+      font-size:15px;
+      letter-spacing:-.03em;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .slide-title span {
+      color:var(--muted);
+      font-size:12px;
+      font-weight:800;
+    }
+
+    .toolbar-wrap {
+      position:relative;
+      display:grid;
+      justify-items:end;
+    }
+
+    .toolbar {
+      display:inline-flex;
+      align-items:center;
+      gap:1px;
+      padding:3px;
+      border:1px solid rgba(222,211,195,.9);
+      border-radius:999px;
+      background:rgba(255,253,248,.80);
+      backdrop-filter:blur(10px);
+    }
+
+    .tool-btn {
+      width:29px;
+      height:29px;
+      border:0;
+      border-radius:999px;
+      background:transparent;
+      color:var(--muted);
+      display:grid;
+      place-items:center;
+      cursor:pointer;
+      padding:0;
+    }
+
+    .tool-btn:hover { background:rgba(21,18,15,.05); }
+
+    .tool-btn svg {
+      width:16px;
+      height:16px;
+      display:block;
+      stroke:currentColor;
+      fill:none;
+      stroke-width:2.05;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
+
+    .tool-btn.active {
+      color:var(--ink);
+      background:var(--soft-gold);
+      box-shadow:inset 0 0 0 1px rgba(185,130,45,.24);
+    }
+
+    .tool-btn.laser.active { color:var(--laser); background:var(--soft-red); }
+    .tool-btn.pen.active,
+    .tool-btn.line.active { color:var(--ink); background:var(--soft-blue); }
+    .tool-btn.eraser.active { color:var(--bad); background:var(--soft-red); }
+    .tool-btn.highlighter.active { color:#8a650e; background:var(--soft-gold); }
+    .tool-btn.board.active { color:var(--blue); background:var(--soft-blue); }
+
+    .tool-separator {
+      width:1px;
+      height:16px;
+      background:rgba(222,211,195,.9);
+      margin:0 2px;
+    }
+
+    .popover {
+      position:absolute;
+      top:calc(100% + 8px);
+      right:0;
+      z-index:60;
+      min-width:220px;
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:rgba(255,253,248,.97);
+      box-shadow:0 16px 44px rgba(45,31,12,.12);
+      padding:10px;
+      display:none;
+      gap:10px;
+    }
+
+    .popover.visible { display:grid; }
+
+    .popover-title {
+      color:var(--muted);
+      font-size:11px;
+      font-weight:950;
+      letter-spacing:.1em;
+      text-transform:uppercase;
+    }
+
+    .choice-row {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+
+    .choice-section-title {
+      width:100%;
+      margin-top:4px;
+      color:var(--muted);
+      font-size:10px;
+      font-weight:950;
+      letter-spacing:.1em;
+      text-transform:uppercase;
+    }
+
+    .mode-row {
+      width:100%;
+      display:flex;
+      align-items:center;
+      gap:7px;
+      flex-wrap:wrap;
+    }
+
+    .color-choice {
+      width:25px;
+      height:25px;
+      border:2px solid white;
+      border-radius:999px;
+      outline:1px solid rgba(21,18,15,.22);
+      cursor:pointer;
+    }
+
+    .color-choice.active { outline:3px solid rgba(185,130,45,.35); }
+
+    .size-choice {
+      width:30px;
+      min-width:30px;
+      min-height:28px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:white;
+      color:var(--muted);
+      cursor:pointer;
+      font-size:12px;
+      font-weight:850;
+      padding:0;
+      display:grid;
+      place-items:center;
+    }
+
+    .size-choice.active {
+      background:var(--ink);
+      color:white;
+      border-color:var(--ink);
+    }
+
+    .duration-choice {
+      min-width:42px;
+      min-height:28px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:white;
+      color:var(--muted);
+      cursor:pointer;
+      font-size:12px;
+      font-weight:850;
+      padding:0 9px;
+      display:grid;
+      place-items:center;
+    }
+
+    .duration-choice.active {
+      background:var(--laser);
+      color:white;
+      border-color:var(--laser);
+    }
+
+    .mode-choice {
+      min-width:56px;
+      min-height:28px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:white;
+      color:var(--muted);
+      cursor:pointer;
+      font-size:12px;
+      font-weight:850;
+      padding:0 9px;
+      display:grid;
+      place-items:center;
+    }
+
+    .mode-choice.active {
+      background:var(--ink);
+      color:white;
+      border-color:var(--ink);
+    }
+
+    /* v28 polish: compact line modes + universal color picker */
+    .mode-row {
+      gap:6px;
+      flex-wrap:nowrap;
+    }
+
+    .mode-choice {
+      min-width:34px;
+      width:34px;
+      min-height:30px;
+      padding:0;
+      font-size:15px;
+      line-height:1;
+    }
+
+    .mode-choice[title="Marcas"] {
+      font-size:13px;
+    }
+
+    .palette-tabs {
+      width:100%;
+      display:flex;
+      gap:6px;
+      margin-bottom:4px;
+    }
+
+    .palette-tab {
+      min-height:24px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:white;
+      color:var(--muted);
+      cursor:pointer;
+      font-size:10px;
+      font-weight:900;
+      letter-spacing:.02em;
+      padding:0 8px;
+    }
+
+    .palette-tab.active {
+      background:var(--soft);
+      color:var(--ink);
+      border-color:rgba(185,130,45,.32);
+    }
+
+    .palette-color-row {
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    /* v28 polish: ruled answer panel with aligned writing lines */
+    .paper-sheet {
+      --rule-step:32px;
+      --rule-color:#e2d6c6;
+      background:#fffdf8;
+      padding:clamp(18px,3vw,28px);
+      gap:0;
+    }
+
+    .paper-sheet h2 {
+      line-height:var(--rule-step);
+      margin:0 0 10px;
+    }
+
+    .paper-line {
+      min-height:var(--rule-step);
+      line-height:var(--rule-step);
+      margin:0;
+      padding:0;
+      border-bottom:1px solid var(--rule-color);
+      display:block;
+      overflow-x:auto;
+      white-space:nowrap;
+    }
+
+
+
+    /* v29 fix: compact line type select instead of ugly icon bubbles */
+    .line-mode-select {
+      width:100%;
+      min-height:32px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background:#fffdf8;
+      color:var(--ink);
+      padding:0 10px;
+      font-size:12px;
+      font-weight:850;
+      outline:none;
+      box-shadow:0 2px 10px rgba(55,35,15,.05);
+    }
+
+    .line-mode-select:focus {
+      border-color:rgba(185,130,45,.65);
+      box-shadow:0 0 0 3px rgba(185,130,45,.16);
+    }
+
+    .curve-help.compact {
+      font-size:11px;
+      line-height:1.35;
+      padding:7px 9px;
+      border-radius:12px;
+      background:rgba(185,130,45,.09);
+      border:1px solid rgba(185,130,45,.18);
+    }
+
+
+    .slide-wrap {
+      padding:clamp(14px,2.4vw,24px);
+      display:grid;
+      place-items:center;
+      background:linear-gradient(135deg,rgba(185,130,45,.06),transparent 48%),var(--paper);
+    }
+
+    .slide-stage {
+      width:min(100%,1040px);
+      aspect-ratio:16/9;
+      max-height:calc(100svh - 198px);
+      min-height:410px;
+      position:relative;
+      border:1px solid var(--line);
+      border-radius:24px;
+      overflow:hidden;
+      background:white;
+    }
+
+    .slide {
+      position:absolute;
+      inset:0;
+      display:none;
+      background:#fffdf8;
+      overflow:hidden;
+    }
+
+    .slide.active { display:block; }
+
+    .slide-scroll {
+      height:100%;
+      overflow-y:auto;
+      overscroll-behavior:contain;
+      background:#fffdf8;
+    }
+
+    .slide-scroll::-webkit-scrollbar,
+    .whiteboard-scroll::-webkit-scrollbar { width:10px; }
+
+    .slide-scroll::-webkit-scrollbar-track,
+    .whiteboard-scroll::-webkit-scrollbar-track { background:#f2eadf; }
+
+    .slide-scroll::-webkit-scrollbar-thumb,
+    .whiteboard-scroll::-webkit-scrollbar-thumb {
+      background:#d8c8b3;
+      border-radius:999px;
+      border:2px solid #f2eadf;
+    }
+
+    .slide-hero {
+      min-height:100%;
+      position:relative;
+      display:grid;
+      align-content:center;
+      gap:clamp(14px,2.2vw,24px);
+      padding:var(--slide-pad);
+      background:
+        radial-gradient(circle at 86% 18%,rgba(185,130,45,.13),transparent 24%),
+        linear-gradient(135deg,#fffdf8,#fbf6ed);
+      isolation:isolate;
+    }
+
+    .slide-hero > *:not(.draw-layer) {
+      position:relative;
+      z-index:1;
+    }
+
+    .slide-extra {
+      border-top:1px solid var(--line);
+      padding:clamp(24px,4vw,46px);
+      background:linear-gradient(180deg,#fffdf8,#faf5ec);
+      display:grid;
+      gap:16px;
+    }
+
+    .scroll-cue {
+      position:absolute;
+      left:50%;
+      bottom:14px;
+      transform:translateX(-50%);
+      z-index:3;
+      border:1px solid rgba(222,211,195,.86);
+      background:rgba(255,253,248,.78);
+      border-radius:999px;
+      color:var(--muted);
+      font-size:12px;
+      font-weight:850;
+      padding:7px 10px;
+      pointer-events:none;
+    }
+
+    .kicker {
+      display:inline-flex;
+      width:fit-content;
+      align-items:center;
+      gap:8px;
+      color:var(--muted);
+      font-size:clamp(10px,1.2vw,12px);
+      font-weight:950;
+      letter-spacing:.11em;
+      text-transform:uppercase;
+    }
+
+    .kicker::before {
+      content:"";
+      width:8px;
+      height:8px;
+      border-radius:999px;
+      background:var(--accent);
+    }
+
+    h1,h2,h3,p { margin:0; }
+
+    h1 {
+      max-width:780px;
+      font-size:var(--title-size);
+      line-height:.96;
+      letter-spacing:-.06em;
+      text-wrap:balance;
+    }
+
+    .lead {
+      max-width:720px;
+      color:var(--muted);
+      font-size:var(--lead-size);
+      line-height:1.38;
+    }
+
+    .slide-grid {
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(340px,.85fr);
+      gap:clamp(16px,3vw,32px);
+      align-items:center;
+    }
+
+    .widget-stack { display:grid; gap:14px; }
+
+    .widget {
+      border:1px solid var(--line);
+      border-radius:24px;
+      background:rgba(255,255,255,.82);
+      overflow:hidden;
+      min-width:0;
+    }
+
+    .widget > summary {
+      list-style:none;
+      cursor:pointer;
+      min-height:58px;
+      padding:13px 16px;
+      display:grid;
+      grid-template-columns:34px 1fr auto;
+      gap:12px;
+      align-items:center;
+      font-weight:950;
+      letter-spacing:-.035em;
+    }
+
+    .widget > summary::-webkit-details-marker { display:none; }
+
+    .widget > summary::after {
+      content:"↓";
+      color:var(--muted);
+      transition:transform .16s ease;
+      font-weight:950;
+    }
+
+    .widget[open] > summary::after { transform:rotate(180deg); }
+
+    .widget-icon {
+      width:34px;
+      height:34px;
+      border-radius:13px;
+      background:var(--soft);
+      display:grid;
+      place-items:center;
+      color:var(--muted);
+    }
+
+    .widget-icon svg {
+      width:17px;
+      height:17px;
+      stroke:currentColor;
+      fill:none;
+      stroke-width:2.1;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
+
+    .widget-subtitle {
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      font-weight:800;
+      letter-spacing:0;
+      margin-top:2px;
+    }
+
+    .widget-body {
+      border-top:1px solid var(--line);
+      padding:clamp(16px,2.4vw,24px);
+      display:grid;
+      gap:14px;
+    }
+
+    .exercise-brief,
+    .prompt-card,
+    .formula-card {
+      border:1px solid var(--line);
+      border-radius:20px;
+      background:#fffdf8;
+      padding:clamp(16px,2.2vw,22px);
+      display:grid;
+      gap:12px;
+      min-width:0;
+    }
+
+    .exercise-brief strong {
+      font-size:clamp(17px,1.8vw,24px);
+      line-height:1.12;
+      letter-spacing:-.035em;
+    }
+
+    .prompt-card h2 {
+      font-size:clamp(18px,1.8vw,24px);
+      letter-spacing:-.025em;
+      line-height:1.22;
+      font-weight:850;
+      text-wrap:pretty;
+    }
+
+    .exercise-meta {
+      display:flex;
+      flex-wrap:wrap;
+      gap:7px;
+    }
+
+    .exercise-chip,
+    .tag {
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:var(--soft);
+      color:var(--muted);
+      font-size:10px;
+      font-weight:900;
+      padding:3px 7px;
+    }
+
+    .formula-disclosure {
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:rgba(250,245,236,.68);
+      overflow:hidden;
+    }
+
+    .formula-disclosure summary {
+      cursor:pointer;
+      list-style:none;
+      padding:12px 14px;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:center;
+      color:var(--muted);
+      font-size:13px;
+      font-weight:950;
+    }
+
+    .formula-disclosure summary::-webkit-details-marker { display:none; }
+
+    .formula-disclosure summary::after {
+      content:"↓";
+      color:var(--muted);
+      font-weight:950;
+      transition:transform .16s ease;
+    }
+
+    .formula-disclosure[open] summary::after { transform:rotate(180deg); }
+
+    .formula-disclosure .formula-card {
+      border:0;
+      border-top:1px solid var(--line);
+      border-radius:0;
+      background:#fffdf8;
+    }
+
+    .formula-label {
+      color:var(--muted);
+      font-size:12px;
+      font-weight:950;
+      letter-spacing:.1em;
+      text-transform:uppercase;
+    }
+
+    .math-display {
+      width:100%;
+      max-width:100%;
+      min-width:0;
+      overflow-x:auto;
+      overflow-y:hidden;
+      padding:6px 0 2px;
+      scrollbar-width:thin;
+    }
+
+    .math-display mjx-container {
+      max-width:100% !important;
+      min-width:0 !important;
+      overflow-x:auto !important;
+      overflow-y:hidden !important;
+      padding-bottom:3px;
+    }
+
+    .math-display mjx-container[jax="SVG"] {
+      font-size:clamp(1.05rem,2.4vw,1.82rem) !important;
+    }
+
+    .formula-note {
+      border-top:1px solid var(--line);
+      padding-top:12px;
+      color:var(--muted);
+      font-size:clamp(13px,1.3vw,15px);
+    }
+
+    .exercise-list {
+      display:grid;
+      gap:12px;
+    }
+
+    .exercise-item > summary {
+      grid-template-columns:34px 1fr auto;
+      align-items:start;
+    }
+
+    .exercise-title {
+      display:grid;
+      gap:4px;
+      min-width:0;
+    }
+
+    .exercise-title strong {
+      font-size:clamp(14px, 1.35vw, 17px);
+      line-height:1.25;
+      letter-spacing:-.02em;
+      font-weight:950;
+    }
+
+    .exercise-title span {
+      color:var(--muted);
+      font-size:12px;
+      font-weight:800;
+      letter-spacing:0;
+    }
+
+    .embed-mini {
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:
+        linear-gradient(#e4dacb 1px,transparent 1px),
+        linear-gradient(90deg,#e4dacb 1px,transparent 1px),
+        #fffdf8;
+      background-size:28px 28px;
+      min-height:180px;
+      display:grid;
+      place-items:center;
+      text-align:center;
+      padding:18px;
+    }
+
+    .embed-mini strong {
+      display:block;
+      font-size:clamp(24px, 3vw, 36px);
+      letter-spacing:-.06em;
+      line-height:.95;
+      margin-bottom:6px;
+    }
+
+    .geogebra-frame {
+      width:100%;
+      min-height:330px;
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:#fffdf8;
+    }
+
+    .smart-tip-list {
+      display:grid;
+      gap:8px;
+    }
+
+    .smart-tip {
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:rgba(255,253,248,.92);
+      padding:11px 12px;
+      color:var(--muted);
+      font-size:14px;
+      font-weight:760;
+    }
+
+    .smart-tip strong {
+      color:var(--ink);
+      font-size:14px;
+      letter-spacing:-.02em;
+    }
+
+    .exercise-grid {
+      display:grid;
+      grid-template-columns:minmax(0,.82fr) minmax(360px,1.18fr);
+      gap:14px;
+      align-items:start;
+    }
+
+    .step-list { display:grid; gap:10px; }
+
+    .step-detail {
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:rgba(255,253,248,.86);
+      overflow:hidden;
+    }
+
+    .step-detail summary {
+      cursor:pointer;
+      list-style:none;
+      display:grid;
+      grid-template-columns:34px 1fr auto;
+      gap:10px;
+      align-items:center;
+      padding:12px;
+      font-weight:900;
+      letter-spacing:-.03em;
+    }
+
+    .step-detail summary::-webkit-details-marker { display:none; }
+
+    .step-detail summary::after {
+      content:"↓";
+      color:var(--muted);
+      font-weight:950;
+      transition:transform .16s ease;
+    }
+
+    .step-detail[open] summary::after { transform:rotate(180deg); }
+
+    .step-body {
+      padding:0 12px 13px 56px;
+      color:var(--muted);
+      font-size:14px;
+      display:grid;
+      gap:8px;
+    }
+
+    .step-hint {
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:var(--soft);
+      padding:10px;
+      color:var(--ink);
+      font-weight:760;
+    }
+
+    .num {
+      width:28px;
+      height:28px;
+      border-radius:10px;
+      background:var(--ink);
+      color:white;
+      display:grid;
+      place-items:center;
+      font-size:13px;
+      font-weight:950;
+    }
+
+    .paper-sheet {
+      min-width:0;
+      max-height:560px;
+      overflow:auto;
+      border:1px solid #d8c8b3;
+      border-radius:18px;
+      background:
+        repeating-linear-gradient(to bottom,#fffdf8,#fffdf8 30px,#ece2d4 31px);
+      padding:clamp(18px,3vw,28px);
+      box-shadow:0 14px 32px rgba(45,31,12,.08);
+      display:grid;
+      gap:14px;
+    }
+
+    .paper-sheet h2 {
+      font-family:Georgia,"Times New Roman",serif;
+      letter-spacing:-.04em;
+    }
+
+    .paper-line {
+      font-family:Georgia,"Times New Roman",serif;
+      font-size:clamp(18px,2vw,24px);
+      line-height:1.28;
+      overflow-x:auto;
+      white-space:nowrap;
+      padding-bottom:2px;
+    }
+
+
+    .demo-grid {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:12px;
+    }
+
+    .demo-card {
+      border:1px solid var(--line);
+      border-radius:20px;
+      background:#fffdf8;
+      padding:16px;
+      display:grid;
+      gap:8px;
+      min-width:0;
+    }
+
+    .demo-card strong {
+      font-size:clamp(17px,1.8vw,23px);
+      line-height:1.05;
+      letter-spacing:-.04em;
+    }
+
+    .demo-card p,
+    .demo-card li {
+      color:var(--muted);
+      font-size:14px;
+      margin:0;
+    }
+
+    .demo-card ul {
+      margin:0;
+      padding-left:18px;
+      display:grid;
+      gap:5px;
+    }
+
+    .flow-line {
+      display:grid;
+      gap:8px;
+    }
+
+    .flow-step {
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:rgba(255,253,248,.86);
+      padding:12px 14px;
+      display:grid;
+      grid-template-columns:34px 1fr;
+      gap:10px;
+      align-items:start;
+    }
+
+    .flow-step strong {
+      display:block;
+      font-size:15px;
+      letter-spacing:-.025em;
+    }
+
+    .flow-step span {
+      color:var(--muted);
+      font-size:13px;
+      font-weight:760;
+    }
+
+    .schema-card {
+      border:1px solid var(--line);
+      border-radius:20px;
+      background:#15120f;
+      color:#fffdf8;
+      padding:18px;
+      overflow:auto;
+      max-height:420px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;
+      font-size:12px;
+      line-height:1.45;
+      white-space:pre;
+    }
+
+    .component-matrix {
+      display:grid;
+      gap:8px;
+    }
+
+    .matrix-row {
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:#fffdf8;
+      padding:11px 12px;
+      display:grid;
+      grid-template-columns:minmax(120px,.7fr) minmax(0,1fr) auto;
+      gap:10px;
+      align-items:center;
+    }
+
+    .matrix-row strong {
+      font-size:14px;
+      letter-spacing:-.025em;
+    }
+
+    .matrix-row span {
+      color:var(--muted);
+      font-size:13px;
+      font-weight:760;
+    }
+
+    .status-pill {
+      width:fit-content;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:var(--soft);
+      padding:4px 8px;
+      color:var(--muted);
+      font-size:11px;
+      font-weight:950;
+      white-space:nowrap;
+    }
+
+    .status-pill.stable {
+      background:#e9f7ee;
+      color:var(--ok);
+      border-color:rgba(21,128,61,.24);
+    }
+
+    .status-pill.beta {
+      background:#fff4d3;
+      color:#8a650e;
+      border-color:rgba(185,130,45,.24);
+    }
+
+    .mini-board {
+      border:1px solid var(--line);
+      border-radius:20px;
+      min-height:240px;
+      background:
+        linear-gradient(rgba(120,108,92,.10) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(120,108,92,.10) 1px, transparent 1px),
+        #fffdf8;
+      background-size:24px 24px;
+      position:relative;
+      overflow:hidden;
+      padding:18px;
+    }
+
+    .mini-board::before {
+      content:"";
+      position:absolute;
+      left:9%;
+      right:9%;
+      top:50%;
+      border-top:2px solid rgba(21,18,15,.50);
+    }
+
+    .mini-board::after {
+      content:"";
+      position:absolute;
+      top:11%;
+      bottom:11%;
+      left:50%;
+      border-left:2px solid rgba(21,18,15,.50);
+    }
+
+    .mini-board-note {
+      position:relative;
+      z-index:2;
+      width:max-content;
+      max-width:70%;
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:rgba(255,253,248,.92);
+      padding:10px 12px;
+      font-weight:900;
+      color:var(--muted);
+      box-shadow:0 12px 24px rgba(45,31,12,.08);
+    }
+
+    @media (max-width:900px) {
+      .demo-grid { grid-template-columns:1fr; }
+      .matrix-row { grid-template-columns:1fr; }
+    }
+
+
+    /* SAFE THEME LAYER
+       Only light themes for now. Dark mode stays out until it passes specimen QA.
+       Components inherit existing semantic tokens instead of knowing each theme. */
+    :root {
+      --code-bg:#1c1712;
+      --code-ink:#fff4df;
+      --code-line:#c9b89f;
+      --grid-minor:rgba(120,108,92,.18);
+      --grid-major:rgba(185,130,45,.26);
+      --canvas-bg:#fffdf8;
+      --badge-bg:#15120f;
+      --badge-ink:#fffdf8;
+    }
+
+    .theme-btn {
+      min-width:31px;
+      height:31px;
+      border:0;
+      border-radius:999px;
+      background:transparent;
+      color:var(--muted);
+      display:grid;
+      place-items:center;
+      cursor:pointer;
+      font-weight:950;
+      padding:0;
+    }
+
+    .theme-btn:hover { background:rgba(21,18,15,.05); }
+
+    .theme-popover {
+      position:absolute;
+      top:calc(100% + 8px);
+      right:0;
+      z-index:70;
+      width:min(330px, calc(100vw - 24px));
+      border:1px solid var(--line);
+      border-radius:22px;
+      background:var(--paper);
+      box-shadow:0 18px 48px rgba(45,31,12,.14);
+      padding:12px;
+      display:none;
+      gap:10px;
+    }
+
+    .theme-popover.visible { display:grid; }
+
+    .theme-option {
+      width:100%;
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:var(--paper);
+      color:var(--ink);
+      cursor:pointer;
+      padding:10px;
+      display:grid;
+      grid-template-columns:54px 1fr;
+      gap:10px;
+      text-align:left;
+      align-items:center;
+    }
+
+    .theme-option.active {
+      box-shadow:inset 0 0 0 2px color-mix(in srgb, var(--accent) 42%, transparent);
+      border-color:color-mix(in srgb, var(--accent) 42%, var(--line));
+    }
+
+    .theme-swatch {
+      height:38px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      overflow:hidden;
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+    }
+
+    .theme-swatch span { display:block; }
+
+    .theme-option strong {
+      display:block;
+      font-size:13px;
+      font-weight:950;
+      letter-spacing:-.02em;
+      margin-bottom:2px;
+    }
+
+    .theme-option small {
+      color:var(--muted);
+      font-size:11px;
+      font-weight:850;
+      line-height:1.25;
+    }
+
+    .schema-card {
+      background:var(--code-bg) !important;
+      color:var(--code-ink) !important;
+      border-color:var(--code-line) !important;
+    }
+
+    .num {
+      background:var(--badge-bg) !important;
+      color:var(--badge-ink) !important;
+    }
+
+    .block-grid {
+      background:
+        linear-gradient(var(--grid-minor) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px),
+        linear-gradient(var(--grid-major) 2px, transparent 2px),
+        linear-gradient(90deg, var(--grid-major) 2px, transparent 2px) !important;
+      background-color:var(--canvas-bg) !important;
+      background-size:24px 24px, 24px 24px, 120px 120px, 120px 120px !important;
+    }
+
+    .lined-safe {
+      background:
+        repeating-linear-gradient(to bottom, var(--canvas-bg), var(--canvas-bg) 31px, var(--grid-minor) 32px) !important;
+    }
+
+    .resource-actions {
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+    }
+
+    .resource-btn {
+      min-height:36px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:var(--paper);
+      color:var(--ink);
+      padding:0 13px;
+      cursor:pointer;
+      font-size:13px;
+      font-weight:900;
+      text-decoration:none;
+      display:inline-grid;
+      place-items:center;
+    }
+
+    .resource-btn.primary {
+      background:var(--ink);
+      border-color:var(--ink);
+      color:var(--paper);
+    }
+
+    .geogebra-slot.loaded iframe {
+      width:100%;
+      min-height:330px;
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:var(--paper);
+    }
+
+    .curve-help {
+      border:1px dashed var(--line);
+      border-radius:16px;
+      background:var(--soft);
+      padding:10px 12px;
+      color:var(--muted);
+      font-size:13px;
+      font-weight:850;
+    }
+
+    .curve-help kbd {
+      border:1px solid var(--line);
+      border-bottom-width:2px;
+      border-radius:8px;
+      background:var(--paper);
+      color:var(--ink);
+      padding:1px 6px;
+      font-size:12px;
+      font-weight:950;
+    }
+
+    .safe-note {
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:var(--soft);
+      padding:14px;
+      color:var(--muted);
+      font-size:14px;
+      font-weight:800;
+    }
+
+    /* FLASHCARDS */
+
+    .flashcard-shell {
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(270px,.52fr);
+      gap:14px;
+      align-items:start;
+    }
+
+    .flashcard-main {
+      border:1px solid var(--line);
+      border-radius:22px;
+      background:#fffdf8;
+      padding:clamp(18px,3vw,28px);
+      display:grid;
+      gap:14px;
+      min-width:0;
+    }
+
+    .flashcard-meta {
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      color:var(--muted);
+      font-size:13px;
+      font-weight:900;
+    }
+
+    .tag-row {
+      display:flex;
+      flex-wrap:wrap;
+      gap:5px;
+      min-height:0;
+    }
+
+    .flash-question {
+      font-size:clamp(26px,3vw,38px);
+      line-height:1.02;
+      letter-spacing:-.052em;
+      text-wrap:balance;
+    }
+
+    .flash-extra-actions {
+      width:fit-content;
+      display:inline-grid;
+      grid-template-columns:1fr 1fr;
+      gap:3px;
+      align-items:center;
+      padding:3px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:rgba(250,245,236,.86);
+    }
+
+    .tiny-action {
+      min-height:32px;
+      border:0;
+      border-radius:999px;
+      background:transparent;
+      color:var(--muted);
+      cursor:pointer;
+      font-size:12px;
+      font-weight:950;
+      padding:0 13px;
+      transition:background .14s ease, color .14s ease, box-shadow .14s ease;
+    }
+
+    .tiny-action.active {
+      background:#fffdf8;
+      color:var(--ink);
+      box-shadow:0 2px 8px rgba(45,31,12,.08), inset 0 0 0 1px rgba(222,211,195,.66);
+    }
+
+    .reveal-panel {
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:rgba(250,245,236,.64);
+      padding:16px;
+      color:var(--muted);
+      font-weight:760;
+      display:none;
+      gap:8px;
+      align-content:start;
+      max-height:min(42vh, 340px);
+      overflow:auto;
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.42);
+    }
+
+    .reveal-panel.visible {
+      display:grid;
+    }
+
+    .reveal-panel.hint {
+      background:rgba(255,231,166,.34);
+    }
+
+    .reveal-panel.answer {
+      background:#fffdf8;
+      color:var(--ink);
+    }
+
+    .reveal-label {
+      display:none;
+    }
+
+    .reveal-text {
+      font-size:clamp(15px, 1.55vw, 18px);
+      line-height:1.48;
+    }
+
+    .flash-actions {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:8px;
+    }
+
+    .mini-btn {
+      min-height:38px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:white;
+      color:var(--ink);
+      padding:0 12px;
+      cursor:pointer;
+      font-weight:900;
+      white-space:nowrap;
+      font-size:13px;
+    }
+
+    .mini-btn:hover { background:#faf5ec; }
+    .mini-btn.good { background:#e9f7ee; border-color:rgba(21,128,61,.28); color:var(--ok); }
+    .mini-btn.bad { background:#ffd9d9; border-color:rgba(185,28,28,.45); color:var(--bad); }
+
+    .flash-status {
+      min-height:28px;
+      border-radius:999px;
+      padding:6px 10px;
+      background:rgba(250,245,236,.78);
+      color:var(--muted);
+      font-size:12px;
+      font-weight:900;
+      display:inline-flex;
+      align-items:center;
+      width:fit-content;
+    }
+
+    .flash-status.good { background:#e9f7ee; color:var(--ok); }
+    .flash-status.bad { background:#fff0f0; color:var(--bad); }
+
+    .flash-side {
+      border:1px solid var(--line);
+      border-radius:22px;
+      background:rgba(250,245,236,.84);
+      padding:16px;
+      display:grid;
+      gap:12px;
+      align-content:start;
+      min-width:0;
+    }
+
+    .flash-modes {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+    }
+
+    .mode-btn {
+      border:1px solid var(--line);
+      background:#fffdf8;
+      border-radius:999px;
+      min-height:34px;
+      padding:0 10px;
+      cursor:pointer;
+      color:var(--muted);
+      font-size:12px;
+      font-weight:900;
+    }
+
+    .mode-btn.active {
+      background:var(--soft-blue);
+      color:var(--ink);
+      border-color:rgba(29,78,216,.18);
+    }
+
+    .score-grid {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:8px;
+    }
+
+    .score-box {
+      background:#fffdf8;
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:10px;
+      min-width:0;
+    }
+
+    .score-box strong {
+      display:block;
+      font-size:23px;
+      line-height:1;
+      letter-spacing:-.05em;
+    }
+
+    .score-box span {
+      color:var(--muted);
+      font-size:12px;
+      font-weight:850;
+    }
+
+    .flash-progress {
+      height:8px;
+      border-radius:999px;
+      background:#eadfce;
+      overflow:hidden;
+    }
+
+    .flash-progress-fill {
+      height:100%;
+      width:0%;
+      background:var(--accent);
+      border-radius:inherit;
+      transition:width .18s ease;
+    }
+
+    .card-map {
+      display:grid;
+      gap:7px;
+      max-height:260px;
+      overflow:auto;
+    }
+
+    .card-map-btn {
+      border:1px solid var(--line);
+      border-left-width:5px;
+      border-radius:14px;
+      background:#fffdf8;
+      color:var(--muted);
+      padding:9px 10px;
+      cursor:pointer;
+      text-align:left;
+      font-size:12px;
+      font-weight:850;
+      line-height:1.25;
+      display:grid;
+      gap:4px;
+    }
+
+    .card-map-btn.current {
+      color:var(--ink);
+      border-color:rgba(185,130,45,.45);
+      box-shadow:inset 0 0 0 1px rgba(185,130,45,.12);
+    }
+
+    .card-map-btn.good {
+      border-left-color:var(--ok);
+      background:#effaf2;
+    }
+
+    .card-map-btn.bad {
+      border-left-color:var(--bad);
+      background:#fff0f0;
+      color:#7f1d1d;
+    }
+
+    .card-map-status {
+      font-size:11px;
+      font-weight:950;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+    }
+
+    /* DRAWING */
+
+    .draw-layer {
+      position:absolute;
+      inset:0;
+      pointer-events:auto;
+      cursor:none;
+      z-index:2;
+    }
+
+    .draw-layer.write-mode { cursor:crosshair; }
+    .draw-layer.erase-mode { cursor:cell; }
+
+    canvas {
+      width:100%;
+      height:100%;
+      display:block;
+      touch-action:none;
+    }
+
+    .laser-dot {
+      position:absolute;
+      width:10px;
+      height:10px;
+      border-radius:999px;
+      background:var(--laser);
+      box-shadow:0 0 16px rgba(217,45,32,.30);
+      transform:translate(-50%,-50%);
+      pointer-events:none;
+      display:none;
+      z-index:5;
+    }
+
+    .laser-dot.visible { display:block; }
+
+    /* WHITEBOARD */
+
+    .whiteboard-overlay {
+      position:absolute;
+      inset:0;
+      z-index:40;
+      display:none;
+      background:#fffdf8;
+    }
+
+    .whiteboard-overlay.visible { display:block; }
+
+    .board-label {
+      position:absolute;
+      top:12px;
+      left:12px;
+      z-index:5;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:rgba(255,253,248,.90);
+      padding:8px 12px;
+      color:var(--muted);
+      font-size:12px;
+      font-weight:900;
+      pointer-events:none;
+      backdrop-filter:blur(8px);
+    }
+
+
+    /* v30 polish: whiteboard tabs + pasted objects */
+    .board-tabs {
+      position:absolute;
+      top:52px;
+      left:12px;
+      right:12px;
+      z-index:7;
+      display:flex;
+      align-items:center;
+      gap:7px;
+      overflow-x:auto;
+      padding:4px 2px 8px;
+      pointer-events:auto;
+      scrollbar-width:thin;
+    }
+
+    .board-tab {
+      min-height:30px;
+      max-width:180px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:rgba(255,253,248,.92);
+      color:var(--muted);
+      cursor:pointer;
+      font-size:12px;
+      font-weight:950;
+      padding:0 11px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      box-shadow:0 8px 22px rgba(45,31,12,.08);
+      backdrop-filter:blur(8px);
+    }
+
+    .board-tab.active {
+      color:var(--ink);
+      background:rgba(185,130,45,.15);
+      border-color:rgba(185,130,45,.35);
+    }
+
+    .board-tab-add {
+      flex:0 0 auto;
+      min-height:30px;
+      border:1px solid rgba(185,130,45,.34);
+      border-radius:999px;
+      background:rgba(255,253,248,.94);
+      color:var(--ink);
+      cursor:pointer;
+      font-size:12px;
+      font-weight:950;
+      padding:0 11px;
+      box-shadow:0 8px 22px rgba(45,31,12,.08);
+      backdrop-filter:blur(8px);
+    }
+
+    .board-paste-hint {
+      position:absolute;
+      left:12px;
+      bottom:12px;
+      z-index:7;
+      max-width:min(560px, calc(100% - 24px));
+      border:1px solid rgba(185,130,45,.22);
+      border-radius:999px;
+      background:rgba(255,253,248,.86);
+      color:var(--muted);
+      font-size:11px;
+      font-weight:800;
+      padding:7px 11px;
+      pointer-events:none;
+      backdrop-filter:blur(8px);
+    }
+
+
+    .whiteboard-scroll {
+      position:absolute;
+      inset:0;
+      overflow-y:auto;
+      overscroll-behavior:contain;
+      background:#fffdf8;
+    }
+
+    .whiteboard-content {
+      position:relative;
+      min-height:100%;
+      height:820px;
+      background:#fffdf8;
+    }
+
+    #whiteboardCanvas {
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      touch-action:none;
+      z-index:3;
+      pointer-events:none;
+    }
+
+
+    /* v36 fix: keep laser dot visible above pasted images/canvas */
+    #boardLayer {
+      z-index:6;
+    }
+
+    #boardLayer .laser-dot {
+      z-index:8;
+    }
+
+    .board-templates {
+      position:absolute;
+      inset:0;
+      z-index:1;
+      pointer-events:none;
+    }
+
+    .board-block {
+      position:absolute;
+      left:0;
+      right:0;
+      height:820px;
+      overflow:hidden;
+    }
+
+    .board-block-label {
+      position:absolute;
+      top:14px;
+      left:14px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:rgba(255,253,248,.92);
+      color:var(--muted);
+      font-size:11px;
+      font-weight:950;
+      padding:4px 8px;
+      z-index:4;
+    }
+
+    .block-divider {
+      position:absolute;
+      left:0;
+      right:0;
+      border-top:2px dashed rgba(185,130,45,.25);
+    }
+
+    .block-grid {
+      background:
+        linear-gradient(rgba(120,108,92,.085) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(120,108,92,.085) 1px, transparent 1px),
+        linear-gradient(rgba(185,130,45,.12) 2px, transparent 2px),
+        linear-gradient(90deg, rgba(185,130,45,.12) 2px, transparent 2px);
+      background-size:24px 24px, 24px 24px, 120px 120px, 120px 120px;
+    }
+
+    .cartesian-safe {
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:min(98%, 800px);
+      aspect-ratio:1/1;
+      transform:translate(-50%,-50%);
+    }
+
+    .cartesian-safe svg {
+      width:100%;
+      height:100%;
+      display:block;
+      overflow:visible;
+    }
+
+    .cartesian-safe .minor { stroke:rgba(120,108,92,.18); stroke-width:1; }
+    .cartesian-safe .axis { stroke:rgba(21,18,15,.66); stroke-width:2.4; }
+    .cartesian-safe .tick { stroke:rgba(21,18,15,.52); stroke-width:1.8; }
+    .cartesian-safe text {
+      fill:var(--muted);
+      font-size:18px;
+      font-weight:800;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    }
+
+    .numberline-safe {
+      position:absolute;
+      left:7%;
+      right:7%;
+      top:50%;
+      height:100px;
+      transform:translateY(-50%);
+    }
+
+    .numberline-safe svg {
+      width:100%;
+      height:100%;
+      overflow:visible;
+    }
+
+    .numberline-safe .axis { stroke:rgba(21,18,15,.66); stroke-width:3; }
+    .numberline-safe .tick { stroke:rgba(21,18,15,.52); stroke-width:2; }
+    .numberline-safe text {
+      fill:var(--muted);
+      font-size:15px;
+      font-weight:800;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    }
+
+    .table-safe {
+      background:
+        linear-gradient(#d9cebe 1px, transparent 1px),
+        linear-gradient(90deg, #d9cebe 1px, transparent 1px);
+      background-size:96px 54px;
+    }
+
+    .timeline-safe::before {
+      content:"";
+      position:absolute;
+      left:7%;
+      right:7%;
+      top:50%;
+      height:3px;
+      background:rgba(21,18,15,.58);
+    }
+
+    .timeline-safe .node {
+      position:absolute;
+      top:calc(50% - 8px);
+      width:16px;
+      height:16px;
+      border-radius:999px;
+      border:3px solid rgba(21,18,15,.52);
+      background:#fffdf8;
+    }
+
+    .timeline-safe .slot {
+      position:absolute;
+      width:110px;
+      height:44px;
+      transform:translateX(-50%);
+      border:1px dashed rgba(21,18,15,.28);
+      border-radius:14px;
+      background:rgba(255,253,248,.56);
+    }
+
+    .timeline-safe .slot.top { bottom:calc(50% + 26px); }
+    .timeline-safe .slot.bottom { top:calc(50% + 26px); }
+
+    .add-space-bottom {
+      position:absolute;
+      left:50%;
+      bottom:14px;
+      transform:translateX(-50%) translateY(18px);
+      z-index:8;
+      min-height:38px;
+      border:1px solid rgba(185,130,45,.34);
+      border-radius:999px;
+      background:rgba(255,253,248,.94);
+      color:var(--ink);
+      cursor:pointer;
+      font-size:13px;
+      font-weight:950;
+      padding:0 16px;
+      box-shadow:0 12px 32px rgba(45,31,12,.13);
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .14s ease, transform .14s ease;
+      backdrop-filter:blur(8px);
+    }
+
+    .add-space-bottom.visible {
+      opacity:1;
+      pointer-events:auto;
+      transform:translateX(-50%) translateY(0);
+    }
+
+    .add-space-menu {
+      position:absolute;
+      left:50%;
+      bottom:60px;
+      transform:translateX(-50%) translateY(12px);
+      z-index:8;
+      display:none;
+      gap:7px;
+      flex-wrap:wrap;
+      justify-content:center;
+      width:min(520px, calc(100% - 28px));
+      padding:9px;
+      border:1px solid var(--line);
+      border-radius:22px;
+      background:rgba(255,253,248,.96);
+      box-shadow:0 14px 36px rgba(45,31,12,.14);
+      backdrop-filter:blur(8px);
+    }
+
+    .add-space-menu.visible { display:flex; }
+
+    .add-space-menu button {
+      min-height:34px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:#fffdf8;
+      color:var(--ink);
+      cursor:pointer;
+      font-size:12px;
+      font-weight:900;
+      padding:0 12px;
+      white-space:nowrap;
+    }
+
+    .add-space-menu button:hover { background:var(--soft); }
+
+    .bottom-bar {
+      display:grid;
+      grid-template-columns:auto 1fr auto;
+      gap:12px;
+      align-items:center;
+      padding:12px 14px;
+      border-top:1px solid var(--line);
+      background:rgba(250,245,236,.72);
+    }
+
+    .nav-btn {
+      min-height:38px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:white;
+      color:var(--ink);
+      padding:0 14px;
+      cursor:pointer;
+      font-weight:900;
+      white-space:nowrap;
+    }
+
+    .nav-btn.primary {
+      background:var(--ink);
+      color:white;
+      border-color:var(--ink);
+    }
+
+    .nav-btn:disabled {
+      opacity:.38;
+      cursor:not-allowed;
+    }
+
+    .progress {
+      min-width:0;
+      display:grid;
+      gap:7px;
+    }
+
+    .progress-text {
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      color:var(--muted);
+      font-size:13px;
+      font-weight:850;
+    }
+
+    .bar {
+      height:8px;
+      border-radius:999px;
+      background:#eadfce;
+      overflow:hidden;
+    }
+
+    .fill {
+      height:100%;
+      width:0%;
+      border-radius:inherit;
+      background:var(--accent);
+      transition:width .2s ease;
+    }
+
+    @media (max-width:900px) {
+      .slide-grid,.exercise-grid,.flashcard-shell { grid-template-columns:1fr; }
+
+      .slide-stage {
+        min-height:540px;
+        aspect-ratio:auto;
+        max-height:calc(100svh - 170px);
+      }
+    }
+
+    @media (max-width:780px) {
+      .page { display:block; }
+      .bottom-bar { grid-template-columns:1fr; }
+      .nav-btn { width:100%; }
+      .slide-head { align-items:flex-start; flex-direction:column; }
+      .toolbar-wrap { align-self:flex-end; }
+    }
+
+    @media (max-width:520px) {
+      .page { padding:10px; }
+      .stage-card { border-radius:22px; }
+      .slide-hero { padding:22px 18px 82px; }
+      h1 {
+        font-size:clamp(30px,10vw,46px);
+        line-height:1;
+        letter-spacing:-.055em;
+      }
+      .slide-stage { min-height:590px; }
+      .flash-actions { grid-template-columns:1fr; }
+      .popover { min-width:164px; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- v37 candidate: laser dot tracks during selected image drag/resize. No visual redesign, no toolbar/whiteboard rebuild. -->
+  <main class="page">
+    <div class="app">
+      <header>
+        <div class="brand">
+          <span class="mark">π</span>
+          <span>Prometeo Page Kit</span>
+        </div>
+      </header>
+
+      <section class="stage-card">
+        <header class="slide-head">
+          <div class="slide-title">
+            <strong id="currentTitle">Prometeo Page Kit</strong>
+            <span id="currentSubtitle">Slide 1 · idea universal</span>
+          </div>
+
+          <div class="toolbar-wrap">
+            <div class="toolbar" aria-label="Herramientas">
+              <button class="tool-btn laser active" id="laserBtn" type="button" title="Láser">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.6"></circle><path d="M12 5v2M12 17v2M5 12h2M17 12h2"></path></svg>
+              </button>
+
+              <button class="tool-btn highlighter" id="highlightBtn" type="button" title="Resaltador">
+                <svg viewBox="0 0 24 24"><path d="M5 17h14"></path><path d="M8 14l6-8 3 2-6 8"></path></svg>
+              </button>
+
+              <button class="tool-btn pen" id="penBtn" type="button" title="Lápiz">
+                <svg viewBox="0 0 24 24"><path d="M4 20l4-1 10-10-3-3L5 16l-1 4z"></path><path d="M13 8l3 3"></path></svg>
+              </button>
+
+              <button class="tool-btn line" id="lineBtn" type="button" title="Línea recta">
+                <svg viewBox="0 0 24 24"><path d="M5 19L19 5"></path><circle cx="5" cy="19" r="1.5"></circle><circle cx="19" cy="5" r="1.5"></circle></svg>
+              </button>
+
+              <button class="tool-btn eraser" id="eraserBtn" type="button" title="Goma">
+                <svg viewBox="0 0 24 24"><path d="M7 21h10"></path><path d="M5 15l7-7 6 6-7 7H7l-2-2z"></path><path d="M12 8l4-4 5 5-4 4"></path></svg>
+              </button>
+
+              <button class="tool-btn board" id="whiteboardBtn" type="button" title="Whiteboard">
+                <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="12" rx="2"></rect><path d="M8 21h8"></path><path d="M12 17v4"></path></svg>
+              </button>
+
+              <button class="theme-btn" id="themeBtn" type="button" title="Tema">⚙</button>
+
+              <span class="tool-separator"></span>
+
+              <button class="tool-btn" id="undoBtn" type="button" title="Deshacer">
+                <svg viewBox="0 0 24 24"><path d="M10 7L5 12l5 5"></path><path d="M6 12h9a4 4 0 0 1 0 8h-2"></path></svg>
+              </button>
+
+              <button class="tool-btn" id="clearBtn" type="button" title="Limpiar">
+                <svg viewBox="0 0 24 24"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg>
+              </button>
+            </div>
+
+            <div class="popover" id="toolPopover">
+              <div class="popover-title" id="popoverTitle">Opciones</div>
+              <div class="choice-row" id="colorChoices"></div>
+              <div class="choice-row" id="sizeChoices"></div>
+            </div>
+
+            <div class="theme-popover" id="themePopover">
+              <div class="popover-title">Tema claro estable</div>
+              <div id="themeOptions"></div>
+              <div class="safe-note">Dark mode queda afuera de esta versión hasta pasar una página specimen de contraste.</div>
+            </div>
+          </div>
+        </header>
+
+        <div class="slide-wrap">
+          <section class="slide-stage">
+            <article class="slide active" data-title="Prometeo Page Kit" data-subtitle="Slide 1 · idea universal">
+              <div class="slide-scroll">
+                <section class="slide-hero">
+                  <div class="slide-grid">
+                    <div>
+                      <div class="kicker">Sistema permanente</div>
+                      <h1>Una página final se puede tirar. El kit modular se conserva.</h1>
+                      <p class="lead">
+                        El objetivo no es solo crear una clase: es darle a cualquier IA un lenguaje de componentes,
+                        recetas, temas, tips inteligentes y reglas para construir páginas interactivas.
+                      </p>
+                    </div>
+
+                    <div class="exercise-brief">
+                      <div class="formula-label">Regla madre</div>
+                      <strong>La IA no inventa interfaz: elige receta, componentes y completa datos.</strong>
+                      <p class="formula-note">La clase es una receta. Una landing, una guía o un dashboard usan el mismo kit.</p>
+                    </div>
+                  </div>
+
+                  <span class="scroll-cue">↓ arquitectura</span>
+
+                  <div class="draw-layer">
+                    <canvas></canvas>
+                    <div class="laser-dot"></div>
+                  </div>
+                </section>
+
+                <section class="slide-extra">
+                  <div class="kicker">Arquitectura universal</div>
+
+                  <div class="demo-grid">
+                    <div class="demo-card">
+                      <strong>Core</strong>
+                      <p>Tokens visuales, layout, responsive, runtime y reglas de interacción.</p>
+                      <ul>
+                        <li>themes</li>
+                        <li>utilities</li>
+                        <li>runtime.js</li>
+                      </ul>
+                    </div>
+
+                    <div class="demo-card">
+                      <strong>Components</strong>
+                      <p>Piezas reutilizables que no pertenecen a una sola página.</p>
+                      <ul>
+                        <li>Toolbar</li>
+                        <li>RevealCard</li>
+                        <li>TaskAccordion</li>
+                      </ul>
+                    </div>
+
+                    <div class="demo-card">
+                      <strong>Recipes</strong>
+                      <p>Combinaciones listas para distintos tipos de página.</p>
+                      <ul>
+                        <li>class-player</li>
+                        <li>landing-page</li>
+                        <li>documentation</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <details class="widget" open>
+                    <summary>
+                      <span class="widget-icon"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></span>
+                      <span>Mapa del ZIP <span class="widget-subtitle">Qué se conserva y qué se descarta</span></span>
+                    </summary>
+
+                    <div class="widget-body">
+                      <div class="exercise-grid">
+                        <div class="flow-line">
+                          <div class="flow-step"><span class="num">1</span><div><strong>Sistema permanente</strong><span>componentes, temas, schemas, recetas, prompts y QA.</span></div></div>
+                          <div class="flow-step"><span class="num">2</span><div><strong>Receta elegida</strong><span>class-player, landing, dashboard, documentación o página de proyecto.</span></div></div>
+                          <div class="flow-step"><span class="num">3</span><div><strong>Salida descartable</strong><span>HTML final single-file para usar, compartir o rehacer.</span></div></div>
+                        </div>
+
+                        <pre class="schema-card">PROMETEO_PAGE_KIT/
+├─ core/
+├─ components/
+├─ themes/
+├─ recipes/
+├─ schemas/
+├─ prompts/
+├─ examples/
+└─ dist/
+   └─ generated-pages/</pre>
+                      </div>
+                    </div>
+                  </details>
+                </section>
+              </div>
+            </article>
+
+            <article class="slide" data-title="Cómo lo usa otra IA" data-subtitle="Slide 2 · flujo de generación">
+              <div class="slide-scroll">
+                <section class="slide-hero">
+                  <div class="slide-grid">
+                    <div>
+                      <div class="kicker">Flujo para otra IA</div>
+                      <h1>Primero decide la receta. Después rellena bloques.</h1>
+                      <p class="lead">
+                        El ZIP debería permitir que otra IA construya una página sin diseñar desde cero:
+                        detecta intención, elige layout, selecciona componentes y genera el HTML final.
+                      </p>
+                    </div>
+
+                    <div class="formula-card">
+                      <div class="formula-label">Prompt humano ideal</div>
+                      <p class="lead">“Usá este kit. Armame una página para explicar este proyecto.”</p>
+                      <p class="formula-note">La IA lee recetas, usa schemas y devuelve una página terminada.</p>
+                    </div>
+                  </div>
+
+                  <span class="scroll-cue">↓ recetas y schemas</span>
+
+                  <div class="draw-layer">
+                    <canvas></canvas>
+                    <div class="laser-dot"></div>
+                  </div>
+                </section>
+
+                <section class="slide-extra">
+                  <div class="kicker">Recetas reutilizables</div>
+
+                  <div class="exercise-list">
+                    <details class="widget exercise-item" open>
+                      <summary>
+                        <span class="widget-icon"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="12" rx="2"></rect><path d="M8 21h8"></path><path d="M12 17v4"></path></svg></span>
+                        <span class="exercise-title">
+                          <strong>class-player.recipe</strong>
+                          <span>slides, toolbar, whiteboard, widgets, ejercicios y flashcards</span>
+                        </span>
+                      </summary>
+                      <div class="widget-body">
+                        <div class="demo-grid">
+                          <div class="demo-card"><strong>Uso</strong><p>Clases, tutorías, presentaciones explicativas y demos guiadas.</p></div>
+                          <div class="demo-card"><strong>Componentes</strong><p>HeroPanel, Toolbar, CanvasSurface, ExerciseSet, RevealCardDeck.</p></div>
+                          <div class="demo-card"><strong>Salida</strong><p>HTML único con presentación + interacción en vivo.</p></div>
+                        </div>
+                      </div>
+                    </details>
+
+                    <details class="widget exercise-item">
+                      <summary>
+                        <span class="widget-icon"><svg viewBox="0 0 24 24"><path d="M5 19V5"></path><path d="M5 19h14"></path><path d="M8 15l4-4 3 3 4-6"></path></svg></span>
+                        <span class="exercise-title">
+                          <strong>project-page.recipe</strong>
+                          <span>landing de proyecto, explicación, recursos, roadmap y demo</span>
+                        </span>
+                      </summary>
+                      <div class="widget-body">
+                        <div class="demo-grid">
+                          <div class="demo-card"><strong>Uso</strong><p>Presentar Prometeo, una app, una investigación o un ZIP bootable.</p></div>
+                          <div class="demo-card"><strong>Componentes</strong><p>HeroPanel, FeatureGrid, Timeline, ResourceCard, FAQ Reveal.</p></div>
+                          <div class="demo-card"><strong>Layout</strong><p>Vertical, mobile-first, sin whiteboard salvo que haga falta.</p></div>
+                        </div>
+                      </div>
+                    </details>
+
+                    <details class="widget exercise-item">
+                      <summary>
+                        <span class="widget-icon"><svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"></path><path d="M9 8h6M9 12h6M9 16h3"></path></svg></span>
+                        <span class="exercise-title">
+                          <strong>documentation.recipe</strong>
+                          <span>guías, documentación técnica, checklists y ejemplos copiados</span>
+                        </span>
+                      </summary>
+                      <div class="widget-body">
+                        <div class="demo-grid">
+                          <div class="demo-card"><strong>Uso</strong><p>Explicar cómo instalar, ejecutar o auditar un sistema.</p></div>
+                          <div class="demo-card"><strong>Componentes</strong><p>Article, CodeBlock, Callout, Checklist, StepList.</p></div>
+                          <div class="demo-card"><strong>Salida</strong><p>Documento navegable con bloques reutilizables.</p></div>
+                        </div>
+                      </div>
+                    </details>
+                  </div>
+
+                  <details class="widget" open>
+                    <summary>
+                      <span class="widget-icon"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></span>
+                      <span>Schema mínimo <span class="widget-subtitle">Contrato para que la IA no improvise HTML</span></span>
+                    </summary>
+
+                    <div class="widget-body">
+                      <pre class="schema-card">{
+  "page": {
+    "title": "Clase de MRUA",
+    "theme": "warm-light",
+    "recipe": "class-player",
+    "sections": [
+      {
+        "type": "slide",
+        "hero": {
+          "title": "Velocidad final",
+          "lead": "MRUA con aceleración constante"
+        },
+        "widgets": [
+          {
+            "type": "exercise-set",
+            "exercises": []
+          },
+          {
+            "type": "reveal-card-deck",
+            "cards": []
+          }
+        ]
+      }
+    ]
+  }
+}</pre>
+                    </div>
+                  </details>
+                </section>
+              </div>
+            </article>
+
+            <article class="slide" data-title="Componentes reutilizables" data-subtitle="Slide 3 · catálogo vivo">
+              <div class="slide-scroll">
+                <section class="slide-hero">
+                  <div class="slide-grid">
+                    <div>
+                      <div class="kicker">Catálogo</div>
+                      <h1>Lo importante no es esta página: son las piezas que otra IA puede reutilizar.</h1>
+                      <p class="lead">
+                        Cada componente necesita nombre, uso, inputs, variantes, estado de madurez y reglas de QA.
+                      </p>
+                    </div>
+
+                    <div class="mini-board">
+                      <div class="mini-board-note">CanvasSurface + SheetTemplate + AnnotationLayer</div>
+                    </div>
+                  </div>
+
+                  <span class="scroll-cue">↓ componentes</span>
+
+                  <div class="draw-layer">
+                    <canvas></canvas>
+                    <div class="laser-dot"></div>
+                  </div>
+                </section>
+
+                <section class="slide-extra">
+                  <div class="kicker">Component matrix</div>
+
+                  <details class="widget" open>
+                    <summary>
+                      <span class="widget-icon"><svg viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"></path></svg></span>
+                      <span>Matriz de componentes <span class="widget-subtitle">Qué existe, para qué sirve y qué tan estable está</span></span>
+                    </summary>
+
+                    <div class="widget-body">
+                      <div class="component-matrix">
+                        <div class="matrix-row"><strong>HeroPanel</strong><span>Portada, explicación central, landing, sección principal.</span><span class="status-pill stable">stable</span></div>
+                        <div class="matrix-row"><strong>Toolbar</strong><span>Láser, lápiz, resaltador, línea simple/flecha/marcas/punteada/curva, goma, undo y clear.</span><span class="status-pill beta">beta</span></div>
+                        <div class="matrix-row"><strong>CanvasSurface</strong><span>Anotación sobre slide o whiteboard con Pointer Events / Wacom.</span><span class="status-pill beta">beta</span></div>
+                        <div class="matrix-row"><strong>RevealCard</strong><span>Flashcards, FAQ, pista/respuesta, revisión activa.</span><span class="status-pill stable">stable</span></div>
+                        <div class="matrix-row"><strong>TaskAccordion</strong><span>Ejercicios, tareas, problemas, consignas largas, tips inteligentes y soluciones.</span><span class="status-pill stable">stable</span></div>
+                        <div class="matrix-row"><strong>EmbedWidget</strong><span>Video, GeoGebra, simulador, iframe o recurso externo.</span><span class="status-pill beta">beta</span></div>
+                        <div class="matrix-row"><strong>SheetTemplate</strong><span>Hoja blanca, cuadriculada, eje, tabla o línea de tiempo.</span><span class="status-pill beta">beta</span></div>
+                      </div>
+                    </div>
+                  </details>
+
+                  <details class="widget" open>
+                    <summary>
+                      <span class="widget-icon"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg></span>
+                      <span>QA checklist <span class="widget-subtitle">Lo que se revisa antes de entregar una página</span></span>
+                    </summary>
+
+                    <div class="widget-body">
+                      <div class="demo-grid">
+                        <div class="demo-card">
+                          <strong>Responsive</strong>
+                          <ul>
+                            <li>ventana chica</li>
+                            <li>fullscreen</li>
+                            <li>mobile vertical</li>
+                          </ul>
+                        </div>
+                        <div class="demo-card">
+                          <strong>Contenido largo</strong>
+                          <ul>
+                            <li>consignas largas</li>
+                            <li>respuestas largas</li>
+                            <li>scroll interno</li>
+                          </ul>
+                        </div>
+                        <div class="demo-card">
+                          <strong>Temas</strong>
+                          <ul>
+                            <li>usa tokens</li>
+                            <li>sin blanco/negro fijo</li>
+                            <li>dark-mode pendiente de QA</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </details>
+                </section>
+              </div>
+            </article>
+
+            <article class="slide" data-title="Ejemplo clase generada" data-subtitle="Slide 4 · receta class-player">
+              <div class="slide-scroll">
+                <section class="slide-hero">
+                  <div class="slide-grid">
+                    <div>
+                      <div class="kicker">Class-player recipe</div>
+                      <h1>La clase es una página generada con el kit.</h1>
+                      <p class="lead">
+                        Usa la misma estructura universal: componentes colapsables, recursos opcionales, tips inteligentes,
+                        respuestas modelo y herramientas de anotación.
+                      </p>
+                    </div>
+
+                    <div class="exercise-brief">
+                      <div class="formula-label">Ejemplo</div>
+                      <strong>MRUA: calcular velocidad final y justificar el procedimiento.</strong>
+                      <p class="formula-note">Abajo se ve cómo un ExerciseSet puede contener varias consignas.</p>
+                    </div>
+                  </div>
+
+                  <span class="scroll-cue">↓ ejercicios y flashcards</span>
+
+                  <div class="draw-layer">
+                    <canvas></canvas>
+                    <div class="laser-dot"></div>
+                  </div>
+                </section>
+
+                <section class="slide-extra">
+                  <div class="kicker">ExerciseSet reutilizable</div>
+
+                  <div class="exercise-list">
+                    <details class="widget exercise-item" open>
+                      <summary>
+                        <span class="widget-icon"><svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"></path><path d="M9 8h6M9 12h6M9 16h3"></path></svg></span>
+                        <span class="exercise-title">
+                          <strong>1. Un móvil parte a \(2\,m/s\), acelera a \(3\,m/s^2\) durante \(4s\). Calcular \(v_f\).</strong>
+                          <span>Física · MRUA · respuesta con unidad</span>
+                        </span>
+                      </summary>
+
+                      <div class="widget-body">
+                        <details class="formula-disclosure">
+                          <summary>Ver ayuda opcional</summary>
+                          <div class="formula-card">
+                            <div class="formula-label">Fórmula útil</div>
+                            <div class="math-display">\[ v_f = v_i + a \cdot t \]</div>
+                            <p class="formula-note">No aparece de entrada: el alumno puede intentar primero.</p>
+                          </div>
+                        </details>
+
+                        <details class="formula-disclosure">
+                          <summary>Mostrar tips inteligentes</summary>
+                          <div class="formula-card">
+                            <div class="smart-tip-list">
+                              <div class="smart-tip"><strong>Tip 1:</strong> si la consigna dice “durante 4s”, probablemente el tiempo entra directo en la fórmula.</div>
+                              <div class="smart-tip"><strong>Tip 2:</strong> si pide velocidad final, no hace falta calcular posición.</div>
+                              <div class="smart-tip"><strong>Tip 3:</strong> antes de hacer cuentas, escribí las unidades para no mezclar \(m/s\) con \(m/s^2\).</div>
+                            </div>
+                          </div>
+                        </details>
+
+                        <details class="formula-disclosure" open>
+                          <summary>Ver resolución modelo</summary>
+                          <div class="formula-card">
+                            <section class="exercise-grid">
+                              <div class="step-list">
+                                <details class="step-detail" open>
+                                  <summary><span class="num">1</span><span>Identificar datos</span></summary>
+                                  <div class="step-body"><div class="step-hint">\(v_i=2\,m/s\), \(a=3\,m/s^2\), \(t=4s\).</div></div>
+                                </details>
+                                <details class="step-detail">
+                                  <summary><span class="num">2</span><span>Reemplazar</span></summary>
+                                  <div class="step-body"><div class="step-hint">\(v_f=2+3\cdot4\)</div></div>
+                                </details>
+                                <details class="step-detail">
+                                  <summary><span class="num">3</span><span>Cerrar</span></summary>
+                                  <div class="step-body"><div class="step-hint">\(v_f=14\,m/s\)</div></div>
+                                </details>
+                              </div>
+
+                              <aside class="paper-sheet">
+                                <h2>Respuesta esperada</h2>
+                                <div class="paper-line">Datos: \(v_i=2\,m/s\), \(a=3\,m/s^2\), \(t=4s\)</div>
+                                <div class="paper-line">\(v_f=v_i+a\cdot t\)</div>
+                                <div class="paper-line">\(v_f=2+3\cdot4=14\,m/s\)</div>
+                              </aside>
+                            </section>
+                          </div>
+                        </details>
+                      </div>
+                    </details>
+
+                    <details class="widget exercise-item">
+                      <summary>
+                        <span class="widget-icon"><svg viewBox="0 0 24 24"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="M7 16l4-5 3 3 5-8"></path></svg></span>
+                        <span class="exercise-title">
+                          <strong>2. Graficar una función lineal y explicar pendiente e intersección.</strong>
+                          <span>Matemática · gráfico · recurso interactivo opcional</span>
+                        </span>
+                      </summary>
+                      <div class="widget-body">
+                        <details class="formula-disclosure">
+                          <summary>Ver GeoGebra / recurso</summary>
+                          <div class="formula-card">
+                            <div class="formula-label">Recurso interactivo</div>
+                            <p class="lead">GeoGebra no se carga automáticamente para evitar permisos o peso innecesario dentro de ChatGPT.</p>
+                            <div class="resource-actions">
+                              <a class="resource-btn primary" href="https://www.geogebra.org/calculator" target="_blank" rel="noopener">Abrir GeoGebra</a>
+                              <button class="resource-btn" type="button" data-load-geogebra>Cargar acá</button>
+                            </div>
+                            <div class="geogebra-slot" data-geogebra-slot></div>
+                          </div>
+                        </details>
+                        <details class="formula-disclosure">
+                          <summary>Ver respuesta modelo</summary>
+                          <div class="formula-card"><p class="lead">Identificar \(m\), marcar \((0,b)\), usar pendiente y trazar la recta.</p></div>
+                        </details>
+                      </div>
+                    </details>
+
+                    <details class="widget exercise-item">
+                      <summary>
+                        <span class="widget-icon"><svg viewBox="0 0 24 24"><path d="M7 7h10M7 12h10M7 17h10"></path></svg></span>
+                        <span class="exercise-title">
+                          <strong>3. Balancear una ecuación química simple y justificar cada ajuste.</strong>
+                          <span>Química · método · respuesta larga soportada</span>
+                        </span>
+                      </summary>
+                      <div class="widget-body">
+                        <details class="formula-disclosure">
+                          <summary>Ver método</summary>
+                          <div class="formula-card"><p class="lead">Contar átomos, ajustar coeficientes y verificar ambos lados sin cambiar subíndices.</p></div>
+                        </details>
+                      </div>
+                    </details>
+                  </div>
+
+                  <details class="widget" open>
+                    <summary>
+                      <span class="widget-icon"><svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"></path><path d="M9 8h6M9 12h6M9 16h3"></path></svg></span>
+                      <span>RevealCardDeck <span class="widget-subtitle">El mismo componente sirve para flashcards o FAQ</span></span>
+                    </summary>
+
+                    <div class="widget-body">
+                      <section class="flashcard-shell">
+                        <article class="flashcard-main">
+                          <div class="flashcard-meta">
+                            <span id="cardCounter">Card 1 de 4</span>
+                            <span id="cardTopic">Física</span>
+                          </div>
+
+                          <div class="flash-progress">
+                            <div class="flash-progress-fill" id="flashProgressFill"></div>
+                          </div>
+
+                          <div class="tag-row" id="tagRow"></div>
+
+                          <h2 class="flash-question" id="cardQuestion">¿Cuándo uso \(v_f = v_i + a \cdot t\)?</h2>
+
+                          <div class="flash-extra-actions">
+                            <button class="tiny-action" id="hintBtn" type="button">🔍 Pista</button>
+                            <button class="tiny-action" id="answerBtn" type="button">Respuesta</button>
+                          </div>
+
+                          <div class="reveal-panel" id="infoPanel">
+                            <span class="reveal-label" id="infoLabel"></span>
+                            <span class="reveal-text" id="infoText"></span>
+                          </div>
+
+                          <div class="flash-actions">
+                            <button class="mini-btn good" id="markGood" type="button">Bien</button>
+                            <button class="mini-btn bad" id="markBad" type="button">Repasar</button>
+                            <button class="mini-btn" id="nextCardBtn" type="button">Siguiente</button>
+                          </div>
+
+                          <div class="flash-status" id="flashStatus">Marcá cómo te fue para avanzar.</div>
+                        </article>
+
+                        <aside class="flash-side">
+                          <div class="flash-modes">
+                            <button class="mode-btn active" id="allCardsMode" type="button">Todas</button>
+                            <button class="mode-btn" id="reviewCardsMode" type="button">Repasar</button>
+                          </div>
+
+                          <div class="score-grid">
+                            <div class="score-box"><strong id="goodCount">0</strong><span>bien</span></div>
+                            <div class="score-box"><strong id="badCount">0</strong><span>repasar</span></div>
+                            <div class="score-box"><strong id="leftCount">4</strong><span>faltan</span></div>
+                          </div>
+
+                          <h3>Mapa del deck</h3>
+                          <div class="card-map" id="cardMap"></div>
+                        </aside>
+                      </section>
+                    </div>
+                  </details>
+                </section>
+              </div>
+            </article>
+
+            <div class="whiteboard-overlay" id="whiteboardOverlay">
+              <div class="board-label" id="boardLabel">Whiteboard global · pestañas · objetos pegables · toolbar compartida</div>
+              <div class="board-tabs" id="boardTabs"></div>
+              <div class="board-paste-hint">Ctrl+V pega imagen/texto. Láser: click selecciona, arrastrar señala; si ya está seleccionada, arrastrar edita. Enter fija.</div>
+
+              <div class="whiteboard-scroll" id="whiteboardScroll">
+                <div class="whiteboard-content" id="whiteboardContent">
+                  <div class="board-templates" id="boardTemplates"></div>
+                  <canvas id="whiteboardCanvas"></canvas>
+                  <div class="draw-layer" id="boardLayer">
+                    <div class="laser-dot" id="boardLaserDot"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="add-space-menu" id="boardAddMenu">
+                <button type="button" data-board-add="blank">Hoja en blanco</button>
+                <button type="button" data-board-add="lined">Hoja rayada</button>
+                <button type="button" data-board-add="grid">Hoja cuadriculada</button>
+                <button type="button" data-board-add="cartesian">Eje cartesiano grande</button>
+                <button type="button" data-board-add="numberline">Recta numérica</button>
+                <button type="button" data-board-add="table">Tabla / grilla</button>
+                <button type="button" data-board-add="timeline">Línea de tiempo</button>
+              </div>
+
+              <button class="add-space-bottom" id="boardBottomAddBtn" type="button">+ agregar</button>
+            </div>
+          </section>
+        </div>
+
+        <footer class="bottom-bar">
+          <button class="nav-btn" id="prevBtn" type="button">Anterior</button>
+
+          <div class="progress">
+            <div class="progress-text">
+              <span id="counter">Slide 1 de 3</span>
+              <span>Prometeo Page Kit v37 candidate</span>
+            </div>
+            <div class="bar"><div class="fill" id="fill"></div></div>
+          </div>
+
+          <button class="nav-btn primary" id="nextBtn" type="button">Siguiente</button>
+        </footer>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const slides = [...document.querySelectorAll(".slide")];
+
+    const refs = {
+      title: document.getElementById("currentTitle"),
+      subtitle: document.getElementById("currentSubtitle"),
+      counter: document.getElementById("counter"),
+      fill: document.getElementById("fill"),
+      prev: document.getElementById("prevBtn"),
+      next: document.getElementById("nextBtn"),
+
+      laser: document.getElementById("laserBtn"),
+      highlight: document.getElementById("highlightBtn"),
+      pen: document.getElementById("penBtn"),
+      line: document.getElementById("lineBtn"),
+      eraser: document.getElementById("eraserBtn"),
+      whiteboard: document.getElementById("whiteboardBtn"),
+      undo: document.getElementById("undoBtn"),
+      clear: document.getElementById("clearBtn"),
+
+      toolPopover: document.getElementById("toolPopover"),
+      themeBtn: document.getElementById("themeBtn"),
+      themePopover: document.getElementById("themePopover"),
+      themeOptions: document.getElementById("themeOptions"),
+      popoverTitle: document.getElementById("popoverTitle"),
+      colorChoices: document.getElementById("colorChoices"),
+      sizeChoices: document.getElementById("sizeChoices"),
+
+      whiteboardOverlay: document.getElementById("whiteboardOverlay"),
+      whiteboardScroll: document.getElementById("whiteboardScroll"),
+      whiteboardContent: document.getElementById("whiteboardContent"),
+      whiteboardCanvas: document.getElementById("whiteboardCanvas"),
+      boardLayer: document.getElementById("boardLayer"),
+      boardLaserDot: document.getElementById("boardLaserDot"),
+      boardTemplates: document.getElementById("boardTemplates"),
+      boardTabs: document.getElementById("boardTabs"),
+      boardAddMenu: document.getElementById("boardAddMenu"),
+      boardBottomAddBtn: document.getElementById("boardBottomAddBtn"),
+
+      cardCounter: document.getElementById("cardCounter"),
+      cardTopic: document.getElementById("cardTopic"),
+      tagRow: document.getElementById("tagRow"),
+      cardQuestion: document.getElementById("cardQuestion"),
+      hintBtn: document.getElementById("hintBtn"),
+      answerBtn: document.getElementById("answerBtn"),
+      infoPanel: document.getElementById("infoPanel"),
+      infoLabel: document.getElementById("infoLabel"),
+      infoText: document.getElementById("infoText"),
+      markGood: document.getElementById("markGood"),
+      markBad: document.getElementById("markBad"),
+      nextCardBtn: document.getElementById("nextCardBtn"),
+      flashStatus: document.getElementById("flashStatus"),
+      allCardsMode: document.getElementById("allCardsMode"),
+      reviewCardsMode: document.getElementById("reviewCardsMode"),
+      goodCount: document.getElementById("goodCount"),
+      badCount: document.getElementById("badCount"),
+      leftCount: document.getElementById("leftCount"),
+      flashProgressFill: document.getElementById("flashProgressFill"),
+      cardMap: document.getElementById("cardMap")
+    };
+
+
+    const THEMES = {
+      "warm-paper": {
+        name:"Papel cálido",
+        meta:"light · warm · soft · gold",
+        swatch:["#f4efe6","#fffdf8","#b9822d"],
+        vars:{
+          "--bg":"#f4efe6","--paper":"#fffdf8","--soft":"#faf5ec",
+          "--ink":"#15120f","--muted":"#756c62","--line":"#ded3c3","--accent":"#b9822d",
+          "--code-bg":"#1c1712","--code-ink":"#fff4df","--code-line":"#c9b89f",
+          "--grid-minor":"rgba(120,108,92,.18)","--grid-major":"rgba(185,130,45,.26)",
+          "--canvas-bg":"#fffdf8","--badge-bg":"#15120f","--badge-ink":"#fffdf8"
+        }
+      },
+      "clean-light": {
+        name:"Claro limpio",
+        meta:"light · neutral · normal · blue",
+        swatch:["#f7f8fb","#ffffff","#2563eb"],
+        vars:{
+          "--bg":"#f7f8fb","--paper":"#ffffff","--soft":"#f1f5f9",
+          "--ink":"#0f172a","--muted":"#64748b","--line":"#dbe3ee","--accent":"#2563eb",
+          "--code-bg":"#111827","--code-ink":"#e5edf8","--code-line":"#334155",
+          "--grid-minor":"rgba(100,116,139,.18)","--grid-major":"rgba(37,99,235,.24)",
+          "--canvas-bg":"#ffffff","--badge-bg":"#1e293b","--badge-ink":"#f8fafc"
+        }
+      },
+      "nordic": {
+        name:"Nórdico",
+        meta:"light · cool · soft · teal",
+        swatch:["#eef3f1","#fbfdfc","#3f7f72"],
+        vars:{
+          "--bg":"#eef3f1","--paper":"#fbfdfc","--soft":"#e4ece9",
+          "--ink":"#18211f","--muted":"#687773","--line":"#cbd9d5","--accent":"#3f7f72",
+          "--code-bg":"#17201e","--code-ink":"#e9f5f1","--code-line":"#78938c",
+          "--grid-minor":"rgba(85,112,105,.18)","--grid-major":"rgba(63,127,114,.27)",
+          "--canvas-bg":"#fbfdfc","--badge-bg":"#24312e","--badge-ink":"#effaf7"
+        }
+      }
+    };
+
+    let activeTheme = "warm-paper";
+
+    function applyTheme(themeId) {
+      const theme = THEMES[themeId] || THEMES["warm-paper"];
+      activeTheme = themeId in THEMES ? themeId : "warm-paper";
+
+      Object.entries(theme.vars).forEach(([key, value]) => {
+        document.documentElement.style.setProperty(key, value);
+      });
+
+      renderThemeOptions();
+      render();
+    }
+
+    function renderThemeOptions() {
+      if (!refs.themeOptions) return;
+
+      refs.themeOptions.innerHTML = "";
+
+      Object.entries(THEMES).forEach(([id, theme]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "theme-option";
+        button.classList.toggle("active", id === activeTheme);
+
+        const swatch = document.createElement("div");
+        swatch.className = "theme-swatch";
+
+        theme.swatch.forEach(color => {
+          const span = document.createElement("span");
+          span.style.background = color;
+          swatch.appendChild(span);
+        });
+
+        const label = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = theme.name;
+        const small = document.createElement("small");
+        small.textContent = theme.meta;
+
+        label.appendChild(title);
+        label.appendChild(small);
+        button.appendChild(swatch);
+        button.appendChild(label);
+
+        button.addEventListener("click", () => {
+          applyTheme(id);
+          refs.themePopover.classList.remove("visible");
+        });
+
+        refs.themeOptions.appendChild(button);
+      });
+    }
+
+    function toggleThemePopover() {
+      closePopovers();
+      refs.themePopover.classList.toggle("visible");
+    }
+
+
+    const slideInk = slides.map(() => []);
+    const slideUndoStacks = slides.map(() => []);
+    const boardInk = [];
+    const boardBlocks = ["blank"];
+
+    const boardSessions = [
+      { id:1, title:"Pizarra 1", blocks:boardBlocks, ink:boardInk, objects:[], undoStack:[] }
+    ];
+    let activeBoardId = 1;
+    let nextBoardId = 2;
+    let selectedBoardObjectId = null;
+    let boardObjectDrag = null;
+    let nextBoardObjectId = 1;
+    let nextStrokeId = 1;
+
+    const MAX_UNDO = 120;
+    const BOARD_CHUNK_HEIGHT = 820;
+
+    let currentSlide = 0;
+    let mode = "laser";
+    let currentStroke = null;
+    let boardOpen = false;
+    let boardStroke = null;
+
+    let penColor = "#111827";
+    let penWidth = 3;
+    let highlightColor = "rgba(255, 193, 7, .52)";
+    let highlightWidth = 12;
+    let activeToolPopover = null;
+    let laserLifeMs = 2000;
+    let laserWidth = 4.8;
+    let laserColor = "185,130,45";
+    let laserSwatch = "#b9822d";
+    let lineMode = "simple";
+    let lineTickSize = 32;
+    let curveDraft = null;
+    let curveDraftTarget = null;
+    let curvePreviewPoint = null;
+    let eraserDown = false;
+
+    let laserPoints = [];
+    let laserDown = false;
+    let laserTarget = "slide";
+    let laserStrokeId = 0;
+    let laserObjectClick = null;
+    const CLICK_DRAG_THRESHOLD = 5;
+    let animationId = null;
+
+    const LASER_LIFE_MS_DEFAULT = 2000;
+    const LASER_WIDTH_DEFAULT = 4.5;
+    const LASER_MIN_DISTANCE = 0.0075;
+    const LASER_MAX_POINTS = 220;
+
+    const penColors = [
+      { value:"#111827", label:"Negro", swatch:"#111827" },
+      { value:"#1d4ed8", label:"Azul", swatch:"#1d4ed8" },
+      { value:"#dc2626", label:"Rojo", swatch:"#dc2626" },
+      { value:"#15803d", label:"Verde", swatch:"#15803d" },
+      { value:"#7c3aed", label:"Violeta", swatch:"#7c3aed" }
+    ];
+
+    const highlightColors = [
+      { value:"rgba(255, 193, 7, .52)", label:"Amarillo", swatch:"#ffc107" },
+      { value:"rgba(34, 197, 94, .38)", label:"Verde", swatch:"#22c55e" },
+      { value:"rgba(59, 130, 246, .34)", label:"Azul", swatch:"#3b82f6" },
+      { value:"rgba(244, 63, 94, .36)", label:"Rosa", swatch:"#f43f5e" }
+    ];
+
+    const penSizes = [
+      { label:"S", value:3 },
+      { label:"M", value:5 },
+      { label:"L", value:8 }
+    ];
+
+    const highlightSizes = [
+      { label:"S", value:12 },
+      { label:"M", value:16 },
+      { label:"L", value:22 }
+    ];
+
+    const laserDurations = [
+      { label:"2s", value:2000 },
+      { label:"4s", value:4000 },
+      { label:"6s", value:6000 }
+    ];
+
+    const laserSizes = [
+      { label:"S", value:3.6 },
+      { label:"M", value:4.8 },
+      { label:"L", value:6.4 }
+    ];
+
+    const laserColors = [
+      { label:"Tema / accent", rgb:"185,130,45", swatch:"#b9822d" },
+      { label:"Rojo", rgb:"217,45,32", swatch:"#d92d20" },
+      { label:"Azul", rgb:"37,99,235", swatch:"#2563eb" },
+      { label:"Verde", rgb:"22,163,74", swatch:"#16a34a" },
+      { label:"Violeta", rgb:"124,58,237", swatch:"#7c3aed" }
+    ];
+
+    const lineModes = [
+      { label:"Simple", title:"Línea simple", value:"simple" },
+      { label:"Flecha", title:"Flecha limpia", value:"arrow" },
+      { label:"Marcas", title:"Línea con marcas", value:"ticks" },
+      { label:"Punteada", title:"Línea punteada", value:"dotted" },
+      { label:"Curva 3 puntos", title:"Curva que pasa por 3 puntos", value:"curve" }
+    ];
+
+
+    const colorPaletteTabs = [
+      { key:"page", label:"Página" },
+      { key:"basic", label:"Básicos" },
+      { key:"pastel", label:"Pasteles" }
+    ];
+
+    let activeColorPalette = {
+      laser:"page",
+      pen:"page",
+      highlight:"page",
+      line:"page"
+    };
+
+    const colorPalettes = {
+      pen: {
+        page: [
+          { value:"#111827", label:"Ink", swatch:"#111827" },
+          { value:"#b9822d", label:"Accent", swatch:"#b9822d" },
+          { value:"#6b5b49", label:"Muted", swatch:"#6b5b49" },
+          { value:"#8b5e24", label:"Warm brown", swatch:"#8b5e24" }
+        ],
+        basic: [
+          { value:"#dc2626", label:"Rojo", swatch:"#dc2626" },
+          { value:"#1d4ed8", label:"Azul", swatch:"#1d4ed8" },
+          { value:"#15803d", label:"Verde", swatch:"#15803d" },
+          { value:"#7c3aed", label:"Violeta", swatch:"#7c3aed" },
+          { value:"#111827", label:"Negro", swatch:"#111827" }
+        ],
+        pastel: [
+          { value:"#f4b860", label:"Pastel warm", swatch:"#f4b860" },
+          { value:"#93c5fd", label:"Pastel blue", swatch:"#93c5fd" },
+          { value:"#86efac", label:"Pastel green", swatch:"#86efac" },
+          { value:"#f9a8d4", label:"Pastel pink", swatch:"#f9a8d4" },
+          { value:"#c4b5fd", label:"Pastel lavender", swatch:"#c4b5fd" }
+        ]
+      },
+      highlight: {
+        page: [
+          { value:"rgba(185,130,45,.34)", label:"Accent soft", swatch:"#d8a04b" },
+          { value:"rgba(139,94,36,.30)", label:"Warm soft", swatch:"#b9854c" },
+          { value:"rgba(107,91,73,.22)", label:"Muted soft", swatch:"#8f806f" }
+        ],
+        basic: [
+          { value:"rgba(255, 193, 7, .52)", label:"Amarillo", swatch:"#ffc107" },
+          { value:"rgba(34, 197, 94, .38)", label:"Verde", swatch:"#22c55e" },
+          { value:"rgba(59, 130, 246, .34)", label:"Azul", swatch:"#3b82f6" },
+          { value:"rgba(244, 63, 94, .36)", label:"Rosa", swatch:"#f43f5e" },
+          { value:"rgba(124, 58, 237, .34)", label:"Violeta", swatch:"#7c3aed" }
+        ],
+        pastel: [
+          { value:"rgba(254, 240, 138, .55)", label:"Pastel yellow", swatch:"#fef08a" },
+          { value:"rgba(191, 219, 254, .48)", label:"Pastel blue", swatch:"#bfdbfe" },
+          { value:"rgba(187, 247, 208, .48)", label:"Pastel green", swatch:"#bbf7d0" },
+          { value:"rgba(251, 207, 232, .48)", label:"Pastel pink", swatch:"#fbcfe8" },
+          { value:"rgba(221, 214, 254, .48)", label:"Pastel lavender", swatch:"#ddd6fe" }
+        ]
+      },
+      laser: {
+        page: [
+          { rgb:"185,130,45", label:"Tema / accent", swatch:"#b9822d" },
+          { rgb:"44,36,27", label:"Ink", swatch:"#2c241b" },
+          { rgb:"107,91,73", label:"Muted", swatch:"#6b5b49" }
+        ],
+        basic: [
+          { rgb:"217,45,32", label:"Rojo", swatch:"#d92d20" },
+          { rgb:"37,99,235", label:"Azul", swatch:"#2563eb" },
+          { rgb:"22,163,74", label:"Verde", swatch:"#16a34a" },
+          { rgb:"124,58,237", label:"Violeta", swatch:"#7c3aed" }
+        ],
+        pastel: [
+          { rgb:"244,184,96", label:"Pastel warm", swatch:"#f4b860" },
+          { rgb:"147,197,253", label:"Pastel blue", swatch:"#93c5fd" },
+          { rgb:"134,239,172", label:"Pastel green", swatch:"#86efac" },
+          { rgb:"249,168,212", label:"Pastel pink", swatch:"#f9a8d4" },
+          { rgb:"196,181,253", label:"Pastel lavender", swatch:"#c4b5fd" }
+        ]
+      }
+    };
+
+
+
+    const cards = [
+      {
+        topic:"Física",
+        tags:["MRUA"],
+        question:"¿Cuándo uso \\(v_f = v_i + a \\cdot t\\)?",
+        hint:"Buscá si el ejercicio da velocidad inicial, aceleración y tiempo.",
+        answer:"La uso cuando el movimiento tiene aceleración constante y necesito calcular o relacionar velocidad final, velocidad inicial, aceleración y tiempo."
+      },
+      {
+        topic:"Química",
+        tags:["Iones"],
+        question:"¿Qué es un catión?",
+        hint:"Pensá qué pasa con la carga cuando un átomo pierde electrones.",
+        answer:"Un catión es un ion con carga positiva, normalmente porque perdió electrones."
+      },
+      {
+        topic:"Historia",
+        tags:["Weber"],
+        question:"¿Qué es un tipo ideal?",
+        hint:"No es una cosa real exacta, sino una herramienta para comparar.",
+        answer:"Es una construcción conceptual que ayuda a analizar la realidad. No es una copia exacta de la realidad."
+      },
+      {
+        topic:"Matemática",
+        tags:["Funciones"],
+        question:"¿Qué representa una raíz de una función?",
+        hint:"Mirá dónde la función corta el eje horizontal.",
+        answer:"Es un valor de \\(x\\) donde la función vale cero."
+      }
+    ];
+
+    const cardResults = new Array(cards.length).fill(null);
+    let cardMode = "all";
+    let currentCard = 0;
+    let infoMode = "none";
+    let autoTimer = null;
+
+    function activeBoard() {
+      return boardSessions.find(board => board.id === activeBoardId) || boardSessions[0];
+    }
+
+    function activeBoardInk() {
+      return activeBoard().ink;
+    }
+
+    function activeBoardBlocks() {
+      return activeBoard().blocks;
+    }
+
+    function activeBoardObjects() {
+      return activeBoard().objects;
+    }
+
+    function safeBlurActiveElement() {
+      const element = document.activeElement;
+      if (element && typeof element.blur === "function") element.blur();
+    }
+
+    function ensureStrokeId(stroke) {
+      if (!stroke.id) stroke.id = "stroke_" + nextStrokeId++;
+      return stroke;
+    }
+
+    function cloneStroke(stroke) {
+      return JSON.parse(JSON.stringify(stroke));
+    }
+
+    function cloneStrokes(strokes) {
+      return strokes.map(cloneStroke);
+    }
+
+    function serializeBoardObject(object) {
+      const serialized = {
+        id: object.id,
+        type: object.type,
+        x: object.x,
+        y: object.y,
+        w: object.w,
+        h: object.h
+      };
+
+      if (object.type === "image") serialized.src = object.src;
+      if (object.type === "text") {
+        serialized.text = object.text;
+        serialized.fontSize = object.fontSize || 18;
+      }
+
+      return serialized;
+    }
+
+    function hydrateBoardObject(serialized) {
+      const object = { ...serialized };
+
+      if (object.type === "image" && object.src) {
+        const img = new Image();
+        img.onload = () => render();
+        img.src = object.src;
+        object.img = img;
+      }
+
+      return object;
+    }
+
+    function serializeBoardObjects(objects) {
+      return objects.map(serializeBoardObject);
+    }
+
+    function hydrateBoardObjects(objects) {
+      return objects.map(hydrateBoardObject);
+    }
+
+    function activeUndoStack() {
+      if (boardOpen) {
+        const board = activeBoard();
+        if (!board.undoStack) board.undoStack = [];
+        return board.undoStack;
+      }
+
+      return slideUndoStacks[currentSlide];
+    }
+
+    function pushUndo(action) {
+      const stack = activeUndoStack();
+      stack.push(action);
+
+      if (stack.length > MAX_UNDO) {
+        stack.splice(0, stack.length - MAX_UNDO);
+      }
+    }
+
+    function removeStrokeById(strokes, strokeId) {
+      const index = strokes.findIndex(stroke => stroke.id === strokeId);
+      if (index !== -1) {
+        strokes.splice(index, 1);
+        return true;
+      }
+
+      return false;
+    }
+
+    function removeObjectById(objects, objectId) {
+      const index = objects.findIndex(object => object.id === objectId);
+      if (index !== -1) {
+        objects.splice(index, 1);
+        return true;
+      }
+
+      return false;
+    }
+
+    function activeSlideCanvas() {
+      return slides[currentSlide].querySelector(".draw-layer canvas");
+    }
+
+    function activeSlideDot() {
+      return slides[currentSlide].querySelector(".laser-dot");
+    }
+
+    function activeCanvas() {
+      return boardOpen ? refs.whiteboardCanvas : activeSlideCanvas();
+    }
+
+    function activeDot() {
+      return boardOpen ? refs.boardLaserDot : activeSlideDot();
+    }
+
+    function activeInk() {
+      return boardOpen ? activeBoardInk() : slideInk[currentSlide];
+    }
+
+    function resizeCanvas(canvas = activeCanvas()) {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 1.25));
+      const w = Math.round(rect.width * dpr);
+      const h = Math.round(rect.height * dpr);
+
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+
+      render();
+    }
+
+    function resizeAll() {
+      resizeCanvas(activeSlideCanvas());
+      if (boardOpen) syncBoard();
+    }
+
+    function pointFromEvent(event, canvas = activeCanvas(), target = boardOpen ? "board" : "slide") {
+      const rect = canvas.getBoundingClientRect();
+
+      if (target === "board") {
+        return {
+          coord:"board",
+          x:(event.clientX - rect.left) / rect.width,
+          y:event.clientY - rect.top,
+          t:performance.now()
+        };
+      }
+
+      return {
+        coord:"norm",
+        x:(event.clientX - rect.left) / rect.width,
+        y:(event.clientY - rect.top) / rect.height,
+        t:performance.now()
+      };
+    }
+
+    function strokePointToCanvas(point, canvas, scaleY) {
+      return {
+        x: point.x * canvas.width,
+        y: point.coord === "board" ? point.y * scaleY : point.y * canvas.height
+      };
+    }
+
+    function drawArrowHead(ctx, from, to, size) {
+      const angle = Math.atan2(to.y - from.y, to.x - from.x);
+      ctx.save();
+      ctx.translate(to.x, to.y);
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-size, -size * .48);
+      ctx.lineTo(-size, size * .48);
+      ctx.closePath();
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawLineTicks(ctx, a, b, tickSize, interval) {
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const length = Math.hypot(dx, dy);
+      if (length < 2) return;
+
+      const ux = dx / length;
+      const uy = dy / length;
+
+      /*
+        v35 final marked-line fix:
+        Ticks are centered on the base line from any angle and use a true fixed
+        spacing. There is no forced final tick anymore: if the line ends between
+        two spacing positions, the tail remains open until the next real mark.
+      */
+      const nx = -uy;
+      const ny = ux;
+
+      const spacing = Math.max(14, interval || 32);
+      const minorHalf = Math.max(4, tickSize);
+      const majorHalf = Math.max(minorHalf * 1.85, minorHalf + 6);
+      const majorEvery = 5;
+
+      const tickCount = Math.floor(length / spacing);
+
+      for (let i = 0; i <= tickCount; i++) {
+        const distance = i * spacing;
+        const px = a.x + ux * distance;
+        const py = a.y + uy * distance;
+
+        const isMajor = i % majorEvery === 0;
+        const half = isMajor ? majorHalf : minorHalf;
+
+        ctx.save();
+
+        if (isMajor) {
+          ctx.lineWidth = Math.max(ctx.lineWidth, ctx.lineWidth * 1.12);
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(px - nx * half, py - ny * half);
+        ctx.lineTo(px + nx * half, py + ny * half);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+    }
+
+    function drawSmoothToolCurve(ctx, points) {
+      if (points.length < 2) return;
+
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+
+      if (points.length === 2) {
+        ctx.lineTo(points[1].x, points[1].y);
+      } else if (points.length === 3) {
+        const a = points[0];
+        const b = points[1];
+        const c = points[2];
+
+        /*
+          v29 fix:
+          The 3 clicks are pass-through points, not start/control/end.
+          For a quadratic Bezier from A to C to pass through B at t=.5:
+            B = .25A + .5P + .25C
+            P = 2B - .5A - .5C
+          This keeps the original 3-click interaction and only changes rendering.
+        */
+        const control = {
+          x: 2 * b.x - 0.5 * a.x - 0.5 * c.x,
+          y: 2 * b.y - 0.5 * a.y - 0.5 * c.y
+        };
+
+        ctx.quadraticCurveTo(control.x, control.y, c.x, c.y);
+      } else {
+        for (let i = 1; i < points.length - 1; i++) {
+          const current = points[i];
+          const next = points[i + 1];
+          const midX = (current.x + next.x) / 2;
+          const midY = (current.y + next.y) / 2;
+          ctx.quadraticCurveTo(current.x, current.y, midX, midY);
+        }
+
+        const last = points[points.length - 1];
+        ctx.lineTo(last.x, last.y);
+      }
+
+      ctx.stroke();
+    }
+
+    function drawStroke(ctx, canvas, stroke) {
+      if (!stroke.points.length) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const scaleY = canvas.height / Math.max(1, rect.height);
+
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = stroke.color;
+      ctx.lineWidth = stroke.width;
+
+      if ((stroke.tool === "line" || stroke.tool === "curve") && stroke.lineMode === "curve") {
+        const fixedPoints = stroke.points.map(point => strokePointToCanvas(point, canvas, scaleY));
+        const livePreview = stroke.preview && curvePreviewPoint && curveDraft === stroke
+          ? strokePointToCanvas(curvePreviewPoint, canvas, scaleY)
+          : null;
+
+        const pathPoints = livePreview ? [...fixedPoints, livePreview] : fixedPoints;
+
+        if (pathPoints.length >= 2) {
+          ctx.save();
+          ctx.globalAlpha = stroke.preview ? .52 : 1;
+          drawSmoothToolCurve(ctx, pathPoints);
+          ctx.restore();
+        }
+
+        if (stroke.preview) drawCurvePreviewPoints(ctx, fixedPoints, stroke);
+
+        ctx.restore();
+        return;
+      }
+
+      if (stroke.tool === "line" && stroke.points.length >= 2) {
+        const canvasPoints = stroke.points.map(point => strokePointToCanvas(point, canvas, scaleY));
+        const a = canvasPoints[0];
+        const b = canvasPoints[canvasPoints.length - 1];
+
+        if (stroke.lineMode === "dotted") {
+          ctx.setLineDash([10, 9]);
+        }
+
+        let lineEnd = b;
+
+        if (stroke.lineMode === "arrow") {
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const length = Math.hypot(dx, dy);
+          const headSize = Math.max(11, stroke.width * 3.4);
+
+          if (length > headSize * 1.4) {
+            lineEnd = {
+              x: b.x - (dx / length) * headSize * .72,
+              y: b.y - (dy / length) * headSize * .72
+            };
+          }
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(lineEnd.x, lineEnd.y);
+        ctx.stroke();
+
+        ctx.setLineDash([]);
+
+        if (stroke.lineMode === "arrow") {
+          drawArrowHead(ctx, a, b, Math.max(11, stroke.width * 3.4));
+        }
+
+        if (stroke.lineMode === "ticks") {
+          const dpr = canvas.width / Math.max(1, rect.width);
+          drawLineTicks(ctx, a, b, Math.max(5, stroke.width * 1.5), (stroke.tickSize || 32) * dpr);
+        }
+
+        ctx.restore();
+        return;
+      }
+
+      ctx.beginPath();
+
+      stroke.points.forEach((point, index) => {
+        const x = point.x * canvas.width;
+        const y = point.coord === "board" ? point.y * scaleY : point.y * canvas.height;
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function laserCanvasPoint(point, canvas, scaleY) {
+      return {
+        x: point.x * canvas.width,
+        y: point.coord === "board" ? point.y * scaleY : point.y * canvas.height
+      };
+    }
+
+    function drawSmoothLaserPath(ctx, points, canvas, scaleY, width, alpha) {
+      if (points.length < 2) return;
+
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = `rgba(${laserColor}, ${alpha})`;
+      ctx.lineWidth = width;
+
+      const first = laserCanvasPoint(points[0], canvas, scaleY);
+      ctx.beginPath();
+      ctx.moveTo(first.x, first.y);
+
+      if (points.length === 2) {
+        const second = laserCanvasPoint(points[1], canvas, scaleY);
+        ctx.lineTo(second.x, second.y);
+      } else {
+        for (let i = 1; i < points.length - 1; i++) {
+          const current = laserCanvasPoint(points[i], canvas, scaleY);
+          const next = laserCanvasPoint(points[i + 1], canvas, scaleY);
+          const midX = (current.x + next.x) / 2;
+          const midY = (current.y + next.y) / 2;
+          ctx.quadraticCurveTo(current.x, current.y, midX, midY);
+        }
+
+        const last = laserCanvasPoint(points[points.length - 1], canvas, scaleY);
+        ctx.lineTo(last.x, last.y);
+      }
+
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawLaser(ctx, canvas, now) {
+      laserPoints = laserPoints.filter(point => now - point.t < laserLifeMs);
+      if (laserPoints.length < 2) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const scaleY = canvas.height / Math.max(1, rect.height);
+      const grouped = new Map();
+
+      laserPoints.forEach(point => {
+        if (!grouped.has(point.strokeId)) grouped.set(point.strokeId, []);
+        grouped.get(point.strokeId).push(point);
+      });
+
+      grouped.forEach(points => {
+        if (points.length < 2) return;
+
+        const newest = points[points.length - 1];
+        const age = now - newest.t;
+        const alpha = Math.max(0, 1 - age / laserLifeMs);
+
+        drawSmoothLaserPath(ctx, points, canvas, scaleY, laserWidth * 2.8, alpha * .10);
+        drawSmoothLaserPath(ctx, points, canvas, scaleY, laserWidth * 1.45, alpha * .28);
+        drawSmoothLaserPath(ctx, points, canvas, scaleY, laserWidth * .72, alpha * .74);
+      });
+    }
+
+
+    function boardCssPointFromEvent(event) {
+      const rect = refs.whiteboardCanvas.getBoundingClientRect();
+      return {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      };
+    }
+
+    function boardObjectById(id) {
+      return activeBoardObjects().find(object => object.id === id) || null;
+    }
+
+    function fitObjectToBoard(width, height) {
+      const rect = refs.whiteboardCanvas.getBoundingClientRect();
+      const maxW = rect.width * .70;
+      const maxH = rect.height * .70;
+      const scale = Math.min(1, maxW / Math.max(1, width), maxH / Math.max(1, height));
+      const w = Math.max(80, width * scale);
+      const h = Math.max(60, height * scale);
+
+      return {
+        w,
+        h,
+        x: Math.max(24, (rect.width - w) / 2),
+        y: Math.max(24, refs.whiteboardScroll.scrollTop + (refs.whiteboardScroll.clientHeight - h) / 2)
+      };
+    }
+
+    function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight) {
+      const words = String(text || "").split(/\s+/);
+      let line = "";
+      const lines = [];
+
+      words.forEach(word => {
+        const testLine = line ? line + " " + word : word;
+        if (ctx.measureText(testLine).width > maxWidth && line) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = testLine;
+        }
+      });
+
+      if (line) lines.push(line);
+
+      lines.forEach((row, index) => {
+        ctx.fillText(row, x, y + index * lineHeight);
+      });
+
+      return lines.length;
+    }
+
+    function drawBoardObjects(ctx, canvas) {
+      if (!boardOpen || canvas !== refs.whiteboardCanvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / Math.max(1, rect.width);
+      const scaleY = canvas.height / Math.max(1, rect.height);
+
+      activeBoardObjects().forEach(object => {
+        const x = object.x * scaleX;
+        const y = object.y * scaleY;
+        const w = object.w * scaleX;
+        const h = object.h * scaleY;
+
+        ctx.save();
+
+        if (object.type === "image") {
+          if (object.img && object.img.complete) {
+            ctx.drawImage(object.img, x, y, w, h);
+          } else {
+            ctx.fillStyle = "rgba(185,130,45,.08)";
+            ctx.strokeStyle = "rgba(185,130,45,.28)";
+            ctx.lineWidth = 1.5 * scaleX;
+            ctx.fillRect(x, y, w, h);
+            ctx.strokeRect(x, y, w, h);
+          }
+        }
+
+        if (object.type === "text") {
+          ctx.fillStyle = "rgba(255,253,248,.88)";
+          ctx.strokeStyle = "rgba(185,130,45,.28)";
+          ctx.lineWidth = 1.5 * scaleX;
+          ctx.beginPath();
+          ctx.roundRect?.(x, y, w, h, 14 * scaleX);
+          if (ctx.roundRect) {
+            ctx.fill();
+            ctx.stroke();
+          } else {
+            ctx.fillRect(x, y, w, h);
+            ctx.strokeRect(x, y, w, h);
+          }
+
+          ctx.fillStyle = "#2c241b";
+          ctx.font = `${Math.max(13, object.fontSize || 18) * scaleX}px system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif`;
+          ctx.textBaseline = "top";
+          wrapCanvasText(ctx, object.text, x + 14 * scaleX, y + 12 * scaleY, Math.max(40, w - 28 * scaleX), Math.max(18, (object.fontSize || 18) * 1.32) * scaleY);
+        }
+
+        if (object.id === selectedBoardObjectId) {
+          ctx.setLineDash([7 * scaleX, 6 * scaleX]);
+          ctx.strokeStyle = "rgba(185,130,45,.90)";
+          ctx.lineWidth = 2 * scaleX;
+          ctx.strokeRect(x, y, w, h);
+          ctx.setLineDash([]);
+
+          const handle = Math.max(12, 14 * scaleX);
+          ctx.fillStyle = "#fffdf8";
+          ctx.strokeStyle = "rgba(44,36,27,.72)";
+          ctx.lineWidth = 1.5 * scaleX;
+          ctx.fillRect(x + w - handle, y + h - handle, handle, handle);
+          ctx.strokeRect(x + w - handle, y + h - handle, handle, handle);
+        }
+
+        ctx.restore();
+      });
+    }
+
+    function hitBoardObject(point) {
+      const objects = activeBoardObjects();
+
+      for (let i = objects.length - 1; i >= 0; i--) {
+        const object = objects[i];
+        const inside = point.x >= object.x && point.x <= object.x + object.w && point.y >= object.y && point.y <= object.y + object.h;
+        if (!inside) continue;
+
+        const resize = point.x >= object.x + object.w - 18 && point.y >= object.y + object.h - 18;
+
+        return { object, resize };
+      }
+
+      return null;
+    }
+
+    function beginLaserObjectProbe(event) {
+      if (!boardOpen || mode !== "laser") return false;
+
+      const point = boardCssPointFromEvent(event);
+      const hit = hitBoardObject(point);
+
+      laserObjectClick = {
+        startX: point.x,
+        startY: point.y,
+        hitObjectId: hit ? hit.object.id : null
+      };
+
+      /*
+        Important:
+        Do not select or move objects on pointerdown. A simple click will select
+        on pointerup; a drag stays pure laser and never edits the image.
+      */
+      return true;
+    }
+
+    function finishLaserObjectProbe(event) {
+      if (!laserObjectClick || !boardOpen) return false;
+
+      const point = boardCssPointFromEvent(event);
+      const dx = point.x - laserObjectClick.startX;
+      const dy = point.y - laserObjectClick.startY;
+      const moved = Math.hypot(dx, dy) > CLICK_DRAG_THRESHOLD;
+      const hitObjectId = laserObjectClick.hitObjectId;
+
+      laserObjectClick = null;
+
+      if (moved) {
+        /*
+          Dragging with laser over an image should remain laser-only.
+          It must not select, move, resize or deselect objects.
+        */
+        return false;
+      }
+
+      if (hitObjectId) {
+        selectedBoardObjectId = hitObjectId;
+        boardObjectDrag = null;
+        safeBlurActiveElement();
+        render();
+        return true;
+      }
+
+      if (selectedBoardObjectId) {
+        selectedBoardObjectId = null;
+        boardObjectDrag = null;
+        safeBlurActiveElement();
+        render();
+        return true;
+      }
+
+      return false;
+    }
+
+    function beginBoardObjectInteraction(event) {
+      if (!boardOpen) return false;
+
+      const point = boardCssPointFromEvent(event);
+      const hit = hitBoardObject(point);
+
+      if (!hit) {
+        if (selectedBoardObjectId && mode === "laser") {
+          selectedBoardObjectId = null;
+          render();
+        }
+
+        return false;
+      }
+
+      const canSelect =
+        hit.object.id === selectedBoardObjectId ||
+        event.shiftKey ||
+        mode === "laser";
+
+      if (!canSelect) return false;
+
+      selectedBoardObjectId = hit.object.id;
+      safeBlurActiveElement();
+      boardObjectDrag = {
+        id: hit.object.id,
+        resize: hit.resize,
+        startX: point.x,
+        startY: point.y,
+        x: hit.object.x,
+        y: hit.object.y,
+        w: hit.object.w,
+        h: hit.object.h
+      };
+
+      render();
+      return true;
+    }
+
+    function updateBoardObjectInteraction(event) {
+      if (!boardObjectDrag) return false;
+
+      const object = boardObjectById(boardObjectDrag.id);
+      if (!object) {
+        boardObjectDrag = null;
+        return false;
+      }
+
+      const point = boardCssPointFromEvent(event);
+      const dx = point.x - boardObjectDrag.startX;
+      const dy = point.y - boardObjectDrag.startY;
+
+      if (boardObjectDrag.resize) {
+        const aspect = boardObjectDrag.w / Math.max(1, boardObjectDrag.h);
+        object.w = Math.max(60, boardObjectDrag.w + dx);
+        object.h = object.type === "image"
+          ? Math.max(40, object.w / aspect)
+          : Math.max(44, boardObjectDrag.h + dy);
+      } else {
+        object.x = Math.max(0, boardObjectDrag.x + dx);
+        object.y = Math.max(0, boardObjectDrag.y + dy);
+      }
+
+      render();
+      return true;
+    }
+
+    function endBoardObjectInteraction() {
+      if (!boardObjectDrag) return false;
+
+      const object = boardObjectById(boardObjectDrag.id);
+      if (object) {
+        const changed =
+          Math.abs(object.x - boardObjectDrag.x) > .5 ||
+          Math.abs(object.y - boardObjectDrag.y) > .5 ||
+          Math.abs(object.w - boardObjectDrag.w) > .5 ||
+          Math.abs(object.h - boardObjectDrag.h) > .5;
+
+        if (changed) {
+          pushUndo({
+            type:"transformObject",
+            objectId:object.id,
+            before:{ x:boardObjectDrag.x, y:boardObjectDrag.y, w:boardObjectDrag.w, h:boardObjectDrag.h },
+            after:{ x:object.x, y:object.y, w:object.w, h:object.h }
+          });
+        }
+      }
+
+      boardObjectDrag = null;
+      render();
+      return true;
+    }
+
+    function deleteSelectedBoardObject() {
+      if (!selectedBoardObjectId) return false;
+
+      const objects = activeBoardObjects();
+      const index = objects.findIndex(object => object.id === selectedBoardObjectId);
+      if (index === -1) return false;
+
+      const removed = serializeBoardObject(objects[index]);
+      objects.splice(index, 1);
+      pushUndo({ type:"deleteObject", object:removed, index });
+      selectedBoardObjectId = null;
+      boardObjectDrag = null;
+      render();
+
+      return true;
+    }
+
+    function addTextObject(text) {
+      const rect = refs.whiteboardCanvas.getBoundingClientRect();
+      const lines = String(text || "").split(/\n/).filter(Boolean);
+      const w = Math.min(560, Math.max(260, rect.width * .55));
+      const h = Math.min(260, Math.max(84, 52 + lines.length * 26));
+      const fitted = fitObjectToBoard(w, h);
+
+      const object = {
+        id: "obj_" + nextBoardObjectId++,
+        type: "text",
+        text: String(text || "").trim(),
+        x: fitted.x,
+        y: fitted.y,
+        w: fitted.w,
+        h: h,
+        fontSize: 18
+      };
+
+      activeBoardObjects().push(object);
+      pushUndo({ type:"pasteObject", objectId:object.id });
+      selectedBoardObjectId = object.id;
+      safeBlurActiveElement();
+      render();
+    }
+
+    function addImageObject(src) {
+      const img = new Image();
+
+      img.onload = () => {
+        const fitted = fitObjectToBoard(img.naturalWidth || 600, img.naturalHeight || 380);
+
+        const object = {
+          id: "obj_" + nextBoardObjectId++,
+          type: "image",
+          src,
+          img,
+          x: fitted.x,
+          y: fitted.y,
+          w: fitted.w,
+          h: fitted.h
+        };
+
+        activeBoardObjects().push(object);
+        pushUndo({ type:"pasteObject", objectId:object.id });
+        selectedBoardObjectId = object.id;
+        safeBlurActiveElement();
+        render();
+      };
+
+      img.src = src;
+    }
+
+    function handleBoardPaste(event) {
+      if (!boardOpen) return;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(event.target.tagName) || event.target.isContentEditable) return;
+
+      const data = event.clipboardData;
+      if (!data) return;
+
+      const items = Array.from(data.items || []);
+      const imageItem = items.find(item => item.type && item.type.startsWith("image/"));
+
+      if (imageItem) {
+        const file = imageItem.getAsFile();
+        if (!file) return;
+
+        const reader = new FileReader();
+
+        reader.onload = () => {
+          addImageObject(String(reader.result || ""));
+        };
+
+        reader.readAsDataURL(file);
+        event.preventDefault();
+        return;
+      }
+
+      const text = data.getData("text/plain");
+      if (text && text.trim()) {
+        addTextObject(text);
+        event.preventDefault();
+      }
+    }
+
+    function renderBoardTabs() {
+      refs.boardTabs.innerHTML = "";
+
+      boardSessions.forEach((board, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "board-tab";
+        button.classList.toggle("active", board.id === activeBoardId);
+        button.title = "Doble click para renombrar";
+        button.textContent = board.title;
+
+        button.addEventListener("click", () => {
+          if (board.id === activeBoardId) return;
+          cancelCurve();
+          boardStroke = null;
+          selectedBoardObjectId = null;
+          boardObjectDrag = null;
+          activeBoardId = board.id;
+          syncBoard();
+          renderBoardTabs();
+          render();
+        });
+
+        button.addEventListener("dblclick", event => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          const next = window.prompt("Nombre de la pizarra", board.title);
+          if (next && next.trim()) {
+            board.title = next.trim().slice(0, 48);
+            renderBoardTabs();
+          }
+        });
+
+        refs.boardTabs.appendChild(button);
+      });
+
+      const add = document.createElement("button");
+      add.type = "button";
+      add.className = "board-tab-add";
+      add.textContent = "+ pizarra";
+      add.title = "Crear nueva pizarra";
+      add.addEventListener("click", () => {
+        safeBlurActiveElement();
+        const id = nextBoardId++;
+        boardSessions.push({
+          id,
+          title:"Pizarra " + (boardSessions.length + 1),
+          blocks:["blank"],
+          ink:[],
+          objects:[],
+          undoStack:[]
+        });
+
+        cancelCurve();
+        boardStroke = null;
+        selectedBoardObjectId = null;
+        boardObjectDrag = null;
+        activeBoardId = id;
+        syncBoard();
+        renderBoardTabs();
+        render();
+      });
+
+      refs.boardTabs.appendChild(add);
+    }
+
+
+    function renderSpecific(canvas, strokes, includeLaser) {
+      const ctx = canvas.getContext("2d");
+      const now = performance.now();
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (boardOpen && canvas === refs.whiteboardCanvas) drawBoardObjects(ctx, canvas);
+
+      strokes.forEach(stroke => drawStroke(ctx, canvas, stroke));
+
+      if (currentStroke && !boardOpen && canvas === activeSlideCanvas()) drawStroke(ctx, canvas, currentStroke);
+      if (boardStroke && boardOpen && canvas === refs.whiteboardCanvas) drawStroke(ctx, canvas, boardStroke);
+
+      if (includeLaser) drawLaser(ctx, canvas, now);
+    }
+
+    function render() {
+      if (boardOpen) {
+        renderSpecific(refs.whiteboardCanvas, activeBoardInk(), laserTarget === "board");
+      } else {
+        renderSpecific(activeSlideCanvas(), slideInk[currentSlide], laserTarget === "slide");
+      }
+    }
+
+    function animate() {
+      render();
+
+      if (laserPoints.length > 0) animationId = requestAnimationFrame(animate);
+      else animationId = null;
+    }
+
+    function ensureAnimation() {
+      if (!animationId) animationId = requestAnimationFrame(animate);
+    }
+
+    function closePopovers() {
+      activeToolPopover = null;
+      refs.toolPopover.classList.remove("visible");
+    }
+
+    function renderUniversalColorPicker(type, currentValue, onSelect) {
+      const paletteType = type === "laser" ? "laser" : type === "highlight" ? "highlight" : "pen";
+      const activeTab = activeColorPalette[type] || "page";
+      const palettes = colorPalettes[paletteType];
+
+      refs.colorChoices.innerHTML = "";
+
+      const tabRow = document.createElement("div");
+      tabRow.className = "palette-tabs";
+
+      colorPaletteTabs.forEach(tab => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "palette-tab";
+        button.textContent = tab.label;
+        button.classList.toggle("active", activeTab === tab.key);
+
+        button.addEventListener("click", event => {
+          event.preventDefault();
+          event.stopPropagation();
+          activeColorPalette[type] = tab.key;
+          openToolPopover(type);
+        });
+
+        tabRow.appendChild(button);
+      });
+
+      const colorRow = document.createElement("div");
+      colorRow.className = "palette-color-row";
+
+      (palettes[activeTab] || []).forEach(option => {
+        const value = type === "laser" ? option.rgb : option.value;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "color-choice";
+        button.title = option.label;
+        button.style.background = option.swatch;
+        button.classList.toggle("active", value === currentValue);
+
+        button.addEventListener("click", event => {
+          event.preventDefault();
+          event.stopPropagation();
+          onSelect(option);
+        });
+
+        colorRow.appendChild(button);
+      });
+
+      refs.colorChoices.appendChild(tabRow);
+      refs.colorChoices.appendChild(colorRow);
+    }
+
+    function openToolPopover(type) {
+      activeToolPopover = type;
+      refs.toolPopover.classList.add("visible");
+
+      refs.colorChoices.innerHTML = "";
+      refs.sizeChoices.innerHTML = "";
+
+      if (type === "laser") {
+        refs.popoverTitle.textContent = "Láser · color y duración";
+
+        renderUniversalColorPicker("laser", laserColor, option => {
+          laserColor = option.rgb;
+          laserSwatch = option.swatch;
+          openToolPopover("laser");
+        });
+
+        const durationTitle = document.createElement("div");
+        durationTitle.className = "choice-section-title";
+        durationTitle.textContent = "Duración";
+        refs.sizeChoices.appendChild(durationTitle);
+
+        laserDurations.forEach(option => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "duration-choice";
+          button.textContent = option.label;
+          button.classList.toggle("active", option.value === laserLifeMs);
+
+          button.addEventListener("click", () => {
+            laserLifeMs = option.value;
+            openToolPopover("laser");
+          });
+
+          refs.sizeChoices.appendChild(button);
+        });
+
+        return;
+      }
+
+      const isHighlight = type === "highlight";
+      const isLine = type === "line";
+      const isPenLike = type === "pen" || isLine;
+      const sizes = isHighlight ? highlightSizes : penSizes;
+      const currentColor = isHighlight ? highlightColor : penColor;
+      const currentSize = isHighlight ? highlightWidth : penWidth;
+
+      refs.popoverTitle.textContent = isLine ? "Línea" : isHighlight ? "Resaltador" : "Lápiz";
+
+      renderUniversalColorPicker(type, currentColor, option => {
+        if (isHighlight) highlightColor = option.value;
+        else penColor = option.value;
+        openToolPopover(type);
+      });
+
+      const sizeTitle = document.createElement("div");
+      sizeTitle.className = "choice-section-title";
+      sizeTitle.textContent = "Grosor";
+      refs.sizeChoices.appendChild(sizeTitle);
+
+      sizes.forEach(option => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "size-choice";
+        button.textContent = option.label;
+        button.classList.toggle("active", option.value === currentSize);
+
+        button.addEventListener("click", () => {
+          if (isPenLike) penWidth = option.value;
+          else highlightWidth = option.value;
+          openToolPopover(type);
+        });
+
+        refs.sizeChoices.appendChild(button);
+      });
+
+      if (isLine) {
+        const modeTitle = document.createElement("div");
+        modeTitle.className = "choice-section-title";
+        modeTitle.textContent = "Tipo de línea";
+        refs.sizeChoices.appendChild(modeTitle);
+
+        const select = document.createElement("select");
+        select.className = "line-mode-select";
+        select.setAttribute("aria-label", "Tipo de línea");
+
+        lineModes.forEach(option => {
+          const item = document.createElement("option");
+          item.value = option.value;
+          item.textContent = option.label;
+          item.selected = option.value === lineMode;
+          select.appendChild(item);
+        });
+
+        select.addEventListener("change", event => {
+          cancelCurve();
+          lineMode = event.target.value;
+          openToolPopover("line");
+        });
+
+        refs.sizeChoices.appendChild(select);
+
+        if (lineMode === "curve") {
+          const hint = document.createElement("div");
+          hint.className = "curve-help compact";
+          hint.innerHTML = "Curva 3 puntos: los tres clicks son puntos de paso. <kbd>Esc</kbd> cancela.";
+          refs.sizeChoices.appendChild(hint);
+        }
+      }
+    }
+
+    function setMode(nextMode, options = {}) {
+      const wasSame = mode === nextMode;
+
+      if (!(nextMode === "line" && lineMode === "curve")) {
+        cancelCurve();
+      }
+
+      mode = nextMode;
+
+      refs.laser.classList.toggle("active", mode === "laser");
+      refs.highlight.classList.toggle("active", mode === "highlight");
+      refs.pen.classList.toggle("active", mode === "pen");
+      refs.line.classList.toggle("active", mode === "line");
+      refs.eraser.classList.toggle("active", mode === "eraser");
+
+      document.querySelectorAll(".draw-layer").forEach(layer => {
+        layer.classList.toggle("write-mode", mode !== "laser" && mode !== "eraser");
+        layer.classList.toggle("erase-mode", mode === "eraser");
+      });
+
+      if (mode !== "laser") {
+        hideLaserDot();
+        laserDown = false;
+      }
+
+      if (mode === "laser") {
+        if (options.toggleOptions && wasSame) {
+          if (activeToolPopover === "laser") closePopovers();
+          else openToolPopover("laser");
+        } else {
+          closePopovers();
+        }
+        return;
+      }
+
+      if (mode === "eraser") {
+        closePopovers();
+        return;
+      }
+
+      if (options.toggleOptions && wasSame) {
+        if (activeToolPopover === mode) closePopovers();
+        else openToolPopover(mode);
+      } else {
+        closePopovers();
+      }
+    }
+
+    function showSlide(index) {
+      currentSlide = Math.max(0, Math.min(index, slides.length - 1));
+      currentStroke = null;
+      laserPoints = [];
+
+      slides.forEach((slide, i) => slide.classList.toggle("active", i === currentSlide));
+
+      const slide = slides[currentSlide];
+      refs.title.textContent = slide.dataset.title;
+      refs.subtitle.textContent = slide.dataset.subtitle;
+      refs.counter.textContent = "Slide " + (currentSlide + 1) + " de " + slides.length;
+      refs.fill.style.width = ((currentSlide + 1) / slides.length) * 100 + "%";
+      refs.prev.disabled = currentSlide === 0;
+      refs.next.disabled = currentSlide === slides.length - 1;
+
+      slide.querySelector(".slide-scroll").scrollTop = 0;
+
+      setMode("laser");
+      requestAnimationFrame(() => resizeCanvas(activeSlideCanvas()));
+    }
+
+    function openBoard() {
+      safeBlurActiveElement();
+      boardOpen = true;
+      refs.whiteboardOverlay.classList.add("visible");
+      refs.whiteboard.classList.add("active");
+      closePopovers();
+      renderBoardTabs();
+      syncBoard();
+      requestAnimationFrame(updateAddVisibility);
+    }
+
+    function closeBoard() {
+      boardOpen = false;
+      boardStroke = null;
+      refs.whiteboardOverlay.classList.remove("visible");
+      refs.whiteboard.classList.remove("active");
+      refs.boardAddMenu.classList.remove("visible");
+      requestAnimationFrame(() => resizeCanvas(activeSlideCanvas()));
+    }
+
+    function toggleBoard() {
+      if (boardOpen) closeBoard();
+      else openBoard();
+    }
+
+    function buildCartesianSvg(numbered = false) {
+      const labels = numbered
+        ? [-5,-4,-3,-2,-1,1,2,3,4,5].map(v => {
+          const x = 500 + v * 80;
+          const y = 500 - v * 80;
+          return `<text x="${x}" y="555" text-anchor="middle">${v}</text><text x="545" y="${y + 6}">${v}</text>`;
+        }).join("")
+        : "";
+
+      const grid = Array.from({ length: 11 }, (_, i) => 100 + i * 80).map(pos => (
+        `<line class="minor" x1="${pos}" y1="80" x2="${pos}" y2="920" />
+         <line class="minor" x1="80" y1="${pos}" x2="920" y2="${pos}" />`
+      )).join("");
+
+      const ticks = [-5,-4,-3,-2,-1,1,2,3,4,5].map(v => {
+        const x = 500 + v * 80;
+        const y = 500 - v * 80;
+        return `<line class="tick" x1="${x}" y1="485" x2="${x}" y2="515" />
+                <line class="tick" x1="485" y1="${y}" x2="515" y2="${y}" />`;
+      }).join("");
+
+      return `
+        <div class="cartesian-safe">
+          <svg viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <marker id="arrowR" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto">
+                <path d="M2,2 L10,6 L2,10 Z" fill="rgba(21,18,15,.66)" />
+              </marker>
+              <marker id="arrowL" markerWidth="12" markerHeight="12" refX="3" refY="6" orient="auto">
+                <path d="M10,2 L2,6 L10,10 Z" fill="rgba(21,18,15,.66)" />
+              </marker>
+            </defs>
+            ${grid}
+            <line class="axis" x1="80" y1="500" x2="920" y2="500" marker-start="url(#arrowL)" marker-end="url(#arrowR)" />
+            <line class="axis" x1="500" y1="920" x2="500" y2="80" marker-start="url(#arrowL)" marker-end="url(#arrowR)" />
+            ${ticks}
+            ${labels}
+          </svg>
+        </div>
+      `;
+    }
+
+    function buildNumberLineSvg() {
+      const ticks = Array.from({ length: 21 }, (_, i) => i - 10).map(v => {
+        const x = 500 + v * 42;
+        return `<line class="tick" x1="${x}" y1="35" x2="${x}" y2="65" />
+                <text x="${x}" y="92" text-anchor="middle">${v}</text>`;
+      }).join("");
+
+      return `
+        <div class="numberline-safe">
+          <svg viewBox="0 0 1000 110" preserveAspectRatio="none">
+            <defs>
+              <marker id="numArrowR" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto">
+                <path d="M2,2 L10,6 L2,10 Z" fill="rgba(21,18,15,.66)" />
+              </marker>
+              <marker id="numArrowL" markerWidth="12" markerHeight="12" refX="3" refY="6" orient="auto">
+                <path d="M10,2 L2,6 L10,10 Z" fill="rgba(21,18,15,.66)" />
+              </marker>
+            </defs>
+            <line class="axis" x1="45" y1="50" x2="955" y2="50" marker-start="url(#numArrowL)" marker-end="url(#numArrowR)" />
+            ${ticks}
+          </svg>
+        </div>
+      `;
+    }
+
+    function syncBoard() {
+      renderBoardTabs();
+      const height = Math.max(refs.whiteboardOverlay.clientHeight || 0, activeBoardBlocks().length * BOARD_CHUNK_HEIGHT);
+      refs.whiteboardContent.style.height = height + "px";
+      refs.boardTemplates.innerHTML = "";
+
+      activeBoardBlocks().forEach((type, index) => {
+        const block = document.createElement("div");
+        block.className = "board-block";
+        block.style.top = (index * BOARD_CHUNK_HEIGHT) + "px";
+
+        if (index > 0) {
+          const divider = document.createElement("div");
+          divider.className = "block-divider";
+          divider.style.top = (index * BOARD_CHUNK_HEIGHT) + "px";
+          refs.boardTemplates.appendChild(divider);
+        }
+
+        if (type !== "blank") {
+          const label = document.createElement("div");
+          label.className = "board-block-label";
+          label.textContent = templateName(type);
+          block.appendChild(label);
+        }
+
+        if (type === "grid") block.classList.add("block-grid");
+        if (type === "lined") block.classList.add("lined-safe");
+        if (type === "table") block.classList.add("table-safe");
+        if (type === "timeline") {
+          block.classList.add("timeline-safe");
+          for (let i = 0; i < 5; i++) {
+            const left = 14 + i * 18;
+            const node = document.createElement("div");
+            node.className = "node";
+            node.style.left = left + "%";
+
+            const slot = document.createElement("div");
+            slot.className = "slot " + (i % 2 === 0 ? "top" : "bottom");
+            slot.style.left = left + "%";
+
+            block.appendChild(node);
+            block.appendChild(slot);
+          }
+        }
+
+        if (type === "cartesian") block.innerHTML += buildCartesianSvg(false);
+        if (type === "cartesianNumbered") block.innerHTML += buildCartesianSvg(true);
+        if (type === "numberline") block.innerHTML += buildNumberLineSvg();
+
+        refs.boardTemplates.appendChild(block);
+      });
+
+      requestAnimationFrame(() => resizeCanvas(refs.whiteboardCanvas));
+      updateAddVisibility();
+    }
+
+    function templateName(type) {
+      return {
+        blank:"hoja en blanco",
+        lined:"hoja rayada",
+        grid:"hoja cuadriculada",
+        cartesian:"eje cartesiano",
+        cartesianNumbered:"eje numerado",
+        numberline:"recta numérica",
+        table:"tabla",
+        timeline:"línea de tiempo"
+      }[type] || "bloque";
+    }
+
+    function addBoardBlock(type) {
+      activeBoardBlocks().push(type);
+      refs.boardAddMenu.classList.remove("visible");
+      syncBoard();
+
+      requestAnimationFrame(() => {
+        refs.whiteboardScroll.scrollTo({
+          top: refs.whiteboardContent.scrollHeight,
+          behavior: "smooth"
+        });
+      });
+    }
+
+    function updateAddVisibility() {
+      if (!boardOpen) return;
+
+      const distanceToBottom = refs.whiteboardScroll.scrollHeight - refs.whiteboardScroll.scrollTop - refs.whiteboardScroll.clientHeight;
+      const visible = distanceToBottom < 180;
+      refs.boardBottomAddBtn.classList.toggle("visible", visible);
+
+      if (!visible) refs.boardAddMenu.classList.remove("visible");
+    }
+
+    function toggleBoardAddMenu() {
+      if (!refs.boardBottomAddBtn.classList.contains("visible")) return;
+      refs.boardAddMenu.classList.toggle("visible");
+    }
+
+    function updateLaserDot(point) {
+      const dot = activeDot();
+      dot.style.left = (point.x * 100) + "%";
+      dot.style.top = point.coord === "board" ? point.y + "px" : (point.y * 100) + "%";
+      dot.style.background = laserSwatch;
+      dot.style.boxShadow = `0 0 16px rgba(${laserColor}, .30)`;
+      dot.classList.add("visible");
+    }
+
+    function hideLaserDot() {
+      document.querySelectorAll(".laser-dot").forEach(dot => dot.classList.remove("visible"));
+    }
+
+    function addLaserPoint(event, target) {
+      const point = pointFromEvent(event, activeCanvas(), target);
+      point.strokeId = laserStrokeId;
+
+      const last = laserPoints[laserPoints.length - 1];
+
+      if (last && last.strokeId === laserStrokeId) {
+        const distance = Math.hypot(point.x - last.x, point.y - last.y);
+        if (distance < LASER_MIN_DISTANCE) {
+          updateLaserDot(point);
+          return;
+        }
+      }
+
+      laserTarget = target;
+      laserPoints.push(point);
+
+      if (laserPoints.length > LASER_MAX_POINTS) {
+        laserPoints.splice(0, laserPoints.length - LASER_MAX_POINTS);
+      }
+
+      updateLaserDot(point);
+      ensureAnimation();
+    }
+
+    function pointDistanceToSegment(px, py, ax, ay, bx, by) {
+      const dx = bx - ax;
+      const dy = by - ay;
+      if (dx === 0 && dy === 0) return Math.hypot(px - ax, py - ay);
+
+      const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+      const x = ax + t * dx;
+      const y = ay + t * dy;
+
+      return Math.hypot(px - x, py - y);
+    }
+
+    function strokeNearPoint(stroke, point, canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleY = canvas.height / Math.max(1, rect.height);
+      const px = point.x * canvas.width;
+      const py = point.coord === "board" ? point.y * scaleY : point.y * canvas.height;
+      const threshold = Math.max(7, stroke.width + 4);
+
+      for (let i = 1; i < stroke.points.length; i++) {
+        const a = stroke.points[i - 1];
+        const b = stroke.points[i];
+
+        const ax = a.x * canvas.width;
+        const ay = a.coord === "board" ? a.y * scaleY : a.y * canvas.height;
+        const bx = b.x * canvas.width;
+        const by = b.coord === "board" ? b.y * scaleY : b.y * canvas.height;
+
+        if (pointDistanceToSegment(px, py, ax, ay, bx, by) <= threshold) return true;
+      }
+
+      return false;
+    }
+
+    function eraseAt(event, target) {
+      const canvas = activeCanvas();
+      const point = pointFromEvent(event, canvas, target);
+      const strokes = activeInk();
+
+      for (let i = strokes.length - 1; i >= 0; i--) {
+        if (strokeNearPoint(strokes[i], point, canvas)) {
+          const removed = strokes.splice(i, 1)[0];
+          pushUndo({ type:"eraseStroke", stroke:cloneStroke(removed), index:i });
+          render();
+          return;
+        }
+      }
+    }
+
+    function canvasDistanceBetweenPoints(a, b, canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleY = canvas.height / Math.max(1, rect.height);
+
+      const ax = a.x * canvas.width;
+      const ay = a.coord === "board" ? a.y * scaleY : a.y * canvas.height;
+      const bx = b.x * canvas.width;
+      const by = b.coord === "board" ? b.y * scaleY : b.y * canvas.height;
+
+      return Math.hypot(ax - bx, ay - by);
+    }
+
+    function startOrExtendCurve(event, target) {
+      const canvas = activeCanvas();
+      const point = pointFromEvent(event, canvas, target);
+
+      if (!curveDraft || curveDraftTarget !== target) {
+        curveDraft = {
+          id:"stroke_" + nextStrokeId++,
+          tool:"curve",
+          color:penColor,
+          width:penWidth,
+          points:[],
+          lineMode:"curve",
+          preview:true
+        };
+        curveDraftTarget = target;
+        curvePreviewPoint = null;
+      }
+
+      const last = curveDraft.points[curveDraft.points.length - 1];
+
+      if (last && canvasDistanceBetweenPoints(last, point, canvas) < 10) {
+        render();
+        return;
+      }
+
+      curveDraft.points.push(point);
+      curvePreviewPoint = null;
+
+      if (target === "board") boardStroke = curveDraft;
+      else currentStroke = curveDraft;
+
+      if (curveDraft.points.length >= 3) {
+        finishCurve();
+        return;
+      }
+
+      render();
+    }
+
+    function updateCurvePreview(event, target) {
+      if (!curveDraft || curveDraftTarget !== target) return;
+
+      const canvas = activeCanvas();
+      const point = pointFromEvent(event, canvas, target);
+      const last = curveDraft.points[curveDraft.points.length - 1];
+
+      if (last && canvasDistanceBetweenPoints(last, point, canvas) < 4) return;
+
+      curvePreviewPoint = point;
+      render();
+    }
+
+    function finishCurve() {
+      if (!curveDraft) return;
+
+      if (curveDraft.points.length >= 2) {
+        curveDraft.preview = false;
+
+        ensureStrokeId(curveDraft);
+
+        if (curveDraftTarget === "board") activeBoardInk().push(curveDraft);
+        else slideInk[currentSlide].push(curveDraft);
+
+        pushUndo({ type:"addStroke", strokeId:curveDraft.id, stroke:cloneStroke(curveDraft) });
+      }
+
+      curveDraft = null;
+      curveDraftTarget = null;
+      curvePreviewPoint = null;
+      boardStroke = null;
+      currentStroke = null;
+      render();
+    }
+
+    function cancelCurve() {
+      curveDraft = null;
+      curveDraftTarget = null;
+      curvePreviewPoint = null;
+      boardStroke = null;
+      currentStroke = null;
+      render();
+    }
+
+    function handlePointerDown(event, target) {
+      event.preventDefault();
+
+      if (mode !== "line" || lineMode !== "curve") {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+
+      closePopovers();
+
+      if (target === "board" && mode === "laser") {
+        const point = boardCssPointFromEvent(event);
+        const hit = hitBoardObject(point);
+
+        /*
+          v36 final laser/image rule:
+          - unselected image + drag = laser only
+          - unselected image + click = select on pointerup
+          - selected image + drag/handle = edit object, not laser-only
+        */
+        if (hit && hit.object.id === selectedBoardObjectId && beginBoardObjectInteraction(event)) {
+          laserObjectClick = null;
+          return;
+        }
+
+        beginLaserObjectProbe(event);
+        laserDown = true;
+        laserTarget = target;
+        laserStrokeId += 1;
+        addLaserPoint(event, target);
+        return;
+      }
+
+      if (target === "board" && beginBoardObjectInteraction(event)) {
+        return;
+      }
+
+      if (mode === "line" && lineMode === "curve") {
+        startOrExtendCurve(event, target);
+        return;
+      }
+
+      if (mode === "laser") {
+        laserDown = true;
+        laserTarget = target;
+        laserStrokeId += 1;
+        addLaserPoint(event, target);
+        return;
+      }
+
+      if (mode === "eraser") {
+        eraserDown = true;
+        eraseAt(event, target);
+        return;
+      }
+
+      const startPoint = pointFromEvent(event, activeCanvas(), target);
+      const stroke = {
+        id:"stroke_" + nextStrokeId++,
+        tool:mode,
+        color:mode === "highlight" ? highlightColor : penColor,
+        width:mode === "highlight" ? highlightWidth : penWidth,
+        points:[startPoint],
+        startPoint:startPoint,
+        lineMode: mode === "line" ? lineMode : undefined,
+        tickSize: mode === "line" ? lineTickSize : undefined
+      };
+
+      if (target === "board") boardStroke = stroke;
+      else currentStroke = stroke;
+
+      render();
+    }
+
+    function handlePointerMove(event, target) {
+      if (target === "board" && updateBoardObjectInteraction(event)) {
+        /*
+          v37 final polish:
+          When the laser tool is active and a selected image/text object is being
+          moved or resized, object interaction consumes pointermove before the
+          normal laser branch. Keep the laser dot tracking the mouse as a visual
+          cursor, without creating a laser stroke.
+        */
+        if (mode === "laser") {
+          const point = pointFromEvent(event, activeCanvas(), target);
+          updateLaserDot(point);
+        }
+
+        event.preventDefault();
+        return;
+      }
+
+      if (mode === "line" && lineMode === "curve") {
+        event.preventDefault();
+        updateCurvePreview(event, target);
+        return;
+      }
+
+      if (mode === "laser") {
+        event.preventDefault();
+        const point = pointFromEvent(event, activeCanvas(), target);
+
+        /*
+          v36: the laser dot must remain visible over pasted images even when
+          not drawing. The board layer now sits above the canvas, and this
+          pointermove updates the dot before any pressed-stroke logic.
+        */
+        updateLaserDot(point);
+
+        if (laserDown) addLaserPoint(event, target);
+        return;
+      }
+
+      if (mode === "eraser") {
+        event.preventDefault();
+        if (eraserDown) eraseAt(event, target);
+        return;
+      }
+
+      const stroke = target === "board" ? boardStroke : currentStroke;
+      if (!stroke) return;
+
+      event.preventDefault();
+      const point = pointFromEvent(event, activeCanvas(), target);
+
+      if (mode === "line") stroke.points = [stroke.startPoint, point];
+      else stroke.points.push(point);
+
+      render();
+    }
+
+    function handlePointerUp(event, target) {
+      if (target === "board" && endBoardObjectInteraction()) {
+        event.preventDefault();
+        return;
+      }
+
+      if (mode === "line" && lineMode === "curve") {
+        return;
+      }
+
+      if (mode === "laser") {
+        laserDown = false;
+
+        if (target === "board") {
+          finishLaserObjectProbe(event);
+        } else {
+          laserObjectClick = null;
+        }
+
+        if (event.pointerType !== "mouse") hideLaserDot();
+        return;
+      }
+
+      if (mode === "eraser") {
+        eraserDown = false;
+        return;
+      }
+
+      if (target === "board") {
+        if (!boardStroke) return;
+        ensureStrokeId(boardStroke);
+        activeBoardInk().push(boardStroke);
+        pushUndo({ type:"addStroke", strokeId:boardStroke.id, stroke:cloneStroke(boardStroke) });
+        boardStroke = null;
+      } else {
+        if (!currentStroke) return;
+        ensureStrokeId(currentStroke);
+        slideInk[currentSlide].push(currentStroke);
+        pushUndo({ type:"addStroke", strokeId:currentStroke.id, stroke:cloneStroke(currentStroke) });
+        currentStroke = null;
+      }
+
+      render();
+    }
+
+    function handlePointerCancel() {
+      laserDown = false;
+      eraserDown = false;
+      currentStroke = null;
+      boardStroke = null;
+      boardObjectDrag = null;
+      laserObjectClick = null;
+      hideLaserDot();
+    }
+
+    function undoActive() {
+      const stack = activeUndoStack();
+      const action = stack.pop();
+
+      if (!action) {
+        closePopovers();
+        return;
+      }
+
+      const strokes = activeInk();
+
+      if (action.type === "addStroke") {
+        removeStrokeById(strokes, action.strokeId);
+      }
+
+      if (action.type === "eraseStroke") {
+        const index = Math.max(0, Math.min(action.index, strokes.length));
+        strokes.splice(index, 0, cloneStroke(action.stroke));
+      }
+
+      if (action.type === "clearSurface") {
+        strokes.length = 0;
+        cloneStrokes(action.strokes).forEach(stroke => strokes.push(stroke));
+
+        if (boardOpen) {
+          const objects = activeBoardObjects();
+          objects.length = 0;
+          hydrateBoardObjects(action.objects || []).forEach(object => objects.push(object));
+          selectedBoardObjectId = null;
+          boardObjectDrag = null;
+        }
+      }
+
+      if (boardOpen && action.type === "pasteObject") {
+        removeObjectById(activeBoardObjects(), action.objectId);
+        if (selectedBoardObjectId === action.objectId) selectedBoardObjectId = null;
+      }
+
+      if (boardOpen && action.type === "deleteObject") {
+        const objects = activeBoardObjects();
+        const object = hydrateBoardObject(action.object);
+        const index = Math.max(0, Math.min(action.index, objects.length));
+        objects.splice(index, 0, object);
+        selectedBoardObjectId = object.id;
+      }
+
+      if (boardOpen && action.type === "transformObject") {
+        const object = boardObjectById(action.objectId);
+        if (object) Object.assign(object, action.before);
+      }
+
+      currentStroke = null;
+      boardStroke = null;
+      laserPoints = [];
+      render();
+      closePopovers();
+    }
+
+    function clearActive() {
+      const strokes = activeInk();
+      const objects = boardOpen ? activeBoardObjects() : [];
+
+      if (strokes.length || objects.length) {
+        pushUndo({
+          type:"clearSurface",
+          strokes:cloneStrokes(strokes),
+          objects:boardOpen ? serializeBoardObjects(objects) : []
+        });
+      }
+
+      strokes.length = 0;
+      if (boardOpen) {
+        objects.length = 0;
+        selectedBoardObjectId = null;
+        boardObjectDrag = null;
+      }
+      currentStroke = null;
+      boardStroke = null;
+      laserPoints = [];
+      render();
+      closePopovers();
+    }
+
+    function filteredCards() {
+      if (cardMode === "review") {
+        return cards.map((card, index) => ({ card, index })).filter(item => cardResults[item.index] === "bad");
+      }
+      return cards.map((card, index) => ({ card, index }));
+    }
+
+    function currentCardItem() {
+      const source = filteredCards();
+      if (!source.length) return null;
+      currentCard = Math.min(currentCard, source.length - 1);
+      return source[currentCard];
+    }
+
+    function resetCardExtras() {
+      infoMode = "none";
+      refs.hintBtn.classList.remove("active");
+      refs.answerBtn.classList.remove("active");
+      refs.infoPanel.className = "reveal-panel";
+      refs.infoLabel.textContent = "";
+      refs.infoText.textContent = "";
+    }
+
+    function renderFlashcards() {
+      const source = filteredCards();
+      const good = cardResults.filter(value => value === "good").length;
+      const bad = cardResults.filter(value => value === "bad").length;
+      const left = cardResults.filter(value => value === null).length;
+      const answered = cards.length - left;
+
+      refs.goodCount.textContent = good;
+      refs.badCount.textContent = bad;
+      refs.leftCount.textContent = left;
+      refs.flashProgressFill.style.width = (answered / cards.length) * 100 + "%";
+
+      if (!source.length) {
+        refs.cardCounter.textContent = "Sin cards";
+        refs.cardTopic.textContent = "Repasar";
+        refs.tagRow.innerHTML = "";
+        refs.cardQuestion.textContent = "No hay cards marcadas para repasar.";
+        refs.infoPanel.className = "reveal-panel";
+        refs.infoLabel.textContent = "";
+        refs.infoText.textContent = "";
+        renderCardMap();
+        return;
+      }
+
+      const item = currentCardItem();
+      const card = item.card;
+
+      refs.cardCounter.textContent = "Card " + (currentCard + 1) + " de " + source.length;
+      refs.cardTopic.textContent = card.topic;
+      refs.cardQuestion.innerHTML = card.question;
+      renderInfoPanel(card);
+
+      refs.tagRow.innerHTML = "";
+      card.tags.forEach(tag => {
+        const span = document.createElement("span");
+        span.className = "tag";
+        span.textContent = tag;
+        refs.tagRow.appendChild(span);
+      });
+
+      renderCardMap();
+
+      if (window.MathJax) MathJax.typesetPromise?.();
+    }
+
+    function renderInfoPanel(card) {
+      refs.hintBtn.classList.toggle("active", infoMode === "hint");
+      refs.answerBtn.classList.toggle("active", infoMode === "answer");
+      refs.hintBtn.textContent = "🔍 Pista";
+      refs.answerBtn.textContent = "Respuesta";
+
+      if (infoMode === "hint") {
+        refs.infoPanel.className = "reveal-panel hint visible";
+        refs.infoLabel.textContent = "";
+        refs.infoText.textContent = card.hint;
+        return;
+      }
+
+      if (infoMode === "answer") {
+        refs.infoPanel.className = "reveal-panel answer visible";
+        refs.infoLabel.textContent = "";
+        refs.infoText.innerHTML = card.answer;
+        return;
+      }
+
+      refs.infoPanel.className = "reveal-panel";
+      refs.infoLabel.textContent = "";
+      refs.infoText.textContent = "";
+    }
+
+    function setInfoMode(nextMode) {
+      infoMode = infoMode === nextMode ? "none" : nextMode;
+      renderFlashcards();
+    }
+
+    function renderCardMap() {
+      const source = filteredCards();
+      refs.cardMap.innerHTML = "";
+
+      if (!source.length) {
+        const div = document.createElement("div");
+        div.className = "card-map-btn";
+        div.textContent = "No hay cards en este modo.";
+        refs.cardMap.appendChild(div);
+        return;
+      }
+
+      source.forEach((item, index) => {
+        const result = cardResults[item.index];
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "card-map-btn";
+        button.classList.toggle("current", index === currentCard);
+        button.classList.toggle("good", result === "good");
+        button.classList.toggle("bad", result === "bad");
+
+        const status = document.createElement("span");
+        status.className = "card-map-status";
+        status.textContent = result === "good" ? "Bien" : result === "bad" ? "Repasar" : "Pendiente";
+
+        const title = document.createElement("span");
+        title.textContent = (index + 1) + ". " + item.card.topic;
+
+        button.appendChild(status);
+        button.appendChild(title);
+
+        button.addEventListener("click", () => {
+          currentCard = index;
+          resetCardExtras();
+          resetStatus();
+          renderFlashcards();
+        });
+
+        refs.cardMap.appendChild(button);
+      });
+    }
+
+    function resetStatus() {
+      refs.flashStatus.className = "flash-status";
+      refs.flashStatus.textContent = "Marcá cómo te fue para avanzar.";
+    }
+
+    function markCard(value) {
+      const item = currentCardItem();
+      if (!item) return;
+
+      clearTimeout(autoTimer);
+      cardResults[item.index] = value;
+
+      refs.flashStatus.className = "flash-status " + (value === "good" ? "good" : "bad");
+      refs.flashStatus.textContent = value === "good"
+        ? "Bien marcado. Pasando a la siguiente..."
+        : "Queda para repasar. Pasando a la siguiente...";
+
+      renderCardMap();
+
+      autoTimer = setTimeout(() => {
+        nextCard();
+      }, 420);
+    }
+
+    function nextCard() {
+      const source = filteredCards();
+      if (!source.length) return;
+
+      currentCard = (currentCard + 1) % source.length;
+      resetCardExtras();
+      resetStatus();
+      renderFlashcards();
+    }
+
+    function setCardMode(nextMode) {
+      cardMode = nextMode;
+      currentCard = 0;
+      resetCardExtras();
+      resetStatus();
+      refs.allCardsMode.classList.toggle("active", nextMode === "all");
+      refs.reviewCardsMode.classList.toggle("active", nextMode === "review");
+      renderFlashcards();
+    }
+
+    refs.laser.addEventListener("click", () => setMode("laser", { toggleOptions:true }));
+    refs.highlight.addEventListener("click", () => setMode("highlight", { toggleOptions:true }));
+    refs.pen.addEventListener("click", () => setMode("pen", { toggleOptions:true }));
+    refs.line.addEventListener("click", () => setMode("line", { toggleOptions:true }));
+    refs.eraser.addEventListener("click", () => setMode("eraser"));
+    refs.whiteboard.addEventListener("click", toggleBoard);
+    refs.themeBtn.addEventListener("click", toggleThemePopover);
+
+    refs.undo.addEventListener("click", undoActive);
+    refs.clear.addEventListener("click", clearActive);
+
+    refs.prev.addEventListener("click", () => showSlide(currentSlide - 1));
+    refs.next.addEventListener("click", () => showSlide(currentSlide + 1));
+
+    refs.boardBottomAddBtn.addEventListener("click", toggleBoardAddMenu);
+    refs.boardAddMenu.querySelectorAll("[data-board-add]").forEach(button => {
+      button.addEventListener("click", () => addBoardBlock(button.dataset.boardAdd));
+    });
+    refs.whiteboardScroll.addEventListener("scroll", updateAddVisibility);
+
+    refs.hintBtn.addEventListener("click", () => setInfoMode("hint"));
+    refs.answerBtn.addEventListener("click", () => setInfoMode("answer"));
+
+    refs.markGood.addEventListener("click", () => markCard("good"));
+    refs.markBad.addEventListener("click", () => markCard("bad"));
+    refs.nextCardBtn.addEventListener("click", nextCard);
+    refs.allCardsMode.addEventListener("click", () => setCardMode("all"));
+    refs.reviewCardsMode.addEventListener("click", () => setCardMode("review"));
+
+    document.querySelectorAll(".slide .draw-layer").forEach(layer => {
+      layer.addEventListener("pointerdown", event => handlePointerDown(event, "slide"));
+      layer.addEventListener("pointermove", event => handlePointerMove(event, "slide"));
+      layer.addEventListener("pointerup", event => handlePointerUp(event, "slide"));
+      layer.addEventListener("dblclick", event => {
+        if (mode === "line" && lineMode === "curve") {
+          event.preventDefault();
+          finishCurve();
+        }
+      });
+      layer.addEventListener("pointercancel", handlePointerCancel);
+      layer.addEventListener("pointerleave", () => {
+        laserDown = false;
+        eraserDown = false;
+        hideLaserDot();
+      });
+    });
+
+    refs.boardLayer.addEventListener("pointerdown", event => handlePointerDown(event, "board"));
+    refs.boardLayer.addEventListener("pointermove", event => handlePointerMove(event, "board"));
+    refs.boardLayer.addEventListener("pointerup", event => handlePointerUp(event, "board"));
+    refs.boardLayer.addEventListener("dblclick", event => {
+      if (mode === "line" && lineMode === "curve") {
+        event.preventDefault();
+        finishCurve();
+      }
+    });
+    refs.boardLayer.addEventListener("pointercancel", handlePointerCancel);
+    refs.boardLayer.addEventListener("pointerleave", () => {
+      laserDown = false;
+      hideLaserDot();
+    });
+
+    document.addEventListener("paste", handleBoardPaste);
+
+
+    document.querySelectorAll("[data-load-geogebra]").forEach(button => {
+      button.addEventListener("click", () => {
+        const card = button.closest(".formula-card");
+        const slot = card?.querySelector("[data-geogebra-slot]");
+        if (!slot || slot.classList.contains("loaded")) return;
+
+        slot.classList.add("loaded");
+        slot.innerHTML = `<iframe title="GeoGebra Calculator" src="https://www.geogebra.org/calculator"></iframe>`;
+        button.textContent = "Cargado";
+        button.disabled = true;
+      });
+    });
+
+
+    document.addEventListener("click", event => {
+      if (!event.target.closest(".toolbar-wrap")) {
+        closePopovers();
+        refs.themePopover.classList.remove("visible");
+      }
+      if (!event.target.closest("#boardAddMenu") && !event.target.closest("#boardBottomAddBtn")) {
+        refs.boardAddMenu.classList.remove("visible");
+      }
+    });
+
+    window.addEventListener("keydown", event => {
+      const tag = event.target.tagName;
+      const isEditingTarget = ["INPUT", "TEXTAREA", "SELECT"].includes(tag) || event.target.isContentEditable;
+      if (isEditingTarget) return;
+
+      if (boardOpen && selectedBoardObjectId && event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
+        selectedBoardObjectId = null;
+        boardObjectDrag = null;
+        safeBlurActiveElement();
+        render();
+        return;
+      }
+
+      if (boardOpen && selectedBoardObjectId && (event.key === "Delete" || event.key === "Backspace")) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
+        deleteSelectedBoardObject();
+        return;
+      }
+
+      if (tag === "BUTTON") return;
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        undoActive();
+        return;
+      }
+
+      if (event.key === "ArrowRight" && !boardOpen) showSlide(currentSlide + 1);
+      if (event.key === "ArrowLeft" && !boardOpen) showSlide(currentSlide - 1);
+      if (event.key.toLowerCase() === "l") setMode("laser");
+      if (event.key.toLowerCase() === "h") setMode("highlight", { toggleOptions: mode === "highlight" });
+      if (event.key.toLowerCase() === "e") setMode("pen", { toggleOptions: mode === "pen" });
+      if (event.key.toLowerCase() === "r") setMode("line", { toggleOptions: mode === "line" });
+      if (event.key.toLowerCase() === "g") setMode("eraser");
+      if (event.key.toLowerCase() === "w") toggleBoard();
+
+      if (event.key === "Enter" && mode === "line" && lineMode === "curve") {
+        finishCurve();
+      }
+
+      if (event.key === "Escape") {
+        if (boardOpen && selectedBoardObjectId) {
+          selectedBoardObjectId = null;
+          boardObjectDrag = null;
+          render();
+          return;
+        }
+
+        if (mode === "line" && lineMode === "curve" && curveDraft) {
+          cancelCurve();
+          return;
+        }
+
+        if (boardOpen) closeBoard();
+        else {
+          closePopovers();
+          refs.themePopover.classList.remove("visible");
+          setMode("laser");
+        }
+      }
+    });
+
+    let resizeTimer;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(resizeAll, 80);
+    });
+
+    requestAnimationFrame(() => {
+      applyTheme("warm-paper");
+      resizeCanvas(activeSlideCanvas());
+      renderFlashcards();
+      showSlide(0);
+    });
+  </script>
+</body>
+</html>

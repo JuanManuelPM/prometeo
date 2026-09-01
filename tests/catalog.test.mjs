@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {access,readFile} from 'node:fs/promises';
 
 const tree=JSON.parse(await readFile(new URL('../catalog/tree.json',import.meta.url),'utf8'));
 const registry=JSON.parse(await readFile(new URL('../catalog/pages.json',import.meta.url),'utf8'));
@@ -29,8 +29,13 @@ for(const page of registry.pages){
   assert.ok(['live','recovered','archived'].includes(page.status),`Estado inválido: ${page.id}`);
   if(page.status==='live'){
     assert.ok(page.href,`Página live sin URL: ${page.id}`);
-    assert.doesNotThrow(()=>new URL(page.href));
-    assert.equal(new URL(page.href).protocol,'https:');
+    const target=new URL(page.href,new URL('../navigator/index.html',import.meta.url));
+    if(/^https:\/\//.test(page.href)){
+      assert.equal(target.protocol,'https:');
+    }else{
+      assert.equal(target.protocol,'file:',`Destino local inválido: ${page.id}`);
+      await access(target);
+    }
   }else{
     assert.ok(!page.href,`Una página no publicada no debe fingir una URL live: ${page.id}`);
     assert.ok(page.artifact_url||page.source,`Página recuperada sin procedencia: ${page.id}`);
