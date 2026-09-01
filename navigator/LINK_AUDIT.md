@@ -42,6 +42,13 @@ El repositorio `JuanManuelPM/prometeo` es público, tiene GitHub Pages habilitad
 
 Estos archivos conservan su procedencia en `catalog/pages.json`, pero ahora se publican bajo `pages/` y se abren como destinos terminales reales. No dependen de enlaces temporales de descarga.
 
-## Referencias sin entregable identificable
+## Reconstrucciones explícitas
 
-Las conversaciones también mencionan Student World submarino de Sofi, Página Materia de José, Visual Vault y Controles táctiles/paletas V9. La búsqueda histórica no devolvió un HTML, ZIP o URL inequívoco para esas cuatro referencias. No se fabricaron sustitutos ni enlaces falsos; el registro queda preparado para sumarlas sin tocar el motor cuando reaparezca un entregable verificable.
+La búsqueda histórica no devolvió un HTML, ZIP o URL inequívoco para cuatro referencias. Para cerrar la galería sin atribuirles falsamente autenticidad histórica, se reconstruyeron y se identificaron dentro de cada archivo como `Reconstrucción 2026`:
+
+- `STUDENT_WORLD_SOFI_SUBMARINO_RECONSTRUCTION.html`: mundo vertical submarino, estaciones y progreso.
+- `PAGINA_MATERIA_JOSE_RECONSTRUCTION.html`: portada sobria de materia, porcentaje, metadata y temas.
+- `PROMETEO_STUDENT_VISUAL_VAULT.html`: única entrada que compone los archivos reales `ORGANIZADOR_STICKERS_JOSE.html` y `MAPA_STICKERS_JOSE.html` sin copiar sus assets.
+- `controles_tactiles_prometeo_paletas_v9.html`: sistema físico con acciones frecuentes, botones, control bidimensional, paletas de dos colores y rueda de acento.
+
+Las dos páginas de stickers continúan publicadas como dependencias internas del Visual Vault, pero ya no aparecen duplicadas como destinos del árbol.
