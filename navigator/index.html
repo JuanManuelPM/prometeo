@@ -1,0 +1,2103 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="prometeo-build" content="PROMETEO_V52_SCALABLE_NAVIGATOR_20260901">
+<title>Prometeo · Navegador</title>
+<style>
+  :root{
+    --page:#e8dece;
+    --sheet:#aab99d;
+    --ink:#151a20;
+    --rail-dark:#171c21;
+    --rail-light:#e7ddca;
+    --rail-red:#8e3f2f;
+
+    --rail-h:68px;
+    --curve:22px;
+    --path-w:clamp(230px,28vw,430px);
+    --outer-r:22px;
+    --rail-font:40px;
+    --rail-pad:38px;
+    --seam-seal:1px;
+
+    --terminal:#dce5ea;
+    --terminal-ink:#172027;
+
+    /*
+      Same family as the lower teeth, rotated to the side:
+      width = lower tooth height.
+    */
+    --side-grip-w:var(--rail-h);
+    --side-grip-h:clamp(128px,20vh,170px);
+  }
+
+  *{
+    box-sizing:border-box;
+    -webkit-tap-highlight-color:transparent;
+  }
+
+  html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+  }
+
+  body{
+    display:grid;
+    place-items:center;
+    overflow:hidden;
+    background:
+      repeating-linear-gradient(
+        0deg,
+        rgba(92,71,39,.018) 0,
+        rgba(92,71,39,.018) 1px,
+        transparent 1px,
+        transparent 4px
+      ),
+      var(--page);
+    font-family:Arial,Helvetica,sans-serif;
+    color:var(--ink);
+  }
+
+  /* CAMERA — reactive to the actual host rectangle, including tiny live cards. */
+  .viewport{
+    position:relative;
+    width:min(100%,1500px);
+    height:min(100%,760px);
+    min-width:0;
+    min-height:0;
+    overflow:hidden;
+    border-radius:var(--outer-r);
+    touch-action:none;
+    user-select:none;
+    box-shadow:
+      inset 0 0 0 1px rgba(75,61,35,.08),
+      0 16px 34px rgba(55,45,25,.10);
+  }
+
+  /*
+    V11 — PHYSICAL HORIZONTAL STRIP
+    =================================
+    Panels are NOT edge-to-edge anymore. Between copies there is one physical
+    preload gap equal to the real LEFT overhang of the canonical green tooth.
+
+    This means the next panel and its tooth are already complete in the DOM,
+    but the tooth's leftmost pixel rests exactly beyond the viewport wall.
+
+    TRACK is the ONLY horizontal transform owner.
+  */
+  .track{
+    position:absolute;
+    inset:0 auto 0 0;
+    display:flex;
+    align-items:stretch;
+    gap:var(--preload-gap,0px);
+    transform:translate3d(0,0,0);
+    will-change:transform;
+  }
+
+  .panel{
+    position:relative;
+    width:var(--panel-w,100%);
+    height:100%;
+    flex:0 0 var(--panel-w,100%);
+    overflow:visible;
+  }
+
+
+  /* ==========================================================
+     UNIVERSAL NAVIGATION LAYER
+     GREEN OWNS ALL CURVES.
+     ========================================================== */
+
+  .nav-panel .sheet-body{
+    position:absolute;
+    top:0;
+    left:0;
+    /* V41 STRUCTURAL WELD
+       The sheet itself overlaps the rail boundary by one pixel. This avoids
+       raster seams without introducing a second moving surface. */
+    bottom:calc(var(--rail-h) - var(--seam-seal,1px));
+
+    /*
+      V13 — STRUCTURAL PRELOAD FILL
+      ============================
+      No extra full-height rectangle exists anymore.
+
+      The actual green sheet body itself extends through the physical
+      preloadGap. Because this same owner already stops at the TOP of the
+      lower rail, the fill cannot descend into the tooth / rail / terminal
+      grip zone.
+
+      Horizontal ownership is unchanged: this is static geometry inside the
+      panel; TRACK remains the only element with translateX.
+    */
+    /* V41: extend one more pixel through the horizontal preload join. */
+    right:calc(-1 * var(--preload-gap,0px) - var(--seam-seal,1px));
+
+    z-index:3;
+    background:var(--sheet);
+    pointer-events:none;
+  }
+
+  /*
+    The only bottom geometry owner.
+    Rails below it remain square.
+  */
+  .sheet-tooth{
+    position:absolute;
+    left:calc(-2 * var(--curve));
+    bottom:0;
+    width:calc(var(--path-w) + 4 * var(--curve));
+    height:var(--rail-h);
+    z-index:5;
+    overflow:visible;
+    pointer-events:none;
+  }
+
+  .sheet-tooth svg{
+    width:100%;
+    height:100%;
+    display:block;
+    overflow:visible;
+  }
+
+  .sheet-tooth path{
+    fill:var(--sheet);
+  }
+
+  .hero{
+    position:absolute;
+    z-index:6;
+    left:clamp(32px,5vw,78px);
+    top:clamp(70px,17vh,150px);
+  }
+
+  .cjk{
+    font-family:"Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+    font-size:clamp(108px,14vw,200px);
+    line-height:.78;
+    font-weight:900;
+    letter-spacing:-.05em;
+    filter:drop-shadow(0 4px 4px rgba(20,25,30,.13));
+  }
+
+  .name{
+    margin-top:28px;
+    font-size:clamp(48px,6.5vw,86px);
+    line-height:.9;
+    font-weight:900;
+    letter-spacing:-.045em;
+  }
+
+  .subtitle{
+    margin-top:12px;
+    font-size:clamp(21px,2.7vw,38px);
+    line-height:1;
+    font-weight:500;
+  }
+
+  .path-label{
+    position:absolute;
+    z-index:7;
+    left:0;
+    bottom:0;
+    width:var(--path-w);
+    height:var(--rail-h);
+    display:flex;
+    align-items:center;
+    padding:0 clamp(20px,3vw,38px);
+    white-space:nowrap;
+    font-size:clamp(25px,2.9vw,40px);
+    font-weight:900;
+    letter-spacing:-.035em;
+    pointer-events:none;
+  }
+
+  /*
+    Content under the green tooth.
+    Always rectangular.
+  */
+  .entry{
+    position:absolute;
+    z-index:2;
+    left:var(--path-w);
+    right:0;
+    bottom:0;
+    height:var(--rail-h);
+
+    /*
+      V9 — EMPTY TEETH
+      Nothing lives underneath the green geometry anymore.
+      The cut-outs reveal the page/background directly.
+    */
+    display:block;
+    padding:0;
+    border:0;
+    border-radius:0;
+    background:transparent;
+    color:transparent;
+    pointer-events:none;
+  }
+
+  .password .entry{
+    background:transparent;
+    color:transparent;
+  }
+
+  .entry > *{
+    visibility:hidden !important;
+  }
+
+  .dots{
+    display:none;
+  }
+
+  .dot{
+    width:20px;
+    height:20px;
+    border-radius:50%;
+    background:var(--sheet);
+  }
+
+  .password .dot{
+    background:var(--ink);
+    opacity:.34;
+  }
+
+  /*
+    Bigger type to simulate that the user/password was actually entered.
+  */
+  .entry input{
+    display:none;
+  }
+
+  /* ==========================================================
+     FOLDER SELECTION STAGE
+     Same green sheet. Different DATA only.
+     ========================================================== */
+
+  .folder-stage .entry{
+    padding:0;
+    display:block;
+    background:transparent;
+    overflow:visible;
+  }
+
+  .folder-choice{
+    display:none;
+  }
+
+  /* ==========================================================
+     FINAL / TERMINAL STAGE
+     Full page. No bottom navigation.
+     Only one side tooth remains.
+     ========================================================== */
+
+  .terminal{
+    /*
+      V20 — TERMINAL SURFACE OWNERSHIP
+      The terminal color is painted by one canonical SVG surface so the
+      lower-left attachment can use the same curve family as the rest of
+      Prometeo. The panel itself stays transparent.
+    */
+    background:transparent;
+    color:var(--terminal-ink);
+    overflow:hidden;
+    touch-action:auto;
+  }
+
+  .terminal-surface{
+    position:absolute;
+    inset:0;
+    z-index:0;
+    width:100%;
+    height:100%;
+    display:block;
+    pointer-events:none;
+    overflow:visible;
+  }
+
+  .terminal-surface path{
+    fill:var(--terminal);
+  }
+
+  .terminal-content{
+    position:absolute;
+    inset:0;
+    z-index:2;
+    overflow:auto;
+    padding:clamp(34px,6vw,88px);
+  }
+
+  .terminal-content.has-page{
+    padding:0;
+    overflow:hidden;
+  }
+
+  .terminal-frame{
+    display:block;
+    width:100%;
+    height:100%;
+    border:0;
+    background:#fff;
+  }
+
+  .terminal-source{
+    display:inline-flex;
+    align-items:center;
+    min-height:42px;
+    margin-top:24px;
+    padding:0 16px;
+    border:1px solid currentColor;
+    border-radius:999px;
+    color:inherit;
+    font-size:10px;
+    font-weight:900;
+    letter-spacing:.08em;
+    text-decoration:none;
+    text-transform:uppercase;
+  }
+
+  .terminal-kicker{
+    font-size:12px;
+    font-weight:900;
+    letter-spacing:.15em;
+    text-transform:uppercase;
+    opacity:.44;
+  }
+
+  .terminal h1{
+    margin:clamp(54px,12vh,118px) 0 20px;
+    max-width:900px;
+    font-size:clamp(62px,10vw,130px);
+    line-height:.84;
+    letter-spacing:-.065em;
+  }
+
+  .terminal p{
+    max-width:670px;
+    margin:0;
+    font-size:clamp(16px,2vw,22px);
+    line-height:1.5;
+    opacity:.62;
+  }
+
+  /*
+    FINAL GRIP POSITION CONTRACT
+    ============================
+    The grip must NOT descend beside the lower rail.
+    Its BOTTOM edge is aligned with the TOP edge of the Prometeo rail:
+        bottom = --rail-h
+
+    This keeps the side tooth visually attached to the green sheet,
+    while the red / beige / dark rail remains completely below it.
+  */
+  .return-tooth{
+    position:absolute;
+    z-index:20;
+
+    /*
+      SEAM CONTRACT
+      The green grip overlaps the previous green sheet by 2px while the
+      terminal page enters. This removes the subpixel/compositing line.
+      At the final resting position those 2px are outside the viewport and
+      therefore invisible.
+    */
+    left:-2px;
+    bottom:var(--rail-h);
+    width:calc(var(--side-grip-w) + 2px);
+
+    /*
+      One extra R exists ABOVE the visible tooth so the green wall can
+      curve continuously into its upper edge. The visible tooth height
+      itself remains --side-grip-h.
+    */
+    height:calc(var(--side-grip-h) + var(--curve));
+    cursor:ew-resize;
+    touch-action:none;
+  }
+
+  .return-tooth svg{
+    width:100%;
+    height:100%;
+    display:block;
+    overflow:visible;
+
+    /* No blur on the attachment edge: the grip must read as one green body. */
+    filter:none;
+  }
+
+  .return-tooth path{
+    fill:var(--sheet);
+  }
+
+  .return-bar{
+    position:absolute;
+    left:50%;
+    top:calc(50% + var(--curve)/2);
+    width:5px;
+    height:34px;
+    border-radius:999px;
+    transform:translate(-50%,-50%);
+    background:var(--ink);
+    opacity:.64;
+    box-shadow:
+      1px 1px 1px rgba(255,255,255,.13) inset,
+      -1px -1px 2px rgba(0,0,0,.16) inset;
+  }
+
+  .return-tooth.pressed .return-bar{
+    transform:translate(-50%,calc(-50% + 1px));
+    box-shadow:
+      1px 2px 3px rgba(0,0,0,.25) inset,
+      0 1px 0 rgba(255,255,255,.08);
+    opacity:.8;
+  }
+
+  /*
+    Only later panels stack higher while entering.
+    Internal geometry is never animated independently.
+  */
+  .user{z-index:1}
+  .password{z-index:2}
+  .folder-stage{z-index:3}
+  .terminal{z-index:4}
+
+  @media(max-width:760px){
+    :root{
+      --rail-h:58px;
+      --curve:18px;
+      --path-w:clamp(180px,43vw,270px);
+      --side-grip-h:116px;
+    }
+
+    .viewport{
+      width:calc(100vw - 16px);
+      height:calc(100dvh - 16px);
+      min-height:0;
+    }
+
+    .hero{
+      left:28px;
+      top:90px;
+    }
+
+    .path-label{
+      font-size:24px;
+      padding-inline:20px;
+    }
+
+    .entry{
+      padding-inline:16px;
+    }
+
+    .dot{
+      width:15px;
+      height:15px;
+    }
+
+    .folder-stage .entry{
+      padding:0;
+    }
+
+    .folder-choice{
+      padding-inline:18px;
+      font-size:21px;
+    }
+  }
+
+
+  /* ==========================================================
+     V14 — MODULAR VERTICAL SHELL
+     ----------------------------------------------------------
+     V13 is sealed inside every .vertical-card.
+
+     OWNERSHIP LAW:
+       .vertical-card  -> translateY ONLY
+       .track          -> translateX ONLY (unchanged V13 law)
+
+     No vertical function may write transform on .track.
+     No horizontal function may write transform on .vertical-card.
+     ========================================================== */
+  .vertical-card{
+    position:absolute;
+    inset:0;
+    overflow:visible;
+    pointer-events:none;
+    color:var(--ink);
+  }
+
+  /*
+    No z-index on FRONT/UNDER: idle V13 must stay in the same compositing mode
+    as the approved baseline. Vertical stacking is owned by DOM order.
+  */
+  .vertical-card.is-front{
+    pointer-events:auto;
+  }
+
+  .vertical-card.is-under{}
+  .vertical-card.is-previous{}
+
+  .vertical-card.is-hidden{
+    visibility:hidden;
+  }
+
+  /* Each vertical card is itself the complete V13 horizontal viewport. */
+  .vertical-card .track{
+    height:100%;
+  }
+
+  /* Debug-only tiny status; hidden by default so baseline pixels stay intact. */
+  .v14-debug{
+    display:none;
+  }
+
+
+  /* ==========================================================
+     V19 — V18 PHYSICAL DEPTH EXTENSIONS OVER SEALED V13
+     ----------------------------------------------------------
+     V13 stays untouched inside every vertical card.
+     Rear depth is expressed only by a bottom physical extension.
+
+     OWNERS:
+       .vertical-card        -> translateY only
+       [data-track]          -> translateX only
+       .vertical-extension   -> depth boundary only
+       .viewport             -> exterior clip / right edge
+     ========================================================== */
+  .vertical-card{
+    overflow:visible;
+  }
+
+  .vertical-extension{
+    position:absolute;
+    inset:0;
+    z-index:0;
+    pointer-events:none;
+    overflow:visible;
+  }
+
+  .vertical-extension svg{
+    width:100%;
+    height:100%;
+    display:block;
+    overflow:visible;
+  }
+
+  .vertical-extension path{
+    fill:var(--sheet);
+  }
+
+  /*
+    Rear-only seam cover.
+    V13 itself stays untouched; this tiny strip exists only while a card is
+    physically behind another vertical sheet. It is derived from --curve,
+    not a hand-picked pixel patch.
+  */
+  /* V41 UNIVERSAL VERTICAL WELD
+     The front page used to be the one remaining place where a 1px line could
+     appear between the main sheet and the text rail. Every nav sheet now owns
+     the same microscopic overlap. */
+  .vertical-card .nav-panel::after{
+    content:"";
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:calc(var(--rail-h) - var(--seam-seal,1px));
+    height:calc(var(--seam-seal,1px) * 2);
+    background:var(--sheet);
+    z-index:4;
+    pointer-events:none;
+  }
+
+  .vertical-card > .track{
+    z-index:1;
+  }
+
+
+  /* ==========================================================
+     V21 — PATH MICRO-LANGUAGE
+     Semantic depth changes text only. Geometry stays V20.
+     ========================================================== */
+
+  .path-label[data-depth="0"],
+  .path-label[data-depth="1"]{
+    font-size:clamp(25px,2.9vw,40px);
+  }
+
+  .path-label[data-depth="2"]{
+    font-size:clamp(23px,2.45vw,34px);
+  }
+
+  .path-label[data-depth="3"]{
+    font-size:clamp(21px,2.05vw,30px);
+  }
+
+  .path-label[data-depth="4"],
+  .path-label[data-depth="5"]{
+    font-size:clamp(19px,1.7vw,26px);
+  }
+
+  /*
+    For this first text proof, only complete FRONT/PREVIOUS pages own
+    the projected breadcrumb. Rear depth remains purely physical/color.
+    This prevents duplicated long paths inside the 4:2:1 peeks.
+  */
+  .vertical-card.is-under .path-label{
+    visibility:hidden;
+  }
+
+
+  /* ==========================================================
+     V24 — PAGE-OWNED TEXT + ADAPTIVE MAIN
+     ========================================================== */
+
+  /*
+    Same type size at every depth. Semantic depth may compact the path,
+    but it never shrinks the typography.
+  */
+  .path-label,
+  .path-label[data-depth]{
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:clip;
+    font-size:clamp(25px,2.9vw,40px);
+  }
+
+  /*
+    The complete breadcrumb is pre-written on every sheet.
+    Never hide it by state: the nearer physical card is the mask.
+  */
+  .vertical-card.is-under .path-label,
+  .vertical-card.is-previous .path-label,
+  .vertical-card.is-front .path-label{
+    visibility:visible;
+    opacity:1;
+  }
+
+  /*
+    Local label printed on the exposed rear slice.
+    It is OUTSIDE the horizontal track, because vertical depth owns it.
+    JS changes only its physical owned rectangle:
+      left = inner sheet boundary
+      width = outer boundary - inner boundary
+    The text node itself is never spawned/removed/faded.
+  */
+  .rear-owned-label{
+    position:absolute;
+    bottom:0;
+    height:var(--rail-h);
+    z-index:8;
+    display:flex;
+    align-items:center;
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:clip;
+    padding:0;
+    font-size:clamp(25px,2.9vw,40px);
+    font-weight:900;
+    letter-spacing:-.035em;
+    color:var(--ink);
+    pointer-events:none;
+    visibility:visible;
+    opacity:1;
+  }
+
+
+  /* ==========================================================
+     V25 — SINGLE TEXT OWNER / DOCKING ACTIVE WORD
+     ==========================================================
+
+     A visible breadcrumb is physically split into:
+       PREFIX  = already printed at its final x
+       ACTIVE  = exactly one movable word owned by that sheet
+
+     During vertical UP:
+       PREFIX never moves horizontally.
+       ACTIVE moves from its rear-tab x to the final dock x.
+
+     There is NO second ACTIVE copy inside PREFIX.
+  */
+
+  .path-label{
+    box-sizing:border-box;
+    width:var(--path-w);
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:clip;
+    /*
+      V30: clipping is geometric, not width-based. Width-based clipping could
+      still leak one padded glyph on very narrow viewports because the label's
+      horizontal padding established a minimum painted box. The polygon cuts
+      the ink at the exact prefix window coordinate, including the padding.
+    */
+    clip-path:polygon(
+      0 0,
+      var(--prefix-window-right,var(--path-w)) 0,
+      var(--prefix-window-right,var(--path-w)) 100%,
+      0 100%
+    );
+  }
+
+  /*
+    OUTER ownership mask only.
+    It starts at x=0 and ends at the physical outer boundary of this sheet.
+
+    There is intentionally NO inner subtraction during vertical forward:
+    the nearer sheet itself hides the left portion by z-order.
+    This is what prevents typewriter/letter-by-letter reveal.
+  */
+  .active-word-clip{
+    position:absolute;
+    z-index:8;
+    left:0;
+    bottom:0;
+    width:var(--text-window-right,var(--owned-outer,var(--path-w)));
+    height:var(--rail-h);
+    overflow:hidden;
+    pointer-events:none;
+  }
+
+  .active-word{
+    position:absolute;
+    left:var(--active-x,0px);
+    bottom:0;
+    height:var(--rail-h);
+    display:flex;
+    align-items:center;
+    white-space:nowrap;
+    font-size:clamp(25px,2.9vw,40px);
+    font-weight:900;
+    letter-spacing:-.035em;
+    color:var(--ink);
+    pointer-events:none;
+    transform:translateZ(0);
+  }
+
+  /* V24 duplicate owner is permanently retired. */
+  .rear-owned-label{display:none !important;}
+
+  /* ==========================================================
+     V30 — EDGE-SYNC WORD + TRUE PREFIX CLIP
+     ----------------------------------------------------------
+     SIMPLE PHYSICAL LAW:
+       1) A card is one atomic stacking unit.
+       2) Its own ink is always above its own geometry.
+       3) A deeper card can never paint above a nearer card.
+       4) ACTIVE's RIGHT edge never crosses its sheet's OUTER window.
+       5) ACTIVE may extend left; the nearer physical card naturally hides it.
+
+     No global ink plane. No collision solver. No duplicate owner.
+     ========================================================== */
+  .vertical-card{
+    isolation:isolate;
+  }
+
+  .vertical-card > .vertical-extension{
+    z-index:0;
+  }
+
+  .vertical-card > .track{
+    z-index:1;
+  }
+
+  .vertical-card .path-label{
+    z-index:20;
+  }
+
+  .vertical-card .active-word-clip{
+    z-index:21;
+  }
+
+  /* Rear slices only advertise their one local ACTIVE word.
+     Prevent long PREFIX fragments from leaking into narrow rear windows. */
+  .vertical-card.is-under .path-label{
+    visibility:hidden !important;
+    opacity:0 !important;
+  }
+
+  .vertical-card.is-under .active-word-clip{
+    visibility:visible !important;
+    opacity:1 !important;
+  }
+
+  /* Only the one rear sheet that is actually becoming FRONT may expose its
+     fixed PREFIX while the departing card moves upward. At idle, rear PREFIX
+     stays hidden so no breadcrumb fragments leak into narrow tabs. */
+  .vertical-card.is-under.is-incoming .path-label{
+    visibility:visible !important;
+    opacity:1 !important;
+  }
+
+  .vertical-card.is-front .path-label,
+  .vertical-card.is-previous .path-label{
+    visibility:visible !important;
+    opacity:1 !important;
+  }
+
+
+  /* ==========================================================
+     V32 — VISIBLE EDGE LOCK / SAME STOP FRAME
+     ----------------------------------------------------------
+     The vertical word remains in the same card-local coordinate frame.
+     New invariant: it follows the VISIBLE right edge of the page, not merely
+     the animated extension parameter.
+
+     visibleRight = max(baseToothRight, animatedExtensionRight)
+     inkRight     = visibleRight - edgeGap
+
+     Therefore when the extension retreats underneath the already-visible base
+     tooth near the end of a move, BOTH the visible edge and the word stop on
+     the same frame. The left side remains naturally occluded by nearer cards.
+     ========================================================== */
+  .sheet-ink-layer{
+    position:absolute;
+    inset:0;
+    z-index:30;
+    pointer-events:none;
+    overflow:visible;
+  }
+
+  .sheet-prefix-clip{
+    position:absolute;
+    left:0;
+    bottom:0;
+    width:var(--prefix-window-right,0px);
+    height:var(--rail-h);
+    overflow:hidden;
+    white-space:nowrap;
+  }
+
+  .sheet-prefix{
+    height:var(--rail-h);
+    display:flex;
+    align-items:center;
+    box-sizing:border-box;
+    padding:0 clamp(20px,3vw,38px);
+    white-space:nowrap;
+    font-size:clamp(25px,2.9vw,40px);
+    font-weight:900;
+    letter-spacing:-.035em;
+    color:var(--ink);
+  }
+
+  .sheet-active-clip{
+    position:absolute;
+    left:0;
+    bottom:0;
+    width:var(--text-window-right,var(--owned-outer,var(--path-w)));
+    height:var(--rail-h);
+    overflow:hidden;
+    pointer-events:none;
+  }
+
+  .sheet-active{
+    position:absolute;
+    left:var(--active-x,0px);
+    bottom:0;
+    height:var(--rail-h);
+    display:flex;
+    align-items:center;
+    white-space:nowrap;
+    font-size:clamp(25px,2.9vw,40px);
+    font-weight:900;
+    letter-spacing:-.035em;
+    color:var(--ink);
+    pointer-events:none;
+  }
+
+  /* The old per-panel copies remain only as invisible metric/source nodes.
+     They no longer paint, so V13 translation can never offset vertical ink. */
+  .vertical-card > .track .path-label,
+  .vertical-card > .track .active-word-clip{
+    visibility:hidden !important;
+    opacity:0 !important;
+  }
+
+  /* Rear sheets advertise only their local ACTIVE. The incoming sheet may
+     expose its fixed PREFIX exactly as before, but from the card-level layer. */
+  .vertical-card.is-under .sheet-prefix-clip{
+    visibility:hidden;
+  }
+  .vertical-card.is-under.is-incoming .sheet-prefix-clip{
+    visibility:visible;
+  }
+  .vertical-card.is-front .sheet-prefix-clip,
+  .vertical-card.is-previous .sheet-prefix-clip{
+    visibility:visible;
+  }
+
+
+
+  /* ==========================================================
+     V40 — HOME LEFT ROOT + NO FAKE REARS
+     ========================================================== */
+  .viewport{outline:none;}
+  /* V41 SINGLE-CAMERA HORIZONTAL LAW
+     =================================
+     Horizontal seams were caused by moving FROM and TO as two independently
+     transformed GPU layers. They now sit statically on one physical strip and
+     only world-stage moves. A shared transform has no internal raster edge. */
+  .world-stage{
+    position:absolute;inset:0;overflow:visible;pointer-events:none;
+    transform:translate3d(0,0,0);
+    will-change:transform;
+  }
+  .world{
+    position:absolute;top:0;left:0;width:100%;height:100%;
+    pointer-events:auto;
+  }
+  .world.is-passive{pointer-events:none;}
+  .world .vertical-card{position:absolute;inset:0;}
+  .world .track{width:100%;gap:0;transform:translate3d(0,0,0)!important;}
+  .world .panel{width:100%;flex:0 0 100%;}
+  /* V13 RESTORED: the real sheet body owns the preload seam. */
+  .world .nav-panel .sheet-body{right:calc(-1 * var(--preload-gap,0px) - var(--seam-seal,1px));}
+
+  /* V40 HOME LAW:
+     Home uses the same physical card renderer as every folder. The only
+     semantic difference is that it has no parent breadcrumb and no vertical
+     siblings, so Prometeo/ is the left PREFIX and the remaining rail is empty. */
+
+  /* V47 — STRUCTURAL BACKPLATE / LAST-CARD COLOR LAW
+     ==================================================
+     Every non-terminal world owns one non-interactive full-width Prometeo tooth
+     behind the real cards. Its color is FIXED for the lifetime of that world:
+
+         backplate = secondary/ink color of the LAST real card in the collection
+
+     It never follows activeIndex and never interpolates during UP/DOWN. This
+     makes the backplate the physical end of the stack rather than part of the
+     currently selected sheet.
+
+     The backplate is NOT a sibling: it never enters cards[], selection, history,
+     breadcrumbs, or 4:2:1 indexing. It owns no reserved visible width: real rear
+     cards consume the full 4:2:1 rest first, and this fill becomes visible only
+     when one or more of those three physical slots has no real card. */
+  .world-backplate{
+    position:absolute;
+    left:calc(-2 * var(--curve));
+    bottom:0;
+    width:calc(100% + var(--preload-gap,0px) + 8 * var(--curve));
+    height:var(--rail-h);
+    z-index:0;
+    pointer-events:none;
+    overflow:visible;
+  }
+  .world-backplate svg{
+    width:100%;height:100%;display:block;overflow:visible;
+  }
+  .world-backplate path{
+    fill:var(--backplate-color,var(--ink));
+  }
+  .world .vertical-card{z-index:1;}
+
+  .world .hero{pointer-events:none;}
+  .world .hero .cjk{font-size:clamp(56px,min(10vw,22vh),138px);}
+  .world .hero .name{font-size:clamp(30px,min(5.8vw,12vh),76px);}
+  .world .hero .subtitle{font-size:clamp(15px,min(2.2vw,5vh),30px);}
+
+  /* One typography source for every breadcrumb/option. JS may reduce this
+     world-wide on narrow hosts, never one word independently. */
+  .world .path-label,
+  .world .active-word,
+  .world .sheet-prefix,
+  .world .sheet-active{
+    font-size:var(--rail-font) !important;
+  }
+  .world .path-label,
+  .world .sheet-prefix{
+    padding-left:var(--rail-pad) !important;
+    padding-right:var(--rail-pad) !important;
+  }
+
+  .detail-copy{
+    position:absolute;z-index:7;left:clamp(18px,5vw,78px);top:clamp(120px,48vh,390px);
+    max-width:min(620px,78vw);font-size:clamp(14px,min(2vw,4.8vh),25px);line-height:1.25;font-weight:650;
+    opacity:.68;
+  }
+  .root-badge{
+    position:absolute;right:clamp(8px,2vw,24px);top:clamp(8px,2vh,22px);z-index:40;
+    font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;
+    opacity:.28;pointer-events:none;
+  }
+
+  /* Compact host: decorative symbols yield before navigation text. */
+  @media(max-height:420px){
+    .world .hero{top:clamp(16px,9vh,34px);left:clamp(14px,4vw,40px);}
+    .world .hero .cjk{display:none;}
+    .world .hero .name{margin-top:0;font-size:clamp(24px,min(9vw,16vh),48px);}
+    .world .hero .subtitle{margin-top:7px;font-size:clamp(13px,min(4vw,6vh),18px);}
+    .detail-copy{display:none;}
+    .root-badge{display:none;}
+  }
+  @media(max-height:270px){
+    .world .hero .subtitle{display:none;}
+    .world .hero{top:14px;}
+  }
+
+  /* V20 RESTORED — real terminal page. The page owns its own scroll; only the
+     left grip owns spatial BACK. */
+  .vertical-card[data-node-kind="page"] > .sheet-ink-layer{display:none!important;}
+  .vertical-card[data-node-kind="page"] > .vertical-extension{visibility:hidden!important;}
+  .vertical-card[data-node-kind="page"] .track{overflow:visible;}
+  .vertical-card[data-node-kind="page"] .terminal{width:100%;height:100%;flex:0 0 100%;}
+  .terminal-content{overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
+  @media(max-height:320px){
+    .terminal-content{padding:clamp(20px,5vw,46px);}
+    .terminal h1{margin:clamp(24px,9vh,54px) 0 14px;font-size:clamp(38px,min(11vw,22vh),82px);}
+    .terminal p{font-size:clamp(14px,min(3.5vw,6vh),18px);}
+  }
+
+  @media(max-width:760px){
+    .viewport{width:100%;height:100%;}
+  }
+  @media(max-width:380px){
+    .root-badge{display:none;}
+    .world .hero{left:clamp(14px,5vw,26px);}
+  }
+</style>
+</head>
+<body>
+<main class="viewport" id="viewport" aria-label="Navegador espacial Prometeo">
+  <div class="world-stage" id="worldStage"></div>
+</main>
+<script>
+(async () => {
+  'use strict';
+
+  const viewport=document.getElementById('viewport');
+  const worldStage=document.getElementById('worldStage');
+
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const COLORS=[
+    {sheet:'#aab99d',ink:'#151a20'},
+    {sheet:'#8e3f2f',ink:'#f3e9d7'},
+    {sheet:'#354024',ink:'#efe8d7'},
+    {sheet:'#cbbb99',ink:'#354024'},
+    {sheet:'#62745b',ink:'#f1eadb'}
+  ];
+
+  /* V52 — DATA OWNERSHIP
+     Navigation physics, hierarchy and page addresses are independent.
+     The shell changes only when navigation behavior changes. */
+  async function loadJson(path){
+    const response=await fetch(path,{cache:'no-store'});
+    if(!response.ok)throw new Error(`No se pudo cargar ${path} (${response.status})`);
+    return response.json();
+  }
+
+  const [treeSpec,pageSpec]=await Promise.all([
+    loadJson('../catalog/tree.json'),
+    loadJson('../catalog/pages.json')
+  ]);
+  const pagesById=new Map((pageSpec.pages||[]).map(page=>[page.id,page]));
+
+  function hydrateNode(spec){
+    const node={...spec};
+    if(node.page_id){
+      const page=pagesById.get(node.page_id);
+      if(!page)throw new Error(`Página sin registro: ${node.page_id}`);
+      Object.assign(node,page,{id:spec.id||page.id,label:spec.label||page.title,icon:spec.icon||page.icon||'•',kind:'page'});
+    }
+    if(Array.isArray(spec.children))node.children=spec.children.map(hydrateNode);
+    return node;
+  }
+
+  const tree=hydrateNode(treeSpec);
+
+  const homeNode={id:'__home__',label:'Inicio',kind:'folder',children:[tree]};
+
+  function nodePathLabels(pathNodes){ return ['Prometeo',...pathNodes.map(n=>n.label)]; }
+  function folderToken(name){ return `${name}/`; }
+  function hiddenDepthMarker(n){ return n<=0?'':n===1?'./':n===2?'../':'.../'; }
+  function projectedPathParts(path,kind='folder'){
+    const semantic=path.filter(Boolean), n=semantic.length;
+    if(!n) return {prefix:'',active:'',full:''};
+    const active=kind==='folder'?folderToken(semantic[n-1]):semantic[n-1];
+    let prefixTokens=[];
+    if(n===2) prefixTokens=[folderToken(semantic[0])];
+    else if(n===3) prefixTokens=[folderToken(semantic[0]),folderToken(semantic[1])];
+    else if(n>=4){
+      const hidden=n-3;
+      prefixTokens=[folderToken(semantic[0]),hiddenDepthMarker(hidden),folderToken(semantic[n-2])];
+    }
+    const prefix=prefixTokens.join(' ');
+    return {prefix,active,full:prefix?`${prefix} ${active}`:active};
+  }
+
+  function esc(s){return String(s??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+  function cardMarkup(item,pathLabels,index,detail=false,paletteOffset=0){
+    const colorIndex=(paletteOffset+index)%COLORS.length;
+    const color=COLORS[colorIndex];
+    const semantic=detail ? pathLabels : [...pathLabels,item.label];
+    const kind=item.kind;
+
+    if(detail){
+      const live=Boolean(item.href)&&item.status==='live';
+      const terminalColor=item.terminal_color||'#dce5ea';
+      const terminalInk=item.terminal_ink||'#172027';
+      const content=live
+        ? `<div class="terminal-content has-page"><iframe class="terminal-frame" src="${esc(item.href)}" title="${esc(item.label)}" loading="eager" referrerpolicy="strict-origin-when-cross-origin" allow="fullscreen; clipboard-read; clipboard-write"></iframe></div>`
+        : `<div class="terminal-content"><div class="terminal-kicker">${esc(item.status_label||'Recuperada')}</div><h1>${esc(item.label)}.</h1><p>${esc(item.body||'Esta página existe como artefacto recuperado, pero todavía no tiene una URL pública estable.')}</p>${item.artifact_url?`<a class="terminal-source" href="${esc(item.artifact_url)}" target="_blank" rel="noopener">Abrir archivo fuente</a>`:''}</div>`;
+      return `
+        <section class="vertical-card" data-card-id="${esc(item.id)}" data-node-kind="${esc(kind)}" data-semantic-path="${esc(semantic.join('|'))}" data-vcard="${index}" data-color-index="${colorIndex}" style="--sheet:${color.sheet};--ink:${color.ink};--terminal:${esc(terminalColor)};--terminal-ink:${esc(terminalInk)};">
+          <div aria-hidden="true" class="vertical-extension"><svg preserveAspectRatio="none"><path></path></svg></div>
+          <div class="track" data-track>
+            <section class="panel terminal">
+              ${content}
+              <div aria-label="Volver" class="return-tooth" role="button" tabindex="0">
+                <svg aria-hidden="true" preserveAspectRatio="none"><path></path></svg>
+                <span class="return-bar"></span>
+              </div>
+            </section>
+          </div>
+        </section>`;
+    }
+
+    return `
+      <section class="vertical-card" data-card-id="${esc(item.id)}" data-node-kind="${esc(kind)}" data-semantic-path="${esc(semantic.join('|'))}" data-vcard="${index}" data-color-index="${colorIndex}" style="--sheet:${color.sheet};--ink:${color.ink};">
+        <div aria-hidden="true" class="vertical-extension"><svg preserveAspectRatio="none"><path></path></svg></div>
+        <div class="track" data-track>
+          <section class="panel nav-panel user">
+            <div class="sheet-body"></div>
+            <div class="sheet-tooth"><svg aria-hidden="true" preserveAspectRatio="none"><path></path></svg></div>
+            <div class="hero">
+              <div class="cjk">${esc(item.icon||'•')}</div>
+              <div class="name">${esc(item.label.toUpperCase())}</div>
+              <div class="subtitle">${esc(item.description||'carpeta')}</div>
+            </div>
+            <div class="path-label"></div><div class="active-word-clip"><div class="active-word"></div></div>
+            <div aria-hidden="true" class="entry"></div>
+          </section>
+        </div>
+      </section>`;
+  }
+
+  function makeWorld(node,pathNodes,selectedIndex=0,paletteOffset=0){
+    const el=document.createElement('div');
+    el.className='world is-passive';
+    /* Entry is only a semantic wrapper. Its child is rendered with the exact
+       same cardMarkup as Apps/Proyectos/etc. */
+    const entryWorld=node===homeNode;
+    if(entryWorld) el.dataset.entryWorld='true';
+    const pathLabels=entryWorld?[]:nodePathLabels(pathNodes);
+    const detail=!node.children || node.children.length===0;
+    const items=detail?[node]:node.children;
+    const safeIndex=clamp(selectedIndex,0,Math.max(0,items.length-1));
+    /* V43: the world background belongs to the end of the stack, not selection. */
+    const lastIndex=Math.max(0,items.length-1);
+    const backplateColor=COLORS[(paletteOffset+lastIndex)%COLORS.length] || COLORS[0];
+    el.style.setProperty('--backplate-color',backplateColor.ink);
+    const backplate=detail ? '' : `<div class="world-backplate" aria-hidden="true"><svg preserveAspectRatio="none"><path></path></svg></div>`;
+    el.innerHTML=backplate + items.map((item,i)=>cardMarkup(item,pathLabels,i,detail,paletteOffset)).join('') +
+      (entryWorld?'':`<div class="root-badge">${esc(detail?'PAGE':node.label)}</div>`);
+    worldStage.appendChild(el);
+    const logicalCards=[...el.querySelectorAll('.vertical-card')];
+    return {el,node,pathNodes:[...pathNodes],selectedIndex:safeIndex,paletteOffset:paletteOffset%COLORS.length,detail,entryWorld,backplate:el.querySelector('.world-backplate'),cards:logicalCards};
+  }
+
+  let currentWorld=null;
+  let currentNode=homeNode;
+  let currentPath=[];
+  let history=[];
+  let cards=[];
+  let CARD_COUNT=0;
+  let activeIndex=0;
+  let state='IDLE';
+  let gesture=null;
+  let settleRaf=0;
+  let verticalQ=0;
+  const measureCanvas=document.createElement('canvas');
+  const measureCtx=measureCanvas.getContext('2d');
+
+  function W(){return viewport.clientWidth;}
+  function H(){return viewport.clientHeight;}
+  function VSTEP(){return H()+4;}
+  function curveR(){return parseFloat(getComputedStyle(viewport).getPropertyValue('--curve'))||22;}
+  /* V11/V13 RESTORED — measure the real left tooth overhang. Worlds are
+     separated by this physical gap so the incoming curve starts exactly
+     outside the camera instead of popping into existence. */
+  let preloadGap=0;
+  function measurePreloadGap(){
+    const tooth=cards[0]?.querySelector('.sheet-tooth');
+    if(!tooth) return 2*curveR();
+    const raw=Math.max(0,-parseFloat(getComputedStyle(tooth).left||'0'));
+    const dpr=Math.max(1,window.devicePixelRatio||1);
+    return Math.ceil(raw*dpr)/dpr;
+  }
+  function HSTEP(){return W()+preloadGap;}
+
+  function bindWorld(world){
+    currentWorld=world;
+    cards=world.cards;
+    CARD_COUNT=cards.length;
+    activeIndex=clamp(world.selectedIndex||0,0,Math.max(0,CARD_COUNT-1));
+    applyPathMicroLanguage();
+    installCardLevelInk();
+    configureWorldGeometry();
+    canonicalizeVertical();
+    world.selectedIndex=activeIndex;
+  }
+
+  function applyPathMicroLanguage(){
+    cards.forEach(card=>{
+      const path=(card.dataset.semanticPath||'').split('|').filter(Boolean);
+      /* V40: root has no selectable vertical siblings. Treat Prometeo/ as the
+         fixed left PREFIX, not as an ACTIVE word docked against a right wall. */
+      const parts=currentWorld?.entryWorld
+        ? {prefix:folderToken(tree.label),active:'',full:folderToken(tree.label)}
+        : projectedPathParts(path,card.dataset.nodeKind||'folder');
+      card.dataset.projectedPath=parts.full;
+      card.dataset.projectedPrefix=parts.prefix;
+      card.dataset.localLabel=parts.active;
+      card.dataset.pathDepth=String(Math.max(0,path.length-1));
+      card.querySelectorAll('.path-label').forEach(el=>{el.textContent=parts.prefix;el.dataset.depth=card.dataset.pathDepth;});
+      card.querySelectorAll('.active-word').forEach(el=>el.textContent=parts.active);
+      const prefix=card.querySelector('.sheet-prefix'); if(prefix) prefix.textContent=parts.prefix;
+      const active=card.querySelector('.sheet-active'); if(active) active.textContent=parts.active;
+    });
+  }
+
+  function installCardLevelInk(){
+    cards.forEach(card=>{
+      if(card.querySelector(':scope > .sheet-ink-layer')) return;
+      const layer=document.createElement('div'); layer.className='sheet-ink-layer'; layer.setAttribute('aria-hidden','true');
+      const pc=document.createElement('div');pc.className='sheet-prefix-clip';
+      const p=document.createElement('div');p.className='sheet-prefix';p.textContent=card.dataset.projectedPrefix||'';pc.appendChild(p);
+      const ac=document.createElement('div');ac.className='sheet-active-clip';
+      const a=document.createElement('div');a.className='sheet-active';a.textContent=card.dataset.localLabel||'';ac.appendChild(a);
+      layer.append(pc,ac); card.appendChild(layer);
+    });
+  }
+
+  function textMetricsFor(card,text,selector='.path-label'){
+    const sample=card?.querySelector(selector); if(!sample) return {glyphs:0,padL:0,padR:0,fontSize:32};
+    const cs=getComputedStyle(sample), fs=parseFloat(cs.fontSize)||32, fw=cs.fontWeight||'900', ff=cs.fontFamily||'Arial', ls=parseFloat(cs.letterSpacing)||0;
+    measureCtx.font=`${fw} ${fs}px ${ff}`;
+    const raw=String(text||''), glyphs=measureCtx.measureText(raw).width+Math.max(0,raw.length-1)*ls;
+    return {glyphs,padL:parseFloat(cs.paddingLeft)||0,padR:parseFloat(cs.paddingRight)||0,fontSize:fs};
+  }
+  function pathJoinGap(card){const m=textMetricsFor(card,'M','.sheet-prefix');return Math.max(4,Math.min(12,m.fontSize*.18));}
+  function activeRightInset(card){const el=card?.querySelector('.sheet-active');const fs=parseFloat(getComputedStyle(el).fontSize)||32;return Math.max(8,Math.min(14,fs*.30));}
+  function renderedInkOffsets(el){
+    if(!el) return {left:0,right:0,width:0};
+    try{const r=document.createRange();r.selectNodeContents(el);const rr=r.getBoundingClientRect(),er=el.getBoundingClientRect();if(Number.isFinite(rr.left)&&Number.isFinite(rr.right)) return {left:rr.left-er.left,right:rr.right-er.left,width:rr.width};}catch(_){ }
+    const raw=String(el.textContent||''),cs=getComputedStyle(el),fs=parseFloat(cs.fontSize)||32,fw=cs.fontWeight||'900',ff=cs.fontFamily||'Arial',ls=parseFloat(cs.letterSpacing)||0;
+    measureCtx.font=`${fw} ${fs}px ${ff}`;const m=measureCtx.measureText(raw);const left=Number.isFinite(m.actualBoundingBoxLeft)?-m.actualBoundingBoxLeft:0;const right=(Number.isFinite(m.actualBoundingBoxRight)?m.actualBoundingBoxRight:m.width)+Math.max(0,raw.length-1)*ls;return {left,right,width:right-left};
+  }
+  function activeInkOffsets(card){return renderedInkOffsets(card?.querySelector('.sheet-active'));}
+  function activeInkLeftOffset(card){return activeInkOffsets(card).left;}
+  function activeInkRightExtent(card){return activeInkOffsets(card).right;}
+  function prefixInkRight(card){return renderedInkOffsets(card?.querySelector('.sheet-prefix')).right;}
+
+  /* V47 SATURATED / MONOTONIC EDGE LAW
+     -----------------------------------
+     A rear page may approach the viewport edge, but it never switches from one
+     horizontal owner to another mid-gesture. Near the right camera edge its
+     canonical curve lives progressively off-camera; as the stack moves, that
+     already-existing curve is uncovered continuously.
+
+     Front <-> rear transitions use the unique logical outer whose curved wall
+     matches the front tooth wall. This removes the old left-then-right reversal
+     on narrow hosts while preserving the same wall/word edge lock. */
+  function physicalExtensionEnd(outer){
+    const w=W(),r=curveR(),x=clamp(outer,0,w),start=Math.max(0,w-2*r);
+    if(x<=start||w<=start+.001)return x;
+    const t=(x-start)/(w-start);
+    return x+2*r*t;
+  }
+  function extensionTextEdge(outer){return Math.min(W(),Math.max(0,physicalExtensionEnd(outer)-curveR()));}
+  function logicalOuterForTextEdge(edge){
+    const target=clamp(edge,0,W());let lo=0,hi=W();
+    for(let i=0;i<18;i++){const mid=(lo+hi)/2;if(extensionTextEdge(mid)<target)lo=mid;else hi=mid;}
+    return (lo+hi)/2;
+  }
+  function frontEquivalentOuter(B){return logicalOuterForTextEdge(Math.min(W(),B[0]+curveR()));}
+  function mainWidthFor(index){const c=cards[clamp(index,0,Math.max(0,CARD_COUNT-1))];return parseFloat(c?.dataset.mainWidth||'0')||Math.min(W()*.31,430);}
+  function renderBaseWidthFor(card){
+    const v=parseFloat(card?.dataset.renderBaseWidth||'');
+    if(Number.isFinite(v))return clamp(v,0,W());
+    const i=clamp(parseInt(card?.dataset.vcard||'0',10)||0,0,Math.max(0,CARD_COUNT-1));
+    return clamp(mainWidthFor(i),0,W());
+  }
+  function baseToothTextEdge(card){return clamp(renderBaseWidthFor(card)+curveR(),0,W());}
+  function visibleSheetTextEdge(card,outer){return Math.max(baseToothTextEdge(card),extensionTextEdge(outer));}
+  function edgeLockedActiveX(card,outer){return visibleSheetTextEdge(card,outer)-activeRightInset(card)-activeInkRightExtent(card);}
+  function measuredLabelWidth(card){
+    const has=!!card?.dataset.projectedPrefix;const P=has?prefixInkRight(card):0,G=has?pathJoinGap(card):0,L=activeInkLeftOffset(card),R=activeInkRightExtent(card),E=activeRightInset(card);
+    return Math.ceil(P+G-L+E+R-curveR());
+  }
+  function frontActiveX(card){return edgeLockedActiveX(card,renderBaseWidthFor(card));}
+  function rearActiveX(card,outer){return edgeLockedActiveX(card,outer);}
+
+  function configureResponsiveChrome(){
+    const w=Math.max(1,W()),h=Math.max(1,H());
+    const rail=clamp(Math.min(h*.18,w*.18),36,68);
+    const curve=clamp(Math.min(rail*.34,w*.045),8,22);
+    const radius=clamp(Math.min(w,h)*.045,8,22);
+    viewport.style.setProperty('--rail-h',`${rail}px`);
+    viewport.style.setProperty('--curve',`${curve}px`);
+    viewport.style.setProperty('--outer-r',`${radius}px`);
+  }
+
+  function setWorldRailFont(px){
+    if(!currentWorld)return;
+    const f=clamp(px,12,40);
+    currentWorld.el.style.setProperty('--rail-font',`${f}px`);
+    currentWorld.el.style.setProperty('--rail-pad',`${clamp(f*.52,6,30)}px`);
+  }
+  function maxMeasuredLabelWidth(){
+    return cards.reduce((m,c)=>Math.max(m,measuredLabelWidth(c)),0);
+  }
+  function configureResponsiveRailTypography(){
+    if(!currentWorld||!CARD_COUNT)return;
+    const w=Math.max(1,W()),h=Math.max(1,H());
+    const preferred=clamp(Math.min(w*.075,h*.13),15,40);
+    const rearFloor=clamp(w*.08,10,56);
+    const available=Math.max(1,w-rearFloor);
+    setWorldRailFont(preferred);
+    if(maxMeasuredLabelWidth()<=available)return;
+    let lo=12,hi=preferred;
+    setWorldRailFont(lo);
+    if(maxMeasuredLabelWidth()>available)return;
+    for(let i=0;i<10;i++){
+      const mid=(lo+hi)/2;setWorldRailFont(mid);
+      if(maxMeasuredLabelWidth()<=available)lo=mid;else hi=mid;
+    }
+    setWorldRailFont(lo);
+  }
+
+  function configureAdaptivePathWidths(){
+    const w=Math.max(1,W());
+    /* V49 FRONT COMPACTION LAW
+       ------------------------
+       MAIN no longer reserves an arbitrary rear allowance. Its wall is placed
+       by the real painted breadcrumb/ACTIVE join. This removes the large dead
+       gap (e.g. Prometeo/ ... Apps/) while keeping the old edge-lock owner:
+       moving MAIN's wall moves ACTIVE + clip with it; text never gets an
+       independent X animation. */
+    cards.forEach(card=>{
+      const desired=Math.max(0,measuredLabelWidth(card));
+      const structuralMin=Math.max(curveR()*3,desired);
+      const main=clamp(structuralMin,0,w);
+      card.dataset.mainWidth=String(main);
+      card.dataset.renderBaseWidth=String(main);
+      card.style.setProperty('--path-w',`${main}px`);
+    });
+  }
+
+  /* V49 — UNIFIED VISIBLE CHAIN
+     ============================
+     V47/V48 remain frozen owners of text, clips, curves, underlap and motion.
+     This solver chooses ONLY the visible right walls of MAIN + three depths.
+
+     The common currency is now what the eye actually sees:
+       E0 = MAIN visible wall
+       E1 = rear-1 visible wall
+       E2 = rear-2 visible wall
+       E3 = viewport wall
+
+     Ideal exposures are 4:2:1 in VISIBLE pixels. Saturation is projected in
+     that same visible space, so a curved/logical SVG coordinate can no longer
+     make a deeper colour look wider than the one in front of it.
+
+     Frozen consequences:
+       - rear words are already printed and are revealed by occlusion;
+       - wordRight = visibleWallRight - edgeGap;
+       - UP is LEFT-or-STOP; DOWN is its exact inverse;
+       - physical underlap may extend beyond a visible wall but never positions
+         text or participates in exposure ratios.
+  */
+  function frontVisibleTextEdgeForBase(base){
+    return clamp(base+curveR(),0,W());
+  }
+  function rearVisibleTextEdgeFor(base,outer){
+    return Math.max(frontVisibleTextEdgeForBase(base),extensionTextEdge(outer));
+  }
+  function idealVisibleEdges(index){
+    const w=W(),b0=clamp(mainWidthFor(index),0,w),e0=frontVisibleTextEdgeForBase(b0);
+    if(CARD_COUNT<=1)return [e0,e0,e0,e0];
+    const rest=Math.max(0,w-e0),u=rest/7;
+    return [e0,e0+4*u,e0+6*u,w];
+  }
+  function projectOrderedVisibleEdges(E){
+    const w=W();
+    E=[clamp(E[0],0,w),clamp(E[1],0,w),clamp(E[2],0,w),w];
+    for(let pass=0;pass<16;pass++){
+      E[1]=clamp(Math.max(E[1],E[0]),E[0],w);
+      E[2]=clamp(Math.max(E[2],E[1]),E[1],w);
+      /* visible e2 >= visible e3 */
+      E[2]=clamp(Math.max(E[2],(E[1]+E[3])/2),E[1],w);
+      /* visible e1 >= visible e2 */
+      E[1]=clamp(Math.max(E[1],(E[0]+E[2])/2),E[0],E[2]);
+    }
+    return E;
+  }
+  function solveAllVisibleEdges(){
+    const n=CARD_COUNT,w=W(),solved=new Array(n);
+    if(!n)return solved;
+    /* Bottom-up makes the next canonical state known before the current one.
+       A real rear starts at or to the RIGHT of the wall it will own after UP,
+       so interpolation can only reveal it by moving LEFT or stopping. */
+    for(let i=n-1;i>=0;i--){
+      let E=idealVisibleEdges(i);
+      const realRears=Math.min(3,Math.max(0,n-1-i));
+      const next=solved[i+1]||null;
+      if(next){
+        for(let d=1;d<=realRears;d++) E[d]=Math.max(E[d],next[d-1]);
+      }
+      E[3]=w;
+      E=projectOrderedVisibleEdges(E);
+      solved[i]=E;
+    }
+    return solved;
+  }
+  function visibleEdgesFor(index){
+    const i=clamp(index,0,Math.max(0,CARD_COUNT-1));
+    const solved=solveAllVisibleEdges();
+    return solved[i]||idealVisibleEdges(i);
+  }
+  function boundariesFor(index){
+    const i=clamp(index,0,Math.max(0,CARD_COUNT-1));
+    const w=W(),b0=clamp(mainWidthFor(i),0,w),E=visibleEdgesFor(i);
+    if(CARD_COUNT<=1)return [b0,b0,b0,b0,b0];
+    /* Renderer still consumes its historical logical-outers. Convert only at
+       this boundary; all ordering/ratio decisions above were made in visible
+       wall space. B3 stays W so the third real sheet retains V47's off-camera
+       physical underlap and cannot reopen the old white-corner seam. */
+    const b1=clamp(logicalOuterForTextEdge(E[1]),b0,w);
+    const b2=clamp(logicalOuterForTextEdge(E[2]),b1,w);
+    return [b0,b1,b2,w,w];
+  }
+  function verticalBoundaries(){return boundariesFor(activeIndex);}
+
+  function setCardRenderBase(card,width){
+    if(!card)return;
+    const v=clamp(width,0,W());
+    const prev=parseFloat(card.dataset.renderBaseWidth||'');
+    if(Number.isFinite(prev)&&Math.abs(prev-v)<.05)return;
+    card.dataset.renderBaseWidth=String(v);
+    card.style.setProperty('--path-w',`${v}px`);
+    card.querySelectorAll('.sheet-tooth').forEach(renderBottomTooth);
+  }
+  function setStackRenderBase(width){cards.forEach(card=>setCardRenderBase(card,width));}
+
+  function renderBottomTooth(tooth){
+    const R=curveR(),box=tooth.getBoundingClientRect(),w=box.width,h=box.height;
+    const d=[`M 0 0`,`H ${w}`,`Q ${w-R} 0 ${w-R} ${R}`,`V ${h-R}`,`Q ${w-R} ${h} ${w-2*R} ${h}`,`H ${2*R}`,`Q ${R} ${h} ${R} ${h-R}`,`V ${R}`,`Q ${R} 0 0 0`,`Z`].join(' ');
+    const svg=tooth.querySelector('svg');svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.querySelector('path').setAttribute('d',d);
+  }
+
+  function renderBackplateSurface(tooth){
+    if(!tooth)return;
+    const R=curveR(),box=tooth.getBoundingClientRect(),w=box.width,h=box.height;
+    /* Structural underlap only: the backplate must hide base white and keep
+       extending behind the incoming page, so it never exposes a visible right
+       edge of its own. */
+    const d=[`M 0 0`,`H ${w}`,`V ${h}`,`H ${2*R}`,`Q ${R} ${h} ${R} ${h-R}`,`V ${R}`,`Q ${R} 0 0 0`,`Z`].join(' ');
+    const svg=tooth.querySelector('svg');svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.querySelector('path').setAttribute('d',d);
+  }
+
+  function renderSideTooth(tooth){
+    if(!tooth)return;
+    const R=curveR(),box=tooth.getBoundingClientRect(),w=box.width,h=box.height;
+    const d=[`M 0 0`,`Q 0 ${R} ${R} ${R}`,`H ${w-R}`,`Q ${w} ${R} ${w} ${2*R}`,`V ${h-R}`,`Q ${w} ${h} ${w-R} ${h}`,`H 0`,`Z`].join(' ');
+    const svg=tooth.querySelector('svg');svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.querySelector('path').setAttribute('d',d);
+  }
+
+  function renderTerminalSurface(terminal){
+    if(!terminal)return;
+    let svg=terminal.querySelector(':scope > .terminal-surface');
+    if(!svg){
+      svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      svg.setAttribute('class','terminal-surface');svg.setAttribute('preserveAspectRatio','none');
+      const path=document.createElementNS('http://www.w3.org/2000/svg','path');svg.appendChild(path);terminal.insertBefore(svg,terminal.firstChild);
+    }
+    const box=terminal.getBoundingClientRect(),w=box.width,h=box.height,R=curveR();
+    const rail=parseFloat(getComputedStyle(viewport).getPropertyValue('--rail-h'))||68,railTop=h-rail;
+    const d=[`M 0 0`,`H ${w}`,`V ${h}`,`H ${2*R}`,`Q ${R} ${h} ${R} ${h-R}`,`V ${railTop+R}`,`Q ${R} ${railTop} 0 ${railTop}`,`V 0`,`Z`].join(' ');
+    svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.querySelector('path').setAttribute('d',d);
+  }
+
+  /* V50 RIGHTMOST SURFACE SEAL
+     =============================
+     V44 taught us that the surface closing the camera on the right must not
+     terminate with its own visible reverse curve: its physical material keeps
+     travelling underneath the horizontally adjacent world/tooth.  V49 still
+     gave that protection only to the backplate.  In V50 the same physical law
+     applies to a REAL rear sheet whenever its visible wall reaches the camera
+     edge.  Crucially, this changes only hidden material.  `outer` and therefore
+     visibleSheetTextEdge()/wordRight stay exactly where V49 solved them. */
+  function extensionPath(endBoundary,startBoundary=verticalBoundaries()[0],sealRight=false){
+    const w=W(),h=H(),r=curveR(),rail=parseFloat(getComputedStyle(viewport).getPropertyValue('--rail-h'))||68,seam=Math.max(1,r*.08),y=h-rail-seam;
+    const start=clamp(startBoundary,0,w),logicalEnd=clamp(endBoundary,start,w),hiddenLeft=Math.max(0,start-r);
+    if(logicalEnd-start<.25)return'';
+    if(sealRight){
+      /* The actual termination is intentionally outside the camera and beyond
+         the V13 preload hand-off.  The next world/tooth paints over this fill. */
+      const sealEnd=w+preloadGap+Math.max(2*r,2*seam);
+      return [`M ${hiddenLeft} ${y}`,`H ${sealEnd}`,`V ${h}`,`H ${hiddenLeft}`,`Z`].join(' ');
+    }
+    const end=physicalExtensionEnd(logicalEnd);
+    return [`M ${hiddenLeft} ${y}`,`H ${end}`,`Q ${end-r} ${y} ${end-r} ${y+r}`,`V ${h-r}`,`Q ${end-r} ${h} ${end-2*r} ${h}`,`H ${hiddenLeft}`,`Z`].join(' ');
+  }
+
+  function setSheetTextState(card,outer,activeX){
+    outer=clamp(outer,0,W());const textRight=visibleSheetTextEdge(card,outer),x=Number.isFinite(activeX)?activeX:edgeLockedActiveX(card,outer),gap=pathJoinGap(card),activeInkLeft=x+activeInkLeftOffset(card),prefixRight=Math.max(0,Math.min(textRight,activeInkLeft-gap));
+    card.style.setProperty('--owned-outer',`${outer}px`);card.style.setProperty('--text-window-right',`${textRight}px`);card.style.setProperty('--prefix-window-right',`${prefixRight}px`);card.style.setProperty('--active-x',`${x}px`);
+  }
+  function paintExtension(card,end,start=verticalBoundaries()[0],_inner=end,outer=end,activeX=null){
+    const root=card?.querySelector('.vertical-extension');if(!root)return;
+    const svg=root.querySelector('svg'),path=root.querySelector('path');
+    svg.setAttribute('viewBox',`0 0 ${W()} ${H()}`);
+    /* Use the VISIBLE wall to decide ownership of the right camera edge.  A
+       real sheet whose wall is at W gets the same hidden underlap guarantee as
+       the backplate; text remains locked to `outer`, never to this underlap. */
+    const sealsRight=visibleSheetTextEdge(card,outer)>=W()-.25 && end>start+.25;
+    const d=extensionPath(end,start,sealsRight);
+    path.setAttribute('d',d);root.style.visibility=d?'':'hidden';
+    root.dataset.rightSeal=sealsRight?'1':'0';
+    const x=activeX==null?rearActiveX(card,outer):activeX;setSheetTextState(card,outer,x);
+  }
+  function clearVerticalClasses(card){card.classList.remove('is-front','is-under','is-previous','is-hidden','is-incoming');}
+  function hideCard(card){clearVerticalClasses(card);card.classList.add('is-hidden');card.style.visibility='hidden';card.style.transform='translate3d(0,0,0)';const B=boundariesFor(activeIndex);paintExtension(card,B[0],B[0],B[0],B[0],frontActiveX(card));}
+
+  function hexRgb(hex){
+    const h=String(hex||'').replace('#','');
+    const n=parseInt(h.length===3?h.split('').map(c=>c+c).join(''):h,16);
+    return Number.isFinite(n)?[(n>>16)&255,(n>>8)&255,n&255]:[0,0,0];
+  }
+  function mixHex(a,b,p){
+    const A=hexRgb(a),B=hexRgb(b),t=clamp(p,0,1);
+    const c=A.map((v,i)=>Math.round(v+(B[i]-v)*t));
+    return `rgb(${c[0]} ${c[1]} ${c[2]})`;
+  }
+  function worldBackplateInk(world=currentWorld){
+    if(!world) return COLORS[0].ink;
+    const lastIndex=Math.max(0,(world.cards?.length||1)-1);
+    return (COLORS[(world.paletteOffset+lastIndex)%COLORS.length]||COLORS[0]).ink;
+  }
+  function setBackplateColor(color,world=currentWorld){
+    if(world?.backplate)world.el.style.setProperty('--backplate-color',color);
+  }
+  function renderBackplate(){
+    const bp=currentWorld?.backplate;if(!bp)return;
+    renderBackplateSurface(bp);
+    /* V43 invariant: vertical selection never changes this value. */
+    setBackplateColor(worldBackplateInk(currentWorld),currentWorld);
+  }
+
+  function canonicalizeVertical(){
+    if(!currentWorld||!CARD_COUNT)return;
+    if(currentWorld.detail){
+      const card=cards[0];clearVerticalClasses(card);card.classList.add('is-front');card.style.visibility='';card.style.transform='translate3d(0,0,0)';card.style.zIndex='20';
+      card.querySelectorAll('.terminal').forEach(renderTerminalSurface);renderSideTooth(card.querySelector('.return-tooth'));
+      verticalQ=0;currentWorld.selectedIndex=0;return;
+    }
+    renderBackplate();
+    const B=boundariesFor(activeIndex);
+    /* Every visible depth shares FRONT's base boundary. This prevents a rear
+       page with a long label from becoming physically wider than the page in
+       front of it. Its own canonical MAIN is used only when it becomes FRONT. */
+    setStackRenderBase(B[0]);
+    cards.forEach(hideCard);
+    for(let depth=4;depth>=1;depth--){const i=activeIndex+depth;if(i>=CARD_COUNT)continue;const card=cards[i];clearVerticalClasses(card);card.classList.add('is-under');card.style.visibility='';card.style.transform='translate3d(0,0,0)';card.style.zIndex=String(10-depth);paintExtension(card,B[depth],B[0],B[depth-1],B[depth],rearActiveX(card,B[depth]));currentWorld.el.appendChild(card);}
+    const front=cards[activeIndex];clearVerticalClasses(front);front.classList.add('is-front');front.style.visibility='';front.style.transform='translate3d(0,0,0)';front.style.zIndex='20';paintExtension(front,B[0],B[0],B[0],B[0],frontActiveX(front));currentWorld.el.appendChild(front);
+    if(activeIndex>0){const prev=cards[activeIndex-1],PB=boundariesFor(activeIndex-1);clearVerticalClasses(prev);prev.classList.add('is-previous');prev.style.visibility='';prev.style.transform=`translate3d(0,${-VSTEP()}px,0)`;prev.style.zIndex='30';paintExtension(prev,PB[0],PB[0],PB[0],PB[0],frontActiveX(prev));currentWorld.el.appendChild(prev);}
+    verticalQ=0;currentWorld.selectedIndex=activeIndex;
+  }
+
+  /* V50 VERTICAL-TRAVEL X LOCK
+     =============================
+     A sheet that is physically leaving/entering through the top has already
+     finished its horizontal negotiation.  Its X geometry is frozen while Y
+     travels.  Sheets that remain in the rail may still re-stack horizontally,
+     so the pre-printed rear words keep their existing discovery behaviour. */
+  function applyVertical(q){
+    verticalQ=clamp(q,-1,1);if(activeIndex===0&&verticalQ>0)verticalQ=0;if(activeIndex===CARD_COUNT-1&&verticalQ<0)verticalQ=0;
+    const fromB=boundariesFor(activeIndex),front=cards[activeIndex],previous=activeIndex>0?cards[activeIndex-1]:null;
+    if(verticalQ<0){
+      const p=-verticalQ,nextIndex=Math.min(CARD_COUNT-1,activeIndex+1),toB=boundariesFor(nextIndex);
+      const railBase=fromB[0]+(toB[0]-fromB[0])*p;
+      setStackRenderBase(railBase);
+      /* Outgoing FRONT: X is the exact FROM state for every frame; only Y moves. */
+      setCardRenderBase(front,fromB[0]);
+      if(previous){const PB=boundariesFor(activeIndex-1);setCardRenderBase(previous,PB[0]);}
+      cards.forEach(c=>c.classList.remove('is-incoming'));
+      cards[nextIndex]?.classList.add('is-incoming');
+      front.style.transform=`translate3d(0,${-VSTEP()*p}px,0)`;
+      paintExtension(front,fromB[0],fromB[0],fromB[0],fromB[0],frontActiveX(front));
+      if(previous){const PB=boundariesFor(activeIndex-1);previous.style.transform=`translate3d(0,${-VSTEP()}px,0)`;paintExtension(previous,PB[0],PB[0],PB[0],PB[0],frontActiveX(previous));}
+      for(let depth=1;depth<=4;depth++){
+        const i=activeIndex+depth;if(i>=CARD_COUNT)continue;
+        const rear=cards[i],targetDepth=Math.max(0,depth-1),targetOuter=targetDepth===0?frontEquivalentOuter(toB):toB[targetDepth],outer=fromB[depth]+(targetOuter-fromB[depth])*p;
+        rear.style.transform='translate3d(0,0,0)';paintExtension(rear,outer,Math.min(fromB[0],toB[0]),0,outer,edgeLockedActiveX(rear,outer));
+      }
+      return;
+    }
+    if(verticalQ>0&&previous){
+      const p=verticalQ,toB=boundariesFor(activeIndex-1);
+      const railBase=fromB[0]+(toB[0]-fromB[0])*p;
+      setStackRenderBase(railBase);
+      /* Incoming PREVIOUS: it descends already carrying its exact TO X. */
+      setCardRenderBase(previous,toB[0]);
+      cards.forEach(c=>c.classList.remove('is-incoming'));
+      previous.style.transform=`translate3d(0,${-VSTEP()*(1-p)}px,0)`;
+      paintExtension(previous,toB[0],toB[0],toB[0],toB[0],frontActiveX(previous));
+      front.style.transform='translate3d(0,0,0)';
+      const frontOuter=frontEquivalentOuter(fromB),currentOuter=frontOuter+(toB[1]-frontOuter)*p;
+      paintExtension(front,currentOuter,Math.min(fromB[0],toB[0]),0,currentOuter,edgeLockedActiveX(front,currentOuter));
+      for(let depth=1;depth<=3;depth++){
+        const i=activeIndex+depth;if(i>=CARD_COUNT)continue;
+        const rear=cards[i],outer=fromB[depth]+(toB[depth+1]-fromB[depth])*p;
+        rear.style.transform='translate3d(0,0,0)';paintExtension(rear,outer,Math.min(fromB[0],toB[0]),0,outer,edgeLockedActiveX(rear,outer));
+      }
+      return;
+    }
+    canonicalizeVertical();
+  }
+
+  function settleVertical(to,commitDirection=0){
+    cancelAnimationFrame(settleRaf);state='SETTLING_VERTICAL';const from=verticalQ,start=performance.now(),duration=270,ease=t=>1-Math.pow(1-t,3);
+    function frame(now){const t=clamp((now-start)/duration,0,1);applyVertical(from+(to-from)*ease(t));if(t<1){settleRaf=requestAnimationFrame(frame);return;}if(commitDirection>0&&activeIndex<CARD_COUNT-1)activeIndex++;else if(commitDirection<0&&activeIndex>0)activeIndex--;canonicalizeVertical();state='IDLE';}
+    settleRaf=requestAnimationFrame(frame);
+  }
+
+  function configureWorldGeometry(){
+    configureResponsiveChrome();
+    /* curve is now known; measure its exact CSS overhang and restore the V13
+       structural fill through the same gap. */
+    preloadGap=measurePreloadGap();
+    viewport.style.setProperty('--panel-w',`${W()}px`);
+    viewport.style.setProperty('--preload-gap',`${preloadGap}px`);
+    cards.forEach(card=>{const track=card.querySelector('[data-track]');track.style.width=`${W()}px`;track.style.transform='translate3d(0,0,0)';});
+    if(!currentWorld?.detail){
+      configureResponsiveRailTypography();
+      configureAdaptivePathWidths();
+      cards.forEach(card=>card.querySelectorAll('.sheet-tooth').forEach(renderBottomTooth));
+      renderBackplate();
+    }else{
+      cards.forEach(card=>{card.querySelectorAll('.terminal').forEach(renderTerminalSurface);renderSideTooth(card.querySelector('.return-tooth'));});
+    }
+  }
+
+  function prepareWorld(world){
+    const saved=currentWorld?{world:currentWorld,node:currentNode,path:[...currentPath],cards,cc:CARD_COUNT,idx:activeIndex,vq:verticalQ}:null;
+    currentWorld=world;cards=world.cards;CARD_COUNT=cards.length;activeIndex=world.selectedIndex;verticalQ=0;applyPathMicroLanguage();installCardLevelInk();configureWorldGeometry();canonicalizeVertical();
+    if(saved){currentWorld=saved.world;currentNode=saved.node;currentPath=saved.path;cards=saved.cards;CARD_COUNT=saved.cc;activeIndex=saved.idx;verticalQ=saved.vq;}
+  }
+
+  function setWorldX(world,x){
+    if(!world?.el)return;
+    world.el.style.left=`${x}px`;
+    world.el.style.transform='none';
+  }
+  function setStageX(x){
+    worldStage.style.transform=`translate3d(${x}px,0,0)`;
+  }
+  function selectedNode(){if(!currentNode.children?.length)return null;return currentNode.children[activeIndex]||null;}
+  function resolveDestination(start){
+    const chain=[];
+    const seen=new Set();
+    let node=start;
+    while(node){
+      if(seen.has(node.id))throw new Error(`Ciclo en el árbol: ${node.id}`);
+      seen.add(node.id);
+      chain.push(node);
+      if(!Array.isArray(node.children)||node.children.length!==1)break;
+      node=node.children[0];
+    }
+    return {node,chain};
+  }
+  function selectedColorIndex(){
+    if(!currentWorld)return 0;
+    return (currentWorld.paletteOffset+activeIndex)%COLORS.length;
+  }
+  function paletteForSelected(){return selectedColorIndex();}
+
+  function animateWorldTransition({direction,targetWorld,onCommit,onCancel,fromProgress=0,toProgress=1}){
+    cancelAnimationFrame(settleRaf);
+    state='SETTLING_HORIZONTAL';
+    const outgoing=currentWorld,D=HSTEP(),start=performance.now(),duration=310,ease=t=>1-Math.pow(1-t,3);
+    outgoing.el.classList.add('is-passive');
+    targetWorld.el.classList.add('is-passive');
+
+    /* FROM stays at local 0; TO already lives at +/-D. Only the camera moves. */
+    function paint(p){
+      setStageX(direction==='RIGHT' ? -D*p : D*p);
+    }
+    paint(fromProgress);
+
+    function frame(now){
+      const t=clamp((now-start)/duration,0,1);
+      const p=fromProgress+(toProgress-fromProgress)*ease(t);
+      paint(p);
+      if(t<1){settleRaf=requestAnimationFrame(frame);return;}
+      if(toProgress===1){
+        onCommit();
+      }else{
+        targetWorld.el.remove();
+        setStageX(0);
+        setWorldX(outgoing,0);
+        outgoing.el.classList.remove('is-passive');
+        state='IDLE';
+        onCancel?.();
+      }
+    }
+    settleRaf=requestAnimationFrame(frame);
+  }
+
+  function commitTarget(targetWorld,targetNode,targetPath){
+    const old=currentWorld;
+    /* Normalize local coordinates and camera in the same JS turn, so the final
+       frame is pixel-identical to the resting frame. */
+    setWorldX(targetWorld,0);
+    setStageX(0);
+    old?.el.remove();
+    currentNode=targetNode;
+    currentPath=[...targetPath];
+    bindWorld(targetWorld);
+    targetWorld.el.classList.remove('is-passive');
+    state='IDLE';
+  }
+
+  function enterSelected(){
+    if(state!=='IDLE')return;const sel=selectedNode();if(!sel)return;
+    const destination=resolveDestination(sel);
+    const snapshot={node:currentNode,path:[...currentPath],selectedIndex:activeIndex,paletteOffset:currentWorld.paletteOffset};
+    const targetPath=currentNode===homeNode?[]:[...currentPath,...destination.chain];
+    const inheritedPalette=paletteForSelected();
+    const target=makeWorld(destination.node,targetPath,0,inheritedPalette);
+    prepareWorld(target);setWorldX(target,HSTEP());
+    history.push(snapshot);
+    animateWorldTransition({direction:'RIGHT',targetWorld:target,onCommit:()=>commitTarget(target,destination.node,targetPath),onCancel:()=>{history.pop();}});
+  }
+
+  /* V45 — BACK NORMALIZATION LAW
+     =============================
+     Horizontal LEFT is only allowed from the canonical vertical entry state.
+     If the child collection was scrolled to another sibling/color, replay the
+     already-approved vertical renderer back to index 0 first. Only then reveal
+     the parent. This preserves color continuity without recoloring either world. */
+  function performBack(){
+    if(state!=='IDLE'||history.length===0)return;
+    const snap=history.pop();
+    const target=makeWorld(snap.node,snap.path,snap.selectedIndex,snap.paletteOffset||0);
+    prepareWorld(target);setWorldX(target,-HSTEP());
+    animateWorldTransition({direction:'LEFT',targetWorld:target,onCommit:()=>commitTarget(target,snap.node,snap.path),onCancel:()=>history.push(snap)});
+  }
+
+  function rewindVerticalToEntry(onDone){
+    if(state!=='IDLE')return;
+    if(currentWorld?.detail||activeIndex<=0){onDone?.();return;}
+    cancelAnimationFrame(settleRaf);
+    const steps=activeIndex;
+    const totalDuration=clamp(170+steps*42,190,310);
+    const stepDuration=Math.max(54,totalDuration/steps);
+    state='REWINDING_VERTICAL';
+
+    function runStep(){
+      if(activeIndex<=0){
+        canonicalizeVertical();
+        state='IDLE';
+        onDone?.();
+        return;
+      }
+      const start=performance.now();
+      const ease=t=>1-Math.pow(1-t,3);
+      function frame(now){
+        const t=clamp((now-start)/stepDuration,0,1);
+        applyVertical(ease(t));
+        if(t<1){settleRaf=requestAnimationFrame(frame);return;}
+        activeIndex=Math.max(0,activeIndex-1);
+        canonicalizeVertical();
+        if(activeIndex>0){settleRaf=requestAnimationFrame(runStep);return;}
+        state='IDLE';
+        onDone?.();
+      }
+      settleRaf=requestAnimationFrame(frame);
+    }
+    runStep();
+  }
+
+  function requestBack(){
+    if(state!=='IDLE'||history.length===0)return;
+    if(!currentWorld?.detail&&activeIndex>0){
+      rewindVerticalToEntry(()=>performBack());
+      return;
+    }
+    performBack();
+  }
+
+
+  /* Pointer: one axis owns one gesture. Horizontal drag previews the real child/parent world. */
+  viewport.addEventListener('pointerdown',e=>{
+    if(state!=='IDLE'||!currentWorld||e.target.closest('input,textarea,[contenteditable="true"]'))return;
+    const returnGrip=e.target.closest('.return-tooth');
+    if(currentWorld.detail&&!returnGrip)return;
+    gesture={id:e.pointerId,downX:e.clientX,downY:e.clientY,axis:'NONE',axisStartX:0,axisStartY:0,startIndex:activeIndex,hTarget:null,hDirection:null,hSnapshot:null,p:0,fromReturnGrip:!!returnGrip};
+    try{viewport.setPointerCapture(e.pointerId);}catch{}
+  });
+  viewport.addEventListener('pointermove',e=>{
+    if(state!=='IDLE'||!gesture||e.pointerId!==gesture.id)return;
+    const dx=e.clientX-gesture.downX,dy=e.clientY-gesture.downY,ax=Math.abs(dx),ay=Math.abs(dy),res=12;
+    if(gesture.axis==='NONE'){
+      if(ax<res&&ay<res)return;
+      if(gesture.fromReturnGrip){
+        if(dx<=0){gesture.axis='BLOCKED';return;}
+        gesture.axis='HORIZONTAL';gesture.axisStartX=e.clientX;gesture.hDirection='LEFT';
+        if(history.length===0){gesture.axis='BLOCKED';return;}
+        const snap=history[history.length-1],target=makeWorld(snap.node,snap.path,snap.selectedIndex,snap.paletteOffset||0);
+        prepareWorld(target);setWorldX(target,-HSTEP());gesture.hTarget=target;gesture.hSnapshot=snap;return;
+      }
+      if(ay>=ax*.90){gesture.axis='VERTICAL';gesture.axisStartY=e.clientY;verticalQ=0;return;}
+      gesture.axis='HORIZONTAL';gesture.axisStartX=e.clientX;
+      const dir=dx<0?'RIGHT':'LEFT';gesture.hDirection=dir;
+      if(dir==='RIGHT'){
+        const sel=selectedNode();if(!sel){gesture.axis='BLOCKED';return;}
+        const destination=resolveDestination(sel),targetPath=currentNode===homeNode?[]:[...currentPath,...destination.chain],inheritedPalette=paletteForSelected(),target=makeWorld(destination.node,targetPath,0,inheritedPalette);
+        prepareWorld(target);setWorldX(target,HSTEP());gesture.hTarget=target;gesture.hSnapshot={node:currentNode,path:[...currentPath],selectedIndex:activeIndex,paletteOffset:currentWorld.paletteOffset,targetNode:destination.node,targetPath};
+      }else{
+        if(history.length===0){gesture.axis='BLOCKED';return;}
+        if(!currentWorld?.detail&&activeIndex>0){
+          /* Do not expose a differently-colored parent during the gesture.
+             The release becomes one BACK intent: rewind vertically, then LEFT. */
+          gesture.axis='BACK_PENDING';gesture.hDirection='LEFT';gesture.p=0;return;
+        }
+        const snap=history[history.length-1],target=makeWorld(snap.node,snap.path,snap.selectedIndex,snap.paletteOffset||0);prepareWorld(target);setWorldX(target,-HSTEP());gesture.hTarget=target;gesture.hSnapshot=snap;
+      }
+      return;
+    }
+    if(gesture.axis==='VERTICAL'){const travel=Math.max(80,H()*.22),delta=e.clientY-gesture.axisStartY;gesture.lastDY=delta;applyVertical(clamp(delta/travel,-1,1));return;}
+    if(gesture.axis==='BACK_PENDING'){
+      const dd=Math.max(0,e.clientX-gesture.axisStartX);
+      gesture.p=clamp(dd/Math.max(1,HSTEP()),0,1);
+      return;
+    }
+    if(gesture.axis==='HORIZONTAL'&&gesture.hTarget){
+      const dd=e.clientX-gesture.axisStartX,p=clamp(Math.abs(dd)/Math.max(1,HSTEP()),0,1),D=HSTEP();gesture.p=p;
+      setStageX(gesture.hDirection==='RIGHT' ? -D*p : D*p);
+    }
+  });
+
+  function finishPointer(e){
+    if(!gesture||e.pointerId!==gesture.id)return;try{viewport.releasePointerCapture(e.pointerId);}catch{}const g=gesture;gesture=null;
+    if(g.axis==='VERTICAL'){
+      const q=verticalQ;if(q<=-.34&&activeIndex<CARD_COUNT-1)settleVertical(-1,1);else if(q>=.34&&activeIndex>0)settleVertical(1,-1);else settleVertical(0,0);return;
+    }
+    if(g.axis==='BACK_PENDING'){
+      state='IDLE';
+      requestBack();
+      return;
+    }
+    if(g.axis==='HORIZONTAL'&&g.hTarget){
+      const p=g.p||0;
+      if(p>=.34){
+        state='SETTLING_HORIZONTAL';
+        if(g.hDirection==='RIGHT'){
+          history.push({node:g.hSnapshot.node,path:g.hSnapshot.path,selectedIndex:g.hSnapshot.selectedIndex,paletteOffset:g.hSnapshot.paletteOffset});
+          animateWorldTransition({direction:'RIGHT',targetWorld:g.hTarget,fromProgress:p,toProgress:1,onCommit:()=>commitTarget(g.hTarget,g.hSnapshot.targetNode,g.hSnapshot.targetPath)});
+        }else{
+          history.pop();
+          animateWorldTransition({direction:'LEFT',targetWorld:g.hTarget,fromProgress:p,toProgress:1,onCommit:()=>commitTarget(g.hTarget,g.hSnapshot.node,g.hSnapshot.path)});
+        }
+      }else{
+        state='SETTLING_HORIZONTAL';animateWorldTransition({direction:g.hDirection,targetWorld:g.hTarget,fromProgress:p,toProgress:0,onCommit:()=>{},onCancel:()=>{}});
+      }
+      return;
+    }
+    if(g.axis==='NONE'){state='IDLE';if(g.fromReturnGrip)requestBack();else enterSelected();return;}
+    state='IDLE';
+  }
+  viewport.addEventListener('pointerup',finishPointer);viewport.addEventListener('pointercancel',finishPointer);
+
+  window.addEventListener('keydown',e=>{
+    if(state!=='IDLE')return;
+    if(e.key==='ArrowDown'){e.preventDefault();if(activeIndex<CARD_COUNT-1)settleVertical(-1,1);return;}
+    if(e.key==='ArrowUp'){e.preventDefault();if(activeIndex>0)settleVertical(1,-1);return;}
+    if(e.key==='ArrowRight'||e.key==='Enter'||e.key===' '){e.preventDefault();enterSelected();return;}
+    if(e.key==='ArrowLeft'||e.key==='Escape'||e.key==='Backspace'){e.preventDefault();requestBack();return;}
+  });
+
+  /* Native wheel/trackpad vertical navigation. Horizontal depth stays on drag/keys. */
+  let wheelAccum=0;
+  let wheelResetTimer=0;
+  window.addEventListener('wheel',e=>{
+    const ax=Math.abs(e.deltaX), ay=Math.abs(e.deltaY);
+    if(ay<ax*1.05)return;
+    e.preventDefault();
+    if(state!=='IDLE')return;
+    wheelAccum+=e.deltaY;
+    clearTimeout(wheelResetTimer);
+    wheelResetTimer=setTimeout(()=>{wheelAccum=0;},120);
+    const threshold=28;
+    if(wheelAccum>=threshold){
+      wheelAccum=0;
+      if(activeIndex<CARD_COUNT-1)settleVertical(-1,1);
+    }else if(wheelAccum<=-threshold){
+      wheelAccum=0;
+      if(activeIndex>0)settleVertical(1,-1);
+
+    }
+  },{passive:false});
+
+
+  window.addEventListener('resize',()=>{
+    if(!currentWorld)return;setStageX(0);configureWorldGeometry();canonicalizeVertical();setWorldX(currentWorld,0);
+  });
+
+  viewport.tabIndex=0;
+  const initialWorld=makeWorld(homeNode,[],0,0);
+  prepareWorld(initialWorld);
+  currentNode=homeNode;currentPath=[];history=[];
+  bindWorld(initialWorld);setStageX(0);setWorldX(initialWorld,0);initialWorld.el.classList.remove('is-passive');
+  state='IDLE';
+  viewport.focus({preventScroll:true});
+
+  window.__PROMETEO_V50__={
+    getState:()=>({state,currentNode:currentNode.id,path:currentPath.map(n=>n.id),selectedIndex:activeIndex,selected:selectedNode()?.id||null,paletteOffset:currentWorld?.paletteOffset??0,selectedColorIndex:currentWorld?selectedColorIndex():null,history:history.map(h=>({node:h.node.id,selectedIndex:h.selectedIndex,paletteOffset:h.paletteOffset||0}))}),
+    home:()=>currentNode===homeNode,
+    right:enterSelected,
+    left:requestBack,
+    down:()=>{if(state==='IDLE'&&activeIndex<CARD_COUNT-1)settleVertical(-1,1);},
+    up:()=>{if(state==='IDLE'&&activeIndex>0)settleVertical(1,-1);},
+    verticalInvariant:()=>cards.map(card=>{const cs=getComputedStyle(card),outer=parseFloat(cs.getPropertyValue('--owned-outer'))||0,x=parseFloat(cs.getPropertyValue('--active-x'))||0,gap=visibleSheetTextEdge(card,outer)-(x+activeInkRightExtent(card));return {id:card.dataset.cardId,gap,target:activeRightInset(card),ok:Math.abs(gap-activeRightInset(card))<.15};}),
+    responsiveInvariant:()=>{
+      const c=cards[activeIndex],B=boundariesFor(activeIndex);
+      if(!c)return {ok:true};
+      const p=c.querySelector('.sheet-prefix'),a=c.querySelector('.sheet-active'),pc=c.querySelector('.sheet-prefix-clip'),ac=c.querySelector('.sheet-active-clip');
+      const box=el=>{const r=document.createRange();r.selectNodeContents(el);const b=r.getBoundingClientRect();return b;};
+      const pr=box(p),ar=box(a),pcr=pc.getBoundingClientRect(),acr=ac.getBoundingClientRect();
+      const peeks=[B[1]-B[0],B[2]-B[1],B[3]-B[2]];
+      const ordered=peeks[0]+.15>=peeks[1]&&peeks[1]+.15>=peeks[2]&&peeks[2]>=-.15;
+      const ratioOk=peeks[2]<.01?true:Math.abs(peeks[0]/peeks[2]-4)<.01&&Math.abs(peeks[1]/peeks[2]-2)<.01;
+      const noOverlap=pr.width<.01||pr.right<=ar.left+.2;
+      const unclippedPrefix=pr.width<.01||pr.right<=pcr.right+.2;
+      const unclippedActive=ar.right<=acr.right+.2;
+      return {ok:noOverlap&&unclippedPrefix&&unclippedActive&&ordered,noOverlap,unclippedPrefix,unclippedActive,ordered,idealRatio:ratioOk,peeks};
+    }
+  };
+  window.__PROMETEO_V50__.layout=()=>({w:W(),h:H(),railFont:getComputedStyle(currentWorld.el).getPropertyValue('--rail-font').trim(),railH:getComputedStyle(viewport).getPropertyValue('--rail-h').trim(),curve:getComputedStyle(viewport).getPropertyValue('--curve').trim(),main:cards.map(c=>+c.dataset.mainWidth||0),visibleEdges:visibleEdgesFor(activeIndex),boundaries:boundariesFor(activeIndex)});
+  window.__PROMETEO_V50__.horizontalInvariant=()=>({
+      preloadGap,step:HSTEP(),viewport:W(),expected:2*curveR(),
+      structuralFill:getComputedStyle(currentWorld?.cards?.[0]?.querySelector('.sheet-body')||document.documentElement).right
+    });
+  window.__PROMETEO_V50__.previewStep=()=>HSTEP();
+  window.__PROMETEO_V50__.backNormalizeInvariant=()=>({
+    activeIndex,canonical:activeIndex===0,detail:!!currentWorld?.detail,state
+  });
+  window.__PROMETEO_V50__.backplateInvariant=()=>{
+    const E=visibleEdgesFor(activeIndex);
+    const expectedColor=worldBackplateInk(currentWorld);
+    const actualColor=getComputedStyle(currentWorld?.el||document.documentElement).getPropertyValue('--backplate-color').trim();
+    const realRears=Math.min(3,Math.max(0,CARD_COUNT-1-activeIndex));
+    const firstBackplateX=E[realRears] ?? W();
+    const visibleFill=Math.max(0,W()-firstBackplateX);
+    const slotWidths=CARD_COUNT<=1?[]:[E[1]-E[0],E[2]-E[1],E[3]-E[2]];
+    const ordered=slotWidths.length===0||slotWidths[0]+.15>=slotWidths[1]&&slotWidths[1]+.15>=slotWidths[2]&&slotWidths[2]>=-.15;
+    const ratioOk=slotWidths.length===0||slotWidths[2]<.01||(
+      Math.abs(slotWidths[0]/slotWidths[2]-4)<.01 && Math.abs(slotWidths[1]/slotWidths[2]-2)<.01
+    );
+    return {
+      ok:(!currentWorld?.backplate||actualColor===expectedColor)&&ordered&&(CARD_COUNT<=1||Math.abs(E[3]-W())<.15),
+      hasBackplate:!!currentWorld?.backplate,
+      lastCardColorLaw:true,
+      expectedColor,actualColor,
+      fullRestUsed:CARD_COUNT<=1||Math.abs(E[3]-W())<.15,
+      maxVisibleRealRears:3,
+      realRears,firstBackplateX,visibleFill,
+      backplateVisibleOnlyForMissingSlots:realRears<3?visibleFill>0:visibleFill<.15,
+      lastSlotBoundary:E[3],viewport:W(),slotWidths,ordered,idealRatio:ratioOk
+    };
+  };
+  window.__PROMETEO_V50__.verticalTravelLockInvariant=()=>{
+    const front=cards[activeIndex],prev=activeIndex>0?cards[activeIndex-1]:null,fromB=boundariesFor(activeIndex),prevB=prev?boundariesFor(activeIndex-1):null;
+    return {
+      frontBase:front?renderBaseWidthFor(front):null,frontExpected:front?fromB[0]:null,
+      frontLocked:!front||Math.abs(renderBaseWidthFor(front)-fromB[0])<.15,
+      previousBase:prev?renderBaseWidthFor(prev):null,previousCanonical:prevB?prevB[0]:null
+    };
+  };
+  window.__PROMETEO_V50__.rightmostSealInvariant=()=>{
+    const rows=cards.map(c=>{
+      const ext=c.querySelector('.vertical-extension'),outer=parseFloat(getComputedStyle(c).getPropertyValue('--owned-outer'))||0;
+      return {id:c.dataset.cardId,visible:getComputedStyle(c).visibility!=='hidden',outer,textEdge:visibleSheetTextEdge(c,outer),sealed:ext?.dataset.rightSeal==='1'};
+    });
+    const visibleAtRight=rows.filter(r=>r.visible&&r.textEdge>=W()-.25);
+    return {rows,visibleAtRight,ok:visibleAtRight.every(r=>r.sealed)};
+  };
+
+  window.__PROMETEO_V50__.seamInvariant=()=>{
+    const card=cards[activeIndex];
+    const body=card?.querySelector('.sheet-body');
+    const panel=card?.querySelector('.nav-panel');
+    const bodyCS=body?getComputedStyle(body):null;
+    const weld=panel?getComputedStyle(panel,'::after'):null;
+    return {
+      stageTransform:getComputedStyle(worldStage).transform,
+      seal:getComputedStyle(viewport).getPropertyValue('--seam-seal').trim(),
+      bodyBottom:bodyCS?.bottom||null,
+      bodyRight:bodyCS?.right||null,
+      weldHeight:weld?.height||null,
+      weldBottom:weld?.bottom||null
+    };
+  };
+  window.__PROMETEO_V50__.depthSlotsInvariant=()=>{
+    const E=visibleEdgesFor(activeIndex),rest=Math.max(0,W()-E[0]);
+    const widths=[E[1]-E[0],E[2]-E[1],E[3]-E[2]];
+    const realRears=Math.min(3,Math.max(0,CARD_COUNT-1-activeIndex));
+    const baseWidths=cards.filter(c=>getComputedStyle(c).visibility!=='hidden').map(c=>renderBaseWidthFor(c));
+    const sharedBase=baseWidths.length<2||Math.max(...baseWidths)-Math.min(...baseWidths)<.15;
+    const ordered=widths[0]+.15>=widths[1]&&widths[1]+.15>=widths[2]&&widths[2]>=-.15;
+    const idealRatio=widths[2]<.01||Math.abs(widths[0]/widths[2]-4)<.01&&Math.abs(widths[1]/widths[2]-2)<.01;
+    return {ok:Math.abs(widths.reduce((a,b)=>a+b,0)-rest)<.15&&ordered&&sharedBase,
+      visibleEdges:E,widths,rest,realRears,ordered,idealRatio,sharedBase,renderBases:baseWidths};
+  };
+  window.__PROMETEO_V50__.edgeSolverInvariant=()=>{
+    const all=solveAllVisibleEdges(),rows=[];
+    for(let i=0;i<all.length;i++){
+      const E=all[i],widths=[E[1]-E[0],E[2]-E[1],E[3]-E[2]];
+      const ordered=widths[0]+.15>=widths[1]&&widths[1]+.15>=widths[2]&&widths[2]>=-.15;
+      let upMonotonic=true;
+      if(i+1<all.length){
+        const N=all[i+1],real=Math.min(3,Math.max(0,CARD_COUNT-1-i));
+        for(let d=1;d<=real;d++) if(E[d]+.15<N[d-1]) upMonotonic=false;
+      }
+      rows.push({index:i,visibleEdges:E,widths,ordered,upMonotonic});
+    }
+    return {ok:rows.every(r=>r.ordered&&r.upMonotonic),rows};
+  };
+  window.__PROMETEO_V50__.visibleChainInvariant=()=>{
+    const E=visibleEdgesFor(activeIndex),B=boundariesFor(activeIndex),front=cards[activeIndex];
+    const visibleWidths=[E[1]-E[0],E[2]-E[1],E[3]-E[2]];
+    const ordered=visibleWidths[0]+.15>=visibleWidths[1]&&visibleWidths[1]+.15>=visibleWidths[2]&&visibleWidths[2]>=-.15;
+    const p=front?.querySelector('.sheet-prefix'),a=front?.querySelector('.sheet-active');
+    const inkBox=el=>{if(!el)return null;const r=document.createRange();r.selectNodeContents(el);return r.getBoundingClientRect();};
+    const pr=inkBox(p),ar=inkBox(a),join=pr&&ar&&pr.width>.01&&ar.width>.01?ar.left-pr.right:null;
+    return {ok:ordered&&(join==null||join>=pathJoinGap(front)-.75),visibleEdges:E,logicalBoundaries:B,visibleWidths,ordered,join,targetJoin:front?pathJoinGap(front):null};
+  };
+  window.__PROMETEO_V48__=window.__PROMETEO_V50__;
+  window.__PROMETEO_V47__=window.__PROMETEO_V50__;
+  window.__PROMETEO_V46__=window.__PROMETEO_V50__;
+  window.__PROMETEO_V45__=window.__PROMETEO_V50__;
+  window.__PROMETEO_V42__=window.__PROMETEO_V50__;
+  window.__PROMETEO_V41__=window.__PROMETEO_V50__;
+  window.__PROMETEO_V40__=window.__PROMETEO_V42__;
+  window.__PROMETEO_V39__=window.__PROMETEO_V41__;
+  window.__PROMETEO_V37__=window.__PROMETEO_V41__;
+  window.__PROMETEO_V52__=window.__PROMETEO_V50__;
+  window.__PROMETEO_V52__.catalog={schema:pageSpec.schema,updated_at:pageSpec.updated_at,pageCount:pagesById.size};
+  window.__PROMETEO_BUILD__='PROMETEO_V52_SCALABLE_NAVIGATOR_20260901';
+})().catch(error=>{
+  console.error(error);
+  const stage=document.getElementById('worldStage');
+  if(stage)stage.innerHTML=`<section style="padding:32px;font:700 16px/1.45 system-ui;color:#172027"><h1 style="font-size:28px">Prometeo no pudo cargar el catálogo.</h1><p>${String(error.message||error)}</p></section>`;
+});
+</script>
+</body>
+</html>
