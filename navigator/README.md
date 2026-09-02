@@ -1,64 +1,41 @@
-# Prometeo · reconstrucción escalable
+# Prometeo V54 · propuestas visuales integradas
 
-Este paquete conserva la física de `PROMETEO_V50_VERTICAL_X_LOCK_RIGHTMOST_SEAL.html` y cambia únicamente la propiedad de los datos y de las páginas. Es un candidato; no reemplaza el `HUMAN_ACCEPTED_BASELINE` del repositorio.
+V54 conserva la física exacta de V53 y reorganiza solamente el catálogo. Añade siete propuestas visuales conectadas a un Design Kernel, componentes táctiles y un whiteboard compartido.
 
 ## Autoridades
 
-- `navigator/index.html`: física espacial, transición a página terminal y Exact Back.
-- `catalog/tree.json`: jerarquía semántica. Sólo contiene IDs de página.
-- `catalog/pages.json`: registro de páginas, URLs, estado y procedencia.
-- Cada página: código y recursos propios en su repositorio o en `pages/`.
+- `navigator/index.html`: cámara, vertical, horizontal, preload, terminal y Exact Back.
+- `catalog/tree.json`: jerarquía semántica y orden visible.
+- `catalog/pages.json`: enlaces, fechas, roles, linajes y autoridad.
+- `shared/design-kernel/v1/`: tokens visuales de las propuestas.
+- `shared/components/v1/`: controles táctiles físicos.
+- `shared/widgets/whiteboard/v1/`: único pizarrón consumido por Clase y PageKit.
+- `pages/proposals/`: contenido y composición de cada propuesta.
 
-El navegador no acopla contenido de José, Adriana, Study ni PageKit a su física. Sólo resuelve un ID estable y abre su URL; los HTML históricos sin publicación previa viven ahora bajo `pages/` para que también sean destinos reales.
+## Organización
 
-## Ley de colapso
+Las propuestas aparecen primero dentro de Clases, Alumnos, Pizarra, Study, Controles, Feedback y Operación. Herramientas, Proyectos y Sistema reúnen productos o referencias diferentes y no reciben una fusión artificial.
 
-`resolveDestination(node)` se ejecuta tanto en el gesto como en la entrada por teclado:
+Las carpetas con un único destino continúan colapsándose recursivamente. Cada `page_id` aparece una sola vez en el árbol.
 
-- cero hijos: abre la página;
-- un hijo: sigue descendiendo sin crear otra pantalla;
-- dos o más hijos: muestra una carpeta porque existe una decisión real.
+## Fechas
 
-El colapso es recursivo y conserva todos los nodos semánticos en el breadcrumb, pero no los convierte en gestos.
+El registro distingue `origin_date`, `published_date`, `last_modified_date`, `first_verified_date` y `date_confidence`. La fecha 2026-09-01 de incorporación al navegador no se presenta como origen de los HTML históricos.
 
-## Cambios aislados
+## Controles V9
 
-| Necesidad | Archivo que cambia |
-|---|---|
-| Reemplazar el HTML de José sin cambiar su URL | Sólo el repo/ruta de José |
-| Cambiar la URL de José | Sólo `catalog/pages.json` |
-| Mover José a otra categoría | Sólo `catalog/tree.json` |
-| Añadir una página a una carpeta existente | `pages.json` + una referencia en `tree.json` |
-| Corregir el gesto horizontal o vertical | Sólo `navigator/index.html` |
-| Cambiar un componente compartido compatible | Sólo la versión compartida indicada por su `current.json` |
+El archivo de controles creado el 2026-09-01 está clasificado como `RECONSTRUCTION_NOT_V9`. La propuesta 2026-09-02 conserva las reglas humanas recuperadas, pero no suplanta los bytes históricos favoritos, que siguen pendientes.
 
-## Publicación propuesta
-
-La ruta estable del navegador debe ser:
-
-`https://juanmanuelpm.github.io/prometeo/navigator/`
-
-Las páginas que ya tenían URL se conservan donde están. Los artefactos recuperados fueron publicados en rutas locales del mismo sitio. Los 29 destinos del catálogo son páginas vivas y se abren dentro del terminal fullscreen; el agarre lateral conserva Exact Back.
-
-## Verificación local
-
-Desde la raíz de este paquete:
-
-```bash
-python3 -m http.server 8000
-```
-
-Abrir `http://localhost:8000/navigator/`.
-
-Ejecutar los gates del catálogo:
+## Verificación
 
 ```bash
 node tests/catalog.test.mjs
+node tests/proposals.test.mjs
 ```
 
-## Estado de autoridad
+## Autoridad humana
 
-- V50 adjunta: baseline local congelada, SHA-256 `85968e5ccdea0b56ac37ee77a3e1e0562c9e65c8218c11e6d2eb0b6e6605b187`.
-- Este paquete: candidato de integración de catálogo y páginas.
-- `shared/navigation/folder-stack/CURRENT.json` del repositorio: sigue declarando V23 como `HUMAN_ACCEPTED_BASELINE`.
-- Ningún `Current` humano debe cambiar hasta una aceptación explícita.
+- V50 adjunta permanece congelada con SHA-256 `85968e5ccdea0b56ac37ee77a3e1e0562c9e65c8218c11e6d2eb0b6e6605b187`.
+- V53 fue archivada byte a byte en `navigator/candidates/v53-complete-example-atlas-20260901/`.
+- `shared/navigation/folder-stack/CURRENT.json` continúa apuntando a V23 Human Accepted.
+- V54 es `CANDIDATE_NOT_HUMAN_ACCEPTED`.

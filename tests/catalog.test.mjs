@@ -5,7 +5,7 @@ const tree=JSON.parse(await readFile(new URL('../catalog/tree.json',import.meta.
 const registry=JSON.parse(await readFile(new URL('../catalog/pages.json',import.meta.url),'utf8'));
 const pages=new Map(registry.pages.map(page=>[page.id,page]));
 
-assert.equal(registry.schema,'prometeo.page-registry/v1');
+assert.equal(registry.schema,'prometeo.page-registry/v2');
 assert.equal(pages.size,registry.pages.length,'No puede haber IDs de página duplicados');
 
 const nodeIds=new Set();
@@ -27,6 +27,12 @@ assert.equal(new Set(pageRefs).size,pageRefs.length,'Una página no debe aparece
 
 for(const page of registry.pages){
   assert.ok(['live','recovered','archived'].includes(page.status),`Estado inválido: ${page.id}`);
+  assert.ok(page.authority,`Página sin autoridad: ${page.id}`);
+  assert.ok(page.role,`Página sin rol: ${page.id}`);
+  assert.ok(page.lineage,`Página sin linaje: ${page.id}`);
+  assert.ok(['verified','reconstruction','approximate','unknown'].includes(page.date_confidence),`Confianza de fecha inválida: ${page.id}`);
+  if(page.date_confidence==='verified')assert.match(page.origin_date,/^\d{4}-\d{2}-\d{2}$/,`Fecha de origen inválida: ${page.id}`);
+  if(page.authority==='RECONSTRUCTION_NOT_V9')assert.ok(!/\bV9\b/i.test(page.title),`Una reconstrucción no puede fingir ser V9: ${page.id}`);
   if(page.status==='live'){
     assert.ok(page.href,`Página live sin URL: ${page.id}`);
     const target=new URL(page.href,new URL('../navigator/index.html',import.meta.url));
@@ -67,5 +73,17 @@ assert.equal(resolveDestination(branch).node,branch);
 const firstLevel=tree.children||[];
 assert.ok(firstLevel.length>=2,'La raíz debe ofrecer decisiones reales');
 assert.ok(firstLevel.every(node=>(node.children?.length||0)!==1),'El árbol inicial no debe contener carpetas visualmente inútiles');
+
+function assertNoSingleChildFolders(node){
+  if(node.kind==='folder'&&Array.isArray(node.children))assert.notEqual(node.children.length,1,`Carpeta visual inútil: ${node.id}`);
+  for(const child of node.children||[])assertNoSingleChildFolders(child);
+}
+assertNoSingleChildFolders(tree);
+
+for(const category of firstLevel){
+  if(['herramientas','proyectos','sistema'].includes(category.id))continue;
+  const first=category.children?.[0];
+  if(first?.page_id)assert.ok(pages.get(first.page_id)?.authority?.startsWith('PROPOSAL'),`La propuesta debe estar arriba en ${category.id}`);
+}
 
 console.log(JSON.stringify({ok:true,pages:pages.size,visible_page_refs:pageRefs.length,node_ids:nodeIds.size,live:registry.pages.filter(page=>page.status==='live').length,recovered:registry.pages.filter(page=>page.status==='recovered').length},null,2));
