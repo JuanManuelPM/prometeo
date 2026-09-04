@@ -1,5 +1,5 @@
 name: Part 2 Finalize
-# retry after append-only platform ledger test repair
+# metadata-only retry; workflow installation is performed by connected GitHub tool
 
 on:
   push:
@@ -18,6 +18,12 @@ jobs:
           fetch-depth: 0
       - name: Apply durable closure
         run: python scripts/part2_finalize.py
+      - name: Keep workflow/helper mutations out of CI commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git restore --source=HEAD .github/workflows/part2-finalize.yml scripts/part2_finalize.py
+          rm -f .github/workflows/part2-candidate-ci.yml
       - name: Verify before commit
         shell: bash
         run: |
@@ -33,12 +39,12 @@ jobs:
           PY
           test ! -e .transport/part2
           test "$(git hash-object navigator/index.html)" = "7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418"
-      - name: Commit final Part 2 closure
+      - name: Commit final Part 2 metadata closure
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'Prometeo Candidate CI'
           git config user.email '72280945+JuanManuelPM@users.noreply.github.com'
-          git add -A
-          git commit -m 'Close Part 2 tested candidate and prepare adversarial audit'
+          git add coordination/PART2_CANDIDATE_MANIFEST.json coordination/PART2_EXECUTION_REPORT.md receipts/ledger.jsonl state/CURRENT_GRAPH.json state/HEAD.json state/DOT_STATE.json state/PENDING.json
+          git commit -m 'Close Part 2 tested candidate metadata'
           git push origin HEAD:${GITHUB_REF_NAME}
