@@ -1,0 +1,56 @@
+name: Part 3 P3-03 Hop Continuity
+
+on:
+  push:
+    branches: [candidate/part2-durable-metabolism-20260904]
+    paths:
+      - 'coordination/P3_03_HOP_CONTINUITY_SPEC.json'
+      - 'scripts/p3-03-*.mjs'
+      - 'scripts/p3-03-*.sh'
+      - 'lab/p3-03-hop-continuity/**'
+      - 'tests/part3-p3-03-hop-continuity.test.mjs'
+      - '.github/workflows/part3-p3-03-hop-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hop-continuity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Regress durable authority
+        run: |
+          set -euo pipefail
+          for f in tests/part2-*.test.mjs; do node "$f"; done
+          node tests/part3-p3-00-rehydrate.test.mjs
+          node tests/part3-p3-01-closure.test.mjs
+          node tests/part3-p3-02-fresh-agent.test.mjs
+          node tests/part3-p3-02-closure.test.mjs
+          test "$(git hash-object navigator/index.html)" = "7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418"
+      - name: Run clean process hop chain
+        run: node tests/part3-p3-03-hop-continuity.test.mjs
+      - name: Install pinned agent-browser
+        run: |
+          set -euo pipefail
+          npm install --global agent-browser@0.34.0
+          agent-browser install --with-deps
+          agent-browser doctor --offline --quick
+      - name: Run clean browser session restart chain
+        run: |
+          set -euo pipefail
+          chmod +x scripts/p3-03-browser-hop-gate.sh
+          scripts/p3-03-browser-hop-gate.sh
+      - name: Upload P3-03 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p3-03-hop-evidence-${{ github.sha }}
+          path: artifacts/p3-03/
+          if-no-files-found: error
+          retention-days: 30
