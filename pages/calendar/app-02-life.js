@@ -1,11 +1,22 @@
+function classArtFor(c){
+  const id=String(c.id||"");
+  const name=String(c.name||"").trim().toLowerCase();
+  if(id==="jose-fixed"||name==="josé"||name==="jose")return {key:"chair",label:"Presencial"};
+  if(id.startsWith("replacement-")||name.includes("reemplazo"))return {key:"handshake",label:"Reemplazo"};
+  if(c.type==="fixed")return {key:"metronome",label:"Fija"};
+  return {key:"raised",label:"Suelta"};
+}
 function classNode(c){
-  const box=document.createElement("div");box.className="event class";box.style.setProperty("--blocks",String(Math.max(1,c.duration*2)));
+  const artInfo=classArtFor(c);
+  const box=document.createElement("div");box.className=`event class class-${artInfo.key}`;box.style.setProperty("--blocks",String(Math.max(1,c.duration*2)));
   const main=document.createElement("div");main.className="event-main";
   const title=document.createElement("div");title.className="event-title";title.textContent=c.name;
   const meta=document.createElement("div");meta.className="event-meta";meta.textContent=`${typeLabel(c.type)} · ${hourText(c.duration)} · ${compactMoney(c.rate)}/h`;
   main.append(title,meta);
+  const art=document.createElement("div");art.className="class-art";art.setAttribute("aria-hidden","true");
+  const artUrl=window.PrometeoClassArt?.[artInfo.key];if(artUrl){art.style.maskImage=`url("${artUrl}")`;art.style.webkitMaskImage=`url("${artUrl}")`;}
   const del=document.createElement("button");del.className="remove";del.type="button";del.textContent="×";del.onclick=e=>{e.stopPropagation();classes=classes.filter(x=>x.id!==c.id);saveClasses();render()};
-  box.append(main,del);return box;
+  box.append(main,art,del);return box;
 }
 function bocaNode(g){
   const box=document.createElement("div");box.className="event boca";box.style.setProperty("--blocks",String(Math.max(1,g.duration*2)));
