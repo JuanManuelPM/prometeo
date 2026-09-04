@@ -1,0 +1,62 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Prometeo Object Core v1 · Self Test</title>
+<pre id="out">RUNNING…</pre>
+<script src="./object-core.js"></script>
+<script src="./schema-registry.js"></script>
+<script src="./migrations.js"></script>
+<script src="./object-store.js"></script>
+<script src="./projections.js"></script>
+<script>
+(function(){
+  const lines=[];let passed=0,failed=0;
+  function test(name,fn){try{fn();passed++;lines.push(`PASS  ${name}`)}catch(e){failed++;lines.push(`FAIL  ${name}\n      ${e.message}`)}}
+  function eq(a,b,msg="values differ"){if(JSON.stringify(a)!==JSON.stringify(b))throw new Error(`${msg}: ${JSON.stringify(a)} !== ${JSON.stringify(b)}`)}
+  function ok(value,msg="expected truthy"){if(!value)throw new Error(msg)}
+
+  const key="prometeo-object-store-self-test";localStorage.removeItem(key);
+  const store=PrometeoObjectStore.createStore({key});
+
+  test("schemas registered",()=>{ok(PrometeoSchemaRegistry.get("lesson"));ok(PrometeoSchemaRegistry.get("expense"));ok(PrometeoSchemaRegistry.get("plan"))});
+
+  let lesson;
+  test("create lesson with reusable capabilities",()=>{
+    lesson=store.create("lesson",{
+      title:"José",
+      capabilities:{
+        temporal:{date:"2026-09-09",start:"18:00",duration:60,recurrence:{freq:"weekly",byDay:["WE"]}},
+        repeatable:{recurrence:{freq:"weekly",byDay:["WE"]}},
+        financial:{direction:"in",rate:50000,currency:"ARS",certainty:"confirmed"},
+        social:{participants:["student:jose"]}
+      }
+    });
+    ok(lesson.id);eq(lesson.type,"lesson");ok(PrometeoObject.has(lesson,"temporal"));ok(PrometeoObject.has(lesson,"financial"));
+  });
+
+  test("same lesson projects to calendar and finance",()=>{
+    const temporal=PrometeoProjections.temporal(lesson);
+    const financial=PrometeoProjections.financial(lesson);
+    eq(temporal.objectId,lesson.id);eq(financial.objectId,lesson.id);eq(financial.rate,50000);
+  });
+
+  test("expense projects as outgoing money",()=>{
+    const expense=store.create("expense",{title:"Internet",capabilities:{financial:{direction:"out",amount:35000,category:"services"},temporal:{date:"2026-09-10"},repeatable:{recurrence:{freq:"monthly",byMonthDay:[10]}}}});
+    const p=PrometeoProjections.financial(expense);eq(p.direction,"out");eq(p.amount,35000);
+  });
+
+  test("plan can be social + temporal + actionable",()=>{
+    const plan=store.create("plan",{title:"Ir al Tigre",status:"idea",capabilities:{social:{participants:["Nico"]},temporal:{date:null},actionable:{nextAction:"Preguntar quién puede"}}});
+    eq(PrometeoProjections.actionable(plan).nextAction,"Preguntar quién puede");
+  });
+
+  test("query by capability",()=>{ok(store.query({capability:"financial"}).length===2)});
+  test("patch preserves identity and records history",()=>{const before=lesson.id;const after=store.patch(lesson.id,{status:"done"});eq(after.id,before);ok(after.history.some(h=>h.action==="updated"))});
+  test("schema validation rejects unknown type",()=>{let threw=false;try{store.create("magicThing",{title:"x"})}catch{threw=true}ok(threw)});
+  test("v0 migration creates v1 envelope",()=>{const migrated=PrometeoMigrations.migrate([{id:"legacy-1",type:"note",title:"Legacy"}]);eq(migrated.schemaVersion,1);ok(migrated.objects["legacy-1"])});
+
+  localStorage.removeItem(key);
+  lines.push(`\n${passed} PASS · ${failed} FAIL`);
+  out.textContent=lines.join("\n");
+  document.title=`${failed?"FAIL":"PASS"} · Prometeo Object Core v1`;
+})();
+</script>
