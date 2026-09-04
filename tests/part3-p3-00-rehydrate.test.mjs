@@ -31,26 +31,30 @@ assert.equal(e.wake.PENDING.length,1);
 assert.equal(e.wake.PENDING[0].id,'PENDING-PART3-001');
 assert.equal(e.wake.PENDING[0].state,'READY');
 assert.ok(e.wake.RULES.includes('Candidate != Human Accepted != Served.'));
-assert.equal(e.source_identities.required.length,12);
+assert.equal(e.source_identities.required.length,13);
+assert.ok(e.source_identities.required.some(x=>x.role==='operator_contract'));
 for(const s of [e.source_identities.bootstrap,...e.source_identities.required,...e.source_identities.runtime])assert.match(s.git_blob_sha,/^[0-9a-f]{40}$/);
 assert.equal(e.source_identities.branch,'candidate/part2-durable-metabolism-20260904');
 
 const matrix=JSON.parse(fs.readFileSync(new URL('../coordination/PART3_GATE_MATRIX.json',import.meta.url),'utf8'));
 const p300=matrix.gates.find(g=>g.id==='P3-00');
 const p301=matrix.gates.find(g=>g.id==='P3-01');
-assert.ok(p300&&p301);
+const p302=matrix.gates.find(g=>g.id==='P3-02');
+assert.ok(p300&&p301&&p302);
 if(p300.status==='PASS'){
   const dot=JSON.parse(fs.readFileSync(new URL('../state/DOT_STATE.json',import.meta.url),'utf8'));
   if(p301.status==='READY'){
     assert.equal(dot.next_gate,'P3-01_BROWSER_HARNESS');
-  }else if(p301.status==='PASS'){
-    const p302=matrix.gates.find(g=>g.id==='P3-02');
+  }else if(p301.status==='PASS'&&p302.status==='READY'){
     assert.equal(p301.receipt_id,'R-P3-01-BROWSER-0006');
     assert.equal(dot.phase,'PART3_P3_01_COMPLETE');
     assert.equal(dot.next_gate,'P3-02_FRESH_AGENT_REINCARNATION');
-    assert.equal(p302?.status,'READY');
+  }else if(p301.status==='PASS'&&p302.status==='PASS'){
+    assert.equal(p301.receipt_id,'R-P3-01-BROWSER-0006');
+    assert.ok(String(dot.phase).startsWith('PART3_P3_02'));
+    assert.ok(String(dot.next_gate).startsWith('P3-'));
   }else{
-    assert.fail('P3-01 must be READY or PASS after P3-00');
+    assert.fail('P3-01 must be READY/PASS and P3-02 READY/PASS after P3-00');
   }
 }
 console.log(JSON.stringify({ok:true,gate:'P3-00',ledger_receipts:e.ledger.count,current_revision:e.state_crosscheck.current_revision,phase:e.wake.CURRENT.phase}));
