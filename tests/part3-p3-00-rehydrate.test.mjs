@@ -41,7 +41,16 @@ const p301=matrix.gates.find(g=>g.id==='P3-01');
 assert.ok(p300&&p301);
 if(p300.status==='PASS'){
   const dot=JSON.parse(fs.readFileSync(new URL('../state/DOT_STATE.json',import.meta.url),'utf8'));
-  assert.equal(dot.next_gate,'P3-01_BROWSER_HARNESS');
-  assert.equal(p301.status,'READY');
+  if(p301.status==='READY'){
+    assert.equal(dot.next_gate,'P3-01_BROWSER_HARNESS');
+  }else if(p301.status==='PASS'){
+    const p302=matrix.gates.find(g=>g.id==='P3-02');
+    assert.equal(p301.receipt_id,'R-P3-01-BROWSER-0006');
+    assert.equal(dot.phase,'PART3_P3_01_COMPLETE');
+    assert.equal(dot.next_gate,'P3-02_FRESH_AGENT_REINCARNATION');
+    assert.equal(p302?.status,'READY');
+  }else{
+    assert.fail('P3-01 must be READY or PASS after P3-00');
+  }
 }
 console.log(JSON.stringify({ok:true,gate:'P3-00',ledger_receipts:e.ledger.count,current_revision:e.state_crosscheck.current_revision,phase:e.wake.CURRENT.phase}));
