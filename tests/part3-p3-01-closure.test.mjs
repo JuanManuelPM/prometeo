@@ -1,61 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {spawnSync} from 'node:child_process';
-
 const read=p=>JSON.parse(fs.readFileSync(new URL('../'+p,import.meta.url),'utf8'));
-const current=read('state/CURRENT_GRAPH.json');
-const dot=read('state/DOT_STATE.json');
-const pending=read('state/PENDING.json');
-const matrix=read('coordination/PART3_GATE_MATRIX.json');
-const report=read('coordination/P3_01_BROWSER_CLOSURE.json');
-const receipts=fs.readFileSync(new URL('../receipts/ledger.jsonl',import.meta.url),'utf8').trim().split(/\n+/).map(JSON.parse);
-const receipt=receipts.find(r=>r.id==='R-P3-01-BROWSER-0006');
-assert.ok(receipt,'P3-01 receipt must remain in append-only ledger');
-assert.equal(receipt.hash,'66d9b4d0d91a0bea3880d5b78342788c8bff440d9470c5b9b14cd169ce1577fc');
-assert.ok(current.revision>=5);
-assert.equal(current.pointers.candidate_current.receipt_id,'R-P2-AUDIT-0004');
-assert.equal(current.pointers.served_current.receipt_id,'R-P2-BOOT-0001');
-assert.equal(current.pointers.served_current.evidence_state,'INHERITED_PREEXISTING_NOT_PART2_BROWSER_REVERIFIED');
-assert.equal(current.pointers.human_accepted_physics.receipt_id,'R-P2-BOOT-0001');
-const p301=matrix.gates.find(g=>g.id==='P3-01');
-const p302=matrix.gates.find(g=>g.id==='P3-02');
-const p303=matrix.gates.find(g=>g.id==='P3-03');
-assert.equal(p301.status,'PASS');
-assert.equal(p301.receipt_id,receipt.id);
-assert.equal(p301.ci_run,33882820789);
-assert.equal(p301.artifact_id,9940580289);
-assert.ok(['READY','PASS'].includes(p302.status));
-if(p302.status==='READY'){
-  assert.equal(current.revision,5);
-  assert.equal(current.last_durable_receipt,receipt.id);
-  assert.equal(dot.last_receipt,receipt.id);
-  assert.equal(dot.phase,'PART3_P3_01_COMPLETE');
-  assert.equal(dot.next_gate,'P3-02_FRESH_AGENT_REINCARNATION');
-  assert.deepEqual(matrix.gates.filter(g=>g.status==='READY').map(g=>g.id),['P3-02']);
-  assert.deepEqual(pending.items[0].dependencies,[receipt.id]);
-  assert.match(pending.items[0].next_action,/execute only P3-02/);
-}else{
-  assert.equal(p302.receipt_id,'R-P3-02-FRESH-0007');
-  assert.ok(current.revision>=6);
-  assert.equal(dot.phase,'PART3_P3_02_COMPLETE');
-  assert.equal(dot.next_gate,'P3-03_HOP_CONTINUITY');
-  assert.equal(p303.status,'READY');
-}
-assert.equal(report.status,'PASS');
-assert.equal(report.receipt_hash,receipt.hash);
-assert.equal(report.empirical.failed_local_resources,0);
-assert.equal(report.empirical.page_errors,0);
-assert.equal(report.empirical.console_errors,0);
-assert.equal(report.truth_ceiling.human_accepted,false);
-assert.equal(report.truth_ceiling.new_served_verification,false);
-assert.equal(report.truth_ceiling.fresh_agent_reincarnation,false);
-const run=spawnSync(process.execPath,['scripts/p3-00-rehydrate.mjs'],{encoding:'utf8'});
-if(run.status!==0){process.stderr.write(run.stderr||'');process.exit(run.status||1)}
-const wake=JSON.parse(run.stdout);
-assert.equal(wake.ledger.ok,true);
-assert.ok(wake.ledger.count>=6);
-assert.ok(receipts.some(r=>r.id===wake.ledger.last_receipt_id));
-assert.equal(wake.state_crosscheck.current_last_receipt,wake.ledger.last_receipt_id);
-assert.equal(wake.state_crosscheck.dot_last_receipt,wake.ledger.last_receipt_id);
-assert.ok(String(wake.wake.CURRENT.phase).startsWith('PART3_P3_0'));
-console.log(JSON.stringify({ok:true,gate:'P3-01',receipt:receipt.id,currentRevision:current.revision,p3_02:p302.status}));
+const current=read('state/CURRENT_GRAPH.json'),dot=read('state/DOT_STATE.json'),pending=read('state/PENDING.json'),matrix=read('coordination/PART3_GATE_MATRIX.json'),report=read('coordination/P3_01_BROWSER_CLOSURE.json');
+const receipts=fs.readFileSync(new URL('../receipts/ledger.jsonl',import.meta.url),'utf8').trim().split(/\n+/).map(JSON.parse),receipt=receipts.find(r=>r.id==='R-P3-01-BROWSER-0006');assert.ok(receipt,'P3-01 receipt must remain in append-only ledger');assert.equal(receipt.hash,'66d9b4d0d91a0bea3880d5b78342788c8bff440d9470c5b9b14cd169ce1577fc');assert.ok(current.revision>=5);assert.equal(current.pointers.candidate_current.receipt_id,'R-P2-AUDIT-0004');assert.equal(current.pointers.served_current.receipt_id,'R-P2-BOOT-0001');assert.equal(current.pointers.served_current.evidence_state,'INHERITED_PREEXISTING_NOT_PART2_BROWSER_REVERIFIED');assert.equal(current.pointers.human_accepted_physics.receipt_id,'R-P2-BOOT-0001');
+const p301=matrix.gates.find(g=>g.id==='P3-01'),p302=matrix.gates.find(g=>g.id==='P3-02'),p303=matrix.gates.find(g=>g.id==='P3-03');assert.equal(p301.status,'PASS');assert.equal(p301.receipt_id,receipt.id);assert.equal(p301.ci_run,33882820789);assert.equal(p301.artifact_id,9940580289);assert.ok(['READY','PASS'].includes(p302.status));
+if(p302.status==='READY'){assert.equal(current.revision,5);assert.equal(current.last_durable_receipt,receipt.id);assert.equal(dot.last_receipt,receipt.id);assert.equal(dot.phase,'PART3_P3_01_COMPLETE');assert.equal(dot.next_gate,'P3-02_FRESH_AGENT_REINCARNATION');assert.deepEqual(matrix.gates.filter(g=>g.status==='READY').map(g=>g.id),['P3-02']);assert.deepEqual(pending.items[0].dependencies,[receipt.id]);assert.match(pending.items[0].next_action,/execute only P3-02/)}else{assert.equal(p302.receipt_id,'R-P3-02-FRESH-0007');assert.ok(current.revision>=6);assert.ok(['READY','PASS'].includes(p303.status));if(p303.status==='READY'){assert.equal(dot.phase,'PART3_P3_02_COMPLETE');assert.equal(dot.next_gate,'P3-03_HOP_CONTINUITY')}else{assert.equal(p303.receipt_id,'R-P3-03-HOP-0008');assert.ok(current.revision>=7);assert.ok(/^PART3_P3_\d{2}(?:_|$)/.test(String(dot.phase)));assert.ok(/^P3-\d{2}(?:_|$)/.test(String(dot.next_gate)))}}
+assert.equal(report.status,'PASS');assert.equal(report.receipt_hash,receipt.hash);assert.equal(report.empirical.failed_local_resources,0);assert.equal(report.empirical.page_errors,0);assert.equal(report.empirical.console_errors,0);assert.equal(report.truth_ceiling.human_accepted,false);assert.equal(report.truth_ceiling.new_served_verification,false);assert.equal(report.truth_ceiling.fresh_agent_reincarnation,false);
+const run=spawnSync(process.execPath,['scripts/p3-00-rehydrate.mjs'],{encoding:'utf8'});if(run.status!==0){process.stderr.write(run.stderr||'');process.exit(run.status||1)}const wake=JSON.parse(run.stdout);assert.equal(wake.ledger.ok,true);assert.ok(wake.ledger.count>=6);assert.ok(receipts.some(r=>r.id===wake.ledger.last_receipt_id));assert.equal(wake.state_crosscheck.current_last_receipt,wake.ledger.last_receipt_id);assert.equal(wake.state_crosscheck.dot_last_receipt,wake.ledger.last_receipt_id);assert.ok(String(wake.wake.CURRENT.phase).startsWith('PART3_P3_'));
+console.log(JSON.stringify({ok:true,gate:'P3-01',receipt:receipt.id,currentRevision:current.revision,p3_02:p302.status,p3_03:p303.status}));
