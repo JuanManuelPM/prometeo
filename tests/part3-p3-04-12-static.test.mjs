@@ -46,7 +46,11 @@ assert.ok(diseases.length>=26);
   const arte=read('arte/index.html');
   assert.doesNotMatch(tokens,/box-shadow\s*:/i);
   assert.match(material,/inset/i);
-  assert.match(calendar,/--accent:/);
+  // Current-main Calendar is modular: product identity is local while material/touch are shared.
+  assert.match(calendar,/prometeo-component" content="calendar\/v1/);
+  assert.match(calendar,/shared\/material\/bicolor\/v1\/material\.css/);
+  assert.match(calendar,/shared\/calendar\/v1\/calendar-base\.css/);
+  assert.match(calendar,/shared\/calendar\/v1\/calendar-(?:mobile|responsive)\.css/);
   assert.match(calendar,/Calendario/);
   assert.match(arte,/Adriana/i);
   assert.notEqual(calendar,arte);
