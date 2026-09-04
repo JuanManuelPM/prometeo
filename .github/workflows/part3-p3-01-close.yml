@@ -1,0 +1,43 @@
+name: Part 3 P3-01 Durable Closure
+
+on:
+  push:
+    branches: [candidate/part2-durable-metabolism-20260904]
+    paths:
+      - 'scripts/p3-01-close.mjs'
+      - '.github/workflows/part3-p3-01-close.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  close-p3-01:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Materialize durable P3-01 closure
+        run: node scripts/p3-01-close.mjs
+      - name: Verify closure before commit
+        run: |
+          set -euo pipefail
+          node tests/part3-p3-00-rehydrate.test.mjs
+          node tests/part3-p3-01-closure.test.mjs
+          for f in tests/part2-*.test.mjs; do node "$f"; done
+          test "$(git hash-object navigator/index.html)" = "7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418"
+          git diff --check
+      - name: Commit durable closure
+        run: |
+          set -euo pipefail
+          if git diff --quiet && git diff --cached --quiet; then
+            echo 'No closure diff to commit.'
+            exit 0
+          fi
+          git config user.name 'Juan Manuel Pérez Menéndez'
+          git config user.email '72280945+JuanManuelPM@users.noreply.github.com'
+          git add receipts/ledger.jsonl state/CURRENT_GRAPH.json state/DOT_STATE.json state/PENDING.json coordination/PART3_GATE_MATRIX.json coordination/P3_01_BROWSER_CLOSURE.json tests/part3-p3-00-rehydrate.test.mjs tests/part3-p3-01-closure.test.mjs .github/workflows/part3-p3-01-browser-ci.yml
+          git commit -m 'Close P3-01 browser gate durably'
+          git push origin HEAD:candidate/part2-durable-metabolism-20260904
