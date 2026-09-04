@@ -4,6 +4,9 @@ on:
     branches: [main]
     paths:
       - 'shared/**'
+      - 'pages/calendar/**'
+      - 'projects.json'
+      - 'tests/calendar.test.mjs'
       - '.github/workflows/publish-shared.yml'
   workflow_dispatch:
 permissions:
@@ -19,14 +22,23 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Validate Study v1 before publication
+      - name: Validate Study and Calendar before publication
         run: |
           set -euo pipefail
           node --check shared/study/v1/components.js
+          node --check shared/calendar/v1/core.js
+          node --check shared/calendar/v1/sources.js
+          node --check shared/calendar/v1/state.js
+          node --check pages/calendar/app-01-core-ui.js
+          node --check pages/calendar/app-02-life.js
+          node --check pages/calendar/app-03-render-finance.js
+          node --check pages/calendar/app-04-finance.js
+          node --check pages/calendar/app-05-actions.js
+          node tests/calendar.test.mjs
           python - <<'PY'
           import json
           from pathlib import Path
-          for name in ['shared/study/current.json','shared/study/v1/contract.json','shared/study/v1/WHERE_USED.json','shared/study/v1/NEGATIVE_TARGETS.json']:
+          for name in ['shared/study/current.json','shared/study/v1/contract.json','shared/study/v1/WHERE_USED.json','shared/study/v1/NEGATIVE_TARGETS.json','shared/calendar/v1/MANIFEST.json','shared/material/bicolor/v1/MANIFEST.json','projects.json']:
               json.loads(Path(name).read_text(encoding='utf-8'))
           c=json.loads(Path('shared/study/v1/contract.json').read_text())
           assert c['id']=='prometeo-study-ui' and c['major']==1
@@ -34,27 +46,35 @@ jobs:
           for symbol in ['subjectState','formula','inputHTML','renderMath','resourceLink','hintSteps','bindActivation']:
               assert symbol in js, symbol
           css=Path('shared/study/v1/components.css').read_text()
-          assert css.count('{')==css.count('}'), 'Unbalanced CSS braces'
+          assert css.count('{')==css.count('}'), 'Unbalanced Study CSS braces'
           for selector in ['.ps-subject-state','.ps-resource','.ps-math','.ps-inline-input','.ps-hint-step']:
               assert selector in css, selector
           assert Path('shared/study/v1/showcase.html').exists()
-          print('Study Commons v1 validation PASS')
+          for name in ['calendar-base.css','calendar-overlays.css','calendar-life.css','calendar-mobile.css','calendar-responsive.css']:
+              text=Path('shared/calendar/v1',name).read_text(encoding='utf-8')
+              assert text.count('{')==text.count('}'), f'Unbalanced Calendar CSS braces: {name}'
+          page=Path('pages/calendar/index.html').read_text(encoding='utf-8')
+          for asset in ['core.js','sources.js','state.js','app-01-core-ui.js','app-05-actions.js']:
+              assert asset in page, asset
+          print('Study + Calendar publication validation PASS')
           PY
-      - name: Materialize shared commons on Pages branch
+      - name: Materialize shared commons and Calendar on Pages branch
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git fetch origin gh-pages
           git worktree add /tmp/prometeo-pages origin/gh-pages
-          mkdir -p /tmp/prometeo-pages/shared
+          mkdir -p /tmp/prometeo-pages/shared /tmp/prometeo-pages/pages/calendar
           rsync -a --delete shared/ /tmp/prometeo-pages/shared/
+          rsync -a --delete pages/calendar/ /tmp/prometeo-pages/pages/calendar/
+          cp projects.json /tmp/prometeo-pages/projects.json
           cd /tmp/prometeo-pages
-          git add shared
+          git add shared pages/calendar projects.json
           if git diff --cached --quiet; then
-            echo 'Shared commons already current.'
+            echo 'Shared commons and Calendar already current.'
             exit 0
           fi
-          git commit -m 'shared: publish Prometeo Commons from main'
+          git commit -m 'shared: publish Prometeo Commons and Calendar from main'
           git pull --rebase origin gh-pages
           git push origin HEAD:gh-pages
