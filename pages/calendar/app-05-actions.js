@@ -37,7 +37,7 @@ document.addEventListener("keydown",e=>{if(themePopover.classList.contains("open
 const stateExportButton=document.getElementById("stateExportButton"),stateImportButton=document.getElementById("stateImportButton"),stateImportFile=document.getElementById("stateImportFile");
 stateExportButton.onclick=()=>{closePopovers();window.PrometeoCalendarState.exportDownload()};stateImportButton.onclick=()=>{closePopovers();stateImportFile.click()};stateImportFile.onchange=async()=>{const file=stateImportFile.files?.[0];if(!file)return;try{await window.PrometeoCalendarState.importFile(file)}catch{alert("No pude importar ese backup.")}};
 
-/* En móvil no mostramos una grilla vacía de 30 minutos: proyectamos sólo lo que existe. */
+/* Segunda representación móvil: Agenda. La vista principal vuelve a ser Semana. */
 renderMobileWeek=function(dates,range){
   const host=document.getElementById("mobileWeek");host.innerHTML="";const todayISO=isoDate(new Date());
   dates.forEach((d,index)=>{
@@ -60,23 +60,33 @@ renderMobileWeek=function(dates,range){
     gamesForDate(dateISO).forEach(item=>entries.push({kind:"boca",item}));
     entries.sort((a,b)=>a.item.start-b.item.start);
 
-    const agenda=document.createElement("div");agenda.className="mobile-agenda";
-    if(!entries.length){const empty=document.createElement("div");empty.className="mobile-empty-day";empty.textContent="Sin eventos con hora";agenda.appendChild(empty)}
-    entries.forEach(e=>{
-      const row=document.createElement("div");row.className="mobile-agenda-row";
-      const time=document.createElement("div");time.className="mobile-agenda-time";const end=e.item.start+e.item.duration*60;time.innerHTML=`<strong>${minutesLabel(e.item.start)}</strong><span>${minutesLabel(end)}</span>`;
-      const body=document.createElement("div");body.className="mobile-agenda-event";
-      const node=e.kind==="university"?mobileUniversityNode(e.item):e.kind==="personal"?mobilePersonalNode(e.item):e.kind==="class"?mobileClassNode(e.item):e.kind==="potential"?mobilePotentialNode(e.item):mobileBocaNode(e.item);
-      body.appendChild(node);
-      if(e.kind==="class"){const open=()=>openEditor(dateISO,e.item.start,e.item.id);body.onclick=open;body.onkeydown=ev=>{if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();open()}};body.tabIndex=0}
-      row.append(time,body);agenda.appendChild(row);
-    });
-    day.appendChild(agenda);
-
-    const actions=document.createElement("div");actions.className="mobile-day-actions";const add=document.createElement("button");add.className="mobile-day-add";add.type="button";add.textContent="+ clase";add.onclick=()=>{const raw=prompt("Hora de la clase (HH:MM)","18:00");if(!raw)return;const m=raw.trim().match(/^(\d{1,2}):(\d{2})$/);if(!m)return;const hh=Math.max(0,Math.min(23,Number(m[1]))),mm=Number(m[2]);if(mm<0||mm>59)return;openEditor(dateISO,hh*60+mm,null)};actions.appendChild(add);day.appendChild(actions);
+    if(entries.length){
+      const agenda=document.createElement("div");agenda.className="mobile-agenda";
+      entries.forEach(e=>{
+        const row=document.createElement("div");row.className="mobile-agenda-row";
+        const time=document.createElement("div");time.className="mobile-agenda-time";const end=e.item.start+e.item.duration*60;time.innerHTML=`<strong>${minutesLabel(e.item.start)}</strong><span>${minutesLabel(end)}</span>`;
+        const body=document.createElement("div");body.className="mobile-agenda-event";
+        const node=e.kind==="university"?mobileUniversityNode(e.item):e.kind==="personal"?mobilePersonalNode(e.item):e.kind==="class"?mobileClassNode(e.item):e.kind==="potential"?mobilePotentialNode(e.item):mobileBocaNode(e.item);
+        body.appendChild(node);
+        if(e.kind==="class"){const open=()=>openEditor(dateISO,e.item.start,e.item.id);body.onclick=open;body.onkeydown=ev=>{if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();open()}};body.tabIndex=0}
+        row.append(time,body);agenda.appendChild(row);
+      });
+      day.appendChild(agenda);
+    }
     if(dateISO===todayISO)renderDailyLifeMobile(day,dateISO);host.appendChild(day);
   });
 };
+
+/* Selector de vista móvil: Semana es el default y Agenda queda como alternativa. */
+const MOBILE_VIEW_KEY="prometeo-calendar-mobile-view-v1";
+const mobileViewSwitch=document.createElement("div");mobileViewSwitch.className="mobile-view-switch";mobileViewSwitch.setAttribute("aria-label","Vista del calendario");
+const weekViewButton=document.createElement("button");weekViewButton.type="button";weekViewButton.className="mobile-view-button";weekViewButton.textContent="SEMANA";
+const agendaViewButton=document.createElement("button");agendaViewButton.type="button";agendaViewButton.className="mobile-view-button";agendaViewButton.textContent="AGENDA";
+mobileViewSwitch.append(weekViewButton,agendaViewButton);document.querySelector(".week-nav").insertAdjacentElement("afterend",mobileViewSwitch);
+function setMobileCalendarView(mode){
+  const safe=mode==="agenda"?"agenda":"week";document.body.classList.toggle("mobile-view-week",safe==="week");document.body.classList.toggle("mobile-view-agenda",safe==="agenda");weekViewButton.classList.toggle("active",safe==="week");agendaViewButton.classList.toggle("active",safe==="agenda");localStorage.setItem(MOBILE_VIEW_KEY,safe);
+}
+weekViewButton.onclick=()=>setMobileCalendarView("week");agendaViewButton.onclick=()=>setMobileCalendarView("agenda");setMobileCalendarView(localStorage.getItem(MOBILE_VIEW_KEY)||"week");
 
 {const savedTheme=localStorage.getItem(PALETTE_KEY),valid=PALETTES.some(p=>p.id===savedTheme);applyPalette(valid?savedTheme:PALETTES[0].id)}
 render();
