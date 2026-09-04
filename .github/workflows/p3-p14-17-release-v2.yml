@@ -1,0 +1,270 @@
+name: P3-14 to P3-17 Release V2
+on:
+  push:
+    branches: [candidate/prometeo-final-20260904]
+    paths:
+      - '.github/workflows/p3-p14-17-release-v2.yml'
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout accepted candidate
+        uses: actions/checkout@v4
+        with:
+          ref: candidate/prometeo-final-20260904
+          path: cand
+          fetch-depth: 0
+      - name: Checkout served branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pagesout
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify repaired accepted frontier
+        working-directory: cand
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('fs');
+          const c=JSON.parse(fs.readFileSync('state/CURRENT_GRAPH.json'));
+          const a=JSON.parse(fs.readFileSync('coordination/P3_13_ACCEPTANCE_SCOPE.json'));
+          const h=JSON.parse(fs.readFileSync('state/HEAD.json'));
+          const d=JSON.parse(fs.readFileSync('state/DOT_STATE.json'));
+          const p=JSON.parse(fs.readFileSync('state/PARENT.json'));
+          if(c.revision!==11||c.last_durable_receipt!=='R-P3-13-CONTINUITY-0012') throw new Error('continuity revision/frontier mismatch');
+          if(a.status!=='HUMAN_ACCEPTED'||a.release_blocked) throw new Error('P3-13 not accepted');
+          if(h.artifact_id!=='p3-final-candidate'||d.last_receipt!=='R-P3-13-CONTINUITY-0012'||p.child!=='p3-final-candidate') throw new Error('durable pointers drift');
+          NODE
+          node scripts/p3-00-rehydrate.mjs >/tmp/wake.json
+          git diff --exit-code b199b91f9cbac36df4f6ef5b75489c33737b89a4..HEAD -- navigator/index.html pages/calendar/app-04-finance.js
+          test "$(git hash-object navigator/index.html)" = "7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418"
+          for f in tests/part1-*.test.mjs tests/part2-*.test.mjs; do node "$f"; done
+          node tests/r1_candidate.test.mjs
+          node tests/runtime-ownership.test.mjs
+          node tests/platform-engines.test.mjs
+          node tests/part3-p3-04-12-static.test.mjs
+          git diff --check
+      - name: Build immutable canary snapshot
+        run: |
+          set -euo pipefail
+          CAND_HEAD=$(git -C cand rev-parse HEAD)
+          CAND_SHORT=${CAND_HEAD:0:12}
+          CANARY_ID="p3-14-${CAND_SHORT}"
+          BASE="https://juanmanuelpm.github.io/prometeo"
+          CANARY_PREFIX="__canary/${CANARY_ID}"
+          CANARY_URL="${BASE}/${CANARY_PREFIX}"
+          BASE_GH=$(git -C pagesout rev-parse HEAD)
+          NAV_SHA=$(sha256sum cand/navigator/index.html|awk '{print $1}')
+          CAL_SHA=$(sha256sum cand/pages/calendar/app-04-finance.js|awk '{print $1}')
+          A_NAV_SHA=$(sha256sum pagesout/navigator/index.html|awk '{print $1}')
+          A_CAL_SHA=$(sha256sum pagesout/pages/calendar/app-04-finance.js|awk '{print $1}')
+          test "$NAV_SHA" = "$A_NAV_SHA"
+          rm -rf stage && mkdir stage
+          for x in navigator pages shared arte ai catalog; do [ ! -e "cand/$x" ] || cp -a "cand/$x" stage/; done
+          for x in index.html projects.json; do [ ! -e "cand/$x" ] || cp -a "cand/$x" stage/; done
+          node - <<NODE
+          const fs=require('fs');fs.writeFileSync('stage/__PROMETEO_RELEASE.json',JSON.stringify({schema:'prometeo.canary/v1',canary_id:'${CANARY_ID}',accepted_candidate:'b199b91f9cbac36df4f6ef5b75489c33737b89a4',candidate_branch_head:'${CAND_HEAD}',acceptance_receipt:'R-P3-13-ACCEPT-0011',continuity_receipt:'R-P3-13-CONTINUITY-0012',navigator_sha256:'${NAV_SHA}',calendar_sha256:'${CAL_SHA}',created_at:new Date().toISOString()},null,2)+'\n');
+          NODE
+          {
+            echo "CAND_HEAD=$CAND_HEAD"; echo "CAND_SHORT=$CAND_SHORT"; echo "CANARY_ID=$CANARY_ID"; echo "BASE=$BASE"; echo "CANARY_PREFIX=$CANARY_PREFIX"; echo "CANARY_URL=$CANARY_URL"; echo "BASE_GH=$BASE_GH"; echo "NAV_SHA=$NAV_SHA"; echo "CAL_SHA=$CAL_SHA"; echo "A_NAV_SHA=$A_NAV_SHA"; echo "A_CAL_SHA=$A_CAL_SHA";
+          } >> "$GITHUB_ENV"
+      - name: Publish isolated canary
+        working-directory: pagesout
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin gh-pages
+          rm -rf "$CANARY_PREFIX" && mkdir -p "$CANARY_PREFIX"
+          rsync -a --delete ../stage/ "$CANARY_PREFIX/"
+          git add "$CANARY_PREFIX"
+          git commit -m "p3: publish accepted isolated canary $CANARY_ID"
+          git push origin HEAD:gh-pages
+          echo "GH_CANARY=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Verify served canary bytes
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 120); do
+            if curl -fsSL -H 'Cache-Control: no-cache' "$CANARY_URL/__PROMETEO_RELEASE.json?cb=$GITHUB_RUN_ID-$i" -o canary-marker.json 2>/dev/null && node -e "process.exit(require('./canary-marker.json').canary_id==='${CANARY_ID}'?0:1)"; then break; fi
+            sleep 2
+          done
+          node -e "if(require('./canary-marker.json').canary_id!=='${CANARY_ID}')process.exit(1)"
+          CANARY_NAV=$(curl -fsSL -H 'Cache-Control: no-cache' "$CANARY_URL/navigator/index.html?cb=$GITHUB_RUN_ID"|sha256sum|awk '{print $1}')
+          CANARY_CAL=$(curl -fsSL -H 'Cache-Control: no-cache' "$CANARY_URL/pages/calendar/app-04-finance.js?cb=$GITHUB_RUN_ID"|sha256sum|awk '{print $1}')
+          test "$CANARY_NAV" = "$NAV_SHA"
+          test "$CANARY_CAL" = "$CAL_SHA"
+          echo "CANARY_NAV=$CANARY_NAV" >> "$GITHUB_ENV"
+          echo "CANARY_CAL=$CANARY_CAL" >> "$GITHUB_ENV"
+          echo "T_CANARY=$(date -u +%FT%TZ)" >> "$GITHUB_ENV"
+      - name: Browser verify canary
+        run: |
+          set -euo pipefail
+          npm install --global agent-browser@0.34.0
+          agent-browser install --with-deps
+          agent-browser doctor --offline --quick
+          S=p3-public-canary-v2
+          agent-browser --session "$S" open >/dev/null
+          agent-browser --session "$S" set viewport 399 800 >/dev/null
+          agent-browser --session "$S" navigate "$CANARY_URL/navigator/" >/dev/null
+          agent-browser --session "$S" wait --load networkidle >/dev/null
+          agent-browser --session "$S" wait --fn "window.__PROMETEO_BUILD__==='PROMETEO_V53_COMPLETE_EXAMPLE_ATLAS_20260901'" >/dev/null
+          agent-browser --session "$S" errors --json > canary-nav-errors.json
+          node -e "const x=require('./canary-nav-errors.json');const a=Array.isArray(x)?x:(x.errors||[]);if(a.length)process.exit(1)"
+          agent-browser --session "$S" navigate "$CANARY_URL/pages/calendar/" >/dev/null
+          agent-browser --session "$S" wait --load networkidle >/dev/null
+          agent-browser --session "$S" errors --json > canary-calendar-errors.json
+          node -e "const x=require('./canary-calendar-errors.json');const a=Array.isArray(x)?x:(x.errors||[]);if(a.length)process.exit(1)"
+          agent-browser --session "$S" screenshot canary-calendar.png --full >/dev/null
+          agent-browser --session "$S" close >/dev/null
+      - name: Publish rollback probe A1
+        working-directory: pagesout
+        run: |
+          set -euo pipefail
+          mkdir -p __rollback/current
+          cat > __rollback/current/index.html <<'HTML'
+          <!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prometeo rollback probe</title><body><pre id="out">loading</pre><script>(async()=>{const k='prometeo.p3.rollback.sentinel';if(!localStorage.getItem(k))localStorage.setItem(k,'P3_ROLLBACK_SENTINEL');const m=await fetch('./manifest.json?cb='+Date.now(),{cache:'no-store'}).then(r=>r.json());window.__ROLLBACK_MANIFEST__=m;window.__ROLLBACK_SENTINEL__=localStorage.getItem(k);out.textContent=m.stage+' '+m.target_prefix+' '+window.__ROLLBACK_SENTINEL__;})()</script>
+          HTML
+          node - <<NODE
+          const fs=require('fs');fs.writeFileSync('__rollback/current/manifest.json',JSON.stringify({schema:'prometeo.rollback-alias/v1',stage:'A1',target_prefix:'/prometeo/',navigator_sha256:'${A_NAV_SHA}',calendar_sha256:'${A_CAL_SHA}',sequence:'A>B>A',updated_at:new Date().toISOString()},null,2)+'\n');
+          NODE
+          git add __rollback/current && git commit -m 'p3: rollback proof A1'
+          git push origin HEAD:gh-pages
+          echo "GH_A1=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Observe A1 and establish state
+        run: |
+          set -euo pipefail
+          ROLLBACK_URL="$BASE/__rollback/current/"
+          for i in $(seq 1 120); do if curl -fsSL "$ROLLBACK_URL/manifest.json?cb=A1-$i" -o rb-a1.json 2>/dev/null && node -e "process.exit(require('./rb-a1.json').stage==='A1'?0:1)"; then break; fi; sleep 2; done
+          node -e "if(require('./rb-a1.json').stage!=='A1')process.exit(1)"
+          test "$(curl -fsSL "$BASE/navigator/index.html?cb=A1-$GITHUB_RUN_ID"|sha256sum|awk '{print $1}')" = "$A_NAV_SHA"
+          test "$(curl -fsSL "$BASE/pages/calendar/app-04-finance.js?cb=A1-$GITHUB_RUN_ID"|sha256sum|awk '{print $1}')" = "$A_CAL_SHA"
+          S=p3-rollback-v2
+          agent-browser --session "$S" open >/dev/null
+          agent-browser --session "$S" navigate "$ROLLBACK_URL?cb=A1" >/dev/null
+          agent-browser --session "$S" wait --fn "window.__ROLLBACK_MANIFEST__?.stage==='A1'" >/dev/null
+          test "$(agent-browser --session "$S" eval 'window.__ROLLBACK_SENTINEL__'|tr -d '"')" = 'P3_ROLLBACK_SENTINEL'
+          echo "ROLLBACK_URL=$ROLLBACK_URL" >> "$GITHUB_ENV"
+      - name: Switch rollback probe to B
+        working-directory: pagesout
+        run: |
+          set -euo pipefail
+          node - <<NODE
+          const fs=require('fs');fs.writeFileSync('__rollback/current/manifest.json',JSON.stringify({schema:'prometeo.rollback-alias/v1',stage:'B',target_prefix:'/prometeo/${CANARY_PREFIX}/',navigator_sha256:'${NAV_SHA}',calendar_sha256:'${CAL_SHA}',sequence:'A>B>A',updated_at:new Date().toISOString()},null,2)+'\n');
+          NODE
+          git add __rollback/current/manifest.json && git commit -m 'p3: rollback proof B'
+          git push origin HEAD:gh-pages
+          echo "GH_B=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Observe B and preserved state
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 120); do if curl -fsSL "$ROLLBACK_URL/manifest.json?cb=B-$i" -o rb-b.json 2>/dev/null && node -e "process.exit(require('./rb-b.json').stage==='B'?0:1)"; then break; fi; sleep 2; done
+          node -e "if(require('./rb-b.json').stage!=='B')process.exit(1)"
+          test "$(curl -fsSL "$CANARY_URL/navigator/index.html?cb=B-$GITHUB_RUN_ID"|sha256sum|awk '{print $1}')" = "$NAV_SHA"
+          test "$(curl -fsSL "$CANARY_URL/pages/calendar/app-04-finance.js?cb=B-$GITHUB_RUN_ID"|sha256sum|awk '{print $1}')" = "$CAL_SHA"
+          S=p3-rollback-v2
+          agent-browser --session "$S" navigate "$ROLLBACK_URL?cb=B" >/dev/null
+          agent-browser --session "$S" wait --fn "window.__ROLLBACK_MANIFEST__?.stage==='B'" >/dev/null
+          test "$(agent-browser --session "$S" eval 'window.__ROLLBACK_SENTINEL__'|tr -d '"')" = 'P3_ROLLBACK_SENTINEL'
+      - name: Restore rollback probe A2
+        working-directory: pagesout
+        run: |
+          set -euo pipefail
+          node - <<NODE
+          const fs=require('fs');fs.writeFileSync('__rollback/current/manifest.json',JSON.stringify({schema:'prometeo.rollback-alias/v1',stage:'A2',target_prefix:'/prometeo/',navigator_sha256:'${A_NAV_SHA}',calendar_sha256:'${A_CAL_SHA}',sequence:'A>B>A',updated_at:new Date().toISOString()},null,2)+'\n');
+          NODE
+          git add __rollback/current/manifest.json && git commit -m 'p3: rollback proof A2 restored'
+          git push origin HEAD:gh-pages
+          echo "GH_A2=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Observe A2 restoration
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 120); do if curl -fsSL "$ROLLBACK_URL/manifest.json?cb=A2-$i" -o rb-a2.json 2>/dev/null && node -e "process.exit(require('./rb-a2.json').stage==='A2'?0:1)"; then break; fi; sleep 2; done
+          node -e "if(require('./rb-a2.json').stage!=='A2')process.exit(1)"
+          test "$(curl -fsSL "$BASE/navigator/index.html?cb=A2-$GITHUB_RUN_ID"|sha256sum|awk '{print $1}')" = "$A_NAV_SHA"
+          test "$(curl -fsSL "$BASE/pages/calendar/app-04-finance.js?cb=A2-$GITHUB_RUN_ID"|sha256sum|awk '{print $1}')" = "$A_CAL_SHA"
+          S=p3-rollback-v2
+          agent-browser --session "$S" navigate "$ROLLBACK_URL?cb=A2" >/dev/null
+          agent-browser --session "$S" wait --fn "window.__ROLLBACK_MANIFEST__?.stage==='A2'" >/dev/null
+          test "$(agent-browser --session "$S" eval 'window.__ROLLBACK_SENTINEL__'|tr -d '"')" = 'P3_ROLLBACK_SENTINEL'
+          agent-browser --session "$S" close >/dev/null
+          echo "T_ROLLBACK=$(date -u +%FT%TZ)" >> "$GITHUB_ENV"
+      - name: Promote only accepted Calendar repair
+        working-directory: pagesout
+        run: |
+          set -euo pipefail
+          cp ../cand/pages/calendar/app-04-finance.js pages/calendar/app-04-finance.js
+          mkdir -p release
+          node - <<NODE
+          const fs=require('fs');fs.writeFileSync('release/PROMETEO_RELEASE_CURRENT.json',JSON.stringify({schema:'prometeo.served-release/v1',release_id:'P3-17-${CAND_SHORT}',accepted_candidate:'gitcommit:b199b91f9cbac36df4f6ef5b75489c33737b89a4',candidate_branch_head:'${CAND_HEAD}',acceptance_receipt:'R-P3-13-ACCEPT-0011',continuity_receipt:'R-P3-13-CONTINUITY-0012',canary_url:'${CANARY_URL}/navigator/',rollback_url:'${ROLLBACK_URL}',navigator_sha256:'${NAV_SHA}',calendar_sha256:'${CAL_SHA}',previous_calendar_sha256:'${A_CAL_SHA}',promotion_scope:['pages/calendar/app-04-finance.js'],navigator_changed:false,promoted_at:new Date().toISOString()},null,2)+'\n');
+          NODE
+          test "$(git hash-object navigator/index.html)" = '7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418'
+          git add pages/calendar/app-04-finance.js release/PROMETEO_RELEASE_CURRENT.json
+          git commit -m 'p3: promote accepted Calendar repair without changing V53'
+          git push origin HEAD:gh-pages
+          echo "GH_PROMOTED=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Verify stable served product
+        run: |
+          set -euo pipefail
+          RELEASE_URL="$BASE/release/PROMETEO_RELEASE_CURRENT.json"
+          for i in $(seq 1 120); do if curl -fsSL "$RELEASE_URL?cb=P-$i" -o stable-release.json 2>/dev/null && node -e "process.exit(require('./stable-release.json').calendar_sha256==='${CAL_SHA}'?0:1)"; then break; fi; sleep 2; done
+          node -e "if(require('./stable-release.json').calendar_sha256!=='${CAL_SHA}')process.exit(1)"
+          STABLE_CAL=$(curl -fsSL "$BASE/pages/calendar/app-04-finance.js?cb=P-$GITHUB_RUN_ID"|sha256sum|awk '{print $1}')
+          STABLE_NAV=$(curl -fsSL "$BASE/navigator/index.html?cb=P-$GITHUB_RUN_ID"|sha256sum|awk '{print $1}')
+          test "$STABLE_CAL" = "$CAL_SHA"
+          test "$STABLE_NAV" = "$NAV_SHA"
+          S=p3-stable-v2
+          agent-browser --session "$S" open >/dev/null
+          agent-browser --session "$S" set viewport 399 800 >/dev/null
+          agent-browser --session "$S" navigate "$BASE/pages/calendar/" >/dev/null
+          agent-browser --session "$S" wait --load networkidle >/dev/null
+          agent-browser --session "$S" errors --json > stable-calendar-errors.json
+          node -e "const x=require('./stable-calendar-errors.json');const a=Array.isArray(x)?x:(x.errors||[]);if(a.length)process.exit(1)"
+          agent-browser --session "$S" navigate "$BASE/navigator/" >/dev/null
+          agent-browser --session "$S" wait --load networkidle >/dev/null
+          agent-browser --session "$S" wait --fn "window.__PROMETEO_BUILD__==='PROMETEO_V53_COMPLETE_EXAMPLE_ATLAS_20260901'" >/dev/null
+          agent-browser --session "$S" errors --json > stable-nav-errors.json
+          node -e "const x=require('./stable-nav-errors.json');const a=Array.isArray(x)?x:(x.errors||[]);if(a.length)process.exit(1)"
+          agent-browser --session "$S" close >/dev/null
+          echo "STABLE_CAL=$STABLE_CAL" >> "$GITHUB_ENV"
+          echo "STABLE_NAV=$STABLE_NAV" >> "$GITHUB_ENV"
+          echo "RELEASE_URL=$RELEASE_URL" >> "$GITHUB_ENV"
+          echo "T_STABLE=$(date -u +%FT%TZ)" >> "$GITHUB_ENV"
+      - name: Freeze served evidence on candidate
+        working-directory: cand
+        run: |
+          set -euo pipefail
+          node - <<NODE
+          const fs=require('fs');const e={schema:'prometeo.p3-14-17-evidence/v1',candidate_identity:'gitcommit:b199b91f9cbac36df4f6ef5b75489c33737b89a4',candidate_branch_head:'${CAND_HEAD}',candidate_nav_sha256:'${NAV_SHA}',candidate_calendar_sha256:'${CAL_SHA}',baseline_gh_pages:'${BASE_GH}',canary_prefix:'${CANARY_PREFIX}',canary_url:'${CANARY_URL}/navigator/',canary_nav_sha256:'${CANARY_NAV}',canary_calendar_sha256:'${CANARY_CAL}',gh_pages_canary:'${GH_CANARY}',rollback:{baseline_identity:'ghpages:${BASE_GH}',alias_path:'__rollback/current',alias_url:'${ROLLBACK_URL}',a_nav_sha256:'${A_NAV_SHA}',a_calendar_sha256:'${A_CAL_SHA}',b_nav_sha256:'${NAV_SHA}',b_calendar_sha256:'${CAL_SHA}',gh_pages_a1:'${GH_A1}',gh_pages_b:'${GH_B}',gh_pages_a2:'${GH_A2}',sentinel:'P3_ROLLBACK_SENTINEL'},stable_navigator_url:'${BASE}/navigator/',stable_calendar_url:'${BASE}/pages/calendar/',stable_nav_sha256:'${STABLE_NAV}',stable_calendar_sha256:'${STABLE_CAL}',release_marker_url:'${RELEASE_URL}',gh_pages_promoted:'${GH_PROMOTED}',timestamps:{canary_verified:'${T_CANARY}',rollback_verified:'${T_ROLLBACK}',stable_verified:'${T_STABLE}'}};fs.writeFileSync('coordination/P3_14_17_SERVED_EVIDENCE.json',JSON.stringify(e,null,2)+'\n');
+          NODE
+          node scripts/p3-14-17-close.mjs
+          node scripts/p3-00-rehydrate.mjs >/tmp/p3-after-17.json
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add coordination/P3_14_17_SERVED_EVIDENCE.json state/CURRENT_GRAPH.json state/PENDING.json receipts/ledger.jsonl
+          git commit -m 'part3: freeze canary rollback and stable served proof'
+          git push origin HEAD:candidate/prometeo-final-20260904
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p3-14-17-v2-${{ github.run_id }}
+          path: |
+            canary-marker.json
+            canary-nav-errors.json
+            canary-calendar-errors.json
+            canary-calendar.png
+            rb-a1.json
+            rb-b.json
+            rb-a2.json
+            stable-release.json
+            stable-calendar-errors.json
+            stable-nav-errors.json
+          if-no-files-found: warn
+          retention-days: 30
