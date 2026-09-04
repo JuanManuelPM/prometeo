@@ -1,9 +1,16 @@
-/* Prometeo Continuity v1.1 — validated pending/carry/watermark CAS. */
+/* Prometeo Continuity v1.2 — validated pending/carry/watermark CAS. */
 ((global)=>{
- 'use strict';if(global.PrometeoContinuity)return;const PENDING_STATES=new Set(['READY','WORKING','BLOCKED','COMPLETE','ARCHIVED','NEEDS_REPAIR','WAITING_HUMAN','PLANNED']);function fail(code,msg,detail={}){const e=new Error(msg);e.code=code;e.detail=detail;throw e}function freeze(v,seen=new WeakSet()){if(v===null||typeof v!=='object'||seen.has(v))return v;seen.add(v);for(const k of Reflect.ownKeys(v))freeze(v[k],seen);return Object.freeze(v)}
+ 'use strict';if(global.PrometeoContinuity)return;
+ const PENDING_STATES=new Set([
+  'PLANNED','READY','WORKING','BLOCKED','WAITING_HUMAN','NEEDS_REPAIR',
+  'BLOCKED_HUMAN_DECISION','READY_POST_ACCEPTANCE','READY_FINALIZATION',
+  'COMPLETE','ARCHIVED'
+ ]);
+ function fail(code,msg,detail={}){const e=new Error(msg);e.code=code;e.detail=detail;throw e}
+ function freeze(v,seen=new WeakSet()){if(v===null||typeof v!=='object'||seen.has(v))return v;seen.add(v);for(const k of Reflect.ownKeys(v))freeze(v[k],seen);return Object.freeze(v)}
  function validatePending(doc){if(doc?.schema!=='prometeo.pending/v1')fail('PROMETEO_PENDING_SCHEMA','Invalid pending schema');const ids=new Set();for(const x of doc.items||[]){if(!x.id||ids.has(x.id))fail('PROMETEO_PENDING_ID','Missing/duplicate pending id');ids.add(x.id);if(!PENDING_STATES.has(x.state)||!x.next_action)fail('PROMETEO_PENDING_FIELDS','Pending requires valid state and next_action',{id:x.id,state:x.state});if(x.dependencies&&!Array.isArray(x.dependencies))fail('PROMETEO_PENDING_DEPENDENCIES','dependencies must be array',{id:x.id});for(const d of x.dependencies||[])if(typeof d!=='string'||!d||d===x.id)fail('PROMETEO_PENDING_DEPENDENCY','Invalid/self dependency',{id:x.id,dependency:d})}return freeze({ok:true,count:ids.size})}
  function validateCarry(doc){if(doc?.schema!=='prometeo.carry/v1')fail('PROMETEO_CARRY_SCHEMA','Invalid carry schema');const ids=new Set();for(const x of doc.items||[]){if(!x.id||ids.has(x.id))fail('PROMETEO_CARRY_ID','Missing/duplicate carry id');ids.add(x.id);if(!x.text||!x.kind)fail('PROMETEO_CARRY_FIELDS','Carry requires kind/text')}return freeze({ok:true,count:ids.size})}
  function validateWatermarks(doc){if(doc?.schema!=='prometeo.watermarks/v1')fail('PROMETEO_WATERMARK_SCHEMA','Invalid watermark schema');for(const [id,w] of Object.entries(doc.sources||{})){if(typeof w.last_ingested!=='string'||!w.last_ingested)fail('PROMETEO_WATERMARK_INGESTED',`Missing last_ingested for ${id}`);if(typeof w.last_verified_digest!=='string'||!w.last_verified_digest)fail('PROMETEO_WATERMARK_DIGEST',`Missing digest for ${id}`)}return freeze({ok:true,count:Object.keys(doc.sources||{}).length})}
  function advanceWatermark(doc,source,patch,{expectedLastIngested=null}={}){const next=structuredClone(doc),cur=next.sources[source];if(!cur)fail('PROMETEO_WATERMARK_SOURCE',`Unknown watermark source ${source}`);if(expectedLastIngested===null)fail('PROMETEO_WATERMARK_CAS_REQUIRED','Watermark advance requires expectedLastIngested');if(cur.last_ingested!==expectedLastIngested)fail('PROMETEO_WATERMARK_STALE',`Stale watermark ${source}`);next.sources[source]={...cur,...structuredClone(patch)};validateWatermarks(next);return freeze(next)}
- global.PrometeoContinuity=Object.freeze({version:'1.1.0-candidate',validatePending,validateCarry,validateWatermarks,advanceWatermark});
+ global.PrometeoContinuity=Object.freeze({version:'1.2.0-candidate',pendingStates:Object.freeze([...PENDING_STATES]),validatePending,validateCarry,validateWatermarks,advanceWatermark});
 })(typeof globalThis!=='undefined'?globalThis:window);
