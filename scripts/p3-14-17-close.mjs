@@ -1,3 +1,4 @@
+// Retry marker: Part 2 Current Graph mutant now derives the active candidate pointer instead of pinning historical state.
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 const read=p=>JSON.parse(fs.readFileSync(p,'utf8')),write=(p,v)=>fs.writeFileSync(p,JSON.stringify(v,null,2)+'\n');
