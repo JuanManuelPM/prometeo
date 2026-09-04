@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {json,context,load} from './part2-test-helpers.mjs';
+const c=context();for(const f of ['shared/core/v1/durable.js','shared/privacy/v1/privacy.js','shared/context-foundry/v2/foundry.js','shared/context-packs/v1/compiler.js','shared/workflow/v1/workflow.js','shared/modification/v1/resolver.js'])load(f,c);
+const F=c.PrometeoContextFoundryV2.create({byteRegistry:json('context/bytes/BYTE_REGISTRY.json'),index:json('context/registry/CONTEXT_INDEX.json'),privacy:c.PrometeoPrivacy});
+const pages=json('catalog/pages.json'),manifest=json('catalog/CATALOG_MANIFEST.json');
+const plan=await c.PrometeoModificationResolver.plan({request:'En Calendario hacé el botón más chico',pages,manifest,foundry:F,privacy:'LOCAL'});
+assert.equal(plan.status,'RESOLVED');assert.equal(plan.target.page_id,'calendar');assert.equal(plan.target.writable_target.path,'pages/calendar/index.html');assert.equal(plan.context_pack.privacy,'LOCAL');assert.equal(plan.work_item.state,'WORK_ITEM');assert.equal(plan.context_pack.target.page_id,'calendar');
+assert.ok(plan.context_pack.included.some(x=>x.id==='CTX-BUTTON-001'));assert.ok(!plan.context_pack.included.some(x=>String(x.id).includes('student-world')));
+let wi=plan.work_item;wi=c.PrometeoWorkflow.transition(wi,'CONTEXT_PACK');wi=c.PrometeoWorkflow.transition(wi,'EXECUTION');wi=c.PrometeoWorkflow.transition(wi,'ARTIFACT_RETURNED');wi=c.PrometeoWorkflow.transition(wi,'VERIFIED',{receipt_id:'R-V'});wi=c.PrometeoWorkflow.transition(wi,'CANDIDATE',{receipt_id:'R-C'});
+assert.throws(()=>c.PrometeoWorkflow.transition(wi,'HUMAN_ACCEPTED',{receipt_id:'R-H'}),e=>e.code==='PROMETEO_WORK_HUMAN_EVIDENCE');
+wi=c.PrometeoWorkflow.transition(wi,'HUMAN_ACCEPTED',{receipt_id:'R-H',evidence:{human_acceptance_id:'ACC-exact'}});
+const req=c.PrometeoWorkflow.currentTransitionRequest(wi,{pointer:'visible_frontend_current',artifact_id:'candidate-x',acceptance_id:'ACC-exact'});assert.equal(req.state,'REQUESTED');
+await assert.rejects(()=>c.PrometeoContextPacks.compile({workItem:plan.work_item,foundry:F,catalogPage:{...pages.pages.find(x=>x.id==='calendar'),truth:manifest.pages.find(x=>x.page_id==='calendar')},role:'implementer',target:'external'}),e=>e.code==='PROMETEO_PACK_PRIVACY');
+const noWrite=await c.PrometeoModificationResolver.plan({request:'Prometeo público',pages,manifest,foundry:F,privacy:'LOCAL'});assert.equal(noWrite.status,'NEEDS_SOURCE_RESOLUTION');
+console.log(JSON.stringify({ok:true,phases:['2.12','2.13','2.16'],packId:plan.context_pack.id}));

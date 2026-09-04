@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {json,jsonl,context,load} from './part2-test-helpers.mjs';
+const c=context();load('shared/continuity/v1/continuity.js',c);load('shared/continuity/v1/books.js',c);load('shared/context-foundry/v2/intake.js',c);load('shared/context-foundry/v2/note-atoms.js',c);load('shared/golden/v1/golden.js',c);
+assert.equal(c.PrometeoContinuity.validatePending(json('state/PENDING.json')).ok,true);
+assert.equal(c.PrometeoContinuity.validateCarry(json('state/CARRY.json')).ok,true);
+assert.equal(c.PrometeoContinuity.validateWatermarks(json('state/WATERMARKS.json')).ok,true);
+const hot=json('context/books/HOT.json'),warm=json('context/books/WARM.json'),cold=json('context/books/COLD.json');assert.equal(c.PrometeoBooks.validate(hot,warm,cold).ok,true);const moved=c.PrometeoBooks.move({hot,warm,cold},'v23-physics','WARM');assert.ok(moved.warm.items.some(x=>x.id==='v23-physics'));
+assert.equal(c.PrometeoNoteAtomsV2.validateAll(jsonl('context/note_atoms/core.jsonl')).count,5);
+assert.equal(c.PrometeoGolden.validate(json('golden/GOLDEN_REFERENCES.json')).count,4);const raw=json('context/raw_recent/RAW-20260904-PART1-AUDIT.json');assert.equal(c.PrometeoContextIntakeV2.validate(raw).ok,true);const normalized=c.PrometeoContextIntakeV2.normalize({id:'RAW-X',kind:'note',source_ref:'test'});assert.equal(normalized.privacy,'LOCAL');assert.equal(normalized.authority,'RAW_UNCURATED');
+console.log(JSON.stringify({ok:true,phases:['2.04','2.05','2.06','2.07','2.09']}));
