@@ -6,7 +6,17 @@ const BASE_END=20*60;
 const PALETTES=[
   {id:"bordo-crema",name:"Bordó / Crema",a:"#F5DABF",b:"#6C151E"},
   {id:"verde-crema",name:"Verde / Crema",a:"#F5DABF",b:"#0F3D3A"},
-  {id:"bordo-verde",name:"Bordó / Verde",a:"#6C151E",b:"#0F3D3A"}
+  {id:"bordo-verde",name:"Bordó / Verde",a:"#6C151E",b:"#0F3D3A"},
+  {id:"lima-carbon",name:"Lima / Carbón",a:"#C7F464",b:"#202124"},
+  {id:"coral-vino",name:"Coral / Vino",a:"#FF6B6B",b:"#6B1839"},
+  {id:"cobalto-crema",name:"Cobalto / Crema",a:"#F5DABF",b:"#1546A0"},
+  {id:"menta-bosque",name:"Menta / Bosque",a:"#B8E0D2",b:"#174A3A"},
+  {id:"rosa-ciruela",name:"Rosa / Ciruela",a:"#F4B6C2",b:"#5B2448"},
+  {id:"mandarina-noche",name:"Mandarina / Azul noche",a:"#F28C28",b:"#102A43"},
+  {id:"hueso-tinta",name:"Hueso / Tinta",a:"#EADFCB",b:"#1B1B1A"},
+  {id:"arena-petroleo",name:"Arena / Petróleo",a:"#E8CFAE",b:"#144E52"},
+  {id:"oxido-carbon",name:"Óxido / Carbón",a:"#B94B32",b:"#24201F"},
+  {id:"mostaza-pizarra",name:"Mostaza / Pizarra",a:"#D6A928",b:"#2D3436"}
 ];
 const BOCA_GAMES=window.PrometeoCalendarSources?.bocaGames||[];
 const INITIAL_STATE=window.PrometeoCalendarState.read();
