@@ -1,0 +1,62 @@
+name: Part 1 Candidate CI
+
+on:
+  push:
+    branches:
+      - 'candidate/part1-v53-canonical-20260904'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  part1:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Part 1 regression tests
+        run: |
+          set -euo pipefail
+          node tests/r1_candidate.test.mjs
+          node tests/runtime-ownership.test.mjs
+          node tests/platform-engines.test.mjs
+          node tests/part1-static.test.mjs
+          node tests/part1-contract.test.mjs
+          node tests/part1-runtime-services.test.mjs
+          node tests/part1-persistent-engines.test.mjs
+          node tests/part1-semantic-restore.test.mjs
+          node tests/part1-persistence-cas.test.mjs
+          node tests/part1-engine-invariants.test.mjs
+      - name: Patched JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check shared/runtime/persistence/v1/persistence.js
+          node --check shared/shell/v53-adapter/v1/v53-shell-adapter.js
+          node --check shared/pagekit/host/v2/pagekit-host.js
+          node --check shared/classes/v1/class-engine.js
+          node --check shared/classes/runtime/v1/class-runtime.js
+          node --check shared/student-world/v1/student-world.js
+          node --check shared/student-world/runtime/v1/student-world-runtime.js
+          node --check lab/prometeo-v53-integrated-part1/bridge.js
+      - name: Critical JSON parse
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for p in [
+              Path('coordination/CANDIDATE_MANIFEST.json'),
+              Path('coordination/PART1_AUTHORITY.json'),
+              Path('coordination/PART1_SUPERSESSION.json'),
+              Path('coordination/PART2_INPUT_CONTRACT.json'),
+              Path('coordination/EXECUTION_GRAPH.json'),
+              Path('tests/source-contract.json'),
+              Path('catalog/tree.json'),
+              Path('catalog/pages.json'),
+              Path('shared/shell/v1/STATUS.json'),
+          ]:
+              json.loads(p.read_text(encoding='utf-8'))
+              print('JSON PASS', p)
+          PY
