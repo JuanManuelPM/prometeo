@@ -1,0 +1,52 @@
+name: Part 3 P3-01 Browser Harness
+
+on:
+  push:
+    branches: [candidate/part2-durable-metabolism-20260904]
+    paths:
+      - 'lab/p3-01-browser-harness/**'
+      - 'scripts/p3-01-browser-gate.sh'
+      - '.github/workflows/part3-p3-01-browser-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Regress durable truth before browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in tests/r1_candidate.test.mjs tests/runtime-ownership.test.mjs tests/platform-engines.test.mjs tests/part1-static.test.mjs tests/part1-contract.test.mjs tests/part1-runtime-services.test.mjs tests/part1-persistent-engines.test.mjs tests/part1-semantic-restore.test.mjs tests/part1-persistence-cas.test.mjs tests/part1-engine-invariants.test.mjs; do test -f "$f" && node "$f"; done
+          for f in tests/part2-*.test.mjs; do node "$f"; done
+          node tests/part3-p3-00-rehydrate.test.mjs
+          test "$(git hash-object navigator/index.html)" = "7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418"
+      - name: Install pinned agent-browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global agent-browser@0.34.0
+          agent-browser install --with-deps
+          agent-browser doctor --offline --quick
+      - name: Run same-origin browser gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/p3-01-browser-gate.sh
+          scripts/p3-01-browser-gate.sh
+      - name: Upload empirical browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p3-01-browser-evidence-${{ github.sha }}
+          path: artifacts/p3-01/
+          if-no-files-found: error
+          retention-days: 30
