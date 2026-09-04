@@ -1,6 +1,6 @@
 # PROMETEO · PART 2 EXECUTION REPORT
 
-Status: **LOCAL_TESTED_CANDIDATE — GITHUB CI PENDING — NOT HUMAN ACCEPTED — NOT SERVED**
+Status: **TESTED_CANDIDATE — GITHUB CI PASS — NOT HUMAN ACCEPTED — NOT SERVED**
 
 Visible frontend: unchanged V53 (`navigator/index.html`, blob `7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418`).
 
@@ -139,3 +139,14 @@ Part 2 does not claim:
 - PageKit full reload-state survival.
 
 Part 3 retains browser, perceptual, chaos, release, rollback and fresh-agent proof.
+
+
+## GitHub materialization certification
+- Payload SHA-256 `11528f5406ec8d93cb42c8bf3d98bf365fdf83b30bdfb3b9752f9219396432e2` verified.
+- Materialization run `33873602023`: **SUCCESS**.
+- Materialized commit `3ac361b8402dd355391467a81833310dcd61c658`.
+- Part 1 regressions + Part 2 suite + syntax + JSON passed before materialization commit.
+- Temporary transport removed. No Human Accepted or Served pointer moved.
+
+## Handoff
+Part 2 production is complete for this stage. Next: `PENDING-PART2-AUDIT-001` (critique/repair Part 2 + prepare Part 3). Part 3 production has not started.
