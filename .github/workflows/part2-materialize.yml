@@ -5,7 +5,7 @@ on:
     branches:
       - candidate/part2-durable-metabolism-20260904
     paths:
-      - '.transport/part2/payload.tar.xz'
+      - '.transport/part2/**'
       - '.github/workflows/part2-materialize.yml'
 
 permissions:
@@ -18,18 +18,25 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Verify transport payload
+      - name: Reconstruct and verify transport payload
         shell: bash
         run: |
           set -euo pipefail
-          echo '11528f5406ec8d93cb42c8bf3d98bf365fdf83b30bdfb3b9752f9219396432e2  .transport/part2/payload.tar.xz' | sha256sum -c -
-          tar -tJf .transport/part2/payload.tar.xz >/tmp/part2-files.txt
+          cat \
+            .transport/part2/chunk-00.b64 \
+            .transport/part2/chunk-01.b64 \
+            .transport/part2/chunk-23.b64 \
+            .transport/part2/chunk-45.b64 \
+            | tr -d '\n\r\t ' \
+            | base64 -d > /tmp/part2-payload.tar.xz
+          echo '11528f5406ec8d93cb42c8bf3d98bf365fdf83b30bdfb3b9752f9219396432e2  /tmp/part2-payload.tar.xz' | sha256sum -c -
+          tar -tJf /tmp/part2-payload.tar.xz >/tmp/part2-files.txt
           test "$(wc -l </tmp/part2-files.txt)" -ge 70
       - name: Materialize normal repository files
         shell: bash
         run: |
           set -euo pipefail
-          tar -xJf .transport/part2/payload.tar.xz -C .
+          tar -xJf /tmp/part2-payload.tar.xz -C .
           rm -rf .transport/part2
           rm -f .github/workflows/part2-materialize.yml
       - name: Run Part 1 regression suite
@@ -62,8 +69,10 @@ jobs:
           python - <<'PY'
           import json, pathlib
           for p in pathlib.Path('.').rglob('*.json'):
-              if '.git' in p.parts: continue
-              with p.open(encoding='utf-8') as f: json.load(f)
+              if '.git' in p.parts:
+                  continue
+              with p.open(encoding='utf-8') as f:
+                  json.load(f)
           print('JSON_PARSE_PASS')
           PY
       - name: Commit materialized Part 2
