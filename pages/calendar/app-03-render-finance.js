@@ -25,7 +25,48 @@ function renderMobileWeek(dates,range){
   });
 }
 function universityNode(u){
-  const box=document.createElement("div");box.className="event university";box.style.setProperty("--blocks",String(Math.max(1,u.duration*2)));const main=document.createElement("div");main.className="event-main";const title=document.createElement("div");title.className="event-title";title.textContent=u.subject;const meta=document.createElement("div");meta.className="event-meta";const bits=[`${minutesLabel(u.start)}–${minutesLabel(u.start+u.duration*60)}`,u.room];if(u.detail)bits.unshift(u.detail);meta.textContent=bits.join(" · ");main.append(title,meta);box.append(main);return box;
+  const box=document.createElement("div");
+  box.className="event university";
+  box.style.setProperty("--blocks",String(Math.max(1,u.duration*2)));
+
+  const main=document.createElement("div");
+  main.className="event-main";
+
+  const title=document.createElement("div");
+  title.className="event-title";
+  title.textContent=u.subject;
+  main.appendChild(title);
+
+  if(u.detail){
+    const detail=document.createElement("div");
+    detail.className="up-detail";
+    detail.textContent=u.detail;
+    main.appendChild(detail);
+  }
+
+  const facts=document.createElement("div");
+  facts.className="up-facts";
+  const time=document.createElement("div");
+  time.className="up-time";
+  time.textContent=`${minutesLabel(u.start)} — ${minutesLabel(u.start+u.duration*60)}`;
+  const room=document.createElement("div");
+  room.className="up-room";
+  room.textContent=u.room;
+  facts.append(time,room);
+  main.appendChild(facts);
+
+  const brand=document.createElement("div");
+  brand.className="up-brand";
+  const mark=document.createElement("div");
+  mark.className="up-mark";
+  mark.textContent="UP";
+  const name=document.createElement("div");
+  name.className="up-name";
+  name.innerHTML="<span>Universidad</span><span>de Palermo</span>";
+  brand.append(mark,name);
+
+  box.append(main,brand);
+  return box;
 }
 function potentialNode(o){
   const box=document.createElement("div");box.className="event potential";box.style.setProperty("--blocks",String(Math.max(1,o.duration*2)));const main=document.createElement("div");main.className="event-main";const title=document.createElement("div");title.className="event-title";title.textContent=o.label;const meta=document.createElement("div");meta.className="event-meta";meta.textContent=`Potencial · ${hourText(o.duration)} · ${compactMoney(o.rate)}/h`;main.append(title,meta);box.append(main);return box;
