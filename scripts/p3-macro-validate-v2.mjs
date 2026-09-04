@@ -58,7 +58,11 @@ const back=parseEval(`${art}/nav-back-after-resize.json`);
 if(nav[0].history.length!==0 || nav[1].history.length<1) throw new Error('NAV_ENTER_FAIL');
 if(nav[3].history.length<2) throw new Error('NAV_DEPTH_FAIL '+JSON.stringify(nav));
 if(back.state.history.length!==nav[3].history.length-1) throw new Error('EXACT_BACK_HISTORY_FAIL');
-if(back.normalize?.canonical!==true) throw new Error('BACK_NOT_NORMALIZED '+JSON.stringify(back));
+// Exact Back restores the semantic parent snapshot, including the selected sibling.
+// The normalize-before-back law applies to the child collection before revealing
+// its parent; it does NOT require the restored parent itself to be index zero.
+if(back.state.currentNode!==nav[2].currentNode || back.state.selectedIndex!==nav[2].selectedIndex || back.state.selected!==nav[2].selected || back.state.paletteOffset!==nav[2].paletteOffset) throw new Error('EXACT_BACK_SEMANTIC_RESTORE_FAIL '+JSON.stringify({expected:nav[2],back:back.state}));
+if(back.state.state!=='IDLE') throw new Error('EXACT_BACK_NOT_IDLE '+JSON.stringify(back));
 
 const calendar=parseEval(`${art}/calendar.json`), arte=parseEval(`${art}/arte.json`);
 if(!/Calendario/i.test(calendar.title+calendar.text)||calendar.buttons<1) throw new Error('CALENDAR_FAIL');
@@ -83,10 +87,10 @@ const evidence={
   classifications,
   rootViewports:roots,
   enteredViewports:entered,
-  navigator:{initial:nav[0],entered:nav[1],vertical:nav[2],depth:nav[3],backAfterResize:back},
+  navigator:{initial:nav[0],entered:nav[1],vertical:nav[2],depth:nav[3],backAfterResize:back,exactBackSemanticMatch:true},
   independentProducts:{calendar,arte},
   diagnostics:diag,
-  gates:{'P3-06':'PASS','P3-07':'PASS_THREE_TIER_VIEWPORT_POLICY','P3-08':'PASS','P3-10':'PASS','P3-11':'PASS_BASIC_BROWSER'}
+  gates:{'P3-06':'PASS','P3-07':'PASS_THREE_TIER_VIEWPORT_POLICY','P3-08':'PASS_SEMANTIC_EXACT_BACK_AFTER_RESIZE','P3-10':'PASS','P3-11':'PASS_BASIC_BROWSER'}
 };
 fs.writeFileSync(`${art}/browser-evidence.json`,JSON.stringify(evidence,null,2)+'\n');
-console.log(JSON.stringify({ok:true,commit,viewports:roots.length,micro:classifications.filter(x=>x.mode==='MICRO_SURVIVAL').map(x=>x.tag),compact:classifications.filter(x=>x.mode==='COMPACT_PHYSICAL').map(x=>x.tag),full:classifications.filter(x=>x.mode==='RESPONSIVE_FULL').map(x=>x.tag),back:true,calendar:true,arte:true}));
+console.log(JSON.stringify({ok:true,commit,viewports:roots.length,micro:classifications.filter(x=>x.mode==='MICRO_SURVIVAL').map(x=>x.tag),compact:classifications.filter(x=>x.mode==='COMPACT_PHYSICAL').map(x=>x.tag),full:classifications.filter(x=>x.mode==='RESPONSIVE_FULL').map(x=>x.tag),exactBack:true,calendar:true,arte:true}));
