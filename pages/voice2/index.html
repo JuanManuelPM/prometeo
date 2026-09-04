@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f4f4f1">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+<title>Prometeo Voz</title>
+<style>
+:root{--bg:#f1f1ee;--card:#fbfbf8;--ink:#181818;--muted:#777770;--line:#deded8;--dark:#1e1e1e;--ok:#3a7351;--bad:#9b4242}*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{display:flex;justify-content:center}.app{width:100%;max-width:430px;min-height:100svh;padding:0 8px 96px}.capture{position:sticky;top:0;z-index:5;display:flex;flex-direction:column;align-items:center;padding:max(18px,env(safe-area-inset-top)) 8px 14px;background:rgba(241,241,238,.94);backdrop-filter:blur(16px)}.mic{width:92px;height:92px;border:1px solid #d0d0ca;border-radius:50%;background:#fff;display:grid;place-items:center;color:#1e1e1e;box-shadow:0 5px 16px rgba(0,0,0,.08);cursor:pointer;-webkit-tap-highlight-color:transparent}.mic svg{width:31px;height:31px}.mic.rec{background:var(--dark);color:#fff;border-color:var(--dark)}.mic.paused{background:#e9e9e4;color:#1f1f1f}.timer{margin-top:8px;font:800 14px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em}.hint{min-height:18px;margin-top:5px;text-align:center;font-size:10.5px;color:var(--muted)}.actions{display:none;grid-template-columns:1fr 1fr 1fr;gap:7px;width:min(100%,300px);margin-top:10px}.actions.show{display:grid}.actions button{height:42px;border:1px solid var(--line);border-radius:13px;background:#fff;color:#55554f;font:800 11px inherit;cursor:pointer}.actions .send{background:var(--dark);border-color:var(--dark);color:#fff}.actions .delete{color:var(--bad)}.list{padding:0 1px}.empty{padding:26px 12px;text-align:center;color:#9a9a93;font-size:11px}.message{display:grid;grid-template-columns:34px minmax(0,1fr) 28px;gap:8px;align-items:start;margin-bottom:8px;padding:10px;border:1px solid var(--line);border-radius:15px;background:var(--card)}.state{width:32px;height:32px;border:1px solid #d5d5cf;border-radius:50%;display:grid;place-items:center;color:var(--muted);font-size:13px;font-weight:900}.message.done .state{color:var(--ok);border-color:#b8d0c0;background:#f3f8f4}.message.error .state{color:var(--bad);border-color:#debcbc}.spinner{width:14px;height:14px;border:2px solid #cfcfc9;border-top-color:#222;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.body{min-width:0}.meta{min-height:15px;color:var(--muted);font-size:9.5px;line-height:1.3}.text{display:none;width:100%;min-height:68px;margin-top:5px;padding:0;border:0;outline:0;resize:vertical;background:transparent;color:var(--ink);font:13px/1.45 inherit}.message.done .text{display:block}.placeholder{margin-top:5px;color:#8d8d86;font-size:11px;line-height:1.4}.trash{width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:#aaa39e;font-size:17px;cursor:pointer}.trash:active{background:#ecece7}.dock{position:fixed;left:50%;bottom:max(7px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(calc(100% - 16px),414px);display:none;gap:7px;padding:7px;border:1px solid var(--line);border-radius:16px;background:rgba(247,247,243,.97);box-shadow:0 -6px 25px rgba(0,0,0,.1);backdrop-filter:blur(16px)}.dock.show{display:grid;grid-template-columns:1fr 1fr}.dock button{height:42px;border:1px solid var(--line);border-radius:12px;background:#fff;color:#55554f;font:800 10.5px inherit;cursor:pointer}.dock .prepare{background:var(--dark);border-color:var(--dark);color:#fff}.toast{position:fixed;left:50%;bottom:68px;z-index:20;transform:translateX(-50%) translateY(6px);max-width:calc(100% - 28px);padding:8px 11px;border-radius:999px;background:#202020;color:#fff;font-size:10.5px;opacity:0;pointer-events:none;transition:.15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}@media(max-width:360px){.app{padding-left:6px;padding-right:6px}.mic{width:82px;height:82px}.mic svg{width:28px;height:28px}.message{grid-template-columns:31px minmax(0,1fr) 26px;padding:9px;gap:7px}.state{width:30px;height:30px}.actions{width:100%}}
+</style>
+</head>
+<body>
+<main class="app">
+  <section class="capture">
+    <button id="mic" class="mic" type="button" aria-label="Grabar mensaje">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5.5 10.5a6.5 6.5 0 0 0 13 0M12 17v4M9 21h6"></path></svg>
+    </button>
+    <div id="timer" class="timer" hidden>00:00</div>
+    <div id="hint" class="hint">Tocá para hablar</div>
+    <div id="actions" class="actions">
+      <button id="pause" type="button">Pausar</button>
+      <button id="send" class="send" type="button">Enviar</button>
+      <button id="discard" class="delete" type="button">Eliminar</button>
+    </div>
+  </section>
+
+  <section id="list" class="list"><div class="empty">Tus mensajes van a aparecer acá.</div></section>
+</main>
+
+<div id="dock" class="dock">
+  <button id="copy" type="button">Copiar todo</button>
+  <button id="prepare" class="prepare" type="button">Preparar actualización</button>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+(() => {
+  const STORE = "prometeo.voice2.messages.v1";
+  const mic = document.getElementById("mic");
+  const timer = document.getElementById("timer");
+  const hint = document.getElementById("hint");
+  const actions = document.getElementById("actions");
+  const pauseBtn = document.getElementById("pause");
+  const sendBtn = document.getElementById("send");
+  const discardBtn = document.getElementById("discard");
+  const list = document.getElementById("list");
+  const dock = document.getElementById("dock");
+  const copyBtn = document.getElementById("copy");
+  const prepareBtn = document.getElementById("prepare");
+  const toast = document.getElementById("toast");
+
+  let stream = null;
+  let releaseTimer = null;
+  let current = null;
+  let messages = loadMessages();
+  let worker = null;
+  let modelWarm = false;
+  let toastTimer = null;
+
+  function uid(){ return crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2); }
+  function clean(t){ return String(t || "").replace(/\s+/g," ").trim(); }
+  function showToast(t){ toast.textContent=t;toast.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove("show"),1500); }
+
+  function loadMessages(){
+    try{
+      const x = JSON.parse(localStorage.getItem(STORE) || "[]");
+      return Array.isArray(x) ? x.map(m=>({...m,status:"done"})) : [];
+    }catch{return []}
+  }
+  function persist(){
+    const done = messages.filter(m=>m.status==="done" && clean(m.text)).map(({id,text,created})=>({id,text,created}));
+    localStorage.setItem(STORE, JSON.stringify(done));
+  }
+
+  function ensureWorker(){
+    if(worker) return worker;
+    worker = new Worker("./transcriber-worker.js?v=20260904b", {type:"module"});
+    worker.onmessage = e => {
+      const d = e.data || {};
+      if(d.type === "model-ready"){ modelWarm = true; return; }
+      if(!d.id) return;
+      const m = messages.find(x=>x.id===d.id);
+      if(!m) return;
+      if(d.type === "queued") m.status = "queued";
+      if(d.type === "status") m.status = d.status === "loading" ? "loading" : "transcribing";
+      if(d.type === "model-progress") { m.status = "loading"; m.progress = d.progress; }
+      if(d.type === "done") { m.status = "done"; m.text = clean(d.text); m.progress = 100; persist(); navigator.vibrate?.([10,25,10]); }
+      if(d.type === "error") { m.status = "error"; m.error = d.error || "Error"; }
+      render();
+    };
+    worker.onerror = () => {
+      messages.filter(m=>!["done","error"].includes(m.status)).forEach(m=>{m.status="error";m.error="No pude iniciar Whisper."});
+      render();
+    };
+    return worker;
+  }
+
+  async function ensureStream(){
+    clearTimeout(releaseTimer);
+    if(stream?.active) return stream;
+    if(!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) throw new Error("Abrí esta página directamente en Chrome por HTTPS.");
+    stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    return stream;
+  }
+
+  function releaseLater(){
+    clearTimeout(releaseTimer);
+    releaseTimer = setTimeout(()=>{
+      if(current) return;
+      stream?.getTracks().forEach(t=>t.stop());
+      stream = null;
+    },900);
+  }
+
+  function mimeType(){
+    const options=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/mp4"];
+    return options.find(x=>window.MediaRecorder?.isTypeSupported?.(x)) || "";
+  }
+
+  async function startRecording(){
+    if(current) return;
+    try{
+      const s = await ensureStream();
+      const opts = mimeType() ? {mimeType:mimeType()} : undefined;
+      const recorder = new MediaRecorder(s, opts);
+      const session = {recorder,chunks:[],startedAt:performance.now(),elapsed:0,paused:false,tick:null,discard:false};
+      current = session;
+      recorder.addEventListener("dataavailable", e=>{if(e.data?.size) session.chunks.push(e.data)});
+      recorder.addEventListener("stop", ()=>finishSession(session), {once:true});
+      recorder.start(250);
+      session.tick = setInterval(updateTimer,200);
+      setRecordingUI("recording");
+      ensureWorker();
+      if(!modelWarm) worker.postMessage({type:"warmup"});
+      navigator.vibrate?.(10);
+    }catch(e){
+      hint.textContent = e?.name === "NotAllowedError" ? "Permití el micrófono en Chrome" : (e?.message || "No pude abrir el micrófono");
+    }
+  }
+
+  function setRecordingUI(state){
+    const active = state === "recording" || state === "paused";
+    mic.classList.toggle("rec", state === "recording");
+    mic.classList.toggle("paused", state === "paused");
+    actions.classList.toggle("show", active);
+    timer.hidden = !active;
+    pauseBtn.textContent = state === "paused" ? "Seguir" : "Pausar";
+    hint.textContent = state === "recording" ? "Grabando" : state === "paused" ? "Pausado" : "Tocá para hablar";
+  }
+
+  function updateTimer(){
+    if(!current) return;
+    let ms = current.elapsed;
+    if(!current.paused) ms += performance.now() - current.startedAt;
+    const sec = Math.floor(ms/1000);
+    timer.textContent = String(Math.floor(sec/60)).padStart(2,"0") + ":" + String(sec%60).padStart(2,"0");
+  }
+
+  function togglePause(){
+    if(!current) return;
+    const r = current.recorder;
+    if(current.paused){
+      try{r.resume()}catch{}
+      current.paused=false;
+      current.startedAt=performance.now();
+      setRecordingUI("recording");
+    }else{
+      current.elapsed += performance.now()-current.startedAt;
+      try{r.pause()}catch{}
+      current.paused=true;
+      setRecordingUI("paused");
+    }
+  }
+
+  function sendCurrent(){
+    if(!current) return;
+    const session = current;
+    current = null;
+    clearInterval(session.tick);
+    const id = uid();
+    session.messageId = id;
+    messages.push({id,status:"preparing",text:"",created:Date.now()});
+    setRecordingUI("idle");
+    timer.textContent="00:00";
+    render();
+    try{session.recorder.stop()}catch(e){markError(id,e?.message||"No pude cerrar el audio")}
+    releaseLater();
+  }
+
+  function discardCurrent(){
+    if(!current) return;
+    const session = current;
+    current = null;
+    session.discard = true;
+    clearInterval(session.tick);
+    try{session.recorder.stop()}catch{}
+    setRecordingUI("idle");
+    timer.textContent="00:00";
+    releaseLater();
+    navigator.vibrate?.(8);
+  }
+
+  async function finishSession(session){
+    if(session.discard) return;
+    const id = session.messageId;
+    try{
+      const blob = new Blob(session.chunks,{type:session.recorder.mimeType || "audio/webm"});
+      if(blob.size < 350) throw new Error("El audio quedó vacío.");
+      const audio = await decodeTo16k(blob);
+      const m = messages.find(x=>x.id===id);
+      if(!m) return;
+      m.status="queued";
+      render();
+      ensureWorker().postMessage({type:"transcribe",id,audio:audio.buffer},[audio.buffer]);
+    }catch(e){markError(id,e?.message||String(e))}
+  }
+
+  async function decodeTo16k(blob){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) throw new Error("Audio no compatible.");
+    const ctx = new AC();
+    try{
+      const decoded = await ctx.decodeAudioData((await blob.arrayBuffer()).slice(0));
+      const mono = new Float32Array(decoded.length);
+      for(let c=0;c<decoded.numberOfChannels;c++){
+        const d=decoded.getChannelData(c);
+        for(let i=0;i<decoded.length;i++) mono[i]+=d[i]/decoded.numberOfChannels;
+      }
+      return resample(mono,decoded.sampleRate,16000);
+    }finally{try{await ctx.close()}catch{}}
+  }
+
+  function resample(input,from,to){
+    if(from===to) return input;
+    const ratio=from/to;
+    const out=new Float32Array(Math.max(1,Math.round(input.length/ratio)));
+    for(let i=0;i<out.length;i++){
+      const p=i*ratio,a=Math.floor(p),b=Math.min(a+1,input.length-1),f=p-a;
+      out[i]=input[a]*(1-f)+input[b]*f;
+    }
+    return out;
+  }
+
+  function markError(id,error){
+    const m=messages.find(x=>x.id===id);if(!m)return;m.status="error";m.error=error;render();
+  }
+
+  function statusLabel(m){
+    if(m.status==="preparing") return "Preparando audio…";
+    if(m.status==="queued") return "En espera…";
+    if(m.status==="loading") return m.progress ? "Preparando Whisper · "+m.progress+"%" : "Preparando Whisper…";
+    if(m.status==="transcribing") return "Transcribiendo…";
+    if(m.status==="error") return m.error || "Error";
+    return "Listo";
+  }
+
+  function render(){
+    list.innerHTML="";
+    if(messages.length===0){list.innerHTML='<div class="empty">Tus mensajes van a aparecer acá.</div>';}
+    messages.forEach((m,index)=>{
+      const row=document.createElement("article");row.className="message "+m.status;
+      const state=document.createElement("div");state.className="state";
+      state.innerHTML = m.status==="done" ? "✓" : m.status==="error" ? "!" : '<span class="spinner"></span>';
+      const body=document.createElement("div");body.className="body";
+      const meta=document.createElement("div");meta.className="meta";meta.textContent=statusLabel(m);
+      body.appendChild(meta);
+      if(m.status==="done"){
+        const ta=document.createElement("textarea");ta.className="text";ta.value=m.text;ta.setAttribute("aria-label","Mensaje "+(index+1));
+        ta.addEventListener("input",()=>{m.text=ta.value;persist();autoGrow(ta)});
+        body.appendChild(ta);requestAnimationFrame(()=>autoGrow(ta));
+      }else if(m.status!=="error"){
+        const p=document.createElement("div");p.className="placeholder";p.textContent="Mensaje "+(index+1);body.appendChild(p);
+      }
+      const del=document.createElement("button");del.className="trash";del.type="button";del.textContent="×";del.setAttribute("aria-label","Eliminar mensaje");
+      del.addEventListener("click",()=>{messages=messages.filter(x=>x.id!==m.id);persist();render()});
+      row.append(state,body,del);list.appendChild(row);
+    });
+    const ready=messages.filter(m=>m.status==="done"&&clean(m.text));
+    dock.classList.toggle("show",ready.length>0);
+  }
+
+  function autoGrow(ta){ta.style.height="auto";ta.style.height=Math.max(68,ta.scrollHeight)+"px"}
+  function readyText(){return messages.filter(m=>m.status==="done"&&clean(m.text)).map((m,i)=>(i+1)+". "+clean(m.text)).join("\n\n")}
+
+  async function copyText(text){
+    try{await navigator.clipboard.writeText(text);showToast("Copiado");return true}catch{}
+    const ta=document.createElement("textarea");ta.value=text;ta.style.cssText="position:fixed;left:-9999px;top:0";document.body.appendChild(ta);ta.select();const ok=document.execCommand("copy");ta.remove();showToast(ok?"Copiado":"No pude copiar");return ok;
+  }
+
+  mic.addEventListener("click",()=>{if(!current)startRecording();else togglePause()});
+  pauseBtn.addEventListener("click",togglePause);
+  sendBtn.addEventListener("click",sendCurrent);
+  discardBtn.addEventListener("click",discardCurrent);
+  copyBtn.addEventListener("click",()=>copyText(readyText()));
+  prepareBtn.addEventListener("click",()=>{
+    const t=readyText();if(!t)return;
+    copyText("PROMETEO · ACTUALIZACIÓN\n\n"+t+"\n\nRecuperá el contexto durable correspondiente, aplicá estas observaciones en conjunto, preservá lo que ya funciona, probá y publicá.");
+  });
+
+  setRecordingUI("idle");
+  render();
+})();
+</script>
+</body>
+</html>
