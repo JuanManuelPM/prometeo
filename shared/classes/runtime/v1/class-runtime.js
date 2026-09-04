@@ -4,14 +4,14 @@
   function create(config,{studentId=config.studentId||'local-default',privacy='LOCAL',pageKitVersion='v37'}={}){
     const C=global.PrometeoClasses,P=global.PrometeoPersistence;if(!C)throw new Error('PrometeoClasses required');
     const key=`${studentId}:${config.id}`;
-    const record=P?.readRecord?.('class-state',key,{version:'1',defaultValue:null})||null;
+    const record=P?.readRecord?.('class-state',key,{version:'1',defaultValue:null})||(()=>{const data=P?.read?.('class-state',key,{version:'1',defaultValue:null});return data?{data,revision:0}:null;})();
     let revision=record?.revision||0;
     let engine=C.create(config,record?.data||{studentId});
     let host=null,conflict=null,disposed=false;const listeners=new Set();
     function persistState(state){
       if(!P)return null;
       const receipt=P.write('class-state',key,state,{version:'1',privacy,baseRevision:revision,meta:{classId:config.id,studentId}});
-      revision=receipt.revision;conflict=null;return receipt;
+      revision=receipt?.revision??(revision+1);conflict=null;return receipt;
     }
     if(P&&!record)persistState(engine.getState());
     function dispatch(action){
@@ -21,8 +21,8 @@
       const state=engine.getState();listeners.forEach(fn=>fn(structuredClone(state),action));return state;
     }
     function reload(){
-      if(!P)return engine.getState();const fresh=P.readRecord('class-state',key,{version:'1',defaultValue:null});
-      if(!fresh)return engine.getState();revision=fresh.revision;engine=C.create(config,fresh.data);conflict=null;return engine.getState();
+      if(!P)return engine.getState();const fresh=P.readRecord?.('class-state',key,{version:'1',defaultValue:null})||(()=>{const data=P.read?.('class-state',key,{version:'1',defaultValue:null});return data?{data,revision}:null;})();
+      if(!fresh)return engine.getState();revision=fresh.revision??revision;engine=C.create(config,fresh.data);conflict=null;return engine.getState();
     }
     function openPageKit(container,{version=pageKitVersion,mode='expanded'}={}){
       const H=global.PrometeoPageKitHostV2;if(!H)throw new Error('PrometeoPageKitHostV2 required');
