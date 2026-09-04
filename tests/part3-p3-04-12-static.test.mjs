@@ -7,9 +7,13 @@ const matrix=json('coordination/PART3_GATE_MATRIX.json');
 const current=json('state/CURRENT_GRAPH.json');
 const dot=json('state/DOT_STATE.json');
 const diseases=json('tests/known-diseases.json').diseases;
-assert.equal(current.revision,7);
-assert.equal(dot.next_gate,'P3-04_MUTATION_FAILURE_CHAOS');
-assert.equal(matrix.gates.find(g=>g.id==='P3-04')?.status,'READY');
+// This is a regression suite for gates already reached, not a permanent pin to the old P3-03 frontier.
+assert.ok(current.revision>=7);
+assert.equal(dot.schema,'prometeo.dot-state/v1');
+assert.ok(typeof dot.next_gate==='string'&&dot.next_gate.length>0);
+assert.ok(typeof dot.last_receipt==='string'&&dot.last_receipt.length>0);
+assert.ok(['READY','READY_POST_ACCEPTANCE','READY_FINALIZATION','COMPLETE'].includes(dot.state)||dot.state.startsWith('READY'));
+assert.ok(['READY','PASS','COMPLETE'].includes(matrix.gates.find(g=>g.id==='P3-04')?.status));
 assert.equal(new Set(diseases.map(d=>d.id)).size,diseases.length);
 assert.ok(diseases.length>=26);
 
@@ -46,7 +50,6 @@ assert.ok(diseases.length>=26);
   const arte=read('arte/index.html');
   assert.doesNotMatch(tokens,/box-shadow\s*:/i);
   assert.match(material,/inset/i);
-  // Current-main Calendar is modular: product identity is local while material/touch are shared.
   assert.match(calendar,/prometeo-component" content="calendar\/v1/);
   assert.match(calendar,/shared\/material\/bicolor\/v1\/material\.css/);
   assert.match(calendar,/shared\/calendar\/v1\/calendar-base\.css/);
@@ -65,9 +68,9 @@ assert.ok(diseases.length>=26);
   assert.doesNotMatch(cls,/JOSE|SOFI|MUMI/i);assert.doesNotMatch(world,/JOSE|SOFI|MUMI/i);
 }
 
-// P3-12 precondition: candidate visible V53 bytes are still exact.
+// P3-12 invariant remains permanent: visible V53 bytes are still exact.
 const cp=await import('node:child_process');
 const navBlob=cp.execFileSync('git',['hash-object','navigator/index.html'],{encoding:'utf8'}).trim();
 assert.equal(navBlob,EXPECTED_V53);
 
-console.log(JSON.stringify({ok:true,gateRange:'P3-04..P3-12-static',knownDiseases:diseases.length,currentRevision:current.revision,navBlob}));
+console.log(JSON.stringify({ok:true,gateRange:'P3-04..P3-12-static',knownDiseases:diseases.length,currentRevision:current.revision,nextGate:dot.next_gate,navBlob}));
