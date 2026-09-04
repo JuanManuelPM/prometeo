@@ -1,0 +1,43 @@
+name: Freeze P3-04 through P3-12
+
+on:
+  push:
+    branches: [candidate/prometeo-final-20260904]
+    paths:
+      - 'scripts/p3-freeze-04-12.mjs'
+      - '.github/workflows/p3-freeze-04-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  freeze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/prometeo-final-20260904
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Materialize durable closure
+        run: node scripts/p3-freeze-04-12.mjs
+      - name: Validate generated state
+        run: |
+          node --check scripts/p3-freeze-04-12.mjs
+          node -e "JSON.parse(require('fs').readFileSync('coordination/P3_04_12_CLOSURE.json'));JSON.parse(require('fs').readFileSync('coordination/P3_12_FINAL_CANDIDATE.json'));JSON.parse(require('fs').readFileSync('state/CURRENT_GRAPH.json'));JSON.parse(require('fs').readFileSync('state/PENDING.json'));"
+          git diff --check
+      - name: Commit durable closure
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add coordination/P3_04_12_CLOSURE.json coordination/P3_12_FINAL_CANDIDATE.json state/CURRENT_GRAPH.json state/PENDING.json receipts/ledger.jsonl
+          if git diff --cached --quiet; then
+            echo 'No durable changes required.'
+            exit 0
+          fi
+          git commit -m 'part3: freeze P3-04 through P3-12 tested candidate'
+          git push origin HEAD:candidate/prometeo-final-20260904
