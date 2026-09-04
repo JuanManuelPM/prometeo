@@ -1,0 +1,77 @@
+name: Fix selector V45 touch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-selector-v45-touch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main
+          fetch-depth: 0
+
+      - name: Patch main selector
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('main/lab/selector-v45/index.html')
+          s = p.read_text(encoding='utf-8')
+          if 'function mode(m)' not in s:
+              needle = "const S={mode:'closed',theme:0,sound:0,vibration:true,menu:[MENU],focus:null,current:FS,fs:[],file:0,leaf:null};const DEAD="
+              repl = "const S={mode:'closed',theme:0,sound:0,vibration:true,menu:[MENU],focus:null,current:FS,fs:[],file:0,leaf:null};function mode(m){S.mode=m;selector.dataset.mode=m;if(m==='closed')hint.textContent='tocá el botón';else if(m==='menu')hint.textContent='arrastrá · soltá para elegir';else if(m==='nav')hint.textContent='arrastrá vertical · soltá para entrar';else if(m==='leaf')hint.textContent='tocá para volver';else hint.textContent='arrastrá vertical · soltá para confirmar'}const DEAD="
+              if needle not in s:
+                  raise SystemExit('Patch anchor not found in main selector')
+              s = s.replace(needle, repl, 1)
+              p.write_text(s, encoding='utf-8')
+          PY
+          cd main
+          if ! git diff --quiet -- lab/selector-v45/index.html; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add lab/selector-v45/index.html
+            git commit -m 'Fix selector V45 mode state handler'
+            git push origin HEAD:main
+          fi
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pages
+          fetch-depth: 0
+
+      - name: Patch published selector
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('pages/lab/selector-v45/index.html')
+          s = p.read_text(encoding='utf-8')
+          if 'function mode(m)' not in s:
+              needle = "const S={mode:'closed',theme:0,sound:0,vibration:true,menu:[MENU],focus:null,current:FS,fs:[],file:0,leaf:null};const DEAD="
+              repl = "const S={mode:'closed',theme:0,sound:0,vibration:true,menu:[MENU],focus:null,current:FS,fs:[],file:0,leaf:null};function mode(m){S.mode=m;selector.dataset.mode=m;if(m==='closed')hint.textContent='tocá el botón';else if(m==='menu')hint.textContent='arrastrá · soltá para elegir';else if(m==='nav')hint.textContent='arrastrá vertical · soltá para entrar';else if(m==='leaf')hint.textContent='tocá para volver';else hint.textContent='arrastrá vertical · soltá para confirmar'}const DEAD="
+              if needle not in s:
+                  raise SystemExit('Patch anchor not found in published selector')
+              s = s.replace(needle, repl, 1)
+              p.write_text(s, encoding='utf-8')
+          PY
+          cd pages
+          if ! git diff --quiet -- lab/selector-v45/index.html; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add lab/selector-v45/index.html
+            git commit -m 'Fix published selector V45 touch interaction'
+            git push origin HEAD:gh-pages
+          fi
