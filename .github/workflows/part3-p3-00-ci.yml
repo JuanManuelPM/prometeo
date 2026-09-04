@@ -1,0 +1,34 @@
+name: Part 3 P3-00 Rehydrate Authority
+
+on:
+  push:
+    branches: [candidate/part2-durable-metabolism-20260904]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  p3-00:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regress Part 1 and Part 2 truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in tests/r1_candidate.test.mjs tests/runtime-ownership.test.mjs tests/platform-engines.test.mjs tests/part1-static.test.mjs tests/part1-contract.test.mjs tests/part1-runtime-services.test.mjs tests/part1-persistent-engines.test.mjs tests/part1-semantic-restore.test.mjs tests/part1-persistence-cas.test.mjs tests/part1-engine-invariants.test.mjs; do test -f "$f" && node "$f"; done
+          for f in tests/part2-*.test.mjs; do node "$f"; done
+      - name: P3-00 clean-process wake
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/p3-00-rehydrate.mjs | tee /tmp/p3-00-evidence.json
+          node tests/part3-p3-00-rehydrate.test.mjs
+      - name: No empirical overclaim
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'INHERITED_PREEXISTING_NOT_PART2_BROWSER_REVERIFIED' state/CURRENT_GRAPH.json
+          grep -q 'PENDING-PART3-001' state/PENDING.json
+          ! grep -q '"status":"PASS".*P3-01' coordination/PART3_GATE_MATRIX.json
