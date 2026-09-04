@@ -1,0 +1,90 @@
+name: Inject Prometeo Global Shell
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'shared/prometeo-shell/**'
+      - '.github/workflows/inject-prometeo-shell.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: prometeo-shared-pages
+  cancel-in-progress: false
+jobs:
+  inject:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate global shell
+        run: |
+          set -euo pipefail
+          node --check shared/prometeo-shell/v1/db.js
+          node --check shared/prometeo-shell/v1/voice.js
+          node --check shared/prometeo-shell/v1/prometeo-shell.js
+          node --check shared/prometeo-shell/v1/prometeo-voice-worker.js
+          test -s shared/prometeo-shell/v1/shell.css
+
+      - name: Publish shell and inject every Pages HTML
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin gh-pages
+          git worktree add /tmp/prometeo-pages origin/gh-pages
+
+          mkdir -p /tmp/prometeo-pages/shared/prometeo-shell
+          rsync -a --delete shared/prometeo-shell/ /tmp/prometeo-pages/shared/prometeo-shell/
+
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path('/tmp/prometeo-pages')
+          marker = '<script type="module" src="/prometeo/shared/prometeo-shell/v1/prometeo-shell.js?v=1" data-prometeo-shell></script>'
+          skip_prefixes = (
+              'shared/prometeo-shell/',
+              'pages/voice/',
+              'pages/voice2/',
+          )
+          changed = 0
+          already = 0
+          skipped = 0
+
+          for page in root.rglob('*.html'):
+              rel = page.relative_to(root).as_posix()
+              if rel.startswith(skip_prefixes):
+                  skipped += 1
+                  continue
+              try:
+                  text = page.read_text(encoding='utf-8')
+              except UnicodeDecodeError:
+                  skipped += 1
+                  continue
+              if 'data-prometeo-shell' in text:
+                  already += 1
+                  continue
+              lower = text.lower()
+              idx = lower.rfind('</body>')
+              if idx >= 0:
+                  text = text[:idx] + marker + '\n' + text[idx:]
+              else:
+                  text = text + '\n' + marker + '\n'
+              page.write_text(text, encoding='utf-8')
+              changed += 1
+
+          print(f'Prometeo shell injection: changed={changed} already={already} skipped={skipped}')
+          PY
+
+          cd /tmp/prometeo-pages
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'Global shell already current on gh-pages.'
+            exit 0
+          fi
+          git commit -m 'shell: publish global voice notes across Pages'
+          git pull --rebase origin gh-pages
+          git push origin HEAD:gh-pages
