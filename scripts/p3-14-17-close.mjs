@@ -1,4 +1,4 @@
-// Retry marker: Current Graph and Continuity test contracts now follow the durable P3 lifecycle instead of historical Part 2-only state.
+// Retry marker: Current Graph now formally supports scoped prior-human-selected and accepted-candidate states used by P3.
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 const read=p=>JSON.parse(fs.readFileSync(p,'utf8')),write=(p,v)=>fs.writeFileSync(p,JSON.stringify(v,null,2)+'\n');
