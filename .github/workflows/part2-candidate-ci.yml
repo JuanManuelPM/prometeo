@@ -25,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           for f in tests/part2-*.test.mjs; do node "$f"; done
-      - name: Syntax JSON and closure invariants
+      - name: Syntax JSON and durable Part 2 invariants
         shell: bash
         run: |
           set -euo pipefail
@@ -35,13 +35,16 @@ jobs:
           for p in pathlib.Path('.').rglob('*.json'):
               if '.git' not in p.parts:
                   with p.open(encoding='utf-8') as f: json.load(f)
+          current=json.load(open('state/CURRENT_GRAPH.json',encoding='utf-8'))
+          pending=json.load(open('state/PENDING.json',encoding='utf-8'))
+          matrix=json.load(open('coordination/PART3_GATE_MATRIX.json',encoding='utf-8'))
+          assert current['pointers']['candidate_current']['receipt_id']=='R-P2-AUDIT-0004'
+          assert current['artifacts']['part2-workstream']['source']=='gitcommit:cb5dd70bc44470457b985bbdcbdbdcd970b14d1c'
+          assert any(x['id']=='PENDING-PART3-001' for x in pending['items'])
+          assert any(g['id']=='P3-00' for g in matrix['gates'])
           PY
           test ! -e .transport/part2
           test "$(git hash-object navigator/index.html)" = "7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418"
           grep -q 'TESTED_CANDIDATE_GITHUB_CI_PASS' coordination/PART2_CANDIDATE_MANIFEST.json
           grep -q 'REPAIRED_AND_CANDIDATE_CI_PASS' coordination/PART2_CANDIDATE_MANIFEST.json
-          grep -q 'R-P2-AUDIT-0004' state/CURRENT_GRAPH.json
-          grep -q 'PENDING-PART3-001' state/PENDING.json
-          grep -q 'PART3_PREP' state/DOT_STATE.json
           grep -q 'R-P2-AUDIT-0004' receipts/ledger.jsonl
-          grep -q 'PLANNED_NOT_STARTED' coordination/PART3_GATE_MATRIX.json
