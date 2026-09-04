@@ -1,35 +1,31 @@
 # PROMETEO — Part 2 Adversarial Audit
 
-Status: **REPAIR CANDIDATE — CI NOT YET RECORDED**
+Status: **PART2_ADVERSARIAL_REPAIRED — CANDIDATE CI PASS — PART3 PLANNED_NOT_STARTED**
 
-Baseline audited: `gitcommit:fcb77473ecaa4855514253b3c6166bf400356d43`, previously certified by Part 2 Candidate CI run `33874647321`.
+Baseline attacked: `fcb77473ecaa4855514253b3c6166bf400356d43` (previous CI `33874647321`).
+Repaired candidate: `cb5dd70bc44470457b985bbdcbdbdcd970b14d1c`.
+Isolated audit CI: `33877625341` — PASS.
+Permanent candidate CI: `33877683291` — PASS.
+Durable audit receipt: `R-P2-AUDIT-0004` / hash `c79f09b0d9991da2eb594ab56666e4b61a2e6aa7b459198ff6082a42386841bf`.
 
-## Scope
-This audit attacks the claims that Part 2 is durable, fail-closed and chat-agnostic. It does **not** upgrade browser/perceptual, Human Accepted, Served or production truth; those remain Part 3 gates.
+## What the attack actually broke
+1. **BLOCKER — forged privacy declassification:** a plausible in-memory object could authorize LOCAL→PROJECT/PUBLIC. Repaired: receipt id+hash must match the trusted ledger supplied by the platform.
+2. **BLOCKER — PROJECT external by default:** Context Pack used a tautological `allowProject=true`. Repaired: external PROJECT export is explicit opt-in; LOCAL remains forbidden.
+3. **BLOCKER — unanchored Current transition:** receipt-shaped objects could move a pointer. Repaired: trusted ledger membership required.
+4. **BLOCKER — Current lost-update race:** no revision CAS. Repaired: `expectedRevision` mandatory.
+5. **BLOCKER — state elevation through wrong pointer:** candidate pointer could mark HUMAN_ACCEPTED. Repaired: HUMAN_ACCEPTED/SERVED state changes always require their evidence.
+6. **HIGH — shallow freeze:** nested arrays/state remained mutable. Repaired with durable deep immutable snapshots and deeply immutable platform exposure.
+7. **HIGH — reincarnation accepted cross-file drift:** wake checked too little. Repaired: BOOTSTRAP roles, all required schemas, HEAD/candidate, PARENT/HEAD, DOT/Current, branch, catalog identity and ledger receipt references are cross-validated.
+8. **HIGH — explicit context silently missing:** repaired: explicit unknown IDs fail closed.
+9. **MEDIUM — watermark write lacked mandatory CAS/post-validation:** repaired.
+10. **MEDIUM — migration registry injectable at runtime:** repaired: built-ins sealed after bootstrap.
+11. **HIGH discovered by the repair itself — cross-realm trust guard:** `instanceof Set` rejected valid Sets crossing VM/iframe realms. Repaired with capability/duck-typed `.has()` trust collections, then the entire suite was rerun.
 
-## Findings and repairs
-1. **BLOCKER — forged privacy declassification.** A plausible in-memory object could authorize LOCAL→PROJECT/PUBLIC. Repair: declassification now requires durable receipt id+hash matching the trusted ledger map supplied by the platform.
-2. **BLOCKER — PROJECT externally exportable by default.** `allowProject` was effectively always true in Context Pack compilation. Repair: external PROJECT export is opt-in; LOCAL remains forbidden.
-3. **BLOCKER — Current transition not ledger-anchored.** A caller could pass a matching receipt-shaped object. Repair: transition requires trusted receipt membership.
-4. **BLOCKER — no CAS for Current.** Competing writers could overwrite a newer graph. Repair: `expectedRevision` is mandatory.
-5. **BLOCKER — state escalation through a non-human pointer.** `candidate_current` could set an artifact state to HUMAN_ACCEPTED. Repair: HUMAN_ACCEPTED and SERVED state elevation always require their evidence, regardless of pointer name.
-6. **HIGH — shallow immutability.** Frozen outer objects exposed mutable nested arrays/maps. Repair: durable deep immutable snapshots and deep-frozen platform state.
-7. **HIGH — wake accepted inconsistent durable documents.** Reincarnation checked only two schemas. Repair: all required docs, branch/head/parent/catalog and receipt cross-links are validated before wake.
-8. **HIGH — explicit context could disappear silently.** Repair: an explicitly requested missing ID fails closed.
-9. **MEDIUM — watermark write without mandatory CAS/post-validation.** Repair: expected source watermark is mandatory and the result is revalidated.
-10. **MEDIUM — migration registry runtime injection.** Repair: built-in graph is sealed after bootstrap.
+## Permanent regression surface
+`tests/known-diseases.json` now contains 26 disease entries. `tests/part2-adversarial-repair.test.mjs` carries 10 explicit mutation cases, while the cross-realm issue is exercised by the same test under the VM harness. Part 1 regressions remained green.
 
-## Mutation regression suite
-`tests/part2-adversarial-repair.test.mjs` introduces 10 mutants covering the repairs above. These are permanent known diseases, not one-off audit scripts.
+## Truth ceiling preserved
+This audit did **not** claim browser/perceptual PASS, fresh-chat empirical PASS, Human Accepted, Served verification, production promotion, same-link release or rollback rehearsal. V53 visible frontend remains the exact inherited blob `7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418`.
 
-## Explicitly not claimed here
-- no browser QA PASS;
-- no perceptual QA PASS;
-- no fresh-chat empirical PASS;
-- no Human Accepted change;
-- no Served verification;
-- no production pointer move;
-- no same-link release or rollback rehearsal.
-
-## Exit condition
-Part 2 adversarial repair is not closed until: all Part 1 regressions + all Part 2 tests + the 10 new mutants + JS syntax + JSON parsing pass on the exact repair commit, followed by a durable audit receipt and a second CI pass over the closure metadata.
+## Handoff
+Part 2 is now adversarially repaired. `coordination/PART3_EXECUTION_PLAN.md` and `coordination/PART3_GATE_MATRIX.json` are planning artifacts only. Part 3 has not started. `state/PENDING.json` instructs the next explicit execution signal to begin with P3-00 and no later gate.
