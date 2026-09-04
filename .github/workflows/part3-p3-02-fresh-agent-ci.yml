@@ -1,0 +1,47 @@
+name: Part 3 P3-02 Fresh Agent Reincarnation
+
+on:
+  push:
+    branches: [candidate/part2-durable-metabolism-20260904]
+    paths:
+      - 'reincarnation/**'
+      - 'shared/reincarnation/**'
+      - 'shared/runtime/platform/v2/platform.js'
+      - 'scripts/p3-00-rehydrate.mjs'
+      - 'scripts/p3-02-*.mjs'
+      - 'tests/part3-p3-00-rehydrate.test.mjs'
+      - 'tests/part3-p3-02-fresh-agent.test.mjs'
+      - 'tests/part2-reincarnation-operator.test.mjs'
+      - 'coordination/P3_02_FRESH_AGENT_SPEC.json'
+      - '.github/workflows/part3-p3-02-fresh-agent-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fresh-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Regress durable truth
+        run: |
+          set -euo pipefail
+          for f in tests/part2-*.test.mjs; do node "$f"; done
+          node tests/part3-p3-00-rehydrate.test.mjs
+          node tests/part3-p3-01-closure.test.mjs
+          test "$(git hash-object navigator/index.html)" = "7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418"
+      - name: Run fresh-process reincarnation gate
+        run: node tests/part3-p3-02-fresh-agent.test.mjs
+      - name: Upload fresh-agent evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p3-02-fresh-agent-evidence-${{ github.sha }}
+          path: artifacts/p3-02/
+          if-no-files-found: error
+          retention-days: 30
