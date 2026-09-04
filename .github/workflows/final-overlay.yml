@@ -1,0 +1,39 @@
+name: Prometeo Final Overlay
+
+on:
+  push:
+    branches: [candidate/prometeo-final-20260904]
+    paths: ['.github/workflows/final-overlay.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  overlay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Overlay tested backstage onto current main product bytes
+        run: |
+          set -euo pipefail
+          git fetch origin candidate/part2-durable-metabolism-20260904
+          BASE_NAV=$(git hash-object navigator/index.html)
+          BASE_CAL=$(git hash-object pages/calendar/index.html)
+          BASE_ARTE=$(git hash-object arte/index.html)
+          git checkout origin/candidate/part2-durable-metabolism-20260904 -- \
+            coordination context lineage receipts reincarnation runtime schemas scripts shared state tests fixtures golden human lab \
+            catalog/CATALOG_DIGEST.json catalog/CATALOG_MANIFEST.json
+          test "$(git hash-object navigator/index.html)" = "$BASE_NAV"
+          test "$(git hash-object pages/calendar/index.html)" = "$BASE_CAL"
+          test "$(git hash-object arte/index.html)" = "$BASE_ARTE"
+          test "$BASE_NAV" = "7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418"
+          git config user.name 'Juan Manuel Pérez Menéndez'
+          git config user.email '72280945+JuanManuelPM@users.noreply.github.com'
+          git add coordination context lineage receipts reincarnation runtime schemas scripts shared state tests fixtures golden human lab catalog/CATALOG_DIGEST.json catalog/CATALOG_MANIFEST.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Overlay tested Prometeo backstage onto current main products'
+          git push origin HEAD:candidate/prometeo-final-20260904
