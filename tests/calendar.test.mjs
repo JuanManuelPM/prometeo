@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import vm from 'node:vm';
+const src=await readFile(new URL('../shared/calendar/v1/core.js',import.meta.url),'utf8');
+const ctx={Date,Object,String,Number,Math,globalThis:{}};ctx.globalThis=ctx;vm.createContext(ctx);vm.runInContext(src,ctx);
+const C=ctx.PrometeoCalendarCore;
+assert.equal(C.version,'1');
+assert.equal(C.isoDate(C.mondayOf(new Date(2026,8,4))),'2026-08-31');
+assert.equal(C.weekdayIndex(new Date(2026,8,9)),2);
+assert.equal(C.scheduleOccursOn({type:'fixed',weekday:2},'2026-09-09'),true);
+assert.equal(C.scheduleOccursOn({type:'fixed',weekday:2},'2026-09-10'),false);
+assert.equal(C.universityOnDate([{weekday:0,from:'2026-08-03',to:'2026-11-20'}],'2026-09-07').length,1);
+const rows=C.occurrencesForMonth([{type:'fixed',weekday:2,duration:1,rate:1000}],2026,8);
+assert.equal(rows.length,5);assert.equal(rows.reduce((s,x)=>s+x.income,0),5000);
+console.log(JSON.stringify({ok:true,calendar_core:C.version,september_wednesdays:rows.length,income:5000},null,2));
