@@ -1,4 +1,4 @@
-// Retry marker: release preflight now tests reincarnation mechanics against a coherent frontier-derived Part 2 fixture; final durable HEAD/DOT/PARENT synchronization remains a P3 closure obligation.
+// Retry marker: both Part 2 wake tests now use coherent frontier-derived fixtures; final durable state synchronization is still verified separately at P3-19/P3-20.
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 const read=p=>JSON.parse(fs.readFileSync(p,'utf8')),write=(p,v)=>fs.writeFileSync(p,JSON.stringify(v,null,2)+'\n');
