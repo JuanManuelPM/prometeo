@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Prometeo Behavior v1 · Self Test</title>
+<pre id="out">RUNNING…</pre>
+<script src="../../object/v1/object-core.js"></script>
+<script src="../../object/v1/schema-registry.js"></script>
+<script src="../../object/v1/object-store.js"></script>
+<script src="../../object/v1/projections.js"></script>
+<script src="./behavior-tracker.js"></script>
+<script>
+(function(){
+  const lines=[];let passed=0,failed=0;
+  function test(name,fn){try{fn();passed++;lines.push(`PASS  ${name}`)}catch(e){failed++;lines.push(`FAIL  ${name}\n      ${e.message}`)}}
+  function eq(a,b,msg="values differ"){if(JSON.stringify(a)!==JSON.stringify(b))throw new Error(`${msg}: ${JSON.stringify(a)} !== ${JSON.stringify(b)}`)}
+  function ok(value,msg="expected truthy"){if(!value)throw new Error(msg)}
+
+  const key="prometeo-behavior-self-test";localStorage.removeItem(key);
+  const store=PrometeoObjectStore.createStore({key});
+  let tracker;
+
+  test("behavior schemas registered",()=>{
+    ok(PrometeoSchemaRegistry.get("behavior_tracker"));
+    ok(PrometeoSchemaRegistry.get("behavior_log"));
+  });
+
+  test("create avoid tracker",()=>{
+    tracker=PrometeoBehavior.createTracker(store,{title:"Cigarrillos",unit:"cigarette",goal:{mode:"avoid"}});
+    eq(tracker.type,"behavior_tracker");eq(tracker.capabilities.trackable.goal.mode,"avoid");
+  });
+
+  test("unknown is not treated as clear",()=>{
+    eq(PrometeoBehavior.dayState(store,tracker.id,"2026-09-01").state,"unknown");
+  });
+
+  test("log use stores quantity and relation",()=>{
+    const log=PrometeoBehavior.logUse(store,tracker.id,1,{timestamp:"2026-09-02T22:10:00-03:00",date:"2026-09-02"});
+    eq(log.type,"behavior_log");eq(log.capabilities.trackable.quantity,1);eq(log.relations[0].targetId,tracker.id);
+  });
+
+  test("use wins over clear on same day",()=>{
+    PrometeoBehavior.markClear(store,tracker.id,"2026-09-02");
+    const day=PrometeoBehavior.dayState(store,tracker.id,"2026-09-02");
+    eq(day.state,"use");eq(day.quantity,1);
+  });
+
+  test("urge alone is distinct from use",()=>{
+    PrometeoBehavior.logUrge(store,tracker.id,{timestamp:"2026-09-03T18:00:00-03:00",date:"2026-09-03"});
+    eq(PrometeoBehavior.dayState(store,tracker.id,"2026-09-03").state,"urge");
+  });
+
+  test("confirmed clear streak is strict",()=>{
+    PrometeoBehavior.markClear(store,tracker.id,"2026-09-04");
+    PrometeoBehavior.markClear(store,tracker.id,"2026-09-05");
+    const s=PrometeoBehavior.stats(store,tracker.id,{today:"2026-09-05",days:5});
+    eq(s.currentStreak,2);eq(s.daysWithUse,1);eq(s.urgeOnlyDays,1);eq(s.totalQuantity,1);
+  });
+
+  test("trackable projection is reusable",()=>{
+    const log=PrometeoBehavior.logsFor(store,tracker.id)[0];
+    const p=PrometeoProjections.trackable(log);eq(p.trackerId,tracker.id);ok(p.date);
+  });
+
+  localStorage.removeItem(key);
+  lines.push(`\n${passed} PASS · ${failed} FAIL`);
+  out.textContent=lines.join("\n");
+  document.title=`${failed?"FAIL":"PASS"} · Prometeo Behavior v1`;
+})();
+</script>
