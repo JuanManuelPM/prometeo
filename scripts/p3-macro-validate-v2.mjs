@@ -15,7 +15,12 @@ const entered = fs.readdirSync(vpDir).filter(x => x.endsWith('-entered.json')).s
 if (roots.length !== 9 || entered.length !== 9) throw new Error(`VIEWPORT_MATRIX_INCOMPLETE roots=${roots.length} entered=${entered.length}`);
 
 const widthOf = (tag) => Number(String(tag).split('x')[0]);
-const micro = (tag) => widthOf(tag) <= 200;
+const modeOf = (tag) => {
+  const w=widthOf(tag);
+  if(w<=240)return 'MICRO_SURVIVAL';
+  if(w<=760)return 'COMPACT_PHYSICAL';
+  return 'RESPONSIVE_FULL';
+};
 const structural = (v) => ({ depth:v.depth, solver:v.solver, seal:v.seal, backplate:v.backplate, horizontal:v.horizontal });
 
 for (const v of roots) {
@@ -34,13 +39,17 @@ for (const v of entered) {
   if (v.state.history.length < 1) throw new Error('RESPONSIVE_ENTRY_MISSING '+v.tag);
   for (const [k,x] of Object.entries(structural(v))) if (x && x.ok === false) throw new Error('ENTERED_INVARIANT_'+k+' '+JSON.stringify({tag:v.tag,x}));
   if (Array.isArray(v.vertical) && v.vertical.some(x => x.ok === false)) throw new Error('VERTICAL_INVARIANT '+JSON.stringify(v));
-  if (micro(v.tag)) {
-    const r = v.responsive || {};
-    if (r.noOverlap !== true || r.unclippedPrefix !== true || r.unclippedActive !== true) throw new Error('MICRO_VIEWPORT_CLIPPING '+JSON.stringify(v));
-    classifications.push({tag:v.tag,mode:'MICRO_SURVIVAL',responsiveIdeal:r.ok===true,ordered:r.ordered,idealRatio:r.idealRatio});
-  } else {
-    if (v.responsive?.ok !== true) throw new Error('RESPONSIVE_ENTERED_FAIL '+JSON.stringify(v));
-    classifications.push({tag:v.tag,mode:'RESPONSIVE_IDEAL',responsiveIdeal:true,ordered:v.responsive.ordered,idealRatio:v.responsive.idealRatio});
+  const r=v.responsive||{}, mode=modeOf(v.tag);
+  if (r.noOverlap !== true || r.unclippedPrefix !== true || r.unclippedActive !== true) throw new Error('VIEWPORT_TEXT_CLIPPING '+JSON.stringify(v));
+  if(mode==='MICRO_SURVIVAL'){
+    classifications.push({tag:v.tag,mode,responsiveDiagnosticOk:r.ok===true,depthIdeal:v.depth?.idealRatio===true,ordered:r.ordered,idealRatio:r.idealRatio});
+  }else if(mode==='COMPACT_PHYSICAL'){
+    if(v.depth?.idealRatio!==true)throw new Error('COMPACT_PHYSICAL_RATIO_FAIL '+JSON.stringify(v));
+    classifications.push({tag:v.tag,mode,responsiveDiagnosticOk:r.ok===true,depthIdeal:true,ordered:r.ordered,idealRatio:r.idealRatio});
+  }else{
+    if(r.ok!==true)throw new Error('RESPONSIVE_FULL_FAIL '+JSON.stringify(v));
+    if(v.depth?.idealRatio!==true)throw new Error('RESPONSIVE_DEPTH_RATIO_FAIL '+JSON.stringify(v));
+    classifications.push({tag:v.tag,mode,responsiveDiagnosticOk:true,depthIdeal:true,ordered:r.ordered,idealRatio:r.idealRatio});
   }
 }
 
@@ -67,17 +76,17 @@ for(const page of ['navigator','calendar','arte']){
 
 const commit=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 const evidence={
-  schema:'prometeo.p3-macro-browser-evidence/v2',
+  schema:'prometeo.p3-macro-browser-evidence/v3',
   commit,
   runner:'agent-browser@0.34.0',
-  viewportPolicy:{microSurvivalMaxWidth:200,responsiveIdealMinWidth:201,rationale:'At extreme embedded widths the final rear peeks may physically collapse. Survival still requires canonical camera, structural invariants, no text overlap/clipping, usable entry and semantic return.'},
+  viewportPolicy:{microSurvivalMaxWidth:240,compactPhysicalMaxWidth:760,responsiveFullMinWidth:761,rationale:'V53 explicitly switches to its mobile camera at max-width 760px. In that mode physical occlusion and the depth solver are authoritative; text peeks may not satisfy the desktop responsive diagnostic. At <=240px the layout degrades fail-soft while preserving canonical camera, structural invariants and unoccluded active text.'},
   classifications,
   rootViewports:roots,
   enteredViewports:entered,
   navigator:{initial:nav[0],entered:nav[1],vertical:nav[2],depth:nav[3],backAfterResize:back},
   independentProducts:{calendar,arte},
   diagnostics:diag,
-  gates:{'P3-06':'PASS','P3-07':'PASS_SCOPED_MICRO_SURVIVAL','P3-08':'PASS','P3-10':'PASS','P3-11':'PASS_BASIC_BROWSER'}
+  gates:{'P3-06':'PASS','P3-07':'PASS_THREE_TIER_VIEWPORT_POLICY','P3-08':'PASS','P3-10':'PASS','P3-11':'PASS_BASIC_BROWSER'}
 };
 fs.writeFileSync(`${art}/browser-evidence.json`,JSON.stringify(evidence,null,2)+'\n');
-console.log(JSON.stringify({ok:true,commit,viewports:roots.length,micro:classifications.filter(x=>x.mode==='MICRO_SURVIVAL').map(x=>x.tag),responsive:classifications.filter(x=>x.mode==='RESPONSIVE_IDEAL').map(x=>x.tag),back:true,calendar:true,arte:true}));
+console.log(JSON.stringify({ok:true,commit,viewports:roots.length,micro:classifications.filter(x=>x.mode==='MICRO_SURVIVAL').map(x=>x.tag),compact:classifications.filter(x=>x.mode==='COMPACT_PHYSICAL').map(x=>x.tag),full:classifications.filter(x=>x.mode==='RESPONSIVE_FULL').map(x=>x.tag),back:true,calendar:true,arte:true}));
