@@ -60,6 +60,8 @@
     {type:"task",capabilities:["actionable","temporal"],required:["title"],actions:["complete","reschedule","archive"],visualIdentity:"task"},
     {type:"event",capabilities:["temporal","social"],required:["title","capabilities.temporal"],actions:["reschedule","cancel"],visualIdentity:"event"},
     {type:"habit",capabilities:["repeatable","trackable","temporal"],required:["title"],actions:["log","skip","pause"],visualIdentity:"habit"},
+    {type:"behavior_tracker",capabilities:["trackable","content"],required:["title","capabilities.trackable.goal.mode"],actions:["logUse","logUrge","markClear","pause","archive"],visualIdentity:"behavior-tracker"},
+    {type:"behavior_log",capabilities:["trackable","temporal"],required:["title","capabilities.trackable.trackerId","capabilities.trackable.kind","capabilities.temporal.date"],actions:["archive"],visualIdentity:"behavior-log"},
     {type:"project",capabilities:["actionable","content","temporal"],required:["title"],actions:["complete","archive"],visualIdentity:"project"},
     {type:"lesson",capabilities:["temporal","repeatable","financial","social"],required:["title","capabilities.temporal"],actions:["reschedule","cancel","markDone","markPaid"],visualIdentity:"lesson"},
     {type:"expense",capabilities:["financial","temporal","repeatable"],required:["title","capabilities.financial"],actions:["markPaid","archive"],visualIdentity:"expense"},
