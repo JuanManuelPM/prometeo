@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {json,jsonl,context,load} from './part2-test-helpers.mjs';
+const c=context();load('shared/lineage/v1/lineage.js',c);load('shared/lineage/v1/supersession.js',c);load('shared/current-graph/v1/current-graph.js',c);
+const graph=json('lineage/LINEAGE_GRAPH.json'),caps=json('lineage/CAPABILITY_REGISTRY.json'),sup=jsonl('lineage/SUPERSESSION.jsonl');
+assert.equal(c.PrometeoLineage.validate(graph,caps,{supersession:sup}).ok,true);
+assert.equal(c.PrometeoSupersession.resolve('V23_AS_VISIBLE_FRONTEND_BASE','visible_frontend',sup).current,'navigator-v53-visible');
+assert.equal(c.PrometeoLineage.capabilityView('navigation.folder_stack_physics',caps,graph).humanAccepted.id,'navigator-v23-physics');
+const receipts=new Set(jsonl('receipts/ledger.jsonl').map(r=>r.id));
+const current=json('state/CURRENT_GRAPH.json');assert.equal(c.PrometeoCurrentGraph.validate(current,{knownReceipts:receipts,catalogIdentity:json('catalog/CATALOG_MANIFEST.json').source_contract.identity}).ok,true);
+assert.throws(()=>c.PrometeoCurrentGraph.transition(current,{pointer:'human_accepted_visible',artifactId:'navigator-v53-visible',receipt:{id:'x',type:'CURRENT_POINTER_TRANSITION',pointer:'human_accepted_visible',to_artifact:'navigator-v53-visible'}}),e=>e.code==='PROMETEO_CURRENT_HUMAN_EVIDENCE');
+console.log(JSON.stringify({ok:true,phases:['2.02','2.03','2.08']}));

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prometeo P3-03 Hop Continuity</title></head>
+<body>
+<main><h1>P3-03 Hop Continuity</h1><pre id="probe">BOOTING</pre></main>
+<script>
+(async()=>{
+  const getJson=async p=>{const r=await fetch(p,{cache:'no-store'});if(!r.ok)throw new Error(`${p}:${r.status}`);return r.json()};
+  const getText=async p=>{const r=await fetch(p,{cache:'no-store'});if(!r.ok)throw new Error(`${p}:${r.status}`);return r.text()};
+  const [current,dot,pending,carry,watermarks,matrix,ledgerText]=await Promise.all([
+    getJson('/state/CURRENT_GRAPH.json'),getJson('/state/DOT_STATE.json'),getJson('/state/PENDING.json'),
+    getJson('/state/CARRY.json'),getJson('/state/WATERMARKS.json'),getJson('/coordination/PART3_GATE_MATRIX.json'),getText('/receipts/ledger.jsonl')
+  ]);
+  const ledger=ledgerText.trim().split(/\n+/).filter(Boolean).map(JSON.parse),last=ledger.at(-1);
+  if(current.last_durable_receipt!==last.id||dot.last_receipt!==last.id)throw new Error('RECEIPT_CROSSCHECK');
+  if(current.active_workstream?.phase!==dot.phase)throw new Error('PHASE_CROSSCHECK');
+  const ready=matrix.gates.filter(g=>g.status==='READY').map(g=>g.id);
+  const summary={
+    revision:current.revision,last_receipt:last.id,last_receipt_hash:last.hash,phase:dot.phase,next_gate:dot.next_gate,
+    pending_id:pending.items?.[0]?.id||null,pending_next_action:pending.items?.[0]?.next_action||null,
+    visible_frontend:current.pointers?.visible_frontend_current?.artifact_id||null,catalog_identity:current.catalog_identity,
+    carry_count:(carry.items||[]).length,watermark_count:Object.keys(watermarks.sources||{}).length,ready_gates:ready
+  };
+  const bytes=new TextEncoder().encode(JSON.stringify(summary));
+  const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(x=>x.toString(16).padStart(2,'0')).join('');
+  const state={ready:true,harness:'P3-03-BROWSER-HOP-V1',summary,truth_digest:hash,persistence:{localStorage:localStorage.length,sessionStorage:sessionStorage.length,cookie:document.cookie},source:'durable-http-only'};
+  window.__P3_HOP=Object.freeze(state);
+  document.getElementById('probe').textContent=JSON.stringify(state,null,2);
+  document.documentElement.dataset.p3Ready='true';
+})().catch(e=>{window.__P3_HOP={ready:false,error:String(e?.stack||e)};document.getElementById('probe').textContent=window.__P3_HOP.error;document.documentElement.dataset.p3Ready='error';console.error(e)});
+</script>
+</body></html>

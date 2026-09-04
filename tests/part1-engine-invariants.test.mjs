@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';
+const root=new URL('../',import.meta.url).pathname;const c={console,structuredClone,Date,Math,globalThis:null};c.globalThis=c;c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync(root+'shared/classes/v1/class-engine.js','utf8'),c);vm.runInContext(fs.readFileSync(root+'shared/student-world/v1/student-world.js','utf8'),c);
+const C=c.PrometeoClasses;
+const multi=C.create({id:'multi',topics:[{id:'t',exercises:[{id:'a',correctAnswer:['x','y'],answerMode:'set'},{id:'b',correctAnswer:'z'}]}]});multi.dispatch({type:'ANSWER',exerciseId:'a',answer:['y','x']});assert.equal(multi.getState().exercises.a.correct,true);
+const fn=C.create({id:'fn',topics:[{id:'t',exercises:[{id:'a',check:v=>v===42}]}]});assert.equal(fn.dispatch({type:'ANSWER',exerciseId:'a',answer:42}).exercises.a.correct,true);
+assert.throws(()=>C.create({id:'bad',topics:[{id:'t',exercises:[{id:'a'},{id:'a'}]}]}),/Duplicate exercise/);
+const locked=C.create({id:'locked',topics:[{id:'t',exercises:[{id:'a',correctAnswer:'x'},{id:'b',correctAnswer:'y'}]}]});assert.throws(()=>locked.dispatch({type:'POSTPONE',exerciseId:'b'}),/locked/);assert.throws(()=>locked.dispatch({type:'HINT',exerciseId:'b'}),/locked/);
+const W=c.PrometeoStudentWorld;assert.throws(()=>W.create({id:'cycle',nodes:[{id:'a',requires:['b']},{id:'b',requires:['a']}]}),/cycle/);assert.throws(()=>W.create({id:'dup',nodes:[{id:'a'},{id:'a'}]}),/Duplicate world node/);
+const world=W.create({id:'w',nodes:[{id:'a'},{id:'b',requires:['a']}]});assert.throws(()=>world.dispatch({type:'PROGRESS',nodeId:'b',progress:.5}),/locked/);assert.throws(()=>world.dispatch({type:'COMPLETE',nodeId:'b'}),/locked/);world.dispatch({type:'COMPLETE',nodeId:'a'});assert.equal(world.getState().status.b.state,'AVAILABLE');
+console.log(JSON.stringify({ok:true,tests:['class-function-check-survives-normalization','multi-answer-set','locked-class-actions-fail','world-cycle-rejected','world-duplicate-rejected','locked-world-progress-fails']},null,2));

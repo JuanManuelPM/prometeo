@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es" data-p3-ready="false">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="prometeo-harness" content="P3-01-HARNESS-V1">
+<title>Prometeo · P3-01 Browser Harness</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111820;font-family:system-ui,sans-serif}
+#lab-status{position:fixed;z-index:999999;top:8px;left:8px;max-width:min(620px,calc(100vw - 16px));padding:6px 9px;border-radius:8px;background:rgba(10,16,22,.88);color:#d9e3e8;font:12px/1.35 ui-monospace,monospace;pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+#prometeo-v53{display:block;width:100%;height:100%;border:0;background:#e8dece}
+</style>
+</head>
+<body>
+<div id="lab-status">P3-01 · loading V53 same-origin…</div>
+<iframe id="prometeo-v53" title="Prometeo V53 exact candidate frontend" src="../../navigator/index.html"></iframe>
+<script>
+(()=>{
+  'use strict';
+  const EXPECTED_BUILD='PROMETEO_V53_COMPLETE_EXAMPLE_ATLAS_20260901';
+  const EXPECTED_FRAME_SUFFIX='/navigator/index.html';
+  const state=window.__P3_HARNESS={
+    schema:'prometeo.p3-01-browser-harness/v1',
+    harnessId:'P3-01-HARNESS-V1',
+    expectedBuild:EXPECTED_BUILD,
+    ready:false,
+    sameOrigin:false,
+    navigatorBuild:null,
+    navigatorTitle:null,
+    frameURL:null,
+    bodyTextLength:0,
+    viewportPresent:false,
+    trackPresent:false,
+    errors:[]
+  };
+  const frame=document.getElementById('prometeo-v53');
+  const badge=document.getElementById('lab-status');
+  function inspect(){
+    try{
+      const w=frame.contentWindow,d=frame.contentDocument;
+      state.sameOrigin=!!(w&&d&&w.location.origin===location.origin);
+      state.frameURL=w?.location?.href||null;
+      state.navigatorBuild=d?.querySelector('meta[name="prometeo-build"]')?.content||null;
+      state.navigatorTitle=d?.title||null;
+      state.bodyTextLength=(d?.body?.innerText||'').trim().length;
+      state.viewportPresent=!!d?.querySelector('.viewport');
+      state.trackPresent=!!d?.querySelector('.track');
+      state.ready=Boolean(
+        state.sameOrigin &&
+        state.frameURL?.endsWith(EXPECTED_FRAME_SUFFIX) &&
+        state.navigatorBuild===EXPECTED_BUILD &&
+        state.navigatorTitle==='Prometeo · Navegador' &&
+        state.bodyTextLength>0 &&
+        state.viewportPresent &&
+        state.trackPresent
+      );
+      document.documentElement.dataset.p3Ready=String(state.ready);
+      badge.textContent=state.ready
+        ? `P3-01 READY · ${state.navigatorBuild} · same-origin`
+        : `P3-01 NOT READY · build=${state.navigatorBuild||'∅'} · sameOrigin=${state.sameOrigin}`;
+    }catch(err){
+      state.errors.push(String(err?.stack||err));
+      document.documentElement.dataset.p3Ready='false';
+      badge.textContent='P3-01 ERROR · '+String(err?.message||err);
+    }
+    return state.ready;
+  }
+  frame.addEventListener('load',()=>{inspect();setTimeout(inspect,150);},{once:false});
+  window.addEventListener('message',inspect);
+  window.__P3_INSPECT=inspect;
+  setTimeout(inspect,1200);
+})();
+</script>
+</body>
+</html>
