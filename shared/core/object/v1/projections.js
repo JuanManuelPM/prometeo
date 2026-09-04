@@ -54,10 +54,29 @@
     };
   }
 
+  function trackable(object){
+    const t=object?.capabilities?.trackable;if(!t)return null;
+    return {
+      objectId:object.id,
+      type:object.type,
+      title:object.title,
+      status:object.status,
+      trackerId:t.trackerId||object.id,
+      kind:t.kind||null,
+      quantity:Number(t.quantity)||0,
+      unit:t.unit||null,
+      goal:t.goal?Core.clone(t.goal):null,
+      context:Array.isArray(t.context)?Core.clone(t.context):[],
+      note:t.note||null,
+      timestamp:t.timestamp||object.capabilities?.temporal?.start||null,
+      date:object.capabilities?.temporal?.date||null
+    };
+  }
+
   function relations(object){return (object?.relations||[]).map(r=>({...Core.clone(r),sourceId:object.id}))}
 
   function project(objects,kind){
-    const fn={temporal,financial,actionable,relations}[kind];
+    const fn={temporal,financial,actionable,trackable,relations}[kind];
     if(!fn)throw new Error(`unknown projection: ${kind}`);
     return (objects||[]).flatMap(object=>{
       const value=fn(object);
@@ -66,5 +85,5 @@
     });
   }
 
-  global.PrometeoProjections=Object.freeze({temporal,financial,actionable,relations,project});
+  global.PrometeoProjections=Object.freeze({temporal,financial,actionable,trackable,relations,project});
 })(window);
