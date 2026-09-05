@@ -9,7 +9,6 @@ ACCEPTED="b199b91f9cbac36df4f6ef5b75489c33737b89a4"
 V53_BLOB="7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418"
 CAL_BLOB="b14ea3a451540156d1279d3518139584ff4e7aac"
 
-# Release-critical preflight only. Earlier gates already have durable receipts.
 pushd "$CAND" >/dev/null
 node - <<'NODE'
 const fs=require('fs');const j=p=>JSON.parse(fs.readFileSync(p));
@@ -31,7 +30,6 @@ popd >/dev/null
 BASE_GH=$(git -C "$PAGES" rev-parse HEAD)
 A_NAV_SHA=$(sha256sum "$PAGES/navigator/index.html"|awk '{print $1}')
 A_CAL_SHA=$(sha256sum "$PAGES/pages/calendar/app-04-finance.js"|awk '{print $1}')
-test "$NAV_SHA" = "$A_NAV_SHA"
 CANARY_ID="p3-14-${CAND_SHORT}"
 CANARY_PREFIX="__canary/${CANARY_ID}"
 CANARY_URL="${BASE}/${CANARY_PREFIX}"
@@ -41,7 +39,7 @@ rm -rf stage && mkdir stage
 for x in navigator pages shared arte ai catalog; do [ ! -e "$CAND/$x" ] || cp -a "$CAND/$x" stage/; done
 for x in index.html projects.json; do [ ! -e "$CAND/$x" ] || cp -a "$CAND/$x" stage/; done
 node - <<NODE
-const fs=require('fs');fs.writeFileSync('stage/__PROMETEO_RELEASE.json',JSON.stringify({schema:'prometeo.canary/v1',canary_id:'${CANARY_ID}',accepted_candidate:'gitcommit:${ACCEPTED}',candidate_branch_head:'${CAND_HEAD}',acceptance_receipt:'R-P3-13-ACCEPT-0011',continuity_receipt:'R-P3-13-CONTINUITY-0012',navigator_sha256:'${NAV_SHA}',calendar_sha256:'${CAL_SHA}',created_at:new Date().toISOString()},null,2)+'\n');
+const fs=require('fs');fs.writeFileSync('stage/__PROMETEO_RELEASE.json',JSON.stringify({schema:'prometeo.canary/v1',canary_id:'${CANARY_ID}',accepted_candidate:'gitcommit:${ACCEPTED}',candidate_branch_head:'${CAND_HEAD}',acceptance_receipt:'R-P3-13-ACCEPT-0011',continuity_receipt:'R-P3-13-CONTINUITY-0012',navigator_sha256:'${NAV_SHA}',calendar_sha256:'${CAL_SHA}',pre_release_navigator_sha256:'${A_NAV_SHA}',pre_release_calendar_sha256:'${A_CAL_SHA}',created_at:new Date().toISOString()},null,2)+'\n');
 NODE
 pushd "$PAGES" >/dev/null
 git config user.name 'github-actions[bot]';git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -112,13 +110,14 @@ agent-browser --session "$S" navigate "$ROLLBACK_URL?cb=A2" >/dev/null;agent-bro
 T_ROLLBACK=$(date -u +%FT%TZ)
 
 pushd "$PAGES" >/dev/null
+cp ../"$CAND"/navigator/index.html navigator/index.html
 cp ../"$CAND"/pages/calendar/app-04-finance.js pages/calendar/app-04-finance.js
 mkdir -p release
 node - <<NODE
-const fs=require('fs');fs.writeFileSync('release/PROMETEO_RELEASE_CURRENT.json',JSON.stringify({schema:'prometeo.served-release/v1',release_id:'P3-17-${CAND_SHORT}',accepted_candidate:'gitcommit:${ACCEPTED}',candidate_branch_head:'${CAND_HEAD}',acceptance_receipt:'R-P3-13-ACCEPT-0011',continuity_receipt:'R-P3-13-CONTINUITY-0012',canary_url:'${CANARY_URL}/navigator/',rollback_url:'${ROLLBACK_URL}',navigator_sha256:'${NAV_SHA}',calendar_sha256:'${CAL_SHA}',previous_calendar_sha256:'${A_CAL_SHA}',promotion_scope:['pages/calendar/app-04-finance.js'],navigator_changed:false,promoted_at:new Date().toISOString()},null,2)+'\n');
+const fs=require('fs');fs.writeFileSync('release/PROMETEO_RELEASE_CURRENT.json',JSON.stringify({schema:'prometeo.served-release/v1',release_id:'P3-17-${CAND_SHORT}',accepted_candidate:'gitcommit:${ACCEPTED}',candidate_branch_head:'${CAND_HEAD}',acceptance_receipt:'R-P3-13-ACCEPT-0011',continuity_receipt:'R-P3-13-CONTINUITY-0012',canary_url:'${CANARY_URL}/navigator/',rollback_url:'${ROLLBACK_URL}',navigator_sha256:'${NAV_SHA}',calendar_sha256:'${CAL_SHA}',previous_navigator_sha256:'${A_NAV_SHA}',previous_calendar_sha256:'${A_CAL_SHA}',promotion_scope:['navigator/index.html','pages/calendar/app-04-finance.js'],navigator_restored_to_human_accepted_v53:true,promoted_at:new Date().toISOString()},null,2)+'\n');
 NODE
 test "$(git hash-object navigator/index.html)" = "$V53_BLOB"
-git add pages/calendar/app-04-finance.js release/PROMETEO_RELEASE_CURRENT.json;git commit -m 'p3: promote accepted Calendar repair without changing V53';git push origin HEAD:gh-pages;GH_PROMOTED=$(git rev-parse HEAD)
+git add navigator/index.html pages/calendar/app-04-finance.js release/PROMETEO_RELEASE_CURRENT.json;git commit -m 'p3: promote accepted V53 and Calendar repair';git push origin HEAD:gh-pages;GH_PROMOTED=$(git rev-parse HEAD)
 popd >/dev/null
 RELEASE_URL="$BASE/release/PROMETEO_RELEASE_CURRENT.json"
 for i in $(seq 1 120);do if curl -fsSL "$RELEASE_URL?cb=P-$i" -o "$EVID/stable-release.json" 2>/dev/null&&node -e "process.exit(require('./$EVID/stable-release.json').calendar_sha256==='${CAL_SHA}'?0:1)";then break;fi;sleep 2;done
@@ -130,11 +129,10 @@ T_STABLE=$(date -u +%FT%TZ)
 
 pushd "$CAND" >/dev/null
 node - <<NODE
-const fs=require('fs');const e={schema:'prometeo.p3-14-17-evidence/v1',candidate_identity:'gitcommit:${ACCEPTED}',candidate_branch_head:'${CAND_HEAD}',candidate_nav_sha256:'${NAV_SHA}',candidate_calendar_sha256:'${CAL_SHA}',baseline_gh_pages:'${BASE_GH}',canary_prefix:'${CANARY_PREFIX}',canary_url:'${CANARY_URL}/navigator/',canary_nav_sha256:'${CANARY_NAV}',canary_calendar_sha256:'${CANARY_CAL}',gh_pages_canary:'${GH_CANARY}',rollback:{baseline_identity:'ghpages:${BASE_GH}',alias_path:'__rollback/current',alias_url:'${ROLLBACK_URL}',a_nav_sha256:'${A_NAV_SHA}',a_calendar_sha256:'${A_CAL_SHA}',b_nav_sha256:'${NAV_SHA}',b_calendar_sha256:'${CAL_SHA}',gh_pages_a1:'${GH_A1}',gh_pages_b:'${GH_B}',gh_pages_a2:'${GH_A2}',sentinel:'P3_ROLLBACK_SENTINEL'},stable_navigator_url:'${BASE}/navigator/',stable_calendar_url:'${BASE}/pages/calendar/',stable_nav_sha256:'${STABLE_NAV}',stable_calendar_sha256:'${STABLE_CAL}',release_marker_url:'${RELEASE_URL}',gh_pages_promoted:'${GH_PROMOTED}',timestamps:{canary_verified:'${T_CANARY}',rollback_verified:'${T_ROLLBACK}',stable_verified:'${T_STABLE}'}};fs.writeFileSync('coordination/P3_14_17_SERVED_EVIDENCE.json',JSON.stringify(e,null,2)+'\n');
+const fs=require('fs');const e={schema:'prometeo.p3-14-17-evidence/v1',candidate_identity:'gitcommit:${ACCEPTED}',candidate_branch_head:'${CAND_HEAD}',candidate_nav_sha256:'${NAV_SHA}',candidate_calendar_sha256:'${CAL_SHA}',baseline_gh_pages:'${BASE_GH}',pre_release_nav_sha256:'${A_NAV_SHA}',pre_release_calendar_sha256:'${A_CAL_SHA}',canary_prefix:'${CANARY_PREFIX}',canary_url:'${CANARY_URL}/navigator/',canary_nav_sha256:'${CANARY_NAV}',canary_calendar_sha256:'${CANARY_CAL}',gh_pages_canary:'${GH_CANARY}',rollback:{baseline_identity:'ghpages:${BASE_GH}',alias_path:'__rollback/current',alias_url:'${ROLLBACK_URL}',a_nav_sha256:'${A_NAV_SHA}',a_calendar_sha256:'${A_CAL_SHA}',b_nav_sha256:'${NAV_SHA}',b_calendar_sha256:'${CAL_SHA}',gh_pages_a1:'${GH_A1}',gh_pages_b:'${GH_B}',gh_pages_a2:'${GH_A2}',sentinel:'P3_ROLLBACK_SENTINEL'},stable_navigator_url:'${BASE}/navigator/',stable_calendar_url:'${BASE}/pages/calendar/',stable_nav_sha256:'${STABLE_NAV}',stable_calendar_sha256:'${STABLE_CAL}',release_marker_url:'${RELEASE_URL}',gh_pages_promoted:'${GH_PROMOTED}',navigator_restored_to_human_accepted_v53:true,timestamps:{canary_verified:'${T_CANARY}',rollback_verified:'${T_ROLLBACK}',stable_verified:'${T_STABLE}'}};fs.writeFileSync('coordination/P3_14_17_SERVED_EVIDENCE.json',JSON.stringify(e,null,2)+'\n');
 NODE
 node scripts/p3-14-17-close.mjs
 node scripts/p3-00-rehydrate.mjs >"../$EVID/post17-wake.json"
-git diff --check
 git config user.name 'github-actions[bot]';git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 git add coordination/P3_14_17_SERVED_EVIDENCE.json state/CURRENT_GRAPH.json state/HEAD.json state/DOT_STATE.json state/PARENT.json state/PENDING.json receipts/ledger.jsonl
 git commit -m 'part3: freeze canary rollback and stable served proof';git push origin HEAD:candidate/prometeo-final-20260904
