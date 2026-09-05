@@ -11,7 +11,7 @@ const TICON={
 };
 
 const TM=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-const TRACE_COUNT=30;
+const TRACE_COUNT=14;
 
 const TRACE_TRACKERS=[
   {id:'youtube',label:'YouTube',group:'Caídas',kind:'avoid',icon:TICON.youtube},
@@ -22,7 +22,8 @@ const TRACE_TRACKERS=[
   {id:'news',label:'Noticias',group:'Foco',kind:'positive',icon:TICON.news}
 ];
 
-const TRACE_KEY='prometeo-preview-habit-traces-v2';
+const TRACE_KEY='prometeo-preview-habit-traces-v3';
+const PREV_KEYS=['prometeo-preview-habit-traces-v2','prometeo-preview-habit-traces-v1'];
 const tfmt=n=>String(n).padStart(2,'0');
 const tiso=d=>`${d.getFullYear()}-${tfmt(d.getMonth()+1)}-${tfmt(d.getDate())}`;
 const tfrom=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
@@ -38,29 +39,40 @@ function traceSeed(){
   const now=new Date();
   const put=(id,off,v)=>{s[id][tiso(tadd(now,off))]=v};
 
-  for(let o=-29;o<=0;o++)put('youtube',o,'clear');
-  put('youtube',-18,'lapse');
-  put('youtube',-7,'crave');
+  for(let o=-13;o<=0;o++)put('youtube',o,'clear');
+  put('youtube',-9,'lapse');
+  put('youtube',-3,'crave');
 
-  for(let o=-29;o<=0;o++)put('weed',o,'clear');
-  put('weed',-12,'lapse');
-  put('weed',-4,'crave');
+  for(let o=-13;o<=0;o++)put('weed',o,'clear');
+  put('weed',-7,'lapse');
+  put('weed',-2,'crave');
 
-  for(let o=-29;o<=0;o++)put('smoking',o,'clear');
-  put('smoking',-20,'lapse');
-  put('smoking',-9,'crave');
-  put('smoking',-3,'lapse');
+  for(let o=-13;o<=0;o++)put('smoking',o,'clear');
+  put('smoking',-11,'lapse');
+  put('smoking',-5,'crave');
+  put('smoking',-1,'lapse');
 
-  [[-28,'good'],[-27,'good'],[-25,'bad'],[-23,'good'],[-22,'good'],[-19,'good'],[-17,'bad'],[-15,'good'],[-13,'good'],[-10,'good'],[-8,'bad'],[-6,'good'],[-4,'good'],[-2,'good'],[0,'good']]
+  [[-13,'good'],[-12,'good'],[-11,'bad'],[-10,'good'],[-8,'good'],[-7,'good'],[-5,'bad'],[-4,'good'],[-2,'good'],[0,'good']]
     .forEach(([o,v])=>put('food',o,v));
 
-  [-27,-23,-21,-17,-14,-10,-8,-5,-2,0].forEach(o=>put('study',o,'done'));
-  [-25,-20,-16,-12,-7,-3].forEach(o=>put('news',o,'done'));
+  [-12,-9,-7,-5,-2,0].forEach(o=>put('study',o,'done'));
+  [-11,-8,-4,-1].forEach(o=>put('news',o,'done'));
   return s;
 }
 
-let traceState;
-try{traceState=JSON.parse(localStorage.getItem(TRACE_KEY)||'null')||traceSeed()}catch{traceState=traceSeed()}
+function loadTraceState(){
+  try{
+    const current=JSON.parse(localStorage.getItem(TRACE_KEY)||'null');
+    if(current)return current;
+    for(const key of PREV_KEYS){
+      const prev=JSON.parse(localStorage.getItem(key)||'null');
+      if(prev){localStorage.setItem(TRACE_KEY,JSON.stringify(prev));return prev;}
+    }
+  }catch{}
+  return traceSeed();
+}
+
+let traceState=loadTraceState();
 let traceOffset=0;
 let traceSelected={trackerId:null,date:null};
 
@@ -73,7 +85,7 @@ const traceDateAt=i=>tiso(tadd(traceStart(),i-1));
 
 function traceSet(id,date,status){
   traceState[id]=traceState[id]||{};
-  if(status==='unknown') delete traceState[id][date];
+  if(status==='unknown')delete traceState[id][date];
   else traceState[id][date]=status;
   traceSave();
 }
@@ -107,13 +119,12 @@ function traceCurrentStreak(t){
 function traceRangeLabel(){
   const a=traceStart(),b=traceEnd();
   const left=`${a.getDate()} ${TM[a.getMonth()].slice(0,3)}`;
-  const right=`${b.getDate()} ${TM[b.getMonth()].slice(0,3)}`;
+  const right=traceOffset===0?'HOY':`${b.getDate()} ${TM[b.getMonth()].slice(0,3)}`;
   return `${left} — ${right}`;
 }
 
 function traceGuides(host,labels=false){
-  const slots=traceOffset===0?[1,8,15,22]:[1,8,15,22,30];
-  slots.forEach(i=>{
+  [1,4,7,10,14].forEach(i=>{
     const x=tcenter(i);
     const guide=document.createElement('i');
     guide.className='trace-guide';
@@ -124,23 +135,15 @@ function traceGuides(host,labels=false){
       const label=document.createElement('span');
       label.className='trace-tick';
       label.style.left=x+'%';
-      label.textContent=`${d.getDate()} ${TM[d.getMonth()].slice(0,3)}`;
+      label.textContent=i===14&&traceOffset===0?'HOY':`${d.getDate()} ${TM[d.getMonth()].slice(0,3)}`;
       host.append(label);
     }
   });
 
   if(traceOffset===0){
-    const line=document.createElement('i');
-    line.className='trace-today';
-    line.style.left='100%';
-    host.append(line);
-    if(labels){
-      const tag=document.createElement('span');
-      tag.className='trace-today-tag';
-      tag.style.left='100%';
-      tag.textContent='HOY';
-      host.append(tag);
-    }
+    const edge=document.createElement('i');
+    edge.className='trace-today-edge';
+    host.append(edge);
   }
 }
 
@@ -151,74 +154,41 @@ function renderTraceAxis(){
   traceGuides(traceAxis,true);
 }
 
-function traceGroup(name,icon){
+function traceGroup(name){
   const row=document.createElement('div');
   row.className='trace-group';
-  row.innerHTML=`<div class="trace-group-label"><img src="${icon}" alt=""><span>${name}</span></div><div class="trace-group-field"></div>`;
+  row.innerHTML=`<div class="trace-group-label"><span>${name}</span></div><div class="trace-group-field"></div>`;
   return row;
 }
 
+function addDayState(track,i,className){
+  const mark=document.createElement('i');
+  mark.className='trace-day-state '+className;
+  mark.style.left=tleft(i)+'%';
+  mark.style.width=twidth()+'%';
+  track.append(mark);
+}
+
 function addAvoidMarks(track,t){
-  let runStart=null;
-
-  const closeRun=end=>{
-    if(runStart===null||end<runStart)return;
-    const seg=document.createElement('i');
-    seg.className='trace-good';
-    seg.style.left=tleft(runStart)+'%';
-    seg.style.width=((end-runStart+1)/TRACE_COUNT*100)+'%';
-    track.append(seg);
-    runStart=null;
-  };
-
   for(let i=1;i<=TRACE_COUNT;i++){
     const s=traceStatus(t.id,traceDateAt(i));
-    if(s==='clear'||s==='crave'){
-      if(runStart===null)runStart=i;
-    }else closeRun(i-1);
-
-    if(s==='crave'){
-      const dot=document.createElement('i');
-      dot.className='trace-crave';
-      dot.style.left=tcenter(i)+'%';
-      track.append(dot);
-    }
-
-    if(s==='lapse'){
-      const lapse=document.createElement('i');
-      lapse.className='trace-lapse';
-      lapse.style.left=tleft(i)+'%';
-      lapse.style.width=twidth()+'%';
-      lapse.innerHTML=`<img src="${t.icon}" alt="">`;
-      track.append(lapse);
-    }
+    if(s==='clear')addDayState(track,i,'is-clear');
+    else if(s==='crave')addDayState(track,i,'is-crave');
+    else if(s==='lapse')addDayState(track,i,'is-lapse');
   }
-  closeRun(TRACE_COUNT);
 }
 
 function addFoodMarks(track,t){
   for(let i=1;i<=TRACE_COUNT;i++){
     const s=traceStatus(t.id,traceDateAt(i));
-    if(s==='good'||s==='bad'){
-      const mark=document.createElement('i');
-      mark.className=s==='good'?'trace-food-good':'trace-food-bad';
-      mark.style.left=tleft(i)+'%';
-      mark.style.width=twidth()+'%';
-      if(s==='bad')mark.innerHTML=`<img src="${t.alt}" alt="">`;
-      track.append(mark);
-    }
+    if(s==='good')addDayState(track,i,'is-food-good');
+    else if(s==='bad')addDayState(track,i,'is-food-bad');
   }
 }
 
 function addPositiveMarks(track,t){
   for(let i=1;i<=TRACE_COUNT;i++){
-    if(traceStatus(t.id,traceDateAt(i))==='done'){
-      const mark=document.createElement('i');
-      mark.className='trace-done';
-      mark.style.left=tleft(i)+'%';
-      mark.style.width=twidth()+'%';
-      track.append(mark);
-    }
+    if(traceStatus(t.id,traceDateAt(i))==='done')addDayState(track,i,'is-done');
   }
 }
 
@@ -257,8 +227,7 @@ function renderTraceRows(){
 
   TRACE_TRACKERS.forEach(t=>{
     if(t.group!==lastGroup){
-      const groupIcon=t.group==='Caídas'?TICON.fall:t.group==='Cuerpo'?TICON.carrot:TICON.books;
-      traceRows.append(traceGroup(t.group,groupIcon));
+      traceRows.append(traceGroup(t.group));
       lastGroup=t.group;
     }
 
@@ -266,7 +235,7 @@ function renderTraceRows(){
     let metaText='',score='';
     if(t.kind==='avoid'){
       metaText=`${meta.lapse} caídas · ${meta.crave} ganas`;
-      score=`<img src="${TICON.fire}" alt=""><span>${traceCurrentStreak(t)}</span>`;
+      score=`<span>${traceCurrentStreak(t)} d</span>`;
     }else if(t.kind==='food'){
       metaText=`${meta.good} bien · ${meta.bad} mal`;
       score=`<span>${meta.good}/${meta.good+meta.bad||0}</span>`;
