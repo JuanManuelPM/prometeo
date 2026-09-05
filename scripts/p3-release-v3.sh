@@ -7,8 +7,9 @@ mkdir -p "$EVID"
 BASE="https://juanmanuelpm.github.io/prometeo"
 ACCEPTED="b199b91f9cbac36df4f6ef5b75489c33737b89a4"
 V53_BLOB="7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418"
+CAL_BLOB="b14ea3a451540156d1279d3518139584ff4e7aac"
 
-# Release preflight: only release-critical invariants, not historical gate replay.
+# Release-critical preflight only. Earlier gates already have durable receipts.
 pushd "$CAND" >/dev/null
 node - <<'NODE'
 const fs=require('fs');const j=p=>JSON.parse(fs.readFileSync(p));
@@ -19,10 +20,8 @@ if(h.artifact_id!=='p3-final-candidate'||d.last_receipt!=='R-P3-13-CONTINUITY-00
 const ledger=fs.readFileSync('receipts/ledger.jsonl','utf8').trim().split(/\n+/).map(JSON.parse);
 if(ledger.at(-1)?.id!=='R-P3-13-CONTINUITY-0012')throw new Error('ledger frontier mismatch');
 NODE
-node scripts/p3-00-rehydrate.mjs >"../$EVID/preflight-wake.json"
-git diff --exit-code "$ACCEPTED"..HEAD -- navigator/index.html pages/calendar/app-04-finance.js
 test "$(git hash-object navigator/index.html)" = "$V53_BLOB"
-git diff --check
+test "$(git hash-object pages/calendar/app-04-finance.js)" = "$CAL_BLOB"
 CAND_HEAD=$(git rev-parse HEAD)
 CAND_SHORT=${CAND_HEAD:0:12}
 NAV_SHA=$(sha256sum navigator/index.html|awk '{print $1}')
