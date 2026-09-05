@@ -35,7 +35,10 @@ jobs:
           node --check shared/prometeo-shell/v1/voice.js
           node --check shared/prometeo-shell/v1/prometeo-shell.js
           node --check shared/prometeo-shell/v1/prometeo-voice-worker.js
+          node --check shared/prometeo-shell/v2/sync.js
+          node --check shared/prometeo-shell/v2/prometeo-shell.js
           test -s shared/prometeo-shell/v1/shell.css
+          test -s shared/prometeo-shell/v2/shell.css
 
       - name: Publish shell and inject every Pages HTML
         run: |
@@ -50,9 +53,11 @@ jobs:
 
           python - <<'PY'
           from pathlib import Path
+          import re
 
           root = Path('/tmp/prometeo-pages')
-          marker = '<script type="module" src="/prometeo/shared/prometeo-shell/v1/prometeo-shell.js?v=1" data-prometeo-shell></script>'
+          marker = '<script type="module" src="/prometeo/shared/prometeo-shell/v2/prometeo-shell.js?v=2" data-prometeo-shell></script>'
+          existing = re.compile(r'<script\b[^>]*data-prometeo-shell[^>]*>\s*</script>', re.I)
           skip_prefixes = (
               'shared/prometeo-shell/',
               'pages/voice/',
@@ -72,27 +77,33 @@ jobs:
               except UnicodeDecodeError:
                   skipped += 1
                   continue
-              if 'data-prometeo-shell' in text:
+
+              if marker in text:
                   already += 1
                   continue
-              lower = text.lower()
-              idx = lower.rfind('</body>')
-              if idx >= 0:
-                  text = text[:idx] + marker + '\n' + text[idx:]
+
+              if existing.search(text):
+                  text = existing.sub(marker, text)
               else:
-                  text = text + '\n' + marker + '\n'
+                  lower = text.lower()
+                  idx = lower.rfind('</body>')
+                  if idx >= 0:
+                      text = text[:idx] + marker + '\n' + text[idx:]
+                  else:
+                      text = text + '\n' + marker + '\n'
+
               page.write_text(text, encoding='utf-8')
               changed += 1
 
-          print(f'Prometeo shell injection: changed={changed} already={already} skipped={skipped}')
+          print(f'Prometeo shell v2 injection: changed={changed} already={already} skipped={skipped}')
           PY
 
           cd /tmp/prometeo-pages
           git add -A
           if git diff --cached --quiet; then
-            echo 'Global shell already current on gh-pages.'
+            echo 'Global shell v2 already current on gh-pages.'
             exit 0
           fi
-          git commit -m 'shell: publish global voice notes across Pages'
+          git commit -m 'shell: publish global capture + patent v2'
           git pull --rebase origin gh-pages
           git push origin HEAD:gh-pages
