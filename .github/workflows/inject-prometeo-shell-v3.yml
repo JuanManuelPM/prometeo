@@ -1,0 +1,67 @@
+name: Inject Prometeo Global Shell V3
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'shared/prometeo-shell/v3/**'
+      - '.github/workflows/inject-prometeo-shell-v3.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: prometeo-shared-pages
+  cancel-in-progress: false
+jobs:
+  inject:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Validate V3 boot
+        run: node --check shared/prometeo-shell/v3/prometeo-shell.js
+      - name: Publish V3 and replace shell marker on Pages
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin gh-pages
+          git worktree add /tmp/prometeo-pages origin/gh-pages
+          mkdir -p /tmp/prometeo-pages/shared/prometeo-shell/v3
+          rsync -a --delete shared/prometeo-shell/v3/ /tmp/prometeo-pages/shared/prometeo-shell/v3/
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          root = Path('/tmp/prometeo-pages')
+          marker = '<script type="module" src="/prometeo/shared/prometeo-shell/v3/prometeo-shell.js?v=3" data-prometeo-shell></script>'
+          skip_prefixes = ('shared/prometeo-shell/', 'pages/voice/', 'pages/voice2/')
+          changed = 0
+          for page in root.rglob('*.html'):
+              rel = page.relative_to(root).as_posix()
+              if rel.startswith(skip_prefixes):
+                  continue
+              try:
+                  text = page.read_text(encoding='utf-8')
+              except UnicodeDecodeError:
+                  continue
+              original = text
+              # Replace any older Prometeo shell script carrying the canonical marker.
+              text = re.sub(r'<script[^>]*data-prometeo-shell[^>]*></script>', marker, text, flags=re.I)
+              if 'data-prometeo-shell' not in text:
+                  idx = text.lower().rfind('</body>')
+                  text = text[:idx] + marker + '\n' + text[idx:] if idx >= 0 else text + '\n' + marker + '\n'
+              if text != original:
+                  page.write_text(text, encoding='utf-8')
+                  changed += 1
+          print(f'Prometeo V3 shell pages changed={changed}')
+          PY
+          cd /tmp/prometeo-pages
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'V3 already current.'
+            exit 0
+          fi
+          git commit -m 'shell: publish default-on Prometeo Capture v3'
+          git pull --rebase origin gh-pages
+          git push origin HEAD:gh-pages
