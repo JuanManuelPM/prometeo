@@ -11,6 +11,7 @@ const TICON={
 };
 
 const TM=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const TRACE_COUNT=30;
 
 const TRACE_TRACKERS=[
   {id:'youtube',label:'YouTube',group:'Caídas',kind:'avoid',icon:TICON.youtube},
@@ -21,55 +22,54 @@ const TRACE_TRACKERS=[
   {id:'news',label:'Noticias',group:'Foco',kind:'positive',icon:TICON.news}
 ];
 
-const TRACE_KEY='prometeo-preview-habit-traces-v1';
+const TRACE_KEY='prometeo-preview-habit-traces-v2';
 const tfmt=n=>String(n).padStart(2,'0');
 const tiso=d=>`${d.getFullYear()}-${tfmt(d.getMonth()+1)}-${tfmt(d.getDate())}`;
 const tfrom=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
 const tadd=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
-const tdays=d=>new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
-const tdate=(cursor,day)=>tiso(new Date(cursor.getFullYear(),cursor.getMonth(),day));
-const tcenter=(day,count)=>((day-.5)/count)*100;
-const tleft=(day,count)=>((day-1)/count)*100;
-const twidth=(n,count)=>(n/count)*100;
+const tcenter=i=>((i-.5)/TRACE_COUNT)*100;
+const tleft=i=>((i-1)/TRACE_COUNT)*100;
+const twidth=()=>100/TRACE_COUNT;
 const thuman=s=>{const d=tfrom(s);return `${d.getDate()} ${TM[d.getMonth()].slice(0,3)}`};
+const tdayDiff=(a,b)=>Math.round((Date.UTC(b.getFullYear(),b.getMonth(),b.getDate())-Date.UTC(a.getFullYear(),a.getMonth(),a.getDate()))/86400000);
 
 function traceSeed(){
   const s={};TRACE_TRACKERS.forEach(t=>s[t.id]={});
-  const cur=new Date(2026,8,1);
-  const put=(id,day,v)=>{if(day>=1&&day<=tdays(cur))s[id][tdate(cur,day)]=v};
+  const now=new Date();
+  const put=(id,off,v)=>{s[id][tiso(tadd(now,off))]=v};
 
-  [1,2,3,4,5,6,7,8,9].forEach(d=>put('youtube',d,'clear'));
-  put('youtube',10,'lapse');
-  [11,12,13,14,15,16].forEach(d=>put('youtube',d,'clear'));
-  put('youtube',17,'crave');
-  [18,19,20,21].forEach(d=>put('youtube',d,'clear'));
+  for(let o=-29;o<=0;o++)put('youtube',o,'clear');
+  put('youtube',-18,'lapse');
+  put('youtube',-7,'crave');
 
-  [1,2,3,4,5,6,7,8,9,10,11].forEach(d=>put('weed',d,'clear'));
-  put('weed',12,'lapse');
-  [13,14,15,16,17,18,19,20,21].forEach(d=>put('weed',d,'clear'));
+  for(let o=-29;o<=0;o++)put('weed',o,'clear');
+  put('weed',-12,'lapse');
+  put('weed',-4,'crave');
 
-  [1,2,3].forEach(d=>put('smoking',d,'clear'));
-  put('smoking',4,'lapse');
-  [5,6,7,8,9].forEach(d=>put('smoking',d,'clear'));
-  put('smoking',10,'crave');
-  [11,12,13,14].forEach(d=>put('smoking',d,'clear'));
+  for(let o=-29;o<=0;o++)put('smoking',o,'clear');
+  put('smoking',-20,'lapse');
+  put('smoking',-9,'crave');
+  put('smoking',-3,'lapse');
 
-  [[1,'good'],[2,'good'],[3,'good'],[4,'bad'],[5,'good'],[7,'good'],[8,'good'],[9,'bad'],[11,'good'],[12,'good'],[14,'good'],[15,'good'],[16,'bad'],[18,'good']]
-    .forEach(([d,v])=>put('food',d,v));
+  [[-28,'good'],[-27,'good'],[-25,'bad'],[-23,'good'],[-22,'good'],[-19,'good'],[-17,'bad'],[-15,'good'],[-13,'good'],[-10,'good'],[-8,'bad'],[-6,'good'],[-4,'good'],[-2,'good'],[0,'good']]
+    .forEach(([o,v])=>put('food',o,v));
 
-  [2,5,6,9,12,13,17,20].forEach(d=>put('study',d,'done'));
-  [3,8,11,15,19].forEach(d=>put('news',d,'done'));
+  [-27,-23,-21,-17,-14,-10,-8,-5,-2,0].forEach(o=>put('study',o,'done'));
+  [-25,-20,-16,-12,-7,-3].forEach(o=>put('news',o,'done'));
   return s;
 }
 
 let traceState;
 try{traceState=JSON.parse(localStorage.getItem(TRACE_KEY)||'null')||traceSeed()}catch{traceState=traceSeed()}
-let traceCursor=new Date(2026,8,1);
+let traceOffset=0;
 let traceSelected={trackerId:null,date:null};
 
 const traceSave=()=>localStorage.setItem(TRACE_KEY,JSON.stringify(traceState));
 const traceStatus=(id,date)=>traceState[id]?.[date]||'unknown';
 const traceTracker=id=>TRACE_TRACKERS.find(t=>t.id===id);
+const traceEnd=()=>tadd(new Date(),-(traceOffset*TRACE_COUNT));
+const traceStart=()=>tadd(traceEnd(),-(TRACE_COUNT-1));
+const traceDateAt=i=>tiso(tadd(traceStart(),i-1));
 
 function traceSet(id,date,status){
   traceState[id]=traceState[id]||{};
@@ -78,10 +78,10 @@ function traceSet(id,date,status){
   traceSave();
 }
 
-function traceMonthMeta(t){
-  const count=tdays(traceCursor),m={good:0,lapse:0,crave:0,done:0,bad:0,unknown:0};
-  for(let day=1;day<=count;day++){
-    const s=traceStatus(t.id,tdate(traceCursor,day));
+function traceWindowMeta(t){
+  const m={good:0,lapse:0,crave:0,done:0,bad:0,unknown:0};
+  for(let i=1;i<=TRACE_COUNT;i++){
+    const s=traceStatus(t.id,traceDateAt(i));
     if(s==='clear'||s==='good')m.good++;
     else if(s==='lapse')m.lapse++;
     else if(s==='crave')m.crave++;
@@ -97,40 +97,47 @@ function traceCurrentStreak(t){
   let n=0;
   const now=new Date();
   for(let i=0;i<120;i++){
-    const d=tiso(tadd(now,-i));
-    if(traceStatus(t.id,d)==='clear')n++;
+    const s=traceStatus(t.id,tiso(tadd(now,-i)));
+    if(s==='clear'||s==='crave')n++;
     else break;
   }
   return n;
 }
 
-function traceGuides(host,count,labels=false){
-  [1,8,15,22,29].filter(d=>d<=count).forEach(day=>{
-    const x=tcenter(day,count);
+function traceRangeLabel(){
+  const a=traceStart(),b=traceEnd();
+  const left=`${a.getDate()} ${TM[a.getMonth()].slice(0,3)}`;
+  const right=`${b.getDate()} ${TM[b.getMonth()].slice(0,3)}`;
+  return `${left} — ${right}`;
+}
+
+function traceGuides(host,labels=false){
+  const slots=traceOffset===0?[1,8,15,22]:[1,8,15,22,30];
+  slots.forEach(i=>{
+    const x=tcenter(i);
     const guide=document.createElement('i');
     guide.className='trace-guide';
     guide.style.left=x+'%';
     host.append(guide);
     if(labels){
+      const d=tfrom(traceDateAt(i));
       const label=document.createElement('span');
       label.className='trace-tick';
       label.style.left=x+'%';
-      label.textContent=day;
+      label.textContent=`${d.getDate()} ${TM[d.getMonth()].slice(0,3)}`;
       host.append(label);
     }
   });
 
-  const now=new Date();
-  if(now.getFullYear()===traceCursor.getFullYear()&&now.getMonth()===traceCursor.getMonth()){
-    const x=tcenter(now.getDate(),count);
+  if(traceOffset===0){
     const line=document.createElement('i');
     line.className='trace-today';
-    line.style.left=x+'%';
+    line.style.left='100%';
     host.append(line);
     if(labels){
       const tag=document.createElement('span');
       tag.className='trace-today-tag';
-      tag.style.left=x+'%';
+      tag.style.left='100%';
       tag.textContent='HOY';
       host.append(tag);
     }
@@ -138,9 +145,10 @@ function traceGuides(host,count,labels=false){
 }
 
 function renderTraceAxis(){
-  traceMonth.textContent=`${TM[traceCursor.getMonth()]} ${traceCursor.getFullYear()}`;
+  traceMonth.textContent=traceRangeLabel();
+  traceNext.disabled=traceOffset===0;
   traceAxis.innerHTML='';
-  traceGuides(traceAxis,tdays(traceCursor),true);
+  traceGuides(traceAxis,true);
 }
 
 function traceGroup(name,icon){
@@ -150,78 +158,78 @@ function traceGroup(name,icon){
   return row;
 }
 
-function addAvoidMarks(track,t,count){
+function addAvoidMarks(track,t){
   let runStart=null;
 
   const closeRun=end=>{
     if(runStart===null||end<runStart)return;
-    const n=end-runStart+1;
     const seg=document.createElement('i');
-    seg.className='trace-good '+(n===1?'single':'start end');
-    seg.style.left=tleft(runStart,count)+'%';
-    seg.style.width=twidth(n,count)+'%';
+    seg.className='trace-good';
+    seg.style.left=tleft(runStart)+'%';
+    seg.style.width=((end-runStart+1)/TRACE_COUNT*100)+'%';
     track.append(seg);
     runStart=null;
   };
 
-  for(let day=1;day<=count;day++){
-    const s=traceStatus(t.id,tdate(traceCursor,day));
-
+  for(let i=1;i<=TRACE_COUNT;i++){
+    const s=traceStatus(t.id,traceDateAt(i));
     if(s==='clear'||s==='crave'){
-      if(runStart===null)runStart=day;
-    }else{
-      closeRun(day-1);
-    }
+      if(runStart===null)runStart=i;
+    }else closeRun(i-1);
 
     if(s==='crave'){
       const dot=document.createElement('i');
       dot.className='trace-crave';
-      dot.style.left=tcenter(day,count)+'%';
+      dot.style.left=tcenter(i)+'%';
       track.append(dot);
     }
 
     if(s==='lapse'){
       const lapse=document.createElement('i');
       lapse.className='trace-lapse';
-      lapse.style.left=tcenter(day,count)+'%';
+      lapse.style.left=tleft(i)+'%';
+      lapse.style.width=twidth()+'%';
       lapse.innerHTML=`<img src="${t.icon}" alt="">`;
       track.append(lapse);
     }
   }
-  closeRun(count);
+  closeRun(TRACE_COUNT);
 }
 
-function addFoodMarks(track,t,count){
-  for(let day=1;day<=count;day++){
-    const s=traceStatus(t.id,tdate(traceCursor,day));
+function addFoodMarks(track,t){
+  for(let i=1;i<=TRACE_COUNT;i++){
+    const s=traceStatus(t.id,traceDateAt(i));
     if(s==='good'||s==='bad'){
       const mark=document.createElement('i');
       mark.className=s==='good'?'trace-food-good':'trace-food-bad';
-      mark.style.left=tcenter(day,count)+'%';
+      mark.style.left=tleft(i)+'%';
+      mark.style.width=twidth()+'%';
+      if(s==='bad')mark.innerHTML=`<img src="${t.alt}" alt="">`;
       track.append(mark);
     }
   }
 }
 
-function addPositiveMarks(track,t,count){
-  for(let day=1;day<=count;day++){
-    if(traceStatus(t.id,tdate(traceCursor,day))==='done'){
+function addPositiveMarks(track,t){
+  for(let i=1;i<=TRACE_COUNT;i++){
+    if(traceStatus(t.id,traceDateAt(i))==='done'){
       const mark=document.createElement('i');
       mark.className='trace-done';
-      mark.style.left=tcenter(day,count)+'%';
+      mark.style.left=tleft(i)+'%';
+      mark.style.width=twidth()+'%';
       track.append(mark);
     }
   }
 }
 
-function addTraceHits(track,t,count){
-  for(let day=1;day<=count;day++){
-    const date=tdate(traceCursor,day);
+function addTraceHits(track,t){
+  for(let i=1;i<=TRACE_COUNT;i++){
+    const date=traceDateAt(i);
     const hit=document.createElement('button');
     hit.type='button';
     hit.className='trace-hit';
-    hit.style.left=tleft(day,count)+'%';
-    hit.style.width=twidth(1,count)+'%';
+    hit.style.left=tleft(i)+'%';
+    hit.style.width=twidth()+'%';
     hit.setAttribute('aria-label',`${t.label} · ${thuman(date)}`);
     hit.onclick=()=>{
       traceSelected={trackerId:t.id,date};
@@ -232,12 +240,12 @@ function addTraceHits(track,t,count){
   }
 
   if(traceSelected.trackerId===t.id&&traceSelected.date){
-    const d=tfrom(traceSelected.date);
-    if(d.getFullYear()===traceCursor.getFullYear()&&d.getMonth()===traceCursor.getMonth()){
+    const idx=tdayDiff(traceStart(),tfrom(traceSelected.date))+1;
+    if(idx>=1&&idx<=TRACE_COUNT){
       const sel=document.createElement('i');
       sel.className='trace-selection';
-      sel.style.left=tleft(d.getDate(),count)+'%';
-      sel.style.width=twidth(1,count)+'%';
+      sel.style.left=tleft(idx)+'%';
+      sel.style.width=twidth()+'%';
       track.append(sel);
     }
   }
@@ -245,7 +253,6 @@ function addTraceHits(track,t,count){
 
 function renderTraceRows(){
   traceRows.innerHTML='';
-  const count=tdays(traceCursor);
   let lastGroup=null;
 
   TRACE_TRACKERS.forEach(t=>{
@@ -255,7 +262,7 @@ function renderTraceRows(){
       lastGroup=t.group;
     }
 
-    const meta=traceMonthMeta(t);
+    const meta=traceWindowMeta(t);
     let metaText='',score='';
     if(t.kind==='avoid'){
       metaText=`${meta.lapse} caídas · ${meta.crave} ganas`;
@@ -284,11 +291,11 @@ function renderTraceRows(){
 
     const track=document.createElement('div');
     track.className='trace-track';
-    traceGuides(track,count,false);
-    if(t.kind==='avoid')addAvoidMarks(track,t,count);
-    else if(t.kind==='food')addFoodMarks(track,t,count);
-    else addPositiveMarks(track,t,count);
-    addTraceHits(track,t,count);
+    traceGuides(track,false);
+    if(t.kind==='avoid')addAvoidMarks(track,t);
+    else if(t.kind==='food')addFoodMarks(track,t);
+    else addPositiveMarks(track,t);
+    addTraceHits(track,t);
 
     row.append(label,track);
     traceRows.append(row);
@@ -337,14 +344,15 @@ function renderTraceEditor(){
 }
 
 tracePrev.onclick=()=>{
-  traceCursor=new Date(traceCursor.getFullYear(),traceCursor.getMonth()-1,1);
+  traceOffset++;
   traceSelected={trackerId:null,date:null};
   renderTraceAxis();
   renderTraceRows();
   renderTraceEditor();
 };
 traceNext.onclick=()=>{
-  traceCursor=new Date(traceCursor.getFullYear(),traceCursor.getMonth()+1,1);
+  if(traceOffset===0)return;
+  traceOffset--;
   traceSelected={trackerId:null,date:null};
   renderTraceAxis();
   renderTraceRows();
