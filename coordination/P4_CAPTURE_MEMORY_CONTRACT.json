@@ -1,0 +1,122 @@
+{
+  "schema": "prometeo.capture-memory-contract/v1",
+  "status": "FROZEN_PRE_EXECUTION",
+  "purpose": "Integrate private Capture memory with Context Foundry without creating a second authority system.",
+  "principles": [
+    "RAW CAPTURE STORAGE != CONTEXT PARTICIPATION",
+    "RECENT TEN != DELETION WINDOW",
+    "ROLLING SUMMARY IS DERIVED_EVIDENCE",
+    "SUMMARY NEVER SILENTLY BECOMES HUMAN_ACCEPTED",
+    "PRIVACY INHERITS FROM STRONGEST SOURCE",
+    "COMPACTION MUST PRESERVE SOURCE IDS AND REVISIONS",
+    "WATERMARK ADVANCES ONLY AFTER DURABLE SUMMARY WRITE",
+    "OLD RAW MATERIAL REMAINS REOPENABLE SUBJECT TO RETENTION/PRIVACY",
+    "PATENT FREEZES A MEMORY SNAPSHOT; LATER MEMORY CHANGES DO NOT MUTATE IT"
+  ],
+  "layers": {
+    "raw_capture_store": {
+      "owner": "private Capture transport/local store",
+      "canonical_for": ["raw audio reference", "capture metadata", "transcript revision history", "tombstones"],
+      "privacy_default": "LOCAL",
+      "authority_default": "RAW_UNCURATED"
+    },
+    "context_foundry_projection": {
+      "owner": "shared/context-foundry/v2",
+      "objects": ["prometeo.raw-record/v1", "Note Atoms", "Context selection/consumption receipts"],
+      "rule": "Only selected context participates. Explicit IDs do not bypass privacy."
+    },
+    "page_memory_view": {
+      "owner": "Capture adapter materialized view",
+      "not_authority_for": ["Current Graph", "Human Accepted", "Served", "product source"],
+      "fields": ["recent_exact", "rolling_summary", "covered_revisions", "watermark", "negative_knowledge", "open_questions"]
+    },
+    "hot_warm_cold_books": {
+      "owner": "Prometeo Context Foundry context books",
+      "rule": "Books are relevance/selection tiers and pointers, not a substitute for the private raw Capture store. P4 may add pointers to active Capture memory sources; it must not dump private literals into GitHub HOT/WARM/COLD files."
+    }
+  },
+  "capture_revision_identity": {
+    "key": ["capture_id", "transcript_revision"],
+    "digest_required_for_export": true,
+    "mutable_latest_pointer_allowed": true,
+    "historical_revision_immutable": true
+  },
+  "recent_exact": {
+    "size": 10,
+    "scope_key": ["workspace_id", "semantic_page_id"],
+    "ordering": ["capture_created_at ASC within eligibility set", "revision identity for same capture"],
+    "stores": "exact current eligible transcript revisions, not summaries",
+    "eligibility": {
+      "include": ["TRANSCRIPT_READY", "EDITED", "CONFIRMED"],
+      "exclude_by_default": ["ERROR_WITHOUT_TEXT", "ARCHIVED_PRIVACY_ERASURE", "SUPERSEDED_REVISION"],
+      "unconfirmed_policy": "May remain recent literal context but must be labeled UNCONFIRMED_TRANSCRIPT."
+    }
+  },
+  "rolling_summary": {
+    "schema": "prometeo.capture-rolling-summary/v1",
+    "authority": "DERIVED_EVIDENCE",
+    "privacy": "strongest covered source privacy unless valid declassification exists",
+    "required_fields": [
+      "summary_revision",
+      "text",
+      "source_revision_refs",
+      "source_digests",
+      "covered_through_watermark",
+      "previous_summary_digest",
+      "negative_knowledge",
+      "contradictions",
+      "open_questions",
+      "created_at"
+    ],
+    "forbidden": [
+      "claiming HUMAN_ACCEPTED by default",
+      "dropping unresolved contradiction because it is inconvenient",
+      "covering a source revision without recording its identity",
+      "weakening privacy without a trusted export/declassification receipt"
+    ]
+  },
+  "compaction": {
+    "trigger": "An eleventh eligible literal exists for the same semantic page/context, or an accepted Work Item explicitly requests metabolism.",
+    "transaction": [
+      "Read current recent_exact, rolling_summary and watermark under revision/CAS guard.",
+      "Choose the oldest eligible literal not already covered.",
+      "Build a new rolling summary that includes that source revision and prior summary lineage.",
+      "Persist summary revision and covered source set.",
+      "Advance watermark only if the summary write succeeds and source set matches.",
+      "Recompute recent_exact so it contains the newest ten eligible literals.",
+      "Emit a compaction evidence record."
+    ],
+    "idempotence": "A covered capture revision cannot be summarized twice into the same lineage branch.",
+    "failure_rule": "If any write fails, the previous watermark/recent window remains authoritative. Never advance watermark first."
+  },
+  "work_item_metabolism": {
+    "accepted_or_integrated": "May mark covered intent METABOLIZED and compact it according to policy.",
+    "rejected": "Keep intent/history as unresolved or negative knowledge; do not summarize it as completed work.",
+    "blocked": "Keep open question/blocker explicit.",
+    "new_followup_capture": "Creates new current intent even when an older related Work Item is integrated."
+  },
+  "patent_memory_snapshot": {
+    "contains": [
+      "affected semantic page IDs",
+      "selected new capture revisions",
+      "bounded recent_exact exported revisions",
+      "rolling summary revision/digest",
+      "covered revision refs",
+      "memory watermark",
+      "negative knowledge/open questions needed by scope"
+    ],
+    "freezing_rule": "Patent read always returns creation-time memory snapshot. Later edits, compaction or Current movement never mutate the stored Patent snapshot.",
+    "export_rule": "Every included LOCAL-derived field must be covered by the Patent export/declassification decision."
+  },
+  "supabase_page_memory_migration": {
+    "current_table": "public.prometeo_page_memory",
+    "classification": "CANDIDATE_MATERIALIZED_VIEW",
+    "reuse": ["historical_summary", "recent_exact", "decisions", "negative_knowledge", "known_regressions", "open_questions", "covered_capture_ids"],
+    "required_changes": [
+      "Add/derive exact capture revision references rather than capture IDs alone.",
+      "Add source digests and watermark/CAS semantics.",
+      "Label summary authority/privacy explicitly.",
+      "Do not treat this row as canonical Current/Human Accepted truth."
+    ]
+  }
+}
