@@ -1,0 +1,36 @@
+name: P3-13 Durable Continuity Repair
+on:
+  push:
+    branches: [candidate/prometeo-final-20260904]
+    paths:
+      - 'scripts/p3-p13-continuity-repair.mjs'
+      - '.github/workflows/p3-p13-continuity-repair.yml'
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/prometeo-final-20260904
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Align durable frontier
+        run: node scripts/p3-p13-continuity-repair.mjs
+      - name: Validate clean-process wake on repaired real state
+        run: |
+          node --check scripts/p3-p13-continuity-repair.mjs
+          node scripts/p3-00-rehydrate.mjs >/tmp/p3-wake.json
+          node -e "const fs=require('fs');for(const p of ['state/CURRENT_GRAPH.json','state/HEAD.json','state/DOT_STATE.json','state/PARENT.json','state/PENDING.json'])JSON.parse(fs.readFileSync(p));"
+          git diff --check
+      - name: Commit repaired durable state
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add state/HEAD.json state/DOT_STATE.json state/PARENT.json state/CURRENT_GRAPH.json state/PENDING.json receipts/ledger.jsonl
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'part3: align durable P3-13 continuity frontier'
+          git push origin HEAD:candidate/prometeo-final-20260904

@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {jsonl,context,load} from './part2-test-helpers.mjs';
+const c=context();load('shared/core/v1/durable.js',c);load('shared/receipts/v1/ledger.js',c);load('shared/migrations/v1/migrations.js',c);load('shared/evidence/v1/event-log.js',c);
+const ledger=jsonl('receipts/ledger.jsonl');const v=await c.PrometeoLedger.validate(ledger);assert.equal(v.count,ledger.length);assert.ok(v.count>=2);
+const appended=await c.PrometeoLedger.append(ledger,{id:'R-TEST-NEXT',type:'TEST',operation_id:'OP-TEST-NEXT',work_item_id:null,actor:'test',model:null,base_artifact:'x',source_digests:[],files_changed:[],output_digests:[],tests:['PASS'],privacy_decisions:[],candidate_identity:null,acceptance_identity:null,served_identity:null,rollback_refs:[],timestamp:'2026-09-04T00:00:00Z',claim:'test'});
+assert.equal((await c.PrometeoLedger.validate([...ledger,appended])).count,ledger.length+1);
+const bad=structuredClone(ledger);bad[1].claim='tampered';await assert.rejects(()=>c.PrometeoLedger.validate(bad),e=>e.code==='PROMETEO_LEDGER_HASH');
+const nav=c.PrometeoMigrations.migrate('navigator','1','2',{schema:'prometeo.v53-semantic-return/v1',currentNode:'x'});assert.equal(nav.version,'2');
+const cls=c.PrometeoMigrations.migrate('class-state','1','2',{events:[{type:'A'}],x:1});assert.equal(cls.data.evidence_cursor,1);assert.equal(cls.data._migrated_events.length,1);
+const compact=c.PrometeoEvidenceLog.compact({events:[{x:1}],a:2});assert.equal(compact.state.evidence_cursor,1);assert.equal(compact.events.length,1);
+console.log(JSON.stringify({ok:true,phases:['2.14','2.15'],ledgerCount:ledger.length}));

@@ -1,0 +1,59 @@
+name: P3-13 Isolated Visual Review Preview
+
+on:
+  push:
+    branches: [candidate/prometeo-final-20260904]
+    paths:
+      - '.github/workflows/p3-p13-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_84XmfYuerMC3nJnRpnDW0cpM
+      VERCEL_PROJECT_ID: prj_QZnUHNPww2rbL1bTySrzR21zlffb
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/prometeo-final-20260904
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Fail closed without Vercel credential
+        run: |
+          if [ -z "${VERCEL_TOKEN:-}" ]; then
+            echo 'VERCEL_TOKEN is not configured; refusing an ambiguous deployment.' >&2
+            exit 78
+          fi
+      - name: Bind exact isolated canary project
+        run: |
+          mkdir -p .vercel artifacts/p3-p13-preview
+          printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+      - name: Deploy preview only
+        run: |
+          set -euo pipefail
+          npx --yes vercel@latest --version | tee artifacts/p3-p13-preview/vercel-version.txt
+          url=$(npx --yes vercel@latest deploy --yes --token "$VERCEL_TOKEN" 2>&1 | tee artifacts/p3-p13-preview/deploy.log | grep -Eo 'https://[^ ]+\.vercel\.app' | tail -n 1)
+          if [ -z "$url" ]; then
+            echo 'No preview URL returned.' >&2
+            exit 1
+          fi
+          printf '%s\n' "$url" > artifacts/p3-p13-preview/url.txt
+          printf '{"schema":"prometeo.p3-13-preview/v1","commit":"%s","project_id":"%s","target":"preview","production_alias_mutated":false,"url":"%s"}\n' "$GITHUB_SHA" "$VERCEL_PROJECT_ID" "$url" > artifacts/p3-p13-preview/deployment.json
+          echo "P3_PREVIEW_URL=$url" >> "$GITHUB_ENV"
+      - name: Inspect preview without promotion
+        run: |
+          npx --yes vercel@latest inspect "$P3_PREVIEW_URL" --token "$VERCEL_TOKEN" | tee artifacts/p3-p13-preview/inspect.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p3-p13-preview-${{ github.sha }}
+          path: artifacts/p3-p13-preview/
+          if-no-files-found: warn
+          retention-days: 30

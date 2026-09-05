@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {read,json,context,load} from './part2-test-helpers.mjs';
+const c=context();load('shared/core/v1/durable.js',c);load('shared/catalog/v1/catalog.js',c);
+const tree=json('catalog/tree.json'),pages=json('catalog/pages.json'),manifest=json('catalog/CATALOG_MANIFEST.json');
+const v=c.PrometeoCatalog.validate({tree,pages,manifest});assert.equal(v.pageCount,31);assert.equal(v.treeRefCount,31);
+const bytes=await c.PrometeoCatalog.verifyLoadedBytes({treeText:read('catalog/tree.json'),pagesText:read('catalog/pages.json'),manifest});
+assert.match(bytes.contentIdentity,/^sha256:/);
+const bad=structuredClone(tree);bad.children[0].children[0].children.push({id:'bad-ref',page_id:'missing'});
+assert.throws(()=>c.PrometeoCatalog.validate({tree:bad,pages,manifest}),e=>e.code==='PROMETEO_CATALOG_MISSING_PAGE_REF');
+const dup=structuredClone(pages);dup.pages.push(structuredClone(dup.pages[0]));
+assert.throws(()=>c.PrometeoCatalog.validate({tree,pages:dup,manifest}),e=>e.code==='PROMETEO_CATALOG_DUPLICATE_PAGE');
+console.log(JSON.stringify({ok:true,phase:'2.01',pageCount:v.pageCount}));
