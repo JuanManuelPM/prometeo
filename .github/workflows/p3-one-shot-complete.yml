@@ -1,0 +1,196 @@
+name: P3 One Shot Complete
+on:
+  push:
+    branches: [candidate/prometeo-final-20260904]
+    paths:
+      - '.github/workflows/p3-one-shot-complete.yml'
+permissions:
+  contents: write
+jobs:
+  complete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          ref: candidate/prometeo-final-20260904
+          path: cand
+          fetch-depth: 0
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: mainout
+          fetch-depth: 0
+      - name: Checkout served branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pagesout
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install real browser runner
+        run: |
+          set -euo pipefail
+          npm install --global agent-browser@0.34.0
+          agent-browser install --with-deps
+          agent-browser doctor --offline --quick
+      - name: Execute P3-14 through P3-17 without pause
+        run: |
+          set -euo pipefail
+          chmod +x cand/scripts/p3-release-v3.sh
+          CAND_DIR=cand PAGES_DIR=pagesout EVIDENCE_DIR=evidence bash cand/scripts/p3-release-v3.sh
+      - name: Merge served durable candidate normally into main
+        run: |
+          set -euo pipefail
+          git -C mainout config user.name 'github-actions[bot]'
+          git -C mainout config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C mainout fetch origin candidate/prometeo-final-20260904
+          VOICE_SHA_BEFORE=''
+          if [ -f mainout/pages/voice/index.html ]; then VOICE_SHA_BEFORE=$(git -C mainout hash-object pages/voice/index.html); fi
+          git -C mainout merge --no-ff origin/candidate/prometeo-final-20260904 -m 'part3: integrate accepted served platform backstage'
+          MAIN_MERGE=$(git -C mainout rev-parse HEAD)
+          if [ -n "$VOICE_SHA_BEFORE" ]; then test "$(git -C mainout hash-object pages/voice/index.html)" = "$VOICE_SHA_BEFORE"; fi
+          test "$(git -C mainout hash-object navigator/index.html)" = '7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418'
+          test "$(sha256sum mainout/pages/calendar/app-04-finance.js|awk '{print $1}')" = "$(sha256sum cand/pages/calendar/app-04-finance.js|awk '{print $1}')"
+          echo "MAIN_MERGE=$MAIN_MERGE" >> "$GITHUB_ENV"
+          echo "VOICE_SHA_BEFORE=$VOICE_SHA_BEFORE" >> "$GITHUB_ENV"
+      - name: Create privacy-safe final export and fresh reincarnate it
+        run: |
+          set -euo pipefail
+          rm -rf export_stage /tmp/prometeo-export-check
+          mkdir -p export_stage/context/books mainout/exports
+          for x in navigator pages arte ai catalog lineage state receipts reincarnation shared; do [ ! -e "mainout/$x" ] || cp -a "mainout/$x" export_stage/; done
+          mkdir -p export_stage/scripts export_stage/coordination
+          cp mainout/scripts/p3-00-rehydrate.mjs export_stage/scripts/
+          cp mainout/context/books/HOT.json export_stage/context/books/HOT.json
+          cp mainout/coordination/P3_13_ACCEPTANCE_SCOPE.json export_stage/coordination/
+          cp mainout/coordination/P3_14_17_SERVED_EVIDENCE.json export_stage/coordination/
+          cp mainout/coordination/PART3_GATE_MATRIX.json export_stage/coordination/
+          if grep -R -n --exclude='PROMETEO_EXPORT_CURRENT.zip' 'LOCAL-SECRET' export_stage; then echo 'forbidden LOCAL test material leaked into export' >&2; exit 1; fi
+          cp mainout/navigator/index.html mainout/exports/PROMETEO_CURRENT.html
+          (cd export_stage && zip -qr ../mainout/exports/PROMETEO_EXPORT_CURRENT.zip .)
+          ZIP_SHA=$(sha256sum mainout/exports/PROMETEO_EXPORT_CURRENT.zip|awk '{print $1}')
+          HTML_SHA=$(sha256sum mainout/exports/PROMETEO_CURRENT.html|awk '{print $1}')
+          mkdir -p /tmp/prometeo-export-check
+          unzip -q mainout/exports/PROMETEO_EXPORT_CURRENT.zip -d /tmp/prometeo-export-check
+          git -C /tmp/prometeo-export-check init -q
+          git -C /tmp/prometeo-export-check config user.email p3-export@example.invalid
+          git -C /tmp/prometeo-export-check config user.name p3-export
+          git -C /tmp/prometeo-export-check add .
+          git -C /tmp/prometeo-export-check commit -qm 'export snapshot'
+          (cd /tmp/prometeo-export-check && node scripts/p3-00-rehydrate.mjs > /tmp/export-wake.json)
+          node - <<'NODE'
+          const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/export-wake.json'));
+          if(!x.ledger?.ok||x.state_crosscheck?.current_last_receipt!=='R-P3-17-PROMOTE-0015') throw new Error('export reincarnation frontier mismatch');
+          if(x.wake?.ACTIVE_FRONTEND!=='navigator-v53-visible') throw new Error('export lost V53 frontend');
+          NODE
+          EXPORT_LEDGER_HASH=$(node -e "console.log(require('/tmp/export-wake.json').ledger.last_hash)")
+          echo "ZIP_SHA=$ZIP_SHA" >> "$GITHUB_ENV"
+          echo "HTML_SHA=$HTML_SHA" >> "$GITHUB_ENV"
+          echo "EXPORT_LEDGER_HASH=$EXPORT_LEDGER_HASH" >> "$GITHUB_ENV"
+      - name: Publish final exports without changing stable product bytes
+        run: |
+          set -euo pipefail
+          git -C pagesout pull --rebase origin gh-pages
+          git -C pagesout config user.name 'github-actions[bot]'
+          git -C pagesout config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          mkdir -p pagesout/release
+          cp mainout/exports/PROMETEO_CURRENT.html pagesout/release/PROMETEO_CURRENT.html
+          cp mainout/exports/PROMETEO_EXPORT_CURRENT.zip pagesout/release/PROMETEO_EXPORT_CURRENT.zip
+          printf '%s  %s\n' "$ZIP_SHA" 'PROMETEO_EXPORT_CURRENT.zip' > pagesout/release/PROMETEO_EXPORT_CURRENT.sha256
+          test "$(git -C pagesout hash-object navigator/index.html)" = '7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418'
+          git -C pagesout add release/PROMETEO_CURRENT.html release/PROMETEO_EXPORT_CURRENT.zip release/PROMETEO_EXPORT_CURRENT.sha256
+          git -C pagesout commit -m 'part3: publish final portable export'
+          git -C pagesout push origin HEAD:gh-pages
+          GH_EXPORT=$(git -C pagesout rev-parse HEAD)
+          BASE='https://juanmanuelpm.github.io/prometeo'
+          ZIP_URL="$BASE/release/PROMETEO_EXPORT_CURRENT.zip"
+          HTML_URL="$BASE/release/PROMETEO_CURRENT.html"
+          for i in $(seq 1 120); do GOT=$(curl -fsSL "$ZIP_URL?cb=$GITHUB_RUN_ID-$i" 2>/dev/null|sha256sum|awk '{print $1}') || true; if [ "$GOT" = "$ZIP_SHA" ]; then break; fi; sleep 2; done
+          test "$GOT" = "$ZIP_SHA"
+          test "$(curl -fsSL "$HTML_URL?cb=$GITHUB_RUN_ID"|sha256sum|awk '{print $1}')" = "$HTML_SHA"
+          echo "GH_EXPORT=$GH_EXPORT" >> "$GITHUB_ENV"
+          echo "ZIP_URL=$ZIP_URL" >> "$GITHUB_ENV"
+          echo "HTML_URL=$HTML_URL" >> "$GITHUB_ENV"
+      - name: Verify human surfaces keep backstage invisible
+        run: |
+          set -euo pipefail
+          BASE='https://juanmanuelpm.github.io/prometeo'
+          S=p3-final-human
+          agent-browser --session "$S" open >/dev/null
+          agent-browser --session "$S" set viewport 399 800 >/dev/null
+          agent-browser --session "$S" navigate "$BASE/navigator/" >/dev/null
+          agent-browser --session "$S" wait --load networkidle >/dev/null
+          agent-browser --session "$S" errors --json > human-nav-errors.json
+          agent-browser --session "$S" eval 'document.body.innerText' > human-nav-text.txt
+          agent-browser --session "$S" navigate "$BASE/" >/dev/null
+          agent-browser --session "$S" wait --load networkidle >/dev/null
+          agent-browser --session "$S" errors --json > human-home-errors.json
+          agent-browser --session "$S" eval 'document.body.innerText' > human-home-text.txt
+          agent-browser --session "$S" close >/dev/null
+          node -e "for(const p of ['human-nav-errors.json','human-home-errors.json']){const x=require('./'+p),a=Array.isArray(x)?x:(x.errors||[]);if(a.length)throw Error(p+' has browser errors')}"
+          if cat human-nav-text.txt human-home-text.txt | grep -Eqi 'receipt[_ -]?hash|lease_id|github actions|candidate/prometeo|single-worker|R-P3-[0-9]'; then echo 'backstage plumbing visible in human surface' >&2; exit 1; fi
+          HOME_TEXT_SHA=$(cat human-nav-text.txt human-home-text.txt|sha256sum|awk '{print $1}')
+          echo "HOME_TEXT_SHA=$HOME_TEXT_SHA" >> "$GITHUB_ENV"
+          echo "T_HOME=$(date -u +%FT%TZ)" >> "$GITHUB_ENV"
+      - name: Materialize P3-18 P3-19 P3-20 final receipts and close pending
+        working-directory: mainout
+        run: |
+          set -euo pipefail
+          BASE='https://juanmanuelpm.github.io/prometeo'
+          STABLE_NAV="$BASE/navigator/"
+          STABLE_CAL="$BASE/pages/calendar/"
+          T_EXPORT=$(date -u +%FT%TZ)
+          T_FINAL=$(date -u +%FT%TZ)
+          node - <<NODE
+          const fs=require('fs');const e={schema:'prometeo.p3-18-20-evidence/v1',main_merge_identity:'gitcommit:${MAIN_MERGE}',main_merge_commit:'${MAIN_MERGE}',voice_page_preserved:${VOICE_SHA_BEFORE:+true},export_zip_sha256:'${ZIP_SHA}',current_html_sha256:'${HTML_SHA}',public_export_zip_url:'${ZIP_URL}',public_current_html_url:'${HTML_URL}',export_wake_ledger_hash:'${EXPORT_LEDGER_HASH}',human_home_text_sha256:'${HOME_TEXT_SHA}',stable_navigator_url:'${STABLE_NAV}',stable_calendar_url:'${STABLE_CAL}',stable_home_url:'${BASE}/',gh_pages_export_commit:'${GH_EXPORT}',timestamps:{export_verified:'${T_EXPORT}',home_verified:'${T_HOME}',finalized:'${T_FINAL}'}};fs.writeFileSync('coordination/P3_18_20_EVIDENCE.json',JSON.stringify(e,null,2)+'\n');
+          NODE
+          node scripts/p3-finalize-close.mjs
+          node scripts/p3-00-rehydrate.mjs > /tmp/final-wake.json
+          node - <<'NODE'
+          const fs=require('fs');const c=JSON.parse(fs.readFileSync('state/CURRENT_GRAPH.json'));const d=JSON.parse(fs.readFileSync('state/DOT_STATE.json'));const p=JSON.parse(fs.readFileSync('state/PENDING.json'));const g=JSON.parse(fs.readFileSync('coordination/PART3_GATE_MATRIX.json'));const l=fs.readFileSync('receipts/ledger.jsonl','utf8').trim().split(/\n+/).map(JSON.parse);
+          if(c.revision!==17||c.last_durable_receipt!=='R-P3-20-FINAL-0018')throw new Error('final Current mismatch');
+          if(d.phase!=='PART3_COMPLETE'||d.next_gate!==null)throw new Error('dot not complete');
+          if(p.items.length!==0)throw new Error('pending not closed');
+          if(g.gates.some(x=>x.status!=='PASS'))throw new Error('gate remains open');
+          if(l.at(-1).id!=='R-P3-20-FINAL-0018')throw new Error('ledger not final');
+          NODE
+          git diff --check
+      - name: Commit final closure to main
+        run: |
+          set -euo pipefail
+          git -C mainout add exports/PROMETEO_CURRENT.html exports/PROMETEO_EXPORT_CURRENT.zip coordination/P3_18_20_EVIDENCE.json coordination/PART3_GATE_MATRIX.json state/CURRENT_GRAPH.json state/HEAD.json state/DOT_STATE.json state/PENDING.json state/PART3_COMPLETE.json receipts/ledger.jsonl
+          git -C mainout commit -m 'part3: final export reincarnation and closure'
+          git -C mainout push origin HEAD:main
+          FINAL_MAIN=$(git -C mainout rev-parse HEAD)
+          echo "FINAL_MAIN=$FINAL_MAIN" >> "$GITHUB_ENV"
+      - name: Verify exact final main and stable served bytes
+        run: |
+          set -euo pipefail
+          git -C mainout fetch origin main
+          test "$(git -C mainout rev-parse origin/main)" = "$FINAL_MAIN"
+          test "$(git -C mainout hash-object navigator/index.html)" = '7ca5f3e223ca843e3f9e4b7be1e53b5b65dd3418'
+          BASE='https://juanmanuelpm.github.io/prometeo'
+          test "$(curl -fsSL "$BASE/navigator/index.html?cb=final-$GITHUB_RUN_ID"|sha256sum|awk '{print $1}')" = "$(sha256sum mainout/navigator/index.html|awk '{print $1}')"
+          test "$(curl -fsSL "$BASE/pages/calendar/app-04-finance.js?cb=final-$GITHUB_RUN_ID"|sha256sum|awk '{print $1}')" = "$(sha256sum mainout/pages/calendar/app-04-finance.js|awk '{print $1}')"
+          node -e "const x=require('./mainout/state/PART3_COMPLETE.json');if(x.status!=='COMPLETE'||x.final_receipt!=='R-P3-20-FINAL-0018')process.exit(1)"
+          printf '%s\n' "PART3_COMPLETE main=$FINAL_MAIN served=$BASE/navigator/ export=$ZIP_URL"
+      - name: Upload final evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: prometeo-part3-final-${{ github.run_id }}
+          path: |
+            evidence/
+            /tmp/export-wake.json
+            /tmp/final-wake.json
+            human-nav-errors.json
+            human-home-errors.json
+            human-nav-text.txt
+            human-home-text.txt
+            mainout/state/PART3_COMPLETE.json
+            mainout/coordination/P3_18_20_EVIDENCE.json
+          retention-days: 30
