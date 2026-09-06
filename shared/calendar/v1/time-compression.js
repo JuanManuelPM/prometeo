@@ -1,10 +1,11 @@
 /* Prometeo Calendar · adaptive time-axis compression
-   The time axis is truthful where activity exists and explicitly marks skipped empty spans.
-   Top/bottom are cropped to the first/last timed activity of the visible week.
-   Internal gaps are compressed only when the whole week is empty for >= 90 minutes. */
+   Canonical visual contract:
+   - the visible range is cropped to real timed activity;
+   - a whole-week internal empty span >= 90 min becomes ONE passive full-width band;
+   - the band says only TIEMPO LIBRE;
+   - it has no duration, day dividers, focus, click, expansion or hidden interaction. */
 (function(){
   const GAP_MINUTES=90;
-  const expandedGaps=new Set();
 
   function timedItemsForDate(dateISO){
     return [
@@ -67,42 +68,16 @@
       }
     }
     if(gapStart!==null&&range.end-gapStart>=GAP_MINUTES)gaps.push({start:gapStart,end:range.end});
-    /* Range already crops top/bottom, so only true internal gaps should survive. */
     return gaps.filter(g=>g.start>range.start&&g.end<range.end);
   }
 
-  function gapKey(gap){
-    return `${isoDate(weekStart)}|${gap.start}-${gap.end}`;
-  }
-
-  function durationLabel(minutes){
-    const h=Math.floor(minutes/60),m=minutes%60;
-    if(h&&m)return `${h} h ${m}`;
-    if(h)return `${h} h`;
-    return `${m} min`;
-  }
-
-  function makeBreakCells(gap){
-    const cells=[];
-    const key=gapKey(gap);
-    for(let i=0;i<8;i++){
-      const cell=document.createElement("button");
-      cell.type="button";
-      cell.className="cell time-break-cell"+(i===0?" time-break-label-cell":"");
-      cell.setAttribute("aria-label",`Tramo comprimido: ${minutesLabel(gap.start)} a ${minutesLabel(gap.end)}. Tocar para mostrar.`);
-      if(i===0){
-        const label=document.createElement("span");
-        label.className="time-break-label";
-        label.textContent=`↕ ${durationLabel(gap.end-gap.start)}`;
-        cell.appendChild(label);
-      }
-      cell.onclick=()=>{
-        expandedGaps.add(key);
-        render();
-      };
-      cells.push(cell);
-    }
-    return cells;
+  function makeBreakBand(){
+    const band=document.createElement('div');
+    band.className='cell time-break-band';
+    band.setAttribute('role','separator');
+    band.setAttribute('aria-label','Tiempo libre comprimido');
+    band.textContent='TIEMPO LIBRE';
+    return band;
   }
 
   function markEdge(cells,className){
@@ -121,24 +96,22 @@
       cursor+=8;
     }
 
-    const hasTimed=weekTimedItems(dates).length>0;
-    if(!hasTimed){
+    if(!weekTimedItems(dates).length){
       const frag=document.createDocumentFragment();
       headers.forEach(h=>frag.appendChild(h));
       const emptyCells=[];
       for(let i=0;i<8;i++){
-        const c=document.createElement("div");
-        c.className="cell time-empty-cell";
-        if(i===0)c.textContent="—";
-        if(i===1){c.classList.add("time-empty-message");c.textContent="Sin actividades con hora esta semana";}
+        const c=document.createElement('div');
+        c.className='cell time-empty-cell';
+        if(i===0)c.textContent='—';
+        if(i===1){c.classList.add('time-empty-message');c.textContent='Sin actividades con hora esta semana';}
         emptyCells.push(c);frag.appendChild(c);
       }
       grid.replaceChildren(frag);
       return;
     }
 
-    const gaps=commonGaps(dates,range).filter(g=>!expandedGaps.has(gapKey(g)));
-    const gapByStart=new Map(gaps.map(g=>[g.start,g]));
+    const gapByStart=new Map(commonGaps(dates,range).map(g=>[g.start,g]));
     const frag=document.createDocumentFragment();
     headers.forEach(h=>frag.appendChild(h));
     const visibleRows=[];
@@ -146,7 +119,7 @@
     for(let i=0;i<rows.length;){
       const row=rows[i],gap=gapByStart.get(row.t);
       if(gap){
-        makeBreakCells(gap).forEach(c=>frag.appendChild(c));
+        frag.appendChild(makeBreakBand());
         while(i<rows.length&&rows[i].t<gap.end)i++;
         continue;
       }
@@ -156,8 +129,8 @@
     }
 
     if(visibleRows.length){
-      markEdge(visibleRows[0].cells,"time-edge-start");
-      markEdge(visibleRows[visibleRows.length-1].cells,"time-edge-end");
+      markEdge(visibleRows[0].cells,'time-edge-start');
+      markEdge(visibleRows[visibleRows.length-1].cells,'time-edge-end');
     }
     grid.replaceChildren(frag);
   }
@@ -168,11 +141,11 @@
     compressRenderedGrid();
   };
 
-  window.PrometeoCalendarTimeCompression={
+  window.PrometeoCalendarTimeCompression=Object.freeze({
+    version:'2-passive-band',
     GAP_MINUTES,
     weekTimedItems,
     commonGaps,
-    expandAll(){commonGaps(visibleDates(),rangeForWeek()).forEach(g=>expandedGaps.add(gapKey(g)));render();},
-    reset(){expandedGaps.clear();render();}
-  };
+    render:compressRenderedGrid
+  });
 })();
