@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#c9d4ad">
+<title>CASA // EXTREMOS</title>
+<style>
+:root{--bg:#c9d4ad;--panel:#dfe6cb;--ink:#1d2619;--line:#3b4732;--hot:#90a771;--dim:#6c7960;--bad:#7b473f}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+body{padding:10px}.wrap{max-width:760px;margin:auto}.top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0 12px;border-bottom:2px solid var(--line);font-size:11px;letter-spacing:.08em}.tag{border:1px solid var(--line);padding:4px 7px;background:var(--panel)}
+h1{font-size:clamp(42px,13vw,82px);letter-spacing:-.085em;line-height:.82;margin:24px 0 10px}.sub{font-size:11px;line-height:1.5;max-width:620px;opacity:.75;margin:0 0 16px}.phrase{border:1px solid var(--line);background:var(--panel);padding:10px 12px;font-size:12px;line-height:1.45;margin:10px 0 18px}.phrase small{display:block;font-size:9px;letter-spacing:.13em;opacity:.65;margin-bottom:5px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.voice{border:1px solid var(--line);background:var(--panel);display:grid;grid-template-columns:34px 1fr 50px;gap:10px;align-items:center;min-height:82px;padding:10px}.num{font-size:10px;opacity:.55}.info b{display:block;font-size:13px;letter-spacing:.01em}.info span{display:block;font-size:9px;line-height:1.35;opacity:.65;margin-top:4px}.play{width:48px;height:48px;border:2px solid var(--line);background:var(--hot);color:var(--ink);font:inherit;font-weight:900;cursor:pointer}.play.busy{background:var(--panel);animation:blink .8s steps(1) infinite}.play.active{background:var(--ink);color:var(--bg)}.play.bad{background:var(--bad);color:#f4eddc}@keyframes blink{50%{filter:invert(1)}}
+.status{position:sticky;bottom:8px;margin-top:18px;background:var(--ink);color:var(--bg);padding:10px 12px;display:flex;justify-content:space-between;gap:10px;font-size:10px;letter-spacing:.08em}.status b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.foot{font-size:9px;line-height:1.5;opacity:.6;margin:14px 2px 24px}.cached{font-size:8px;margin-top:4px;opacity:.45}.cached.ready{opacity:.8}
+@media(max-width:620px){.grid{grid-template-columns:1fr}.voice{grid-template-columns:30px 1fr 50px}body{padding:8px}h1{margin-top:18px}}
+</style>
+</head>
+<body>
+<main class="wrap">
+<div class="top"><b>CASA // VOICE LAB</b><span class="tag">QWEN // EXTREME 01</span></div>
+<h1>PERSONAJES<br>ABSURDOS.</h1>
+<p class="sub">Nada de “voz natural A / voz natural B”. Son doce identidades exageradas diseñadas desde cero con Qwen Voice Design. Tocá ▶. La primera vez genera; después queda guardada en este dispositivo.</p>
+<div class="phrase"><small>MISMA FRASE PARA TODAS</small>“Che, bajen que llegó la pizza. Habla Juan.”</div>
+<div class="grid" id="grid"></div>
+<div class="status"><span>NOW PLAYING</span><b id="status">LISTO</b></div>
+<p class="foot">Sin Edge-TTS, sin SpeechSynthesis y sin fallback robótico. Si una voz falla, aparece ERROR y no la reemplazo por otra cosa.</p>
+</main>
+<audio id="audio" preload="none"></audio>
+<script>
+const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/casa-qwen-design-tts';
+const TEXT='Che, bajen que llegó la pizza. Habla Juan.';
+const VERSION='extreme-v1';
+const voices=[
+['01','sergeant','SARGENTO FÓSIL','90+ · militar · garganta destruida'],
+['02','otaku','OTAKU TURBO','ultra aguda · anime · hiperactiva'],
+['03','grandma','ABUELA FURIOSA','anciana · ronca · indignadísima'],
+['04','goblin','DUENDE NERVIOSO','miniatura · nasal · rapidísimo'],
+['05','giant','GIGANTE TONTO','absurdamente grave · lento · feliz'],
+['06','evilkid','NENE MALVADO','infantil · agudo · siniestro'],
+['07','apocalypse','LOCUTOR APOCALIPSIS','enorme · épico · fin del mundo'],
+['08','novela','REINA TELENOVELA','melodrama máximo · traición total'],
+['09','witch','BRUJA SECA','vieja · chillona · carcajada corta'],
+['10','gamer','GAMER 2007','nasal · gritón · cafeína pura'],
+['11','barman','VIEJO DE BAR','cascado · lento · se ríe solo'],
+['12','fairy','HADA TÓXICA','ultra aguda · dulce · venenosa']
+];
+const grid=document.querySelector('#grid'),audio=document.querySelector('#audio'),status=document.querySelector('#status');
+let currentBtn=null,currentUrl=null;
+function cacheKey(id){return new Request(location.origin+location.pathname+'__audio__/'+VERSION+'/'+id+'.wav');}
+async function getCached(id){if(!('caches'in window))return null;const c=await caches.open('casa-voice-lab-'+VERSION);return await c.match(cacheKey(id));}
+async function putCached(id,res){if(!('caches'in window))return;const c=await caches.open('casa-voice-lab-'+VERSION);await c.put(cacheKey(id),res.clone());}
+function stopCurrent(){if(currentBtn){currentBtn.classList.remove('active');currentBtn.textContent='▶'}audio.pause();if(currentUrl){URL.revokeObjectURL(currentUrl);currentUrl=null}}
+async function playBlob(blob,btn,label){stopCurrent();currentBtn=btn;currentUrl=URL.createObjectURL(blob);audio.src=currentUrl;await audio.play();btn.classList.add('active');btn.textContent='Ⅱ';status.textContent=label;}
+async function playVoice(id,btn,label,badge){
+  if(currentBtn===btn&&!audio.paused){audio.pause();btn.classList.remove('active');btn.textContent='▶';status.textContent='PAUSA // '+label;return}
+  btn.classList.remove('bad');btn.classList.add('busy');btn.textContent='…';status.textContent='BUSCANDO // '+label;
+  try{
+    let res=await getCached(id);
+    if(res){badge.textContent='GUARDADA // INSTANT';badge.classList.add('ready');btn.classList.remove('busy');const blob=await res.blob();await playBlob(blob,btn,label);return}
+    status.textContent='GENERANDO // '+label+' // QWEN';
+    const started=performance.now();
+    res=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({voice:id,text:TEXT})});
+    if(!res.ok){let e='HTTP '+res.status;try{const j=await res.json();e=j.error||e}catch{}throw new Error(e)}
+    const copy=res.clone();await putCached(id,copy);const blob=await res.blob();const sec=((performance.now()-started)/1000).toFixed(1);
+    badge.textContent='GENERADA '+sec+'s // GUARDADA';badge.classList.add('ready');btn.classList.remove('busy');await playBlob(blob,btn,label);
+  }catch(err){console.error(err);btn.classList.remove('busy');btn.classList.add('bad');btn.textContent='!';status.textContent='ERROR // '+label+' // '+String(err.message||err).slice(0,46)}
+}
+voices.forEach(([n,id,name,desc])=>{
+  const card=document.createElement('div');card.className='voice';
+  const num=document.createElement('div');num.className='num';num.textContent=n;
+  const info=document.createElement('div');info.className='info';
+  const b=document.createElement('b');b.textContent=name;const s=document.createElement('span');s.textContent=desc;const cached=document.createElement('div');cached.className='cached';cached.textContent='PRIMER TOQUE = GENERA';
+  info.append(b,s,cached);
+  const btn=document.createElement('button');btn.className='play';btn.type='button';btn.textContent='▶';btn.setAttribute('aria-label','Escuchar '+name);btn.onclick=()=>playVoice(id,btn,name,cached);
+  card.append(num,info,btn);grid.append(card);
+  getCached(id).then(r=>{if(r){cached.textContent='GUARDADA // INSTANT';cached.classList.add('ready')}}).catch(()=>{});
+});
+audio.onended=()=>{if(currentBtn){currentBtn.classList.remove('active');currentBtn.textContent='▶'}status.textContent='LISTO'};
+</script>
+</body>
+</html>
