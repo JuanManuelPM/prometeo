@@ -1,0 +1,36 @@
+name: Publish Prometeo Agent Entrypoint
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.well-known/prometeo.json'
+      - '.github/workflows/publish-control-plane.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: prometeo-control-plane-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Publish only stable agent entrypoint
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin gh-pages
+          git worktree add /tmp/prometeo-pages origin/gh-pages
+          mkdir -p /tmp/prometeo-pages/.well-known
+          cp .well-known/prometeo.json /tmp/prometeo-pages/.well-known/prometeo.json
+          cd /tmp/prometeo-pages
+          git add .well-known/prometeo.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'control-plane: publish stable agent entrypoint'
+          git pull --rebase origin gh-pages
+          git push origin HEAD:gh-pages
