@@ -13,7 +13,7 @@ export class CaptureRemote{
   async importLinkCode(code){const raw=String(code||'').trim();const secret=raw.startsWith('PWS2.')?raw.slice(5):raw.startsWith('PWS1.')?raw.slice(5):raw;if(secret.length<32)fail('PROMETEO_REMOTE_LINK','Invalid workspace link code');localStorage.setItem(SECRET_KEY,secret);this.ready=null;return this.connect()}
   async connect(){
     if(!navigator.onLine)return null;
-    if(!this.hasSecret())fail('PROMETEO_REMOTE_NEEDS_LINK','This device is not linked to the private Prometeo Capture workspace');
+    if(!this.hasSecret())fail('PROMETEO_REMOTE_NEEDS_LINK','Este dispositivo todavía no está vinculado a la Inbox privada de Prometeo');
     if(!this.ready)this.ready=this.call('workspace').then(x=>{this.onState({online:true,linked:true,workspace_id:x.workspace_id});return x}).catch(e=>{this.ready=null;this.onState({online:true,linked:false,error:e});throw e});
     return this.ready;
   }
@@ -31,6 +31,7 @@ export class CaptureRemote{
         page_id:capture.immutable_creation.context.page_id,context_snapshot:capture.immutable_creation.context,
         processing_state:capture.processing_state,transcript_state:capture.transcript_state,
         transcript_revision:capture.transcript_revision,transcript:active?.text||'',transcript_digest:active?.digest||null,
+        revisions:(capture.revisions||[]).map(r=>({revision:r.revision,text:r.text,state:r.state,digest:r.digest||null,created_at:r.created_at})),
         audio_digest:capture.audio?.digest||null,archive_state:capture.archive_state,metadata:capture.metadata||{}
       }});
       return {capture:markSync(capture,'SYNCED',{remote_revision:data.transcript_revision||capture.transcript_revision}),data};
@@ -41,17 +42,15 @@ export class CaptureRemote{
   }
   async listCaptures({page_id=null,limit=300}={}){await this.connect();const d=await this.call('list_captures',{page_id,limit});return d.captures||[]}
   async archiveCapture(id,{tombstone=false,reason=null}={}){await this.connect();return this.call('archive_capture',{id,tombstone,reason})}
-  async prepareExport(captures){
-    await this.connect();const selected=captures.map(c=>{const r=revisionRef(c);return {capture_id:c.id,revision:r.revision,ref:r.ref,digest:r.digest||null}});
-    return this.call('prepare_export',{human_approved:true,from_privacy:'LOCAL',to_privacy:'PROJECT',selection:selected});
-  }
+  selection(captures){return captures.map(c=>{const r=revisionRef(c);return {capture_id:c.id,revision:r.revision,ref:r.ref,digest:r.digest||null}})}
+  async previewExport(captures){await this.connect();return this.call('preview_export',{selection:this.selection(captures)})}
+  async approveExport(proposal_id){await this.connect();return this.call('approve_export',{proposal_id,human_approved:true})}
   async createPatent({captures,export_receipt_id,seed,work_item,current_binding,catalog_binding,page_bindings,protocol_binding,memory_bindings=[]}={}){
-    await this.connect();const selection=captures.map(c=>{const r=revisionRef(c);return {capture_id:c.id,revision:r.revision,ref:r.ref,digest:r.digest||null}});
-    return this.call('create_patent_v2',{selection,export_receipt_id,seed,work_item,current_binding,catalog_binding,page_bindings,protocol_binding,memory_bindings});
+    await this.connect();return this.call('create_patent_v2',{selection:this.selection(captures),export_receipt_id,seed,work_item,current_binding,catalog_binding,page_bindings,protocol_binding,memory_bindings});
   }
   async getPatentStatus(patent_code){await this.connect();return this.call('patent_status',{patent_code})}
   async revokePatent(patent_code){await this.connect();return this.call('revoke_patent',{patent_code})}
   async receiptStatus({patent_code,work_item_id}={}){await this.connect();return this.call('receipt_status',{patent_code,work_item_id})}
 }
 
-export const CaptureRemoteContract=Object.freeze({endpoint:DEFAULT_ENDPOINT,auto_provision:false,secret_storage:SECRET_KEY,transport_authority:false});
+export const CaptureRemoteContract=Object.freeze({endpoint:DEFAULT_ENDPOINT,auto_provision:false,secret_storage:SECRET_KEY,transport_authority:false,export_flow:'preview -> explicit approve -> patent'});
