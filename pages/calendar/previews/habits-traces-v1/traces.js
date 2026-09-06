@@ -1,26 +1,16 @@
-const TRACE_ICONS={
-  fire:'/prometeo/pages/calendar/previews/workspace-v4/icons/fire.svg',
-  carrot:'/prometeo/pages/calendar/previews/workspace-v4/icons/carrot.svg',
-  pizza:'/prometeo/pages/calendar/previews/workspace-v4/icons/pizza.svg',
-  youtube:'/prometeo/pages/calendar/previews/workspace-v4/icons/youtube.svg',
-  books:'/prometeo/pages/calendar/previews/workspace-v4/icons/books.svg',
-  news:'/prometeo/pages/calendar/previews/workspace-v4/icons/news.svg',
-  weed:'/prometeo/pages/calendar/previews/workspace-v4/icons/weed.svg',
-  cigarette:'/prometeo/pages/calendar/previews/workspace-v4/icons/cigarette.svg'
-};
 const TRACE_TRACKERS=[
-  {id:'youtube',label:'YouTube',group:'Caídas',kind:'avoid',icon:TRACE_ICONS.youtube},
-  {id:'weed',label:'Marihuana',group:'Caídas',kind:'avoid',icon:TRACE_ICONS.weed},
-  {id:'smoking',label:'Cigarrillos',group:'Caídas',kind:'avoid',icon:TRACE_ICONS.cigarette},
-  {id:'food',label:'Comida',group:'Cuerpo',kind:'food',icon:TRACE_ICONS.carrot},
-  {id:'study',label:'Estudio',group:'Foco',kind:'positive',icon:TRACE_ICONS.books},
-  {id:'news',label:'Noticias',group:'Foco',kind:'positive',icon:TRACE_ICONS.news}
+  {id:'youtube',label:'YouTube',group:'Caídas',kind:'avoid'},
+  {id:'weed',label:'Marihuana',group:'Caídas',kind:'avoid'},
+  {id:'smoking',label:'Cigarrillos',group:'Caídas',kind:'avoid'},
+  {id:'food',label:'Comida',group:'Cuerpo',kind:'food'},
+  {id:'study',label:'Estudio',group:'Foco',kind:'positive'},
+  {id:'news',label:'Noticias',group:'Foco',kind:'positive'}
 ];
 const TRACE_MONTHS=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 const TRACE_DAYS=['D','L','M','X','J','V','S'];
 const TRACE_COUNT=14;
-const TRACE_KEY='prometeo-preview-habit-traces-v6';
-const TRACE_OLD_KEYS=['prometeo-preview-habit-traces-v3','prometeo-preview-habit-traces-v2','prometeo-preview-habit-traces-v1','prometeo-habit-overview-v4','prometeo-habit-rework-v3'];
+const TRACE_KEY='prometeo-preview-habit-traces-v7';
+const TRACE_OLD_KEYS=['prometeo-preview-habit-traces-v6','prometeo-preview-habit-traces-v3','prometeo-preview-habit-traces-v2','prometeo-preview-habit-traces-v1','prometeo-habit-overview-v4','prometeo-habit-rework-v3'];
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const fromISO=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
@@ -86,12 +76,12 @@ function renderTraceRows(){
     if(t.group!==lastGroup){traceRows.append(groupRow(t.group));lastGroup=t.group;}
     const row=document.createElement('div');row.className='trace-row';
     const label=document.createElement('div');label.className='trace-label';const m=traceWindowMeta(t);
-    label.innerHTML=`<img class="trace-icon" src="${t.icon}" alt=""><div class="trace-namewrap"><div class="trace-name">${t.label}</div><div class="trace-meta">${metaText(t,m)}</div></div>`;
+    label.innerHTML=`<div class="trace-namewrap"><div class="trace-name">${t.label}</div><div class="trace-meta">${metaText(t,m)}</div></div>`;
     const track=document.createElement('div');track.className='trace-track';
     for(let i=0;i<TRACE_COUNT;i++){
       const date=traceDateAt(i),s=traceStatus(t.id,date);const b=document.createElement('button');
       b.type='button';b.className='trace-day '+classForStatus(t,s)+(i===TRACE_COUNT-1&&traceOffset===0?' today':'')+(traceSelected.trackerId===t.id&&traceSelected.date===date?' selected':'');
-      b.setAttribute('aria-label',`${t.label} · ${human(date)}`);b.onclick=()=>{traceSelected={trackerId:t.id,date};renderTraceRows();renderTraceEditor();};track.append(b);
+      b.setAttribute('aria-label',`${t.label} · ${human(date)} · ${labelState(s)}`);b.onclick=()=>{traceSelected={trackerId:t.id,date};renderTraceRows();renderTraceEditor();};track.append(b);
     }
     row.append(label,track);traceRows.append(row);
   });
