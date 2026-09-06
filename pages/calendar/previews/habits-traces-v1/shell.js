@@ -1,5 +1,17 @@
 const SHELL_PALETTES=[
-  ['#F5DABF','#6C151E'],['#F5DABF','#0F3D3A'],['#6C151E','#0F3D3A'],['#C7F464','#202124'],['#FF6B6B','#6B1839'],['#F5DABF','#1546A0'],['#B8E0D2','#174A3A'],['#F4B6C2','#5B2448'],['#F28C28','#102A43'],['#EADFCB','#1B1B1A'],['#E8CFAE','#144E52'],['#B94B32','#24201F'],['#D6A928','#2D3436']
+  ['#F5DABF','#6C151E'],
+  ['#F5DABF','#0F3D3A'],
+  ['#B8E0D2','#6C151E'],
+  ['#C7F464','#202124'],
+  ['#FF8F8F','#5B1735'],
+  ['#F5DABF','#1546A0'],
+  ['#B8E0D2','#174A3A'],
+  ['#F4B6C2','#5B2448'],
+  ['#F28C28','#102A43'],
+  ['#EADFCB','#1B1B1A'],
+  ['#E8CFAE','#144E52'],
+  ['#D96D52','#24201F'],
+  ['#D6A928','#2D3436']
 ];
 const titleFor={calendar:'Calendario',habits:'Hábitos',money:'Dinero'};
 let paletteIndex=Number(localStorage.getItem('prometeo-preview-theme-index')||0)%SHELL_PALETTES.length;
@@ -16,6 +28,7 @@ function setSpace(space,{replace=false}={}){
   const url=new URL(location.href);url.searchParams.set('view',space);url.searchParams.delete('utm_source');
   history[replace?'replaceState':'pushState']({space},'',url);
   if(space==='calendar')setTimeout(()=>window.fitRomanticCalendar?.(),30);
+  if(space==='money')setTimeout(()=>window.renderPrometeoMoney?.(),30);
 }
 modeSwitch.onclick=e=>{const b=e.target.closest('button[data-space]');if(b)setSpace(b.dataset.space);};
 themeButton.onclick=()=>{paletteIndex=(paletteIndex+1)%SHELL_PALETTES.length;localStorage.setItem('prometeo-preview-theme-index',String(paletteIndex));applyPalette();};
