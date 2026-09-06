@@ -1,6 +1,7 @@
 (()=>{
   const frame=document.getElementById('romanticCalendarFrame');
   if(!frame)return;
+  let resizeObserver=null,mutationObserver=null,fitRAF=0;
 
   function syncTheme(){
     try{
@@ -13,10 +14,37 @@
   }
 
   function fit(){
+    cancelAnimationFrame(fitRAF);
+    fitRAF=requestAnimationFrame(()=>{
+      try{
+        const doc=frame.contentDocument;if(!doc)return;
+        const h=Math.max(360,doc.documentElement.scrollHeight||0,doc.body?.scrollHeight||0);
+        frame.style.height=(h+4)+'px';
+      }catch{}
+    });
+  }
+
+  /* Compatibility only: if an older cached time-compression script emitted 8 buttons,
+     collapse them into the canonical one-piece passive band. */
+  function normalizeLegacyBreaks(){
     try{
-      const doc=frame.contentDocument;if(!doc)return;
-      const h=Math.max(360,Math.min(980,doc.documentElement.scrollHeight+4));
-      frame.style.height=h+'px';
+      const doc=frame.contentDocument,grid=doc?.getElementById('grid');if(!grid)return;
+      const cells=Array.from(grid.children);
+      for(let i=0;i<cells.length;){
+        if(!cells[i].classList?.contains('time-break-cell')){i++;continue;}
+        const run=[];let j=i;
+        while(j<cells.length&&cells[j].classList?.contains('time-break-cell')&&run.length<8){run.push(cells[j]);j++;}
+        if(run.length){
+          const band=doc.createElement('div');
+          band.className='cell time-break-band';
+          band.setAttribute('role','separator');
+          band.setAttribute('aria-label','Tiempo libre comprimido');
+          band.textContent='TIEMPO LIBRE';
+          run[0].replaceWith(band);
+          run.slice(1).forEach(x=>x.remove());
+          i=j;
+        }else i++;
+      }
     }catch{}
   }
 
@@ -37,28 +65,31 @@
               name.textContent=longNames[i]||name.textContent;
             });
           };
-
           if(!window.__PROMETEO_SUNDAY_WEEK_PATCHED__){
             window.__PROMETEO_SUNDAY_WEEK_PATCHED__=true;
             const baseRender=render;
-            render=function(){
-              baseRender();
-              cleanHeaders();
-            };
-            todayWeek.onclick=()=>{
-              weekStart=addDays(currentMonday(),-1);
-              render();
-            };
+            render=function(){baseRender();cleanHeaders();};
+            todayWeek.onclick=()=>{weekStart=addDays(currentMonday(),-1);render();};
           }
-
           weekStart=addDays(currentMonday(),-1);
-          render();
-          cleanHeaders();
+          render();cleanHeaders();
         })();
       `);
-    }catch(error){
-      console.warn('[Prometeo romantic calendar] Sunday patch unavailable',error);
-    }
+    }catch(error){console.warn('[Prometeo romantic calendar] Sunday patch unavailable',error);}
+  }
+
+  function watchSize(){
+    try{
+      const doc=frame.contentDocument;if(!doc)return;
+      resizeObserver?.disconnect();mutationObserver?.disconnect();
+      if('ResizeObserver' in window){
+        resizeObserver=new ResizeObserver(()=>fit());
+        resizeObserver.observe(doc.documentElement);
+        if(doc.body)resizeObserver.observe(doc.body);
+      }
+      mutationObserver=new MutationObserver(()=>{normalizeLegacyBreaks();fit();});
+      if(doc.body)mutationObserver.observe(doc.body,{subtree:true,childList:true,attributes:false});
+    }catch{}
   }
 
   window.fitRomanticCalendar=fit;
@@ -66,9 +97,10 @@
   frame.addEventListener('load',()=>{
     try{
       const doc=frame.contentDocument;if(!doc)return;
+      frame.setAttribute('scrolling','no');
       const style=doc.createElement('style');
       style.textContent=`
-        html,body{margin:0!important;overflow:hidden!important}
+        html,body{margin:0!important;overflow:visible!important}
         .wrap{width:100%!important;max-width:none!important;margin:0!important;padding:0!important}
         header,.legend,.mobile-swipe-hint,.life-desktop,.later,.finance,
         .prometeo-global-shell,.p-global-shell,.global-shell,.workspace-nav,.workspace-primary,
@@ -78,20 +110,20 @@
         .calendar{width:100%!important;margin:0!important}
         .cell.slot{cursor:pointer}
         .cell.slot:focus-visible{outline:2px solid var(--b)!important;outline-offset:-2px}
-        dialog{color:var(--b)!important;background:var(--a)!important;border:2px solid var(--b)!important;border-radius:12px!important;max-width:min(92vw,520px)!important}
+        .time-break-cell{pointer-events:none!important;cursor:default!important;border:0!important;background:var(--b)!important;color:var(--a)!important;box-shadow:none!important}
+        .time-break-band{grid-column:1/-1!important;min-height:17px!important;height:17px!important;display:flex!important;align-items:center!important;justify-content:center!important;background:var(--b)!important;color:var(--a)!important;border:0!important;font-size:5px!important;font-weight:950!important;letter-spacing:.12em!important;pointer-events:none!important}
+        dialog{color:var(--b)!important;background:var(--a)!important;border:2px solid var(--b)!important;border-radius:12px!important;max-width:min(92vw,520px)!important;max-height:min(82vh,680px)!important;overflow:auto!important}
         dialog::backdrop{background:var(--b)!important;opacity:.18!important}
       `;
       doc.head.appendChild(style);
       doc.body.classList.remove('mobile-view-agenda','mobile-view-month','workspace-habits','workspace-money');
       doc.body.classList.add('mobile-view-week','workspace-calendar');
       const weekBtn=doc.querySelector('[data-mobile-view="week"],.mobile-view-button[data-view="week"]');if(weekBtn)weekBtn.click();
-      patchSundayWeek();
-      syncTheme();
-      setTimeout(()=>{patchSundayWeek();fit();},40);
-      setTimeout(fit,220);
-      setTimeout(fit,700);
+      patchSundayWeek();normalizeLegacyBreaks();syncTheme();watchSize();fit();
+      setTimeout(()=>{patchSundayWeek();normalizeLegacyBreaks();fit();},50);
+      setTimeout(fit,250);
     }catch{}
   });
 
-  window.addEventListener('resize',()=>setTimeout(fit,30));
+  window.addEventListener('resize',fit);
 })();
