@@ -1,0 +1,54 @@
+name: P4 Open Capture Workstream
+
+on:
+  push:
+    branches:
+      - 'candidate/p4-capture-integration-*'
+    paths:
+      - 'coordination/P4_01_OPEN_REQUEST.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: p4-capture-workstream-open
+  cancel-in-progress: false
+
+jobs:
+  open:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Re-run P4 preflight before opening workstream
+        run: node tests/p4-capture-preflight.test.mjs
+      - name: Open Seed Work Item receipt and candidate-local state
+        run: node scripts/p4-01-open-workstream.mjs
+      - name: Validate updated ledger and reincarnation state
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');const vm=require('vm');const crypto=require('crypto').webcrypto;
+          const read=p=>fs.readFileSync(p,'utf8');
+          const ledger=read('receipts/ledger.jsonl').trim().split(/\n+/).map(JSON.parse);
+          const c={console,structuredClone,TextEncoder,TextDecoder,crypto,URL,Date,Math,JSON,setTimeout,clearTimeout,queueMicrotask};c.globalThis=c;c.window=c;vm.createContext(c);
+          for(const p of ['shared/core/v1/durable.js','shared/receipts/v1/ledger.js'])vm.runInContext(read(p),c,{filename:p});
+          c.PrometeoLedger.validate(ledger).then(r=>{if(!r.ok)process.exit(1);const dot=JSON.parse(read('state/DOT_STATE.json'));const cg=JSON.parse(read('state/CURRENT_GRAPH.json'));if(dot.next_gate!=='P4-02'||cg.revision!==18||cg.last_durable_receipt!=='R-P4-01-WORKSTREAM-0019')process.exit(2);console.log(JSON.stringify({ok:true,count:r.count,lastHash:r.lastHash,next:dot.next_gate,revision:cg.revision}));});
+          NODE
+      - name: Commit P4-01 evidence
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add receipts/ledger.jsonl state/CURRENT_GRAPH.json state/DOT_STATE.json state/PENDING.json state/P4_CAPTURE_SEED.json state/P4_CAPTURE_WORK_ITEM.json coordination/P4_01_WORKSTREAM_EVIDENCE.json
+          if git diff --cached --quiet; then
+            echo 'P4-01 already materialized.'
+            exit 0
+          fi
+          git commit -m 'p4: open receipt-backed Capture workstream'
+          git push origin HEAD:${{ github.ref_name }}
