@@ -1,0 +1,53 @@
+name: P4 Capture Candidate CI
+
+on:
+  push:
+    branches:
+      - 'candidate/p4-capture-integration-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: P4 authority and preparation preflight
+        run: node tests/p4-capture-preflight.test.mjs
+      - name: Clean-process reincarnation evidence
+        run: node scripts/p3-00-rehydrate.mjs > /tmp/p4-wake.json
+      - name: Fresh-process reincarnation regression
+        run: node scripts/p3-02-fresh-agent-runner.mjs > /tmp/p4-fresh.json
+      - name: Record served-branch shell participation
+        run: |
+          set -euo pipefail
+          git fetch origin gh-pages
+          git show origin/gh-pages:navigator/index.html > /tmp/served-nav.html
+          grep -o 'prometeo-shell/v[0-9][^" ]*' /tmp/served-nav.html | tail -5 || true
+          if grep -q 'prometeo-shell/v2/prometeo-shell.js?v=2' /tmp/served-nav.html; then
+            echo 'P4_SERVED_BRANCH_MARKER=v2' >> "$GITHUB_ENV"
+          elif grep -q 'prometeo-shell/v3/prometeo-shell.js?v=3' /tmp/served-nav.html; then
+            echo 'P4_SERVED_BRANCH_MARKER=v3' >> "$GITHUB_ENV"
+          else
+            echo 'P4_SERVED_BRANCH_MARKER=none' >> "$GITHUB_ENV"
+          fi
+      - name: Validate configured publication race evidence
+        run: |
+          set -euo pipefail
+          grep -q 'prometeo-shell/v2/prometeo-shell.js?v=2' .github/workflows/inject-prometeo-shell.yml
+          grep -q 'prometeo-shell/v3/prometeo-shell.js?v=3' .github/workflows/inject-prometeo-shell-v3.yml
+          echo "served branch marker: ${P4_SERVED_BRANCH_MARKER}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p4-preflight-evidence
+          path: |
+            /tmp/p4-wake.json
+            /tmp/p4-fresh.json
+            /tmp/served-nav.html
