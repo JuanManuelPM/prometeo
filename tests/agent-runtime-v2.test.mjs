@@ -15,7 +15,14 @@ const out='tmp/agent-runtime-test';
 execFileSync(process.execPath,['scripts/build-agent-runtime.mjs','--out',out],{cwd:ROOT,stdio:'inherit'});
 const manifest=read(`${out}/manifest.json`);
 const now=read('coordination/NOW.json');
+const catalog=read('catalog/pages.json');
 if(manifest.packets.length!==now.active_workstreams.length)throw new Error('packet count mismatch');
+if(manifest.surface_routes.length!==catalog.pages.length)throw new Error('surface route count mismatch');
+if(!manifest.surface_routes.some(x=>x.id==='jose-study'))throw new Error('José must remain routable without a dedicated workstream');
+if(!manifest.fallback_packet?.url?.includes('prometeo-general'))throw new Error('missing GENERAL fallback');
+const general=read(`${out}/workstreams/prometeo-general.json`);
+if(general.write_scope.length!==0)throw new Error('GENERAL must not grant write scope');
+if(general.seal.active!=='🟣 P✓ · GENERAL')throw new Error('GENERAL seal drift');
 for(const p of manifest.packets){
   const packet=read(`${out}/workstreams/${p.id}.json`);
   if(!packet.seal.active.startsWith('🟣 P✓'))throw new Error(`missing seal ${p.id}`);
@@ -23,4 +30,4 @@ for(const p of manifest.packets){
   if(!packet.state.actual_branch_head)throw new Error(`unresolved branch ${p.id}`);
 }
 fs.rmSync(path.join(ROOT,'tmp'),{recursive:true,force:true});
-console.log(JSON.stringify({ok:true,runtime:manifest.runtime_revision,packets:manifest.packets.map(p=>p.id)}));
+console.log(JSON.stringify({ok:true,runtime:manifest.runtime_revision,packets:manifest.packets.map(p=>p.id),surfaces:manifest.surface_routes.length,fallback:manifest.fallback_packet.id}));
