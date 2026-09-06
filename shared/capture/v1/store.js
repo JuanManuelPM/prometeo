@@ -37,14 +37,22 @@ export class CaptureStore{
     });
     return this.dbPromise;
   }
-  async putCapture(capture){
+  async putCapture(capture,{audioBlob=undefined}={}){
     validateCapture(capture);const db=await this.db();const tx=db.transaction([CAPTURES,REVISIONS],'readwrite');
+    const existing=await request(tx.objectStore(CAPTURES).get(capture.id));
     const flattened={...structuredClone(capture),page_id:capture.immutable_creation.context.page_id||null};
+    if(audioBlob!==undefined)flattened.audio_blob=audioBlob;
+    else if(existing?.audio_blob)flattened.audio_blob=existing.audio_blob;
     tx.objectStore(CAPTURES).put(flattened);
     for(const r of capture.revisions||[])tx.objectStore(REVISIONS).put(structuredClone(r));
     await txDone(tx);return capture;
   }
+  async putAudioBlob(capture,blob){
+    if(!(blob instanceof Blob)||blob.size<=0)fail('PROMETEO_CAPTURE_AUDIO_BLOB','Non-empty Blob required');
+    return this.putCapture(capture,{audioBlob:blob});
+  }
   async getCapture(id){const db=await this.db();const tx=db.transaction(CAPTURES,'readonly');return request(tx.objectStore(CAPTURES).get(String(id)))}
+  async getAudioBlob(id){const c=await this.getCapture(id);return c?.audio_blob||null}
   async listCaptures({page_id=null,includeArchived=false}={}){
     const db=await this.db();const tx=db.transaction(CAPTURES,'readonly');let all=await request(tx.objectStore(CAPTURES).getAll());
     if(page_id)all=all.filter(x=>x.page_id===page_id);
@@ -63,7 +71,7 @@ export class CaptureStore{
     let legacy=[];
     try{legacy=await readLegacyNotes()}catch{}
     let imported=0;
-    for(const note of legacy){const capture=await convert(note);if(!capture)continue;await this.putCapture(capture);imported++}
+    for(const note of legacy){const capture=await convert(note);if(!capture)continue;await this.putCapture(capture,{audioBlob:note.audio||undefined});imported++}
     await this.setMeta('legacy.prometeo-global-notes.imported',{at:new Date().toISOString(),count:imported,source_db:LEGACY_DB});
     return {imported,already:false};
   }
@@ -73,11 +81,12 @@ async function readLegacyNotes(){
   if(!globalThis.indexedDB)return [];
   return new Promise((resolve,reject)=>{
     const req=indexedDB.open(LEGACY_DB);
+    let created=false;
     req.onerror=()=>reject(req.error);
-    req.onupgradeneeded=()=>{try{req.transaction.abort()}catch{};resolve([])};
+    req.onupgradeneeded=()=>{created=true};
     req.onsuccess=async()=>{
       const db=req.result;
-      if(!db.objectStoreNames.contains('notes')){db.close();resolve([]);return}
+      if(created||!db.objectStoreNames.contains('notes')){db.close();resolve([]);return}
       try{const tx=db.transaction('notes','readonly');const rows=await request(tx.objectStore('notes').getAll());db.close();resolve(rows||[])}catch(e){db.close();reject(e)}
     };
   });
