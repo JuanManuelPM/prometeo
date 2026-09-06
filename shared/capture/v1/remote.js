@@ -45,7 +45,14 @@ export class CaptureRemote{
   selection(captures){return captures.map(c=>{const r=revisionRef(c);return {capture_id:c.id,revision:r.revision,ref:r.ref,digest:r.digest||null}})}
   async previewExport(captures){await this.connect();return this.call('preview_export',{selection:this.selection(captures)})}
   async approveExport(proposal_id){await this.connect();return this.call('approve_export',{proposal_id,human_approved:true})}
-  async createPatent({captures,export_receipt_id,seed,work_item,current_binding,catalog_binding,page_bindings,protocol_binding,memory_bindings=[]}={}){
+  async prepareExport(captures){
+    // The human action that invokes "Preparar patente" is the explicit export action.
+    // Server still freezes an exact preview proposal first, then anchors approval to that exact scope.
+    const proposal=await this.previewExport(captures);
+    const receipt=await this.approveExport(proposal.proposal_id);
+    return {...receipt,proposal_preview:proposal.preview,pages:proposal.pages};
+  }
+  async createPatent({captures,export_receipt_id,seed,work_item,current_binding,catalog_binding,pageBindings,page_bindings=pageBindings,protocol_binding,memory_bindings=[]}={}){
     await this.connect();return this.call('create_patent_v2',{selection:this.selection(captures),export_receipt_id,seed,work_item,current_binding,catalog_binding,page_bindings,protocol_binding,memory_bindings});
   }
   async getPatentStatus(patent_code){await this.connect();return this.call('patent_status',{patent_code})}
@@ -53,4 +60,4 @@ export class CaptureRemote{
   async receiptStatus({patent_code,work_item_id}={}){await this.connect();return this.call('receipt_status',{patent_code,work_item_id})}
 }
 
-export const CaptureRemoteContract=Object.freeze({endpoint:DEFAULT_ENDPOINT,auto_provision:false,secret_storage:SECRET_KEY,transport_authority:false,export_flow:'preview -> explicit approve -> patent'});
+export const CaptureRemoteContract=Object.freeze({endpoint:DEFAULT_ENDPOINT,auto_provision:false,secret_storage:SECRET_KEY,transport_authority:false,export_flow:'preview -> exact human approval -> patent'});
