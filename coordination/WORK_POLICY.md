@@ -60,6 +60,18 @@ Use only when crossing a publication/authority boundary.
 - Git conflict is a signal to reconcile, not a reason to invent a distributed scheduler.
 - A chat should not silently write to another workstream's owner because it happens to have access.
 
+### When another chat forgot its handoff
+
+Do not turn a missing `LAST_RETURN` into a new archaeology phase.
+
+1. Read the last known workstream head from PACK/LAST_RETURN.
+2. Compare it with the actual branch head.
+3. Inspect only commits after the known head.
+4. Extract only useful deltas, decisions, shared discoveries and unresolved work relevant to this workstream.
+5. Repair the single `LAST_RETURN.json` and continue.
+
+Git history is the fallback memory. The purpose of RETURN is speed, not authority. A forgotten RETURN must cost a small diff, not an entire project reconstruction.
+
 ## Cross-workstream learning
 
 When a local result may help another surface, put it in RETURN `shared_discoveries` / `global_delta_candidates` with evidence. Do **not** immediately refactor unrelated products. Promote only high-leverage, cross-workstream discoveries to `DELTA_FEED.json`.
