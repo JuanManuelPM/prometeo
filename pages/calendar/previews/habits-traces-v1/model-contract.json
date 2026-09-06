@@ -1,0 +1,63 @@
+{
+  "schema": "prometeo.surface-contract/v1",
+  "version": 1,
+  "purpose": "Stable contract for humans, code and future AI agents. Views project canonical objects; they never own or replace domain data.",
+  "domains": {
+    "calendar": {
+      "owns": ["temporal_projection"],
+      "does_not_own": ["students", "courses", "payments", "habit_history", "expenses"]
+    },
+    "habits": {
+      "owns": ["behavior_trackers", "behavior_logs"],
+      "projects_to": ["today", "calendar", "history"]
+    },
+    "money": {
+      "owns": ["expenses", "budgets", "financial_projection"],
+      "consumes": ["lesson_occurrences"],
+      "does_not_own": ["lessons", "calendar_events"]
+    }
+  },
+  "object_types": [
+    "event",
+    "recurring_event",
+    "university_session",
+    "lesson",
+    "task",
+    "habit_tracker",
+    "behavior_log",
+    "expense",
+    "income_projection"
+  ],
+  "event_sources": [
+    "manual",
+    "whatsapp_export",
+    "google_calendar",
+    "university",
+    "external_feed"
+  ],
+  "required_core_fields": ["id", "type", "title", "status", "createdAt", "updatedAt"],
+  "update_rules": [
+    "Preserve stable ids across UI redesigns.",
+    "Never replace an entire domain collection because one view changed.",
+    "Merge imported objects by stable source id; do not duplicate them.",
+    "Unknown fields must survive read-modify-write cycles.",
+    "Renderers may branch on type/capability, never on personal names such as a student or expense label.",
+    "A missing log is unknown, never automatically success or failure.",
+    "Calendar, Habits and Money are projections over shared objects, not separate data silos.",
+    "Migrations must be additive and versioned; destructive changes require an explicit migration.",
+    "UI-only changes must not mutate canonical data.",
+    "Before publishing, verify that baseline calendar objects still render and that saved local state remains readable."
+  ],
+  "import_pipeline": {
+    "stages": ["ingest", "parse", "normalize", "deduplicate", "review", "commit"],
+    "whatsapp_export": {
+      "input": ["txt", "zip"],
+      "output": "candidate canonical events",
+      "rule": "Never commit inferred dates or times without review when confidence is low."
+    },
+    "google_calendar": {
+      "output": "canonical events with external source ids",
+      "rule": "External ids are retained so future syncs update instead of duplicate."
+    }
+  }
+}
