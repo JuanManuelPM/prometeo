@@ -1,6 +1,6 @@
 {
   "schema": "prometeo.surface-contract/v1",
-  "version": 2,
+  "version": 3,
   "purpose": "Stable contract for humans, code and future AI agents. Views project canonical objects; they never own or replace domain data.",
   "domains": {
     "calendar": {
@@ -9,7 +9,7 @@
     },
     "habits": {
       "owns": ["behavior_trackers", "behavior_logs"],
-      "projects_to": ["today", "calendar", "history", "momentum"]
+      "projects_to": ["today", "calendar", "history", "trajectory"]
     },
     "money": {
       "owns": ["expenses", "budgets", "financial_projection"],
@@ -61,24 +61,50 @@
     ],
     "habit_history": [
       "The visible history uses exactly fourteen equal day columns ending at HOY on the far right.",
-      "Tracker labels occupy the fixed left column; icons are not required for identity.",
-      "Daily marks and momentum points share the exact same fourteen X centers.",
-      "Momentum is derived from behavior logs and is never a second persisted source of truth.",
+      "Every tracker row has one fixed height independent of label length, streak state or recorded values.",
+      "Tracker labels occupy the fixed left column; permanent metrics, chips, badges and explanatory buttons are forbidden there.",
+      "A streak may appear only as a small inline monochrome flame plus its count; it is informational text, never a button or pill.",
+      "Daily marks and trajectory points share the exact same fourteen X centers.",
       "Unknown is neutral and never automatically treated as failure.",
-      "Positive habits may record explicit missed states; only explicit missed states lower momentum.",
-      "All tracker lines remain visible together; selecting one may emphasize it but must not hide the others.",
-      "Momentum uses the active two-color theme, differentiated by geometry and line pattern rather than extra palette colors."
+      "A negative daily state is represented by a broken geometric block rather than an X icon.",
+      "The editor is one global strip below the matrix and must never alter an individual tracker row height."
+    ],
+    "habit_trajectory": [
+      "Each tracker owns one separate spacious solid line; tracker lines are never overlaid in one chart.",
+      "All trajectory lines use the same active theme color and are identified directly by the tracker name, not by dashed patterns or a legend.",
+      "The minimum baseline means stable or null recent disturbance.",
+      "A lapse, bad state or explicit missed state creates an upward spike.",
+      "A craving creates a smaller upward disturbance than a lapse.",
+      "Good or completed days accelerate decay back toward zero.",
+      "Unknown days never create a spike; they may permit only slow passive temporal decay.",
+      "Nearby negative events accumulate instead of resetting to an identical isolated shape.",
+      "Trajectory is derived from behavior logs and is never persisted as a second source of truth.",
+      "Do not show numeric scores, chart legends, line-style keys, KPI chips or explanatory badges in the default trajectory view."
     ]
   },
-  "habit_momentum": {
-    "initial_score": 50,
+  "habit_trajectory_model": {
     "range": [0, 100],
-    "default_scoring": {
-      "avoid": {"clear": 1, "crave": 0.35, "lapse": -2, "unknown": 0},
-      "food": {"good": 1, "bad": -1.5, "unknown": 0},
-      "positive": {"done": 1, "missed": -1, "unknown": 0}
+    "baseline": 0,
+    "meaning": "recent behavioral disturbance / residual risk, not achievement points",
+    "default_rules": {
+      "avoid": {
+        "lapse": "large spike",
+        "crave": "small spike",
+        "clear": "fast decay toward zero",
+        "unknown": "slow passive decay only"
+      },
+      "food": {
+        "bad": "medium-large spike",
+        "good": "fast decay toward zero",
+        "unknown": "slow passive decay only"
+      },
+      "positive": {
+        "missed": "medium spike",
+        "done": "fast decay toward zero",
+        "unknown": "slow passive decay only"
+      }
     },
-    "rule": "Scores are a projection computed from logs across time. Changing the scoring model must not rewrite historical logs."
+    "rule": "Changing the derived trajectory model must never rewrite historical logs."
   },
   "import_pipeline": {
     "stages": ["ingest", "parse", "normalize", "deduplicate", "review", "commit"],
