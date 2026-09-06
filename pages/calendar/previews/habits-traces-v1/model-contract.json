@@ -1,6 +1,6 @@
 {
   "schema": "prometeo.surface-contract/v1",
-  "version": 1,
+  "version": 2,
   "purpose": "Stable contract for humans, code and future AI agents. Views project canonical objects; they never own or replace domain data.",
   "domains": {
     "calendar": {
@@ -9,7 +9,7 @@
     },
     "habits": {
       "owns": ["behavior_trackers", "behavior_logs"],
-      "projects_to": ["today", "calendar", "history"]
+      "projects_to": ["today", "calendar", "history", "momentum"]
     },
     "money": {
       "owns": ["expenses", "budgets", "financial_projection"],
@@ -48,6 +48,38 @@
     "UI-only changes must not mutate canonical data.",
     "Before publishing, verify that baseline calendar objects still render and that saved local state remains readable."
   ],
+  "visual_invariants": {
+    "calendar_week": [
+      "The week is seven days and the current product view starts on Sunday.",
+      "Visible 30-minute empty slots are interactive; compressed time is not.",
+      "A whole-week internal empty span may be compressed only when it is at least 90 minutes.",
+      "A compressed span is exactly one full-width passive band using the secondary theme color.",
+      "The only text inside a compressed span is TIEMPO LIBRE in the primary theme color.",
+      "Compressed spans never show duration, arrows, day dividers, buttons, focus states or manual expansion.",
+      "No dynamic content may become unreachable because of overflow clipping or a hard-coded embedded height.",
+      "A surface has one vertical scroll owner."
+    ],
+    "habit_history": [
+      "The visible history uses exactly fourteen equal day columns ending at HOY on the far right.",
+      "Tracker labels occupy the fixed left column; icons are not required for identity.",
+      "Daily marks and momentum points share the exact same fourteen X centers.",
+      "Momentum is derived from behavior logs and is never a second persisted source of truth.",
+      "Unknown is neutral and never automatically treated as failure.",
+      "Positive habits may record explicit missed states; only explicit missed states lower momentum.",
+      "All tracker lines remain visible together; selecting one may emphasize it but must not hide the others.",
+      "Momentum uses the active two-color theme, differentiated by geometry and line pattern rather than extra palette colors."
+    ]
+  },
+  "habit_momentum": {
+    "initial_score": 50,
+    "range": [0, 100],
+    "default_scoring": {
+      "avoid": {"clear": 1, "crave": 0.35, "lapse": -2, "unknown": 0},
+      "food": {"good": 1, "bad": -1.5, "unknown": 0},
+      "positive": {"done": 1, "missed": -1, "unknown": 0}
+    },
+    "rule": "Scores are a projection computed from logs across time. Changing the scoring model must not rewrite historical logs."
+  },
   "import_pipeline": {
     "stages": ["ingest", "parse", "normalize", "deduplicate", "review", "commit"],
     "whatsapp_export": {
