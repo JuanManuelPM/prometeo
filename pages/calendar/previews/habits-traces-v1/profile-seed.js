@@ -2,6 +2,7 @@
   const STATE_KEY='prometeo.calendar.state.v1';
   const CLASS_KEY='dated-calendar-classes-v8';
   const RATE_KEY='dated-calendar-rate-v8';
+  const SEED_KEY='prometeo.preview.profile-seed.v1';
 
   const university=[
     {id:'up-modelos3',subject:'Modelos y Teorías 3',detail:'Psicología Sistémica y Conductismo',weekday:0,from:'2026-08-03',to:'2026-11-20',start:8*60+30,duration:3.5,room:'Mario Bravo 1259 · PB-01'},
@@ -27,25 +28,25 @@
   ];
 
   const safeJSON=(raw,fallback)=>{try{return raw?JSON.parse(raw):fallback}catch{return fallback}};
-  const mergeMissing=(existing,defaults)=>{
-    const list=Array.isArray(existing)?existing:[];
-    const ids=new Set(list.map(x=>x&&x.id).filter(Boolean));
-    return list.concat(defaults.filter(x=>!ids.has(x.id)));
-  };
-
   const current=safeJSON(localStorage.getItem(STATE_KEY),null)||{
     schema:'prometeo.calendar-state/v1',schemaVersion:1,updatedAt:new Date().toISOString(),settings:{theme:'bordo-crema',baseRate:50000},calendar:{classes:[],university:[],opportunities:[],personalEvents:[]},life:{tasks:[],habits:[],habitLog:{},food:{library:[],offsets:{},eaten:{}},shopping:[]},finance:{history:{}}
   };
+
   current.settings=current.settings||{};
   current.calendar=current.calendar||{};
-  current.calendar.classes=mergeMissing(current.calendar.classes,classes);
-  current.calendar.university=mergeMissing(current.calendar.university,university);
-  current.calendar.opportunities=mergeMissing(current.calendar.opportunities,opportunities);
-  current.settings.baseRate=Number(current.settings.baseRate)||50000;
-  current.updatedAt=new Date().toISOString();
 
-  localStorage.setItem(STATE_KEY,JSON.stringify(current));
-  localStorage.setItem(CLASS_KEY,JSON.stringify(current.calendar.classes));
+  if(!localStorage.getItem(SEED_KEY)){
+    if(!Array.isArray(current.calendar.classes)||current.calendar.classes.length===0)current.calendar.classes=classes;
+    if(!Array.isArray(current.calendar.university)||current.calendar.university.length===0)current.calendar.university=university;
+    if(!Array.isArray(current.calendar.opportunities)||current.calendar.opportunities.length===0)current.calendar.opportunities=opportunities;
+    current.settings.baseRate=Number(current.settings.baseRate)||50000;
+    current.updatedAt=new Date().toISOString();
+    localStorage.setItem(STATE_KEY,JSON.stringify(current));
+    localStorage.setItem(SEED_KEY,new Date().toISOString());
+  }
+
+  const effective=safeJSON(localStorage.getItem(STATE_KEY),current);
+  localStorage.setItem(CLASS_KEY,JSON.stringify(Array.isArray(effective.calendar?.classes)?effective.calendar.classes:[]));
   if(!Number(localStorage.getItem(RATE_KEY)))localStorage.setItem(RATE_KEY,'50000');
 
   window.PrometeoPreviewProfile=Object.freeze({version:'1',university,classes,opportunities});
