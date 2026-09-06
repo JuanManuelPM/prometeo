@@ -1,26 +1,40 @@
-# Prometeo agent entry
+# Prometeo Agent Runtime v2
 
-Before material work, read `.well-known/prometeo.json`, then `coordination/NOW.json`.
+Prometeo is intentionally multi-chat. **Route before archaeology; compiled packet before raw owners.**
 
-Prometeo is intentionally multi-chat. A fresh agent must **route before archaeology**:
+## Hard command: `Prometeo`
+When the user sends `Prometeo` in a Prometeo conversation, treat it as RESYNC + RECOVER + CONTINUE, not as a request for a project description.
 
-1. Match the human request to an active workstream in `NOW.json`.
-2. Read only that workstream's `PACK.json` and `LAST_RETURN.json` first.
-3. Read global deltas newer than the pack's `last_global_revision_seen` only when their topics intersect the pack.
-4. Follow links from the pack to authoritative source/contracts as needed. If a read ref names a branch, read that exact branch; do not silently substitute `main`.
-5. Compare the workstream's actual branch head with `LAST_RETURN.head_commit` / pack observed head. If another chat advanced the branch without updating RETURN, inspect **only those newer commits**, synthesize the missing useful delta, and continue. Do not restart full archaeology.
-6. Respect the pack's write scope and branch. Disjoint workstreams may proceed in parallel; overlapping write scopes require explicit reconciliation, not silent competition.
-7. Work in the declared mode: **LAB** optimizes learning/product quality, **INTEGRATE** extracts reusable ownership, **RELEASE** adds publication/acceptance evidence.
-8. Checks are evidence, not progress. Maximize durable useful change per agent turn. Do not restate a frozen plan, create check-on-check loops, or manufacture gates to look busy.
-9. Prefer implementation + critique + repair in the same turn when the task is already understood.
-10. If a local improvement could help other surfaces, record it under `shared_discoveries` in the RETURN rather than silently refactoring unrelated products.
-11. At a meaningful boundary, update/emit the compact `coordination/RETURN_CONTRACT.json` shape. Git history is the detailed history; the RETURN is the handoff.
+1. Load `https://juanmanuelpm.github.io/prometeo/.well-known/prometeo.json`.
+2. Load its current `runtime_manifest`.
+3. Infer the workstream from the conversation and last materially unsatisfied human intent.
+4. Load exactly one compiled packet from the manifest.
+5. Reconcile only branch/upstream deltas listed by that packet.
+6. Follow conditional source/authority references only when they can change the current decision.
+7. Select FAST / DEEP / EXHAUSTIVE / CONTINUE from `coordination/EXECUTION_PROFILES.json`.
+8. Continue the human's unfinished request; do not ask them to repeat recoverable context.
+9. End with the Prometeo Seal only if entry + compiled packet were actually loaded.
 
-If a previous chat forgot to leave a RETURN, **Git is the recovery source**: diff from the last known head, extract only the changes that affect this workstream, update the one `LAST_RETURN.json`, then proceed. Never punish a missing handoff with a full repository re-read.
+## Seal
+- `🟣 P✓ · <WORKSTREAM>` = runtime + packet actually loaded and active.
+- `🟡 P~ · <WORKSTREAM>` = runtime loaded but a real human/external boundary blocks continuation.
+- `🔴 P! · PROMETEO` = runtime/authority could not be loaded safely.
+- No seal = the human should not assume Prometeo runtime was active.
 
-Special triggers:
-- `PROMETEO`: route the current request from the public entrypoint.
-- `PROMETEO PATENT`: execute the Patent protocol; repository authority still wins over transported context.
-- `.`: continue the current routed pack from its last return. Do not restart broad planning unless the pack/source is materially invalidated.
+Never print the violet seal decoratively. It is a lightweight attestation of this work cycle, not a claim of Human Acceptance or release success.
 
-Authority remains in the existing Current/Lineage/Catalog/Reincarnation system. The control plane only answers: **what is the highest-value work for this chat now, and what changed elsewhere that it must know?**
+## Execution economy
+- FAST: clear local change → execute, critique, repair.
+- DEEP: context first → complete meaningful title map → develop decisions → execute → critique → repair.
+- EXHAUSTIVE: human-requested/structural exhaustive map → print/freeze once → execute continuously; never fill counts with fake work.
+- CONTINUE: an adequate context/map/spec already exists or the user sends `.` → resume the saved frontier without replanning.
+
+Plans are decision compression, not progress. Checks are evidence, not progress. Prefer implementation + critique + repair in the same cycle.
+
+## Multi-chat recovery
+`RETURN` is an accelerator, not authority. If LAST_RETURN is stale or missing, compare the last known workstream head with the actual branch head and inspect only the commits in that delta. Git history is fallback memory; a forgotten handoff must not trigger full-project archaeology.
+
+Disjoint write scopes may proceed in parallel. Overlapping scopes require explicit reconciliation. A page-local problem may be owned by a shared capability; distinguish where a symptom appears from who should own the reusable solution.
+
+## Authority
+The Agent Runtime coordinates work only. Existing Current / Catalog / Lineage / Reincarnation / Human Accepted / Served owners remain authoritative. Private Capture/Patent context must never be compiled into the public runtime.
