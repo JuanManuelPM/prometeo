@@ -1,34 +1,29 @@
-name: Inject Prometeo Global Shell
+name: Publish Legacy Prometeo Capture Donors
+
 on:
   push:
     branches: [main]
     paths:
       - 'shared/prometeo-shell/**'
       - '.github/workflows/inject-prometeo-shell.yml'
-  workflow_run:
-    workflows:
-      - 'Publish Prometeo Shared Commons'
-      - 'Build approved Adriana heart alpha'
-      - 'Finalize Adriana permanent share'
-    types: [completed]
   workflow_dispatch:
+
 permissions:
   contents: write
+
 concurrency:
-  group: prometeo-shared-pages
+  group: prometeo-legacy-capture-assets
   cancel-in-progress: false
+
 jobs:
-  inject:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+  publish-assets-only:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-
-      - name: Validate global shell
+      - name: Validate legacy donors
         run: |
           set -euo pipefail
           node --check shared/prometeo-shell/v1/db.js
@@ -39,71 +34,26 @@ jobs:
           node --check shared/prometeo-shell/v2/prometeo-shell.js
           test -s shared/prometeo-shell/v1/shell.css
           test -s shared/prometeo-shell/v2/shell.css
-
-      - name: Publish shell and inject every Pages HTML
+      - name: Publish donor assets without mutating product HTML
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git fetch origin gh-pages
           git worktree add /tmp/prometeo-pages origin/gh-pages
-
           mkdir -p /tmp/prometeo-pages/shared/prometeo-shell
           rsync -a --delete shared/prometeo-shell/ /tmp/prometeo-pages/shared/prometeo-shell/
-
-          python - <<'PY'
-          from pathlib import Path
-          import re
-
-          root = Path('/tmp/prometeo-pages')
-          marker = '<script type="module" src="/prometeo/shared/prometeo-shell/v2/prometeo-shell.js?v=2" data-prometeo-shell></script>'
-          existing = re.compile(r'<script\b[^>]*data-prometeo-shell[^>]*>\s*</script>', re.I)
-          skip_prefixes = (
-              'shared/prometeo-shell/',
-              'pages/voice/',
-              'pages/voice2/',
-          )
-          changed = 0
-          already = 0
-          skipped = 0
-
-          for page in root.rglob('*.html'):
-              rel = page.relative_to(root).as_posix()
-              if rel.startswith(skip_prefixes):
-                  skipped += 1
-                  continue
-              try:
-                  text = page.read_text(encoding='utf-8')
-              except UnicodeDecodeError:
-                  skipped += 1
-                  continue
-
-              if marker in text:
-                  already += 1
-                  continue
-
-              if existing.search(text):
-                  text = existing.sub(marker, text)
-              else:
-                  lower = text.lower()
-                  idx = lower.rfind('</body>')
-                  if idx >= 0:
-                      text = text[:idx] + marker + '\n' + text[idx:]
-                  else:
-                      text = text + '\n' + marker + '\n'
-
-              page.write_text(text, encoding='utf-8')
-              changed += 1
-
-          print(f'Prometeo shell v2 injection: changed={changed} already={already} skipped={skipped}')
-          PY
-
           cd /tmp/prometeo-pages
-          git add -A
+          git add shared/prometeo-shell
           if git diff --cached --quiet; then
-            echo 'Global shell v2 already current on gh-pages.'
+            echo 'Legacy donor assets already current.'
             exit 0
           fi
-          git commit -m 'shell: publish global capture + patent v2'
+          git commit -m 'shell: publish legacy Capture donor assets only'
           git pull --rebase origin gh-pages
           git push origin HEAD:gh-pages
+
+# P4 authority note:
+# This workflow deliberately does NOT inject a Capture shell into Navigator or
+# arbitrary page HTML. P4 Capture owns integration through a single declared
+# host/canary/release path. V1/V2 remain donors; existence is not participation.
