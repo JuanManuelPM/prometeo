@@ -4,6 +4,7 @@
   const LEGACY_KEY='prometeo.preview.finance.v1';
   const MONTHS=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
   const MONTHS_SHORT=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  const DAY_MS=86400000;
   const safe=(raw,fallback)=>{try{return raw?JSON.parse(raw):fallback}catch{return fallback}};
   const pad=n=>String(n).padStart(2,'0');
   const iso=(y,m,d)=>`${y}-${pad(m+1)}-${pad(d)}`;
@@ -137,10 +138,11 @@
     return out;
   }
   function snapshot(year,month){
-    const income=[...classOccurrences(year,month),...monthItems(year,month).filter(x=>x.type==='income')];
+    const recurring=recurringForMonth(year,month);
+    const income=[...classOccurrences(year,month),...monthItems(year,month).filter(x=>x.type==='income'),...recurring.filter(x=>x.type==='income')];
     const potential=[...opportunityOccurrences(year,month),...income.filter(x=>x.status==='potential')];
     const confirmedIncome=income.filter(x=>x.status!=='potential');
-    const expenses=[...monthItems(year,month).filter(x=>x.type==='expense'),...recurringForMonth(year,month),...legacyForMonth(year,month)];
+    const expenses=[...monthItems(year,month).filter(x=>x.type==='expense'),...recurring.filter(x=>x.type!=='income'),...legacyForMonth(year,month)];
     const incomeTotal=confirmedIncome.reduce((s,x)=>s+(Number(x.amount)||0),0);
     const potentialTotal=potential.reduce((s,x)=>s+(Number(x.amount)||0),0);
     const expenseTotal=expenses.reduce((s,x)=>s+(Number(x.amount)||0),0);
@@ -191,9 +193,9 @@
 
   function renderHero(data){
     const hasExpense=data.expenseTotal>0;
-    document.getElementById('moneyRemain').textContent=hasExpense||data.incomeTotal?compact(data.remain):'—';
-    document.getElementById('moneyIncome').textContent=compact(data.incomeTotal);
-    document.getElementById('moneyExpense').textContent=hasExpense?compact(data.expenseTotal):'—';
+    document.getElementById('moneyRemain').textContent=hasExpense||data.incomeTotal?money(data.remain):'—';
+    document.getElementById('moneyIncome').textContent=money(data.incomeTotal);
+    document.getElementById('moneyExpense').textContent=hasExpense?money(data.expenseTotal):'—';
     const p=document.getElementById('moneyPotential');
     p.textContent=data.potentialTotal?`+${compact(data.potentialTotal)} potencial`:'sin ingresos potenciales cargados';
     p.hidden=!data.potentialTotal;
