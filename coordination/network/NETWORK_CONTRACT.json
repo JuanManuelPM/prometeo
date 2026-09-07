@@ -1,0 +1,53 @@
+{
+  "schema": "prometeo.agent-network-contract/v1",
+  "version": 1,
+  "purpose": "Coordinate disposable parallel chats without making the human a message bus and without turning coordination into product authority.",
+  "principles": [
+    "Workers write independent status objects; NETWORK is derived and read-only.",
+    "EPOCH is the cheap freshness check. Same epoch means no coordination reread is required.",
+    "Only material cross-workstream discoveries propagate; local implementation detail remains in Git/RETURN.",
+    "Disjoint write scopes proceed in parallel. Collisions and dependency changes are surfaced only to affected workstreams.",
+    "No heartbeat loops or global distributed locks by default.",
+    "Public coordination metadata never contains LOCAL/private Capture, Patent, transcript, credential or secret content.",
+    "Network/worker state coordinates work only; it never grants Current, Human Accepted or Served authority."
+  ],
+  "worker_status": {
+    "schema": "prometeo.worker-status/v1",
+    "required": ["worker_instance_id", "workstream_id", "state", "updated_at"],
+    "fields": {
+      "worker_instance_id": "Disposable id for one chat/agent instance.",
+      "workstream_id": "Registered workstream id.",
+      "repository": "owner/repo; defaults to JuanManuelPM/prometeo.",
+      "branch": "Current branch when material writes exist.",
+      "state": "ACTIVE | BOUNDARY | HANDOFF | CLOSED | UNKNOWN.",
+      "mode": "LAB | INTEGRATE | RELEASE.",
+      "frontier": "Small description of the next unsatisfied execution frontier.",
+      "last_useful_delta": "What useful thing now exists that did not before; never a transcript dump.",
+      "write_scope": "Paths this worker is currently authorized/scoped to modify.",
+      "needs": "Capabilities/artifacts/decisions required from other workstreams.",
+      "provides": "Capabilities/artifacts this workstream currently provides.",
+      "depends_on": "Workstream/capability dependencies whose changes may alter execution.",
+      "impacts": "Workstream ids/topics that should be reconsidered if last_useful_delta is reusable.",
+      "candidate_shared_owners": "Shared capability owner candidates discovered locally.",
+      "epoch_seen": "Last public EPOCH id loaded by this worker.",
+      "reported_head": "Optional head for external repositories or environments the compiler cannot inspect directly."
+    },
+    "write_rule": "Update only on material frontier/change/handoff; no periodic heartbeat requirement."
+  },
+  "convergence": {
+    "types": [
+      "HARD_WRITE_COLLISION",
+      "DEPENDENCY_CHANGED",
+      "NEED_SATISFIED",
+      "SHARED_OWNER_CANDIDATE",
+      "INFORMATIONAL_IMPACT"
+    ],
+    "rule": "Emit events instead of globally locking workers; only HARD_WRITE_COLLISION blocks overlapping material writes until reconciled."
+  },
+  "epoch": {
+    "public_path": "agent-runtime/epoch.json",
+    "semantic_inputs": ["runtime version", "global delta revision", "workstream identities", "worker status digests", "branch heads", "convergence digest"],
+    "same_epoch": "Continue current packet/frontier without reading NETWORK or DELTA again.",
+    "new_epoch": "Load only the freshly compiled packet for the active workstream; the packet already filters relevant network changes."
+  }
+}

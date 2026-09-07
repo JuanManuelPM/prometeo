@@ -1,46 +1,63 @@
-# Prometeo Agent Runtime v2
+# Prometeo Agent Runtime v3
 
-Prometeo is intentionally multi-chat. **Route before archaeology; compiled packet before raw owners.**
+Prometeo is intentionally multi-chat. **Route before archaeology; EPOCH before coordination reread; compiled packet before raw owners.**
 
 ## Hard command: `Prometeo`
-When the user sends `Prometeo` in a Prometeo conversation, treat it as RESYNC + RECOVER + CONTINUE, not as a request for a project description.
+Treat `Prometeo` as RESYNC + RECOVER + CONTINUE, never as a request for a generic project description.
 
-1. Load `https://juanmanuelpm.github.io/prometeo/.well-known/prometeo.json`.
-2. Load its current `runtime_manifest`.
-3. Recover the last materially unsatisfied human intent from the conversation.
-4. Prefer one matching active compiled Work Packet from `manifest.packets`.
-5. If no active workstream matches, match `manifest.surface_routes`, load that surface card, then load `manifest.fallback_packet` (`prometeo-general`). Do not ask the human to reconstruct context merely because a dedicated PACK does not exist yet.
-6. Reconcile only branch/upstream deltas listed by the loaded packet.
-7. Follow conditional source/authority references only when they can change the current decision.
-8. Select FAST / DEEP / EXHAUSTIVE / CONTINUE from `coordination/EXECUTION_PROFILES.json`.
-9. Continue the human's unfinished request.
-10. If material writes are needed for an unregistered surface, establish one small scoped workstream/branch/write scope before writing; GENERAL never grants blanket write authority.
-11. End with the Prometeo Seal only if entry + compiled packet were actually loaded.
+1. Load `https://juanmanuelpm.github.io/prometeo/.well-known/prometeo.json` and its current manifest.
+2. Recover the last materially unsatisfied human intent from the conversation.
+3. Prefer one active compiled Work Packet; otherwise route through Catalog surface + GENERAL.
+4. Preserve any useful work this chat produced before booting. Recover from conversation + the smallest relevant Git delta.
+5. Reconcile only branch/network events included in the packet. Do not crawl unrelated chats/repositories.
+6. If an unregistered surface needs material writes, scaffold one small workstream/branch plus an independent worker status object under `coordination/network/workers/`.
+7. Choose FAST / DEEP / EXHAUSTIVE / CONTINUE and continue the human request.
+8. End with a Prometeo Seal only if entry + compiled packet were actually loaded this cycle.
+
+## Cheap freshness
+Once a chat is bootstrapped, before material work read only:
+
+`https://juanmanuelpm.github.io/prometeo/agent-runtime/epoch.json`
+
+- Same EPOCH as last seen: continue immediately. Do **not** read NETWORK/DELTA merely to demonstrate diligence.
+- New EPOCH: reload only the active compiled Work Packet. It already filters relevant dependencies, convergence and global deltas.
+- `.` means this CONTINUE behavior; it never means replan a frozen map.
+
+## Shared nervous system
+Workers do **not** collaboratively edit one central mutable status file.
+
+- One disposable chat/agent instance → one `prometeo.worker-status/v1` object.
+- Workstreams are auto-discovered from `coordination/workstreams/*/PACK.json`; `NOW.json` remains compatibility/router policy rather than the mandatory registry of every future task.
+- Public `NETWORK.json` and `CONVERGENCE.json` are compiler-derived, read-only coordination views.
+- Declare `needs`, `provides`, `depends_on`, `impacts`, and `candidate_shared_owners` only when they materially improve cross-workstream decisions.
+- Disjoint scopes proceed in parallel.
+- `HARD_WRITE_COLLISION` is blocking; dependency/impact/shared-owner events are targeted signals, not global locks.
+- No heartbeat bureaucracy.
 
 ## Seal
-- `🟣 P✓ · <WORKSTREAM>` = runtime + packet actually loaded and active.
-- `🟣 P✓ · GENERAL` = runtime + GENERAL fallback loaded for a Catalog surface without a dedicated workstream; it does **not** grant write authority.
-- `🟡 P~ · <WORKSTREAM>` = runtime loaded but a real human/external boundary blocks continuation.
+- `🟣 P✓ · <WORKSTREAM>` = stable entry + compiled packet actually loaded this cycle.
+- `🟣 P✓ · GENERAL` = runtime + GENERAL loaded; this grants no material write authority.
+- `🟡 P~ · <WORKSTREAM>` = runtime active but a real human/external boundary blocks continuation.
 - `🔴 P! · PROMETEO` = runtime/authority could not be loaded safely.
-- No seal = the human should not assume Prometeo runtime was active.
+- No seal = do not assume Prometeo was active.
 
-Never print the violet seal decoratively. It is a lightweight attestation of this work cycle, not a claim of Human Acceptance or release success.
+Never print the violet seal decoratively. It is working-context attestation, not Human Acceptance or release evidence.
 
 ## Execution economy
-- FAST: clear local change → execute, critique, repair.
-- DEEP: context first → complete meaningful title map → develop decisions → execute → critique → repair.
-- EXHAUSTIVE: human-requested/structural exhaustive map → print/freeze once → execute continuously; never fill counts with fake work.
-- CONTINUE: an adequate context/map/spec already exists or the user sends `.` → resume the saved frontier without replanning.
+- FAST: explicit/local/reversible → execute → critique → repair.
+- DEEP: CONTEXT FIRST → COMPLETE MEANINGFUL TITLE MAP → DEVELOP decisions → EXECUTE → CRITIQUE → REPAIR.
+- EXHAUSTIVE: complete requested map once → develop → `PLAN:FROZEN` → execute continuously; no filler.
+- CONTINUE: context/map/spec already sufficient or user sends `.` → resume frontier without replanning.
 
-Plans are decision compression, not progress. Checks are evidence, not progress. Prefer implementation + critique + repair in the same cycle.
+Plans are decision compression, not progress. Checks are evidence, not progress. Prefer implementation + critique + repair in the same cycle. After the same strategy fails twice without new evidence, change strategy rather than adding more checks.
 
-## Multi-chat recovery
-`RETURN` is an accelerator, not authority. If LAST_RETURN is stale or missing, compare the last known workstream head with the actual branch head and inspect only the commits in that delta. Git history is fallback memory; a forgotten handoff must not trigger full-project archaeology.
+## Recovery
+`RETURN` is an accelerator, not authority. If stale/missing, compare the last known head with actual branch head and inspect only that delta. A forgotten handoff must not trigger project-wide archaeology.
 
-Disjoint write scopes may proceed in parallel. Overlapping scopes require explicit reconciliation. A page-local problem may be owned by a shared capability; distinguish where a symptom appears from who should own the reusable solution.
+## Ownership
+A page-local symptom may belong to a shared capability. Distinguish *where the problem appears* from *who should own the reusable fix*. If two workers independently point to the same shared owner or overlap write scope, let the network surface convergence before duplicating infrastructure.
 
-## Context economy
-A compiled Work Packet is a working-memory artifact, not a new authority layer. Read its included state first. Follow deeper links only when they can change a decision. Do not read historical contracts merely to demonstrate diligence.
+## Privacy and authority
+Public worker/network artifacts contain compact coordination metadata only. Never compile private transcripts, Patent payloads, LOCAL context, credentials or access tokens into them.
 
-## Authority
-The Agent Runtime coordinates work only. Existing Current / Catalog / Lineage / Reincarnation / Human Accepted / Served owners remain authoritative. Private Capture/Patent context must never be compiled into the public runtime.
+Agent Runtime / Network coordinate work only. Current / Catalog / Lineage / Reincarnation / Human Accepted / Served remain authoritative in their existing owners.
