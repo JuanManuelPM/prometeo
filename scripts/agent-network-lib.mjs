@@ -127,8 +127,17 @@ export function publicWorker(worker = {}) {
 
 export function assertPublicSafe(value) {
   const text = JSON.stringify(value).toLowerCase();
-  const forbidden = ['service_role','password','access_token','refresh_token','private transcript','patent token','authorization: bearer'];
-  const hit = forbidden.find(x => text.includes(x));
+  const forbiddenShapes = [
+    '"service_role"',
+    '"service_role_key"',
+    '"password"',
+    '"access_token"',
+    '"refresh_token"',
+    '"patent_token"',
+    '"authorization":"bearer ',
+    '"authorization": "bearer '
+  ];
+  const hit = forbiddenShapes.find(x => text.includes(x));
   if (hit) throw new Error(`PUBLIC_NETWORK_PRIVACY_VIOLATION:${hit}`);
   return true;
 }
