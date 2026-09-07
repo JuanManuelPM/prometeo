@@ -15,7 +15,7 @@ const git=(args,allowFail=false)=>{try{return execFileSync('git',args,{cwd:ROOT,
 const existsCommit=sha=>!!sha&&!!git(['cat-file','-e',`${sha}^{commit}`],true);
 function isAncestor(a,b){if(!a||!b)return false;try{execFileSync('git',['merge-base','--is-ancestor',a,b],{cwd:ROOT,stdio:'ignore'});return true;}catch{return false;}}
 const tokens=s=>[...new Set(norm(s).split(/[^a-z0-9]+/).filter(x=>x.length>2))];
-const scopePrefixes=(scopes=[])=>uniq(scopes.map(s=>String(s).split('*')[0].replace(/\/$/,'')).filter(s=>s&&(/[/.]/.test(s)||s.endsWith('/'))&&!/\s/.test(s));
+function scopePrefixes(scopes=[]){const out=scopes.map(s=>String(s).split('*')[0].replace(/\/$/,'')).filter(s=>s&&(/[/.]/.test(s)||s.endsWith('/'))&&!/\s/.test(s));return uniq(out);}
 function commitInfo(sha){if(!sha)return null;const meta=git(['show','-s','--format=%H%x1f%s%x1f%cI',sha],true);if(!meta)return null;const [id,subject,date]=meta.split('\x1f');const files=git(['show','--pretty=format:','--name-only',sha],true).split(/\r?\n/).filter(Boolean);return {sha:id,subject,date,files};}
 function commitsBetween(base,head,max=20){if(!base||!head||base===head||!existsCommit(base)||!existsCommit(head)||!isAncestor(base,head))return [];return git(['rev-list',`--max-count=${max}`,`${base}..${head}`],true).split(/\r?\n/).filter(Boolean).map(commitInfo).filter(Boolean);}
 function recentTouching(base,head,prefixes,max=20){if(!head||!existsCommit(head)||!prefixes.length)return [];let args=['rev-list',`--max-count=${max}`];if(base&&existsCommit(base)&&isAncestor(base,head))args.push(`${base}..${head}`);else args.push(head);args.push('--',...prefixes);return git(args,true).split(/\r?\n/).filter(Boolean).map(commitInfo).filter(Boolean);}
