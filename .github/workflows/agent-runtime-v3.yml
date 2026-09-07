@@ -1,0 +1,58 @@
+name: Prometeo Agent Runtime v3
+on:
+  push:
+    branches-ignore: [gh-pages]
+    paths:
+      - 'coordination/**'
+      - 'scripts/build-agent-runtime.mjs'
+      - 'scripts/agent-network-lib.mjs'
+      - 'tests/agent-network-v3.test.mjs'
+      - '.well-known/**'
+      - 'p.txt'
+      - 'AGENTS.md'
+      - '.github/workflows/agent-runtime-v3.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: prometeo-agent-runtime-v3-${{ github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  compile-test-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Fetch worker branches
+        run: git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune
+      - name: Compile Agent Network v3
+        run: node scripts/build-agent-runtime.mjs --out dist/agent-runtime
+      - name: Falsify coordination scenarios
+        run: node tests/agent-network-v3.test.mjs
+      - name: Publish derived runtime
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin gh-pages
+          git worktree add /tmp/prometeo-pages origin/gh-pages
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            target=/tmp/prometeo-pages/agent-runtime
+          else
+            target=/tmp/prometeo-pages/__runtime/agent-network-v3
+          fi
+          rm -rf "$target"
+          mkdir -p "$target"
+          cp -R dist/agent-runtime/. "$target/"
+          cd /tmp/prometeo-pages
+          git add agent-runtime __runtime/agent-network-v3 2>/dev/null || true
+          if git diff --cached --quiet; then exit 0; fi
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            git commit -m 'runtime: publish Agent Network v3'
+          else
+            git commit -m 'runtime: publish Agent Network v3 canary'
+          fi
+          git pull --rebase origin gh-pages
+          git push origin HEAD:gh-pages
