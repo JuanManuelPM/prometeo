@@ -1,6 +1,6 @@
 {
   "schema": "prometeo.surface-contract/v1",
-  "version": 8,
+  "version": 9,
   "purpose": "Stable contract for humans, code and future AI agents. Views project canonical objects; they never own or replace domain data.",
   "domains": {
     "calendar": {
@@ -28,7 +28,7 @@
     "Merge imported objects by stable source id; do not duplicate them.",
     "Unknown fields must survive read-modify-write cycles.",
     "Renderers may branch on type/capability, never on personal names such as a student or expense label.",
-    "A missing log is unknown, never automatically success or failure.",
+    "Raw behavior storage may omit a day. Projection semantics depend on tracker mode: negative-event trackers treat absence of an explicit negative mark after activation as baseline/clear, while positive-extra trackers treat absence as neutral/unmarked.",
     "Calendar, Habits and Money are projections over shared objects, not separate data silos.",
     "Migrations must be additive and versioned; destructive changes require an explicit migration.",
     "UI-only changes must not mutate canonical data.",
@@ -50,10 +50,15 @@
       "Every tracker row has one fixed height independent of label length, streak state or recorded values.",
       "The primary tracker row contains only the tracker name, its fourteen day marks and the graph chevron. Permanent streak counts, badges, metrics, explanatory text and extra controls are forbidden there.",
       "A small chevron at the right edge of the tracker label is an actual control and may toggle only that tracker's graph.",
-      "Repeated taps on a day cell cycle directly through that tracker's valid states and finally back to unknown; no editor strip, menu or expanding button row appears.",
+      "Repeated taps on a day cell cycle directly through only that tracker's meaningful states and finally back to blank; no editor strip, menu or expanding button row appears.",
+      "A two-stroke geometric X has one universal meaning: an undesired event. It must never represent a positive completion.",
+      "A solid filled day block has one universal meaning: an explicitly recorded positive event or completion.",
+      "A small inner dot is reserved for an intermediate warning state such as craving in an addiction tracker.",
+      "Blank has no drawn symbol. On negative-event trackers it is the automatic baseline/no-negative-event state after activation; on positive Extras it means no positive event was explicitly recorded.",
       "Graph toggles do not alter tracker-row height; an opened graph is inserted as its own row immediately below the tracker and above the next tracker.",
       "The left-side cell created beneath a tracker when its graph is open is the designated secondary-information rail.",
       "Current streak and best previous streak may appear only inside that secondary-information rail, never beside the tracker name.",
+      "Automatic daily streaks belong to negative-event trackers; positive Extras are not penalized for unmarked days and do not show daily streak stats by default.",
       "Current streak is represented by an enlarged monochrome flame plus its number, without a repeated RACHA label.",
       "Best previous streak is represented by a monochrome trophy plus its number and the date on which that streak ended, without a repeated MEJOR label; omit the trophy row when no previous streak exists.",
       "Streak information is never a pill, chip, button or colored badge.",
@@ -62,9 +67,7 @@
       "Each category title band is itself a toggle that may collapse or reveal all trackers in that category.",
       "Collapsing a category changes only presentation; it never changes behavior logs or each tracker's remembered graph-open preference.",
       "Category titles contain only the category name and a minimal chevron; do not add counts, badges, summaries or KPI text there.",
-      "Daily marks and trajectory points share the exact same fourteen X centers.",
-      "Unknown is neutral and never automatically treated as failure.",
-      "A negative daily state is represented by a clean two-stroke geometric cross cut through the day block, not a separate icon or label."
+      "Daily marks and trajectory points share the exact same fourteen X centers."
     ],
     "habit_trajectory": [
       "Each tracker owns one separate spacious solid line; tracker lines are never overlaid in one chart.",
@@ -72,12 +75,10 @@
       "An opened trajectory is visually attached to its tracker row instead of living in a detached dashboard section.",
       "All trajectory lines use the same active theme color and are identified by the tracker immediately above them, not by dashed patterns or a legend.",
       "The HOY divider is a temporal boundary in the date axis and day-cell register only; it must never run vertically through an opened trajectory plot.",
-      "The minimum baseline means stable or null recent disturbance.",
-      "A lapse, bad state or explicit missed state creates an upward spike.",
-      "A craving creates a smaller upward disturbance than a lapse.",
-      "Good or completed days accelerate decay back toward zero.",
-      "Unknown days never create a spike; they may permit only slow passive temporal decay.",
-      "Nearby negative events accumulate instead of resetting to an identical isolated shape.",
+      "For Adicciones and Rutina negative-event trackers, the minimum baseline means no recent negative disturbance; an X creates a strong upward spike and a craving dot creates a smaller one.",
+      "For negative-event trackers, unmarked days decay the residual disturbance toward zero automatically; the user is not required to mark a good day.",
+      "For positive Extras, an explicit filled completion creates recent positive activity and unmarked days decay that activity without counting as failure.",
+      "Nearby events accumulate instead of resetting to an identical isolated shape.",
       "Trajectory is derived from behavior logs and is never persisted as a second source of truth.",
       "Do not show numeric scores, chart legends, line-style keys, KPI chips or explanatory badges in the default trajectory view."
     ],
@@ -99,28 +100,39 @@
   },
   "default_behavior_groups": [
     {"id":"addictions","label":"Adicciones","trackers":["youtube","weed","smoking"]},
-    {"id":"routine","label":"Rutina","trackers":["food","train","sleep","meds"]},
-    {"id":"focus","label":"Foco","trackers":["study","news"]}
+    {"id":"routine","label":"Rutina","trackers":["food","sleep","meds"]},
+    {"id":"extras","label":"Extras","trackers":["train","study","mood","productive"]}
   ],
   "default_behavior_trackers": [
     {"id":"youtube","label":"YouTube","kind":"avoid"},
     {"id":"weed","label":"Marihuana","kind":"avoid"},
     {"id":"smoking","label":"Cigarrillos","kind":"avoid"},
-    {"id":"food","label":"Comida","kind":"binary"},
+    {"id":"food","label":"Comer mal","kind":"negative"},
+    {"id":"sleep","label":"Dormir mal","kind":"negative"},
+    {"id":"meds","label":"Pastillas mal","kind":"negative"},
     {"id":"train","label":"Entrenar","kind":"positive"},
-    {"id":"sleep","label":"Sueño","kind":"binary"},
-    {"id":"meds","label":"Pastillas","kind":"binary"},
     {"id":"study","label":"Estudio","kind":"positive"},
-    {"id":"news","label":"Noticias","kind":"positive"}
+    {"id":"mood","label":"Buen humor","kind":"positive"},
+    {"id":"productive","label":"Productivo","kind":"positive"}
   ],
+  "legacy_behavior_visibility": {
+    "news": "Noticias is removed from the default UI but its historical state must be preserved if present."
+  },
+  "habit_mark_model": {
+    "x": "undesired event only",
+    "solid_fill": "explicit positive event/completion only",
+    "dot": "intermediate warning such as craving",
+    "blank_negative_tracker": "automatic baseline/no negative event after tracker activation",
+    "blank_positive_extra": "neutral/unmarked; never failure"
+  },
   "habit_trajectory_model": {
     "range": [0,100],
     "baseline": 0,
-    "meaning": "recent behavioral disturbance / residual risk, not achievement points",
+    "meaning": "recent tracker activity: residual negative disturbance for negative-event trackers and recent positive activity for Extras",
     "default_rules": {
-      "avoid": {"lapse":"large spike","crave":"small spike","clear":"fast decay toward zero","unknown":"slow passive decay only"},
-      "binary": {"bad":"medium-large spike","good":"fast decay toward zero","unknown":"slow passive decay only"},
-      "positive": {"missed":"medium spike","done":"fast decay toward zero","unknown":"slow passive decay only"}
+      "avoid": {"lapse":"large spike","crave":"small spike","blank":"fast decay toward zero"},
+      "negative": {"bad":"medium-large spike","blank":"fast decay toward zero"},
+      "positive": {"done":"positive activity spike","blank":"neutral decay only"}
     },
     "rule": "Changing the derived trajectory model must never rewrite historical logs."
   },
