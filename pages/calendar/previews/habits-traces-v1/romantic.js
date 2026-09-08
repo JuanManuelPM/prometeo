@@ -65,17 +65,89 @@
               name.textContent=longNames[i]||name.textContent;
             });
           };
+
+          const stampEvent=(node,item,kind)=>{
+            if(!node||!item)return node;
+            const start=Number(item.start),duration=Number(item.duration);
+            if(Number.isFinite(start))node.dataset.eventStart=String(start);
+            if(Number.isFinite(start)&&Number.isFinite(duration))node.dataset.eventEnd=String(start+duration*60);
+            node.dataset.eventKind=kind;
+            return node;
+          };
+
+          const polishEventGeometry=()=>{
+            const slots=Array.from(document.querySelectorAll('#grid .slot'));
+            const byDay=Array.from({length:7},()=>[]);
+            slots.forEach((slot,index)=>{
+              const el=slot.querySelector(':scope > .event[data-event-start][data-event-end]');
+              if(!el)return;
+              const start=Number(el.dataset.eventStart),end=Number(el.dataset.eventEnd);
+              if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start)return;
+              byDay[index%7].push({el,start,end});
+            });
+
+            byDay.forEach(events=>{
+              events.sort((a,b)=>a.start-b.start||a.end-b.end);
+              const clusters=[];
+              let cluster=[],clusterEnd=-Infinity;
+              events.forEach(ev=>{
+                if(!cluster.length||ev.start<clusterEnd){
+                  cluster.push(ev);clusterEnd=Math.max(clusterEnd,ev.end);
+                }else{
+                  clusters.push(cluster);cluster=[ev];clusterEnd=ev.end;
+                }
+              });
+              if(cluster.length)clusters.push(cluster);
+
+              clusters.forEach(group=>{
+                const laneEnds=[];
+                group.forEach(ev=>{
+                  let lane=laneEnds.findIndex(end=>end<=ev.start);
+                  if(lane<0){lane=laneEnds.length;laneEnds.push(ev.end)}
+                  else laneEnds[lane]=ev.end;
+                  ev.lane=lane;
+                });
+                const lanes=Math.max(1,laneEnds.length);
+                group.forEach(ev=>{
+                  ev.el.classList.toggle('event-collision',lanes>1);
+                  ev.el.style.removeProperty('left');
+                  ev.el.style.removeProperty('right');
+                  if(lanes>1){
+                    const left=ev.lane/lanes*100;
+                    const right=(lanes-ev.lane-1)/lanes*100;
+                    ev.el.style.setProperty('left',`calc(${left}% + 3px)`,'important');
+                    ev.el.style.setProperty('right',`calc(${right}% + 3px)`,'important');
+                  }
+                });
+              });
+            });
+          };
+
+          if(!window.__PROMETEO_EVENT_GEOMETRY_PATCHED__){
+            window.__PROMETEO_EVENT_GEOMETRY_PATCHED__=true;
+            const baseUniversityNode=universityNode;
+            const baseClassNode=classNode;
+            const basePersonalNode=personalNode;
+            const basePotentialNode=potentialNode;
+            const baseBocaNode=bocaNode;
+            universityNode=item=>stampEvent(baseUniversityNode(item),item,'university');
+            classNode=item=>stampEvent(baseClassNode(item),item,'class');
+            personalNode=item=>stampEvent(basePersonalNode(item),item,'personal');
+            potentialNode=item=>stampEvent(basePotentialNode(item),item,'potential');
+            bocaNode=item=>stampEvent(baseBocaNode(item),item,'boca');
+          }
+
           if(!window.__PROMETEO_SUNDAY_WEEK_PATCHED__){
             window.__PROMETEO_SUNDAY_WEEK_PATCHED__=true;
             const baseRender=render;
-            render=function(){baseRender();cleanHeaders();};
+            render=function(){baseRender();cleanHeaders();polishEventGeometry();};
             todayWeek.onclick=()=>{weekStart=addDays(currentMonday(),-1);render();};
           }
           weekStart=addDays(currentMonday(),-1);
-          render();cleanHeaders();
+          render();cleanHeaders();polishEventGeometry();
         })();
       `);
-    }catch(error){console.warn('[Prometeo romantic calendar] Sunday patch unavailable',error);}
+    }catch(error){console.warn('[Prometeo romantic calendar] Sunday/event patch unavailable',error);}
   }
 
   function watchSize(){
@@ -108,10 +180,23 @@
         .day-pending{display:none!important}
         .week-nav{position:static!important;top:auto!important;margin:0!important;padding:3px 0 6px!important}
         .calendar{width:100%!important;margin:0!important}
-        .cell.slot{cursor:pointer}
+        .cell.slot{cursor:pointer;overflow:visible!important}
         .cell.slot:focus-visible{outline:2px solid var(--b)!important;outline-offset:-2px}
+        .cell.slot:has(>.event){background-image:none!important}
+        .cell.slot:has(>.event):hover{background-image:none!important}
         .time-break-cell{pointer-events:none!important;cursor:default!important;border:0!important;background:var(--b)!important;color:var(--a)!important;box-shadow:none!important}
-        .time-break-band{grid-column:1/-1!important;min-height:17px!important;height:17px!important;display:flex!important;align-items:center!important;justify-content:center!important;background:var(--b)!important;color:var(--a)!important;border:0!important;font-size:5px!important;font-weight:950!important;letter-spacing:.12em!important;pointer-events:none!important}
+        .time-break-band{grid-column:1/-1!important;min-height:17px!important;height:17px!important;display:flex!important;align-items:center!important;justify-content:center!important;background:var(--b)!important;color:var(--a)!important;border:0!important;font-size:5px!important;font-weight:950!important;letter-spacing:.12em!important;pointer-events:none!important;position:relative!important;z-index:18!important}
+
+        /* Event blocks float cleanly inside the time grid instead of touching its rules. */
+        body.mobile-view-week .grid .event{
+          top:3px!important;
+          left:3px!important;
+          right:3px!important;
+          height:calc(var(--blocks) * var(--slot-h) - 6px)!important;
+          min-height:20px!important;
+          z-index:14!important;
+        }
+        body.mobile-view-week .grid .event.event-collision{min-width:0!important;overflow:hidden!important}
 
         /* Legibility is structural: never shrink primary time labels to microcopy. */
         body.mobile-view-week .grid{grid-template-columns:42px repeat(7,minmax(0,1fr))!important}
