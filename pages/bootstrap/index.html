@@ -54,8 +54,8 @@
     const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
     const form=document.getElementById('form'),email=document.getElementById('email'),go=document.getElementById('go'),status=document.getElementById('status');
     const calendar='../calendar/';
-
     function state(s,msg=''){document.body.dataset.state=s;status.textContent=msg}
+
     async function provision(session){
       state('working');
       const claimToken=localStorage.getItem('prometeo.owner.claim.v1')||'';
@@ -70,7 +70,7 @@
         setTimeout(()=>location.replace(calendar),420);
       }catch(e){
         document.body.dataset.state='';
-        if(e.code==='CLAIM_REQUIRED'||e.code==='BOOTSTRAP_EXPIRED'||e.code==='BOOTSTRAP_INVALID') status.textContent='Abrí el enlace inicial de Prometeo.';
+        if(e.code==='BOOTSTRAP_EXPIRED'||e.code==='BOOTSTRAP_INVALID') status.textContent='El acceso inicial venció o no es válido.';
         else if(e.code==='NOT_OWNER') status.textContent='Esta cuenta no es la propietaria.';
         else status.textContent='No se pudo completar el acceso.';
       }
@@ -86,6 +86,18 @@
       e.preventDefault();
       const value=email.value.trim();if(!value)return;
       go.disabled=true;status.textContent='';
+      const claimToken=localStorage.getItem('prometeo.owner.claim.v1')||'';
+      if(claimToken){
+        try{
+          const prep=await fetch(`${SUPABASE_URL}/functions/v1/prometeo-bootstrap-prepare-v1`,{
+            method:'POST',headers:{apikey:SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email:value,claimToken})
+          });
+          const prepData=await prep.json().catch(()=>({}));
+          if(!prep.ok) throw new Error(prepData.code||'PREPARE_FAILED');
+        }catch{
+          status.textContent='El enlace inicial no es válido o venció.';go.disabled=false;return;
+        }
+      }
       const redirectTo=location.origin+location.pathname;
       const {error}=await sb.auth.signInWithOtp({email:value,options:{emailRedirectTo:redirectTo,shouldCreateUser:true}});
       if(error){status.textContent='No se pudo enviar el acceso.';go.disabled=false;return}
@@ -96,6 +108,5 @@
     sb.auth.onAuthStateChange((event,session)=>{if(session&&(event==='SIGNED_IN'||event==='INITIAL_SESSION')) provision(session)});
     boot();
   </script>
-<script type="module" src="/prometeo/shared/prometeo-shell/v2/prometeo-shell.js?v=2" data-prometeo-shell></script>
 </body>
 </html>
