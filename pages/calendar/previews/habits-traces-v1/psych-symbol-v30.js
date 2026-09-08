@@ -1,0 +1,48 @@
+(()=>{
+  const frame=document.getElementById('romanticCalendarFrame');
+  if(!frame)return;
+
+  const HEART_PATH='M 203 121 L 202 118 L 196 112 L 191 110 L 181 110 L 174 113 L 168 113 L 159 117 L 144 119 L 140 121 L 135 121 L 134 120 L 117 121 L 105 117 L 92 117 L 85 119 L 74 128 L 73 143 L 77 148 L 89 155 L 109 158 L 116 161 L 146 160 L 150 158 L 172 155 L 177 153 L 189 145 L 202 129 Z M 108 128 L 110 126 L 118 128 L 126 128 L 127 127 L 135 128 L 137 130 L 137 135 L 135 140 L 137 149 L 134 152 L 129 152 L 128 153 L 117 153 L 112 151 L 109 148 L 108 139 L 107 138 Z M 93 123 L 97 124 L 100 127 L 101 130 L 101 137 L 100 138 L 102 143 L 102 147 L 99 149 L 91 146 L 84 145 L 79 139 L 79 136 L 81 132 L 87 126 Z M 170 121 L 172 123 L 171 135 L 173 140 L 173 144 L 166 148 L 157 149 L 153 151 L 146 151 L 143 146 L 143 132 L 145 127 L 149 125 L 159 124 L 163 122 Z M 189 118 L 194 122 L 194 128 L 183 140 L 181 140 L 178 137 L 177 133 L 178 132 L 179 119 L 184 117 Z M 63 83 L 56 87 L 55 94 L 59 106 L 62 110 L 66 111 L 70 106 L 70 91 L 67 85 Z M 186 64 L 181 69 L 181 78 L 183 82 L 183 85 L 186 90 L 189 93 L 193 93 L 195 90 L 197 82 L 197 71 L 196 68 L 192 64 Z M 248 39 L 243 28 L 237 19 L 224 5 L 220 3 L 204 0 L 183 0 L 165 6 L 164 8 L 157 12 L 142 24 L 133 36 L 128 47 L 124 60 L 121 63 L 104 45 L 98 36 L 85 25 L 73 20 L 67 20 L 66 19 L 57 19 L 56 20 L 44 21 L 38 23 L 24 31 L 13 42 L 6 52 L 2 62 L 0 71 L 0 94 L 1 95 L 2 106 L 11 124 L 17 133 L 28 142 L 31 146 L 40 152 L 56 160 L 61 164 L 71 168 L 81 175 L 105 183 L 113 187 L 127 190 L 141 195 L 151 195 L 157 190 L 178 177 L 188 167 L 200 158 L 225 134 L 240 107 L 250 77 L 250 73 L 252 68 L 252 54 Z M 242 49 L 243 67 L 241 76 L 233 100 L 228 109 L 223 122 L 214 134 L 175 170 L 149 186 L 139 186 L 132 183 L 119 180 L 114 177 L 108 176 L 87 166 L 83 163 L 72 159 L 43 141 L 39 140 L 18 120 L 6 97 L 5 77 L 8 63 L 12 55 L 17 48 L 26 39 L 36 33 L 45 30 L 60 27 L 69 27 L 78 31 L 101 50 L 122 75 L 126 76 L 130 73 L 131 64 L 137 47 L 144 36 L 161 18 L 168 13 L 182 7 L 198 6 L 207 8 L 220 13 L 225 18 L 235 32 Z';
+  let observer=null;
+
+  function apply(){
+    try{
+      const doc=frame.contentDocument;if(!doc)return;
+      if(!doc.getElementById('prometeoPsychHeartV30')){
+        const style=doc.createElement('style');
+        style.id='prometeoPsychHeartV30';
+        style.textContent=`
+          .event.personal.psychology{padding-right:43px!important}
+          .event.personal.psychology .psych-art{right:6px!important;bottom:6px!important;width:34px!important;height:27px!important;color:var(--b)!important;opacity:.96!important}
+          body[data-embed-width="narrow"] .event.personal.psychology{padding-right:34px!important}
+          body[data-embed-width="narrow"] .event.personal.psychology .psych-art{width:27px!important;height:21px!important;right:5px!important;bottom:5px!important}
+          body[data-embed-width="phone"] .event.personal.psychology{padding-right:27px!important}
+          body[data-embed-width="phone"] .event.personal.psychology .psych-art{width:21px!important;height:17px!important;right:4px!important;bottom:4px!important}
+        `;
+        doc.head.appendChild(style);
+      }
+      doc.querySelectorAll('.event.personal.psychology .psych-art').forEach(art=>{
+        if(art.dataset.psychSymbol==='heart-face-v30')return;
+        art.innerHTML=`<svg viewBox="0 0 253 196" focusable="false" aria-hidden="true"><path d="${HEART_PATH}" fill="currentColor" fill-rule="evenodd"/></svg>`;
+        art.dataset.psychSymbol='heart-face-v30';
+      });
+    }catch{}
+  }
+
+  function attach(){
+    try{
+      observer?.disconnect();
+      const doc=frame.contentDocument;if(!doc?.body)return;
+      apply();
+      observer=new MutationObserver(records=>{
+        if(records.some(r=>r.type==='childList'&&r.addedNodes.length))apply();
+      });
+      observer.observe(doc.body,{subtree:true,childList:true});
+      setTimeout(apply,80);
+      setTimeout(apply,300);
+    }catch{}
+  }
+
+  frame.addEventListener('load',attach);
+  try{if(frame.contentDocument?.readyState==='complete')attach()}catch{}
+})();
