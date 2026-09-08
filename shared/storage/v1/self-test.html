@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PrometeoDB v1 self-test</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:24px;line-height:1.4}pre{white-space:pre-wrap} .pass{font-weight:800}.fail{font-weight:800}
+</style>
+</head>
+<body>
+<h1>PrometeoDB v1 self-test</h1>
+<pre id="out">Running…</pre>
+<script src="./prometeo-db.js"></script>
+<script>
+(async()=>{
+  const out=document.getElementById('out');
+  const dbName='prometeo.test.'+Date.now();
+  const log=[];
+  const assert=(condition,label)=>{if(!condition)throw new Error(label);log.push('PASS · '+label)};
+  try{
+    await PrometeoDB.open({name:dbName});
+    assert(true,'opens isolated IndexedDB');
+
+    const first=await PrometeoDB.appendBehaviorEvent({tracker_id:'example',date:'2026-09-08',state:'lapse'},{name:dbName});
+    assert(first.state==='lapse','appends first behavior event');
+
+    const correction=await PrometeoDB.appendBehaviorEvent({tracker_id:'example',date:'2026-09-08',state:'unknown',supersedes_id:first.id},{name:dbName});
+    assert(correction.supersedes_id===first.id,'correction is append-only and references prior event');
+
+    const rows=await PrometeoDB.behaviorEvents({tracker_id:'example',date:'2026-09-08'},{name:dbName});
+    assert(rows.length===2,'preserves full event history');
+
+    const state=await PrometeoDB.dailyBehaviorState('example','2026-09-08',{name:dbName});
+    assert(state?.state==='unknown','projects latest daily state');
+
+    await PrometeoDB.setMeta('migration.test',{ok:true},{name:dbName});
+    const marker=await PrometeoDB.getMeta('migration.test',null,{name:dbName});
+    assert(marker?.ok===true,'round-trips migration metadata');
+
+    await PrometeoDB.putKV('ui.test',{collapsed:true},{name:dbName});
+    const pref=await PrometeoDB.getKV('ui.test',null,{name:dbName});
+    assert(pref?.collapsed===true,'round-trips generic local state');
+
+    await PrometeoDB.createSnapshot({reason:'self-test'},{name:dbName,kind:'test'});
+    const snapshots=await PrometeoDB.listSnapshots({name:dbName});
+    assert(snapshots.length===1,'creates rollback snapshot');
+
+    const exported=await PrometeoDB.exportAll({name:dbName});
+    assert(exported.schema==='prometeo.local-db/v1','exports schema identity');
+    assert(exported.stores.behavior_events.length===2,'export includes behavior event history');
+
+    await PrometeoDB.deleteTestDatabase(dbName);
+    assert(true,'deletes only isolated prometeo.test.* database');
+
+    out.className='pass';out.textContent=log.join('\n')+'\n\nALL PASS';
+  }catch(error){
+    try{await PrometeoDB.deleteTestDatabase(dbName)}catch{}
+    out.className='fail';out.textContent=log.join('\n')+'\n\nFAIL · '+(error?.stack||error);
+  }
+})();
+</script>
+</body>
+</html>
