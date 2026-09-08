@@ -25,10 +25,29 @@ const SHELL_PALETTES=[
   ['#1B1022','#D7B5FF']  /* violeta negro + lila */
 ];
 
+const LIGHT_INDEXES=Array.from({length:13},(_,i)=>i);
+const DARK_INDEXES=Array.from({length:SHELL_PALETTES.length-13},(_,i)=>i+13);
 const THEME_KEY='prometeo-preview-theme-index';
+const LAST_LIGHT_KEY='prometeo-preview-theme-light-index-v27';
+const LAST_DARK_KEY='prometeo-preview-theme-dark-index-v27';
 const titleFor={calendar:'Calendario',habits:'Hábitos',money:'Dinero'};
-let rawIndex=Number(localStorage.getItem(THEME_KEY)||0);
-let paletteIndex=Number.isFinite(rawIndex)?((rawIndex%SHELL_PALETTES.length)+SHELL_PALETTES.length)%SHELL_PALETTES.length:0;
+
+const normalizeIndex=value=>{
+  const n=Number(value);
+  return Number.isFinite(n)?((n%SHELL_PALETTES.length)+SHELL_PALETTES.length)%SHELL_PALETTES.length:0;
+};
+const familyOf=index=>index>=13?'dark':'light';
+const indexesFor=family=>family==='dark'?DARK_INDEXES:LIGHT_INDEXES;
+const validStored=(key,family,fallback)=>{
+  const n=Number(localStorage.getItem(key));
+  return Number.isInteger(n)&&indexesFor(family).includes(n)?n:fallback;
+};
+
+let paletteIndex=normalizeIndex(localStorage.getItem(THEME_KEY)||0);
+let lastLightIndex=validStored(LAST_LIGHT_KEY,'light',LIGHT_INDEXES[0]);
+let lastDarkIndex=validStored(LAST_DARK_KEY,'dark',DARK_INDEXES[0]);
+if(familyOf(paletteIndex)==='light')lastLightIndex=paletteIndex;
+else lastDarkIndex=paletteIndex;
 
 function syncFrameTheme(){
   const frame=document.getElementById('romanticCalendarFrame');
@@ -45,13 +64,52 @@ function syncFrameTheme(){
   }catch{}
 }
 
+function updateThemeButtons(){
+  const family=familyOf(paletteIndex);
+  const light=document.getElementById('lightThemeButton');
+  const dark=document.getElementById('darkThemeButton');
+  [light,dark].forEach(button=>button?.classList.remove('is-active'));
+  const active=family==='light'?light:dark;
+  active?.classList.add('is-active');
+  light?.setAttribute('aria-pressed',String(family==='light'));
+  dark?.setAttribute('aria-pressed',String(family==='dark'));
+
+  const indexes=indexesFor(family);
+  const pos=indexes.indexOf(paletteIndex)+1;
+  if(active)active.title=`${family==='light'?'Tema claro':'Tema oscuro'} ${pos} de ${indexes.length}`;
+}
+
 function applyPalette(){
   const [a,b]=SHELL_PALETTES[paletteIndex];
   document.documentElement.style.setProperty('--a',a);
   document.documentElement.style.setProperty('--b',b);
-  document.documentElement.dataset.prometeoTheme=paletteIndex>=13?'dark':'light';
+  document.documentElement.dataset.prometeoTheme=familyOf(paletteIndex);
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content',a);
+  updateThemeButtons();
   syncFrameTheme();
+}
+
+function persistPalette(){
+  localStorage.setItem(THEME_KEY,String(paletteIndex));
+  if(familyOf(paletteIndex)==='light'){
+    lastLightIndex=paletteIndex;
+    localStorage.setItem(LAST_LIGHT_KEY,String(lastLightIndex));
+  }else{
+    lastDarkIndex=paletteIndex;
+    localStorage.setItem(LAST_DARK_KEY,String(lastDarkIndex));
+  }
+}
+
+function stepFamily(family){
+  const indexes=indexesFor(family);
+  if(familyOf(paletteIndex)!==family){
+    paletteIndex=family==='light'?lastLightIndex:lastDarkIndex;
+  }else{
+    const pos=indexes.indexOf(paletteIndex);
+    paletteIndex=indexes[(pos+1)%indexes.length];
+  }
+  persistPalette();
+  applyPalette();
 }
 
 /* Apply the saved palette immediately. When this file is loaded in <head>, dark themes do not flash light first. */
@@ -59,9 +117,10 @@ applyPalette();
 
 function initShell(){
   const modeSwitch=document.getElementById('modeSwitch');
-  const themeButton=document.getElementById('themeButton');
+  const lightThemeButton=document.getElementById('lightThemeButton');
+  const darkThemeButton=document.getElementById('darkThemeButton');
   const activeTitle=document.getElementById('activeTitle');
-  if(!modeSwitch||!themeButton||!activeTitle)return;
+  if(!modeSwitch||!lightThemeButton||!darkThemeButton||!activeTitle)return;
 
   function setSpace(space,{replace=false}={}){
     if(!titleFor[space])space='calendar';
@@ -85,15 +144,13 @@ function initShell(){
     if(b)setSpace(b.dataset.space);
   });
 
-  themeButton.addEventListener('click',()=>{
-    paletteIndex=(paletteIndex+1)%SHELL_PALETTES.length;
-    localStorage.setItem(THEME_KEY,String(paletteIndex));
-    applyPalette();
-  });
+  lightThemeButton.addEventListener('click',()=>stepFamily('light'));
+  darkThemeButton.addEventListener('click',()=>stepFamily('dark'));
 
   window.addEventListener('popstate',()=>setSpace(new URL(location.href).searchParams.get('view')||'calendar',{replace:true}));
   document.getElementById('romanticCalendarFrame')?.addEventListener('load',syncFrameTheme);
   setSpace(new URL(location.href).searchParams.get('view')||'calendar',{replace:true});
+  updateThemeButtons();
   syncFrameTheme();
 }
 
