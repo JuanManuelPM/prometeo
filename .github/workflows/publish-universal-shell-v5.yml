@@ -1,58 +1,72 @@
 name: Publish Prometeo Universal Shell V5
+
 on:
   push:
     branches: [main]
     paths:
-      - 'shared/universal-shell/v5/payload.html.gz.b64'
+      - 'index.html'
+      - 'shared/universal-shell/v5/chunk-*.b64'
+      - 'shared/universal-shell/v5/README.md'
+      - '.github/workflows/publish-universal-shell-v5.yml'
   workflow_dispatch:
+
 permissions:
   contents: write
+
 concurrency:
-  group: prometeo-universal-shell-v5
+  group: prometeo-shared-pages
   cancel-in-progress: false
+
 jobs:
-  publish:
+  validate-and-publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-      - name: Materialize exact V5 bytes
+
+      - name: Validate complete V5 runtime
         shell: bash
         run: |
           set -euo pipefail
-          base64 -d shared/universal-shell/v5/payload.html.gz.b64 | gzip -d > /tmp/prometeo-v5.html
+          expected=(5251 5251 5251 5251 5248)
+          : > /tmp/prometeo-v5.b64
+          for n in 1 2 3 4 5; do
+            f="shared/universal-shell/v5/chunk-${n}.b64"
+            test -f "$f"
+            size=$(wc -c < "$f" | tr -d ' ')
+            test "$size" = "${expected[$((n-1))]}"
+            tr -d '\r\n\t ' < "$f" >> /tmp/prometeo-v5.b64
+          done
+          test "$(wc -c < /tmp/prometeo-v5.b64 | tr -d ' ')" = '26252'
+          base64 -d /tmp/prometeo-v5.b64 | gzip -d > /tmp/prometeo-v5.html
           echo '5d06d529d6d5d0c3fdfc3f51b2a20621ca455fbbd51bf8e85722f4dfd69abcc3  /tmp/prometeo-v5.html' | sha256sum -c -
-          cp /tmp/prometeo-v5.html index.html
-      - name: Persist V5 as main source
+          grep -q 'Universal Shell V5 Integrated Control' /tmp/prometeo-v5.html
+          grep -q 'const CHUNKS=' index.html
+          ! grep -q 'data-prometeo-shell' index.html
+          grep -q 'RETIRED COMPATIBILITY STUB' shared/prometeo-shell/v2/prometeo-shell.js
+          echo 'Universal Shell V5 runtime validation PASS'
+
+      - name: Publish root and all runtime chunks atomically
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html
-          if ! git diff --cached --quiet; then
-            git commit -m 'shell: promote universal shell v5 as principal source'
-            git push origin HEAD:main
-          fi
-      - name: Publish same exact bytes to GitHub Pages
-        shell: bash
-        run: |
-          set -euo pipefail
           git fetch origin gh-pages
           git worktree add /tmp/prometeo-pages origin/gh-pages
-          cp /tmp/prometeo-v5.html /tmp/prometeo-pages/index.html
           mkdir -p /tmp/prometeo-pages/shared/universal-shell/v5
-          cp shared/universal-shell/v5/payload.html.gz.b64 /tmp/prometeo-pages/shared/universal-shell/v5/payload.html.gz.b64
+          cp index.html /tmp/prometeo-pages/index.html
+          cp shared/universal-shell/v5/chunk-*.b64 /tmp/prometeo-pages/shared/universal-shell/v5/
+          cp shared/universal-shell/v5/README.md /tmp/prometeo-pages/shared/universal-shell/v5/README.md
+          cp shared/prometeo-shell/v2/prometeo-shell.js /tmp/prometeo-pages/shared/prometeo-shell/v2/prometeo-shell.js
           cd /tmp/prometeo-pages
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html shared/universal-shell/v5/payload.html.gz.b64
+          git add index.html shared/universal-shell/v5 shared/prometeo-shell/v2/prometeo-shell.js
           if git diff --cached --quiet; then
-            echo 'Universal Shell V5 already published.'
+            echo 'Universal Shell V5 already complete on gh-pages.'
             exit 0
           fi
-          git commit -m 'shell: publish universal shell v5 principal link'
+          git commit -m 'shell: publish complete Universal Shell V5 runtime'
           git pull --rebase origin gh-pages
           git push origin HEAD:gh-pages
