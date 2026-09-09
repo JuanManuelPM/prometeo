@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Habit migration self-test</title><style>body{font-family:system-ui,sans-serif;margin:24px;line-height:1.45}pre{white-space:pre-wrap}.pass,.fail{font-weight:800}</style></head>
+<body>
+<h1>Habit migration self-test</h1>
+<pre id="out">Running…</pre>
+<script src="./prometeo-db.js"></script>
+<script src="./habit-migration-v1.js"></script>
+<script>
+(async()=>{
+  const out=document.getElementById('out'),log=[],dbName='prometeo.test.habit-migration.'+Date.now();
+  const assert=(v,m)=>{if(!v)throw new Error(m);log.push('PASS · '+m)};
+  const legacy={youtube:{'2026-09-01':'lapse','2026-09-02':'crave'},weed:{'2026-09-02':'lapse'},news:{'2026-08-30':'bad'},empty:{}};
+  try{
+    const first=await PrometeoHabitMigration.migrate(legacy,{dbName,companionPreferences:{graph_open:{youtube:true}}});
+    assert(first.marker?.verified===true,'first migration verifies before marker');
+    const afterFirst=await PrometeoDB.behaviorEvents({},{name:dbName});
+    assert(afterFirst.length===4,'migrates each explicit legacy mark exactly once');
+    const verify=await PrometeoHabitMigration.verifyLegacy(legacy,{dbName});
+    assert(verify.ok,'DB projection equals normalized legacy projection');
+    const second=await PrometeoHabitMigration.migrate(legacy,{dbName});
+    assert(second.status==='already-verified','rerun is idempotent after verification marker');
+    const afterSecond=await PrometeoDB.behaviorEvents({},{name:dbName});
+    assert(afterSecond.length===4,'rerun creates no duplicate migration events');
+    const latest=await PrometeoDB.dailyBehaviorState('youtube','2026-09-01',{name:dbName});
+    await PrometeoDB.appendBehaviorEvent({tracker_id:'youtube',date:'2026-09-01',state:'unknown',supersedes_id:latest.event.id,source:'manual'},{name:dbName});
+    const projection=await PrometeoHabitMigration.project({dbName,seedKeys:Object.keys(legacy)});
+    assert(!projection.youtube['2026-09-01'],'unknown correction removes visible day mark without deleting history');
+    const history=await PrometeoDB.behaviorEvents({tracker_id:'youtube',date:'2026-09-01'},{name:dbName});
+    assert(history.length===2,'correction preserves append-only history');
+    const snaps=await PrometeoDB.listSnapshots({name:dbName});
+    assert(snaps.filter(x=>x.id===PrometeoHabitMigration.snapshotId).length===1,'creates exactly one rollback snapshot');
+    await PrometeoDB.deleteTestDatabase(dbName);
+    out.className='pass';out.textContent=log.join('\n')+'\n\nALL PASS';
+  }catch(error){
+    try{await PrometeoDB.deleteTestDatabase(dbName)}catch{}
+    out.className='fail';out.textContent=log.join('\n')+'\n\nFAIL · '+(error?.stack||error);
+  }
+})();
+</script>
+</body></html>
