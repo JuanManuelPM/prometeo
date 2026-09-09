@@ -34,6 +34,21 @@ Workers do **not** collaboratively edit one central mutable status file.
 - `HARD_WRITE_COLLISION` is blocking; dependency/impact/shared-owner events are targeted signals, not global locks.
 - No heartbeat bureaucracy.
 
+## Cross-chat handoff: publish, then `Prometeo`
+The human is **not** the message bus between Prometeo chats.
+
+When useful work or a material discovery must survive this chat or affect another workstream:
+
+1. Persist local execution state in the workstream `LAST_RETURN.json` (or its scoped worker-status object while work is still in flight).
+2. Publish only genuinely cross-workstream discoveries to `coordination/DELTA_FEED.json` with the relevant topics and source refs.
+3. If the work is a new material scope, register a small `coordination/workstreams/<id>/PACK.json` instead of embedding a giant handoff prompt in chat.
+4. Let Agent Runtime v3 rebuild EPOCH and the affected compiled Work Packets.
+5. The human should only have to open the destination chat and send `Prometeo`. Do **not** ask them to copy/paste a recoverable handoff prompt.
+6. The destination chat detects the new EPOCH, reloads only its relevant compiled packet and consumes the published delta/action automatically.
+7. If a chat is legacy and has never learned Prometeo, the one-time bridge is `PROMETEO → https://juanmanuelpm.github.io/prometeo/p.txt`; after that, `Prometeo` alone is enough.
+
+A long prompt may still be generated as a diagnostic/export for an external model that cannot access the runtime, but it is a fallback artifact, not the normal cross-chat transport.
+
 ## Seal
 - `🟣 P✓ · <WORKSTREAM>` = stable entry + compiled packet actually loaded this cycle.
 - `🟣 P✓ · GENERAL` = runtime + GENERAL loaded; this grants no material write authority.
