@@ -11,7 +11,7 @@ async function ready(id,n=0,page='calendar'){
   let c=createCapture({id,created_at:new Date(1700000000000+n*1000).toISOString(),context:context(page,n)});
   c=attachDurableAudio(c,{digest:`audio-${id}`,mime:'audio/webm',size:1000+n,local_ref:`idb:${id}:audio`});
   c=transitionProcessing(c,'QUEUED');
-  c=appendTranscriptRevision(c,{text:`observación ${n}`,state:'CONFIRMED',source:'human-confirm',digest:`text-${id}`});
+  c=appendTranscriptRevision(c,{text:`observación ${n}`,state:'MACHINE',source:'whisper',model:'test-whisper',digest:`text-${id}`});
   return c;
 }
 
