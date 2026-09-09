@@ -88,7 +88,7 @@ export class V53CaptureHost{
     await this.remote.connect();
     const exportReceipt=await this.remote.prepareExport(selected);
     const request=selected.map(c=>`[${c.immutable_creation.context.page_id||'unknown'}] ${revisionRef(c).text}`).join('\n');
-    const Workflow=globalThis.PrometeoWorkflow;if(!Workflow)fail('PROMETEO_PATENT_WORKFLOW','PrometeoWorkflow no está cargado');
+    const Workflow=this.win?.PrometeoWorkflow||globalThis.PrometeoWorkflow;if(!Workflow)fail('PROMETEO_PATENT_WORKFLOW','PrometeoWorkflow no está cargado');
     const seed=await Workflow.seed({request,privacy:'PROJECT',source_refs:selected.map(c=>revisionRef(c).ref)});
     const pageIds=[...new Set(selected.map(c=>c.immutable_creation.context.page_id).filter(Boolean))];
     const work=await Workflow.workItem(seed,{target:{kind:'capture-batch',page_ids:pageIds},owner:'fresh-agent',dependencies:pageIds});
