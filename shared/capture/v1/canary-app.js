@@ -11,13 +11,13 @@ const copyButton=document.getElementById('p4Copy');
 const chatButton=document.getElementById('p4Chat');
 
 let host=null;
+let ownership=null;
 const store=new CaptureStore();
 const remote=new CaptureRemote({onState:s=>setStatus(s.linked?'privado · vinculado':s.error?'privado · sin vínculo':'local')});
 const workerURL=new URL('./transcription-worker.js',import.meta.url).href;
-const ownership=globalThis.PrometeoOwnership||null;
 const recorder=new RecorderController({
   store,
-  ownership,
+  ownership:null,
   contextProvider:async()=>{if(!host)throw new Error('Prometeo todavía está cargando');return host.context()},
   onState:s=>setStatus(s.active?(s.paused?'grabación pausada':'grabando'):'listo'),
   onSaved:()=>setStatus('audio guardado · transcripción en cola')
@@ -33,6 +33,8 @@ frame.addEventListener('load',async()=>{
       fetch('/prometeo/catalog/pages.json',{cache:'no-store'}).then(r=>r.json()),
       fetch('/prometeo/catalog/CATALOG_MANIFEST.json',{cache:'no-store'}).then(r=>r.json())
     ]);
+    ownership=frame.contentWindow?.PrometeoOwnership||globalThis.PrometeoOwnership||null;
+    recorder.ownership=ownership;
     host=new V53CaptureHost({
       frameWindow:frame.contentWindow,
       catalog,
