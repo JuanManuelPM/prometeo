@@ -1,54 +1,100 @@
 <!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="robots" content="noindex,nofollow,noarchive">
-<title>Prometeo</title>
-<style>
-:root{--paper:#f4efe5;--ink:#45141b;--line:rgba(69,20,27,.18)}*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink);font-family:Century Gothic,Avenir,Montserrat,system-ui,sans-serif}body{min-height:100dvh;display:grid;place-items:center;padding:24px}main{display:grid;justify-items:center;gap:22px}.mark,.ready{width:76px;height:76px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;box-shadow:0 8px 18px rgba(69,20,27,.10),inset 0 1px 0 rgba(255,255,255,.7)}.mark:after{content:"";width:18px;height:18px;border-radius:50%;background:var(--ink)}.ready{display:none;font-size:30px;font-weight:700}.status{font-size:13px;opacity:.68;text-align:center;max-width:280px;min-height:20px}body[data-state="working"] .mark{animation:pulse 1s ease-in-out infinite alternate}body[data-state="ready"] .mark{display:none}body[data-state="ready"] .ready{display:grid}@keyframes pulse{to{transform:scale(.94);opacity:.5}}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Prometeo</title>
+  <style>
+    :root{--paper:#f4efe5;--ink:#45141b;--line:color-mix(in srgb,var(--ink) 18%,transparent)}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink);font-family:Century Gothic,Avenir,Montserrat,system-ui,sans-serif}
+    body{min-height:100dvh;display:grid;place-items:center;padding:24px}
+    main{width:min(390px,100%);display:grid;justify-items:center;gap:28px}
+    .mark{width:66px;height:66px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;box-shadow:0 8px 18px color-mix(in srgb,var(--ink) 10%,transparent),inset 0 1px 0 rgba(255,255,255,.7)}
+    .mark:after{content:"";width:16px;height:16px;border-radius:50%;background:var(--ink);box-shadow:inset 0 2px 4px rgba(255,255,255,.18)}
+    .panel{width:100%;display:grid;gap:12px}
+    input,button{width:100%;height:54px;border-radius:17px;font:inherit;font-size:15px}
+    input{border:1px solid var(--line);background:transparent;color:var(--ink);padding:0 17px;outline:none}
+    input:focus{border-color:color-mix(in srgb,var(--ink) 48%,transparent)}
+    button{border:0;background:var(--ink);color:var(--paper);font-weight:700;letter-spacing:.01em;cursor:pointer;box-shadow:0 5px 0 color-mix(in srgb,var(--ink) 78%,black),0 10px 17px color-mix(in srgb,var(--ink) 14%,transparent);transform:translateY(0)}
+    button:active{transform:translateY(3px);box-shadow:0 2px 0 color-mix(in srgb,var(--ink) 78%,black),0 6px 10px color-mix(in srgb,var(--ink) 11%,transparent)}
+    button:disabled{opacity:.55;cursor:default;transform:none}
+    .status{min-height:24px;text-align:center;font-size:13px;opacity:.68}
+    .ready{display:none;width:76px;height:76px;border-radius:50%;border:1px solid var(--line);place-items:center;font-size:30px;font-weight:700}
+    body[data-state="working"] .panel{display:none}
+    body[data-state="working"] .mark{animation:pulse 1.1s ease-in-out infinite alternate}
+    body[data-state="ready"] .panel,body[data-state="ready"] .mark{display:none}
+    body[data-state="ready"] .ready{display:grid}
+    @keyframes pulse{to{transform:scale(.94);opacity:.55}}
+  </style>
 </head>
-<body data-state="working">
-<main><div class="mark"></div><div class="ready">✓</div><div class="status" id="status"></div></main>
-<script>
-const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-device-bootstrap-v1';
-const SESSION_KEY='prometeo.device.session.v1';
-const CLAIM_KEY='prometeo.owner.claim.v1';
-const statusNode=document.getElementById('status');
-const calendar='../calendar/';
-function setState(s,msg=''){document.body.dataset.state=s;statusNode.textContent=msg}
-function getClaim(){
-  const p=new URLSearchParams(location.hash.slice(1));
-  const fromUrl=p.get('claim');
-  if(fromUrl&&fromUrl.length>=32){localStorage.setItem(CLAIM_KEY,fromUrl);history.replaceState(null,'',location.pathname+location.search);return fromUrl}
-  return localStorage.getItem(CLAIM_KEY)||'';
-}
-async function boot(){
-  const existing=localStorage.getItem(SESSION_KEY);
-  if(existing){location.replace(calendar);return}
-  const claim=getClaim();
-  if(!claim){setState('error','Este dispositivo todavía no está vinculado.');return}
-  setState('working','');
-  try{
-    const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({claimToken:claim}),cache:'no-store'});
-    const data=await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error(data.code||'BOOTSTRAP_FAILED');
-    if(!data.deviceToken) throw new Error('NO_DEVICE_TOKEN');
-    localStorage.setItem(SESSION_KEY,data.deviceToken);
-    if(data.financeProfileId)localStorage.setItem('prometeo.finance.profile.v1',data.financeProfileId);
-    localStorage.removeItem(CLAIM_KEY);
-    setState('ready','');
-    setTimeout(()=>location.replace(calendar),450);
-  }catch(e){
-    const code=String(e?.message||'');
-    if(code==='BOOTSTRAP_EXPIRED')setState('error','El acceso inicial venció.');
-    else if(code==='OWNER_ALREADY_CLAIMED'||code==='BOOTSTRAP_USED')setState('error','Prometeo ya fue vinculado.');
-    else setState('error','No se pudo completar la vinculación.');
-  }
-}
-boot();
-</script>
-<script type="module" src="/prometeo/shared/prometeo-shell/v2/prometeo-shell.js?v=2" data-prometeo-shell></script>
+<body>
+  <main>
+    <div class="mark" aria-hidden="true"></div>
+    <form class="panel" id="form" autocomplete="on">
+      <input id="email" type="email" inputmode="email" autocomplete="email" placeholder="Email" required aria-label="Email">
+      <button id="go" type="submit">Entrar</button>
+      <div class="status" id="status" aria-live="polite"></div>
+    </form>
+    <div class="ready">✓</div>
+  </main>
+
+  <script>
+    (()=>{
+      const p=new URLSearchParams(location.hash.slice(1));
+      const claim=p.get('claim');
+      if(claim&&claim.length>=32){localStorage.setItem('prometeo.owner.claim.v1',claim);history.replaceState(null,'',location.pathname+location.search)}
+    })();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script>
+  <script>
+    const SUPABASE_URL='https://catnohyouxqjjtseaueb.supabase.co';
+    const SUPABASE_KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+    const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+    const form=document.getElementById('form'),email=document.getElementById('email'),go=document.getElementById('go'),status=document.getElementById('status');
+    const calendar='../calendar/';
+
+    function state(s,msg=''){document.body.dataset.state=s;status.textContent=msg}
+    async function provision(session){
+      state('working');
+      const claimToken=localStorage.getItem('prometeo.owner.claim.v1')||'';
+      try{
+        const r=await fetch(`${SUPABASE_URL}/functions/v1/prometeo-bootstrap-v1`,{
+          method:'POST',headers:{Authorization:`Bearer ${session.access_token}`,apikey:SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({claimToken})
+        });
+        const data=await r.json().catch(()=>({}));
+        if(!r.ok) throw Object.assign(new Error(data.code||'BOOTSTRAP_FAILED'),{code:data.code});
+        localStorage.removeItem('prometeo.owner.claim.v1');
+        state('ready');
+        setTimeout(()=>location.replace(calendar),420);
+      }catch(e){
+        document.body.dataset.state='';
+        if(e.code==='CLAIM_REQUIRED'||e.code==='BOOTSTRAP_EXPIRED'||e.code==='BOOTSTRAP_INVALID') status.textContent='Abrí el enlace inicial de Prometeo.';
+        else if(e.code==='NOT_OWNER') status.textContent='Esta cuenta no es la propietaria.';
+        else status.textContent='No se pudo completar el acceso.';
+      }
+    }
+
+    async function boot(){
+      const {data:{session}}=await sb.auth.getSession();
+      if(session){await provision(session);return}
+      document.body.dataset.state='';
+    }
+
+    form.addEventListener('submit',async e=>{
+      e.preventDefault();
+      const value=email.value.trim();if(!value)return;
+      go.disabled=true;status.textContent='';
+      const redirectTo=location.origin+location.pathname;
+      const {error}=await sb.auth.signInWithOtp({email:value,options:{emailRedirectTo:redirectTo,shouldCreateUser:false}});
+      if(error){status.textContent='No se pudo enviar el acceso.';go.disabled=false;return}
+      status.textContent='Abrí el enlace que llegó a tu email.';
+      go.textContent='Enviado';
+    });
+
+    sb.auth.onAuthStateChange((event,session)=>{if(session&&(event==='SIGNED_IN'||event==='INITIAL_SESSION')) provision(session)});
+    boot();
+  </script>
 </body>
 </html>
