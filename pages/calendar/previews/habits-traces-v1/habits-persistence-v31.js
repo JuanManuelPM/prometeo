@@ -12,7 +12,7 @@
   const nativeSet=Storage.prototype.setItem;
   const nativeRemove=Storage.prototype.removeItem;
   const clone=v=>v==null?v:JSON.parse(JSON.stringify(v));
-  const uuid=()=>crypto?.randomUUID?.()||`habit-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const uuid=()=>window.crypto?.randomUUID?.()||`habit-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   let shadow={};
   let dbReady=false;
   let flushPromise=null;
@@ -21,6 +21,7 @@
   function parseObject(raw,fallback={}){
     try{const x=JSON.parse(raw||'null');return x&&typeof x==='object'&&!Array.isArray(x)?x:fallback}catch{return fallback}
   }
+  function parseArray(raw){try{const x=JSON.parse(raw||'null');return Array.isArray(x)?x:[]}catch{return []}}
   function rawGet(key){return nativeGet.call(localStorage,key)}
   function rawSet(key,value){return nativeSet.call(localStorage,key,value)}
   function rawRemove(key){return nativeRemove.call(localStorage,key)}
@@ -31,7 +32,7 @@
     groups_collapsed:parseObject(rawGet(GROUP_KEY),{}),
     tracker_starts:parseObject(rawGet(START_KEY),{})
   }}
-  function outbox(){const x=parseObject(rawGet(OUTBOX_KEY),[]);return Array.isArray(x)?x:[]}
+  function outbox(){return parseArray(rawGet(OUTBOX_KEY))}
   function saveOutbox(rows){rows.length?rawSet(OUTBOX_KEY,JSON.stringify(rows)):rawRemove(OUTBOX_KEY)}
   function saveMirror(){rawSet(MIRROR_KEY,JSON.stringify(shadow))}
 
