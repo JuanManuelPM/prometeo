@@ -1,0 +1,58 @@
+name: Publish Prometeo Universal Shell V5
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'shared/universal-shell/v5/payload.html.gz.b64'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: prometeo-universal-shell-v5
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Materialize exact V5 bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d shared/universal-shell/v5/payload.html.gz.b64 | gzip -d > /tmp/prometeo-v5.html
+          echo '5d06d529d6d5d0c3fdfc3f51b2a20621ca455fbbd51bf8e85722f4dfd69abcc3  /tmp/prometeo-v5.html' | sha256sum -c -
+          cp /tmp/prometeo-v5.html index.html
+      - name: Persist V5 as main source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if ! git diff --cached --quiet; then
+            git commit -m 'shell: promote universal shell v5 as principal source'
+            git push origin HEAD:main
+          fi
+      - name: Publish same exact bytes to GitHub Pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin gh-pages
+          git worktree add /tmp/prometeo-pages origin/gh-pages
+          cp /tmp/prometeo-v5.html /tmp/prometeo-pages/index.html
+          mkdir -p /tmp/prometeo-pages/shared/universal-shell/v5
+          cp shared/universal-shell/v5/payload.html.gz.b64 /tmp/prometeo-pages/shared/universal-shell/v5/payload.html.gz.b64
+          cd /tmp/prometeo-pages
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html shared/universal-shell/v5/payload.html.gz.b64
+          if git diff --cached --quiet; then
+            echo 'Universal Shell V5 already published.'
+            exit 0
+          fi
+          git commit -m 'shell: publish universal shell v5 principal link'
+          git pull --rebase origin gh-pages
+          git push origin HEAD:gh-pages
