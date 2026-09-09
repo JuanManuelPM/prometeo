@@ -8,7 +8,7 @@
 <style>
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff}
 #fail{display:none;position:fixed;right:18px;bottom:18px;width:54px;height:54px;border:0;border-radius:50%;background:#151A20;color:#fff;font:800 18px system-ui;box-shadow:0 8px 18px rgba(0,0,0,.18)}
-#msg{display:none;position:fixed;right:18px;bottom:84px;max-width:min(420px,calc(100vw - 36px));padding:9px 11px;border-radius:12px;background:#151A20;color:#fff;font:600 10px/1.4 system-ui;opacity:.82;white-space:pre-wrap}
+#msg{display:none;position:fixed;right:18px;bottom:84px;max-width:min(460px,calc(100vw - 36px));padding:9px 11px;border-radius:12px;background:#151A20;color:#fff;font:600 10px/1.4 system-ui;opacity:.84;white-space:pre-wrap}
 </style>
 </head>
 <body>
@@ -16,7 +16,9 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff}
 <button id="fail" type="button" aria-label="Reintentar Prometeo">!</button>
 <script>
 (async()=>{
-  const PAYLOAD='./shared/universal-shell/v5/payload.html.gz.b64';
+  try{localStorage.removeItem('prometeo.shell.enabled.v1')}catch{}
+  const EXPECTED='5d06d529d6d5d0c3fdfc3f51b2a20621ca455fbbd51bf8e85722f4dfd69abcc3';
+  const CHUNKS=[1,2,3,4,5].map(n=>`./shared/universal-shell/v5/chunk-${n}.b64`);
   const fail=(err)=>{
     console.error('[Prometeo V5 boot]',err);
     const b=document.getElementById('fail'),m=document.getElementById('msg');
@@ -24,11 +26,18 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff}
     m.textContent=String(err&&err.message||err||'Error de arranque');
     b.onclick=()=>location.replace(location.pathname+'?retry='+Date.now()+location.hash);
   };
+  const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
   try{
-    const r=await fetch(PAYLOAD+'?v=5d06d529&t='+Date.now(),{cache:'no-store'});
-    if(!r.ok)throw new Error('payload '+r.status);
-    const b64=(await r.text()).replace(/\s+/g,'');
-    if(!b64.startsWith('H4sI'))throw new Error('payload inválido');
+    const parts=[];
+    for(const url of CHUNKS){
+      const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
+      if(!r.ok)throw new Error(`${url} · HTTP ${r.status}`);
+      parts.push((await r.text()).replace(/\s+/g,''));
+    }
+    const b64=parts.join('');
+    if(b64.length!==26252)throw new Error(`payload incompleto · ${b64.length}/26252 caracteres`);
+    if(b64.length%4!==0)throw new Error(`base64 corrupto · longitud ${b64.length}`);
+    if(!/^[A-Za-z0-9+/]*={0,2}$/.test(b64))throw new Error('base64 contiene caracteres inválidos');
     const raw=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
     let html='';
     if('DecompressionStream' in window){
@@ -42,6 +51,10 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff}
         document.head.appendChild(s);
       });
       html=new TextDecoder().decode(window.pako.ungzip(raw));
+    }
+    if(crypto&&crypto.subtle){
+      const digest=hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(html)));
+      if(digest!==EXPECTED)throw new Error(`payload correcto pero SHA inesperado · ${digest.slice(0,12)}`);
     }
     if(!html.includes('Universal Shell V5 Integrated Control'))throw new Error('payload V5 inesperado');
     document.open();document.write(html);document.close();
