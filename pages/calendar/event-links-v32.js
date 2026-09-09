@@ -10,7 +10,7 @@
     ['bocaNode','boca']
   ];
   const LABELS={class:'CLASE',personal:'PERSONAL',university:'UNIVERSIDAD',potential:'POTENCIAL',boca:'BOCA'};
-  const CHAIN_SVG=`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.1 14.9 14.9 9.1"/><path d="M7.1 16.9 5.4 18.6a4.2 4.2 0 0 1-5.9-5.9l3.2-3.2a4.2 4.2 0 0 1 5.9 0" transform="translate(3 -2)"/><path d="m16.9 7.1 1.7-1.7a4.2 4.2 0 1 1 5.9 5.9l-3.2 3.2a4.2 4.2 0 0 1-5.9 0" transform="translate(-3 2)"/></svg>`;
+  const CHAIN_SVG=`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a4.6 4.6 0 0 0 6.5 0l2.4-2.4A4.6 4.6 0 0 0 13 4.5l-1.4 1.4"/><path d="M13.4 10.6a4.6 4.6 0 0 0-6.5 0L4.5 13a4.6 4.6 0 0 0 6.5 6.5l1.4-1.4"/><path d="m8.8 15.2 6.4-6.4"/></svg>`;
 
   let active=null;
   let dialog=null;
@@ -88,19 +88,17 @@
 
   function occurrenceDateForNode(node){
     const slot=node.closest('.slot');
-    if(slot&&window.grid&&typeof window.visibleDates==='function'&&typeof window.isoDate==='function'){
-      const slots=Array.from(window.grid.querySelectorAll('.slot'));
+    const gridHost=document.getElementById('grid');
+    if(slot&&gridHost&&typeof visibleDates==='function'&&typeof isoDate==='function'){
+      const slots=Array.from(gridHost.querySelectorAll('.slot'));
       const index=slots.indexOf(slot);
-      if(index>=0){const dayIndex=index%7;const dates=window.visibleDates();if(dates[dayIndex])return window.isoDate(dates[dayIndex])}
+      if(index>=0){const dayIndex=index%7;const dates=visibleDates();if(dates[dayIndex])return isoDate(dates[dayIndex])}
     }
     const day=node.closest('.mobile-day');
-    if(day&&typeof window.visibleDates==='function'&&typeof window.isoDate==='function'){
+    if(day&&typeof visibleDates==='function'&&typeof isoDate==='function'){
       const days=Array.from(day.parentElement?.querySelectorAll('.mobile-day')||[]);
-      const index=days.indexOf(day);const dates=window.visibleDates();if(index>=0&&dates[index])return window.isoDate(dates[index]);
+      const index=days.indexOf(day),dates=visibleDates();if(index>=0&&dates[index])return isoDate(dates[index]);
     }
-    return itemDateFromActive(node);
-  }
-  function itemDateFromActive(node){
     const raw=node?.dataset?.eventDate||'';
     return /^\d{4}-\d{2}-\d{2}$/.test(raw)?raw:null;
   }
@@ -129,10 +127,10 @@
       if(!active)return;const links=readLinks();delete links[active.key];writeLinks(links);dialog.close();rerender();
     };
     editClassButton.onclick=()=>{
-      if(!active||active.kind!=='class'||typeof window.openEditor!=='function')return;
+      if(!active||active.kind!=='class'||typeof openEditor!=='function')return;
       const dateISO=active.date||active.item?.date||null;
       dialog.close();
-      if(dateISO)window.openEditor(dateISO,Number(active.item.start)||0,active.item.id||null);
+      if(dateISO)openEditor(dateISO,Number(active.item.start)||0,active.item.id||null);
     };
     dialog.querySelector('#eventLinkForm').addEventListener('submit',ev=>{
       ev.preventDefault();if(!active)return;
@@ -150,7 +148,7 @@
     kindEl.textContent=LABELS[kind]||'EVENTO';titleEl.textContent=eventTitle(kind,item);
     input.value=record?.url||'';
     removeButton.classList.toggle('hidden',!record?.url);
-    editClassButton.classList.toggle('hidden',kind!=='class'||typeof window.openEditor!=='function');
+    editClassButton.classList.toggle('hidden',kind!=='class'||typeof openEditor!=='function');
     dialog.showModal();requestAnimationFrame(()=>{input.focus();input.select()});
   }
 
@@ -183,7 +181,7 @@
     const wrapped=function(item){return attachNode(original(item),kind,item)};
     wrapped.__prometeoEventLinksV32=true;wrapped.__original=original;window[name]=wrapped;return true;
   }
-  function rerender(){if(typeof window.render==='function')window.render()}
+  function rerender(){if(typeof render==='function')render()}
 
   FACTORIES.forEach(([name,kind])=>wrapFactory(name,kind));
   ensureDialog();
