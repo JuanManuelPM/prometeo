@@ -5,8 +5,21 @@ import {
   assertStatusPayload
 } from './finance-contract.js';
 
-const DEFAULT_ENDPOINT = 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/finance-demo-v1';
+export const FINANCE_ENDPOINTS = Object.freeze({
+  demo: 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/finance-demo-v1',
+  live: 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/finance-v1'
+});
+
+export const FINANCE_PUBLISHABLE_KEY = 'sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
 const CACHE_TTL_MS = 30_000;
+
+export class FinanceAuthRequiredError extends Error {
+  constructor() {
+    super('Finance authentication required');
+    this.name = 'FinanceAuthRequiredError';
+    this.code = 'FINANCE_AUTH_REQUIRED';
+  }
+}
 
 function queryString(params) {
   const search = new URLSearchParams();
@@ -16,7 +29,13 @@ function queryString(params) {
   return search.toString();
 }
 
-export function createFinanceClient({ endpoint = DEFAULT_ENDPOINT, timeoutMs = 8000 } = {}) {
+export function createFinanceClient({
+  endpoint = FINANCE_ENDPOINTS.demo,
+  timeoutMs = 8000,
+  mode = 'remote-demo',
+  getAccessToken = null,
+  apiKey = null
+} = {}) {
   const cache = new Map();
 
   async function request(view, params = {}) {
@@ -24,14 +43,23 @@ export function createFinanceClient({ endpoint = DEFAULT_ENDPOINT, timeoutMs = 8
     const cached = cache.get(key);
     if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.value;
 
+    const headers = { Accept: 'application/json' };
+    if (typeof getAccessToken === 'function') {
+      const token = await getAccessToken();
+      if (!token) throw new FinanceAuthRequiredError();
+      headers.Authorization = `Bearer ${token}`;
+    }
+    if (apiKey) headers.apikey = apiKey;
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const url = `${endpoint}?${queryString({ view, ...params })}`;
       const response = await fetch(url, {
         method: 'GET',
-        headers: { Accept: 'application/json' },
+        headers,
         cache: 'no-store',
+        credentials: 'omit',
         signal: controller.signal
       });
       if (!response.ok) throw new Error(`Finance API ${response.status}`);
@@ -44,7 +72,7 @@ export function createFinanceClient({ endpoint = DEFAULT_ENDPOINT, timeoutMs = 8
   }
 
   return Object.freeze({
-    mode: 'remote-demo',
+    mode,
     endpoint,
     async getStatus() {
       return assertStatusPayload(await request('status'));
@@ -61,6 +89,24 @@ export function createFinanceClient({ endpoint = DEFAULT_ENDPOINT, timeoutMs = 8
     clearCache() {
       cache.clear();
     }
+  });
+}
+
+export function createLiveFinanceClient({
+  getAccessToken,
+  endpoint = FINANCE_ENDPOINTS.live,
+  apiKey = FINANCE_PUBLISHABLE_KEY,
+  timeoutMs = 8000
+} = {}) {
+  if (typeof getAccessToken !== 'function') {
+    throw new TypeError('createLiveFinanceClient requires getAccessToken');
+  }
+  return createFinanceClient({
+    endpoint,
+    timeoutMs,
+    mode: 'remote-live',
+    getAccessToken,
+    apiKey
   });
 }
 
