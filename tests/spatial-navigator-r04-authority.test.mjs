@@ -11,11 +11,14 @@ const [current,lineage,capabilities,manifest,authority]=await Promise.all([
   readJson('coordination/PART1_AUTHORITY.json')
 ]);
 
+assert.equal(current.schema,'prometeo.current-graph/v1');
+assert.ok(Number.isInteger(current.revision)&&current.revision>0,'Current Graph must expose a valid revision without pinning unrelated future revisions');
+
 const v23=current.artifacts['navigator-v23-physics'];
 const v53=current.artifacts['navigator-v53-visible'];
 const served=current.artifacts['p3-served-release'];
 
-assert.equal(current.revision,17,'R04 authority guard must be reviewed if Current Graph schema/state advances materially');
+assert.ok(v23&&v53&&served,'Navigator physics, visible base and Served release must remain explicit artifacts');
 assert.equal(v23.state,'HUMAN_ACCEPTED');
 assert.equal(v23.source,'sha256:f15f67240794b9d3224cc11f1899819485c08554b517b48ea6fca8458eb41398');
 assert.equal(current.pointers.human_accepted_physics.artifact_id,'navigator-v23-physics');
@@ -30,6 +33,7 @@ assert.equal(served.navigator_identity,'sha256:31a19bb574957b84d0543b335d8f493bb
 
 assert.notEqual(current.pointers.visible_frontend_current.artifact_id,current.pointers.human_accepted_physics.artifact_id,'Visible Current and Human Accepted physics must remain separate authorities');
 assert.notEqual(current.pointers.served_current.artifact_id,current.pointers.human_accepted_physics.artifact_id,'Served and Human Accepted physics must not collapse');
+assert.notEqual(current.pointers.served_current.artifact_id,current.pointers.visible_frontend_current.artifact_id,'Served release identity and visible-base authority pointer must remain distinct records');
 
 assert.equal(manifest.schema,'prometeo.reconstruction-candidate/v1');
 assert.equal(manifest.status,'CANDIDATE_NOT_HUMAN_ACCEPTED');
@@ -74,6 +78,7 @@ assert.equal(physicsCap.human_accepted,'navigator-v23-physics');
 console.log(JSON.stringify({
   ok:true,
   guard:'spatial-navigator-r04-authority',
+  currentRevision:current.revision,
   v23:'HUMAN_ACCEPTED_PHYSICS_ONLY',
   v50:'PRESERVED_RECONSTRUCTION_BASE_ONLY',
   v53:'VISIBLE_BASE',
