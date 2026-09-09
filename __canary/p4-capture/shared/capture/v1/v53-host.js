@@ -1,5 +1,5 @@
 import {resolveV53Page,semanticNavigatorSnapshot,createContextSnapshot} from './identity.js';
-import {appendTranscriptRevision,revisionRef,archiveCapture} from './capture-core.js';
+import {createCapture,appendTranscriptRevision,revisionRef,archiveCapture} from './capture-core.js';
 import {digest as patentDigest} from './patent-v2.js';
 
 const fail=(code,message,detail={})=>{const e=new Error(message);e.code=code;e.detail=detail;throw e};
@@ -8,7 +8,7 @@ export class V53CaptureHost{
   constructor({frameWindow=window,catalog,catalogManifest,store,recorder,queue,remote=null,ownership=null,assetBase='/prometeo/shared/capture/v1/',onPatent=()=>{}}={}){
     if(!catalog||!store||!recorder||!queue)fail('PROMETEO_CAPTURE_HOST_CONFIG','catalog, store, recorder and queue required');
     this.win=frameWindow;this.doc=frameWindow.document;this.catalog=catalog;this.catalogManifest=catalogManifest||{pages:[]};this.store=store;this.recorder=recorder;this.queue=queue;this.remote=remote;this.ownership=ownership;this.assetBase=assetBase;this.onPatent=onPatent;
-    this.mo=null;this.currentTerminal=null;this.selected=new Set();this.filter='page';this.renderTimer=0;this.toastTimer=0;
+    this.mo=null;this.currentTerminal=null;this.selected=new Set();this.filter='page';this.renderTimer=0;this.toastTimer=0;this.lastPlaybackURL=null;
   }
   async context(){
     const api=this.win.__PROMETEO_V53__;if(!api)fail('PROMETEO_CAPTURE_V53_API','V53 API unavailable');
@@ -25,7 +25,7 @@ export class V53CaptureHost{
     this.win.addEventListener('resize',()=>this.scheduleReconcile(),{passive:true});
     this.scheduleReconcile();return this;
   }
-  destroy(){this.mo?.disconnect();this.currentTerminal?.querySelector('.prometeo-capture-accessory')?.remove();this.currentTerminal?.querySelector('.prometeo-capture-drawer')?.remove();this.currentTerminal=null}
+  destroy(){this.mo?.disconnect();this.currentTerminal?.querySelector('.prometeo-capture-accessory')?.remove();this.currentTerminal?.querySelector('.prometeo-capture-drawer')?.remove();if(this.lastPlaybackURL){URL.revokeObjectURL(this.lastPlaybackURL);this.lastPlaybackURL=null}this.currentTerminal=null}
   scheduleReconcile(){clearTimeout(this.renderTimer);this.renderTimer=setTimeout(()=>this.reconcile(),30)}
   async reconcile(){
     const terminal=this.doc.querySelector('.vertical-card[data-node-kind="page"].is-front .terminal')||this.doc.querySelector('.vertical-card.is-front .terminal');
@@ -41,7 +41,7 @@ export class V53CaptureHost{
       </div>
       <button class="prometeo-capture-mini" data-role="inbox" type="button" aria-label="Capturas">Notas</button>
       <div class="prometeo-capture-toast" data-role="toast"></div>`;
-    const drawer=this.doc.createElement('section');drawer.className='prometeo-capture-drawer';drawer.dataset.open='false';drawer.innerHTML='<div class="prometeo-capture-head"><strong>Capturas</strong><button class="prometeo-capture-mini" data-role="scope" type="button">Esta página</button><button class="prometeo-capture-mini" data-role="close" type="button">×</button></div><div data-role="list"></div><div class="prometeo-capture-footer"><button data-role="selectall" type="button">Seleccionar</button><button data-role="patent" type="button">Preparar patente</button></div>';
+    const drawer=this.doc.createElement('section');drawer.className='prometeo-capture-drawer';drawer.dataset.open='false';drawer.innerHTML='<div class="prometeo-capture-head"><strong>Capturas</strong><button class="prometeo-capture-mini" data-role="scope" type="button">Esta página</button><button class="prometeo-capture-mini" data-role="close" type="button">×</button></div><article class="prometeo-capture-note"><small>Texto directo · queda LOCAL por defecto</small><textarea data-role="draft" placeholder="Escribí una nota…"></textarea><div><button class="prometeo-capture-mini" data-role="save-text" type="button">Guardar texto</button></div></article><div data-role="list"></div><div class="prometeo-capture-footer"><button data-role="selectall" type="button">Seleccionar</button><button data-role="copy" type="button">Copiar</button><button data-role="patent" type="button">Preparar patente</button></div>';
     terminal.append(drawer,accessory);
     this.bind(accessory,drawer);await this.renderDrawer(drawer);await this.refreshBadge();
   }
@@ -58,21 +58,42 @@ export class V53CaptureHost{
     q('inbox').addEventListener('click',async()=>{drawer.dataset.open=drawer.dataset.open==='true'?'false':'true';if(drawer.dataset.open==='true')await this.renderDrawer(drawer)});
     d('close').addEventListener('click',()=>drawer.dataset.open='false');
     d('scope').addEventListener('click',async()=>{this.filter=this.filter==='page'?'all':'page';d('scope').textContent=this.filter==='page'?'Esta página':'Todas';await this.renderDrawer(drawer)});
-    d('selectall').addEventListener('click',async()=>{const visible=await this.visibleCaptures();const eligible=visible.filter(c=>c.transcript_revision&&c.archive_state==='ACTIVE');const all=eligible.every(c=>this.selected.has(c.id));for(const c of eligible){if(all)this.selected.delete(c.id);else this.selected.add(c.id)}await this.renderDrawer(drawer)});
+    d('save-text').addEventListener('click',async()=>{const draft=d('draft');try{const c=await this.saveTextCapture(draft.value);draft.value='';this.selected.add(c.id);this.toast(accessory,'Texto guardado');await this.renderDrawer(drawer);await this.refreshBadge()}catch(e){this.toast(accessory,e.message||'No pude guardar el texto')}});
+    d('selectall').addEventListener('click',async()=>{const visible=await this.visibleCaptures();const eligible=visible.filter(c=>c.transcript_revision&&c.archive_state==='ACTIVE');const all=eligible.length>0&&eligible.every(c=>this.selected.has(c.id));for(const c of eligible){if(all)this.selected.delete(c.id);else this.selected.add(c.id)}await this.renderDrawer(drawer)});
+    d('copy').addEventListener('click',async()=>{try{const n=await this.copyVisible();this.toast(accessory,n?`${n} captura${n===1?'':'s'} copiada${n===1?'':'s'}`:'No hay texto listo')}catch(e){this.toast(accessory,e.message||'No pude copiar')}});
     d('patent').addEventListener('click',async()=>{try{await this.preparePatent(accessory,drawer)}catch(e){this.toast(accessory,e.message||'No pude preparar la patente')}});
+  }
+  async saveTextCapture(text){
+    const clean=String(text??'').replace(/\s+/g,' ').trim();if(!clean)fail('PROMETEO_CAPTURE_TEXT_EMPTY','Escribí algo antes de guardar');
+    const context=await this.context();let capture=createCapture({context,privacy:'LOCAL',metadata:{capture_runtime:'shared/capture/v1',input_mode:'text'}});
+    capture=appendTranscriptRevision(capture,{text:clean,state:'EDITED',source:'human-text'});await this.store.putCapture(capture);await this.syncCapture(capture);return capture;
   }
   async visibleCaptures(){
     let all=await this.store.listCaptures({includeArchived:false});if(this.filter==='all')return all;
     try{const page=resolveV53Page({api:this.win.__PROMETEO_V53__,catalog:this.catalogManifest.pages?.length?this.catalogManifest:this.catalog});return all.filter(c=>c.immutable_creation?.context?.page_id===page.id||c.page_id===page.id)}catch{return all}
+  }
+  async copyVisible(){
+    const visible=(await this.visibleCaptures()).filter(c=>c.transcript_revision&&String(c.active_transcript||'').trim());if(!visible.length)return 0;
+    const text=visible.slice().reverse().map(c=>`[${c.immutable_creation?.context?.page_id||c.page_id||'unknown'}] ${String(c.active_transcript).trim()}`).join('\n\n');await this.copyText(text);return visible.length;
+  }
+  async copyText(text){
+    try{if(globalThis.navigator?.clipboard?.writeText){await globalThis.navigator.clipboard.writeText(text);return}}
+    catch{}
+    const ta=this.doc.createElement('textarea');ta.value=text;Object.assign(ta.style,{position:'fixed',opacity:'0',pointerEvents:'none'});this.doc.body.appendChild(ta);ta.select();const ok=this.doc.execCommand?.('copy');ta.remove();if(ok===false)fail('PROMETEO_CAPTURE_CLIPBOARD','No pude copiar al portapapeles');
+  }
+  async playAudio(id){
+    const blob=await this.store.getAudioBlob(id);if(!blob)fail('PROMETEO_CAPTURE_AUDIO_LOCAL_MISSING','El audio local ya no está disponible');
+    if(this.lastPlaybackURL)URL.revokeObjectURL(this.lastPlaybackURL);this.lastPlaybackURL=URL.createObjectURL(blob);const audio=new Audio(this.lastPlaybackURL);await audio.play();
   }
   async renderDrawer(drawer){
     const list=drawer.querySelector('[data-role="list"]');const captures=await this.visibleCaptures();list.innerHTML='';
     if(!captures.length){list.innerHTML='<div class="prometeo-capture-note"><small>No hay capturas todavía.</small></div>';return}
     for(const c of captures){
       const row=this.doc.createElement('article');row.className='prometeo-capture-note';const checked=this.selected.has(c.id);const page=c.immutable_creation?.context?.page_id||c.page_id||'sin página';
-      row.innerHTML=`<small>${escapeHtml(page)} · ${escapeHtml(statusLabel(c))}</small><label><input data-role="pick" type="checkbox" ${checked?'checked':''}> <span class="prometeo-capture-state">${c.transcript_revision?'✓':'◌'}</span></label>${c.transcript_revision?'<textarea data-role="text"></textarea>':'<div class="prometeo-capture-state">'+escapeHtml(c.processing_state)+'</div>'}<div><button class="prometeo-capture-mini" data-role="confirm" type="button">Confirmar</button> <button class="prometeo-capture-mini" data-role="archive" type="button">Archivar</button></div>`;
+      row.innerHTML=`<small>${escapeHtml(page)} · ${escapeHtml(statusLabel(c))}</small><label><input data-role="pick" type="checkbox" ${checked?'checked':''}> <span class="prometeo-capture-state">${c.transcript_revision?'✓':'◌'}</span></label>${c.transcript_revision?'<textarea data-role="text"></textarea>':'<div class="prometeo-capture-state">'+escapeHtml(c.processing_state)+'</div>'}<div>${c.audio?.present?'<button class="prometeo-capture-mini" data-role="play" type="button">Play</button> ':''}<button class="prometeo-capture-mini" data-role="confirm" type="button">Confirmar</button> <button class="prometeo-capture-mini" data-role="archive" type="button">Archivar</button></div>`;
       row.querySelector('[data-role="pick"]').addEventListener('change',e=>{if(e.target.checked)this.selected.add(c.id);else this.selected.delete(c.id)});
       const ta=row.querySelector('[data-role="text"]');if(ta){ta.value=c.active_transcript||'';ta.addEventListener('change',async()=>{const current=await this.store.getCapture(c.id);if(!current||ta.value.trim()===current.active_transcript)return;const edited=appendTranscriptRevision(current,{text:ta.value,state:'EDITED',source:'human-edit'});await this.store.putCapture(edited);await this.syncCapture(edited);await this.refreshBadge()})}
+      const play=row.querySelector('[data-role="play"]');if(play)play.addEventListener('click',async()=>{try{await this.playAudio(c.id)}catch(e){const host=this.currentTerminal?.querySelector('.prometeo-capture-accessory');if(host)this.toast(host,e.message||'No pude reproducir')}});
       row.querySelector('[data-role="confirm"]').disabled=!c.transcript_revision;row.querySelector('[data-role="confirm"]').addEventListener('click',async()=>{const current=await this.store.getCapture(c.id);if(!current?.transcript_revision)return;const confirmed=appendTranscriptRevision(current,{text:current.active_transcript,state:'CONFIRMED',source:'human-confirm'});await this.store.putCapture(confirmed);await this.syncCapture(confirmed);this.selected.add(c.id);await this.renderDrawer(drawer)});
       row.querySelector('[data-role="archive"]').addEventListener('click',async()=>{const current=await this.store.getCapture(c.id);if(!current)return;const archived=archiveCapture(current,{reason:'human-archive'});await this.store.putCapture(archived);this.selected.delete(c.id);try{await this.remote?.archiveCapture(c.id,{reason:'human-archive'})}catch{}await this.renderDrawer(drawer);await this.refreshBadge()});
       list.append(row);
