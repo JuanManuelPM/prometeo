@@ -53,7 +53,8 @@
     const SUPABASE_KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
     const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
     const form=document.getElementById('form'),email=document.getElementById('email'),go=document.getElementById('go'),status=document.getElementById('status');
-    const calendar='../calendar/';
+    const next=new URLSearchParams(location.search).get('next');
+    const destination=next==='finance-auth-canary'?'../../__canary/finance-auth/':'../calendar/';
 
     function state(s,msg=''){document.body.dataset.state=s;status.textContent=msg}
     async function provision(session){
@@ -67,7 +68,7 @@
         if(!r.ok) throw Object.assign(new Error(data.code||'BOOTSTRAP_FAILED'),{code:data.code});
         localStorage.removeItem('prometeo.owner.claim.v1');
         state('ready');
-        setTimeout(()=>location.replace(calendar),420);
+        setTimeout(()=>location.replace(destination),420);
       }catch(e){
         document.body.dataset.state='';
         if(e.code==='CLAIM_REQUIRED'||e.code==='BOOTSTRAP_EXPIRED'||e.code==='BOOTSTRAP_INVALID') status.textContent='Abrí el enlace inicial de Prometeo.';
@@ -86,7 +87,7 @@
       e.preventDefault();
       const value=email.value.trim();if(!value)return;
       go.disabled=true;status.textContent='';
-      const redirectTo=location.origin+location.pathname;
+      const redirectTo=location.origin+location.pathname+location.search;
       const {error}=await sb.auth.signInWithOtp({email:value,options:{emailRedirectTo:redirectTo,shouldCreateUser:false}});
       if(error){status.textContent='No se pudo enviar el acceso.';go.disabled=false;return}
       status.textContent='Abrí el enlace que llegó a tu email.';
