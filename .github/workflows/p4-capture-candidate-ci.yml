@@ -21,29 +21,40 @@ jobs:
           node-version: '22'
       - name: P4 authority and preparation preflight
         run: node tests/p4-capture-preflight.test.mjs
+      - name: Capture lifecycle, memory and Patent v2 tests
+        run: node --test tests/p4-capture-core.test.mjs
+      - name: Syntax-check Capture runtime modules
+        run: |
+          set -euo pipefail
+          node --check shared/capture/v1/capture-core.js
+          node --check shared/capture/v1/context-memory.js
+          node --check shared/capture/v1/identity.js
+          node --check shared/capture/v1/patent-v2.js
+          node --check shared/capture/v1/recorder.js
+          node --check shared/capture/v1/remote.js
+          node --check shared/capture/v1/store.js
+          node --check shared/capture/v1/v53-host.js
       - name: Clean-process reincarnation evidence
         run: node scripts/p3-00-rehydrate.mjs > /tmp/p4-wake.json
       - name: Fresh-process reincarnation regression
         run: node scripts/p3-02-fresh-agent-runner.mjs > /tmp/p4-fresh.json
-      - name: Record served-branch shell participation
+      - name: Record current served-shell participation
         run: |
           set -euo pipefail
-          git fetch origin gh-pages
+          git fetch origin gh-pages main
           git show origin/gh-pages:navigator/index.html > /tmp/served-nav.html
-          grep -o 'prometeo-shell/v[0-9][^" ]*' /tmp/served-nav.html | tail -5 || true
-          if grep -q 'prometeo-shell/v2/prometeo-shell.js?v=2' /tmp/served-nav.html; then
-            echo 'P4_SERVED_BRANCH_MARKER=v2' >> "$GITHUB_ENV"
-          elif grep -q 'prometeo-shell/v3/prometeo-shell.js?v=3' /tmp/served-nav.html; then
-            echo 'P4_SERVED_BRANCH_MARKER=v3' >> "$GITHUB_ENV"
-          else
-            echo 'P4_SERVED_BRANCH_MARKER=none' >> "$GITHUB_ENV"
-          fi
-      - name: Validate configured publication race evidence
+          grep -o 'prometeo-shell/v[0-9][^" ]*' /tmp/served-nav.html | sort -u > /tmp/served-shell-markers.txt || true
+          echo 'served shell markers:'
+          cat /tmp/served-shell-markers.txt || true
+      - name: Validate single Capture publication owner
         run: |
           set -euo pipefail
-          grep -q 'prometeo-shell/v2/prometeo-shell.js?v=2' .github/workflows/inject-prometeo-shell.yml
-          grep -q 'prometeo-shell/v3/prometeo-shell.js?v=3' .github/workflows/inject-prometeo-shell-v3.yml
-          echo "served branch marker: ${P4_SERVED_BRANCH_MARKER}"
+          grep -q 'Publish Legacy Prometeo Capture Donors' .github/workflows/inject-prometeo-shell.yml
+          ! grep -q 'data-prometeo-shell' .github/workflows/inject-prometeo-shell.yml
+          ! grep -q 'inject every Pages HTML' .github/workflows/inject-prometeo-shell.yml
+          test ! -f .github/workflows/inject-prometeo-shell-v3.yml
+          test -f shared/capture/v1/MANIFEST.json
+          node -e "const m=require('./shared/capture/v1/MANIFEST.json'); if(m.status!=='CANDIDATE_ONLY'||m.owners.human_intent!=='shared/capture/v1') process.exit(1)"
       - uses: actions/upload-artifact@v4
         with:
           name: p4-preflight-evidence
@@ -51,3 +62,4 @@ jobs:
             /tmp/p4-wake.json
             /tmp/p4-fresh.json
             /tmp/served-nav.html
+            /tmp/served-shell-markers.txt
