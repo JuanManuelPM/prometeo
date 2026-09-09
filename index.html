@@ -3,30 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#f3f1eb">
-<meta name="prometeo-build" content="PROMETEO_HUB_JOSE_R2_20260826">
+<meta name="theme-color" content="#ffffff">
 <title>Prometeo</title>
-<link rel="alternate" type="application/json" href="./ai/boot.json" title="Prometeo public AI boot">
-<link rel="help" href="./ai/" title="PROMETEO UNIVERSAL AI BOOT">
-<link rel="stylesheet" href="./shared/tokens.css">
-<link rel="stylesheet" href="./shared/motion.css">
-<link rel="stylesheet" href="./assets/hub.css">
+<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff}#fail{display:none;position:fixed;right:18px;bottom:18px;width:54px;height:54px;border:0;border-radius:50%;background:#151A20;color:#fff;font:800 18px system-ui;box-shadow:0 8px 18px rgba(0,0,0,.18)}</style>
 </head>
 <body>
-<main class="shell">
-<header class="home-head">
-  <div>
-    <div class="kicker">entrada principal</div>
-    <div class="brand">Prometeo</div>
-  </div>
-  <div class="brand-sub">Tus espacios vivos en un solo lugar. Seleccioná uno para verlo; abrilo sólo cuando quieras entrar.</div>
-</header>
-<section class="project-frame" aria-label="Proyectos">
-  <div class="projects" id="projects"><div class="hint">Cargando accesos…</div></div>
-</section>
-<div class="hint">La selección queda guardada. Si entrás a una microapp y volvés, Prometeo conserva el lugar en el que estabas.</div>
-<footer class="footer"><span>Prometeo · mapa universal</span><span id="stamp">Registro durable</span></footer>
-</main>
-<script src="./assets/hub.js" defer></script>
+<button id="fail" type="button" aria-label="Error cargando Prometeo">!</button>
+<script type="module">
+const EXPECTED='5d06d529d6d5d0c3fdfc3f51b2a20621ca455fbbd51bf8e85722f4dfd69abcc3';
+const PAYLOAD='./shared/universal-shell/v5/payload.html.gz.b64?v='+EXPECTED.slice(0,12);
+const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+async function boot(){
+  if(!('DecompressionStream' in window)) throw new Error('DecompressionStream no disponible');
+  const r=await fetch(PAYLOAD,{cache:'no-store'});if(!r.ok)throw new Error('payload '+r.status);
+  const b64=(await r.text()).trim();
+  const raw=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+  const stream=new Blob([raw]).stream().pipeThrough(new DecompressionStream('gzip'));
+  const html=await new Response(stream).text();
+  const digest=hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(html)));
+  if(digest!==EXPECTED)throw new Error('SHA mismatch');
+  document.open();document.write(html);document.close();
+}
+boot().catch(err=>{console.error('[Prometeo V5 boot]',err);const b=document.getElementById('fail');b.style.display='block';b.onclick=()=>location.reload()});
+</script>
 </body>
 </html>
