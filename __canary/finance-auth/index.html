@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Prometeo · Finance Auth Canary</title>
+  <style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f4efe5}
+    iframe{display:block;width:100%;height:100%;border:0;background:#f4efe5}
+    #fault{position:fixed;inset:auto 12px 12px 12px;z-index:2;display:none;padding:10px 12px;border-radius:12px;background:#45141b;color:#f4efe5;font:12px/1.35 system-ui,sans-serif;text-align:center}
+    body[data-fault="1"] #fault{display:block}
+  </style>
+</head>
+<body>
+  <iframe id="calendar" src="/prometeo/pages/calendar/" title="Calendar Finance Auth Canary"></iframe>
+  <div id="fault">No se pudo montar Finance Auth Canary.</div>
+  <script>
+    const frame=document.getElementById('calendar');
+    frame.addEventListener('load',()=>{
+      try{
+        const doc=frame.contentDocument;
+        if(!doc)throw new Error('NO_DOCUMENT');
+        if(doc.querySelector('script[data-finance-auth-canary]'))return;
+        const script=doc.createElement('script');
+        script.type='module';
+        script.dataset.financeAuthCanary='1';
+        script.src='/prometeo/__canary/finance-auth/shared/finance/v1/finance-calendar-adapter.js?v=b8431bb8';
+        script.onerror=()=>{document.body.dataset.fault='1'};
+        doc.head.appendChild(script);
+        const mirror=()=>{document.documentElement.dataset.financeRemote=doc.documentElement.dataset.financeRemote||''};
+        mirror();
+        new MutationObserver(mirror).observe(doc.documentElement,{attributes:true,attributeFilter:['data-finance-remote']});
+      }catch(error){
+        console.error('Finance Auth Canary mount failed',error);
+        document.body.dataset.fault='1';
+      }
+    });
+  </script>
+</body>
+</html>
