@@ -7,7 +7,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: p4-capture-canary-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   preflight:
@@ -21,7 +25,7 @@ jobs:
           node-version: '22'
       - name: P4 authority and preparation preflight
         run: node tests/p4-capture-preflight.test.mjs
-      - name: Capture lifecycle, memory and Patent v2 tests
+      - name: Capture lifecycle, memory, Patent v2 and consecutive recorder tests
         run: node --test tests/p4-capture-core.test.mjs tests/p4-recorder-consecutive.test.mjs
       - name: Syntax-check Capture runtime modules
         run: |
@@ -34,6 +38,7 @@ jobs:
           node --check shared/capture/v1/remote.js
           node --check shared/capture/v1/store.js
           node --check shared/capture/v1/v53-host.js
+          node --check shared/capture/v1/canary-app.js
       - name: Clean-process reincarnation evidence
         run: node scripts/p3-00-rehydrate.mjs > /tmp/p4-wake.json
       - name: Fresh-process reincarnation regression
@@ -63,3 +68,21 @@ jobs:
             /tmp/p4-fresh.json
             /tmp/served-nav.html
             /tmp/served-shell-markers.txt
+      - name: Publish isolated P4 canary
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin gh-pages
+          git worktree add /tmp/p4-pages origin/gh-pages
+          target=/tmp/p4-pages/__canary/p4-capture
+          rm -rf "$target"
+          mkdir -p "$target/shared/capture/v1"
+          cp -R shared/capture/v1/. "$target/shared/capture/v1/"
+          cp shared/capture/v1/canary.html "$target/index.html"
+          cd /tmp/p4-pages
+          git add __canary/p4-capture
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'canary: publish P4 Capture candidate'
+          git pull --rebase origin gh-pages
+          git push origin HEAD:gh-pages
