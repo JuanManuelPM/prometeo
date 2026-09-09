@@ -33,7 +33,7 @@ test('Context projection never upgrades a transcript to Human Accepted',async()=
   const c=await ready('C-2',2);
   const raw=rawCaptureRecord(c);const atom=transcriptNoteAtom(c);
   assert.equal(raw.authority,'RAW_UNCURATED');assert.equal(raw.privacy,'LOCAL');
-  assert.equal(atom.authority,'SOURCE_REFERENCE');assert.equal(atom.human_accepted,false);assert.equal(atom.lineage_ids[0],`raw:capture:${c.id}`);
+  assert.equal(atom.authority,'DERIVED_EVIDENCE');assert.equal(atom.transcript_state,'MACHINE');assert.equal(atom.human_accepted,false);assert.equal(atom.lineage_ids[0],`raw:capture:${c.id}`);
 });
 
 test('Recent window is exactly ten while older literals stay reopenable',async()=>{
