@@ -1,0 +1,99 @@
+name: Apply Universal Shell Corner Anchor v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/apply-universal-shell-corner-anchor-v1.py'
+      - '.github/workflows/apply-corner-anchor-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prometeo-shared-pages
+  cancel-in-progress: false
+
+jobs:
+  apply-test-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Resync main
+        run: |
+          set -euo pipefail
+          git fetch origin main gh-pages
+          git reset --hard origin/main
+
+      - name: Materialize Corner Anchor v1
+        run: python scripts/apply-universal-shell-corner-anchor-v1.py
+
+      - name: Falsify runtime package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat shared/universal-shell/v5/chunk-{1,2,3,4,5}.b64 > /tmp/v5.b64
+          base64 -d /tmp/v5.b64 | gzip -d > /tmp/v5.html
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('/tmp/v5.html').read_text()
+          a=s.index('<script type="module">')+len('<script type="module">')
+          b=s.rindex('</script>')
+          Path('/tmp/v5.mjs').write_text(s[a:b])
+          required=[
+            'prometeo.universal-control.corner.v1',
+            "['top-left','top-right','bottom-left','bottom-right']",
+            'nearestCorner',
+            'localVector',
+            'setPointerCapture',
+            'visualViewport',
+            'Anclar',
+            'Organizar páginas'
+          ]
+          for x in required: assert x in s, x
+          assert 'data-prometeo-shell' not in s
+          print('Corner Anchor static gates PASS')
+          PY
+          node --check /tmp/v5.mjs
+          python -m json.tool shared/universal-shell/v5/CORNER_ANCHOR_v1.json >/dev/null
+
+      - name: Commit durable source package to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html shared/universal-shell/v5 .github/workflows/publish-universal-shell-v5.yml
+          if ! git diff --cached --quiet; then
+            git commit -m 'shell: integrate four-corner Corner Anchor v1'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+
+      - name: Publish exact package to gh-pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin gh-pages
+          git worktree add /tmp/prometeo-pages origin/gh-pages
+          mkdir -p /tmp/prometeo-pages/shared/universal-shell/v5
+          cp index.html /tmp/prometeo-pages/index.html
+          cp shared/universal-shell/v5/chunk-*.b64 /tmp/prometeo-pages/shared/universal-shell/v5/
+          cp shared/universal-shell/v5/README.md /tmp/prometeo-pages/shared/universal-shell/v5/README.md
+          cp shared/universal-shell/v5/CORNER_ANCHOR_v1.json /tmp/prometeo-pages/shared/universal-shell/v5/CORNER_ANCHOR_v1.json
+          cd /tmp/prometeo-pages
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html shared/universal-shell/v5
+          if git diff --cached --quiet; then
+            echo 'Corner Anchor v1 already published.'
+            exit 0
+          fi
+          git commit -m 'shell: publish four-corner Corner Anchor v1'
+          git pull --rebase origin gh-pages
+          git push origin HEAD:gh-pages
