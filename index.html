@@ -5,26 +5,86 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
 <title>Prometeo</title>
-<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff}#fail{display:none;position:fixed;right:18px;bottom:18px;width:54px;height:54px;border:0;border-radius:50%;background:#151A20;color:#fff;font:800 18px system-ui;box-shadow:0 8px 18px rgba(0,0,0,.18)}</style>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff}
+#fail{display:none;position:fixed;right:18px;bottom:18px;width:54px;height:54px;border:0;border-radius:50%;background:#151A20;color:#fff;font:800 18px system-ui;box-shadow:0 8px 18px rgba(0,0,0,.18)}
+#msg{display:none;position:fixed;right:18px;bottom:84px;max-width:min(360px,calc(100vw - 36px));padding:8px 10px;border-radius:10px;background:#151A20;color:#fff;font:600 10px/1.35 system-ui;opacity:.78}
+</style>
 </head>
 <body>
-<button id="fail" type="button" aria-label="Error cargando Prometeo">!</button>
+<div id="msg"></div>
+<button id="fail" type="button" aria-label="Reintentar Prometeo">!</button>
 <script type="module">
 const EXPECTED='5d06d529d6d5d0c3fdfc3f51b2a20621ca455fbbd51bf8e85722f4dfd69abcc3';
-const PAYLOAD='./shared/universal-shell/v5/payload.html.gz.b64?v='+EXPECTED.slice(0,12);
+const REL='./shared/universal-shell/v5/payload.html.gz.b64';
+const SOURCES=[
+  new URL(REL,location.href).href,
+  'https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/shared/universal-shell/v5/payload.html.gz.b64'
+];
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+
+async function fetchPayload(){
+  let last;
+  for(const url of SOURCES){
+    for(let attempt=0;attempt<2;attempt++){
+      try{
+        const sep=url.includes('?')?'&':'?';
+        const r=await fetch(url+sep+'v='+EXPECTED.slice(0,12)+'&t='+Date.now(),{cache:'no-store'});
+        if(!r.ok)throw new Error(`payload ${r.status} · ${url}`);
+        const text=(await r.text()).trim();
+        if(!text.startsWith('H4sI'))throw new Error(`payload inválido · ${url}`);
+        return text;
+      }catch(e){last=e;if(attempt===0)await sleep(450)}
+    }
+  }
+  throw last||new Error('No pude obtener el payload');
+}
+
+async function loadPako(){
+  if(window.pako?.ungzip)return window.pako;
+  await new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js';
+    s.crossOrigin='anonymous';
+    s.onload=resolve;s.onerror=()=>reject(new Error('No pude cargar fallback gzip'));
+    document.head.appendChild(s);
+  });
+  if(!window.pako?.ungzip)throw new Error('Fallback gzip no disponible');
+  return window.pako;
+}
+
+async function gunzip(raw){
+  if('DecompressionStream' in window){
+    try{
+      const stream=new Blob([raw]).stream().pipeThrough(new DecompressionStream('gzip'));
+      return await new Response(stream).text();
+    }catch(e){console.warn('[Prometeo V5] gzip nativo falló; uso fallback',e)}
+  }
+  const pako=await loadPako();
+  return new TextDecoder().decode(pako.ungzip(raw));
+}
+
 async function boot(){
-  if(!('DecompressionStream' in window)) throw new Error('DecompressionStream no disponible');
-  const r=await fetch(PAYLOAD,{cache:'no-store'});if(!r.ok)throw new Error('payload '+r.status);
-  const b64=(await r.text()).trim();
+  const b64=await fetchPayload();
   const raw=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
-  const stream=new Blob([raw]).stream().pipeThrough(new DecompressionStream('gzip'));
-  const html=await new Response(stream).text();
-  const digest=hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(html)));
-  if(digest!==EXPECTED)throw new Error('SHA mismatch');
+  const html=await gunzip(raw);
+  if(crypto?.subtle){
+    const digest=hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(html)));
+    if(digest!==EXPECTED)throw new Error(`SHA mismatch ${digest.slice(0,12)}`);
+  }
   document.open();document.write(html);document.close();
 }
-boot().catch(err=>{console.error('[Prometeo V5 boot]',err);const b=document.getElementById('fail');b.style.display='block';b.onclick=()=>location.reload()});
+
+boot().catch(err=>{
+  console.error('[Prometeo V5 boot]',err);
+  const b=document.getElementById('fail'),m=document.getElementById('msg');
+  b.style.display='block';
+  b.title=String(err?.message||err);
+  b.onclick=()=>location.reload();
+  m.textContent=String(err?.message||err);
+  b.oncontextmenu=e=>{e.preventDefault();m.style.display=m.style.display==='block'?'none':'block'};
+});
 </script>
 </body>
 </html>
