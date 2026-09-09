@@ -1,0 +1,56 @@
+{
+  "schema": "prometeo.habit-persistence-contract/v1",
+  "version": 31,
+  "status": "ACTIVE_PRODUCTION_CUTOVER",
+  "canonical_owner": "IndexedDB:prometeo.local/behavior_events",
+  "activation_condition": "migration.habits.localStorage-v7-to-behavior-events.v1.verified === true",
+  "legacy": {
+    "key": "prometeo-preview-habit-traces-v7",
+    "status_after_cutover": "FROZEN_ROLLBACK_EVIDENCE",
+    "must_not_become_canonical_again": true
+  },
+  "recovery": {
+    "projection_cache_key": "prometeo-db-habit-projection-v31",
+    "outbox_key": "prometeo-db-habit-outbox-v31",
+    "projection_cache_is_truth": false,
+    "outbox_is_truth": false,
+    "rule": "Every UI mutation is added synchronously to the outbox before asynchronous IndexedDB flushing."
+  },
+  "migration": {
+    "runtime": "shared/storage/v1/habit-migration-v1.js",
+    "production_bridge": "pages/calendar/previews/habits-traces-v1/habits-persistence-v31.js",
+    "rollback_snapshot_id": "migration-habits-localstorage-v7-precutover-v1",
+    "event_id_pattern": "migr-habits-v1:<tracker>:<date>",
+    "idempotent": true,
+    "verification_required_before_marker": true,
+    "preserve_hidden_trackers": true,
+    "preserve_unknown_semantics": true
+  },
+  "render_contract": {
+    "hydrate_from_db_before_habit_renderer": true,
+    "existing_renderer_compatibility": "Legacy key reads/writes are virtualized by the persistence bridge so traces-v24 can remain visually unchanged during storage cutover.",
+    "graphs_are_derived_only": true,
+    "view_preferences_are_behavior_truth": false
+  },
+  "failure_modes": {
+    "indexeddb_temporarily_unavailable": "Continue from recovery projection, queue mutations locally, replay when DB returns.",
+    "tab_closes_during_write": "Outbox persists synchronously and replays on next boot.",
+    "migration_verification_fails": "Do not write verified marker; preserve legacy and recovery data; do not destructively rewrite history."
+  },
+  "forbidden": [
+    "Deleting legacy habit history during cutover",
+    "Resetting the production PrometeoDB",
+    "Persisting trajectory/graph values as canonical truth",
+    "Making network connectivity required for a habit tap",
+    "Reintroducing the legacy habit object as the canonical owner after verified cutover",
+    "Treating view preferences as behavior history"
+  ],
+  "next": [
+    "Browser-level tap/reload regression test",
+    "Typed migration for tracker activation dates",
+    "User-visible export/import and snapshot recovery",
+    "Separate Calendar migration",
+    "Separate Money migration",
+    "Optional cross-device sync after local ownership is stable"
+  ]
+}
