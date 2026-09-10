@@ -5,6 +5,7 @@ const BASE = process.env.V5_CANARY_BASE || 'http://127.0.0.1:4173';
 const LEGACY = `${BASE}/shared/universal-shell/v5/candidate/baseline-source.html`;
 const CANDIDATE_PATH = process.env.V5_CANDIDATE_PATH || 'shared/universal-shell/v5/candidate/favorites-facade-source.html';
 const CANDIDATE = `${BASE}/${CANDIDATE_PATH.replace(/^\//,'')}`;
+const IS_DURABLE = CANDIDATE_PATH.includes('durable-favorites-source');
 const FAV_KEY = 'prometeo.v5.favorites.v1';
 const CORNER_KEY = 'prometeo.universal-control.corner.v1';
 
@@ -132,8 +133,6 @@ async function backendStatus(browser, url) {
 
 const browser = await chromium.launch({ headless: true });
 try {
-  // Online catalog pruning is intentionally exercised with an empty seed. Fake ids are not a
-  // stable online expectation because the real catalog correctly removes unknown page ids.
   const [legacyRoot, candidateRoot] = await Promise.all([
     rootSnapshot(browser, LEGACY, '[]'),
     rootSnapshot(browser, CANDIDATE, '[]'),
@@ -142,15 +141,16 @@ try {
   assert.equal(candidateRoot.controls, 1);
   assert.deepEqual(candidateRoot.pageErrors, []);
 
-  // Dirty legacy normalization is tested with catalog transport blocked, isolating the exact
-  // local persistence semantics from legitimate online catalog pruning.
-  const dirty = '["alpha","","alpha","beta",7,null,"beta"]';
+  // P1/P2 retain legacy authority, so dirty raw legacy state can be compared directly. P3 has
+  // already activated DB ownership after the first load in this helper; its pre-migration dirty
+  // legacy semantics are covered by universal-control-v5-durable-browser.mjs instead.
+  const offlineSeed = IS_DURABLE ? '[]' : '["alpha","","alpha","beta",7,null,"beta"]';
   const [legacyOffline, candidateOffline] = await Promise.all([
-    rootSnapshot(browser, LEGACY, dirty, { blockExternal: true }),
-    rootSnapshot(browser, CANDIDATE, dirty, { blockExternal: true }),
+    rootSnapshot(browser, LEGACY, offlineSeed, { blockExternal: true }),
+    rootSnapshot(browser, CANDIDATE, offlineSeed, { blockExternal: true }),
   ]);
-  assert.deepEqual(candidateOffline, legacyOffline, 'candidate local-only dirty-state boot must match Golden Master');
-  assert.equal(candidateOffline.label, 'Favoritos · 2');
+  assert.deepEqual(candidateOffline, legacyOffline, 'candidate local-only boot must match Golden Master at the active authority boundary');
+  if (!IS_DURABLE) assert.equal(candidateOffline.label, 'Favoritos · 2');
   assert.deepEqual(candidateOffline.pageErrors, []);
 
   const legacyPin = await pinFlow(browser, LEGACY);
@@ -168,7 +168,7 @@ try {
   assert.deepEqual(candidateCorner.pageErrors, []);
 
   const status = await backendStatus(browser, CANDIDATE);
-  if (CANDIDATE_PATH.includes('backend-facades-source')) {
+  if (CANDIDATE_PATH.includes('backend-facades-source') || IS_DURABLE) {
     assert.ok(status, 'modular candidate must expose internal backend status');
     assert.equal(status.shell?.state, 'READY');
   }
