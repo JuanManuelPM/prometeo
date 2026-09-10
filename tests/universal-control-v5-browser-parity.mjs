@@ -7,11 +7,17 @@ const CANDIDATE = `${BASE}/shared/universal-shell/v5/candidate/favorites-facade-
 const FAV_KEY = 'prometeo.v5.favorites.v1';
 const CORNER_KEY = 'prometeo.universal-control.corner.v1';
 
+async function semanticClick(page, selector) {
+  await page.evaluate(sel => {
+    const el = document.querySelector(sel);
+    if (!el) throw new Error(`missing semantic control ${sel}`);
+    el.click();
+  }, selector);
+}
+
 async function openControl(page) {
-  // Force is intentional only for the closed puck: the product's own keyboard grammar
-  // drives every semantic step after opening, avoiding geometry-dependent test clicks.
-  await page.locator('#puck').click({ force: true });
-  await page.waitForFunction(() => !document.querySelector('#selector')?.classList.contains('closed'));
+  await semanticClick(page, '#puck');
+  await page.waitForFunction(() => document.querySelector('#selector')?.classList.contains('open'));
 }
 
 async function rootSnapshot(browser, url, seed, { blockExternal = false } = {}) {
@@ -26,7 +32,7 @@ async function rootSnapshot(browser, url, seed, { blockExternal = false } = {}) 
   await page.evaluate(({ key, value }) => localStorage.setItem(key, value), { key: FAV_KEY, value: seed });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await openControl(page);
-  await page.keyboard.press('ArrowRight');
+  await semanticClick(page, '#nextBtn');
   const label = await page.locator('#labelTextPath').textContent();
   const count = await page.locator('#labelCount').textContent();
   const stored = await page.evaluate(key => localStorage.getItem(key), FAV_KEY);
@@ -62,13 +68,12 @@ async function pinFlow(browser, url) {
   }, null, { timeout: 10000 });
 
   await openControl(page);
-  // Root with a current page: Páginas -> Anclar página -> Favoritos -> Notas -> Grabar.
-  await page.keyboard.press('ArrowRight');
+  await semanticClick(page, '#nextBtn');
   const before = await page.locator('#labelTextPath').textContent();
-  await page.keyboard.press('Enter');
+  await semanticClick(page, '#currentBtn');
   const storedPinned = await page.evaluate(key => localStorage.getItem(key), FAV_KEY);
   const afterPin = await page.locator('#labelTextPath').textContent();
-  await page.keyboard.press('Enter');
+  await semanticClick(page, '#currentBtn');
   const storedUnpinned = await page.evaluate(key => localStorage.getItem(key), FAV_KEY);
   const afterUnpin = await page.locator('#labelTextPath').textContent();
 
