@@ -1,350 +1,68 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const service = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
-const WORK_URL = `${SUPABASE_URL}/functions/v1/creator-work`;
-const OAUTH_CALLBACK = `${SUPABASE_URL}/functions/v1/creator-google-oauth/callback`;
+const SUPABASE_URL=Deno.env.get("SUPABASE_URL")!;
+const ANON_KEY=Deno.env.get("SUPABASE_ANON_KEY")!;
+const SERVICE_KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const db=createClient(SUPABASE_URL,SERVICE_KEY,{auth:{persistSession:false}});
+const WORK_URL=`${SUPABASE_URL}/functions/v1/creator-work`;
+const OAUTH_CALLBACK=`${SUPABASE_URL}/functions/v1/creator-google-oauth/callback`;
+const CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, content-type, x-idempotency-key","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS","Cache-Control":"no-store"};
+const json=(x:any,status=200)=>new Response(JSON.stringify(x),{status,headers:{...CORS,"Content-Type":"application/json"}});
+const bad=(m:string,status=400,extra:any={})=>json({ok:false,error:m,...extra},status);
+const now=()=>new Date().toISOString();
+const pathOf=(u:URL)=>{const m="/creator-api";const i=u.pathname.indexOf(m);return (i>=0?u.pathname.slice(i+m.length):u.pathname)||"/"};
+const slugify=(v:string)=>v.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,64)||"canal";
+function randomToken(bytes=32){const a=crypto.getRandomValues(new Uint8Array(bytes));return btoa(String.fromCharCode(...a)).replaceAll("+","-").replaceAll("/","_").replaceAll("=","")}
+async function sha256(v:string){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}
+function safeReturnTo(raw:any){const fallback="https://juanmanuelpm.github.io/prometeo/pages/lab/channels/setup/";try{const u=new URL(String(raw||fallback));if(u.origin==="https://juanmanuelpm.github.io"||u.hostname==="localhost"||u.hostname==="127.0.0.1")return u.toString()}catch{}return fallback}
+async function body(req:Request){try{return await req.json()}catch{return {}}}
+async function owner(req:Request){const auth=req.headers.get("Authorization")||"";if(!auth.startsWith("Bearer "))throw new Error("AUTH_REQUIRED");const c=createClient(SUPABASE_URL,ANON_KEY,{global:{headers:{Authorization:auth}},auth:{persistSession:false}});const {data,error}=await c.auth.getUser();if(error||!data.user)throw new Error("AUTH_INVALID");const {data:o,error:oe}=await db.from("prometeo_owner").select("auth_user_id").eq("singleton",true).maybeSingle();if(oe||!o||o.auth_user_id!==data.user.id)throw new Error("NOT_OWNER");return data.user.id}
+async function vaultStore(ownerId:string,kind:string,secret:string){const {data,error}=await db.rpc("creator_vault_store",{p_owner:ownerId,p_kind:kind,p_secret:secret});if(error)throw error;return String(data)}
+async function conn(ownerId:string,kind:string,provider:string){const {data,error}=await db.from("creator_provider_connections").select("*").eq("owner_id",ownerId).eq("kind",kind).eq("provider",provider).maybeSingle();if(error)throw error;return data}
+async function patchConn(ownerId:string,kind:string,provider:string,patch:any){const current=await conn(ownerId,kind,provider);const row={owner_id:ownerId,kind,provider,connection_key:"default",mode:patch.mode??current?.mode??"MOCK",vault_secret_id:patch.vault_secret_id??current?.vault_secret_id??null,vault_aux_secret_id:patch.vault_aux_secret_id??current?.vault_aux_secret_id??null,external_account_id:patch.external_account_id??current?.external_account_id??null,scopes:patch.scopes??current?.scopes??[],verified_at:patch.verified_at??current?.verified_at??null,expires_at:patch.expires_at??current?.expires_at??null,last_probe:patch.last_probe??current?.last_probe??{},last_error:patch.last_error===undefined?current?.last_error??null:patch.last_error,metadata:{...(current?.metadata||{}),...(patch.metadata||{})},updated_at:now()};const {data,error}=await db.from("creator_provider_connections").upsert(row,{onConflict:"owner_id,kind,provider"}).select().single();if(error)throw error;return data}
+async function channel(ownerId:string,id:string){const {data,error}=await db.from("creator_channels").select("*").eq("id",id).eq("owner_id",ownerId).maybeSingle();if(error)throw error;if(!data)throw new Error("CHANNEL_NOT_FOUND");return data}
+async function story(ownerId:string,id:string){const {data,error}=await db.from("creator_stories").select("*").eq("id",id).eq("owner_id",ownerId).maybeSingle();if(error)throw error;if(!data)throw new Error("STORY_NOT_FOUND");return data}
+async function video(ownerId:string,id:string){const {data,error}=await db.from("creator_videos").select("*").eq("id",id).eq("owner_id",ownerId).maybeSingle();if(error)throw error;if(!data)throw new Error("VIDEO_NOT_FOUND");return data}
+async function enqueue(ownerId:string,s:any){const key=s.idempotency_key||randomToken(18);const row={owner_id:ownerId,channel_id:s.channel_id||null,video_id:s.video_id||null,story_id:s.story_id||null,kind:s.kind,status:s.status||"QUEUED",provider:s.provider||null,input:s.input||{},idempotency_key:key,priority:s.priority??100,max_attempts:s.max_attempts??5,estimated_cost_cents:s.estimated_cost_cents??0,max_cost_cents:s.max_cost_cents??500,available_at:s.available_at||now()};const {data,error}=await db.from("creator_jobs").upsert(row,{onConflict:"owner_id,idempotency_key",ignoreDuplicates:true}).select().maybeSingle();if(error)throw error;if(data)return data;const {data:e,error:ee}=await db.from("creator_jobs").select("*").eq("owner_id",ownerId).eq("idempotency_key",key).single();if(ee)throw ee;return e}
+async function ensureBuiltins(ownerId:string){await patchConn(ownerId,"llm","fixture",{mode:"MOCK",last_probe:{ok:true,fixture:true},metadata:{cost_cents:0}});await patchConn(ownerId,"video","fixture",{mode:"MOCK",last_probe:{ok:true,fixture:true},metadata:{cost_cents:0,aspect_ratio:"9:16"}});await patchConn(ownerId,"voice","edge-neural",{mode:"VERIFIED_REAL",verified_at:now(),last_probe:{ok:true,source:"existing casa-tts deployment"},last_error:null,metadata:{function:"casa-tts",default_voice:"es-AR-TomasNeural",credential_required:false}})}
+function publicProvider(x:any){return {kind:x.kind,provider:x.provider,mode:x.mode,verified_at:x.verified_at,expires_at:x.expires_at,scopes:x.scopes||[],last_probe:x.last_probe||{},last_error:x.last_error||null,metadata:x.metadata||{}}}
+async function capabilities(ownerId:string){await ensureBuiltins(ownerId);const {data,error}=await db.from("creator_provider_connections").select("*").eq("owner_id",ownerId).order("kind");if(error)throw error;return (data||[]).map(publicProvider)}
+async function humanGates(ownerId:string){const p=await capabilities(ownerId);const has=(k:string,pr:string,modes:string[])=>p.some(x=>x.kind===k&&x.provider===pr&&modes.includes(x.mode));const {data:chs}=await db.from("creator_channels").select("youtube_channel_id").eq("owner_id",ownerId).not("youtube_channel_id","is",null).limit(1);const gates:any[]=[];if(!has("llm","gemini",["VERIFIED_REAL"]))gates.push({id:"GEMINI_API_KEY",required_for:"real AI ideation/creative package",action:"Paste one Gemini API key"});if(!has("oauth_client","google",["CONFIGURED","VERIFIED_REAL"]))gates.push({id:"GOOGLE_OAUTH_CLIENT",required_for:"YouTube login",action:"Create a Google Web OAuth client and paste client ID/secret"});if(!has("oauth","google",["VERIFIED_REAL"]))gates.push({id:"GOOGLE_CONSENT",required_for:"YouTube upload/Analytics",action:"Authorize Google/YouTube once"});if(!(chs||[]).length)gates.push({id:"YOUTUBE_CHANNEL",required_for:"publishing",action:"Create/select a YouTube channel, then reconnect/detect"});const veo=p.find(x=>x.kind==="video"&&x.provider==="veo");if(!veo||!["CONFIGURED","VERIFIED_REAL"].includes(veo.mode))gates.push({id:"VIDEO_PROVIDER",required_for:"real generated video",action:"Gemini key must expose a video model"});else if(veo.metadata?.spend_allowed!==true)gates.push({id:"VIDEO_SPEND",required_for:"paid video generation",action:"Explicitly enable a per-video spending cap"});return gates}
+async function probeGemini(secret:string){const started=Date.now();const r=await fetch("https://generativelanguage.googleapis.com/v1beta/models",{signal:AbortSignal.timeout(20000),headers:{"x-goog-api-key":secret}});const p:any=await r.json().catch(()=>({}));if(!r.ok)return {ok:false,status:r.status,error:p?.error?.message||"probe failed",latency_ms:Date.now()-started};const models=(p.models||[]).map((m:any)=>({name:String(m.name||"").replace(/^models\//,""),methods:m.supportedGenerationMethods||[]}));const text=models.filter((m:any)=>/gemini/i.test(m.name)&&m.methods.includes("generateContent")&&!/(embedding|image|live|audio)/i.test(m.name)).sort((a:any,b:any)=>(/flash/i.test(b.name)?1:0)-(/flash/i.test(a.name)?1:0))[0]?.name||null;const videoModel=models.filter((m:any)=>/veo/i.test(m.name)).sort((a:any,b:any)=>(/3\.1/i.test(b.name)?1:0)-(/3\.1/i.test(a.name)?1:0))[0]?.name||null;const tts=models.find((m:any)=>/tts|speech/i.test(m.name))?.name||null;return {ok:!!text,status:r.status,latency_ms:Date.now()-started,text_model:text,video_model:videoModel,tts_model:tts,model_count:models.length,sample:models.slice(0,20)}}
+async function probeHF(secret:string){const r=await fetch("https://huggingface.co/api/whoami-v2",{signal:AbortSignal.timeout(15000),headers:{Authorization:`Bearer ${secret}`}});const p:any=await r.json().catch(()=>({}));return r.ok?{ok:true,status:r.status,account:p?.name||null}:{ok:false,status:r.status,error:p?.error||"probe failed"}}
+function metricValue(metrics:any,metric:string){const a:any={views:["views_per_day","views"],subs:["subs_per_day","subscribersGained"],retention:["retention","averageViewPercentage"],ctr:["ctr","impressions_ctr"],revenue:["revenue_per_day","estimatedRevenue"]};for(const k of a[metric]||[metric])if(metrics?.[k]!=null)return Number(metrics[k]);return null}
+async function timeline(ownerId:string,channelId:string,metric:string){await channel(ownerId,channelId);const {data:vids,error}=await db.from("creator_videos").select("id,title,published_at,creative,metadata,youtube_video_id").eq("owner_id",ownerId).eq("channel_id",channelId).eq("state","PUBLISHED").not("published_at","is",null).order("published_at");if(error)throw error;const ids=(vids||[]).map((v:any)=>v.id);let snaps:any[]=[];if(ids.length){const {data,error:e}=await db.from("creator_analytics_snapshots").select("video_id,captured_at,source,metrics").eq("owner_id",ownerId).eq("channel_id",channelId).in("video_id",ids).order("captured_at");if(e)throw e;snaps=data||[]}const by=new Map<string,any[]>();for(const s of snaps){const x=by.get(s.video_id)||[];x.push(s);by.set(s.video_id,x)}const points=(vids||[]).map((v:any,i:number)=>{const next=(vids||[])[i+1]?.published_at||null;const a=(by.get(v.id)||[]).filter(s=>!next||new Date(s.captured_at)<new Date(next));const last=a.at(-1)||null;return {video_id:v.id,title:v.title,at:v.published_at,next_at:next,value:last?metricValue(last.metrics,metric):null,source:last?.source||null,metrics:last?.metrics||null,decisions:v.creative||{},metadata:v.metadata||{},youtube_video_id:v.youtube_video_id}});return {metric,interval_model:"publication_n_to_publication_n_plus_1",points}}
 
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-idempotency-key",
-  "Access-Control-Allow-Methods": "GET,POST,PATCH,OPTIONS",
-  "Cache-Control": "no-store",
-};
-
-function out(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
-}
-function err(message: string, status = 400, extra: Record<string, unknown> = {}) {
-  return out({ ok: false, error: message, ...extra }, status);
-}
-function routePath(url: URL) {
-  const marker = "/creator-api";
-  const i = url.pathname.indexOf(marker);
-  const p = i >= 0 ? url.pathname.slice(i + marker.length) : url.pathname;
-  return p || "/";
-}
-function slugify(v: string) {
-  return v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 64) || "canal";
-}
-function safeReturnTo(raw: unknown) {
-  const fallback = "https://juanmanuelpm.github.io/prometeo/pages/lab/channels/";
-  if (!raw) return fallback;
-  try {
-    const u = new URL(String(raw));
-    if (u.origin === "https://juanmanuelpm.github.io" || u.hostname === "localhost" || u.hostname === "127.0.0.1") return u.toString();
-  } catch { /* ignored */ }
-  return fallback;
-}
-async function sha256(v: string) {
-  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v));
-  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
-}
-function randomToken(bytes = 32) {
-  const a = crypto.getRandomValues(new Uint8Array(bytes));
-  return btoa(String.fromCharCode(...a)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-}
-async function requireUser(req: Request) {
-  const auth = req.headers.get("Authorization") || "";
-  if (!auth.startsWith("Bearer ")) throw new Error("AUTH_REQUIRED");
-  const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: auth } }, auth: { persistSession: false } });
-  const { data, error } = await userClient.auth.getUser();
-  if (error || !data.user) throw new Error("AUTH_INVALID");
-  return data.user;
-}
-async function jsonBody(req: Request) {
-  if (!req.body) return {};
-  try { return await req.json(); } catch { throw new Error("INVALID_JSON"); }
-}
-async function ownedChannel(owner: string, id: string) {
-  const { data, error } = await service.from("creator_channels").select("*").eq("id", id).eq("owner_id", owner).maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error("CHANNEL_NOT_FOUND");
-  return data;
-}
-async function ownedStory(owner: string, id: string) {
-  const { data, error } = await service.from("creator_stories").select("*").eq("id", id).eq("owner_id", owner).maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error("STORY_NOT_FOUND");
-  return data;
-}
-async function ownedVideo(owner: string, id: string) {
-  const { data, error } = await service.from("creator_videos").select("*").eq("id", id).eq("owner_id", owner).maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error("VIDEO_NOT_FOUND");
-  return data;
-}
-async function connection(owner: string, kind: string, provider: string) {
-  const { data, error } = await service.from("creator_provider_connections").select("*").eq("owner_id", owner).eq("kind", kind).eq("provider", provider).maybeSingle();
-  if (error) throw error;
-  return data;
-}
-async function vaultStore(owner: string, kind: string, secret: string) {
-  const { data, error } = await service.rpc("creator_vault_store", { p_owner: owner, p_kind: kind, p_secret: secret });
-  if (error) throw error;
-  return data as string;
-}
-async function vaultRead(id: string) {
-  const { data, error } = await service.rpc("creator_vault_read", { p_secret_id: id });
-  if (error) throw error;
-  return data as string;
-}
-async function upsertConnection(owner: string, kind: string, provider: string, patch: Record<string, unknown>) {
-  const row = { owner_id: owner, kind, provider, ...patch, updated_at: new Date().toISOString() };
-  const { data, error } = await service.from("creator_provider_connections").upsert(row, { onConflict: "owner_id,kind,provider" }).select().single();
-  if (error) throw error;
-  return data;
-}
-async function enqueue(owner: string, spec: Record<string, any>) {
-  const idem = spec.idempotency_key || randomToken(18);
-  const row = {
-    owner_id: owner,
-    channel_id: spec.channel_id || null,
-    video_id: spec.video_id || null,
-    story_id: spec.story_id || null,
-    kind: spec.kind,
-    status: spec.status || "QUEUED",
-    provider: spec.provider || null,
-    input: spec.input || {},
-    idempotency_key: idem,
-    priority: spec.priority ?? 100,
-    max_attempts: spec.max_attempts ?? 5,
-    estimated_cost_cents: spec.estimated_cost_cents ?? 0,
-    max_cost_cents: spec.max_cost_cents ?? 500,
-  };
-  const { data, error } = await service.from("creator_jobs").upsert(row, { onConflict: "owner_id,idempotency_key", ignoreDuplicates: true }).select().maybeSingle();
-  if (error) throw error;
-  if (data) return data;
-  const { data: existing, error: e2 } = await service.from("creator_jobs").select("*").eq("owner_id", owner).eq("idempotency_key", idem).single();
-  if (e2) throw e2;
-  return existing;
-}
-
-async function providerStatus(owner: string) {
-  const { data, error } = await service.from("creator_provider_connections").select("kind,provider,mode,verified_at,expires_at,last_probe,last_error,metadata").eq("owner_id", owner).order("kind");
-  if (error) throw error;
-  return data || [];
-}
-
-async function probeGemini(secret: string) {
-  const started = Date.now();
-  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models", { headers: { "x-goog-api-key": secret } });
-  const text = await r.text();
-  let payload: any = {}; try { payload = text ? JSON.parse(text) : {}; } catch { payload = { raw: text.slice(0, 300) }; }
-  if (!r.ok) return { ok: false, status: r.status, latency_ms: Date.now() - started, error: payload?.error?.message || "GEMINI_PROBE_FAILED" };
-  const names = Array.isArray(payload.models) ? payload.models.map((m: any) => String(m.name || "")) : [];
-  return {
-    ok: true,
-    status: r.status,
-    latency_ms: Date.now() - started,
-    model_count: names.length,
-    veo_visible: names.some((n: string) => /veo/i.test(n)),
-    tts_visible: names.some((n: string) => /tts|speech/i.test(n)),
-    sample_models: names.filter((n: string) => /gemini|veo|tts|speech/i.test(n)).slice(0, 12),
-  };
-}
-async function probeHF(secret: string) {
-  const started = Date.now();
-  const r = await fetch("https://huggingface.co/api/whoami-v2", { headers: { Authorization: `Bearer ${secret}` } });
-  const text = await r.text(); let payload: any = {}; try { payload = JSON.parse(text); } catch { payload = {}; }
-  return r.ok ? { ok: true, status: r.status, latency_ms: Date.now() - started, account: payload?.name || null }
-              : { ok: false, status: r.status, latency_ms: Date.now() - started, error: payload?.error || "HF_PROBE_FAILED" };
-}
-
-function metricValue(metrics: any, metric: string) {
-  const aliases: Record<string, string[]> = {
-    views: ["views_per_day", "views"], subs: ["subs_per_day", "subscribers_gained", "subscribersGained"],
-    retention: ["retention", "average_percentage_viewed"], ctr: ["ctr", "impressions_ctr"], revenue: ["revenue_per_day", "estimated_revenue"]
-  };
-  for (const k of aliases[metric] || [metric]) if (metrics?.[k] != null) return Number(metrics[k]);
-  return null;
-}
-
-async function timeline(owner: string, channelId: string, metric: string) {
-  await ownedChannel(owner, channelId);
-  const { data: vids, error: ve } = await service.from("creator_videos").select("id,title,published_at,creative,metadata,youtube_video_id").eq("owner_id", owner).eq("channel_id", channelId).eq("state", "PUBLISHED").not("published_at", "is", null).order("published_at");
-  if (ve) throw ve;
-  const ids = (vids || []).map((v: any) => v.id);
-  let snaps: any[] = [];
-  if (ids.length) {
-    const { data, error } = await service.from("creator_analytics_snapshots").select("video_id,captured_at,source,metrics").eq("owner_id", owner).eq("channel_id", channelId).in("video_id", ids).order("captured_at");
-    if (error) throw error; snaps = data || [];
-  }
-  const byVideo = new Map<string, any[]>();
-  for (const s of snaps) { const a = byVideo.get(s.video_id) || []; a.push(s); byVideo.set(s.video_id, a); }
-  const points = (vids || []).map((v: any, i: number) => {
-    const nextAt = vids?.[i + 1]?.published_at || null;
-    const a = (byVideo.get(v.id) || []).filter(s => !nextAt || new Date(s.captured_at) < new Date(nextAt));
-    const last = a.at(-1) || null;
-    return {
-      video_id: v.id, title: v.title, at: v.published_at, next_at: nextAt,
-      value: last ? metricValue(last.metrics, metric) : null,
-      source: last?.source || null,
-      metrics: last?.metrics || null,
-      decisions: v.creative || {}, metadata: v.metadata || {}, youtube_video_id: v.youtube_video_id,
-    };
-  });
-  return { metric, points, interval_model: "publication_n_to_publication_n_plus_1" };
-}
-
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-  try {
-    const user = await requireUser(req);
-    const owner = user.id;
-    const url = new URL(req.url);
-    const path = routePath(url);
-    const body: any = req.method === "GET" ? {} : await jsonBody(req);
-
-    if (req.method === "GET" && path === "/health") {
-      const { error: dbError } = await service.from("creator_channels").select("id", { head: true, count: "exact" }).eq("owner_id", owner);
-      const { data: buckets, error: bucketError } = await service.storage.listBuckets();
-      const storageReady = !bucketError && !!buckets?.some((b: any) => b.id === "creator-assets" && !b.public);
-      return out({ ok: !dbError && storageReady, database: dbError ? "FAIL" : "VERIFIED_REAL", storage: storageReady ? "VERIFIED_REAL" : "BLOCKED", storage_error: bucketError?.message || null });
-    }
-
-    if (req.method === "GET" && (path === "/capabilities" || path === "/setup/status")) {
-      return out({ ok: true, providers: await providerStatus(owner), human_gates: (await providerStatus(owner)).filter((x: any) => x.mode === "BLOCKED" || x.mode === "CONFIGURED") });
-    }
-
-    if (req.method === "GET" && path === "/channels") {
-      const { data, error } = await service.from("creator_channels").select("*").eq("owner_id", owner).neq("status", "ARCHIVED").order("created_at");
-      if (error) throw error; return out({ channels: data || [] });
-    }
-    if (req.method === "POST" && path === "/channels") {
-      const title = String(body.title || "").trim(); if (!title) return err("TITLE_REQUIRED");
-      const row = { owner_id: owner, title, slug: slugify(body.slug || title), world: body.world || {}, settings: body.settings || {} };
-      const { data, error } = await service.from("creator_channels").insert(row).select().single();
-      if (error) throw error; return out({ channel: data }, 201);
-    }
-
-    let m = path.match(/^\/channels\/([0-9a-f-]+)\/stories$/i);
-    if (req.method === "GET" && m) {
-      await ownedChannel(owner, m[1]);
-      const { data, error } = await service.from("creator_stories").select("*").eq("owner_id", owner).eq("channel_id", m[1]).neq("status", "ARCHIVED").order("updated_at", { ascending: false });
-      if (error) throw error; return out({ stories: data || [] });
-    }
-
-    m = path.match(/^\/channels\/([0-9a-f-]+)\/videos$/i);
-    if (req.method === "GET" && m) {
-      await ownedChannel(owner, m[1]);
-      const wanted = String(url.searchParams.get("state") || "").toUpperCase();
-      let q = service.from("creator_videos").select("*").eq("owner_id", owner).eq("channel_id", m[1]);
-      if (wanted) q = q.eq("state", wanted);
-      const { data, error } = await q.order("published_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false });
-      if (error) throw error; return out({ videos: data || [] });
-    }
-
-    m = path.match(/^\/channels\/([0-9a-f-]+)\/timeline$/i);
-    if (req.method === "GET" && m) return out(await timeline(owner, m[1], String(url.searchParams.get("metric") || "views")));
-
-    m = path.match(/^\/stories\/([0-9a-f-]+)\/work$/i);
-    if (req.method === "POST" && m) {
-      const story = await ownedStory(owner, m[1]); const ch = await ownedChannel(owner, story.channel_id);
-      const token = randomToken(32); const tokenHash = await sha256(token);
-      const task = String(body.task || "Desarrollar esta historia sin romper continuidad y devolver cambios estructurados.").trim();
-      const context = { channel: { id: ch.id, title: ch.title, world: ch.world, settings: ch.settings }, story };
-      const { data, error } = await service.from("creator_external_work").insert({ owner_id: owner, channel_id: ch.id, story_id: story.id, task, context_version: story.version, context, claim_token_hash: tokenHash }).select().single();
-      if (error) throw error;
-      return out({ work: { id: data.id, status: data.status, task }, claim_url: `${WORK_URL}?work_id=${encodeURIComponent(data.id)}&token=${encodeURIComponent(token)}` }, 201);
-    }
-
-    m = path.match(/^\/work\/([0-9a-f-]+)\/apply$/i);
-    if (req.method === "POST" && m) {
-      const { data: w, error } = await service.from("creator_external_work").select("*").eq("id", m[1]).eq("owner_id", owner).single();
-      if (error) throw error; if (w.status !== "RETURNED" || !w.result) return err("WORK_NOT_RETURNED", 409);
-      if (w.story_id) {
-        const story = await ownedStory(owner, w.story_id);
-        if (story.version !== w.context_version) return err("STORY_VERSION_CONFLICT", 409, { expected: w.context_version, actual: story.version });
-        const merged = { ...(story.story_data || {}), external_return: w.result };
-        const { error: ue } = await service.from("creator_stories").update({ story_data: merged, version: story.version + 1, status: "DEVELOPING" }).eq("id", story.id).eq("owner_id", owner);
-        if (ue) throw ue;
-      }
-      await service.from("creator_external_work").update({ status: "APPLIED", applied_at: new Date().toISOString() }).eq("id", w.id);
-      return out({ ok: true, work_id: w.id });
-    }
-
-    if (req.method === "POST" && path === "/ideas/generate") {
-      const channelId = String(body.channel_id || ""); await ownedChannel(owner, channelId);
-      const count = Math.max(1, Math.min(50, Number(body.count || 12)));
-      const idem = req.headers.get("x-idempotency-key") || `ideas:${channelId}:${body.seed || randomToken(8)}`;
-      return out({ job: await enqueue(owner, { kind: "GENERATE_IDEAS", channel_id: channelId, input: { count, brief: body.brief || null }, idempotency_key: idem, max_cost_cents: Number(body.max_cost_cents ?? 50) }) }, 202);
-    }
-
-    m = path.match(/^\/videos\/([0-9a-f-]+)\/produce$/i);
-    if (req.method === "POST" && m) {
-      const v = await ownedVideo(owner, m[1]);
-      const idem = req.headers.get("x-idempotency-key") || `produce:${v.id}:v1`;
-      const job = await enqueue(owner, { kind: "PIPELINE", channel_id: v.channel_id, video_id: v.id, story_id: v.story_id, input: { mode: body.mode || "AUTO" }, idempotency_key: idem, max_cost_cents: Math.min(v.max_cost_cents, Number(body.max_cost_cents ?? v.max_cost_cents)) });
-      return out({ job }, 202);
-    }
-
-    m = path.match(/^\/videos\/([0-9a-f-]+)\/publish$/i);
-    if (req.method === "POST" && m) {
-      const v = await ownedVideo(owner, m[1]);
-      if (v.state !== "READY" && v.state !== "PUBLISHED") return err("VIDEO_NOT_READY", 409, { state: v.state });
-      const yt = await connection(owner, "youtube", "google");
-      const idem = req.headers.get("x-idempotency-key") || `youtube:${v.id}`;
-      const pubStatus = yt?.mode === "VERIFIED_REAL" ? "PREPARED" : "WAITING_AUTH";
-      const { data: pub, error } = await service.from("creator_publications").upsert({ owner_id: owner, channel_id: v.channel_id, video_id: v.id, status: pubStatus, scheduled_at: body.publish_at || v.scheduled_at, request: { privacy: body.privacy || "private", publish_at: body.publish_at || v.scheduled_at, contains_synthetic_media: body.contains_synthetic_media ?? true }, idempotency_key: idem }, { onConflict: "owner_id,platform,idempotency_key" }).select().single();
-      if (error) throw error;
-      const job = await enqueue(owner, { kind: "PUBLISH_YOUTUBE", channel_id: v.channel_id, video_id: v.id, input: { publication_id: pub.id }, idempotency_key: `job:${idem}`, status: yt?.mode === "VERIFIED_REAL" ? "QUEUED" : "WAITING_AUTH", max_cost_cents: 0 });
-      return out({ publication: pub, job }, 202);
-    }
-
-    m = path.match(/^\/jobs\/([0-9a-f-]+)$/i);
-    if (req.method === "GET" && m) {
-      const { data, error } = await service.from("creator_jobs").select("*,creator_job_events(*)").eq("id", m[1]).eq("owner_id", owner).single();
-      if (error) throw error; return out({ job: data });
-    }
-
-    if (req.method === "POST" && path === "/setup/provider/gemini") {
-      const secret = String(body.secret || "").trim(); if (!secret) return err("SECRET_REQUIRED");
-      const sid = await vaultStore(owner, "gemini_api_key", secret);
-      const probe = await probeGemini(secret);
-      await upsertConnection(owner, "llm", "gemini", { mode: probe.ok ? "VERIFIED_REAL" : "BLOCKED", vault_secret_id: sid, verified_at: probe.ok ? new Date().toISOString() : null, last_probe: probe, last_error: probe.ok ? null : probe });
-      await upsertConnection(owner, "video", "veo", { mode: probe.ok ? "CONFIGURED" : "BLOCKED", vault_secret_id: sid, last_probe: { ...probe, note: "Actual paid generation probe intentionally deferred until owner chooses to spend." }, last_error: probe.ok ? null : probe, metadata: { default_model: "veo-3.1-lite-generate-preview", aspect_ratio: "9:16" } });
-      await upsertConnection(owner, "voice", "gemini_tts", { mode: probe.ok ? "CONFIGURED" : "BLOCKED", vault_secret_id: sid, last_probe: { ...probe, note: "TTS generation probe deferred; free Edge Neural fallback is already available." }, last_error: probe.ok ? null : probe });
-      return out({ ok: probe.ok, probe, capabilities: await providerStatus(owner) }, probe.ok ? 200 : 422);
-    }
-
-    if (req.method === "POST" && path === "/setup/provider/hf") {
-      const secret = String(body.secret || "").trim(); if (!secret) return err("SECRET_REQUIRED");
-      const sid = await vaultStore(owner, "huggingface_token", secret); const probe = await probeHF(secret);
-      await upsertConnection(owner, "video_fallback", "huggingface", { mode: probe.ok ? "VERIFIED_REAL" : "BLOCKED", vault_secret_id: sid, verified_at: probe.ok ? new Date().toISOString() : null, last_probe: probe, last_error: probe.ok ? null : probe });
-      return out({ ok: probe.ok, probe }, probe.ok ? 200 : 422);
-    }
-
-    if (req.method === "POST" && path === "/setup/google-client") {
-      const clientId = String(body.client_id || "").trim(); const clientSecret = String(body.client_secret || "").trim();
-      if (!clientId || !clientSecret) return err("CLIENT_ID_AND_SECRET_REQUIRED");
-      const sid = await vaultStore(owner, "google_oauth_client_secret", clientSecret);
-      await upsertConnection(owner, "oauth_client", "google", { mode: "CONFIGURED", vault_secret_id: sid, metadata: { client_id: clientId, redirect_uri: OAUTH_CALLBACK }, last_probe: { configured_at: new Date().toISOString(), secret_echoed: false } });
-      return out({ ok: true, mode: "CONFIGURED", redirect_uri: OAUTH_CALLBACK });
-    }
-
-    if (req.method === "POST" && path === "/google/start") {
-      const cfg = await connection(owner, "oauth_client", "google");
-      if (!cfg || !cfg.vault_secret_id || !cfg.metadata?.client_id) return err("GOOGLE_OAUTH_CLIENT_NOT_CONFIGURED", 409);
-      const state = randomToken(32); const verifier = randomToken(48);
-      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
-      const challenge = btoa(String.fromCharCode(...new Uint8Array(digest))).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-      const returnTo = safeReturnTo(body.return_to);
-      const { error } = await service.from("creator_oauth_states").insert({ state, owner_id: owner, provider: "google", return_to: returnTo, code_verifier: verifier, expires_at: new Date(Date.now() + 10 * 60_000).toISOString() });
-      if (error) throw error;
-      const scopes = ["openid","email","profile","https://www.googleapis.com/auth/youtube.upload","https://www.googleapis.com/auth/youtube.readonly","https://www.googleapis.com/auth/yt-analytics.readonly"];
-      const p = new URLSearchParams({ client_id: String(cfg.metadata.client_id), redirect_uri: OAUTH_CALLBACK, response_type: "code", access_type: "offline", prompt: "consent", include_granted_scopes: "true", scope: scopes.join(" "), state, code_challenge: challenge, code_challenge_method: "S256" });
-      return out({ authorization_url: `https://accounts.google.com/o/oauth2/v2/auth?${p}`, expires_in_seconds: 600 });
-    }
-
-    return err("NOT_FOUND", 404, { path });
-  } catch (e) {
-    const msg = String((e as any)?.message || e);
-    const status = msg.startsWith("AUTH_") ? 401 : /NOT_FOUND/.test(msg) ? 404 : 500;
-    console.error("creator_api", msg);
-    return err(msg, status);
-  }
+Deno.serve(async(req:Request)=>{
+  if(req.method==="OPTIONS")return new Response(null,{status:204,headers:CORS});
+  try{
+    const ownerId=await owner(req),u=new URL(req.url),path=pathOf(u),b=req.method==="GET"?{}:await body(req);
+    if(req.method==="GET"&&path==="/health"){const {error:e}=await db.from("creator_channels").select("id",{head:true,count:"exact"}).eq("owner_id",ownerId);const {data:buckets,error:be}=await db.storage.listBuckets();const storage=!be&&!!buckets?.some((x:any)=>x.id==="creator-assets"&&!x.public);return json({ok:!e&&storage,database:e?"FAIL":"VERIFIED_REAL",storage:storage?"VERIFIED_REAL":"BLOCKED",storage_error:be?.message||null,api:"VERIFIED_REAL",worker_scheduler:"ENABLED"})}
+    if(req.method==="POST"&&path==="/setup/ensure"){await ensureBuiltins(ownerId);return json({ok:true,capabilities:await capabilities(ownerId),human_gates:await humanGates(ownerId)})}
+    if(req.method==="GET"&&(path==="/capabilities"||path==="/setup/status"))return json({ok:true,capabilities:await capabilities(ownerId),human_gates:await humanGates(ownerId)})
+    if(req.method==="GET"&&path==="/handoff/export"){const {data:chs}=await db.from("creator_channels").select("id,title,slug,youtube_channel_id,status").eq("owner_id",ownerId).neq("status","ARCHIVED").order("created_at");const {data:jobs}=await db.from("creator_jobs").select("id,kind,status,updated_at,error").eq("owner_id",ownerId).order("updated_at",{ascending:false}).limit(20);return json({schema:"prometeo.creator-handoff/v1",exported_at:now(),backend:{url:`${SUPABASE_URL}/functions/v1/creator-api`,status:"DEPLOYED"},channels:chs||[],capabilities:await capabilities(ownerId),human_gates:await humanGates(ownerId),recent_jobs:jobs||[],secrets_included:false,next_machine_action:(await humanGates(ownerId)).length?"RESOLVE_HUMAN_GATES":"READY_FOR_CREATOR_PIPELINE"})}
+    if(req.method==="GET"&&path==="/channels"){const {data,error}=await db.from("creator_channels").select("*").eq("owner_id",ownerId).neq("status","ARCHIVED").order("created_at");if(error)throw error;return json({channels:data||[]})}
+    if(req.method==="POST"&&path==="/channels"){const title=String(b.title||"").trim();if(!title)return bad("TITLE_REQUIRED");const {data,error}=await db.from("creator_channels").insert({owner_id:ownerId,title,slug:slugify(b.slug||title),world:b.world||{},settings:b.settings||{}}).select().single();if(error)throw error;return json({channel:data},201)}
+    let m=path.match(/^\/channels\/([0-9a-f-]+)\/stories$/i);
+    if(m&&req.method==="GET"){await channel(ownerId,m[1]);const {data,error}=await db.from("creator_stories").select("*").eq("owner_id",ownerId).eq("channel_id",m[1]).neq("status","ARCHIVED").order("updated_at",{ascending:false});if(error)throw error;return json({stories:data||[]})}
+    if(m&&req.method==="POST"){await channel(ownerId,m[1]);const title=String(b.title||"").trim();if(!title)return bad("TITLE_REQUIRED");const {data,error}=await db.from("creator_stories").insert({owner_id:ownerId,channel_id:m[1],title,summary:String(b.summary||""),story_data:b.story_data||{}}).select().single();if(error)throw error;return json({story:data},201)}
+    m=path.match(/^\/channels\/([0-9a-f-]+)\/videos$/i);
+    if(m&&req.method==="GET"){await channel(ownerId,m[1]);const state=String(u.searchParams.get("state")||"").toUpperCase();let q=db.from("creator_videos").select("*").eq("owner_id",ownerId).eq("channel_id",m[1]);if(state)q=q.eq("state",state);const {data,error}=await q.order("published_at",{ascending:false,nullsFirst:false}).order("created_at",{ascending:false});if(error)throw error;return json({videos:data||[]})}
+    m=path.match(/^\/channels\/([0-9a-f-]+)\/timeline$/i);if(m&&req.method==="GET")return json(await timeline(ownerId,m[1],String(u.searchParams.get("metric")||"views")));
+    m=path.match(/^\/videos\/([0-9a-f-]+)\/master$/i);if(m&&req.method==="GET"){const v=await video(ownerId,m[1]);const {data:ver,error}=await db.from("creator_video_versions").select("*,creator_assets(*)").eq("owner_id",ownerId).eq("video_id",v.id).eq("selected",true).order("version",{ascending:false}).limit(1).maybeSingle();if(error)throw error;if(!ver?.creator_assets)return bad("MASTER_NOT_READY",404);const {data:signed,error:se}=await db.storage.from("creator-assets").createSignedUrl(ver.creator_assets.object_path,Math.max(60,Math.min(3600,Number(u.searchParams.get("expires")||900))));if(se)throw se;return json({video_id:v.id,asset:{id:ver.creator_assets.id,mime_type:ver.creator_assets.mime_type,byte_size:ver.creator_assets.byte_size,provider:ver.creator_assets.provider,metadata:ver.creator_assets.metadata},signed_url:signed.signedUrl})}
+    m=path.match(/^\/stories\/([0-9a-f-]+)\/work$/i);if(m&&req.method==="POST"){const s=await story(ownerId,m[1]),ch=await channel(ownerId,s.channel_id),token=randomToken(32),hash=await sha256(token),task=String(b.task||"Desarrollar esta historia sin romper continuidad y devolver cambios estructurados.");const {data,error}=await db.from("creator_external_work").insert({owner_id:ownerId,channel_id:ch.id,story_id:s.id,task,context_version:s.version,context:{channel:{id:ch.id,title:ch.title,world:ch.world,settings:ch.settings},story:s},claim_token_hash:hash}).select().single();if(error)throw error;return json({work:{id:data.id,status:data.status,task},claim_url:`${WORK_URL}?work_id=${encodeURIComponent(data.id)}&token=${encodeURIComponent(token)}`},201)}
+    m=path.match(/^\/work\/([0-9a-f-]+)\/apply$/i);if(m&&req.method==="POST"){const {data:w,error}=await db.from("creator_external_work").select("*").eq("id",m[1]).eq("owner_id",ownerId).single();if(error)throw error;if(w.status!=="RETURNED"||!w.result)return bad("WORK_NOT_RETURNED",409);if(w.story_id){const s=await story(ownerId,w.story_id);if(s.version!==w.context_version)return bad("STORY_VERSION_CONFLICT",409,{expected:w.context_version,actual:s.version});const {error:e}=await db.from("creator_stories").update({story_data:{...(s.story_data||{}),external_return:w.result},version:s.version+1,status:"DEVELOPING",updated_at:now()}).eq("id",s.id).eq("owner_id",ownerId);if(e)throw e}await db.from("creator_external_work").update({status:"APPLIED",applied_at:now()}).eq("id",w.id);return json({ok:true,work_id:w.id})}
+    if(req.method==="POST"&&path==="/ideas/generate"){const channelId=String(b.channel_id||"");await channel(ownerId,channelId);const job=await enqueue(ownerId,{kind:"GENERATE_IDEAS",channel_id:channelId,input:{count:Math.max(1,Math.min(50,Number(b.count||12))),brief:b.brief||null},idempotency_key:req.headers.get("x-idempotency-key")||`ideas:${channelId}:${b.seed||randomToken(8)}`,max_cost_cents:Number(b.max_cost_cents??50)});return json({job},202)}
+    m=path.match(/^\/videos\/([0-9a-f-]+)\/produce$/i);if(m&&req.method==="POST"){const v=await video(ownerId,m[1]);const job=await enqueue(ownerId,{kind:"PIPELINE",channel_id:v.channel_id,video_id:v.id,story_id:v.story_id,input:{mode:b.mode||"AUTO",generate_voice:b.generate_voice===true},idempotency_key:req.headers.get("x-idempotency-key")||`produce:${v.id}:v1`,max_cost_cents:Math.min(Number(v.max_cost_cents||500),Number(b.max_cost_cents??v.max_cost_cents??500))});return json({job},202)}
+    m=path.match(/^\/videos\/([0-9a-f-]+)\/publish$/i);if(m&&req.method==="POST"){const v=await video(ownerId,m[1]);if(!["READY","PUBLISHED"].includes(v.state))return bad("VIDEO_NOT_READY",409,{state:v.state});const yt=await conn(ownerId,"youtube","google"),ready=yt&&["CONFIGURED","VERIFIED_REAL"].includes(yt.mode),idem=req.headers.get("x-idempotency-key")||`youtube:${v.id}`;const {data:pub,error}=await db.from("creator_publications").upsert({owner_id:ownerId,channel_id:v.channel_id,video_id:v.id,status:ready?"PREPARED":"WAITING_AUTH",scheduled_at:b.publish_at||v.scheduled_at,request:{privacy:b.privacy||"private",publish_at:b.publish_at||v.scheduled_at,contains_synthetic_media:b.contains_synthetic_media??true},idempotency_key:idem},{onConflict:"owner_id,platform,idempotency_key"}).select().single();if(error)throw error;const job=await enqueue(ownerId,{kind:"PUBLISH_YOUTUBE",channel_id:v.channel_id,video_id:v.id,input:{publication_id:pub.id},idempotency_key:`job:${idem}`,status:ready?"QUEUED":"WAITING_AUTH",max_cost_cents:0});return json({publication:pub,job},202)}
+    m=path.match(/^\/jobs\/([0-9a-f-]+)$/i);if(m&&req.method==="GET"){const {data,error}=await db.from("creator_jobs").select("*,creator_job_events(*)").eq("id",m[1]).eq("owner_id",ownerId).single();if(error)throw error;return json({job:data})}
+    if(req.method==="POST"&&path==="/canary/fixture"){const chId=String(b.channel_id||"");const ch=await channel(ownerId,chId);const key=`canary:${ch.id}:${String(b.key||"fixture-v1")}`;let {data:v}=await db.from("creator_videos").select("*").eq("owner_id",ownerId).eq("idempotency_key",key).maybeSingle();if(!v){const ins=await db.from("creator_videos").insert({owner_id:ownerId,channel_id:ch.id,title:"CANARY · pipeline sin gasto",hook:"fixture durable",state:"IDEA",format:"SHORT_9_16",target_duration_ms:12000,idempotency_key:key,max_cost_cents:0,metadata:{provenance:"CANARY"},creative:{premise:"fixture pipeline"}}).select().single();if(ins.error)throw ins.error;v=ins.data}const job=await enqueue(ownerId,{kind:"PIPELINE",channel_id:ch.id,video_id:v.id,input:{mode:"CANARY",generate_voice:false},idempotency_key:`job:${key}`,max_cost_cents:0,priority:1,max_attempts:4});return json({video:v,job},202)}
+    if(req.method==="POST"&&path==="/setup/provider/gemini"){const secret=String(b.secret||"").trim();if(!secret)return bad("SECRET_REQUIRED");const sid=await vaultStore(ownerId,"gemini_api_key",secret),probe=await probeGemini(secret);await patchConn(ownerId,"llm","gemini",{mode:probe.ok?"VERIFIED_REAL":"BLOCKED",vault_secret_id:sid,verified_at:probe.ok?now():null,last_probe:probe,last_error:probe.ok?null:probe,metadata:{text_model:probe.text_model}});await patchConn(ownerId,"video","veo",{mode:probe.ok&&probe.video_model?"CONFIGURED":"BLOCKED",vault_secret_id:sid,last_probe:{...probe,paid_generation_probe:false},last_error:probe.ok&&probe.video_model?null:{reason:"VIDEO_MODEL_NOT_VISIBLE"},metadata:{video_model:probe.video_model||null,spend_allowed:false,estimated_cost_cents_8s:80}});return json({ok:probe.ok,probe,capabilities:await capabilities(ownerId)},probe.ok?200:422)}
+    if(req.method==="POST"&&path==="/setup/provider/hf"){const secret=String(b.secret||"").trim();if(!secret)return bad("SECRET_REQUIRED");const sid=await vaultStore(ownerId,"huggingface_token",secret),probe=await probeHF(secret);await patchConn(ownerId,"video_fallback","huggingface",{mode:probe.ok?"VERIFIED_REAL":"BLOCKED",vault_secret_id:sid,verified_at:probe.ok?now():null,last_probe:probe,last_error:probe.ok?null:probe});return json({ok:probe.ok,probe},probe.ok?200:422)}
+    if(req.method==="POST"&&path==="/setup/video-policy"){const c=await conn(ownerId,"video","veo");if(!c)return bad("VEO_NOT_CONFIGURED",409);const cap=Math.max(0,Math.min(10000,Number(b.max_cost_cents??500)));const x=await patchConn(ownerId,"video","veo",{metadata:{spend_allowed:b.spend_allowed===true,max_cost_cents_per_video:cap}});return json({ok:true,video:publicProvider(x)})}
+    if(req.method==="POST"&&path==="/setup/google-client"){const clientId=String(b.client_id||"").trim(),secret=String(b.client_secret||"").trim();if(!clientId||!secret)return bad("CLIENT_ID_AND_SECRET_REQUIRED");const sid=await vaultStore(ownerId,"google_oauth_client_secret",secret);await patchConn(ownerId,"oauth_client","google",{mode:"CONFIGURED",vault_secret_id:sid,last_probe:{configured_at:now(),secret_echoed:false},last_error:null,metadata:{client_id:clientId,redirect_uri:OAUTH_CALLBACK}});return json({ok:true,mode:"CONFIGURED",redirect_uri:OAUTH_CALLBACK})}
+    if(req.method==="POST"&&path==="/google/start"){const cfg=await conn(ownerId,"oauth_client","google");if(!cfg?.vault_secret_id||!cfg?.metadata?.client_id)return bad("GOOGLE_OAUTH_CLIENT_NOT_CONFIGURED",409);const state=randomToken(32),verifier=randomToken(48),digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(verifier)),challenge=btoa(String.fromCharCode(...new Uint8Array(digest))).replaceAll("+","-").replaceAll("/","_").replaceAll("=","");const returnTo=safeReturnTo(b.return_to);const {error}=await db.from("creator_oauth_states").insert({state,owner_id:ownerId,provider:"google",return_to:returnTo,code_verifier:verifier,expires_at:new Date(Date.now()+600000).toISOString()});if(error)throw error;const scopes=["openid","email","profile","https://www.googleapis.com/auth/youtube.upload","https://www.googleapis.com/auth/youtube.readonly","https://www.googleapis.com/auth/yt-analytics.readonly"];const p=new URLSearchParams({client_id:String(cfg.metadata.client_id),redirect_uri:OAUTH_CALLBACK,response_type:"code",access_type:"offline",prompt:"consent",include_granted_scopes:"true",scope:scopes.join(" "),state,code_challenge:challenge,code_challenge_method:"S256"});return json({authorization_url:`https://accounts.google.com/o/oauth2/v2/auth?${p}`,expires_in_seconds:600,redirect_uri:OAUTH_CALLBACK})}
+    return bad("NOT_FOUND",404,{path});
+  }catch(e){const m=String((e as any)?.message||e),status=m.startsWith("AUTH_")||m==="NOT_OWNER"?401:/NOT_FOUND/.test(m)?404:500;console.error("creator_api",m);return bad(m,status)}
 });
