@@ -86,7 +86,16 @@ test('constructing the facade is side-effect free', () => {
   const storage = memoryStorage({ [FAVORITES_LEGACY_KEY]: '["a"]' });
   const store = createLegacyFavoritesStore({ storage });
   assert.equal(store.mode, 'LEGACY_LOCALSTORAGE_COMPAT');
+  assert.equal(store.available, true);
   assert.equal(storage.writes.length, 0);
   assert.deepEqual(store.list(), ['a']);
   assert.equal(storage.writes.length, 0);
+});
+
+test('unavailable storage preserves legacy no-crash fallback semantics', () => {
+  const store = createLegacyFavoritesStore({ storage: null });
+  assert.equal(store.available, false);
+  assert.deepEqual(store.list(), []);
+  assert.deepEqual(store.replace(['a', '', 'a', 'b']), ['a', 'b']);
+  assert.deepEqual(store.toggle('a'), { ids: ['a'], favorite: true, changed: true });
 });
