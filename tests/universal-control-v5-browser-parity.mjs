@@ -7,6 +7,13 @@ const CANDIDATE = `${BASE}/shared/universal-shell/v5/candidate/favorites-facade-
 const FAV_KEY = 'prometeo.v5.favorites.v1';
 const CORNER_KEY = 'prometeo.universal-control.corner.v1';
 
+async function openControl(page) {
+  // Force is intentional only for the closed puck: the product's own keyboard grammar
+  // drives every semantic step after opening, avoiding geometry-dependent test clicks.
+  await page.locator('#puck').click({ force: true });
+  await page.waitForFunction(() => !document.querySelector('#selector')?.classList.contains('closed'));
+}
+
 async function rootSnapshot(browser, url, seed, { blockExternal = false } = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
@@ -18,8 +25,8 @@ async function rootSnapshot(browser, url, seed, { blockExternal = false } = {}) 
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.evaluate(({ key, value }) => localStorage.setItem(key, value), { key: FAV_KEY, value: seed });
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.locator('#puck').click();
-  await page.locator('#nextBtn').click();
+  await openControl(page);
+  await page.keyboard.press('ArrowRight');
   const label = await page.locator('#labelTextPath').textContent();
   const count = await page.locator('#labelCount').textContent();
   const stored = await page.evaluate(key => localStorage.getItem(key), FAV_KEY);
@@ -49,17 +56,19 @@ async function pinFlow(browser, url) {
   const firstId = await firstCatalogPage(page);
   await page.evaluate(key => localStorage.setItem(key, '[]'), FAV_KEY);
   await page.goto(`${url}#/p/${encodeURIComponent(firstId)}`, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(id => location.hash.includes(encodeURIComponent(id)), firstId);
-  await page.waitForTimeout(450);
+  await page.waitForFunction(() => {
+    const frame = document.querySelector('#pageHost');
+    return frame && frame.getAttribute('src') && frame.getAttribute('src') !== 'about:blank';
+  }, null, { timeout: 10000 });
 
-  await page.locator('#puck').click();
+  await openControl(page);
   // Root with a current page: Páginas -> Anclar página -> Favoritos -> Notas -> Grabar.
-  await page.locator('#nextBtn').click();
+  await page.keyboard.press('ArrowRight');
   const before = await page.locator('#labelTextPath').textContent();
-  await page.locator('#currentBtn').click();
+  await page.keyboard.press('Enter');
   const storedPinned = await page.evaluate(key => localStorage.getItem(key), FAV_KEY);
   const afterPin = await page.locator('#labelTextPath').textContent();
-  await page.locator('#currentBtn').click();
+  await page.keyboard.press('Enter');
   const storedUnpinned = await page.evaluate(key => localStorage.getItem(key), FAV_KEY);
   const afterUnpin = await page.locator('#labelTextPath').textContent();
 
@@ -115,8 +124,11 @@ try {
   const legacyPin = await pinFlow(browser, LEGACY);
   const candidatePin = await pinFlow(browser, CANDIDATE);
   assert.deepEqual(candidatePin, legacyPin, 'pin/unpin flow must match Golden Master');
+  assert.match(candidatePin.before || '', /^Anclar página$/);
   assert.equal(JSON.parse(candidatePin.storedPinned).length, 1);
+  assert.match(candidatePin.afterPin || '', /^Desanclar página$/);
   assert.deepEqual(JSON.parse(candidatePin.storedUnpinned), []);
+  assert.match(candidatePin.afterUnpin || '', /^Anclar página$/);
   assert.deepEqual(candidatePin.pageErrors, []);
 
   const legacyCorner = await cornerFlow(browser, LEGACY);
