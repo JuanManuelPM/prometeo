@@ -40,13 +40,14 @@ assert.match(ui,/Pausar/);
 assert.match(ui,/Continuar/);
 assert.match(ui,/Audio guardado · esperando transcripción/);
 assert.match(ui,/prepare_research/);
-assert.match(ui,/ALL_UNWORKED|WORK_PAGE/);
+assert.match(ui,/WORK_PAGE/);
 assert.doesNotMatch(ui,/Activar HACER/);
 assert.doesNotMatch(ui,/grant_status/);
 
 const save=fs.readFileSync('pages/capture/save-session/index.html','utf8');
 assert.match(save,/location\.hash/);
-assert.match(save,/#t=/);
+assert.match(save,/params\.get\('t'\)/);
+assert.match(save,/params\.get\('p'\)/);
 assert.match(save,/session-save/);
 assert.match(save,/history\.replaceState/);
 assert.doesNotMatch(save,/location\.search/);
