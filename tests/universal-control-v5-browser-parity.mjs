@@ -5,7 +5,7 @@ const BASE = process.env.V5_CANARY_BASE || 'http://127.0.0.1:4173';
 const LEGACY = `${BASE}/shared/universal-shell/v5/candidate/baseline-source.html`;
 const CANDIDATE_PATH = process.env.V5_CANDIDATE_PATH || 'shared/universal-shell/v5/candidate/favorites-facade-source.html';
 const CANDIDATE = `${BASE}/${CANDIDATE_PATH.replace(/^\//,'')}`;
-const IS_DURABLE = CANDIDATE_PATH.includes('durable-favorites-source') || CANDIDATE_PATH.includes('single-host-source');
+const IS_DURABLE = CANDIDATE_PATH.includes('durable-favorites-source') || CANDIDATE_PATH.includes('single-host-source') || CANDIDATE_PATH.includes('change-loop-source');
 const FAV_KEY = 'prometeo.v5.favorites.v1';
 const CORNER_KEY = 'prometeo.universal-control.corner.v1';
 
