@@ -143,3 +143,70 @@ test('move and prune remain synchronous and preserve stable ordered page ids', a
   assert.deepEqual((await db.getKV(DB_KEY)).ids, ['a','d','c']);
   assert.equal((await store.verify()).ok, true);
 });
+
+test('a user pin during async DB hydration cannot be overwritten by the stale hydrate', async () => {
+  const storage = memoryStorage({ [LEGACY]:'[]', [RECOVERY]:'[]' });
+  const db = memoryDB({ meta:{ [META_KEY]:{active:true,canonical:'PrometeoDB'} }, kv:{ [DB_KEY]:{ids:[]} } });
+  let releaseRead;
+  let enteredRead;
+  const readEntered = new Promise(resolve => { enteredRead = resolve; });
+  const readGate = new Promise(resolve => { releaseRead = resolve; });
+  let firstCanonicalRead = true;
+  const originalGetKV = db.getKV.bind(db);
+  db.getKV = async (key, fallback = null) => {
+    if (key === DB_KEY && firstCanonicalRead) {
+      firstCanonicalRead = false;
+      enteredRead();
+      await readGate;
+    }
+    return originalGetKV(key, fallback);
+  };
+  const store = createDurableFavoritesStore({ storage, loadDB: async () => db });
+  const starting = store.start();
+  await readEntered;
+  assert.deepEqual(store.toggle('calendar').ids, ['calendar']);
+  assert.equal(storage.dump(LEGACY), '["calendar"]');
+  releaseRead();
+  await starting;
+  await settle(store);
+  assert.deepEqual(store.list(), ['calendar']);
+  assert.deepEqual((await db.getKV(DB_KEY)).ids, ['calendar']);
+  assert.equal(storage.dump(LEGACY), '["calendar"]');
+  assert.equal(storage.dump(RECOVERY), '["calendar"]');
+  assert.equal((await store.verify()).ok, true);
+});
+
+test('a newer mutation arriving during an older DB flush is never cleared or overwritten', async () => {
+  const storage = memoryStorage({ [LEGACY]:'[]', [RECOVERY]:'[]' });
+  const db = memoryDB({ meta:{ [META_KEY]:{active:true,canonical:'PrometeoDB'} }, kv:{ [DB_KEY]:{ids:[]} } });
+  const store = createDurableFavoritesStore({ storage, loadDB: async () => db });
+  await store.start();
+
+  let releasePut;
+  let enteredPut;
+  const putEntered = new Promise(resolve => { enteredPut = resolve; });
+  const putGate = new Promise(resolve => { releasePut = resolve; });
+  let blockNextPut = true;
+  const originalPutKV = db.putKV.bind(db);
+  db.putKV = async (key, value) => {
+    if (key === DB_KEY && blockNextPut) {
+      blockNextPut = false;
+      enteredPut();
+      await putGate;
+    }
+    return originalPutKV(key, value);
+  };
+
+  assert.deepEqual(store.toggle('a').ids, ['a']);
+  await putEntered;
+  assert.deepEqual(store.toggle('b').ids, ['a','b']);
+  const latestPending = JSON.parse(storage.dump(OUTBOX));
+  assert.deepEqual(latestPending.ids, ['a','b']);
+  assert.ok(latestPending.seq >= 2);
+  releasePut();
+  await settle(store);
+  assert.deepEqual(store.list(), ['a','b']);
+  assert.deepEqual((await db.getKV(DB_KEY)).ids, ['a','b']);
+  assert.equal(storage.getItem(OUTBOX), null);
+  assert.equal((await store.verify()).ok, true);
+});
