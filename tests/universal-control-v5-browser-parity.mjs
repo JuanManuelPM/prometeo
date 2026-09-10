@@ -24,6 +24,12 @@ async function semanticClick(page, selector) {
   }, selector);
 }
 
+async function openControl(page) {
+  await waitReady(page);
+  await semanticClick(page, '#puck');
+  await page.waitForFunction(() => document.querySelector('#selector')?.classList.contains('open'));
+}
+
 async function rootSnapshot(browser, url, seed, { blockExternal = false } = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
@@ -44,12 +50,6 @@ async function rootSnapshot(browser, url, seed, { blockExternal = false } = {}) 
   };
   await context.close();
   return result;
-}
-
-async function openControl(page) {
-  await waitReady(page);
-  await semanticClick(page, '#puck');
-  await page.waitForFunction(() => document.querySelector('#selector')?.classList.contains('open'));
 }
 
 async function firstCatalogPage(page) {
@@ -132,20 +132,25 @@ async function backendStatus(browser, url) {
 
 const browser = await chromium.launch({ headless: true });
 try {
-  const dirty = '["alpha","","alpha","beta",7,null,"beta"]';
+  // Online catalog pruning is intentionally exercised with an empty seed. Fake ids are not a
+  // stable online expectation because the real catalog correctly removes unknown page ids.
   const [legacyRoot, candidateRoot] = await Promise.all([
-    rootSnapshot(browser, LEGACY, dirty),
-    rootSnapshot(browser, CANDIDATE, dirty),
+    rootSnapshot(browser, LEGACY, '[]'),
+    rootSnapshot(browser, CANDIDATE, '[]'),
   ]);
-  assert.deepEqual(candidateRoot, legacyRoot, 'candidate root/Favorites normalization must match Golden Master');
+  assert.deepEqual(candidateRoot, legacyRoot, 'candidate online root must match Golden Master');
   assert.equal(candidateRoot.controls, 1);
   assert.deepEqual(candidateRoot.pageErrors, []);
 
+  // Dirty legacy normalization is tested with catalog transport blocked, isolating the exact
+  // local persistence semantics from legitimate online catalog pruning.
+  const dirty = '["alpha","","alpha","beta",7,null,"beta"]';
   const [legacyOffline, candidateOffline] = await Promise.all([
-    rootSnapshot(browser, LEGACY, '["alpha","beta"]', { blockExternal: true }),
-    rootSnapshot(browser, CANDIDATE, '["alpha","beta"]', { blockExternal: true }),
+    rootSnapshot(browser, LEGACY, dirty, { blockExternal: true }),
+    rootSnapshot(browser, CANDIDATE, dirty, { blockExternal: true }),
   ]);
-  assert.deepEqual(candidateOffline, legacyOffline, 'candidate local-only boot must match Golden Master');
+  assert.deepEqual(candidateOffline, legacyOffline, 'candidate local-only dirty-state boot must match Golden Master');
+  assert.equal(candidateOffline.label, 'Favoritos · 2');
   assert.deepEqual(candidateOffline.pageErrors, []);
 
   const legacyPin = await pinFlow(browser, LEGACY);
