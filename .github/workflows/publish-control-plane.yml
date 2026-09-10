@@ -5,6 +5,8 @@ on:
     paths:
       - '.well-known/prometeo.json'
       - '.well-known/prometeo-chat-bootstrap.txt'
+      - '.well-known/prometeo-execute.json'
+      - 'coordination/AGENT_EXECUTION_PROTOCOL_V1.md'
       - 'p.txt'
       - 'ai/boot.json'
       - '.github/workflows/publish-control-plane.yml'
@@ -22,21 +24,44 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Publish stable entrypoint, short bootstrap, chat bootstrap and public AI boot
+      - name: Validate execution entrypoint
+        run: |
+          set -euo pipefail
+          python -m json.tool .well-known/prometeo-execute.json >/dev/null
+          grep -q 'PROMETEO EXECUTE' .well-known/prometeo-execute.json
+          grep -q '### 1. FETCH' coordination/AGENT_EXECUTION_PROTOCOL_V1.md
+          grep -q '### 12. UPDATE THREAD' coordination/AGENT_EXECUTION_PROTOCOL_V1.md
+      - name: Publish stable entrypoint, execution protocol and public AI boot
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git fetch origin gh-pages
           git worktree add /tmp/prometeo-pages origin/gh-pages
-          mkdir -p /tmp/prometeo-pages/.well-known /tmp/prometeo-pages/ai
+          mkdir -p /tmp/prometeo-pages/.well-known /tmp/prometeo-pages/ai /tmp/prometeo-pages/agent-runtime/protocols
           cp .well-known/prometeo.json /tmp/prometeo-pages/.well-known/prometeo.json
           cp .well-known/prometeo-chat-bootstrap.txt /tmp/prometeo-pages/.well-known/prometeo-chat-bootstrap.txt
+          cp .well-known/prometeo-execute.json /tmp/prometeo-pages/.well-known/prometeo-execute.json
+          cp coordination/AGENT_EXECUTION_PROTOCOL_V1.md /tmp/prometeo-pages/agent-runtime/protocols/agent-execution-v1.md
           cp p.txt /tmp/prometeo-pages/p.txt
           cp ai/boot.json /tmp/prometeo-pages/ai/boot.json
           cd /tmp/prometeo-pages
-          git add .well-known/prometeo.json .well-known/prometeo-chat-bootstrap.txt p.txt ai/boot.json
+          git add .well-known/prometeo.json .well-known/prometeo-chat-bootstrap.txt .well-known/prometeo-execute.json agent-runtime/protocols/agent-execution-v1.md p.txt ai/boot.json
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'control-plane: publish entrypoint, p.txt, chat bootstrap and AI boot'
+          git commit -m 'control-plane: publish entrypoint, execution protocol and AI boot'
           git pull --rebase origin gh-pages
           git push origin HEAD:gh-pages
+      - name: Verify execution protocol live
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 12); do
+            if curl -fsS "https://juanmanuelpm.github.io/prometeo/.well-known/prometeo-execute.json?v=$(date +%s)-$i" -o /tmp/execute.json \
+              && grep -q 'prometeo.execute-entry/v1' /tmp/execute.json \
+              && curl -fsS "https://juanmanuelpm.github.io/prometeo/agent-runtime/protocols/agent-execution-v1.md?v=$(date +%s)-$i" -o /tmp/protocol.md \
+              && grep -q 'PROMETEO EXECUTE' /tmp/protocol.md; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'Execution entry/protocol not live in time' >&2
+          exit 1
