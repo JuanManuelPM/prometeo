@@ -20,14 +20,22 @@ test('uses the exact served V5 favorites key', () => {
   assert.equal(FAVORITES_LEGACY_KEY, 'prometeo.v5.favorites.v1');
 });
 
-test('legacy read parity: malformed/non-array/non-string values degrade without mutation', () => {
-  for (const raw of ['{', '{}', '"x"', '["a",7,null,"b"]']) {
+test('legacy read parity: malformed and non-array values degrade without mutation', () => {
+  for (const raw of ['{', '{}', '"x"']) {
     const storage = memoryStorage({ [FAVORITES_LEGACY_KEY]: raw });
     const store = createLegacyFavoritesStore({ storage });
-    const expected = raw === '["a",7,null,"b"]' ? ['a', 'b'] : [];
-    assert.deepEqual(store.list(), expected);
+    assert.deepEqual(store.list(), []);
     assert.equal(storage.writes.length, 0);
   }
+});
+
+test('legacy read parity: ignores invalid/empty ids and deduplicates first occurrence', () => {
+  const storage = memoryStorage({
+    [FAVORITES_LEGACY_KEY]: '["a",7,null,"","a","b","a","c","b"]',
+  });
+  const store = createLegacyFavoritesStore({ storage });
+  assert.deepEqual(store.list(), ['a', 'b', 'c']);
+  assert.equal(storage.writes.length, 0);
 });
 
 test('toggle preserves the current synchronous ordered-array JSON behavior', () => {
@@ -45,6 +53,13 @@ test('toggle preserves the current synchronous ordered-array JSON behavior', () 
   assert.deepEqual(storage.writes.at(-1), [FAVORITES_LEGACY_KEY, '["page-a","page-c"]']);
 });
 
+test('toggle normalizes dirty legacy state exactly before writing', () => {
+  const storage = memoryStorage({ [FAVORITES_LEGACY_KEY]: '["a","","a","b"]' });
+  const store = createLegacyFavoritesStore({ storage });
+  assert.deepEqual(store.toggle('c').ids, ['a', 'b', 'c']);
+  assert.deepEqual(storage.writes.at(-1), [FAVORITES_LEGACY_KEY, '["a","b","c"]']);
+});
+
 test('reorder changes only order and persists synchronously', () => {
   const storage = memoryStorage({ [FAVORITES_LEGACY_KEY]: '["a","b","c","d"]' });
   const store = createLegacyFavoritesStore({ storage });
@@ -55,7 +70,7 @@ test('reorder changes only order and persists synchronously', () => {
   assert.deepEqual(storage.writes.at(-1), [FAVORITES_LEGACY_KEY, '["a","d","b","c"]']);
 });
 
-test('catalog pruning preserves survivor order and avoids unnecessary writes', () => {
+test('catalog pruning preserves survivor order and only writes on removals', () => {
   const storage = memoryStorage({ [FAVORITES_LEGACY_KEY]: '["a","gone","b","c"]' });
   const store = createLegacyFavoritesStore({ storage });
   const first = store.prune(new Set(['c', 'b', 'a']));
