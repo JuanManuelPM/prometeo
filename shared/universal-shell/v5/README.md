@@ -15,6 +15,7 @@ V5 keeps the approved tactile selector as the single global control, persistent 
 - moving the closed control does not stop recording or background transcription;
 - favorites and `Organizar páginas` remain part of the same universal control;
 - `Notas / Cambios` is page-scoped and returns execution results into the same Universal Host;
+- Anywhere Notes v3 combines text, recoverable private audio transcription, files and AI-derived notes, with separate `Pensar` and `Trabajar` actions and an expanded pause/resume/save/discard recorder while active;
 - canonical result links use `/?page=<page_id>&changes=<work_item_id>` so raw child pages never become the primary human navigation surface;
 - child pages remain visually/functionally independent and never mount a second global Prometeo control.
 
