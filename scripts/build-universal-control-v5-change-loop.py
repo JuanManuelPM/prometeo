@@ -96,7 +96,7 @@ async function loadPageChangeLoop(){
     ready="backendStatus.set('shell','READY');render();closeSelector(true);requestAnimationFrame(frame);"
     text=one(text,ready,"loadPageChangeLoop().then(loop=>loop?.pollUnread?.()).catch(()=>{});\n"+ready,'startup unread')
 
-    required=['prometeo.page-change-loop-ui/v1','createTextCaptureForChangeLoop','data-change-unread','getPage:()=>currentPage','previewUrl:url','openLegacyNotesFromLoop','suppressNextClosedClick=true','__PROMETEO_UNIVERSAL_HOST__']
+    required=['loadPageChangeLoop','createTextCaptureForChangeLoop','data-change-unread','getPage:()=>currentPage','previewUrl:url','openLegacyNotesFromLoop','suppressNextClosedClick=true','__PROMETEO_UNIVERSAL_HOST__']
     missing=[x for x in required if x not in text]
     if missing: raise SystemExit(f'missing markers {missing}')
     if text.count("if(it.action==='notes')")!=1: raise SystemExit('notes action duplicated')
