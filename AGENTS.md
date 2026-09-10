@@ -2,6 +2,16 @@
 
 Prometeo is intentionally multi-chat. **Route before archaeology; EPOCH before coordination reread; compiled packet before raw owners.**
 
+## Hard command: `PROMETEO EXECUTE`
+When a conversation begins with:
+
+```text
+PROMETEO EXECUTE · <work_item_id>
+<execution_packet_url>
+```
+
+do not treat it as a normal chat prompt and do not ask the human to restate the task. Fetch the exact packet URL and execute `coordination/AGENT_EXECUTION_PROTOCOL_V1.md` / `prometeo.agent-execution-protocol/v1`: FETCH → VALIDATE → REINCARNATE → RESYNC → RESOLVE_OWNER → RECOVER_THREAD → EXECUTE → TEST → PERSIST → RETURN → RECEIPT → UPDATE_THREAD. The chat is disposable; all material continuity must survive externally. Never copy private Capture literals or opaque packet tokens into public coordination/RETURN artifacts.
+
 ## Hard command: `Prometeo`
 Treat `Prometeo` as RESYNC + RECOVER + CONTINUE, never as a request for a generic project description.
 
