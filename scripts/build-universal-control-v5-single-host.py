@@ -56,21 +56,21 @@ puck.addEventListener('click',e=>{e.stopPropagation();if(performance.now()<suppr
     new_drag = """/* Closed-control repositioning. Every closed state is re-grabbable, including during snap. */
 puck.addEventListener('pointerdown',e=>{
   if(state.open||e.button!==0)return;
-  if(cornerSnapAnimation){try{cornerSnapAnimation.cancel()}catch{}cornerSnapAnimation=null}
-  selector.classList.remove('corner-snapping');
   const r=puck.getBoundingClientRect();
   const actual={x:r.left+r.width/2,y:r.top+r.height/2};
+  if(cornerSnapAnimation){try{cornerSnapAnimation.cancel()}catch{}cornerSnapAnimation=null}
+  selector.classList.remove('corner-snapping');
   setSelectorAnchor(actual.x,actual.y);
   closedPuckDrag={id:e.pointerId,sx:e.clientX,sy:e.clientY,lastX:actual.x,lastY:actual.y,dragging:false};
   try{puck.setPointerCapture(e.pointerId)}catch{}
 },{capture:true});
 puck.addEventListener('pointermove',e=>{const d=closedPuckDrag;if(!d||d.id!==e.pointerId||state.open)return;const dist=Math.hypot(e.clientX-d.sx,e.clientY-d.sy);if(!d.dragging&&dist<8)return;if(!d.dragging){d.dragging=true;selector.classList.add('corner-dragging')}const p=clampClosedPoint(e.clientX,e.clientY);d.lastX=p.x;d.lastY=p.y;setSelectorAnchor(p.x,p.y);e.preventDefault();e.stopImmediatePropagation()},{capture:true,passive:false});
-function finishClosedPuckDrag(e,cancel=false){const d=closedPuckDrag;if(!d||d.id!==e.pointerId)return;closedPuckDrag=null;selector.classList.remove('corner-dragging');try{puck.releasePointerCapture(e.pointerId)}catch{}if(!d.dragging||cancel){applyControlCorner(controlCorner);return}suppressNextClosedClick=true;suppressClosedClickUntil=performance.now()+1000;const c=nearestCorner(d.lastX,d.lastY);applyControlCorner(c,{animate:true,from:{x:d.lastX,y:d.lastY},vibrate:true});e.preventDefault();e.stopImmediatePropagation()}
+function finishClosedPuckDrag(e,cancel=false){const d=closedPuckDrag;if(!d||d.id!==e.pointerId)return;closedPuckDrag=null;selector.classList.remove('corner-dragging');try{puck.releasePointerCapture(e.pointerId)}catch{}if(!d.dragging||cancel){applyControlCorner(controlCorner);return}suppressNextClosedClick=true;suppressClosedClickUntil=performance.now()+650;setTimeout(()=>{if(performance.now()>=suppressClosedClickUntil)suppressNextClosedClick=false},700);const c=nearestCorner(d.lastX,d.lastY);applyControlCorner(c,{animate:true,from:{x:d.lastX,y:d.lastY},vibrate:true});e.preventDefault();e.stopImmediatePropagation()}
 puck.addEventListener('pointerup',e=>finishClosedPuckDrag(e,false),{capture:true});puck.addEventListener('pointercancel',e=>finishClosedPuckDrag(e,true),{capture:true});
 prevBtn.addEventListener('click',e=>{e.stopPropagation();step(-1)});
 nextBtn.addEventListener('click',e=>{e.stopPropagation();step(1)});
 currentBtn.addEventListener('click',e=>{e.stopPropagation();enter().catch(err=>showToast(err?.message||'No pude abrir'))});
-puck.addEventListener('click',e=>{e.stopPropagation();if(suppressNextClosedClick||performance.now()<suppressClosedClickUntil){suppressNextClosedClick=false;e.preventDefault();return}back()});
+puck.addEventListener('click',e=>{e.stopPropagation();const now=performance.now();if(suppressNextClosedClick&&now<suppressClosedClickUntil){suppressNextClosedClick=false;e.preventDefault();return}suppressNextClosedClick=false;back()});
 """
     text = replace_once(text, old_drag, new_drag, 'repeatable closed puck drag')
 
