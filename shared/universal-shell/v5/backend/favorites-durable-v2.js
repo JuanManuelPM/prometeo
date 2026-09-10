@@ -37,6 +37,8 @@ export function createDurableFavoritesStore({
   let db = null;
   let readyPromise = null;
   let canonical = 'LOCAL_RECOVERY';
+  let mutationRevision = 0;
+  let operationTail = Promise.resolve();
 
   function readLocal(key) {
     try { return local?.getItem?.(key) ?? null; } catch { return null; }
@@ -56,9 +58,15 @@ export function createDurableFavoritesStore({
     try {
       const row = JSON.parse(readLocal(k.outboxKey) || 'null');
       if (!row || row.schema !== 'prometeo.universal-control-favorites-outbox/v2' || !Array.isArray(row.ids)) return null;
-      return { ...row, ids: normalizeIds(row.ids) };
+      return {
+        ...row,
+        seq: Number.isSafeInteger(row.seq) && row.seq >= 0 ? row.seq : 0,
+        ids: normalizeIds(row.ids),
+      };
     } catch { return null; }
   }
+  let sequence = readOutbox()?.seq || 0;
+
   function writeMirrors(ids) {
     const normalized = normalizeIds(ids);
     const raw = JSON.stringify(normalized);
@@ -67,8 +75,10 @@ export function createDurableFavoritesStore({
     return normalized;
   }
   function writeOutbox(ids, reason) {
+    sequence += 1;
     const row = {
       schema: 'prometeo.universal-control-favorites-outbox/v2',
+      seq: sequence,
       ids: normalizeIds(ids),
       reason: String(reason || 'mutation'),
       updated_at: clock(),
@@ -76,6 +86,14 @@ export function createDurableFavoritesStore({
     writeLocal(k.outboxKey, JSON.stringify(row));
     return row;
   }
+  function clearOutboxIfCurrent(seq) {
+    const latest = readOutbox();
+    if (!latest) return true;
+    if (latest.seq !== seq) return false;
+    removeLocal(k.outboxKey);
+    return true;
+  }
+
   let cache = (() => {
     const pending = readOutbox();
     const initial = pending?.ids || readRecovery();
@@ -129,8 +147,7 @@ export function createDurableFavoritesStore({
     return next;
   }
 
-  async function activateMigration(api, ids, reason = 'legacy-migration') {
-    const next = await writeCanonical(api, ids, reason);
+  async function setMigrationMarker(api) {
     await api.setMeta(k.metaKey, {
       schema: 'prometeo.universal-control-favorites-migration/v2',
       active: true,
@@ -140,39 +157,106 @@ export function createDurableFavoritesStore({
       activated_at: clock(),
     });
     canonical = 'PROMETEO_DB';
-    removeLocal(k.outboxKey);
-    publish(next, 'migration');
-    setState('DB_CANONICAL', { count: next.length, migrated: true });
-    return next;
   }
 
-  async function flush(reason = 'mutation') {
+  // Drain newest pending intent. Every await is followed by a sequence re-check before local
+  // state is cleared/published, so an older async write can never erase a newer UI mutation.
+  async function drainOutbox(api, reason = 'mutation') {
+    let synced = 0;
+    for (let guard = 0; guard < 64; guard += 1) {
+      const pending = readOutbox();
+      if (!pending) return { synced, pending: false };
+      const written = await writeCanonical(api, pending.ids, pending.reason || reason);
+      const latest = readOutbox();
+      if (!latest) {
+        // Another path may already have consumed the same intent. Never publish stale bytes.
+        return { synced, pending: false };
+      }
+      if (latest.seq !== pending.seq) {
+        // A newer local mutation arrived while IndexedDB was being written. Leave its outbox
+        // intact and loop; critically, do not publish the stale `written` projection.
+        continue;
+      }
+      clearOutboxIfCurrent(pending.seq);
+      publish(written, 'outbox-flush');
+      synced += 1;
+      if (!readOutbox()) return { synced, pending: false };
+    }
+    throw new Error('Favorites outbox failed to settle');
+  }
+
+  async function activateMigration(api, reason = 'legacy-migration') {
+    // The desired migration payload is chosen as late as possible. Pending UI intent outranks
+    // the synchronous recovery cache, and may appear while earlier IndexedDB awaits complete.
+    let pending = readOutbox();
+    let desired = pending?.ids || cache;
+    let desiredSeq = pending?.seq ?? null;
+    await writeCanonical(api, desired, pending?.reason || reason);
+
+    // If a mutation landed during the canonical write/readback, migrate its latest value before
+    // activating the marker. The marker therefore never points at a knowingly stale row.
+    pending = readOutbox();
+    if (pending && pending.seq !== desiredSeq) {
+      desired = pending.ids;
+      desiredSeq = pending.seq;
+      await writeCanonical(api, desired, pending.reason || 'concurrent-migration');
+    }
+
+    await setMigrationMarker(api);
+
+    // A mutation can also land while the marker itself is being written. Preserve the local
+    // cache/outbox and drain it instead of publishing an older migration snapshot over the UI.
+    pending = readOutbox();
+    if (pending && (desiredSeq == null || pending.seq !== desiredSeq)) {
+      await drainOutbox(api, 'post-marker-mutation');
+      setState('DB_CANONICAL', { count: cache.length, migrated: true, concurrent_mutation: true });
+      return cache.slice();
+    }
+
+    if (desiredSeq != null) clearOutboxIfCurrent(desiredSeq);
+    publish(desired, 'migration');
+    setState('DB_CANONICAL', { count: desired.length, migrated: true });
+    return desired;
+  }
+
+  async function flushInternal(reason = 'mutation') {
     let api;
     try { api = await ensureDB(); } catch { return { ok: false, deferred: true, canonical }; }
     const marker = await api.getMeta(k.metaKey, null).catch(() => null);
-    const pending = readOutbox();
     if (!marker?.active) {
-      const desired = pending?.ids || cache;
-      await activateMigration(api, desired, pending?.reason || reason);
+      await activateMigration(api, reason);
       return { ok: true, migrated: true, canonical };
     }
     canonical = 'PROMETEO_DB';
+    const pending = readOutbox();
     if (!pending) {
       setState('DB_CANONICAL', { count: cache.length, pending: false });
       return { ok: true, synced: 0, canonical };
     }
-    const next = await writeCanonical(api, pending.ids, pending.reason || reason);
-    publish(next, 'flush');
-    removeLocal(k.outboxKey);
-    setState('DB_CANONICAL', { count: next.length, pending: false });
-    return { ok: true, synced: 1, canonical };
+    const result = await drainOutbox(api, reason);
+    setState('DB_CANONICAL', { count: cache.length, pending: result.pending });
+    return { ok: true, synced: result.synced, canonical };
+  }
+
+  function enqueue(operation) {
+    const run = () => Promise.resolve().then(operation);
+    const result = operationTail.then(run, run);
+    operationTail = result.catch(() => {});
+    return result;
+  }
+
+  function flush(reason = 'mutation') {
+    return enqueue(() => flushInternal(reason));
   }
 
   function scheduleFlush(reason) {
-    queueMicrotask(() => { flush(reason).catch(error => setState('DB_DEGRADED', { reason: String(error?.message || error) })); });
+    queueMicrotask(() => {
+      flush(reason).catch(error => setState('DB_DEGRADED', { reason: String(error?.message || error), pending: !!readOutbox() }));
+    });
   }
 
   function commit(ids, reason) {
+    mutationRevision += 1;
     cache = writeMirrors(ids);
     writeOutbox(cache, reason);
     scheduleFlush(reason);
@@ -204,30 +288,41 @@ export function createDurableFavoritesStore({
     return { ids: commit(next, 'prune'), changed: true };
   }
 
-  async function start() {
+  async function startInternal() {
     setState('LOCAL_RECOVERY', { count: cache.length });
+    const startRevision = mutationRevision;
     let api;
     try { api = await ensureDB(); } catch { return { canonical, ids: list(), degraded: true }; }
     const marker = await api.getMeta(k.metaKey, null).catch(() => null);
-    const pending = readOutbox();
-    if (pending) {
-      if (!marker?.active) await activateMigration(api, pending.ids, pending.reason || 'recovery-outbox');
+
+    // Any pending intent (including one created while start() was awaiting DB) is newer than a
+    // passive hydrate. Resolve it first, then leave the user's current cache intact.
+    if (readOutbox()) {
+      if (!marker?.active) await activateMigration(api, 'recovery-outbox');
       else {
         canonical = 'PROMETEO_DB';
-        const next = await writeCanonical(api, pending.ids, pending.reason || 'recovery-outbox');
-        removeLocal(k.outboxKey);
-        publish(next, 'recovery-outbox');
-        setState('DB_CANONICAL', { count: next.length, recovered_outbox: true });
+        await drainOutbox(api, 'recovery-outbox');
+        setState('DB_CANONICAL', { count: cache.length, recovered_outbox: true });
       }
       return { canonical, ids: list(), recovered_outbox: true };
     }
+
     if (!marker?.active) {
-      await activateMigration(api, cache, 'legacy-migration');
+      await activateMigration(api, 'legacy-migration');
       return { canonical, ids: list(), migrated: true };
     }
 
     canonical = 'PROMETEO_DB';
     const row = await api.getKV(k.dbKey, null).catch(() => null);
+
+    // A local mutation may land while getKV is in flight. Never hydrate an older DB snapshot on
+    // top of it: flush the now-pending value instead.
+    if (readOutbox() || mutationRevision !== startRevision) {
+      await drainOutbox(api, 'concurrent-start-mutation');
+      setState('DB_CANONICAL', { count: cache.length, concurrent_mutation: true });
+      return { canonical, ids: list(), concurrent_mutation: true };
+    }
+
     if (row && Array.isArray(row.ids)) {
       const dbIds = normalizeIds(row.ids);
       publish(dbIds, 'db-hydrate');
@@ -237,14 +332,26 @@ export function createDurableFavoritesStore({
 
     // Canonical DB row disappeared but rollback/recovery mirrors survived. Heal DB from the
     // synchronous local projection rather than presenting an empty list or blocking startup.
-    const healed = await writeCanonical(api, cache, 'recovery-heal');
-    publish(healed, 'recovery-heal');
-    setState('DB_CANONICAL', { count: healed.length, healed: true });
+    const healRevision = mutationRevision;
+    const localBeforeHeal = cache.slice();
+    await writeCanonical(api, localBeforeHeal, 'recovery-heal');
+    if (readOutbox() || mutationRevision !== healRevision) {
+      await drainOutbox(api, 'concurrent-heal-mutation');
+      setState('DB_CANONICAL', { count: cache.length, healed: true, concurrent_mutation: true });
+      return { canonical, ids: list(), healed: true, concurrent_mutation: true };
+    }
+    publish(localBeforeHeal, 'recovery-heal');
+    setState('DB_CANONICAL', { count: localBeforeHeal.length, healed: true });
     return { canonical, ids: list(), healed: true };
+  }
+
+  function start() {
+    return enqueue(startInternal);
   }
 
   async function verify() {
     try {
+      await operationTail;
       const api = await ensureDB();
       const marker = await api.getMeta(k.metaKey, null);
       const row = await api.getKV(k.dbKey, null);
@@ -259,9 +366,10 @@ export function createDurableFavoritesStore({
         recovery_match: sameIds(recoveryIds, cache),
         legacy_match: sameIds(legacyIds, cache),
         pending: !!readOutbox(),
+        mutation_revision: mutationRevision,
       };
     } catch {
-      return { ok: false, canonical, count: cache.length, unavailable: true, pending: !!readOutbox() };
+      return { ok: false, canonical, count: cache.length, unavailable: true, pending: !!readOutbox(), mutation_revision: mutationRevision };
     }
   }
 
