@@ -19,11 +19,12 @@ function b64urlDecode(s){s=String(s||'').replace(/-/g,'+').replace(/_/g,'/');whi
 function fail(message){title.textContent='No se pudo guardar';status.textContent=message||'El enlace no es válido o venció.';status.className='error'}
 (async()=>{
   try{
-    const params=new URLSearchParams(location.hash.slice(1));
+    const rawHash=location.hash;
+    history.replaceState(null,'',location.pathname);
+    const params=new URLSearchParams(rawHash.slice(1));
     const token=params.get('t')||'',encoded=params.get('p')||'';
     if(token.length<24||!encoded)throw new Error('Falta la autorización privada de guardado.');
     let payload;try{payload=JSON.parse(b64urlDecode(encoded))}catch{throw new Error('La nota no tiene un formato válido.')}
-    history.replaceState(null,'',location.pathname);
     const r=await fetch(`${ENDPOINT}/session-save/${encodeURIComponent(token)}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload),cache:'no-store',referrerPolicy:'no-referrer'});
     const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data?.message||data?.error||`HTTP ${r.status}`);
     title.textContent='Guardado en Prometeo';status.textContent='La sesión quedó resumida como una nota de IA en esta página. Ya podés cerrar este chat o seguir trabajando.';
