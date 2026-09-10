@@ -71,10 +71,11 @@ If a direct authorized save tool is unavailable:
 
 1. Serialize the JSON payload as UTF-8.
 2. Encode it as URL-safe base64 without padding.
-3. Take the packet's `save.fallback_page` URL and append `#p=<encoded_payload>`.
-4. Give the human **one clickable “Guardar en Prometeo” link**. Do not ask them to copy JSON or tokens manually.
+3. URL-encode the packet's private `save_token`.
+4. Take the packet's token-free `save.fallback_page` and append the fragment `#t=<encoded_save_token>&p=<encoded_payload>`.
+5. Give the human **one clickable “Guardar en Prometeo” link**. Do not ask them to copy JSON or tokens manually.
 
-The fragment keeps the note body out of ordinary server request logs; the Prometeo save page sends it in a POST body to the private session capability.
+Both the save capability token and the note body stay in the URL fragment, so they are not sent to the static host as part of the HTTP request. The Prometeo save page removes the fragment from browser history before POSTing the payload to the private session capability.
 
 After a confirmed save, state that the session was saved as an AI-derived note on that page. A later **Trabajar** run will automatically include that note if it is still unworked.
 
