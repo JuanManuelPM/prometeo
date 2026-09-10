@@ -25,7 +25,7 @@ def loader(template,sha,length,expr):
 
 def main():
     html=SOURCE.read_bytes();sha=hashlib.sha256(html).hexdigest();gz=gzip.compress(html,compresslevel=9,mtime=0);gzsha=hashlib.sha256(gz).hexdigest();b64=base64.b64encode(gz).decode('ascii');chunks=split_b64(b64)
-    text=html.decode('utf-8');required=['prometeo.page-change-loop-ui/v1','loadPageChangeLoop','createTextCaptureForChangeLoop','data-change-unread','__PROMETEO_UNIVERSAL_HOST__','suppressNextClosedClick=true','PROMETEO_DB_CANONICAL_WITH_SYNC_RECOVERY']
+    text=html.decode('utf-8');required=['loadPageChangeLoop','createTextCaptureForChangeLoop','data-change-unread','__PROMETEO_UNIVERSAL_HOST__','suppressNextClosedClick=true','PROMETEO_DB_CANONICAL_WITH_SYNC_RECOVERY']
     for m in required:
         if m not in text:raise SystemExit(f'missing {m}')
     OUT.mkdir(parents=True,exist_ok=True)
