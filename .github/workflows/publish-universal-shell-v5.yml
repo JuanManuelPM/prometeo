@@ -6,8 +6,13 @@ on:
     paths:
       - 'index.html'
       - 'shared/universal-shell/v5/chunk-*.b64'
+      - 'shared/universal-shell/v5/SERVED_MANIFEST.json'
       - 'shared/universal-shell/v5/README.md'
       - 'shared/universal-shell/v5/CORNER_ANCHOR_v1.json'
+      - 'shared/universal-shell/v5/SINGLE_SHELL_HOST_CONTRACT_v1.json'
+      - 'shared/storage/v1/prometeo-db.js'
+      - 'shared/prometeo-shell/v1/**'
+      - 'shared/prometeo-shell/v2/**'
       - '.github/workflows/publish-universal-shell-v5.yml'
   workflow_dispatch:
 
@@ -27,35 +32,57 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Validate complete V5 runtime
+      - name: Validate complete manifested V5 runtime
         shell: bash
         run: |
           set -euo pipefail
-          expected=(6552 6552 6552 6552 6568)
-          : > /tmp/prometeo-v5.b64
-          for n in 1 2 3 4 5; do
-            f="shared/universal-shell/v5/chunk-${n}.b64"
-            test -f "$f"
-            size=$(wc -c < "$f" | tr -d ' ')
-            test "$size" = "${expected[$((n-1))]}"
-            tr -d '\r\n\t ' < "$f" >> /tmp/prometeo-v5.b64
-          done
-          test "$(wc -c < /tmp/prometeo-v5.b64 | tr -d ' ')" = '32776'
-          base64 -d /tmp/prometeo-v5.b64 | gzip -d > /tmp/prometeo-v5.html
-          echo '67965c4da9161737f06fcf6503d6b73db43eef574796977327c97f165e514d8a  /tmp/prometeo-v5.html' | sha256sum -c -
-          grep -q 'Universal Shell V5 Integrated Control' /tmp/prometeo-v5.html
-          grep -q 'prometeo.v5.favorites.v1' /tmp/prometeo-v5.html
-          grep -q 'favorites-organizer' /tmp/prometeo-v5.html
-          grep -q 'prometeo.universal-control.corner.v1' /tmp/prometeo-v5.html
-          grep -q 'nearestCorner' /tmp/prometeo-v5.html
-          grep -q 'localVector' /tmp/prometeo-v5.html
-          grep -q 'const CHUNKS=' index.html
-          ! grep -q 'data-prometeo-shell' index.html
-          grep -q 'RETIRED COMPATIBILITY STUB' shared/prometeo-shell/v2/prometeo-shell.js
+          python - <<'PY'
+          import base64, gzip, hashlib, json, pathlib
+          root = pathlib.Path('.')
+          m = json.loads((root/'shared/universal-shell/v5/SERVED_MANIFEST.json').read_text())
+          assert m['schema'] == 'prometeo.universal-shell-served-manifest/v1'
+          assert len(m['chunks']) == 5
+          parts=[]
+          for c in m['chunks']:
+              p=root/'shared/universal-shell/v5'/c['file']
+              raw=p.read_text()
+              assert len(raw)==c['size'], (p,len(raw),c['size'])
+              parts.append(''.join(raw.split()))
+          encoded=''.join(parts)
+          assert len(encoded)==m['base64_length'], (len(encoded),m['base64_length'])
+          compressed=base64.b64decode(encoded, validate=True)
+          assert hashlib.sha256(compressed).hexdigest()==m['gzip_sha256']
+          html=gzip.decompress(compressed)
+          assert hashlib.sha256(html).hexdigest()==m['source_sha256']
+          text=html.decode('utf-8')
+          required=[
+            'Universal Shell V5 Integrated Control',
+            'PROMETEO_DB_CANONICAL_WITH_SYNC_RECOVERY',
+            'prometeo.v5.favorites.recovery.v2',
+            'prometeo.v5.favorites.outbox.v2',
+            'prometeo.universal-control.corner.v1',
+            'suppressNextClosedClick=true',
+            '__PROMETEO_UNIVERSAL_HOST__',
+            'prometeo:nested-shell',
+            'favorites-organizer',
+          ]
+          for marker in required: assert marker in text, marker
+          assert 'corner-snapping .puck{pointer-events:none}' not in text
+          loader=(root/'index.html').read_text()
+          assert m['source_sha256'] in loader
+          assert f"const EXPECTED_LENGTH={m['base64_length']};" in loader
+          assert 'window.self!==window.top' in loader
+          assert 'prometeo:nested-shell' in loader
+          assert "document.documentElement.dataset.prometeoUniversalShell='v5'" in loader
+          assert 'data-prometeo-shell' not in loader
+          assert 'RETIRED COMPATIBILITY STUB' in (root/'shared/prometeo-shell/v2/prometeo-shell.js').read_text()
+          assert (root/'shared/storage/v1/prometeo-db.js').exists()
+          print('Manifested V5 validation PASS', m['source_sha256'])
+          PY
           python -m json.tool shared/universal-shell/v5/CORNER_ANCHOR_v1.json >/dev/null
-          echo 'Universal Shell V5 favorites + Corner Anchor runtime validation PASS'
+          python -m json.tool shared/universal-shell/v5/SINGLE_SHELL_HOST_CONTRACT_v1.json >/dev/null
 
-      - name: Publish root and all runtime chunks atomically
+      - name: Publish one top-level shell and dependencies atomically
         shell: bash
         run: |
           set -euo pipefail
@@ -63,18 +90,65 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git fetch origin gh-pages
           git worktree add /tmp/prometeo-pages origin/gh-pages
-          mkdir -p /tmp/prometeo-pages/shared/universal-shell/v5
+          mkdir -p \
+            /tmp/prometeo-pages/shared/universal-shell/v5 \
+            /tmp/prometeo-pages/shared/storage/v1 \
+            /tmp/prometeo-pages/shared/prometeo-shell/v1 \
+            /tmp/prometeo-pages/shared/prometeo-shell/v2
           cp index.html /tmp/prometeo-pages/index.html
           cp shared/universal-shell/v5/chunk-*.b64 /tmp/prometeo-pages/shared/universal-shell/v5/
           cp shared/universal-shell/v5/README.md /tmp/prometeo-pages/shared/universal-shell/v5/README.md
           cp shared/universal-shell/v5/CORNER_ANCHOR_v1.json /tmp/prometeo-pages/shared/universal-shell/v5/CORNER_ANCHOR_v1.json
-          cp shared/prometeo-shell/v2/prometeo-shell.js /tmp/prometeo-pages/shared/prometeo-shell/v2/prometeo-shell.js
+          cp shared/universal-shell/v5/SINGLE_SHELL_HOST_CONTRACT_v1.json /tmp/prometeo-pages/shared/universal-shell/v5/SINGLE_SHELL_HOST_CONTRACT_v1.json
+          cp shared/universal-shell/v5/SERVED_MANIFEST.json /tmp/prometeo-pages/shared/universal-shell/v5/SERVED_MANIFEST.json
+          cp shared/storage/v1/prometeo-db.js /tmp/prometeo-pages/shared/storage/v1/prometeo-db.js
+          cp shared/prometeo-shell/v1/*.js /tmp/prometeo-pages/shared/prometeo-shell/v1/
+          cp shared/prometeo-shell/v2/*.js /tmp/prometeo-pages/shared/prometeo-shell/v2/
           cd /tmp/prometeo-pages
-          git add index.html shared/universal-shell/v5 shared/prometeo-shell/v2/prometeo-shell.js
+          git add \
+            index.html \
+            shared/universal-shell/v5 \
+            shared/storage/v1/prometeo-db.js \
+            shared/prometeo-shell/v1 \
+            shared/prometeo-shell/v2
           if git diff --cached --quiet; then
-            echo 'Universal Shell V5 already complete on gh-pages.'
-            exit 0
+            echo 'Manifested Universal Shell V5 already complete on gh-pages.'
+          else
+            git commit -m 'shell: publish re-draggable single-host Universal Control V5'
+            git pull --rebase origin gh-pages
+            git push origin HEAD:gh-pages
           fi
-          git commit -m 'shell: publish Universal Shell V5 Corner Anchor runtime'
-          git pull --rebase origin gh-pages
-          git push origin HEAD:gh-pages
+
+      - name: Verify GitHub Pages live bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA=$(python -c "import json;print(json.load(open('shared/universal-shell/v5/SERVED_MANIFEST.json'))['source_sha256'])")
+          for i in $(seq 1 18); do
+            curl -fsS "https://juanmanuelpm.github.io/prometeo/?served_probe=$(date +%s)-$i" -o /tmp/live-index.html || true
+            if grep -q "$SHA" /tmp/live-index.html 2>/dev/null && grep -q 'window.self!==window.top' /tmp/live-index.html 2>/dev/null; then
+              break
+            fi
+            if [ "$i" = 18 ]; then echo 'GitHub Pages did not expose the new root loader in time' >&2; exit 1; fi
+            sleep 5
+          done
+          python - <<'PY'
+          import base64, gzip, hashlib, json, urllib.request
+          m=json.load(open('shared/universal-shell/v5/SERVED_MANIFEST.json'))
+          parts=[]
+          for c in m['chunks']:
+              req=urllib.request.Request('https://juanmanuelpm.github.io/prometeo/shared/universal-shell/v5/'+c['file']+'?v='+m['source_sha256'][:12],headers={'Cache-Control':'no-cache'})
+              with urllib.request.urlopen(req,timeout=20) as r: raw=r.read().decode()
+              assert len(raw)==c['size'], (c['file'],len(raw),c['size'])
+              parts.append(''.join(raw.split()))
+          encoded=''.join(parts)
+          assert len(encoded)==m['base64_length']
+          compressed=base64.b64decode(encoded,validate=True)
+          assert hashlib.sha256(compressed).hexdigest()==m['gzip_sha256']
+          html=gzip.decompress(compressed)
+          assert hashlib.sha256(html).hexdigest()==m['source_sha256']
+          text=html.decode()
+          assert '__PROMETEO_UNIVERSAL_HOST__' in text
+          assert 'suppressNextClosedClick=true' in text
+          print('LIVE V5 BYTE CANARY PASS',m['source_sha256'])
+          PY
