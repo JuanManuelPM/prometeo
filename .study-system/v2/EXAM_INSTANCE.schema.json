@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prometeo.study-system.v2.exam-instance",
+  "title": "Study System V2 Exam Instance",
+  "type": "object",
+  "required": ["schema", "instance_id", "course", "sources", "exam_profile", "modules"],
+  "properties": {
+    "schema": {"const": "prometeo.study.exam/v2"},
+    "instance_id": {"type": "string", "minLength": 1},
+    "course": {"type": "string", "minLength": 1},
+    "exam": {
+      "type": "object",
+      "properties": {
+        "label": {"type": "string"},
+        "datetime": {"type": ["string", "null"], "format": "date-time"},
+        "timezone": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "role"],
+        "properties": {
+          "id": {"type": "string"},
+          "title": {"type": "string"},
+          "url": {"type": "string"},
+          "role": {"enum": ["current_authority", "required_reading", "evaluation_evidence", "supporting", "historical_or_old", "out_of_scope"]},
+          "notes": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "exam_profile": {
+      "type": "object",
+      "required": ["scope", "operations"],
+      "properties": {
+        "scope": {"type": "array", "items": {"type": "string"}},
+        "formats": {"type": "array", "items": {"type": "string"}},
+        "operations": {"type": "array", "items": {"enum": ["recognize", "recall", "define", "explain", "compare", "develop", "apply", "interpret", "solve", "draw", "integrate", "oral"]}},
+        "evidence_notes": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "themes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "background", "ink"],
+        "properties": {
+          "id": {"type": "string"},
+          "background": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+          "ink": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "properties": {
+        "countdown": {"type": "boolean"},
+        "mnemonic_whiteboard": {"type": "boolean"},
+        "audio_dialogue": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "transversal_maps": {"type": "array", "items": {"$ref": "#/$defs/transversalMap"}},
+    "modules": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/module"}},
+    "practice": {"type": "array", "items": {"$ref": "#/$defs/practiceItem"}}
+  },
+  "$defs": {
+    "sourceRef": {"type": "string", "minLength": 1},
+    "recallAtom": {
+      "type": "object",
+      "required": ["id", "cue", "answer"],
+      "properties": {
+        "id": {"type": "string"},
+        "cue": {"type": "string"},
+        "answer": {"type": "string"},
+        "source_refs": {"type": "array", "items": {"$ref": "#/$defs/sourceRef"}}
+      },
+      "additionalProperties": false
+    },
+    "topic": {
+      "type": "object",
+      "required": ["id", "title", "anchor", "summary", "explanation", "source_refs"],
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "anchor": {"type": "string"},
+        "summary": {"type": "string"},
+        "explanation": {"type": "string"},
+        "relations": {"type": "string"},
+        "do_not_confuse": {"type": "string"},
+        "exam_use": {"type": "string"},
+        "source_refs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/sourceRef"}},
+        "recall_atoms": {"type": "array", "items": {"$ref": "#/$defs/recallAtom"}},
+        "mastery_dimensions": {"type": "array", "items": {"enum": ["recognition", "recall", "explanation", "discrimination", "application", "integration"]}},
+        "capabilities": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": false
+    },
+    "module": {
+      "type": "object",
+      "required": ["id", "title", "summary", "topics"],
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "summary": {"type": "string"},
+        "topics": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/topic"}}
+      },
+      "additionalProperties": false
+    },
+    "transversalMap": {
+      "type": "object",
+      "required": ["id", "title", "groups"],
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "relation": {"type": "string"},
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "title", "summary", "atoms"],
+            "properties": {
+              "id": {"type": "string"},
+              "title": {"type": "string"},
+              "summary": {"type": "string"},
+              "atoms": {"type": "array", "items": {"$ref": "#/$defs/recallAtom"}}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "practiceItem": {
+      "type": "object",
+      "required": ["id", "type", "prompt"],
+      "properties": {
+        "id": {"type": "string"},
+        "type": {"enum": ["mcq", "recall", "development", "case", "problem", "oral", "drawing"]},
+        "prompt": {"type": "string"},
+        "targets": {"type": "array", "items": {"type": "string"}},
+        "answer": {"type": "string"},
+        "rubric": {"type": "array", "items": {"type": "string"}},
+        "source_refs": {"type": "array", "items": {"$ref": "#/$defs/sourceRef"}}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
