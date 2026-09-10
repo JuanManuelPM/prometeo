@@ -1,0 +1,49 @@
+name: P4 Anywhere Notes Candidate
+
+on:
+  pull_request:
+    paths:
+      - 'shared/capture/v1/change-loop.js'
+      - 'shared/prometeo-shell/v1/voice.js'
+      - 'shared/prometeo-shell/v1/prometeo-voice-worker-v2.js'
+      - 'pages/capture/save-session/**'
+      - 'coordination/AI_DESIGN_SESSION_PROTOCOL_V1.md'
+      - 'scripts/build-universal-control-v5-change-loop.py'
+      - 'scripts/package-universal-control-v5-change-loop-release.py'
+      - 'tests/p4-anywhere-notes.test.mjs'
+      - '.github/workflows/p4-anywhere-notes-candidate.yml'
+  push:
+    branches:
+      - 'candidate/p4-anywhere-notes-ai-sessions-20260910'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static JS and contract tests
+        run: |
+          set -euo pipefail
+          node --check shared/capture/v1/change-loop.js
+          node --check shared/prometeo-shell/v1/voice.js
+          node --check shared/prometeo-shell/v1/prometeo-voice-worker-v2.js
+          node tests/p4-anywhere-notes.test.mjs
+      - name: Build single-shell candidate
+        run: |
+          set -euo pipefail
+          python scripts/build-universal-control-v5-change-loop.py
+          python scripts/package-universal-control-v5-change-loop-release.py
+          grep -q 'page-change-loop-ui/v3' shared/capture/v1/change-loop.js
+          grep -q 'change-loop.js?v=3' shared/universal-shell/v5/candidate/change-loop-source.html
+          grep -q 'recordingState:()=>voice.state()' shared/universal-shell/v5/candidate/change-loop-source.html
+          grep -q 'prometeo-voice-worker-v2.js?v=2' shared/universal-shell/v5/candidate/change-loop-source.html
+          grep -q 'Pensar' shared/capture/v1/change-loop.js
+          grep -q 'Trabajar' shared/capture/v1/change-loop.js
+      - name: Privacy and continuity guards
+        run: |
+          set -euo pipefail
+          ! grep -R 'AI_SESSION_SAVE_TOKEN_INVALID.*token=' pages/capture/save-session coordination/AI_DESIGN_SESSION_PROTOCOL_V1.md || exit 1
+          ! grep -q 'location.search' pages/capture/save-session/index.html
+          grep -q 'does not need this ChatGPT transcript' coordination/AI_DESIGN_SESSION_PROTOCOL_V1.md
+          ! grep -q 'Activar HACER' shared/capture/v1/change-loop.js
