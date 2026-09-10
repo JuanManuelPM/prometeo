@@ -5,7 +5,7 @@ const BASE = process.env.V5_CANARY_BASE || 'http://127.0.0.1:4173';
 const LEGACY = `${BASE}/shared/universal-shell/v5/candidate/baseline-source.html`;
 const CANDIDATE_PATH = process.env.V5_CANDIDATE_PATH || 'shared/universal-shell/v5/candidate/favorites-facade-source.html';
 const CANDIDATE = `${BASE}/${CANDIDATE_PATH.replace(/^\//,'')}`;
-const IS_DURABLE = CANDIDATE_PATH.includes('durable-favorites-source');
+const IS_DURABLE = CANDIDATE_PATH.includes('durable-favorites-source') || CANDIDATE_PATH.includes('single-host-source');
 const FAV_KEY = 'prometeo.v5.favorites.v1';
 const CORNER_KEY = 'prometeo.universal-control.corner.v1';
 
@@ -28,7 +28,7 @@ async function semanticClick(page, selector) {
 async function openControl(page) {
   await waitReady(page);
   await semanticClick(page, '#puck');
-  await page.waitForFunction(() => document.querySelector('#selector')?.classList.contains('open'));
+  await page.waitForFunction(() => !document.querySelector('#selector')?.classList.contains('closed'));
 }
 
 async function rootSnapshot(browser, url, seed, { blockExternal = false } = {}) {
@@ -41,14 +41,12 @@ async function rootSnapshot(browser, url, seed, { blockExternal = false } = {}) 
   await page.evaluate(({ key, value }) => localStorage.setItem(key, value), { key: FAV_KEY, value: seed });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await openControl(page);
-  await semanticClick(page, '#nextBtn');
-  const result = {
-    label: await page.locator('#labelTextPath').textContent(),
-    count: await page.locator('#labelCount').textContent(),
-    stored: await page.evaluate(key => localStorage.getItem(key), FAV_KEY),
-    controls: await page.locator('.puck').count(),
-    pageErrors,
-  };
+  await page.keyboard.press('ArrowRight');
+  const label = await page.locator('#labelTextPath').textContent();
+  const count = await page.locator('#labelCount').textContent();
+  const stored = await page.evaluate(key => localStorage.getItem(key), FAV_KEY);
+  const controls = await page.locator('.puck').count();
+  const result = { label, count, stored, controls, pageErrors };
   await context.close();
   return result;
 }
@@ -73,21 +71,23 @@ async function pinFlow(browser, url) {
   const firstId = await firstCatalogPage(page);
   await page.evaluate(key => localStorage.setItem(key, '[]'), FAV_KEY);
   await page.goto(`${url}#/p/${encodeURIComponent(firstId)}`, { waitUntil: 'domcontentloaded' });
-  await waitReady(page);
   await page.waitForFunction(() => {
     const frame = document.querySelector('#pageHost');
-    return frame?.getAttribute('src') && frame.getAttribute('src') !== 'about:blank';
+    return frame && frame.getAttribute('src') && frame.getAttribute('src') !== 'about:blank';
   }, null, { timeout: 10000 });
 
-  await semanticClick(page, '#puck');
-  await semanticClick(page, '#nextBtn');
+  await openControl(page);
+  await page.keyboard.press('ArrowRight');
   const before = await page.locator('#labelTextPath').textContent();
-  await semanticClick(page, '#currentBtn');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(IS_DURABLE ? 50 : 0);
   const storedPinned = await page.evaluate(key => localStorage.getItem(key), FAV_KEY);
   const afterPin = await page.locator('#labelTextPath').textContent();
-  await semanticClick(page, '#currentBtn');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(IS_DURABLE ? 50 : 0);
   const storedUnpinned = await page.evaluate(key => localStorage.getItem(key), FAV_KEY);
   const afterUnpin = await page.locator('#labelTextPath').textContent();
+
   const result = { firstId, before, storedPinned, afterPin, storedUnpinned, afterUnpin, pageErrors };
   await context.close();
   return result;
@@ -104,18 +104,16 @@ async function cornerFlow(browser, url) {
   await waitReady(page);
   const box = await page.locator('#puck').boundingBox();
   assert.ok(box, 'puck has a bounding box');
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const sx = box.x + box.width / 2;
+  const sy = box.y + box.height / 2;
+  await page.mouse.move(sx, sy);
   await page.mouse.down();
   await page.mouse.move(55, 60, { steps: 8 });
   await page.mouse.up();
   await page.waitForTimeout(260);
+  const corner = await page.evaluate(key => localStorage.getItem(key), CORNER_KEY);
   const finalBox = await page.locator('#puck').boundingBox();
-  const result = {
-    corner: await page.evaluate(key => localStorage.getItem(key), CORNER_KEY),
-    finalX: Math.round(finalBox?.x ?? -1),
-    finalY: Math.round(finalBox?.y ?? -1),
-    pageErrors,
-  };
+  const result = { corner, finalX: Math.round(finalBox?.x ?? -1), finalY: Math.round(finalBox?.y ?? -1), pageErrors };
   await context.close();
   return result;
 }
@@ -125,10 +123,10 @@ async function backendStatus(browser, url) {
   const page = await context.newPage();
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await waitReady(page);
-  await page.waitForTimeout(100);
-  const result = await page.evaluate(() => globalThis.__PROMETEO_V5_BACKEND_STATUS__?.snapshot?.() || null);
+  await page.waitForTimeout(50);
+  const status = await page.evaluate(() => window.__PROMETEO_V5_BACKEND_STATUS__?.snapshot?.() || null);
   await context.close();
-  return result;
+  return status;
 }
 
 const browser = await chromium.launch({ headless: true });
@@ -141,9 +139,9 @@ try {
   assert.equal(candidateRoot.controls, 1);
   assert.deepEqual(candidateRoot.pageErrors, []);
 
-  // P1/P2 retain legacy authority, so dirty raw legacy state can be compared directly. P3 has
-  // already activated DB ownership after the first load in this helper; its pre-migration dirty
-  // legacy semantics are covered by universal-control-v5-durable-browser.mjs instead.
+  // P1/P2 retain legacy authority. P3 and later candidates have already activated DB ownership
+  // after the first load in this helper; their pre-migration dirty-legacy semantics are covered
+  // by the dedicated durable browser test instead.
   const offlineSeed = IS_DURABLE ? '[]' : '["alpha","","alpha","beta",7,null,"beta"]';
   const [legacyOffline, candidateOffline] = await Promise.all([
     rootSnapshot(browser, LEGACY, offlineSeed, { blockExternal: true }),
