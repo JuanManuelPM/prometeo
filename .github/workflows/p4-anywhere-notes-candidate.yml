@@ -8,6 +8,8 @@ on:
       - 'shared/prometeo-shell/v1/prometeo-voice-worker-v2.js'
       - 'pages/capture/save-session/**'
       - 'coordination/AI_DESIGN_SESSION_PROTOCOL_V1.md'
+      - 'supabase/functions/prometeo-change-loop-v1/**'
+      - 'supabase/migrations/*p4_anywhere_notes*'
       - 'scripts/build-universal-control-v5-change-loop.py'
       - 'scripts/package-universal-control-v5-change-loop-release.py'
       - 'tests/p4-anywhere-notes.test.mjs'
@@ -29,6 +31,17 @@ jobs:
           node --check shared/prometeo-shell/v1/voice.js
           node --check shared/prometeo-shell/v1/prometeo-voice-worker-v2.js
           node tests/p4-anywhere-notes.test.mjs
+      - name: Private backend recovery guards
+        run: |
+          set -euo pipefail
+          grep -q "async function prepareResearch" supabase/functions/prometeo-change-loop-v1/index.ts
+          grep -q "async function uploadAudio" supabase/functions/prometeo-change-loop-v1/index.ts
+          grep -q "claim_prometeo_transcription_v1" supabase/functions/prometeo-change-loop-v1/index.ts
+          grep -q "prometeo_save_ai_session_v1" supabase/functions/prometeo-change-loop-v1/index.ts
+          grep -q 'SAVE_PAGE}#t=' supabase/functions/prometeo-change-loop-v1/index.ts
+          grep -q "create table if not exists public.prometeo_ai_sessions" supabase/migrations/20260910234500_p4_anywhere_notes_ai_sessions_v1.sql
+          grep -q "create or replace function public.claim_prometeo_transcription_v1" supabase/migrations/20260910234500_p4_anywhere_notes_ai_sessions_v1.sql
+          grep -q "create or replace function public.prometeo_save_ai_session_v1" supabase/migrations/20260910234500_p4_anywhere_notes_ai_sessions_v1.sql
       - name: Build single-shell candidate
         run: |
           set -euo pipefail
@@ -45,5 +58,6 @@ jobs:
           set -euo pipefail
           ! grep -R 'AI_SESSION_SAVE_TOKEN_INVALID.*token=' pages/capture/save-session coordination/AI_DESIGN_SESSION_PROTOCOL_V1.md || exit 1
           ! grep -q 'location.search' pages/capture/save-session/index.html
+          grep -q "history.replaceState(null,'',location.pathname)" pages/capture/save-session/index.html
           grep -q 'does not need this ChatGPT transcript' coordination/AI_DESIGN_SESSION_PROTOCOL_V1.md
           ! grep -q 'Activar HACER' shared/capture/v1/change-loop.js
