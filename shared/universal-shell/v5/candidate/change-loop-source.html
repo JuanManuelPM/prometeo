@@ -1290,7 +1290,7 @@ let recordClock='00:00',confirmDiscard=false,confirmNoteDelete=false,activeNotes
 const editTimers=new Map();
 const remote=new PrometeoRemote({onState:renderSyncState});
 const voice=new VoiceQueue({
-  workerURL:'https://juanmanuelpm.github.io/prometeo/shared/prometeo-shell/v1/prometeo-voice-worker.js?v=1',
+  workerURL:'https://juanmanuelpm.github.io/prometeo/shared/prometeo-shell/v1/prometeo-voice-worker-v2.js?v=2',
   onChange:async()=>{await refreshNotes();reconcileNotesView();scheduleSync();},
   onRecording:renderRecording
 });
@@ -1311,24 +1311,36 @@ async function createTextCaptureForChangeLoop(text,targetPage){
     sourcePath:p.public_url||p.href||location.pathname,
     sourceHref:p.public_url||p.href||location.href,
     sourceTitle:p.title||p.id,
-    viewport:`${innerWidth}x${innerHeight}`,pageId:p.id,transcriptRevision:1
+    viewport:`${innerWidth}x${innerHeight}`,pageId:p.id,transcriptRevision:1,
+    metadata:{source_kind:'HUMAN_TEXT'}
   };
   if(!note.text)return null;
   await putNote(note);await refreshNotes();captureSync.reconcile?.();scheduleSync(0);
   try{await syncAll()}catch{}
   return note;
 }
-function openLegacyNotesFromLoop(){
-  refreshNotes().then(()=>{state.stack=[ROOT,buildNotesHome()];state.index=0;state.armed=null;openSelector();render()}).catch(()=>{});
+async function listLocalNotesForChangeLoop(){await refreshNotes();return notes.slice()}
+async function retryLocalTranscription(id){
+  const n=await getNote(id);if(!n?.audio)return null;
+  n.status='queued';n.error='';await putNote(n);voice.processQueue?.();await refreshNotes();return n;
 }
+function openLegacyNotesFromLoop(){refreshNotes().then(()=>{state.stack=[ROOT,buildNotesHome()];state.index=0;state.armed=null;openSelector();render()}).catch(()=>{})}
 async function loadPageChangeLoop(){
   if(globalThis.__PROMETEO_CHANGE_LOOP__)return globalThis.__PROMETEO_CHANGE_LOOP__;
   if(changeLoopPromise)return changeLoopPromise;
-  const url=location.hostname==='juanmanuelpm.github.io'?'/prometeo/shared/capture/v1/change-loop.js?v=2':'/shared/capture/v1/change-loop.js?v=2';
+  const url=location.hostname==='juanmanuelpm.github.io'?'/prometeo/shared/capture/v1/change-loop.js?v=3':'/shared/capture/v1/change-loop.js?v=3';
   changeLoopPromise=import(url).then(m=>m.mountPageChangeLoop({adapter:{
     getPage:()=>window.__PROMETEO_UNIVERSAL_HOST__?.getPage?.(),
     syncNow:async()=>{try{await syncAll()}catch{}},
     createTextCapture:createTextCaptureForChangeLoop,
+    listLocalNotes:listLocalNotesForChangeLoop,
+    getLocalNote:id=>getNote(id),
+    retryLocalTranscription,
+    recordingState:()=>voice.state(),
+    startRecording:async()=>{await voice.start();return voice.state()},
+    pauseResumeRecording:()=>{voice.pauseResume();return voice.state()},
+    saveRecording:async()=>{const note=await voice.save(pageMeta());await refreshNotes();captureSync.reconcile?.();scheduleSync(0);return note},
+    discardRecording:()=>{voice.discard();return voice.state()},
     previewUrl:url=>window.__PROMETEO_UNIVERSAL_HOST__?.previewUrl?.(url),
     hostUrl:(pageId,workItemId)=>window.__PROMETEO_UNIVERSAL_HOST__?.routeUrl?.(pageId,workItemId),
     navigatePage:(pageId,opts)=>window.__PROMETEO_UNIVERSAL_HOST__?.navigatePage?.(pageId,opts),
@@ -1669,12 +1681,10 @@ async function enter(){
       await refreshNotes();state.stack.push(buildNotesHome());state.index=0;state.armed=null;render();return;
     }
     if(it.action==='record'){
-      if(voice.state().active){
-        state.stack.push(RECORD_NODE);state.index=1;confirmDiscard=false;render();return;
-      }
-      await startRecording();
-      state.stack=[ROOT,RECORD_NODE];state.index=1;state.armed=null;confirmDiscard=false;
-      openSelector();render();return;
+      const loop=await loadPageChangeLoop();
+      if(loop){state.stack=[ROOT];state.index=0;closeSelector();const opened=await loop.open(currentPage||null,{startRecording:!voice.state().active});if(opened)return}
+      if(voice.state().active){state.stack.push(RECORD_NODE);state.index=1;confirmDiscard=false;render();return}
+      await startRecording();state.stack=[ROOT,RECORD_NODE];state.index=1;state.armed=null;confirmDiscard=false;openSelector();render();return;
     }
 
     if(it.action==='pause'){
@@ -2537,10 +2547,7 @@ if(requestedPageId){
   ensureCatalog().then(async()=>{
     const p=pageRegistry.get(requestedPageId);if(!p)return;
     loadPage(p,false);
-    if(launchWorkItem){
-      const loop=await loadPageChangeLoop();
-      await loop?.openResult?.(p,launchWorkItem,{markSeen:true});
-    }
+    if(launchWorkItem){const loop=await loadPageChangeLoop();await loop?.openResult?.(p,launchWorkItem,{markSeen:true})}
   }).catch(error=>backendStatus.set('host-deeplink','DEGRADED',String(error?.message||error)));
 }
 
