@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>Prometeo</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff}
+#fail{display:none;position:fixed;right:18px;bottom:18px;width:54px;height:54px;border:0;border-radius:50%;background:#151A20;color:#fff;font:800 18px system-ui;box-shadow:0 8px 18px rgba(0,0,0,.18)}
+#msg{display:none;position:fixed;right:18px;bottom:84px;max-width:min(460px,calc(100vw - 36px));padding:9px 11px;border-radius:12px;background:#151A20;color:#fff;font:600 10px/1.4 system-ui;opacity:.84;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div id="msg"></div>
+<button id="fail" type="button" aria-label="Reintentar Prometeo">!</button>
+<script>
+(async()=>{
+  if(window.self!==window.top){
+    document.documentElement.dataset.prometeoNestedShell='blocked';
+    try{window.parent.postMessage({type:'prometeo:nested-shell',href:location.href},location.origin)}catch{}
+    return;
+  }
+  document.documentElement.dataset.prometeoUniversalShell='v5';
+  try{localStorage.removeItem('prometeo.shell.enabled.v1')}catch{}
+  const EXPECTED='77da10d7211b26e264d8cf28374210dec23f3dc1c095fa836c9974df7f956626';
+  const EXPECTED_LENGTH=44448;
+  const CHUNKS=[1,2,3,4,5].map(n=>`./chunk-${n}.b64`);
+  const fail=(err)=>{
+    console.error('[Prometeo V5 boot]',err);
+    const b=document.getElementById('fail'),m=document.getElementById('msg');
+    b.style.display='block';m.style.display='block';
+    m.textContent=String(err&&err.message||err||'Error de arranque');
+    b.onclick=()=>location.replace(location.pathname+'?retry='+Date.now()+location.hash);
+  };
+  const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+  try{
+    const parts=[];
+    for(const url of CHUNKS){
+      const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
+      if(!r.ok)throw new Error(`${url} · HTTP ${r.status}`);
+      parts.push((await r.text()).replace(/\s+/g,''));
+    }
+    const b64=parts.join('');
+    if(b64.length!==EXPECTED_LENGTH)throw new Error(`payload incompleto · ${b64.length}/${EXPECTED_LENGTH} caracteres`);
+    if(b64.length%4!==0)throw new Error(`base64 corrupto · longitud ${b64.length}`);
+    if(!/^[A-Za-z0-9+/]*={0,2}$/.test(b64))throw new Error('base64 contiene caracteres inválidos');
+    const raw=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+    let html='';
+    if('DecompressionStream' in window){
+      const stream=new Blob([raw]).stream().pipeThrough(new DecompressionStream('gzip'));
+      html=await new Response(stream).text();
+    }else{
+      await new Promise((resolve,reject)=>{
+        const s=document.createElement('script');
+        s.src='https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js';
+        s.onload=resolve;s.onerror=()=>reject(new Error('gzip no disponible'));
+        document.head.appendChild(s);
+      });
+      html=new TextDecoder().decode(window.pako.ungzip(raw));
+    }
+    if(crypto&&crypto.subtle){
+      const digest=hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(html)));
+      if(digest!==EXPECTED)throw new Error(`payload correcto pero SHA inesperado · ${digest.slice(0,12)}`);
+    }
+    if(!html.includes('Universal Shell V5 Integrated Control'))throw new Error('payload V5 inesperado');
+    document.open();document.write(html);document.close();document.documentElement.dataset.prometeoUniversalShell='v5';
+  }catch(err){fail(err)}
+})();
+</script>
+</body>
+</html>
