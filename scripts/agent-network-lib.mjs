@@ -4,6 +4,10 @@ export const uniq = xs => [...new Set((xs || []).filter(Boolean).map(String))];
 export const sha256 = value => crypto.createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
 export const norm = value => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
+export const ACTIVE_WRITE_STATES = Object.freeze(new Set([
+  'ACTIVE','CLAIMED','EXECUTING','WRITING','INTEGRATING','WORKING','RUNNING','MATERIAL_WORK'
+]));
+
 export function scopePrefix(scope) {
   return String(scope || '')
     .replace(/\\/g, '/')
@@ -23,6 +27,15 @@ export function intersects(a = [], b = []) {
   return uniq(a).some(x => B.has(norm(x)));
 }
 
+export function isActiveWriter(ws = {}) {
+  const states = uniq([
+    ...(ws.worker_states || []),
+    ws.worker_state,
+    ws.state,
+  ]).map(s => String(s).toUpperCase());
+  return states.some(s => ACTIVE_WRITE_STATES.has(s));
+}
+
 export function relatedToWorkstream(event, ws) {
   const ids = new Set([ws.id, ...(ws.topics || []), ...(ws.depends_on || []), ...(ws.needs || [])].map(norm));
   const targets = uniq([...(event.targets || []), ...(event.topics || []), ...(event.dependencies || [])]).map(norm);
@@ -36,14 +49,24 @@ export function deriveConvergence(workstreams = []) {
   for (let i = 0; i < sorted.length; i++) {
     for (let j = i + 1; j < sorted.length; j++) {
       const a = sorted[i], b = sorted[j];
-      if ((a.repository || 'JuanManuelPM/prometeo') === (b.repository || 'JuanManuelPM/prometeo') && scopesOverlap(a.write_scope, b.write_scope)) {
-        events.push({
+      const sameRepo = (a.repository || 'JuanManuelPM/prometeo') === (b.repository || 'JuanManuelPM/prometeo');
+      const overlap = sameRepo && scopesOverlap(a.write_scope, b.write_scope);
+      if (overlap) {
+        const live = isActiveWriter(a) && isActiveWriter(b);
+        events.push(live ? {
           type: 'HARD_WRITE_COLLISION',
           severity: 'HARD',
           participants: [a.id, b.id],
           targets: [a.id, b.id],
-          reason: 'Overlapping write scopes in the same repository.',
+          reason: 'Overlapping write scopes are currently owned by active writing workers.',
           blocking: true
+        } : {
+          type: 'INACTIVE_SCOPE_OVERLAP',
+          severity: 'INFO',
+          participants: [a.id, b.id],
+          targets: [a.id, b.id],
+          reason: 'Declared scopes overlap, but both sides are not active writers; this is context, not a live lock.',
+          blocking: false
         });
       }
 
