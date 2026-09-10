@@ -59,6 +59,25 @@ jobs:
             exit 1
           fi
 
+      - name: Install browser canary dependency
+        shell: bash
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Browser parity — legacy vs facade
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m http.server 4173 --bind 127.0.0.1 > /tmp/v5-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:4173/shared/universal-shell/v5/candidate/baseline-source.html >/dev/null; then break; fi
+            sleep .25
+          done
+          node tests/universal-control-v5-browser-parity.mjs
+
       - name: Persist candidate source snapshots
         if: github.event_name == 'push'
         shell: bash
