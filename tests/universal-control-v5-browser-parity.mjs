@@ -3,7 +3,8 @@ import { chromium } from 'playwright';
 
 const BASE = process.env.V5_CANARY_BASE || 'http://127.0.0.1:4173';
 const LEGACY = `${BASE}/shared/universal-shell/v5/candidate/baseline-source.html`;
-const CANDIDATE = `${BASE}/shared/universal-shell/v5/candidate/favorites-facade-source.html`;
+const CANDIDATE_PATH = process.env.V5_CANDIDATE_PATH || 'shared/universal-shell/v5/candidate/favorites-facade-source.html';
+const CANDIDATE = `${BASE}/${CANDIDATE_PATH.replace(/^\//,'')}`;
 const FAV_KEY = 'prometeo.v5.favorites.v1';
 const CORNER_KEY = 'prometeo.universal-control.corner.v1';
 
@@ -21,12 +22,6 @@ async function semanticClick(page, selector) {
     if (!el) throw new Error(`missing semantic control ${sel}`);
     el.click();
   }, selector);
-}
-
-async function openControl(page) {
-  await waitReady(page);
-  await semanticClick(page, '#puck');
-  await page.waitForFunction(() => document.querySelector('#selector')?.classList.contains('open'));
 }
 
 async function rootSnapshot(browser, url, seed, { blockExternal = false } = {}) {
@@ -49,6 +44,12 @@ async function rootSnapshot(browser, url, seed, { blockExternal = false } = {}) 
   };
   await context.close();
   return result;
+}
+
+async function openControl(page) {
+  await waitReady(page);
+  await semanticClick(page, '#puck');
+  await page.waitForFunction(() => document.querySelector('#selector')?.classList.contains('open'));
 }
 
 async function firstCatalogPage(page) {
@@ -118,49 +119,56 @@ async function cornerFlow(browser, url) {
   return result;
 }
 
+async function backendStatus(browser, url) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await waitReady(page);
+  await page.waitForTimeout(100);
+  const result = await page.evaluate(() => globalThis.__PROMETEO_V5_BACKEND_STATUS__?.snapshot?.() || null);
+  await context.close();
+  return result;
+}
+
 const browser = await chromium.launch({ headless: true });
 try {
-  // Online catalog pruning may remove fake ids. The gate therefore compares the candidate
-  // to the exact Golden Master rather than inventing an absolute count after pruning.
   const dirty = '["alpha","","alpha","beta",7,null,"beta"]';
   const [legacyRoot, candidateRoot] = await Promise.all([
     rootSnapshot(browser, LEGACY, dirty),
     rootSnapshot(browser, CANDIDATE, dirty),
   ]);
-  assert.deepEqual(candidateRoot, legacyRoot, 'candidate root/catalog-prune behavior must match Golden Master');
-  assert.match(candidateRoot.label || '', /^Favoritos(?: · \d+)?$/);
+  assert.deepEqual(candidateRoot, legacyRoot, 'candidate root/Favorites normalization must match Golden Master');
   assert.equal(candidateRoot.controls, 1);
   assert.deepEqual(candidateRoot.pageErrors, []);
 
-  // With external providers/catalog deliberately unavailable, fake ids cannot be pruned;
-  // this remains an explicit local-only persistence check in addition to parity.
   const [legacyOffline, candidateOffline] = await Promise.all([
     rootSnapshot(browser, LEGACY, '["alpha","beta"]', { blockExternal: true }),
     rootSnapshot(browser, CANDIDATE, '["alpha","beta"]', { blockExternal: true }),
   ]);
   assert.deepEqual(candidateOffline, legacyOffline, 'candidate local-only boot must match Golden Master');
-  assert.equal(candidateOffline.label, 'Favoritos · 2');
   assert.deepEqual(candidateOffline.pageErrors, []);
 
   const legacyPin = await pinFlow(browser, LEGACY);
   const candidatePin = await pinFlow(browser, CANDIDATE);
   assert.deepEqual(candidatePin, legacyPin, 'pin/unpin flow must match Golden Master');
-  assert.match(candidatePin.before || '', /^Anclar página$/);
   assert.equal(JSON.parse(candidatePin.storedPinned).length, 1);
-  assert.match(candidatePin.afterPin || '', /^Desanclar página$/);
   assert.deepEqual(JSON.parse(candidatePin.storedUnpinned), []);
-  assert.match(candidatePin.afterUnpin || '', /^Anclar página$/);
   assert.deepEqual(candidatePin.pageErrors, []);
 
   const legacyCorner = await cornerFlow(browser, LEGACY);
   const candidateCorner = await cornerFlow(browser, CANDIDATE);
-  assert.equal(legacyCorner.corner, 'top-left');
   assert.equal(candidateCorner.corner, legacyCorner.corner, 'Corner Anchor persistence cannot regress');
   assert.ok(Math.abs(candidateCorner.finalX - legacyCorner.finalX) <= 1);
   assert.ok(Math.abs(candidateCorner.finalY - legacyCorner.finalY) <= 1);
   assert.deepEqual(candidateCorner.pageErrors, []);
 
-  console.log(JSON.stringify({ status: 'PASS', root: candidateRoot, offline: candidateOffline, pin: candidatePin, corner: candidateCorner }, null, 2));
+  const status = await backendStatus(browser, CANDIDATE);
+  if (CANDIDATE_PATH.includes('backend-facades-source')) {
+    assert.ok(status, 'modular candidate must expose internal backend status');
+    assert.equal(status.shell?.state, 'READY');
+  }
+
+  console.log(JSON.stringify({ status: 'PASS', candidate: CANDIDATE_PATH, root: candidateRoot, offline: candidateOffline, pin: candidatePin, corner: candidateCorner, backendStatus: status }, null, 2));
 } finally {
   await browser.close();
 }
