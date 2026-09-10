@@ -12,47 +12,132 @@ The ordinary study surface remains primary:
 
 The whiteboard is an optional capability attached beneath an individual topic. A topic must remain completely usable when the board is never opened.
 
-When the learner opens the board, it expands into a large working surface for drawings/handwritten structure. When the board closes, that large surface collapses and, if it contains marks, becomes a small mnemonic thumbnail inside the same topic card. The thumbnail is a personal retrieval cue, not a replacement for the topic title, anchor, summary or explanation.
+When the learner opens the board, it becomes a full-viewport working surface. When the board closes, if it contains marks, it becomes a small mnemonic thumbnail inside the same topic card. The thumbnail is a personal retrieval cue, not a replacement for title, anchor, summary or explanation.
 
 ## Placement invariant
 
-Do **not** create a whiteboard-first page or a separate card architecture for topics merely because this capability is enabled.
+Do **not** create a whiteboard-first page or replace the normal study cards.
 
-- Closed module/topic layout must preserve the normal study overview.
-- Opening a topic reveals its normal explanation first.
-- The board launcher appears after/below that topic content.
-- The board expands only on explicit request.
-- Closing the board restores the normal topic view.
-- A non-empty board leaves behind a compact thumbnail/mini-flashcard associated with that topic.
-- If no drawing exists, a closed topic should not gain unnecessary extra visual weight.
+- Closed module/topic layout preserves the normal study overview.
+- Every visible topic card may expose one compact `Pizarrón` launcher.
+- The board opens only on explicit request.
+- The board opens outside the topic grid so it can use almost the full viewport.
+- Closing restores exactly the prior study state.
+- A non-empty board leaves a compact white thumbnail/mini-flashcard associated with that topic.
 
-## Open state
+## Visual isolation
 
-- Large board usable with desktop mouse, iPad/pen and phone touch.
-- Pointer Events; `touch-action:none` on the drawing surface.
-- Drawing persists per topic.
-- Resize/orientation/theme changes do not erase or distort geometry.
-- The topic explanation remains conceptually authoritative; drawing is learner-authored memory support.
+The Study System shell may use a two-color theme. The whiteboard is an intentional bounded exception.
 
-## Closed state
+- **Board paper is always white (`#ffffff`).**
+- Page theme changes never recolor existing drawings.
+- Board chrome is neutral white/black/gray.
+- Ink has its own palette.
+- The compact thumbnail also uses white paper and the stored ink colors.
 
-- If the board contains marks, render a small thumbnail inside/beneath the topic card.
-- Thumbnail always uses the current two theme colors.
-- Clicking/tapping the thumbnail reopens the topic/board.
-- The thumbnail should feel like a small visual flashcard, not like a second full content panel.
+This avoids the failure mode where a violet/green/etc. study theme turns the drawing surface into tinted paper.
 
-## Baseline tool contract
+## Recovered PageKit / Class Player baseline
 
-- `pen` — freehand stroke.
-- `highlighter` — broad mark while preserving the two-color system.
-- `line` — straight line.
-- `curve3` — three-point curve: start, control, end.
-- `eraser_stroke` — removes an entire stroke, never raster pixels.
-- `laser` — temporary, non-persistent pointer.
-- `undo` — restores previous drawing state.
-- `clear` — clears board and remains undoable in-session.
+The tool physics are derived from the protected Class Player lineage rather than reinvented per study page. The relevant floor is v26 with later accepted fixes through the v37 laser-tracking candidate.
 
-Keyboard shortcuts must never trigger destructive actions accidentally.
+Baseline capabilities:
+
+- fixed/always reachable toolbar;
+- Pointer Events for mouse, touch, pen/Wacom;
+- pen;
+- real translucent highlighter;
+- line family: simple, arrow, marks/ticks, dotted;
+- three-point curve;
+- intentional stroke eraser;
+- undo;
+- clear;
+- transient laser with visible dot and non-persistent trail.
+
+The Study System implementation may omit unrelated Class Player features such as slide objects, paste/resize and multi-board tabs, but must not degrade the retained tool physics.
+
+## Ink palette
+
+Default pen/line/curve palette:
+
+- black `#111827`
+- blue `#1d4ed8`
+- red `#dc2626`
+- green `#15803d`
+- violet `#7c3aed`
+
+Default pen widths: `3 / 5 / 8` CSS px.
+
+Highlighter palette:
+
+- yellow `#ffc107` around 40% alpha;
+- green `#22c55e` around 30% alpha;
+- blue `#3b82f6` around 28% alpha;
+- pink `#f43f5e` around 30% alpha.
+
+Default highlighter widths: `12 / 16 / 22` CSS px.
+
+Color and width are stored with each stroke. A later theme change does not mutate them.
+
+## Tool interaction
+
+### Pen
+
+Pointer down begins a freehand stroke; moves append normalized points; pointer up commits. Rendering should smooth intermediate points rather than expose a jagged raw polyline. Pointer capture is used while drawing.
+
+### Highlighter
+
+Same gesture model as pen, but broad and translucent. It is not a dashed theme-colored line.
+
+### Straight-line family
+
+Pointer down sets start, pointer move gives live preview, pointer up commits.
+
+`lineMode` may be:
+
+- `simple`
+- `arrow`
+- `ticks`
+- `dotted`
+
+The selected line tool remains active after commit.
+
+### Three-point curve
+
+Preserve the recovered v29→v37 interaction: the three clicks are **three pass-through points**, not `start / hidden-control / end`.
+
+For points A, B, C, compute the quadratic Bézier control P so the curve passes through B at `t = .5`:
+
+`P = 2B - .5A - .5C`
+
+Interaction:
+
+1. click/tap first pass-through point;
+2. click/tap second pass-through point;
+3. pointer movement previews the prospective curve;
+4. click/tap third point to commit.
+
+Pending guide points are temporary and never persist as ink.
+
+### Stroke eraser
+
+The eraser removes complete vector strokes/objects, never raster pixels. Hit-testing uses a **screen-space tolerance** so it remains usable after resize and on touch. Dragging may erase multiple strokes; one erase gesture should correspond to one undo step.
+
+### Laser
+
+The laser is a separate transient state.
+
+- default visual is red;
+- mouse hover tracks the dot even with no button pressed;
+- mouse/pen/touch drag may create a short smooth fading trail;
+- trail lifetime is temporary (reference implementation around 1.85 s);
+- laser never enters persistent ink or undo history;
+- pointer/object interactions must never accidentally create a persistent laser stroke;
+- leaving/releasing hides the dot when appropriate for the pointer type.
+
+### Undo / clear
+
+Undo restores the previous persistent drawing snapshot. Clear removes persistent ink but is itself undoable in-session. No keyboard shortcut may trigger a destructive action accidentally.
 
 ## Data model
 
@@ -60,11 +145,13 @@ Persist vector geometry in normalized coordinates rather than screenshots:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "strokes": [
     {
       "id": "s_...",
       "tool": "pen",
+      "color": "#111827",
+      "alpha": 1,
       "width": 3,
       "points": [
         {"x": 0.12, "y": 0.34, "p": 0.5},
@@ -75,26 +162,24 @@ Persist vector geometry in normalized coordinates rather than screenshots:
 }
 ```
 
-`x` and `y` are 0..1. Pressure is optional. Stored state contains geometry/tool semantics, not hard-coded colors.
+`x` and `y` are 0..1. Pressure is optional. Line strokes may additionally store `lineMode` and `tickSize`.
+
+Old Study System whiteboard strokes lacking color migrate to black; old highlighter strokes migrate to translucent yellow unless they already carry a color.
 
 ## Rendering invariants
 
 - Canvas scales by `devicePixelRatio` for sharp rendering.
-- Vectors are projected to the current CSS size.
-- Theme switching re-renders the same vectors using current `background` and `ink`.
-- Thumbnail is derived from the vector state; do not make the thumbnail the canonical storage.
+- Vector coordinates project to the current CSS size.
+- Resize/orientation changes never erase or distort canonical geometry.
+- Theme switching never recolors board vectors.
+- Thumbnail is derived from vector state; it is not canonical storage.
+- Thumbnail auto-crops around the learner’s actual marks so the mnemonic remains legible at small size.
 
-## Tool interaction
+## Mount / timing robustness
 
-**Pen/highlighter:** pointer down begins, moves append normalized points, pointer up commits and persists.
+The study page may be assembled after bootstrap/document replacement. The capability therefore must not assume one DOM timing point.
 
-**Line:** pointer down sets start, drag previews, pointer up commits end.
-
-**curve3:** three taps/clicks: start → control → end. Pending points remain visible. Third point commits a quadratic Bézier.
-
-**Stroke eraser:** hit-test the pointer against vector geometry and delete the nearest stroke within a screen-space tolerance.
-
-**Laser:** temporary overlay only; never enters drawing history or persistence.
+A compliant implementation rescans for topic cards at initial execution, DOMContentLoaded/requestAnimationFrame, short delayed retries, and/or a MutationObserver. A failure to mount the whiteboard must never block the underlying study page.
 
 ## Mastery integration
 
@@ -102,4 +187,4 @@ Drawing is evidence of active processing but must not automatically mark mastery
 
 ## Failure behavior
 
-If canvas APIs fail, the ordinary study page and all explanatory content must remain available. Whiteboard failure must never block study navigation.
+If canvas APIs fail, the ordinary study page and all explanatory content remain available. Whiteboard failure must never block study navigation.
