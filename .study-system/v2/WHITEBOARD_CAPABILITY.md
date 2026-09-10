@@ -4,22 +4,42 @@ Capability id: `mnemonic_whiteboard`
 
 ## Intent
 
-Turn active note-making into a persistent visual retrieval cue. When a topic is open, the learner gets a large board for drawings/handwritten structure plus an optional typed note. When the topic closes, the same vector drawing becomes a small thumbnail beside the topic. The thumbnail is a mnemonic handle, not decoration.
+Turn active note-making into a persistent visual retrieval cue **without replacing the existing study architecture**.
+
+The ordinary study surface remains primary:
+
+`module summary → topic inventory → expandable topic explanation`
+
+The whiteboard is an optional capability attached beneath an individual topic. A topic must remain completely usable when the board is never opened.
+
+When the learner opens the board, it expands into a large working surface for drawings/handwritten structure. When the board closes, that large surface collapses and, if it contains marks, becomes a small mnemonic thumbnail inside the same topic card. The thumbnail is a personal retrieval cue, not a replacement for the topic title, anchor, summary or explanation.
+
+## Placement invariant
+
+Do **not** create a whiteboard-first page or a separate card architecture for topics merely because this capability is enabled.
+
+- Closed module/topic layout must preserve the normal study overview.
+- Opening a topic reveals its normal explanation first.
+- The board launcher appears after/below that topic content.
+- The board expands only on explicit request.
+- Closing the board restores the normal topic view.
+- A non-empty board leaves behind a compact thumbnail/mini-flashcard associated with that topic.
+- If no drawing exists, a closed topic should not gain unnecessary extra visual weight.
 
 ## Open state
 
 - Large board usable with desktop mouse, iPad/pen and phone touch.
 - Pointer Events; `touch-action:none` on the drawing surface.
 - Drawing persists per topic.
-- Optional typed note persists beside the board.
 - Resize/orientation/theme changes do not erase or distort geometry.
+- The topic explanation remains conceptually authoritative; drawing is learner-authored memory support.
 
 ## Closed state
 
-- If the board contains marks, render a small thumbnail beside the topic.
+- If the board contains marks, render a small thumbnail inside/beneath the topic card.
 - Thumbnail always uses the current two theme colors.
-- Clicking/tapping the thumbnail opens the topic/board.
-- Marking recall complete may auto-collapse after state is saved.
+- Clicking/tapping the thumbnail reopens the topic/board.
+- The thumbnail should feel like a small visual flashcard, not like a second full content panel.
 
 ## Baseline tool contract
 
@@ -51,8 +71,7 @@ Persist vector geometry in normalized coordinates rather than screenshots:
         {"x": 0.13, "y": 0.35, "p": 0.7}
       ]
     }
-  ],
-  "note": "..."
+  ]
 }
 ```
 
@@ -83,4 +102,4 @@ Drawing is evidence of active processing but must not automatically mark mastery
 
 ## Failure behavior
 
-If canvas APIs fail, reading content must remain available and the typed note remains a fallback. Tool labels must remain understandable without relying only on icon shape.
+If canvas APIs fail, the ordinary study page and all explanatory content must remain available. Whiteboard failure must never block study navigation.
