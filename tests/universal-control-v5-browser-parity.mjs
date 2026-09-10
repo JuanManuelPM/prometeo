@@ -120,16 +120,20 @@ async function cornerFlow(browser, url) {
 
 const browser = await chromium.launch({ headless: true });
 try {
+  // Online catalog pruning may remove fake ids. The gate therefore compares the candidate
+  // to the exact Golden Master rather than inventing an absolute count after pruning.
   const dirty = '["alpha","","alpha","beta",7,null,"beta"]';
   const [legacyRoot, candidateRoot] = await Promise.all([
     rootSnapshot(browser, LEGACY, dirty),
     rootSnapshot(browser, CANDIDATE, dirty),
   ]);
-  assert.deepEqual(candidateRoot, legacyRoot, 'candidate root/Favorites normalization must match Golden Master');
-  assert.equal(candidateRoot.label, 'Favoritos · 2');
+  assert.deepEqual(candidateRoot, legacyRoot, 'candidate root/catalog-prune behavior must match Golden Master');
+  assert.match(candidateRoot.label || '', /^Favoritos(?: · \d+)?$/);
   assert.equal(candidateRoot.controls, 1);
   assert.deepEqual(candidateRoot.pageErrors, []);
 
+  // With external providers/catalog deliberately unavailable, fake ids cannot be pruned;
+  // this remains an explicit local-only persistence check in addition to parity.
   const [legacyOffline, candidateOffline] = await Promise.all([
     rootSnapshot(browser, LEGACY, '["alpha","beta"]', { blockExternal: true }),
     rootSnapshot(browser, CANDIDATE, '["alpha","beta"]', { blockExternal: true }),
