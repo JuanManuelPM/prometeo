@@ -1,0 +1,19 @@
+const api=typeof browser!=='undefined'?browser:chrome;
+const BB_INGEST='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/study-blackboard-v1?action=ingest';
+const BB_WORKSPACE='colo-study';
+let bbRunning=null;
+async function bbStore(){const x=await api.storage.local.get(['studyToken','deviceId','lastSync']);if(!x.deviceId){x.deviceId=crypto.randomUUID();await api.storage.local.set({deviceId:x.deviceId})}return x}
+async function bbIngest(payload){const s=await bbStore();if(!s.studyToken)throw new Error('not_paired');const r=await fetch(BB_INGEST,{method:'POST',credentials:'omit',headers:{'content-type':'application/json','x-study-token':s.studyToken,'x-study-workspace':BB_WORKSPACE},body:JSON.stringify({...payload,device_id:s.deviceId})});if(!r.ok)throw new Error('ingest_'+r.status);return r.json()}
+async function bbNotify(data){const tabs=await api.tabs.query({url:'https://juanmanuelpm.github.io/prometeo/pages/study-library/*'}).catch(()=>[]);for(const t of tabs)if(t.id!=null)api.tabs.sendMessage(t.id,{type:'PROMETEO_BB_EVENT',data}).catch(()=>{})}
+async function bbFetchPage(url){const r=await fetch(url,{credentials:'include',redirect:'follow',cache:'no-store',headers:{accept:'text/html,application/xhtml+xml'}});const ct=r.headers.get('content-type')||'';if(!r.ok||!ct.includes('text/html'))return null;return{url:r.url||url,...parseBBPage(await r.text(),r.url||url)}}
+async function bbSync(reason='manual'){
+ if(bbRunning)return bbRunning;
+ bbRunning=(async()=>{await bbNotify({state:'syncing',reason,at:Date.now()});const queue=[BB_BASE+'/',BB_BASE+'/ultra/course',BB_BASE+'/webapps/portal/execute/tabs/tabAction?tab_tab_group_id=_1_1'],seen=new Set(),courses=new Map(),items=new Map();let pages=0,login=false;
+ while(queue.length&&pages<90&&items.size<2200){const url=queue.shift();if(!url||seen.has(url))continue;seen.add(url);let p=null;try{p=await bbFetchPage(url)}catch{}if(!p)continue;if(p.password||/login|auth/i.test(new URL(p.url).pathname)){login=true;continue}pages++;for(const c of p.courses)courses.set(c.course_key,{...(courses.get(c.course_key)||{}),...c});for(const x of p.items)if(items.size<2200)items.set(x.item_key,x);for(const h of p.enqueue)if(!seen.has(h)&&!queue.includes(h)&&bbUseful(h))queue.push(h);if(pages%8===0)await bbNotify({state:'syncing',pages,courses:courses.size,items:items.size,at:Date.now()})}
+ if(!pages&&login){await bbNotify({state:'needs_login',at:Date.now()});return{ok:false,needs_login:true}}
+ if(!pages){const out={state:'error',error:'Abrí Blackboard una vez y volvé a sincronizar.',at:Date.now()};await bbNotify(out);return{ok:false,...out}}
+ const result=await bbIngest({courses:[...courses.values()],items:[...items.values()],pages}),out={state:'ok',pages,courses:courses.size,items:items.size,ingest:result?.ingest||{},at:Date.now()};await api.storage.local.set({lastSync:out});await bbNotify(out);return{ok:true,...out}})().finally(()=>bbRunning=null);return bbRunning
+}
+api.runtime.onInstalled.addListener(()=>api.alarms.create('prometeo-bb-auto',{periodInMinutes:15}));
+api.alarms.onAlarm.addListener(a=>{if(a.name==='prometeo-bb-auto')api.storage.local.get('studyToken').then(x=>x.studyToken&&bbSync('auto')).catch(()=>{})});
+api.runtime.onMessage.addListener(m=>{if(!m)return;if(m.type==='PAIR')return api.storage.local.set({studyToken:m.token,workspace:BB_WORKSPACE}).then(()=>{api.alarms.create('prometeo-bb-auto',{periodInMinutes:15});return bbSync('pair')});if(m.type==='SYNC')return bbSync('manual');if(m.type==='STATUS')return bbStore().then(x=>({paired:!!x.studyToken,lastSync:x.lastSync||null,running:!!bbRunning}));if(m.type==='PAGE_SNAPSHOT'&&m.payload)return bbIngest({courses:m.payload.courses||[],items:m.payload.items||[],pages:1}).then(()=>bbNotify({state:'page_captured',url:m.payload.url,at:Date.now()})).catch(()=>{})});
