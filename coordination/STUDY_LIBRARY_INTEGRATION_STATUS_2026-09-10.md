@@ -50,3 +50,13 @@ Static integration checks:
 - Existing RLS remains room-token scoped.
 
 Browser/hardware behavior still depends on the WB10 contract: Pointer Events, tablet mode, long-press suppression and pen-aware palm rejection work when the browser exposes a pen signal; hardware that reports pen and palm identically as generic touch cannot be perfectly distinguished.
+
+## Final publish evidence
+
+- `main`: `28c845ce235618bdc6f4835b7f10dd70b71e2ba4` (`Integrate Study System V2 and WB10 into Study Library`).
+- A concurrent GitHub Actions publish advanced `gh-pages` during integration. The first ref update correctly failed as non-fast-forward; the integration was rebuilt on the newer Pages tree instead of forcing over it.
+- `gh-pages`: `cd82463635da38c60eef9df2f2967f231937f3e2`, parent `5447bdb9a291137c5fdc1895c1a7b085851b99c6` (`runtime: publish Agent Network v3 + global constitution`). This preserves that parallel publish.
+- Public HTTP probes returned 200 for the Study Library route, assessment registry, V10 loader, V10 integration runtime, Universal Whiteboard adapter and Study System reference lab.
+- Local static QA before publish: `node --check` passed for `study-v10-loader.js`, `universal-whiteboard-adapter-v1.js` and `study-v10-integration.js`; JSON parsing passed for both integration manifests/registry.
+
+The remaining validation boundary is browser/hardware interaction: microphone, realtime multi-device editing and pen/palm behavior require an actual browser/device session. The implementation does not claim per-stroke CRDT semantics.
