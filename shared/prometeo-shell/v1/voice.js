@@ -28,14 +28,18 @@ export class VoiceQueue{
     const w=new Worker(this.workerURL,{type:'module'});
     w.onmessage=async e=>{
       const d=e.data||{};
-      if(d.type==='model-ready') return;
+      if(d.type==='model-ready'||d.type==='warmup-error') return;
       if(!d.id) return;
       const note=await getNote(d.id);
       if(!note) return;
       if(d.type==='status') note.status=d.status;
       if(d.type==='done'){
+        const previous=String(note.text||'').replace(/\s+/g,' ').trim();
+        const next=String(d.text||'').replace(/\s+/g,' ').trim();
         note.status='done';
-        note.text=String(d.text||'').replace(/\s+/g,' ').trim();
+        note.text=next;
+        if(next&&next!==previous)note.transcriptRevision=Math.max(1,Number(note.transcriptRevision||1))+1;
+        note.transcriptState='MACHINE';
         note.error='';
         this.processing=false;
       }
