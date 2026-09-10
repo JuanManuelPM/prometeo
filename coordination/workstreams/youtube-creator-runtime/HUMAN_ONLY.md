@@ -1,21 +1,32 @@
 # HUMAN_ONLY — YouTube Creator Runtime
 
-This file is the only intended human frontier after worker-soluble setup.
+This is the complete intended human frontier. Everything outside this list is runtime work.
 
-## Required only when moving from fixtures to real providers
+## Required to leave fixture mode
 
-1. Open the published Setup page and sign in with the existing Prometeo account if no session is present.
-2. Gemini: create/copy one Google AI Studio API key and paste it into Setup. The key is sent to Supabase Vault and cleared from the browser field.
-3. Google/YouTube: in a Google Cloud project, enable YouTube Data API v3 and YouTube Analytics API; configure OAuth consent for the user's account; create a Web OAuth client with redirect URI:
+1. Open the published Setup page. If the shared Prometeo Supabase session is not present, sign in once by email magic link.
+2. Gemini / Veo: open Google AI Studio, create or copy one API key, paste it in Setup. Setup sends it directly to server-side Vault, probes available models, then clears the browser field.
+3. Google / YouTube: in one Google Cloud project enable:
+   - YouTube Data API v3
+   - YouTube Analytics API
+   - YouTube Reporting API
+   Configure OAuth consent for the account, then create one **Web application** OAuth client with this exact redirect URI:
    `https://catnohyouxqjjtseaueb.supabase.co/functions/v1/creator-google-oauth/callback`
-   Paste client ID + client secret in Setup, then click authorize and approve Google once.
-4. If no YouTube channel exists, create it in YouTube's UI, then authorize/detect again. Normal YouTube Data API does not create channels.
-5. Paid video: explicitly choose whether Veo spending is allowed and set a per-video cap. Default remains blocked.
+   Paste Client ID + Client Secret into Setup, then press authorize and approve Google/YouTube once.
+4. If there is no YouTube channel yet, create it using YouTube's own create-channel UI, return to Setup and authorize/detect again. The normal YouTube Data API does not create channels.
+5. Decide whether paid Veo generation is allowed. It remains disabled by default. If enabled, set a per-video USD ceiling in Setup.
+6. Run the zero-cost factory canary. Once Google/YouTube is authorized, optionally run the private-upload canary. The canary never requests public publication.
+7. Export `prometeo_creator_handoff.json` if another chat/agent needs a portable status snapshot. It contains no provider secrets or tokens.
 
-## Not human work
+## Optional
 
-Do not ask the user to create the database, storage, Vault, workers, scheduler, OAuth callback, retry/recovery logic, API contract, QA fixture, external-work bridge, analytics schema, or frontend wiring. Those are runtime responsibilities.
+- Hugging Face token: optional fallback only.
+- External TTS credential: not required for the core factory. Creator treats voice-provider failure as non-blocking unless a specific channel later requires that voice provider.
+
+## Never ask the user to do these
+
+Database/schema, Storage bucket, Vault plumbing, scheduler, job leasing/recovery, OAuth callback, refresh-token storage, provider adapters, prompt compiler, QA, resumable upload logic, Analytics collectors, Reporting reach collector, external-AI work packets, idempotency, frontend contract, deploys, or GitHub persistence.
 
 ## Completion signal
 
-Use `GET /setup/status`. Human setup is complete only when `human_gates` is empty. Export `GET /handoff/export` after that; the handoff contains no provider secrets or tokens.
+Use `GET /setup/status` for human gates. A Reporting reach job may take up to YouTube's reporting delay after OAuth; that delay is machine-waiting, not a human gate. Export `GET /handoff/export` after setup. Secrets are never exported.
