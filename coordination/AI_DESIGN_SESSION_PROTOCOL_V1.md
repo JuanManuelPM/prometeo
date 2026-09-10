@@ -72,10 +72,11 @@ If a direct authorized save tool is unavailable:
 1. Serialize the JSON payload as UTF-8.
 2. Encode it as URL-safe base64 without padding.
 3. URL-encode the packet's private `save_token`.
-4. Take the packet's token-free `save.fallback_page` and append the fragment `#t=<encoded_save_token>&p=<encoded_payload>`.
-5. Give the human **one clickable “Guardar en Prometeo” link**. Do not ask them to copy JSON or tokens manually.
+4. Normalize `save.fallback_page` to **origin + pathname only**: discard any query string or fragment that an older backend packet may contain. Never navigate to that raw URL.
+5. Append exactly one fragment: `#t=<encoded_save_token>&p=<encoded_payload>`.
+6. Give the human **one clickable “Guardar en Prometeo” link**. Do not ask them to copy JSON or tokens manually.
 
-Both the save capability token and the note body stay in the URL fragment, so they are not sent to the static host as part of the HTTP request. The Prometeo save page removes the fragment from browser history before POSTing the payload to the private session capability.
+Both the save capability token and the note body stay in the URL fragment, so they are not sent to the static host as part of the HTTP request. The Prometeo save page removes the fragment from browser history before parsing it and POSTing the payload to the private session capability. This normalization is backward-compatible with older session packets that accidentally carried a token in `fallback_page`; that query must be discarded, not opened.
 
 After a confirmed save, state that the session was saved as an AI-derived note on that page. A later **Trabajar** run will automatically include that note if it is still unworked.
 
