@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Surgically add Page Change Loop to the verified single-host V5 source.
+"""Add the anywhere-notes Change Loop to the verified single-host V5 source.
 
-The Universal Control remains the only global shell. This builder only adds the
-Change Loop adapter, unread projection and host-routed page/result deep links.
-Child pages never own or mount global Prometeo navigation.
+This is deliberately surgical: Universal Control stays the only global shell.
+The Change Loop owns page notes/recording/work/think UX but not navigation.
 """
 from __future__ import annotations
 import hashlib
@@ -17,8 +16,8 @@ META=V5/'candidate'/'CHANGE_LOOP_SOURCE_SHA256.txt'
 BASELINE_SHA='5e1d5a1e8239e1d33f5c6b3a9347422e901fdb12c91da86c79796b89f6783475'
 
 def one(text,old,new,label):
-    c=text.count(old)
-    if c!=1: raise SystemExit(f'{label}: expected 1 marker, found {c}')
+    count=text.count(old)
+    if count!=1: raise SystemExit(f'{label}: expected 1 marker, found {count}')
     return text.replace(old,new,1)
 
 def main():
@@ -40,6 +39,10 @@ def main():
 });"""
     text=one(text,host,enhanced,'host api')
 
+    old_worker="workerURL:'https://juanmanuelpm.github.io/prometeo/shared/prometeo-shell/v1/prometeo-voice-worker.js?v=1',"
+    new_worker="workerURL:'https://juanmanuelpm.github.io/prometeo/shared/prometeo-shell/v1/prometeo-voice-worker-v2.js?v=2',"
+    text=one(text,old_worker,new_worker,'voice worker v2')
+
     marker="const captureSync=createCaptureSyncQueue({remote,getNote:id=>getNote(id),listNotes:()=>listNotes(),pageForNote,onState:renderSyncState});"
     add=marker+"""
 
@@ -54,24 +57,36 @@ async function createTextCaptureForChangeLoop(text,targetPage){
     sourcePath:p.public_url||p.href||location.pathname,
     sourceHref:p.public_url||p.href||location.href,
     sourceTitle:p.title||p.id,
-    viewport:`${innerWidth}x${innerHeight}`,pageId:p.id,transcriptRevision:1
+    viewport:`${innerWidth}x${innerHeight}`,pageId:p.id,transcriptRevision:1,
+    metadata:{source_kind:'HUMAN_TEXT'}
   };
   if(!note.text)return null;
   await putNote(note);await refreshNotes();captureSync.reconcile?.();scheduleSync(0);
   try{await syncAll()}catch{}
   return note;
 }
-function openLegacyNotesFromLoop(){
-  refreshNotes().then(()=>{state.stack=[ROOT,buildNotesHome()];state.index=0;state.armed=null;openSelector();render()}).catch(()=>{});
+async function listLocalNotesForChangeLoop(){await refreshNotes();return notes.slice()}
+async function retryLocalTranscription(id){
+  const n=await getNote(id);if(!n?.audio)return null;
+  n.status='queued';n.error='';await putNote(n);voice.processQueue?.();await refreshNotes();return n;
 }
+function openLegacyNotesFromLoop(){refreshNotes().then(()=>{state.stack=[ROOT,buildNotesHome()];state.index=0;state.armed=null;openSelector();render()}).catch(()=>{})}
 async function loadPageChangeLoop(){
   if(globalThis.__PROMETEO_CHANGE_LOOP__)return globalThis.__PROMETEO_CHANGE_LOOP__;
   if(changeLoopPromise)return changeLoopPromise;
-  const url=location.hostname==='juanmanuelpm.github.io'?'/prometeo/shared/capture/v1/change-loop.js?v=2':'/shared/capture/v1/change-loop.js?v=2';
+  const url=location.hostname==='juanmanuelpm.github.io'?'/prometeo/shared/capture/v1/change-loop.js?v=3':'/shared/capture/v1/change-loop.js?v=3';
   changeLoopPromise=import(url).then(m=>m.mountPageChangeLoop({adapter:{
     getPage:()=>window.__PROMETEO_UNIVERSAL_HOST__?.getPage?.(),
     syncNow:async()=>{try{await syncAll()}catch{}},
     createTextCapture:createTextCaptureForChangeLoop,
+    listLocalNotes:listLocalNotesForChangeLoop,
+    getLocalNote:id=>getNote(id),
+    retryLocalTranscription,
+    recordingState:()=>voice.state(),
+    startRecording:async()=>{await voice.start();return voice.state()},
+    pauseResumeRecording:()=>{voice.pauseResume();return voice.state()},
+    saveRecording:async()=>{const note=await voice.save(pageMeta());await refreshNotes();captureSync.reconcile?.();scheduleSync(0);return note},
+    discardRecording:()=>{voice.discard();return voice.state()},
     previewUrl:url=>window.__PROMETEO_UNIVERSAL_HOST__?.previewUrl?.(url),
     hostUrl:(pageId,workItemId)=>window.__PROMETEO_UNIVERSAL_HOST__?.routeUrl?.(pageId,workItemId),
     navigatePage:(pageId,opts)=>window.__PROMETEO_UNIVERSAL_HOST__?.navigatePage?.(pageId,opts),
@@ -84,17 +99,33 @@ async function loadPageChangeLoop(){
 """
     text=one(text,marker,add,'change loop loader')
 
-    old="""    if(it.action==='notes'){
+    old_notes="""    if(it.action==='notes'){
       await refreshNotes();
       state.stack.push(buildNotesHome());
       state.index=0;state.armed=null;render();return;
     }"""
-    new="""    if(it.action==='notes'){
+    new_notes="""    if(it.action==='notes'){
       const loop=await loadPageChangeLoop();
       if(loop){state.stack=[ROOT];state.index=0;closeSelector();const opened=await loop.open(currentPage||null);if(opened)return}
       await refreshNotes();state.stack.push(buildNotesHome());state.index=0;state.armed=null;render();return;
     }"""
-    text=one(text,old,new,'notes action')
+    text=one(text,old_notes,new_notes,'notes action')
+
+    old_record="""    if(it.action==='record'){
+      if(voice.state().active){
+        state.stack.push(RECORD_NODE);state.index=1;confirmDiscard=false;render();return;
+      }
+      await startRecording();
+      state.stack=[ROOT,RECORD_NODE];state.index=1;state.armed=null;confirmDiscard=false;
+      openSelector();render();return;
+    }"""
+    new_record="""    if(it.action==='record'){
+      const loop=await loadPageChangeLoop();
+      if(loop){state.stack=[ROOT];state.index=0;closeSelector();const opened=await loop.open(currentPage||null,{startRecording:!voice.state().active});if(opened)return}
+      if(voice.state().active){state.stack.push(RECORD_NODE);state.index=1;confirmDiscard=false;render();return}
+      await startRecording();state.stack=[ROOT,RECORD_NODE];state.index=1;state.armed=null;confirmDiscard=false;openSelector();render();return;
+    }"""
+    text=one(text,old_record,new_record,'record action')
 
     old_start="""const hashId=pageRoute.hashId();
 if(hashId){
@@ -109,10 +140,7 @@ if(requestedPageId){
   ensureCatalog().then(async()=>{
     const p=pageRegistry.get(requestedPageId);if(!p)return;
     loadPage(p,false);
-    if(launchWorkItem){
-      const loop=await loadPageChangeLoop();
-      await loop?.openResult?.(p,launchWorkItem,{markSeen:true});
-    }
+    if(launchWorkItem){const loop=await loadPageChangeLoop();await loop?.openResult?.(p,launchWorkItem,{markSeen:true})}
   }).catch(error=>backendStatus.set('host-deeplink','DEGRADED',String(error?.message||error)));
 }"""
     text=one(text,old_start,new_start,'host deep link startup')
@@ -120,13 +148,13 @@ if(requestedPageId){
     ready="backendStatus.set('shell','READY');render();closeSelector(true);requestAnimationFrame(frame);"
     text=one(text,ready,"loadPageChangeLoop().then(loop=>loop?.pollUnread?.()).catch(()=>{});\n"+ready,'startup unread')
 
-    required=['loadPageChangeLoop','createTextCaptureForChangeLoop','data-change-unread','getPage:()=>currentPage','routeUrl:(pageId,workItemId=null)','navigatePage:async(pageId','launchWorkItem','openResult?.(p,launchWorkItem','previewUrl:url','openLegacyNotesFromLoop','suppressNextClosedClick=true','__PROMETEO_UNIVERSAL_HOST__']
+    required=['change-loop.js?v=3','prometeo-voice-worker-v2.js?v=2','recordingState:()=>voice.state()','startRecording:async()=>','listLocalNotes:listLocalNotesForChangeLoop','retryLocalTranscription','loadPageChangeLoop','createTextCaptureForChangeLoop','data-change-unread','routeUrl:(pageId,workItemId=null)','launchWorkItem','openResult?.(p,launchWorkItem','suppressNextClosedClick=true']
     missing=[x for x in required if x not in text]
     if missing: raise SystemExit(f'missing markers {missing}')
-    if text.count("if(it.action==='notes')")!=1: raise SystemExit('notes action duplicated')
+    if text.count("if(it.action==='notes')")!=1 or text.count("if(it.action==='record')")!=1: raise SystemExit('action duplication')
     OUT.write_text(text,encoding='utf-8')
     outsha=hashlib.sha256(text.encode()).hexdigest()
-    META.write_text(f'{outsha}  change-loop-source.html\nbaseline_sha256={BASELINE_SHA}\nchange=PAGE_CHANGE_LOOP_HOST_ROUTING_V2\nsingle_global_shell=true\n',encoding='utf-8')
+    META.write_text(f'{outsha}  change-loop-source.html\nbaseline_sha256={BASELINE_SHA}\nchange=PAGE_NOTES_ANYWHERE_V3\nsingle_global_shell=true\n',encoding='utf-8')
     print('built',OUT.relative_to(ROOT),outsha)
 
 if __name__=='__main__':main()
