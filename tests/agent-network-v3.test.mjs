@@ -40,13 +40,22 @@ let events=deriveConvergence([
 ]);
 assert.equal(events.some(e=>e.type==='HARD_WRITE_COLLISION'),false);
 
-// Same owner scope must surface a hard collision.
+// Same owner scope is a hard collision only while BOTH sides are live writers.
 events=deriveConvergence([
-  {id:'a',repository:'R',write_scope:['shared/input/**'],needs:[],provides:[],depends_on:[],impacts:[],candidate_shared_owners:[]},
-  {id:'b',repository:'R',write_scope:['shared/input/pointer/**'],needs:[],provides:[],depends_on:[],impacts:[],candidate_shared_owners:[]}
+  {id:'a',repository:'R',write_scope:['shared/input/**'],worker_state:'EXECUTING',needs:[],provides:[],depends_on:[],impacts:[],candidate_shared_owners:[]},
+  {id:'b',repository:'R',write_scope:['shared/input/pointer/**'],worker_state:'WRITING',needs:[],provides:[],depends_on:[],impacts:[],candidate_shared_owners:[]}
 ]);
 assert.equal(events.filter(e=>e.type==='HARD_WRITE_COLLISION').length,1);
 assert.equal(events.find(e=>e.type==='HARD_WRITE_COLLISION').blocking,true);
+
+// Historical/completed overlap is context, never a live lock.
+events=deriveConvergence([
+  {id:'done',repository:'R',write_scope:['shared/input/**'],worker_state:'COMPLETE',needs:[],provides:[],depends_on:[],impacts:[],candidate_shared_owners:[]},
+  {id:'live',repository:'R',write_scope:['shared/input/pointer/**'],worker_state:'EXECUTING',needs:[],provides:[],depends_on:[],impacts:[],candidate_shared_owners:[]}
+]);
+assert.equal(events.some(e=>e.type==='HARD_WRITE_COLLISION'),false);
+assert.equal(events.filter(e=>e.type==='INACTIVE_SCOPE_OVERLAP').length,1);
+assert.equal(events.find(e=>e.type==='INACTIVE_SCOPE_OVERLAP').blocking,false);
 
 // Provider change should reach only the dependent consumer.
 events=deriveConvergence([
