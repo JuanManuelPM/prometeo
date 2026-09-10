@@ -10,20 +10,42 @@ The ordinary study surface remains primary:
 
 `module summary → topic inventory → expandable topic explanation`
 
-The whiteboard is an optional capability attached beneath an individual topic. A topic must remain completely usable when the board is never opened.
+The whiteboard is an optional capability attached to an individual topic. A topic must remain completely usable when the board is never opened.
 
-When the learner opens the board, it becomes a full-viewport working surface. When the board closes, if it contains marks, it becomes a small mnemonic thumbnail inside the same topic card. The thumbnail is a personal retrieval cue, not a replacement for title, anchor, summary or explanation.
+When the learner opens the board, it becomes a full-viewport working surface. The learner may keep the topic text visible beside the paper while drawing or hide it to reclaim the whole canvas. When the board closes, if it contains marks, its compact launcher becomes the mnemonic thumbnail inside the same topic header.
 
 ## Placement invariant
 
 Do **not** create a whiteboard-first page or replace the normal study cards.
 
 - Closed module/topic layout preserves the normal study overview.
-- Every visible topic card may expose one compact `Pizarrón` launcher.
+- Every visible topic card may expose one compact whiteboard launcher.
+- The launcher belongs **inside the topic header, to the right of the title/anchor**, whenever there is enough horizontal room.
+- Do not spend a second full-width row merely to label the launcher `Pizarrón`.
+- The launcher is the white paper preview itself; text labels may remain accessible through `aria-label` / tooltip rather than visual chrome.
 - The board opens only on explicit request.
-- The board opens outside the topic grid so it can use almost the full viewport.
 - Closing restores exactly the prior study state.
-- A non-empty board leaves a compact white thumbnail/mini-flashcard associated with that topic.
+- A non-empty board turns the launcher into a compact white mnemonic thumbnail associated with that topic.
+
+On narrow screens the preview may shrink, but should remain in the header unless that would make the topic title unusable.
+
+## Reference-while-drawing invariant
+
+Opening a blank canvas must not force the learner to remember the source material from memory before they can begin drawing.
+
+A compliant board provides an optional **live topic reference pane** while drawing:
+
+- desktop/tablet: reference and white paper may coexist side-by-side;
+- reference defaults to the current topic, not the whole module;
+- `resumen` shows the topic title, anchor and the high-value `CLAVE` / `EXPLICACIÓN` material;
+- `todo` exposes the full explanatory panes for that topic;
+- one compact `texto` control hides/shows the reference pane without closing the board;
+- hiding the reference expands the white paper and triggers a canvas reflow without changing stored vector geometry;
+- opening another topic switches the reference to that topic;
+- reference visibility/mode may persist as a user preference;
+- mobile may use a drawer/overlay rather than permanently shrinking the drawing surface.
+
+The reference pane is read-only study material. It is not copied into the learner-authored drawing automatically.
 
 ## Visual isolation
 
@@ -170,7 +192,7 @@ Old Study System whiteboard strokes lacking color migrate to black; old highligh
 
 - Canvas scales by `devicePixelRatio` for sharp rendering.
 - Vector coordinates project to the current CSS size.
-- Resize/orientation changes never erase or distort canonical geometry.
+- Resize/orientation/reference-pane changes never erase or distort canonical geometry.
 - Theme switching never recolors board vectors.
 - Thumbnail is derived from vector state; it is not canonical storage.
 - Thumbnail auto-crops around the learner’s actual marks so the mnemonic remains legible at small size.
