@@ -4,11 +4,13 @@ on:
   push:
     branches:
       - candidate/universal-control-v5-backend-20260910
+      - candidate/universal-control-v5-shadow-favorites-20260910
     paths:
       - 'shared/universal-shell/v5/backend/**'
       - 'tests/universal-control-v5-*.mjs'
       - 'scripts/materialize-universal-control-v5-baseline.py'
       - 'scripts/build-universal-control-v5-favorites-facade.py'
+      - 'scripts/build-universal-control-v5-backend-facades.py'
       - '.github/workflows/universal-control-v5-candidate.yml'
   pull_request:
     branches: [main]
@@ -17,6 +19,7 @@ on:
       - 'tests/universal-control-v5-*.mjs'
       - 'scripts/materialize-universal-control-v5-baseline.py'
       - 'scripts/build-universal-control-v5-favorites-facade.py'
+      - 'scripts/build-universal-control-v5-backend-facades.py'
       - '.github/workflows/universal-control-v5-candidate.yml'
 
 permissions:
@@ -36,28 +39,31 @@ jobs:
           fetch-depth: 0
 
       - name: Node contract parity
-        run: node --test tests/universal-control-v5-favorites-store.test.mjs
+        run: node --test tests/universal-control-v5-favorites-store.test.mjs tests/universal-control-v5-backend-runtime.test.mjs
 
       - name: Materialize exact Golden Master source
         run: python scripts/materialize-universal-control-v5-baseline.py
 
-      - name: Build self-contained Favorites facade candidate
+      - name: Build P1 Favorites facade candidate
         run: python scripts/build-universal-control-v5-favorites-facade.py
 
-      - name: Verify candidate extraction cannot mutate served runtime
+      - name: Build modular backend candidate
+        run: python scripts/build-universal-control-v5-backend-facades.py
+
+      - name: Verify extraction cannot mutate Served runtime
         shell: bash
         run: |
           set -euo pipefail
           git diff --exit-code -- index.html shared/universal-shell/v5/chunk-1.b64 shared/universal-shell/v5/chunk-2.b64 shared/universal-shell/v5/chunk-3.b64 shared/universal-shell/v5/chunk-4.b64 shared/universal-shell/v5/chunk-5.b64 shared/universal-shell/v5/CORNER_ANCHOR_v1.json
           test "$(sha256sum shared/universal-shell/v5/candidate/baseline-source.html | awk '{print $1}')" = '67965c4da9161737f06fcf6503d6b73db43eef574796977327c97f165e514d8a'
-          grep -q 'P1 Favorites compatibility facade' shared/universal-shell/v5/candidate/favorites-facade-source.html
-          grep -q "prometeo.universal-control.corner.v1" shared/universal-shell/v5/candidate/favorites-facade-source.html
-          grep -q 'nearestCorner' shared/universal-shell/v5/candidate/favorites-facade-source.html
-          grep -q 'localVector' shared/universal-shell/v5/candidate/favorites-facade-source.html
-          if grep -q "import('../backend/favorites-store-v1.js')" shared/universal-shell/v5/candidate/favorites-facade-source.html; then
-            echo 'Facade candidate unexpectedly introduced a runtime module dependency.' >&2
-            exit 1
-          fi
+          grep -q 'window.__PROMETEO_V5_BACKEND_STATUS__=backendStatus' shared/universal-shell/v5/candidate/backend-facades-source.html
+          grep -q 'const captureSync=createCaptureSyncQueue' shared/universal-shell/v5/candidate/backend-facades-source.html
+          grep -q 'const contextProvider=createContextProvider' shared/universal-shell/v5/candidate/backend-facades-source.html
+          grep -q 'const pageRoute=createPageRouteController' shared/universal-shell/v5/candidate/backend-facades-source.html
+          grep -q 'prometeo.universal-control.corner.v1' shared/universal-shell/v5/candidate/backend-facades-source.html
+          grep -q 'favorites-organizer' shared/universal-shell/v5/candidate/backend-facades-source.html
+          grep -q 'nearestCorner' shared/universal-shell/v5/candidate/backend-facades-source.html
+          grep -q 'localVector' shared/universal-shell/v5/candidate/backend-facades-source.html
 
       - name: Install browser canary dependency
         shell: bash
@@ -65,7 +71,7 @@ jobs:
           npm install --no-save --no-package-lock playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Browser parity — legacy vs facade
+      - name: Browser parity — P1 and modular candidate
         shell: bash
         run: |
           set -euo pipefail
@@ -76,7 +82,8 @@ jobs:
             if curl -fsS http://127.0.0.1:4173/shared/universal-shell/v5/candidate/baseline-source.html >/dev/null; then break; fi
             sleep .25
           done
-          node tests/universal-control-v5-browser-parity.mjs
+          V5_CANDIDATE_PATH='shared/universal-shell/v5/candidate/favorites-facade-source.html' node tests/universal-control-v5-browser-parity.mjs
+          V5_CANDIDATE_PATH='shared/universal-shell/v5/candidate/backend-facades-source.html' node tests/universal-control-v5-browser-parity.mjs
 
       - name: Persist candidate source snapshots
         if: github.event_name == 'push'
@@ -89,11 +96,13 @@ jobs:
             shared/universal-shell/v5/candidate/baseline-source.html \
             shared/universal-shell/v5/candidate/BASELINE_SOURCE_SHA256.txt \
             shared/universal-shell/v5/candidate/favorites-facade-source.html \
-            shared/universal-shell/v5/candidate/FAVORITES_FACADE_SOURCE_SHA256.txt
+            shared/universal-shell/v5/candidate/FAVORITES_FACADE_SOURCE_SHA256.txt \
+            shared/universal-shell/v5/candidate/backend-facades-source.html \
+            shared/universal-shell/v5/candidate/BACKEND_FACADES_SOURCE_SHA256.txt
           if git diff --cached --quiet; then
             echo 'Candidate source snapshots already persisted.'
             exit 0
           fi
-          git commit -m 'shell: persist V5 candidate source snapshots [skip ci]'
-          git pull --rebase origin candidate/universal-control-v5-backend-20260910
-          git push origin HEAD:candidate/universal-control-v5-backend-20260910
+          git commit -m 'shell: persist modular V5 candidate source snapshots [skip ci]'
+          git pull --rebase origin ${{ github.ref_name }}
+          git push origin HEAD:${{ github.ref_name }}
