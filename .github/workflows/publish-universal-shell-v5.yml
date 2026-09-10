@@ -11,6 +11,7 @@ on:
       - 'shared/universal-shell/v5/CORNER_ANCHOR_v1.json'
       - 'shared/universal-shell/v5/SINGLE_SHELL_HOST_CONTRACT_v1.json'
       - 'shared/storage/v1/prometeo-db.js'
+      - 'shared/capture/v1/change-loop.js'
       - 'shared/prometeo-shell/v1/**'
       - 'shared/prometeo-shell/v2/**'
       - '.github/workflows/publish-universal-shell-v5.yml'
@@ -36,6 +37,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node --check shared/capture/v1/change-loop.js
           python - <<'PY'
           import base64, gzip, hashlib, json, pathlib
           root = pathlib.Path('.')
@@ -65,8 +67,14 @@ jobs:
             '__PROMETEO_UNIVERSAL_HOST__',
             'prometeo:nested-shell',
             'favorites-organizer',
+            'loadPageChangeLoop',
+            'createTextCaptureForChangeLoop',
+            'data-change-unread',
           ]
           for marker in required: assert marker in text, marker
+          caps=m.get('capabilities',{})
+          for cap in ['single_top_level_shell','durable_favorites','page_change_threads','page_change_feed','disposable_agent_launcher','unread_change_indicator','text_capture_from_thread','private_attachment_intake']:
+              assert caps.get(cap) is True, cap
           assert 'corner-snapping .puck{pointer-events:none}' not in text
           loader=(root/'index.html').read_text()
           assert m['source_sha256'] in loader
@@ -77,7 +85,11 @@ jobs:
           assert 'data-prometeo-shell' not in loader
           assert 'RETIRED COMPATIBILITY STUB' in (root/'shared/prometeo-shell/v2/prometeo-shell.js').read_text()
           assert (root/'shared/storage/v1/prometeo-db.js').exists()
-          print('Manifested V5 validation PASS', m['source_sha256'])
+          change=(root/'shared/capture/v1/change-loop.js').read_text()
+          assert 'mountPageChangeLoop' in change
+          assert 'prepare_execution' in change
+          assert 'mark_seen' in change
+          print('Manifested V5 + Page Change Loop validation PASS', m['source_sha256'])
           PY
           python -m json.tool shared/universal-shell/v5/CORNER_ANCHOR_v1.json >/dev/null
           python -m json.tool shared/universal-shell/v5/SINGLE_SHELL_HOST_CONTRACT_v1.json >/dev/null
@@ -93,6 +105,7 @@ jobs:
           mkdir -p \
             /tmp/prometeo-pages/shared/universal-shell/v5 \
             /tmp/prometeo-pages/shared/storage/v1 \
+            /tmp/prometeo-pages/shared/capture/v1 \
             /tmp/prometeo-pages/shared/prometeo-shell/v1 \
             /tmp/prometeo-pages/shared/prometeo-shell/v2
           cp index.html /tmp/prometeo-pages/index.html
@@ -102,6 +115,7 @@ jobs:
           cp shared/universal-shell/v5/SINGLE_SHELL_HOST_CONTRACT_v1.json /tmp/prometeo-pages/shared/universal-shell/v5/SINGLE_SHELL_HOST_CONTRACT_v1.json
           cp shared/universal-shell/v5/SERVED_MANIFEST.json /tmp/prometeo-pages/shared/universal-shell/v5/SERVED_MANIFEST.json
           cp shared/storage/v1/prometeo-db.js /tmp/prometeo-pages/shared/storage/v1/prometeo-db.js
+          cp shared/capture/v1/change-loop.js /tmp/prometeo-pages/shared/capture/v1/change-loop.js
           cp shared/prometeo-shell/v1/*.js /tmp/prometeo-pages/shared/prometeo-shell/v1/
           cp shared/prometeo-shell/v2/*.js /tmp/prometeo-pages/shared/prometeo-shell/v2/
           cd /tmp/prometeo-pages
@@ -109,12 +123,13 @@ jobs:
             index.html \
             shared/universal-shell/v5 \
             shared/storage/v1/prometeo-db.js \
+            shared/capture/v1/change-loop.js \
             shared/prometeo-shell/v1 \
             shared/prometeo-shell/v2
           if git diff --cached --quiet; then
             echo 'Manifested Universal Shell V5 already complete on gh-pages.'
           else
-            git commit -m 'shell: publish re-draggable single-host Universal Control V5'
+            git commit -m 'shell: publish V5 Page Change Loop runtime'
             git pull --rebase origin gh-pages
             git push origin HEAD:gh-pages
           fi
@@ -132,6 +147,9 @@ jobs:
             if [ "$i" = 18 ]; then echo 'GitHub Pages did not expose the new root loader in time' >&2; exit 1; fi
             sleep 5
           done
+          curl -fsS "https://juanmanuelpm.github.io/prometeo/shared/capture/v1/change-loop.js?v=$SHA" -o /tmp/live-change-loop.js
+          grep -q 'mountPageChangeLoop' /tmp/live-change-loop.js
+          grep -q 'prepare_execution' /tmp/live-change-loop.js
           python - <<'PY'
           import base64, gzip, hashlib, json, urllib.request
           m=json.load(open('shared/universal-shell/v5/SERVED_MANIFEST.json'))
@@ -150,5 +168,7 @@ jobs:
           text=html.decode()
           assert '__PROMETEO_UNIVERSAL_HOST__' in text
           assert 'suppressNextClosedClick=true' in text
-          print('LIVE V5 BYTE CANARY PASS',m['source_sha256'])
+          assert 'loadPageChangeLoop' in text
+          assert 'data-change-unread' in text
+          print('LIVE V5 PAGE CHANGE LOOP BYTE CANARY PASS',m['source_sha256'])
           PY
