@@ -40,28 +40,28 @@ A compliant board provides an optional **live topic reference pane** while drawi
 - `resumen` shows the topic title, anchor and the high-value `CLAVE` / `EXPLICACIÓN` material;
 - `todo` exposes the full explanatory panes for that topic;
 - one compact `texto` control hides/shows the reference pane without closing the board;
-- hiding the reference expands the white paper and triggers a canvas reflow without changing stored vector geometry;
+- hiding the reference expands the white paper and triggers a canvas reflow without changing stored geometry;
 - opening another topic switches the reference to that topic;
 - reference visibility/mode may persist as a user preference;
 - mobile may use a drawer/overlay rather than permanently shrinking the drawing surface.
 
 The reference pane is read-only study material. It is not copied into the learner-authored drawing automatically.
 
-## Visual isolation
+## Visual isolation and theme inheritance
 
-The Study System shell may use a two-color theme. The whiteboard is an intentional bounded exception.
+The Study System shell may use any accepted two-color theme. The whiteboard separates **chrome** from **paper**:
 
-- **Board paper is always white (`#ffffff`).**
-- Page theme changes never recolor existing drawings.
-- Board chrome is neutral white/black/gray.
-- Ink has its own palette.
-- The compact thumbnail also uses white paper and the stored ink colors.
+- top chrome and the reference pane inherit the current Study System `background / ink` pair;
+- **drawing paper is always white (`#ffffff`)**;
+- page theme changes never recolor existing drawing strokes or pasted images;
+- tool popovers remain neutral white/black for predictable contrast;
+- the compact mnemonic thumbnail also uses white paper and the stored drawing colors.
 
-This avoids the failure mode where a violet/green/etc. study theme turns the drawing surface into tinted paper.
+This preserves the visual identity of the active study page without turning the drawing surface violet/green/etc.
 
 ## Recovered PageKit / Class Player baseline
 
-The tool physics are derived from the protected Class Player lineage rather than reinvented per study page. The relevant floor is v26 with later accepted fixes through the v37 laser-tracking candidate.
+The tool physics come from the protected Class Player lineage rather than being reinvented per study page. The relevant floor is v26 plus later accepted fixes through the v37 laser-tracking candidate.
 
 Baseline capabilities:
 
@@ -74,9 +74,25 @@ Baseline capabilities:
 - intentional stroke eraser;
 - undo;
 - clear;
-- transient laser with visible dot and non-persistent trail.
+- transient laser with visible dot and non-persistent trail;
+- pasted/imported image objects;
+- laser-mediated image selection/move/resize;
+- writing/highlighting over images without an object mode stealing the gesture;
+- expandable vertical board;
+- optional added board blocks/templates.
 
-The Study System implementation may omit unrelated Class Player features such as slide objects, paste/resize and multi-board tabs, but must not degrade the retained tool physics.
+## Fixed toolbar geometry
+
+The top tool row is a **stable spatial control surface**.
+
+- Tool positions do not shift when color, width or line-mode options change.
+- Pen/highlighter/line options open in a popover anchored to the toolbar.
+- Do not render color circles and widths inline in the main row if that causes neighboring tools to move.
+- Recommended stable order: `laser → highlighter → pen → line → eraser → image → separator → undo → clear`.
+- `texto` and `cerrar` live outside the drawing-tool group.
+- Tools use compact icon buttons rather than a row of changing text labels on desktop.
+
+The learner should be able to build motor memory for tool locations.
 
 ## Ink palette
 
@@ -92,20 +108,20 @@ Default pen widths: `3 / 5 / 8` CSS px.
 
 Highlighter palette:
 
-- yellow `#ffc107` around 40% alpha;
+- yellow `#ffc107` around 36–40% alpha;
 - green `#22c55e` around 30% alpha;
-- blue `#3b82f6` around 28% alpha;
+- blue `#3b82f6` around 28–30% alpha;
 - pink `#f43f5e` around 30% alpha.
 
 Default highlighter widths: `12 / 16 / 22` CSS px.
 
-Color and width are stored with each stroke. A later theme change does not mutate them.
+Color and width are stored with each stroke. A later Study System theme change does not mutate them.
 
 ## Tool interaction
 
 ### Pen
 
-Pointer down begins a freehand stroke; moves append normalized points; pointer up commits. Rendering should smooth intermediate points rather than expose a jagged raw polyline. Pointer capture is used while drawing.
+Pointer down begins a freehand stroke; moves append points; pointer up commits. Rendering smooths intermediate points rather than exposing a jagged raw polyline. Pointer capture is used while drawing.
 
 ### Highlighter
 
@@ -143,31 +159,75 @@ Pending guide points are temporary and never persist as ink.
 
 ### Stroke eraser
 
-The eraser removes complete vector strokes/objects, never raster pixels. Hit-testing uses a **screen-space tolerance** so it remains usable after resize and on touch. Dragging may erase multiple strokes; one erase gesture should correspond to one undo step.
+The eraser removes complete vector strokes, never raster pixels. Hit-testing uses a **screen-space tolerance** so it remains usable after resize and on touch. Dragging may erase multiple strokes; one erase gesture should correspond to one undo step.
 
 ### Laser
 
-The laser is a separate transient state.
+The laser is both a transient pointer and the lightweight image-selection gateway.
 
 - default visual is red;
 - mouse hover tracks the dot even with no button pressed;
 - mouse/pen/touch drag may create a short smooth fading trail;
 - trail lifetime is temporary (reference implementation around 1.85 s);
 - laser never enters persistent ink or undo history;
-- pointer/object interactions must never accidentally create a persistent laser stroke;
-- leaving/releasing hides the dot when appropriate for the pointer type.
+- **unselected image + click** → select image on pointer-up;
+- **unselected image + drag** → laser only; do not move/select the object;
+- **selected image + drag** → move image;
+- **selected image + resize handle** → resize image while preserving aspect ratio;
+- switching to pen/highlighter/line clears image selection so drawing can happen directly over the image;
+- `Enter` may explicitly fix/deselect the selected image;
+- Delete/Backspace may delete a selected object when focus is not inside a text input.
+
+This avoids a permanent separate “object mode”.
 
 ### Undo / clear
 
-Undo restores the previous persistent drawing snapshot. Clear removes persistent ink but is itself undoable in-session. No keyboard shortcut may trigger a destructive action accidentally.
+Undo restores the previous persistent drawing/object snapshot. Clear removes persistent ink/objects but remains undoable in-session. No keyboard shortcut may trigger a destructive action accidentally.
 
-## Data model
+## Pasted / imported images
 
-Persist vector geometry in normalized coordinates rather than screenshots:
+Images are first-class board objects but remain **under the ink layer**.
+
+Supported entry paths:
+
+- `Ctrl/Cmd + V` image from clipboard;
+- explicit image picker button for touch/mobile/iPad workflows.
+
+Persist at minimum:
 
 ```json
 {
-  "version": 2,
+  "id": "img_...",
+  "type": "image",
+  "src": "data:image/...",
+  "x": 0.16,
+  "y": 210,
+  "w": 0.42,
+  "aspect": 1.6
+}
+```
+
+`x` and `w` are width-relative; `y` is board-space CSS px so vertical board expansion does not shift existing objects.
+
+## Expandable board
+
+A topic board is not limited to one viewport.
+
+- Initial paper is at least one viewport high.
+- `+ espacio` appends another vertical block and scrolls toward it.
+- Existing ink/images retain their position when the board grows.
+- Added blocks may be `blank`, `lined`, `grid`, `cartesian`, `numberline`, or `timeline`.
+- The canvas uses a bounded DPR/pixel budget so a long board does not explode memory on high-density displays.
+- Reference pane and toolbar remain available while the paper itself scrolls.
+
+## Persistent data model
+
+Study System WB7 persists one topic board independently:
+
+```json
+{
+  "version": 7,
+  "blocks": ["blank", "grid"],
   "strokes": [
     {
       "id": "s_...",
@@ -176,32 +236,47 @@ Persist vector geometry in normalized coordinates rather than screenshots:
       "alpha": 1,
       "width": 3,
       "points": [
-        {"x": 0.12, "y": 0.34, "p": 0.5},
-        {"x": 0.13, "y": 0.35, "p": 0.7}
+        {"x": 0.12, "y": 340, "p": 0.5},
+        {"x": 0.13, "y": 352, "p": 0.7}
       ]
     }
-  ]
+  ],
+  "objects": []
 }
 ```
 
-`x` and `y` are 0..1. Pressure is optional. Line strokes may additionally store `lineMode` and `tickSize`.
+For expandable boards, `x` remains width-relative while `y` is board-space CSS px. Pressure is optional. Line strokes may additionally store `lineMode` and `tickSize`.
 
-Old Study System whiteboard strokes lacking color migrate to black; old highlighter strokes migrate to translucent yellow unless they already carry a color.
+Old Study System whiteboard strokes should migrate when feasible rather than silently disappear.
 
 ## Rendering invariants
 
-- Canvas scales by `devicePixelRatio` for sharp rendering.
-- Vector coordinates project to the current CSS size.
-- Resize/orientation/reference-pane changes never erase or distort canonical geometry.
-- Theme switching never recolors board vectors.
-- Thumbnail is derived from vector state; it is not canonical storage.
-- Thumbnail auto-crops around the learner’s actual marks so the mnemonic remains legible at small size.
+- Canvas scales by `devicePixelRatio` subject to a safe total-pixel budget.
+- Width-relative coordinates reproject to the current paper width.
+- Vertical board coordinates do not collapse when new space is appended.
+- Resize/orientation/reference-pane changes never erase canonical geometry.
+- Theme switching never recolors board vectors/images.
+- Images render before persistent ink so the learner can annotate on top.
+- Selection outline/laser are transient overlays and must not enter mnemonic thumbnails.
+- Thumbnail is derived from canonical board state; it is not canonical storage.
+- Thumbnail auto-crops around actual marks/images so the mnemonic remains legible at small size.
+
+## Host / board isolation
+
+The Study System host and the whiteboard engine are separate components.
+
+- Host owns topic-card launcher placement and the mnemonic thumbnail.
+- Whiteboard engine owns drawing physics, object interaction, toolbar, reference pane and expandable paper.
+- The whiteboard may run in a same-origin full-screen frame/isolated surface so whiteboard changes do not mutate the study-page DOM/layout.
+- The board reads the current topic reference and current two-color theme from the host, but stores drawing state independently.
+
+This separation is preferred over repeatedly injecting large whiteboard internals into every exam page.
 
 ## Mount / timing robustness
 
-The study page may be assembled after bootstrap/document replacement. The capability therefore must not assume one DOM timing point.
+The study page may be assembled after bootstrap/document replacement. The host therefore must not assume one DOM timing point.
 
-A compliant implementation rescans for topic cards at initial execution, DOMContentLoaded/requestAnimationFrame, short delayed retries, and/or a MutationObserver. A failure to mount the whiteboard must never block the underlying study page.
+A compliant implementation rescans for topic cards at initial execution, DOMContentLoaded/requestAnimationFrame, delayed retries and/or a MutationObserver. A failure to mount the whiteboard must never block the underlying study page.
 
 ## Mastery integration
 
@@ -209,4 +284,4 @@ Drawing is evidence of active processing but must not automatically mark mastery
 
 ## Failure behavior
 
-If canvas APIs fail, the ordinary study page and all explanatory content remain available. Whiteboard failure must never block study navigation.
+If canvas APIs or whiteboard assets fail, the ordinary study page and all explanatory content remain available. Whiteboard failure must never block study navigation.
