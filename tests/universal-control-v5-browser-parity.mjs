@@ -7,6 +7,14 @@ const CANDIDATE = `${BASE}/shared/universal-shell/v5/candidate/favorites-facade-
 const FAV_KEY = 'prometeo.v5.favorites.v1';
 const CORNER_KEY = 'prometeo.universal-control.corner.v1';
 
+async function waitReady(page) {
+  await page.waitForFunction(() => {
+    const puck = document.querySelector('#puck');
+    const selector = document.querySelector('#selector');
+    return puck?.getAttribute('aria-label')?.startsWith('Abrir Prometeo') && selector?.classList.contains('closed');
+  }, null, { timeout: 15000 });
+}
+
 async function semanticClick(page, selector) {
   await page.evaluate(sel => {
     const el = document.querySelector(sel);
@@ -16,6 +24,7 @@ async function semanticClick(page, selector) {
 }
 
 async function openControl(page) {
+  await waitReady(page);
   await semanticClick(page, '#puck');
   await page.waitForFunction(() => document.querySelector('#selector')?.classList.contains('open'));
 }
@@ -23,9 +32,7 @@ async function openControl(page) {
 async function rootSnapshot(browser, url, seed, { blockExternal = false } = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
-  if (blockExternal) {
-    await page.route('https://juanmanuelpm.github.io/**', route => route.abort());
-  }
+  if (blockExternal) await page.route('https://juanmanuelpm.github.io/**', route => route.abort());
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(String(error)));
   await page.goto(url, { waitUntil: 'domcontentloaded' });
@@ -33,11 +40,13 @@ async function rootSnapshot(browser, url, seed, { blockExternal = false } = {}) 
   await page.reload({ waitUntil: 'domcontentloaded' });
   await openControl(page);
   await semanticClick(page, '#nextBtn');
-  const label = await page.locator('#labelTextPath').textContent();
-  const count = await page.locator('#labelCount').textContent();
-  const stored = await page.evaluate(key => localStorage.getItem(key), FAV_KEY);
-  const controls = await page.locator('.puck').count();
-  const result = { label, count, stored, controls, pageErrors };
+  const result = {
+    label: await page.locator('#labelTextPath').textContent(),
+    count: await page.locator('#labelCount').textContent(),
+    stored: await page.evaluate(key => localStorage.getItem(key), FAV_KEY),
+    controls: await page.locator('.puck').count(),
+    pageErrors,
+  };
   await context.close();
   return result;
 }
@@ -62,12 +71,13 @@ async function pinFlow(browser, url) {
   const firstId = await firstCatalogPage(page);
   await page.evaluate(key => localStorage.setItem(key, '[]'), FAV_KEY);
   await page.goto(`${url}#/p/${encodeURIComponent(firstId)}`, { waitUntil: 'domcontentloaded' });
+  await waitReady(page);
   await page.waitForFunction(() => {
     const frame = document.querySelector('#pageHost');
-    return frame && frame.getAttribute('src') && frame.getAttribute('src') !== 'about:blank';
+    return frame?.getAttribute('src') && frame.getAttribute('src') !== 'about:blank';
   }, null, { timeout: 10000 });
 
-  await openControl(page);
+  await semanticClick(page, '#puck');
   await semanticClick(page, '#nextBtn');
   const before = await page.locator('#labelTextPath').textContent();
   await semanticClick(page, '#currentBtn');
@@ -76,7 +86,6 @@ async function pinFlow(browser, url) {
   await semanticClick(page, '#currentBtn');
   const storedUnpinned = await page.evaluate(key => localStorage.getItem(key), FAV_KEY);
   const afterUnpin = await page.locator('#labelTextPath').textContent();
-
   const result = { firstId, before, storedPinned, afterPin, storedUnpinned, afterUnpin, pageErrors };
   await context.close();
   return result;
@@ -90,18 +99,21 @@ async function cornerFlow(browser, url) {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.evaluate(key => localStorage.removeItem(key), CORNER_KEY);
   await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitReady(page);
   const box = await page.locator('#puck').boundingBox();
   assert.ok(box, 'puck has a bounding box');
-  const sx = box.x + box.width / 2;
-  const sy = box.y + box.height / 2;
-  await page.mouse.move(sx, sy);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(55, 60, { steps: 8 });
   await page.mouse.up();
   await page.waitForTimeout(260);
-  const corner = await page.evaluate(key => localStorage.getItem(key), CORNER_KEY);
   const finalBox = await page.locator('#puck').boundingBox();
-  const result = { corner, finalX: Math.round(finalBox?.x ?? -1), finalY: Math.round(finalBox?.y ?? -1), pageErrors };
+  const result = {
+    corner: await page.evaluate(key => localStorage.getItem(key), CORNER_KEY),
+    finalX: Math.round(finalBox?.x ?? -1),
+    finalY: Math.round(finalBox?.y ?? -1),
+    pageErrors,
+  };
   await context.close();
   return result;
 }
@@ -144,13 +156,7 @@ try {
   assert.ok(Math.abs(candidateCorner.finalY - legacyCorner.finalY) <= 1);
   assert.deepEqual(candidateCorner.pageErrors, []);
 
-  console.log(JSON.stringify({
-    status: 'PASS',
-    root: candidateRoot,
-    offline: candidateOffline,
-    pin: candidatePin,
-    corner: candidateCorner,
-  }, null, 2));
+  console.log(JSON.stringify({ status: 'PASS', root: candidateRoot, offline: candidateOffline, pin: candidatePin, corner: candidateCorner }, null, 2));
 } finally {
   await browser.close();
 }
