@@ -1,100 +1,48 @@
 (()=>{
   const NS='study:v2:modelos-teorias-ii:whiteboard';
   const boards=new Map();
-  const runtimes=new Map();
-  const oldIds={socrates:'socrates',james:'james',tolman:'tolman',hixon:'hixon',bruner:'bruner',bordin:'bordin'};
+  const histories=new Map();
+  let active=null;
   const slug=s=>String(s||'tema').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
-  const stateKey=id=>`${NS}:${id}`;
-  const safeParse=(s,f)=>{try{return JSON.parse(s)}catch{return f}};
-  function getState(id,title){
-    if(boards.has(id))return boards.get(id);
-    let state=safeParse(localStorage.getItem(stateKey(id)),null);
-    if(!state){
-      const legacy=oldIds[slug(title)];
-      if(legacy) state=safeParse(localStorage.getItem(`study:v2:modelos-demo:topic:${legacy}:board`),null);
-    }
-    if(!state||!Array.isArray(state.strokes)) state={version:1,strokes:[]};
-    boards.set(id,state);return state;
-  }
-  function save(id){localStorage.setItem(stateKey(id),JSON.stringify(boards.get(id)))}
-  function color(){const cs=getComputedStyle(document.documentElement);return {bg:cs.getPropertyValue('--a').trim()||'#111321',ink:cs.getPropertyValue('--b').trim()||'#d8d0ff'}}
+  const safe=(s,f)=>{try{return JSON.parse(s)}catch{return f}};
+  const key=id=>`${NS}:${id}`;
+  const ink=()=>{const s=getComputedStyle(document.documentElement);return{bg:s.getPropertyValue('--a').trim()||'#111321',fg:s.getPropertyValue('--b').trim()||'#d8d0ff'}};
+  const uid=()=>`s${Date.now().toString(36)}${Math.random().toString(36).slice(2,7)}`;
   function idFor(topic,index){const module=topic.closest('.module');const title=topic.querySelector('.topicTitle')?.textContent.trim()||`tema-${index+1}`;return `${module?.id||'M'}-${index+1}-${slug(title)}`}
-  function makeMount(topic,id,title){
-    const mount=document.createElement('div');
-    mount.className='studyWBMount';mount.dataset.wbid=id;
-    mount.innerHTML=`<div class="studyWBCompact"><button class="studyWBThumbCard" type="button" aria-label="Abrir dibujo de ${escapeHTML(title)}"><canvas class="studyWBThumb"></canvas></button><button class="studyWBOpen" type="button">pizarrón</button><span class="studyWBHint">dibujo / apunte visual del tema</span></div><div class="studyWBPanel"><div class="studyWBTop"><div class="studyWBTools"><button class="studyWBTool isActive" data-tool="pen" type="button">lápiz</button><button class="studyWBTool" data-tool="highlighter" type="button">resalta</button><button class="studyWBTool" data-tool="line" type="button">línea</button><button class="studyWBTool" data-tool="curve3" type="button">curva 3</button><button class="studyWBTool" data-tool="eraser" type="button">goma</button><button class="studyWBTool" data-tool="laser" type="button">láser</button><button class="studyWBTool" data-action="undo" type="button">↶</button><button class="studyWBTool" data-action="clear" type="button">limpiar</button></div><button class="studyWBClose" type="button">cerrar pizarrón</button></div><div class="studyWBCanvasShell"><canvas class="studyWBCanvas"></canvas><div class="studyWBLaser"></div><div class="studyWBCurveHint"></div></div></div>`;
-    topic.appendChild(mount);
-    const state=getState(id,title);topic.classList.toggle('studyWBHasDrawing',state.strokes.length>0);
-    mount.addEventListener('click',e=>e.stopPropagation());
-    mount.querySelector('.studyWBOpen').addEventListener('click',()=>openBoard(topic,mount));
-    mount.querySelector('.studyWBThumbCard').addEventListener('click',()=>openBoard(topic,mount));
-    mount.querySelector('.studyWBClose').addEventListener('click',()=>closeBoard(topic,mount));
-    mount.querySelectorAll('[data-tool]').forEach(btn=>btn.addEventListener('click',()=>selectTool(mount,btn.dataset.tool,btn)));
-    mount.querySelector('[data-action="undo"]').addEventListener('click',()=>undo(mount));
-    mount.querySelector('[data-action="clear"]').addEventListener('click',()=>clearBoard(mount));
-    requestAnimationFrame(()=>renderThumb(topic,mount));
-    return mount;
-  }
+  function getState(id){if(boards.has(id))return boards.get(id);let st=safe(localStorage.getItem(key(id)),null);if(!st||!Array.isArray(st.strokes))st={version:1,aspect:null,strokes:[]};if(!('aspect'in st))st.aspect=null;boards.set(id,st);return st}
+  function save(id){localStorage.setItem(key(id),JSON.stringify(getState(id)))}
+  function history(id){if(!histories.has(id))histories.set(id,[]);return histories.get(id)}
+  function checkpoint(id){const h=history(id);h.push(JSON.stringify(getState(id)));if(h.length>50)h.shift()}
+  function ensureOverlay(){let o=document.querySelector('.studyWBOverlay');if(o)return o;o=document.createElement('div');o.className='studyWBOverlay';o.setAttribute('aria-hidden','true');o.innerHTML=`<div class="studyWBBar"><div class="studyWBIdentity"><strong></strong><small>pizarrón del tema</small></div><div class="studyWBControls"><div class="studyWBTools"><button class="studyWBTool active" data-tool="pen">lápiz</button><button class="studyWBTool" data-tool="highlighter">resalta</button><button class="studyWBTool" data-tool="line">línea</button><button class="studyWBTool" data-tool="curve3">curva 3</button><button class="studyWBTool" data-tool="eraser">goma</button><button class="studyWBTool" data-tool="laser">láser</button><button class="studyWBTool" data-action="undo">↶</button><button class="studyWBTool" data-action="clear">limpiar</button></div><button class="studyWBClose">cerrar</button></div></div><div class="studyWBCanvasShell"><canvas class="studyWBCanvas"></canvas><div class="studyWBLaser"></div><div class="studyWBCurveHint"></div><div class="studyWBBoardHint">dibujá · escribí · conectá</div></div>`;document.body.appendChild(o);o.querySelector('.studyWBClose').addEventListener('click',closeBoard);o.querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click',()=>selectTool(b.dataset.tool,b)));o.querySelector('[data-action="undo"]').addEventListener('click',undo);o.querySelector('[data-action="clear"]').addEventListener('click',clearBoard);wireCanvas(o.querySelector('.studyWBCanvas'));window.addEventListener('keydown',e=>{if(e.key==='Escape'&&active)closeBoard()});return o}
+  function makeMount(topic,id,title){const m=document.createElement('div');m.className='studyWBMount';m.dataset.wbid=id;m.dataset.title=title;m.innerHTML=`<button class="studyWBCard" type="button" aria-label="Abrir pizarrón de ${escapeHTML(title)}"><span class="studyWBEmpty"></span><span class="studyWBThumbWrap"><canvas class="studyWBThumb"></canvas></span><span class="studyWBText"><strong>pizarrón</strong><small>dibujar / tomar nota</small></span><span class="studyWBChevron">↗</span></button>`;topic.appendChild(m);m.querySelector('.studyWBCard').addEventListener('click',e=>{e.stopPropagation();openBoard(topic,m)});refreshMount(topic,m);return m}
   function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-  function ensureTopicOpen(topic){
-    if(topic.classList.contains('open'))return;
-    const head=topic.querySelector('.topicHead');
-    if(head)head.click();
-    if(!topic.classList.contains('open'))topic.classList.add('open');
-  }
-  function openBoard(topic,mount){
-    ensureTopicOpen(topic);mount.classList.add('studyWBOpenState');
-    requestAnimationFrame(()=>{const rt=ensureRuntime(topic,mount);resize(rt);draw(rt);mount.scrollIntoView({behavior:'smooth',block:'nearest'})});
-  }
-  function closeBoard(topic,mount){
-    const rt=runtimes.get(mount.dataset.wbid);if(rt){save(rt.id);drawThumb(rt)}
-    mount.classList.remove('studyWBOpenState');
-    const has=getState(mount.dataset.wbid,'').strokes.length>0;topic.classList.toggle('studyWBHasDrawing',has);renderThumb(topic,mount);
-  }
-  function selectTool(mount,tool,btn){const rt=ensureRuntime(mount.closest('.topic'),mount);rt.tool=tool;rt.pending=[];mount.querySelectorAll('[data-tool]').forEach(x=>x.classList.toggle('isActive',x===btn));hint(rt);draw(rt)}
-  function ensureRuntime(topic,mount){
-    const id=mount.dataset.wbid;if(runtimes.has(id))return runtimes.get(id);
-    const canvas=mount.querySelector('.studyWBCanvas'),shell=mount.querySelector('.studyWBCanvasShell');
-    const rt={id,topic,mount,canvas,shell,ctx:canvas.getContext('2d'),tool:'pen',drawing:false,current:null,pending:[],history:[],laser:mount.querySelector('.studyWBLaser'),curveHint:mount.querySelector('.studyWBCurveHint')};
-    runtimes.set(id,rt);wire(rt);
-    if('ResizeObserver'in window)new ResizeObserver(()=>{if(mount.classList.contains('studyWBOpenState')){resize(rt);draw(rt)}}).observe(shell);
-    return rt;
-  }
-  function pt(rt,e){const r=rt.canvas.getBoundingClientRect();return{x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)),p:e.pressure||.5}}
-  function hist(rt){rt.history.push(JSON.stringify(getState(rt.id,'').strokes));if(rt.history.length>40)rt.history.shift()}
-  function wire(rt){
-    const c=rt.canvas;c.addEventListener('contextmenu',e=>e.preventDefault());
-    c.addEventListener('pointerdown',e=>{e.preventDefault();c.setPointerCapture?.(e.pointerId);const p=pt(rt,e);
-      if(rt.tool==='laser'){laser(rt,e);return}
-      if(rt.tool==='eraser'){hist(rt);rt.drawing=true;erase(rt,p);return}
-      if(rt.tool==='curve3'){rt.pending.push(p);hint(rt);if(rt.pending.length===3){hist(rt);getState(rt.id,'').strokes.push({id:uid(),tool:'curve3',width:3,points:[...rt.pending]});rt.pending=[];save(rt.id);draw(rt);drawThumb(rt);hint(rt)}else draw(rt);return}
-      hist(rt);rt.drawing=true;rt.current={id:uid(),tool:rt.tool,width:rt.tool==='highlighter'?12:3,points:[p]};draw(rt)
-    });
-    c.addEventListener('pointermove',e=>{if(rt.tool==='laser'){if(e.buttons||e.pointerType==='pen')laser(rt,e);return}if(!rt.drawing)return;const p=pt(rt,e);if(rt.tool==='eraser'){erase(rt,p);return}if(!rt.current)return;if(rt.current.tool==='line')rt.current.points=[rt.current.points[0],p];else rt.current.points.push(p);draw(rt)});
-    const end=()=>{if(rt.tool==='laser'){hideLaser(rt);return}if(!rt.drawing)return;rt.drawing=false;if(rt.current){getState(rt.id,'').strokes.push(rt.current);rt.current=null}save(rt.id);draw(rt);drawThumb(rt);rt.topic.classList.toggle('studyWBHasDrawing',getState(rt.id,'').strokes.length>0)};
-    c.addEventListener('pointerup',end);c.addEventListener('pointercancel',end);c.addEventListener('pointerleave',()=>{if(rt.tool==='laser')hideLaser(rt)});
-  }
-  function resize(rt){const r=rt.canvas.getBoundingClientRect(),d=Math.min(window.devicePixelRatio||1,2.5);rt.w=Math.max(1,r.width);rt.h=Math.max(1,r.height);const w=Math.round(rt.w*d),h=Math.round(rt.h*d);if(rt.canvas.width!==w||rt.canvas.height!==h){rt.canvas.width=w;rt.canvas.height=h}rt.ctx.setTransform(d,0,0,d,0,0)}
-  function stroke(ctx,s,w,h,ink,scale=1){const ps=s.points||[];if(!ps.length)return;ctx.save();ctx.strokeStyle=ink;ctx.fillStyle=ink;ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=Math.max(1,(s.width||3)*scale);if(s.tool==='highlighter')ctx.setLineDash([16*scale,7*scale]);if(s.tool==='curve3'&&ps.length>=3){ctx.beginPath();ctx.moveTo(ps[0].x*w,ps[0].y*h);ctx.quadraticCurveTo(ps[1].x*w,ps[1].y*h,ps[2].x*w,ps[2].y*h);ctx.stroke()}else if(s.tool==='line'&&ps.length>=2){ctx.beginPath();ctx.moveTo(ps[0].x*w,ps[0].y*h);ctx.lineTo(ps[1].x*w,ps[1].y*h);ctx.stroke()}else{ctx.beginPath();ctx.moveTo(ps[0].x*w,ps[0].y*h);for(let i=1;i<ps.length;i++)ctx.lineTo(ps[i].x*w,ps[i].y*h);if(ps.length===1){ctx.beginPath();ctx.arc(ps[0].x*w,ps[0].y*h,ctx.lineWidth/2,0,Math.PI*2);ctx.fill()}else ctx.stroke()}ctx.restore()}
-  function draw(rt){resize(rt);const {bg,ink}=color();rt.ctx.clearRect(0,0,rt.w,rt.h);rt.ctx.fillStyle=bg;rt.ctx.fillRect(0,0,rt.w,rt.h);getState(rt.id,'').strokes.forEach(s=>stroke(rt.ctx,s,rt.w,rt.h,ink));if(rt.current)stroke(rt.ctx,rt.current,rt.w,rt.h,ink);if(rt.pending.length){rt.ctx.fillStyle=ink;rt.pending.forEach(p=>{rt.ctx.beginPath();rt.ctx.arc(p.x*rt.w,p.y*rt.h,3,0,Math.PI*2);rt.ctx.fill()})}}
-  function renderThumb(topic,mount){const state=getState(mount.dataset.wbid,''),card=mount.querySelector('.studyWBThumbCard');topic.classList.toggle('studyWBHasDrawing',state.strokes.length>0);if(!state.strokes.length)return;const c=mount.querySelector('.studyWBThumb'),r=c.getBoundingClientRect();if(r.width<1||r.height<1)return;const d=Math.min(window.devicePixelRatio||1,2);c.width=Math.round(r.width*d);c.height=Math.round(r.height*d);const ctx=c.getContext('2d');ctx.setTransform(d,0,0,d,0,0);const {bg,ink}=color();ctx.fillStyle=bg;ctx.fillRect(0,0,r.width,r.height);const sc=Math.max(.35,Math.min(.8,r.width/180));state.strokes.forEach(s=>stroke(ctx,s,r.width,r.height,ink,sc));card.style.display=''}
-  function drawThumb(rt){renderThumb(rt.topic,rt.mount)}
-  function undo(mount){const rt=ensureRuntime(mount.closest('.topic'),mount);if(!rt.history.length)return;getState(rt.id,'').strokes=JSON.parse(rt.history.pop());save(rt.id);draw(rt);drawThumb(rt);rt.topic.classList.toggle('studyWBHasDrawing',getState(rt.id,'').strokes.length>0)}
-  function clearBoard(mount){const rt=ensureRuntime(mount.closest('.topic'),mount);hist(rt);getState(rt.id,'').strokes=[];rt.pending=[];save(rt.id);draw(rt);drawThumb(rt);rt.topic.classList.remove('studyWBHasDrawing');hint(rt)}
+  function installTopics(){document.querySelectorAll('.module .topic').forEach((topic,i)=>{if(topic.querySelector(':scope>.studyWBMount'))return;const title=topic.querySelector('.topicTitle')?.textContent.trim()||`Tema ${i+1}`;makeMount(topic,idFor(topic,i),title)})}
+  function boot(){ensureOverlay();installTopics();const mo=new MutationObserver(()=>installTopics());mo.observe(document.body,{subtree:true,childList:true});const timer=setInterval(installTopics,300);setTimeout(()=>clearInterval(timer),5000);document.addEventListener('click',e=>{if(e.target.closest('.themeBtn,.themeChoice,.themeSwatch'))setTimeout(refreshAll,80)},true);window.addEventListener('resize',()=>{if(active)requestAnimationFrame(()=>{resize();renderBoard()});requestAnimationFrame(refreshAll)})}
+  function openBoard(topic,mount){const o=ensureOverlay(),id=mount.dataset.wbid,title=mount.dataset.title;active={id,topic,mount,tool:'pen',drawing:false,current:null,pending:[],laserTimer:null};o.querySelector('.studyWBIdentity strong').textContent=title;o.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool==='pen'));o.classList.add('open');o.setAttribute('aria-hidden','false');document.body.classList.add('studyWBBodyLocked');requestAnimationFrame(()=>{resize();renderBoard();hint()})}
+  function closeBoard(){if(!active)return;save(active.id);refreshMount(active.topic,active.mount);const o=ensureOverlay();o.classList.remove('open');o.setAttribute('aria-hidden','true');document.body.classList.remove('studyWBBodyLocked');active=null}
+  function selectTool(tool,btn){if(!active)return;active.tool=tool;active.pending=[];active.current=null;ensureOverlay().querySelectorAll('[data-tool]').forEach(x=>x.classList.toggle('active',x===btn));hint();renderBoard()}
+  function canvas(){return ensureOverlay().querySelector('.studyWBCanvas')}
+  function shell(){return ensureOverlay().querySelector('.studyWBCanvasShell')}
+  function ctx(){return canvas().getContext('2d')}
+  function resize(){const c=canvas(),r=c.getBoundingClientRect(),d=Math.min(window.devicePixelRatio||1,2.5);active.w=Math.max(1,r.width);active.h=Math.max(1,r.height);const W=Math.round(active.w*d),H=Math.round(active.h*d);if(c.width!==W||c.height!==H){c.width=W;c.height=H}ctx().setTransform(d,0,0,d,0,0)}
+  function viewRect(st,w,h){const a=st.aspect||w/h;if(w/h>a){const rw=h*a;return{x:(w-rw)/2,y:0,w:rw,h}}const rh=w/a;return{x:0,y:(h-rh)/2,w,h:rh}}
+  function pointFromEvent(e){const c=canvas(),r=c.getBoundingClientRect(),st=getState(active.id);if(!st.aspect)st.aspect=Math.max(.3,Math.min(3,r.width/r.height));const vr=viewRect(st,r.width,r.height),sx=e.clientX-r.left,sy=e.clientY-r.top;return{x:Math.max(0,Math.min(1,(sx-vr.x)/vr.w)),y:Math.max(0,Math.min(1,(sy-vr.y)/vr.h)),p:e.pressure||.5}}
+  function map(vr,p){return{x:vr.x+p.x*vr.w,y:vr.y+p.y*vr.h}}
+  function drawStroke(g,s,vr,fg,widthScale=1){const ps=s.points||[];if(!ps.length)return;g.save();g.strokeStyle=fg;g.fillStyle=fg;g.lineCap='round';g.lineJoin='round';g.lineWidth=Math.max(1,(s.width||3)*widthScale);if(s.tool==='highlighter')g.setLineDash([14*widthScale,6*widthScale]);if(s.tool==='curve3'&&ps.length>=3){const a=map(vr,ps[0]),b=map(vr,ps[1]),c=map(vr,ps[2]);g.beginPath();g.moveTo(a.x,a.y);g.quadraticCurveTo(b.x,b.y,c.x,c.y);g.stroke()}else if(s.tool==='line'&&ps.length>=2){const a=map(vr,ps[0]),b=map(vr,ps[1]);g.beginPath();g.moveTo(a.x,a.y);g.lineTo(b.x,b.y);g.stroke()}else{const a=map(vr,ps[0]);if(ps.length===1){g.beginPath();g.arc(a.x,a.y,g.lineWidth/2,0,Math.PI*2);g.fill()}else{g.beginPath();g.moveTo(a.x,a.y);for(let i=1;i<ps.length;i++){const q=map(vr,ps[i]);g.lineTo(q.x,q.y)}g.stroke()}}g.restore()}
+  function renderBoard(){if(!active)return;resize();const g=ctx(),st=getState(active.id),{bg,fg}=ink(),vr=viewRect(st,active.w,active.h);g.clearRect(0,0,active.w,active.h);g.fillStyle=bg;g.fillRect(0,0,active.w,active.h);st.strokes.forEach(s=>drawStroke(g,s,vr,fg));if(active.current)drawStroke(g,active.current,vr,fg);if(active.pending.length){g.fillStyle=fg;active.pending.forEach(p=>{const q=map(vr,p);g.beginPath();g.arc(q.x,q.y,3,0,Math.PI*2);g.fill()})}}
+  function wireCanvas(c){c.addEventListener('contextmenu',e=>e.preventDefault());c.addEventListener('pointerdown',e=>{if(!active)return;e.preventDefault();c.setPointerCapture?.(e.pointerId);if(active.tool==='laser'){showLaser(e);return}const p=pointFromEvent(e);if(active.tool==='eraser'){checkpoint(active.id);active.drawing=true;eraseAt(p);return}if(active.tool==='curve3'){active.pending.push(p);hint();if(active.pending.length===3){checkpoint(active.id);getState(active.id).strokes.push({id:uid(),tool:'curve3',width:3,points:[...active.pending]});active.pending=[];save(active.id);renderBoard();hint();refreshMount(active.topic,active.mount)}else renderBoard();return}checkpoint(active.id);active.drawing=true;active.current={id:uid(),tool:active.tool,width:active.tool==='highlighter'?12:3,points:[p]};renderBoard()});c.addEventListener('pointermove',e=>{if(!active)return;if(active.tool==='laser'){if(e.buttons||e.pointerType==='pen')showLaser(e);return}if(!active.drawing)return;const p=pointFromEvent(e);if(active.tool==='eraser'){eraseAt(p);return}if(!active.current)return;if(active.current.tool==='line')active.current.points=[active.current.points[0],p];else active.current.points.push(p);renderBoard()});const end=()=>{if(!active)return;if(active.tool==='laser'){hideLaser();return}if(!active.drawing)return;active.drawing=false;if(active.current){getState(active.id).strokes.push(active.current);active.current=null}save(active.id);renderBoard();refreshMount(active.topic,active.mount)};c.addEventListener('pointerup',end);c.addEventListener('pointercancel',end);c.addEventListener('pointerleave',()=>{if(active?.tool==='laser')hideLaser()})}
+  function bounds(st){let minx=1,miny=1,maxx=0,maxy=0,n=0;st.strokes.forEach(s=>(s.points||[]).forEach(p=>{minx=Math.min(minx,p.x);miny=Math.min(miny,p.y);maxx=Math.max(maxx,p.x);maxy=Math.max(maxy,p.y);n++}));if(!n)return null;let w=Math.max(.12,maxx-minx),h=Math.max(.12,maxy-miny),cx=(minx+maxx)/2,cy=(miny+maxy)/2;w=Math.min(1,w+.12);h=Math.min(1,h+.12);return{cx,cy,w,h}}
+  function cropFor(st,targetAspect){const b=bounds(st);if(!b)return{x:0,y:0,w:1,h:1};let w=b.w,h=b.h;if(w/h>targetAspect)h=w/targetAspect;else w=h*targetAspect;w=Math.min(1,w);h=Math.min(1,h);let x=Math.max(0,Math.min(1-w,b.cx-w/2)),y=Math.max(0,Math.min(1-h,b.cy-h/2));return{x,y,w,h}}
+  function renderThumb(mount){const id=mount.dataset.wbid,st=getState(id),has=st.strokes.length>0;mount.classList.toggle('hasDrawing',has);if(!has)return;const c=mount.querySelector('.studyWBThumb'),r=c.getBoundingClientRect();if(r.width<1||r.height<1)return;const d=Math.min(window.devicePixelRatio||1,2),g=c.getContext('2d');c.width=Math.round(r.width*d);c.height=Math.round(r.height*d);g.setTransform(d,0,0,d,0,0);const {bg,fg}=ink();g.fillStyle=bg;g.fillRect(0,0,r.width,r.height);const cr=cropFor(st,r.width/r.height),vr={x:-cr.x/cr.w*r.width,y:-cr.y/cr.h*r.height,w:r.width/cr.w,h:r.height/cr.h};st.strokes.forEach(s=>drawStroke(g,s,vr,fg,.42))}
+  function refreshMount(topic,mount){const has=getState(mount.dataset.wbid).strokes.length>0;mount.classList.toggle('hasDrawing',has);requestAnimationFrame(()=>renderThumb(mount))}
+  function refreshAll(){document.querySelectorAll('.studyWBMount').forEach(m=>renderThumb(m));if(active)renderBoard()}
+  function undo(){if(!active)return;const h=history(active.id);if(!h.length)return;boards.set(active.id,safe(h.pop(),{version:1,aspect:null,strokes:[]}));save(active.id);active.pending=[];active.current=null;renderBoard();refreshMount(active.topic,active.mount);hint()}
+  function clearBoard(){if(!active)return;checkpoint(active.id);const st=getState(active.id);st.strokes=[];active.pending=[];active.current=null;save(active.id);renderBoard();refreshMount(active.topic,active.mount);hint()}
   function seg(px,py,ax,ay,bx,by){const vx=bx-ax,vy=by-ay,wx=px-ax,wy=py-ay,c1=vx*wx+vy*wy;if(c1<=0)return Math.hypot(px-ax,py-ay);const c2=vx*vx+vy*vy;if(c2<=c1)return Math.hypot(px-bx,py-by);const t=c1/c2;return Math.hypot(px-(ax+t*vx),py-(ay+t*vy))}
   function distance(s,p){const a=s.points||[];if(!a.length)return 9;if(s.tool==='curve3'&&a.length>=3){let best=9,prev=a[0];for(let i=1;i<=24;i++){const t=i/24,q={x:(1-t)*(1-t)*a[0].x+2*(1-t)*t*a[1].x+t*t*a[2].x,y:(1-t)*(1-t)*a[0].y+2*(1-t)*t*a[1].y+t*t*a[2].y};best=Math.min(best,seg(p.x,p.y,prev.x,prev.y,q.x,q.y));prev=q}return best}let best=9;for(let i=1;i<a.length;i++)best=Math.min(best,seg(p.x,p.y,a[i-1].x,a[i-1].y,a[i].x,a[i].y));return a.length===1?Math.hypot(p.x-a[0].x,p.y-a[0].y):best}
-  function erase(rt,p){const a=getState(rt.id,'').strokes;let at=-1,best=.035;for(let i=0;i<a.length;i++){const d=distance(a[i],p);if(d<best){best=d;at=i}}if(at>=0){a.splice(at,1);save(rt.id);draw(rt);drawThumb(rt);rt.topic.classList.toggle('studyWBHasDrawing',a.length>0)}}
-  function laser(rt,e){const r=rt.shell.getBoundingClientRect();rt.laser.style.left=(e.clientX-r.left)+'px';rt.laser.style.top=(e.clientY-r.top)+'px';rt.laser.style.opacity='1';clearTimeout(rt.laserTimer);rt.laserTimer=setTimeout(()=>hideLaser(rt),600)}
-  function hideLaser(rt){rt.laser.style.opacity='0'}
-  function hint(rt){rt.curveHint.textContent=rt.tool==='curve3'?(rt.pending.length===0?'curva: inicio':rt.pending.length===1?'curva: control':'curva: final'):''}
-  function uid(){return 's'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
-  function install(){
-    document.querySelectorAll('.module .topic').forEach((topic,i)=>{if(topic.querySelector(':scope>.studyWBMount'))return;const title=topic.querySelector('.topicTitle')?.textContent.trim()||`Tema ${i+1}`;makeMount(topic,idFor(topic,i),title)});
-    const obs=new MutationObserver(list=>{for(const m of list){if(m.type==='attributes'&&m.target.classList?.contains('topic')&&!m.target.classList.contains('open')){const mount=m.target.querySelector(':scope>.studyWBMount');if(mount?.classList.contains('studyWBOpenState'))closeBoard(m.target,mount)}}});
-    document.querySelectorAll('.module .topic').forEach(t=>obs.observe(t,{attributes:true,attributeFilter:['class']}));
-    document.addEventListener('click',e=>{if(e.target.closest('.themeBtn,.themeChoice,.themeSwatch'))setTimeout(renderAll,60)},true);
-    window.addEventListener('resize',()=>requestAnimationFrame(renderAll));
-  }
-  function renderAll(){document.querySelectorAll('.studyWBMount').forEach(m=>{const t=m.closest('.topic');renderThumb(t,m);const rt=runtimes.get(m.dataset.wbid);if(rt&&m.classList.contains('studyWBOpenState'))draw(rt)})}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+  function eraseAt(p){const a=getState(active.id).strokes;let at=-1,best=.035;for(let i=0;i<a.length;i++){const d=distance(a[i],p);if(d<best){best=d;at=i}}if(at>=0){a.splice(at,1);save(active.id);renderBoard();refreshMount(active.topic,active.mount)}}
+  function showLaser(e){const o=ensureOverlay(),dot=o.querySelector('.studyWBLaser'),r=shell().getBoundingClientRect();dot.style.left=(e.clientX-r.left)+'px';dot.style.top=(e.clientY-r.top)+'px';dot.style.opacity='1';clearTimeout(active.laserTimer);active.laserTimer=setTimeout(hideLaser,650)}
+  function hideLaser(){ensureOverlay().querySelector('.studyWBLaser').style.opacity='0'}
+  function hint(){if(!active)return;ensureOverlay().querySelector('.studyWBCurveHint').textContent=active.tool==='curve3'?(active.pending.length===0?'curva: inicio':active.pending.length===1?'curva: control':'curva: final'):''}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
