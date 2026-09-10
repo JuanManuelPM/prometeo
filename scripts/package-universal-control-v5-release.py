@@ -50,6 +50,11 @@ def make_loader(template: str, sha: str, length: int, chunk_expr: str) -> str:
     if marker not in loader:
         raise SystemExit('loader boot marker not found')
     loader = loader.replace(marker, guard, 1)
+    write_marker = "document.open();document.write(html);document.close();"
+    write_replacement = "document.open();document.write(html);document.close();document.documentElement.dataset.prometeoUniversalShell='v5';"
+    if write_marker not in loader:
+        raise SystemExit('loader document replacement marker not found')
+    loader = loader.replace(write_marker, write_replacement, 1)
     return loader
 
 
@@ -105,13 +110,14 @@ def main() -> None:
     }
     (OUT / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
-    # Package self-verification.
     joined = ''.join((OUT / c['file']).read_text(encoding='ascii') for c in manifest['chunks'])
     decoded = gzip.decompress(base64.b64decode(joined, validate=True))
     if decoded != html:
         raise SystemExit('packaged payload does not decode to exact candidate source')
     if "window.self!==window.top" not in candidate_loader or "prometeo:nested-shell" not in candidate_loader:
         raise SystemExit('nested-shell guard missing from candidate loader')
+    if "document.documentElement.dataset.prometeoUniversalShell='v5';" not in candidate_loader:
+        raise SystemExit('top-level shell marker missing after document replacement')
     if source_sha not in root_loader or str(len(encoded)) not in root_loader:
         raise SystemExit('root loader metadata mismatch')
 
