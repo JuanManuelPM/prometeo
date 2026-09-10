@@ -6,7 +6,9 @@ on:
       - 'coordination/**'
       - 'scripts/build-agent-runtime.mjs'
       - 'scripts/agent-network-lib.mjs'
+      - 'scripts/augment-agent-runtime-v4.mjs'
       - 'tests/agent-network-v3.test.mjs'
+      - 'tests/prometeo-autonomy-v1.test.mjs'
       - '.well-known/**'
       - 'p.txt'
       - 'AGENTS.md'
@@ -29,8 +31,15 @@ jobs:
         run: git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune
       - name: Compile Agent Network v3
         run: node scripts/build-agent-runtime.mjs --out dist/agent-runtime
+      - name: Inject mandatory global constitution
+        run: node scripts/augment-agent-runtime-v4.mjs --out dist/agent-runtime
       - name: Falsify coordination scenarios
-        run: node tests/agent-network-v3.test.mjs
+        run: |
+          node tests/agent-network-v3.test.mjs
+          node --test tests/prometeo-autonomy-v1.test.mjs
+          grep -q 'global_constitution' dist/agent-runtime/manifest.json
+          grep -q 'SURGICAL_PRESERVE_FIRST_DELTA' dist/agent-runtime/manifest.json
+          grep -q 'global_constitution' dist/agent-runtime/workstreams/prometeo-autonomous-improvement.json
       - name: Publish derived runtime
         run: |
           set -euo pipefail
@@ -50,9 +59,9 @@ jobs:
           git add agent-runtime __runtime/agent-network-v3 2>/dev/null || true
           if git diff --cached --quiet; then exit 0; fi
           if [ "${GITHUB_REF_NAME}" = "main" ]; then
-            git commit -m 'runtime: publish Agent Network v3'
+            git commit -m 'runtime: publish Agent Network v3 + global constitution'
           else
-            git commit -m 'runtime: publish Agent Network v3 canary'
+            git commit -m 'runtime: publish Agent Network v3 constitution canary'
           fi
           git pull --rebase origin gh-pages
           git push origin HEAD:gh-pages
