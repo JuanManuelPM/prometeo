@@ -1324,12 +1324,14 @@ function openLegacyNotesFromLoop(){
 async function loadPageChangeLoop(){
   if(globalThis.__PROMETEO_CHANGE_LOOP__)return globalThis.__PROMETEO_CHANGE_LOOP__;
   if(changeLoopPromise)return changeLoopPromise;
-  const url=location.hostname==='juanmanuelpm.github.io'?'/prometeo/shared/capture/v1/change-loop.js?v=1':'/shared/capture/v1/change-loop.js?v=1';
+  const url=location.hostname==='juanmanuelpm.github.io'?'/prometeo/shared/capture/v1/change-loop.js?v=2':'/shared/capture/v1/change-loop.js?v=2';
   changeLoopPromise=import(url).then(m=>m.mountPageChangeLoop({adapter:{
     getPage:()=>window.__PROMETEO_UNIVERSAL_HOST__?.getPage?.(),
     syncNow:async()=>{try{await syncAll()}catch{}},
     createTextCapture:createTextCaptureForChangeLoop,
     previewUrl:url=>window.__PROMETEO_UNIVERSAL_HOST__?.previewUrl?.(url),
+    hostUrl:(pageId,workItemId)=>window.__PROMETEO_UNIVERSAL_HOST__?.routeUrl?.(pageId,workItemId),
+    navigatePage:(pageId,opts)=>window.__PROMETEO_UNIVERSAL_HOST__?.navigatePage?.(pageId,opts),
     openLegacyNotes:openLegacyNotesFromLoop,
     onUnread:setChangeUnread,
     onClose:()=>{}
@@ -2082,8 +2084,10 @@ function returnToHostHome({replace=true}={}){
   if(replace){try{history.replaceState(null,'',location.pathname+location.search)}catch{}}
 }
 window.__PROMETEO_UNIVERSAL_HOST__=Object.freeze({
-  schema:'prometeo.universal-host/v1',version:'v5',pageHost:'pageHost',
+  schema:'prometeo.universal-host/v2',version:'v5',pageHost:'pageHost',
   getPage:()=>currentPage?{id:currentPage.id,title:currentPage.title||currentPage.id,href:currentPage.public_url||currentPage.href||null,served_identity:null}:{id:'prometeo-universal-shell-v5',title:'Prometeo',href:location.href,served_identity:null},
+  routeUrl:(pageId,workItemId=null)=>{const u=new URL('/prometeo/',location.origin);if(pageId)u.searchParams.set('page',String(pageId));if(workItemId)u.searchParams.set('changes',String(workItemId));return u.href},
+  navigatePage:async(pageId,{push=true}={})=>{await ensureCatalog();const p=pageRegistry.get(String(pageId||''));if(!p)return false;loadPage(p,push);return true},
   previewUrl:url=>{if(!url)return false;hideNativeSurface();pageHost.src=String(url);return true},
   refreshPage:()=>{if(!currentPage)return false;const u=new URL(currentPage.public_url||currentPage.href,location.href);u.searchParams.set('_prometeo_refresh',Date.now());pageHost.src=u.href;return true}
 });
@@ -2524,9 +2528,20 @@ await refreshNotes();
 remote.init().then(()=>{backendStatus.set('remote-sync','REMOTE_READY');scheduleSync(80)}).catch(error=>backendStatus.set('remote-sync',navigator.onLine?'DEGRADED':'LOCAL_ONLY',String(error?.message||error)));
 favoritesStore.start().then(()=>backendStatus.set('favorites-owner','PROMETEO_DB_CANONICAL')).catch(error=>backendStatus.set('favorites-owner','LOCAL_RECOVERY',String(error?.message||error)));
 ensureCatalog().catch(()=>{});
+const launchParams=new URLSearchParams(location.search);
+const launchPageId=launchParams.get('page')||'';
+const launchWorkItem=launchParams.get('changes')||'';
 const hashId=pageRoute.hashId();
-if(hashId){
-  ensureCatalog().then(()=>{const p=pageRegistry.get(hashId);if(p)loadPage(p,false)}).catch(()=>{});
+const requestedPageId=launchPageId||hashId;
+if(requestedPageId){
+  ensureCatalog().then(async()=>{
+    const p=pageRegistry.get(requestedPageId);if(!p)return;
+    loadPage(p,false);
+    if(launchWorkItem){
+      const loop=await loadPageChangeLoop();
+      await loop?.openResult?.(p,launchWorkItem,{markSeen:true});
+    }
+  }).catch(error=>backendStatus.set('host-deeplink','DEGRADED',String(error?.message||error)));
 }
 
 applyControlCorner(controlCorner);
