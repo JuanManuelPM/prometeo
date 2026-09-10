@@ -1,7 +1,8 @@
 export const FAVORITES_LEGACY_KEY = 'prometeo.v5.favorites.v1';
 
 function normalizeLegacyValue(value) {
-  return Array.isArray(value) ? value.filter(item => typeof item === 'string') : [];
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter(item => typeof item === 'string' && item))];
 }
 
 function sameArray(a, b) {
@@ -41,17 +42,10 @@ export function createLegacyFavoritesStore({
       return { ids: list(), favorite: false, changed: false };
     }
     const ids = list();
-    const index = ids.indexOf(id);
-    let favorite;
-    if (index >= 0) {
-      ids.splice(index, 1);
-      favorite = ids.includes(id);
-    } else {
-      ids.push(id);
-      favorite = true;
-    }
-    replace(ids);
-    return { ids: ids.slice(), favorite, changed: true };
+    const wasFavorite = ids.includes(id);
+    const next = wasFavorite ? ids.filter(value => value !== id) : [...ids, id];
+    replace(next);
+    return { ids: next.slice(), favorite: !wasFavorite, changed: true };
   }
 
   function move(id, toIndex) {
@@ -74,8 +68,8 @@ export function createLegacyFavoritesStore({
     const valid = validIds instanceof Set ? validIds : new Set(validIds || []);
     const before = list();
     const after = before.filter(id => valid.has(id));
-    if (!sameArray(before, after)) replace(after);
-    return { ids: after.slice(), changed: !sameArray(before, after) };
+    if (after.length !== before.length) replace(after);
+    return { ids: after.slice(), changed: after.length !== before.length };
   }
 
   return Object.freeze({
