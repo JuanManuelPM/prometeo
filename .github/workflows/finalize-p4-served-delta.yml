@@ -1,0 +1,59 @@
+name: Finalize P4 Served Delta
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/finalize-p4-served-delta.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: finalize-p4-served-delta
+  cancel-in-progress: false
+
+jobs:
+  append-delta:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Append idempotent served delta
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('coordination/DELTA_FEED.json')
+          feed=json.loads(p.read_text())
+          delta_id='D-016-P4-PAGE-CHANGE-LOOP-SERVED'
+          if any(d.get('id')==delta_id for d in feed.get('deltas',[])):
+              print('delta already present')
+              raise SystemExit(0)
+          rev=int(feed.get('revision',0))+1
+          feed['revision']=rev
+          feed.setdefault('deltas',[]).append({
+            'revision':rev,
+            'id':delta_id,
+            'topics':['capture','interaction','navigator','calendar','study','context','privacy','runtime'],
+            'summary':'P4 now has a production-served Page Change Loop on the single Universal Control V5: page-scoped text/voice/file intent can accumulate, HACER freezes exact private inputs into an Execution Packet, a disposable PROMETEO EXECUTE worker can return a sanitized result, and the existing puck projects unread/seen state without exposing Capture literals or creating another shell.',
+            'action':'Route page improvement intent through the existing p4-capture owner and shared/capture/v1. Other workstreams may rely on page-scoped Change Threads/Feed and the disposable-worker protocol, but must preserve explicit project export authorization, private transport, one-shell/Input Ownership rules, and Candidate/Human Accepted/Served distinctions.',
+            'source_refs':['coordination/workstreams/p4-capture/PACK.json','coordination/workstreams/p4-capture/LAST_RETURN.json','coordination/PAGE_CHANGE_THREAD_CONTRACT_V1.json','coordination/PAGE_CHANGE_FEED_CONTRACT_V1.json','coordination/AGENT_EXECUTION_PROTOCOL_V1.md','shared/capture/v1/change-loop.js','shared/universal-shell/v5/SERVED_MANIFEST.json'],
+            'served_merge':'c03f744752d4d4ea258a82d575229cd19f41fe6e',
+            'pull_request':17
+          })
+          p.write_text(json.dumps(feed,ensure_ascii=False,indent=2)+'\n')
+          print('appended revision',rev)
+          PY
+      - name: Commit durable delta
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add coordination/DELTA_FEED.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'coordination: publish P4 Page Change Loop served delta'
+          git pull --rebase origin main
+          git push origin HEAD:main
