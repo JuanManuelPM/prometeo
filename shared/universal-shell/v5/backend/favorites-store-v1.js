@@ -5,19 +5,26 @@ function normalizeLegacyValue(value) {
   return [...new Set(value.filter(item => typeof item === 'string' && item))];
 }
 
-function sameArray(a, b) {
-  return a.length === b.length && a.every((value, index) => value === b[index]);
+function resolveDefaultStorage() {
+  try {
+    const storage = globalThis.localStorage;
+    return storage && typeof storage.getItem === 'function' && typeof storage.setItem === 'function'
+      ? storage
+      : null;
+  } catch {
+    return null;
+  }
 }
 
-export function createLegacyFavoritesStore({
-  storage = globalThis.localStorage,
-  key = FAVORITES_LEGACY_KEY,
-} = {}) {
-  if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') {
-    throw new TypeError('FavoritesStore requires a Storage-compatible object');
-  }
+export function createLegacyFavoritesStore(options = {}) {
+  const key = options.key || FAVORITES_LEGACY_KEY;
+  const storage = Object.prototype.hasOwnProperty.call(options, 'storage')
+    ? options.storage
+    : resolveDefaultStorage();
+  const usable = !!storage && typeof storage.getItem === 'function' && typeof storage.setItem === 'function';
 
   function list() {
+    if (!usable) return [];
     try {
       const raw = storage.getItem(key);
       const parsed = raw == null ? [] : JSON.parse(raw);
@@ -29,7 +36,9 @@ export function createLegacyFavoritesStore({
 
   function replace(ids) {
     const next = normalizeLegacyValue(ids);
-    storage.setItem(key, JSON.stringify(next));
+    if (usable) {
+      try { storage.setItem(key, JSON.stringify(next)); } catch {}
+    }
     return next.slice();
   }
 
@@ -76,6 +85,7 @@ export function createLegacyFavoritesStore({
     schema: 'prometeo.universal-control-favorites-store/v1',
     mode: 'LEGACY_LOCALSTORAGE_COMPAT',
     key,
+    available: usable,
     list,
     replace,
     has,
