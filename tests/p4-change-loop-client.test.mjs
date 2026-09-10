@@ -20,26 +20,31 @@ test('new v2 secret wins over legacy v1 when both exist',async()=>{
   await client.workspace();assert.equal(auth,`Bearer ${v2}`);
 });
 
-test('page operations preserve semantic page identity',async()=>{
+test('page operations preserve semantic identity and explicit one-click Work consent',async()=>{
   const calls=[];const client=createChangeLoopClient({storage:storage({'prometeo.capture.workspace.secret.v1':'x'.repeat(43)}),fetchImpl:async(_u,i)=>{calls.push(JSON.parse(i.body));return response({ok:true})}});
   const page={id:'calendar',title:'Calendar',href:'https://example.test/calendar'};
-  await client.syncPage(page);await client.detail(page);await client.hacer(page);
+  await client.syncPage(page);await client.detail(page);await client.trabajar(page);
   assert.deepEqual(calls.map(x=>[x.action,x.page_id]),[['sync_page','calendar'],['detail','calendar'],['prepare_execution','calendar']]);
+  assert.equal(calls.at(-1).intent,'WORK_PAGE');assert.equal(calls.at(-1).human_approved,true);
 });
 
-test('persistent project grant is an explicit human-approved action',async()=>{
-  let payload=null;const client=createChangeLoopClient({storage:storage({'prometeo.capture.workspace.secret.v1':'x'.repeat(43)}),fetchImpl:async(_u,i)=>{payload=JSON.parse(i.body);return response({ok:true,grant:{enabled:true}})}});
-  await client.setProjectGrant(true);assert.deepEqual(payload,{action:'set_project_grant',enabled:true,human_approved:true});
+test('Think is a distinct explicit action and does not masquerade as execution',async()=>{
+  let payload=null;const client=createChangeLoopClient({storage:storage({'prometeo.capture.workspace.secret.v1':'x'.repeat(43)}),fetchImpl:async(_u,i)=>{payload=JSON.parse(i.body);return response({ok:true})}});
+  await client.pensar({id:'page-a',title:'A'});
+  assert.equal(payload.action,'prepare_research');assert.equal(payload.intent,'THINK_PAGE');assert.equal(payload.human_approved,true);
 });
 
 test('unlinked browser fails locally before any network request',async()=>{
   let requests=0;const client=createChangeLoopClient({storage:storage(),fetchImpl:async()=>{requests++;return response({})}});
-  await assert.rejects(()=>client.overview(),/WORKSPACE_NOT_LINKED/);assert.equal(requests,0);
+  await assert.rejects(()=>client.overview(),/vinculado/);assert.equal(requests,0);
 });
 
-test('upload is private bearer multipart transport, not a public URL payload',async()=>{
-  const secret='q'.repeat(43);let seen=null;const fakeFile=new Blob(['abc'],{type:'text/plain'});Object.defineProperty(fakeFile,'name',{value:'nota.txt'});
-  const client=createChangeLoopClient({storage:storage({'prometeo.capture.workspace.secret.v1':secret}),fetchImpl:async(url,init)=>{seen={url,init};return response({ok:true,attachment:{id:'a'}})}});
+test('file and audio uploads are private bearer multipart transport',async()=>{
+  const secret='q'.repeat(43),seen=[];const fakeFile=new Blob(['abc'],{type:'text/plain'});Object.defineProperty(fakeFile,'name',{value:'nota.txt'});
+  const audio=new Blob(['audio'],{type:'audio/webm'});Object.defineProperty(audio,'name',{value:'voz.webm'});
+  const client=createChangeLoopClient({storage:storage({'prometeo.capture.workspace.secret.v1':secret}),fetchImpl:async(url,init)=>{seen.push({url,init});return response({ok:true})}});
   await client.uploadAttachment(fakeFile,{id:'page-a',title:'A'});
-  assert.match(seen.url,/\/attachment\?page_id=page-a/);assert.equal(seen.init.headers.authorization,`Bearer ${secret}`);assert.ok(seen.init.body instanceof FormData);assert.equal(seen.url.includes(secret),false);
+  await client.uploadAudio(audio,{id:'cap-a',created:1},{id:'page-a',title:'A'});
+  assert.match(seen[0].url,/\/attachment\?page_id=page-a/);assert.match(seen[1].url,/\/audio$/);
+  for(const x of seen){assert.equal(x.init.headers.authorization,`Bearer ${secret}`);assert.ok(x.init.body instanceof FormData);assert.equal(x.url.includes(secret),false)}
 });

@@ -1,23 +1,26 @@
 <!doctype html><meta charset="utf-8"><style>:root{--surface:#fff;--face:#151A20;--text:#151A20;--on:#fff}</style><body><script type="module">
 import {mountPageChangeLoop} from '/shared/capture/v1/change-loop.js';
-const state={grant:false,seen:false,opened:'',texts:[],uploads:[],unread:null};
+const state={seen:false,opened:'',texts:[],uploads:[],unread:null,thinking:false,recording:false,paused:false,elapsed:0};
 const pageA={id:'calendar',title:'Calendar'},pageB={id:'pagekit',title:'PageKit'};
 const details={
- calendar:{thread:{id:'ta'},pending:[{capture_id:'c1',revision:1,ref:'capture:c1:rev:1',text:'subir el bloque',state:'EDITED',created_at:new Date().toISOString()},{capture_id:'c2',revision:1,ref:'capture:c2:rev:1',text:'conservar el gráfico',state:'EDITED',created_at:new Date().toISOString()}],attachments:[],executions:[],results:[{work_item_id:'WI-OLD',status:'SERVED',summary:{text:'ajuste anterior'},served_url:'https://example.test/served',created_at:new Date().toISOString(),seen_at:null}]},
- pagekit:{thread:{id:'tb'},pending:[{capture_id:'c3',revision:1,ref:'capture:c3:rev:1',text:'láser más largo',state:'EDITED',created_at:new Date().toISOString()}],attachments:[],executions:[],results:[]}
+ calendar:{thread:{id:'ta'},last_worked_at:new Date(Date.now()-3600000).toISOString(),pending:[{capture_id:'c1',revision:1,ref:'capture:c1:rev:1',text:'subir el bloque',state:'PENDING',source_kind:'HUMAN_TEXT',created_at:new Date().toISOString()},{capture_id:'c2',revision:1,ref:'capture:c2:rev:1',text:'conservar el gráfico',state:'PENDING',source_kind:'AI_RESEARCH_NOTE',session_code:'DS-OLD',created_at:new Date().toISOString()}],processing:[],attachments:[],executions:[],sessions:[],results:[{work_item_id:'WI-OLD',status:'SERVED',summary:{text:'ajuste anterior'},detail:{},served_url:'https://example.test/served',created_at:new Date().toISOString(),seen_at:null}]},
+ pagekit:{thread:{id:'tb'},pending:[{capture_id:'c3',revision:1,ref:'capture:c3:rev:1',text:'láser más largo',state:'PENDING',source_kind:'HUMAN_TEXT',created_at:new Date().toISOString()}],processing:[],attachments:[],executions:[],sessions:[],results:[]}
 };
 const client={
  hasWorkspace:()=>true,
  overview:async()=>({threads:[{thread_id:'ta',page_id:'calendar',page_title:'Calendar',pending:2,unread:!state.seen},{thread_id:'tb',page_id:'pagekit',page_title:'PageKit',pending:1,unread:false}]}),
- syncPage:async()=>({ok:true}),
+ syncPage:async()=>({ok:true}),executionStatus:async()=>({ok:true,executions:[]}),
  detail:async p=>{const d=structuredClone(details[p.id]||details.calendar);if(state.seen&&d.results[0])d.results[0].seen_at=new Date().toISOString();return d},
- grantStatus:async()=>({grant:{enabled:state.grant}}),
- setProjectGrant:async()=>{state.grant=true;return{grant:{enabled:true}}},
- hacer:async p=>({work_item_id:'WI-NEW',chatgpt_url:'https://chatgpt.com/?q='+encodeURIComponent('PROMETEO EXECUTE · WI-NEW\nhttps://opaque.test/packet/token'),thread_id:p.id}),
- markSeen:async()=>{state.seen=true;return{ok:true}},
- uploadAttachment:async f=>{state.uploads.push(f.name);return{ok:true}}
+ trabajar:async p=>({work_item_id:'WI-NEW',chatgpt_url:'https://chatgpt.com/?q='+encodeURIComponent('PROMETEO EXECUTE · WI-NEW\nhttps://opaque.test/packet/token'),thread_id:p.id}),
+ pensar:async p=>{state.thinking=true;return{session_code:'DS-NEW',chatgpt_url:'https://chatgpt.com/?q='+encodeURIComponent('PROMETEO PENSAR · DS-NEW\nhttps://opaque.test/session/token'),thread_id:p.id}},
+ markSeen:async()=>{state.seen=true;return{ok:true}},uploadAttachment:async f=>{state.uploads.push(f.name);return{ok:true}},claimTranscription:async()=>({ok:true,job:null})
 };
 window.open=()=>{const w={location:{},close(){}};Object.defineProperty(w.location,'href',{set:v=>state.opened=v,get:()=>state.opened});return w};
-const ui=mountPageChangeLoop({client,adapter:{getPage:()=>pageA,syncNow:async()=>{},createTextCapture:async(t,p)=>state.texts.push([p.id,t]),previewUrl:u=>state.preview=u,onUnread:n=>{state.unread=n}}});
+const recordingState=()=>({active:state.recording,paused:state.paused,elapsed:state.elapsed});
+const ui=mountPageChangeLoop({client,adapter:{
+ getPage:()=>pageA,syncNow:async()=>{},listLocalNotes:async()=>[],getLocalNote:async()=>null,
+ createTextCapture:async(t,p)=>state.texts.push([p.id,t]),previewUrl:u=>state.preview=u,onUnread:n=>{state.unread=n},
+ recordingState,startRecording:async()=>{state.recording=true;return recordingState()},pauseResumeRecording:()=>{state.paused=!state.paused;return recordingState()},saveRecording:async()=>{state.recording=false;return{id:'voice-1'}},discardRecording:()=>{state.recording=false;return recordingState()}
+}});
 window.__fixture={ui,state,pageA,pageB};window.__ready=true;
 </script></body>

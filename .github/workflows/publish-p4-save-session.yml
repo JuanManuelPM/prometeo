@@ -1,0 +1,55 @@
+name: Publish P4 Save Session
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pages/capture/save-session/**'
+      - '.github/workflows/publish-p4-save-session.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prometeo-shared-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Validate
+        run: |
+          set -euo pipefail
+          grep -q "session-save/" pages/capture/save-session/index.html
+          grep -q "location.hash" pages/capture/save-session/index.html
+          grep -q "history.replaceState" pages/capture/save-session/index.html
+          ! grep -q "location.search" pages/capture/save-session/index.html
+      - name: Publish
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin gh-pages
+          git worktree add /tmp/prometeo-pages origin/gh-pages
+          mkdir -p /tmp/prometeo-pages/pages/capture/save-session
+          cp pages/capture/save-session/index.html /tmp/prometeo-pages/pages/capture/save-session/index.html
+          cd /tmp/prometeo-pages
+          git add pages/capture/save-session/index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'capture: publish AI-session save fallback'
+          git pull --rebase origin gh-pages
+          git push origin HEAD:gh-pages
+      - name: Verify live
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 18); do
+            if curl -fsS "https://juanmanuelpm.github.io/prometeo/pages/capture/save-session/?probe=$i" | grep -q "Guardando"; then exit 0; fi
+            sleep 5
+          done
+          exit 1

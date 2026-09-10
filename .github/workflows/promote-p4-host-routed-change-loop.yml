@@ -1,12 +1,14 @@
-name: Promote P4 Host-Routed Change Loop
+name: Promote P4 Anywhere Notes
 
 on:
   push:
     branches: [main]
     paths:
       - 'shared/capture/v1/change-loop.js'
+      - 'shared/prometeo-shell/v1/prometeo-voice-worker-v2.js'
       - 'scripts/build-universal-control-v5-change-loop.py'
       - 'scripts/package-universal-control-v5-change-loop-release.py'
+      - 'coordination/AI_DESIGN_SESSION_PROTOCOL_V1.md'
       - '.github/workflows/promote-p4-host-routed-change-loop.yml'
   workflow_dispatch:
 
@@ -31,18 +33,27 @@ jobs:
           set -euo pipefail
           git pull --rebase origin main
 
-      - name: Build and verify candidate
+      - name: Build and verify anywhere-notes candidate
         run: |
           set -euo pipefail
           node --check shared/capture/v1/change-loop.js
+          node --check shared/prometeo-shell/v1/prometeo-voice-worker-v2.js
           python scripts/build-universal-control-v5-change-loop.py
           python scripts/package-universal-control-v5-change-loop-release.py
           grep -q "routeUrl:(pageId,workItemId=null)" shared/universal-shell/v5/candidate/change-loop-source.html
           grep -q "launchWorkItem" shared/universal-shell/v5/candidate/change-loop-source.html
           grep -q "openResult?.(p,launchWorkItem" shared/universal-shell/v5/candidate/change-loop-source.html
-          grep -q "page-change-loop-ui/v2" shared/capture/v1/change-loop.js
-          grep -q "Ver en Prometeo" shared/capture/v1/change-loop.js
-          grep -q "background:rgba(246,246,243,.30)" shared/capture/v1/change-loop.js
+          grep -q "change-loop.js?v=3" shared/universal-shell/v5/candidate/change-loop-source.html
+          grep -q "recordingState:()=>voice.state()" shared/universal-shell/v5/candidate/change-loop-source.html
+          grep -q "startRecording:async()=>" shared/universal-shell/v5/candidate/change-loop-source.html
+          grep -q "prometeo-voice-worker-v2.js?v=2" shared/universal-shell/v5/candidate/change-loop-source.html
+          grep -q "page-change-loop-ui/v3" shared/capture/v1/change-loop.js
+          grep -q "prepare_research" shared/capture/v1/change-loop.js
+          grep -q "intent:'WORK_PAGE'" shared/capture/v1/change-loop.js
+          grep -q "intent:'THINK_PAGE'" shared/capture/v1/change-loop.js
+          grep -q "Trabajar" shared/capture/v1/change-loop.js
+          grep -q "Pensar" shared/capture/v1/change-loop.js
+          ! grep -q "Activar HACER" shared/capture/v1/change-loop.js
 
       - name: Promote verified bytes to source-of-served runtime
         run: |
@@ -57,9 +68,9 @@ jobs:
           assert m['capabilities']['single_top_level_shell'] is True
           assert m['capabilities']['page_change_feed'] is True
           text=pathlib.Path('shared/universal-shell/v5/candidate/change-loop-source.html').read_text()
-          for s in ['launchWorkItem','openResult?.(p,launchWorkItem','routeUrl:(pageId,workItemId=null)','suppressNextClosedClick=true']:
-              assert s in text,s
-          print('PROMOTION INPUT PASS',m['source_sha256'])
+          required=['launchWorkItem','openResult?.(p,launchWorkItem','routeUrl:(pageId,workItemId=null)','suppressNextClosedClick=true','change-loop.js?v=3','recordingState:()=>voice.state()','prometeo-voice-worker-v2.js?v=2']
+          for s in required: assert s in text,s
+          print('P4 ANYWHERE PROMOTION INPUT PASS',m['source_sha256'])
           PY
 
       - name: Commit atomically without overwriting parallel main work
@@ -69,9 +80,9 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html shared/universal-shell/v5/chunk-*.b64 shared/universal-shell/v5/SERVED_MANIFEST.json shared/universal-shell/v5/candidate/change-loop-source.html shared/universal-shell/v5/candidate/CHANGE_LOOP_SOURCE_SHA256.txt shared/universal-shell/v5/change-loop-release-candidate
           if git diff --cached --quiet; then
-            echo 'Host-routed Change Loop already promoted.'
+            echo 'Anywhere Notes shell already promoted.'
             exit 0
           fi
-          git commit -m 'shell: promote host-routed Page Change Loop v2'
+          git commit -m 'shell: promote P4 anywhere notes v3'
           git pull --rebase origin main
           git push origin HEAD:main
