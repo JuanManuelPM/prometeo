@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Surgically add Page Change Loop v1 to the verified single-host V5 source.
+"""Surgically add Page Change Loop to the verified single-host V5 source.
 
-The Universal Control remains the only global shell. This build changes only the Notes
-entry/host adapter/unread projection needed to talk to the shared P4 Change Loop module.
-If the module cannot load or the workspace is not linked, the previous Notes UI remains
-available as a compatibility fallback.
+The Universal Control remains the only global shell. This builder only adds the
+Change Loop adapter, unread projection and host-routed page/result deep links.
+Child pages never own or mount global Prometeo navigation.
 """
 from __future__ import annotations
 import hashlib
@@ -32,8 +31,10 @@ def main():
 
     host="window.__PROMETEO_UNIVERSAL_HOST__=Object.freeze({schema:'prometeo.universal-host/v1',version:'v5',pageHost:'pageHost'});"
     enhanced="""window.__PROMETEO_UNIVERSAL_HOST__=Object.freeze({
-  schema:'prometeo.universal-host/v1',version:'v5',pageHost:'pageHost',
+  schema:'prometeo.universal-host/v2',version:'v5',pageHost:'pageHost',
   getPage:()=>currentPage?{id:currentPage.id,title:currentPage.title||currentPage.id,href:currentPage.public_url||currentPage.href||null,served_identity:null}:{id:'prometeo-universal-shell-v5',title:'Prometeo',href:location.href,served_identity:null},
+  routeUrl:(pageId,workItemId=null)=>{const u=new URL('/prometeo/',location.origin);if(pageId)u.searchParams.set('page',String(pageId));if(workItemId)u.searchParams.set('changes',String(workItemId));return u.href},
+  navigatePage:async(pageId,{push=true}={})=>{await ensureCatalog();const p=pageRegistry.get(String(pageId||''));if(!p)return false;loadPage(p,push);return true},
   previewUrl:url=>{if(!url)return false;hideNativeSurface();pageHost.src=String(url);return true},
   refreshPage:()=>{if(!currentPage)return false;const u=new URL(currentPage.public_url||currentPage.href,location.href);u.searchParams.set('_prometeo_refresh',Date.now());pageHost.src=u.href;return true}
 });"""
@@ -66,12 +67,14 @@ function openLegacyNotesFromLoop(){
 async function loadPageChangeLoop(){
   if(globalThis.__PROMETEO_CHANGE_LOOP__)return globalThis.__PROMETEO_CHANGE_LOOP__;
   if(changeLoopPromise)return changeLoopPromise;
-  const url=location.hostname==='juanmanuelpm.github.io'?'/prometeo/shared/capture/v1/change-loop.js?v=1':'/shared/capture/v1/change-loop.js?v=1';
+  const url=location.hostname==='juanmanuelpm.github.io'?'/prometeo/shared/capture/v1/change-loop.js?v=2':'/shared/capture/v1/change-loop.js?v=2';
   changeLoopPromise=import(url).then(m=>m.mountPageChangeLoop({adapter:{
     getPage:()=>window.__PROMETEO_UNIVERSAL_HOST__?.getPage?.(),
     syncNow:async()=>{try{await syncAll()}catch{}},
     createTextCapture:createTextCaptureForChangeLoop,
     previewUrl:url=>window.__PROMETEO_UNIVERSAL_HOST__?.previewUrl?.(url),
+    hostUrl:(pageId,workItemId)=>window.__PROMETEO_UNIVERSAL_HOST__?.routeUrl?.(pageId,workItemId),
+    navigatePage:(pageId,opts)=>window.__PROMETEO_UNIVERSAL_HOST__?.navigatePage?.(pageId,opts),
     openLegacyNotes:openLegacyNotesFromLoop,
     onUnread:setChangeUnread,
     onClose:()=>{}
@@ -93,16 +96,37 @@ async function loadPageChangeLoop(){
     }"""
     text=one(text,old,new,'notes action')
 
+    old_start="""const hashId=pageRoute.hashId();
+if(hashId){
+  ensureCatalog().then(()=>{const p=pageRegistry.get(hashId);if(p)loadPage(p,false)}).catch(()=>{});
+}"""
+    new_start="""const launchParams=new URLSearchParams(location.search);
+const launchPageId=launchParams.get('page')||'';
+const launchWorkItem=launchParams.get('changes')||'';
+const hashId=pageRoute.hashId();
+const requestedPageId=launchPageId||hashId;
+if(requestedPageId){
+  ensureCatalog().then(async()=>{
+    const p=pageRegistry.get(requestedPageId);if(!p)return;
+    loadPage(p,false);
+    if(launchWorkItem){
+      const loop=await loadPageChangeLoop();
+      await loop?.openResult?.(p,launchWorkItem,{markSeen:true});
+    }
+  }).catch(error=>backendStatus.set('host-deeplink','DEGRADED',String(error?.message||error)));
+}"""
+    text=one(text,old_start,new_start,'host deep link startup')
+
     ready="backendStatus.set('shell','READY');render();closeSelector(true);requestAnimationFrame(frame);"
     text=one(text,ready,"loadPageChangeLoop().then(loop=>loop?.pollUnread?.()).catch(()=>{});\n"+ready,'startup unread')
 
-    required=['loadPageChangeLoop','createTextCaptureForChangeLoop','data-change-unread','getPage:()=>currentPage','previewUrl:url','openLegacyNotesFromLoop','suppressNextClosedClick=true','__PROMETEO_UNIVERSAL_HOST__']
+    required=['loadPageChangeLoop','createTextCaptureForChangeLoop','data-change-unread','getPage:()=>currentPage','routeUrl:(pageId,workItemId=null)','navigatePage:async(pageId','launchWorkItem','openResult?.(p,launchWorkItem','previewUrl:url','openLegacyNotesFromLoop','suppressNextClosedClick=true','__PROMETEO_UNIVERSAL_HOST__']
     missing=[x for x in required if x not in text]
     if missing: raise SystemExit(f'missing markers {missing}')
     if text.count("if(it.action==='notes')")!=1: raise SystemExit('notes action duplicated')
     OUT.write_text(text,encoding='utf-8')
     outsha=hashlib.sha256(text.encode()).hexdigest()
-    META.write_text(f'{outsha}  change-loop-source.html\nbaseline_sha256={BASELINE_SHA}\nchange=PAGE_CHANGE_LOOP_ADAPTER_ONLY\nsingle_global_shell=true\n',encoding='utf-8')
+    META.write_text(f'{outsha}  change-loop-source.html\nbaseline_sha256={BASELINE_SHA}\nchange=PAGE_CHANGE_LOOP_HOST_ROUTING_V2\nsingle_global_shell=true\n',encoding='utf-8')
     print('built',OUT.relative_to(ROOT),outsha)
 
 if __name__=='__main__':main()
