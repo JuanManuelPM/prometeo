@@ -1,0 +1,1833 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>Prometeo · Universal Shell V5 Integrated Control · Corner Anchor</title>
+<style>
+:root{--surface:#ffffff;--face:#151A20;--text:#151A20;--on:#ffffff;--safeT:env(safe-area-inset-top,0px);--safeR:env(safe-area-inset-right,0px);--safeB:env(safe-area-inset-bottom,0px);--safeL:env(safe-area-inset-left,0px)}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--surface);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;transition:background 180ms ease,color 180ms ease}
+button{font:inherit;color:inherit}
+.stage{position:fixed;inset:0;z-index:20;width:100vw;height:100dvh;overflow:hidden;touch-action:none;background:transparent;pointer-events:none}
+.selector{--cx:calc(100vw - 58px);--cy:calc(100dvh - 62px - var(--safeB));position:absolute;inset:0;user-select:none;-webkit-user-select:none;pointer-events:none}
+.selector:not(.closed){pointer-events:auto}
+.selector .puck,.selector .current,.selector .edge-btn{pointer-events:auto}
+.stage{pointer-events:none}.stage .puck{pointer-events:auto}
+.orbit{position:absolute;left:var(--cx);top:var(--cy);width:0;height:0;pointer-events:none}
+.selector.closed .rail,
+.selector.closed .edge-btn,
+.selector.closed .current,
+.selector.closed .label-ring,
+.selector.closed .tail-dot,
+.selector.closed .meta{
+  opacity:0;
+  pointer-events:none;
+}
+.selector.closed .rail,
+.selector.closed .label-ring{
+  transition:opacity 160ms ease;
+}
+.selector.closed .edge-btn,
+.selector.closed .current,
+.selector.closed .tail-dot,
+.selector.closed .meta{
+  transition:opacity 130ms ease;
+}
+.selector.closed .neutral{opacity:0 !important}
+.selector.closed .close-hint{opacity:0 !important;transform:translate(-50%,-50%) scale(.72) !important}
+.rail{position:absolute;left:-132px;top:-132px;width:264px;height:264px;overflow:visible;pointer-events:none;z-index:1}
+.rail-shadow,.rail-bed,.rail-line,.rail-edge{fill:none;stroke-linecap:round}
+.rail-shadow{stroke:rgba(0,0,0,.15);stroke-width:15;transform:translateY(1px)}
+.rail-bed{stroke:color-mix(in srgb,var(--surface) 88%,var(--text) 12%);stroke-width:11}
+.rail-edge{stroke:rgba(255,255,255,.04);stroke-width:1.2;transform:translateY(-1px)}
+.rail-line{stroke:color-mix(in srgb,var(--text) 35%,transparent);stroke-width:1.1}
+.selector.moving .rail-line{stroke:color-mix(in srgb,var(--text) 46%,transparent)}
+.selector.armed-enter .rail-line,.selector.armed-back .rail-line{stroke:color-mix(in srgb,var(--text) 54%,transparent)}
+
+.tail-dot{--x:0px;--y:0px;--s:.6;position:absolute;left:0;top:0;width:10px;height:10px;border-radius:50%;transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) scale(var(--s));background:var(--face);opacity:1;box-shadow:0 2px 4px rgba(0,0,0,.10),inset 0 1px 0 rgba(255,255,255,.03);transition:background 180ms ease,box-shadow 100ms ease,opacity 120ms ease;will-change:transform;z-index:4}
+.tail-dot.hidden{display:none}
+
+.current{
+  --x:0px;--y:0px;--energy:0;
+  position:absolute;left:0;top:0;
+  width:46px;height:46px;border:0;border-radius:50%;
+  transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y)));
+  background:transparent;color:var(--on);
+  display:grid;place-items:center;pointer-events:auto;cursor:pointer;z-index:8;
+  padding:0;will-change:transform;
+}
+
+/* Keep a soft receiving socket on the rail, but the selected mark itself is
+   a single circle, not a circle-inside-a-circle. */
+.current-socket{
+  position:absolute;left:50%;top:50%;
+  width:31px;height:31px;border-radius:50%;
+  transform:translate(-50%,-50%);
+  background:color-mix(in srgb,var(--surface) 95%,var(--text) 5%);
+  box-shadow:
+    inset 0 4px 8px rgba(0,0,0,.10),
+    inset 0 0 0 1px color-mix(in srgb,var(--text) 6%,transparent);
+  transition:background 180ms ease,box-shadow 100ms ease;
+  overflow:visible;pointer-events:none;
+}
+
+.current-core{
+  position:absolute;left:50%;top:50%;
+  width:18px;height:18px;border-radius:50%;
+  transform:translate(-50%,-50%) scale(calc(1 - var(--energy) * .02));
+  background:var(--face);
+  color:var(--on);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:
+    0 3px 5px rgba(0,0,0,.14),
+    inset 0 1px 0 rgba(255,255,255,.05),
+    inset 0 -1px 0 rgba(0,0,0,.10);
+  transition:background 180ms ease,color 180ms ease,box-shadow 90ms ease;
+  will-change:transform,opacity;
+}
+.current:active .current-socket,
+.current.commit .current-socket{
+  box-shadow:
+    inset 0 6px 10px rgba(0,0,0,.14),
+    inset 0 0 0 1px color-mix(in srgb,var(--text) 8%,transparent);
+}
+.current:active .current-core,
+.current.commit .current-core{
+  transform:translate(-50%,-50%) scale(.92);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,.08),
+    inset 0 4px 6px rgba(0,0,0,.12),
+    inset 0 1px 0 rgba(255,255,255,.02);
+}
+
+.relay-core{
+  position:absolute;left:50%;top:50%;
+  width:18px;height:18px;border-radius:50%;
+  transform:translate(-50%,-50%) scale(.22);
+  background:var(--face);
+  opacity:0;
+  box-shadow:
+    0 3px 5px rgba(0,0,0,.13),
+    inset 0 1px 0 rgba(255,255,255,.04);
+  pointer-events:none;
+  will-change:transform,opacity;
+}
+.current-socket.relaying .current-core{opacity:.10}
+.current-socket.relaying .relay-core{opacity:1}
+
+/* Semantic marks remain tiny and inside the core. */
+.payload{
+  position:absolute;left:50%;top:50%;
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:none;z-index:2;color:var(--on);
+  transform:translate(-50%,-50%);
+}
+
+.payload.folder{
+  width:9.6px;height:7.2px;
+  display:flex;align-items:center;justify-content:center;
+}
+.payload.folder .folder-mark{
+  display:block;
+  width:9.6px;height:7.2px;
+  overflow:visible;
+}
+.payload.folder .folder-mark path{
+  fill:var(--on);
+  opacity:.86;
+}
+
+.payload.index{
+  position:absolute;left:50%;top:50%;
+  width:auto;min-width:0;
+  text-align:center;
+  font-size:8.2px;
+  line-height:1;
+  font-weight:900;
+  letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;
+  transform:translate(-50%,-50%) scale(var(--payload-scale,1));
+  transform-origin:center center;
+  opacity:.92;
+}
+
+.label-ring{
+  --label-dim:0;
+  position:absolute;left:-132px;top:-132px;width:264px;height:264px;
+  overflow:visible;pointer-events:none;z-index:6;
+}
+.label-band-shadow,.label-band{display:none}
+.label-guide{
+  fill:none;
+  stroke:color-mix(in srgb,var(--text) 24%, transparent);
+  stroke-width:1.05;
+  stroke-linecap:round;
+  opacity:calc(.76 - var(--label-dim) * .14);
+  transition:stroke 180ms ease, opacity 120ms ease;
+}
+.label-title{
+  font-size:12.6px;
+  font-weight:900;
+  letter-spacing:-.03em;
+  fill:var(--text);
+  opacity:calc(1 - var(--label-dim) * .18);
+  transition:fill 180ms ease, opacity 120ms ease;
+}
+.label-count{
+  font-size:7px;
+  font-weight:820;
+  letter-spacing:.08em;
+  fill:color-mix(in srgb,var(--text) 52%,transparent);
+  opacity:calc(.90 - var(--label-dim) * .30);
+  transition:fill 180ms ease, opacity 120ms ease;
+  font-variant-numeric:tabular-nums;
+}
+@media(max-width:420px){
+  .label-title{font-size:11.5px}
+  .label-count{font-size:6.1px}
+}
+
+.edge-btn{--x:0px;--y:0px;--angle:0deg;position:absolute;left:0;top:0;width:42px;height:42px;transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y)));border:0;background:transparent;padding:0;pointer-events:auto;cursor:pointer;z-index:10}
+.edge-face{position:absolute;left:50%;top:50%;width:22px;height:22px;border-radius:50%;transform:translate(-50%,-50%) rotate(var(--angle));background:var(--face);box-shadow:0 3px 6px rgba(0,0,0,.12),inset 0 1px 0 rgba(255,255,255,.05),inset 0 -1px 0 rgba(0,0,0,.10);transition:transform 95ms ease,box-shadow 95ms ease,background 180ms ease}
+.edge-btn:active .edge-face{transform:translate(-50%,-50%) rotate(var(--angle)) scale(.88);box-shadow:0 2px 4px rgba(0,0,0,.10),inset 0 5px 8px rgba(0,0,0,.18)}
+.edge-face svg{position:absolute;left:50%;top:50%;width:8px;height:8px;transform:translate(-50%,-50%);fill:none;stroke:var(--on);stroke-width:2.05;stroke-linecap:round;stroke-linejoin:round;transition:stroke 180ms ease}
+.edge-btn.disabled .edge-face{background:color-mix(in srgb,var(--surface) 94%,var(--text) 6%);box-shadow:inset 0 3px 6px rgba(0,0,0,.09),inset 0 0 0 1px color-mix(in srgb,var(--text) 9%,transparent),inset 0 1px 0 rgba(255,255,255,.03)}
+.edge-btn.disabled .edge-face svg{stroke:color-mix(in srgb,var(--text) 50%,transparent)}
+
+.puck{position:absolute;left:0;top:0;width:64px;height:64px;touch-action:none;border:0;border-radius:50%;transform:translate(-50%,-50%);background:var(--face);color:var(--on);pointer-events:auto;cursor:pointer;z-index:12;box-shadow:0 10px 17px rgba(0,0,0,.22),0 3px 6px rgba(0,0,0,.10),inset 0 1px 0 rgba(255,255,255,.055),inset 0 -1px 0 rgba(0,0,0,.14);transition:background 180ms ease,color 180ms ease,box-shadow 100ms ease}
+.puck:active{box-shadow:0 4px 7px rgba(0,0,0,.13),inset 0 7px 11px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.025)}
+.dimple{position:absolute;left:50%;top:50%;width:23px;height:23px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:inset 0 7px 10px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.025);overflow:hidden}
+.intent-arrow{position:absolute;left:50%;top:50%;width:12px;height:12px;transform:var(--corner-icon-transform,translate(-50%,-50%)) scale(.55);opacity:0;fill:none;stroke:var(--on);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:opacity 90ms ease,transform 130ms cubic-bezier(.18,.82,.22,1)}
+.close-hint{position:absolute;left:50%;top:50%;width:10px;height:10px;transform:translate(-50%,-50%) scale(.72);opacity:0;fill:none;stroke:var(--on);stroke-width:1.8;stroke-linecap:round;transition:opacity 110ms ease,transform 130ms cubic-bezier(.18,.82,.22,1)}
+@media (hover:hover){
+  .puck:hover .close-hint,.puck:focus-visible .close-hint{opacity:.78;transform:translate(-50%,-50%) scale(1)}
+  .puck:hover .dimple,.puck:focus-visible .dimple{box-shadow:inset 0 9px 13px rgba(0,0,0,.52),inset 0 1px 0 rgba(255,255,255,.02)}
+}
+.selector.armed-enter .close-hint,.selector.armed-back .close-hint{opacity:0}
+.selector.armed-enter .intent-arrow.enter,.selector.armed-back .intent-arrow.back{opacity:.92;transform:var(--corner-icon-transform,translate(-50%,-50%)) scale(1)}
+.selector.armed-enter .dimple,.selector.armed-back .dimple{box-shadow:inset 0 9px 13px rgba(0,0,0,.53),inset 0 1px 0 rgba(255,255,255,.02)}
+
+.neutral{--nx:0px;--ny:0px;--pressure:0;position:absolute;width:48px;height:48px;border-radius:50%;transform:translate(-50%,-50%);opacity:0;pointer-events:none;z-index:30;border:1px solid color-mix(in srgb,var(--text) 13%,transparent);background:color-mix(in srgb,var(--surface) 91%,transparent);box-shadow:inset 0 0 0 8px color-mix(in srgb,var(--text) 2.8%,transparent),0 2px 7px rgba(0,0,0,.03)}
+.neutral.on{opacity:.42}
+.neutral::before{content:"";position:absolute;left:50%;top:50%;width:27px;height:27px;border-radius:50%;transform:translate(-50%,-50%) scale(calc(.90 + var(--pressure) * .08));border:1px solid color-mix(in srgb,var(--text) 10%,transparent);opacity:calc(.32 + var(--pressure) * .35)}
+.neutral::after{content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;border-radius:50%;transform:translate(calc(-50% + var(--nx)),calc(-50% + var(--ny)));background:var(--face);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.meta{position:absolute;left:18px;bottom:calc(16px + var(--safeB));font-size:7px;font-weight:780;letter-spacing:.05em;opacity:.26;pointer-events:none}
+@media(max-width:420px){.name{width:min(48vw,168px);font-size:12px}.puck{width:60px;height:60px}}
+
+/* Corner Anchor v1: closed puck drags freely, release snaps exactly once. */
+.selector.corner-dragging .puck{cursor:grabbing;box-shadow:0 13px 22px rgba(0,0,0,.24),0 4px 8px rgba(0,0,0,.11),inset 0 1px 0 rgba(255,255,255,.055),inset 0 -1px 0 rgba(0,0,0,.14)}
+.selector.corner-snapping .puck{pointer-events:none}
+.safe-probe{position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+
+#pageHost{position:fixed;inset:0;width:100%;height:100%;border:0;background:#fff;z-index:1;display:block}
+#blankLayer{position:fixed;inset:0;background:#fff;z-index:0}
+
+
+/* V5 · capabilities are states of the same control.
+   Large text is the only thing allowed to claim a full-page surface. */
+.native-surface{
+  position:fixed;inset:0;z-index:2;display:none;
+  background:#fff;color:#151A20;overflow:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.native-surface.show{display:block}
+.native-wrap{
+  width:min(760px,100%);
+  min-height:100dvh;
+  margin:0 auto;
+  padding:max(7dvh,42px) clamp(22px,7vw,76px) 130px;
+}
+.native-kicker{
+  min-height:12px;
+  font:700 9px/1.2 "Century Gothic","Avenir Next",Avenir,system-ui,sans-serif;
+  letter-spacing:.12em;text-transform:uppercase;opacity:.33;
+  margin-bottom:20px;
+}
+.native-meta{
+  min-height:14px;
+  font:600 10px/1.35 "Century Gothic","Avenir Next",Avenir,system-ui,sans-serif;
+  letter-spacing:.02em;opacity:.38;margin-bottom:17px;
+}
+.native-editor{
+  display:none;width:100%;min-height:58dvh;resize:none;
+  border:0;outline:0;background:transparent;color:#151A20;
+  padding:0;margin:0;
+  font:500 clamp(16px,2.2vw,20px)/1.62 "Century Gothic","Avenir Next",Avenir,system-ui,sans-serif;
+  caret-color:#151A20;
+}
+.native-editor.show{display:block}
+.native-editor[readonly]{cursor:default}
+.native-empty{
+  display:none;min-height:54dvh;place-items:center;text-align:center;
+  font:600 12px/1.55 "Century Gothic","Avenir Next",Avenir,system-ui,sans-serif;
+  opacity:.30;
+}
+.native-empty.show{display:grid}
+.native-context{
+  display:none;white-space:pre-wrap;overflow-wrap:anywhere;
+  font:500 12px/1.62 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:#151A20;opacity:.88;margin:0;
+}
+.native-context.show{display:block}
+.native-code{
+  display:none;width:100%;border:0;border-bottom:1px solid rgba(21,26,32,.16);
+  outline:0;background:transparent;color:#151A20;padding:10px 0 12px;
+  font:500 12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+.native-code.show{display:block}
+.native-status{
+  min-height:16px;margin-top:20px;
+  font:700 9px/1.35 "Century Gothic","Avenir Next",Avenir,system-ui,sans-serif;
+  letter-spacing:.06em;text-transform:uppercase;opacity:.30;
+}
+.toast{
+  position:fixed;left:50%;bottom:24px;z-index:70;
+  transform:translate(-50%,14px);opacity:0;pointer-events:none;
+  background:#151A20;color:#fff;border-radius:999px;padding:8px 12px;
+  font:700 10px/1 system-ui;transition:.16s ease;
+}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.payload.action-icon{width:11px;height:11px}
+.payload.action-icon svg{
+  width:11px;height:11px;fill:none;stroke:var(--on);
+  stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round
+}
+
+/* Recording is not a second widget. It changes the physical state of the puck. */
+.puck.recording{
+  box-shadow:
+    inset 0 5px 11px rgba(0,0,0,.23),
+    0 6px 13px rgba(0,0,0,.18),
+    inset 0 1px 0 rgba(255,255,255,.035);
+}
+.puck.recording .dimple{
+  box-shadow:
+    inset 0 8px 14px rgba(0,0,0,.58),
+    inset 0 1px 0 rgba(255,255,255,.018);
+}
+.puck.recording .dimple::after{
+  content:"";position:absolute;left:50%;top:50%;
+  width:5px;height:5px;border-radius:50%;
+  transform:translate(-50%,-50%);
+  background:var(--on);opacity:.86;
+  animation:recordBreath 1.1s ease-in-out infinite;
+}
+.puck.recording.paused .dimple::after{animation:none;opacity:.30}
+@keyframes recordBreath{
+  0%,100%{transform:translate(-50%,-50%) scale(.62);opacity:.34}
+  50%{transform:translate(-50%,-50%) scale(1);opacity:.92}
+}
+
+/* When deletion is armed, depth—not a warning modal—communicates resistance. */
+.selector.delete-armed .current-core{
+  box-shadow:
+    inset 0 5px 9px rgba(0,0,0,.48),
+    inset 0 1px 0 rgba(255,255,255,.018),
+    0 1px 2px rgba(0,0,0,.06);
+}
+.selector.delete-armed .puck{
+  box-shadow:
+    inset 0 6px 12px rgba(0,0,0,.32),
+    0 4px 10px rgba(0,0,0,.13),
+    inset 0 1px 0 rgba(255,255,255,.025);
+}
+/* Favorites are a persistent property of pages, not a second navigation system.
+   The fullscreen organizer is deliberately flat: rows, not cards. */
+.favorites-organizer{display:none;width:100%;padding:0 0 5dvh}
+.favorites-organizer.show{display:block}
+.fav-section{margin:0 0 30px}
+.fav-section-head{
+  display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+  padding:0 0 8px;border-bottom:1px solid rgba(21,26,32,.10);
+  font:700 9px/1.2 "Century Gothic","Avenir Next",Avenir,system-ui,sans-serif;
+  letter-spacing:.11em;text-transform:uppercase;opacity:.38
+}
+.fav-section-count{font-variant-numeric:tabular-nums;opacity:.72}
+.fav-list{width:100%}
+.fav-row{
+  min-height:54px;display:grid;grid-template-columns:24px minmax(0,1fr) 40px;
+  align-items:center;gap:8px;border-bottom:1px solid rgba(21,26,32,.075);
+  background:#fff;position:relative;touch-action:pan-y
+}
+.fav-row.all{grid-template-columns:minmax(0,1fr) 40px}
+.fav-row.dragging{z-index:4;box-shadow:0 8px 20px rgba(0,0,0,.12);touch-action:none}
+.fav-handle,.fav-open,.fav-pin{border:0;background:transparent;color:#151A20;margin:0}
+.fav-handle{
+  width:24px;height:42px;padding:0;cursor:grab;touch-action:none;position:relative;opacity:.24
+}
+.fav-handle:active{cursor:grabbing}
+.fav-handle::before,.fav-handle::after{
+  content:"";position:absolute;left:7px;right:7px;height:1px;background:currentColor;
+  box-shadow:0 4px 0 currentColor
+}
+.fav-handle::before{top:15px}.fav-handle::after{display:none}
+.fav-open{
+  min-width:0;padding:10px 0;text-align:left;cursor:pointer;
+  font:600 13px/1.25 "Century Gothic","Avenir Next",Avenir,system-ui,sans-serif
+}
+.fav-title{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fav-path{
+  display:block;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font:600 8px/1.2 "Century Gothic","Avenir Next",Avenir,system-ui,sans-serif;
+  letter-spacing:.035em;opacity:.30
+}
+.fav-pin{
+  width:40px;height:44px;padding:0;display:grid;place-items:center;cursor:pointer;opacity:.24
+}
+.fav-pin svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.fav-pin.is-pinned{opacity:.88}
+.fav-pin.is-pinned svg{fill:currentColor;stroke:currentColor}
+.fav-empty{
+  min-height:70px;display:grid;place-items:center;text-align:center;
+  font:600 10px/1.4 "Century Gothic","Avenir Next",Avenir,system-ui,sans-serif;opacity:.28
+}
+@media(max-width:620px){
+  .native-wrap{padding:max(6dvh,34px) 22px 118px}
+  .native-editor{font-size:16px;line-height:1.6}
+  .fav-row{min-height:58px}
+  .fav-open{font-size:13px}
+}
+
+</style>
+</head>
+<body>
+
+<div id="blankLayer" aria-hidden="true"></div>
+<div class="safe-probe" id="safeProbe" aria-hidden="true"></div>
+<iframe id="pageHost" title="Página de Prometeo" src="about:blank"></iframe>
+
+<section class="native-surface" id="nativeSurface" aria-live="polite">
+  <div class="native-wrap">
+    <div class="native-kicker" id="nativeKicker"></div>
+    <div class="native-meta" id="nativeMeta"></div>
+    <textarea class="native-editor" id="nativeEditor" spellcheck="true"></textarea>
+    <div class="native-empty" id="nativeEmpty"></div>
+    <pre class="native-context" id="nativeContext"></pre>
+    <div class="favorites-organizer" id="favoritesOrganizer"></div>
+    <input class="native-code" id="nativeCode" autocomplete="off" spellcheck="false">
+    <div class="native-status" id="nativeStatus"></div>
+  </div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<div class="stage" id="stage">
+  <div class="selector" id="selector">
+    <div class="orbit" id="orbit">
+      <svg class="rail" viewBox="0 0 264 264" aria-hidden="true">
+        <path class="rail-shadow" d="M 18.53 107.88 A 116 116 0 0 1 107.88 18.53"></path>
+        <path class="rail-bed" d="M 18.53 107.88 A 116 116 0 0 1 107.88 18.53"></path>
+        <path class="rail-edge" d="M 18.53 107.88 A 116 116 0 0 1 107.88 18.53"></path>
+        <path class="rail-line" d="M 18.53 107.88 A 116 116 0 0 1 107.88 18.53"></path>
+      </svg>
+      <button class="edge-btn prev" id="prevBtn" aria-label="Opción anterior"><span class="edge-face"><svg viewBox="0 0 16 16"><path d="M5.5 3.5 10 8l-4.5 4.5"/></svg></span></button>
+      <button class="edge-btn next" id="nextBtn" aria-label="Opción siguiente"><span class="edge-face"><svg viewBox="0 0 16 16"><path d="M5.5 3.5 10 8l-4.5 4.5"/></svg></span></button>
+      <button class="current" id="currentBtn" aria-label="Entrar en la opción actual">
+        <span class="current-socket" aria-hidden="true">
+          <span class="current-core" id="currentCore">
+            <span class="payload core" id="payload"></span>
+          </span>
+          <span class="relay-core" id="relayCore"></span>
+        </span>
+      </button>
+      <svg class="label-ring" id="labelRing" viewBox="0 0 264 264" aria-hidden="true">
+        <defs>
+          <path id="labelTextArcPath" d="M 43.22 138.21 A 89 89 0 0 1 153.53 45.64"></path>
+          <path id="labelGuideArcPath" d="M 51.20 137.65 A 81 81 0 0 1 151.60 53.41"></path>
+        </defs>
+        <path class="label-band-shadow" d="M 51.20 137.65 A 81 81 0 0 1 151.60 53.41"></path>
+        <path class="label-band" d="M 51.20 137.65 A 81 81 0 0 1 151.60 53.41"></path>
+        <path class="label-guide" d="M 51.20 137.65 A 81 81 0 0 1 151.60 53.41"></path>
+        <text class="label-title">
+          <textPath id="labelTextPath" href="#labelTextArcPath" startOffset="50%" text-anchor="middle"></textPath>
+        </text>
+        <text class="label-count" id="labelCount" x="132" y="178" text-anchor="middle"></text>
+      </svg>
+      <button class="puck" id="puck" aria-label="Volver o cerrar">
+      <span class="dimple">
+        <svg class="intent-arrow enter" viewBox="0 0 16 16"><path d="M11.5 11.5 4.5 4.5M4.5 4.5h5M4.5 4.5v5"/></svg>
+        <svg class="intent-arrow back" viewBox="0 0 16 16"><path d="m4.5 4.5 7 7m0 0h-5m5 0v-5"/></svg>
+        <svg class="close-hint" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 5 11 11M11 5 5 11"/></svg>
+      </span>
+    </button>
+    </div>
+    <div class="neutral" id="neutral"></div>
+    <div class="meta" id="meta"></div>
+  </div>
+</div>
+<script type="module">
+(async()=>{
+const FALLBACK_KEY='prometeo.v4.preview.notes';
+let listNotes=async()=>{try{return JSON.parse(localStorage.getItem(FALLBACK_KEY)||'[]')}catch{return[]}};
+let putNote=async n=>{const a=(await listNotes()).filter(x=>x.id!==n.id);a.push(n);localStorage.setItem(FALLBACK_KEY,JSON.stringify(a));return n};
+let removeNote=async id=>{const a=(await listNotes()).filter(x=>x.id!==id);localStorage.setItem(FALLBACK_KEY,JSON.stringify(a))};
+let getNote=async id=>(await listNotes()).find(x=>x.id===id)||null;
+class FallbackRemote{constructor({onState}={}){this.onState=onState||(()=>{})}async init(){this.onState({online:navigator.onLine,synced:false});return null}linkCode(){return'PREVIEW-LOCAL'}async importLinkCode(){return null}async syncCapture(){return{deferred:true}}async deleteCapture(){return{deferred:true}}async createPatent(ids){const ns=(await listNotes()).filter(n=>ids.includes(n.id));return{patent_code:'PROMETEO-PREVIEW',expires_at:new Date(Date.now()+86400000).toISOString(),command:'PROMETEO CONTEXT\n\n'+ns.map(n=>n.text||'').filter(Boolean).join('\n\n')}}}
+class FallbackVoiceQueue{constructor({onChange,onRecording}={}){this.onChange=onChange||(()=>{});this.onRecording=onRecording||(()=>{});this.current=null;this.stream=null}async init(){}state(){const s=this.current;if(!s)return{active:false,paused:false,elapsed:0};let e=s.elapsed||0;if(!s.paused)e+=performance.now()-s.started;return{active:true,paused:s.paused,elapsed:e}}async start(){if(this.current)return;if(!navigator.mediaDevices?.getUserMedia)throw new Error('Micrófono no disponible');this.stream=await navigator.mediaDevices.getUserMedia({audio:true});const r=new MediaRecorder(this.stream),s={r,chunks:[],started:performance.now(),elapsed:0,paused:false};this.current=s;r.ondataavailable=e=>{if(e.data?.size)s.chunks.push(e.data)};r.start(250);this.onRecording(this.state())}pauseResume(){const s=this.current;if(!s)return;if(s.paused){s.r.resume();s.paused=false;s.started=performance.now()}else{s.elapsed+=performance.now()-s.started;s.r.pause();s.paused=true}this.onRecording(this.state())}async save(meta){const s=this.current;if(!s)return;this.current=null;const id=crypto.randomUUID?.()||String(Date.now());const note={id,created:Date.now(),status:'preparing',text:'',audio:null,error:'',...meta};await putNote(note);await new Promise(resolve=>{s.r.onstop=async()=>{const blob=new Blob(s.chunks,{type:s.r.mimeType||'audio/webm'});note.audio=blob;note.status='done';note.text='[audio guardado · transcripción disponible al correr en Prometeo]';await putNote(note);resolve()};s.r.stop()});this.stream?.getTracks().forEach(t=>t.stop());this.stream=null;this.onRecording(this.state());this.onChange();return note}discard(){const s=this.current;if(!s)return;this.current=null;try{s.r.stop()}catch{}this.stream?.getTracks().forEach(t=>t.stop());this.stream=null;this.onRecording(this.state())}}
+let VoiceQueue=FallbackVoiceQueue,PrometeoRemote=FallbackRemote;
+try{
+ const base=location.hostname==='juanmanuelpm.github.io'?'https://juanmanuelpm.github.io/prometeo/shared/prometeo-shell/':'https://juanmanuelpm.github.io/prometeo/shared/prometeo-shell/';
+ const [dbm,vm,sm]=await Promise.all([import(base+'v1/db.js'),import(base+'v1/voice.js'),import(base+'v2/sync.js')]);
+ listNotes=dbm.listNotes;putNote=dbm.putNote;removeNote=dbm.removeNote;getNote=dbm.getNote;VoiceQueue=vm.VoiceQueue;PrometeoRemote=sm.PrometeoRemote;
+}catch{}
+
+const $=s=>document.querySelector(s);
+const stage=$('#stage'),selector=$('#selector'),orbit=$('#orbit');
+const currentBtn=$('#currentBtn'),currentCore=$('#currentCore'),relayCore=$('#relayCore'),payload=$('#payload'),prevBtn=$('#prevBtn'),nextBtn=$('#nextBtn'),puck=$('#puck');
+const labelRing=$('#labelRing'),labelTextPath=$('#labelTextPath'),labelCount=$('#labelCount'),neutral=$('#neutral'),meta=$('#meta'),safeProbe=$('#safeProbe');
+const intentEnter=selector.querySelector('.intent-arrow.enter'),intentBack=selector.querySelector('.intent-arrow.back');
+const pageHost=$('#pageHost'),nativeSurface=$('#nativeSurface'),nativeKicker=$('#nativeKicker'),nativeMeta=$('#nativeMeta');
+const nativeEditor=$('#nativeEditor'),nativeEmpty=$('#nativeEmpty'),nativeContext=$('#nativeContext'),favoritesOrganizer=$('#favoritesOrganizer'),nativeCode=$('#nativeCode'),nativeStatus=$('#nativeStatus'),toast=$('#toast');
+
+const ICONS={
+  nav:'<svg viewBox="0 0 24 24"><path d="M4.5 8.5h6l1.7 2H19.5v8H4.5z"/><path d="M4.5 8.5V6h6l1.5 2.5"/></svg>',
+  notes:'<svg viewBox="0 0 24 24"><path d="M6 4.5h12v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>',
+  mic:'<svg viewBox="0 0 24 24"><rect x="9" y="4" width="6" height="11" rx="3"/><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v3M9 20h6"/></svg>',
+  pause:'<svg viewBox="0 0 24 24"><path d="M9 7v10M15 7v10"/></svg>',
+  play:'<svg viewBox="0 0 24 24"><path d="m9 6 9 6-9 6z"/></svg>',
+  save:'<svg viewBox="0 0 24 24"><path d="M5 5h14v14H5zM8 5v5h8V5M8 16h8"/></svg>',
+  trash:'<svg viewBox="0 0 24 24"><path d="M7 8h10l-1 11H8zM9 8V5h6v3M5 8h14"/></svg>',
+  page:'<svg viewBox="0 0 24 24"><path d="M7 4.5h7l3 3V19.5H7z"/><path d="M14 4.5v3h3"/></svg>',
+  copy:'<svg viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V5H5v11h3"/></svg>',
+  edit:'<svg viewBox="0 0 24 24"><path d="m5 17-.5 3 3-.5L18 9l-2.5-2.5z"/><path d="m14.5 7.5 2.5 2.5"/></svg>',
+  link:'<svg viewBox="0 0 24 24"><path d="M9 15 15 9"/><path d="M7.5 16.5 5 19a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0"/><path d="m16.5 7.5 2.5-2.5a3 3 0 0 1 4 4l-4 4a3 3 0 0 1-4 0"/></svg>',
+  context:'<svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>',
+  chat:'<svg viewBox="0 0 24 24"><path d="M5 5h14v11H9l-4 3z"/></svg>',
+  pin:'<svg viewBox="0 0 24 24"><path d="m9 4 6 2-1.2 4.2 3.2 3.2-4.2 1.2L10 19l-1.4-5.4L5 10l4.3-1.2z"/><path d="m10 14-5 6"/></svg>',
+  organize:'<svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/><path d="M8 5v4M15 10v4M11 15v4"/></svg>'
+};
+
+const FAVORITES_LEGACY_KEY = 'prometeo.v5.favorites.v1';
+
+function normalizeLegacyValue(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter(item => typeof item === 'string' && item))];
+}
+
+function resolveDefaultStorage() {
+  try {
+    const storage = globalThis.localStorage;
+    return storage && typeof storage.getItem === 'function' && typeof storage.setItem === 'function'
+      ? storage
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function createLegacyFavoritesStore(options = {}) {
+  const key = options.key || FAVORITES_LEGACY_KEY;
+  const storage = Object.prototype.hasOwnProperty.call(options, 'storage')
+    ? options.storage
+    : resolveDefaultStorage();
+  const usable = !!storage && typeof storage.getItem === 'function' && typeof storage.setItem === 'function';
+
+  function list() {
+    if (!usable) return [];
+    try {
+      const raw = storage.getItem(key);
+      const parsed = raw == null ? [] : JSON.parse(raw);
+      return normalizeLegacyValue(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  function replace(ids) {
+    const next = normalizeLegacyValue(ids);
+    if (usable) {
+      try { storage.setItem(key, JSON.stringify(next)); } catch {}
+    }
+    return next.slice();
+  }
+
+  function has(id) {
+    return typeof id === 'string' && id.length > 0 && list().includes(id);
+  }
+
+  function toggle(id) {
+    if (typeof id !== 'string' || id.length === 0) {
+      return { ids: list(), favorite: false, changed: false };
+    }
+    const ids = list();
+    const wasFavorite = ids.includes(id);
+    const next = wasFavorite ? ids.filter(value => value !== id) : [...ids, id];
+    replace(next);
+    return { ids: next.slice(), favorite: !wasFavorite, changed: true };
+  }
+
+  function move(id, toIndex) {
+    const ids = list();
+    const fromIndex = ids.indexOf(id);
+    if (fromIndex < 0 || !Number.isFinite(toIndex)) {
+      return { ids, changed: false, fromIndex, toIndex: fromIndex };
+    }
+    const target = Math.max(0, Math.min(ids.length - 1, Math.trunc(toIndex)));
+    if (target === fromIndex) {
+      return { ids, changed: false, fromIndex, toIndex: target };
+    }
+    const [value] = ids.splice(fromIndex, 1);
+    ids.splice(target, 0, value);
+    replace(ids);
+    return { ids: ids.slice(), changed: true, fromIndex, toIndex: target };
+  }
+
+  function prune(validIds) {
+    const valid = validIds instanceof Set ? validIds : new Set(validIds || []);
+    const before = list();
+    const after = before.filter(id => valid.has(id));
+    if (after.length !== before.length) replace(after);
+    return { ids: after.slice(), changed: after.length !== before.length };
+  }
+
+  return Object.freeze({
+    schema: 'prometeo.universal-control-favorites-store/v1',
+    mode: 'LEGACY_LOCALSTORAGE_COMPAT',
+    key,
+    available: usable,
+    list,
+    replace,
+    has,
+    toggle,
+    move,
+    prune,
+  });
+}
+
+/* P1 Favorites compatibility facade — bundled, no runtime dependency. */
+const FAVORITES_KEY=FAVORITES_LEGACY_KEY;
+const favoritesStore=createLegacyFavoritesStore();
+function readFavoriteIds(){return favoritesStore.list()}
+let favoriteIds=readFavoriteIds();
+function saveFavoriteIds(){favoritesStore.replace(favoriteIds)}
+function isFavorite(id){return !!id&&favoriteIds.includes(id)}
+
+const ROOT={label:'Prometeo',type:'hierarchy',kind:'root',children:[]};
+function syncRoot(){
+  const children=[{id:'pages',label:'Páginas',type:'action',action:'pages',icon:'nav'}];
+  if(currentPage){
+    children.push({
+      id:'favorite-toggle',
+      label:isFavorite(currentPage.id)?'Desanclar página':'Anclar página',
+      type:'action',action:'favorite-toggle',icon:'pin'
+    });
+  }
+  children.push({
+    id:'favorites',
+    label:favoriteIds.length?`Favoritos · ${favoriteIds.length}`:'Favoritos',
+    type:'action',action:'favorites',icon:'pin'
+  });
+  children.push(
+    {id:'notes',label:'Notas',type:'action',action:'notes',icon:'notes'},
+    {id:'record',label:'Grabar',type:'action',action:'record',icon:'mic'}
+  );
+  ROOT.children=children;
+  if(state?.stack?.length)state.stack[0]=ROOT;
+}
+
+/* Safety has direction:
+   back/left = destructive, center = pause, forward/right = safe save. */
+const RECORD_NODE={label:'Grabación',type:'hierarchy',kind:'record',children:[
+  {id:'discard',label:'Borrar',type:'action',action:'discard',icon:'trash'},
+  {id:'pause',label:'Pausar',type:'action',action:'pause',icon:'pause'},
+  {id:'save',label:'Guardar',type:'action',action:'save',icon:'save'}
+]};
+
+let pagesNode={label:'Páginas',type:'hierarchy',kind:'folder',children:[{label:'Cargando…',type:'leaf',kind:'file',disabled:true}]};
+let pageRegistry=new Map(),catalogTree=null,catalogFlat=[],currentPage=null,notes=[],toastTimer=null,recRAF=null,syncTimer=null;
+let notesScope='page',nativeMode=null,currentNote=null,contextResult=null,contextExpanded=false;
+let recordClock='00:00',confirmDiscard=false,confirmNoteDelete=false,activeNotesNode=null;
+const editTimers=new Map();
+const remote=new PrometeoRemote({onState:renderSyncState});
+const voice=new VoiceQueue({
+  workerURL:'https://juanmanuelpm.github.io/prometeo/shared/prometeo-shell/v1/prometeo-voice-worker.js?v=1',
+  onChange:async()=>{await refreshNotes();reconcileNotesView();scheduleSync();},
+  onRecording:renderRecording
+});
+
+
+const CORNER_KEY='prometeo.universal-control.corner.v1';
+const CORNERS=['top-left','top-right','bottom-left','bottom-right'];
+let controlCorner=loadControlCorner();
+const OR={mx:1,my:1};
+let closedPuckDrag=null,suppressClosedClickUntil=0,cornerSnapAnimation=null;
+const state={stack:[ROOT],index:0,drag:null,armed:null,open:false};
+const visual={flow:0,targetFlow:0,energy:0,targetEnergy:0,rot:0,targetRot:0};
+
+const R=116,A0=-2.9321531433504737,A1=-1.7802358370342162;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function node(){return state.stack[state.stack.length-1]}
+function listFor(n){if(n.type==='hierarchy')return n.children||[];if(n.type==='discrete'||n.type==='binary')return n.items||[];return []}
+function list(){return listFor(node())}
+function item(){return list()[state.index]||null}
+function initials(s=''){return s.trim().split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase()}
+function compactLabel(s,max=60){
+  s=(s||'').trim();
+  if(s.length<=max)return s;
+  return s.slice(0,Math.max(0,max-1)).trimEnd()+'…';
+}
+function arcPoint(t){t=clamp(t,0,1);const a=A0+(A1-A0)*t;return {x:Math.cos(a)*R*OR.mx,y:Math.sin(a)*R*OR.my,a}}
+function qToT(q){
+  /* Every element stays on the same arc.
+     Piecewise spacing preserves a clean air gap around the current puck,
+     then compresses progressively toward the corner. */
+  const sign=q<0?-1:1, a=Math.abs(q);
+  const keys=[0,.29,.395,.46,.50];
+  const i=Math.min(3,Math.floor(a));
+  const f=Math.min(1,a-i);
+  const smooth=f*f*(3-2*f);
+  const d=keys[i]+(keys[i+1]-keys[i])*smooth;
+  return .5 + sign*d;
+}
+function tangentAngle(t,forward=true){
+  const a=A0+(A1-A0)*clamp(t,0,1),dx=-Math.sin(a)*OR.mx,dy=Math.cos(a)*OR.my;
+  let deg=Math.atan2(dy,dx)*180/Math.PI;if(!forward)deg+=180;return deg
+}
+function loadControlCorner(){try{const v=localStorage.getItem(CORNER_KEY);return CORNERS.includes(v)?v:'bottom-right'}catch{return'bottom-right'}}
+function saveControlCorner(){try{localStorage.setItem(CORNER_KEY,controlCorner)}catch{}}
+function orientationForCorner(c){return{mx:c.includes('left')?-1:1,my:c.includes('top')?-1:1}}
+function safeInsets(){const cs=getComputedStyle(safeProbe);return{top:parseFloat(cs.paddingTop)||0,right:parseFloat(cs.paddingRight)||0,bottom:parseFloat(cs.paddingBottom)||0,left:parseFloat(cs.paddingLeft)||0}}
+function viewportBox(){const vv=window.visualViewport;return{w:vv?.width||innerWidth,h:vv?.height||innerHeight,ox:vv?.offsetLeft||0,oy:vv?.offsetTop||0}}
+function cornerAnchor(c){const v=viewportBox(),si=safeInsets(),small=v.w<=420,gx=small?52:58,gy=small?58:62;return{x:v.ox+(c.includes('left')?si.left+gx:v.w-si.right-gx),y:v.oy+(c.includes('top')?si.top+gy:v.h-si.bottom-gy)}}
+function setSelectorAnchor(x,y){selector.style.setProperty('--cx',x.toFixed(2)+'px');selector.style.setProperty('--cy',y.toFixed(2)+'px')}
+function mirrorSvgPoint(x,y){return{x:132+(x-132)*OR.mx,y:132+(y-132)*OR.my}}
+function mirroredArcD(x1,y1,r,x2,y2,keepTextUpright=false){let a=mirrorSvgPoint(x1,y1),b=mirrorSvgPoint(x2,y2),sweep=OR.mx*OR.my>0?1:0;if(keepTextUpright&&a.x>b.x){const q=a;a=b;b=q;sweep=1-sweep}return`M ${a.x.toFixed(2)} ${a.y.toFixed(2)} A ${r} ${r} 0 0 ${sweep} ${b.x.toFixed(2)} ${b.y.toFixed(2)}`}
+function syncCornerGeometry(){
+  const railD=mirroredArcD(18.53,107.88,116,107.88,18.53,false);orbit.querySelectorAll('.rail-shadow,.rail-bed,.rail-edge,.rail-line').forEach(p=>p.setAttribute('d',railD));
+  const textD=mirroredArcD(43.22,138.21,89,153.53,45.64,true),guideD=mirroredArcD(51.20,137.65,81,151.60,53.41,false);
+  orbit.querySelector('#labelTextArcPath')?.setAttribute('d',textD);orbit.querySelector('#labelGuideArcPath')?.setAttribute('d',guideD);labelRing.querySelectorAll('.label-band-shadow,.label-band,.label-guide').forEach(p=>p.setAttribute('d',guideD));
+  const count=mirrorSvgPoint(132,178);labelCount.setAttribute('x',count.x.toFixed(2));labelCount.setAttribute('y',count.y.toFixed(2));
+  const tr=`translate(-50%,-50%) scale(${OR.mx},${OR.my})`;intentEnter.style.setProperty('--corner-icon-transform',tr);intentBack.style.setProperty('--corner-icon-transform',tr);layout();
+}
+function applyControlCorner(c,{animate=false,from=null,vibrate=false}={}){if(!CORNERS.includes(c))c='bottom-right';const old=from||cornerAnchor(controlCorner),o=orientationForCorner(c);controlCorner=c;OR.mx=o.mx;OR.my=o.my;saveControlCorner();const dest=cornerAnchor(c);setSelectorAnchor(dest.x,dest.y);syncCornerGeometry();if(cornerSnapAnimation){try{cornerSnapAnimation.cancel()}catch{}cornerSnapAnimation=null}if(animate&&from){selector.classList.add('corner-snapping');const dx=old.x-dest.x,dy=old.y-dest.y;cornerSnapAnimation=orbit.animate([{transform:`translate(${dx.toFixed(2)}px,${dy.toFixed(2)}px)`},{transform:'translate(0px,0px)'}],{duration:210,easing:'cubic-bezier(.18,.82,.22,1)'});cornerSnapAnimation.onfinish=()=>{selector.classList.remove('corner-snapping');cornerSnapAnimation=null;if(vibrate)navigator.vibrate?.(6)};cornerSnapAnimation.oncancel=()=>selector.classList.remove('corner-snapping')}else if(vibrate)navigator.vibrate?.(6)}
+function nearestCorner(x,y){let best='bottom-right',bd=Infinity;for(const c of CORNERS){const a=cornerAnchor(c),d=(x-a.x)**2+(y-a.y)**2;if(d<bd){bd=d;best=c}}return best}
+function clampClosedPoint(x,y){const v=viewportBox(),si=safeInsets(),r=34;return{x:clamp(x,v.ox+si.left+r,v.ox+v.w-si.right-r),y:clamp(y,v.oy+si.top+r,v.oy+v.h-si.bottom-r)}}
+function localVector(dx,dy){return{x:dx*OR.mx,y:dy*OR.my}}
+
+const tailDefs=[];
+for(const side of [-1,1])for(let rank=1;rank<=3;rank++){
+  const el=document.createElement('span');el.className='tail-dot';el.dataset.side=side;el.dataset.rank=rank;
+  orbit.insertBefore(el,currentBtn);tailDefs.push({el,side,rank});
+}
+
+function setTheme(it){
+  if(!it||it.render!=='theme')return;
+  const r=document.documentElement.style;
+  r.setProperty('--surface',it.base);r.setProperty('--face',it.face);r.setProperty('--text',it.text);r.setProperty('--on',it.on);
+  document.querySelector('meta[name="theme-color"]').content=it.base;
+}
+function setPayload(it,n){
+  payload.className='payload';payload.textContent='';payload.innerHTML='';payload.style.removeProperty('--payload-scale');
+  if(it?.action==='pause'&&voice.state().active){
+    payload.classList.add('action-icon');payload.innerHTML=ICONS[voice.state().paused?'play':'pause'];return
+  }
+  if(it?.icon && ICONS[it.icon]){payload.classList.add('action-icon');payload.innerHTML=ICONS[it.icon];return}
+  if(it?.kind==='folder' || it?.type==='hierarchy'){
+    payload.classList.add('folder');
+    payload.innerHTML='<svg class="folder-mark" viewBox="0 0 16 12" aria-hidden="true"><path d="M1.7 3.2h3.5l1.3-1.5h2.3c.9 0 1.6.7 1.6 1.6v.6h1.9c1 0 1.8.8 1.8 1.8v3.3c0 1-.8 1.8-1.8 1.8H3.2c-1 0-1.8-.8-1.8-1.8V3.2Z"/></svg>';return;
+  }
+  if(it?.type==='leaf'){payload.classList.add('action-icon');payload.innerHTML=ICONS.page;return}
+  payload.classList.add('index');const label=String(state.index+1);payload.textContent=label;payload.style.setProperty('--payload-scale',label.length>1?'.86':'1');
+}
+function remaining(side){
+  const n=node(),arr=list(),len=arr.length;if(!len)return 0;if(n.wrap)return Math.max(0,len-1);
+  return side<0?state.index:len-state.index-1;
+}
+function updateTailVisibility(){
+  for(const side of [-1,1]){
+    const count=remaining(side);
+    const dots=Math.max(0,Math.min(3,count-1));
+    for(const d of tailDefs.filter(x=>x.side===side))d.el.classList.toggle('hidden',d.rank>dots);
+  }
+}
+function displayLabel(it,n){
+  const rec=voice.state();
+  if(n?.kind==='record'&&rec.active){
+    const status=rec.paused?'Pausado':'Grabando';
+    const action=it?.action==='pause'?(rec.paused?'Continuar':'Pausar'):(it?.label||'');
+    if(confirmDiscard&&it?.action==='discard')return `Confirmar borrar · ${recordClock}`;
+    return `${status} · ${recordClock}${action?` · ${action}`:''}`;
+  }
+  if(it?.action==='record'&&rec.active)return `${rec.paused?'Pausado':'Grabando'} · ${recordClock}`;
+  if(n?.kind==='notes-list'&&it?.note){
+    const txt=String(it.note.text||'').trim().replace(/\s+/g,' ');
+    return compactLabel(txt||statusLabel(it.note),60);
+  }
+  if(confirmNoteDelete&&it?.action==='note-delete')return 'Confirmar borrar nota';
+  return compactLabel(it?.label||n?.label||'',60);
+}
+function render(){
+  syncRoot();
+  const n=node(),arr=list();state.index=clamp(state.index,0,Math.max(0,arr.length-1));const it=item();
+  if(it?.render==='theme')setTheme(it);setPayload(it,n);
+
+  const mainLabel=displayLabel(it,n);
+  labelTextPath.textContent=mainLabel;
+  labelCount.textContent=(n?.kind==='record'&&voice.state().active)?'':(arr.length?`${state.index+1}/${arr.length}`:'');
+
+  const size=mainLabel.length>52?'8.5px':
+             mainLabel.length>44?'9.0px':
+             mainLabel.length>36?'9.7px':
+             mainLabel.length>28?'10.4px':
+             mainLabel.length>20?'11.2px':'12.5px';
+  labelTextPath.parentNode.style.fontSize=size;
+
+  meta.textContent=state.stack.slice(1).map(x=>x.label).join(' / ');
+  selector.classList.toggle('delete-armed',confirmDiscard||confirmNoteDelete);
+  syncPuckLabel();
+  updateTailVisibility();
+  prevBtn.classList.toggle('disabled',!n.wrap&&state.index===0);
+  nextBtn.classList.toggle('disabled',!n.wrap&&state.index===arr.length-1);
+  syncNativeSurface();
+  layout();
+}
+function layout(){
+  const flow=visual.flow;
+  const cp=arcPoint(qToT(-flow));
+  currentBtn.style.setProperty('--x',cp.x.toFixed(2)+'px');currentBtn.style.setProperty('--y',cp.y.toFixed(2)+'px');
+  currentBtn.style.setProperty('--energy',visual.energy.toFixed(3));
+  currentCore.style.setProperty('--energy',visual.energy.toFixed(3));
+
+  labelRing.style.setProperty('--label-dim',clamp(Math.abs(flow)*.48,0,.42).toFixed(3));
+  labelTextPath.setAttribute('startOffset', `${clamp(50 + flow*10, 38, 62)}%`);
+
+  const p0=arcPoint(0),p1=arcPoint(1);
+  prevBtn.style.setProperty('--x',p0.x.toFixed(2)+'px');prevBtn.style.setProperty('--y',p0.y.toFixed(2)+'px');prevBtn.style.setProperty('--angle',tangentAngle(0,false).toFixed(2)+'deg');
+  nextBtn.style.setProperty('--x',p1.x.toFixed(2)+'px');nextBtn.style.setProperty('--y',p1.y.toFixed(2)+'px');nextBtn.style.setProperty('--angle',tangentAngle(1,true).toFixed(2)+'deg');
+
+  const prevA=(tangentAngle(0,false))*Math.PI/180;
+  const nextA=(tangentAngle(1,true))*Math.PI/180;
+  for(const d of tailDefs){
+    const base=d.side<0?p0:p1;
+    const a=d.side<0?prevA:nextA;
+    const step=12 + d.rank*11;
+    const x=base.x + Math.cos(a)*step;
+    const y=base.y + Math.sin(a)*step;
+    d.el.style.setProperty('--x',x.toFixed(2)+'px');
+    d.el.style.setProperty('--y',y.toFixed(2)+'px');
+    d.el.style.setProperty('--s',({1:.66,2:.46,3:.30})[d.rank]);
+  }
+}
+let relayToken=0;
+
+function resetRelayVisuals(){
+  currentCore.getAnimations().forEach(a=>a.cancel());
+  relayCore.getAnimations().forEach(a=>a.cancel());
+  currentCore.style.opacity='1';
+  currentCore.style.transform='translate(-50%,-50%) scale(1)';
+  relayCore.style.opacity='0';
+  relayCore.style.transform='translate(-50%,-50%) scale(.22)';
+  const socket=currentBtn.querySelector('.current-socket');
+  if(socket) socket.classList.remove('relaying');
+}
+
+function animateRelay(dir){
+  /* Never queue stale transitions. The selector should show the latest move
+     immediately, even during fast navigation. */
+  relayToken++;
+  const token=relayToken;
+  resetRelayVisuals();
+
+  const centerA=A0+(A1-A0)*.5;
+  const tx=-Math.sin(centerA),ty=Math.cos(centerA);
+  const fromX=dir*tx*12.5;
+  const fromY=dir*ty*12.5;
+  const overshootX=-dir*tx*2.4;
+  const overshootY=-dir*ty*2.4;
+
+  currentCore.animate([
+    {offset:0, transform:`translate(-50%,-50%) translate(${fromX.toFixed(2)}px,${fromY.toFixed(2)}px) scale(.82)`, opacity:.92},
+    {offset:.62, transform:`translate(-50%,-50%) translate(${overshootX.toFixed(2)}px,${overshootY.toFixed(2)}px) scale(1.05)`, opacity:1},
+    {offset:1, transform:'translate(-50%,-50%) translate(0px,0px) scale(1)', opacity:1}
+  ],{
+    duration:220,
+    easing:'cubic-bezier(.16,.82,.20,1)',
+    fill:'both'
+  });
+
+  currentBtn.animate([
+    {filter:'brightness(1)'},
+    {filter:'brightness(1.04)'},
+    {filter:'brightness(1)'}
+  ],{duration:170,easing:'cubic-bezier(.18,.82,.22,1)'});
+
+  setTimeout(()=>{
+    if(token===relayToken){
+      currentCore.style.opacity='1';
+      currentCore.style.transform='translate(-50%,-50%) scale(1)';
+    }
+  },230);
+}
+
+function pulseDetent(){
+  currentBtn.animate([
+    {transform:currentBtn.style.transform||'', filter:'brightness(1)'},
+    {transform:currentBtn.style.transform||'', filter:'brightness(1.03)'},
+    {transform:currentBtn.style.transform||'', filter:'brightness(1)'}
+  ],{duration:150,easing:'cubic-bezier(.18,.82,.22,1)'});
+  if(navigator.vibrate)navigator.vibrate(5);
+}
+let audioCtx=null;
+function clickSound(freq=205){
+  try{
+    audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain(),t=audioCtx.currentTime;o.type='sine';o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(freq*.68,t+.035);
+    g.gain.setValueAtTime(.025,t);g.gain.exponentialRampToValueAtTime(.0001,t+.04);o.connect(g).connect(audioCtx.destination);o.start(t);o.stop(t+.045);
+  }catch{}
+}
+
+function syncPuckLabel(){
+  const rec=voice.state();
+  if(!state.open){
+    puck.setAttribute('aria-label',rec.active?(rec.paused?'Grabación pausada · abrir controles':'Grabando · abrir controles'):'Abrir Prometeo');
+    return;
+  }
+  if(state.stack.length===1)puck.setAttribute('aria-label','Cerrar Prometeo');
+  else puck.setAttribute('aria-label','Volver');
+}
+function openSelector(){
+  if(state.open) return;
+  applyControlCorner(controlCorner);
+  stage.style.pointerEvents='auto';
+  state.open=true;
+  syncRoot();
+  render();
+  selector.classList.remove('closed');
+  selector.classList.add('open');
+  syncPuckLabel();
+  clickSound(175);
+  if(navigator.vibrate)navigator.vibrate(8);
+  selector.animate([{opacity:.82},{opacity:1}],{duration:150,easing:'ease-out'});
+}
+function closeSelector(silent=false){
+  const wasOpen=state.open;
+  stage.style.pointerEvents='none';
+  state.open=false;
+  state.drag=null;
+  applyControlCorner(controlCorner);
+  state.armed=null;
+  neutral.classList.remove('on');
+  selector.classList.add('closed');
+  selector.classList.remove('open');
+  selector.classList.remove('armed-enter','armed-back','moving');
+  visual.targetFlow=0;visual.targetEnergy=0;visual.targetRot=0;
+  syncPuckLabel();
+  if(!silent && wasOpen){
+    clickSound(150);
+    if(navigator.vibrate)navigator.vibrate(7);
+  }
+}
+
+function step(dir,source='direct'){
+  if(!state.open) return false;
+  confirmDiscard=false;confirmNoteDelete=false;
+  const n=node(),arr=list();if(!arr.length)return false;let next=state.index+dir;
+  if(n.wrap)next=(next%arr.length+arr.length)%arr.length;
+  else if(next<0||next>=arr.length){if(navigator.vibrate)navigator.vibrate(9);return false}
+
+  state.index=next;
+
+  /* The main visible motion should be locked to OPTION CHANGES,
+     not to every tiny pointer fluctuation. This keeps it in sync with the
+     rhythm of the tail dots / page-step logic. */
+  const kick = source==='drag-x' ? .38 : .24;
+  visual.flow = -dir * kick;
+  visual.targetFlow = 0;
+  animateRelay(dir);
+
+  visual.targetEnergy=Math.max(visual.targetEnergy, source==='drag-x' ? .42 : .34);
+  render();
+  pulseDetent();
+  clickSound();
+  return true;
+}
+async function enter(){
+  if(!state.open){openSelector();return}
+  const it=item();if(!it||it.disabled)return;
+  currentBtn.classList.add('commit');setTimeout(()=>currentBtn.classList.remove('commit'),130);clickSound(165);navigator.vibrate?.(9);
+
+  if(it.type==='action'){
+    if(it.action==='pages'){
+      await ensureCatalog();state.stack.push(pagesNode);state.index=0;state.armed=null;render();return;
+    }
+    if(it.action==='favorite-toggle'){
+      if(!currentPage)return;
+      toggleFavoritePage(currentPage,true);
+      syncRoot();state.index=Math.min(state.index,Math.max(0,ROOT.children.length-1));render();return;
+    }
+    if(it.action==='favorites'){
+      await ensureCatalog();
+      state.stack.push(buildFavoritesNode());state.index=0;state.armed=null;render();return;
+    }
+    if(it.action==='favorites-organize'){
+      await ensureCatalog();
+      state.stack.push(buildFavoritesOrganizerNode());state.index=0;state.armed=null;render();closeSelector();return;
+    }
+    if(it.action==='favorites-done'){
+      if(state.stack.at(-1)?.kind==='favorites-organizer')state.stack.pop();
+      refreshFavoritesNodeInStack();state.index=0;render();return;
+    }
+    if(it.action==='notes'){
+      await refreshNotes();
+      state.stack.push(buildNotesHome());
+      state.index=0;state.armed=null;render();return;
+    }
+    if(it.action==='record'){
+      if(voice.state().active){
+        state.stack.push(RECORD_NODE);state.index=1;confirmDiscard=false;render();return;
+      }
+      await startRecording();
+      state.stack=[ROOT,RECORD_NODE];state.index=1;state.armed=null;confirmDiscard=false;
+      openSelector();render();return;
+    }
+
+    if(it.action==='pause'){
+      voice.pauseResume();confirmDiscard=false;renderRecording(voice.state());render();return;
+    }
+    if(it.action==='save'){await saveRecording();return}
+    if(it.action==='discard'){
+      if(!confirmDiscard){
+        confirmDiscard=true;selector.classList.add('delete-armed');clickSound(118);navigator.vibrate?.(12);render();return;
+      }
+      discardRecording();return;
+    }
+
+    if(it.action==='notes-page'||it.action==='notes-all'){
+      notesScope=it.action==='notes-all'?'all':'page';
+      activeNotesNode=buildNotesList(notesScope);
+      state.stack.push(activeNotesNode);state.index=firstUsableIndex(activeNotesNode);render();return;
+    }
+    if(it.action==='context-page'||it.action==='context-all'){
+      notesScope=it.action==='context-all'?'all':'page';
+      await prepareContextFor(notesForScope(notesScope));return;
+    }
+    if(it.action==='link'){
+      state.stack.push(buildLinkNode());state.index=0;render();return;
+    }
+
+    if(it.action==='note-edit'){beginNoteEdit(it.note);return}
+    if(it.action==='note-play'){playNote(it.note);return}
+    if(it.action==='note-copy'){await copyText(String(it.note?.text||''));showToast('Nota copiada');return}
+    if(it.action==='note-context'){await prepareContextFor([it.note].filter(Boolean));return}
+    if(it.action==='note-delete'){
+      if(!confirmNoteDelete){
+        confirmNoteDelete=true;clickSound(118);navigator.vibrate?.(12);render();return;
+      }
+      await deleteNote(it.note);return;
+    }
+
+    if(it.action==='context-copy'){
+      await copyText(contextResult?.command||'');showToast('Contexto copiado');return;
+    }
+    if(it.action==='context-chat'){
+      await copyText(contextResult?.command||'');window.open('https://chatgpt.com/','_blank','noopener');return;
+    }
+    if(it.action==='context-view'){
+      contextExpanded=!contextExpanded;renderNativeContext();if(contextExpanded)closeSelector();return;
+    }
+
+    if(it.action==='link-copy'){
+      await copyText(remote.linkCode());showToast('Código copiado');return;
+    }
+    if(it.action==='link-use'){
+      if(!String(nativeCode.value||'').trim()){
+        closeSelector();nativeCode.focus();showToast('Pegá el código y tocá el puck');return;
+      }
+      try{
+        await remote.importLinkCode(nativeCode.value);
+        nativeStatus.textContent='dispositivo vinculado';
+        scheduleSync(30);showToast('Dispositivo vinculado');
+      }catch(e){showToast(e?.message||'Código inválido')}
+      return;
+    }
+  }
+
+  if(it.type==='note'&&it.note){
+    currentNote=it.note;
+    state.stack.push(buildNoteActions(it.note));state.index=0;render();return;
+  }
+  if(it.type==='leaf'&&it.page){loadPage(it.page);state.stack=[ROOT];state.index=0;closeSelector();return}
+  if(it.type==='hierarchy'||it.type==='discrete'||it.type==='binary'){
+    state.stack.push(it);state.index=0;state.armed=null;render()
+  }
+}
+function back(){
+  confirmDiscard=false;confirmNoteDelete=false;
+  if(!state.open){openSelector();return}
+  if(state.stack.length>1){
+    state.stack.pop();state.index=0;state.armed=null;
+    if(node()?.kind==='favorites')state.stack[state.stack.length-1]=buildFavoritesNode();
+    const n=node();
+    if(n?.kind==='record'&&voice.state().active)state.index=1;
+    if(n?.kind==='notes-list')state.index=Math.min(state.index,Math.max(0,listFor(n).length-1));
+    render();clickSound(155);navigator.vibrate?.(7);
+  }else closeSelector();
+}
+/* Closed-control repositioning. Tap opens; >8px drag owns the pointer and snaps to one semantic corner. */
+puck.addEventListener('pointerdown',e=>{if(state.open||e.button!==0)return;const a=cornerAnchor(controlCorner);closedPuckDrag={id:e.pointerId,sx:e.clientX,sy:e.clientY,lastX:a.x,lastY:a.y,dragging:false};try{puck.setPointerCapture(e.pointerId)}catch{}},{capture:true});
+puck.addEventListener('pointermove',e=>{const d=closedPuckDrag;if(!d||d.id!==e.pointerId||state.open)return;const dist=Math.hypot(e.clientX-d.sx,e.clientY-d.sy);if(!d.dragging&&dist<8)return;if(!d.dragging){d.dragging=true;selector.classList.add('corner-dragging')}const p=clampClosedPoint(e.clientX,e.clientY);d.lastX=p.x;d.lastY=p.y;setSelectorAnchor(p.x,p.y);e.preventDefault();e.stopImmediatePropagation()},{capture:true,passive:false});
+function finishClosedPuckDrag(e,cancel=false){const d=closedPuckDrag;if(!d||d.id!==e.pointerId)return;closedPuckDrag=null;selector.classList.remove('corner-dragging');try{puck.releasePointerCapture(e.pointerId)}catch{}if(!d.dragging||cancel){applyControlCorner(controlCorner);return}suppressClosedClickUntil=performance.now()+360;const c=nearestCorner(d.lastX,d.lastY);applyControlCorner(c,{animate:true,from:{x:d.lastX,y:d.lastY},vibrate:true});e.preventDefault();e.stopImmediatePropagation()}
+puck.addEventListener('pointerup',e=>finishClosedPuckDrag(e,false),{capture:true});puck.addEventListener('pointercancel',e=>finishClosedPuckDrag(e,true),{capture:true});
+prevBtn.addEventListener('click',e=>{e.stopPropagation();step(-1)});
+nextBtn.addEventListener('click',e=>{e.stopPropagation();step(1)});
+currentBtn.addEventListener('click',e=>{e.stopPropagation();enter().catch(err=>showToast(err?.message||'No pude abrir'))});
+puck.addEventListener('click',e=>{e.stopPropagation();if(performance.now()<suppressClosedClickUntil){e.preventDefault();return}back()});
+
+let wheelBusy=false,lastWheel=0;
+stage.addEventListener('wheel',e=>{
+  if(!state.open) return;
+  e.preventDefault();const now=performance.now();if(wheelBusy||now-lastWheel<92)return;lastWheel=now;wheelBusy=true;
+  const raw=Math.abs(e.deltaY)>=Math.abs(e.deltaX)?e.deltaY:e.deltaX;visual.targetFlow=raw>0?.62:-.62;
+  setTimeout(()=>{step(raw>0?1:-1);visual.targetFlow=0;setTimeout(()=>wheelBusy=false,70)},58);
+},{passive:false});
+stage.addEventListener('auxclick',e=>{if(e.button===1){e.preventDefault();back()}});
+
+/* Keyboard mirrors the hierarchy:
+   UP = ENTER / go deeper
+   DOWN = ESC / go back
+   RIGHT = next sibling
+   LEFT = previous sibling
+
+   Arrow keys, WASD and HJKL all share the same spatial grammar:
+   ↑ / W / K = enter
+   ↓ / S / J = back
+   → / D / L = next
+   ← / A / H = previous
+
+   Enter and Escape remain explicit equivalents. */
+window.addEventListener('keydown',e=>{
+  if(!state.open)return;const tag=(e.target?.tagName||'').toLowerCase();if(tag==='input'||tag==='textarea'||tag==='select'||e.target?.isContentEditable)return;
+  const key=e.key;if(key==='Enter'){e.preventDefault();e.stopPropagation();enter().catch(err=>showToast(err?.message||'No pude abrir'));return}if(key==='Escape'){e.preventDefault();e.stopPropagation();back();return}
+  let sx=0,sy=0;if(['ArrowLeft','a','A','h','H'].includes(key))sx=-1;else if(['ArrowRight','d','D','l','L'].includes(key))sx=1;else if(['ArrowUp','w','W','k','K'].includes(key))sy=-1;else if(['ArrowDown','s','S','j','J'].includes(key))sy=1;else return;
+  const v=localVector(sx,sy);if(v.x<0)step(-1,'keyboard');else if(v.x>0)step(1,'keyboard');else if(v.y<0)enter().catch(err=>showToast(err?.message||'No pude abrir'));else if(v.y>0)back();e.preventDefault();e.stopPropagation();
+},{capture:true});
+
+const DEAD=10,BASE_DETENT=36,FAST_BONUS=7,MAX_DEF=58,SETTLE=150;
+const H_VISUAL_STEP=40;
+const H_STEP_CADENCE=112;
+const ENTER_COS=Math.cos(18*Math.PI/180),HOLD_COS=Math.cos(31*Math.PI/180);
+function cosTo(vx,vy,ux,uy){const m=Math.hypot(vx,vy)||1;return (vx*ux+vy*uy)/m}
+function dynDetent(speed){return BASE_DETENT+FAST_BONUS*clamp((speed-.7)/1.2,0,1)}
+function placeNeutral(d,x,y){d.ax=x;d.ay=y}
+function neutralVisual(d,det){
+  const rct=stage.getBoundingClientRect(),vx=d.x-d.ax,vy=d.y-d.ay,r=Math.hypot(vx,vy),cap=16,s=r>cap?cap/r:1;
+  neutral.style.left=(d.ax-rct.left)+'px';neutral.style.top=(d.ay-rct.top)+'px';neutral.style.setProperty('--nx',(vx*s).toFixed(2)+'px');neutral.style.setProperty('--ny',(vy*s).toFixed(2)+'px');
+  neutral.style.setProperty('--pressure',clamp((r-DEAD)/(det-DEAD),0,1).toFixed(3));
+}
+function followNeutral(d,dt,speed,settling){
+  let vx=d.x-d.ax,vy=d.y-d.ay,r=Math.hypot(vx,vy);if(r<.001)return;
+  const resistance=clamp((r-DEAD)/(d.det-DEAD),0,1),fast=clamp((speed-.7)/1.1,0,1);
+  let alpha=(1-Math.exp(-dt/46))*(.72+fast*.28)*Math.pow(1-resistance,.72)*(settling?1.45:1);alpha=clamp(alpha,0,.82);
+  d.ax+=vx*alpha;d.ay+=vy*alpha;if(settling){d.ax+=d.edx*.55;d.ay+=d.edy*.55}
+  vx=d.x-d.ax;vy=d.y-d.ay;r=Math.hypot(vx,vy);if(r>MAX_DEF){const ex=r-MAX_DEF;d.ax+=vx/r*ex;d.ay+=vy/r*ex}
+}
+function setArm(kind,on){
+  state.armed=on?kind:null;selector.classList.toggle('armed-enter',on&&kind==='enter');selector.classList.toggle('armed-back',on&&kind==='back');
+}
+stage.addEventListener('pointerdown',e=>{
+  if(!state.open || e.button!==0||e.target.closest('button'))return;const t=e.timeStamp||performance.now();
+  state.drag={
+    id:e.pointerId,
+    x:e.clientX,y:e.clientY,
+    ax:e.clientX,ay:e.clientY,              // ergonomic floating neutral
+    visualAnchorX:e.clientX,                // fixed horizontal animation lattice
+    visualAnchorY:e.clientY,
+    lastX:e.clientX,lastY:e.clientY,lastT:t,lastSpeed:0,
+    axis:null,lastDir:0,lastStep:-1e9,settleUntil:0,
+    det:BASE_DETENT,intent:null,intentHold:0,unlock:0
+  };
+  setArm(null,false);neutral.classList.add('on');neutralVisual(state.drag,BASE_DETENT);try{stage.setPointerCapture(e.pointerId)}catch{}
+});
+stage.addEventListener('pointermove',e=>{
+  const d=state.drag;if(!d||d.id!==e.pointerId)return;
+  const now=e.timeStamp||performance.now(),dt=clamp(now-d.lastT,4,42);d.edx=e.clientX-d.lastX;d.edy=e.clientY-d.lastY;
+  const ed=Math.hypot(d.edx,d.edy),speed=ed/dt,acc=(speed-d.lastSpeed)/dt;d.lastSpeed=speed;d.lastX=d.x=e.clientX;d.lastY=d.y=e.clientY;d.lastT=now;d.det=dynDetent(speed);
+  const settling=now<d.settleUntil;if(!state.armed)followNeutral(d,dt,speed,settling);
+  let vx=d.x-d.ax,vy=d.y-d.ay,r=Math.hypot(vx,vy);neutralVisual(d,d.det);
+  const lv=localVector(vx,vy),lvx=lv.x,lvy=lv.y;
+
+  const enterCos=cosTo(lvx,lvy,-Math.SQRT1_2,-Math.SQRT1_2),backCos=cosTo(lvx,lvy,Math.SQRT1_2,Math.SQRT1_2);
+  let intent=null;if(r>29){if(enterCos>ENTER_COS)intent='enter';else if(backCos>ENTER_COS)intent='back'}
+
+  if(state.armed){
+    const hold=state.armed==='enter'?enterCos>HOLD_COS:backCos>HOLD_COS;
+    if(!hold){d.unlock+=ed;if(d.unlock>18){setArm(null,false);placeNeutral(d,d.x,d.y);d.unlock=0}}else d.unlock=Math.max(0,d.unlock-ed*.6);
+    visual.targetFlow=0;return;
+  }
+
+  if(intent){
+    if(d.intent===intent)d.intentHold+=dt;else{d.intent=intent;d.intentHold=0}
+    const armR=intent==='enter'?57:54,p=clamp((r-29)/(armR-29),0,1);
+    visual.targetFlow=0;visual.targetRot=0;visual.targetEnergy=.25+p*.45;
+    if(r>=armR&&d.intentHold>=66){setArm(intent,true);clickSound(135);if(navigator.vibrate)navigator.vibrate(12)}
+    return;
+  }else{d.intent=null;d.intentHold=0;visual.targetRot=0}
+
+  /* Axis selection still uses the floating ergonomic neutral. */
+  const ax=Math.abs(lvx),ay=Math.abs(lvy);
+  const previousAxis=d.axis;
+  if(!d.axis)d.axis=ay>=ax?'y':'x';
+  else if(d.axis==='x'&&ay>ax*1.28)d.axis='y';
+  else if(d.axis==='y'&&ax>ay*1.28)d.axis='x';
+
+  /* When we truly hand off between axes, create a NEW visual segment origin.
+     Crucially, normal neutral drift does NOT move this animation origin. */
+  if(previousAxis && previousAxis!==d.axis){
+    d.visualAnchorX=d.x;
+    d.visualAnchorY=d.y;
+    visual.targetFlow=0;
+  }
+
+  visual.targetEnergy=clamp(speed/1.8 + Math.abs(acc)*5.5,0,.72);
+  visual.targetRot=0;
+
+  if(d.axis==='x'){
+    /* HORIZONTAL:
+       only a LIGHT directional preview follows the hand.
+       The strong visible jump is reserved for the moment the option changes,
+       so the motion feels discrete and reliable like the tail-dot rhythm. */
+    const hDisp=(d.x-d.visualAnchorX)*OR.mx;
+    const hDir=hDisp>=0?1:-1;
+    const hPhase=clamp(hDisp/H_VISUAL_STEP,-.92,.92);
+
+    const preview = clamp(hPhase * .22, -.18, .18);
+    visual.targetFlow = -preview;
+
+    if(Math.abs(hDisp)>=H_VISUAL_STEP && now-d.lastStep>=H_STEP_CADENCE){
+      const changed=step(hDir,'drag-x');
+
+      if(changed){
+        d.lastStep=now;
+        d.visualAnchorX+=hDir*OR.mx*H_VISUAL_STEP;
+
+        /* After the discrete step, keep only a small residual hint instead
+           of dragging the whole selector around continuously. */
+        const residual=(d.x-d.visualAnchorX)*OR.mx/H_VISUAL_STEP;
+        visual.targetFlow=clamp(-residual*.18,-.16,.16);
+
+        placeNeutral(d,d.x,d.y);
+      }else{
+        visual.targetFlow=-hDir*.07;
+        d.visualAnchorX=d.x-hDir*OR.mx*DEAD;
+        placeNeutral(d,d.x,d.y);
+      }
+    }
+
+    d.lastDir=hDir;
+    return;
+  }
+
+  /* VERTICAL keeps the V79 behavior that was already working well. */
+  if(settling){visual.targetFlow=clamp(visual.targetFlow,-.24,.24);return}
+
+  const dir=lvy<0?1:-1;
+  const amount=ay;
+  const p=clamp((amount-DEAD)/(d.det-DEAD),0,1);
+  visual.targetFlow=dir*Math.min(.82,p);
+
+  if(d.lastDir&&dir!==d.lastDir&&r>7){
+    placeNeutral(d,d.x,d.y);
+    d.visualAnchorY=d.y;
+    visual.targetFlow=0;
+    d.lastDir=dir;
+    return;
+  }
+
+  d.lastDir=dir;
+  if(r>=d.det&&now-d.lastStep>SETTLE){
+    const changed=step(dir,'drag-y');
+    if(changed){
+      d.lastStep=now;
+      d.settleUntil=now+SETTLE;
+      visual.flow=-dir*.11;
+      visual.targetFlow=0;
+      placeNeutral(d,d.x,d.y);
+      d.visualAnchorY=d.y;
+    }else{
+      placeNeutral(d,d.x-vx/(r||1)*DEAD*.75,d.y-vy/(r||1)*DEAD*.75);
+      visual.targetFlow=dir*.09;
+    }
+  }
+},{passive:false});
+function endDrag(e,cancel=false){
+  const d=state.drag;if(!d||d.id!==e.pointerId)return;
+  state.drag=null;
+  neutral.classList.remove('on');
+
+  /* Release is the spring return. No stale reference survives the gesture. */
+  visual.targetFlow=0;
+  visual.targetEnergy=0;
+  visual.targetRot=0;
+  if(cancel){setArm(null,false);return}
+  if(state.armed==='enter'){setArm(null,false);enter()}else if(state.armed==='back'){setArm(null,false);back()}
+}
+stage.addEventListener('pointerup',e=>endDrag(e,false));
+stage.addEventListener('pointercancel',e=>endDrag(e,true));
+
+function frame(){
+  const fe=visual.targetFlow-visual.flow;
+
+  /* Softer spring return: enough to feel responsive, but biased toward
+     a clean mechanical glide after each page-step impulse. */
+  const gain=Math.abs(fe)>.42?.22:.27;
+  const maxStep=Math.abs(fe)>.58?.072:.050;
+  visual.flow+=clamp(fe*gain,-maxStep,maxStep);
+
+  visual.energy+=(visual.targetEnergy-visual.energy)*.20;
+  visual.rot+=(visual.targetRot-visual.rot)*.20;
+
+  selector.classList.toggle('moving',Math.abs(visual.flow)>.05||visual.energy>.12);
+  layout();
+  requestAnimationFrame(frame);
+}
+
+function normalizePageNode(node,pages){
+  if(!node)return null;
+  if(node.page_id){
+    const p=pages.get(node.page_id);if(!p)return null;
+    return {id:node.id||p.id,label:p.title||p.id,type:'leaf',kind:'file',page:p,icon:'page'};
+  }
+  const raw=(node.children||[]).map(x=>normalizePageNode(x,pages)).filter(Boolean);
+  const self={id:node.id,label:node.label||node.id||'Carpeta',type:'hierarchy',kind:'folder',children:raw};
+  /* Display compiler only: collapse structural 1/1 wrappers.
+     The source catalog is never rewritten. */
+  if(raw.length===1){
+    const only=raw[0];
+    if(only.type==='leaf'||only.type==='hierarchy')return {...only,label:`${self.label} · ${only.label}`};
+  }
+  return self;
+}
+function flattenCatalog(node,path=[],out=[]){
+  if(!node)return out;
+  if(node.page_id){
+    const page=pageRegistry.get(node.page_id);
+    if(page)out.push({page,path:path.join(' / ')});
+    return out;
+  }
+  const own=node===catalogTree?path:[...path,node.label||node.id||''];
+  for(const child of node.children||[])flattenCatalog(child,own,out);
+  return out;
+}
+function buildFavoritesNode(){
+  const pages=favoriteIds.map(id=>pageRegistry.get(id)).filter(Boolean);
+  const children=pages.map(p=>({id:`favorite-${p.id}`,label:p.title||p.id,type:'leaf',kind:'file',page:p,icon:'page'}));
+  children.push({id:'favorites-organize',label:'Organizar páginas',type:'action',action:'favorites-organize',icon:'organize'});
+  return {label:'Favoritos',type:'hierarchy',kind:'favorites',children};
+}
+function buildFavoritesOrganizerNode(){
+  return {label:'Organizar páginas',type:'hierarchy',kind:'favorites-organizer',children:[
+    {id:'favorites-done',label:'Listo',type:'action',action:'favorites-done',icon:'organize'}
+  ]};
+}
+function refreshFavoritesNodeInStack(){
+  for(let i=1;i<state.stack.length;i++){
+    if(state.stack[i]?.kind==='favorites')state.stack[i]=buildFavoritesNode();
+  }
+}
+function toggleFavoritePage(page,announce=false){
+  if(!page?.id)return false;
+  const was=isFavorite(page.id);
+  favoriteIds=was?favoriteIds.filter(id=>id!==page.id):[...favoriteIds,page.id];
+  saveFavoriteIds();refreshFavoritesNodeInStack();syncRoot();
+  if(announce)showToast(was?'Página desanclada':'Página anclada');
+  return !was;
+}
+async function ensureCatalog(){
+  if(pageRegistry.size)return;
+  const base='https://juanmanuelpm.github.io/prometeo/catalog/';
+  const [pr,tr]=await Promise.all([
+    fetch(base+'pages.json',{cache:'no-store'}),
+    fetch(base+'tree.json',{cache:'no-store'})
+  ]);
+  if(!pr.ok||!tr.ok)throw new Error('No pude cargar el catálogo');
+  const pdata=await pr.json(),tree=await tr.json();
+  pageRegistry=new Map((pdata.pages||[]).map(p=>[
+    p.id,{...p,public_url:new URL(p.href,base+'pages.json').href}
+  ]));
+  catalogTree=tree;catalogFlat=flattenCatalog(tree);
+  const seen=new Set(catalogFlat.map(x=>x.page.id));
+  for(const page of pageRegistry.values())if(!seen.has(page.id))catalogFlat.push({page,path:'Otros'});
+  const valid=favoriteIds.filter(id=>pageRegistry.has(id));
+  if(valid.length!==favoriteIds.length){favoriteIds=valid;saveFavoriteIds()}
+  const compiled=normalizePageNode(tree,pageRegistry);
+  pagesNode={label:'Páginas',type:'hierarchy',kind:'folder',children:compiled?.children||[]};
+  syncRoot();
+}
+function loadPage(page,push=true){
+  if(!page?.public_url)return;
+  hideNativeSurface();
+  currentPage=page;
+  pageHost.src=page.public_url;
+  localStorage.setItem('prometeo.v5.lastPage',page.id);
+  syncRoot();
+  if(push){
+    try{history.pushState({pageId:page.id},'',`#/p/${encodeURIComponent(page.id)}`)}catch{}
+  }
+}
+window.addEventListener('popstate',async e=>{
+  const id=e.state?.pageId||decodeURIComponent((location.hash.match(/^#\/p\/(.+)$/)||[])[1]||'');
+  if(!id)return;
+  await ensureCatalog();const p=pageRegistry.get(id);if(p)loadPage(p,false);
+});
+
+/* ---------- Native surface ---------- */
+function showNativeSurface(mode){
+  nativeMode=mode;
+  nativeSurface.classList.add('show');
+  pageHost.style.visibility='hidden';
+}
+function hideNativeSurface(){
+  nativeMode=null;currentNote=null;contextExpanded=false;
+  nativeSurface.classList.remove('show');
+  pageHost.style.visibility='visible';
+  nativeKicker.textContent='';nativeMeta.textContent='';nativeStatus.textContent='';
+  nativeEditor.classList.remove('show');nativeEditor.value='';
+  nativeEmpty.classList.remove('show');nativeEmpty.textContent='';
+  nativeContext.classList.remove('show');nativeContext.textContent='';
+  favoritesOrganizer.classList.remove('show');favoritesOrganizer.innerHTML='';
+  nativeCode.classList.remove('show');nativeCode.value='';
+}
+function resetNativeParts(){
+  nativeKicker.textContent='';nativeMeta.textContent='';nativeStatus.textContent='';
+  nativeEditor.classList.remove('show');
+  nativeEmpty.classList.remove('show');
+  nativeContext.classList.remove('show');
+  favoritesOrganizer.classList.remove('show');
+  nativeCode.classList.remove('show');
+}
+function syncNativeSurface(){
+  const n=node(),it=item();
+  if(n?.kind==='notes-home'){
+    showNativeSurface('notes-home');renderNotesHomeSurface();return;
+  }
+  if(n?.kind==='notes-list'){
+    showNativeSurface('notes');renderNoteSurface(it?.note||null);return;
+  }
+  if(n?.kind==='note-actions'){
+    showNativeSurface('notes');renderNoteSurface(n.note||currentNote);return;
+  }
+  if(n?.kind==='context'){
+    showNativeSurface('context');renderNativeContext();return;
+  }
+  if(n?.kind==='link'){
+    showNativeSurface('link');renderNativeLink();return;
+  }
+  if(n?.kind==='favorites-organizer'){
+    showNativeSurface('favorites-organizer');renderFavoritesOrganizer();return;
+  }
+  if(nativeMode==='favorites-organizer'){hideNativeSurface();return}
+  if(state.stack.length===1 && nativeMode)hideNativeSurface();
+}
+const FAVORITE_PIN_SVG='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 4 6 2-1.2 4.2 3.2 3.2-4.2 1.2L10 19l-1.4-5.4L5 10l4.3-1.2z"/><path d="m10 14-5 6"/></svg>';
+function favoriteRowHTML(entry,pinned,drag=false){
+  const p=entry.page,path=entry.path||'';
+  const esc=v=>String(v||'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  return `<div class="fav-row${drag?' pinned':' all'}" data-favorite-id="${esc(p.id)}">
+    ${drag?`<button class="fav-handle" type="button" aria-label="Mover ${esc(p.title||p.id)}"></button>`:''}
+    <button class="fav-open" type="button" data-fav-open="${esc(p.id)}"><span class="fav-title">${esc(p.title||p.id)}</span>${path?`<span class="fav-path">${esc(path)}</span>`:''}</button>
+    <button class="fav-pin${pinned?' is-pinned':''}" type="button" data-fav-toggle="${esc(p.id)}" aria-label="${pinned?'Desanclar':'Anclar'} ${esc(p.title||p.id)}">${FAVORITE_PIN_SVG}</button>
+  </div>`;
+}
+function renderFavoritesOrganizer(){
+  resetNativeParts();favoritesOrganizer.classList.add('show');
+  nativeKicker.textContent='Organizar páginas';
+  nativeMeta.textContent=`${favoriteIds.length} ancladas · ${catalogFlat.length} páginas`;
+  const byId=new Map(catalogFlat.map(x=>[x.page.id,x]));
+  const pinned=favoriteIds.map(id=>byId.get(id)).filter(Boolean);
+  const pinnedHTML=pinned.length?pinned.map(x=>favoriteRowHTML(x,true,true)).join(''):'<div class="fav-empty">Sin páginas ancladas</div>';
+  const allHTML=catalogFlat.map(x=>favoriteRowHTML(x,isFavorite(x.page.id),false)).join('');
+  favoritesOrganizer.innerHTML=`
+    <section class="fav-section">
+      <div class="fav-section-head"><span>Ancladas</span><span class="fav-section-count">${pinned.length}</span></div>
+      <div class="fav-list fav-pinned-list">${pinnedHTML}</div>
+    </section>
+    <section class="fav-section">
+      <div class="fav-section-head"><span>Todas</span><span class="fav-section-count">${catalogFlat.length}</span></div>
+      <div class="fav-list">${allHTML}</div>
+    </section>`;
+}
+let favoriteDrag=null;
+favoritesOrganizer.addEventListener('click',e=>{
+  const toggle=e.target.closest('[data-fav-toggle]');
+  if(toggle){
+    e.preventDefault();e.stopPropagation();
+    const p=pageRegistry.get(toggle.dataset.favToggle);if(!p)return;
+    toggleFavoritePage(p,false);renderFavoritesOrganizer();return;
+  }
+  const open=e.target.closest('[data-fav-open]');
+  if(open){
+    const p=pageRegistry.get(open.dataset.favOpen);if(!p)return;
+    loadPage(p);state.stack=[ROOT];state.index=0;hideNativeSurface();closeSelector(true);return;
+  }
+});
+favoritesOrganizer.addEventListener('pointerdown',e=>{
+  const handle=e.target.closest('.fav-handle');if(!handle)return;
+  const row=handle.closest('.fav-row[data-favorite-id]'),list=row?.closest('.fav-pinned-list');if(!row||!list)return;
+  e.preventDefault();favoriteDrag={pointerId:e.pointerId,row,list,handle};
+  row.classList.add('dragging');try{handle.setPointerCapture(e.pointerId)}catch{}
+});
+favoritesOrganizer.addEventListener('pointermove',e=>{
+  const d=favoriteDrag;if(!d||d.pointerId!==e.pointerId)return;e.preventDefault();
+  const rows=[...d.list.querySelectorAll('.fav-row[data-favorite-id]:not(.dragging)')];
+  const before=rows.find(r=>e.clientY<r.getBoundingClientRect().top+r.getBoundingClientRect().height/2);
+  if(before)d.list.insertBefore(d.row,before);else d.list.appendChild(d.row);
+});
+function finishFavoriteDrag(e){
+  const d=favoriteDrag;if(!d||d.pointerId!==e.pointerId)return;
+  favoriteDrag=null;d.row.classList.remove('dragging');try{d.handle.releasePointerCapture(e.pointerId)}catch{}
+  favoriteIds=[...d.list.querySelectorAll('.fav-row[data-favorite-id]')].map(r=>r.dataset.favoriteId);
+  saveFavoriteIds();refreshFavoritesNodeInStack();syncRoot();renderFavoritesOrganizer();
+}
+favoritesOrganizer.addEventListener('pointerup',finishFavoriteDrag);
+favoritesOrganizer.addEventListener('pointercancel',finishFavoriteDrag);
+function renderNotesHomeSurface(){
+  resetNativeParts();
+  const pageCount=notesForScope('page').length,total=notes.length;
+  nativeKicker.textContent='Notas';
+  nativeMeta.textContent=currentPage?.title||'Prometeo';
+  nativeEmpty.classList.add('show');
+  nativeEmpty.textContent=total
+    ? `${pageCount} en esta página · ${total} en total`
+    : 'Todavía no hay capturas.';
+}
+function renderNoteSurface(note){
+  resetNativeParts();currentNote=note||null;
+  nativeKicker.textContent=notesScope==='all'?'Todas las notas':'Esta página';
+  if(!note){
+    nativeEmpty.classList.add('show');
+    nativeEmpty.textContent='No hay capturas en este alcance.';
+    return;
+  }
+  nativeMeta.textContent=`${note.pageId||currentPage?.id||'/'} · ${relativeTime(note.created)} · ${statusLabelCompact(note)}`;
+  if(note.status==='done'){
+    nativeEditor.classList.add('show');
+    if(document.activeElement!==nativeEditor)nativeEditor.value=note.text||'';
+    nativeEditor.readOnly=false;
+  }else{
+    nativeEmpty.classList.add('show');
+    nativeEmpty.textContent=statusLabel(note);
+  }
+}
+function renderNativeContext(){
+  resetNativeParts();
+  nativeKicker.textContent='Contexto preparado';
+  nativeMeta.textContent=contextResult
+    ? `${contextResult.count||0} captura${contextResult.count===1?'':'s'}${contextResult.code?` · ${contextResult.code}`:''}`
+    : '';
+  if(!contextResult){
+    nativeEmpty.classList.add('show');nativeEmpty.textContent='No hay contexto preparado.';return;
+  }
+  if(contextExpanded){
+    nativeContext.classList.add('show');
+    nativeContext.textContent=contextResult.command||'';
+    nativeStatus.textContent='tocá el puck para volver al control';
+  }else{
+    nativeEmpty.classList.add('show');
+    nativeEmpty.textContent='Listo para copiar o abrir en un chat nuevo.';
+  }
+}
+function renderNativeLink(){
+  resetNativeParts();
+  nativeKicker.textContent='Vincular dispositivos';
+  nativeMeta.textContent='El código comparte el mismo Inbox.';
+  nativeCode.classList.add('show');
+  if(!nativeCode.value)nativeCode.value=remote.linkCode();
+  nativeStatus.textContent='podés copiar este código o pegar otro';
+}
+
+/* ---------- Notes provider ---------- */
+async function refreshNotes(){notes=await listNotes()}
+function reconcileNotesView(){
+  const n=node();
+  if(n?.kind==='notes-home'){
+    const i=state.index;state.stack[state.stack.length-1]=buildNotesHome();state.index=Math.min(i,list().length-1);if(state.open||nativeMode)render();return;
+  }
+  if(n?.kind==='notes-list'){
+    const selected=item()?.note?.id||null,scope=n.scope||notesScope;
+    const rebuilt=buildNotesList(scope);state.stack[state.stack.length-1]=rebuilt;
+    const arr=listFor(rebuilt);const i=selected?arr.findIndex(x=>x.note?.id===selected):-1;
+    state.index=i>=0?i:Math.min(state.index,Math.max(0,arr.length-1));if(state.open||nativeMode)render();return;
+  }
+  if(n?.kind==='note-actions'&&n.note?.id){
+    const fresh=notes.find(x=>x.id===n.note.id);
+    if(fresh){currentNote=fresh;state.stack[state.stack.length-1]=buildNoteActions(fresh);if(state.open||nativeMode)render();}
+  }
+}
+function notesForScope(scope='page'){
+  const id=currentPage?.id||'prometeo-universal-shell-v5';
+  return scope==='all'?notes:notes.filter(n=>n.pageId===id);
+}
+function buildNotesHome(){
+  const pageCount=notesForScope('page').length,total=notes.length;
+  return {
+    label:'Notas',type:'hierarchy',kind:'notes-home',children:[
+      {id:'notes-page',label:`Esta página · ${pageCount}`,type:'action',action:'notes-page',icon:'page'},
+      {id:'notes-all',label:`Todas · ${total}`,type:'action',action:'notes-all',icon:'notes'},
+      {id:'context-page',label:'Contexto página',type:'action',action:'context-page',icon:'context'},
+      {id:'context-all',label:'Contexto total',type:'action',action:'context-all',icon:'context'},
+      {id:'link',label:'Vincular',type:'action',action:'link',icon:'link'}
+    ]
+  };
+}
+function buildNotesList(scope){
+  const arr=notesForScope(scope);
+  return {
+    label:scope==='all'?'Todas las notas':'Esta página',
+    type:'hierarchy',kind:'notes-list',scope,
+    children:arr.length
+      ? arr.map(n=>({
+          id:`note-${n.id}`,label:noteShortLabel(n),type:'note',kind:'note',note:n,icon:'notes'
+        }))
+      : [{id:'notes-empty',label:'Sin capturas',type:'empty',disabled:true}]
+  };
+}
+function firstUsableIndex(n){
+  const arr=listFor(n);const i=arr.findIndex(x=>!x.disabled);return i<0?0:i;
+}
+function noteShortLabel(n){
+  const text=String(n.text||'').trim().replace(/\s+/g,' ');
+  return compactLabel(text||statusLabel(n),52);
+}
+function buildNoteActions(note){
+  const children=[
+    {id:'edit',label:'Editar',type:'action',action:'note-edit',icon:'edit',note},
+    ...(note?.audio?[{id:'play',label:'Reproducir',type:'action',action:'note-play',icon:'play',note}]:[]),
+    {id:'copy',label:'Copiar',type:'action',action:'note-copy',icon:'copy',note},
+    {id:'context',label:'Contexto',type:'action',action:'note-context',icon:'context',note},
+    {id:'delete',label:'Borrar',type:'action',action:'note-delete',icon:'trash',note}
+  ];
+  return {label:'Nota',type:'hierarchy',kind:'note-actions',note,children};
+}
+function beginNoteEdit(note){
+  currentNote=note;renderNoteSurface(note);closeSelector();
+  requestAnimationFrame(()=>{nativeEditor.focus();nativeEditor.setSelectionRange(nativeEditor.value.length,nativeEditor.value.length)});
+}
+nativeEditor.addEventListener('input',()=>{
+  const note=currentNote;if(!note||note.status!=='done')return;
+  clearTimeout(editTimers.get(note.id));
+  editTimers.set(note.id,setTimeout(async()=>{
+    note.text=nativeEditor.value;
+    note.transcriptRevision=(note.transcriptRevision||1)+1;
+    note.patentedIn=null;note.patentedAt=null;
+    await putNote(note);scheduleSync(80);await refreshNotes();
+  },330));
+});
+nativeEditor.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    e.preventDefault();nativeEditor.blur();openSelector();render();
+  }
+});
+function playNote(note){
+  if(!note?.audio)return showToast('Esta captura no tiene audio local');
+  const url=URL.createObjectURL(note.audio);
+  const a=new Audio(url);a.onended=()=>URL.revokeObjectURL(url);
+  a.play().catch(()=>{URL.revokeObjectURL(url);showToast('No pude reproducir')});
+}
+async function deleteNote(note){
+  if(!note?.id)return;
+  await removeNote(note.id);remote.deleteCapture(note.id).catch(()=>{});
+  confirmNoteDelete=false;await refreshNotes();
+  /* Return from action node to rebuilt list, preserving the scope. */
+  state.stack.pop();
+  activeNotesNode=buildNotesList(notesScope);
+  state.stack[state.stack.length-1]=activeNotesNode;
+  state.index=Math.min(state.index,Math.max(0,listFor(activeNotesNode).length-1));
+  render();showToast('Nota eliminada');
+}
+
+/* ---------- Context provider ---------- */
+async function prepareContextFor(chosen){
+  chosen=(chosen||[]).filter(n=>n?.status==='done'&&String(n.text||'').trim()&&!n.patentedIn);
+  if(!chosen.length){showToast('No hay capturas nuevas');return}
+  try{
+    for(const n of chosen){
+      await remote.syncCapture(
+        n,
+        n.pageId===currentPage?.id
+          ? currentPage
+          : {id:n.pageId,source_repo:'JuanManuelPM/prometeo'}
+      );
+    }
+    const result=await remote.createPatent(chosen.map(n=>n.id));
+    for(const n of chosen){
+      n.patentedIn=result.patent_code;n.patentedAt=Date.now();await putNote(n);
+    }
+    contextResult={
+      command:result.command||'',
+      code:result.patent_code||'',
+      expires_at:result.expires_at||null,
+      count:chosen.length
+    };
+    contextExpanded=false;
+    await refreshNotes();
+    state.stack.push(buildContextNode());state.index=0;render();
+  }catch(e){showToast(e?.message||'No pude preparar contexto')}
+}
+function buildContextNode(){
+  return {
+    label:'Contexto',type:'hierarchy',kind:'context',children:[
+      {id:'copy',label:'Copiar',type:'action',action:'context-copy',icon:'copy'},
+      {id:'chat',label:'Abrir ChatGPT',type:'action',action:'context-chat',icon:'chat'},
+      {id:'view',label:'Ver',type:'action',action:'context-view',icon:'notes'}
+    ]
+  };
+}
+
+/* ---------- Link provider ---------- */
+function buildLinkNode(){
+  return {
+    label:'Vincular',type:'hierarchy',kind:'link',children:[
+      {id:'copy-link',label:'Copiar código',type:'action',action:'link-copy',icon:'copy'},
+      {id:'use-link',label:'Usar código',type:'action',action:'link-use',icon:'link'}
+    ]
+  };
+}
+
+/* ---------- Capture provider ---------- */
+async function startRecording(){
+  try{
+    await voice.start();
+    recordClock='00:00';confirmDiscard=false;
+    renderRecording(voice.state());
+    clickSound(118);navigator.vibrate?.(12);
+  }catch(error){
+    showToast(error?.name==='NotAllowedError'?'Permití el micrófono':(error?.message||'No pude grabar'));
+    throw error;
+  }
+}
+async function saveRecording(){
+  if(!voice.state().active)return;
+  await voice.save(pageMeta());
+  confirmDiscard=false;
+  state.stack=[ROOT];state.index=0;
+  closeSelector();
+  await refreshNotes();scheduleSync(60);
+  /* Deliberately no modal/window: the durable queue continues in background. */
+  navigator.vibrate?.(10);clickSound(138);
+}
+function discardRecording(){
+  voice.discard();confirmDiscard=false;
+  state.stack=[ROOT];state.index=0;closeSelector();
+  navigator.vibrate?.(13);clickSound(105);
+}
+function renderRecording(st){
+  const active=!!st.active;
+  puck.classList.toggle('recording',active);
+  puck.classList.toggle('paused',active&&st.paused);
+  cancelAnimationFrame(recRAF);
+  if(!active){
+    recordClock='00:00';
+    if(state.open)render();
+    return;
+  }
+  let lastSec=-1;
+  const tick=()=>{
+    const q=voice.state();if(!q.active)return;
+    const sec=Math.floor(q.elapsed/1000);
+    if(sec!==lastSec){
+      lastSec=sec;
+      recordClock=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
+      if(state.open)render();
+    }
+    recRAF=requestAnimationFrame(tick);
+  };
+  tick();
+}
+function pageMeta(){
+  const p=currentPage||{id:'prometeo-universal-shell-v5',title:'Prometeo Universal Shell'};
+  return {
+    sourcePath:p.public_url||location.pathname,
+    sourceHref:p.public_url||location.href,
+    sourceTitle:p.title||p.id,
+    viewport:`${innerWidth}x${innerHeight}`,
+    pageId:p.id,
+    transcriptRevision:1
+  };
+}
+
+/* ---------- Remote sync ---------- */
+function scheduleSync(delay=700){clearTimeout(syncTimer);syncTimer=setTimeout(syncAll,delay)}
+async function syncAll(){
+  if(!navigator.onLine)return renderSyncState({online:false});
+  try{
+    renderSyncState({online:true,syncing:true});
+    for(const note of [...await listNotes()].reverse()){
+      if(!note.id)continue;
+      await remote.syncCapture(
+        note,
+        note.pageId===currentPage?.id
+          ? currentPage
+          : {id:note.pageId,source_repo:'JuanManuelPM/prometeo'}
+      );
+    }
+    renderSyncState({online:true,synced:true});
+  }catch(e){renderSyncState({online:true,synced:false,error:e})}
+}
+function renderSyncState(st){
+  /* No persistent badge. Status is shown only on the native surface when relevant. */
+  if(nativeMode==='link'){
+    nativeStatus.textContent=!st.online?'local':st.syncing?'sincronizando':st.synced?'sincronizado':'sin sincronizar';
+  }
+}
+function relativeTime(ms){
+  if(!ms)return'';
+  const sec=Math.max(0,Math.round((Date.now()-ms)/1000));if(sec<60)return'ahora';
+  const min=Math.round(sec/60);if(min<60)return`${min}m`;
+  const hr=Math.round(min/60);return hr<24?`${hr}h`:`${Math.round(hr/24)}d`;
+}
+function statusLabelCompact(note){
+  if(note.status==='done')return'nueva';
+  if(note.status==='error')return'error';
+  return'procesando';
+}
+function statusLabel(note){
+  if(note.status==='preparing')return'Guardando audio…';
+  if(note.status==='queued')return'En cola…';
+  if(note.status==='loading')return'Preparando Whisper…';
+  if(note.status==='transcribing')return'Transcribiendo…';
+  if(note.status==='error')return note.error||'Error';
+  return note.status==='done'?'Lista':'Procesando…';
+}
+async function copyText(text){
+  try{await navigator.clipboard.writeText(text)}
+  catch{
+    const ta=document.createElement('textarea');ta.value=text;
+    document.body.append(ta);ta.select();document.execCommand('copy');ta.remove();
+  }
+}
+function showToast(text){
+  toast.textContent=text;toast.classList.add('show');clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>toast.classList.remove('show'),1400);
+}
+
+nativeCode.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    e.preventDefault();nativeCode.blur();openSelector();render();
+  }
+  if(e.key==='Escape'){
+    e.preventDefault();nativeCode.blur();openSelector();render();
+  }
+});
+
+await voice.init();
+await refreshNotes();
+remote.init().then(()=>scheduleSync(80)).catch(()=>{});
+ensureCatalog().catch(()=>{});
+const hashId=decodeURIComponent((location.hash.match(/^#\/p\/(.+)$/)||[])[1]||'');
+if(hashId){
+  ensureCatalog().then(()=>{const p=pageRegistry.get(hashId);if(p)loadPage(p,false)}).catch(()=>{});
+}
+
+applyControlCorner(controlCorner);
+const realignCorner=()=>{if(!closedPuckDrag?.dragging)applyControlCorner(controlCorner)};
+window.addEventListener('resize',realignCorner,{passive:true});
+window.addEventListener('orientationchange',()=>setTimeout(realignCorner,60),{passive:true});
+window.visualViewport?.addEventListener('resize',realignCorner,{passive:true});
+window.visualViewport?.addEventListener('scroll',realignCorner,{passive:true});
+render();closeSelector(true);requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
