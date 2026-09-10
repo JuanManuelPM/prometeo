@@ -10,6 +10,18 @@ Future AIs must not redesign a study page from scratch for every exam. Study Sys
 - **Exam instance** owns source-derived knowledge: scope, exam profile, transversal map, modules, explanations, recall atoms, distinctions, applications and practice.
 - **Builder AI** reads sources, produces the instance data, runs coverage/QA, and publishes it through the engine. It does not invent a new interface unless the human explicitly requests an experiment.
 
+## Parent product integration
+
+Study System V2 is not a competing top-level app. Its active product parent is **Study Library**:
+
+```text
+Study Library -> course -> Parciales -> assessment -> Study System V2
+```
+
+Study Library owns course/class/assessment identity and shared collaboration. Study System owns exam-source authority, coverage, pedagogy, personal mastery and practice. The current integration boundary is documented by `pages/study-library/INTEGRATION_MANIFEST.json` and `pages/study-library/ASSESSMENT_ADAPTER.contract.md`.
+
+The Universal Whiteboard is one reusable engine. `study-topic` and `class` are contexts/adapters, not separate whiteboard implementations.
+
 ## Canonical files
 
 - `BLUEPRINT.md` — pedagogical and UI invariants.
