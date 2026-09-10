@@ -1,0 +1,63 @@
+name: Universal Control V5 Candidate
+
+on:
+  push:
+    branches:
+      - candidate/universal-control-v5-backend-20260910
+    paths:
+      - 'shared/universal-shell/v5/backend/**'
+      - 'tests/universal-control-v5-*.mjs'
+      - 'scripts/materialize-universal-control-v5-baseline.py'
+      - '.github/workflows/universal-control-v5-candidate.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'shared/universal-shell/v5/backend/**'
+      - 'tests/universal-control-v5-*.mjs'
+      - 'scripts/materialize-universal-control-v5-baseline.py'
+      - '.github/workflows/universal-control-v5-candidate.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: universal-control-v5-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  parity-foundation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Node contract parity
+        run: node --test tests/universal-control-v5-favorites-store.test.mjs
+
+      - name: Materialize exact Golden Master source
+        run: python scripts/materialize-universal-control-v5-baseline.py
+
+      - name: Verify candidate extraction cannot mutate served runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code -- index.html shared/universal-shell/v5/chunk-1.b64 shared/universal-shell/v5/chunk-2.b64 shared/universal-shell/v5/chunk-3.b64 shared/universal-shell/v5/chunk-4.b64 shared/universal-shell/v5/chunk-5.b64 shared/universal-shell/v5/CORNER_ANCHOR_v1.json
+          test "$(sha256sum shared/universal-shell/v5/candidate/baseline-source.html | awk '{print $1}')" = '67965c4da9161737f06fcf6503d6b73db43eef574796977327c97f165e514d8a'
+
+      - name: Persist candidate baseline snapshot
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add shared/universal-shell/v5/candidate/baseline-source.html shared/universal-shell/v5/candidate/BASELINE_SOURCE_SHA256.txt
+          if git diff --cached --quiet; then
+            echo 'Candidate baseline snapshot already persisted.'
+            exit 0
+          fi
+          git commit -m 'shell: persist exact V5 Golden Master candidate source [skip ci]'
+          git pull --rebase origin candidate/universal-control-v5-backend-20260910
+          git push origin HEAD:candidate/universal-control-v5-backend-20260910
