@@ -5,12 +5,14 @@ on:
     branches:
       - candidate/universal-control-v5-backend-20260910
       - candidate/universal-control-v5-shadow-favorites-20260910
+      - candidate/universal-control-v5-durable-favorites-20260910
     paths:
       - 'shared/universal-shell/v5/backend/**'
       - 'tests/universal-control-v5-*.mjs'
       - 'scripts/materialize-universal-control-v5-baseline.py'
       - 'scripts/build-universal-control-v5-favorites-facade.py'
       - 'scripts/build-universal-control-v5-backend-facades.py'
+      - 'scripts/build-universal-control-v5-durable-favorites.py'
       - '.github/workflows/universal-control-v5-candidate.yml'
   pull_request:
     branches: [main]
@@ -20,6 +22,7 @@ on:
       - 'scripts/materialize-universal-control-v5-baseline.py'
       - 'scripts/build-universal-control-v5-favorites-facade.py'
       - 'scripts/build-universal-control-v5-backend-facades.py'
+      - 'scripts/build-universal-control-v5-durable-favorites.py'
       - '.github/workflows/universal-control-v5-candidate.yml'
 
 permissions:
@@ -39,7 +42,7 @@ jobs:
           fetch-depth: 0
 
       - name: Node contract parity
-        run: node --test tests/universal-control-v5-favorites-store.test.mjs tests/universal-control-v5-backend-runtime.test.mjs
+        run: node --test tests/universal-control-v5-favorites-store.test.mjs tests/universal-control-v5-backend-runtime.test.mjs tests/universal-control-v5-durable-favorites.test.mjs
 
       - name: Materialize exact Golden Master source
         run: python scripts/materialize-universal-control-v5-baseline.py
@@ -50,20 +53,26 @@ jobs:
       - name: Build modular backend candidate
         run: python scripts/build-universal-control-v5-backend-facades.py
 
+      - name: Build durable Favorites candidate
+        run: python scripts/build-universal-control-v5-durable-favorites.py
+
       - name: Verify extraction cannot mutate Served runtime
         shell: bash
         run: |
           set -euo pipefail
           git diff --exit-code -- index.html shared/universal-shell/v5/chunk-1.b64 shared/universal-shell/v5/chunk-2.b64 shared/universal-shell/v5/chunk-3.b64 shared/universal-shell/v5/chunk-4.b64 shared/universal-shell/v5/chunk-5.b64 shared/universal-shell/v5/CORNER_ANCHOR_v1.json
           test "$(sha256sum shared/universal-shell/v5/candidate/baseline-source.html | awk '{print $1}')" = '67965c4da9161737f06fcf6503d6b73db43eef574796977327c97f165e514d8a'
-          grep -q 'window.__PROMETEO_V5_BACKEND_STATUS__=backendStatus' shared/universal-shell/v5/candidate/backend-facades-source.html
-          grep -q 'const captureSync=createCaptureSyncQueue' shared/universal-shell/v5/candidate/backend-facades-source.html
-          grep -q 'const contextProvider=createContextProvider' shared/universal-shell/v5/candidate/backend-facades-source.html
-          grep -q 'const pageRoute=createPageRouteController' shared/universal-shell/v5/candidate/backend-facades-source.html
-          grep -q 'prometeo.universal-control.corner.v1' shared/universal-shell/v5/candidate/backend-facades-source.html
-          grep -q 'favorites-organizer' shared/universal-shell/v5/candidate/backend-facades-source.html
-          grep -q 'nearestCorner' shared/universal-shell/v5/candidate/backend-facades-source.html
-          grep -q 'localVector' shared/universal-shell/v5/candidate/backend-facades-source.html
+          grep -q 'PROMETEO_DB_CANONICAL_WITH_SYNC_RECOVERY' shared/universal-shell/v5/candidate/durable-favorites-source.html
+          grep -q 'prometeo.v5.favorites.recovery.v2' shared/universal-shell/v5/candidate/durable-favorites-source.html
+          grep -q 'prometeo.v5.favorites.outbox.v2' shared/universal-shell/v5/candidate/durable-favorites-source.html
+          grep -q 'window.__PROMETEO_V5_BACKEND_STATUS__=backendStatus' shared/universal-shell/v5/candidate/durable-favorites-source.html
+          grep -q 'const captureSync=createCaptureSyncQueue' shared/universal-shell/v5/candidate/durable-favorites-source.html
+          grep -q 'const contextProvider=createContextProvider' shared/universal-shell/v5/candidate/durable-favorites-source.html
+          grep -q 'const pageRoute=createPageRouteController' shared/universal-shell/v5/candidate/durable-favorites-source.html
+          grep -q 'prometeo.universal-control.corner.v1' shared/universal-shell/v5/candidate/durable-favorites-source.html
+          grep -q 'favorites-organizer' shared/universal-shell/v5/candidate/durable-favorites-source.html
+          grep -q 'nearestCorner' shared/universal-shell/v5/candidate/durable-favorites-source.html
+          grep -q 'localVector' shared/universal-shell/v5/candidate/durable-favorites-source.html
 
       - name: Install browser canary dependency
         shell: bash
@@ -71,7 +80,7 @@ jobs:
           npm install --no-save --no-package-lock playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Browser parity — P1 and modular candidate
+      - name: Browser parity — all migration layers
         shell: bash
         run: |
           set -euo pipefail
@@ -84,6 +93,8 @@ jobs:
           done
           V5_CANDIDATE_PATH='shared/universal-shell/v5/candidate/favorites-facade-source.html' node tests/universal-control-v5-browser-parity.mjs
           V5_CANDIDATE_PATH='shared/universal-shell/v5/candidate/backend-facades-source.html' node tests/universal-control-v5-browser-parity.mjs
+          V5_CANDIDATE_PATH='shared/universal-shell/v5/candidate/durable-favorites-source.html' node tests/universal-control-v5-browser-parity.mjs
+          node tests/universal-control-v5-durable-browser.mjs
 
       - name: Persist candidate source snapshots
         if: github.event_name == 'push'
@@ -98,11 +109,13 @@ jobs:
             shared/universal-shell/v5/candidate/favorites-facade-source.html \
             shared/universal-shell/v5/candidate/FAVORITES_FACADE_SOURCE_SHA256.txt \
             shared/universal-shell/v5/candidate/backend-facades-source.html \
-            shared/universal-shell/v5/candidate/BACKEND_FACADES_SOURCE_SHA256.txt
+            shared/universal-shell/v5/candidate/BACKEND_FACADES_SOURCE_SHA256.txt \
+            shared/universal-shell/v5/candidate/durable-favorites-source.html \
+            shared/universal-shell/v5/candidate/DURABLE_FAVORITES_SOURCE_SHA256.txt
           if git diff --cached --quiet; then
             echo 'Candidate source snapshots already persisted.'
             exit 0
           fi
-          git commit -m 'shell: persist modular V5 candidate source snapshots [skip ci]'
+          git commit -m 'shell: persist durable V5 candidate source snapshots [skip ci]'
           git pull --rebase origin ${{ github.ref_name }}
           git push origin HEAD:${{ github.ref_name }}
