@@ -52,11 +52,12 @@ async function ensureBlackboard15({quiet=false}={}){
  try{return await blackboardPromise15}finally{if(token)taskDone15(token)}
 }
 async function ensureClass15({quiet=false,rerender=false}={}){
- if(window.__STUDY_TRANSCRIPTION_V141){if(rerender&&typeof view!=='undefined'&&view==='session'&&typeof renderSession==='function')renderSession();return}
+ if(window.__STUDY_TRANSCRIPTION_V141&&window.__STUDY_FIRST_CLASS_V16){if(rerender&&typeof view!=='undefined'&&view==='session'&&typeof renderSession==='function')renderSession();return}
  if(!classPromise15)classPromise15=(async()=>{
    await script15('./study-v13-class-ready.js?v=150');
    await script15('./study-v14-transcription.js?v=150');
    await script15('./study-v14-quality-fix.js?v=150');
+   await script15('./study-v16-first-class-polish.js?v=160');
  })().catch(e=>{classPromise15=null;throw e});
  const token=quiet?0:taskStart15('Preparando clase…');
  try{await classPromise15;if(rerender&&typeof view!=='undefined'&&view==='session'&&typeof renderSession==='function')renderSession()}finally{if(token)taskDone15(token)}
@@ -89,7 +90,7 @@ function watchAssessment15(){
  },true);
 }
 function schedule15(){
- ['./study-v12-knowledge.js?v=150','./study-v13-class-ready.js?v=150','./study-v14-transcription.js?v=150','./study-v14-quality-fix.js?v=150','./study-v9-content.js?v=150'].forEach(prefetch15);
+ ['./study-v12-knowledge.js?v=150','./study-v13-class-ready.js?v=150','./study-v14-transcription.js?v=150','./study-v14-quality-fix.js?v=150','./study-v16-first-class-polish.js?v=160','./study-v9-content.js?v=150'].forEach(prefetch15);
  const idle=window.requestIdleCallback||((fn)=>setTimeout(fn,700));
  idle(()=>ensureKnowledge15({quiet:true}).catch(()=>{}),{timeout:1600});
  if(localStorage.getItem('study_bb_workspace_token'))setTimeout(()=>{if(typeof view!=='undefined'&&view==='course')ensureBlackboard15({quiet:true}).catch(()=>{})},2200);
