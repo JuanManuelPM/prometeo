@@ -1,0 +1,1 @@
+If execution is interrupted before gh-pages publication, resume by fetching current main and gh-pages, overlaying the V11 public file blobs onto latest gh-pages, then run static/public HTTP QA. Do not regenerate V11 from scratch.
