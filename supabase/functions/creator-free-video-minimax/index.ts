@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { getHfZeroGpuToken,hfHeaders } from "../_shared/creator_hf_zerogpu.ts";
 
 const SUPABASE_URL=Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY=Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -9,69 +10,29 @@ const SPACE='https://minimaxai-minimax-h3-turbo-lora.hf.space';
 const CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, content-type","Access-Control-Allow-Methods":"POST,OPTIONS","Cache-Control":"no-store"};
 const json=(x:any,status=200)=>new Response(JSON.stringify(x),{status,headers:{...CORS,"Content-Type":"application/json"}});
 const fail=(error:string,status=400,extra:any={})=>json({ok:false,error,...extra},status);
-
-async function owner(req:Request){
-  const auth=req.headers.get('Authorization')||'';
-  if(!auth.startsWith('Bearer '))throw new Error('AUTH_REQUIRED');
-  const c=createClient(SUPABASE_URL,ANON_KEY,{global:{headers:{Authorization:auth}},auth:{persistSession:false}});
-  const {data,error}=await c.auth.getUser();
-  if(error||!data.user)throw new Error('AUTH_INVALID');
-  const {data:o,error:oe}=await db.from('prometeo_owner').select('auth_user_id').eq('singleton',true).maybeSingle();
-  if(oe||!o||o.auth_user_id!==data.user.id)throw new Error('NOT_OWNER');
-  return data.user.id;
-}
-async function logProbe(ownerId:string,status:'PASS'|'CAPACITY'|'FAILED',detail:any){
-  try{await db.from('creator_media_probe_log').insert({owner_id:ownerId,provider:'minimax_h3_zerogpu',modality:'video',status,detail});}catch{}
-}
+async function owner(req:Request){const auth=req.headers.get('Authorization')||'';if(!auth.startsWith('Bearer '))throw new Error('AUTH_REQUIRED');const c=createClient(SUPABASE_URL,ANON_KEY,{global:{headers:{Authorization:auth}},auth:{persistSession:false}});const {data,error}=await c.auth.getUser();if(error||!data.user)throw new Error('AUTH_INVALID');const {data:o,error:oe}=await db.from('prometeo_owner').select('auth_user_id').eq('singleton',true).maybeSingle();if(oe||!o||o.auth_user_id!==data.user.id)throw new Error('NOT_OWNER');return data.user.id}
+async function logProbe(ownerId:string,status:'PASS'|'CAPACITY'|'FAILED',detail:any){try{await db.from('creator_media_probe_log').insert({owner_id:ownerId,provider:'minimax_h3_zerogpu',modality:'video',status,detail});}catch{}}
 async function sha256(bytes:Uint8Array){const d=await crypto.subtle.digest('SHA-256',bytes);return[...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('')}
 function hasAtom(bytes:Uint8Array,name:string){const n=new TextEncoder().encode(name);outer:for(let i=0;i<=bytes.length-n.length;i++){for(let j=0;j<n.length;j++)if(bytes[i+j]!==n[j])continue outer;return true}return false}
-function parseCompleted(s:string){
-  const cap=s.match(/shared ZeroGPU pool[^"\n]*/i)?.[0];if(cap)throw new Error('ZEROGPU_CAPACITY');
-  if(/event:\s*error/i.test(s))throw new Error('ZEROGPU_SPACE_ERROR');
-  const m=s.match(/event:\s*complete\s*\ndata:\s*(\[[\s\S]*\])\s*$/m)||s.match(/data:\s*(\[[\s\S]*\])\s*$/m);
-  if(!m)throw new Error('ZEROGPU_RESULT_MISSING');
-  const p=JSON.parse(m[1]);const file=p?.[0];const url=file?.url||file?.path;if(!url)throw new Error('ZEROGPU_VIDEO_URL_MISSING');
-  return{url:String(url),report:String(p?.[1]||''),refined:String(p?.[2]||'')};
-}
-async function generate(prompt:string,duration=2){
+function parseCompleted(s:string){const cap=s.match(/shared ZeroGPU pool[^"\n]*/i)?.[0];if(cap)throw new Error('ZEROGPU_CAPACITY');if(/event:\s*error/i.test(s)){const q=s.match(/(?:ZeroGPU|quota|runs limit)[^\n]*/i)?.[0]||'';throw new Error(q||'ZEROGPU_SPACE_ERROR')}const m=s.match(/event:\s*complete\s*\ndata:\s*(\[[\s\S]*\])\s*$/m)||s.match(/data:\s*(\[[\s\S]*\])\s*$/m);if(!m)throw new Error('ZEROGPU_RESULT_MISSING');const p=JSON.parse(m[1]),file=p?.[0],url=file?.url||file?.path;if(!url)throw new Error('ZEROGPU_VIDEO_URL_MISSING');return{url:String(url),report:String(p?.[1]||''),refined:String(p?.[2]||'')}}
+async function generate(prompt:string,duration=2,token=''){
   const data=[prompt,null,null,'544x960 · 9:16 fast',Math.max(2,Math.min(4,Number(duration||2))),4,42,false,'larry'];
-  const start=await fetch(`${SPACE}/gradio_api/call/output_video`,{method:'POST',signal:AbortSignal.timeout(15000),headers:{'Content-Type':'application/json'},body:JSON.stringify({data})});
-  const first:any=await start.json().catch(()=>({}));if(!start.ok||!first.event_id)throw new Error(`ZEROGPU_SUBMIT_${start.status}`);
-  const poll=await fetch(`${SPACE}/gradio_api/call/output_video/${encodeURIComponent(first.event_id)}`,{signal:AbortSignal.timeout(210000),headers:{Accept:'text/event-stream'}});
-  const text=await poll.text();if(!poll.ok)throw new Error(`ZEROGPU_POLL_${poll.status}`);const done=parseCompleted(text);
-  const fileUrl=done.url.startsWith('http')?done.url:`${SPACE}${done.url.startsWith('/')?'':'/'}${done.url}`;
-  const vr=await fetch(fileUrl,{signal:AbortSignal.timeout(45000)});if(!vr.ok)throw new Error(`ZEROGPU_FETCH_${vr.status}`);const bytes=new Uint8Array(await vr.arrayBuffer());
-  if(bytes.byteLength<2000)throw new Error('ZEROGPU_VIDEO_TOO_SMALL');if(!hasAtom(bytes,'ftyp')||!hasAtom(bytes,'moov')||!hasAtom(bytes,'mdat'))throw new Error('ZEROGPU_MP4_INVALID');
-  return{bytes,event_id:first.event_id,report:done.report,refined:done.refined,duration:Number(data[4]),width:544,height:960};
+  const start=await fetch(`${SPACE}/gradio_api/call/output_video`,{method:'POST',signal:AbortSignal.timeout(15000),headers:hfHeaders(token,{'Content-Type':'application/json'}),body:JSON.stringify({data})});const first:any=await start.json().catch(()=>({}));if(!start.ok||!first.event_id)throw new Error(`ZEROGPU_SUBMIT_${start.status}`);
+  const poll=await fetch(`${SPACE}/gradio_api/call/output_video/${encodeURIComponent(first.event_id)}`,{signal:AbortSignal.timeout(210000),headers:hfHeaders(token,{Accept:'text/event-stream'})});const text=await poll.text();if(!poll.ok)throw new Error(`ZEROGPU_POLL_${poll.status}`);const done=parseCompleted(text),fileUrl=done.url.startsWith('http')?done.url:`${SPACE}${done.url.startsWith('/')?'':'/'}${done.url}`;
+  const vr=await fetch(fileUrl,{signal:AbortSignal.timeout(45000),headers:hfHeaders(token)});if(!vr.ok)throw new Error(`ZEROGPU_FETCH_${vr.status}`);const bytes=new Uint8Array(await vr.arrayBuffer());if(bytes.byteLength<2000)throw new Error('ZEROGPU_VIDEO_TOO_SMALL');if(!hasAtom(bytes,'ftyp')||!hasAtom(bytes,'moov')||!hasAtom(bytes,'mdat'))throw new Error('ZEROGPU_MP4_INVALID');return{bytes,event_id:first.event_id,report:done.report,refined:done.refined,duration:Number(data[4]),width:544,height:960};
 }
-
 Deno.serve(async(req:Request)=>{
-  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:CORS});
-  if(req.method!=='POST')return fail('METHOD_NOT_ALLOWED',405);
-  let ownerId='';
+  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:CORS});if(req.method!=='POST')return fail('METHOD_NOT_ALLOWED',405);let ownerId='';
   try{
-    ownerId=await owner(req);const b:any=await req.json().catch(()=>({})),prompt=String(b.prompt||'').trim();if(!prompt)return fail('PROMPT_REQUIRED');
-    const videoId=String(b.video_id||'');if(!videoId)return fail('VIDEO_ID_REQUIRED');
-    const {data:v,error:ve}=await db.from('creator_videos').select('id,channel_id,metadata,max_cost_cents').eq('id',videoId).eq('owner_id',ownerId).maybeSingle();if(ve||!v)return fail('VIDEO_NOT_FOUND',404);
-    const {data:policy}=await db.from('creator_cost_policy').select('mode,hard_max_cost_cents').eq('owner_id',ownerId).maybeSingle();
-    if(policy?.mode!=='FREE_ONLY'||Number(policy?.hard_max_cost_cents||0)!==0||Number(v.max_cost_cents||0)!==0)return fail('FREE_ONLY_REQUIRED',409);
-    const out=await generate(prompt,Number(b.duration||2)),path=`${ownerId}/${v.channel_id}/${videoId}/${crypto.randomUUID()}-minimax-h3-master.mp4`;
-    const up=await db.storage.from('creator-assets').upload(path,out.bytes,{contentType:'video/mp4',upsert:false,cacheControl:'3600'});if(up.error)throw up.error;
-    const digest=await sha256(out.bytes);
-    const {data:asset,error:ae}=await db.from('creator_assets').insert({owner_id:ownerId,channel_id:v.channel_id,video_id:videoId,kind:'MASTER',bucket:'creator-assets',object_path:path,mime_type:'video/mp4',byte_size:out.bytes.byteLength,duration_ms:Math.round(out.duration*1000),sha256:digest,provider:'huggingface-minimax-h3-zerogpu-anon',provider_asset_id:out.event_id,metadata:{prompt,refined_prompt:out.refined,report:out.report,space:'MiniMaxAI/MiniMax-H3-Turbo-Lora',model:'MiniMax-H3-Turbo-LoRA',width:out.width,height:out.height,cost_cents:0,quota:'anonymous_zerogpu',free_only:true}}).select().single();if(ae)throw ae;
-    const {data:maxv,error:mve}=await db.from('creator_video_versions').select('version').eq('owner_id',ownerId).eq('video_id',videoId).order('version',{ascending:false}).limit(1).maybeSingle();if(mve)throw mve;const version=Number(maxv?.version||0)+1;
-    const deselect=await db.from('creator_video_versions').update({selected:false}).eq('owner_id',ownerId).eq('video_id',videoId);if(deselect.error)throw deselect.error;
-    const {data:vv,error:vve}=await db.from('creator_video_versions').insert({owner_id:ownerId,video_id:videoId,version,master_asset_id:asset.id,scene_manifest:[{kind:'generated_master',provider:'huggingface-minimax-h3-zerogpu-anon',duration_ms:Math.round(out.duration*1000),width:out.width,height:out.height}],selected:true}).select().single();if(vve)throw vve;
-    const findings=['mp4 atoms ftyp/moov/mdat present',`${out.width}x${out.height}`,`duration target ${out.duration}s`,'MiniMax H3 ZeroGPU'];
-    const qa=await db.from('creator_validation_runs').insert({owner_id:ownerId,video_id:videoId,video_version_id:vv.id,kind:'DETERMINISTIC',status:'PASS',score:1,findings,evidence:{provider:'huggingface-minimax-h3-zerogpu-anon',byte_size:out.bytes.byteLength,width:out.width,height:out.height,duration_ms:Math.round(out.duration*1000),cost_cents:0}});if(qa.error)throw qa.error;
-    const metadata={...(v.metadata||{}),last_master_asset_id:asset.id,last_master_provider:'huggingface-minimax-h3-zerogpu-anon',last_video_provider:'huggingface-minimax-h3-zerogpu-anon',last_video_mode:'text-to-video',free_only:true};
-    const upd=await db.from('creator_videos').update({state:'READY',target_duration_ms:Math.round(out.duration*1000),actual_cost_cents:0,max_cost_cents:0,metadata}).eq('id',videoId).eq('owner_id',ownerId);if(upd.error)throw upd.error;
-    const {data:signed,error:se}=await db.storage.from('creator-assets').createSignedUrl(path,3600);if(se)throw se;
-    await logProbe(ownerId,'PASS',{event_id:out.event_id,bytes:out.bytes.byteLength,cost_cents:0});
-    return json({ok:true,provider:'huggingface-minimax-h3-zerogpu-anon',cost_cents:0,video_id:videoId,video_version_id:vv.id,asset:{id:asset.id,mime_type:'video/mp4',byte_size:out.bytes.byteLength,duration_ms:Math.round(out.duration*1000)},signed_url:signed.signedUrl,qa:{status:'PASS',findings},quota:'anonymous ZeroGPU'});
-  }catch(e){
-    const m=String((e as any)?.message||e);console.error('creator-free-video-minimax',m);const auth=/^(AUTH_|NOT_OWNER)/.test(m),capacity=/ZEROGPU_CAPACITY|capacity|GPU token|quota|ZEROGPU_SPACE_ERROR|ZEROGPU_POLL_429|ZEROGPU_SUBMIT_429/i.test(m);
-    if(ownerId)await logProbe(ownerId,capacity?'CAPACITY':'FAILED',{detail:m,cost_cents:0});
-    return fail(capacity?'ZEROGPU_ANON_UNAVAILABLE':m,auth?401:capacity?429:500,{detail:m});
-  }
+    ownerId=await owner(req);const b:any=await req.json().catch(()=>({})),prompt=String(b.prompt||'').trim();if(!prompt)return fail('PROMPT_REQUIRED');const videoId=String(b.video_id||'');if(!videoId)return fail('VIDEO_ID_REQUIRED');
+    const {data:v,error:ve}=await db.from('creator_videos').select('id,channel_id,metadata,max_cost_cents').eq('id',videoId).eq('owner_id',ownerId).maybeSingle();if(ve||!v)return fail('VIDEO_NOT_FOUND',404);const {data:policy}=await db.from('creator_cost_policy').select('mode,hard_max_cost_cents').eq('owner_id',ownerId).maybeSingle();if(policy?.mode!=='FREE_ONLY'||Number(policy?.hard_max_cost_cents||0)!==0||Number(v.max_cost_cents||0)!==0)return fail('FREE_ONLY_REQUIRED',409);
+    const token=await getHfZeroGpuToken(db,ownerId),out=await generate(prompt,Number(b.duration||2),token),quota=token?'authenticated_zerogpu':'anonymous_zerogpu',path=`${ownerId}/${v.channel_id}/${videoId}/${crypto.randomUUID()}-minimax-h3-master.mp4`;
+    const up=await db.storage.from('creator-assets').upload(path,out.bytes,{contentType:'video/mp4',upsert:false,cacheControl:'3600'});if(up.error)throw up.error;const digest=await sha256(out.bytes);
+    const {data:asset,error:ae}=await db.from('creator_assets').insert({owner_id:ownerId,channel_id:v.channel_id,video_id:videoId,kind:'MASTER',bucket:'creator-assets',object_path:path,mime_type:'video/mp4',byte_size:out.bytes.byteLength,duration_ms:Math.round(out.duration*1000),sha256:digest,provider:'huggingface-minimax-h3-zerogpu',provider_asset_id:out.event_id,metadata:{prompt,refined_prompt:out.refined,report:out.report,space:'MiniMaxAI/MiniMax-H3-Turbo-Lora',model:'MiniMax-H3-Turbo-LoRA',width:out.width,height:out.height,cost_cents:0,quota,free_only:true}}).select().single();if(ae)throw ae;
+    const {data:maxv,error:mve}=await db.from('creator_video_versions').select('version').eq('owner_id',ownerId).eq('video_id',videoId).order('version',{ascending:false}).limit(1).maybeSingle();if(mve)throw mve;const version=Number(maxv?.version||0)+1;const deselect=await db.from('creator_video_versions').update({selected:false}).eq('owner_id',ownerId).eq('video_id',videoId);if(deselect.error)throw deselect.error;
+    const {data:vv,error:vve}=await db.from('creator_video_versions').insert({owner_id:ownerId,video_id:videoId,version,master_asset_id:asset.id,scene_manifest:[{kind:'generated_master',provider:'huggingface-minimax-h3-zerogpu',duration_ms:Math.round(out.duration*1000),width:out.width,height:out.height}],selected:true}).select().single();if(vve)throw vve;
+    const findings=['mp4 atoms ftyp/moov/mdat present',`${out.width}x${out.height}`,`duration target ${out.duration}s`,'MiniMax H3 ZeroGPU'];const qa=await db.from('creator_validation_runs').insert({owner_id:ownerId,video_id:videoId,video_version_id:vv.id,kind:'DETERMINISTIC',status:'PASS',score:1,findings,evidence:{provider:'huggingface-minimax-h3-zerogpu',byte_size:out.bytes.byteLength,width:out.width,height:out.height,duration_ms:Math.round(out.duration*1000),cost_cents:0}});if(qa.error)throw qa.error;
+    const metadata={...(v.metadata||{}),last_master_asset_id:asset.id,last_master_provider:'huggingface-minimax-h3-zerogpu',last_video_provider:'huggingface-minimax-h3-zerogpu',last_video_mode:'text-to-video',free_only:true};const upd=await db.from('creator_videos').update({state:'READY',target_duration_ms:Math.round(out.duration*1000),actual_cost_cents:0,max_cost_cents:0,metadata}).eq('id',videoId).eq('owner_id',ownerId);if(upd.error)throw upd.error;
+    const {data:signed,error:se}=await db.storage.from('creator-assets').createSignedUrl(path,3600);if(se)throw se;await logProbe(ownerId,'PASS',{event_id:out.event_id,bytes:out.bytes.byteLength,cost_cents:0,authenticated:!!token});return json({ok:true,provider:'huggingface-minimax-h3-zerogpu',cost_cents:0,video_id:videoId,video_version_id:vv.id,asset:{id:asset.id,mime_type:'video/mp4',byte_size:out.bytes.byteLength,duration_ms:Math.round(out.duration*1000)},signed_url:signed.signedUrl,qa:{status:'PASS',findings},quota:token?'authenticated ZeroGPU':'anonymous ZeroGPU'});
+  }catch(e){const m=String((e as any)?.message||e);console.error('creator-free-video-minimax',m);const auth=/^(AUTH_|NOT_OWNER)/.test(m),capacity=/ZEROGPU_CAPACITY|capacity|GPU token|quota|ZEROGPU_SPACE_ERROR|ZEROGPU_POLL_429|ZEROGPU_SUBMIT_429|runs limit/i.test(m);if(ownerId)await logProbe(ownerId,capacity?'CAPACITY':'FAILED',{detail:m,cost_cents:0});return fail(capacity?'ZEROGPU_ANON_UNAVAILABLE':m,auth?401:capacity?429:500,{detail:m});}
 });
