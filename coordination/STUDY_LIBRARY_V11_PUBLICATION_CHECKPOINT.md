@@ -1,0 +1,1 @@
+Checkpoint only: public deployment verification follows the gh-pages overlay and HTTP checks. This file is not a completion marker.
