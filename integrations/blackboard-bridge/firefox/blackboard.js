@@ -2,15 +2,17 @@ const bbApi2=typeof browser!=='undefined'?browser:chrome;
 const bbC=(x,n=2000)=>String(x||'').replace(/\s+/g,' ').trim().slice(0,n);
 function bbCourse(url){try{const u=new URL(url),q=u.searchParams;if(q.get('course_id'))return q.get('course_id');if(q.get('courseId'))return q.get('courseId');if((q.get('type')||'').toLowerCase()==='course'&&q.get('id'))return q.get('id');const m=u.pathname.match(/\/courses\/([^/?#]+)/i);return m?decodeURIComponent(m[1]):''}catch{return''}}
 function bbF(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return(h>>>0).toString(16)}
+function bbTitleScore(t,k=''){const s=bbC(t,500),n=s.toLowerCase();let q=Math.min(40,s.length/4);if(!s)q-=100;if(/\.(png|jpe?g|gif|pdf|pptx?|docx?|xlsx?|zip)$/i.test(s))q-=80;if(/^https?:|abrir enlaces rapidos|enlaces rapidos|ir$/i.test(n))q-=70;if(/202\dC\dC_/i.test(s))q+=45;if(k&&s.includes(k))q+=18;if(/\([^)]*202\dC\dC_[^)]+\)/i.test(s))q+=35;return q}
 function snapshot(){
-  const url=location.href,ck=bbCourse(url),title=bbC(document.querySelector('h1')?.textContent||document.querySelector('#pageTitleText')?.textContent||document.title,500),courses=[],items=[],seen=new Set();
-  const addCourse=(k,n,h)=>{if(!k||seen.has('c:'+k))return;seen.add('c:'+k);courses.push({course_key:k,title:bbC(n,500)||k,href:h,raw:{captured:true}})};if(ck)addCourse(ck,title,url);
-  for(const a of [...document.querySelectorAll('a[href]')].slice(0,800)){
+  const url=location.href,ck=bbCourse(url),title=bbC(document.querySelector('h1')?.textContent||document.querySelector('#pageTitleText')?.textContent||document.title,500),courses=[],items=[],seen=new Set(),courseMap=new Map();
+  const addCourse=(k,n,h)=>{if(!k)return;const next={course_key:k,title:bbC(n,500)||k,href:h,raw:{captured:true}},prev=courseMap.get(k);if(!prev||bbTitleScore(next.title,k)>bbTitleScore(prev.title,k))courseMap.set(k,{...prev,...next});else if(prev&&!prev.href&&h)prev.href=h};if(ck)addCourse(ck,title,url);
+  for(const a of [...document.querySelectorAll('a[href]')].slice(0,1200)){
     let href='';try{href=new URL(a.href,location.href).href}catch{}if(!href||!href.startsWith(location.origin))continue;const text=bbC(a.textContent||a.title||a.getAttribute('aria-label'),600),k=bbCourse(href)||ck;if(k)addCourse(k,text,href);if(!text&&!/bbcswebdav|download|attachment/i.test(href))continue;const type=/bbcswebdav|\.(pdf|pptx?|docx?|xlsx?|zip|rar|7z|txt|csv|jpg|jpeg|png|mp4|mp3)(?:[?#]|$)|download|attachment/i.test(href+' '+text)?'file':/announcement|anuncio/i.test(href+' '+text)?'announcement':/assignment|assessment|test|quiz|submit/i.test(href+' '+text)?'assignment':'link';if(type==='link'&&!k)continue;const key=(k||'global')+':live:'+bbF((a.id||href)+'|'+text);if(seen.has(key))continue;seen.add(key);items.push({item_key:key,course_key:k||null,item_type:type,title:text||href.split('/').pop()||type,href,source_page:url,raw:{live:true}})}
+  courses.push(...courseMap.values());
   const body=bbC(document.body?.innerText||'',20000),pk=(ck||'global')+':livepage:'+bbF(url);items.push({item_key:pk,course_key:ck||null,item_type:/announcement/i.test(url)?'announcement-page':/message/i.test(url)?'messages-page':'page',title:title||url,body_text:body,href:url,source_page:url,raw:{live:true}});
   return{url,courses,items};
 }
-setTimeout(()=>bbApi2.runtime.sendMessage({type:'PAGE_SNAPSHOT',payload:snapshot()}).catch(()=>{}),1800);
+setTimeout(()=>bbApi2.runtime.sendMessage({type:'PAGE_SNAPSHOT',payload:snapshot()}).catch(()=>{}),1600);
 if(!document.getElementById('prometeo-bb-dot')){
  const b=document.createElement('button');b.id='prometeo-bb-dot';b.textContent='P';b.title='Sincronizar con Prometeo';Object.assign(b.style,{position:'fixed',right:'10px',bottom:'10px',zIndex:'2147483647',width:'28px',height:'28px',border:'1px solid rgba(0,0,0,.25)',background:'#111326',color:'#d8d1ff',font:'700 11px system-ui',opacity:'.42',cursor:'pointer'});b.onmouseenter=()=>b.style.opacity='.92';b.onmouseleave=()=>b.style.opacity='.42';b.onclick=async()=>{b.textContent='…';try{await bbApi2.runtime.sendMessage({type:'SYNC'});b.textContent='✓';setTimeout(()=>b.textContent='P',1500)}catch{b.textContent='!'}};document.documentElement.appendChild(b)
 }
