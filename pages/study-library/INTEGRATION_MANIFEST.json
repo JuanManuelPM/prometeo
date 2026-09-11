@@ -1,6 +1,6 @@
 {
   "schema": "prometeo.study-library.integration/v1",
-  "version": "15.0",
+  "version": "16.0",
   "status": "integrated-active",
   "parent": "Study Library",
   "experience": {
@@ -10,81 +10,32 @@
     "transcription_layer": "pages/study-library/study-v14-transcription.js",
     "transcription_quality_patch": "pages/study-library/study-v14-quality-fix.js",
     "performance_layer": "pages/study-library/study-v15-performance.js",
+    "enrichment_layer": "pages/study-library/study-v16-enrichment.js",
     "style": "pages/study-library/study-v11.css",
-    "home": "full Psychology curriculum + bookshelf + integrated month/week/agenda",
-    "course": "cover-led course interior with Programa / Clases / Parciales / Materiales",
+    "home": "full Psychology curriculum + bookshelf + integrated month/week/agenda + visual course covers",
+    "course": "cover-led course interior with Programa / Clases / Parciales / Materiales + course-specific historical archive when verified",
     "assessment": "course-scoped Study System V2 instance rendered inside Study Library",
     "source_policy": "Blackboard is a subordinate source layer; technical panel is hidden from normal UX"
   },
   "performance": {
     "boot": "staged-v15",
     "first_feedback": "inline loading shell is paintable before Supabase and application JavaScript",
-    "critical_path": [
-      "V4 core/session primitives",
-      "V5-V9 compatibility patches",
-      "Blackboard Bridge pairing listener",
-      "WB10 adapter",
-      "V10 assessment/whiteboard integration",
-      "V11 Study Library experience",
-      "V15 staged loader"
-    ],
-    "lazy_execution": {
-      "knowledge_v12": "requestIdleCallback or first course/direct-course navigation",
-      "class_v13_v14": "only before entering/direct-opening a class session",
-      "blackboard_content_v9": "after course navigation; no duplicate Blackboard content fetch on library boot"
-    },
-    "prefetch": ["V12 knowledge", "V13 class", "V14 transcription", "V14.1 quality", "V9 Blackboard content"],
-    "idle_execution": ["V12 knowledge so the complete curriculum appears without blocking first paint"],
+    "critical_path": ["V4 core/session primitives","V5-V9 compatibility patches","Blackboard Bridge pairing listener","WB10 adapter","V10 assessment/whiteboard integration","V11 Study Library experience","V15 staged loader"],
+    "lazy_execution": {"knowledge_v12":"requestIdleCallback or first course/direct-course navigation","class_v13_v14":"only before entering/direct-opening a class session","blackboard_content_v9":"after course navigation; no duplicate Blackboard content fetch on library boot","covers_v16":"only near viewport; first/second year may warm sequentially during idle time"},
+    "prefetch": ["V12 knowledge","V13 class","V14 transcription","V14.1 quality","V9 Blackboard content"],
+    "idle_execution": ["V12 knowledge so the complete curriculum appears without blocking first paint","V16 cover warming with low concurrency and save-data opt-out"],
     "removed_artificial_wait": "7 x 25 ms loader sleeps removed",
     "operation_feedback": "subtle delayed indicator after 180 ms for course, class, assessment and whiteboard operations",
-    "preservation_rule": "historical compatibility layers remain available; V15 changes scheduling, not feature authority"
+    "preservation_rule": "historical compatibility layers remain available; V15/V16 change scheduling and enrichment, not feature authority"
   },
-  "blackboard": {
-    "bridge_package": "0.4.0",
-    "verified_baseline": "0.3.0 completed first real Windows/Firefox ingest on 2026-09-11",
-    "v0_4_state": "code staged; requires Firefox temporary-addon reload/install before browser validation",
-    "crawler": "canonical-title scoring + known-course URL seeding",
-    "file_mirror": "diagnostics added; not closed until a v0.4 browser sync proves mirrored files"
+  "course_enrichment": {
+    "registry":"pages/study-library/course-enrichment-v16.json","cover_count":48,"cover_reference_provider":"Pinterest","cover_delivery":"lazy remote resolve -> persistent IndexedDB blob cache; existing two-color cover is immediate no-text fallback","cover_concurrency":2,"historical_archive_entries":20,"historical_archive_exact":19,"historical_archive_approximate":1,"historical_archive_policy":"course-specific folder only; universal root is never surfaced to student UI","legacy_last_periodic_update":"2018-12","legacy_warning":"historical material can reflect previous programs and must be checked against current program/current sources","current_external_material":{"modelos":"Material actual · Modelos II 2026"}
   },
-  "assessment_registry": "pages/study-library/assessment-registry-v1.json",
-  "assessment_contract": "pages/study-library/ASSESSMENT_ADAPTER.contract.md",
-  "study_system": {
-    "system": "Study System V2",
-    "schema": ".study-system/v2/EXAM_INSTANCE.schema.json",
-    "renderer": "pages/study-system-v2-generic.html",
-    "active_assessment": "modelos-teorias-ii-p1",
-    "active_instance": "pages/study-library/instances/modelos-teorias-ii-p1-v2.json",
-    "integrated_surface": "pages/study-library/?course=modelos&assessment=modelos-teorias-ii-p1",
-    "reference_surface": "pages/study-system-v2-lab.html",
-    "reference_status": "preserved-fallback",
-    "integration_rule": "exam-specific content is data; Study Library owns subject/course navigation; generic Study System owns theory, recall, practice, progress and per-topic whiteboard"
-  },
-  "transcription": {
-    "authority": "continuous local audio master",
-    "live": "browser SpeechRecognition es-AR; provisional only; never canonical",
-    "canonical_capture": {
-      "window_ms": 150000,
-      "step_ms": 135000,
-      "overlap_ms": 15000,
-      "capture_version": "canonical-v2"
-    },
-    "canonical_backend": "Supabase study-transcribe-v1 v6",
-    "primary_model": "whisper-large-v3",
-    "fallback_model": "whisper-large-v3-turbo",
-    "quality_gate": ["consecutive token repetition", "consecutive n-gram loops", "extreme lexical collapse"],
-    "reconciliation": "fuzzy overlap alignment; exact word equality is not authoritative",
-    "persisted_transcript": "uses the same fuzzy canonical merge as the visible transcript",
-    "failure_policy": "reject suspicious transcript and preserve original audio for retry",
-    "master_recovery": "rebuildable from IndexedDB master slices via PrometeoTranscriptionV14.rebuildMaster(sessionId)"
-  },
-  "whiteboard": {
-    "engine": "mnemonic-whiteboard-v10",
-    "authority": ".study-system/v2/MANIFEST.json",
-    "adapter": "pages/study-library/universal-whiteboard-adapter-v1.js",
-    "contexts": ["study-topic", "class"],
-    "class_state": "structured JSONB in study_boards.state",
-    "preview": "source-rendered WB10 thumbnail; preview is derivative, never canonical",
-    "concurrency": "whole-state/revision; do not claim per-stroke CRDT"
-  },
-  "preserve": ["Modelos II P1 detailed reference surface", "Walky", "voices/TTS", "profiles/colors", "presence/realtime", "audio master", "live provisional transcription", "canonical transcription", "shared notes", "Blackboard Bridge", "course/program/class navigation"]
+  "blackboard": {"bridge_package":"0.4.0","verified_baseline":"0.3.0 completed first real Windows/Firefox ingest on 2026-09-11","v0_4_state":"code staged; requires Firefox temporary-addon reload/install before browser validation","crawler":"canonical-title scoring + known-course URL seeding","file_mirror":"diagnostics added; not closed until a v0.4 browser sync proves mirrored files"},
+  "assessment_registry":"pages/study-library/assessment-registry-v1.json",
+  "assessment_contract":"pages/study-library/ASSESSMENT_ADAPTER.contract.md",
+  "study_system": {"system":"Study System V2","schema":".study-system/v2/MANIFEST.json","renderer":"pages/study-system-v2-generic.html","active_assessment":"modelos-teorias-ii-p1","active_instance":"pages/study-library/instances/modelos-teorias-ii-p1-v2.json","integrated_surface":"pages/study-library/?course=modelos&assessment=modelos-teorias-ii-p1","reference_surface":"pages/study-system-v2-lab.html","reference_status":"preserved-fallback","integration_rule":"exam-specific content is data; Study Library owns subject/course navigation; generic Study System owns theory, recall, practice, progress and per-topic whiteboard"},
+  "transcription": {"authority":"continuous local audio master","live":"browser SpeechRecognition es-AR; provisional only; never canonical","canonical_capture":{"window_ms":150000,"step_ms":135000,"overlap_ms":15000,"capture_version":"canonical-v2"},"canonical_backend":"Supabase study-transcribe-v1 v6","primary_model":"whisper-large-v3","fallback_model":"whisper-large-v3-turbo","quality_gate":["consecutive token repetition","consecutive n-gram loops","extreme lexical collapse"],"reconciliation":"fuzzy overlap alignment; exact word equality is not authoritative","persisted_transcript":"uses the same fuzzy canonical merge as the visible transcript","failure_policy":"reject suspicious transcript and preserve original audio for retry","master_recovery":"rebuildable from IndexedDB master slices via PrometeoTranscriptionV14.rebuildMaster(sessionId)"},
+  "whiteboard": {"engine":"mnemonic-whiteboard-v10","authority":".study-system/v2/MANIFEST.json","adapter":"pages/study-library/universal-whiteboard-adapter-v1.js","contexts":["study-topic","class"],"class_state":"structured JSONB in study_boards.state","preview":"source-rendered WB10 thumbnail; preview is derivative, never canonical","concurrency":"whole-state/revision; do not claim per-stroke CRDT"},
+  "preserve": ["Modelos II P1 detailed reference surface","Walky","voices/TTS","profiles/colors","presence/realtime","audio master","live provisional transcription","canonical transcription","shared notes","Blackboard Bridge","course/program/class navigation"]
 }
