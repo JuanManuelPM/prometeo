@@ -1,0 +1,12 @@
+(()=>{
+'use strict';
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+const seen=new WeakMap();
+async function videoIdFromDrawer(drawer){return drawer.querySelector('[data-v4-publish]')?.dataset.v4Publish||drawer.querySelector('[data-v4-open]')?.dataset.v4Open||null}
+async function loadAssets(videoId){if(!window.Creator?.sb||!videoId)return[];const {data,error}=await Creator.sb.from('creator_assets').select('id,kind,object_path,mime_type,provider,metadata,created_at').eq('video_id',videoId).eq('kind','IMAGE').order('created_at',{ascending:false});if(error)throw error;const rows=data||[];return Promise.all(rows.map(async a=>{const {data:s,error:e}=await Creator.sb.storage.from('creator-assets').createSignedUrl(a.object_path,3600);return{...a,url:e?null:s?.signedUrl||null}}))}
+async function decorate(drawer){if(!drawer||seen.get(drawer))return;seen.set(drawer,true);const id=await videoIdFromDrawer(drawer);if(!id){seen.delete(drawer);return}let mount=drawer.querySelector('.v6-assets');if(!mount){mount=document.createElement('section');mount.className='v6-assets';const media=drawer.querySelector('.v4-media');if(media)media.after(mount);else drawer.querySelector('.pd-title')?.after(mount)}mount.innerHTML='<div class="v6-head"><b>Imágenes</b><span>cargando…</span></div>';
+ try{const assets=await loadAssets(id);if(!assets.length){mount.innerHTML='';mount.classList.add('hidden');return}mount.classList.remove('hidden');mount.innerHTML=`<div class="v6-head"><b>Imágenes</b><span>${assets.length} guardada${assets.length===1?'':'s'}</span></div><div class="v6-strip">${assets.map(a=>a.url?`<figure><img src="${esc(a.url)}" alt=""><figcaption>${esc(a.provider||'media')} · $0</figcaption></figure>`:'').join('')}</div>`}catch(e){mount.innerHTML=`<div class="v6-head"><b>Imágenes</b><span>${esc(e.message||e)}</span></div>`}}
+function scan(){document.querySelectorAll('.v4-production,.production-drawer').forEach(d=>{if(d.querySelector('[data-v4-publish],[data-v4-open]'))decorate(d)})}
+const observer=new MutationObserver(()=>queueMicrotask(scan));observer.observe(document.documentElement,{subtree:true,childList:true});scan();
+window.addEventListener('creator:image-saved',()=>{document.querySelectorAll('.v6-assets').forEach(x=>x.remove());document.querySelectorAll('.v4-production,.production-drawer').forEach(d=>seen.delete(d));scan()});
+})();
