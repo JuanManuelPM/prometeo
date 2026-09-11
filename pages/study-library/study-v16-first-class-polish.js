@@ -23,6 +23,7 @@ document.addEventListener('click',e=>{
  const leave=e.target.closest?.('#backCourse,#globalBack');if(!leave||!recording16())return;
  if(!confirm('Esta compu está grabando la clase. ¿Salir igual y cortar la grabación?')){e.preventDefault();e.stopImmediatePropagation()}
 },true);
+document.addEventListener('click',e=>{if(e.target.closest?.('[data-theme13]'))setTimeout(()=>document.querySelector('#themeSheet13')?.remove(),0)});
 window.addEventListener('offline',()=>{if(recording16())try{toast('Sin red · el audio local sigue grabándose')}catch{}});
 window.addEventListener('online',()=>{if(inSession16())try{toast('Conexión recuperada')}catch{}});
 
