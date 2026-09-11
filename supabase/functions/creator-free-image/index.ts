@@ -20,6 +20,9 @@ async function owner(req:Request){
   if(oe||!o||o.auth_user_id!==data.user.id)throw new Error("NOT_OWNER");
   return data.user.id;
 }
+async function logProbe(ownerId:string,status:'PASS'|'CAPACITY'|'FAILED',detail:any){
+  try{await db.from('creator_media_probe_log').insert({owner_id:ownerId,provider:'flux_schnell_zerogpu',modality:'image',status,detail});}catch{}
+}
 async function sha256(bytes:Uint8Array){const d=await crypto.subtle.digest("SHA-256",bytes);return[...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,"0")).join("")}
 function completedData(s:string){
   if(/event:\s*error/i.test(s))throw new Error("ZEROGPU_SPACE_ERROR");
@@ -43,8 +46,9 @@ async function generate(prompt:string,width=768,height=1024){
 Deno.serve(async(req:Request)=>{
   if(req.method==='OPTIONS')return new Response(null,{status:204,headers:CORS});
   if(req.method!=='POST')return fail('METHOD_NOT_ALLOWED',405);
+  let ownerId='';
   try{
-    const ownerId=await owner(req),b:any=await req.json().catch(()=>({}));const prompt=String(b.prompt||'').trim();if(!prompt)return fail('PROMPT_REQUIRED');
+    ownerId=await owner(req);const b:any=await req.json().catch(()=>({}));const prompt=String(b.prompt||'').trim();if(!prompt)return fail('PROMPT_REQUIRED');
     const channelId=b.channel_id?String(b.channel_id):null,videoId=b.video_id?String(b.video_id):null;
     if(videoId){const {data:v,error}=await db.from('creator_videos').select('id,channel_id,metadata').eq('id',videoId).eq('owner_id',ownerId).maybeSingle();if(error||!v)return fail('VIDEO_NOT_FOUND',404);if(channelId&&v.channel_id!==channelId)return fail('CHANNEL_VIDEO_MISMATCH',409)}
     const policy=await db.from('creator_cost_policy').select('mode,hard_max_cost_cents').eq('owner_id',ownerId).maybeSingle();if(policy.data?.mode!=='FREE_ONLY'||Number(policy.data?.hard_max_cost_cents||0)!==0)return fail('FREE_ONLY_REQUIRED',409);
@@ -54,6 +58,7 @@ Deno.serve(async(req:Request)=>{
     const digest=await sha256(out.bytes);const {data:asset,error:ae}=await db.from('creator_assets').insert({owner_id:ownerId,channel_id:channelId,video_id:videoId,kind:'IMAGE',bucket:'creator-assets',object_path:path,mime_type:out.mime,byte_size:out.bytes.byteLength,sha256:digest,provider:'huggingface-zerogpu-anon',provider_asset_id:out.event_id,metadata:{prompt,space:'black-forest-labs/FLUX.1-schnell',model:'FLUX.1-schnell',seed:out.seed,cost_cents:0,quota:'anonymous_zerogpu',free_only:true}}).select().single();if(ae)throw ae;
     if(videoId)await db.from('creator_videos').update({metadata:{...(await db.from('creator_videos').select('metadata').eq('id',videoId).single()).data?.metadata,last_image_asset_id:asset.id,last_image_provider:'huggingface-zerogpu-anon'}}).eq('id',videoId).eq('owner_id',ownerId);
     const {data:signed,error:se}=await db.storage.from('creator-assets').createSignedUrl(path,3600);if(se)throw se;
+    await logProbe(ownerId,'PASS',{event_id:out.event_id,bytes:out.bytes.byteLength,cost_cents:0});
     return json({ok:true,provider:'huggingface-zerogpu-anon',cost_cents:0,asset:{id:asset.id,mime_type:asset.mime_type,byte_size:asset.byte_size,provider:asset.provider},signed_url:signed.signedUrl,quota:'anonymous ZeroGPU'});
-  }catch(e){const m=String((e as any)?.message||e);console.error('creator-free-image',m);const auth=/^(AUTH_|NOT_OWNER)/.test(m);const quota=/quota|GPU token|ZeroGPU|ZEROGPU_SPACE_ERROR/i.test(m);return fail(quota?'ZEROGPU_ANON_UNAVAILABLE':m,auth?401:quota?429:500,{detail:m});}
+  }catch(e){const m=String((e as any)?.message||e);console.error('creator-free-image',m);const auth=/^(AUTH_|NOT_OWNER)/.test(m);const capacity=/quota|GPU token|ZeroGPU|ZEROGPU_SPACE_ERROR|ZEROGPU_POLL_429|ZEROGPU_SUBMIT_429|capacity/i.test(m);if(ownerId)await logProbe(ownerId,capacity?'CAPACITY':'FAILED',{detail:m,cost_cents:0});return fail(capacity?'ZEROGPU_ANON_UNAVAILABLE':m,auth?401:capacity?429:500,{detail:m});}
 });
