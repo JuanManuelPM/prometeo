@@ -1,0 +1,42 @@
+name: Creator Edge Functions check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/creator-*/**'
+      - 'supabase/functions/_shared/**'
+      - '.github/workflows/creator-edge-check.yml'
+  pull_request:
+    paths:
+      - 'supabase/functions/creator-*/**'
+      - 'supabase/functions/_shared/**'
+      - '.github/workflows/creator-edge-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Deno typecheck creator functions
+        run: |
+          set -euo pipefail
+          find supabase/functions -maxdepth 2 -type f -name 'index.ts' -path '*/creator-*/*' -print0 | xargs -0 -n1 deno check
+      - name: FREE_ONLY static guard
+        run: |
+          set -euo pipefail
+          for f in \
+            supabase/functions/creator-free-image/index.ts \
+            supabase/functions/creator-free-video/index.ts \
+            supabase/functions/creator-free-video-ltx25/index.ts \
+            supabase/functions/creator-free-video-minimax/index.ts; do
+            test -f "$f"
+            ! grep -Eiq 'api\.openai\.com|generativelanguage\.googleapis\.com|api\.replicate\.com|api\.together\.xyz' "$f"
+            grep -q 'FREE_ONLY' "$f"
+          done
