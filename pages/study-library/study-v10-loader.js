@@ -15,5 +15,6 @@
     await load('./study-v11-experience.js?v=111');
     await load('./study-v12-knowledge.js?v=121');
     await load('./study-v13-class-ready.js?v=130');
+    await load('./study-v14-transcription.js?v=140');
   }catch(e){console.error(e);if(app&&!app.children.length)app.innerHTML='<main style="padding:28px;font:14px system-ui;color:#d8d1ff;background:#111326;min-height:100vh">No pude iniciar Study Library. Reintentá en unos segundos.</main>'}
 })();
