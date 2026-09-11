@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 const SB='https://catnohyouxqjjtseaueb.supabase.co',LTX=SB+'/functions/v1/creator-free-video',MINIMAX=SB+'/functions/v1/creator-free-video-minimax',KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
-const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[m]));
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 let running=false;
 async function session(){return (await Creator.sb.auth.getSession()).data.session}
 async function call(url,body){const s=await session();if(!s)throw Error('LOGIN_REQUIRED');const r=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+s.access_token,apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify(body)}),p=await r.json().catch(()=>({}));if(!r.ok){const e=Error(p.error||('HTTP_'+r.status));e.status=r.status;e.payload=p;throw e}return p}
