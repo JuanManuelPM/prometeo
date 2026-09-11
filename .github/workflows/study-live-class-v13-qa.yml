@@ -1,0 +1,65 @@
+name: Study Live Class V13 QA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pages/study-library/study-v13-class-ready.js'
+      - 'pages/study-library/study-v13-class-ready.css'
+      - 'pages/study-library/transcript-share.html'
+      - 'pages/study-library/index.html'
+      - 'pages/study-library/study-v10-loader.js'
+      - 'scripts/study-live-class-v13-browser.mjs'
+      - '.github/workflows/study-live-class-v13-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax
+        run: node --check pages/study-library/study-v13-class-ready.js
+      - name: Contract markers
+        run: |
+          grep -q "windowMs:20000,stepMs:15000,overlapMs:5000" pages/study-library/study-v13-class-ready.js
+          grep -q "chatgpt.com/?prompt=" pages/study-library/transcript-share.html
+          grep -q "noindex,nofollow" pages/study-library/transcript-share.html
+  browser:
+    needs: static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright Chromium
+        run: npx --yes playwright@1.55.0 install --with-deps chromium
+      - name: Serve repo
+        run: python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/study-class-http.log 2>&1 &
+      - name: Browser QA
+        run: npx --yes -p playwright@1.55.0 node scripts/study-live-class-v13-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: study-live-class-v13-browser-qa
+          path: qa-artifacts/
+          if-no-files-found: ignore
+  transcription-service:
+    needs: static
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe overlap transcription service
+        run: |
+          curl --fail --silent --show-error --max-time 70 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/study-transcribe-v1?probe=1' > probe.json
+          node -e "const j=require('./probe.json'); if(!j.ok||j.mode!=='incremental-overlap'||j.recommended?.overlap_ms!==5000) process.exit(1); console.log(j.mode,j.space)"
+      - name: Whisper selftest
+        run: |
+          curl --fail --silent --show-error --max-time 150 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/study-transcribe-v1?selftest=1' > selftest.json
+          node -e "const j=require('./selftest.json'); if(!j.ok||!j.selftest||!j.text) {console.error(j); process.exit(1)}; console.log(j.source,j.text.slice(0,120))"
