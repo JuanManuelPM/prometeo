@@ -1,0 +1,1 @@
+Invariant: V11 publication to gh-pages must be a normal fast-forward descendant of the latest observed gh-pages head. If gh-pages advances, rebuild the overlay commit on the new head. Never force.
