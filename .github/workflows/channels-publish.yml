@@ -36,6 +36,7 @@ jobs:
         with:
           ref: gh-pages
           path: site
+          fetch-depth: 0
       - name: Sync Channels surface from main
         run: |
           set -euo pipefail
@@ -44,6 +45,15 @@ jobs:
           # Pages-owned. Never erase them just because main has no binary copy.
           rsync -a --delete --exclude='assets/' \
             main/pages/lab/channels/ site/pages/lab/channels/
+      - name: Restore required binary canary if missing
+        run: |
+          set -euo pipefail
+          asset='pages/lab/channels/assets/apple-cut-demo.mp4'
+          if [ ! -s "site/$asset" ]; then
+            mkdir -p "site/$(dirname "$asset")"
+            git -C site show 12da46a2439262587be2e147064d2a4d52a31236:"$asset" > "site/$asset"
+          fi
+          test -s "site/$asset"
       - name: Publish only if changed
         working-directory: site
         run: |
