@@ -12,5 +12,6 @@
     await load('./study-bb-pairing-fix-v1.js?v=2').catch(e=>console.warn('Blackboard pairing recovery pending',e));
     await load('./universal-whiteboard-adapter-v1.js?v=100');
     await load('./study-v10-integration.js?v=100');
+    await load('./study-v11-experience.js?v=111');
   }catch(e){console.error(e);if(app&&!app.children.length)app.innerHTML='<main style="padding:28px;font:14px system-ui;color:#d8d1ff;background:#111326;min-height:100vh">No pude iniciar Study Library. Reintentá en unos segundos.</main>'}
 })();
