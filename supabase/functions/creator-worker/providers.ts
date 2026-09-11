@@ -3,7 +3,7 @@ import { db, SUPABASE_URL, connection, vaultRead, patchConnection, storeAsset, p
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const FALLBACK_TEXT_MODEL = "gemini-2.5-flash";
 const FALLBACK_VEO_MODEL = "veo-3.1-fast-generate-preview";
-const FIXTURE_VIDEO_URL = "https://raw.githubusercontent.com/JuanManuelPM/prometeo/work/youtube-creator-runtime-20260910/tests/fixtures/creator/vertical-144x256.mp4";
+const FIXTURE_VIDEO_URL = "https://raw.githubusercontent.com/JuanManuelPM/prometeo/gh-pages/pages/lab/channels/assets/apple-cut-demo.mp4";
 const timeout=(ms:number)=>AbortSignal.timeout(ms);
 
 async function geminiSecret(owner:string){const c=await connection(owner,"llm","gemini");if(c?.mode!=="VERIFIED_REAL"||!c.vault_secret_id)return null;return {key:await vaultRead(c.vault_secret_id),connection:c}}
