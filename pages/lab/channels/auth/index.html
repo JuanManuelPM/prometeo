@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>Prometeo Creator · acceso</title>
+<style>
+:root{--bg:#ddd4c5;--fg:#242923}*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);font-family:"Century Gothic","Avenir Next",Avenir,system-ui,sans-serif}body{display:grid;place-items:center;padding:24px}.box{width:min(560px,100%);border-top:1px solid var(--fg);padding-top:18px}.k{font-size:9px;text-transform:uppercase;letter-spacing:.1em}.t{font-size:clamp(32px,7vw,58px);line-height:.95;letter-spacing:-.055em;font-weight:700;margin-top:9px}.s{font-size:11px;line-height:1.55;margin-top:15px;max-width:460px}.err{margin-top:18px;font-size:10px}.err a{color:inherit}
+</style>
+</head>
+<body><main class="box"><div class="k">Prometeo Creator</div><div class="t" id="title">Entrando…</div><div class="s" id="status">Guardando esta sesión en este navegador. Después vas directo a Channels.</div><div class="err" id="err"></div></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4"></script>
+<script>
+const SB_URL='https://catnohyouxqjjtseaueb.supabase.co',SB_KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
+const $=s=>document.querySelector(s);
+(async()=>{
+  try{
+    const hash=new URLSearchParams(location.hash.replace(/^#/,''));
+    const access_token=hash.get('access_token'),refresh_token=hash.get('refresh_token');
+    history.replaceState(null,'',location.pathname);
+    if(access_token&&refresh_token){
+      const {data,error}=await sb.auth.setSession({access_token,refresh_token});
+      if(error||!data.session)throw error||new Error('SESSION_NOT_SAVED');
+    }
+    const {data,error}=await sb.auth.getSession();
+    if(error||!data.session)throw error||new Error('SESSION_MISSING');
+    const u=await sb.auth.getUser();
+    if(u.error||!u.data.user)throw u.error||new Error('USER_MISSING');
+    $('#title').textContent='Listo.';
+    $('#status').textContent='Este navegador ya quedó conectado. Abriendo Carpincho Falopa…';
+    setTimeout(()=>location.replace('../?auth=1&v=session-fixed1'),250);
+  }catch(e){
+    $('#title').textContent='No enganchó.';
+    $('#status').textContent='El acceso se validó pero la sesión no pudo guardarse en este navegador.';
+    $('#err').innerHTML='<a href="../setup/">reintentar acceso →</a><br><br>'+String(e?.message||e);
+  }
+})();
+</script></body></html>
