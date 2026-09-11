@@ -59,3 +59,35 @@ jobs:
           for k,v in checks.items(): print(('PASS' if v else 'FAIL'),k)
           if failed: raise SystemExit('failed: '+', '.join(failed))
           PY
+      - name: Live transcription edge contract
+        run: |
+          curl -fsS --retry 2 --max-time 25 \
+            'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/study-transcribe-v1' \
+            -o /tmp/transcribe-probe.json
+          cat /tmp/transcribe-probe.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/transcribe-probe.json'))
+          assert d.get('ok') is True, d
+          assert d.get('mode') == 'canonical-long-window', d
+          r=d.get('recommended') or {}
+          assert r.get('window_ms') == 150000, r
+          assert r.get('step_ms') == 135000, r
+          assert r.get('overlap_ms') == 15000, r
+          assert r.get('language') == 'es', r
+          print('PASS live edge canonical-long-window contract')
+          PY
+      - name: Whisper self-test (diagnostic)
+        continue-on-error: true
+        run: |
+          curl -fsS --max-time 90 \
+            'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/study-transcribe-v1?selftest=1' \
+            -o /tmp/transcribe-selftest.json
+          cat /tmp/transcribe-selftest.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/transcribe-selftest.json'))
+          assert d.get('ok') is True, d
+          assert (d.get('text') or '').strip(), d
+          print('PASS Whisper audio self-test')
+          PY
