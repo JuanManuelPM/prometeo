@@ -1,0 +1,98 @@
+name: Study live class browser smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/study-live-class-browser-smoke.yml'
+
+jobs:
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Serve Study Library
+        run: |
+          python3 -m http.server 8000 --bind 127.0.0.1 >/tmp/study-http.log 2>&1 &
+          echo $! >/tmp/study-http.pid
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/pages/study-library/ >/dev/null && break; sleep .2; done
+      - name: Two browsers + notes + theme + recording
+        run: |
+          node <<'NODE'
+          const {chromium}=require('playwright');
+          const assert=(v,m)=>{if(!v)throw new Error(m)};
+          (async()=>{
+            const browser=await chromium.launch({headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']});
+            const origin='http://127.0.0.1:8000';
+            const c1=await browser.newContext({permissions:['microphone']});
+            const p1=await c1.newPage();
+            p1.on('pageerror',e=>console.error('P1 PAGEERROR',e.message));
+            await p1.goto(origin+'/pages/study-library/',{waitUntil:'domcontentloaded'});
+            await p1.waitForFunction(()=>typeof createClass==='function'&&!!window.PrometeoPerformanceV15,{timeout:30000});
+            await p1.evaluate(async()=>{
+              eval("course='qa-live-class'; view='course'; courseTab='classes'");
+              await createClass(null);
+            });
+            await p1.waitForFunction(()=>new URLSearchParams(location.search).has('session')&&!!document.querySelector('.session'),{timeout:30000});
+            await p1.waitForSelector('.session13',{timeout:30000});
+            const roomUrl=p1.url(),sid=new URL(roomUrl).searchParams.get('session');
+            assert(sid,'session id missing');console.log('QA_SESSION_ID='+sid);console.log('QA_ROOM_URL_CREATED=true');
+
+            await p1.waitForSelector('#themeBtn13',{timeout:10000});
+            await p1.click('#themeBtn13');
+            await p1.click('[data-theme13="papel"]');
+            const pair=await p1.evaluate(()=>[getComputedStyle(document.documentElement).getPropertyValue('--bg').trim().toUpperCase(),getComputedStyle(document.documentElement).getPropertyValue('--ink').trim().toUpperCase()]);
+            assert(pair[0]==='#F1E7D8'&&pair[1]==='#241F1A','paper theme did not apply: '+pair.join('/'));
+            console.log('PASS theme switch '+pair.join(' / '));
+
+            const c2=await browser.newContext();const p2=await c2.newPage();
+            p2.on('pageerror',e=>console.error('P2 PAGEERROR',e.message));
+            await p2.goto(roomUrl,{waitUntil:'domcontentloaded'});
+            await p2.waitForSelector('.session13',{timeout:30000});
+            await p1.waitForFunction(()=>document.querySelectorAll('.roster .player').length>=2,{timeout:20000});
+            await p2.waitForFunction(()=>document.querySelectorAll('.roster .player').length>=2,{timeout:20000});
+            console.log('PASS realtime presence 2 browsers');
+
+            await p1.waitForSelector('#addBlock',{timeout:10000});
+            await p1.click('#addBlock');
+            const edits=p1.locator('.noteBlock8 .editor');await edits.last().waitFor({state:'visible'});await edits.last().fill('nota QA sincronizada entre dos navegadores');
+            await p1.locator('.sessionTitle').click();
+            await p2.getByText('nota QA sincronizada entre dos navegadores',{exact:true}).waitFor({state:'visible',timeout:20000});
+            console.log('PASS shared notes realtime');
+
+            const boardButton=p1.locator('[data-workspace="board"]').first();
+            if(await boardButton.count()){
+              await boardButton.click();await p1.waitForSelector('#boardFrame10,.boardFrame',{timeout:15000});console.log('PASS class whiteboard opens');
+              const notesButton=p1.locator('[data-workspace="notes"]').first();if(await notesButton.count())await notesButton.click();
+            } else console.log('WARN board workspace button not present in this layout');
+
+            await p1.waitForSelector('#recStart',{timeout:10000});
+            await p1.click('#recStart');
+            await p1.waitForFunction(()=>document.querySelector('#recLabel')?.textContent?.includes('grabando'),{timeout:10000});
+            console.log('PASS fake microphone recording started');
+            await p1.waitForTimeout(6500);
+            const manifest=await p1.evaluate(sid=>{const raw=localStorage.getItem('study:audio-master:v14:'+sid);return raw?JSON.parse(raw):null},sid);
+            assert(manifest&&manifest.status==='recording','master audio manifest missing');
+            console.log('PASS local master audio manifest count='+manifest.count);
+
+            await p1.click('#recBreak');await p1.waitForFunction(()=>document.querySelector('#recLabel')?.textContent?.includes('recreo'),{timeout:5000});
+            await p1.click('#recBreak');await p1.waitForFunction(()=>document.querySelector('#recLabel')?.textContent?.includes('grabando'),{timeout:5000});
+            console.log('PASS break creates resumable recording part');
+            await p1.waitForTimeout(2800);
+            await p1.click('#recFinish');await p1.waitForFunction(()=>document.querySelector('#recLabel')?.textContent?.includes('listo'),{timeout:5000});
+            console.log('PASS recording finalized without leaving class');
+
+            const tech=await p1.locator('#transcriptTools13>span').textContent().catch(()=>null);
+            assert(tech==='audio continuo · solape seguro','truthful transcript label missing: '+tech);
+            console.log('PASS first-class polish label');
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
