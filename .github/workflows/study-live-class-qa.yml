@@ -1,0 +1,61 @@
+name: Study live class QA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pages/study-library/study-v13-class-ready.js'
+      - 'pages/study-library/study-v13-class-ready.css'
+      - 'pages/study-library/study-v14-transcription.js'
+      - 'pages/study-library/study-v14-quality-fix.js'
+      - 'pages/study-library/study-v15-performance.js'
+      - 'pages/study-library/study-v10-loader.js'
+      - 'pages/study-library/index.html'
+      - 'pages/study-library/transcript-share.html'
+      - '.github/workflows/study-live-class-qa.yml'
+  workflow_dispatch:
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax
+        run: |
+          node --check pages/study-library/study-v13-class-ready.js
+          node --check pages/study-library/study-v14-transcription.js
+          node --check pages/study-library/study-v14-quality-fix.js
+          node --check pages/study-library/study-v15-performance.js
+          node --check pages/study-library/study-v10-loader.js
+      - name: First class invariants
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          c13=Path('pages/study-library/study-v13-class-ready.js').read_text()
+          c14=Path('pages/study-library/study-v14-transcription.js').read_text()
+          q14=Path('pages/study-library/study-v14-quality-fix.js').read_text()
+          perf=Path('pages/study-library/study-v15-performance.js').read_text()
+          idx=Path('pages/study-library/index.html').read_text()
+          share=Path('pages/study-library/transcript-share.html').read_text()
+          checks={
+            'legacy overlap safety': all(x in c13 for x in ['windowMs:20000','stepMs:15000','overlapMs:5000']),
+            'canonical long overlap': all(x in c14 for x in ['windowMs:150000','stepMs:135000','overlapMs:15000','masterSliceMs:5000']),
+            'master audio persistence': 'study:audio-master:v14:' in c14 and 'putAudio' in c14,
+            'parts + total': "b.dataset.trans==='live'" in c13 and "b.dataset.trans==='full'" in c13,
+            'public share': 'study-transcript-share-v1' in c13 and 'transcript-share.html' in c13,
+            'ChatGPT handoff': 'chatgpt.com' in c13 and 'PASAR EN LIMPIO' in share and 'APUNTE DE ESTUDIO' in share,
+            'paste-back notes': 'pasteAI13' in c13 and 'agregar a notas' in c13,
+            'quality gate': 'QUALITY_GATE_CLIENT' in q14 and 'consecutive-loop' in q14,
+            'eight two-color themes': c13.count("['") >= 8 and "['noche','#111326','#D8D1FF']" in c13 and "['papel','#F1E7D8','#241F1A']" in c13,
+            'lazy class load': all(x in perf for x in ['study-v13-class-ready.js','study-v14-transcription.js','study-v14-quality-fix.js']),
+            'class css loaded': 'study-v13-class-ready.css' in idx,
+            'public page has no room token': 'room_token' not in share,
+            'public page private indexing': 'noindex,nofollow,noarchive' in share,
+          }
+          failed=[k for k,v in checks.items() if not v]
+          for k,v in checks.items(): print(('PASS' if v else 'FAIL'),k)
+          if failed: raise SystemExit('failed: '+', '.join(failed))
+          PY
