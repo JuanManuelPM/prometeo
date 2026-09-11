@@ -9,7 +9,7 @@ Este archivo es el backlog operativo de Study Library. No convierte trabajo parc
 ### Estado observado
 
 - El calendario server-side de Blackboard funciona de forma independiente.
-- El Browser Bridge todavía no había completado ninguna ingesta autenticada: `study_bb_sync_runs` estaba vacío y el workspace tenía `0` materias / `0` items del bridge, aunque sí existían eventos del calendario.
+- Antes de esta reparación el Browser Bridge no había completado ninguna ingesta autenticada: `study_bb_sync_runs` estaba vacío y el workspace tenía `0` materias / `0` items del bridge, aunque sí existían eventos del calendario.
 - La instalación temporal de Firefox podía completarse y aun así Study Library seguir mostrando `sin configurar`.
 
 ### Causa confirmada
@@ -17,24 +17,27 @@ Este archivo es el backlog operativo de Study Library. No convierte trabajo parc
 Había dos huecos de handshake:
 
 1. `instalar puente` descargaba/cargaba el complemento pero no entregaba por sí solo el token del workspace al navegador.
-2. El content script puede anunciar `PROMETEO_BB_READY` antes de que Study Library registre su listener. El posterior `STATUS_RESULT` detectaba el complemento pero V9 no reintentaba `PAIR`.
+2. El content script podía anunciar `PROMETEO_BB_READY` antes de que Study Library registrara su listener. El posterior `STATUS_RESULT` detectaba el complemento pero V9 no reintentaba `PAIR`.
 
-### Corrección en curso
+### Corrección material
 
 - `study-bb-pairing-fix-v1.js` reintenta STATUS/PAIR de forma idempotente cuando ya existe autorización local.
-- El paquete Firefox vuelve a anunciar READY durante los primeros segundos para tolerar carga tardía del host.
+- `study-v10-loader.js` carga esa recuperación después de V9.
+- El paquete Firefox 0.2.1 vuelve a anunciar READY durante los primeros segundos para tolerar carga tardía del host.
 - La pantalla de instalación distingue explícitamente `complemento cargado` de `navegador autorizado/emparejado`.
+- El token del workspace fue rotado durante la reparación; el plaintext no queda persistido en GitHub.
 
 ### Validación humana pendiente
 
-Abrir Study Library en el mismo perfil Firefox donde está cargado el complemento, con Blackboard Palermo autenticado, completar el enlace de autorización y verificar que aparezca al menos un `browser_bridge` sync run con cursos/items. Después validar anuncios, materiales y mirror de archivos reales.
+Abrir el enlace privado de autorización en el mismo perfil Firefox donde está cargado el complemento, con Blackboard Palermo autenticado, volver/recargar Study Library y verificar que aparezca al menos un `browser_bridge` sync run con cursos/items. Hasta entonces Blackboard Bridge NO se considera cerrado.
 
 ### Pendientes posteriores
 
-- Reemplazar el bootstrap manual de token por un flujo owner-authenticated para dispositivos nuevos sin publicar secretos en JS.
+- Reemplazar el bootstrap privado/manual de token por un flujo owner-authenticated para dispositivos nuevos sin publicar secretos en JS.
 - Mapear materias Blackboard ↔ materias canónicas de Study Library sin depender sólo de similitud de título.
 - Integrar fechas de entregas/parciales/finales en el calendario/agenda principal, no como panel lateral separado.
 - Integrar materiales, anuncios, clases y archivos como fuentes canónicas del curso para que Study System resuelva autoridad/cobertura.
+- Mostrar estados separados en UI: calendario conectado / complemento detectado / navegador emparejado / login Blackboard requerido / última ingesta de contenido.
 
 ## P1 — datos reales de materias y biblioteca
 

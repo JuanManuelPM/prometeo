@@ -1,6 +1,7 @@
 const bbApi=typeof browser!=='undefined'?browser:chrome;
 function post(type,data={}){window.postMessage({source:'prometeo-blackboard-bridge',type,...data},'*')}
-post('PROMETEO_BB_READY',{version:'0.1.0'});
+function ready(){post('PROMETEO_BB_READY',{version:'0.2.1'})}
+ready();[250,1000,2500,5000].forEach(ms=>setTimeout(ready,ms));
 window.addEventListener('message',async e=>{
   if(e.source!==window||!e.data||e.data.source!=='prometeo-study-library')return;
   const m=e.data;
