@@ -1,0 +1,1 @@
+Study Library V11 public publish must overlay only the Study Library/Blackboard/renderer files onto the latest gh-pages tree and must not overwrite parallel Agent Network/runtime work. Never force the gh-pages ref.
