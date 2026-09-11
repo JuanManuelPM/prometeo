@@ -13,7 +13,7 @@ const fail=(error:string,status=400,extra:any={})=>json({ok:false,error,...extra
 
 async function owner(req:Request){const auth=req.headers.get('Authorization')||'';if(!auth.startsWith('Bearer '))throw new Error('AUTH_REQUIRED');const c=createClient(SUPABASE_URL,ANON_KEY,{global:{headers:{Authorization:auth}},auth:{persistSession:false}});const {data,error}=await c.auth.getUser();if(error||!data.user)throw new Error('AUTH_INVALID');const {data:o,error:oe}=await db.from('prometeo_owner').select('auth_user_id').eq('singleton',true).maybeSingle();if(oe||!o||o.auth_user_id!==data.user.id)throw new Error('NOT_OWNER');return data.user.id}
 async function logProbe(ownerId:string,modality:'video'|'image_to_video',status:'PASS'|'CAPACITY'|'FAILED',detail:any){try{await db.from('creator_media_probe_log').insert({owner_id:ownerId,provider:'ltx25_zerogpu',modality,status,detail});}catch{}}
-async function sha256(bytes:Uint8Array){const d=await crypto.subtle.digest('SHA-256',bytes);return[...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+async function sha256(bytes:Uint8Array){const view=new Uint8Array(bytes);const d=await crypto.subtle.digest('SHA-256',view.buffer);return[...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('')}
 function hasAtom(bytes:Uint8Array,name:string){const n=new TextEncoder().encode(name);outer:for(let i=0;i<=bytes.length-n.length;i++){for(let j=0;j<n.length;j++)if(bytes[i+j]!==n[j])continue outer;return true}return false}
 function parseCompleted(s:string){
   if(/event:\s*error/i.test(s)){let detail='ZEROGPU_SPACE_ERROR';try{const m=s.match(/data:\s*(\{[\s\S]*\})\s*$/m);if(m){const p=JSON.parse(m[1]);detail=String(p.error||p.title||detail)}}catch{}throw new Error(detail)}
