@@ -43,10 +43,10 @@ async function ensureKnowledge15({quiet=false,wait=false}={}){
  try{const x=await knowledgePromise15;if(wait)await waitKnowledge15();return x}finally{if(token)taskDone15(token)}
 }
 async function ensureBlackboard15({quiet=false}={}){
- if(window.__STUDY_V9_CONTENT&&window.__STUDY_BB_PAIRING_FIX)return;
+ if(window.__STUDY_V9_CONTENT&&window.__STUDY_BB_PAIR_FIX_V3)return;
  if(!blackboardPromise15)blackboardPromise15=(async()=>{
    if(!window.__STUDY_V9_CONTENT)await script15('./study-v9-content.js?v=150');
-   if(!window.__STUDY_BB_PAIRING_FIX)await script15('./study-bb-pairing-fix-v1.js?v=15').catch(()=>{});
+   if(!window.__STUDY_BB_PAIR_FIX_V3)await script15('./study-bb-pairing-fix-v1.js?v=15').catch(()=>{});
  })().catch(e=>{blackboardPromise15=null;throw e});
  const token=quiet?0:taskStart15('Preparando Blackboard…');
  try{return await blackboardPromise15}finally{if(token)taskDone15(token)}

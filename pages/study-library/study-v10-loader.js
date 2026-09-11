@@ -8,8 +8,8 @@
   const core=[
     './study-v4-core1.js?v=4','./study-v4-core2.js?v=4','./study-v4-live.js?v=4',
     './study-v5-patch.js?v=5','./study-v6-patch.js?v=60','./study-v7-patch.js?v=70','./study-v8-patch.js?v=80',
-    './study-v9-patch.js?v=90','./universal-whiteboard-adapter-v1.js?v=100','./study-v10-integration.js?v=100',
-    './study-v11-experience.js?v=150','./study-v15-performance.js?v=150'
+    './study-v9-patch.js?v=90','./study-bb-pairing-fix-v1.js?v=15','./universal-whiteboard-adapter-v1.js?v=100',
+    './study-v10-integration.js?v=100','./study-v11-experience.js?v=150','./study-v15-performance.js?v=150'
   ];
   core.forEach(preload);
   try{
@@ -19,7 +19,7 @@
     setBoot('Preparando biblioteca…',.14);
     for(let i=0;i<core.length;i++){
       await load(core[i]);
-      setBoot(i<7?'Preparando interfaz…':i<10?'Organizando materias…':'Casi listo…',.14+.76*((i+1)/core.length));
+      setBoot(i<7?'Preparando interfaz…':i<11?'Organizando materias…':'Casi listo…',.14+.76*((i+1)/core.length));
     }
     const perf=window.PrometeoPerformanceV15,q=new URLSearchParams(location.search);
     if(q.get('session')&&perf){setBoot('Preparando clase…',.94);await perf.ensureClass({quiet:true,rerender:true})}
