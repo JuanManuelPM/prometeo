@@ -22,7 +22,7 @@ async function owner(req:Request){
   return data.user.id;
 }
 async function logProbe(ownerId:string,status:'PASS'|'CAPACITY'|'FAILED',detail:any){try{await db.from('creator_media_probe_log').insert({owner_id:ownerId,provider:'flux_schnell_zerogpu',modality:'image',status,detail});}catch{}}
-async function sha256(bytes:Uint8Array){const d=await crypto.subtle.digest("SHA-256",bytes);return[...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,"0")).join("")}
+async function sha256(bytes:Uint8Array){const view=new Uint8Array(bytes);const d=await crypto.subtle.digest("SHA-256",view.buffer);return[...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,"0")).join("")}
 function completedData(s:string){
   if(/event:\s*error/i.test(s)){const q=s.match(/ZeroGPU[^\n]*/i)?.[0]||'';throw new Error(q||"ZEROGPU_SPACE_ERROR")}
   const chunks=s.split(/event:\s*complete\s*\n/);const tail=chunks[chunks.length-1];
