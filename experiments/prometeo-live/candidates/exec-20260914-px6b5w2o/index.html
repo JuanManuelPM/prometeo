@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b121b">
+<title>Prometeo Live / TV · candidate</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:#0b121b;color:#e2e9ef}button,input{font:inherit}.hidden{display:none!important}
+:root{--bg:#0b121b;--panel:#111c29;--line:#ffffff16;--muted:#7990a6;--ok:#8bad9a;--active:#dfe7ee;--control:#182636}
+#display{width:100%;height:100dvh;position:relative;overflow:hidden;background:var(--bg)}
+.grid{position:absolute;inset:0;display:grid;gap:1px;background:#ffffff12}.grid.single{grid-template-columns:1fr}.grid.split{grid-template-columns:1fr 1fr}.grid.quad{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}.cell{position:relative;min-width:0;min-height:0;background:#101925;overflow:hidden}.cell iframe,.cell video{position:absolute;inset:0;width:100%;height:100%;border:0;background:#0b121b}.cell video{object-fit:contain}.cell .tag{position:absolute;left:10px;bottom:10px;padding:5px 8px;border-radius:9px;background:#0b121bd6;color:#9aabbb;font-size:9px;backdrop-filter:blur(8px);pointer-events:none;opacity:.84}
+.tvChip{position:absolute;z-index:6;top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));border:1px solid #ffffff19;border-radius:13px;background:#101a27e8;color:#9dafbf;padding:8px 10px;box-shadow:0 7px 24px #0006;cursor:pointer;font-size:11px}.tvChip b{color:#bcd2c6;font-weight:650}.qrCard{position:absolute;z-index:7;right:max(10px,env(safe-area-inset-right));top:58px;width:min(224px,calc(100vw - 20px));padding:14px;border-radius:17px;background:#e9eef1;color:#14202a;box-shadow:0 18px 55px #0009}.qrWrap{width:100%;aspect-ratio:1;display:grid;place-items:center;background:#fff;border-radius:10px;overflow:hidden}.qrWrap svg{width:94%;height:94%}.qrMeta{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:10px}.qrMeta strong{font:700 11px ui-monospace,monospace;letter-spacing:.12em}.qrClose{border:0;background:transparent;padding:0;color:#40505d;cursor:pointer}.empty{height:100%;display:grid;place-items:center;color:#4f6478;font-size:13px}
+#controller{min-height:100dvh;background:var(--bg);padding:calc(12px + env(safe-area-inset-top)) 12px calc(18px + env(safe-area-inset-bottom));overflow:auto}.remote{max-width:620px;margin:0 auto}.remoteHead{position:sticky;top:0;z-index:5;margin:-12px -12px 10px;padding:12px 12px 9px;background:#0b121bf2;backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.remoteHead span{font-size:11px;color:var(--muted)}.online{display:inline-block;width:7px;height:7px;border-radius:50%;background:#607181;margin-right:6px}.online.yes{background:var(--ok);box-shadow:0 0 10px #8bad9a66}.section{padding:12px 0;border-bottom:1px solid var(--line)}.label{font-size:9px;text-transform:uppercase;letter-spacing:.13em;color:#657b90;margin:0 2px 9px}.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.seg button,.slots button,.media button,.surface,.openBtn{border:1px solid #ffffff12;background:var(--control);color:#aebdcc;border-radius:12px;min-height:44px;box-shadow:0 3px 0 #070b10;cursor:pointer}.seg button.active,.slots button.active{border-color:#8bad9a66;background:#1b2d38;color:#dfe9e3}.slots{display:flex;gap:7px}.slots button{width:44px}.surfaces{display:grid;grid-template-columns:1fr 1fr;gap:7px}.surface{min-height:58px;text-align:left;padding:9px 10px;box-shadow:none;background:#111c29}.surface.active{border-color:#8bad9a55;background:#16252e}.surface b{display:block;font-size:11px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.surface small{display:block;color:#637a8e;font-size:9px;margin-top:5px}.media{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.media button{font-size:16px}.urlrow{display:grid;grid-template-columns:1fr auto;gap:7px}.urlrow input{min-width:0;border:1px solid #ffffff14;border-radius:12px;background:#101a27;color:#dbe4eb;padding:0 12px;outline:none}.openBtn{padding:0 15px}.note{font-size:10px;line-height:1.45;color:#64798c;margin:9px 2px 0}.invalid{min-height:100dvh;display:grid;place-items:center;padding:24px;text-align:center;color:#879bad}.invalid b{display:block;color:#d8e1e8;margin-bottom:7px}
+@media(max-width:760px){.grid.split{grid-template-columns:1fr;grid-template-rows:1fr 1fr}.surfaces{grid-template-columns:1fr}.qrCard{width:190px}.tvChip{font-size:10px}}
+</style>
+</head>
+<body>
+<div id="display" class="hidden">
+  <main id="grid" class="grid single"><div class="empty">Cargando superficies…</div></main>
+  <button id="tvChip" class="tvChip"><b>QR</b> · <span id="tvStatus">conectando</span></button>
+  <aside id="qrCard" class="qrCard hidden"><div id="qr" class="qrWrap"></div><div class="qrMeta"><strong id="sessionCode"></strong><button id="qrClose" class="qrClose">cerrar</button></div></aside>
+</div>
+<div id="controller" class="hidden"><div id="remote" class="remote"></div></div>
+<div id="invalid" class="invalid hidden"><div><b>Enlace de sesión inválido</b>Volvé a escanear el QR de la TV.</div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script type="module">
+import {PROTOCOL,randomToken,topicFor,makeJoinHash,parseJoinHash,normalizeSurface,makeEnvelope,emptyState,reduceDisplayState,slotCount} from './live-tv-core.mjs';
+const SUPABASE_URL='https://catnohyouxqjjtseaueb.supabase.co';
+const SUPABASE_KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const LIVE_BASE='https://juanmanuelpm.github.io/prometeo/experiments/prometeo-live/';
+const FALLBACK_SURFACES=[
+  {id:'seleccion',title:'Selección',url:LIVE_BASE+'surfaces/seleccion-live.html',kind:'iframe'},
+  {id:'video-demo',title:'Video',url:'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',kind:'video'}
+];
+const $=s=>document.querySelector(s);
+const display=$('#display'),controller=$('#controller'),invalid=$('#invalid'),grid=$('#grid'),tvStatus=$('#tvStatus'),qrCard=$('#qrCard');
+const join=parseJoinHash(location.hash);const looksController=location.hash.startsWith('#controller:');
+if(looksController&&!join){invalid.classList.remove('hidden');throw new Error('invalid join capability')}
+const role=join?'controller':'display';(role==='display'?display:controller).classList.remove('hidden');
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},realtime:{params:{eventsPerSecond:12}}});
+const clientId=randomToken(8);let channel=null,connected=false,displayOnline=false,peerCount=0,remoteState=null,mediaBySlot=new Map();
+let identity=join;
+if(role==='display'){
+  const cached=JSON.parse(sessionStorage.getItem('prometeo.live-tv.session')||'null');
+  identity=cached&&cached.sessionId&&cached.secret?cached:{sessionId:randomToken(16),secret:randomToken(24)};
+  sessionStorage.setItem('prometeo.live-tv.session',JSON.stringify(identity));
+}
+const topic=await topicFor(identity.sessionId,identity.secret);
+let catalog=role==='display'?await loadCatalog():[];let state=role==='display'?emptyState(catalog):null;
+
+async function loadCatalog(){
+  const out=[];
+  try{const r=await fetch(LIVE_BASE+'live-manifest.json?t='+Date.now(),{cache:'no-store'});if(r.ok){const m=await r.json();for(const raw of (m.surfaces||[])){const s=normalizeSurface({...raw,url:new URL(raw.url,LIVE_BASE).href,kind:'iframe'},LIVE_BASE);if(s)out.push(s)}}}catch{}
+  for(const raw of FALLBACK_SURFACES){const s=normalizeSurface(raw,LIVE_BASE);if(s&&!out.some(x=>x.id===s.id))out.push(s)}
+  return out;
+}
+function joinUrl(){const u=new URL(location.href);u.hash=makeJoinHash(identity.sessionId,identity.secret).slice(1);return u.href}
+function renderQr(){
+  $('#sessionCode').textContent=identity.sessionId.slice(0,6).toUpperCase();const box=$('#qr');box.innerHTML='';
+  try{const q=qrcode(0,'M');q.addData(joinUrl());q.make();box.innerHTML=q.createSvgTag({cellSize:5,margin:2,scalable:true})}catch{box.textContent='QR no disponible';}
+}
+function showQr(force){qrCard.classList.toggle('hidden',force===undefined?!qrCard.classList.contains('hidden'):!force)}
+if(role==='display'){renderQr();showQr(true);$('#tvChip').onclick=()=>showQr();$('#qrClose').onclick=()=>showQr(false);renderDisplay()}
+
+channel=sb.channel(topic,{config:{broadcast:{ack:true,self:false},presence:{key:clientId},private:false}})
+  .on('broadcast',{event:'control'},({payload})=>{if(role==='display')receiveControl(payload)})
+  .on('broadcast',{event:'state'},({payload})=>{if(role==='controller'&&payload?.protocol===PROTOCOL){remoteState=payload.state;renderController()}})
+  .on('broadcast',{event:'hello'},()=>{if(role==='display')sendState()})
+  .on('presence',{event:'sync'},syncPresence);
+channel.subscribe(async status=>{
+  connected=status==='SUBSCRIBED';updateConnection();
+  if(connected){await channel.track({role,clientId,joinedAt:Date.now()});if(role==='display')sendState();else sendHello()}
+});
+
+function syncPresence(){
+  const p=channel.presenceState();let displays=0,controllers=0;
+  for(const rows of Object.values(p))for(const row of rows){if(row.role==='display')displays++;if(row.role==='controller')controllers++}
+  displayOnline=displays>0;peerCount=role==='display'?controllers:displays;updateConnection();
+  if(role==='controller'&&displayOnline&&!remoteState)sendHello();
+}
+function updateConnection(){
+  if(role==='display'){tvStatus.textContent=connected?(peerCount?`${peerCount} remoto${peerCount===1?'':'s'}`:'listo'):'sin red';if(peerCount>0)showQr(false)}
+  else {const dot=document.querySelector('.online');if(dot)dot.classList.toggle('yes',connected&&displayOnline);const label=$('#remoteStatus');if(label)label.textContent=!connected?'conectando':displayOnline?'TV conectada':'TV no encontrada'}
+}
+function send(event,payload){if(!channel||!connected)return Promise.resolve();return channel.send({type:'broadcast',event,payload})}
+function sendHello(){send('hello',makeEnvelope('state.request',{},'controller'))}
+function sendState(){send('state',{protocol:PROTOCOL,state})}
+function command(action,payload={}){send('control',makeEnvelope(action,payload,'controller'))}
+function receiveControl(env){
+  if(env?.action==='state.request'){sendState();return}
+  const result=reduceDisplayState(state,env);if(result.changed){state=result.state;renderDisplay();sendState()}
+  if(result.effect){applyMediaEffect(result.effect);sendState()}
+}
+function surfaceForSlot(i,s=state){const id=s.slots[i];return s.catalog.find(x=>x.id===id)||null}
+function renderDisplay(){
+  const n=slotCount(state.layout);grid.className='grid '+state.layout;grid.innerHTML='';mediaBySlot.clear();
+  for(let i=0;i<n;i++){
+    const surface=surfaceForSlot(i);const cell=document.createElement('section');cell.className='cell';
+    if(!surface){cell.innerHTML='<div class="empty">Sin superficie</div>';grid.append(cell);continue}
+    if(surface.kind==='video'){
+      const v=document.createElement('video');v.src=surface.url;v.playsInline=true;v.preload='metadata';v.muted=true;v.loop=true;cell.append(v);mediaBySlot.set(i,v)
+    }else{const f=document.createElement('iframe');f.src=surface.url;f.loading='eager';f.allow='autoplay; fullscreen; picture-in-picture';cell.append(f)}
+    const tag=document.createElement('div');tag.className='tag';tag.textContent=surface.title;cell.append(tag);grid.append(cell)
+  }
+}
+async function applyMediaEffect(effect){
+  const v=mediaBySlot.get(effect.slot);if(!v)return;
+  if(effect.type==='media.play'){try{await v.play()}catch{v.muted=true;try{await v.play()}catch{}}}
+  if(effect.type==='media.pause')v.pause();
+  if(effect.type==='media.seek')v.currentTime=Math.max(0,(v.currentTime||0)+(Number(effect.value)||0));
+  if(effect.type==='media.mute')v.muted=effect.value===undefined?!v.muted:!!effect.value;
+  state.media[effect.slot]={paused:v.paused,currentTime:v.currentTime,muted:v.muted};
+}
+function esc(v=''){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function renderController(){
+  const s=remoteState;const root=$('#remote');
+  if(!s){root.innerHTML=`<header class="remoteHead"><span><i class="online"></i><b id="remoteStatus">conectando</b></span><span>${identity.sessionId.slice(0,6).toUpperCase()}</span></header><div class="section"><div class="note">Buscando la TV de esta sesión…</div></div>`;updateConnection();return}
+  const n=slotCount(s.layout);const active=surfaceForSlot(s.focus,s);const isVideo=active?.kind==='video';
+  root.innerHTML=`
+    <header class="remoteHead"><span><i class="online"></i><b id="remoteStatus"></b></span><span>${identity.sessionId.slice(0,6).toUpperCase()}</span></header>
+    <section class="section"><div class="label">pantalla</div><div class="seg">${['single','split','quad'].map(x=>`<button data-layout="${x}" class="${s.layout===x?'active':''}">${x==='single'?'1':x==='split'?'2':'4'}</button>`).join('')}</div></section>
+    <section class="section"><div class="label">zona</div><div class="slots">${Array.from({length:n},(_,i)=>`<button data-slot="${i}" class="${s.focus===i?'active':''}">${i+1}</button>`).join('')}</div></section>
+    <section class="section"><div class="label">mostrar</div><div class="surfaces">${s.catalog.map(x=>`<button class="surface ${s.slots[s.focus]===x.id?'active':''}" data-surface="${esc(x.id)}"><b>${esc(x.title)}</b><small>${x.kind==='video'?'video':'página'}</small></button>`).join('')}</div></section>
+    <section class="section ${isVideo?'':'hidden'}"><div class="label">video</div><div class="media"><button data-media="media.seek" data-value="-10">−10</button><button data-media="media.play">▶</button><button data-media="media.pause">Ⅱ</button><button data-media="media.seek" data-value="10">+10</button></div><div class="media" style="grid-template-columns:1fr;margin-top:7px"><button data-media="media.mute">sonido</button></div></section>
+    <section class="section"><div class="label">abrir URL</div><div class="urlrow"><input id="customUrl" type="url" inputmode="url" placeholder="https://…"><button id="openUrl" class="openBtn">abrir</button></div><div class="note">Páginas, dashboards, previews o juegos compatibles con iframe.</div></section>`;
+  root.querySelectorAll('[data-layout]').forEach(b=>b.onclick=()=>command('layout.set',{layout:b.dataset.layout}));
+  root.querySelectorAll('[data-slot]').forEach(b=>b.onclick=()=>command('slot.focus',{slot:Number(b.dataset.slot)}));
+  root.querySelectorAll('[data-surface]').forEach(b=>b.onclick=()=>command('surface.select',{slot:s.focus,surfaceId:b.dataset.surface}));
+  root.querySelectorAll('[data-media]').forEach(b=>b.onclick=()=>command(b.dataset.media,{slot:s.focus,value:b.dataset.value?Number(b.dataset.value):undefined}));
+  $('#openUrl').onclick=()=>{const raw=$('#customUrl').value.trim();if(!raw)return;let u;try{u=new URL(raw.includes('://')?raw:'https://'+raw)}catch{return}if(!['http:','https:'].includes(u.protocol))return;command('surface.open',{slot:s.focus,surface:{id:'custom-'+Date.now(),title:u.hostname,url:u.href,kind:'iframe'}})};
+  updateConnection();
+}
+if(role==='controller')renderController();
+window.addEventListener('beforeunload',()=>{try{channel?.untrack();sb.removeChannel(channel)}catch{}});
+</script>
+</body>
+</html>
