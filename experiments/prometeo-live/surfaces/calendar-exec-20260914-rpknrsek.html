@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#F5DABF">
+<title>Calendario · candidato Prometeo</title>
+<style>
+:root{--a:#f5dabf;--b:#6c151e;--r:18px;--line:color-mix(in srgb,var(--b) 22%,transparent)}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--a);color:var(--b);font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+button,input,select{font:inherit;color:inherit}button{background:transparent;border:0}
+.app{min-height:100dvh;max-width:1180px;margin:auto;padding:env(safe-area-inset-top) 12px calc(24px + env(safe-area-inset-bottom))}
+.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--a) 94%,transparent);backdrop-filter:blur(10px);padding:10px 0 8px}
+.navrow,.views,.datebar{display:flex;align-items:center;gap:8px}.navrow{justify-content:space-between}
+.title{font-size:18px;font-weight:780;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;flex:1}
+.control,.view,.event,.daycell,.today{border:1.5px solid var(--b);border-radius:14px;min-height:42px;cursor:pointer}
+.control,.today{padding:8px 13px;font-weight:760;box-shadow:0 3px 0 var(--b);background:var(--a)}
+.control:active,.today:active{transform:translateY(2px);box-shadow:0 1px 0 var(--b)}
+.icon{width:42px;padding:0;flex:0 0 42px}.add{font-size:24px;line-height:1}
+.views{margin-top:10px}.view{flex:1;padding:8px 6px;min-height:38px;font-size:13px;font-weight:800;letter-spacing:.03em}
+.view.active{background:var(--b);color:var(--a)}
+.datebar{justify-content:space-between;margin:14px 0 10px}.datebar strong{font-size:15px}.today{min-height:36px;padding:5px 11px;font-size:12px}
+.weeknames,.monthgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.weeknames{font-size:10px;font-weight:800;text-align:center;margin-bottom:5px}
+.daycell{position:relative;min-height:82px;padding:6px;text-align:left;border-color:var(--line);border-radius:12px;overflow:hidden}
+.daycell.out{opacity:.38}.daycell.is-today{border-color:var(--b);border-width:2px}.daynum{font-weight:800;font-size:12px}
+.mini{display:block;margin-top:4px;padding:3px 4px;border-radius:6px;background:var(--b);color:var(--a);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.more{font-size:9px;font-weight:800;margin-top:3px}
+.weeklist,.daylist{display:grid;gap:9px}.weekcard{border-top:1.5px solid var(--line);padding:10px 0}.weekhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:7px}.weekhead strong{font-size:15px}.weekhead span{font-size:11px;font-weight:700;opacity:.7}
+.events{display:grid;gap:6px}.empty{font-size:12px;opacity:.58;padding:7px 2px}
+.event{display:grid;grid-template-columns:54px 1fr auto;gap:9px;align-items:center;text-align:left;width:100%;padding:8px 9px;border-color:var(--line);min-height:48px}
+.event .time{font-size:11px;font-weight:850}.event .copy{min-width:0}.event .name{font-weight:790;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.event .kind{font-size:10px;opacity:.65;margin-top:1px}.event .mark{font-size:11px;font-weight:900}
+.dayhero{padding:16px 2px 9px}.dayhero .big{font-size:38px;font-weight:850;line-height:1}.dayhero .dow{font-size:13px;font-weight:760;margin-top:5px}
+.notice{padding:10px 12px;border:1.5px dashed var(--b);border-radius:13px;font-size:12px;margin:8px 0 12px}
+dialog{border:1.5px solid var(--b);border-radius:18px;background:var(--a);color:var(--b);width:min(92vw,430px);padding:0;box-shadow:0 8px 0 color-mix(in srgb,var(--b) 35%,transparent)}
+dialog::backdrop{background:color-mix(in srgb,var(--b) 32%,transparent)}
+.form{padding:16px}.formhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.formhead strong{font-size:18px}
+.close{font-size:22px;width:38px;height:38px;border:1.5px solid var(--b);border-radius:12px}
+.field{display:grid;gap:5px;margin:10px 0}.field span{font-size:10px;font-weight:850;letter-spacing:.08em}
+.input{width:100%;min-height:44px;border:1.5px solid var(--b);border-radius:12px;background:transparent;padding:9px 10px}
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:8px}.actions{display:flex;gap:8px;margin-top:16px}.actions .control{flex:1}
+.danger{border-style:dashed}.muted{font-size:11px;opacity:.67;line-height:1.35;margin-top:8px}
+.full-link{display:block;text-align:center;margin-top:12px;color:inherit;font-size:11px;font-weight:800}
+@media (min-width:760px){
+ .app{padding-left:24px;padding-right:24px}.daycell{min-height:118px}.mini{font-size:10px;padding:4px 5px}
+ .weeklist{grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}.weekcard{border:1.5px solid var(--line);border-radius:14px;padding:9px;min-height:360px}
+ .weekhead{display:block}.weekhead span{display:block;margin-top:2px}.event{grid-template-columns:1fr;gap:2px;padding:7px}.event .mark{display:none}
+ .daylist{max-width:720px}.dayhero{max-width:720px}
+}
+</style>
+<script src="/prometeo/shared/calendar/v1/core.js"></script>
+<script src="/prometeo/shared/calendar/v1/state.js"></script>
+</head>
+<body>
+<main class="app">
+  <header class="top">
+    <div class="navrow">
+      <button class="control icon" id="prev" aria-label="Anterior">←</button>
+      <div class="title" id="title">Calendario</div>
+      <button class="control icon add" id="add" aria-label="Agregar evento">+</button>
+      <button class="control icon" id="next" aria-label="Siguiente">→</button>
+    </div>
+    <nav class="views" aria-label="Vista">
+      <button class="view" data-view="month">MES</button>
+      <button class="view active" data-view="week">SEMANA</button>
+      <button class="view" data-view="day">DÍA</button>
+    </nav>
+  </header>
+  <div class="datebar"><strong id="range"></strong><button class="today" id="today">HOY</button></div>
+  <section id="surface"></section>
+  <a class="full-link" href="/prometeo/pages/calendar/?romantic-preview=1">ABRIR CALENDARIO ANTERIOR</a>
+</main>
+
+<dialog id="editor">
+<form class="form" id="form">
+  <div class="formhead"><strong id="formTitle">Evento</strong><button class="close" id="close" type="button" aria-label="Cerrar">×</button></div>
+  <label class="field"><span>NOMBRE</span><input class="input" id="eventTitle" autocomplete="off" maxlength="80" required></label>
+  <div class="twocol">
+    <label class="field"><span>FECHA</span><input class="input" id="eventDate" type="date" required></label>
+    <label class="field"><span>HORA</span><input class="input" id="eventTime" type="time" step="1800" required></label>
+  </div>
+  <label class="field"><span>DURACIÓN</span><select class="input" id="eventDuration"><option value=".5">30 min</option><option value="1" selected>1 h</option><option value="1.5">1 h 30</option><option value="2">2 h</option><option value="3">3 h</option></select></label>
+  <label class="field"><span>LINK</span><input class="input" id="eventLink" autocomplete="off" autocapitalize="none" spellcheck="false" inputmode="url" placeholder="https://…"></label>
+  <div class="actions"><button class="control danger" id="remove" type="button">BORRAR</button><button class="control" type="submit">GUARDAR</button></div>
+  <div class="muted" id="editorNote">Los eventos nuevos usan el mismo estado local del Calendar recuperado.</div>
+</form>
+</dialog>
+
+<script>
+(()=>{
+'use strict';
+const C=window.PrometeoCalendarCore,S=window.PrometeoCalendarState;
+const MONTHS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const DOW=['dom','lun','mar','mié','jue','vie','sáb'];
+const DOW_LONG=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+const $=s=>document.querySelector(s);
+const surface=$('#surface'),range=$('#range'),title=$('#title'),editor=$('#editor');
+let view=localStorage.getItem('prometeo-calendar-rich-view-v1')||'week';
+if(!['month','week','day'].includes(view)) view='week';
+let cursor=C.cloneDate(new Date()), editingId=null;
+
+function state(){ S.captureLegacy(); return S.read(); }
+function dateKey(d){return C.isoDate(d)}
+function startOfWeek(d){const x=C.cloneDate(d);return C.addDays(x,-x.getDay())}
+function fmtTime(min){min=Number(min)||0;return `${String(Math.floor(min/60)).padStart(2,'0')}:${String(min%60).padStart(2,'0')}`}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function sameDay(a,b){return dateKey(a)===dateKey(b)}
+function labelFor(e){return e.title||e.name||e.label||'Evento'}
+function kindFor(e){return e._kind==='class'?'Clase':e._kind==='university'?'Universidad':e._kind==='opportunity'?'Potencial':'Evento'}
+function stableText(v){return String(v??'').trim().toLowerCase().replace(/\s+/g,' ').slice(0,160)}
+function linkKey(kind,item){
+  const id=item?.id||item?.source_id||item?.external_id||item?.sourceId||item?.externalId;
+  if(id)return `event-link:v32:${kind}:id:${String(id)}`;
+  const fallback=[item?.date,item?.weekday,item?.start,item?.subject,item?.title,item?.name,item?.label,item?.rival,item?.competition].map(stableText).join('|');
+  return `event-link:v32:${kind}:fallback:${fallback}`;
+}
+function readLinks(){
+  let mirror={};try{mirror=JSON.parse(localStorage.getItem('prometeo-calendar-event-links-v32')||'{}')||{}}catch{}
+  const canonical=state().calendar.eventLinks||{};return {...mirror,...canonical};
+}
+function normalizeLink(v){
+  const raw=String(v||'').trim();if(!raw)return '';
+  if(/[\u0000-\u001F\u007F]/.test(raw)||/^(javascript|data|vbscript):/i.test(raw))throw new Error('Link no permitido');
+  if(raw.startsWith('/')||raw.startsWith('./')||raw.startsWith('../')||raw.startsWith('#')||/^[a-z][a-z0-9+.-]*:/i.test(raw))return raw;
+  return `https://${raw}`;
+}
+function writeLink(key,value){
+  const links=readLinks();if(value)links[key]={url:value,updatedAt:new Date().toISOString()};else delete links[key];
+  localStorage.setItem('prometeo-calendar-event-links-v32',JSON.stringify(links));
+  const s=state();s.calendar.eventLinks=links;S.write(s);
+}
+function canonicalId(kind,item,dateISO){
+  if(item.id) return String(item.id);
+  const basis=[kind,item.title||item.name||item.label||'',item.weekday??'',item.start??'',item.date||dateISO].join('|');
+  let h=2166136261;for(let i=0;i<basis.length;i++){h^=basis.charCodeAt(i);h=Math.imul(h,16777619)}
+  return `${kind}-${(h>>>0).toString(36)}`;
+}
+function eventsFor(dateISO){
+  const s=state(), out=[];
+  for(const item of s.calendar.personalEvents||[]) if(item.date===dateISO) out.push({...item,_kind:'personal',_id:canonicalId('personal',item,dateISO)});
+  for(const item of s.calendar.classes||[]) if(C.scheduleOccursOn(item,dateISO)) out.push({...item,_kind:'class',_id:canonicalId('class',item,dateISO)});
+  for(const item of s.calendar.university||[]) if(C.universityOnDate([item],dateISO).length) out.push({...item,_kind:'university',_id:canonicalId('university',item,dateISO)});
+  for(const item of s.calendar.opportunities||[]) if(item.date===dateISO) out.push({...item,_kind:'opportunity',_id:canonicalId('opportunity',item,dateISO)});
+  return out.sort((a,b)=>(Number(a.start)||0)-(Number(b.start)||0)||labelFor(a).localeCompare(labelFor(b)));
+}
+function eventButton(e,dateISO){
+  const editable=e._kind==='personal',url=readLinks()[linkKey(e._kind,e)]?.url||'';
+  return `<div class="event" role="button" tabindex="0" data-id="${esc(e._id)}" data-kind="${esc(e._kind)}" data-date="${dateISO}">
+    <span class="time">${Number.isFinite(Number(e.start))?fmtTime(e.start):'—'}</span>
+    <span class="copy"><span class="name">${esc(labelFor(e))}</span><span class="kind">${kindFor(e)}</span></span>
+    ${url?`<button class="mark" type="button" data-link-open="${esc(url)}" aria-label="Abrir link">↗</button>`:`<span class="mark">${editable?'›':'·'}</span>`}
+  </div>`;
+}
+function setRange(){
+  if(view==='month'){range.textContent=`${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}`;title.textContent='Calendario';return}
+  if(view==='week'){
+    const a=startOfWeek(cursor),b=C.addDays(a,6);
+    range.textContent=a.getMonth()===b.getMonth()?`${a.getDate()}–${b.getDate()} ${MONTHS[a.getMonth()]}`:`${a.getDate()} ${MONTHS[a.getMonth()]} – ${b.getDate()} ${MONTHS[b.getMonth()]}`;
+    title.textContent='Calendario';return
+  }
+  range.textContent=`${DOW_LONG[cursor.getDay()]} ${cursor.getDate()} ${MONTHS[cursor.getMonth()]}`;title.textContent='Calendario';
+}
+function renderMonth(){
+  const y=cursor.getFullYear(),m=cursor.getMonth(),first=new Date(y,m,1),start=C.addDays(first,-first.getDay()),today=new Date();
+  let h='<div class="weeknames">'+DOW.map(x=>`<div>${x.toUpperCase()}</div>`).join('')+'</div><div class="monthgrid">';
+  for(let i=0;i<42;i++){
+    const d=C.addDays(start,i),iso=dateKey(d),ev=eventsFor(iso),inside=d.getMonth()===m;
+    h+=`<button class="daycell${inside?'':' out'}${sameDay(d,today)?' is-today':''}" data-day="${iso}"><span class="daynum">${d.getDate()}</span>`;
+    h+=ev.slice(0,2).map(e=>`<span class="mini">${Number.isFinite(Number(e.start))?fmtTime(e.start)+' ':''}${esc(labelFor(e))}</span>`).join('');
+    if(ev.length>2)h+=`<div class="more">+${ev.length-2}</div>`;
+    h+='</button>';
+  }
+  surface.innerHTML=h+'</div>';
+}
+function renderWeek(){
+  const start=startOfWeek(cursor),today=new Date();let h='<div class="weeklist">';
+  for(let i=0;i<7;i++){
+    const d=C.addDays(start,i),iso=dateKey(d),ev=eventsFor(iso);
+    h+=`<section class="weekcard"><div class="weekhead"><strong>${DOW_LONG[d.getDay()]} ${d.getDate()}</strong><span>${sameDay(d,today)?'HOY':MONTHS[d.getMonth()]}</span></div><div class="events">`;
+    h+=ev.length?ev.map(e=>eventButton(e,iso)).join(''):`<button class="empty" data-add-date="${iso}">+ agregar</button>`;
+    h+='</div></section>';
+  }
+  surface.innerHTML=h+'</div>';
+}
+function renderDay(){
+  const iso=dateKey(cursor),ev=eventsFor(iso);
+  surface.innerHTML=`<div class="dayhero"><div class="big">${cursor.getDate()}</div><div class="dow">${DOW_LONG[cursor.getDay()]} · ${MONTHS[cursor.getMonth()]}</div></div>
+  <div class="notice">${ev.length?`${ev.length} ${ev.length===1?'evento':'eventos'} en esta fecha.`:'Día libre. Tocá + para agregar algo.'}</div>
+  <div class="daylist">${ev.length?ev.map(e=>eventButton(e,iso)).join(''):'<div class="empty">Sin eventos.</div>'}</div>`;
+}
+function render(){
+  document.querySelectorAll('.view').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+  setRange();
+  if(view==='month')renderMonth();else if(view==='week')renderWeek();else renderDay();
+}
+function shift(n){
+  if(view==='month'){cursor=new Date(cursor.getFullYear(),cursor.getMonth()+n,1)}
+  else cursor=C.addDays(cursor,view==='week'?7*n:n);
+  render();
+}
+function openNew(date=dateKey(cursor)){
+  editingId=null;editor.dataset.kind='personal';editor.dataset.key='';$('#formTitle').textContent='Nuevo evento';$('#eventTitle').value='';$('#eventDate').value=date;$('#eventTime').value='18:00';$('#eventDuration').value='1';$('#eventLink').value='';$('#remove').hidden=true;$('#editorNote').textContent='Se guarda en el mismo estado local del Calendar recuperado.';editor.showModal();requestAnimationFrame(()=>$('#eventTitle').focus());
+}
+function openEvent(id,dateISO){
+  const e=eventsFor(dateISO).find(x=>x._id===id);if(!e)return;
+  const key=linkKey(e._kind,e),url=readLinks()[key]?.url||'';editor.dataset.kind=e._kind;editor.dataset.key=key;$('#eventLink').value=url;
+  if(e._kind!=='personal'){
+    editingId=null;$('#formTitle').textContent=kindFor(e);$('#eventTitle').value=labelFor(e);$('#eventDate').value=dateISO;$('#eventTime').value=Number.isFinite(Number(e.start))?fmtTime(e.start):'12:00';$('#eventDuration').value=String(e.duration||1);
+    for(const el of [$('#eventTitle'),$('#eventDate'),$('#eventTime'),$('#eventDuration')]) el.disabled=true;
+    $('#remove').hidden=true;$('#editorNote').textContent='Podés cambiar su link acá. La edición del evento sigue en su fuente original.';editor.showModal();return;
+  }
+  for(const el of [$('#eventTitle'),$('#eventDate'),$('#eventTime'),$('#eventDuration')]) el.disabled=false;
+  editingId=id;$('#formTitle').textContent='Editar evento';$('#eventTitle').value=labelFor(e);$('#eventDate').value=e.date;$('#eventTime').value=fmtTime(e.start);$('#eventDuration').value=String(e.duration||1);$('#remove').hidden=false;$('#editorNote').textContent=`ID compartido: ${id}`;editor.showModal();
+}
+function closeEditor(){for(const el of [$('#eventTitle'),$('#eventDate'),$('#eventTime'),$('#eventDuration')]) el.disabled=false;editor.close()}
+function writePersonal(next){
+  const s=state();s.calendar.personalEvents=next;S.write(s);S.hydrateLegacy(s);
+}
+$('#form').addEventListener('submit',ev=>{
+  ev.preventDefault();let link='';try{link=normalizeLink($('#eventLink').value)}catch(err){alert(err.message);return}
+  const existingKey=editor.dataset.key||'';
+  if(editor.dataset.kind!=='personal'){if(existingKey)writeLink(existingKey,link);closeEditor();render();return}
+  const name=$('#eventTitle').value.trim(),date=$('#eventDate').value,time=$('#eventTime').value;if(!name||!date||!time)return;
+  const [hh,mm]=time.split(':').map(Number),start=hh*60+mm,duration=Number($('#eventDuration').value)||1,s=state(),arr=[...(s.calendar.personalEvents||[])];
+  let item;
+  if(editingId){const i=arr.findIndex(x=>String(x.id)===editingId);if(i>=0){arr[i]={...arr[i],title:name,date,start,duration};item=arr[i]}}
+  else {item={id:'pe-'+Date.now(),title:name,date,start,duration};arr.push(item)}
+  writePersonal(arr);writeLink(linkKey('personal',item),link);if(existingKey&&existingKey!==linkKey('personal',item))writeLink(existingKey,'');
+  cursor=C.parseISO(date);closeEditor();render();
+});
+$('#remove').onclick=()=>{if(!editingId)return;const s=state(),arr=(s.calendar.personalEvents||[]).filter(x=>String(x.id)!==editingId);writePersonal(arr);closeEditor();render()};
+$('#close').onclick=closeEditor;
+editor.addEventListener('click',e=>{if(e.target===editor)closeEditor()});
+$('#prev').onclick=()=>shift(-1);$('#next').onclick=()=>shift(1);$('#today').onclick=()=>{cursor=C.cloneDate(new Date());render()};$('#add').onclick=()=>openNew();
+document.querySelector('.views').onclick=e=>{const b=e.target.closest('[data-view]');if(!b)return;view=b.dataset.view;localStorage.setItem('prometeo-calendar-rich-view-v1',view);render()};
+surface.onclick=e=>{
+  const link=e.target.closest('[data-link-open]');if(link){e.preventDefault();e.stopPropagation();const raw=link.dataset.linkOpen;if(/^(javascript|data|vbscript):/i.test(raw))return;const href=/^(https?:|\/|\.\/|\.\.\/|#)/i.test(raw)?new URL(raw,location.href).href:raw;window.open(href,'_blank','noopener,noreferrer');return}
+  const day=e.target.closest('[data-day]');if(day){cursor=C.parseISO(day.dataset.day);view='day';localStorage.setItem('prometeo-calendar-rich-view-v1',view);render();return}
+  const add=e.target.closest('[data-add-date]');if(add){openNew(add.dataset.addDate);return}
+  const item=e.target.closest('[data-id]');if(item)openEvent(item.dataset.id,item.dataset.date);
+};
+window.addEventListener('storage',render);
+render();
+})();
+</script>
+</body>
+</html>
