@@ -36,6 +36,16 @@ The user explicitly confirmed that the Capture Lab voice-input path works on the
 - **Audio inside an edit:** while editing a saved note, the user may place the cursor anywhere and record another audio segment. The pending transcription token is inserted at that cursor position, so audio can be added at the beginning, middle, or end.
 - **Reload recovery:** saved notes with pending audio segments should requeue their stored audio after reload when the Blob is still available.
 
+## Spanish quality profile — preserve-first tuning
+
+- The working worker already forces **Spanish** explicitly with `language: 'spanish'` and `task: 'transcribe'`. Do not remove this for normal Spanish Capture input or fall back to automatic language detection by default.
+- Language forcing is useful for short/noisy monolingual Spanish clips because it removes language-identification uncertainty; it does not by itself control comma placement, capitalization, paragraphing, or spacing. Those are primarily model-decoding quality issues.
+- The currently accepted reliability baseline remains **whisper-base**. Do not overwrite it merely to chase accuracy.
+- Accuracy experiments should be introduced as **candidate quality profiles** and must fall back to the accepted base path. The first candidate to compare is multilingual **whisper-small on WebGPU**, because the larger model has materially more capacity than base. Never require small on devices that cannot load it reliably.
+- Quality comparisons must reuse the **same saved audio clips** and compare transcript error, punctuation, omissions, names, accents, and latency. Do not judge by one anecdotal sample.
+- Prefer quality over speed for this user's Capture workflow, but not at the cost of losing the ability to save notes, keep raw audio, retry, or continue recording while transcription runs.
+- If later punctuation cleanup is added, it must be a **second, reversible post-processing stage** over the raw Whisper transcript. Preserve the raw ASR transcript and source audio so a formatter cannot silently corrupt the evidence.
+
 ## Reference implementation
 
 Served experiment: `experiments/capture-lab/`
