@@ -1,0 +1,94 @@
+name: Modelos III audio paragraph v2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - coordination/modelos-audio-paragraph-v2.trigger
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch canonical Modelos III bundle
+        run: |
+          python - <<'PY'
+          import base64, gzip, hashlib, json, math, pathlib
+
+          root = pathlib.Path('pages/modelos-iii')
+          files = [
+              'bundle-v13-1.txt',
+              'bundle-v13-2.txt',
+              'bundle-v13-3a1.txt',
+              'bundle-v13-3a2.txt',
+              'bundle-v13-3b1.txt',
+              'bundle-v13-3b2.txt',
+              'bundle-v13-4.txt',
+              'bundle-v13-5.txt',
+              'bundle-v13-6.txt',
+          ]
+          b64 = ''.join((root/f).read_text().strip() for f in files)
+          html = gzip.decompress(base64.b64decode(b64)).decode('utf-8')
+
+          replacements = [
+              ("const VOICE_VERSION='modelosIII-study-v1';", "const VOICE_VERSION='modelosIII-study-paragraph-v2';"),
+              ("const AUDIO_API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/casa-room-audio';", "const AUDIO_API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/modelos-room-audio-v2';"),
+              ("const AUDIO_DB='modelosIII_audio_v4',AUDIO_STORE='clips';", "const AUDIO_DB='modelosIII_audio_v5',AUDIO_STORE='clips';"),
+              ("function splitSpeech(text,max=168){", "function splitSpeech(text,max=480){"),
+              ("/* lectura V11: mismo backend estable de Walkie · manifiesto reusable · cache remoto + IndexedDB · WebAudio */", "/* lectura V14: bloques tipo párrafo · speaker más estable · cache remoto + IndexedDB · WebAudio */"),
+          ]
+          for old, new in replacements:
+              if old not in html:
+                  raise SystemExit(f'Missing expected source pattern: {old[:90]}')
+              html = html.replace(old, new, 1)
+
+          # Guardrails: no browser TTS, correct seek directions, new paragraph endpoint.
+          assert 'speechSynthesis' not in html
+          assert 'modelos-room-audio-v2' in html
+          assert 'function splitSpeech(text,max=480)' in html
+          assert 'modelosIII-study-paragraph-v2' in html
+          assert '10↷' in html and '↶5' in html
+
+          packed = gzip.compress(html.encode('utf-8'), compresslevel=9, mtime=0)
+          out = base64.b64encode(packed).decode('ascii')
+          n = len(files)
+          width = math.ceil(len(out)/n)
+          parts = [out[i*width:(i+1)*width] for i in range(n)]
+          while len(parts) < n:
+              parts.append('')
+          for f, part in zip(files, parts):
+              (root/f).write_text(part)
+
+          # Exact round-trip validation.
+          joined = ''.join((root/f).read_text().strip() for f in files)
+          roundtrip = gzip.decompress(base64.b64decode(joined)).decode('utf-8')
+          assert roundtrip == html
+          sha = hashlib.sha256(html.encode('utf-8')).hexdigest()
+          meta = {
+              'build': 'modelosIII-study-paragraph-v2',
+              'sha256': sha,
+              'splitSpeechMaxChars': 480,
+              'audioApi': 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/modelos-room-audio-v2',
+              'voiceVersion': 'modelosIII-study-paragraph-v2',
+              'bundleFiles': files,
+          }
+          (root/'AUDIO_PARAGRAPH_V2.json').write_text(json.dumps(meta, ensure_ascii=False, indent=2)+'\n')
+          print(json.dumps(meta, ensure_ascii=False))
+          PY
+
+      - name: Commit patched bundle
+        run: |
+          git config user.name "prometeo-audio-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add pages/modelos-iii/bundle-v13-*.txt pages/modelos-iii/AUDIO_PARAGRAPH_V2.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Modelos III: paragraph audio v2"
+          git push origin HEAD:main
