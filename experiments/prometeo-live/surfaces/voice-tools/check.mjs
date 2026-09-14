@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+const read=n=>fs.readFileSync(new URL(n,import.meta.url),'utf8');
+const required=(name,needles)=>{const s=read(name);for(const n of needles)if(!s.includes(n))throw new Error(`${name}: missing ${n}`)};
+required('./index.html',['Voz → Texto','Texto → Voz','./stt.html','./tts.html']);
+required('./stt.html',['viewport-fit=cover','aria-pressed="false"','./stt.js']);
+required('./stt.js',['MediaRecorder','indexedDB','putAudio','new NativeWorker','OfflineAudioContext']);
+required('./transcriber-worker.js',["onnx-community/whisper-small","onnx-community/whisper-base","device:'wasm'","language:'spanish'","const queue=[]"]);
+required('./tts.html',['maxlength="520"','./tts.js']);
+required('./tts.js',['modelos-room-audio-v2','voicePrompt','messageId','audio.play()','x-modelos-cache']);
+console.log('voice-tools static checks: OK');
