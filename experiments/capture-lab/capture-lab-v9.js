@@ -34,18 +34,19 @@ function toast(text,action=null){let t=document.querySelector('#v9Toast');if(!t)
 
 function archiveLocal(ids,route){const idset=new Set(ids.map(String)),all=notes(),rows=all.filter(n=>idset.has(String(n.id)));pushHistory(rows,route);for(const id of idset)archived.add(id);selected.clear();saveSets();decorateSoon();}
 
-async function deleteOne(id){
-  id=String(id);if(!id||deleted.has(id))return;
-  const row=notes().find(n=>String(n.id)===id)||null;
-  deleted.add(id);archived.delete(id);selected.delete(id);saveSets();lastDeleted={id,row};decorateSoon();
+async function deleteMany(ids){
+  ids=[...new Set((ids||[]).map(String).filter(id=>id&&!deleted.has(id)))];if(!ids.length)return;
+  const idset=new Set(ids),rows=notes().filter(n=>idset.has(String(n.id)));
+  for(const id of ids){deleted.add(id);archived.delete(id);selected.delete(id)}saveSets();lastDeleted={ids,rows};decorateSoon();
   clearTimeout(undoTimer);
-  toast('Nota eliminada',{label:'Deshacer',fn:()=>undoDelete()});
-  undoTimer=setTimeout(async()=>{try{await api({action:'delete_notes',note_ids:[id]})}catch(e){console.error('delete remote',e)};forcePurgeDeleted()},4000);
+  toast(ids.length===1?'Nota eliminada':`${ids.length} notas eliminadas`,{label:'Deshacer',fn:()=>undoDelete()});
+  undoTimer=setTimeout(async()=>{try{await api({action:'delete_notes',note_ids:ids})}catch(e){console.error('delete remote',e)};forcePurgeDeleted()},4000);
 }
+async function deleteOne(id){return deleteMany([id])}
 function undoDelete(){
-  if(!lastDeleted)return;clearTimeout(undoTimer);const {id,row}=lastDeleted;deleted.delete(id);saveSets();
-  if(row){const a=notes();if(!a.some(n=>String(n.id)===id)){a.unshift(row);localStorage.setItem(NOTES_KEY,JSON.stringify(a))}}
-  api({action:'restore_notes',note_ids:[id]}).catch(()=>{});lastDeleted=null;toast('Nota restaurada');decorateSoon();
+  if(!lastDeleted)return;clearTimeout(undoTimer);const {ids,rows}=lastDeleted;for(const id of ids)deleted.delete(id);saveSets();
+  const a=notes(),have=new Set(a.map(n=>String(n.id)));for(const row of [...rows].reverse())if(!have.has(String(row.id)))a.unshift(row);localStorage.setItem(NOTES_KEY,JSON.stringify(a));
+  api({action:'restore_notes',note_ids:ids}).catch(()=>{});lastDeleted=null;toast(ids.length===1?'Nota restaurada':'Notas restauradas');decorateSoon();
 }
 function forcePurgeDeleted(){const a=notes().filter(n=>!deleted.has(String(n.id)));localStorage.setItem(NOTES_KEY,JSON.stringify(a));}
 
@@ -69,7 +70,7 @@ function installGlobalPrepare(){
   bindRail(s,()=>launch('planner',activeIds()));
   const reveal=s.querySelector('.reveal');if(reveal)reveal.textContent='Planner';
 }
-function bindRail(s,onFire){const k=s.querySelector('.springKnob');if(!k)return;let down=false,start=0,x=0;const max=()=>Math.max(1,s.clientWidth-k.clientWidth-8),draw=()=>k.style.transform=`translateX(${x}px)`;k.onpointerdown=e=>{down=true;start=e.clientX-x;k.setPointerCapture(e.pointerId)};k.onpointermove=e=>{if(!down)return;x=Math.max(0,Math.min(max(),e.clientX-start));draw()};k.onpointerup=()=>{if(!down)return;down=false;const fire=x>max()*.8;if(fire){x=max();draw();setTimeout(onFire,60)}setTimeout(()=>{x=0;k.style.transition='transform .25s cubic-bezier(.2,.85,.25,1)';draw();setTimeout(()=>k.style.transition='',280)},fire?170:0)}}
+function bindRail(s,onFire){const k=s.querySelector('.springKnob');if(!k)return;let down=false,start=0,x=0;const max=()=>Math.max(1,s.clientWidth-k.clientWidth-8),draw=()=>k.style.transform=`translateX(${x}px)`;k.onpointerdown=e=>{down=true;start=e.clientX-x;k.setPointerCapture(e.pointerId)};k.onpointermove=e=>{if(!down)return;x=Math.max(0,Math.min(max(),e.clientX-start));draw()};k.onpointerup=()=>{if(!down)return;down=false;const fire=x>max()*.8;if(fire){x=max();draw();onFire()}setTimeout(()=>{x=0;k.style.transition='transform .25s cubic-bezier(.2,.85,.25,1)';draw();setTimeout(()=>k.style.transition='',280)},fire?170:0)}}
 
 function enterSelection(id){selected.add(String(id));decorateSoon();}
 function toggleSelection(id){id=String(id);selected.has(id)?selected.delete(id):selected.add(id);decorateSoon();}
@@ -104,7 +105,7 @@ function decorateNotes(){
 let decoTimer=null;function decorateSoon(){clearTimeout(decoTimer);decoTimer=setTimeout(decorateNotes,0)}
 new MutationObserver(decorateSoon).observe(document.querySelector('#feed'),{childList:true,subtree:true});
 
-function ensureSelectionDock(){let d=document.querySelector('#v9Selection');if(d)return d;d=document.createElement('div');d.id='v9Selection';d.innerHTML=`<button class="v9trash" data-a="delete">×</button><div class="v9SelText"><b>0</b><small>seleccionadas</small></div><div class="v9MiniSpring" data-a="planner"><span>Planner</span><i>→</i></div><div class="v9MiniSpring" data-a="direct"><span>Directo</span><i>→</i></div>`;document.body.append(d);d.querySelector('[data-a="delete"]').onclick=()=>{for(const id of [...selected])deleteOne(id);selected.clear();decorateSoon()};d.querySelector('[data-a="planner"]').onclick=()=>launch('planner',[...selected]);d.querySelector('[data-a="direct"]').onclick=()=>launch('direct',[...selected]);return d}
+function ensureSelectionDock(){let d=document.querySelector('#v9Selection');if(d)return d;d=document.createElement('div');d.id='v9Selection';d.innerHTML=`<button class="v9trash" data-a="delete">×</button><div class="v9SelText"><b>0</b><small>seleccionadas</small></div><div class="v9MiniSpring" data-a="planner"><span>Planner</span><i>→</i></div><div class="v9MiniSpring" data-a="direct"><span>Directo</span><i>→</i></div>`;document.body.append(d);d.querySelector('[data-a="delete"]').onclick=()=>deleteMany([...selected]);d.querySelector('[data-a="planner"]').onclick=()=>launch('planner',[...selected]);d.querySelector('[data-a="direct"]').onclick=()=>launch('direct',[...selected]);return d}
 function renderSelectionDock(){const d=ensureSelectionDock();d.classList.toggle('show',selected.size>0);d.querySelector('b').textContent=String(selected.size);}
 
 async function pollJobs(){if(jobsBusy||!labKey())return;jobsBusy=true;try{const d=await api({action:'jobs'});renderJobs(d.jobs||[])}catch{}finally{jobsBusy=false}}
