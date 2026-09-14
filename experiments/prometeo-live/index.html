@@ -22,7 +22,7 @@
 <script>
 const CONTROL='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-live-lab-v1/control-room';
 const RESULT_WINDOW_MS=24*60*60*1000;
-const CHAT_SIGNAL_GRACE_SEC=30;
+const CHAT_SIGNAL_GRACE_SEC=45;
 const grid=document.getElementById('grid'),status=document.getElementById('status'),control=document.getElementById('control'),runrail=document.getElementById('runrail'),runCount=document.getElementById('runCount');
 let lastManifest=null,lastRunSignature='',lastData=null;
 function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -74,8 +74,6 @@ function renderRuns(data,force=false){
   }
   if(c.stale===1&&(c.active+c.done+c.failed+c.blocked)>0){
     status.innerHTML='<i class="dot warn"></i>falta iniciar 1 chat';
-  }else if(c.stale>1){
-    status.innerHTML=`<i class="dot warn"></i>faltan iniciar ${c.stale} chats`;
   }else if(c.active){
     status.innerHTML=`<i class="dot live"></i>${c.active} ${c.active===1?'trabajando':'trabajando'}`;
   }else if(c.waiting){
@@ -86,10 +84,10 @@ function renderRuns(data,force=false){
     status.innerHTML=`<i class="dot"></i>rev ${esc(lastManifest||'—')}`;
   }
 }
-function updateTimes(){document.querySelectorAll('.run[data-started]').forEach(el=>{const t=el.querySelector('.runTime');if(t)t.textContent=fmt(secondsSince(el.dataset.started))});if(lastData)renderRuns(lastData)}
+function updateTimes(){document.querySelectorAll('.run[data-started]').forEach(el=>{const t=el.querySelector('.runTime');if(t)t.textContent=fmt(secondsSince(el.dataset.started))})}
 async function manifestTick(){try{const r=await fetch('./live-manifest.json?t='+Date.now(),{cache:'no-store'});if(r.ok)renderManifest(await r.json())}catch{}finally{setTimeout(manifestTick,1200)}}
 async function controlTick(){try{const r=await fetch(CONTROL+'?t='+Date.now(),{cache:'no-store'});if(r.ok)renderRuns(await r.json())}catch{}finally{setTimeout(controlTick,900)}}
-manifestTick();controlTick();setInterval(updateTimes,1000);
+manifestTick();controlTick();setInterval(()=>{updateTimes();if(lastData)renderRuns(lastData)},1000);
 </script>
 </body>
 </html>
