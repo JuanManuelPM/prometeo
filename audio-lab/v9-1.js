@@ -1,0 +1,20 @@
+const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/audio-lab-page-audio-v1';
+const PAGE_TEXT=`Durante mucho tiempo imaginamos la memoria como una biblioteca silenciosa: cada experiencia entra, encuentra un estante y espera allí hasta que alguien vuelve a buscarla. La imagen es cómoda, pero engañosa. Recordar no consiste en abrir una caja intacta. Cada vez que evocamos una escena, reconstruimos algo a partir de fragmentos: una sensación corporal, una frase, el color de una habitación, la idea que hoy tenemos de quienes éramos entonces. Eso explica por qué dos personas pueden discutir con absoluta sinceridad sobre el mismo episodio. No hace falta que una mienta. Pueden estar usando indicios distintos para completar los huecos. Incluso una misma persona puede contar una historia de dos maneras diferentes con varios años de distancia. Lo que ocurrió no cambia, pero sí cambia la red desde la que intentamos recuperarlo. La consecuencia más interesante aparece cuando dejamos de pensar la memoria como un depósito y empezamos a verla como una actividad. Recordar también modifica. Una pregunta insistente puede volver más accesible un detalle; una fotografía puede desplazar la imagen que teníamos antes; una explicación repetida muchas veces puede terminar sintiéndose tan familiar que confundimos familiaridad con certeza. Esto no vuelve inútil a la memoria. Al contrario: muestra para qué sirve. Un organismo que necesitara conservar una copia perfecta de cada segundo vivido gastaría una cantidad absurda de recursos. La memoria selecciona, resume, conecta y actualiza. Su trabajo principal no parece ser reconstruir el pasado con fidelidad fotográfica, sino usar el pasado para orientarnos en el presente y anticipar lo que puede ocurrir después.`;
+const LS='audioLabV9Page:';
+const BASE=[
+{id:'vera',name:'Vera',kind:'lectura · femenina',prompt:'Buenos Aires woman. Mid-low voice, calm, dry and natural. Rioplatense Spanish. Read steadily and intimately. Same speaker throughout.'},
+{id:'milo',name:'Milo',kind:'lectura · masculina',prompt:'Buenos Aires man. Medium-low slightly raspy voice, relaxed and natural. Rioplatense Spanish. Read steadily. Same speaker throughout.'},
+{id:'julian',name:'Julián',kind:'profesor · masculino',prompt:'Argentine male teacher. Warm medium-low voice, clear and patient. Natural Rioplatense Spanish. Explain as if to one student, with brief useful pauses. Same speaker throughout.'},
+{id:'clara',name:'Clara',kind:'profesora · femenina',prompt:'Argentine female teacher. Warm clear medium voice, patient and precise. Natural Rioplatense Spanish. Lightly emphasize key ideas. Same speaker throughout.'}
+];
+const voices=BASE.map(v=>({...v,prompt:localStorage.getItem(LS+'prompt:'+v.id)||v.prompt,run:Number(localStorage.getItem(LS+'run:'+v.id)||1)}));
+const clips=new Map(voices.map(v=>[v.id,{status:'idle',blob:null,url:null,cache:'',bytes:0,ms:0,error:null,started:0,attempts:0}]));
+let selected=localStorage.getItem(LS+'selected')||'vera';if(!clips.has(selected))selected='vera';
+let queue=[],working=false,lastPost=0,audio=null,playing=null,waitTimer=null;
+const $=id=>document.getElementById(id),E={voices:$('voices'),pname:$('pname'),pstate:$('pstate'),fill:$('fill'),play:$('play'),back:$('back'),forward:$('forward'),prepare:$('prepare'),prepareAll:$('prepareAll'),prompt:$('prompt'),regen:$('regen'),notice:$('notice'),log:$('log')};
+const V=id=>voices.find(v=>v.id===id),C=id=>clips.get(id);
+function hash(s){let x=2166136261;for(let i=0;i<s.length;i++){x^=s.charCodeAt(i);x=Math.imul(x,16777619)}return(x>>>0).toString(36)}
+function clipId(id){const v=V(id);return`audio-lab-page-v1-${id}-r${v.run}-${hash(v.prompt+'|'+PAGE_TEXT)}`}
+function statusText(s){return({idle:'pendiente',checking:'buscando cache',queued:'en cola',generating:'generando página',ready:'lista',error:'error'})[s]||s}
+function log(s){E.log.textContent=`${new Date().toLocaleTimeString()}  ${s}\n`+E.log.textContent}
+function notice(s){E.notice.textContent=s;E.notice.classList.toggle('show',!!s)}
