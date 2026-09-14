@@ -41,19 +41,29 @@ The user explicitly confirmed that the Capture Lab voice-input path works on the
 - The working worker already forces **Spanish** explicitly with `language: 'spanish'` and `task: 'transcribe'`. Do not remove this for normal Spanish Capture input or fall back to automatic language detection by default.
 - Language forcing is useful for short/noisy monolingual Spanish clips because it removes language-identification uncertainty; it does not by itself control comma placement, capitalization, paragraphing, or spacing. Those are primarily model-decoding quality issues.
 - The currently accepted reliability baseline remains **whisper-base**. Do not overwrite it merely to chase accuracy.
-- Accuracy experiments should be introduced as **candidate quality profiles** and must fall back to the accepted base path. The first candidate to compare is multilingual **whisper-small on WebGPU**, because the larger model has materially more capacity than base. Never require small on devices that cannot load it reliably.
+- Accuracy experiments should be introduced as **candidate quality profiles** and must fall back to the accepted base path.
 - Quality comparisons must reuse the **same saved audio clips** and compare transcript error, punctuation, omissions, names, accents, and latency. Do not judge by one anecdotal sample.
 - Prefer quality over speed for this user's Capture workflow, but not at the cost of losing the ability to save notes, keep raw audio, retry, or continue recording while transcription runs.
 - If later punctuation cleanup is added, it must be a **second, reversible post-processing stage** over the raw Whisper transcript. Preserve the raw ASR transcript and source audio so a formatter cannot silently corrupt the evidence.
+
+## Active quality experiment — v7
+
+- For **short Spanish notes**, the served experiment now tries exactly one model step up: `onnx-community/whisper-small` on WebGPU.
+- If Small cannot load or run, the system automatically falls back to the already working `whisper-base` WebGPU/WASM path.
+- This experiment changes only model capacity. It does **not** add Large/Turbo, long-audio segmentation, or post-processing yet.
+- The diagnostic panel must reveal which model actually ran so tests can distinguish a real Small result from a fallback.
+- Small is a candidate, not yet the accepted baseline. Preserve Base until the human confirms that Small remains stable and materially improves transcription quality on the target phone.
 
 ## Reference implementation
 
 Served experiment: `experiments/capture-lab/`
 
-Primary files:
-- `experiments/capture-lab/index.html`
-- `experiments/capture-lab/capture-lab.css`
-- `experiments/capture-lab/capture-lab.js`
+Preserved accepted donor:
+- `experiments/capture-lab/capture-lab-v6.js`
 - `experiments/capture-lab/transcriber-worker.js`
+
+Active v7 quality experiment:
+- `experiments/capture-lab/capture-lab-v7.js`
+- `experiments/capture-lab/transcriber-worker-v7.js`
 
 The experiment is a donor/reference for Prometeo Capture voice input. Preserve the mechanism surgically when integrating it elsewhere; do not replace it with a clean-slate recorder unless the human explicitly rejects this baseline.
