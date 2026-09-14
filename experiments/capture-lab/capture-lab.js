@@ -2,7 +2,7 @@ const $=s=>document.querySelector(s),feed=$('#feed'),empty=$('#empty'),works=$('
 let notes=JSON.parse(localStorage.getItem('captureLabNotes')||'[]'),active=null,lastRange=null,db=null,pending=0,lastAudioId=localStorage.getItem('captureLabLastAudio')||null,lastFailedJob=null;
 const jobs=new Map();
 const logs=JSON.parse(localStorage.getItem('captureLabDiag')||'[]').slice(-80);
-const worker=new Worker('./transcriber-worker.js?v=4',{type:'module'});
+let worker=null;
 
 $('#diagBtn').onclick=()=>{diag.classList.remove('hidden');renderLog()};$('#dx').onclick=()=>diag.classList.add('hidden');$('#back').onclick=showNotes;
 add.onclick=()=>{composer.classList.remove('hidden');scrim.classList.remove('hidden')};
@@ -38,7 +38,7 @@ function stopRecording(){
  const token=insertToken('guardando audio');const durationMs=performance.now()-s.start;
  const job={id:s.id,token,durationMs,created:Date.now(),audioId:s.id,stage:'STOPPING'};jobs.set(job.id,job);setDiag(job,'STOPPING');st.textContent='Guardando audio';log('STOPPING',`job ${job.id.slice(0,8)} · ${(durationMs/1000).toFixed(1)} s`);
  let settled=false;
- const finish=async()=>{if(settled)return;settled=true;try{s.stream.getTracks().forEach(t=>t.stop())}catch{};const blob=new Blob(s.chunks,{type:s.mr.mimeType||preferred()||'audio/webm'});job.blob=blob;setDiag(job,'AUDIO_READY');log('AUDIO_READY',`${(blob.size/1024).toFixed(0)} KB · ${blob.type}`);if(blob.size<1200)throw new Error(`Audio demasiado pequeño (${blob.size} bytes)`);await saveAudio(job.audioId,blob);lastAudioId=job.audioId;localStorage.setItem('captureLabLastAudio',lastAudioId);token.textContent='transcribiendo audio';log('AUDIO_STORED',`IndexedDB · ${job.audioId.slice(0,8)}`);enqueue(job)}catch(e){failJob(job,e,'SAVE_FAILED')}};
+ const finish=async()=>{if(settled)return;settled=true;try{try{s.stream.getTracks().forEach(t=>t.stop())}catch{}const blob=new Blob(s.chunks,{type:s.mr.mimeType||preferred()||'audio/webm'});job.blob=blob;setDiag(job,'AUDIO_READY');log('AUDIO_READY',`${(blob.size/1024).toFixed(0)} KB · ${blob.type}`);if(blob.size<1200)throw new Error(`Audio demasiado pequeño (${blob.size} bytes)`);await saveAudio(job.audioId,blob);lastAudioId=job.audioId;localStorage.setItem('captureLabLastAudio',lastAudioId);token.textContent='transcribiendo audio';log('AUDIO_STORED',`IndexedDB · ${job.audioId.slice(0,8)}`);enqueue(job)}catch(e){failJob(job,e,'SAVE_FAILED')}};
  s.mr.onstop=finish;
  try{s.mr.requestData?.()}catch{}
  try{s.mr.stop()}catch(e){recordError('STOP_FAILED',e);finish()}
@@ -48,26 +48,36 @@ function enqueue(job){pending++;updateCaptureState();job.stage='DECODING';setDia
  decode(job.blob).then(({pcm,duration,sampleRate})=>{
   job.pcmLength=pcm.length;job.decodedDuration=duration;job.sampleRate=sampleRate;job.stage='QUEUED';
   log('PCM_READY',`${duration.toFixed(1)} s · ${pcm.length} muestras`);setDiag(job,'QUEUED');status('En cola','Whisper corre fuera de la interfaz para no bloquear otra grabación.');
-  worker.postMessage({type:'transcribe',jobId:job.id,audio:pcm,meta:{deviceMemory:navigator.deviceMemory||null}},[pcm.buffer]);
+  const w=ensureWorker();if(!w){failJob(job,new Error('No se pudo iniciar el worker de transcripción'),'WORKER_INIT_FAILED');return}w.postMessage({type:'transcribe',jobId:job.id,audio:pcm,meta:{deviceMemory:navigator.deviceMemory||null}},[pcm.buffer]);
  }).catch(e=>failJob(job,e,'DECODE_FAILED'));
 }
 
-worker.onmessage=e=>{
+function ensureWorker(){
+ if(worker)return worker;
+ try{
+  worker=new Worker('./transcriber-worker.js?v=5',{type:'module'});
+  worker.onmessage=handleWorkerMessage;
+  worker.onerror=handleWorkerError;
+  log('WORKER_INIT','Transcriber worker creado');
+  return worker;
+ }catch(e){recordError('WORKER_INIT_FAILED',e);return null}
+}
+function handleWorkerMessage(e){
  const m=e.data||{};
  if(m.type==='engine'){$('#de').textContent='Whisper local';$('#dm').textContent=m.device||'—';$('#dmodel').textContent=m.model||'—';log('ENGINE',`${m.device||''} · ${m.model||''}`);return}
  const job=jobs.get(m.jobId);if(!job)return;
  if(m.type==='stage'){job.stage=m.stage;setDiag(job,m.stage);log(m.stage,m.detail||'');if(job.token?.isConnected){if(m.stage==='MODEL_LOADING')job.token.textContent='preparando modelo';else if(m.stage==='INFERENCE')job.token.textContent='transcribiendo audio';else if(m.stage==='WAITING_ENGINE')job.token.textContent='esperando motor'}status(stageTitle(m.stage),m.detail||'');return}
  if(m.type==='result'){const text=(m.text||'').trim();if(!text){failJob(job,new Error('Whisper terminó sin texto'),'EMPTY_RESULT');return}if(job.token?.isConnected)job.token.replaceWith(document.createTextNode(text+' '));job.stage='DONE';pending=Math.max(0,pending-1);updateCaptureState();setDiag(job,'DONE');$('#derr').textContent='—';log('DONE',`${text.length} caracteres`);status('Transcripción lista',`${job.decodedDuration?.toFixed(1)||'?'} s de audio.`, 'ok');return}
  if(m.type==='error'){const err=new Error(m.message||'Error del worker');err.name=m.name||'WorkerError';err.stack=m.stack||'';failJob(job,err,m.stage||'WORKER_FAILED')}
-};
-worker.onerror=e=>{const err=new Error(e.message||'Worker crashed');recordError('WORKER_CRASH',err);for(const job of jobs.values())if(!['DONE','FAILED'].includes(job.stage))failJob(job,err,'WORKER_CRASH');diag.classList.remove('hidden')};
+}
+function handleWorkerError(e){const err=new Error(e.message||'Worker crashed');recordError('WORKER_CRASH',err);for(const job of jobs.values())if(!['DONE','FAILED'].includes(job.stage))failJob(job,err,'WORKER_CRASH');diag.classList.remove('hidden')}
 
-function stageTitle(s){return ({WORKER_QUEUED:'En cola',WAITING_ENGINE:'Esperando motor',MODEL_LOADING:'Cargando Whisper',MODEL_READY:'Motor listo',MODEL_ATTEMPT_FAILED:'Probando respaldo',INFERENCE:'Transcribiendo',QUEUED:'En cola',DECODING:'Decodificando'})[s]||s}
+function stageTitle(s){return ({WAITING_ENGINE:'Esperando motor',MODEL_LOADING:'Cargando Whisper',MODEL_READY:'Motor listo',INFERENCE:'Transcribiendo',QUEUED:'En cola',DECODING:'Decodificando'})[s]||s}
 function failJob(job,e,stage='FAILED'){job.stage='FAILED';job.error={name:e?.name||'Error',message:e?.message||String(e),stack:e?.stack||''};lastFailedJob=job;pending=Math.max(0,pending-1);updateCaptureState();if(job.token?.isConnected){job.token.textContent='audio sin transcribir · reintentar';job.token.classList.add('failed');job.token.onclick=()=>retryJob(job)}$('#derr').textContent=`${job.error.name}: ${job.error.message}`;setDiag(job,stage);log(stage,job.error.message,{error:job.error.name});status('Falló la transcripción',job.error.message,'err');diag.classList.remove('hidden')}
 function recordError(stage,e){$('#derr').textContent=`${e?.name||'Error'}: ${e?.message||e}`;log(stage,e?.message||String(e),{error:e?.name||'Error'});status('Error',e?.message||String(e),'err')}
 function updateCaptureState(){if(active){st.textContent='Grabando';return}st.textContent=pending?`Transcribiendo ${pending}`:'Audio'}
 
-async function retryJob(job){try{let blob=job.blob||await getAudio(job.audioId);if(!blob)throw new Error('No encontré el audio guardado');job.blob=blob;if(job.token?.isConnected){job.token.classList.remove('failed');job.token.onclick=null;job.token.textContent='transcribiendo audio'}job.error=null;pending++;updateCaptureState();log('RETRY',`job ${job.id.slice(0,8)}`);const {pcm,duration,sampleRate}=await decode(blob);job.decodedDuration=duration;job.sampleRate=sampleRate;worker.postMessage({type:'transcribe',jobId:job.id,audio:pcm,meta:{deviceMemory:navigator.deviceMemory||null}},[pcm.buffer])}catch(e){failJob(job,e,'RETRY_FAILED')}}
+async function retryJob(job){try{let blob=job.blob||await getAudio(job.audioId);if(!blob)throw new Error('No encontré el audio guardado');job.blob=blob;if(job.token?.isConnected){job.token.classList.remove('failed');job.token.onclick=null;job.token.textContent='transcribiendo audio'}job.error=null;pending++;updateCaptureState();log('RETRY',`job ${job.id.slice(0,8)}`);const {pcm,duration,sampleRate}=await decode(blob);job.decodedDuration=duration;job.sampleRate=sampleRate;const w=ensureWorker();if(!w)throw new Error('No se pudo iniciar el worker de transcripción');w.postMessage({type:'transcribe',jobId:job.id,audio:pcm,meta:{deviceMemory:navigator.deviceMemory||null}},[pcm.buffer])}catch(e){failJob(job,e,'RETRY_FAILED')}}
 async function retryLast(){if(lastFailedJob)return retryJob(lastFailedJob);if(!lastAudioId){status('No hay audio','Todavía no hay una grabación guardada.');return}composer.classList.remove('hidden');scrim.classList.remove('hidden');let token=insertToken('reintentando audio'),blob=await getAudio(lastAudioId),job={id:crypto.randomUUID(),audioId:lastAudioId,blob,token,created:Date.now()};jobs.set(job.id,job);return retryJob(job)}
 async function playLast(){if(!lastAudioId){status('No hay audio','Todavía no hay una grabación guardada.');return}try{const b=await getAudio(lastAudioId);if(!b)throw new Error('No encontré el audio');const u=URL.createObjectURL(b),a=new Audio(u);a.onended=()=>URL.revokeObjectURL(u);await a.play();log('PLAYBACK','Reproduciendo último audio');status('Reproduciendo audio','Si acá se escucha completo, la grabación está bien y el problema está en el motor.')}catch(e){recordError('PLAYBACK_FAILED',e)}}
 async function copyDiag(){const payload={time:new Date().toISOString(),userAgent:navigator.userAgent,webgpu:!!navigator.gpu,deviceMemory:navigator.deviceMemory||null,lastAudioId,engine:{backend:$('#dm').textContent,model:$('#dmodel').textContent},error:$('#derr').textContent,logs:logs.slice(-40)};try{await navigator.clipboard.writeText(JSON.stringify(payload,null,2));status('Diagnóstico copiado','Pegalo en el chat y puedo ver exactamente dónde falló.','ok')}catch(e){recordError('COPY_FAILED',e)}}
@@ -82,4 +92,4 @@ function openDB(){return new Promise((res,rej)=>{let q=indexedDB.open('capture-l
 async function saveAudio(id,blob){db??=await openDB();await new Promise((res,rej)=>{let tx=db.transaction('audio','readwrite');tx.objectStore('audio').put(blob,id);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
 async function getAudio(id){db??=await openDB();return new Promise((res,rej)=>{let tx=db.transaction('audio','readonly'),q=tx.objectStore('audio').get(id);q.onsuccess=()=>res(q.result||null);q.onerror=()=>rej(q.error)})}
 window.addEventListener('error',e=>recordError('PAGE_ERROR',e.error||new Error(e.message)));window.addEventListener('unhandledrejection',e=>recordError('PROMISE_ERROR',e.reason instanceof Error?e.reason:new Error(String(e.reason))));
-$('#dg').textContent=navigator.gpu?'sí':'no';$('#dmem').textContent=navigator.deviceMemory?`${navigator.deviceMemory} GB aprox.`:'no informada';$('#dm').textContent='worker';$('#dmodel').textContent='whisper-base';render();renderLog();
+$('#dg').textContent=navigator.gpu?'sí':'no';$('#dmem').textContent=navigator.deviceMemory?`${navigator.deviceMemory} GB aprox.`:'no informada';$('#dm').textContent='worker';$('#dmodel').textContent='se elige al cargar';render();renderLog();
