@@ -20,7 +20,7 @@ function deselectMenu(){if(S.menuFocus==null)return;S.menuFocus=null;renderMenu(
 function showOrigin(x,y,dot=false){E.origin.style.left=x+'px';E.origin.style.top=y+'px';E.origin.style.setProperty('--local-y','0px');E.origin.classList.toggle('dot',dot);E.origin.classList.add('visible')}
 function moveOrigin(y,neutral){E.origin.style.setProperty('--local-y',clamp((y-neutral)*.72,-21,21)+'px')}
 function showCapture(){E.page.classList.remove('active');S.pageOpen=false}
-function openComposer(){mode('closed');showCapture();try{E.capture.contentWindow?.postMessage({type:'p48-open-composer'},location.origin)}catch{}}
+function openComposer(){mode('closed');showCapture();setCorner('tr',true);try{E.capture.contentWindow.location.hash='compose-'+Date.now()}catch{}}
 function backAction(){if(S.pageOpen){showCapture();if(S.returnNav){S.current=S.returnNav.current;S.stack=S.returnNav.stack;S.file=S.returnNav.file;S.returnNav=null;renderNav();mode('nav')}else mode('closed');sound('back');buzz(8);return}if(S.mode==='nav'){backFolder();return}mode('closed');sound('back')}
 function chooseMenu(){if(S.menuFocus==null){mode('closed');return}const item=D.ROOT_MENU[S.menuFocus];if(item.action==='note')openComposer();else if(item.action==='nav'){S.current=D.TREE;S.stack=[];S.file=0;renderNav();mode('nav');sound('enter');buzz(8)}else backAction()}
 function items(){return S.current.children||[]}
