@@ -1,1 +1,1 @@
-(()=>{const a=document.createElement('script');a.src='./core.js?v=7';a.onload=()=>{const b=document.createElement('script');b.src='./whiteboard.js?v=7';document.body.appendChild(b)};document.body.appendChild(a)})();
+(()=>{const f=document.createElement('script');f.src='./sourcefix.js?v=7';f.onload=()=>{const a=document.createElement('script');a.src='./core.js?v=7';a.onload=()=>{const b=document.createElement('script');b.src='./whiteboard.js?v=7';document.body.appendChild(b)};document.body.appendChild(a)};document.body.appendChild(f)})();
