@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#172131">
+<title>Prometeo · botón recovery</title>
+<style>
+:root{--bg:#172131;--paper:#ebe6dc;--ink:#181715;--led:#a9e06d;--bx:calc(100vw - 20px);--by:calc(100dvh - 20px);--pull-x:0px;--pull-y:0px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);touch-action:auto}
+.stage{position:fixed;inset:0;background:var(--bg)}
+.safe{position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+#origin{position:fixed;left:0;top:0;width:9px;height:9px;margin:-4.5px;border-radius:50%;background:rgba(235,230,220,.92);box-shadow:0 0 0 3px rgba(235,230,220,.10);opacity:0;pointer-events:none;z-index:9;transition:opacity 70ms ease,transform 70ms ease}
+#origin.on{opacity:.72;transform:scale(1)}
+#button{position:fixed;left:var(--bx);top:var(--by);width:24px;height:22px;padding:0;border:1px solid rgba(24,23,21,.18);border-radius:8px;background:rgba(235,230,220,.96);box-shadow:0 2px 7px rgba(0,0,0,.19),inset 0 1px rgba(255,255,255,.58);transform:translate(calc(-50% + var(--pull-x)),calc(-50% + var(--pull-y)));touch-action:none;cursor:grab;z-index:10;user-select:none;-webkit-user-select:none;transition:box-shadow .12s ease,background .12s ease}
+#button::before{content:"";position:absolute;inset:-11px}
+#button::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:var(--led);box-shadow:0 0 0 2px rgba(169,224,109,.12),0 0 6px rgba(142,203,87,.62);animation:alive 1.9s ease-in-out infinite}
+#button.down{background:rgba(228,222,211,.99);box-shadow:inset 0 2px 6px rgba(0,0,0,.14),0 2px 6px rgba(0,0,0,.08)}
+#button.dragging{cursor:grabbing;background:rgba(235,230,220,.99);box-shadow:0 8px 16px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.52)}
+@keyframes alive{0%,100%{opacity:.3;transform:scale(.82)}50%{opacity:1;transform:scale(1.16)}}
+@media(prefers-reduced-motion:reduce){#button::after{animation:none}}
+</style>
+</head>
+<body>
+<div class="stage"></div>
+<div class="safe" id="safe"></div>
+<div id="origin"></div>
+<button id="button" aria-label="Prometeo"></button>
+<script>
+(()=>{
+'use strict';
+const CORNERS=['top-left','top-right','bottom-left','bottom-right'];
+const KEY='prometeo.button.recovery.v1.corner';
+const DRAG_PX=8;
+const SNAP_MS=210;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const button=document.querySelector('#button');
+const origin=document.querySelector('#origin');
+const safe=document.querySelector('#safe');
+let corner=loadCorner();
+let drag=null;
+let suppressClickUntil=0;
+function buzz(ms=6){try{navigator.vibrate?.(ms)}catch{}}
+function loadCorner(){try{const v=localStorage.getItem(KEY);return CORNERS.includes(v)?v:'bottom-right'}catch{return'bottom-right'}}
+function saveCorner(){try{localStorage.setItem(KEY,corner)}catch{}}
+function safeInsets(){const cs=getComputedStyle(safe);return{top:parseFloat(cs.paddingTop)||0,right:parseFloat(cs.paddingRight)||0,bottom:parseFloat(cs.paddingBottom)||0,left:parseFloat(cs.paddingLeft)||0}}
+function viewport(){const vv=visualViewport;return{w:vv?.width||innerWidth,h:vv?.height||innerHeight,ox:vv?.offsetLeft||0,oy:vv?.offsetTop||0}}
+function cornerAnchor(c){const v=viewport(),s=safeInsets(),g=20;return{x:v.ox+(c.includes('left')?s.left+g:v.w-s.right-g),y:v.oy+(c.includes('top')?s.top+g:v.h-s.bottom-g)}}
+function setPoint(x,y){document.documentElement.style.setProperty('--bx',`${x.toFixed(2)}px`);document.documentElement.style.setProperty('--by',`${y.toFixed(2)}px`)}
+function clampPoint(x,y){const v=viewport(),s=safeInsets(),m=18;return{x:clamp(x,v.ox+s.left+m,v.ox+v.w-s.right-m),y:clamp(y,v.oy+s.top+m,v.oy+v.h-s.bottom-m)}}
+function nearestCorner(x,y){let best='bottom-right',bd=Infinity;for(const c of CORNERS){const a=cornerAnchor(c),d=(x-a.x)**2+(y-a.y)**2;if(d<bd){bd=d;best=c}}return best}
+function applyCorner(c,{animate=false,from=null}={}){if(!CORNERS.includes(c))c='bottom-right';corner=c;saveCorner();const dest=cornerAnchor(c);setPoint(dest.x,dest.y);if(animate&&from){const dx=from.x-dest.x,dy=from.y-dest.y;button.animate([{transform:`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`},{transform:'translate(-50%,-50%)'}],{duration:SNAP_MS,easing:'cubic-bezier(.18,.82,.22,1)'}).finished.catch(()=>{}).then(()=>buzz(6))}}
+function showOrigin(x,y){origin.style.left=x+'px';origin.style.top=y+'px';origin.classList.add('on')}
+function hideOrigin(){origin.classList.remove('on')}
+applyCorner(corner);
+addEventListener('resize',()=>applyCorner(corner));
+visualViewport?.addEventListener('resize',()=>applyCorner(corner));
+visualViewport?.addEventListener('scroll',()=>applyCorner(corner));
+button.addEventListener('pointerdown',e=>{if(e.button!==undefined&&e.button!==0)return;e.preventDefault();e.stopPropagation();const a=cornerAnchor(corner);drag={id:e.pointerId,sx:e.clientX,sy:e.clientY,lastX:a.x,lastY:a.y,dragging:false};button.classList.add('down');showOrigin(e.clientX,e.clientY);try{button.setPointerCapture(e.pointerId)}catch{}},{capture:true});
+button.addEventListener('pointermove',e=>{const d=drag;if(!d||d.id!==e.pointerId)return;e.preventDefault();e.stopPropagation();const dist=Math.hypot(e.clientX-d.sx,e.clientY-d.sy);if(!d.dragging&&dist<DRAG_PX)return;if(!d.dragging){d.dragging=true;button.classList.add('dragging');buzz(5)}const p=clampPoint(e.clientX,e.clientY);d.lastX=p.x;d.lastY=p.y;setPoint(p.x,p.y)},{capture:true,passive:false});
+function finish(e,cancel=false){const d=drag;if(!d||d.id!==e.pointerId)return;drag=null;button.classList.remove('down','dragging');hideOrigin();try{button.releasePointerCapture(e.pointerId)}catch{}if(cancel){applyCorner(corner);return}if(!d.dragging){suppressClickUntil=performance.now()+280;button.animate([{transform:'translate(-50%,-50%) scale(1)'},{transform:'translate(-50%,-50%) scale(.91)'},{transform:'translate(-50%,-50%) scale(1)'}],{duration:150,easing:'ease-out'});buzz(4);return}const c=nearestCorner(d.lastX,d.lastY);suppressClickUntil=performance.now()+360;applyCorner(c,{animate:true,from:{x:d.lastX,y:d.lastY}});e.preventDefault();e.stopPropagation()}
+button.addEventListener('pointerup',e=>finish(e,false),{capture:true});
+button.addEventListener('pointercancel',e=>finish(e,true),{capture:true});
+button.addEventListener('click',e=>{if(performance.now()<suppressClickUntil)e.preventDefault()});
+})();
+</script>
+</body>
+</html>
