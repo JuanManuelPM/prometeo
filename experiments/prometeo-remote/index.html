@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0d1420">
+<title>Prometeo Remote</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;min-height:100%;background:#0d1420;color:#dfe7f0;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}button,input{font:inherit}.app{min-height:100dvh;max-width:640px;margin:auto;padding:18px 14px 28px}.top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}.k{font-size:9px;letter-spacing:.14em;color:#60748d}.title{font-size:22px;font-weight:700;letter-spacing:-.03em;margin-top:3px}.status{font-size:9px;color:#7f93a9;padding-top:4px;text-align:right}.status b{display:block;color:#9fb2c4;font:700 10px ui-monospace,SFMono-Regular,Menlo,monospace;margin-bottom:2px}.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#61758c;margin-right:5px}.dot.on{background:#88a897;box-shadow:0 0 12px #88a89766}.section{border-top:1px solid #ffffff12;padding-top:13px;margin-top:14px}.section h2{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:#60748d;margin:0 0 9px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.btn{appearance:none;border:1px solid #ffffff14;background:#111b28;color:#9eafc0;border-radius:14px;min-height:52px;padding:10px 8px;font-weight:650;font-size:12px;box-shadow:inset 0 1px #ffffff08;touch-action:manipulation}.btn:active,.btn.flash{transform:translateY(1px);background:#172333}.btn.active{border-color:#89aa994a;color:#bdd0c5;background:#78978612}.btn.wide{grid-column:1/-1}.surfaces{display:grid;grid-template-columns:1fr 1fr;gap:8px}.surface{appearance:none;border:1px solid #ffffff14;background:#111b28;color:#9eafc0;border-radius:14px;min-height:64px;padding:10px;text-align:left;overflow:hidden}.surface strong{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.surface span{display:block;font-size:8px;color:#60748d;margin-top:5px}.surface.active{border-color:#89aa994a;background:#78978612;color:#c4d5cc}.row{display:grid;grid-template-columns:1fr auto;gap:8px}.field{width:100%;min-width:0;border:1px solid #ffffff14;background:#111b28;color:#dfe7f0;border-radius:14px;padding:0 12px;height:50px;outline:none;font-size:13px}.field:focus{border-color:#78978655}.send{appearance:none;border:1px solid #78978655;background:#78978615;color:#b8cbbf;border-radius:14px;padding:0 16px;font-weight:700}.home{margin-top:18px;width:100%;height:58px;border-radius:16px;font-size:13px}.tiny{font-size:8px;color:#52657b;margin-top:8px;line-height:1.4}.latency{font:8px ui-monospace,SFMono-Regular,Menlo,monospace;color:#52657b;margin-top:9px;min-height:12px}.error{margin:20vh auto 0;max-width:320px;text-align:center;color:#8fa1b4;line-height:1.45}.error b{color:#dce5ed;display:block;margin-bottom:7px}
+</style>
+</head>
+<body>
+<main class="app" id="app">
+  <header class="top"><div><div class="k">PROMETEO REMOTE</div><div class="title">Control</div></div><div class="status"><b id="room">—</b><span id="conn"><i class="dot"></i>conectando</span></div></header>
+  <section class="section"><h2>pantalla</h2><div class="grid"><button class="btn" data-layout="single">1</button><button class="btn" data-layout="split">2</button><button class="btn" data-layout="quad">4</button></div></section>
+  <section class="section"><h2>superficies</h2><div id="surfaces" class="surfaces"><button class="surface" disabled><strong>Esperando TV…</strong><span>sin estado todavía</span></button></div></section>
+  <section class="section"><h2>mostrar texto</h2><div class="row"><input id="text" class="field" placeholder="Escribí algo para la tele"><button id="showText" class="send">→</button></div><div class="grid" style="margin-top:8px"><button id="clearText" class="btn wide">ocultar texto</button></div></section>
+  <section class="section"><h2>youtube / web</h2><div class="row"><input id="media" class="field" inputmode="url" placeholder="Pegá un link de YouTube"><button id="openMedia" class="send">→</button></div><div class="grid" style="margin-top:8px"><button id="closeMedia" class="btn">cerrar</button><button id="refresh" class="btn">recargar</button><button id="pair" class="btn">QR</button></div></section>
+  <button id="home" class="btn home active">volver a Prometeo Live</button>
+  <div id="latency" class="latency"></div>
+  <div class="tiny">Este control manda eventos directos a la sala de la TV. No usa ChatGPT ni ningún modelo intermedio.</div>
+</main>
+<script>
+(()=>{
+'use strict';
+const ENDPOINT='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-tv-room-v1';
+const params=new URLSearchParams(location.hash.slice(1));
+const code=params.get('room')||'',token=params.get('t')||'';
+const app=document.getElementById('app'),roomEl=document.getElementById('room'),conn=document.getElementById('conn'),latency=document.getElementById('latency'),surfaces=document.getElementById('surfaces');
+let lastEvent=0,tvState=null,alive=false;
+let clientId=localStorage.getItem('prometeo.remote.client.v1');if(!clientId){clientId='r-'+Math.random().toString(36).slice(2,10);localStorage.setItem('prometeo.remote.client.v1',clientId)}
+if(!/^TV-[A-Z2-9]{6}$/.test(code)||token.length<30){app.innerHTML='<div class="error"><b>Este control no está vinculado.</b>Escaneá el QR que aparece en Prometeo Live.</div>';return}
+roomEl.textContent=code;
+async function api(body){const t=performance.now();const r=await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'});let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.error||('HTTP '+r.status));latency.textContent=Math.round(performance.now()-t)+' ms';return d}
+function buzz(){try{navigator.vibrate?.(12)}catch{}}
+function flash(el){el?.classList.add('flash');setTimeout(()=>el?.classList.remove('flash'),120)}
+async function emit(event_type,payload={},el=null){buzz();flash(el);try{await api({action:'emit',code,role:'remote',token,client_id:clientId,event_type,payload});setConnected(true)}catch(e){setConnected(false);latency.textContent=String(e.message||e)}}
+function setConnected(v){alive=v;conn.innerHTML=`<i class="dot ${v?'on':''}"></i>${v?'conectado':'reconectando'}`}
+function renderState(s){tvState=s||tvState;if(!tvState)return;setConnected(true);document.querySelectorAll('[data-layout]').forEach(b=>b.classList.toggle('active',b.dataset.layout===tvState.layout&&tvState.focus_index==null));const list=Array.isArray(tvState.surfaces)?tvState.surfaces:[];surfaces.innerHTML='';if(!list.length){surfaces.innerHTML='<button class="surface" disabled><strong>Sin superficies</strong><span>la TV no publicó ninguna</span></button>';return}for(const s of list){const b=document.createElement('button');b.className='surface'+(Number(tvState.focus_index)===Number(s.index)?' active':'');b.innerHTML=`<strong>${escapeHtml(s.title||s.id||('Superficie '+(Number(s.index)+1)))}</strong><span>${escapeHtml(s.id||'')}</span>`;b.onclick=()=>emit('view.focus',{index:Number(s.index)},b);surfaces.appendChild(b)}}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function poll(){try{const d=await api({action:'poll',code,role:'remote',token,after_id:lastEvent});for(const e of d.events||[]){lastEvent=Math.max(lastEvent,Number(e.id||0));if(e.source==='tv'&&e.event_type==='tv.state')renderState(e.payload)}setConnected(true)}catch(e){setConnected(false);if(String(e.message).includes('ROOM_EXPIRED')){app.innerHTML='<div class="error"><b>Esta sala venció.</b>Volvé a escanear el QR de la TV.</div>';return}}setTimeout(poll,420)}
+document.querySelectorAll('[data-layout]').forEach(b=>b.onclick=()=>emit('view.layout',{mode:b.dataset.layout},b));
+document.getElementById('showText').onclick=()=>emit('view.overlay',{text:document.getElementById('text').value},document.getElementById('showText'));
+document.getElementById('clearText').onclick=()=>emit('view.overlay',{text:''},document.getElementById('clearText'));
+document.getElementById('openMedia').onclick=()=>{const u=document.getElementById('media').value.trim();if(u)emit('view.media',{url:u},document.getElementById('openMedia'))};
+document.getElementById('closeMedia').onclick=()=>emit('view.media.close',{},document.getElementById('closeMedia'));
+document.getElementById('refresh').onclick=()=>emit('view.refresh',{},document.getElementById('refresh'));
+document.getElementById('pair').onclick=()=>emit('pair.show',{},document.getElementById('pair'));
+document.getElementById('home').onclick=()=>emit('view.home',{},document.getElementById('home'));
+document.getElementById('text').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('showText').click()});
+document.getElementById('media').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('openMedia').click()});
+(async()=>{await emit('remote.join',{name:'Celular',user_agent:navigator.userAgent.slice(0,160)});poll()})();
+})();
+</script>
+</body>
+</html>
