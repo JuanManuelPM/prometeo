@@ -1,0 +1,74 @@
+(()=>{
+'use strict';
+/* UI Lab v1: no toca audio, contenido, whiteboard ni persistencia. Sólo reorganiza la interfaz. */
+
+function ensureFlowbar(){
+  let bar=document.getElementById('uiFlowbar');
+  if(bar)return bar;
+  bar=document.createElement('div');
+  bar.id='uiFlowbar';bar.className='ui-flowbar';
+  bar.innerHTML='<button class="ui-review" type="button">No entendí</button><button class="ui-good" type="button">Entendí</button><button class="ui-next" type="button">Siguiente →</button>';
+  document.body.appendChild(bar);
+  bar.querySelector('.ui-review').addEventListener('click',()=>setAssessment('review'));
+  bar.querySelector('.ui-good').addEventListener('click',()=>setAssessment('good'));
+  bar.querySelector('.ui-next').addEventListener('click',()=>document.getElementById('nextTopic')?.click());
+  return bar;
+}
+
+function activeTopicMeta(){
+  const active=document.querySelector('#view-topic .levelnav [data-level-node].active');
+  if(!active)return null;
+  return {id:active.dataset.levelTopic,level:active.dataset.levelNode};
+}
+
+function authorityButton(status){
+  const m=activeTopicMeta();if(!m)return null;
+  return document.querySelector(`#view-topic [data-level-set="${status}"][data-level-id="${m.id}"][data-level="${m.level}"]`);
+}
+
+function setAssessment(status){
+  const b=authorityButton(status);if(b)b.click();
+  requestAnimationFrame(syncUI);
+}
+
+function mapStatuses(){
+  document.querySelectorAll('#view-map .chainitem').forEach(item=>{
+    const empty=item.querySelector('.mapthumbbtn.empty-sketch');
+    item.classList.toggle('ui-no-thumb',!!empty);
+    let label=item.querySelector('.ui-map-status');
+    if(!label){label=document.createElement('span');label.className='ui-map-status';item.querySelector('.chainmain')?.appendChild(label)}
+    const marks=[...item.querySelectorAll('.levelmarks i')];
+    const hasReview=marks.some(x=>x.classList.contains('review'));
+    const quick=marks[0];
+    label.className='ui-map-status';
+    if(hasReview){label.textContent='revisar';label.classList.add('review')}
+    else if(quick?.classList.contains('good')){label.textContent='entendido';label.classList.add('good')}
+    else if(quick && !quick.classList.contains('new')){label.textContent='visto'}
+    else label.textContent='';
+  });
+}
+
+function syncUI(){
+  const bar=ensureFlowbar();
+  const topic=document.getElementById('view-topic');
+  const topicActive=!!topic?.classList.contains('active');
+  document.body.classList.toggle('ui-topic-active',topicActive);
+  const meta=topicActive?activeTopicMeta():null;
+  document.body.classList.toggle('ui-practice-visible',!!meta && meta.level==='recall');
+  if(topicActive&&meta){
+    const good=authorityButton('good'),review=authorityButton('review');
+    bar.querySelector('.ui-good')?.classList.toggle('selected',!!good?.classList.contains('active'));
+    bar.querySelector('.ui-review')?.classList.toggle('selected',!!review?.classList.contains('active'));
+    const next=document.getElementById('nextTopic');
+    const nb=bar.querySelector('.ui-next');
+    if(nb)nb.textContent=next?.textContent?.trim()||'Siguiente →';
+  }
+  mapStatuses();
+}
+
+document.addEventListener('click',()=>setTimeout(syncUI,0),true);
+document.addEventListener('keydown',()=>setTimeout(syncUI,0),true);
+const views=document.querySelector('.main');
+if(views)new MutationObserver(()=>requestAnimationFrame(syncUI)).observe(views,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
+setTimeout(syncUI,0);setTimeout(syncUI,350);
+})();
