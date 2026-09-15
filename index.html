@@ -3,70 +3,88 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#f5f2eb">
 <title>Prometeo</title>
 <style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff}
-#fail{display:none;position:fixed;right:18px;bottom:18px;width:54px;height:54px;border:0;border-radius:50%;background:#151A20;color:#fff;font:800 18px system-ui;box-shadow:0 8px 18px rgba(0,0,0,.18)}
-#msg{display:none;position:fixed;right:18px;bottom:84px;max-width:min(460px,calc(100vw - 36px));padding:9px 11px;border-radius:12px;background:#151A20;color:#fff;font:600 10px/1.4 system-ui;opacity:.84;white-space:pre-wrap}
+:root{--paper:#f5f2eb;--ink:#181715;--muted:#89837a;--line:#d8d2c8;--panel:#f8f5ef;--led:#a9e06d}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+button{font:inherit;color:inherit}
+#prometeoButton{position:fixed;right:max(9px,env(safe-area-inset-right));bottom:max(9px,env(safe-area-inset-bottom));width:24px;height:24px;padding:0;border:1px solid #cfc8bd;border-radius:9px;background:#ebe6dc;box-shadow:0 2px 7px #00000012;z-index:1000;cursor:pointer}
+#prometeoButton::before{content:"";position:absolute;inset:-11px}
+#prometeoButton::after{content:"";position:absolute;width:4px;height:4px;border-radius:50%;left:9px;top:9px;background:var(--led);box-shadow:0 0 0 2px #a9e06d1c,0 0 6px #8ecb57a8;animation:alive 1.9s ease-in-out infinite}
+@keyframes alive{0%,100%{opacity:.32;transform:scale(.82)}50%{opacity:1;transform:scale(1.12)}}
+#veil{position:fixed;inset:0;background:#17151120;opacity:0;pointer-events:none;transition:opacity .16s;z-index:998}
+#veil.open{opacity:1;pointer-events:auto}
+#menu{position:fixed;right:max(8px,env(safe-area-inset-right));bottom:calc(max(8px,env(safe-area-inset-bottom)) + 35px);width:min(294px,calc(100vw - 16px));max-height:min(72dvh,560px);display:grid;grid-template-rows:auto minmax(0,1fr);background:var(--panel);border:1px solid #d4cec4;border-radius:16px;box-shadow:0 18px 44px #19161120;overflow:hidden;z-index:999;opacity:0;transform:translateY(6px) scale(.985);transform-origin:bottom right;pointer-events:none;transition:opacity .14s,transform .16s cubic-bezier(.2,.8,.2,1)}
+#menu.open{opacity:1;transform:none;pointer-events:auto}
+.menu-head{height:42px;display:grid;grid-template-columns:38px 1fr 38px;align-items:center;border-bottom:1px solid var(--line)}
+.menu-head button{width:38px;height:38px;border:0;background:transparent;padding:0;cursor:pointer;font-size:19px;color:#716b62}
+#back.hidden{visibility:hidden}
+#menuTitle{min-width:0;text-align:center;font-size:11px;font-weight:720;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.015em}
+#items{overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.row{width:100%;min-height:45px;border:0;border-bottom:1px solid var(--line);background:transparent;padding:0 12px;display:grid;grid-template-columns:minmax(0,1fr) 18px;align-items:center;text-align:left;cursor:pointer}
+.row:last-child{border-bottom:0}.row:active{background:#ede8df}.label{font-size:12px;font-weight:590;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.chev{font-size:18px;font-weight:300;color:#948d83;text-align:right;line-height:1}
+#toast{position:fixed;left:50%;bottom:56px;transform:translate(-50%,8px);background:#181715;color:#fff;padding:7px 9px;border-radius:9px;font-size:10px;opacity:0;pointer-events:none;transition:.15s;z-index:1200;white-space:nowrap}
+#toast.on{opacity:.9;transform:translate(-50%,0)}
+@media(max-width:310px){#menu{width:calc(100vw - 12px);right:6px}.row{min-height:43px;padding-left:10px;padding-right:10px}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
 </style>
 </head>
 <body>
-<div id="msg"></div>
-<button id="fail" type="button" aria-label="Reintentar Prometeo">!</button>
-<script>
-(async()=>{
-  if(window.self!==window.top){
-    document.documentElement.dataset.prometeoNestedShell='blocked';
-    try{window.parent.postMessage({type:'prometeo:nested-shell',href:location.href},location.origin)}catch{}
-    return;
-  }
-  document.documentElement.dataset.prometeoUniversalShell='v5';
-  try{localStorage.removeItem('prometeo.shell.enabled.v1')}catch{}
-  const EXPECTED='339aa6173c2b91a7b5e6ef720fb1e9b3efd215cfbfc9cef276e3abeb871c14a5';
-  const EXPECTED_LENGTH=45092;
-  const CHUNKS=[1,2,3,4,5].map(n=>`./shared/universal-shell/v5/chunk-${n}.b64`);
-  const fail=(err)=>{
-    console.error('[Prometeo V5 boot]',err);
-    const b=document.getElementById('fail'),m=document.getElementById('msg');
-    b.style.display='block';m.style.display='block';
-    m.textContent=String(err&&err.message||err||'Error de arranque');
-    b.onclick=()=>location.replace(location.pathname+'?retry='+Date.now()+location.hash);
-  };
-  const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
-  try{
-    const parts=[];
-    for(const url of CHUNKS){
-      const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
-      if(!r.ok)throw new Error(`${url} · HTTP ${r.status}`);
-      parts.push((await r.text()).replace(/\s+/g,''));
-    }
-    const b64=parts.join('');
-    if(b64.length!==EXPECTED_LENGTH)throw new Error(`payload incompleto · ${b64.length}/${EXPECTED_LENGTH} caracteres`);
-    if(b64.length%4!==0)throw new Error(`base64 corrupto · longitud ${b64.length}`);
-    if(!/^[A-Za-z0-9+/]*={0,2}$/.test(b64))throw new Error('base64 contiene caracteres inválidos');
-    const raw=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
-    let html='';
-    if('DecompressionStream' in window){
-      const stream=new Blob([raw]).stream().pipeThrough(new DecompressionStream('gzip'));
-      html=await new Response(stream).text();
-    }else{
-      await new Promise((resolve,reject)=>{
-        const s=document.createElement('script');
-        s.src='https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js';
-        s.onload=resolve;s.onerror=()=>reject(new Error('gzip no disponible'));
-        document.head.appendChild(s);
-      });
-      html=new TextDecoder().decode(window.pako.ungzip(raw));
-    }
-    if(crypto&&crypto.subtle){
-      const digest=hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(html)));
-      if(digest!==EXPECTED)throw new Error(`payload correcto pero SHA inesperado · ${digest.slice(0,12)}`);
-    }
-    if(!html.includes('Universal Shell V5 Integrated Control'))throw new Error('payload V5 inesperado');
-    document.open();document.write(html);document.close();document.documentElement.dataset.prometeoUniversalShell='v5';
-  }catch(err){fail(err)}
-})();
+<div id="veil"></div>
+<section id="menu" aria-hidden="true" aria-label="Prometeo">
+  <header class="menu-head">
+    <button id="back" class="hidden" type="button" aria-label="Volver">‹</button>
+    <div id="menuTitle">Prometeo</div>
+    <button id="close" type="button" aria-label="Cerrar">×</button>
+  </header>
+  <div id="items"></div>
+</section>
+<button id="prometeoButton" type="button" aria-label="Prometeo"></button>
+<div id="toast"></div>
+<script type="module">
+import { PROMETEO_MENU } from './shared/prometeo-home/v1/menu-registry.js';
+import { mountPageChangeLoop } from './shared/capture/v1/change-loop.js';
+import { VoiceQueue } from './shared/prometeo-shell/v1/voice.js';
+import { listNotes, getNote } from './shared/prometeo-shell/v1/db.js';
+const $=s=>document.querySelector(s);
+const menu=$('#menu'),veil=$('#veil'),items=$('#items'),title=$('#menuTitle'),back=$('#back'),toast=$('#toast');
+const stack=[PROMETEO_MENU];let toastTimer=0;
+const page={id:'prometeo-universal-shell-v5',title:'Prometeo',href:location.href,baseline:{surface:'PROMETEO_HOME'}};
+const pageMeta=()=>({pageId:page.id,sourcePath:location.pathname,sourceHref:location.href,sourceTitle:'Prometeo',viewport:`${innerWidth}x${innerHeight}`});
+let changeLoop=null;
+const voice=new VoiceQueue({workerURL:new URL('./shared/prometeo-shell/v1/prometeo-voice-worker.js?v=1',location.href).href,onChange:()=>changeLoop?.refresh?.().catch?.(()=>{}),onRecording:()=>{}});
+await voice.init();
+const adapter={
+  getPage:()=>page,
+  listLocalNotes:listNotes,
+  getLocalNote:getNote,
+  recordingState:()=>voice.state(),
+  startRecording:()=>voice.start(),
+  pauseResumeRecording:()=>voice.pauseResume(),
+  saveRecording:()=>voice.save(pageMeta()),
+  discardRecording:()=>voice.discard(),
+  createTextCapture:async text=>{
+    const body=String(text||'').trim();if(!body)return null;
+    if(!changeLoop?.client)throw new Error('Notas todavía no está listo');
+    const file=new File([body],`nota-${new Date().toISOString().replace(/[:.]/g,'-')}.txt`,{type:'text/plain;charset=utf-8'});
+    return changeLoop.client.uploadAttachment(file,page)
+  },
+  openLegacyNotes:()=>{location.href='./legacy/prometeo-v5/'},
+  onClose:()=>{},navigatePage:async()=>{},previewUrl:url=>{if(url)location.href=url}
+};
+changeLoop=mountPageChangeLoop({adapter});
+function say(text){toast.textContent=text;toast.classList.add('on');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('on'),1300)}
+function current(){return stack[stack.length-1]}
+function openMenu(){render();menu.classList.add('open');veil.classList.add('open');menu.setAttribute('aria-hidden','false')}
+function closeMenu(){menu.classList.remove('open');veil.classList.remove('open');menu.setAttribute('aria-hidden','true')}
+function render(){const node=current();title.textContent=node.title||node.label||'Prometeo';back.classList.toggle('hidden',stack.length===1);items.replaceChildren();for(const item of node.items||[]){const b=document.createElement('button');b.type='button';b.className='row';b.dataset.id=item.id||'';const label=document.createElement('span');label.className='label';label.textContent=item.label||'';const chev=document.createElement('span');chev.className='chev';chev.textContent=item.items?'›':'';b.append(label,chev);b.addEventListener('click',()=>activate(item));items.append(b)}items.scrollTop=0}
+async function activate(item){if(item.items){stack.push(item);render();return}closeMenu();if(item.action==='record'){await changeLoop.open(page,{startRecording:true});return}if(item.action==='notes'){await changeLoop.open(page);return}if(item.href)location.href=new URL(item.href,location.href).href}
+$('#prometeoButton').addEventListener('click',()=>menu.classList.contains('open')?closeMenu():openMenu());
+$('#close').addEventListener('click',closeMenu);veil.addEventListener('click',closeMenu);back.addEventListener('click',()=>{if(stack.length>1){stack.pop();render()}});
+addEventListener('keydown',e=>{if(e.key==='Escape'){if(menu.classList.contains('open'))closeMenu();else changeLoop?.close?.()}});
+addEventListener('pagehide',()=>voice.close(),{once:true});render();
 </script>
 </body>
 </html>
