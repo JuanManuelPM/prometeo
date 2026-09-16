@@ -1,34 +1,58 @@
 {
   "schema": "prometeo.chat-work-board/v1",
   "chat_object_id": "chat-object-prometeo-chat-control-main",
-  "updated_at": "2026-09-16T15:28:00-03:00",
+  "updated_at": "2026-09-16T16:05:00-03:00",
   "protocol_ref": "coordination/workstreams/chat-native-control-plane-v1/DELEGATED_WORK_PROTOCOL_V1.md",
   "run_contract_ref": "coordination/workstreams/chat-native-control-plane-v1/WORKER_RUN_CONTRACT_V1.json",
   "return_contract_ref": "coordination/workstreams/chat-native-control-plane-v1/DELEGATED_RETURN_CONTRACT_V1.json",
-  "batch_order": ["B-CHATOBJ-01"],
+  "survival_set_ref": "coordination/workstreams/chat-native-control-plane-v1/SURVIVAL_SET_V1.md",
+  "zero_memory_mode_ref": "coordination/workstreams/chat-native-control-plane-v1/ZERO_MEMORY_MODE_V1.md",
+  "batch_order": ["B-ZEROMEM-01", "B-CHATOBJ-01"],
   "batches": {
-    "B-CHATOBJ-01": {
-      "batch_id": "B-CHATOBJ-01",
-      "title": "Make Reincarnable Chat Objects + one-shot workers real",
-      "goal": "Convert the product blueprint into runtime/compiler/bootstrap/job/run/test implementation using several narrow disposable workers in parallel.",
+    "B-ZEROMEM-01": {
+      "batch_id": "B-ZEROMEM-01",
+      "title": "Observed zero-memory canary",
+      "goal": "Prove one complete fresh-chat worker cycle and parent observation/integration before scaling parallelism.",
       "status": "DISPATCHABLE",
       "integration_owner": "chat-object-prometeo-chat-control-main",
-      "required_work_items": ["WI-CC-01", "WI-CC-02", "WI-CC-03", "WI-CC-04", "WI-CC-05", "WI-CC-06"],
+      "required_work_items": ["WI-ZM-01"],
       "optional_work_items": [],
-      "completion_rule": "Ready for parent integration when all required items have at least one terminal run with a durable RETURN, or an explicit real boundary the parent can reconcile.",
+      "completion_rule": "PASS only when the worker run exists, STARTED was durable before the return, a transcript-independent RETURN exists, run is DONE, parent verifies no forbidden writes, and parent records integration/acceptance of the canary.",
       "derived_state": {
-        "dispatchable": 6,
+        "dispatchable": 1,
         "started": 0,
         "working": 0,
         "returned": 0,
         "done": 0,
         "boundary_or_failed": 0,
         "unconsumed_returns": 0,
-        "note": "Initial projection only. Once runs exist, counts must be derived from independent run/RETURN state rather than manually incremented by workers."
+        "human_launch_missing": true
+      }
+    },
+    "B-CHATOBJ-01": {
+      "batch_id": "B-CHATOBJ-01",
+      "title": "Make Reincarnable Chat Objects + one-shot workers real",
+      "goal": "Convert the product blueprint into runtime/compiler/bootstrap/job/run/test implementation using several narrow disposable workers in parallel.",
+      "status": "READY_AFTER_CANARY",
+      "blocked_by": ["B-ZEROMEM-01_PASS"],
+      "integration_owner": "chat-object-prometeo-chat-control-main",
+      "required_work_items": ["WI-CC-01", "WI-CC-02", "WI-CC-03", "WI-CC-04", "WI-CC-05", "WI-CC-06"],
+      "optional_work_items": [],
+      "completion_rule": "Ready for parent integration when all required items have at least one terminal run with a durable RETURN, or an explicit real boundary the parent can reconcile.",
+      "derived_state": {
+        "dispatchable_after_canary": 6,
+        "started": 0,
+        "working": 0,
+        "returned": 0,
+        "done": 0,
+        "boundary_or_failed": 0,
+        "unconsumed_returns": 0,
+        "note": "Do not launch full fan-out until B-ZEROMEM-01 passes."
       }
     }
   },
   "launch_index": {
+    "P-ZM-01": "WI-ZM-01",
     "P-CC-01": "WI-CC-01",
     "P-CC-02": "WI-CC-02",
     "P-CC-03": "WI-CC-03",
@@ -37,14 +61,22 @@
     "P-CC-06": "WI-CC-06"
   },
   "work_items": {
-    "WI-CC-01": {"title":"Runtime/compiler extension audit","launch_code":"P-CC-01","status":"DISPATCHABLE","job_ref":"coordination/workstreams/chat-native-control-plane-v1/work-items/WI-CC-01/JOB.json","purpose":"Map exactly how Agent Runtime compiler/network/bootstrap should ingest chat_object_id/work_item_id/batch/run state with minimum invasive change."},
-    "WI-CC-02": {"title":"Chat Object + Work Item schema adversarial review","launch_code":"P-CC-02","status":"DISPATCHABLE","job_ref":"coordination/workstreams/chat-native-control-plane-v1/work-items/WI-CC-02/JOB.json","purpose":"Stress-test the new object model against prior Prometeo continuity/authority/worker designs and identify missing fields or dangerous coupling before deeper implementation."},
-    "WI-CC-03": {"title":"Tiny worker launch resolver","launch_code":"P-CC-03","status":"DISPATCHABLE","job_ref":"coordination/workstreams/chat-native-control-plane-v1/work-items/WI-CC-03/JOB.json","purpose":"Implement/define the smallest bootstrap path for `Prometeo <launch_code>` -> exact durable JOB -> run creation/start."},
-    "WI-CC-04": {"title":"Worker Run + batch status compiler","launch_code":"P-CC-04","status":"DISPATCHABLE","job_ref":"coordination/workstreams/chat-native-control-plane-v1/work-items/WI-CC-04/JOB.json","purpose":"Design/implement independent run records and derived parent summary so parent can truthfully know 0/6, 3/6, 6/6 without a shared mutable status bottleneck."},
-    "WI-CC-05": {"title":"Fresh-chat reincarnation test harness","launch_code":"P-CC-05","status":"DISPATCHABLE","job_ref":"coordination/workstreams/chat-native-control-plane-v1/work-items/WI-CC-05/JOB.json","purpose":"Build executable/inspectable tests proving a fresh chat can resolve a Chat Object and reconstruct mission/design/rules/frontier/work state without transcript dependence."},
-    "WI-CC-06": {"title":"Historical architecture recovery + simplification review","launch_code":"P-CC-06","status":"DISPATCHABLE","job_ref":"coordination/workstreams/chat-native-control-plane-v1/work-items/WI-CC-06/JOB.json","purpose":"Compare current blueprint to prior Planner/Compiler, Session Return, Recovery Sweep, PREPARE/DIRECT/EXECUTE and Steward/Merger patterns; identify reusable pieces and unnecessary reinvention."}
+    "WI-ZM-01": {
+      "title": "Zero-memory reincarnation canary",
+      "launch_code": "P-ZM-01",
+      "status": "DISPATCHABLE",
+      "preallocated_run_id": "RUN-ZM-01-A",
+      "job_ref": "coordination/workstreams/chat-native-control-plane-v1/work-items/WI-ZM-01/JOB.json",
+      "purpose": "Prove fresh worker recovery + durable STARTED + transcript-independent RETURN + DONE before parallel scale."
+    },
+    "WI-CC-01": {"title":"Runtime/compiler extension audit","launch_code":"P-CC-01","status":"READY_AFTER_CANARY","job_ref":"coordination/workstreams/chat-native-control-plane-v1/work-items/WI-CC-01/JOB.json","purpose":"Map exactly how Agent Runtime compiler/network/bootstrap should ingest chat_object_id/work_item_id/batch/run state with minimum invasive change."},
+    "WI-CC-02": {"title":"Chat Object + Work Item schema adversarial review","launch_code":"P-CC-02","status":"READY_AFTER_CANARY","job_ref":"coordination/workstreams/chat-native-control-plane-v1/work-items/WI-CC-02/JOB.json","purpose":"Stress-test the new object model against prior Prometeo continuity/authority/worker designs and identify missing fields or dangerous coupling before deeper implementation."},
+    "WI-CC-03": {"title":"Tiny worker launch resolver","launch_code":"P-CC-03","status":"READY_AFTER_CANARY","job_ref":"coordination/workstreams/chat-native-control-plane-v1/work-items/WI-CC-03/JOB.json","purpose":"Implement/define the smallest bootstrap path for `Prometeo <launch_code>` -> exact durable JOB -> run creation/start."},
+    "WI-CC-04": {"title":"Worker Run + batch status compiler","launch_code":"P-CC-04","status":"READY_AFTER_CANARY","job_ref":"coordination/workstreams/chat-native-control-plane-v1/work-items/WI-CC-04/JOB.json","purpose":"Design/implement independent run records and derived parent summary so parent can truthfully know 0/6, 3/6, 6/6 without a shared mutable status bottleneck."},
+    "WI-CC-05": {"title":"Fresh-chat reincarnation test harness","launch_code":"P-CC-05","status":"READY_AFTER_CANARY","job_ref":"coordination/workstreams/chat-native-control-plane-v1/work-items/WI-CC-05/JOB.json","purpose":"Build executable/inspectable tests proving a fresh chat can resolve a Chat Object and reconstruct mission/design/rules/frontier/work state without transcript dependence."},
+    "WI-CC-06": {"title":"Historical architecture recovery + simplification review","launch_code":"P-CC-06","status":"READY_AFTER_CANARY","job_ref":"coordination/workstreams/chat-native-control-plane-v1/work-items/WI-CC-06/JOB.json","purpose":"Compare current blueprint to prior Planner/Compiler, Session Return, Recovery Sweep, PREPARE/DIRECT/EXECUTE and Steward/Merger patterns; identify reusable pieces and unnecessary reinvention."}
   },
-  "parent_refresh_rule": "Derived counts must come from durable JOB/run/RETURN state. Parent may mention worker progress when it changes the useful next action; no noisy heartbeat required.",
-  "worker_write_rule": "Workers do not mutate this central board during execution. They write independent run/return objects; a compiler/parent refresh derives aggregate views.",
-  "launch_examples": ["Prometeo P-CC-01", "Prometeo P-CC-02", "Prometeo P-CC-03", "Prometeo P-CC-04", "Prometeo P-CC-05", "Prometeo P-CC-06"]
+  "parent_refresh_rule": "Derived counts must come from durable JOB/run/RETURN state. Parent must distinguish NOT_LAUNCHED from STARTED/WORKING/RETURNED/DONE and may surface worker progress when it changes the useful next action.",
+  "worker_write_rule": "Workers do not mutate this central board during execution. They write independent run/return objects; parent/compiler derives aggregate views.",
+  "launch_examples": ["Prometeo P-ZM-01", "Prometeo P-CC-01", "Prometeo P-CC-02", "Prometeo P-CC-03", "Prometeo P-CC-04", "Prometeo P-CC-05", "Prometeo P-CC-06"]
 }
