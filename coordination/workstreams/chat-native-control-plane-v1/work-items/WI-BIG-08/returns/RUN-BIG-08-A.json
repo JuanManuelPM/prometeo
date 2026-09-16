@@ -1,0 +1,276 @@
+{
+  "schema": "prometeo.delegated-return/v1",
+  "work_item_id": "WI-BIG-08",
+  "worker_instance_id": "RUN-BIG-08-A",
+  "parent_chat_object_id": "chat-object-prometeo-chat-control-main",
+  "batch_id": "B-BIGPIC-01",
+  "status": "COMPLETE",
+  "useful_delta": "Recovered the existing Agent Network/EPOCH/work-item lifecycle and designed a concrete derived Control Room that does not create a new authority or mutable status bottleneck. The key implementation gap is now explicit: coordination/** writes already trigger runtime compilation and a new EPOCH, but build-agent-runtime.mjs does not scan delegated JOB/runs/returns/INTEGRATION subtrees, so parent batch awareness is not yet compiled. The proposed solution is a compiler-native, per-Chat-Object Control Room projection with hash-based PRE_RESPONSE refresh, objective partial/full batch readiness, explicit missed-launch visibility, conservative staleness semantics and minimal human-facing status.",
+  "facts": {
+    "existing_foundation": [
+      "Agent Network v3 already provides a cheap EPOCH, derived Network/Convergence views, independent worker-status objects and collision/dependency events; Control Room should extend these derived views rather than replace them.",
+      "The delegated-work model already defines durable JOB -> independent Run -> RETURN -> parent integration, with missing run meaning NOT_LAUNCHED and DONE requiring durable return evidence.",
+      "B-ZEROMEM-01 passed the observed fresh-chat canary and explicitly left compiled aggregate batch status as an unimplemented limitation.",
+      "The main runtime workflow is triggered by changes under coordination/**, so delegated run/return commits already cause the runtime compiler to run and the global EPOCH to advance.",
+      "The current build-agent-runtime.mjs discovers workstreams from PACK.json and worker status from coordination/network/workers, but does not discover delegated work-items/*/JOB.json, runs/*.json, returns/*.json or INTEGRATION.json. Therefore EPOCH can signal that something changed while the parent still lacks a compact delegated-work projection.",
+      "Run WORKING updates are intentionally material-state updates, not heartbeat traffic. Therefore elapsed time alone cannot truthfully convert an active run into FAILED."
+    ],
+    "derived_truth_rules": {
+      "not_launched": "A required Work Item with no effective run object is NOT_LAUNCHED.",
+      "active": "A non-superseded effective run in CLAIMED, STARTED or WORKING is active under the current run contract.",
+      "returned": "A return is durable only when the return artifact exists; a return_ref should resolve to that artifact.",
+      "done": "Count DONE only when the effective run says DONE and its durable RETURN exists. A DONE-without-return state is an invariant violation, not successful completion.",
+      "boundary_or_failed": "BOUNDARY and FAILED are explicit states with reasons/evidence; do not infer them from silence.",
+      "consumption": "RETURN existence and worker DONE do not imply REVIEWED, INTEGRATED, Human Accepted, Current or Served. Consumption/integration remains a separate parent/steward decision.",
+      "multiple_runs": "Do not choose a winner merely by latest timestamp. Respect explicit SUPERSEDED/retry lineage; if retry authority is unresolved, expose all effective runs/ambiguity to the parent rather than inventing canonicality."
+    },
+    "current_runtime_gap": "The durable write path is already event-like at the backend because GitHub coordination writes trigger runtime compilation, but there is no compiled delegated-work/control-room read model. This is why current orchestration can be durable yet still require targeted repository inspection by a parent.",
+    "edge_constraint": "A ChatGPT parent cannot be asynchronously interrupted by a GitHub event while no turn is executing. The practical architecture is event-driven durable compilation on the backend plus cheap pull-on-turn refresh in PRE_RESPONSE, not conversational polling or heartbeat loops."
+  },
+  "candidates": [
+    {
+      "id": "C08-01",
+      "title": "Compiler-native derived Control Room",
+      "recommendation": "Extend the existing runtime compiler to derive Control Room state from canonical JOB/Run/RETURN/integration evidence. Do not let workers maintain one shared aggregate status file.",
+      "proposed_outputs": [
+        "agent-runtime/control-room-index.json",
+        "agent-runtime/chat-objects/<chat_object_id>/control-room.json"
+      ],
+      "optional_scaling": "If one Chat Object becomes large, batch details may be split into stable batch URLs while control-room.json remains a compact summary/index.",
+      "authority": "DERIVED_COORDINATION_ONLY_NOT_PRODUCT_AUTHORITY"
+    },
+    {
+      "id": "C08-02",
+      "title": "Control Room data model",
+      "schema_sketch": {
+        "schema": "prometeo.control-room/v1",
+        "generated_at": "<compiler timestamp>",
+        "epoch": "<runtime epoch>",
+        "source_main_head": "<main head>",
+        "chat_object_id": "<durable parent id>",
+        "control_room_hash": "<semantic hash>",
+        "batches": [
+          {
+            "batch_id": "<batch>",
+            "title": "<title>",
+            "required_work_items": ["<work_item_id>"],
+            "counts": {
+              "prepared": 0,
+              "not_launched": 0,
+              "started": 0,
+              "active": 0,
+              "returned": 0,
+              "done": 0,
+              "boundary": 0,
+              "failed": 0,
+              "terminal": 0,
+              "unconsumed_returns": 0
+            },
+            "readiness": {
+              "partial_review_ready": false,
+              "full_reconciliation_ready": false,
+              "success_complete": false,
+              "human_launch_needed": false,
+              "blocked": false
+            },
+            "work_items": [
+              {
+                "work_item_id": "<id>",
+                "launch_code": "<alias>",
+                "job_status": "<status>",
+                "runs": [],
+                "return_durable": false,
+                "consumption_state": "UNCONSUMED|REVIEWED|INTEGRATED|REJECTED|SUPERSEDED|FOLLOWUP_REQUIRED|NONE",
+                "dependencies": {
+                  "required": [],
+                  "satisfied": [],
+                  "blocked_by": []
+                },
+                "collision_event_ids": []
+              }
+            ]
+          }
+        ],
+        "attention": [],
+        "next_parent_action": {
+          "kind": "NONE|REVIEW_RETURNS|INTEGRATE_BATCH|LAUNCH_REQUIRED|RESOLVE_COLLISION|INSPECT_STALE|HUMAN_BOUNDARY",
+          "refs": [],
+          "why": "<derived reason>"
+        },
+        "privacy": "PUBLIC_COORDINATION_METADATA_ONLY"
+      }
+    },
+    {
+      "id": "C08-03",
+      "title": "Compiler discovery strategy",
+      "design": [
+        "Add delegated-work discovery that scans coordination/workstreams/**/work-items/*/JOB.json and reads sibling runs/*.json, returns/*.json and optional INTEGRATION/consumption evidence.",
+        "Group derived state by parent_chat_object_id and batch_id.",
+        "Resolve required Work Items from an explicit batch declaration/Work Board when present; otherwise use the declared batch membership in JOB/board evidence. Never infer membership from newest-looking files.",
+        "Reuse Agent Network convergence for collision/dependency events; store event refs in Control Room instead of implementing a second collision engine.",
+        "Keep public projection sanitized and metadata-only."
+      ]
+    },
+    {
+      "id": "C08-04",
+      "title": "Partial/full batch readiness",
+      "rules": {
+        "partial_review_ready": "true when at least one durable unconsumed RETURN exists; parent may inspect useful results without waiting for N/N when doing so is valuable.",
+        "full_reconciliation_ready": "true when every required Work Item is terminal or explicitly waived/superseded under valid parent policy, and there is return/evidence to reconcile. This may be true even if a worker ended at BOUNDARY/FAILED.",
+        "success_complete": "true only when every required Work Item is DONE with durable RETURN evidence.",
+        "terminal_with_gaps": "all required items terminal but one or more are FAILED/BOUNDARY or lack valid return evidence; do not report this as N/N success."
+      }
+    },
+    {
+      "id": "C08-05",
+      "title": "Missed-launch visibility",
+      "rules": [
+        "Always expose objective not_launched_required from required JOBs lacking run evidence.",
+        "When siblings have started and a required item has no run, surface PARTIAL_LAUNCH or POSSIBLE_MISSED_LAUNCH with its launch_code.",
+        "Reserve definitive MISSED_LAUNCH for an explicit batch launch expectation/deadline/grace rule or parent evidence that the launch was intended. Silence alone does not prove human error.",
+        "If human action is truly required, the minimal status should name only the missing launch code(s), not ask the human to reconstruct the batch from memory."
+      ]
+    },
+    {
+      "id": "C08-06",
+      "title": "Stale visibility without heartbeat noise",
+      "rules": [
+        "Use timestamps only to derive STALE_CANDIDATE, never automatic FAILED.",
+        "A stale threshold should be batch/job/profile policy such as stale_after, not a universal hard-coded timeout.",
+        "Escalate from stale candidate only through explicit terminal evidence, parent supersession/retry policy or another authoritative signal.",
+        "BIG-07 should own retry/relaunch/supersession mechanics; Control Room owns visibility and attention state."
+      ]
+    },
+    {
+      "id": "C08-07",
+      "title": "PRE_RESPONSE refresh strategy",
+      "algorithm": [
+        "Resolve bound Chat Object identity as today.",
+        "Read the tiny global EPOCH.",
+        "If EPOCH is unchanged, reuse the previously loaded Control Room summary unless the user explicitly requests worker/batch status.",
+        "If EPOCH changed, read a tiny control-room-index.json containing per-Chat-Object semantic hashes and URLs.",
+        "If this Chat Object's control_room_hash is unchanged, do not load the full Control Room; unrelated repository activity caused the EPOCH change.",
+        "If the hash changed, fetch only this Chat Object's control-room.json and evaluate attention/readiness before interpreting the user's request.",
+        "When review/integration is now the highest-value autonomous action and authority allows it, the parent should perform it instead of assigning the human a coordination chore.",
+        "Surface status to the human only when the state changes the next useful action, requires a human launch/approval, reaches a real boundary/collision, or the human asks for status."
+      ],
+      "model": "EVENT_DRIVEN_BACKEND_PLUS_PULL_ON_TURN_EDGE"
+    },
+    {
+      "id": "C08-08",
+      "title": "Minimal human-facing status",
+      "rules": [
+        "Silent by default when worker state does not change the current action.",
+        "On explicit status request, prefer one compact batch line such as: B-BIGPIC: 8/18 started · 5 returned · 3 active · 10 not launched.",
+        "Attention priority: real HARD collision/human boundary > required human launch > full reconciliation ready > partial progress.",
+        "If all required items are terminal but one boundary remains, report terminal composition, not false success: 18/18 terminal · 17 returns · 1 boundary · reconciliation ready.",
+        "Only report successful N/N when all required items satisfy DONE + durable RETURN.",
+        "Do not narrate every STARTED/WORKING transition and do not expose private Capture/transcript payloads."
+      ]
+    },
+    {
+      "id": "C08-09",
+      "title": "Implementation options",
+      "options": [
+        {
+          "option": "A_COMPILER_NATIVE",
+          "assessment": "Preferred candidate",
+          "reason": "Reuses the existing runtime build trigger, EPOCH, Agent Network convergence and read-only derived-state model. Gives fresh parents O(1)-ish targeted awareness and scales without a mutable coordination bottleneck."
+        },
+        {
+          "option": "B_PARENT_ON_DEMAND_REPO_SCAN",
+          "assessment": "Fallback only",
+          "reason": "Requires no shared compiler change but becomes tool-heavy and repetitive at scale; useful only while the compiled projection does not yet exist."
+        },
+        {
+          "option": "C_WORKERS_MUTATE_SHARED_WORK_BOARD",
+          "assessment": "Reject",
+          "reason": "Violates independent worker-state invariants, creates write contention and makes aggregate truth vulnerable to stale/last-writer-wins updates."
+        }
+      ]
+    },
+    {
+      "id": "C08-10",
+      "title": "Falsifying test matrix",
+      "tests": [
+        "0/N: N required JOBs and no runs -> all NOT_LAUNCHED; no invented active workers.",
+        "Partial launch: 5/6 required runs -> exactly one NOT_LAUNCHED and no false N/N readiness.",
+        "Partial return: returned/active/not-launched counts remain independently correct.",
+        "All success: every required run DONE with durable return -> success_complete and full_reconciliation_ready.",
+        "Boundary batch: all required terminal with one BOUNDARY -> full_reconciliation_ready may be true while success_complete is false.",
+        "DONE without RETURN -> invariant violation and not counted as successful done.",
+        "RETURN exists while run remains STARTED -> expose lifecycle inconsistency rather than silently normalizing it.",
+        "Old active run beyond policy threshold -> STALE_CANDIDATE only; not FAILED.",
+        "Overlapping active writes -> propagate blocking HARD convergence event; completed overlap stays non-blocking.",
+        "Integration receipt consumes a return -> unconsumed_returns decreases without rewriting worker return.",
+        "Unrelated main commit changes global EPOCH but not this Chat Object's semantic hash -> PRE_RESPONSE skips full Control Room load.",
+        "Fresh parent reincarnation recovers identical batch state with no transcript dependency.",
+        "Public projection passes privacy/falsification checks and contains no raw private payload."
+      ]
+    }
+  ],
+  "artifacts": [
+    "coordination/workstreams/chat-native-control-plane-v1/work-items/WI-BIG-08/runs/RUN-BIG-08-A.json",
+    "coordination/workstreams/chat-native-control-plane-v1/work-items/WI-BIG-08/returns/RUN-BIG-08-A.json"
+  ],
+  "evidence": [
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/BIG_PICTURE_MAP_V1.md",
+      "proves": "Control Room is a derived parent-awareness layer and parent continues useful work while workers run."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/SURVIVAL_SET_V1.md",
+      "proves": "Human-memory optionality, missing-run semantics, independent worker state, partial/full awareness, no human result courier and stale-run recovery invariants."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/ZERO_MEMORY_MODE_V1.md",
+      "proves": "Zero-memory parent behavior and durable launch-feedback semantics."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/WORK_BOARD.json",
+      "proves": "Parent refresh rule, independent worker writes, B-ZEROMEM pass and B-BIGPIC dispatchability."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/WORKER_RUN_CONTRACT_V1.json",
+      "proves": "Lifecycle states, no heartbeat loops, DONE/RETURN invariant and derived parent projection."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/DELEGATED_RETURN_CONTRACT_V1.json",
+      "proves": "Return consumption is separate from return existence and worker completion."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/work-items/WI-ZM-01/INTEGRATION.json",
+      "proves": "Observed canary passed and compiled aggregate batch status remained an explicit implementation gap."
+    },
+    {
+      "ref": "scripts/build-agent-runtime.mjs",
+      "proves": "Current compiler discovers PACK workstreams and coordination/network workers but not delegated work-item run/return subtrees."
+    },
+    {
+      "ref": ".github/workflows/agent-runtime-v3.yml",
+      "proves": "coordination/** changes already trigger runtime compile/test/publish, providing an event-like backend refresh path."
+    },
+    {
+      "ref": "agent-runtime/epoch.json@gh-pages P3-b54872f2a8cf",
+      "proves": "Runtime freshness advanced while multiple isolated B-BIGPIC scouts launched concurrently."
+    }
+  ],
+  "conflicts": [],
+  "unresolved": [
+    "BIG-06 should reconcile the exact Agent Network/runtime schema extension and publication location for Control Room.",
+    "BIG-07 should define retry/supersession policy and any stale_after contract; this scout intentionally does not create retry authority.",
+    "BIG-09 should define canonical return-consumption/integration ledger semantics; Control Room should read that evidence rather than invent promotion rules.",
+    "The parent/steward must reconcile this candidate with sibling B-BIGPIC returns before any shared architecture/compiler mutation."
+  ],
+  "impacts": [
+    "chat-object-prometeo-chat-control-main",
+    "agent-network-v3",
+    "runtime/compiler",
+    "delegated-work",
+    "B-BIGPIC-01",
+    "parent PRE_RESPONSE",
+    "return-consumption"
+  ],
+  "suggested_parent_action": "Consume this return together with BIG-06, BIG-07 and BIG-09. In the reconciled vNext plan, prefer a compiler-native per-Chat-Object Control Room projection with semantic-hash index and the falsifying tests above. Keep retry policy and integration authority with their owning layers. Do not promote this worker's candidates merely because this run is complete.",
+  "created_at": "2026-09-16T20:48:54Z"
+}
