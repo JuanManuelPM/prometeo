@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0d1420">
+<title>Prometeo TV · Android</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0d1420}#prometeo{position:fixed;inset:0;width:100%;height:100%;border:0;background:#0d1420}
+</style>
+</head>
+<body>
+<iframe id="prometeo" title="Prometeo TV" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>
+<script>
+(()=>{
+'use strict';
+const frame=document.getElementById('prometeo');
+const target=new URL('./prometeo-tv-simple/',location.href);
+target.hash=location.hash;
+frame.src=target.href;
+let childDoc=null,observer=null,syncTimer=0,lastTitle='',lastArtist='';
+const button=id=>childDoc?.getElementById(id)||null;
+const playing=()=>String(button('playPauseBtn')?.textContent||'').includes('Ⅱ');
+function syncSession(){if(!('mediaSession' in navigator)||!childDoc)return;const title=String(childDoc.getElementById('miniTitle')?.textContent||'').trim();const artist=String(childDoc.getElementById('miniMeta')?.textContent||'Prometeo TV').trim();if(title&&(title!==lastTitle||artist!==lastArtist)){lastTitle=title;lastArtist=artist;try{navigator.mediaSession.metadata=new MediaMetadata({title,artist,album:'Prometeo TV'})}catch{}}try{navigator.mediaSession.playbackState=title?(playing()?'playing':'paused'):'none'}catch{}}
+function soon(){clearTimeout(syncTimer);syncTimer=setTimeout(syncSession,60)}
+function press(id){const b=button(id);if(b){b.click();setTimeout(syncSession,100)}}
+function installActions(){if(!('mediaSession' in navigator))return;const set=(name,fn)=>{try{navigator.mediaSession.setActionHandler(name,fn)}catch{}};set('play',()=>{if(!playing())press('playPauseBtn')});set('pause',()=>{if(playing())press('playPauseBtn')});set('nexttrack',()=>press('nextBtn'));set('previoustrack',()=>press('prevBtn'));set('stop',()=>press('closeStage'))}
+function attach(){try{childDoc=frame.contentDocument||frame.contentWindow.document}catch{return}installActions();observer?.disconnect();observer=new MutationObserver(soon);observer.observe(childDoc.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class']});childDoc.addEventListener('click',()=>setTimeout(syncSession,120),true);syncSession()}
+frame.addEventListener('load',attach);document.addEventListener('visibilitychange',()=>setTimeout(syncSession,100));setInterval(syncSession,1200);
+})();
+</script>
+</body>
+</html>
