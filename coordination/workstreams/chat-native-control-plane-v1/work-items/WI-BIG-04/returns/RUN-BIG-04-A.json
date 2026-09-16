@@ -1,0 +1,286 @@
+{
+  "schema": "prometeo.delegated-return/v1",
+  "work_item_id": "WI-BIG-04",
+  "worker_instance_id": "RUN-BIG-04-A",
+  "parent_chat_object_id": "chat-object-prometeo-chat-control-main",
+  "batch_id": "B-BIGPIC-01",
+  "status": "COMPLETE",
+  "created_at": "2026-09-16T17:44:19-03:00",
+  "useful_delta": "Defined a campaign-level architecture that keeps Project North, Campaign and Run as separate identities; makes campaign control an orthogonal durable state machine with evidence gates, adaptive depth, parallel scheduling, checkpoints and reincarnation; and maps it onto existing Chat Object, Planner, Agent Network, Work Item/Run/RETURN, Steward and authority infrastructure instead of rebuilding those systems.",
+  "facts": [
+    "The binding Big Picture explicitly separates CONSTITUTION -> ACTIVE_METHOD -> PRODUCT_MEMORY -> PROJECT_NORTH -> CAMPAIGN -> RUN and defines Project North as durable direction, Campaign as a bounded multi-day/multi-chat effort, and Run as one model/chat/worker execution.",
+    "The binding Big Picture says campaign state must include objective, plan/map, counters/gates, current phase, Working Set, prepared jobs, returns, open conflicts, evidence, checkpoints, target head/working head and successor state.",
+    "The binding Big Picture assigns campaign phase transitions, gates, adaptive depth, worker timing, critic timing, compaction, integration, checkpoints and human escalation to a durable Campaign Controller.",
+    "The Survival Set requires the human not to be scheduler/collector/comparator/integrator/context bus; jobs must exist before workers; STARTED/RETURN/DONE are durable evidence; parent batch state is derived rather than remembered.",
+    "Current Chat Object and FOCUS records mention campaign as a required layer but do not provide a separate durable campaign identity/state object; current orchestration is still represented mainly in Chat Object FOCUS + Work Board.",
+    "Existing worker fabric already provides durable JOB -> independent Run -> RETURN -> parent/steward integration and should remain the execution layer below Campaign rather than being replaced by a new scheduler.",
+    "Capture -> Planner handoff already demonstrates a useful reusable pattern for campaign boundaries: immutable snapshot identity, revision/watermark/digest integrity, explicit barrier, idempotence and no silent advance on incomplete inputs.",
+    "Current GitHub code/search and commit archaeology did not reopen standalone historical definitions for WAITING_DOT, DAY_WORK, R38 4X or Campaign Metabolism. Their existence/importance is preserved by the current Big Picture, but detailed semantics below are therefore candidate mappings, not recovered historical fact."
+  ],
+  "candidates": {
+    "identity_model": {
+      "project_north": {
+        "role": "Long-lived human/product direction and durable success constraints above any one campaign.",
+        "identity": "project_id plus explicit Project North ref/version; not a Chat Object, workstream or campaign.",
+        "mutation_rule": "Campaigns may propose north-star changes but must not silently rewrite Project North. Human-accepted direction remains separately authoritative."
+      },
+      "campaign": {
+        "role": "Bounded multi-phase effort that can outlive chats/models and coordinate many Work Items/Runs.",
+        "identity": "campaign_id, stable across chat reincarnations and worker batches.",
+        "suggested_minimum_fields": [
+          "campaign_id",
+          "project_id",
+          "owner_chat_object_id",
+          "title",
+          "objective",
+          "success_conditions",
+          "non_goals",
+          "project_north_ref",
+          "method_head_ref",
+          "lifecycle_state",
+          "phase",
+          "depth_policy",
+          "plan_ref",
+          "working_set_ref",
+          "gate_ledger",
+          "work_board_ref",
+          "target_head",
+          "working_head",
+          "checkpoint_head",
+          "open_conflicts",
+          "human_boundary",
+          "created_at",
+          "updated_at"
+        ],
+        "authority_rule": "Campaign state coordinates work and evidence; it does not itself create Human Accepted, Current or Served truth."
+      },
+      "run": {
+        "role": "One disposable execution of one prepared Work Item.",
+        "identity": "worker_instance_id/run_id under work_item_id; add campaign_id/phase_id/gate_id as routing metadata when useful.",
+        "rule": "One mission, one durable return, then terminal state; retries create new runs rather than mutating history."
+      },
+      "orthogonal_state_dimensions": {
+        "lifecycle": ["DRAFT", "READY", "ACTIVE", "PAUSED", "WAITING_HUMAN", "BLOCKED_EXTERNAL", "COMPLETE_CANDIDATE", "CLOSED", "SUPERSEDED"],
+        "phase": ["RECONSTRUCT", "MAP", "EXPLORE", "PREPARE", "EXECUTE", "CONVERGE", "VERIFY", "CRYSTALLIZE", "CLOSE"],
+        "gate": ["PENDING", "PASS", "FAIL_REPAIRABLE", "WAITING_HUMAN", "BLOCKED_EXTERNAL", "SUPERSEDED"],
+        "depth": ["FAST", "DEEP", "EXHAUSTIVE", "CONTINUE"]
+      },
+      "design_reason": "Keep lifecycle, phase, gate result and depth policy orthogonal so a campaign does not become an unreadable single mega-enum."
+    },
+    "phase_gate_state_machine": [
+      {
+        "phase": "RECONSTRUCT",
+        "gate": "G0_CONTEXT_READY",
+        "pass_when": ["Project North ref resolved", "Active Method/Survival Set loaded", "campaign identity/objective recovered", "relevant current authority/freshness resolved"],
+        "on_fail": "Recover missing durable state; ask human only if the missing input is a real identity/consent boundary."
+      },
+      {
+        "phase": "MAP",
+        "gate": "G1_MAP_READY",
+        "pass_when": ["objective/success/non-goals explicit", "meaningful phase/coverage map exists", "dependencies/owners/risks known enough to plan", "major contradictions recorded"],
+        "on_fail": "Continue reconstruction or architecture exploration. In EXHAUSTIVE mode freeze the meaningful map before deepening it."
+      },
+      {
+        "phase": "EXPLORE",
+        "gate": "G2_EVIDENCE_SUFFICIENT",
+        "pass_when": ["required archaeology/research/context questions answered or bounded", "evidence refs reopenable", "known uncertainty is below phase-specific threshold"],
+        "on_fail": "Launch more read-only scouts/context retrieval/challengers rather than forcing premature implementation."
+      },
+      {
+        "phase": "PREPARE",
+        "gate": "G3_EXECUTION_READY",
+        "pass_when": ["dependency graph compiled", "ready-set Work Items prepared durably", "owners and write scopes resolved", "return/test contracts defined", "required context snapshots/Working Sets frozen"],
+        "on_fail": "Repair plan/decomposition; do not launch workers from conversational intent alone."
+      },
+      {
+        "phase": "EXECUTE",
+        "gate": "G4_REQUIRED_RUNS_TERMINAL",
+        "pass_when": ["all Work Items required for the current execution wave are terminal or explicitly bounded", "no required missing launch is being mistaken for completion", "returns/evidence are durable"],
+        "on_fail": "Continue ready independent work; surface only the smallest current human launch action if platform spawning is the actual boundary."
+      },
+      {
+        "phase": "CONVERGE",
+        "gate": "G5_INTEGRATION_READY",
+        "pass_when": ["required returns consumed by one steward/integration owner", "contradictions resolved or explicitly retained", "Current/owner/invariant checks performed", "follow-up jobs generated for unresolved repairable gaps"],
+        "on_fail": "Return to EXPLORE/PREPARE/EXECUTE for targeted follow-up instead of averaging conflicting worker opinions."
+      },
+      {
+        "phase": "VERIFY",
+        "gate": "G6_FALSIFICATION_PASS",
+        "pass_when": ["requested outcome checked", "relevant preserved behavior/regression guards checked", "authority boundaries checked", "critic/challenger requirements satisfied at the selected depth"],
+        "on_fail": "Compile repair jobs and loop to PREPARE/EXECUTE; do not close on prose or source-commit success alone."
+      },
+      {
+        "phase": "CRYSTALLIZE",
+        "gate": "G7_DURABLE_INTELLIGENCE_SAVED",
+        "pass_when": ["accepted campaign decisions/facts/negative knowledge distilled to durable memory", "FOCUS/Chat Object refs updated where ownership requires", "checkpoint created", "candidate method changes remain candidates until separately promoted"],
+        "on_fail": "Persist the missing durable state before allowing transcript deletion."
+      },
+      {
+        "phase": "CLOSE",
+        "gate": "G8_CLOSE_READY",
+        "pass_when": ["campaign success conditions reached or remaining boundaries explicit", "open runs resolved/superseded or intentionally carried", "recovery/checkpoint head unambiguous", "authority state truthfully represented"],
+        "on_fail": "Remain ACTIVE/WAITING_HUMAN/BLOCKED_EXTERNAL; never manufacture completion."
+      }
+    ],
+    "transition_rules": [
+      "Gate evaluation is evidence-driven and declarative; a chat message, newest commit, worker DONE or version number does not pass a gate by itself.",
+      "Any repairable gate failure loops to the earliest phase that can repair it; do not restart the campaign from zero.",
+      "New evidence that invalidates the map may send the campaign back to MAP/PREPARE while preserving prior evidence and checkpoints.",
+      "WAITING_HUMAN is only for real identity/consent/physical/external/high-risk boundaries, not normal scheduling.",
+      "A human '.'/Continue command resyncs EPOCH and resumes from the last valid campaign checkpoint/gate. It never means approval, acceptance, promotion or gate bypass."
+    ],
+    "campaign_controller_responsibilities": [
+      "Load campaign head + current EPOCH + relevant compiled state and derive the smallest current control picture.",
+      "Evaluate current gate predicates from durable evidence and advance automatically when satisfied and no human boundary exists.",
+      "Invoke Planner/Compiler to turn the current campaign map into dependency-aware prepared Work Items; never define ad hoc worker prompts as the durable plan.",
+      "Maintain ready/running/returned/unconsumed/boundary projections from independent job/run/return records rather than a hand-edited central status.",
+      "Choose adaptive depth based on uncertainty, novelty, authority risk, rollback difficulty, regression surface, conflict count and evidence gaps.",
+      "Schedule critics/challengers before high-risk gates, when returns conflict, after major material implementation, and before close when falsification risk warrants it.",
+      "Checkpoint at meaningful transitions and before/after risky execution or human boundaries.",
+      "Trigger Steward/Merger integration when enough returns exist; do not let workers self-promote candidates.",
+      "Compile the smallest next human action only when platform/consent boundaries make human action unavoidable.",
+      "Remain idempotent/convergent: the same durable campaign state should derive the same next action unless EPOCH/evidence changed.",
+      "Never become Current/Catalog/Lineage/Human Accepted/Served authority."
+    ],
+    "adaptive_depth": {
+      "FAST": "Low-risk, reversible, well-known work: minimal sufficient reconstruction, single execution path, targeted tests.",
+      "DEEP": "Architecture/meaningful uncertainty: context -> complete meaningful map -> development -> execution -> critique -> repair.",
+      "EXHAUSTIVE": "High-stakes or broad-coverage work: freeze the meaningful coverage map, fan out independent exploration/critics, close every mapped item or record explicit boundary before convergence.",
+      "CONTINUE": "Resume an existing campaign from its canonical checkpoint/head after EPOCH refresh; do not regenerate settled context.",
+      "historical_4x_mapping": "Candidate compatibility mapping only: treat 4X as an adaptive escalation/fan-out policy that increases independent passes/critics/context breadth when risk or uncertainty warrants it, not as a mandatory fixed number of chats. Exact historical R38 mechanics were not directly reopened in this scout."
+    },
+    "parallel_worker_scheduling_rules": [
+      "Compute a dependency DAG and launch the ready set, not an arbitrary linear queue.",
+      "Parallelize read-only archaeology/research/critique aggressively; conceptual overlap is allowed and useful.",
+      "Write-capable jobs may run concurrently only with disjoint scopes, isolated candidate branches/artifacts, or explicit reconciliation ownership.",
+      "A live HARD_WRITE_COLLISION blocks only the overlapping writers; unrelated jobs continue.",
+      "Prepared job with no run object is NOT_LAUNCHED, never active or complete.",
+      "Parent/controller need not idle for a whole batch: integrate high-value partial returns when useful, while preserving a final convergence gate.",
+      "Do not launch duplicate jobs solely because a worker is slow; retry/stale/supersession policy belongs to the execution-fabric owner and must preserve run lineage.",
+      "Current platform limitation may require the human to open a fresh chat and paste a tiny launch command. Controller owns the launch backlog/state so this remains a mechanical boundary, not mental scheduling.",
+      "Do not hard-code one universal concurrency number; bound fan-out by scope independence, context cost, write collisions and available platform capacity."
+    ],
+    "checkpoint_reincarnation_semantics": {
+      "principle": "Campaign has one canonical mutable head pointer plus immutable historical checkpoints. Latest timestamp is not authority.",
+      "checkpoint_minimum": [
+        "checkpoint_id",
+        "campaign_id",
+        "reason",
+        "created_at",
+        "epoch_seen",
+        "lifecycle_state",
+        "phase",
+        "last_passed_gate",
+        "project_north_ref",
+        "method_head_ref",
+        "plan_ref/digest",
+        "working_set_ref/digest",
+        "work_board/batch refs",
+        "returns consumed/unconsumed refs",
+        "open run refs",
+        "open conflicts/boundaries",
+        "target_head",
+        "working_head",
+        "authority refs",
+        "success-condition status"
+      ],
+      "create_on": ["phase transition", "pre/post risky write wave", "before human boundary", "after steward integration", "before compaction/crystallization", "before model/chat handoff", "campaign close"],
+      "reincarnation_algorithm": [
+        "Resolve Chat Object and active campaign_id(s).",
+        "Load canonical campaign head/checkpoint, not newest-looking file.",
+        "Read current EPOCH and reload only affected method/context/work/authority refs when changed.",
+        "Re-derive exact job/run/return state; open runs remain open/stale candidates rather than being silently cancelled.",
+        "Re-evaluate the current gate from present evidence.",
+        "Continue automatically if safe; otherwise surface only a real boundary."
+      ],
+      "rollback_rule": "Rolling back campaign/control state does not itself roll back product Current or Served. Product rollback remains under the corresponding owner/authority chain.",
+      "dot_compatibility": "WAITING_DOT should not be a default campaign scheduler state. Retain it only as an optional human-paced/compatibility pause: '.' performs resync + CONTINUE from checkpoint and cannot satisfy a failed gate."
+    },
+    "historical_compatibility_map": {
+      "DAY_WORK": "Candidate: treat as a bounded execution/session envelope generated by a campaign phase (today's ready work, checks, returns), never as campaign identity or durable memory. Exact historical R29 rules need targeted archaeology before formal reuse.",
+      "4X": "Candidate: map to adaptive depth/fan-out escalation inside the controller, not a parallel authority or fixed workflow. Exact historical mechanics need targeted archaeology.",
+      "fresh_chat_epoch": "Reuse existing EPOCH-first reincarnation: checkpoint carries epoch_seen, successor compares current EPOCH, reloads only changed relevant state, then re-evaluates gate.",
+      "WAITING_DOT": "Compatibility pause only; dot means resume from last valid durable gate after freshness check, never human approval.",
+      "Campaign_Metabolism": "Candidate umbrella name for the controller loop: observe -> derive -> evaluate gate -> plan/schedule -> consume returns -> challenge/repair -> checkpoint -> advance/escalate."
+    },
+    "implementation_reuse_map": {
+      "reuse_unchanged_or_extend": [
+        {"capability": "Chat Object", "role": "Operational seat that points to active campaigns and reincarnates them; do not embed all campaign state in FOCUS."},
+        {"capability": "EPOCH", "role": "Cheap freshness trigger for controller/reincarnation; not campaign authority."},
+        {"capability": "Agent Network / convergence", "role": "Derived worker/collision/dependency nervous system; extend metadata with campaign_id/phase_id/gate_id where useful."},
+        {"capability": "JOB / Work Item / Run / RETURN", "role": "Execution fabric under Campaign. Keep independent run state and parent-derived summaries."},
+        {"capability": "Planner/Compiler", "role": "Compile campaign map + dependencies + owner/write scopes + Working Set into prepared jobs. Campaign Controller decides when planning is needed; Planner decides decomposition."},
+        {"capability": "Steward/Merger", "role": "Single canonical integration authority for returns and conflict resolution."},
+        {"capability": "Context Foundry / Working Set", "role": "Compile phase/job context and evidence without flooding every successor."},
+        {"capability": "Current/Catalog/Lineage", "role": "Remain external product authority; campaign only references/checks them."},
+        {"capability": "Capture->Planner immutable snapshot pattern", "role": "Reuse barrier/snapshot/digest/idempotence concepts for phase inputs/gates where race-free context freezing matters."},
+        {"capability": "Reincarnation / Survival Set", "role": "Recover campaign head + current gate/run state after chat loss."},
+        {"capability": "portable checkpoint/ZIP owner", "role": "Package/projection of campaign state for portability; must not become the campaign itself."}
+      ],
+      "new_shared_capabilities_needed_after_parent_reconciliation": [
+        "prometeo.campaign/v1 contract with stable campaign_id and orthogonal lifecycle/phase/gate/depth fields",
+        "Campaign Controller protocol/evaluator",
+        "campaign head + immutable checkpoint schema",
+        "gate ledger/predicate/evidence representation",
+        "runtime/compiler projection that exposes compact active-campaign state to Chat Object successors",
+        "planner hooks for ready-set compilation and controller hooks for integration/critic/checkpoint timing",
+        "campaign-level falsification tests: chat erasure mid-phase, missed launch, conflicting returns, EPOCH change, failed gate repair, human boundary resume, rollback separation"
+      ],
+      "owner_note": "These are shared orchestration capabilities, not page-local features. Parent/steward should assign one canonical owner during batch convergence rather than letting several scouts independently implement them."
+    }
+  },
+  "evidence": [
+    "coordination/workstreams/chat-native-control-plane-v1/BIG_PICTURE_MAP_V1.md (binding Project North/Campaign/Run + controller responsibilities)",
+    "coordination/workstreams/chat-native-control-plane-v1/SURVIVAL_SET_V1.md (human-not-scheduler, durable worker lifecycle, parent integration/reincarnation invariants)",
+    "coordination/workstreams/chat-native-control-plane-v1/ANTI_LIMITATION_RULES_V1.md (parallelize cognition, recover history, convergence, no human mental scheduling)",
+    "coordination/workstreams/chat-native-control-plane-v1/PRODUCT_BLUEPRINT_V2.md (existing Chat Object, worker fabric, Control Room, Planner/Steward reuse model)",
+    "coordination/workstreams/chat-native-control-plane-v1/CHAT_OBJECT.json and FOCUS.json (current object/frontier; campaign layer referenced but not yet represented as its own durable object)",
+    "coordination/CAPTURE_TO_PLANNER_HANDOFF_DESIGN_2026-09-14.md (immutable snapshot/barrier/digest/idempotence design pattern)",
+    "coordination/AI_DESIGN_SESSION_PROTOCOL_V1.md (disposable thinking chat + durable continuity, AI-derived notes not authority)",
+    "coordination/GLOBAL_AGENT_CONSTITUTION_V1.md and coordination/workstreams/chat-native-control-plane-v1/DELEGATED_WORK_PROTOCOL_V1.md",
+    "Runtime EPOCH revalidated immediately before return: P3-d56fa96ad090; compiled chat-native-control-plane packet main=0063305ad81c.",
+    "GitHub archaeology searches for Campaign Controller/Campaign Metabolism, PROJECT NORTH, DAY_WORK, WAITING_DOT and 4X found no standalone historical definitions in the current indexed/default-branch corpus; commit search only confirmed current scout/checkpoint/fresh-chat work."
+  ],
+  "conflicts": [
+    "Current platform still relies on the human to open fresh worker chats. This is an explicit present platform boundary, so the controller can eliminate mental scheduling now but cannot eliminate the physical launch action until a spawning capability exists.",
+    "This scout overlaps conceptually with WI-BIG-05 Planner/Compiler, WI-BIG-08 Control Room, WI-BIG-11 checkpoints, WI-BIG-12 Deep Work/4X and WI-BIG-18 compaction/convergence. Parent must reconcile interfaces/ownership rather than adopting duplicate controllers from each return.",
+    "Exact historical semantics of DAY_WORK/4X/WAITING_DOT/Campaign Metabolism were not directly reopened; candidate compatibility mappings above must not be mislabeled as recovered facts."
+  ],
+  "unresolved": [
+    "Targeted archaeology may still recover the original R29 DAY_WORK, R38 4X and WAITING_DOT artifacts from non-indexed history/older carriers; parent can delegate that only if those exact semantics materially affect the vNext controller.",
+    "Canonical owner/workstream for the shared Campaign Controller should be chosen during parent convergence after related scout returns arrive.",
+    "Retry/stale-run/supersession timing should be imported from WI-BIG-07 rather than specified independently here.",
+    "Checkpoint carrier/ZIP exact schema should be reconciled with WI-BIG-11 rather than duplicated here."
+  ],
+  "impacts": [
+    "chat-native-control-plane-v1",
+    "Planner/Compiler",
+    "Agent Network/runtime compiler",
+    "worker execution fabric",
+    "Control Room",
+    "Steward/Merger",
+    "Context Foundry",
+    "Reincarnation",
+    "checkpoint/ZIP",
+    "Active Method/deep-work policy"
+  ],
+  "suggested_parent_action": "Consume this as a campaign-controller candidate, then reconcile it specifically with WI-BIG-05, WI-BIG-07, WI-BIG-08, WI-BIG-11, WI-BIG-12 and WI-BIG-18. Preserve the identity separation and evidence-gate invariants; after convergence, compile an implementation batch for Campaign Contract + Controller + checkpoint/gate schema + runtime projection + end-to-end reincarnation/failure tests rather than implementing directly from this scout.",
+  "artifacts": [
+    "coordination/workstreams/chat-native-control-plane-v1/work-items/WI-BIG-04/runs/RUN-BIG-04-A.json",
+    "coordination/workstreams/chat-native-control-plane-v1/work-items/WI-BIG-04/returns/RUN-BIG-04-A.json"
+  ],
+  "tests": [
+    "Validated launch code P-BIG-04 -> WI-BIG-04 and current JOB scope before execution.",
+    "Persisted STARTED before substantive scout work.",
+    "Re-read EPOCH after it changed and reloaded the relevant compiled work packet before the RETURN write.",
+    "Re-fetched the exact run file before RETURN creation; no prior RETURN existed.",
+    "Write scope remains limited to the preallocated WI-BIG-04 run/return subtree; no shared architecture/runtime/authority file was modified.",
+    "Candidate design keeps Current/Human Accepted/Served separate and treats worker results as integration inputs only.",
+    "Performed adversarial check against human-as-scheduler, campaign=Chat Object collapse, newest-wins authority, dot-as-approval, and central mutable worker status; design explicitly rejects all five."
+  ],
+  "commit_refs": {
+    "started": "c7495fab9f798b2ab0d6f5a0b1bbaa660185f604",
+    "return": null
+  }
+}
