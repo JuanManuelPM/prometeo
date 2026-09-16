@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#141b23">
+<title>Prometeo · Planificación</title>
+<style>
+:root{--bg:#141b23;--panel:#1d2733;--panel2:#223040;--ink:#edf3f8;--muted:#8796a9;--line:#334253;--accent:#a9d86e;--accent2:#8ec8e8;--shadow:0 22px 60px rgba(0,0,0,.32)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:radial-gradient(900px 600px at 20% -10%,#24354b 0,transparent 55%),linear-gradient(180deg,#121820,#151d26);color:var(--ink);font-family:"Century Gothic",Inter,system-ui,sans-serif}
+body{min-height:100dvh}
+button,textarea{font:inherit;color:inherit}
+.app{width:min(1180px,100%);margin:auto;padding:18px 16px 60px}
+.top{position:sticky;top:0;z-index:5;padding-top:env(safe-area-inset-top,0);background:linear-gradient(180deg,#141b23f7 0%,#141b23e8 78%,transparent 100%);backdrop-filter:blur(12px)}
+.inputBox{background:rgba(29,39,51,.94);border:1px solid #ffffff10;border-radius:24px;box-shadow:var(--shadow);padding:14px}
+.inputLabel{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.inputLabel b{font-size:14px}.inputLabel span{font-size:11px;color:var(--muted)}
+textarea{width:100%;min-height:118px;max-height:280px;resize:vertical;border:0;outline:0;border-radius:18px;background:#111923;padding:15px 16px;line-height:1.5;font-size:15px;box-shadow:inset 5px 5px 12px #0007,inset -2px -2px 6px #ffffff08}
+textarea::placeholder{color:#5f7187}
+.actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin-top:11px}
+.btn{border:0;border-radius:14px;padding:11px 14px;background:#263546;color:#cbd6e2;font-weight:800;font-size:12px}.btn.primary{background:var(--accent);color:#17200f}.btn.ghost{background:transparent;border:1px solid #ffffff10;color:var(--muted)}
+
+.flow{display:grid;gap:16px;margin-top:20px}.section{background:rgba(23,31,41,.72);border:1px solid #ffffff0d;border-radius:24px;padding:16px;backdrop-filter:blur(8px)}
+.sectionHead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.sectionHead b{font-size:13px}.sectionHead small{color:var(--muted);font-size:10px}
+.response{font-size:15px;line-height:1.55;color:#d7e0e8;white-space:pre-wrap}.response.muted{color:var(--muted)}
+.planMeta{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.chip{padding:7px 10px;border:1px solid #ffffff0f;border-radius:999px;color:var(--muted);font-size:10px;background:#ffffff05}
+
+.buckets{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(260px,1fr);gap:14px;overflow-x:auto;overscroll-behavior-inline:contain;scroll-snap-type:x proximity;padding:2px 2px 8px}.bucket{scroll-snap-align:start;min-height:320px;background:rgba(32,43,56,.92);border:1px solid #ffffff10;border-radius:24px;display:grid;grid-template-rows:auto 1fr auto;overflow:hidden;box-shadow:0 14px 36px rgba(0,0,0,.22)}
+.bucketHead{padding:15px 15px 12px;border-bottom:1px solid #ffffff0d}.bucketTitle{font-size:17px;font-weight:900;letter-spacing:-.03em}.bucketSub{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.35}.bucketBody{padding:12px;overflow:auto}.task{padding:11px 12px;border-radius:15px;background:#151e28;border:1px solid #ffffff0c;margin-bottom:9px}.task b{display:block;font-size:13px;line-height:1.35}.task p{margin:6px 0 0;color:#8fa0b4;font-size:11px;line-height:1.4}.bucketFoot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 12px;border-top:1px solid #ffffff0d}.bucketFoot span{font-size:10px;color:var(--muted)}.mini{border:0;border-radius:11px;padding:8px 10px;background:#29394a;color:#b8c5d2;font-size:10px;font-weight:800}
+
+.refine{display:none}.refine.show{display:block}.history{display:grid;gap:8px;margin-top:12px}.turn{padding:10px 12px;border-left:2px solid #ffffff18;background:#ffffff04;border-radius:0 12px 12px 0}.turn.you{border-left-color:var(--accent2)}.turn.bot{border-left-color:var(--accent)}.turn small{display:block;color:var(--muted);font-size:9px;margin-bottom:4px}.turn div{font-size:12px;line-height:1.45}
+
+.thinking{display:none;align-items:center;gap:10px;color:var(--muted);font-size:12px}.thinking.show{display:flex}.spinner{width:16px;height:16px;border-radius:50%;border:2px solid #ffffff1e;border-top-color:var(--accent);animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.empty{padding:26px;text-align:center;color:#66788d;font-size:13px}
+
+@media(max-width:620px){.app{padding:10px 10px 40px}.inputBox,.section{border-radius:20px}.buckets{grid-auto-columns:minmax(82vw,82vw)}textarea{min-height:104px}.response{font-size:14px}}
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="top">
+    <section class="inputBox">
+      <div class="inputLabel"><b>Qué querés producir</b><span id="charCount">0 caracteres</span></div>
+      <textarea id="mainInput" placeholder="Acumulá acá todo lo que querés que Prometeo organice. Podés escribir varias ideas, cambios o proyectos juntos."></textarea>
+      <div class="actions">
+        <button class="btn ghost" id="demoBtn">Ejemplo</button>
+        <button class="btn ghost" id="clearBtn">Vaciar</button>
+        <button class="btn primary" id="analyzeBtn">Analizar y planificar</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="flow">
+    <section class="section" id="answerSection">
+      <div class="sectionHead"><b>Respuesta de Prometeo</b><small id="planState">esperando</small></div>
+      <div class="thinking" id="thinking"><span class="spinner"></span><span>Analizando el mensaje y separando frentes de trabajo…</span></div>
+      <div class="response muted" id="response">Cuando termines el mensaje de arriba, Prometeo lo analiza, propone una estrategia y arma los baldes de chats.</div>
+      <div class="planMeta" id="planMeta"></div>
+    </section>
+
+    <section class="section">
+      <div class="sectionHead"><b>Chats de planificación</b><small>cada balde es un frente de trabajo</small></div>
+      <div class="buckets" id="buckets"><div class="empty">Todavía no hay un plan.</div></div>
+    </section>
+
+    <section class="section refine" id="refineSection">
+      <div class="sectionHead"><b>Mejorar esta planificación</b><small>no empieza de cero: refina el plan actual</small></div>
+      <textarea id="refineInput" placeholder="Ejemplo: juntá los dos primeros chats, hacé el de calendario más concreto y agregá uno aparte para revisar todo al final."></textarea>
+      <div class="actions"><button class="btn primary" id="refineBtn">Mejorar plan</button></div>
+      <div class="history" id="history"></div>
+    </section>
+  </div>
+</main>
+<script>
+(()=>{
+'use strict';
+const mainInput=document.querySelector('#mainInput'),charCount=document.querySelector('#charCount'),analyzeBtn=document.querySelector('#analyzeBtn'),clearBtn=document.querySelector('#clearBtn'),demoBtn=document.querySelector('#demoBtn');
+const response=document.querySelector('#response'),thinking=document.querySelector('#thinking'),buckets=document.querySelector('#buckets'),planMeta=document.querySelector('#planMeta'),planState=document.querySelector('#planState');
+const refineSection=document.querySelector('#refineSection'),refineInput=document.querySelector('#refineInput'),refineBtn=document.querySelector('#refineBtn'),history=document.querySelector('#history');
+let plan=null,turns=[];
+const esc=s=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]||c));
+mainInput.addEventListener('input',()=>charCount.textContent=`${mainInput.value.length} caracteres`);
+
+function clean(s){return String(s||'').replace(/\s+/g,' ').trim()}
+function splitIdeas(text){
+  const a=text.split(/\n+/).flatMap(x=>x.split(/(?<=[.!?])\s+/)).map(clean).filter(Boolean);
+  return a.length?a:[clean(text)];
+}
+function titleFrom(text,i){
+  const low=text.toLowerCase();
+  if(/calendar|agenda|fecha|horario|semana|mes/.test(low))return'Calendario';
+  if(/prometeo|menú|menu|bot[oó]n|ui|interfaz|responsive|html|página|pagina/.test(low))return'Prometeo';
+  if(/jos[eé]|clase|alumno|estudio|matem[aá]tica|qu[ií]mica/.test(low))return'José';
+  if(/portfolio|arte|adriana|galer[ií]a/.test(low))return'Portfolio';
+  if(/investig|pensar|idea|opci[oó]n|brainstorm/.test(low))return'Exploración';
+  return `Chat ${i+1}`;
+}
+function summarize(text){
+  const ideas=splitIdeas(text);
+  const n=Math.max(2,Math.min(6,ideas.length));
+  return `Veo ${ideas.length} ${ideas.length===1?'pedido principal':'pedidos o ideas'}. Los separaría en ${n} frentes para que cada chat tenga una responsabilidad clara y no mezcle decisiones. Primero conviene resolver los cambios concretos, después dejar un frente de revisión para integrar lo que salga.`;
+}
+function buildPlan(text){
+  const ideas=splitIdeas(text);
+  const map=new Map();
+  ideas.forEach((idea,i)=>{
+    const name=titleFrom(idea,i);
+    if(!map.has(name))map.set(name,[]);
+    map.get(name).push(idea);
+  });
+  if(map.size===1&&ideas.length>1){
+    const only=[...map.values()][0];map.clear();
+    only.forEach((idea,i)=>map.set(`Chat ${i+1}`,[idea]));
+  }
+  const out=[...map.entries()].map(([name,items],i)=>({name,goal:goalFor(name,items),tasks:items.map((x,j)=>({title:shorten(x,92),detail:detailFor(x,j)}))}));
+  if(out.length<2)out.push({name:'Revisión',goal:'Revisar el resultado final y detectar conflictos antes de integrar.',tasks:[{title:'Revisar coherencia del trabajo',detail:'Comprobar que el resultado respete la base aprobada y que ningún cambio rompa lo anterior.'}]});
+  return out.slice(0,6);
+}
+function goalFor(name,items){
+  if(name==='Calendario')return'Ordenar fechas, prioridades y estructura del calendario.';
+  if(name==='Prometeo')return'Hacer cambios concretos en Prometeo sin rediseñar lo que ya funciona.';
+  if(name==='José')return'Preparar el siguiente bloque de estudio y materiales.';
+  if(name==='Portfolio')return'Resolver cambios del portfolio sin mezclarlo con otros proyectos.';
+  if(name==='Exploración')return'Desarrollar alternativas antes de elegir una dirección.';
+  return `Resolver este frente de trabajo con ${items.length} ${items.length===1?'objetivo':'objetivos'} claros.`;
+}
+function shorten(s,n){s=clean(s);return s.length>n?s.slice(0,n-1)+'…':s}
+function detailFor(x,i){return i===0?'Primera prioridad de este chat.':'Continuar este frente sin abrir otro contexto.'}
+function renderPlan(){
+  if(!plan){buckets.innerHTML='<div class="empty">Todavía no hay un plan.</div>';return}
+  buckets.innerHTML=plan.map((b,i)=>`<article class="bucket"><header class="bucketHead"><div class="bucketTitle">${esc(b.name)}</div><div class="bucketSub">${esc(b.goal)}</div></header><div class="bucketBody">${b.tasks.map(t=>`<div class="task"><b>${esc(t.title)}</b><p>${esc(t.detail)}</p></div>`).join('')}</div><footer class="bucketFoot"><span>${b.tasks.length} ${b.tasks.length===1?'tarea':'tareas'}</span><button class="mini" data-bucket="${i}">Editar</button></footer></article>`).join('');
+  buckets.querySelectorAll('[data-bucket]').forEach(btn=>btn.onclick=()=>editBucket(Number(btn.dataset.bucket)));
+}
+function editBucket(i){
+  const b=plan[i];if(!b)return;
+  const name=prompt('Nombre del chat',b.name);if(name)b.name=clean(name);
+  const goal=prompt('Qué va a hacer',b.goal);if(goal)b.goal=clean(goal);
+  renderPlan();
+}
+function setThinking(on){thinking.classList.toggle('show',on);response.style.display=on?'none':'block';planState.textContent=on?'analizando':'plan listo'}
+function analyze(){
+  const text=clean(mainInput.value);if(!text)return;
+  setThinking(true);planMeta.innerHTML='';
+  setTimeout(()=>{
+    response.classList.remove('muted');response.textContent=summarize(text);plan=buildPlan(text);renderPlan();
+    planMeta.innerHTML=`<span class="chip">${plan.length} chats</span><span class="chip">${plan.reduce((a,b)=>a+b.tasks.length,0)} tareas</span><span class="chip">plan editable</span>`;
+    refineSection.classList.add('show');turns=[{who:'you',text},{who:'bot',text:response.textContent}];renderHistory();setThinking(false);
+  },650);
+}
+function renderHistory(){history.innerHTML=turns.slice(-6).map(t=>`<div class="turn ${t.who}"><small>${t.who==='you'?'vos':'Prometeo'}</small><div>${esc(t.text)}</div></div>`).join('')}
+function refine(){
+  const text=clean(refineInput.value);if(!text||!plan)return;
+  turns.push({who:'you',text});setThinking(true);
+  setTimeout(()=>{
+    const low=text.toLowerCase();
+    if(/junt|fusion|combina/.test(low)&&plan.length>1){const a=plan.shift(),b=plan.shift();plan.unshift({name:`${a.name} + ${b.name}`,goal:`Unificar ambos frentes para reducir coordinación.`,tasks:[...a.tasks,...b.tasks]});}
+    if(/agreg|sum[aá]|otro chat|otro frente|revisi[oó]n/.test(low)){plan.push({name:'Revisión final',goal:'Integrar resultados y detectar conflictos antes de cerrar.',tasks:[{title:'Revisar todos los entregables',detail:'Comparar cada resultado con el pedido original y corregir inconsistencias.'}]});}
+    if(/m[aá]s concreto|concret/.test(low))plan.forEach(b=>b.tasks.forEach(t=>t.detail='Entregar un resultado concreto, verificable y listo para integrar.'));
+    if(/menos chat|reduc/.test(low)&&plan.length>3){while(plan.length>3){const last=plan.pop();plan[plan.length-1].tasks.push(...last.tasks)}}
+    response.textContent=`Actualicé el plan usando tu corrección sin empezar de cero. Ahora hay ${plan.length} frentes. Podés seguir refinándolo hasta que la distribución te cierre.`;
+    turns.push({who:'bot',text:response.textContent});renderPlan();renderHistory();planMeta.innerHTML=`<span class="chip">${plan.length} chats</span><span class="chip">${plan.reduce((a,b)=>a+b.tasks.length,0)} tareas</span><span class="chip">refinado</span>`;refineInput.value='';setThinking(false);
+  },520);
+}
+analyzeBtn.onclick=analyze;refineBtn.onclick=refine;
+clearBtn.onclick=()=>{mainInput.value='';charCount.textContent='0 caracteres';plan=null;turns=[];response.textContent='Cuando termines el mensaje de arriba, Prometeo lo analiza, propone una estrategia y arma los baldes de chats.';response.classList.add('muted');planMeta.innerHTML='';refineSection.classList.remove('show');renderPlan();planState.textContent='esperando'};
+demoBtn.onclick=()=>{mainInput.value='Quiero mejorar Prometeo sin romper la versión simple. El menú tiene que aprovechar mejor el espacio según el tamaño de pantalla. También quiero revisar el calendario y preparar la próxima clase de José. Al final necesito un chat que revise que todos los cambios sean compatibles.';charCount.textContent=`${mainInput.value.length} caracteres`};
+mainInput.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();analyze()}});refineInput.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();refine()}});
+})();
+</script>
+</body>
+</html>
