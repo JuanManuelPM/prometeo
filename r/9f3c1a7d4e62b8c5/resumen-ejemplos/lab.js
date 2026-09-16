@@ -1,0 +1,75 @@
+(()=>{'use strict';
+const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/modelos-room-audio-v2';
+const VOICE='Argentine male teacher. Warm medium-low voice, clear and patient. Natural Rioplatense Spanish. Explain as if to one student, with brief useful pauses. Same speaker throughout.';
+const MAX=480,WORKERS=3,POST_GAP=3400;
+const DATA=[
+{title:'Unidad 1',paras:[
+'El aprendizaje puede pensarse como un cambio relativamente estable en la conducta o en el conocimiento que aparece a partir de la experiencia. Esta definición permite separar el aprendizaje de cambios pasajeros producidos por fatiga, maduración o estados momentáneos. Lo importante no es sólo que algo cambie, sino que exista una modificación que pueda mantenerse y recuperarse más adelante.',
+'En el condicionamiento clásico, un estímulo que al comienzo era neutro adquiere la capacidad de provocar una respuesta porque se asocia repetidamente con otro estímulo que ya la producía. Conviene distinguir adquisición, extinción, recuperación espontánea, generalización y discriminación. Estos procesos muestran que aprender no significa simplemente acumular asociaciones: también implica modificar expectativas según el contexto.',
+'Cuando estudiamos para un examen, este modelo sirve para entender por qué ciertos lugares, horarios o señales pueden facilitar la recuperación de lo aprendido. El contexto no reemplaza al contenido, pero puede convertirse en una pista. Por eso cambiar de ambiente durante el estudio puede hacer más flexible el recuerdo y evitar que quede demasiado ligado a una sola situación.'
+]},
+{title:'Unidad 2',paras:[
+'El condicionamiento operante se centra en la relación entre una conducta y sus consecuencias. Si una consecuencia aumenta la probabilidad futura de una respuesta hablamos de reforzamiento; si la reduce, hablamos de castigo. Positivo y negativo no significan bueno y malo: indican si se agrega o se retira un estímulo después de la conducta.',
+'Los programas de reforzamiento ayudan a explicar por qué algunas conductas son muy persistentes. En un programa de razón variable, por ejemplo, el reforzador aparece después de una cantidad cambiante de respuestas. Esa incertidumbre puede sostener una tasa alta de respuesta. En cambio, otros programas generan pausas o ritmos más regulares.',
+'Para estudiar, la idea más útil es que la práctica produce mejores resultados cuando exige una respuesta real. Recuperar una definición sin mirarla, resolver un ejercicio o explicar un concepto en voz alta genera una consecuencia informativa inmediata: permite detectar qué sabemos y qué todavía no podemos recuperar con facilidad.'
+]},
+{title:'Unidad 3',paras:[
+'La memoria no funciona como un depósito único. Para comprenderla conviene separar procesos de codificación, almacenamiento y recuperación. Codificar supone transformar la información de manera que pueda integrarse a sistemas previos de conocimiento. La profundidad con la que procesamos un material influye en la probabilidad de recordarlo.',
+'La memoria de trabajo permite mantener y manipular una cantidad limitada de información durante períodos breves. Cuando intentamos sostener demasiados elementos al mismo tiempo, parte de la información se pierde o interfiere con otra. Organizar, agrupar y relacionar contenidos reduce esa carga y facilita construir estructuras más amplias.',
+'La recuperación también modifica la memoria. Cada vez que recordamos, reconstruimos el contenido a partir de huellas, conocimientos previos y claves disponibles. Por eso practicar la recuperación no sólo mide lo aprendido: también fortalece rutas de acceso. Para un parcial, alternar explicación, preguntas y ejercicios suele ser más útil que releer de manera continua.'
+]},
+{title:'Unidad 4',paras:[
+'Olvidar no siempre significa que una información haya desaparecido. A veces el problema está en las claves de recuperación disponibles. Otras veces intervienen procesos de interferencia: aprendizajes anteriores dificultan incorporar material nuevo, o aprendizajes recientes dificultan recuperar contenidos previos.',
+'El espaciado ayuda a combatir parte de estos problemas porque obliga a reconstruir el contenido después de intervalos en los que ya no está completamente disponible. Esa pequeña dificultad es productiva. Si una respuesta sale de inmediato porque acabamos de verla, la sensación de dominio puede ser mayor que el aprendizaje real.',
+'Un resumen útil para estudiar debería permitir dos recorridos. Uno rápido, para recuperar la estructura general de cada unidad, y otro profundo, para detenerse en conceptos concretos. El audio puede funcionar como una tercera vía: no sustituye la lectura, pero permite repasar mientras caminamos, viajamos o descansamos la vista.'
+]}
+];
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const unitsEl=document.getElementById('units'),warmFill=document.getElementById('warmFill'),warmLabel=document.getElementById('warmLabel');
+let activeUnit=null,lastPost=0,activeJobs=0,queue=[],postGate=Promise.resolve();
+const allUnits=[];
+function chunkText(text){const sentences=text.match(/[^.!?]+[.!?]+|[^.!?]+$/g)||[text];const out=[];let buf='';for(const s0 of sentences){const s=s0.trim();if(!s)continue;if((buf+' '+s).trim().length<=MAX){buf=(buf+' '+s).trim();continue}if(buf){out.push(buf);buf=''}if(s.length<=MAX){buf=s;continue}let rest=s;while(rest.length>MAX){let cut=rest.lastIndexOf(' ',MAX);if(cut<MAX*.55)cut=MAX;out.push(rest.slice(0,cut).trim());rest=rest.slice(cut).trim()}buf=rest}if(buf)out.push(buf);return out}
+function lsGet(k,f){try{return localStorage.getItem(k)??f}catch{return f}}
+function lsSet(k,v){try{localStorage.setItem(k,String(v))}catch{}}
+function makeUnit(data,index){const full=data.paras.join('\n');const texts=chunkText(full);let at=0;const chunks=texts.map((text,i)=>{const start=at;at+=text.length;return{i,text,start,end:at,status:'idle',audio:null,url:null,promise:null,attempts:0}});const total=Math.max(1,at);const saved=clamp(Number(lsGet(`summary-lab:u${index}:ratio`,0))||0,0,1);let current=chunks.findIndex(c=>saved*total<=c.end);if(current<0)current=chunks.length-1;const el=document.createElement('section');el.className='unit';el.dataset.state='idle';el.innerHTML=`<header class="unitHead"><h2 class="unitTitle">${data.title}</h2><span class="unitMeta">audio</span></header><div class="readerFrame"><aside class="railCol"><div class="rail"><div class="railBuffered"></div><div class="railFill"></div><button class="thumb" type="button" data-playing="0" aria-label="Reproducir ${data.title}"><svg class="play" viewBox="0 0 12 14" aria-hidden="true"><path d="M2.2 1.5c0-.7.77-1.12 1.36-.75l7.1 4.45c.55.35.55 1.15 0 1.5l-7.1 4.45a.88.88 0 0 1-1.36-.75V1.5Z" fill="currentColor"/></svg><svg class="pause" viewBox="0 0 12 14" aria-hidden="true"><rect x="1" y="1" width="3" height="12" rx="1" fill="currentColor"/><rect x="8" y="1" width="3" height="12" rx="1" fill="currentColor"/></svg></button></div></aside><article class="text">${data.paras.map(p=>`<p>${p}</p>`).join('')}</article></div>`;unitsEl.appendChild(el);const u={id:index,title:data.title,el,chunks,total,current,audio:null,playing:false,intent:false,ratio:saved,drag:null,rail:el.querySelector('.rail'),buffered:el.querySelector('.railBuffered'),fill:el.querySelector('.railFill'),thumb:el.querySelector('.thumb')};bindUnit(u);render(u);allUnits.push(u);return u}
+function messageId(u,i){return`summary-open-v1-u${u.id}-julian-${i}`}
+function preparedRatio(u){let end=0;for(const c of u.chunks){if(c.status==='ready')end=c.end;else break}return clamp(end/u.total,0,1)}
+function globalRatio(u){const c=u.chunks[u.current];if(!c)return u.ratio;if(u.audio&&Number.isFinite(u.audio.duration)&&u.audio.duration>0){return clamp((c.start+(c.end-c.start)*(u.audio.currentTime/u.audio.duration))/u.total,0,1)}return u.ratio}
+function updateWarmup(){const chunks=allUnits.flatMap(u=>u.chunks);if(!chunks.length)return;const ready=chunks.filter(c=>c.status==='ready').length;const pct=ready/chunks.length*100;if(warmFill)warmFill.style.width=`${pct}%`;if(warmLabel)warmLabel.textContent=ready===chunks.length?'audio preparado':`${ready}/${chunks.length} preparados`}
+function render(u){u.ratio=globalRatio(u);lsSet(`summary-lab:u${u.id}:ratio`,u.ratio);const pct=u.ratio*100;u.thumb.style.top=`${pct}%`;u.fill.style.height=`${pct}%`;u.buffered.style.height=`${preparedRatio(u)*100}%`;u.thumb.dataset.playing=u.playing?'1':'0';const current=u.chunks[u.current];u.thumb.classList.toggle('is-loading',u.intent&&!u.playing&&current?.status!=='ready');u.el.dataset.state=current?.status==='ready'?'ready':(u.intent?'loading':'idle');updateWarmup()}
+async function accept(c,r){const blob=await r.blob();c.url=URL.createObjectURL(blob);c.audio=new Audio(c.url);c.audio.preload='auto';c.status='ready';c.promise=null;try{c.audio.load()}catch{}}
+async function reservePost(){let release;const mine=new Promise(r=>release=r),prev=postGate;postGate=mine;await prev;const wait=Math.max(0,POST_GAP-(Date.now()-lastPost));if(wait)await sleep(wait);lastPost=Date.now();release()}
+async function loadChunk(u,i){const c=u.chunks[i];if(!c||c.status==='ready')return c;c.status='checking';render(u);const id=messageId(u,i);try{const r=await fetch(`${API}?id=${encodeURIComponent(id)}`,{cache:'no-store'});if(r.ok){await accept(c,r);render(u);return c}}catch{}
+for(;;){c.status=c.attempts?'retrying':'generating';c.attempts++;render(u);await reservePost();try{const r=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({voicePrompt:VOICE,text:c.text,messageId:id})});if(r.ok){await accept(c,r);render(u);return c}if(r.status===429){await sleep(12000);continue}}catch{}await sleep(Math.min(30000,4000+c.attempts*4000))}}
+function enqueue(u,i,priority=false){const c=u.chunks[i];if(!c||['ready','queued','checking','generating','retrying'].includes(c.status))return;c.status='queued';const job={u,i};priority?queue.unshift(job):queue.push(job);pump()}
+function pump(){while(activeJobs<WORKERS&&queue.length){const job=queue.shift();activeJobs++;loadChunk(job.u,job.i).finally(()=>{activeJobs--;pump()})}}
+function prioritizeUnit(u){for(let i=u.current;i<u.chunks.length;i++){const c=u.chunks[i];if(c.status==='idle'){enqueue(u,i,true)}else if(c.status==='queued'){const idx=queue.findIndex(j=>j.u===u&&j.i===i);if(idx>=0){const [job]=queue.splice(idx,1);queue.unshift(job)}}}}
+function preloadEverything(){const max=Math.max(...allUnits.map(u=>u.chunks.length));for(let round=0;round<max;round++)for(const u of allUnits)enqueue(u,round,false)}
+function stopOther(next){if(activeUnit&&activeUnit!==next){activeUnit.ratio=globalRatio(activeUnit);activeUnit.intent=false;activeUnit.playing=false;activeUnit.audio?.pause();render(activeUnit)}activeUnit=next}
+function bindAudio(u,a){a.ontimeupdate=()=>render(u);a.onplay=()=>{u.playing=true;render(u)};a.onpause=()=>{if(!a.ended){u.playing=false;render(u)}};a.onended=()=>advance(u)}
+async function start(u){stopOther(u);u.intent=true;prioritizeUnit(u);render(u);const c=u.chunks[u.current];if(c.status!=='ready'){enqueue(u,u.current,true);return}u.audio=c.audio;bindAudio(u,u.audio);const local=clamp((u.ratio*u.total-c.start)/Math.max(1,c.end-c.start),0,1);const go=async()=>{if(!u.intent||activeUnit!==u)return;try{u.audio.currentTime=(u.audio.duration||0)*local;await u.audio.play();u.playing=true;render(u);for(let n=1;n<=3;n++)enqueue(u,u.current+n,true)}catch{u.playing=false;render(u)}};if(Number.isFinite(u.audio.duration)&&u.audio.duration>0)go();else u.audio.addEventListener('loadedmetadata',go,{once:true})}
+function pause(u){u.ratio=globalRatio(u);u.intent=false;u.playing=false;u.audio?.pause();render(u)}
+function toggle(u){if(u.playing||u.intent){pause(u);return}start(u)}
+function advance(u){u.ratio=u.chunks[u.current].end/u.total;if(u.current>=u.chunks.length-1){u.intent=false;u.playing=false;u.ratio=1;render(u);return}u.current++;u.audio=null;u.playing=false;render(u);if(u.intent)start(u)}
+function seek(u,ratio,resume){ratio=clamp(ratio,0,1);u.ratio=ratio;u.audio?.pause();u.playing=false;const target=ratio*u.total;let i=u.chunks.findIndex(c=>target<=c.end);if(i<0)i=u.chunks.length-1;u.current=i;u.audio=null;u.intent=resume;prioritizeUnit(u);render(u);if(resume)start(u)}
+function railRatio(u,y){const r=u.rail.getBoundingClientRect();return clamp((y-r.top)/Math.max(1,r.height),0,1)}
+function bindUnit(u){
+  u.thumb.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();const resume=u.playing||u.intent;u.drag={id:e.pointerId,startY:e.clientY,resume,onThumb:true,moved:false};try{u.thumb.setPointerCapture(e.pointerId)}catch{}});
+  u.thumb.addEventListener('pointermove',e=>{if(!u.drag||u.drag.id!==e.pointerId||!u.drag.onThumb)return;if(Math.abs(e.clientY-u.drag.startY)>4){u.drag.moved=true;u.thumb.classList.add('dragging');u.rail.classList.add('dragging');seek(u,railRatio(u,e.clientY),false)}});
+  const thumbEnd=e=>{if(!u.drag||u.drag.id!==e.pointerId||!u.drag.onThumb)return;const d=u.drag;u.drag=null;u.thumb.classList.remove('dragging');u.rail.classList.remove('dragging');try{u.thumb.releasePointerCapture(e.pointerId)}catch{}if(!d.moved)toggle(u);else if(d.resume)start(u)};
+  u.thumb.addEventListener('pointerup',thumbEnd);u.thumb.addEventListener('pointercancel',thumbEnd);
+  u.rail.addEventListener('pointerdown',e=>{if(u.thumb.contains(e.target))return;e.preventDefault();const resume=u.playing||u.intent;u.drag={id:e.pointerId,startY:e.clientY,resume,onThumb:false,moved:true};u.rail.classList.add('dragging');u.thumb.classList.add('dragging');try{u.rail.setPointerCapture(e.pointerId)}catch{}seek(u,railRatio(u,e.clientY),false)});
+  u.rail.addEventListener('pointermove',e=>{if(!u.drag||u.drag.id!==e.pointerId||u.drag.onThumb)return;seek(u,railRatio(u,e.clientY),false)});
+  const railEnd=e=>{if(!u.drag||u.drag.id!==e.pointerId||u.drag.onThumb)return;const d=u.drag;u.drag=null;u.rail.classList.remove('dragging');u.thumb.classList.remove('dragging');try{u.rail.releasePointerCapture(e.pointerId)}catch{}if(d.resume)start(u)};
+  u.rail.addEventListener('pointerup',railEnd);u.rail.addEventListener('pointercancel',railEnd)
+}
+DATA.forEach(makeUnit);
+// If a chunk finishes while the user is waiting on it, start immediately.
+const oldRender=render;
+setInterval(()=>{for(const u of allUnits){if(u.intent&&!u.playing&&u.chunks[u.current]?.status==='ready')start(u)}},300);
+preloadEverything();
+// Three visual examples, one shared audio state.
+document.querySelectorAll('.mode').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.mode').forEach(x=>x.classList.toggle('active',x===b));document.body.dataset.view=b.dataset.view;lsSet('summary-lab:view',b.dataset.view)}));
+const savedView=lsGet('summary-lab:view','margin');const btn=document.querySelector(`.mode[data-view="${savedView}"]`)||document.querySelector('.mode');if(btn)btn.click();
+})();
