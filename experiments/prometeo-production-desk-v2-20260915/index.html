@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#172131">
+<title>Prometeo · Producción</title>
+<style>
+:root{
+  --bg:#172131;
+  --panel:#1d2a3a;
+  --panel2:#15202e;
+  --ink:#e6edf6;
+  --muted:#71839a;
+  --line:#ffffff12;
+  --accent:#a7e16a;
+  --blue:#89c8ee;
+  --danger:#d8818f;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:"Century Gothic",Inter,system-ui,-apple-system,sans-serif}
+button,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.shell{width:min(920px,100%);margin:0 auto;padding:calc(16px + env(safe-area-inset-top)) 14px calc(30px + env(safe-area-inset-bottom))}
+.head{display:flex;align-items:center;gap:12px;margin-bottom:13px}
+.head h1{font-size:19px;letter-spacing:-.03em;margin:0;font-weight:800}
+.head small{display:block;color:var(--muted);font-size:10px;margin-top:3px}
+.live{margin-left:auto;display:flex;align-items:center;gap:7px;color:var(--muted);font-size:10px}
+.live i{width:6px;height:6px;border-radius:50%;background:#5f748e}
+.live.on i{background:var(--accent);box-shadow:0 0 10px #a7e16a88}
+
+.capture{
+  border:1px solid var(--line);
+  border-radius:22px;
+  background:#ffffff04;
+  overflow:hidden;
+}
+.capture textarea{
+  display:block;width:100%;min-height:112px;max-height:280px;resize:vertical;
+  border:0;outline:0;background:transparent;padding:16px;
+  font-size:15px;line-height:1.5
+}
+.capture textarea::placeholder{color:#5f7189}
+.capture-bar{
+  border-top:1px solid var(--line);padding:9px;
+  display:flex;gap:8px;align-items:center;flex-wrap:wrap
+}
+.rec,.soft,.saveText{
+  border:0;border-radius:14px;height:44px;padding:0 13px;background:#223249
+}
+.rec{min-width:108px;display:flex;align-items:center;justify-content:center;gap:8px}
+.rec-dot{width:9px;height:9px;border-radius:50%;background:#6c7f96}
+.rec.active .rec-dot{background:#ff6464;box-shadow:0 0 9px #ff646488;animation:recPulse 1.2s ease-in-out infinite}
+.soft{background:transparent;border:1px solid var(--line);color:#92a2b5}
+.saveText{margin-left:auto;background:#273a52;font-weight:700}
+@keyframes recPulse{50%{opacity:.3}}
+
+.recDock{display:none;margin:10px 0 0;padding:12px;border-radius:18px;background:#101925;border:1px solid var(--line)}
+.recDock.on{display:block}
+.recTop{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.recTop b{font-size:12px}.recTop time{margin-left:auto;font-size:12px;color:#aebac8;font-variant-numeric:tabular-nums}
+.recButtons{display:grid;grid-template-columns:1fr 1fr auto;gap:8px}
+.recButtons button{height:44px;border:0;border-radius:12px;background:#24354c;font-weight:700}
+.recButtons .discard{width:44px;background:#33232b;color:#d998a5}
+
+.queue{margin-top:14px}
+.sectionTitle{display:flex;align-items:center;justify-content:space-between;color:#8b9bb0;font-size:10px;letter-spacing:.09em;text-transform:uppercase;margin:0 3px 8px}
+.note{
+  display:grid;grid-template-columns:8px 1fr auto;gap:10px;align-items:start;
+  padding:11px 2px;border-bottom:1px solid var(--line)
+}
+.note i{width:7px;height:7px;border-radius:50%;margin-top:5px;background:#71839a}
+.note.processing i{background:#d1aa69;animation:softPulse 1.1s ease-in-out infinite}
+.note.ready i{background:var(--accent)}
+.note.submitted i{background:#7095b6}
+@keyframes softPulse{50%{opacity:.28}}
+.noteText{font-size:13px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere}
+.noteMeta{font-size:9px;color:var(--muted);margin-top:4px}
+.noteSide{font-size:9px;color:#71839a;padding-top:3px;white-space:nowrap}
+.empty{padding:14px 3px;color:#61748c;font-size:12px}
+
+.sendBlock{margin-top:17px;border:1px solid var(--line);border-radius:20px;background:#ffffff03;padding:11px}
+.sendHead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:9px}
+.sendHead b{font-size:13px}.sendHead span{font-size:10px;color:var(--muted)}
+.rail{
+  height:54px;border-radius:17px;background:#0f1823;position:relative;overflow:hidden;
+  box-shadow:inset 5px 5px 10px #0007,inset -2px -2px 6px #ffffff08;
+  touch-action:none;user-select:none
+}
+.railLabel{position:absolute;inset:0;display:grid;place-items:center;padding-left:46px;color:#64768d;font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+.knob{
+  position:absolute;left:5px;top:5px;width:44px;height:44px;border-radius:13px;
+  background:linear-gradient(145deg,#314760,#1d2c40);
+  box-shadow:5px 5px 11px #0008,-2px -2px 5px #ffffff10,inset 1px 1px 1px #ffffff18;
+  transform:translateX(var(--x,0px));
+  display:grid;place-items:center
+}
+.knob:after{content:"";width:12px;height:12px;border-right:2px solid #93a6bc;border-top:2px solid #93a6bc;transform:rotate(45deg) translate(-2px,2px)}
+.rail.busy .knob:after{width:15px;height:15px;border:2px solid #71839a;border-top-color:var(--accent);border-radius:50%;transform:none;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.worker{display:none;margin-top:14px;border:1px solid var(--line);border-radius:22px;background:#ffffff04;padding:13px}
+.worker.on{display:block}
+.workerTop{display:flex;align-items:center;gap:10px}
+.ping{
+  width:34px;height:34px;border-radius:50%;position:relative;flex:none;
+  border:1px solid #ffffff10;background:#111b28
+}
+.ping:before,.ping:after{content:"";position:absolute;inset:8px;border-radius:50%;border:1px solid #61768f}
+.worker.claimed .ping:after,.worker.working .ping:after{animation:ring 1.3s ease-out infinite;border-color:var(--accent)}
+@keyframes ring{0%{transform:scale(.65);opacity:1}100%{transform:scale(1.8);opacity:0}}
+.workerTop strong{display:block;font-size:13px}.workerTop small{display:block;color:var(--muted);font-size:9px;margin-top:3px}
+.copyState{margin-left:auto;color:#7f92a8;font-size:9px}
+.progressTrack{height:5px;border-radius:99px;background:#0e1721;margin:12px 0 9px;overflow:hidden}
+.progressFill{height:100%;width:0;background:linear-gradient(90deg,#77bce7,#a7e16a);transition:width .35s ease}
+.checkpoints{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.cp{height:4px;border-radius:99px;background:#ffffff0e}
+.cp.on{background:#8fc9e9}
+.workerMsg{font-size:11px;color:#91a2b7;margin-top:9px;line-height:1.4}
+.workerActions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.workerActions button{border:0;border-radius:11px;padding:9px 10px;background:#223249;color:#aebccc;font-size:10px}
+.command{
+  display:none;margin-top:10px;padding:10px;border-radius:13px;background:#101925;
+  color:#93a5ba;font:10px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere
+}
+.command.on{display:block}
+
+.result{display:none;margin-top:16px}
+.result.on{display:block}
+.answer{border:1px solid var(--line);border-radius:20px;padding:14px;background:#ffffff04;font-size:13px;line-height:1.5;white-space:pre-wrap}
+.buckets{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px}
+.bucket{
+  min-height:190px;border:1px solid var(--line);border-radius:19px;background:#ffffff035;
+  padding:13px;display:flex;flex-direction:column;gap:9px
+}
+.bucket h3{font-size:14px;margin:0;letter-spacing:-.02em}
+.bucket p{font-size:11px;color:#95a5b8;margin:0;line-height:1.4}
+.bucket ul{margin:0;padding-left:16px;color:#bac5d2;font-size:11px;line-height:1.5}
+.bucketFoot{margin-top:auto;padding-top:9px;border-top:1px solid var(--line);font-size:9px;color:#71839a}
+.history{margin-top:16px}
+.historyRow{padding:10px 2px;border-bottom:1px solid var(--line)}
+.historyRow b{font-size:11px}.historyRow p{margin:5px 0 0;color:#899aaf;font-size:10px;line-height:1.4}
+.error{margin-top:10px;padding:10px 12px;border-radius:13px;background:#3a252e;color:#dfa5b2;font-size:11px}
+.hidden{display:none!important}
+
+@media(max-width:560px){
+  .shell{padding-left:10px;padding-right:10px}
+  .capture textarea{min-height:98px}
+  .saveText{margin-left:0;flex:1}
+  .buckets{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="head">
+    <div>
+      <h1>Producción</h1>
+      <small>Notas → IA → progreso → resultado</small>
+    </div>
+    <div class="live" id="workspaceState"><i></i><span>conectando</span></div>
+  </header>
+
+  <section class="capture">
+    <textarea id="draft" placeholder="Acumulá acá lo que querés que Prometeo haga. Puede ser una mejora chica, una investigación, arreglar una página, planificar varios chats o todo junto."></textarea>
+    <div class="capture-bar">
+      <button class="rec" id="recBtn"><span class="rec-dot"></span><span id="recBtnText">Grabar</span></button>
+      <button class="soft hidden" id="pauseBtn">Pausar</button>
+      <button class="soft hidden" id="saveAudioBtn">Guardar audio</button>
+      <button class="soft hidden" id="discardAudioBtn">Descartar</button>
+      <button class="saveText" id="saveTextBtn">Agregar nota</button>
+    </div>
+  </section>
+
+  <section class="recDock" id="recDock">
+    <div class="recTop"><b id="recState">Grabando</b><time id="recTime">00:00</time></div>
+    <div class="recButtons">
+      <button id="dockPause">Pausar</button>
+      <button id="dockSave">Guardar</button>
+      <button class="discard" id="dockDiscard">×</button>
+    </div>
+  </section>
+
+  <section class="queue">
+    <div class="sectionTitle"><span>Acumulado</span><span id="queueCount">0</span></div>
+    <div id="queueList"><div class="empty">Todavía no agregaste nada.</div></div>
+  </section>
+
+  <section class="sendBlock">
+    <div class="sendHead"><b>Enviar a una IA</b><span id="sendHint">arrastrá hasta el final</span></div>
+    <div class="rail" id="sendRail">
+      <div class="railLabel">preparar y copiar prompt</div>
+      <div class="knob" id="sendKnob"></div>
+    </div>
+  </section>
+
+  <section class="worker" id="worker">
+    <div class="workerTop">
+      <div class="ping"></div>
+      <div><strong id="workerTitle">Listo para pegar</strong><small id="workerStatus">El prompt quedó copiado.</small></div>
+      <div class="copyState" id="copyState"></div>
+    </div>
+    <div class="progressTrack"><div class="progressFill" id="progressFill"></div></div>
+    <div class="checkpoints" id="checkpoints">
+      <div class="cp"></div><div class="cp"></div><div class="cp"></div><div class="cp"></div><div class="cp"></div>
+    </div>
+    <div class="workerMsg" id="workerMsg">Pegalo en un chat nuevo. Al abrir el paquete, esta página detecta el primer ping.</div>
+    <div class="workerActions">
+      <button id="copyAgain">Copiar otra vez</button>
+      <button id="openChat">Abrir ChatGPT</button>
+      <button id="showCommand">Ver prompt</button>
+    </div>
+    <pre class="command" id="commandBox"></pre>
+  </section>
+
+  <section class="result" id="result">
+    <div class="sectionTitle"><span>Respuesta</span><span id="resultWhen"></span></div>
+    <div class="answer" id="answer"></div>
+    <div class="buckets" id="buckets"></div>
+  </section>
+
+  <section class="history">
+    <div class="sectionTitle"><span>Trabajos anteriores</span><span></span></div>
+    <div id="historyList"><div class="empty">Todavía no hay trabajos terminados.</div></div>
+  </section>
+
+  <div class="error hidden" id="errorBox"></div>
+</main>
+
+<script type="module">
+import {VoiceQueue} from '../../shared/prometeo-shell/v1/voice.js';
+import {listNotes,getNote} from '../../shared/prometeo-shell/v1/db.js';
+import {createChangeLoopClient} from '../../shared/capture/v1/change-loop.js';
+
+const PAGE={
+  id:'prometeo-project-production-desk',
+  title:'Prometeo · Producción',
+  href:location.href,
+  baseline:{surface:'PROMETEO_PRODUCTION_DESK_V2',purpose:'PROJECT_LEVEL_CONTROL'}
+};
+const PROTOCOL_URL='https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/coordination/PRODUCTION_DESK_WORKER_PROTOCOL_V1.md';
+const ACTIVE_KEY='prometeo.production.active-work.v2';
+const COMMAND_KEY='prometeo.production.last-command.v2';
+const TEXT_KEY='prometeo.production.text-notes.v2';
+const AUDIO_ASSET_PREFIX='prometeo.production.audio-asset.v2:';
+const $=s=>document.querySelector(s);
+const client=createChangeLoopClient();
+
+let activeWork=localStorage.getItem(ACTIVE_KEY)||'';
+let lastCommand=localStorage.getItem(COMMAND_KEY)||'';
+let currentDetail=null;
+let pollBusy=false;
+let recRAF=0;
+let railState=null;
+
+const voice=new VoiceQueue({
+  workerURL:new URL('../../shared/prometeo-shell/v1/prometeo-voice-worker-v2.js?v=2',import.meta.url).href,
+  onChange:()=>{refresh().catch(()=>{});syncAudio().catch(()=>{})},
+  onRecording:()=>renderRecording()
+});
+await voice.init();
+
+function textRows(){try{return JSON.parse(localStorage.getItem(TEXT_KEY)||'[]')}catch{return[]}}
+function saveTextRows(rows){localStorage.setItem(TEXT_KEY,JSON.stringify(rows.slice(-200)))}
+function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function ago(v){if(!v)return'';const n=Date.now()-new Date(v).getTime();const m=Math.max(0,Math.round(n/60000));return m<1?'ahora':m<60?`hace ${m}m`:`hace ${Math.round(m/60)}h`}
+function showError(msg=''){const el=$('#errorBox');el.textContent=msg;el.classList.toggle('hidden',!msg)}
+function setWorkspace(ok,msg){const el=$('#workspaceState');el.classList.toggle('on',ok);el.querySelector('span').textContent=msg}
+function noteMeta(){return{pageId:PAGE.id,sourcePath:location.pathname,sourceHref:location.href,sourceTitle:PAGE.title,viewport:`${innerWidth}x${innerHeight}`}}
+function localAudioNotes(){return listNotes().then(all=>all.filter(n=>(n.pageId||'')===PAGE.id).sort((a,b)=>(a.created||0)-(b.created||0)))}
+
+function remoteWorker(){
+  let worker=null,busy=false;
+  const get=()=>worker||(worker=new Worker(new URL('../../shared/prometeo-shell/v1/prometeo-voice-worker-v2.js?v=2',import.meta.url),{type:'module'}));
+  async function decode16k(blob){
+    const AC=window.AudioContext||window.webkitAudioContext;
+    const ctx=new AC();
+    try{
+      const d=await ctx.decodeAudioData((await blob.arrayBuffer()).slice(0));
+      const mono=new Float32Array(d.length);
+      for(let c=0;c<d.numberOfChannels;c++){const a=d.getChannelData(c);for(let i=0;i<d.length;i++)mono[i]+=a[i]/d.numberOfChannels}
+      if(d.sampleRate===16000)return mono;
+      const ratio=d.sampleRate/16000,out=new Float32Array(Math.max(1,Math.round(mono.length/ratio)));
+      for(let i=0;i<out.length;i++){const p=i*ratio,a=Math.floor(p),b=Math.min(a+1,mono.length-1),f=p-a;out[i]=mono[a]*(1-f)+mono[b]*f}
+      return out;
+    }finally{try{await ctx.close()}catch{}}
+  }
+  function transcribe(id,pcm){
+    return new Promise((resolve,reject)=>{
+      const w=get(),timer=setTimeout(()=>done(new Error('timeout')),12*60e3);
+      function done(err,v){clearTimeout(timer);w.removeEventListener('message',msg);w.removeEventListener('error',errh);err?reject(err):resolve(v)}
+      function msg(e){const d=e.data||{};if(d.id!==id)return;if(d.type==='done')done(null,String(d.text||'').trim());if(d.type==='error')done(new Error(d.error||'error'))}
+      function errh(e){done(new Error(e?.message||'worker error'))}
+      w.addEventListener('message',msg);w.addEventListener('error',errh);w.postMessage({type:'transcribe',id,audio:pcm.buffer},[pcm.buffer]);
+    });
+  }
+  async function once(){
+    if(busy||!client.hasWorkspace()||navigator.onLine===false)return false;
+    busy=true;let job=null;
+    try{
+      job=(await client.claimTranscription()).job;
+      if(!job)return false;
+      const r=await fetch(job.audio_url,{cache:'no-store'});
+      if(!r.ok)throw new Error(`audio ${r.status}`);
+      const pcm=await decode16k(await r.blob());
+      const text=await transcribe(job.capture_id,pcm);
+      if(!text)throw new Error('transcripción vacía');
+      await client.completeTranscription(job,text);
+      return true;
+    }catch(e){
+      if(job)try{await client.failTranscription(job,e)}catch{}
+      return false;
+    }finally{busy=false}
+  }
+  return {once};
+}
+const relay=remoteWorker();
+
+async function syncAudio(){
+  if(!client.hasWorkspace())return;
+  const notes=await localAudioNotes();
+  for(const n of notes){
+    if(!n.audio||!n.id)continue;
+    const k='prometeo.production.audio-upload.v2:'+n.id;
+    const stamp=`${n.audio.size||0}:${n.created||0}`;
+    if(localStorage.getItem(k)===stamp)continue;
+    try{
+      await client.uploadAudio(n.audio,n,PAGE);
+      localStorage.setItem(k,stamp);
+    }catch{}
+  }
+  relay.once().then(changed=>{if(changed)refresh().catch(()=>{})}).catch(()=>{});
+}
+
+async function addText(){
+  const ta=$('#draft'),text=String(ta.value||'').trim();
+  if(!text)return;
+  if(!client.hasWorkspace()){showError('Este dispositivo todavía no está vinculado al workspace de Prometeo.');return}
+  showError('');
+  $('#saveTextBtn').disabled=true;
+  try{
+    const file=new File([text],`nota-${new Date().toISOString().replace(/[:.]/g,'-')}.txt`,{type:'text/plain;charset=utf-8'});
+    const r=await client.uploadAttachment(file,PAGE);
+    const rows=textRows();rows.push({id:r.attachment.id,text,created:new Date().toISOString()});saveTextRows(rows);
+    ta.value='';localStorage.removeItem('prometeo.production.draft.v2');
+    await refresh();
+  }catch(e){showError(e?.message||'No pude guardar la nota.')}
+  finally{$('#saveTextBtn').disabled=false}
+}
+
+$('#draft').value=localStorage.getItem('prometeo.production.draft.v2')||'';
+$('#draft').addEventListener('input',e=>localStorage.setItem('prometeo.production.draft.v2',e.target.value));
+$('#saveTextBtn').onclick=addText;
+$('#draft').addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();addText()}});
+
+async function startRec(){
+  showError('');
+  try{await voice.start();renderRecording()}catch(e){showError(e?.name==='NotAllowedError'?'Permití el micrófono para grabar.':(e?.message||'No pude grabar.'))}
+}
+function renderRecording(){
+  const s=voice.state(),active=!!s.active;
+  $('#recBtn').classList.toggle('active',active&&!s.paused);
+  $('#recBtnText').textContent=active?(s.paused?'Pausado':'Grabando'):'Grabar';
+  $('#recDock').classList.toggle('on',active);
+  $('#recState').textContent=s.paused?'Pausado':'Grabando';
+  $('#pauseBtn').classList.toggle('hidden',!active);
+  $('#saveAudioBtn').classList.toggle('hidden',!active);
+  $('#discardAudioBtn').classList.toggle('hidden',!active);
+  $('#pauseBtn').textContent=s.paused?'Continuar':'Pausar';
+  $('#dockPause').textContent=s.paused?'Continuar':'Pausar';
+  cancelAnimationFrame(recRAF);
+  const tick=()=>{
+    const q=voice.state();if(!q.active){$('#recTime').textContent='00:00';return}
+    const sec=Math.floor((q.elapsed||0)/1000);
+    $('#recTime').textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
+    recRAF=requestAnimationFrame(tick);
+  };
+  if(active)tick();
+}
+async function saveRec(){
+  try{
+    const n=await voice.save(noteMeta());renderRecording();
+    for(let i=0;i<20;i++){const q=n?.id?await getNote(n.id):null;if(q?.audio)break;await new Promise(r=>setTimeout(r,100))}
+    await syncAudio();await refresh();
+  }catch(e){showError(e?.message||'No pude guardar el audio.')}
+}
+function discardRec(){voice.discard();renderRecording()}
+function pauseRec(){voice.pauseResume();renderRecording()}
+$('#recBtn').onclick=()=>voice.state().active?pauseRec():startRec();
+$('#pauseBtn').onclick=pauseRec;$('#dockPause').onclick=pauseRec;
+$('#saveAudioBtn').onclick=saveRec;$('#dockSave').onclick=saveRec;
+$('#discardAudioBtn').onclick=discardRec;$('#dockDiscard').onclick=discardRec;
+renderRecording();
+
+function processingLabel(n){
+  const s=String(n?.status||'');
+  if(s==='preparing')return'guardando audio';
+  if(s==='queued')return'esperando transcripción';
+  if(s==='loading')return'cargando modelo';
+  if(s==='transcribing')return'transcribiendo';
+  if(s==='error')return n.error||'error de transcripción';
+  return'';
+}
+
+async function renderQueue(){
+  const aud=await localAudioNotes();
+  const serverPending=new Map((currentDetail?.pending||[]).map(x=>[x.capture_id,x]));
+  const serverProcessing=new Map((currentDetail?.processing||[]).map(x=>[x.id,x]));
+  const atState=new Map((currentDetail?.attachments||[]).map(x=>[x.id,x.state]));
+  const rows=[];
+  for(const t of textRows()){
+    const st=atState.get(t.id)||'PENDING';
+    rows.push({kind:'text',text:t.text,created:t.created,state:st==='PENDING'?'ready':'submitted'});
+  }
+  for(const n of aud){
+    const p=serverPending.get(n.id);
+    const sp=serverProcessing.get(n.id);
+    if(p)rows.push({kind:'audio',text:p.text||n.text||'',created:n.created,state:'ready',meta:'transcripción lista'});
+    else{
+      const label=processingLabel(n)||sp?.processing_state||'audio guardado';
+      rows.push({kind:'audio',text:n.text||label,created:n.created,state:n.text?'ready':'processing',meta:label});
+    }
+  }
+  rows.sort((a,b)=>new Date(a.created)-new Date(b.created));
+  $('#queueCount').textContent=String(rows.length);
+  $('#queueList').innerHTML=rows.length?rows.map(r=>`<div class="note ${r.state}"><i></i><div><div class="noteText">${esc(r.text)}</div><div class="noteMeta">${r.kind==='audio'?'AUDIO':'TEXTO'} · ${esc(r.meta||'guardado')}</div></div><div class="noteSide">${r.state==='submitted'?'enviado':r.state==='ready'?'listo':'procesando'}</div></div>`).join(''):'<div class="empty">Todavía no agregaste nada.</div>';
+}
+
+async function refresh(){
+  if(!client.hasWorkspace()){
+    setWorkspace(false,'sin vincular');
+    await renderQueue();
+    return;
+  }
+  setWorkspace(true,'conectado');
+  try{
+    await client.syncPage(PAGE);
+    currentDetail=await client.detail(PAGE);
+    await renderQueue();
+    renderResults(currentDetail);
+  }catch(e){showError(e?.message||'No pude sincronizar Prometeo.')}
+}
+
+function resultSummary(r){return r?.summary&&typeof r.summary==='object'?r.summary:{text:String(r?.summary||'')}}
+function renderResults(d){
+  const results=d?.results||[];
+  const last=results[results.length-1];
+  if(last){
+    const s=resultSummary(last);
+    $('#result').classList.add('on');
+    $('#resultWhen').textContent=ago(last.created_at);
+    $('#answer').textContent=s.answer||s.text||'Trabajo terminado.';
+    const buckets=Array.isArray(s.buckets)?s.buckets:[];
+    $('#buckets').innerHTML=buckets.map(b=>`<article class="bucket"><h3>${esc(b.title||'Frente')}</h3>${b.purpose?`<p>${esc(b.purpose)}</p>`:''}${Array.isArray(b.tasks)&&b.tasks.length?`<ul>${b.tasks.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}<div class="bucketFoot">${esc(b.deliverable||b.status||'')}</div></article>`).join('');
+  }
+  $('#historyList').innerHTML=results.length?results.slice().reverse().slice(0,8).map(r=>{const s=resultSummary(r);return`<div class="historyRow"><b>${esc(r.status)} · ${esc(r.work_item_id)}</b><p>${esc(s.text||s.answer||'Trabajo terminado.')}</p></div>`}).join(''):'<div class="empty">Todavía no hay trabajos terminados.</div>';
+}
+
+async function ensureProcessingAudioAssets(){
+  const notes=await localAudioNotes();
+  for(const n of notes){
+    const text=String(n.text||'').trim();
+    const state=String(n.status||'');
+    if(text||!n.audio||!['preparing','queued','loading','transcribing','error'].includes(state))continue;
+    const key=AUDIO_ASSET_PREFIX+n.id;
+    if(localStorage.getItem(key))continue;
+    const ext=(n.audio.type||'').includes('mp4')?'mp4':(n.audio.type||'').includes('ogg')?'ogg':'webm';
+    const file=new File([n.audio],`audio-pendiente-${n.id}.${ext}`,{type:n.audio.type||'audio/webm'});
+    const r=await client.uploadAttachment(file,PAGE);
+    localStorage.setItem(key,r.attachment.id);
+  }
+}
+
+async function copyText(text){
+  try{await navigator.clipboard.writeText(text);return true}catch{}
+  try{
+    const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.left='-9999px';document.body.append(ta);ta.select();
+    const ok=document.execCommand('copy');ta.remove();return !!ok;
+  }catch{return false}
+}
+
+async function prepareWork(){
+  if(!client.hasWorkspace()){showError('Este dispositivo todavía no está vinculado al workspace de Prometeo.');return}
+  const rail=$('#sendRail');rail.classList.add('busy');$('#sendHint').textContent='preparando…';showError('');
+  try{
+    await syncAudio();
+    await ensureProcessingAudioAssets();
+    await client.syncPage(PAGE);
+    const d=await client.trabajar(PAGE);
+    const command=`${d.command}\nPRODUCTION DESK · ${PROTOCOL_URL}`;
+    activeWork=d.work_item_id;lastCommand=command;
+    localStorage.setItem(ACTIVE_KEY,activeWork);localStorage.setItem(COMMAND_KEY,lastCommand);
+    const ok=await copyText(command);
+    $('#worker').classList.add('on');
+    $('#worker').className='worker on';
+    $('#workerTitle').textContent='Listo para pegar';
+    $('#workerStatus').textContent=`${activeWork} · paquete durable creado`;
+    $('#copyState').textContent=ok?'copiado':'copiá abajo';
+    $('#workerMsg').textContent='Pegalo en un chat nuevo. Apenas el chat abra el paquete, esta página recibe el primer ping.';
+    $('#commandBox').textContent=command;
+    $('#progressFill').style.width='0%';
+    [...document.querySelectorAll('.cp')].forEach(x=>x.classList.remove('on'));
+    startPolling();
+    await refresh();
+  }catch(e){
+    showError(e?.code==='NO_PENDING_INTENT'?'No hay notas nuevas para enviar.':(e?.message||'No pude preparar el trabajo.'));
+  }finally{
+    rail.classList.remove('busy');$('#sendHint').textContent='arrastrá hasta el final';resetRail();
+  }
+}
+
+const rail=$('#sendRail'),knob=$('#sendKnob');
+function railMax(){return Math.max(1,rail.clientWidth-knob.clientWidth-10)}
+function drawRail(x){knob.style.setProperty('--x',`${x}px`)}
+function resetRail(){knob.style.transition='transform .24s cubic-bezier(.2,.85,.25,1)';drawRail(0);setTimeout(()=>knob.style.transition='',260)}
+knob.addEventListener('pointerdown',e=>{railState={id:e.pointerId,start:e.clientX,x:0};knob.setPointerCapture(e.pointerId);e.preventDefault()});
+knob.addEventListener('pointermove',e=>{const s=railState;if(!s||s.id!==e.pointerId)return;s.x=Math.max(0,Math.min(railMax(),e.clientX-s.start));drawRail(s.x);e.preventDefault()},{passive:false});
+knob.addEventListener('pointerup',e=>{const s=railState;if(!s||s.id!==e.pointerId)return;railState=null;try{knob.releasePointerCapture(e.pointerId)}catch{};if(s.x>railMax()*.82){drawRail(railMax());navigator.vibrate?.([5,20,5]);prepareWork()}else resetRail()});
+knob.addEventListener('pointercancel',()=>{railState=null;resetRail()});
+
+$('#copyAgain').onclick=async()=>{$('#copyState').textContent=(await copyText(lastCommand))?'copiado':'no pude copiar'};
+$('#openChat').onclick=()=>{if(lastCommand)window.open(`https://chatgpt.com/?q=${encodeURIComponent(lastCommand)}`,'_blank','noopener')};
+$('#showCommand').onclick=()=>$('#commandBox').classList.toggle('on');
+
+async function fetchProgress(work){
+  try{
+    const url=`https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/coordination/executions/${encodeURIComponent(work)}/PROGRESS.json?v=${Date.now()}`;
+    const r=await fetch(url,{cache:'no-store'});
+    if(!r.ok)return null;
+    const d=await r.json();
+    return d?.work_item_id===work?d:null;
+  }catch{return null}
+}
+function paintProgress(value=0,stage='',message=''){
+  const p=Math.max(0,Math.min(100,Number(value)||0));
+  $('#progressFill').style.width=`${p}%`;
+  const cps=[10,30,55,80,95];
+  [...document.querySelectorAll('.cp')].forEach((x,i)=>x.classList.toggle('on',p>=cps[i]));
+  if(stage||message)$('#workerMsg').textContent=`${stage?stage+' · ':''}${message||''}`;
+}
+async function pollWork(){
+  if(!activeWork||pollBusy||!client.hasWorkspace())return;
+  pollBusy=true;
+  try{
+    const st=await client.executionStatus({work_item_id:activeWork});
+    const ex=(st.executions||[])[0];
+    if(ex){
+      $('#worker').classList.add('on');
+      $('#workerStatus').textContent=`${activeWork} · ${ex.status}`;
+      $('#worker').classList.toggle('claimed',['CLAIMED','EXECUTING','WRITING','INTEGRATING'].includes(ex.status));
+      $('#worker').classList.toggle('working',!['READY','CANDIDATE_READY','VERIFIED','SERVED','BLOCKED','FAILED'].includes(ex.status));
+      if(ex.status==='CLAIMED'){
+        $('#workerTitle').textContent='Chat conectado';
+        $('#workerMsg').textContent='El worker abrió el paquete y recuperó el contexto.';
+        paintProgress(7,'FETCH','Paquete reclamado por el worker.');
+      }
+      const pg=await fetchProgress(activeWork);
+      if(pg){
+        $('#workerTitle').textContent=pg.progress>=95?'Cerrando trabajo':'Trabajando';
+        paintProgress(pg.progress,pg.stage,pg.message);
+      }
+      if(ex.result||['CANDIDATE_READY','VERIFIED','SERVED','BLOCKED','FAILED'].includes(ex.status)){
+        $('#workerTitle').textContent=ex.status==='FAILED'?'Falló':ex.status==='BLOCKED'?'Bloqueado':'Terminado';
+        paintProgress(100,'RETURN','Resultado recibido en Prometeo.');
+        await refresh();
+      }
+    }
+  }catch{}finally{pollBusy=false}
+}
+let pollTimer=null;
+function startPolling(){clearInterval(pollTimer);pollWork();pollTimer=setInterval(pollWork,3500)}
+
+addEventListener('online',()=>{syncAudio();refresh();relay.once().then(()=>refresh())});
+setInterval(()=>{syncAudio().catch(()=>{});relay.once().then(ch=>{if(ch)refresh()}).catch(()=>{})},25000);
+
+if(lastCommand){$('#worker').classList.add('on');$('#commandBox').textContent=lastCommand;$('#workerStatus').textContent=activeWork||'último trabajo'}
+if(activeWork)startPolling();
+await syncAudio();
+await refresh();
+</script>
+</body>
+</html>
