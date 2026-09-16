@@ -1,310 +1,277 @@
-# Prometeo Chat-Native Control Plane v1
+# Prometeo Chat Object / Parallel Worker Index v2
 
-Status: DESIGN FROZEN ENOUGH TO CONTINUE
-Primary worker: `W-CHAT-NATIVE-20260916-1438-SOL`
+Status: CURRENT CURATED INDEX
+Canonical full blueprint: `PRODUCT_BLUEPRINT_V2.md`
+Current durable Chat Object: `CHAT_OBJECT.json`
 Workstream: `chat-native-control-plane-v1`
 
-## Mission
+## Core idea
 
-Turn ChatGPT itself into Prometeo's primary human interface while keeping Prometeo's durable external coordination/state as the source of operational continuity. The human should be able to speak naturally, spawn parallel specialist chats, leave, forget details, return later, and continue without manually transporting context between chats.
+The primary product is **not an Inbox between chats**. It is a system where a long-lived working identity exists outside any one ChatGPT conversation as a **durable Chat Object**.
 
-The system must remain useful even when an individual model instance is forgetful, shallow, or temporarily reasons poorly.
+Any fresh ChatGPT conversation can reincarnate that object, reconstruct what it is doing, and continue. The main Chat Object can also prepare many durable jobs in advance; fresh one-shot worker chats launch from tiny codes, mark execution state, leave durable returns and disappear. The parent sees worker progress/results as part of its own durable work state.
 
-## Core architectural decision
+Normal coordination path:
 
-Do **not** rebuild ChatGPT as a custom web application.
+`Chat Object -> prepared JOB -> independent Worker Run -> durable RETURN -> parent/steward integration`
 
-Use ChatGPT for:
-- conversation;
-- native voice/transcription;
-- long-form thinking;
-- branching/specialist chats;
-- user-facing Home/control surface;
-- generating/opening minimal worker commands/links.
+Directed messages/events are optional for exceptional questions/collisions/corrections, not the center of the architecture.
 
-Use Prometeo external infrastructure for:
-- stable bootstrap;
-- authority/current state;
-- work packets;
-- worker identity/state;
-- EPOCH/freshness;
-- inter-chat messages;
-- durable focus;
-- progress/results/returns;
-- evidence and recovery.
+---
 
-Existing Agent Network v3 is a foundation and must be extended, not rebuilt.
+## Objectives
 
-## Curated idea index
+### O01 — Reincarnation
+Abandon any main conversation at any time; a new chat can select the same durable Chat Object and continue the exact frontier.
 
-### I01 — Universal immutable entry point
-Maintain one eternal stable entry (`p.txt` / stable root) whose only job is to resolve the current boot/runtime authority. A model never chooses its own starting document.
+### O02 — Durable intelligence
+Mission, objectives, architecture, design decisions, rules, negative knowledge, shared dependencies, worker state and next actions live outside the transcript.
 
-### I02 — Deterministic boot before reasoning
-Every material Prometeo turn follows a restore cycle before interpreting the new user message:
-1. stable entry;
-2. boot/runtime pointer;
-3. EPOCH freshness check;
-4. current/authority relevant to this workstream;
-5. worker identity;
-6. Inbox;
-7. durable FOCUS;
-8. compiled packet / relevant owner state;
-9. only then reason about the user's new instruction.
+### O03 — Self-documentation
+While the main chat designs/builds, material insights are distilled into its durable Chat Object instead of being trapped in prose history.
 
-### I03 — Every chat has a durable identity
-Every participating chat/agent instance gets a `worker_instance_id` (the chat's "patente"). It may additionally record parent worker, role, spawn reason and workstream. The chat itself is disposable; the identity record and useful state are durable.
+### O04 — Parallel scale
+The main Chat Object can prepare many jobs, keep doing useful work, and let several disposable worker chats execute them in parallel.
 
-### I04 — Durable FOCUS per worker
-A chat must not rely on rereading its whole conversation to know what matters. Maintain a compact durable FOCUS containing:
-- mission;
-- human goal;
-- current frontier;
-- settled decisions;
-- must-preserve behavior;
-- important discoveries;
-- negative knowledge / known failed directions;
-- unresolved questions;
-- next actions.
+### O05 — Tiny human transport
+The human should copy only `Prometeo`, a menu number, or a short launch code such as `Prometeo P-CC-04`; never a long prompt/context/return.
 
-FOCUS is **not** a transcript summary. It is an operational map.
+### O06 — Observable worker state
+Parent derives PREPARED/STARTED/WORKING/RETURNED/DONE/boundary state from durable run evidence and knows partial/full batch completion.
 
-### I05 — Private directed Inbox/Outbox
-Add a message bus so chats can communicate without the human copying messages between them. Support directed routing to:
-- exact worker;
-- workstream;
-- topic/capability;
-- role;
-- rare global broadcast.
+### O07 — Safe convergence
+One parent/steward reconciles overlapping candidate results; workers do not self-promote to canonical truth.
 
-Useful message types:
-- FYI;
-- REVIEW;
-- CORRECTION;
-- NEED;
-- ANSWER;
-- COLLISION;
-- BLOCKER;
-- REMINDER;
-- HANDOFF;
-- RESULT.
+### O08 — Conversation erasure tolerance
+Correct operation cannot depend on an old ChatGPT transcript, though ChatGPT history can be optional archaeology/evidence when available.
 
-Inbox should be private infrastructure (prefer Supabase), while GitHub remains the durable public coordination/authority layer. Do not put private user transcripts or secrets in public network metadata.
+---
 
-### I06 — PRE_RESPONSE restore hook
-Before every material response, a worker checks:
-- did EPOCH change?
-- are there relevant unread Inbox messages?
-- did another worker invalidate an assumption?
-- did a dependency change?
-- am I colliding with another writer?
-- does FOCUS still match the user's current request?
-- am I about to repeat a known failure?
+## Identity model
 
-Only after this check should the model answer or write.
+Do not collapse these identities:
 
-### I07 — Branches become parent/child specialist workers
-A branch/critic chat is not a disconnected copy. It should be registered as a child worker with:
-- `parent_worker_id`;
-- specialist role (e.g. ADVERSARIAL_REVIEWER);
-- spawn reason;
-- scoped task.
+- `project_id` — human umbrella.
+- `chat_object_id` — durable conversational/operational identity that reincarnates.
+- `workstream_id` — durable execution/coordination scope.
+- `batch_id` — group of delegated parallel work.
+- `work_item_id` — one prepared durable task.
+- `worker_instance_id` — disposable execution/incarnation identity.
+- menu number / launch code — temporary human-friendly alias only.
+- platform conversation id — optional evidence only when exposed.
 
-The child publishes useful findings directly to the parent's Inbox. The human does not have to copy the critique back.
+Current object:
 
-### I08 — ChatGPT-native Prometeo Home
-The primary chat becomes the Home/control surface. A `Prometeo` invocation should reconstruct and show, from durable state:
-- active workers;
-- current frontier of each;
-- blockers/collisions;
-- relevant new messages;
-- completed returns since last visit;
-- what the human is actually trying to close;
-- suggested coordination actions when objectively supported.
+`chat-object-prometeo-chat-control-main`
 
-The Home should not trust conversational memory for worker counts/status.
+---
 
-### I09 — Natural capture/batching
-Do not rebuild a note recorder as critical infrastructure. The human can send multiple text/voice messages naturally in ChatGPT, then use a semantic action such as `procesar` or `trabajar`. Prometeo can batch recent unsatisfied intent and divide it into work.
+## Architecture
 
-### I10 — Meta-orchestrator before spawning workers
-Do not use `one request = one worker`. First classify and decompose the request, detect existing owners/workstreams and dependencies, then decide whether to:
-- answer locally;
-- continue current worker;
-- spawn one specialist;
-- spawn several parallel workers;
-- ask another worker for information;
-- wait on an existing dependency.
+### A01 — Stable boot/Home
+`Prometeo` loads stable entry. Fresh/unbound chat gets Home. Menu number resolves to project and preferred Chat Object.
 
-### I11 — Intent classes
-Useful input classes:
-- IDEA: store/develop, no automatic product mutation;
-- CHANGE: concrete requested delta;
-- PROBLEM: diagnose before changing;
-- META: changes strategy/process rather than a product surface.
+### A02 — Durable Chat Object
+`CHAT_OBJECT.json` is the manifest representing the main working identity. It points to FOCUS, blueprint/design, rules, Work Board, Shared Graph, PACK and evidence.
 
-### I12 — Anti-hallucination execution gates
-A worker should not merely be told to "think harder". Require structured gates:
+### A03 — FOCUS
+Compact current objectives/frontier/blockers/open questions. Not a transcript summary.
 
-**Identity gate**
-- repository;
-- epoch/current revision;
-- work item;
-- actual target;
-- owner;
-- served/candidate/writable identities.
+### A04 — Design Board
+`PRODUCT_BLUEPRINT_V2.md` captures architecture, rationale, ideas, hypotheses, current target and acceptance tests.
 
-**Reconstruction gate**
-- exact human request;
-- current behavior;
-- requested delta;
-- must-preserve map;
-- known regressions;
-- relevant previous returns;
-- source/evidence refs.
+### A05 — Rules / negative knowledge
+Persist invariants, must-preserve behavior, failed directions and prevention rules so reincarnated chats do not repeat settled regressions.
 
-If material identity/context cannot be resolved, stop rather than invent.
+### A06 — Shared Graph
+Track shared capabilities/owners/dependencies/adapters/workstreams. Reuse shared infrastructure instead of duplicating it locally.
 
-### I13 — Expansion + criticism after grounding
-After factual reconstruction, run separate passes:
-1. literal interpretation;
-2. system-level goal;
-3. stronger opportunity;
-4. adversarial critique / assumptions;
-5. revised approach.
+### A07 — Work Board
+`WORK_BOARD.json` indexes batches, prepared Work Items, launch codes and derived worker/result state.
 
-Do not use arbitrary word-count requirements as a correctness proxy. Do not ask for vague "use all resources" behavior. Spend more reasoning only when it can reduce material uncertainty, regression risk or strategic error.
+### A08 — Prepublished jobs
+A worker task exists before the worker conversation. Each `JOB.json` contains mission, context refs, preserve rules, scope, return contract and completion boundary.
 
-### I14 — Preserve maps / surgical deltas
-Every material task should explicitly separate:
-- `must_preserve`;
-- `allowed_to_change`;
-- `forbidden_without_human_request`.
+### A09 — One-shot worker chats
+Fresh chat receives `Prometeo <launch_code>`, resolves exact JOB, writes independent STARTED/run state, executes, writes RETURN/evidence, marks DONE/boundary and may disappear.
 
-A small request must not silently become a clean-slate redesign.
+### A10 — Derived Control Room
+Parent derives worker/batch status from independent run/return objects. No shared mutable central worker-status file.
 
-### I15 — Facts, accepted decisions and hypotheses are different
-Never collapse:
-- FACT;
-- HUMAN_ACCEPTED;
-- HYPOTHESIS/CANDIDATE.
+### A11 — Parent/steward integration
+Parent reads returns, detects conflicts, accepts/rejects/supersedes candidates, updates durable Chat Object state and optionally launches another batch.
 
-A model cannot promote its own hypothesis to Human Accepted or Current merely because it implemented it.
+### A12 — Progressive retrieval
+Load compact Chat Object state first. Deep repository/chat archaeology only when needed to resolve a contradiction/missing detail.
 
-### I16 — Negative knowledge and incident learning
-Persist not only what works but what should not be repeated. When the human reports a regression, record the incident pattern, likely cause and prevention rule when evidence supports it. Load relevant prevention rules before modifying that subsystem again.
+### A13 — Optional targeted events
+A small message/event path may later support questions/collisions/urgent corrections. It does not replace JOB/run/RETURN orchestration.
 
-### I17 — Progressive context, not infinite context
-Use staged retrieval:
-- L0: identity + request + owner + rules;
-- L1: relevant workstream/source/returns;
-- L2: deep history/archaeology only when needed to resolve contradiction or missing authority.
+---
 
-Do not flood every worker with the entire repository/history by default.
+## Existing Prometeo pieces to reuse
 
-### I18 — Risk-scaled cognition
-Small local deltas can use a short execution path. Architecture/authority/runtime changes require deeper reconstruction, critique, dependency analysis and stronger verification. High-risk authority changes may require an independent reviewer.
+### E01 — Stable Prometeo entry/bootstrap
+Keep one stable boot authority.
 
-### I19 — Evidence receipts
-Workers do not merely say "done". Material completion should identify evidence such as changed files, commit/return refs, tests, regression checks and candidate/served identity where applicable.
+### E02 — Agent Network v3
+Reuse independent worker statuses, derived Network, convergence, NEEDS/PROVIDES/DEPENDS_ON/IMPACTS and no-global-lock semantics.
 
-### I20 — Derived system health
-Prometeo Home should eventually derive a compact health view (not hand-maintained) covering at least:
-- active/stale workers;
-- hard collisions;
-- unmet dependencies;
-- unintegrated returns;
-- orphan workstreams;
-- current/catalog/runtime validity;
-- last integrity check.
+### E03 — EPOCH
+Reuse as cheap freshness check.
 
-## Existing foundation that must be reused
+### E04 — Compiled Work Packets
+Reuse progressive relevant context instead of full repository rereads.
 
-Agent Network v3 already provides important pieces:
-- independent worker status objects;
-- compiled read-only Network view;
-- EPOCH fast path;
-- needs/provides/depends_on/impacts;
-- convergence/collision semantics;
-- disposable worker model;
-- public/private coordination boundary;
-- stable chat bootstrap.
+### E05 — Execution Packets
+Reuse the existing principle that execution/recovery must not depend on chat identity; extend as/prep for delegated JOBs.
 
-Do not design a parallel replacement unless a concrete limitation proves necessary.
+### E06 — RETURN
+Reuse durable result/evidence. Add parent consumption states: UNCONSUMED/REVIEWED/INTEGRATED/REJECTED/SUPERSEDED/FOLLOWUP_REQUIRED.
 
-## Deprioritized / rejected directions
+### E07 — Current/Catalog/Lineage
+Keep product authority separate from Chat Object memory/orchestration.
 
-These are intentionally **not** on the critical path:
-- rebuilding a floating Prometeo web button as the primary interface;
-- custom browser audio capture/transcription as a prerequisite;
-- duplicating ChatGPT's conversation UI;
-- forcing the human to copy worker critiques/results between chats;
-- making every worker read every other worker's state/messages;
-- one central mutable status file edited by all agents;
-- global heartbeat loops;
-- arbitrary fixed word counts as proof of reasoning quality;
-- vague instructions such as "use 100% of resources";
-- treating larger version numbers or fresh commits as approval.
+### E08 — Historical Planner/Compiler pattern
+Preserve: `Planner/Compiler -> prebuilt jobs -> N workers -> returns -> validator/reconciler -> one Steward/Merger`.
 
-The previous button/audio experiments remain historical experiments, not the chosen strategic frontend.
+### E09 — Recovery Sweep / worker batches
+Preserve durable per-worker progress/return and parallel recovery patterns.
 
-## Delivery plan
+### E10 — SESSION_RETURN / rehydration lineage
+Recover/reuse where concrete implementation still exists instead of inventing another incompatible return/recovery scheme.
 
-### Phase 1 — Identity + Focus
-- formalize `prometeo.chat-focus/v1`;
-- register this chat's worker id;
-- define parent/child metadata;
-- define when FOCUS must update;
-- make recovery possible from durable files without relying on this transcript.
+---
 
-### Phase 2 — Mailbox
-- define private message schema and routing;
-- implement Inbox query + unread cursor;
-- implement publish/reply/ack semantics without heartbeat bureaucracy;
-- enforce privacy boundary.
+## Problems detected
 
-### Phase 3 — Universal bootstrap integration
-- extend stable bootstrap/runtime so every material Prometeo response runs EPOCH → Inbox → FOCUS → packet/authority restore;
-- keep same-EPOCH path cheap;
-- avoid full resync unless relevant state changed.
+### P01
+Long chats end or become unwieldy; useful state is trapped in transcript.
 
-### Phase 4 — Native Home
-- make the primary ChatGPT conversation reconstruct active work, returns, blockers and messages from durable state;
-- define minimal semantic commands (`Prometeo`, capture/batch/process/work/continue) without requiring exact wording.
+### P02
+A fresh chat cannot reliably know what it is, what was decided or what not to break.
 
-### Phase 5 — Specialist/critic workflow
-- formalize child workers and adversarial reviewers;
-- child result goes directly to parent Inbox;
-- parent consumes review before next material response;
-- no human copy/paste return path.
+### P03
+Previous parallel workflows often required the human to copy long prompts/context/results.
 
-### Phase 6 — Cognitive execution protocol
-- add identity/reconstruction/preserve/evidence gates;
-- add risk tiers, progressive context, negative knowledge and incident prevention;
-- add critique/repair pass for material work.
+### P04
+Parent cannot rely on conversational memory to know which workers actually started/finished.
 
-### Phase 7 — Health + automatic orchestration
-- derive system health;
-- let Home decide when to continue, query, spawn, merge, wait or escalate;
-- detect redundant workers and existing owners before spawning new work.
+### P05
+Important design intelligence gets rediscovered because it was never converted to structured durable state.
 
-## Acceptance criteria
+### P06
+Workers may rebuild capabilities that already have shared owners.
 
-This workstream is not complete until all of these are true:
+### P07
+Parallel outputs can conflict without explicit integration authority.
 
-1. A fresh chat can load only the stable entry and recover this mission/frontier without access to this conversation transcript.
-2. This chat can lose local conversational context and recover its worker identity + FOCUS + next action externally.
-3. A child/critic chat can send a relevant review to this parent without the human transporting text.
-4. Before a material response, the parent automatically notices that review.
-5. Worker counts/status shown by Home come from durable/derived state, not guesses.
-6. Relevant context is loaded progressively; unrelated project history is not dumped into every worker.
-7. Small user corrections preserve existing behavior by default.
-8. Claims of completion carry evidence.
-9. Facts, Human Accepted state and hypotheses remain distinct.
-10. The human can become tired, forget prior instructions, or return from another chat without losing the plan represented here.
+### P08
+Latest commit / candidate / worker says DONE can be confused with Current/Human Accepted/Served.
+
+---
+
+## New conclusions from the current iteration
+
+### N01
+`Chat Object` is the primary abstraction; Inbox is secondary.
+
+### N02
+Project and Chat Object are separate so one project may later have multiple durable working identities.
+
+### N03
+A Chat Object needs FOCUS + Design Board + Rules + Shared Graph + Work Board, not just a summary file.
+
+### N04
+Worker feedback normally returns through durable run/RETURN state, not conversational messages.
+
+### N05
+Jobs are compiled before a worker chat exists. Worker launch text is only an address.
+
+### N06
+The main Chat Object keeps working while child jobs run; worker progress is ambient state, not a blocking mode.
+
+### N07
+Worker lifecycle must support partial batch awareness: e.g. 5 started, 3 returned, 2 working.
+
+### N08
+Prometeo should use this mechanism to build itself. First batch `B-CHATOBJ-01` has six prepared jobs.
+
+---
+
+## First prepared self-building batch
+
+`B-CHATOBJ-01`
+
+- `P-CC-01` — runtime/compiler extension audit.
+- `P-CC-02` — adversarial Chat Object/Work Item schema review.
+- `P-CC-03` — tiny worker launch resolver.
+- `P-CC-04` — Worker Run + batch status compiler.
+- `P-CC-05` — fresh-chat reincarnation test harness.
+- `P-CC-06` — historical architecture recovery + simplification review.
+
+The jobs exist under `work-items/<work_item_id>/JOB.json`.
+
+---
+
+## Missing pieces
+
+### M01
+Wire runtime/compiler to natively compile `chat_object_id`, `work_item_id`, batch/run state and return-consumption state.
+
+### M02
+Make `Prometeo <launch_code>` fully executable end-to-end, including automatic independent run creation/STARTED.
+
+### M03
+Implement/compile derived Work Board state from independent run/return objects.
+
+### M04
+Create return-consumption/integration ledger.
+
+### M05
+Automatically bind a fresh reincarnation identity to a Chat Object.
+
+### M06
+Prove fresh-chat reincarnation with tests and actual second-chat trial.
+
+### M07
+Run first batch through disposable chats and integrate the six returns.
+
+### M08
+Bind Facultad and Alumnos to their own durable Chat Objects after recovering their exact current state.
+
+### M09
+Only then add targeted private event/message transport where JOB/run/RETURN proves insufficient.
+
+---
+
+## Errors not to repeat
+
+1. Do not reduce the product to Inbox/Outbox.
+2. Do not make transcript the database.
+3. Do not make the human copy long prompts, context or returns.
+4. Do not launch workers before durable JOBs exist.
+5. Do not infer STARTED/DONE from silence or chat claims.
+6. Do not make all workers mutate one central status file.
+7. Do not block the main Chat Object merely because workers are running.
+8. Do not broadcast all worker chatter.
+9. Do not duplicate shared capabilities before owner discovery.
+10. Do not allow worker candidates to self-promote to canonical truth.
+11. Do not reread all history/network every turn.
+12. Do not rebuild ChatGPT conversation/audio UI on the critical path.
+13. Do not confuse FOCUS with a transcript summary.
+14. Do not treat a higher version/newer commit as Human Accepted/Current/Served.
+15. Do not rebuild old Prometeo mechanisms before checking whether Planner/Compiler/SESSION_RETURN/Execution Packet/Recovery infrastructure can be reused.
+
+---
 
 ## Current frontier
 
-Do **not** spend the next cycle on UI.
+The conceptual product is now defined and the first six jobs are prepublished. Next implementation frontier is:
 
-Next material step: specify and implement the minimal `FOCUS + private MAILBOX + PRE_RESPONSE` extension on top of Agent Network v3, then wire it into the universal chat bootstrap. Validate recovery with at least one parent chat + one critic child before expanding further.
+1. update PACK/FOCUS/identity/runtime semantics to Chat Object model;
+2. make launch codes and independent run state executable;
+3. compile parent batch state;
+4. run the first parallel self-building batch;
+5. integrate returns through this Chat Object;
+6. test full parent conversation erasure + reincarnation.
