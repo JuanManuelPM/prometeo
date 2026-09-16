@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#172131">
+<title>Prometeo · menú simple</title>
+<style>
+:root{
+  --bg:#AAB99D;
+  --ink:#151A20;
+  --app:#172131;
+  --btn-x:calc(100vw - 36px);
+  --btn-y:calc(100dvh - 54px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--app);font-family:"Century Gothic","Avenir Next",Avenir,system-ui,sans-serif}
+button{font:inherit;color:inherit}
+.surface{position:fixed;inset:0;width:100%;height:100%;border:0;background:var(--app)}
+#capture{z-index:1}
+#page{z-index:2;opacity:0;pointer-events:none}
+#page.active{opacity:1;pointer-events:auto}
+
+/* Un único menú, siempre con la misma gramática visual */
+#menu{
+  position:fixed;inset:0;z-index:80;
+  background:var(--bg);color:var(--ink);
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity 110ms ease;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+#menu.open{opacity:1;visibility:visible;pointer-events:auto}
+.menu-top{
+  height:54px;display:flex;align-items:center;
+  padding:0 20px;border-bottom:1px solid color-mix(in srgb,var(--ink) 24%,transparent);
+  font-size:11px;font-weight:800;letter-spacing:.04em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+#rows{
+  position:absolute;left:0;right:0;top:calc(54px + env(safe-area-inset-top,0px));bottom:env(safe-area-inset-bottom,0px);
+  overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+}
+.row{
+  width:100%;min-height:62px;padding:0 20px;
+  display:flex;align-items:center;gap:12px;
+  border:0;border-bottom:1px solid color-mix(in srgb,var(--ink) 22%,transparent);
+  background:transparent;color:var(--ink);text-align:left;
+  touch-action:manipulation;
+}
+.row:active{background:color-mix(in srgb,var(--ink) 8%,var(--bg))}
+.row-main{min-width:0;flex:1;font-size:16px;font-weight:800;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-side{flex:none;font-size:18px;font-weight:500;opacity:.55}
+.row.muted .row-main{font-weight:700;opacity:.72}
+
+/* Botón: pequeño, agarrable y libre. El hitbox es mayor que el círculo visible. */
+#prometeo{
+  position:fixed;left:var(--btn-x);top:var(--btn-y);z-index:100;
+  width:42px;height:42px;border:0;border-radius:50%;padding:0;
+  transform:translate(-50%,-50%);
+  background:var(--ink);color:var(--bg);
+  box-shadow:0 5px 12px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.05);
+  touch-action:none;user-select:none;-webkit-user-select:none;
+}
+#prometeo::before{content:"";position:absolute;inset:-10px;border-radius:50%}
+#prometeo::after{
+  content:"";position:absolute;left:50%;top:50%;width:12px;height:12px;border-radius:50%;
+  transform:translate(-50%,-50%);
+  background:var(--ink);
+  box-shadow:inset 0 3px 5px rgba(0,0,0,.5),0 0 0 1px rgba(170,185,157,.08);
+}
+#prometeo.dragging{box-shadow:0 9px 20px rgba(0,0,0,.28),inset 0 2px 5px rgba(0,0,0,.3)}
+
+@media(max-width:340px){
+  .row{min-height:58px;padding:0 16px}.row-main{font-size:15px}.menu-top{padding:0 16px}
+  #prometeo{width:40px;height:40px}
+}
+@media(prefers-reduced-motion:reduce){#menu{transition:none}}
+</style>
+</head>
+<body>
+<iframe id="capture" class="surface" src="../capture-lab/" title="Notas"></iframe>
+<iframe id="page" class="surface" title="Página"></iframe>
+
+<section id="menu" aria-hidden="true">
+  <div class="menu-top" id="path">Prometeo</div>
+  <div id="rows"></div>
+</section>
+
+<button id="prometeo" aria-label="Prometeo"></button>
+
+<script>
+(()=>{
+'use strict';
+const $=s=>document.querySelector(s);
+const menu=$('#menu'), rows=$('#rows'), pathEl=$('#path'), btn=$('#prometeo'), capture=$('#capture'), page=$('#page');
+const POS_KEY='prometeo.simple-list.button.v1';
+const DRAG=8;
+
+const TREE={name:'Prometeo',children:[
+  {name:'Nueva nota',action:'new-note'},
+  {name:'Notas',action:'notes'},
+  {name:'Prometeo',children:[
+    {name:'Live',url:'../prometeo-live/'},
+    {name:'Student World',url:'../../pages/PROMETEO_STUDENT_WORLD_MAP_FIXED_OPEN_ME.html'},
+    {name:'José',url:'../../pages/PAGINA_MATERIA_JOSE_RECONSTRUCTION.html'},
+    {name:'Class Player',url:'../../pages/PROMETEO_CLASS_PLAYER_ULTIMA_VERSION_BUENA_v26.html'}
+  ]},
+  {name:'Herramientas',children:[
+    {name:'Texto → Voz',url:'../../pages/audio-demo/'},
+    {name:'Voz → Texto',action:'new-note'}
+  ]},
+  {name:'Legado',children:[
+    {name:'Prometeo anterior',url:'../../legacy/prometeo-v5/index.html',external:true}
+  ]}
+]};
+
+let node=TREE;
+let stack=[];
+let menuOpen=false;
+let drag=null;
+let pos=loadPos();
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function buzz(ms=5){try{navigator.vibrate?.(ms)}catch{}}
+function loadPos(){
+  try{const p=JSON.parse(localStorage.getItem(POS_KEY)||'null');if(p&&Number.isFinite(p.x)&&Number.isFinite(p.y))return p}catch{}
+  return{x:.90,y:.88};
+}
+function savePos(){try{localStorage.setItem(POS_KEY,JSON.stringify(pos))}catch{}}
+function applyPos(){
+  const vv=visualViewport; const w=vv?.width||innerWidth,h=vv?.height||innerHeight,ox=vv?.offsetLeft||0,oy=vv?.offsetTop||0;
+  const m=28;
+  const x=clamp(ox+pos.x*w,ox+m,ox+w-m), y=clamp(oy+pos.y*h,oy+m,oy+h-m);
+  document.documentElement.style.setProperty('--btn-x',x+'px');
+  document.documentElement.style.setProperty('--btn-y',y+'px');
+}
+function setPosFromPixels(x,y){
+  const vv=visualViewport; const w=vv?.width||innerWidth,h=vv?.height||innerHeight,ox=vv?.offsetLeft||0,oy=vv?.offsetTop||0;
+  const m=28; x=clamp(x,ox+m,ox+w-m); y=clamp(y,oy+m,oy+h-m);
+  pos={x:(x-ox)/w,y:(y-oy)/h}; applyPos();
+}
+applyPos();
+addEventListener('resize',applyPos); visualViewport?.addEventListener('resize',applyPos); visualViewport?.addEventListener('scroll',applyPos);
+
+function currentPath(){return ['Prometeo',...stack.slice(1).map(n=>n.name),...(node!==TREE?[node.name]:[])].filter((v,i,a)=>i===0||v!==a[i-1]).join(' / ')}
+function render(){
+  pathEl.textContent=currentPath();
+  const items=node.children||[];
+  const html=[];
+  if(node!==TREE) html.push(`<button class="row muted" data-back="1"><span class="row-main">Atrás</span><span class="row-side">‹</span></button>`);
+  for(let i=0;i<items.length;i++){
+    const it=items[i], folder=Array.isArray(it.children);
+    html.push(`<button class="row" data-i="${i}"><span class="row-main">${escapeHtml(it.name)}</span><span class="row-side">${folder?'›':''}</span></button>`);
+  }
+  rows.innerHTML=html.join('');
+  rows.scrollTop=0;
+}
+function escapeHtml(s){return String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function openMenu(){menuOpen=true;menu.classList.add('open');menu.setAttribute('aria-hidden','false');render();buzz(4)}
+function closeMenu(){menuOpen=false;menu.classList.remove('open');menu.setAttribute('aria-hidden','true');buzz(3)}
+function toggleMenu(){menuOpen?closeMenu():openMenu()}
+function enterFolder(it){stack.push(node);node=it;render();buzz(5)}
+function goBack(){if(node===TREE){closeMenu();return}node=stack.pop()||TREE;render();buzz(4)}
+
+function showNotes(){page.classList.remove('active');closeMenu()}
+function openPage(it){
+  if(it.external){window.open(it.url,'_blank');closeMenu();return}
+  page.src=it.url; page.classList.add('active'); closeMenu();
+}
+function openComposer(){
+  showNotes();
+  try{
+    const d=capture.contentDocument, comp=d?.querySelector('#composer'), scrim=d?.querySelector('#scrim');
+    comp?.classList.remove('hidden'); scrim?.classList.remove('hidden');
+    d?.querySelector('#draft')?.focus();
+  }catch{}
+}
+function activate(it){
+  if(Array.isArray(it.children)){enterFolder(it);return}
+  if(it.action==='new-note'){openComposer();return}
+  if(it.action==='notes'){showNotes();return}
+  if(it.url){openPage(it);return}
+}
+
+rows.addEventListener('click',e=>{
+  const row=e.target.closest('.row'); if(!row)return;
+  if(row.dataset.back){goBack();return}
+  const i=Number(row.dataset.i); const it=(node.children||[])[i]; if(it)activate(it);
+});
+
+/* Capture queda intacto salvo ocultar su + para que exista un único acceso. */
+function patchCapture(){
+  try{
+    const d=capture.contentDocument;if(!d)return;
+    if(!d.querySelector('#prometeo-simple-style')){
+      const st=d.createElement('style');st.id='prometeo-simple-style';st.textContent='#add{display:none!important}';d.head.appendChild(st);
+    }
+  }catch{}
+}
+capture.addEventListener('load',()=>setTimeout(patchCapture,60));
+setTimeout(patchCapture,300);
+
+/* Drag libre: mover no abre; tap sin desplazamiento sí abre/cierra. */
+btn.addEventListener('pointerdown',e=>{
+  if(e.pointerType==='mouse'&&e.button!==0)return;
+  drag={id:e.pointerId,sx:e.clientX,sy:e.clientY,moved:false};
+  try{btn.setPointerCapture(e.pointerId)}catch{}
+  e.preventDefault();e.stopPropagation();
+},{passive:false});
+btn.addEventListener('pointermove',e=>{
+  const d=drag;if(!d||d.id!==e.pointerId)return;
+  const dist=Math.hypot(e.clientX-d.sx,e.clientY-d.sy);
+  if(!d.moved&&dist<DRAG)return;
+  if(!d.moved){d.moved=true;btn.classList.add('dragging');buzz(4)}
+  setPosFromPixels(e.clientX,e.clientY);
+  e.preventDefault();e.stopPropagation();
+},{passive:false});
+function finish(e,cancel=false){
+  const d=drag;if(!d||d.id!==e.pointerId)return;drag=null;
+  try{btn.releasePointerCapture(e.pointerId)}catch{}
+  btn.classList.remove('dragging');
+  if(cancel)return;
+  if(d.moved){savePos();buzz(4)}else toggleMenu();
+  e.preventDefault();e.stopPropagation();
+}
+btn.addEventListener('pointerup',e=>finish(e,false),{passive:false});
+btn.addEventListener('pointercancel',e=>finish(e,true),{passive:false});
+
+render();
+})();
+</script>
+</body>
+</html>
