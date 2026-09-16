@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#172131">
+<title>Prometeo · V3 surgical</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#172131}
+#base{position:fixed;inset:0;width:100%;height:100%;border:0;background:#172131}
+</style>
+</head>
+<body>
+<iframe id="base" src="../prometeo-capture-v45-20260915/" title="Prometeo V3"></iframe>
+<script>
+(()=>{
+'use strict';
+const frame=document.querySelector('#base');
+const CORNERS=['top-left','top-right','bottom-left','bottom-right'];
+const CORNER_KEY='prometeo.v3.surgical.corner.v1';
+const DRAG_PX=8;
+const SNAP_MS=210;
+const EDGE=32;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+frame.addEventListener('load',()=>{
+  let w,d;
+  try{w=frame.contentWindow;d=frame.contentDocument}catch{return}
+  if(!w||!d)return;
+  const selector=d.querySelector('#selector');
+  const hub=d.querySelector('#hub');
+  const orbit=d.querySelector('#orbit');
+  const navWheel=d.querySelector('#navWheel');
+  if(!selector||!hub||!orbit||!navWheel)return;
+
+  /* Patch visual mínimo: mismo V3, puck solamente más chico. */
+  const style=d.createElement('style');
+  style.textContent=`
+    .selector{--hub:48px!important;--hub-open:70px!important}
+    .hub::before{content:"";position:absolute;inset:-10px;border-radius:50%}
+    .hub-dimple{width:17px!important;height:17px!important}
+    .selector:not([data-mode="closed"]) .hub-dimple{width:23px!important;height:23px!important}
+    .selector:not([data-mode="menu"]) .orbit{opacity:0!important;visibility:hidden!important}
+    .selector:not([data-mode="menu"]) .cat{opacity:0!important;visibility:hidden!important}
+    .file-icon.folder,.file-icon.page{width:34px!important;height:34px!important;border:0!important;border-radius:0!important;background:none!important;display:grid!important;place-items:center!important}
+    .file-icon.folder::before,.file-icon.folder::after,.file-icon.page::before,.file-icon.page::after{content:none!important;display:none!important}
+    .file-icon svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.55;stroke-linecap:round;stroke-linejoin:round}
+    .selector[data-corner="bottom-left"] .orbit{transform:scaleX(-1)}
+    .selector[data-corner="top-right"] .orbit{transform:scaleY(-1)}
+    .selector[data-corner="top-left"] .orbit{transform:scale(-1,-1)}
+    .selector[data-corner="bottom-left"] .orbit .cat svg{transform:scaleX(-1)}
+    .selector[data-corner="top-right"] .orbit .cat svg{transform:scaleY(-1)}
+    .selector[data-corner="top-left"] .orbit .cat svg{transform:scale(-1,-1)}
+    .selector[data-corner$="left"] .cat-name,.selector[data-corner$="left"] .menu-depth{left:24px!important;right:auto!important;text-align:left!important}
+    .selector[data-corner$="right"] .cat-name{right:24px!important;left:auto!important;text-align:right!important}
+    .selector[data-corner$="right"] .menu-depth{right:26px!important;left:auto!important;text-align:right!important}
+    .selector[data-corner^="top"] .cat-name{top:174px!important;bottom:auto!important}
+    .selector[data-corner^="top"] .menu-depth{top:151px!important;bottom:auto!important}
+    .selector[data-corner^="bottom"] .cat-name{bottom:calc(174px + var(--safeB))!important;top:auto!important}
+    .selector[data-corner^="bottom"] .menu-depth{bottom:calc(151px + var(--safeB))!important;top:auto!important}
+    .selector[data-corner$="left"] .hub{transform:translate(calc(-50% - var(--pull-x)),calc(-50% + var(--pull-y)))}
+    .selector[data-corner^="top"] .hub{transform:translate(calc(-50% + var(--pull-x)),calc(-50% - var(--pull-y)))}
+    .selector[data-corner="top-left"] .hub{transform:translate(calc(-50% - var(--pull-x)),calc(-50% - var(--pull-y)))}
+    .selector[data-corner$="left"] .hub-dimple{transform:translate(calc(-50% - var(--dimple-x)),calc(-50% + var(--dimple-y)))}
+    .selector[data-corner^="top"] .hub-dimple{transform:translate(calc(-50% + var(--dimple-x)),calc(-50% - var(--dimple-y)))}
+    .selector[data-corner="top-left"] .hub-dimple{transform:translate(calc(-50% - var(--dimple-x)),calc(-50% - var(--dimple-y)))}
+    @media(max-width:360px){.selector{--hub:46px!important;--hub-open:68px!important}}
+  `;
+  d.head.appendChild(style);
+
+  /* Un único símbolo de carpeta: el SVG minimalista que ya usaba V3 en Archivos. */
+  const folderSVG='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5h6l1.7 2H19.5v8H4.5z"/><path d="M4.5 8.5V6h6l1.5 2.5"/></svg>';
+  const pageSVG='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 4.5h8l3 3v12h-11z"/><path d="M14.5 4.5v3h3"/><path d="M9 12h6M9 15h5"/></svg>';
+  const patchIcons=()=>{
+    navWheel.querySelectorAll('.file-icon.folder').forEach(el=>{if(el.dataset.iconPatched)return;el.dataset.iconPatched='1';el.innerHTML=folderSVG});
+    navWheel.querySelectorAll('.file-icon.page').forEach(el=>{if(el.dataset.iconPatched)return;el.dataset.iconPatched='1';el.innerHTML=pageSVG});
+  };
+  patchIcons();
+  new MutationObserver(patchIcons).observe(navWheel,{childList:true,subtree:true});
+
+  /* Corner Anchor sobre el puck CERRADO. El tap se reinyecta a V3; el drag no abre nada. */
+  let corner=(()=>{try{const c=localStorage.getItem(CORNER_KEY);return CORNERS.includes(c)?c:'bottom-right'}catch{return'bottom-right'}})();
+  let closedDrag=null;
+  let replaying=false;
+  const vv=()=>w.visualViewport;
+  const viewport=()=>({width:vv()?.width||w.innerWidth,height:vv()?.height||w.innerHeight,ox:vv()?.offsetLeft||0,oy:vv()?.offsetTop||0});
+  const anchor=c=>{const v=viewport();return{x:v.ox+(c.includes('left')?EDGE:v.width-EDGE),y:v.oy+(c.includes('top')?EDGE:v.height-EDGE)}};
+  const setPoint=(x,y)=>{selector.style.setProperty('--cx',x+'px');selector.style.setProperty('--cy',y+'px')};
+  const nearest=(x,y)=>{let best=corner,dist=Infinity;for(const c of CORNERS){const a=anchor(c),dd=(a.x-x)**2+(a.y-y)**2;if(dd<dist){dist=dd;best=c}}return best};
+  const applyCorner=(c,from)=>{corner=c;selector.dataset.corner=c;try{localStorage.setItem(CORNER_KEY,c)}catch{}const a=anchor(c);setPoint(a.x,a.y);if(from){const dx=from.x-a.x,dy=from.y-a.y;hub.animate([{transform:`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`},{transform:getComputedStyle(hub).transform==='none'?'translate(-50%,-50%)':undefined}],{duration:SNAP_MS,easing:'cubic-bezier(.18,.82,.22,1)'}).finished.catch(()=>{}).then(()=>{try{navigator.vibrate?.(6)}catch{}})}};
+  applyCorner(corner);
+  const refresh=()=>applyCorner(corner);
+  w.addEventListener('resize',refresh);vv()?.addEventListener('resize',refresh);vv()?.addEventListener('scroll',refresh);
+
+  hub.addEventListener('pointerdown',e=>{
+    if(replaying||selector.dataset.mode!=='closed')return;
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    e.preventDefault();e.stopPropagation();
+    const r=hub.getBoundingClientRect();
+    closedDrag={id:e.pointerId,sx:e.clientX,sy:e.clientY,lastX:r.left+r.width/2,lastY:r.top+r.height/2,moved:false};
+    hub.classList.add('dragging');
+    try{hub.setPointerCapture(e.pointerId)}catch{}
+  },true);
+  hub.addEventListener('pointermove',e=>{
+    const s=closedDrag;if(!s||s.id!==e.pointerId)return;
+    e.preventDefault();e.stopPropagation();
+    if(!s.moved&&Math.hypot(e.clientX-s.sx,e.clientY-s.sy)>=DRAG_PX)s.moved=true;
+    if(!s.moved)return;
+    const v=viewport(),x=clamp(e.clientX,v.ox+EDGE,v.ox+v.width-EDGE),y=clamp(e.clientY,v.oy+EDGE,v.oy+v.height-EDGE);
+    s.lastX=x;s.lastY=y;setPoint(x,y);
+  },{capture:true,passive:false});
+  const replayTap=(x,y)=>{
+    replaying=true;
+    const id=991;
+    hub.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true,pointerId:id,pointerType:'touch',isPrimary:true,clientX:x,clientY:y,button:0,buttons:1}));
+    hub.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,cancelable:true,pointerId:id,pointerType:'touch',isPrimary:true,clientX:x,clientY:y,button:0,buttons:0}));
+    replaying=false;
+  };
+  const endClosed=e=>{
+    const s=closedDrag;if(!s||s.id!==e.pointerId)return;
+    e.preventDefault();e.stopPropagation();closedDrag=null;hub.classList.remove('dragging');try{hub.releasePointerCapture(e.pointerId)}catch{}
+    if(s.moved){const c=nearest(s.lastX,s.lastY);applyCorner(c,{x:s.lastX,y:s.lastY});return}
+    applyCorner(corner);replayTap(e.clientX,e.clientY);
+  };
+  hub.addEventListener('pointerup',endClosed,true);
+  hub.addEventListener('pointercancel',e=>{const s=closedDrag;if(!s||s.id!==e.pointerId)return;e.preventDefault();e.stopPropagation();closedDrag=null;hub.classList.remove('dragging');applyCorner(corner)},true);
+
+  /* Separar explorar de confirmar SIN reescribir el motor V3.
+     - gesto + soltar => pointercancel original: conserva foco/ítem, no ejecuta
+     - tap posterior => se convierte en confirmación del foco actual
+  */
+  let session=null;
+  let syntheticConfirm=false;
+  selector.addEventListener('pointerdown',e=>{
+    if(replaying||syntheticConfirm)return;
+    const m=selector.dataset.mode;
+    if(m!=='menu'&&m!=='nav')return;
+    session={id:e.pointerId,mode:m,x:e.clientX,y:e.clientY,moved:false};
+  },true);
+  selector.addEventListener('pointermove',e=>{
+    const s=session;if(!s||s.id!==e.pointerId||syntheticConfirm)return;
+    if(Math.hypot(e.clientX-s.x,e.clientY-s.y)>=DRAG_PX)s.moved=true;
+  },true);
+  const sendCancel=e=>{
+    syntheticConfirm=true;
+    selector.dispatchEvent(new PointerEvent('pointercancel',{bubbles:true,cancelable:true,pointerId:e.pointerId,pointerType:e.pointerType||'touch',isPrimary:true,clientX:e.clientX,clientY:e.clientY,button:0,buttons:0}));
+    syntheticConfirm=false;
+  };
+  selector.addEventListener('pointerup',e=>{
+    const s=session;if(!s||s.id!==e.pointerId||replaying||syntheticConfirm)return;
+    session=null;
+    if(s.moved){
+      /* Esta es la corrección clave: soltar después de recorrer NO entra. */
+      sendCancel(e);
+      return;
+    }
+    if(s.mode==='menu'){
+      const focused=orbit.querySelector('.cat.focus');
+      if(!focused)return; // sin selección: el comportamiento V3 cierra/cancela
+      const cs=getComputedStyle(focused);let dx=parseFloat(cs.getPropertyValue('--x'))||-90,dy=parseFloat(cs.getPropertyValue('--y'))||-60;
+      if(corner.includes('left'))dx=-dx;if(corner.includes('top'))dy=-dy;
+      const mag=Math.hypot(dx,dy)||1,step=24;
+      syntheticConfirm=true;
+      selector.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,cancelable:true,pointerId:e.pointerId,pointerType:e.pointerType||'touch',isPrimary:true,clientX:s.x+dx/mag*step,clientY:s.y+dy/mag*step,button:0,buttons:1}));
+      syntheticConfirm=false;
+      return; // el pointerup real continúa y V3 ejecuta esa opción
+    }
+    if(s.mode==='nav'){
+      /* Un tap posterior confirma el ítem actual sin cambiarlo. */
+      syntheticConfirm=true;
+      selector.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,cancelable:true,pointerId:e.pointerId,pointerType:e.pointerType||'touch',isPrimary:true,clientX:s.x,clientY:s.y+9,button:0,buttons:1}));
+      syntheticConfirm=false;
+    }
+  },true);
+});
+})();
+</script>
+</body>
+</html>
