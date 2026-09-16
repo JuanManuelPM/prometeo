@@ -1,0 +1,264 @@
+{
+  "schema": "prometeo.delegated-return/v1",
+  "work_item_id": "WI-BIG-07",
+  "worker_instance_id": "RUN-BIG-07-A",
+  "parent_chat_object_id": "chat-object-prometeo-chat-control-main",
+  "batch_id": "B-BIGPIC-01",
+  "status": "COMPLETE",
+  "consumption_state": "UNCONSUMED",
+  "created_at": "2026-09-16T17:49:00-03:00",
+  "useful_delta": "Evidence-backed candidate architecture for a generic worker execution fabric that preserves Prometeo's prepared JOB -> independent Run -> durable RETURN model while adding explicit allocation leases, missed-launch proof, bounded stale detection, deterministic retry/supersession, idempotent side-effect receipts, transport reconciliation and falsification tests. It does not invent a central mutable scheduler or treat transport acknowledgements as execution truth.",
+  "generic_run_allocation_model": {
+    "principle": "Separate logical work intent, dispatch attempts, execution ownership and result evidence. Durable source facts are authoritative; queue/running counts are derived views.",
+    "logical_identity": "A prepared Work Item remains the stable logical unit. A dispatch_id identifies one launch intent for that Work Item/generation. A worker_instance_id identifies one actual execution attempt and is never silently reused for a semantically different attempt.",
+    "allocation_flow": [
+      "1. Planner/Controller publishes a prepared JOB before any worker exists.",
+      "2. Executor derives a stable dispatch_id from parent/work-item/execution-generation and records or can reconstruct the requested launch intent.",
+      "3. Capacity admission chooses an execution slot only when bounded runner capacity is available; excess ready work remains QUEUED rather than disappearing.",
+      "4. Slot ownership is a lease/claim with owner, lease_epoch, acquired_at and expires_at. Claim creation/update uses compare-and-swap or equivalent create-if-absent semantics.",
+      "5. Worker creates its independent run artifact before substantive execution. Observation of that durable artifact, not a chat/API ACK, proves launch.",
+      "6. Worker writes only its declared scope. Aggregate parent/batch state is compiled from JOB/run/RETURN/consumption facts; workers never increment a shared counter.",
+      "7. RETURN is durable completion evidence; later integration/consumption remains a separate parent/steward act."
+    ],
+    "minimum_execution_metadata": [
+      "dispatch_id",
+      "worker_instance_id",
+      "work_item_id",
+      "parent_chat_object_id",
+      "batch_id when present",
+      "execution_generation/attempt ordinal",
+      "source head + epoch seen",
+      "write_scope + stable scope hash",
+      "runner/transport adapter identity",
+      "claim owner + lease_epoch + lease expiry",
+      "requested_at / started_at / updated_at",
+      "return_ref / supersedes / superseded_by when applicable"
+    ],
+    "capacity_rule": "Capacity is a configurable runner profile, not a universal Prometeo constant. The controller may expose M ready jobs while each execution backend admits only its current safe bounded capacity. No historical chat-count observation may become a hard-coded global limit.",
+    "anti_bottleneck_rule": "Do not use one globally rewritten scheduler/status document. Prefer independent intent/run/claim facts and derived projections so unrelated allocations do not serialize on a central mutable file."
+  },
+  "worker_state_machine_and_timeouts": {
+    "source_lifecycle": [
+      "CREATED -> QUEUED -> STARTED -> WORKING -> RETURNED -> INTEGRATED",
+      "Escape/terminal paths: BLOCKED, ABORTED, SUPERSEDED",
+      "Current control-plane practice may render a fully returned scoped worker as DONE; derived normalization should map that without requiring duplicate worker state."
+    ],
+    "derived_liveness_overlay": [
+      "REQUESTED_NO_ARTIFACT: dispatch intent exists but no run artifact has been observed yet.",
+      "LIVE: lease valid and recent durable progress/heartbeat/probe evidence exists.",
+      "SUSPECT: expected progress evidence is late but the lease has not yet been conclusively revoked.",
+      "STALE_RECOVERABLE: lease expired or probe/reconciliation proves the attempt no longer owns execution rights.",
+      "ZOMBIE: an old/superseded worker reappears after ownership moved; it is observable but must not regain write authority.",
+      "RETURN_AVAILABLE: durable RETURN exists regardless of whether callback/notification was delivered."
+    ],
+    "timeout_profile": {
+      "required_parameters": [
+        "launch_ack_deadline",
+        "heartbeat_or_progress_interval when the backend supports it",
+        "lease_ttl",
+        "max_silence_before_suspect",
+        "execution_deadline or no-deadline declaration",
+        "attempt_budget",
+        "retry_backoff policy"
+      ],
+      "rule": "Numeric defaults belong to measured runner profiles/canaries, not this architecture scout. lease_ttl must be comfortably greater than expected progress cadence and tolerate publication/transport jitter.",
+      "clock_rule": "Prefer service/repository timestamps or monotonic runner clocks for lease calculations. Treat cross-host wall-clock time as evidence with skew tolerance, not absolute truth."
+    },
+    "stale_transition_rule": "Use at least two pieces of evidence before replacement when possible: silence/deadline plus expired ownership lease or failed backend reconciliation. Transport disconnect alone does not prove worker death.",
+    "write_revocation_rule": "Once a lease is revoked/superseded, the predecessor may not perform canonical/shared side effects. Late diagnostic RETURN data may be retained only in its isolated run namespace if allowed by its scope."
+  },
+  "retry_and_supersession_rules": {
+    "launch_retry": "If dispatch was requested but no run artifact is observed by launch_ack_deadline, retry the same logical dispatch_id. Create-if-absent/idempotency guards ensure an ACK-loss retry cannot create a second logical launch accidentally.",
+    "execution_retry": "Create a new worker_instance_id only after the earlier attempt is proven non-owning (terminal, lease revoked, or explicitly superseded) or after a policy-authorized timeout. The new run links supersedes=<old id>; the old run links superseded_by=<new id> when its owner/steward can safely record that fact.",
+    "no_identity_reuse": "Never reset a stale run back to STARTED to represent a different attempt. New execution means new run identity with lineage.",
+    "winner_rule": "Execution ownership is determined by the current valid lease/supersession generation, not by which chat answers last. A predecessor that returns after supersession cannot reclaim canonical write rights.",
+    "retry_budget": "Use bounded exponential backoff with jitter and a per-profile/per-job attempt budget. Exhaustion produces durable BLOCKED/FAILED evidence for the parent rather than infinite retry loops.",
+    "replan_rule": "If retry requires a materially changed mission, scope, authority baseline or return contract, it is no longer merely another run of the same Work Item; the Planner/Controller should publish a revised/new Work Item with lineage.",
+    "integration_rule": "Retry/supersession chooses execution ownership only. It does not auto-promote a RETURN into Current/Human Accepted/Served."
+  },
+  "missed_launch_detection": {
+    "proof_rule": "Requested launch and observed launch are separate facts. A durable run artifact is the minimum cross-transport proof that the worker actually started; API/chat submit ACKs are delivery telemetry only.",
+    "detector": "A reconciler compares expected dispatch intents/prepared jobs against repository-visible runs. If a dispatch has no matching run by launch_ack_deadline, emit MISSED_LAUNCH/REQUESTED_NO_ARTIFACT and keep unrelated ready work moving.",
+    "ack_loss_case": "If submit succeeded but the ACK was lost, the retry uses the same dispatch_id and first checks for the run artifact before creating another attempt.",
+    "silent_drop_case": "If transport accepted/requested work but no run artifact ever appears, retry through the same or an alternate permitted adapter after bounded backoff; do not describe the worker as active.",
+    "incident_anchor": "INC-ZM-BOOT-01 already demonstrated the exact unsafe ambiguity: dispatch was attempted, but no GitHub-visible run/return existed. Therefore 'requested' or 'sent' must never be rendered as started without artifact proof."
+  },
+  "idempotency_and_concurrency_controls": {
+    "idempotency_keys": {
+      "dispatch": "stable dispatch_id per logical launch intent",
+      "run_claim": "worker_instance_id + lease_epoch",
+      "repository_write": "path + expected blob/head CAS",
+      "external_side_effect": "stable side_effect_id derived from work_item/operation/semantic payload generation",
+      "integration": "return identity + integration target generation"
+    },
+    "repository_rule": "Create immutable/new facts with create-if-absent where possible. Updates require current blob/head compare-and-swap. On conflict, refetch source/epoch/authority, revalidate ownership and only then retry; never blind-overwrite.",
+    "scope_rule": "Validate allowed write scope at dispatch and again before every material write. A stable scope hash lets the executor detect a worker whose intended permissions changed mid-run.",
+    "side_effect_rule": "Exactly-once transport is not assumed. For external effects use intent -> provider call with idempotency key when supported -> durable receipt -> reconciliation. If the provider lacks idempotency, isolate/serialize that effect and reconcile before retrying.",
+    "aggregate_rule": "No shared mutable counters for queued/running/done. Derive them from independent source objects so retries and concurrent workers cannot corrupt totals.",
+    "collision_rule": "One writer per canonical artifact. Intentional parallel alternatives must write isolated candidate namespaces/branches and converge later through one explicit steward/merger.",
+    "late_worker_rule": "A superseded/zombie worker's generation token or lease_epoch must fail authorization for canonical writes even if its process remains alive."
+  },
+  "transport_and_delivery_failure_modes": [
+    {
+      "failure": "Launch request lost before backend acceptance",
+      "observable": "dispatch intent exists, no backend acceptance and no run artifact",
+      "recovery": "bounded retry with same dispatch_id"
+    },
+    {
+      "failure": "Acceptance succeeds but ACK is lost",
+      "observable": "caller sees timeout/unknown outcome; run artifact may appear",
+      "recovery": "reconcile durable run first; retry same dispatch_id only if still absent"
+    },
+    {
+      "failure": "Duplicate request delivery",
+      "observable": "same dispatch_id received multiple times",
+      "recovery": "idempotent admission/claim returns existing logical launch rather than new work"
+    },
+    {
+      "failure": "Worker process starts but cannot create STARTED artifact",
+      "observable": "backend may show process, repository has no run proof",
+      "recovery": "worker must not perform material side effects; terminate/retry after reconciliation"
+    },
+    {
+      "failure": "STARTED durable, then worker crashes or loses progress channel",
+      "observable": "nonterminal run with expired/silent lease",
+      "recovery": "SUSPECT -> reconcile -> revoke lease -> superseding run if policy allows"
+    },
+    {
+      "failure": "Worker continues after lease expiry",
+      "observable": "old generation produces late writes/RETURN",
+      "recovery": "generation/lease guard denies canonical writes; retain isolated diagnostics only"
+    },
+    {
+      "failure": "RETURN commit succeeds but callback/notification is lost",
+      "observable": "durable RETURN exists while parent did not receive transport event",
+      "recovery": "scanner/compiler converges from repository truth; no execution retry"
+    },
+    {
+      "failure": "Notification claims completion before durable RETURN commit",
+      "observable": "callback says done but no RETURN exists",
+      "recovery": "treat as not durably returned; reconcile until RETURN or timeout boundary"
+    },
+    {
+      "failure": "Repository/API write times out with unknown commit outcome",
+      "observable": "client cannot tell whether write landed",
+      "recovery": "read target path/head before retrying; CAS/idempotency prevents duplicate semantic write"
+    },
+    {
+      "failure": "Public runtime/EPOCH publication lags source main",
+      "observable": "published_from_main older than repository head",
+      "recovery": "surface PUBLISH_LAG; source-capable writer revalidates actual source head and collision scope instead of treating lag as worker failure"
+    },
+    {
+      "failure": "Capacity backend unavailable/exhausted",
+      "observable": "ready work remains queued; no run artifact",
+      "recovery": "bounded queue/backoff or alternate authorized adapter; never infer a permanent global platform limit from one backend"
+    },
+    {
+      "failure": "Two retry coordinators race",
+      "observable": "competing successor claims for same supersession generation",
+      "recovery": "CAS/unique generation claim admits one owner; loser reconciles to winner"
+    },
+    {
+      "failure": "Cancellation races with external side effect",
+      "observable": "cancel and effect receipt cross",
+      "recovery": "reconcile effect receipt first; cancellation is idempotent and prevents further unreceipted effects"
+    }
+  ],
+  "tests_that_would_falsify_the_design": [
+    "MISSED_SUBMIT: drop a launch before acceptance; detector must surface REQUESTED_NO_ARTIFACT and a retry must create exactly one run.",
+    "LOST_ACK: let STARTED commit succeed but drop launch ACK; retrying the same dispatch_id must observe/reuse the run, not create a duplicate.",
+    "DUPLICATE_DELIVERY: deliver the same dispatch twice concurrently; exactly one execution lease may own the logical attempt.",
+    "CAPACITY_BOUND: with capacity N and N+K ready jobs, no more than N leases may be live while K remain durably/derivably queued; changing N must not require schema changes.",
+    "CRASH_AFTER_STARTED: kill a worker after STARTED and before RETURN; it must become suspect/stale and be safely supersedable without blocking unrelated jobs.",
+    "ZOMBIE_WRITE: revive the old worker after successor ownership; every canonical/shared write from the old generation must be rejected.",
+    "RETURN_CALLBACK_LOSS: persist RETURN but drop notification; parent/compiler must still converge to RETURN_AVAILABLE and must not retry execution.",
+    "UNKNOWN_WRITE_OUTCOME: inject repository timeout after server-side commit; reconciliation must detect the existing write and avoid a duplicate semantic effect.",
+    "TWO_RETRY_RACE: start two coordinators after the same stale run; one successor lease wins deterministically and the other converges without dual writers.",
+    "CAS_CONFLICT: mutate a target between worker read/write; worker must refetch/revalidate rather than overwrite the newer value.",
+    "SIDE_EFFECT_REPLAY: crash after provider accepted an external effect but before local receipt write; retry/reconciliation must not repeat the effect when provider idempotency/receipt evidence exists.",
+    "SUPERSESSION_COUNTING: old + successor runs must count as one logical Work Item outcome and the superseded run must not retain a live collision.",
+    "EPOCH_LAG: make gh-pages EPOCH one commit behind main; write-capable execution should diagnose publication lag, revalidate source head, and continue only if its owned scope is still collision-free.",
+    "SCOPE_BREACH: worker attempts a path outside JOB write_scope; executor/write guard must reject it even if Git credentials technically permit the write.",
+    "CANCEL_RACE: cancel while work is active; repeated cancel requests are harmless and no new side effect may occur after cancellation ownership is durable.",
+    "TRANSPORT_OUTAGE: primary dispatch adapter is unavailable; system either uses an explicitly authorized alternate or reaches a bounded durable boundary without claiming Prometeo has a permanent concurrency limit."
+  ],
+  "evidence": [
+    {
+      "ref": "coordination/AGENT_RUNTIME.json",
+      "supports": "Prepared JOB before worker, independent worker run state, STARTED before material execution, RETURN before DONE, parent-derived aggregate state, no human result bus and no global locks/heartbeats by default."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/BIG_PICTURE_MAP_V1.md",
+      "supports": "Target execution plane requires bounded compute allocation, queue/cancellation/status, missed-job detection, idempotent retries and provenance."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/DELEGATED_WORK_PROTOCOL_V1.md",
+      "supports": "Canonical delegated flow is prepared Work Item -> independent run -> durable RETURN -> parent integration/recovery."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/WORKER_RUN_CONTRACT_V1.json",
+      "supports": "Existing worker lifecycle, run metadata, RETURN states and supersession vocabulary to extend rather than replace."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/incidents/INC-ZM-BOOT-01.json",
+      "supports": "Real missed-launch incident where dispatch was attempted but no repository-visible run/RETURN existed; artifact proof must outrank dispatch language."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/ANTI_LIMITATION_RULES_V1.md",
+      "supports": "Do not turn observed transport/backend failures or historical worker counts into hard platform limitations; retain retry/backoff and multi-session recovery."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/SURVIVAL_SET_V1.md",
+      "supports": "Preserve source-of-truth rebuild, bounded retries/backoff, degraded/repairing modes and avoidance of split-brain authority."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/PRODUCT_BLUEPRINT_V2.md",
+      "supports": "Durable object graph, exactly-once intent for side effects, queues/retries/logs and a 0->M worker target decoupled from chat transport."
+    },
+    {
+      "ref": "scripts/agent-network-lib.mjs",
+      "supports": "Current derived Agent Network already favors independent source objects and derived convergence rather than central mutable coordination."
+    },
+    {
+      "ref": "tests/agent-network-v3.test.mjs",
+      "supports": "Current regressions already exercise stale telemetry clamping, disjoint parallelism and derived runtime behavior; generic worker lease/missed-launch cases are the next missing falsification layer."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/work-items/WI-ZM-01/runs/RUN-ZM-01-A.json",
+      "supports": "Concrete canary lifecycle and a recovered/retried repository update conflict demonstrate why execution state and write reconciliation must be durable and idempotent."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/work-items/WI-BIG-06/returns/RUN-BIG-06-A.json",
+      "supports": "Adjacent Agent Network vNext scout independently recommends lifecycle normalization, missing-run detection, supersession lineage and publication-lag diagnostics as derived coordination features."
+    },
+    {
+      "ref": "agent-runtime/epoch.json@gh-pages observed 2026-09-16T17:48-03:00",
+      "supports": "Public EPOCH projected main 5d95acece957 while source main was 068ae116..., a one-commit non-overlapping publication window that validates explicit PUBLISH_LAG handling."
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "coordination/workstreams/chat-native-control-plane-v1/work-items/WI-BIG-07/runs/RUN-BIG-07-A.json",
+      "kind": "worker_run",
+      "started_commit": "a896dec89fde79f9c27b28834f250ceaf50daa4f"
+    },
+    {
+      "path": "coordination/workstreams/chat-native-control-plane-v1/work-items/WI-BIG-07/returns/RUN-BIG-07-A.json",
+      "kind": "delegated_return"
+    }
+  ],
+  "tests": {
+    "status": "ARCHITECTURE_FALSIFICATION_SUITE_SPECIFIED",
+    "count": 16,
+    "note": "This work item is a read-only architecture scout; no runtime implementation or executable test files were authorized by its write scope."
+  },
+  "unresolved": [
+    "Numeric heartbeat/lease/deadline defaults must be measured per execution backend with canaries; inventing one universal timeout here would violate the anti-limitation rule.",
+    "The canonical durable home for dispatch intents/lease claims is not yet selected. It should be chosen so it remains independent-per-attempt or transactional rather than becoming one central mutable scheduler document.",
+    "Exactly-once external effects depend on provider idempotency/receipt capabilities. Providers without them require effect-specific serialization/reconciliation policy.",
+    "A promoted implementation needs a canonical execution-generation/dispatch-id format and explicit adapter contract for chat, GitHub/CI, cloud runners and future local/private executors.",
+    "WORKER_RUN_CONTRACT_V1 enumerates RETURNED/INTEGRATED while current delegated-control practice also uses DONE. vNext normalization should formally reconcile that vocabulary before implementation.",
+    "Lease enforcement must happen at the actual write/effect boundary; metadata-only supersession is insufficient against a live zombie worker."
+  ]
+}
