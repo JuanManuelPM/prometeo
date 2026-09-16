@@ -1,0 +1,37 @@
+{
+  "schema": "prometeo.worker-run-contract/v1",
+  "status": "ACTIVE_CANDIDATE",
+  "purpose": "Durably represent one disposable execution of one prepared Work Item without requiring all workers to mutate a shared status object.",
+  "path_pattern": "coordination/workstreams/chat-native-control-plane-v1/work-items/<work_item_id>/runs/<worker_instance_id>.json",
+  "required": ["worker_instance_id", "parent_chat_object_id", "work_item_id", "launch_code", "state", "started_at", "updated_at", "frontier"],
+  "states": ["CLAIMED", "STARTED", "WORKING", "RETURNED", "DONE", "BOUNDARY", "FAILED", "CANCELLED", "SUPERSEDED"],
+  "transition_rules": [
+    "A fresh delegated worker creates its own run file; it does not edit another worker's run file.",
+    "STARTED must be durable before substantive job execution.",
+    "WORKING is optional and only for material frontier changes; no heartbeat loops.",
+    "RETURNED requires durable return_ref.",
+    "DONE requires RETURNED or an equivalent return already durable.",
+    "BOUNDARY/FAILED require terminal_reason and enough evidence for parent recovery.",
+    "CANCELLED/SUPERSEDED are parent/steward-controlled terminal states when appropriate."
+  ],
+  "fields": {
+    "worker_instance_id": "Unique disposable execution identity.",
+    "parent_chat_object_id": "Durable parent/orchestrator Chat Object.",
+    "project_id": "Optional human umbrella.",
+    "workstream_id": "Owning execution workstream.",
+    "batch_id": "Parallel batch when applicable.",
+    "work_item_id": "Exact prepared durable JOB identity.",
+    "launch_code": "Human launch alias used for this run.",
+    "state": "Lifecycle state.",
+    "started_at": "Timestamp STARTED became durable.",
+    "updated_at": "Last material run-state update.",
+    "frontier": "Current unsatisfied execution frontier, compact and non-private.",
+    "write_scope": "Actual scoped write paths, if any.",
+    "epoch_seen": "Runtime EPOCH validated by this worker.",
+    "reported_head": "Relevant repository head if needed.",
+    "return_ref": "Durable RETURN path once produced.",
+    "terminal_reason": "Required for non-DONE terminal states.",
+    "conversation_ref": "Optional platform chat/thread evidence if exposed; never required."
+  },
+  "parent_projection": "Parent/control compiler derives batch counts and run summaries from these independent objects plus RETURN existence; workers never directly set parent aggregate counts."
+}
