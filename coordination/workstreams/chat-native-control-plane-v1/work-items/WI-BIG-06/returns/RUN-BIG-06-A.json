@@ -1,0 +1,254 @@
+{
+  "schema": "prometeo.delegated-return/v1",
+  "work_item_id": "WI-BIG-06",
+  "worker_instance_id": "RUN-BIG-06-A",
+  "parent_chat_object_id": "chat-object-prometeo-chat-control-main",
+  "batch_id": "B-BIGPIC-01",
+  "status": "COMPLETE",
+  "consumption_state": "UNCONSUMED",
+  "useful_delta": "Produced an evidence-backed Agent Network vNext plan that preserves v3's derived, low-friction nervous-system model while extending the compiler to understand Chat Objects, campaigns, prepared Work Items, delegated runs, RETURNS and explicit consumption state. The key design move is to make those durable source objects compiler inputs and emit read-only projections, rather than introducing a second mutable coordination plane.",
+  "facts": [
+    "Agent Network v3 already has the right core invariants: independent worker status, derived read-only NETWORK/CONVERGENCE, tiny EPOCH freshness, filtered compiled packets, targeted convergence events, no heartbeat/global-lock bureaucracy, privacy projection and strict separation from product authority.",
+    "The current runtime compiler auto-discovers workstream PACK.json files and coordination/network/workers/*.json, but it does not ingest the delegated JOB/runs/returns/INTEGRATION subtree used by the new Chat Object control plane.",
+    "The delegated protocol deliberately lets workers write only their own run/return subtree, and the BIG picture workers are scoped that way. Therefore requiring a second worker-status write would violate the desired minimal, independent lifecycle and create duplicate state.",
+    "The current publicWorker projection does not carry parent_chat_object_id, batch_id, work_item_id, return_ref or consumption state, so parent/batch awareness cannot currently be reconstructed from Network alone.",
+    "Current convergence is workstream-centric. It evaluates declared workstream write scopes and active worker-status states; it cannot presently detect exact delegated-run scope overlap when the run exists only under work-items/<id>/runs/.",
+    "Delegated run state STARTED is durable before material execution while WORKING is optional. Any vNext lifecycle normalizer must therefore treat a nonterminal STARTED run with nonempty write scope as active for collision purposes, or collisions can be missed.",
+    "The current EPOCH hashes the whole main head in addition to derived network/convergence inputs. This is safe but means unrelated main commits can invalidate the global EPOCH; vNext can retain one tiny read while separating control-plane semantic digests from raw repository churn.",
+    "During this run the public EPOCH temporarily lagged actual main by one concurrent sibling return, then later caught up. This is a normal publication window but proves write-capable workers need an explicit published-runtime-lag diagnostic rather than assuming public EPOCH and repository head are atomic."
+  ],
+  "candidates": {
+    "v3_strengths_to_preserve": [
+      "Keep NETWORK, CONVERGENCE and all parent/control summaries derived and read-only; workers never collaboratively edit them.",
+      "Keep one tiny EPOCH read as the fast path, with same-state continuation and relevant-only packet reloads.",
+      "Keep independent worker/run records and disjoint write scopes as the parallelism primitive.",
+      "Keep convergence event-driven and sparse; only real overlapping active writes are blocking.",
+      "Keep NEEDS/PROVIDES/DEPENDS_ON/IMPACTS as a lightweight dependency vocabulary, extending rather than replacing it.",
+      "Keep compiled packets as the main consumption surface so agents do not reread global state or repository history.",
+      "Keep public coordination sanitized and explicitly non-authoritative for Current, Human Accepted and Served.",
+      "Keep Git/source objects as recoverable durable truth and generated runtime views as replaceable projections."
+    ],
+    "minimum_vnext_extensions": [
+      {
+        "id": "N1_ENTITY_INGESTION",
+        "change": "Teach the runtime compiler to discover or follow declared roots for Chat Objects, Campaigns, Work Boards/Batches, JOBs, delegated Runs, RETURNS and Integration/consumption receipts.",
+        "rule": "Source objects retain their existing owners and schemas; Agent Network only normalizes/projections them."
+      },
+      {
+        "id": "N2_LIFECYCLE_NORMALIZATION",
+        "change": "Normalize worker-status/v1 and worker-run/v1 into one derived execution view without requiring either source to duplicate the other.",
+        "rule": "For delegated runs, CLAIMED/STARTED/WORKING with nonempty write_scope are active-writer candidates until RETURNED/DONE/BOUNDARY/FAILED/CANCELLED/SUPERSEDED."
+      },
+      {
+        "id": "N3_PARENT_BATCH_PROJECTION",
+        "change": "Derive per-Chat-Object and per-batch counts/states from JOB + run + RETURN + integration receipts: prepared, not_launched, active, returned, done, boundary/failed, unconsumed_returns, ready_for_integration.",
+        "rule": "Missing run means NOT_LAUNCHED; workers never increment aggregate counters."
+      },
+      {
+        "id": "N4_RETURN_CONSUMPTION",
+        "change": "Project explicit return consumption from durable integration/consumption receipts.",
+        "rule": "RETURN existence is only RETURN_AVAILABLE/UNCONSUMED; it never means integrated, Human Accepted, Current or Served."
+      },
+      {
+        "id": "N5_ENTITY_LEVEL_CONVERGENCE",
+        "change": "Run collision/dependency analysis over active execution entities using their exact allowed/actual scopes, with workstream scope retained as fallback/context.",
+        "rule": "The narrowest live scope wins for collision precision; historical/completed overlap stays informational."
+      },
+      {
+        "id": "N6_LAYERED_FRESHNESS",
+        "change": "Keep epoch.json tiny but include compact semantic digests/revisions for runtime, network, delegated-work/control and authority-sensitive projections instead of forcing every consumer to react to unrelated raw main-head churn.",
+        "rule": "A packet declares which digest vector it watches. Source-capable write workers additionally compare published_from_main to actual repository head and surface PUBLISH_LAG when needed."
+      },
+      {
+        "id": "N7_DERIVED_HEALTH",
+        "change": "Derive stale/dangling lifecycle diagnostics: run without JOB, RETURN without run, DONE without RETURN, active superseded retry, publication lag, malformed scope and unresolved consumption.",
+        "rule": "Health signals inform controller/steward action; they do not mutate source state or retry work automatically."
+      }
+    ],
+    "derived_view_architecture": {
+      "source_plane": [
+        "Existing PACK/workstream metadata",
+        "Chat Object manifest/FOCUS/Work Board pointers",
+        "Campaign/controller state when available",
+        "Prepared JOB.json files",
+        "Independent runs/<run_id>.json files",
+        "Independent returns/<run_id>.json files",
+        "Integration/consumption receipts",
+        "Existing coordination/network/workers status objects",
+        "Existing product authority sources only when a packet explicitly needs them"
+      ],
+      "compiler": "A deterministic replaceable compiler reads source objects, normalizes identities/lifecycles, derives dependency/collision/health state, hashes semantic projections and publishes sanitized views. No source worker writes generated views.",
+      "proposed_views": [
+        "agent-runtime/epoch.json: sub-1KB root freshness vector and built_from/published metadata",
+        "agent-runtime/network.json: compatible global workstream/execution summary",
+        "agent-runtime/convergence.json: sparse actionable convergence/health events",
+        "agent-runtime/chat-objects/<chat_object_id>.json: parent operational projection with current batches, runs, unconsumed returns and relevant events",
+        "agent-runtime/batches/<batch_id>.json: derived batch state and integration readiness",
+        "agent-runtime/work-items/<work_item_id>.json: exact JOB + run/RETURN/consumption projection",
+        "agent-runtime/campaigns/<campaign_id>.json: optional controller projection once campaign source contracts exist",
+        "existing agent-runtime/workstreams/<id>.json packets retained for compatibility"
+      ],
+      "routing": "Stable entry resolves identity first, then fetches the smallest entity packet. Parent Chat Objects consume chat-object/batch projections; delegated workers consume exact work-item packets; workstream agents keep existing packets.",
+      "authority_guard": "Every generated view carries role=DERIVED_COORDINATION_ONLY_NOT_PRODUCT_AUTHORITY plus source refs/hashes. Product Current/Human Accepted/Served fields may be reported only as sourced observations, never inferred from completion/consumption."
+    },
+    "collision_dependency_semantics": {
+      "collision": [
+        "Compute collision at active run/worker level when exact scopes exist; fall back to workstream scope only when no narrower source exists.",
+        "Only two live writer-capable entities with overlapping normalized scopes create HARD_WRITE_COLLISION.",
+        "STARTED delegated runs with nonempty write scope count as live unless terminal because WORKING is optional in the current protocol.",
+        "RETURNED/DONE/BOUNDARY/FAILED/CANCELLED/SUPERSEDED never hold a live write lock.",
+        "Retries must carry supersession lineage so an old stale run and its replacement do not both appear authoritative/live.",
+        "Scope matching should remain conservative but move beyond the current first-wildcard prefix heuristic where patterns would collapse to an overly broad prefix."
+      ],
+      "dependency": [
+        "Retain needs/provides/depends_on/impacts, but attach satisfaction level where required: PROVIDER_EXISTS, RETURN_AVAILABLE, RETURN_CONSUMED/INTEGRATED, AUTHORITY_CURRENT.",
+        "Do not emit NEED_SATISFIED merely because a candidate RETURN exists if the dependency contract requires integration or canonical authority.",
+        "Campaign/job dependencies should be typed HARD_GATE or SOFT_ADVISORY; only hard unsatisfied gates block dispatch.",
+        "Provider material change should invalidate only packets whose declared dependency digest changed, not every unrelated Chat Object."
+      ],
+      "events_to_add_sparingly": [
+        "RETURN_READY_FOR_CONSUMPTION",
+        "BATCH_READY_FOR_INTEGRATION",
+        "STALE_OR_DANGLING_RUN",
+        "PUBLISH_LAG",
+        "AUTHORITY_REVALIDATION_REQUIRED"
+      ]
+    },
+    "runtime_compiler_patch_map": [
+      {
+        "path": "coordination/network/NETWORK_CONTRACT.json",
+        "patch": "Define entity kinds/identity edges, lifecycle normalization, exact-run convergence, consumption projection, layered freshness and derived-authority labels while preserving existing v1 principles."
+      },
+      {
+        "path": "coordination/AGENT_RUNTIME.json",
+        "patch": "Add chat-object/batch/work-item/campaign derived routes, delegated lifecycle projection rules, publication-lag preflight and digest-watch semantics. Keep current workstream routing as compatibility fallback."
+      },
+      {
+        "path": "scripts/build-agent-runtime.mjs",
+        "patch": "Discover declared Chat Object/work-item roots; ingest JOB/run/RETURN/integration sources; normalize execution identities; derive batch/parent/consumption state; emit per-entity packets; compute semantic digest vector; preserve deterministic ordering/public-safety checks."
+      },
+      {
+        "path": "scripts/agent-network-lib.mjs",
+        "patch": "Add normalizeExecutionState, exact entity-scope convergence, typed dependency satisfaction, batch/consumption derivation, supersession handling and deterministic health events. Extend public projection with parent_chat_object_id, batch_id, work_item_id and return_ref where public-safe."
+      },
+      {
+        "path": "tests/agent-network-v3.test.mjs or successor vNext test file",
+        "patch": "Add delegated lifecycle, parent awareness, consumption, layered EPOCH, publication lag and authority-negative tests while retaining every existing v3 regression."
+      },
+      {
+        "path": ".well-known/prometeo.json and generated manifest",
+        "patch": "Expose new derived entity routes/schema versions only after compiler/tests pass; keep existing stable aliases so old bootstraps continue to function."
+      },
+      {
+        "path": ".github/workflows/agent-runtime-v3.yml (or versioned successor)",
+        "patch": "Publish the extended deterministic runtime and verify that generated EPOCH declares the source main head used for compilation. Do not make the workflow an authority owner."
+      }
+    ],
+    "tests_falsification_cases": [
+      "DELEGATED_VISIBILITY: a STARTED run existing only under work-items/.../runs must appear in the derived work-item/batch/chat-object projection without a second worker-status file.",
+      "NO_DUPLICATE_STATE_REQUIREMENT: deleting all optional worker-status duplicates must not make valid delegated progress disappear from parent derived state.",
+      "RUN_COLLISION: two active delegated runs with overlapping exact scopes emit one blocking HARD_WRITE_COLLISION; disjoint sibling run/return scopes do not block.",
+      "STARTED_IS_LIVE: STARTED + nonempty scope is treated as active even if WORKING was never emitted; DONE is not.",
+      "HISTORICAL_OVERLAP: completed/superseded runs sharing scope produce context only, never a lock.",
+      "CONSUMPTION: durable RETURN with no integration receipt is UNCONSUMED and triggers readiness; adding an integration receipt changes only coordination consumption state.",
+      "AUTHORITY_NEGATIVE: RETURNED/DONE/INTEGRATED coordination state must never synthesize Human Accepted, Current or Served.",
+      "BATCH_COUNTS: missing run is NOT_LAUNCHED; active/returned/done/boundary counts are recomputed from source objects and remain correct after retries/supersession.",
+      "RETRY_SUPERSESSION: replacement run does not leave the superseded run holding a collision or double-counting batch completion.",
+      "DEPENDENCY_GATE: RETURN_AVAILABLE does not satisfy a dependency explicitly requiring RETURN_INTEGRATED or AUTHORITY_CURRENT.",
+      "SEMANTIC_EPOCH: unrelated repository commit leaves the relevant control digest unchanged; JOB/run/RETURN/integration changes update the control digest deterministically.",
+      "PUBLISH_LAG: when gh-pages epoch reports an older main head than source GitHub, a write-capable worker gets a nonblocking PUBLISH_LAG diagnostic and uses source truth for compare-and-swap preflight.",
+      "DETERMINISM: identical source tree yields byte-identical generated entity views/hashes regardless of filesystem enumeration order.",
+      "PRIVACY: private transcript/credential/token-shaped fields in any newly ingested source are rejected from public runtime output.",
+      "DANGLING_LIFECYCLE: RETURN without run, DONE without RETURN, unknown JOB parent or malformed supersession produce explicit health evidence instead of silent omission.",
+      "BACKWARD_COMPAT: existing agent-runtime/workstreams packets, p.txt boot and same-epoch CONTINUE path remain valid after vNext publication."
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "coordination/workstreams/chat-native-control-plane-v1/work-items/WI-BIG-06/runs/RUN-BIG-06-A.json",
+      "kind": "worker_run",
+      "started_commit": "9ef7216ba5283d649bd230af9c1773d2e9a0ad26"
+    },
+    {
+      "path": "coordination/workstreams/chat-native-control-plane-v1/work-items/WI-BIG-06/returns/RUN-BIG-06-A.json",
+      "kind": "delegated_return"
+    }
+  ],
+  "evidence": [
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/BIG_PICTURE_MAP_V1.md",
+      "supports": "Agent Network is the nervous system layer, distinct from product authority, campaigns, workers and the broader cognitive OS."
+    },
+    {
+      "ref": "coordination/network/NETWORK_CONTRACT.json",
+      "supports": "Current invariants: independent worker status, derived Network, tiny EPOCH, sparse convergence, privacy and no authority promotion."
+    },
+    {
+      "ref": "coordination/workstreams/agent-network-v3/PACK.json",
+      "supports": "v3 is integrated/frozen around independent status + derived views + EPOCH + compiled packets and must be extended rather than rewritten."
+    },
+    {
+      "ref": "coordination/AGENT_RUNTIME.json",
+      "supports": "Runtime already names Chat Object/delegated extension targets but current network compiler remains workstream/worker-status based."
+    },
+    {
+      "ref": "scripts/build-agent-runtime.mjs",
+      "supports": "Compiler currently discovers PACKs and coordination/network/workers, derives workstream-level Network/convergence and hashes main head into EPOCH."
+    },
+    {
+      "ref": "scripts/agent-network-lib.mjs",
+      "supports": "Current active-state normalization, prefix scope overlap, dependency events and public worker whitelist."
+    },
+    {
+      "ref": "tests/agent-network-v3.test.mjs",
+      "supports": "Existing regression suite proves tiny EPOCH, disjoint parallelism, live-only hard collision, dependency filtering, shared-owner surfacing and public privacy."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/DELEGATED_WORK_PROTOCOL_V1.md",
+      "supports": "Prepared JOB -> independent Run -> RETURN -> DONE lifecycle and parent-derived aggregate state."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/WORKER_RUN_CONTRACT_V1.json",
+      "supports": "STARTED is mandatory before execution while WORKING is optional, and each run owns an independent state file."
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/WORK_BOARD.json",
+      "supports": "Parent refresh rule already declares missing run=NOT_LAUNCHED and derived batch truth, but those aggregates are not yet compiled by Agent Network."
+    },
+    {
+      "ref": "agent-runtime/epoch.json@gh-pages",
+      "observed_epoch_at_final_prewrite": "P3-ad50e097962f",
+      "projected_main": "0ef26f0cfdc2"
+    },
+    {
+      "ref": "agent-runtime/convergence.json@gh-pages",
+      "observed_epoch": "P3-ad50e097962f",
+      "result": "No blocking collision surfaced for this isolated run/return scope; relevant chat-native/agent-network overlap remained informational/soft."
+    }
+  ],
+  "conflicts": [
+    "No live write collision was encountered. Concurrent BIG-picture sibling runs/returns advanced main during execution but wrote disjoint preallocated subtrees.",
+    "There is a schema/lifecycle impedance mismatch between worker-status/v1 and worker-run/v1. The proposal resolves it in the compiler projection instead of choosing one source as a replacement for the other.",
+    "A layered semantic EPOCH trades some implementation complexity for much lower global invalidation churn; parent should reconcile this with any stronger simplicity preference from other BIG returns."
+  ],
+  "unresolved": [
+    "Exact Campaign source schema and controller ownership are being designed elsewhere; Agent Network vNext should provide adapters/derived routes without inventing campaign authority here.",
+    "Retry allocation/stale thresholds belong primarily to the worker execution fabric/controller; this return defines only the network projection and signals needed to support them.",
+    "The final choice of runtime version number/path names should be made by the parent after reconciling all B-BIGPIC-01 returns; no shared runtime files were changed by this scout.",
+    "Whether the root EPOCH should remove raw main-head hashing entirely or keep it as a diagnostic field while keying freshness on semantic digests requires implementation benchmarking/falsification, not architectural assertion."
+  ],
+  "impacts": [
+    "agent-network-v3",
+    "chat-native-control-plane-v1",
+    "campaign-controller",
+    "planner-compiler",
+    "worker-execution-fabric",
+    "control-room",
+    "steward-merger",
+    "reincarnation",
+    "runtime",
+    "multi-chat"
+  ],
+  "suggested_parent_action": "During B-BIGPIC-01 convergence, adopt the invariant that vNext is a compiler/projection extension over existing durable JOB/Run/RETURN/Chat Object/Campaign sources, not a new mutable coordination database. Reconcile naming and campaign/retry details with BIG-04/05/07/08/09, then prepare one implementation batch that first adds delegated-source ingestion + derived parent/batch/work-item views, second upgrades exact-run convergence/consumption, and only then experiments with layered EPOCH semantics behind regression tests.",
+  "created_at": "2026-09-16T17:47:45-03:00"
+}
