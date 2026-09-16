@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+  <title>Plan de Acción</title>
+  <style>
+    :root{
+      --bg:#0f1115;
+      --panel:#181c22;
+      --panel-2:#21262f;
+      --line:#2f3744;
+      --text:#f2f4f8;
+      --muted:#9da7b6;
+      --accent:#8fb7ff;
+      --accent-2:#b8ffd7;
+      --danger:#ffb0b0;
+      --shadow:0 10px 30px rgba(0,0,0,.28);
+      --radius:24px;
+    }
+
+    *{box-sizing:border-box}
+    html,body{
+      margin:0;
+      width:100%;
+      height:100%;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Arial, Helvetica, sans-serif;
+      overflow:hidden;
+      touch-action:none;
+    }
+
+    .app{
+      width:100%;
+      height:100%;
+      position:relative;
+      overflow:hidden;
+    }
+
+    .topbar{
+      position:fixed;
+      top:10px;
+      left:10px;
+      right:10px;
+      z-index:50;
+      display:flex;
+      gap:10px;
+      justify-content:space-between;
+      align-items:center;
+      pointer-events:none;
+    }
+
+    .controls,
+    .legend{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      background:rgba(24,28,34,.88);
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:8px;
+      box-shadow:var(--shadow);
+      pointer-events:auto;
+      backdrop-filter:blur(10px);
+    }
+
+    .btn{
+      min-width:42px;
+      height:42px;
+      border:none;
+      border-radius:12px;
+      background:var(--panel-2);
+      color:var(--text);
+      font-size:20px;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .btn:active{transform:scale(.97)}
+
+    .scaleText{
+      min-width:72px;
+      text-align:center;
+      font-weight:800;
+      color:var(--accent);
+    }
+
+    .legend span{
+      font-size:12px;
+      color:var(--muted);
+      font-weight:700;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+    }
+
+    .viewport{
+      width:100%;
+      height:100%;
+      overflow:hidden;
+      position:relative;
+      cursor:grab;
+      touch-action:none;
+    }
+
+    .viewport.dragging{
+      cursor:grabbing;
+    }
+
+    .board{
+      position:absolute;
+      left:0;
+      top:0;
+      width:2100px;
+      height:1300px;
+      transform-origin:0 0;
+      padding:110px 48px 48px 48px;
+    }
+
+    .title{
+      position:absolute;
+      top:34px;
+      left:48px;
+      font-size:52px;
+      font-weight:900;
+      letter-spacing:.02em;
+      color:var(--text);
+      opacity:.95;
+    }
+
+    .subtitle{
+      position:absolute;
+      top:94px;
+      left:50px;
+      font-size:16px;
+      font-weight:800;
+      color:var(--muted);
+      letter-spacing:.18em;
+      text-transform:uppercase;
+    }
+
+    .main{
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr 420px;
+      gap:24px;
+      align-items:start;
+      height:100%;
+    }
+
+    .project{
+      min-height:1060px;
+      background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.00));
+      border:1px solid var(--line);
+      border-radius:30px;
+      padding:24px;
+      position:relative;
+      box-shadow:var(--shadow);
+    }
+
+    .projectHeader{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      margin-bottom:18px;
+      padding-bottom:18px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+
+    .projectTag{
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:.18em;
+      text-transform:uppercase;
+      color:var(--accent);
+    }
+
+    .projectTitle{
+      font-size:48px;
+      line-height:.95;
+      font-weight:900;
+      letter-spacing:-.03em;
+      word-break:break-word;
+    }
+
+    .projectMini{
+      font-size:18px;
+      line-height:1.15;
+      font-weight:800;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.06em;
+    }
+
+    .dropzone{
+      min-height:820px;
+      border:2px dashed rgba(255,255,255,.08);
+      border-radius:24px;
+      position:relative;
+      padding:14px;
+    }
+
+    .dropzoneLabel{
+      position:absolute;
+      top:14px;
+      right:16px;
+      font-size:12px;
+      font-weight:900;
+      color:rgba(255,255,255,.22);
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      pointer-events:none;
+    }
+
+    .side{
+      min-height:1060px;
+      background:linear-gradient(180deg, rgba(143,183,255,.06), rgba(255,255,255,0));
+      border:1px solid var(--line);
+      border-radius:30px;
+      padding:24px;
+      position:relative;
+      box-shadow:var(--shadow);
+    }
+
+    .sideTitle{
+      font-size:34px;
+      line-height:1;
+      font-weight:900;
+      margin-bottom:8px;
+    }
+
+    .sideMini{
+      font-size:14px;
+      font-weight:800;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.12em;
+      margin-bottom:18px;
+    }
+
+    .pool{
+      min-height:930px;
+      position:relative;
+      border:2px dashed rgba(255,255,255,.08);
+      border-radius:24px;
+      overflow:hidden;
+      background:rgba(255,255,255,.02);
+    }
+
+    .sticky{
+      position:absolute;
+      min-width:160px;
+      max-width:240px;
+      min-height:62px;
+      padding:14px 16px;
+      border-radius:18px;
+      background:var(--panel-2);
+      border:1px solid rgba(255,255,255,.08);
+      color:var(--text);
+      font-weight:900;
+      font-size:22px;
+      line-height:1;
+      letter-spacing:-.02em;
+      box-shadow:var(--shadow);
+      cursor:grab;
+      user-select:none;
+      touch-action:none;
+    }
+
+    .sticky small{
+      display:block;
+      margin-top:8px;
+      font-size:11px;
+      line-height:1.15;
+      font-weight:900;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.12em;
+    }
+
+    .sticky:active{
+      cursor:grabbing;
+    }
+
+    .sticky.is-dragging{
+      z-index:999;
+      transform:scale(1.02);
+    }
+
+    .s1{background:#252c39}
+    .s2{background:#2b2f3d}
+    .s3{background:#243234}
+    .s4{background:#342a35}
+    .s5{background:#2d3324}
+
+    .footerHint{
+      position:absolute;
+      left:50%;
+      bottom:14px;
+      transform:translateX(-50%);
+      font-size:12px;
+      font-weight:800;
+      color:rgba(255,255,255,.3);
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      white-space:nowrap;
+    }
+
+    @media (max-width:900px){
+      .board{
+        width:2000px;
+        height:1500px;
+      }
+      .projectTitle{
+        font-size:42px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="controls">
+        <button class="btn" id="zoomOut">−</button>
+        <div class="scaleText" id="scaleText">100%</div>
+        <button class="btn" id="zoomIn">+</button>
+        <button class="btn" id="resetView" title="centrar">⟳</button>
+      </div>
+      <div class="legend">
+        <span>Arrastrar fondo</span>
+        <span>·</span>
+        <span>Zoom</span>
+        <span>·</span>
+        <span>Mover ideas</span>
+      </div>
+    </div>
+
+    <div class="viewport" id="viewport">
+      <div class="board" id="board">
+        <div class="title">PLAN DE ACCIÓN</div>
+        <div class="subtitle">tres proyectos · ideas sueltas al costado</div>
+
+        <div class="main">
+          <section class="project">
+            <div class="projectHeader">
+              <div class="projectTag">Proyecto 1</div>
+              <div class="projectTitle">PROMETEO<br>MÓVIL</div>
+              <div class="projectMini">chatgpt mejor usado · notas · trabajos · páginas · estado · workers</div>
+            </div>
+            <div class="dropzone" id="zone-prometeo">
+              <div class="dropzoneLabel">soltar ideas</div>
+            </div>
+          </section>
+
+          <section class="project">
+            <div class="projectHeader">
+              <div class="projectTag">Proyecto 2</div>
+              <div class="projectTitle">FACULTAD<br>DIGITAL</div>
+              <div class="projectMini">materias · chat · clases · pizarrón · estudio visible</div>
+            </div>
+            <div class="dropzone" id="zone-facultad">
+              <div class="dropzoneLabel">soltar ideas</div>
+            </div>
+          </section>
+
+          <section class="project">
+            <div class="projectHeader">
+              <div class="projectTag">Proyecto 3</div>
+              <div class="projectTitle">AULA<br>DOCENTE</div>
+              <div class="projectMini">alumnos · tareas · materiales · ejercicios · flyer</div>
+            </div>
+            <div class="dropzone" id="zone-aula">
+              <div class="dropzoneLabel">soltar ideas</div>
+            </div>
+          </section>
+
+          <aside class="side">
+            <div class="sideTitle">PENDIENTES</div>
+            <div class="sideMini">arrastrar a cualquier proyecto</div>
+            <div class="pool" id="pool">
+              <div class="sticky s1" style="left:18px; top:18px;">NAVEGADOR<small>prometeo</small></div>
+              <div class="sticky s2" style="left:190px; top:26px;">EXACT BACK<small>prometeo</small></div>
+              <div class="sticky s3" style="left:94px; top:118px;">WORKERS<small>prometeo</small></div>
+              <div class="sticky s4" style="left:18px; top:205px;">ESTADO VISIBLE<small>prometeo</small></div>
+              <div class="sticky s5" style="left:176px; top:210px;">BOTONES Y SONIDOS<small>prometeo</small></div>
+
+              <div class="sticky s2" style="left:34px; top:318px;">PAGEKIT<small>prometeo</small></div>
+              <div class="sticky s1" style="left:192px; top:334px;">WHITEBOARD<small>prometeo · facultad</small></div>
+              <div class="sticky s3" style="left:88px; top:420px;">PARALELO DE PÁGINAS<small>prometeo</small></div>
+
+              <div class="sticky s5" style="left:18px; top:520px;">CHAT DE MATERIAS<small>facultad</small></div>
+              <div class="sticky s4" style="left:194px; top:522px;">ONLINE / PRESENCIA<small>facultad</small></div>
+              <div class="sticky s1" style="left:68px; top:614px;">PIZARRONES SUBIBLES<small>facultad</small></div>
+
+              <div class="sticky s3" style="left:18px; top:730px;">LISTA DE ALUMNOS<small>aula docente</small></div>
+              <div class="sticky s2" style="left:194px; top:734px;">FORMATO TAREA<small>aula docente</small></div>
+              <div class="sticky s4" style="left:74px; top:826px;">BANCO DE EJERCICIOS<small>aula docente</small></div>
+              <div class="sticky s5" style="left:24px; top:918px;">TEMAS PREPARADOS<small>aula docente</small></div>
+              <div class="sticky s1" style="left:204px; top:922px;">FLYER DOCENTE<small>aula docente</small></div>
+            </div>
+          </aside>
+        </div>
+
+        <div class="footerHint">arrastrá el fondo para moverte · arrastrá tarjetas para ordenar</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const viewport = document.getElementById('viewport');
+    const board = document.getElementById('board');
+    const scaleText = document.getElementById('scaleText');
+    const zoomInBtn = document.getElementById('zoomIn');
+    const zoomOutBtn = document.getElementById('zoomOut');
+    const resetViewBtn = document.getElementById('resetView');
+
+    let scale = 1;
+    let x = 40;
+    let y = 40;
+
+    function clamp(value, min, max){
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function applyTransform(){
+      board.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+      scaleText.textContent = `${Math.round(scale * 100)}%`;
+    }
+
+    function centerBoard(){
+      scale = 0.58;
+      x = 18;
+      y = 64;
+      applyTransform();
+    }
+
+    function zoomAt(factor, clientX, clientY){
+      const rect = viewport.getBoundingClientRect();
+      const mx = clientX - rect.left;
+      const my = clientY - rect.top;
+
+      const prevScale = scale;
+      const newScale = clamp(scale * factor, 0.35, 1.8);
+
+      const worldX = (mx - x) / prevScale;
+      const worldY = (my - y) / prevScale;
+
+      scale = newScale;
+      x = mx - worldX * scale;
+      y = my - worldY * scale;
+
+      applyTransform();
+    }
+
+    zoomInBtn.addEventListener('click', () => {
+      const rect = viewport.getBoundingClientRect();
+      zoomAt(1.14, rect.width / 2, rect.height / 2);
+    });
+
+    zoomOutBtn.addEventListener('click', () => {
+      const rect = viewport.getBoundingClientRect();
+      zoomAt(0.88, rect.width / 2, rect.height / 2);
+    });
+
+    resetViewBtn.addEventListener('click', centerBoard);
+
+    viewport.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.08 : 0.92;
+      zoomAt(factor, e.clientX, e.clientY);
+    }, { passive:false });
+
+    let isPanning = false;
+    let startX = 0;
+    let startY = 0;
+    let panOriginX = 0;
+    let panOriginY = 0;
+
+    viewport.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.sticky') || e.target.closest('.controls')) return;
+      isPanning = true;
+      viewport.classList.add('dragging');
+      startX = e.clientX;
+      startY = e.clientY;
+      panOriginX = x;
+      panOriginY = y;
+      viewport.setPointerCapture(e.pointerId);
+    });
+
+    viewport.addEventListener('pointermove', (e) => {
+      if (!isPanning) return;
+      x = panOriginX + (e.clientX - startX);
+      y = panOriginY + (e.clientY - startY);
+      applyTransform();
+    });
+
+    function stopPan(){
+      isPanning = false;
+      viewport.classList.remove('dragging');
+    }
+
+    viewport.addEventListener('pointerup', stopPan);
+    viewport.addEventListener('pointercancel', stopPan);
+
+    const notes = [...document.querySelectorAll('.sticky')];
+    let activeNote = null;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    notes.forEach(note => {
+      note.addEventListener('pointerdown', (e) => {
+        activeNote = note;
+        note.classList.add('is-dragging');
+        const rect = note.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        note.setPointerCapture(e.pointerId);
+        e.stopPropagation();
+      });
+
+      note.addEventListener('pointermove', (e) => {
+        if (!activeNote || activeNote !== note) return;
+
+        const parentRect = note.parentElement.getBoundingClientRect();
+        const left = e.clientX - parentRect.left - offsetX;
+        const top = e.clientY - parentRect.top - offsetY;
+
+        note.style.left = `${left}px`;
+        note.style.top = `${top}px`;
+      });
+
+      note.addEventListener('pointerup', (e) => {
+        if (!activeNote || activeNote !== note) return;
+
+        const zones = [
+          document.getElementById('zone-prometeo'),
+          document.getElementById('zone-facultad'),
+          document.getElementById('zone-aula'),
+          document.getElementById('pool')
+        ];
+
+        const noteRect = note.getBoundingClientRect();
+        const noteCenterX = noteRect.left + noteRect.width / 2;
+        const noteCenterY = noteRect.top + noteRect.height / 2;
+
+        let targetZone = null;
+        for (const zone of zones){
+          const z = zone.getBoundingClientRect();
+          if (
+            noteCenterX >= z.left &&
+            noteCenterX <= z.right &&
+            noteCenterY >= z.top &&
+            noteCenterY <= z.bottom
+          ){
+            targetZone = zone;
+            break;
+          }
+        }
+
+        if (targetZone){
+          const zoneRect = targetZone.getBoundingClientRect();
+          const oldRect = note.getBoundingClientRect();
+
+          const newLeft = oldRect.left - zoneRect.left;
+          const newTop = oldRect.top - zoneRect.top;
+
+          targetZone.appendChild(note);
+          note.style.left = `${newLeft}px`;
+          note.style.top = `${newTop}px`;
+        }
+
+        note.classList.remove('is-dragging');
+        activeNote = null;
+      });
+
+      note.addEventListener('pointercancel', () => {
+        note.classList.remove('is-dragging');
+        activeNote = null;
+      });
+    });
+
+    centerBoard();
+  </script>
+</body>
+</html>
