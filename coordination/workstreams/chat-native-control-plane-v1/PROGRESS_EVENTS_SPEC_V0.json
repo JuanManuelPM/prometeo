@@ -1,0 +1,100 @@
+{
+  "schema": "prometeo.progress-events-spec/v0",
+  "status": "CANDIDATE_PRE_GATE_16_OF_18",
+  "owner": "chat-object-prometeo-chat-control-main",
+  "purpose": "Define an append-only meaningful progress ledger that supports parent awareness, Continuity Head and passive Live telemetry without fake project-completion percentages or mutable status authority.",
+  "basis": [
+    "coordination/workstreams/chat-native-control-plane-v1/AUTONOMOUS_SWARM_OPERATING_MODEL_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/CONTINUITY_HEAD_COMPILER_SPEC_V0.json"
+  ],
+  "authority_boundary": "Progress events report durable evidence transitions; they do not make a candidate accepted, Current or Served and never replace the source artifact/receipt they reference.",
+  "ledger_model": {
+    "write_pattern": "append-only independent event records or an append-safe host ledger; avoid one global mutable status blob",
+    "event_identity": "stable event_id plus source evidence identity",
+    "ordering": "timestamp plus deterministic tie-breaker; chronology is observability, not authority",
+    "projection": "counts, activity buckets and current summaries are derived from source events and may be regenerated"
+  },
+  "event_fields": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "project_id",
+    "chat_object_id_or_null",
+    "campaign_id_or_null",
+    "opportunity_id_or_null",
+    "run_id_or_null",
+    "worker_instance_id_or_null",
+    "source_ref",
+    "source_identity_or_digest",
+    "impact_class",
+    "unblock_refs",
+    "privacy_class",
+    "public_summary_or_null"
+  ],
+  "meaningful_event_types": [
+    "OPPORTUNITY_PREPARED",
+    "CLAIM_ACQUIRED",
+    "WORKER_STARTED",
+    "RETURN_DURABLE",
+    "RETURN_INTEGRATED",
+    "GATE_CLEARED",
+    "DEPENDENCY_UNBLOCKED",
+    "INCIDENT_OPENED",
+    "INCIDENT_RESOLVED",
+    "CANARY_PASSED",
+    "CANARY_FAILED",
+    "ARCHITECTURE_DECISION_ACCEPTED",
+    "IMPLEMENTATION_TEST_PASSED",
+    "ROOT_REINCARNATION_PASSED",
+    "STALE_WORK_RECOVERED",
+    "HUMAN_FRICTION_REMOVED",
+    "BOUNDARY_REQUIRES_HUMAN"
+  ],
+  "anti_metrics": [
+    "Do not invent percent complete for an undefined project/campaign.",
+    "Do not equate raw chat count, token count, commits or elapsed time with progress.",
+    "Do not count an event without a durable source ref/evidence identity when the event claims a material transition.",
+    "Do not let higher event volume outrank a real authority or correctness gate."
+  ],
+  "derived_views": {
+    "continuity_head": [
+      "last meaningful progress event",
+      "recent blocker/unblock events",
+      "small activity summary"
+    ],
+    "live": [
+      "working/done/waiting/problem counts from underlying state",
+      "short current-state phrase",
+      "timestamped event trace",
+      "optional two-hour event buckets"
+    ],
+    "analysis": [
+      "event counts by category",
+      "unblock-impact trends",
+      "parallel speedup versus coordination/integration event load"
+    ]
+  },
+  "two_hour_buckets": "Buckets are a render/compile projection over event timestamps; no cron is required merely to display them.",
+  "privacy_rules": [
+    "Public event projections use sanitized summaries only.",
+    "Private source content, credentials and capability tokens are never copied into events.",
+    "An event may reference a private source under an allowed opaque ref while exposing only an authorized category/state fact."
+  ],
+  "deduplication_rule": "Compiler/projection deduplicates by stable event identity/source transition; retries or replay must not multiply one material transition into fake progress.",
+  "required_falsification_tests": [
+    "replaying the same source transition does not create duplicate progress",
+    "RETURN_DURABLE does not imply RETURN_INTEGRATED",
+    "worker STARTED event cannot exist without corresponding durable STARTED evidence",
+    "failed canary remains visible and is not converted into positive progress by later unrelated events",
+    "public projection cannot expose private event payload/source contents",
+    "two-hour buckets are reproducible from the same event ledger",
+    "parent can reconstruct last meaningful progress after transcript deletion",
+    "Live can disappear entirely without affecting queue/claim/run correctness"
+  ],
+  "promotion_gate": [
+    "full B-BIGPIC convergence including WI-BIG-09 and WI-BIG-13",
+    "final incident/vaccine/falsification semantics reconciled",
+    "append-only storage owner selected without creating a shared mutable bottleneck",
+    "Continuity Head shadow compiler proves event projection is reconstructable"
+  ]
+}
