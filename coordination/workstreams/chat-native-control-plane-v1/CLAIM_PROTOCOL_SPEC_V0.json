@@ -1,0 +1,78 @@
+{
+  "schema": "prometeo.claim-protocol-spec/v0",
+  "status": "CANDIDATE_PRE_GATE_16_OF_18",
+  "owner": "chat-object-prometeo-chat-control-main",
+  "purpose": "Specify the atomic durable claim/pin mechanism required for many identical generic workers to select distinct READY opportunities without duplicate substantive execution.",
+  "basis": [
+    "coordination/workstreams/chat-native-control-plane-v1/AUTONOMOUS_SWARM_OPERATING_MODEL_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/OPPORTUNITY_QUEUE_SPEC_V0.json"
+  ],
+  "authority_boundary": "A successful claim grants only the predeclared execution scope of one opportunity. It is not Current/Human Accepted/Served authority and cannot widen owner, privacy or write boundaries.",
+  "selection_flow": [
+    "load Continuity Head plus queue projection",
+    "filter READY opportunities by capability/tool/privacy/write-scope compatibility",
+    "rank eligible candidates by durable project priority, dependency readiness, information/unblock value and collision risk",
+    "attempt one atomic exclusive claim",
+    "if the claim loses a race, do not overwrite; reload evidence and try another eligible opportunity",
+    "after claim success, create/persist execution attempt and STARTED before substantive work"
+  ],
+  "storage_candidate": "coordination/opportunities/claims/<opportunity_id>.json",
+  "claim_fields": [
+    "claim_id",
+    "opportunity_id",
+    "generation_id",
+    "run_id",
+    "worker_instance_id",
+    "claimed_at",
+    "claim_epoch_or_source_head",
+    "write_scope",
+    "privacy_class",
+    "freshness_policy",
+    "lease_expires_at_or_null",
+    "heartbeat_policy_or_null",
+    "collision_receipt_or_host_result",
+    "supersedes_claim_id_or_null"
+  ],
+  "atomicity_rule": "Exclusive claim creation must be atomic create-if-absent, compare-and-swap, database uniqueness/transaction or another host primitive with collision evidence. A read-then-unconditional-write sequence is forbidden.",
+  "lifecycle_rules": [
+    "No claim means NOT_CLAIMED/NOT_LAUNCHED.",
+    "Claim exists but STARTED absent means CLAIMED_NOT_STARTED.",
+    "STARTED is persisted before material execution.",
+    "Silence is never completion evidence.",
+    "RETURNED requires a durable return artifact.",
+    "DONE requires durable return unless the exact opportunity contract explicitly allows a no-return terminal.",
+    "A worker chat disappearing leaves durable attempt state for recovery instead of forcing human archaeology."
+  ],
+  "stale_and_retry": {
+    "stale_definition": "STALE is derived only from an explicit freshness/lease/heartbeat policy plus durable timestamps/evidence; elapsed conversational silence alone is insufficient.",
+    "reclaim_rule": "A stale claim is never overwritten in place. A new claim/attempt references the stale predecessor and proves the policy that authorized reclamation.",
+    "retry_rule": "Retry gets a new run/attempt identity and preserves all previous claims, STARTED, RETURN, failure and side-effect evidence.",
+    "side_effect_rule": "Potentially effectful retries require idempotency keys/receipts or verified compensating/rollback boundaries before repetition."
+  },
+  "collision_rules": [
+    "Two live workers may inspect the same READY candidate, but only one may obtain its exclusive claim.",
+    "Losing a race is normal control flow, not failure and never authorizes overwrite.",
+    "Independent read-only critic/research opportunities may use a non-exclusive claim mode only when that mode is explicit in the opportunity contract.",
+    "Write-scope collisions remain independently checked even after opportunity-level claim success."
+  ],
+  "post_return_rule": "After durable RETURN/DONE, a worker may run the bounded POST_RETURN scan defined by the operating model. It must acquire a fresh valid claim for any new substantive opportunity; retaining chat context is not continuing authority.",
+  "required_falsification_tests": [
+    "2-worker exclusive race: exactly one claim succeeds",
+    "5-worker race: no opportunity receives duplicate exclusive substantive execution",
+    "losing worker reloads and claims a different READY opportunity when available",
+    "claim exists but worker vanishes before STARTED and parent can distinguish the state",
+    "worker vanishes after STARTED and stale policy eventually exposes recoverable state without inventing DONE",
+    "stale reclamation produces a new attempt linked to predecessor rather than overwrite",
+    "RETURN exists but DONE is missing and projection preserves that mismatch",
+    "retry of effectful work is blocked without required idempotency/side-effect evidence",
+    "privacy/authority incompatibility blocks claim regardless of priority",
+    "post-return second job requires a new claim and cannot inherit write authority from the prior job"
+  ],
+  "promotion_gate": [
+    "full B-BIGPIC convergence including WI-BIG-09 and WI-BIG-13",
+    "final Steward authority/integration semantics reconciled",
+    "host primitive for atomic claim selected and tested",
+    "race/stale/retry canaries pass",
+    "generic /w remains non-operational until those canaries pass"
+  ]
+}
