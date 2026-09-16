@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#172131">
+<title>Prometeo · menú simple v2</title>
+<style>
+:root{
+  --paper:#AAB99D;
+  --ink:#151A20;
+  --app:#172131;
+  --btn-x:calc(100vw - 34px);
+  --btn-y:calc(100dvh - 52px);
+  --panel-x:16px;
+  --panel-y:16px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--app);font-family:"Century Gothic","Avenir Next",Avenir,system-ui,sans-serif}
+button{font:inherit;color:inherit}
+.surface{position:fixed;inset:0;width:100%;height:100%;border:0;background:var(--app)}
+#capture{z-index:1}
+#page{z-index:2;opacity:0;pointer-events:none}
+#page.active{opacity:1;pointer-events:auto}
+
+/* Fondo visible: sólo intercepta el toque exterior para cerrar el widget. */
+#veil{position:fixed;inset:0;z-index:69;background:transparent;opacity:0;visibility:hidden;pointer-events:none}
+#veil.open{opacity:1;visibility:visible;pointer-events:auto}
+
+/* Una sola ventana flotante. */
+#panel{
+  position:fixed;left:var(--panel-x);top:var(--panel-y);z-index:80;
+  width:min(352px,calc(100vw - 24px));
+  max-height:min(68dvh,560px);
+  display:flex;flex-direction:column;overflow:hidden;
+  border:1px solid color-mix(in srgb,var(--ink) 17%,transparent);
+  border-radius:22px;
+  background:color-mix(in srgb,var(--paper) 92%,transparent);
+  color:var(--ink);
+  box-shadow:0 18px 48px rgba(0,0,0,.28),0 3px 10px rgba(0,0,0,.13),inset 0 1px rgba(255,255,255,.16);
+  backdrop-filter:blur(16px) saturate(.86);
+  -webkit-backdrop-filter:blur(16px) saturate(.86);
+  opacity:0;visibility:hidden;pointer-events:none;
+  transform:translateY(5px) scale(.985);
+  transform-origin:50% 50%;
+  transition:opacity 110ms ease,transform 140ms cubic-bezier(.2,.8,.2,1);
+}
+#panel.open{opacity:1;visibility:visible;pointer-events:auto;transform:none}
+.panel-head{
+  flex:none;height:48px;display:grid;grid-template-columns:34px 1fr 34px;align-items:center;
+  border-bottom:1px solid color-mix(in srgb,var(--ink) 18%,transparent);
+  padding:0 7px;
+}
+.head-btn{width:34px;height:34px;border:0;background:transparent;border-radius:50%;display:grid;place-items:center;font-size:22px;line-height:1;opacity:.68}
+.head-btn:active{background:color-mix(in srgb,var(--ink) 8%,transparent)}
+#backBtn.invisible{visibility:hidden}
+#path{min-width:0;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:850;letter-spacing:.03em}
+#panelBody{min-height:0;overflow:hidden;position:relative}
+#rows{max-height:calc(min(68dvh,560px) - 48px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.row{
+  width:100%;min-height:58px;padding:0 16px;
+  display:flex;align-items:center;gap:12px;
+  border:0;border-bottom:1px solid color-mix(in srgb,var(--ink) 18%,transparent);
+  background:transparent;color:var(--ink);text-align:left;touch-action:manipulation;
+}
+.row:last-child{border-bottom:0}
+.row:active{background:color-mix(in srgb,var(--ink) 7%,transparent)}
+.row-main{min-width:0;flex:1;font-size:15px;font-weight:800;letter-spacing:-.018em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-side{flex:none;font-size:18px;font-weight:500;opacity:.48}
+
+/* Slot del Capture integrado. El iframe real vive dentro del widget. */
+#captureSlot{display:none;width:100%;height:min(54dvh,420px);background:rgba(23,33,49,.98)}
+#panel[data-view="composer"] #captureSlot{display:block;height:min(48dvh,350px)}
+#panel[data-view="notes"] #captureSlot{display:block;height:min(58dvh,470px)}
+#panel[data-view="composer"] #rows,#panel[data-view="notes"] #rows{display:none}
+#captureWidget{display:block;width:100%;height:100%;border:0;background:#172131}
+
+/* Puck mínimo. No usa pulso rojo ni LED: es un aro roto que rota lentamente. */
+#prometeo{
+  position:fixed;left:var(--btn-x);top:var(--btn-y);z-index:100;
+  width:36px;height:36px;border:0;border-radius:50%;padding:0;
+  transform:translate(-50%,-50%);
+  background:var(--ink);
+  box-shadow:0 5px 12px rgba(0,0,0,.23),inset 0 1px rgba(255,255,255,.045);
+  touch-action:none;user-select:none;-webkit-user-select:none;
+}
+#prometeo::before{content:"";position:absolute;inset:-10px;border-radius:50%}
+.orbitMark{position:absolute;inset:7px;border-radius:50%;animation:orbit 4.8s linear infinite}
+.orbitMark::before{
+  content:"";position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(from 0deg,transparent 0 18%,var(--paper) 18% 35%,transparent 35% 66%,color-mix(in srgb,var(--paper) 55%,transparent) 66% 74%,transparent 74% 100%);
+  -webkit-mask:radial-gradient(circle,transparent 0 55%,#000 58% 100%);
+  mask:radial-gradient(circle,transparent 0 55%,#000 58% 100%);
+  opacity:.83;
+}
+.coreMark{position:absolute;left:50%;top:50%;width:4px;height:4px;border-radius:50%;background:var(--paper);transform:translate(-50%,-50%);opacity:.62}
+#prometeo.open .orbitMark{animation-duration:2.8s}
+#prometeo.dragging{box-shadow:0 10px 22px rgba(0,0,0,.30),inset 0 2px 5px rgba(0,0,0,.32)}
+#prometeo.dragging .orbitMark{animation-duration:1.3s}
+@keyframes orbit{to{transform:rotate(360deg)}}
+
+@media(max-width:340px){
+  #panel{width:calc(100vw - 18px);border-radius:18px}
+  .row{min-height:55px;padding:0 14px}.row-main{font-size:14px}
+  #prometeo{width:34px;height:34px}
+  #captureSlot{height:55dvh}
+}
+@media(prefers-reduced-motion:reduce){#panel{transition:none}.orbitMark{animation-duration:12s}}
+</style>
+</head>
+<body>
+<iframe id="capture" class="surface" src="../capture-lab/" title="Notas" allow="microphone"></iframe>
+<iframe id="page" class="surface" title="Página"></iframe>
+<div id="veil"></div>
+
+<section id="panel" aria-hidden="true" data-view="menu">
+  <div class="panel-head">
+    <button id="backBtn" class="head-btn invisible" aria-label="Atrás">‹</button>
+    <div id="path">Prometeo</div>
+    <button id="closeBtn" class="head-btn" aria-label="Cerrar">×</button>
+  </div>
+  <div id="panelBody">
+    <div id="rows"></div>
+    <div id="captureSlot"><iframe id="captureWidget" title="Captura" allow="microphone"></iframe></div>
+  </div>
+</section>
+
+<button id="prometeo" aria-label="Prometeo"><span class="orbitMark"></span><span class="coreMark"></span></button>
+
+<script>
+(()=>{
+'use strict';
+const $=s=>document.querySelector(s);
+const panel=$('#panel'), rows=$('#rows'), pathEl=$('#path'), btn=$('#prometeo'), capture=$('#capture'), page=$('#page'), veil=$('#veil');
+const backBtn=$('#backBtn'), closeBtn=$('#closeBtn'), captureWidget=$('#captureWidget');
+const POS_KEY='prometeo.simple-list.button.v2';
+const DRAG=8;
+const TREE={name:'Prometeo',children:[
+  {name:'Nueva nota',action:'new-note'},
+  {name:'Notas',action:'notes'},
+  {name:'Prometeo',children:[
+    {name:'Live',url:'../prometeo-live/'},
+    {name:'Student World',url:'../../pages/PROMETEO_STUDENT_WORLD_MAP_FIXED_OPEN_ME.html'},
+    {name:'José',url:'../../pages/PAGINA_MATERIA_JOSE_RECONSTRUCTION.html'},
+    {name:'Class Player',url:'../../pages/PROMETEO_CLASS_PLAYER_ULTIMA_VERSION_BUENA_v26.html'}
+  ]},
+  {name:'Herramientas',children:[
+    {name:'Texto → Voz',url:'../../pages/audio-demo/'},
+    {name:'Voz → Texto',action:'new-note'}
+  ]},
+  {name:'Legado',children:[
+    {name:'Prometeo anterior',url:'../../legacy/prometeo-v5/index.html',external:true}
+  ]}
+]};
+let node=TREE, stack=[], open=false, drag=null, pos=loadPos(), view='menu', captureMode=null;
+
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function buzz(ms=5){try{navigator.vibrate?.(ms)}catch{}}
+function esc(s){return String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function loadPos(){try{const p=JSON.parse(localStorage.getItem(POS_KEY)||'null');if(p&&Number.isFinite(p.x)&&Number.isFinite(p.y))return p}catch{}return{x:.90,y:.88}}
+function savePos(){try{localStorage.setItem(POS_KEY,JSON.stringify(pos))}catch{}}
+function viewport(){const vv=visualViewport;return{w:vv?.width||innerWidth,h:vv?.height||innerHeight,ox:vv?.offsetLeft||0,oy:vv?.offsetTop||0}}
+function applyPos(){const v=viewport(),m=25,x=clamp(v.ox+pos.x*v.w,v.ox+m,v.ox+v.w-m),y=clamp(v.oy+pos.y*v.h,v.oy+m,v.oy+v.h-m);document.documentElement.style.setProperty('--btn-x',x+'px');document.documentElement.style.setProperty('--btn-y',y+'px');if(open)requestAnimationFrame(placePanel)}
+function setPos(x,y){const v=viewport(),m=25;x=clamp(x,v.ox+m,v.ox+v.w-m);y=clamp(y,v.oy+m,v.oy+v.h-m);pos={x:(x-v.ox)/v.w,y:(y-v.oy)/v.h};applyPos()}
+function currentPath(){if(view==='composer')return'Nueva nota';if(view==='notes')return'Notas';const parts=['Prometeo'];for(const n of stack.slice(1))parts.push(n.name);if(node!==TREE)parts.push(node.name);return parts.filter((v,i,a)=>i===0||v!==a[i-1]).join(' / ')}
+
+function render(){
+  panel.dataset.view=view;
+  pathEl.textContent=currentPath();
+  backBtn.classList.toggle('invisible',view==='menu'&&node===TREE);
+  if(view!=='menu'){rows.innerHTML='';return}
+  const items=node.children||[];
+  rows.innerHTML=items.map((it,i)=>`<button class="row" data-i="${i}"><span class="row-main">${esc(it.name)}</span><span class="row-side">${Array.isArray(it.children)?'›':''}</span></button>`).join('');
+  rows.scrollTop=0;
+}
+function placePanel(){
+  if(!open)return;
+  const v=viewport(),br=btn.getBoundingClientRect();
+  const pw=panel.offsetWidth,ph=panel.offsetHeight;
+  const cx=br.left+br.width/2,cy=br.top+br.height/2,g=14,m=10;
+  let x=cx<v.ox+v.w/2?cx+g:cx-pw-g;
+  let y=cy<v.oy+v.h*.52?cy+g:cy-ph-g;
+  x=clamp(x,v.ox+m,v.ox+v.w-pw-m);
+  y=clamp(y,v.oy+m,v.oy+v.h-ph-m);
+  document.documentElement.style.setProperty('--panel-x',x+'px');
+  document.documentElement.style.setProperty('--panel-y',y+'px');
+}
+function openPanel(){open=true;panel.classList.add('open');panel.setAttribute('aria-hidden','false');veil.classList.add('open');btn.classList.add('open');render();requestAnimationFrame(placePanel);buzz(4)}
+function closePanel(){open=false;panel.classList.remove('open');panel.setAttribute('aria-hidden','true');veil.classList.remove('open');btn.classList.remove('open');buzz(3)}
+function togglePanel(){open?closePanel():openPanel()}
+function enterFolder(it){stack.push(node);node=it;view='menu';render();requestAnimationFrame(placePanel);buzz(5)}
+function goBack(){
+  if(view==='composer'||view==='notes'){view='menu';captureMode=null;stopCaptureWidget();render();requestAnimationFrame(placePanel);buzz(4);return}
+  if(node===TREE){closePanel();return}
+  node=stack.pop()||TREE;render();requestAnimationFrame(placePanel);buzz(4)
+}
+function openPage(it){if(it.external){window.open(it.url,'_blank');closePanel();return}page.src=it.url;page.classList.add('active');closePanel()}
+
+/* Capture de fondo: sólo ocultamos el + duplicado. */
+function patchBackgroundCapture(){try{const d=capture.contentDocument;if(!d)return;if(!d.querySelector('#prometeo-simple-v2')){const s=d.createElement('style');s.id='prometeo-simple-v2';s.textContent='#add{display:none!important}';d.head.appendChild(s)}}catch{}}
+capture.addEventListener('load',()=>setTimeout(patchBackgroundCapture,50));setTimeout(patchBackgroundCapture,280);
+
+function embedCss(mode){
+  const common=`
+    html,body{margin:0!important;width:100%!important;height:100%!important;min-height:0!important;background:#172131!important;overflow:hidden!important}
+    #add,.bottom,#scrim,#diag,#v11CopyBar,#v9Selection,#v9Toast,#v9Jobs{display:none!important}
+    .composer,.composer.hidden{display:block!important;position:relative!important;left:auto!important;bottom:auto!important;transform:none!important;width:100%!important;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;padding:8px 10px 10px!important}
+    .handle{display:none!important}.chead{height:26px!important}.chead span,#close{display:none!important}
+    .draftBox{min-height:82px!important;max-height:180px!important;border-radius:14px!important}.draft{min-height:82px!important;padding:12px!important;font-size:14px!important}
+    .controls{margin-top:9px!important;gap:8px!important}.rec{transform:scale(.9);transform-origin:left center}.state{font-size:10px!important}.send{width:42px!important;height:42px!important}
+  `;
+  if(mode==='composer')return common+`
+    .app,#works{display:none!important}
+    body{display:block!important}
+    .composer{height:100%!important}
+  `;
+  return common+`
+    body{display:flex!important;flex-direction:column!important;overflow:auto!important}
+    .composer{order:0!important;flex:none!important;border-bottom:1px solid #ffffff10!important}
+    .app{order:1!important;display:block!important;min-height:0!important;padding:8px 10px 18px!important}
+    .top,#works{display:none!important}.feed{gap:8px!important}.note{border-radius:14px!important;padding:11px 12px!important}.note p{font-size:13px!important}.empty{height:150px!important;font-size:12px!important}
+  `;
+}
+function patchWidget(){
+  try{
+    const d=captureWidget.contentDocument;if(!d)return;
+    let st=d.querySelector('#prometeo-widget-embed');if(!st){st=d.createElement('style');st.id='prometeo-widget-embed';d.head.appendChild(st)}
+    st.textContent=embedCss(captureMode||'composer');
+    if(captureMode==='composer'){
+      d.querySelector('#composer')?.classList.remove('hidden');
+      d.querySelector('#scrim')?.classList.add('hidden');
+      setTimeout(()=>d.querySelector('#draft')?.focus(),80);
+    }
+  }catch{}
+}
+function startCaptureWidget(mode){
+  captureMode=mode;view=mode==='notes'?'notes':'composer';render();
+  if(!captureWidget.src||captureWidget.src==='about:blank')captureWidget.src='../capture-lab/';
+  if(captureWidget.contentDocument?.readyState==='complete')patchWidget();
+  requestAnimationFrame(placePanel);buzz(5)
+}
+function stopCaptureWidget(){captureMode=null}
+captureWidget.addEventListener('load',()=>setTimeout(patchWidget,60));
+
+function activate(it){
+  if(Array.isArray(it.children)){enterFolder(it);return}
+  if(it.action==='new-note'){startCaptureWidget('composer');return}
+  if(it.action==='notes'){startCaptureWidget('notes');return}
+  if(it.url){openPage(it);return}
+}
+rows.addEventListener('click',e=>{const r=e.target.closest('.row');if(!r)return;const it=(node.children||[])[Number(r.dataset.i)];if(it)activate(it)});
+backBtn.addEventListener('click',goBack);closeBtn.addEventListener('click',closePanel);veil.addEventListener('click',closePanel);
+
+/* Botón libre: tap abre; drag mueve y el widget lo sigue. */
+btn.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;drag={id:e.pointerId,sx:e.clientX,sy:e.clientY,moved:false};try{btn.setPointerCapture(e.pointerId)}catch{}e.preventDefault();e.stopPropagation()},{passive:false});
+btn.addEventListener('pointermove',e=>{const d=drag;if(!d||d.id!==e.pointerId)return;const dist=Math.hypot(e.clientX-d.sx,e.clientY-d.sy);if(!d.moved&&dist<DRAG)return;if(!d.moved){d.moved=true;btn.classList.add('dragging');buzz(4)}setPos(e.clientX,e.clientY);e.preventDefault();e.stopPropagation()},{passive:false});
+function finish(e,cancel=false){const d=drag;if(!d||d.id!==e.pointerId)return;drag=null;try{btn.releasePointerCapture(e.pointerId)}catch{}btn.classList.remove('dragging');if(cancel)return;if(d.moved){savePos();buzz(4);if(open)requestAnimationFrame(placePanel)}else togglePanel();e.preventDefault();e.stopPropagation()}
+btn.addEventListener('pointerup',e=>finish(e,false),{passive:false});btn.addEventListener('pointercancel',e=>finish(e,true),{passive:false});
+
+applyPos();render();
+addEventListener('resize',()=>{applyPos();if(open)placePanel()});visualViewport?.addEventListener('resize',()=>{applyPos();if(open)placePanel()});visualViewport?.addEventListener('scroll',()=>{applyPos();if(open)placePanel()});
+})();
+</script>
+</body>
+</html>
