@@ -1,0 +1,249 @@
+{
+  "schema": "prometeo.delegated-return/v1",
+  "work_item_id": "WI-BIG-16",
+  "worker_instance_id": "RUN-BIG-16-A",
+  "parent_chat_object_id": "chat-object-prometeo-chat-control-main",
+  "batch_id": "B-BIGPIC-01",
+  "status": "COMPLETE",
+  "created_at": "2026-09-16T17:50:15-03:00",
+  "useful_delta": [
+    "Defined a layered universal-AI bootstrap architecture that separates public discovery, freshness/integrity, job resolution, private-context access, scoped privileged capabilities, execution evidence and canonical product authority.",
+    "Identified a standards-level discovery issue: the current project URL https://juanmanuelpm.github.io/prometeo/.well-known/prometeo.json is a stable project locator but is not an RFC 8615 well-known URI because /.well-known/ is not rooted at the origin path. Preserve it for compatibility, but use a root-level well-known resource or custom origin for standards-based discovery.",
+    "Defined a signature/version strategy that does not pretend self-signing creates initial identity: HTTPS/user-supplied origin is the bootstrap trust mode for unrelated AIs; signatures provide integrity, immutable-version verification, TOFU/native key pinning and safe key rotation after trust is established.",
+    "Defined a narrow capability model for privileged operations: server-side issued, revocable, audience/resource/action/work-item/run bounded, short-lived, replay-resistant, never embedded in public coordination artifacts, with Authorization-header transport preferred and DPoP available as a stronger sender-constrained profile.",
+    "Defined a migration path in which p.txt becomes a generated compatibility projection rather than the security or semantic source of truth, while preserving current launch syntax and zero-memory UX.",
+    "Defined explicit fail-closed machine boundary codes and adversarial conformance tests for stale caches, tampered manifests, unsupported versions, token leakage/replay, scope escape, duplicate runs, private-data leakage and authority confusion."
+  ],
+  "facts": [
+    "INC-ZM-BOOT-01 proves a fresh unprimed chat cannot be expected to understand the bare token Prometeo; the first message needs a resolvable bootstrap locator unless the platform has native/global Prometeo integration.",
+    "The current stable entry already provides a machine-readable manifest, p.txt fallback, runtime pointers, EPOCH, launch boards, deterministic BIG shorthand and mandatory constitution links.",
+    "Current runtime law correctly separates coordination from product authority: worker/run/return state does not manufacture Current, Human Accepted or Served truth.",
+    "Current Prometeo private-runtime precedent already keeps sensitive state server-side in Supabase while GitHub carries code and sanitized coordination metadata; Finance/Auth uses authenticated server-side access rather than committing secrets or financial data to GitHub.",
+    "The current stable entry advertises no cryptographic signature/trust-root protocol and no generic narrow privileged-capability issuance contract for unrelated AIs.",
+    "RFC 8615 defines /.well-known/ as an origin-root path prefix and explicitly states that /foo/.well-known/example is not a well-known URI. Therefore the present /prometeo/.well-known/prometeo.json path is compatibility discovery, not standards-based origin discovery.",
+    "RFC 9700 is current OAuth 2.0 Security Best Current Practice; RFC 9449 defines DPoP sender-constrained tokens; RFC 10017 (August 2026) emphasizes minimizing token authority and avoiding exposing powerful long-lived tokens directly to browser code when a backend-mediated architecture is practical.",
+    "During this scout, one public web retrieval of p.txt surfaced v4.1 while the current gh-pages and main branch p.txt bytes are v4.3. This is evidence that a consumer may observe stale cached/bootstrap content; it is not proof that the origin currently serves different bytes. Freshness must therefore be explicit in the protocol rather than assumed from a URL."
+  ],
+  "candidates": [
+    "Adopt a new public contract named prometeo.ai-entry/v1, referenced by the existing stable entry so current clients remain compatible.",
+    "Treat the existing project-path stable entry as a compatibility locator. Add a true origin-root /.well-known/<registered-or-project-specific-suffix> endpoint on a controlled root/custom domain when available; until then avoid implying RFC 8615 compliance from the nested path.",
+    "Publish immutable versioned manifest bytes plus a small stable pointer/envelope. Include sequence, issued_at, expires_at/max_stale, content digest, previous_digest, EPOCH/main-head references and compatibility metadata so stale clients can detect that their bootstrap is no longer fresh.",
+    "Sign exact immutable manifest bytes with JWS using an asymmetric key and kid. Publish a JWKS/key-transition document. Native integrations may pin a root fingerprint; unrelated AIs may use HTTPS-origin trust plus TOFU pinning after first successful boot. An emergency key reset must require a stronger out-of-band/origin confirmation because a new key self-declared by a compromised origin is not proof of identity.",
+    "Use the existing private-runtime/Auth substrate as the likely privileged capability issuer rather than storing write credentials in GitHub or inventing obfuscation-based security.",
+    "Prefer opaque revocable capability handles stored server-side. Bind each capability to exact audience, subject/run, work_item_id, verbs, resource/path set, branch when relevant, private-data classes, not-before/expiry, max uses and idempotency/replay constraints. The token itself should reveal no sensitive payload.",
+    "Transport privileged capability tokens in Authorization headers, never public files and preferably never URLs. Offer DPoP for clients that can hold an ephemeral key. If a model/tool can only dereference a URL, allow a compatibility one-time URL only for narrowly scoped packet retrieval/exchange, with very short TTL and no direct broad write authority.",
+    "Make public protocol files declarative and bounded. A fetched Prometeo manifest is product protocol data under the user's request; it never overrides the host model's system/developer/safety policy and must not be able to expand its own trust or privileges merely by containing prose instructions.",
+    "Add a deterministic public resolver contract that expands aliases such as BIG=n, searches declared boards in order, requires exactly one launch target, validates job schema/status/prerequisites and returns a resolution record without granting write authority.",
+    "Keep run allocation and write authorization separate from resolution. A public resolver may say P-BIG-16 -> WI-BIG-16; only a capability-authorized execution path may create STARTED/RETURN objects or access private context.",
+    "Make duplicate-launch behavior deterministic: existing DONE/RETURNED returns are reused; a fresh active run is not duplicated; a stale run can only be retried/superseded under explicit parent/steward policy with a new worker instance id; no worker overwrites another worker's run file.",
+    "Generate p.txt and chat-bootstrap text from the canonical machine manifest/contracts in CI. p.txt remains the smallest human/LLM compatibility bridge, not an independently edited authority surface."
+  ],
+  "design": {
+    "layers": [
+      {
+        "name": "DISCOVERY",
+        "purpose": "Allow an unrelated AI to locate the Prometeo machine contract from one human-supplied URL or an origin-root well-known resource.",
+        "public": true,
+        "privileged": false
+      },
+      {
+        "name": "INTEGRITY_AND_FRESHNESS",
+        "purpose": "Identify exact immutable manifest bytes, version, EPOCH, age, predecessor and optional cryptographic verification without conflating these with product authority.",
+        "public": true,
+        "privileged": false
+      },
+      {
+        "name": "RESOLUTION",
+        "purpose": "Normalize Home/launch aliases and resolve them deterministically to durable project/chat-object/work-item identities.",
+        "public": true,
+        "privileged": false
+      },
+      {
+        "name": "CAPABILITY_GATE",
+        "purpose": "Authorize narrow private reads or writes using revocable scoped server-side capabilities; provider credentials remain behind the gate.",
+        "public": false,
+        "privileged": true
+      },
+      {
+        "name": "PRIVATE_CONTEXT",
+        "purpose": "Return only the minimum private payload needed by the exact job/capability; raw transcript, credentials and unrelated private data never become public coordination state.",
+        "public": false,
+        "privileged": true
+      },
+      {
+        "name": "EXECUTION_AND_EVIDENCE",
+        "purpose": "Persist STARTED, scoped work, sanitized RETURN and terminal run state. These are coordination evidence, not Current/Human Accepted/Served authority.",
+        "public": "sanitized metadata only",
+        "privileged": "writes require exact scope"
+      }
+    ],
+    "ai_entry_manifest_shape": {
+      "schema": "prometeo.ai-entry/v1",
+      "manifest_version": "semver or monotonic protocol version",
+      "project_id": "prometeo",
+      "canonical_origin": "https origin supplied/accepted by user",
+      "canonical_entry": "stable machine entry URL",
+      "immutable_entry": "content-addressed/versioned entry URL",
+      "sequence": "monotonic integer",
+      "issued_at": "ISO timestamp",
+      "expires_at": "ISO timestamp or explicit max_stale policy",
+      "digest": {"alg": "sha-256", "value": "hex/base64url"},
+      "previous_digest": "hash-chain predecessor or null",
+      "signature": {"format": "JWS", "alg": "EdDSA or another explicitly allowlisted asymmetric alg", "kid": "key id", "signature_ref": "detached signature or signed-envelope ref", "jwks_url": "public key set"},
+      "trust": {"bootstrap_modes": ["USER_SUPPLIED_HTTPS_ORIGIN", "NATIVE_PINNED_ROOT", "TOFU_AFTER_FIRST_BOOT"], "privileged_actions_require_capability": true, "self_signature_is_not_initial_identity": true},
+      "freshness": {"epoch_url": "tiny shared freshness record", "main_head": "observed source head", "cache_recovery": ["re-fetch no-cache/cache-busted stable entry", "compare immutable digest", "use declared same-owner source fallback when policy permits"]},
+      "protocols": {"constitution": "public required protocol", "delegated_work": "public job lifecycle", "chat_object": "public durable-object contract", "execution": "public execution contract"},
+      "routing": {"selector_rules": "deterministic rule set", "launch_boards": ["ordered public board refs"], "home_index": "project selector ref"},
+      "privacy": {"classes": ["PUBLIC", "PRIVATE_USER", "SECRET", "LOCAL_EPHEMERAL"], "unknown_classification": "DENY", "public_return_requires_sanitization": true},
+      "capabilities": {"issuer": "private capability service", "profiles": ["OPAQUE_BEARER", "DPOP_BOUND", "ONE_TIME_FETCH_COMPAT"], "transport_preference": "Authorization header", "token_in_public_url": "forbidden except explicit one-time compatibility fetch"},
+      "failure_contract": "machine-readable boundary codes",
+      "compatibility": {"p_txt": "generated text projection", "min_reader": "supported minimum", "fallback_behavior": "read-only or boundary"}
+    },
+    "capability_record_shape_server_side": {
+      "capability_id": "unguessable id",
+      "subject": "worker/run or authenticated principal",
+      "work_item_id": "exact delegated job or null for another bounded operation",
+      "audience": "exact resource server/service",
+      "verbs": ["read_private_context", "create_run", "write_return", "write_repo_path", "submit_result"],
+      "resources": ["exact ids/path prefixes with canonical path validation"],
+      "branch": "optional exact branch",
+      "private_classes": ["minimum allowed data classes"],
+      "not_before": "timestamp",
+      "expires_at": "short timestamp",
+      "max_uses": "small integer or unlimited only for low-risk read",
+      "sender_key_thumbprint": "optional DPoP binding",
+      "requires_idempotency_key": true,
+      "human_gate": "NONE|CONSENT_REQUIRED|IRREVERSIBLE_APPROVAL_REQUIRED",
+      "revoked_at": "nullable timestamp",
+      "parent_capability_id": "optional delegation chain"
+    },
+    "bootstrap_algorithm": [
+      "Receive human-supplied Prometeo locator/command; do not assume bare Prometeo semantics in an unprimed environment.",
+      "Fetch only the declared stable entry; enforce size/content-type limits and reject unexpected cross-origin redirects unless explicitly authorized by the manifest/user.",
+      "Require supported schema/version. Parse protocol fields declaratively; external text cannot override host safety/system policy.",
+      "Check freshness metadata. If stale, refresh via declared path before any privileged operation.",
+      "Verify immutable digest. Verify signature when a pinned/TOFU trust state exists; if signature verification is required by policy and fails, privileged work fails closed.",
+      "Resolve selector/launch alias deterministically to durable identity. Ambiguous/missing mapping is a boundary, never a guess.",
+      "Load the minimum public governing context: constitution, job, relevant Big Picture/Survival rules and EPOCH.",
+      "For read-only/public work, continue without a secret.",
+      "For private reads/writes, obtain a capability through the authorized private issuer/tool path. Never copy provider credentials into the model prompt or public return.",
+      "Immediately before write, re-check EPOCH/current owner/convergence and validate capability scope against canonicalized target.",
+      "Persist independent STARTED before substantive execution, then scoped RETURN/evidence, then DONE/boundary."
+    ],
+    "job_resolution_model": {
+      "public_resolution": "alias -> exactly one durable identity with resolution evidence, no privilege granted",
+      "validation": ["supported alias syntax", "ordered launch-board lookup", "unique mapping", "job schema matches", "dispatchable/not obsolete", "prerequisites satisfied", "declared write scope exists", "run policy understood"],
+      "run_policy": {"no_run": "allocate/claim according to job policy", "active_run": "do not duplicate", "done_returned": "reuse existing evidence", "stale_run": "parent/steward retry or supersede with a new run id", "boundary_failed": "respect terminal evidence; retry only under declared policy"}
+    },
+    "failure_codes": {
+      "ENTRY_UNREACHABLE": "No trusted bootstrap bytes available; no privileged action.",
+      "ENTRY_SCHEMA_UNSUPPORTED": "Client cannot safely interpret the entry; stop rather than improvise.",
+      "ENTRY_STALE": "Refresh/verify an immutable newer entry; cached stale entry may be used only for explicitly allowed read-only recovery.",
+      "SIGNATURE_INVALID": "Fail closed for any action requiring signed integrity.",
+      "TRUST_ROOT_UNAVAILABLE": "Do not claim cryptographic identity; continue only in the declared HTTPS/user-origin read-only trust mode or stop if stronger trust is required.",
+      "ORIGIN_CHANGED": "Require explicit trust transition; do not silently follow a new authority origin.",
+      "SELECTOR_INVALID": "Invalid BIG/Home/launch selector; never normalize outside declared rules.",
+      "JOB_NOT_FOUND": "No durable job; do not invent task body.",
+      "JOB_AMBIGUOUS": "More than one mapping; stop until authority is reconciled.",
+      "JOB_NOT_DISPATCHABLE": "Prepared object cannot be executed in current state.",
+      "CAPABILITY_REQUIRED": "Private read/write requested without authorization; public reasoning may continue if useful.",
+      "CAPABILITY_EXPIRED": "Do not refresh implicitly unless issuer policy allows it.",
+      "CAPABILITY_SCOPE_MISMATCH": "Canonical target/action is outside token scope; deny.",
+      "CAPABILITY_REPLAY": "Duplicate use violates nonce/max-use/idempotency rules; deny or return prior idempotent result.",
+      "PRIVATE_CONTEXT_UNAVAILABLE": "Return a real boundary without substituting guessed/public context.",
+      "LIVE_WRITE_COLLISION": "Stop or reconcile/narrow scope; do not overwrite stale bytes.",
+      "EPOCH_CHANGED": "Reload only relevant compiled state and repeat prewrite validation.",
+      "RETURN_WRITE_FAILED": "Do not mark DONE without durable return evidence."
+    }
+  },
+  "threat_model": {
+    "assets": ["owner identity", "private user context", "provider credentials", "privileged write authority", "Current/Human Accepted/Served authority", "run/return integrity", "bootstrap identity"],
+    "attackers_or_faults": ["stale CDN/tool cache", "public-host tampering or wrong mirror", "prompt-injection text in fetched resources", "bearer-token leakage through URL/log/referrer/history", "token replay", "confused-deputy scope expansion", "path traversal/canonicalization bugs", "duplicate worker launch", "stale/superseded job execution", "browser/XSS compromise", "capability issuer compromise", "model/tool lacking crypto/header/POST features"],
+    "non_goals": ["Cryptographic signatures alone do not establish initial identity for an unrelated AI with no pinned trust root.", "Obfuscation/Base64/reversed text is not access control.", "Worker completion is not canonical promotion.", "A public AI manifest must not become a universal shell with unrestricted provider credentials."]
+  },
+  "public_private_split": {
+    "public_allowed": ["schemas and protocol docs", "stable/immutable entry metadata", "public signing keys/fingerprints and key-transition evidence", "EPOCH/network/convergence sanitized views", "project/chat-object/work-item identity and non-sensitive mission metadata", "sanitized run lifecycle", "sanitized RETURN summaries/evidence refs", "tests/digests/public candidate refs"],
+    "private_required": ["raw transcripts/captures when sensitive", "attachments/private user documents", "credentials/API keys/session tokens", "provider refresh/access tokens", "financial/private application data", "opaque execution/capability tokens", "unredacted private packet payloads"],
+    "rule": "Every resource referenced by the machine entry should declare a classification or inherit one from a signed schema; unknown classification fails closed for public publication."
+  },
+  "signing_and_versioning": {
+    "immutable_payload": "Publish exact-byte immutable manifests addressed by version and digest; signatures cover those exact bytes so JSON canonicalization ambiguity is avoided.",
+    "stable_pointer": "Small compatibility entry points to immutable payload, sequence, digest and signature refs. Clients detect stale cache by age/sequence/EPOCH and can re-fetch using declared cache-busting/fallback policy.",
+    "key_rotation": "Normal rotation is cross-signed/authorized by the previous trusted key and carries not-before/retire-after windows. Emergency reset requires stronger origin/human/native-root confirmation.",
+    "trust_modes": ["USER_SUPPLIED_HTTPS_ORIGIN: sufficient for public bootstrap when the human explicitly supplied the origin, not cryptographic identity beyond HTTPS", "TOFU_PIN: remember first accepted key fingerprint and warn/fail on unexpected future key change", "NATIVE_PINNED_ROOT: strongest mode for a future ChatGPT/plugin/CLI integration that ships a Prometeo root fingerprint"],
+    "authority_rule": "A valid signature proves integrity/authorship under a trusted key; it does not prove Human Accepted, Current or Served product state."
+  },
+  "migration_from_p_txt": [
+    "M0 Preserve current p.txt, .well-known/prometeo.json, launch codes and BIG shorthand exactly enough that existing fresh-chat launches continue to work.",
+    "M1 Add prometeo.ai-entry/v1 as a linked child of the current stable entry, with explicit freshness/version/privacy/failure metadata. No privileged behavior changes yet.",
+    "M2 Publish immutable entry snapshots + digest + JWS/JWKS/key-rotation metadata. Add stale-cache and tamper canaries. Keep HTTPS/user-origin trust as the honest default until a key can be pinned out of band/native.",
+    "M3 Establish standards-based origin discovery when infrastructure permits: root /.well-known/<Prometeo-specific-suffix> on a controlled root/custom domain. Keep /prometeo/.well-known/prometeo.json as a compatibility locator, not a falsely labelled RFC 8615 resource.",
+    "M4 Generate p.txt/chat-bootstrap from canonical contracts in CI. p.txt becomes a tiny human-readable projection containing locator, command syntax and invariant failure rules; it stops being independently hand-maintained authority.",
+    "M5 Add private capability gateway on the existing server-side Auth/private-runtime substrate. First capabilities should be minimal: read exact private job context, create exact preallocated run, write exact sanitized return. Do not issue broad repository/provider credentials.",
+    "M6 Add stronger sender-constrained profile (DPoP) and revocation/rotation where clients support it; retain short-lived opaque bearer as interoperability baseline and one-time-fetch URL only as a constrained compatibility escape hatch.",
+    "M7 Run unrelated-AI conformance canaries before making the new entry canonical. Only after success may parent/steward decide whether current stable entry or p.txt semantics should be promoted/migrated."
+  ],
+  "tests": [
+    "ZERO_MEMORY_BOOT: unrelated model receives only stable locator + BIG=16 and resolves exact durable job without chat history.",
+    "ROOT_DISCOVERY: origin-root well-known resource resolves correctly; nested project-path resource is treated as compatibility only.",
+    "UNSUPPORTED_VERSION: unknown major schema yields ENTRY_SCHEMA_UNSUPPORTED, no guessing.",
+    "STALE_CACHE: serve an older but syntactically valid manifest; client detects age/sequence/EPOCH mismatch and refreshes before privileged work.",
+    "TAMPERED_MANIFEST: mutate one immutable byte; digest/signature verification fails and write is blocked.",
+    "KEY_ROTATION: valid old->new transition passes; unannounced new key fails pinned/TOFU mode.",
+    "SELF_SIGNING_FALSE_SECURITY: first-contact client records that signature without an external/pinned trust root does not create identity stronger than the supplied HTTPS origin.",
+    "TOKEN_URL_LEAK: privileged write token must not appear in URL, public return, Git commit, logs intentionally produced by Prometeo, or referrer-bearing navigation.",
+    "CAPABILITY_EXPIRY_AND_REPLAY: expired/max-use token denied; idempotent retry returns same result rather than duplicating mutation.",
+    "SCOPE_ESCAPE: attempt ../ path traversal, alternate branch, wrong work_item_id, wrong method or wrong audience; capability gate denies after canonicalization.",
+    "DUPLICATE_LAUNCH: active existing run is not duplicated; DONE run returns existing durable result; stale retry uses a new run id under parent policy.",
+    "PRIVATE_MINIMIZATION: worker receives only job-scoped private data; unrelated transcript/credentials never appear in public artifacts.",
+    "PROMPT_INJECTION_BOUNDARY: fetched public prose attempting to expand privileges or override host policy is treated as untrusted protocol content and cannot grant capability.",
+    "BROWSER_TOKEN_EXPOSURE: browser UI never stores reusable broad provider/write credentials; use backend-mediated session/capability pattern where practical.",
+    "AUTHORITY_SEPARATION: signed manifest, successful write, DONE run and candidate return still do not imply Human Accepted/Current/Served.",
+    "SERVED_BYTE_CHECK: when a bootstrap change is claimed served, fetch served bytes and compare exact digest with intended immutable artifact rather than inferring from source commit."
+  ],
+  "artifacts": [
+    "coordination/workstreams/chat-native-control-plane-v1/work-items/WI-BIG-16/runs/RUN-BIG-16-A.json",
+    "coordination/workstreams/chat-native-control-plane-v1/work-items/WI-BIG-16/returns/RUN-BIG-16-A.json"
+  ],
+  "evidence": [
+    "coordination/workstreams/chat-native-control-plane-v1/incidents/INC-ZM-BOOT-01.json",
+    ".well-known/prometeo.json",
+    "p.txt",
+    ".well-known/prometeo-chat-bootstrap.txt",
+    "coordination/AGENT_RUNTIME.json",
+    "reincarnation/BOOTSTRAP.json",
+    "coordination/workstreams/chat-native-control-plane-v1/BIG_PICTURE_MAP_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/ANTI_LIMITATION_RULES_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/SURVIVAL_SET_V1.md",
+    "agent-runtime/manifest.json (gh-pages)",
+    "agent-runtime/epoch.json (gh-pages) observed immediately before return: P3-ae8ac9189fe4 / main 4d5ee822be56",
+    "agent-runtime/convergence.json (gh-pages) at same epoch showed no blocking event in the inspected relevant convergence surface; listed overlaps were inactive/non-blocking.",
+    "RFC 8615 Well-Known URIs: https://www.rfc-editor.org/rfc/rfc8615.html",
+    "RFC 7515 JSON Web Signature: https://www.rfc-editor.org/rfc/rfc7515.html",
+    "RFC 9449 OAuth 2.0 DPoP: https://www.rfc-editor.org/rfc/rfc9449.html",
+    "RFC 9700 OAuth 2.0 Security Best Current Practice: https://www.rfc-editor.org/rfc/rfc9700.html",
+    "RFC 10017 OAuth 2.0 for Browser-Based Applications: https://www.rfc-editor.org/rfc/rfc10017.html"
+  ],
+  "conflicts": [
+    "Naming/trust conflict: current nested /prometeo/.well-known/ path behaves as a stable locator but does not satisfy RFC 8615 origin-root semantics. Migration must preserve compatibility while correcting the standards claim.",
+    "Interoperability/security conflict: some unrelated AI/tool environments may only fetch URLs and cannot attach Authorization/DPoP headers. The safe compatibility fallback is a short-lived one-time fetch/exchange URL, not a general write capability embedded in the URL.",
+    "Static-host/freshness conflict: GitHub Pages is useful for public immutable metadata but cannot itself be the revocable private capability authority. Keep public discovery static and private authorization server-side.",
+    "Signature/bootstrap conflict: a key announced by the same first-contact origin cannot independently authenticate that origin. Treat signatures as integrity/continuity until the key is pinned through TOFU/native/out-of-band trust."
+  ],
+  "unresolved": [
+    "Choose the eventual standards-based public origin/root for a true /.well-known/ resource: root user-site path versus dedicated/custom Prometeo domain.",
+    "Choose the concrete capability issuer owner/API after parent reconciles BIG-15 FABRIC/Airlock and other security/auth returns; this scout recommends extending the existing private Auth/runtime substrate rather than creating a duplicate global owner.",
+    "Choose exact signing algorithm/key custody/rotation implementation after determining deployment environment and whether a native client can pin a root. JWS with an allowlisted asymmetric algorithm is the recommended interoperability shape, not a final operational key decision.",
+    "Determine which external-AI environments can send custom headers/POST requests. Capability transport profiles should be selected by client capability rather than pretending one transport works everywhere."
+  ],
+  "impacts": [
+    "chat-native-control-plane-v1",
+    "agent-network-v3",
+    "reincarnation/bootstrap",
+    "finance-auth/private-runtime",
+    "future FABRIC/Airlock owner",
+    "public GitHub Pages bootstrap",
+    "future native ChatGPT/plugin/CLI integration"
+  ],
+  "suggested_parent_action": "During batch integration, merge this return with BIG-15 FABRIC/Airlock, BIG-06 Agent Network, BIG-07 worker fabric and BIG-10 reincarnation returns. Preserve the current zero-memory UX, but separate four authorities explicitly: public discovery, integrity/freshness trust, scoped privileged capability, and product Current/Human Accepted/Served. The shortest implementation slice is: ai-entry/v1 + generated p.txt + freshness/tamper tests first, then server-side narrow capability gateway, then true origin-root discovery/native key pinning when infrastructure supports it. Do not promote any of these candidates directly from this scout return."
+}
