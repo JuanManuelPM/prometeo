@@ -1,74 +1,93 @@
-# Prometeo Project Selector Protocol v1
+# Prometeo Home / Chat Object Selector Protocol v2
 
 Status: ACTIVE CANDIDATE RUNTIME EXTENSION
 Owner: `chat-native-control-plane-v1`
 
 ## Goal
 
-A user must be able to open a completely fresh ChatGPT conversation, send only `Prometeo`, choose a project by a short menu number, and continue durable project state without relying on the originating chat transcript.
+A user opens a completely fresh ChatGPT conversation, sends only `Prometeo`, chooses a project/working identity by a short menu number, and the fresh conversation **reincarnates the selected durable Chat Object** without requiring the originating transcript.
 
 ## Identity model
 
-Three identities must remain separate:
+Keep these separate:
 
-1. `project_id` — durable human project identity. Survives every chat.
-2. `workstream_id` — durable execution/coordination stream inside Prometeo. A project may own one or many.
-3. `worker_instance_id` — disposable chat/agent instance participating in a project/workstream.
+1. `project_id` — human umbrella, e.g. Facultad or Alumnos.
+2. `chat_object_id` — durable conversational/operational identity that can reincarnate across ChatGPT conversations.
+3. `workstream_id` — durable execution/coordination stream; a Chat Object may coordinate several.
+4. `work_item_id` — one delegated prepared job.
+5. `worker_instance_id` — disposable main-incarnation or one-shot worker execution identity.
+6. menu number / launch code — temporary human-friendly aliases only.
 
-A menu number is never identity. It is only the current rendering alias of a `project_id`.
+A project may initially have no Chat Object binding. When recovered from legacy workstreams, create/persist one instead of making transcript history the canonical state.
 
 ## Fresh-chat `Prometeo`
 
-When the user sends exactly `Prometeo`:
+1. Load stable entry/runtime.
+2. If already bound to a Chat Object/project/workstream, reincarnate/resync it.
+3. Else if materially unfinished Prometeo intent is clearly recoverable locally + durably, continue it.
+4. Else load `PROJECT_INDEX.json` and render compact Home in `menu_order`.
+5. Do not ask the human to paste old prompts or identify an old chat when durable discovery can resolve it.
 
-1. Load the stable entry and current runtime.
-2. Run PRE_RESPONSE restore.
-3. If this conversation already has a durable/bound `project_id`, recover that project and continue its latest materially-unsatisfied frontier.
-4. Else if this conversation contains a clearly recoverable unfinished Prometeo intent, recover it under the existing compatibility rule.
-5. Else treat the conversation as HOME/UNBOUND and load `PROJECT_INDEX.json`.
-6. Render a compact numbered list in `menu_order` and say only that the user may send the number.
-7. Do not make the human paste an old prompt or identify an old chat.
+## Numeric Home selection
 
-## Numeric selection
+After Home, a bare integer:
 
-If the previous Prometeo response rendered the project menu and the user sends a bare integer:
+1. resolves only against the exact menu snapshot just rendered;
+2. converts immediately to `project_id`;
+3. resolves preferred `chat_object_id` when one is bound;
+4. loads the Chat Object recovery pointers;
+5. creates/binds this disposable conversation as a new incarnation when durable write transport allows;
+6. reconstructs mission + FOCUS + design/rules + work board + shared graph + relevant worker/return state;
+7. continues the durable frontier.
 
-1. Resolve the integer against the exact menu snapshot just rendered.
-2. Convert it immediately to `project_id`.
-3. Never store or route on the integer afterward.
-4. Load the project recovery object.
-5. If `ACTIVE_BOUND`, load its primary Work Packet + FOCUS + relevant Inbox, then continue the durable frontier.
-6. If `REGISTERED_DISCOVERY_REQUIRED`, search current runtime/catalog/workstreams using the project's aliases and declared child workstreams. Resolve the smallest coherent durable binding and persist it back into `PROJECT_INDEX.json` before relying on it in future chats.
-7. Create or recover a `worker_instance_id` for the current disposable chat when write-capable transport is available. Bind it to `project_id` and the selected `workstream_id`; never make this worker identity the project identity.
+Never persist the integer as identity.
 
-## PRE_RESPONSE v1
+For `REGISTERED_DISCOVERY_REQUIRED` projects, search current runtime/catalog/workstreams using aliases + declared workstreams, recover the smallest coherent current state, then persist a project/Chat Object binding.
 
-Before any material answer after a project is selected:
+## Reincarnation / PRE_RESPONSE
 
-1. IDENTITY — know `project_id`, `workstream_id`, `worker_instance_id` if available, and parent worker if any.
-2. EPOCH — compare cheap shared epoch.
-3. INBOX — consume unread directed messages relevant to this worker/project.
-4. FOCUS — load the durable operational map.
-5. PACK — if epoch changed or no active packet is loaded, refresh the selected compiled Work Packet.
-6. AUTHORITY — load Current/Catalog/Lineage only when the requested action requires authority resolution.
-7. INTERPRET — only now interpret the user's new material request.
-8. EXECUTE — preserve-first, then implement/critique/repair.
-9. OUTBOX/RETURN — persist useful frontier and route directed cross-chat messages before finishing when they materially affect other workers.
+Before a material answer in a bound Chat Object:
 
-Same-EPOCH turns may skip packet/network reload, but may not skip unread directed Inbox if the mailbox cursor says new messages exist.
+1. IDENTITY — project/chat-object/workstream/incarnation identity.
+2. EPOCH — cheap shared freshness.
+3. CHAT OBJECT — manifest/pointers.
+4. FOCUS — objectives/frontier/blockers/open questions.
+5. DESIGN + RULES — only what is relevant to the request.
+6. WORK BOARD — newly relevant work-item/run/return state and derived batch progress.
+7. PACK — refresh only on first load/new epoch/relevant dependency change.
+8. AUTHORITY — Current/Catalog/Lineage/owners only when the requested action needs authority resolution.
+9. OPTIONAL EVENTS — targeted messages/collisions/questions only when present and relevant.
+10. INTERPRET + EXECUTE.
+11. SELF-DOCUMENT — persist material new goals/design/rules/dependencies/work/return-integration/frontier before relying on transcript memory.
 
-## Parent/child rule
+A previous ChatGPT transcript is optional archaeology/evidence. It is not required durable state.
 
-A critic/branch/specialist is a child `worker_instance_id` with the same `project_id` and normally a scoped child workstream or task scope. It publishes conclusions to the parent's Inbox. The parent consumes them during PRE_RESPONSE. The human is not the courier.
+## Delegated launch
+
+`Prometeo <launch_code>` bypasses Home and resolves exact prepared `work_item_id/JOB` through stable delegated-work state. Follow `DELEGATED_WORK_PROTOCOL_V1.md`.
+
+The human transports only the short address, never the job body or result.
+
+## Parent/worker relationship
+
+One-shot workers are not persistent sibling conversations. They are executions of prepared Work Items under a parent `chat_object_id`.
+
+Normal feedback path is:
+
+`Chat Object -> JOB -> independent Worker Run -> durable RETURN -> parent consumption/integration`
+
+Directed Inbox/message transport is optional for exceptional targeted questions/collisions/corrections, not the primary architecture.
 
 ## Compatibility
 
-Existing Prometeo chats keep the old RESYNC + RECOVER + CONTINUE behavior when their local project/workstream can be inferred. The project menu is the fallback for fresh/unbound conversations, not a replacement for active recovery.
+Legacy bound workstreams continue to recover as before. The system should progressively wrap valuable long-lived work in Chat Objects instead of forcing a clean migration of everything at once.
 
-## First acceptance test
+## Acceptance test
 
 1. Open a brand-new ChatGPT conversation.
 2. Send only `Prometeo`.
-3. It must show the durable project menu.
-4. Send the number corresponding to `Prometeo · continuidad entre chats`.
-5. The chat must resolve `project-prometeo-chat-control` -> `chat-native-control-plane-v1`, read PACK + FOCUS + INDEX, and continue from the current frontier without asking what the previous chat discussed.
+3. Home shows durable menu.
+4. Select `Prometeo · continuidad entre chats` by number.
+5. Resolve `project-prometeo-chat-control` -> `chat-object-prometeo-chat-control-main` -> its workstreams.
+6. Load `CHAT_OBJECT.json + FOCUS + PRODUCT_BLUEPRINT_V2 + WORK_BOARD + SHARED_GRAPH + relevant PACK`.
+7. Fresh conversation must know the exact current frontier, first prepared batch, rules and active/returned worker state without asking what the old chat discussed.
