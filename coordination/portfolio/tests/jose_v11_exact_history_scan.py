@@ -3,6 +3,7 @@ import hashlib, json, os, subprocess, sys
 from collections import defaultdict
 
 TARGET=os.environ.get('TARGET_SHA256','0cf9a40fb53e977dccb40c9755d668a3ee922ccd61883f19229bb4a113139a05').lower()
+TARGET_BYTES=int(os.environ.get('TARGET_BYTES','69235'))
 
 rows=subprocess.check_output(['git','rev-list','--objects','--all'],text=True,errors='replace').splitlines()
 paths=defaultdict(set)
@@ -23,13 +24,15 @@ for line in check.stdout:
 rc=check.wait()
 if rc: raise SystemExit(rc)
 
+size_candidates=[(oid,size) for oid,size in blobs if size==TARGET_BYTES]
+
 batch=subprocess.Popen(['git','cat-file','--batch'],stdin=subprocess.PIPE,stdout=subprocess.PIPE)
-for oid,_ in blobs:
+for oid,_ in size_candidates:
     batch.stdin.write((oid+'\n').encode())
 batch.stdin.close()
 
 matches=[]; scanned=0; bytes_scanned=0
-for expected_oid,expected_size in blobs:
+for expected_oid,expected_size in size_candidates:
     header=batch.stdout.readline().decode('utf-8','replace').rstrip('\n').split(' ')
     if len(header)<3 or header[1]!='blob':
         raise RuntimeError(f'unexpected cat-file header for {expected_oid}: {header!r}')
@@ -47,9 +50,12 @@ refs=subprocess.check_output(['git','for-each-ref','--format=%(refname)'],text=T
 result={
   'schema':'prometeo.jose-v11-exact-history-scan/v1',
   'target_sha256':TARGET,
+  'target_bytes':TARGET_BYTES,
   'scope':'all objects reachable from refs after checkout fetch-depth=0 plus git fetch --all --tags --prune',
   'refs_count':len(refs),
   'objects_enumerated':len(unique),
+  'blobs_enumerated':len(blobs),
+  'size_candidates':len(size_candidates),
   'blobs_scanned':scanned,
   'bytes_scanned':bytes_scanned,
   'matches':matches,
@@ -63,6 +69,6 @@ summary=os.environ.get('GITHUB_STEP_SUMMARY')
 if summary:
     with open(summary,'a',encoding='utf-8') as f:
         f.write('## José V11 exact history scan\n\n')
-        f.write(f"- Status: `{result['status']}`\n- Target SHA-256: `{TARGET}`\n- Blobs scanned: `{scanned}`\n- Bytes scanned: `{bytes_scanned}`\n- Refs: `{len(refs)}`\n- Exact matches: `{len(matches)}`\n")
+        f.write(f"- Status: `{result['status']}`\n- Target SHA-256: `{TARGET}`\n- Target bytes: `{TARGET_BYTES}`\n- Blobs enumerated: `{len(blobs)}`\n- Size-matched candidates hashed: `{scanned}`\n- Bytes hashed: `{bytes_scanned}`\n- Refs: `{len(refs)}`\n- Exact matches: `{len(matches)}`\n")
         if matches:
             for m in matches: f.write(f"- Match blob `{m['git_blob']}` paths `{m['paths']}` commits `{m['commits']}`\n")
