@@ -1,0 +1,41 @@
+{
+  "schema": "prometeo.guide-receipt/v1",
+  "guide_work_id": "guide-rescate-54d7dc51a4bb",
+  "receipt_id": "RECEIPT-wc-20260917T215100Z-gpt56sol-4d8c7a-20260917T220930Z",
+  "worker_id": "wc-20260917T215100Z-gpt56sol-4d8c7a",
+  "role": "GUIDE_RESCATE",
+  "created_at": "2026-09-17T22:09:30Z",
+  "trigger": "LOW_YIELD",
+  "outcome": "VERIFIED",
+  "evidence": [
+    "live:efficiency.json@2026-09-17T22:03:46.625Z",
+    "coordination/portfolio/contention_barriers/live-pin-barrier-fixed-race-2-v1/timeouts/gpt56sol-20260917T215100Z-wc-a1.json",
+    "coordination/portfolio/contention_barriers/live-pin-barrier-fixed-race-2-v1/timeouts/wc-20260917T215100Z-gpt56sol-4d8c7a.json",
+    "coordination/portfolio/contention_barriers/live-pin-barrier-fixed-race-2-v1/timeouts/wc-gpt56sol-20260917T185125-d924f635.json",
+    "coordination/portfolio/returns/portfolio-stale-allocator-abort-terminal-semantics-v1/RETURN-wc-gpt56-20260917T211500Z-4f7c2a-20260917T213605Z.json",
+    "commit:5ce311b40751becc54118f80fab1d97625b8844e",
+    "github-actions:run/35280479617",
+    "github-actions:run/35280479536",
+    "gh-pages:live/allocator.json@2026-09-17T22:08:19.379Z"
+  ],
+  "diagnosis": "The stale allocator-abort terminality issue referenced by the LOW_YIELD evidence had already been repaired. A current multiplicative bottleneck remained: expired opt-in contention barriers stayed at the front of ready as PORTFOLIO_BARRIER_TIMEOUT after timeout evidence already existed, causing fresh workers to spend fast-allocation slots and append-only writes proving the same dead window repeatedly.",
+  "intervention": "Changed central contention-barrier routing so the first durable timeout receipt is still claimable evidence, but once a valid timeout receipt exists the expired barrier candidate is removed from fast ready/recovery lanes and represented as machine-readable suppressed-expired routing diagnostics. Released barriers and ordinary portfolio PIN routes remain unchanged. Added EFF018 and deterministic regression coverage.",
+  "created_jobs": [],
+  "consumed_returns": [
+    "coordination/portfolio/returns/portfolio-stale-allocator-abort-terminal-semantics-v1/RETURN-wc-gpt56-20260917T211500Z-4f7c2a-20260917T213605Z.json"
+  ],
+  "changed_paths": [
+    "scripts/apply-fast-allocator-contention-barriers.mjs",
+    "coordination/portfolio/tests/fast_allocator_contention_barrier_routing_v1.mjs",
+    "coordination/efficiency/RATCHET_BASELINE_V1.json"
+  ],
+  "tests": [
+    "DIFF_SCOPE_PASS: commit 5ce311b40751becc54118f80fab1d97625b8844e is one atomic commit touching only the router, its regression and EFF018.",
+    "LIVE_FEED_CI_PASS: GitHub Actions run 35280479617 completed Build claim-ready execution + role allocator and publish successfully.",
+    "EFFICIENCY_RATCHET_CI_PASS: GitHub Actions run 35280479536 completed static-non-regression successfully.",
+    "LIVE_RUNTIME_PASS: published allocator source_sha=5ce311b40751becc54118f80fab1d97625b8844e reports ready=0, barrier_timeout=0, barrier_expired_suppressed=2 and fixed_generation_attention=5.",
+    "NON_AUTHORITY_PASS: timeout receipts still grant no execution authority and no PIN is attempted by the timeout path.",
+    "NON_PROMOTION_PASS: no Current, Human Accepted, Served or production /w state was promoted."
+  ],
+  "remaining_boundary": "The expired barrier fixtures remain visible through fixed-generation attention and still require fresh valid fixtures/real entrants for their canary acceptance. This rescue removes repeated dead-window churn; it does not fabricate or complete missing contention evidence."
+}
