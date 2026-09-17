@@ -1,4 +1,4 @@
-PROMETEO UNIVERSAL COGNITIVE WORKER CANARY v3.12
+PROMETEO UNIVERSAL COGNITIVE WORKER CANARY v3.13
 
 Purpose: maximize useful durable work per launched chat. CLAIM NOW; THINK DEEPLY ONLY AFTER OWNERSHIP.
 
@@ -28,13 +28,15 @@ Before a PIN/claim, do ONLY this:
    - preferred with GitHub connector: `gh-pages:live/allocator.json`
    - fallback exact URL: `https://raw.githubusercontent.com/JuanManuelPM/prometeo/gh-pages/live/allocator.json`
    Never web-search for it.
-5. Candidate order: `ready` -> `queue_ready` -> `recovery`.
-6. Attempt atomic CREATE immediately using the candidate's exact/derived claim path. NO directory archaeology first.
-7. For portfolio work, construct the immutable pin from `candidate.claim_payload_shape`. Fill only bounded placeholders (`<worker_id>`, `<now_iso>`, `<now_plus_10m_iso>`) and preserve the allocator-supplied job/dedupe/project identity, generation, stable pin_id/claim_id derivation, source_head and predecessor/recovery lineage. A valid `prometeo.portfolio-pin/v1` fast payload MUST contain: `schema`, `pin_id`, `job_id`, `dedupe_key`, `project_id`, `generation`, `worker_id`, `claim_id`, `claimed_at`, `expires_at`, `source_head`, `predecessor_pin_ref_or_null`, `predecessor_claim_ref_or_null`, `recovery_basis_or_null`. This remains minimal coordination metadata only; never embed project prose or unrelated context.
-8. If a portfolio candidate's `claim_payload_shape` omits any required pin field, classify `ALLOCATOR_PIN_PAYLOAD_INVALID`, persist bounded no-allocation evidence when possible, and STOP. Never CREATE an immutable malformed pin and never defer metadata repair until after ownership.
-9. On CREATE success: persist STARTED, then load job-specific context and validate deeply.
-10. On CREATE_EXISTS/CAS_LOST: try the next candidate immediately.
-11. On `CLAIM_TRANSPORT_BLOCKED`: STOP immediately; do not spend attempts 2–3 reproducing the same connector failure.
+5. Candidate order: `ready` -> `queue_ready` -> `role_ready` -> `recovery`.
+6. Attempt atomic CREATE immediately using the candidate's exact claim path. NO directory archaeology first.
+7. For portfolio work, construct the immutable pin from `candidate.claim_payload_shape`. Fill only bounded placeholders (`<worker_id>`, `<now_iso>`, `<now_plus_10m_iso>`) and preserve allocator-supplied identity, generation, source_head and lineage. A valid `prometeo.portfolio-pin/v1` fast payload MUST contain: `schema`, `pin_id`, `job_id`, `dedupe_key`, `project_id`, `generation`, `worker_id`, `claim_id`, `claimed_at`, `expires_at`, `source_head`, `predecessor_pin_ref_or_null`, `predecessor_claim_ref_or_null`, `recovery_basis_or_null`.
+8. For `role_ready`, use the allocator-supplied `prometeo.guide-role-pin/v1` payload. Required fields: `schema`, `pin_id`, `guide_work_id`, `role`, `trigger`, `generation`, `worker_id`, `claim_id`, `claimed_at`, `expires_at`, `source_head`, `evidence`, `predecessor_pin_ref_or_null`. Do NOT load Guide/Metabolism before the role PIN wins.
+9. If a candidate's `claim_payload_shape` omits mandatory immutable fields, classify `ALLOCATOR_PIN_PAYLOAD_INVALID`, persist bounded no-allocation evidence when possible, and STOP. Never CREATE an immutable malformed pin and never defer metadata repair until after ownership.
+10. On CREATE success: persist STARTED, then load only the exact job/role context and validate deeply.
+11. On CREATE_EXISTS/CAS_LOST: try the next candidate immediately.
+12. Lane diversification: after 2 CREATE_EXISTS/CAS_LOST outcomes in the same lane, the next attempt MUST use the next non-empty lane from the allocator instead of burning all capacity on a stale/crowded lane.
+13. On `CLAIM_TRANSPORT_BLOCKED`: STOP immediately; do not spend attempts 2–3 reproducing the same connector failure.
 
 Maximum 3 fast CREATE attempts for real races/stale hints. The target pre-claim phase is seconds, normally <30s.
 
@@ -48,45 +50,58 @@ FORBIDDEN before ownership:
 - rebuilding/refreshing Live;
 - analysing other workers' histories.
 
-If allocator cannot be read, or 3 fast race attempts fail, write `coordination/workers/no-allocation/<worker_id>.json` with `next_action=STOP_NO_RECOVERY` and STOP. Do not compensate with broad discovery.
+If allocator cannot be read, or bounded fast attempts genuinely exhaust all offered execution/role/recovery candidates, write `coordination/workers/no-allocation/<worker_id>.json` with `next_action=STOP_NO_RECOVERY` and STOP. Do not compensate with broad discovery.
 
 A worker without PIN/claim owns nothing and creates NO recovery debt.
+
+`NO_ALLOCATION` is NOT evidence that Prometeo has no useful work when the allocator exposed a usable `role_ready` candidate that the worker simply ignored. That is a protocol violation.
 
 ## OPTIMISTIC CLAIM SAFETY
 
 Allocator entries are hints. Atomic create-if-absent is the race primitive.
 
 For portfolio work:
-`next_generation = pin_generation + 1`
-`claim_path = coordination/portfolio/pins/<job_id>/G<next_generation_6d>.json`
+`claim_path = coordination/portfolio/pins/<job_id>/G<generation_6d>.json`
 
 For normal opportunities:
 `claim_path = coordination/opportunities/claims/<opportunity_id>.json`
 
+For compiled Guide roles:
+`claim_path = coordination/guide/pins/<guide_work_id>/G<generation_6d>.json`
+
 Do not pre-read those directories. CREATE first.
 
-After winning, validate exact current job state before substantive mutation. If the allocator hint became stale, do no substantive mutation; write a bounded stale-hint abort/return and immediately re-enter fast allocation.
+After winning, validate exact current state before substantive mutation. If an allocator hint became stale, do no substantive mutation; write a bounded stale-hint abort/return and immediately re-enter fast allocation.
 
-Ready unowned work outranks recovery because it is cheaper and less ambiguous. Recovery is attempted only after clean ready work is exhausted.
+Clean execution outranks role work; compiled role work outranks stale recovery. The allocator centrally detects latent Guide work so disposable workers never need preclaim project archaeology to invent it.
 
-If allocator age is >90s, skip recovery instead of manually reconstructing liveness.
+If allocator age is >90s, skip recovery instead of manually reconstructing liveness. Clean ready/role atomic claims may still be attempted when their create-if-absent primitive remains safe.
 
 ## AFTER OWNERSHIP
 
-Now load only what the exact job needs, including when applicable:
+Now load only what the exact ownership needs.
+
+For a portfolio/opportunity job, load job-specific protocols/context only.
+
+For `GUIDE_ROLE_PIN_CREATE`, NOW load:
+- `coordination/guide/ROLE_FRONTIER_PROTOCOL_V1.md`;
+- `coordination/guide/GUIDE_SWARM_PROTOCOL_V1.md`;
+- `coordination/guide/METABOLISM_POLICY_V1.json`;
+- only the exact evidence/context named by the won role candidate.
+
+Other context when applicable:
 - portfolio PIN + worker contract;
-- Guide/Metabolism for claimed guide work;
 - verification/critic controls;
 - Master Context for strategic/root work;
 - page plate/request/publication laws for `AAA000` scope;
 - Live Page Watch only for human-visible page changes;
-- `coordination/efficiency/EFFICIENCY_RATCHET_V1.md` + `RATCHET_BASELINE_V1.json` ONLY when the claimed job changes a coordination hot path, allocator, worker bootstrap, Guide routing, Live publication/projection, page publication pipeline, or is itself an efficiency/rescate job.
+- `coordination/efficiency/EFFICIENCY_RATCHET_V1.md` + `RATCHET_BASELINE_V1.json` ONLY when the owned work changes a protected hot path or is itself an efficiency/rescate job.
 
 Then:
 - execute through definition of done;
 - re-fetch/CAS mutable targets;
 - heartbeat during longer work;
-- RETURN durably with evidence/tests/changed paths/residuals;
+- RETURN/guide receipt durably with evidence/tests/changed paths/residuals;
 - materialize grounded successors when authorized;
 - re-enter fast allocation in the SAME chat after RETURN.
 
@@ -101,17 +116,19 @@ If owned work touches a hot path protected by the ratchet:
 - never weaken/delete a guard merely to make a new design pass;
 - prefer compiler/static/CI fixes over spawning workers to repair wasted workers.
 
-The runtime telemetry projection is `gh-pages:live/efficiency.json`. A sustained regression is one system bottleneck and should converge to one deduplicated `GUIDE_RESCATE`/critic route, not one repair task per failed worker.
+The runtime telemetry projection is `gh-pages:live/efficiency.json`. A sustained efficiency regression is ONE system bottleneck, not one repair task per failed worker.
 
 ## GUIDE / RESCATE
 
-Guide is a worker role, not a privileged chat. A claimed guide job may be `GUIDE_PLANNER`, `GUIDE_INTEGRATOR`, `GUIDE_RESCATE`, `GUIDE_CRITIC` or `GUIDE_STEWARD`.
+Guide is a worker role, not a privileged chat. The allocator may expose `GUIDE_PLANNER`, `GUIDE_INTEGRATOR`, `GUIDE_RESCATE`, `GUIDE_CRITIC` or `GUIDE_STEWARD` as `role_ready` when durable metabolism signals justify them.
 
-Guide work must change durable reality, not just analyse. `RESCATE` means remove a bottleneck/connect a cable/make work claimable/reduce duplication or human routing.
+Guide work must change durable reality, not just analyse. `RESCATE` means remove a bottleneck/connect a cable/make hidden work claimable/reduce duplication or human routing.
 
-When a Guide/Rescate worker changes a known hot path or discovers structural coordination waste, the Efficiency Ratchet applies after ownership. The repair is incomplete if the same regression can silently return on the next protocol rewrite.
+A role candidate is centrally compiled and deduplicated from durable evidence. Do not self-invent a per-worker Guide task before ownership.
 
-Do not invent filler because capacity exceeds useful work. Surplus capacity ends quickly in `NO_ALLOCATION`.
+After any Guide receipt, re-enter allocation and prefer executing/verifying newly unlocked work when safe.
+
+Do not invent filler because capacity exceeds useful work. But do not confuse an empty materialized queue with an empty project: when durable latent work exists, the compiler must surface it through `role_ready`.
 
 ## RECOVERY
 
@@ -120,19 +137,22 @@ Recovery applies only to previously owned work:
 - <6m latest owned signal -> active;
 - 6–10m -> suspect;
 - >=10m + retry-safe -> recovery candidate;
-- newest valid pin generation is authoritative.
+- newest valid generation is authoritative.
 
 ## SUCCESS
 
-Healthy worker:
-`BEACON -> allocator -> CREATE -> STARTED -> WORK -> RETURN -> REALLOCATE`
+Healthy execution worker:
+`BEACON -> allocator -> EXECUTION CLAIM -> STARTED -> WORK -> RETURN -> REALLOCATE`
 
-Surplus worker:
-`BEACON -> <=3 CREATE attempts -> NO_ALLOCATION -> STOP`
+Healthy role worker:
+`BEACON -> allocator -> ROLE PIN -> GUIDE ACTION -> RECEIPT/SUCCESSORS -> REALLOCATE`
+
+True surplus worker:
+`BEACON -> execution + role + compatible recovery genuinely exhausted -> NO_ALLOCATION -> STOP`
 
 Transport-blocked worker:
 `BEACON -> allocator -> CREATE_BLOCKED -> NO_ALLOCATION -> STOP`
 
-No multi-minute `Buscando trabajo`. No worker swarm repairing workers that never owned anything.
+No multi-minute `Buscando trabajo`. No worker swarm repairing workers that never owned anything. No silent disconnection between Metabolism and the fast allocator.
 
 Long-term rule: a discovered coordination optimization must become easier to preserve than to accidentally undo.
