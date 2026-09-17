@@ -1,0 +1,79 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-faaf771de7df-7a854de8",
+  "fingerprint": "pdf-faaf771de7df46ff5d82c3646f488e34",
+  "created_at": "2026-09-17T09:21:00-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0921-0300-sol56-discovery-faaf",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "owner": "chat-object-prometeo-chat-control-main",
+    "scope": "coordination/opportunities/claim-collisions/**",
+    "output": "append-only losing claim collision receipts plus progress/control-room projection",
+    "privacy": "PUBLIC_COORDINATION_ONLY"
+  },
+  "problem": "Losing exclusive claim races are only visible in ephemeral host errors; no durable loser receipt/event exists, so collision recovery metrics and the 50-worker verifier cannot reconstruct how many races were safely lost and reallocated.",
+  "acceptance": [
+    "Each losing exclusive create-if-absent attempt can append an immutable collision receipt referencing opportunity, worker, attempted claim and observed host/winner evidence without modifying the winner.",
+    "Collision receipts feed metrics/control-room verification with replay-safe deduplication.",
+    "Instrumentation explicitly distinguishes unobserved historical collisions from measured zero collisions.",
+    "No collision receipt grants execution, Current, Human Accepted or Served authority."
+  ],
+  "title": "Durable losing-claim collision receipts",
+  "mission": "Add an append-only receipt path for workers that lose an exclusive claim race, and project those receipts into metrics/control-room verification so the canary can measure safe collision recovery rather than infer zero from missing evidence. Preserve the winning claim unchanged and treat receipts as observability only.",
+  "evidence_refs": [
+    "coordination/workstreams/chat-native-control-plane-v1/CLAIM_PROTOCOL_SPEC_V0.json",
+    "coordination/workstreams/chat-native-control-plane-v1/PROGRESS_EVENTS_SPEC_V0.json",
+    "coordination/workstreams/chat-native-control-plane-v1/VERIFICATION_AND_CRITIC_CONTROL_V1.md",
+    "coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json",
+    "coordination/opportunities/claims/O-SWARM-ARCHAEOLOGY-WORKER-FABRIC-V1.json"
+  ],
+  "value_signals": {
+    "information_gain": {
+      "reason": "The current durable model records winners but not losing claim attempts; without loser receipts the collision denominator cannot be reconstructed from repository evidence.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/CLAIM_PROTOCOL_SPEC_V0.json"
+    },
+    "regression_prevention": {
+      "reason": "The verification contract requires duplicate-claim collision recovery metrics, while the progress-event vocabulary currently has CLAIM_ACQUIRED but no lost-race event.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/VERIFICATION_AND_CRITIC_CONTROL_V1.md"
+    },
+    "unblock_value": {
+      "reason": "The 50-worker stress verifier is explicitly required to measure collision/duplication behavior; durable loser evidence makes that measurement auditable instead of dependent on surviving chats.",
+      "evidence_ref": "coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/workstreams/chat-native-control-plane-v1/CLAIM_PROTOCOL_SPEC_V0.json",
+    "coordination/workstreams/chat-native-control-plane-v1/PROGRESS_EVENTS_SPEC_V0.json",
+    "coordination/workstreams/chat-native-control-plane-v1/VERIFICATION_AND_CRITIC_CONTROL_V1.md",
+    "coordination/opportunities/claims/**",
+    "coordination/opportunities/runs/**"
+  ],
+  "candidate_write_scope": [
+    "coordination/opportunities/claim-collisions/**",
+    "scripts/claim-collision-receipt-lib.mjs",
+    "tests/claim-collision-receipt-v1.test.mjs",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "falsification": {
+    "fail_if": [
+      "a losing-race receipt can alter or supersede the winning claim",
+      "replay of the same host collision is counted more than once",
+      "absence of pre-instrumentation receipts is reported as measured zero collisions",
+      "collision receipts are treated as execution authority or completion evidence"
+    ],
+    "pass_if": "In a controlled exclusive-claim race, exactly one winning claim remains immutable, each instrumented loser can persist a deduplicated append-only collision receipt, and a fresh verifier can reconstruct measured collisions and safe reallocations from durable state alone."
+  },
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
