@@ -34,6 +34,15 @@ async function race(root, jobId, count, generation = 1, predecessor = null) {
   return { winners, losers };
 }
 
+async function reenter(root, workerId, candidates) {
+  for (const jobId of [...candidates].sort()) {
+    const attempt = await atomicPin(root, jobId, 1, workerId);
+    if (attempt.won) return { worker_id: workerId, job_id: jobId };
+    await sleep(1);
+  }
+  return { worker_id: workerId, job_id: null };
+}
+
 function legacyWinner(rows) {
   return [...rows].sort((a, b) => {
     const ta = Date.parse(a.claimed_at) || 0;
@@ -44,7 +53,21 @@ function legacyWinner(rows) {
 
 const root = await mkdtemp(join(tmpdir(), 'prometeo-pin-'));
 const two = await race(root, 'job-two', 2);
+const twoLoser = two.losers[0];
+const twoReentry = await reenter(root, twoLoser.winner.worker_id === 'worker-1' ? 'worker-2' : 'worker-1', ['job-two-alt-b', 'job-two-alt-a']);
+if (twoReentry.job_id !== 'job-two-alt-a') throw new Error(`2-worker loser re-entry mismatch: ${twoReentry.job_id}`);
+
 const five = await race(root, 'job-five', 5);
+const fiveWinnerId = five.winners[0].doc.worker_id;
+const fiveLoserIds = ['worker-1','worker-2','worker-3','worker-4','worker-5'].filter(id => id !== fiveWinnerId);
+const altJobs = ['job-five-alt-1','job-five-alt-2','job-five-alt-3','job-five-alt-4'];
+const fiveReentry = await Promise.all(fiveLoserIds.map((id, i) => (async () => {
+  await sleep(i % 3);
+  return reenter(root, id, altJobs);
+})()));
+const assigned = fiveReentry.map(x => x.job_id).filter(Boolean);
+if (assigned.length !== 4 || new Set(assigned).size !== 4) throw new Error(`5-worker loser re-entry expected 4 distinct jobs, got ${JSON.stringify(assigned)}`);
+
 const first = await race(root, 'job-recovery', 2, 1);
 const predecessor = first.winners[0].path;
 const recovery = await race(root, 'job-recovery', 5, 2, predecessor);
@@ -58,8 +81,8 @@ if (recovery.winners[0].doc.predecessor_pin_ref !== predecessor) throw new Error
 
 console.log(JSON.stringify({
   ok: true,
-  two_worker: { winners: two.winners.length, losers: two.losers.length },
-  five_worker: { winners: five.winners.length, losers: five.losers.length },
+  two_worker: { winners: two.winners.length, losers: two.losers.length, loser_reentry: twoReentry.job_id },
+  five_worker: { winners: five.winners.length, losers: five.losers.length, loser_reentry_jobs: assigned.sort() },
   recovery_five_worker: { winners: recovery.winners.length, losers: recovery.losers.length, predecessor_preserved: true },
   legacy_winner: legacy.path
 }, null, 2));
