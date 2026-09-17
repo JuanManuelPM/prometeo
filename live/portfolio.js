@@ -4,7 +4,7 @@
   const API=`https://api.github.com/repos/${OWNER}/${REPO}`;
   const REFRESH_MS=20000;
   const $=id=>document.getElementById(id);
-  const esc=(v='')=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  const esc=(v='')=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));
   const lower=v=>String(v||'').toLowerCase();
   const first=(...vals)=>vals.find(v=>v!==undefined&&v!==null&&v!=='');
   const terminalOutcomes=new Set(['done','verified','no_action_needed','superseded']);
@@ -24,8 +24,9 @@
   function ts(doc){return first(doc?.returned_at,doc?.completed_at,doc?.claimed_at,doc?.created_at,doc?.updated_at,doc?.timestamp)||''}
   function millis(doc){const n=new Date(ts(doc)).getTime();return Number.isFinite(n)?n:0}
   function terminal(ret){return terminalOutcomes.has(lower(first(ret?.outcome,ret?.status,ret?.result)))}
-  function activeClaim(claim){if(!claim)return false;const exp=claim.expires_at?new Date(claim.expires_at).getTime():0;return exp?exp>Date.now():true}
-  function stateLabel(s){return ({ready:'listo',working:'trabajando',done:'hecho',partial:'parcial',blocked:'bloqueado'})[s]||s}
+  function activeLease(doc){if(!doc)return false;const exp=doc.expires_at?new Date(doc.expires_at).getTime():0;return exp?exp>Date.now():true}
+  function pinGeneration(row){const n=Number(row?.doc?.generation);if(Number.isFinite(n)&&n>0)return n;const m=String(row?.path||'').match(/\/G(\d+)\.json$/);return m?Number(m[1]):0}
+  function stateLabel(s){return ({ready:'listo',working:'trabajando',recovery:'recuperando',stale:'stale',done:'hecho',partial:'parcial',blocked:'bloqueado'})[s]||s}
   function uniqueJobs(seed,derived){
     const map=new Map();
     [...seed.map(j=>({...j,origin:'seed'})),...derived.map(j=>({...j,origin:'derived'}))].forEach(j=>{
@@ -53,31 +54,58 @@
   }
 
   async function inspectJob(project, job, paths){
+    const pinPrefix=`coordination/portfolio/pins/${job.job_id}/`;
     const claimPrefix=`coordination/portfolio/claims/${job.job_id}/`;
     const returnPrefix=`coordination/portfolio/returns/${job.job_id}/`;
+    const pinPaths=paths.filter(p=>p.startsWith(pinPrefix)&&p.endsWith('.json'));
     const claimPaths=paths.filter(p=>p.startsWith(claimPrefix)&&p.endsWith('.json'));
     const returnPaths=paths.filter(p=>p.startsWith(returnPrefix)&&p.endsWith('.json'));
-    const [claimRows,returnRows]=await Promise.all([readMany(claimPaths),readMany(returnPaths)]);
-    const claims=claimRows.filter(x=>x.doc).sort((a,b)=>millis(a.doc)-millis(b.doc));
-    const returns=returnRows.filter(x=>x.doc).sort((a,b)=>millis(a.doc)-millis(b.doc));
+    const [pinRows,claimRows,returnRows]=await Promise.all([readMany(pinPaths),readMany(claimPaths),readMany(returnPaths)]);
+    const pins=pinRows.filter(x=>x.doc).sort((a,b)=>pinGeneration(a)-pinGeneration(b)||millis(a.doc)-millis(b.doc)||a.path.localeCompare(b.path));
+    const claims=claimRows.filter(x=>x.doc).sort((a,b)=>millis(a.doc)-millis(b.doc)||a.path.localeCompare(b.path));
+    const returns=returnRows.filter(x=>x.doc).sort((a,b)=>millis(a.doc)-millis(b.doc)||a.path.localeCompare(b.path));
     const terminalReturn=[...returns].reverse().find(x=>terminal(x.doc));
     const latestReturn=returns.at(-1)||null;
-    const active=[...claims].reverse().find(x=>activeClaim(x.doc));
+    const latestPin=pins.at(-1)||null;
+    const livePin=latestPin&&activeLease(latestPin.doc)?latestPin:null;
+    const activeClaims=claims.filter(x=>activeLease(x.doc));
+    let authorityClaim=null, collisionCount=0, authorityMode='none';
+
+    if(latestPin){
+      authorityClaim=claims.find(x=>x.doc?.pin_ref===latestPin.path||(latestPin.doc?.pin_id&&x.doc?.pin_id===latestPin.doc.pin_id))||null;
+      collisionCount=activeClaims.filter(x=>!authorityClaim||x.path!==authorityClaim.path).length;
+      authorityMode=livePin?(pinGeneration(livePin)>1?'recovery-pin':'pin'):'stale-pin';
+    }else if(activeClaims.length){
+      authorityClaim=activeClaims[0];
+      collisionCount=Math.max(0,activeClaims.length-1);
+      authorityMode='legacy';
+    }
+
     let state='ready';
     if(terminalReturn)state='done';
-    else if(active)state='working';
+    else if(livePin)state=pinGeneration(livePin)>1?'recovery':'working';
+    else if(latestPin)state='stale';
+    else if(authorityClaim)state='working';
     else if(latestReturn&&['partial','boundary'].includes(lower(latestReturn.doc?.outcome)))state='partial';
     else if(lower(job.seed_status).includes('block'))state='blocked';
+
     const spawn=returns.flatMap(x=>Array.isArray(x.doc?.spawn_candidates)?x.doc.spawn_candidates:[]);
-    return {...job,project_id:project.project_id,project_label:project.label,state,active_claim:active?.doc||null,latest_return:latestReturn?.doc||null,terminal_return:terminalReturn?.doc||null,spawn_candidates:spawn};
+    return {
+      ...job,project_id:project.project_id,project_label:project.label,state,
+      active_pin:livePin,latest_pin:latestPin,pin_generation:latestPin?pinGeneration(latestPin):0,
+      active_claim:authorityClaim?.doc||null,active_claim_path:authorityClaim?.path||null,
+      authority_mode:authorityMode,collision_count:collisionCount,
+      latest_return:latestReturn?.doc||null,terminal_return:terminalReturn?.doc||null,spawn_candidates:spawn
+    };
   }
 
   function render(projects){
     const jobs=projects.flatMap(p=>p.jobs||[]);
     const done=jobs.filter(j=>j.state==='done').length;
-    const working=jobs.filter(j=>j.state==='working').length;
+    const working=jobs.filter(j=>j.state==='working'||j.state==='recovery').length;
     const ready=jobs.filter(j=>j.state==='ready'||j.state==='partial').length;
-    const blocked=jobs.filter(j=>j.state==='blocked').length;
+    const stale=jobs.filter(j=>j.state==='stale').length;
+    const collisions=jobs.reduce((n,j)=>n+(j.collision_count||0),0);
     const derived=jobs.filter(j=>j.origin==='derived').length;
     const candidates=jobs.reduce((n,j)=>n+(j.spawn_candidates?.length||0),0);
     const finishedReturns=jobs.filter(j=>j.terminal_return).length;
@@ -88,22 +116,28 @@
     if($('portfolioWorking'))$('portfolioWorking').textContent=working;
     if($('portfolioDone'))$('portfolioDone').textContent=done;
     if($('portfolioReproduction'))$('portfolioReproduction').textContent=`×${reproduction.toFixed(1)}`;
-    if($('portfolioSummary'))$('portfolioSummary').textContent=`${jobs.length} trabajos · ${ready} listos · ${working} trabajando · ${done} hechos · ${derived} sucesores derivados · ${candidates} candidatos no materializados`;
+    if($('portfolioSummary'))$('portfolioSummary').textContent=`${jobs.length} trabajos · ${ready} listos · ${working} trabajando/recuperando · ${done} hechos · ${stale} stale · ${collisions} colisiones · ${derived} sucesores derivados · ${candidates} candidatos no materializados`;
     syncTop(ready,working);
 
     const html=projects.sort((a,b)=>(b.priority||0)-(a.priority||0)).map(p=>{
       const pj=p.jobs||[];
       const pd=pj.filter(j=>j.state==='done').length;
-      const pw=pj.filter(j=>j.state==='working').length;
+      const pw=pj.filter(j=>j.state==='working'||j.state==='recovery').length;
       const pr=pj.filter(j=>j.state==='ready'||j.state==='partial').length;
-      const next=pj.filter(j=>j.state==='working'||j.state==='ready'||j.state==='partial').sort((a,b)=>(b.priority||0)-(a.priority||0))[0];
+      const ps=pj.filter(j=>j.state==='stale').length;
+      const next=pj.filter(j=>['working','recovery','stale','ready','partial'].includes(j.state)).sort((a,b)=>(b.priority||0)-(a.priority||0))[0];
       const pct=pj.length?Math.round(pd/pj.length*100):0;
       const dots=pj.map(j=>`<i class="pjobdot ${j.state}" title="${esc(stateLabel(j.state)+' · '+j.title)}"></i>`).join('');
       const items=pj.slice().sort((a,b)=>(b.priority||0)-(a.priority||0)).slice(0,5).map(j=>{
-        const worker=j.active_claim?first(j.active_claim.worker_id,j.active_claim.worker,j.active_claim.claim_id):'';
+        const pinWorker=j.active_pin?.doc?first(j.active_pin.doc.worker_id,j.active_pin.doc.worker,j.active_pin.doc.pin_id):'';
+        const claimWorker=j.active_claim?first(j.active_claim.worker_id,j.active_claim.worker,j.active_claim.claim_id):'';
+        const worker=first(pinWorker,claimWorker);
+        const authority=j.authority_mode==='pin'?`pin g${j.pin_generation}`:j.authority_mode==='recovery-pin'?`recovery g${j.pin_generation}`:j.authority_mode==='stale-pin'?`stale g${j.pin_generation}`:j.authority_mode==='legacy'?'legacy':'';
+        const collision=j.collision_count?`${j.collision_count} ${j.collision_count===1?'colisión':'colisiones'}`:'';
+        const workerMeta=[worker,authority,collision].filter(Boolean).join(' · ');
         const ret=j.latest_return?first(j.latest_return.summary,j.latest_return.outcome):'';
         const origin=j.origin==='derived'?' ↳':'';
-        return `<div class="pjob ${j.state}"><span class="pstate">${esc(stateLabel(j.state))}${origin}</span><span class="pjobtitle">${esc(j.title)}</span>${worker?`<span class="pworker">${esc(worker)}</span>`:''}${ret&&!worker?`<span class="pworker">${esc(String(ret).slice(0,64))}</span>`:''}</div>`;
+        return `<div class="pjob ${j.state}"><span class="pstate">${esc(stateLabel(j.state))}${origin}</span><span class="pjobtitle">${esc(j.title)}</span>${workerMeta?`<span class="pworker">${esc(workerMeta)}</span>`:''}${ret&&!workerMeta?`<span class="pworker">${esc(String(ret).slice(0,64))}</span>`:''}</div>`;
       }).join('');
       const surface=p.surface?.public_url?`<a class="plink" href="${esc(p.surface.public_url)}" target="_blank" rel="noreferrer">abrir</a>`:'';
       const nextLine=next?`${stateLabel(next.state)} · ${next.title}`:'sin trabajo abierto';
@@ -111,7 +145,7 @@
       return `<article class="projectrow" data-project="${esc(p.project_id)}">
         <div class="pidentity"><div class="pname">${esc(p.label)}</div><div class="pmeta">P${esc(p.priority??'—')} · ${esc(p.status||'')}${derivedCount?` · +${derivedCount} derivados`:''}</div>${surface}</div>
         <div class="pbody"><div class="pgoal">${esc(p.goal||'')}</div><div class="pnext">${esc(nextLine)}</div><div class="pjoblist">${items}</div></div>
-        <div class="pprogress"><div class="pdots">${dots||'<i class="pjobdot blocked"></i>'}</div><div class="pcount"><strong>${pd}/${pj.length}</strong><span>cerrados</span></div><div class="psmall">${pw} trabajando · ${pr} listos</div><div class="pbar"><i style="width:${pct}%"></i></div></div>
+        <div class="pprogress"><div class="pdots">${dots||'<i class="pjobdot blocked"></i>'}</div><div class="pcount"><strong>${pd}/${pj.length}</strong><span>cerrados</span></div><div class="psmall">${pw} trabajando · ${pr} listos${ps?` · ${ps} stale`:''}</div><div class="pbar"><i style="width:${pct}%"></i></div></div>
       </article>`;
     }).join('');
     if($('projectMap'))$('projectMap').innerHTML=html||'<div class="portfolioempty">Portfolio durable vacío.</div>';
