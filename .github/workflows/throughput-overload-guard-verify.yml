@@ -1,0 +1,70 @@
+name: Throughput Overload Guard Verify
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/throughput-overload-guard-verify.yml'
+      - 'scripts/verify-throughput-overload-guard.mjs'
+      - 'tests/throughput-overload-guard-verifier-v1.test.mjs'
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact 40-hex main commit SHA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve exact source SHA
+        id: source
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SHA: ${{ github.sha }}
+          DISPATCH_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SHA="$EVENT_SHA"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then SHA="$DISPATCH_SHA"; fi
+          [[ "$SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+          echo "sha=${SHA,,}" >> "$GITHUB_OUTPUT"
+      - name: Checkout exact snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          fetch-depth: 1
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify exact checkout
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - name: Run verifier regression tests
+        run: node --test tests/throughput-overload-guard-verifier-v1.test.mjs
+      - name: Replay durable launch condition and verify candidate
+        id: verify
+        continue-on-error: true
+        run: |
+          node scripts/verify-throughput-overload-guard.mjs \
+            --root . \
+            --observed-at 2026-09-17T20:38:03.263Z \
+            --out artifacts/throughput-overload-guard-verification.json
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: throughput-overload-guard-${{ steps.source.outputs.sha }}
+          path: artifacts/throughput-overload-guard-verification.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Fail closed on verifier failure
+        if: steps.verify.outcome != 'success'
+        run: exit 1
