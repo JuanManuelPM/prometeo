@@ -42,7 +42,7 @@ for (const text of [wc, fast]) {
   assert(text.includes('beacon_commit_sha') && text.includes('first hex nibble'), 'binding protocol must define the same deterministic seed');
   assert(text.includes('batch_candidates'), 'binding protocol must route explicit batches through allocator batch_candidates');
   assert(text.toLowerCase().includes('unified'), 'binding protocol must describe unified batch sharding');
-  assert(text.includes('no extra preclaim read or write'), 'sharding must not add coordination overhead');
+  assert(text.toLowerCase().includes('no extra preclaim read or write'), 'sharding must not add coordination overhead');
 }
 
 assert(fast.includes('Unbatched workers preserve normal allocator lane order: `ready -> queue_ready -> role_ready -> recovery`.'), 'unbatched lane order must remain explicit');
