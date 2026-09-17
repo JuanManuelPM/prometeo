@@ -1,0 +1,76 @@
+{
+  "schema": "prometeo.opportunity-return/v1",
+  "opportunity_id": "O-METABOLISM-TICK-CANDIDATE-BUILD-V1",
+  "run_id": "RUN-O-METABOLISM-TICK-CANDIDATE-BUILD-V1-20260917T0914-SOL56",
+  "worker_instance_id": "wc-chat-20260917T091402-0300-sol56-metabolism-tick",
+  "status": "COMPLETE",
+  "state": "RETURNED_CANDIDATE",
+  "created_at": "2026-09-17T09:26:21-03:00",
+  "claim_ref": "coordination/opportunities/claims/O-METABOLISM-TICK-CANDIDATE-BUILD-V1.json",
+  "run_ref": "coordination/opportunities/runs/O-METABOLISM-TICK-CANDIDATE-BUILD-V1/RUN-O-METABOLISM-TICK-CANDIDATE-BUILD-V1-20260917T0914-SOL56.json",
+  "mission": "Build a non-deployed candidate Prometeo Metabolism Tick v1 with deterministic source scan, shadow Control Room/Planner-trigger/launch-demand projections, pinned-head/idempotence/drift/privacy tests, and no active workflow deployment.",
+  "useful_delta": "Implemented a candidate-only deterministic metabolism tick that reuses the existing Control Room loader/compiler, scans durable queue/claim/run/return evidence, derives stale diagnostics only under an explicit durable policy, emits PLANNER_COMPUTE_REQUIRED instead of fabricating work when Planner compute is unavailable, derives launch demand only from READY_UNCLAIMED work, strips volatile clock fields from semantic commit decisions, fails on pinned-head drift, and prevents private source fields from flowing into public shadow outputs. Added a workflow draft outside .github/workflows, so no scheduler was activated.",
+  "artifacts": [
+    "scripts/prometeo-metabolism-lib.mjs",
+    "scripts/prometeo-metabolism-tick.mjs",
+    "tests/prometeo-metabolism-v1.test.mjs",
+    "tests/fixtures/prometeo-metabolism/base.json",
+    "coordination/candidates/workflows/prometeo-metabolism-v1.yml"
+  ],
+  "evidence": {
+    "test_command": "node tests/prometeo-metabolism-v1.test.mjs",
+    "test_environment": "isolated local Node 22 candidate-byte harness; shared build-control-room API compatibility separately verified from current repository source",
+    "test_result": "PASS",
+    "semantic_bundle_digest": "1a9be34ce3e037e3fbc90d53d73b3ab4c9adc67ceae2a4b815e4adc69396099c",
+    "covered_falsifiers": [
+      "same pinned inputs derive identical outputs",
+      "semantic no-op writes zero files",
+      "clock-only age/timestamp drift does not create commit churn",
+      "SOURCE_HEAD_DRIFT fails closed",
+      "missing explicit stale policy yields STALE_POLICY_MISSING and zero candidates",
+      "recovery time gate never grants retry authority",
+      "Planner unavailable yields PLANNER_COMPUTE_REQUIRED",
+      "Planner available yields READY_FOR_DETERMINISTIC_PLANNER",
+      "BLOCKED_DEPENDENCY work is excluded from launch demand",
+      "sensitive source field does not flow into public shadow outputs",
+      "source scanner follows Continuity Head active queues and loads claims/runs/returns/consumption",
+      "workflow path remains outside .github/workflows"
+    ],
+    "shared_helper_compatibility": {
+      "ref": "scripts/build-control-room.mjs",
+      "verified_exports": ["buildControlRoom", "loadControlRoomInputs"],
+      "verified_loader_fields": ["continuityHead", "queues", "claims", "runs", "returns", "recoveryClaims"]
+    }
+  },
+  "acceptance": {
+    "tick_derives_shadow_state_from_pinned_head": "PASS_CANDIDATE",
+    "semantic_noop_idempotence": "PASS_LOCAL",
+    "no_stale_inference_without_policy": "PASS_LOCAL",
+    "planner_trigger_honest_when_compiler_unavailable": "PASS_LOCAL",
+    "workflow_remains_non_deployed": "PASS_PATH_EVIDENCE",
+    "privacy_authority_drift_falsifiers": "PASS_LOCAL",
+    "live_repository_scheduled_execution": "NOT_RUN_NOT_DEPLOYED_BY_DESIGN"
+  },
+  "source_freshness": {
+    "claim_epoch": "P3-96214d325bd1",
+    "final_public_epoch_pre_return": "P3-b42731aa80c6",
+    "final_public_epoch_main": "193a6a7a3172",
+    "note": "Concurrent swarm activity advanced main/public runtime during execution. All writes stayed in the exclusive claimed scope and used create-if-absent/CAS semantics; no shared authority head was mutated."
+  },
+  "commit_evidence": {
+    "claim": "7978aa75b1360b34007ff297aaf7dcbcc5fec133",
+    "run_started": "6a9883cca51fce432b860495a7f8817c23bf69d9",
+    "library": "69c9a0d40ee7ee451849275d92f2ea822268e422",
+    "cli": "2d34a6757ffd279296ad41acd371e3a6b96dd788",
+    "fixture": "01dedf2c538ba908002a397bb5779490a29de003",
+    "workflow_draft": "5e9e0fe0096a179e32454cfbae8a468a1c326a2e",
+    "test_latest": "91b725c28b8fca36923a51efc76d7ad412977213",
+    "run_checkpoint": "e24fc1d25b29a8671360a39ed368ced6a59eef8a"
+  },
+  "truth_boundary": "This is a candidate implementation and local falsification result. It is not deployed, not production /w readiness, not Human Accepted/Current/Served, and not proof of unattended scheduled operation. Promotion requires the governing closed-loop/critic/readiness gates.",
+  "next_boundary": [
+    "Steward/Planner may consume this RETURN as candidate evidence.",
+    "When the recursive Planner compiler gate is evidenced, run this tick against a pinned live repository checkout in dry-run/candidate mode and compare shadow outputs.",
+    "Only a separate authorized promotion may move the workflow into .github/workflows."
+  ]
+}
