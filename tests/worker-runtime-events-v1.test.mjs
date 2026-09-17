@@ -28,4 +28,9 @@ assert.equal(r.batches[0].summary.started,1);
 assert.equal(r.batches[0].summary.closed,1);
 assert.equal(r.batches[0].workers.find(x=>x.worker_id==='w1').state,'CLOSED');
 
+const synth=compileRuntime([
+  c(9,'2026-09-17T22:03:00Z',{schema:'prometeo.worker-event/v1',batch_id:'SYNTH-X',expected_workers:1,worker_id:'sx',event:'ROUTED',lane:'ready',candidate_id:'x'})
+],null,'2026-09-17T22:03:01Z');
+assert.equal(synth.current_batch,null);
+
 console.log('WORKER_RUNTIME_EVENTS_PASS');
