@@ -41,6 +41,108 @@ function clone(value) {
   return structuredClone(value);
 }
 
+const SEMANTIC_CONTEXT_FIELDS = new Set([
+  'surface_id',
+  'project_id',
+  'authority_status',
+  'target_path',
+  'target_source_blob',
+  'course_id',
+  'selected_year',
+  'active_tab',
+  'semantic_anchor',
+  'viewport_fallback',
+  'explicit_shelf_position',
+]);
+
+function semanticString(name, value, { max = 240, nullable = true } = {}) {
+  if (value === null || value === undefined || value === '') {
+    invariant(nullable, `semantic_context.${name} is required`);
+    return null;
+  }
+  invariant(typeof value === 'string', `semantic_context.${name} must be a string or null`);
+  const out = value.trim();
+  invariant(out.length > 0 && out.length <= max, `semantic_context.${name} has invalid length`);
+  return out;
+}
+
+function normalizeViewportFallback(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') {
+    invariant(Number.isFinite(value) && value >= 0, 'semantic_context.viewport_fallback must be finite and non-negative');
+    return { x: 0, y: Math.round(value) };
+  }
+  invariant(value && typeof value === 'object' && !Array.isArray(value), 'semantic_context.viewport_fallback must be a number, object or null');
+  const x = Number(value.x ?? value.left ?? 0);
+  const y = Number(value.y ?? value.top ?? 0);
+  invariant(Number.isFinite(x) && x >= 0 && Number.isFinite(y) && y >= 0, 'semantic_context.viewport_fallback coordinates must be finite and non-negative');
+  return { x: Math.round(x), y: Math.round(y) };
+}
+
+function normalizeSemanticContext(value, target) {
+  if (value === null || value === undefined) return null;
+  invariant(value && typeof value === 'object' && !Array.isArray(value), 'semantic_context must be an object or null');
+  for (const key of Object.keys(value)) invariant(SEMANTIC_CONTEXT_FIELDS.has(key), `semantic_context.${key} is not public coordination data`);
+
+  const surfaceId = semanticString('surface_id', value.surface_id, { nullable: false, max: 120 });
+  invariant(surfaceId === target.surface_id, 'semantic_context.surface_id must match target.surface_id');
+  const authorityStatus = semanticString('authority_status', value.authority_status, { nullable: false, max: 80 });
+  invariant(['UNRESOLVED','CANDIDATE_TARGET_PINNED','AUTHORITY_BLOCKED'].includes(authorityStatus), 'semantic_context.authority_status is invalid');
+
+  const targetBlob = semanticString('target_source_blob', value.target_source_blob, { max: 64 });
+  if (targetBlob) invariant(/^[a-f0-9]{40}$/i.test(targetBlob), 'semantic_context.target_source_blob must be a Git blob SHA or null');
+
+  const anchor = semanticString('semantic_anchor', value.semantic_anchor, { max: 200 });
+  if (anchor) invariant(/^[A-Za-z0-9][A-Za-z0-9:_.\/-]*$/.test(anchor), 'semantic_context.semantic_anchor must be a stable public-safe identifier');
+
+  let selectedYear = value.selected_year ?? null;
+  if (selectedYear !== null) {
+    if (typeof selectedYear === 'number') {
+      invariant(Number.isInteger(selectedYear) && selectedYear >= 1 && selectedYear <= 20, 'semantic_context.selected_year is invalid');
+    } else {
+      selectedYear = semanticString('selected_year', selectedYear, { max: 32 });
+    }
+  }
+
+  let shelf = value.explicit_shelf_position ?? null;
+  if (shelf !== null) {
+    shelf = Number(shelf);
+    invariant(Number.isFinite(shelf) && shelf >= 0, 'semantic_context.explicit_shelf_position must be finite and non-negative');
+    shelf = Math.round(shelf);
+  }
+
+  if (surfaceId === 'facultad-digital') {
+    invariant(target.page_id === null || target.page_id === undefined, 'facultad-digital remains surface-only until canonical page_id authority is bound');
+  }
+
+  return {
+    surface_id: surfaceId,
+    project_id: semanticString('project_id', value.project_id, { nullable: false, max: 120 }),
+    authority_status: authorityStatus,
+    target_path: semanticString('target_path', value.target_path, { max: 300 }),
+    target_source_blob: targetBlob,
+    course_id: semanticString('course_id', value.course_id, { max: 160 }),
+    selected_year: selectedYear,
+    active_tab: semanticString('active_tab', value.active_tab, { max: 80 }),
+    semantic_anchor: anchor,
+    viewport_fallback: normalizeViewportFallback(value.viewport_fallback),
+    explicit_shelf_position: shelf,
+  };
+}
+
+function applySemanticContextToHost(host, context) {
+  if (!context) return;
+  if (context.course_id) host.searchParams.set('course', context.course_id);
+  if (context.selected_year !== null) host.searchParams.set('year', String(context.selected_year));
+  if (context.active_tab) host.searchParams.set('tab', context.active_tab);
+  if (context.semantic_anchor) host.searchParams.set('anchor', context.semantic_anchor);
+  if (context.viewport_fallback) {
+    host.searchParams.set('view_x', String(context.viewport_fallback.x));
+    host.searchParams.set('view_y', String(context.viewport_fallback.y));
+  }
+  if (context.explicit_shelf_position !== null) host.searchParams.set('shelf_x', String(context.explicit_shelf_position));
+}
+
 function assertRefArray(name, refs, { min = 0 } = {}) {
   invariant(Array.isArray(refs), `${name} must be an array`);
   invariant(refs.length >= min, `${name} must contain at least ${min} item(s)`);
@@ -89,12 +191,14 @@ export function buildPageThreadBridge(input, options = {}) {
 
   const surfaceId = source.target.surface_id.trim();
   const pageId = source.target.page_id?.trim() || null;
+  const semanticContext = normalizeSemanticContext(source.semantic_context ?? null, { surface_id: surfaceId, page_id: pageId });
   const targetKey = `${surfaceId}::${pageId ?? '@surface'}`;
   const intentDigest = digest(source.intent.raw_text.trim());
   const contextDigest = digest({
     current: source.context.current.map(publicRef),
     candidate: source.context.candidate.map(publicRef),
     history: source.context.history.map(publicRef),
+    semantic_context: semanticContext,
   });
   const threadId = `PCT-${digest(targetKey).slice(0, 16)}`;
   const workFingerprint = digest({ targetKey, intentDigest, contextDigest });
@@ -105,6 +209,7 @@ export function buildPageThreadBridge(input, options = {}) {
   if (pageId) host.searchParams.set('page', pageId);
   else host.searchParams.set('surface', surfaceId);
   host.searchParams.set('changes', workItemId);
+  applySemanticContextToHost(host, semanticContext);
 
   const returnRoot = source.routing.return_root.replace(/\/+$/, '');
   const returnDir = `${returnRoot}/${workItemId}`;
@@ -134,6 +239,7 @@ export function buildPageThreadBridge(input, options = {}) {
       candidate: candidateRefs,
       history: historyRefs,
     },
+    semantic_context: semanticContext,
     preserve_first: true,
     owner_resolution_required: true,
     authority: 'CANDIDATE_ONLY_NO_GLOBAL_PROMOTION',
@@ -190,6 +296,7 @@ export function buildPageThreadBridge(input, options = {}) {
         current: currentRefs,
         candidate: candidateRefs,
         history: historyRefs,
+        semantic_context: semanticContext,
       },
     },
     planner_input: plannerInput,
@@ -205,7 +312,7 @@ export function buildPageThreadBridge(input, options = {}) {
       state: 'CANDIDATE_ONLY',
       prometeo_url: host.toString(),
       project: source.routing.host_project,
-      reopen_by: { thread_id: threadId, work_item_id: workItemId },
+      reopen_by: { thread_id: threadId, work_item_id: workItemId, semantic_context: semanticContext },
     },
     privacy: {
       raw_intent_emitted: false,
