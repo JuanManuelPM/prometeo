@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -43,6 +43,11 @@ if (capabilityItem?.required?.portfolio_required_capabilities_compiled !== true)
 if (capabilityItem?.required?.definitive_absence_only !== true) errors.push('baseline: EFF020 definitive_absence_only must be true');
 if (capabilityItem?.required?.unknown_capability_is_not_absence !== true) errors.push('baseline: EFF020 unknown_capability_is_not_absence must be true');
 if (capabilityItem?.required?.mismatch_consumes_authority_create_attempt !== false) errors.push('baseline: EFF020 mismatch must not consume authority CREATE attempt');
+const batchingItem = baseline?.items?.find(x=>x.id==='EFF021');
+if (batchingItem?.required?.batched_unified_candidate_sharding !== true) errors.push('baseline: EFF021 unified batch sharding must be true');
+if (batchingItem?.required?.batch_strategy !== 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD') errors.push('baseline: EFF021 batch strategy drift');
+if (batchingItem?.required?.batched_reimpose_lane_priority_forbidden !== true) errors.push('baseline: EFF021 batched workers must not re-impose lane priority');
+if (batchingItem?.required?.unbatched_lane_priority_preserved !== true) errors.push('baseline: EFF021 unbatched lane priority must remain preserved');
 
 const wc = read(root, 'wc');
 must('wc', wc, 'CLAIM NOW');
@@ -99,6 +104,9 @@ must('fast-allocation', fast, 'candidate.required_capabilities');
 must('fast-allocation', fast, 'CAPABILITY_MISMATCH_PRECLAIM');
 must('fast-allocation', fast, 'Unknown or ambiguous capability is NOT absence');
 must('fast-allocation', fast, 'does not consume an authority CREATE attempt');
+must('fast-allocation', fast, 'Batched unified candidate sharding');
+must('fast-allocation', fast, 'batch_candidates');
+must('fast-allocation', fast, 'Do not re-impose lane priority locally for a batched worker');
 
 const eventProtocol = read(root, 'coordination/workers/WORKER_EVENT_STREAM_V1.md');
 must('worker-events', eventProtocol, 'Issue: https://github.com/JuanManuelPM/prometeo/issues/22');
@@ -164,12 +172,15 @@ must('live-workflow', live, 'scripts/build-efficiency-snapshot.mjs');
 must('live-workflow', live, 'scripts/build-fast-allocator.mjs');
 must('live-workflow', live, 'scripts/apply-project-coverage.mjs');
 must('live-workflow', live, 'coordination/portfolio/tests/project_coverage_allocator_v1.mjs');
+must('live-workflow', live, 'coordination/portfolio/tests/batched_lane_sharding_v1.mjs');
 must('live-workflow', live, 'node source/scripts/build-fast-allocator.mjs /tmp/feed.json /tmp/efficiency.json /tmp/allocator.json source');
 must('live-workflow', live, 'node source/scripts/apply-project-coverage.mjs /tmp/allocator.json /tmp/feed.json /tmp/allocator.json source');
 must('live-workflow', live, 'live/efficiency.json');
 
 const allocator = read(root, 'scripts/build-fast-allocator.mjs');
 must('fast-allocator', allocator, "schema: 'prometeo.fast-allocator/v3'");
+must('fast-allocator', allocator, "batch_strategy: 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD'");
+must('fast-allocator', allocator, 'batch_candidates: batchCandidates.slice(0, 40)');
 must('fast-allocator', allocator, "preferred_order: ['ready', 'queue_ready', 'role_ready', 'recovery']");
 must('fast-allocator', allocator, 'METABOLISM_POLICY_V1.json');
 must('fast-allocator', allocator, 'role_ready');
@@ -234,6 +245,10 @@ for (const field of ['schema','pin_id','guide_work_id','generation','worker_id',
 }
 must('fast-allocator-role-payload', rolePayload, 'role,');
 must('fast-allocator-role-payload', rolePayload, 'trigger,');
+
+const batchShardingTest = read(root, 'coordination/portfolio/tests/batched_lane_sharding_v1.mjs');
+must('batch-sharding-test', batchShardingTest, 'BATCHED_UNIFIED_SHARDING_PASS');
+must('batch-sharding-test', batchShardingTest, 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD');
 
 const capabilityFitTest = read(root, 'coordination/portfolio/tests/fast_allocator_capability_fit_v1.mjs');
 must('capability-fit-test', capabilityFitTest, 'FAST_ALLOCATOR_CAPABILITY_FIT_PASS');
