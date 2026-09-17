@@ -40,7 +40,7 @@ const wc = fs.readFileSync(path.join(repoRoot, 'wc'), 'utf8');
 const fast = fs.readFileSync(path.join(repoRoot, 'coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md'), 'utf8');
 for (const text of [wc, fast]) {
   assert(text.includes('beacon_commit_sha') && text.includes('first 8 hex'), 'binding protocol must define the same deterministic seed');
-  assert(text.includes('batch_candidates'), 'binding protocol must route explicit batches through allocator batch_candidates');
+  assert(text.includes('claim-frontier') && text.includes('candidates'), 'binding protocol must route explicit batches through compact claim-frontier candidates');
   assert(text.toLowerCase().includes('unified'), 'binding protocol must describe unified batch sharding');
   assert(text.toLowerCase().includes('no extra preclaim read or write'), 'sharding must not add coordination overhead');
 }
