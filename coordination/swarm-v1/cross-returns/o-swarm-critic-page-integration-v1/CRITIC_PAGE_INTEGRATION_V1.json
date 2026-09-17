@@ -1,0 +1,148 @@
+{
+  "schema": "prometeo.swarm-page-integration-critic/v1",
+  "opportunity_id": "O-SWARM-CRITIC-PAGE-INTEGRATION-V1",
+  "run_id": "RUN-WC-20260917T0914-PAGE-INTEGRATION-CRITIC",
+  "worker_instance_id": "wc-chat-20260917T0914-0300-gpt56sol-pageintegrationcritic",
+  "generated_at": "2026-09-17T09:18:00-03:00",
+  "authority_class": "CANDIDATE_EVIDENCE_ONLY_NO_SHARED_PROMOTION",
+  "disposition": "PARTIAL_FAIL_BLOCK_LOCAL_INTEGRATION_PRECONDITION",
+  "summary": "Distributed page integration has a sound queue-level dependency model and useful authority protections, but the current Local Steward executable is not yet a safe machine-enforced consumer of the actual worker-return substrate. Before any local integration lane is treated as integration-ready, the return-normalization/completeness boundary must be hardened and the Page Thread Bridge dependency must have a durable RETURN/DONE lineage.",
+  "observed_state": {
+    "main_head_pre_return": "fdc4269c13a9c9e3377757717974ab595a9fdf3a",
+    "public_epoch": "P3-9df9221f1c5d",
+    "public_epoch_compiled_main": "bc28f0decb7c",
+    "local_steward_script_blob": "b7ee106ed1674b0cdbe4b3529a131099f927349c",
+    "local_steward_test_blob": "ce2ab8762383d75288bd0fa9f818fab6fe264d89",
+    "local_steward_recovery_state": "DONE",
+    "page_thread_bridge_return_at_last_probe": "ABSENT_404"
+  },
+  "findings": [
+    {
+      "id": "PI-CRITIC-01",
+      "severity": "HIGH",
+      "title": "Deferred identity evidence can still enter the semantic candidate",
+      "status": "FALSIFIED_BY_CURRENT_CODE_PATH",
+      "mechanism": "buildLocalIntegrationCandidate records sourceIdentityProblems, but eligibleAtoms are collected from every applicable source before dispositions are applied. A source later classified DEFERRED_INSUFFICIENT_EVIDENCE is therefore not excluded from semantic_atoms merely because identity is insufficient.",
+      "minimal_counterexample": {
+        "input": "return_ref + run_id + semantic atom, but no content_sha",
+        "current_disposition": "DEFERRED_INSUFFICIENT_EVIDENCE",
+        "current_semantic_effect": "atom remains eligible unless separately blocked by protected authority/scope",
+        "current_candidate_state_risk": "CANDIDATE_DECISION_READY is possible because identity problems are not part of candidateState blocking conditions",
+        "required_behavior": "deferred identity evidence contributes zero decision atoms and keeps integration non-ready until exact identity evidence exists"
+      },
+      "evidence_refs": [
+        "scripts/local-steward-lib.mjs@blob:b7ee106ed1674b0cdbe4b3529a131099f927349c",
+        "tests/local-steward-v1.test.mjs@blob:ce2ab8762383d75288bd0fa9f818fab6fe264d89",
+        "coordination/opportunities/returns/O-SWARM-LOCAL-STEWARD-BUILD-V1/RUN-O-SWARM-LOCAL-STEWARD-BUILD-V1-REC-20260917T0911-SOL56-B31D.json"
+      ],
+      "test_gap": "The existing missing-identity test asserts the DEFERRED disposition and MISSING_CONTENT_SHA reason, but does not assert that the deferred source is excluded from semantic_atoms or that candidate_state is non-ready. The recovery test PASS therefore does not falsify this finding."
+    },
+    {
+      "id": "PI-CRITIC-02",
+      "severity": "HIGH",
+      "title": "The Local Steward does not natively consume the observed prometeo.opportunity-return/v1 schema",
+      "status": "CONTRACT_MISMATCH",
+      "mechanism": "fallbackAtoms recognizes mission_result, result, summary.text, summary or statement. A real completed surface return inspected in this run uses result_summary plus material_advances/non_obvious_findings and has no semantic_atoms/atoms or recognized fallback field.",
+      "consequence": "A valid dependency return can normalize to zero semantic atoms and be dispositioned OUT_OF_SCOPE unless an external/manual adapter reshapes it. That adapter is not enforced by the steward helper, so local integration is not yet a closed machine contract.",
+      "evidence_refs": [
+        "scripts/local-steward-lib.mjs@blob:b7ee106ed1674b0cdbe4b3529a131099f927349c",
+        "coordination/opportunities/returns/O-SURFACE-CONTROL_PLAN-TRUTH-V1/RUN-O-SURFACE-CONTROL_PLAN-TRUTH-V1-20260917T0047-1D9A.json@blob:227613cbb11121238121a678fa819cd087f17bd7"
+      ]
+    },
+    {
+      "id": "PI-CRITIC-03",
+      "severity": "HIGH",
+      "title": "Queue dependency completeness is not bound into the Steward API",
+      "status": "ENFORCEMENT_GAP",
+      "mechanism": "Each local integration opportunity requires seven surface returns plus Local Steward and Page Thread Bridge returns and says all dependency returns must be explicitly dispositioned. buildLocalIntegrationCandidate defaults required_return_refs to an empty list, so completeness only blocks when a caller manually supplies the full set.",
+      "consequence": "A caller can obtain CANDIDATE_DECISION_READY from a subset of returns while the queue contract requires a complete dependency set. This moves a safety invariant from machine enforcement into caller discipline.",
+      "evidence_refs": [
+        "coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json@blob:b5b64826faaf76f0da707181ac65e4b111d1aa83",
+        "scripts/local-steward-lib.mjs@blob:b7ee106ed1674b0cdbe4b3529a131099f927349c"
+      ]
+    },
+    {
+      "id": "PI-CRITIC-04",
+      "severity": "MEDIUM",
+      "title": "Surface-level normalization can erase concrete owner boundaries",
+      "status": "PRESERVATION_RISK",
+      "mechanism": "Control Plan current-truth evidence proves that the swarm surface label joins two distinct concrete authorities: the standalone Plan de Acción page and the global Prometeo owner shell. The observed opportunity-return wrapper has a surface-level result_summary but no typed semantic atoms preserving that decomposition.",
+      "consequence": "A generic summary adapter that emits one control-plan/summary atom would be easier to consume but would lose the owner split the archaeology explicitly says must be preserved.",
+      "evidence_refs": [
+        "coordination/swarm-v1/surface-returns/control-plan/truth/CURRENT_TRUTH_RUN-O-SURFACE-CONTROL_PLAN-TRUTH-V1-20260917T0047-1D9A.json@blob:84d75968651336db94fd7d956c747f9ffbcfdf9b",
+        "coordination/opportunities/returns/O-SURFACE-CONTROL_PLAN-TRUTH-V1/RUN-O-SURFACE-CONTROL_PLAN-TRUTH-V1-20260917T0047-1D9A.json@blob:227613cbb11121238121a678fa819cd087f17bd7"
+      ]
+    },
+    {
+      "id": "PI-CRITIC-05",
+      "severity": "BLOCKING_EXTERNAL_DEPENDENCY",
+      "title": "Page Thread Bridge still lacked a durable RETURN at the final prewrite probe",
+      "status": "EXPECTED_BLOCK_NOT_A_QUEUE_BUG",
+      "mechanism": "The Page Thread Bridge recovery run was STARTED, while its opportunity-return path still returned 404 during this critic run.",
+      "consequence": "All four local integration lanes must remain dependency-blocked regardless of Local Steward recovery completion.",
+      "evidence_refs": [
+        "coordination/opportunities/runs/O-SWARM-PAGE-THREAD-BRIDGE-V1/RUN-O-SWARM-PAGE-THREAD-BRIDGE-V1-REC-20260917T0912-SOL56.json",
+        "coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json@blob:b5b64826faaf76f0da707181ac65e4b111d1aa83"
+      ]
+    }
+  ],
+  "verified_strengths": [
+    {
+      "id": "PI-PASS-01",
+      "finding": "Protected authority self-promotion is explicitly rejected by the Local Steward candidate boundary and covered by tests."
+    },
+    {
+      "id": "PI-PASS-02",
+      "finding": "Same-scope contradictions remain unresolved and do not use newest-wins."
+    },
+    {
+      "id": "PI-PASS-03",
+      "finding": "The queue itself correctly encodes ALL_DEPENDENCIES_HAVE_RETURN for per-surface integration; the main defect is the unbound executable ingestion boundary, not the queue declaration."
+    },
+    {
+      "id": "PI-PASS-04",
+      "finding": "The stale Local Steward opportunity was recovered append-only, exact published bytes were tested, and the recovery run is now DONE without rewriting the original attempt."
+    }
+  ],
+  "route_change": {
+    "old_route": "When queue dependencies have returns, invoke the Local Steward and let it produce a local integration candidate.",
+    "new_route": "Keep queue activation evidence-gated, then require a deterministic integration preflight that derives required_return_refs directly from the claimed local-integration opportunity, normalizes each immutable dependency return into typed scope-preserving semantic atoms with exact return_ref/content_sha/run_id, rejects/deactivates all atoms from DEFERRED_INSUFFICIENT_EVIDENCE sources, and refuses CANDIDATE_DECISION_READY unless every required dependency is present and dispositioned. Only then call the Local Steward candidate builder.",
+    "why": "This removes caller discipline as the safety boundary and prevents a local steward from becoming a silent lossy/manual mini-integrator."
+  },
+  "candidate_next_work": {
+    "candidate_id": "O-CANDIDATE-LOCAL-STEWARD-RETURN-BOUNDARY-HARDENING-V1",
+    "type": "BUILD_VERIFY",
+    "priority_class": "BLOCKING_BEFORE_LOCAL_INTEGRATION",
+    "problem_fingerprint": "local-steward|native-opportunity-return-normalization|required-return-binding|deferred-evidence-exclusion|scope-preservation",
+    "mission": "Harden the Local Steward integration boundary so the actual immutable Prometeo opportunity-return schema is consumed deterministically, exact queue dependencies are machine-bound, deferred identity evidence cannot affect semantic candidates, and surface sub-owner scopes survive normalization.",
+    "suggested_write_scope": [
+      "scripts/local-steward-lib.mjs",
+      "tests/local-steward-v1.test.mjs",
+      "scripts/local-integration-return-adapter.mjs",
+      "tests/local-integration-return-adapter-v1.test.mjs",
+      "own claim/run/return"
+    ],
+    "acceptance_criteria": [
+      "real prometeo.opportunity-return/v1 fixture with result_summary is normalized or explicitly rejected with a typed non-ready reason; never silently OUT_OF_SCOPE",
+      "a source missing content_sha contributes zero semantic atoms and cannot yield decision-ready state",
+      "required return refs are derived from the claimed local-integration opportunity and omission of any dependency is blocking",
+      "control-plan fixture preserves separate plan-page and global-control scopes rather than flattening them to one summary atom",
+      "existing authority/newest-wins/immutability tests continue to pass",
+      "exact-byte test receipt and immutable RETURN are persisted"
+    ],
+    "dedup": {
+      "existing_predecessor": "O-SWARM-LOCAL-STEWARD-BUILD-V1",
+      "predecessor_disposition": "RECOVERED_DONE_WITHOUT_TARGET_MUTATION",
+      "equivalent_prepared_queue_item_observed": false,
+      "notes": "Do not reopen or overwrite the completed predecessor. Promote this only as a fresh append-only follow-up after allocator/Planner dedup against any newer proposals created after this snapshot."
+    }
+  },
+  "acceptance": {
+    "runtime_evidence_inspected": "PASS",
+    "route_changing_finding_or_falsification": "PASS",
+    "candidate_next_work_deduplicatable": "PASS",
+    "shared_authority_mutation": false
+  },
+  "human_action_required": false,
+  "boundary": "This critic does not repair shared executable bytes, promote a proposal into the queue, activate blocked local integration, or make Current/Human Accepted/Served claims."
+}
