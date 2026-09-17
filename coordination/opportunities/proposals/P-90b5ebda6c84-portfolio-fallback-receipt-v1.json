@@ -1,0 +1,96 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-90b5ebda6c84-portfolio-fallback-receipt-v1",
+  "fingerprint": "pdf-90b5ebda6c84d648d2d7cad323f41dd4",
+  "created_at": "2026-09-17T14:50:01-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T1450-0300-gpt56sol-portfolio-fallback-proof",
+    "opportunity_id": null,
+    "run_id": null,
+    "proposal_pin_ref": "coordination/opportunities/proposal-claims/pdf-90b5ebda6c84d648d2d7cad323f41dd4.json"
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "artifact": "deterministic portfolio allocation auditor plus durable selection receipt",
+    "consumer": "fresh /wc workers, Live projection, swarm verifier",
+    "subsystem": "portfolio fallback / universal-worker allocator"
+  },
+  "title": "Make portfolio fallback allocation auditable",
+  "problem": "Portfolio fallback is now a binding allocation layer, but there is no required machine-auditable receipt that explains why each higher-priority seed/derived job was skipped and why a worker legitimately crossed into generic discovery. This fresh /wc observed a fully saturated seed frontier: Live had a terminal DONE return, every other seed job had a claim directory, and the derived root was absent. Establishing that state required manual multi-read reconciliation, so the fallback canary is not independently reconstructable from one deterministic allocator result.",
+  "mission": "Build a read-only deterministic portfolio allocation auditor that consumes PORTFOLIO.json, derived jobs, claim expiries and terminal returns; emits ordered per-job dispositions with exact evidence; and produces a snapshot receipt proving either the next claimable job or DISCOVERY_ALLOWED. Keep create-if-absent claims as the authority boundary and never let an allocation receipt self-promote product state.",
+  "acceptance": [
+    "Seed and valid derived jobs are merged by the same priority/value rules as WORKER_CONTRACT_V1.",
+    "Every candidate receives one explicit disposition: CLAIMABLE, ACTIVE_CLAIM, TERMINAL_RETURN, DUPLICATE_DERIVED, AUTHORITY_BLOCKED or INVALID, with exact evidence refs.",
+    "Claim expiry is evaluated from claim content; directory existence alone never blocks work forever.",
+    "Missing coordination/portfolio/derived is represented explicitly as an empty source with SOURCE_DEBT/evidence, not interpreted as proof of no future successors.",
+    "The result carries source head, observed epoch and deterministic ordering so independent workers can reproduce the same snapshot decision.",
+    "The auditor never replaces atomic create-if-absent claim acquisition; a race loser must reload and re-evaluate.",
+    "A fixture matching the observed canary state — Live terminal DONE, nine active seed claims, no derived root — returns DISCOVERY_ALLOWED and no claimable seed job.",
+    "A second fixture with one expired claim exposes that job as CLAIMABLE while preserving the expired claim as evidence."
+  ],
+  "observed_live_evidence": {
+    "observed_at": "2026-09-17T14:50:01-03:00",
+    "live_seed": "TERMINAL_DONE",
+    "other_seed_jobs": 9,
+    "other_seed_claim_directories_observed": 9,
+    "derived_root": "NOT_FOUND",
+    "allocation_result_in_this_chat": "DISCOVERY_AFTER_PORTFOLIO_SATURATION",
+    "note": "Active-vs-expired semantics must be evaluated from claim contents in the implementation; this discovery proposal does not infer perpetual blocking from directory existence."
+  },
+  "evidence_refs": [
+    "coordination/portfolio/PORTFOLIO.json",
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/portfolio/returns/portfolio-live-compounding-metrics/RETURN_BOOTSTRAP_20260917T1735Z.json",
+    "coordination/portfolio/claims/portfolio-autonomy-close-g2-g3-loop/CLAIM-WC-GPT56SOL-20260917T174602Z.json",
+    "coordination/portfolio/claims/",
+    "coordination/opportunities/proposal-claims/pdf-90b5ebda6c84d648d2d7cad323f41dd4.json"
+  ],
+  "value_signals": {
+    "unblock_value": "Lets fresh workers prove why no portfolio job is currently safe to claim and cross into discovery without human inspection or accidental duplicate work.",
+    "compounding_value": "As derived jobs begin reproducing, one allocator view can merge seed and generated work while preserving deterministic dedupe/expiry semantics.",
+    "human_friction_reduction": "Removes the need for a guide or human to inspect many claim/return directories when identical /wc workers saturate the frontier.",
+    "information_gain": "Turns portfolio fallback from a prose contract into a falsifiable, snapshot-reconstructable decision boundary."
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/portfolio/PORTFOLIO.json",
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/portfolio/derived/**",
+    "coordination/portfolio/claims/**",
+    "coordination/portfolio/returns/**",
+    "coordination/CONTINUITY_HEAD.json"
+  ],
+  "candidate_write_scope": [
+    "scripts/derive-portfolio-allocation.mjs",
+    "tests/portfolio-allocation-v1.test.mjs",
+    "coordination/portfolio/allocation-receipts/**",
+    "own claim/run/return"
+  ],
+  "risk": {
+    "main": "A stale receipt could be mistaken for current authority while other workers mutate claims/returns concurrently.",
+    "mitigation": "Receipts are snapshot evidence only, always carry source head/epoch, and never authorize a claim; workers must reload and atomically create the actual job claim."
+  },
+  "fresh_critic_required": true,
+  "falsification": [
+    "Two independent evaluations of the same repository snapshot disagree on ordered job dispositions.",
+    "A terminally returned job is emitted CLAIMABLE.",
+    "A non-expired active claim is ignored or an expired claim blocks forever.",
+    "Missing derived root crashes allocation or is silently treated as proof that no successor work exists.",
+    "The receipt itself is accepted as mutation authority without a create-if-absent claim race.",
+    "Observed saturated fixture fails to produce DISCOVERY_ALLOWED."
+  ],
+  "dedup_note": "Repository search found no existing portfolio allocator skip-reason/selection receipt proposal. This is narrower than the role-fluid allocator and does not duplicate Live portfolio projection or G2->G3 autonomy work; it specifically makes the new portfolio fallback boundary machine-auditable.",
+  "source_freshness": {
+    "main_head_before_pin": "6fb7e59d339a849b9203ca37b04473e1e34ecc0c",
+    "pin_commit": "a492083da2d2b28253aea5ea04ad1d6139819cb3",
+    "epoch_observed": "P3-ced7e918c761",
+    "note": "Main was moving concurrently; this proposal is append-only candidate evidence and does not claim the observed snapshot remains current after publication."
+  },
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "PROPOSAL_DOES_NOT_AUTHORIZE_SHARED_MUTATION"
+  ]
+}
