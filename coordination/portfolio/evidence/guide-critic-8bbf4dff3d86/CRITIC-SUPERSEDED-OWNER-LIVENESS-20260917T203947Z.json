@@ -1,0 +1,82 @@
+{
+  "schema": "prometeo.guide-critic-evidence/v1",
+  "evidence_id": "CRITIC-SUPERSEDED-OWNER-LIVENESS-20260917T203947Z",
+  "job_id": "guide-critic-8bbf4dff3d86",
+  "worker_id": "wc-gpt56sol-20260917T173200-0300",
+  "observed_at": "2026-09-17T20:39:47Z",
+  "snapshot": {
+    "main_head": "0e276d9e49d70722d4e99a1155d7d93b1e35721e",
+    "tree_sha": "5bd318f05e8863d6a62ff897367b861400c91325",
+    "compiler_path": "scripts/compile-frontier-pressure.mjs",
+    "compiler_blob_sha": "31ae33cd376f62f9ecd1b1b998381d3ef320055a",
+    "test_path": "tests/frontier-pressure-compiler-v1.test.mjs",
+    "test_blob_sha": "65d1fb2fe030e813a80bed5555b12341d768d8d1"
+  },
+  "finding": {
+    "id": "SUPERSEDED_PIN_GENERATIONS_INFLATE_LIVENESS_PRESSURE",
+    "severity": "CONTROL_PLANE_SIGNAL_CORRUPTION",
+    "ratchet_ref": "coordination/efficiency/RATCHET_BASELINE_V1.json#EFF004",
+    "summary": "computeFrontierPressure keeps the highest generation in ownerByJob for claimability, but separately retains every nonterminal pin generation in ownerRows and derives active/stale/replaceable counts plus REPLACEABLE_PRESSURE from ownerRows. Historical superseded generations therefore remain counted as current liveness pressure.",
+    "code_refs": [
+      "scripts/compile-frontier-pressure.mjs: ownerRows.push(row) for every snapshot owner",
+      "scripts/compile-frontier-pressure.mjs: ownerByJob selects highest generation per job",
+      "scripts/compile-frontier-pressure.mjs: replaceableOwners/staleOwners/liveness.active derive from ownerRows",
+      "scripts/compile-frontier-pressure.mjs: REPLACEABLE_PRESSURE derives from replaceableOwners.length"
+    ]
+  },
+  "live_pin_chain_reproduction": {
+    "job_id": "guide-critic-8bbf4dff3d86",
+    "evaluation_time": "2026-09-17T20:35:15Z",
+    "pins": [
+      {
+        "generation": 1,
+        "ref": "coordination/portfolio/pins/guide-critic-8bbf4dff3d86/G000001.json",
+        "blob_sha": "503fceda0859b80f465fa45743ade8ffb69c52e4",
+        "latest_signal_used_for_conservative_classification": "2026-09-17T19:27:20Z",
+        "age_minutes": 67.9167,
+        "classification": "REPLACEABLE",
+        "authority": "SUPERSEDED"
+      },
+      {
+        "generation": 2,
+        "ref": "coordination/portfolio/pins/guide-critic-8bbf4dff3d86/G000002.json",
+        "blob_sha": "bbbbb308bd4bf0fbcee9d981e32ee0f034395761",
+        "latest_signal_used_for_conservative_classification": "2026-09-17T20:04:38Z",
+        "age_minutes": 30.6167,
+        "classification": "REPLACEABLE",
+        "authority": "SUPERSEDED"
+      },
+      {
+        "generation": 3,
+        "ref": "coordination/portfolio/pins/guide-critic-8bbf4dff3d86/G000003.json",
+        "blob_sha": "8bb01da8da8ee1589d1d7c0aa571c7bee7bf08ef",
+        "latest_signal_used_for_conservative_classification": "2026-09-17T20:34:51Z",
+        "age_minutes": 0.4,
+        "classification": "ACTIVE",
+        "authority": "CURRENT_HIGHEST_GENERATION"
+      }
+    ],
+    "current_algorithm_effect_for_this_job": {
+      "active_rows": 1,
+      "replaceable_rows": 2,
+      "current_authority_rows": 1,
+      "false_replaceable_rows_from_history": 2
+    },
+    "expected_authority_projection_for_this_job": {
+      "active_rows": 1,
+      "replaceable_rows": 0,
+      "current_authority_rows": 1
+    }
+  },
+  "impact": [
+    "Historical recovery generations can inflate REPLACEABLE_PRESSURE even after a newer generation is active.",
+    "Guide/metabolism role selection can therefore react to false recovery pressure.",
+    "The behavior conflicts with EFF004: only the newest authoritative generation for a job should appear active/current; older generations remain history only."
+  ],
+  "host_execution_boundary": {
+    "status": "NOT_FULL_REPO_EXECUTED_IN_THIS_CHAT",
+    "reason": "The available runtime cannot obtain a full GitHub repository checkout/archive: local network/DNS is unavailable and the GitHub connector exposes repository files but not a binary source archive. The persisted compiler bytes were inspected at the exact snapshot SHA, but the full live-filesystem CLI execution requirement remains delegated to the already-existing CI-native executor job.",
+    "existing_successor_ref": "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-frontier-pressure-ci-live-executor-v1.json"
+  },
+  "truth_boundary": "This evidence identifies a control-plane defect and does not promote product authority, Current, Human Accepted, Served, or production /w."
+}
