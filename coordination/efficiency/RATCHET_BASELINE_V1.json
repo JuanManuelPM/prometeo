@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-17T21:29:30Z",
+  "updated_at": "2026-09-17T21:33:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -129,6 +129,15 @@
       "observed_failure": "A deliberate multi-worker PIN-race canary could publish a winner before another worker was durably armed, yielding winner-only evidence and forcing human timing or repeated canary launches.",
       "invariant": "Only jobs with explicit durable contention-barrier metadata receive a timing-only pre-PIN entrant/rendezvous action. Before valid RELEASE no portfolio PIN is attempted; timeout attempts no PIN; after RELEASE all entrants race the unchanged deterministic generation. Ordinary jobs remain direct-to-PIN.",
       "required": {"explicit_opt_in_only": true, "barrier_grants_execution_authority": false, "pin_before_release_forbidden": true, "timeout_pin_attempted": false, "release_next_action": "RACE_DETERMINISTIC_PIN", "ordinary_jobs_direct_to_pin": true, "job_id_hardcoding_forbidden": true, "fixtures": [2, 5], "regression_test": "coordination/portfolio/tests/fast_allocator_contention_barrier_routing_v1.mjs"},
+      "status": "STATIC_GUARDED_PENDING_RUNTIME"
+    },
+    {
+      "id": "EFF015",
+      "title": "Fingerprint churn cannot spawn concurrent GUIDE_RESCATE workers",
+      "scope": ["allocator", "guide", "metabolism", "live"],
+      "observed_failure": "While guide-rescate-98d380e06c22 had a fresh G000001 owner, the next allocator snapshot emitted guide-rescate-250858b98b36 because the LOW_YIELD evidence set changed. Fingerprint dedupe alone therefore allowed two concurrent rescate authorities for the same role and bottleneck class.",
+      "invariant": "A fresh unreceipted GUIDE_RESCATE pin suppresses every other GUIDE_RESCATE role_ready candidate regardless of evidence fingerprint until that authority returns or becomes stale. Other Guide roles and ordinary execution remain claimable.",
+      "required": {"one_active_guide_rescate_across_fingerprint_churn": true, "active_window_minutes": 10, "receipt_releases_role": true, "stale_pin_releases_role": true, "other_guide_roles_preserved": true, "ordinary_execution_preserved": true, "suppression_stage": "POST_ALLOCATOR_PRE_PUBLISH", "regression_test": "coordination/portfolio/tests/guide_rescate_single_active_role_v1.mjs"},
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     }
   ],
