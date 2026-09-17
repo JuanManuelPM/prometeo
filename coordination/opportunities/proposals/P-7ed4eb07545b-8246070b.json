@@ -1,0 +1,86 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-7ed4eb07545b-8246070b",
+  "fingerprint": "pdf-7ed4eb07545b7436b35265c19524a9e2",
+  "created_at": "2026-09-17T10:00:15-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0951-0300-sol56-pagethread-rec2",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "artifact": "scripts/derive-opportunity-readiness.mjs",
+    "consumer": "S2 local integrations",
+    "subsystem": "dependency-readiness"
+  },
+  "problem": "prometeo.opportunity-return/v1 documents legitimately encode terminal success as state:DONE or status:DONE, but isQualifyingReturn inspects only state and requires /RETURN/. As a result, evidence-backed completed returns such as control-plan TRUTH and INTENT are classified as missing/non-qualifying and valid dependency activation remains blocked after the Page Thread Bridge gate is closed.",
+  "acceptance": [
+    "A return document under coordination/opportunities/returns with schema prometeo.opportunity-return/v1 qualifies when terminal success is encoded as state:DONE or status:DONE and a matching same-run run is DONE.",
+    "RETURNED_* return states continue qualifying.",
+    "Negative terminal state/status and conflicts continue to fail closed.",
+    "Absent or ambiguous return evidence does not qualify.",
+    "Regression fixtures covering the real control-plan TRUTH and INTENT return shapes prove local-integration readiness changes only when every dependency has qualifying same-run RETURN plus DONE evidence.",
+    "No source queue status mutation or Current, Human Accepted, Served, or promotion authority is introduced."
+  ],
+  "title": "Make readiness accept legacy successful RETURN shapes",
+  "mission": "Repair dynamic-readiness return qualification so the compiler recognizes evidence-backed successful prometeo.opportunity-return/v1 documents across the existing state/status serialization variants while preserving same-run DONE matching, fail-closed negative/conflict semantics and zero authority promotion.",
+  "evidence_refs": [
+    "scripts/derive-opportunity-readiness.mjs",
+    "coordination/opportunities/returns/O-SURFACE-CONTROL_PLAN-TRUTH-V1/RUN-O-SURFACE-CONTROL_PLAN-TRUTH-V1-20260917T0047-1D9A.json",
+    "coordination/opportunities/runs/O-SURFACE-CONTROL_PLAN-TRUTH-V1/RUN-O-SURFACE-CONTROL_PLAN-TRUTH-V1-20260917T0047-1D9A.json",
+    "coordination/opportunities/returns/O-SURFACE-CONTROL_PLAN-INTENT-V1/RUN-O-SURFACE-CONTROL_PLAN-INTENT-V1-20260917T004655-5C2A.json",
+    "coordination/opportunities/runs/O-SURFACE-CONTROL_PLAN-INTENT-V1/RUN-O-SURFACE-CONTROL_PLAN-INTENT-V1-20260917T004655-5C2A.json",
+    "coordination/opportunities/returns/O-SWARM-PAGE-THREAD-BRIDGE-V1/RUN-O-SWARM-PAGE-THREAD-BRIDGE-V1-REC-20260917T0951-SOL56-R2.json",
+    "coordination/opportunities/runs/O-SWARM-PAGE-THREAD-BRIDGE-V1/RUN-O-SWARM-PAGE-THREAD-BRIDGE-V1-REC-20260917T0951-SOL56-R2.json",
+    "coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json"
+  ],
+  "value_signals": {
+    "unblock_value": {
+      "reason": "The compatibility defect blocks dependency-derived S2 local integration even when real prerequisite RETURN documents and matching DONE runs exist.",
+      "evidence_ref": "scripts/derive-opportunity-readiness.mjs"
+    },
+    "regression_prevention": {
+      "reason": "Tests against both state:DONE and status:DONE historical return shapes prevent future readiness compilers from silently narrowing accepted durable evidence formats.",
+      "evidence_ref": "coordination/opportunities/returns/O-SURFACE-CONTROL_PLAN-TRUTH-V1/RUN-O-SURFACE-CONTROL_PLAN-TRUTH-V1-20260917T0047-1D9A.json"
+    },
+    "human_friction_reduction": {
+      "reason": "Correct derived readiness removes the need for a human or guide to hand-edit queue readiness after prerequisites finish.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md"
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-DYNAMIC-READINESS-BUILD-V1"
+  ],
+  "candidate_read_scope": [
+    "scripts/derive-opportunity-readiness.mjs",
+    "tests/dynamic-readiness-v1.test.mjs",
+    "coordination/opportunities/returns/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json",
+    "coordination/swarm-v1/readiness/**"
+  ],
+  "candidate_write_scope": [
+    "scripts/derive-opportunity-readiness.mjs",
+    "tests/dynamic-readiness-v1.test.mjs",
+    "tests/dynamic-readiness-return-schema-compat-v1.test.mjs",
+    "coordination/swarm-v1/readiness/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "falsification": [
+    "A real schema prometeo.opportunity-return/v1 document with state:DONE and matching same-run DONE still yields DONE_MISSING_RETURN.",
+    "A real schema prometeo.opportunity-return/v1 document with status:DONE and matching same-run DONE still yields DONE_MISSING_RETURN.",
+    "A failed, conflicted, cancelled, rejected or otherwise negative terminal return becomes qualifying after the compatibility change.",
+    "A successful-looking return with no matching same-run DONE activates a dependency.",
+    "The fix mutates source queue status or claims Current, Human Accepted, Served or production authority."
+  ],
+  "dedup_note": "The completed O-SWARM-DYNAMIC-READINESS-BUILD-V1 implemented the mechanism but did not cover the legacy successful return serializations now observed in live S1 evidence. Repository proposal/code searches for DONE_MISSING_RETURN and isQualifyingReturn found no indexed proposal duplicating this exact compatibility defect; the deterministic proposal fingerprint was absent and was pinned create-if-absent before this proposal was written.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
