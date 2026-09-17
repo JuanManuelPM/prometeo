@@ -1,0 +1,137 @@
+{
+  "schema": "prometeo.swarm-authority-audit/v1",
+  "opportunity_id": "O-SWARM-CRITIC-AUTHORITY-V1",
+  "run_id": "RUN-O-SWARM-CRITIC-AUTHORITY-V1-20260917T0915-SOL56-5B2C",
+  "status": "CANDIDATE_CRITIC_RETURN_EVIDENCE",
+  "observed_at": "2026-09-17T09:18:00-03:00",
+  "source_freshness": {
+    "live_main_observed": "89e021f60f3021051e7b1c06a33e12b66f98306f",
+    "runtime_epoch_observed": "P3-f248b9db20cc",
+    "epoch_main_observed": "d85ce7d40c03"
+  },
+  "verdict": "PARTIAL_FAIL_AUTHORITY_ENFORCEMENT_GAPS",
+  "summary": "The declared authority/privacy contract is stronger than the current universal-worker validator. Current code blocks explicit self-promotion labels and known forbidden authority_class values, but it does not cryptographically or structurally bind worker-supplied claim write_scope to the canonical queue opportunity, and it contains no equivalent public-artifact privacy guard. These are canary hardening gaps, not evidence that a protected owner has already been mutated or private data has already leaked.",
+  "declared_contract_evidence": [
+    {
+      "ref": "coordination/AGENT_RUNTIME.json",
+      "sha": "0eebb7cb0baa6bdcdf6c25bfc29672057b952105",
+      "finding": "Runtime coordinates only; Current/Catalog/Lineage/Human Accepted/Served retain existing owners. Public compilation forbids private transcripts, private Patent snapshots, credentials, LOCAL context and token-gated user data."
+    },
+    {
+      "ref": "AGENTS.md",
+      "sha": "641fc0289b365a13f976ea6f6a8c67f99680b9c9",
+      "finding": "Candidate != Human Accepted != Served; public worker/network artifacts must not contain private transcripts, Patent payloads, LOCAL context, credentials or access tokens."
+    },
+    {
+      "ref": "state/CURRENT_GRAPH.json",
+      "finding": "This is a concrete authority owner carrying HUMAN_ACCEPTED/SERVED/current pointers and therefore a useful protected-owner falsification target."
+    }
+  ],
+  "runtime_implementation_evidence": [
+    {
+      "ref": "scripts/universal-cognitive-worker-lib.mjs",
+      "sha": "a1b902f25d448d80e29b1822e6b432ead5a4d3be",
+      "finding": "validateClaim checks identity/state fields but does not require claim.write_scope to equal or be a subset of the canonical opportunity.write_scope."
+    },
+    {
+      "ref": "scripts/universal-cognitive-worker-lib.mjs",
+      "sha": "a1b902f25d448d80e29b1822e6b432ead5a4d3be",
+      "finding": "validateUniversalWorkerEnvelope validates attempted_paths against claim.write_scope first, falling back to opportunity.write_scope only when claim.write_scope is absent."
+    },
+    {
+      "ref": "scripts/universal-cognitive-worker-lib.mjs",
+      "sha": "a1b902f25d448d80e29b1822e6b432ead5a4d3be",
+      "finding": "validateAuthorityBoundary rejects explicit CURRENT/HUMAN_ACCEPTED/SERVED self-promotion and a short forbidden authority-class set, but has no independent protected-owner path policy."
+    },
+    {
+      "ref": "scripts/validate-universal-worker.mjs",
+      "sha": "af90a9c5becf646df40227e6bc309bb195fbb627",
+      "finding": "CLI validates the envelope supplied by the caller; it does not resolve opportunity_id back to a trusted queue source or verify a canonical opportunity hash/ref itself."
+    },
+    {
+      "ref": "tests/universal-cognitive-worker-v1.test.mjs",
+      "sha": "bc1c15b8c297d8de51b8b9a29721f07c00929c95",
+      "finding": "Tests cover out-of-scope writes relative to an ordinary opportunity and forbidden authority_class, but do not cover claim scope escalation or privacy leakage into a public return."
+    }
+  ],
+  "findings": [
+    {
+      "id": "AUTH-01",
+      "severity": "HIGH_CANARY_BLOCKER",
+      "title": "Worker-controlled claim scope can become the validator's effective mutation authority",
+      "condition": "A worker/caller supplies a claim.write_scope broader than the canonical opportunity.write_scope while keeping opportunity_id aligned.",
+      "effect": "validateClaim does not reject the broadened scope; validateUniversalWorkerEnvelope then validates attempted_paths against claim.write_scope. If upstream mutation tooling treats this report as the gate, the worker can self-expand the scope without changing authority_class.",
+      "falsification_case": {
+        "canonical_opportunity_write_scope": ["coordination/swarm-v1/cross-returns/o-swarm-critic-authority-v1/**", "own claim/run/return"],
+        "worker_claim_write_scope": ["state/**"],
+        "attempted_paths": ["state/CURRENT_GRAPH.json"],
+        "authority_class": null,
+        "return_authority_labels": ["CANDIDATE_READY"],
+        "current_code_path_result": "No invariant shown in the inspected validator rejects this solely because claim scope exceeds canonical opportunity scope; scope validation prefers claim.write_scope.",
+        "safety_note": "This is a static executable-path falsification of the validator contract, not evidence that CURRENT_GRAPH has actually been overwritten."
+      }
+    },
+    {
+      "id": "AUTH-02",
+      "severity": "HIGH_CANARY_BLOCKER",
+      "title": "Canonical opportunity provenance is not independently bound by the CLI validator",
+      "condition": "Envelope opportunity/claim objects are caller-provided.",
+      "effect": "A forged or stale envelope can present a benign opportunity_id/authority_class plus broadened scopes unless another trusted caller already resolved and froze canonical queue evidence. The validator itself does not provide that trust boundary.",
+      "required_property": "Validation must consume a trusted opportunity_ref/hash or resolve opportunity_id from the active queue snapshot and fail closed on mismatch/staleness."
+    },
+    {
+      "id": "PRIV-01",
+      "severity": "HIGH_CANARY_BLOCKER",
+      "title": "Public-artifact privacy policy is declarative but not enforced by the universal-worker envelope validator",
+      "condition": "A return/public evidence artifact contains private transcript text, LOCAL content, credentials/access tokens, Patent payloads or token-gated user data while avoiding forbidden authority labels.",
+      "effect": "The inspected envelope path has no privacy/provenance validation step comparable to validateAuthorityBoundary or validateMutationScope.",
+      "required_property": "Public returns need explicit privacy/source labels and a fail-closed publication guard before persistence; secret/private detection should complement, not replace, provenance classification."
+    },
+    {
+      "id": "AUTH-03",
+      "severity": "MEDIUM_FALSE_POSITIVE_RISK",
+      "title": "Authority value recursion conflates reporting existing authority with self-promotion",
+      "condition": "A critic/evidence artifact truthfully quotes an existing state using exact string values such as SERVED or HUMAN_ACCEPTED.",
+      "effect": "recurseAuthority may reject evidence merely for containing an authority state string, which can encourage lossy workarounds or weaken auditability.",
+      "required_property": "Separate asserted_target_authority from observed/evidence authority; forbid mutation/promotion claims, not accurate typed observations."
+    }
+  ],
+  "protected_invariants": [
+    "Universal workers cannot derive global Current/Human Accepted/Served authority from their own envelope, claim or return.",
+    "Claim write scope is never stronger than the canonical opportunity write scope.",
+    "Protected authority owners remain blocked independently of worker-supplied metadata.",
+    "Public coordination artifacts fail closed on private/LOCAL/secret-bearing provenance.",
+    "Observed authority evidence remains reportable without being interpreted as requested promotion."
+  ],
+  "recommended_route_change": {
+    "disposition": "DO_NOT_PROMOTE_UNIVERSAL_WORKER_KERNEL_TO_PRODUCTION_W_UNTIL_GUARDS_AND_NEGATIVE_TESTS_PASS",
+    "implementation": [
+      "Resolve canonical opportunity from a trusted active-queue ref/hash inside the validation boundary; reject caller-supplied mismatch.",
+      "Require claim.write_scope to be absent-and-derived or exact/subset of canonical opportunity.write_scope; validate claim authority fields against canonical opportunity too.",
+      "Add protected authority-owner path classes independent of opportunity metadata, derived from durable owner/authority registry rather than a worker-editable claim.",
+      "Add public-artifact privacy/provenance validator and negative fixtures for private transcript, LOCAL context, credentials/tokens and token-gated data.",
+      "Change authority validator to distinguish observed authority facts from requested target authority/promotion."
+    ],
+    "falsification_tests": [
+      "claim scope escalation to state/CURRENT_GRAPH.json must fail",
+      "forged envelope opportunity scope broader than trusted queue ref must fail",
+      "benign authority_class plus protected-owner attempted path must fail",
+      "public return carrying privacy_class=LOCAL/private source must fail",
+      "public return with credential/token fixture must fail",
+      "critic evidence that observes state=SERVED without requesting promotion must pass"
+    ]
+  },
+  "dedup_and_coordination": {
+    "active_overlap": "O-SWARM-KERNEL-IMPLEMENT-V1 owns the current universal worker kernel/validator implementation scope and had no durable RETURN at the audit check, so this critic must not concurrently patch those files.",
+    "exact_existing_guard_task_found": false,
+    "next_work_proposal": {
+      "proposal_id": "P-SWARM-AUTHORITY-PRIVACY-GUARD-HARDENING-V1",
+      "type": "BUILD_VERIFY",
+      "activation": "After current kernel implementation return is durable and dispositioned, unless that return already closes AUTH-01/AUTH-02/PRIV-01 with tests.",
+      "mission": "Harden canonical opportunity binding, claim scope derivation/subset checks, protected-owner path enforcement and public-artifact privacy validation; add negative tests and an independent verifier.",
+      "suggested_write_scope": ["scripts/universal-cognitive-worker-lib.mjs", "scripts/validate-universal-worker.mjs", "tests/universal-cognitive-worker-v1.test.mjs", "coordination/swarm-v1/kernel/**"],
+      "fresh_verifier_required": true
+    }
+  },
+  "authority": "CANDIDATE_CRITIC_EVIDENCE_ONLY_NO_SHARED_PROMOTION"
+}
