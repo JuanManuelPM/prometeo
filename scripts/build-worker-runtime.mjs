@@ -42,11 +42,15 @@ export function parseEventComment(comment) {
 }
 
 function repoEvidence(root) {
-  const beacons = new Map(), pins = new Map(), noalloc = new Map();
-  if (!root) return {beacons,pins,noalloc};
+  const beacons = new Map(), pins = new Map(), noalloc = new Map(), beaconDocs = [];
+  if (!root) return {beacons,pins,noalloc,beaconDocs};
 
   for (const p of walk(path.join(root,'coordination','workers','beacons'))) {
-    const d=readJson(p); if (d?.worker_id) beacons.set(d.worker_id,path.relative(root,p).split(path.sep).join('/'));
+    const d=readJson(p); if (d?.worker_id) {
+      const ref=path.relative(root,p).split(path.sep).join('/');
+      beacons.set(d.worker_id,ref);
+      beaconDocs.push({path:ref,doc:d});
+    }
   }
   for (const base of [
     path.join(root,'coordination','portfolio','pins'),
@@ -60,7 +64,7 @@ function repoEvidence(root) {
   for (const p of walk(path.join(root,'coordination','workers','no-allocation'))) {
     const d=readJson(p); if (d?.worker_id) noalloc.set(d.worker_id,path.relative(root,p).split(path.sep).join('/'));
   }
-  return {beacons,pins,noalloc};
+  return {beacons,pins,noalloc,beaconDocs};
 }
 
 export function compileRuntime(comments, root=null, nowIso=new Date().toISOString()) {
@@ -78,6 +82,25 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
     b.last_event_at = e.server_created_at || b.last_event_at;
     if (!b.workers.has(e.worker_id)) b.workers.set(e.worker_id,{worker_id:e.worker_id,events:[],first_event_at:e.server_created_at,last_event_at:e.server_created_at});
     const w=b.workers.get(e.worker_id); w.events.push(e); w.last_event_at=e.server_created_at||w.last_event_at;
+  }
+
+  // Beacon is the first durable proof that a launched chat reached Prometeo.
+  // Telemetry is best-effort, so missing Issue comments must not erase a real worker.
+  for (const row of repo.beaconDocs || []) {
+    const d=row.doc||{};
+    if (!d.worker_id || !d.batch_id) continue;
+    if (!batches.has(d.batch_id)) batches.set(d.batch_id,{batch_id:d.batch_id,expected_workers:null,events:[],workers:new Map(),first_event_at:null,last_event_at:null});
+    const b=batches.get(d.batch_id);
+    if (Number.isFinite(Number(d.expected_workers)) && Number(d.expected_workers)>0) b.expected_workers=Math.max(b.expected_workers||0,Number(d.expected_workers));
+    const at=d.launched_at||d.created_at||d.timestamp||null;
+    if (at && (!b.first_event_at || Date.parse(at)<Date.parse(b.first_event_at))) b.first_event_at=at;
+    if (at && (!b.last_event_at || Date.parse(at)>Date.parse(b.last_event_at))) b.last_event_at=at;
+    if (!b.workers.has(d.worker_id)) b.workers.set(d.worker_id,{worker_id:d.worker_id,events:[],first_event_at:at,last_event_at:at});
+    else {
+      const w=b.workers.get(d.worker_id);
+      if (at && (!w.first_event_at || Date.parse(at)<Date.parse(w.first_event_at))) w.first_event_at=at;
+      if (at && (!w.last_event_at || Date.parse(at)>Date.parse(w.last_event_at))) w.last_event_at=at;
+    }
   }
 
   const compiled=[...batches.values()].map(b=>{
@@ -101,7 +124,7 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
       const collisionCount=explicitCollisions+arrayCollisions+
         (!explicitCollisions&&!arrayCollisions&&rawOutcome.includes('COLLISION')?Math.max(1,attemptCount):0);
       const authorityWon=pinRefs.length>0 || normalizedOutcome==='WON';
-      const state=close?'CLOSED':authorityWon?(claim?.started?'ACTIVE':'OWNED'):claim?'CLAIM_RESOLVED':routed?'ROUTED':'SEEN';
+      const state=close?'CLOSED':authorityWon?(claim?.started?'ACTIVE':'OWNED'):claim?'CLAIM_RESOLVED':routed?'ROUTED':'BEACONED';
       const anomalies=[];
       if (normalizedOutcome==='WON' && root && !pinRefs.length) anomalies.push('CLAIM_WON_WITHOUT_REPO_PIN');
       if (pinRefs.length && normalizedOutcome!=='WON') anomalies.push('REPO_PIN_WITHOUT_CANONICAL_WON_EVENT');
@@ -120,6 +143,8 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
     const summary={
       expected:b.expected_workers,
       observed:workers.length,
+      beaconed:workers.filter(w=>w.repo?.beacon_ref).length,
+      telemetry_observed:workers.filter(w=>w.routed||w.claim||w.close).length,
       missing_expected:b.expected_workers==null?null:Math.max(0,b.expected_workers-workers.length),
       extra_observed:b.expected_workers==null?null:Math.max(0,workers.length-b.expected_workers),
       routed:workers.filter(w=>w.routed).length,
@@ -138,7 +163,7 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
   return {
     schema:'prometeo.worker-runtime/v1',
     generated_at:nowIso,
-    source:{type:'github_issue_comments',issue_number:22,authority:false,measurement_clock:'GITHUB_COMMENT_SERVER_TIME'},
+    source:{type:'github_issue_comments_plus_repo_beacons',issue_number:22,authority:false,measurement_clock:'GITHUB_COMMENT_SERVER_TIME_PLUS_BEACON_DECLARED_TIME'},
     current_batch:(named[0]||null)?.batch_id||null,
     batches:compiled.slice(0,20),
     event_count:events.length,
