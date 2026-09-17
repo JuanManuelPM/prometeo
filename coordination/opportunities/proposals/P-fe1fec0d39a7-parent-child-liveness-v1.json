@@ -1,0 +1,97 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-fe1fec0d39a7-parent-child-liveness-v1",
+  "fingerprint": "pdf-fe1fec0d39a745719c310a3c3b8f9b7f",
+  "created_at": "2026-09-17T10:39:11-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T1029-0300-gpt56sol-surplus-parent-liveness",
+    "opportunity_id": null,
+    "run_id": null,
+    "proposal_pin_ref": "coordination/opportunities/proposal-claims/pdf-fe1fec0d39a745719c310a3c3b8f9b7f.json"
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "artifact": "parent-child progress liveness propagation contract",
+    "consumer": "stale/recovery scanner and recursive generation workers",
+    "subsystem": "run-lifecycle/recovery-fabric"
+  },
+  "title": "Propagate attributable child progress into parent liveness",
+  "problem": "The live GEN2 end-to-end parent RUN still reports heartbeat_at=10:01:50 and only CLAIMED/STARTED checkpoints while its declared canary subtree contains child RETURN evidence at 10:09:49 and later. A stale detector that only sees the parent RUN can therefore classify a recursively active parent as stale even though attributable child work is durably progressing. Repository activity itself must not be treated as liveness; the missing piece is explicit parent-child progress lineage.",
+  "mission": "Add a bounded, reconstructable parent-child progress signal for recursive/multi-stage opportunities so attributable child lifecycle evidence can prevent false stale recovery without allowing unrelated commits, bare recovery attempts or endlessly spawning descendants to keep a dead parent alive.",
+  "acceptance": [
+    "Every child lifecycle artifact that is allowed to extend parent liveness carries or resolves an explicit parent_run_ref and parent_progress_class.",
+    "The stale scanner computes latest attributable progress from the parent heartbeat/checkpoint plus explicitly linked child STARTED/CHECKPOINT/RETURN signals, never from arbitrary repository commit time.",
+    "A bare recovery-attempt/claim artifact does not count as worker progress unless the recovery protocol separately authorizes that signal class.",
+    "Child-derived liveness is bounded: a parent cannot stay active indefinitely from descendant creation alone; terminal child evidence or periodic bounded parent checkpoints are required.",
+    "Late parent/child returns remain append-only and reconcilable; child liveness evidence never grants promotion or shared write authority.",
+    "A canary with an old parent heartbeat and a fresh explicitly linked child RETURN remains non-recoverable until the child-derived signal itself crosses the stale threshold.",
+    "A control canary with unrelated fresh commits but no linked child progress remains recoverable when its real parent signals are stale."
+  ],
+  "observed_live_evidence": {
+    "parent_opportunity_id": "O-GEN2-END-TO-END-CANARY-V1",
+    "parent_run_ref": "coordination/opportunities/runs/O-GEN2-END-TO-END-CANARY-V1/RUN-O-GEN2-END-TO-END-CANARY-V1-20260917T100150-GPT56SOL.json",
+    "parent_started_at": "2026-09-17T10:01:50-03:00",
+    "parent_heartbeat_at": "2026-09-17T10:01:50-03:00",
+    "child_return_ref": "coordination/opportunities/generations/CANARY-PLANNER-RECURSION-2GEN-V1/G1/jobs/O-GEN-8C0BAFCD44216D27/RETURN.json",
+    "child_returned_at": "2026-09-17T10:09:49-03:00",
+    "finding": "Durable child progress is newer than the parent liveness fields, but the current parent RUN does not expose that progress as a reconstructable liveness edge."
+  },
+  "evidence_refs": [
+    "coordination/opportunities/runs/O-GEN2-END-TO-END-CANARY-V1/RUN-O-GEN2-END-TO-END-CANARY-V1-20260917T100150-GPT56SOL.json",
+    "coordination/opportunities/generations/CANARY-PLANNER-RECURSION-2GEN-V1/G1/jobs/O-GEN-8C0BAFCD44216D27/RETURN.json",
+    "coordination/opportunities/generations/CANARY-PLANNER-RECURSION-2GEN-V1/G1/jobs/O-GEN-3CC0D5A886D6DE64/RETURN.json",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/opportunities/returns/O-SWARM-CRITIC-RECOVERY-V1/RUN-SWARM-RECOVERY-20260917T0914-sol56.json",
+    "coordination/opportunities/returns/O-SWARM-50-WORKER-STRESS-VERIFY-V1/RUN-O-SWARM-50-WORKER-STRESS-VERIFY-V1-20260917T095854-SOL56-6C91.json"
+  ],
+  "value_signals": {
+    "goal_relevance": "Recursive Planner/GEN2 work is a current compounding gate; false takeover can duplicate or corrupt exactly the long-running multi-stage work the canary is trying to prove.",
+    "unblock_value": "Makes stale recovery compatible with recursive children rather than forcing workers to manually refresh parent heartbeat during every child phase.",
+    "information_gain": "Separates genuine attributable progress from arbitrary repository churn and from recovery-attempt noise.",
+    "human_friction_reduction": "Workers can survive chat/runtime timing boundaries without the human deciding whether an apparently stale recursive parent is actually alive."
+  },
+  "dependency_ids": [
+    "O-SWARM-LEASE-RETRY-BUILD-V1",
+    "O-GEN2-END-TO-END-CANARY-V1"
+  ],
+  "candidate_read_scope": [
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/generations/**",
+    "tests/swarm-lease-retry-v1.test.mjs"
+  ],
+  "candidate_write_scope": [
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "tests/swarm-parent-child-liveness-v1.test.mjs",
+    "coordination/canary-evidence/parent-child-liveness/**",
+    "own claim/run/return"
+  ],
+  "risk": {
+    "main": "Treating descendant activity too broadly as parent liveness could hide dead parents indefinitely or let unrelated repository churn suppress recovery.",
+    "mitigation": "Require explicit parent_run_ref attribution, an allowlisted progress class and bounded lease-extension semantics; never infer liveness from path/commit recency alone."
+  },
+  "fresh_critic_required": true,
+  "falsification": [
+    "A parent with an old heartbeat is recovered even though a newer explicitly linked child RETURN is within the active threshold.",
+    "An unrelated commit under the repository refreshes a stale parent's liveness.",
+    "A bare recovery claim with no substantive STARTED/checkpoint proof keeps a dead parent alive.",
+    "Repeated child creation can extend a parent lease forever without terminal progress or bounded checkpoints.",
+    "Parent-child progress lineage cannot be reconstructed from durable refs after the originating chat disappears."
+  ],
+  "dedup_note": "This is distinct from P-1c64c0e1e704-recovery-race-v1, which elects one writer after concurrent recovery contenders appear, and from the existing critic F4 about recovery attempts incorrectly counting as liveness. This proposal addresses the opposite false-negative: real subordinate work is occurring, but its attributable progress is not represented in the parent liveness model.",
+  "source_freshness": {
+    "main_head_before_pin": "29ec9c94d1cf7ff49b369f3f35ed9958a2e51d7a",
+    "epoch_observed": "P3-94c54cd39f41",
+    "note": "Evidence was re-fetched from live main immediately before proposal pinning; the repository was advancing concurrently."
+  },
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "PROPOSAL_DOES_NOT_AUTHORIZE_SHARED_MUTATION"
+  ]
+}
