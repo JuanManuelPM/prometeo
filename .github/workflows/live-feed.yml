@@ -18,15 +18,18 @@ on:
 permissions:
   contents: write
 
+# Never cancel the running publisher. GitHub concurrency keeps at most one running
+# and one pending; newer pushes replace the pending run, so bursts coalesce
+# without starving Live forever.
 concurrency:
   group: prometeo-live-feed
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main
+      - name: Checkout latest main
         uses: actions/checkout@v4
         with:
           ref: main
@@ -40,19 +43,59 @@ jobs:
           node source/.github/scripts/build-live-feed.mjs source /tmp/feed.json
           node source/.github/scripts/normalize-live-feed.mjs source /tmp/feed.json
 
-      - name: Build tiny allocator hint
+      - name: Build tiny claim-ready allocator
         shell: bash
         run: |
           node <<'NODE'
           const fs=require('fs');
           const f=JSON.parse(fs.readFileSync('/tmp/feed.json','utf8'));
           const jobs=(f.projects||[]).flatMap(p=>(p.jobs||[]).map(j=>({...j,project_label:p.label})));
-          const compact=j=>({job_id:j.job_id,dedupe_key:j.dedupe_key||null,project_id:j.project_id||null,project_label:j.project_label||null,title:j.title||j.job_id,priority:j.priority||0,state:j.state,authority_mode:j.authority_mode||null,pin_generation:j.pin_generation||0,last_signal_at:j.last_signal_at||null});
+          const g=n=>String(n).padStart(6,'0');
+          const compact=j=>{
+            const current=Number(j.pin_generation||0);
+            const next=current+1;
+            return {
+              job_id:j.job_id,
+              dedupe_key:j.dedupe_key||null,
+              project_id:j.project_id||null,
+              project_label:j.project_label||null,
+              title:j.title||j.job_id,
+              priority:j.priority||0,
+              state:j.state,
+              authority_mode:j.authority_mode||null,
+              pin_generation:current,
+              next_generation:next,
+              claim_mode:'PORTFOLIO_PIN_CREATE',
+              claim_path:`coordination/portfolio/pins/${j.job_id}/G${g(next)}.json`,
+              predecessor_pin_ref:current?`coordination/portfolio/pins/${j.job_id}/G${g(current)}.json`:null,
+              last_signal_at:j.last_signal_at||null,
+              post_claim_validate:true
+            };
+          };
           const byPriority=(a,b)=>(b.priority||0)-(a.priority||0)||String(a.job_id).localeCompare(String(b.job_id));
-          const recovery=jobs.filter(j=>j.state==='replaceable').sort(byPriority).map(compact).slice(0,30);
           const ready=jobs.filter(j=>['ready','partial'].includes(j.state)).sort(byPriority).map(compact).slice(0,40);
-          const queue_ready=(f.plans||[]).flatMap(p=>(p.items||[]).filter(i=>i.state==='ready').map(i=>({opportunity_id:i.opportunity_id,mission:i.mission,priority:i.priority||0,plan_id:p.id}))).sort((a,b)=>b.priority-a.priority).slice(0,30);
-          const out={schema:'prometeo.fast-allocator/v1',generated_at:f.generated_at,source_sha:f.source_sha||null,truth_boundary:'HINT_ONLY_REVALIDATE_BEFORE_CLAIM',counts:{recovery:recovery.length,ready:ready.length,queue_ready:queue_ready.length},recovery,ready,queue_ready,worker_projection:f.summary?.workers||{},diagnostics:f.diagnostics||{}};
+          const queue_ready=(f.plans||[]).flatMap(p=>(p.items||[]).filter(i=>i.state==='ready').map(i=>({
+            opportunity_id:i.opportunity_id,
+            mission:i.mission,
+            priority:i.priority||0,
+            plan_id:p.id,
+            claim_mode:'OPPORTUNITY_CLAIM_CREATE',
+            claim_path:`coordination/opportunities/claims/${i.opportunity_id}.json`,
+            post_claim_validate:true
+          }))).sort((a,b)=>b.priority-a.priority).slice(0,30);
+          const recovery=jobs.filter(j=>j.state==='replaceable').sort(byPriority).map(compact).slice(0,30);
+          const out={
+            schema:'prometeo.fast-allocator/v2',
+            generated_at:f.generated_at,
+            source_sha:f.source_sha||null,
+            truth_boundary:'OPTIMISTIC_ATOMIC_CREATE_THEN_POST_CLAIM_VALIDATE',
+            max_recovery_snapshot_age_seconds:90,
+            preferred_order:['ready','queue_ready','recovery'],
+            counts:{ready:ready.length,queue_ready:queue_ready.length,recovery:recovery.length},
+            ready,queue_ready,recovery,
+            worker_projection:f.summary?.workers||{},
+            diagnostics:f.diagnostics||{}
+          };
           fs.writeFileSync('/tmp/allocator.json',JSON.stringify(out,null,2)+'\n');
           NODE
 
