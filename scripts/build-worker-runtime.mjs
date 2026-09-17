@@ -86,17 +86,30 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
       const claim=[...w.events].reverse().find(e=>e.event==='CLAIM_RESULT')||null;
       const close=[...w.events].reverse().find(e=>e.event==='CLOSE')||null;
       const pinRefs=repo.pins.get(w.worker_id)||[];
-      const state=close?'CLOSED':claim?.outcome==='WON'?(claim.started?'ACTIVE':'OWNED'):claim?'CLAIM_RESOLVED':routed?'ROUTED':'SEEN';
+      const rawOutcome=String(claim?.outcome||'').toUpperCase();
+      const normalizedOutcome=['WON','WIN','CLAIM_WON'].includes(rawOutcome)?'WON':(rawOutcome||null);
+      const attemptRows=Array.isArray(claim?.attempts)?claim.attempts:[];
+      const outcomeRows=Array.isArray(claim?.outcomes)?claim.outcomes:[];
+      const attemptCount=Number.isFinite(Number(claim?.authority_attempts))?Number(claim.authority_attempts):
+        Number.isFinite(Number(claim?.attempts))?Number(claim.attempts):
+        attemptRows.length?attemptRows.length:
+        outcomeRows.length?outcomeRows.length:0;
+      const collisionCount=Number(claim?.collisions||0)
+        + attemptRows.filter(x=>['CREATE_EXISTS','CAS_LOST','COLLISION'].includes(String(x?.outcome||'').toUpperCase())).length
+        + outcomeRows.filter(x=>['CREATE_EXISTS','CAS_LOST','COLLISION'].includes(String(x||'').toUpperCase())).length;
+      const authorityWon=pinRefs.length>0 || normalizedOutcome==='WON';
+      const state=close?'CLOSED':authorityWon?(claim?.started?'ACTIVE':'OWNED'):claim?'CLAIM_RESOLVED':routed?'ROUTED':'SEEN';
       const anomalies=[];
-      if (claim?.outcome==='WON' && root && !pinRefs.length) anomalies.push('CLAIM_WON_WITHOUT_REPO_PIN');
-      if (pinRefs.length && claim?.outcome!=='WON') anomalies.push('REPO_PIN_WITHOUT_CLAIM_WON_EVENT');
+      if (normalizedOutcome==='WON' && root && !pinRefs.length) anomalies.push('CLAIM_WON_WITHOUT_REPO_PIN');
+      if (pinRefs.length && normalizedOutcome!=='WON') anomalies.push('REPO_PIN_WITHOUT_CANONICAL_WON_EVENT');
       if (close?.outcome==='NO_ALLOCATION' && root && !repo.noalloc.has(w.worker_id)) anomalies.push('NO_ALLOCATION_EVENT_WITHOUT_REPO_RECEIPT');
       return {
         worker_id:w.worker_id,state,first_event_at:w.first_event_at,last_event_at:w.last_event_at,
         routed:routed?{lane:routed.lane||null,candidate_id:routed.candidate_id||null,candidate_title:routed.candidate_title||null,at:routed.server_created_at}:null,
-        claim:claim?{outcome:claim.outcome||null,attempts:Number(claim.attempts||0),candidate_id:claim.candidate_id||null,authority_ref_or_null:claim.authority_ref_or_null||null,started:!!claim.started,at:claim.server_created_at}:null,
-        close:close?{outcome:close.outcome||null,job_id_or_null:close.job_id_or_null||null,result_ref_or_null:close.result_ref_or_null||null,at:close.server_created_at}:null,
+        claim:claim?{outcome:normalizedOutcome,raw_outcome:claim.outcome||null,attempts:attemptCount,collisions:collisionCount,candidate_id:claim.candidate_id||claim.job_id||claim.guide_work_id||null,authority_ref_or_null:claim.authority_ref_or_null||claim.pin_ref||claim.claim_path||null,started:!!claim.started,at:claim.server_created_at}:null,
         repo:{beacon_ref:repo.beacons.get(w.worker_id)||null,pin_refs:pinRefs,no_allocation_ref:repo.noalloc.get(w.worker_id)||null},
+        authority_won:authorityWon,
+        close:close?{outcome:close.outcome||null,job_id_or_null:close.job_id_or_null||close.job_id||close.guide_work_id||null,result_ref_or_null:close.result_ref_or_null||close.return_ref||close.receipt_ref||null,at:close.server_created_at}:null,
         anomalies
       };
     }).sort((a,b)=>Date.parse(a.first_event_at||0)-Date.parse(b.first_event_at||0));
@@ -105,11 +118,12 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
       expected:b.expected_workers,
       observed:workers.length,
       missing_expected:b.expected_workers==null?null:Math.max(0,b.expected_workers-workers.length),
+      extra_observed:b.expected_workers==null?null:Math.max(0,workers.length-b.expected_workers),
       routed:workers.filter(w=>w.routed).length,
       claim_attempts:workers.reduce((n,w)=>n+(w.claim?.attempts||0),0),
-      pin_won:workers.filter(w=>w.claim?.outcome==='WON').length,
-      collisions:workers.filter(w=>String(w.claim?.outcome||'').includes('COLLISION')).length,
-      started:workers.filter(w=>w.claim?.outcome==='WON'&&w.claim?.started).length,
+      pin_won:workers.filter(w=>w.authority_won).length,
+      collisions:workers.reduce((n,w)=>n+(w.claim?.collisions||0),0),
+      started:workers.filter(w=>w.claim?.started).length,
       closed:workers.filter(w=>w.close).length,
       active:workers.filter(w=>w.state==='ACTIVE').length,
       anomalies:workers.reduce((n,w)=>n+w.anomalies.length,0)
