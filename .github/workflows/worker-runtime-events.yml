@@ -1,0 +1,69 @@
+name: Prometeo Worker Runtime Events
+
+on:
+  issue_comment:
+    types: [created]
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build-worker-runtime.mjs'
+      - 'tests/worker-runtime-events-v1.test.mjs'
+      - 'coordination/workers/WORKER_EVENT_STREAM_V1.md'
+      - '.github/workflows/worker-runtime-events.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: read
+
+concurrency:
+  group: prometeo-worker-runtime-events
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event_name != 'issue_comment' || github.event.issue.number == 22
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: source
+          fetch-depth: 1
+
+      - name: Test runtime compiler
+        run: node source/tests/worker-runtime-events-v1.test.mjs
+
+      - name: Fetch append-only event stream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/22/comments?per_page=100" --slurp | jq 'add // []' > /tmp/comments.json
+          node source/scripts/build-worker-runtime.mjs /tmp/comments.json source /tmp/runtime.json
+
+      - name: Checkout public site
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          fetch-depth: 5
+
+      - name: Publish runtime projection
+        run: |
+          set -euo pipefail
+          git -C site config user.name github-actions[bot]
+          git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C site pull --ff-only origin gh-pages
+          mkdir -p site/live
+          cp /tmp/runtime.json site/live/runtime.json
+          git -C site add live/runtime.json
+          if git -C site diff --cached --quiet; then exit 0; fi
+          git -C site commit -m "live: refresh worker wave runtime"
+          for n in 1 2 3; do
+            if git -C site push origin HEAD:gh-pages; then exit 0; fi
+            git -C site fetch origin gh-pages
+            git -C site rebase origin/gh-pages
+          done
+          exit 1
