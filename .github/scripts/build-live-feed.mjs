@@ -87,7 +87,7 @@ function inspectPortfolioJob(project, job) {
   const id = job.job_id;
   const pins = docs(portfolioFiles.filter(x=>x.startsWith(`coordination/portfolio/pins/${id}/`))).sort((a,b)=>generation(a)-generation(b)||ms(a.doc)-ms(b.doc));
   const claims = docs(portfolioFiles.filter(x=>x.startsWith(`coordination/portfolio/claims/${id}/`))).sort((a,b)=>ms(a.doc)-ms(b.doc)||a.path.localeCompare(b.path));
-  const collisions = docs(portfolioFiles.filter(x=>x.startsWith(`coordination/portfolio/collisions/${id}/`)));
+  const collisions = docs(portfolioFiles.filter(x=>x.startsWith(`coordination/portfolio/collisions/${id}/`))).sort((a,b)=>ms(a.doc)-ms(b.doc)||a.path.localeCompare(b.path));
   const returns = docs(portfolioFiles.filter(x=>x.startsWith(`coordination/portfolio/returns/${id}/`))).sort((a,b)=>ms(a.doc)-ms(b.doc)||a.path.localeCompare(b.path));
   const terminalReturn = [...returns].reverse().find(x=>terminal(x.doc)) || null;
   const latestReturn = returns.at(-1) || null;
@@ -124,8 +124,10 @@ function inspectPortfolioJob(project, job) {
     last_signal_at:lastSignalAt,
     replaceable_at:lastSignalAt ? new Date(Date.parse(lastSignalAt)+REPLACE_MS).toISOString() : null,
     collision_count:collisions.length + Math.max(0, claims.length-(authority?1:0)),
-    latest_return:latestReturn ? {outcome:first(latestReturn.doc.outcome,latestReturn.doc.status),summary:latestReturn.doc.summary||null,returned_at:timeOf(latestReturn.doc),worker_id:latestReturn.doc.worker_id||null} : null,
-    terminal_return:terminalReturn ? {outcome:first(terminalReturn.doc.outcome,terminalReturn.doc.status),returned_at:timeOf(terminalReturn.doc),worker_id:terminalReturn.doc.worker_id||null} : null,
+    latest_return:latestReturn ? {path:latestReturn.path,outcome:first(latestReturn.doc.outcome,latestReturn.doc.status),summary:latestReturn.doc.summary||null,returned_at:timeOf(latestReturn.doc),worker_id:latestReturn.doc.worker_id||null} : null,
+    terminal_return:terminalReturn ? {path:terminalReturn.path,outcome:first(terminalReturn.doc.outcome,terminalReturn.doc.status),returned_at:timeOf(terminalReturn.doc),worker_id:terminalReturn.doc.worker_id||null} : null,
+    recent_return_evidence:returns.slice(-3).map(r=>({path:r.path,outcome:first(r.doc.outcome,r.doc.status),returned_at:timeOf(r.doc)})),
+    recent_collision_evidence:collisions.slice(-3).map(r=>({path:r.path,observed_at:timeOf(r.doc)})),
     returns:returns.map(r=>({path:r.path,...r.doc})),
     pins:pins.map(r=>({path:r.path,...r.doc})),
     claims:claims.map(r=>({path:r.path,...r.doc})),
