@@ -1,0 +1,95 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-814fa2f27525-1822f44f",
+  "fingerprint": "pdf-814fa2f27525c1e33c2388d105dd3e79",
+  "created_at": "2026-09-17T09:59:00-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0954-0300-gpt56sol-discovery",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "artifact": "lease/retry recovery hardening follow-up",
+    "consumer": "universal cognitive swarm canary and stress verifier",
+    "subsystem": "swarm-lease-retry"
+  },
+  "problem": "The completed lease/retry canary has a post-build critic NO_SHIP boundary: retryability can be bypassed, overlap proof can collapse unknown into empty, stale generations have no deterministic recovery fence, recovery-attempt creation can count as liveness before STARTED/heartbeat, and generated recovery claim shape diverges from persisted recovery-claim evidence.",
+  "acceptance": [
+    "Retry safety cannot be bypassed when retryable is false.",
+    "Overlap proof is tri-state and UNKNOWN cannot become NO_ACTIVE_OVERLAP.",
+    "Exactly one recovery worker can acquire a deterministic fence per stale generation.",
+    "Recovery attempts do not count as worker liveness until STARTED or heartbeat.",
+    "Generated recovery claim schema is compatible with persisted opportunity recovery claims.",
+    "Existing claims, attempts, returns and late-return evidence remain append-only and preserved.",
+    "No global Current, Human Accepted or Served promotion is performed by this follow-up."
+  ],
+  "title": "Harden lease/retry recovery fencing",
+  "mission": "Patch the existing lease/retry primitives narrowly so stale recovery is retry-proof, overlap-proof, generation-fenced and schema-compatible, while preserving prior evidence and keeping promotion authority out of the worker lane.",
+  "evidence_refs": [
+    "coordination/opportunities/returns/O-SWARM-LEASE-RETRY-BUILD-V1/RUN-O-SWARM-LEASE-RETRY-BUILD-V1-20260917T0043-SOL56.json",
+    "coordination/opportunities/returns/O-SWARM-CRITIC-RECOVERY-V1/RUN-SWARM-RECOVERY-20260917T0914-sol56.json",
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md"
+  ],
+  "value_signals": {
+    "goal_relevance": {
+      "reason": "Recovery correctness is part of the universal-worker canary contract and is required before broad stress/readiness evidence can be trusted.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-CRITIC-RECOVERY-V1/RUN-SWARM-RECOVERY-20260917T0914-sol56.json"
+    },
+    "information_gain": {
+      "reason": "The follow-up converts five critic findings into falsifiable recovery invariants rather than relying on chat-local coordination behavior.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-CRITIC-RECOVERY-V1/RUN-SWARM-RECOVERY-20260917T0914-sol56.json"
+    },
+    "regression_prevention": {
+      "reason": "The original build already has an 11-case suite; a narrow follow-up can add explicit negative tests for retry bypass, UNKNOWN overlap, generation races, pre-run liveness and schema compatibility without rebuilding the subsystem.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-LEASE-RETRY-BUILD-V1/RUN-O-SWARM-LEASE-RETRY-BUILD-V1-20260917T0043-SOL56.json"
+    },
+    "human_friction_reduction": {
+      "reason": "A deterministic recovery fence prevents multiple fresh chats from converging on the same stale generation and removes manual arbitration from the human path.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md"
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-LEASE-RETRY-BUILD-V1",
+    "O-SWARM-CRITIC-RECOVERY-V1"
+  ],
+  "candidate_read_scope": [
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md"
+  ],
+  "candidate_write_scope": [
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs",
+    "coordination/swarm-v1/leases/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": [
+    "retryable=false can still produce a recovery candidate.",
+    "UNKNOWN overlap evidence is treated as no active overlap.",
+    "Two workers can acquire distinct recovery attempts for the same stale generation without one losing a deterministic fence.",
+    "A recovery claim with no STARTED run or heartbeat resets liveness age.",
+    "Generated recovery-claim payload cannot be persisted without schema adaptation.",
+    "The patch rewrites or suppresses prior claim/run/return evidence."
+  ],
+  "dedup_note": "The recovery critic already identified these defects; this proposal does not claim a new defect discovery. It pins the critic-requested implementation follow-up as one deduplicated candidate under the existing Lease/Retry owner instead of opening a competing subsystem or recovery attempt.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY",
+    "LEASE_RETRY_OWNER_OR_STEWARD_MUST_ASSIGN_EXECUTION"
+  ]
+}
