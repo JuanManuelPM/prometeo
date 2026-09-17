@@ -1,11 +1,14 @@
 (()=>{
   const $=id=>document.getElementById(id);
   const FEED='./feed.json';
+  const RUNTIME='./runtime.json';
   const CACHE='prometeo-live-last-feed-v3';
   const INBOX_READ='prometeo-live-inbox-read-v1';
   const POLL=3000;
   let current=null;
   let currentStamp=null;
+  let runtime=null;
+  let runtimeStamp=null;
   let selectedDay=null;
 
   const esc=(v='')=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));
@@ -33,6 +36,52 @@
   function stateClass(s){return s==='recovery'?'working':s}
   function recoveryAt(w,f){const base=w.last_signal_at||w.pin_at||w.start_at||w.first_seen;if(!base)return null;return new Date(Date.parse(base)+thresholds(f).recovery).toISOString()}
   function taskName(w){return w.task&&w.task!=='Buscando trabajo'?w.task:'Buscando trabajo'}
+  function currentBatch(rt){
+    if(!rt?.current_batch)return null;
+    return (rt.batches||[]).find(b=>b.batch_id===rt.current_batch)||null;
+  }
+  function waveStateLabel(w){
+    if(w.close)return w.close.outcome==='RETURNED'?'terminó':String(w.close.outcome||'cerró').toLowerCase().replaceAll('_',' ');
+    if(w.claim?.outcome==='WON')return w.claim.started?'trabajando':'con PIN';
+    if(w.claim)return String(w.claim.outcome||'claim').toLowerCase().replaceAll('_',' ');
+    if(w.routed)return'buscando PIN';
+    return'entró';
+  }
+  function waveStep(w){
+    if(w.close)return [w.close.job_id_or_null,w.close.result_ref_or_null].filter(Boolean).join(' · ')||'cierre durable';
+    if(w.claim?.outcome==='WON')return [w.routed?.candidate_title||w.routed?.candidate_id,w.claim.authority_ref_or_null].filter(Boolean).join(' · ')||'autoridad ganada';
+    if(w.claim)return [w.routed?.candidate_title||w.routed?.candidate_id,String(w.claim.attempts||0)+' intentos'].filter(Boolean).join(' · ');
+    if(w.routed)return [w.routed.candidate_title||w.routed.candidate_id,w.routed.lane].filter(Boolean).join(' · ');
+    return'sin detalle';
+  }
+  function renderWave(rt){
+    runtime=rt||runtime;
+    const b=currentBatch(runtime);
+    if(!b){$('waveBlock').hidden=true;return}
+    $('waveBlock').hidden=false;
+    const x=b.summary||{},expected=x.expected??b.expected_workers??null;
+    $('waveTitle').textContent=(x.active||x.missing_expected)?b.batch_id:'Última · '+b.batch_id;
+    $('waveMeta').textContent=expected?String(x.observed||0)+'/'+String(expected)+' llegaron':String(x.observed||0)+' observados';
+    const stats=[
+      [x.observed||0,'llegaron'],
+      [x.pin_won||0,'PIN ganado'],
+      [x.started||0,'empezaron'],
+      [x.closed||0,'cerraron'],
+      [x.collisions||0,'colisiones'],
+      [x.missing_expected??0,'faltan']
+    ];
+    $('waveSummary').innerHTML=stats.map(([n,l])=>'<div class="waveStat"><strong>'+esc(n)+'</strong><span>'+esc(l)+'</span></div>').join('');
+    const rows=b.workers||[];
+    $('waveWorkers').innerHTML=rows.length?rows.map(w=>{
+      const cls=String(w.state||'seen').toLowerCase();
+      const anomalies=(w.anomalies||[]);
+      return '<div class="waveWorker"><div class="waveWorkerMain"><div class="waveWorkerId">'+esc(shortId(w.worker_id))+'</div><div class="waveWorkerStep">'+esc(waveStep(w))+'</div>'+(anomalies.length?'<div class="waveAnomaly">'+esc(anomalies.join(' · '))+'</div>':'')+'</div><div class="waveWorkerState '+esc(cls)+'">'+esc(waveStateLabel(w))+'</div></div>';
+    }).join(''):'<div class="waveEmpty">Todavía no llegó ningún evento de esta wave.</div>';
+    $('headline').textContent=expected?String(x.observed||0)+'/'+String(expected)+' llegaron · '+String(x.started||0)+' empezaron · '+String(x.closed||0)+' cerraron':String(x.observed||0)+' workers en la wave';
+    const old=current?.summary?.workers?.replaceable||0;
+    $('statusLine').textContent=b.batch_id+' · '+(old?String(old)+' pendientes viejos abajo':'sin backlog viejo dominante');
+  }
+
   function portfolioJob(w,f){
     if(!w.job_id)return null;
     for(const project of f.projects||[])for(const job of project.jobs||[])if(job.job_id===w.job_id)return job;
@@ -104,12 +153,23 @@
     $('statusLine').textContent='6 min sin señal = sospechoso · 10 min = reemplazable';$('activeCount').textContent=active.length?`${active.length} abiertos`:'ninguno';
     const order={replaceable:0,silent:1,suspect:2,working:3,recovery:3,allocating:4};effectiveRows.sort((a,b)=>(order[a._state]-order[b._state])||Date.parse(a.first_seen||0)-Date.parse(b.first_seen||0));$('active').innerHTML=effectiveRows.length?effectiveRows.map(w=>activeCard(w,f)).join(''):'<div class="empty">No hay workers abiertos.</div>';
     const finished=workers.filter(w=>w.end_at&&dayKey(w.first_seen)===today()).sort((a,b)=>Date.parse(b.end_at)-Date.parse(a.end_at));$('finished').innerHTML=finished.length?finished.slice(0,8).map(finishedCard).join(''):'<div class="empty">Todavía no terminó ninguno hoy.</div>';
-    renderDays(f);renderInbox(f);renderProjects(f);renderProduction(f);refreshClocks(cached);
+    renderDays(f);renderInbox(f);renderProjects(f);renderProduction(f);if(runtime)renderWave(runtime);refreshClocks(cached);
   }
 
   function refreshClocks(cached=false){
     if(!current)return;const age=ageMs(current.generated_at),ok=age<30000,late=age<120000;$('dot').className='dot '+(ok?'ok':late?'late':'stale');$('age').textContent=(cached?'cache · ':'')+(age<60000?`${Math.round(age/1000)}s`:`${Math.round(age/60000)}m`);
     document.querySelectorAll('.countdown').forEach(el=>{const s=el.dataset.state,r=el.dataset.recoveryAt;if(s==='replaceable')el.textContent='reemplazable ahora';else if(s==='silent')el.textContent='no consiguió PIN';else if(r)el.textContent=`reemplazo en ${minsLeft(r)}m`});
+  }
+
+  async function loadRuntime(){
+    try{
+      const r=await fetch(RUNTIME+'?t='+Date.now(),{cache:'no-store'});
+      if(!r.ok)throw new Error(r.status);
+      const rt=await r.json();
+      const stamp=rt.generated_at||String(rt.event_count||0);
+      runtime=rt;
+      if(stamp!==runtimeStamp){runtimeStamp=stamp;renderWave(rt)}
+    }catch(e){if(runtime)renderWave(runtime)}
   }
 
   async function load(){
@@ -119,5 +179,5 @@
 
   document.querySelectorAll('[data-go]').forEach(btn=>btn.onclick=()=>{const id=btn.dataset.go;$(id).scrollIntoView({behavior:'smooth',inline:'start',block:'nearest'});if(id==='inboxView'){try{localStorage.setItem(INBOX_READ,String(Date.now()))}catch{}$('inboxCount').textContent=''}});
   $('rail').addEventListener('scroll',()=>{const views=[...document.querySelectorAll('.view')],idx=Math.round($('rail').scrollLeft/Math.max(1,$('rail').clientWidth));document.querySelectorAll('.tabs button').forEach((b,i)=>b.classList.toggle('selected',i===idx))},{passive:true});
-  load();setInterval(load,POLL);setInterval(()=>{if(current){render(current);}},30000);
+  load();loadRuntime();setInterval(load,POLL);setInterval(loadRuntime,POLL);setInterval(()=>{if(current){render(current);}},30000);
 })();
