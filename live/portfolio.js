@@ -23,10 +23,17 @@
   async function readMany(paths){return Promise.all(paths.map(async path=>({path,doc:await raw(path,true)})))}
   function ts(doc){return first(doc?.returned_at,doc?.completed_at,doc?.claimed_at,doc?.created_at,doc?.updated_at,doc?.timestamp)||''}
   function millis(doc){const n=new Date(ts(doc)).getTime();return Number.isFinite(n)?n:0}
-  function fmt(t){if(!t)return'—';const d=new Date(t);if(Number.isNaN(d.getTime()))return'—';return new Intl.DateTimeFormat('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(d)}
   function terminal(ret){return terminalOutcomes.has(lower(first(ret?.outcome,ret?.status,ret?.result)))}
   function activeClaim(claim){if(!claim)return false;const exp=claim.expires_at?new Date(claim.expires_at).getTime():0;return exp?exp>Date.now():true}
   function stateLabel(s){return ({ready:'listo',working:'trabajando',done:'hecho',partial:'parcial',blocked:'bloqueado'})[s]||s}
+  function uniqueJobs(seed,derived){
+    const map=new Map();
+    [...seed.map(j=>({...j,origin:'seed'})),...derived.map(j=>({...j,origin:'derived'}))].forEach(j=>{
+      const key=j.dedupe_key||j.job_id;
+      if(!map.has(key)||j.origin==='seed')map.set(key,j);
+    });
+    return [...map.values()];
+  }
 
   async function inspectJob(project, job, paths){
     const claimPrefix=`coordination/portfolio/claims/${job.job_id}/`;
@@ -54,16 +61,17 @@
     const working=jobs.filter(j=>j.state==='working').length;
     const ready=jobs.filter(j=>j.state==='ready'||j.state==='partial').length;
     const blocked=jobs.filter(j=>j.state==='blocked').length;
-    const spawns=jobs.reduce((n,j)=>n+(j.spawn_candidates?.length||0),0);
+    const derived=jobs.filter(j=>j.origin==='derived').length;
+    const candidates=jobs.reduce((n,j)=>n+(j.spawn_candidates?.length||0),0);
     const finishedReturns=jobs.filter(j=>j.terminal_return).length;
-    const reproduction=finishedReturns?spawns/finishedReturns:0;
+    const reproduction=finishedReturns?derived/finishedReturns:0;
 
     if($('portfolioProjects'))$('portfolioProjects').textContent=projects.length;
     if($('portfolioReady'))$('portfolioReady').textContent=ready;
     if($('portfolioWorking'))$('portfolioWorking').textContent=working;
     if($('portfolioDone'))$('portfolioDone').textContent=done;
     if($('portfolioReproduction'))$('portfolioReproduction').textContent=`×${reproduction.toFixed(1)}`;
-    if($('portfolioSummary'))$('portfolioSummary').textContent=`${jobs.length} trabajos · ${ready} listos · ${working} trabajando · ${done} hechos · ${blocked} bloqueados · ${spawns} sucesores candidatos`;
+    if($('portfolioSummary'))$('portfolioSummary').textContent=`${jobs.length} trabajos · ${ready} listos · ${working} trabajando · ${done} hechos · ${derived} sucesores derivados · ${candidates} candidatos no materializados`;
 
     const html=projects.sort((a,b)=>(b.priority||0)-(a.priority||0)).map(p=>{
       const pj=p.jobs||[];
@@ -73,15 +81,17 @@
       const next=pj.filter(j=>j.state==='working'||j.state==='ready'||j.state==='partial').sort((a,b)=>(b.priority||0)-(a.priority||0))[0];
       const pct=pj.length?Math.round(pd/pj.length*100):0;
       const dots=pj.map(j=>`<i class="pjobdot ${j.state}" title="${esc(stateLabel(j.state)+' · '+j.title)}"></i>`).join('');
-      const items=pj.slice().sort((a,b)=>(b.priority||0)-(a.priority||0)).slice(0,4).map(j=>{
+      const items=pj.slice().sort((a,b)=>(b.priority||0)-(a.priority||0)).slice(0,5).map(j=>{
         const worker=j.active_claim?first(j.active_claim.worker_id,j.active_claim.worker,j.active_claim.claim_id):'';
         const ret=j.latest_return?first(j.latest_return.summary,j.latest_return.outcome):'';
-        return `<div class="pjob ${j.state}"><span class="pstate">${esc(stateLabel(j.state))}</span><span class="pjobtitle">${esc(j.title)}</span>${worker?`<span class="pworker">${esc(worker)}</span>`:''}${ret&&!worker?`<span class="pworker">${esc(String(ret).slice(0,64))}</span>`:''}</div>`;
+        const origin=j.origin==='derived'?' ↳':'';
+        return `<div class="pjob ${j.state}"><span class="pstate">${esc(stateLabel(j.state))}${origin}</span><span class="pjobtitle">${esc(j.title)}</span>${worker?`<span class="pworker">${esc(worker)}</span>`:''}${ret&&!worker?`<span class="pworker">${esc(String(ret).slice(0,64))}</span>`:''}</div>`;
       }).join('');
       const surface=p.surface?.public_url?`<a class="plink" href="${esc(p.surface.public_url)}" target="_blank" rel="noreferrer">abrir</a>`:'';
       const nextLine=next?`${stateLabel(next.state)} · ${next.title}`:'sin trabajo abierto';
+      const derivedCount=pj.filter(j=>j.origin==='derived').length;
       return `<article class="projectrow" data-project="${esc(p.project_id)}">
-        <div class="pidentity"><div class="pname">${esc(p.label)}</div><div class="pmeta">P${esc(p.priority??'—')} · ${esc(p.status||'')}</div>${surface}</div>
+        <div class="pidentity"><div class="pname">${esc(p.label)}</div><div class="pmeta">P${esc(p.priority??'—')} · ${esc(p.status||'')}${derivedCount?` · +${derivedCount} derivados`:''}</div>${surface}</div>
         <div class="pbody"><div class="pgoal">${esc(p.goal||'')}</div><div class="pnext">${esc(nextLine)}</div><div class="pjoblist">${items}</div></div>
         <div class="pprogress"><div class="pdots">${dots||'<i class="pjobdot blocked"></i>'}</div><div class="pcount"><strong>${pd}/${pj.length}</strong><span>cerrados</span></div><div class="psmall">${pw} trabajando · ${pr} listos</div><div class="pbar"><i style="width:${pct}%"></i></div></div>
       </article>`;
@@ -93,7 +103,19 @@
     const map=$('projectMap');if(!map)return;
     try{
       const [portfolio,paths]=await Promise.all([raw('coordination/portfolio/PORTFOLIO.json'),tree()]);
-      const projects=await Promise.all((portfolio.projects||[]).map(async p=>({...p,jobs:await Promise.all((p.jobs||[]).map(j=>inspectJob(p,j,paths)))})));
+      const derivedPaths=paths.filter(p=>/^coordination\/portfolio\/derived\/[^/]+\/[^/]+\.json$/.test(p));
+      const derivedRows=(await readMany(derivedPaths)).filter(x=>x.doc);
+      const derivedByProject=new Map();
+      derivedRows.forEach(({doc,path})=>{
+        if(!doc.project_id||!doc.job_id)return;
+        const arr=derivedByProject.get(doc.project_id)||[];
+        arr.push({...doc,source_path:path});
+        derivedByProject.set(doc.project_id,arr);
+      });
+      const projects=await Promise.all((portfolio.projects||[]).map(async p=>{
+        const merged=uniqueJobs(p.jobs||[],derivedByProject.get(p.project_id)||[]);
+        return {...p,jobs:await Promise.all(merged.map(j=>inspectJob(p,j,paths)))};
+      }));
       render(projects);
       map.dataset.state='ok';
     }catch(err){
