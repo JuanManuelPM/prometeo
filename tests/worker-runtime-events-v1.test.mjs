@@ -23,7 +23,16 @@ assert.equal(r.batches[0].summary.observed,2);
 assert.equal(r.batches[0].summary.routed,2);
 assert.equal(r.batches[0].summary.claim_attempts,3);
 assert.equal(r.batches[0].summary.pin_won,1);
+assert.equal(r.batches[0].summary.extra_observed,0);
 assert.equal(r.batches[0].summary.collisions,1);
+
+const aliases=compileRuntime([
+  c(6,'2026-09-17T22:02:10Z',{...base,worker_id:'w3',event:'ROUTED',lane:'recovery',candidate_id:'job-c'}),
+  c(7,'2026-09-17T22:02:12Z',{...base,worker_id:'w3',event:'CLAIM_RESULT',outcome:'WIN',authority_attempts:3,outcomes:['CREATE_EXISTS','CREATE_EXISTS','CLAIM_WON'],started:true})
+],null,'2026-09-17T22:02:20Z');
+assert.equal(aliases.batches[0].workers[0].claim.outcome,'WON');
+assert.equal(aliases.batches[0].workers[0].claim.attempts,3);
+assert.equal(aliases.batches[0].workers[0].claim.collisions,2);
 assert.equal(r.batches[0].summary.started,1);
 assert.equal(r.batches[0].summary.closed,1);
 assert.equal(r.batches[0].workers.find(x=>x.worker_id==='w1').state,'CLOSED');
