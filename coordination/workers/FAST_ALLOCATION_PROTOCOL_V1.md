@@ -1,98 +1,123 @@
-# Prometeo Fast Allocation Protocol v1
+# Prometeo Fast Allocation Protocol v2
 
 Status: CANARY / binding for `/wc`.
 
-Purpose: prevent disposable worker chats from spending minutes loading context before they own useful work.
+Purpose: a disposable worker must spend its time DOING owned work, not proving for minutes that it may try to own work.
 
-## Core rule
+## Hard pre-claim budget
 
-A fresh `/wc` has two phases.
+Before a PIN/claim the worker may do ONLY:
 
-### PHASE A — CLAIM FIRST
+1. load the canonical `/wc` bootstrap;
+2. create its launch beacon;
+3. read ONE allocator snapshot;
+4. make atomic CREATE attempts against exact claim paths supplied/derivable from that snapshot.
 
-Before deep context, archaeology, planning, page loading or implementation:
+Forbidden before ownership:
+- broad repo archaeology;
+- directory listings of pins/claims/returns/heartbeats;
+- Master Context, Guide, page, verification or project context;
+- reading G1 then G2 then heartbeats then returns to decide whether to try;
+- web search for allocator/protocol files;
+- refreshing/rebuilding Live;
+- analysis of another worker's history.
 
-1. Load stable entry + Global Agent Constitution.
-2. Load `WORKER_REGISTRY_PROTOCOL_V1.md` and create the unique launch beacon.
-3. Read the tiny public allocator hint: `https://juanmanuelpm.github.io/prometeo/live/allocator.json`.
-4. Prefer candidates in this order:
-   - retry-safe `recovery` work;
-   - ready executable/verification work;
-   - ready queue work;
-   - one deterministic Guide/Planner/Integrator/Rescate fallback when the frontier is thin.
-5. Revalidate the exact candidate against current durable state.
-6. Atomically win its normal claim or deterministic portfolio PIN.
-7. Persist STARTED.
+Those checks belong to the allocator/compiler or to post-claim execution.
 
-Only after step 7 may the worker load the deeper context required by that exact job.
+## Allocator read
 
-`allocator.json` is a hint/index, never authority. Its entries must be revalidated before mutation.
+Read EXACTLY one of these, without web search:
 
-## Allocation budget
+1. GitHub repo file `gh-pages:live/allocator.json` when the GitHub connector is available;
+2. otherwise direct URL `https://raw.githubusercontent.com/JuanManuelPM/prometeo/gh-pages/live/allocator.json`.
 
-Do not burn a chat on allocator archaeology.
+Do not search `juanmanuelpm.github.io` for it.
 
-- Try at most 3 concrete claim/PIN candidates in one short allocation cycle.
-- A lost race means re-enter immediately and try a different candidate; do not reread broad project history.
-- If no candidate can be owned, evaluate exactly one deterministic metabolism/guide fallback using `METABOLISM_POLICY_V1.json`.
-- If that fallback is already owned, cannot be created safely, or no safe useful work exists, write one append-only no-allocation receipt and stop.
+The allocator is a hint, not product authority. Atomic create-if-absent remains the ownership primitive.
 
-No-assignment receipt:
+## Candidate order
 
-`coordination/workers/no-allocation/<worker_id>.json`
+Prefer CHEAP UNOWNED work before recovery:
 
-Minimum fields:
+1. `ready` portfolio work;
+2. `queue_ready` normal work;
+3. only then `recovery` work;
+4. tiny deterministic planner fallback only when the allocator exposes no useful candidate.
 
-```json
-{
-  "schema": "prometeo.worker-no-allocation/v1",
-  "worker_id": "<same worker id>",
-  "observed_at": "<ISO-8601>",
-  "attempts": 0,
-  "reason": "NO_CLAIMABLE_WORK|RACES_LOST|BOUNDARY",
-  "source_head": "<observed main head>",
-  "next_action": "STOP_NO_RECOVERY"
-}
-```
+Reason: ready work can normally be claimed with one create. Recovery is inherently more expensive and must never consume workers while clean ready work exists.
 
-A worker with no PIN/claim owns nothing. It MUST NOT create recovery work for itself and nobody should launch a replacement specifically for that worker.
+## Optimistic claim
 
-## PHASE B — EXECUTE DEEPLY
+For portfolio candidates use the allocator's `claim_path` when present. Otherwise derive:
 
-Once the worker owns a job:
+`next_generation = pin_generation + 1`
 
-- load only the job-specific context, page plates, authority, protocols and evidence needed;
-- execute through acceptance criteria;
-- checkpoint/heartbeat during longer work;
+`coordination/portfolio/pins/<job_id>/G<next_generation_6d>.json`
+
+For ready work with no previous generation this is G000001.
+
+For normal queue work use:
+
+`coordination/opportunities/claims/<opportunity_id>.json`
+
+### Critical rule
+
+DO NOT pre-read the candidate's pin directory, claims, returns or heartbeats.
+
+Attempt the atomic CREATE first.
+
+- CREATE succeeds -> ownership reservation won; persist STARTED and enter post-claim validation.
+- CREATE_EXISTS / CAS_LOST -> race lost; immediately try the next allocator candidate.
+- transport/authority failure -> try one alternate exact candidate when safe, otherwise close cleanly.
+
+At most 3 atomic candidate attempts. The target is seconds, not minutes.
+
+## Post-claim validation
+
+Only AFTER winning the PIN/claim:
+
+- load the exact job definition and required protocol/context;
+- verify no terminal/superseding state makes the allocator hint stale;
+- if stale, perform NO substantive mutation, write a bounded `STALE_ALLOCATOR_ABORT`/return receipt, and immediately re-enter fast allocation;
+- otherwise execute deeply through acceptance criteria.
+
+A rare stale reservation is cheaper and safer than making every worker perform multi-minute archaeology before every claim.
+
+## Recovery
+
+Recovery is last among prepared candidates.
+
+A recovery candidate from a fresh allocator may optimistically attempt the exact next deterministic generation. Atomic uniqueness prevents two recovery winners for the same generation. After winning, post-claim validation checks retry safety and newer terminal/liveness evidence before substantive mutation.
+
+If the allocator snapshot is obviously stale (>90 seconds old), skip recovery candidates rather than doing manual recovery archaeology. Ready atomic claims may still be attempted because create-if-absent safely rejects already-owned work.
+
+## No allocation
+
+If 3 fast CREATE attempts fail, or the allocator has no usable candidate:
+
+create `coordination/workers/no-allocation/<worker_id>.json` with `next_action=STOP_NO_RECOVERY` and STOP.
+
+Do not spend minutes inventing work. Do not create a worker to repair this worker. No PIN/claim means no recovery debt.
+
+The planner/metabolism layer must make useful work visible in the allocator; individual surplus workers are not the place to rediscover the entire project.
+
+## After ownership
+
+Now load only job-specific context and execute normally:
+- CAS/re-fetch mutable targets;
+- heartbeat on longer work;
 - RETURN durably;
-- immediately re-enter Phase A in the same chat when context remains safe.
+- materialize grounded successors when authorized;
+- re-enter this fast allocation phase after RETURN.
 
-The speed optimization applies only before ownership. It does not weaken evidence, verification, authority, CAS, page identity or publication laws during execution.
+## Success target
 
-## Recovery semantics
+Normal launch:
+`BEACON -> allocator -> CREATE PIN/claim -> STARTED`
 
-Recovery exists only for work that acquired authority and then went silent.
+Expected pre-claim shape: a handful of tool operations, normally under ~30 seconds.
 
-- no PIN/claim -> no recovery, no replacement debt;
-- authoritative job signal <6m -> active;
-- 6–10m -> suspect;
-- >=10m + retry-safe -> recovery candidate;
-- a newer valid recovery PIN supersedes older owner attempts for the human-facing Live projection.
+Surplus launch:
+`BEACON -> <=3 CREATE attempts -> NO_ALLOCATION -> STOP`
 
-## Human-facing projection
-
-Live should keep no-allocation launches out of the main `Ahora` list after a short grace period. They may contribute to a compact diagnostic count such as `lanzamientos sin trabajo`, but they are not `trabajando`, `reemplazable`, or jobs needing rescue.
-
-Historical/superseded PIN generations are evidence, not simultaneous active workers. Only the latest authoritative generation for a job may appear as that job's current owner.
-
-## Success condition
-
-Repeated `/wc` launches should rapidly become one of:
-
-`PIN/CLAIM -> WORK -> RETURN -> REALLOCATE`
-
-or, when capacity exceeds useful work:
-
-`BEACON -> bounded claim attempts -> NO_ALLOCATION -> STOP`
-
-No multi-minute `Buscando trabajo` limbo, and no worker swarm devoted to repairing workers that never owned work.
+No directory archaeology. No multi-minute `Buscando trabajo`.
