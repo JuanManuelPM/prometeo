@@ -67,6 +67,10 @@ must('wc', wc, 'ROUTED');
 must('wc', wc, 'CLAIM_RESULT');
 must('wc', wc, 'CLOSE');
 must('wc', wc, 'Issue #22');
+must('wc', wc, 'candidate.required_capabilities');
+must('wc', wc, 'CAPABILITY_MISMATCH_PRECLAIM');
+must('wc', wc, 'Unknown or ambiguous capability is NOT absence');
+must('wc', wc, 'Never read repository/project context to prove capability fit.');
 
 
 const fast = read(root, 'coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md');
@@ -88,6 +92,10 @@ must('fast-allocation', fast, 'candidate.claim_payload_shape');
 must('fast-allocation', fast, 'ALLOCATOR_PIN_PAYLOAD_INVALID');
 must('fast-allocation', fast, '<now_plus_10m_iso>');
 must('fast-allocation', fast, 'Never CREATE an immutable malformed pin');
+must('fast-allocation', fast, 'candidate.required_capabilities');
+must('fast-allocation', fast, 'CAPABILITY_MISMATCH_PRECLAIM');
+must('fast-allocation', fast, 'Unknown or ambiguous capability is NOT absence');
+must('fast-allocation', fast, 'does not consume an authority CREATE attempt');
 
 const eventProtocol = read(root, 'coordination/workers/WORKER_EVENT_STREAM_V1.md');
 must('worker-events', eventProtocol, 'Issue: https://github.com/JuanManuelPM/prometeo/issues/22');
