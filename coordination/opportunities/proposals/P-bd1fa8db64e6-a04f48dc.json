@@ -1,0 +1,81 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-bd1fa8db64e6-a04f48dc",
+  "fingerprint": "pdf-bd1fa8db64e602ed32421bd7a5d5fb19",
+  "created_at": "2026-09-17T10:38:37-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T103837-0300-sol56-discovery-recovery-race",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "output": "atomic-recovery-claim-dedup-canary",
+    "owner": "chat-object-prometeo-chat-control-main",
+    "privacy": "public-coordination-only",
+    "scope": "stale-recovery-control"
+  },
+  "problem": "Stale recovery permits multiple concurrent recovery claims for one opportunity, causing duplicate takeover attempts and coordination churn even when product mutation is later avoided.",
+  "acceptance": [
+    "Two or more concurrent recovery attempts for the same opportunity yield exactly one active recovery claimant.",
+    "Losers preserve collision evidence and perform no substantive target mutation.",
+    "Late original or recovery returns remain reconcilable append-only evidence.",
+    "No Current, Human Accepted, Served, or queue authority promotion occurs."
+  ],
+  "title": "Atomic recovery-claim dedup canary",
+  "mission": "Implement and verify host-level create-if-absent uniqueness for stale-recovery takeover so one opportunity can have at most one active recovery claimant at a time, while preserving losing collision evidence, late returns, original lineage and all authority boundaries. Reuse the existing recovery protocol and discovery/claim atomicity patterns rather than adding a second scheduler.",
+  "evidence_refs": [
+    "coordination/opportunities/returns/O-SWARM-PAGE-THREAD-BRIDGE-V1/RUN-O-SWARM-PAGE-THREAD-BRIDGE-V1-REC-20260917T0951-SOL56-R2.json",
+    "coordination/opportunities/returns/O-SWARM-PAGE-THREAD-BRIDGE-V1/RUN-O-SWARM-PAGE-THREAD-BRIDGE-V1-REC2-20260917T0952-SOL56B.json",
+    "coordination/opportunities/returns/O-SWARM-PAGE-THREAD-BRIDGE-V1/RUN-O-SWARM-PAGE-THREAD-BRIDGE-V1-REC2-20260917T0953-GPT56SOL.json",
+    "coordination/opportunities/runs/O-SURFACE-FACULTAD_DIGITAL-DISCOVER-V1/RUN-O-SURFACE-FACULTAD_DIGITAL-DISCOVER-V1-REC3-20260917T103521-SOL56-2A7F.json",
+    "coordination/opportunities/runs/O-SURFACE-PROMETEO_MOBILE-PLAN-V1/RUN-O-SURFACE-PROMETEO_MOBILE-PLAN-V1-REC-20260917T1034-GPT56SOL-R2.json",
+    "coordination/opportunities/runs/O-SURFACE-PROMETEO_MOBILE-REUSE-V1/RUN-O-SURFACE-PROMETEO_MOBILE-REUSE-V1-REC2-20260917T103250-SOL56-A7D4.json",
+    "coordination/swarm-v1/discovery/DISCOVERY_DEDUP_CONTRACT_V1.json",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+  ],
+  "value_signals": {
+    "incident_repair": {
+      "reason": "Page Thread recovery produced multiple concurrent takeover attempts for one opportunity; later workers had to stop or supersede duplicate recovery after detecting the qualifying pair.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-PAGE-THREAD-BRIDGE-V1/RUN-O-SWARM-PAGE-THREAD-BRIDGE-V1-REC2-20260917T0952-SOL56B.json"
+    },
+    "human_friction_reduction": {
+      "reason": "A unique active recovery claimant reduces coordination churn without asking the human to choose among competing recovery chats.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/PROMETEO_MASTER_CONTEXT_V1.md"
+    },
+    "regression_prevention": {
+      "reason": "The current stale protocol preserves append-only evidence but concurrent recovery claims can still race; a host-level uniqueness canary tests the missing collision boundary directly.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+    },
+    "unblock_value": {
+      "reason": "Mass /wc recovery is now exercising stale lanes across surface and GEN2 work; preventing recovery stampedes protects useful throughput as parallelism rises.",
+      "evidence_ref": "coordination/opportunities/runs/O-GEN2-END-TO-END-CANARY-V1/RUN-O-GEN2-END-TO-END-CANARY-V1-REC-20260917T103511-SOL56-6B31.json"
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-LEASE-RETRY-BUILD-V1"
+  ],
+  "candidate_read_scope": [
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**",
+    "coordination/swarm-v1/leases/**",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "scripts/swarm-lease-lib.mjs"
+  ],
+  "candidate_write_scope": [
+    "coordination/swarm-v1/recovery-claim-dedup/**",
+    "scripts/** bounded recovery-claim helper",
+    "tests/** bounded recovery-race canary",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "falsification": "If current host-level recovery claiming already proves exactly-one active claimant under true concurrent repository writes, with losers unable to overwrite and with late returns preserved, this proposal should be closed as duplicate/no-op rather than implemented.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
