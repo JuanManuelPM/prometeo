@@ -95,4 +95,6 @@ for (const n of [2,5]) {
   assert.equal(c.claim_mode,'PORTFOLIO_BARRIER_TIMEOUT');
 }
 
+await import('./fast_allocator_capability_fit_v1.mjs');
+
 console.log('FAST_ALLOCATOR_CONTENTION_BARRIER_ROUTING_PASS');
