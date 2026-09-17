@@ -30,7 +30,7 @@ jobs:
           let browser;
           try{
             await sleep(500);
-            browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH||'"$CHROME"',headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+            browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
             const page=await browser.newPage();
             await page.goto('http://127.0.0.1:8766/',{waitUntil:'domcontentloaded'});
             const diag=await page.evaluate(async url=>{
@@ -39,9 +39,11 @@ jobs:
               const clean=text.replace(/\s+/g,'');
               const invalid=[];
               for(let i=0;i<clean.length&&invalid.length<32;i++) if(!/[A-Za-z0-9+/=]/.test(clean[i])) invalid.push({index:i,char:clean[i],codePoint:clean.codePointAt(i),hex:'U+'+clean.codePointAt(i).toString(16).toUpperCase().padStart(4,'0')});
+              const firstInvalid=invalid.length?invalid[0].index:null;
+              const corruptContext=firstInvalid===null?null:clean.slice(Math.max(0,firstInvalid-64),Math.min(clean.length,firstInvalid+128));
               let atobResult='PASS',decodedLength=null,atobError=null;
               try{decodedLength=atob(clean).length}catch(e){atobResult='FAIL';atobError=String(e)}
-              return {url,status:res.status,statusText:res.statusText,ok:res.ok,type:res.type,contentType:res.headers.get('content-type'),contentLengthHeader:res.headers.get('content-length'),etag:res.headers.get('etag'),textLength:text.length,cleanLength:clean.length,cleanMod4:clean.length%4,prefix:text.slice(0,80),suffix:text.slice(-80),invalidCountFirst32:invalid.length,invalid,atobResult,decodedLength,atobError};
+              return {url,status:res.status,statusText:res.statusText,ok:res.ok,type:res.type,contentType:res.headers.get('content-type'),contentLengthHeader:res.headers.get('content-length'),etag:res.headers.get('etag'),textLength:text.length,cleanLength:clean.length,cleanMod4:clean.length%4,prefix:text.slice(0,80),suffix:text.slice(-80),invalidCountFirst32:invalid.length,invalid,firstInvalid,corruptContext,atobResult,decodedLength,atobError};
             },url);
             fs.writeFileSync('/tmp/jose-v12-payload-diag.json',JSON.stringify(diag,null,2));
             console.log('SOURCE_DIAG='+JSON.stringify(diag));
