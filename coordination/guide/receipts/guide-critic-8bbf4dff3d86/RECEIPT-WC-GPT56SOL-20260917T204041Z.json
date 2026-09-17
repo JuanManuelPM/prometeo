@@ -1,0 +1,38 @@
+{
+  "schema": "prometeo.guide-receipt/v1",
+  "guide_work_id": "guide-critic-8bbf4dff3d86",
+  "receipt_id": "RECEIPT-WC-GPT56SOL-20260917T204041Z",
+  "worker_id": "wc-gpt56sol-20260917T173200-0300",
+  "role": "GUIDE_CRITIC",
+  "created_at": "2026-09-17T20:40:41Z",
+  "trigger": "MISSING_CABLE",
+  "evidence": [
+    "main@0e276d9e49d70722d4e99a1155d7d93b1e35721e",
+    "tree@5bd318f05e8863d6a62ff897367b861400c91325",
+    "scripts/compile-frontier-pressure.mjs@blob:31ae33cd376f62f9ecd1b1b998381d3ef320055a",
+    "coordination/portfolio/evidence/guide-critic-8bbf4dff3d86/CRITIC-SUPERSEDED-OWNER-LIVENESS-20260917T203947Z.json",
+    "coordination/portfolio/pins/guide-critic-8bbf4dff3d86/G000001.json",
+    "coordination/portfolio/pins/guide-critic-8bbf4dff3d86/G000002.json",
+    "coordination/portfolio/pins/guide-critic-8bbf4dff3d86/G000003.json",
+    "coordination/efficiency/RATCHET_BASELINE_V1.json#EFF004"
+  ],
+  "diagnosis": "The frontier-pressure compiler uses highest generation per job for claimability but counts all historical nonterminal pin generations in ownerRows when deriving ACTIVE/STALE/REPLACEABLE metrics and REPLACEABLE_PRESSURE. On the live guide-critic chain, G1 and G2 are superseded+replaceable while G3 is current+active, so one current job contributes two false replaceable rows. This violates EFF004 and can induce false Guide recovery pressure.",
+  "intervention": "Persisted an exact-head critic reproduction and created one bounded deduplicated implementation/verification successor that suppresses superseded generations from current liveness pressure while retaining history and failing closed on ambiguous highest-generation evidence. Reused the pre-existing CI live-executor job for the separate whole-snapshot execution boundary instead of creating duplicate work.",
+  "created_jobs": [
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-frontier-pressure-superseded-owner-suppression-v1.json"
+  ],
+  "consumed_returns": [
+    "coordination/portfolio/returns/portfolio-frontier-pressure-compiler-v1/return-wc-chatgpt-20260917T1916Z-b8e4a2.json"
+  ],
+  "changed_paths": [
+    "coordination/portfolio/evidence/guide-critic-8bbf4dff3d86/CRITIC-SUPERSEDED-OWNER-LIVENESS-20260917T203947Z.json",
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-frontier-pressure-superseded-owner-suppression-v1.json",
+    "coordination/guide/receipts/guide-critic-8bbf4dff3d86/RECEIPT-WC-GPT56SOL-20260917T204041Z.json"
+  ],
+  "tests": [
+    "Static exact-byte inspection at main 0e276d9e49d70722d4e99a1155d7d93b1e35721e confirms ownerRows retains every pin generation while ownerByJob alone collapses to highest generation.",
+    "Live durable pin-chain classification at 2026-09-17T20:35:15Z: G1 REPLACEABLE (~67.92m), G2 REPLACEABLE (~30.62m using allocator last signal 20:04:38Z), G3 ACTIVE (~0.40m); only G3 is current authority.",
+    "Duplicate check: existing frontier-pressure dedupe repair concerns terminal dedupe replay, not superseded-generation liveness; existing CI live executor already covers exact whole-repo execution."
+  ],
+  "remaining_boundary": "This chat host could not execute the persisted compiler against a full repository checkout because local DNS/network is unavailable and the GitHub connector cannot materialize a binary source archive. Exact whole-snapshot execution is already represented by coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-frontier-pressure-ci-live-executor-v1.json; this critic does not duplicate it."
+}
