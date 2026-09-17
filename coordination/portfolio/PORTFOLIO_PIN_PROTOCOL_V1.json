@@ -1,0 +1,55 @@
+{
+  "schema": "prometeo.portfolio-pin-protocol/v1",
+  "status": "CANARY",
+  "purpose": "Give each portfolio job one deterministic create-if-absent collision point per attempt generation so concurrent /wc workers cannot all become execution owners while preserving append-only claims, returns and recovery lineage.",
+  "authority_boundary": "A portfolio pin grants only the bounded candidate execution authority already declared by the selected seed/derived job. It never grants Current, Human Accepted, Served or production /w authority.",
+  "paths": {
+    "pin_generation": "coordination/portfolio/pins/<job_id>/G<generation_6d>.json",
+    "claim_receipt": "coordination/portfolio/claims/<job_id>/<claim_id>.json",
+    "return_receipt": "coordination/portfolio/returns/<job_id>/<return_id>.json"
+  },
+  "winner_rule": "For a claimable job, every contender derives the same next generation and atomically CREATEs the exact same pin path. Exactly one create may succeed. Only that pin owner may create the authoritative claim receipt and begin substantive work. A 409/422/create-exists result is a normal lost race: reload and re-enter allocation.",
+  "generation_rule": {
+    "initial": "If no pin exists and no active legacy unpinned claim exists, next generation is 1.",
+    "active": "If the highest generation pin is unexpired and no terminal return exists, the job is owned and no later generation may be attempted.",
+    "recovery": "If the highest generation pin is expired, no terminal return exists, and retry/recovery is safe, every recovery contender derives generation + 1 and races on that exact next-generation path. The new pin must reference predecessor_pin_ref and recovery_basis.",
+    "immutability": "Pin generation files are append-only and are never updated in place. Recovery creates the next generation instead of overwriting predecessor evidence."
+  },
+  "legacy_bridge": {
+    "rule": "For jobs with no pins yet, unexpired legacy claims remain readable but do not all confer authority. Select one temporary legacy winner deterministically by earliest claimed_at, then lexicographic claim path; other simultaneous legacy claims are collision evidence. Do not create G000001 while that temporary winner remains unexpired unless an explicit safe recovery rule permits it.",
+    "retirement": "After legacy claims expire or terminal return closes the job, future attempts use pins. Historical legacy claims remain append-only evidence."
+  },
+  "pin_fields": [
+    "schema=prometeo.portfolio-pin/v1",
+    "pin_id",
+    "job_id",
+    "dedupe_key",
+    "project_id",
+    "generation",
+    "worker_id",
+    "claim_id",
+    "claimed_at",
+    "expires_at",
+    "source_head",
+    "predecessor_pin_ref_or_null",
+    "predecessor_claim_ref_or_null",
+    "recovery_basis_or_null"
+  ],
+  "claim_receipt_extension": ["pin_ref", "pin_id", "pin_generation", "predecessor_pin_ref_or_null"],
+  "projection_rule": "Live derives one authority owner from the highest valid pin generation. Before pins exist it derives at most one temporary legacy winner. Extra live claim files are collisions/receipts, not concurrent authority. Expired latest pin without terminal return is STALE; a later valid pin is RECOVERY; terminal return is terminal regardless of old claim receipts.",
+  "collision_receipt_rule": "Losers do not create a second execution claim. The failed host create plus subsequent read of the winning pin is sufficient collision evidence; a worker may persist a bounded BOUNDARY/collision receipt only in its own already-created legacy lane when needed for migration evidence.",
+  "host_rule": "The primitive MUST be atomic create-if-absent/CAS/transactional uniqueness on the deterministic pin path. Read-then-create on a unique per-worker filename is not exclusive and is forbidden as an authority primitive.",
+  "required_canaries": [
+    "2 contenders -> exactly 1 pin winner, 1 loser",
+    "5 contenders -> exactly 1 pin winner, 4 losers",
+    "losers reload and choose a different compatible job when available",
+    "expired generation recovery -> exactly 1 next-generation winner with predecessor lineage",
+    "multiple legacy claims -> exactly 1 temporary legacy owner plus collision count",
+    "terminal return -> no new pin generation"
+  ],
+  "reconciles": [
+    "coordination/workstreams/chat-native-control-plane-v1/CLAIM_PROTOCOL_SPEC_V0.json",
+    "coordination/portfolio/WORKER_CONTRACT_V1.md"
+  ],
+  "non_promotion": "Passing this canary does not make production /w operational. The normal swarm claim/stale/readiness promotion gates remain independent."
+}
