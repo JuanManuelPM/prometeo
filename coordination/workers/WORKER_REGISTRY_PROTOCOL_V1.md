@@ -1,10 +1,10 @@
-# Prometeo Worker Registry Protocol v1.1
+# Prometeo Worker Registry Protocol v1.2
 
-Purpose: make every `/wc` launch visible before substantive work so Live can distinguish a worker that is allocating, pinned, working, finished, collided/re-entering, silent, suspect or replaceable.
+Purpose: make every `/wc` launch visible without turning failed allocation attempts into fake active/recoverable workers.
 
 ## Launch beacon
 
-After loading the stable entry + Global Agent Constitution, and BEFORE extended queue archaeology/planning, create exactly one append-only beacon:
+After stable entry + Global Agent Constitution, and BEFORE extended queue archaeology/planning, create exactly one append-only beacon:
 
 `coordination/workers/beacons/<worker_id>.json`
 
@@ -21,17 +21,33 @@ Minimum shape:
 }
 ```
 
-The beacon grants NO mutation authority beyond registering liveness. It is never updated or deleted.
+Beacon = launch evidence only. It grants no work authority.
 
-## Allocation
+## Claim-first allocation
 
-After the beacon, reload live durable state and immediately pursue the highest-value compatible work. For portfolio work the deterministic PIN is authority; for normal queues the existing exclusive claim protocol is authority. The same `worker_id` MUST be reused in pin/claim/run/return/collision evidence.
+Immediately after the beacon obey `coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md`.
 
-A worker must not perform substantive implementation before winning the appropriate pin/claim. A lost race means durable collision evidence where defined, then immediate re-entry to another job.
+Do not load broad project history before owning work. Use the allocator hint, revalidate a concrete candidate, atomically win its PIN/claim, persist STARTED, then load the deeper job-specific context.
+
+The same `worker_id` MUST be reused in every later pin/claim/run/return/collision/heartbeat receipt.
+
+## No allocation
+
+A worker that never acquires a PIN/claim owns no job and creates no recovery debt.
+
+When the bounded allocation cycle is exhausted, create:
+
+`coordination/workers/no-allocation/<worker_id>.json`
+
+with schema `prometeo.worker-no-allocation/v1` and `next_action=STOP_NO_RECOVERY`, then stop.
+
+If the chat disappears before it can write that receipt, Live may infer `NO_ALLOCATION` after a short grace period from an old beacon with no assignment. That inference is UI/coordination state only; it grants no authority.
+
+**Never launch a replacement specifically for a no-allocation worker.** Only an owned job can require recovery.
 
 ## Heartbeats
 
-During substantive work, create compact append-only heartbeat receipts at material checkpoints, targeting no more than 3 minutes between durable signals when tools/runtime permit:
+During substantive owned work, create append-only heartbeat receipts at material checkpoints, targeting <=3 minutes when practical:
 
 `coordination/workers/heartbeats/<worker_id>/<timestamp_compact>.json`
 
@@ -42,39 +58,46 @@ Minimum shape:
   "schema": "prometeo.worker-heartbeat/v1",
   "worker_id": "<same worker id>",
   "heartbeat_at": "<ISO-8601>",
-  "job_id": "<current job/opportunity id or null>",
+  "job_id": "<current job/opportunity id>",
   "phase": "WORKING|VERIFYING|RETURNING|REALLOCATING",
   "source_head": "<observed head>"
 }
 ```
 
-Heartbeat = liveness only. It does not renew product authority by itself, but stale/recovery policy uses the latest durable signal to decide whether a safe replacement may compete for the next recovery generation.
+## Liveness windows for owned work
 
-## Fast liveness windows
+Defaults for `/wc` canary:
 
-Defaults for `/wc` canary work:
-
-- latest durable signal age `<6 min`: `ACTIVE`;
+- latest durable signal `<6 min`: `ACTIVE`;
 - `>=6 min` and `<10 min`: `STALE_SUSPECT`;
-- `>=10 min`, no terminal return and retry-safe scope: `RECOVERY_ELIGIBLE` / `REPLACEABLE`;
-- beacon with no assignment after 3 minutes: `SIN_PIN` / allocation failure signal.
+- `>=10 min`, no terminal return and retry-safe: `RECOVERY_ELIGIBLE` / `REPLACEABLE`.
 
-These windows exist because worker tasks normally complete or emit checkpoints quickly; waiting 30–90 minutes creates an avoidable swarm bottleneck. Recovery still requires CAS/idempotency/authority safety and never authorizes silent overwrite.
+These thresholds apply to **owned work**, not bare launch beacons.
+
+Bare beacon/no assignment:
+
+- first ~90 seconds: `ALLOCATING` grace;
+- after grace with no PIN/claim: `NO_ALLOCATION` and remove from the main active list;
+- no recovery timer is created.
 
 ## Completion and rotation
 
-Returns/runs remain completion evidence. Live joins them back to the launch beacon by `worker_id` and computes assignment time, completion time, duration and last durable signal.
+Returns/runs remain completion evidence. After a RETURN, a worker should emit/reuse `REALLOCATING`, reload the fast allocator and attempt another useful compatible job while context/authority remain adequate.
 
-After a RETURN, the worker should immediately emit/reuse a REALLOCATING heartbeat, reload the frontier and attempt another useful compatible job while context/authority remain adequate. Finishing one small task is not a reason to stop.
+Finishing one small task is not a reason to stop, but lack of claimable work is also not a reason to burn the chat indefinitely.
 
 ## Live projection
 
-Live should present human-facing effective state from durable evidence:
+Human-facing Live must distinguish:
 
-`ALLOCATING -> WORKING -> STALE_SUSPECT -> REPLACEABLE` or terminal result.
+`ALLOCATING -> WORKING -> STALE_SUSPECT -> REPLACEABLE -> recovered/terminal`
 
-It should show the countdown until the 10-minute replacement boundary, not pretend a long declared lease means the worker is actively working. Historical technical receipts may remain hidden behind a detail tap.
+from:
+
+`ALLOCATING -> NO_ALLOCATION -> hidden from Ahora`.
+
+For portfolio recovery generations, only the highest currently authoritative pin generation is shown as the current owner. Older generations remain historical evidence and must not appear as simultaneous active/replaceable workers once superseded.
 
 ## Truth boundary
 
-Beacon = chat reached Prometeo and registered. Pin/claim = work authority. Heartbeat = liveness evidence. Return = result evidence. None of these imply Current, Human Accepted or Served.
+Beacon = chat reached Prometeo. Pin/claim = work authority. Heartbeat = liveness evidence. Return = result evidence. No-allocation = capacity found no ownable work. None imply Current, Human Accepted or Served.
