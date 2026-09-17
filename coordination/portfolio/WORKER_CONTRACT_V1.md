@@ -1,16 +1,16 @@
-# Prometeo Portfolio Worker Contract v1.2
+# Prometeo Portfolio Worker Contract v1.3
 
 ## Purpose
 
 This contract turns spare `/wc` capacity into real, deduplicated project progress. The durable project/backlog source is `coordination/portfolio/PORTFOLIO.json`. The portfolio is a fallback allocation layer, not a replacement for higher-value live opportunity queues, dependency unlockers, required verification, or safe stale recovery.
 
-Portfolio exclusivity is governed by `coordination/portfolio/PORTFOLIO_PIN_PROTOCOL_V1.json`. Pins determine execution authority; append-only claim files are receipts/lineage, not independent locks.
+Portfolio exclusivity is governed by `coordination/portfolio/PORTFOLIO_PIN_PROTOCOL_V1.json`. Pins determine execution authority; append-only claim and collision files are receipts/lineage, not independent locks.
 
 ## Allocation order
 
 1. Reload authoritative L0 state, active opportunity queues, claims, runs, returns and recovery evidence.
 2. Take the highest-value compatible normal/recovery work when it is claimable and useful.
-3. If prepared work is exhausted or saturated by other workers, load `coordination/portfolio/PORTFOLIO.json`, `coordination/portfolio/derived/**`, current portfolio pins/claims/returns and this contract.
+3. If prepared work is exhausted or saturated by other workers, load `coordination/portfolio/PORTFOLIO.json`, `coordination/portfolio/derived/**`, current portfolio pins/claims/collisions/returns and this contract.
 4. Treat seed jobs and valid derived jobs as one claimable frontier, ordered by priority and value.
 5. Choose the highest-priority compatible job that is neither terminally returned nor owned by a live portfolio pin or temporary legacy winner.
 6. Unknown/discovery projects MUST start with their archaeology/recovery job. Never infer an implementation from a project label alone.
@@ -23,10 +23,11 @@ Every portfolio job has a stable `job_id` and `dedupe_key`.
 Before working, scan:
 - `coordination/portfolio/pins/<job_id>/`
 - `coordination/portfolio/claims/<job_id>/`
+- `coordination/portfolio/collisions/<job_id>/`
 - `coordination/portfolio/returns/<job_id>/`
 - `coordination/portfolio/derived/**` for the same `dedupe_key`
 
-A terminal return for the same `dedupe_key` blocks replay. A live highest-generation pin blocks duplicate execution. For legacy jobs that have claims but no pins, choose at most one temporary legacy owner by earliest `claimed_at`, then lexicographic claim path; other simultaneous legacy claims are collision evidence, not concurrent authority.
+A terminal return for the same `dedupe_key` blocks replay. A live highest-generation pin blocks duplicate execution. For legacy jobs that have claims but no pins, choose at most one temporary legacy owner by earliest `claimed_at`, then lexicographic claim path; other simultaneous legacy claims are migration collision evidence, not concurrent authority.
 
 Terminal outcomes are `DONE`, `VERIFIED`, `NO_ACTION_NEEDED`, or `SUPERSEDED`. A `BOUNDARY` or `PARTIAL` return does not silently count as completed; it must state exact residual work and may propose or emit a bounded successor.
 
@@ -61,7 +62,7 @@ Minimum pin shape:
 }
 ```
 
-All contenders for the same generation MUST CREATE the exact same pin path. A successful create is the exclusive winner. A 409/422/create-exists result is normal lost-race control flow: reload the winning pin and immediately re-enter allocation. Never create a different per-worker pin path to evade the collision.
+All contenders for the same generation MUST CREATE the exact same pin path. A successful create is the exclusive winner. A 409/422/create-exists result is normal lost-race control flow: read the winning pin, persist the collision receipt described below, then immediately re-enter allocation. Never create a different per-worker pin path to evade the collision.
 
 If an unrelated branch-head movement produces a write conflict and the deterministic pin path still does not exist, refresh head and retry that same path. If the path exists, the race is lost.
 
@@ -94,11 +95,42 @@ Minimum shape:
 
 Claims are immutable receipts. They preserve historical execution evidence but no longer determine exclusivity by filename existence. A claim without a matching winning pin is non-authoritative legacy/collision evidence.
 
+## Lost-race collision receipt
+
+A worker that loses the deterministic pin create MUST NOT create an execution claim. After reading the winning pin, it SHOULD atomically CREATE its own append-only collision receipt:
+
+`coordination/portfolio/collisions/<job_id>/<collision_id>.json`
+
+Minimum shape:
+
+```json
+{
+  "schema": "prometeo.portfolio-pin-collision/v1",
+  "collision_id": "<unique receipt id>",
+  "job_id": "<exact job_id>",
+  "dedupe_key": "<exact dedupe_key>",
+  "project_id": "<exact project_id>",
+  "worker_id": "<losing worker id>",
+  "observed_at": "<ISO-8601>",
+  "attempted_generation": 1,
+  "attempted_pin_ref": "coordination/portfolio/pins/<job_id>/G000001.json",
+  "winner_pin_ref": "coordination/portfolio/pins/<job_id>/G000001.json",
+  "winner_pin_id_or_null": "<winner pin id or null>",
+  "winner_worker_id_or_null": "<winner worker id or null>",
+  "source_head": "<head observed after collision>",
+  "host_result": "CREATE_EXISTS_OR_CAS_LOST",
+  "next_action": "REENTER_ALLOCATION"
+}
+```
+
+Collision receipts are evidence only. They never grant authority, never mutate the winning pin, and never justify waiting for the human. Failure to persist a collision receipt does not weaken the winner: duplicate execution remains forbidden and the loser still re-enters allocation.
+
 ## Stale / recovery
 
 - A live highest-generation pin owns the job until terminal return or expiry under its explicit policy.
 - An expired pin is not silently overwritten. If retry/recovery is safe, all recovery contenders derive `generation + 1` and race on that exact deterministic next-generation pin path.
 - A recovery pin MUST reference `predecessor_pin_ref_or_null` and its recovery basis; its claim receipt carries the same lineage.
+- Lost recovery races emit collision receipts against the attempted next generation exactly like initial races.
 - Legacy unpinned claims remain readable. Before the first pin generation exists, the deterministic temporary legacy winner blocks new execution until terminal return, expiry, or an explicit safe recovery boundary.
 - Late predecessor returns remain evidence and must be reconciled; they do not erase a later valid recovery generation.
 - Effectful retries remain subject to idempotency/side-effect rules from the normal claim protocol.
@@ -147,7 +179,7 @@ Minimum shape:
 }
 ```
 
-A terminal return closes the dedupe key. Old pins/claims remain historical evidence and are never deleted merely because the job is terminal.
+A terminal return closes the dedupe key. Old pins/claims/collisions remain historical evidence and are never deleted merely because the job is terminal.
 
 ## Derived successor jobs
 
@@ -190,14 +222,15 @@ This append-only derived-job lane is the default way the portfolio grows without
 
 After RETURN or a lost pin race:
 1. Materialize any safe fully-grounded successor as a derived job before leaving the useful context.
-2. Reload `/wc`, normal queues, seed portfolio, derived jobs, pins, claims and returns.
-3. If the result unlocked a normal successor, normal allocation wins.
-4. Otherwise pin another compatible seed/derived portfolio job and continue while context/authority remain adequate.
-5. Do not stop merely because one portfolio job finished or one pin race was lost.
+2. For a lost pin race, persist the collision receipt when possible before discarding the attempt context.
+3. Reload `/wc`, normal queues, seed portfolio, derived jobs, pins, claims, collisions and returns.
+4. If the result unlocked a normal successor, normal allocation wins.
+5. Otherwise pin another compatible seed/derived portfolio job and continue while context/authority remain adequate.
+6. Do not stop merely because one portfolio job finished or one pin race was lost.
 
 ## Live projection
 
-`/live/` may read seed portfolio jobs, derived jobs, pins, claims and returns and display project progress. It must derive at most one authority owner per job from the highest valid pin generation; before migration it may derive one deterministic temporary legacy owner. Duplicate legacy claim files are collision evidence, not multiple active owners. Expired latest pin without terminal return is stale; a later generation is recovery; terminal returns remain terminal.
+`/live/` may read seed portfolio jobs, derived jobs, pins, claims, collision receipts and returns and display project progress. It must derive at most one authority owner per job from the highest valid pin generation; before migration it may derive one deterministic temporary legacy owner. Durable lost-race receipts are counted separately from execution claims. Duplicate legacy claim files are migration collision evidence, not multiple active owners. Expired latest pin without terminal return is stale; a later generation is recovery; terminal returns remain terminal.
 
 Live is a projection only. Its percentages, labels or derived winner never override durable evidence or promotion gates.
 
