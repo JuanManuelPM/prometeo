@@ -1,0 +1,83 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-905cf7568f89-continuity-head-drift-v1",
+  "fingerprint": "pdf-905cf7568f897f8698b40eb1282e69f0",
+  "created_at": "2026-09-17T16:30:00-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-20260917T1623-0300-gpt56sol-b7f2",
+    "opportunity_id": null,
+    "run_id": "RUN-DISCOVERY-905CF756-20260917T1629-GPT56SOL-B7F2",
+    "epoch_observed": "P3-29d4d2d611c8"
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "output": "deterministic continuity-head contradiction verifier/report",
+    "owner": "chat-object-prometeo-chat-control-main",
+    "privacy": "public_coordination_only",
+    "scope": "coordination/CONTINUITY_HEAD.json + coordination/opportunities/** exact durable evidence"
+  },
+  "problem": "CONTINUITY_HEAD may retain stale active/opportunity assertions after newer durable returns, causing worker allocation and context drift. In the live evidence observed by this worker, the head updated at 2026-09-17T09:49:22-03:00 still says O-PROGRESS-METRICS-COMPILER-V1 is active even though a recovery return durably records RETURNED_RECOVERY_COMPLETE_CANDIDATE at 2026-09-17T00:48:00-03:00.",
+  "acceptance": [
+    "fixture with still_active opportunity plus newer durable return is flagged with exact source refs",
+    "fixture without contradictory newer evidence is not flagged",
+    "live run reports the observed O-PROGRESS-METRICS-COMPILER-V1 contradiction without mutating CONTINUITY_HEAD",
+    "output is deterministic for pinned input bytes and preserves authority boundaries"
+  ],
+  "title": "Continuity Head contradiction guard",
+  "mission": "Implement a deterministic read-only verifier that cross-checks activity assertions in CONTINUITY_HEAD against exact claims, runs, recovery claims and durable returns; emit machine-auditable contradiction receipts when newer evidence disproves an asserted live state, without rewriting authority surfaces.",
+  "evidence_refs": [
+    "coordination/CONTINUITY_HEAD.json",
+    "coordination/opportunities/claims/O-PROGRESS-METRICS-COMPILER-V1.json",
+    "coordination/opportunities/returns/O-PROGRESS-METRICS-COMPILER-V1/RUN-O-PROGRESS-METRICS-COMPILER-V1-20260917T0046-SOL56R.json",
+    "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md",
+    "coordination/swarm-v1/discovery/DISCOVERY_DEDUP_CONTRACT_V1.json"
+  ],
+  "value_signals": {
+    "unblock_value": {
+      "reason": "Workers are required to reconstruct exact live state before allocation; machine-detecting stale head assertions prevents false recovery or duplicate work decisions.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md"
+    },
+    "information_gain": {
+      "reason": "The live contradiction proves that a compact continuity projection can diverge from exact durable opportunity evidence even when the head itself is newer than the return.",
+      "evidence_ref": "coordination/CONTINUITY_HEAD.json"
+    },
+    "regression_prevention": {
+      "reason": "A deterministic verifier can make stale projection contradictions visible before workers act on them, while preserving the rule that projection files do not override exact evidence.",
+      "evidence_ref": "coordination/opportunities/returns/O-PROGRESS-METRICS-COMPILER-V1/RUN-O-PROGRESS-METRICS-COMPILER-V1-20260917T0046-SOL56R.json"
+    },
+    "human_friction_reduction": {
+      "reason": "Automatic contradiction receipts reduce the need for a human to notice and explain stale control-plane projections across many parallel workers.",
+      "evidence_ref": "coordination/CONTINUITY_HEAD.json"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/CONTINUITY_HEAD.json",
+    "coordination/opportunities/claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/returns/**"
+  ],
+  "candidate_write_scope": [
+    "scripts/verify-continuity-head-consistency.mjs",
+    "tests/continuity-head-consistency-v1.test.mjs",
+    "tests/fixtures/continuity-head-consistency-v1/**",
+    "coordination/verification/continuity-head/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "falsification": {
+    "claim_to_test": "A deterministic verifier can identify stale activity assertions in CONTINUITY_HEAD from exact durable evidence without treating projections as authority.",
+    "disconfirming_evidence": "The verifier flags a non-contradictory head, misses the observed progress-metrics contradiction on pinned inputs, depends on directory enumeration order, or mutates authority state.",
+    "pass_condition": "Pinned fixtures and live evidence produce deterministic contradiction/no-contradiction results with exact source refs and no authority mutation.",
+    "boundary": "This proposal does not authorize rewriting CONTINUITY_HEAD, promoting opportunity state, or treating every older projection field as false merely because newer unrelated commits exist."
+  },
+  "dedup_note": "Exact repository search found no prior continuity-head contradiction/freshness verifier proposal for this observed stale still_active assertion. The repository-host proposal-pin race proposal was found and excluded as a duplicate lane before this fingerprint was pinned.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
