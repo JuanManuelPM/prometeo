@@ -1,170 +1,405 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-17T22:06:00Z",
+  "updated_at": "2026-09-17T22:16:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
     {
       "id": "EFF001",
       "title": "Claim before deep context",
-      "scope": ["wc", "worker-allocation"],
+      "scope": [
+        "wc",
+        "worker-allocation"
+      ],
       "observed_failure": "Fresh workers spent minutes listing pins, G1/G2, heartbeats, returns and protocols before attempting authority.",
       "invariant": "Before first PIN/claim, a fresh /wc performs only bootstrap, beacon, one allocator read and bounded atomic claim attempts.",
-      "required": {"candidate_order": ["ready", "queue_ready", "role_ready", "recovery"], "max_fast_claim_attempts": 3, "target_time_to_first_claim_seconds": 30, "hard_observation_threshold_seconds": 90, "broad_preclaim_archaeology_forbidden": true},
+      "required": {
+        "candidate_order": [
+          "ready",
+          "queue_ready",
+          "role_ready",
+          "recovery"
+        ],
+        "max_fast_claim_attempts": 3,
+        "target_time_to_first_claim_seconds": 30,
+        "hard_observation_threshold_seconds": 90,
+        "broad_preclaim_archaeology_forbidden": true
+      },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
       "id": "EFF002",
       "title": "Surplus workers close cleanly",
-      "scope": ["wc", "worker-registry", "live"],
+      "scope": [
+        "wc",
+        "worker-registry",
+        "live"
+      ],
       "observed_failure": "Workers with no assignment remained visible for minutes and could be mistaken for recoverable work.",
       "invariant": "No-PIN workers create no recovery debt and age out of Live's active list quickly.",
-      "required": {"no_allocation_next_action": "STOP_NO_RECOVERY", "live_no_assignment_grace_seconds_max": 90, "replacement_for_no_allocation_forbidden": true},
+      "required": {
+        "no_allocation_next_action": "STOP_NO_RECOVERY",
+        "live_no_assignment_grace_seconds_max": 90,
+        "replacement_for_no_allocation_forbidden": true
+      },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
       "id": "EFF003",
       "title": "Live publication cannot starve under commit bursts",
-      "scope": ["live", "github-actions"],
+      "scope": [
+        "live",
+        "github-actions"
+      ],
       "observed_failure": "cancel-in-progress caused repeated worker commits to cancel the feed publisher before it could publish.",
       "invariant": "The running Live publisher is never cancelled merely because a newer commit arrived; bursts coalesce through the pending run.",
-      "required": {"live_feed_cancel_in_progress": false},
+      "required": {
+        "live_feed_cancel_in_progress": false
+      },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
       "id": "EFF004",
       "title": "Only current authority appears active",
-      "scope": ["live", "portfolio-recovery"],
+      "scope": [
+        "live",
+        "portfolio-recovery"
+      ],
       "observed_failure": "Historical/superseded PIN generations inflated active/replacement counts.",
       "invariant": "Only the newest authoritative generation for a job is projected as its current owner; older generations remain history only.",
-      "required": {"suppress_superseded_owner_attempts": true},
+      "required": {
+        "suppress_superseded_owner_attempts": true
+      },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
       "id": "EFF005",
       "title": "Public /wc pointer cannot expand preclaim work",
-      "scope": ["wc-public", "worker-allocation"],
+      "scope": [
+        "wc-public",
+        "worker-allocation"
+      ],
       "observed_failure": "The public /wc pointer instructed workers to load Guide, Metabolism and page protocols before allocation, contradicting claim-first.",
       "invariant": "The public /wc pointer may route to canonical bootstrap and allocator but must not require unrelated deep protocols before ownership.",
-      "required": {"public_pointer_claim_now": true, "preclaim_deep_protocol_loads_forbidden": true},
+      "required": {
+        "public_pointer_claim_now": true,
+        "preclaim_deep_protocol_loads_forbidden": true
+      },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
       "id": "EFF006",
       "title": "Prefer clean ready work and compiled roles over recovery archaeology",
-      "scope": ["allocator", "wc"],
+      "scope": [
+        "allocator",
+        "wc"
+      ],
       "observed_failure": "Workers entered expensive recovery validation while clean ready or centrally detectable Guide work was available.",
       "invariant": "Allocator and /wc rank clean execution first, then compiled role work, then recovery; stale recovery snapshots are never manually reconstructed preclaim.",
-      "required": {"candidate_order": ["ready", "queue_ready", "role_ready", "recovery"], "recovery_snapshot_max_age_seconds": 90},
+      "required": {
+        "candidate_order": [
+          "ready",
+          "queue_ready",
+          "role_ready",
+          "recovery"
+        ],
+        "recovery_snapshot_max_age_seconds": 90
+      },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
       "id": "EFF007",
       "title": "Guide hydrates by relevance, not full-state ritual",
-      "scope": ["g", "guide-recovery"],
+      "scope": [
+        "g",
+        "guide-recovery"
+      ],
       "observed_failure": "Fresh /g required exhaustive queues/claims/runs/returns/heartbeats even when the request referenced one page, inbox item or bounded decision.",
       "invariant": "Guide loads identity + epoch + focus, resolves exact user referents, then expands only the relevant durable slice; raw global archaeology is fallback, not default.",
-      "required": {"relevance_first_hydration": true, "compiled_views_before_raw_directories": true, "same_epoch_skip_unrelated_rereads": true},
+      "required": {
+        "relevance_first_hydration": true,
+        "compiled_views_before_raw_directories": true,
+        "same_epoch_skip_unrelated_rereads": true
+      },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
       "id": "EFF008",
       "title": "Telemetry epoch cannot reset when ledger text changes",
-      "scope": ["efficiency-runtime", "ratchet"],
+      "scope": [
+        "efficiency-runtime",
+        "ratchet"
+      ],
       "observed_failure": "Using baseline file updated_at as telemetry activation would erase accumulated runtime samples whenever the ledger gained a new ratchet item.",
       "invariant": "Runtime measurement uses an explicit stable activation timestamp, independent from ordinary baseline edits.",
-      "required": {"runtime_baseline_field": "runtime_baseline_activated_at", "ordinary_updates_must_not_reset_runtime_epoch": true},
+      "required": {
+        "runtime_baseline_field": "runtime_baseline_activated_at",
+        "ordinary_updates_must_not_reset_runtime_epoch": true
+      },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
       "id": "EFF009",
       "title": "Claim transport authorization must be explicit and fail fast",
-      "scope": ["wc", "wc-public", "worker-allocation"],
+      "scope": [
+        "wc",
+        "wc-public",
+        "worker-allocation"
+      ],
       "observed_failure": "A fresh worker read one allocator but two claim CREATEs were blocked by tool authorization/safety controls, wasting most of a launch despite no job-level collision.",
       "invariant": "The canonical human invocation explicitly authorizes bounded reversible Prometeo writes; a transport-level claim block stops immediately and is never retried across multiple candidates.",
-      "required": {"human_message_write_authorization": true, "transport_block_stop_immediately": true, "transport_block_max_claim_attempts": 1, "claim_transport_blocked_regression_window_minutes": 10, "historical_transport_block_count_preserved": true},
+      "required": {
+        "human_message_write_authorization": true,
+        "transport_block_stop_immediately": true,
+        "transport_block_max_claim_attempts": 1,
+        "claim_transport_blocked_regression_window_minutes": 10,
+        "historical_transport_block_count_preserved": true
+      },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
       "id": "EFF010",
       "title": "Efficiency timing comes from durable repository events",
-      "scope": ["efficiency-runtime", "worker-registry"],
+      "scope": [
+        "efficiency-runtime",
+        "worker-registry"
+      ],
       "observed_failure": "A no-allocation receipt reused the launch timestamp even though the beacon and close commits were roughly 39 seconds apart, understating wasted time.",
       "invariant": "Runtime timing prefers Git commit time for beacon/claim/no-allocation persistence and treats model-authored timestamps as descriptive metadata, not the measurement clock.",
-      "required": {"durable_commit_time_preferred": true, "nonpositive_model_duration_must_not_mask_commit_latency": true},
+      "required": {
+        "durable_commit_time_preferred": true,
+        "nonpositive_model_duration_must_not_mask_commit_latency": true
+      },
       "status": "PATCHED_PENDING_GUARD_AND_RUNTIME"
     },
     {
       "id": "EFF011",
       "title": "Fast claim pins are complete before immutable create",
-      "scope": ["wc", "allocator", "worker-allocation", "portfolio-pin"],
+      "scope": [
+        "wc",
+        "allocator",
+        "worker-allocation",
+        "portfolio-pin"
+      ],
       "observed_failure": "A fresh /wc won an atomic G000001 with a minimal payload, then post-claim protocol loading revealed required immutable pin metadata was missing. Append-only pin semantics correctly forbade repairing that generation in place.",
       "invariant": "The compiled allocator supplies every mandatory portfolio pin field before CREATE; a fresh worker fills only bounded placeholders and never needs deep preclaim archaeology or post-create metadata repair.",
-      "required": {"allocator_claim_payload_complete": true, "malformed_portfolio_pin_create_forbidden": true, "post_create_pin_repair_forbidden": true, "bounded_placeholders": ["<worker_id>", "<now_iso>", "<now_plus_10m_iso>"], "preserve_eff001_claim_first": true, "max_fast_claim_attempts": 3},
+      "required": {
+        "allocator_claim_payload_complete": true,
+        "malformed_portfolio_pin_create_forbidden": true,
+        "post_create_pin_repair_forbidden": true,
+        "bounded_placeholders": [
+          "<worker_id>",
+          "<now_iso>",
+          "<now_plus_10m_iso>"
+        ],
+        "preserve_eff001_claim_first": true,
+        "max_fast_claim_attempts": 3
+      },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
       "id": "EFF012",
       "title": "Generation-fixed fixtures never enter ordinary next-generation recovery",
-      "scope": ["allocator", "portfolio-recovery", "portfolio-pin"],
+      "scope": [
+        "allocator",
+        "portfolio-recovery",
+        "portfolio-pin"
+      ],
       "observed_failure": "A G000001-only contention fixture aged into replaceable state and the allocator offered G000002, producing ownership that could not satisfy the fixture contract.",
       "invariant": "Recovery generation semantics are machine-readable data. Fixed-generation work is excluded from ordinary G+1 recovery after its fixed generation exists, remains visible through a bounded attention route, and normal retry-safe work keeps G+1 recovery.",
-      "required": {"recovery_policy_overlay": true, "fixed_generation_ordinary_recovery_forbidden": true, "fixed_generation_attention_route": "FIXED_GENERATION_RECONCILE", "ordinary_retry_safe_next_generation_preserved": true, "job_id_blacklist_forbidden": true},
+      "required": {
+        "recovery_policy_overlay": true,
+        "fixed_generation_ordinary_recovery_forbidden": true,
+        "fixed_generation_attention_route": "FIXED_GENERATION_RECONCILE",
+        "ordinary_retry_safe_next_generation_preserved": true,
+        "job_id_blacklist_forbidden": true
+      },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
       "id": "EFF013",
       "title": "Latent useful work becomes claimable before NO_ALLOCATION",
-      "scope": ["allocator", "wc", "guide", "metabolism", "live"],
+      "scope": [
+        "allocator",
+        "wc",
+        "guide",
+        "metabolism",
+        "live"
+      ],
       "observed_failure": "After claim-first removed worker archaeology, the fast allocator only exposed already-materialized jobs. Useful planning, integration, rescate and critic work remained latent even though Metabolism already had durable triggers, so fresh chats falsely ended NO_ALLOCATION while the project still had substantial work.",
       "invariant": "The central allocator compiles durable metabolism signals into deduplicated atomic role_ready candidates. Disposable workers never rediscover this state preclaim, and an empty concrete queue is not treated as project idleness while a grounded role trigger exists.",
-      "required": {"role_ready_compiled_centrally": true, "candidate_order": ["ready", "queue_ready", "role_ready", "recovery"], "guide_roles": ["GUIDE_PLANNER", "GUIDE_INTEGRATOR", "GUIDE_RESCATE", "GUIDE_CRITIC", "GUIDE_STEWARD"], "role_claims_atomic": true, "frontier_floor_absolute_from_metabolism": 8, "false_no_allocation_with_usable_role_ready_forbidden": true, "lane_diversification_after_same_lane_collisions": 2, "workers_must_not_load_metabolism_preclaim": true},
+      "required": {
+        "role_ready_compiled_centrally": true,
+        "candidate_order": [
+          "ready",
+          "queue_ready",
+          "role_ready",
+          "recovery"
+        ],
+        "guide_roles": [
+          "GUIDE_PLANNER",
+          "GUIDE_INTEGRATOR",
+          "GUIDE_RESCATE",
+          "GUIDE_CRITIC",
+          "GUIDE_STEWARD"
+        ],
+        "role_claims_atomic": true,
+        "frontier_floor_absolute_from_metabolism": 8,
+        "false_no_allocation_with_usable_role_ready_forbidden": true,
+        "lane_diversification_after_same_lane_collisions": 2,
+        "workers_must_not_load_metabolism_preclaim": true
+      },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
       "id": "EFF014",
       "title": "Explicit contention barriers precede the deterministic PIN race",
-      "scope": ["allocator", "wc", "portfolio-pin", "contention-barrier", "live"],
+      "scope": [
+        "allocator",
+        "wc",
+        "portfolio-pin",
+        "contention-barrier",
+        "live"
+      ],
       "observed_failure": "A deliberate multi-worker PIN-race canary could publish a winner before another worker was durably armed, yielding winner-only evidence and forcing human timing or repeated canary launches.",
       "invariant": "Only jobs with explicit durable contention-barrier metadata receive a timing-only pre-PIN entrant/rendezvous action. Before valid RELEASE no portfolio PIN is attempted; timeout attempts no PIN; after RELEASE all entrants race the unchanged deterministic generation. Ordinary jobs remain direct-to-PIN.",
-      "required": {"explicit_opt_in_only": true, "barrier_grants_execution_authority": false, "pin_before_release_forbidden": true, "timeout_pin_attempted": false, "release_next_action": "RACE_DETERMINISTIC_PIN", "ordinary_jobs_direct_to_pin": true, "job_id_hardcoding_forbidden": true, "fixtures": [2, 5], "regression_test": "coordination/portfolio/tests/fast_allocator_contention_barrier_routing_v1.mjs"},
+      "required": {
+        "explicit_opt_in_only": true,
+        "barrier_grants_execution_authority": false,
+        "pin_before_release_forbidden": true,
+        "timeout_pin_attempted": false,
+        "release_next_action": "RACE_DETERMINISTIC_PIN",
+        "ordinary_jobs_direct_to_pin": true,
+        "job_id_hardcoding_forbidden": true,
+        "fixtures": [
+          2,
+          5
+        ],
+        "regression_test": "coordination/portfolio/tests/fast_allocator_contention_barrier_routing_v1.mjs"
+      },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
       "id": "EFF015",
       "title": "Fingerprint churn cannot spawn concurrent GUIDE_RESCATE workers",
-      "scope": ["allocator", "guide", "metabolism", "live"],
+      "scope": [
+        "allocator",
+        "guide",
+        "metabolism",
+        "live"
+      ],
       "observed_failure": "While guide-rescate-98d380e06c22 had a fresh G000001 owner, the next allocator snapshot emitted guide-rescate-250858b98b36 because the LOW_YIELD evidence set changed. Fingerprint dedupe alone therefore allowed two concurrent rescate authorities for the same role and bottleneck class.",
       "invariant": "A fresh unreceipted GUIDE_RESCATE pin suppresses every other GUIDE_RESCATE role_ready candidate regardless of evidence fingerprint until that authority returns or becomes stale. Other Guide roles and ordinary execution remain claimable.",
-      "required": {"one_active_guide_rescate_across_fingerprint_churn": true, "active_window_minutes": 10, "receipt_releases_role": true, "stale_pin_releases_role": true, "other_guide_roles_preserved": true, "ordinary_execution_preserved": true, "suppression_stage": "POST_ALLOCATOR_PRE_PUBLISH", "regression_test": "coordination/portfolio/tests/guide_rescate_single_active_role_v1.mjs"},
+      "required": {
+        "one_active_guide_rescate_across_fingerprint_churn": true,
+        "active_window_minutes": 10,
+        "receipt_releases_role": true,
+        "stale_pin_releases_role": true,
+        "other_guide_roles_preserved": true,
+        "ordinary_execution_preserved": true,
+        "suppression_stage": "POST_ALLOCATOR_PRE_PUBLISH",
+        "regression_test": "coordination/portfolio/tests/guide_rescate_single_active_role_v1.mjs"
+      },
       "status": "RATCHETED"
     },
     {
       "id": "EFF016",
       "title": "Historical transport blocks cannot create a permanent current regression",
-      "scope": ["efficiency-runtime", "ratchet", "guide", "wc"],
+      "scope": [
+        "efficiency-runtime",
+        "ratchet",
+        "guide",
+        "wc"
+      ],
       "observed_failure": "After the transport-authorization repair, five older CLAIM_TRANSPORT_BLOCKED no-allocation events remained inside the stable runtime epoch. The efficiency snapshot counted the full epoch for its current alarm, so status stayed REGRESSION and kept spawning GUIDE_RESCATE even though the newest explicitly authorized worker acquired claims normally.",
       "invariant": "Historical transport-block incidents remain visible in cumulative telemetry, but the current CLAIM_TRANSPORT_BLOCKED_REPEAT alarm is evaluated only over a bounded recent durable-event window. Ordinary ratchet edits never reset the global runtime epoch.",
-      "required": {"global_runtime_epoch_preserved": true, "historical_transport_block_count_preserved": true, "transport_regression_uses_recent_durable_events": true, "claim_transport_blocked_regression_window_minutes": 10, "repeat_threshold": 2, "regression_test": "coordination/portfolio/tests/efficiency_recent_transport_regression_v1.mjs"},
+      "required": {
+        "global_runtime_epoch_preserved": true,
+        "historical_transport_block_count_preserved": true,
+        "transport_regression_uses_recent_durable_events": true,
+        "claim_transport_blocked_regression_window_minutes": 10,
+        "repeat_threshold": 2,
+        "regression_test": "coordination/portfolio/tests/efficiency_recent_transport_regression_v1.mjs"
+      },
       "status": "RATCHETED"
     },
     {
       "id": "EFF017",
       "title": "role_ready evidence is validated centrally before claim",
-      "scope": ["allocator", "guide", "metabolism", "worker-allocation"],
+      "scope": [
+        "allocator",
+        "guide",
+        "metabolism",
+        "worker-allocation"
+      ],
       "observed_failure": "A compiled role_ready candidate preserved nonexistent repo-local evidence paths, so a winning worker only discovered the defect after ownership via 404 archaeology.",
       "invariant": "Every published role_ready candidate passes one central evidence-integrity stage: resolvable repo-local refs remain bounded evidence, missing repo-local refs become explicit machine-readable diagnostics and are removed from the claim payload or suppress an evidence-empty candidate, external annotated evidence remains valid, and role identity is not recomputed per worker.",
-      "required": {"compiler_stage": "scripts/apply-role-evidence-integrity.mjs", "repo_local_evidence_prevalidated": true, "missing_repo_local_evidence_machine_diagnostic": true, "claim_payload_evidence_sanitized": true, "suppress_zero_usable_evidence_candidate": true, "external_evidence_forms_preserved": ["github-actions:", "gh-pages:"], "role_identity_preserved_across_validation": true, "workers_must_not_add_preclaim_evidence_archaeology": true, "regression_test": "coordination/portfolio/tests/role_ready_evidence_integrity_v1.mjs"},
+      "required": {
+        "compiler_stage": "scripts/apply-role-evidence-integrity.mjs",
+        "repo_local_evidence_prevalidated": true,
+        "missing_repo_local_evidence_machine_diagnostic": true,
+        "claim_payload_evidence_sanitized": true,
+        "suppress_zero_usable_evidence_candidate": true,
+        "external_evidence_forms_preserved": [
+          "github-actions:",
+          "gh-pages:"
+        ],
+        "role_identity_preserved_across_validation": true,
+        "workers_must_not_add_preclaim_evidence_archaeology": true,
+        "regression_test": "coordination/portfolio/tests/role_ready_evidence_integrity_v1.mjs"
+      },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
       "id": "EFF018",
       "title": "Expired contention barriers stop consuming fresh workers after durable timeout evidence",
-      "scope": ["allocator", "wc", "contention-barrier", "worker-allocation"],
+      "scope": [
+        "allocator",
+        "wc",
+        "contention-barrier",
+        "worker-allocation"
+      ],
       "observed_failure": "A barrier deadline had already expired, yet the same dead fixture stayed at the front of ready and accumulated multiple per-worker timeout receipts. Fresh workers repeatedly spent a fast-allocation slot and append-only write proving the same timeout instead of reaching useful claimable work.",
       "invariant": "The first durable timeout receipt remains valid evidence that the barrier window expired without a PIN attempt. Once such evidence exists, the expired barrier candidate is removed from fast ready/recovery lanes, remains machine-readable in routing diagnostics/attention, and cannot demand another timeout write from each fresh worker.",
-      "required": {"first_timeout_receipt_preserved": true, "repeated_timeout_fast_lane_suppressed": true, "timeout_receipt_grants_authority": false, "expired_candidate_machine_diagnostic": true, "ordinary_jobs_preserved": true, "released_barrier_pin_route_preserved": true, "fixed_generation_attention_preserved_outside_fast_lane": true, "regression_test": "coordination/portfolio/tests/fast_allocator_contention_barrier_routing_v1.mjs"},
+      "required": {
+        "first_timeout_receipt_preserved": true,
+        "repeated_timeout_fast_lane_suppressed": true,
+        "timeout_receipt_grants_authority": false,
+        "expired_candidate_machine_diagnostic": true,
+        "ordinary_jobs_preserved": true,
+        "released_barrier_pin_route_preserved": true,
+        "fixed_generation_attention_preserved_outside_fast_lane": true,
+        "regression_test": "coordination/portfolio/tests/fast_allocator_contention_barrier_routing_v1.mjs"
+      },
+      "status": "STATIC_GUARDED_PENDING_RUNTIME"
+    },
+    {
+      "id": "EFF019",
+      "title": "Observability never becomes coordination overhead",
+      "scope": [
+        "wc",
+        "worker-events",
+        "live",
+        "github-issues"
+      ],
+      "observed_failure": "Tracing can accidentally become another preclaim protocol, retry loop, authority dependency, or worker-repair swarm.",
+      "invariant": "Wave observability is append-only, bounded to ROUTED/CLAIM_RESULT/CLOSE, best-effort, and strictly non-authoritative. Telemetry failure never blocks or changes allocation, ownership, execution, RETURN, recovery, or reallocation.",
+      "required": {
+        "event_issue_number": 22,
+        "max_lifecycle_comments_per_worker": 3,
+        "allowed_events": [
+          "ROUTED",
+          "CLAIM_RESULT",
+          "CLOSE"
+        ],
+        "github_pin_remains_authority": true,
+        "telemetry_failure_non_blocking": true,
+        "telemetry_retry_before_ownership_forbidden": true,
+        "telemetry_repair_workers_forbidden": true,
+        "separate_runtime_projection": "live/runtime.json",
+        "regression_test": "tests/worker-runtime-events-v1.test.mjs"
+      },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     }
   ],
