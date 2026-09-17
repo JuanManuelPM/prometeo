@@ -1,0 +1,79 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-60114aaf15fa-2e9ec736",
+  "fingerprint": "pdf-60114aaf15fa786987322a5983af2bbc",
+  "created_at": "2026-09-17T09:59:28-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0959-0300-sol56-recoverydedup6011",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "output": "single-winner-recovery-pin",
+    "owner": "chat-object-prometeo-chat-control-main",
+    "privacy": "public-coordination-only",
+    "scope": "stale-recovery"
+  },
+  "problem": "Recovery stampede: append-only recovery attempt IDs allow multiple workers to start recovery for the same stale opportunity before they can observe each other.",
+  "acceptance": [
+    "Concurrent recovery candidates for one opportunity yield exactly one active recovery owner.",
+    "Recovery collision losers stop before target writes and preserve immutable collision evidence.",
+    "Late original returns remain reconcilable and are never discarded.",
+    "Recovery ownership can expire or be safely superseded so a crashed recovery does not become a permanent lock.",
+    "No Current, Human Accepted, Served, or global promotion authority is granted."
+  ],
+  "title": "Single-winner recovery ownership pin",
+  "mission": "Extend the existing lease/retry recovery substrate with a host-safe create-if-absent ownership pin keyed by opportunity/recovery generation so only one eligible recovery may enter active execution at a time. Reuse the existing stale scanner, overlap/CAS checks, late-return reconciliation and discovery-style atomic pin semantics; preserve every losing recovery attempt as evidence without allowing it to mutate target bytes.",
+  "evidence_refs": [
+    "coordination/opportunities/runs/O-SWARM-KERNEL-IMPLEMENT-V1/RUN-O-SWARM-KERNEL-IMPLEMENT-V1-REC-COLLISION-20260917T0951-SOL56B.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0951-SOL56B.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0952-SOL56-R2.json",
+    "coordination/opportunities/runs/O-SURFACE-FACULTAD_DIGITAL-INTENT-V1/RUN-O-SURFACE-FACULTAD_DIGITAL-INTENT-V1-REC-20260917T0955-SOL56.json",
+    "coordination/opportunities/runs/O-SURFACE-FACULTAD_DIGITAL-INTENT-V1/RUN-O-SURFACE-FACULTAD_DIGITAL-INTENT-V1-REC-20260917T0956-SOL56.json",
+    "coordination/opportunities/returns/O-SWARM-LEASE-RETRY-BUILD-V1/RUN-O-SWARM-LEASE-RETRY-BUILD-V1-20260917T0043-SOL56.json",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/swarm-v1/discovery/DISCOVERY_DEDUP_CONTRACT_V1.json"
+  ],
+  "value_signals": {
+    "incident_repair": {
+      "reason": "A durable Kernel recovery run reached LIVE_RECOVERY_COLLISION after a second recovery claim/run appeared, then exited before target writes. The collision was safely contained but consumed a worker and created avoidable recovery lineage noise.",
+      "evidence_ref": "coordination/opportunities/runs/O-SWARM-KERNEL-IMPLEMENT-V1/RUN-O-SWARM-KERNEL-IMPLEMENT-V1-REC-COLLISION-20260917T0951-SOL56B.json"
+    },
+    "human_friction_reduction": {
+      "reason": "Mass /wc capacity should convert into distinct useful durable work rather than repeated recoveries of the same blocker; a single-winner recovery pin moves collision handling ahead of STARTED and target inspection.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md"
+    },
+    "regression_prevention": {
+      "reason": "The existing lease/retry candidate correctly parks on active overlap and preserves late returns, but recovery claims themselves are append-only unique IDs. A separate ownership pin can prevent simultaneous active recovery while retaining the existing immutable evidence model.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-LEASE-RETRY-BUILD-V1/RUN-O-SWARM-LEASE-RETRY-BUILD-V1-20260917T0043-SOL56.json"
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-DISCOVERY-DEDUP-BUILD-V1",
+    "O-SWARM-LEASE-RETRY-BUILD-V1"
+  ],
+  "candidate_read_scope": [
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "scripts/discovery-dedup-lib.mjs",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/swarm-v1/discovery/DISCOVERY_DEDUP_CONTRACT_V1.json",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**"
+  ],
+  "candidate_write_scope": [
+    "scripts/swarm-recovery-pin-lib.mjs",
+    "tests/swarm-recovery-pin-v1.test.mjs",
+    "coordination/swarm-v1/recovery-pins/**"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "falsification": "Reject or merge this proposal if current repository-host recovery execution already proves a create-if-absent single-owner primitive that is acquired before any recovery claim/run becomes active. The observed 09:51 Kernel collision and 09:55/09:56 Facultad recovery overlap are direct counterevidence to that condition unless a newer artifact supersedes them.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
