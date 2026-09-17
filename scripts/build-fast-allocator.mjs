@@ -64,6 +64,7 @@ function compactPortfolio(feed, semantic, job, targetGeneration = null) {
     project_id: job.project_id || null,
     project_label: job.project_label || null,
     title: job.title || job.job_id,
+    required_capabilities: uniq(job.required_capabilities),
     priority: job.priority || 0,
     state: job.state,
     authority_mode: job.authority_mode || null,
