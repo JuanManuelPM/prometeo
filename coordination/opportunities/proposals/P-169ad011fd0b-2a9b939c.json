@@ -1,0 +1,86 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-169ad011fd0b-2a9b939c",
+  "fingerprint": "pdf-169ad011fd0bd45405babbaa958072d7",
+  "created_at": "2026-09-17T16:29:40-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "WC-SOL-20260917T162127-988801",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-autonomous-growth",
+  "target": {
+    "artifact": "worker-specific compatible portfolio frontier adapter",
+    "consumer": "/wc universal workers",
+    "subsystem": "portfolio-fallback-allocation"
+  },
+  "problem": "Frontier-pressure compilation is intentionally system-wide and strips required_capabilities from Portfolio rows, while fallback selection still needs worker-specific compatibility. A surplus worker can therefore reach an open but incompatible Portfolio job and must manually inspect capabilities instead of receiving a deterministic compatible frontier.",
+  "acceptance": [
+    "A repo-derived adapter compiles seed and derived Portfolio jobs with required_capabilities, terminal state, live PIN owner or recovery state into universal-allocator-compatible rows.",
+    "Given explicit worker capabilities, incompatible open Portfolio jobs are rejected as CAPABILITY_MISMATCH and are never selected or PINned.",
+    "Compatible unowned nonterminal Portfolio jobs preserve deterministic priority ordering while system-wide frontier pressure remains a separate signal.",
+    "Fixtures cover an open incompatible browser job, a compatible open job, a terminal job, and a live-owned job; output is reproducible and no Current, Human Accepted, Served, or production authority is promoted."
+  ],
+  "title": "Compile a capability-safe Portfolio frontier",
+  "mission": "Add a bounded adapter between durable Portfolio seed/derived state and the existing universal worker allocator so /wc workers receive a worker-specific compatible fallback frontier without changing the global frontier-pressure metric or Portfolio PIN authority.",
+  "evidence_refs": [
+    "scripts/universal-cognitive-worker-lib.mjs",
+    "scripts/universal-worker-allocator.mjs",
+    "scripts/compile-frontier-pressure.mjs",
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/portfolio/PORTFOLIO_PIN_PROTOCOL_V1.json",
+    "coordination/portfolio/derived/alumnos/portfolio-alumnos-jose-v11-unrestricted-browser-verify-v1.json"
+  ],
+  "value_signals": {
+    "human_friction_reduction": {
+      "reason": "A worker-specific fallback frontier removes repeated manual inspection of open-but-incompatible Portfolio jobs during /wc allocation.",
+      "evidence_ref": "coordination/portfolio/derived/alumnos/portfolio-alumnos-jose-v11-unrestricted-browser-verify-v1.json"
+    },
+    "regression_prevention": {
+      "reason": "The universal allocator already enforces CAPABILITY_MISMATCH; preserving required_capabilities through the Portfolio adapter prevents fallback from bypassing that invariant.",
+      "evidence_ref": "scripts/universal-cognitive-worker-lib.mjs"
+    },
+    "reuse_value": {
+      "reason": "The adapter reuses the existing allocator semantics instead of adding a second compatibility algorithm and keeps global frontier-pressure computation separate.",
+      "evidence_ref": "scripts/universal-worker-allocator.mjs"
+    },
+    "goal_relevance": {
+      "reason": "Portfolio is the authorized /wc fallback when prepared/recovery/Guide work is saturated, so deterministic compatible fallback directly improves autonomous throughput without human routing.",
+      "evidence_ref": "coordination/portfolio/WORKER_CONTRACT_V1.md"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/portfolio/PORTFOLIO.json",
+    "coordination/portfolio/derived/**",
+    "coordination/portfolio/pins/**",
+    "coordination/portfolio/returns/**",
+    "coordination/workers/heartbeats/**",
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/portfolio/PORTFOLIO_PIN_PROTOCOL_V1.json",
+    "scripts/universal-cognitive-worker-lib.mjs",
+    "scripts/universal-worker-allocator.mjs",
+    "scripts/compile-frontier-pressure.mjs"
+  ],
+  "candidate_write_scope": [
+    "scripts/compile-compatible-portfolio-frontier.mjs",
+    "tests/compatible-portfolio-frontier-v1.test.mjs",
+    "coordination/portfolio/evidence/compatible-frontier-v1/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "falsification": [
+    "An open Portfolio job with an unmet required_capabilities entry can still be selected for that worker.",
+    "A terminal or live-owned Portfolio job is emitted as normally claimable without a valid recovery condition.",
+    "The adapter changes Portfolio PIN ownership or product authority rather than only compiling allocation evidence.",
+    "The adapter duplicates capability matching logic instead of delegating to the existing universal allocator semantics."
+  ],
+  "dedup_note": "The existing universal allocator already implements CAPABILITY_MISMATCH for prepared opportunities, and the frontier-pressure compiler intentionally computes system-wide pressure. The missing bounded surface is preservation of Portfolio required_capabilities and ownership state into a worker-specific fallback frontier; this proposal does not replace either existing component.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
