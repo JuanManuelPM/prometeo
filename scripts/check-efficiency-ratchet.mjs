@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -36,11 +36,14 @@ if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing run
 const wc = read(root, 'wc');
 must('wc', wc, 'CLAIM NOW');
 must('wc', wc, 'Candidate order: `ready` -> `queue_ready` -> `recovery`.');
-must('wc', wc, 'Maximum 3 fast CREATE attempts.');
+must('wc', wc, 'Maximum 3 fast CREATE attempts');
 must('wc', wc, 'FORBIDDEN before ownership:');
 must('wc', wc, 'Do not pre-read those directories. CREATE first.');
 must('wc', wc, 'A worker without PIN/claim owns nothing and creates NO recovery debt.');
 must('wc', wc, 'Known efficiency wins are cumulative durable constraints, not chat memory.');
+must('wc', wc, 'The authorization must come from the HUMAN MESSAGE itself.');
+must('wc', wc, 'CLAIM_TRANSPORT_BLOCKED');
+must('wc', wc, 'STOP immediately; do not spend attempts 2–3');
 
 const fast = read(root, 'coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md');
 must('fast-allocation', fast, 'read ONE allocator snapshot');
@@ -48,8 +51,10 @@ must('fast-allocation', fast, '1. `ready` portfolio work;');
 must('fast-allocation', fast, '2. `queue_ready` normal work;');
 must('fast-allocation', fast, '3. only then `recovery` work;');
 must('fast-allocation', fast, 'Attempt the atomic CREATE first.');
-must('fast-allocation', fast, 'At most 3 atomic candidate attempts.');
+must('fast-allocation', fast, 'At most 3 atomic candidate attempts');
 must('fast-allocation', fast, 'No PIN/claim means no recovery debt.');
+must('fast-allocation', fast, 'CLAIM_TRANSPORT_BLOCKED');
+must('fast-allocation', fast, 'Do not consume attempts 2–3');
 
 const registry = read(root, 'coordination/workers/WORKER_REGISTRY_PROTOCOL_V1.md');
 must('worker-registry', registry, 'Deep validation happens after ownership and before substantive mutation.');
@@ -66,9 +71,11 @@ must('guide', guide, 'A sustained efficiency regression is ONE system bottleneck
 
 const live = read(root, '.github/workflows/live-feed.yml');
 must('live-workflow', live, 'cancel-in-progress: false');
+must('live-workflow', live, 'fetch-depth: 500');
 must('live-workflow', live, "schema:'prometeo.fast-allocator/v2'");
 must('live-workflow', live, "preferred_order:['ready','queue_ready','recovery']");
 must('live-workflow', live, 'claim_path:');
+must('live-workflow', live, 'claim_payload_shape:');
 must('live-workflow', live, 'max_recovery_snapshot_age_seconds:90');
 must('live-workflow', live, 'scripts/build-efficiency-snapshot.mjs');
 must('live-workflow', live, 'live/efficiency.json');
@@ -81,12 +88,18 @@ const runtime = read(root, 'scripts/build-efficiency-snapshot.mjs');
 must('efficiency-runtime', runtime, 'baseline.runtime_baseline_activated_at || baseline.updated_at');
 must('efficiency-runtime', runtime, "status==='REGRESSION'");
 must('efficiency-runtime', runtime, 'ONE_SYSTEM_BOTTLENECK_NOT_PER_WORKER');
+must('efficiency-runtime', runtime, "execFileSync('git'");
+must('efficiency-runtime', runtime, "measurement_clock:'GIT_COMMIT_TIME_PREFERRED'");
+must('efficiency-runtime', runtime, 'claim_transport_blocked');
 
 if (site) {
   const pointer = read(site, 'wc/index.html');
   must('public-wc', pointer, 'PROMETEO /wc — CLAIM NOW');
+  must('public-wc', pointer, 'CANONICAL HUMAN INVOCATION TO COPY:');
+  must('public-wc', pointer, 'autorizo beacon, PIN/claim y commits reversibles necesarios');
   must('public-wc', pointer, 'Before ownership, do NOT load Guide, Metabolism, page protocols');
   mustI('public-wc', pointer, 'create your beacon, read ONE allocator snapshot, then attempt atomic claim/PIN immediately');
+  must('public-wc', pointer, 'CLAIM_TRANSPORT_BLOCKED');
   mustNot('public-wc', pointer, 'MANDATORY before allocation: load and obey the self-replenishing metabolism policy');
   mustNot('public-wc', pointer, 'Load and obey the distributed Guide/Rescate protocol');
   mustNot('public-wc', pointer, 'Load the page identity/request/publication laws before');
