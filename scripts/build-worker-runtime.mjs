@@ -122,7 +122,7 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
     schema:'prometeo.worker-runtime/v1',
     generated_at:nowIso,
     source:{type:'github_issue_comments',issue_number:22,authority:false,measurement_clock:'GITHUB_COMMENT_SERVER_TIME'},
-    current_batch:(named[0]||compiled[0]||null)?.batch_id||null,
+    current_batch:(named[0]||null)?.batch_id||null,
     batches:compiled.slice(0,20),
     event_count:events.length,
     truth_boundary:'OBSERVABILITY_ONLY_GITHUB_PINS_REMAIN_AUTHORITY'
