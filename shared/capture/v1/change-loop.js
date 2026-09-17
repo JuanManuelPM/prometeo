@@ -8,6 +8,8 @@ function when(v){if(!v)return'';const d=new Date(v),s=Math.max(0,Math.round((Dat
 function secretFrom(storage){for(const key of SECRET_KEYS){try{const v=storage?.getItem?.(key);if(v&&v.length>=32)return v}catch{}}return''}
 function pageId(p){return p?.id||'prometeo-universal-shell-v5'}
 function pageTitle(p){return p?.title||p?.id||'Prometeo'}
+const SEMANTIC_CONTEXT_KEYS=['surface_id','project_id','authority_status','target_path','target_source_blob','course_id','selected_year','active_tab','semantic_anchor','viewport_fallback','explicit_shelf_position'];
+function semanticContext(p){const s=p?.semantic_context;if(!s||typeof s!=='object'||Array.isArray(s))return null;const out={};for(const k of SEMANTIC_CONTEXT_KEYS)if(s[k]!==undefined)out[k]=s[k];return Object.keys(out).length?out:null}
 function canonicalHostUrl(id,work){const u=new URL(HOST_BASE);if(id)u.searchParams.set('page',String(id));if(work)u.searchParams.set('changes',String(work));return u.href}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
 
@@ -17,9 +19,9 @@ export function createChangeLoopClient({endpoint=DEFAULT_ENDPOINT,storage=global
   async function upload(path,file,p,fields={}){const s=secret();if(!s)throw new Error('Este dispositivo todavía no está vinculado.');const form=new FormData();form.append('file',file);for(const [k,v] of Object.entries(fields))if(v!==undefined&&v!==null)form.append(k,String(v));const q=path==='attachment'?`?${new URLSearchParams({page_id:pageId(p),page_title:pageTitle(p)})}`:'';const r=await fetchImpl(`${endpoint}/${path}${q}`,{method:'POST',headers:{authorization:`Bearer ${s}`},body:form,cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.message||d?.error||`HTTP ${r.status}`);return d}
   return Object.freeze({
     schema:'prometeo.page-change-loop-client/v3',endpoint,hasWorkspace:()=>!!secret(),workspace:()=>call('workspace'),overview:()=>call('overview'),
-    syncPage:p=>call('sync_page',{page_id:pageId(p),page_title:pageTitle(p),baseline:p?.baseline||{}}),detail:p=>call('detail',{page_id:pageId(p),page_title:pageTitle(p),baseline:p?.baseline||{}}),
-    trabajar:p=>call('prepare_execution',{page_id:pageId(p),page_title:pageTitle(p),source_href:p?.href||null,served_identity:p?.served_identity||null,baseline:p?.baseline||{},intent:'WORK_PAGE',human_approved:true}),
-    pensar:p=>call('prepare_research',{page_id:pageId(p),page_title:pageTitle(p),source_href:p?.href||null,served_identity:p?.served_identity||null,baseline:p?.baseline||{},intent:'THINK_PAGE',human_approved:true}),
+    syncPage:p=>call('sync_page',{page_id:pageId(p),page_title:pageTitle(p),baseline:p?.baseline||{},semantic_context:semanticContext(p)}),detail:p=>call('detail',{page_id:pageId(p),page_title:pageTitle(p),baseline:p?.baseline||{},semantic_context:semanticContext(p)}),
+    trabajar:p=>call('prepare_execution',{page_id:pageId(p),page_title:pageTitle(p),source_href:p?.href||null,served_identity:p?.served_identity||null,baseline:p?.baseline||{},semantic_context:semanticContext(p),intent:'WORK_PAGE',human_approved:true}),
+    pensar:p=>call('prepare_research',{page_id:pageId(p),page_title:pageTitle(p),source_href:p?.href||null,served_identity:p?.served_identity||null,baseline:p?.baseline||{},semantic_context:semanticContext(p),intent:'THINK_PAGE',human_approved:true}),
     executionStatus:q=>call('execution_status',q||{}),markSeen:work_item_id=>call('mark_seen',{work_item_id}),uploadAttachment:(f,p)=>upload('attachment',f,p),
     uploadAudio:(f,n,p)=>upload('audio',f,p,{capture_id:n.id,page_id:pageId(p),created:n.created||Date.now(),source_path:n.sourcePath||'',source_href:n.sourceHref||'',source_title:n.sourceTitle||pageTitle(p)}),
     claimTranscription:()=>call('claim_transcription'),completeTranscription:(j,text)=>call('complete_transcription',{capture_id:j.capture_id,lease_token:j.lease_token,text}),failTranscription:(j,e)=>call('fail_transcription',{capture_id:j.capture_id,lease_token:j.lease_token,error:String(e?.message||e||'No pude transcribir')})
