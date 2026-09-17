@@ -1,0 +1,107 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-469f2a31be01-worker-lifecycle-v1",
+  "fingerprint": "pdf-469f2a31be0116382ef2e9fb175d67b7",
+  "created_at": "2026-09-17T14:56:03-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T1444-0300-gpt56sol-lifecycle-gap",
+    "opportunity_id": null,
+    "run_id": null,
+    "proposal_pin_ref": "coordination/opportunities/proposal-claims/pdf-469f2a31be0116382ef2e9fb175d67b7.json"
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "artifact": "worker lifecycle receipt contract plus cohort census compiler",
+    "consumer": "universal worker allocator, progress metrics compiler and stress verifier",
+    "subsystem": "worker telemetry/control plane"
+  },
+  "title": "Make worker launch and idle states reconstructable",
+  "problem": "The current durable fabric records claims, STARTED runs and returns well enough to reconstruct work that crossed allocation, but not the full launched-worker denominator or a trustworthy terminal IDLE_NO_SAFE_WORK state. In the 50-worker stress verification this makes global idle ratio UNKNOWN. Treating chat silence, abandoned conversations or missing work artifacts as idle would violate the existing truth boundary and hide disappeared workers.",
+  "mission": "Add a minimal append-only lifecycle receipt contract and deterministic cohort compiler for instrumented /wc sessions. The contract should make BOOTSTRAPPED, FRONTIER_SCANNED, CLAIM_WON/CLAIM_LOST, STARTED, RETURNED, REALLOCATED and terminal IDLE_NO_SAFE_WORK/BOUNDARY states independently reconstructable without raw chat content, while preserving UNKNOWN for vanished or legacy uninstrumented sessions. Integrate the resulting evidence with progress metrics and stress verification; do not promote production /w.",
+  "acceptance": [
+    "Every instrumented invocation has stable worker_session_id plus invocation_id and append-only lifecycle receipts with deterministic event identity.",
+    "A worker can emit IDLE_NO_SAFE_WORK only after a durable frontier-scan receipt identifies the active normal queues, portfolio fallback and compatibility result used for that decision.",
+    "Silence, chat deletion, timeout or missing terminal receipt yields UNKNOWN/DISAPPEARED, never inferred idle.",
+    "Claim attempts, claims, runs, returns and post-return reallocation cycles can be joined to one session without rewriting immutable source artifacts.",
+    "Replay or duplicate ingestion is idempotent and cannot inflate launched, active, returned or idle counts.",
+    "The compiler emits cohort coverage plus launched/active/returned/idle/boundary/unknown counts and computes global idle ratio only when the denominator is sufficiently instrumented; otherwise it emits PARTIAL/UNKNOWN with omissions.",
+    "A 5-worker fixture and a 50-worker fixture/canary independently reconstruct lifecycle counts and detect an injected vanished worker, duplicate receipt and false-idle receipt.",
+    "Receipts contain coordination metadata only and never raw prompt, transcript, private user material or secrets.",
+    "The feature remains candidate/canary telemetry and confers no Current, Human Accepted, Served or production /w authority."
+  ],
+  "observed_live_evidence": {
+    "stress_return_ref": "coordination/opportunities/returns/O-SWARM-50-WORKER-STRESS-VERIFY-V1/RUN-O-SWARM-50-WORKER-STRESS-VERIFY-V1-20260917T095854-SOL56-6C91.json",
+    "finding": "The verifier left global idle ratio UNKNOWN because there is no canonical launch/idle ledger for the worker cohort.",
+    "current_partial_sources": [
+      "exclusive claim artifacts",
+      "STARTED run artifacts",
+      "RETURN artifacts",
+      "portfolio claims/returns",
+      "candidate human WORKER_LAUNCH event contract from progress metrics"
+    ],
+    "gap": "Those sources describe work transitions after allocation or manual human actions, but do not create a canonical machine-observable lifecycle denominator for every instrumented worker session or prove terminal idle state."
+  },
+  "evidence_refs": [
+    "coordination/opportunities/returns/O-SWARM-50-WORKER-STRESS-VERIFY-V1/RUN-O-SWARM-50-WORKER-STRESS-VERIFY-V1-20260917T095854-SOL56-6C91.json",
+    "coordination/opportunities/returns/O-PROGRESS-METRICS-COMPILER-V1/RUN-O-PROGRESS-METRICS-COMPILER-V1-20260917T0046-SOL56R.json",
+    "coordination/workstreams/chat-native-control-plane-v1/CLAIM_PROTOCOL_SPEC_V0.json",
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/canary-evidence/SCHEMA_V1.json"
+  ],
+  "value_signals": {
+    "unblock_value": "Closes the specific evidence hole that prevented the 50-worker verifier from computing global idle ratio and distinguishing saturation from vanished workers.",
+    "compounding_value": "Every future multi-worker wave gains reconstructable utilization/saturation evidence, making allocator tuning and scale tests falsifiable instead of anecdotal.",
+    "human_friction_reduction": "Removes the need for a human to infer which chats were actually launched, active, safely idle or abandoned.",
+    "information_gain": "Separates no-safe-work from disappearance, measures lifecycle coverage and gives independent verifiers a canonical cohort denominator."
+  },
+  "dependency_ids": [
+    "O-PROGRESS-METRICS-COMPILER-V1",
+    "O-CANARY-RECEIPT-HARDENING-V1"
+  ],
+  "candidate_read_scope": [
+    "coordination/opportunities/returns/O-SWARM-50-WORKER-STRESS-VERIFY-V1/**",
+    "coordination/opportunities/returns/O-PROGRESS-METRICS-COMPILER-V1/**",
+    "coordination/workstreams/chat-native-control-plane-v1/CLAIM_PROTOCOL_SPEC_V0.json",
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/canary-evidence/**",
+    "coordination/opportunities/claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**"
+  ],
+  "candidate_write_scope": [
+    "coordination/telemetry/worker-lifecycle/**",
+    "scripts/compile-worker-lifecycle.mjs",
+    "tests/worker-lifecycle-v1.test.mjs",
+    "tests/fixtures/worker-lifecycle/**",
+    "own claim/run/return"
+  ],
+  "risk": {
+    "main": "If lifecycle instrumentation becomes a mandatory synchronous bottleneck, it could reduce throughput or falsely serialize workers.",
+    "mitigation": "Keep receipts append-only, minimal and idempotent; telemetry failure must degrade evidence coverage to UNKNOWN/PARTIAL rather than grant or revoke work authority."
+  },
+  "fresh_critic_required": true,
+  "falsification": [
+    "A worker can be counted IDLE without a durable frontier-scan/no-compatible-work receipt.",
+    "A vanished worker is silently classified as idle.",
+    "Replaying the same receipts changes cohort counts or idle ratio.",
+    "The compiler reports a precise global idle ratio while lifecycle coverage is incomplete or the launched denominator is unknown.",
+    "Lifecycle telemetry contains raw user/chat content or becomes an authority source for promotion.",
+    "Instrumentation materially serializes otherwise independent workers or requires rewriting immutable claims/runs/returns."
+  ],
+  "dedup_note": "This proposal does not duplicate claim-attempt receipts, recovery-generation fencing or the portfolio exclusive-job pin. Those address ownership and collision safety. It also does not duplicate the progress metrics compiler, which explicitly leaves unavailable evidence UNKNOWN and sketches human action events. The new artifact is the missing machine-observable per-worker session lifecycle/census required to supply launched/idle coverage to those consumers.",
+  "source_freshness": {
+    "main_head_before_pin": "c37a397ee73f29e69bfc294aa11e32d06650b1b0",
+    "main_head_after_pin": "d93d0505f128ac235925f043247cf26917fc3522",
+    "epoch_observed": "P3-d46b06a3b111",
+    "runtime_epoch_main_pointer": "cb849d28a320",
+    "note": "Public runtime projection lagged live main; write preflight used live main plus public EPOCH and an atomic proposal fingerprint pin."
+  },
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "NO_PRODUCTION_W_PROMOTION",
+    "PROPOSAL_DOES_NOT_AUTHORIZE_SHARED_MUTATION"
+  ]
+}
