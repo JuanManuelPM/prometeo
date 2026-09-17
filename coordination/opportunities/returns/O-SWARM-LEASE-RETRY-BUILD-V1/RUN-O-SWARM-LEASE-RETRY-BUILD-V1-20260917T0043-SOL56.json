@@ -1,0 +1,80 @@
+{
+  "schema": "prometeo.opportunity-return/v1",
+  "opportunity_id": "O-SWARM-LEASE-RETRY-BUILD-V1",
+  "run_id": "RUN-O-SWARM-LEASE-RETRY-BUILD-V1-20260917T0043-SOL56",
+  "worker_instance_id": "wc-chat-20260917T0042-0300-sol56-lease4c2b",
+  "status": "COMPLETE",
+  "created_at": "2026-09-17T00:51:38-03:00",
+  "claim_ref": "coordination/opportunities/claims/O-SWARM-LEASE-RETRY-BUILD-V1.json",
+  "run_ref": "coordination/opportunities/runs/O-SWARM-LEASE-RETRY-BUILD-V1/RUN-O-SWARM-LEASE-RETRY-BUILD-V1-20260917T0043-SOL56.json",
+  "checkpoint_ref": "coordination/swarm-v1/leases/O-SWARM-LEASE-RETRY-BUILD-V1/CHECKPOINT-20260917T0051-SOL56.json",
+  "mission": "Implement append-only lease/heartbeat/stale-probe/recovery-attempt semantics for the universal worker canary, with safe stale suspicion, recovery eligibility, immutable original evidence, CAS-aware recovery modes, and late-return preservation.",
+  "useful_delta": "Implemented a dependency-free lease/recovery decision library plus a read-only stale scanner CLI and an 11-case falsification suite. The implementation encodes the binding 20/30-minute canary thresholds, refuses age-only stale inference when policy is absent, suppresses retry after durable RETURN/DONE, requires refetch/CAS and overlap checks, emits only append-only recovery claim/run candidates with original lineage preserved, and requires explicit validation when a late original RETURN races a recovery attempt.",
+  "artifacts": [
+    {
+      "path": "scripts/swarm-lease-lib.mjs",
+      "commit": "bc8fbd4fba0cc65203b29bab3aa908eafe966066",
+      "blob_sha": "e652f42bb09680749f04c973bd5697af63e8fdb6",
+      "role": "Pure recovery state/CAS/receipt builders and late-return reconciliation primitive"
+    },
+    {
+      "path": "scripts/swarm-stale-scan.mjs",
+      "commit": "f2e13813490eb614da35bbc22e010d9b1762d24e",
+      "blob_sha": "5fc22ffeb3608c9ae1009d06997fbeac7a125a5b",
+      "role": "Read-only JSON CLI/projection that emits stale-probe and optional recovery candidates without mutating source truth"
+    },
+    {
+      "path": "tests/swarm-lease-retry-v1.test.mjs",
+      "commit": "8db2d60469e509a9b3de460829af25e524e537d5",
+      "blob_sha": "72cdf44cc1147cfdc8f0d422e8547ca21181e76b",
+      "role": "Authority/preserve-first/CAS/stale threshold/late-return falsification suite"
+    }
+  ],
+  "validation": {
+    "command": "node --test tests/swarm-lease-retry-v1.test.mjs",
+    "tests": 11,
+    "passed": 11,
+    "failed": 0,
+    "cli_smoke": "PASS",
+    "published_blob_identity": "MATCHED_GIT_HASH_OBJECT_FOR_ALL_THREE_FILES",
+    "coverage": [
+      "<20m ACTIVE_OR_UNKNOWN / NO_TAKEOVER",
+      "20-29m STALE_SUSPECT / OBSERVE_ONLY",
+      ">=30m RECOVERY_ELIGIBLE only with all safety gates",
+      "new heartbeat invalidates prior stale assumption",
+      "durable RETURN/DONE suppresses retry",
+      "missing binding policy => HOLD, never inferred stale",
+      "CAS mismatch => RELOAD_REQUIRED",
+      "active overlap => PARK",
+      "append-only recovery claim + fresh run lineage",
+      "late original return => preserve both + validation required",
+      "scanner mutation_performed=false"
+    ]
+  },
+  "binding_policy_refs": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md",
+    "coordination/GLOBAL_AGENT_CONSTITUTION_V1.md"
+  ],
+  "source_freshness": {
+    "start_main_head": "5529e120eee0da89bfc30a013a5353626715963a",
+    "pre_return_main_head": "aa039f8f008fea36abdbdbb08d7aa0529c730871",
+    "start_epoch": "P3-45ffc88b7137",
+    "pre_return_epoch": "P3-09ad989af945",
+    "concurrency_note": "Main and published runtime advanced during this run due parallel workers. Exact target files were absent at prewrite; own claim remained exclusive; subsequent observed concurrent changes were outside this run's three implementation paths and own evidence scope."
+  },
+  "authority": {
+    "role": "EXECUTE",
+    "scope": "SCOPED_CANDIDATE_ONLY_NO_GLOBAL_PROMOTION",
+    "mutated_shared_current": false,
+    "mutated_human_accepted": false,
+    "mutated_served": false,
+    "preservation_rule": "Original claims, attempts and returns are evidence; recovery artifacts are append-only and do not confer promotion authority."
+  },
+  "known_limits": [
+    "This canary implements the decision/scanner primitives; unattended periodic invocation still belongs to the external Metabolism Tick/event-loop deployment boundary.",
+    "The scanner emits recovery candidates but does not itself create GitHub recovery claims or mutate runs; a separately authorized executor must persist those append-only artifacts.",
+    "Recovery eligibility still depends on caller-supplied target-refetch and active-overlap evidence; uncertainty parks/reloads rather than guessing."
+  ],
+  "result_summary": "COMPLETE: executable stale/recovery canary primitives are on main, validated 11/11, preserve original evidence, and do not self-promote authority."
+}
