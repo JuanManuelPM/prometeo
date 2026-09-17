@@ -21,7 +21,7 @@
     return (j.tree||[]).map(x=>x.path);
   }
   async function readMany(paths){return Promise.all(paths.map(async path=>({path,doc:await raw(path,true)})))}
-  function ts(doc){return first(doc?.returned_at,doc?.completed_at,doc?.claimed_at,doc?.created_at,doc?.updated_at,doc?.timestamp)||''}
+  function ts(doc){return first(doc?.returned_at,doc?.completed_at,doc?.observed_at,doc?.claimed_at,doc?.created_at,doc?.updated_at,doc?.timestamp)||''}
   function millis(doc){const n=new Date(ts(doc)).getTime();return Number.isFinite(n)?n:0}
   function terminal(ret){return terminalOutcomes.has(lower(first(ret?.outcome,ret?.status,ret?.result)))}
   function activeLease(doc){if(!doc)return false;const exp=doc.expires_at?new Date(doc.expires_at).getTime():0;return exp?exp>Date.now():true}
@@ -56,25 +56,29 @@
   async function inspectJob(project, job, paths){
     const pinPrefix=`coordination/portfolio/pins/${job.job_id}/`;
     const claimPrefix=`coordination/portfolio/claims/${job.job_id}/`;
+    const collisionPrefix=`coordination/portfolio/collisions/${job.job_id}/`;
     const returnPrefix=`coordination/portfolio/returns/${job.job_id}/`;
     const pinPaths=paths.filter(p=>p.startsWith(pinPrefix)&&p.endsWith('.json'));
     const claimPaths=paths.filter(p=>p.startsWith(claimPrefix)&&p.endsWith('.json'));
+    const collisionPaths=paths.filter(p=>p.startsWith(collisionPrefix)&&p.endsWith('.json'));
     const returnPaths=paths.filter(p=>p.startsWith(returnPrefix)&&p.endsWith('.json'));
-    const [pinRows,claimRows,returnRows]=await Promise.all([readMany(pinPaths),readMany(claimPaths),readMany(returnPaths)]);
+    const [pinRows,claimRows,collisionRows,returnRows]=await Promise.all([readMany(pinPaths),readMany(claimPaths),readMany(collisionPaths),readMany(returnPaths)]);
     const pins=pinRows.filter(x=>x.doc).sort((a,b)=>pinGeneration(a)-pinGeneration(b)||millis(a.doc)-millis(b.doc)||a.path.localeCompare(b.path));
     const claims=claimRows.filter(x=>x.doc).sort((a,b)=>millis(a.doc)-millis(b.doc)||a.path.localeCompare(b.path));
+    const collisions=collisionRows.filter(x=>x.doc).sort((a,b)=>millis(a.doc)-millis(b.doc)||a.path.localeCompare(b.path));
     const returns=returnRows.filter(x=>x.doc).sort((a,b)=>millis(a.doc)-millis(b.doc)||a.path.localeCompare(b.path));
     const terminalReturn=[...returns].reverse().find(x=>terminal(x.doc));
     const latestReturn=returns.at(-1)||null;
     const latestPin=pins.at(-1)||null;
+    const latestGeneration=latestPin?pinGeneration(latestPin):0;
     const livePin=latestPin&&activeLease(latestPin.doc)?latestPin:null;
     const activeClaims=claims.filter(x=>activeLease(x.doc));
     let authorityClaim=null, collisionCount=0, authorityMode='none';
 
     if(latestPin){
       authorityClaim=claims.find(x=>x.doc?.pin_ref===latestPin.path||(latestPin.doc?.pin_id&&x.doc?.pin_id===latestPin.doc.pin_id))||null;
-      collisionCount=activeClaims.filter(x=>!authorityClaim||x.path!==authorityClaim.path).length;
-      authorityMode=livePin?(pinGeneration(livePin)>1?'recovery-pin':'pin'):'stale-pin';
+      collisionCount=collisions.filter(x=>Number(x.doc?.attempted_generation)===latestGeneration||x.doc?.winner_pin_ref===latestPin.path||x.doc?.attempted_pin_ref===latestPin.path).length;
+      authorityMode=livePin?(latestGeneration>1?'recovery-pin':'pin'):'stale-pin';
     }else if(activeClaims.length){
       authorityClaim=activeClaims[0];
       collisionCount=Math.max(0,activeClaims.length-1);
@@ -83,7 +87,7 @@
 
     let state='ready';
     if(terminalReturn)state='done';
-    else if(livePin)state=pinGeneration(livePin)>1?'recovery':'working';
+    else if(livePin)state=latestGeneration>1?'recovery':'working';
     else if(latestPin)state='stale';
     else if(authorityClaim)state='working';
     else if(latestReturn&&['partial','boundary'].includes(lower(latestReturn.doc?.outcome)))state='partial';
@@ -92,9 +96,9 @@
     const spawn=returns.flatMap(x=>Array.isArray(x.doc?.spawn_candidates)?x.doc.spawn_candidates:[]);
     return {
       ...job,project_id:project.project_id,project_label:project.label,state,
-      active_pin:livePin,latest_pin:latestPin,pin_generation:latestPin?pinGeneration(latestPin):0,
+      active_pin:livePin,latest_pin:latestPin,pin_generation:latestGeneration,
       active_claim:authorityClaim?.doc||null,active_claim_path:authorityClaim?.path||null,
-      authority_mode:authorityMode,collision_count:collisionCount,
+      authority_mode:authorityMode,collision_count:collisionCount,collision_receipts:collisions,
       latest_return:latestReturn?.doc||null,terminal_return:terminalReturn?.doc||null,spawn_candidates:spawn
     };
   }
