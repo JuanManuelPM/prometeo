@@ -11,6 +11,7 @@ on:
       - 'coordination/CONTINUITY_HEAD.json'
       - 'coordination/workstreams/chat-native-control-plane-v1/FOCUS.json'
       - '.github/scripts/build-live-feed.mjs'
+      - '.github/scripts/normalize-live-feed.mjs'
       - '.github/workflows/live-feed.yml'
   workflow_dispatch:
 
@@ -31,15 +32,38 @@ jobs:
           ref: main
           path: source
           fetch-depth: 1
-      - name: Build snapshot
-        run: node source/.github/scripts/build-live-feed.mjs source /tmp/feed.json
+
+      - name: Build and normalize snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          node source/.github/scripts/build-live-feed.mjs source /tmp/feed.json
+          node source/.github/scripts/normalize-live-feed.mjs source /tmp/feed.json
+
+      - name: Build tiny allocator hint
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const f=JSON.parse(fs.readFileSync('/tmp/feed.json','utf8'));
+          const jobs=(f.projects||[]).flatMap(p=>(p.jobs||[]).map(j=>({...j,project_label:p.label})));
+          const compact=j=>({job_id:j.job_id,dedupe_key:j.dedupe_key||null,project_id:j.project_id||null,project_label:j.project_label||null,title:j.title||j.job_id,priority:j.priority||0,state:j.state,authority_mode:j.authority_mode||null,pin_generation:j.pin_generation||0,last_signal_at:j.last_signal_at||null});
+          const byPriority=(a,b)=>(b.priority||0)-(a.priority||0)||String(a.job_id).localeCompare(String(b.job_id));
+          const recovery=jobs.filter(j=>j.state==='replaceable').sort(byPriority).map(compact).slice(0,30);
+          const ready=jobs.filter(j=>['ready','partial'].includes(j.state)).sort(byPriority).map(compact).slice(0,40);
+          const queue_ready=(f.plans||[]).flatMap(p=>(p.items||[]).filter(i=>i.state==='ready').map(i=>({opportunity_id:i.opportunity_id,mission:i.mission,priority:i.priority||0,plan_id:p.id}))).sort((a,b)=>b.priority-a.priority).slice(0,30);
+          const out={schema:'prometeo.fast-allocator/v1',generated_at:f.generated_at,source_sha:f.source_sha||null,truth_boundary:'HINT_ONLY_REVALIDATE_BEFORE_CLAIM',counts:{recovery:recovery.length,ready:ready.length,queue_ready:queue_ready.length},recovery,ready,queue_ready,worker_projection:f.summary?.workers||{},diagnostics:f.diagnostics||{}};
+          fs.writeFileSync('/tmp/allocator.json',JSON.stringify(out,null,2)+'\n');
+          NODE
+
       - name: Checkout site
         uses: actions/checkout@v4
         with:
           ref: gh-pages
           path: site
           fetch-depth: 20
-      - name: Publish snapshot
+
+      - name: Publish snapshot and allocator
         shell: bash
         run: |
           set -euo pipefail
@@ -48,9 +72,10 @@ jobs:
           git -C site pull --ff-only origin gh-pages
           mkdir -p site/live
           cp /tmp/feed.json site/live/feed.json
-          git -C site add live/feed.json
+          cp /tmp/allocator.json site/live/allocator.json
+          git -C site add live/feed.json live/allocator.json
           if git -C site diff --cached --quiet; then exit 0; fi
-          git -C site commit -m "live: refresh static worker feed"
+          git -C site commit -m "live: refresh worker feed and allocator"
           for n in 1 2 3; do
             if git -C site push origin HEAD:gh-pages; then exit 0; fi
             git -C site fetch origin gh-pages
