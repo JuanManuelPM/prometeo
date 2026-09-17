@@ -1,0 +1,73 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-06db491e180f-bde003c9",
+  "fingerprint": "pdf-06db491e180f3ec74a8639eaaaca3d8b",
+  "created_at": "2026-09-17T17:50:17Z",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-gpt56sol-20260917T145017-0300",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "area": "coordination/portfolio/claims",
+    "mechanism": "portfolio claim protocol",
+    "scope": "same job_id and dedupe_key ownership"
+  },
+  "problem": "Append-only per-worker claim_id files allow multiple workers to acquire apparently valid active claims for the same portfolio job/dedupe key during a race. The current worker contract says active claims block duplicates, but its create path is unique per claimant, so CREATE itself is not mutually exclusive.",
+  "acceptance": [
+    "A single portfolio job/dedupe key has one CREATE_IF_ABSENT_EXCLUSIVE ownership pin before worker-specific claim evidence.",
+    "Concurrent claim test proves exactly one winner and losers re-enter allocation without substantive execution.",
+    "Existing immutable claim evidence remains preserved and compatibility/migration behavior is documented.",
+    "Portfolio worker contract and implementation use the same exclusivity rule."
+  ],
+  "title": "Make Portfolio claims actually exclusive under concurrent /wc races",
+  "mission": "Design and implement a preserve-first portfolio ownership pin whose path is deterministic per job/dedupe key, retain append-only claimant evidence for audit, add a concurrent race test that proves exactly one ownership winner, and update the worker contract so losers re-enter allocation before substantive execution. Do not rewrite historical claims or infer promotion authority.",
+  "evidence_refs": [
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/portfolio/claims/portfolio-calendar-habits-recover/CLAIM-WC-GPT56SOL-20260917T174830Z.json",
+    "coordination/portfolio/claims/portfolio-calendar-habits-recover/CLAIM-WC-SOL56-20260917T174830Z.json",
+    "coordination/portfolio/claims/portfolio-tele-recover-intent-and-artifacts/CLAIM_WC_GPT56SOL_20260917T174837Z.json",
+    "coordination/portfolio/claims/portfolio-tele-recover-intent-and-artifacts/CLAIM-WC-GPT56SOL-20260917T174842Z.json",
+    "coordination/portfolio/claims/portfolio-tele-recover-intent-and-artifacts/CLAIM-WC-GPT56SOL-20260917T174845Z.json",
+    "coordination/portfolio/claims/portfolio-tele-recover-intent-and-artifacts/CLAIM-WC-SOL56-20260917T144849-0300-TELE.json",
+    "git:6425e4bfce669607c93f15adbfb0e18c4101ec4b"
+  ],
+  "value_signals": {
+    "incident_repair": {
+      "reason": "The first live portfolio fallback wave produced concurrent duplicate claims for the same jobs within seconds, forcing boundary/supersession cleanup instead of productive work.",
+      "evidence_ref": "coordination/portfolio/claims/portfolio-tele-recover-intent-and-artifacts/"
+    },
+    "regression_prevention": {
+      "reason": "Without true exclusivity, every high-parallelism /wc burst can waste capacity on duplicate portfolio execution and create conflicting returns.",
+      "evidence_ref": "coordination/portfolio/WORKER_CONTRACT_V1.md"
+    },
+    "unblock_value": {
+      "reason": "Portfolio fallback is intended to absorb saturated /wc capacity; reliable ownership is prerequisite for scaling that lane safely.",
+      "evidence_ref": "coordination/portfolio/PORTFOLIO.json"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/portfolio/**",
+    "coordination/opportunities/claims/**",
+    "coordination/opportunities/recovery-claims/**",
+    "scripts/**",
+    "tests/**"
+  ],
+  "candidate_write_scope": [
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "scripts/portfolio-claim-*.mjs",
+    "tests/portfolio-claim-*.test.mjs",
+    "coordination/portfolio/candidates/**"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": "Run at least 10 concurrent claimant attempts against one previously unclaimed synthetic portfolio job/dedupe key. The candidate fails if more than one ownership pin succeeds, if a loser proceeds as owner, if historical append-only claim evidence is overwritten, or if contract and executable semantics diverge.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
