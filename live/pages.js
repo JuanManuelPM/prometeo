@@ -37,9 +37,10 @@
 
   function pageRow(p,isActive){
     const unread=isUnread(p);
-    const note=p.change_id&&p.change_note?`${p.change_id} · ${p.change_note}`:shortStatus(p.status);
+    const change=p.change_id&&p.change_note?`${p.change_id} · ${p.change_note}`:shortStatus(p.status);
+    const meta=[p.plate,change].filter(Boolean).join(' · ');
     const current=p.id===currentPageId?' current':'';
-    return `<div class="pageRow${current}"><button class="pageOpen" type="button" data-open-page="${esc(p.id)}"><span class="pageNameLine"><span class="pageName">${esc(p.title)}</span>${unread?'<i class="pageNew" aria-label="nuevo"></i>':''}</span><span class="pageMeta">${esc(note)}</span></button><button class="pageToggle ${isActive?'active':''}" type="button" data-toggle-page="${esc(p.id)}" aria-label="${isActive?'Quitar de activas':'Agregar a activas'}">${isActive?'−':'+'}</button></div>`;
+    return `<div class="pageRow${current}"><button class="pageOpen" type="button" data-open-page="${esc(p.id)}"><span class="pageNameLine"><span class="pageName">${esc(p.title)}</span>${unread?'<i class="pageNew" aria-label="nuevo"></i>':''}</span><span class="pageMeta">${esc(meta)}</span></button><button class="pageToggle ${isActive?'active':''}" type="button" data-toggle-page="${esc(p.id)}" aria-label="${isActive?'Quitar de activas':'Agregar a activas'}">${isActive?'−':'+'}</button></div>`;
   }
 
   function bindDrawerRows(){
@@ -99,7 +100,7 @@
     currentPageId=id;
     markSeen(p);
     closeDrawer();
-    $('viewerTitle').textContent=p.title;
+    $('viewerTitle').textContent=[p.plate,p.title].filter(Boolean).join(' · ');
     $('viewerNote').textContent=p.change_id&&p.change_note?`${p.change_id} · ${p.change_note}`:'';
     $('viewerExternal').href=p.url;
     $('pageFrame').src=p.url;
