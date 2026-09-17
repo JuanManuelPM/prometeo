@@ -1,0 +1,105 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-2b9cb48a8430-d9352fc1",
+  "fingerprint": "pdf-2b9cb48a84304ad7ac85ec900e01c5b0",
+  "created_at": "2026-09-17T17:50:00.000Z",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-gpt56sol-20260917t1445-0300",
+    "opportunity_id": null,
+    "run_id": null,
+    "proposal_pin_ref": "coordination/opportunities/proposal-claims/pdf-2b9cb48a84304ad7ac85ec900e01c5b0.json"
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "owner": "chat-object-prometeo-chat-control-main",
+    "scope": "portfolio claim allocation",
+    "paths": ["coordination/portfolio/claims/**"],
+    "output": "exclusive active claim per dedupe key"
+  },
+  "title": "Fence concurrent portfolio claims",
+  "problem": "The portfolio fallback contract requires an active claim to block duplicate execution, but each worker atomically creates a different unique claim filename. Live evidence shows multiple non-expired claims for the same job and dedupe_key, so append-only CREATE preserves evidence but does not elect one exclusive owner.",
+  "mission": "Add an exclusive portfolio claim-ownership fence keyed by job/dedupe identity so exactly one concurrent worker gains substantive execution authority while losers persist collision evidence and immediately re-enter allocation. Preserve all historical append-only claims and returns.",
+  "acceptance": [
+    "A portfolio job/dedupe key has at most one active non-expired claim across concurrent workers.",
+    "Losing concurrent claimant deterministically detects collision and re-enters allocation without duplicate execution.",
+    "Existing append-only claim evidence is preserved; fix adds exclusive claim ownership without overwriting prior claims.",
+    "Concurrency canary proves one winner and no duplicate execution authority."
+  ],
+  "observed_live_evidence": {
+    "tts_job": "portfolio-tts-find-existing-tool",
+    "tts_dedupe_key": "tool:tts:recover-existing:v1",
+    "tts_active_claims": [
+      "coordination/portfolio/claims/portfolio-tts-find-existing-tool/CLAIM-WC-SOL-20260917T174730Z.json",
+      "coordination/portfolio/claims/portfolio-tts-find-existing-tool/CLAIM-WC-20260917T144753-0300-SOL56.json"
+    ],
+    "stt_job": "portfolio-stt-find-existing-tool",
+    "stt_observed_claim_count": 3,
+    "finding": "Unique append-only claim filenames allow same-dedupe contenders to coexist; directory preflight is not an atomic ownership election."
+  },
+  "evidence_refs": [
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/portfolio/PORTFOLIO.json",
+    "coordination/portfolio/claims/portfolio-tts-find-existing-tool/CLAIM-WC-SOL-20260917T174730Z.json",
+    "coordination/portfolio/claims/portfolio-tts-find-existing-tool/CLAIM-WC-20260917T144753-0300-SOL56.json",
+    "coordination/portfolio/claims/portfolio-stt-find-existing-tool/CLAIM-WC-GPT56SOL-20260917T174805Z.json",
+    "coordination/portfolio/claims/portfolio-stt-find-existing-tool/CLAIM-WC-GPT56SOL-20260917T174806Z.json",
+    "coordination/portfolio/claims/portfolio-stt-find-existing-tool/CLAIM_WC_GPT56SOL_20260917T174809Z.json"
+  ],
+  "value_signals": {
+    "unblock_value": {
+      "reason": "Makes portfolio fallback safe under the many-identical-chat launch pattern instead of creating duplicate substantive workers.",
+      "evidence_ref": "coordination/portfolio/WORKER_CONTRACT_V1.md"
+    },
+    "human_friction_reduction": {
+      "reason": "Workers can resolve claim races without asking the human which duplicate chat should continue.",
+      "evidence_ref": "coordination/portfolio/claims/portfolio-tts-find-existing-tool/CLAIM-WC-SOL-20260917T174730Z.json"
+    },
+    "regression_prevention": {
+      "reason": "A concurrency canary can prevent future allocator changes from reintroducing same-dedupe duplicate ownership.",
+      "evidence_ref": "coordination/swarm-v1/discovery/DISCOVERY_DEDUP_CONTRACT_V1.json"
+    },
+    "information_gain": {
+      "reason": "Explicit winner/loser receipts make contention measurable rather than hidden in nearly simultaneous append-only claims.",
+      "evidence_ref": "coordination/portfolio/claims/portfolio-stt-find-existing-tool/CLAIM-WC-GPT56SOL-20260917T174805Z.json"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/portfolio/claims/**",
+    "coordination/portfolio/returns/**",
+    "wc",
+    "scripts/**portfolio*",
+    "tests/**portfolio*"
+  ],
+  "candidate_write_scope": [
+    "scripts/portfolio-claim-lib.mjs",
+    "tests/portfolio-claim-exclusivity-v1.test.mjs",
+    "coordination/portfolio/claim-fences/**",
+    "own claim/run/return"
+  ],
+  "risk": {
+    "main": "An over-broad fence could serialize distinct portfolio jobs or complementary read-only analysis.",
+    "mitigation": "Fence only substantive ownership for the same canonical job/dedupe identity; preserve parallel work across distinct dedupe keys and explicitly complementary roles."
+  },
+  "fresh_critic_required": true,
+  "falsification": [
+    "Two simultaneous contenders for the same job/dedupe both gain substantive execution authority.",
+    "A losing contender cannot durably identify that it lost and re-enter allocation.",
+    "The fence overwrites or deletes existing append-only claim evidence.",
+    "Distinct dedupe keys are unnecessarily serialized by the fix."
+  ],
+  "dedup_note": "Distinct from the existing recovery-generation race proposal: this defect is in normal portfolio fallback ownership, where unique per-worker claim filenames violate the contract's own active-claim dedupe law.",
+  "source_freshness": {
+    "main_head_before_proposal": "434abdaec185474f7a4fcd9a15c667bad42639a7",
+    "epoch_observed": "P3-a5bc85efcc89",
+    "note": "The public runtime epoch lagged live main during this discovery; evidence paths were fetched directly from main."
+  },
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
