@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 const arr = value => Array.isArray(value) ? value : [];
 const parseTime = value => Date.parse(value || '') || 0;
 const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
+const uniq = values => [...new Set(arr(values).filter(Boolean).map(String))].sort((a, b) => Buffer.from(a).compare(Buffer.from(b)));
 
 function readJson(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
@@ -37,6 +38,27 @@ function validRelease(release, barrier) {
   return ids.length >= Number(barrier.required_contenders);
 }
 
+function validTimeout(receipt, barrier) {
+  return isObject(receipt) &&
+    receipt.schema === 'prometeo.portfolio-contention-timeout/v1' &&
+    receipt.fixture_id === barrier.fixture_id &&
+    typeof receipt.worker_id === 'string' && receipt.worker_id.length > 0 &&
+    receipt.pin_attempted === false &&
+    receipt.grants_execution_authority === false;
+}
+
+function loadTimeoutWorkerIds(dir, barrier) {
+  const timeoutDir = path.join(dir, 'timeouts');
+  if (!fs.existsSync(timeoutDir)) return [];
+  const ids = [];
+  for (const ent of fs.readdirSync(timeoutDir, { withFileTypes: true })) {
+    if (!ent.isFile() || !ent.name.endsWith('.json')) continue;
+    const receipt = readJson(path.join(timeoutDir, ent.name));
+    if (validTimeout(receipt, barrier)) ids.push(receipt.worker_id);
+  }
+  return uniq(ids);
+}
+
 export function loadContentionBarriers(root = '.') {
   const base = path.join(root, 'coordination', 'portfolio', 'contention_barriers');
   if (!fs.existsSync(base)) return [];
@@ -51,6 +73,7 @@ export function loadContentionBarriers(root = '.') {
       job_id: barrier.job_id || barrier.target_job_id,
       barrier,
       release: readJson(path.join(dir, 'RELEASE.json')),
+      timeout_worker_ids: loadTimeoutWorkerIds(dir, barrier),
       barrier_ref: `coordination/portfolio/contention_barriers/${barrier.fixture_id}/BARRIER.json`,
       release_ref: `coordination/portfolio/contention_barriers/${barrier.fixture_id}/RELEASE.json`
     });
@@ -107,6 +130,24 @@ export function routePortfolioCandidate(candidate, barrierRow, nowIso) {
 
   if (now >= deadline) {
     const meta = barrierMeta(barrierRow, 'TIMED_OUT');
+    const priorTimeoutWorkers = uniq(barrierRow.timeout_worker_ids);
+    if (priorTimeoutWorkers.length) {
+      return {
+        ...candidate,
+        claim_mode: 'PORTFOLIO_BARRIER_EXPIRED_OBSERVED',
+        claim_path: null,
+        claim_payload_shape: null,
+        contention_barrier: {
+          ...meta,
+          state: 'TIMED_OUT_OBSERVED',
+          timeout_worker_ids: priorTimeoutWorkers,
+          timeout_evidence_count: priorTimeoutWorkers.length
+        },
+        next_action: 'SKIP_EXPIRED_BARRIER',
+        post_claim_validate: false,
+        post_release_claim: null
+      };
+    }
     return {
       ...candidate,
       claim_mode: 'PORTFOLIO_BARRIER_TIMEOUT',
@@ -181,8 +222,21 @@ export function routePortfolioCandidate(candidate, barrierRow, nowIso) {
 
 export function applyContentionBarrierRouting(allocator = {}, barriers = [], nowIso = allocator.generated_at || new Date().toISOString()) {
   const routeLane = lane => arr(allocator[lane]).map(candidate => routePortfolioCandidate(candidate, selectBarrier(candidate.job_id, barriers), nowIso));
-  const ready = routeLane('ready');
-  const recovery = routeLane('recovery');
+  const routedReady = routeLane('ready');
+  const routedRecovery = routeLane('recovery');
+  const isExpiredObserved = candidate => candidate?.claim_mode === 'PORTFOLIO_BARRIER_EXPIRED_OBSERVED';
+  const suppressed = [...routedReady, ...routedRecovery]
+    .filter(isExpiredObserved)
+    .map(candidate => ({
+      job_id: candidate.job_id,
+      fixture_id: candidate.contention_barrier?.fixture_id || null,
+      timeout_evidence_count: candidate.contention_barrier?.timeout_evidence_count || 0,
+      timeout_worker_ids: arr(candidate.contention_barrier?.timeout_worker_ids),
+      reason: 'DURABLE_TIMEOUT_ALREADY_OBSERVED',
+      next_action: 'SKIP_EXPIRED_BARRIER'
+    }));
+  const ready = routedReady.filter(candidate => !isExpiredObserved(candidate));
+  const recovery = routedRecovery.filter(candidate => !isExpiredObserved(candidate));
   return {
     ...allocator,
     schema: allocator.schema || 'prometeo.fast-allocator/v3',
@@ -190,14 +244,19 @@ export function applyContentionBarrierRouting(allocator = {}, barriers = [], now
       status: 'CANARY_BINDING_OPT_IN',
       source: 'coordination/portfolio/contention_barriers/*/BARRIER.json',
       authority: 'TIMING_ONLY_UNTIL_DETERMINISTIC_PIN_WIN',
-      ordinary_jobs_direct_to_pin: true
+      ordinary_jobs_direct_to_pin: true,
+      expired_after_first_timeout_evidence: true,
+      suppressed_expired_candidates: suppressed
     },
     ready,
     recovery,
     counts: {
       ...(allocator.counts || {}),
+      ready: ready.length,
+      recovery: recovery.length,
       barrier_enter: [...ready, ...recovery].filter(x => x.claim_mode === 'PORTFOLIO_BARRIER_ENTER').length,
-      barrier_timeout: [...ready, ...recovery].filter(x => x.claim_mode === 'PORTFOLIO_BARRIER_TIMEOUT').length
+      barrier_timeout: [...ready, ...recovery].filter(x => x.claim_mode === 'PORTFOLIO_BARRIER_TIMEOUT').length,
+      barrier_expired_suppressed: suppressed.length
     }
   };
 }
@@ -209,7 +268,7 @@ export function runCli(argv = process.argv.slice(2)) {
   const barriers = loadContentionBarriers(root);
   const routed = applyContentionBarrierRouting(allocator, barriers, allocator.generated_at || new Date().toISOString());
   fs.writeFileSync(outputPath, `${JSON.stringify(routed, null, 2)}\n`);
-  process.stdout.write(`allocator-contention barriers=${barriers.length} enter=${routed.counts?.barrier_enter || 0} timeout=${routed.counts?.barrier_timeout || 0}\n`);
+  process.stdout.write(`allocator-contention barriers=${barriers.length} enter=${routed.counts?.barrier_enter || 0} timeout=${routed.counts?.barrier_timeout || 0} expired_suppressed=${routed.counts?.barrier_expired_suppressed || 0}\n`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
