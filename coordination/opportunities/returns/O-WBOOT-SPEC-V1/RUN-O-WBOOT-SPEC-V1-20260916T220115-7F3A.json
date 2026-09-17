@@ -1,0 +1,367 @@
+{
+  "schema": "prometeo.opportunity-return/v0",
+  "queue_id": "Q-CANARY-SWARM-01",
+  "opportunity_id": "O-WBOOT-SPEC-V1",
+  "run_id": "RUN-O-WBOOT-SPEC-V1-20260916T220115-7F3A",
+  "worker_instance_id": "W-CANARY-20260916-220115-SOL-7F3A",
+  "state": "RETURNED_CANDIDATE",
+  "created_at": "2026-09-16T22:03:01-03:00",
+  "epoch_pre_return": "P3-9fcbc6c1cc08",
+  "mission_result": "Produced a concrete canary-scoped /w bootstrap contract with deterministic selection, hard compatibility filters, create-if-absent claim semantics, STARTED/RETURN/DONE evidence ordering, bounded post-return continuation, no-safe-work behavior, error classification, and a falsification checklist. The contract explicitly preserves production gates rather than advertising /w as operational.",
+  "authority_class": "CANDIDATE_EVIDENCE_ONLY",
+  "source_evidence": [
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/AUTONOMOUS_SWARM_OPERATING_MODEL_V1.md",
+      "supports": [
+        "identical fresh workers must discover and atomically claim distinct work",
+        "selection is constrained by tools, privacy, authority and collision risk before priority",
+        "STARTED precedes material work and durable RETURN precedes DONE",
+        "post-return continuation is bounded and must not manufacture work",
+        "generic /w remains a target until queue/claim canaries pass"
+      ]
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/CLAIM_PROTOCOL_SPEC_V0.json",
+      "supports": [
+        "exclusive claim is create-if-absent/CAS rather than read-then-overwrite",
+        "losing a race is normal control flow and requires reload/retry",
+        "claim does not widen authority or privacy scope",
+        "claim without STARTED is a distinct durable state",
+        "stale reclamation must preserve predecessor evidence and may not overwrite the original claim"
+      ]
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/OPPORTUNITY_QUEUE_SPEC_V0.json",
+      "supports": [
+        "READY is a derived eligibility result in the target model",
+        "priority never overrides dependency, authority, privacy, tool/capability or live-collision constraints",
+        "claim/run/return evidence is separate from queue intent",
+        "workers should receive only the selected Working Set rather than unrelated project/private payloads",
+        "same durable inputs should deterministically produce the same eligibility/exclusion outcome"
+      ]
+    },
+    {
+      "ref": "coordination/opportunities/CANARY_QUEUE_V0.json",
+      "supports": [
+        "current isolated canary uses explicit numeric priority and create-only claim paths",
+        "successful claim grants only claim + own run + own return write scope",
+        "one optional additional opportunity is the current post-return bound"
+      ]
+    }
+  ],
+  "observed_canary_evidence": [
+    {
+      "event": "CLAIM_RACE_LOST",
+      "opportunity_id": "O-BIG09-RECOVERY-R1",
+      "observation": "Create-only claim attempt was rejected because the path already existed; no UPDATE/overwrite was attempted. The worker reloaded claims and continued."
+    },
+    {
+      "event": "CLAIM_RACE_LOST",
+      "opportunity_id": "O-ROOT-ALUMNOS-DISCOVERY-V1",
+      "observation": "A second create-only claim attempt also lost a race; the worker again did not overwrite and reloaded the claim set."
+    },
+    {
+      "event": "CLAIM_SUCCEEDED",
+      "opportunity_id": "O-WBOOT-SPEC-V1",
+      "claim_ref": "coordination/opportunities/claims/O-WBOOT-SPEC-V1.json",
+      "observation": "Create-if-absent succeeded for an unclaimed READY opportunity."
+    },
+    {
+      "event": "STARTED_BEFORE_SUBSTANTIVE_WORK",
+      "run_ref": "coordination/opportunities/runs/O-WBOOT-SPEC-V1/RUN-O-WBOOT-SPEC-V1-20260916T220115-7F3A.json",
+      "observation": "The run was persisted with state STARTED before reading the opportunity's substantive specification scope."
+    }
+  ],
+  "w_v1_canary_contract": {
+    "status": "CANDIDATE_CANARY_ONLY_NOT_PRODUCTION_OPERATIONAL",
+    "stable_invocation": "PROMETEO → https://juanmanuelpm.github.io/prometeo/w",
+    "session_claim_limit": 2,
+    "principle": "A fresh worker is a fungible execution shell. It may discover metadata broadly enough to select one safe opportunity, but it receives substantive context and write authority only after a successful exclusive claim.",
+    "state_machine": [
+      "BOOT",
+      "LOAD_CONSTITUTION",
+      "RESYNC_EPOCH_AND_ACTIVE_PACKET",
+      "LOAD_CONTINUITY_AND_QUEUE_PROJECTION",
+      "BUILD_LOCAL_CAPABILITY_PROFILE",
+      "FILTER_ELIGIBLE",
+      "SELECT_DETERMINISTIC_BEST",
+      "CLAIM_ATTEMPT",
+      "CLAIM_LOST_RACE -> RELOAD_AND_RETRY",
+      "CLAIMED",
+      "PERSIST_STARTED",
+      "LOAD_SELECTED_WORKING_SET",
+      "EXECUTE_WITHIN_SCOPE",
+      "PERSIST_RETURN",
+      "CAS_UPDATE_OWN_RUN_DONE",
+      "POST_RETURN_RECHECK",
+      "OPTIONAL_SECOND_CLAIM_OR_IDLE"
+    ],
+    "bootstrap_inputs": {
+      "required": [
+        "stable Prometeo entry",
+        "mandatory global constitution",
+        "latest EPOCH",
+        "active compiled packet relevant to the queue/root",
+        "Continuity Head or equivalent global current-frontier pointer",
+        "queue projection",
+        "current claim evidence"
+      ],
+      "prohibited_as_authority": [
+        "chat transcript recency",
+        "highest version number",
+        "newest commit alone",
+        "worker self-report without durable artifacts"
+      ]
+    },
+    "preclaim_context_rule": "Before claim, load only protocol/authority metadata, queue rows and compatibility information needed to decide eligibility. Do not fetch private or large opportunity Working Sets speculatively. After claim success, load only the selected opportunity's declared context/read scope.",
+    "local_capability_profile": {
+      "fields": [
+        "available_tools",
+        "connector_availability",
+        "write_capability",
+        "supported_privacy_classes",
+        "model/runtime capability labels when explicitly known",
+        "current context budget/safety constraints"
+      ],
+      "rule": "Unknown capability is not silently treated as present. A worker skips opportunities whose mandatory capability/tool/privacy requirement cannot be positively established."
+    },
+    "eligibility_filter": [
+      "opportunity is READY in the isolated canary projection or deterministically derived READY in the target compiler",
+      "no active non-stale exclusive claim already owns the opportunity",
+      "all hard dependencies are satisfied or explicitly waived by an authorized owner",
+      "no unresolved hard blocker exists",
+      "required tools are available",
+      "required capabilities are available",
+      "privacy/export class is compatible with this worker and transport path",
+      "authority class permits this worker role",
+      "allowed write scope is within the opportunity contract",
+      "no overlapping active writer creates a HARD_WRITE_COLLISION",
+      "retry/idempotency preconditions are satisfied for effectful work"
+    ],
+    "deterministic_selection": {
+      "canary_rule": "For CANARY_QUEUE_V0, filter first; then sort compatible unclaimed READY opportunities by numeric priority descending, original queue order ascending, then opportunity_id lexicographically as a final stable tie-breaker.",
+      "production_rule": "Workers MUST NOT independently invent subjective scores for information value, unblock value or collision risk. The Planner/queue compiler should emit a canonical selection_rank or equivalent ordered rank vector. /w applies hard compatibility filters first, then uses that durable rank, then opportunity_id as final tie-breaker.",
+      "invariant": "Priority is considered only after hard compatibility/authority/privacy/dependency filters."
+    },
+    "claim_protocol": {
+      "path": "coordination/opportunities/claims/<opportunity_id>.json",
+      "method": "ATOMIC_CREATE_IF_ABSENT",
+      "required_fields_target": [
+        "claim_id",
+        "opportunity_id",
+        "generation_id",
+        "run_id",
+        "worker_instance_id",
+        "claimed_at",
+        "source_epoch_or_head",
+        "claim_method",
+        "write_scope",
+        "privacy_class",
+        "freshness_or_lease_policy",
+        "collision_proof_or_receipt",
+        "supersedes_claim_id_or_null"
+      ],
+      "lost_race_rule": "Never UPDATE an existing claim. On create failure, immediately fetch the exact claim path. If it now exists, classify CLAIM_LOST_RACE, reload queue+claims and try the next eligible item. If the path is still absent, classify CLAIM_HOST_ERROR rather than guessing that every 4xx/connector error is a race.",
+      "host_note": "In this canary, the GitHub connector represented an existing-file create failure as HTTP 422 with text indicating that sha was not supplied. /w should classify by existence recheck, not brittle message parsing.",
+      "authority_rule": "A claim grants only the already-declared opportunity scope; it does not create Current/Human Accepted/Served authority."
+    },
+    "started_protocol": {
+      "path": "coordination/opportunities/runs/<opportunity_id>/<run_id>.json",
+      "method": "CREATE_OWN_UNIQUE_RUN",
+      "ordering": "STARTED must exist before substantive opportunity work or side effects.",
+      "minimum_fields": [
+        "schema",
+        "queue_id",
+        "opportunity_id",
+        "run_id",
+        "worker_instance_id",
+        "state=STARTED",
+        "started_at",
+        "epoch_seen",
+        "claim_ref",
+        "mission",
+        "write_scope"
+      ],
+      "failure_rule": "If the worker owns a claim but cannot persist STARTED, it performs no substantive work. Parent/runtime may later observe CLAIMED_NOT_STARTED. Silence does not turn that state into stale or done without an explicit policy."
+    },
+    "execution_protocol": {
+      "scope": "Execute only the selected mission/read scope/write scope plus mandatory protocol/authority preflight reads.",
+      "freshness": "Before every important write, re-read EPOCH. If it changed, reload the relevant compiled packet and reconcile only relevant convergence. Re-fetch the exact file being mutated and use create-only or blob-SHA/CAS semantics.",
+      "privacy": "Never publish raw private Captures, opaque capability URLs/tokens, secrets, connector-private payloads or unrelated personal context in public coordination artifacts.",
+      "shared_authority": "Shared runtime/authority/architecture heads are off-limits unless the opportunity explicitly grants them."
+    },
+    "return_protocol": {
+      "path": "coordination/opportunities/returns/<opportunity_id>/<run_id>.json",
+      "method": "CREATE_APPEND_ONLY_RESULT",
+      "ordering": "RETURN must be durable before DONE.",
+      "minimum_content": [
+        "identity fields",
+        "state/result class",
+        "mission result",
+        "source evidence refs",
+        "tests/falsification evidence",
+        "negative knowledge or unresolved gates",
+        "authority class",
+        "sanitized changed/evidence refs only"
+      ],
+      "authority_rule": "RETURN is candidate/evidence unless a separate authorized workflow establishes stronger authority."
+    },
+    "done_protocol": {
+      "method": "UPDATE_ONLY_OWN_RUN_WITH_CURRENT_BLOB_SHA",
+      "required_transition": "STARTED -> DONE only after durable RETURN exists",
+      "done_fields": [
+        "state=DONE",
+        "finished_at",
+        "return_ref"
+      ],
+      "mismatch_rule": "If RETURN exists but the DONE update fails, preserve RETURNED_NOT_TERMINAL as a recoverable mismatch. Never infer DONE from the existence of result text alone."
+    },
+    "no_compatible_work": {
+      "before_any_claim": "Return/announce IDLE_NO_SAFE_WORK without creating a claim or mutating queue state. Absence of a worker-session artifact is acceptable because no execution authority was acquired.",
+      "after_completed_run": "Complete the owned run normally, reload queue+claims, and if no compatible unclaimed READY work remains, stop with IDLE_NO_SAFE_WORK. Do not create filler work merely to keep the chat active."
+    },
+    "post_return": {
+      "canary_bound": "After the first DONE, reload queue+claims. The session may claim at most ONE additional compatible unclaimed READY opportunity. The second completed run ends the canary session even if more work exists.",
+      "fresh_critic_rule": "Do not take a follow-up whose value depends on independent criticism of this worker's own output.",
+      "authority_rule": "Every second opportunity requires a fresh claim; prior context does not carry write authority forward."
+    },
+    "error_classes": [
+      "CLAIM_LOST_RACE",
+      "CLAIM_HOST_ERROR",
+      "CLAIMED_NOT_STARTED",
+      "WORK_BOUNDARY",
+      "RETURN_WRITE_ERROR",
+      "RETURNED_NOT_TERMINAL",
+      "IDLE_NO_SAFE_WORK"
+    ]
+  },
+  "production_gaps_and_gates": [
+    {
+      "gap": "STALE_RECLAIM_STORAGE",
+      "detail": "A single immutable create-only claims/<opportunity_id>.json path cannot both preserve the original claim and admit a later reclaim for the same logical opportunity. The canary therefore MUST NOT implement stale reclamation. Production needs an explicit generation/supersession design, such as a new opportunity generation or immutable claim records plus a separately CAS-controlled active-lock pointer."
+    },
+    {
+      "gap": "READY_SOURCE_OF_TRUTH",
+      "detail": "CANARY_QUEUE_V0 carries explicit READY status, while the target queue contract says READY is a deterministic projection. /w canary may consume the isolated explicit READY flag, but production must consume the compiled eligibility projection rather than a hand-maintained status field."
+    },
+    {
+      "gap": "CANONICAL_SELECTION_RANK",
+      "detail": "The operating model names priority, dependency readiness, information value and collision risk, but not all are durable queue fields. Production must compile a canonical rank/order; workers must not generate divergent subjective scores."
+    },
+    {
+      "gap": "GENERATION_ID_ALIGNMENT",
+      "detail": "The target opportunity schema requires generation_id, while the current canary queue does not expose one per opportunity. Production /w must receive the real opportunity generation identity; queue_id must not silently substitute for opportunity generation."
+    },
+    {
+      "gap": "FINAL_09_13_CONVERGENCE",
+      "detail": "Promotion remains gated on final Steward/Merger and Goldens/Vaccines/falsification semantics and the declared race/stale/retry canaries. This return is candidate evidence only."
+    }
+  ],
+  "falsification_checklist": [
+    {
+      "id": "WBOOT-T01",
+      "test": "Bootstrap locator resolves, global constitution is loaded, latest EPOCH and relevant compiled packet are loaded before the first material write.",
+      "pass": "Worker can cite the loaded identities and does not write when constitution/authority cannot be resolved."
+    },
+    {
+      "id": "WBOOT-T02",
+      "test": "Given identical queue, claim and capability inputs, two workers derive the same ordered eligible candidate list.",
+      "pass": "Selection order matches exactly; no local subjective scoring changes the order."
+    },
+    {
+      "id": "WBOOT-T03",
+      "test": "Two workers race the same highest-ranked unclaimed opportunity.",
+      "pass": "Exactly one create succeeds; loser never updates the winner's claim and reloads."
+    },
+    {
+      "id": "WBOOT-T04",
+      "test": "Five workers start from the same bootstrap with at least five compatible READY opportunities.",
+      "pass": "Claims spread without duplicate exclusive substantive execution; every loser retries deterministically."
+    },
+    {
+      "id": "WBOOT-T05",
+      "test": "Claim create returns an ambiguous host/connector error.",
+      "pass": "Worker rechecks the exact path; existing path becomes CLAIM_LOST_RACE, absent path becomes CLAIM_HOST_ERROR."
+    },
+    {
+      "id": "WBOOT-T06",
+      "test": "Highest-priority opportunity requires a missing tool/capability.",
+      "pass": "Worker skips it and selects the next compatible item; priority does not override compatibility."
+    },
+    {
+      "id": "WBOOT-T07",
+      "test": "Highest-priority opportunity has incompatible privacy/export requirements.",
+      "pass": "Worker does not claim it and does not load its private Working Set."
+    },
+    {
+      "id": "WBOOT-T08",
+      "test": "Candidate write scope overlaps an active incompatible writer.",
+      "pass": "Opportunity is excluded or worker stops at collision boundary; no stale write occurs."
+    },
+    {
+      "id": "WBOOT-T09",
+      "test": "Worker obtains a claim and disappears before STARTED.",
+      "pass": "System projects CLAIMED_NOT_STARTED; no substantive execution or DONE is inferred."
+    },
+    {
+      "id": "WBOOT-T10",
+      "test": "Inspect timestamps/commits for a normal run.",
+      "pass": "STARTED is durable before substantive opportunity scope is read/executed."
+    },
+    {
+      "id": "WBOOT-T11",
+      "test": "Worker completes work and writes RETURN but its DONE update is interrupted.",
+      "pass": "RETURN remains durable and state is RETURNED_NOT_TERMINAL rather than silently DONE."
+    },
+    {
+      "id": "WBOOT-T12",
+      "test": "Queue contains no compatible unclaimed READY opportunity.",
+      "pass": "Worker exits IDLE_NO_SAFE_WORK with no fabricated claim, queue mutation or filler task."
+    },
+    {
+      "id": "WBOOT-T13",
+      "test": "After first DONE, another compatible opportunity exists.",
+      "pass": "Worker must acquire a new claim before work and may execute at most one additional opportunity in this canary session."
+    },
+    {
+      "id": "WBOOT-T14",
+      "test": "Completed opportunity would benefit from an independent critic of this worker's own output.",
+      "pass": "Current worker does not self-claim that critic role merely because it has context."
+    },
+    {
+      "id": "WBOOT-T15",
+      "test": "A claim becomes old due only to conversational silence.",
+      "pass": "No worker reclaims or overwrites it; stale requires an explicit durable policy."
+    },
+    {
+      "id": "WBOOT-T16",
+      "test": "Attempt stale reclaim under the current single immutable claim-path canary.",
+      "pass": "Canary blocks reclaim and surfaces the storage-model gate instead of overwriting history."
+    },
+    {
+      "id": "WBOOT-T17",
+      "test": "Opportunity Working Set contains private/opaque data not needed in public RETURN.",
+      "pass": "RETURN contains only sanitized refs/results and does not expose private payloads or tokens."
+    },
+    {
+      "id": "WBOOT-T18",
+      "test": "EPOCH changes between selection and an important write.",
+      "pass": "Worker reloads the relevant compiled packet, reconciles relevant convergence, refetches exact mutation target and then uses create-only/CAS semantics."
+    }
+  ],
+  "parent_integration_notes": [
+    "Use this candidate to define the generic worker bootstrap behavior, not to mark /w production-ready.",
+    "Keep the current isolated /wc lane as canary evidence while production stale/reclaim and derived-READY semantics remain unresolved.",
+    "Prefer queue-compiled canonical ordering so identical workers are deterministic without duplicating Planner judgment locally.",
+    "Treat claim collision recheck behavior from this run as positive canary evidence: two races were lost safely before one distinct claim succeeded."
+  ],
+  "negative_knowledge": [
+    "Do not parse one specific GitHub error string as the universal collision primitive; verify exact path existence after a failed create.",
+    "Do not load full/private opportunity context before claim just to decide whether to claim it.",
+    "Do not let priority override privacy, authority, dependency, tool or collision gates.",
+    "Do not infer stale, DONE, Current, Human Accepted or Served from silence, recency or worker confidence.",
+    "Do not reuse the first opportunity's claim/write authority for a post-return second job.",
+    "Do not allow the canary's explicit READY flags or queue_id-as-generation shortcut to harden into the production schema."
+  ],
+  "return_ref": "coordination/opportunities/returns/O-WBOOT-SPEC-V1/RUN-O-WBOOT-SPEC-V1-20260916T220115-7F3A.json"
+}
