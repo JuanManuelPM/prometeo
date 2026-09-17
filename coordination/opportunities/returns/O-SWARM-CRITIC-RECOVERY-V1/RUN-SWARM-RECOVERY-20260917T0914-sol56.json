@@ -1,0 +1,86 @@
+{
+  "schema": "prometeo.opportunity-return/v1",
+  "opportunity_id": "O-SWARM-CRITIC-RECOVERY-V1",
+  "run_id": "RUN-SWARM-RECOVERY-20260917T0914-sol56",
+  "worker_instance_id": "wc-chat-20260917T0913-0300-sol56-recoverycritic",
+  "status": "COMPLETE",
+  "verdict": "PARTIAL_BLOCK_PRODUCTION_PROMOTION",
+  "created_at": "2026-09-17T09:18:30-03:00",
+  "claim_ref": "coordination/opportunities/claims/O-SWARM-CRITIC-RECOVERY-V1.json",
+  "run_ref": "coordination/opportunities/runs/O-SWARM-CRITIC-RECOVERY-V1/RUN-SWARM-RECOVERY-20260917T0914-sol56.json",
+  "checkpoint_ref": "coordination/swarm-v1/cross-returns/o-swarm-critic-recovery-v1/CHECKPOINT-20260917T0917-sol56.json",
+  "artifact_ref": "coordination/swarm-v1/cross-returns/o-swarm-critic-recovery-v1/RECOVERY_CRITIC_V1.md",
+  "mission": "Attack lease/stale/retry semantics for false takeover, deadlock, late-return conflict and write collision. Produce falsification cases.",
+  "useful_delta": "Adversarial inspection of the executable lease/recovery primitives and real recovery artifacts found five blocking/partial boundaries not covered by the green 11-case suite: READ_ONLY_RECOVERY can bypass retryable=false; missing overlap evidence collapses to false and is later asserted as NO_ACTIVE_OVERLAP; unique recovery-attempt IDs do not provide one-winner fencing for a stale generation; a bare RECOVERY_ATTEMPT can refresh latest-signal age without proving worker liveness; and generated recovery-claim schema differs from real persisted recovery claims. Late-return reconciliation exists as a pure primitive but end-to-end durable reconciliation was not found/proven in this audit.",
+  "findings": [
+    {
+      "id": "F1_RETRY_SAFETY_BYPASS",
+      "severity": "BLOCKING",
+      "disposition": "REPAIR_BEFORE_PRODUCTION",
+      "summary": "READ_ONLY_RECOVERY can satisfy the retry-safety condition even when retryable=false."
+    },
+    {
+      "id": "F2_OVERLAP_UNKNOWN_COLLAPSES_FALSE",
+      "severity": "BLOCKING",
+      "disposition": "REQUIRE_TRI_STATE_AND_RECEIPT",
+      "summary": "Absent overlap proof is treated as active_overlap=false; generated recovery claims can assert no overlap without evidence ref."
+    },
+    {
+      "id": "F3_RECOVERY_GENERATION_NO_FENCE",
+      "severity": "BLOCKING",
+      "disposition": "ADD_DETERMINISTIC_EXECUTION_FENCE",
+      "summary": "Two workers may create distinct append-only recovery IDs for the same stale generation and both seed runs."
+    },
+    {
+      "id": "F4_RECOVERY_ATTEMPT_COUNTS_AS_LIVENESS_SIGNAL",
+      "severity": "HIGH",
+      "disposition": "SEPARATE_CLAIM_OWNERSHIP_FROM_WORKER_LIVENESS",
+      "summary": "A recovery attempt alone can reset latest-signal age and delay subsequent recovery without STARTED/heartbeat proof."
+    },
+    {
+      "id": "F5_RECOVERY_CLAIM_SCHEMA_SPLIT",
+      "severity": "HIGH",
+      "disposition": "CANONICALIZE_OR_ADAPT",
+      "summary": "Builder emits prometeo.recovery-claim/v1 while inspected real recovery evidence uses prometeo.opportunity-recovery-claim/v1 with materially different fields."
+    },
+    {
+      "id": "F6_LATE_RETURN_E2E_UNPROVEN",
+      "severity": "BOUNDARY",
+      "disposition": "VERIFY_IN_STRESS_GATE",
+      "summary": "Pure reconcileLateReturn preserves both, but no durable end-to-end reconciliation artifact/consumer was located during this audit."
+    }
+  ],
+  "evidence": [
+    "scripts/swarm-lease-lib.mjs@e652f42bb09680749f04c973bd5697af63e8fdb6",
+    "scripts/swarm-stale-scan.mjs@5fc22ffeb3608c9ae1009d06997fbeac7a125a5b",
+    "tests/swarm-lease-retry-v1.test.mjs@72cdf44cc1147cfdc8f0d422e8547ca21181e76b",
+    "coordination/opportunities/returns/O-SWARM-LEASE-RETRY-BUILD-V1/RUN-O-SWARM-LEASE-RETRY-BUILD-V1-20260917T0043-SOL56.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0906-SOL56.json"
+  ],
+  "validation": {
+    "method": "SOURCE_AND_RUNTIME_ARTIFACT_ADVERSARIAL_INSPECTION",
+    "artifact_reopened_after_write": true,
+    "unit_tests_rerun_by_this_worker": false,
+    "builder_reported_tests": "11/11 PASS",
+    "falsification_cases_written": 6,
+    "route_changing_finding": true
+  },
+  "dedup": {
+    "repair_owner": "O-SWARM-LEASE-RETRY-BUILD-V1 follow-up / steward disposition; do not create a competing implementation",
+    "testing_owner": "O-SWARM-CRITIC-TESTING-V1 plus O-SWARM-50-WORKER-STRESS-VERIFY-V1",
+    "suggested_repair_fingerprint": "prometeo|swarm-lease-retry|retry-proof+overlap-proof+generation-fence+schema-adapter|v2"
+  },
+  "source_freshness": {
+    "pre_return_live_main": "93fe7cfbda81cc3f0dc3f4ce8daa7448dbdb0bf2",
+    "pre_return_epoch": "P3-90e2f6f8a0ea",
+    "concurrency_note": "Main and public runtime advanced repeatedly during the run due many parallel workers; all writes by this run were isolated to its own claim/run/return and cross-return scope."
+  },
+  "authority": {
+    "role": "CRITIQUE",
+    "scope": "SCOPED_CRITIC_EVIDENCE_ONLY_NO_GLOBAL_PROMOTION",
+    "mutated_shared_current": false,
+    "mutated_human_accepted": false,
+    "mutated_served": false
+  },
+  "result_summary": "COMPLETE critic mission: recovery semantics are PARTIAL and should remain a production blocker until retry proof, overlap proof, one-winner recovery fencing, liveness semantics and schema compatibility are repaired and independently stress-verified."
+}
