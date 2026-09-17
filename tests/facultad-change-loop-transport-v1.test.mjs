@@ -63,3 +63,12 @@ test('Universal Host generator reads hosted semantic context instead of inventin
   assert.ok(source.includes('PrometeoStudyV18Context?.capture?.()'));
   assert.ok(source.includes('semantic_context'));
 });
+
+
+test('Supabase execution packet source preserves allowlisted semantic context', async () => {
+  const source=await readFile(new URL('../supabase/functions/prometeo-change-loop-v1/index.ts',import.meta.url),'utf8');
+  assert.ok(source.includes("const SEMANTIC_CONTEXT_KEYS=['surface_id','project_id','authority_status'"));
+  assert.ok(source.includes('const semantic_context=semanticContext(body.semantic_context)'));
+  assert.ok(source.includes('previous_ai_sessions:aiHistory,semantic_context'));
+  assert.ok(source.includes("SEMANTIC_CONTEXT_INVALID"));
+});
