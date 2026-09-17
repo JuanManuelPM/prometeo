@@ -1,0 +1,73 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-d89189f8f86b-099bcd69",
+  "fingerprint": "pdf-d89189f8f86b2c7e9c656a1b36016a40",
+  "created_at": "2026-09-17T14:50:32-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T1444-0300-gpt56sol-surplus-hostpin",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "output": "repository-host create-if-absent race canary",
+    "owner": "chat-object-prometeo-chat-control-main",
+    "privacy": "public_coordination_only",
+    "scope": "coordination/opportunities/proposal-claims/"
+  },
+  "problem": "Discovery proposal fingerprint pins have only local filesystem race proof; repository-host CREATE_IF_ABSENT_EXCLUSIVE semantics remain unverified.",
+  "acceptance": [
+    "two or more concurrent attempts for one fingerprint yield exactly one durable repository pin",
+    "losers receive collision evidence and do not overwrite",
+    "source proposals and lineage remain preserved",
+    "no queue or authority promotion occurs"
+  ],
+  "title": "Repository-host discovery pin race canary",
+  "mission": "Exercise the canonical coordination/opportunities/proposal-claims/<fingerprint>.json path with concurrent create-if-absent attempts, prove exactly one durable winner plus non-overwriting collision evidence, and leave authority unchanged.",
+  "evidence_refs": [
+    "coordination/opportunities/returns/O-SWARM-DISCOVERY-DEDUP-BUILD-V1/RUN-O-SWARM-DISCOVERY-DEDUP-BUILD-V1-20260917T0045-SOL56-7C4B.json",
+    "coordination/swarm-v1/discovery/DISCOVERY_DEDUP_CONTRACT_V1.json",
+    "scripts/discovery-dedup-lib.mjs"
+  ],
+  "value_signals": {
+    "unblock_value": {
+      "reason": "Closes the explicit remaining boundary of the discovery-dedup implementation before repository-host pinning is treated as exercised.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-DISCOVERY-DEDUP-BUILD-V1/RUN-O-SWARM-DISCOVERY-DEDUP-BUILD-V1-20260917T0045-SOL56-7C4B.json"
+    },
+    "regression_prevention": {
+      "reason": "Detects any mismatch between locally tested wx semantics and the actual GitHub create-if-absent host primitive used by fresh workers.",
+      "evidence_ref": "coordination/swarm-v1/discovery/DISCOVERY_DEDUP_CONTRACT_V1.json"
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-DISCOVERY-DEDUP-BUILD-V1"
+  ],
+  "candidate_read_scope": [
+    "coordination/opportunities/proposal-claims/**",
+    "coordination/opportunities/proposals/**",
+    "coordination/opportunities/returns/O-SWARM-DISCOVERY-DEDUP-BUILD-V1/**",
+    "scripts/discovery-dedup-lib.mjs",
+    "tests/discovery-dedup-v1.test.mjs"
+  ],
+  "candidate_write_scope": [
+    "coordination/opportunities/proposal-claims/<fixture-fingerprint>.json",
+    "coordination/swarm-v1/discovery/host-race-canary/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "falsification": {
+    "claim_to_test": "The repository host primitive used by workers preserves create-if-absent exclusivity for one canonical proposal fingerprint.",
+    "disconfirming_evidence": "Two distinct concurrent contenders both create durable winner pins for the same exact fingerprint, or a loser overwrites winner bytes.",
+    "test_or_observation": "Launch at least two concurrent create_file attempts against one absent fixture path and record winner/collision outcomes plus final bytes.",
+    "pass_condition": "Exactly one create succeeds, every other attempt receives collision/already-exists evidence, final bytes equal the winner, and no queue/promotion state changes.",
+    "fail_condition": "More than one substantive winner exists or loser bytes replace winner bytes.",
+    "stop_or_boundary_condition": "Do not run against a non-fixture live proposal pin unless exact test authority/write scope is granted."
+  },
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
