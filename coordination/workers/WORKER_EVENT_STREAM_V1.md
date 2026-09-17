@@ -13,7 +13,7 @@ Observability is best-effort and non-authoritative.
 - Missing/blocked event comments NEVER block allocation, PIN, STARTED, work, RETURN, recovery, or reallocation.
 - Event comments never create ownership, recovery debt, or completion.
 - Do not retry a blocked telemetry comment before ownership. Continue the real worker path.
-- Do not launch workers to repair missing telemetry.
+- Never launch workers to repair missing telemetry.
 
 ## BATCH
 
