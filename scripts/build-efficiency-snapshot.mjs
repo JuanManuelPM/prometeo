@@ -1,11 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
 const root = path.resolve(process.argv[2] || '.');
 const out = path.resolve(process.argv[3] || '/tmp/efficiency.json');
 const baselinePath = path.join(root, 'coordination/efficiency/RATCHET_BASELINE_V1.json');
 const baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
-const activatedAt = Date.parse(baseline.updated_at || 0) || 0;
+const activatedIso = baseline.runtime_baseline_activated_at || baseline.updated_at || null;
+const activatedAt = Date.parse(activatedIso || 0) || 0;
 
 const read = p => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } };
 const walk = dir => {
@@ -101,13 +103,28 @@ if(sample>=5){
   status=(ttfaBad||closeBad)?'REGRESSION':(ttfaStrong&&closeStrong?'HEALTHY':'WATCH');
 }
 
+let rescue=null;
+if(status==='REGRESSION'){
+  const preimage=JSON.stringify({schema:'prometeo.efficiency-regression/v1',runtime_baseline_activated_at:activatedIso,reasons:[...reasons].sort()});
+  const fingerprint=crypto.createHash('sha256').update(preimage).digest('hex').slice(0,12);
+  rescue={
+    fingerprint,
+    dedupe_key:`efficiency:runtime-regression:${fingerprint}:v1`,
+    recommended_role:'GUIDE_RESCATE',
+    scope:'ONE_SYSTEM_BOTTLENECK_NOT_PER_WORKER',
+    instruction:'Prefer compiler/static/CI repair; if reasoning is needed, materialize or claim one deduped rescue job and one bounded verifier.'
+  };
+}
+
 const snapshot={
   schema:'prometeo.efficiency-runtime/v1',
   generated_at:new Date().toISOString(),
-  baseline_activated_at:new Date(activatedAt).toISOString(),
+  baseline_activated_at:activatedIso,
+  baseline_updated_at:baseline.updated_at||null,
   status,
   reasons,
   metrics,
+  rescue,
   latest_launches:launches.slice(0,30),
   privacy:'Derived only from durable coordination timestamps; no private reasoning traces.'
 };
