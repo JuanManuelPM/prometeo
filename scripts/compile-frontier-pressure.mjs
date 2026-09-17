@@ -215,13 +215,16 @@ export async function buildSnapshotFromRepo(repoRoot) {
   const guideReceiptRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/guide/receipts')), repoRoot);
   const derivedRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/portfolio/derived')), repoRoot);
 
+  const heartbeatKey = (workerId, jobId) => JSON.stringify([workerId, jobId]);
   const heartbeatLatest = new Map();
   for (const { value } of heartbeatRows) {
     const worker = value.worker_id;
-    if (!worker) continue;
+    const jobId = value.job_id ?? value.opportunity_id ?? null;
+    if (!worker || !jobId) continue;
     const t = asTime(value.heartbeat_at);
-    const prior = heartbeatLatest.get(worker);
-    if (t !== null && (!prior || t > prior.t)) heartbeatLatest.set(worker, { t, at: value.heartbeat_at });
+    const key = heartbeatKey(worker, jobId);
+    const prior = heartbeatLatest.get(key);
+    if (t !== null && (!prior || t > prior.t)) heartbeatLatest.set(key, { t, at: value.heartbeat_at });
   }
 
   const terminalReturns = [];
@@ -243,8 +246,8 @@ export async function buildSnapshotFromRepo(repoRoot) {
       generation: Number(pin.generation ?? 0),
       pinned_at: pin.claimed_at,
       claimed_at: pin.claimed_at,
-      heartbeat_at: heartbeatLatest.get(pin.worker_id)?.at ?? null,
-      latest_signal_at: heartbeatLatest.get(pin.worker_id)?.at ?? pin.claimed_at,
+      heartbeat_at: heartbeatLatest.get(heartbeatKey(pin.worker_id, pin.job_id))?.at ?? null,
+      latest_signal_at: heartbeatLatest.get(heartbeatKey(pin.worker_id, pin.job_id))?.at ?? pin.claimed_at,
       retry_safe: pin.retry_safe !== false,
       source: 'portfolio_pin',
     });
@@ -256,8 +259,8 @@ export async function buildSnapshotFromRepo(repoRoot) {
       worker_id: claim.worker_instance_id,
       generation: 0,
       claimed_at: claim.claimed_at,
-      heartbeat_at: heartbeatLatest.get(claim.worker_instance_id)?.at ?? null,
-      latest_signal_at: heartbeatLatest.get(claim.worker_instance_id)?.at ?? claim.claimed_at,
+      heartbeat_at: heartbeatLatest.get(heartbeatKey(claim.worker_instance_id, claim.opportunity_id))?.at ?? null,
+      latest_signal_at: heartbeatLatest.get(heartbeatKey(claim.worker_instance_id, claim.opportunity_id))?.at ?? claim.claimed_at,
       retry_safe: true,
       source: 'opportunity_claim',
     });
