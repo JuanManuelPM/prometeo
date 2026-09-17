@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-17T22:36:43.628Z",
+  "updated_at": "2026-09-17T23:18:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -430,24 +430,27 @@
     },
     {
       "id": "EFF021",
-      "title": "Batched workers shard candidates within a lane",
+      "title": "Batched workers shard the unified compiled candidate mesh",
       "scope": [
         "wc",
         "worker-allocation",
         "wave-contention"
       ],
-      "observed_failure": "In WAVE-20260917-1921-A, one worker exhausted all three bounded authority attempts by colliding on the first two role_ready candidates and then one recovery candidate while additional role_ready work remained available in the wave.",
-      "invariant": "Explicit batched workers preserve ready > queue_ready > role_ready > recovery but rotate the starting candidate inside each selected lane from the already-returned beacon commit SHA. Collisions advance cyclically before the existing two-collision lane-diversification rule. Unbatched workers preserve allocator order; no extra preclaim read/write or claim attempt is introduced.",
+      "observed_failure": "Lane-local batching reduced some herd collisions but still let identical batched workers restart inside the same narrow lane while the allocator compiler already exposed a broader product + Guide candidate mesh. The bootstrap and allocator migrated to unified batch_candidates, but the protocol, ratchet and regression test were not wired together, allowing hot-path contract drift.",
+      "invariant": "When an explicit batch has n > 1 and the allocator publishes batch_candidates, workers shard deterministically over that unified compiler-selected array from the beacon commit SHA. Batched workers do not re-impose lane priority locally; unbatched workers preserve ready -> queue_ready -> role_ready -> recovery. Atomic CREATE, bounded attempts and zero extra preclaim reads/writes remain unchanged.",
       "required": {
-        "batched_lane_local_sharding": true,
+        "batched_unified_candidate_sharding": true,
+        "batch_strategy": "DETERMINISTIC_UNIFIED_CANDIDATE_SHARD",
         "seed_source": "beacon_commit_sha_first_hex_nibble",
-        "lane_priority_preserved": true,
+        "batch_candidates_required_when_present": true,
+        "batched_reimpose_lane_priority_forbidden": true,
+        "unbatched_lane_priority_preserved": true,
         "unbatched_allocator_order_preserved": true,
         "no_extra_preclaim_reads_or_writes": true,
         "max_fast_claim_attempts": 3,
-        "lane_diversification_after_same_lane_collisions": 2,
         "ownership_primitive": "ATOMIC_CREATE_IF_ABSENT",
-        "regression_test": "coordination/portfolio/tests/batched_lane_sharding_v1.mjs"
+        "regression_test": "coordination/portfolio/tests/batched_lane_sharding_v1.mjs",
+        "workflow_guard": ".github/workflows/live-feed.yml"
       },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     }
