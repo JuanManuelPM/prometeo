@@ -1,0 +1,42 @@
+name: Prometeo Efficiency Ratchet
+
+on:
+  push:
+    branches: [main, gh-pages]
+    paths:
+      - 'wc'
+      - 'coordination/workers/**'
+      - 'coordination/efficiency/**'
+      - '.github/workflows/live-feed.yml'
+      - '.github/workflows/efficiency-ratchet.yml'
+      - '.github/scripts/normalize-live-feed.mjs'
+      - 'scripts/check-efficiency-ratchet.mjs'
+      - 'wc/**'
+      - 'live/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: efficiency-ratchet-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  static-non-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout canonical main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: source
+          fetch-depth: 1
+      - name: Checkout public gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          fetch-depth: 1
+      - name: Check ratchet invariants
+        run: node source/scripts/check-efficiency-ratchet.mjs source site
