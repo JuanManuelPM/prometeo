@@ -35,6 +35,9 @@ if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing run
 const latentItem = baseline?.items?.find(x=>x.id==='EFF013');
 if (latentItem?.required?.role_ready_compiled_centrally !== true) errors.push('baseline: EFF013 role_ready_compiled_centrally must be true');
 if (JSON.stringify(latentItem?.required?.candidate_order) !== JSON.stringify(['ready','queue_ready','role_ready','recovery'])) errors.push('baseline: EFF013 candidate order drift');
+const evidenceIntegrityItem = baseline?.items?.find(x=>x.id==='EFF017');
+if (evidenceIntegrityItem?.required?.portfolio_fragment_semantics_validated !== true) errors.push('baseline: EFF017 portfolio_fragment_semantics_validated must be true');
+if (evidenceIntegrityItem?.required?.derived_recovery_source_path_preserved !== true) errors.push('baseline: EFF017 derived_recovery_source_path_preserved must be true');
 const capabilityItem = baseline?.items?.find(x=>x.id==='EFF020');
 if (capabilityItem?.required?.portfolio_required_capabilities_compiled !== true) errors.push('baseline: EFF020 portfolio_required_capabilities_compiled must be true');
 if (capabilityItem?.required?.definitive_absence_only !== true) errors.push('baseline: EFF020 definitive_absence_only must be true');
@@ -131,6 +134,7 @@ must('role-frontier', roleProtocol, 'GUIDE_RESCATE');
 must('role-frontier', roleProtocol, 'GUIDE_CRITIC');
 must('role-frontier', roleProtocol, 'The central compiler, not every disposable worker, owns detection of latent Guide work.');
 
+
 const metabolism = read(root, 'coordination/guide/METABOLISM_POLICY_V1.json');
 must('metabolism', metabolism, '"frontier_floor_absolute"');
 must('metabolism', metabolism, '"GUIDE_PLANNER"');
@@ -178,6 +182,8 @@ must('fast-allocator', allocator, "schema: 'prometeo.guide-role-pin/v1'");
 must('fast-allocator', allocator, 'frontier_floor_absolute');
 must('fast-allocator', allocator, 'max_recovery_snapshot_age_seconds: 90');
 must('fast-allocator', allocator, 'required_capabilities: uniq(job.required_capabilities)');
+must('fast-allocator', allocator, 'source_path: job.source_path || null');
+must('fast-allocator', allocator, 'item.predecessor_pin_ref || item.source_path ||');
 must('fast-allocator', allocator, 'claim_path:');
 must('fast-allocator', allocator, 'claim_payload_shape:');
 must('fast-allocator', allocator, "mode: 'fixed_generation'");
@@ -186,6 +192,11 @@ must('fast-allocator', allocator, 'fixed_generation_attention');
 must('fast-allocator', allocator, 'loadRecoveryPolicies');
 must('fast-allocator', allocator, "'recovery-policies'");
 mustNot('fast-allocator', allocator, 'portfolio-exclusive-job-pin-live-race-5-v1');
+
+const evidenceIntegrity = read(root, 'scripts/apply-role-evidence-integrity.mjs');
+must('role-evidence-integrity', evidenceIntegrity, 'MISSING_REPO_LOCAL_FRAGMENT');
+must('role-evidence-integrity', evidenceIntegrity, 'missing_repo_local_fragment_refs');
+must('role-evidence-integrity', evidenceIntegrity, "localPath !== 'coordination/portfolio/PORTFOLIO.json'");
 
 const coverage = read(root, 'scripts/apply-project-coverage.mjs');
 must('project-coverage', coverage, "trigger: 'PROJECT_COVERAGE_GAP'");
