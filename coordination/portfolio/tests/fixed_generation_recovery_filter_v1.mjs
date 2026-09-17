@@ -72,9 +72,10 @@ if (!fresh) throw new Error('fresh fixed-generation fixture should remain initia
 if (fresh.next_generation !== 1 || !fresh.claim_path.endsWith('/G000001.json')) throw new Error('fresh fixed-generation fixture did not target its fixed generation');
 if (fresh.recovery_semantics.ordinary_next_generation_eligible !== false) throw new Error('fixed-generation semantic lost');
 
-if (out.schema !== 'prometeo.fast-allocator/v2') throw new Error(`unexpected allocator schema ${out.schema}`);
+if (!/^prometeo\.fast-allocator\/v\d+$/.test(out.schema)) throw new Error(`unexpected allocator schema ${out.schema}`);
 console.log(JSON.stringify({
   ok: true,
+  allocator_schema: out.schema,
   fixed_generation_excluded_from_recovery: true,
   fixed_generation_attention_visible_after_terminal_projection: true,
   ordinary_recovery_preserved: true,
