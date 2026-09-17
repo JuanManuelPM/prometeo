@@ -1,0 +1,91 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-833f456f88ab-75d71f46",
+  "fingerprint": "pdf-833f456f88ab33217436409cbe6e4626",
+  "created_at": "2026-09-17T10:04:39-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T1004-0300-sol56-recovery-claim-exclusivity",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "output": "atomic recovery-claim exclusivity guard + collision reconciliation canary",
+    "owner": "chat-object-prometeo-chat-control-main",
+    "privacy": "public_coordination_only",
+    "scope": "coordination/opportunities/recovery-claims/ + stale recovery allocator"
+  },
+  "problem": "Concurrent stale-recovery workers can create more than one active recovery claim for the same opportunity, wasting capacity and requiring after-the-fact reconciliation.",
+  "acceptance": [
+    "At most one active recovery claim can win per opportunity and recovery generation under concurrent create-if-absent attempts.",
+    "Losing recovery workers receive a deterministic collision result and re-enter allocation without starting duplicate material work.",
+    "Late claims and returns remain append-only evidence and are reconciled, never deleted or overwritten.",
+    "Race tests reproduce the observed duplicate-recovery collision class and prove exactly one winner.",
+    "No Current, Human Accepted, or Served authority is promoted."
+  ],
+  "title": "Harden recovery-claim exclusivity",
+  "mission": "Implement and falsify an atomic per-opportunity recovery-claim guard, or equivalent deterministic exclusive recovery lease, so concurrent stale-recovery workers cannot both begin material recovery for the same opportunity/generation. Losers must receive a durable collision disposition and immediately re-enter allocation. Preserve all original and late evidence append-only and keep global authority unchanged.",
+  "evidence_refs": [
+    "coordination/opportunities/recovery-claims/O-SURFACE-FACULTAD_DIGITAL-DISCOVER-V1/REC-O-SURFACE-FACULTAD_DIGITAL-DISCOVER-V1-20260917T0959-GPT56SOL.json",
+    "coordination/opportunities/recovery-claims/O-SURFACE-FACULTAD_DIGITAL-DISCOVER-V1/REC-O-SURFACE-FACULTAD_DIGITAL-DISCOVER-V1-20260917T095934-SOL56-7C91.json",
+    "coordination/opportunities/recovery-claims/O-SURFACE-FACULTAD_DIGITAL-INTENT-V1/REC-O-SURFACE-FACULTAD_DIGITAL-INTENT-V1-20260917T0954-SOL56.json",
+    "coordination/opportunities/recovery-claims/O-SURFACE-FACULTAD_DIGITAL-INTENT-V1/REC-O-SURFACE-FACULTAD_DIGITAL-INTENT-V1-20260917T0956-SOL56.json",
+    "coordination/opportunities/runs/O-SURFACE-PROMETEO_MOBILE-RISK-V1/RUN-O-SURFACE-PROMETEO_MOBILE-RISK-V1-REC-20260917T0958-GPT56SOL.json",
+    "coordination/opportunities/runs/O-SURFACE-PROMETEO_MOBILE-RISK-V1/RUN-O-SURFACE-PROMETEO_MOBILE-RISK-V1-REC-20260917T095933-SOL56-6F31.json",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs"
+  ],
+  "value_signals": {
+    "incident_repair": {
+      "reason": "Multiple same-opportunity recovery claims/runs were observed concurrently in the current worker wave; this proposal targets the concrete collision class rather than speculative throughput work.",
+      "evidence_ref": "coordination/opportunities/recovery-claims/O-SURFACE-FACULTAD_DIGITAL-INTENT-V1/"
+    },
+    "regression_prevention": {
+      "reason": "Exclusive recovery prevents duplicate candidate mutations and reduces reconciliation ambiguity while retaining late evidence append-only.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+    },
+    "unblock_value": {
+      "reason": "Leaf recovery collisions consume worker slots on prerequisites that gate local surface integration; deterministic losers can immediately re-enter allocation.",
+      "evidence_ref": "coordination/opportunities/runs/O-SURFACE-PROMETEO_MOBILE-RISK-V1/"
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-LEASE-RETRY-BUILD-V1"
+  ],
+  "candidate_read_scope": [
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs"
+  ],
+  "candidate_write_scope": [
+    "coordination/swarm-v1/recovery-claim-exclusivity/**",
+    "scripts/swarm-recovery-claim-guard.mjs",
+    "tests/swarm-recovery-claim-exclusivity-v1.test.mjs",
+    "own future claim/run/return only"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": {
+    "race": "Launch at least five concurrent claim attempts against the same stale opportunity/generation and prove exactly one winner reaches material recovery while all losers get deterministic collision results.",
+    "late_evidence": "Inject a late original RETURN and a losing recovery artifact; prove neither is deleted or overwritten and reconciliation remains append-only.",
+    "cross_opportunity_parallelism": "Prove different opportunity IDs can still recover concurrently; exclusivity must not serialize unrelated recovery lanes.",
+    "authority": "Prove the guard cannot promote READY, Current, Human Accepted or Served authority."
+  },
+  "source_freshness": {
+    "main_head_before_pin": "189beca5adab3a936667ed481d4250c37b812fb2",
+    "public_epoch_before_pin": "P3-dc9779a50ca3",
+    "public_epoch_main_before_pin": "0ac2f8007cb1",
+    "pin_commit": "d8007af1e9127cc6a0d627f006a1e7de5360d8e2",
+    "note": "The compiled public runtime lagged live main during discovery; live main paths were used as mutation truth."
+  },
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
