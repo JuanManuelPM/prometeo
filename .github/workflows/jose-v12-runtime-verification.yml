@@ -1,0 +1,139 @@
+name: Jose V12 runtime verification
+
+on:
+  push:
+    paths:
+      - '.github/workflows/jose-v12-runtime-verification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install browser driver
+        run: |
+          npm --silent install puppeteer-core@24
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME"
+          echo "CHROME_PATH=$CHROME" >> "$GITHUB_ENV"
+
+      - name: Execute exact V12 LAB candidate in Chromium
+        run: |
+          cat > /tmp/jose-v12-verify.mjs <<'EOF'
+          import puppeteer from 'puppeteer-core';
+          import {spawn} from 'node:child_process';
+          import fs from 'node:fs';
+
+          const candidate='pages/lab/jose-study-design-20260911/PROMETEO_JOSE_RECOVERY_ENGINE_V12_MAP_REFINEMENT_CANDIDATE.html';
+          const expectedBlob='8f22dd9e0079dab7174eaba784a0d6c793e0ac90';
+          const topics=[
+            {name:'Index Laws',aliases:['index laws','leyes de índices','leyes de indices','índices','indices']},
+            {name:'Factorization',aliases:['factorization','factorización','factorizacion']},
+            {name:'Quadratics',aliases:['quadratics','cuadráticas','cuadraticas']},
+            {name:'Simultaneous Equations',aliases:['simultaneous equations','ecuaciones simultáneas','ecuaciones simultaneas']}
+          ];
+          const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+          const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+          const server=spawn('python3',['-m','http.server','8765','--bind','127.0.0.1'],{stdio:['ignore','pipe','pipe']});
+          let browser;
+          const evidence={candidate,expected_blob:expectedBlob,chrome_path:process.env.CHROME_PATH,topics:[],errors:[]};
+          try {
+            await sleep(700);
+            browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+            const page=await browser.newPage();
+            page.on('console',m=>console.log('BROWSER_CONSOLE',m.type(),m.text()));
+            page.on('pageerror',e=>console.log('BROWSER_PAGEERROR',String(e)));
+            await page.setViewport({width:1280,height:900,deviceScaleFactor:1});
+
+            async function loadMenu(){
+              await page.goto('http://127.0.0.1:8765/'+candidate,{waitUntil:'domcontentloaded',timeout:30000});
+              await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('V11 SHA-256 PASS'),{timeout:30000});
+              await sleep(600);
+              const frame=page.frames().find(f=>f!==page.mainFrame());
+              if(!frame) throw new Error('V11 iframe not found after SHA PASS');
+              await frame.waitForSelector('body',{timeout:10000});
+              const menuText=await frame.evaluate(()=>document.body.innerText);
+              const n=norm(menuText);
+              for(const topic of topics){
+                if(!topic.aliases.some(a=>n.includes(norm(a)))) throw new Error('Menu missing distinct topic: '+topic.name);
+              }
+              return {frame,menuText};
+            }
+
+            for(const topic of topics){
+              const {frame,menuText}=await loadMenu();
+              const clicked=await frame.evaluate(({aliases})=>{
+                const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+                const aa=aliases.map(norm);
+                const els=[...document.querySelectorAll('button,a,[role="button"],[data-topic]')];
+                const visible=el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'};
+                let hit=els.find(el=>visible(el)&&aa.some(a=>norm(el.textContent).includes(a)));
+                if(!hit) return null;
+                const text=(hit.textContent||'').trim();
+                hit.click();
+                return text;
+              },{aliases:topic.aliases});
+              if(!clicked) throw new Error('Could not click topic '+topic.name);
+              await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('niveles'),{timeout:15000});
+              await sleep(350);
+              const statusOn=await page.$eval('#status',el=>el.textContent);
+              const runtime=await frame.evaluate(()=>{
+                const rail=document.querySelector('[data-prometeo-v12-rail]');
+                const levels=[...document.querySelectorAll('[data-prometeo-v12-level]')];
+                const rounds=[...document.querySelectorAll('[data-prometeo-v12-round]')];
+                const heading=[...document.querySelectorAll('h1,h2,h3,[role="heading"]')].map(x=>(x.textContent||'').trim()).filter(Boolean).slice(0,6);
+                return {rail:rail?`${rail.tagName.toLowerCase()}#${rail.id||''}.${String(rail.className||'').trim().replace(/\s+/g,'.')}`:null,levels:levels.length,rounds:rounds.length,heading,root_v12_on:document.documentElement.classList.contains('prometeo-v12-on')};
+              });
+              if(!/12\/12 niveles/.test(statusOn)) throw new Error(topic.name+' expected 12/12 levels, got: '+statusOn);
+              if(!/3 rondas/.test(statusOn)) throw new Error(topic.name+' expected 3 rounds, got: '+statusOn);
+              if(!runtime.rail||runtime.levels!==12||runtime.rounds!==3||!runtime.root_v12_on) throw new Error(topic.name+' runtime markers mismatch: '+JSON.stringify(runtime));
+
+              await page.click('#toggle');
+              await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('V12 apagado'),{timeout:5000});
+              const statusOff=await page.$eval('#status',el=>el.textContent);
+              const offClass=await frame.evaluate(()=>document.documentElement.classList.contains('prometeo-v12-on'));
+              if(offClass) throw new Error(topic.name+' V11 A/B toggle did not remove V12 class');
+              await page.click('#toggle');
+              await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('V12 activo'),{timeout:5000});
+              const backOn=await frame.evaluate(()=>document.documentElement.classList.contains('prometeo-v12-on'));
+              if(!backOn) throw new Error(topic.name+' V12 A/B toggle did not restore V12 class');
+
+              evidence.topics.push({topic:topic.name,clicked,status_on:statusOn,status_off:statusOff,rail:runtime.rail,levels:runtime.levels,rounds:runtime.rounds,headings:runtime.heading,menu_has_four_distinct_topics:true,toggle_v11_intact:true,toggle_v12_restore:true});
+              if(evidence.topics.length===1) await page.screenshot({path:'/tmp/jose-v12-runtime.png',fullPage:true});
+            }
+            evidence.sha_gate_observed=evidence.topics.every(x=>x.status_on.includes('V11 SHA-256 PASS'));
+            evidence.topic_local_maps_confirmed=evidence.topics.length===4&&evidence.topics.every(x=>x.levels===12&&x.rounds===3);
+            evidence.ab_toggle_confirmed=evidence.topics.every(x=>x.toggle_v11_intact&&x.toggle_v12_restore);
+            evidence.outcome=evidence.sha_gate_observed&&evidence.topic_local_maps_confirmed&&evidence.ab_toggle_confirmed?'VERIFIED':'FAILED';
+            fs.writeFileSync('/tmp/jose-v12-runtime-evidence.json',JSON.stringify(evidence,null,2));
+            console.log('RUNTIME_EVIDENCE='+JSON.stringify(evidence));
+            if(evidence.outcome!=='VERIFIED') process.exitCode=1;
+          } catch(err){
+            evidence.outcome='FAILED'; evidence.errors.push(String(err&&err.stack||err));
+            fs.writeFileSync('/tmp/jose-v12-runtime-evidence.json',JSON.stringify(evidence,null,2));
+            console.error('RUNTIME_EVIDENCE='+JSON.stringify(evidence));
+            process.exitCode=1;
+          } finally {
+            if(browser) await browser.close();
+            server.kill('SIGTERM');
+          }
+          EOF
+          node /tmp/jose-v12-verify.mjs
+
+      - name: Upload runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jose-v12-runtime-evidence
+          path: |
+            /tmp/jose-v12-runtime-evidence.json
+            /tmp/jose-v12-runtime.png
+          if-no-files-found: warn
