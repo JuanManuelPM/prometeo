@@ -24,7 +24,7 @@ assert.equal(r.batches[0].summary.routed,2);
 assert.equal(r.batches[0].summary.claim_attempts,3);
 assert.equal(r.batches[0].summary.pin_won,1);
 assert.equal(r.batches[0].summary.extra_observed,0);
-assert.equal(r.batches[0].summary.collisions,1);
+assert.equal(r.batches[0].summary.collisions,2);
 
 const aliases=compileRuntime([
   c(6,'2026-09-17T22:02:10Z',{...base,worker_id:'w3',event:'ROUTED',lane:'recovery',candidate_id:'job-c'}),
