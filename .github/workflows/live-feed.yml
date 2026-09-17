@@ -1,0 +1,57 @@
+name: Prometeo Live Feed
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/portfolio/**'
+      - 'coordination/opportunities/**'
+      - 'coordination/CONTINUITY_HEAD.json'
+      - 'coordination/workstreams/chat-native-control-plane-v1/FOCUS.json'
+      - '.github/scripts/build-live-feed.mjs'
+      - '.github/workflows/live-feed.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prometeo-live-feed
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: source
+          fetch-depth: 1
+      - name: Build snapshot
+        run: node source/.github/scripts/build-live-feed.mjs source /tmp/feed.json
+      - name: Checkout site
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          fetch-depth: 20
+      - name: Publish snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C site config user.name github-actions[bot]
+          git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C site pull --ff-only origin gh-pages
+          mkdir -p site/live
+          cp /tmp/feed.json site/live/feed.json
+          git -C site add live/feed.json
+          if git -C site diff --cached --quiet; then exit 0; fi
+          git -C site commit -m "live: refresh static worker feed"
+          for n in 1 2 3; do
+            if git -C site push origin HEAD:gh-pages; then exit 0; fi
+            git -C site fetch origin gh-pages
+            git -C site rebase origin/gh-pages
+          done
+          exit 1
