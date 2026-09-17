@@ -1,20 +1,252 @@
-import fs from 'node:fs';import path from 'node:path';
-const root=path.resolve(process.argv[2]||'.'),out=path.resolve(process.argv[3]||'feed.json'),now=Date.now();
-const lower=v=>String(v??'').toLowerCase(),first=(...v)=>v.find(x=>x!==undefined&&x!==null&&x!==''),term=new Set(['done','verified','no_action_needed','superseded']);
-const p=r=>path.join(root,r),read=r=>{try{return JSON.parse(fs.readFileSync(p(r),'utf8'))}catch{return null}},walk=r=>{const d=p(r);if(!fs.existsSync(d))return[];let a=[];for(const e of fs.readdirSync(d,{withFileTypes:true})){const q=path.posix.join(r,e.name);a=e.isDirectory()?a.concat(walk(q)):a.concat(q)}return a};
-const t=d=>first(d?.returned_at,d?.completed_at,d?.observed_at,d?.started_at,d?.claimed_at,d?.launched_at,d?.created_at,d?.updated_at,d?.timestamp)||null,ms=d=>Date.parse(t(d)||'')||0,active=d=>{const x=Date.parse(d?.expires_at||'');return x?x>now:!!d},terminal=d=>term.has(lower(first(d?.outcome,d?.status,d?.result))),problem=d=>/fail|error|boundary|reject|conflict|invalid/.test(lower(first(d?.state,d?.status,d?.verdict,d?.result,d?.outcome)));
-const pf=walk('coordination/portfolio').filter(x=>x.endsWith('.json')),of=walk('coordination/opportunities').filter(x=>x.endsWith('.json')),wf=walk('coordination/workers').filter(x=>x.endsWith('.json'));
-const docs=xs=>xs.map(path=>({path,doc:read(path)})).filter(x=>x.doc),latest=xs=>xs.slice().sort((a,b)=>ms(a.doc)-ms(b.doc)||a.path.localeCompare(b.path)).at(-1)||null,gen=r=>Number(r?.doc?.generation)||Number(String(r?.path||'').match(/\/G(\d+)\.json$/)?.[1]||0);
-const portfolio=read('coordination/portfolio/PORTFOLIO.json')||{projects:[]},head=read('coordination/CONTINUITY_HEAD.json')||{},focus=read('coordination/workstreams/chat-native-control-plane-v1/FOCUS.json')||{};
-const dr=docs(pf.filter(x=>/^coordination\/portfolio\/derived\/[^/]+\/[^/]+\.json$/.test(x))),byProject=new Map();for(const r of dr){if(!r.doc.project_id||!r.doc.job_id)continue;const a=byProject.get(r.doc.project_id)||[];a.push({...r.doc,origin:'derived',source_path:r.path});byProject.set(r.doc.project_id,a)}
-function merge(seed,derived){const m=new Map();for(const j of [...seed.map(x=>({...x,origin:'seed'})),...derived]){const k=j.dedupe_key||j.job_id;if(!m.has(k)||j.origin==='seed')m.set(k,j)}return[...m.values()]}
-function jobState(project,j){const id=j.job_id,pins=docs(pf.filter(x=>x.startsWith(`coordination/portfolio/pins/${id}/`))).sort((a,b)=>gen(a)-gen(b)||ms(a.doc)-ms(b.doc)),claims=docs(pf.filter(x=>x.startsWith(`coordination/portfolio/claims/${id}/`))).sort((a,b)=>ms(a.doc)-ms(b.doc)),cols=docs(pf.filter(x=>x.startsWith(`coordination/portfolio/collisions/${id}/`))),rets=docs(pf.filter(x=>x.startsWith(`coordination/portfolio/returns/${id}/`))).sort((a,b)=>ms(a.doc)-ms(b.doc));const tr=[...rets].reverse().find(x=>terminal(x.doc))||null,lr=rets.at(-1)||null,lp=pins.at(-1)||null,live=lp&&active(lp.doc)?lp:null,ac=claims.filter(x=>active(x.doc));let auth=null,mode='none';if(lp){auth=claims.find(x=>x.doc?.pin_ref===lp.path||(lp.doc?.pin_id&&x.doc?.pin_id===lp.doc.pin_id))||null;mode=live?(gen(live)>1?'recovery-pin':'pin'):'stale-pin'}else if(ac.length){auth=ac[0];mode='legacy'}let state='ready';if(tr)state='done';else if(live)state=gen(live)>1?'recovery':'working';else if(lp)state='stale';else if(auth)state='working';else if(lr&&['partial','boundary'].includes(lower(lr.doc?.outcome)))state='partial';else if(lower(j.seed_status).includes('block'))state='blocked';const owner=first(live?.doc?.worker_id,auth?.doc?.worker_id,auth?.doc?.worker,auth?.doc?.claim_id)||null;return{...j,project_id:project.project_id,project_label:project.label,state,owner,authority_mode:mode,pin_generation:lp?gen(lp):0,claimed_at:first(live?.doc?.claimed_at,auth?.doc?.claimed_at)||null,expires_at:first(live?.doc?.expires_at,auth?.doc?.expires_at)||null,collision_count:cols.length+Math.max(0,ac.length-(auth?1:0)),latest_return:lr?{outcome:first(lr.doc.outcome,lr.doc.status),summary:lr.doc.summary||null,returned_at:t(lr.doc),worker_id:lr.doc.worker_id||null}:null,terminal_return:tr?{outcome:first(tr.doc.outcome,tr.doc.status),returned_at:t(tr.doc),worker_id:tr.doc.worker_id||null}:null,returns:rets.map(r=>({path:r.path,...r.doc})),pins:pins.map(r=>({path:r.path,...r.doc})),claims:claims.map(r=>({path:r.path,...r.doc})),collisions:cols.map(r=>({path:r.path,...r.doc}))}}
-const projects=(portfolio.projects||[]).map(x=>({...x,jobs:merge(x.jobs||[],byProject.get(x.project_id)||[]).map(j=>jobState(x,j))}));
-const jobMap=new Map(projects.flatMap(p=>p.jobs.map(j=>[j.job_id,j]))),workerRows=[];
-const beaconRows=docs(wf.filter(x=>/coordination\/workers\/beacons\/.+\.json$/.test(x)));for(const r of beaconRows){const d=r.doc,w=first(d.worker_id,d.session_id,path.posix.basename(r.path,'.json'));workerRows.push({key:`beacon:${w}`,worker_id:w,kind:'beacon',status:'allocating',task:'Asignando trabajo',project:null,job_id:null,pin_at:null,start_at:t(d),end_at:null,result:null,source:r.path})}
-for(const j of jobMap.values()){const rets=j.returns||[];for(const pin of j.pins||[]){const w=first(pin.worker_id,pin.claim_id,pin.pin_id);if(!w)continue;const rr=rets.filter(r=>!r.worker_id||r.worker_id===w).filter(r=>ms(r)>=ms(pin)).sort((a,b)=>ms(a)-ms(b))[0]||null;workerRows.push({key:`pin:${pin.path}`,worker_id:w,kind:'portfolio',status:rr?lower(first(rr.outcome,rr.status)):(active(pin)?'working':'stale'),task:j.title,project:j.project_label,job_id:j.job_id,pin_at:pin.claimed_at||t(pin),start_at:pin.claimed_at||t(pin),end_at:rr?t(rr):null,result:rr?.summary||first(rr?.outcome,rr?.status)||null,source:pin.path})}if(!(j.pins||[]).length)for(const c of j.claims||[]){const w=first(c.worker_id,c.worker,c.claim_id);if(!w)continue;const rr=rets.filter(r=>!r.worker_id||r.worker_id===w).filter(r=>ms(r)>=ms(c)).sort((a,b)=>ms(a)-ms(b))[0]||null;workerRows.push({key:`claim:${c.path}`,worker_id:w,kind:'portfolio',status:rr?lower(first(rr.outcome,rr.status)):(active(c)?'working':'stale'),task:j.title,project:j.project_label,job_id:j.job_id,pin_at:c.claimed_at||t(c),start_at:c.claimed_at||t(c),end_at:rr?t(rr):null,result:rr?.summary||first(rr?.outcome,rr?.status)||null,source:c.path})}for(const c of j.collisions||[]){const w=first(c.worker_id,c.claim_id,c.collision_id);if(!w)continue;workerRows.push({key:`collision:${c.path}`,worker_id:w,kind:'collision',status:'collision',task:j.title,project:j.project_label,job_id:j.job_id,pin_at:c.observed_at||t(c),start_at:c.observed_at||t(c),end_at:c.observed_at||t(c),result:'Perdió el PIN y debe reasignarse',source:c.path})}}
-function queueFiles(){return of.filter(x=>{if(!/queue/i.test(path.posix.basename(x)))return false;return Array.isArray(read(x)?.opportunities)})}function under(prefix){return latest(docs(of.filter(x=>x.startsWith(prefix)&&x.endsWith('.json'))))}function opp(o){const id=o.opportunity_id,claim=read(`coordination/opportunities/claims/${id}.json`),run=under(`coordination/opportunities/runs/${id}/`),ret=under(`coordination/opportunities/returns/${id}/`);let state='waiting';if(ret)state=problem(ret.doc)?'problem':'returned';else if(run)state=problem(run.doc)?'problem':'working';else if(claim)state='working';else if(lower(o.status).includes('ready'))state='ready';const owner=first(run?.doc?.worker_id,claim?.worker_id,claim?.worker)||null;if(owner){workerRows.push({key:`opp:${id}:${owner}`,worker_id:owner,kind:'queue',status:ret?(problem(ret.doc)?'boundary':'done'):state,task:o.mission||o.type||id,project:'queue',job_id:id,pin_at:t(claim),start_at:first(t(run?.doc),t(claim)),end_at:t(ret?.doc),result:ret?.doc?.summary||first(ret?.doc?.outcome,ret?.doc?.status)||null,source:`coordination/opportunities/claims/${id}.json`})}return{opportunity_id:id,mission:o.mission||o.type||'',priority:o.priority||0,state,owner,claimed_at:t(claim),started_at:t(run?.doc),returned_at:t(ret?.doc)}}
-const plans=queueFiles().map(rel=>{const q=read(rel),items=(q.opportunities||[]).filter(x=>x?.opportunity_id).map(opp),done=items.filter(x=>x.state==='returned').length,working=items.filter(x=>x.state==='working').length,ready=items.filter(x=>x.state==='ready').length,problems=items.filter(x=>x.state==='problem').length,total=items.length;return{id:first(q.generation_id,q.queue_id,path.posix.basename(rel,'.json')),label:first(q.generation_id,q.queue_id,path.posix.basename(rel,'.json')),created_at:first(q.created_at,q.generated_at,q.updated_at),total,done,working,ready,problems,remaining:Math.max(0,total-done),percent:total?Math.round(done/total*100):0,items}}).sort((a,b)=>Date.parse(a.created_at||0)-Date.parse(b.created_at||0));
-const grouped=new Map();for(const r of workerRows){const a=grouped.get(r.worker_id)||[];a.push(r);grouped.set(r.worker_id,a)}const workers=[];for(const [worker_id,rows] of grouped){rows.sort((a,b)=>Date.parse(a.start_at||0)-Date.parse(b.start_at||0));const assignments=rows.filter(x=>x.kind!=='beacon'),last=assignments.at(-1)||rows.at(-1),firstSeen=rows.map(x=>x.start_at).filter(Boolean).sort()[0]||null;workers.push({worker_id,first_seen:firstSeen,status:last.status,task:last.task,project:last.project,job_id:last.job_id,pin_at:last.pin_at,start_at:last.start_at,end_at:last.end_at,result:last.result,assignments:rows})}workers.sort((a,b)=>Date.parse(b.first_seen||0)-Date.parse(a.first_seen||0));for(const w of workers){const s=Date.parse(w.pin_at||w.start_at||'');const e=Date.parse(w.end_at||'');w.duration_ms=s?(e||now)-s:null;if(w.status==='allocating'&&s&&now-s>180000)w.status='silent'}
-const jobs=projects.flatMap(p=>p.jobs),summary={workers:{seen:workers.length,working:workers.filter(w=>['working','recovery','allocating'].includes(w.status)).length,done:workers.filter(w=>['done','verified','no_action_needed','superseded'].includes(w.status)).length,silent:workers.filter(w=>['silent','stale'].includes(w.status)).length,collisions:workers.filter(w=>w.status==='collision').length},portfolio:{projects:projects.length,jobs:jobs.length,ready:jobs.filter(j=>['ready','partial'].includes(j.state)).length,working:jobs.filter(j=>['working','recovery'].includes(j.state)).length,done:jobs.filter(j=>j.state==='done').length,stale:jobs.filter(j=>j.state==='stale').length,collisions:jobs.reduce((n,j)=>n+j.collision_count,0),derived:jobs.filter(j=>j.origin==='derived').length,terminal_returns:jobs.filter(j=>j.terminal_return).length},queues:{plans:plans.length,working:plans.reduce((n,p)=>n+p.working,0),remaining:plans.reduce((n,p)=>n+p.remaining,0),returned:plans.reduce((n,p)=>n+p.done,0)}};summary.portfolio.reproduction=summary.portfolio.terminal_returns?summary.portfolio.derived/summary.portfolio.terminal_returns:0;
-const feed={schema:'prometeo.live-feed/v2',generated_at:new Date().toISOString(),source_sha:process.env.GITHUB_SHA||null,summary,workers:workers.slice(0,160),projects:projects.map(p=>({...p,jobs:p.jobs.map(({returns,pins,claims,collisions,...j})=>j)})),plans,head:{global_frontier:head.global_frontier||null},focus:{current_frontier:focus.current_frontier||null}};fs.mkdirSync(path.dirname(out),{recursive:true});fs.writeFileSync(out,JSON.stringify(feed,null,2)+'\n');console.log(`live v2: ${workers.length} workers, ${jobs.length} jobs, ${plans.length} plans`);
+import fs from 'node:fs';
+import path from 'node:path';
+
+const root = path.resolve(process.argv[2] || '.');
+const out = path.resolve(process.argv[3] || 'feed.json');
+const now = Date.now();
+const ACTIVE_MS = 6 * 60_000;
+const REPLACE_MS = 10 * 60_000;
+const ALLOCATING_MS = 3 * 60_000;
+const terminalOutcomes = new Set(['done','verified','no_action_needed','superseded']);
+const lower = v => String(v ?? '').toLowerCase();
+const first = (...v) => v.find(x => x !== undefined && x !== null && x !== '');
+const abs = rel => path.join(root, rel);
+const read = rel => { try { return JSON.parse(fs.readFileSync(abs(rel), 'utf8')); } catch { return null; } };
+const walk = rel => {
+  const dir = abs(rel);
+  if (!fs.existsSync(dir)) return [];
+  let rows = [];
+  for (const ent of fs.readdirSync(dir, {withFileTypes:true})) {
+    const child = path.posix.join(rel, ent.name);
+    rows = ent.isDirectory() ? rows.concat(walk(child)) : rows.concat(child);
+  }
+  return rows;
+};
+const timeOf = d => first(d?.returned_at,d?.completed_at,d?.heartbeat_at,d?.observed_at,d?.started_at,d?.claimed_at,d?.launched_at,d?.created_at,d?.updated_at,d?.timestamp) || null;
+const ms = d => Date.parse(timeOf(d) || '') || 0;
+const docs = paths => paths.map(file => ({path:file, doc:read(file)})).filter(x => x.doc);
+const latest = rows => rows.slice().sort((a,b)=>ms(a.doc)-ms(b.doc)||a.path.localeCompare(b.path)).at(-1) || null;
+const terminal = d => terminalOutcomes.has(lower(first(d?.outcome,d?.status,d?.result)));
+const problem = d => /fail|error|boundary|reject|conflict|invalid/.test(lower(first(d?.state,d?.status,d?.verdict,d?.result,d?.outcome)));
+const generation = row => Number(row?.doc?.generation) || Number(String(row?.path || '').match(/\/G(\d+)\.json$/)?.[1] || 0);
+const signalAge = iso => iso ? Math.max(0, now - Date.parse(iso)) : Number.POSITIVE_INFINITY;
+const newestIso = values => values.filter(Boolean).sort((a,b)=>Date.parse(a)-Date.parse(b)).at(-1) || null;
+const baDay = iso => {
+  const d = new Date(iso || 0);
+  if (Number.isNaN(d.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(d);
+  const obj = Object.fromEntries(parts.map(x=>[x.type,x.value]));
+  return `${obj.year}-${obj.month}-${obj.day}`;
+};
+const median = nums => {
+  const a = nums.filter(Number.isFinite).sort((a,b)=>a-b);
+  if (!a.length) return null;
+  const m = Math.floor(a.length/2);
+  return a.length % 2 ? a[m] : Math.round((a[m-1]+a[m])/2);
+};
+
+const portfolioFiles = walk('coordination/portfolio').filter(x=>x.endsWith('.json'));
+const opportunityFiles = walk('coordination/opportunities').filter(x=>x.endsWith('.json'));
+const workerFiles = walk('coordination/workers').filter(x=>x.endsWith('.json'));
+const inboxFiles = walk('coordination/inbox/messages').filter(x=>x.endsWith('.json'));
+const portfolio = read('coordination/portfolio/PORTFOLIO.json') || {projects:[]};
+
+const heartbeatRows = docs(workerFiles.filter(x=>/coordination\/workers\/heartbeats\/.+\.json$/.test(x)));
+const heartbeatsByWorker = new Map();
+for (const row of heartbeatRows) {
+  const wid = first(row.doc.worker_id,row.doc.session_id);
+  if (!wid) continue;
+  const arr = heartbeatsByWorker.get(wid) || [];
+  arr.push(row);
+  heartbeatsByWorker.set(wid, arr);
+}
+for (const arr of heartbeatsByWorker.values()) arr.sort((a,b)=>ms(a.doc)-ms(b.doc));
+
+const derivedRows = docs(portfolioFiles.filter(x=>/^coordination\/portfolio\/derived\/[^/]+\/[^/]+\.json$/.test(x)));
+const derivedByProject = new Map();
+for (const row of derivedRows) {
+  if (!row.doc.project_id || !row.doc.job_id) continue;
+  const arr = derivedByProject.get(row.doc.project_id) || [];
+  arr.push({...row.doc, origin:'derived', source_path:row.path});
+  derivedByProject.set(row.doc.project_id, arr);
+}
+function mergeJobs(seed, derived) {
+  const map = new Map();
+  for (const job of [...seed.map(x=>({...x,origin:'seed'})), ...derived]) {
+    const key = job.dedupe_key || job.job_id;
+    if (!map.has(key) || job.origin === 'seed') map.set(key, job);
+  }
+  return [...map.values()];
+}
+function workerHeartbeatSignal(workerId, jobId) {
+  const arr = heartbeatsByWorker.get(workerId) || [];
+  const compatible = arr.filter(r => !r.doc.job_id || !jobId || r.doc.job_id === jobId);
+  return latest(compatible);
+}
+function inspectPortfolioJob(project, job) {
+  const id = job.job_id;
+  const pins = docs(portfolioFiles.filter(x=>x.startsWith(`coordination/portfolio/pins/${id}/`))).sort((a,b)=>generation(a)-generation(b)||ms(a.doc)-ms(b.doc));
+  const claims = docs(portfolioFiles.filter(x=>x.startsWith(`coordination/portfolio/claims/${id}/`))).sort((a,b)=>ms(a.doc)-ms(b.doc)||a.path.localeCompare(b.path));
+  const collisions = docs(portfolioFiles.filter(x=>x.startsWith(`coordination/portfolio/collisions/${id}/`)));
+  const returns = docs(portfolioFiles.filter(x=>x.startsWith(`coordination/portfolio/returns/${id}/`))).sort((a,b)=>ms(a.doc)-ms(b.doc)||a.path.localeCompare(b.path));
+  const terminalReturn = [...returns].reverse().find(x=>terminal(x.doc)) || null;
+  const latestReturn = returns.at(-1) || null;
+  const latestPin = pins.at(-1) || null;
+  let authority = null;
+  let authorityMode = 'none';
+  if (latestPin) {
+    authority = claims.find(x=>x.doc?.pin_ref===latestPin.path || (latestPin.doc?.pin_id && x.doc?.pin_id===latestPin.doc.pin_id)) || null;
+    authorityMode = generation(latestPin) > 1 ? 'recovery-pin' : 'pin';
+  } else if (claims.length) {
+    authority = claims[0];
+    authorityMode = 'legacy';
+  }
+  const owner = first(latestPin?.doc?.worker_id,authority?.doc?.worker_id,authority?.doc?.worker,authority?.doc?.claim_id) || null;
+  const hb = owner ? workerHeartbeatSignal(owner,id) : null;
+  const lastSignalAt = newestIso([timeOf(latestPin?.doc),timeOf(authority?.doc),timeOf(hb?.doc),timeOf(latestReturn?.doc)]);
+  const age = signalAge(lastSignalAt);
+  let state = 'ready';
+  if (terminalReturn) state = 'done';
+  else if (owner && age < ACTIVE_MS) state = generation(latestPin) > 1 ? 'recovery' : 'working';
+  else if (owner && age < REPLACE_MS) state = 'suspect';
+  else if (owner) state = 'replaceable';
+  else if (latestReturn && ['partial','boundary'].includes(lower(latestReturn.doc?.outcome))) state = 'partial';
+  else if (lower(job.seed_status).includes('block')) state = 'blocked';
+  return {
+    ...job,
+    project_id:project.project_id,
+    project_label:project.label,
+    state,
+    owner,
+    authority_mode:authorityMode,
+    pin_generation:latestPin ? generation(latestPin) : 0,
+    claimed_at:first(latestPin?.doc?.claimed_at,authority?.doc?.claimed_at) || null,
+    last_signal_at:lastSignalAt,
+    replaceable_at:lastSignalAt ? new Date(Date.parse(lastSignalAt)+REPLACE_MS).toISOString() : null,
+    collision_count:collisions.length + Math.max(0, claims.length-(authority?1:0)),
+    latest_return:latestReturn ? {outcome:first(latestReturn.doc.outcome,latestReturn.doc.status),summary:latestReturn.doc.summary||null,returned_at:timeOf(latestReturn.doc),worker_id:latestReturn.doc.worker_id||null} : null,
+    terminal_return:terminalReturn ? {outcome:first(terminalReturn.doc.outcome,terminalReturn.doc.status),returned_at:timeOf(terminalReturn.doc),worker_id:terminalReturn.doc.worker_id||null} : null,
+    returns:returns.map(r=>({path:r.path,...r.doc})),
+    pins:pins.map(r=>({path:r.path,...r.doc})),
+    claims:claims.map(r=>({path:r.path,...r.doc})),
+    collisions:collisions.map(r=>({path:r.path,...r.doc}))
+  };
+}
+
+const projects = (portfolio.projects||[]).map(p=>({
+  ...p,
+  jobs:mergeJobs(p.jobs||[],derivedByProject.get(p.project_id)||[]).map(j=>inspectPortfolioJob(p,j))
+}));
+const jobMap = new Map(projects.flatMap(p=>p.jobs.map(j=>[j.job_id,j])));
+const workerRows = [];
+
+const beaconRows = docs(workerFiles.filter(x=>/coordination\/workers\/beacons\/.+\.json$/.test(x)));
+for (const row of beaconRows) {
+  const d=row.doc, wid=first(d.worker_id,d.session_id,path.posix.basename(row.path,'.json'));
+  workerRows.push({key:`beacon:${wid}`,worker_id:wid,kind:'beacon',status:'allocating',task:'Buscando trabajo',project:null,job_id:null,pin_at:null,start_at:timeOf(d),end_at:null,result:null,source:row.path});
+}
+
+for (const job of jobMap.values()) {
+  const returns = job.returns || [];
+  for (const pin of job.pins || []) {
+    const wid=first(pin.worker_id,pin.claim_id,pin.pin_id); if(!wid) continue;
+    const ret=returns.filter(r=>!r.worker_id||r.worker_id===wid).filter(r=>ms(r)>=ms(pin)).sort((a,b)=>ms(a)-ms(b))[0]||null;
+    workerRows.push({key:`pin:${pin.path}`,worker_id:wid,kind:'portfolio',status:ret?lower(first(ret.outcome,ret.status)):'working',task:job.title,project:job.project_label,job_id:job.job_id,pin_at:pin.claimed_at||timeOf(pin),start_at:pin.claimed_at||timeOf(pin),end_at:ret?timeOf(ret):null,result:ret?.summary||first(ret?.outcome,ret?.status)||null,source:pin.path});
+  }
+  if (!(job.pins||[]).length) {
+    for (const claim of job.claims || []) {
+      const wid=first(claim.worker_id,claim.worker,claim.claim_id); if(!wid) continue;
+      const ret=returns.filter(r=>!r.worker_id||r.worker_id===wid).filter(r=>ms(r)>=ms(claim)).sort((a,b)=>ms(a)-ms(b))[0]||null;
+      workerRows.push({key:`claim:${claim.path}`,worker_id:wid,kind:'portfolio',status:ret?lower(first(ret.outcome,ret.status)):'working',task:job.title,project:job.project_label,job_id:job.job_id,pin_at:claim.claimed_at||timeOf(claim),start_at:claim.claimed_at||timeOf(claim),end_at:ret?timeOf(ret):null,result:ret?.summary||first(ret?.outcome,ret?.status)||null,source:claim.path});
+    }
+  }
+  for (const col of job.collisions || []) {
+    const wid=first(col.worker_id,col.claim_id,col.collision_id); if(!wid) continue;
+    workerRows.push({key:`collision:${col.path}`,worker_id:wid,kind:'collision',status:'collision',task:job.title,project:job.project_label,job_id:job.job_id,pin_at:col.observed_at||timeOf(col),start_at:col.observed_at||timeOf(col),end_at:col.observed_at||timeOf(col),result:'Perdió el PIN y reentró',source:col.path});
+  }
+}
+
+function latestUnder(prefix) { return latest(docs(opportunityFiles.filter(x=>x.startsWith(prefix)&&x.endsWith('.json')))); }
+function queueFiles() { return opportunityFiles.filter(x=>/queue/i.test(path.posix.basename(x)) && Array.isArray(read(x)?.opportunities)); }
+function inspectOpportunity(op) {
+  const id=op.opportunity_id;
+  const claim=read(`coordination/opportunities/claims/${id}.json`);
+  const run=latestUnder(`coordination/opportunities/runs/${id}/`);
+  const ret=latestUnder(`coordination/opportunities/returns/${id}/`);
+  let state='waiting';
+  if(ret) state=problem(ret.doc)?'problem':'returned';
+  else if(run) state=problem(run.doc)?'problem':'working';
+  else if(claim) state='working';
+  else if(lower(op.status).includes('ready')) state='ready';
+  const owner=first(run?.doc?.worker_id,claim?.worker_id,claim?.worker)||null;
+  if(owner) workerRows.push({key:`opp:${id}:${owner}`,worker_id:owner,kind:'queue',status:ret?(problem(ret.doc)?'boundary':'done'):'working',task:op.mission||op.type||id,project:'queue',job_id:id,pin_at:timeOf(claim),start_at:first(timeOf(run?.doc),timeOf(claim)),end_at:timeOf(ret?.doc),result:ret?.doc?.summary||first(ret?.doc?.outcome,ret?.doc?.status)||null,source:`coordination/opportunities/claims/${id}.json`});
+  return {opportunity_id:id,mission:op.mission||op.type||'',priority:op.priority||0,state,owner,claimed_at:timeOf(claim),started_at:timeOf(run?.doc),returned_at:timeOf(ret?.doc)};
+}
+const plans=queueFiles().map(rel=>{
+  const q=read(rel),items=(q.opportunities||[]).filter(x=>x?.opportunity_id).map(inspectOpportunity);
+  const done=items.filter(x=>x.state==='returned').length,working=items.filter(x=>x.state==='working').length,ready=items.filter(x=>x.state==='ready').length,problems=items.filter(x=>x.state==='problem').length,total=items.length;
+  return {id:first(q.generation_id,q.queue_id,path.posix.basename(rel,'.json')),label:first(q.generation_id,q.queue_id,path.posix.basename(rel,'.json')),created_at:first(q.created_at,q.generated_at,q.updated_at),total,done,working,ready,problems,remaining:Math.max(0,total-done),percent:total?Math.round(done/total*100):0,items};
+}).sort((a,b)=>Date.parse(a.created_at||0)-Date.parse(b.created_at||0));
+
+const grouped=new Map();
+for(const row of workerRows){const arr=grouped.get(row.worker_id)||[];arr.push(row);grouped.set(row.worker_id,arr)}
+const workers=[];
+for(const [workerId,rows] of grouped){
+  rows.sort((a,b)=>Date.parse(a.start_at||0)-Date.parse(b.start_at||0));
+  const assignments=rows.filter(x=>x.kind!=='beacon');
+  const last=assignments.at(-1)||rows.at(-1);
+  const firstSeen=rows.map(x=>x.start_at).filter(Boolean).sort()[0]||null;
+  const heartbeats=(heartbeatsByWorker.get(workerId)||[]).map(x=>timeOf(x.doc)).filter(Boolean);
+  const lastSignalAt=newestIso([...rows.flatMap(x=>[x.start_at,x.pin_at,x.end_at]),...heartbeats]);
+  const age=signalAge(lastSignalAt);
+  let status=last.status;
+  if(last.end_at){
+    if(status==='done'||terminalOutcomes.has(status)) status='done';
+  } else if(assignments.length===0){
+    status = signalAge(firstSeen)>=ALLOCATING_MS ? 'silent' : 'allocating';
+  } else if(age>=REPLACE_MS){
+    status='replaceable';
+  } else if(age>=ACTIVE_MS){
+    status='suspect';
+  } else if(status!=='recovery'){
+    status='working';
+  }
+  const startAt=last.pin_at||last.start_at||firstSeen;
+  const durationMs=startAt ? (last.end_at?Date.parse(last.end_at):now)-Date.parse(startAt) : null;
+  workers.push({worker_id:workerId,first_seen:firstSeen,status,task:last.task,project:last.project,job_id:last.job_id,pin_at:last.pin_at,start_at:last.start_at,end_at:last.end_at,result:last.result,last_signal_at:lastSignalAt,recovery_at:(!last.end_at&&lastSignalAt)?new Date(Date.parse(lastSignalAt)+REPLACE_MS).toISOString():null,duration_ms:durationMs,assignment_count:assignments.filter(x=>x.kind!=='collision').length,collision_count:assignments.filter(x=>x.kind==='collision').length,assignments:rows});
+}
+workers.sort((a,b)=>Date.parse(b.first_seen||0)-Date.parse(a.first_seen||0));
+
+const historyMap=new Map();
+for(const worker of workers){
+  const day=baDay(worker.first_seen); if(!day) continue;
+  const h=historyMap.get(day)||{date:day,seen:0,finished:0,replaceable:0,collisions:0,durations:[],workers:[]};
+  h.seen++; if(worker.end_at)h.finished++; if(worker.status==='replaceable'||worker.status==='silent')h.replaceable++; h.collisions+=worker.collision_count||0; if(worker.end_at&&Number.isFinite(worker.duration_ms))h.durations.push(worker.duration_ms); h.workers.push(worker.worker_id); historyMap.set(day,h);
+}
+const history=[...historyMap.values()].map(h=>({date:h.date,seen:h.seen,finished:h.finished,replaceable:h.replaceable,collisions:h.collisions,median_duration_ms:median(h.durations),worker_ids:h.workers})).sort((a,b)=>b.date.localeCompare(a.date));
+
+const inbox=docs(inboxFiles).map(r=>({message_id:first(r.doc.message_id,path.posix.basename(r.path,'.json')),created_at:r.doc.created_at||timeOf(r.doc),author:r.doc.author||'guide',text:String(r.doc.text||'').slice(0,180),topic:r.doc.topic||null,refs:Array.isArray(r.doc.refs)?r.doc.refs:[]})).filter(x=>x.text).sort((a,b)=>Date.parse(b.created_at||0)-Date.parse(a.created_at||0)).slice(0,80);
+
+const jobs=projects.flatMap(p=>p.jobs);
+const summary={
+  workers:{seen:workers.length,working:workers.filter(w=>['working','recovery'].includes(w.status)).length,suspect:workers.filter(w=>w.status==='suspect').length,replaceable:workers.filter(w=>['replaceable','silent'].includes(w.status)).length,allocating:workers.filter(w=>w.status==='allocating').length,finished:workers.filter(w=>!!w.end_at).length,collisions:workers.reduce((n,w)=>n+(w.collision_count||0),0)},
+  portfolio:{projects:projects.length,jobs:jobs.length,ready:jobs.filter(j=>['ready','partial'].includes(j.state)).length,working:jobs.filter(j=>['working','recovery'].includes(j.state)).length,suspect:jobs.filter(j=>j.state==='suspect').length,replaceable:jobs.filter(j=>j.state==='replaceable').length,done:jobs.filter(j=>j.state==='done').length,collisions:jobs.reduce((n,j)=>n+j.collision_count,0),derived:jobs.filter(j=>j.origin==='derived').length,terminal_returns:jobs.filter(j=>j.terminal_return).length},
+  queues:{plans:plans.length,working:plans.reduce((n,p)=>n+p.working,0),remaining:plans.reduce((n,p)=>n+p.remaining,0),returned:plans.reduce((n,p)=>n+p.done,0)}
+};
+summary.portfolio.reproduction=summary.portfolio.terminal_returns?summary.portfolio.derived/summary.portfolio.terminal_returns:0;
+
+const feed={
+  schema:'prometeo.live-feed/v3',
+  generated_at:new Date().toISOString(),
+  source_sha:process.env.GITHUB_SHA||null,
+  thresholds:{heartbeat_target_minutes:3,stale_suspect_minutes:6,recovery_eligible_minutes:10,allocation_silent_minutes:3},
+  summary,
+  workers:workers.slice(0,300),
+  history,
+  inbox,
+  projects:projects.map(p=>({...p,jobs:p.jobs.map(({returns,pins,claims,collisions,...j})=>j)})),
+  plans
+};
+fs.mkdirSync(path.dirname(out),{recursive:true});
+fs.writeFileSync(out,JSON.stringify(feed,null,2)+'\n');
+console.log(`live v3: ${workers.length} workers, ${history.length} days, ${inbox.length} inbox, ${jobs.length} jobs`);
