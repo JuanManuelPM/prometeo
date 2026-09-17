@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -48,15 +48,24 @@ if (batchingItem?.required?.batched_unified_candidate_sharding !== true) errors.
 if (batchingItem?.required?.batch_strategy !== 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD') errors.push('baseline: EFF021 batch strategy drift');
 if (batchingItem?.required?.batched_reimpose_lane_priority_forbidden !== true) errors.push('baseline: EFF021 batched workers must not re-impose lane priority');
 if (batchingItem?.required?.unbatched_lane_priority_preserved !== true) errors.push('baseline: EFF021 unbatched lane priority must remain preserved');
+if (batchingItem?.required?.seed_source !== 'beacon_commit_sha_first_8_hex') errors.push('baseline: EFF021 seed source drift');
 const roleSignalItem = baseline?.items?.find(x=>x.id==='EFF022');
 if (roleSignalItem?.required?.bounded_recent_return_evidence !== true) errors.push('baseline: EFF022 compact Guide signal cable must be true');
 if (roleSignalItem?.required?.allocator_consumes_compact_role_evidence !== true) errors.push('baseline: EFF022 allocator compact evidence consumption must be true');
 if (roleSignalItem?.required?.full_authority_histories_stripped_from_public_projects !== true) errors.push('baseline: EFF022 full authority histories must remain stripped');
 if (roleSignalItem?.required?.collision_pressure_window_minutes !== 30) errors.push('baseline: EFF022 collision pressure window drift');
+const compactFrontierItem = baseline?.items?.find(x=>x.id==='EFF023');
+if (compactFrontierItem?.required?.compact_frontier !== 'live/claim-frontier.json') errors.push('baseline: EFF023 compact frontier path drift');
+if (compactFrontierItem?.required?.schema !== 'prometeo.claim-frontier/v1') errors.push('baseline: EFF023 schema drift');
+if (compactFrontierItem?.required?.max_candidates !== 24) errors.push('baseline: EFF023 candidate bound drift');
+if (compactFrontierItem?.required?.full_allocator_preclaim_forbidden !== true) errors.push('baseline: EFF023 full allocator must stay off hot path');
 
 const wc = read(root, 'wc');
 must('wc', wc, 'CLAIM NOW');
-must('wc', wc, 'Candidate order: `ready` -> `queue_ready` -> `role_ready` -> `recovery`.');
+must('wc', wc, 'Read ONE compact claim frontier directly:');
+must('wc', wc, 'gh-pages:live/claim-frontier.json');
+must('wc', wc, '`live/allocator.json` is diagnostics only and is FORBIDDEN on the ordinary preclaim path.');
+must('wc', wc, 'first 8 hex chars of beacon_commit_sha');
 must('wc', wc, 'Maximum 3 fast CREATE attempts');
 must('wc', wc, 'Lane diversification: after 2 CREATE_EXISTS/CAS_LOST outcomes in the same lane');
 must('wc', wc, 'GUIDE_ROLE_PIN_CREATE');
@@ -110,7 +119,9 @@ must('fast-allocation', fast, 'CAPABILITY_MISMATCH_PRECLAIM');
 must('fast-allocation', fast, 'Unknown or ambiguous capability is NOT absence');
 must('fast-allocation', fast, 'does not consume an authority CREATE attempt');
 must('fast-allocation', fast, 'Batched unified candidate sharding');
-must('fast-allocation', fast, 'batch_candidates');
+must('fast-allocation', fast, 'claim-frontier.candidates');
+must('fast-allocation', fast, 'gh-pages:live/claim-frontier.json');
+must('fast-allocation', fast, 'first 8 hex chars of beacon_commit_sha');
 must('fast-allocation', fast, 'Do not re-impose lane priority locally for a batched worker');
 
 const eventProtocol = read(root, 'coordination/workers/WORKER_EVENT_STREAM_V1.md');
@@ -125,7 +136,9 @@ mustI('worker-events', eventProtocol, 'never launch workers to repair missing te
 const workerRuntime = read(root, 'scripts/build-worker-runtime.mjs');
 must('worker-runtime', workerRuntime, "schema:'prometeo.worker-runtime/v1'");
 must('worker-runtime', workerRuntime, "issue_number:22");
-must('worker-runtime', workerRuntime, "measurement_clock:'GITHUB_COMMENT_SERVER_TIME'");
+must('worker-runtime', workerRuntime, "measurement_clock:'GITHUB_COMMENT_SERVER_TIME_PLUS_BEACON_DECLARED_TIME'");
+must('worker-runtime', workerRuntime, 'beaconDocs');
+must('worker-runtime', workerRuntime, "routed?'ROUTED':'BEACONED'");
 must('worker-runtime', workerRuntime, "truth_boundary:'OBSERVABILITY_ONLY_GITHUB_PINS_REMAIN_AUTHORITY'");
 
 const workerRuntimeWorkflow = read(root, '.github/workflows/worker-runtime-events.yml');
@@ -175,6 +188,9 @@ must('live-workflow', live, "'coordination/guide/**'");
 must('live-workflow', live, '.github/scripts/augment-live-role-workers.mjs');
 must('live-workflow', live, 'scripts/build-efficiency-snapshot.mjs');
 must('live-workflow', live, 'scripts/build-fast-allocator.mjs');
+must('live-workflow', live, 'scripts/build-claim-frontier.mjs');
+must('live-workflow', live, 'coordination/portfolio/tests/claim_frontier_compact_v1.mjs');
+must('live-workflow', live, 'live/claim-frontier.json');
 must('live-workflow', live, 'scripts/apply-project-coverage.mjs');
 must('live-workflow', live, 'coordination/portfolio/tests/project_coverage_allocator_v1.mjs');
 must('live-workflow', live, 'coordination/portfolio/tests/batched_lane_sharding_v1.mjs');
@@ -268,6 +284,15 @@ must('role-signal-test', roleSignalTest, 'recent_collision_evidence');
 const batchShardingTest = read(root, 'coordination/portfolio/tests/batched_lane_sharding_v1.mjs');
 must('batch-sharding-test', batchShardingTest, 'BATCHED_UNIFIED_SHARDING_PASS');
 must('batch-sharding-test', batchShardingTest, 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD');
+must('batch-sharding-test', batchShardingTest, 'beacon_commit_sha_first_8_hex');
+
+const claimFrontier = read(root, 'scripts/build-claim-frontier.mjs');
+must('claim-frontier', claimFrontier, "schema:'prometeo.claim-frontier/v1'");
+must('claim-frontier', claimFrontier, 'maxCandidates = 24');
+must('claim-frontier', claimFrontier, 'claim_payload_shape');
+const claimFrontierTest = read(root, 'coordination/portfolio/tests/claim_frontier_compact_v1.mjs');
+must('claim-frontier-test', claimFrontierTest, 'CLAIM_FRONTIER_COMPACT_PASS');
+must('claim-frontier-test', claimFrontierTest, 'bytes<64000');
 
 const capabilityFitTest = read(root, 'coordination/portfolio/tests/fast_allocator_capability_fit_v1.mjs');
 must('capability-fit-test', capabilityFitTest, 'FAST_ALLOCATOR_CAPABILITY_FIT_PASS');
