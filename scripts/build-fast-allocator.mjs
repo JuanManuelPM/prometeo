@@ -462,6 +462,15 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
 
   const roles = compileRoleFrontier(feed, efficiency, jobs, ready, queueReady, recovery, roleContext);
 
+  const batchCandidates = [];
+  const pushBatch = (lane, items) => {
+    for (const item of arr(items)) batchCandidates.push({ lane, ...item });
+  };
+  pushBatch('ready', ready);
+  pushBatch('queue_ready', queueReady);
+  pushBatch('role_ready', roles.role_ready);
+  if (batchCandidates.length < 8) pushBatch('recovery', recovery.slice(0, Math.max(0, 8 - batchCandidates.length)));
+
   return {
     schema: 'prometeo.fast-allocator/v3',
     generated_at: feed.generated_at,
@@ -469,6 +478,8 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
     truth_boundary: 'COMPILED_EXECUTION_PLUS_LATENT_ROLE_FRONTIER',
     max_recovery_snapshot_age_seconds: 90,
     preferred_order: ['ready', 'queue_ready', 'role_ready', 'recovery'],
+    batch_strategy: 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD',
+    batch_candidates: batchCandidates.slice(0, 40),
     counts: {
       ready: ready.length,
       queue_ready: queueReady.length,
