@@ -96,7 +96,7 @@ must('wc', wc, 'Never read repository/project context to prove capability fit.')
 
 
 const fast = read(root, 'coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md');
-must('fast-allocation', fast, 'read ONE allocator snapshot');
+must('fast-allocation', fast, 'read ONE compact claim-frontier snapshot');
 must('fast-allocation', fast, '1. `ready` portfolio work;');
 must('fast-allocation', fast, '2. `queue_ready` normal work;');
 must('fast-allocation', fast, '3. `role_ready` centrally compiled Guide work;');
@@ -333,7 +333,7 @@ if (site) {
   must('public-wc', pointer, 'CANONICAL HUMAN INVOCATION TO COPY:');
   must('public-wc', pointer, 'autorizo beacon, eventos de telemetría, PIN/claim y commits reversibles necesarios');
   must('public-wc', pointer, 'Before ownership, do NOT load Guide, Metabolism, page protocols');
-  mustI('public-wc', pointer, 'create your beacon, read ONE allocator snapshot, then attempt atomic claim/PIN immediately');
+  mustI('public-wc', pointer, 'create your beacon, read ONE compact claim frontier, then attempt atomic claim/PIN immediately');
   must('public-wc', pointer, 'READY -> QUEUE_READY -> ROLE_READY -> RECOVERY');
   must('public-wc', pointer, 'ROLE_READY is centrally compiled latent work');
   must('public-wc', pointer, 'CLAIM_TRANSPORT_BLOCKED');
