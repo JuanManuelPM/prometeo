@@ -19,14 +19,26 @@ write('coordination/portfolio/RETURN_OUTCOME_SEMANTICS_V1.json', {
 });
 
 const reconciledRef = 'coordination/portfolio/returns/race5/RETURN-bad.json';
-write('coordination/portfolio/return-reconciliations/race5/RETURN-bad.json', {
+const old = new Date(Date.now() - 20 * 60_000).toISOString();
+write('coordination/portfolio/return-reconciliations/race5/RETURN-bad-v1.json', {
   schema: 'prometeo.portfolio-return-reconciliation/v1',
   job_id: 'race5',
   return_ref: reconciledRef,
-  effect: 'NONTERMINAL_ROUTE_ABORT'
+  original_outcome: 'NO_ACTION_NEEDED',
+  effect: 'NONTERMINAL_ROUTE_ABORT',
+  recorded_at: '2026-09-17T21:25:05Z'
+});
+write('coordination/portfolio/return-reconciliations/race5/RETURN-bad-v2.json', {
+  schema: 'prometeo.portfolio-return-reconciliation/v1',
+  job_id: 'race5',
+  return_ref: reconciledRef,
+  original_outcome: 'NO_ACTION_NEEDED',
+  original_returned_at: old,
+  original_worker_id: 'w1',
+  effect: 'NONTERMINAL_ROUTE_ABORT',
+  recorded_at: '2026-09-17T21:29:30Z'
 });
 
-const old = new Date(Date.now() - 20 * 60_000).toISOString();
 const feed = {
   thresholds: { stale_suspect_minutes: 6, recovery_eligible_minutes: 10 },
   summary: { workers: {}, portfolio: { derived: 2 } },
@@ -36,24 +48,20 @@ const feed = {
     jobs: [
       {
         job_id: 'race5', seed_status: 'ready', state: 'done', owner: 'w1', pin_generation: 2, last_signal_at: old,
-        returns: [{ path: reconciledRef, outcome: 'NO_ACTION_NEEDED', returned_at: old }],
-        latest_return: { outcome: 'NO_ACTION_NEEDED', returned_at: old },
-        terminal_return: { outcome: 'NO_ACTION_NEEDED', returned_at: old }
+        latest_return: { outcome: 'NO_ACTION_NEEDED', returned_at: old, worker_id: 'w1' },
+        terminal_return: { outcome: 'NO_ACTION_NEEDED', returned_at: old, worker_id: 'w1' }
       },
       {
         job_id: 'genuine', seed_status: 'ready', state: 'done', owner: null, pin_generation: 0, last_signal_at: null,
-        returns: [{ path: 'coordination/portfolio/returns/genuine/R.json', outcome: 'NO_ACTION_NEEDED', returned_at: old }],
-        latest_return: { outcome: 'NO_ACTION_NEEDED', returned_at: old },
-        terminal_return: { outcome: 'NO_ACTION_NEEDED', returned_at: old }
+        latest_return: { outcome: 'NO_ACTION_NEEDED', returned_at: old, worker_id: 'w2' },
+        terminal_return: { outcome: 'NO_ACTION_NEEDED', returned_at: old, worker_id: 'w2' }
       },
       {
         job_id: 'route-abort', seed_status: 'ready', state: 'ready', owner: null, pin_generation: 0, last_signal_at: null,
-        returns: [{ path: 'coordination/portfolio/returns/route-abort/R.json', outcome: 'ROUTE_ABORTED', returned_at: old }],
         latest_return: { outcome: 'ROUTE_ABORTED', returned_at: old }, terminal_return: null
       },
       {
         job_id: 'partial', seed_status: 'ready', state: 'partial', owner: null, pin_generation: 0, last_signal_at: null,
-        returns: [{ path: 'coordination/portfolio/returns/partial/R.json', outcome: 'PARTIAL', returned_at: old }],
         latest_return: { outcome: 'PARTIAL', returned_at: old }, terminal_return: null
       }
     ]
