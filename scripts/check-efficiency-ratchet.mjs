@@ -154,9 +154,11 @@ const rolePayloadStart = allocator.indexOf("schema: 'prometeo.guide-role-pin/v1'
 const rolePayloadEnd = rolePayloadStart >= 0 ? allocator.indexOf('post_claim_validate: true', rolePayloadStart) : -1;
 const rolePayload = rolePayloadStart >= 0 && rolePayloadEnd > rolePayloadStart ? allocator.slice(rolePayloadStart, rolePayloadEnd) : '';
 if (!rolePayload) errors.push('fast-allocator: cannot isolate guide role claim_payload_shape');
-for (const field of ['schema','pin_id','guide_work_id','role','trigger','generation','worker_id','claim_id','claimed_at','expires_at','source_head','evidence','predecessor_pin_ref_or_null']) {
+for (const field of ['schema','pin_id','guide_work_id','generation','worker_id','claim_id','claimed_at','expires_at','source_head','evidence','predecessor_pin_ref_or_null']) {
   must('fast-allocator-role-payload', rolePayload, `${field}:`);
 }
+must('fast-allocator-role-payload', rolePayload, 'role,');
+must('fast-allocator-role-payload', rolePayload, 'trigger,');
 
 const fixedPolicy = read(root, 'coordination/portfolio/recovery-policies/portfolio-exclusive-job-pin-live-race-5-v1.json');
 must('fixed-generation-policy', fixedPolicy, '"mode": "fixed_generation"');
