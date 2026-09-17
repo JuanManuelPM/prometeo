@@ -21,23 +21,21 @@ jobs:
       - name: Build self-contained Modelos III page
         run: |
           python - <<'PY'
-          import base64, gzip, pathlib, re
+          import base64, gzip, pathlib
           root = pathlib.Path('pages/modelos-iii')
-          payloads = [root / f'payload-{i}.txt' for i in range(1, 6)]
-          b64 = ''.join(p.read_text().strip() for p in payloads)
+          files = [
+              'bundle-v13-1.txt',
+              'bundle-v13-2.txt',
+              'bundle-v13-3a1.txt',
+              'bundle-v13-3a2.txt',
+              'bundle-v13-3b1.txt',
+              'bundle-v13-3b2.txt',
+              'bundle-v13-4.txt',
+              'bundle-v13-5.txt',
+              'bundle-v13-6.txt',
+          ]
+          b64 = ''.join((root / f).read_text().strip() for f in files)
           html = gzip.decompress(base64.b64decode(b64)).decode('utf-8')
-
-          # The external walkie patch owns audio setup, so remove the legacy bootstrap call.
-          html = re.sub(r'prepareAudio\(\);\s*(?=applyPalette\(\))', '', html, count=1)
-
-          audio = (root / 'audio-walkie-v1.js').read_text()
-          audio = audio.replace('</script', '<\\/script')
-          patch = '<script>\n' + audio + '\n<\\/script>'
-          if re.search(r'</body>', html, flags=re.I):
-              html = re.sub(r'</body>', patch + '\n</body>', html, count=1, flags=re.I)
-          else:
-              html += patch
-
           pathlib.Path('/tmp/modelos-iii-index.html').write_text(html)
           print('built bytes:', len(html.encode('utf-8')))
           PY
