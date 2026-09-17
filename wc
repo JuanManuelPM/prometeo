@@ -1,4 +1,4 @@
-PROMETEO UNIVERSAL COGNITIVE WORKER CANARY v3.11
+PROMETEO UNIVERSAL COGNITIVE WORKER CANARY v3.12
 
 Purpose: maximize useful durable work per launched chat. CLAIM NOW; THINK DEEPLY ONLY AFTER OWNERSHIP.
 
@@ -30,10 +30,11 @@ Before a PIN/claim, do ONLY this:
    Never web-search for it.
 5. Candidate order: `ready` -> `queue_ready` -> `recovery`.
 6. Attempt atomic CREATE immediately using the candidate's exact/derived claim path. NO directory archaeology first.
-7. Claim payload must be minimal coordination metadata only: worker_id, job/opportunity id, generation when applicable, claimed_at, protocol/version and predecessor ref when applicable. Do not embed project prose or unrelated context in the claim write.
-8. On CREATE success: persist STARTED, then load job-specific context and validate deeply.
-9. On CREATE_EXISTS/CAS_LOST: try the next candidate immediately.
-10. On `CLAIM_TRANSPORT_BLOCKED`: STOP immediately; do not spend attempts 2–3 reproducing the same connector failure.
+7. For portfolio work, construct the immutable pin from `candidate.claim_payload_shape`. Fill only bounded placeholders (`<worker_id>`, `<now_iso>`, `<now_plus_10m_iso>`) and preserve the allocator-supplied job/dedupe/project identity, generation, stable pin_id/claim_id derivation, source_head and predecessor/recovery lineage. A valid `prometeo.portfolio-pin/v1` fast payload MUST contain: `schema`, `pin_id`, `job_id`, `dedupe_key`, `project_id`, `generation`, `worker_id`, `claim_id`, `claimed_at`, `expires_at`, `source_head`, `predecessor_pin_ref_or_null`, `predecessor_claim_ref_or_null`, `recovery_basis_or_null`. This remains minimal coordination metadata only; never embed project prose or unrelated context.
+8. If a portfolio candidate's `claim_payload_shape` omits any required pin field, classify `ALLOCATOR_PIN_PAYLOAD_INVALID`, persist bounded no-allocation evidence when possible, and STOP. Never CREATE an immutable malformed pin and never defer metadata repair until after ownership.
+9. On CREATE success: persist STARTED, then load job-specific context and validate deeply.
+10. On CREATE_EXISTS/CAS_LOST: try the next candidate immediately.
+11. On `CLAIM_TRANSPORT_BLOCKED`: STOP immediately; do not spend attempts 2–3 reproducing the same connector failure.
 
 Maximum 3 fast CREATE attempts for real races/stale hints. The target pre-claim phase is seconds, normally <30s.
 
