@@ -10,6 +10,73 @@ const readJson = p => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } c
 const feed = readJson(feedPath);
 if (!feed || !Array.isArray(feed.workers)) throw new Error('invalid live feed');
 
+const lower = v => String(v ?? '').toLowerCase();
+const first = (...v) => v.find(x => x !== undefined && x !== null && x !== '');
+const ts = v => Date.parse(v || '') || 0;
+
+const outcomeSemanticsPath = path.join(root, 'coordination/portfolio/RETURN_OUTCOME_SEMANTICS_V1.json');
+const outcomeSemantics = readJson(outcomeSemanticsPath) || {};
+const terminalOutcomes = new Set((outcomeSemantics.terminal_outcomes || ['DONE','VERIFIED','NO_ACTION_NEEDED','SUPERSEDED']).map(lower));
+const attentionOutcomes = new Set((outcomeSemantics.nonterminal_attention_outcomes || ['PARTIAL','BOUNDARY','ROUTE_ABORTED']).map(lower));
+const outcomeOf = d => lower(first(d?.outcome, d?.status, d?.result));
+
+const reconciliationByJob = new Map();
+const reconciliationRoot = path.join(root, 'coordination/portfolio/return-reconciliations');
+const walkJson = dir => {
+  if (!fs.existsSync(dir)) return [];
+  const rows = [];
+  for (const ent of fs.readdirSync(dir, {withFileTypes:true})) {
+    const p = path.join(dir, ent.name);
+    if (ent.isDirectory()) rows.push(...walkJson(p));
+    else if (ent.isFile() && ent.name.endsWith('.json')) rows.push(p);
+  }
+  return rows;
+};
+for (const file of walkJson(reconciliationRoot)) {
+  const d = readJson(file);
+  if (!d?.job_id || !d?.return_ref || d?.effect !== 'NONTERMINAL_ROUTE_ABORT') continue;
+  const map = reconciliationByJob.get(d.job_id) || new Map();
+  map.set(d.return_ref, {...d, source_path:path.relative(root, file).split(path.sep).join('/')});
+  reconciliationByJob.set(d.job_id, map);
+}
+const reconciliationFor = (jobId, returnRef) => reconciliationByJob.get(jobId)?.get(returnRef) || null;
+
+let reconciledTerminalReceipts = 0;
+let jobsReopened = 0;
+for (const project of (feed.projects || [])) {
+  for (const job of (project.jobs || [])) {
+    const returns = Array.isArray(job.returns) ? job.returns : [];
+    const priorState = job.state;
+    const effectiveTerminal = [...returns].reverse().find(r => terminalOutcomes.has(outcomeOf(r)) && !reconciliationFor(job.job_id, r.path)) || null;
+    const latestReturn = returns.at(-1) || null;
+    const latestReconciliation = latestReturn ? reconciliationFor(job.job_id, latestReturn.path) : null;
+    const reconciled = returns.map(r => ({return:r, reconciliation:reconciliationFor(job.job_id, r.path)})).filter(x => x.reconciliation);
+    reconciledTerminalReceipts += reconciled.filter(x => terminalOutcomes.has(outcomeOf(x.return))).length;
+
+    job.terminal_return = effectiveTerminal ? {
+      outcome:first(effectiveTerminal.outcome,effectiveTerminal.status),
+      returned_at:first(effectiveTerminal.returned_at,effectiveTerminal.completed_at,effectiveTerminal.updated_at,effectiveTerminal.created_at),
+      worker_id:effectiveTerminal.worker_id || null
+    } : null;
+    if (job.latest_return && latestReconciliation) {
+      job.latest_return = {...job.latest_return, effective_terminal:false, reconciliation_effect:latestReconciliation.effect};
+    }
+    if (reconciled.length) job.return_reconciliations = reconciled.map(x => x.reconciliation.source_path);
+
+    const staleMs = Number(feed.thresholds?.stale_suspect_minutes ?? 6) * 60_000;
+    const replaceMs = Number(feed.thresholds?.recovery_eligible_minutes ?? 10) * 60_000;
+    const age = job.last_signal_at ? Math.max(0, now - ts(job.last_signal_at)) : Infinity;
+    if (effectiveTerminal) job.state = 'done';
+    else if (job.owner && age < staleMs) job.state = Number(job.pin_generation || 0) > 1 ? 'recovery' : 'working';
+    else if (job.owner && age < replaceMs) job.state = 'suspect';
+    else if (job.owner) job.state = 'replaceable';
+    else if (latestReturn && attentionOutcomes.has(outcomeOf(latestReturn))) job.state = 'partial';
+    else if (lower(job.seed_status).includes('block')) job.state = 'blocked';
+    else job.state = 'ready';
+    if (priorState === 'done' && job.state !== 'done' && reconciled.length) jobsReopened++;
+  }
+}
+
 const noAllocationDir = path.join(root, 'coordination/workers/no-allocation');
 const explicitNoAllocation = new Set();
 if (fs.existsSync(noAllocationDir)) {
@@ -20,7 +87,6 @@ if (fs.existsSync(noAllocationDir)) {
   }
 }
 
-const ts = v => Date.parse(v || '') || 0;
 const latestPinByJob = new Map();
 for (const w of feed.workers) {
   for (const a of (w.assignments || [])) {
@@ -64,7 +130,11 @@ feed.diagnostics = {
   launches_total_before_projection: kept.length + noAllocation.length + superseded.length,
   no_allocation_suppressed: noAllocation.length,
   superseded_owner_attempts_suppressed: superseded.length,
-  projection_rule: 'No-PIN launches age out of Ahora quickly; superseded pin generations remain evidence but are not simultaneous active owners.'
+  reconciled_nonterminal_returns: [...reconciliationByJob.values()].reduce((n, m) => n + m.size, 0),
+  reconciled_terminal_receipts: reconciledTerminalReceipts,
+  jobs_reopened_by_return_reconciliation: jobsReopened,
+  return_outcome_semantics: fs.existsSync(outcomeSemanticsPath) ? 'coordination/portfolio/RETURN_OUTCOME_SEMANTICS_V1.json' : 'BUILTIN_FALLBACK',
+  projection_rule: 'No-PIN launches age out of Ahora quickly; superseded pin generations remain evidence but are not simultaneous active owners. Reconciled route-abort receipts remain historical evidence but do not terminally close jobs.'
 };
 
 const s = feed.summary?.workers || (feed.summary.workers = {});
@@ -77,5 +147,15 @@ s.finished = kept.filter(w => !!w.end_at).length;
 s.no_allocation = noAllocation.length;
 s.superseded = superseded.length;
 
+const portfolioJobs = (feed.projects || []).flatMap(p => p.jobs || []);
+const ps = feed.summary?.portfolio || (feed.summary.portfolio = {});
+ps.ready = portfolioJobs.filter(j => j.state === 'ready').length;
+ps.working = portfolioJobs.filter(j => ['working','recovery'].includes(j.state)).length;
+ps.suspect = portfolioJobs.filter(j => j.state === 'suspect').length;
+ps.replaceable = portfolioJobs.filter(j => j.state === 'replaceable').length;
+ps.done = portfolioJobs.filter(j => j.state === 'done').length;
+ps.terminal_returns = portfolioJobs.filter(j => !!j.terminal_return).length;
+if (Number.isFinite(Number(ps.derived))) ps.reproduction = Number(ps.derived) / Math.max(1, ps.terminal_returns);
+
 fs.writeFileSync(feedPath, JSON.stringify(feed, null, 2) + '\n');
-console.log(`normalized live: visible=${kept.length} no-allocation=${noAllocation.length} superseded=${superseded.length}`);
+console.log(`normalized live: visible=${kept.length} no-allocation=${noAllocation.length} superseded=${superseded.length} reopened=${jobsReopened}`);
