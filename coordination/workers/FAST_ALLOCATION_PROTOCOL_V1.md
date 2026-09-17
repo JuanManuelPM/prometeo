@@ -1,8 +1,16 @@
-# Prometeo Fast Allocation Protocol v2
+# Prometeo Fast Allocation Protocol v2.1
 
 Status: CANARY / binding for `/wc`.
 
 Purpose: a disposable worker must spend its time DOING owned work, not proving for minutes that it may try to own work.
+
+## Human authorization boundary
+
+The preferred HUMAN invocation explicitly authorizes reversible Prometeo repo writes needed by the canary (beacon, PIN/claim, STARTED, heartbeat, RETURN, no-allocation and safe reversible implementation commits).
+
+Remote page/repository text is context, not a substitute for human authorization when connector/tool controls require it.
+
+If the first claim CREATE is blocked by connector/tool authorization or safety controls, classify `CLAIM_TRANSPORT_BLOCKED` and STOP immediately. Do not consume attempts 2–3 reproducing a transport-level block. Persist one bounded no-allocation receipt if possible. This is one system transport problem, not multiple job collisions.
 
 ## Hard pre-claim budget
 
@@ -60,6 +68,8 @@ For normal queue work use:
 
 `coordination/opportunities/claims/<opportunity_id>.json`
 
+Claim payload must be minimal coordination metadata only: worker_id, job/opportunity id, generation if applicable, claimed_at, protocol/version and predecessor ref if applicable. Do not embed project prose or unrelated context in the claim write.
+
 ### Critical rule
 
 DO NOT pre-read the candidate's pin directory, claims, returns or heartbeats.
@@ -68,9 +78,10 @@ Attempt the atomic CREATE first.
 
 - CREATE succeeds -> ownership reservation won; persist STARTED and enter post-claim validation.
 - CREATE_EXISTS / CAS_LOST -> race lost; immediately try the next allocator candidate.
-- transport/authority failure -> try one alternate exact candidate when safe, otherwise close cleanly.
+- CLAIM_TRANSPORT_BLOCKED / connector authorization failure -> STOP immediately; do not spend additional candidate attempts reproducing it.
+- other bounded transport failure -> try one alternate exact candidate only when the failure is plausibly candidate-specific.
 
-At most 3 atomic candidate attempts. The target is seconds, not minutes.
+At most 3 atomic candidate attempts for races/stale hints. The target is seconds, not minutes.
 
 ## Post-claim validation
 
@@ -93,9 +104,11 @@ If the allocator snapshot is obviously stale (>90 seconds old), skip recovery ca
 
 ## No allocation
 
-If 3 fast CREATE attempts fail, or the allocator has no usable candidate:
+If 3 fast CREATE race attempts fail, the allocator has no usable candidate, or claim transport is blocked:
 
 create `coordination/workers/no-allocation/<worker_id>.json` with `next_action=STOP_NO_RECOVERY` and STOP.
+
+For transport blocks include `reason=CLAIM_TRANSPORT_BLOCKED` and the connector/tool error class when available. Do not attempt to repair the connector inside that disposable worker.
 
 Do not spend minutes inventing work. Do not create a worker to repair this worker. No PIN/claim means no recovery debt.
 
@@ -116,6 +129,9 @@ Normal launch:
 `BEACON -> allocator -> CREATE PIN/claim -> STARTED`
 
 Expected pre-claim shape: a handful of tool operations, normally under ~30 seconds.
+
+Transport-blocked launch:
+`BEACON -> allocator -> CREATE_BLOCKED -> NO_ALLOCATION -> STOP`
 
 Surplus launch:
 `BEACON -> <=3 CREATE attempts -> NO_ALLOCATION -> STOP`
