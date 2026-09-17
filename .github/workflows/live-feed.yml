@@ -63,6 +63,7 @@ jobs:
           const compact=j=>{
             const current=Number(j.pin_generation||0);
             const next=current+1;
+            const predecessor=current?`coordination/portfolio/pins/${j.job_id}/G${g(current)}.json`:null;
             return {
               job_id:j.job_id,
               dedupe_key:j.dedupe_key||null,
@@ -76,8 +77,27 @@ jobs:
               next_generation:next,
               claim_mode:'PORTFOLIO_PIN_CREATE',
               claim_path:`coordination/portfolio/pins/${j.job_id}/G${g(next)}.json`,
-              claim_payload_shape:{schema:'prometeo.portfolio-pin/v1',worker_id:'<worker_id>',job_id:j.job_id,generation:next,claimed_at:'<now_iso>',predecessor_pin_ref:current?`coordination/portfolio/pins/${j.job_id}/G${g(current)}.json`:null},
-              predecessor_pin_ref:current?`coordination/portfolio/pins/${j.job_id}/G${g(current)}.json`:null,
+              claim_payload_shape:{
+                schema:'prometeo.portfolio-pin/v1',
+                pin_id:`pin-${j.job_id}-G${g(next)}-<worker_id>`,
+                job_id:j.job_id,
+                dedupe_key:j.dedupe_key||null,
+                project_id:j.project_id||null,
+                generation:next,
+                worker_id:'<worker_id>',
+                claim_id:`claim-${j.job_id}-G${g(next)}-<worker_id>`,
+                claimed_at:'<now_iso>',
+                expires_at:'<now_plus_10m_iso>',
+                source_head:f.source_sha||'<allocator_source_sha>',
+                predecessor_pin_ref_or_null:predecessor,
+                predecessor_claim_ref_or_null:null,
+                recovery_basis_or_null:current?{
+                  allocator_generated_at:f.generated_at,
+                  predecessor_last_signal_at:j.last_signal_at||null,
+                  allocator_state:j.state
+                }:null
+              },
+              predecessor_pin_ref:predecessor,
               last_signal_at:j.last_signal_at||null,
               post_claim_validate:true
             };
