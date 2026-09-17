@@ -1,0 +1,73 @@
+{
+  "schema": "prometeo.contention-barrier-live-projection/v1",
+  "status": "CANARY_BINDING",
+  "purpose": "Define the human-facing Live projection for explicit multi-party contention barriers without creating or overriding execution authority.",
+  "authority_boundary": "This file defines projection only. Durable portfolio pin/claim/return evidence remains authoritative. Barrier entrant, RELEASE, collision and timeout receipts never promote Current, Human Accepted, Served or production /w.",
+  "scope": "Only fixtures explicitly opted into contention_barrier_mode under PORTFOLIO_PIN_PROTOCOL_V1. Ordinary portfolio jobs do not acquire barrier states.",
+  "inputs": [
+    "coordination/portfolio/contention_barriers/<fixture_id>/BARRIER.json",
+    "coordination/portfolio/contention_barriers/<fixture_id>/entrants/*.json",
+    "coordination/portfolio/contention_barriers/<fixture_id>/RELEASE.json",
+    "coordination/portfolio/contention_barriers/<fixture_id>/timeouts/*.json",
+    "coordination/portfolio/pins/<job_id>/G*.json",
+    "coordination/portfolio/claims/<job_id>/*.json",
+    "coordination/portfolio/collisions/<job_id>/*.json",
+    "coordination/portfolio/returns/<job_id>/*.json",
+    "coordination/workers/heartbeats/<worker_id>/*.json"
+  ],
+  "states": {
+    "WAITING_FOR_CONTENDERS": {
+      "predicate": "worker has a valid entrant receipt; no valid RELEASE exists; observed time is before deadline_at; no timeout receipt exists for that worker",
+      "authority": "NONE",
+      "human_label": "Waiting for contenders",
+      "next": ["RELEASED_TO_RACE", "TIMEOUT"]
+    },
+    "RELEASED_TO_RACE": {
+      "predicate": "valid RELEASE exists with grants_execution_authority=false and worker is listed in entrant_worker_ids; worker has not yet won/lost the deterministic pin race",
+      "authority": "NONE_UNTIL_PIN_WIN",
+      "human_label": "Released to race",
+      "next": ["WINNER", "COLLISION_LOSER"]
+    },
+    "WINNER": {
+      "predicate": "worker owns the highest valid deterministic pin generation for the fixture job and any execution claim matches that pin",
+      "authority": "BOUNDED_PORTFOLIO_EXECUTION_ONLY",
+      "human_label": "Pin winner",
+      "next": ["TERMINAL_RETURN", "STALE_SUSPECT", "REPLACEABLE"]
+    },
+    "COLLISION_LOSER": {
+      "predicate": "worker has a valid prometeo.portfolio-pin-collision/v1 receipt for the attempted generation with next_action=REENTER_ALLOCATION and no matching winning claim",
+      "authority": "NONE",
+      "human_label": "Race lost; reallocating",
+      "next": ["REALLOCATING"]
+    },
+    "TIMEOUT": {
+      "predicate": "deadline reached without RELEASE and worker has a timeout receipt with pin_attempted=false and next_action=REENTER_ALLOCATION",
+      "authority": "NONE",
+      "human_label": "Barrier timeout; reallocating",
+      "next": ["REALLOCATING"]
+    }
+  },
+  "precedence": [
+    "A terminal portfolio RETURN is terminal for the job and overrides historical barrier display states.",
+    "A valid highest-generation pin determines execution owner; Live must never infer an owner from entrant or RELEASE receipts.",
+    "A collision receipt identifies a loser only for its attempted generation and cannot invalidate the durable winner.",
+    "A timeout state is valid only when no RELEASE existed before deadline and pin_attempted=false.",
+    "WAITING_FOR_CONTENDERS and RELEASED_TO_RACE are timing projections, not worker assignment authority."
+  ],
+  "liveness_overlay": {
+    "winner_only": "After a pin winner exists, apply normal worker/job liveness: ACTIVE <6m, STALE_SUSPECT 6-10m, REPLACEABLE >=10m when retry-safe and nonterminal.",
+    "pre_pin": "Before a pin exists, barrier timing states must not be presented as an authoritative WORKING owner."
+  },
+  "required_fields": {
+    "entrant": ["fixture_id", "worker_id", "registered_at", "next_action=WAIT_FOR_RELEASE_OR_TIMEOUT", "grants_execution_authority=false"],
+    "release": ["fixture_id", "released_at", "required_contenders", "entrant_worker_ids", "grants_execution_authority=false", "next_action=RACE_DETERMINISTIC_PIN"],
+    "timeout": ["fixture_id", "worker_id", "observed_at", "next_action=REENTER_ALLOCATION", "pin_attempted=false"],
+    "collision": ["job_id", "worker_id", "attempted_generation", "winner_worker_id_or_null", "host_result=CREATE_EXISTS_OR_CAS_LOST", "next_action=REENTER_ALLOCATION"]
+  },
+  "validation_evidence": [
+    "coordination/portfolio/tests/contention_start_barrier_v1.mjs@027536cde0a3edf55c6b97fc1dabdd9e8539cd30",
+    "coordination/portfolio/tests/portfolio_pin_race_v1.mjs@97f2f0fdbcce442ae22366691d1ac49ace73e276",
+    "coordination/portfolio/returns/portfolio-live-pin-contention-barrier-github-canary-v1/RETURN-wc-20260917T1625-03-gpt56sol-a7f3-20260917T193936Z.json"
+  ],
+  "non_promotion": "This binding projection contract does not make production /w operational and does not imply Human Acceptance or Served state."
+}
