@@ -56,6 +56,13 @@ must('wc', wc, 'candidate.claim_payload_shape');
 must('wc', wc, 'ALLOCATOR_PIN_PAYLOAD_INVALID');
 must('wc', wc, '<now_plus_10m_iso>');
 must('wc', wc, 'Never CREATE an immutable malformed pin');
+must('wc', wc, 'WAVE OBSERVABILITY — NON-BLOCKING');
+must('wc', wc, 'OBSERVABILITY MUST NEVER BLOCK COORDINATION');
+must('wc', wc, 'ROUTED');
+must('wc', wc, 'CLAIM_RESULT');
+must('wc', wc, 'CLOSE');
+must('wc', wc, 'Issue #22');
+
 
 const fast = read(root, 'coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md');
 must('fast-allocation', fast, 'read ONE allocator snapshot');
@@ -76,6 +83,31 @@ must('fast-allocation', fast, 'candidate.claim_payload_shape');
 must('fast-allocation', fast, 'ALLOCATOR_PIN_PAYLOAD_INVALID');
 must('fast-allocation', fast, '<now_plus_10m_iso>');
 must('fast-allocation', fast, 'Never CREATE an immutable malformed pin');
+
+const eventProtocol = read(root, 'coordination/workers/WORKER_EVENT_STREAM_V1.md');
+must('worker-events', eventProtocol, 'Issue: https://github.com/JuanManuelPM/prometeo/issues/22');
+must('worker-events', eventProtocol, 'Observability is best-effort and non-authoritative.');
+must('worker-events', eventProtocol, 'THREE EVENTS ONLY');
+must('worker-events', eventProtocol, 'ROUTED');
+must('worker-events', eventProtocol, 'CLAIM_RESULT');
+must('worker-events', eventProtocol, 'CLOSE');
+must('worker-events', eventProtocol, 'never launch workers to repair missing telemetry');
+
+const workerRuntime = read(root, 'scripts/build-worker-runtime.mjs');
+must('worker-runtime', workerRuntime, "schema:'prometeo.worker-runtime/v1'");
+must('worker-runtime', workerRuntime, "issue_number:22");
+must('worker-runtime', workerRuntime, "measurement_clock:'GITHUB_COMMENT_SERVER_TIME'");
+must('worker-runtime', workerRuntime, "truth_boundary:'OBSERVABILITY_ONLY_GITHUB_PINS_REMAIN_AUTHORITY'");
+
+const workerRuntimeWorkflow = read(root, '.github/workflows/worker-runtime-events.yml');
+must('worker-runtime-workflow', workerRuntimeWorkflow, 'issue_comment:');
+must('worker-runtime-workflow', workerRuntimeWorkflow, 'github.event.issue.number == 22');
+must('worker-runtime-workflow', workerRuntimeWorkflow, 'cancel-in-progress: false');
+must('worker-runtime-workflow', workerRuntimeWorkflow, 'live/runtime.json');
+must('worker-runtime-workflow', workerRuntimeWorkflow, 'worker-runtime-events-v1.test.mjs');
+
+const workerRuntimeTest = read(root, 'tests/worker-runtime-events-v1.test.mjs');
+must('worker-runtime-test', workerRuntimeTest, 'WORKER_RUNTIME_EVENTS_PASS');
 
 const roleProtocol = read(root, 'coordination/guide/ROLE_FRONTIER_PROTOCOL_V1.md');
 must('role-frontier', roleProtocol, '`ready -> queue_ready -> role_ready -> recovery`');
@@ -216,6 +248,10 @@ if (site) {
   must('public-wc', pointer, 'READY -> QUEUE_READY -> ROLE_READY -> RECOVERY');
   must('public-wc', pointer, 'ROLE_READY is centrally compiled latent work');
   must('public-wc', pointer, 'CLAIM_TRANSPORT_BLOCKED');
+  must('public-wc', pointer, 'eventos de telemetría');
+  must('public-wc', pointer, 'BATCH <batch_id> EXPECTED <n>');
+  must('public-wc', pointer, 'Issue #22');
+  must('public-wc', pointer, 'observability');
   mustNot('public-wc', pointer, 'MANDATORY before allocation: load and obey the self-replenishing metabolism policy');
   mustNot('public-wc', pointer, 'Load and obey the distributed Guide/Rescate protocol');
   mustNot('public-wc', pointer, 'Load the page identity/request/publication laws before');
