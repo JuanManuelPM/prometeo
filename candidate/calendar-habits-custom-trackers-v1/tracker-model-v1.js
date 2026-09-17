@@ -7,6 +7,7 @@
 
   const SCHEMA='prometeo.habit-tracker-config/v1';
   const STORAGE_KEY='prometeo-habit-tracker-config-v1';
+  const META_KEY='habits.tracker-config.v1';
   const KINDS=new Set(['avoid','negative','positive']);
   const GROUP_LABELS={addictions:'Adicciones',avoid:'Evitar',routine:'Rutina',extras:'Extras',other:'Otros'};
   const LEGACY={
@@ -133,5 +134,5 @@
     return {schema:'prometeo.habit-tracker-export/v1',exported_at:nowIso(),config:normalizeConfig(input),history:clone(history||{})};
   }
 
-  return Object.freeze({SCHEMA,STORAGE_KEY,GROUP_LABELS:clone(GROUP_LABELS),normalizeConfig,observedIds,bootstrap,add,update,archive,activeTrackers,groups,exportBundle});
+  return Object.freeze({SCHEMA,STORAGE_KEY,META_KEY,GROUP_LABELS:clone(GROUP_LABELS),normalizeConfig,observedIds,bootstrap,add,update,archive,activeTrackers,groups,exportBundle});
 });
