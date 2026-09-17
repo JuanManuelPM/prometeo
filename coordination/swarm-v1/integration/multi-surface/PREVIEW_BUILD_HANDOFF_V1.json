@@ -1,0 +1,50 @@
+{
+  "schema":"prometeo.multi-surface-preview-build-handoff/v1",
+  "handoff_id":"MULTI-SURFACE-PREVIEW-BUILD-HANDOFF-V1",
+  "status":"CANDIDATE_HANDOFF_READY",
+  "created_at":"2026-09-17T14:50:11-03:00",
+  "created_by":"wc-chat-20260917T1444-0300-sol56-multisurface-recovery-a1",
+  "recovery_run":"RUN-O-SWARM-MULTI-SURFACE-INTEGRATE-V1-20260917T144816-SOL56-R1",
+  "source_head_prewrite":"ceecc9f9991390b2e4eede3f845df41fae062cca",
+  "authority":{"class":"CANDIDATE_BUILD_HANDOFF_ONLY","may_promote_current":false,"may_promote_human_accepted":false,"may_promote_served":false,"may_promote_production_w":false},
+  "source_bytes":{
+    "integration_candidate":{"path":"coordination/swarm-v1/integration/multi-surface/MULTI_SURFACE_INTEGRATION_CANDIDATE_V1.json","sha":"f3ad3994158fc86062b2f352cf6eaafe6826a862"},
+    "worker_demand":{"path":"coordination/swarm-v1/integration/multi-surface/derive-worker-demand.mjs","sha":"c341e2031e2422778069a2d84ecaf2dab210d543"},
+    "surface_registry":{"path":"coordination/swarm-v1/SURFACE_REGISTRY_CANDIDATE_V1.json","sha":"00686f56e01dd2f315a7136e2b1e3004dee9d0b6"},
+    "control_model":{"path":"coordination/candidates/multi-surface-control-v1/control-model.mjs","sha":"a980a299990be7d1bebfe53ee0b584eef8ff20fc"},
+    "control_view":{"path":"coordination/candidates/multi-surface-control-v1/index.html","sha":"42397be0793136e8cb8b9ef19f6a21bdf36d8f7b"}
+  },
+  "required_surface_ids":["control-plan","prometeo-mobile","facultad-digital","alumnos-teacher"],
+  "build_wiring":[
+    "Read the four local integration candidates and current durable queue/claim/return evidence; do not infer authority from UI state.",
+    "Normalize queue opportunity status -> state before derive-worker-demand; compute dependencies_satisfied, active_claim_ids, collision/authority/privacy/identity/owner flags from durable evidence rather than defaults.",
+    "Call deriveSurfaceWorkerDemand once per stable surface_id and map usefulFreeSlots -> surface.capacity.usefulFreeSlots and basis -> surface.capacity.basis.",
+    "Bind preview.href only when SURFACE_REGISTRY_CANDIDATE_V1 public_route.state is KNOWN from exact authority; while UNRESOLVED, preview.href MUST be null.",
+    "Keep local planner/steward ownership per surface. Shared worker kernel, allocator, Page Thread bridge, registry and product host remain single shared owners.",
+    "Pass the assembled prometeo.multi-surface-control-state/v1 through validateControlState before render; reject any candidate self-promotion or unresolved-route href.",
+    "Render through the existing coordination/candidates/multi-surface-control-v1 view. Do not create another shell/dashboard/control plane."
+  ],
+  "input_normalization_contract":{
+    "opportunity_state":"Use READY or READY_DERIVED only after durable dependency/readiness evaluation; static queue BLOCKED_DEPENDENCY is not enough to decide live readiness.",
+    "mutation_identity":"mutation_required=true is eligible only with resolved surface identity and owner; read-only verification may remain eligible under unresolved route identity.",
+    "dedupe":"canonical_fingerprint and collision_key must be stable durable identities; lower-ranked duplicates/collision peers are excluded.",
+    "authority":"GLOBAL_PROMOTION/CURRENT_PROMOTION/HUMAN_ACCEPTED_PROMOTION/SERVED_PROMOTION/PRODUCTION_W_PROMOTION are never worker-demand slots.",
+    "telemetry":"working/returned/unread/problems/usefulFreeSlots are derived projections and sourceOfTruth remains false."
+  },
+  "preview_contract":{
+    "candidate_entry":"coordination/candidates/multi-surface-control-v1/index.html",
+    "public_served_route":null,
+    "reason":"All four consumed registry public routes are currently UNRESOLVED; this handoff does not guess a URL or claim Served.",
+    "truth_ceiling":"Candidate coordination preview/build handoff only; browser/device E2E and exact product-route acceptance remain separate evidence gates."
+  },
+  "acceptance_checks":[
+    "exactly the four required surface ids are present",
+    "each surface keeps its local planner/steward owner",
+    "shared capabilities have one explicit owner",
+    "worker demand is derived after dependency/claim/collision/authority/privacy/identity gates",
+    "UNRESOLVED route never carries href",
+    "candidate state cannot set Human Accepted/Current/Served true",
+    "existing control view is reused rather than duplicated"
+  ],
+  "next_owner":"fresh verifier/critic or authorized candidate builder; not this integration recovery for production promotion"
+}
