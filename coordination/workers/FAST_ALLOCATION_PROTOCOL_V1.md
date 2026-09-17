@@ -1,4 +1,4 @@
-# Prometeo Fast Allocation Protocol v2.1
+# Prometeo Fast Allocation Protocol v2.2
 
 Status: CANARY / binding for `/wc`.
 
@@ -68,17 +68,24 @@ For normal queue work use:
 
 `coordination/opportunities/claims/<opportunity_id>.json`
 
-Claim payload must be minimal coordination metadata only: worker_id, job/opportunity id, generation if applicable, claimed_at, protocol/version and predecessor ref if applicable. Do not embed project prose or unrelated context in the claim write.
+For portfolio candidates the allocator MUST provide a contract-complete `candidate.claim_payload_shape`. Fill only `<worker_id>`, `<now_iso>` and `<now_plus_10m_iso>` locally. Preserve all supplied identity and lineage fields. Required `prometeo.portfolio-pin/v1` fields are:
+
+`schema`, `pin_id`, `job_id`, `dedupe_key`, `project_id`, `generation`, `worker_id`, `claim_id`, `claimed_at`, `expires_at`, `source_head`, `predecessor_pin_ref_or_null`, `predecessor_claim_ref_or_null`, `recovery_basis_or_null`.
+
+This is still minimal coordination metadata; do not embed project prose or unrelated context. Stable `pin_id` and `claim_id` are derived by the allocator from job + generation + worker placeholder, not from a deep preclaim read.
+
+If a portfolio `candidate.claim_payload_shape` omits any required field, classify `ALLOCATOR_PIN_PAYLOAD_INVALID`, write bounded no-allocation evidence when possible and STOP. Never CREATE an immutable malformed pin and never repair a winning pin in place after ownership.
 
 ### Critical rule
 
 DO NOT pre-read the candidate's pin directory, claims, returns or heartbeats.
 
-Attempt the atomic CREATE first.
+Attempt the atomic CREATE first only after the bounded allocator payload has passed the structural field check.
 
 - CREATE succeeds -> ownership reservation won; persist STARTED and enter post-claim validation.
 - CREATE_EXISTS / CAS_LOST -> race lost; immediately try the next allocator candidate.
 - CLAIM_TRANSPORT_BLOCKED / connector authorization failure -> STOP immediately; do not spend additional candidate attempts reproducing it.
+- ALLOCATOR_PIN_PAYLOAD_INVALID -> STOP immediately; this is allocator/control-plane debt, not a job collision.
 - other bounded transport failure -> try one alternate exact candidate only when the failure is plausibly candidate-specific.
 
 At most 3 atomic candidate attempts for races/stale hints. The target is seconds, not minutes.
@@ -104,11 +111,11 @@ If the allocator snapshot is obviously stale (>90 seconds old), skip recovery ca
 
 ## No allocation
 
-If 3 fast CREATE race attempts fail, the allocator has no usable candidate, or claim transport is blocked:
+If 3 fast CREATE race attempts fail, the allocator has no usable candidate, claim transport is blocked, or the allocator exposes a malformed portfolio pin payload:
 
 create `coordination/workers/no-allocation/<worker_id>.json` with `next_action=STOP_NO_RECOVERY` and STOP.
 
-For transport blocks include `reason=CLAIM_TRANSPORT_BLOCKED` and the connector/tool error class when available. Do not attempt to repair the connector inside that disposable worker.
+For transport blocks include `reason=CLAIM_TRANSPORT_BLOCKED`; for malformed portfolio payloads include `reason=ALLOCATOR_PIN_PAYLOAD_INVALID` and the missing field names when available. Do not attempt to repair the allocator inside a disposable unowned worker.
 
 Do not spend minutes inventing work. Do not create a worker to repair this worker. No PIN/claim means no recovery debt.
 
@@ -126,12 +133,15 @@ Now load only job-specific context and execute normally:
 ## Success target
 
 Normal launch:
-`BEACON -> allocator -> CREATE PIN/claim -> STARTED`
+`BEACON -> allocator -> STRUCTURAL PAYLOAD CHECK -> CREATE PIN/claim -> STARTED`
 
 Expected pre-claim shape: a handful of tool operations, normally under ~30 seconds.
 
 Transport-blocked launch:
 `BEACON -> allocator -> CREATE_BLOCKED -> NO_ALLOCATION -> STOP`
+
+Malformed-allocator launch:
+`BEACON -> allocator -> ALLOCATOR_PIN_PAYLOAD_INVALID -> NO_ALLOCATION -> STOP`
 
 Surplus launch:
 `BEACON -> <=3 CREATE attempts -> NO_ALLOCATION -> STOP`
