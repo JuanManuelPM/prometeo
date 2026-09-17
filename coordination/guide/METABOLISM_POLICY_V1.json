@@ -51,6 +51,15 @@
     "project_id": "prometeo-autonomous-growth",
     "root": "coordination/portfolio/derived/prometeo-autonomous-growth",
     "rule": "If a guide trigger is true but no compatible unclaimed guide job already represents it, compute a deterministic fingerprint from role + trigger + sorted exact evidence refs that caused the trigger. Use SHA-256 and first 12 lowercase hex chars. Atomically CREATE exactly one derived guide job at guide-<role-lower>-<fingerprint>.json. All contenders for the same state produce the same path/dedupe key; create-exists means use/reload existing work, never mint a per-worker variant.",
+    "fingerprint_canonicalization": {
+      "role": "Use the exact uppercase guide-role enum string, e.g. GUIDE_CRITIC.",
+      "trigger": "Use one exact uppercase trigger enum from GUIDE_SWARM_PROTOCOL_V1. If multiple triggers are intentionally represented by one job, sort unique trigger enum strings bytewise and join them with '+'.",
+      "evidence": "Use only exact durable evidence refs that caused the trigger. Trim no internal bytes, remove exact duplicates, then sort refs ascending by UTF-8 byte sequence.",
+      "preimage": "Encode exactly the minified UTF-8 JSON object with keys in this fixed order and no extra whitespace: {\"role\":<JSON role string>,\"trigger\":<JSON trigger string>,\"evidence\":[<JSON evidence strings in canonical order>]}. Do not include worker_id, timestamps, chat ids, source head, random values or any other fields.",
+      "digest": "SHA-256 over the exact UTF-8 preimage bytes; fingerprint is the first 12 lowercase hexadecimal characters.",
+      "role_lower": "Derive <role-lower> by removing the GUIDE_ prefix from the canonical role and ASCII-lowercasing the remainder.",
+      "convergence_test": "Two contenders given the same canonical role, trigger set and evidence refs MUST produce byte-identical preimages, the same 12-hex fingerprint, job_id, dedupe_key and target path before either attempts CREATE."
+    },
     "job_id_format": "guide-<role-lower>-<fingerprint>",
     "dedupe_key_format": "guide:<role-lower>:<fingerprint>:v1",
     "required_fields": [
