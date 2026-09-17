@@ -1,0 +1,101 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-c249084c9873-a670ac15",
+  "fingerprint": "pdf-c249084c987391a64e45c4dd92461c99",
+  "created_at": "2026-09-17T09:55:19-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-recovery-20260917T0951-0300-sol56-kernel2",
+    "opportunity_id": "O-SWARM-KERNEL-IMPLEMENT-V1",
+    "run_id": "RUN-O-SWARM-KERNEL-IMPLEMENT-V1-REC-COLLISION-20260917T0951-SOL56B"
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "capability_owner": "universal cognitive worker stale recovery allocator",
+    "mechanism": "atomic per-opportunity active recovery lease arbitration",
+    "path_scope": "coordination/opportunities/recovery-claims/<opportunity_id>/**"
+  },
+  "problem": "Two recovery workers can concurrently observe no active recovery and append distinct recovery claims, creating overlapping writers on one opportunity.",
+  "acceptance": [
+    "Concurrent recovery eligibility attempts for one opportunity and predecessor attempt produce exactly one active recovery lease winner.",
+    "Losers emit durable collision/boundary evidence and perform no target writes.",
+    "A recovery attempt that later becomes stale can itself be superseded only after threshold, with append-only predecessor lineage rather than overwriting the prior lease.",
+    "A repository-host create-if-absent race canary proves no overwrite under concurrent attempts.",
+    "No Current, Human Accepted, or Served authority promotion occurs."
+  ],
+  "title": "Atomic Recovery Arbitration Lease V1",
+  "mission": "Close the observed stale-recovery race by adding a deterministic, repository-host create-if-absent arbitration key for each opportunity + predecessor attempt. Exactly one worker may become the active recovery writer for that predecessor; racing workers must terminate without target writes. Preserve append-only recovery history and permit later recovery generations only by referencing the newly stale predecessor run.",
+  "suggested_type": "BUILD_VERIFY",
+  "evidence_refs": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0951-SOL56B.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0952-SOL56-R2.json",
+    "coordination/opportunities/runs/O-SWARM-KERNEL-IMPLEMENT-V1/RUN-O-SWARM-KERNEL-IMPLEMENT-V1-REC-COLLISION-20260917T0951-SOL56B.json",
+    "coordination/opportunities/runs/O-SWARM-KERNEL-IMPLEMENT-V1/RUN-O-SWARM-KERNEL-IMPLEMENT-V1-REC2-20260917T0952-SOL56.json",
+    "coordination/opportunities/returns/O-SWARM-DISCOVERY-DEDUP-BUILD-V1/RUN-O-SWARM-DISCOVERY-DEDUP-BUILD-V1-20260917T0045-SOL56-7C4B.json"
+  ],
+  "value_signals": {
+    "incident_repair": {
+      "reason": "A live canary produced two append-only recovery claims seconds apart for the same stale kernel lineage, and a competing recovery run became active after the first claimant had already passed its preflight.",
+      "evidence_ref": "coordination/opportunities/runs/O-SWARM-KERNEL-IMPLEMENT-V1/RUN-O-SWARM-KERNEL-IMPLEMENT-V1-REC-COLLISION-20260917T0951-SOL56B.json"
+    },
+    "regression_prevention": {
+      "reason": "The current check-then-create recovery flow has a race window; without an atomic arbitration key, future high-parallelism waves can create overlapping writers despite each worker individually following the stale policy.",
+      "evidence_ref": "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0952-SOL56-R2.json"
+    },
+    "unblock_value": {
+      "reason": "Reliable stale recovery is a prerequisite for broad stress verification and for removing human scheduling/recovery from the critical path.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/USER_INTENT_GAP_AUDIT_V1.md"
+    },
+    "reuse_value": {
+      "reason": "The arbitration primitive applies to every retry-safe opportunity and can reuse create-if-absent semantics already proven by discovery fingerprint pins.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-DISCOVERY-DEDUP-BUILD-V1/RUN-O-SWARM-DISCOVERY-DEDUP-BUILD-V1-20260917T0045-SOL56-7C4B.json"
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-LEASE-RETRY-BUILD-V1",
+    "O-SWARM-DISCOVERY-DEDUP-BUILD-V1"
+  ],
+  "candidate_read_scope": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**",
+    "scripts/discovery-dedup-lib.mjs",
+    "scripts/swarm-stale-scan.mjs"
+  ],
+  "candidate_write_scope": [
+    "scripts/recovery-arbitration-lib.mjs",
+    "tests/recovery-arbitration-v1.test.mjs",
+    "tests/fixtures/recovery-arbitration/**",
+    "coordination/swarm-v1/recovery-arbitration/**",
+    "coordination/opportunities/recovery-leases/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "falsification": {
+    "must_fail_if": [
+      "two concurrent recovery attempts for the same opportunity + predecessor can both acquire active-writer authority",
+      "a collision loser performs any target write",
+      "arbitration overwrites or erases prior recovery evidence",
+      "a stale recovery cannot be superseded through a new predecessor lineage after the threshold",
+      "the lease grants Current, Human Accepted, Served, or global promotion authority"
+    ],
+    "proof_required": [
+      "repository-host create-if-absent race canary with at least two concurrent contenders and exactly one winner",
+      "loser boundary receipts showing zero target writes",
+      "stale-recovery-of-recovery fixture proving append-only next-generation lineage",
+      "late-return reconciliation fixture",
+      "authority and preserve-first regression tests"
+    ]
+  },
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY",
+    "RECOVERY_LEASE_GRANTS_ONLY_SCOPED_WRITER_ARBITRATION"
+  ],
+  "source_head_observed": "5627e28c3eefcb626fb58dfdeba1aaa6edd53682",
+  "epoch_observed": "P3-90e2f6f8a0ea_FROM_LAST_DURABLE_FOCUS_RUNTIME_UNAVAILABLE"
+}
