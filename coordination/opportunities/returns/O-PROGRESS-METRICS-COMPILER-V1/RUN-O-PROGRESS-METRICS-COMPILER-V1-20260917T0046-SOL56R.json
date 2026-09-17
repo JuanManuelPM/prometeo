@@ -1,0 +1,180 @@
+{
+  "schema": "prometeo.opportunity-return/v1",
+  "opportunity_id": "O-PROGRESS-METRICS-COMPILER-V1",
+  "run_id": "RUN-O-PROGRESS-METRICS-COMPILER-V1-20260917T0046-SOL56R",
+  "worker_instance_id": "wc-chat-20260917T0046-0300-sol56-recovery",
+  "state": "RETURNED_RECOVERY_COMPLETE_CANDIDATE",
+  "returned_at": "2026-09-17T00:48:00-03:00",
+  "claim_ref": "coordination/opportunities/recovery-claims/O-PROGRESS-METRICS-COMPILER-V1/REC-O-PROGRESS-METRICS-COMPILER-V1-20260917T0046-SOL56.json",
+  "previous_run": "coordination/opportunities/runs/O-PROGRESS-METRICS-COMPILER-V1/RUN-O-PROGRESS-METRICS-COMPILER-V1-20260916T225619-SOL55A.json",
+  "source_epoch_at_return": "P3-e12ebf5d5d74",
+  "source_head_observed_at_return": "1a7b0edc2ccb7ff1274968f0d62b669de9ce341c",
+  "authority": "CANDIDATE_ONLY_NOT_CURRENT_NOT_HUMAN_ACCEPTED_NOT_SERVED",
+  "summary": "Recovered the stalled progress/throughput compiler opportunity with an exact deterministic compiler contract. The design now defines source inputs, normalization/deduplication, computability/UNKNOWN semantics, metric formulas, minimal privacy-safe human event instrumentation, event-driven critic triggers, two-hour and generation projections, and a falsifiable canary suite. No percentage or human-intervention value is invented when evidence is absent.",
+  "checkpoints_completed": [
+    "CP1 exact progress-event and throughput sources loaded",
+    "CP2 deterministic source normalization and unknown semantics defined",
+    "CP3 metric formulas and human intervention/routing event contract defined",
+    "CP4 critic-trigger state machine plus time/generation projections defined",
+    "CP5 canary fixtures, falsifiers and independent reconstruction rules defined",
+    "CP6 durable RETURN persisted; only this recovery run may be closed"
+  ],
+  "evidence_refs": [
+    "coordination/workstreams/chat-native-control-plane-v1/VERIFICATION_AND_CRITIC_CONTROL_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/PROGRESS_EVENTS_SPEC_V0.json",
+    "coordination/workstreams/chat-native-control-plane-v1/THROUGHPUT_SNAPSHOT_V1.json",
+    "coordination/workstreams/chat-native-control-plane-v1/ACCELERATION_WAVE01_CONSUMPTION_V1.json",
+    "coordination/opportunities/generations/GEN-PROMETEO-ACCEL-02/OUTPUT.json",
+    "coordination/opportunities/claims/O-PROGRESS-METRICS-COMPILER-V1.json",
+    "coordination/opportunities/runs/O-PROGRESS-METRICS-COMPILER-V1/RUN-O-PROGRESS-METRICS-COMPILER-V1-20260916T225619-SOL55A.json",
+    "coordination/opportunities/recovery-claims/O-PROGRESS-METRICS-COMPILER-V1/REC-O-PROGRESS-METRICS-COMPILER-V1-20260917T0046-SOL56.json"
+  ],
+  "compiler_contract": {
+    "candidate_id": "PROGRESS_THROUGHPUT_COMPILER_V1_RECOVERED_CONTRACT",
+    "implementation_target": {
+      "suggested_script": "scripts/compile-progress-metrics.mjs",
+      "suggested_cli": "node scripts/compile-progress-metrics.mjs --repo-root . --as-of <ISO8601> --bucket-hours 2 [--generation <id|all>]",
+      "determinism_rule": "Identical pinned source bytes + identical as_of + compiler version must produce logically identical output independent of directory enumeration order."
+    },
+    "authoritative_inputs": [
+      "coordination/opportunities/claims/**/*.json",
+      "coordination/opportunities/recovery-claims/**/*.json",
+      "coordination/opportunities/runs/**/*.json",
+      "coordination/opportunities/returns/**/*.json",
+      "typed Steward/parent consumption or integration disposition artifacts",
+      "coordination/opportunities/generations/*/INPUT.json",
+      "coordination/opportunities/generations/*/OUTPUT.json",
+      "active opportunity queue files with explicit generation/provenance metadata",
+      "append-only progress-event records when present",
+      "append-only minimal human-action events when present"
+    ],
+    "normalization": {
+      "as_of_required": true,
+      "timestamp_basis": "Parse RFC3339/ISO8601 offsets and normalize to UTC for computation; renderers may localize later.",
+      "stable_record_key": "schema + durable source_ref + intrinsic identity (event_id/run_id/return_ref/claim path/generation_id).",
+      "directory_order": "sort normalized records by occurred_at_utc, then source_ref, then stable_record_key",
+      "invalid_record_rule": "Do not silently drop malformed material evidence. Exclude it from positive metrics and emit an integrity_error entry with source_ref and reason.",
+      "generation_assignment": "Use explicit generation_id or queue/generation provenance only. Never infer generation from timestamp proximity.",
+      "root_assignment": "Use explicit project_id/root/surface identity only. Unknown remains null.",
+      "unknown_rule": "Evidence absence is UNKNOWN/null, never numeric zero, false success or inferred failure.",
+      "dedup_rule": "A material transition is counted once by stable source transition identity. Replay/retry of the same source bytes cannot multiply progress."
+    },
+    "derived_progress_events": [
+      {"source":"exclusive normal claim","event_type":"CLAIM_ACQUIRED","requires":"durable claim file"},
+      {"source":"run state STARTED","event_type":"WORKER_STARTED","requires":"durable run + valid claim/recovery claim lineage"},
+      {"source":"return artifact","event_type":"RETURN_DURABLE","requires":"durable return file"},
+      {"source":"typed Steward/parent consumption","event_type":"RETURN_INTEGRATED","requires":"explicit positive scope-aware disposition; missing disposition never counts"},
+      {"source":"dependency/gate evidence","event_type":"DEPENDENCY_UNBLOCKED or GATE_CLEARED","requires":"explicit state transition with evidence refs"},
+      {"source":"recovery claim + completed recovery return","event_type":"STALE_WORK_RECOVERED","requires":"eligibility evidence plus recovery return; stale claim alone is not recovered"},
+      {"source":"generation output","event_type":"OPPORTUNITY_PREPARED","requires":"stable emitted opportunity identity and provenance"},
+      {"source":"test/canary evidence","event_type":"IMPLEMENTATION_TEST_PASSED/CANARY_PASSED/CANARY_FAILED","requires":"durable exact evidence"}
+    ]
+  },
+  "metric_definitions": [
+    {"name":"durable_returns","formula":"count distinct valid return_ref/run_id pairs in window","unknown_rule":"0 is valid only after the source roots were successfully scanned"},
+    {"name":"integrated_returns","formula":"count distinct return_refs with explicit positive typed integration/consumption disposition in window","unknown_rule":"missing disposition is not integrated"},
+    {"name":"useful_durable_results","formula":"count distinct return_refs with versioned disposition mapping to USEFUL (for current legacy evidence, ADOPT_* maps USEFUL; rejected/conflicted/deferred/not-applicable map non-useful or deferred; unknown labels remain UNKNOWN)","unknown_rule":"returns without a recognized explicit disposition are excluded from numerator and reported as unresolved"},
+    {"name":"claims_started","formula":"count distinct STARTED runs whose claim_ref resolves to a valid normal or recovery claim","unknown_rule":"claim without STARTED does not count"},
+    {"name":"duplicate_claim_collisions_safely_recovered","formula":"count durable collision/claim-attempt receipts proving a lost create-if-absent race followed by safe reload/retry","unknown_rule":"cannot infer collisions from final unique claim files alone"},
+    {"name":"stale_attempts_detected","formula":"count distinct original attempts with durable stale/recovery eligibility evidence under the active threshold policy at as_of","unknown_rule":"silence below threshold or without STARTED is not stale"},
+    {"name":"stale_attempts_recovered","formula":"count distinct original attempts with eligible recovery claim plus completed recovery return","unknown_rule":"recovery claim without return is not recovered"},
+    {"name":"stage_gates_advanced","formula":"count explicit gate state transitions from non-pass to pass/cleared with evidence refs","unknown_rule":"architecture prose or new file existence alone does not advance a gate"},
+    {"name":"blockers_cleared","formula":"count stable blocker/dependency identities whose durable state transitions blocked->cleared","unknown_rule":"do not infer from unrelated downstream activity"},
+    {"name":"opportunities_generated_automatically","formula":"count emitted opportunities whose provenance explicitly identifies deterministic Planner/compiler generation from durable inputs and no human task-semantics source","unknown_rule":"absence of provenance is UNKNOWN, not manual or automatic"},
+    {"name":"opportunities_generated_manually","formula":"count opportunities with explicit HUMAN/PARENT_SEEDED provenance","unknown_rule":"legacy opportunities without provenance remain UNKNOWN"},
+    {"name":"automatic_next_wave_ratio","formula":"automatic / (automatic + manual) when both provenance classes are fully known for the comparison set","unknown_rule":"null when denominator is zero or provenance coverage is incomplete"},
+    {"name":"human_interventions","formula":"count deduplicated human-action events whose action_type has counts_as_intervention=true","unknown_rule":"null when human event ledger coverage is absent/incomplete; never substitute chat count"},
+    {"name":"human_routing_actions","formula":"count human-action events tagged MANUAL_WORKER_ROUTING, MANUAL_RESULT_TRANSPORT, MANUAL_BATCH_DESIGN or MANUAL_MERGE_REQUEST","unknown_rule":"null if ledger coverage is absent"},
+    {"name":"useful_durable_results_per_human_intervention","formula":"useful_durable_results / human_interventions","unknown_rule":"null if human_interventions is unknown or zero; expose numerator/denominator separately"},
+    {"name":"context_receipt_coverage","formula":"material STARTED runs with valid context_receipt / material STARTED runs in window","unknown_rule":"null if run schema version makes denominator ambiguous; report numerator/denominator"},
+    {"name":"roots_active","formula":"count distinct explicit project/root ids with a material claim/STARTED/return/integration event in window","unknown_rule":"do not infer roots from filenames"},
+    {"name":"next_generation_generated_without_human","formula":"true only when generation N+1 output has explicit compiler provenance from N durable inputs and the causal interval contains zero MANUAL_BATCH_DESIGN or human-authored task-semantics events","unknown_rule":"UNKNOWN until both compiler provenance and human-event coverage are sufficient"}
+  ],
+  "human_event_contract": {
+    "status": "CANDIDATE_MINIMAL_INSTRUMENTATION",
+    "suggested_storage": "coordination/telemetry/human-events/<event_id>.json or another append-only owner selected by current authority",
+    "privacy_rule": "Record action metadata only. Never copy raw prompt/transcript/private content into the event.",
+    "required_fields": ["event_id","occurred_at","project_id_or_null","chat_object_id_or_null","action_type","related_generation_id_or_null","related_opportunity_ids","source_surface","dedup_key","counts_as_intervention","counts_as_routing_action","privacy_class"],
+    "action_types": [
+      {"type":"GOAL_OR_PRIORITY_DELTA","intervention":true,"routing":false},
+      {"type":"HUMAN_DRIFT_CORRECTION","intervention":true,"routing":false},
+      {"type":"WORKER_LAUNCH","intervention":true,"routing":false},
+      {"type":"MANUAL_WORKER_ROUTING","intervention":true,"routing":true},
+      {"type":"MANUAL_BATCH_DESIGN","intervention":true,"routing":true},
+      {"type":"MANUAL_RESULT_TRANSPORT","intervention":true,"routing":true},
+      {"type":"MANUAL_MERGE_REQUEST","intervention":true,"routing":true},
+      {"type":"MANUAL_RECOVERY_OR_RETRY","intervention":true,"routing":true},
+      {"type":"AUTHORITY_DECISION","intervention":true,"routing":false},
+      {"type":"ACCEPTANCE_DECISION","intervention":true,"routing":false},
+      {"type":"OBSERVATION_ONLY","intervention":false,"routing":false}
+    ],
+    "dedup_rule": "Platform/source action identity when available; otherwise stable hash of coarse metadata without private text. Replayed ingestion must not increment counts."
+  },
+  "critic_trigger_engine": {
+    "evaluation": "tri-state TRUE/FALSE/UNKNOWN per trigger at a pinned as_of; any TRUE requires a fresh critic opportunity unless one is already validly active for the same trigger set. UNKNOWN is surfaced, never silently treated as FALSE.",
+    "triggers": [
+      {"id":"TEN_RETURN_BACKSTOP","rule":"durable RETURNs since last completed strategic critic >= 10"},
+      {"id":"PLANNER_GENERATION_END","rule":"a Planner generation output reaches terminal generation compilation/end state"},
+      {"id":"PROMOTION_PROPOSED","rule":"architecture/method/production promotion proposal exists"},
+      {"id":"THROUGHPUT_NOT_IMPROVING","rule":"useful_durable_results_per_human_intervention is computable and fails to improve across two comparable completed generations"},
+      {"id":"REPEATED_HUMAN_DRIFT_CORRECTION","rule":"at least 2 durable HUMAN_DRIFT_CORRECTION events since last strategic critic"},
+      {"id":"QUEUE_DRAIN_NO_GATE_MOVE","rule":"no compatible READY/derived-READY work remains while the same stage gate remains uncleared across the comparison cycle"},
+      {"id":"BLOCKER_PERSISTS_TWO_CYCLES","rule":"same stable blocker_id is present in two consecutive Planner generation inputs/receipts"},
+      {"id":"STALE_FAILURE_RATE_GT_20PCT","rule":"(stale + failed + boundary terminal claimed attempts) / claimed attempts > 0.20 for the generation; denominator must be >0"},
+      {"id":"CORE_MECHANISM_CHANGED","rule":"declared Context Fabric/Planner/Steward behavior version or semantic contract changes materially"},
+      {"id":"WAIT_WHILE_SAFE_WORK_EXISTS","rule":"parent strategic receipt chooses WAIT while allocator evidence shows compatible safe READY work"}
+    ],
+    "anti_recursion": "A completed strategic critic resets the 10-return backstop baseline. Critic returns do not by themselves recursively demand another critic unless another independent trigger remains TRUE."
+  },
+  "projections": {
+    "two_hour_bucket": {
+      "machine_boundary": "UTC",
+      "formula": "bucket_start_ms = floor(event_ms / 7200000) * 7200000; bucket_end = bucket_start + 2h",
+      "rendering": "UI may display local timezone labels without changing bucket membership",
+      "contents": "event counts by meaningful type plus evidence refs; no percent-complete field"
+    },
+    "generation_series": {
+      "key": "explicit generation_id",
+      "fields": ["durable_returns","integrated_returns","useful_durable_results","claims_started","stale_detected","stale_recovered","automatic_opportunities","manual_opportunities","human_interventions","human_routing_actions","context_receipt_coverage","critic_triggers"],
+      "unscoped_rule": "records lacking explicit generation provenance remain in UNSCOPED and are not guessed into a generation"
+    }
+  },
+  "output_schema_candidate": {
+    "schema": "prometeo.progress-throughput-report/v1",
+    "required_top_level": ["compiler_version","as_of","source_head","source_digests","window","metrics","critic_triggers","time_buckets","generation_series","unknowns","integrity_errors","evidence_refs"],
+    "metric_shape": {"value":"number|boolean|null","status":"COMPUTED|UNKNOWN|PARTIAL","numerator":"number|null","denominator":"number|null","evidence_refs":"array","notes":"array"},
+    "truth_boundary": "This report is a projection. It cannot make Current/Human Accepted/Served or integration authority decisions."
+  },
+  "canary": {
+    "candidate_fixture_root": "tests/fixtures/progress-throughput-compiler-v1/**",
+    "cases": [
+      "Replay identical claim/run/return inputs twice -> identical report and no doubled events.",
+      "RETURN exists without Steward disposition -> durable_returns increments; integrated_returns does not.",
+      "No human-event ledger -> human_interventions and useful_per_intervention are null/UNKNOWN, not zero/infinity.",
+      "Duplicate ingestion of one human event with same dedup_key -> counted once.",
+      "Nine returns after last critic -> TEN_RETURN_BACKSTOP false; tenth -> true; completed critic resets baseline.",
+      "STARTED attempt age 19m59s -> not stale; 20m -> suspect metric eligible; 30m plus retry-safe/no-return -> recovery eligible; only completed recovery return increments stale_recovered.",
+      "Generated opportunity without explicit compiler provenance -> automatic/manual classification UNKNOWN.",
+      "Same timestamps and source bytes under shuffled filesystem enumeration -> identical two-hour buckets/report.",
+      "Private human source text absent from emitted report and events; only sanitized metadata survives.",
+      "Late original RETURN after recovery -> both immutable returns remain evidence; no newest-wins collapse; reconciliation remains a separate Steward action.",
+      "Failed canary event remains visible after later unrelated successes and cannot be converted into positive progress.",
+      "Out-of-schema/malformed material source -> integrity_errors populated and positive metric is not fabricated."
+    ],
+    "pass_condition": "All deterministic/idempotence/privacy/unknown-semantics/critic-trigger cases pass from a pinned fixture head with byte-stable logical output."
+  },
+  "truth_boundary": {
+    "operational_status": "DESIGN_RECOVERED_NOT_IMPLEMENTED",
+    "what_is_proven": "A deterministic, falsifiable, privacy-safe compiler contract now exists and is durable; the stale attempt was safely recovered append-only.",
+    "what_is_not_proven": "No executable progress compiler code or live human-event instrumentation was built by this opportunity's isolated write scope. Metrics remain projections until implementation/canary execution proves them.",
+    "promotion": "NONE"
+  },
+  "remaining_boundaries": [
+    "Implement the recovered contract in an authorized candidate code/test scope.",
+    "Select/authorize the append-only owner for human-action events before live instrumentation.",
+    "Replace legacy ADOPT_* utility mapping with the typed Steward disposition schema when that bridge becomes operational.",
+    "Run independent verifier on the implementation before any claim that progress metrics are operational."
+  ],
+  "post_return_action": "RELOAD_ALLOCATOR_AFTER_DONE",
+  "proposals_emitted": []
+}
