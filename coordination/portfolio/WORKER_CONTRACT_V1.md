@@ -1,4 +1,4 @@
-# Prometeo Portfolio Worker Contract v1.4
+# Prometeo Portfolio Worker Contract v1.5
 
 ## Purpose
 
@@ -29,7 +29,9 @@ Before working, scan:
 
 A terminal return for the same `dedupe_key` blocks replay. A live highest-generation pin blocks duplicate execution. For legacy jobs that have claims but no pins, choose at most one temporary legacy owner by earliest `claimed_at`, then lexicographic claim path; other simultaneous legacy claims are migration collision evidence, not concurrent authority.
 
-Terminal outcomes are `DONE`, `VERIFIED`, `NO_ACTION_NEEDED`, or `SUPERSEDED`. A `BOUNDARY` or `PARTIAL` return does not silently count as completed; it must state exact residual work and may propose or emit a bounded successor.
+Terminal outcomes are `DONE`, `VERIFIED`, `NO_ACTION_NEEDED`, or `SUPERSEDED`. A `BOUNDARY`, `PARTIAL`, or `ROUTE_ABORTED` return does not silently count as completed; it must state exact residual work and may propose or emit a bounded successor.
+
+Return outcome semantics are binding in `coordination/portfolio/RETURN_OUTCOME_SEMANTICS_V1.json`. `NO_ACTION_NEEDED` is terminal only when durable evidence establishes that the job itself is genuinely closed. A post-claim abort caused by a stale or contract-incompatible allocator route, invalid successor generation, transport/routing failure, or equivalent rejection that leaves acceptance criteria unmet MUST use `ROUTE_ABORTED` (or a historical append-only reconciliation with effect `NONTERMINAL_ROUTE_ABORT`), never terminal `NO_ACTION_NEEDED` merely because that attempted route was invalid.
 
 ## Exclusive pin protocol
 
@@ -135,6 +137,7 @@ Collision receipts are evidence only. They never grant authority, never mutate t
 - Recovery never overwrites a pin. All recovery contenders derive `generation + 1` and race on that exact deterministic next-generation path.
 - A recovery pin references predecessor lineage and its recovery basis; its claim receipt carries the same lineage.
 - Lost recovery races emit collision receipts against the attempted next generation exactly like initial races.
+- Post-claim validation that rejects the allocated recovery route before substantive job mutation is a nonterminal route abort when the job's acceptance criteria remain unmet. Persist `ROUTE_ABORTED`, re-enter allocation, and preserve the pin as historical lineage; do not close the dedupe key with `NO_ACTION_NEEDED` solely because the route was invalid.
 - Late predecessor returns remain evidence and must be reconciled; they do not erase a later valid recovery generation.
 - Effectful retries remain subject to idempotency/side-effect rules from the normal claim protocol.
 
@@ -166,7 +169,7 @@ Minimum shape:
   "project_id": "<exact project_id>",
   "worker_id": "<worker/chat identifier>",
   "returned_at": "<ISO-8601>",
-  "outcome": "DONE|VERIFIED|NO_ACTION_NEEDED|SUPERSEDED|PARTIAL|BOUNDARY",
+  "outcome": "DONE|VERIFIED|NO_ACTION_NEEDED|SUPERSEDED|PARTIAL|BOUNDARY|ROUTE_ABORTED",
   "summary": "<material result>",
   "changed_paths": [],
   "evidence": [],
@@ -183,7 +186,7 @@ Minimum shape:
 }
 ```
 
-A terminal return closes the dedupe key. Old pins/claims/collisions remain historical evidence and are never deleted merely because the job is terminal.
+A terminal return closes the dedupe key. `ROUTE_ABORTED` is nonterminal and means the attempted route failed before substantive mutation while the underlying job remains unresolved. Historical misclassified route aborts are corrected only through append-only reconciliation receipts defined by `RETURN_OUTCOME_SEMANTICS_V1.json`; original return bytes remain evidence and are never rewritten.
 
 ## Derived successor jobs
 
@@ -236,7 +239,7 @@ After RETURN or a lost pin race:
 
 `/live/` may read seed portfolio jobs, derived jobs, pins, claims, collision receipts, worker heartbeats and returns and display project progress. It must derive at most one authority owner per job from the highest valid pin generation; before migration it may derive one deterministic temporary legacy owner. Lost-race receipts are counted separately from execution claims.
 
-Live human-facing liveness uses latest durable signal age: active <6m, stale suspect 6–10m, replaceable >=10m when no terminal result exists. Terminal returns remain terminal.
+Live human-facing liveness uses latest durable signal age: active <6m, stale suspect 6–10m, replaceable >=10m when no terminal result exists. Genuine terminal returns remain terminal. A return reconciled as `NONTERMINAL_ROUTE_ABORT` remains visible evidence but MUST NOT close the job in Live or allocator projection.
 
 Live is a projection only. Its labels or derived winner never override durable evidence or promotion gates.
 
