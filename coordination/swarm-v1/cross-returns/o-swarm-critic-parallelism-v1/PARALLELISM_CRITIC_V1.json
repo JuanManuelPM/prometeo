@@ -1,0 +1,115 @@
+{
+  "schema": "prometeo.swarm-parallelism-critic/v1",
+  "opportunity_id": "O-SWARM-CRITIC-PARALLELISM-V1",
+  "run_id": "RUN-O-SWARM-CRITIC-PARALLELISM-V1-20260917T0914-GPT56SOL-PARCRIT",
+  "status": "CANDIDATE_CRITIC_FINDING",
+  "verdict": "ROUTE_CHANGE_REQUIRED_WITH_PROTECTED_SINGLE_WRITER_GATES_PRESERVED",
+  "authority_class": "CRITIC_EVIDENCE_ONLY_NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+  "observed_head_before_write": "23bc19da224db625895c0809f41b8bc6130eb748",
+  "findings": [
+    {
+      "id": "F1_COORDINATION_TRANSPORT_BRANCH_HEAD_SERIALIZATION",
+      "severity": "HIGH_SCALING_RISK",
+      "finding": "Semantic claim exclusivity is correctly scoped per opportunity, but the currently exercised coordination transport couples otherwise-disjoint claim/run/result writes through one moving Git main ref. During this run, two create-only attempts correctly lost same-path races with 422 existing-path responses. Separately, two create attempts on paths that were still absent returned 409 moving-head conflicts while unrelated workers advanced main: first while trying an unclaimed Alumnos risk claim, then while persisting this critic report. The 422s are desired semantic collision control; the 409s are transport-level coupling unrelated to same-opportunity exclusivity.",
+      "support": [
+        "coordination/opportunities/runs/O-SWARM-CRITIC-PARALLELISM-V1/RUN-O-SWARM-CRITIC-PARALLELISM-V1-20260917T0914-GPT56SOL-PARCRIT.json#context_receipt.live_race_note",
+        "coordination/workstreams/chat-native-control-plane-v1/CLAIM_PROTOCOL_SPEC_V0.json",
+        "coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json",
+        "repository commit stream around 2026-09-17T12:14Z-12:18Z showing independent claim/run/build commits serialized onto main",
+        "current run observation: first PARALLELISM_CRITIC_V1.json create returned 409 while path remained 404 immediately afterward"
+      ],
+      "falsification_boundary": "Two observed 409s still do not establish the 50-worker conflict rate or prove that Git-backed coordination must be replaced. S4 must measure distinct-path transport conflicts, retries, and claim-to-STARTED latency under load before transport promotion/replacement.",
+      "route_delta": [
+        "Keep semantic create-if-absent exclusivity and no-overwrite rules.",
+        "Make coordination transport an explicit replaceable layer rather than equating durable coordination with commits to product main.",
+        "Test a sharded append-only transport where opportunity lock identity is independently atomic and post-claim run/heartbeat/return events do not all mutate the same source branch head.",
+        "Compile/batch projections back to main only where source integration or canonical publication actually requires main authority."
+      ],
+      "dedup_disposition": "DO_NOT_CREATE_DUPLICATE_OPPORTUNITY. Extend O-SWARM-50-WORKER-STRESS-VERIFY-V1 to measure transport-level conflicts separately from legitimate same-opportunity claim collisions; if measured contention is material, emit one transport-abstraction build opportunity. O-SWARM-CRITIC-THROUGHPUT-V1 may independently challenge the threshold."
+    },
+    {
+      "id": "F2_ALL_OF_LOCAL_INTEGRATION_BARRIER_SERIALIZES_SAFE_PRECOMPUTATION",
+      "severity": "HIGH_TAIL_LATENCY_RISK",
+      "finding": "Each surface local integration is blocked by ALL_DEPENDENCIES_HAVE_RETURN across seven surface lenses plus local-steward and page-thread-bridge returns. Yet the implemented local steward can consume a partial return set, record missing_required_returns, dispositions, conflicts and verification requests while remaining CANDIDATE_ONLY. Waiting for the slowest dependency before any reconciliation begins is therefore a queue-policy choice, not a technical or authority necessity.",
+      "support": [
+        "coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json#O-SURFACE-*-LOCAL-INTEGRATE-V1",
+        "scripts/local-steward-lib.mjs#buildLocalIntegrationCandidate",
+        "scripts/derive-opportunity-readiness.mjs#ALL_DEPENDENCIES_HAVE_RETURN",
+        "coordination/workstreams/chat-native-control-plane-v1/MULTI_SURFACE_SWARM_EXECUTION_PLAN_V1.json"
+      ],
+      "route_delta": [
+        "Split safe reconciliation from final local integration authority.",
+        "Allow append-only/incremental local reconcile passes as returns arrive: normalize semantic atoms, deduplicate, precompute dispositions/conflicts and request independent verification.",
+        "Retain one final LOCAL_FINALIZE claim/gate that requires the full required-return set (or explicit terminal disposition for a missing dependency) before emitting the complete local campaign candidate.",
+        "Apply the same pattern to cross-surface preparation: stream shared-owner/conflict mapping from available local returns, but keep final cross-surface candidate integration and any authority promotion separately gated."
+      ],
+      "dedup_disposition": "MERGE_FINDING_INTO_EXISTING_LANES. O-SWARM-CRITIC-PAGE-INTEGRATION-V1 should challenge divergence semantics; O-SWARM-LOCAL-STEWARD-BUILD-V1/local integration lanes own implementation. Do not create a parallel mini-steward system."
+    },
+    {
+      "id": "F3_AUTHORITY_SENSITIVE_SINGLE_WRITER_GATES_ARE_NOT_ARTIFICIAL_SERIALIZATION",
+      "severity": "PROTECTED_INVARIANT",
+      "finding": "Shared authority promotion, exact-scope mutation ownership, irreversible/private boundaries and final conflict resolution remain legitimate single-writer or human-authorized gates. Parallelism should move work up to those gates, not duplicate the gate itself.",
+      "support": [
+        "coordination/workstreams/chat-native-control-plane-v1/MULTI_SURFACE_SWARM_EXECUTION_PLAN_V1.json#non_parallelizable_rules",
+        "scripts/local-steward-lib.mjs#authority_boundary",
+        "coordination/GLOBAL_AGENT_CONSTITUTION_V1.md"
+      ],
+      "route_delta": [
+        "Preserve final CAS/authority checks.",
+        "Parallelize evidence preparation, verification and conflict discovery only."
+      ],
+      "dedup_disposition": "NO_NEW_WORK_REQUIRED; treat as a non-regression constraint on F1/F2 remedies."
+    },
+    {
+      "id": "F4_PLANNER_COMPILER_CAN_REMAIN_LOGICALLY_SINGLE_PER_GENERATION_IF_EXECUTION_IS_REPLAYABLE",
+      "severity": "CONDITIONAL_PASS",
+      "finding": "A single accepted Planner generation output is not itself a harmful bottleneck if multiple workers can independently derive/review the same deterministic candidate and only one generation pin becomes canonical. The scaling target should be deterministic replay plus parallel critique, not multiple conflicting canonical planners.",
+      "support": [
+        "coordination/opportunities/GENERATED_QUEUE_GEN2_V1.json#O-METABOLIC-SPINE-BUILD-V1",
+        "coordination/workstreams/chat-native-control-plane-v1/STRATEGIC_NON_REGRESSION_AND_SELF_CRITIQUE_V1.md",
+        "coordination/workstreams/chat-native-control-plane-v1/VERIFICATION_AND_CRITIC_CONTROL_V1.md"
+      ],
+      "route_delta": [
+        "Keep one canonical generation identity/pin.",
+        "Permit parallel deterministic compile/review/falsification candidates before pinning.",
+        "Do not turn Planner into a universal serial worker that performs downstream jobs itself."
+      ],
+      "dedup_disposition": "ALREADY_COVERED by metabolic-spine/compiler and critic lanes; no duplicate opportunity."
+    }
+  ],
+  "required_s4_measurements": [
+    "same_opportunity_collision_count",
+    "distinct_path_or_distinct_opportunity_transport_conflict_count",
+    "coordination_write_retries_per_worker",
+    "claim_to_started_latency_p50_p95",
+    "coordination_commits_or_events_per_durable_return",
+    "main_head_churn_during_wave",
+    "local_integration_tail_wait_from_first_useful_return_to_final_dependency",
+    "returns_reconcilable_before_final_local_gate",
+    "global_guide_actions_required_for_routine_reconciliation"
+  ],
+  "recommended_dispositions": [
+    {
+      "target": "O-SWARM-50-WORKER-STRESS-VERIFY-V1",
+      "disposition": "EXPAND_ACCEPTANCE_WITH_TRANSPORT_CONTENTION_METRICS",
+      "reason": "Existing stress lane already owns broad-wave collision/duplication/idle measurement; adding transport-vs-semantic collision separation is a deduplicated route change."
+    },
+    {
+      "target": "O-SWARM-CRITIC-PAGE-INTEGRATION-V1",
+      "disposition": "CONSUME_F2_AS_CROSS_CRITIC_INPUT",
+      "reason": "Its mission already attacks local steward mini-bottlenecks; F2 supplies a concrete mechanism-level hypothesis."
+    },
+    {
+      "target": "O-SWARM-LOCAL-STEWARD-BUILD-V1",
+      "disposition": "PRESERVE_PARTIAL_RECONCILIATION_CAPABILITY",
+      "reason": "Current code already supports partial sources; future queue wiring should exploit rather than remove that capability."
+    }
+  ],
+  "negative_knowledge": [
+    "A 422 losing a same-path create-if-absent race is desired control flow and must not be counted as a transport failure.",
+    "Two observed 409 moving-head conflicts are a scaling warning, not enough evidence by themselves to replace Git/main coordination.",
+    "All-of final completeness is not wrong; using the all-of gate to forbid earlier candidate-only reconciliation is the avoidable serialization.",
+    "More simultaneous stewards are not automatically better; exact shared mutation and promotion boundaries remain single-owner."
+  ],
+  "truth_boundary": "This critic establishes two concrete serialization risks and a route delta, but does not grade 50-worker production safety. F1 requires S4 load evidence before transport replacement; F2 is directly supported by current queue activation rules plus local-steward implementation capability. No Current/Human Accepted/Served state is changed."
+}
