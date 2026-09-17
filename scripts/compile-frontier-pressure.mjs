@@ -20,17 +20,6 @@ function newest(...values) {
   return values.map(asTime).filter((v) => v !== null).reduce((a, b) => Math.max(a, b), -Infinity);
 }
 
-function walkValues(value, visit, key = '') {
-  if (Array.isArray(value)) {
-    for (const item of value) walkValues(item, visit, key);
-    return;
-  }
-  if (value && typeof value === 'object') {
-    visit(value, key);
-    for (const [childKey, child] of Object.entries(value)) walkValues(child, visit, childKey);
-  }
-}
-
 function normalizeTerminalReturn(record, sourcePath) {
   const outcome = record?.outcome ?? record?.state ?? record?.status ?? null;
   if (!outcome || !TERMINAL_OUTCOMES.has(String(outcome).toUpperCase())) return null;
@@ -38,6 +27,7 @@ function normalizeTerminalReturn(record, sourcePath) {
   if (!jobId) return null;
   return {
     job_id: jobId,
+    dedupe_key: record.dedupe_key ?? null,
     returned_at: record.returned_at ?? record.completed_at ?? record.created_at ?? null,
     source_path: sourcePath,
     outcome: String(outcome).toUpperCase(),
@@ -73,18 +63,38 @@ export function computeFrontierPressure(snapshot, policy, options = {}) {
     frontierCeiling,
   );
 
+  const uniqueJobs = [];
+  const seenJobs = new Set();
+  const dedupeByJob = new Map();
+  for (const job of snapshot.jobs ?? []) {
+    if (!job?.job_id || seenJobs.has(job.job_id)) continue;
+    seenJobs.add(job.job_id);
+    uniqueJobs.push(job);
+    if (job.dedupe_key) dedupeByJob.set(job.job_id, job.dedupe_key);
+  }
+
   const terminalByJob = new Map();
+  const terminalByDedupe = new Map();
   for (const r of snapshot.terminal_returns ?? []) {
     if (!r?.job_id) continue;
     const t = asTime(r.returned_at) ?? -Infinity;
     const prior = terminalByJob.get(r.job_id);
     if (!prior || t > (asTime(prior.returned_at) ?? -Infinity)) terminalByJob.set(r.job_id, r);
+    const dedupeKey = r.dedupe_key ?? dedupeByJob.get(r.job_id) ?? null;
+    if (dedupeKey) {
+      const priorDedupe = terminalByDedupe.get(dedupeKey);
+      if (!priorDedupe || t > (asTime(priorDedupe.returned_at) ?? -Infinity)) {
+        terminalByDedupe.set(dedupeKey, { ...r, dedupe_key: dedupeKey });
+      }
+    }
   }
 
   const ownerRows = [];
   const ownerByJob = new Map();
   for (const owner of snapshot.owners ?? []) {
-    if (!owner?.job_id || terminalByJob.has(owner.job_id)) continue;
+    if (!owner?.job_id) continue;
+    const dedupeKey = owner.dedupe_key ?? dedupeByJob.get(owner.job_id) ?? null;
+    if (terminalByJob.has(owner.job_id) || (dedupeKey && terminalByDedupe.has(dedupeKey))) continue;
     const latest = newest(owner.latest_signal_at, owner.heartbeat_at, owner.claimed_at, owner.pinned_at, owner.started_at);
     const ageMinutes = latest === -Infinity ? null : Math.max(0, (nowMs - latest) / 60_000);
     let liveness = 'UNKNOWN';
@@ -93,22 +103,48 @@ export function computeFrontierPressure(snapshot, policy, options = {}) {
       else if (ageMinutes < recoveryEligibleMinutes) liveness = 'STALE_SUSPECT';
       else liveness = owner.retry_safe === false ? 'STALE_NOT_RETRY_SAFE' : 'REPLACEABLE';
     }
-    const row = { ...owner, latest_signal_at: latest === -Infinity ? null : new Date(latest).toISOString(), age_minutes: ageMinutes, liveness };
+    const row = {
+      ...owner,
+      dedupe_key: dedupeKey,
+      latest_signal_at: latest === -Infinity ? null : new Date(latest).toISOString(),
+      age_minutes: ageMinutes,
+      liveness,
+    };
     ownerRows.push(row);
     const prior = ownerByJob.get(owner.job_id);
     if (!prior || (row.generation ?? 0) > (prior.generation ?? 0)) ownerByJob.set(owner.job_id, row);
   }
 
+  const groups = new Map();
+  for (const job of uniqueJobs) {
+    const groupKey = job.dedupe_key ? `dedupe:${job.dedupe_key}` : `job:${job.job_id}`;
+    const group = groups.get(groupKey) ?? [];
+    group.push(job);
+    groups.set(groupKey, group);
+  }
+
   const jobs = [];
-  const seenJobs = new Set();
-  for (const job of snapshot.jobs ?? []) {
-    if (!job?.job_id || seenJobs.has(job.job_id)) continue;
-    seenJobs.add(job.job_id);
-    const terminal = terminalByJob.has(job.job_id);
-    const owner = ownerByJob.get(job.job_id) ?? null;
-    const explicitlyReady = ACTIVE_JOB_STATUSES.has(job.status) || job.status === 'READY';
-    const claimable = explicitlyReady && !terminal && (!owner || owner.liveness === 'REPLACEABLE');
-    jobs.push({ ...job, terminal, owner: owner ? { worker_id: owner.worker_id, liveness: owner.liveness, generation: owner.generation ?? null } : null, claimable });
+  for (const group of groups.values()) {
+    const dedupeKey = group.find((j) => j.dedupe_key)?.dedupe_key ?? null;
+    const groupTerminal = group.some((j) => terminalByJob.has(j.job_id)) || Boolean(dedupeKey && terminalByDedupe.has(dedupeKey));
+    const groupOwners = group.map((j) => ownerByJob.get(j.job_id)).filter(Boolean);
+    const blockingOwner = groupOwners.some((owner) => owner.liveness !== 'REPLACEABLE');
+    const readyRows = group.filter((job) => ACTIVE_JOB_STATUSES.has(job.status) || job.status === 'READY');
+    const replaceableOwnedRows = readyRows.filter((job) => ownerByJob.get(job.job_id)?.liveness === 'REPLACEABLE');
+    const candidates = replaceableOwnedRows.length ? replaceableOwnedRows : readyRows;
+    candidates.sort((a, b) => Number(b.priority ?? 0) - Number(a.priority ?? 0) || String(a.job_id).localeCompare(String(b.job_id)));
+    const claimableJobId = !groupTerminal && !blockingOwner && candidates.length ? candidates[0].job_id : null;
+
+    for (const job of group) {
+      const terminal = terminalByJob.has(job.job_id) || Boolean(dedupeKey && terminalByDedupe.has(dedupeKey));
+      const owner = ownerByJob.get(job.job_id) ?? null;
+      jobs.push({
+        ...job,
+        terminal,
+        owner: owner ? { worker_id: owner.worker_id, liveness: owner.liveness, generation: owner.generation ?? null } : null,
+        claimable: job.job_id === claimableJobId,
+      });
+    }
   }
 
   const claimableJobs = jobs.filter((j) => j.claimable);
@@ -208,7 +244,6 @@ export async function buildSnapshotFromRepo(repoRoot) {
   const beaconsRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/workers/beacons')), repoRoot);
   const heartbeatRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/workers/heartbeats')), repoRoot);
   const pinRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/portfolio/pins')), repoRoot);
-  const portfolioClaimRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/portfolio/claims')), repoRoot);
   const portfolioReturnRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/portfolio/returns')), repoRoot);
   const opportunityClaimRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/opportunities/claims')), repoRoot);
   const opportunityReturnRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/opportunities/returns')), repoRoot);
@@ -242,6 +277,7 @@ export async function buildSnapshotFromRepo(repoRoot) {
     if (!pin.job_id || !pin.worker_id) continue;
     owners.push({
       job_id: pin.job_id,
+      dedupe_key: pin.dedupe_key ?? null,
       worker_id: pin.worker_id,
       generation: Number(pin.generation ?? 0),
       pinned_at: pin.claimed_at,
@@ -256,6 +292,7 @@ export async function buildSnapshotFromRepo(repoRoot) {
     if (!claim.opportunity_id || !claim.worker_instance_id) continue;
     owners.push({
       job_id: claim.opportunity_id,
+      dedupe_key: claim.dedupe_key ?? null,
       worker_id: claim.worker_instance_id,
       generation: 0,
       claimed_at: claim.claimed_at,
@@ -269,13 +306,20 @@ export async function buildSnapshotFromRepo(repoRoot) {
   const jobs = [];
   const portfolio = await readJsonIfExists(path.join(repoRoot, 'coordination/portfolio/PORTFOLIO.json'));
   for (const project of portfolio?.projects ?? []) {
-    for (const job of project.jobs ?? []) jobs.push({ job_id: job.job_id, status: job.seed_status, priority: job.priority ?? project.priority ?? 0, source: 'portfolio_seed', dedupe_key: job.dedupe_key ?? null });
+    for (const job of project.jobs ?? []) {
+      jobs.push({ job_id: job.job_id, status: job.seed_status, priority: job.priority ?? project.priority ?? 0, source: 'portfolio_seed', dedupe_key: job.dedupe_key ?? null });
+    }
   }
   for (const { value: job } of derivedRows) {
     if (job.job_id) jobs.push({ job_id: job.job_id, status: job.seed_status, priority: job.priority ?? 0, source: 'portfolio_derived', dedupe_key: job.dedupe_key ?? null });
   }
 
-  const opportunityRootFiles = await parseJsonFiles((await fs.readdir(path.join(repoRoot, 'coordination/opportunities'), { withFileTypes: true }).catch(() => [])).filter((e) => e.isFile() && e.name.endsWith('.json')).map((e) => path.join(repoRoot, 'coordination/opportunities', e.name)), repoRoot);
+  const opportunityDir = path.join(repoRoot, 'coordination/opportunities');
+  const opportunityEntries = await fs.readdir(opportunityDir, { withFileTypes: true }).catch(() => []);
+  const opportunityRootFiles = await parseJsonFiles(
+    opportunityEntries.filter((e) => e.isFile() && e.name.endsWith('.json')).map((e) => path.join(opportunityDir, e.name)),
+    repoRoot,
+  );
   for (const { value } of opportunityRootFiles) {
     for (const opp of value.opportunities ?? []) {
       jobs.push({ job_id: opp.opportunity_id, status: opp.status, priority: opp.priority ?? 0, source: value.queue_id ?? 'opportunity_queue', dedupe_key: opp.dedupe_key ?? null });
