@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prometeo://canary-evidence/SCHEMA_V1",
+  "title": "Prometeo Canary Evidence Bundle v1",
+  "description": "Append-only evidence primitives that let an independent verifier reconstruct claim races, continuation lineage, STARTED-before-work persistence and actual write-set scope without trusting worker prose.",
+  "type": "object",
+  "required": ["schema", "bundle_id", "opportunity_id", "receipts"],
+  "properties": {
+    "schema": {"const": "prometeo.canary-evidence-bundle/v1"},
+    "bundle_id": {"type": "string", "minLength": 1},
+    "opportunity_id": {"type": "string", "minLength": 1},
+    "receipts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {"$ref": "#/$defs/claim_attempt"},
+          {"$ref": "#/$defs/run_lineage"},
+          {"$ref": "#/$defs/started_persistence"},
+          {"$ref": "#/$defs/write_set"}
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "sha40": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "repo_ref": {"type": "string", "minLength": 1, "pattern": "^[^/].+"},
+    "claim_attempt": {
+      "type": "object",
+      "required": [
+        "receipt_type", "receipt_id", "opportunity_id", "session_id", "worker_instance_id",
+        "attempt_id", "attempted_at", "host_observed_at", "atomic_primitive", "target_claim_ref",
+        "host_result", "immutable"
+      ],
+      "properties": {
+        "receipt_type": {"const": "CLAIM_ATTEMPT"},
+        "receipt_id": {"type": "string", "minLength": 1},
+        "opportunity_id": {"type": "string", "minLength": 1},
+        "session_id": {"type": "string", "minLength": 1},
+        "worker_instance_id": {"type": "string", "minLength": 1},
+        "attempt_id": {"type": "string", "minLength": 1},
+        "attempted_at": {"$ref": "#/$defs/timestamp"},
+        "host_observed_at": {"$ref": "#/$defs/timestamp"},
+        "atomic_primitive": {"enum": ["CREATE_IF_ABSENT", "CAS", "UNIQUE_TXN"]},
+        "target_claim_ref": {"$ref": "#/$defs/repo_ref"},
+        "host_result": {"enum": ["WON", "LOST_EXISTING", "HOST_ERROR"]},
+        "claim_commit": {"$ref": "#/$defs/sha40"},
+        "winning_claim_ref": {"$ref": "#/$defs/repo_ref"},
+        "winning_claim_commit": {"$ref": "#/$defs/sha40"},
+        "no_overwrite_decision": {"type": "boolean"},
+        "immutable": {"const": true}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"host_result": {"const": "WON"}}},
+          "then": {"required": ["claim_commit"]}
+        },
+        {
+          "if": {"properties": {"host_result": {"const": "LOST_EXISTING"}}},
+          "then": {
+            "required": ["winning_claim_ref", "winning_claim_commit", "no_overwrite_decision"],
+            "properties": {"no_overwrite_decision": {"const": true}}
+          }
+        }
+      ]
+    },
+    "run_lineage": {
+      "type": "object",
+      "required": [
+        "receipt_type", "receipt_id", "opportunity_id", "session_id", "worker_instance_id",
+        "run_id", "run_ref", "continuation_index", "previous_run_ref", "immutable"
+      ],
+      "properties": {
+        "receipt_type": {"const": "RUN_LINEAGE"},
+        "receipt_id": {"type": "string", "minLength": 1},
+        "opportunity_id": {"type": "string", "minLength": 1},
+        "session_id": {"type": "string", "minLength": 1},
+        "worker_instance_id": {"type": "string", "minLength": 1},
+        "run_id": {"type": "string", "minLength": 1},
+        "run_ref": {"$ref": "#/$defs/repo_ref"},
+        "continuation_index": {"type": "integer", "minimum": 0},
+        "previous_run_ref": {"type": ["string", "null"]},
+        "immutable": {"const": true}
+      }
+    },
+    "started_persistence": {
+      "type": "object",
+      "required": [
+        "receipt_type", "receipt_id", "opportunity_id", "session_id", "run_ref",
+        "started_artifact_ref", "started_commit_sha", "persisted_at", "first_material_effect_at", "immutable"
+      ],
+      "properties": {
+        "receipt_type": {"const": "STARTED_PERSISTENCE"},
+        "receipt_id": {"type": "string", "minLength": 1},
+        "opportunity_id": {"type": "string", "minLength": 1},
+        "session_id": {"type": "string", "minLength": 1},
+        "run_ref": {"$ref": "#/$defs/repo_ref"},
+        "started_artifact_ref": {"$ref": "#/$defs/repo_ref"},
+        "started_commit_sha": {"$ref": "#/$defs/sha40"},
+        "persisted_at": {"$ref": "#/$defs/timestamp"},
+        "first_material_effect_at": {"$ref": "#/$defs/timestamp"},
+        "immutable": {"const": true}
+      }
+    },
+    "write_set": {
+      "type": "object",
+      "required": [
+        "receipt_type", "receipt_id", "opportunity_id", "session_id", "run_ref",
+        "commit_shas", "changed_path_source", "declared_write_scope", "changed_paths", "immutable"
+      ],
+      "properties": {
+        "receipt_type": {"const": "WRITE_SET"},
+        "receipt_id": {"type": "string", "minLength": 1},
+        "opportunity_id": {"type": "string", "minLength": 1},
+        "session_id": {"type": "string", "minLength": 1},
+        "run_ref": {"$ref": "#/$defs/repo_ref"},
+        "commit_shas": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/sha40"}},
+        "changed_path_source": {"enum": ["GIT_COMMIT_DIFF", "HOST_WRITE_RECEIPT"]},
+        "declared_write_scope": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "changed_paths": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "reported_scope_check": {"enum": ["PASS", "FAIL"]},
+        "immutable": {"const": true}
+      }
+    }
+  },
+  "x-prometeo-semantic-invariants": [
+    "receipt_id MUST be unique inside a bundle and receipts are append-only/immutable",
+    "CLAIM_ATTEMPT ordering is reconstructed from host_observed_at; LOST_EXISTING MUST name the observed winning claim and commit and MUST record no_overwrite_decision=true",
+    "For continuation_index=0 previous_run_ref MUST be null; for continuation_index>0 previous_run_ref MUST resolve to a RUN_LINEAGE receipt in the same session with continuation_index exactly one lower",
+    "Every RUN_LINEAGE receipt MUST have a STARTED_PERSISTENCE receipt whose started_commit_sha is resolvable and whose persisted_at is not later than first_material_effect_at",
+    "WRITE_SET scope is independently recomputed from changed_paths against declared_write_scope; reported_scope_check is never trusted",
+    "A path pattern ending in /** authorizes the directory prefix and descendants; all other patterns are exact paths"
+  ]
+}
