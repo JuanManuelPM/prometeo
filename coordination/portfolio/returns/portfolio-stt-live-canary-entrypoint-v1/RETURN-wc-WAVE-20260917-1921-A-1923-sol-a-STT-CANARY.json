@@ -1,0 +1,66 @@
+{
+  "schema": "prometeo.portfolio-return/v1",
+  "return_id": "RETURN-wc-WAVE-20260917-1921-A-1923-sol-a-STT-CANARY",
+  "job_id": "portfolio-stt-live-canary-entrypoint-v1",
+  "dedupe_key": "tool:stt:live-canary-entrypoint:v1",
+  "project_id": "audio-speech-to-text",
+  "worker_id": "wc-WAVE-20260917-1921-A-1923-sol-a",
+  "claim_id": "claim-portfolio-stt-live-canary-entrypoint-v1-G000001-wc-WAVE-20260917-1921-A-1923-sol-a",
+  "pin_ref": "coordination/portfolio/pins/portfolio-stt-live-canary-entrypoint-v1/G000001.json",
+  "returned_at": "2026-09-17T22:30:00Z",
+  "outcome": "PARTIAL",
+  "summary": "Fresh post-claim validation confirmed the deployed browser voice source bytes still exist on gh-pages and the separate study-transcribe-v1 Edge Function is ACTIVE at v6. This worker could not execute the acceptance-critical live checks: its available web verifier rejected both target URLs before fetch, container DNS could not resolve juanmanuelpm.github.io or the Supabase function host, and this chat has no representative interactive browser/microphone surface. Therefore no fresh microphone-to-text success/failure and no fresh function selftest are claimed, and these host limitations are not treated as evidence of an STT outage.",
+  "changed_paths": [
+    "coordination/portfolio/claims/portfolio-stt-live-canary-entrypoint-v1/claim-portfolio-stt-live-canary-entrypoint-v1-G000001-wc-WAVE-20260917-1921-A-1923-sol-a.json",
+    "coordination/workers/heartbeats/wc-WAVE-20260917-1921-A-1923-sol-a/20260917T222720Z.json",
+    "coordination/workers/heartbeats/wc-WAVE-20260917-1921-A-1923-sol-a/20260917T223000Z.json",
+    "coordination/portfolio/returns/portfolio-stt-live-canary-entrypoint-v1/RETURN-wc-WAVE-20260917-1921-A-1923-sol-a-STT-CANARY.json"
+  ],
+  "evidence": [
+    {
+      "kind": "deployed_source_recheck",
+      "ref": "gh-pages:pages/voice/index.html",
+      "sha": "2a9ff73876f6ac9413bb7273b6976a0d86f853a5",
+      "observed": "Current gh-pages source still contains secure-context/getUserMedia/MediaRecorder diagnostics, microphone capture, queueing, 16 kHz audio preparation and Web Worker transcription flow."
+    },
+    {
+      "kind": "deployed_worker_recheck",
+      "ref": "gh-pages:pages/voice/transcriber-worker.js",
+      "sha": "f8a3de37a0f822a26ed4891828c1afd59f7041f0",
+      "observed": "Current worker still imports @huggingface/transformers 3.8.1 and runs Spanish automatic-speech-recognition with Xenova/whisper-small on WASM q8."
+    },
+    {
+      "kind": "server_function_recheck",
+      "ref": "supabase://catnohyouxqjjtseaueb/functions/study-transcribe-v1@v6",
+      "observed": "Supabase connector reports status ACTIVE, version 6. Source exposes GET health and ?selftest=1 paths plus authenticated POST chunk transcription."
+    },
+    {
+      "kind": "host_boundary",
+      "observed": "Web navigation rejected the exact public GitHub Pages and Supabase URLs before fetch; direct curl in the available container could not resolve either hostname. The chat runtime exposes no microphone or representative interactive browser input surface."
+    }
+  ],
+  "tests": [
+    "Re-fetched gh-pages pages/voice/index.html and transcriber-worker.js through the authenticated GitHub connector and matched the predecessor SHAs.",
+    "Re-fetched study-transcribe-v1 through the Supabase connector; status ACTIVE, version 6.",
+    "Attempted read-only public URL verification with the web verifier; both target URLs were inaccessible from that verifier.",
+    "Attempted read-only curl from the available container; DNS resolution failed for both target hosts before HTTP.",
+    "No microphone capture, transcript payload, room_token, credential, private speech, or production authority mutation was performed."
+  ],
+  "unresolved": [
+    "Run one fresh /pages/voice/ microphone-to-text transaction on a representative browser/device and record only non-sensitive success/failure metadata.",
+    "Run the existing study-transcribe-v1 ?selftest=1 from a network-capable environment and record the non-sensitive result.",
+    "After those runtime receipts, document the canonical role split between browser/mobile voice capture and authenticated class-session transcription."
+  ],
+  "spawn_candidates": [
+    {
+      "title": "Run STT canary on representative networked browser/device",
+      "reason": "The remaining acceptance criteria are blocked only by host capabilities/network reachability in this worker; repeating the same generic verifier shape would not add evidence.",
+      "dedupe_key": "tool:stt:representative-runtime-canary:v1",
+      "acceptance": [
+        "Representative browser grants microphone access and completes or exactly fails one non-private /pages/voice/ transcription.",
+        "Network-capable client invokes GET study-transcribe-v1?selftest=1 and records only non-sensitive response metadata.",
+        "No credentials, room_token, private transcript text, or private speech bytes are persisted in repo evidence."
+      ]
+    }
+  ]
+}
