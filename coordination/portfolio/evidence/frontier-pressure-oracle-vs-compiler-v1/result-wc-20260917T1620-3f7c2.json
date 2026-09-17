@@ -1,0 +1,38 @@
+{
+  "schema": "prometeo.verification-evidence/v1",
+  "verification_id": "frontier-pressure-oracle-vs-compiler-v1",
+  "worker_id": "wc-20260917T1620-3f7c2",
+  "observed_at": "2026-09-17T19:34:00Z",
+  "production_source": "scripts/compile-frontier-pressure.mjs",
+  "oracle_source": "coordination/guide/tests/frontier_pressure_oracle_v1_1.json",
+  "scenario_count": 5,
+  "matching_scenarios": 4,
+  "mismatching_scenarios": 1,
+  "classifications": [
+    {
+      "scenario": "three_silent_owners_trigger_replaceable_pressure",
+      "classification": "ORACLE_DEFECT_CORRECTED",
+      "old_expected_claimable": 1,
+      "corrected_expected_claimable": 4,
+      "basis": "REPLACEABLE >=10m retry-safe owners are recovery-eligible, not live owners. The production compiler correctly counts those jobs as claimable recovery work. Corrected append-only oracle v1.1 supersedes v1."
+    },
+    {
+      "scenario": "terminal_and_duplicate_dedupe_are_excluded",
+      "classification": "COMPILER_DEFECT",
+      "expected_claimable": 1,
+      "observed_claimable": 2,
+      "basis": "The portfolio dedupe law says a terminal return for the same dedupe_key blocks replay. Production computeFrontierPressure indexes terminal returns and duplicate rows by job_id only, so a second job_id with the same terminal dedupe_key remains claimable. Existing compiler tests do not cover this cross-job dedupe_key case."
+    }
+  ],
+  "production_code_evidence": [
+    "scripts/compile-frontier-pressure.mjs: terminalByJob keyed by job_id",
+    "scripts/compile-frontier-pressure.mjs: seenJobs keyed by job_id",
+    "tests/frontier-pressure-compiler-v1.test.mjs: no cross-job shared-dedupe terminal regression case"
+  ],
+  "contract_evidence": [
+    "coordination/portfolio/WORKER_CONTRACT_V1.md#Dedupe law",
+    "coordination/portfolio/PORTFOLIO_PIN_PROTOCOL_V1.json#liveness_rule"
+  ],
+  "local_test": "5 scenarios executed against the production computeFrontierPressure logic; corrected v1.1 oracle leaves exactly one mismatch: terminal dedupe replay exclusion.",
+  "truth_boundary": "Verification evidence only; no Current, Human Accepted, Served or production /w promotion."
+}
