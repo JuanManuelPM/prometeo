@@ -4,7 +4,7 @@
   const API=`https://api.github.com/repos/${OWNER}/${REPO}`;
   const REFRESH_MS=20000;
   const $=id=>document.getElementById(id);
-  const esc=(v='')=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));
+  const esc=(v='')=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   const lower=v=>String(v||'').toLowerCase();
   const first=(...vals)=>vals.find(v=>v!==undefined&&v!==null&&v!=='');
   const terminalOutcomes=new Set(['done','verified','no_action_needed','superseded']);
