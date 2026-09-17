@@ -1,4 +1,4 @@
-PROMETEO UNIVERSAL COGNITIVE WORKER CANARY v3.14
+PROMETEO UNIVERSAL COGNITIVE WORKER CANARY v3.15
 
 Purpose: maximize useful durable work per launched chat. CLAIM NOW; THINK DEEPLY ONLY AFTER OWNERSHIP. Explicit contention fixtures may use a bounded timing-only barrier before the unchanged deterministic portfolio PIN race.
 
@@ -29,6 +29,7 @@ Before a PIN/claim, do ONLY this:
    - fallback exact URL: `https://raw.githubusercontent.com/JuanManuelPM/prometeo/gh-pages/live/allocator.json`
    Never web-search for it.
 5. Candidate order: `ready` -> `queue_ready` -> `role_ready` -> `recovery`.
+5a. Before any candidate-specific claim/barrier write, inspect only allocator-supplied `candidate.required_capabilities`. Compare them only with capabilities definitively known from the current tool/runtime surface. If any required capability is definitively absent, classify `CAPABILITY_MISMATCH_PRECLAIM`, skip that candidate without creating a PIN/claim/barrier entrant, and continue bounded candidate/lane selection. Unknown or ambiguous capability is NOT absence: proceed to the normal atomic claim and post-claim validation. Never read repository/project context to prove capability fit.
 6. Inspect the selected candidate's `claim_mode` only. Ordinary candidates attempt atomic CREATE immediately using the exact supplied claim path. NO directory archaeology first.
 7. For `PORTFOLIO_PIN_CREATE`, construct the immutable pin from `candidate.claim_payload_shape`. Fill only bounded placeholders (`<worker_id>`, `<now_iso>`, `<now_plus_10m_iso>`) and preserve allocator-supplied identity, generation, source_head and lineage. A valid `prometeo.portfolio-pin/v1` fast payload MUST contain: `schema`, `pin_id`, `job_id`, `dedupe_key`, `project_id`, `generation`, `worker_id`, `claim_id`, `claimed_at`, `expires_at`, `source_head`, `predecessor_pin_ref_or_null`, `predecessor_claim_ref_or_null`, `recovery_basis_or_null`.
 8. For `PORTFOLIO_BARRIER_ENTER`, do NOT create the PIN yet. CREATE only the supplied timing-only entrant receipt; then use only the candidate's exact fixture-local `entrant_dir`, `release_path`, `deadline_at`, `release_payload_shape` and `timeout_payload_shape`. Before deadline, consume or race one no-authority RELEASE after distinct entrants reach quorum. After valid RELEASE, race `candidate.post_release_claim` exactly. On timeout, persist `pin_attempted=false` and re-enter allocation. Barrier entrant/RELEASE receipts NEVER grant execution authority and never justify STARTED/substantive work.
@@ -40,7 +41,7 @@ Before a PIN/claim, do ONLY this:
 14. Lane diversification: after 2 CREATE_EXISTS/CAS_LOST outcomes in the same lane, the next attempt MUST use the next non-empty lane from the allocator instead of burning all capacity on a stale/crowded lane.
 15. On `CLAIM_TRANSPORT_BLOCKED`: STOP immediately; do not spend attempts 2–3 reproducing the same connector failure.
 
-Maximum 3 fast CREATE attempts for real authority races/stale hints. The target ordinary pre-claim phase is seconds, normally <30s. An explicit contention barrier may wait only until its durable deadline; no human countdown or manual synchronization.
+Maximum 3 fast CREATE attempts for real authority races/stale hints. `CAPABILITY_MISMATCH_PRECLAIM` consumes no authority CREATE attempt, but the worker must advance to the next candidate/lane rather than loop on the same incompatible candidate. The target ordinary pre-claim phase is seconds, normally <30s. An explicit contention barrier may wait only until its durable deadline; no human countdown or manual synchronization.
 
 FORBIDDEN before ownership:
 - listing pin/claim/return/heartbeat directories;
@@ -52,9 +53,9 @@ FORBIDDEN before ownership:
 - rebuilding/refreshing Live;
 - analysing other workers' histories.
 
-The sole bounded pre-PIN exception is an allocator-routed explicit contention fixture: only its supplied entrant/release/timeout paths may be inspected until RELEASE or timeout.
+The sole bounded pre-PIN exceptions are allocator-supplied capability metadata and an allocator-routed explicit contention fixture. Capability fit may use only already-known runtime/tool facts; the contention exception may inspect only its supplied entrant/release/timeout paths until RELEASE or timeout.
 
-If allocator cannot be read, or bounded fast attempts genuinely exhaust all offered execution/role/recovery candidates, write `coordination/workers/no-allocation/<worker_id>.json` with `next_action=STOP_NO_RECOVERY` and STOP. Do not compensate with broad discovery.
+If allocator cannot be read, or bounded fast selection genuinely exhausts all offered execution/role/recovery candidates after definite capability mismatches and bounded races, write `coordination/workers/no-allocation/<worker_id>.json` with `next_action=STOP_NO_RECOVERY` and STOP. Do not compensate with broad discovery.
 
 A worker without PIN/claim owns nothing and creates NO recovery debt. A barrier entrant without PIN also owns nothing.
 
@@ -77,7 +78,7 @@ For normal opportunities:
 For compiled Guide roles:
 `claim_path = coordination/guide/pins/<guide_work_id>/G<generation_6d>.json`
 
-Do not pre-read those directories. CREATE first. The only exception is the exact fixture-local barrier evidence after its entrant CREATE, because quorum/RELEASE is the explicit pre-PIN timing protocol.
+Do not pre-read those directories. CREATE first after the bounded structural/capability checks. The only exception is the exact fixture-local barrier evidence after its entrant CREATE, because quorum/RELEASE is the explicit pre-PIN timing protocol.
 
 After winning an authority PIN/claim, validate exact current state before substantive mutation. If an allocator hint became stale, do no substantive mutation; write a bounded stale-hint abort/return and immediately re-enter fast allocation.
 
@@ -165,10 +166,10 @@ An explicit barrier entrant is not an owner and does not create recovery debt be
 ## SUCCESS
 
 Healthy execution worker:
-`BEACON -> allocator -> EXECUTION CLAIM -> STARTED -> WORK -> RETURN -> REALLOCATE`
+`BEACON -> allocator -> CAPABILITY FIT -> EXECUTION CLAIM -> STARTED -> WORK -> RETURN -> REALLOCATE`
 
 Healthy explicit contention worker:
-`BEACON -> allocator -> BARRIER ENTRANT -> RELEASE -> DETERMINISTIC PIN RACE -> WINNER STARTED / LOSER REALLOCATE`; timeout path is `BARRIER ENTRANT -> TIMEOUT -> NO PIN -> REALLOCATE`.
+`BEACON -> allocator -> CAPABILITY FIT -> BARRIER ENTRANT -> RELEASE -> DETERMINISTIC PIN RACE -> WINNER STARTED / LOSER REALLOCATE`; timeout path is `BARRIER ENTRANT -> TIMEOUT -> NO PIN -> REALLOCATE`.
 
 Healthy role worker:
 `BEACON -> allocator -> ROLE PIN -> GUIDE ACTION -> RECEIPT/SUCCESSORS -> REALLOCATE`
