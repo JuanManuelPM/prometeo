@@ -1,0 +1,34 @@
+name: Jose V11 exact history scan
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/portfolio/tests/jose_v11_exact_history_scan.py'
+      - '.github/workflows/jose-v11-exact-history-scan.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch all refs and tags
+        run: git fetch --all --tags --prune
+      - name: Scan reachable Git blobs for exact V11 SHA-256
+        env:
+          TARGET_SHA256: 0cf9a40fb53e977dccb40c9755d668a3ee922ccd61883f19229bb4a113139a05
+        run: python3 coordination/portfolio/tests/jose_v11_exact_history_scan.py
+      - name: Upload scan evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: jose-v11-exact-history-scan
+          path: jose-v11-history-scan-result.json
+          if-no-files-found: error
+          retention-days: 30
