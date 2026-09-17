@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prometeo.integration-disposition-ledger/v1",
+  "title": "Prometeo Integration Disposition Ledger v1",
+  "description": "Replayable, scope-aware planning consumption over immutable RETURN evidence. This ledger is planning/integration evidence only and never product promotion authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "integration_batch_id", "generation_id", "decision_actor_id", "source_head_cutoff", "created_at", "authority", "selection_policy", "entries"],
+  "properties": {
+    "schema": {"const": "prometeo.integration-disposition-ledger/v1"},
+    "integration_batch_id": {"type": "string", "minLength": 1},
+    "generation_id": {"type": "string", "minLength": 1},
+    "decision_actor_id": {"type": "string", "minLength": 1},
+    "source_head_cutoff": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "authority": {"const": "PLANNING_CONSUMPTION_ONLY_NOT_PRODUCT_PROMOTION"},
+    "selection_policy": {"const": "EVIDENCE_SCOPED_NO_RECENCY_PRIORITY"},
+    "entries": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/entry"}}
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entry_id", "return_ref", "source_content_sha256", "source_worker_instance_id", "source_authority_label", "visibility_state", "scopes"],
+      "properties": {
+        "entry_id": {"type": "string", "minLength": 1},
+        "return_ref": {"type": "string", "minLength": 1},
+        "source_content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_worker_instance_id": {"type": "string", "minLength": 1},
+        "source_authority_label": {"enum": ["CANDIDATE_EVIDENCE_ONLY", "CANDIDATE_STRATEGIC_CRITIQUE_ONLY", "CANONICAL_PLANNING_STATE_WITHIN_SCOPE"]},
+        "visibility_state": {"enum": ["DISPOSITIONED", "PENDING_UNREAD"]},
+        "pending_reason": {"type": "string", "minLength": 1},
+        "scopes": {"type": "array", "items": {"$ref": "#/$defs/scope_disposition"}}
+      }
+    },
+    "scope_disposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope_id", "semantic_target", "disposition", "decision_basis_refs", "effect_authority"],
+      "properties": {
+        "scope_id": {"type": "string", "minLength": 1},
+        "semantic_target": {"type": "string", "minLength": 1},
+        "path_globs": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "disposition": {"enum": ["CONSUMED", "DEFERRED", "CONFLICTED", "REJECTED_WITH_REASON", "NOT_APPLICABLE"]},
+        "reason": {"type": "string", "minLength": 1},
+        "decision_basis_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "conflict_refs": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "effect_authority": {"const": "PLANNING_CONSUMPTION_ONLY_NOT_PRODUCT_PROMOTION"}
+      }
+    }
+  },
+  "x-prometeo-invariants": [
+    "RETURN bytes are immutable; ledger stores only return_ref + source_content_sha256.",
+    "PENDING_UNREAD is explicit and never behaves as CONSUMED.",
+    "DISPOSITIONED entries require one or more explicit scope dispositions.",
+    "Scope IDs are unique within a RETURN entry so partial-scope conflict is representable without whole-return rejection.",
+    "CONFLICTED requires conflict_refs and a reason; REJECTED_WITH_REASON requires a reason.",
+    "CONSUMED cannot be authored by the same worker instance that produced the source RETURN.",
+    "Recency/newest-wins is forbidden; selection_policy is evidence-scoped and non-recency-based.",
+    "No disposition promotes Human Accepted, Current or Served."
+  ]
+}
