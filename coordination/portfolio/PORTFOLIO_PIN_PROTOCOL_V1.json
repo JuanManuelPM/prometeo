@@ -1,14 +1,15 @@
 {
   "schema": "prometeo.portfolio-pin-protocol/v1",
   "status": "CANARY",
-  "purpose": "Give each portfolio job one deterministic create-if-absent collision point per attempt generation so concurrent /wc workers cannot all become execution owners while preserving append-only claims, returns and recovery lineage.",
-  "authority_boundary": "A portfolio pin grants only the bounded candidate execution authority already declared by the selected seed/derived job. It never grants Current, Human Accepted, Served or production /w authority.",
+  "purpose": "Give each portfolio job one deterministic create-if-absent collision point per attempt generation so concurrent /wc workers cannot all become execution owners while preserving append-only claims, collision receipts, returns and recovery lineage.",
+  "authority_boundary": "A portfolio pin grants only the bounded candidate execution authority already declared by the selected seed/derived job. It never grants Current, Human Accepted, Served or production /w authority. Collision receipts never grant execution authority.",
   "paths": {
     "pin_generation": "coordination/portfolio/pins/<job_id>/G<generation_6d>.json",
     "claim_receipt": "coordination/portfolio/claims/<job_id>/<claim_id>.json",
+    "collision_receipt": "coordination/portfolio/collisions/<job_id>/<collision_id>.json",
     "return_receipt": "coordination/portfolio/returns/<job_id>/<return_id>.json"
   },
-  "winner_rule": "For a claimable job, every contender derives the same next generation and atomically CREATEs the exact same pin path. Exactly one create may succeed. Only that pin owner may create the authoritative claim receipt and begin substantive work. A 409/422/create-exists result is a normal lost race: reload and re-enter allocation.",
+  "winner_rule": "For a claimable job, every contender derives the same next generation and atomically CREATEs the exact same pin path. Exactly one create may succeed. Only that pin owner may create the authoritative claim receipt and begin substantive work. A 409/422/create-exists result is a normal lost race: read the winning pin, CREATE an append-only collision receipt, then reload and re-enter allocation.",
   "generation_rule": {
     "initial": "If no pin exists and no active legacy unpinned claim exists, next generation is 1.",
     "active": "If the highest generation pin is unexpired and no terminal return exists, the job is owned and no later generation may be attempted.",
@@ -36,15 +37,32 @@
     "recovery_basis_or_null"
   ],
   "claim_receipt_extension": ["pin_ref", "pin_id", "pin_generation", "predecessor_pin_ref_or_null"],
-  "projection_rule": "Live derives one authority owner from the highest valid pin generation. Before pins exist it derives at most one temporary legacy winner. Extra live claim files are collisions/receipts, not concurrent authority. Expired latest pin without terminal return is STALE; a later valid pin is RECOVERY; terminal return is terminal regardless of old claim receipts.",
-  "collision_receipt_rule": "Losers do not create a second execution claim. The failed host create plus subsequent read of the winning pin is sufficient collision evidence; a worker may persist a bounded BOUNDARY/collision receipt only in its own already-created legacy lane when needed for migration evidence.",
+  "collision_receipt_fields": [
+    "schema=prometeo.portfolio-pin-collision/v1",
+    "collision_id",
+    "job_id",
+    "dedupe_key",
+    "project_id",
+    "worker_id",
+    "observed_at",
+    "attempted_generation",
+    "attempted_pin_ref",
+    "winner_pin_ref",
+    "winner_pin_id_or_null",
+    "winner_worker_id_or_null",
+    "source_head",
+    "host_result=CREATE_EXISTS_OR_CAS_LOST",
+    "next_action=REENTER_ALLOCATION"
+  ],
+  "collision_receipt_rule": "A loser never creates a second execution claim. After the host reports create-exists/CAS-lost, it reads the winning pin and atomically CREATEs its own unique append-only collision receipt under collisions/<job_id>/. The receipt records observed winner identity/generation and REENTER_ALLOCATION, but it cannot grant authority or mutate the winner. Failure to persist a collision receipt never justifies duplicate execution; the winner pin remains authoritative.",
+  "projection_rule": "Live derives one authority owner from the highest valid pin generation. Before pins exist it derives at most one temporary legacy winner. Durable collision receipts are counted separately from execution claims. Extra legacy claim files remain migration collision evidence, not concurrent authority. Expired latest pin without terminal return is STALE; a later valid pin is RECOVERY; terminal return is terminal regardless of old pin/claim/collision receipts.",
   "host_rule": "The primitive MUST be atomic create-if-absent/CAS/transactional uniqueness on the deterministic pin path. Read-then-create on a unique per-worker filename is not exclusive and is forbidden as an authority primitive.",
   "required_canaries": [
-    "2 contenders -> exactly 1 pin winner, 1 loser",
-    "5 contenders -> exactly 1 pin winner, 4 losers",
+    "2 contenders -> exactly 1 pin winner, 1 loser and 1 durable loser collision receipt",
+    "5 contenders -> exactly 1 pin winner, 4 losers and 4 durable loser collision receipts",
     "losers reload and choose a different compatible job when available",
-    "expired generation recovery -> exactly 1 next-generation winner with predecessor lineage",
-    "multiple legacy claims -> exactly 1 temporary legacy owner plus collision count",
+    "expired generation recovery -> exactly 1 next-generation winner with predecessor lineage and loser receipts",
+    "multiple legacy claims -> exactly 1 temporary legacy owner plus migration collision count",
     "terminal return -> no new pin generation"
   ],
   "reconciles": [
