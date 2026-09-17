@@ -1,0 +1,38 @@
+{
+  "schema": "prometeo.portfolio-contention-start-barrier-candidate/v1",
+  "status": "CANDIDATE_NOT_PROMOTED",
+  "purpose": "Coordinate real multi-worker contention canaries so the required number of distinct /wc workers are durably armed before any contender races the deterministic portfolio pin path.",
+  "authority_boundary": "Barrier registration and RELEASE coordinate timing only. They grant no portfolio execution authority, do not replace PORTFOLIO_PIN_PROTOCOL_V1, and cannot imply Current, Human Accepted, Served or production /w authority.",
+  "paths": {
+    "barrier": "coordination/portfolio/contention_barriers/<fixture_id>/BARRIER.json",
+    "entrant": "coordination/portfolio/contention_barriers/<fixture_id>/entrants/<worker_id>.json",
+    "release": "coordination/portfolio/contention_barriers/<fixture_id>/RELEASE.json",
+    "timeout": "coordination/portfolio/contention_barriers/<fixture_id>/timeouts/<worker_id>.json"
+  },
+  "rules": {
+    "barrier_config": "A fixture declares required_contenders, opened_at and deadline_at before workers enter. Barrier config is immutable candidate evidence.",
+    "registration": "Each distinct /wc worker atomically CREATEs exactly one append-only entrant receipt keyed by worker_id. Re-registering the same worker is idempotent and MUST NOT increase quorum.",
+    "release_predicate": "RELEASE is eligible only when the number of distinct entrant worker_ids is >= required_contenders and observed_at is strictly before deadline_at.",
+    "release_race": "Eligible contenders may race atomic CREATE on the single deterministic RELEASE.json path. Exactly one create wins; create-exists readers consume the same release evidence.",
+    "release_authority": "RELEASE grants no execution authority. After release, every entrant still races the exact deterministic PORTFOLIO_PIN_PROTOCOL_V1 generation path. The pin winner may claim; losers create no claim, persist collision receipts and re-enter allocation.",
+    "timeout": "If deadline_at is reached without RELEASE, an entrant creates an append-only timeout receipt, MUST NOT attempt the portfolio pin for that fixture, and re-enters allocation.",
+    "late_release": "A barrier that reaches deadline without RELEASE cannot release late merely because more entrants arrive afterward; use a fresh fixture/barrier generation instead.",
+    "human_timing": "No human synchronization, numbered worker routing or manual countdown is required."
+  },
+  "minimum_receipt_fields": {
+    "entrant": ["schema=prometeo.portfolio-contention-entrant/v1", "fixture_id", "worker_id", "registered_at", "next_action=WAIT_FOR_RELEASE_OR_TIMEOUT", "grants_execution_authority=false"],
+    "release": ["schema=prometeo.portfolio-contention-release/v1", "fixture_id", "released_at", "required_contenders", "entrant_worker_ids", "grants_execution_authority=false", "next_action=RACE_DETERMINISTIC_PIN"],
+    "timeout": ["schema=prometeo.portfolio-contention-timeout/v1", "fixture_id", "worker_id", "observed_at", "next_action=REENTER_ALLOCATION", "pin_attempted=false"]
+  },
+  "tests": [
+    "2 distinct entrants -> one RELEASE creator -> one pin winner + one loser collision receipt",
+    "5 distinct entrants -> one RELEASE creator -> one pin winner + four loser collision receipts",
+    "duplicate registration by one worker does not inflate quorum",
+    "RELEASE itself creates no pin and grants no execution authority",
+    "deadline with insufficient quorum -> no RELEASE, no pin attempt, timeout receipt + REENTER_ALLOCATION"
+  ],
+  "implementation_test": "coordination/portfolio/tests/contention_start_barrier_v1.mjs",
+  "derived_from": "coordination/portfolio/returns/portfolio-exclusive-job-pin-live-race-2-v2/RETURN-wc-20260917T1625-03-gpt56sol-a7f3-20260917T193229Z.json",
+  "created_at": "2026-09-17T19:34:42Z",
+  "non_promotion": "Passing isolated tests is candidate evidence only. Integration into binding worker/portfolio protocols requires an independently authorized verification/integration step."
+}
