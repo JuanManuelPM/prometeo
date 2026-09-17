@@ -91,7 +91,7 @@ must('worker-events', eventProtocol, 'THREE EVENTS ONLY');
 must('worker-events', eventProtocol, 'ROUTED');
 must('worker-events', eventProtocol, 'CLAIM_RESULT');
 must('worker-events', eventProtocol, 'CLOSE');
-must('worker-events', eventProtocol, 'never launch workers to repair missing telemetry');
+mustI('worker-events', eventProtocol, 'never launch workers to repair missing telemetry');
 
 const workerRuntime = read(root, 'scripts/build-worker-runtime.mjs');
 must('worker-runtime', workerRuntime, "schema:'prometeo.worker-runtime/v1'");
@@ -242,7 +242,7 @@ if (site) {
   const pointer = read(site, 'wc/index.html');
   must('public-wc', pointer, 'PROMETEO /wc — CLAIM NOW');
   must('public-wc', pointer, 'CANONICAL HUMAN INVOCATION TO COPY:');
-  must('public-wc', pointer, 'autorizo beacon, PIN/claim y commits reversibles necesarios');
+  must('public-wc', pointer, 'autorizo beacon, eventos de telemetría, PIN/claim y commits reversibles necesarios');
   must('public-wc', pointer, 'Before ownership, do NOT load Guide, Metabolism, page protocols');
   mustI('public-wc', pointer, 'create your beacon, read ONE allocator snapshot, then attempt atomic claim/PIN immediately');
   must('public-wc', pointer, 'READY -> QUEUE_READY -> ROLE_READY -> RECOVERY');
