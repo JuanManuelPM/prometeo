@@ -58,7 +58,7 @@ must('worker-registry', registry, 'Never launch a replacement specifically for a
 
 const guide = read(root, 'g');
 must('guide', guide, '## FAST GUIDE HYDRATION');
-must('guide', guide, 'resolve the human\'s actual message');
+mustI('guide', guide, "human's actual message");
 must('guide', guide, 'DO NOT enumerate every queue, claim, run, return, heartbeat');
 must('guide', guide, 'Prefer compiled/index/current views over N raw directory reads.');
 must('guide', guide, 'If EPOCH and the relevant durable pointers are unchanged');
@@ -79,7 +79,7 @@ must('live-normalizer', normalize, 'superseded_owner_attempts_suppressed');
 
 const runtime = read(root, 'scripts/build-efficiency-snapshot.mjs');
 must('efficiency-runtime', runtime, 'baseline.runtime_baseline_activated_at || baseline.updated_at');
-must('efficiency-runtime', runtime, "status='REGRESSION'");
+must('efficiency-runtime', runtime, "status==='REGRESSION'");
 must('efficiency-runtime', runtime, 'ONE_SYSTEM_BOTTLENECK_NOT_PER_WORKER');
 
 if (site) {
