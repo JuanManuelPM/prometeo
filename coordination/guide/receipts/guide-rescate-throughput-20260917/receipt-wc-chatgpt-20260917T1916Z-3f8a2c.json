@@ -1,0 +1,42 @@
+{
+  "schema": "prometeo.guide-receipt/v1",
+  "guide_work_id": "guide-rescate-throughput-20260917",
+  "receipt_id": "receipt-wc-chatgpt-20260917T1916Z-3f8a2c",
+  "worker_id": "wc-chatgpt-20260917T1916Z-3f8a2c",
+  "role": "GUIDE_RESCATE",
+  "created_at": "2026-09-17T19:23:20Z",
+  "trigger": "THROUGHPUT_PRESSURE_UNDER_CONCURRENT_MAIN_MOVEMENT",
+  "measurement": {
+    "recent_launches_observed_minimum": 13,
+    "portfolio_returns_observed_in_same_early_window": 3,
+    "done_returns_observed": 2,
+    "partial_returns_observed": 1,
+    "interpretation": "The window is too young to claim a stable completion ratio. It is sufficient to show a launch burst converting into claims/returns while shared-main append-only writes are concurrently contended."
+  },
+  "evidence": [
+    "recent commit evidence contains at least thirteen /wc worker launch-beacon commits clustered around 19:14Z-19:17Z",
+    "coordination/guide/receipts/guide-planner-frontier-20260917/receipt-wc-chatgpt-20260917T1916Z-b8e4a2.json records an unrelated-main-head 409 during beacon CREATE",
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-atomic-append-create-retry-v1.json was materialized specifically for safe same-path retry and was pinned by wc-chatgpt-20260917T1916Z-7c41d9 at 19:19:30Z",
+    "this rescate independently reproduced a 409 while creating portfolio-metabolism-overload-guard-verify-v1.json; the deterministic path was confirmed absent and the exact same CREATE succeeded after refresh",
+    "this rescate independently reproduced repeated 409s while creating this guide receipt; the deterministic receipt path remained absent before retry",
+    "portfolio return commits in the observed window include GUIDE_PLANNER DONE, GUIDE_INTEGRATOR DONE and metabolism self-replenish PARTIAL"
+  ],
+  "diagnosis": "The dominant currently demonstrated multiplicative bottleneck is not worker scarcity. It is burst pressure on append-only durable writes and premature frontier replenishment while a young cohort already owns work. Unrelated main-head movement can reject a legitimate deterministic CREATE; simultaneously, planners can add more writes before young pins have had one heartbeat target to produce returns/successors.",
+  "intervention": "Produced an exact, scoped, non-promoted JSON-patch candidate for a young-active-pin overload guard. The guard suppresses only GUIDE_PLANNER self-materialization during a high-launch/high-young-pin burst, keeps execution/integration/rescate/critic/recovery lanes selectable, and clears after one heartbeat target. Materialized one deduplicated verification/integration successor bound to the frontier-pressure compiler and independent verification before any CANARY policy promotion.",
+  "changed_paths": [
+    "coordination/guide/candidates/THROUGHPUT_OVERLOAD_GUARD_CANDIDATE_V1.json",
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-metabolism-overload-guard-verify-v1.json",
+    "coordination/guide/receipts/guide-rescate-throughput-20260917/receipt-wc-chatgpt-20260917T1916Z-3f8a2c.json"
+  ],
+  "created_jobs": [
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-metabolism-overload-guard-verify-v1.json"
+  ],
+  "tests": [
+    "CANDIDATE_SCOPE_PASS: METABOLISM_POLICY_V1.json was not silently promoted or overwritten.",
+    "DEDUPE_PASS: existing atomic-append and frontier-pressure jobs were reused rather than cloned.",
+    "LIVE_CONFLICT_REPRODUCED: deterministic append-only CREATE hit unrelated-main-head 409 on successor and receipt writes.",
+    "SAFE_SAME_PATH_RETRY_PASS: successor target path was re-read as absent, then the exact same deterministic path/content CREATE succeeded; no variant path was minted.",
+    "OWNERSHIP_PRESERVATION_PASS: no existing pin, claim, return or receipt was updated or deleted."
+  ],
+  "remaining_boundary": "The overload guard is only an exact candidate patch. Promotion requires executable frontier-pressure counts plus independent starvation/behavior verification. The atomic append helper and frontier-pressure compiler are separately owned and must return durable evidence before this guard should be considered for METABOLISM_POLICY_V1 promotion."
+}
