@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -48,6 +48,11 @@ if (batchingItem?.required?.batched_unified_candidate_sharding !== true) errors.
 if (batchingItem?.required?.batch_strategy !== 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD') errors.push('baseline: EFF021 batch strategy drift');
 if (batchingItem?.required?.batched_reimpose_lane_priority_forbidden !== true) errors.push('baseline: EFF021 batched workers must not re-impose lane priority');
 if (batchingItem?.required?.unbatched_lane_priority_preserved !== true) errors.push('baseline: EFF021 unbatched lane priority must remain preserved');
+const roleSignalItem = baseline?.items?.find(x=>x.id==='EFF022');
+if (roleSignalItem?.required?.bounded_recent_return_evidence !== true) errors.push('baseline: EFF022 compact Guide signal cable must be true');
+if (roleSignalItem?.required?.allocator_consumes_compact_role_evidence !== true) errors.push('baseline: EFF022 allocator compact evidence consumption must be true');
+if (roleSignalItem?.required?.full_authority_histories_stripped_from_public_projects !== true) errors.push('baseline: EFF022 full authority histories must remain stripped');
+if (roleSignalItem?.required?.collision_pressure_window_minutes !== 30) errors.push('baseline: EFF022 collision pressure window drift');
 
 const wc = read(root, 'wc');
 must('wc', wc, 'CLAIM NOW');
@@ -173,6 +178,7 @@ must('live-workflow', live, 'scripts/build-fast-allocator.mjs');
 must('live-workflow', live, 'scripts/apply-project-coverage.mjs');
 must('live-workflow', live, 'coordination/portfolio/tests/project_coverage_allocator_v1.mjs');
 must('live-workflow', live, 'coordination/portfolio/tests/batched_lane_sharding_v1.mjs');
+must('live-workflow', live, 'coordination/portfolio/tests/role_signal_compaction_v1.mjs');
 must('live-workflow', live, 'node source/scripts/build-fast-allocator.mjs /tmp/feed.json /tmp/efficiency.json /tmp/allocator.json source');
 must('live-workflow', live, 'node source/scripts/apply-project-coverage.mjs /tmp/allocator.json /tmp/feed.json /tmp/allocator.json source');
 must('live-workflow', live, 'live/efficiency.json');
@@ -181,6 +187,9 @@ const allocator = read(root, 'scripts/build-fast-allocator.mjs');
 must('fast-allocator', allocator, "schema: 'prometeo.fast-allocator/v3'");
 must('fast-allocator', allocator, "batch_strategy: 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD'");
 must('fast-allocator', allocator, 'batch_candidates: batchCandidates.slice(0, 40)');
+must('fast-allocator', allocator, 'returnEvidenceRows');
+must('fast-allocator', allocator, 'collisionEvidenceRows');
+must('fast-allocator', allocator, 'collision_pressure_window_minutes');
 must('fast-allocator', allocator, "preferred_order: ['ready', 'queue_ready', 'role_ready', 'recovery']");
 must('fast-allocator', allocator, 'METABOLISM_POLICY_V1.json');
 must('fast-allocator', allocator, 'role_ready');
@@ -203,6 +212,11 @@ must('fast-allocator', allocator, 'fixed_generation_attention');
 must('fast-allocator', allocator, 'loadRecoveryPolicies');
 must('fast-allocator', allocator, "'recovery-policies'");
 mustNot('fast-allocator', allocator, 'portfolio-exclusive-job-pin-live-race-5-v1');
+
+const liveBuilder = read(root, '.github/scripts/build-live-feed.mjs');
+must('live-feed', liveBuilder, 'recent_return_evidence:returns.slice(-3)');
+must('live-feed', liveBuilder, 'recent_collision_evidence:collisions.slice(-3)');
+must('live-feed', liveBuilder, 'p.jobs.map(({returns,pins,claims,collisions,...j})=>j)');
 
 const evidenceIntegrity = read(root, 'scripts/apply-role-evidence-integrity.mjs');
 must('role-evidence-integrity', evidenceIntegrity, 'MISSING_REPO_LOCAL_FRAGMENT');
@@ -245,6 +259,11 @@ for (const field of ['schema','pin_id','guide_work_id','generation','worker_id',
 }
 must('fast-allocator-role-payload', rolePayload, 'role,');
 must('fast-allocator-role-payload', rolePayload, 'trigger,');
+
+const roleSignalTest = read(root, 'coordination/portfolio/tests/role_signal_compaction_v1.mjs');
+must('role-signal-test', roleSignalTest, 'ROLE_SIGNAL_COMPACTION_PASS');
+must('role-signal-test', roleSignalTest, 'recent_return_evidence');
+must('role-signal-test', roleSignalTest, 'recent_collision_evidence');
 
 const batchShardingTest = read(root, 'coordination/portfolio/tests/batched_lane_sharding_v1.mjs');
 must('batch-sharding-test', batchShardingTest, 'BATCHED_UNIFIED_SHARDING_PASS');
