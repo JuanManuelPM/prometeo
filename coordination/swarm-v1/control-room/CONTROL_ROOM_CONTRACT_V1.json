@@ -1,0 +1,53 @@
+{
+  "schema": "prometeo.control-room-contract/v1",
+  "status": "CANDIDATE_IMPLEMENTED_CANARY_TESTED",
+  "owner": "O-SWARM-CONTROL-ROOM-PROJECTION-V1",
+  "producer": "scripts/build-control-room.mjs",
+  "default_output": "dist/control-room/control-room.json",
+  "purpose": "Compile a deterministic read-only view of active roots/surfaces, opportunity lifecycle, workers, returns, blockers, stale risk and useful free worker slots from durable evidence.",
+  "authority": {
+    "class": "DERIVED_READ_ONLY_NO_PROMOTION",
+    "may": [
+      "summarize durable queue/claim/run/return/recovery evidence",
+      "surface inconsistencies and stale time gates",
+      "calculate explicit READY-unclaimed capacity"
+    ],
+    "must_not": [
+      "create Current, Human Accepted or Served authority",
+      "declare dependency satisfaction that is not already evidenced",
+      "declare recovery eligible from elapsed time alone",
+      "invent page/root identities from names",
+      "mutate claims, runs, returns or owner state"
+    ]
+  },
+  "inputs": [
+    "coordination/CONTINUITY_HEAD.json",
+    "every queue referenced by CONTINUITY_HEAD.active_queues",
+    "coordination/opportunities/claims/**/*.json",
+    "coordination/opportunities/runs/**/*.json",
+    "coordination/opportunities/returns/**/*.json",
+    "coordination/opportunities/recovery-claims/**/*.json"
+  ],
+  "projection_semantics": {
+    "READY_UNCLAIMED": "Opportunity is explicitly READY in an active queue and no claim is observed.",
+    "CLAIMED_NOT_STARTED": "Claim exists but no durable run/STARTED evidence is observed.",
+    "WORKING": "Latest run is in an active execution state and its own run has no durable return.",
+    "RETURNED_NOT_TERMINAL": "Return exists for the current run but the run is not terminal.",
+    "DONE": "Latest run is terminal DONE and evidence remains separately visible.",
+    "BLOCKED_DEPENDENCY": "Queue explicitly declares dependency blocking; priority never bypasses it.",
+    "STALE_SUSPECT": "Latest durable run signal is at least the configured suspect threshold old.",
+    "RECOVERY_TIME_GATE_MET": "Configured recovery time threshold is met, but retry safety/authority/current-target/collision proof is still required.",
+    "RECONCILIATION_REQUIRED": "A durable return exists for another attempt while a different run is current; neither attempt is discarded by recency."
+  },
+  "capacity_rule": "useful_free_slots counts only explicit READY_UNCLAIMED opportunities. BLOCKED_DEPENDENCY does not become capacity until a verified readiness source has made it READY.",
+  "clock_rule": "The compiler receives one explicit now/cutoff. Same durable inputs plus the same cutoff must produce the same logical projection.",
+  "consumer_contract": {
+    "live": "May consume summary counts, blockers, stale risk and useful_free_slots as ambient telemetry only.",
+    "universal_worker": "May use the projection to choose where to inspect/assist next, but must still acquire the opportunity's own valid claim before substantive work.",
+    "steward": "May use reconciliation flags as routing evidence, never as an automatic disposition."
+  },
+  "cli": "node scripts/build-control-room.mjs [--root <repo>] [--output <path>] [--now <ISO-8601>]",
+  "test_ref": "tests/control-room-v1.test.mjs",
+  "canary_receipt_ref": "coordination/swarm-v1/control-room/CANARY_RECEIPT_V1.json",
+  "promotion_boundary": "Implementation and canary evidence are candidate capability evidence only. Wiring into Live, allocator or production /w requires the owning integration/verification gates."
+}
