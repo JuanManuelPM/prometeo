@@ -16,7 +16,10 @@
     "replaceable_trigger": 3,
     "partial_loop_trigger": 2,
     "collision_pressure_trigger": 3,
-    "minimum_useful_reproduction_target": 1.2
+    "minimum_useful_reproduction_target": 1.2,
+    "young_active_pin_guard_minimum": 4,
+    "young_active_pin_guard_fraction_of_recent_launches": 0.5,
+    "young_active_pin_guard_age_minutes": 3
   },
   "frontier_target_rule": "target_claimable = clamp(frontier_floor_absolute, ceil(1.5 * distinct_worker_beacons_in_last_10m), frontier_ceiling). This is a planning target, not a quota: never create filler to hit it.",
   "role_selection": [
@@ -46,6 +49,13 @@
       "why": "planning exists to feed production, not replace it"
     }
   ],
+  "overload_guard": {
+    "activation": "distinct_recent_launches >= 8 AND young_active_pins_age_le_3m >= max(4, ceil(0.5 * distinct_recent_launches))",
+    "effect": "Temporarily suppress only self-materialization of GUIDE_PLANNER jobs. Continue consuming existing EXECUTION, VERIFY, RECOVERY, GUIDE_INTEGRATOR, GUIDE_RESCATE and GUIDE_CRITIC work. Do not stop a worker merely because the guard is active.",
+    "exit": "Guard clears when the activation predicate becomes false or when the oldest counted young pin exceeds 3 minutes and a fresh durable state reload has occurred.",
+    "reason": "Give the current cohort one heartbeat target to convert ownership into returns/successors before replenishing frontier and adding more append-only writes.",
+    "truth_boundary": "This is an admission/routing guard, not evidence that concurrency itself is harmful; it must be verified against compiled durable signals before promotion."
+  },
   "self_materializing_guide_jobs": {
     "enabled": true,
     "project_id": "prometeo-autonomous-growth",
@@ -83,7 +93,8 @@
       "Do not vary fingerprints by worker_id, current time, chat id or random salt.",
       "Do not create jobs whose only output is more analysis.",
       "A Planner may create 1-7 grounded successors, but fewer is correct when evidence supports fewer.",
-      "A guide job should not self-reproduce merely to keep a role alive. New guide work requires a materially changed trigger/evidence set or an explicit retryable residual boundary."
+      "A guide job should not self-reproduce merely to keep a role alive. New guide work requires a materially changed trigger/evidence set or an explicit retryable residual boundary.",
+      "When overload_guard is active, GUIDE_PLANNER self-materialization is suppressed until the guard clears; existing grounded planner jobs remain claimable and no execution/integration/rescate/critic lane is suppressed."
     ]
   },
   "guide_done_contract": {
