@@ -1,0 +1,69 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-5c3039ccc113-portfolio-claim-race",
+  "fingerprint": "pdf-5c3039ccc113ce918001e7df8815d34e",
+  "created_at": "2026-09-17T14:50:45-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T1445-0300-sol56-portfolio-race",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "artifact": "portfolio claim acquisition protocol",
+    "consumer": "universal /wc portfolio fallback workers",
+    "subsystem": "portfolio-claim-fabric"
+  },
+  "title": "Make portfolio claims actually exclusive",
+  "problem": "The portfolio contract says active claims deduplicate execution, but claim files are created under worker-unique names. Two workers can therefore observe no claim and both successfully create different files for the same job/dedupe key. This happened on portfolio-tts-find-existing-tool: CLAIM-WC-SOL-20260917T174730Z.json and CLAIM-WC-20260917T144753-0300-SOL56.json both grant overlapping active claims for dedupe_key tool:tts:recover-existing:v1.",
+  "mission": "Harden portfolio acquisition so execution authority is won through one deterministic create-if-absent pin per job/dedupe key, while preserving append-only per-attempt evidence and terminal-return dedupe. Add a race canary proving exactly one winner under concurrent acquisition.",
+  "evidence_refs": [
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/portfolio/claims/portfolio-tts-find-existing-tool/CLAIM-WC-SOL-20260917T174730Z.json",
+    "coordination/portfolio/claims/portfolio-tts-find-existing-tool/CLAIM-WC-20260917T144753-0300-SOL56.json",
+    "coordination/opportunities/proposals/P-04df793d0713-e1aaac9c.json"
+  ],
+  "acceptance": [
+    "A deterministic exclusive pin path is derived from portfolio job_id or dedupe_key and acquired with create-if-absent before substantive work.",
+    "A two-worker same-job race yields exactly one execution-authority winner even when both start from the same observed state.",
+    "The loser persists append-only attempt evidence and immediately reallocates instead of working the duplicate job.",
+    "Existing immutable historical claims are not deleted or rewritten.",
+    "Terminal return for the dedupe_key still blocks replay after claim expiry.",
+    "Portfolio Worker Contract and /wc bootstrap describe the same acquisition law, with an automated fixture/canary preventing regression."
+  ],
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/portfolio/PORTFOLIO.json",
+    "coordination/portfolio/claims/**",
+    "coordination/portfolio/returns/**",
+    "coordination/canary-evidence/SCHEMA_V1.json",
+    "scripts/universal-worker-allocator.mjs",
+    "wc"
+  ],
+  "candidate_write_scope": [
+    "scripts/portfolio-claim-lib.mjs",
+    "tests/portfolio-claim-race-v1.test.mjs",
+    "tests/fixtures/portfolio-claim-race/**",
+    "coordination/portfolio/claim-attempts/**",
+    "candidate contract/bootstrap patch",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "expected_compounding_value": "HIGH: every surplus /wc worker uses this gate; fixing it prevents duplicate project work and makes the new portfolio fallback measurable under concurrency.",
+  "falsification": [
+    "Two workers can still acquire execution authority for the same dedupe_key by creating different claim filenames.",
+    "The proposed pin serializes unrelated portfolio jobs.",
+    "A loser can overwrite or revoke the winner.",
+    "Historical claim evidence must be deleted to make the mechanism work.",
+    "Terminal returns can be replayed after the pin expires."
+  ],
+  "dedup_note": "The existing live-claim-attempt receipt proposal addresses durability of race outcomes for the universal claim fabric; this proposal is narrower and distinct: portfolio acquisition currently permits multiple successful authority-bearing claims for one dedupe_key because exclusivity is not anchored to a single path.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "PROPOSAL_DOES_NOT_SELF_AUTHORIZE_SHARED_CONTRACT_MUTATION"
+  ]
+}
