@@ -1,0 +1,87 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-9909990bfe08-472e7e69",
+  "fingerprint": "pdf-9909990bfe08b0940ff5a10d4d97215b",
+  "created_at": "2026-09-17T09:53:52-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0953-0300-gpt56sol-recovery-fence-discovery",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "title": "One-winner recovery generation fence from live collision evidence",
+  "target": {
+    "output": "one-winner recovery generation fence + collision-loss receipt",
+    "owner": "O-SWARM-LEASE-RETRY-BUILD-V1 follow-up / steward disposition",
+    "privacy": "public_coordination_only",
+    "scope": "stale recovery claim/run allocation for one opportunity generation"
+  },
+  "problem": "The recovery critic already identified F3_RECOVERY_GENERATION_NO_FENCE. At 2026-09-17 09:51 -03 the live Page Thread Bridge gate reproduced it: at least two distinct append-only recovery claims and two R2 run records appeared for the same stale predecessor generation. The current recovery protocol preserves history but does not provide atomic one-winner execution ownership across distinct recovery attempt IDs.",
+  "mission": "Repair stale-recovery allocation so one stale generation has exactly one mutable execution owner without erasing append-only evidence. Reuse the existing lease/retry owner rather than creating a competing implementation. Losing contenders must persist an auditable collision/loss receipt and re-enter allocation. Keep late original/recovery returns reconcilable by the steward; do not introduce newest-wins.",
+  "evidence_refs": [
+    "coordination/opportunities/returns/O-SWARM-CRITIC-RECOVERY-V1/RUN-SWARM-RECOVERY-20260917T0914-sol56.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/REC-O-SWARM-PAGE-THREAD-BRIDGE-V1-20260917T0951-SOL56-R2.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/REC-O-SWARM-PAGE-THREAD-BRIDGE-V1-20260917T0951-SOL56R2.json",
+    "coordination/opportunities/runs/O-SWARM-PAGE-THREAD-BRIDGE-V1/RUN-O-SWARM-PAGE-THREAD-BRIDGE-V1-REC-20260917T0951-SOL56-R2.json",
+    "coordination/opportunities/runs/O-SWARM-PAGE-THREAD-BRIDGE-V1/RUN-O-SWARM-PAGE-THREAD-BRIDGE-V1-REC2-20260917T0951-SOL56.json",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+  ],
+  "acceptance": [
+    "derive a deterministic stale_generation_id from opportunity + last accepted durable signal/predecessor lineage",
+    "atomically fence mutable recovery execution so concurrent contenders for one stale_generation_id produce exactly one winner",
+    "persist loser collision receipts instead of silently disappearing or starting overlapping runs",
+    "represent overlap evidence as proven-none / proven-active / unknown and fail closed for mutable takeover when unknown",
+    "replay the 2026-09-17 Page Thread Bridge collision as a regression fixture and prove only one contender receives mutable execution authority",
+    "preserve all original/recovery claims, runs and late returns as immutable evidence and require explicit steward reconciliation"
+  ],
+  "dependencies": [
+    "O-SWARM-LEASE-RETRY-BUILD-V1 existing implementation and follow-up ownership",
+    "O-SWARM-CRITIC-RECOVERY-V1 F3/F2 findings"
+  ],
+  "candidate_read_scope": [
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**",
+    "coordination/opportunities/returns/O-SWARM-CRITIC-RECOVERY-V1/**"
+  ],
+  "candidate_write_scope": [
+    "follow-up candidate paths owned by O-SWARM-LEASE-RETRY-BUILD-V1 or a steward-generated successor opportunity",
+    "regression fixtures/tests for recovery fencing",
+    "own claim/run/return"
+  ],
+  "value_signals": {
+    "unblock_value": "High: Page Thread Bridge is a shared dependency of all four S2 local integration lanes, and duplicate recoveries add write-collision risk exactly at a gate unlocker.",
+    "compounding_value": "High: one-winner recovery fencing applies to every future stale opportunity and reduces duplicate work, unsafe overlap and human arbitration.",
+    "regression_prevention": "High: converts an already-predicted critic failure into a concrete reproducible regression case from live canary evidence."
+  },
+  "risk": {
+    "level": "HIGH_IF_UNFENCED",
+    "failure_modes": [
+      "two recovery contenders mutate the same candidate scope",
+      "two terminal returns race and force avoidable reconciliation",
+      "a later contender mistakes missing overlap proof for proven absence",
+      "append-only attempt IDs are confused with exclusive execution ownership"
+    ]
+  },
+  "fresh_critic_required": true,
+  "falsification": {
+    "fail_if": [
+      "two concurrent contenders for the same stale_generation_id can both enter mutable execution",
+      "the design deletes or overwrites prior recovery evidence",
+      "unknown overlap is treated as no overlap",
+      "a loser can seed a normal STARTED mutable run after losing the fence",
+      "late original/recovery returns are auto-discarded by recency"
+    ],
+    "pass_if": "A concurrent replay of the captured Page Thread Bridge recovery race yields exactly one mutable execution winner, durable loser collision receipts, preserved historical evidence and deterministic steward reconciliation inputs."
+  },
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_COMPETING_IMPLEMENTATION_FROM_THIS_DISCOVERY_WORKER",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "OWNER_REMAINS_LEASE_RETRY_FOLLOWUP_OR_STEWARD_GENERATED_SUCCESSOR"
+  ]
+}
