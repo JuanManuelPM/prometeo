@@ -1,0 +1,84 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-a2141d0cd45e-9fd7e3a1",
+  "fingerprint": "pdf-a2141d0cd45ed3e23bdf7ade7dc97065",
+  "created_at": "2026-09-17T09:57:10-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0947-0300-sol56-recovery-race-9fd7",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "artifact": "stale recovery generation fence",
+    "consumer": "stale recovery allocator and 50-worker canary verifier",
+    "subsystem": "recovery-claim-fabric"
+  },
+  "problem": "A live canary incident on O-SWARM-KERNEL-IMPLEMENT-V1 produced two overlapping append-only recovery claims within roughly one minute. The later claim recorded overlapping_nonstale_recovery_found=false even though a prior nonstale recovery claim already existed. The earlier recovery critic had independently predicted this exact class as F3_RECOVERY_GENERATION_NO_FENCE. This is now observed falsification evidence, not only a theoretical risk: stale recovery has no atomically enforced per-opportunity active-generation fence, so concurrent recoverers can both become active.",
+  "acceptance": [
+    "A live two-worker recovery race for one stale opportunity yields at most one active nonstale recovery generation and the loser deterministically observes the winner without overwriting.",
+    "Recovery eligibility rechecks active recovery claims under the latest host head immediately before create and create-if-absent fencing prevents a second active generation under concurrent starts.",
+    "Existing append-only recovery evidence and no-overwrite semantics remain preserved; stale timeout/retry rules and unrelated opportunities are unchanged.",
+    "A regression test reproduces the 2026-09-17 kernel double-recovery incident and fails without the fence and passes with it."
+  ],
+  "title": "Fence concurrent stale-recovery generations",
+  "mission": "Design, implement and canary an atomic per-opportunity recovery-generation fence so concurrent stale-recovery workers cannot both acquire active recovery authority, while preserving append-only recovery evidence, deterministic loser reconciliation and the existing stale/retry policy.",
+  "evidence_refs": [
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0951-SOL56B.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0952-SOL56-R2.json",
+    "coordination/opportunities/returns/O-SWARM-CRITIC-RECOVERY-V1/RUN-SWARM-RECOVERY-20260917T0914-sol56.json",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/swarm-v1/discovery/DISCOVERY_DEDUP_CONTRACT_V1.json"
+  ],
+  "value_signals": {
+    "goal_relevance": {
+      "reason": "The universal-worker canary depends on safe stale recovery under many concurrent disposable workers; duplicate active recoverers directly violate useful parallelism and scoped mutation safety.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+    },
+    "information_gain": {
+      "reason": "The observed kernel incident converts the recovery critic's previously hypothetical generation-fence failure into concrete live canary evidence with two durable conflicting recovery claims.",
+      "evidence_ref": "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0952-SOL56-R2.json"
+    },
+    "regression_prevention": {
+      "reason": "A deterministic concurrent-start test can turn this incident into an invariant: at most one active recovery generation per opportunity, with loser reconciliation preserved durably.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-CRITIC-RECOVERY-V1/RUN-SWARM-RECOVERY-20260917T0914-sol56.json"
+    },
+    "human_friction_reduction": {
+      "reason": "Preventing duplicate recoverers avoids requiring the human or guide to notice and arbitrate overlapping recovery attempts during mass /wc launches.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/FOCUS.json"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**",
+    "coordination/swarm-v1/leases/**",
+    "scripts/universal-worker-allocator.mjs"
+  ],
+  "candidate_write_scope": [
+    "coordination/swarm-v1/leases/**",
+    "scripts/universal-worker-allocator.mjs",
+    "tests/recovery-generation-fence-v1.test.mjs",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": [
+    "Two concurrent eligible recovery workers can both acquire active recovery authority for the same opportunity.",
+    "A loser can overwrite, supersede or mutate the winner's recovery claim rather than reconciling append-only.",
+    "The generation fence prevents recovery of a genuinely stale opportunity when no active nonstale recovery generation exists.",
+    "The repair changes the documented 20-minute suspicion or 30-minute recovery-eligibility thresholds without separate authority.",
+    "The regression test does not reproduce the durable 2026-09-17 kernel double-recovery shape before the repair."
+  ],
+  "dedup_note": "The recovery critic already identified F3_RECOVERY_GENERATION_NO_FENCE, so this proposal does not duplicate that analysis. Its new durable value is the live 2026-09-17 kernel incident proving that two nonstale recovery generations were actually claimed and that the later worker failed to observe the earlier one. No inspected current proposal used this canonical root/target/problem/acceptance identity.",
+  "source_head_observed": "eab1ba3772be1f01c404e452b023c67116dfd04a",
+  "epoch_observed": "P3-b2c34118b4bf",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
