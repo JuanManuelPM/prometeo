@@ -29,9 +29,10 @@ def main():
     text=one(text,css,css+"\n.puck[data-change-unread=\"1\"]::after{content:\"\";position:absolute;right:3px;top:3px;width:8px;height:8px;border-radius:50%;background:var(--surface);box-shadow:0 0 0 2px var(--face);pointer-events:none}",'unread css')
 
     host="window.__PROMETEO_UNIVERSAL_HOST__=Object.freeze({schema:'prometeo.universal-host/v1',version:'v5',pageHost:'pageHost'});"
-    enhanced="""window.__PROMETEO_UNIVERSAL_HOST__=Object.freeze({
+    enhanced="""function hostedSemanticContext(){try{return pageHost.contentWindow?.PrometeoStudyV18Context?.capture?.()||null}catch{return null}}
+window.__PROMETEO_UNIVERSAL_HOST__=Object.freeze({
   schema:'prometeo.universal-host/v2',version:'v5',pageHost:'pageHost',
-  getPage:()=>currentPage?{id:currentPage.id,title:currentPage.title||currentPage.id,href:currentPage.public_url||currentPage.href||null,served_identity:null}:{id:'prometeo-universal-shell-v5',title:'Prometeo',href:location.href,served_identity:null},
+  getPage:()=>{const semantic_context=hostedSemanticContext();return currentPage?{id:currentPage.id,title:currentPage.title||currentPage.id,href:currentPage.public_url||currentPage.href||null,served_identity:null,semantic_context}:{id:'prometeo-universal-shell-v5',title:'Prometeo',href:location.href,served_identity:null,semantic_context}},
   routeUrl:(pageId,workItemId=null)=>{const u=new URL('/prometeo/',location.origin);if(pageId)u.searchParams.set('page',String(pageId));if(workItemId)u.searchParams.set('changes',String(workItemId));return u.href},
   navigatePage:async(pageId,{push=true}={})=>{await ensureCatalog();const p=pageRegistry.get(String(pageId||''));if(!p)return false;loadPage(p,push);return true},
   previewUrl:url=>{if(!url)return false;hideNativeSurface();pageHost.src=String(url);return true},
