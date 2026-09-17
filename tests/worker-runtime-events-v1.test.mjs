@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { compileRuntime, parseEventComment } from '../scripts/build-worker-runtime.mjs';
 
 const c=(id,created_at,payload)=>({id,created_at,html_url:`https://example/${id}`,body:`PROMETEO_EVENT ${JSON.stringify(payload)}`});
@@ -41,5 +44,24 @@ const synth=compileRuntime([
   c(9,'2026-09-17T22:03:00Z',{schema:'prometeo.worker-event/v1',batch_id:'SYNTH-X',expected_workers:1,worker_id:'sx',event:'ROUTED',lane:'ready',candidate_id:'x'})
 ],null,'2026-09-17T22:03:01Z');
 assert.equal(synth.current_batch,null);
+
+const root=fs.mkdtempSync(path.join(os.tmpdir(),'prometeo-runtime-'));
+const beaconDir=path.join(root,'coordination','workers','beacons');
+fs.mkdirSync(beaconDir,{recursive:true});
+fs.writeFileSync(path.join(beaconDir,'wb.json'),JSON.stringify({
+  schema:'prometeo.worker-beacon/v1',
+  worker_id:'wb',
+  launched_at:'2026-09-17T22:04:00Z',
+  batch_id:'WAVE-BEACON-ONLY',
+  expected_workers:2
+}));
+const beaconOnly=compileRuntime([],root,'2026-09-17T22:04:10Z');
+assert.equal(beaconOnly.current_batch,'WAVE-BEACON-ONLY');
+assert.equal(beaconOnly.batches[0].summary.observed,1);
+assert.equal(beaconOnly.batches[0].summary.beaconed,1);
+assert.equal(beaconOnly.batches[0].summary.telemetry_observed,0);
+assert.equal(beaconOnly.batches[0].summary.missing_expected,1);
+assert.equal(beaconOnly.batches[0].workers[0].state,'BEACONED');
+fs.rmSync(root,{recursive:true,force:true});
 
 console.log('WORKER_RUNTIME_EVENTS_PASS');
