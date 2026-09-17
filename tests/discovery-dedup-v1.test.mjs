@@ -50,6 +50,29 @@ test('material identity changes do not false-merge', () => {
   assert.notEqual(discoveryFingerprint({...base, acceptance: ['Different outcome']}), original);
 });
 
+test('structured target preserves owner/scope/privacy distinctions without adding a fifth fingerprint field', () => {
+  const a = discoveryFingerprint({...base, target: {
+    domain: 'Control Room',
+    owner: 'control-plane',
+    write_scope: ['coordination/control/**'],
+    privacy_class: 'PUBLIC_COORDINATION_ONLY'
+  }});
+  const sameReordered = discoveryFingerprint({...base, target: {
+    privacy_class: 'public_coordination_only',
+    write_scope: ['coordination/control/**'],
+    owner: 'CONTROL-PLANE',
+    domain: 'control room'
+  }});
+  const differentOwner = discoveryFingerprint({...base, target: {
+    domain: 'Control Room',
+    owner: 'another-owner',
+    write_scope: ['coordination/control/**'],
+    privacy_class: 'PUBLIC_COORDINATION_ONLY'
+  }});
+  assert.equal(a, sameReordered);
+  assert.notEqual(a, differentOwner);
+});
+
 test('canonical identity includes only the deterministic root/target/problem/acceptance key', () => {
   assert.deepEqual(Object.keys(canonicalDiscoveryIdentity(base)), ['root', 'target', 'problem', 'acceptance']);
 });
