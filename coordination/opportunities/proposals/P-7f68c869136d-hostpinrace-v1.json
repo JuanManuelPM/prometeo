@@ -1,0 +1,89 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-7f68c869136d-hostpinrace-v1",
+  "fingerprint": "pdf-7f68c869136d1d7944d5b351099b70ad",
+  "created_at": "2026-09-17T10:40:37-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T1040-0300-gpt56sol-hostpin7f68",
+    "opportunity_id": null,
+    "run_id": null,
+    "epoch_observed": "P3-c3c2d7a523a6"
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "output": "repository-host discovery dedup pin race canary evidence",
+    "owner": "chat-object-prometeo-chat-control-main",
+    "privacy": "public_coordination_only",
+    "scope": "coordination/opportunities/proposal-claims/"
+  },
+  "problem": "The discovery dedup implementation had only proved atomic create-if-absent with a local filesystem reference implementation. Repository-host behavior on the canonical GitHub proposal-claim path remained explicitly unexercised.",
+  "acceptance": [
+    "two duplicate create-if-absent attempts for the same fingerprint yield exactly one durable repository pin",
+    "the losing attempt receives collision/error evidence and does not overwrite winner bytes",
+    "winner file bytes remain unchanged after the losing attempt",
+    "no queue/current/human accepted/served authority is promoted"
+  ],
+  "title": "Repository-host discovery proposal-pin canary",
+  "mission": "Exercise the canonical GitHub proposal-claim path with duplicate create attempts, preserve the winner, and bound what remains unproven before calling the repository-host race canary complete.",
+  "evidence_refs": [
+    "coordination/opportunities/returns/O-SWARM-DISCOVERY-DEDUP-BUILD-V1/RUN-O-SWARM-DISCOVERY-DEDUP-BUILD-V1-20260917T0045-SOL56-7C4B.json",
+    "coordination/swarm-v1/discovery/DISCOVERY_DEDUP_CONTRACT_V1.json",
+    "scripts/discovery-dedup-lib.mjs",
+    "coordination/opportunities/proposal-claims/pdf-7f68c869136d1d7944d5b351099b70ad.json"
+  ],
+  "value_signals": {
+    "information_gain": {
+      "reason": "Closes the host-specific create-if-absent/no-overwrite uncertainty for sequential duplicate attempts on the real canonical GitHub path.",
+      "evidence_ref": "coordination/opportunities/proposal-claims/pdf-7f68c869136d1d7944d5b351099b70ad.json"
+    },
+    "regression_prevention": {
+      "reason": "Makes it harder to mistake local filesystem atomicity for repository-host race evidence and preserves a precise remaining concurrency boundary.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-DISCOVERY-DEDUP-BUILD-V1/RUN-O-SWARM-DISCOVERY-DEDUP-BUILD-V1-20260917T0045-SOL56-7C4B.json"
+    }
+  },
+  "dependency_ids": ["O-SWARM-DISCOVERY-DEDUP-BUILD-V1"],
+  "candidate_read_scope": [
+    "coordination/swarm-v1/discovery/DISCOVERY_DEDUP_CONTRACT_V1.json",
+    "scripts/discovery-dedup-lib.mjs",
+    "coordination/opportunities/proposal-claims/"
+  ],
+  "candidate_write_scope": [
+    "coordination/opportunities/proposal-claims/pdf-7f68c869136d1d7944d5b351099b70ad.json",
+    "coordination/opportunities/proposals/P-7f68c869136d-hostpinrace-v1.json"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "canary_observation": {
+    "status": "PARTIAL_PASS_HOST_SEQUENTIAL_CREATE_IF_ABSENT",
+    "winner_create": {
+      "result": "CREATED",
+      "commit_sha": "14a4c1fd5f6a644aa7e79ada8a7003c735d04dc0",
+      "winner_blob_sha_after_duplicate_attempt": "90a1724adb60499be492f2f716ea241ce678e099"
+    },
+    "duplicate_create": {
+      "result": "REJECTED_422_EXISTING_PATH_REQUIRES_SHA_FOR_UPDATE",
+      "mutation_performed": false
+    },
+    "proven": [
+      "canonical repository path accepts one create-if-absent winner",
+      "later create without update SHA cannot overwrite the winner",
+      "winner bytes remain the original candidate pin",
+      "candidate path confers no execution or promotion authority"
+    ],
+    "not_yet_proven": ["true simultaneous/concurrent duplicate create race against the same absent path"]
+  },
+  "falsification": {
+    "claim_to_test": "GitHub repository create-if-absent on the canonical proposal-claim path preserves one winner without silent overwrite under duplicate attempts.",
+    "disconfirming_evidence": "A second create succeeds as a create, silently replaces winner bytes, or two truly concurrent creates both establish distinct winner states for one fingerprint.",
+    "test_or_observation": "One create succeeded; a second create to the same path without SHA was rejected by the host; winner was fetched afterward and retained original bytes. A separate concurrent canary is still required for simultaneous race semantics.",
+    "pass_condition": "Exactly one durable winner and every losing create fails without changing winner bytes.",
+    "fail_condition": "Multiple winners or any silent overwrite.",
+    "stop_or_boundary_condition": "Do not promote the race canary to full PASS until simultaneous create attempts are exercised or an equivalent host-level atomicity guarantee is independently verified."
+  },
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
