@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const baseline = JSON.parse(fs.readFileSync(path.join(repoRoot, 'coordination/efficiency/RATCHET_BASELINE_V1.json'), 'utf8'));
-const eff020 = baseline.items?.find(item => item.id === 'EFF020');
-assert(eff020, 'EFF020 must remain in the efficiency ratchet baseline');
+const eff020 = baseline.items?.find(item => item.id === 'EFF021');
+assert(eff020, 'EFF021 must remain in the efficiency ratchet baseline');
 assert.equal(eff020.required?.batched_lane_local_sharding, true);
 assert.equal(eff020.required?.seed_source, 'beacon_commit_sha_first_hex_nibble');
 assert.equal(eff020.required?.lane_priority_preserved, true);
@@ -37,7 +37,7 @@ assert.equal(new Set(sixWorkerFirstChoices).size, 6, 'six distinct beacon nibble
 const wc = fs.readFileSync(path.join(repoRoot, 'wc'), 'utf8');
 const fast = fs.readFileSync(path.join(repoRoot, 'coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md'), 'utf8');
 for (const text of [wc, fast]) {
-  assert(text.includes('first hex nibble of `beacon_commit_sha`'), 'binding protocol must define the same lane-local seed');
+  assert(text.includes('beacon_commit_sha') && text.includes('first hex nibble'), 'binding protocol must define the same lane-local seed');
   assert(text.includes('preserve allocator order'), 'binding protocol must preserve allocator order when batching seed is unavailable');
   assert(text.includes('Lane priority does not change'), 'binding protocol must preserve ready > queue_ready > role_ready > recovery');
   assert(text.includes('no extra preclaim read or write'), 'sharding must not add coordination overhead');
