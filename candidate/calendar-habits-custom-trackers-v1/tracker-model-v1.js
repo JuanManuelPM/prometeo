@@ -8,11 +8,11 @@
   const SCHEMA='prometeo.habit-tracker-config/v1';
   const STORAGE_KEY='prometeo-habit-tracker-config-v1';
   const KINDS=new Set(['avoid','negative','positive']);
-  const GROUP_LABELS={avoid:'Evitar',routine:'Rutina',extras:'Extras',other:'Otros'};
+  const GROUP_LABELS={addictions:'Adicciones',avoid:'Evitar',routine:'Rutina',extras:'Extras',other:'Otros'};
   const LEGACY={
-    youtube:{label:'YouTube',group:'avoid',kind:'avoid'},
-    weed:{label:'Marihuana',group:'avoid',kind:'avoid'},
-    smoking:{label:'Cigarrillos',group:'avoid',kind:'avoid'},
+    youtube:{label:'YouTube',group:'addictions',kind:'avoid'},
+    weed:{label:'Marihuana',group:'addictions',kind:'avoid'},
+    smoking:{label:'Cigarrillos',group:'addictions',kind:'avoid'},
     food:{label:'Comer mal',group:'routine',kind:'negative'},
     sleep:{label:'Dormir mal',group:'routine',kind:'negative'},
     meds:{label:'Pastillas mal',group:'routine',kind:'negative'},
