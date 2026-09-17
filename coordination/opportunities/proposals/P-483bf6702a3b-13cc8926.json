@@ -1,0 +1,77 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-483bf6702a3b-13cc8926",
+  "fingerprint": "pdf-483bf6702a3ba63c7581556554fcb7f4",
+  "created_at": "2026-09-17T10:02:39-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T100239-0300-sol56-surplus-recovery-arb-7b31",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "mechanism": "recovery-claim-arbitration",
+    "subsystem": "stale-recovery"
+  },
+  "problem": "Concurrent stale recoveries can append multiple recovery claims for the same opportunity before seeing each other, producing duplicate recovery work and collision-reconciliation overhead.",
+  "acceptance": [
+    "At most one active recovery attempt per opportunity and recovery generation proceeds under simultaneous launches.",
+    "Losers persist a collision receipt and do not start substantive recovery work.",
+    "Late original returns and late recovery returns remain immutable evidence and are reconciled.",
+    "No Current, Human Accepted, Served or global-authority promotion."
+  ],
+  "title": "Single-winner recovery arbitration canary",
+  "mission": "Build and falsify a recovery-claim arbitration layer that turns simultaneous stale-takeover attempts into exactly one substantive recovery plus append-only loser collision receipts, while preserving late original/recovery evidence and the existing stale thresholds/authority boundaries.",
+  "evidence_refs": [
+    "coordination/opportunities/runs/O-SWARM-KERNEL-IMPLEMENT-V1/RUN-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0954-SOL56B.json",
+    "coordination/opportunities/recovery-claims/O-SURFACE-PROMETEO_MOBILE-DISCOVER-V1/",
+    "coordination/opportunities/runs/O-SURFACE-FACULTAD_DIGITAL-INTENT-V1/",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "scripts/swarm-lease-lib.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs"
+  ],
+  "value_signals": {
+    "incident_repair": {
+      "reason": "The live broad /wc wave produced multiple simultaneous recovery claims on the same stale opportunities; kernel recovery had to reconcile three competing recovery runs, while mobile discover and Facultad intent each acquired multiple near-simultaneous recovery attempts.",
+      "evidence_ref": "coordination/opportunities/runs/O-SWARM-KERNEL-IMPLEMENT-V1/RUN-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0954-SOL56B.json"
+    },
+    "unblock_value": {
+      "reason": "Reducing recovery duplication preserves worker capacity for newly-ready successor work and lowers collision reconciliation overhead during high-parallelism waves.",
+      "evidence_ref": "coordination/opportunities/recovery-claims/O-SURFACE-PROMETEO_MOBILE-DISCOVER-V1/"
+    },
+    "regression_prevention": {
+      "reason": "A simultaneous-launch falsifier can detect regressions where append-only recovery evidence remains safe but multiple workers still perform the same substantive recovery.",
+      "evidence_ref": "tests/swarm-lease-retry-v1.test.mjs"
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-LEASE-RETRY-BUILD-V1"
+  ],
+  "candidate_read_scope": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "scripts/swarm-lease-lib.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**"
+  ],
+  "candidate_write_scope": [
+    "scripts/recovery-claim-arbitration.mjs",
+    "tests/recovery-claim-arbitration-v1.test.mjs",
+    "coordination/swarm-v1/recovery-arbitration/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "falsification": {
+    "simultaneous_attempts": 20,
+    "pass": "Exactly one attempt receives substantive-recovery authority; every loser emits an append-only collision receipt without executing target recovery; a late original RETURN remains preserved and reconciled.",
+    "fail": "Two or more attempts perform substantive recovery, any loser overwrites evidence, or a late original/recovery RETURN is discarded."
+  },
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
