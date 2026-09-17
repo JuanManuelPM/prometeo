@@ -1,0 +1,76 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-0e091cad57e0-c9e2",
+  "fingerprint": "pdf-0e091cad57e032020d2265faf244539e",
+  "created_at": "2026-09-17T19:31:40Z",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-20260917T1624-03-gpt56sol-c9e2",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-autonomous-growth",
+  "target": {
+    "artifact": "portfolio allocator terminal-return preflight guard",
+    "consumer": "/wc universal workers",
+    "subsystem": "portfolio-fallback-allocation"
+  },
+  "title": "Reject terminal portfolio work before PIN/claim",
+  "problem": "Portfolio fallback allocation can waste a worker cycle by checking claim/PIN availability before terminal returns. The live-compounding-metrics lane demonstrated the failure mode: a later attempt found no useful ownership boundary, but a prior DONE return already closed the dedupe key, so the duplicate attempt was recorded SUPERSEDED. Terminality should dominate ownership inspection.",
+  "mission": "Add a deterministic read-only portfolio preflight that resolves terminal return state for exact job_id and dedupe_key aliases before any PIN or claim attempt, while preserving existing deterministic priority and recovery rules for genuinely open work.",
+  "acceptance": [
+    "For each candidate row, exact job_id and dedupe_key aliases are checked for terminal RETURN evidence before PIN or legacy-claim ownership logic.",
+    "A terminal DONE/SUPERSEDED-equivalent closure is rejected without creating a new PIN, claim or recovery generation.",
+    "BOUNDARY or other explicitly nonterminal returns do not falsely close the job.",
+    "Fixtures cover terminal-without-pin, open-without-pin, nonterminal-return, and duplicate-dedupe aliases.",
+    "The result is deterministic across repeated runs against the same repository snapshot.",
+    "No Current, Catalog, Human Accepted, Served or production authority is changed."
+  ],
+  "evidence_refs": [
+    "coordination/portfolio/returns/portfolio-live-compounding-metrics/RETURN-WC-GPT56SOL-20260917T175323Z-SUPERSEDED.json",
+    "coordination/portfolio/PORTFOLIO_PIN_PROTOCOL_V1.json",
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "wc"
+  ],
+  "value_signals": {
+    "regression_prevention": {
+      "reason": "Prevents duplicate ownership traffic against already-closed dedupe keys and makes terminal state strictly precede recovery/ownership reasoning.",
+      "evidence_ref": "coordination/portfolio/returns/portfolio-live-compounding-metrics/RETURN-WC-GPT56SOL-20260917T175323Z-SUPERSEDED.json"
+    },
+    "throughput": {
+      "reason": "Surplus /wc workers stop spending allocation calls on finished jobs and can reach compatible open work or discovery sooner.",
+      "evidence_ref": "wc"
+    },
+    "collision_reduction": {
+      "reason": "No PIN/claim should be emitted when terminal evidence already closes the job, reducing avoidable ledger noise.",
+      "evidence_ref": "coordination/portfolio/PORTFOLIO_PIN_PROTOCOL_V1.json"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/portfolio/PORTFOLIO.json",
+    "coordination/portfolio/derived/**",
+    "coordination/portfolio/returns/**",
+    "coordination/portfolio/pins/**",
+    "coordination/portfolio/claims/**"
+  ],
+  "candidate_write_scope": [
+    "scripts/portfolio-terminal-preflight.mjs",
+    "tests/portfolio-terminal-preflight-v1.test.mjs",
+    "tests/fixtures/portfolio-terminal-preflight/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": [
+    "A job with a terminal return still reaches PIN or claim creation.",
+    "A nonterminal BOUNDARY return is incorrectly treated as terminal.",
+    "Two job IDs sharing one dedupe key can both be selected after one dedupe-equivalent lane is terminal.",
+    "The preflight changes authority pointers or production state."
+  ],
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
