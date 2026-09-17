@@ -36,44 +36,46 @@ for (const file of walkJson(reconciliationRoot)) {
   const d = readJson(file);
   if (!d?.job_id || !d?.return_ref || d?.effect !== 'NONTERMINAL_ROUTE_ABORT') continue;
   const map = reconciliationByJob.get(d.job_id) || new Map();
-  map.set(d.return_ref, {...d, source_path:path.relative(root, file).split(path.sep).join('/')});
+  const row = {...d, source_path:path.relative(root, file).split(path.sep).join('/')};
+  const prior = map.get(d.return_ref);
+  if (!prior || ts(row.recorded_at) >= ts(prior.recorded_at)) map.set(d.return_ref, row);
   reconciliationByJob.set(d.job_id, map);
 }
-const reconciliationFor = (jobId, returnRef) => reconciliationByJob.get(jobId)?.get(returnRef) || null;
 
 let reconciledTerminalReceipts = 0;
 let jobsReopened = 0;
 for (const project of (feed.projects || [])) {
   for (const job of (project.jobs || [])) {
-    const returns = Array.isArray(job.returns) ? job.returns : [];
-    const priorState = job.state;
-    const effectiveTerminal = [...returns].reverse().find(r => terminalOutcomes.has(outcomeOf(r)) && !reconciliationFor(job.job_id, r.path)) || null;
-    const latestReturn = returns.at(-1) || null;
-    const latestReconciliation = latestReturn ? reconciliationFor(job.job_id, latestReturn.path) : null;
-    const reconciled = returns.map(r => ({return:r, reconciliation:reconciliationFor(job.job_id, r.path)})).filter(x => x.reconciliation);
-    reconciledTerminalReceipts += reconciled.filter(x => terminalOutcomes.has(outcomeOf(x.return))).length;
+    const reconciliations = [...(reconciliationByJob.get(job.job_id)?.values() || [])];
+    const terminalReturn = job.terminal_return || null;
+    const matchingReconciliation = terminalReturn ? reconciliations.find(r => {
+      if (lower(r.original_outcome) !== outcomeOf(terminalReturn)) return false;
+      if (r.original_returned_at && ts(r.original_returned_at) !== ts(terminalReturn.returned_at)) return false;
+      if (r.original_worker_id && r.original_worker_id !== terminalReturn.worker_id) return false;
+      return true;
+    }) : null;
 
-    job.terminal_return = effectiveTerminal ? {
-      outcome:first(effectiveTerminal.outcome,effectiveTerminal.status),
-      returned_at:first(effectiveTerminal.returned_at,effectiveTerminal.completed_at,effectiveTerminal.updated_at,effectiveTerminal.created_at),
-      worker_id:effectiveTerminal.worker_id || null
-    } : null;
-    if (job.latest_return && latestReconciliation) {
-      job.latest_return = {...job.latest_return, effective_terminal:false, reconciliation_effect:latestReconciliation.effect};
+    if (matchingReconciliation) {
+      const priorState = job.state;
+      reconciledTerminalReceipts++;
+      job.terminal_return = null;
+      job.return_reconciliations = reconciliations.map(r => r.source_path);
+      if (job.latest_return && lower(job.latest_return.outcome) === lower(matchingReconciliation.original_outcome)) {
+        job.latest_return = {...job.latest_return, effective_terminal:false, reconciliation_effect:matchingReconciliation.effect};
+      }
+      const staleMs = Number(feed.thresholds?.stale_suspect_minutes ?? 6) * 60_000;
+      const replaceMs = Number(feed.thresholds?.recovery_eligible_minutes ?? 10) * 60_000;
+      const age = job.last_signal_at ? Math.max(0, now - ts(job.last_signal_at)) : Infinity;
+      if (job.owner && age < staleMs) job.state = Number(job.pin_generation || 0) > 1 ? 'recovery' : 'working';
+      else if (job.owner && age < replaceMs) job.state = 'suspect';
+      else if (job.owner) job.state = 'replaceable';
+      else if (job.latest_return && attentionOutcomes.has(outcomeOf(job.latest_return))) job.state = 'partial';
+      else if (lower(job.seed_status).includes('block')) job.state = 'blocked';
+      else job.state = 'ready';
+      if (priorState === 'done' && job.state !== 'done') jobsReopened++;
+    } else if (job.latest_return && outcomeOf(job.latest_return) === 'route_aborted' && job.state === 'ready') {
+      job.state = 'partial';
     }
-    if (reconciled.length) job.return_reconciliations = reconciled.map(x => x.reconciliation.source_path);
-
-    const staleMs = Number(feed.thresholds?.stale_suspect_minutes ?? 6) * 60_000;
-    const replaceMs = Number(feed.thresholds?.recovery_eligible_minutes ?? 10) * 60_000;
-    const age = job.last_signal_at ? Math.max(0, now - ts(job.last_signal_at)) : Infinity;
-    if (effectiveTerminal) job.state = 'done';
-    else if (job.owner && age < staleMs) job.state = Number(job.pin_generation || 0) > 1 ? 'recovery' : 'working';
-    else if (job.owner && age < replaceMs) job.state = 'suspect';
-    else if (job.owner) job.state = 'replaceable';
-    else if (latestReturn && attentionOutcomes.has(outcomeOf(latestReturn))) job.state = 'partial';
-    else if (lower(job.seed_status).includes('block')) job.state = 'blocked';
-    else job.state = 'ready';
-    if (priorState === 'done' && job.state !== 'done' && reconciled.length) jobsReopened++;
   }
 }
 
