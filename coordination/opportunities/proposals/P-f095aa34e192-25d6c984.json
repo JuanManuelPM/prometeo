@@ -1,0 +1,89 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-f095aa34e192-25d6c984",
+  "fingerprint": "pdf-f095aa34e1924b80548baec6e752a378",
+  "created_at": "2026-09-17T10:11:03-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0955-0300-gpt56sol-surplus-recovery-collision",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "domain": "stale recovery",
+    "owner": "chat-native-control-plane-v1",
+    "write_scope": ["coordination/opportunities/recovery-claims/**"],
+    "privacy_class": "PUBLIC_COORDINATION_ONLY"
+  },
+  "problem": "The live /wc wave produced overlapping recovery claims for the same stale opportunities. Facultad Digital INTENT recorded a first completed recovery plus a later overlapping recovery claim, and Facultad Digital DISCOVER currently has two recent recovery claims while no RETURN was yet visible at inspection time. Append-only preservation is working, but recovery activation itself can still spend duplicate worker capacity and force later reconciliation.",
+  "acceptance": [
+    "At most one recovery attempt becomes active writer per opportunity generation.",
+    "Concurrent losing recovery attempts detect collision without overwriting evidence.",
+    "Late returns remain candidate evidence and are reconciled append-only.",
+    "No global authority promotion."
+  ],
+  "title": "Arbitrate concurrent recovery claims",
+  "mission": "Add and canary a repository-host recovery-claim arbitration primitive that preserves append-only recovery evidence while ensuring concurrent stale-recovery attempts for the same opportunity/generation have one active writer and durable loser/collision evidence. Do not erase late attempts or promote any candidate authority.",
+  "evidence_refs": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/opportunities/recovery-claims/O-SURFACE-FACULTAD_DIGITAL-INTENT-V1/",
+    "coordination/opportunities/returns/O-SURFACE-FACULTAD_DIGITAL-INTENT-V1/RUN-O-SURFACE-FACULTAD_DIGITAL-INTENT-V1-REC-20260917T0955-SOL56.json",
+    "coordination/opportunities/recovery-claims/O-SURFACE-FACULTAD_DIGITAL-DISCOVER-V1/",
+    "coordination/opportunities/proposals/P-04df793d0713-e1aaac9c.json",
+    "scripts/discovery-dedup-lib.mjs"
+  ],
+  "value_signals": {
+    "incident_repair": {
+      "reason": "Two live Facultad recovery lanes exhibited overlapping recovery claims during the current high-parallelism canary.",
+      "evidence_ref": "coordination/opportunities/recovery-claims/O-SURFACE-FACULTAD_DIGITAL-DISCOVER-V1/"
+    },
+    "unblock_value": {
+      "reason": "Single-writer recovery arbitration reduces duplicate worker consumption and makes dependency gates converge with less reconciliation debt.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+    },
+    "regression_prevention": {
+      "reason": "The fix must preserve append-only late-return evidence while preventing duplicate active recovery writers, so recovery safety does not regress into overwrite semantics.",
+      "evidence_ref": "coordination/opportunities/returns/O-SURFACE-FACULTAD_DIGITAL-INTENT-V1/RUN-O-SURFACE-FACULTAD_DIGITAL-INTENT-V1-REC-20260917T0955-SOL56.json"
+    },
+    "human_friction_reduction": {
+      "reason": "Fewer duplicate recoveries means less guide/human reconciliation and more useful durable progress per identical /wc launch.",
+      "evidence_ref": "coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json"
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-LEASE-RETRY-BUILD-V1",
+    "O-SWARM-DISCOVERY-DEDUP-BUILD-V1"
+  ],
+  "candidate_read_scope": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "scripts/discovery-dedup-lib.mjs",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**",
+    "coordination/canary-evidence/**"
+  ],
+  "candidate_write_scope": [
+    "scripts/recovery-claim-arbitration-lib.mjs",
+    "tests/recovery-claim-arbitration-v1.test.mjs",
+    "coordination/canary-evidence/recovery-claim-races/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": [
+    "Two concurrent eligible recoveries for one opportunity/generation can both become active writers.",
+    "A losing recovery attempt can overwrite or delete the winning recovery claim or original attempt evidence.",
+    "Late original/recovery returns are discarded instead of preserved as candidate evidence for reconciliation.",
+    "The arbitration primitive depends on chat-local state rather than durable repository evidence.",
+    "Recovery arbitration changes Current, Human Accepted or Served authority."
+  ],
+  "dedup_note": "The existing live-claim-attempt-receipt proposal targets durable observability of generic claim races. This proposal targets recovery-specific single-active-writer arbitration while preserving append-only late-return semantics; exact fingerprint was absent before pin creation.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
