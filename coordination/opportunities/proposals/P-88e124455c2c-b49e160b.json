@@ -1,0 +1,83 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-88e124455c2c-b49e160b",
+  "fingerprint": "pdf-88e124455c2c02bc8ed60e8aa0993ed0",
+  "created_at": "2026-09-17T10:35:37-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T1029-0300-gpt56sol-surplus-recovery-exclusive-88e1",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "artifact": "recovery-successor CAS guard + live recovery-attempt receipts",
+    "consumer": "universal worker allocator / stale recovery / stress verifier",
+    "subsystem": "recovery-fabric",
+    "scope": "one live recovery successor per opportunity_id + previous_run"
+  },
+  "problem": "The same opportunity and same previous_run currently have multiple distinct RECOVER runs in STARTED state under separate recovery claims. This does not by itself prove corruption, but it means exclusivity of the recovery successor is not durably demonstrated and duplicate scoped work can distort recovery latency/collision measurements or produce competing candidate returns.",
+  "acceptance": [
+    "Recovery claim key is deterministically scoped to opportunity_id plus previous_run and enforced with CREATE_IF_ABSENT exclusivity before any successor enters STARTED.",
+    "A losing concurrent recoverer persists an append-only recovery-attempt receipt resolving the winning recovery claim and does not enter STARTED.",
+    "Late original and losing recovery evidence remain immutable candidate evidence and no recovery path overwrites prior attempts.",
+    "A two-recoverer live canary proves exactly one STARTED successor and one LOST_EXISTING outcome, and an independent verifier reconciles both outcomes."
+  ],
+  "title": "Enforce one live recovery successor",
+  "mission": "Harden stale recovery so one opportunity/previous-run pair can produce only one live recovery successor, while losing races remain durable evidence. Add CAS-level recovery-key enforcement plus live winner/loser receipts, then canary it with two concurrent recoverers.",
+  "evidence_refs": [
+    "coordination/opportunities/runs/O-SURFACE-PROMETEO_MOBILE-REUSE-V1/RUN-O-SURFACE-PROMETEO_MOBILE-REUSE-V1-REC2-20260917T1028-GPT56SOL.json",
+    "coordination/opportunities/runs/O-SURFACE-PROMETEO_MOBILE-REUSE-V1/RUN-O-SURFACE-PROMETEO_MOBILE-REUSE-V1-REC2-20260917T103250-SOL56-A7D4.json",
+    "coordination/opportunities/claims/O-SURFACE-PROMETEO_MOBILE-REUSE-V1.json",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/swarm-v1/discovery/DISCOVERY_DEDUP_CONTRACT_V1.json"
+  ],
+  "value_signals": {
+    "goal_relevance": {
+      "reason": "Universal-worker scale depends on recovery being collision-safe without human stale detection or manual routing.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+    },
+    "information_gain": {
+      "reason": "The two observed STARTED recovery runs share the same opportunity and previous_run, creating a concrete live canary for whether recovery successor exclusivity is actually enforced.",
+      "evidence_ref": "coordination/opportunities/runs/O-SURFACE-PROMETEO_MOBILE-REUSE-V1/RUN-O-SURFACE-PROMETEO_MOBILE-REUSE-V1-REC2-20260917T103250-SOL56-A7D4.json"
+    },
+    "human_friction_reduction": {
+      "reason": "A durable winner/loser recovery receipt lets workers reconcile recovery races without asking the human which chat owns the retry.",
+      "evidence_ref": "coordination/opportunities/runs/O-SURFACE-PROMETEO_MOBILE-REUSE-V1/RUN-O-SURFACE-PROMETEO_MOBILE-REUSE-V1-REC2-20260917T1028-GPT56SOL.json"
+    },
+    "regression_prevention": {
+      "reason": "A pair-scoped CAS key prevents duplicate live successors while preserving late-return evidence instead of relying on timing heuristics alone.",
+      "evidence_ref": "coordination/opportunities/claims/O-SURFACE-PROMETEO_MOBILE-REUSE-V1.json"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "scripts/universal-worker-allocator.mjs",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/canary-evidence/**"
+  ],
+  "candidate_write_scope": [
+    "scripts/recovery-successor-claim-lib.mjs",
+    "tests/recovery-successor-exclusive-v1.test.mjs",
+    "coordination/canary-evidence/recovery-races/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": [
+    "Two concurrent recoverers for the same opportunity_id plus previous_run can both enter STARTED.",
+    "A losing recoverer cannot resolve the winning recovery claim or leaves no durable LOST_EXISTING receipt.",
+    "Recovery CAS enforcement drops or overwrites late original/recovery evidence.",
+    "Recovery race receipts cannot be reconciled independently with the actual recovery claims and runs."
+  ],
+  "dedup_note": "Live proposal search found no existing recovery-successor exclusivity proposal. Existing lanes cover stale/retry implementation, recovery critique, collision evidence and stress verification, but the observed same-opportunity/same-previous-run dual STARTED successor condition is narrower: it requires pair-scoped recovery CAS plus durable loser receipts.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
