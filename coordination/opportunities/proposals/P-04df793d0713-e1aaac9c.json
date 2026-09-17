@@ -1,0 +1,84 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-04df793d0713-e1aaac9c",
+  "fingerprint": "pdf-04df793d0713995fb86293c1a6611888",
+  "created_at": "2026-09-17T09:19:40-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T091448-0300-sol56-surplus-discovery-6b2a",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "artifact": "host-integrated live claim attempt receipt emitter",
+    "consumer": "canary stress verifier/control room",
+    "subsystem": "claim-fabric"
+  },
+  "problem": "Claim-attempt receipt schema, race fixtures and validator tests now exist, but the live create-if-absent worker claim flow has not demonstrated automatic persistence of real WON/LOST_EXISTING/HOST_ERROR outcomes. A losing GitHub claim race can still disappear with the worker chat, making actual collision-rate reconstruction depend on non-durable local errors.",
+  "acceptance": [
+    "Real claim flow emits append-only CLAIM_ATTEMPT receipts for WON, LOST_EXISTING and HOST_ERROR based on actual host results.",
+    "LOST_EXISTING receipts resolve the winning claim ref and commit when observable and record no_overwrite_decision=true.",
+    "A live multi-worker canary produces durable receipts whose winner/loser counts reconcile with actual claims and failed attempts.",
+    "Receipt emission failure cannot change claim authority or overwrite outcome, and credential payloads are excluded."
+  ],
+  "title": "Wire live claim-attempt receipts",
+  "mission": "Implement and canary a host-integrated append-only CLAIM_ATTEMPT receipt emitter around real worker claim operations so collision evidence survives chat loss and the 50-worker stress verifier/control room can reconstruct actual races without trusting worker prose.",
+  "evidence_refs": [
+    "coordination/canary-evidence/SCHEMA_V1.json",
+    "coordination/canary-evidence/",
+    "tests/fixtures/canary-evidence/valid-race-bundle.json",
+    "tests/canary-evidence-receipts-v1.test.mjs",
+    "scripts/universal-worker-allocator.mjs",
+    "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md",
+    "coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json"
+  ],
+  "value_signals": {
+    "goal_relevance": {
+      "reason": "The universal-worker canary explicitly requires measurable collision/duplication behavior and durable evidence rather than chat-local prose.",
+      "evidence_ref": "coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json"
+    },
+    "information_gain": {
+      "reason": "Live claim-attempt receipts distinguish actual contention from static claim counts and make lost races reconstructable after worker disappearance.",
+      "evidence_ref": "coordination/canary-evidence/SCHEMA_V1.json"
+    },
+    "human_friction_reduction": {
+      "reason": "Durable loser receipts remove any need for the human or a surviving chat transcript to report which claim races were lost.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md"
+    },
+    "regression_prevention": {
+      "reason": "The existing validator already encodes no-overwrite and winner-link invariants; wiring it to real host outcomes would let independent verifiers detect regressions rather than only validate fixtures.",
+      "evidence_ref": "tests/canary-evidence-receipts-v1.test.mjs"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/canary-evidence/SCHEMA_V1.json",
+    "tests/fixtures/canary-evidence/**",
+    "tests/canary-evidence-receipts-v1.test.mjs",
+    "scripts/universal-worker-allocator.mjs",
+    "coordination/workstreams/chat-native-control-plane-v1/CLAIM_PROTOCOL_SPEC_V0.json",
+    "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md",
+    "coordination/opportunities/claims/**"
+  ],
+  "candidate_write_scope": [
+    "scripts/claim-attempt-receipt-lib.mjs",
+    "tests/live-claim-attempt-receipts-v1.test.mjs",
+    "coordination/canary-evidence/live/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": [
+    "A real two-worker create-if-absent race yields one winning claim but no durable loser CLAIM_ATTEMPT receipt.",
+    "A receipt writer can overwrite the winning claim or alter claim authority/outcome.",
+    "Winner/loser receipt counts cannot be reconciled against live claim attempts by an independent verifier.",
+    "Receipt payload contains credentials or private conversation content."
+  ],
+  "dedup_note": "Existing active queues cover collision analysis, evidence schema/fixtures, allocator behavior and stress verification, but no inspected READY opportunity or live coordination/canary-evidence artifact demonstrates host-integrated emission of real claim-attempt receipts. This proposal is intentionally narrower than those lanes.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
