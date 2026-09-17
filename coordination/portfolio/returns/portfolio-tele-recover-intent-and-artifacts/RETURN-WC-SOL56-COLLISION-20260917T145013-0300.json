@@ -1,0 +1,44 @@
+{
+  "schema": "prometeo.portfolio-return/v1",
+  "return_id": "RETURN-WC-SOL56-COLLISION-20260917T145013-0300",
+  "job_id": "portfolio-tele-recover-intent-and-artifacts",
+  "dedupe_key": "tele:recover-intent-artifacts:v1",
+  "project_id": "tele",
+  "worker_id": "wc-gpt56sol-20260917T144849-03",
+  "returned_at": "2026-09-17T14:50:13-03:00",
+  "outcome": "BOUNDARY",
+  "summary": "Allocation collision detected before substantive Tele archaeology. Multiple append-only claims for the same job/dedupe_key became durable concurrently. This worker's claim at 2026-09-17T17:48:49Z is later than the durable 2026-09-17T17:48:37Z claim, so this worker yields and performs no duplicate project work.",
+  "changed_paths": [
+    "coordination/portfolio/claims/portfolio-tele-recover-intent-and-artifacts/CLAIM-WC-SOL56-20260917T144849-0300-TELE.json",
+    "coordination/portfolio/returns/portfolio-tele-recover-intent-and-artifacts/RETURN-WC-SOL56-COLLISION-20260917T145013-0300.json"
+  ],
+  "evidence": [
+    "coordination/portfolio/claims/portfolio-tele-recover-intent-and-artifacts/CLAIM_WC_GPT56SOL_20260917T174837Z.json",
+    "coordination/portfolio/claims/portfolio-tele-recover-intent-and-artifacts/CLAIM-WC-GPT56SOL-20260917T174842Z.json",
+    "coordination/portfolio/claims/portfolio-tele-recover-intent-and-artifacts/CLAIM-WC-GPT56SOL-20260917T174845Z.json",
+    "coordination/portfolio/claims/portfolio-tele-recover-intent-and-artifacts/CLAIM-WC-SOL56-20260917T144849-0300-TELE.json",
+    "coordination/portfolio/WORKER_CONTRACT_V1.md"
+  ],
+  "tests": [
+    "Post-claim directory read showed four durable claim files for job_id portfolio-tele-recover-intent-and-artifacts sharing dedupe_key tele:recover-intent-artifacts:v1.",
+    "Earliest observed durable claim has claimed_at 2026-09-17T17:48:37Z; this worker has claimed_at 2026-09-17T14:48:49-03:00 (=17:48:49Z), so this worker is not the earliest claimant.",
+    "No substantive Tele archaeology was executed after collision detection."
+  ],
+  "unresolved": [
+    "Portfolio claim filenames are unique per claimant, so create-if-absent on those filenames does not itself provide dedupe-level mutual exclusion under simultaneous workers.",
+    "An authoritative single-winner lock/reservation or deterministic collision-resolution mechanism is still required before portfolio allocation can claim atomic exclusivity under contention."
+  ],
+  "spawn_candidates": [
+    {
+      "title": "Harden portfolio claim exclusivity under concurrent /wc workers",
+      "reason": "A live four-way claim collision occurred for one portfolio job despite claim-before-work and dedupe requirements; the current append-only unique claim paths do not create a singleton lock.",
+      "dedupe_key": "portfolio:claim-singleton-lock:v1",
+      "acceptance": [
+        "Two or more concurrent workers targeting the same portfolio dedupe_key cannot both become substantive execution owners.",
+        "A losing worker can deterministically discover the winner and immediately re-enter allocation without doing duplicate work.",
+        "Existing append-only claim evidence and lineage remain preserved.",
+        "A contention canary with at least five simultaneous claim attempts demonstrates exactly one execution owner and safe loser retries."
+      ]
+    }
+  ]
+}
