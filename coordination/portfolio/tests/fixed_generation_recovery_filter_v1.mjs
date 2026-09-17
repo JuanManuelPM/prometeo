@@ -22,12 +22,23 @@ const feed = {
         job_id: 'fixture-arbitrary-id',
         dedupe_key: 'fixture:arbitrary:v1',
         project_id: 'p',
-        title: 'Fixed fixture',
+        title: 'Fixed fixture incomplete',
         priority: 200,
         state: 'done',
         pin_generation: 2,
         collision_count: 2,
         last_signal_at: '2026-09-17T20:00:00Z'
+      },
+      {
+        job_id: 'fixture-resolved-id',
+        dedupe_key: 'fixture:resolved:v1',
+        project_id: 'p',
+        title: 'Fixed fixture resolved',
+        priority: 190,
+        state: 'done',
+        pin_generation: 2,
+        collision_count: 4,
+        last_signal_at: '2026-09-17T20:01:00Z'
       },
       {
         job_id: 'ordinary-retry-safe',
@@ -55,10 +66,12 @@ const feed = {
   diagnostics: {}
 };
 
+const resolvedPolicy = { ...fixedPolicy, job_id: 'fixture-resolved-id' };
 const freshPolicy = { ...fixedPolicy, job_id: 'fixture-fresh' };
-const out = buildFastAllocator(feed, { status: 'OK', metrics: {}, reasons: [] }, { recoveryPolicies: [fixedPolicy, freshPolicy] });
+const out = buildFastAllocator(feed, { status: 'OK', metrics: {}, reasons: [] }, { recoveryPolicies: [fixedPolicy, resolvedPolicy, freshPolicy] });
 
 if (out.recovery.some(row => row.job_id === 'fixture-arbitrary-id')) throw new Error('fixed-generation fixture leaked into ordinary recovery');
+if (out.recovery.some(row => row.job_id === 'fixture-resolved-id')) throw new Error('resolved fixed-generation fixture reopened ordinary recovery');
 const ordinary = out.recovery.find(row => row.job_id === 'ordinary-retry-safe');
 if (!ordinary) throw new Error('ordinary retry-safe job disappeared from recovery');
 if (ordinary.next_generation !== 2 || !ordinary.claim_path.endsWith('/G000002.json')) throw new Error('ordinary recovery generation changed');
@@ -66,6 +79,7 @@ if (ordinary.next_generation !== 2 || !ordinary.claim_path.endsWith('/G000002.js
 const attention = out.fixed_generation_attention.find(row => row.job_id === 'fixture-arbitrary-id');
 if (!attention) throw new Error('unfinished fixed-generation evidence became invisible after terminal projection');
 if (attention.route !== 'FIXED_GENERATION_RECONCILE' || attention.fixed_generation !== 1) throw new Error('fixed-generation attention route malformed');
+if (out.fixed_generation_attention.some(row => row.job_id === 'fixture-resolved-id')) throw new Error('resolved fixed-generation fixture remained in attention after satisfying gate');
 
 const fresh = out.ready.find(row => row.job_id === 'fixture-fresh');
 if (!fresh) throw new Error('fresh fixed-generation fixture should remain initially claimable');
@@ -78,6 +92,8 @@ console.log(JSON.stringify({
   allocator_schema: out.schema,
   fixed_generation_excluded_from_recovery: true,
   fixed_generation_attention_visible_after_terminal_projection: true,
+  fixed_generation_attention_resolves_at_gate: true,
+  resolved_fixed_generation_does_not_reopen_recovery: true,
   ordinary_recovery_preserved: true,
   fresh_fixed_generation_claim_preserved: true
 }, null, 2));
