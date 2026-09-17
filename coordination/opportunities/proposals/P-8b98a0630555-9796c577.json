@@ -1,0 +1,89 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-8b98a0630555-9796c577",
+  "fingerprint": "pdf-8b98a0630555e62554bd412e43a8b678",
+  "created_at": "2026-09-17T09:56:26-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0947-0300-sol56-surplus-recovery-race-8b98",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "owner": "chat-object-prometeo-chat-control-main",
+    "subsystem": "stale-recovery",
+    "scope": "coordination/opportunities/recovery-claims/**",
+    "output": "recovery-lineage-exclusive-pin",
+    "privacy": "PUBLIC_COORDINATION_ONLY"
+  },
+  "problem": "Append-only recovery claim paths permit multiple simultaneous recovery attempts for the same stale lineage because each attempt uses a unique filename and active recovery overlap is caller-supplied rather than atomically pinned. During this /wc run, one stale kernel recovery had only the 09:06 attempt when first inspected; by the next collision refresh, three additional recovery claims had appeared around 09:51-09:52 for the same opportunity before a single winner was established.",
+  "acceptance": [
+    "A deterministic recovery-lineage identity maps all attempts for the same stale opportunity/run lineage to one create-if-absent pin.",
+    "Concurrent recovery claim attempts yield exactly one winner; losers preserve evidence and do not start substantive writes.",
+    "Late original or recovery returns remain preserved and reconciled without newest-wins promotion.",
+    "Tests cover 2-worker and 5-worker recovery races plus pin release/supersession rules without granting Current, Human Accepted, or Served authority."
+  ],
+  "title": "Make stale recovery single-winner by lineage",
+  "mission": "Implement and canary an atomic recovery-lineage pin that sits before append-only recovery claim/run creation. Derive a deterministic identity from opportunity + stale run/attempt lineage, use create-if-absent host semantics so only one recovery worker may enter substantive recovery for that lineage, emit durable loser/collision evidence, preserve all original/late returns, and define explicit supersession/release rules without authority promotion.",
+  "evidence_refs": [
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0906-SOL56.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0951-SOL56B.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0952-SOL56-R2.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T095229-SOL56B.json",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "scripts/swarm-lease-lib.mjs",
+    "coordination/opportunities/returns/O-SWARM-LEASE-RETRY-BUILD-V1/RUN-O-SWARM-LEASE-RETRY-BUILD-V1-20260917T0043-SOL56.json"
+  ],
+  "value_signals": {
+    "unblock_value": {
+      "reason": "Recovery is intended to prevent vanished workers from becoming gates; duplicate recovery workers reintroduce collisions exactly at that safety path.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+    },
+    "incident_repair": {
+      "reason": "The live kernel stale-recovery lane produced multiple near-simultaneous recovery claims for the same opportunity/lineage, demonstrating that append-only attempt filenames are not an exclusivity primitive.",
+      "evidence_ref": "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/"
+    },
+    "regression_prevention": {
+      "reason": "The current lease library evaluates caller-supplied active_overlap but does not itself atomically establish a single recovery winner, so the same race can recur on every stale opportunity.",
+      "evidence_ref": "scripts/swarm-lease-lib.mjs"
+    },
+    "human_friction_reduction": {
+      "reason": "A deterministic recovery winner removes the need for a human or parent to arbitrate duplicate rescue chats after the fact.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/USER_INTENT_GAP_AUDIT_V1.md"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md",
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**"
+  ],
+  "candidate_write_scope": [
+    "scripts/recovery-lineage-pin-lib.mjs",
+    "tests/recovery-lineage-pin-v1.test.mjs",
+    "coordination/swarm-v1/recovery-lineage/**",
+    "coordination/opportunities/recovery-lineage-pins/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": [
+    "Two recovery workers for the same stale lineage can both acquire permission to enter substantive recovery.",
+    "Five concurrent attempts create more than one winning lineage pin or any loser overwrites the winner.",
+    "A recovery-lineage pin causes original claims/runs/returns or late returns to be erased or silently discarded.",
+    "Pin release or supersession permits an overlapping active recovery writer without explicit terminal/stale evidence.",
+    "The mechanism grants or implies Current, Human Accepted, Served, or integration authority."
+  ],
+  "dedup_note": "This is narrower than the completed lease/retry primitive, which intentionally leaves recovery persistence to a separately authorized executor and takes active_overlap as input. It is also distinct from the generic claim-race canary and discovery proposal pin canary: the observed defect is recovery-specific exclusivity over one stale lineage after eligibility has already been established.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
