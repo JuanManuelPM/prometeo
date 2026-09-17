@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 const root = path.resolve(process.argv[2] || '.');
 const out = path.resolve(process.argv[3] || '/tmp/efficiency.json');
@@ -28,6 +29,23 @@ const q = (arr,p) => {
 };
 const pct = (n,d) => d ? Math.round(n*1000/d)/10 : null;
 
+// Durable measurement clock: Git commit time, not model-authored receipt timestamps.
+// One bounded git-log scan centralizes this cost for all workers.
+const commitTimes = new Map();
+try {
+  const raw=execFileSync('git',['-C',root,'log','-500','--format=@@%cI','--name-only','--',
+    'coordination/workers/beacons','coordination/workers/no-allocation','coordination/portfolio/pins','coordination/opportunities/claims'],
+    {encoding:'utf8',stdio:['ignore','pipe','ignore']});
+  let current=null;
+  for(const line of raw.split(/\r?\n/)){
+    if(line.startsWith('@@')){ current=line.slice(2).trim(); continue; }
+    const rel=line.trim();
+    if(rel && current && !commitTimes.has(rel)) commitTimes.set(rel,current);
+  }
+} catch {}
+const durableIso=(p,fallback)=>commitTimes.get(path.relative(root,p).replaceAll('\\','/'))||fallback||null;
+const durableTime=(p,fallback)=>time(durableIso(p,fallback));
+
 const beaconsDir=path.join(root,'coordination/workers/beacons');
 const noAllocDir=path.join(root,'coordination/workers/no-allocation');
 const pinsDir=path.join(root,'coordination/portfolio/pins');
@@ -36,30 +54,34 @@ const oppClaimsDir=path.join(root,'coordination/opportunities/claims');
 const beacons=new Map();
 for(const p of walk(beaconsDir).filter(x=>x.endsWith('.json'))){
   const d=read(p); if(!d?.worker_id) continue;
-  const launched=time(d.launched_at);
-  if(launched < activatedAt) continue;
-  beacons.set(d.worker_id,{worker_id:d.worker_id,launched_at:d.launched_at,launched});
+  const launchedIso=durableIso(p,d.launched_at);
+  const launched=durableTime(p,d.launched_at);
+  if(!launched || launched < activatedAt) continue;
+  beacons.set(d.worker_id,{worker_id:d.worker_id,launched_at:launchedIso,declared_launched_at:d.launched_at||null,launched});
 }
 
 const firstAuthority=new Map();
-const consider=(wid,iso,kind,ref)=>{
+const consider=(wid,p,declaredIso,kind,ref)=>{
   if(!wid||!beacons.has(wid)) return;
-  const t=time(iso); if(!t) return;
+  const iso=durableIso(p,declaredIso);
+  const t=durableTime(p,declaredIso); if(!t) return;
   const prev=firstAuthority.get(wid);
-  if(!prev||t<prev.time) firstAuthority.set(wid,{time:t,at:iso,kind,ref});
+  if(!prev||t<prev.time) firstAuthority.set(wid,{time:t,at:iso,declared_at:declaredIso||null,kind,ref});
 };
 for(const p of walk(pinsDir).filter(x=>x.endsWith('.json'))){
-  const d=read(p); consider(d?.worker_id,d?.claimed_at||d?.created_at,'portfolio-pin',path.relative(root,p));
+  const d=read(p); consider(d?.worker_id,p,d?.claimed_at||d?.created_at,'portfolio-pin',path.relative(root,p));
 }
 for(const p of walk(oppClaimsDir).filter(x=>x.endsWith('.json'))){
-  const d=read(p); consider(d?.worker_id||d?.worker,d?.claimed_at||d?.created_at,'opportunity-claim',path.relative(root,p));
+  const d=read(p); consider(d?.worker_id||d?.worker,p,d?.claimed_at||d?.created_at,'opportunity-claim',path.relative(root,p));
 }
 
 const noAlloc=new Map();
 for(const p of walk(noAllocDir).filter(x=>x.endsWith('.json'))){
   const d=read(p); if(!d?.worker_id||!beacons.has(d.worker_id)) continue;
-  const t=time(d.observed_at||d.completed_at||d.created_at); if(!t) continue;
-  noAlloc.set(d.worker_id,{time:t,at:d.observed_at||d.completed_at||d.created_at,ref:path.relative(root,p)});
+  const declared=d.closed_at||d.observed_at||d.completed_at||d.created_at||null;
+  const iso=durableIso(p,declared);
+  const t=durableTime(p,declared); if(!t) continue;
+  noAlloc.set(d.worker_id,{time:t,at:iso,declared_at:declared,ref:path.relative(root,p),reason:d.reason||null});
 }
 
 const launches=[...beacons.values()].sort((a,b)=>b.launched-a.launched).slice(0,100).map(b=>{
@@ -67,7 +89,7 @@ const launches=[...beacons.values()].sort((a,b)=>b.launched-a.launched).slice(0,
   const n=noAlloc.get(b.worker_id)||null;
   const ttfa=a?Math.max(0,a.time-b.launched):null;
   const close=!a&&n?Math.max(0,n.time-b.launched):null;
-  return {worker_id:b.worker_id,launched_at:b.launched_at,authority_at:a?.at||null,authority_kind:a?.kind||null,authority_ref:a?.ref||null,no_allocation_at:n?.at||null,time_to_first_authority_ms:ttfa,no_allocation_close_ms:close,state:a?'ALLOCATED':n?'NO_ALLOCATION':'OPEN'};
+  return {worker_id:b.worker_id,launched_at:b.launched_at,declared_launched_at:b.declared_launched_at,authority_at:a?.at||null,declared_authority_at:a?.declared_at||null,authority_kind:a?.kind||null,authority_ref:a?.ref||null,no_allocation_at:n?.at||null,declared_no_allocation_at:n?.declared_at||null,no_allocation_reason:n?.reason||null,time_to_first_authority_ms:ttfa,no_allocation_close_ms:close,state:a?'ALLOCATED':n?'NO_ALLOCATION':'OPEN'};
 });
 
 const allocated=launches.filter(x=>x.state==='ALLOCATED');
@@ -88,7 +110,8 @@ const metrics={
   ttfa_under_90s_percent:pct(ttfa.filter(x=>x<=90000).length,ttfa.length),
   no_allocation_close_p50_ms:q(noClose,.5),
   no_allocation_close_p90_ms:q(noClose,.9),
-  no_allocation_under_90s_percent:pct(noClose.filter(x=>x<=90000).length,noClose.length)
+  no_allocation_under_90s_percent:pct(noClose.filter(x=>x<=90000).length,noClose.length),
+  claim_transport_blocked:closed.filter(x=>x.no_allocation_reason==='CLAIM_TRANSPORT_BLOCKED').length
 };
 
 let status='INSUFFICIENT_SAMPLE';
@@ -100,7 +123,8 @@ if(sample>=5){
   const closeStrong=metrics.no_allocation_close_p90_ms==null || metrics.no_allocation_close_p90_ms<=90000;
   if(ttfaBad) reasons.push('TTFA_P90_GT_90S');
   if(closeBad) reasons.push('NO_ALLOCATION_P90_GT_90S');
-  status=(ttfaBad||closeBad)?'REGRESSION':(ttfaStrong&&closeStrong?'HEALTHY':'WATCH');
+  if(metrics.claim_transport_blocked>=2) reasons.push('CLAIM_TRANSPORT_BLOCKED_REPEAT');
+  status=(ttfaBad||closeBad||metrics.claim_transport_blocked>=2)?'REGRESSION':(ttfaStrong&&closeStrong?'HEALTHY':'WATCH');
 }
 
 let rescue=null;
@@ -119,6 +143,7 @@ if(status==='REGRESSION'){
 const snapshot={
   schema:'prometeo.efficiency-runtime/v1',
   generated_at:new Date().toISOString(),
+  measurement_clock:'GIT_COMMIT_TIME_PREFERRED',
   baseline_activated_at:activatedIso,
   baseline_updated_at:baseline.updated_at||null,
   status,
@@ -126,7 +151,7 @@ const snapshot={
   metrics,
   rescue,
   latest_launches:launches.slice(0,30),
-  privacy:'Derived only from durable coordination timestamps; no private reasoning traces.'
+  privacy:'Derived from durable repository events; no private reasoning traces.'
 };
 fs.mkdirSync(path.dirname(out),{recursive:true});
 fs.writeFileSync(out,JSON.stringify(snapshot,null,2)+'\n');
