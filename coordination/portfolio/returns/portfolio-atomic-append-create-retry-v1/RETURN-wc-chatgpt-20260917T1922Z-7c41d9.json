@@ -1,0 +1,54 @@
+{
+  "schema": "prometeo.portfolio-return/v1",
+  "return_id": "RETURN-wc-chatgpt-20260917T1922Z-7c41d9",
+  "job_id": "portfolio-atomic-append-create-retry-v1",
+  "dedupe_key": "control-plane:atomic-append-create-retry:v1",
+  "project_id": "prometeo-autonomous-growth",
+  "worker_id": "wc-chatgpt-20260917T1916Z-7c41d9",
+  "returned_at": "2026-09-17T19:22:15Z",
+  "outcome": "SUCCESS",
+  "summary": "Implemented a reusable append-only create-if-absent retry helper for concurrent main movement. On failed create it rereads the exact deterministic path first: an existing path is authoritative LOST_RACE; an absent path retries only when the failure normalizes to HEAD_MOVED/CAS conflict, after refreshing head, and always retries the same path. Unknown failures abort and retry count is bounded. Added a node:test suite exercising the current /wc beacon path shape; 5/5 tests passed. No existing append-only evidence was updated and no Current/Human Accepted/Served/production authority was changed.",
+  "changed_paths": [
+    "coordination/portfolio/pins/portfolio-atomic-append-create-retry-v1/G000001.json",
+    "coordination/portfolio/claims/portfolio-atomic-append-create-retry-v1/claim-wc-chatgpt-20260917T1916Z-7c41d9-atomic-append-g1.json",
+    "scripts/append-only-create-retry-lib.mjs",
+    "tests/append-only-create-retry-v1.test.mjs",
+    "coordination/portfolio/evidence/portfolio-atomic-append-create-retry-v1/TEST_RECEIPT-wc-chatgpt-20260917T1921Z-7c41d9.json"
+  ],
+  "evidence": [
+    "coordination/portfolio/evidence/portfolio-atomic-append-create-retry-v1/TEST_RECEIPT-wc-chatgpt-20260917T1921Z-7c41d9.json",
+    "scripts/append-only-create-retry-lib.mjs",
+    "tests/append-only-create-retry-v1.test.mjs",
+    "coordination/portfolio/PORTFOLIO_PIN_PROTOCOL_V1.json"
+  ],
+  "tests": [
+    "PASS 5/5: node --test tests/append-only-create-retry-v1.test.mjs under Node v22.16.0.",
+    "PASS: unrelated head movement -> reread absent path -> refresh head -> CREATE exact same path -> CREATED.",
+    "PASS: path appears after failed CREATE -> LOST_RACE with winner evidence and no second authority path.",
+    "PASS: unknown/non-retryable failure on absent path -> ABORTED, no variant-path fallback.",
+    "PASS: retry budget bounded; all attempts preserve one deterministic path.",
+    "PASS: current /wc beacon path shape coordination/workers/beacons/wc-test-atomic.json exercised by the harness.",
+    "PASS: no existing append-only file was overwritten; no Current, Catalog, Lineage, Human Accepted, Served or production /w pointer modified."
+  ],
+  "implementation_commits": [
+    "fe428dd1d787c7d01d7c763b1b23d349e073aa72",
+    "5e41727619a65b92896a97fe31821b2c049a141b",
+    "facc34b3a487b23b4777f5cc53276717d09b1e1c"
+  ],
+  "unresolved": [
+    "Host adapters that expose different conflict metadata should normalize their errors to HEAD_MOVED/PATH_MAY_EXIST semantics before using this helper; this does not block the reusable primitive itself."
+  ],
+  "spawn_candidates": [
+    {
+      "title": "Wire append-only retry helper into a concrete /wc host adapter canary",
+      "reason": "The reusable primitive is implemented and unit-tested; a bounded integration canary can now prove host-specific conflict normalization without broad control-plane mutation.",
+      "dedupe_key": "control-plane:atomic-append-create-retry:host-adapter-canary:v1",
+      "acceptance": [
+        "One real create-if-absent call-site uses the helper or an equivalent adapter contract.",
+        "A synthetic unrelated-main-movement conflict retries the exact same absent path.",
+        "A real/synthetic path-exists race returns LOST_RACE and creates no variant authority path.",
+        "No Current/Human Accepted/Served/production promotion is inferred."
+      ]
+    }
+  ]
+}
