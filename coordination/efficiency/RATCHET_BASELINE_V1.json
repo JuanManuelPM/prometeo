@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-17T21:20:00Z",
+  "updated_at": "2026-09-17T21:24:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -11,7 +11,7 @@
       "scope": ["wc", "worker-allocation"],
       "observed_failure": "Fresh workers spent minutes listing pins, G1/G2, heartbeats, returns and protocols before attempting authority.",
       "invariant": "Before first PIN/claim, a fresh /wc performs only bootstrap, beacon, one allocator read and bounded atomic claim attempts.",
-      "required": {"candidate_order": ["ready", "queue_ready", "recovery"], "max_fast_claim_attempts": 3, "target_time_to_first_claim_seconds": 30, "hard_observation_threshold_seconds": 90, "broad_preclaim_archaeology_forbidden": true},
+      "required": {"candidate_order": ["ready", "queue_ready", "role_ready", "recovery"], "max_fast_claim_attempts": 3, "target_time_to_first_claim_seconds": 30, "hard_observation_threshold_seconds": 90, "broad_preclaim_archaeology_forbidden": true},
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
@@ -52,11 +52,11 @@
     },
     {
       "id": "EFF006",
-      "title": "Prefer clean ready work over recovery archaeology",
+      "title": "Prefer clean ready work and compiled roles over recovery archaeology",
       "scope": ["allocator", "wc"],
-      "observed_failure": "Workers entered expensive recovery validation while clean ready work was available.",
-      "invariant": "Allocator and /wc rank ready work before recovery; stale recovery snapshots are never manually reconstructed preclaim.",
-      "required": {"candidate_order": ["ready", "queue_ready", "recovery"], "recovery_snapshot_max_age_seconds": 90},
+      "observed_failure": "Workers entered expensive recovery validation while clean ready or centrally detectable Guide work was available.",
+      "invariant": "Allocator and /wc rank clean execution first, then compiled role work, then recovery; stale recovery snapshots are never manually reconstructed preclaim.",
+      "required": {"candidate_order": ["ready", "queue_ready", "role_ready", "recovery"], "recovery_snapshot_max_age_seconds": 90},
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
@@ -111,6 +111,15 @@
       "observed_failure": "A G000001-only contention fixture aged into replaceable state and the allocator offered G000002, producing ownership that could not satisfy the fixture contract.",
       "invariant": "Recovery generation semantics are machine-readable data. Fixed-generation work is excluded from ordinary G+1 recovery after its fixed generation exists, remains visible through a bounded attention route, and normal retry-safe work keeps G+1 recovery.",
       "required": {"recovery_policy_overlay": true, "fixed_generation_ordinary_recovery_forbidden": true, "fixed_generation_attention_route": "FIXED_GENERATION_RECONCILE", "ordinary_retry_safe_next_generation_preserved": true, "job_id_blacklist_forbidden": true},
+      "status": "STATIC_GUARDED_PENDING_RUNTIME"
+    },
+    {
+      "id": "EFF013",
+      "title": "Latent useful work becomes claimable before NO_ALLOCATION",
+      "scope": ["allocator", "wc", "guide", "metabolism", "live"],
+      "observed_failure": "After claim-first removed worker archaeology, the fast allocator only exposed already-materialized jobs. Useful planning, integration, rescate and critic work remained latent even though Metabolism already had durable triggers, so fresh chats falsely ended NO_ALLOCATION while the project still had substantial work.",
+      "invariant": "The central allocator compiles durable metabolism signals into deduplicated atomic role_ready candidates. Disposable workers never rediscover this state preclaim, and an empty concrete queue is not treated as project idleness while a grounded role trigger exists.",
+      "required": {"role_ready_compiled_centrally": true, "candidate_order": ["ready", "queue_ready", "role_ready", "recovery"], "guide_roles": ["GUIDE_PLANNER", "GUIDE_INTEGRATOR", "GUIDE_RESCATE", "GUIDE_CRITIC", "GUIDE_STEWARD"], "role_claims_atomic": true, "frontier_floor_absolute_from_metabolism": 8, "false_no_allocation_with_usable_role_ready_forbidden": true, "lane_diversification_after_same_lane_collisions": 2, "workers_must_not_load_metabolism_preclaim": true},
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     }
   ],
