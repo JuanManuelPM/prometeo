@@ -83,11 +83,11 @@ try {
         role: 'GUIDE_CRITIC',
         trigger: 'PARTIAL_LOOP',
         fingerprint: 'fixedfingerprint',
-        evidence: [missing, valid, externalActions, externalPages],
+        evidence: [missing, valid, validPortfolioJob, missingPortfolioProject, missingPortfolioJob, externalActions, externalPages],
         claim_payload_shape: {
           schema: 'prometeo.guide-role-pin/v1',
           guide_work_id: 'guide-critic-fixedfingerprint',
-          evidence: [missing, valid, externalActions, externalPages]
+          evidence: [missing, valid, validPortfolioJob, missingPortfolioProject, missingPortfolioJob, externalActions, externalPages]
         }
       },
       {
@@ -116,6 +116,9 @@ try {
   assert.equal(kept.role_id, 'guide-critic-fixedfingerprint', 'role identity must not be recomputed');
   assert.equal(kept.fingerprint, 'fixedfingerprint', 'role fingerprint must not be recomputed');
   assert(kept.evidence.includes(valid));
+  assert(kept.evidence.includes(validPortfolioJob));
+  assert(!kept.evidence.includes(missingPortfolioProject));
+  assert(!kept.evidence.includes(missingPortfolioJob));
   assert(!kept.evidence.includes(missing));
   assert(kept.evidence.includes(externalActions));
   assert(kept.evidence.includes(externalPages));
