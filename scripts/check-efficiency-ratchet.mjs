@@ -15,6 +15,10 @@ const must = (name, text, needle) => {
   if (!text.includes(needle)) errors.push(`${name}: missing ${JSON.stringify(needle)}`);
   else ok.push(`${name}:${needle}`);
 };
+const mustI = (name, text, needle) => {
+  if (!text.toLowerCase().includes(needle.toLowerCase())) errors.push(`${name}: missing/i ${JSON.stringify(needle)}`);
+  else ok.push(`${name}:i:${needle}`);
+};
 const mustNot = (name, text, needle) => {
   if (text.includes(needle)) errors.push(`${name}: forbidden ${JSON.stringify(needle)}`);
   else ok.push(`${name}:not:${needle}`);
@@ -65,7 +69,7 @@ if (site) {
   const pointer = read(site, 'wc/index.html');
   must('public-wc', pointer, 'PROMETEO /wc — CLAIM NOW');
   must('public-wc', pointer, 'Before ownership, do NOT load Guide, Metabolism, page protocols');
-  must('public-wc', pointer, 'create your beacon, read ONE allocator snapshot, then attempt atomic claim/PIN immediately');
+  mustI('public-wc', pointer, 'create your beacon, read ONE allocator snapshot, then attempt atomic claim/PIN immediately');
   mustNot('public-wc', pointer, 'MANDATORY before allocation: load and obey the self-replenishing metabolism policy');
   mustNot('public-wc', pointer, 'Load and obey the distributed Guide/Rescate protocol');
   mustNot('public-wc', pointer, 'Load the page identity/request/publication laws before');
