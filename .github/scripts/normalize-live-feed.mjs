@@ -3,7 +3,7 @@ import path from 'node:path';
 
 const root = path.resolve(process.argv[2] || '.');
 const feedPath = path.resolve(process.argv[3] || '/tmp/feed.json');
-const NO_ALLOCATION_GRACE_MS = 90_000;
+const NO_ALLOCATION_GRACE_MS = 45_000;
 const now = Date.now();
 
 const readJson = p => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } };
@@ -58,13 +58,13 @@ for (const w of feed.workers) {
 }
 
 feed.workers = kept;
-feed.thresholds = {...(feed.thresholds || {}), allocation_grace_seconds:90};
+feed.thresholds = {...(feed.thresholds || {}), allocation_grace_seconds:45};
 feed.diagnostics = {
   ...(feed.diagnostics || {}),
   launches_total_before_projection: kept.length + noAllocation.length + superseded.length,
   no_allocation_suppressed: noAllocation.length,
   superseded_owner_attempts_suppressed: superseded.length,
-  projection_rule: 'No-PIN launches age out of Ahora; superseded pin generations remain evidence but are not simultaneous active owners.'
+  projection_rule: 'No-PIN launches age out of Ahora quickly; superseded pin generations remain evidence but are not simultaneous active owners.'
 };
 
 const s = feed.summary?.workers || (feed.summary.workers = {});
