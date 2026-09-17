@@ -1,0 +1,84 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-0963a22cf01f-64d46cc1",
+  "fingerprint": "pdf-0963a22cf01fff7d84f0495eab784fca",
+  "created_at": "2026-09-17T09:57:31-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0946-0300-gpt56sol-recovery-race-discovery",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "artifact": "recovery-claim-mutual-exclusion",
+    "subsystem": "universal-worker-recovery"
+  },
+  "problem": "Concurrent stale workers can create multiple active recovery claims for the same opportunity because overlap detection is check-then-write rather than an atomic per-opportunity acquisition.",
+  "acceptance": [
+    "A per-opportunity recovery acquisition has one atomic winner under concurrent contenders.",
+    "Losers observe collision and do not create overlapping write-capable recovery runs.",
+    "Append-only attempt lineage and late-return reconciliation are preserved.",
+    "A 10+ contender race test proves exactly one write-capable recovery claim and zero silent overwrites.",
+    "Current, Human Accepted, and Served authority remain unchanged."
+  ],
+  "title": "Atomic recovery claim acquisition",
+  "mission": "Replace check-then-write recovery takeover with a repository-host atomic per-opportunity acquisition primitive. A contender must create-if-absent a write-capable recovery lease/pin before starting a recovery run; losers record collision evidence and re-enter allocation. Preserve append-only recovery attempt history and late-return reconciliation without granting global promotion authority.",
+  "evidence_refs": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "scripts/swarm-lease-lib.mjs",
+    "coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/REC-O-SWARM-PAGE-THREAD-BRIDGE-V1-20260917T0912-SOL56.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/REC-O-SWARM-PAGE-THREAD-BRIDGE-V1-20260917T0951-SOL56-R2.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/REC-O-SWARM-PAGE-THREAD-BRIDGE-V1-20260917T0951-SOL56R2.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/REC-O-SWARM-PAGE-THREAD-BRIDGE-V1-20260917T0952-SOL56B.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/REC-O-SWARM-PAGE-THREAD-BRIDGE-V1-20260917T0953-GPT56SOL.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/REC-O-SWARM-PAGE-THREAD-BRIDGE-V1-20260917T0955-SOL56-A53A.json"
+  ],
+  "value_signals": {
+    "incident_repair": {
+      "reason": "The live Page Thread Bridge frontier accumulated multiple recovery claims within minutes for the same opportunity, despite the protocol requiring no active overlapping writer.",
+      "evidence_ref": "coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/"
+    },
+    "regression_prevention": {
+      "reason": "swarm-lease-lib evaluates active_overlap as an input but does not itself provide an atomic repository-host acquisition, leaving a check-then-write race between independent chats.",
+      "evidence_ref": "scripts/swarm-lease-lib.mjs"
+    },
+    "unblock_value": {
+      "reason": "Reliable stale recovery and the 50-worker stress gate require recovery attempts to avoid duplicate write-capable workers under real concurrent /wc launches.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-LEASE-RETRY-BUILD-V1"
+  ],
+  "candidate_read_scope": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**"
+  ],
+  "candidate_write_scope": [
+    "scripts/swarm-recovery-acquire.mjs",
+    "tests/swarm-recovery-acquire-race-v1.test.mjs",
+    "coordination/swarm-v1/recovery-acquire/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": {
+    "fail_if": [
+      "two concurrent contenders both obtain write-capable recovery authority for one opportunity",
+      "a losing contender still creates a write-capable recovery run",
+      "the atomic winner requires overwriting or deleting prior recovery-attempt evidence",
+      "late original returns become discardable merely because a recovery winner exists",
+      "the mechanism implies Current, Human Accepted, Served, or global promotion authority"
+    ]
+  },
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
