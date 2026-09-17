@@ -25,9 +25,13 @@
   }
   function rendererConfig(){return {groups:Model.groups(current),trackers:Model.activeTrackers(current).map(({id,label,group,kind})=>({id,label,group,kind}))}}
   function patchRendererSource(source,config=rendererConfig()){
-    const block=/const GROUPS=\[[\s\S]*?\n  \];\n  const TRACKERS=\[[\s\S]*?\n  \];/;
-    if(!block.test(source))throw new Error('Unexpected traces-v24 source; hardcoded roster block not found');
-    return source.replace(block,`const GROUPS=${JSON.stringify(config.groups)};\n  const TRACKERS=${JSON.stringify(config.trackers)};`);
+    const roster=/const GROUPS=\[[\s\S]*?\n  \];\n  const TRACKERS=\[[\s\S]*?\n  \];/;
+    const seed=/function seed\(\)\{[\s\S]*?\n    return s;\n  \}/;
+    if(!roster.test(source))throw new Error('Unexpected traces-v24 source; hardcoded roster block not found');
+    if(!seed.test(source))throw new Error('Unexpected traces-v24 source; legacy seed block not found');
+    return source
+      .replace(roster,`const GROUPS=${JSON.stringify(config.groups)};\n  const TRACKERS=${JSON.stringify(config.trackers)};`)
+      .replace(seed,"function seed(){const s={};TRACKERS.forEach(t=>s[t.id]={});return s;}");
   }
   async function loadRenderer(history={}){
     prepare(history);
