@@ -1,0 +1,79 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-b068aaa1f35f-30abf6f7",
+  "fingerprint": "pdf-b068aaa1f35f0abf41e171349fcf39e3",
+  "created_at": "2026-09-17T09:20:08-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T092008-0300-sol56-discovery-b068",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "output": "allocator collision retry policy and burst-race evidence",
+    "owner": "chat-object-prometeo-chat-control-main",
+    "privacy": "public_coordination_only",
+    "scope": "scripts/universal-worker-allocator.mjs + tests/universal-worker-allocator-v1.test.mjs + coordination/swarm-v1/allocator/"
+  },
+  "problem": "Identical workers can repeatedly select opportunities that were claimed moments after their snapshot and then lose create-if-absent races. The tested allocator excludes already-active claims, but its published evidence does not define or measure bounded post-collision refresh/retry, anti-starvation or burst-contention behavior.",
+  "acceptance": [
+    "burst canary with at least 20 contenders yields bounded claim attempts per worker and no overwrite",
+    "collision loser refreshes the durable frontier before retry and does not immediately hammer the same target",
+    "fairness or anti-starvation policy is documented and tested under deterministic replay",
+    "idle or discovery is entered only after refreshed prepared, recovery and dynamically-ready frontiers are exhausted"
+  ],
+  "title": "Allocator contention backoff and fairness canary",
+  "mission": "Add a candidate-only contention policy and deterministic burst canary for the universal worker allocator. After an exclusive claim loss, force a durable-frontier refresh before reselection, bound repeated attempts, prevent immediate same-target hammering, and record fairness/starvation metrics across at least 20 identical contenders without weakening create-if-absent exclusivity or authority boundaries.",
+  "evidence_refs": [
+    "coordination/swarm-v1/allocator/ROLE_FLUID_ALLOCATOR_V1.json",
+    "coordination/opportunities/claims/O-SWARM-CRITIC-RECOVERY-V1.json",
+    "coordination/opportunities/proposal-claims/pdf-8ca18cb49e76b6d6c89e41f56f390528.json"
+  ],
+  "value_signals": {
+    "human_friction_reduction": {
+      "reason": "Broad identical-worker launches should not require the human to compensate for repeated claim collisions or manually reroute workers.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md"
+    },
+    "regression_prevention": {
+      "reason": "A burst policy can preserve exclusive mutation while preventing a thundering-herd retry pattern from turning safe collision handling into low useful throughput.",
+      "evidence_ref": "coordination/swarm-v1/allocator/ROLE_FLUID_ALLOCATOR_V1.json"
+    },
+    "information_gain": {
+      "reason": "A 20+ contender deterministic canary would measure post-collision behavior that the current 11-test allocator receipt does not cover.",
+      "evidence_ref": "coordination/swarm-v1/allocator/ROLE_FLUID_ALLOCATOR_V1.json"
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-ROLE-FLUID-ALLOCATOR-V1"
+  ],
+  "candidate_read_scope": [
+    "scripts/universal-worker-allocator.mjs",
+    "tests/universal-worker-allocator-v1.test.mjs",
+    "coordination/swarm-v1/allocator/ROLE_FLUID_ALLOCATOR_V1.json",
+    "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md",
+    "coordination/opportunities/claims/**"
+  ],
+  "candidate_write_scope": [
+    "scripts/universal-worker-allocator.mjs",
+    "tests/universal-worker-allocator-v1.test.mjs",
+    "tests/fixtures/universal-worker-contention/**",
+    "coordination/swarm-v1/allocator/contention/**"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": {
+    "fail_if": [
+      "any loser overwrites an existing claim",
+      "a worker retries the same target without refreshing durable claim state",
+      "bounded retry policy causes useful unclaimed work to be skipped",
+      "deterministic replay can starve one eligible worker indefinitely",
+      "allocator self-promotes proposal/candidate output to READY, Current, Human Accepted or Served"
+    ]
+  },
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
