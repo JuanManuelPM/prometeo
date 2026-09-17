@@ -1,0 +1,34 @@
+{
+  "schema": "prometeo.guide-receipt/v1",
+  "guide_work_id": "guide-rescate-e95bc4347e60",
+  "receipt_id": "receipt-guide-rescate-e95bc4347e60-G000001-wc-gpt56sol-20260917T2114Z-a7c9",
+  "worker_id": "wc-gpt56sol-20260917T2114Z-a7c9",
+  "role": "GUIDE_RESCATE",
+  "created_at": "2026-09-17T21:30:00Z",
+  "trigger": "LOW_YIELD",
+  "evidence": [
+    "coordination/guide/pins/guide-rescate-e95bc4347e60/G000001.json",
+    "source_head=136f84da4b71626f7a0ff35259defe2d18efe578",
+    "efficiency_failure_run=35276490389 job=105388269144: stale v2 ratchet assertions rejected role_ready allocator evolution",
+    "coordination/efficiency/RATCHET_BASELINE_V1.json@4d473b78933e14a028612b5b45a45d6453504171: concurrent EFF001/EFF006 role_ready update plus EFF013",
+    "concurrent_role_frontier_test_commit=cfe9a0106652b0a6a5d767e896daeb5c9ade30c2",
+    "followup_failure_run=35276846668 job=105389421065: only role:/trigger: checker syntax false-negative remained",
+    "scripts/check-efficiency-ratchet.mjs@007eea8caf094a81fbda7e0a51f9ff55548a595d",
+    "repair_commit=3b1c2dc33ff88cbc1e281689422b4462d51e41da",
+    "verification_run=35276961993 job=105389799064 conclusion=success"
+  ],
+  "diagnosis": "The role_ready control-plane improvement was materially correct, but the protected efficiency gate lagged behind allocator v3 and initially enforced the obsolete v2 ordering/schema. Concurrent repairs updated EFF001/EFF006/EFF013, role-frontier coverage and tests, after which one false-negative remained: the checker required explicit JavaScript properties role: and trigger: even though the allocator validly emits shorthand role, trigger, inside the immutable guide-role payload. That stale guard kept the hot path red despite correct runtime semantics.",
+  "intervention": "Preserved the concurrent allocator/ratchet work rather than duplicating or reverting it. CAS prevented a duplicate baseline write. Patched only scripts/check-efficiency-ratchet.mjs so the guide-role payload guard still verifies every immutable field while accepting the actual shorthand role, and trigger, keys. This removes a repeated CI/control-plane bottleneck without weakening allocator semantics or claim-first/role_ready ordering.",
+  "created_jobs": [],
+  "consumed_returns": [],
+  "changed_paths": [
+    "scripts/check-efficiency-ratchet.mjs"
+  ],
+  "tests": [
+    "Run 35276490389 failed on obsolete v2 wc/FAST/allocator assertions, establishing the mechanism-level regression.",
+    "Run 35276846668 narrowed the remaining failure to fast-allocator-role-payload missing role: and trigger: while allocator used valid shorthand keys.",
+    "Run 35276961993 on repair commit 3b1c2dc33ff88cbc1e281689422b4462d51e41da completed SUCCESS.",
+    "Run 35276961993 job 105389799064: fixed-generation recovery filter SUCCESS; fast-claim and role-frontier contract SUCCESS; efficiency ratchet invariants SUCCESS."
+  ],
+  "remaining_boundary": "EFF013 and the role_ready hot path are statically guarded and CI-green, but a real post-repair runtime observation is still required before describing this optimization as RUNTIME_OBSERVED or RATCHETED. This receipt grants no product/current/human-acceptance promotion authority."
+}
