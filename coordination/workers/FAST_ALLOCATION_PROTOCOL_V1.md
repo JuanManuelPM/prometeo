@@ -1,4 +1,4 @@
-# Prometeo Fast Allocation Protocol v2.6
+# Prometeo Fast Allocation Protocol v2.7
 
 Status: CANARY / binding for `/wc`.
 
@@ -18,7 +18,7 @@ Before a PIN/claim the worker may do ONLY:
 
 1. load the canonical `/wc` bootstrap;
 2. create its launch beacon;
-3. read ONE allocator snapshot;
+3. read ONE compact claim-frontier snapshot;
 4. make atomic CREATE attempts against exact claim paths supplied by that snapshot; or, only when the selected candidate explicitly says `PORTFOLIO_BARRIER_ENTER`, execute the exact bounded barrier entrant/RELEASE/timeout paths supplied by that same allocator candidate before the PIN race.
 
 Forbidden before ownership:
@@ -49,12 +49,12 @@ These checks belong to the allocator-supplied bounded hot path or to post-claim 
 
 Read EXACTLY one of these, without web search:
 
-1. GitHub repo file `gh-pages:live/allocator.json` when the GitHub connector is available;
-2. otherwise direct URL `https://raw.githubusercontent.com/JuanManuelPM/prometeo/gh-pages/live/allocator.json`.
+1. GitHub repo file `gh-pages:live/claim-frontier.json` when the GitHub connector is available;
+2. otherwise direct URL `https://raw.githubusercontent.com/JuanManuelPM/prometeo/gh-pages/live/claim-frontier.json`.
 
-Do not search `juanmanuelpm.github.io` for it.
+Do not search `juanmanuelpm.github.io` for it. Do not read the full `live/allocator.json` on the ordinary preclaim path; it is diagnostics only and may be large.
 
-The allocator is a hint, not product authority. Atomic create-if-absent on the deterministic portfolio PIN remains the execution-ownership primitive.
+The compact claim frontier is a hint, not product authority. Atomic create-if-absent on the deterministic PIN/claim remains the execution-ownership primitive.
 
 ## Candidate order
 
@@ -71,14 +71,14 @@ Reason: clean execution should win first; if the materialized frontier thins whi
 
 ## Batched unified candidate sharding
 
-When the HUMAN invocation contains `BATCH <batch_id> EXPECTED <n>` with `n > 1` and the allocator exposes non-empty `batch_candidates`, concurrent identical workers MUST shard over that precompiled unified candidate array instead of independently restarting lane traversal.
+When the HUMAN invocation contains `BATCH <batch_id> EXPECTED <n>` with `n > 1`, concurrent identical workers MUST shard over the compact frontier `candidates` array instead of independently restarting lane traversal.
 
 - Retain the commit SHA returned by the already-required beacon CREATE as `beacon_commit_sha` when the write tool exposes it. Never add a read just to recover that SHA.
-- Use `allocator.batch_candidates` exactly as published. Start at `hex(first hex nibble of beacon_commit_sha) mod batch_candidates.length`.
+- Use `claim-frontier.candidates` exactly as published. Start at `parseInt(first 8 hex chars of beacon_commit_sha,16) mod candidates.length`.
 - After `CREATE_EXISTS` / `CAS_LOST`, advance cyclically to the next untried candidate in that unified array, while preserving the existing maximum of 3 authority CREATE attempts.
-- Do not re-impose lane priority locally for a batched worker: the allocator compiler already selected and ordered the product / Guide mesh represented by `batch_candidates`.
+- Do not re-impose lane priority locally for a batched worker: the compiler already selected and ordered the product / Guide mesh represented by `candidates`.
 - Unbatched workers preserve normal allocator lane order: `ready -> queue_ready -> role_ready -> recovery`.
-- If `beacon_commit_sha` is unavailable or its first character is not hexadecimal, preserve the published `batch_candidates` order.
+- If `beacon_commit_sha` is unavailable or its first 8 characters are not hexadecimal, preserve the published `candidates` order.
 - Sharding is local ordering over the one allocator snapshot already read: no extra preclaim read or write, no extra claim attempt, no authority change.
 
 This is an efficiency mechanism only. Atomic CREATE remains the sole ownership race primitive.
@@ -95,11 +95,11 @@ A transport/authorization block is different: `CLAIM_TRANSPORT_BLOCKED` stops im
 
 ### Portfolio
 
-The allocator may expose one of four portfolio claim modes.
+The compact claim frontier may expose one of four portfolio claim modes.
 
 #### `PORTFOLIO_PIN_CREATE`
 
-Use allocator `claim_path` + contract-complete `candidate.claim_payload_shape`.
+Use claim-frontier `claim_path` + contract-complete `candidate.claim_payload_shape`.
 
 Required `prometeo.portfolio-pin/v1` fields:
 
@@ -131,7 +131,7 @@ Ordinary portfolio jobs without explicit durable barrier metadata MUST remain `P
 
 ### Opportunity queue
 
-Use allocator `claim_path` under:
+Use compact frontier `claim_path` under:
 
 `coordination/opportunities/claims/<opportunity_id>.json`
 
@@ -167,7 +167,7 @@ At most 3 atomic authority candidate attempts for races/stale hints. The target 
 
 ## Central latent-work contract
 
-The allocator compiler owns the cable from:
+The allocator/compiler owns the cable from:
 
 `METABOLISM_POLICY_V1.json -> durable signals -> role_ready -> atomic role PIN`.
 
