@@ -1,0 +1,156 @@
+{
+  "schema": "prometeo.archaeology-return/v1",
+  "opportunity_id": "O-SWARM-ARCHAEOLOGY-PAGE-CHANGE-V1",
+  "run_id": "RUN-WC-PAGECHANGE-20260917T0913-5D72",
+  "worker_instance_id": "wc-chat-20260917T0913-0300-sol56-pagechange-5d72",
+  "state": "DONE",
+  "returned_at": "2026-09-17T09:20:00-03:00",
+  "mission": "Recover Page Change Thread/Feed, Prometeo Execute, Capture and same-page return mechanisms; identify exact path to make the multi-surface control UI a real work surface.",
+  "route_changing_finding": "Do not build a second page-message/return system. P4 already implements the page-scoped transport and same-page result loop. The swarm bridge should begin after P4 freezes an execution packet: adapt the existing thread/work_item/page identity plus scoped packet snapshot into planner/worker opportunities, then preserve the same work_item_id/thread_id through worker return and let P4 remain the canonical user-facing feed/return surface.",
+  "mechanism_map": [
+    {
+      "mechanism": "Page-scoped Capture + Change Thread",
+      "classification": "IMPLEMENTED_SOURCE_AND_SERVED_BRANCH_BYTES",
+      "evidence": [
+        "shared/capture/v1/change-loop.js",
+        "supabase/functions/prometeo-change-loop-v1/index.ts",
+        "shared/universal-shell/v5/SERVED_MANIFEST.json@main",
+        "shared/universal-shell/v5/SERVED_MANIFEST.json@gh-pages"
+      ],
+      "facts": [
+        "client schema is prometeo.page-change-loop-client/v3",
+        "thread identity is keyed by workspace + page_id and kept OPEN",
+        "text/audio/attachment inputs are page-scoped",
+        "machine transcription is revisioned and syncs back into the page thread",
+        "served manifest declares page_change_threads, page_change_feed, text_capture_from_thread and private_attachment_intake"
+      ]
+    },
+    {
+      "mechanism": "Prometeo Trabajar / execution-packet freeze",
+      "classification": "IMPLEMENTED_SOURCE",
+      "evidence": ["supabase/functions/prometeo-change-loop-v1/index.ts", "tests/p4-anywhere-notes.test.mjs"],
+      "facts": [
+        "requires explicit human action WORK_PAGE + human_approved=true",
+        "selects ALL_UNWORKED_SINCE_LAST_SUCCESS pending capture revisions and attachments",
+        "freezes Current/Catalog/protocol digests, page owner/writable target, page memory, previous executions and prior AI sessions",
+        "creates stable work_item_id, thread_id, packet URL and canonical coordination/executions/<work>/RETURN.json",
+        "marks selected inputs SUBMITTED only after packet creation"
+      ]
+    },
+    {
+      "mechanism": "Prometeo Pensar / durable AI-derived session",
+      "classification": "IMPLEMENTED_SOURCE_WITH_PUBLISHED_SAVE_FALLBACK",
+      "evidence": [
+        "coordination/AI_DESIGN_SESSION_PROTOCOL_V1.md",
+        "pages/capture/save-session/index.html",
+        ".github/workflows/publish-p4-save-session.yml",
+        "tests/p4-anywhere-notes.test.mjs"
+      ],
+      "facts": [
+        "thinking is explicitly separate from execution",
+        "saved session distills AI_DERIVED guidance instead of depending on transcript history",
+        "fallback save uses URL fragment and clears it from browser history before private POST",
+        "save-session publishing workflow validates and probes the live page"
+      ]
+    },
+    {
+      "mechanism": "Durable worker RETURN ingestion",
+      "classification": "IMPLEMENTED_SOURCE",
+      "evidence": ["supabase/functions/prometeo-change-loop-v1/index.ts"],
+      "facts": [
+        "HTTP return token and canonical GitHub RETURN.json are both accepted ingestion paths",
+        "ingestResult validates terminal status and exact work_item_id",
+        "result is stored against original workspace/thread/work item and updates thread last_result_at",
+        "success metabolizes selected captures/attachments; FAILED/BLOCKED restores them to PENDING",
+        "execution_status polls GitHub return path when no stored result exists"
+      ]
+    },
+    {
+      "mechanism": "Same-page host return/feed",
+      "classification": "IMPLEMENTED_SOURCE_AND_PACKAGED_SERVED_BRANCH_BYTES",
+      "evidence": [
+        "shared/universal-shell/v5/candidate/change-loop-source.html",
+        "shared/capture/v1/change-loop.js",
+        "shared/universal-shell/v5/candidate/CHANGE_LOOP_SOURCE_SHA256.txt",
+        "shared/universal-shell/v5/SERVED_MANIFEST.json@main",
+        "shared/universal-shell/v5/SERVED_MANIFEST.json@gh-pages",
+        ".github/workflows/promote-p4-host-routed-change-loop.yml"
+      ],
+      "facts": [
+        "canonical host route uses page=<page_id>&changes=<work_item_id>",
+        "shell reads both parameters, loads that page and invokes openResult(page, work_item, {markSeen:true})",
+        "openResult refreshes execution status/detail, focuses the work item, marks it seen and refreshes unread overview",
+        "candidate source SHA-256 339aa6173c2b91a7b5e6ef720fb1e9b3efd215cfbfc9cef276e3abeb871c14a5 matches both main and gh-pages SERVED_MANIFEST source_sha256"
+      ]
+    }
+  ],
+  "end_to_end_path": [
+    "Human writes/records/attaches on a page",
+    "Capture revision is synchronized into that page's OPEN Change Thread",
+    "Human presses Trabajar",
+    "prepare_execution freezes all currently unworked scoped inputs into one immutable execution packet and work_item_id",
+    "launcher opens an execution chat with PROMETEO EXECUTE + private packet URL",
+    "executor resolves authoritative owner, changes/tests/persists under execution protocol, and emits coordination/executions/<work_item>/RETURN.json (or optional private HTTP return)",
+    "execution_status ingests the RETURN and updates the original thread",
+    "host route ?page=<page_id>&changes=<work_item_id> reopens the source page and openResult surfaces the result in its Change Feed"
+  ],
+  "truth_ceiling": {
+    "proven": [
+      "source implementation exists for the full logical loop",
+      "contract tests exercise WORK_PAGE/THINK_PAGE client calls and privacy guards",
+      "promotion workflow statically asserts host routing/change-loop hooks before copying packaged bytes",
+      "main and gh-pages contain identical served manifest source identity for the recovered shell bytes",
+      "published save-session workflow contains a live HTTP probe"
+    ],
+    "not_proven_by_this_run": [
+      "a current browser journey from a real private Capture through external ChatGPT execution to a visible same-page result",
+      "that the currently deployed Supabase edge function/database migrations exactly match repository source at this instant",
+      "human acceptance of the current Page Change UI",
+      "that every target page in the four-surface swarm has a correct writable owner/root binding"
+    ],
+    "verdict": "LOGICAL_E2E_IMPLEMENTED; LIVE_PRIVATE_E2E_REMAINS_TO_BE_FALSIFIED/VERIFIED"
+  },
+  "bridge_boundary": {
+    "existing_transport_owner": "P4 Page Change Thread / Prometeo Execute",
+    "do_not_duplicate": [
+      "page note persistence",
+      "audio/attachment transport",
+      "human WORK_PAGE gate",
+      "execution packet identity",
+      "result ingestion",
+      "unread/result feed",
+      "same-page page+changes routing"
+    ],
+    "bridge_should_add": [
+      "deterministic adapter from an existing P4 execution packet/thread identity into local planner input",
+      "opportunity DAG/worker dispatch references that retain work_item_id + thread_id + page_id lineage",
+      "collector/local-steward dispositions that compile worker returns back into the one originating P4 work item",
+      "machine-auditable receipts proving no private Capture literal is copied into public coordination artifacts",
+      "preview/integration candidate refs that P4 can display through its existing result schema"
+    ],
+    "critical_invariant": "P4 remains the human-facing source/return loop; swarm coordination is a downstream execution substrate, not a parallel inbox."
+  },
+  "dedup_disposition": {
+    "O-SWARM-PAGE-THREAD-BRIDGE-V1": "KEEP_AND_NARROW: active RECOVER run already owns bridge implementation; consume this archaeology and reuse P4 rather than rebuilding messaging/feed/return.",
+    "O-SWARM-CRITIC-TESTING-V1": "REUSE_FOR_FALSIFICATION: existing critic lane can own browser/private-backend end-to-end falsification journeys; do not emit a duplicate verification opportunity from this run.",
+    "surface_local_integrations": "KEEP_BLOCKED_BY_EXISTING_DEPENDENCIES: their one-message/same-surface acceptance criterion should be satisfied through P4 + bridge + local steward, not a surface-specific messaging fork.",
+    "new_global_opportunities_emitted": 0
+  },
+  "recommended_acceptance_for_bridge": [
+    "fixture starts from a P4-shaped execution packet with page_id/thread_id/work_item_id and redacted private capture payload",
+    "bridge emits deterministic planner/opportunity candidates without mutating P4 thread authority",
+    "every emitted opportunity preserves lineage back to original work_item_id/thread_id/page_id",
+    "worker outputs converge into one result disposition for that work item rather than N user-facing messages",
+    "returned result can be represented by existing execution-result schema and same-page host route",
+    "tests prove private literals/tokens never enter public coordination artifacts",
+    "replay of identical packet is idempotent/deduplicated"
+  ],
+  "source_freshness": {
+    "main_pre_return": "7b48674aeb96f883c60f7c3d30772dc544846bb7",
+    "runtime_epoch_pre_return": "P3-c67711ac34c3",
+    "runtime_main_projection_pre_return": "78f0daa882ba",
+    "served_source_sha256": "339aa6173c2b91a7b5e6ef720fb1e9b3efd215cfbfc9cef276e3abeb871c14a5",
+    "note": "Broad canary concurrency continued changing main. Findings are anchored to exact repository paths/hashes and this worker made no mutation outside its own claim/run/return scope."
+  },
+  "authority_boundary": "Independent archaeology return only. No Current, Human Accepted, Served, global queue, private backend or shared product authority was mutated."
+}
