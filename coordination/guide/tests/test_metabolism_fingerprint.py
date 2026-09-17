@@ -3,13 +3,15 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import sys
 import unittest
 
 HERE = pathlib.Path(__file__).resolve()
 HELPER = HERE.parents[1] / "tools" / "metabolism_fingerprint.py"
 SPEC = importlib.util.spec_from_file_location("metabolism_fingerprint", HELPER)
-MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
+MODULE = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 CANARY_EVIDENCE = [
