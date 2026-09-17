@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-17T21:24:00Z",
+  "updated_at": "2026-09-17T21:29:30Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -120,6 +120,15 @@
       "observed_failure": "After claim-first removed worker archaeology, the fast allocator only exposed already-materialized jobs. Useful planning, integration, rescate and critic work remained latent even though Metabolism already had durable triggers, so fresh chats falsely ended NO_ALLOCATION while the project still had substantial work.",
       "invariant": "The central allocator compiles durable metabolism signals into deduplicated atomic role_ready candidates. Disposable workers never rediscover this state preclaim, and an empty concrete queue is not treated as project idleness while a grounded role trigger exists.",
       "required": {"role_ready_compiled_centrally": true, "candidate_order": ["ready", "queue_ready", "role_ready", "recovery"], "guide_roles": ["GUIDE_PLANNER", "GUIDE_INTEGRATOR", "GUIDE_RESCATE", "GUIDE_CRITIC", "GUIDE_STEWARD"], "role_claims_atomic": true, "frontier_floor_absolute_from_metabolism": 8, "false_no_allocation_with_usable_role_ready_forbidden": true, "lane_diversification_after_same_lane_collisions": 2, "workers_must_not_load_metabolism_preclaim": true},
+      "status": "STATIC_GUARDED_PENDING_RUNTIME"
+    },
+    {
+      "id": "EFF014",
+      "title": "Explicit contention barriers precede the deterministic PIN race",
+      "scope": ["allocator", "wc", "portfolio-pin", "contention-barrier", "live"],
+      "observed_failure": "A deliberate multi-worker PIN-race canary could publish a winner before another worker was durably armed, yielding winner-only evidence and forcing human timing or repeated canary launches.",
+      "invariant": "Only jobs with explicit durable contention-barrier metadata receive a timing-only pre-PIN entrant/rendezvous action. Before valid RELEASE no portfolio PIN is attempted; timeout attempts no PIN; after RELEASE all entrants race the unchanged deterministic generation. Ordinary jobs remain direct-to-PIN.",
+      "required": {"explicit_opt_in_only": true, "barrier_grants_execution_authority": false, "pin_before_release_forbidden": true, "timeout_pin_attempted": false, "release_next_action": "RACE_DETERMINISTIC_PIN", "ordinary_jobs_direct_to_pin": true, "job_id_hardcoding_forbidden": true, "fixtures": [2, 5], "regression_test": "coordination/portfolio/tests/fast_allocator_contention_barrier_routing_v1.mjs"},
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     }
   ],
