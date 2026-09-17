@@ -177,6 +177,7 @@ must('fast-allocator', allocator, "claim_mode: 'GUIDE_ROLE_PIN_CREATE'");
 must('fast-allocator', allocator, "schema: 'prometeo.guide-role-pin/v1'");
 must('fast-allocator', allocator, 'frontier_floor_absolute');
 must('fast-allocator', allocator, 'max_recovery_snapshot_age_seconds: 90');
+must('fast-allocator', allocator, 'required_capabilities: uniq(job.required_capabilities)');
 must('fast-allocator', allocator, 'claim_path:');
 must('fast-allocator', allocator, 'claim_payload_shape:');
 must('fast-allocator', allocator, "mode: 'fixed_generation'");
@@ -222,6 +223,11 @@ for (const field of ['schema','pin_id','guide_work_id','generation','worker_id',
 }
 must('fast-allocator-role-payload', rolePayload, 'role,');
 must('fast-allocator-role-payload', rolePayload, 'trigger,');
+
+const capabilityFitTest = read(root, 'coordination/portfolio/tests/fast_allocator_capability_fit_v1.mjs');
+must('capability-fit-test', capabilityFitTest, 'FAST_ALLOCATOR_CAPABILITY_FIT_PASS');
+must('capability-fit-test', capabilityFitTest, 'unrestricted_public_http_origin_fetch');
+must('capability-fit-test', capabilityFitTest, 'CAPABILITY_MISMATCH_PRECLAIM');
 
 const fixedPolicy = read(root, 'coordination/portfolio/recovery-policies/portfolio-exclusive-job-pin-live-race-5-v1.json');
 must('fixed-generation-policy', fixedPolicy, '"mode": "fixed_generation"');
