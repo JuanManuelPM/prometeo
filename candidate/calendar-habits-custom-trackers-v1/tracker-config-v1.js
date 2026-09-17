@@ -17,9 +17,9 @@
   }
   function prepare(history={}){
     lastHistory=history&&typeof history==='object'?history:{};
-    const result=Model.bootstrap(read(),lastHistory);
+    const saved=read(),result=Model.bootstrap(saved,lastHistory);
     current=result.config;
-    if(result.changed||!read())write(current);
+    if(result.changed||!saved)write(current);
     installManager();
     return current;
   }
@@ -42,13 +42,13 @@
   }
   function reload(){location.reload()}
   function selectOption(value,text,selected){const o=document.createElement('option');o.value=value;o.textContent=text;o.selected=selected;return o}
+  function groupOptions(selected){return [['extras','Extras'],['routine','Rutina'],['addictions','Adicciones'],['avoid','Evitar'],['other','Otros']].map(([value,text])=>selectOption(value,text,value===selected))}
   function trackerRow(tracker){
     const row=document.createElement('div');row.className='tracker-config-row';row.dataset.trackerId=tracker.id;
     const name=document.createElement('input');name.value=tracker.label;name.maxLength=80;name.setAttribute('aria-label','Nombre');
     const kind=document.createElement('select');kind.setAttribute('aria-label','Tipo');
     [['positive','Sumar'],['negative','Evitar evento'],['avoid','Evitar + ganas/caída']].forEach(([value,text])=>kind.append(selectOption(value,text,value===tracker.kind)));
-    const group=document.createElement('select');group.setAttribute('aria-label','Grupo');
-    [['extras','Extras'],['routine','Rutina'],['avoid','Evitar'],['other','Otros']].forEach(([value,text])=>group.append(selectOption(value,text,value===tracker.group)));
+    const group=document.createElement('select');group.setAttribute('aria-label','Grupo');groupOptions(tracker.group).forEach(option=>group.append(option));
     const save=document.createElement('button');save.type='button';save.textContent='GUARDAR';
     save.onclick=()=>{write(Model.update(current,tracker.id,{label:name.value,kind:kind.value,group:group.value}));reload()};
     const archive=document.createElement('button');archive.type='button';archive.textContent=tracker.archived?'RESTAURAR':'ARCHIVAR';
@@ -76,7 +76,7 @@
     const manage=document.createElement('button');manage.id='habitTrackerManage';manage.type='button';manage.className='tracker-config-manage';manage.textContent='EDITAR';
     range?.before(manage);
     const dialog=document.createElement('dialog');dialog.id='habitTrackerDialog';dialog.className='tracker-config-dialog';
-    dialog.innerHTML='<div class="tracker-config-head"><strong>TRACKERS</strong><button type="button" data-close aria-label="Cerrar">×</button></div><div class="tracker-config-list" data-tracker-list></div><form class="tracker-config-add" data-add><strong>NUEVO</strong><input name="label" maxlength="80" placeholder="Nombre" required><select name="kind"><option value="positive">Sumar</option><option value="negative">Evitar evento</option><option value="avoid">Evitar + ganas/caída</option></select><select name="group"><option value="extras">Extras</option><option value="routine">Rutina</option><option value="avoid">Evitar</option><option value="other">Otros</option></select><button type="submit">AGREGAR</button></form><div class="tracker-config-foot"><button type="button" data-export>EXPORTAR</button></div>';
+    dialog.innerHTML='<div class="tracker-config-head"><strong>TRACKERS</strong><button type="button" data-close aria-label="Cerrar">×</button></div><div class="tracker-config-list" data-tracker-list></div><form class="tracker-config-add" data-add><strong>NUEVO</strong><input name="label" maxlength="80" placeholder="Nombre" required><select name="kind"><option value="positive">Sumar</option><option value="negative">Evitar evento</option><option value="avoid">Evitar + ganas/caída</option></select><select name="group"><option value="extras">Extras</option><option value="routine">Rutina</option><option value="addictions">Adicciones</option><option value="avoid">Evitar</option><option value="other">Otros</option></select><button type="submit">AGREGAR</button></form><div class="tracker-config-foot"><button type="button" data-export>EXPORTAR</button></div>';
     document.body.append(dialog);
     manage.onclick=()=>{renderManager(dialog);dialog.showModal?dialog.showModal():dialog.setAttribute('open','')};
     dialog.querySelector('[data-close]').onclick=()=>dialog.close?dialog.close():dialog.removeAttribute('open');
