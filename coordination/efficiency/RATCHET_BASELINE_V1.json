@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-17T20:21:00Z",
+  "updated_at": "2026-09-17T20:36:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -11,13 +11,7 @@
       "scope": ["wc", "worker-allocation"],
       "observed_failure": "Fresh workers spent minutes listing pins, G1/G2, heartbeats, returns and protocols before attempting authority.",
       "invariant": "Before first PIN/claim, a fresh /wc performs only bootstrap, beacon, one allocator read and bounded atomic claim attempts.",
-      "required": {
-        "candidate_order": ["ready", "queue_ready", "recovery"],
-        "max_fast_claim_attempts": 3,
-        "target_time_to_first_claim_seconds": 30,
-        "hard_observation_threshold_seconds": 90,
-        "broad_preclaim_archaeology_forbidden": true
-      },
+      "required": {"candidate_order": ["ready", "queue_ready", "recovery"], "max_fast_claim_attempts": 3, "target_time_to_first_claim_seconds": 30, "hard_observation_threshold_seconds": 90, "broad_preclaim_archaeology_forbidden": true},
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
@@ -26,11 +20,7 @@
       "scope": ["wc", "worker-registry", "live"],
       "observed_failure": "Workers with no assignment remained visible for minutes and could be mistaken for recoverable work.",
       "invariant": "No-PIN workers create no recovery debt and age out of Live's active list quickly.",
-      "required": {
-        "no_allocation_next_action": "STOP_NO_RECOVERY",
-        "live_no_assignment_grace_seconds_max": 90,
-        "replacement_for_no_allocation_forbidden": true
-      },
+      "required": {"no_allocation_next_action": "STOP_NO_RECOVERY", "live_no_assignment_grace_seconds_max": 90, "replacement_for_no_allocation_forbidden": true},
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
@@ -39,9 +29,7 @@
       "scope": ["live", "github-actions"],
       "observed_failure": "cancel-in-progress caused repeated worker commits to cancel the feed publisher before it could publish.",
       "invariant": "The running Live publisher is never cancelled merely because a newer commit arrived; bursts coalesce through the pending run.",
-      "required": {
-        "live_feed_cancel_in_progress": false
-      },
+      "required": {"live_feed_cancel_in_progress": false},
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
@@ -50,9 +38,7 @@
       "scope": ["live", "portfolio-recovery"],
       "observed_failure": "Historical/superseded PIN generations inflated active/replacement counts.",
       "invariant": "Only the newest authoritative generation for a job is projected as its current owner; older generations remain history only.",
-      "required": {
-        "suppress_superseded_owner_attempts": true
-      },
+      "required": {"suppress_superseded_owner_attempts": true},
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
@@ -61,10 +47,7 @@
       "scope": ["wc-public", "worker-allocation"],
       "observed_failure": "The public /wc pointer instructed workers to load Guide, Metabolism and page protocols before allocation, contradicting claim-first.",
       "invariant": "The public /wc pointer may route to canonical bootstrap and allocator but must not require unrelated deep protocols before ownership.",
-      "required": {
-        "public_pointer_claim_now": true,
-        "preclaim_deep_protocol_loads_forbidden": true
-      },
+      "required": {"public_pointer_claim_now": true, "preclaim_deep_protocol_loads_forbidden": true},
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
@@ -73,10 +56,7 @@
       "scope": ["allocator", "wc"],
       "observed_failure": "Workers entered expensive recovery validation while clean ready work was available.",
       "invariant": "Allocator and /wc rank ready work before recovery; stale recovery snapshots are never manually reconstructed preclaim.",
-      "required": {
-        "candidate_order": ["ready", "queue_ready", "recovery"],
-        "recovery_snapshot_max_age_seconds": 90
-      },
+      "required": {"candidate_order": ["ready", "queue_ready", "recovery"], "recovery_snapshot_max_age_seconds": 90},
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
@@ -85,11 +65,7 @@
       "scope": ["g", "guide-recovery"],
       "observed_failure": "Fresh /g required exhaustive queues/claims/runs/returns/heartbeats even when the request referenced one page, inbox item or bounded decision.",
       "invariant": "Guide loads identity + epoch + focus, resolves exact user referents, then expands only the relevant durable slice; raw global archaeology is fallback, not default.",
-      "required": {
-        "relevance_first_hydration": true,
-        "compiled_views_before_raw_directories": true,
-        "same_epoch_skip_unrelated_rereads": true
-      },
+      "required": {"relevance_first_hydration": true, "compiled_views_before_raw_directories": true, "same_epoch_skip_unrelated_rereads": true},
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
@@ -98,11 +74,26 @@
       "scope": ["efficiency-runtime", "ratchet"],
       "observed_failure": "Using baseline file updated_at as telemetry activation would erase accumulated runtime samples whenever the ledger gained a new ratchet item.",
       "invariant": "Runtime measurement uses an explicit stable activation timestamp, independent from ordinary baseline edits.",
-      "required": {
-        "runtime_baseline_field": "runtime_baseline_activated_at",
-        "ordinary_updates_must_not_reset_runtime_epoch": true
-      },
+      "required": {"runtime_baseline_field": "runtime_baseline_activated_at", "ordinary_updates_must_not_reset_runtime_epoch": true},
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
+    },
+    {
+      "id": "EFF009",
+      "title": "Claim transport authorization must be explicit and fail fast",
+      "scope": ["wc", "wc-public", "worker-allocation"],
+      "observed_failure": "A fresh worker read one allocator but two claim CREATEs were blocked by tool authorization/safety controls, wasting most of a launch despite no job-level collision.",
+      "invariant": "The canonical human invocation explicitly authorizes bounded reversible Prometeo writes; a transport-level claim block stops immediately and is never retried across multiple candidates.",
+      "required": {"human_message_write_authorization": true, "transport_block_stop_immediately": true, "transport_block_max_claim_attempts": 1},
+      "status": "STATIC_GUARDED_PENDING_RUNTIME"
+    },
+    {
+      "id": "EFF010",
+      "title": "Efficiency timing comes from durable repository events",
+      "scope": ["efficiency-runtime", "worker-registry"],
+      "observed_failure": "A no-allocation receipt reused the launch timestamp even though the beacon and close commits were roughly 39 seconds apart, understating wasted time.",
+      "invariant": "Runtime timing prefers Git commit time for beacon/claim/no-allocation persistence and treats model-authored timestamps as descriptive metadata, not the measurement clock.",
+      "required": {"durable_commit_time_preferred": true, "nonpositive_model_duration_must_not_mask_commit_latency": true},
+      "status": "PATCHED_PENDING_GUARD_AND_RUNTIME"
     }
   ],
   "status_legend": {
