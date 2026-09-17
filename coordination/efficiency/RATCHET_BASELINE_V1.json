@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-17T20:36:00Z",
+  "updated_at": "2026-09-17T20:45:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -94,6 +94,15 @@
       "invariant": "Runtime timing prefers Git commit time for beacon/claim/no-allocation persistence and treats model-authored timestamps as descriptive metadata, not the measurement clock.",
       "required": {"durable_commit_time_preferred": true, "nonpositive_model_duration_must_not_mask_commit_latency": true},
       "status": "PATCHED_PENDING_GUARD_AND_RUNTIME"
+    },
+    {
+      "id": "EFF011",
+      "title": "Fast claim pins are complete before immutable create",
+      "scope": ["wc", "allocator", "worker-allocation", "portfolio-pin"],
+      "observed_failure": "A fresh /wc won an atomic G000001 with a minimal payload, then post-claim protocol loading revealed required immutable pin metadata was missing. Append-only pin semantics correctly forbade repairing that generation in place.",
+      "invariant": "The compiled allocator supplies every mandatory portfolio pin field before CREATE; a fresh worker fills only bounded placeholders and never needs deep preclaim archaeology or post-create metadata repair.",
+      "required": {"allocator_claim_payload_complete": true, "malformed_portfolio_pin_create_forbidden": true, "post_create_pin_repair_forbidden": true, "bounded_placeholders": ["<worker_id>", "<now_iso>", "<now_plus_10m_iso>"], "preserve_eff001_claim_first": true, "max_fast_claim_attempts": 3},
+      "status": "STATIC_GUARDED_PENDING_RUNTIME"
     }
   ],
   "status_legend": {
