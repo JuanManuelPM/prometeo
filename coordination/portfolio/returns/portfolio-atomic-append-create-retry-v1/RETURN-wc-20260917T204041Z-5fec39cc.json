@@ -1,0 +1,42 @@
+{
+  "schema": "prometeo.portfolio-return/v1",
+  "return_id": "RETURN-wc-20260917T204041Z-5fec39cc",
+  "job_id": "portfolio-atomic-append-create-retry-v1",
+  "dedupe_key": "control-plane:atomic-append-create-retry:v1",
+  "project_id": "prometeo-autonomous-growth",
+  "worker_id": "wc-20260917T1733-0300-5fec39cc",
+  "returned_at": "2026-09-17T20:40:41Z",
+  "outcome": "NO_ACTION_NEEDED",
+  "summary": "Post-claim validation found the allocator recovery hint stale: generation 1 had already implemented the reusable append-only create retry helper, added tests and durable evidence, and reported 5/5 passing. No substantive hot-path mutation was made by generation 2. This terminal return closes duplicate recovery without redoing completed work.",
+  "changed_paths": [
+    "coordination/portfolio/pins/portfolio-atomic-append-create-retry-v1/G000002.json",
+    "coordination/portfolio/claims/portfolio-atomic-append-create-retry-v1/claim-wc-20260917T1733-0300-5fec39cc-atomic-append-g2.json"
+  ],
+  "evidence": [
+    "coordination/portfolio/returns/portfolio-atomic-append-create-retry-v1/RETURN-wc-chatgpt-20260917T1922Z-7c41d9.json",
+    "scripts/append-only-create-retry-lib.mjs",
+    "tests/append-only-create-retry-v1.test.mjs",
+    "coordination/portfolio/evidence/portfolio-atomic-append-create-retry-v1/TEST_RECEIPT-wc-chatgpt-20260917T1921Z-7c41d9.json",
+    "coordination/efficiency/RATCHET_BASELINE_V1.json"
+  ],
+  "tests": [
+    "POST_CLAIM_VALIDATION: prior G1 return reports reusable implementation + 5/5 passing tests.",
+    "NO_SUBSTANTIVE_MUTATION: generation 2 changed no helper, test, protocol, Current, Served or Human Accepted state.",
+    "STALE_HINT_ABORT: recovery closed by terminal NO_ACTION_NEEDED rather than duplicate implementation."
+  ],
+  "unresolved": [
+    "The prior G1 return uses outcome SUCCESS, while the worker contract enumerates DONE/VERIFIED/NO_ACTION_NEEDED/SUPERSEDED as terminal. This vocabulary mismatch allowed completed work to remain allocator-recoverable."
+  ],
+  "spawn_candidates": [
+    {
+      "title": "Normalize completed portfolio return outcomes before allocator recovery",
+      "reason": "A materially completed G1 return labeled SUCCESS was not recognized as terminal by the current portfolio contract/allocator path, causing unnecessary recovery work.",
+      "dedupe_key": "control-plane:portfolio-return-terminal-normalization:v1",
+      "acceptance": [
+        "Allocator and portfolio contract share one explicit terminal outcome vocabulary.",
+        "Historical SUCCESS returns that clearly represent completion are deterministically normalized or reconciled without replaying completed jobs.",
+        "Regression coverage proves completed jobs do not re-enter recovery solely because of outcome-label drift."
+      ]
+    }
+  ]
+}
