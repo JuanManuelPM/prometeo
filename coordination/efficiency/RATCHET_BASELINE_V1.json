@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-17T21:37:00Z",
+  "updated_at": "2026-09-17T21:40:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -83,7 +83,7 @@
       "scope": ["wc", "wc-public", "worker-allocation"],
       "observed_failure": "A fresh worker read one allocator but two claim CREATEs were blocked by tool authorization/safety controls, wasting most of a launch despite no job-level collision.",
       "invariant": "The canonical human invocation explicitly authorizes bounded reversible Prometeo writes; a transport-level claim block stops immediately and is never retried across multiple candidates.",
-      "required": {"human_message_write_authorization": true, "transport_block_stop_immediately": true, "transport_block_max_claim_attempts": 1},
+      "required": {"human_message_write_authorization": true, "transport_block_stop_immediately": true, "transport_block_max_claim_attempts": 1, "claim_transport_blocked_regression_window_minutes": 10, "historical_transport_block_count_preserved": true},
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
     {
@@ -139,6 +139,15 @@
       "invariant": "A fresh unreceipted GUIDE_RESCATE pin suppresses every other GUIDE_RESCATE role_ready candidate regardless of evidence fingerprint until that authority returns or becomes stale. Other Guide roles and ordinary execution remain claimable.",
       "required": {"one_active_guide_rescate_across_fingerprint_churn": true, "active_window_minutes": 10, "receipt_releases_role": true, "stale_pin_releases_role": true, "other_guide_roles_preserved": true, "ordinary_execution_preserved": true, "suppression_stage": "POST_ALLOCATOR_PRE_PUBLISH", "regression_test": "coordination/portfolio/tests/guide_rescate_single_active_role_v1.mjs"},
       "status": "RATCHETED"
+    },
+    {
+      "id": "EFF016",
+      "title": "Historical transport blocks cannot create a permanent current regression",
+      "scope": ["efficiency-runtime", "ratchet", "guide", "wc"],
+      "observed_failure": "After the transport-authorization repair, five older CLAIM_TRANSPORT_BLOCKED no-allocation events remained inside the stable runtime epoch. The efficiency snapshot counted the full epoch for its current alarm, so status stayed REGRESSION and kept spawning GUIDE_RESCATE even though the newest explicitly authorized worker acquired claims normally.",
+      "invariant": "Historical transport-block incidents remain visible in cumulative telemetry, but the current CLAIM_TRANSPORT_BLOCKED_REPEAT alarm is evaluated only over a bounded recent durable-event window. Ordinary ratchet edits never reset the global runtime epoch.",
+      "required": {"global_runtime_epoch_preserved": true, "historical_transport_block_count_preserved": true, "transport_regression_uses_recent_durable_events": true, "claim_transport_blocked_regression_window_minutes": 10, "repeat_threshold": 2, "regression_test": "coordination/portfolio/tests/efficiency_recent_transport_regression_v1.mjs"},
+      "status": "STATIC_GUARDED_PENDING_RUNTIME"
     }
   ],
   "status_legend": {
