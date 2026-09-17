@@ -1,0 +1,67 @@
+{
+  "schema": "prometeo.multi-stage-continuation-canary/v1",
+  "opportunity_id": "O-SWARM-MULTI-STAGE-CONTINUATION-V1",
+  "run_id": "RUN-O-SWARM-MULTI-STAGE-CONTINUATION-V1-20260917T0047-SOL56-6A2D",
+  "worker_instance_id": "wc-chat-20260917T0047-0300-sol56-continuation6a2d",
+  "recorded_at": "2026-09-17T00:51:30-03:00",
+  "authority": "CANDIDATE_EVIDENCE_ONLY_NO_GLOBAL_PROMOTION",
+  "runtime_preflight": {
+    "epoch": "P3-09ad989af945",
+    "compiled_main": "00fe6a82ea9e",
+    "active_packet_ref": "agent-runtime/workstreams/chat-native-control-plane-v1.json@gh-pages",
+    "write_scope": [
+      "scripts/multi-stage-worker-continuation.mjs",
+      "tests/multi-stage-continuation-v1.test.mjs",
+      "coordination/swarm-v1/continuation/**",
+      "own claim/run/return"
+    ],
+    "hard_write_collision_observed": false
+  },
+  "artifacts": [
+    {
+      "path": "scripts/multi-stage-worker-continuation.mjs",
+      "git_blob_sha": "869dbd0a09443ea709c54f6f723c7c086654621b",
+      "role": "executable continuation decision + atomic create-if-absent claim canary"
+    },
+    {
+      "path": "tests/multi-stage-continuation-v1.test.mjs",
+      "git_blob_sha": "5744aae968a72f3940fb57ee8a200de61c83de25",
+      "role": "race, sibling parallelism, authority, readiness and preserve-first verification"
+    }
+  ],
+  "verification": {
+    "command": "node --test tests/multi-stage-continuation-v1.test.mjs",
+    "tests": 8,
+    "passed": 8,
+    "failed": 0,
+    "persisted_byte_equivalence": "PASS",
+    "method": "git hash-object on the exact locally executed files equals the GitHub blob SHA returned after persistence for both script and test",
+    "cases": [
+      "same-context + same-authority checkpoints remain in one run",
+      "context or authority change forces split/boundary",
+      "dependency-derived readiness requires proof refs and no failed/conflicted prerequisites",
+      "existing live claim/context change/authority escalation prevents successor claim",
+      "claim payload remains candidate-scoped and does not self-promote Current/Human Accepted/Served",
+      "two concurrent workers racing one exclusive successor yield exactly one winner/start permission",
+      "independent sibling successors use distinct claim paths and both remain parallel",
+      "preserve-first claim mutates only the append-only claim path and leaves opportunity inputs unchanged"
+    ]
+  },
+  "atomicity_model": {
+    "candidate_primitive": "fs.open(path, 'wx')",
+    "semantic_contract": "CREATE_IF_ABSENT_EXCLUSIVE",
+    "winner": "only the worker whose exclusive create succeeds receives may_start_run=true",
+    "loser": "EEXIST becomes CLAIM_LOST_ALREADY_EXISTS and may_start_run=false",
+    "sibling_parallelism": "independent successors have distinct exclusive paths; no global continuation lock is introduced",
+    "production_boundary": "This canary proves the continuation state machine and atomic create-if-absent semantics in the executable candidate. Production GitHub/remote claim transport must preserve the same exclusive-create contract; no claim here promotes /w or global authority."
+  },
+  "preserve_first": {
+    "queue_mutated": false,
+    "current_mutated": false,
+    "served_mutated": false,
+    "human_accepted_mutated": false,
+    "scope_escalation": false
+  },
+  "remaining_boundary": "Integration with the live role-fluid allocator/dynamic-readiness implementation is a separate owner/integration step. This worker intentionally did not edit those concurrently owned files.",
+  "result": "PASS_CANDIDATE_CANARY"
+}
