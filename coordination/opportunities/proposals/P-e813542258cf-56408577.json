@@ -1,0 +1,80 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-e813542258cf-56408577",
+  "fingerprint": "pdf-e813542258cfb8a3afb573649610d9df",
+  "created_at": "2026-09-17T09:18:30-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0918-0300-sol56-surplus-snapshot",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "output": "deterministic live swarm snapshot compiler",
+    "owner": "chat-object-prometeo-chat-control-main",
+    "privacy": "public_coordination_only",
+    "scope": "coordination/opportunities queue+claims+runs+returns and swarm readiness/control-room"
+  },
+  "problem": "The control plane lacks a deterministic live repository snapshot that joins queue, claims, runs, returns and readiness; workers currently reconstruct state through repeated ad hoc reads and Control Room fixture semantics do not prove live wiring.",
+  "acceptance": [
+    "one invocation deterministically emits a joined snapshot from current repository state without mutating queue or authority",
+    "snapshot classifies ready claimed started returned stale and blocked work and records source refs and source heads",
+    "repeated invocation on the same source head is byte-stable",
+    "concurrent repository change is detected as drift rather than silently mixing epochs",
+    "Control Room and allocator can consume the snapshot as candidate input without changing authority"
+  ],
+  "title": "Live swarm snapshot compiler",
+  "mission": "Implement a read-only executable compiler that joins the live universal queue, claims, runs, returns and dependency/readiness evidence into one deterministic source-pinned snapshot. Refuse mixed-epoch truth by surfacing repository drift, preserve provenance for every classification, and leave the output as candidate control-plane evidence only.",
+  "evidence_refs": [
+    "coordination/opportunities/returns/O-SWARM-CRITIC-THROUGHPUT-V1/RUN-SWARM-THROUGHPUT-20260917T0913-sol56.json",
+    "coordination/workstreams/chat-native-control-plane-v1/PROMETEO_MASTER_CONTEXT_V1.md",
+    "coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json",
+    "coordination/swarm-v1/discovery/DISCOVERY_DEDUP_CONTRACT_V1.json"
+  ],
+  "value_signals": {
+    "human_friction_reduction": {
+      "reason": "Fresh workers currently have to reconstruct live allocation state from repeated queue/claim/run/return reads; one source-pinned snapshot removes that courier/scheduler-style reconstruction burden.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/PROMETEO_MASTER_CONTEXT_V1.md"
+    },
+    "unblock_value": {
+      "reason": "The throughput critic found that Control Room fixture semantics do not prove a full live repository snapshot or allocator wiring, blocking trustworthy high-parallelism control-plane projection.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-CRITIC-THROUGHPUT-V1/RUN-SWARM-THROUGHPUT-20260917T0913-sol56.json"
+    },
+    "regression_prevention": {
+      "reason": "Source-head pinning and explicit drift detection prevent a worker from silently classifying one apparent state from queue/claims/runs/returns read across different repository epochs.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-CRITIC-THROUGHPUT-V1/RUN-SWARM-THROUGHPUT-20260917T0913-sol56.json"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json",
+    "coordination/opportunities/claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**",
+    "coordination/swarm-v1/**",
+    "agent-runtime/epoch.json"
+  ],
+  "candidate_write_scope": [
+    "scripts/live-swarm-snapshot-compiler.mjs",
+    "tests/live-swarm-snapshot-compiler-v1.test.mjs",
+    "coordination/swarm-v1/snapshots/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": {
+    "fail_if": [
+      "one snapshot silently combines inputs observed from different source heads without a drift marker",
+      "classification depends on directory listing order or non-deterministic timestamps",
+      "the compiler mutates queue, claim, run, return, Current, Human Accepted or Served authority",
+      "a returned/claimed/stale/blocked classification lacks inspectable source evidence"
+    ],
+    "pass_if": "The same pinned repository source produces byte-stable joined classification, a moving source is detected as drift rather than fused as truth, every state has provenance, and downstream Control Room/allocator readers can consume the candidate snapshot without authority mutation."
+  },
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
