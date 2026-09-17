@@ -1,0 +1,57 @@
+name: Jose V12 payload diagnostic
+
+on:
+  push:
+    paths:
+      - '.github/workflows/jose-v12-payload-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect pinned payload as Chromium sees it
+        run: |
+          npm --silent install puppeteer-core@24
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME"
+          cat > jose-v12-payload-diag.mjs <<'EOF'
+          import puppeteer from 'puppeteer-core';
+          import {spawn} from 'node:child_process';
+          import fs from 'node:fs';
+          const url='https://raw.githubusercontent.com/JuanManuelPM/prometeo/158357fe4e1cb672e4574d9ebe6f317b9418a30f/coordination/workstreams/jose-study-design-20260911/material/PROMETEO_JOSE_RECOVERY_ENGINE_V11.html.gz.b64';
+          const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+          const server=spawn('python3',['-m','http.server','8766','--bind','127.0.0.1'],{stdio:'ignore'});
+          let browser;
+          try{
+            await sleep(500);
+            browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH||'"$CHROME"',headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+            const page=await browser.newPage();
+            await page.goto('http://127.0.0.1:8766/',{waitUntil:'domcontentloaded'});
+            const diag=await page.evaluate(async url=>{
+              const res=await fetch(url,{cache:'no-store',mode:'cors'});
+              const text=await res.text();
+              const clean=text.replace(/\s+/g,'');
+              const invalid=[];
+              for(let i=0;i<clean.length&&invalid.length<32;i++) if(!/[A-Za-z0-9+/=]/.test(clean[i])) invalid.push({index:i,char:clean[i],codePoint:clean.codePointAt(i),hex:'U+'+clean.codePointAt(i).toString(16).toUpperCase().padStart(4,'0')});
+              let atobResult='PASS',decodedLength=null,atobError=null;
+              try{decodedLength=atob(clean).length}catch(e){atobResult='FAIL';atobError=String(e)}
+              return {url,status:res.status,statusText:res.statusText,ok:res.ok,type:res.type,contentType:res.headers.get('content-type'),contentLengthHeader:res.headers.get('content-length'),etag:res.headers.get('etag'),textLength:text.length,cleanLength:clean.length,cleanMod4:clean.length%4,prefix:text.slice(0,80),suffix:text.slice(-80),invalidCountFirst32:invalid.length,invalid,atobResult,decodedLength,atobError};
+            },url);
+            fs.writeFileSync('/tmp/jose-v12-payload-diag.json',JSON.stringify(diag,null,2));
+            console.log('SOURCE_DIAG='+JSON.stringify(diag));
+          }finally{if(browser)await browser.close();server.kill('SIGTERM')}
+          EOF
+          CHROME_PATH="$CHROME" node jose-v12-payload-diag.mjs
+      - name: Upload diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jose-v12-payload-diagnostic
+          path: /tmp/jose-v12-payload-diag.json
+          if-no-files-found: error
