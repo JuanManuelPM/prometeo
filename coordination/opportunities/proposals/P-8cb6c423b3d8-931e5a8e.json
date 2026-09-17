@@ -1,0 +1,81 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-8cb6c423b3d8-931e5a8e",
+  "fingerprint": "pdf-8cb6c423b3d8c0d422e59c9757f05c91",
+  "created_at": "2026-09-17T10:36:05-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T103604-0300-sol56-surplus-discovery-8cb6",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "artifact": "repository-host proposal fingerprint pin race canary",
+    "output": "append-only host race evidence",
+    "owner": "chat-object-prometeo-chat-control-main",
+    "privacy": "PUBLIC_COORDINATION_ONLY",
+    "scope": "coordination/opportunities/proposal-claims/**",
+    "subsystem": "discovery-dedup"
+  },
+  "problem": "The discovery dedup library is proven only with a local fs.open('wx') race; the canonical GitHub repository path coordination/opportunities/proposal-claims/** has not demonstrated host create-if-absent exclusivity, loser collision evidence, and no-overwrite behavior under an actual race.",
+  "acceptance": [
+    "Two or more concurrent attempts for one fingerprint yield exactly one durable repository pin.",
+    "Losers receive collision evidence and do not overwrite the winner.",
+    "Source proposals and lineage remain preserved.",
+    "No queue or authority promotion occurs."
+  ],
+  "title": "Canary repository-host proposal pin races",
+  "mission": "Exercise the canonical GitHub proposal-claim path with two or more create-if-absent attempts for the same deterministic fingerprint, persist winner/loser host receipts, and prove that collision handling preserves the winning bytes and never promotes queue or product authority.",
+  "evidence_refs": [
+    "coordination/opportunities/returns/O-SWARM-DISCOVERY-DEDUP-BUILD-V1/RUN-O-SWARM-DISCOVERY-DEDUP-BUILD-V1-20260917T0045-SOL56-7C4B.json",
+    "scripts/discovery-dedup-lib.mjs",
+    "tests/discovery-dedup-v1.test.mjs",
+    "coordination/swarm-v1/discovery/DISCOVERY_DEDUP_CONTRACT_V1.json",
+    "coordination/opportunities/proposal-claims/"
+  ],
+  "value_signals": {
+    "regression_prevention": {
+      "reason": "The existing implementation proves local filesystem exclusivity but explicitly leaves repository-host atomicity unverified; a host canary falsifies the assumption before stress-verification or production graduation relies on it.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-DISCOVERY-DEDUP-BUILD-V1/RUN-O-SWARM-DISCOVERY-DEDUP-BUILD-V1-20260917T0045-SOL56-7C4B.json"
+    },
+    "information_gain": {
+      "reason": "The canary distinguishes library correctness from the actual GitHub Contents API collision semantics used by identical /wc workers.",
+      "evidence_ref": "coordination/swarm-v1/discovery/DISCOVERY_DEDUP_CONTRACT_V1.json"
+    },
+    "unblock_value": {
+      "reason": "Repository-host evidence closes the explicit remaining boundary of O-SWARM-DISCOVERY-DEDUP-BUILD-V1 and strengthens the evidence base for broad worker stress verification.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-DISCOVERY-DEDUP-BUILD-V1/RUN-O-SWARM-DISCOVERY-DEDUP-BUILD-V1-20260917T0045-SOL56-7C4B.json"
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-DISCOVERY-DEDUP-BUILD-V1"
+  ],
+  "candidate_read_scope": [
+    "coordination/opportunities/returns/O-SWARM-DISCOVERY-DEDUP-BUILD-V1/**",
+    "scripts/discovery-dedup-lib.mjs",
+    "tests/discovery-dedup-v1.test.mjs",
+    "coordination/swarm-v1/discovery/DISCOVERY_DEDUP_CONTRACT_V1.json",
+    "coordination/opportunities/proposal-claims/**",
+    "coordination/opportunities/proposals/**"
+  ],
+  "candidate_write_scope": [
+    "coordination/swarm-v1/discovery/host-canary/**",
+    "coordination/opportunities/proposal-claims/<canary-fingerprint>.json",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": [
+    "Two create-if-absent attempts both report success for one canonical fingerprint.",
+    "A losing attempt overwrites or mutates the winning pin bytes.",
+    "Loser collision evidence cannot identify the existing winning path/fingerprint.",
+    "The canary mutates queue authority, Current, Human Accepted or Served state."
+  ],
+  "dedup_note": "Prepared universal-swarm work is currently saturated or dependency-blocked. The inspected discovery implementation's RETURN explicitly names this repository-host canary as its remaining boundary; no matching canonical fingerprint existed immediately before pin creation.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
