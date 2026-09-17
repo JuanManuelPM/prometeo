@@ -1,21 +1,41 @@
 {
-  "schema": "prometeo.portfolio-pin-protocol/v1.1",
+  "schema": "prometeo.portfolio-pin-protocol/v1.2",
   "status": "CANARY",
-  "purpose": "Give each portfolio job one deterministic create-if-absent collision point per attempt generation while allowing fast evidence-based recovery from silent workers.",
-  "authority_boundary": "A portfolio pin grants only the bounded candidate execution authority already declared by the selected seed/derived job. It never grants Current, Human Accepted, Served or production /w authority. Collision receipts and heartbeats never grant product authority.",
+  "purpose": "Give each portfolio job one deterministic create-if-absent collision point per attempt generation while allowing fast evidence-based recovery from silent workers. Explicit multi-party contention fixtures may opt into a timing-only rendezvous barrier before the unchanged deterministic pin race.",
+  "authority_boundary": "A portfolio pin grants only the bounded candidate execution authority already declared by the selected seed/derived job. It never grants Current, Human Accepted, Served or production /w authority. Collision receipts, heartbeats, barrier entrants, RELEASE and timeout receipts never grant product or execution authority.",
   "paths": {
     "pin_generation": "coordination/portfolio/pins/<job_id>/G<generation_6d>.json",
     "claim_receipt": "coordination/portfolio/claims/<job_id>/<claim_id>.json",
     "collision_receipt": "coordination/portfolio/collisions/<job_id>/<collision_id>.json",
     "return_receipt": "coordination/portfolio/returns/<job_id>/<return_id>.json",
-    "worker_heartbeat": "coordination/workers/heartbeats/<worker_id>/<timestamp_compact>.json"
+    "worker_heartbeat": "coordination/workers/heartbeats/<worker_id>/<timestamp_compact>.json",
+    "contention_barrier": "coordination/portfolio/contention_barriers/<fixture_id>/BARRIER.json",
+    "contention_entrant": "coordination/portfolio/contention_barriers/<fixture_id>/entrants/<worker_id>.json",
+    "contention_release": "coordination/portfolio/contention_barriers/<fixture_id>/RELEASE.json",
+    "contention_timeout": "coordination/portfolio/contention_barriers/<fixture_id>/timeouts/<worker_id>.json"
   },
   "winner_rule": "For a claimable generation, every contender atomically CREATEs the exact same pin path. Exactly one create may succeed. Only that pin owner may create the authoritative claim receipt and begin substantive work. A create-exists/CAS-lost result means race lost: record collision evidence and immediately re-enter allocation.",
+  "contention_barrier_mode": {
+    "status": "BINDING_CANARY_OPT_IN",
+    "activation": "Barrier/rendezvous behavior is enabled only for an explicit multi-party contention fixture whose durable job/fixture metadata names a contention barrier. If no explicit barrier is named, workers follow the normal direct deterministic pin race with no wait or rendezvous step.",
+    "scope": "Timing coordination for deliberate multi-worker contention canaries only; it is not a general allocator lock, queue, lease or authority primitive.",
+    "barrier_config": "BARRIER.json is immutable timing evidence declaring fixture_id, required_contenders, opened_at and deadline_at before entrants register.",
+    "registration": "Each distinct worker atomically CREATEs one append-only entrant receipt keyed by worker_id. Duplicate registration by the same worker is idempotent and never increases quorum.",
+    "pre_release_rule": "Before a valid RELEASE exists, entrants MUST NOT attempt the portfolio pin for that fixture. They may emit liveness evidence while waiting, but the entrant receipt grants no execution authority.",
+    "release_predicate": "RELEASE is eligible only while observed_at is strictly before deadline_at and distinct entrant worker_ids >= required_contenders.",
+    "release_race": "Eligible entrants may race atomic CREATE of the single deterministic RELEASE.json. Exactly one create wins; create-exists readers consume the same append-only release evidence.",
+    "release_authority": "RELEASE coordinates start timing only and MUST declare grants_execution_authority=false. After RELEASE, every entrant still races the exact PORTFOLIO_PIN_PROTOCOL deterministic generation path. Only the pin winner may create the execution claim.",
+    "loser_rule": "A released entrant that loses the pin race creates no execution claim, records the normal portfolio pin collision receipt when possible, then re-enters allocation.",
+    "timeout": "If deadline_at is reached without RELEASE, the entrant writes an append-only timeout receipt with pin_attempted=false and next_action=REENTER_ALLOCATION. It MUST NOT attempt the portfolio pin for that fixture.",
+    "late_release": "A barrier that reaches deadline without RELEASE cannot release later merely because quorum arrives after the deadline. A fresh fixture/barrier generation is required.",
+    "normal_job_compatibility": "Ordinary portfolio jobs are unchanged and never wait for barrier quorum unless explicit durable barrier metadata opts them in.",
+    "live_projection_ref": "coordination/portfolio/CONTENTION_BARRIER_LIVE_PROJECTION_V1.json"
+  },
   "liveness_rule": {
     "heartbeat_target_minutes": 3,
     "stale_suspect_minutes": 6,
     "recovery_eligible_minutes": 10,
-    "effective_signal": "Use the newest durable signal attributable to the owning worker/job: pin/claim STARTED, run checkpoint, worker heartbeat, material checkpoint, or RETURN.",
+    "effective_signal": "Use the newest durable signal attributable to the owning worker/job: pin/claim STARTED, run checkpoint, worker heartbeat, material checkpoint, or RETURN. Barrier entrant/RELEASE receipts are timing evidence only and do not create an owner before a pin exists.",
     "long_expiry_compatibility": "Historical expires_at values longer than 10 minutes are not sufficient evidence of active work. If no newer durable signal exists for >=10 minutes and retry/recovery is safe, the job is recovery-eligible even when an old expires_at timestamp is still in the future.",
     "new_pin_default": "New pins/claim receipts SHOULD declare expires_at approximately 10 minutes after claimed_at. Continued liveness is demonstrated by durable heartbeat/checkpoint signals rather than by a long silent lease."
   },
@@ -69,21 +89,25 @@
     "next_action=REENTER_ALLOCATION"
   ],
   "collision_receipt_rule": "A loser never creates a second execution claim. It reads the winner, records bounded append-only collision evidence when possible, then immediately re-enters allocation. Collision evidence cannot grant authority.",
-  "projection_rule": "Live derives one authority owner from the highest valid pin generation and overlays signal age: ACTIVE <6m, STALE_SUSPECT 6-10m, REPLACEABLE >=10m without terminal result, subject to retry safety. Terminal return is terminal regardless of historical pins/claims.",
-  "host_rule": "The primitive MUST be atomic create-if-absent/CAS/transactional uniqueness on the deterministic pin path. Read-then-create on a unique per-worker filename is forbidden as an authority primitive.",
+  "projection_rule": "Live derives one authority owner from the highest valid pin generation and overlays signal age: ACTIVE <6m, STALE_SUSPECT 6-10m, REPLACEABLE >=10m without terminal result, subject to retry safety. For explicit contention fixtures it may additionally project timing states from barrier evidence under CONTENTION_BARRIER_LIVE_PROJECTION_V1.json, but those states never override pin/return authority. Terminal return is terminal regardless of historical pins/claims/barrier receipts.",
+  "host_rule": "The primitive MUST be atomic create-if-absent/CAS/transactional uniqueness on the deterministic pin path. Read-then-create on a unique per-worker filename is forbidden as an authority primitive. RELEASE uses the same atomic-create requirement for timing coordination but remains non-authoritative.",
   "required_canaries": [
     "2 contenders -> exactly 1 pin winner and loser re-entry",
     "5 contenders -> exactly 1 pin winner and loser re-entry",
     "silent owner >=10m -> exactly 1 next-generation recovery winner with predecessor lineage",
     "heartbeat younger than 10m -> no recovery takeover",
     "multiple legacy claims -> exactly 1 temporary owner plus collision evidence",
-    "terminal return -> no new pin generation"
+    "terminal return -> no new pin generation",
+    "explicit 2-worker barrier -> 2 distinct entrants -> one no-authority RELEASE -> exactly 1 pin winner + one collision loser with no loser claim",
+    "explicit barrier timeout without quorum -> no RELEASE, no pin attempt, timeout receipt + REENTER_ALLOCATION",
+    "ordinary portfolio job without explicit barrier metadata -> unchanged direct deterministic pin race"
   ],
   "reconciles": [
     "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
     "coordination/workers/WORKER_REGISTRY_PROTOCOL_V1.md",
     "coordination/workstreams/chat-native-control-plane-v1/CLAIM_PROTOCOL_SPEC_V0.json",
-    "coordination/portfolio/WORKER_CONTRACT_V1.md"
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/portfolio/CONTENTION_BARRIER_LIVE_PROJECTION_V1.json"
   ],
-  "non_promotion": "Passing this canary does not make production /w operational."
+  "non_promotion": "Passing or binding this canary mode does not make production /w operational and does not imply Current, Human Accepted or Served."
 }
