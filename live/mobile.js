@@ -68,7 +68,7 @@
       [x.started||0,'empezaron'],
       [x.closed||0,'cerraron'],
       [x.collisions||0,'colisiones'],
-      [x.missing_expected??0,'faltan']
+      [(x.extra_observed||0)>(x.missing_expected||0)?x.extra_observed:(x.missing_expected??0),(x.extra_observed||0)>(x.missing_expected||0)?'extra':'faltan']
     ];
     $('waveSummary').innerHTML=stats.map(([n,l])=>'<div class="waveStat"><strong>'+esc(n)+'</strong><span>'+esc(l)+'</span></div>').join('');
     const rows=b.workers||[];
