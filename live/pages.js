@@ -8,11 +8,17 @@
   let registry={pages:[]};
   let active=new Set();
   let seen={};
+  let currentPageId=null;
+  let drawerMode='root';
+  let drawerFolder=null;
 
   const esc=(v='')=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));
   const readJSON=(k,fallback)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v??fallback}catch{return fallback}};
   const writeJSON=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
   const shortStatus=s=>({current:'actual',candidate:'candidato',reference:'referencia',archive:'archivo'})[s]||s||'';
+  const pageById=id=>(registry.pages||[]).find(p=>p.id===id);
+  const folderOf=p=>(p?.folder||'Otras').trim()||'Otras';
+  const folderLabel=folder=>String(folder||'Otras').split('/').filter(Boolean).pop()||'Otras';
 
   function normalize(){
     active=new Set((readJSON(ACTIVE_KEY,[])||[]).filter(id=>registry.pages.some(p=>p.id===id)));
@@ -32,10 +38,16 @@
   function pageRow(p,isActive){
     const unread=isUnread(p);
     const note=p.change_id&&p.change_note?`${p.change_id} · ${p.change_note}`:shortStatus(p.status);
-    return `<div class="pageRow"><button class="pageOpen" type="button" data-open-page="${esc(p.id)}"><span class="pageNameLine"><span class="pageName">${esc(p.title)}</span>${unread?'<i class="pageNew" aria-label="nuevo"></i>':''}</span><span class="pageMeta">${esc(note)}</span></button><button class="pageToggle ${isActive?'active':''}" type="button" data-toggle-page="${esc(p.id)}" aria-label="${isActive?'Quitar de activas':'Agregar a activas'}">${isActive?'−':'+'}</button></div>`;
+    const current=p.id===currentPageId?' current':'';
+    return `<div class="pageRow${current}"><button class="pageOpen" type="button" data-open-page="${esc(p.id)}"><span class="pageNameLine"><span class="pageName">${esc(p.title)}</span>${unread?'<i class="pageNew" aria-label="nuevo"></i>':''}</span><span class="pageMeta">${esc(note)}</span></button><button class="pageToggle ${isActive?'active':''}" type="button" data-toggle-page="${esc(p.id)}" aria-label="${isActive?'Quitar de activas':'Agregar a activas'}">${isActive?'−':'+'}</button></div>`;
   }
 
-  function renderDrawer(){
+  function bindDrawerRows(){
+    document.querySelectorAll('[data-open-page]').forEach(b=>b.onclick=()=>openPage(b.dataset.openPage));
+    document.querySelectorAll('[data-toggle-page]').forEach(b=>b.onclick=e=>{e.stopPropagation();togglePage(b.dataset.togglePage)});
+  }
+
+  function renderRoot(){
     const pages=registry.pages||[];
     const act=pages.filter(p=>active.has(p.id));
     const stored=pages.filter(p=>!active.has(p.id));
@@ -43,12 +55,27 @@
     $('activePagesCount').textContent=act.length?String(act.length):'0';
 
     const groups=new Map();
-    for(const p of stored){const k=p.folder||'Otras';if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p)}
+    for(const p of stored){const k=folderOf(p);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p)}
     $('storedPages').innerHTML=[...groups.entries()].map(([folder,rows])=>`<details class="folder"><summary>${esc(folder)}<span>${rows.length}</span></summary><div class="pageList">${rows.map(p=>pageRow(p,false)).join('')}</div></details>`).join('')||'<div class="drawerEmpty">No hay páginas guardadas.</div>';
+  }
+
+  function renderFolder(){
+    const rows=(registry.pages||[]).filter(p=>folderOf(p)===drawerFolder);
+    $('currentFolderLabel').textContent=drawerFolder||'Carpeta';
+    $('currentFolderCount').textContent=rows.length?`${rows.length} páginas`:'vacía';
+    $('currentFolderPages').innerHTML=rows.length?rows.map(p=>pageRow(p,active.has(p.id))).join(''):'<div class="drawerEmpty">No hay páginas en esta carpeta.</div>';
+  }
+
+  function renderDrawer(){
+    const folderMode=drawerMode==='folder'&&drawerFolder;
+    $('pageDrawer').classList.toggle('folderMode',!!folderMode);
+    $('drawerRootContent').hidden=!!folderMode;
+    $('currentFolderSection').hidden=!folderMode;
+    $('drawerTitle').textContent=folderMode?folderLabel(drawerFolder):'Páginas';
+    if(folderMode)renderFolder();else renderRoot();
 
     const n=unreadCount();$('menuBadge').textContent=n?String(n):'';$('pagesUnread').textContent=n?`${n} nuevas`:'sin novedades';
-    document.querySelectorAll('[data-open-page]').forEach(b=>b.onclick=()=>openPage(b.dataset.openPage));
-    document.querySelectorAll('[data-toggle-page]').forEach(b=>b.onclick=e=>{e.stopPropagation();togglePage(b.dataset.togglePage)});
+    bindDrawerRows();
   }
 
   function togglePage(id){
@@ -56,12 +83,22 @@
     persistActive();renderDrawer();
   }
 
-  function openDrawer(){ $('pageDrawer').classList.add('open');$('drawerShade').classList.add('open');document.body.classList.add('bodyLocked'); }
+  function showRoot(){drawerMode='root';drawerFolder=null;renderDrawer();}
+  function showCurrentFolder(){
+    const p=pageById(currentPageId);
+    if(!p){showRoot();return}
+    drawerMode='folder';drawerFolder=folderOf(p);renderDrawer();
+  }
+  function revealDrawer(){ $('pageDrawer').classList.add('open');$('drawerShade').classList.add('open');document.body.classList.add('bodyLocked'); }
+  function openRootDrawer(){showRoot();revealDrawer()}
+  function openContextDrawer(){showCurrentFolder();revealDrawer()}
   function closeDrawer(){ $('pageDrawer').classList.remove('open');$('drawerShade').classList.remove('open');if(!$('pageViewer').classList.contains('open'))document.body.classList.remove('bodyLocked'); }
 
   function openPage(id){
-    const p=registry.pages.find(x=>x.id===id);if(!p)return;
-    closeDrawer();markSeen(p);
+    const p=pageById(id);if(!p)return;
+    currentPageId=id;
+    markSeen(p);
+    closeDrawer();
     $('viewerTitle').textContent=p.title;
     $('viewerNote').textContent=p.change_id&&p.change_note?`${p.change_id} · ${p.change_note}`:'';
     $('viewerExternal').href=p.url;
@@ -69,7 +106,9 @@
     $('pageViewer').classList.add('open');document.body.classList.add('bodyLocked');
   }
   function closePage(){
+    closeDrawer();
     $('pageViewer').classList.remove('open');$('pageFrame').src='about:blank';document.body.classList.remove('bodyLocked');
+    currentPageId=null;showRoot();
   }
 
   async function load(){
@@ -82,7 +121,12 @@
     }
   }
 
-  $('menuButton').onclick=openDrawer;$('drawerClose').onclick=closeDrawer;$('drawerShade').onclick=closeDrawer;$('viewerBack').onclick=closePage;
-  document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if($('pageViewer').classList.contains('open'))closePage();else closeDrawer()});
+  $('menuButton').onclick=openRootDrawer;
+  $('viewerMenu').onclick=openContextDrawer;
+  $('drawerRoot').onclick=showRoot;
+  $('drawerClose').onclick=closeDrawer;
+  $('drawerShade').onclick=closeDrawer;
+  $('viewerBack').onclick=closePage;
+  document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if($('pageDrawer').classList.contains('open'))closeDrawer();else if($('pageViewer').classList.contains('open'))closePage()});
   load();setInterval(load,POLL);
 })();
