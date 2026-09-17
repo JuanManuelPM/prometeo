@@ -1,0 +1,65 @@
+{
+  "schema": "prometeo.guide-critic-evidence/v1",
+  "evidence_id": "CRITIC-EXACT-SNAPSHOT-G4-20260917T205430Z",
+  "job_id": "guide-critic-8bbf4dff3d86",
+  "worker_id": "wc-gpt56sol-20260917T173200-0300",
+  "observed_at": "2026-09-17T20:54:30Z",
+  "exact_snapshot": {
+    "source_sha": "09e6e7d0358ca3b491784268339b146a57bbcc0c",
+    "workflow_run_id": 35273429593,
+    "workflow_job_id": 105378104535,
+    "workflow_conclusion": "success",
+    "artifact_id": 10519289089,
+    "artifact_digest": "sha256:033116076a5e6d3f24457a515a8f8771d2b8407ffe7ee02ca99f6fa471c13879",
+    "compiler_sha256": "6c9a8c7be71150a8289436fce5ec36ed8216628ee68c2ea47d5325a43e52c4b6",
+    "compiler_exit_status": 0,
+    "compiler_output_sha256": "833e93c7921fa9b78434a3ba139eb2e1cbc7d31c064c7f64a8cb277b021b0bdf",
+    "status": "PASS",
+    "tests": {
+      "exact_snapshot_executor": "3/3 PASS",
+      "frontier_pressure_compiler": "8/8 PASS",
+      "dedupe_repair": "7/7 PASS",
+      "superseded_owner_suppression": "3/3 PASS",
+      "efficiency_ratchet": "PASS checks=71 items=11"
+    },
+    "canary": {
+      "job_id": "portfolio-exclusive-job-pin-live-race-2-v1",
+      "highest_generation": 2,
+      "latest_owner_signal_at": "2026-09-17T19:29:45Z",
+      "owner_age_minutes": 83.069,
+      "expected_replaceable": true,
+      "compiler_replaceable": true,
+      "compiler_claimable": true,
+      "reconciliation": "PASS"
+    },
+    "compiler_metrics": {
+      "target_claimable": 8,
+      "claimable_useful_jobs": 80,
+      "active": 3,
+      "stale_suspect": 1,
+      "replaceable": 87,
+      "FRONTIER_THIN": false,
+      "RETURNS_UNCONSUMED": true,
+      "REPLACEABLE_PRESSURE": true
+    }
+  },
+  "current_allocator_cross_check": {
+    "allocator_generated_at": "2026-09-17T20:53:22.549Z",
+    "allocator_source_sha": "42afa8b4ec747604bf192995565d5cde1dfa7d77",
+    "allocator_blob_sha": "e76044b3c89fbcbc0dcc88356b3a6086e4756fea",
+    "counts": {"ready":0,"queue_ready":0,"recovery":15},
+    "scope_note": "This is a later live snapshot, so raw counts are not asserted as same-SHA equality. It is used together with source-code scope inspection to identify a routing-domain mismatch."
+  },
+  "finding": {
+    "id": "FRONTIER_PRESSURE_COUNTS_NONROUTABLE_HISTORICAL_OPPORTUNITY_QUEUES",
+    "severity": "CONTROL_PLANE_SIGNAL_SCOPE_DRIFT",
+    "summary": "buildSnapshotFromRepo adds jobs from every root JSON file under coordination/opportunities by iterating each value.opportunities array. The fast allocator instead publishes only normalized feed projects plus currently ready plans. Consequently frontier-pressure can count repository-history opportunities as claimable even when they are not present in the current /wc routing surface. Those rows can suppress FRONTIER_THIN and inflate claimable/liveness metrics without giving workers a route to claim them.",
+    "code_evidence": [
+      "scripts/compile-frontier-pressure.mjs: buildSnapshotFromRepo reads all root coordination/opportunities/*.json and pushes every value.opportunities row into jobs",
+      ".github/workflows/live-feed.yml: allocator ready/recovery derive from normalized feed projects and queue_ready derives from normalized current plans"
+    ],
+    "current_effect": "The exact-snapshot compiler reports 80 claimable jobs while the nearby public allocator reports 0 ready + 0 queue_ready + 15 recovery. Because source SHAs differ, the magnitude is diagnostic rather than an equality assertion; the routing-domain mismatch itself is source-code deterministic.",
+    "risk": "If allocator-routable work falls below target while old queue-root rows remain nominally READY/replaceable, FRONTIER_THIN can remain false and fail to request replenishment despite a genuinely thin routable frontier."
+  },
+  "truth_boundary": "Verification/control-plane evidence only. No Current, Human Accepted, Served or production /w promotion."
+}
