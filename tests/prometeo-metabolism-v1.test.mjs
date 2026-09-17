@@ -6,6 +6,7 @@ import {
   assertPinnedHead,
   deriveMetabolism,
   deriveStaleCandidates,
+  loadMetabolismInputs,
   semanticDigest,
   writeShadowOutputs
 } from '../scripts/prometeo-metabolism-lib.mjs';
@@ -67,6 +68,31 @@ assert.equal(write2.changed.length, 0, 'semantic no-op must not rewrite shadow o
 const changedNow = deriveMetabolism({...fixture, sourceHead, now:'2026-09-17T09:11:00-03:00', plannerCompilerAvailable:false});
 const write3 = writeShadowOutputs(temp, changedNow, {trigger:'schedule'});
 assert.equal(write3.changed.length, 0, 'pure clock drift without semantic transition must remain a no-op');
+
+const scanRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'prometeo-metabolism-scan-'));
+fs.mkdirSync(path.join(scanRoot, 'coordination/opportunities/claims'), {recursive:true});
+fs.mkdirSync(path.join(scanRoot, 'coordination/opportunities/runs/O-SCAN'), {recursive:true});
+fs.mkdirSync(path.join(scanRoot, 'coordination/opportunities/returns/O-SCAN'), {recursive:true});
+fs.mkdirSync(path.join(scanRoot, 'coordination/workstreams/chat-native-control-plane-v1'), {recursive:true});
+fs.writeFileSync(path.join(scanRoot, 'coordination/CONTINUITY_HEAD.json'), JSON.stringify({
+  active_queues:[{queue_id:'Q-SCAN',ref:'coordination/opportunities/Q-SCAN.json'}],
+  distributed_swarm:{stale_defaults:{suspect_minutes:20,recovery_eligible_minutes:30,heartbeat_target_minutes:10}}
+}));
+fs.writeFileSync(path.join(scanRoot, 'coordination/opportunities/Q-SCAN.json'), JSON.stringify({
+  queue_id:'Q-SCAN',status:'CANARY',opportunities:[{opportunity_id:'O-SCAN',status:'READY',type:'BUILD'}]
+}));
+fs.writeFileSync(path.join(scanRoot, 'coordination/opportunities/claims/c.json'), JSON.stringify({opportunity_id:'O-SCAN',state:'CLAIMED'}));
+fs.writeFileSync(path.join(scanRoot, 'coordination/opportunities/runs/O-SCAN/r.json'), JSON.stringify({opportunity_id:'O-SCAN',run_id:'R-SCAN',state:'STARTED',started_at:fixture.now}));
+fs.writeFileSync(path.join(scanRoot, 'coordination/opportunities/returns/O-SCAN/ret.json'), JSON.stringify({opportunity_id:'O-SCAN',run_id:'R-SCAN',state:'RETURNED_CANDIDATE',created_at:fixture.now}));
+fs.writeFileSync(path.join(scanRoot, 'coordination/workstreams/chat-native-control-plane-v1/TEST_CONSUMPTION.json'), JSON.stringify({
+  consumed:[{return_ref:'coordination/opportunities/returns/O-SCAN/ret.json',disposition:'CONSUMED'}]
+}));
+const scanned = loadMetabolismInputs(scanRoot);
+assert.equal(scanned.queues.length, 1, 'source scan must follow Continuity Head active queue refs');
+assert.equal(scanned.claims.length, 1);
+assert.equal(scanned.runs.length, 1);
+assert.equal(scanned.returns.length, 1);
+assert.deepEqual(scanned.consumedReturnRefs, ['coordination/opportunities/returns/O-SCAN/ret.json']);
 
 const outputText = fs.readFileSync(path.join(temp, 'coordination/workstreams/chat-native-control-plane-v1/generated/metabolism/PLANNER_TRIGGER.json'), 'utf8');
 assert.equal(outputText.includes('do-not-publish'), false);
