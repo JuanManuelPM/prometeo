@@ -1,0 +1,116 @@
+name: Frontier Pressure Exact Snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact 40-hex main commit SHA to verify
+        required: true
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/frontier-pressure-exact-snapshot.yml'
+      - 'scripts/run-frontier-pressure-exact-snapshot.mjs'
+      - 'tests/frontier-pressure-exact-snapshot-executor-v1.test.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontier-pressure-exact-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve exact source SHA
+        id: request
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ inputs.source_sha }}
+          EVENT_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            SOURCE_SHA="$DISPATCH_SHA"
+          else
+            SOURCE_SHA="$EVENT_SHA"
+          fi
+          if [[ ! "$SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "Invalid source SHA: $SOURCE_SHA" >&2
+            exit 2
+          fi
+          echo "source_sha=${SOURCE_SHA,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.source_sha }}
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify checkout identity
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.request.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          test "$ACTUAL_SHA" = "$SOURCE_SHA"
+          mkdir -p artifacts
+          printf '{"requested_source_sha":"%s","checked_out_source_sha":"%s"}\n' "$SOURCE_SHA" "$ACTUAL_SHA" > artifacts/frontier-pressure-request.json
+
+      - name: Run executor and regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/frontier-pressure-exact-snapshot-executor-v1.test.mjs
+          node --test tests/frontier-pressure-compiler-v1.test.mjs
+          node --test tests/frontier-pressure-dedupe-repair-v1.test.mjs
+          node scripts/check-efficiency-ratchet.mjs .
+
+      - name: Execute compiler on exact snapshot
+        id: execute
+        continue-on-error: true
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.request.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          node scripts/run-frontier-pressure-exact-snapshot.mjs \
+            --root . \
+            --source-sha "$SOURCE_SHA" \
+            --out artifacts/frontier-pressure-exact-snapshot-evidence.json \
+            --compiler-out artifacts/frontier-pressure.json \
+            --canary-job portfolio-exclusive-job-pin-live-race-2-v1
+
+      - name: Upload exact-snapshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontier-pressure-exact-${{ steps.request.outputs.source_sha }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summarize evidence
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f artifacts/frontier-pressure-exact-snapshot-evidence.json ]]; then
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat artifacts/frontier-pressure-exact-snapshot-evidence.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Fail closed when exact-snapshot execution failed
+        if: steps.execute.outcome != 'success'
+        shell: bash
+        run: exit 1
