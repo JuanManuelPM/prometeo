@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -44,17 +44,25 @@ must('wc', wc, 'Known efficiency wins are cumulative durable constraints, not ch
 must('wc', wc, 'The authorization must come from the HUMAN MESSAGE itself.');
 must('wc', wc, 'CLAIM_TRANSPORT_BLOCKED');
 must('wc', wc, 'STOP immediately; do not spend attempts 2–3');
+must('wc', wc, 'candidate.claim_payload_shape');
+must('wc', wc, 'ALLOCATOR_PIN_PAYLOAD_INVALID');
+must('wc', wc, '<now_plus_10m_iso>');
+must('wc', wc, 'Never CREATE an immutable malformed pin');
 
 const fast = read(root, 'coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md');
 must('fast-allocation', fast, 'read ONE allocator snapshot');
 must('fast-allocation', fast, '1. `ready` portfolio work;');
 must('fast-allocation', fast, '2. `queue_ready` normal work;');
 must('fast-allocation', fast, '3. only then `recovery` work;');
-must('fast-allocation', fast, 'Attempt the atomic CREATE first.');
+must('fast-allocation', fast, 'Attempt the atomic CREATE first only after the bounded allocator payload has passed the structural field check.');
 must('fast-allocation', fast, 'At most 3 atomic candidate attempts');
 must('fast-allocation', fast, 'No PIN/claim means no recovery debt.');
 must('fast-allocation', fast, 'CLAIM_TRANSPORT_BLOCKED');
 must('fast-allocation', fast, 'Do not consume attempts 2–3');
+must('fast-allocation', fast, 'candidate.claim_payload_shape');
+must('fast-allocation', fast, 'ALLOCATOR_PIN_PAYLOAD_INVALID');
+must('fast-allocation', fast, '<now_plus_10m_iso>');
+must('fast-allocation', fast, 'Never CREATE an immutable malformed pin');
 
 const registry = read(root, 'coordination/workers/WORKER_REGISTRY_PROTOCOL_V1.md');
 must('worker-registry', registry, 'Deep validation happens after ownership and before substantive mutation.');
@@ -79,6 +87,24 @@ must('live-workflow', live, 'claim_payload_shape:');
 must('live-workflow', live, 'max_recovery_snapshot_age_seconds:90');
 must('live-workflow', live, 'scripts/build-efficiency-snapshot.mjs');
 must('live-workflow', live, 'live/efficiency.json');
+
+const portfolioPayloadStart = live.indexOf("schema:'prometeo.portfolio-pin/v1'");
+const portfolioPayloadEnd = portfolioPayloadStart >= 0 ? live.indexOf('predecessor_pin_ref:predecessor', portfolioPayloadStart) : -1;
+const portfolioPayload = portfolioPayloadStart >= 0 && portfolioPayloadEnd > portfolioPayloadStart
+  ? live.slice(portfolioPayloadStart, portfolioPayloadEnd)
+  : '';
+if (!portfolioPayload) errors.push('live-workflow: cannot isolate portfolio claim_payload_shape');
+for (const field of [
+  'schema','pin_id','job_id','dedupe_key','project_id','generation','worker_id','claim_id',
+  'claimed_at','expires_at','source_head','predecessor_pin_ref_or_null',
+  'predecessor_claim_ref_or_null','recovery_basis_or_null'
+]) {
+  must('live-workflow-portfolio-payload', portfolioPayload, `${field}:`);
+}
+must('live-workflow-portfolio-payload', portfolioPayload, "'<worker_id>'");
+must('live-workflow-portfolio-payload', portfolioPayload, "'<now_iso>'");
+must('live-workflow-portfolio-payload', portfolioPayload, "'<now_plus_10m_iso>'");
+must('live-workflow-portfolio-payload', portfolioPayload, 'f.source_sha');
 
 const normalize = read(root, '.github/scripts/normalize-live-feed.mjs');
 must('live-normalizer', normalize, 'NO_ALLOCATION_GRACE_MS = 45_000');
