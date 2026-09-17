@@ -1,0 +1,334 @@
+{
+  "schema": "prometeo.opportunity-return/v1",
+  "opportunity_id": "O-CANARY-SWARM-RACE-DESIGN-V1",
+  "run_id": "RUN-WC-SOL56-20260917T0914-RACEDESIGN-5F72",
+  "worker_instance_id": "wc-chat-20260917T0914-0300-sol56-racedesign-5f72",
+  "state": "RETURNED",
+  "returned_at": "2026-09-17T09:16:30-03:00",
+  "type": "TEST_DESIGN",
+  "disposition": "DESIGN_COMPLETE_NOT_EXECUTED",
+  "authority": "CANDIDATE_TEST_DESIGN_ONLY_NO_PRODUCTION_PROMOTION",
+  "mission": "Design the 2-worker and 5-worker identical-bootstrap race canary, including expected claim collisions, losing-worker retry behavior, evidence, pass/fail conditions, vanished-worker cases and non-duplication assertions. Do not execute production mutation tests.",
+  "source_evidence": [
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/CLAIM_PROTOCOL_SPEC_V0.json",
+      "sha_observed": "3028b510c3cdc2e97671e22055e1b7c08da74dc6",
+      "used_for": [
+        "atomic create-if-absent/CAS requirement",
+        "losing-race reload behavior",
+        "STARTED-before-material-execution invariant",
+        "stale/retry append-only semantics",
+        "required falsification cases"
+      ]
+    },
+    {
+      "ref": "coordination/opportunities/CANARY_QUEUE_V0.json",
+      "sha_observed": "37aa9d34f41b37f35523254a9c432956005de453",
+      "used_for": [
+        "canary isolation boundary",
+        "claim/run/return/DONE protocol",
+        "exact O-CANARY-SWARM-RACE-DESIGN-V1 contract"
+      ]
+    }
+  ],
+  "observational_evidence_not_test_pass": {
+    "summary": "During this worker's allocation cycle, several higher-priority opportunities changed from absent/unclaimed or apparently available to claimed by other /wc workers before this worker could obtain them. GitHub create-file attempts against raced paths returned conflict-like 422 outcomes and subsequent reads showed durable claims owned by different worker_instance_ids. This demonstrates real contention exists, but it is not controlled canary evidence and MUST NOT be counted as PASS.",
+    "examples": [
+      "O-SURFACE-ALUMNOS_TEACHER-REUSE-V1 already claimed during refresh",
+      "O-SURFACE-ALUMNOS_TEACHER-RISK-V1 claimed while selecting",
+      "O-SURFACE-ALUMNOS_TEACHER-DISCOVER-V1 appeared after failed create attempt",
+      "O-SWARM-CRITIC-CONTEXT-V1 appeared after absence check and failed create attempt"
+    ]
+  },
+  "test_harness_contract": {
+    "execution_boundary": "Run only in an isolated disposable test branch or equivalent isolated host namespace. Never point this canary at production opportunity IDs, production claims, authority heads, Current/Human Accepted/Served state, or effectful external systems.",
+    "fixture_namespace_template": "coordination/canary/race/<canary_run_id>/",
+    "fixture_queue": {
+      "schema": "prometeo.canary-race-fixture/v1",
+      "opportunities": ["RACE-A", "RACE-B", "RACE-C", "RACE-D", "RACE-E"],
+      "ranking": "A > B > C > D > E",
+      "exclusive": true,
+      "side_effect_class": "NO_EXTERNAL_SIDE_EFFECTS",
+      "write_scope": "fixture namespace only"
+    },
+    "worker_bootstrap": "All workers receive byte-identical queue/bootstrap input except worker_instance_id and host-issued timestamps. Selection code MUST rank the same initial opportunity first; no human routes workers to distinct jobs.",
+    "start_barrier": "Workers must report READY_TO_RACE after loading the same fixture head. Release all participants from one barrier so the first claim attempt is concurrent enough to falsify exclusivity. Sequential manual launch does not qualify.",
+    "atomic_claim_primitive": "Host create-if-absent or equivalent uniqueness primitive on fixture claims/<opportunity_id>.json.",
+    "collision_classification": {
+      "TARGET_EXISTS": "After create error, exact target claim path exists and has another owner. This is a normal lost race; reload queue/claims and select the next compatible unclaimed READY opportunity.",
+      "BRANCH_HEAD_RACE": "Create fails because source branch/head moved but exact target path is still absent. Refresh head and retry the same atomic create exactly once or according to bounded host retry policy; do not misclassify as opportunity ownership loss.",
+      "UNKNOWN_HOST_ERROR": "Target ownership cannot be established. Stop/reload safely; do not write unconditionally and do not claim execution authority."
+    },
+    "event_log_required_fields": [
+      "canary_run_id",
+      "worker_instance_id",
+      "event_seq",
+      "event_type",
+      "opportunity_id_or_null",
+      "observed_source_head",
+      "host_result_or_collision_class",
+      "target_claim_owner_or_null",
+      "timestamp",
+      "evidence_ref"
+    ],
+    "event_types": [
+      "BOOTSTRAP_LOADED",
+      "READY_TO_RACE",
+      "BARRIER_RELEASED",
+      "CLAIM_ATTEMPTED",
+      "CLAIM_WON",
+      "CLAIM_COLLISION_TARGET_EXISTS",
+      "CLAIM_RETRY_BRANCH_HEAD",
+      "CLAIM_ERROR_UNKNOWN",
+      "QUEUE_RELOADED",
+      "RESELECTED",
+      "STARTED_WRITTEN",
+      "RETURN_WRITTEN",
+      "DONE_WRITTEN",
+      "WORKER_VANISHED_SIMULATED",
+      "STALE_DERIVED",
+      "RECOVERY_ATTEMPT_CREATED",
+      "LATE_RETURN_OBSERVED"
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "RACE-2-EXCLUSIVE-AND-RESELECT",
+      "purpose": "Prove exactly-one ownership on the hottest candidate and prove the loser independently reloads/reselects instead of overwriting or idling while safe work exists.",
+      "workers": 2,
+      "fixture_opportunities": ["RACE-A", "RACE-B"],
+      "steps": [
+        "Create empty isolated fixture claim/run/return directories and record fixture head H0.",
+        "Launch W1 and W2 with identical bootstrap and distinct worker_instance_id values.",
+        "Both load H0, rank RACE-A first and stop at READY_TO_RACE barrier.",
+        "Release barrier. Both attempt atomic create-if-absent on claims/RACE-A.json.",
+        "Exactly one worker records CLAIM_WON for RACE-A. The other must not overwrite; it classifies host result by reading the exact target after failure.",
+        "The loser records QUEUE_RELOADED and RESELECTED, then attempts RACE-B.",
+        "The winner writes its own STARTED for RACE-A before any substantive fixture work. The loser, after winning RACE-B, writes STARTED for RACE-B.",
+        "Both write isolated RETURN then update only their own run to DONE."
+      ],
+      "pass_assertions": [
+        "count(claims where opportunity_id='RACE-A') == 1",
+        "unique_owner_count('RACE-A') == 1",
+        "count(CLAIM_WON for 'RACE-A') == 1",
+        "count(CLAIM_COLLISION_TARGET_EXISTS for 'RACE-A') == 1",
+        "loser has QUEUE_RELOADED after collision and before second CLAIM_ATTEMPTED",
+        "loser wins RACE-B when RACE-B remains compatible/unclaimed",
+        "for every STARTED event, worker owns the matching claim first",
+        "no worker writes another worker's claim/run/return",
+        "no production path changed"
+      ],
+      "hard_fail": [
+        "two durable owners for RACE-A",
+        "loser overwrites/replaces RACE-A claim",
+        "loser performs substantive RACE-A execution without ownership",
+        "loser stops despite RACE-B remaining compatible/unclaimed without an explicit safe-stop reason",
+        "STARTED precedes claim ownership",
+        "test touches shared authority/production paths"
+      ]
+    },
+    {
+      "id": "RACE-5-CASCADE-NO-DUPLICATE-EXECUTION",
+      "purpose": "Stress identical selection under contention while proving workers spread across useful independent work through repeated refresh/reselection.",
+      "workers": 5,
+      "fixture_opportunities": ["RACE-A", "RACE-B", "RACE-C", "RACE-D", "RACE-E"],
+      "steps": [
+        "Initialize five READY, exclusive, side-effect-free fixture opportunities with deterministic ranking A>B>C>D>E.",
+        "Launch W1..W5 from the same fixture head and hold them at one start barrier.",
+        "Release all five. Every worker initially attempts RACE-A.",
+        "One wins A. Each loser proves collision by exact-path evidence, reloads the current fixture state and deterministically chooses the highest-ranked remaining compatible unclaimed opportunity.",
+        "Repeat collision/reload/reselection until each worker owns at most one opportunity or no compatible unclaimed work remains.",
+        "Each owner persists STARTED before fixture execution, then RETURN and DONE."
+      ],
+      "pass_assertions": [
+        "for each opportunity in A..E, durable exclusive claim count <= 1",
+        "for each opportunity in A..E, STARTED owner count <= 1",
+        "no opportunity has substantive execution evidence from a worker lacking its claim",
+        "when five compatible opportunities remain available initially, final distinct claimed opportunity count == 5",
+        "every loser transition is CLAIM_COLLISION_TARGET_EXISTS -> QUEUE_RELOADED -> RESELECTED or a separately evidenced BRANCH_HEAD_RACE retry",
+        "all claim/run/return records remain attributable to one worker_instance_id and one opportunity",
+        "no production path changed"
+      ],
+      "hard_fail": [
+        "duplicate exclusive substantive execution on any fixture opportunity",
+        "unconditional overwrite after host conflict",
+        "generic host 409/422 counted as ownership collision without exact target verification",
+        "human assigns W1..W5 distinct opportunities in advance",
+        "test passes only because workers were effectively serialized"
+      ]
+    },
+    {
+      "id": "VANISH-BEFORE-STARTED",
+      "purpose": "Prove a durable claim without STARTED remains distinguishable from execution and completion.",
+      "steps": [
+        "W1 wins isolated RACE-A claim.",
+        "Terminate/simulate disappearance before W1 writes STARTED.",
+        "Reload durable state with a fresh observer."
+      ],
+      "pass_assertions": [
+        "projection/state == CLAIMED_NOT_STARTED",
+        "no RETURN and no DONE are inferred",
+        "conversational silence alone does not authorize overwrite or recovery",
+        "if fixture has no explicit freshness/lease policy, state stays non-reclaimable until an authorized policy/evidence exists"
+      ],
+      "hard_fail": [
+        "claim absence is inferred because chat vanished",
+        "DONE is inferred",
+        "new worker overwrites the original claim"
+      ]
+    },
+    {
+      "id": "VANISH-AFTER-STARTED-EXPLICIT-FRESHNESS",
+      "purpose": "Prove stale/recovery status is derived from durable freshness policy, never from chat silence, and recovery preserves predecessor evidence.",
+      "precondition": "Use a fixture claim/run with an explicit retry-safe heartbeat/freshness policy and a controllable test clock. The policy thresholds must be written into fixture evidence before launch.",
+      "steps": [
+        "W1 wins RACE-A, writes STARTED and one heartbeat, then is terminated.",
+        "Advance only the test clock; do not mutate W1 records.",
+        "Before stale threshold, observer must report ACTIVE_OR_UNKNOWN according to fixture policy.",
+        "At suspect threshold, observer derives STALE_SUSPECT without creating a replacement claim.",
+        "At recovery threshold, only if retry-safe preconditions are proven and no RETURN/new heartbeat exists, W2 creates a separate recovery attempt linked to W1.",
+        "Never overwrite W1 claim/run."
+      ],
+      "pass_assertions": [
+        "all stale transitions cite explicit policy and durable timestamps",
+        "recovery attempt has a new run/attempt identity",
+        "recovery evidence references predecessor W1",
+        "W1 evidence remains byte-addressable/unchanged",
+        "no recovery is created before policy threshold or without retry-safe proof"
+      ],
+      "hard_fail": [
+        "wall-clock conversational silence alone marks W1 DONE or stale",
+        "original claim/run is overwritten",
+        "effectful retry proceeds without idempotency/rollback evidence"
+      ]
+    },
+    {
+      "id": "LATE-RETURN-AFTER-RECOVERY",
+      "purpose": "Prove a late original worker does not erase or silently supersede the recovery attempt.",
+      "precondition": "A valid separate recovery attempt W2 exists for stale predecessor W1.",
+      "steps": [
+        "After W2 has started, allow W1 to publish its original late RETURN under W1's own run identity.",
+        "Observer reloads both attempts and all returns.",
+        "No automatic Current/Human Accepted/Served promotion is performed by the canary."
+      ],
+      "pass_assertions": [
+        "both W1 late RETURN and W2 recovery evidence are preserved",
+        "attempt identities remain distinct",
+        "projection marks reconciliation/conflict-needed state rather than silently deleting one attempt",
+        "authority remains candidate/scoped"
+      ],
+      "hard_fail": [
+        "late W1 RETURN deletes/replaces W2 evidence",
+        "W2 evidence deletes/replaces W1 evidence",
+        "latest timestamp is treated as automatic authority"
+      ]
+    },
+    {
+      "id": "RETURN-WITHOUT-DONE",
+      "purpose": "Prove lifecycle projection preserves a partial terminal mismatch instead of fabricating completion.",
+      "steps": [
+        "Worker owns claim and STARTED, writes durable RETURN, then is terminated before updating run state to DONE.",
+        "Fresh observer reconstructs state from durable artifacts."
+      ],
+      "pass_assertions": [
+        "RETURN is discoverable",
+        "run remains non-DONE",
+        "projection explicitly reports RETURNED_NOT_MARKED_DONE or equivalent mismatch",
+        "no second substantive execution is launched merely because DONE is absent"
+      ],
+      "hard_fail": [
+        "RETURN is ignored because DONE is absent",
+        "DONE is fabricated",
+        "duplicate execution is launched without reconciliation"
+      ]
+    },
+    {
+      "id": "POST-RETURN-NEW-AUTHORITY",
+      "purpose": "Prove completing one opportunity does not transfer claim/write authority to another.",
+      "steps": [
+        "Worker finishes RACE-A with RETURN and DONE.",
+        "Worker reloads queue and selects compatible RACE-B.",
+        "Before any RACE-B STARTED or substantive execution, worker must acquire a fresh exclusive RACE-B claim."
+      ],
+      "pass_assertions": [
+        "RACE-B claim exists before RACE-B STARTED",
+        "RACE-A claim is not cited as execution authority for RACE-B",
+        "write scope for RACE-B is independently checked"
+      ],
+      "hard_fail": [
+        "worker starts RACE-B by retaining chat context alone",
+        "RACE-A ownership is reused as broad authority"
+      ]
+    }
+  ],
+  "machine_auditable_evidence_bundle": {
+    "required": [
+      "fixture manifest including fixture commit/head and exact opportunity list",
+      "all worker bootstraps or bootstrap hash proving identical input",
+      "barrier participant list and release event",
+      "append-only per-worker event traces",
+      "host create/update responses including status/error class",
+      "claim directory snapshot after each race phase",
+      "run directory snapshot showing STARTED ordering",
+      "return directory snapshot",
+      "final branch tree/hash",
+      "assertion report with scenario id, assertion id, PASS/FAIL and evidence refs"
+    ],
+    "minimum_assertion_ids": [
+      "A-EXACTLY-ONE-HOT-CLAIM",
+      "A-LOSER-RELOADS",
+      "A-LOSER-TAKES-NEXT-WORK",
+      "A-NO-DUPLICATE-STARTED",
+      "A-CLAIM-BEFORE-STARTED",
+      "A-NO-CROSS-WORKER-WRITE",
+      "A-NO-PRODUCTION-MUTATION",
+      "A-SILENCE-NOT-DONE",
+      "A-STALE-REQUIRES-POLICY",
+      "A-RECOVERY-APPEND-ONLY",
+      "A-LATE-RETURN-PRESERVED",
+      "A-RETURN-DONE-MISMATCH-PRESERVED",
+      "A-NEW-JOB-NEW-CLAIM"
+    ]
+  },
+  "global_pass_rule": "The canary may be called PASS only if every hard invariant passes in both the 2-worker and 5-worker controlled races and every lifecycle scenario above passes with complete durable evidence. A partial pass, real-world anecdotal collision, absence of duplicate files by inspection alone, or successful sequential execution is insufficient.",
+  "global_fail_rule": "Any duplicate exclusive ownership/substantive execution, overwrite of predecessor evidence, STARTED without matching ownership, stale/recovery derived from silence alone, production/shared-authority mutation, or missing evidence needed to distinguish host contention from target ownership is a FAIL or INVALID_RUN, never a PASS.",
+  "invalid_run_conditions": [
+    "workers were manually pre-routed to distinct jobs",
+    "workers did not share identical bootstrap/fixture head",
+    "barrier evidence missing so concurrency cannot be established",
+    "fixture touched production/shared authority paths",
+    "host errors were not logged with exact target verification",
+    "assertion report cannot be reconstructed from durable evidence"
+  ],
+  "self_critique": [
+    "GitHub Contents API may surface branch-head contention separately from same-path uniqueness. Therefore the harness must verify the exact target path after every failed create before declaring a lost opportunity race.",
+    "A race that merely ends with one file per opportunity is insufficient: substantive execution ordering must also be proven by STARTED/event evidence.",
+    "Real /wc contention observed in this wake is useful motivation but uncontrolled and therefore cannot validate the protocol.",
+    "Five workers over five opportunities can appear healthy even if effectively serialized. Barrier/release timing and first-attempt evidence are required to prove contention.",
+    "No-freshness-policy claims cannot be declared stale solely to make the recovery test convenient; recovery testing must use a fixture with an explicit predeclared policy.",
+    "Late-return reconciliation is intentionally not resolved into final authority here; this canary only proves evidence preservation and non-silent overwrite."
+  ],
+  "acceptance_check": {
+    "two_worker_scenario": "SATISFIED_BY_DESIGN",
+    "five_worker_scenario": "SATISFIED_BY_DESIGN",
+    "collision_and_retry": "SATISFIED_BY_DESIGN",
+    "machine_auditable_evidence": "SATISFIED_BY_DESIGN",
+    "vanished_worker_boundary": "SATISFIED_BY_DESIGN",
+    "non_duplication_and_authority": "SATISFIED_BY_DESIGN",
+    "test_execution": "NOT_PERFORMED_BY_CONTRACT",
+    "production_readiness": "UNPROVEN"
+  },
+  "remaining_boundary": "This return designs but does not execute the canary. The atomic host primitive, stale/retry behavior and /w production promotion remain evidence-gated until an isolated execution produces the specified receipts and assertion report.",
+  "recommended_next_work": [
+    {
+      "candidate": "Execute this race design in a disposable isolated branch/namespace with a deterministic barrier and emit an assertion report.",
+      "dependency": "A test harness/runner authorized to create disposable fixture paths/branch and launch 2 then 5 identical workers.",
+      "authority": "candidate only"
+    },
+    {
+      "candidate": "Feed any FAIL/INVALID_RUN findings into claim-protocol or host-adapter work before production /w promotion.",
+      "dependency": "Executed canary evidence",
+      "authority": "candidate only"
+    }
+  ]
+}
