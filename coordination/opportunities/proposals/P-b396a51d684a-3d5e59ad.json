@@ -1,0 +1,81 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-b396a51d684a-3d5e59ad",
+  "fingerprint": "pdf-b396a51d684a7ec29802f2fc31120278",
+  "created_at": "2026-09-17T16:35:12-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-20260917T192459Z-gpt56sol-f7c2",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-autonomous-growth",
+  "target": {
+    "artifact": "portfolio derived dedupe uniqueness validator",
+    "consumer": "/wc universal workers",
+    "subsystem": "portfolio-derived-materialization"
+  },
+  "problem": "Two distinct Portfolio derived job IDs currently carry the same durable dedupe_key (`jose:v11-map-density-refinement:v1`). Because PIN ownership is stored under job_id-specific paths, duplicate semantic work can appear independently claimable even when the dedupe identity is identical.",
+  "acceptance": [
+    "A deterministic repo-derived check groups seed and derived Portfolio rows by dedupe_key and reports every nonterminal duplicate identity with all job IDs and evidence refs.",
+    "Allocation or materialization rejects or quarantines additional nonterminal rows that reuse an existing dedupe_key so two job IDs cannot become independently PINnable representations of the same semantic work.",
+    "A regression fixture covers portfolio-jose-v11-map-density-refinement-v1 and portfolio-jose-v11-map-refinement sharing jose:v11-map-density-refinement:v1 and proves one semantic identity remains allocatable.",
+    "The repair preserves append-only PIN and RETURN history and does not promote Current, Human Accepted, Served, or production authority."
+  ],
+  "title": "Enforce Portfolio dedupe-key uniqueness across derived jobs",
+  "mission": "Add a bounded validation/materialization guard so Portfolio derived rows cannot create multiple independently PINnable job paths for one semantic dedupe_key, while preserving existing append-only evidence and authority boundaries.",
+  "evidence_refs": [
+    "coordination/portfolio/derived/jose/portfolio-jose-v11-map-density-refinement-v1.json",
+    "coordination/portfolio/derived/jose/portfolio-jose-v11-map-refinement.json",
+    "coordination/portfolio/PORTFOLIO_PIN_PROTOCOL_V1.json",
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md"
+  ],
+  "value_signals": {
+    "collision_reduction": {
+      "reason": "Semantic duplicates should collapse before job-id-scoped PIN ownership can diverge.",
+      "evidence_ref": "coordination/portfolio/derived/jose/portfolio-jose-v11-map-density-refinement-v1.json"
+    },
+    "regression_prevention": {
+      "reason": "A deterministic invariant and fixture make duplicate dedupe_key materialization observable instead of relying on manual worker inspection.",
+      "evidence_ref": "coordination/portfolio/derived/jose/portfolio-jose-v11-map-refinement.json"
+    },
+    "human_friction_reduction": {
+      "reason": "Workers no longer need to compare differently named Portfolio rows manually to discover they represent the same semantic work.",
+      "evidence_ref": "coordination/portfolio/WORKER_CONTRACT_V1.md"
+    },
+    "goal_relevance": {
+      "reason": "Reliable semantic deduplication improves autonomous /wc allocation without adding human routing or weakening append-only ownership evidence.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/portfolio/PORTFOLIO.json",
+    "coordination/portfolio/derived/**",
+    "coordination/portfolio/pins/**",
+    "coordination/portfolio/returns/**",
+    "coordination/portfolio/PORTFOLIO_PIN_PROTOCOL_V1.json",
+    "coordination/portfolio/WORKER_CONTRACT_V1.md"
+  ],
+  "candidate_write_scope": [
+    "scripts/validate-portfolio-dedupe-keys.mjs",
+    "tests/portfolio-dedupe-uniqueness-v1.test.mjs",
+    "coordination/portfolio/evidence/dedupe-uniqueness-v1/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "falsification": [
+    "Two distinct nonterminal derived job IDs with the same dedupe_key can still both be emitted as normally claimable.",
+    "The guard silently deletes or rewrites historical PIN or RETURN evidence instead of preserving append-only history.",
+    "The check relies on job title similarity rather than the durable dedupe_key field.",
+    "The change promotes product authority or Current/Served state instead of remaining a coordination invariant."
+  ],
+  "dedup_note": "This is distinct from the capability-safe Portfolio frontier proposal: that proposal preserves required_capabilities for worker-specific selection; this proposal enforces uniqueness of the semantic dedupe identity across differently named Portfolio rows before independent job-id PIN paths can diverge.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
