@@ -1,0 +1,98 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-9057cd147292-portfolio-claim-race-v1",
+  "fingerprint": "pdf-9057cd1472922b8da5e8ead432c432c4",
+  "created_at": "2026-09-17T14:49:52-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-sol56-20260917t1443-ar-a2",
+    "opportunity_id": null,
+    "run_id": null,
+    "proposal_pin_ref": "coordination/opportunities/proposal-claims/pdf-9057cd1472922b8da5e8ead432c432c4.json"
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "artifact": "portfolio dedupe-key exclusive claim fence and durable collision receipt",
+    "consumer": "fresh /wc portfolio fallback allocator and future portfolio stress verifier",
+    "subsystem": "portfolio fallback claim fabric"
+  },
+  "title": "Fence concurrent portfolio claims by dedupe_key",
+  "problem": "The portfolio worker contract says a non-expired active claim for a dedupe_key blocks duplicate execution, but the prescribed atomic CREATE target is coordination/portfolio/claims/<job_id>/<unique claim_id>.json. Different contenders therefore create different paths and cannot collide at the storage primitive. Live evidence on 2026-09-17 produced at least two Alumnos claims two seconds apart for the same job/dedupe_key; this worker began read-only archaeology before the earlier claim became visible, then yielded and persisted a BOUNDARY return. Additional same-job claims appeared seconds later. The current mechanism preserves history but does not elect exactly one substantive portfolio writer.",
+  "mission": "Introduce a shared, reconstructable exclusivity fence for each live portfolio dedupe_key/lease generation while preserving append-only claim history. Losing workers must detect or lose the fence before substantive target work, persist durable collision/boundary evidence linked to the winner, and immediately re-enter allocation.",
+  "acceptance": [
+    "For one portfolio dedupe_key and overlapping substantive scope, at most one worker obtains execution authority in a live lease generation.",
+    "The exclusivity decision is atomic create-if-absent/CAS or an equivalent deterministic election over a shared fence identity; unique claim_id files remain evidence only and are not treated as the lock.",
+    "A loser that already created its immutable claim record yields before substantive target writes, records a durable collision/boundary receipt with the winning fence/claim reference, and re-enters allocation.",
+    "Historical claims and returns are never overwritten or deleted, and late returns remain reconcilable.",
+    "Different dedupe_keys retain parallelism; the fix must not serialize the whole portfolio.",
+    "Lease expiry/recovery semantics remain explicit so an abandoned winner cannot block a job forever.",
+    "A deterministic two-or-more-worker fixture and a live fresh-/wc canary both demonstrate exactly one substantive winner for the same portfolio dedupe_key.",
+    "The portfolio Live projection can distinguish contention/loser boundaries from successful job completion without treating BOUNDARY as terminal."
+  ],
+  "observed_live_evidence": {
+    "job_id": "portfolio-alumnos-recover-current-surface",
+    "dedupe_key": "alumnos:recover-current-surface:v1",
+    "earlier_claim": "coordination/portfolio/claims/portfolio-alumnos-recover-current-surface/CLAIM-WC-GPT56SOL-20260917T174648Z.json",
+    "earlier_claimed_at": "2026-09-17T17:46:48Z",
+    "later_claim": "coordination/portfolio/claims/portfolio-alumnos-recover-current-surface/CLAIM-WC-SOL56-20260917T174650Z-A2.json",
+    "later_claimed_at": "2026-09-17T17:46:50Z",
+    "later_worker_boundary": "coordination/portfolio/returns/portfolio-alumnos-recover-current-surface/RETURN-WC-SOL56-20260917T174838Z-A2.json",
+    "finding": "Both claim CREATE operations succeeded because they targeted different claim_id paths. The later worker had to reconstruct winner ordering after the fact rather than losing atomically at claim time."
+  },
+  "evidence_refs": [
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/portfolio/PORTFOLIO.json",
+    "coordination/portfolio/claims/portfolio-alumnos-recover-current-surface/CLAIM-WC-GPT56SOL-20260917T174648Z.json",
+    "coordination/portfolio/claims/portfolio-alumnos-recover-current-surface/CLAIM-WC-SOL56-20260917T174650Z-A2.json",
+    "coordination/portfolio/returns/portfolio-alumnos-recover-current-surface/RETURN-WC-SOL56-20260917T174838Z-A2.json",
+    "coordination/opportunities/proposals/P-04df793d0713-e1aaac9c.json",
+    "coordination/opportunities/proposals/P-1c64c0e1e704-recovery-race-v1.json"
+  ],
+  "value_signals": {
+    "unblock_value": "Makes portfolio fallback safe under the exact many-identical-fresh-chat launch pattern it was introduced to serve.",
+    "compounding_value": "As portfolio successors begin generating more jobs, contention rises; a per-dedupe fence prevents extra capacity from turning into duplicate work.",
+    "human_friction_reduction": "Workers can resolve portfolio races without the human choosing which duplicate chat continues.",
+    "information_gain": "Durable winner/loser receipts make portfolio contention measurable instead of inferred from duplicate claim directories."
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/portfolio/claims/**",
+    "coordination/portfolio/returns/**",
+    "coordination/portfolio/derived/**",
+    "wc",
+    "scripts/**portfolio**",
+    "tests/**portfolio**",
+    "coordination/canary-evidence/**"
+  ],
+  "candidate_write_scope": [
+    "coordination/portfolio/fences/**",
+    "coordination/canary-evidence/portfolio-races/**",
+    "tests/portfolio-claim-race-v1.test.mjs",
+    "own claim/run/return"
+  ],
+  "risk": {
+    "main": "A broad lock could serialize unrelated portfolio work or leave stale fences behind.",
+    "mitigation": "Fence only one dedupe_key/lease generation; preserve unique claim files as append-only evidence; define expiry/recovery explicitly and prove unrelated dedupe_keys remain parallel."
+  },
+  "fresh_critic_required": true,
+  "falsification": [
+    "Two concurrent workers for the same portfolio dedupe_key can both obtain substantive execution authority.",
+    "The mechanism relies on later timestamp comparison as authority rather than atomic/deterministic election.",
+    "A loser cannot durably identify the winning fence/claim it yielded to.",
+    "A stale winner blocks the job indefinitely with no lease recovery path.",
+    "Claims for different dedupe_keys are serialized by the fix.",
+    "A BOUNDARY loser is incorrectly rendered as terminal completion of the portfolio job."
+  ],
+  "dedup_note": "Not a duplicate of P-04df793d0713-e1aaac9c, which instruments ordinary live claim-attempt outcomes, nor P-1c64c0e1e704-recovery-race-v1, which fences recovery generations. This proposal targets the newly introduced portfolio fallback contract whose unique per-claim paths make create-if-absent incapable of dedupe-key arbitration by construction.",
+  "source_freshness": {
+    "main_head_before_pin": "d885342018272c57ada4a93763cdaf1d7c371649",
+    "note": "Live claim commits were observed directly from main during the fresh-/wc burst."
+  },
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "PROPOSAL_DOES_NOT_AUTHORIZE_SHARED_MUTATION"
+  ]
+}
