@@ -1,0 +1,53 @@
+{
+  "schema": "prometeo.portfolio-return/v1",
+  "return_id": "RETURN-WC-JOSE-V12-PAYLOAD-BOUNDARY-20260917T2048Z-A7F3C9",
+  "job_id": "portfolio-jose-v12-payload-base64-runtime-fix-v1",
+  "dedupe_key": "jose:v12-payload-base64-runtime-fix:v1",
+  "project_id": "jose",
+  "worker_id": "wc-20260917T173200-0300-gpt56sol-a7f3c9",
+  "returned_at": "2026-09-17T20:48:00Z",
+  "outcome": "BOUNDARY",
+  "summary": "Diagnosed the Jose V12 pinned-source failure in real Chromium and proved that the immutable V11 .html.gz.b64 source is itself corrupted: the HTTP 200 text contains a literal [...ELLIPSIZATION...] marker inside the base64 stream, clean length is not divisible by four, and window.atob correctly rejects it. The job definition explicitly forbids rewriting a corrupted V11 payload merely to make the wrapper pass, so no LAB candidate decoder change or source rewrite was made. The SHA gate remains fail-closed and product authority is unchanged.",
+  "changed_paths": [
+    ".github/workflows/jose-v12-payload-diagnostic.yml",
+    "coordination/portfolio/evidence/portfolio-jose-v12-payload-base64-runtime-fix-v1/PAYLOAD-CORRUPTION-20260917T2047Z-A7F3C9.json",
+    "coordination/portfolio/returns/portfolio-jose-v12-payload-base64-runtime-fix-v1/RETURN-WC-JOSE-V12-PAYLOAD-BOUNDARY-20260917T2048Z-A7F3C9.json"
+  ],
+  "evidence": [
+    "coordination/portfolio/evidence/portfolio-jose-v12-payload-base64-runtime-fix-v1/PAYLOAD-CORRUPTION-20260917T2047Z-A7F3C9.json",
+    "github-actions:run/35272799953",
+    "github-actions:artifact/10519168657",
+    "github-actions:run/35272905136",
+    "github-actions:artifact/10518882635",
+    "coordination/workstreams/jose-study-design-20260911/material/PROMETEO_JOSE_RECOVERY_ENGINE_V11.html.gz.b64@158357fe4e1cb672e4574d9ebe6f317b9418a30f"
+  ],
+  "tests": [
+    "HTTP_RESPONSE_CAPTURE_PASS: Chromium observed status 200, type cors, content-type text/plain; charset=utf-8.",
+    "BASE64_SHAPE_FAIL_PROVEN: clean_length=19886, clean_length_mod_4=2, eight non-base64 characters found around clean index 9865.",
+    "CORRUPTION_MARKER_PROVEN: exact raw context contains literal [...ELLIPSIZATION...] between otherwise base64-looking spans.",
+    "ATOB_FAILURE_REPRODUCED: InvalidCharacterError reproduced deterministically in Chromium.",
+    "NO_FALSE_REPAIR_PASS: decoder was not changed to strip or ignore missing-data corruption.",
+    "SHA_GATE_PRESERVED_PASS: expected decompressed digest remains 0cf9a40fb53e977dccb40c9755d668a3ee922ccd61883f19229bb4a113139a05 and no bypass was added.",
+    "AUTHORITY_MUTATION_PASS: no Catalog, Current, Lineage, Human Accepted or Served pointer changed."
+  ],
+  "unresolved": [
+    "Locate an existing byte-exact V11 source whose decompressed SHA-256 is 0cf9a40fb53e977dccb40c9755d668a3ee922ccd61883f19229bb4a113139a05; do not reconstruct missing bytes from the corrupted base64 artifact.",
+    "Publish a new integrity-checked material reference only if the exact bytes are found, then repoint the LAB candidate source without weakening its SHA gate.",
+    "Rerun real Chromium verification through SHA PASS, topic-local 12-level/3-round map checks and V12/V11 A/B toggle."
+  ],
+  "spawn_candidates": [
+    {
+      "title": "Recover byte-exact Jose V11 material and restore V12 hash-gated runtime",
+      "reason": "The pinned gzip+base64 artifact at commit 158357fe is provably truncated with a literal ELLIPSIZATION marker, so decoder changes cannot safely recover the omitted bytes.",
+      "dedupe_key": "jose:v12-pinned-v11-material-recovery:v1",
+      "acceptance": [
+        "Search existing repository/history/evidence artifacts for an already-existing V11 HTML whose exact SHA-256 is 0cf9a40fb53e977dccb40c9755d668a3ee922ccd61883f19229bb4a113139a05; do not guess or synthesize missing bytes.",
+        "If no exact source exists, return a boundary with SOURCE_DEBT instead of fabricating a replacement.",
+        "If found, preserve the exact source bytes, create an integrity-checked material reference without mutating the corrupted historical artifact, and update only the LAB candidate's pinned material reference.",
+        "Real Chromium must observe V11 SHA-256 PASS before any V12 refinement executes.",
+        "Verify distinct Algebra topics, a topic-local 12-level/3-round rail and V12/V11 A/B behavior.",
+        "No Catalog, Current, Lineage, Human Accepted or Served pointer may be modified."
+      ]
+    }
+  ]
+}
