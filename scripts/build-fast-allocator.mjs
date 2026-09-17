@@ -463,13 +463,25 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
   const roles = compileRoleFrontier(feed, efficiency, jobs, ready, queueReady, recovery, roleContext);
 
   const batchCandidates = [];
+  const meshInfra = new Set(arr(roleContext?.projectGuideMesh?.infrastructure_projects));
+  const isInfraCandidate = item => {
+    const pid = item?.project_id || item?.scope_project_id || null;
+    return pid ? meshInfra.has(pid) : false;
+  };
   const pushBatch = (lane, items) => {
     for (const item of arr(items)) batchCandidates.push({ lane, ...item });
   };
-  pushBatch('ready', ready);
-  pushBatch('queue_ready', queueReady);
-  pushBatch('role_ready', roles.role_ready);
-  if (batchCandidates.length < 8) pushBatch('recovery', recovery.slice(0, Math.max(0, 8 - batchCandidates.length)));
+  const productReady = ready.filter(item => !isInfraCandidate(item));
+  const productQueue = queueReady.filter(item => !isInfraCandidate(item));
+  const productRoles = roles.role_ready.filter(item => !isInfraCandidate(item));
+  const infraReady = ready.filter(isInfraCandidate);
+  const infraRoles = roles.role_ready.filter(isInfraCandidate);
+  pushBatch('ready', productReady);
+  pushBatch('queue_ready', productQueue);
+  pushBatch('role_ready', productRoles);
+  if (batchCandidates.length < 8) pushBatch('recovery', recovery.filter(item => !isInfraCandidate(item)).slice(0, Math.max(0, 8 - batchCandidates.length)));
+  if (batchCandidates.length < 8) pushBatch('ready', infraReady.slice(0, Math.max(0, 8 - batchCandidates.length)));
+  if (batchCandidates.length < 8) pushBatch('role_ready', infraRoles.slice(0, Math.max(0, 8 - batchCandidates.length)));
 
   return {
     schema: 'prometeo.fast-allocator/v3',
