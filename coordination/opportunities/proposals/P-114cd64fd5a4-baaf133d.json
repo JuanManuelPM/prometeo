@@ -1,0 +1,88 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-114cd64fd5a4-baaf133d",
+  "fingerprint": "pdf-114cd64fd5a43aa896d9566f23df4160",
+  "created_at": "2026-09-17T19:29:34Z",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-20260917T192349Z-sol-22100f",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "bootstrap": "/wc",
+    "consumer": "universal workers and guide allocation",
+    "continuity_refs": [
+      "coordination/continuity_head.json",
+      "coordination/workstreams/chat-native-control-plane-v1/focus.json"
+    ],
+    "contract_refs": [
+      "coordination/workers/worker_registry_protocol_v1.md",
+      "wc"
+    ],
+    "subsystem": "bootstrap-continuity-freshness"
+  },
+  "problem": "Continuity projections still declare /wc v3.1 and stale defaults of 20/30 minutes while the canonical main/wc bootstrap is v3.7 and delegates liveness to the current registry/stale protocol with ACTIVE <6m and recovery eligibility at >=10m. A fresh worker that treats those projections as current truth can therefore inherit obsolete allocation/recovery semantics even though both files warn that live evidence must be refreshed.",
+  "acceptance": [
+    "A validator detects when CONTINUITY_HEAD or FOCUS declares a bootstrap version or heartbeat/stale thresholds inconsistent with the current stable /wc contract.",
+    "Human-facing continuity state either matches the current bootstrap contract or explicitly defers freshness semantics to the stable entry without copying stale thresholds.",
+    "The repair path preserves authority boundaries and does not self-promote Current, Human Accepted or Served state.",
+    "Tests cover stale-version drift, stale-threshold drift, and a no-drift control case."
+  ],
+  "title": "Guard /wc continuity-contract drift",
+  "mission": "Add a deterministic read-only drift check for /wc bootstrap version and liveness/recovery semantics across the canonical bootstrap, Worker Registry, CONTINUITY_HEAD and FOCUS; make stale copied values visible to planners/integrators without granting the checker authority to rewrite Current or promotion state.",
+  "evidence_refs": [
+    "wc",
+    "coordination/workers/WORKER_REGISTRY_PROTOCOL_V1.md",
+    "coordination/CONTINUITY_HEAD.json",
+    "coordination/workstreams/chat-native-control-plane-v1/FOCUS.json",
+    "https://juanmanuelpm.github.io/prometeo/wc/"
+  ],
+  "value_signals": {
+    "regression_prevention": {
+      "reason": "The stable bootstrap now uses <=3m heartbeats, STALE_SUSPECT at >=6m and RECOVERY_ELIGIBLE at >=10m, while continuity projections still contain v3.1 and 20/30-minute defaults; a deterministic check can catch future copied-policy drift before it steers recovery.",
+      "evidence_ref": "coordination/workers/WORKER_REGISTRY_PROTOCOL_V1.md"
+    },
+    "unblock_value": {
+      "reason": "Workers and guide roles can resolve freshness semantics from one consistent contract instead of reconciling contradictory bootstrap/continuity values ad hoc during allocation.",
+      "evidence_ref": "wc"
+    },
+    "human_friction_reduction": {
+      "reason": "The human should only launch /wc; detecting stale continuity metadata durably removes the need for the human to notice or explain worker-contract version drift.",
+      "evidence_ref": "https://juanmanuelpm.github.io/prometeo/wc/"
+    },
+    "information_gain": {
+      "reason": "A validator separates harmless historical snapshot fields from active contract contradictions and provides exact source refs for planners/critics.",
+      "evidence_ref": "coordination/CONTINUITY_HEAD.json"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "wc",
+    "coordination/workers/WORKER_REGISTRY_PROTOCOL_V1.md",
+    "coordination/CONTINUITY_HEAD.json",
+    "coordination/workstreams/chat-native-control-plane-v1/FOCUS.json",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+  ],
+  "candidate_write_scope": [
+    "scripts/bootstrap-continuity-drift-check.mjs",
+    "tests/bootstrap-continuity-drift-check-v1.test.mjs",
+    "tests/fixtures/bootstrap-continuity-drift/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": [
+    "A fixture that declares /wc v3.1 against a v3.7 canonical bootstrap is not reported as drift.",
+    "A fixture that copies 20/30-minute stale thresholds against the current 6/10-minute contract is not reported as drift.",
+    "A no-drift fixture is falsely reported because historical snapshot text is mistaken for active policy.",
+    "The checker mutates CONTINUITY_HEAD, FOCUS, Current, Human Accepted or Served authority rather than reporting candidate evidence."
+  ],
+  "dedup_note": "A concurrent proposal pin pdf-905cf7568f897f8698b40eb1282e69f0 targets stale opportunity assertions in CONTINUITY_HEAD versus newer returns. This proposal is intentionally separate: it targets copied /wc bootstrap-version and stale/recovery-policy drift across canonical bootstrap/registry versus Continuity/FOCUS.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
