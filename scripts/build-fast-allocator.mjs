@@ -29,6 +29,7 @@ export function normalizeRecoveryPolicy(job = {}, policy = null) {
       ordinary_next_generation_eligible: false,
       fixed_generation: fixedGeneration,
       attention_route: source.attention_route || 'FIXED_GENERATION_RECONCILE',
+      attention_until: source.attention_until && typeof source.attention_until === 'object' ? source.attention_until : null,
       valid: true,
       reason: source.reason || 'JOB_CONTRACT_IS_GENERATION_FIXED'
     };
@@ -38,6 +39,7 @@ export function normalizeRecoveryPolicy(job = {}, policy = null) {
     ordinary_next_generation_eligible: true,
     fixed_generation: null,
     attention_route: null,
+    attention_until: null,
     valid: true,
     reason: source.reason || 'DEFAULT_RETRY_SAFE_NEXT_GENERATION'
   };
@@ -136,10 +138,18 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
     .map(job => compact(job))
     .slice(0, 30);
 
+  const fixedAttentionResolved = (job, semantics) => {
+    const gate = semantics.attention_until;
+    if (!gate) return job.state === 'done';
+    if (gate.metric === 'collision_count' && Number.isFinite(Number(gate.gte))) {
+      return job.state === 'done' && finiteInt(job.collision_count, 0) >= Number(gate.gte);
+    }
+    return false;
+  };
+
   const fixedGenerationAttention = jobs
-    .filter(job => job.state !== 'done')
     .map(job => ({ job, semantics: semantic(job) }))
-    .filter(({ job, semantics }) => semantics.mode === 'fixed_generation' && semantics.valid && finiteInt(job.pin_generation, 0) >= semantics.fixed_generation)
+    .filter(({ job, semantics }) => semantics.mode === 'fixed_generation' && semantics.valid && finiteInt(job.pin_generation, 0) >= semantics.fixed_generation && !fixedAttentionResolved(job, semantics))
     .sort((a, b) => byPriority(a.job, b.job))
     .map(({ job, semantics }) => ({
       job_id: job.job_id,
@@ -154,6 +164,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
       collision_count: finiteInt(job.collision_count, 0),
       latest_return: job.latest_return || null,
       route: semantics.attention_route,
+      attention_until: semantics.attention_until,
       reason: semantics.reason,
       ordinary_next_generation_eligible: false
     }))
