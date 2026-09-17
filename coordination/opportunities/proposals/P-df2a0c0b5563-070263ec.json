@@ -1,0 +1,82 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-df2a0c0b5563-070263ec",
+  "fingerprint": "pdf-df2a0c0b5563223a7ee36797da8c803b",
+  "created_at": "2026-09-17T09:55:12-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0954-0300-sol56-discovery-r2stale",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {"mechanism":"stale-recovery","stage":"recovery-attempt"},
+  "problem": "A recovery attempt can itself become stale without a defined second-stage escalation path, leaving a dependency gate permanently blocked even after first-stage recovery exists.",
+  "acceptance": [
+    "Detect a stale recovery attempt from append-only durable signals without reclassifying silence as failure.",
+    "Allow a collision-safe later recovery generation without overwriting the original claim or earlier recovery attempts.",
+    "Preserve and reconcile late returns from the original attempt and every recovery generation.",
+    "Prove on the Page Thread Bridge gate or an equivalent canary that one vanished recovery worker cannot permanently block downstream local integration."
+  ],
+  "title": "Recursive Stale-Recovery Generation V1",
+  "mission": "Define and implement stale-of-recovery escalation on top of the existing recovery-lineage ownership mechanism. Once a recovery generation has a single winner, that winner must emit durable liveness signals; if it itself crosses the recovery cutoff with no terminal RETURN, a later append-only generation may be atomically acquired with explicit previous-generation lineage. Do not duplicate the sibling recovery-lineage exclusivity proposal; consume it as the ownership primitive. Preserve original/late-return reconciliation and prove the chain on Page Thread Bridge or an isolated equivalent.",
+  "evidence_refs": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md",
+    "coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/REC-O-SWARM-PAGE-THREAD-BRIDGE-V1-20260917T0912-SOL56.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/REC-O-SWARM-PAGE-THREAD-BRIDGE-V1-20260917T0955-SOL56-A53A.json",
+    "coordination/opportunities/proposal-claims/pdf-8b98a0630555e62554bd412e43a8b678.json"
+  ],
+  "value_signals": {
+    "unblock_value": {"reason":"Page Thread Bridge gates every local surface integration; a vanished first recovery worker must not become a permanent gate.","evidence_ref":"coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json"},
+    "incident_repair": {"reason":"The live Page Thread Bridge lineage already required recovery and then accumulated later recovery attempts, exposing the need for explicit recovery-generation semantics.","evidence_ref":"coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/REC-O-SWARM-PAGE-THREAD-BRIDGE-V1-20260917T0955-SOL56-A53A.json"},
+    "reuse_value": {"reason":"A sibling candidate now owns same-generation exclusivity; this proposal is intentionally limited to N -> N+1 stale escalation and reconciliation.","evidence_ref":"coordination/opportunities/proposal-claims/pdf-8b98a0630555e62554bd412e43a8b678.json"}
+  },
+  "dependency_ids": ["P-8b98a0630555-9796c577"],
+  "candidate_read_scope": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**",
+    "scripts/swarm-stale-scan.mjs",
+    "scripts/swarm-lease-lib.mjs"
+  ],
+  "candidate_write_scope": [
+    "scripts/recovery-generation-escalation.mjs",
+    "tests/recovery-generation-escalation-v1.test.mjs",
+    "tests/fixtures/recovery-generation-escalation/**",
+    "coordination/swarm-v1/recovery-escalation/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": {
+    "must_fail_if": [
+      "a new generation starts before the prior recovery generation satisfies stale/retry-safe evidence",
+      "silence alone is labeled FAILED",
+      "generation N+1 overwrites or deletes original or generation N evidence",
+      "late original or recovery RETURN is discarded instead of reconciled",
+      "the implementation creates another same-generation ownership authority instead of consuming the sibling exclusivity primitive"
+    ],
+    "proof_required": [
+      "stale-of-recovery fixture proving N+1 activates only after durable cutoff",
+      "late-return reconciliation fixture across original plus at least two recovery generations",
+      "Page Thread Bridge-equivalent canary showing a vanished recovery worker cannot permanently hold the gate"
+    ]
+  },
+  "acceptance_details": [
+    "each recovery generation has explicit previous-generation lineage",
+    "generation N+1 cannot become write-authorized until generation N is recovery-eligible by durable evidence",
+    "same-generation exclusivity is delegated to the sibling recovery-lineage pin mechanism",
+    "all earlier evidence remains immutable and reconcilable",
+    "no Current/Human Accepted/Served authority is implied"
+  ],
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY",
+    "RECOVERY_GENERATION_IS_NOT_PRODUCT_AUTHORITY"
+  ],
+  "source_head_observed": "ab295f7787ae9b1162f1cb1f4974ebcacf07ce5f",
+  "epoch_observed": "P3-22ff0f0973cc"
+}
