@@ -17,6 +17,7 @@
   const ageMs=t=>t?Math.max(0,Date.now()-Date.parse(t)):Infinity;
   const minsLeft=t=>Math.max(0,Math.ceil((Date.parse(t)-Date.now())/60000));
   const thresholds=f=>({active:(f.thresholds?.stale_suspect_minutes??6)*60000,recovery:(f.thresholds?.recovery_eligible_minutes??10)*60000,allocating:(f.thresholds?.allocation_silent_minutes??3)*60000});
+  const shortId=(v='')=>{const s=String(v);return s.length>24?`${s.slice(0,12)}…${s.slice(-7)}`:s};
 
   function effective(w,f){
     if(w.end_at)return'done';
@@ -32,6 +33,19 @@
   function stateClass(s){return s==='recovery'?'working':s}
   function recoveryAt(w,f){const base=w.last_signal_at||w.pin_at||w.start_at||w.first_seen;if(!base)return null;return new Date(Date.parse(base)+thresholds(f).recovery).toISOString()}
   function taskName(w){return w.task&&w.task!=='Buscando trabajo'?w.task:'Buscando trabajo'}
+  function portfolioJob(w,f){
+    if(!w.job_id)return null;
+    for(const project of f.projects||[])for(const job of project.jobs||[])if(job.job_id===w.job_id)return job;
+    return null;
+  }
+  function pinEvidence(w,f){
+    const job=portfolioJob(w,f);
+    if(!job||!job.pin_generation)return'';
+    const collisions=Number(job.collision_count||0);
+    const mode=String(job.authority_mode||'');
+    const detail=[`PIN G${String(job.pin_generation).padStart(6,'0')}`,`dueño ${shortId(job.owner||w.worker_id||'—')}`,`${collisions} ${collisions===1?'colisión':'colisiones'}`,mode.includes('recovery')?'recuperación':null].filter(Boolean).join(' · ');
+    return `<br>${esc(detail)}`;
+  }
 
   function activeCard(w,f){
     const s=effective(w,f),r=recoveryAt(w,f),elapsed=ageMs(w.pin_at||w.start_at||w.first_seen);
@@ -40,7 +54,7 @@
     else if(r)recovery=`reemplazo en ${minsLeft(r)}m`;
     const pin=w.pin_at?`PIN ${time(w.pin_at)}`:`abrió ${time(w.first_seen)}`;
     const extra=[w.project,w.assignment_count>1?`${w.assignment_count} tareas`:null,w.collision_count?`${w.collision_count} colisiones`:null].filter(Boolean).join(' · ');
-    return `<details class="workerCard" data-worker="${esc(w.worker_id)}"><summary><div class="cardTop"><div><div class="task">${esc(taskName(w))}</div><div class="stateLine ${stateClass(s)}"><i class="stateDot"></i><span>${esc(stateLabel(s))} · ${esc(pin)}</span></div><div class="recoveryText countdown" data-recovery-at="${esc(r||'')}" data-state="${esc(s)}">${esc(recovery)}</div></div><div class="elapsed">${esc(duration(elapsed))}</div></div></summary><div class="tech">${esc(extra||'sin detalle extra')}<br>${esc(w.worker_id)}${w.last_signal_at?`<br>última señal ${esc(time(w.last_signal_at))}`:''}</div></details>`;
+    return `<details class="workerCard" data-worker="${esc(w.worker_id)}"><summary><div class="cardTop"><div><div class="task">${esc(taskName(w))}</div><div class="stateLine ${stateClass(s)}"><i class="stateDot"></i><span>${esc(stateLabel(s))} · ${esc(pin)}</span></div><div class="recoveryText countdown" data-recovery-at="${esc(r||'')}" data-state="${esc(s)}">${esc(recovery)}</div></div><div class="elapsed">${esc(duration(elapsed))}</div></div></summary><div class="tech">${esc(extra||'sin detalle extra')}${pinEvidence(w,f)}<br>${esc(w.worker_id)}${w.last_signal_at?`<br>última señal ${esc(time(w.last_signal_at))}`:''}</div></details>`;
   }
   function finishedCard(w){
     const started=w.pin_at||w.start_at||w.first_seen;
