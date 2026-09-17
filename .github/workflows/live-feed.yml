@@ -8,10 +8,12 @@ on:
       - 'coordination/inbox/**'
       - 'coordination/portfolio/**'
       - 'coordination/opportunities/**'
+      - 'coordination/efficiency/**'
       - 'coordination/CONTINUITY_HEAD.json'
       - 'coordination/workstreams/chat-native-control-plane-v1/FOCUS.json'
       - '.github/scripts/build-live-feed.mjs'
       - '.github/scripts/normalize-live-feed.mjs'
+      - 'scripts/build-efficiency-snapshot.mjs'
       - '.github/workflows/live-feed.yml'
   workflow_dispatch:
 
@@ -43,12 +45,19 @@ jobs:
           node source/.github/scripts/build-live-feed.mjs source /tmp/feed.json
           node source/.github/scripts/normalize-live-feed.mjs source /tmp/feed.json
 
+      - name: Build runtime efficiency snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          node source/scripts/build-efficiency-snapshot.mjs source /tmp/efficiency.json
+
       - name: Build tiny claim-ready allocator
         shell: bash
         run: |
           node <<'NODE'
           const fs=require('fs');
           const f=JSON.parse(fs.readFileSync('/tmp/feed.json','utf8'));
+          const efficiency=JSON.parse(fs.readFileSync('/tmp/efficiency.json','utf8'));
           const jobs=(f.projects||[]).flatMap(p=>(p.jobs||[]).map(j=>({...j,project_label:p.label})));
           const g=n=>String(n).padStart(6,'0');
           const compact=j=>{
@@ -94,6 +103,7 @@ jobs:
             counts:{ready:ready.length,queue_ready:queue_ready.length,recovery:recovery.length},
             ready,queue_ready,recovery,
             worker_projection:f.summary?.workers||{},
+            efficiency:{status:efficiency.status,metrics:efficiency.metrics,reasons:efficiency.reasons},
             diagnostics:f.diagnostics||{}
           };
           fs.writeFileSync('/tmp/allocator.json',JSON.stringify(out,null,2)+'\n');
@@ -106,7 +116,7 @@ jobs:
           path: site
           fetch-depth: 20
 
-      - name: Publish snapshot and allocator
+      - name: Publish snapshot allocator and efficiency telemetry
         shell: bash
         run: |
           set -euo pipefail
@@ -116,9 +126,10 @@ jobs:
           mkdir -p site/live
           cp /tmp/feed.json site/live/feed.json
           cp /tmp/allocator.json site/live/allocator.json
-          git -C site add live/feed.json live/allocator.json
+          cp /tmp/efficiency.json site/live/efficiency.json
+          git -C site add live/feed.json live/allocator.json live/efficiency.json
           if git -C site diff --cached --quiet; then exit 0; fi
-          git -C site commit -m "live: refresh worker feed and allocator"
+          git -C site commit -m "live: refresh worker feed allocator and efficiency"
           for n in 1 2 3; do
             if git -C site push origin HEAD:gh-pages; then exit 0; fi
             git -C site fetch origin gh-pages
