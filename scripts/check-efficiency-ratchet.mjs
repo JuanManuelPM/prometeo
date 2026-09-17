@@ -35,6 +35,11 @@ if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing run
 const latentItem = baseline?.items?.find(x=>x.id==='EFF013');
 if (latentItem?.required?.role_ready_compiled_centrally !== true) errors.push('baseline: EFF013 role_ready_compiled_centrally must be true');
 if (JSON.stringify(latentItem?.required?.candidate_order) !== JSON.stringify(['ready','queue_ready','role_ready','recovery'])) errors.push('baseline: EFF013 candidate order drift');
+const capabilityItem = baseline?.items?.find(x=>x.id==='EFF020');
+if (capabilityItem?.required?.portfolio_required_capabilities_compiled !== true) errors.push('baseline: EFF020 portfolio_required_capabilities_compiled must be true');
+if (capabilityItem?.required?.definitive_absence_only !== true) errors.push('baseline: EFF020 definitive_absence_only must be true');
+if (capabilityItem?.required?.unknown_capability_is_not_absence !== true) errors.push('baseline: EFF020 unknown_capability_is_not_absence must be true');
+if (capabilityItem?.required?.mismatch_consumes_authority_create_attempt !== false) errors.push('baseline: EFF020 mismatch must not consume authority CREATE attempt');
 
 const wc = read(root, 'wc');
 must('wc', wc, 'CLAIM NOW');
