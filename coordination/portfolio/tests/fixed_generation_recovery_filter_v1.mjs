@@ -7,6 +7,7 @@ const fixedPolicy = {
   fixed_generation: 1,
   ordinary_next_generation_eligible: false,
   attention_route: 'FIXED_GENERATION_RECONCILE',
+  attention_until: { metric: 'collision_count', gte: 4 },
   reason: 'test fixture is generation-fixed'
 };
 
@@ -23,8 +24,8 @@ const feed = {
         project_id: 'p',
         title: 'Fixed fixture',
         priority: 200,
-        state: 'replaceable',
-        pin_generation: 1,
+        state: 'done',
+        pin_generation: 2,
         collision_count: 2,
         last_signal_at: '2026-09-17T20:00:00Z'
       },
@@ -63,7 +64,7 @@ if (!ordinary) throw new Error('ordinary retry-safe job disappeared from recover
 if (ordinary.next_generation !== 2 || !ordinary.claim_path.endsWith('/G000002.json')) throw new Error('ordinary recovery generation changed');
 
 const attention = out.fixed_generation_attention.find(row => row.job_id === 'fixture-arbitrary-id');
-if (!attention) throw new Error('unfinished fixed-generation evidence became invisible');
+if (!attention) throw new Error('unfinished fixed-generation evidence became invisible after terminal projection');
 if (attention.route !== 'FIXED_GENERATION_RECONCILE' || attention.fixed_generation !== 1) throw new Error('fixed-generation attention route malformed');
 
 const fresh = out.ready.find(row => row.job_id === 'fixture-fresh');
@@ -75,7 +76,7 @@ if (out.schema !== 'prometeo.fast-allocator/v2') throw new Error(`unexpected all
 console.log(JSON.stringify({
   ok: true,
   fixed_generation_excluded_from_recovery: true,
-  fixed_generation_attention_visible: true,
+  fixed_generation_attention_visible_after_terminal_projection: true,
   ordinary_recovery_preserved: true,
   fresh_fixed_generation_claim_preserved: true
 }, null, 2));
