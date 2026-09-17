@@ -1,0 +1,88 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-bbec9221b1ba-a814b4e4",
+  "fingerprint": "pdf-097b91576936cfe490c0022388598c19",
+  "created_at": "2026-09-17T09:59:27-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0948-0300-sol56-safe-reentry-f1bd",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "title": "Fail closed on stale recovery until the generation fence is proven",
+  "mission": "Add a temporary evidence-gated recovery interlock to the universal worker allocator: while single-winner recovery-generation fencing is not proven operational, workers that reach stale-recovery selection must not mint a new recovery owner. They should persist a typed RECOVERY_BLOCKED_UNSAFE_GENERATION_FENCE boundary and continue to normal READY allocation or deduplicated discovery. Remove/bypass the interlock only from exact durable fence-canary evidence.",
+  "target": {
+    "subsystem": "recovery-claim-fabric",
+    "artifact": "fail-closed recovery interlock",
+    "consumer": "universal /wc allocator"
+  },
+  "problem": "The live mass canary has already produced overlapping active recovery generations for one stale opportunity. The append-only recovery-attempt path is evidence-safe but is not itself a single-winner authority fence. Continuing to let arbitrary fresh /wc workers issue recovery claims before that fence is operational can create duplicate active owners.",
+  "acceptance": [
+    "When recovery-generation-fence capability lacks evidence-backed operational status, stale-recovery selection emits a durable RECOVERY_BLOCKED_UNSAFE_GENERATION_FENCE boundary instead of creating a recovery claim.",
+    "Normal READY opportunity allocation and deduplicated proposal discovery remain available after the boundary, so the interlock does not turn one unsafe subsystem into global worker idling.",
+    "The interlock is bypassed only when an exact concurrent-start canary proves at most one active recovery generation and loser reconciliation; file/spec existence alone is insufficient.",
+    "Existing original/recovery claims, runs, late returns and immutable evidence are never rewritten or discarded.",
+    "A regression test reproduces the known double-recovery shape and proves the pre-fence allocator fails closed rather than minting a third active owner."
+  ],
+  "evidence_refs": [
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0951-SOL56B.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0952-SOL56-R2.json",
+    "coordination/opportunities/proposals/P-a2141d0cd45e-9fd7e3a1.json",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/VERIFICATION_AND_CRITIC_CONTROL_V1.md",
+    "coordination/opportunities/recovery-claims/O-SURFACE-PROMETEO_MOBILE-REUSE-V1/REC-O-SURFACE-PROMETEO_MOBILE-REUSE-V1-20260917T0954-SOL56-7C2A.json"
+  ],
+  "value_signals": {
+    "goal_relevance": {
+      "reason": "The active human workflow is a high-parallelism identical-/wc canary; a fail-closed guard prevents stale recovery from converting useful parallelism into duplicate mutation authority while the permanent fence is still candidate work.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/FOCUS.json"
+    },
+    "regression_prevention": {
+      "reason": "The failure is no longer hypothetical: two active recovery generations were durably observed for one opportunity. The interlock contains that class immediately without claiming the permanent fence is already built.",
+      "evidence_ref": "coordination/opportunities/proposals/P-a2141d0cd45e-9fd7e3a1.json"
+    },
+    "human_friction_reduction": {
+      "reason": "Fresh workers can self-bound and continue other useful work instead of requiring the human/guide to notice and arbitrate duplicate recoveries during the mass wave.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/USER_INTENT_GAP_AUDIT_V1.md"
+    },
+    "reversibility": {
+      "reason": "This is a temporary fail-closed policy gate. It can be automatically bypassed once the permanent generation-fence canary is evidence-backed, without rewriting recovery history.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/VERIFICATION_AND_CRITIC_CONTROL_V1.md"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/VERIFICATION_AND_CRITIC_CONTROL_V1.md",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**",
+    "coordination/opportunities/proposals/P-a2141d0cd45e-9fd7e3a1.json",
+    "scripts/universal-worker-allocator.mjs"
+  ],
+  "candidate_write_scope": [
+    "coordination/swarm-v1/recovery/RECOVERY_SAFETY_GATE_V1.json",
+    "scripts/universal-worker-allocator.mjs",
+    "tests/recovery-safety-interlock-v1.test.mjs",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "falsification": [
+    "A worker can still create a new recovery claim while the single-winner generation fence has no operational canary evidence.",
+    "The interlock blocks ordinary READY allocation or proposal discovery after refusing unsafe recovery.",
+    "The interlock treats a fence spec/file as operational proof without a concurrent-start exercise receipt.",
+    "The interlock rewrites or deletes prior recovery evidence.",
+    "Once a valid fence canary exists, the interlock cannot deterministically allow safe recovery again."
+  ],
+  "dedup_note": "This intentionally does not duplicate the already-pinned permanent single-winner recovery-fence work. That work fixes recovery ownership. This proposal is a temporary safety interlock for the interval before that fix is evidence-backed operational: fail closed on recovery but keep allocating unrelated safe work.",
+  "source_head_observed": "4dfcacf9149a760d4e1d4cc2f2b86296f779ba7e",
+  "epoch_observed": "P3-721605762b5d",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_EXECUTION_AUTHORITY_FROM_PROPOSAL",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "DO_NOT_MUTATE_EXISTING_RECOVERY_EVIDENCE"
+  ]
+}
