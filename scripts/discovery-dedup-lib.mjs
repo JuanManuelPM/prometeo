@@ -43,9 +43,31 @@ function requiredText(value, field) {
   return normalized;
 }
 
+function canonicalStructured(value) {
+  if (Array.isArray(value)) {
+    const items = value.map(canonicalStructured).filter(v => v !== null && v !== '');
+    return [...items].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value)
+      .map(([key, child]) => [normalizeText(key), canonicalStructured(child)])
+      .filter(([key, child]) => key && child !== null && child !== '');
+    if (!entries.length) return null;
+    return Object.fromEntries(entries.sort(([a], [b]) => a.localeCompare(b)));
+  }
+  const normalized = normalizeText(value);
+  return normalized || null;
+}
+
+function requiredTarget(value) {
+  const normalized = canonicalStructured(value);
+  if (normalized === null || normalized === '') throw new Error('DISCOVERY_INVALID:target_required');
+  return normalized;
+}
+
 export function canonicalDiscoveryIdentity(candidate = {}) {
   const root = requiredText(candidate.root ?? candidate.root_id ?? candidate.project_id, 'root');
-  const target = requiredText(candidate.target ?? candidate.semantic_target, 'target');
+  const target = requiredTarget(candidate.target ?? candidate.semantic_target);
   const problem = requiredText(candidate.problem ?? candidate.problem_class ?? candidate.problem_or_opportunity, 'problem');
   const acceptance = canonicalList(candidate.acceptance ?? candidate.acceptance_outcome ?? candidate.acceptance_criteria);
   if (!acceptance.length) throw new Error('DISCOVERY_INVALID:acceptance_required');
