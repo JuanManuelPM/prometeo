@@ -1,0 +1,130 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-a22a39bb68d7-proposal-planner-intake-v1",
+  "fingerprint": "pdf-a22a39bb68d79a85b5aa36cd1a47bea7",
+  "created_at": "2026-09-17T14:54:58-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "prometeo-wc-gpt56-sol-20260917T145458",
+    "opportunity_id": null,
+    "run_id": "DISCOVERY-PROPOSAL-PLANNER-INTAKE-20260917T145458"
+  },
+  "root": "prometeo-control-plane",
+  "target": "discovery-proposal-to-planner-intake",
+  "problem": "proposal-trigger-without-disposition-bridge",
+  "acceptance": [
+    "proposal-present trigger yields a typed candidate disposition input",
+    "only consumed disposition emits planning atoms",
+    "duplicate rejected and deferred proposals do not create executable work",
+    "source proposal lineage and candidate authority are preserved"
+  ],
+  "title": "Bridge discovery proposals into Planner intake without self-promotion",
+  "mission": "Implement a narrow candidate-only proposal disposition adapter between the durable discovery inbox and the existing deterministic Planner compiler. The adapter must require an explicit proposal disposition, preserve proposal fingerprint and source bytes, emit compiler-compatible planning atoms only for an explicitly CONSUMED decision, and fail closed for missing authority, lineage, required planning fields, duplicates, DEFERRED, CONFLICTED, REJECTED_WITH_REASON and NOT_APPLICABLE outcomes. It must not mutate the source proposal, Integration Disposition Ledger, generated queue, Current, Human Accepted or Served state.",
+  "evidence_refs": [
+    "scripts/prometeo-metabolism-lib.mjs",
+    "scripts/compile-planner-generation.mjs",
+    "scripts/discovery-dedup-lib.mjs",
+    "coordination/planner/INTEGRATION_DISPOSITION_SCHEMA_V1.json",
+    "coordination/opportunities/returns/O-PROPOSALS-SPEC-V1/RUN-O-PROPOSALS-SPEC-V1-20260916T220441-7F3A.json",
+    "coordination/opportunities/returns/O-PLANNER-RECURSIVE-LOOP-V1/RUN-WC-GPT56SOL-20260916-2256-PLANNER.json",
+    "coordination/opportunities/returns/O-INTEGRATION-INGEST-BRIDGE-V1/RUN-O-INTEGRATION-INGEST-BRIDGE-V1-REC-20260917T0953-GPT56SOL-R1.json"
+  ],
+  "observations": [
+    {
+      "artifact": "scripts/prometeo-metabolism-lib.mjs",
+      "fact": "The metabolism loader reads coordination/opportunities/proposals and derivePlannerTrigger emits PROPOSAL_PRESENT; with the compiler file present it can report READY_FOR_DETERMINISTIC_PLANNER.",
+      "implication": "Proposal arrival is already a durable Planner wake signal."
+    },
+    {
+      "artifact": "scripts/compile-planner-generation.mjs",
+      "fact": "compilePlannerGeneration derives work only from planning_atoms supplied through a dispositionLedger entry whose disposition is CONSUMED; the compiler does not load or disposition raw worker proposals itself.",
+      "implication": "A trigger can exist without a typed proposal-to-disposition input for the compiler."
+    },
+    {
+      "artifact": "coordination/planner/INTEGRATION_DISPOSITION_SCHEMA_V1.json",
+      "fact": "The current replayable integration ledger is explicitly RETURN-oriented and requires return_ref plus RETURN source identity fields.",
+      "implication": "Raw proposal candidates should not be silently coerced into that RETURN contract."
+    },
+    {
+      "artifact": "coordination/opportunities/returns/O-PROPOSALS-SPEC-V1/RUN-O-PROPOSALS-SPEC-V1-20260916T220441-7F3A.json",
+      "fact": "The proposal contract anticipated a separate Planner disposition candidate and explicitly left the exact persistent disposition path/schema to the future Planner/Steward owner.",
+      "implication": "The missing bridge is a previously bounded gate, not a reason to let proposals self-promote."
+    }
+  ],
+  "value_signals": {
+    "unblock_value": {
+      "reason": "Closes the concrete gap between PROPOSAL_PRESENT metabolism triggers and compiler-consumable Planner inputs without bypassing disposition authority.",
+      "evidence_ref": "scripts/prometeo-metabolism-lib.mjs"
+    },
+    "reuse_value": {
+      "reason": "One adapter can serve every future deduplicated discovery proposal while reusing the existing Planner compiler unchanged.",
+      "evidence_ref": "scripts/compile-planner-generation.mjs"
+    },
+    "regression_prevention": {
+      "reason": "Explicit disposition prevents candidate proposals from becoming executable work merely because the queue is drained.",
+      "evidence_ref": "coordination/opportunities/returns/O-PROPOSALS-SPEC-V1/RUN-O-PROPOSALS-SPEC-V1-20260916T220441-7F3A.json"
+    },
+    "information_gain": {
+      "reason": "A small fixture matrix can prove whether proposal intake can preserve lineage, dedup and fail-closed authority before any shared Planner mutation.",
+      "evidence_ref": "coordination/planner/INTEGRATION_DISPOSITION_SCHEMA_V1.json"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/opportunities/proposals/*.json",
+    "coordination/opportunities/proposal-claims/*.json",
+    "coordination/planner/INTEGRATION_DISPOSITION_SCHEMA_V1.json",
+    "scripts/compile-planner-generation.mjs",
+    "scripts/discovery-dedup-lib.mjs",
+    "scripts/prometeo-metabolism-lib.mjs"
+  ],
+  "candidate_write_scope": [
+    "scripts/proposal-planner-intake-lib.mjs",
+    "tests/proposal-planner-intake-v1.test.mjs",
+    "tests/fixtures/proposal-planner-intake/**"
+  ],
+  "suggested_contract": {
+    "input": {
+      "proposal_ref": "immutable worker proposal ref",
+      "proposal_content_sha256": "required exact source digest",
+      "proposal_fingerprint": "required discovery fingerprint",
+      "decision_actor_id": "required and distinct from source worker for CONSUMED",
+      "disposition": "CONSUMED|DEFERRED|CONFLICTED|REJECTED_WITH_REASON|NOT_APPLICABLE",
+      "decision_basis_refs": "non-empty durable evidence refs",
+      "planning_atoms": "allowed only for CONSUMED and must already satisfy Planner atom requirements"
+    },
+    "output": "A compiler-compatible dispositionLedger candidate referencing the immutable proposal; non-CONSUMED outcomes carry zero planning_atoms.",
+    "fail_closed": [
+      "proposal ref or digest mismatch",
+      "fingerprint mismatch",
+      "missing decision evidence",
+      "CONSUMED without complete planning atom fields",
+      "same worker attempts to consume its own proposal into executable work",
+      "non-CONSUMED outcome contains planning atoms",
+      "requested Current, Human Accepted or Served authority"
+    ]
+  },
+  "falsification": {
+    "claim_to_test": "The current control plane can notice proposal arrival but lacks a typed, replayable adapter that turns an explicitly dispositioned proposal into the dispositionLedger shape consumed by compilePlannerGeneration.",
+    "disconfirming_evidence": "An existing tested script or contract on main that reads coordination/opportunities/proposals, verifies proposal bytes/fingerprint and independent disposition, then emits compiler-compatible planning_atoms only for CONSUMED while preserving candidate authority.",
+    "test_or_observation": "Search current executable scripts/tests and run an isolated fixture matrix for CONSUMED, DEFERRED, REJECTED, duplicate, digest mismatch and self-consumption cases.",
+    "pass_condition": "One CONSUMED fixture yields exactly one candidate planning atom/opportunity input with lineage; all non-consumed or invalid fixtures yield none and fail closed where appropriate.",
+    "fail_condition": "Existing code already proves the same bridge, or the adapter requires proposal self-promotion/authority widening to work.",
+    "stop_or_boundary_condition": "Do not modify shared Planner, integration ledger, generated queues, Current, Human Accepted or Served authority as part of this candidate."
+  },
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY",
+    "SOURCE_PROPOSAL_IMMUTABLE",
+    "NO_RAW_PROPOSAL_AUTO_PROMOTION"
+  ],
+  "duplicate_guard": {
+    "fingerprint_claim_ref": "coordination/opportunities/proposal-claims/pdf-a22a39bb68d79a85b5aa36cd1a47bea7.json",
+    "checked_at": "2026-09-17T14:54:58-03:00",
+    "result": "PIN_WON_NO_EXACT_FINGERPRINT_COLLISION"
+  },
+  "state": "PROPOSED"
+}
