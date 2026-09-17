@@ -63,6 +63,10 @@ const feed = {
       {
         job_id: 'partial', seed_status: 'ready', state: 'partial', owner: null, pin_generation: 0, last_signal_at: null,
         latest_return: { outcome: 'PARTIAL', returned_at: old }, terminal_return: null
+      },
+      {
+        job_id: 'boundary', seed_status: 'ready', state: 'partial', owner: null, pin_generation: 0, last_signal_at: null,
+        latest_return: { outcome: 'BOUNDARY', returned_at: old }, terminal_return: null
       }
     ]
   }]
@@ -90,6 +94,9 @@ if (jobs['route-abort'].state !== 'partial') {
 if (jobs.partial.state !== 'partial') {
   throw new Error('PARTIAL behavior regressed');
 }
+if (jobs.boundary.state !== 'partial') {
+  throw new Error('BOUNDARY behavior regressed');
+}
 if (out.diagnostics.jobs_reopened_by_return_reconciliation !== 1) {
   throw new Error('reconciliation diagnostic mismatch');
 }
@@ -102,5 +109,6 @@ console.log(JSON.stringify({
   reconciled_state: jobs.race5.state,
   genuine_no_action_needed: jobs.genuine.state,
   route_aborted: jobs['route-abort'].state,
-  partial: jobs.partial.state
+  partial: jobs.partial.state,
+  boundary: jobs.boundary.state
 }, null, 2));
