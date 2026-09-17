@@ -1,0 +1,96 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-7e6659ffcb8e-36cf2cb6",
+  "fingerprint": "pdf-7e6659ffcb8eff98750e14b1f3a2df37",
+  "created_at": "2026-09-17T09:56:03-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0948-0300-sol56-discovery-leaseguard",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "output": "lease/recovery repair candidate v2",
+    "owner": "o-swarm-lease-retry-build-v1 follow-up",
+    "privacy": "public_coordination_only",
+    "scope": [
+      "scripts/swarm-lease-lib.mjs",
+      "scripts/swarm-stale-scan.mjs",
+      "tests/swarm-lease-retry-v1.test.mjs"
+    ]
+  },
+  "problem": "A fresh recovery critic proved five concrete safety gaps in the current lease/recovery canary: READ_ONLY_RECOVERY can bypass retryable=false; unknown overlap can collapse to false; stale generations have no deterministic one-winner recovery execution fence; a bare recovery attempt can count as liveness; and generated recovery-claim schema diverges from persisted recovery claims. Live Kernel evidence then showed multiple recovery claims for the same stale generation, so this is now an observed canary problem rather than a hypothetical one.",
+  "acceptance": [
+    "READ_ONLY_RECOVERY cannot bypass retryable=false.",
+    "Unknown overlap state fails closed and requires an evidence receipt before recovery execution.",
+    "Concurrent recovery attempts for one stale generation yield one execution winner while preserving losing append-only evidence.",
+    "A recovery claim/attempt without STARTED or heartbeat does not refresh worker liveness.",
+    "Builder/scanner output is canonical with or explicitly adapts to prometeo.opportunity-recovery-claim/v1.",
+    "Targeted regression tests cover F1-F5 and preserve late-return reconciliation semantics."
+  ],
+  "title": "Repair recovery fencing and proof semantics",
+  "mission": "Produce a preserve-first Lease/Retry follow-up candidate that closes the critic-proven F1-F5 recovery safety gaps, adds deterministic one-winner fencing for a stale generation, and proves the repaired semantics with targeted regression/race tests without promoting production /w or mutating Current/Human Accepted/Served authority.",
+  "evidence_refs": [
+    "coordination/opportunities/returns/O-SWARM-CRITIC-RECOVERY-V1/RUN-SWARM-RECOVERY-20260917T0914-sol56.json",
+    "coordination/opportunities/returns/O-SWARM-LEASE-RETRY-BUILD-V1/RUN-O-SWARM-LEASE-RETRY-BUILD-V1-20260917T0043-SOL56.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0951-SOL56B.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0952-SOL56-R2.json",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+  ],
+  "value_signals": {
+    "incident_repair": {
+      "reason": "The independent recovery critic marked F1-F3 BLOCKING and F4-F5 HIGH, and live Kernel recovery produced multiple claims for the same stale generation minutes later.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-CRITIC-RECOVERY-V1/RUN-SWARM-RECOVERY-20260917T0914-sol56.json"
+    },
+    "unblock_value": {
+      "reason": "Recovery safety is part of the universal-worker success contract and remains a production /w blocker until independently repaired and stress-verified.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md"
+    },
+    "regression_prevention": {
+      "reason": "The existing 11-case suite passed while the critic still found five material gaps; explicit adversarial regression cases are required to prevent green tests from masking unsafe takeover semantics.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-CRITIC-RECOVERY-V1/RUN-SWARM-RECOVERY-20260917T0914-sol56.json"
+    },
+    "human_friction_reduction": {
+      "reason": "Deterministic recovery fencing prevents duplicate rescuers from requiring manual reconciliation when many identical worker chats are launched.",
+      "evidence_ref": "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/REC-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0952-SOL56-R2.json"
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-LEASE-RETRY-BUILD-V1",
+    "O-SWARM-CRITIC-RECOVERY-V1"
+  ],
+  "candidate_read_scope": [
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/O-SWARM-CRITIC-RECOVERY-V1/**"
+  ],
+  "candidate_write_scope": [
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs",
+    "tests/swarm-recovery-fencing-v2.test.mjs",
+    "coordination/swarm-v1/leases/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": [
+    "Two rescuers can both acquire execution authority for one stale generation.",
+    "retryable=false still allows any recovery mode to execute substantive retry work.",
+    "Missing overlap proof is serialized as NO_ACTIVE_OVERLAP rather than UNKNOWN/PARK.",
+    "A recovery claim without STARTED/heartbeat delays later stale detection by refreshing liveness.",
+    "Scanner/builder output cannot round-trip or adapt to the persisted prometeo.opportunity-recovery-claim/v1 schema.",
+    "Late original RETURN is discarded or silently overwritten after recovery starts."
+  ],
+  "dedup_note": "This is the exact follow-up owner named by the completed O-SWARM-CRITIC-RECOVERY-V1 return. No existing proposal pin with this canonical root/target/problem/acceptance fingerprint was present at prewrite; the pin was then won through create-if-absent after one unrelated moving-main 409 retry. This proposal does not compete with Kernel recovery or stress verification; it repairs the shared Lease/Retry mechanism they depend on.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
