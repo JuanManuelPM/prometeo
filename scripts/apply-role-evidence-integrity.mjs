@@ -11,6 +11,53 @@ function localPathFromRef(ref) {
   return String(ref).split('#', 1)[0];
 }
 
+function fragmentFromRef(ref) {
+  const value = String(ref);
+  const index = value.indexOf('#');
+  return index >= 0 ? value.slice(index + 1) : '';
+}
+
+function validateKnownLocalFragment(ref, absolute, localPath) {
+  const fragment = fragmentFromRef(ref);
+  if (!fragment || localPath !== 'coordination/portfolio/PORTFOLIO.json') return null;
+
+  let portfolio;
+  try {
+    portfolio = JSON.parse(fs.readFileSync(absolute, 'utf8'));
+  } catch {
+    return { ref, usable: false, kind: 'INVALID_REPO_LOCAL_FRAGMENT_SOURCE', local_path: localPath, fragment };
+  }
+
+  const projects = arr(portfolio?.projects);
+  const projectJob = fragment.match(/^project:([^:]+):job:(.+)$/);
+  if (projectJob) {
+    const [, projectId, jobId] = projectJob;
+    const project = projects.find(row => row?.project_id === projectId);
+    const found = Boolean(project && arr(project.jobs).some(job => job?.job_id === jobId));
+    return found
+      ? { ref, usable: true, kind: 'REPO_LOCAL_FRAGMENT_RESOLVED', local_path: localPath, fragment }
+      : { ref, usable: false, kind: 'MISSING_REPO_LOCAL_FRAGMENT', local_path: localPath, fragment };
+  }
+
+  const projectOnly = fragment.match(/^project:(.+)$/);
+  if (projectOnly) {
+    const found = projects.some(row => row?.project_id === projectOnly[1]);
+    return found
+      ? { ref, usable: true, kind: 'REPO_LOCAL_FRAGMENT_RESOLVED', local_path: localPath, fragment }
+      : { ref, usable: false, kind: 'MISSING_REPO_LOCAL_FRAGMENT', local_path: localPath, fragment };
+  }
+
+  const jobOnly = fragment.match(/^job:(.+)$/);
+  if (jobOnly) {
+    const found = projects.some(project => arr(project?.jobs).some(job => job?.job_id === jobOnly[1]));
+    return found
+      ? { ref, usable: true, kind: 'REPO_LOCAL_FRAGMENT_RESOLVED', local_path: localPath, fragment }
+      : { ref, usable: false, kind: 'MISSING_REPO_LOCAL_FRAGMENT', local_path: localPath, fragment };
+  }
+
+  return null;
+}
+
 export function classifyRoleEvidenceRef(ref, repoRoot = '.') {
   const value = String(ref || '').trim();
   const root = path.resolve(repoRoot);
@@ -31,6 +78,8 @@ export function classifyRoleEvidenceRef(ref, repoRoot = '.') {
   const insideRoot = absolute === root || absolute.startsWith(`${root}${path.sep}`);
   if (!insideRoot) return { ref: value, usable: false, kind: 'INVALID_REPO_LOCAL_ESCAPE', local_path: localPath };
   if (!fs.existsSync(absolute)) return { ref: value, usable: false, kind: 'MISSING_REPO_LOCAL', local_path: localPath, explicit_missing: false };
+  const fragmentResult = validateKnownLocalFragment(value, absolute, localPath);
+  if (fragmentResult) return fragmentResult;
   return { ref: value, usable: true, kind: 'REPO_LOCAL_RESOLVED', local_path: localPath };
 }
 
@@ -60,7 +109,7 @@ export function applyRoleEvidenceIntegrity(allocator = {}, repoRoot = '.') {
       role: candidate.role || null,
       trigger: candidate.trigger || null
     }));
-    missing.push(...candidateDiagnostics.filter(row => row.kind === 'MISSING_REPO_LOCAL'));
+    missing.push(...candidateDiagnostics.filter(row => row.kind === 'MISSING_REPO_LOCAL' || row.kind === 'MISSING_REPO_LOCAL_FRAGMENT'));
     externalPreserved.push(...result.external_preserved);
 
     if (!result.usable.length) {
@@ -101,6 +150,7 @@ export function applyRoleEvidenceIntegrity(allocator = {}, repoRoot = '.') {
         emitted_candidates: emitted.length,
         suppressed_candidates: suppressed,
         missing_repo_local_refs: missing,
+        missing_repo_local_fragment_refs: missing.filter(row => row.kind === 'MISSING_REPO_LOCAL_FRAGMENT'),
         external_refs_preserved: uniq(externalPreserved)
       }
     }
