@@ -1,0 +1,98 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-30642301c2f8-5f2c9a17",
+  "fingerprint": "pdf-30642301c2f8af9311d7ac33d58627c2",
+  "created_at": "2026-09-17T09:23:00-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0910-0300-sol56-surplus-discovery-5f2c",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": "swarm-live-snapshot",
+  "problem": "queue+claims+runs+returns",
+  "acceptance": ["deterministic-read-only-v1"],
+  "title": "Live Swarm Snapshot Compiler + Allocator Bridge V1",
+  "mission": "Build a deterministic pinned-head read-only snapshot that compiles the live universal-worker state from active queues, claims, runs, returns, recovery evidence and proposal pins, then expose that snapshot as an allocator/control-room input so workers do not have to rediscover saturated lanes through long serial collision probing. Reuse the existing Control Room, allocator, stale scan and dynamic-readiness mechanisms; do not create a second authority plane.",
+  "evidence_refs": [
+    "coordination/opportunities/returns/O-SWARM-CRITIC-THROUGHPUT-V1/RUN-SWARM-THROUGHPUT-20260917T0913-sol56.json",
+    "coordination/swarm-v1/control-room/CANARY_RECEIPT_V1.json",
+    "scripts/universal-worker-allocator.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "scripts/derive-opportunity-readiness.mjs",
+    "coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json"
+  ],
+  "value_signals": {
+    "unblock_value": {
+      "reason": "The throughput critic identified live snapshot/allocator wiring as a route-changing gap; workers currently reconstruct the same volatile state independently.",
+      "evidence_ref": "coordination/opportunities/returns/O-SWARM-CRITIC-THROUGHPUT-V1/RUN-SWARM-THROUGHPUT-20260917T0913-sol56.json"
+    },
+    "human_friction_reduction": {
+      "reason": "A durable live snapshot is a prerequisite for deriving useful free-worker demand and avoiding the human acting as scheduler/stale detector.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/USER_INTENT_GAP_AUDIT_V1.md"
+    },
+    "reuse_value": {
+      "reason": "The work should bind existing Control Room, allocator, readiness and stale-scan mechanisms rather than add another parallel subsystem.",
+      "evidence_ref": "coordination/swarm-v1/control-room/CANARY_RECEIPT_V1.json"
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-CONTROL-ROOM-PROJECTION-V1",
+    "O-SWARM-ROLE-FLUID-ALLOCATOR-V1",
+    "O-SWARM-DYNAMIC-READINESS-BUILD-V1",
+    "O-SWARM-LEASE-RETRY-BUILD-V1"
+  ],
+  "candidate_read_scope": [
+    "coordination/opportunities/*QUEUE*.json",
+    "coordination/opportunities/claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/proposal-claims/**",
+    "coordination/opportunities/proposals/**",
+    "scripts/build-control-room.mjs",
+    "scripts/universal-worker-allocator.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "scripts/derive-opportunity-readiness.mjs"
+  ],
+  "candidate_write_scope": [
+    "scripts/build-live-swarm-snapshot.mjs",
+    "tests/live-swarm-snapshot-v1.test.mjs",
+    "tests/fixtures/live-swarm-snapshot/**",
+    "coordination/swarm-v1/live-snapshot/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "falsification": {
+    "must_fail_if": [
+      "the same pinned repository head yields different logical snapshot output",
+      "RETURN without matching DONE is treated as dependency-satisfied",
+      "a stale suspicion is promoted to failure or takeover authority",
+      "the snapshot mutates queues/claims/runs/returns or becomes an authority source",
+      "allocator-visible READY/free slots diverge from exact source evidence without an explicit contradiction/block state"
+    ],
+    "proof_required": [
+      "pinned-head source receipt with hashes/counts",
+      "fixture and live-repository canary",
+      "idempotence test",
+      "allocator consumption test that preserves create-if-absent as final claim authority"
+    ]
+  },
+  "acceptance_details": [
+    "one pinned-head scan deterministically classifies prepared READY, claimed, STARTED, returned, done, stale-suspect, recovery-active and blocked-derived lanes",
+    "existing Control Room and allocator consume or can consume the snapshot without duplicating truth laws",
+    "snapshot output includes source head and exact source receipts and is idempotent on identical input",
+    "create-if-absent/CAS remains final ownership authority; snapshot is advisory/derived only",
+    "live canary demonstrates fewer redundant lane probes or a measurable equivalent reduction in allocation work"
+  ],
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY",
+    "DERIVED_SNAPSHOT_IS_NOT_CLAIM_AUTHORITY"
+  ],
+  "source_head_observed": "01dedf2c538ba908002a397bb5779490a29de003",
+  "epoch_observed": "P3-9df9221f1c5d"
+}
