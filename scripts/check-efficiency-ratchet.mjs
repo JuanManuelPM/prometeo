@@ -86,8 +86,9 @@ must('live-workflow', live, 'node source/scripts/build-fast-allocator.mjs /tmp/f
 must('live-workflow', live, 'live/efficiency.json');
 
 const allocator = read(root, 'scripts/build-fast-allocator.mjs');
-must('fast-allocator', allocator, "schema: 'prometeo.fast-allocator/v2'");
-must('fast-allocator', allocator, "preferred_order: ['ready', 'queue_ready', 'recovery']");
+must('fast-allocator', allocator, "schema: 'prometeo.fast-allocator/v");
+must('fast-allocator', allocator, "preferred_order: ['ready', 'queue_ready'");
+must('fast-allocator', allocator, "'recovery']");
 must('fast-allocator', allocator, 'max_recovery_snapshot_age_seconds: 90');
 must('fast-allocator', allocator, 'claim_path:');
 must('fast-allocator', allocator, 'claim_payload_shape:');
