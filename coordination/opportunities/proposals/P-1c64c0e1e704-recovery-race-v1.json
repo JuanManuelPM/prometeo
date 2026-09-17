@@ -1,0 +1,99 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-1c64c0e1e704-recovery-race-v1",
+  "fingerprint": "pdf-1c64c0e1e7047df754c61fc89110c378",
+  "created_at": "2026-09-17T10:37:25-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T1028-0300-gpt56sol-surplus-recovery-race",
+    "opportunity_id": null,
+    "run_id": null,
+    "proposal_pin_ref": "coordination/opportunities/proposal-claims/pdf-1c64c0e1e7047df754c61fc89110c378.json"
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "artifact": "recovery-generation exclusive fence and durable collision receipt",
+    "consumer": "universal worker stale/retry executor and stress verifier",
+    "subsystem": "lease-retry/recovery fabric"
+  },
+  "title": "Fence concurrent recovery writers",
+  "problem": "Live evidence on 2026-09-17 showed two workers independently recover the same stale Prometeo-mobile PLAN lane. Both observed the same prior stale recovery state, wrote separate append-only recovery claims six seconds apart, and both crossed into STARTED with overlapping write scopes. This is a TOCTOU gap: pre-claim overlap checks and append-only recovery history preserve evidence but do not atomically choose one substantive recovery writer.",
+  "mission": "Extend the existing lease/retry recovery fabric so same-generation recovery contenders for one opportunity and overlapping write scope elect exactly one substantive writer, while losers persist durable collision/boundary evidence and immediately re-enter allocation without deleting or overwriting any attempt.",
+  "acceptance": [
+    "A recovery generation has a reconstructable identity derived from the original opportunity plus latest durable recovery signal/attempt lineage.",
+    "For one generation and overlapping write scope, at most one contender crosses the substantive STARTED/writer gate.",
+    "Atomic create-if-absent/CAS or an equivalent deterministic post-claim election establishes the winner; recency alone is never authority.",
+    "Every loser persists an append-only RECOVERY_COLLISION or BOUNDARY receipt linking the winner it yielded to, then re-enters allocation.",
+    "If a second contender already wrote STARTED before seeing the winner, it must yield before any substantive target write and record that fact durably.",
+    "Independent opportunities and provably non-overlapping isolated candidate scopes retain parallelism.",
+    "Late original returns and prior recovery outputs remain preserved for Steward/validator reconciliation.",
+    "A fixture or live race with at least two simultaneous recovery contenders demonstrates exactly one substantive writer and durable loser evidence."
+  ],
+  "observed_live_evidence": {
+    "opportunity_id": "O-SURFACE-PROMETEO_MOBILE-PLAN-V1",
+    "contender_a_claimed_at": "2026-09-17T10:34:00-03:00",
+    "contender_b_claimed_at": "2026-09-17T10:34:06-03:00",
+    "contender_a_started_at": "2026-09-17T10:34:30-03:00",
+    "contender_b_started_at": "2026-09-17T10:34:06-03:00",
+    "shared_scope": "coordination/swarm-v1/surface-returns/prometeo-mobile/plan/** plus same opportunity recovery lineage",
+    "finding": "Both attempts reached STARTED; therefore pre-claim no-overlap checks alone are insufficient under concurrent recovery acquisition."
+  },
+  "evidence_refs": [
+    "coordination/opportunities/recovery-claims/O-SURFACE-PROMETEO_MOBILE-PLAN-V1/REC-O-SURFACE-PROMETEO_MOBILE-PLAN-V1-20260917T1034-GPT56SOL-4F2C.json",
+    "coordination/opportunities/recovery-claims/O-SURFACE-PROMETEO_MOBILE-PLAN-V1/REC-O-SURFACE-PROMETEO_MOBILE-PLAN-V1-20260917T1034-GPT56SOL-R2.json",
+    "coordination/opportunities/runs/O-SURFACE-PROMETEO_MOBILE-PLAN-V1/RUN-O-SURFACE-PROMETEO_MOBILE-PLAN-V1-REC-20260917T1034-GPT56SOL-4F2C.json",
+    "coordination/opportunities/runs/O-SURFACE-PROMETEO_MOBILE-PLAN-V1/RUN-O-SURFACE-PROMETEO_MOBILE-PLAN-V1-REC-20260917T1034-GPT56SOL-R2.json",
+    "coordination/opportunities/returns/O-SWARM-LEASE-RETRY-BUILD-V1/RUN-O-SWARM-LEASE-RETRY-BUILD-V1-20260917T0043-SOL56.json",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/opportunities/proposals/P-04df793d0713-e1aaac9c.json"
+  ],
+  "value_signals": {
+    "unblock_value": "Prevents recovery itself from creating duplicate active writers on lanes whose recovery is intended to remove stale gates.",
+    "compounding_value": "Every future stale recovery benefits; contention safety improves as identical-worker count rises rather than degrading with more workers.",
+    "human_friction_reduction": "Workers can resolve recovery collisions durably without the human deciding which recovery chat should continue.",
+    "information_gain": "Durable winner/loser receipts turn recovery contention into measurable canary evidence instead of invisible timing behavior."
+  },
+  "dependency_ids": [
+    "O-SWARM-LEASE-RETRY-BUILD-V1"
+  ],
+  "candidate_read_scope": [
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/canary-evidence/**"
+  ],
+  "candidate_write_scope": [
+    "scripts/swarm-lease-lib.mjs",
+    "tests/swarm-recovery-race-v1.test.mjs",
+    "coordination/canary-evidence/recovery-races/**",
+    "own claim/run/return"
+  ],
+  "risk": {
+    "main": "An over-broad fence could serialize safe independent recovery work.",
+    "mitigation": "Key exclusivity to recovery generation + overlapping substantive write scope, not to all RECOVER work or all attempts for an opportunity forever."
+  },
+  "fresh_critic_required": true,
+  "falsification": [
+    "Two same-generation recovery contenders with overlapping scope both perform substantive target writes.",
+    "A loser cannot identify the durable winning recovery attempt it yielded to.",
+    "The fence blocks recovery of a different opportunity or a provably isolated non-overlapping candidate scope.",
+    "Winner selection depends on newest timestamp rather than an atomic/deterministic authority rule.",
+    "Late original RETURN is discarded or overwritten because a recovery fence exists."
+  ],
+  "dedup_note": "This is not the existing normal claim-attempt receipt proposal: that proposal instruments ordinary create-if-absent claim outcomes. It is also not a reimplementation of stale detection/CAS. The new gap is specifically recovery-generation writer election after two append-only recovery contenders both passed preflight and reached STARTED.",
+  "source_freshness": {
+    "main_head_before_pin": "897c907cf15ccb4018a63718dca4963b39a83b42",
+    "epoch_observed": "P3-94c54cd39f41",
+    "runtime_epoch_main_pointer": "63d899565116",
+    "note": "Runtime projection lagged the live main head during discovery; the race evidence paths were fetched directly from main."
+  },
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "PROPOSAL_DOES_NOT_AUTHORIZE_SHARED_MUTATION"
+  ]
+}
