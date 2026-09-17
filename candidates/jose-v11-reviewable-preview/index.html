@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>José V11 · candidate preview</title>
+<style>
+  *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#111;color:#eee;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}body{display:grid;grid-template-rows:auto 1fr;overflow:hidden}.gate{min-height:34px;display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid #393939;background:#171717}.tag{font-weight:800;white-space:nowrap}.state{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#bcbcbc}.ok{color:#b9e7b9}.bad{color:#ffb3b3}iframe{display:block;width:100%;height:100%;border:0;background:#0d0d0d}.fatal{padding:18px;white-space:pre-wrap}noscript{padding:18px}
+</style>
+</head>
+<body>
+<div class="gate" role="status" aria-live="polite"><span class="tag">CANDIDATE · NOT CURRENT · NOT SERVED · NOT HUMAN ACCEPTED</span><span id="state" class="state">verificando bytes…</span></div>
+<iframe id="preview" title="José V11 candidate" sandbox="allow-scripts allow-forms allow-modals allow-pointer-lock allow-popups allow-downloads" hidden></iframe>
+<noscript>Este preview necesita JavaScript para verificar SHA-256 antes de abrir V11.</noscript>
+<script>
+(() => {
+  'use strict';
+  const SOURCE_BLOB_SHA = 'a58f325e24686a0dfc1f7606a30aed74b1b31a9c';
+  const SOURCE_API = 'https://api.github.com/repos/JuanManuelPM/prometeo/git/blobs/' + SOURCE_BLOB_SHA;
+  const EXPECTED_SHA256 = '0cf9a40fb53e977dccb40c9755d668a3ee922ccd61883f19229bb4a113139a05';
+  const EXPECTED_BYTES = 69235;
+  const state = document.getElementById('state');
+  const frame = document.getElementById('preview');
+
+  const fail = (message) => {
+    state.className = 'state bad';
+    state.textContent = 'BLOQUEADO · ' + message;
+    frame.hidden = true;
+    const pre = document.createElement('pre');
+    pre.className = 'fatal';
+    pre.textContent = 'Preview bloqueado.\n' + message + '\nNo se usaron bytes no verificados.';
+    document.body.appendChild(pre);
+  };
+  const bytesFromB64 = (s) => {
+    const clean = s.replace(/\s+/g, '');
+    const bin = atob(clean);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  };
+  const hex = (buffer) => Array.from(new Uint8Array(buffer), b => b.toString(16).padStart(2,'0')).join('');
+
+  async function run() {
+    if (!('DecompressionStream' in window)) throw new Error('browser sin DecompressionStream(gzip)');
+    if (!crypto?.subtle) throw new Error('browser sin Web Crypto SHA-256');
+
+    const response = await fetch(SOURCE_API, {cache:'no-store'});
+    if (!response.ok) throw new Error('fuente Git blob HTTP ' + response.status);
+    const blob = await response.json();
+    if (blob.sha !== SOURCE_BLOB_SHA || blob.encoding !== 'base64' || typeof blob.content !== 'string') {
+      throw new Error('respuesta de fuente no coincide con el blob fijado');
+    }
+
+    // Git blob.content is base64 of the stored .html.gz.b64 text file.
+    const storedTextBytes = bytesFromB64(blob.content);
+    const storedText = new TextDecoder('utf-8', {fatal:true}).decode(storedTextBytes);
+    const gzipBytes = bytesFromB64(storedText);
+    const stream = new Blob([gzipBytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+    const htmlBytes = new Uint8Array(await new Response(stream).arrayBuffer());
+    const digest = hex(await crypto.subtle.digest('SHA-256', htmlBytes));
+
+    if (htmlBytes.byteLength !== EXPECTED_BYTES) {
+      throw new Error('bytes ' + htmlBytes.byteLength + ' ≠ ' + EXPECTED_BYTES);
+    }
+    if (digest !== EXPECTED_SHA256) {
+      throw new Error('sha256 ' + digest + ' ≠ esperado');
+    }
+
+    // Candidate use begins only after both byte-count and SHA-256 gates pass.
+    const exactHtml = new Blob([htmlBytes], {type:'text/html;charset=utf-8'});
+    frame.src = URL.createObjectURL(exactHtml);
+    frame.hidden = false;
+    state.className = 'state ok';
+    state.textContent = 'VERIFICADO · 69.235 bytes · sha256 ' + digest.slice(0,12) + '… · preview aislado';
+  }
+
+  run().catch(err => fail(err?.message || String(err)));
+})();
+</script>
+</body>
+</html>
