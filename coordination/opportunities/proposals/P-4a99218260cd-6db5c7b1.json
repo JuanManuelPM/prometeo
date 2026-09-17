@@ -1,0 +1,81 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-4a99218260cd-6db5c7b1",
+  "fingerprint": "pdf-4a99218260cdb54893e4f18ec376aeb5",
+  "created_at": "2026-09-17T09:58:01-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T095801-0300-sol56-surplus-discovery-recovery-election",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "artifact": "atomic recovery successor election",
+    "consumer": "stale recovery scanner/workers",
+    "subsystem": "recovery-claim-fabric"
+  },
+  "problem": "Append-only recovery attempts use per-attempt unique paths after non-atomic preflight, so concurrent recoverers can both become successor candidates for the same stale predecessor. The current policy requires collision checks and separate append-only recovery claims, but it does not itself establish a create-if-absent election key for one successor generation; the current helper/tests therefore need an explicit concurrency proof or a stronger election primitive before duplicate recovered execution can be ruled out.",
+  "acceptance": [
+    "The same stale predecessor and recovery generation yields exactly one recovery election winner via create-if-absent or equivalent CAS.",
+    "A losing recoverer resolves the winning recovery claim and does not persist STARTED for duplicate execution.",
+    "If the elected recovery later becomes stale, a next recovery generation can be elected without mutating prior evidence.",
+    "A concurrency canary with two or more recoverers proves one successor STARTED for the same predecessor generation while late-original reconciliation remains preserved."
+  ],
+  "title": "Elect one recovery successor atomically",
+  "mission": "Add and canary an opportunity+predecessor-generation recovery election primitive, or prove an existing equivalent, so simultaneous stale-recovery workers cannot both begin recovered execution from the same predecessor while preserving append-only lineage and later re-recovery.",
+  "evidence_refs": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/opportunities/recovery-claims/",
+    "scripts/swarm-lease-lib.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs",
+    "coordination/opportunities/returns/O-INTEGRATION-INGEST-BRIDGE-V1/RUN-O-INTEGRATION-INGEST-BRIDGE-V1-REC-20260917T0953-GPT56SOL-R1.json",
+    "coordination/opportunities/proposals/P-60114aaf15fa-2e9ec736.json"
+  ],
+  "value_signals": {
+    "unblock_value": {
+      "reason": "Recovery is now participating in live dependency closure; making successor selection single-winner prevents recovery itself from introducing duplicate execution or ambiguous ownership during blocked-frontier release.",
+      "evidence_ref": "coordination/opportunities/returns/O-INTEGRATION-INGEST-BRIDGE-V1/RUN-O-INTEGRATION-INGEST-BRIDGE-V1-REC-20260917T0953-GPT56SOL-R1.json"
+    },
+    "information_gain": {
+      "reason": "A real concurrent-recoverer canary distinguishes preflight-only best effort from an actually exclusive successor election under race.",
+      "evidence_ref": "tests/swarm-lease-retry-v1.test.mjs"
+    },
+    "regression_prevention": {
+      "reason": "A deterministic election generation plus loser assertions converts duplicate recovery from a timing-dependent possibility into a falsifiable invariant.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**",
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/universal-worker-allocator.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs"
+  ],
+  "candidate_write_scope": [
+    "scripts/swarm-lease-lib.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs",
+    "tests/fixtures/swarm-recovery-election/**",
+    "coordination/candidates/recovery-election/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": [
+    "Two recoverers against the same stale predecessor generation can both persist STARTED recovered runs.",
+    "A losing recoverer cannot durably resolve the elected winning recovery attempt before declining execution.",
+    "The election key prevents a later recovery generation after the elected successor itself becomes stale.",
+    "Late-original RETURN reconciliation is lost or rewritten by the election mechanism.",
+    "The proposed mechanism requires overwriting the original claim or any prior recovery evidence."
+  ],
+  "dedup_note": "After this fingerprint pin won, P-60114aaf15fa-2e9ec736 independently landed with a distinct canonical target but materially convergent single-winner stale-recovery intent and stronger live collision evidence. Preserve both source lineages per the discovery dedup contract, but Planner/Steward should cluster them before execution so they do not become duplicate implementation authority.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
