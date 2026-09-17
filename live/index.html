@@ -70,7 +70,8 @@
     'coordination/opportunities/CANARY_QUEUE_V0.json',
     'coordination/opportunities/META_COMPOUND_QUEUE_V1.json',
     'coordination/opportunities/VERIFICATION_QUEUE_V1.json',
-    'coordination/opportunities/GENERATED_QUEUE_GEN2_V1.json'
+    'coordination/opportunities/GENERATED_QUEUE_GEN2_V1.json',
+    'coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json'
   ];
   const $=id=>document.getElementById(id);
   const esc=(v='')=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));
@@ -136,14 +137,14 @@
   function setAction(counts){
     $('copy').hidden=true;
     if(counts.ready>0){
-      $('action').textContent=`Abrí ${counts.ready} ${counts.ready===1?'worker':'workers'}. Todos usan el mismo prompt.`;
+      $('action').textContent=`Podés abrir hasta ${counts.ready} ${counts.ready===1?'worker':'workers'} ahora. Todos usan el mismo prompt.`;
       $('copy').hidden=false;
       return;
     }
-    if(counts.working>0){$('action').textContent=`Nada. Hay ${counts.working} ${counts.working===1?'worker trabajando':'workers trabajando'}.`;return}
-    if(counts.returned>0){$('action').textContent='Mandá . una vez para integrar lo que volvió y liberar la próxima generación.';return}
-    if(counts.waiting>0){$('action').textContent='Nada por ahora. La cola está esperando dependencias.';return}
-    $('action').textContent='Nada por ahora.';
+    if(counts.working>0){$('action').textContent=`Nada obligatorio. Hay ${counts.working} ${counts.working===1?'worker trabajando':'workers trabajando'}; nuevos /wc pueden entrar en recovery/discovery cuando corresponda.`;return}
+    if(counts.returned>0){$('action').textContent='No hace falta transportar resultados. Los próximos workers/ste wards pueden integrar y desbloquear sucesores; usá el guía sólo si querés intervenir.';return}
+    if(counts.waiting>0){$('action').textContent='La frontera preparada espera dependencias; nuevos /wc pueden revisar recovery/discovery sin inventar filler.';return}
+    $('action').textContent='No hay acción humana obligatoria.';
   }
 
   async function load(){
@@ -169,11 +170,11 @@
 
       const active=current.filter(x=>x.state==='working').sort((a,b)=>(b.priority||0)-(a.priority||0))[0];
       const free=current.filter(x=>x.state==='ready').sort((a,b)=>(b.priority||0)-(a.priority||0))[0];
-      const currentLine=active?`Ahora: ${shortMission(active.mission)}`:free?`Hay capacidad libre: ${shortMission(free.mission)}`:counts.returned?`La ola volvió. Falta integrarla para fabricar la siguiente.`:(head.next_dot||focus.current_frontier||'Prometeo está al día.');
+      const currentLine=active?`Ahora: ${shortMission(active.mission)}`:free?`Hay capacidad libre: ${shortMission(free.mission)}`:counts.returned?`Hay resultados durables disponibles; la red puede seguir integrando.`:(head.next_dot||focus.current_frontier||'Prometeo está al día.');
       $('sentence').innerHTML=esc(currentLine).replace(/^Ahora:/,'<span class="dim">Ahora:</span>');
       setAction(counts);
 
-      const gen=head.generated_generation?.generation_id||head.generated_generation?.queue_ref?.split('/').at(-1)?.replace('.json','')||'flujo actual';
+      const gen=head.distributed_swarm?.status||head.generated_generation?.generation_id||'flujo actual';
       $('generation').textContent=`${gen} · ${counts.ready} lugares libres`;
       $('frontier').textContent=focus.current_frontier||head.global_frontier||'—';
       renderFlow(current);
@@ -190,10 +191,11 @@
       $('sources').innerHTML=[
         ['continuidad','coordination/CONTINUITY_HEAD.json'],
         ['foco','coordination/workstreams/chat-native-control-plane-v1/FOCUS.json'],
+        ['swarm','coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json'],
         ['gen2','coordination/opportunities/GENERATED_QUEUE_GEN2_V1.json'],
         ['worker','wc']
       ].map(([n,p])=>source(n,p)).join('');
-      $('diagnostic').textContent=`Lectura: ${current.length} oportunidades activas combinadas · actualización cada 2 minutos · sin porcentajes inventados.`;
+      $('diagnostic').textContent=`Lectura: ${current.length} oportunidades combinadas · ${counts.ready} READY estáticas sin claim · actualización cada 2 minutos · discovery/recovery dinámicos no se inventan como porcentaje.`;
       $('pulse').className='pulse ok';
       $('clock').textContent=`actualizado ${fmt(new Date().toISOString())}`;
     }catch(err){
