@@ -1,0 +1,79 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-74b31e84673b-ab08f3eb",
+  "fingerprint": "pdf-74b31e84673bff374f8f252cddfda21e",
+  "created_at": "2026-09-17T09:20:50-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0920-0300-sol56-discovery-74b3",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "output": "prewrite epoch freshness guard",
+    "owner": "chat-object-prometeo-chat-control-main",
+    "privacy": "public_coordination_only",
+    "scope": "global mutation prewrite / identical worker canary"
+  },
+  "problem": "Public fast EPOCH can trail rapidly moving live main during many-worker writes, while the mutation law requires EPOCH before material write; current workers are recording ad-hoc runtime drift notes instead of applying one machine-checkable freshness/fallback policy.",
+  "acceptance": [
+    "machine-checkable comparator classifies public EPOCH versus live main evidence without silently treating a stale projection as current",
+    "bounded safe fallback for isolated create-if-absent writes is explicit when public EPOCH lags or is temporarily unavailable",
+    "shared or overlapping mutation remains fail-closed when freshness/owner evidence is insufficient",
+    "fixtures cover fresh lagging unavailable and rapidly advancing main cases",
+    "no Current Human Accepted Served or production readiness promotion occurs"
+  ],
+  "title": "EPOCH freshness guard for concurrent workers",
+  "mission": "Implement and falsify one machine-checkable prewrite freshness policy that compares public fast-EPOCH evidence with live repository state, makes projection lag explicit, permits only bounded safe fallback for isolated create-if-absent mutations, and fails closed for shared or overlapping writes when authority/freshness evidence is insufficient.",
+  "evidence_refs": [
+    ".well-known/prometeo.json",
+    "coordination/opportunities/claims/O-SWARM-CRITIC-HUMAN-FRICTION-V1.json",
+    "coordination/opportunities/claims/O-CANARY-RECEIPT-HARDENING-V1.json",
+    "coordination/GLOBAL_AGENT_CONSTITUTION_V1.md"
+  ],
+  "value_signals": {
+    "regression_prevention": {
+      "reason": "The stable entry requires EPOCH in the mutation prewrite sequence, while contemporary worker claims explicitly record public-EPOCH/live-main drift. A shared machine rule prevents each worker from improvising freshness semantics.",
+      "evidence_ref": ".well-known/prometeo.json"
+    },
+    "unblock_value": {
+      "reason": "Large identical-worker waves are rapidly moving main; an explicit freshness/fallback rule reduces false blocking without weakening fail-closed behavior for overlapping writes.",
+      "evidence_ref": "coordination/opportunities/claims/O-CANARY-RECEIPT-HARDENING-V1.json"
+    },
+    "human_friction_reduction": {
+      "reason": "Freshness drift should be classified by the worker/runtime rather than escalated to the human or encoded ad hoc in each claim.",
+      "evidence_ref": "coordination/opportunities/claims/O-SWARM-CRITIC-HUMAN-FRICTION-V1.json"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    ".well-known/prometeo.json",
+    "coordination/GLOBAL_AGENT_CONSTITUTION_V1.md",
+    "coordination/opportunities/claims/**",
+    "agent-runtime public EPOCH projection",
+    "live main head"
+  ],
+  "candidate_write_scope": [
+    "scripts/epoch-freshness-guard.mjs",
+    "tests/epoch-freshness-guard-v1.test.mjs",
+    "coordination/swarm-v1/freshness/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": {
+    "fail_if": [
+      "a lagging or unavailable public EPOCH is silently reported as fresh",
+      "fallback authorizes shared or overlapping mutation without current owner/freshness evidence",
+      "rapidly advancing main causes isolated create-if-absent work to be treated as globally authoritative",
+      "the guard promotes Current Human Accepted Served or production readiness"
+    ],
+    "pass_if": "Fresh, lagging and unavailable EPOCH cases are distinguished deterministically; only isolated create-if-absent writes receive bounded fallback; overlapping/shared writes fail closed; authority remains candidate-only."
+  },
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
