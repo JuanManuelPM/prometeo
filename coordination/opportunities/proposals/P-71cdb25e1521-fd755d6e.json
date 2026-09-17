@@ -1,0 +1,76 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-71cdb25e1521-fd755d6e",
+  "fingerprint": "pdf-71cdb25e152161b6d22f7cd99d2c48a1",
+  "created_at": "2026-09-17T09:58:58-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0959-0300-sol56-recovery-arbitration",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": "stale-recovery/recovery-attempt-arbitration/candidate-only",
+  "problem": "Concurrent eligible recoverers can both pass stale/overlap preflight and create separate recovery claims for the same stale opportunity, causing duplicate recovery work and unsafe overlapping write risk.",
+  "acceptance": [
+    "At most one recovery executor acquires the active recovery slot for the same opportunity and stale generation while preserving append-only recovery evidence.",
+    "A losing recovery worker records a collision and re-enters allocation without candidate/product writes.",
+    "Two-worker and five-worker race tests prove non-duplication under concurrent stale takeover.",
+    "Late original returns and late recovery evidence remain preserved and reconcileable.",
+    "No Current, Human Accepted, Served, or production authority is promoted."
+  ],
+  "title": "Atomic stale-recovery arbitration after live duplicate takeovers",
+  "mission": "Add and verify a narrow arbitration primitive for stale recovery so simultaneous eligible recoverers cannot both become active writers for the same opportunity/stale generation. Preserve the existing append-only recovery-claim and late-return model, but introduce an atomic create-if-absent or lease/CAS recovery slot keyed by opportunity plus stale generation. Losing workers must durably record collision/observation and immediately re-enter allocation without product writes. Prove behavior with 2-worker and 5-worker races and reconcile existing duplicate-recovery evidence rather than deleting it.",
+  "evidence_refs": [
+    "coordination/opportunities/runs/O-SURFACE-FACULTAD_DIGITAL-INTENT-V1/RUN-O-SURFACE-FACULTAD_DIGITAL-INTENT-V1-REC-20260917T0955-SOL56.json",
+    "coordination/opportunities/runs/O-SURFACE-FACULTAD_DIGITAL-INTENT-V1/RUN-O-SURFACE-FACULTAD_DIGITAL-INTENT-V1-REC-20260917T0956-SOL56.json",
+    "coordination/opportunities/runs/O-SWARM-PAGE-THREAD-BRIDGE-V1/RUN-O-SWARM-PAGE-THREAD-BRIDGE-V1-REC-20260917T0951-SOL56-R2.json",
+    "coordination/opportunities/returns/O-SWARM-LEASE-RETRY-BUILD-V1/RUN-O-SWARM-LEASE-RETRY-BUILD-V1-20260917T0043-SOL56.json",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+  ],
+  "value_signals": {
+    "regression_prevention": {
+      "reason": "Fresh broad-wave evidence shows multiple recovery attempts can be created for one stale opportunity within the same minute; an arbitration primitive directly reduces duplicate writes and recovery storms.",
+      "evidence_ref": "coordination/opportunities/runs/O-SURFACE-FACULTAD_DIGITAL-INTENT-V1/"
+    },
+    "unblock_value": {
+      "reason": "Safer recovery arbitration lets stale gates be recovered aggressively without requiring the human/global guide to serialize recoverers.",
+      "evidence_ref": "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+    },
+    "information_gain": {
+      "reason": "The 2/5-worker race canary will distinguish harmless append-only duplicate evidence from actual overlapping execution/write risk under mass /wc launches.",
+      "evidence_ref": "coordination/opportunities/runs/O-SWARM-PAGE-THREAD-BRIDGE-V1/RUN-O-SWARM-PAGE-THREAD-BRIDGE-V1-REC-20260917T0951-SOL56-R2.json"
+    }
+  },
+  "dependency_ids": ["O-SWARM-LEASE-RETRY-BUILD-V1"],
+  "candidate_read_scope": [
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+  ],
+  "candidate_write_scope": [
+    "scripts/swarm-recovery-arbitration*.mjs",
+    "tests/swarm-recovery-arbitration-v1.test.mjs",
+    "coordination/swarm-v1/recovery-arbitration/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": false,
+  "falsification": {
+    "fail_if": [
+      "two simultaneous recoverers can both acquire active write authority for the same opportunity and stale generation",
+      "a losing recovery worker performs product/candidate writes before re-entering allocation",
+      "original claim/run/return or late recovery evidence is overwritten or deleted",
+      "arbitration lock can become permanent without a bounded stale/lease recovery path"
+    ],
+    "required_races": [2, 5]
+  },
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
