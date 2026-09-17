@@ -79,7 +79,7 @@ test('filesystem builder reads portfolio, derived jobs, pins, heartbeats, return
   await write('coordination/portfolio/derived/p/d.json', { job_id: 'derived', seed_status: 'ready', priority: 90 });
   await write('coordination/workers/beacons/w.json', { worker_id: 'w', launched_at: '2026-09-17T19:15:00Z' });
   await write('coordination/portfolio/pins/derived/G000001.json', { job_id: 'derived', worker_id: 'w', generation: 1, claimed_at: '2026-09-17T19:00:00Z' });
-  await write('coordination/workers/heartbeats/w/h.json', { worker_id: 'w', heartbeat_at: '2026-09-17T19:19:00Z' });
+  await write('coordination/workers/heartbeats/w/h.json', { worker_id: 'w', job_id: 'derived', heartbeat_at: '2026-09-17T19:19:00Z' });
   await write('coordination/opportunities/Q.json', { queue_id: 'Q', opportunities: [{ opportunity_id: 'opp', status: 'READY', priority: 80 }] });
   await write('coordination/opportunities/returns/opp/r.json', { opportunity_id: 'opp', outcome: 'DONE', returned_at: '2026-09-17T19:18:00Z' });
   const snapshot = await buildSnapshotFromRepo(root);
@@ -89,4 +89,60 @@ test('filesystem builder reads portfolio, derived jobs, pins, heartbeats, return
   assert.ok(snapshot.jobs.some((j) => j.job_id === 'opp'));
   assert.ok(snapshot.terminal_returns.some((r) => r.job_id === 'opp'));
   assert.equal(snapshot.owners.find((o) => o.job_id === 'derived').heartbeat_at, '2026-09-17T19:19:00Z');
+});
+
+test('filesystem builder does not let a heartbeat for job-B refresh job-A owned by the same worker', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'prometeo-frontier-cross-job-'));
+  const write = async (rel, value) => { const file = path.join(root, rel); await fs.mkdir(path.dirname(file), { recursive: true }); await fs.writeFile(file, JSON.stringify(value)); };
+  await write('coordination/portfolio/PORTFOLIO.json', { projects: [{ jobs: [{ job_id: 'job-A', seed_status: 'ready' }] }] });
+  await write('coordination/portfolio/pins/job-A/G000001.json', { job_id: 'job-A', worker_id: 'worker-W', generation: 1, claimed_at: '2026-09-17T19:00:00Z' });
+  await write('coordination/workers/heartbeats/worker-W/h.json', { worker_id: 'worker-W', job_id: 'job-B', heartbeat_at: '2026-09-17T19:19:00Z' });
+
+  const snapshot = await buildSnapshotFromRepo(root);
+  const owner = snapshot.owners.find((o) => o.job_id === 'job-A');
+  assert.equal(owner.heartbeat_at, null);
+  assert.equal(owner.latest_signal_at, '2026-09-17T19:00:00Z');
+
+  const result = computeFrontierPressure(snapshot, policy, { now });
+  assert.deepEqual(result.liveness.replaceable_job_ids, ['job-A']);
+  assert.deepEqual(result.frontier.claimable_job_ids, ['job-A']);
+});
+
+test('filesystem builder keeps matching job heartbeat active even when same worker has a newer heartbeat elsewhere', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'prometeo-frontier-matching-job-'));
+  const write = async (rel, value) => { const file = path.join(root, rel); await fs.mkdir(path.dirname(file), { recursive: true }); await fs.writeFile(file, JSON.stringify(value)); };
+  await write('coordination/portfolio/PORTFOLIO.json', { projects: [{ jobs: [{ job_id: 'job-A', seed_status: 'ready' }] }] });
+  await write('coordination/portfolio/pins/job-A/G000001.json', { job_id: 'job-A', worker_id: 'worker-W', generation: 1, claimed_at: '2026-09-17T19:00:00Z' });
+  await write('coordination/workers/heartbeats/worker-W/a.json', { worker_id: 'worker-W', job_id: 'job-A', heartbeat_at: '2026-09-17T19:18:00Z' });
+  await write('coordination/workers/heartbeats/worker-W/b.json', { worker_id: 'worker-W', job_id: 'job-B', heartbeat_at: '2026-09-17T19:19:30Z' });
+
+  const snapshot = await buildSnapshotFromRepo(root);
+  const owner = snapshot.owners.find((o) => o.job_id === 'job-A');
+  assert.equal(owner.heartbeat_at, '2026-09-17T19:18:00Z');
+
+  const result = computeFrontierPressure(snapshot, policy, { now });
+  assert.equal(result.liveness.active, 1);
+  assert.equal(result.frontier.claimable_useful_jobs, 0);
+});
+
+test('opportunity claims use opportunity-scoped heartbeats and ignore unrelated or identity-less heartbeats', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'prometeo-frontier-opportunity-heartbeat-'));
+  const write = async (rel, value) => { const file = path.join(root, rel); await fs.mkdir(path.dirname(file), { recursive: true }); await fs.writeFile(file, JSON.stringify(value)); };
+  await write('coordination/opportunities/Q.json', { queue_id: 'Q', opportunities: [
+    { opportunity_id: 'opp-A', status: 'READY', priority: 80 },
+    { opportunity_id: 'opp-C', status: 'READY', priority: 70 },
+  ] });
+  await write('coordination/opportunities/claims/opp-A/claim.json', { opportunity_id: 'opp-A', worker_instance_id: 'worker-W', claimed_at: '2026-09-17T19:00:00Z' });
+  await write('coordination/opportunities/claims/opp-C/claim.json', { opportunity_id: 'opp-C', worker_instance_id: 'worker-X', claimed_at: '2026-09-17T19:00:00Z' });
+  await write('coordination/workers/heartbeats/worker-W/b.json', { worker_id: 'worker-W', job_id: 'opp-B', heartbeat_at: '2026-09-17T19:19:30Z' });
+  await write('coordination/workers/heartbeats/worker-X/no-id.json', { worker_id: 'worker-X', heartbeat_at: '2026-09-17T19:19:30Z' });
+
+  const snapshot = await buildSnapshotFromRepo(root);
+  const ownerA = snapshot.owners.find((o) => o.job_id === 'opp-A');
+  const ownerC = snapshot.owners.find((o) => o.job_id === 'opp-C');
+  assert.equal(ownerA.heartbeat_at, null);
+  assert.equal(ownerC.heartbeat_at, null);
+
+  const result = computeFrontierPressure(snapshot, policy, { now });
+  assert.deepEqual(result.frontier.claimable_job_ids, ['opp-A', 'opp-C']);
 });
