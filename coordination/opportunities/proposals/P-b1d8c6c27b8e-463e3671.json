@@ -1,0 +1,104 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-b1d8c6c27b8e-463e3671",
+  "fingerprint": "pdf-b1d8c6c27b8e869ac3e47daf7996a972",
+  "created_at": "2026-09-17T09:58:12-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0947-0300-gpt56sol-recovery-race-discovery",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": "recovery-admission",
+  "problem": "parallel-recovery-claim-race-allows-multiple-active-recoveries",
+  "acceptance": [
+    "at-most-one-active-recovery-attempt-per-opportunity-v1"
+  ],
+  "title": "Deterministic Atomic Recovery Admission V1",
+  "mission": "Add a deterministic create-if-absent recovery admission pin so all workers trying to recover the same stale predecessor contend on one stable path before any randomized recovery claim/run is created. Preserve recovery claims/runs/returns as append-only evidence. A loser must PARK/RELOAD; a later recovery generation must derive a new admission identity only from a newly-stale predecessor after terminal/eligibility evidence is re-fetched. Reuse the existing lease/retry primitives rather than creating a second stale policy.",
+  "evidence_refs": [
+    "coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/",
+    "coordination/opportunities/runs/O-SWARM-KERNEL-IMPLEMENT-V1/RUN-O-SWARM-KERNEL-IMPLEMENT-V1-20260917T0954-SOL56B.json",
+    "coordination/opportunities/returns/O-SWARM-LEASE-RETRY-BUILD-V1/RUN-O-SWARM-LEASE-RETRY-BUILD-V1-20260917T0043-SOL56.json",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md"
+  ],
+  "observed_incident": {
+    "page_thread_bridge": "At least five distinct recovery-claim files appeared for O-SWARM-PAGE-THREAD-BRIDGE-V1 during the 09:51-09:55 ART collision window.",
+    "kernel": "A separate kernel recovery run durably recorded multiple competing recovery claims/runs in the same collision window and reconciled them post hoc, showing the failure is systemic rather than lane-specific.",
+    "existing_primitive_limit": "O-SWARM-LEASE-RETRY-BUILD-V1 correctly defines active-overlap => PARK, but its RETURN states that active-overlap evidence is caller-supplied and the scanner does not atomically persist admission."
+  },
+  "candidate_design": {
+    "principle": "Random recovery_attempt_id may identify evidence after admission, but it must not be the exclusivity key.",
+    "admission_identity": "Deterministically derive one key from opportunity_id + exact previous_run + binding recovery-policy generation/version. All contenders for that stale predecessor attempt CREATE the same admission path.",
+    "candidate_path": "coordination/opportunities/recovery-admission/<opportunity_id>/<deterministic_predecessor_key>.json",
+    "winner_flow": "atomic create succeeds -> re-fetch eligibility/CAS -> create append-only randomized recovery claim + fresh STARTED run referencing admission pin",
+    "loser_flow": "create collision -> read winner/active state -> PARK/RELOAD; never create a parallel recovery claim for the same predecessor",
+    "next_generation": "Only a later stale predecessor/run produces a new deterministic admission key after terminal/no-return/eligibility evidence is re-derived.",
+    "late_return_rule": "A late original or recovery RETURN remains candidate evidence and forces reconciliation; admission never promotes Current/Human Accepted/Served."
+  },
+  "value_signals": {
+    "unblock_value": {
+      "reason": "The broad /wc canary is currently producing concurrent stale recoveries; without atomic admission, recovery itself becomes a duplication/collision amplifier at exactly the load level the canary is meant to test."
+    },
+    "compounding_value": {
+      "reason": "One deterministic admission primitive can protect every opportunity/root/surface and lets later allocator/metabolism automation invoke recovery without human arbitration."
+    },
+    "human_friction_reduction": {
+      "reason": "Prevents the human/guide from having to inspect and reconcile duplicate recovery attempts created by identical workers."
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-LEASE-RETRY-BUILD-V1"
+  ],
+  "candidate_read_scope": [
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs"
+  ],
+  "candidate_write_scope": [
+    "scripts/swarm-recovery-admission.mjs",
+    "tests/swarm-recovery-admission-v1.test.mjs",
+    "tests/fixtures/swarm-recovery-admission/**",
+    "coordination/swarm-v1/recovery-admission/**",
+    "coordination/opportunities/recovery-admission/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": {
+    "must_fail_if": [
+      "two workers with the same opportunity_id and previous_run can both obtain active recovery admission",
+      "random recovery_attempt_id remains the exclusivity key",
+      "a loser can create a recovery claim/run after losing admission without a new predecessor generation",
+      "terminal/RETURN evidence is ignored when deriving a later generation",
+      "recovery admission mutates or erases original claim/run/return history",
+      "admission implies promotion to Current, Human Accepted or Served"
+    ],
+    "proof_required": [
+      "concurrency test with many contenders for one stale predecessor yielding exactly one winner",
+      "second-generation test proving a newly-stale recovery predecessor can obtain one new admission without reopening the old generation",
+      "late-return race test preserving both evidence branches and requiring reconciliation",
+      "live /wc canary receipt showing duplicate recovery claims no longer fan out for a shared stale predecessor"
+    ]
+  },
+  "acceptance_details": [
+    "same opportunity + same exact previous_run deterministically maps to one create-if-absent admission path",
+    "under concurrent contenders exactly one active recovery winner exists for that predecessor generation",
+    "winner recovery claim/run references the admission pin; losers durably PARK/RELOAD or simply lose the atomic create without parallel mutation",
+    "existing lease/retry 20/30-minute policy and CAS/refetch rules remain authoritative and are reused",
+    "append-only original/recovery evidence and late-return reconciliation are preserved",
+    "an independent critic verifies the race fix before it can contribute to /w readiness"
+  ],
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "PROPOSAL_PIN_IS_NOT_EXECUTION_AUTHORITY",
+    "RECOVERY_ADMISSION_IS_NOT_PRODUCT_AUTHORITY"
+  ],
+  "source_head_observed": "8ddc3e2eddbc222b554946d744c509c8d09efd2a",
+  "epoch_observed": "P3-7bcbb882125c"
+}
