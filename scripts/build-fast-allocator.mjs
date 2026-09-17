@@ -17,6 +17,18 @@ const clamp = (min, value, max) => Math.max(min, Math.min(max, value));
 const lower = value => String(value ?? '').toLowerCase();
 const sha12 = value => crypto.createHash('sha256').update(value).digest('hex').slice(0, 12);
 const roleLower = role => String(role).replace(/^GUIDE_/, '').toLowerCase();
+const returnEvidenceRows = job => {
+  const compact = arr(job?.recent_return_evidence);
+  return compact.length ? compact : arr(job?.returns);
+};
+const collisionEvidenceRows = job => {
+  const compact = arr(job?.recent_collision_evidence);
+  return compact.length ? compact : arr(job?.collisions);
+};
+const attentionOutcome = row => {
+  const value = lower(row?.outcome || row?.status || row?.result);
+  return ['partial', 'boundary', 'route_aborted'].includes(value) ? value : null;
+};
 
 export function normalizeRecoveryPolicy(job = {}, policy = null) {
   const source = policy && typeof policy === 'object' ? policy : {};
@@ -142,14 +154,15 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
   const cleanFrontier = ready.length + queueReady.length;
 
   const recentReturnWindow = 6 * 60 * 60_000;
+  const collisionPressureWindow = Number(signals.collision_pressure_window_minutes || 30) * 60_000;
   const materialReturns = [];
   for (const job of jobs) {
-    for (const ret of arr(job.returns)) {
+    for (const ret of returnEvidenceRows(job)) {
       const ref = ret.path || null;
       const when = eventTime(ret);
       const outcome = lower(ret.outcome || ret.status || ret.result);
       if (!ref || !when || now - when > recentReturnWindow || consumedReturns.has(ref)) continue;
-      if (!['done', 'verified', 'no_action_needed', 'superseded', 'partial', 'boundary'].some(value => outcome.includes(value))) continue;
+      if (!['done', 'verified', 'no_action_needed', 'superseded', 'partial', 'boundary', 'route_aborted'].some(value => outcome.includes(value))) continue;
       materialReturns.push({ path: ref, when, outcome, job_id: job.job_id });
     }
   }
@@ -157,12 +170,23 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
   const unconsumedReturnRefs = uniq(materialReturns.slice(0, 12).map(row => row.path));
 
   const recoveryEvidence = uniq(recovery.slice(0, 8).map(item => item.predecessor_pin_ref || item.source_path || `coordination/portfolio/PORTFOLIO.json#job:${item.job_id}`));
-  const collisionEvidence = uniq(jobs.flatMap(job => arr(job.collisions).map(row => row.path)).slice(-12));
+  const collisionEvidence = uniq(jobs
+    .flatMap(job => collisionEvidenceRows(job))
+    .filter(row => {
+      const when = eventTime(row);
+      return row?.path && when && now - when <= collisionPressureWindow;
+    })
+    .map(row => row.path)
+    .slice(-12));
   const partialEvidence = uniq(jobs
-    .filter(job => ['partial', 'blocked'].includes(job.state))
+    .filter(job => job.state !== 'done')
+    .filter(job => {
+      const latest = returnEvidenceRows(job).at(-1) || job.latest_return || null;
+      return ['partial', 'blocked'].includes(job.state) || Boolean(attentionOutcome(latest));
+    })
     .flatMap(job => {
-      const ret = arr(job.returns).at(-1);
-      return [ret?.path, roleEvidenceRef(job)];
+      const latest = returnEvidenceRows(job).at(-1) || job.latest_return || null;
+      return [latest?.path, roleEvidenceRef(job)];
     })
     .slice(0, 12));
   const unresolvedEvidence = uniq(jobs
