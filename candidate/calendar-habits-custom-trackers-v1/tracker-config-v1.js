@@ -5,29 +5,50 @@
   const Adapter=window.PrometeoHabitSourceAdapter;
   if(!Model||!Adapter)throw new Error('Prometeo habit tracker model + source adapter are required');
   const DONOR_TRACES='/prometeo/pages/calendar/previews/habits-traces-v1/traces-v24.js?v=20260907-ux24';
+  const BEHAVIOR_MIRROR_KEY='prometeo-db-habit-projection-v31';
   let current={schema:Model.SCHEMA,revision:1,updated_at:new Date().toISOString(),trackers:[]};
   let lastHistory={};
 
-  function read(){
+  function readLocal(){
     try{return JSON.parse(localStorage.getItem(Model.STORAGE_KEY)||'null')}catch{return null}
   }
-  function write(config){
+  async function readCanonical(){
+    const local=readLocal();
+    if(window.PrometeoDB?.getMeta){
+      try{
+        const stored=await PrometeoDB.getMeta(Model.META_KEY,null);
+        if(stored&&typeof stored==='object')return {saved:stored,source:'indexeddb-meta'};
+      }catch(error){console.warn('[Prometeo trackers] config meta read failed; using local mirror',error)}
+    }
+    return {saved:local,source:'local-mirror'};
+  }
+  async function write(config){
     current=Model.normalizeConfig(config);
     localStorage.setItem(Model.STORAGE_KEY,JSON.stringify(current));
+    if(window.PrometeoDB?.setMeta){
+      try{
+        await PrometeoDB.setMeta(Model.META_KEY,current);
+        document.documentElement.dataset.habitTrackerConfig='indexeddb-meta';
+      }catch(error){
+        document.documentElement.dataset.habitTrackerConfig='local-mirror';
+        console.warn('[Prometeo trackers] config meta write failed; local mirror retained',error);
+      }
+    }else document.documentElement.dataset.habitTrackerConfig='local-mirror';
     return current;
   }
-  function prepare(history={}){
+  async function prepare(history={}){
     lastHistory=history&&typeof history==='object'?history:{};
-    const saved=read(),result=Model.bootstrap(saved,lastHistory);
+    const {saved}=await readCanonical();
+    const result=Model.bootstrap(saved,lastHistory);
     current=result.config;
-    if(result.changed||!saved)write(current);
+    await write(current);
     installManager();
     return current;
   }
   function rendererConfig(){return {groups:Model.groups(current),trackers:Model.activeTrackers(current).map(({id,label,group,kind})=>({id,label,group,kind}))}}
   function patchRendererSource(source,config=rendererConfig()){return Adapter.patchTraces(source,config)}
   async function loadRenderer(history={}){
-    prepare(history);
+    await prepare(history);
     const response=await fetch(DONOR_TRACES,{cache:'no-store'});
     if(!response.ok)throw new Error(`Unable to load canonical traces renderer (${response.status})`);
     const source=patchRendererSource(await response.text());
@@ -47,9 +68,9 @@
     [['positive','Sumar'],['negative','Evitar evento'],['avoid','Evitar + ganas/caída']].forEach(([value,text])=>kind.append(selectOption(value,text,value===tracker.kind)));
     const group=document.createElement('select');group.setAttribute('aria-label','Grupo');groupOptions(tracker.group).forEach(option=>group.append(option));
     const save=document.createElement('button');save.type='button';save.textContent='GUARDAR';
-    save.onclick=()=>{write(Model.update(current,tracker.id,{label:name.value,kind:kind.value,group:group.value}));reload()};
+    save.onclick=async()=>{save.disabled=true;await write(Model.update(current,tracker.id,{label:name.value,kind:kind.value,group:group.value}));reload()};
     const archive=document.createElement('button');archive.type='button';archive.textContent=tracker.archived?'RESTAURAR':'ARCHIVAR';
-    archive.onclick=()=>{write(Model.archive(current,tracker.id,!tracker.archived));reload()};
+    archive.onclick=async()=>{archive.disabled=true;await write(Model.archive(current,tracker.id,!tracker.archived));reload()};
     row.append(name,kind,group,save,archive);return row;
   }
   function renderManager(dialog){
@@ -60,9 +81,18 @@
     const archived=trackers.filter(t=>t.archived);
     if(archived.length){const title=document.createElement('div');title.className='tracker-config-subtitle';title.textContent='ARCHIVADOS';body.append(title);archived.forEach(t=>body.append(trackerRow(t)))}
   }
+  function latestMirrorHistory(){
+    const key=window.PrometeoHabitPersistence?.mirror_key||BEHAVIOR_MIRROR_KEY;
+    try{const value=JSON.parse(localStorage.getItem(key)||'null');if(value&&typeof value==='object'&&!Array.isArray(value))return value}catch{}
+    return lastHistory;
+  }
   async function exportAll(){
-    const bundle=Model.exportBundle(current,lastHistory);
-    try{bundle.indexeddb=await window.PrometeoHabitPersistence?.exportDatabase?.()}catch(error){bundle.indexeddb_export_error=String(error?.message||error)}
+    const persistence=window.PrometeoHabitPersistence;
+    try{await persistence?.flush?.()}catch{}
+    const bundle=Model.exportBundle(current,latestMirrorHistory());
+    bundle.config_authority=window.PrometeoDB?.getMeta?'indexeddb-meta-with-local-mirror':'local-mirror';
+    try{bundle.persistence_status=persistence?.status?.()||null}catch{bundle.persistence_status=null}
+    try{bundle.indexeddb=await persistence?.exportDatabase?.()}catch(error){bundle.indexeddb_export_error=String(error?.message||error)}
     const blob=new Blob([JSON.stringify(bundle,null,2)],{type:'application/json'}),a=document.createElement('a');
     a.href=URL.createObjectURL(blob);a.download=`prometeo-habits-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   }
@@ -78,9 +108,10 @@
     manage.onclick=()=>{renderManager(dialog);dialog.showModal?dialog.showModal():dialog.setAttribute('open','')};
     dialog.querySelector('[data-close]').onclick=()=>dialog.close?dialog.close():dialog.removeAttribute('open');
     dialog.querySelector('[data-export]').onclick=()=>exportAll();
-    dialog.querySelector('[data-add]').onsubmit=event=>{
-      event.preventDefault();const data=new FormData(event.currentTarget);
-      write(Model.add(current,{label:data.get('label'),kind:data.get('kind'),group:data.get('group')}));reload();
+    dialog.querySelector('[data-add]').onsubmit=async event=>{
+      event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type="submit"]');button.disabled=true;
+      const data=new FormData(form);
+      await write(Model.add(current,{label:data.get('label'),kind:data.get('kind'),group:data.get('group')}));reload();
     };
   }
 
