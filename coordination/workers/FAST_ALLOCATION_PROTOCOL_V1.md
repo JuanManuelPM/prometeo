@@ -31,9 +31,19 @@ Forbidden before ownership:
 - analysis of another worker's history;
 - self-inventing Planner/Rescate work because concrete queues look empty.
 
-The only pre-PIN exception is a machine-routed explicit contention barrier. Its entrant directory/release/timeout reads are bounded timing coordination for that one fixture, not project archaeology and not ownership.
+The only pre-PIN exceptions are allocator-supplied capability metadata and a machine-routed explicit contention barrier. Capability fit may use only the candidate's bounded metadata plus capabilities definitively known from the current runtime/tool surface. The barrier's entrant directory/release/timeout reads are bounded timing coordination for that one fixture, not project archaeology and not ownership.
 
-Those checks belong to the allocator/compiler or to post-claim execution.
+### Capability fit before authority
+
+Before any candidate-specific claim, PIN, barrier-entrant or timeout write:
+
+1. Inspect only allocator-supplied `candidate.required_capabilities`.
+2. Compare those requirements only with capabilities definitively known from the current runtime/tool surface. Do not read repository/project context to prove capability fit.
+3. If any required capability is definitively absent, classify `CAPABILITY_MISMATCH_PRECLAIM`, skip that candidate without creating a PIN/claim/barrier entrant, and advance to the next bounded candidate/lane.
+4. Unknown or ambiguous capability is NOT absence. Proceed to the normal atomic authority attempt and post-claim validation.
+5. `CAPABILITY_MISMATCH_PRECLAIM` is candidate-specific: it is not `CLAIM_TRANSPORT_BLOCKED`, does not consume an authority CREATE attempt, and does not justify `NO_ALLOCATION` while another compatible candidate remains.
+
+These checks belong to the allocator-supplied bounded hot path or to post-claim execution; they never justify preclaim archaeology.
 
 ## Allocator read
 
