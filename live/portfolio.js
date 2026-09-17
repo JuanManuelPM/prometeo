@@ -34,6 +34,23 @@
     });
     return [...map.values()];
   }
+  function syncTop(ready,working){
+    const action=$('action'),copy=$('copy'),sentence=$('sentence');
+    const actionText=action?.textContent||'';
+    const normalQueueReady=/Hay\s+\d+\s+trabajos\s+libres/i.test(actionText);
+    if(!normalQueueReady&&ready>0&&action){
+      action.textContent=`Hay ${ready} trabajos útiles del portfolio listos. Mandar /wc los asigna automáticamente.`;
+      if(copy)copy.hidden=false;
+    }else if(!normalQueueReady&&working>0&&action&&/No hay acción|depende de desbloqueos|Nada obligatorio/i.test(actionText)){
+      action.textContent=`Nada obligatorio: ${working} ${working===1?'trabajo del portfolio está':'trabajos del portfolio están'} en ejecución.`;
+    }
+    const sentenceText=lower(sentence?.textContent||'');
+    if(sentence&&ready>0&&(sentenceText.includes('completa')||sentenceText.includes('esperando'))){
+      sentence.innerHTML=`<span class="dim">Portfolio:</span> ${ready} trabajos útiles listos para workers.`;
+    }else if(sentence&&working>0&&sentenceText.includes('completa')){
+      sentence.innerHTML=`<span class="dim">Portfolio:</span> ${working} ${working===1?'trabajo activo':'trabajos activos'}.`;
+    }
+  }
 
   async function inspectJob(project, job, paths){
     const claimPrefix=`coordination/portfolio/claims/${job.job_id}/`;
@@ -72,6 +89,7 @@
     if($('portfolioDone'))$('portfolioDone').textContent=done;
     if($('portfolioReproduction'))$('portfolioReproduction').textContent=`×${reproduction.toFixed(1)}`;
     if($('portfolioSummary'))$('portfolioSummary').textContent=`${jobs.length} trabajos · ${ready} listos · ${working} trabajando · ${done} hechos · ${derived} sucesores derivados · ${candidates} candidatos no materializados`;
+    syncTop(ready,working);
 
     const html=projects.sort((a,b)=>(b.priority||0)-(a.priority||0)).map(p=>{
       const pj=p.jobs||[];
