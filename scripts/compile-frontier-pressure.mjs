@@ -34,6 +34,10 @@ function normalizeTerminalReturn(record, sourcePath) {
   };
 }
 
+function isPortfolioPinOwner(owner) {
+  return owner?.source === 'portfolio_pin' || owner?.source === 'portfolio_pin_malformed';
+}
+
 export function computeFrontierPressure(snapshot, policy, options = {}) {
   const nowMs = asTime(options.now ?? new Date().toISOString());
   if (nowMs === null) throw new Error('Invalid now timestamp');
@@ -89,8 +93,9 @@ export function computeFrontierPressure(snapshot, policy, options = {}) {
     }
   }
 
-  const ownerRows = [];
-  const ownerByJob = new Map();
+  const classifiedOwnerRows = [];
+  const portfolioOwnersByJob = new Map();
+  const nonPortfolioOwnerRows = [];
   for (const owner of snapshot.owners ?? []) {
     if (!owner?.job_id) continue;
     const dedupeKey = owner.dedupe_key ?? dedupeByJob.get(owner.job_id) ?? null;
@@ -110,9 +115,47 @@ export function computeFrontierPressure(snapshot, policy, options = {}) {
       age_minutes: ageMinutes,
       liveness,
     };
-    ownerRows.push(row);
-    const prior = ownerByJob.get(owner.job_id);
-    if (!prior || (row.generation ?? 0) > (prior.generation ?? 0)) ownerByJob.set(owner.job_id, row);
+    classifiedOwnerRows.push(row);
+    if (isPortfolioPinOwner(row)) {
+      const rows = portfolioOwnersByJob.get(row.job_id) ?? [];
+      rows.push(row);
+      portfolioOwnersByJob.set(row.job_id, rows);
+    } else {
+      nonPortfolioOwnerRows.push(row);
+    }
+  }
+
+  const ownerByJob = new Map();
+  const currentOwnerRows = [...nonPortfolioOwnerRows];
+
+  for (const [jobId, rows] of portfolioOwnersByJob.entries()) {
+    const maxGeneration = rows.reduce((max, row) => Math.max(max, Number(row.generation ?? 0)), -Infinity);
+    const highest = rows.filter((row) => Number(row.generation ?? 0) === maxGeneration);
+    let selected;
+    if (highest.length === 1) {
+      selected = highest[0];
+    } else {
+      const dedupeKey = highest.find((row) => row.dedupe_key)?.dedupe_key ?? dedupeByJob.get(jobId) ?? null;
+      selected = {
+        job_id: jobId,
+        dedupe_key: dedupeKey,
+        worker_id: null,
+        generation: maxGeneration === -Infinity ? null : maxGeneration,
+        retry_safe: false,
+        source: 'portfolio_pin_ambiguous',
+        latest_signal_at: null,
+        age_minutes: null,
+        liveness: 'UNKNOWN',
+        ambiguity: 'MULTIPLE_HIGHEST_GENERATION_ROWS',
+      };
+    }
+    ownerByJob.set(jobId, selected);
+    currentOwnerRows.push(selected);
+  }
+
+  for (const row of nonPortfolioOwnerRows) {
+    const prior = ownerByJob.get(row.job_id);
+    if (!prior || Number(row.generation ?? 0) > Number(prior.generation ?? 0)) ownerByJob.set(row.job_id, row);
   }
 
   const groups = new Map();
@@ -141,15 +184,15 @@ export function computeFrontierPressure(snapshot, policy, options = {}) {
       jobs.push({
         ...job,
         terminal,
-        owner: owner ? { worker_id: owner.worker_id, liveness: owner.liveness, generation: owner.generation ?? null } : null,
+        owner: owner ? { worker_id: owner.worker_id ?? null, liveness: owner.liveness, generation: owner.generation ?? null } : null,
         claimable: job.job_id === claimableJobId,
       });
     }
   }
 
   const claimableJobs = jobs.filter((j) => j.claimable);
-  const replaceableOwners = ownerRows.filter((o) => o.liveness === 'REPLACEABLE');
-  const staleOwners = ownerRows.filter((o) => o.liveness === 'STALE_SUSPECT');
+  const replaceableOwners = currentOwnerRows.filter((o) => o.liveness === 'REPLACEABLE');
+  const staleOwners = currentOwnerRows.filter((o) => o.liveness === 'STALE_SUSPECT');
 
   const consumedReturnRefs = new Set(snapshot.consumed_return_refs ?? []);
   const recentUnconsumedReturns = (snapshot.material_returns ?? []).filter((r) => {
@@ -190,7 +233,7 @@ export function computeFrontierPressure(snapshot, policy, options = {}) {
       live_owned_jobs: jobs.filter((j) => j.owner && j.owner.liveness !== 'REPLACEABLE').length,
     },
     liveness: {
-      active: ownerRows.filter((o) => o.liveness === 'ACTIVE').length,
+      active: currentOwnerRows.filter((o) => o.liveness === 'ACTIVE').length,
       stale_suspect: staleOwners.length,
       replaceable: replaceableOwners.length,
       replaceable_job_ids: replaceableOwners.map((o) => o.job_id).sort(),
@@ -228,22 +271,48 @@ async function collectJsonFiles(root) {
   return out;
 }
 
-async function parseJsonFiles(files, repoRoot) {
+async function parseJsonFilesDetailed(files, repoRoot) {
   const rows = [];
+  const invalid = [];
   for (const file of files) {
+    const sourcePath = path.relative(repoRoot, file).replaceAll(path.sep, '/');
     try {
-      rows.push({ source_path: path.relative(repoRoot, file).replaceAll(path.sep, '/'), value: await readJson(file) });
-    } catch {
-      // Invalid/in-flight JSON is excluded rather than guessed.
+      rows.push({ source_path: sourcePath, value: await readJson(file) });
+    } catch (error) {
+      invalid.push({ source_path: sourcePath, error: error?.message ?? String(error) });
     }
   }
-  return rows;
+  return { rows, invalid };
+}
+
+async function parseJsonFiles(files, repoRoot) {
+  return (await parseJsonFilesDetailed(files, repoRoot)).rows;
+}
+
+function malformedPortfolioPinOwner(sourcePath) {
+  const match = /^coordination\/portfolio\/pins\/([^/]+)\/G(\d{6})\.json$/.exec(sourcePath);
+  if (!match) return null;
+  return {
+    job_id: match[1],
+    dedupe_key: null,
+    worker_id: null,
+    generation: Number(match[2]),
+    pinned_at: null,
+    claimed_at: null,
+    heartbeat_at: null,
+    latest_signal_at: null,
+    retry_safe: false,
+    malformed: true,
+    source: 'portfolio_pin_malformed',
+    source_path: sourcePath,
+  };
 }
 
 export async function buildSnapshotFromRepo(repoRoot) {
   const beaconsRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/workers/beacons')), repoRoot);
   const heartbeatRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/workers/heartbeats')), repoRoot);
-  const pinRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/portfolio/pins')), repoRoot);
+  const pinFiles = await collectJsonFiles(path.join(repoRoot, 'coordination/portfolio/pins'));
+  const { rows: pinRows, invalid: invalidPinRows } = await parseJsonFilesDetailed(pinFiles, repoRoot);
   const portfolioReturnRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/portfolio/returns')), repoRoot);
   const opportunityClaimRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/opportunities/claims')), repoRoot);
   const opportunityReturnRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/opportunities/returns')), repoRoot);
@@ -287,6 +356,10 @@ export async function buildSnapshotFromRepo(repoRoot) {
       retry_safe: pin.retry_safe !== false,
       source: 'portfolio_pin',
     });
+  }
+  for (const invalidPin of invalidPinRows) {
+    const owner = malformedPortfolioPinOwner(invalidPin.source_path);
+    if (owner) owners.push(owner);
   }
   for (const { value: claim } of opportunityClaimRows) {
     if (!claim.opportunity_id || !claim.worker_instance_id) continue;
