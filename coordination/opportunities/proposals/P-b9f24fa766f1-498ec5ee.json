@@ -1,0 +1,91 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-b9f24fa766f1-498ec5ee",
+  "fingerprint": "pdf-b9f24fa766f1498ec5eeee5f8f61e6b5",
+  "created_at": "2026-09-17T09:57:40-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0945-0300-sol56-recovery-race-observer",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "artifact": "atomic per-opportunity recovery arbitration primitive",
+    "consumer": "universal worker recovery executor and 50-worker stress verifier",
+    "subsystem": "stale-recovery-fabric"
+  },
+  "title": "Make recovery claims atomic under contention",
+  "problem": "The current stale/recovery library evaluates active_overlap before persistence, then buildRecoveryAttempt assigns a unique append-only recovery-claim path. Under high parallelism that is a TOCTOU gap: several workers can all observe no overlapping recovery and each successfully create a different recovery-claim file for the same opportunity. Live evidence on 2026-09-17 showed at least four new kernel recovery claims between 09:51 and 09:54 and at least five new page-thread recovery claims between 09:51 and 09:55, while neither opportunity yet had a durable RETURN at the preflight checks. Append-only lineage is preserved, but exclusive recovery ownership is not established by the current mechanism.",
+  "mission": "Implement and canary deterministic per-opportunity recovery arbitration so concurrent stale recoverers produce exactly one recovery owner and durable loser evidence before any recovery run or target mutation, while retaining CAS-safe stale takeover, late-return reconciliation and append-only lineage.",
+  "acceptance": [
+    "A concurrent N-worker recovery race for one opportunity yields exactly one recovery lease/owner before any recovery run enters substantive work.",
+    "Recovery losers persist durable LOST_EXISTING or equivalent receipts and do not create competing recovery runs or write target scope.",
+    "The arbitration key is deterministic per opportunity rather than a unique recovery-attempt filename, so create-if-absent or equivalent host atomicity decides the first owner.",
+    "If the winning recovery itself becomes stale, takeover requires a generation/lease CAS transition with re-fetched owner identity; stale overwrite is impossible.",
+    "A durable original RETURN suppresses or reconciles recovery without deleting either lineage, and recency alone never grants authority.",
+    "A live contention canary reproduces the current multi-recovery race before the fix and demonstrates one-owner behavior after the fix with machine-auditable receipts."
+  ],
+  "evidence_refs": [
+    "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/",
+    "coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "scripts/swarm-lease-lib.mjs",
+    "coordination/opportunities/returns/O-SWARM-LEASE-RETRY-BUILD-V1/RUN-O-SWARM-LEASE-RETRY-BUILD-V1-20260917T0043-SOL56.json",
+    "coordination/opportunities/proposals/P-04df793d0713-e1aaac9c.json"
+  ],
+  "value_signals": {
+    "goal_relevance": {
+      "reason": "The universal swarm canary requires safe stale recovery and collision behavior under high parallelism; the observed duplicate recovery ownership directly attacks that gate.",
+      "evidence_ref": "coordination/CONTINUITY_HEAD.json"
+    },
+    "unblock_value": {
+      "reason": "Kernel and Page Thread are gate-unlocking opportunities, so duplicate recoverers on them create the highest-risk overlapping-write condition exactly where recovery is meant to reduce stalls.",
+      "evidence_ref": "coordination/opportunities/UNIVERSAL_COGNITIVE_SWARM_QUEUE_V1.json"
+    },
+    "information_gain": {
+      "reason": "The live broad wave produced empirical contention that static stale-threshold tests did not falsify; an atomic recovery race canary converts it into measurable winner/loser evidence.",
+      "evidence_ref": "coordination/opportunities/recovery-claims/O-SWARM-KERNEL-IMPLEMENT-V1/"
+    },
+    "regression_prevention": {
+      "reason": "A deterministic recovery lock plus multi-worker race test would prevent read-before-write active_overlap checks from silently regressing into duplicate recoveries.",
+      "evidence_ref": "scripts/swarm-lease-lib.mjs"
+    }
+  },
+  "dependency_ids": [
+    "O-SWARM-LEASE-RETRY-BUILD-V1"
+  ],
+  "candidate_read_scope": [
+    "scripts/swarm-lease-lib.mjs",
+    "scripts/swarm-stale-scan.mjs",
+    "tests/swarm-lease-retry-v1.test.mjs",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "coordination/opportunities/returns/**",
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/opportunities/proposals/P-04df793d0713-e1aaac9c.json"
+  ],
+  "candidate_write_scope": [
+    "scripts/swarm-recovery-arbiter.mjs",
+    "tests/swarm-recovery-arbiter-race-v1.test.mjs",
+    "coordination/opportunities/recovery-leases/**",
+    "coordination/canary-evidence/recovery-races/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": [
+    "Two concurrent eligible recoverers can both acquire ownership for the same opportunity generation.",
+    "A losing recoverer can create a substantive recovery run or touch the target write scope.",
+    "An expired recovery owner can be replaced without checking the exact prior lease generation/identity.",
+    "A late original RETURN can be overwritten, discarded, or auto-demoted solely because recovery acquired a lease.",
+    "The live canary cannot reconcile winner/loser receipts with actual recovery ownership."
+  ],
+  "dedup_note": "The completed O-SWARM-LEASE-RETRY-BUILD-V1 supplies stale thresholds, active-overlap evaluation, CAS decisions and append-only recovery candidates, but its own known limit leaves persistence to a separate executor; buildRecoveryAttempt writes a unique recovery-attempt path and therefore does not provide an atomic same-opportunity mutex. P-04df793d0713-e1aaac9c proposes durable live claim-attempt receipts for ordinary create-if-absent claim flow; this proposal is narrower and distinct because it requires exclusive recovery ownership plus stale lease takeover semantics.",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY",
+    "DO_NOT_MUTATE_ACTIVE_RECOVERY_TARGETS_FROM_THIS_PROPOSAL"
+  ]
+}
