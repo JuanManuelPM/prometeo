@@ -107,7 +107,7 @@ function roleEvidenceRef(job) {
 
 export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready = [], queueReady = [], recovery = [], roleContext = null) {
   if (!roleContext?.metabolism) return { role_ready: [], metabolism: null };
-  const { metabolism, guideReceipts, guidePins, heartbeats, beacons, noAlloc } = roleContext;
+  const { metabolism, guideReceipts, guidePins, heartbeats, beacons, noAlloc, projectGuideMesh, projectGuideStates, portfolio } = roleContext;
   const now = Date.now();
   const signals = metabolism.signals || {};
 
@@ -202,10 +202,10 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
     return { terminal: false, active: Boolean(last) && now - last < 10 * 60_000, generation, latest };
   };
 
-  const candidate = ({ role, trigger, evidence, title, mission, priority }) => {
+  const candidate = ({ role, trigger, evidence, title, mission, priority, allow_parallel_same_role = false, scope_project_id = null, state_ref = null, state_revision = null }) => {
     const refs = uniq(evidence).slice(0, 12);
-    if (!refs.length || existingRoleBusy(role)) return null;
-    const preimage = JSON.stringify({ role, trigger, evidence: refs });
+    if (!refs.length || (!allow_parallel_same_role && existingRoleBusy(role))) return null;
+    const preimage = JSON.stringify({ role, trigger, scope_project_id, state_revision, evidence: refs });
     const fingerprint = sha12(preimage);
     const roleId = `guide-${roleLower(role)}-${fingerprint}`;
     const state = rolePinState(roleId);
@@ -218,6 +218,9 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       role,
       trigger,
       fingerprint,
+      scope_project_id,
+      state_ref,
+      state_revision,
       title,
       mission,
       priority,
@@ -233,6 +236,9 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
         guide_work_id: roleId,
         role,
         trigger,
+        scope_project_id,
+        state_ref,
+        state_revision,
         generation: next,
         worker_id: '<worker_id>',
         claim_id: `claim-${roleId}-G${g(next)}-<worker_id>`,
@@ -247,6 +253,63 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
   };
 
   const roleReady = [];
+  if (projectGuideMesh && portfolio?.projects && projectGuideStates) {
+    const minFrontier = Number(projectGuideMesh.frontier_min_per_project || 2);
+    const maxProjectGuides = Number(projectGuideMesh.max_project_guides_ready || 10);
+    const infra = new Set(arr(projectGuideMesh.infrastructure_projects));
+    const readyByProject = new Map();
+    for (const item of ready) {
+      if (!item.project_id) continue;
+      readyByProject.set(item.project_id, (readyByProject.get(item.project_id) || 0) + 1);
+    }
+    const workingByProject = new Map();
+    for (const job of jobs) {
+      if (!job.project_id || !['working','suspect','partial'].includes(job.state)) continue;
+      workingByProject.set(job.project_id, (workingByProject.get(job.project_id) || 0) + 1);
+    }
+    const stateByProject = new Map(arr(projectGuideStates).map(row => [row.doc?.project_id, row]));
+    const projects = arr(portfolio.projects)
+      .map(project => {
+        const stateRow = stateByProject.get(project.project_id) || null;
+        const stateDoc = stateRow?.doc || {};
+        const localReady = readyByProject.get(project.project_id) || 0;
+        const localWorking = workingByProject.get(project.project_id) || 0;
+        return { project, stateRow, stateDoc, localReady, localWorking, gap: Math.max(0, minFrontier - localReady) };
+      })
+      .filter(row => row.gap > 0)
+      .sort((a,b) => {
+        const ai=infra.has(a.project.project_id)?1:0, bi=infra.has(b.project.project_id)?1:0;
+        if (ai !== bi) return ai - bi;
+        return (b.project.priority||0)-(a.project.priority||0) || String(a.project.project_id).localeCompare(String(b.project.project_id));
+      })
+      .slice(0,maxProjectGuides);
+
+    for (const row of projects) {
+      const projectId=row.project.project_id;
+      const stateRef=row.stateRow?.path || `coordination/project-guides/${projectId}/STATE.json`;
+      const revision=finiteInt(row.stateDoc?.revision,0);
+      const refs=uniq([
+        `${stateRef}#revision:${revision}`,
+        `coordination/portfolio/PORTFOLIO.json#project:${projectId}`,
+        ...jobs.filter(job=>job.project_id===projectId && job.state!=='done').sort((a,b)=>(b.priority||0)-(a.priority||0)).slice(0,5).map(roleEvidenceRef)
+      ]);
+      const target=Number(projectGuideMesh.frontier_target_per_project || 3);
+      const label=row.project.label || projectId;
+      roleReady.push(candidate({
+        role:'GUIDE_PLANNER',
+        trigger:'PROJECT_FRONTIER_THIN',
+        evidence:refs,
+        title:`Guide · ${label}`,
+        mission:`Sos el Guide local de ${label}. Cargá sólo ${stateRef} y la evidencia de este candidate. Consumí returns locales, reconciliá el estado y mantené ${minFrontier}–${Number(projectGuideMesh.frontier_max_per_project||5)} trabajos útiles no duplicados (objetivo ${target}). Actualizá STATE.json por CAS incrementando revision/cycle_count y dejando focus, frontier_refs, blockers y last_receipt. Después ejecutá o verificá al menos un trabajo local disponible antes de cerrar. No hagas trabajo de otros proyectos ni control-plane salvo bloqueo directo de este proyecto.`,
+        priority:(infra.has(projectId)?145:190)+Math.min(9,Math.floor(Number(row.project.priority||0)/10)),
+        allow_parallel_same_role:true,
+        scope_project_id:projectId,
+        state_ref:stateRef,
+        state_revision:revision
+      }));
+    }
+  }
+
   if (unconsumedReturnRefs.length >= Number(signals.unconsumed_returns_trigger || 3)) {
     roleReady.push(candidate({
       role: 'GUIDE_INTEGRATOR',
@@ -472,6 +535,9 @@ export function loadRoleContext(root = '.') {
   if (!fs.existsSync(metabolismPath)) return null;
   return {
     metabolism: JSON.parse(fs.readFileSync(metabolismPath, 'utf8')),
+    projectGuideMesh: fs.existsSync(path.join(root, 'coordination', 'guide', 'PROJECT_GUIDE_MESH_V1.json')) ? JSON.parse(fs.readFileSync(path.join(root, 'coordination', 'guide', 'PROJECT_GUIDE_MESH_V1.json'), 'utf8')) : null,
+    projectGuideStates: loadJsonRows(root, 'coordination/project-guides').filter(row => row.path.endsWith('/STATE.json')),
+    portfolio: fs.existsSync(path.join(root, 'coordination', 'portfolio', 'PORTFOLIO.json')) ? JSON.parse(fs.readFileSync(path.join(root, 'coordination', 'portfolio', 'PORTFOLIO.json'), 'utf8')) : null,
     guideReceipts: loadJsonRows(root, 'coordination/guide/receipts'),
     guidePins: loadJsonRows(root, 'coordination/guide/pins'),
     heartbeats: loadJsonRows(root, 'coordination/workers/heartbeats'),
