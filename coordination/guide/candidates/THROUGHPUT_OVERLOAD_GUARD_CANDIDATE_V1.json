@@ -1,0 +1,58 @@
+{
+  "schema": "prometeo.guide-policy-candidate/v1",
+  "candidate_id": "throughput-overload-guard-v1",
+  "status": "CANDIDATE_NOT_PROMOTED",
+  "created_at": "2026-09-17T19:22:00Z",
+  "created_by": "wc-chatgpt-20260917T1916Z-3f8a2c",
+  "target": {
+    "path": "coordination/guide/METABOLISM_POLICY_V1.json",
+    "observed_blob_sha": "54c24b0dea9c87477a1a0d63306c384d1f617f11"
+  },
+  "problem_fingerprint": "LAUNCH_BURST_PLUS_YOUNG_ACTIVE_PINS_CAUSES_PREMATURE_FRONTIER_REPLENISHMENT_AND_EXTRA_APPEND_ONLY_WRITES",
+  "evidence": [
+    "coordination/guide/receipts/guide-planner-frontier-20260917/receipt-wc-chatgpt-20260917T1916Z-b8e4a2.json records an unrelated-main-head 409 during beacon CREATE",
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-atomic-append-create-retry-v1.json was created to harden append-only writes and was pinned at 2026-09-17T19:19:30Z",
+    "multiple /wc launch beacons were committed in the 2026-09-17T19:14Z-19:17Z burst while planner/rescate/integrator/metabolism jobs were simultaneously claimed"
+  ],
+  "exact_json_patch": [
+    {
+      "op": "add",
+      "path": "/signals/young_active_pin_guard_minimum",
+      "value": 4
+    },
+    {
+      "op": "add",
+      "path": "/signals/young_active_pin_guard_fraction_of_recent_launches",
+      "value": 0.5
+    },
+    {
+      "op": "add",
+      "path": "/signals/young_active_pin_guard_age_minutes",
+      "value": 3
+    },
+    {
+      "op": "add",
+      "path": "/overload_guard",
+      "value": {
+        "activation": "distinct_recent_launches >= 8 AND young_active_pins_age_le_3m >= max(4, ceil(0.5 * distinct_recent_launches))",
+        "effect": "Temporarily suppress only self-materialization of GUIDE_PLANNER jobs. Continue consuming existing EXECUTION, VERIFY, RECOVERY, GUIDE_INTEGRATOR, GUIDE_RESCATE and GUIDE_CRITIC work. Do not stop a worker merely because the guard is active.",
+        "exit": "Guard clears when the activation predicate becomes false or when the oldest counted young pin exceeds 3 minutes and a fresh durable state reload has occurred.",
+        "reason": "Give the current cohort one heartbeat target to convert ownership into returns/successors before replenishing frontier and adding more append-only writes.",
+        "truth_boundary": "This is an admission/routing guard, not evidence that concurrency itself is harmful; it must be verified against compiled durable signals before promotion."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/self_materializing_guide_jobs/anti_inflation/-",
+      "value": "When overload_guard is active, GUIDE_PLANNER self-materialization is suppressed until the guard clears; existing grounded planner jobs remain claimable and no execution/integration/rescate/critic lane is suppressed."
+    }
+  ],
+  "acceptance_tests": [
+    "With 10 recent launches and 6 pins younger than 3m, planner self-materialization is suppressed while an existing execution job remains selectable.",
+    "With 10 recent launches and only 3 young pins, guard is false and normal planner trigger evaluation continues.",
+    "With guard active and >=3 unconsumed returns, GUIDE_INTEGRATOR is still eligible and outranks planner creation.",
+    "Guard never edits, overwrites, expires or reclaims an existing pin/claim/return.",
+    "Promotion requires frontier-pressure compiler evidence; this candidate does not self-promote METABOLISM_POLICY_V1.json."
+  ],
+  "authority": "SCOPED_CANDIDATE_ONLY_NO_GLOBAL_PROMOTION"
+}
