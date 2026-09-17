@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -46,7 +46,7 @@ must('wc', wc, 'prometeo.guide-role-pin/v1');
 must('wc', wc, 'ROLE_FRONTIER_PROTOCOL_V1.md');
 must('wc', wc, 'NO_ALLOCATION` is NOT evidence');
 must('wc', wc, 'FORBIDDEN before ownership:');
-must('wc', wc, 'Do not pre-read those directories. CREATE first.');
+must('wc', wc, 'Do not pre-read those directories. CREATE first after the bounded structural/capability checks.');
 must('wc', wc, 'A worker without PIN/claim owns nothing and creates NO recovery debt.');
 must('wc', wc, 'Known efficiency wins are cumulative durable constraints, not chat memory.');
 must('wc', wc, 'The authorization must come from the HUMAN MESSAGE itself.');
@@ -113,7 +113,10 @@ must('live-workflow', live, "'coordination/guide/**'");
 must('live-workflow', live, '.github/scripts/augment-live-role-workers.mjs');
 must('live-workflow', live, 'scripts/build-efficiency-snapshot.mjs');
 must('live-workflow', live, 'scripts/build-fast-allocator.mjs');
+must('live-workflow', live, 'scripts/apply-project-coverage.mjs');
+must('live-workflow', live, 'coordination/portfolio/tests/project_coverage_allocator_v1.mjs');
 must('live-workflow', live, 'node source/scripts/build-fast-allocator.mjs /tmp/feed.json /tmp/efficiency.json /tmp/allocator.json source');
+must('live-workflow', live, 'node source/scripts/apply-project-coverage.mjs /tmp/allocator.json /tmp/feed.json /tmp/allocator.json source');
 must('live-workflow', live, 'live/efficiency.json');
 
 const allocator = read(root, 'scripts/build-fast-allocator.mjs');
@@ -137,6 +140,21 @@ must('fast-allocator', allocator, 'fixed_generation_attention');
 must('fast-allocator', allocator, 'loadRecoveryPolicies');
 must('fast-allocator', allocator, "'recovery-policies'");
 mustNot('fast-allocator', allocator, 'portfolio-exclusive-job-pin-live-race-5-v1');
+
+const coverage = read(root, 'scripts/apply-project-coverage.mjs');
+must('project-coverage', coverage, "trigger: 'PROJECT_COVERAGE_GAP'");
+must('project-coverage', coverage, "role: 'GUIDE_PLANNER'");
+must('project-coverage', coverage, "claim_mode: 'GUIDE_ROLE_PIN_CREATE'");
+must('project-coverage', coverage, "schema: 'prometeo.guide-role-pin/v1'");
+must('project-coverage', coverage, "anti_starvation: 'OLDEST_UNCOVERED_THEN_PRIORITY'");
+must('project-coverage', coverage, 'Math.min(8, gaps.length');
+must('project-coverage', coverage, 'Math.max(3, target - currentClean)');
+must('project-coverage', coverage, '!row.hasCleanReady && !row.hasActiveExecution && !row.hasActiveCoverage');
+const coverageTest = read(root, 'coordination/portfolio/tests/project_coverage_allocator_v1.mjs');
+must('project-coverage-test', coverageTest, 'PROJECT_COVERAGE_ALLOCATOR_PASS');
+must('project-coverage-test', coverageTest, "projects.has('alpha')");
+must('project-coverage-test', coverageTest, "!projects.has('gamma')");
+must('project-coverage-test', coverageTest, "!projects.has('delta')");
 
 const portfolioPayloadStart = allocator.indexOf("schema: 'prometeo.portfolio-pin/v1'");
 const portfolioPayloadEnd = portfolioPayloadStart >= 0 ? allocator.indexOf('predecessor_pin_ref: predecessor', portfolioPayloadStart) : -1;
