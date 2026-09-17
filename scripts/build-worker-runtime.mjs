@@ -117,7 +117,7 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
     return {batch_id:b.batch_id,expected_workers:b.expected_workers,first_event_at:b.first_event_at,last_event_at:b.last_event_at,summary,workers};
   }).sort((a,b)=>Date.parse(b.last_event_at||0)-Date.parse(a.last_event_at||0));
 
-  const named=compiled.filter(b=>b.batch_id!=='UNBATCHED');
+  const named=compiled.filter(b=>b.batch_id!=='UNBATCHED' && !b.batch_id.startsWith('SYNTH-'));
   return {
     schema:'prometeo.worker-runtime/v1',
     generated_at:nowIso,
