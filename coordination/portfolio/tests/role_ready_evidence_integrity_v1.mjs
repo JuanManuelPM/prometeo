@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyRoleEvidenceIntegrity, validateRoleEvidenceRefs } from '../../../scripts/apply-role-evidence-integrity.mjs';
+import { buildFastAllocator } from '../../../scripts/build-fast-allocator.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const baseline = JSON.parse(fs.readFileSync(path.join(repoRoot, 'coordination/efficiency/RATCHET_BASELINE_V1.json'), 'utf8'));
@@ -16,6 +17,8 @@ assert.equal(ratchet.required?.claim_payload_evidence_sanitized, true);
 assert.equal(ratchet.required?.suppress_zero_usable_evidence_candidate, true);
 assert.equal(ratchet.required?.role_identity_preserved_across_validation, true);
 assert.equal(ratchet.required?.workers_must_not_add_preclaim_evidence_archaeology, true);
+assert.equal(ratchet.required?.portfolio_fragment_semantics_validated, true);
+assert.equal(ratchet.required?.derived_recovery_source_path_preserved, true);
 assert.equal(ratchet.required?.regression_test, 'coordination/portfolio/tests/role_ready_evidence_integrity_v1.mjs');
 
 const workflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/live-feed.yml'), 'utf8');
@@ -30,15 +33,41 @@ assert(workflow.indexOf(integrityStage) < workflow.indexOf(barrierStage), 'evide
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prometeo-role-evidence-'));
 try {
   fs.mkdirSync(path.join(root, 'coordination', 'evidence'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'coordination', 'portfolio'), { recursive: true });
   fs.writeFileSync(path.join(root, 'coordination', 'evidence', 'valid.json'), '{}\n');
+  fs.writeFileSync(path.join(root, 'coordination', 'portfolio', 'PORTFOLIO.json'), JSON.stringify({
+    projects: [{ project_id: 'alpha', jobs: [{ job_id: 'seed-one' }] }]
+  }) + '\n');
 
   const valid = 'coordination/evidence/valid.json#proof';
+  const validPortfolioProject = 'coordination/portfolio/PORTFOLIO.json#project:alpha';
+  const validPortfolioJob = 'coordination/portfolio/PORTFOLIO.json#job:seed-one';
+  const validPortfolioProjectJob = 'coordination/portfolio/PORTFOLIO.json#project:alpha:job:seed-one';
+  const missingPortfolioProject = 'coordination/portfolio/PORTFOLIO.json#project:missing-project';
+  const missingPortfolioJob = 'coordination/portfolio/PORTFOLIO.json#job:derived-only-job';
   const missing = 'coordination/evidence/absent.json';
   const externalActions = 'github-actions:run/123';
   const externalPages = 'gh-pages:live/allocator.json@2026-09-17T21:36:13.758Z';
 
-  const direct = validateRoleEvidenceRefs([missing, valid, externalPages, externalActions], root);
+  const direct = validateRoleEvidenceRefs([
+    missing,
+    valid,
+    validPortfolioProject,
+    validPortfolioJob,
+    validPortfolioProjectJob,
+    missingPortfolioProject,
+    missingPortfolioJob,
+    externalPages,
+    externalActions
+  ], root);
   assert(direct.usable.includes(valid), 'valid repo-local evidence must remain usable');
+  assert(direct.usable.includes(validPortfolioProject), 'existing PORTFOLIO project fragment must remain usable');
+  assert(direct.usable.includes(validPortfolioJob), 'existing PORTFOLIO job fragment must remain usable');
+  assert(direct.usable.includes(validPortfolioProjectJob), 'existing PORTFOLIO project/job fragment must remain usable');
+  assert(!direct.usable.includes(missingPortfolioProject), 'missing PORTFOLIO project fragment must be rejected');
+  assert(!direct.usable.includes(missingPortfolioJob), 'missing PORTFOLIO job fragment must be rejected');
+  assert(direct.diagnostics.some(row => row.kind === 'MISSING_REPO_LOCAL_FRAGMENT' && row.ref === missingPortfolioProject), 'missing project fragment must be diagnosed');
+  assert(direct.diagnostics.some(row => row.kind === 'MISSING_REPO_LOCAL_FRAGMENT' && row.ref === missingPortfolioJob), 'missing job fragment must be diagnosed');
   assert(!direct.usable.includes(missing), 'missing repo-local evidence must not remain usable');
   assert(direct.usable.includes(externalActions), 'github-actions evidence must remain usable');
   assert(direct.usable.includes(externalPages), 'gh-pages evidence must remain usable');
@@ -93,12 +122,55 @@ try {
   assert.deepEqual(kept.claim_payload_shape.evidence, kept.evidence, 'PIN payload evidence must match sanitized evidence');
   assert(kept.evidence_diagnostics.some(row => row.kind === 'MISSING_REPO_LOCAL' && row.ref === missing));
 
+  const recoveryFeed = {
+    generated_at: '2026-09-17T22:36:00Z',
+    source_sha: 'recovery-source-path-fixture',
+    summary: { workers: {} },
+    workers: [],
+    plans: [],
+    projects: [{
+      project_id: 'alpha',
+      label: 'Alpha',
+      jobs: [1, 2, 3].map(n => ({
+        job_id: `derived-recovery-${n}`,
+        dedupe_key: `derived:recovery:${n}`,
+        project_id: 'alpha',
+        title: `Derived recovery ${n}`,
+        priority: 100 - n,
+        state: 'replaceable',
+        pin_generation: 0,
+        source_path: `coordination/portfolio/derived/alpha/derived-recovery-${n}.json`
+      }))
+    }]
+  };
+  const recoveryAllocator = buildFastAllocator(
+    recoveryFeed,
+    { status: 'HEALTHY', metrics: {}, reasons: [] },
+    {
+      recoveryPolicies: [],
+      roleContext: {
+        metabolism: { signals: { replaceable_trigger: 3, frontier_floor_absolute: 8 } },
+        guideReceipts: [],
+        guidePins: [],
+        heartbeats: [],
+        beacons: [],
+        noAlloc: []
+      }
+    }
+  );
+  const rescue = recoveryAllocator.role_ready.find(row => row.role === 'GUIDE_RESCATE');
+  assert(rescue, 'three replaceable derived jobs must materialize GUIDE_RESCATE');
+  assert(rescue.evidence.includes('coordination/portfolio/derived/alpha/derived-recovery-1.json'), 'derived recovery evidence must preserve source_path');
+  assert(!rescue.evidence.some(ref => ref === 'coordination/portfolio/PORTFOLIO.json#job:derived-recovery-1'), 'derived recovery evidence must not fabricate a seed PORTFOLIO job anchor');
+
   const diag = first.diagnostics.role_evidence_integrity;
   assert.equal(diag.schema, 'prometeo.role-evidence-integrity/v1');
   assert.equal(diag.suppressed_candidates.length, 1);
   assert.equal(diag.suppressed_candidates[0].reason, 'NO_USABLE_EVIDENCE_AFTER_REPO_LOCAL_VALIDATION');
   assert(diag.missing_repo_local_refs.some(row => row.ref === missing));
   assert(diag.missing_repo_local_refs.some(row => row.ref === 'missing:coordination/evidence/already-known-missing.json'));
+  assert(diag.missing_repo_local_fragment_refs.some(row => row.ref === missingPortfolioProject));
+  assert(diag.missing_repo_local_fragment_refs.some(row => row.ref === missingPortfolioJob));
   assert(diag.external_refs_preserved.includes(externalActions));
   assert(diag.external_refs_preserved.includes(externalPages));
 
