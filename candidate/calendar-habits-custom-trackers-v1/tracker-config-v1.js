@@ -2,7 +2,8 @@
   'use strict';
 
   const Model=window.PrometeoHabitTrackerModel;
-  if(!Model)throw new Error('PrometeoHabitTrackerModel is required');
+  const Adapter=window.PrometeoHabitSourceAdapter;
+  if(!Model||!Adapter)throw new Error('Prometeo habit tracker model + source adapter are required');
   const DONOR_TRACES='/prometeo/pages/calendar/previews/habits-traces-v1/traces-v24.js?v=20260907-ux24';
   let current={schema:Model.SCHEMA,revision:1,updated_at:new Date().toISOString(),trackers:[]};
   let lastHistory={};
@@ -24,15 +25,7 @@
     return current;
   }
   function rendererConfig(){return {groups:Model.groups(current),trackers:Model.activeTrackers(current).map(({id,label,group,kind})=>({id,label,group,kind}))}}
-  function patchRendererSource(source,config=rendererConfig()){
-    const roster=/const GROUPS=\[[\s\S]*?\n  \];\n  const TRACKERS=\[[\s\S]*?\n  \];/;
-    const seed=/function seed\(\)\{[\s\S]*?\n    return s;\n  \}/;
-    if(!roster.test(source))throw new Error('Unexpected traces-v24 source; hardcoded roster block not found');
-    if(!seed.test(source))throw new Error('Unexpected traces-v24 source; legacy seed block not found');
-    return source
-      .replace(roster,`const GROUPS=${JSON.stringify(config.groups)};\n  const TRACKERS=${JSON.stringify(config.trackers)};`)
-      .replace(seed,"function seed(){const s={};TRACKERS.forEach(t=>s[t.id]={});return s;}");
-  }
+  function patchRendererSource(source,config=rendererConfig()){return Adapter.patchTraces(source,config)}
   async function loadRenderer(history={}){
     prepare(history);
     const response=await fetch(DONOR_TRACES,{cache:'no-store'});
