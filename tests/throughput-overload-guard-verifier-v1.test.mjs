@@ -1,27 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluateGuard } from '../scripts/verify-throughput-overload-guard.mjs';
+import { evaluateCandidate } from '../scripts/verify-throughput-overload-guard.mjs';
 
-const guard={enabled:true,launch_burst_threshold:8,launch_burst_window_minutes:10,launch_burst_active_pin_threshold:4,launch_burst_active_pin_age_minutes:3,launch_burst_max_new_guide_jobs:2,preserve_work_classes:['EXECUTION','VERIFY','RECOVERY','INTEGRATOR','RESCATE','CRITIC'],fail_closed_on_missing_launch_evidence:true};
-const evidence=(workers,pins)=>({distinct_recent_workers:workers,young_active_pin_count:pins,worker_window_minutes:10,active_pin_age_minutes:3});
+const config={minimum:4,fraction:0.5,ageMinutes:3,launchThreshold:8,overloadGuard:{}};
+const evidence=(launches,pins)=>({distinct_recent_launches:launches,young_active_pin_count:pins,worker_window_minutes:10,active_pin_age_minutes:3});
 
-test('overload caps only new self-materializing Guide budget',()=>{
-  const r=evaluateGuard({baseLimit:6,guard,launchEvidence:evidence(8,4),workClass:'GUIDE_SELF_MATERIALIZE'});
-  assert.equal(r.promotion_safe,true); assert.equal(r.overload,true); assert.equal(r.effective_new_guide_limit,2); assert.equal(r.throttle_applies,true);
+test('10 launches and 6 young pins suppress only planner self-materialization',()=>{
+  const r=evaluateCandidate(config,evidence(10,6),{kind:'SELF_MATERIALIZE',guide_role:'GUIDE_PLANNER'});
+  assert.equal(r.verification_safe,true); assert.equal(r.active,true); assert.equal(r.required_young_pins,5); assert.equal(r.planner_self_materialization_allowed,false); assert.equal(r.selectable,false); assert.equal(r.suppressed,true);
 });
 
-test('below either threshold preserves base budget',()=>{
-  for(const [w,p] of [[7,4],[8,3]]){ const r=evaluateGuard({baseLimit:6,guard,launchEvidence:evidence(w,p)}); assert.equal(r.overload,false); assert.equal(r.effective_new_guide_limit,6); }
+test('10 launches and 3 young pins leave planner self-materialization enabled',()=>{
+  const r=evaluateCandidate(config,evidence(10,3)); assert.equal(r.active,false); assert.equal(r.planner_self_materialization_allowed,true); assert.equal(r.selectable,true);
 });
 
-test('preserved work classes remain runnable under overload',()=>{
-  for(const workClass of guard.preserve_work_classes){ const r=evaluateGuard({baseLimit:6,guard,launchEvidence:evidence(9,5),workClass}); assert.equal(r.promotion_safe,true); assert.equal(r.work_class_allowed,true); assert.equal(r.throttle_applies,false); }
+test('below launch threshold leaves guard inactive',()=>{
+  const r=evaluateCandidate(config,evidence(7,6)); assert.equal(r.active,false); assert.equal(r.planner_self_materialization_allowed,true);
 });
 
-test('missing or malformed launch evidence fails closed',()=>{
-  const r=evaluateGuard({baseLimit:6,guard,launchEvidence:{distinct_recent_workers:9}}); assert.equal(r.promotion_safe,false); assert.equal(r.overload,null); assert.equal(r.effective_new_guide_limit,null);
+test('existing critical work remains selectable while guard is active',()=>{
+  for(const workClass of ['EXECUTION','VERIFY','RECOVERY','GUIDE_INTEGRATOR','GUIDE_RESCATE','GUIDE_CRITIC','GUIDE_PLANNER']){
+    const r=evaluateCandidate(config,evidence(10,6),{kind:'SELECT_EXISTING',guide_role:workClass}); assert.equal(r.active,true); assert.equal(r.selectable,true); assert.equal(r.suppressed,false);
+  }
 });
 
-test('wrong evidence windows fail closed',()=>{
-  const r=evaluateGuard({baseLimit:6,guard,launchEvidence:{...evidence(9,5),worker_window_minutes:11}}); assert.equal(r.promotion_safe,false); assert.equal(r.reason,'window_mismatch');
+test('missing or malformed durable evidence fails closed',()=>{
+  const r=evaluateCandidate(config,{distinct_recent_launches:10}); assert.equal(r.verification_safe,false); assert.equal(r.active,null); assert.equal(r.selectable,null);
+});
+
+test('wrong active-pin age window fails closed',()=>{
+  const r=evaluateCandidate(config,{...evidence(10,6),active_pin_age_minutes:4}); assert.equal(r.verification_safe,false); assert.equal(r.reason,'active_pin_age_window_mismatch');
 });
