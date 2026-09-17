@@ -1,2 +1,2 @@
-2026-09-17T01:15:00Z
-reason=self-contained-pages-fix
+2026-09-17T01:27:00Z
+reason=self-contained-pages-fix-canonical-bundle
