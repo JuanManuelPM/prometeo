@@ -1,0 +1,116 @@
+{
+  "schema": "prometeo.guide-metabolism/v1",
+  "status": "CANARY",
+  "purpose": "Make repeated generic /wc launches sustain a useful execution -> integration -> planning/rescate -> successor-work loop without requiring one privileged /g chat to refill the backlog.",
+  "truth_boundary": "The objective is sustained compounding of useful durable results, not exponential task-count inflation. This policy does not prove unattended invocation: the human still opens chats unless a separate runtime proves automatic launching.",
+  "human_action_target": "The human should only need to launch the same /wc URL. Workers decide execution vs planning/integration/rescate from durable state.",
+  "signals": {
+    "recent_launch_window_minutes": 10,
+    "heartbeat_target_minutes": 3,
+    "stale_suspect_minutes": 6,
+    "recovery_eligible_minutes": 10,
+    "frontier_floor_absolute": 8,
+    "frontier_per_recent_launch": 1.5,
+    "frontier_ceiling": 40,
+    "unconsumed_returns_trigger": 3,
+    "replaceable_trigger": 3,
+    "partial_loop_trigger": 2,
+    "collision_pressure_trigger": 3,
+    "minimum_useful_reproduction_target": 1.2
+  },
+  "frontier_target_rule": "target_claimable = clamp(frontier_floor_absolute, ceil(1.5 * distinct_worker_beacons_in_last_10m), frontier_ceiling). This is a planning target, not a quota: never create filler to hit it.",
+  "role_selection": [
+    {
+      "when": "material recent returns without durable disposition/safe successor >= 3",
+      "prefer": "GUIDE_INTEGRATOR",
+      "why": "consume finished work before generating unrelated work"
+    },
+    {
+      "when": "useful claimable frontier < target_claimable and grounded unresolved project goals exist",
+      "prefer": "GUIDE_PLANNER",
+      "why": "keep execution capacity supplied with bounded work"
+    },
+    {
+      "when": "replaceable >= 3 OR repeated collisions >= 3 OR repeated same-blocker PARTIAL/BOUNDARY >= 2 OR human routing friction is observed",
+      "prefer": "GUIDE_RESCATE",
+      "why": "change the mechanism rather than adding more workers to a bottleneck"
+    },
+    {
+      "when": "a new allocator/control-plane/mechanism change lacks independent attack",
+      "prefer": "GUIDE_CRITIC",
+      "why": "avoid multiplying a bad route"
+    },
+    {
+      "when": "none of the above outranks a concrete executable/recovery/verification job",
+      "prefer": "EXECUTION",
+      "why": "planning exists to feed production, not replace it"
+    }
+  ],
+  "self_materializing_guide_jobs": {
+    "enabled": true,
+    "project_id": "prometeo-autonomous-growth",
+    "root": "coordination/portfolio/derived/prometeo-autonomous-growth",
+    "rule": "If a guide trigger is true but no compatible unclaimed guide job already represents it, compute a deterministic fingerprint from role + trigger + sorted exact evidence refs that caused the trigger. Use SHA-256 and first 12 lowercase hex chars. Atomically CREATE exactly one derived guide job at guide-<role-lower>-<fingerprint>.json. All contenders for the same state produce the same path/dedupe key; create-exists means use/reload existing work, never mint a per-worker variant.",
+    "job_id_format": "guide-<role-lower>-<fingerprint>",
+    "dedupe_key_format": "guide:<role-lower>:<fingerprint>:v1",
+    "required_fields": [
+      "schema=prometeo.portfolio-derived-job/v1",
+      "job_id",
+      "dedupe_key",
+      "project_id=prometeo-autonomous-growth",
+      "title",
+      "kind",
+      "guide_role",
+      "guide_trigger",
+      "priority",
+      "seed_status=ready",
+      "mission",
+      "definition_of_done",
+      "evidence",
+      "created_at"
+    ],
+    "anti_inflation": [
+      "Do not create a new guide job if the same fingerprint already exists, is actively pinned, or has a terminal return.",
+      "Do not vary fingerprints by worker_id, current time, chat id or random salt.",
+      "Do not create jobs whose only output is more analysis.",
+      "A Planner may create 1-7 grounded successors, but fewer is correct when evidence supports fewer.",
+      "A guide job should not self-reproduce merely to keep a role alive. New guide work requires a materially changed trigger/evidence set or an explicit retryable residual boundary."
+    ]
+  },
+  "guide_done_contract": {
+    "GUIDE_INTEGRATOR": "Consume material returns, persist disposition, and materialize all currently grounded safe successors before returning.",
+    "GUIDE_PLANNER": "Increase useful claimable frontier toward target using evidence-backed implementation/verification/integration work, not filler.",
+    "GUIDE_RESCATE": "Make at least one mechanism-level intervention expected to increase useful output or remove a multiplicative bottleneck; diagnosis-only is incomplete.",
+    "GUIDE_CRITIC": "Independently attack the new/weak mechanism and create a bounded repair/verification job when a software-solvable weakness is found.",
+    "GUIDE_STEWARD": "Consume compatible local results into the delegated durable lane and expose grounded successors."
+  },
+  "rotation": {
+    "after_any_return": "reload full state and continue with the highest-value role while context/authority remain adequate",
+    "after_lost_race": "persist collision evidence when defined, reload immediately, and choose different useful work",
+    "after_planning": "prefer executing or verifying one of the newly created jobs when safe instead of stopping after planning",
+    "after_integration": "prefer a newly unlocked successor when safe",
+    "stop_only_when": [
+      "true human decision/acceptance boundary",
+      "irreversible/high-authority/privacy boundary outside delegated scope",
+      "context quality no longer supports safe continuation",
+      "all safe useful execution/recovery/guide/discovery work is exhausted"
+    ]
+  },
+  "compounding_measurement": {
+    "count_as_growth": [
+      "terminal useful result consumed by a downstream step",
+      "grounded successor materialized and later claimed",
+      "reusable capability that unlocks multiple bounded jobs",
+      "mechanism change that measurably reduces stale/collision/human-routing cost"
+    ],
+    "do_not_count_as_growth": [
+      "raw task count",
+      "worker count",
+      "duplicate claims",
+      "analysis-only plans",
+      "derived jobs with no evidence/consumer",
+      "100% queue completion without successor consumption"
+    ],
+    "desired_evidence": "Observe multiple consecutive generations where useful consumed results create >1 grounded successor on average and those successors are actually claimed/executed without human routing. Until then describe compounding as PARTIAL/UNPROVEN rather than exponential."
+  }
+}
