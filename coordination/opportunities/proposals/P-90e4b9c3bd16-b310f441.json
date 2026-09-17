@@ -1,0 +1,85 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-90e4b9c3bd16-b310f441",
+  "fingerprint": "pdf-90e4b9c3bd16cb9307757c860ee92c8b",
+  "created_at": "2026-09-17T09:20:13-03:00",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-chat-20260917T0920-0300-sol56-discovery-epochcoherence",
+    "opportunity_id": null,
+    "run_id": null
+  },
+  "root": "project-prometeo-chat-control",
+  "target": {
+    "output": "runtime epoch/main coherence guard",
+    "owner": "chat-object-prometeo-chat-control-main",
+    "privacy": "public_coordination_only",
+    "scope": "agent-runtime/epoch.json + rapid swarm prewrite provenance"
+  },
+  "problem": "Public runtime EPOCH projection can lag rapidly advancing main during claim bursts, causing mandatory prewrite freshness checks to record inconsistent epoch/head pairs without an explicit coherence policy.",
+  "acceptance": [
+    "measure and classify epoch vs main drift from durable claim/run receipts during one swarm burst",
+    "define deterministic safe-write policy separating append-only isolated candidate writes from shared authority/product mutations when epoch lags",
+    "produce machine-readable coherence receipt with epoch id/head, live main head, observed_at, drift state and source refs",
+    "tests fail closed for shared authority mutation when coherence is unresolved while allowing explicitly scoped append-only create-if-absent claims if contract permits"
+  ],
+  "title": "Runtime EPOCH/main coherence guard",
+  "mission": "Build and verify a deterministic prewrite coherence guard for fast swarm activity: compare the public runtime EPOCH projection with the observed live main head and durable claim/run evidence, classify projection lag explicitly, emit a machine-readable coherence receipt, and enforce separate safe behavior for isolated append-only/CAS candidate writes versus shared authority or product mutations. Preserve the existing EPOCH-before-write law; do not weaken it or self-promote authority.",
+  "evidence_refs": [
+    ".well-known/prometeo.json",
+    "AGENTS.md",
+    "coordination/opportunities/claims/O-SWARM-CRITIC-HUMAN-FRICTION-V1.json",
+    "coordination/opportunities/claims/O-CANARY-RECEIPT-HARDENING-V1.json",
+    "coordination/opportunities/claims/O-SURFACE-ALUMNOS_TEACHER-RISK-V1.json"
+  ],
+  "value_signals": {
+    "regression_prevention": {
+      "reason": "Multiple live canary claims now record EPOCH/main drift while repository writes continue under preserve-first rules; an explicit coherence contract prevents workers from silently treating a lagging projection as fresh authority evidence.",
+      "evidence_ref": "coordination/opportunities/claims/O-CANARY-RECEIPT-HARDENING-V1.json"
+    },
+    "unblock_value": {
+      "reason": "The stable entry and AGENTS contract require EPOCH validation before material writes. A deterministic lag classification can make rapid high-parallelism prewrite checks auditable without weakening shared-authority gates.",
+      "evidence_ref": "AGENTS.md"
+    },
+    "reuse_value": {
+      "reason": "One coherence receipt/guard can be reused by worker claims, recovery attempts, Page Change writes, Planner integration and future production /w rather than each worker inventing a runtime_drift_note convention.",
+      "evidence_ref": "coordination/opportunities/claims/O-SWARM-CRITIC-HUMAN-FRICTION-V1.json"
+    }
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    ".well-known/prometeo.json",
+    "AGENTS.md",
+    "coordination/AGENT_RUNTIME.json",
+    "coordination/opportunities/claims/**",
+    "coordination/opportunities/runs/**",
+    "agent-runtime/epoch.json",
+    "agent-runtime/manifest.json",
+    "agent-runtime/convergence.json"
+  ],
+  "candidate_write_scope": [
+    "scripts/runtime-coherence-guard.mjs",
+    "tests/runtime-coherence-guard-v1.test.mjs",
+    "tests/fixtures/runtime-coherence/**",
+    "coordination/swarm-v1/runtime-coherence/**",
+    "own claim/run/return"
+  ],
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required": true,
+  "falsification": {
+    "fail_if": [
+      "the guard treats public EPOCH lag as proof that live main is stale or vice versa without source evidence",
+      "an unresolved coherence state permits shared Current/Human Accepted/Served or product mutation",
+      "append-only candidate/CAS writes are globally blocked solely because the public projection lags even when their scoped contract explicitly permits safe creation",
+      "the receipt omits either observed EPOCH provenance or live main provenance",
+      "the implementation weakens the existing EPOCH-before-write requirement"
+    ],
+    "pass_if": "A replay of a rapid swarm claim burst deterministically classifies coherent/lagging/unresolved states, emits source-linked receipts, fails closed for shared-authority mutation when unresolved, and preserves explicitly authorized isolated append-only/CAS behavior without authority promotion."
+  },
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY",
+    "MUST_PRESERVE_EPOCH_BEFORE_WRITE_LAW"
+  ]
+}
