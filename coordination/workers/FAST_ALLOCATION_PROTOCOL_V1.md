@@ -1,4 +1,4 @@
-# Prometeo Fast Allocation Protocol v2.4
+# Prometeo Fast Allocation Protocol v2.5
 
 Status: CANARY / binding for `/wc`.
 
@@ -68,6 +68,20 @@ Prefer cheap useful ownership before stale recovery:
 `role_ready` is not filler. It exists only when durable metabolism signals justify a bounded `GUIDE_INTEGRATOR`, `GUIDE_PLANNER`, `GUIDE_RESCATE`, `GUIDE_CRITIC` or `GUIDE_STEWARD` route.
 
 Reason: clean execution should win first; if the materialized frontier thins while unresolved work/returns/bottlenecks remain, the compiler makes that latent cognition claimable before disposable workers are sent into stale recovery or falsely conclude there is no work.
+
+## Batched lane-local sharding
+
+When the HUMAN invocation contains `BATCH <batch_id> EXPECTED <n>` with `n > 1`, concurrent identical workers MUST reduce first-candidate herd collisions without changing lane priority.
+
+- Retain the commit SHA returned by the already-required beacon CREATE as `beacon_commit_sha` when the write tool exposes it. Never add a read just to recover that SHA.
+- For the selected non-empty lane only, if it has more than one candidate, rotate its candidate array so the start index is `hex(first hex nibble of beacon_commit_sha) mod lane_length`.
+- After `CREATE_EXISTS` / `CAS_LOST`, advance cyclically to the next untried candidate in that same lane until the existing two-collision diversification rule moves the next attempt to the next non-empty lane.
+- Lane priority does not change: `ready -> queue_ready -> role_ready -> recovery`.
+- Unbatched workers preserve allocator order.
+- If `beacon_commit_sha` is unavailable or its first character is not hexadecimal, preserve allocator order.
+- Sharding is local ordering over the one allocator snapshot already read: no extra preclaim read or write, no extra claim attempt, no authority change.
+
+This is an efficiency mechanism only. Atomic CREATE remains the sole ownership race primitive.
 
 ## Lane diversification
 
