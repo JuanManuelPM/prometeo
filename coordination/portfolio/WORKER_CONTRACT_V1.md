@@ -1,4 +1,4 @@
-# Prometeo Portfolio Worker Contract v1.3
+# Prometeo Portfolio Worker Contract v1.4
 
 ## Purpose
 
@@ -39,7 +39,7 @@ Pin path:
 
 `coordination/portfolio/pins/<job_id>/G<generation_6d>.json`
 
-Initial work uses `G000001.json` only when no pin and no live temporary legacy owner exists. Safe recovery from an expired pin uses the exact next generation for every contender, preserving predecessor lineage. Pin generation files are append-only and are never updated in place.
+Initial work uses `G000001.json` only when no pin and no live temporary legacy owner exists. Safe recovery from a silent/stale predecessor uses the exact next generation for every contender, preserving predecessor lineage. Pin generation files are append-only and are never updated in place.
 
 Minimum pin shape:
 
@@ -54,7 +54,7 @@ Minimum pin shape:
   "worker_id": "<worker/chat identifier>",
   "claim_id": "<planned claim receipt id>",
   "claimed_at": "<ISO-8601>",
-  "expires_at": "<ISO-8601, normally 90 minutes later>",
+  "expires_at": "<ISO-8601, normally about 10 minutes later>",
   "source_head": "<main commit/head observed before pin>",
   "predecessor_pin_ref_or_null": null,
   "predecessor_claim_ref_or_null": null,
@@ -62,7 +62,7 @@ Minimum pin shape:
 }
 ```
 
-All contenders for the same generation MUST CREATE the exact same pin path. A successful create is the exclusive winner. A 409/422/create-exists result is normal lost-race control flow: read the winning pin, persist the collision receipt described below, then immediately re-enter allocation. Never create a different per-worker pin path to evade the collision.
+All contenders for the same generation MUST CREATE the exact same pin path. A successful create is the exclusive winner. A create-exists/CAS-lost result is normal lost-race control flow: read the winning pin, persist the collision receipt described below, then immediately re-enter allocation. Never create a different per-worker pin path to evade the collision.
 
 If an unrelated branch-head movement produces a write conflict and the deterministic pin path still does not exist, refresh head and retry that same path. If the path exists, the race is lost.
 
@@ -83,7 +83,7 @@ Minimum shape:
   "project_id": "<exact project_id>",
   "worker_id": "<worker/chat identifier>",
   "claimed_at": "<ISO-8601>",
-  "expires_at": "<ISO-8601, normally 90 minutes later>",
+  "expires_at": "<ISO-8601, normally about 10 minutes later>",
   "source_head": "<main commit/head observed before pin>",
   "mission": "<bounded mission>",
   "pin_ref": "coordination/portfolio/pins/<job_id>/G000001.json",
@@ -127,11 +127,14 @@ Collision receipts are evidence only. They never grant authority, never mutate t
 
 ## Stale / recovery
 
-- A live highest-generation pin owns the job until terminal return or expiry under its explicit policy.
-- An expired pin is not silently overwritten. If retry/recovery is safe, all recovery contenders derive `generation + 1` and race on that exact deterministic next-generation pin path.
-- A recovery pin MUST reference `predecessor_pin_ref_or_null` and its recovery basis; its claim receipt carries the same lineage.
+- Worker heartbeat target: <=3 minutes between durable signals when tools/runtime permit.
+- `<6 min` since the owner's latest durable signal: active/unknown; no time-only takeover.
+- `6–10 min` without terminal return or newer signal: stale suspect.
+- `>=10 min` without terminal return or newer signal: recovery eligible when retry/side-effect/write safety checks pass.
+- Historical long `expires_at` values do not force the swarm to wait 30–90 minutes. Latest durable signal age controls the recovery boundary under `STALE_RECOVERY_PROTOCOL_V1.md` and `PORTFOLIO_PIN_PROTOCOL_V1.json`.
+- Recovery never overwrites a pin. All recovery contenders derive `generation + 1` and race on that exact deterministic next-generation path.
+- A recovery pin references predecessor lineage and its recovery basis; its claim receipt carries the same lineage.
 - Lost recovery races emit collision receipts against the attempted next generation exactly like initial races.
-- Legacy unpinned claims remain readable. Before the first pin generation exists, the deterministic temporary legacy winner blocks new execution until terminal return, expiry, or an explicit safe recovery boundary.
 - Late predecessor returns remain evidence and must be reconciled; they do not erase a later valid recovery generation.
 - Effectful retries remain subject to idempotency/side-effect rules from the normal claim protocol.
 
@@ -142,6 +145,7 @@ Collision receipts are evidence only. They never grant authority, never mutate t
 - Prefer exact existing bytes/surfaces over redesign from memory.
 - For archaeology jobs: recover paths, URLs, receipts, current-vs-old state and SOURCE_DEBT. Do not rebuild merely because discovery is inconvenient.
 - For implementation jobs: test what can be tested and leave exact evidence.
+- During longer work, emit compact worker heartbeats/checkpoints so the swarm can distinguish slow work from vanished work.
 - A worker may create isolated candidate artifacts when authority permits, but never self-promotes Current, Human Accepted or Served.
 - User-facing chatter stays small; evidence belongs in durable state.
 
@@ -218,22 +222,24 @@ A derived job is candidate work, not a promoted product state. Once created, `/w
 
 This append-only derived-job lane is the default way the portfolio grows without rewriting the central portfolio.
 
-## Re-entry
+## Re-entry / rotation
 
 After RETURN or a lost pin race:
 1. Materialize any safe fully-grounded successor as a derived job before leaving the useful context.
 2. For a lost pin race, persist the collision receipt when possible before discarding the attempt context.
-3. Reload `/wc`, normal queues, seed portfolio, derived jobs, pins, claims, collisions and returns.
+3. Emit a REALLOCATING heartbeat when practical, then reload `/wc`, normal queues, seed portfolio, derived jobs, pins, claims, collisions and returns.
 4. If the result unlocked a normal successor, normal allocation wins.
 5. Otherwise pin another compatible seed/derived portfolio job and continue while context/authority remain adequate.
-6. Do not stop merely because one portfolio job finished or one pin race was lost.
+6. Do not stop merely because one portfolio job finished or one pin race was lost. Small completed work should normally roll into another useful allocation in the same chat.
 
 ## Live projection
 
-`/live/` may read seed portfolio jobs, derived jobs, pins, claims, collision receipts and returns and display project progress. It must derive at most one authority owner per job from the highest valid pin generation; before migration it may derive one deterministic temporary legacy owner. Durable lost-race receipts are counted separately from execution claims. Duplicate legacy claim files are migration collision evidence, not multiple active owners. Expired latest pin without terminal return is stale; a later generation is recovery; terminal returns remain terminal.
+`/live/` may read seed portfolio jobs, derived jobs, pins, claims, collision receipts, worker heartbeats and returns and display project progress. It must derive at most one authority owner per job from the highest valid pin generation; before migration it may derive one deterministic temporary legacy owner. Lost-race receipts are counted separately from execution claims.
 
-Live is a projection only. Its percentages, labels or derived winner never override durable evidence or promotion gates.
+Live human-facing liveness uses latest durable signal age: active <6m, stale suspect 6–10m, replaceable >=10m when no terminal result exists. Terminal returns remain terminal.
+
+Live is a projection only. Its labels or derived winner never override durable evidence or promotion gates.
 
 ## Canary / promotion boundary
 
-The reference race test is `coordination/portfolio/tests/portfolio_pin_race_v1.mjs`. Passing portfolio pin tests improves `/wc` fallback only. It does not promote production `/w` or bypass `CLAIM_PROTOCOL_SPEC_V0` stress/stale/readiness gates.
+The reference race test is `coordination/portfolio/tests/portfolio_pin_race_v1.mjs`. Passing portfolio pin/recovery tests improves `/wc` fallback only. It does not promote production `/w` or bypass broader readiness gates.
