@@ -1,0 +1,301 @@
+{
+  "schema": "prometeo.opportunity-return/v0",
+  "queue_id": "Q-CANARY-SWARM-01",
+  "opportunity_id": "O-POSTRETURN-SPEC-V1",
+  "run_id": "RUN-O-POSTRETURN-SPEC-V1-WC-GPT56SOL-20260916-2203",
+  "worker_instance_id": "WC-GPT56SOL-20260916-2203-POSTRETURN",
+  "state": "RETURNED",
+  "returned_at": "2026-09-16T22:03:52-03:00",
+  "authority_class": "CANDIDATE_SPEC_ONLY",
+  "mission_result": "Bounded POST_RETURN decision matrix with independence, authority and safety invariants.",
+  "evidence_basis": [
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/AUTONOMOUS_SWARM_OPERATING_MODEL_V1.md",
+      "sha": "3b5f3f1b2f564a0f9c8f1b30f03c381f9a53c2a1",
+      "supports": [
+        "POST_RETURN scan is mandatory before idle in the target model",
+        "action priority is claim another -> bounded follow-up verification/critique -> proposals -> read-only convergence assist -> idle",
+        "workers must not manufacture work merely to remain busy",
+        "fresh independent critics must remain independent",
+        "generic /w is still a target interface until claim/queue/canary gates pass"
+      ]
+    },
+    {
+      "ref": "coordination/workstreams/chat-native-control-plane-v1/CLAIM_PROTOCOL_SPEC_V0.json",
+      "sha": "3028b510c3cdc2e97671e22055e1b7c08da74dc6",
+      "supports": [
+        "a second substantive opportunity always requires a fresh valid claim",
+        "retained chat context does not continue prior authority",
+        "claim selection filters capability/tool/privacy/write-scope compatibility before ranking",
+        "claim race loss triggers reload/next candidate rather than overwrite",
+        "STARTED must precede substantive work",
+        "post-return second job cannot inherit previous write authority"
+      ]
+    }
+  ],
+  "post_return_state_machine": {
+    "states": [
+      "POST_RETURN_PENDING",
+      "SCAN_REFRESHED",
+      "ACTION_SELECTED",
+      "SECOND_CLAIM_ACQUIRED",
+      "FOLLOWUP_BOUNDED",
+      "PROPOSAL_EMITTED",
+      "CONVERGENCE_ASSISTED",
+      "IDLE_NO_SAFE_WORK"
+    ],
+    "entry_condition": "Current run has durable RETURN and terminal DONE evidence, except implementations may perform the scan between RETURN persistence and DONE update if the run contract makes the ordering explicit and no new substantive work begins before the prior run is terminal.",
+    "refresh_required": [
+      "reload queue/opportunity projection",
+      "reload current claims relevant to candidate opportunities",
+      "refresh epoch/head or equivalent freshness token",
+      "refresh capability/privacy/write-scope compatibility",
+      "refresh any explicit fresh-critic requirement from the completed run and candidate opportunity"
+    ],
+    "exit_rule": "Select exactly one POST_RETURN action per decision cycle. Any later substantive opportunity requires its own fresh claim/run lifecycle."
+  },
+  "decision_inputs": [
+    "prior_run_terminal_evidence",
+    "queue_allows_multi_claim_session",
+    "session_additional_claim_budget",
+    "READY opportunity set",
+    "required tools/capabilities",
+    "privacy compatibility",
+    "write-scope compatibility/collision state",
+    "context sufficiency/currentness",
+    "dependency readiness",
+    "fresh independent critic requirement",
+    "completed-job follow-up authorization",
+    "proposal append-only capability",
+    "convergence batch readiness",
+    "role authorization for read-only convergence assist",
+    "real human/external boundary"
+  ],
+  "decision_matrix": [
+    {
+      "order": 1,
+      "action": "CLAIM_ANOTHER_READY_OPPORTUNITY",
+      "when_all": [
+        "prior run has durable RETURN and terminal evidence",
+        "multi-claim continuation is allowed by queue/session policy",
+        "additional-claim budget remains",
+        "at least one READY opportunity passes capability/tool/privacy/dependency/write-scope filters",
+        "context is sufficient and fresh for the candidate",
+        "candidate does not require a fresh independent critic relative to this worker's prior work",
+        "no unresolved live write collision blocks the candidate"
+      ],
+      "procedure": [
+        "rank eligible opportunities using durable priority, dependency/unblock value, information value and collision risk",
+        "attempt atomic create-if-absent claim on the best candidate",
+        "if race is lost, do not overwrite; refresh and attempt the next still-eligible candidate within the bounded attempt budget",
+        "on success create a new run and persist STARTED before substantive work"
+      ],
+      "authority": "New claim grants only the new opportunity's declared scope. No authority, privacy grant or write scope is inherited from the previous run.",
+      "independence": "If the candidate is CRITIQUE/VERIFY of this worker's own output and independence is required, it is ineligible for this worker."
+    },
+    {
+      "order": 2,
+      "action": "BOUNDED_FOLLOWUP_VERIFICATION_OR_CRITIQUE",
+      "when_all": [
+        "completed job contract explicitly authorizes the follow-up",
+        "follow-up is bounded to the already declared evidence/artifact scope",
+        "no new shared mutation or expanded authority is needed",
+        "the result is not being represented as an independent fresh critic when the same worker produced the target"
+      ],
+      "procedure": [
+        "execute only the explicitly authorized check",
+        "persist evidence under the prior run's allowed append-only verification/evidence scope or another explicitly declared path",
+        "label same-worker checking SELF_VERIFICATION when applicable"
+      ],
+      "authority": "Verification does not promote the prior return or widen its authority class.",
+      "independence": "SELF_VERIFICATION may improve evidence but cannot satisfy a requirement for an independent critic/challenger."
+    },
+    {
+      "order": 3,
+      "action": "EMIT_FOLLOWUP_PROPOSAL",
+      "when_all": [
+        "worker observed a material gap/opportunity/contradiction/test need",
+        "no already-READY compatible task should be claimed first under policy",
+        "proposal scope is append-only and available",
+        "the observation is supported by evidence rather than make-work"
+      ],
+      "procedure": [
+        "write a candidate proposal with evidence, expected value, dependencies, suggested role/type, collision risk, urgency and falsification",
+        "link similar known opportunity/proposal when visible instead of intentionally duplicating",
+        "leave queue promotion to Planner/queue compiler"
+      ],
+      "authority": "Proposal is CANDIDATE only and cannot mark itself READY, Current, Human Accepted or Served."
+    },
+    {
+      "order": 4,
+      "action": "ASSIST_CONVERGENCE_READ_ONLY",
+      "when_all": [
+        "a parent-visible batch/return set is ready enough that comparison/coverage would reduce uncertainty",
+        "worker role allows convergence assistance",
+        "work is read-only and does not claim steward/promotion authority",
+        "fresh-critic independence is not being falsely claimed"
+      ],
+      "procedure": [
+        "produce comparison, contradiction map, coverage audit or evidence index only",
+        "if this worker's own return is part of the compared set, mark SELF_ORIGIN_PRESENT",
+        "leave conflict adjudication, consumption and promotion to the owning parent/steward"
+      ],
+      "authority": "No integration head, Current, method head or product authority may move from read-only convergence assistance."
+    },
+    {
+      "order": 5,
+      "action": "IDLE_NO_SAFE_WORK",
+      "when_any": [
+        "no READY compatible opportunity exists",
+        "additional-claim policy/budget is exhausted",
+        "only candidate work requires a fresh independent critic",
+        "required capability/privacy permission is unavailable",
+        "context is too stale/insufficient to proceed safely",
+        "remaining work requires a real human/external/irreversible boundary",
+        "follow-up is not explicitly authorized",
+        "proposal would duplicate known work without new evidence",
+        "convergence assist would exceed read-only/role authority"
+      ],
+      "procedure": "Persist IDLE_NO_SAFE_WORK with a machine-readable reason code and stop. Do not invent filler work."
+    }
+  ],
+  "fresh_critic_independence_contract": {
+    "hard_rule": "A worker cannot be the sole independent critic/verifier of an artifact or decision it materially authored when the job/campaign requires fresh independence.",
+    "self_check_allowed": "The same worker may perform explicitly authorized self-verification, but the artifact must say SELF_VERIFICATION and cannot clear a fresh-critic gate.",
+    "claim_filter": "Any READY opportunity whose target set materially overlaps this worker's authored output and whose role is FRESH_CRITIC, INDEPENDENT_VERIFY or equivalent is filtered as incompatible for this session.",
+    "convergence_rule": "A worker may compare a batch containing its own return only as read-only coverage/traceability assistance and must mark SELF_ORIGIN_PRESENT; it cannot be the final adjudicator of conflicts involving its own output."
+  },
+  "authority_and_scope_invariants": [
+    "POST_RETURN never extends the prior claim's authority.",
+    "Every new substantive opportunity requires a fresh atomic claim and distinct run identity.",
+    "Prior read/write/privacy scope is not inherited by the next opportunity.",
+    "Claim success is not promotion authority and never implies Current/Human Accepted/Served.",
+    "A lost claim race is normal control flow and never authorizes overwrite.",
+    "STARTED is durable before new substantive execution.",
+    "Bounded follow-up verification must already be authorized by the completed job contract; otherwise it becomes a new opportunity/proposal, not an informal extension.",
+    "Worker proposals are append-only candidates and cannot self-promote into READY queue work.",
+    "Read-only convergence assistance cannot mutate integration/authority heads.",
+    "A same-worker check cannot masquerade as an independent critic.",
+    "No action may cross a real human/external/irreversible boundary without the required approval/capability.",
+    "Workers stop rather than manufacture low-information work."
+  ],
+  "bounded_claim_retry_policy": {
+    "snapshot_rule": "Start from a refreshed ranked eligible set.",
+    "on_collision": "Reload queue/claims and retry the next eligible candidate; never update the collided claim.",
+    "attempt_budget": "Bound attempts by the current eligible candidate set and any explicit session policy cap. Do not spin indefinitely as workers race.",
+    "after_exhaustion": "Continue through lower POST_RETURN actions or persist IDLE_NO_SAFE_WORK with reason CLAIM_RACES_EXHAUSTED_OR_NO_ELIGIBLE_WORK."
+  },
+  "recommended_reason_codes": [
+    "QUEUE_EMPTY",
+    "NO_COMPATIBLE_READY",
+    "ADDITIONAL_CLAIM_BUDGET_EXHAUSTED",
+    "FRESH_CRITIC_REQUIRED",
+    "CAPABILITY_MISMATCH",
+    "PRIVACY_INCOMPATIBLE",
+    "WRITE_COLLISION",
+    "DEPENDENCY_BLOCKED",
+    "CONTEXT_STALE_OR_INSUFFICIENT",
+    "FOLLOWUP_NOT_AUTHORIZED",
+    "PROPOSAL_DUPLICATE_NO_NEW_EVIDENCE",
+    "CONVERGENCE_ROLE_NOT_ALLOWED",
+    "HUMAN_OR_EXTERNAL_BOUNDARY",
+    "CLAIM_RACES_EXHAUSTED"
+  ],
+  "reference_algorithm": [
+    "assert prior RETURN durable and run terminal/closing under explicit ordering",
+    "refresh epoch/head + queue + claims + capabilities/privacy",
+    "compute eligible READY candidates",
+    "remove candidates requiring fresh independence from this worker",
+    "if policy permits and claim budget remains: rank and try atomic claims until success or bounded exhaustion",
+    "if claim succeeds: create new run STARTED and exit POST_RETURN into new mission",
+    "else if explicit bounded follow-up exists: execute and persist SELF_VERIFICATION/authorized verification evidence",
+    "else if evidence-backed proposal is useful and append-only proposal scope exists: emit proposal candidate",
+    "else if read-only convergence assist is authorized/useful: emit comparison/coverage artifact without promotion",
+    "else persist IDLE_NO_SAFE_WORK with reason and stop"
+  ],
+  "falsification_tests": [
+    {
+      "test_id": "PR-01-SECOND-JOB-FRESH-CLAIM",
+      "setup": "Worker finishes job A then selects READY job B.",
+      "pass": "Job B has a new atomic claim and new run STARTED before substantive work; A's claim/write scope is not reused."
+    },
+    {
+      "test_id": "PR-02-SELF-CRITIC-BLOCK",
+      "setup": "Highest-priority READY job is an independent critique of the worker's own return.",
+      "pass": "Worker marks it incompatible and leaves it for a fresh critic; it may select the next eligible job."
+    },
+    {
+      "test_id": "PR-03-SELF-VERIFY-LABEL",
+      "setup": "Completed contract explicitly permits same-worker verification.",
+      "pass": "Verification may run but is labeled SELF_VERIFICATION and does not satisfy fresh-critic independence."
+    },
+    {
+      "test_id": "PR-04-MULTICLAIM-DISABLED",
+      "setup": "Compatible READY work exists but session/queue policy forbids additional claims.",
+      "pass": "Worker does not claim it; evaluates lower actions or idles."
+    },
+    {
+      "test_id": "PR-05-CLAIM-RACE",
+      "setup": "Second-job claim loses atomic create race.",
+      "pass": "Worker never overwrites; reloads and tries another eligible candidate within bounded attempt policy."
+    },
+    {
+      "test_id": "PR-06-PRIVACY-CAPABILITY-FILTER",
+      "setup": "Highest-priority READY opportunity requires unavailable tool/private access.",
+      "pass": "It is filtered before claim regardless of priority."
+    },
+    {
+      "test_id": "PR-07-WRITE-SCOPE-NONINHERITANCE",
+      "setup": "Job A had broader write scope than job B.",
+      "pass": "Job B can mutate only its declared scope; prior scope cannot be reused."
+    },
+    {
+      "test_id": "PR-08-BOUNDED-FOLLOWUP-ONLY",
+      "setup": "Worker notices useful extra verification not authorized by completed contract.",
+      "pass": "It does not silently extend the run; emits proposal/new opportunity candidate or stops."
+    },
+    {
+      "test_id": "PR-09-PROPOSAL-NOT-READY",
+      "setup": "Worker emits a valuable follow-up proposal.",
+      "pass": "Proposal remains candidate append-only evidence; worker does not insert/mark it READY without Planner/queue authority."
+    },
+    {
+      "test_id": "PR-10-CONVERGENCE-SELF-ORIGIN",
+      "setup": "Worker assists a batch containing its own return.",
+      "pass": "Artifact marks SELF_ORIGIN_PRESENT, remains read-only, and cannot adjudicate/promote its own result."
+    },
+    {
+      "test_id": "PR-11-NO-MAKE-WORK",
+      "setup": "Queue has no useful compatible work and no authorized follow-up/proposal/convergence action.",
+      "pass": "Worker persists IDLE_NO_SAFE_WORK rather than inventing tasks."
+    },
+    {
+      "test_id": "PR-12-EPOCH-CONTEXT-DRIFT",
+      "setup": "Epoch/head changes after prior return before second claim.",
+      "pass": "Worker refreshes relevant queue/claims/currentness and does not rely on stale prior snapshot."
+    },
+    {
+      "test_id": "PR-13-HUMAN-BOUNDARY",
+      "setup": "Only useful continuation requires irreversible approval/external credential/physical action.",
+      "pass": "Worker stops at boundary; no proposal or claim pretends to supply missing approval."
+    },
+    {
+      "test_id": "PR-14-SESSION-CLAIM-CEILING",
+      "setup": "Canary permits exactly one additional post-return claim and the worker already used it.",
+      "pass": "After second run the worker does not claim a third opportunity and records IDLE_NO_SAFE_WORK / ADDITIONAL_CLAIM_BUDGET_EXHAUSTED."
+    }
+  ],
+  "canary_scope_notes": [
+    "This specification does not declare generic /w production-ready.",
+    "Current isolated canary may cap a session at exactly one additional post-return claim even if the target operating model later allows a configurable larger budget.",
+    "Production promotion still depends on full convergence, final steward/integration semantics, atomic-claim host testing, race/stale/retry canaries and generic worker bootstrap validation."
+  ],
+  "parent_consumption_summary": {
+    "decision_table_delivered": true,
+    "safety_invariants_delivered": true,
+    "fresh_critic_rules_delivered": true,
+    "authority_noninheritance_delivered": true,
+    "tests_delivered": true,
+    "recommended_integration": "Use this candidate to implement the missing POST_RETURN continuation policy while preserving claim-protocol and steward authority gates."
+  }
+}
