@@ -64,6 +64,7 @@ function compactPortfolio(feed, semantic, job, targetGeneration = null) {
     project_id: job.project_id || null,
     project_label: job.project_label || null,
     title: job.title || job.job_id,
+    source_path: job.source_path || null,
     required_capabilities: uniq(job.required_capabilities),
     priority: job.priority || 0,
     state: job.state,
@@ -155,7 +156,7 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
   materialReturns.sort((a, b) => b.when - a.when || a.path.localeCompare(b.path));
   const unconsumedReturnRefs = uniq(materialReturns.slice(0, 12).map(row => row.path));
 
-  const recoveryEvidence = uniq(recovery.slice(0, 8).map(item => item.predecessor_pin_ref || `coordination/portfolio/PORTFOLIO.json#job:${item.job_id}`));
+  const recoveryEvidence = uniq(recovery.slice(0, 8).map(item => item.predecessor_pin_ref || item.source_path || `coordination/portfolio/PORTFOLIO.json#job:${item.job_id}`));
   const collisionEvidence = uniq(jobs.flatMap(job => arr(job.collisions).map(row => row.path)).slice(-12));
   const partialEvidence = uniq(jobs
     .filter(job => ['partial', 'blocked'].includes(job.state))
