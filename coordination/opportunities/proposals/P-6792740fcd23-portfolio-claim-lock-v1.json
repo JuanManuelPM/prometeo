@@ -1,0 +1,95 @@
+{
+  "schema": "prometeo.worker-proposal/v1",
+  "proposal_id": "P-6792740fcd23-portfolio-claim-lock-v1",
+  "fingerprint": "pdf-6792740fcd2391b10df0e67845fdc0a9",
+  "created_at": "2026-09-17T17:50:32Z",
+  "status": "CANDIDATE",
+  "source": {
+    "worker_instance_id": "wc-gpt56sol-20260917t1444-discovery-6792",
+    "opportunity_id": null,
+    "run_id": null,
+    "proposal_pin_ref": "coordination/opportunities/proposal-claims/pdf-6792740fcd2391b10df0e67845fdc0a9.json"
+  },
+  "root": "prometeo-portfolio",
+  "target": {
+    "artifact": "portfolio job/dedupe-key live-claim mutual exclusion fence",
+    "consumer": "wc portfolio fallback workers",
+    "subsystem": "coordination/portfolio claim protocol"
+  },
+  "title": "Fence concurrent portfolio claims per dedupe key",
+  "problem": "The v1.1 portfolio contract requires an atomic claim before work, but the append-only claim path includes a unique claim_id. Under concurrent fresh-chat launches, two workers can both create different files for the same job and dedupe_key, so neither create collides. Live evidence on 2026-09-17 shows two claims for portfolio-tele-recover-intent-and-artifacts created eight seconds apart. Without a second atomic exclusivity primitive, both can legally proceed into duplicate archaeology/implementation.",
+  "mission": "Add a job/dedupe-key exclusivity fence to portfolio acquisition while retaining append-only immutable claim history. Acquisition must fail closed for losers, support safe expiry/recovery, and be falsified with a concurrent race fixture before the contract can call portfolio claim exclusivity operational.",
+  "acceptance": [
+    "For one portfolio dedupe_key, concurrent contenders cannot both acquire substantive-work authority while one live claim is unexpired.",
+    "The exclusivity decision uses atomic create-if-absent or CAS on a shared deterministic fence identity, not unique append-only filenames alone.",
+    "Append-only claim files remain immutable historical evidence and identify the authoritative fence generation/owner.",
+    "An expired owner can be replaced only through an explicit CAS/recovery generation; timestamps alone never overwrite a live owner.",
+    "A losing contender records or can reconstruct the winner, performs no substantive target writes, and immediately re-enters allocation.",
+    "Terminal returns and existing derived-job dedupe rules remain compatible.",
+    "A two-or-more-worker concurrency fixture reproduces the current double-claim race before the repair and demonstrates exactly one authoritative owner after the repair."
+  ],
+  "observed_live_evidence": {
+    "job_id": "portfolio-tele-recover-intent-and-artifacts",
+    "dedupe_key": "tele:recover-intent-artifacts:v1",
+    "claim_a": "coordination/portfolio/claims/portfolio-tele-recover-intent-and-artifacts/CLAIM_WC_GPT56SOL_20260917T174837Z.json",
+    "claim_b": "coordination/portfolio/claims/portfolio-tele-recover-intent-and-artifacts/CLAIM-WC-GPT56SOL-20260917T174845Z.json",
+    "delta_seconds": 8,
+    "finding": "Two unique append-only claim creates succeeded for the same job/dedupe frontier; unique claim_id paths do not provide job-level mutual exclusion."
+  },
+  "evidence_refs": [
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/portfolio/PORTFOLIO.json",
+    "coordination/portfolio/claims/portfolio-tele-recover-intent-and-artifacts/CLAIM_WC_GPT56SOL_20260917T174837Z.json",
+    "coordination/portfolio/claims/portfolio-tele-recover-intent-and-artifacts/CLAIM-WC-GPT56SOL-20260917T174845Z.json",
+    "wc"
+  ],
+  "value_signals": {
+    "unblock_value": "Makes portfolio fallback safe under the exact many-chat load pattern /wc v3.3 is designed to support.",
+    "compounding_value": "Every seed and derived portfolio job benefits; duplicate-work risk otherwise rises as worker count rises.",
+    "human_friction_reduction": "Workers can resolve portfolio claim races without the human choosing which chat should continue.",
+    "information_gain": "A deterministic fence plus race fixture converts an observed concurrency defect into measurable pass/fail canary evidence."
+  },
+  "dependency_ids": [],
+  "candidate_read_scope": [
+    "wc",
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/portfolio/claims/**",
+    "coordination/portfolio/returns/**",
+    "coordination/portfolio/derived/**",
+    "scripts/**",
+    "tests/**"
+  ],
+  "candidate_write_scope": [
+    "coordination/portfolio/WORKER_CONTRACT_V1.md",
+    "coordination/portfolio/locks/**",
+    "scripts/portfolio-claim-*.mjs",
+    "tests/portfolio-claim-race-*.test.mjs",
+    "coordination/canary-evidence/portfolio-claim-races/**",
+    "own claim/run/return"
+  ],
+  "risk": {
+    "main": "A coarse permanent lock could strand a job after worker death or serialize unrelated dedupe keys.",
+    "mitigation": "Fence by stable dedupe-key/job identity, preserve expiry metadata, and require CAS-controlled generation handoff for stale/expired ownership rather than overwrite-by-recency."
+  },
+  "fresh_critic_required": true,
+  "falsification": [
+    "Two concurrent contenders for the same dedupe_key both obtain substantive-work authority.",
+    "A contender can replace an unexpired owner merely because its timestamp is newer.",
+    "An expired lock cannot be safely advanced without deleting historical claim evidence.",
+    "The fence blocks a different portfolio dedupe_key from progressing in parallel.",
+    "The repair requires rewriting or deleting immutable historical claim files."
+  ],
+  "dedup_note": "Distinct from P-1c64c0e1e704-recovery-race-v1, which fences stale-recovery writers in the normal opportunity recovery fabric. This proposal targets the new portfolio fallback claim protocol and is grounded by two same-job portfolio claims observed after /wc v3.3 rollout.",
+  "source_freshness": {
+    "main_head_before_pin": "d885342018272c57ada4a93763cdaf1d7c371649",
+    "pin_commit": "1304fff39ead6be2b7812da5097bcc53761db031",
+    "epoch_observed": "P3-f68d626f517d",
+    "note": "Main was highly concurrent during the canary; evidence paths were reloaded directly from current main immediately before discovery pinning."
+  },
+  "privacy_class": "PUBLIC_COORDINATION_ONLY",
+  "authority_constraints": [
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "PROPOSAL_DOES_NOT_AUTHORIZE_SHARED_MUTATION"
+  ]
+}
