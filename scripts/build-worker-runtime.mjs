@@ -94,9 +94,12 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
         Number.isFinite(Number(claim?.attempts))?Number(claim.attempts):
         attemptRows.length?attemptRows.length:
         outcomeRows.length?outcomeRows.length:0;
-      const collisionCount=Number(claim?.collisions||0)
-        + attemptRows.filter(x=>['CREATE_EXISTS','CAS_LOST','COLLISION'].includes(String(x?.outcome||'').toUpperCase())).length
+      const explicitCollisions=Number(claim?.collisions||0);
+      const arrayCollisions=
+        attemptRows.filter(x=>['CREATE_EXISTS','CAS_LOST','COLLISION'].includes(String(x?.outcome||'').toUpperCase())).length
         + outcomeRows.filter(x=>['CREATE_EXISTS','CAS_LOST','COLLISION'].includes(String(x||'').toUpperCase())).length;
+      const collisionCount=explicitCollisions+arrayCollisions+
+        (!explicitCollisions&&!arrayCollisions&&rawOutcome.includes('COLLISION')?Math.max(1,attemptCount):0);
       const authorityWon=pinRefs.length>0 || normalizedOutcome==='WON';
       const state=close?'CLOSED':authorityWon?(claim?.started?'ACTIVE':'OWNED'):claim?'CLAIM_RESOLVED':routed?'ROUTED':'SEEN';
       const anomalies=[];
