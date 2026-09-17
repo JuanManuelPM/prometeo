@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -80,31 +80,53 @@ must('guide', guide, 'A sustained efficiency regression is ONE system bottleneck
 const live = read(root, '.github/workflows/live-feed.yml');
 must('live-workflow', live, 'cancel-in-progress: false');
 must('live-workflow', live, 'fetch-depth: 500');
-must('live-workflow', live, "schema:'prometeo.fast-allocator/v2'");
-must('live-workflow', live, "preferred_order:['ready','queue_ready','recovery']");
-must('live-workflow', live, 'claim_path:');
-must('live-workflow', live, 'claim_payload_shape:');
-must('live-workflow', live, 'max_recovery_snapshot_age_seconds:90');
 must('live-workflow', live, 'scripts/build-efficiency-snapshot.mjs');
+must('live-workflow', live, 'scripts/build-fast-allocator.mjs');
+must('live-workflow', live, 'node source/scripts/build-fast-allocator.mjs /tmp/feed.json /tmp/efficiency.json /tmp/allocator.json source');
 must('live-workflow', live, 'live/efficiency.json');
 
-const portfolioPayloadStart = live.indexOf("schema:'prometeo.portfolio-pin/v1'");
-const portfolioPayloadEnd = portfolioPayloadStart >= 0 ? live.indexOf('predecessor_pin_ref:predecessor', portfolioPayloadStart) : -1;
+const allocator = read(root, 'scripts/build-fast-allocator.mjs');
+must('fast-allocator', allocator, "schema: 'prometeo.fast-allocator/v2'");
+must('fast-allocator', allocator, "preferred_order: ['ready', 'queue_ready', 'recovery']");
+must('fast-allocator', allocator, 'max_recovery_snapshot_age_seconds: 90');
+must('fast-allocator', allocator, 'claim_path:');
+must('fast-allocator', allocator, 'claim_payload_shape:');
+must('fast-allocator', allocator, "mode: 'fixed_generation'");
+must('fast-allocator', allocator, 'ordinary_next_generation_eligible');
+must('fast-allocator', allocator, 'fixed_generation_attention');
+must('fast-allocator', allocator, 'loadRecoveryPolicies');
+must('fast-allocator', allocator, "'recovery-policies'");
+mustNot('fast-allocator', allocator, 'portfolio-exclusive-job-pin-live-race-5-v1');
+
+const portfolioPayloadStart = allocator.indexOf("schema: 'prometeo.portfolio-pin/v1'");
+const portfolioPayloadEnd = portfolioPayloadStart >= 0 ? allocator.indexOf('predecessor_pin_ref: predecessor', portfolioPayloadStart) : -1;
 const portfolioPayload = portfolioPayloadStart >= 0 && portfolioPayloadEnd > portfolioPayloadStart
-  ? live.slice(portfolioPayloadStart, portfolioPayloadEnd)
+  ? allocator.slice(portfolioPayloadStart, portfolioPayloadEnd)
   : '';
-if (!portfolioPayload) errors.push('live-workflow: cannot isolate portfolio claim_payload_shape');
+if (!portfolioPayload) errors.push('fast-allocator: cannot isolate portfolio claim_payload_shape');
 for (const field of [
   'schema','pin_id','job_id','dedupe_key','project_id','generation','worker_id','claim_id',
   'claimed_at','expires_at','source_head','predecessor_pin_ref_or_null',
   'predecessor_claim_ref_or_null','recovery_basis_or_null'
 ]) {
-  must('live-workflow-portfolio-payload', portfolioPayload, `${field}:`);
+  must('fast-allocator-portfolio-payload', portfolioPayload, `${field}:`);
 }
-must('live-workflow-portfolio-payload', portfolioPayload, "'<worker_id>'");
-must('live-workflow-portfolio-payload', portfolioPayload, "'<now_iso>'");
-must('live-workflow-portfolio-payload', portfolioPayload, "'<now_plus_10m_iso>'");
-must('live-workflow-portfolio-payload', portfolioPayload, 'f.source_sha');
+must('fast-allocator-portfolio-payload', portfolioPayload, "'<worker_id>'");
+must('fast-allocator-portfolio-payload', portfolioPayload, "'<now_iso>'");
+must('fast-allocator-portfolio-payload', portfolioPayload, "'<now_plus_10m_iso>'");
+must('fast-allocator-portfolio-payload', portfolioPayload, 'feed.source_sha');
+
+const fixedPolicy = read(root, 'coordination/portfolio/recovery-policies/portfolio-exclusive-job-pin-live-race-5-v1.json');
+must('fixed-generation-policy', fixedPolicy, '"mode": "fixed_generation"');
+must('fixed-generation-policy', fixedPolicy, '"fixed_generation": 1');
+must('fixed-generation-policy', fixedPolicy, '"ordinary_next_generation_eligible": false');
+must('fixed-generation-policy', fixedPolicy, '"attention_route": "FIXED_GENERATION_RECONCILE"');
+
+const fixedRecoveryTest = read(root, 'coordination/portfolio/tests/fixed_generation_recovery_filter_v1.mjs');
+must('fixed-generation-test', fixedRecoveryTest, "job_id: 'fixture-arbitrary-id'");
+must('fixed-generation-test', fixedRecoveryTest, "job_id: 'ordinary-retry-safe'");
+must('fixed-generation-test', fixedRecoveryTest, 'fixed_generation_attention');
+must('fixed-generation-test', fixedRecoveryTest, 'fixed-generation fixture leaked into ordinary recovery');
 
 const normalize = read(root, '.github/scripts/normalize-live-feed.mjs');
 must('live-normalizer', normalize, 'NO_ALLOCATION_GRACE_MS = 45_000');
