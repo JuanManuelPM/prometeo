@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Student World · Puente de estudio</title>
+<meta name="prometeo-authority" content="LAB_CANDIDATE_NOT_CURRENT_NOT_SERVED">
+<meta name="prometeo-donor-git-blob" content="a2f7a16beaf2d6c44556c87434bccfc4cb168b50">
+<style>
+:root{--paper:#f4f0e6;--ink:#171813;--moss:#3f5144;--line:rgba(23,24,19,.16)}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}
+body{display:grid;grid-template-rows:auto 1fr}
+.routebar{position:relative;z-index:3;display:flex;align-items:center;gap:12px;min-height:52px;padding:8px max(12px,env(safe-area-inset-left)) 8px max(12px,env(safe-area-inset-right));border-bottom:1px solid var(--line);background:rgba(244,240,230,.97)}
+.routebar strong{margin-right:auto;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.routebar span{font-size:.76rem;opacity:.62;white-space:nowrap}
+.routebar a{display:inline-flex;align-items:center;min-height:34px;padding:0 11px;border:1px solid var(--moss);border-radius:999px;color:var(--ink);text-decoration:none;font-size:.78rem;font-weight:750;background:transparent}
+.routebar a:focus-visible{outline:3px solid var(--ink);outline-offset:2px}.routebar a:hover{background:var(--moss);color:var(--paper)}
+.stage{position:relative;min-height:0}.stage iframe{display:block;width:100%;height:100%;border:0;background:var(--paper)}
+.guard{position:absolute;inset:0;display:grid;place-items:center;padding:24px;background:var(--paper);z-index:2}.guard[hidden]{display:none}.guard p{max-width:560px;margin:0;text-align:center;line-height:1.5;font-size:.9rem}.guard b{display:block;margin-bottom:7px}
+@media(max-width:640px){.routebar{gap:7px;min-height:48px}.routebar span{display:none}.routebar strong{font-size:.7rem}.routebar a{min-height:32px;padding:0 9px;font-size:.72rem}}
+</style>
+</head>
+<body>
+<nav class="routebar" aria-label="Rutas de estudio de José">
+  <strong>Student World</strong>
+  <span>Seguir estudiando</span>
+  <a href="https://juanmanuelpm.github.io/jose-study/">José Study</a>
+  <a href="../JOSE_RECUPERACION_ALGEBRA_FINAL.html">Álgebra</a>
+</nav>
+<main class="stage">
+  <div class="guard" id="guard"><p><b>Verificando el mapa actual…</b>Esta vista sólo abre el mapa si coincide exactamente con la versión recuperada.</p></div>
+  <iframe id="world" title="Student World · mapa actual"></iframe>
+</main>
+<script>
+(() => {
+  'use strict';
+  const AUTHORITY = Object.freeze({
+    status: 'LAB_CANDIDATE_NOT_CURRENT_NOT_SERVED',
+    donor: 'gh-pages:pages/PROMETEO_STUDENT_WORLD_MAP_FIXED_OPEN_ME.html',
+    donorGitBlobSha1: 'a2f7a16beaf2d6c44556c87434bccfc4cb168b50',
+    joseV11: 'REFERENCE_ONLY_NOT_LINKED_NOT_CURRENT_NOT_SERVED'
+  });
+  const donorUrl = '../PROMETEO_STUDENT_WORLD_MAP_FIXED_OPEN_ME.html';
+  const expected = AUTHORITY.donorGitBlobSha1;
+  const guard = document.getElementById('guard');
+  const frame = document.getElementById('world');
+  let objectUrl = null;
+
+  function hex(buffer){
+    return Array.from(new Uint8Array(buffer), b => b.toString(16).padStart(2,'0')).join('');
+  }
+  async function gitBlobSha1(bytes){
+    const head = new TextEncoder().encode(`blob ${bytes.byteLength}\0`);
+    const joined = new Uint8Array(head.byteLength + bytes.byteLength);
+    joined.set(head, 0); joined.set(bytes, head.byteLength);
+    return hex(await crypto.subtle.digest('SHA-1', joined));
+  }
+  function fail(message){
+    guard.hidden = false;
+    guard.innerHTML = `<p><b>No abrí una versión distinta del mapa.</b>${message}</p>`;
+  }
+  async function boot(){
+    try {
+      const response = await fetch(donorUrl, {cache:'no-store'});
+      if(!response.ok) throw new Error(`No se pudo cargar el mapa (${response.status}).`);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      const actual = await gitBlobSha1(bytes);
+      if(actual !== expected){
+        fail('La fuente publicada cambió desde la versión recuperada. Este laboratorio se bloqueó para no sustituirla silenciosamente.');
+        return;
+      }
+      objectUrl = URL.createObjectURL(new Blob([bytes], {type:'text/html'}));
+      frame.addEventListener('load', () => { guard.hidden = true; }, {once:true});
+      frame.src = objectUrl;
+      window.__PROMETEO_STUDENT_ROUTE_BRIDGE__ = {authority:AUTHORITY, donorVerified:true, actualGitBlobSha1:actual};
+    } catch(error){
+      fail(error && error.message ? error.message : 'No se pudo verificar la fuente del mapa.');
+    }
+  }
+  window.addEventListener('pagehide', () => { if(objectUrl) URL.revokeObjectURL(objectUrl); }, {once:true});
+  boot();
+})();
+</script>
+</body>
+</html>
