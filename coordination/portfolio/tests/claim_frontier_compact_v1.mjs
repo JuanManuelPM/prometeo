@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { buildClaimFrontier } from '../../scripts/build-claim-frontier.mjs';
+import { buildClaimFrontier } from '../../../scripts/build-claim-frontier.mjs';
 
 const payload=i=>({
   schema:'prometeo.portfolio-pin/v1',
