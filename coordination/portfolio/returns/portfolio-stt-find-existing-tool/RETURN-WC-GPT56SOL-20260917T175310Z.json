@@ -1,0 +1,92 @@
+{
+  "schema": "prometeo.portfolio-return/v1",
+  "return_id": "RETURN-WC-GPT56SOL-20260917T175310Z",
+  "job_id": "portfolio-stt-find-existing-tool",
+  "dedupe_key": "tool:stt:recover-existing:v1",
+  "project_id": "audio-speech-to-text",
+  "worker_id": "wc-gpt56sol-20260917t1443",
+  "claim_id": "CLAIM-WC-GPT56SOL-20260917T174805Z",
+  "returned_at": "2026-09-17T17:53:10Z",
+  "outcome": "DONE",
+  "summary": "Recovered the existing audio-to-text implementation instead of rebuilding it. The deployed human entrypoint is https://juanmanuelpm.github.io/prometeo/pages/voice/ backed by pages/voice/index.html + pages/voice/transcriber-worker.js. It captures microphone audio with MediaRecorder, converts to mono 16 kHz, and transcribes in a Web Worker using @huggingface/transformers 3.8.1 with Xenova/whisper-small, WASM, q8, Spanish transcription. A separate server-side study/class STT also exists as active Supabase Edge Function study-transcribe-v1 v6 using Whisper large-v3-family inference and persisting authenticated session chunks. Historical database receipts show 216 ready whisper-large-v3 legacy chunks with latest finished 2026-09-11T14:11:11.059Z. This proves prior successful STT operation, not current end-to-end live operation today.",
+  "authority_and_collision": {
+    "prewrite_epoch": "P3-d46b06a3b111",
+    "prewrite_main": "2c18adac8ebcc99731f1da3d902293e8bdf7d9f3",
+    "claim_collision_count_seen": 4,
+    "claim_arbitration": "This worker's claim at 2026-09-17T17:48:05Z is earlier than the other visible claims at 17:48:06Z, 17:48:09Z, and 2026-09-17T14:49:44.842563-03:00. No terminal return existed at the immediate prewrite check."
+  },
+  "evidence": [
+    {
+      "kind": "deployed_human_entrypoint",
+      "path": "pages/voice/index.html",
+      "url": "https://juanmanuelpm.github.io/prometeo/pages/voice/",
+      "branch": "gh-pages",
+      "sha": "2a9ff73876f6ac9413bb7273b6976a0d86f853a5",
+      "verified": "file exists on deployed branch; code shows microphone capture, queued messages, and worker-backed transcription"
+    },
+    {
+      "kind": "client_transcriber",
+      "path": "pages/voice/transcriber-worker.js",
+      "branch": "gh-pages",
+      "sha": "f8a3de37a0f822a26ed4891828c1afd59f7041f0",
+      "verified": "imports @huggingface/transformers@3.8.1, runs automatic-speech-recognition with Xenova/whisper-small on WASM q8, language spanish"
+    },
+    {
+      "kind": "separate_server_stt",
+      "ref": "supabase://catnohyouxqjjtseaueb/functions/study-transcribe-v1@v6",
+      "url": "https://catnohyouxqjjtseaueb.supabase.co/functions/v1/study-transcribe-v1",
+      "verified": "ACTIVE function inspected; authenticated session upload path, Whisper model fallbacks, transcript persistence, and low-quality repetition gate present"
+    },
+    {
+      "kind": "historical_runtime_receipt",
+      "ref": "supabase://catnohyouxqjjtseaueb/public/study_transcript_chunks",
+      "verified": "aggregate-only query: 216 ready / whisper-large-v3 / legacy chunks, latest finished 2026-09-11T14:11:11.059Z; 1 error; 5 legacy rows still transcribing"
+    },
+    {
+      "kind": "negative_disambiguation",
+      "path": "audio-lab/index.html",
+      "verified": "audio-lab loads audio-lab-v2 generation/playback UI and is not the recovered audio-to-text entrypoint"
+    }
+  ],
+  "capability_truth": {
+    "verified": [
+      "A deployed voice UI and its transcriber worker exist on gh-pages.",
+      "The voice UI code captures microphone audio and queues independent messages for transcription.",
+      "The worker code performs Spanish ASR in-browser with Whisper Small via WASM after required model/library assets are fetched.",
+      "A separate active server-side study-transcribe-v1 v6 implementation exists and has historical successful persisted transcript receipts."
+    ],
+    "not_verified_this_cycle": [
+      "A fresh microphone-to-text run on the deployed /pages/voice/ route in a real browser/device.",
+      "Offline-first behavior before CDN/model assets have been fetched and cached.",
+      "A fresh HTTP self-test of study-transcribe-v1 v6 today.",
+      "The current human-facing page, if any, that submits authenticated class-session chunks to study-transcribe-v1."
+    ]
+  },
+  "tests": [
+    "Verified identical voice index and transcriber worker bytes exist on gh-pages.",
+    "Inspected worker pipeline/model/device/dtype/language parameters statically.",
+    "Inspected active Supabase study-transcribe-v1 v6 source and service metadata.",
+    "Queried only aggregate transcript-chunk status/source/version counts; no transcript text or room token was read or exposed.",
+    "Fresh end-to-end microphone/browser execution was not available in this worker environment and is therefore not claimed."
+  ],
+  "source_debt": [
+    "Current end-to-end runtime receipt for the deployed browser voice route.",
+    "Exact user-facing route for the separate authenticated study/class STT, if one is still intended to be canonical.",
+    "Meaning of 5 legacy study_transcript_chunks rows left in transcribing state should be reconciled before treating them as active work."
+  ],
+  "next_deduplicated_work": {
+    "title": "Verify current STT canary and canonicalize entrypoint",
+    "dedupe_key": "tool:stt:live-canary-entrypoint:v1",
+    "kind": "verification",
+    "mission": "Run one fresh no-secret browser microphone transcription on /pages/voice/ and one fresh study-transcribe-v1 self-test from an environment that can invoke it; record receipts, decide which STT surface is canonical for which use case, and document the class-session human route or explicit SOURCE_DEBT.",
+    "acceptance": [
+      "Fresh /pages/voice/ microphone-to-text receipt or exact failure captured without storing private speech content.",
+      "Fresh study-transcribe-v1 self-test result or exact service failure captured.",
+      "Canonical-role split documented: mobile voice inbox vs authenticated class transcription.",
+      "No room_token, private transcript, or credential persisted in repo evidence."
+    ]
+  },
+  "changed_paths": [
+    "coordination/portfolio/returns/portfolio-stt-find-existing-tool/RETURN-WC-GPT56SOL-20260917T175310Z.json"
+  ]
+}
