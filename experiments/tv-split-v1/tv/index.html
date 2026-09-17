@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#000000">
+<title>Sala TV</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}#player,#player iframe{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;border:0!important}.idle{position:fixed;inset:0;background:#000;display:grid;place-items:center;z-index:3}.idle.hide{display:none}.dot{width:8px;height:8px;border-radius:50%;background:#3b4740;box-shadow:0 0 24px #6d8978}.unlock{position:fixed;inset:0;z-index:8;display:none;place-items:center;background:#000c;border:0;color:#dfe6e1;font:700 12px system-ui;letter-spacing:.08em}.unlock.show{display:grid}.status{position:fixed;right:12px;top:12px;z-index:9;width:7px;height:7px;border-radius:50%;background:#24332a;opacity:.75}.status.live{background:#6a8c76}.status.err{background:#8d4e4e}
+</style>
+</head>
+<body>
+<div id="idle" class="idle"><div class="dot"></div></div>
+<div id="player"></div>
+<button id="unlock" class="unlock">TOCAR PARA ACTIVAR</button>
+<div id="status" class="status"></div>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+(()=>{
+'use strict';
+const ROOM_API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-tv-room-v1';
+const p=new URLSearchParams(location.hash.slice(1));
+const room={code:p.get('room')||'',token:p.get('t')||'',role:'tv'};
+const device='tv-'+Math.random().toString(36).slice(2,9);
+const idle=document.getElementById('idle'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
+let last=0,player=null,ready=false,suppress=0;
+let media={video:null,queue:[],index:-1,playing:false,position:0};
+
+async function api(body){
+ const r=await fetch(ROOM_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'});
+ const d=await r.json().catch(()=>({}));
+ if(!r.ok)throw new Error(d.error||'ROOM');
+ return d;
+}
+async function emit(type,payload){
+ try{await api({action:'emit',code:room.code,role:'tv',token:room.token,client_id:device,event_type:type,payload})}catch{}
+}
+function pos(){try{return ready?Number(player.getCurrentTime()||0):Number(media.position||0)}catch{return Number(media.position||0)}}
+async function snapshot(){
+ if(!media.video)return;
+ media.position=pos();
+ await emit('media.snapshot',{video:media.video,queue:media.queue,index:media.index,playing:media.playing,position:media.position});
+}
+function loadAt(i,playing=true){
+ if(!media.queue.length)return;
+ media.index=Math.max(0,Math.min(media.queue.length-1,i));
+ media.video=media.queue[media.index];
+ media.position=0; media.playing=playing;
+ mount(media.video,0,playing); snapshot();
+}
+function mount(v,position=0,playing=true){
+ if(!v?.video_id)return;
+ idle.classList.add('hide');
+ if(!window.YT||!YT.Player){setTimeout(()=>mount(v,position,playing),100);return}
+ suppress=Date.now()+900;
+ if(!player){
+   player=new YT.Player('player',{
+     videoId:v.video_id,
+     playerVars:{autoplay:playing?1:0,controls:0,playsinline:1,rel:0,fs:0,iv_load_policy:3,disablekb:1},
+     events:{
+       onReady:e=>{ready=true;if(position>0)e.target.seekTo(position,true);playing?e.target.playVideo():e.target.pauseVideo()},
+       onStateChange:onState,
+       onAutoplayBlocked:()=>unlock.classList.add('show')
+     }
+   });
+ }else if(ready){
+   const id=player.getVideoData?.().video_id||'';
+   if(id!==v.video_id){
+     playing?player.loadVideoById({videoId:v.video_id,startSeconds:position}):player.cueVideoById({videoId:v.video_id,startSeconds:position});
+   }else{
+     if(Math.abs(pos()-position)>1.5)player.seekTo(position,true);
+     playing?player.playVideo():player.pauseVideo();
+   }
+ }
+}
+async function command(c){
+ const cmd=String(c?.cmd||'');
+ if(cmd==='load'&&c.video){
+   media.video=c.video;media.queue=Array.isArray(c.queue)&&c.queue.length?c.queue:[c.video];media.index=Math.max(0,Number(c.index||0));media.position=Number(c.position||0);media.playing=c.playing!==false;mount(media.video,media.position,media.playing);
+ }else if(cmd==='play'&&media.video){media.playing=true;media.position=Number(c.position??pos());mount(media.video,media.position,true)}
+ else if(cmd==='pause'&&media.video){media.playing=false;media.position=Number(c.position??pos());mount(media.video,media.position,false)}
+ else if(cmd==='next'){loadAt(media.index+1,true)}
+ else if(cmd==='prev'){loadAt(media.index-1,true)}
+ else if(cmd==='stop'){media={video:null,queue:[],index:-1,playing:false,position:0};try{player?.stopVideo()}catch{}idle.classList.remove('hide')}
+ await snapshot();
+}
+function onState(e){
+ if(Date.now()<suppress||!media.video)return;
+ if(e.data===YT.PlayerState.PLAYING){media.playing=true;unlock.classList.remove('show');snapshot()}
+ else if(e.data===YT.PlayerState.PAUSED){media.playing=false;snapshot()}
+ else if(e.data===YT.PlayerState.ENDED){loadAt(media.index+1,true)}
+}
+async function poll(){
+ while(true){
+   try{
+     const d=await api({action:'poll',code:room.code,role:'tv',token:room.token,after_id:last});
+     status.className='status live';
+     for(const e of d.events||[]){
+       last=Math.max(last,Number(e.id)||0);
+       if(e.client_id===device)continue;
+       if(e.event_type==='media.command')await command(e.payload||{});
+       else if(e.event_type==='media.request_snapshot')await snapshot();
+     }
+     await new Promise(r=>setTimeout(r,320));
+   }catch{status.className='status err';await new Promise(r=>setTimeout(r,1200))}
+ }
+}
+unlock.onclick=async()=>{
+ unlock.classList.remove('show');
+ try{await document.documentElement.requestFullscreen?.()}catch{}
+ try{player?.playVideo()}catch{}
+};
+document.addEventListener('click',async e=>{
+ if(e.target===idle){try{await document.documentElement.requestFullscreen?.()}catch{}}
+});
+setInterval(()=>{if(media.video&&media.playing)snapshot()},3500);
+if(!room.code||!room.token){status.className='status err'}else poll();
+})();
+</script>
+</body>
+</html>
