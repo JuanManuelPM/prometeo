@@ -69,6 +69,30 @@ test('unsafe or stale-unproven recovery never preempts safe prepared work', () =
   assert.deepEqual(result.recovery_frontier.rejected[0].reasons, ['RETRY_UNSAFE']);
 });
 
+test('preserve-first rejects a prepared opportunity with a live overlapping writer', () => {
+  const result = decideUniversalWorkerAction({
+    opportunities: [
+      ready('O-COLLIDES', 20, 'BUILD', {write_scope: ['scripts/shared/**']}),
+      ready('O-INDEPENDENT', 10, 'BUILD', {write_scope: ['scripts/isolated/**']})
+    ],
+    active_writers: [{state: 'WRITING', write_scope: ['scripts/shared/file.mjs']}]
+  });
+  assert.equal(result.selected.opportunity_id, 'O-INDEPENDENT');
+  assert.ok(result.prepared_frontier.rejected.some(item => item.opportunity_id === 'O-COLLIDES' && item.reason === 'LIVE_WRITE_COLLISION'));
+});
+
+test('authority boundary rejects global promotion work even when it has the highest priority', () => {
+  const result = decideUniversalWorkerAction({
+    opportunities: [
+      ready('O-FORBIDDEN', 100, 'BUILD', {authority_class: 'SERVED_MUTATION'}),
+      ready('O-CANDIDATE', 10, 'VERIFY')
+    ]
+  });
+  assert.equal(result.selected.opportunity_id, 'O-CANDIDATE');
+  assert.ok(result.prepared_frontier.rejected.some(item => item.opportunity_id === 'O-FORBIDDEN' && item.reason === 'AUTHORITY_INCOMPATIBLE'));
+  assert.equal(result.invariants.no_authority_promotion, true);
+});
+
 test('falls back to context compilation before discovery when context quality blocks safe allocation', () => {
   const result = decideUniversalWorkerAction({
     signals: {
