@@ -60,7 +60,7 @@ test('thin grounded frontier compiles a first-class atomic Guide role without wo
 
 test('/wc refuses incomplete immutable pins and routes role_ready before recovery', () => {
   const wc=read('wc');
-  assert.ok(wc.includes('Candidate order: `ready` -> `queue_ready` -> `role_ready` -> `recovery`.'));
+  assert.ok(wc.includes('Candidate order for unbatched workers is `ready` -> `queue_ready` -> `role_ready` -> `recovery`'));
   assert.ok(wc.includes('candidate.claim_payload_shape'));
   assert.ok(wc.includes('ALLOCATOR_PIN_PAYLOAD_INVALID'));
   assert.ok(wc.includes('GUIDE_ROLE_PIN_CREATE'));
