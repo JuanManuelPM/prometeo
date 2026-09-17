@@ -6,18 +6,36 @@ const pad = n => String(n).padStart(6, '0');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function atomicPin(root, jobId, generation, workerId, predecessor = null) {
-  const dir = join(root, jobId);
+  const dir = join(root, 'pins', jobId);
   await mkdir(dir, { recursive: true });
   const path = join(dir, `G${pad(generation)}.json`);
   const doc = { job_id: jobId, generation, worker_id: workerId, predecessor_pin_ref: predecessor };
   try {
     await writeFile(path, JSON.stringify(doc), { flag: 'wx' });
-    return { won: true, path, doc };
+    return { won: true, path, doc, worker_id: workerId, generation };
   } catch (err) {
     if (err?.code !== 'EEXIST') throw err;
     const winner = JSON.parse(await readFile(path, 'utf8'));
-    return { won: false, path, winner };
+    return { won: false, path, winner, worker_id: workerId, generation };
   }
+}
+
+async function collisionReceipt(root, jobId, attempt) {
+  const dir = join(root, 'collisions', jobId);
+  await mkdir(dir, { recursive: true });
+  const path = join(dir, `${attempt.worker_id}-G${pad(attempt.generation)}.json`);
+  const doc = {
+    schema: 'prometeo.portfolio-pin-collision/v1',
+    job_id: jobId,
+    worker_id: attempt.worker_id,
+    attempted_generation: attempt.generation,
+    attempted_pin_ref: attempt.path,
+    winner_worker_id_or_null: attempt.winner?.worker_id || null,
+    host_result: 'CREATE_EXISTS_OR_CAS_LOST',
+    next_action: 'REENTER_ALLOCATION'
+  };
+  await writeFile(path, JSON.stringify(doc), { flag: 'wx' });
+  return { path, doc };
 }
 
 async function race(root, jobId, count, generation = 1, predecessor = null) {
@@ -31,13 +49,16 @@ async function race(root, jobId, count, generation = 1, predecessor = null) {
   if (winners.length !== 1) throw new Error(`${jobId}: expected 1 winner, got ${winners.length}`);
   if (losers.length !== count - 1) throw new Error(`${jobId}: expected ${count - 1} losers, got ${losers.length}`);
   if (losers.some(x => x.winner.worker_id !== winners[0].doc.worker_id)) throw new Error(`${jobId}: losers did not observe same winner`);
-  return { winners, losers };
+  const collisionReceipts = await Promise.all(losers.map(x => collisionReceipt(root, jobId, x)));
+  if (collisionReceipts.length !== losers.length) throw new Error(`${jobId}: collision receipt mismatch`);
+  return { winners, losers, collisionReceipts };
 }
 
 async function reenter(root, workerId, candidates) {
   for (const jobId of [...candidates].sort()) {
     const attempt = await atomicPin(root, jobId, 1, workerId);
     if (attempt.won) return { worker_id: workerId, job_id: jobId };
+    await collisionReceipt(root, jobId, attempt);
     await sleep(1);
   }
   return { worker_id: workerId, job_id: null };
@@ -54,7 +75,7 @@ function legacyWinner(rows) {
 const root = await mkdtemp(join(tmpdir(), 'prometeo-pin-'));
 const two = await race(root, 'job-two', 2);
 const twoLoser = two.losers[0];
-const twoReentry = await reenter(root, twoLoser.winner.worker_id === 'worker-1' ? 'worker-2' : 'worker-1', ['job-two-alt-b', 'job-two-alt-a']);
+const twoReentry = await reenter(root, twoLoser.worker_id, ['job-two-alt-b', 'job-two-alt-a']);
 if (twoReentry.job_id !== 'job-two-alt-a') throw new Error(`2-worker loser re-entry mismatch: ${twoReentry.job_id}`);
 
 const five = await race(root, 'job-five', 5);
@@ -81,8 +102,8 @@ if (recovery.winners[0].doc.predecessor_pin_ref !== predecessor) throw new Error
 
 console.log(JSON.stringify({
   ok: true,
-  two_worker: { winners: two.winners.length, losers: two.losers.length, loser_reentry: twoReentry.job_id },
-  five_worker: { winners: five.winners.length, losers: five.losers.length, loser_reentry_jobs: assigned.sort() },
-  recovery_five_worker: { winners: recovery.winners.length, losers: recovery.losers.length, predecessor_preserved: true },
+  two_worker: { winners: two.winners.length, losers: two.losers.length, collision_receipts: two.collisionReceipts.length, loser_reentry: twoReentry.job_id },
+  five_worker: { winners: five.winners.length, losers: five.losers.length, collision_receipts: five.collisionReceipts.length, loser_reentry_jobs: assigned.sort() },
+  recovery_five_worker: { winners: recovery.winners.length, losers: recovery.losers.length, collision_receipts: recovery.collisionReceipts.length, predecessor_preserved: true },
   legacy_winner: legacy.path
 }, null, 2));
