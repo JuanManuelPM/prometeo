@@ -1,0 +1,56 @@
+# CANDIDATE ONLY — deliberately stored outside .github/workflows.
+# Promotion/deployment requires a separate authority decision after GEN2 closed-loop proof.
+name: Prometeo Metabolism v1 (candidate)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'coordination/opportunities/claims/**'
+      - 'coordination/opportunities/runs/**'
+      - 'coordination/opportunities/returns/**'
+      - 'coordination/opportunities/proposals/**'
+      - 'coordination/opportunities/incidents/**'
+      - 'coordination/opportunities/*QUEUE*.json'
+  schedule:
+    - cron: '*/5 * * * *'
+
+concurrency:
+  group: prometeo-metabolism-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  metabolism:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test candidate
+        run: node tests/prometeo-metabolism-v1.test.mjs
+      - name: Pin source head
+        id: pin
+        run: echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Derive shadow outputs
+        run: node scripts/prometeo-metabolism-tick.mjs --head=${{ steps.pin.outputs.head }} --trigger=${{ github.event_name }}
+      - name: Fail closed on remote-main drift
+        run: |
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "${{ steps.pin.outputs.head }}" || {
+            echo "SOURCE_HEAD_DRIFT: recompute required"
+            exit 1
+          }
+      - name: Commit semantic changes only
+        run: |
+          git add coordination/workstreams/chat-native-control-plane-v1/generated/metabolism
+          git diff --cached --quiet && exit 0
+          git config user.name "prometeo-metabolism-candidate"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "derive Prometeo metabolism shadow state"
+          git push
