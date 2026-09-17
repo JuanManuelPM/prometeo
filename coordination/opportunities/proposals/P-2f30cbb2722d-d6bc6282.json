@@ -1,0 +1,100 @@
+{
+  "schema":"prometeo.worker-proposal/v1",
+  "proposal_id":"P-2f30cbb2722d-d6bc6282",
+  "fingerprint":"pdf-2f30cbb2722d860a60cd623c75535495",
+  "created_at":"2026-09-17T09:54:36-03:00",
+  "status":"CANDIDATE",
+  "source":{
+    "worker_instance_id":"wc-chat-20260917T0954-0300-sol56-recovery-race-discovery",
+    "opportunity_id":null,
+    "run_id":null,
+    "source_head_at_pin":"fb5f54471790848fcbe58f0950e8bafc39b9f188",
+    "runtime_epoch_observed":"P3-db7568bafe16"
+  },
+  "root":"project-prometeo-chat-control",
+  "title":"Serialize stale-recovery authority without losing append-only evidence",
+  "target":{
+    "artifact":"stale recovery exclusive reservation + collision detector",
+    "consumer":"universal /wc recovery allocator and independent verifier",
+    "subsystem":"stale-recovery-control-plane"
+  },
+  "problem":"The current stale-recovery protocol stores each recovery claim at a unique append-only filename. That preserves history but does not provide a single atomic exclusion point. On the live Page Thread Bridge gate, two workers independently passed preflight and created second-recovery claims eight seconds apart; multiple second-recovery runs were then persisted. Therefore 'no overlapping active recovery' is currently a read-time observation, not an atomic invariant, and the same candidate scope can acquire concurrent recovery writers.",
+  "live_falsification":{
+    "opportunity_id":"O-SWARM-PAGE-THREAD-BRIDGE-V1",
+    "claim_a":{
+      "ref":"coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/REC-O-SWARM-PAGE-THREAD-BRIDGE-V1-20260917T0951-SOL56R2.json",
+      "claimed_at":"2026-09-17T09:51:22-03:00",
+      "preflight":"newer_recovery_claim_found_at_preflight=false; overlapping_active_writer_evidence_found=false",
+      "write_mode":"CAS_CONTINUE"
+    },
+    "claim_b":{
+      "ref":"coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/REC-O-SWARM-PAGE-THREAD-BRIDGE-V1-20260917T0951-SOL56-R2.json",
+      "claimed_at":"2026-09-17T09:51:30-03:00",
+      "preflight":"overlapping_nonstale_recovery_found=false",
+      "write_mode":"APPEND_ONLY_TERMINALIZATION_RECOVERY"
+    },
+    "run_directory_ref":"coordination/opportunities/runs/O-SWARM-PAGE-THREAD-BRIDGE-V1/",
+    "observed_result":"The run directory contains multiple REC2/recovery runs created after the same stale predecessor. This is durable collision evidence, not a hypothetical race."
+  },
+  "mission":"Add a recovery-control primitive that preserves every append-only recovery attempt as evidence while atomically allowing at most one non-stale recovery attempt per opportunity to hold terminalization or candidate-mutation authority. Losing contenders must record collision/reload evidence and re-enter allocation instead of starting overlapping recovery work.",
+  "acceptance":[
+    "Concurrent recovery contenders for one opportunity cannot both obtain active mutation/terminalization authority.",
+    "Every contender may still leave append-only attempt/collision evidence; history is never deleted or overwritten.",
+    "A stale/expired reservation can be superseded only through the existing >=30 minute recovery policy plus CAS/expected-token semantics.",
+    "Late original/recovery returns remain reconcilable and are not discarded by the reservation mechanism.",
+    "A deterministic test launches at least two simultaneous contenders and proves exactly one ACTIVE_RECOVERY reservation winner while losers record collision/reload outcomes.",
+    "An independent verifier flags more than one non-stale recovery run with mutation authority for the same opportunity as FAIL, not as recovered collision success.",
+    "No Current, Human Accepted, Served or production /w promotion is implied."
+  ],
+  "candidate_design":{
+    "preferred_route":"Separate audit evidence from authority. Keep unique append-only recovery-claim files, but require an additional singleton per-opportunity recovery reservation acquired with create-if-absent/CAS. The reservation stores attempt_id, token, acquired_at, latest durable signal, source head/epoch and intended write class. Only its current token authorizes mutation/terminalization. On expiry, a successor CAS-replaces the reservation while preserving prior reservation snapshots/attempt claims.",
+    "alternative_route":"Use a deterministic recovery generation key derived from opportunity_id + stale predecessor run id and create exactly one claim at that deterministic path. Simpler, but less flexible for serial R2/R3 recoveries and lease turnover unless generation lineage is explicit.",
+    "rejected_route":"Continue using only unique timestamped recovery-claim filenames plus read-before-create directory scans. The live canary already falsified this under concurrent workers."
+  },
+  "evidence_refs":[
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/VERIFICATION_AND_CRITIC_CONTROL_V1.md",
+    "coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/REC-O-SWARM-PAGE-THREAD-BRIDGE-V1-20260917T0951-SOL56R2.json",
+    "coordination/opportunities/recovery-claims/O-SWARM-PAGE-THREAD-BRIDGE-V1/REC-O-SWARM-PAGE-THREAD-BRIDGE-V1-20260917T0951-SOL56-R2.json",
+    "coordination/opportunities/runs/O-SWARM-PAGE-THREAD-BRIDGE-V1/"
+  ],
+  "dependency_ids":[],
+  "candidate_read_scope":[
+    "coordination/workstreams/chat-native-control-plane-v1/STALE_RECOVERY_PROTOCOL_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/UNIVERSAL_COGNITIVE_WORKER_V1.md",
+    "coordination/workstreams/chat-native-control-plane-v1/VERIFICATION_AND_CRITIC_CONTROL_V1.md",
+    "coordination/opportunities/recovery-claims/**",
+    "coordination/opportunities/runs/**",
+    "scripts/tests implementing claim/recovery semantics"
+  ],
+  "candidate_write_scope":[
+    "coordination/opportunities/recovery-reservations/**",
+    "scripts/recovery-reservation-lib.mjs",
+    "tests/recovery-reservation-race-v1.test.mjs",
+    "tests/fixtures/recovery-reservation/**",
+    "own claim/run/return"
+  ],
+  "value_signals":{
+    "unblock_value":"High: stale recovery is a gate-removal mechanism used by many saturated /wc workers; duplicate recovery authority can turn recovery itself into write collision.",
+    "compounding_value":"High: one control primitive applies to every future stale opportunity and reduces duplicate work during large parallel waves.",
+    "information_gain":"High: this proposal is grounded in a live same-opportunity race with durable claims/runs rather than architecture speculation.",
+    "human_friction_reduction":"Prevents the human/guide from having to notice and reconcile duplicate recovery workers manually."
+  },
+  "privacy_class":"PUBLIC_COORDINATION_ONLY",
+  "fresh_critic_required":false,
+  "falsification":[
+    "Two simultaneous contenders can both obtain active recovery reservation tokens for one opportunity.",
+    "A losing contender starts candidate mutation/terminalization despite not owning the active reservation.",
+    "Reservation expiry permits takeover before stale-policy thresholds/evidence are satisfied.",
+    "The mechanism overwrites or deletes prior recovery claims/runs/returns.",
+    "The verifier treats duplicate active recovery writers as PASS."
+  ],
+  "dedup_note":"Existing work covers stale-recovery semantics and lease/retry implementation broadly, but the live Page Thread Bridge evidence demonstrates a narrower unclosed atomicity defect: unique append-only recovery claims do not serialize recovery authority. This candidate is the regression/control-plane fix for that observed race, not a replacement for the broader stale-recovery protocol.",
+  "authority_constraints":[
+    "CANDIDATE_ONLY",
+    "NO_CURRENT_HUMAN_ACCEPTED_SERVED_PROMOTION",
+    "NO_PRODUCTION_W_PROMOTION",
+    "CANDIDATE_SCOPE_IS_NOT_EXECUTION_AUTHORITY"
+  ]
+}
