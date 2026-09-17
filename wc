@@ -1,4 +1,4 @@
-PROMETEO UNIVERSAL COGNITIVE WORKER CANARY v3.19
+PROMETEO UNIVERSAL COGNITIVE WORKER CANARY v3.20
 
 Purpose: maximize useful durable work per launched chat. CLAIM NOW; THINK DEEPLY ONLY AFTER OWNERSHIP. Explicit contention fixtures may use a bounded timing-only barrier before the unchanged deterministic portfolio PIN race.
 
@@ -44,12 +44,12 @@ Before a PIN/claim, do ONLY this:
 1. Load this bootstrap.
 2. Load `coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md`.
 3. CREATE `coordination/workers/beacons/<worker_id>.json` and reuse that worker_id everywhere. Include `batch_id` and `expected_workers` when present in the human invocation. Retain the returned beacon commit SHA locally as `beacon_commit_sha` when the write tool exposes it; do not perform another read just to recover it.
-4. Read ONE allocator snapshot directly:
-   - preferred with GitHub connector: `gh-pages:live/allocator.json`
-   - fallback exact URL: `https://raw.githubusercontent.com/JuanManuelPM/prometeo/gh-pages/live/allocator.json`
-   Never web-search for it.
-5. Candidate order: `ready` -> `queue_ready` -> `role_ready` -> `recovery`. After choosing the first candidate, emit one best-effort `ROUTED` event to issue #22; failure does not alter the claim path.
-5b. Batched unified sharding: only when the HUMAN message contains `BATCH <batch_id> EXPECTED <n>` with `n > 1` and allocator exposes non-empty `batch_candidates`, use that precompiled array instead of walking lanes independently. Start at `hex(first hex nibble of beacon_commit_sha) mod batch_candidates.length`; after a collision advance cyclically to the next untried candidate in that unified array. This deliberately spreads a wave across direct execution + project Guides instead of burning all attempts inside a tiny `ready` lane. Unbatched workers preserve normal `ready -> queue_ready -> role_ready -> recovery`. If `beacon_commit_sha` is unavailable or its first character is not hexadecimal, use allocator order. No extra preclaim read or write.
+4. Read ONE compact claim frontier directly:
+   - preferred with GitHub connector: `gh-pages:live/claim-frontier.json`
+   - fallback exact URL: `https://raw.githubusercontent.com/JuanManuelPM/prometeo/gh-pages/live/claim-frontier.json`
+   Never web-search for it. `live/allocator.json` is diagnostics only and is FORBIDDEN on the ordinary preclaim path.
+5. Candidate order for unbatched workers is `ready` -> `queue_ready` -> `role_ready` -> `recovery`, filtering the compact frontier `candidates` by lane. After choosing the first candidate, emit one best-effort `ROUTED` event to issue #22; failure does not alter the claim path.
+5b. Batched unified sharding: only when the HUMAN message contains `BATCH <batch_id> EXPECTED <n>` with `n > 1`, use the compact frontier `candidates` as the precompiled unified array instead of walking lanes independently. Start at `parseInt(first 8 hex chars of beacon_commit_sha,16) mod candidates.length`; after a collision advance cyclically to the next untried candidate. This deliberately spreads a wave across direct execution + project Guides instead of burning all attempts inside a tiny lane. Unbatched workers preserve normal `ready -> queue_ready -> role_ready -> recovery`. If `beacon_commit_sha` is unavailable or its first 8 chars are not hexadecimal, use published order. No extra preclaim read or write.
 5a. Before any candidate-specific claim/barrier write, inspect only allocator-supplied `candidate.required_capabilities`. Compare them only with capabilities definitively known from the current tool/runtime surface. If any required capability is definitively absent, classify `CAPABILITY_MISMATCH_PRECLAIM`, skip that candidate without creating a PIN/claim/barrier entrant, and continue bounded candidate/lane selection. Unknown or ambiguous capability is NOT absence: proceed to the normal atomic claim and post-claim validation. Never read repository/project context to prove capability fit.
 6. Inspect the selected candidate's `claim_mode` only. Ordinary candidates attempt atomic CREATE immediately using the exact supplied claim path. NO directory archaeology first.
 7. For `PORTFOLIO_PIN_CREATE`, construct the immutable pin from `candidate.claim_payload_shape`. Fill only bounded placeholders (`<worker_id>`, `<now_iso>`, `<now_plus_10m_iso>`) and preserve allocator-supplied identity, generation, source_head and lineage. A valid `prometeo.portfolio-pin/v1` fast payload MUST contain: `schema`, `pin_id`, `job_id`, `dedupe_key`, `project_id`, `generation`, `worker_id`, `claim_id`, `claimed_at`, `expires_at`, `source_head`, `predecessor_pin_ref_or_null`, `predecessor_claim_ref_or_null`, `recovery_basis_or_null`.
@@ -85,7 +85,7 @@ A worker without PIN/claim owns nothing and creates NO recovery debt. A barrier 
 
 ## OPTIMISTIC CLAIM SAFETY
 
-Allocator entries are hints. Atomic create-if-absent is the race primitive.
+Claim-frontier entries are hints. Atomic create-if-absent is the race primitive.
 
 For ordinary portfolio work:
 `claim_path = coordination/portfolio/pins/<job_id>/G<generation_6d>.json`
