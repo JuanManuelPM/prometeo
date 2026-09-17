@@ -8,7 +8,7 @@ Purpose: once a coordination inefficiency is observed, explained, fixed and evid
 
 Prometeo may trade speed for correctness only when the exact risk requires it. It may not silently reintroduce known redundant work, repeated archaeology, human routing, duplicated reads, coordination starvation or fake liveness merely because a later prompt/protocol forgot an earlier optimization.
 
-Every accepted optimization becomes a RATC HET ITEM with:
+Every accepted optimization becomes a RATCHET ITEM with:
 - stable id;
 - scope/hot path;
 - observed waste/failure;
@@ -28,16 +28,16 @@ A successor mechanism may replace a ratchet item only when it preserves correctn
 - RETURN -> reallocation;
 - Live feed publication under commit bursts;
 - worker ownership projection/recovery;
+- `/g` reconstruction/hydration;
 - Guide planning/integration/rescate routing;
-- page request -> worker -> publish -> Live notification;
-- `/g` reconstruction when durable current state already exists.
+- page request -> worker -> publish -> Live notification.
 
 ## Monotonicity rule
 
 For a hot path, prefer in this order:
 1. precompute once centrally;
 2. read one bounded compiled/index artifact;
-3. attempt the authoritative atomic action;
+3. perform the authoritative action;
 4. only after ownership/load-bearing decision, expand context as needed.
 
 Do not make N disposable workers independently rediscover information that a compiler/steward can derive once.
@@ -62,7 +62,7 @@ Efficiency monitoring must not create a swarm whose main work is repairing waste
 Order of response to regression:
 1. compiler/static/CI correction with zero worker chats when possible;
 2. one deterministic deduped `GUIDE_RESCATE` job when model/runtime behavior requires reasoning;
-3. bounded verifier after the repair;
+3. one bounded verifier after the repair;
 4. never one repair worker per failed/surplus worker.
 
 Bare beacons/no-allocation workers are capacity evidence, not recovery debt.
@@ -71,15 +71,17 @@ Bare beacons/no-allocation workers are capacity evidence, not recovery debt.
 
 Any change touching a hot-path file must satisfy the ratchet checker. Current gated files include:
 - `wc`;
+- `g`;
 - `coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md`;
 - `coordination/workers/WORKER_REGISTRY_PROTOCOL_V1.md`;
 - `.github/workflows/live-feed.yml`;
 - allocator compiler/public `/wc` pointer;
+- runtime efficiency compiler;
 - this ratchet baseline/checker itself.
 
 The checker is intentionally conservative: it protects already-proven structural wins. Runtime metrics complement it; they do not excuse static regressions.
 
-## Runtime observation
+## Runtime sentinel
 
 The durable events already provide useful timing without exposing private chain-of-thought:
 - beacon timestamp;
@@ -88,14 +90,16 @@ The durable events already provide useful timing without exposing private chain-
 - RETURN timestamp;
 - heartbeat timestamps.
 
-From those, compute at least:
+`live/efficiency.json` compiles these into:
 - time-to-first-authority (TTFA);
 - no-allocation close time;
-- fraction of launches that get authority;
-- stale/recovery rate;
-- collision rate;
-- work/return duration;
-- allocator snapshot age at claim when available.
+- allocation rate;
+- stale/recovery pressure when available;
+- bounded recent launch evidence.
+
+The runtime measurement epoch is explicit (`runtime_baseline_activated_at`) and does not reset merely because the ratchet ledger is edited.
+
+A runtime status of `REGRESSION` requires a resolved sample before it is emitted. The snapshot also emits a deterministic regression fingerprint/dedupe key so a reasoning-based repair converges on ONE system rescue rather than one repair task per worker.
 
 Do not require private reasoning traces to optimize the system. Human screenshots can reveal hidden waste and should be converted into ratchet items when they expose a structural problem.
 
