@@ -308,10 +308,87 @@ export function recoveryBasisGate(job = {}) {
   };
 }
 
+export function authorityBoundaryGate(job = {}) {
+  const raw = job?.authority_gate;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { present: false, eligible: true, valid: true, reason: 'NO_AUTHORITY_GATE' };
+  }
+  const schema = String(raw.schema || '');
+  const gate = String(raw.gate || '').toUpperCase();
+  const status = String(raw.status || '').toUpperCase();
+  const boundaryReturnRef = typeof raw.boundary_return_ref === 'string' && raw.boundary_return_ref.trim() ? raw.boundary_return_ref.trim() : null;
+  const boundaryReturnedAt = raw.boundary_returned_at || null;
+  const openedAt = raw.opened_at || null;
+  const requiredKind = typeof raw.required_authority?.kind === 'string' && raw.required_authority.kind.trim()
+    ? raw.required_authority.kind.trim()
+    : null;
+  const satisfiedRef = typeof raw.satisfied_by_evidence_ref_or_null === 'string' && raw.satisfied_by_evidence_ref_or_null.trim()
+    ? raw.satisfied_by_evidence_ref_or_null.trim()
+    : null;
+  const satisfiedAt = raw.satisfied_at_or_null || null;
+  const base = {
+    present: true,
+    path: raw.path || null,
+    schema,
+    gate,
+    status,
+    boundary_return_ref: boundaryReturnRef,
+    boundary_returned_at: boundaryReturnedAt,
+    opened_at: openedAt,
+    required_authority: raw.required_authority || null,
+    satisfied_by_evidence_ref_or_null: satisfiedRef,
+    satisfied_at_or_null: satisfiedAt,
+    satisfied_ref_exists: raw.satisfied_ref_exists === true
+  };
+  const structurallyValid = (
+    schema === 'prometeo.portfolio-authority-gate/v1' &&
+    gate === 'NEW_AUTHORITY_GATE' &&
+    Boolean(boundaryReturnRef) &&
+    Boolean(requiredKind) &&
+    parseTime(openedAt) > 0
+  );
+  if (!structurallyValid) {
+    return { ...base, valid: false, eligible: false, reason: 'AUTHORITY_GATE_MALFORMED_FAIL_CLOSED' };
+  }
+  if (status === 'OPEN') {
+    return { ...base, valid: true, eligible: false, reason: 'AUTHORITY_DEBT_UNSATISFIED' };
+  }
+  if (status !== 'SATISFIED') {
+    return { ...base, valid: false, eligible: false, reason: 'AUTHORITY_GATE_MALFORMED_FAIL_CLOSED' };
+  }
+  const satisfiedMs = parseTime(satisfiedAt);
+  const boundaryMs = parseTime(boundaryReturnedAt);
+  const openedMs = parseTime(openedAt);
+  const satisfactionValid = Boolean(
+    satisfiedRef &&
+    raw.satisfied_ref_exists === true &&
+    satisfiedMs > 0 &&
+    satisfiedMs > openedMs &&
+    (!boundaryMs || satisfiedMs > boundaryMs)
+  );
+  if (!satisfactionValid) {
+    return { ...base, valid: false, eligible: false, reason: 'AUTHORITY_GATE_SATISFACTION_INVALID_FAIL_CLOSED' };
+  }
+  return { ...base, valid: true, eligible: true, reason: 'NEW_AUTHORITY_GATE_SATISFIED' };
+}
+
+function combinedRecoveryGate(job = {}) {
+  const authority = authorityBoundaryGate(job);
+  if (!authority.eligible) return { ...authority, gate_kind: 'authority' };
+  const sourceDebt = recoveryBasisGate(job);
+  return {
+    ...sourceDebt,
+    gate_kind: sourceDebt.eligible ? 'none' : 'source_debt',
+    authority_gate: authority.present ? authority : null
+  };
+}
+
 function compactPortfolio(feed, semantic, job, targetGeneration = null) {
   const current = finiteInt(job.pin_generation, 0);
   const recovery = semantic(job);
   const basisGate = recoveryBasisGate(job);
+  const authorityGate = authorityBoundaryGate(job);
+  const recoveryGate = combinedRecoveryGate(job);
   const next = targetGeneration ?? current + 1;
   const predecessor = current ? `coordination/portfolio/pins/${job.job_id}/G${g(current)}.json` : null;
   return {
@@ -330,6 +407,8 @@ function compactPortfolio(feed, semantic, job, targetGeneration = null) {
     claim_generation_mode: recovery.mode === 'fixed_generation' ? 'FIXED' : 'NEXT',
     recovery_semantics: recovery,
     recovery_basis_gate: basisGate,
+    authority_gate: authorityGate.present ? authorityGate : null,
+    recovery_gate: recoveryGate,
     claim_mode: 'PORTFOLIO_PIN_CREATE',
     claim_path: `coordination/portfolio/pins/${job.job_id}/G${g(next)}.json`,
     claim_payload_shape: {
@@ -356,6 +435,12 @@ function compactPortfolio(feed, semantic, job, targetGeneration = null) {
           capability_fingerprint: basisGate.basis.capability_fingerprint,
           basis_updated_at: basisGate.basis.updated_at,
           retry_trigger: basisGate.basis.retry_trigger
+        } : {}),
+        ...(authorityGate.present ? {
+          authority_gate_ref: authorityGate.path,
+          authority_boundary_return_ref: authorityGate.boundary_return_ref,
+          authority_satisfied_by_evidence_ref: authorityGate.satisfied_by_evidence_ref_or_null,
+          authority_satisfied_at: authorityGate.satisfied_at_or_null
         } : {})
       } : null
     },
@@ -659,6 +744,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
   const ready = jobs
     .filter(job => ['ready', 'partial'].includes(job.state))
     .filter(jobCapabilityRouteable)
+    .filter(job => authorityBoundaryGate(job).eligible)
     .filter(job => job.state !== 'partial' || recoveryBasisGate(job).eligible)
     .filter(job => {
       const semantics = semantic(job);
@@ -696,6 +782,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
     .filter(job => job.state === 'replaceable')
     .filter(jobCapabilityRouteable)
     .filter(job => semantic(job).valid && semantic(job).ordinary_next_generation_eligible)
+    .filter(job => authorityBoundaryGate(job).eligible)
     .filter(job => recoveryBasisGate(job).eligible)
     .sort(byPriority)
     .map(job => compactPortfolio(feed, semantic, job))
@@ -728,7 +815,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
     .filter(jobCapabilityRouteable)
     .filter(job => ['replaceable', 'partial'].includes(job.state))
     .filter(job => semantic(job).valid && semantic(job).ordinary_next_generation_eligible)
-    .map(job => ({ job, gate: recoveryBasisGate(job) }))
+    .map(job => ({ job, gate: combinedRecoveryGate(job) }))
     .filter(({ gate }) => !gate.eligible)
     .sort((a, b) => byPriority(a.job, b.job))
     .map(({ job, gate }) => ({
@@ -744,7 +831,8 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
       pin_generation: finiteInt(job.pin_generation, 0),
       latest_return: job.latest_return || null,
       reason: gate.reason,
-      recovery_basis: gate.basis,
+      recovery_basis: gate.basis || null,
+      authority_gate: gate.gate_kind === 'authority' ? gate : (gate.authority_gate || null),
       ordinary_next_generation_eligible: false
     }))
     .slice(0, 30);
