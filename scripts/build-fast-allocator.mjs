@@ -743,6 +743,10 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
     Math.ceil(Number(signals.young_active_pin_guard_fraction_of_recent_launches || 0.5) * recentBeacons.length)
   );
   const overloadGuard = recentBeacons.length >= 8 && youngActive >= guardMinimum;
+  const genericStarvationOverride = overloadGuard &&
+    genericCompatibleFrontier === 0 &&
+    capabilityPressure.specialized_total > 0 &&
+    unresolvedEvidence.length > 0;
 
   const existingRoleBusy = role => jobs.some(job => job.guide_role === role && ['ready', 'working', 'recovery', 'suspect', 'partial'].includes(job.state));
   const rolePinState = roleId => {
@@ -893,7 +897,7 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       priority: 170
     }));
   }
-  if (genericCompatibleFrontier < targetClaimable && unresolvedEvidence.length && !overloadGuard) {
+  if (genericCompatibleFrontier < targetClaimable && unresolvedEvidence.length && (!overloadGuard || genericStarvationOverride)) {
     roleReady.push(candidate({
       role: 'GUIDE_PLANNER',
       trigger: 'FRONTIER_THIN',
@@ -957,6 +961,7 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       generic_compatible_recovery: genericRecoveryPressure,
       recovery_capability_pressure: recoveryCapabilityPressure,
       overload_guard: overloadGuard,
+      generic_starvation_override: genericStarvationOverride,
       young_active: youngActive,
       unconsumed_returns: unconsumedReturnRefs.length,
       recent_no_allocation: recentNoAlloc.length,
