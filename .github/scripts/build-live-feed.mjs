@@ -87,6 +87,12 @@ for (const row of derivedRows) {
   arr.push({...row.doc, origin:'derived', source_path:row.path});
   derivedByProject.set(row.doc.project_id, arr);
 }
+const authorityGateRows = docs(portfolioFiles.filter(x=>/^coordination\/portfolio\/authority-gates\/[^/]+\.json$/.test(x)));
+const authorityGateByJob = new Map();
+for (const row of authorityGateRows) {
+  if (!row.doc?.job_id) continue;
+  authorityGateByJob.set(row.doc.job_id, row);
+}
 function mergeJobs(seed, derived) {
   const map = new Map();
   for (const job of [...seed.map(x=>({...x,origin:'seed'})), ...derived]) {
@@ -132,6 +138,26 @@ function compactSourceDebtReturn(row) {
     exact_matches: exactMatches
   };
 }
+function compactAuthorityGate(row) {
+  if (!row?.doc) return null;
+  const d = row.doc;
+  const satisfiedRef = typeof d.satisfied_by_evidence_ref_or_null === 'string' && d.satisfied_by_evidence_ref_or_null.trim()
+    ? d.satisfied_by_evidence_ref_or_null.trim()
+    : null;
+  return {
+    path: row.path,
+    schema: d.schema || null,
+    gate: d.gate || null,
+    status: d.status || null,
+    boundary_return_ref: d.boundary_return_ref || null,
+    boundary_returned_at: d.boundary_returned_at || null,
+    opened_at: d.opened_at || null,
+    required_authority: d.required_authority || null,
+    satisfied_by_evidence_ref_or_null: satisfiedRef,
+    satisfied_at_or_null: d.satisfied_at_or_null || null,
+    satisfied_ref_exists: satisfiedRef ? fs.existsSync(abs(satisfiedRef)) : false
+  };
+}
 function inspectPortfolioJob(project, job) {
   const id = job.job_id;
   const pins = docs(portfolioFiles.filter(x=>x.startsWith(`coordination/portfolio/pins/${id}/`))).sort((a,b)=>generation(a)-generation(b)||ms(a.doc)-ms(b.doc));
@@ -141,6 +167,7 @@ function inspectPortfolioJob(project, job) {
   const terminalReturn = [...returns].reverse().find(x=>terminal(x.doc, x.path)) || null;
   const latestReturn = returns.at(-1) || null;
   const latestSourceDebtReturn = [...returns].reverse().find(x=>Object.prototype.hasOwnProperty.call(x.doc || {}, 'source_debt')) || null;
+  const authorityGate = authorityGateByJob.get(id) || null;
   const latestPin = pins.at(-1) || null;
   let authority = null;
   let authorityMode = 'none';
@@ -176,6 +203,7 @@ function inspectPortfolioJob(project, job) {
     collision_count:collisions.length + Math.max(0, claims.length-(authority?1:0)),
     latest_return:latestReturn ? {path:latestReturn.path,outcome:first(latestReturn.doc.outcome,latestReturn.doc.status),summary:latestReturn.doc.summary||null,returned_at:timeOf(latestReturn.doc),worker_id:latestReturn.doc.worker_id||null} : null,
     latest_source_debt_return:compactSourceDebtReturn(latestSourceDebtReturn),
+    authority_gate:compactAuthorityGate(authorityGate),
     latest_pin_recovery_basis:latestPin?.doc?.recovery_basis_or_null || null,
     terminal_return:terminalReturn ? {path:terminalReturn.path,outcome:first(terminalReturn.doc.outcome,terminalReturn.doc.status),returned_at:timeOf(terminalReturn.doc),worker_id:terminalReturn.doc.worker_id||null} : null,
     recent_return_evidence:returns.slice(-3).map(r=>({path:r.path,outcome:first(r.doc.outcome,r.doc.status),returned_at:timeOf(r.doc)})),
