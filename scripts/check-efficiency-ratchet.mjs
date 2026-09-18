@@ -593,6 +593,7 @@ else {
   if (eff029.required?.dependent_source_debt_next_pin_stamps_provenance !== true) errors.push('ratchet: EFF029 dependent SOURCE_DEBT PIN provenance drift');
   if (eff029.required?.recursive_source_debt_evidence_traversal_forbidden !== true) errors.push('ratchet: EFF029 recursive SOURCE_DEBT traversal guard drift');
   if (eff029.required?.jose_v12_payload_dependency_fixture !== true) errors.push('ratchet: EFF029 Jose V12 payload dependency fixture drift');
+  if (eff029.required?.dependent_source_debt_compact_frontier_observable !== true) errors.push('ratchet: EFF029 dependent SOURCE_DEBT compact-frontier observability drift');
 }
 
 must('fast-allocator', allocator, 'recoveryBasisGate');
@@ -629,12 +630,15 @@ must('source-debt-recovery-test', sourceDebtRecoveryTest, 'portfolio-jose-v12-pi
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'dependent SOURCE_DEBT must suppress time-only recovery');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'source_debt_dependency');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'source_debt_dependency_return_ref');
+must('source-debt-recovery-test', sourceDebtRecoveryTest, 'compact claim frontier must keep dependent SOURCE_DEBT observable');
 
 const claimFrontier = read(root, 'scripts/build-claim-frontier.mjs');
 must('claim-frontier', claimFrontier, "schema:'prometeo.claim-frontier/v1'");
 must('claim-frontier', claimFrontier, 'DEFAULT_MAX_CANDIDATES = 24');
 must('claim-frontier', claimFrontier, 'DEFAULT_MAX_SERIALIZED_BYTES = 24_000');
 must('claim-frontier', claimFrontier, "'source_path'");
+must('claim-frontier', claimFrontier, 'recovery_attention:recoveryAttention');
+must('claim-frontier', claimFrontier, 'source_debt_ref');
 must('claim-frontier', claimFrontier, 'claim_payload_shape');
 must('claim-frontier', claimFrontier, "fs.writeFileSync(outPath,JSON.stringify(out)+'\\n')");
 const claimFrontierTest = read(root, 'coordination/portfolio/tests/claim_frontier_compact_v1.mjs');
