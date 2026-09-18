@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-18T18:33:30Z",
+  "updated_at": "2026-09-18T18:34:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -1360,6 +1360,38 @@
         "coordination/workers/no-allocation/wc-20260918T182400Z-gpt56sol-prod01-a7f3.json",
         "coordination/workers/no-allocation/wc-prod01-20260918T182440Z-sol.json",
         "gh-pages:live/allocator.json#metabolism.capability_pressure"
+      ]
+    },
+    {
+      "id": "EFF047",
+      "title": "Already-owned Guide role paths never enter compact claim frontier",
+      "scope": [
+        "allocator",
+        "guide",
+        "worker-allocation",
+        "claim-frontier"
+      ],
+      "observed_failure": "A stale compact claim frontier exposed two role_ready G000001 paths whose immutable Guide PIN files already existed, forcing fresh PROD-01 workers to burn two CREATE_EXISTS authority attempts before the bounded stale-refresh rule could help.",
+      "invariant": "Before compact frontier publication, the existing Guide-pin suppression stage removes any role_ready candidate whose exact immutable claim_path is already materialized. Fresh role successors remain claimable, cross-fingerprint GUIDE_RESCATE suppression remains intact, specialized execution work is untouched, and workers gain no extra preclaim read.",
+      "required": {
+        "exact_existing_guide_claim_path_suppressed_pre_publish": true,
+        "suppression_stage": "scripts/suppress-concurrent-guide-rescate.mjs",
+        "claim_path_match": "EXACT_IMMUTABLE_PATH",
+        "fresh_role_successor_preserved": true,
+        "guide_rescate_cross_fingerprint_suppression_preserved": true,
+        "specialized_execution_candidates_preserved": true,
+        "worker_preclaim_extra_reads": 0,
+        "atomic_create_authority_preserved": true,
+        "max_fast_claim_attempts": 3,
+        "stale_collision_refresh_law_preserved": true,
+        "regression_test": "coordination/portfolio/tests/role_ready_claim_path_suppression_v1.mjs",
+        "workflow_guard": ".github/workflows/live-feed.yml"
+      },
+      "status": "STATIC_GUARDED_PENDING_RUNTIME",
+      "evidence": [
+        "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-claim-frontier-stale-role-collision-refresh-v1.json",
+        "gh-pages:live/claim-frontier.json@blob:6ee446b3acf8279bdd5892ab69b9c8ac331854fb",
+        "coordination/portfolio/pins/portfolio-claim-frontier-stale-role-collision-refresh-v1/G000001.json"
       ]
     }
   ],
