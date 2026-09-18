@@ -69,9 +69,9 @@ Prefer cheap useful ownership before stale recovery:
 
 Reason: clean execution should win first; if the materialized frontier thins while unresolved work/returns/bottlenecks remain, the compiler makes that latent cognition claimable before disposable workers are sent into stale recovery or falsely conclude there is no work.
 
-## Batched unified candidate sharding
+## Batched / pooled unified candidate sharding
 
-When the HUMAN invocation contains `BATCH <batch_id> EXPECTED <n>` with `n > 1`, concurrent identical workers MUST shard over the compact frontier `candidates` array instead of independently restarting lane traversal.
+When the HUMAN invocation contains `BATCH <batch_id> EXPECTED <n>` with `n > 1` OR `POOL <pool_id>`, concurrent identical workers MUST shard over the compact frontier `candidates` array instead of independently restarting lane traversal.
 
 ### Explicit batch contention fan-in exception
 
@@ -95,7 +95,7 @@ Then apply normal unified sharding:
 - If `batch_compatible_candidates` is empty, attempt no authority CREATE; bounded capability-mismatch exhaustion may close `NO_ALLOCATION` without manufacturing a collision.
 - After `CREATE_EXISTS`, advance cyclically to the next untried candidate in that same filtered unified view, while preserving the existing maximum of 3 authority CREATE attempts. `BRANCH_HEAD_MOVED` is transport/CAS stabilization, not a candidate collision; apply the bounded same-path retry below before advancing.
 - Do not re-impose lane priority locally for a batched worker: the compiler already selected and ordered the product / Guide mesh represented by `candidates`.
-- Unbatched workers preserve normal allocator lane order: `ready -> queue_ready -> role_ready -> recovery`.
+- Invocations that are neither a multi-worker batch nor a pool preserve normal allocator lane order: `ready -> queue_ready -> role_ready -> recovery`.
 - If `beacon_commit_sha` is unavailable or its first 8 characters are not hexadecimal, preserve the published `candidates` order.
 - Sharding itself is local ordering over the one allocator snapshot already read: no extra preclaim read or write, no extra claim attempt, no authority change. Capability filtering is also local and stable: it may remove only definitively incompatible candidates before the hash, never reorder survivors, and never treat unknown capability as absent. The only bounded pre-shard write exception is the explicit no-authority `batch_contention_fanin` path above.
 
