@@ -61,6 +61,15 @@ const median = nums => {
   const m = Math.floor(a.length/2);
   return a.length % 2 ? a[m] : Math.round((a[m-1]+a[m])/2);
 };
+const compactRequiredCapabilities = value => {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value
+    .filter(v => typeof v === 'string')
+    .map(v => v.trim())
+    .filter(Boolean))]
+    .slice(0, 6)
+    .map(v => v.slice(0, 80));
+};
 
 const portfolioFiles = walk('coordination/portfolio').filter(x=>x.endsWith('.json'));
 const opportunityFiles = walk('coordination/opportunities').filter(x=>x.endsWith('.json'));
@@ -193,6 +202,7 @@ function inspectPortfolioJob(project, job) {
     ...job,
     project_id:project.project_id,
     project_label:project.label,
+    required_capabilities:compactRequiredCapabilities(job.required_capabilities),
     state,
     owner,
     authority_mode:authorityMode,
@@ -314,9 +324,20 @@ const reconciledNonterminalReturnRefs=docs(
   portfolioFiles.filter(x=>x.startsWith('coordination/portfolio/return-reconciliations/'))
 ).filter(r=>r.doc?.effect==='NONTERMINAL_ROUTE_ABORT'&&r.doc?.return_ref).map(r=>r.doc.return_ref);
 const reproduction=buildGroundedReproductionMetric(jobs,{excluded_return_refs:reconciledNonterminalReturnRefs});
+const unresolvedCapabilityJobs=jobs.filter(j=>j.state!=='done'&&Array.isArray(j.required_capabilities)&&j.required_capabilities.length);
+const capabilityRequirementCounts={};
+for(const job of unresolvedCapabilityJobs){
+  for(const capability of job.required_capabilities){
+    capabilityRequirementCounts[capability]=(capabilityRequirementCounts[capability]||0)+1;
+  }
+}
+const capabilityRequirements=Object.entries(capabilityRequirementCounts)
+  .sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))
+  .slice(0,12)
+  .map(([capability,count])=>({capability,count}));
 const summary={
   workers:{seen:workers.length,working:workers.filter(w=>['working','recovery'].includes(w.status)).length,suspect:workers.filter(w=>w.status==='suspect').length,replaceable:workers.filter(w=>['replaceable','silent'].includes(w.status)).length,allocating:workers.filter(w=>w.status==='allocating').length,finished:workers.filter(w=>!!w.end_at).length,collisions:workers.reduce((n,w)=>n+(w.collision_count||0),0)},
-  portfolio:{projects:projects.length,jobs:jobs.length,ready:jobs.filter(j=>['ready','partial'].includes(j.state)).length,working:jobs.filter(j=>['working','recovery'].includes(j.state)).length,suspect:jobs.filter(j=>j.state==='suspect').length,replaceable:jobs.filter(j=>j.state==='replaceable').length,done:jobs.filter(j=>j.state==='done').length,collisions:jobs.reduce((n,j)=>n+j.collision_count,0),derived:jobs.filter(j=>j.origin==='derived').length,terminal_returns:jobs.filter(j=>j.terminal_return).length,reproduction},
+  portfolio:{projects:projects.length,jobs:jobs.length,ready:jobs.filter(j=>['ready','partial'].includes(j.state)).length,working:jobs.filter(j=>['working','recovery'].includes(j.state)).length,suspect:jobs.filter(j=>j.state==='suspect').length,replaceable:jobs.filter(j=>j.state==='replaceable').length,done:jobs.filter(j=>j.state==='done').length,collisions:jobs.reduce((n,j)=>n+j.collision_count,0),derived:jobs.filter(j=>j.origin==='derived').length,terminal_returns:jobs.filter(j=>j.terminal_return).length,capability_required:unresolvedCapabilityJobs.length,capability_requirements:capabilityRequirements,reproduction},
   queues:{plans:plans.length,working:plans.reduce((n,p)=>n+p.working,0),remaining:plans.reduce((n,p)=>n+p.remaining,0),returned:plans.reduce((n,p)=>n+p.done,0)}
 };
 
