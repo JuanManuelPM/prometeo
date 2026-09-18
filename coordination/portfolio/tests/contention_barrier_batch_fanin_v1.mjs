@@ -1,7 +1,24 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { applyContentionBarrierRouting, selectReleaseCohort } from '../../../scripts/apply-fast-allocator-contention-barriers.mjs';
 import { buildClaimFrontier } from '../../../scripts/build-claim-frontier.mjs';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const baseline = JSON.parse(fs.readFileSync(path.join(repoRoot, 'coordination/efficiency/RATCHET_BASELINE_V1.json'), 'utf8'));
+const eff014 = baseline.items?.find(item=>item.id==='EFF014');
+const eff021 = baseline.items?.find(item=>item.id==='EFF021');
+assert(eff014 && eff021);
+assert.equal(eff014.required?.batch_wide_fanin_before_sharding,true);
+assert.equal(eff014.required?.exact_release_cohort_size,true);
+assert.equal(eff014.required?.release_membership_gates_pin,true);
+assert.equal(eff014.required?.late_extra_pin_forbidden,true);
+assert.equal(eff014.required?.batch_fanin_regression_test,'coordination/portfolio/tests/contention_barrier_batch_fanin_v1.mjs');
+assert.equal(eff021.required?.explicit_barrier_fanin_exception_before_shard,true);
+assert.equal(eff021.required?.fanin_grants_execution_authority,false);
+assert.equal(eff021.required?.ordinary_batches_zero_barrier_coordination,true);
 
 const baseCandidate = (jobId='fanin-fixture') => ({
   lane:'ready',
@@ -130,9 +147,13 @@ const overfullRelease = {...release, entrant_worker_ids:workers.slice(0,6)};
 const overfull = applyContentionBarrierRouting(allocator,[barrier(overfullRelease,workers)],'2026-09-18T01:01:10Z');
 assert.equal(overfull.ready[0].claim_mode,'PORTFOLIO_BARRIER_ENTER');
 
-const wrongCohortRelease = {...release, entrant_worker_ids:workers.slice(1,6)};
-const wrongCohort = applyContentionBarrierRouting(allocator,[barrier(wrongCohortRelease,workers)],'2026-09-18T01:01:10Z');
-assert.equal(wrongCohort.ready[0].claim_mode,'PORTFOLIO_BARRIER_ENTER');
+const unknownEntrantRelease = {...release, entrant_worker_ids:[...workers.slice(0,4),'not-a-valid-entrant'].sort()};
+const unknownEntrant = applyContentionBarrierRouting(allocator,[barrier(unknownEntrantRelease,workers)],'2026-09-18T01:01:10Z');
+assert.equal(unknownEntrant.ready[0].claim_mode,'PORTFOLIO_BARRIER_ENTER');
+
+const unsortedRelease = {...release, entrant_worker_ids:[...cohort].reverse()};
+const unsorted = applyContentionBarrierRouting(allocator,[barrier(unsortedRelease,workers)],'2026-09-18T01:01:10Z');
+assert.equal(unsorted.ready[0].claim_mode,'PORTFOLIO_BARRIER_ENTER');
 
 // Ordinary batches incur no fan-in coordination and preserve direct PIN sharding.
 const ordinaryOnly = {
