@@ -1,0 +1,51 @@
+{
+  "schema": "prometeo.guide-receipt/v1",
+  "guide_work_id": "guide-rescate-81ec9a499286",
+  "receipt_id": "receipt-guide-rescate-81ec9a499286-wc-prod01-20260918T1200Z-gpt56sol-5c8e2a-G000001",
+  "worker_id": "wc-prod01-20260918T1200Z-gpt56sol-5c8e2a",
+  "role": "GUIDE_RESCATE",
+  "created_at": "2026-09-18T12:04:30Z",
+  "trigger": "LOW_YIELD",
+  "evidence": [
+    "coordination/guide/pins/guide-rescate-81ec9a499286/G000001.json@b865ff547a976e678873be6184ecb7dac7556755",
+    "coordination/workers/no-allocation/gpt56sol-20260918T115543Z-b246446b46.json",
+    "coordination/workers/no-allocation/gpt56sol-20260918T115600Z-prod01-a83c.json",
+    "coordination/workers/no-allocation/wc-20260918T115700Z-gpt56sol-a1.json",
+    "main:scripts/build-claim-frontier.mjs@f1b6a01a41461c4d6e1068633d50376e4a2d89d6",
+    "main:coordination/portfolio/tests/claim_frontier_compact_v1.mjs@b999203bb2a3e0d0cf8d148bb8158b5be563bb27",
+    "main:coordination/efficiency/RATCHET_BASELINE_V1.json@d5210e28d98c8798720d584a392aecd37973aaf6",
+    "main:scripts/check-efficiency-ratchet.mjs@01337e95b3648fc405fd545ca6e1d24c7a4bc016",
+    "gh-pages:live/claim-frontier.json@af97464fab3fc42f657a62b5dddf61a2bd90d5d5"
+  ],
+  "diagnosis": "Two of the three LOW_YIELD no-allocation signals were zero-authority closures caused by connector truncation of a 24-candidate claim frontier; a third exhausted three already-owned candidates. While this role was active, an independent rescue landed a byte-bounded/minified claim-frontier compiler and ratchet/checker alignment, so repeating that mutation would create duplicate control-plane work.",
+  "intervention": "Reconciled the concurrent repair instead of duplicating it and exercised the newly published transport envelope through the same GitHub connector path that had produced truncation. The fresh gh-pages frontier generated at 2026-09-18T12:03:55.872Z was retrieved and parsed completely with candidate_count=18, candidate_total=22 and transport_bytes_max=24000. This is bounded runtime evidence for the repaired transport path; no Current/Human Accepted/Served promotion is inferred.",
+  "created_jobs": [],
+  "consumed_returns": [],
+  "changed_paths": [],
+  "tests": [
+    {
+      "kind": "FRESH_PUBLISHED_FRONTIER_CONNECTOR_READ",
+      "result": "PASS",
+      "evidence": "gh-pages:live/claim-frontier.json@af97464fab3fc42f657a62b5dddf61a2bd90d5d5",
+      "checks": [
+        "generated_at=2026-09-18T12:03:55.872Z",
+        "candidate_count=18",
+        "candidate_total=22",
+        "transport_bytes_max=24000",
+        "connector returned complete parseable JSON"
+      ]
+    },
+    {
+      "kind": "CONCURRENT_REPAIR_RECONCILIATION",
+      "result": "PASS",
+      "checks": [
+        "compiler has 24000-byte serialized transport budget and minified publication",
+        "frontier regression test covers byte-budget trimming",
+        "EFF023 baseline target_max_bytes is 24000",
+        "efficiency checker references current compact-frontier constants/tests",
+        "duplicate mutation intentionally avoided"
+      ]
+    }
+  ],
+  "remaining_boundary": "One successful fresh connector read is runtime evidence for this transport path but not independent reproduction across several workers. Keep EFF023 promotion conservative until repeated fresh pool workers close without ALLOCATOR_READ_TRUNCATED_* under the repaired publication."
+}
