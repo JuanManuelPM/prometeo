@@ -107,6 +107,8 @@ At most 3 atomic candidate attempts are allowed for races/stale hints.
 
 After 2 `CREATE_EXISTS` outcomes in the same lane, the next attempt MUST come from the next non-empty lane in allocator order. Do not spend all three attempts colliding against one stale/crowded snapshot segment while `role_ready` or another useful lane is available.
 
+**PROVEN-STALE COLLISION REFRESH:** the ordinary hot path still reads ONE compact claim-frontier snapshot. If that snapshot was already >90 seconds old at first read and two real authority CREATE attempts return `CREATE_EXISTS`, reload exactly `gh-pages:live/claim-frontier.json` once before the remaining third authority CREATE. Rebuild capability filtering from the refreshed snapshot; for BATCH/POOL reuse the original `beacon_commit_sha` and deterministic shard rule. The refresh never raises the three-attempt ceiling, never permits directory/project archaeology, never reads `live/allocator.json`, and never turns stale recovery into claimable work. Never refresh after `CLAIM_TRANSPORT_BLOCKED` or `CLAIM_TRANSPORT_AMBIGUOUS`; `BRANCH_HEAD_MOVED` remains governed only by its same-path stabilization rule.
+
 An explicit authorization/safety denial is different: `CLAIM_TRANSPORT_BLOCKED` stops immediately. An unclassified bounded write failure is `CLAIM_TRANSPORT_AMBIGUOUS`; it may use at most ONE transport diversion to a different claim path from the already-loaded compatible candidates, never the denied/current action again.
 
 ### Branch-ref CAS stabilization
