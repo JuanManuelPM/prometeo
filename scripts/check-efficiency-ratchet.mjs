@@ -409,7 +409,7 @@ if (currentMission.status !== 'ACTIVE_BINDING') errors.push('current-mission: st
 if (currentMission?.operating_mode?.mode !== 'ROLLING_POOL') errors.push('current-mission: rolling pool mode drift');
 if (currentMission?.operating_mode?.pool_id !== 'PROD-01') errors.push('current-mission: pool id drift');
 if (currentMission?.guide_takeover_canary?.canary_id !== 'TKV1') errors.push('current-mission: takeover canary id drift');
-if (currentMission?.guide_takeover_canary?.status !== 'PENDING_FRESH_CHAT_EXECUTION') errors.push('current-mission: takeover canary status drift');
+if (currentMission?.guide_takeover_canary?.status !== 'ARMED_FOR_FRESH_CHAT') errors.push('current-mission: takeover canary status drift');
 if (currentMission?.continuity_verification?.quality_takeover_canary !== 'PENDING_TKV1') errors.push('current-mission: quality canary truth drift');
 const takeoverSpec = JSON.parse(read(root, 'coordination/guide/GUIDE_TAKEOVER_CANARY_V1.json'));
 if (takeoverSpec.canary_id !== 'TKV1' || takeoverSpec.trigger_token !== 'TAKEOVER CANARY TKV1') errors.push('guide-takeover: spec identity drift');
