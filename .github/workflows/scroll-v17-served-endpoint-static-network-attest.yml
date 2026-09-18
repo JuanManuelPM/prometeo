@@ -1,0 +1,50 @@
+name: Scroll v17 served endpoint static network attest
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/portfolio/verification-requests/scroll-v17-served-endpoint-static-network-attest/**'
+      - '.github/workflows/scroll-v17-served-endpoint-static-network-attest.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  attest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout public gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          fetch-depth: 1
+      - name: Fetch served Scroll v17 and compare exact bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://juanmanuelpm.github.io/prometeo/demos/pinterest-push-scroll-v1/'
+          EXPECTED='site/demos/pinterest-push-scroll-v1/index.html'
+          SERVED='/tmp/scroll-v17-served.html'
+          test -f "$EXPECTED"
+          curl -L --fail --show-error --silent             --retry 4 --retry-delay 2 --retry-all-errors             --connect-timeout 10 --max-time 30             "$URL" -o "$SERVED"
+          EXPECTED_BYTES="$(wc -c < "$EXPECTED" | tr -d ' ')"
+          SERVED_BYTES="$(wc -c < "$SERVED" | tr -d ' ')"
+          EXPECTED_SHA256="$(sha256sum "$EXPECTED" | awk '{print $1}')"
+          SERVED_SHA256="$(sha256sum "$SERVED" | awk '{print $1}')"
+          echo "SCROLL_V17_URL=$URL"
+          echo "SCROLL_V17_EXPECTED_BYTES=$EXPECTED_BYTES"
+          echo "SCROLL_V17_SERVED_BYTES=$SERVED_BYTES"
+          echo "SCROLL_V17_EXPECTED_SHA256=$EXPECTED_SHA256"
+          echo "SCROLL_V17_SERVED_SHA256=$SERVED_SHA256"
+          cmp -s "$EXPECTED" "$SERVED"
+          grep -Fq '<title>Push Scroll — Square Chapters v17</title>' "$SERVED"
+          test "$(grep -o 'class="chapter"' "$SERVED" | wc -l | tr -d ' ')" = '4'
+          test "$(grep -o 'class="number-track"' "$SERVED" | wc -l | tr -d ' ')" = '4'
+          test "$(grep -o 'class="chapter-number"' "$SERVED" | wc -l | tr -d ' ')" = '4'
+          grep -Fq '.chapter::before' "$SERVED"
+          grep -Eq 'position:[[:space:]]*sticky' "$SERVED"
+          echo 'SCROLL_V17_SERVED_ATTEST=PASS'
