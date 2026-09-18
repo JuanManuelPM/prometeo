@@ -751,6 +751,24 @@ else {
   if (eff033.required?.evaluation_pauses_pool !== false) errors.push('ratchet: EFF033 evaluation pause drift');
 }
 
+const eff043 = baseline.items?.find(item => item.id === 'EFF043');
+if (!eff043) errors.push('ratchet: EFF043 missing');
+else {
+  if (eff043.required?.overload_guard_preserved !== true) errors.push('ratchet: EFF043 overload guard drift');
+  if (eff043.required?.specialized_only_zero_generic_override !== true) errors.push('ratchet: EFF043 starvation override drift');
+  if (eff043.required?.generic_compatible_clean_frontier_equals !== 0) errors.push('ratchet: EFF043 zero-generic gate drift');
+  if (eff043.required?.specialized_clean_frontier_required !== true) errors.push('ratchet: EFF043 specialized-frontier gate drift');
+  if (eff043.required?.unresolved_evidence_required !== true) errors.push('ratchet: EFF043 unresolved-evidence gate drift');
+  if (eff043.required?.planner_trigger !== 'FRONTIER_THIN') errors.push('ratchet: EFF043 planner trigger drift');
+  if (eff043.required?.existing_generic_frontier_preserves_guard !== true) errors.push('ratchet: EFF043 guard-preservation drift');
+  if (eff043.required?.regression_test !== 'coordination/portfolio/tests/fast_allocator_capability_fit_v1.mjs') errors.push('ratchet: EFF043 regression-test drift');
+  must('fast-allocator', allocator, 'genericStarvationOverride');
+  must('fast-allocator', allocator, 'generic_starvation_override: genericStarvationOverride');
+  const eff043Test = read(root, 'coordination/portfolio/tests/fast_allocator_capability_fit_v1.mjs');
+  must('EFF043 regression test', eff043Test, 'GENERIC_STARVATION_OVERRIDE_PASS');
+  must('EFF043 regression test', eff043Test, 'zero generic-compatible work must keep one evidence-backed FRONTIER_THIN planner claimable');
+}
+
 const eff042 = baseline.items?.find(item => item.id === 'EFF042');
 if (!eff042) errors.push('ratchet: EFF042 missing');
 else {
