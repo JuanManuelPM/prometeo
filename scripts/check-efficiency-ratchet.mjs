@@ -127,7 +127,7 @@ if (retainedCandidatePayloadItem?.required?.collision_advance_requires_no_reread
 if (retainedCandidatePayloadItem?.required?.payload_fabrication_forbidden !== true) errors.push('baseline: EFF035 payload fabrication guard drift');
 const humanDecisionPlannerItem = baseline?.items?.find(x=>x.id==='EFF036');
 if (humanDecisionPlannerItem?.required?.project_guide_human_decision_gate !== true) errors.push('baseline: EFF036 human-decision planner gate must be true');
-if (JSON.stringify(humanDecisionPlannerItem?.required?.statuses) !== JSON.stringify(['VERIFIED_CANDIDATE_AWAITING_REVIEW'])) errors.push('baseline: EFF036 status allowlist drift');
+if (JSON.stringify(humanDecisionPlannerItem?.required?.statuses) !== JSON.stringify(['VERIFIED_CANDIDATE_AWAITING_REVIEW','HUMAN_DECISION_GATE'])) errors.push('baseline: EFF036 status allowlist drift');
 if (humanDecisionPlannerItem?.required?.require_empty_frontier_refs !== true) errors.push('baseline: EFF036 empty-frontier predicate drift');
 if (humanDecisionPlannerItem?.required?.required_blocker_prefix !== 'HUMAN_DECISION_GATE:') errors.push('baseline: EFF036 blocker prefix drift');
 if (humanDecisionPlannerItem?.required?.suppress_trigger !== 'PROJECT_FRONTIER_THIN') errors.push('baseline: EFF036 trigger drift');
@@ -267,7 +267,7 @@ if (projectGuideMesh.worker_chain_same_project_soft_cap !== 2) errors.push('proj
 if (projectGuideMesh?.worker_residency?.early_exit_with_compatible_frontier_forbidden !== true) errors.push('project-guide-mesh: resident early-exit law drift');
 if (projectGuideMesh?.assist_protocol?.max_children_per_owned_job !== 2) errors.push('project-guide-mesh: assist child bound drift');
 if (projectGuideMesh?.human_decision_planner_gate?.enabled !== true) errors.push('project-guide-mesh: human decision planner gate must stay enabled');
-if (JSON.stringify(projectGuideMesh?.human_decision_planner_gate?.statuses) !== JSON.stringify(['VERIFIED_CANDIDATE_AWAITING_REVIEW'])) errors.push('project-guide-mesh: human decision status allowlist drift');
+if (JSON.stringify(projectGuideMesh?.human_decision_planner_gate?.statuses) !== JSON.stringify(['VERIFIED_CANDIDATE_AWAITING_REVIEW','HUMAN_DECISION_GATE'])) errors.push('project-guide-mesh: human decision status allowlist drift');
 if (projectGuideMesh?.human_decision_planner_gate?.require_empty_frontier_refs !== true) errors.push('project-guide-mesh: human decision empty frontier predicate drift');
 if (projectGuideMesh?.human_decision_planner_gate?.required_blocker_prefix !== 'HUMAN_DECISION_GATE:') errors.push('project-guide-mesh: human decision blocker prefix drift');
 const examSpec = JSON.parse(read(root, 'coordination/workers/WORKER_PRODUCTIVITY_EXAM_V1.json'));
