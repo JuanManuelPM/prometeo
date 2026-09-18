@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048','EFF050']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -977,6 +977,21 @@ const branchHeadRetryTest = read(root, 'coordination/portfolio/tests/claim_branc
 must('branch-head-retry-test', branchHeadRetryTest, 'CLAIM_BRANCH_HEAD_MOVE_RETRY_PASS');
 const sourceDebtPlannerTest = read(root, 'coordination/portfolio/tests/project_guide_source_debt_gate_v1.mjs');
 must('source-debt-planner-test', sourceDebtPlannerTest, 'PROJECT_GUIDE_SOURCE_DEBT_GATE_PASS');
+const httpVsRepresentativeJsItem = baseline?.items?.find(x=>x.id==='EFF050');
+if (!httpVsRepresentativeJsItem) errors.push('ratchet: EFF050 missing');
+else {
+  if (httpVsRepresentativeJsItem.required?.http_navigation_satisfies_representative_js_browser !== false) errors.push('ratchet: EFF050 HTTP-vs-JS truth drift');
+  if (httpVsRepresentativeJsItem.required?.absence_of_javascript_dom_execution_tool_is_definitive_absence !== true) errors.push('ratchet: EFF050 definitive-absence drift');
+  if (httpVsRepresentativeJsItem.required?.unknown_unrelated_capability_is_not_absence !== true) errors.push('ratchet: EFF050 unknown-is-not-absence drift');
+  if (httpVsRepresentativeJsItem.required?.capability_mismatch_preclaim_zero_authority_attempts !== true) errors.push('ratchet: EFF050 preclaim-attempt drift');
+  if (httpVsRepresentativeJsItem.required?.jose_v12_web_fetch_only_fixture !== true) errors.push('ratchet: EFF050 Jose fixture drift');
+  if (httpVsRepresentativeJsItem.required?.representative_js_profile_remains_eligible !== true) errors.push('ratchet: EFF050 representative-JS eligibility drift');
+  if (httpVsRepresentativeJsItem.required?.regression_test !== 'coordination/portfolio/tests/fast_allocator_capability_fit_v1.mjs') errors.push('ratchet: EFF050 regression-test drift');
+}
+const wcHttpVsJsContract = read(root, 'wc');
+const fastHttpVsJsContract = read(root, 'coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md');
+must('EFF050 wc', wcHttpVsJsContract, 'HTTP/search/fetch/navigation alone never satisfies `representative_javascript_browser`');
+must('EFF050 fast allocation', fastHttpVsJsContract, 'HTTP/search/fetch/navigation alone never satisfies `representative_javascript_browser`');
 const capabilityFitTest = read(root, 'coordination/portfolio/tests/fast_allocator_capability_fit_v1.mjs');
 must('capability-fit-test', capabilityFitTest, 'FAST_ALLOCATOR_CAPABILITY_FIT_PASS');
 must('capability-fit-test', capabilityFitTest, 'unrestricted_public_http_origin_fetch');
@@ -984,6 +999,9 @@ must('capability-fit-test', capabilityFitTest, 'CAPABILITY_MISMATCH_PRECLAIM');
 must('capability-fit-test', capabilityFitTest, 'legacySingularRows');
 must('capability-fit-test', capabilityFitTest, 'real_browser_execution');
 must('capability-fit-test', capabilityFitTest, 'authorityCreateAttempts');
+must('capability-fit-test', capabilityFitTest, 'WEB_FETCH_ONLY_PRECLAIM_SKIP_PASS');
+must('capability-fit-test', capabilityFitTest, 'representative-JS profile must remain eligible for Jose V12');
+must('capability-fit-test', capabilityFitTest, 'unknown JavaScript/DOM execution capability must remain unknown rather than becoming absence');
 must('capability-fit-test', capabilityFitTest, 'unknown_legacy_runtime');
 must('capability-fit-test', capabilityFitTest, 'capability_attention');
 
