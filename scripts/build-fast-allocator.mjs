@@ -950,7 +950,22 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       priority: 165
     }));
   }
+  const efficiencyNoAllocationReceipts = arr(efficiency?.no_allocation_causes?.recent_receipts)
+    .map(row => typeof row === 'string' ? row : row?.ref)
+    .filter(Boolean)
+    .slice(0, 8);
+  const efficiencyNoAllocationCauseRef = Number(efficiency?.no_allocation_causes?.recent_total || 0) > 0
+    ? 'gh-pages:live/efficiency.json#no_allocation_causes'
+    : null;
+  const efficiencyRegressionEvidence = efficiency.status === 'REGRESSION'
+    ? uniq([
+        ...(efficiencyNoAllocationCauseRef ? [efficiencyNoAllocationCauseRef] : []),
+        ...efficiencyNoAllocationReceipts,
+        'coordination/efficiency/RATCHET_BASELINE_V1.json'
+      ])
+    : [];
   const rescueEvidence = uniq([
+    ...efficiencyRegressionEvidence,
     ...recoveryEvidence,
     ...collisionEvidence,
     ...(capabilityPressure.specialized_total && genericCompatibleFrontier < cleanFrontier ? [capabilityPressureEvidenceRef] : []),
@@ -1206,7 +1221,8 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
     efficiency: {
       status: efficiency.status,
       metrics: efficiency.metrics,
-      reasons: efficiency.reasons
+      reasons: efficiency.reasons,
+      no_allocation_causes: efficiency.no_allocation_causes || null
     },
     diagnostics: {
       ...(feed.diagnostics || {}),
