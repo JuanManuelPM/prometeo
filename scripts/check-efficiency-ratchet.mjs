@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -130,7 +130,11 @@ must('wc', wc, 'A worker without PIN/claim owns nothing and creates NO recovery 
 must('wc', wc, 'Known efficiency wins are cumulative durable constraints, not chat memory.');
 must('wc', wc, 'The authorization must come from the HUMAN MESSAGE itself.');
 must('wc', wc, 'CLAIM_TRANSPORT_BLOCKED');
-must('wc', wc, 'STOP immediately; do not spend attempts 2–3');
+must('wc', wc, 'CLAIM_TRANSPORT_AMBIGUOUS');
+must('wc', wc, 'explicit authorization/safety denial');
+must('wc', wc, 'at most ONE transport diversion');
+must('wc', wc, 'different claim path');
+must('wc', wc, 'Never retry the denied action/path');
 must('wc', wc, 'candidate.claim_payload_shape');
 must('wc', wc, 'ALLOCATOR_PIN_PAYLOAD_INVALID');
 must('wc', wc, '<now_plus_10m_iso>');
@@ -182,7 +186,11 @@ must('fast-allocation', fast, 'Attempt the atomic CREATE first only after the bo
 must('fast-allocation', fast, 'At most 3 atomic candidate attempts');
 must('fast-allocation', fast, 'No PIN/claim means no recovery debt.');
 must('fast-allocation', fast, 'CLAIM_TRANSPORT_BLOCKED');
-must('fast-allocation', fast, 'Do not consume attempts 2–3');
+must('fast-allocation', fast, 'CLAIM_TRANSPORT_AMBIGUOUS');
+must('fast-allocation', fast, 'explicit authorization/safety denial');
+must('fast-allocation', fast, 'at most ONE transport diversion');
+must('fast-allocation', fast, 'different claim path');
+must('fast-allocation', fast, 'Never retry the denied action/path');
 must('fast-allocation', fast, 'candidate.claim_payload_shape');
 must('fast-allocation', fast, 'ALLOCATOR_PIN_PAYLOAD_INVALID');
 must('fast-allocation', fast, '<now_plus_10m_iso>');
@@ -403,6 +411,11 @@ must('batch-sharding-test', batchShardingTest, 'DETERMINISTIC_UNIFIED_CANDIDATE_
 must('batch-sharding-test', batchShardingTest, 'beacon_commit_sha_first_8_hex');
 must('batch-sharding-test', batchShardingTest, 'BATCHED_CAPABILITY_FILTERED_SHARDING_PASS');
 
+const claimTransportClassificationTest = read(root, 'coordination/portfolio/tests/claim_transport_classification_v1.mjs');
+must('claim-transport-classification-test', claimTransportClassificationTest, 'CLAIM_TRANSPORT_CLASSIFICATION_PASS');
+must('claim-transport-classification-test', claimTransportClassificationTest, 'TRY_ONE_DIFFERENT_PATH');
+must('claim-transport-classification-test', claimTransportClassificationTest, 'STOP_CLAIM_TRANSPORT_AMBIGUOUS');
+
 const recentNoAllocationTest = read(root, 'coordination/portfolio/tests/efficiency_recent_no_allocation_regression_v1.mjs');
 must('recent-no-allocation-test', recentNoAllocationTest, 'EFFICIENCY_RECENT_NO_ALLOCATION_REGRESSION_PASS');
 must('recent-no-allocation-test', recentNoAllocationTest, 'no_allocation_close_p90_recent_ms');
@@ -424,6 +437,21 @@ else {
   if (eff030.required?.pool_no_cohort_barrier !== true) errors.push('ratchet: EFF030 pool barrier drift');
   if (eff030.required?.terminal_exam_card !== true) errors.push('ratchet: EFF030 exam card drift');
   if (eff030.required?.champion_requires_independent_reproduction !== 3) errors.push('ratchet: EFF030 champion replication drift');
+}
+
+const eff031 = baseline.items?.find(item => item.id === 'EFF031');
+if (!eff031) errors.push('ratchet: EFF031 missing');
+else {
+  if (eff031.required?.explicit_denial_classification !== 'CLAIM_TRANSPORT_BLOCKED') errors.push('ratchet: EFF031 explicit denial classification drift');
+  if (eff031.required?.ambiguous_transport_classification !== 'CLAIM_TRANSPORT_AMBIGUOUS') errors.push('ratchet: EFF031 ambiguous transport classification drift');
+  if (eff031.required?.same_denied_action_retry_forbidden !== true) errors.push('ratchet: EFF031 denied-action retry drift');
+  if (eff031.required?.safety_control_bypass_forbidden !== true) errors.push('ratchet: EFF031 safety-control bypass drift');
+  if (eff031.required?.transport_diversion_max !== 1) errors.push('ratchet: EFF031 diversion bound drift');
+  if (eff031.required?.alternate_candidate_must_be_already_loaded !== true) errors.push('ratchet: EFF031 candidate-source drift');
+  if (eff031.required?.alternate_claim_path_must_differ !== true) errors.push('ratchet: EFF031 alternate path drift');
+  if (eff031.required?.extra_preclaim_read_for_diversion_forbidden !== true) errors.push('ratchet: EFF031 preclaim-read drift');
+  if (eff031.required?.max_fast_claim_attempts_preserved !== 3) errors.push('ratchet: EFF031 max-attempt drift');
+  if (eff031.required?.regression_test !== 'coordination/portfolio/tests/claim_transport_classification_v1.mjs') errors.push('ratchet: EFF031 regression-test drift');
 }
 
 const eff029 = baseline.items?.find(item => item.id === 'EFF029');
@@ -503,6 +531,8 @@ if (site) {
   must('public-wc', pointer, 'READY -> QUEUE_READY -> ROLE_READY -> RECOVERY');
   must('public-wc', pointer, 'ROLE_READY is centrally compiled latent work');
   must('public-wc', pointer, 'CLAIM_TRANSPORT_BLOCKED');
+  must('public-wc', pointer, 'CLAIM_TRANSPORT_AMBIGUOUS');
+  must('public-wc', pointer, 'explicit authorization/safety denial');
   must('public-wc', pointer, 'eventos de telemetría');
   must('public-wc', pointer, 'BATCH <batch_id> EXPECTED <n>');
   must('public-wc', pointer, 'Issue #22');
