@@ -994,6 +994,22 @@ else {
   if (eff053.required?.regression_test !== 'coordination/portfolio/tests/source_debt_recovery_basis_gate_v1.mjs') errors.push('ratchet: EFF053 regression-test drift');
 }
 
+const eff054 = baseline.items?.find(item => item.id === 'EFF054');
+if (!eff054) errors.push('ratchet: EFF054 missing');
+else {
+  if (eff054.required?.allocator_preferred_prefix_preserved !== true) errors.push('ratchet: EFF054 preferred-prefix drift');
+  if (eff054.required?.preferred_prefix_length !== 4) errors.push('ratchet: EFF054 prefix-length drift');
+  if (eff054.required?.capability_signature_promotions_max !== 8) errors.push('ratchet: EFF054 promotion-cap drift');
+  if (eff054.required?.exact_required_capabilities_signature !== true) errors.push('ratchet: EFF054 capability-signature drift');
+  if (eff054.required?.capability_exemplars_promoted_before_truncation !== true) errors.push('ratchet: EFF054 promotion-order drift');
+  if (eff054.required?.public_http_only_fixture_visible !== true) errors.push('ratchet: EFF054 public-HTTP fixture drift');
+  if (eff054.required?.transport_bytes_max_unchanged !== 24000) errors.push('ratchet: EFF054 byte budget drift');
+  if (eff054.required?.max_candidates_unchanged !== 24) errors.push('ratchet: EFF054 candidate budget drift');
+  if (eff054.required?.claim_payload_shape_unchanged !== true) errors.push('ratchet: EFF054 payload-shape drift');
+  if (eff054.required?.claim_authority_unchanged !== true) errors.push('ratchet: EFF054 authority drift');
+  if (eff054.required?.regression_test !== 'coordination/portfolio/tests/claim_frontier_compact_v1.mjs') errors.push('ratchet: EFF054 regression-test drift');
+}
+
 must('fast-allocator', allocator, 'recoveryBasisGate');
 must('fast-allocator', allocator, 'SOURCE_DEBT_BASIS_UNCHANGED');
 must('fast-allocator', allocator, 'SOURCE_DEBT_SILENT_OWNER_RETRY_EXHAUSTED');
@@ -1044,9 +1060,15 @@ must('claim-frontier', claimFrontier, "'source_path'");
 must('claim-frontier', claimFrontier, 'recovery_attention:recoveryAttention');
 must('claim-frontier', claimFrontier, 'source_debt_ref');
 must('claim-frontier', claimFrontier, 'claim_payload_shape');
+must('claim-frontier', claimFrontier, 'preserveCapabilityDiversity');
+must('claim-frontier', claimFrontier, 'capabilitySignature');
+must('claim-frontier', claimFrontier, 'DEFAULT_CAPABILITY_DIVERSITY_SLOTS = 8');
 must('claim-frontier', claimFrontier, "fs.writeFileSync(outPath,JSON.stringify(out)+'\\n')");
 const claimFrontierTest = read(root, 'coordination/portfolio/tests/claim_frontier_compact_v1.mjs');
 must('claim-frontier-test', claimFrontierTest, 'CLAIM_FRONTIER_COMPACT_PASS');
+must('claim-frontier-test', claimFrontierTest, 'CLAIM_FRONTIER_CAPABILITY_DIVERSITY_PASS');
+must('claim-frontier-test', claimFrontierTest, 'compact frontier must promote an HTTP-only capability signature before truncation');
+must('claim-frontier-test', claimFrontierTest, 'HTTP-only recovery must be visible inside the bounded compact frontier');
 must('claim-frontier-test', claimFrontierTest, 'bytes<=24000');
 must('claim-frontier-test', claimFrontierTest, 'byte budget must trim before transport overflow');
 
