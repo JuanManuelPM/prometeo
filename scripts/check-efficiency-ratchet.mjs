@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -454,6 +454,21 @@ else {
   if (eff031.required?.regression_test !== 'coordination/portfolio/tests/claim_transport_classification_v1.mjs') errors.push('ratchet: EFF031 regression-test drift');
 }
 
+const eff032 = baseline.items?.find(item => item.id === 'EFF032');
+if (!eff032) errors.push('ratchet: EFF032 missing');
+else {
+  if (eff032.required?.structured_authority_gate !== true) errors.push('ratchet: EFF032 structured authority gate drift');
+  if (eff032.required?.schema !== 'prometeo.portfolio-authority-gate/v1') errors.push('ratchet: EFF032 schema drift');
+  if (eff032.required?.gate !== 'NEW_AUTHORITY_GATE') errors.push('ratchet: EFF032 gate enum drift');
+  if (eff032.required?.open_time_only_recovery_suppressed !== true) errors.push('ratchet: EFF032 time-only recovery suppression drift');
+  if (eff032.required?.malformed_gate_fail_closed !== true) errors.push('ratchet: EFF032 malformed gate fail-closed drift');
+  if (eff032.required?.satisfaction_requires_durable_evidence_ref !== true) errors.push('ratchet: EFF032 durable satisfaction evidence drift');
+  if (eff032.required?.satisfaction_must_postdate_boundary !== true) errors.push('ratchet: EFF032 satisfaction ordering drift');
+  if (eff032.required?.recovery_pin_preserves_authority_provenance !== true) errors.push('ratchet: EFF032 recovery provenance drift');
+  if (eff032.required?.ordinary_retry_safe_recovery_preserved !== true) errors.push('ratchet: EFF032 ordinary recovery drift');
+  if (eff032.required?.facultad_g5_blocks_g6_fixture !== true) errors.push('ratchet: EFF032 Facultad G5/G6 fixture drift');
+}
+
 const eff029 = baseline.items?.find(item => item.id === 'EFF029');
 if (!eff029) errors.push('ratchet: EFF029 missing');
 else {
@@ -472,9 +487,23 @@ must('fast-allocator', allocator, 'recoveryBasisGate');
 must('fast-allocator', allocator, 'SOURCE_DEBT_BASIS_UNCHANGED');
 must('fast-allocator', allocator, 'recovery_attention: recoveryAttention');
 must('live-feed', liveBuilder, 'latest_pin_recovery_basis:latestPin?.doc?.recovery_basis_or_null || null');
+must('fast-allocator', allocator, 'authorityBoundaryGate');
+must('fast-allocator', allocator, 'AUTHORITY_DEBT_UNSATISFIED');
+must('fast-allocator', allocator, 'AUTHORITY_GATE_MALFORMED_FAIL_CLOSED');
+must('fast-allocator', allocator, 'AUTHORITY_GATE_SATISFACTION_INVALID_FAIL_CLOSED');
+must('fast-allocator', allocator, 'authority_satisfied_by_evidence_ref');
+must('live-feed', liveBuilder, 'authority_gate:compactAuthorityGate(authorityGate)');
+must('live-feed', liveBuilder, 'satisfied_ref_exists');
 must('live-feed', liveBuilder, 'latest_source_debt_return:compactSourceDebtReturn(latestSourceDebtReturn)');
 must('live-feed', liveBuilder, 'structurally_valid: structurallyValid');
 must('live-feed', liveBuilder, "searchResult === 'NO_EXACT_MATCH'");
+const authorityBoundaryRecoveryTest = read(root, 'coordination/portfolio/tests/authority_boundary_recovery_gate_v1.mjs');
+must('authority-boundary-recovery-test', authorityBoundaryRecoveryTest, 'AUTHORITY_BOUNDARY_RECOVERY_GATE_PASS');
+must('authority-boundary-recovery-test', authorityBoundaryRecoveryTest, 'AUTHORITY_DEBT_UNSATISFIED');
+must('authority-boundary-recovery-test', authorityBoundaryRecoveryTest, 'NEW_AUTHORITY_GATE_SATISFIED');
+must('authority-boundary-recovery-test', authorityBoundaryRecoveryTest, 'AUTHORITY_GATE_SATISFACTION_INVALID_FAIL_CLOSED');
+must('authority-boundary-recovery-test', authorityBoundaryRecoveryTest, 'Facultad G5 must not emit G6');
+
 const sourceDebtRecoveryTest = read(root, 'coordination/portfolio/tests/source_debt_recovery_basis_gate_v1.mjs');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'SOURCE_DEBT_RECOVERY_BASIS_GATE_PASS');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'SILENT_OWNER_STALE_AFTER_LAST_RETURN');
