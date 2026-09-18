@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -149,6 +149,10 @@ must('wc', wc, 'PRODUCTIVE CHAIN — SAME CHAT');
 must('wc', wc, '**3 productive units is a checkpoint, not a stop**. Target **6 productive units**; hard cap **8**.');
 must('wc', wc, 'at most **2 consecutive productive units in the same project**');
 must('wc', wc, 'WAVE RESIDENCY / ASSIST');
+must('wc', wc, 'POOL <pool_id>');
+must('wc', wc, 'batch_id=POOL-<pool_id>');
+must('wc', wc, 'productivity exam card');
+
 must('wc', wc, 'at most **2** ordinary derived assist jobs');
 must('wc', wc, 'The parent owner (or a later explicit steward) retains integration authority.');
 must('wc', wc, 'Cross-worker help is advertised only through durable assist jobs');
@@ -202,6 +206,14 @@ if (projectGuideMesh.worker_chain_max_productive_units !== 8) errors.push('proje
 if (projectGuideMesh.worker_chain_same_project_soft_cap !== 2) errors.push('project-guide-mesh: same-project soft cap drift');
 if (projectGuideMesh?.worker_residency?.early_exit_with_compatible_frontier_forbidden !== true) errors.push('project-guide-mesh: resident early-exit law drift');
 if (projectGuideMesh?.assist_protocol?.max_children_per_owned_job !== 2) errors.push('project-guide-mesh: assist child bound drift');
+const examSpec = JSON.parse(read(root, 'coordination/workers/WORKER_PRODUCTIVITY_EXAM_V1.json'));
+if (examSpec.slots !== 6) errors.push('worker-exam: slot count drift');
+if (examSpec?.score?.total_max !== 10) errors.push('worker-exam: score max drift');
+if (!Array.isArray(examSpec?.anti_gaming) || !examSpec.anti_gaming.some(x=>String(x).includes('Word count'))) errors.push('worker-exam: verbosity anti-gaming law missing');
+const scoreboardBuilder = read(root, 'scripts/build-worker-scoreboard.mjs');
+must('worker-scoreboard', scoreboardBuilder, "prometeo.worker-scoreboard/v1");
+must('worker-scoreboard', scoreboardBuilder, 'champion_reproducible');
+
 if (projectGuideMesh.source_debt_planner_gate?.enabled !== true) errors.push('project-guide-mesh: source debt planner gate must be enabled');
 if (projectGuideMesh.source_debt_planner_gate?.status !== 'SOURCE_DEBT') errors.push('project-guide-mesh: source debt planner status drift');
 if (projectGuideMesh.source_debt_planner_gate?.require_empty_frontier_refs !== true) errors.push('project-guide-mesh: source debt planner must require empty frontier');
@@ -216,6 +228,9 @@ must('worker-events', eventProtocol, 'CLAIM_RESULT');
 must('worker-events', eventProtocol, 'CLOSE');
 mustI('worker-events', eventProtocol, 'never launch workers to repair missing telemetry');
 must('worker-events-close', eventProtocol, 'Intermediate RETURN/guide receipts do not emit CLOSE.');
+must('worker-events-pool', eventProtocol, 'POOL <pool_id>');
+must('worker-events-pool', eventProtocol, 'no cohort completion barrier');
+
 mustNot('worker-events-close', eventProtocol, 'At RETURN/terminal STOP.');
 
 const workerRuntime = read(root, 'scripts/build-worker-runtime.mjs');
@@ -400,6 +415,15 @@ else {
   if (eff027.required?.stable_survivor_order !== true) errors.push('ratchet: EFF027 survivor-order drift');
   if (eff027.required?.unknown_capability_is_not_absence !== true) errors.push('ratchet: EFF027 unknown-capability drift');
   if (eff027.required?.no_extra_preclaim_reads_or_writes !== true) errors.push('ratchet: EFF027 preclaim-overhead drift');
+}
+
+const eff030 = baseline.items?.find(item => item.id === 'EFF030');
+if (!eff030) errors.push('ratchet: EFF030 missing');
+else {
+  if (eff030.required?.pool_invocation !== true) errors.push('ratchet: EFF030 pool invocation drift');
+  if (eff030.required?.pool_no_cohort_barrier !== true) errors.push('ratchet: EFF030 pool barrier drift');
+  if (eff030.required?.terminal_exam_card !== true) errors.push('ratchet: EFF030 exam card drift');
+  if (eff030.required?.champion_requires_independent_reproduction !== 3) errors.push('ratchet: EFF030 champion replication drift');
 }
 
 const eff029 = baseline.items?.find(item => item.id === 'EFF029');
