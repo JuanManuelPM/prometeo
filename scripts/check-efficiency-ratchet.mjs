@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -102,6 +102,21 @@ if (sourceDebtPlannerItem?.required?.status !== 'SOURCE_DEBT') errors.push('base
 if (sourceDebtPlannerItem?.required?.require_empty_frontier_refs !== true) errors.push('baseline: EFF026 empty-frontier predicate drift');
 if (sourceDebtPlannerItem?.required?.required_blocker_prefix !== 'NEW_EVIDENCE_GATE:') errors.push('baseline: EFF026 blocker prefix drift');
 if (sourceDebtPlannerItem?.required?.suppress_trigger !== 'PROJECT_FRONTIER_THIN') errors.push('baseline: EFF026 trigger drift');
+const staleCollisionRefreshItem = baseline?.items?.find(x=>x.id==='EFF034');
+if (staleCollisionRefreshItem?.required?.ordinary_compact_frontier_reads !== 1) errors.push('baseline: EFF034 ordinary frontier read drift');
+if (staleCollisionRefreshItem?.required?.stale_collision_refresh_max !== 1) errors.push('baseline: EFF034 refresh bound drift');
+if (staleCollisionRefreshItem?.required?.refresh_requires_snapshot_age_gt_seconds !== 90) errors.push('baseline: EFF034 stale age drift');
+if (staleCollisionRefreshItem?.required?.refresh_requires_create_exists_count !== 2) errors.push('baseline: EFF034 collision threshold drift');
+if (staleCollisionRefreshItem?.required?.max_fast_claim_attempts !== 3) errors.push('baseline: EFF034 authority attempt ceiling drift');
+if (staleCollisionRefreshItem?.required?.refresh_path !== 'gh-pages:live/claim-frontier.json') errors.push('baseline: EFF034 refresh path drift');
+if (staleCollisionRefreshItem?.required?.refresh_only_after_real_create_exists !== true) errors.push('baseline: EFF034 must require real CREATE_EXISTS');
+if (staleCollisionRefreshItem?.required?.capability_filter_rebuilt_from_refreshed_snapshot !== true) errors.push('baseline: EFF034 capability-filter rebuild drift');
+if (staleCollisionRefreshItem?.required?.pool_shard_seed_reused !== 'beacon_commit_sha_first_8_hex') errors.push('baseline: EFF034 pool seed drift');
+if (staleCollisionRefreshItem?.required?.no_extra_archaeology !== true) errors.push('baseline: EFF034 archaeology guard drift');
+if (staleCollisionRefreshItem?.required?.full_allocator_refresh_forbidden !== true) errors.push('baseline: EFF034 full allocator must remain forbidden');
+if (staleCollisionRefreshItem?.required?.explicit_denial_refresh_forbidden !== true) errors.push('baseline: EFF034 explicit denial refresh must be forbidden');
+if (staleCollisionRefreshItem?.required?.ambiguous_transport_refresh_forbidden !== true) errors.push('baseline: EFF034 ambiguous transport refresh must be forbidden');
+if (staleCollisionRefreshItem?.required?.stale_recovery_refresh_does_not_authorize_recovery !== true) errors.push('baseline: EFF034 stale recovery authority drift');
 const noAllocationWindowItem = baseline?.items?.find(x=>x.id==='EFF028');
 if (noAllocationWindowItem?.required?.global_runtime_epoch_preserved !== true) errors.push('baseline: EFF028 global runtime epoch must be preserved');
 if (noAllocationWindowItem?.required?.historical_no_allocation_metrics_preserved !== true) errors.push('baseline: EFF028 historical no-allocation metrics must be preserved');
@@ -119,6 +134,11 @@ must('wc', wc, '`live/allocator.json` is diagnostics only and is FORBIDDEN on th
 must('wc', wc, 'first 8 hex chars of beacon_commit_sha');
 must('wc', wc, 'Maximum 3 fast CREATE attempts');
 must('wc', wc, 'Lane diversification: after 2 CREATE_EXISTS outcomes in the same lane');
+must('wc-stale-refresh', wc, 'PROVEN-STALE COLLISION REFRESH');
+must('wc-stale-refresh', wc, 'snapshot was already >90 seconds old at first read');
+must('wc-stale-refresh', wc, 'reload exactly `gh-pages:live/claim-frontier.json` once');
+must('wc-stale-refresh', wc, 'remaining third authority CREATE');
+must('wc-stale-refresh', wc, 'Never refresh after `CLAIM_TRANSPORT_BLOCKED` or `CLAIM_TRANSPORT_AMBIGUOUS`');
 must('wc', wc, '`BRANCH_HEAD_MOVED`');
 must('wc', wc, 'retry the same exact claim path and payload once');
 must('wc', wc, 'does NOT consume an authority CREATE attempt');
@@ -179,6 +199,11 @@ must('fast-allocation', fast, '2. `queue_ready` normal work;');
 must('fast-allocation', fast, '3. `role_ready` centrally compiled Guide work;');
 must('fast-allocation', fast, '4. only then `recovery` work.');
 must('fast-allocation', fast, 'After 2 `CREATE_EXISTS` outcomes in the same lane');
+must('fast-stale-refresh', fast, 'PROVEN-STALE COLLISION REFRESH');
+must('fast-stale-refresh', fast, 'snapshot was already >90 seconds old at first read');
+must('fast-stale-refresh', fast, 'reload exactly `gh-pages:live/claim-frontier.json` once');
+must('fast-stale-refresh', fast, 'remaining third authority CREATE');
+must('fast-stale-refresh', fast, 'Never refresh after `CLAIM_TRANSPORT_BLOCKED` or `CLAIM_TRANSPORT_AMBIGUOUS`');
 must('fast-allocation', fast, '`BRANCH_HEAD_MOVED`');
 must('fast-allocation', fast, 'same exact claim path and byte-identical payload once');
 must('fast-allocation', fast, 'does not consume one of the 3 authority candidate attempts');
