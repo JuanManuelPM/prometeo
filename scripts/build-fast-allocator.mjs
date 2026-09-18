@@ -695,6 +695,9 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
   const cleanFrontier = capabilityPressure.total;
   const genericCompatibleFrontier = capabilityPressure.generic_compatible;
   const capabilityPressureEvidenceRef = 'gh-pages:live/allocator.json#metabolism.capability_pressure';
+  const recoveryCapabilityPressure = classifyFrontierCapabilityPressure(recovery);
+  const genericRecoveryPressure = recoveryCapabilityPressure.generic_compatible;
+  const recoveryCapabilityPressureEvidenceRef = 'gh-pages:live/allocator.json#metabolism.recovery_capability_pressure';
 
   const recentReturnWindow = 6 * 60 * 60_000;
   const collisionPressureWindow = Number(signals.collision_pressure_window_minutes || 30) * 60_000;
@@ -712,7 +715,8 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
   materialReturns.sort((a, b) => b.when - a.when || a.path.localeCompare(b.path));
   const unconsumedReturnRefs = uniq(materialReturns.slice(0, 12).map(row => row.path));
 
-  const recoveryEvidence = uniq(recovery.slice(0, 8).map(item => item.predecessor_pin_ref || item.source_path || `coordination/portfolio/PORTFOLIO.json#job:${item.job_id}`));
+  const genericRecovery = recovery.filter(item => classifyFrontierCapabilityPressure([item]).generic_compatible === 1);
+  const recoveryEvidence = uniq(genericRecovery.slice(0, 8).map(item => item.predecessor_pin_ref || item.source_path || `coordination/portfolio/PORTFOLIO.json#job:${item.job_id}`));
   const collisionEvidence = uniq(jobs
     .flatMap(job => collisionEvidenceRows(job))
     .filter(row => {
@@ -906,11 +910,12 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
     ...recoveryEvidence,
     ...collisionEvidence,
     ...(capabilityPressure.specialized_total && genericCompatibleFrontier < cleanFrontier ? [capabilityPressureEvidenceRef] : []),
+    ...(recoveryCapabilityPressure.specialized_total ? [recoveryCapabilityPressureEvidenceRef] : []),
     ...(efficiency.status === 'REGRESSION' ? ['coordination/efficiency/RATCHET_BASELINE_V1.json'] : []),
     ...recentNoAlloc.slice(0, 4).map(row => row.path)
   ]);
   if (
-    recovery.length >= Number(signals.replaceable_trigger || 3) ||
+    genericRecoveryPressure >= Number(signals.replaceable_trigger || 3) ||
     collisionEvidence.length >= Number(signals.collision_pressure_trigger || 3) ||
     efficiency.status === 'REGRESSION' ||
     recentNoAlloc.length >= 3
@@ -948,6 +953,9 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       clean_frontier_total: cleanFrontier,
       generic_compatible_clean_frontier: genericCompatibleFrontier,
       capability_pressure: capabilityPressure,
+      recovery_total: recovery.length,
+      generic_compatible_recovery: genericRecoveryPressure,
+      recovery_capability_pressure: recoveryCapabilityPressure,
       overload_guard: overloadGuard,
       young_active: youngActive,
       unconsumed_returns: unconsumedReturnRefs.length,
