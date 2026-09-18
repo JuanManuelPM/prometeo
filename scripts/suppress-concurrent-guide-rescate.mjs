@@ -146,7 +146,8 @@ export function runCli(argv = process.argv.slice(2)) {
   const next = suppressConcurrentGuideRescate(allocator, state);
   fs.writeFileSync(allocatorPath, `${JSON.stringify(next, null, 2)}\n`);
   const suppressed = next.diagnostics?.guide_rescate_active_suppression?.suppressed_candidates?.length || 0;
-  const claimed = next.diagnostics?.guide_claim_path_suppression?.suppressed_candidates?.length || 0;\n  process.stdout.write(`guide-role suppression claimed=${claimed} active_rescate=${activeGuideRescatePins(state).length} rescate_suppressed=${suppressed}\\n`);
+  const claimed = next.diagnostics?.guide_claim_path_suppression?.suppressed_candidates?.length || 0;
+  process.stdout.write(`guide-role suppression claimed=${claimed} active_rescate=${activeGuideRescatePins(state).length} rescate_suppressed=${suppressed}\\n`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
