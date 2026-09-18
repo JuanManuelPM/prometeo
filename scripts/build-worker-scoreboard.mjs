@@ -102,14 +102,19 @@ for(const p of Object.values(patternHealth)){
   delete p.productive_slots;
 }
 let activePatternId=null;
+let patternCandidateId=null;
+let patternCandidateStatus=null;
 const activePatternRef=spec?.pattern_measurement?.active_pattern_ref;
 if(activePatternRef){
   const ap=readJson(path.join(root,activePatternRef));
-  activePatternId=ap?.pattern_id||null;
+  patternCandidateId=ap?.pattern_id||null;
+  patternCandidateStatus=ap?.status||null;
+  if(patternCandidateStatus==='REPRODUCTION_ACTIVE_NOT_CHAMPION') activePatternId=patternCandidateId;
 }
-const activePatternHealth=activePatternId ? (patternHealth[activePatternId]||{
-  pattern_id:activePatternId,tagged_exams:0,qualifying_ge_min_score:0,status:'NO_TAGGED_SAMPLE'
+const patternCandidateHealth=patternCandidateId ? (patternHealth[patternCandidateId]||{
+  pattern_id:patternCandidateId,tagged_exams:0,qualifying_ge_min_score:0,status:'NO_TAGGED_SAMPLE'
 }) : null;
+const activePatternHealth=activePatternId ? patternCandidateHealth : null;
 const reproductionCounts={};
 const minScore=Number(spec?.champion_policy?.champion_min_score||8);
 for(const r of latest){
@@ -140,6 +145,9 @@ const out={
   reproduction_counts:reproductionCounts,
   protocol_reproduction_counts:reproductionCounts,
   pattern_health:patternHealth,
+  pattern_candidate_id:patternCandidateId,
+  pattern_candidate_status:patternCandidateStatus,
+  pattern_candidate_health:patternCandidateHealth,
   active_pattern_id:activePatternId,
   active_pattern_health:activePatternHealth,
   note:'Observability only. leader/champion_candidate is the best observed card; champion stays null until a non-null pattern_id is independently reproduced by >=3 workers at score >=8. pattern_health makes failed/partial reproduction explicit instead of forcing Guide to infer it from raw cards. Verbosity never adds points.'
