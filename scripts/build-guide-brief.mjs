@@ -50,7 +50,7 @@ const data={
   scoreboard:{generated_at:scoreboard.generated_at||null,source_exam_count:scoreboard.source_exam_count||0,leader:scoreboard.leader||scoreboard.champion_candidate||null,champion:scoreboard.champion||null,champion_reproducible:!!scoreboard.champion_reproducible,reproduction_counts:scoreboard.reproduction_counts||{}},
   frontier:{generated_at:frontier.generated_at||null,candidate_count:(frontier.candidates||[]).length},
   projects,pages:pageRows,worker_prompt:prompt,
-  links:{guide:'https://juanmanuelpm.github.io/prometeo/guide/',growth:'https://juanmanuelpm.github.io/prometeo/growth/',worker:'https://juanmanuelpm.github.io/prometeo/wc/',bootstrap:'https://juanmanuelpm.github.io/prometeo/g/'}
+  links:{guide:'https://juanmanuelpm.github.io/prometeo/guide/',trajectory:'https://juanmanuelpm.github.io/prometeo/trajectory/',growth:'https://juanmanuelpm.github.io/prometeo/growth/',worker:'https://juanmanuelpm.github.io/prometeo/wc/',bootstrap:'https://juanmanuelpm.github.io/prometeo/g/'}
 };
 fs.mkdirSync(outDir,{recursive:true});
 fs.writeFileSync(path.join(outDir,'brief.json'),JSON.stringify(data,null,2)+'\n');
