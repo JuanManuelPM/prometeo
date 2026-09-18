@@ -316,7 +316,7 @@ for (const needle of [
   'candidate.required_capabilities',
   'CAPABILITY_MISMATCH_PRECLAIM',
   'Unknown or ambiguous capability is NOT absence',
-  'Never read repository/project context to prove capability fit.,
+  'Never read repository/project context to prove capability fit.',
   'HTTP/search/fetch/navigation alone never satisfies `representative_javascript_browser`'
 
 ]) {
