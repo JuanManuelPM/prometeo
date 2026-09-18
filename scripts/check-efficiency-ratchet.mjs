@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -382,6 +382,13 @@ must('guide-power-compass', guide, 'coordination/guide/GUIDE_POWER_COMPASS_V1.js
 must('guide-power-compass', guide, 'PARALLELISM, YIELD_PER_CHAT, REPRODUCTION, VISIBLE_VALUE and AUTONOMY');
 must('guide-visible-response', guide, '## LITERAL RESPONSE CONTINUITY');
 must('guide-visible-response', guide, 'coordination/guide/visible-responses/<session_id>.md');
+must('guide-utility-footer', guide, '## HUMAN UTILITY FOOTER');
+must('guide-utility-footer', guide, 'https://juanmanuelpm.github.io/prometeo/guide/');
+must('guide-utility-footer', guide, 'RELEVANT PAGES');
+must('guide-utility-footer', guide, '/wc PROMPT');
+must('guide-utility-footer', guide, 'HUMAN ACTION');
+must('guide-utility-footer', guide, 'NEXT GUIDE CYCLE');
+
 
 
 must('guide-current-mission', guide, '## ACTIVE CURRENT MISSION — PRIORITY OVERRIDE');
@@ -415,6 +422,19 @@ for (const axis of ['PARALLELISM','YIELD_PER_CHAT','REPRODUCTION','VISIBLE_VALUE
 if (powerCompass?.literal_response_continuity?.enabled !== true) errors.push('guide-power-compass: literal response continuity drift');
 if (powerCompass?.literal_response_continuity?.directory !== 'coordination/guide/visible-responses') errors.push('guide-power-compass: visible response directory drift');
 if (!Array.isArray(powerCompass?.current_priority_experiments) || powerCompass.current_priority_experiments.length<1) errors.push('guide-power-compass: no experiments');
+const guideBriefBuilder = read(root, 'scripts/build-guide-brief.mjs');
+must('guide-brief-builder', guideBriefBuilder, 'prometeo.guide-brief/v1');
+must('guide-brief-builder', guideBriefBuilder, 'coordination/project-guides/');
+must('guide-brief-builder', guideBriefBuilder, 'PAGE_WATCH_REGISTRY_V1.json');
+must('guide-brief-builder', guideBriefBuilder, 'worker_prompt');
+const guideBriefWorkflow = read(root, '.github/workflows/guide-brief.yml');
+must('guide-brief-workflow', guideBriefWorkflow, 'Prometeo Guide Brief');
+must('guide-brief-workflow', guideBriefWorkflow, 'site/guide');
+const pageRegistry = JSON.parse(read(root, 'coordination/pages/PLATE_REGISTRY_V1.json'));
+if (!pageRegistry?.plates?.some(x=>x.plate==='GDB001' && x.page_id==='guide-brief')) errors.push('guide-brief: GDB001 plate missing');
+const pageWatch = JSON.parse(read(root, 'coordination/live/PAGE_WATCH_REGISTRY_V1.json'));
+if (!pageWatch?.pages?.some(x=>x.plate==='GDB001' && x.url==='https://juanmanuelpm.github.io/prometeo/guide/')) errors.push('guide-brief: public watch registration missing');
+
 
 const missionWriteback = read(root, 'coordination/guide/GUIDE_CURRENT_MISSION_WRITEBACK_V1.md');
 must('mission-writeback', missionWriteback, 'Mandatory writeback');
@@ -641,6 +661,17 @@ else {
   if (eff033.required?.human_worker_recap_required !== false) errors.push('ratchet: EFF033 human recap drift');
   if (eff033.required?.rolling_pool_default !== 'PROD-01') errors.push('ratchet: EFF033 pool default drift');
   if (eff033.required?.evaluation_pauses_pool !== false) errors.push('ratchet: EFF033 evaluation pause drift');
+}
+
+const eff040 = baseline.items?.find(item => item.id === 'EFF040');
+if (!eff040) errors.push('ratchet: EFF040 missing');
+else {
+  if (eff040.required?.guide_brief_url !== 'https://juanmanuelpm.github.io/prometeo/guide/') errors.push('ratchet: EFF040 brief url drift');
+  if (eff040.required?.guide_brief_plate !== 'GDB001') errors.push('ratchet: EFF040 plate drift');
+  if (eff040.required?.current_wc_prompt_required !== true) errors.push('ratchet: EFF040 wc prompt drift');
+  if (eff040.required?.human_action_explicit !== true) errors.push('ratchet: EFF040 human action drift');
+  if (eff040.required?.next_guide_cycle_explicit !== true) errors.push('ratchet: EFF040 next guide drift');
+  if (eff040.required?.utility_footer_last !== true) errors.push('ratchet: EFF040 footer position drift');
 }
 
 const eff039 = baseline.items?.find(item => item.id === 'EFF039');
