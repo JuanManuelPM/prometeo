@@ -14,6 +14,7 @@ Bind to:
 If the HUMAN MESSAGE contains the exact token `TAKEOVER CANARY TKV1`, this section overrides the ordinary bare-/g flow until the canary finishes.
 
 Read `coordination/guide/GUIDE_TAKEOVER_CANARY_V1.json` immediately after this bootstrap and execute its phases in order. This is a write-verified takeover, not a conversational check.
+Use the exact JSON field names under `phase_templates` in that spec. Do not improvise alternate field names; extra fields are allowed.
 
 Mandatory sequence:
 
