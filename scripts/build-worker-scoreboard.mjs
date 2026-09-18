@@ -33,6 +33,7 @@ for(const p of files){
     worker_id:d.worker_id,
     batch_id:d.batch_id||null,
     protocol_version:d.protocol_version||null,
+    pattern_id:d.pattern_id||null,
     closed_at:d.closed_at||null,
     score,
     productive_slots:productive,
@@ -52,24 +53,37 @@ for(const p of files){
 }
 rows.sort((a,b)=>b.score-a.score || (b.productive_slots-a.productive_slots) || String(a.closed_at||'').localeCompare(String(b.closed_at||'')));
 const latest=[...rows].sort((a,b)=>Date.parse(b.closed_at||0)-Date.parse(a.closed_at||0)).slice(0,20);
-const reproducibleChampions={};
+const reproductionCounts={};
+const minScore=Number(spec?.champion_policy?.champion_min_score||8);
 for(const r of latest){
-  const v=r.protocol_version||'UNKNOWN';
-  if(r.score>=Number(spec?.champion_policy?.champion_min_score||8)) reproducibleChampions[v]=(reproducibleChampions[v]||0)+1;
+  if(r.score<minScore) continue;
+  const key=r.pattern_id ? `pattern:${r.pattern_id}` : r.protocol_version ? `protocol:${r.protocol_version}` : 'legacy:UNKNOWN';
+  reproductionCounts[key]=(reproductionCounts[key]||0)+1;
 }
-const champion=rows[0]||null;
+const leader=rows[0]||null;
+const minRep=3;
+const winningKey=Object.entries(reproductionCounts)
+  .filter(([key,count])=>key.startsWith('pattern:') && count>=minRep)
+  .sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0]))[0]?.[0]||null;
+const champion=winningKey
+  ? rows.find(r=>r.pattern_id && `pattern:${r.pattern_id}`===winningKey && r.score>=minScore) || null
+  : null;
 const out={
   schema:'prometeo.worker-scoreboard/v1',
   generated_at:new Date().toISOString(),
   source_exam_count:rows.length,
   scoring:'WORKER_PRODUCTIVITY_EXAM_V1',
+  leader,
+  champion_candidate:leader,
   champion,
-  champion_reproducible:champion ? (reproducibleChampions[champion.protocol_version||'UNKNOWN']||0)>=3 : false,
+  champion_reproducible:!!champion,
+  champion_pattern_id:champion?.pattern_id||null,
   top:rows.slice(0,20),
   latest20:latest,
-  protocol_reproduction_counts:reproducibleChampions,
-  note:'Observability only. Scores compare evidence-backed useful work; verbosity is diagnostic and never adds points.'
+  reproduction_counts:reproductionCounts,
+  protocol_reproduction_counts:reproductionCounts,
+  note:'Observability only. leader/champion_candidate is the best observed card; champion stays null until a non-null pattern_id is independently reproduced by >=3 workers at score >=8. Verbosity never adds points.'
 };
 fs.mkdirSync(path.dirname(outPath),{recursive:true});
 fs.writeFileSync(outPath,JSON.stringify(out,null,2)+'\n');
-console.log(JSON.stringify({ok:true,count:rows.length,champion:champion?{worker_id:champion.worker_id,score:champion.score}:null}));
+console.log(JSON.stringify({ok:true,count:rows.length,leader:leader?{worker_id:leader.worker_id,score:leader.score}:null,champion:champion?{worker_id:champion.worker_id,score:champion.score,pattern_id:champion.pattern_id}:null}));
