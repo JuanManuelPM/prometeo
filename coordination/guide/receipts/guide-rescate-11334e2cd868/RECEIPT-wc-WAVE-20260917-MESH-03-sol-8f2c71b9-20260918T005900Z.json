@@ -1,0 +1,49 @@
+{
+  "schema": "prometeo.guide-receipt/v1",
+  "guide_work_id": "guide-rescate-11334e2cd868",
+  "receipt_id": "RECEIPT-wc-WAVE-20260917-MESH-03-sol-8f2c71b9-20260918T005900Z",
+  "worker_id": "wc-WAVE-20260917-MESH-03-gpt56sol-8f2c71b9",
+  "role": "GUIDE_RESCATE",
+  "created_at": "2026-09-18T00:59:00Z",
+  "trigger": "LOW_YIELD",
+  "project_id": null,
+  "evidence": [
+    "coordination/workers/no-allocation/wc-20260917T2143-0300-mesh03-6a91c2e7.json",
+    "coordination/efficiency/RATCHET_BASELINE_V1.json#EFF025",
+    "coordination/efficiency/evidence/EFF025-WAVE-20260917-MESH-03.json",
+    "github-actions:run/35293173738",
+    "github-actions:run/35293286464"
+  ],
+  "diagnosis": "The hot path conflated target-path ownership collisions with GitHub branch-ref head movement. Under a commit-heavy wave, an unrelated main advance could surface as CAS_LOST, consume one of three authority attempts, trigger lane diversification, or cause false NO_ALLOCATION. This worker independently observed the same branch-head 409 on its beacon and succeeded with the unchanged retry.",
+  "intervention": "Introduced EFF025 and changed /wc + Fast Allocation so CREATE_EXISTS remains collision evidence while explicit BRANCH_HEAD_MOVED receives exactly one same-path byte-identical CREATE stabilization retry with no pre-read, authority-attempt cost, or lane-collision count. A second head movement becomes CLAIM_TRANSPORT_UNSTABLE and stops. Added a dedicated regression guard, wired it into Live Feed, updated the existing fast-claim contract, and recorded durable evidence.",
+  "changed_paths": [
+    "wc",
+    "coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md",
+    "coordination/efficiency/RATCHET_BASELINE_V1.json",
+    "coordination/portfolio/tests/claim_branch_head_move_retry_v1.mjs",
+    "tests/fast-claim-payload-contract-v1.test.mjs",
+    "scripts/check-efficiency-ratchet.mjs",
+    ".github/workflows/live-feed.yml",
+    "coordination/efficiency/evidence/EFF025-WAVE-20260917-MESH-03.json"
+  ],
+  "commits": [
+    "4c660dbf3db10795959f522f1e0ea9c3e131e0e1",
+    "bb93cb724a56227aa9b300b043fcf9dbd0b97c7f",
+    "c4891b961e685dcc42f62f5a351b62a39f132e69",
+    "aa98915e4047549b82b575dfaf46e39d91dceb95"
+  ],
+  "tests": [
+    "EFF021 batched lane sharding run 35293082223: success.",
+    "Initial Live Feed run 35293082226 exposed test-root ENOENT; fixed by passing source checkout root explicitly.",
+    "Initial Efficiency Ratchet run 35293082220 exposed one legacy CREATE_EXISTS/CAS_LOST assertion; updated the existing contract test.",
+    "Prometeo Efficiency Ratchet run 35293173738 at c4891b96: success.",
+    "Prometeo Live Feed run 35293286464 at aa98915e: success; allocator build and publication steps both succeeded."
+  ],
+  "outcome": "SUCCESS",
+  "productive_unit": true,
+  "successors_created": [],
+  "residuals": [
+    "EFF025 remains STATIC_GUARDED_PENDING_RUNTIME until a future real claim write exercises BRANCH_HEAD_MOVED recovery under the patched contract.",
+    "No Current, Human Accepted or Served authority was changed."
+  ]
+}
