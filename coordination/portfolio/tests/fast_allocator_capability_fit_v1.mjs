@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
 const readJson = rel => JSON.parse(read(rel));
-const { buildFastAllocator } = await import(pathToFileURL(path.join(root, 'scripts/build-fast-allocator.mjs')).href);
+const { buildFastAllocator, classifyJobCapabilities } = await import(pathToFileURL(path.join(root, 'scripts/build-fast-allocator.mjs')).href);
 
 const josePath = 'coordination/portfolio/derived/alumnos/portfolio-alumnos-jose-v11-unrestricted-browser-verify-v1.json';
 const studentHttpPath = 'coordination/portfolio/derived/alumnos/portfolio-alumnos-student-world-live-route-bridge-public-http-verify-v1.json';
@@ -17,6 +17,7 @@ const ttsCachePath = 'coordination/portfolio/derived/audio-text-to-speech/portfo
 const sttLivePath = 'coordination/portfolio/derived/audio-speech-to-text/portfolio-stt-live-canary-entrypoint-v1.json';
 const studentLegacyBrowserPath = 'coordination/portfolio/derived/alumnos/portfolio-alumnos-student-world-live-route-bridge-browser-verify.json';
 const liveMobilePath = 'coordination/portfolio/derived/prometeo-live/portfolio-live-mobile-human-registry-v3-verify.json';
+const joseV12LegacyPath = 'coordination/portfolio/derived/jose/portfolio-jose-v12-map-runtime-verification-v1.json';
 const jose = readJson(josePath);
 const studentHttp = readJson(studentHttpPath);
 const ttsBrowser = readJson(ttsBrowserPath);
@@ -25,6 +26,32 @@ const ttsCache = readJson(ttsCachePath);
 const sttLive = readJson(sttLivePath);
 const studentLegacyBrowser = readJson(studentLegacyBrowserPath);
 const liveMobile = readJson(liveMobilePath);
+const joseV12Legacy = readJson(joseV12LegacyPath);
+
+const legacySingularRows = [];
+const derivedRoot = path.join(root, 'coordination', 'portfolio', 'derived');
+const visitDerived = dir => {
+  for (const ent of fs.readdirSync(dir, {withFileTypes:true})) {
+    const full = path.join(dir, ent.name);
+    if (ent.isDirectory()) visitDerived(full);
+    else if (ent.name.endsWith('.json')) {
+      const doc = JSON.parse(fs.readFileSync(full, 'utf8'));
+      if (Object.hasOwn(doc, 'capability_required')) {
+        legacySingularRows.push({
+          path: path.relative(root, full).split(path.sep).join('/'),
+          doc,
+          model: classifyJobCapabilities(doc)
+        });
+      }
+    }
+  }
+};
+visitDerived(derivedRoot);
+assert.equal(legacySingularRows.length, 1, 'repo-local singular capability_required inventory changed; classify new values explicitly');
+assert.equal(legacySingularRows[0].doc.job_id, 'portfolio-jose-v12-map-runtime-verification-v1');
+assert.deepEqual(legacySingularRows[0].doc.capability_required, ['real_browser_execution']);
+assert.deepEqual(legacySingularRows[0].model.required_capabilities, ['representative_javascript_browser']);
+assert.deepEqual(legacySingularRows[0].model.unsupported_legacy_capabilities, []);
 
 assert.ok(Array.isArray(jose.required_capabilities) && jose.required_capabilities.length > 0, 'Jose unrestricted-browser fixture must remain capability-bound');
 assert.deepEqual(
@@ -104,6 +131,13 @@ const feed = {
       jobs: [
         { ...sttLive, state: 'ready', pin_generation: 0, last_signal_at: null }
       ]
+    },
+    {
+      project_id: 'jose',
+      label: 'José',
+      jobs: [
+        { ...joseV12Legacy, state: 'ready', pin_generation: 0, last_signal_at: null }
+      ]
     }
   ]
 };
@@ -129,6 +163,63 @@ assert.deepEqual(
   ['representative_javascript_browser'],
   'legacy capability_requirements must normalize into required_capabilities before claim'
 );
+
+const joseV12Candidate = allocator.ready.find(row => row.job_id === joseV12Legacy.job_id);
+assert.ok(joseV12Candidate, 'Jose V12 singular legacy capability job must remain claimable for a compatible browser worker');
+assert.deepEqual(
+  joseV12Candidate.required_capabilities,
+  ['representative_javascript_browser'],
+  'real_browser_execution must normalize to representative_javascript_browser'
+);
+let authorityCreateAttempts = 0;
+const definitelyAbsentCapabilities = new Set(['representative_javascript_browser']);
+const preclaimMismatch = joseV12Candidate.required_capabilities.some(cap => definitelyAbsentCapabilities.has(cap));
+if (!preclaimMismatch) authorityCreateAttempts += 1;
+assert.equal(preclaimMismatch, true, 'worker lacking representative browser must detect legacy-normalized mismatch preclaim');
+assert.equal(authorityCreateAttempts, 0, 'legacy-normalized capability mismatch must consume zero authority CREATE attempts');
+
+const recoveryFeed = {
+  generated_at: '2026-09-17T22:31:00Z',
+  source_sha: 'legacy-singular-recovery-fixture-source',
+  summary: {workers:{}},
+  workers: [],
+  plans: [],
+  projects: [{
+    project_id: 'jose',
+    label: 'José',
+    jobs: [{...joseV12Legacy, state:'replaceable', pin_generation:3, last_signal_at:'2026-09-17T21:00:00Z'}]
+  }]
+};
+const recoveryAllocator = buildFastAllocator(recoveryFeed, {status:'HEALTHY', metrics:{}, reasons:[]}, {recoveryPolicies:[], roleContext:null});
+const joseV12Recovery = recoveryAllocator.recovery.find(row => row.job_id === joseV12Legacy.job_id);
+assert.ok(joseV12Recovery, 'Jose V12 singular legacy capability must remain present through recovery generations');
+assert.deepEqual(joseV12Recovery.required_capabilities, ['representative_javascript_browser']);
+
+const unsupportedLegacyJob = {
+  job_id:'fixture-unsupported-legacy-capability-required',
+  dedupe_key:'fixture:unsupported-legacy-capability-required:v1',
+  project_id:'jose',
+  title:'Unsupported legacy capability fixture',
+  priority:999,
+  state:'ready',
+  pin_generation:0,
+  capability_required:['unknown_legacy_runtime']
+};
+const unsupportedFeed = {
+  generated_at:'2026-09-17T22:32:00Z',
+  source_sha:'unsupported-legacy-capability-fixture-source',
+  summary:{workers:{}},
+  workers:[],
+  plans:[],
+  projects:[{project_id:'jose',label:'José',jobs:[unsupportedLegacyJob]}]
+};
+const unsupportedAllocator = buildFastAllocator(unsupportedFeed, {status:'HEALTHY',metrics:{},reasons:[]}, {recoveryPolicies:[],roleContext:null});
+assert.equal(unsupportedAllocator.ready.some(row => row.job_id === unsupportedLegacyJob.job_id), false, 'unsupported singular legacy capability must fail closed out of ready');
+assert.equal(unsupportedAllocator.recovery.some(row => row.job_id === unsupportedLegacyJob.job_id), false, 'unsupported singular legacy capability must fail closed out of recovery');
+const unsupportedAttention = unsupportedAllocator.capability_attention.find(row => row.job_id === unsupportedLegacyJob.job_id);
+assert.ok(unsupportedAttention, 'unsupported singular legacy capability must remain visible as explicit attention');
+assert.equal(unsupportedAttention.reason, 'UNSUPPORTED_LEGACY_CAPABILITY_REQUIRED');
+assert.deepEqual(unsupportedAttention.unsupported_legacy_capabilities, ['unknown_legacy_runtime']);
 
 for (const [job, expected] of [
   [ttsBrowser, ['browser_network_navigation_to_github_pages', 'representative_javascript_browser']],
