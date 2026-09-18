@@ -77,4 +77,5 @@ assert.equal(recent.status,'REGRESSION');
 assert.equal(recent.metrics.no_allocation_close_p90_ms,120_000,'adding a recent window must not erase cumulative telemetry');
 
 fs.rmSync(root,{recursive:true,force:true});
+execFileSync(process.execPath,[path.join(repoRoot,'coordination/portfolio/tests/efficiency_recent_no_allocation_cause_mix_v1.mjs')],{stdio:'inherit'});
 console.log('EFFICIENCY_RECENT_NO_ALLOCATION_REGRESSION_PASS');
