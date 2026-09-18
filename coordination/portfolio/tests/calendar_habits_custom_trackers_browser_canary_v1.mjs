@@ -39,7 +39,7 @@ try{
   await page.selectOption('#habitTrackerDialog [data-add] select[name="kind"]','positive');
   await page.selectOption('#habitTrackerDialog [data-add] select[name="group"]','extras');
   await Promise.all([
-    page.waitForLoadState('domcontentloaded'),
+    page.waitForNavigation({waitUntil:'domcontentloaded'}),
     page.click('#habitTrackerDialog [data-add] button[type="submit"]')
   ]);
   await page.waitForSelector('#habitTrackerManage');
@@ -53,7 +53,7 @@ try{
   await row.locator('input[aria-label="Nombre"]').fill('Lectura');
   await row.locator('select[aria-label="Tipo"]').selectOption('negative');
   await row.locator('select[aria-label="Grupo"]').selectOption('routine');
-  await Promise.all([page.waitForLoadState('domcontentloaded'),row.getByRole('button',{name:'GUARDAR'}).click()]);
+  await Promise.all([page.waitForNavigation({waitUntil:'domcontentloaded'}),row.getByRole('button',{name:'GUARDAR'}).click()]);
   await page.waitForSelector('#habitTrackerManage');
   cfg=await page.evaluate(()=>window.PrometeoHabitTrackerConfig.getConfig());
   let edited=cfg.trackers.find(t=>t.id===tracker.id);
@@ -64,7 +64,7 @@ try{
 
   await page.click('#habitTrackerManage');
   const archiveRow=page.locator(`.tracker-config-row[data-tracker-id="${tracker.id}"]`);
-  await Promise.all([page.waitForLoadState('domcontentloaded'),archiveRow.getByRole('button',{name:'ARCHIVAR'}).click()]);
+  await Promise.all([page.waitForNavigation({waitUntil:'domcontentloaded'}),archiveRow.getByRole('button',{name:'ARCHIVAR'}).click()]);
   await page.waitForSelector('#habitTrackerManage');
   cfg=await page.evaluate(()=>window.PrometeoHabitTrackerConfig.getConfig());
   assert.equal(cfg.trackers.find(t=>t.id===tracker.id)?.archived,true);
@@ -72,7 +72,7 @@ try{
 
   await page.click('#habitTrackerManage');
   const restoreRow=page.locator(`.tracker-config-row[data-tracker-id="${tracker.id}"]`);
-  await Promise.all([page.waitForLoadState('domcontentloaded'),restoreRow.getByRole('button',{name:'RESTAURAR'}).click()]);
+  await Promise.all([page.waitForNavigation({waitUntil:'domcontentloaded'}),restoreRow.getByRole('button',{name:'RESTAURAR'}).click()]);
   await page.waitForSelector('#habitTrackerManage');
   cfg=await page.evaluate(()=>window.PrometeoHabitTrackerConfig.getConfig());
   assert.equal(cfg.trackers.find(t=>t.id===tracker.id)?.archived,false);
