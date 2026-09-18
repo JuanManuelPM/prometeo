@@ -22,7 +22,31 @@ const finiteInt = (value, fallback = 0) => {
 const parseTime = value => Date.parse(value || '') || 0;
 const eventTime = doc => parseTime(doc?.returned_at || doc?.completed_at || doc?.heartbeat_at || doc?.observed_at || doc?.recorded_at || doc?.closed_at || doc?.started_at || doc?.claimed_at || doc?.launched_at || doc?.created_at || doc?.updated_at || doc?.timestamp);
 const uniq = values => [...new Set(arr(values).filter(Boolean))].sort((a, b) => Buffer.from(String(a)).compare(Buffer.from(String(b))));
-const jobRequiredCapabilities = job => uniq([...arr(job?.required_capabilities), ...arr(job?.capability_requirements)]);
+const LEGACY_CAPABILITY_ALIASES = Object.freeze({
+  real_browser_execution: ['representative_javascript_browser']
+});
+const legacyCapabilityValues = job => {
+  const raw = job?.capability_required;
+  const values = raw == null ? [] : (Array.isArray(raw) ? raw : [raw]);
+  return uniq(values.map(value => String(value).trim()).filter(Boolean));
+};
+export function classifyJobCapabilities(job = {}) {
+  const required = [...arr(job?.required_capabilities), ...arr(job?.capability_requirements)];
+  const unsupported = [];
+  const normalizedLegacy = [];
+  for (const value of legacyCapabilityValues(job)) {
+    const mapped = LEGACY_CAPABILITY_ALIASES[value];
+    if (!mapped) unsupported.push(value);
+    else normalizedLegacy.push(...mapped);
+  }
+  return {
+    required_capabilities: uniq([...required, ...normalizedLegacy]),
+    legacy_capability_values: legacyCapabilityValues(job),
+    unsupported_legacy_capabilities: uniq(unsupported)
+  };
+}
+const jobRequiredCapabilities = job => classifyJobCapabilities(job).required_capabilities;
+const jobCapabilityRouteable = job => classifyJobCapabilities(job).unsupported_legacy_capabilities.length === 0;
 const clamp = (min, value, max) => Math.max(min, Math.min(max, value));
 const lower = value => String(value ?? '').toLowerCase();
 const sha12 = value => crypto.createHash('sha256').update(value).digest('hex').slice(0, 12);
@@ -603,6 +627,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
 
   const ready = jobs
     .filter(job => ['ready', 'partial'].includes(job.state))
+    .filter(jobCapabilityRouteable)
     .filter(job => job.state !== 'partial' || recoveryBasisGate(job).eligible)
     .filter(job => {
       const semantics = semantic(job);
@@ -638,13 +663,38 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
 
   const recovery = jobs
     .filter(job => job.state === 'replaceable')
+    .filter(jobCapabilityRouteable)
     .filter(job => semantic(job).valid && semantic(job).ordinary_next_generation_eligible)
     .filter(job => recoveryBasisGate(job).eligible)
     .sort(byPriority)
     .map(job => compactPortfolio(feed, semantic, job))
     .slice(0, 30);
 
+  const capabilityAttention = jobs
+    .filter(job => job.state !== 'done')
+    .map(job => ({ job, model: classifyJobCapabilities(job) }))
+    .filter(({ model }) => model.unsupported_legacy_capabilities.length > 0)
+    .sort((a, b) => byPriority(a.job, b.job))
+    .map(({ job, model }) => ({
+      job_id: job.job_id,
+      dedupe_key: job.dedupe_key || null,
+      project_id: job.project_id || null,
+      project_label: job.project_label || null,
+      title: job.title || job.job_id,
+      source_path: job.source_path || null,
+      legacy_capability_required: model.legacy_capability_values,
+      normalized_required_capabilities: model.required_capabilities,
+      unsupported_legacy_capabilities: model.unsupported_legacy_capabilities,
+      priority: job.priority || 0,
+      state: job.state,
+      reason: 'UNSUPPORTED_LEGACY_CAPABILITY_REQUIRED',
+      route: 'CAPABILITY_TAXONOMY_ATTENTION',
+      ordinary_claim_eligible: false
+    }))
+    .slice(0, 30);
+
   const recoveryAttention = jobs
+    .filter(jobCapabilityRouteable)
     .filter(job => ['replaceable', 'partial'].includes(job.state))
     .filter(job => semantic(job).valid && semantic(job).ordinary_next_generation_eligible)
     .map(job => ({ job, gate: recoveryBasisGate(job) }))
@@ -678,6 +728,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
   };
 
   const fixedGenerationAttention = jobs
+    .filter(jobCapabilityRouteable)
     .map(job => ({ job, semantics: semantic(job) }))
     .filter(({ job, semantics }) => semantics.mode === 'fixed_generation' && semantics.valid && finiteInt(job.pin_generation, 0) >= semantics.fixed_generation && !fixedAttentionResolved(job, semantics))
     .sort((a, b) => byPriority(a.job, b.job))
@@ -742,6 +793,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
       role_ready: roles.role_ready.length,
       recovery: recovery.length,
       recovery_attention: recoveryAttention.length,
+      capability_attention: capabilityAttention.length,
       fixed_generation_attention: fixedGenerationAttention.length
     },
     ready,
@@ -749,6 +801,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
     role_ready: roles.role_ready,
     recovery,
     recovery_attention: recoveryAttention,
+    capability_attention: capabilityAttention,
     fixed_generation_attention: fixedGenerationAttention,
     metabolism: roles.metabolism,
     worker_projection: feed.summary?.workers || {},
@@ -759,7 +812,8 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
     },
     diagnostics: {
       ...(feed.diagnostics || {}),
-      invalid_recovery_policies: invalidRecoveryPolicies
+      invalid_recovery_policies: invalidRecoveryPolicies,
+      unsupported_legacy_capability_required: capabilityAttention
     }
   };
 }
