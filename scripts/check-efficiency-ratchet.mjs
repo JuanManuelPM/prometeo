@@ -815,6 +815,22 @@ else {
   must('EFF046 regression test', starvationTest, 'zero generic-compatible work must keep one evidence-backed FRONTIER_THIN planner claimable');
 }
 
+const eff047 = baseline.items?.find(item => item.id === 'EFF047');
+if (!eff047) errors.push('ratchet: EFF047 missing');
+else {
+  if (eff047.required?.exact_existing_guide_claim_path_suppressed_pre_publish !== true) errors.push('ratchet: EFF047 exact-path suppression drift');
+  if (eff047.required?.suppression_stage !== 'scripts/suppress-concurrent-guide-rescate.mjs') errors.push('ratchet: EFF047 suppression-stage drift');
+  if (eff047.required?.claim_path_match !== 'EXACT_IMMUTABLE_PATH') errors.push('ratchet: EFF047 claim-path match drift');
+  if (eff047.required?.fresh_role_successor_preserved !== true) errors.push('ratchet: EFF047 fresh-successor drift');
+  if (eff047.required?.guide_rescate_cross_fingerprint_suppression_preserved !== true) errors.push('ratchet: EFF047 rescate-suppression drift');
+  if (eff047.required?.specialized_execution_candidates_preserved !== true) errors.push('ratchet: EFF047 specialized-work drift');
+  if (eff047.required?.worker_preclaim_extra_reads !== 0) errors.push('ratchet: EFF047 preclaim-read drift');
+  if (eff047.required?.atomic_create_authority_preserved !== true) errors.push('ratchet: EFF047 authority drift');
+  if (eff047.required?.max_fast_claim_attempts !== 3) errors.push('ratchet: EFF047 attempt-budget drift');
+  if (eff047.required?.stale_collision_refresh_law_preserved !== true) errors.push('ratchet: EFF047 stale-refresh drift');
+  if (eff047.required?.regression_test !== 'coordination/portfolio/tests/role_ready_claim_path_suppression_v1.mjs') errors.push('ratchet: EFF047 regression-test drift');
+}
+
 const eff042 = baseline.items?.find(item => item.id === 'EFF042');
 if (!eff042) errors.push('ratchet: EFF042 missing');
 else {
@@ -950,6 +966,12 @@ const claimFrontierTest = read(root, 'coordination/portfolio/tests/claim_frontie
 must('claim-frontier-test', claimFrontierTest, 'CLAIM_FRONTIER_COMPACT_PASS');
 must('claim-frontier-test', claimFrontierTest, 'bytes<=24000');
 must('claim-frontier-test', claimFrontierTest, 'byte budget must trim before transport overflow');
+
+const roleClaimPathSuppression = read(root, 'scripts/suppress-concurrent-guide-rescate.mjs');
+must('guide-role-claim-path-suppression', roleClaimPathSuppression, 'SUPPRESS_EXACT_EXISTING_IMMUTABLE_PIN_PATH');
+const roleClaimPathSuppressionTest = read(root, 'coordination/portfolio/tests/role_ready_claim_path_suppression_v1.mjs');
+must('guide-role-claim-path-suppression-test', roleClaimPathSuppressionTest, 'ROLE_READY_CLAIM_PATH_SUPPRESSION_PASS');
+must('guide-role-claim-path-suppression-test', roleClaimPathSuppressionTest, 'STALE_FRONTIER_TWO_ALREADY_CLAIMED');
 
 const branchHeadRetryTest = read(root, 'coordination/portfolio/tests/claim_branch_head_move_retry_v1.mjs');
 must('branch-head-retry-test', branchHeadRetryTest, 'CLAIM_BRANCH_HEAD_MOVE_RETRY_PASS');
