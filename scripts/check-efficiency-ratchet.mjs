@@ -44,6 +44,11 @@ if (capabilityItem?.required?.legacy_capability_requirements_alias_normalized !=
 if (capabilityItem?.required?.definitive_absence_only !== true) errors.push('baseline: EFF020 definitive_absence_only must be true');
 if (capabilityItem?.required?.unknown_capability_is_not_absence !== true) errors.push('baseline: EFF020 unknown_capability_is_not_absence must be true');
 if (capabilityItem?.required?.mismatch_consumes_authority_create_attempt !== false) errors.push('baseline: EFF020 mismatch must not consume authority CREATE attempt');
+if (capabilityItem?.required?.legacy_capability_required_singular_normalized !== true) errors.push('baseline: EFF020 singular capability_required normalization must be true');
+if (capabilityItem?.required?.legacy_capability_required_alias_map?.real_browser_execution !== 'representative_javascript_browser') errors.push('baseline: EFF020 real_browser_execution alias drift');
+if (capabilityItem?.required?.unsupported_legacy_capability_required_fail_closed_attention !== true) errors.push('baseline: EFF020 unsupported singular legacy capabilities must fail closed to attention');
+if (capabilityItem?.required?.recovery_capability_metadata_from_legacy_singular_preserved !== true) errors.push('baseline: EFF020 singular legacy recovery metadata must be preserved');
+if (capabilityItem?.required?.jose_v12_legacy_singular_fixture_capability_bound !== true) errors.push('baseline: EFF020 Jose V12 singular fixture must remain capability-bound');
 const batchingItem = baseline?.items?.find(x=>x.id==='EFF021');
 if (batchingItem?.required?.batched_unified_candidate_sharding !== true) errors.push('baseline: EFF021 unified batch sharding must be true');
 if (batchingItem?.required?.batch_strategy !== 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD') errors.push('baseline: EFF021 batch strategy drift');
@@ -303,7 +308,13 @@ must('fast-allocator', allocator, "claim_mode: 'GUIDE_ROLE_PIN_CREATE'");
 must('fast-allocator', allocator, "schema: 'prometeo.guide-role-pin/v1'");
 must('fast-allocator', allocator, 'frontier_floor_absolute');
 must('fast-allocator', allocator, 'max_recovery_snapshot_age_seconds: 90');
-must('fast-allocator', allocator, 'const jobRequiredCapabilities = job => uniq([...arr(job?.required_capabilities), ...arr(job?.capability_requirements)])');
+must('fast-allocator', allocator, 'export function classifyJobCapabilities(job = {})');
+must('fast-allocator', allocator, "real_browser_execution: ['representative_javascript_browser']");
+must('fast-allocator', allocator, 'job?.capability_required');
+must('fast-allocator', allocator, "reason: 'UNSUPPORTED_LEGACY_CAPABILITY_REQUIRED'");
+must('fast-allocator', allocator, "route: 'CAPABILITY_TAXONOMY_ATTENTION'");
+must('fast-allocator', allocator, 'capability_attention: capabilityAttention.length');
+must('fast-allocator', allocator, '.filter(jobCapabilityRouteable)');
 must('fast-allocator', allocator, 'required_capabilities: jobRequiredCapabilities(job)');
 must('fast-allocator', allocator, 'source_path: job.source_path || null');
 must('fast-allocator', allocator, 'item.predecessor_pin_ref || item.source_path ||');
@@ -424,6 +435,11 @@ const capabilityFitTest = read(root, 'coordination/portfolio/tests/fast_allocato
 must('capability-fit-test', capabilityFitTest, 'FAST_ALLOCATOR_CAPABILITY_FIT_PASS');
 must('capability-fit-test', capabilityFitTest, 'unrestricted_public_http_origin_fetch');
 must('capability-fit-test', capabilityFitTest, 'CAPABILITY_MISMATCH_PRECLAIM');
+must('capability-fit-test', capabilityFitTest, 'legacySingularRows');
+must('capability-fit-test', capabilityFitTest, 'real_browser_execution');
+must('capability-fit-test', capabilityFitTest, 'authorityCreateAttempts');
+must('capability-fit-test', capabilityFitTest, 'unknown_legacy_runtime');
+must('capability-fit-test', capabilityFitTest, 'capability_attention');
 
 const fixedPolicy = read(root, 'coordination/portfolio/recovery-policies/portfolio-exclusive-job-pin-live-race-5-v1.json');
 must('fixed-generation-policy', fixedPolicy, '"mode": "fixed_generation"');
