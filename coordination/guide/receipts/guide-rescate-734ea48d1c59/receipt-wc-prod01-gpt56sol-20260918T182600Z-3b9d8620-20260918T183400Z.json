@@ -1,0 +1,35 @@
+{
+  "schema": "prometeo.guide-receipt/v1",
+  "guide_work_id": "guide-rescate-734ea48d1c59",
+  "receipt_id": "receipt-wc-prod01-gpt56sol-20260918T182600Z-3b9d8620-20260918T183400Z",
+  "worker_id": "wc-prod01-gpt56sol-20260918T182600Z-3b9d8620",
+  "role": "GUIDE_RESCATE",
+  "created_at": "2026-09-18T18:34:00Z",
+  "trigger": "LOW_YIELD",
+  "evidence": [
+    "coordination/guide/pins/guide-rescate-734ea48d1c59/G000001.json",
+    "coordination/workers/heartbeats/wc-prod01-gpt56sol-20260918T182600Z-3b9d8620/20260918T183100Z.json",
+    "coordination/guide/pins/guide-rescate-32e2fc81f638/G000001.json",
+    "coordination/portfolio/tests/guide_rescate_single_active_role_v1.mjs",
+    ".github/workflows/live-feed.yml",
+    "coordination/efficiency/RATCHET_BASELINE_V1.json#EFF015",
+    "gh-pages:live/efficiency.json@2026-09-18T18:29:26.161Z"
+  ],
+  "diagnosis": "The EFF015 post-allocator GUIDE_RESCATE single-active guard existed in workflow/tests but its CLI script contained a literal backslash-n token outside a string (`;\\\\n  process.stdout...`), making the script syntactically invalid. While this worker's GUIDE_RESCATE authority remained fresh and heartbeating, a second fingerprint-churn GUIDE_RESCATE was claimed and STARTED, proving the guard was not effectively enforcing its invariant.",
+  "intervention": "Repaired only the malformed newline token in scripts/suppress-concurrent-guide-rescate.mjs, restoring the already-designed suppression stage without changing claim authority, role identity, attempt budgets or product state. A first CAS write lost to concurrent main movement; the same defect was re-read and the exact repair then landed safely.",
+  "created_jobs": [],
+  "consumed_returns": [],
+  "changed_paths": [
+    "scripts/suppress-concurrent-guide-rescate.mjs"
+  ],
+  "tests": [
+    "POST_COMMIT_BYTE_CHECK_PASS: main content_sha ca2affc660adff7a81b416ebccb3dad14d9cb6e6 no longer contains `;\\\\n  process.stdout.write`.",
+    "EXISTING_REGRESSION_GUARD_PRESENT: coordination/portfolio/tests/guide_rescate_single_active_role_v1.mjs imports and exercises suppressConcurrentGuideRescate.",
+    "WORKFLOW_WIRES_GUARD: .github/workflows/live-feed.yml runs the regression test and suppression CLI before claim-frontier publication.",
+    "CI_DIRECT_RUN_35380797707: CANCELLED_BY_COALESCENCE, therefore not counted as PASS."
+  ],
+  "remaining_boundary": "Fresh non-cancelled Live Feed execution and subsequent runtime observation are still required before upgrading EFF015 runtime status; this receipt does not claim that publication/runtime canary has passed.",
+  "repair_commit_sha": "89b6ef23232d961f270c3cedf3a584a4a308d739",
+  "pattern_id": "YIELD-10X-V1",
+  "protocol_version": "v3.27"
+}
