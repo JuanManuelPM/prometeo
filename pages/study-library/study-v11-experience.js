@@ -84,5 +84,21 @@ const renderLibraryBefore11=renderLibrary,renderCourseBefore11=renderCourse;
 renderLibrary=function(){renderLibraryBefore11();setTimeout(hydrateLibrary11,0);setTimeout(hydrateLibrary11,180)};
 renderCourse=function(){renderCourseBefore11();setTimeout(hydrateCourse11,0);setTimeout(hydrateCourse11,180)};
 function rerender11(){if(view==='library')renderLibrary();else if(view==='course'&&!document.querySelector('.assessmentView10'))renderCourse()}
+function scheduleMatch11(courseId,title){
+ const name=norm11(title||C[courseId]?.name||'');
+ return combinedEvents11().filter(e=>{
+  if(courseId&&e.courseId===courseId)return true;
+  if(!name)return false;
+  const en=norm11(e.courseName||'');
+  return !!en&&(en===name||en.includes(name)||name.includes(en));
+ }).map(e=>({id:e.id,date:e.date,starts_at:e.at instanceof Date?e.at.toISOString():String(e.at||''),title:e.title,course_id:e.courseId||null,course_name:e.courseName||'',type:e.type,source:e.source}));
+}
+window.PrometeoStudyCalendarV11={
+ async courseSchedule(courseId,title){
+  await load11();
+  const source=(data11.sources||[]).find(x=>x.source_id==='palermo')||null;
+  return {schema:'prometeo.study-calendar-course/v1',configured:!!localStorage.getItem(BB11_TOKEN),status:source?.last_error?'degraded':'ready',source_age:sourceAge11(),source_last_sync_at:source?.last_sync_at||null,events:scheduleMatch11(courseId,title)};
+ }
+};
 load11();setInterval(()=>{if(localStorage.getItem(BB11_TOKEN))load11()},10*60*1000);
 })();
