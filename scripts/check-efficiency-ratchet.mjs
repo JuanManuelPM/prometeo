@@ -421,6 +421,24 @@ must('guide-current-mission', guide, 'Do not claim background/self-waking execut
 
 const currentMission = JSON.parse(read(root, 'coordination/guide/CURRENT_MISSION_V1.json'));
 if (currentMission.status !== 'ACTIVE_BINDING') errors.push('current-mission: status drift');
+if (currentMission?.growth_trajectory?.ref !== 'coordination/guide/GROWTH_TRAJECTORY_V1.json') errors.push('current-mission: trajectory ref drift');
+const growthTrajectory = JSON.parse(read(root, 'coordination/guide/GROWTH_TRAJECTORY_V1.json'));
+if (growthTrajectory.status !== 'ACTIVE_BINDING') errors.push('growth-trajectory: status drift');
+if (growthTrajectory?.empirical_growth_model?.status !== 'NOT_PROVEN_EXPONENTIAL') errors.push('growth-trajectory: proof status drift');
+if (growthTrajectory?.empirical_growth_model?.acceleration_claim_gate?.minimum_comparable_windows !== 3) errors.push('growth-trajectory: comparable window gate drift');
+if (!Array.isArray(growthTrajectory?.roadmap) || growthTrajectory.roadmap.length < 5) errors.push('growth-trajectory: roadmap missing');
+if (!Array.isArray(growthTrajectory?.action_tree) || growthTrajectory.action_tree.length < 5) errors.push('growth-trajectory: action tree missing');
+if (!Array.isArray(growthTrajectory?.drift_alarms) || growthTrajectory.drift_alarms.length < 5) errors.push('growth-trajectory: drift alarms missing');
+if (!growthTrajectory?.human_north_star?.summary) errors.push('growth-trajectory: human north star missing');
+const trajectoryBuilder = read(root, 'scripts/build-growth-trajectory.mjs');
+must('growth-trajectory-builder', trajectoryBuilder, 'prometeo.growth-trajectory-public/v1');
+must('growth-trajectory-builder', trajectoryBuilder, 'Growth Trajectory');
+const trajectoryWorkflow = read(root, '.github/workflows/growth-trajectory.yml');
+must('growth-trajectory-workflow', trajectoryWorkflow, 'Prometeo Growth Trajectory');
+const pageRegistryTrajectory = JSON.parse(read(root, 'coordination/pages/PLATE_REGISTRY_V1.json'));
+if (!pageRegistryTrajectory?.plates?.some(x=>x.plate==='TRJ001' && x.page_id==='growth-trajectory')) errors.push('growth-trajectory: TRJ001 plate missing');
+const pageWatchTrajectory = JSON.parse(read(root, 'coordination/live/PAGE_WATCH_REGISTRY_V1.json'));
+if (!pageWatchTrajectory?.pages?.some(x=>x.plate==='TRJ001' && x.url==='https://juanmanuelpm.github.io/prometeo/trajectory/')) errors.push('growth-trajectory: public watch registration missing');
 if (currentMission?.operating_mode?.mode !== 'ROLLING_POOL') errors.push('current-mission: rolling pool mode drift');
 if (currentMission?.operating_mode?.pool_id !== 'PROD-01') errors.push('current-mission: pool id drift');
 if (currentMission?.guide_takeover_canary?.canary_id !== 'TKV1') errors.push('current-mission: takeover canary id drift');
