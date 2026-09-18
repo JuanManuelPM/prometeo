@@ -56,8 +56,13 @@ for (const n of [2,5]) {
 {
   const release={schema:'prometeo.portfolio-contention-release/v1',fixture_id:'fixture-2',released_at:'2026-09-17T21:00:20Z',required_contenders:2,entrant_worker_ids:['w1','w2'],grants_execution_authority:false,next_action:'RACE_DETERMINISTIC_PIN'};
   const c=applyContentionBarrierRouting(allocator(baseCandidate()),[barrier(2,release)],'2026-09-17T21:00:30Z').ready[0];
-  assert.equal(c.claim_mode,'PORTFOLIO_PIN_CREATE');
+  assert.equal(c.claim_mode,'PORTFOLIO_BARRIER_RELEASED');
+  assert.equal(c.claim_path,null);
   assert.equal(c.contention_barrier.state,'RELEASED');
+  assert.deepEqual(c.contention_barrier.entrant_worker_ids,['w1','w2']);
+  assert.equal(c.next_action,'CHECK_RELEASE_MEMBERSHIP');
+  assert.equal(c.post_release_claim.claim_mode,'PORTFOLIO_PIN_CREATE');
+  assert.equal(c.post_release_claim.claim_path,'coordination/portfolio/pins/fixture-job/G000001.json');
 }
 
 {
