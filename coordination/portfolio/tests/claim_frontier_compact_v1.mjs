@@ -78,4 +78,47 @@ for (const candidate of bounded.candidates) {
   assert.deepEqual(candidate.claim_payload_shape,source.claim_payload_shape,'published authority payload was altered');
 }
 
+const capabilityRow=(i,required_capabilities)=>({
+  job_id:'job-'+i,
+  project_id:'p-cap',
+  title:'Capability job '+i,
+  priority:1000-i,
+  source_path:'coordination/portfolio/derived/p-cap/job-'+i+'.json',
+  claim_mode:'PORTFOLIO_PIN_CREATE',
+  claim_path:'pins/job-'+i+'.json',
+  claim_payload_shape:payload(i),
+  required_capabilities
+});
+const browserRecovery=Array.from({length:8},(_,i)=>capabilityRow(100+i,['representative_javascript_browser']));
+const publicHttpRecovery=Array.from({length:3},(_,i)=>capabilityRow(200+i,['unrestricted_public_http_origin_fetch']));
+const diversityAllocator={
+  schema:'prometeo.fast-allocator/v3',
+  generated_at:'2026-09-18T21:39:22Z',
+  source_sha:'capability-diversity-fixture',
+  batch_strategy:'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD',
+  preferred_order:['ready','queue_ready','role_ready','recovery'],
+  ready:[],queue_ready:[],role_ready:[],
+  recovery:[...browserRecovery,...publicHttpRecovery],
+  batch_candidates:[...browserRecovery,...publicHttpRecovery].map(x=>({lane:'recovery',...x}))
+};
+const diverse=buildClaimFrontier(diversityAllocator,6,24000);
+assert.equal(diverse.candidate_count,6,'bounded capability fixture must keep the requested candidate budget');
+assert.equal(diverse.candidates[0].job_id,'job-100','capability diversity must preserve the allocator-preferred prefix');
+assert.equal(
+  diverse.candidates.some(x=>JSON.stringify(x.required_capabilities)===JSON.stringify(['representative_javascript_browser'])),
+  true,
+  'browser capability signature must remain represented'
+);
+assert.equal(
+  diverse.candidates.some(x=>JSON.stringify(x.required_capabilities)===JSON.stringify(['unrestricted_public_http_origin_fetch'])),
+  true,
+  'compact frontier must promote an HTTP-only capability signature before truncation'
+);
+assert.equal(
+  diverse.candidates.findIndex(x=>JSON.stringify(x.required_capabilities)===JSON.stringify(['unrestricted_public_http_origin_fetch'])) < 6,
+  true,
+  'HTTP-only recovery must be visible inside the bounded compact frontier'
+);
+
+console.log('CLAIM_FRONTIER_CAPABILITY_DIVERSITY_PASS',diverse.candidate_count);
 console.log('CLAIM_FRONTIER_COMPACT_PASS',bytes,boundedBytes,bounded.candidate_count);
