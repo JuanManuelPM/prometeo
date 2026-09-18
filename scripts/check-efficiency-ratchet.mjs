@@ -163,6 +163,8 @@ must('fast-allocation', fast, 'claim-frontier.candidates');
 must('fast-allocation', fast, 'gh-pages:live/claim-frontier.json');
 must('fast-allocation', fast, 'first 8 hex chars of beacon_commit_sha');
 must('fast-allocation', fast, 'Do not re-impose lane priority locally for a batched worker');
+must('fast-allocation', fast, 'batch_compatible_candidates');
+mustI('fast-allocation', fast, 'definitively incompatible candidates before the hash');
 
 const projectGuideMesh = JSON.parse(read(root, 'coordination/guide/PROJECT_GUIDE_MESH_V1.json'));
 if (projectGuideMesh.worker_chain_target_productive_units !== 3) errors.push('project-guide-mesh: chain target drift');
@@ -342,6 +344,16 @@ const batchShardingTest = read(root, 'coordination/portfolio/tests/batched_lane_
 must('batch-sharding-test', batchShardingTest, 'BATCHED_UNIFIED_SHARDING_PASS');
 must('batch-sharding-test', batchShardingTest, 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD');
 must('batch-sharding-test', batchShardingTest, 'beacon_commit_sha_first_8_hex');
+must('batch-sharding-test', batchShardingTest, 'BATCHED_CAPABILITY_FILTERED_SHARDING_PASS');
+
+const eff027 = baseline.items?.find(item => item.id === 'EFF027');
+if (!eff027) errors.push('ratchet: EFF027 missing');
+else {
+  if (eff027.required?.batched_capability_filter_before_hash !== true) errors.push('ratchet: EFF027 filter-before-hash drift');
+  if (eff027.required?.stable_survivor_order !== true) errors.push('ratchet: EFF027 survivor-order drift');
+  if (eff027.required?.unknown_capability_is_not_absence !== true) errors.push('ratchet: EFF027 unknown-capability drift');
+  if (eff027.required?.no_extra_preclaim_reads_or_writes !== true) errors.push('ratchet: EFF027 preclaim-overhead drift');
+}
 
 const claimFrontier = read(root, 'scripts/build-claim-frontier.mjs');
 must('claim-frontier', claimFrontier, "schema:'prometeo.claim-frontier/v1'");
