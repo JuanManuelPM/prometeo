@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -38,6 +38,23 @@ if (JSON.stringify(latentItem?.required?.candidate_order) !== JSON.stringify(['r
 const evidenceIntegrityItem = baseline?.items?.find(x=>x.id==='EFF017');
 if (evidenceIntegrityItem?.required?.portfolio_fragment_semantics_validated !== true) errors.push('baseline: EFF017 portfolio_fragment_semantics_validated must be true');
 if (evidenceIntegrityItem?.required?.derived_recovery_source_path_preserved !== true) errors.push('baseline: EFF017 derived_recovery_source_path_preserved must be true');
+const frontierPressureItem = baseline?.items?.find(x=>x.id==='EFF043');
+if (frontierPressureItem?.required?.frontier_pressure_source !== 'candidate.required_capabilities') errors.push('baseline: EFF043 pressure source drift');
+if (frontierPressureItem?.required?.clean_frontier_total_preserved !== true) errors.push('baseline: EFF043 total frontier must remain published');
+if (frontierPressureItem?.required?.generic_compatible_clean_frontier !== true) errors.push('baseline: EFF043 generic-compatible frontier missing');
+if (JSON.stringify(frontierPressureItem?.required?.specialized_capability_buckets) !== JSON.stringify(['browser','mobile','host','dispatch','unknown'])) errors.push('baseline: EFF043 specialized bucket set drift');
+if (frontierPressureItem?.required?.unknown_capability_is_not_absence !== true) errors.push('baseline: EFF043 unknown capability truth boundary drift');
+if (frontierPressureItem?.required?.specialized_work_suppression_forbidden !== true) errors.push('baseline: EFF043 specialized work must not be suppressed');
+if (frontierPressureItem?.required?.frontier_thin_uses_generic_compatible_count !== true) errors.push('baseline: EFF043 FRONTIER_THIN count drift');
+if (frontierPressureItem?.required?.claim_authority_unchanged !== true) errors.push('baseline: EFF043 claim authority drift');
+if (frontierPressureItem?.required?.max_fast_claim_attempts_unchanged !== 3) errors.push('baseline: EFF043 claim attempt bound drift');
+if (frontierPressureItem?.required?.pool_sharding_unchanged !== true) errors.push('baseline: EFF043 POOL sharding drift');
+if (frontierPressureItem?.required?.regression_test !== 'coordination/portfolio/tests/capability_aware_frontier_pressure_v1.mjs') errors.push('baseline: EFF043 regression test drift');
+const frontierPressureTest = read(root, 'coordination/portfolio/tests/capability_aware_frontier_pressure_v1.mjs');
+must('capability-aware-frontier-pressure', frontierPressureTest, 'CAPABILITY_AWARE_FRONTIER_PRESSURE_PASS');
+must('capability-aware-frontier-pressure', frontierPressureTest, 'generic_compatible_clean_frontier');
+must('capability-aware-frontier-pressure', frontierPressureTest, 'unknown_capabilities');
+
 const capabilityItem = baseline?.items?.find(x=>x.id==='EFF020');
 if (capabilityItem?.required?.portfolio_required_capabilities_compiled !== true) errors.push('baseline: EFF020 portfolio_required_capabilities_compiled must be true');
 if (capabilityItem?.required?.legacy_capability_requirements_alias_normalized !== true) errors.push('baseline: EFF020 legacy_capability_requirements_alias_normalized must be true');
