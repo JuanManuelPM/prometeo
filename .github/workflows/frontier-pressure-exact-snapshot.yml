@@ -69,6 +69,19 @@ jobs:
             --event-sha "$EVENT_SHA" \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Capture regression manifest from workflow envelope
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/frontier-pressure-regression-manifest.txt" <<'EOF'
+          tests/frontier-pressure-exact-snapshot-executor-v1.test.mjs
+          tests/frontier-pressure-compiler-v1.test.mjs
+          tests/frontier-pressure-dedupe-repair-v1.test.mjs
+          tests/frontier-pressure-superseded-owner-suppression-v1.test.mjs
+          tests/frontier-pressure-routable-scope-parity-v1.test.mjs
+          scripts/check-efficiency-ratchet.mjs
+          EOF
+
       - name: Checkout exact snapshot
         uses: actions/checkout@v4
         with:
@@ -101,6 +114,17 @@ jobs:
           mkdir -p artifacts
           if (
             set -euo pipefail
+            missing=0
+            while IFS= read -r expected; do
+              [[ -n "$expected" ]] || continue
+              if [[ ! -f "$expected" ]]; then
+                printf 'MISSING_EXPECTED_REGRESSION:%s\n' "$expected"
+                missing=1
+              fi
+            done < "$RUNNER_TEMP/frontier-pressure-regression-manifest.txt"
+            if (( missing )); then
+              exit 66
+            fi
             node --test tests/frontier-pressure-exact-snapshot-executor-v1.test.mjs
             node --test tests/frontier-pressure-compiler-v1.test.mjs
             node --test tests/frontier-pressure-dedupe-repair-v1.test.mjs
@@ -108,10 +132,12 @@ jobs:
             node --test tests/frontier-pressure-routable-scope-parity-v1.test.mjs
             node scripts/check-efficiency-ratchet.mjs .
           ) 2>&1 | tee artifacts/frontier-pressure-regression.log; then
-            printf '{"schema":"prometeo.frontier-pressure-regression-evidence/v1","status":"PASS","source_sha":"%s"}\n' "$SOURCE_SHA" > artifacts/frontier-pressure-regression-evidence.json
+            printf '{"schema":"prometeo.frontier-pressure-regression-evidence/v1","status":"PASS","source_sha":"%s","manifest_policy":"CURRENT_WORKFLOW_ENVELOPE"}\n' "$SOURCE_SHA" > artifacts/frontier-pressure-regression-evidence.json
           else
             code=${PIPESTATUS[0]}
-            printf '{"schema":"prometeo.frontier-pressure-regression-evidence/v1","status":"FAIL","source_sha":"%s","exit_status":%s}\n' "$SOURCE_SHA" "$code" > artifacts/frontier-pressure-regression-evidence.json
+            reason="REGRESSION_FAILURE"
+            if [[ "$code" -eq 66 ]]; then reason="EXPECTED_REGRESSION_PATH_MISSING"; fi
+            printf '{"schema":"prometeo.frontier-pressure-regression-evidence/v1","status":"FAIL","source_sha":"%s","exit_status":%s,"reason":"%s","manifest_policy":"CURRENT_WORKFLOW_ENVELOPE"}\n' "$SOURCE_SHA" "$code" "$reason" > artifacts/frontier-pressure-regression-evidence.json
             exit "$code"
           fi
 
