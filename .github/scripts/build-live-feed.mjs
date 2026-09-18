@@ -84,6 +84,38 @@ function workerHeartbeatSignal(workerId, jobId) {
   const compatible = arr.filter(r => !r.doc.job_id || !jobId || r.doc.job_id === jobId);
   return latest(compatible);
 }
+
+function compactSourceDebtReturn(row) {
+  if (!row || !Object.prototype.hasOwnProperty.call(row.doc || {}, 'source_debt')) return null;
+  const raw = row.doc?.source_debt;
+  const debt = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : null;
+  const status = debt && typeof debt.status === 'string' ? debt.status.trim().toUpperCase() : null;
+  const history = row.doc?.search_coverage?.git_history;
+  const searchResult = typeof history?.result === 'string' ? history.result.trim().toUpperCase() : null;
+  const exactMatchesValue = Number(history?.exact_matches);
+  const exactMatches = Number.isFinite(exactMatchesValue) ? exactMatchesValue : null;
+  const exhaustiveNegative = (
+    row.doc?.exact_source_found === false &&
+    searchResult === 'NO_EXACT_MATCH' &&
+    exactMatches === 0
+  );
+  const structurallyValid = Boolean(
+    debt &&
+    status === 'OPEN' &&
+    typeof debt.missing === 'string' && debt.missing.trim() &&
+    typeof debt.acceptable_future_source === 'string' && debt.acceptable_future_source.trim() &&
+    exhaustiveNegative
+  );
+  return {
+    path: row.path,
+    returned_at: timeOf(row.doc),
+    status,
+    exhaustive_negative: exhaustiveNegative,
+    structurally_valid: structurallyValid,
+    search_result: searchResult,
+    exact_matches: exactMatches
+  };
+}
 function inspectPortfolioJob(project, job) {
   const id = job.job_id;
   const pins = docs(portfolioFiles.filter(x=>x.startsWith(`coordination/portfolio/pins/${id}/`))).sort((a,b)=>generation(a)-generation(b)||ms(a.doc)-ms(b.doc));
@@ -92,6 +124,7 @@ function inspectPortfolioJob(project, job) {
   const returns = docs(portfolioFiles.filter(x=>x.startsWith(`coordination/portfolio/returns/${id}/`))).sort((a,b)=>ms(a.doc)-ms(b.doc)||a.path.localeCompare(b.path));
   const terminalReturn = [...returns].reverse().find(x=>terminal(x.doc)) || null;
   const latestReturn = returns.at(-1) || null;
+  const latestSourceDebtReturn = [...returns].reverse().find(x=>Object.prototype.hasOwnProperty.call(x.doc || {}, 'source_debt')) || null;
   const latestPin = pins.at(-1) || null;
   let authority = null;
   let authorityMode = 'none';
@@ -126,6 +159,7 @@ function inspectPortfolioJob(project, job) {
     replaceable_at:lastSignalAt ? new Date(Date.parse(lastSignalAt)+REPLACE_MS).toISOString() : null,
     collision_count:collisions.length + Math.max(0, claims.length-(authority?1:0)),
     latest_return:latestReturn ? {path:latestReturn.path,outcome:first(latestReturn.doc.outcome,latestReturn.doc.status),summary:latestReturn.doc.summary||null,returned_at:timeOf(latestReturn.doc),worker_id:latestReturn.doc.worker_id||null} : null,
+    latest_source_debt_return:compactSourceDebtReturn(latestSourceDebtReturn),
     latest_pin_recovery_basis:latestPin?.doc?.recovery_basis_or_null || null,
     terminal_return:terminalReturn ? {path:terminalReturn.path,outcome:first(terminalReturn.doc.outcome,terminalReturn.doc.status),returned_at:timeOf(terminalReturn.doc),worker_id:terminalReturn.doc.worker_id||null} : null,
     recent_return_evidence:returns.slice(-3).map(r=>({path:r.path,outcome:first(r.doc.outcome,r.doc.status),returned_at:timeOf(r.doc)})),
