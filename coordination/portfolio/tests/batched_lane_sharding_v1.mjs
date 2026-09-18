@@ -18,6 +18,13 @@ assert.equal(eff021.required?.unbatched_allocator_order_preserved, true);
 assert.equal(eff021.required?.no_extra_preclaim_reads_or_writes, true);
 assert.equal(eff021.required?.max_fast_claim_attempts, 3);
 
+const eff027 = baseline.items?.find(item => item.id === 'EFF027');
+assert(eff027, 'EFF027 must remain in the efficiency ratchet baseline');
+assert.equal(eff027.required?.batched_capability_filter_before_hash, true);
+assert.equal(eff027.required?.stable_survivor_order, true);
+assert.equal(eff027.required?.unknown_capability_is_not_absence, true);
+assert.equal(eff027.required?.no_extra_preclaim_reads_or_writes, true);
+
 const routedOrder = (length, shaPrefix8) => {
   if (!Number.isInteger(length) || length < 1) return [];
   const n=Number.parseInt(String(shaPrefix8).slice(0,8),16);
@@ -36,6 +43,24 @@ for (let length = 1; length <= 40; length++) {
 const firstChoices=new Set(Array.from({length:256},(_,n)=>routedOrder(13,n.toString(16).padStart(8,'0'))[0]));
 assert.equal(firstChoices.size,13,'8-hex seed space should cover every candidate index');
 
+const missing = new Set(['representative_javascript_browser']);
+const mesh = [
+  ...Array.from({length:9},(_,i)=>({id:'special-'+i, required_capabilities:['representative_javascript_browser']})),
+  {id:'generic-a', required_capabilities:[]},
+  {id:'generic-b', required_capabilities:[]},
+  {id:'generic-c', required_capabilities:[]}
+];
+const compatible = mesh.filter(c => !c.required_capabilities.some(cap => missing.has(cap)));
+assert.deepEqual(compatible.map(c=>c.id), ['generic-a','generic-b','generic-c'], 'capability filtering must preserve published survivor order');
+const oldPostSkipFirst = shaPrefix8 => {
+  const order=routedOrder(mesh.length, shaPrefix8);
+  return order.map(i=>mesh[i]).find(c=>!c.required_capabilities.some(cap=>missing.has(cap)))?.id || null;
+};
+const oldSeedChoices = Array.from({length:9},(_,n)=>oldPostSkipFirst(n.toString(16).padStart(8,'0')));
+assert.equal(new Set(oldSeedChoices).size,1,'fixture must demonstrate post-hash capability-skip convergence');
+const filteredSeedChoices = new Set(Array.from({length:9},(_,n)=>compatible[routedOrder(compatible.length,n.toString(16).padStart(8,'0'))[0]].id));
+assert.equal(filteredSeedChoices.size,3,'filter-before-hash must spread the same seeds across all compatible candidates');
+
 const wc = fs.readFileSync(path.join(repoRoot, 'wc'), 'utf8');
 const fast = fs.readFileSync(path.join(repoRoot, 'coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md'), 'utf8');
 for (const text of [wc, fast]) {
@@ -43,6 +68,7 @@ for (const text of [wc, fast]) {
   assert(text.includes('claim-frontier') && text.includes('candidates'), 'binding protocol must route explicit batches through compact claim-frontier candidates');
   assert(text.toLowerCase().includes('unified'), 'binding protocol must describe unified batch sharding');
   assert(text.toLowerCase().includes('no extra preclaim read or write'), 'sharding must not add coordination overhead');
+  assert(text.includes('batch_compatible_candidates'), 'batched sharding must filter definitively incompatible candidates before hashing');
 }
 
 assert(fast.includes('Unbatched workers preserve normal allocator lane order: `ready -> queue_ready -> role_ready -> recovery`.'), 'unbatched lane order must remain explicit');
@@ -57,3 +83,4 @@ const workflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/live-fee
 assert(workflow.includes('node source/coordination/portfolio/tests/batched_lane_sharding_v1.mjs'), 'live allocator publication must execute the batch-sharding regression guard');
 
 console.log('BATCHED_UNIFIED_SHARDING_PASS');
+console.log('BATCHED_CAPABILITY_FILTERED_SHARDING_PASS');
