@@ -64,7 +64,11 @@ test('/wc refuses incomplete immutable pins and routes role_ready before recover
   assert.ok(wc.includes('candidate.claim_payload_shape'));
   assert.ok(wc.includes('ALLOCATOR_PIN_PAYLOAD_INVALID'));
   assert.ok(wc.includes('GUIDE_ROLE_PIN_CREATE'));
-  assert.ok(wc.includes('Lane diversification: after 2 CREATE_EXISTS/CAS_LOST outcomes in the same lane'));
+  assert.ok(wc.includes('Lane diversification: after 2 CREATE_EXISTS outcomes in the same lane'));
+  assert.ok(wc.includes('BRANCH_HEAD_MOVED'));
+  assert.ok(wc.includes('retry the same exact claim path and payload once'));
+  assert.ok(wc.includes('does NOT consume an authority CREATE attempt'));
+  assert.ok(wc.includes('CLAIM_TRANSPORT_UNSTABLE'));
   assert.ok(wc.includes('Never CREATE an immutable malformed pin'));
   assert.ok(wc.includes('FORBIDDEN before ownership:'));
 });
