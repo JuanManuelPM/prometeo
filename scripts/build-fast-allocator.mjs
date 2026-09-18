@@ -47,6 +47,67 @@ export function classifyJobCapabilities(job = {}) {
 }
 const jobRequiredCapabilities = job => classifyJobCapabilities(job).required_capabilities;
 const jobCapabilityRouteable = job => classifyJobCapabilities(job).unsupported_legacy_capabilities.length === 0;
+
+export function classifyProjectGuideFrontier(stateDoc = {}, jobs = [], projectGuideMesh = {}) {
+  const baselineCapabilities = new Set(
+    arr(projectGuideMesh?.project_frontier_baseline_capabilities || ['repository_test_runtime'])
+      .map(value => String(value))
+  );
+  const bySource = new Map();
+  const byJobId = new Map();
+  for (const job of arr(jobs)) {
+    if (job?.job_id) byJobId.set(job.job_id, job);
+    if (job?.source_path) bySource.set(String(job.source_path), job);
+  }
+  const resolve = ref => {
+    const raw = String(ref || '');
+    const base = raw.split('#')[0];
+    if (bySource.has(base)) return bySource.get(base);
+    const explicitJob = raw.match(/#job:([^#]+)$/)?.[1] || null;
+    if (explicitJob && byJobId.has(explicitJob)) return byJobId.get(explicitJob);
+    const derivedJob = base.match(/coordination\/portfolio\/derived\/[^/]+\/([^/]+)\.json$/)?.[1] || null;
+    if (derivedJob && byJobId.has(derivedJob)) return byJobId.get(derivedJob);
+    return null;
+  };
+  const items = arr(stateDoc?.frontier_refs).map(ref => {
+    const job = resolve(ref);
+    if (!job) return { ref, classification:'missing', job_id:null, state:null, required_capabilities:[] };
+    if (job.state === 'done') {
+      return { ref, classification:'terminal', job_id:job.job_id, state:job.state, required_capabilities:jobRequiredCapabilities(job) };
+    }
+    const required = jobRequiredCapabilities(job);
+    const specialized = required.filter(capability => !baselineCapabilities.has(capability));
+    if (specialized.length) {
+      return {
+        ref,
+        classification:'capability_requirement',
+        job_id:job.job_id,
+        state:job.state,
+        required_capabilities:required,
+        specialized_capabilities:specialized
+      };
+    }
+    if (['working','suspect','recovery'].includes(job.state)) {
+      return { ref, classification:'active', job_id:job.job_id, state:job.state, required_capabilities:required };
+    }
+    if (['ready','partial','replaceable'].includes(job.state)) {
+      return { ref, classification:'executable', job_id:job.job_id, state:job.state, required_capabilities:required };
+    }
+    return { ref, classification:'missing', job_id:job.job_id, state:job.state, required_capabilities:required };
+  });
+  const counts = items.reduce((acc, item) => {
+    acc[item.classification] = (acc[item.classification] || 0) + 1;
+    return acc;
+  }, { executable:0, active:0, capability_requirement:0, terminal:0, missing:0 });
+  return {
+    items,
+    counts,
+    effective_count: counts.executable + counts.active,
+    capability_requirement_refs: items.filter(item => item.classification === 'capability_requirement').map(item => item.ref),
+    terminal_refs: items.filter(item => item.classification === 'terminal').map(item => item.ref),
+    missing_refs: items.filter(item => item.classification === 'missing').map(item => item.ref)
+  };
+}
 const clamp = (min, value, max) => Math.max(min, Math.min(max, value));
 const lower = value => String(value ?? '').toLowerCase();
 const sha12 = value => crypto.createHash('sha256').update(value).digest('hex').slice(0, 12);
@@ -623,10 +684,20 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       .map(project => {
         const stateRow = stateByProject.get(project.project_id) || null;
         const stateDoc = stateRow?.doc || {};
-        const localReady = readyByProject.get(project.project_id) || 0;
+        const frontierClassification = classifyProjectGuideFrontier(stateDoc, jobs, projectGuideMesh);
+        const localReady = frontierClassification.effective_count;
         const localWorking = workingByProject.get(project.project_id) || 0;
         const plannerSuppressed = projectPlannerSuppressedBySourceDebt(stateDoc, projectGuideMesh);
-        return { project, stateRow, stateDoc, localReady, localWorking, plannerSuppressed, gap: Math.max(0, minFrontier - localReady) };
+        return {
+          project,
+          stateRow,
+          stateDoc,
+          localReady,
+          localWorking,
+          frontierClassification,
+          plannerSuppressed,
+          gap: Math.max(0, minFrontier - localReady)
+        };
       })
       .filter(row => row.gap > 0 && !row.plannerSuppressed)
       .sort((a,b) => {
