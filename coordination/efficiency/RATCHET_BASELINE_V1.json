@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-18T01:11:00Z",
+  "updated_at": "2026-09-18T01:10:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -447,8 +447,8 @@
         "worker-allocation",
         "wave-contention"
       ],
-      "observed_failure": "Lane-local batching reduced some herd collisions but still let identical batched workers restart inside the same narrow lane while the allocator compiler already exposed a broader product + Guide candidate mesh. The bootstrap and allocator migrated to unified batch_candidates, but the protocol, ratchet and regression test were not wired together, allowing hot-path contract drift.",
-      "invariant": "When an explicit batch has n > 1 and the compact claim frontier publishes candidates, workers shard deterministically over that compiler-selected product + Guide mesh from the first 8 hex characters of the beacon commit SHA. Batched workers do not re-impose lane priority locally; unbatched workers preserve ready -> queue_ready -> role_ready -> recovery. Atomic CREATE, bounded attempts and zero extra preclaim archaeology remain unchanged.",
+      "observed_failure": "Lane-local batching reduced some herd collisions, but hashing the raw unified mesh before runtime capability filtering still let multiple generic workers land inside different incompatible slots and then converge onto the same surviving Guide/recovery candidates. During WAVE-20260917-MESH-03-R1, two workers each exhausted three CREATE races after capability skips and collided on the same Guide/Guide/recovery pattern. The batch route must remain unified without allowing capability skips to collapse distinct shards.",
+      "invariant": "When an explicit batch has n > 1 and the compact claim frontier publishes candidates, each worker first derives a stable local compatibility view from allocator-supplied required_capabilities using only definitely-known runtime absences, preserving published order and retaining unknown capabilities. The beacon SHA hash is applied to that filtered unified view, and collision rotation stays inside it. Batched workers do not re-impose lane priority locally; unbatched workers preserve ready -> queue_ready -> role_ready -> recovery. Atomic CREATE, bounded attempts and zero extra preclaim archaeology remain unchanged.",
       "required": {
         "batched_unified_candidate_sharding": true,
         "batch_strategy": "DETERMINISTIC_UNIFIED_CANDIDATE_SHARD",
@@ -464,7 +464,14 @@
         "workflow_guard": ".github/workflows/live-feed.yml",
         "explicit_barrier_fanin_exception_before_shard": true,
         "fanin_grants_execution_authority": false,
-        "ordinary_batches_zero_barrier_coordination": true
+        "ordinary_batches_zero_barrier_coordination": true,
+        "capability_filter_before_hash": true,
+        "compatibility_source": "allocator_required_capabilities_plus_known_runtime_surface",
+        "definitively_absent_only": true,
+        "unknown_capability_retained": true,
+        "filtered_view_preserves_published_order": true,
+        "collision_rotation_within_filtered_view": true,
+        "empty_filtered_view_attempts_zero_authority_creates": true
       },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     },
