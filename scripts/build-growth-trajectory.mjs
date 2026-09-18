@@ -65,7 +65,7 @@ const html=`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta nam
 <p class="warn">${esc(traj?.current_state?.strongest_evidence||'')}<br>${esc(traj?.current_state?.weakest_evidence||'')}</p>
 <div class="metrics">
 <div class="metric">workers observados<b>${esc(live.observed_workers??'—')}</b></div>
-<div class="metric">workers activos*</div><b>${esc(live.active_workers??'—')}</b>
+<div class="metric">workers activos*<b>${esc(live.active_workers??'—')}</b></div>
 <div class="metric">unidades productivas<b>${esc(live.productive_units_total??'—')}</b></div>
 <div class="metric">exámenes<b>${esc(live.exam_cards)}</b></div>
 <div class="metric">leader<b>${esc(live.leader_score??'—')}/10</b></div>
