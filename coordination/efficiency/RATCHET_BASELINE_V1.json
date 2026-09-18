@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-18T12:15:00Z",
+  "updated_at": "2026-09-18T12:17:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -934,6 +934,37 @@
         "coordination/workers/no-allocation/wc-20260918T0857-3f72b1c9.json",
         "gh-pages:live/efficiency.json@2026-09-18T12:03:56.286Z"
       ]
+    },
+    {
+      "id": "EFF035",
+      "title": "Compatible frontier retention is contract-complete across bounded retries",
+      "scope": [
+        "wc",
+        "worker-allocation",
+        "pool",
+        "claim-frontier"
+      ],
+      "observed_failure": "A resident PROD-01 worker retained only candidate identities/claim paths after one compact frontier read. After its first CREATE_EXISTS, the next candidate's allocator-supplied claim_payload_shape was no longer available locally, so the worker stopped rather than reread the frontier or fabricate an immutable PIN payload.",
+      "invariant": "The one compact frontier read remains sufficient for all bounded preclaim attempts because the local compatible candidate view retains each surviving allocator-published candidate object contract-completely. Display/log summaries never replace this retained object; collision/diversion advances use the retained claim payload with no reread or fabrication.",
+      "required": {
+        "local_view_retains_full_candidate_object": true,
+        "retained_fields": [
+          "claim_mode",
+          "claim_path",
+          "claim_payload_shape",
+          "barrier_post_release_fields"
+        ],
+        "display_summary_non_authoritative": true,
+        "collision_advance_requires_no_reread": true,
+        "payload_fabrication_forbidden": true,
+        "ordinary_compact_frontier_reads": 1,
+        "max_fast_claim_attempts": 3,
+        "regression_test": "scripts/check-efficiency-ratchet.mjs",
+        "evidence": [
+          "coordination/workers/no-allocation/wc-prod01-20260918T115600Z-b7c4e1.json"
+        ]
+      },
+      "status": "STATIC_GUARDED_PENDING_RUNTIME"
     }
   ],
   "status_legend": {
