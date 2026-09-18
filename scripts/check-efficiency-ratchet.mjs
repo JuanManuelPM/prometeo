@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -214,6 +214,12 @@ must('wc', wc, 'WAVE RESIDENCY / ASSIST');
 must('wc', wc, 'POOL <pool_id>');
 must('wc', wc, 'batch_id=POOL-<pool_id>');
 must('wc', wc, 'productivity exam card');
+must('wc-yield-pattern', wc, 'POOL YIELD-PATTERN REPRODUCTION');
+must('wc-yield-pattern', wc, 'coordination/workers/YIELD_PATTERN_CANDIDATE_V1.json');
+must('wc-yield-pattern', wc, 'REPRODUCTION_ACTIVE_NOT_CHAMPION');
+must('wc-yield-pattern', wc, 'protocol_version="v3.27"');
+must('wc-yield-pattern', wc, 'pattern_id');
+
 
 must('wc', wc, 'at most **2** ordinary derived assist jobs');
 must('wc', wc, 'The parent owner (or a later explicit steward) retains integration authority.');
@@ -291,6 +297,17 @@ if (!Array.isArray(examSpec?.anti_gaming) || !examSpec.anti_gaming.some(x=>Strin
 const scoreboardBuilder = read(root, 'scripts/build-worker-scoreboard.mjs');
 must('worker-scoreboard', scoreboardBuilder, "prometeo.worker-scoreboard/v1");
 must('worker-scoreboard', scoreboardBuilder, 'champion_reproducible');
+must('worker-scoreboard', scoreboardBuilder, 'champion_candidate');
+must('worker-scoreboard', scoreboardBuilder, 'leader');
+must('worker-scoreboard', scoreboardBuilder, 'pattern:');
+must('worker-scoreboard', scoreboardBuilder, 'champion stays null');
+
+const yieldPattern = JSON.parse(read(root, 'coordination/workers/YIELD_PATTERN_CANDIDATE_V1.json'));
+if (yieldPattern.pattern_id !== 'YIELD-10X-V1') errors.push('yield-pattern: id drift');
+if (yieldPattern.status !== 'REPRODUCTION_ACTIVE_NOT_CHAMPION') errors.push('yield-pattern: status drift');
+if (yieldPattern?.reproduction_gate?.required_independent_workers !== 3) errors.push('yield-pattern: reproduction count drift');
+if (yieldPattern?.reproduction_gate?.min_score_each !== 8) errors.push('yield-pattern: score gate drift');
+
 
 if (projectGuideMesh.source_debt_planner_gate?.enabled !== true) errors.push('project-guide-mesh: source debt planner gate must be enabled');
 if (projectGuideMesh.source_debt_planner_gate?.status !== 'SOURCE_DEBT') errors.push('project-guide-mesh: source debt planner status drift');
@@ -358,6 +375,9 @@ must('guide', guide, 'DO NOT enumerate every queue, claim, run, return, heartbea
 must('guide', guide, 'Prefer compiled/index/current views over N raw directory reads.');
 must('guide', guide, 'If EPOCH and the relevant durable pointers are unchanged');
 must('guide', guide, 'A sustained efficiency regression is ONE system bottleneck.');
+must('guide-yield-action', guide, 'DO NOT merely report that the gate is open');
+must('guide-yield-action', guide, 'status correction alone is not a sufficient bare-/g action');
+
 must('guide-current-mission', guide, '## ACTIVE CURRENT MISSION — PRIORITY OVERRIDE');
 must('guide-current-mission', guide, 'coordination/guide/CURRENT_MISSION_V1.json');
 must('guide-current-mission', guide, 'coordination/guide/GUIDE_CURRENT_MISSION_WRITEBACK_V1.md');
@@ -601,6 +621,19 @@ else {
   if (eff033.required?.human_worker_recap_required !== false) errors.push('ratchet: EFF033 human recap drift');
   if (eff033.required?.rolling_pool_default !== 'PROD-01') errors.push('ratchet: EFF033 pool default drift');
   if (eff033.required?.evaluation_pauses_pool !== false) errors.push('ratchet: EFF033 evaluation pause drift');
+}
+
+const eff038 = baseline.items?.find(item => item.id === 'EFF038');
+if (!eff038) errors.push('ratchet: EFF038 missing');
+else {
+  if (eff038.required?.guide_status_only_forbidden_when_high_yield_candidate !== true) errors.push('ratchet: EFF038 Guide action drift');
+  if (eff038.required?.candidate_pattern_ref !== 'coordination/workers/YIELD_PATTERN_CANDIDATE_V1.json') errors.push('ratchet: EFF038 candidate ref drift');
+  if (eff038.required?.active_pattern_id !== 'YIELD-10X-V1') errors.push('ratchet: EFF038 pattern id drift');
+  if (eff038.required?.worker_protocol_version !== 'v3.27') errors.push('ratchet: EFF038 worker protocol drift');
+  if (eff038.required?.scoreboard_leader_distinct_from_champion !== true) errors.push('ratchet: EFF038 scoreboard semantics drift');
+  if (eff038.required?.champion_requires_non_null_pattern_id !== true) errors.push('ratchet: EFF038 pattern gate drift');
+  if (eff038.required?.champion_min_independent_workers !== 3) errors.push('ratchet: EFF038 reproduction count drift');
+  if (eff038.required?.champion_min_score !== 8) errors.push('ratchet: EFF038 score drift');
 }
 
 const eff029 = baseline.items?.find(item => item.id === 'EFF029');
