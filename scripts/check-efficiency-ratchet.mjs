@@ -734,6 +734,19 @@ else {
   if (eff033.required?.evaluation_pauses_pool !== false) errors.push('ratchet: EFF033 evaluation pause drift');
 }
 
+const eff042 = baseline.items?.find(item => item.id === 'EFF042');
+if (!eff042) errors.push('ratchet: EFF042 missing');
+else {
+  if (eff042.required?.trajectory_ref !== 'coordination/guide/GROWTH_TRAJECTORY_V1.json') errors.push('ratchet: EFF042 trajectory ref drift');
+  if (eff042.required?.trajectory_plate !== 'TRJ001') errors.push('ratchet: EFF042 trajectory plate drift');
+  if (eff042.required?.trajectory_url !== 'https://juanmanuelpm.github.io/prometeo/trajectory/') errors.push('ratchet: EFF042 trajectory url drift');
+  if (eff042.required?.mission_reads_trajectory !== true) errors.push('ratchet: EFF042 mission read drift');
+  if (eff042.required?.exponential_from_cumulative_counts_forbidden !== true) errors.push('ratchet: EFF042 exponential truth drift');
+  if (eff042.required?.comparable_windows_required !== 3) errors.push('ratchet: EFF042 window gate drift');
+  if (eff042.required?.product_vs_system_progress_required !== true) errors.push('ratchet: EFF042 product/system distinction drift');
+  if (eff042.required?.literal_private_user_messages_publication_required !== false) errors.push('ratchet: EFF042 privacy drift');
+}
+
 const eff041 = baseline.items?.find(item => item.id === 'EFF041');
 if (!eff041) errors.push('ratchet: EFF041 missing');
 else {
