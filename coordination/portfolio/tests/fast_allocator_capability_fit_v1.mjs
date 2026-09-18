@@ -217,12 +217,35 @@ assert.deepEqual(
   ['representative_javascript_browser'],
   'real_browser_execution must normalize to representative_javascript_browser'
 );
+const definitelyAbsentForRuntimeProfile = profile => {
+  const absent = new Set();
+  if (profile.http_search_fetch_navigation === true && profile.javascript_dom_execution_tool === false) {
+    absent.add('representative_javascript_browser');
+  }
+  return absent;
+};
+
+const webFetchOnlyProfile = { http_search_fetch_navigation: true, javascript_dom_execution_tool: false };
+const representativeJsProfile = { http_search_fetch_navigation: true, javascript_dom_execution_tool: true };
+const ambiguousRuntimeProfile = { http_search_fetch_navigation: true, javascript_dom_execution_tool: null };
+
+const webFetchOnlyAbsent = definitelyAbsentForRuntimeProfile(webFetchOnlyProfile);
+assert.equal(webFetchOnlyAbsent.has('representative_javascript_browser'), true, 'HTTP/search/fetch/navigation without any JavaScript/DOM execution tool must make representative_javascript_browser definitively absent');
 let authorityCreateAttempts = 0;
-const definitelyAbsentCapabilities = new Set(['representative_javascript_browser']);
-const preclaimMismatch = joseV12Candidate.required_capabilities.some(cap => definitelyAbsentCapabilities.has(cap));
+const preclaimMismatch = joseV12Candidate.required_capabilities.some(cap => webFetchOnlyAbsent.has(cap));
 if (!preclaimMismatch) authorityCreateAttempts += 1;
-assert.equal(preclaimMismatch, true, 'worker lacking representative browser must detect legacy-normalized mismatch preclaim');
-assert.equal(authorityCreateAttempts, 0, 'legacy-normalized capability mismatch must consume zero authority CREATE attempts');
+assert.equal(preclaimMismatch, true, 'web-fetch-only worker must route around Jose V12 before authority');
+assert.equal(authorityCreateAttempts, 0, 'web-fetch-only mismatch must consume zero authority CREATE attempts');
+console.log('WEB_FETCH_ONLY_PRECLAIM_SKIP_PASS');
+
+const representativeJsAbsent = definitelyAbsentForRuntimeProfile(representativeJsProfile);
+assert.equal(joseV12Candidate.required_capabilities.some(cap => representativeJsAbsent.has(cap)), false, 'representative-JS profile must remain eligible for Jose V12');
+let representativeJsAuthorityCreateAttempts = 0;
+if (!joseV12Candidate.required_capabilities.some(cap => representativeJsAbsent.has(cap))) representativeJsAuthorityCreateAttempts += 1;
+assert.equal(representativeJsAuthorityCreateAttempts, 1, 'representative-JS profile must reach the normal authority attempt');
+
+const ambiguousAbsent = definitelyAbsentForRuntimeProfile(ambiguousRuntimeProfile);
+assert.equal(ambiguousAbsent.has('representative_javascript_browser'), false, 'unknown JavaScript/DOM execution capability must remain unknown rather than becoming absence');
 
 const recoveryFeed = {
   generated_at: '2026-09-17T22:31:00Z',
@@ -293,7 +316,9 @@ for (const needle of [
   'candidate.required_capabilities',
   'CAPABILITY_MISMATCH_PRECLAIM',
   'Unknown or ambiguous capability is NOT absence',
-  'Never read repository/project context to prove capability fit.'
+  'Never read repository/project context to prove capability fit.,
+  'HTTP/search/fetch/navigation alone never satisfies `representative_javascript_browser`'
+
 ]) {
   assert.ok(wc.includes(needle), `wc missing capability-fit contract: ${needle}`);
 }
@@ -304,7 +329,8 @@ for (const needle of [
   'CAPABILITY_MISMATCH_PRECLAIM',
   'Unknown or ambiguous capability is NOT absence',
   'does not consume an authority CREATE attempt',
-  'does not justify `NO_ALLOCATION` while another compatible candidate remains'
+  'does not justify `NO_ALLOCATION` while another compatible candidate remains',
+  'HTTP/search/fetch/navigation alone never satisfies `representative_javascript_browser`'
 ]) {
   assert.ok(fast.includes(needle), `fast allocation protocol missing capability-fit contract: ${needle}`);
 }
