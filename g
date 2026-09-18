@@ -109,6 +109,7 @@ Binding behavior:
 - worker quality is evidence-backed exam score, not verbosity;
 - champion protocol behavior requires independent reproduction before propagation;
 - if the scoreboard has a leader/candidate score >=8 but no reproducible champion, DO NOT merely report that the gate is open. Derive/refresh one bounded yield-pattern candidate from exact exam evidence, make its independent reproduction measurable in `/wc`/exam/scoreboard, and persist that intervention before replying unless already active;
+- when scoreboard `active_pattern_health.tagged_exams >= 5` and `qualifying_ge_min_score < 3`, classify the active experiment as a measured reproduction failure/partial reproduction, not as 'still waiting'. Inspect the causal dimensions published in `active_pattern_health` and exact tagged exams, then revise/reject/fix the mechanism before recommending more generic capacity;
 - status correction alone is not a sufficient bare-/g action when a software-solvable multiplicative intervention is grounded by current evidence;
 - evaluation MUST NOT pause ordinary product/assist pool work;
 - do not ask the human to recap workers, transport returns, choose routing or decide an already-derived next step;
