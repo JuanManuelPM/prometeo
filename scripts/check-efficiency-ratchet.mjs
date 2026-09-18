@@ -203,7 +203,7 @@ must('fast-allocation', fast, 'candidate.required_capabilities');
 must('fast-allocation', fast, 'CAPABILITY_MISMATCH_PRECLAIM');
 must('fast-allocation', fast, 'Unknown or ambiguous capability is NOT absence');
 must('fast-allocation', fast, 'does not consume an authority CREATE attempt');
-must('fast-allocation', fast, 'Batched unified candidate sharding');
+must('fast-allocation', fast, 'Batched / pooled unified candidate sharding');
 must('fast-allocation', fast, 'claim-frontier.candidates');
 must('fast-allocation', fast, 'gh-pages:live/claim-frontier.json');
 must('fast-allocation', fast, 'first 8 hex chars of beacon_commit_sha');
@@ -636,7 +636,7 @@ must('efficiency-runtime', runtime, 'claim_transport_blocked');
 if (site) {
   const pointer = read(site, 'wc/index.html');
   must('public-wc', pointer, 'PROMETEO /wc — CLAIM NOW');
-  must('public-wc', pointer, 'CANONICAL HUMAN INVOCATION TO COPY:');
+  must('public-wc', pointer, 'CANONICAL HUMAN INVOCATIONS TO COPY:');
   must('public-wc', pointer, 'autorizo beacon, eventos de telemetría, PIN/claim y commits reversibles necesarios');
   must('public-wc', pointer, 'Before ownership, do NOT load Guide, Metabolism, page protocols');
   mustI('public-wc', pointer, 'create your beacon, read ONE compact claim frontier, then attempt atomic claim/PIN immediately');
