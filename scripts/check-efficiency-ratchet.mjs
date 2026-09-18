@@ -461,15 +461,26 @@ else {
   if (eff029.required?.unresolved_attention_preserved !== true) errors.push('ratchet: EFF029 unresolved attention drift');
   if (eff029.required?.next_pin_stamps_basis_fingerprint !== true) errors.push('ratchet: EFF029 basis fingerprint drift');
   if (eff029.required?.silent_owner_recovery_preserved !== true) errors.push('ratchet: EFF029 silent-owner recovery drift');
+  if (eff029.required?.structured_source_debt_compacted !== true) errors.push('ratchet: EFF029 structured SOURCE_DEBT compaction drift');
+  if (eff029.required?.latest_source_debt_return_preserved !== true) errors.push('ratchet: EFF029 latest structured SOURCE_DEBT return drift');
+  if (eff029.required?.structured_open_exhaustive_negative_suppresses_time_only_recovery !== true) errors.push('ratchet: EFF029 structured exhaustive-negative suppression drift');
+  if (eff029.required?.malformed_structured_source_debt_fail_closed !== true) errors.push('ratchet: EFF029 malformed structured SOURCE_DEBT fail-closed drift');
+  if (eff029.required?.jose_v12_pinned_v11_structured_fixture !== true) errors.push('ratchet: EFF029 Jose V12 structured fixture drift');
 }
 
 must('fast-allocator', allocator, 'recoveryBasisGate');
 must('fast-allocator', allocator, 'SOURCE_DEBT_BASIS_UNCHANGED');
 must('fast-allocator', allocator, 'recovery_attention: recoveryAttention');
 must('live-feed', liveBuilder, 'latest_pin_recovery_basis:latestPin?.doc?.recovery_basis_or_null || null');
+must('live-feed', liveBuilder, 'latest_source_debt_return:compactSourceDebtReturn(latestSourceDebtReturn)');
+must('live-feed', liveBuilder, 'structurally_valid: structurallyValid');
+must('live-feed', liveBuilder, "searchResult === 'NO_EXACT_MATCH'");
 const sourceDebtRecoveryTest = read(root, 'coordination/portfolio/tests/source_debt_recovery_basis_gate_v1.mjs');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'SOURCE_DEBT_RECOVERY_BASIS_GATE_PASS');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'SILENT_OWNER_STALE_AFTER_LAST_RETURN');
+must('source-debt-recovery-test', sourceDebtRecoveryTest, 'latest_source_debt_return');
+must('source-debt-recovery-test', sourceDebtRecoveryTest, 'SOURCE_DEBT_MALFORMED_FAIL_CLOSED');
+must('source-debt-recovery-test', sourceDebtRecoveryTest, 'portfolio-jose-v12-pinned-v11-material-recovery-v1 must not emit a G5 recovery from age alone');
 
 const claimFrontier = read(root, 'scripts/build-claim-frontier.mjs');
 must('claim-frontier', claimFrontier, "schema:'prometeo.claim-frontier/v1'");
