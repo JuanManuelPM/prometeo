@@ -74,10 +74,11 @@ const release = {
   next_action: 'RACE_DETERMINISTIC_PIN'
 };
 const released = applyContentionBarrierRouting(base, [barrierRow(release)], '2026-09-17T21:00:50Z');
-assert.equal(released.ready[0].claim_mode, 'PORTFOLIO_PIN_CREATE');
-assert.equal(released.ready[0].claim_generation_mode, 'FIXED');
-assert.equal(released.ready[0].next_generation, 1);
-assert.match(released.ready[0].claim_path, /G000001\.json$/);
+assert.equal(released.ready[0].claim_mode, 'PORTFOLIO_BARRIER_RELEASED');
+assert.equal(released.ready[0].claim_path, null);
+assert.equal(released.ready[0].post_release_claim.claim_generation_mode, 'FIXED');
+assert.equal(released.ready[0].post_release_claim.next_generation, 1);
+assert.match(released.ready[0].post_release_claim.claim_path, /G000001\.json$/);
 assert.deepEqual(released.ready[0].contention_barrier.entrant_worker_ids, ['w1', 'w2', 'w3', 'w4', 'w5']);
 
 const timedOut = applyContentionBarrierRouting(base, [barrierRow(null)], '2026-09-17T21:03:00Z');
