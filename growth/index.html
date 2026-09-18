@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GRW001 · Growth Campaign</title>
+<style>
+:root{color-scheme:dark;--bg:#050506;--fg:#f3f3f0;--muted:#85858b;--line:#242428;--good:#b8d8bd;--warn:#d9ca8c}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,-apple-system,sans-serif}
+body{min-height:100svh}.wrap{max-width:760px;margin:auto;padding:20px 16px 60px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px 0 18px;border-bottom:1px solid var(--line)}
+.plate{font:800 12px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.12em}.live{font-size:11px;color:var(--muted)}
+h1{font-size:clamp(36px,10vw,72px);letter-spacing:-.06em;line-height:.92;margin:28px 0 10px;font-weight:620}
+.lead{font-size:15px;line-height:1.5;color:var(--muted);max-width:58ch}.section{padding:22px 0;border-top:1px solid var(--line)}
+.kicker{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.now{font-size:30px;line-height:1.02;letter-spacing:-.04em}.next{margin-top:8px;color:var(--muted);font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+.stat{background:var(--bg);padding:14px}.stat strong{display:block;font-size:28px;letter-spacing:-.04em}.stat span{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+.stage{padding:16px 0;border-top:1px solid var(--line)}.stage:first-child{border-top:0}.stageHead{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.stageHead b{font-size:16px}.stageHead span{font:700 12px/1 ui-monospace,SFMono-Regular,monospace;color:var(--muted)}
+.stage p{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.45}.gate{margin-top:10px;font-size:12px;line-height:1.55}
+.badge{display:inline-block;border:1px solid var(--line);padding:5px 8px;border-radius:999px;font-size:10px;margin:4px 4px 0 0;color:var(--muted)}
+.badge.good{color:var(--good)}.badge.warn{color:var(--warn)}.truth{font-size:14px;line-height:1.55}.small{font-size:11px;color:var(--muted);line-height:1.5}
+@media(min-width:620px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+</style>
+</head>
+<body><main class="wrap">
+<header class="top"><div class="plate">GRW001</div><div id="fresh" class="live">leyendo…</div></header>
+<h1>Growth<br>Campaign</h1>
+<p class="lead">Plan preescrito para escalar Prometeo sin depender de improvisación. Una wave sólo escala cuando demuestra output real, breadth entre proyectos y reproducción de frontier.</p>
+
+<section class="section">
+<div class="kicker">Ahora</div>
+<div id="stageNow" class="now">Cargando plan…</div>
+<div id="stageNext" class="next"></div>
+</section>
+
+<section class="section">
+<div class="kicker">Wave actual</div>
+<div id="waveGrid" class="grid"></div>
+<div id="waveNote" class="small" style="margin-top:10px"></div>
+</section>
+
+<section class="section">
+<div class="kicker">Frontier</div>
+<div id="frontierGrid" class="grid"></div>
+<div id="frontierProjects" class="small" style="margin-top:10px"></div>
+</section>
+
+<section class="section">
+<div class="kicker">Escala ya decidida</div>
+<div id="stages"></div>
+</section>
+
+<section class="section">
+<div class="kicker">Qué cuenta como crecimiento</div>
+<div id="truth" class="truth"></div>
+</section>
+
+<section class="section">
+<div class="kicker">Regla de fallo</div>
+<p class="truth">Si una etapa falla, no se pregunta “¿y ahora qué?”. Se usa como máximo un rescate sistémico sobre el cuello dominante, el resto sigue producto-first y se repite la misma etapa una vez. Si vuelve a fallar, se congela la escala hasta cerrar ese cuello.</p>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+const pct=x=>x==null?'—':Math.round(x*100)+'%';
+function stageGateText(g){
+  const m=[];
+  if(g.productive_units_total_min!=null)m.push('≥ '+g.productive_units_total_min+' unidades');
+  if(g.median_productive_units_per_closed_worker_min!=null)m.push('mediana ≥ '+g.median_productive_units_per_closed_worker_min+'/chat');
+  if(g.unique_product_projects_min!=null)m.push('≥ '+g.unique_product_projects_min+' proyectos');
+  if(g.reproduction_ratio_min!=null)m.push('R ≥ '+g.reproduction_ratio_min);
+  if(g.visible_changes_min!=null)m.push('≥ '+g.visible_changes_min+' cambios visibles');
+  if(g.infra_share_max!=null)m.push('infra ≤ '+Math.round(g.infra_share_max*100)+'%');
+  if(g.frontier_reserve_min!=null)m.push('frontier ≥ '+g.frontier_reserve_min);
+  return m.join(' · ');
+}
+async function load(){
+  const [pR,rR,fR]=await Promise.all([
+    fetch('./plan.json?'+Date.now(),{cache:'no-store'}),
+    fetch('../live/runtime.json?'+Date.now(),{cache:'no-store'}),
+    fetch('../live/claim-frontier.json?'+Date.now(),{cache:'no-store'})
+  ]);
+  const plan=await pR.json(),rt=rR.ok?await rR.json():null,fr=fR.ok?await fR.json():null;
+  const current=plan.stages.find(s=>s.id===plan.current_stage);
+  $('stageNow').textContent=current?current.id+' · '+current.label:plan.current_stage;
+  $('stageNext').textContent=current?'PASS → '+current.on_pass+' · FAIL → '+current.on_fail:'';
+  $('stages').innerHTML=plan.stages.map((s,i)=>`<div class="stage"><div class="stageHead"><b>${esc(s.label)}</b><span>${esc(s.expected_workers)} workers</span></div><p>${esc(s.purpose)}</p><div class="gate">${esc(stageGateText(s.success_gate||{}))}</div></div>`).join('');
+  $('truth').innerHTML=`<p>${esc(plan.truth_law)}</p><span class="badge">productive unit</span><span class="badge">project breadth</span><span class="badge">reproduction ratio</span><span class="badge">visible changes</span><span class="badge">frontier reserve</span><span class="badge">infra share</span>`;
+  const batch=(rt?.batches||[]).find(b=>b.batch_id===plan.current_stage)||(rt?.current_batch?(rt.batches||[]).find(b=>b.batch_id===rt.current_batch):null);
+  const s=batch?.summary||{};
+  const expected=batch?.expected_workers??current?.expected_workers??null;
+  const stats=[
+    [batch?.batch_id===plan.current_stage?(s.observed||0):0,'llegaron'],
+    [batch?.batch_id===plan.current_stage?(s.pin_won||0):0,'PIN'],
+    [batch?.batch_id===plan.current_stage?(s.started||0):0,'empezaron'],
+    [batch?.batch_id===plan.current_stage?(s.closed||0):0,'cerraron']
+  ];
+  $('waveGrid').innerHTML=stats.map(([n,l])=>`<div class="stat"><strong>${esc(n)}</strong><span>${esc(l)}${l==='llegaron'&&expected?' / '+expected:''}</span></div>`).join('');
+  $('waveNote').textContent=batch?.batch_id===plan.current_stage?'Wave en curso / registrada.':'La etapa actual todavía no aparece en runtime.';
+  const candidates=fr?.candidates||[];
+  const product=candidates.filter(x=>!['prometeo-live','prometeo-autonomous-growth'].includes(x.project_id||x.scope_project_id));
+  const projects=[...new Set(product.map(x=>x.project_id||x.scope_project_id).filter(Boolean))];
+  $('frontierGrid').innerHTML=[
+    [candidates.length,'claimables'],
+    [product.length,'producto'],
+    [projects.length,'proyectos'],
+    [Math.max(0,candidates.length-product.length),'infra']
+  ].map(([n,l])=>`<div class="stat"><strong>${esc(n)}</strong><span>${esc(l)}</span></div>`).join('');
+  $('frontierProjects').textContent=projects.length?'Proyectos: '+projects.join(' · '):'Sin proyectos visibles en frontier.';
+  $('fresh').textContent='plan '+plan.current_stage+' · '+new Date(plan.updated_at).toLocaleString('es-AR',{hour:'2-digit',minute:'2-digit'});
+}
+load().catch(e=>{$('fresh').textContent='sin lectura';$('waveNote').textContent='No se pudo cargar el estado público.'});
+</script></body></html>
