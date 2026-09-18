@@ -18,8 +18,8 @@ for (const [where,text] of [['wc',wc],['fast',fast]]) {
   need(text, 'arbitrary HTTP 422', where);
 }
 
-const item = baseline.items.find(x => x.id === 'EFF047');
-if (!item) fail('baseline: EFF047 missing');
+const item = baseline.items.find(x => x.id === 'EFF048');
+if (!item) fail('baseline: EFF048 missing');
 if (item.required?.exact_signature !== 'GITHUB_CONTENTS_CREATE_EXISTS_422_SHA_MISSING') fail('baseline: signature drift');
 if (item.required?.http_status !== 422) fail('baseline: HTTP status drift');
 if (item.required?.required_message_fragment !== '"sha" wasn\'t supplied') fail('baseline: message fragment drift');
