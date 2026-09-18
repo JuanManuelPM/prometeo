@@ -1,0 +1,66 @@
+name: Prometeo Guide Brief
+
+on:
+  push:
+    branches: [main, gh-pages]
+    paths:
+      - 'coordination/guide/CURRENT_MISSION_V1.json'
+      - 'coordination/guide/GUIDE_POWER_COMPASS_V1.json'
+      - 'coordination/guide/GROWTH_CAMPAIGN_V1.json'
+      - 'coordination/project-guides/**/STATE.json'
+      - 'coordination/live/PAGE_WATCH_REGISTRY_V1.json'
+      - 'coordination/portfolio/PORTFOLIO.json'
+      - 'live/runtime.json'
+      - 'live/worker-scoreboard.json'
+      - 'live/claim-frontier.json'
+      - 'scripts/build-guide-brief.mjs'
+      - '.github/workflows/guide-brief.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prometeo-guide-brief
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout canonical main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: source
+          fetch-depth: 1
+
+      - name: Checkout public gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          fetch-depth: 5
+
+      - name: Build Guide Brief
+        run: node source/scripts/build-guide-brief.mjs source site site/guide
+
+      - name: Publish Guide Brief
+        run: |
+          set -euo pipefail
+          git -C site config user.name github-actions[bot]
+          git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C site pull --ff-only origin gh-pages
+          node source/scripts/build-guide-brief.mjs source site site/guide
+          git -C site add guide/index.html guide/brief.json
+          if git -C site diff --cached --quiet; then exit 0; fi
+          git -C site commit -m "guide: refresh public brief"
+          for n in 1 2 3 4; do
+            if git -C site push origin HEAD:gh-pages; then exit 0; fi
+            git -C site fetch origin gh-pages
+            git -C site rebase origin/gh-pages
+            node source/scripts/build-guide-brief.mjs source site site/guide
+            git -C site add guide/index.html guide/brief.json
+            git -C site commit --amend --no-edit
+          done
+          exit 1
