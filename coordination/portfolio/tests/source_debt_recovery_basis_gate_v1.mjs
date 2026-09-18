@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -257,5 +259,104 @@ const malformedStructuredDebt = {
 };
 assert.equal(recoveryBasisGate(malformedStructuredDebt).eligible, false, 'malformed structured SOURCE_DEBT must fail closed');
 assert.equal(recoveryBasisGate(malformedStructuredDebt).reason, 'SOURCE_DEBT_MALFORMED_FAIL_CLOSED');
+
+
+const dependentBoundaryRef = 'coordination/portfolio/returns/portfolio-jose-v12-payload-base64-runtime-fix-v1/RETURN-wc-prod01-gpt56sol-20260918T115600Z-a7f3-G000005-BOUNDARY.json';
+const dependentBoundary = readJson(dependentBoundaryRef);
+const dependencyReturnRef = 'coordination/portfolio/returns/portfolio-jose-v12-pinned-v11-material-recovery-v1/RETURN-WC-JOSE-V11-MATERIAL-BOUNDARY-20260918T011637Z-GPT56SOL-A7D4.json';
+const liveTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'prometeo-source-debt-live-'));
+const liveOut = path.join(liveTmp, 'feed.json');
+const liveRun = spawnSync(
+  process.execPath,
+  [path.join(root, '.github/scripts/build-live-feed.mjs'), root, liveOut],
+  { cwd: root, encoding: 'utf8' }
+);
+assert.equal(liveRun.status, 0, `live feed build must succeed: ${liveRun.stderr || liveRun.stdout}`);
+const liveFeed = JSON.parse(fs.readFileSync(liveOut, 'utf8'));
+const dependentProjection = (liveFeed.projects || [])
+  .flatMap(project => project.jobs || [])
+  .find(job => job.job_id === 'portfolio-jose-v12-payload-base64-runtime-fix-v1');
+assert.ok(dependentProjection, 'dependent Jose payload job must remain projected in Live feed');
+assert.equal(dependentProjection.source_debt_dependency?.ref_bounded, true, 'dependency must use one bounded exact portfolio return ref');
+assert.equal(dependentProjection.source_debt_dependency?.structurally_valid, true, 'exact dependency ref must resolve to valid structured SOURCE_DEBT');
+assert.equal(dependentProjection.source_debt_dependency?.return_ref, dependencyReturnRef);
+assert.equal(dependentProjection.source_debt_dependency?.source_debt?.status, 'OPEN');
+assert.equal(dependentProjection.source_debt_dependency?.source_debt?.path, dependencyReturnRef);
+
+const dependentSourceDebt = {
+  job_id: 'portfolio-jose-v12-payload-base64-runtime-fix-v1',
+  dedupe_key: 'jose:v12-payload-base64-runtime-fix:v1',
+  project_id: 'jose',
+  title: 'Repair Jose V12 pinned payload browser decode and rerun runtime gate',
+  priority: 88,
+  state: 'replaceable',
+  pin_generation: 5,
+  claimed_at: '2026-09-18T11:59:00Z',
+  last_signal_at: dependentBoundary.returned_at,
+  created_at: '2026-09-17T20:42:30Z',
+  evidence: dependentProjection.evidence || [],
+  required_capabilities: [],
+  source_debt_dependency: dependentProjection.source_debt_dependency,
+  latest_return: {
+    path: dependentBoundaryRef,
+    outcome: dependentBoundary.outcome,
+    summary: dependentBoundary.summary,
+    returned_at: dependentBoundary.returned_at
+  },
+  latest_pin_recovery_basis: null
+};
+
+const dependentGate = recoveryBasisGate(dependentSourceDebt);
+assert.equal(dependentGate.eligible, false, 'dependent SOURCE_DEBT must suppress time-only recovery');
+assert.equal(dependentGate.reason, 'SOURCE_DEBT_BASIS_UNCHANGED');
+assert.equal(dependentGate.source_debt?.dependency_job_id, 'portfolio-jose-v12-pinned-v11-material-recovery-v1');
+assert.equal(dependentGate.source_debt?.dependency_return_ref, dependencyReturnRef);
+
+const dependentAllocator = buildFastAllocator(
+  feedFor([dependentSourceDebt]),
+  { status: 'HEALTHY', metrics: {}, reasons: [] },
+  { recoveryPolicies: [], roleContext: null }
+);
+assert.equal(
+  dependentAllocator.recovery.some(row => row.job_id === dependentSourceDebt.job_id),
+  false,
+  'dependent wrapper must not emit G6 from elapsed time while referenced SOURCE_DEBT is unchanged'
+);
+const dependentAttention = dependentAllocator.recovery_attention.find(row => row.job_id === dependentSourceDebt.job_id);
+assert.ok(dependentAttention, 'dependent SOURCE_DEBT must remain visible in recovery_attention');
+assert.equal(dependentAttention.reason, 'SOURCE_DEBT_BASIS_UNCHANGED');
+assert.equal(dependentAttention.source_debt?.dependency_return_ref, dependencyReturnRef);
+
+const dependentWithNewBasis = {
+  ...dependentSourceDebt,
+  recovery_basis: {
+    revision: 1,
+    updated_at: '2026-09-18T12:10:00Z',
+    evidence: ['external-artifact:intact-v11-byte-exact-source'],
+    retry_safe_trigger: 'AUTHORITATIVE_V11_SOURCE_RECOVERED'
+  },
+  updated_at: '2026-09-18T12:10:00Z'
+};
+const dependentChangedGate = recoveryBasisGate(dependentWithNewBasis);
+assert.equal(dependentChangedGate.eligible, true, 'materially new durable basis must reopen dependent SOURCE_DEBT recovery');
+assert.equal(dependentChangedGate.reason, 'SOURCE_DEBT_BASIS_CHANGED');
+
+const dependentReopened = buildFastAllocator(
+  feedFor([dependentWithNewBasis]),
+  { status: 'HEALTHY', metrics: {}, reasons: [] },
+  { recoveryPolicies: [], roleContext: null }
+);
+const dependentG6 = dependentReopened.recovery.find(row => row.job_id === dependentSourceDebt.job_id);
+assert.ok(dependentG6, 'new durable basis must expose one deterministic dependent G6');
+assert.equal(dependentG6.next_generation, 6);
+assert.ok(dependentG6.claim_payload_shape.recovery_basis_or_null.basis_fingerprint);
+assert.equal(
+  dependentG6.claim_payload_shape.recovery_basis_or_null.source_debt_dependency_job_id,
+  'portfolio-jose-v12-pinned-v11-material-recovery-v1'
+);
+assert.equal(
+  dependentG6.claim_payload_shape.recovery_basis_or_null.source_debt_dependency_return_ref,
+  dependencyReturnRef
+);
 
 console.log('SOURCE_DEBT_RECOVERY_BASIS_GATE_PASS');
