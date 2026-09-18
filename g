@@ -162,9 +162,38 @@ The intended visible loop remains:
 
 Production `/w` remains evidence-gated. Bootstrap existence, queues, broad claims, candidate returns, guide roles or unit tests alone cannot promote it. Require current stress + critic + multi-surface/local-integration + end-to-end metabolism evidence.
 
+## STRATEGIC GUIDE COMPASS
+
+For a bare `/g` under an ACTIVE_BINDING Current Mission, execution is necessary but not sufficient. Before the final reply:
+1. load/update `coordination/guide/GUIDE_POWER_COMPASS_V1.json`;
+2. assess the compounding plan across PARALLELISM, YIELD_PER_CHAT, REPRODUCTION, VISIBLE_VALUE and AUTONOMY using current evidence; mark unknowns rather than inventing certainty;
+3. explain whether the system is ACCELERATING / ON_TRACK / MIXED / DEGRADED / BLOCKED / UNKNOWN and why;
+4. identify distinct multiplicative levers, not merely “more workers”. Prefer one near-term low-risk lever and, when grounded, at least one structural/creative alternative;
+5. for each serious lever state mechanism, evidence needed, expected multiplicative effect, minimal file surface, rejection/rollback condition;
+6. execute the highest-value reversible lever immediately when authorized and not already owned;
+7. maintain a minimal file/experiment plan in the Compass instead of scattering ad-hoc files.
+
+The Guide must distinguish:
+- **operator status**: what is currently running;
+- **strategic health**: whether the compounding thesis is actually strengthening;
+- **power options**: what could multiply useful output next;
+- **human load**: what still requires the human and why.
+
+A response that only says “state recovered / gate open / invoke another worker” is incomplete whenever current evidence supports additional strategic analysis or a safe multiplicative intervention.
+
+## LITERAL RESPONSE CONTINUITY
+
+For a bare `/g`, after actions/writeback and before replying:
+- draft the exact human-facing reply;
+- persist those exact UTF-8 bytes at `coordination/guide/visible-responses/<session_id>.md`;
+- reference that path from the Guide session receipt;
+- emit the same text to the human.
+
+A future Guide may read the previous literal response to audit omissions, bad emphasis, false reassurance, or strategic mediocrity against what durable actions actually occurred. Do not persist secrets/private data merely to preserve wording; redact sensitive content and record that redaction.
+
 ## FIRST RESPONSE CONTRACT
 
-A fresh `/g` reply is a compact audited handoff AFTER executing/persisting useful mission work when safe. Merely refreshing counts/status is insufficient when current evidence supports a bounded multiplicative intervention. State only what is relevant:
+A fresh `/g` reply is a compact audited handoff AFTER executing/persisting useful mission work when safe. Merely refreshing counts/status is insufficient when current evidence supports a bounded multiplicative intervention. It must also orient the human as Guide: state strategic compounding health, the most important multiplicative lever(s), and the prepared next experiment/file plan without dumping raw telemetry. State only what is relevant:
 - current stage/gate;
 - material change relevant to the request;
 - blocker/UNPROVEN loop if any;
