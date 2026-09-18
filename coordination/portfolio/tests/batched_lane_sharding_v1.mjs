@@ -25,6 +25,13 @@ assert.equal(eff021.required?.filtered_view_preserves_published_order, true);
 assert.equal(eff021.required?.collision_rotation_within_filtered_view, true);
 assert.equal(eff021.required?.empty_filtered_view_attempts_zero_authority_creates, true);
 
+const eff030 = baseline.items?.find(item => item.id === 'EFF030');
+assert(eff030, 'EFF030 must remain in the efficiency ratchet baseline');
+assert.equal(eff030.required?.pool_invocation, true);
+assert.equal(eff030.required?.pool_expected_workers_null, true);
+assert.equal(eff030.required?.pool_no_cohort_barrier, true);
+assert.equal(eff030.required?.pool_sharding_enabled, true);
+
 const eff027 = baseline.items?.find(item => item.id === 'EFF027');
 assert(eff027, 'EFF027 must remain in the efficiency ratchet baseline');
 assert.equal(eff027.required?.batched_capability_filter_before_hash, true);
@@ -118,7 +125,8 @@ for (const text of [wc, fast]) {
   assert(text.includes('batch_compatible_candidates'), 'batched sharding must filter definitively incompatible candidates before hashing');
 }
 
-assert(fast.includes('Unbatched workers preserve normal allocator lane order: `ready -> queue_ready -> role_ready -> recovery`.'), 'unbatched lane order must remain explicit');
+assert(fast.includes('POOL <pool_id>'), 'fast allocation protocol must explicitly include POOL in unified sharding');
+assert(fast.includes('Invocations that are neither a multi-worker batch nor a pool preserve normal allocator lane order: `ready -> queue_ready -> role_ready -> recovery`.'), 'lane-priority fallback must exclude POOL workers');
 
 const allocator = fs.readFileSync(path.join(repoRoot, 'scripts/build-fast-allocator.mjs'), 'utf8');
 assert(allocator.includes("batch_strategy: 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD'"));
@@ -131,3 +139,4 @@ assert(workflow.includes('node source/coordination/portfolio/tests/batched_lane_
 
 console.log('BATCHED_UNIFIED_SHARDING_PASS');
 console.log('BATCHED_CAPABILITY_FILTERED_SHARDING_PASS');
+console.log('POOL_UNIFIED_SHARDING_CONTRACT_PASS');
