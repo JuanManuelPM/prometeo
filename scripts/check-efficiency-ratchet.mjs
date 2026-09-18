@@ -32,6 +32,7 @@ for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007'
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
+const allocator = read(root, 'scripts/build-fast-allocator.mjs');
 const latentItem = baseline?.items?.find(x=>x.id==='EFF013');
 if (latentItem?.required?.role_ready_compiled_centrally !== true) errors.push('baseline: EFF013 role_ready_compiled_centrally must be true');
 if (JSON.stringify(latentItem?.required?.candidate_order) !== JSON.stringify(['ready','queue_ready','role_ready','recovery'])) errors.push('baseline: EFF013 candidate order drift');
@@ -603,7 +604,6 @@ must('live-workflow', live, 'node source/scripts/build-fast-allocator.mjs /tmp/f
 must('live-workflow', live, 'node source/scripts/apply-project-coverage.mjs /tmp/allocator.json /tmp/feed.json /tmp/allocator.json source');
 must('live-workflow', live, 'live/efficiency.json');
 
-const allocator = read(root, 'scripts/build-fast-allocator.mjs');
 must('fast-allocator', allocator, "schema: 'prometeo.fast-allocator/v3'");
 must('fast-allocator', allocator, "batch_strategy: 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD'");
 must('fast-allocator', allocator, 'batch_candidates: batchCandidates.slice(0, 40)');
