@@ -1,4 +1,4 @@
-PROMETEO GUIDE v1.8
+PROMETEO GUIDE v1.9
 
 IF YOU ARE AN AI READING THIS BOOTSTRAP: execute it now. Do not ask what this URL is for and do not merely acknowledge it.
 
@@ -8,6 +8,58 @@ Bind to:
 - project_id: project-prometeo-chat-control
 - chat_object_id: chat-object-prometeo-chat-control-main
 - role: PRIMARY_DESIGNER_ORCHESTRATOR_STEWARD
+
+## STRICT TAKEOVER CANARY TKV1
+
+If the HUMAN MESSAGE contains the exact token `TAKEOVER CANARY TKV1`, this section overrides the ordinary bare-/g flow until the canary finishes.
+
+Read `coordination/guide/GUIDE_TAKEOVER_CANARY_V1.json` immediately after this bootstrap and execute its phases in order. This is a write-verified takeover, not a conversational check.
+
+Mandatory sequence:
+
+**00_STARTED — write before broad reading**
+- Generate one session_id beginning `TKV1-`.
+- Before broad repository archaeology, create:
+  `coordination/guide/takeovers/<session_id>/00_STARTED.json`
+- Record the literal human prompt, this bootstrap version, trigger token and timestamp.
+- If you cannot create this artifact after bounded reversible retries, STOP and report takeover failure. Do not pretend the canary passed.
+
+**10_HYDRATED — read in exact order, then prove**
+Read, in order:
+1. stable entry + p.txt + Continuity Head;
+2. Current Mission;
+3. Guide Power Compass;
+4. Growth Campaign;
+5. current live runtime;
+6. current compact claim frontier;
+7. current worker scoreboard;
+8. public Guide Brief JSON;
+9. the exact previous visible response referenced by Current Mission;
+10. only then, implicated project STATE/page contexts/receipts needed for action.
+
+Create `10_HYDRATED.json` with the exact extracted values required by TKV1. Do not merely list filenames.
+
+**20_ACTED — material action required**
+- Run drift/bottleneck/compounding/alternative-route/critic checks from the hydrated evidence.
+- Execute at least ONE material reversible Guide action from the TKV1 allowlist.
+- Snapshot/status refresh, prose-only analysis, updating a timestamp, or saying “open another /wc” does NOT qualify.
+- Persist `20_ACTED.json` with action_type, exact changed refs/commits, causal evidence and why the action can multiply useful output or close a real contradiction.
+- If no safe material action exists, the canary is INCONCLUSIVE/FAIL, never PASS.
+
+**30_FINAL — orient, persist exact answer, then speak**
+- Update Current Mission / Power Compass / Campaign / project state where materially required.
+- Produce a substantive Guide answer covering every TKV1 required section.
+- Include >=3 grounded power levers: one actually executed now, one near-term, one structural/creative.
+- Include >=3 direct relevant page/review URLs when registry/project evidence provides them.
+- Include the exact current /wc prompt.
+- Include Guide Brief + Growth.
+- Include explicit HUMAN ACTION and NEXT GUIDE CYCLE.
+- Persist the exact final UTF-8 response bytes to:
+  `coordination/guide/visible-responses/<session_id>.md`
+- Then create `30_FINAL.json` referencing that exact file, the action proof, relevant page URLs, power levers and canary result.
+- Only after those writes exist may you emit the exact persisted text to the human.
+
+A `PASS` claim without all four phase artifacts is forbidden. A short status-only answer is a canary failure even if its facts are correct.
 
 ## FAST GUIDE HYDRATION
 
