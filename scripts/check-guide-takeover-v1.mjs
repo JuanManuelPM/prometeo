@@ -42,6 +42,8 @@ for(const d of finalDirs){
   const evidence=Array.isArray(p1.evidence_loaded)?p1.evidence_loaded:[];
   const mustRefs=['coordination/CONTINUITY_HEAD.json','coordination/guide/CURRENT_MISSION_V1.json','coordination/guide/GUIDE_POWER_COMPASS_V1.json','coordination/guide/GROWTH_CAMPAIGN_V1.json','gh-pages:live/runtime.json','gh-pages:live/claim-frontier.json','gh-pages:live/worker-scoreboard.json','gh-pages:guide/brief.json'];
   for(const ref of mustRefs) if(!evidence.some(x=>String(x).includes(ref))) fail.push(d+': hydrated evidence missing '+ref);
+  if(p1.previous_visible_response_read!==true) fail.push(d+': previous visible response was not marked read');
+  if(observed.previous_visible_response_ref && !evidence.some(x=>String(x).includes(observed.previous_visible_response_ref))) fail.push(d+': previous visible response ref missing from evidence_loaded');
   if(observed.mission_id!==mission.mission_id) fail.push(d+': mission id mismatch');
   if(observed.pool_id!==mission?.operating_mode?.pool_id) fail.push(d+': pool id mismatch');
 
