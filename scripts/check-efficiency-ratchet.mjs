@@ -50,6 +50,13 @@ if (batchingItem?.required?.batch_strategy !== 'DETERMINISTIC_UNIFIED_CANDIDATE_
 if (batchingItem?.required?.batched_reimpose_lane_priority_forbidden !== true) errors.push('baseline: EFF021 batched workers must not re-impose lane priority');
 if (batchingItem?.required?.unbatched_lane_priority_preserved !== true) errors.push('baseline: EFF021 unbatched lane priority must remain preserved');
 if (batchingItem?.required?.seed_source !== 'beacon_commit_sha_first_8_hex') errors.push('baseline: EFF021 seed source drift');
+if (batchingItem?.required?.capability_filter_before_hash !== true) errors.push('baseline: EFF021 capability filter before hash drift');
+if (batchingItem?.required?.compatibility_source !== 'allocator_required_capabilities_plus_known_runtime_surface') errors.push('baseline: EFF021 compatibility source drift');
+if (batchingItem?.required?.definitively_absent_only !== true) errors.push('baseline: EFF021 must filter only definitively absent capabilities');
+if (batchingItem?.required?.unknown_capability_retained !== true) errors.push('baseline: EFF021 unknown capabilities must remain eligible');
+if (batchingItem?.required?.filtered_view_preserves_published_order !== true) errors.push('baseline: EFF021 filtered view order drift');
+if (batchingItem?.required?.collision_rotation_within_filtered_view !== true) errors.push('baseline: EFF021 collision rotation must stay inside filtered view');
+if (batchingItem?.required?.empty_filtered_view_attempts_zero_authority_creates !== true) errors.push('baseline: EFF021 empty compatible view must not attempt authority CREATE');
 const roleSignalItem = baseline?.items?.find(x=>x.id==='EFF022');
 if (roleSignalItem?.required?.bounded_recent_return_evidence !== true) errors.push('baseline: EFF022 compact Guide signal cable must be true');
 if (roleSignalItem?.required?.allocator_consumes_compact_role_evidence !== true) errors.push('baseline: EFF022 allocator compact evidence consumption must be true');
