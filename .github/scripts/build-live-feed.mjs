@@ -241,7 +241,7 @@ function inspectPortfolioJob(project, job) {
     last_signal_at:lastSignalAt,
     replaceable_at:lastSignalAt ? new Date(Date.parse(lastSignalAt)+REPLACE_MS).toISOString() : null,
     collision_count:collisions.length + Math.max(0, claims.length-(authority?1:0)),
-    latest_return:latestReturn ? {path:latestReturn.path,outcome:first(latestReturn.doc.outcome,latestReturn.doc.status),summary:latestReturn.doc.summary||null,returned_at:timeOf(latestReturn.doc),worker_id:latestReturn.doc.worker_id||null} : null,
+    latest_return:latestReturn ? {path:latestReturn.path,generation:generation(latestReturn),outcome:first(latestReturn.doc.outcome,latestReturn.doc.status),summary:latestReturn.doc.summary||null,returned_at:timeOf(latestReturn.doc),worker_id:latestReturn.doc.worker_id||null} : null,
     latest_source_debt_return:compactSourceDebtReturn(latestSourceDebtReturn),
     source_debt_dependency:compactSourceDebtDependency(job),
     authority_gate:compactAuthorityGate(authorityGate),
