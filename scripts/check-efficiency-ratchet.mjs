@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -377,6 +377,12 @@ must('guide', guide, 'If EPOCH and the relevant durable pointers are unchanged')
 must('guide', guide, 'A sustained efficiency regression is ONE system bottleneck.');
 must('guide-yield-action', guide, 'DO NOT merely report that the gate is open');
 must('guide-yield-action', guide, 'status correction alone is not a sufficient bare-/g action');
+must('guide-power-compass', guide, '## STRATEGIC GUIDE COMPASS');
+must('guide-power-compass', guide, 'coordination/guide/GUIDE_POWER_COMPASS_V1.json');
+must('guide-power-compass', guide, 'PARALLELISM, YIELD_PER_CHAT, REPRODUCTION, VISIBLE_VALUE and AUTONOMY');
+must('guide-visible-response', guide, '## LITERAL RESPONSE CONTINUITY');
+must('guide-visible-response', guide, 'coordination/guide/visible-responses/<session_id>.md');
+
 
 must('guide-current-mission', guide, '## ACTIVE CURRENT MISSION — PRIORITY OVERRIDE');
 must('guide-current-mission', guide, 'coordination/guide/CURRENT_MISSION_V1.json');
@@ -400,10 +406,24 @@ must('mission-continuity', missionContinuity, 'Worker Productivity Exam');
 must('mission-continuity', missionContinuity, 'Do not reset to old MESH-03/04/05 wave choreography');
 must('mission-continuity', missionContinuity, 'The human should not become the transport, scheduler, merger or memory system.');
 
+const powerCompass = JSON.parse(read(root, 'coordination/guide/GUIDE_POWER_COMPASS_V1.json'));
+if (powerCompass.status !== 'ACTIVE_BINDING') errors.push('guide-power-compass: status drift');
+if (String(powerCompass?.growth_model?.conceptual_equation||'').includes('useful_parallelism') !== true) errors.push('guide-power-compass: growth model missing');
+for (const axis of ['PARALLELISM','YIELD_PER_CHAT','REPRODUCTION','VISIBLE_VALUE','AUTONOMY']) {
+  if (!Array.isArray(powerCompass?.growth_model?.axes) || !powerCompass.growth_model.axes.some(x=>x.id===axis)) errors.push('guide-power-compass: missing axis '+axis);
+}
+if (powerCompass?.literal_response_continuity?.enabled !== true) errors.push('guide-power-compass: literal response continuity drift');
+if (powerCompass?.literal_response_continuity?.directory !== 'coordination/guide/visible-responses') errors.push('guide-power-compass: visible response directory drift');
+if (!Array.isArray(powerCompass?.current_priority_experiments) || powerCompass.current_priority_experiments.length<1) errors.push('guide-power-compass: no experiments');
+
 const missionWriteback = read(root, 'coordination/guide/GUIDE_CURRENT_MISSION_WRITEBACK_V1.md');
 must('mission-writeback', missionWriteback, 'Mandatory writeback');
 must('mission-writeback', missionWriteback, 'There is no arbitrary one-action cap.');
 must('mission-writeback', missionWriteback, 'coordination/guide/sessions/<session_id>.json');
+must('mission-writeback', missionWriteback, 'Strategic Guide aftercare');
+must('mission-writeback', missionWriteback, 'Exact visible-response writeback');
+must('mission-writeback', missionWriteback, 'coordination/guide/visible-responses/<session_id>.md');
+
 
 const continuityHead = JSON.parse(read(root, 'coordination/CONTINUITY_HEAD.json'));
 if (continuityHead.current_mission_ref !== 'coordination/guide/CURRENT_MISSION_V1.json') errors.push('continuity-head: current mission ref drift');
@@ -621,6 +641,18 @@ else {
   if (eff033.required?.human_worker_recap_required !== false) errors.push('ratchet: EFF033 human recap drift');
   if (eff033.required?.rolling_pool_default !== 'PROD-01') errors.push('ratchet: EFF033 pool default drift');
   if (eff033.required?.evaluation_pauses_pool !== false) errors.push('ratchet: EFF033 evaluation pause drift');
+}
+
+const eff039 = baseline.items?.find(item => item.id === 'EFF039');
+if (!eff039) errors.push('ratchet: EFF039 missing');
+else {
+  if (eff039.required?.compass_ref !== 'coordination/guide/GUIDE_POWER_COMPASS_V1.json') errors.push('ratchet: EFF039 compass ref drift');
+  if (eff039.required?.strategic_health_required !== true) errors.push('ratchet: EFF039 strategic health drift');
+  if (eff039.required?.multiplicative_alternatives_required_when_grounded !== true) errors.push('ratchet: EFF039 alternatives drift');
+  if (eff039.required?.minimal_file_plan_required_for_serious_experiments !== true) errors.push('ratchet: EFF039 file plan drift');
+  if (eff039.required?.exact_visible_response_persisted_before_emit !== true) errors.push('ratchet: EFF039 literal response drift');
+  if (eff039.required?.visible_response_directory !== 'coordination/guide/visible-responses') errors.push('ratchet: EFF039 visible response dir drift');
+  if (eff039.required?.external_wake_only_after_internal_levers_exhausted !== true) errors.push('ratchet: EFF039 wake ordering drift');
 }
 
 const eff038 = baseline.items?.find(item => item.id === 'EFF038');
