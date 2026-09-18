@@ -50,6 +50,7 @@ if (frontierPressureItem?.required?.claim_authority_unchanged !== true) errors.p
 if (frontierPressureItem?.required?.max_fast_claim_attempts_unchanged !== 3) errors.push('baseline: EFF043 claim attempt bound drift');
 if (frontierPressureItem?.required?.pool_sharding_unchanged !== true) errors.push('baseline: EFF043 POOL sharding drift');
 if (frontierPressureItem?.required?.regression_test !== 'coordination/portfolio/tests/capability_aware_frontier_pressure_v1.mjs') errors.push('baseline: EFF043 regression test drift');
+if (frontierPressureItem?.required?.workflow_guard !== '.github/workflows/eff043-capability-aware-frontier-pressure.yml') errors.push('baseline: EFF043 workflow guard drift');
 const frontierPressureTest = read(root, 'coordination/portfolio/tests/capability_aware_frontier_pressure_v1.mjs');
 must('capability-aware-frontier-pressure', frontierPressureTest, 'CAPABILITY_AWARE_FRONTIER_PRESSURE_PASS');
 must('capability-aware-frontier-pressure', frontierPressureTest, 'generic_compatible_clean_frontier');
