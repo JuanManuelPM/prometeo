@@ -70,8 +70,8 @@ export function parseEventComment(comment) {
 }
 
 function repoEvidence(root) {
-  const beacons = new Map(), pins = new Map(), noalloc = new Map(), beaconDocs = [], productiveByWorker = new Map();
-  if (!root) return {beacons,pins,noalloc,beaconDocs,productiveByWorker};
+  const beacons = new Map(), pins = new Map(), noalloc = new Map(), exams = new Map(), beaconDocs = [], productiveByWorker = new Map();
+  if (!root) return {beacons,pins,noalloc,exams,beaconDocs,productiveByWorker};
 
   for (const p of walk(path.join(root,'coordination','workers','beacons'))) {
     const d=readJson(p); if (d?.worker_id) {
@@ -92,6 +92,9 @@ function repoEvidence(root) {
   for (const p of walk(path.join(root,'coordination','workers','no-allocation'))) {
     const d=readJson(p); if (d?.worker_id) noalloc.set(d.worker_id,repoRef(root,p));
   }
+  for (const p of walk(path.join(root,'coordination','workers','exams')).filter(x=>x.endsWith('.json'))) {
+    const d=readJson(p); if (d?.worker_id) exams.set(d.worker_id,repoRef(root,p));
+  }
   for (const [base,kind] of [
     [path.join(root,'coordination','portfolio','returns'),'portfolio-return'],
     [path.join(root,'coordination','guide','receipts'),'guide-receipt']
@@ -106,7 +109,7 @@ function repoEvidence(root) {
   for (const units of productiveByWorker.values()) {
     units.sort((a,b)=>Date.parse(a.at||0)-Date.parse(b.at||0)||String(a.ref).localeCompare(String(b.ref)));
   }
-  return {beacons,pins,noalloc,beaconDocs,productiveByWorker};
+  return {beacons,pins,noalloc,exams,beaconDocs,productiveByWorker};
 }
 
 export function compileRuntime(comments, root=null, nowIso=new Date().toISOString()) {
@@ -169,8 +172,12 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
       const productiveUnits=repo.productiveByWorker.get(w.worker_id)||[];
       const productiveCount=productiveUnits.length;
       const productiveChainState=productiveCount>=8?'HARD_CAP_REACHED':productiveCount>=6?'TARGET_REACHED':productiveCount>=3?'CHECKPOINT_REACHED':'BUILDING';
-      const state=close?'CLOSED':authorityWon?(claim?.started?'ACTIVE':'OWNED'):claim?'CLAIM_RESOLVED':routed?'ROUTED':'BEACONED';
+      const examRef=repo.exams.get(w.worker_id)||null;
+      const isPool=String(b.batch_id||'').startsWith('POOL-');
+      const terminalClose=!!close && (!isPool || !!examRef);
+      const state=terminalClose?'CLOSED':authorityWon?(claim?.started?'ACTIVE':'OWNED'):claim?'CLAIM_RESOLVED':routed?'ROUTED':'BEACONED';
       const anomalies=[];
+      if (isPool && close && !examRef) anomalies.push('POOL_CLOSE_WITHOUT_TERMINAL_EXAM');
       if (normalizedOutcome==='WON' && root && !pinRefs.length) anomalies.push('CLAIM_WON_WITHOUT_REPO_PIN');
       if (pinRefs.length && normalizedOutcome!=='WON') anomalies.push('REPO_PIN_WITHOUT_CANONICAL_WON_EVENT');
       if (close?.outcome==='NO_ALLOCATION' && root && !repo.noalloc.has(w.worker_id)) anomalies.push('NO_ALLOCATION_EVENT_WITHOUT_REPO_RECEIPT');
@@ -178,12 +185,12 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
         worker_id:w.worker_id,state,first_event_at:w.first_event_at,last_event_at:w.last_event_at,
         routed:routed?{lane:routed.lane||null,candidate_id:routed.candidate_id||null,candidate_title:routed.candidate_title||null,at:routed.server_created_at}:null,
         claim:claim?{outcome:normalizedOutcome,raw_outcome:claim.outcome||null,attempts:attemptCount,collisions:collisionCount,candidate_id:claim.candidate_id||claim.job_id||claim.guide_work_id||null,authority_ref_or_null:claim.authority_ref_or_null||claim.pin_ref||claim.claim_path||null,started:!!claim.started,at:claim.server_created_at}:null,
-        repo:{beacon_ref:repo.beacons.get(w.worker_id)||null,pin_refs:pinRefs,no_allocation_ref:repo.noalloc.get(w.worker_id)||null},
+        repo:{beacon_ref:repo.beacons.get(w.worker_id)||null,pin_refs:pinRefs,no_allocation_ref:repo.noalloc.get(w.worker_id)||null,exam_ref:examRef},
         authority_won:authorityWon,
         productive_units:productiveCount,
         productive_chain_state:productiveChainState,
         productive_unit_refs:productiveUnits.slice(-8).map(unit=>unit.ref),
-        close:close?{outcome:close.outcome||null,job_id_or_null:close.job_id_or_null||close.job_id||close.guide_work_id||null,result_ref_or_null:close.result_ref_or_null||close.return_ref||close.receipt_ref||null,at:close.server_created_at}:null,
+        close:close?{outcome:close.outcome||null,job_id_or_null:close.job_id_or_null||close.job_id||close.guide_work_id||null,result_ref_or_null:close.result_ref_or_null||close.return_ref||close.receipt_ref||null,at:close.server_created_at,terminal:terminalClose}:null,
         anomalies
       };
     }).sort((a,b)=>Date.parse(a.first_event_at||0)-Date.parse(b.first_event_at||0));
@@ -200,7 +207,7 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
       pin_won:workers.filter(w=>w.authority_won).length,
       collisions:workers.reduce((n,w)=>n+(w.claim?.collisions||0),0),
       started:workers.filter(w=>w.claim?.started).length,
-      closed:workers.filter(w=>w.close).length,
+      closed:workers.filter(w=>w.state==='CLOSED').length,
       active:workers.filter(w=>w.state==='ACTIVE').length,
       productive_units_total:workers.reduce((n,w)=>n+(w.productive_units||0),0),
       productive_units_max:workers.reduce((n,w)=>Math.max(n,w.productive_units||0),0),
