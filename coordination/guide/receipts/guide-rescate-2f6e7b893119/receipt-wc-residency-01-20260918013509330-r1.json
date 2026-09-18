@@ -1,0 +1,44 @@
+{
+  "schema": "prometeo.guide-receipt/v1",
+  "guide_work_id": "guide-rescate-2f6e7b893119",
+  "receipt_id": "receipt-wc-residency-01-20260918013509330-r1",
+  "worker_id": "wc-residency-01-20260918013509330",
+  "role": "GUIDE_RESCATE",
+  "created_at": "2026-09-18T01:54:07.183Z",
+  "trigger": "LOW_YIELD",
+  "evidence": [
+    "coordination/workers/no-allocation/wc-WAVE-20260917-RESIDENCY-01-sol-2234-a.json",
+    "coordination/workers/no-allocation/wc-residency-20260918T0134Z-sol-6f91.json",
+    "coordination/efficiency/RATCHET_BASELINE_V1.json#EFF031",
+    "coordination/portfolio/tests/claim_transport_classification_v1.mjs",
+    "github-actions-run:35297112205",
+    "github-actions-job:105451870811",
+    "ci-main-checkout:08b00a4d9c284ec197601193622702864b71e29b",
+    "ci-gh-pages-checkout:c3884afcd13ee962892534ce200f9ab5e9cc778b"
+  ],
+  "diagnosis": "LOW_YIELD was amplified by an over-broad preclaim transport classification. Durable batch receipts showed workers closing at 0-1 productive units under CLAIM_TRANSPORT_BLOCKED, but only one receipt explicitly proved an authorization/safety denial. The existing protocol already distinguished CREATE_EXISTS and BRANCH_HEAD_MOVED, yet an unclassified bounded write failure could still be collapsed into the same hard-stop label, hiding whether the failure was an explicit denial or transport ambiguity.",
+  "intervention": "Kept explicit authorization/safety denials fail-closed and non-retryable, while adding CLAIM_TRANSPORT_AMBIGUOUS for failures that prove neither denial, target-path existence nor branch-head movement. Ambiguous pre-authority failures may use at most one diversion to an already-loaded untried compatible candidate with a different claim path and no extra preclaim read. A second ambiguous failure stops. Added EFF031, a dedicated regression, CI wiring, ratchet checks, canonical wc v3.26 wording, FAST allocation contract, and the public /wc pointer. No safety-control bypass or same denied-path retry is permitted.",
+  "created_jobs": [],
+  "consumed_returns": [],
+  "changed_paths": [
+    "wc",
+    "coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md",
+    "coordination/efficiency/RATCHET_BASELINE_V1.json",
+    "coordination/portfolio/tests/claim_transport_classification_v1.mjs",
+    ".github/workflows/efficiency-ratchet.yml",
+    "scripts/check-efficiency-ratchet.mjs",
+    "gh-pages:wc/index.html"
+  ],
+  "tests": [
+    "CLAIM_TRANSPORT_CLASSIFICATION_PASS: PASS in GitHub Actions run 35297112205",
+    "Explicit authorization/safety denial => CLAIM_TRANSPORT_BLOCKED => STOP with same denied action/path retry forbidden: PASS",
+    "Ambiguous pre-authority failure => CLAIM_TRANSPORT_AMBIGUOUS => at most one already-loaded different-path diversion: PASS",
+    "Second ambiguous transport failure => STOP: PASS",
+    "CREATE_EXISTS and BRANCH_HEAD_MOVED classifications preserved: PASS",
+    "Max fast authority CREATE budget remains 3: PASS",
+    "Public /wc pointer contains the same denial/ambiguity boundary: PASS",
+    "Full Prometeo Efficiency Ratchet static-non-regression: PASS, 17/17 steps",
+    "CI checkout proved main@08b00a4d9c284ec197601193622702864b71e29b + gh-pages@c3884afcd13ee962892534ce200f9ab5e9cc778b"
+  ],
+  "remaining_boundary": "Runtime benefit is not yet proven on subsequent fresh workers. EFF031 remains STATIC_GUARDED_PENDING_RUNTIME until durable future worker evidence shows ambiguous failures recover yield without increasing denial retries or authority mistakes."
+}
