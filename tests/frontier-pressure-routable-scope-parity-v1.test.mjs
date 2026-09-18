@@ -105,7 +105,7 @@ test('frontier claimable ids reconcile with /wc normalized ready + recovery + qu
     'queue-ready',
   ].sort();
   assert.deepEqual(result.frontier.claimable_job_ids, expectedAllocatorRoutable);
-  assert.equal(result.routing_domain.portfolio.jobs, 3);
+  assert.equal(result.routing_domain.portfolio_jobs, 3);
   assert.equal(result.routing_domain.queue_ready_opportunities, 1);
   assert.ok(!result.frontier.claimable_job_ids.includes('queue-claimed'));
   assert.ok(!result.frontier.claimable_job_ids.includes('queue-returned'));
