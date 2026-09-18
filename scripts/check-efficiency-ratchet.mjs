@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -74,6 +74,12 @@ if (branchHeadItem?.required?.same_exact_create_retry_max !== 1) errors.push('ba
 if (branchHeadItem?.required?.head_move_retry_consumes_authority_attempt !== false) errors.push('baseline: EFF025 branch-head retry must not consume authority attempt');
 if (branchHeadItem?.required?.pre_read_before_retry_forbidden !== true) errors.push('baseline: EFF025 pre-read must remain forbidden');
 if (branchHeadItem?.required?.second_consecutive_head_move !== 'CLAIM_TRANSPORT_UNSTABLE') errors.push('baseline: EFF025 second head move classification drift');
+const sourceDebtPlannerItem = baseline?.items?.find(x=>x.id==='EFF026');
+if (sourceDebtPlannerItem?.required?.project_guide_source_debt_gate !== true) errors.push('baseline: EFF026 source-debt planner gate must be true');
+if (sourceDebtPlannerItem?.required?.status !== 'SOURCE_DEBT') errors.push('baseline: EFF026 status drift');
+if (sourceDebtPlannerItem?.required?.require_empty_frontier_refs !== true) errors.push('baseline: EFF026 empty-frontier predicate drift');
+if (sourceDebtPlannerItem?.required?.required_blocker_prefix !== 'NEW_EVIDENCE_GATE:') errors.push('baseline: EFF026 blocker prefix drift');
+if (sourceDebtPlannerItem?.required?.suppress_trigger !== 'PROJECT_FRONTIER_THIN') errors.push('baseline: EFF026 trigger drift');
 
 const wc = read(root, 'wc');
 must('wc', wc, 'CLAIM NOW');
@@ -161,6 +167,10 @@ const projectGuideMesh = JSON.parse(read(root, 'coordination/guide/PROJECT_GUIDE
 if (projectGuideMesh.worker_chain_target_productive_units !== 3) errors.push('project-guide-mesh: chain target drift');
 if (projectGuideMesh.worker_chain_max_productive_units !== 4) errors.push('project-guide-mesh: chain hard cap drift');
 if (projectGuideMesh.worker_chain_same_project_soft_cap !== 2) errors.push('project-guide-mesh: same-project soft cap drift');
+if (projectGuideMesh.source_debt_planner_gate?.enabled !== true) errors.push('project-guide-mesh: source debt planner gate must be enabled');
+if (projectGuideMesh.source_debt_planner_gate?.status !== 'SOURCE_DEBT') errors.push('project-guide-mesh: source debt planner status drift');
+if (projectGuideMesh.source_debt_planner_gate?.require_empty_frontier_refs !== true) errors.push('project-guide-mesh: source debt planner must require empty frontier');
+if (projectGuideMesh.source_debt_planner_gate?.required_blocker_prefix !== 'NEW_EVIDENCE_GATE:') errors.push('project-guide-mesh: source debt planner blocker prefix drift');
 
 const eventProtocol = read(root, 'coordination/workers/WORKER_EVENT_STREAM_V1.md');
 must('worker-events', eventProtocol, 'Issue: https://github.com/JuanManuelPM/prometeo/issues/22');
@@ -236,6 +246,7 @@ must('live-workflow', live, 'coordination/portfolio/tests/project_coverage_alloc
 must('live-workflow', live, 'coordination/portfolio/tests/batched_lane_sharding_v1.mjs');
 must('live-workflow', live, 'coordination/portfolio/tests/role_signal_compaction_v1.mjs');
 must('live-workflow', live, 'coordination/portfolio/tests/claim_branch_head_move_retry_v1.mjs');
+must('live-workflow', live, 'coordination/portfolio/tests/project_guide_source_debt_gate_v1.mjs');
 must('live-workflow', live, 'node source/scripts/build-fast-allocator.mjs /tmp/feed.json /tmp/efficiency.json /tmp/allocator.json source');
 must('live-workflow', live, 'node source/scripts/apply-project-coverage.mjs /tmp/allocator.json /tmp/feed.json /tmp/allocator.json source');
 must('live-workflow', live, 'live/efficiency.json');
@@ -268,6 +279,9 @@ must('fast-allocator', allocator, 'ordinary_next_generation_eligible');
 must('fast-allocator', allocator, 'fixed_generation_attention');
 must('fast-allocator', allocator, 'loadRecoveryPolicies');
 must('fast-allocator', allocator, "'recovery-policies'");
+must('fast-allocator', allocator, 'projectPlannerSuppressedBySourceDebt');
+must('fast-allocator', allocator, 'plannerSuppressed');
+must('fast-allocator', allocator, 'row.gap > 0 && !row.plannerSuppressed');
 mustNot('fast-allocator', allocator, 'portfolio-exclusive-job-pin-live-race-5-v1');
 
 const liveBuilder = read(root, '.github/scripts/build-live-feed.mjs');
@@ -337,6 +351,8 @@ must('claim-frontier-test', claimFrontierTest, 'bytes<64000');
 
 const branchHeadRetryTest = read(root, 'coordination/portfolio/tests/claim_branch_head_move_retry_v1.mjs');
 must('branch-head-retry-test', branchHeadRetryTest, 'CLAIM_BRANCH_HEAD_MOVE_RETRY_PASS');
+const sourceDebtPlannerTest = read(root, 'coordination/portfolio/tests/project_guide_source_debt_gate_v1.mjs');
+must('source-debt-planner-test', sourceDebtPlannerTest, 'PROJECT_GUIDE_SOURCE_DEBT_GATE_PASS');
 const capabilityFitTest = read(root, 'coordination/portfolio/tests/fast_allocator_capability_fit_v1.mjs');
 must('capability-fit-test', capabilityFitTest, 'FAST_ALLOCATOR_CAPABILITY_FIT_PASS');
 must('capability-fit-test', capabilityFitTest, 'unrestricted_public_http_origin_fetch');

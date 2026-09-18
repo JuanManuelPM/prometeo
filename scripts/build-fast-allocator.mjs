@@ -6,6 +6,15 @@ import { pathToFileURL } from 'node:url';
 
 const g = n => String(n).padStart(6, '0');
 const arr = value => Array.isArray(value) ? value : [];
+export function projectPlannerSuppressedBySourceDebt(stateDoc = {}, projectGuideMesh = {}) {
+  const gate = projectGuideMesh?.source_debt_planner_gate || null;
+  if (!gate?.enabled) return false;
+  if (String(stateDoc?.status || '') !== String(gate.status || 'SOURCE_DEBT')) return false;
+  if (gate.require_empty_frontier_refs === true && arr(stateDoc?.frontier_refs).length !== 0) return false;
+  const prefix = String(gate.required_blocker_prefix || '');
+  if (prefix && !arr(stateDoc?.blockers).some(value => String(value).startsWith(prefix))) return false;
+  return true;
+}
 const finiteInt = (value, fallback = 0) => {
   const n = Number(value);
   return Number.isInteger(n) && n >= 0 ? n : fallback;
@@ -349,9 +358,10 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
         const stateDoc = stateRow?.doc || {};
         const localReady = readyByProject.get(project.project_id) || 0;
         const localWorking = workingByProject.get(project.project_id) || 0;
-        return { project, stateRow, stateDoc, localReady, localWorking, gap: Math.max(0, minFrontier - localReady) };
+        const plannerSuppressed = projectPlannerSuppressedBySourceDebt(stateDoc, projectGuideMesh);
+        return { project, stateRow, stateDoc, localReady, localWorking, plannerSuppressed, gap: Math.max(0, minFrontier - localReady) };
       })
-      .filter(row => row.gap > 0)
+      .filter(row => row.gap > 0 && !row.plannerSuppressed)
       .sort((a,b) => {
         const ai=infra.has(a.project.project_id)?1:0, bi=infra.has(b.project.project_id)?1:0;
         if (ai !== bi) return ai - bi;

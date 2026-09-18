@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-18T00:53:00Z",
+  "updated_at": "2026-09-18T01:05:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -552,6 +552,32 @@
         "transport_unstable_stop_immediately": true,
         "max_real_authority_attempts": 3,
         "regression_test": "coordination/portfolio/tests/claim_branch_head_move_retry_v1.mjs"
+      },
+      "status": "STATIC_GUARDED_PENDING_RUNTIME"
+    },
+    {
+      "id": "EFF026",
+      "title": "Intentional SOURCE_DEBT does not self-spawn project planners",
+      "scope": [
+        "allocator",
+        "project-guide-mesh",
+        "guide",
+        "metabolism"
+      ],
+      "observed_failure": "José STATE revision 8 explicitly recorded SOURCE_DEBT, an intentionally empty frontier, NEW_EVIDENCE_GATE and PLANNER_SPIN, yet the gap-only project-guide compiler immediately emitted another PROJECT_FRONTIER_THIN candidate for revision 9. That worker confirmed no new bytes, returns, authority or executable route, proving the planner itself was becoming repeated work.",
+      "invariant": "PROJECT_FRONTIER_THIN is suppressed only when the project-guide mesh explicitly enables the source-debt gate and project STATE simultaneously says SOURCE_DEBT, has empty frontier_refs, and carries the configured NEW_EVIDENCE_GATE blocker. New evidence must change STATE to clear the predicate. Execution, integration, rescue and critic lanes remain unaffected.",
+      "required": {
+        "project_guide_source_debt_gate": true,
+        "gate_config": "coordination/guide/PROJECT_GUIDE_MESH_V1.json#source_debt_planner_gate",
+        "status": "SOURCE_DEBT",
+        "require_empty_frontier_refs": true,
+        "required_blocker_prefix": "NEW_EVIDENCE_GATE:",
+        "suppress_trigger": "PROJECT_FRONTIER_THIN",
+        "planner_spin_revision_churn_forbidden": true,
+        "execution_lanes_preserved": true,
+        "other_guide_roles_preserved": true,
+        "compiler_state_mutation_forbidden": true,
+        "regression_test": "coordination/portfolio/tests/project_guide_source_debt_gate_v1.mjs"
       },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     }
