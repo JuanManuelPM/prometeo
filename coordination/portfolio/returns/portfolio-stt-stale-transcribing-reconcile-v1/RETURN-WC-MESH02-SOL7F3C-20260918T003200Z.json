@@ -1,0 +1,117 @@
+{
+  "schema": "prometeo.portfolio-return/v1",
+  "return_id": "RETURN-WC-MESH02-SOL7F3C-20260918T003200Z",
+  "job_id": "portfolio-stt-stale-transcribing-reconcile-v1",
+  "dedupe_key": "tool:stt:stale-transcribing-reconcile:v1",
+  "project_id": "audio-speech-to-text",
+  "worker_id": "wc-wave-20260917-mesh-02-sol-7f3c",
+  "returned_at": "2026-09-18T00:32:00Z",
+  "outcome": "BOUNDARY",
+  "summary": "Verified the five legacy study_transcript_chunks stuck in transcribing are stale/orphaned, not legitimately active. All five are legacy/source=whisper, finished_processing_at is null, and their started_processing_at timestamps are 2026-09-10/11 while the active study-transcribe-v1 v6 state machine transitions transcribing -> ready|error inside a single Edge request and has no durable lease/heartbeat/resume worker. No transcript/provisional_text, participant content, room token, credential, or secret was read. No Supabase row was mutated because this /wc invocation authorizes reversible Prometeo repository writes, not external production-data mutation.",
+  "changed_paths": [
+    "coordination/portfolio/returns/portfolio-stt-stale-transcribing-reconcile-v1/RETURN-WC-MESH02-SOL7F3C-20260918T003200Z.json"
+  ],
+  "evidence": [
+    {
+      "kind": "supabase_aggregate_only",
+      "observed_at": "2026-09-18T00:30:43.675365Z",
+      "table": "public.study_transcript_chunks",
+      "result": {
+        "transcribing_count": 5,
+        "session_count": 2,
+        "oldest_started_processing_at": "2026-09-10T19:06:17.656Z",
+        "newest_started_processing_at": "2026-09-11T12:26:39.506Z",
+        "unfinished_count": 5,
+        "missing_started_count": 0,
+        "source": "whisper",
+        "capture_version": "legacy"
+      }
+    },
+    {
+      "kind": "state_machine",
+      "ref": "supabase://catnohyouxqjjtseaueb/functions/study-transcribe-v1@v6",
+      "status": "ACTIVE",
+      "version": 6,
+      "finding": "POST upserts status=transcribing with started_processing_at, then in the same request updates the row to ready on success or error on failure; there is no durable lease, heartbeat, background resume, or retry owner."
+    },
+    {
+      "kind": "row_metadata_only",
+      "rows": [
+        {
+          "row_no": 1,
+          "started_processing_at": "2026-09-10T19:06:17.656Z",
+          "finished_processing_at": null,
+          "source": "whisper",
+          "capture_version": "legacy",
+          "seq": 1
+        },
+        {
+          "row_no": 2,
+          "started_processing_at": "2026-09-10T19:06:36.014Z",
+          "finished_processing_at": null,
+          "source": "whisper",
+          "capture_version": "legacy",
+          "seq": 2
+        },
+        {
+          "row_no": 3,
+          "started_processing_at": "2026-09-10T19:08:47.631Z",
+          "finished_processing_at": null,
+          "source": "whisper",
+          "capture_version": "legacy",
+          "seq": 3
+        },
+        {
+          "row_no": 4,
+          "started_processing_at": "2026-09-11T12:26:24.370Z",
+          "finished_processing_at": null,
+          "source": "whisper",
+          "capture_version": "legacy",
+          "seq": 14
+        },
+        {
+          "row_no": 5,
+          "started_processing_at": "2026-09-11T12:26:39.506Z",
+          "finished_processing_at": null,
+          "source": "whisper",
+          "capture_version": "legacy",
+          "seq": 15
+        }
+      ]
+    }
+  ],
+  "tests": [
+    "Queried information_schema only to enumerate table columns and explicitly avoided transcript, provisional_text, participant_name, participant_id, session_id values, room_token, and credentials.",
+    "Ran aggregate-only status/timestamp query and a metadata-only row query for status=transcribing.",
+    "Inspected the active Supabase Edge Function study-transcribe-v1 v6 source to establish the current transcribing -> ready|error state machine."
+  ],
+  "unresolved": [
+    "The stale rows remain in transcribing because mutating Supabase production data is outside the current human authorization boundary.",
+    "An authorized database-write worker should perform a count-checked reversible repair and verify that exactly these five stale legacy rows leave transcribing without reading transcript content."
+  ],
+  "source_debt": [],
+  "proposed_repair": {
+    "classification": "SAFE_BUT_NOT_AUTHORIZED_HERE",
+    "intended_effect": "For exactly the five currently stale legacy rows, change status from transcribing to error, set a bounded reconciliation marker in error, and set finished_processing_at; preserve transcript/provisional_text bytes unchanged.",
+    "safety_conditions": [
+      "BEGIN transaction and lock only rows still status=transcribing, capture_version=legacy, source=whisper, finished_processing_at IS NULL, started_processing_at <= 2026-09-11T12:26:39.506Z.",
+      "Abort unless affected row count is exactly 5 and every targeted started_processing_at matches the five verified timestamps.",
+      "Do not select transcript, provisional_text, participant fields, room/session tokens, or credentials.",
+      "Record target IDs only in the authorized execution receipt if required for rollback; do not expose private content.",
+      "Rollback recipe: restore status=transcribing, error=NULL, finished_processing_at=NULL for the exact repaired IDs if downstream validation fails."
+    ]
+  },
+  "spawn_candidates": [
+    {
+      "title": "Apply bounded stale STT reconciliation under explicit Supabase write authority",
+      "reason": "Five rows are conclusively stale/orphaned but external data mutation was not authorized by this /wc invocation.",
+      "dedupe_key": "tool:stt:stale-transcribing-apply-repair:v1",
+      "acceptance": [
+        "Pre-write count and timestamps still match the five verified stale rows.",
+        "Exactly five rows leave transcribing via one reversible transaction.",
+        "No transcript/provisional_text/private participant content or secrets are read or changed.",
+        "Post-write aggregate query shows zero matching stale legacy transcribing rows and a durable rollback receipt exists."
+      ]
+    }
+  ]
+}
