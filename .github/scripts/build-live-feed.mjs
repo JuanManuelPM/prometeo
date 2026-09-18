@@ -8,11 +8,25 @@ const now = Date.now();
 const ACTIVE_MS = 6 * 60_000;
 const REPLACE_MS = 10 * 60_000;
 const ALLOCATING_MS = 3 * 60_000;
-const terminalOutcomes = new Set(['done','verified','no_action_needed','superseded']);
 const lower = v => String(v ?? '').toLowerCase();
 const first = (...v) => v.find(x => x !== undefined && x !== null && x !== '');
 const abs = rel => path.join(root, rel);
 const read = rel => { try { return JSON.parse(fs.readFileSync(abs(rel), 'utf8')); } catch { return null; } };
+const returnOutcomeSemantics = read('coordination/portfolio/RETURN_OUTCOME_SEMANTICS_V1.json') || {};
+const terminalOutcomes = new Set(
+  (returnOutcomeSemantics.terminal_outcomes || ['DONE','VERIFIED','NO_ACTION_NEEDED','SUPERSEDED'])
+    .map(lower)
+);
+const historicalTerminalAlias = (d, sourcePath) => {
+  const rawOutcome = String(first(d?.outcome,d?.status,d?.result) ?? '').toUpperCase();
+  const alias = returnOutcomeSemantics?.historical_terminal_aliases?.[rawOutcome];
+  if (!alias || alias.mode !== 'EXACT_RETURN_REF_ALLOWLIST_FAIL_CLOSED' || !sourcePath) return false;
+  return (alias.return_refs || []).some(ref =>
+    ref?.path === sourcePath &&
+    (!ref.job_id || ref.job_id === d?.job_id) &&
+    (!ref.return_id || ref.return_id === d?.return_id)
+  );
+};
 const walk = rel => {
   const dir = abs(rel);
   if (!fs.existsSync(dir)) return [];
@@ -27,7 +41,9 @@ const timeOf = d => first(d?.returned_at,d?.completed_at,d?.heartbeat_at,d?.obse
 const ms = d => Date.parse(timeOf(d) || '') || 0;
 const docs = paths => paths.map(file => ({path:file, doc:read(file)})).filter(x => x.doc);
 const latest = rows => rows.slice().sort((a,b)=>ms(a.doc)-ms(b.doc)||a.path.localeCompare(b.path)).at(-1) || null;
-const terminal = d => terminalOutcomes.has(lower(first(d?.outcome,d?.status,d?.result)));
+const terminal = (d, sourcePath = null) =>
+  terminalOutcomes.has(lower(first(d?.outcome,d?.status,d?.result))) ||
+  historicalTerminalAlias(d, sourcePath);
 const problem = d => /fail|error|boundary|reject|conflict|invalid/.test(lower(first(d?.state,d?.status,d?.verdict,d?.result,d?.outcome)));
 const generation = row => Number(row?.doc?.generation) || Number(String(row?.path || '').match(/\/G(\d+)\.json$/)?.[1] || 0);
 const signalAge = iso => iso ? Math.max(0, now - Date.parse(iso)) : Number.POSITIVE_INFINITY;
@@ -122,7 +138,7 @@ function inspectPortfolioJob(project, job) {
   const claims = docs(portfolioFiles.filter(x=>x.startsWith(`coordination/portfolio/claims/${id}/`))).sort((a,b)=>ms(a.doc)-ms(b.doc)||a.path.localeCompare(b.path));
   const collisions = docs(portfolioFiles.filter(x=>x.startsWith(`coordination/portfolio/collisions/${id}/`))).sort((a,b)=>ms(a.doc)-ms(b.doc)||a.path.localeCompare(b.path));
   const returns = docs(portfolioFiles.filter(x=>x.startsWith(`coordination/portfolio/returns/${id}/`))).sort((a,b)=>ms(a.doc)-ms(b.doc)||a.path.localeCompare(b.path));
-  const terminalReturn = [...returns].reverse().find(x=>terminal(x.doc)) || null;
+  const terminalReturn = [...returns].reverse().find(x=>terminal(x.doc, x.path)) || null;
   const latestReturn = returns.at(-1) || null;
   const latestSourceDebtReturn = [...returns].reverse().find(x=>Object.prototype.hasOwnProperty.call(x.doc || {}, 'source_debt')) || null;
   const latestPin = pins.at(-1) || null;
