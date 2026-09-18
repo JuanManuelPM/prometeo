@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -117,6 +117,12 @@ if (staleCollisionRefreshItem?.required?.full_allocator_refresh_forbidden !== tr
 if (staleCollisionRefreshItem?.required?.explicit_denial_refresh_forbidden !== true) errors.push('baseline: EFF034 explicit denial refresh must be forbidden');
 if (staleCollisionRefreshItem?.required?.ambiguous_transport_refresh_forbidden !== true) errors.push('baseline: EFF034 ambiguous transport refresh must be forbidden');
 if (staleCollisionRefreshItem?.required?.stale_recovery_refresh_does_not_authorize_recovery !== true) errors.push('baseline: EFF034 stale recovery authority drift');
+const retainedCandidatePayloadItem = baseline?.items?.find(x=>x.id==='EFF035');
+if (retainedCandidatePayloadItem?.required?.local_view_retains_full_candidate_object !== true) errors.push('baseline: EFF035 local full-candidate retention drift');
+if (JSON.stringify(retainedCandidatePayloadItem?.required?.retained_fields) !== JSON.stringify(['claim_mode','claim_path','claim_payload_shape','barrier_post_release_fields'])) errors.push('baseline: EFF035 retained fields drift');
+if (retainedCandidatePayloadItem?.required?.display_summary_non_authoritative !== true) errors.push('baseline: EFF035 display summary authority drift');
+if (retainedCandidatePayloadItem?.required?.collision_advance_requires_no_reread !== true) errors.push('baseline: EFF035 collision reread guard drift');
+if (retainedCandidatePayloadItem?.required?.payload_fabrication_forbidden !== true) errors.push('baseline: EFF035 payload fabrication guard drift');
 const noAllocationWindowItem = baseline?.items?.find(x=>x.id==='EFF028');
 if (noAllocationWindowItem?.required?.global_runtime_epoch_preserved !== true) errors.push('baseline: EFF028 global runtime epoch must be preserved');
 if (noAllocationWindowItem?.required?.historical_no_allocation_metrics_preserved !== true) errors.push('baseline: EFF028 historical no-allocation metrics must be preserved');
@@ -160,6 +166,9 @@ must('wc', wc, 'at most ONE transport diversion');
 must('wc', wc, 'different claim path');
 must('wc', wc, 'Never retry the denied action/path');
 must('wc', wc, 'candidate.claim_payload_shape');
+must('wc-retained-candidate', wc, 'CONTRACT-COMPLETE LOCAL RETENTION');
+must('wc-retained-candidate', wc, 'zero extra frontier read');
+must('wc-retained-candidate', wc, 'zero payload fabrication');
 must('wc', wc, 'ALLOCATOR_PIN_PAYLOAD_INVALID');
 must('wc', wc, '<now_plus_10m_iso>');
 must('wc', wc, 'Never CREATE an immutable malformed pin');
@@ -221,6 +230,9 @@ must('fast-allocation', fast, 'at most ONE transport diversion');
 must('fast-allocation', fast, 'different claim path');
 must('fast-allocation', fast, 'Never retry the denied action/path');
 must('fast-allocation', fast, 'candidate.claim_payload_shape');
+must('fast-retained-candidate', fast, 'CONTRACT-COMPLETE LOCAL RETENTION');
+must('fast-retained-candidate', fast, 'zero frontier reread');
+must('fast-retained-candidate', fast, 'zero payload reconstruction/fabrication');
 must('fast-allocation', fast, 'ALLOCATOR_PIN_PAYLOAD_INVALID');
 must('fast-allocation', fast, '<now_plus_10m_iso>');
 must('fast-allocation', fast, 'Never CREATE an immutable malformed pin');
