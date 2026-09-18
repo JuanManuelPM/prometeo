@@ -7,7 +7,8 @@ const BRANCH = 'gh-pages';
 const RAW_ROOT = `https://raw.githubusercontent.com/JuanManuelPM/prometeo/${BRANCH}/`;
 const SPECS = {
   index: { path: 'pages/study-library/index.html', sha: 'b088b71517f081e641e984bd8378e22e9be3f368' },
-  v18: { path: 'pages/study-library/study-v18.js', sha: '61b25508b27a6026838644edc2edbe7b51f97c1c' },
+  v11: { path: 'pages/study-library/study-v11-experience.js', sha: '787c09e69551a0b889cde141823dc46d87d36eed' },
+  v18: { path: 'pages/study-library/study-v18.js', sha: 'ffa0da1bb56cbb972743847700198fdd62f3553f' },
   fix5: { path: 'pages/study-library/study-v18-5-fix.js', sha: '26ead844db7e93934fe742ce86a16d60f71beff6' },
   fix6: { path: 'pages/study-library/study-v18-6-fix.js', sha: '1754527feefbda95b59e79a0235d367ce16591a5' },
   css: { path: 'pages/study-library/study-v18.css', sha: 'd06e0df3580c64c86a06e5eb3db2798b255b745b' }
@@ -51,6 +52,11 @@ async function loadOne(spec, dir) {
 
 function containsAll(text, fragments) {
   return fragments.every(fragment => text.includes(fragment));
+}
+
+function jsParses(text) {
+  try { new Function(text); return true; }
+  catch { return false; }
 }
 
 function evaluate(bundle) {
@@ -105,6 +111,27 @@ function evaluate(bundle) {
         "history.pushState({v18:'course',course:id}",
         "window.addEventListener('popstate'"
       ])
+    },
+    {
+      id: 'javascript_parse',
+      ok: jsParses(bundle.v11.text) && jsParses(bundle.v18.text) &&
+          jsParses(bundle.fix5.text) && jsParses(bundle.fix6.text)
+    },
+    {
+      id: 'native_schedule_legacy_bridge',
+      ok: containsAll(bundle.v11.text, [
+        'window.PrometeoStudyCalendarV11',
+        'async courseSchedule(courseId,title)',
+        'events:scheduleMatch11(courseId,title)'
+      ]) && containsAll(bundle.v18.text, [
+        'scheduleState=new Map()',
+        'function schedulePanel(row)',
+        "if(activeTab==='schedule')return schedulePanel(row)",
+        'window.__STUDY_ENSURE_LEGACY',
+        'window.PrometeoStudyCalendarV11',
+        "if(activeTab==='schedule')loadSchedule(row)",
+        'Versión anterior'
+      ]) && !bundle.v18.text.includes('Acá se va a conectar el cronograma real')
     },
     {
       id: 'theme_persistence',
