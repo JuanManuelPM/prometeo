@@ -90,12 +90,14 @@ Before calculating the shard index, inspect only the already-loaded compact fron
 Then apply normal unified sharding:
 
 - Retain the commit SHA returned by the already-required beacon CREATE as `beacon_commit_sha` when the write tool exposes it. Never add a read just to recover that SHA.
-- Use `claim-frontier.candidates` exactly as published. Start at `parseInt(first 8 hex chars of beacon_commit_sha,16) mod candidates.length`.
-- After `CREATE_EXISTS`, advance cyclically to the next untried candidate in that unified array, while preserving the existing maximum of 3 authority CREATE attempts. `BRANCH_HEAD_MOVED` is transport/CAS stabilization, not a candidate collision; apply the bounded same-path retry below before advancing.
+- Use `claim-frontier.candidates` exactly as the compiler-published unified source array, then derive one stable local `batch_compatible_candidates` view before hashing by removing only candidates whose allocator-supplied `required_capabilities` contain a capability definitively absent from the current runtime. Preserve published order; unknown or ambiguous capability is NOT absence; use only already-known runtime facts and the already-loaded compact snapshot.
+- If `batch_compatible_candidates` is non-empty, start at `parseInt(first 8 hex chars of beacon_commit_sha,16) mod batch_compatible_candidates.length`.
+- If `batch_compatible_candidates` is empty, attempt no authority CREATE; bounded capability-mismatch exhaustion may close `NO_ALLOCATION` without manufacturing a collision.
+- After `CREATE_EXISTS`, advance cyclically to the next untried candidate in that same filtered unified view, while preserving the existing maximum of 3 authority CREATE attempts. `BRANCH_HEAD_MOVED` is transport/CAS stabilization, not a candidate collision; apply the bounded same-path retry below before advancing.
 - Do not re-impose lane priority locally for a batched worker: the compiler already selected and ordered the product / Guide mesh represented by `candidates`.
 - Unbatched workers preserve normal allocator lane order: `ready -> queue_ready -> role_ready -> recovery`.
 - If `beacon_commit_sha` is unavailable or its first 8 characters are not hexadecimal, preserve the published `candidates` order.
-- Sharding itself is local ordering over the one allocator snapshot already read: no extra preclaim read or write, no extra claim attempt, no authority change. The only bounded pre-shard write exception is the explicit no-authority `batch_contention_fanin` path above.
+- Sharding itself is local ordering over the one allocator snapshot already read: no extra preclaim read or write, no extra claim attempt, no authority change. Capability filtering is also local and stable: it may remove only definitively incompatible candidates before the hash, never reorder survivors, and never treat unknown capability as absent. The only bounded pre-shard write exception is the explicit no-authority `batch_contention_fanin` path above.
 
 This is an efficiency mechanism only. Atomic CREATE of the deterministic PIN/claim remains the sole execution-ownership race primitive.
 
