@@ -22,6 +22,7 @@ const finiteInt = (value, fallback = 0) => {
 const parseTime = value => Date.parse(value || '') || 0;
 const eventTime = doc => parseTime(doc?.returned_at || doc?.completed_at || doc?.heartbeat_at || doc?.observed_at || doc?.recorded_at || doc?.closed_at || doc?.started_at || doc?.claimed_at || doc?.launched_at || doc?.created_at || doc?.updated_at || doc?.timestamp);
 const uniq = values => [...new Set(arr(values).filter(Boolean))].sort((a, b) => Buffer.from(String(a)).compare(Buffer.from(String(b))));
+const jobRequiredCapabilities = job => uniq([...arr(job?.required_capabilities), ...arr(job?.capability_requirements)]);
 const clamp = (min, value, max) => Math.max(min, Math.min(max, value));
 const lower = value => String(value ?? '').toLowerCase();
 const sha12 = value => crypto.createHash('sha256').update(value).digest('hex').slice(0, 12);
@@ -147,7 +148,7 @@ function compactPortfolio(feed, semantic, job, targetGeneration = null) {
     project_label: job.project_label || null,
     title: job.title || job.job_id,
     source_path: job.source_path || null,
-    required_capabilities: uniq(job.required_capabilities),
+    required_capabilities: jobRequiredCapabilities(job),
     priority: job.priority || 0,
     state: job.state,
     authority_mode: job.authority_mode || null,
