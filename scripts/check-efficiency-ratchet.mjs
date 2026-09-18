@@ -40,6 +40,7 @@ if (evidenceIntegrityItem?.required?.portfolio_fragment_semantics_validated !== 
 if (evidenceIntegrityItem?.required?.derived_recovery_source_path_preserved !== true) errors.push('baseline: EFF017 derived_recovery_source_path_preserved must be true');
 const capabilityItem = baseline?.items?.find(x=>x.id==='EFF020');
 if (capabilityItem?.required?.portfolio_required_capabilities_compiled !== true) errors.push('baseline: EFF020 portfolio_required_capabilities_compiled must be true');
+if (capabilityItem?.required?.legacy_capability_requirements_alias_normalized !== true) errors.push('baseline: EFF020 legacy_capability_requirements_alias_normalized must be true');
 if (capabilityItem?.required?.definitive_absence_only !== true) errors.push('baseline: EFF020 definitive_absence_only must be true');
 if (capabilityItem?.required?.unknown_capability_is_not_absence !== true) errors.push('baseline: EFF020 unknown_capability_is_not_absence must be true');
 if (capabilityItem?.required?.mismatch_consumes_authority_create_attempt !== false) errors.push('baseline: EFF020 mismatch must not consume authority CREATE attempt');
@@ -269,7 +270,8 @@ must('fast-allocator', allocator, "claim_mode: 'GUIDE_ROLE_PIN_CREATE'");
 must('fast-allocator', allocator, "schema: 'prometeo.guide-role-pin/v1'");
 must('fast-allocator', allocator, 'frontier_floor_absolute');
 must('fast-allocator', allocator, 'max_recovery_snapshot_age_seconds: 90');
-must('fast-allocator', allocator, 'required_capabilities: uniq(job.required_capabilities)');
+must('fast-allocator', allocator, 'const jobRequiredCapabilities = job => uniq([...arr(job?.required_capabilities), ...arr(job?.capability_requirements)])');
+must('fast-allocator', allocator, 'required_capabilities: jobRequiredCapabilities(job)');
 must('fast-allocator', allocator, 'source_path: job.source_path || null');
 must('fast-allocator', allocator, 'item.predecessor_pin_ref || item.source_path ||');
 must('fast-allocator', allocator, 'claim_path:');
