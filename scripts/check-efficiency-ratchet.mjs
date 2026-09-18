@@ -574,10 +574,19 @@ else {
   if (eff029.required?.structured_open_exhaustive_negative_suppresses_time_only_recovery !== true) errors.push('ratchet: EFF029 structured exhaustive-negative suppression drift');
   if (eff029.required?.malformed_structured_source_debt_fail_closed !== true) errors.push('ratchet: EFF029 malformed structured SOURCE_DEBT fail-closed drift');
   if (eff029.required?.jose_v12_pinned_v11_structured_fixture !== true) errors.push('ratchet: EFF029 Jose V12 structured fixture drift');
+  if (eff029.required?.dependent_source_debt_explicit_provenance !== true) errors.push('ratchet: EFF029 dependent SOURCE_DEBT explicit provenance drift');
+  if (eff029.required?.dependent_source_debt_bounded_exact_return_ref !== true) errors.push('ratchet: EFF029 dependent SOURCE_DEBT bounded return-ref drift');
+  if (eff029.required?.dependent_source_debt_time_only_retry_suppressed !== true) errors.push('ratchet: EFF029 dependent SOURCE_DEBT time-only suppression drift');
+  if (eff029.required?.dependent_source_debt_attention_provenance_preserved !== true) errors.push('ratchet: EFF029 dependent SOURCE_DEBT attention provenance drift');
+  if (eff029.required?.dependent_source_debt_next_pin_stamps_provenance !== true) errors.push('ratchet: EFF029 dependent SOURCE_DEBT PIN provenance drift');
+  if (eff029.required?.recursive_source_debt_evidence_traversal_forbidden !== true) errors.push('ratchet: EFF029 recursive SOURCE_DEBT traversal guard drift');
+  if (eff029.required?.jose_v12_payload_dependency_fixture !== true) errors.push('ratchet: EFF029 Jose V12 payload dependency fixture drift');
 }
 
 must('fast-allocator', allocator, 'recoveryBasisGate');
 must('fast-allocator', allocator, 'SOURCE_DEBT_BASIS_UNCHANGED');
+must('fast-allocator', allocator, 'source_debt_dependency_return_ref');
+must('fast-allocator', allocator, "source_debt: gate.gate_kind === 'source_debt'");
 must('fast-allocator', allocator, 'recovery_attention: recoveryAttention');
 must('live-feed', liveBuilder, 'latest_pin_recovery_basis:latestPin?.doc?.recovery_basis_or_null || null');
 must('fast-allocator', allocator, 'authorityBoundaryGate');
@@ -588,6 +597,8 @@ must('fast-allocator', allocator, 'authority_satisfied_by_evidence_ref');
 must('live-feed', liveBuilder, 'authority_gate:compactAuthorityGate(authorityGate)');
 must('live-feed', liveBuilder, 'satisfied_ref_exists');
 must('live-feed', liveBuilder, 'latest_source_debt_return:compactSourceDebtReturn(latestSourceDebtReturn)');
+must('live-feed', liveBuilder, 'source_debt_dependency:compactSourceDebtDependency(job)');
+must('live-feed', liveBuilder, 'ref_bounded:refBounded');
 must('live-feed', liveBuilder, 'structurally_valid: structurallyValid');
 must('live-feed', liveBuilder, "searchResult === 'NO_EXACT_MATCH'");
 const authorityBoundaryRecoveryTest = read(root, 'coordination/portfolio/tests/authority_boundary_recovery_gate_v1.mjs');
@@ -603,6 +614,9 @@ must('source-debt-recovery-test', sourceDebtRecoveryTest, 'SILENT_OWNER_STALE_AF
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'latest_source_debt_return');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'SOURCE_DEBT_MALFORMED_FAIL_CLOSED');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'portfolio-jose-v12-pinned-v11-material-recovery-v1 must not emit a G5 recovery from age alone');
+must('source-debt-recovery-test', sourceDebtRecoveryTest, 'dependent SOURCE_DEBT must suppress time-only recovery');
+must('source-debt-recovery-test', sourceDebtRecoveryTest, 'source_debt_dependency');
+must('source-debt-recovery-test', sourceDebtRecoveryTest, 'source_debt_dependency_return_ref');
 
 const claimFrontier = read(root, 'scripts/build-claim-frontier.mjs');
 must('claim-frontier', claimFrontier, "schema:'prometeo.claim-frontier/v1'");
