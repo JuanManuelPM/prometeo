@@ -15,36 +15,57 @@ for row in rows:
     if len(parts)>1 and parts[1]: paths[oid].add(parts[1])
 unique=list(dict.fromkeys(oids))
 
-check=subprocess.Popen(['git','cat-file','--batch-check=%(objectname) %(objecttype) %(objectsize)'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
-check.stdin.write('\n'.join(unique)+'\n'); check.stdin.close()
+check=subprocess.Popen(
+    ['git','cat-file','--batch-check=%(objectname) %(objecttype) %(objectsize)'],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True
+)
+check_stdout,check_stderr=check.communicate('\n'.join(unique)+'\n')
+if check.returncode:
+    raise RuntimeError(f'git cat-file --batch-check failed rc={check.returncode}: {check_stderr.strip()}')
 blobs=[]
-for line in check.stdout:
-    parts=line.rstrip('\n').split(' ')
+for line in check_stdout.splitlines():
+    parts=line.split(' ')
     if len(parts)==3 and parts[1]=='blob': blobs.append((parts[0],int(parts[2])))
-rc=check.wait()
-if rc: raise SystemExit(rc)
 
 size_candidates=[(oid,size) for oid,size in blobs if size==TARGET_BYTES]
 
-batch=subprocess.Popen(['git','cat-file','--batch'],stdin=subprocess.PIPE,stdout=subprocess.PIPE)
-for oid,_ in size_candidates:
-    batch.stdin.write((oid+'\n').encode())
-batch.stdin.close()
+batch=subprocess.Popen(
+    ['git','cat-file','--batch'],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE
+)
+batch_input=b''.join((oid+'\n').encode() for oid,_ in size_candidates)
+batch_stdout,batch_stderr=batch.communicate(batch_input)
+if batch.returncode:
+    raise RuntimeError(f'git cat-file --batch failed rc={batch.returncode}: {batch_stderr.decode("utf-8","replace").strip()}')
 
-matches=[]; scanned=0; bytes_scanned=0
+matches=[]; scanned=0; bytes_scanned=0; offset=0
 for expected_oid,expected_size in size_candidates:
-    header=batch.stdout.readline().decode('utf-8','replace').rstrip('\n').split(' ')
+    header_end=batch_stdout.find(b'\n',offset)
+    if header_end<0:
+        raise RuntimeError(f'missing cat-file header for {expected_oid}')
+    header=batch_stdout[offset:header_end].decode('utf-8','replace').split(' ')
     if len(header)<3 or header[1]!='blob':
         raise RuntimeError(f'unexpected cat-file header for {expected_oid}: {header!r}')
     oid,objtype,size=header[0],header[1],int(header[2])
-    body=batch.stdout.read(size); trailer=batch.stdout.read(1)
-    if len(body)!=size or trailer!=b'\n': raise RuntimeError(f'truncated batch body {oid}')
+    body_start=header_end+1
+    body_end=body_start+size
+    body=batch_stdout[body_start:body_end]
+    trailer=batch_stdout[body_end:body_end+1]
+    if len(body)!=size or trailer!=b'\n':
+        raise RuntimeError(f'truncated batch body {oid}')
+    offset=body_end+1
     scanned+=1; bytes_scanned+=size
     digest=hashlib.sha256(body).hexdigest()
     if digest==TARGET:
         commits=subprocess.check_output(['git','log','--all','--format=%H','--find-object='+oid],text=True).splitlines()
         matches.append({'git_blob':oid,'size':size,'sha256':digest,'paths':sorted(paths.get(oid,())),'commits':list(dict.fromkeys(commits))})
-if batch.wait(): raise SystemExit(batch.returncode)
+if offset!=len(batch_stdout):
+    raise RuntimeError(f'unparsed cat-file output bytes: {len(batch_stdout)-offset}')
 
 refs=subprocess.check_output(['git','for-each-ref','--format=%(refname)'],text=True).splitlines()
 result={
