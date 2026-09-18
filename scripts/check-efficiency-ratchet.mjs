@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -1035,6 +1035,30 @@ if (site) {
   mustNot('public-wc', pointer, 'Load and obey the distributed Guide/Rescate protocol');
   mustNot('public-wc', pointer, 'Load the page identity/request/publication laws before');
 }
+
+
+const eff048 = baseline.items?.find(item => item.id === 'EFF048');
+if (!eff048) errors.push('ratchet: EFF048 missing');
+else {
+  if (eff048.required?.exact_signature !== 'GITHUB_CONTENTS_CREATE_EXISTS_422_SHA_MISSING') errors.push('ratchet: EFF048 signature drift');
+  if (eff048.required?.http_status !== 422) errors.push('ratchet: EFF048 HTTP status drift');
+  if (eff048.required?.required_message_fragment !== '"sha" wasn\'t supplied') errors.push('ratchet: EFF048 message fragment drift');
+  if (eff048.required?.classification !== 'CREATE_EXISTS') errors.push('ratchet: EFF048 classification drift');
+  if (eff048.required?.claim_transport_ambiguous_for_exact_signature_forbidden !== true) errors.push('ratchet: EFF048 ambiguous transport guard drift');
+  if (eff048.required?.branch_head_moved_for_exact_signature_forbidden !== true) errors.push('ratchet: EFF048 branch movement guard drift');
+  if (eff048.required?.arbitrary_422_not_auto_collision !== true) errors.push('ratchet: EFF048 arbitrary 422 guard drift');
+  if (eff048.required?.pre_read_before_classification_forbidden !== true) errors.push('ratchet: EFF048 pre-read guard drift');
+  if (eff048.required?.authority_create_attempt_consumed !== true) errors.push('ratchet: EFF048 attempt accounting drift');
+  if (eff048.required?.retained_candidate_advance_required !== true) errors.push('ratchet: EFF048 retained-candidate advance drift');
+  if (eff048.required?.pool_tail_rescue_semantics_unchanged !== true) errors.push('ratchet: EFF048 pool-tail drift');
+  if (eff048.required?.regression_test !== 'coordination/portfolio/tests/claim_create_exists_signature_v1.mjs') errors.push('ratchet: EFF048 regression-test drift');
+}
+const createExistsSignatureTest = read(root, 'coordination/portfolio/tests/claim_create_exists_signature_v1.mjs');
+must('claim-create-exists-signature', createExistsSignatureTest, 'CLAIM_CREATE_EXISTS_SIGNATURE_PASS');
+must('wc', wc, 'GITHUB_CONTENTS_CREATE_EXISTS_422_SHA_MISSING');
+must('wc', wc, '"sha" wasn\'t supplied');
+must('fast-allocation', fast, 'GITHUB_CONTENTS_CREATE_EXISTS_422_SHA_MISSING');
+must('fast-allocation', fast, 'arbitrary HTTP 422');
 
 if (errors.length) {
   console.error('EFFICIENCY_RATCHET_FAIL');
