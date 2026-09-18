@@ -395,7 +395,11 @@ must('worker-scoreboard', scoreboardBuilder, 'champion stays null');
 
 const yieldPattern = JSON.parse(read(root, 'coordination/workers/YIELD_PATTERN_CANDIDATE_V1.json'));
 if (yieldPattern.pattern_id !== 'YIELD-10X-V1') errors.push('yield-pattern: id drift');
-if (yieldPattern.status !== 'REPRODUCTION_ACTIVE_NOT_CHAMPION') errors.push('yield-pattern: status drift');
+if (!['REPRODUCTION_ACTIVE_NOT_CHAMPION','REJECTED_AS_UNIVERSAL_PATTERN_RETAINED_AS_EVIDENCE'].includes(yieldPattern.status)) errors.push('yield-pattern: status drift');
+if (yieldPattern.status==='REJECTED_AS_UNIVERSAL_PATTERN_RETAINED_AS_EVIDENCE') {
+  if (yieldPattern?.reproduction_result?.verdict !== 'FAIL_REPRODUCTION_GATE') errors.push('yield-pattern: rejected status missing failed reproduction evidence');
+  if (yieldPattern?.next_experiment?.status !== 'ACTIVE_PREPARE_JOB_CLASS_PATTERNS') errors.push('yield-pattern: rejected status missing active next experiment');
+}
 if (yieldPattern?.reproduction_gate?.required_independent_workers !== 3) errors.push('yield-pattern: reproduction count drift');
 if (yieldPattern?.reproduction_gate?.min_score_each !== 8) errors.push('yield-pattern: score gate drift');
 
