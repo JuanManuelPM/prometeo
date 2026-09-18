@@ -116,6 +116,7 @@ export function classifyProjectGuideFrontier(stateDoc = {}, jobs = [], projectGu
     items,
     counts,
     effective_count: counts.executable + counts.active,
+    planner_count: counts.executable + counts.active + counts.capability_requirement,
     capability_requirement_refs: items.filter(item => item.classification === 'capability_requirement').map(item => item.ref),
     terminal_refs: items.filter(item => item.classification === 'terminal').map(item => item.ref),
     missing_refs: items.filter(item => item.classification === 'missing').map(item => item.ref)
@@ -768,7 +769,7 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
         const stateRow = stateByProject.get(project.project_id) || null;
         const stateDoc = stateRow?.doc || {};
         const frontierClassification = classifyProjectGuideFrontier(stateDoc, jobs, projectGuideMesh);
-        const localReady = frontierClassification.effective_count;
+        const localReady = frontierClassification.planner_count;
         const localWorking = workingByProject.get(project.project_id) || 0;
         const plannerSuppressed = projectPlannerSuppressedBySourceDebt(stateDoc, projectGuideMesh) ||
           projectPlannerSuppressedByHumanDecision(stateDoc, projectGuideMesh);
