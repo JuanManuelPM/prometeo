@@ -12,6 +12,9 @@ const activatedAt = Date.parse(activatedIso || 0) || 0;
 const eff009 = Array.isArray(baseline.items) ? baseline.items.find(item => item?.id === 'EFF009') : null;
 const transportRegressionWindowMinutes = Number(eff009?.required?.claim_transport_blocked_regression_window_minutes || 10);
 const transportRegressionWindowMs = Math.max(1, transportRegressionWindowMinutes) * 60_000;
+const eff028 = Array.isArray(baseline.items) ? baseline.items.find(item => item?.id === 'EFF028') : null;
+const noAllocationRegressionWindowMinutes = Number(eff028?.required?.no_allocation_regression_window_minutes || 10);
+const noAllocationRegressionWindowMs = Math.max(1, noAllocationRegressionWindowMinutes) * 60_000;
 
 const read = p => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } };
 const walk = dir => {
@@ -106,6 +109,11 @@ const transportBlockedRecent=transportBlocked.filter(x=>{
   const at=time(x.no_allocation_at);
   return at && now-at<=transportRegressionWindowMs;
 });
+const closedRecent=closed.filter(x=>{
+  const at=time(x.no_allocation_at);
+  return at && now-at<=noAllocationRegressionWindowMs;
+});
+const noCloseRecent=closedRecent.map(x=>x.no_allocation_close_ms);
 const metrics={
   launches_observed:launches.length,
   resolved_sample:sample,
@@ -120,6 +128,10 @@ const metrics={
   no_allocation_close_p50_ms:q(noClose,.5),
   no_allocation_close_p90_ms:q(noClose,.9),
   no_allocation_under_90s_percent:pct(noClose.filter(x=>x<=90000).length,noClose.length),
+  no_allocation_recent:closedRecent.length,
+  no_allocation_close_p90_recent_ms:q(noCloseRecent,.9),
+  no_allocation_under_90s_recent_percent:pct(noCloseRecent.filter(x=>x<=90000).length,noCloseRecent.length),
+  no_allocation_regression_window_minutes:noAllocationRegressionWindowMinutes,
   claim_transport_blocked:transportBlocked.length,
   claim_transport_blocked_recent:transportBlockedRecent.length,
   claim_transport_blocked_regression_window_minutes:transportRegressionWindowMinutes
@@ -129,10 +141,10 @@ let status='INSUFFICIENT_SAMPLE';
 const reasons=[];
 if(sample>=5){
   const ttfaBad=metrics.ttfa_p90_ms!=null && metrics.ttfa_p90_ms>90000;
-  const closeBad=metrics.no_allocation_close_p90_ms!=null && metrics.no_allocation_close_p90_ms>90000;
+  const closeBad=metrics.no_allocation_close_p90_recent_ms!=null && metrics.no_allocation_close_p90_recent_ms>90000;
   const transportBad=metrics.claim_transport_blocked_recent>=2;
   const ttfaStrong=metrics.ttfa_p50_ms!=null && metrics.ttfa_p50_ms<=30000 && (!metrics.ttfa_p90_ms||metrics.ttfa_p90_ms<=90000);
-  const closeStrong=metrics.no_allocation_close_p90_ms==null || metrics.no_allocation_close_p90_ms<=90000;
+  const closeStrong=metrics.no_allocation_close_p90_recent_ms==null || metrics.no_allocation_close_p90_recent_ms<=90000;
   if(ttfaBad) reasons.push('TTFA_P90_GT_90S');
   if(closeBad) reasons.push('NO_ALLOCATION_P90_GT_90S');
   if(transportBad) reasons.push('CLAIM_TRANSPORT_BLOCKED_REPEAT');
