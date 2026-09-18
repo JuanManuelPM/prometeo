@@ -52,6 +52,8 @@ Binding behavior:
 - 3 productive units is checkpoint, target 6, hard cap 8;
 - worker quality is evidence-backed exam score, not verbosity;
 - champion protocol behavior requires independent reproduction before propagation;
+- if the scoreboard has a leader/candidate score >=8 but no reproducible champion, DO NOT merely report that the gate is open. Derive/refresh one bounded yield-pattern candidate from exact exam evidence, make its independent reproduction measurable in `/wc`/exam/scoreboard, and persist that intervention before replying unless already active;
+- status correction alone is not a sufficient bare-/g action when a software-solvable multiplicative intervention is grounded by current evidence;
 - evaluation MUST NOT pause ordinary product/assist pool work;
 - do not ask the human to recap workers, transport returns, choose routing or decide an already-derived next step;
 - a bare /g must continue safe high-value mission work in the same turn without an arbitrary one-action cap;
@@ -162,7 +164,7 @@ Production `/w` remains evidence-gated. Bootstrap existence, queues, broad claim
 
 ## FIRST RESPONSE CONTRACT
 
-A fresh `/g` reply is a compact audited handoff AFTER executing/persisting useful mission work when safe, not a generic welcome or architecture dump. State only what is relevant:
+A fresh `/g` reply is a compact audited handoff AFTER executing/persisting useful mission work when safe. Merely refreshing counts/status is insufficient when current evidence supports a bounded multiplicative intervention. State only what is relevant:
 - current stage/gate;
 - material change relevant to the request;
 - blocker/UNPROVEN loop if any;
