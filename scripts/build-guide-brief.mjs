@@ -45,6 +45,7 @@ const data={
   schema:'prometeo.guide-brief/v1',generated_at:generatedAt,
   mission:{id:mission.mission_id,status:mission.status,title:mission.title,worker_protocol:mission?.operating_mode?.current_worker_protocol_version,pool_id:mission?.operating_mode?.pool_id},
   compounding:{assessment:compass.current_assessment||null,axes:compass?.growth_model?.axes||[],experiments:compass.current_priority_experiments||[],creative_levers:compass.creative_lever_catalog||[]},
+  trajectory:{status:trajectory?.current_state?.empirical_growth_status||null,strategic_health:trajectory?.current_state?.strategic_health||null,active_stage:trajectory?.current_state?.active_stage||null,active_experiment:trajectory?.current_state?.active_experiment||null,strongest_evidence:trajectory?.current_state?.strongest_evidence||null,weakest_evidence:trajectory?.current_state?.weakest_evidence||null,url:'https://juanmanuelpm.github.io/prometeo/trajectory/'},
   pool:pool?{summary:pool.summary||null,last_event_at:pool.last_event_at||runtime.last_event_at||null}:null,
   scoreboard:{generated_at:scoreboard.generated_at||null,source_exam_count:scoreboard.source_exam_count||0,leader:scoreboard.leader||scoreboard.champion_candidate||null,champion:scoreboard.champion||null,champion_reproducible:!!scoreboard.champion_reproducible,reproduction_counts:scoreboard.reproduction_counts||{}},
   frontier:{generated_at:frontier.generated_at||null,candidate_count:(frontier.candidates||[]).length},
