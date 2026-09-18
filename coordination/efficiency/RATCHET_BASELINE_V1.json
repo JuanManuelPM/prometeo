@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-18T15:12:00Z",
+  "updated_at": "2026-09-18T15:31:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -635,8 +635,8 @@
         "guide",
         "metabolism"
       ],
-      "observed_failure": "José STATE revision 8 explicitly recorded SOURCE_DEBT, an intentionally empty frontier, NEW_EVIDENCE_GATE and PLANNER_SPIN, yet the gap-only project-guide compiler immediately emitted another PROJECT_FRONTIER_THIN candidate for revision 9. That worker confirmed no new bytes, returns, authority or executable route, proving the planner itself was becoming repeated work.",
-      "invariant": "PROJECT_FRONTIER_THIN is suppressed only when the project-guide mesh explicitly enables the source-debt gate and project STATE simultaneously says SOURCE_DEBT, has empty frontier_refs, and carries the configured NEW_EVIDENCE_GATE blocker. New evidence must change STATE to clear the predicate. Execution, integration, rescue and critic lanes remain unaffected.",
+      "observed_failure": "José STATE revision 8 explicitly recorded SOURCE_DEBT, an intentionally empty frontier, NEW_EVIDENCE_GATE and PLANNER_SPIN, yet the direct gap-only compiler emitted another PROJECT_FRONTIER_THIN candidate. EFF026 gated that compiler, but TKV1 then observed a freshly rebuilt 2026-09-18T15:24:46.054Z claim frontier still exposing guide-planner-project-jose-ee1004ddc96e with trigger PROJECT_COVERAGE_GAP: the downstream apply-project-coverage postprocessor was bypassing the same durable-state gate.",
+      "invariant": "An intentional SOURCE_DEBT boundary with empty frontier_refs plus NEW_EVIDENCE_GATE must suppress both direct PROJECT_FRONTIER_THIN planning and downstream PROJECT_COVERAGE_GAP backfill. Every planner-producing compiler layer must consult the same durable project STATE gate. New evidence must change STATE to clear the predicate. Execution, integration, rescue and critic lanes remain unaffected.",
       "required": {
         "project_guide_source_debt_gate": true,
         "gate_config": "coordination/guide/PROJECT_GUIDE_MESH_V1.json#source_debt_planner_gate",
@@ -648,9 +648,16 @@
         "execution_lanes_preserved": true,
         "other_guide_roles_preserved": true,
         "compiler_state_mutation_forbidden": true,
-        "regression_test": "coordination/portfolio/tests/project_guide_source_debt_gate_v1.mjs"
+        "regression_test": "coordination/portfolio/tests/project_guide_source_debt_gate_v1.mjs",
+        "project_coverage_postprocessor_gate": true,
+        "suppressed_triggers": [
+          "PROJECT_FRONTIER_THIN",
+          "PROJECT_COVERAGE_GAP"
+        ],
+        "state_source": "coordination/project-guides/<project_id>/STATE.json",
+        "project_coverage_regression_test": "coordination/portfolio/tests/project_coverage_allocator_v1.mjs"
       },
-      "status": "RATCHETED",
+      "status": "STATIC_GUARDED_PENDING_RUNTIME",
       "runtime_evidence": {
         "live_feed_run_id": 35293637715,
         "live_source_sha": "1d77f4b6c985187b4c7a8ae877dee327639e96f8",
