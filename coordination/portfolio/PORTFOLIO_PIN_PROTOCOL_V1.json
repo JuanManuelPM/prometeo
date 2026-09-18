@@ -31,6 +31,23 @@
     "normal_job_compatibility": "Ordinary portfolio jobs are unchanged and never wait for barrier quorum unless explicit durable barrier metadata opts them in.",
     "live_projection_ref": "coordination/portfolio/CONTENTION_BARRIER_LIVE_PROJECTION_V1.json"
   },
+  "post_claim_start_signal": {
+    "started_path": "coordination/workers/started/<worker-specific-name>.json",
+    "started_schema": "prometeo.worker-started/v1",
+    "fallback_path": "coordination/workers/heartbeats/<worker_id>/<timestamp_compact>.json",
+    "fallback_schema": "prometeo.worker-heartbeat/v1",
+    "fallback_checkpoint": "POST_CLAIM_START_FALLBACK",
+    "fallback_required_fields": [
+      "schema=prometeo.worker-heartbeat/v1",
+      "worker_id",
+      "observed_at",
+      "status=WORKING",
+      "job_id",
+      "checkpoint=POST_CLAIM_START_FALLBACK",
+      "authority_ref"
+    ],
+    "rule": "STARTED is the canonical primary post-claim signal. If STARTED persistence is blocked only after a deterministic PIN has already been created, the PIN remains authority. Before substantive mutation the owner may create the exact worker/job heartbeat fallback above. That heartbeat is durable liveness consumed by Live but grants no execution authority. If neither signal can be persisted, perform no substantive mutation and leave the pin to ordinary stale/recovery handling; never reclassify the won claim as CLAIM_TRANSPORT_BLOCKED or NO_ALLOCATION."
+  },
   "liveness_rule": {
     "heartbeat_target_minutes": 3,
     "stale_suspect_minutes": 6,
