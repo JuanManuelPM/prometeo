@@ -1,0 +1,59 @@
+name: Frontier Pressure Canary WC
+
+on:
+  push:
+    branches:
+      - 'canary/frontier-pressure-wc-20260917T214340-0b11e2a2beaf'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact pinned source snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: 1a8541de7e81a5154c562863aec729f0e43aac74
+          path: source
+          fetch-depth: 1
+
+      - name: Run deterministic compiler tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source/canary-out
+          node --test source/tests/frontier-pressure-compiler-v1.test.mjs 2>&1 | tee source/canary-out/test.txt
+
+      - name: Compile live frontier-pressure snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          node source/scripts/compile-frontier-pressure.mjs \
+            --root source \
+            --now 2026-09-18T00:51:09Z \
+            --out canary-out/frontier-pressure.json
+          node <<'NODE'
+          const fs = require('fs');
+          const p = 'source/canary-out/frontier-pressure.json';
+          const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+          j.source_head = '1a8541de7e81a5154c562863aec729f0e43aac74';
+          j.canary_execution = {
+            mode: 'EXACT_COMMIT_CHECKOUT',
+            source_ref: '1a8541de7e81a5154c562863aec729f0e43aac74',
+            compiler: 'scripts/compile-frontier-pressure.mjs',
+            test: 'tests/frontier-pressure-compiler-v1.test.mjs',
+            authority: 'DERIVED_CANARY_ONLY_NO_PRODUCT_PROMOTION'
+          };
+          fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+          NODE
+          sha256sum source/canary-out/frontier-pressure.json | tee source/canary-out/frontier-pressure.sha256
+
+      - name: Upload canary evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontier-pressure-wc-20260917T214340-0b11e2a2beaf
+          path: source/canary-out/
+          retention-days: 1
