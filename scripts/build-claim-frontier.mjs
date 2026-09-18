@@ -2,23 +2,27 @@
 import fs from 'node:fs';
 
 const arr = v => Array.isArray(v) ? v : [];
+const DEFAULT_MAX_CANDIDATES = 24;
+const DEFAULT_MAX_SERIALIZED_BYTES = 24_000;
 
+// Pre-claim needs authority bytes, capability routing, and one exact post-claim source.
+// Human-facing labels, priority/state and duplicated identity already live in allocator/job files.
 const KEEP = [
-  'job_id','opportunity_id','role_id','guide_work_id','dedupe_key',
-  'project_id','scope_project_id','project_label','title','source_path',
-  'role','trigger','state_ref','state_revision','priority','state',
+  'job_id','opportunity_id','role_id','guide_work_id','source_path',
   'required_capabilities','claim_mode','claim_path','claim_payload_shape',
   'post_claim_validate','contention_barrier','post_release_claim','next_action',
   'release_path','release_payload_shape','timeout_payload_shape',
-  'deadline_at','entrant_dir','plan_id','mission'
+  'deadline_at','entrant_dir'
 ];
 
 function compactCandidate(item, lane) {
   const out = { lane };
   for (const k of KEEP) if (item?.[k] !== undefined && item?.[k] !== null) out[k] = item[k];
-  if (!out.title && out.mission) out.title = String(out.mission).slice(0, 180);
-  // Mission is useful only for opportunity-queue candidates that have no durable job file.
-  if (out.job_id || out.role_id || out.guide_work_id) delete out.mission;
+  // Opportunity candidates may have no durable job file, so retain bounded execution context only there.
+  if (item?.opportunity_id) {
+    if (item?.title) out.title = item.title;
+    if (item?.mission) out.mission = String(item.mission).slice(0, 180);
+  }
   return out;
 }
 
@@ -26,7 +30,15 @@ function keyOf(x) {
   return x?.claim_path || [x?.lane,x?.job_id,x?.opportunity_id,x?.role_id,x?.guide_work_id].filter(Boolean).join(':');
 }
 
-export function buildClaimFrontier(allocator = {}, maxCandidates = 24) {
+function serializedBytes(value) {
+  return Buffer.byteLength(JSON.stringify(value), 'utf8');
+}
+
+export function buildClaimFrontier(
+  allocator = {},
+  maxCandidates = DEFAULT_MAX_CANDIDATES,
+  maxSerializedBytes = DEFAULT_MAX_SERIALIZED_BYTES
+) {
   const live = [];
   for (const [lane, rows] of [
     ['ready', allocator.ready],
@@ -57,8 +69,8 @@ export function buildClaimFrontier(allocator = {}, maxCandidates = 24) {
     ordered.push(compactCandidate(row,lane));
   }
 
-  const candidates = ordered.slice(0, Math.max(1, maxCandidates));
-  return {
+  const bounded = ordered.slice(0, Math.max(1, maxCandidates));
+  const base = {
     schema:'prometeo.claim-frontier/v1',
     generated_at:allocator.generated_at || new Date().toISOString(),
     source_sha:allocator.source_sha || null,
@@ -66,10 +78,24 @@ export function buildClaimFrontier(allocator = {}, maxCandidates = 24) {
     batch_strategy:allocator.batch_strategy || null,
     batch_contention_fanin:allocator.batch_contention_fanin || null,
     preferred_order:arr(allocator.preferred_order),
-    candidate_count:candidates.length,
-    candidates,
+    candidate_total:bounded.length,
+    transport_bytes_max:maxSerializedBytes,
     truth_boundary:'COMPACT_CLAIM_HINT_ONLY_ATOMIC_CREATE_REMAINS_AUTHORITY'
   };
+
+  const candidates = [];
+  for (const candidate of bounded) {
+    const next = [...candidates, candidate];
+    const trial = {...base, candidate_count:next.length, candidates:next};
+    if (serializedBytes(trial) > maxSerializedBytes) break;
+    candidates.push(candidate);
+  }
+
+  if (!candidates.length && bounded.length) {
+    throw new Error(`claim frontier cannot fit one candidate inside ${maxSerializedBytes} bytes`);
+  }
+
+  return {...base, candidate_count:candidates.length, candidates};
 }
 
 if (process.argv[1] && process.argv[1].endsWith('build-claim-frontier.mjs')) {
@@ -77,6 +103,7 @@ if (process.argv[1] && process.argv[1].endsWith('build-claim-frontier.mjs')) {
   if (!inPath || !outPath) throw new Error('usage: build-claim-frontier.mjs <allocator.json> <claim-frontier.json>');
   const allocator=JSON.parse(fs.readFileSync(inPath,'utf8'));
   const out=buildClaimFrontier(allocator);
-  fs.writeFileSync(outPath,JSON.stringify(out,null,2)+'\n');
-  process.stdout.write(`claim-frontier ${out.candidate_count} candidates ${fs.statSync(outPath).size} bytes\n`);
+  // Minified JSON is deliberate: connector rendering expands whitespace and can truncate a semantically compact file.
+  fs.writeFileSync(outPath,JSON.stringify(out)+'\n');
+  process.stdout.write(`claim-frontier ${out.candidate_count}/${out.candidate_total} candidates ${fs.statSync(outPath).size} bytes\n`);
 }
