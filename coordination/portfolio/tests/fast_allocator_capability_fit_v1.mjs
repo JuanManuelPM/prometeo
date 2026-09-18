@@ -222,12 +222,16 @@ const definitelyAbsentForRuntimeProfile = profile => {
   if (profile.http_search_fetch_navigation === true && profile.javascript_dom_execution_tool === false) {
     absent.add('representative_javascript_browser');
   }
+  if (profile.arbitrary_public_origin_http_client === false) {
+    absent.add('unrestricted_public_http_origin_fetch');
+  }
   return absent;
 };
 
-const webFetchOnlyProfile = { http_search_fetch_navigation: true, javascript_dom_execution_tool: false };
-const representativeJsProfile = { http_search_fetch_navigation: true, javascript_dom_execution_tool: true };
-const ambiguousRuntimeProfile = { http_search_fetch_navigation: true, javascript_dom_execution_tool: null };
+const webFetchOnlyProfile = { http_search_fetch_navigation: true, javascript_dom_execution_tool: false, arbitrary_public_origin_http_client: false };
+const representativeJsProfile = { http_search_fetch_navigation: true, javascript_dom_execution_tool: true, arbitrary_public_origin_http_client: null };
+const unrestrictedOriginHttpProfile = { http_search_fetch_navigation: true, javascript_dom_execution_tool: false, arbitrary_public_origin_http_client: true };
+const ambiguousRuntimeProfile = { http_search_fetch_navigation: true, javascript_dom_execution_tool: null, arbitrary_public_origin_http_client: null };
 
 const webFetchOnlyAbsent = definitelyAbsentForRuntimeProfile(webFetchOnlyProfile);
 assert.equal(webFetchOnlyAbsent.has('representative_javascript_browser'), true, 'HTTP/search/fetch/navigation without any JavaScript/DOM execution tool must make representative_javascript_browser definitively absent');
@@ -246,6 +250,35 @@ assert.equal(representativeJsAuthorityCreateAttempts, 1, 'representative-JS prof
 
 const ambiguousAbsent = definitelyAbsentForRuntimeProfile(ambiguousRuntimeProfile);
 assert.equal(ambiguousAbsent.has('representative_javascript_browser'), false, 'unknown JavaScript/DOM execution capability must remain unknown rather than becoming absence');
+
+const mediatedWebAbsent = definitelyAbsentForRuntimeProfile(webFetchOnlyProfile);
+assert.equal(
+  mediatedWebAbsent.has('unrestricted_public_http_origin_fetch'),
+  true,
+  'mediated search/fetch/navigation without an arbitrary public-origin HTTP client must make unrestricted_public_http_origin_fetch definitively absent'
+);
+let mediatedHttpAuthorityCreateAttempts = 0;
+const mediatedHttpMismatch = studentCandidate.required_capabilities.some(cap => mediatedWebAbsent.has(cap));
+if (!mediatedHttpMismatch) mediatedHttpAuthorityCreateAttempts += 1;
+assert.equal(mediatedHttpMismatch, true, 'mediated-web-only worker must route around unrestricted-origin HTTP work before authority');
+assert.equal(mediatedHttpAuthorityCreateAttempts, 0, 'unrestricted-origin HTTP mismatch must consume zero authority CREATE attempts');
+console.log('MEDIATED_WEB_PUBLIC_HTTP_PRECLAIM_SKIP_PASS');
+
+const unrestrictedOriginAbsent = definitelyAbsentForRuntimeProfile(unrestrictedOriginHttpProfile);
+assert.equal(
+  studentCandidate.required_capabilities.some(cap => unrestrictedOriginAbsent.has(cap)),
+  false,
+  'runtime with an arbitrary public-origin HTTP client must remain eligible for unrestricted public HTTP work'
+);
+let unrestrictedOriginAuthorityCreateAttempts = 0;
+if (!studentCandidate.required_capabilities.some(cap => unrestrictedOriginAbsent.has(cap))) unrestrictedOriginAuthorityCreateAttempts += 1;
+assert.equal(unrestrictedOriginAuthorityCreateAttempts, 1, 'unrestricted-origin HTTP profile must reach the normal authority attempt');
+
+assert.equal(
+  ambiguousAbsent.has('unrestricted_public_http_origin_fetch'),
+  false,
+  'ambiguous arbitrary-origin HTTP capability must remain unknown rather than becoming absence'
+);
 
 const recoveryFeed = {
   generated_at: '2026-09-17T22:31:00Z',
