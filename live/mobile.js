@@ -21,6 +21,24 @@
   const minsLeft=t=>Math.max(0,Math.ceil((Date.parse(t)-Date.now())/60000));
   const thresholds=f=>({active:(f.thresholds?.stale_suspect_minutes??6)*60000,recovery:(f.thresholds?.recovery_eligible_minutes??10)*60000,allocating:(f.thresholds?.allocation_silent_minutes??3)*60000});
   const shortId=(v='')=>{const s=String(v);return s.length>24?`${s.slice(0,12)}…${s.slice(-7)}`:s};
+  const capabilityLabel=v=>({
+    representative_javascript_browser:'navegador JS',
+    browser_network_navigation_to_github_pages:'navegador con red',
+    unrestricted_public_http_origin_fetch:'fetch público',
+    repository_test_runtime:'tests de repo',
+    mobile_touch_input:'touch móvil',
+    authorized_supabase_edge_deployment:'deploy Edge autorizado',
+    cross_device_tv_phone_or_equivalent:'TV + teléfono',
+    authorized_readonly_target_host_runtime:'host en lectura',
+    github_actions_workflow_dispatch_with_inputs:'dispatch Actions',
+    l0_reconciliation_authority:'autoridad L0'
+  })[String(v)]||String(v||'').replaceAll('_',' ');
+  const capabilityMeta=jobs=>{
+    const caps=[...new Set(jobs.flatMap(j=>Array.isArray(j.required_capabilities)?j.required_capabilities:[]).filter(Boolean))];
+    if(!jobs.length||!caps.length)return null;
+    const labels=caps.slice(0,2).map(capabilityLabel);
+    return `${jobs.length} ${jobs.length===1?'requiere':'requieren'} ${labels.join(' + ')}${caps.length>2?' + más':''}`;
+  };
 
   function effective(w,f){
     if(w.end_at)return'done';
@@ -137,7 +155,23 @@
   }
   function renderProjects(f){
     const projects=(f.projects||[]).slice().sort((a,b)=>(b.priority||0)-(a.priority||0));
-    $('projects').innerHTML=projects.map(p=>{const js=p.jobs||[],done=js.filter(j=>j.state==='done').length,work=js.filter(j=>['working','recovery','suspect'].includes(j.state)).length,rep=js.filter(j=>j.state==='replaceable').length,ready=js.filter(j=>['ready','partial'].includes(j.state)).length,pct=js.length?Math.round(done/js.length*100):0;const meta=[work?`${work} trabajando`:null,rep?`${rep} trabado`:null,ready?`${ready} listos`:null].filter(Boolean).join(' · ')||'sin pendientes visibles';return`<article class="project"><div class="projectTop"><div><div class="projectName">${esc(p.label)}</div><div class="projectMeta">${esc(meta)}</div></div><div class="projectCount">${done}/${js.length}</div></div><div class="miniBar"><i style="width:${pct}%"></i></div></article>`}).join('')||'<div class="empty">Sin proyectos.</div>';
+    $('projects').innerHTML=projects.map(p=>{
+      const js=p.jobs||[];
+      const hasCapabilityRequirement=j=>Array.isArray(j.required_capabilities)&&j.required_capabilities.length>0;
+      const done=js.filter(j=>j.state==='done').length;
+      const capabilityJobs=js.filter(j=>j.state!=='done'&&hasCapabilityRequirement(j));
+      const work=js.filter(j=>['working','recovery','suspect'].includes(j.state)&&!hasCapabilityRequirement(j)).length;
+      const rep=js.filter(j=>j.state==='replaceable').length;
+      const ready=js.filter(j=>['ready','partial'].includes(j.state)&&!hasCapabilityRequirement(j)).length;
+      const pct=js.length?Math.round(done/js.length*100):0;
+      const meta=[
+        work?`${work} trabajando`:null,
+        rep?`${rep} trabado`:null,
+        ready?`${ready} listos`:null,
+        capabilityMeta(capabilityJobs)
+      ].filter(Boolean).join(' · ')||'sin pendientes visibles';
+      return`<article class="project"><div class="projectTop"><div><div class="projectName">${esc(p.label)}</div><div class="projectMeta">${esc(meta)}</div></div><div class="projectCount">${done}/${js.length}</div></div><div class="miniBar"><i style="width:${pct}%"></i></div></article>`;
+    }).join('')||'<div class="empty">Sin proyectos.</div>';
   }
   function renderProduction(f){
     const hist=historyFromWorkers(f),todayRow=hist.find(h=>h.date===today())||{seen:0,finished:0,replaceable:0,median_duration_ms:null};const workers=f.workers||[];const todayFinished=workers.filter(w=>w.end_at&&dayKey(w.first_seen)===today());const med=todayRow.median_duration_ms??(()=>{const a=todayFinished.map(w=>w.duration_ms).filter(Number.isFinite).sort((a,b)=>a-b);return a.length?a[Math.floor(a.length/2)]:null})();
