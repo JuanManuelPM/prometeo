@@ -15,12 +15,16 @@ const ttsBrowserPath = 'coordination/portfolio/derived/audio-text-to-speech/port
 const ttsVerifyPath = 'coordination/portfolio/derived/audio-text-to-speech/portfolio-tts-generic-text-surface-verify-v1.json';
 const ttsCachePath = 'coordination/portfolio/derived/audio-text-to-speech/portfolio-tts-existing-cache-get-verify-v1.json';
 const sttLivePath = 'coordination/portfolio/derived/audio-speech-to-text/portfolio-stt-live-canary-entrypoint-v1.json';
+const studentLegacyBrowserPath = 'coordination/portfolio/derived/alumnos/portfolio-alumnos-student-world-live-route-bridge-browser-verify.json';
+const liveMobilePath = 'coordination/portfolio/derived/prometeo-live/portfolio-live-mobile-human-registry-v3-verify.json';
 const jose = readJson(josePath);
 const studentHttp = readJson(studentHttpPath);
 const ttsBrowser = readJson(ttsBrowserPath);
 const ttsVerify = readJson(ttsVerifyPath);
 const ttsCache = readJson(ttsCachePath);
 const sttLive = readJson(sttLivePath);
+const studentLegacyBrowser = readJson(studentLegacyBrowserPath);
+const liveMobile = readJson(liveMobilePath);
 
 assert.ok(Array.isArray(jose.required_capabilities) && jose.required_capabilities.length > 0, 'Jose unrestricted-browser fixture must remain capability-bound');
 assert.deepEqual(
@@ -48,6 +52,16 @@ assert.deepEqual(
   ['browser_network_navigation_to_github_pages', 'representative_javascript_browser', 'unrestricted_public_http_origin_fetch'],
   'STT live canary must require browser microphone route plus direct selftest network access'
 );
+assert.deepEqual(
+  studentLegacyBrowser.required_capabilities,
+  ['browser_network_navigation_to_github_pages', 'representative_javascript_browser', 'unrestricted_public_http_origin_fetch'],
+  'Student World interactive browser verifier must be capability-bound before recovery'
+);
+assert.deepEqual(
+  liveMobile.required_capabilities,
+  ['browser_network_navigation_to_github_pages', 'representative_javascript_browser'],
+  'Live mobile verifier must be capability-bound before recovery'
+);
 
 const feed = {
   generated_at: '2026-09-17T22:30:00Z',
@@ -61,7 +75,18 @@ const feed = {
       label: 'Alumnos / Student World',
       jobs: [
         { ...jose, state: 'ready', pin_generation: 0, last_signal_at: null },
-        { ...studentHttp, state: 'replaceable', pin_generation: 1, last_signal_at: '2026-09-17T21:00:00Z' }
+        { ...studentHttp, state: 'replaceable', pin_generation: 1, last_signal_at: '2026-09-17T21:00:00Z' },
+        {
+          job_id: 'fixture-legacy-capability-alias',
+          dedupe_key: 'fixture:legacy-capability-alias:v1',
+          project_id: 'alumnos',
+          title: 'Legacy capability alias fixture',
+          priority: 1,
+          capability_requirements: ['representative_javascript_browser'],
+          state: 'replaceable',
+          pin_generation: 1,
+          last_signal_at: '2026-09-17T21:00:00Z'
+        }
       ]
     },
     {
@@ -96,6 +121,14 @@ assert.deepEqual(joseCandidate.required_capabilities, [...jose.required_capabili
 const studentCandidate = allocator.recovery.find(row => row.job_id === studentHttp.job_id);
 assert.ok(studentCandidate, 'Student World capability-bound recovery must remain visible for compatible workers');
 assert.deepEqual(studentCandidate.required_capabilities, ['unrestricted_public_http_origin_fetch']);
+
+const legacyAliasCandidate = allocator.recovery.find(row => row.job_id === 'fixture-legacy-capability-alias');
+assert.ok(legacyAliasCandidate, 'legacy capability_requirements recovery fixture must remain claimable for compatible workers');
+assert.deepEqual(
+  legacyAliasCandidate.required_capabilities,
+  ['representative_javascript_browser'],
+  'legacy capability_requirements must normalize into required_capabilities before claim'
+);
 
 for (const [job, expected] of [
   [ttsBrowser, ['browser_network_navigation_to_github_pages', 'representative_javascript_browser']],
