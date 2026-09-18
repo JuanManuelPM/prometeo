@@ -95,7 +95,7 @@ const launches=[...beacons.values()].sort((a,b)=>b.launched-a.launched).slice(0,
   const n=noAlloc.get(b.worker_id)||null;
   const ttfa=a?Math.max(0,a.time-b.launched):null;
   const close=!a&&n?Math.max(0,n.time-b.launched):null;
-  return {worker_id:b.worker_id,launched_at:b.launched_at,declared_launched_at:b.declared_launched_at,authority_at:a?.at||null,declared_authority_at:a?.declared_at||null,authority_kind:a?.kind||null,authority_ref:a?.ref||null,no_allocation_at:n?.at||null,declared_no_allocation_at:n?.declared_at||null,no_allocation_reason:n?.reason||null,time_to_first_authority_ms:ttfa,no_allocation_close_ms:close,state:a?'ALLOCATED':n?'NO_ALLOCATION':'OPEN'};
+  return {worker_id:b.worker_id,launched_at:b.launched_at,declared_launched_at:b.declared_launched_at,authority_at:a?.at||null,declared_authority_at:a?.declared_at||null,authority_kind:a?.kind||null,authority_ref:a?.ref||null,no_allocation_at:n?.at||null,declared_no_allocation_at:n?.declared_at||null,no_allocation_reason:n?.reason||null,no_allocation_ref:n?.ref||null,time_to_first_authority_ms:ttfa,no_allocation_close_ms:close,state:a?'ALLOCATED':n?'NO_ALLOCATION':'OPEN'};
 });
 
 const allocated=launches.filter(x=>x.state==='ALLOCATED');
@@ -114,6 +114,37 @@ const closedRecent=closed.filter(x=>{
   return at && now-at<=noAllocationRegressionWindowMs;
 });
 const noCloseRecent=closedRecent.map(x=>x.no_allocation_close_ms);
+const noAllocationReasonFamily=value=>{
+  const reason=String(value||'UNSPECIFIED');
+  if(reason.startsWith('ALLOCATOR_READ_TRUNCATED')) return 'ALLOCATOR_READ_TRUNCATED';
+  if(reason.startsWith('CAPABILITY_MISMATCH')) return 'CAPABILITY_MISMATCH_EXHAUSTION';
+  return reason;
+};
+const countBy=(rows,keyFn)=>{
+  const out={};
+  for(const row of rows){
+    const key=keyFn(row);
+    out[key]=(out[key]||0)+1;
+  }
+  return Object.fromEntries(Object.entries(out).sort(([a],[b])=>a.localeCompare(b)));
+};
+const exactReasonCounts=countBy(closedRecent,row=>String(row.no_allocation_reason||'UNSPECIFIED'));
+const familyReasonCounts=countBy(closedRecent,row=>noAllocationReasonFamily(row.no_allocation_reason));
+const evidenceByExactReason={};
+for(const row of closedRecent){
+  const reason=String(row.no_allocation_reason||'UNSPECIFIED');
+  const ref=row.no_allocation_ref;
+  if(!ref) continue;
+  const refs=evidenceByExactReason[reason]||(evidenceByExactReason[reason]=[]);
+  if(refs.length<4 && !refs.includes(ref)) refs.push(ref);
+}
+const noAllocationRecentCauseMix={
+  window_minutes:noAllocationRegressionWindowMinutes,
+  sample:closedRecent.length,
+  by_exact_reason:exactReasonCounts,
+  by_reason_family:familyReasonCounts,
+  evidence_by_exact_reason:Object.fromEntries(Object.entries(evidenceByExactReason).sort(([a],[b])=>a.localeCompare(b)))
+};
 const metrics={
   launches_observed:launches.length,
   resolved_sample:sample,
@@ -174,6 +205,7 @@ const snapshot={
   reasons,
   metrics,
   rescue,
+  no_allocation_recent_cause_mix:noAllocationRecentCauseMix,
   latest_launches:launches.slice(0,30),
   privacy:'Derived from durable repository events; no private reasoning traces.'
 };
