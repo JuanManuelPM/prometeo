@@ -387,7 +387,8 @@ export function recoveryBasisGate(job = {}) {
       eligible: true,
       evidence_bound: true,
       reason: 'SILENT_OWNER_STALE_AFTER_LAST_RETURN',
-      basis
+      basis,
+      source_debt: structuredDebt
     };
   }
 
@@ -420,7 +421,8 @@ export function recoveryBasisGate(job = {}) {
       eligible: true,
       evidence_bound: true,
       reason: 'SOURCE_DEBT_BASIS_CHANGED',
-      basis
+      basis,
+      source_debt: structuredDebt
     };
   }
 
@@ -428,7 +430,8 @@ export function recoveryBasisGate(job = {}) {
     eligible: false,
     evidence_bound: true,
     reason: 'SOURCE_DEBT_BASIS_UNCHANGED',
-    basis
+    basis,
+    source_debt: structuredDebt
   };
 }
 
