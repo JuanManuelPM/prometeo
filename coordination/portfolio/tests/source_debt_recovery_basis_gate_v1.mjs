@@ -44,6 +44,7 @@ const sourceDebt = {
   },
   latest_return: {
     path: 'coordination/portfolio/returns/portfolio-jose-v11-pinned-payload-corruption-recovery-v1/RETURN-wc-20260918T0043Z-mesh03-7f2c-G000003-ROUTE_ABORTED.json',
+    generation: 3,
     outcome: joseReturn.outcome,
     summary: joseReturn.summary,
     returned_at: joseReturn.returned_at
@@ -152,6 +153,7 @@ const repeatedAfterCompletedG4 = {
   latest_pin_recovery_basis: g4.claim_payload_shape.recovery_basis_or_null,
   latest_return: {
     ...sourceDebt.latest_return,
+    generation: 4,
     returned_at: '2026-09-18T01:05:00Z'
   }
 };
@@ -168,6 +170,40 @@ assert.equal(
   'a worker that claims a new basis and then goes silent must preserve ordinary stale-owner recovery'
 );
 assert.equal(recoveryBasisGate(silentAfterG4).eligible, true);
+
+const repeatedSilentSameBasis = {
+  ...silentAfterG4,
+  pin_generation: 5,
+  claimed_at: '2026-09-18T01:10:00Z',
+  last_signal_at: '2026-09-18T01:10:00Z',
+  latest_pin_recovery_basis: g4.claim_payload_shape.recovery_basis_or_null
+};
+const repeatedSilentGate = recoveryBasisGate(repeatedSilentSameBasis);
+assert.equal(
+  repeatedSilentGate.reason,
+  'SOURCE_DEBT_SILENT_OWNER_RETRY_EXHAUSTED',
+  'two consecutive silent post-return owners on the same stamped SOURCE_DEBT basis must stop reopening ordinary recovery'
+);
+assert.equal(repeatedSilentGate.eligible, false, 'repeated silent SOURCE_DEBT owners must fail closed into recovery attention');
+assert.equal(repeatedSilentGate.silent_owner_retry?.latest_return_generation, 3);
+assert.equal(repeatedSilentGate.silent_owner_retry?.latest_pin_generation, 5);
+assert.equal(repeatedSilentGate.silent_owner_retry?.silent_owners_since_return, 2);
+
+const repeatedSilentAllocator = buildFastAllocator(
+  feedFor([repeatedSilentSameBasis]),
+  { status: 'HEALTHY', metrics: {}, reasons: [] },
+  { recoveryPolicies: [], roleContext: null }
+);
+assert.equal(
+  repeatedSilentAllocator.recovery.some(row => row.job_id === sourceDebt.job_id),
+  false,
+  'repeated silent SOURCE_DEBT basis must not emit another ordinary generation'
+);
+assert.equal(
+  repeatedSilentAllocator.recovery_attention.some(row => row.job_id === sourceDebt.job_id && row.reason === 'SOURCE_DEBT_SILENT_OWNER_RETRY_EXHAUSTED'),
+  true,
+  'repeated silent SOURCE_DEBT basis must stay visible as bounded recovery attention'
+);
 
 const basis2 = {
   ...repeatedAfterCompletedG4,
@@ -357,6 +393,10 @@ assert.ok(reviewablePreviewProjection, 'reviewable Jose V11 preview must remain 
 assert.equal(reviewablePreviewProjection.source_debt_dependency?.ref_bounded, true, 'reviewable preview dependency must use one bounded exact portfolio return ref');
 assert.equal(reviewablePreviewProjection.source_debt_dependency?.structurally_valid, true, 'reviewable preview dependency must resolve to valid structured SOURCE_DEBT');
 assert.equal(reviewablePreviewProjection.source_debt_dependency?.return_ref, dependencyReturnRef);
+assert.ok(
+  Number.isInteger(reviewablePreviewProjection.latest_return?.generation),
+  'Live feed must preserve latest portfolio return generation so bounded silent-owner SOURCE_DEBT retries can be counted without history scans'
+);
 
 const reviewablePreviewSourceDebt = {
   job_id: reviewablePreviewJob.job_id,
@@ -374,6 +414,7 @@ const reviewablePreviewSourceDebt = {
   source_debt_dependency: reviewablePreviewProjection.source_debt_dependency,
   latest_return: {
     path: 'coordination/portfolio/returns/portfolio-alumnos-jose-v11-reviewable-preview-v1/RETURN-wc-prod01-20260918T115504Z-sol-G000007-ROUTE_ABORTED.json',
+    generation: 7,
     outcome: 'ROUTE_ABORTED',
     summary: 'No material V11 recovery basis; resume only when a genuinely new byte-complete V11 source reproduces the exact recorded digest.',
     returned_at: '2026-09-18T12:10:38Z'
