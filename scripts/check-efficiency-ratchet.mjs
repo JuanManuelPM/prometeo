@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -288,6 +288,57 @@ must('guide', guide, 'DO NOT enumerate every queue, claim, run, return, heartbea
 must('guide', guide, 'Prefer compiled/index/current views over N raw directory reads.');
 must('guide', guide, 'If EPOCH and the relevant durable pointers are unchanged');
 must('guide', guide, 'A sustained efficiency regression is ONE system bottleneck.');
+must('guide-current-mission', guide, '## ACTIVE CURRENT MISSION — PRIORITY OVERRIDE');
+must('guide-current-mission', guide, 'coordination/guide/CURRENT_MISSION_V1.json');
+must('guide-current-mission', guide, 'coordination/guide/GUIDE_CURRENT_MISSION_WRITEBACK_V1.md');
+must('guide-current-mission', guide, 'there is no arbitrary one-action cap');
+must('guide-current-mission', guide, 'Do not claim background/self-waking execution after the turn.');
+
+const currentMission = JSON.parse(read(root, 'coordination/guide/CURRENT_MISSION_V1.json'));
+if (currentMission.status !== 'ACTIVE_BINDING') errors.push('current-mission: status drift');
+if (currentMission?.operating_mode?.mode !== 'ROLLING_POOL') errors.push('current-mission: rolling pool mode drift');
+if (currentMission?.operating_mode?.pool_id !== 'PROD-01') errors.push('current-mission: pool id drift');
+if (currentMission?.operating_mode?.worker_residency?.checkpoint_productive_units !== 3) errors.push('current-mission: checkpoint drift');
+if (currentMission?.operating_mode?.worker_residency?.target_productive_units !== 6) errors.push('current-mission: target drift');
+if (currentMission?.operating_mode?.worker_residency?.hard_cap_productive_units !== 8) errors.push('current-mission: hard cap drift');
+if (currentMission?.worker_exam?.champion_min_independent_reproductions !== 3) errors.push('current-mission: champion reproduction drift');
+if (currentMission?.required_guide_behavior?.autonomous_turn_depth?.includes('No arbitrary one-action or one-cycle cap') !== true) errors.push('current-mission: guide action-depth law missing');
+
+const missionContinuity = read(root, 'coordination/guide/CONTINUOUS_COGNITIVE_PRODUCTION_CONTINUITY_V1.md');
+must('mission-continuity', missionContinuity, 'POOL PROD-01');
+must('mission-continuity', missionContinuity, 'Worker Productivity Exam');
+must('mission-continuity', missionContinuity, 'Do not reset to old MESH-03/04/05 wave choreography');
+must('mission-continuity', missionContinuity, 'The human should not become the transport, scheduler, merger or memory system.');
+
+const missionWriteback = read(root, 'coordination/guide/GUIDE_CURRENT_MISSION_WRITEBACK_V1.md');
+must('mission-writeback', missionWriteback, 'Mandatory writeback');
+must('mission-writeback', missionWriteback, 'There is no arbitrary one-action cap.');
+must('mission-writeback', missionWriteback, 'coordination/guide/sessions/<session_id>.json');
+
+const continuityHead = JSON.parse(read(root, 'coordination/CONTINUITY_HEAD.json'));
+if (continuityHead.current_mission_ref !== 'coordination/guide/CURRENT_MISSION_V1.json') errors.push('continuity-head: current mission ref drift');
+if (continuityHead.current_mission_status !== 'ACTIVE_BINDING') errors.push('continuity-head: current mission status drift');
+if (!String(continuityHead.next_dot||'').includes('Load ACTIVE_BINDING Current Mission first')) errors.push('continuity-head: next_dot mission priority missing');
+
+const growthCampaign = JSON.parse(read(root, 'coordination/guide/GROWTH_CAMPAIGN_V1.json'));
+if (growthCampaign.current_stage !== 'CONTINUOUS_POOL-01') errors.push('growth-campaign: current stage drift');
+if (growthCampaign?.continuity_refs?.current_mission !== 'coordination/guide/CURRENT_MISSION_V1.json') errors.push('growth-campaign: mission continuity ref drift');
+
+const shortBootstrap = read(root, 'p.txt');
+must('p-current-mission', shortBootstrap, 'CURRENT_MISSION_V1.json');
+must('p-current-mission', shortBootstrap, 'CURRENT MISSION WRITEBACK');
+
+const stableEntry = JSON.parse(read(root, '.well-known/prometeo.json'));
+if (!String(stableEntry.current_mission||'').includes('/coordination/guide/CURRENT_MISSION_V1.json')) errors.push('stable-entry: current mission pointer missing');
+if (!String(stableEntry.current_mission_writeback||'').includes('/coordination/guide/GUIDE_CURRENT_MISSION_WRITEBACK_V1.md')) errors.push('stable-entry: current mission writeback pointer missing');
+
+if (site) {
+  const publicP = read(site, 'p.txt');
+  must('public-p-current-mission', publicP, 'CURRENT_MISSION_V1.json');
+  const publicEntry = JSON.parse(read(site, '.well-known/prometeo.json'));
+  if (!String(publicEntry.current_mission||'').includes('/coordination/guide/CURRENT_MISSION_V1.json')) errors.push('public-entry: current mission pointer missing');
+}
+
 
 const efficiencyWorkflow = read(root, '.github/workflows/efficiency-ratchet.yml');
 must('efficiency-workflow', efficiencyWorkflow, 'Check recent no-allocation efficiency regression');
@@ -467,6 +518,19 @@ else {
   if (eff032.required?.recovery_pin_preserves_authority_provenance !== true) errors.push('ratchet: EFF032 recovery provenance drift');
   if (eff032.required?.ordinary_retry_safe_recovery_preserved !== true) errors.push('ratchet: EFF032 ordinary recovery drift');
   if (eff032.required?.facultad_g5_blocks_g6_fixture !== true) errors.push('ratchet: EFF032 Facultad G5/G6 fixture drift');
+}
+
+const eff033 = baseline.items?.find(item => item.id === 'EFF033');
+if (!eff033) errors.push('ratchet: EFF033 missing');
+else {
+  if (eff033.required?.current_mission_ref !== 'coordination/guide/CURRENT_MISSION_V1.json') errors.push('ratchet: EFF033 mission ref drift');
+  if (eff033.required?.mission_status !== 'ACTIVE_BINDING') errors.push('ratchet: EFF033 mission status drift');
+  if (eff033.required?.guide_loads_mission_before_historical_next_dot !== true) errors.push('ratchet: EFF033 guide mission priority drift');
+  if (eff033.required?.bare_g_one_action_cap_forbidden !== true) errors.push('ratchet: EFF033 action cap drift');
+  if (eff033.required?.bare_g_material_writeback_required !== true) errors.push('ratchet: EFF033 writeback drift');
+  if (eff033.required?.human_worker_recap_required !== false) errors.push('ratchet: EFF033 human recap drift');
+  if (eff033.required?.rolling_pool_default !== 'PROD-01') errors.push('ratchet: EFF033 pool default drift');
+  if (eff033.required?.evaluation_pauses_pool !== false) errors.push('ratchet: EFF033 evaluation pause drift');
 }
 
 const eff029 = baseline.items?.find(item => item.id === 'EFF029');
