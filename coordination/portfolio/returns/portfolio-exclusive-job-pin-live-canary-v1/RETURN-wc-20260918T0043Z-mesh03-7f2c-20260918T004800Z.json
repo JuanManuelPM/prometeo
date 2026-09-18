@@ -1,0 +1,56 @@
+{
+  "schema": "prometeo.portfolio-return/v1",
+  "return_id": "RETURN-wc-20260918T0043Z-mesh03-7f2c-20260918T004800Z",
+  "job_id": "portfolio-exclusive-job-pin-live-canary-v1",
+  "dedupe_key": "portfolio:exclusive-job-pin:live-canary:v1",
+  "project_id": "prometeo-autonomous-growth",
+  "worker_id": "wc-20260918T0043Z-mesh03-7f2c",
+  "returned_at": "2026-09-18T00:48:00Z",
+  "outcome": "PARTIAL",
+  "summary": "Generation 5 recovery confirmed that the remaining five-worker live contention canary is blocked by batch fan-in, not by PIN exclusivity. race5 v3 is fresh and correctly routed as a timing-only PORTFOLIO_BARRIER_ENTER, but it appears only once in the 24-candidate unified shard array. WAVE-20260917-MESH-03 disperses workers across that array; no v3 entrants existed at 00:47Z. The current regression proves barrier transformation but not that required_contenders distinct workers are concurrently routable. No entrants, RELEASE, winner, collisions, or PASS evidence were synthesized; production /w remains unpromoted.",
+  "changed_paths": [
+    "coordination/workers/beacons/wc-20260918T0043Z-mesh03-7f2c.json",
+    "coordination/portfolio/pins/portfolio-exclusive-job-pin-live-canary-v1/G000005.json",
+    "coordination/portfolio/claims/portfolio-exclusive-job-pin-live-canary-v1/claim-portfolio-exclusive-job-pin-live-canary-v1-G000005-wc-20260918T0043Z-mesh03-7f2c.json",
+    "coordination/workers/heartbeats/wc-20260918T0043Z-mesh03-7f2c/20260918T004720Z.json",
+    "coordination/portfolio/returns/portfolio-exclusive-job-pin-live-canary-v1/RETURN-wc-20260918T0043Z-mesh03-7f2c-20260918T004800Z.json"
+  ],
+  "evidence": [
+    "coordination/portfolio/returns/portfolio-exclusive-job-pin-live-canary-v1/RETURN-wc-WAVE-20260917-MESH-02-sol-7c4e91b2-20260918T003133Z.json",
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-exclusive-job-pin-live-race-5-v3.json",
+    "coordination/portfolio/contention_barriers/live-pin-barrier-race5-v3/BARRIER.json",
+    "gh-pages:live/claim-frontier.json@2026-09-18T00:46:00.442Z",
+    "scripts/apply-fast-allocator-contention-barriers.mjs",
+    "coordination/portfolio/tests/fast_allocator_contention_barrier_routing_v1.mjs",
+    "github:issue#22 WAVE-20260917-MESH-03 ROUTED/CLAIM_RESULT events"
+  ],
+  "tests": [
+    "G000005_ATOMIC_PIN_CREATE: PASS — this worker became the sole generation-5 recovery owner.",
+    "PREDECESSOR_TERMINAL_CHECK: PASS — generation-4 parent return is PARTIAL, so recovery remained nonterminal and valid.",
+    "RACE5_V3_BARRIER_SHAPE: PASS — required_contenders=5, grants_execution_authority=false, deadline=2026-09-18T00:50:20Z, post-release PIN fixed at G000001.",
+    "UNIFIED_FRONTIER_CARDINALITY: FAIL_FOR_FANIN — race5 v3 occurs once in a 24-candidate unified shard array.",
+    "MESH03_RUNTIME_OBSERVATION: FAIL_FOR_FANIN — issue #22 shows workers routed to unrelated shard candidates; entrants directory for race5 v3 was absent/empty at 00:47Z.",
+    "REGRESSION_COVERAGE_GAP: CONFIRMED — fast_allocator_contention_barrier_routing_v1.mjs validates ENTER/RELEASE/TIMEOUT transformation for one candidate but does not model batched sharding or required_contenders fan-in.",
+    "NO_FABRICATED_CONTENTION: PASS.",
+    "NON_PROMOTION: PASS — no Current, Human Accepted, Served, or production /w promotion."
+  ],
+  "unresolved": [
+    "Make an open explicit contention fixture admit exactly required_contenders distinct batch workers through the allocator without manual synchronization and without granting execution authority.",
+    "Add deterministic regression coverage for a batched 10-worker wave proving exactly 5 admitted participants, one no-authority RELEASE, exactly one G000001 winner/claim, exactly four loser collisions, and reallocation of nonparticipants.",
+    "Open a fresh barrier generation after the routing fix; the current v3 window must not be extended or released late."
+  ],
+  "spawn_candidates": [
+    {
+      "title": "Fix batched contention-barrier fan-in",
+      "reason": "Unified hash sharding spreads workers away from a single barrier candidate, so required_contenders=5 is not concurrently routable despite the barrier route itself being structurally correct.",
+      "dedupe_key": "workers:allocator:contention-barrier:batch-fanin:v1",
+      "acceptance": [
+        "An explicit open barrier with required_contenders=5 and BATCH EXPECTED 10 admits exactly five distinct workers through durable timing-only coordination, with the remainder immediately reallocating.",
+        "The five admitted workers share one valid no-authority RELEASE and race one fixed G000001 PIN, producing exactly one owner claim and four genuine collision receipts.",
+        "No PIN attempt occurs before RELEASE and no late PIN occurs after timeout.",
+        "Ordinary candidates preserve current deterministic unified sharding and pay no barrier coordination cost.",
+        "Regression test covers the full batched routing path, not only single-candidate barrier transformation."
+      ]
+    }
+  ]
+}
