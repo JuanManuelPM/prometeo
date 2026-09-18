@@ -81,6 +81,10 @@ if (compoundingItem?.required?.assist_non_overlapping_scopes_required !== true) 
 if (compoundingItem?.required?.telemetry_close_only_at_chat_close !== true) errors.push('baseline: EFF024 CLOSE must be terminal to the chat chain');
 if (compoundingItem?.required?.regression_test !== 'scripts/check-efficiency-ratchet.mjs') errors.push('baseline: EFF024 regression guard drift');
 if (compoundingItem?.required?.workflow_guard !== '.github/workflows/efficiency-ratchet.yml') errors.push('baseline: EFF024 workflow guard drift');
+if (compoundingItem?.required?.runtime_projection !== 'live/runtime.json') errors.push('baseline: EFF024 runtime projection drift');
+if (compoundingItem?.required?.nonproductive_receipts_excluded !== true) errors.push('baseline: EFF024 nonproductive receipt exclusion drift');
+if (compoundingItem?.required?.receipt_push_refresh_workflow !== '.github/workflows/worker-runtime-events.yml') errors.push('baseline: EFF024 receipt refresh workflow drift');
+if (compoundingItem?.required?.residency_runtime_regression_test !== 'coordination/portfolio/tests/worker_residency_runtime_v1.mjs') errors.push('baseline: EFF024 runtime regression test drift');
 const branchHeadItem = baseline?.items?.find(x=>x.id==='EFF025');
 if (branchHeadItem?.required?.explicit_ref_head_move_classification !== 'BRANCH_HEAD_MOVED') errors.push('baseline: EFF025 branch-head classification drift');
 if (branchHeadItem?.required?.same_exact_create_retry_max !== 1) errors.push('baseline: EFF025 retry bound drift');
@@ -220,6 +224,10 @@ must('worker-runtime', workerRuntime, "measurement_clock:'GITHUB_COMMENT_SERVER_
 must('worker-runtime', workerRuntime, 'beaconDocs');
 must('worker-runtime', workerRuntime, "routed?'ROUTED':'BEACONED'");
 must('worker-runtime', workerRuntime, "truth_boundary:'OBSERVABILITY_ONLY_GITHUB_PINS_REMAIN_AUTHORITY'");
+must('worker-runtime-residency', workerRuntime, 'productive_units:productiveCount');
+must('worker-runtime-residency', workerRuntime, "productive_chain_state:productiveChainState");
+must('worker-runtime-residency', workerRuntime, "DURABLE_PORTFOLIO_RETURNS_PLUS_GUIDE_RECEIPTS");
+must('worker-runtime-residency', workerRuntime, 'NON_PRODUCTIVE_OUTCOME_RE');
 
 const workerRuntimeWorkflow = read(root, '.github/workflows/worker-runtime-events.yml');
 must('worker-runtime-workflow', workerRuntimeWorkflow, 'issue_comment:');
@@ -227,6 +235,12 @@ must('worker-runtime-workflow', workerRuntimeWorkflow, 'github.event.issue.numbe
 must('worker-runtime-workflow', workerRuntimeWorkflow, 'cancel-in-progress: false');
 must('worker-runtime-workflow', workerRuntimeWorkflow, 'live/runtime.json');
 must('worker-runtime-workflow', workerRuntimeWorkflow, 'worker-runtime-events-v1.test.mjs');
+must('worker-runtime-workflow', workerRuntimeWorkflow, 'coordination/portfolio/returns/**');
+must('worker-runtime-workflow', workerRuntimeWorkflow, 'coordination/guide/receipts/**');
+must('worker-runtime-workflow', workerRuntimeWorkflow, 'worker_residency_runtime_v1.mjs');
+const residencyRuntimeTest = read(root, 'coordination/portfolio/tests/worker_residency_runtime_v1.mjs');
+must('worker-residency-runtime-test', residencyRuntimeTest, 'WORKER_RESIDENCY_RUNTIME_PASS');
+must('worker-residency-runtime-test', residencyRuntimeTest, "CHECKPOINT_REACHED");
 
 const workerRuntimeTest = read(root, 'tests/worker-runtime-events-v1.test.mjs');
 must('worker-runtime-test', workerRuntimeTest, 'WORKER_RUNTIME_EVENTS_PASS');
