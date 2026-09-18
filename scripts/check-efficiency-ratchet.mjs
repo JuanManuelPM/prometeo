@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -125,6 +125,15 @@ if (JSON.stringify(retainedCandidatePayloadItem?.required?.retained_fields) !== 
 if (retainedCandidatePayloadItem?.required?.display_summary_non_authoritative !== true) errors.push('baseline: EFF035 display summary authority drift');
 if (retainedCandidatePayloadItem?.required?.collision_advance_requires_no_reread !== true) errors.push('baseline: EFF035 collision reread guard drift');
 if (retainedCandidatePayloadItem?.required?.payload_fabrication_forbidden !== true) errors.push('baseline: EFF035 payload fabrication guard drift');
+const humanDecisionPlannerItem = baseline?.items?.find(x=>x.id==='EFF036');
+if (humanDecisionPlannerItem?.required?.project_guide_human_decision_gate !== true) errors.push('baseline: EFF036 human-decision planner gate must be true');
+if (JSON.stringify(humanDecisionPlannerItem?.required?.statuses) !== JSON.stringify(['VERIFIED_CANDIDATE_AWAITING_REVIEW'])) errors.push('baseline: EFF036 status allowlist drift');
+if (humanDecisionPlannerItem?.required?.require_empty_frontier_refs !== true) errors.push('baseline: EFF036 empty-frontier predicate drift');
+if (humanDecisionPlannerItem?.required?.required_blocker_prefix !== 'HUMAN_DECISION_GATE:') errors.push('baseline: EFF036 blocker prefix drift');
+if (humanDecisionPlannerItem?.required?.suppress_trigger !== 'PROJECT_FRONTIER_THIN') errors.push('baseline: EFF036 trigger drift');
+if (humanDecisionPlannerItem?.required?.source_debt_semantics_reused !== false) errors.push('baseline: EFF036 must remain distinct from SOURCE_DEBT');
+if (humanDecisionPlannerItem?.required?.nonempty_frontier_reopens !== true) errors.push('baseline: EFF036 nonempty frontier must reopen');
+if (humanDecisionPlannerItem?.required?.regression_test !== 'coordination/portfolio/tests/project_guide_human_decision_gate_v1.mjs') errors.push('baseline: EFF036 regression test drift');
 const noAllocationWindowItem = baseline?.items?.find(x=>x.id==='EFF028');
 if (noAllocationWindowItem?.required?.global_runtime_epoch_preserved !== true) errors.push('baseline: EFF028 global runtime epoch must be preserved');
 if (noAllocationWindowItem?.required?.historical_no_allocation_metrics_preserved !== true) errors.push('baseline: EFF028 historical no-allocation metrics must be preserved');
@@ -257,6 +266,10 @@ if (projectGuideMesh.worker_chain_max_productive_units !== 8) errors.push('proje
 if (projectGuideMesh.worker_chain_same_project_soft_cap !== 2) errors.push('project-guide-mesh: same-project soft cap drift');
 if (projectGuideMesh?.worker_residency?.early_exit_with_compatible_frontier_forbidden !== true) errors.push('project-guide-mesh: resident early-exit law drift');
 if (projectGuideMesh?.assist_protocol?.max_children_per_owned_job !== 2) errors.push('project-guide-mesh: assist child bound drift');
+if (projectGuideMesh?.human_decision_planner_gate?.enabled !== true) errors.push('project-guide-mesh: human decision planner gate must stay enabled');
+if (JSON.stringify(projectGuideMesh?.human_decision_planner_gate?.statuses) !== JSON.stringify(['VERIFIED_CANDIDATE_AWAITING_REVIEW'])) errors.push('project-guide-mesh: human decision status allowlist drift');
+if (projectGuideMesh?.human_decision_planner_gate?.require_empty_frontier_refs !== true) errors.push('project-guide-mesh: human decision empty frontier predicate drift');
+if (projectGuideMesh?.human_decision_planner_gate?.required_blocker_prefix !== 'HUMAN_DECISION_GATE:') errors.push('project-guide-mesh: human decision blocker prefix drift');
 const examSpec = JSON.parse(read(root, 'coordination/workers/WORKER_PRODUCTIVITY_EXAM_V1.json'));
 if (examSpec.slots !== 6) errors.push('worker-exam: slot count drift');
 if (examSpec?.score?.total_max !== 10) errors.push('worker-exam: score max drift');
