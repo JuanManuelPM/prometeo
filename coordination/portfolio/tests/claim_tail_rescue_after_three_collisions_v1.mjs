@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const baseline = JSON.parse(fs.readFileSync(path.join(repoRoot, 'coordination/efficiency/RATCHET_BASELINE_V1.json'), 'utf8'));
-const eff044 = baseline.items?.find(item => item.id === 'EFF044');
-assert(eff044, 'EFF044 must remain in the efficiency ratchet baseline');
+const eff044 = baseline.items?.find(item => item.id === 'EFF045');
+assert(eff044, 'EFF045 must remain in the efficiency ratchet baseline');
 assert.equal(eff044.required?.base_fast_claim_attempts, 3);
 assert.equal(eff044.required?.pool_tail_rescue_max, 1);
 assert.equal(eff044.required?.total_authority_create_max_with_tail, 4);
