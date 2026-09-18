@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const TERMINAL_OUTCOMES = new Set(['DONE', 'VERIFIED', 'NO_ACTION_NEEDED', 'SUPERSEDED']);
+const FALLBACK_TERMINAL_OUTCOMES = new Set(['DONE', 'VERIFIED', 'NO_ACTION_NEEDED', 'SUPERSEDED']);
 const ACTIVE_JOB_STATUSES = new Set(['READY', 'ready']);
 
 export function clamp(min, value, max) {
@@ -20,9 +20,26 @@ function newest(...values) {
   return values.map(asTime).filter((v) => v !== null).reduce((a, b) => Math.max(a, b), -Infinity);
 }
 
-function normalizeTerminalReturn(record, sourcePath) {
-  const outcome = record?.outcome ?? record?.state ?? record?.status ?? null;
-  if (!outcome || !TERMINAL_OUTCOMES.has(String(outcome).toUpperCase())) return null;
+function normalizeTerminalReturn(record, sourcePath, outcomeSemantics = null) {
+  const rawOutcome = record?.outcome ?? record?.state ?? record?.status ?? null;
+  if (!rawOutcome) return null;
+  const outcome = String(rawOutcome).toUpperCase();
+  const configured = Array.isArray(outcomeSemantics?.terminal_outcomes)
+    ? new Set(outcomeSemantics.terminal_outcomes.map(value => String(value).toUpperCase()))
+    : FALLBACK_TERMINAL_OUTCOMES;
+  let normalizedOutcome = configured.has(outcome) ? outcome : null;
+  if (!normalizedOutcome) {
+    const alias = outcomeSemantics?.historical_terminal_aliases?.[outcome] ?? null;
+    if (alias?.mode === 'EXACT_RETURN_REF_ALLOWLIST_FAIL_CLOSED') {
+      const exact = (alias.return_refs ?? []).find(ref =>
+        ref?.path === sourcePath &&
+        (!ref.job_id || ref.job_id === record?.job_id) &&
+        (!ref.return_id || ref.return_id === record?.return_id)
+      );
+      if (exact) normalizedOutcome = String(alias.normalized_outcome ?? 'DONE').toUpperCase();
+    }
+  }
+  if (!normalizedOutcome) return null;
   const jobId = record.job_id ?? record.opportunity_id ?? null;
   if (!jobId) return null;
   return {
@@ -30,7 +47,8 @@ function normalizeTerminalReturn(record, sourcePath) {
     dedupe_key: record.dedupe_key ?? null,
     returned_at: record.returned_at ?? record.completed_at ?? record.created_at ?? null,
     source_path: sourcePath,
-    outcome: String(outcome).toUpperCase(),
+    outcome: normalizedOutcome,
+    original_outcome: outcome,
   };
 }
 
@@ -314,6 +332,7 @@ export async function buildSnapshotFromRepo(repoRoot) {
   const pinFiles = await collectJsonFiles(path.join(repoRoot, 'coordination/portfolio/pins'));
   const { rows: pinRows, invalid: invalidPinRows } = await parseJsonFilesDetailed(pinFiles, repoRoot);
   const portfolioReturnRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/portfolio/returns')), repoRoot);
+  const returnOutcomeSemantics = await readJsonIfExists(path.join(repoRoot, 'coordination/portfolio/RETURN_OUTCOME_SEMANTICS_V1.json'));
   const opportunityClaimRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/opportunities/claims')), repoRoot);
   const opportunityReturnRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/opportunities/returns')), repoRoot);
   const guideReceiptRows = await parseJsonFiles(await collectJsonFiles(path.join(repoRoot, 'coordination/guide/receipts')), repoRoot);
@@ -335,7 +354,7 @@ export async function buildSnapshotFromRepo(repoRoot) {
   const materialReturns = [];
   for (const row of [...portfolioReturnRows, ...opportunityReturnRows]) {
     const r = row.value;
-    const terminal = normalizeTerminalReturn(r, row.source_path);
+    const terminal = normalizeTerminalReturn(r, row.source_path, returnOutcomeSemantics);
     if (terminal) terminalReturns.push(terminal);
     const jobId = r.job_id ?? r.opportunity_id;
     if (jobId) materialReturns.push({ ...r, job_id: jobId, source_path: row.source_path });
