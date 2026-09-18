@@ -1,0 +1,45 @@
+name: Calendar habits custom trackers browser canary v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/portfolio/tests/calendar_habits_custom_trackers_browser_canary_v1.mjs'
+      - '.github/workflows/calendar-habits-custom-trackers-browser-canary-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser runtime
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Serve exact checkout
+        run: |
+          python3 -m http.server 8000 --directory "$RUNNER_WORKSPACE" > /tmp/prometeo-canary-http.log 2>&1 &
+          echo $! > /tmp/prometeo-canary-http.pid
+          for i in {1..30}; do
+            curl -fsS "http://127.0.0.1:8000/prometeo/candidate/calendar-habits-custom-trackers-v1/" >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/prometeo-canary-http.log
+          exit 1
+      - name: Run representative Chromium canary
+        run: node coordination/portfolio/tests/calendar_habits_custom_trackers_browser_canary_v1.mjs
+      - name: Upload exact browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: calendar-habits-browser-canary-evidence
+          path: artifacts/calendar-habits-browser-canary/
+          if-no-files-found: warn
