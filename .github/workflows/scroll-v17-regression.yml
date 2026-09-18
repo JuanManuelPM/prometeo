@@ -1,0 +1,31 @@
+name: Scroll v17 Regression
+
+on:
+  push:
+    paths:
+      - 'tests/scroll-v17-regression-harness.py'
+      - 'tests/fixtures/scroll-v17/**'
+      - 'demos/pinterest-push-scroll-v1/index.html'
+  pull_request:
+    paths:
+      - 'tests/scroll-v17-regression-harness.py'
+      - 'tests/fixtures/scroll-v17/**'
+      - 'demos/pinterest-push-scroll-v1/index.html'
+  workflow_dispatch:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install Playwright Chromium
+        run: |
+          python -m pip install --disable-pip-version-check playwright==1.57.0
+          python -m playwright install --with-deps chromium
+          echo "CHROMIUM_EXECUTABLE=$(python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')" >> "$GITHUB_ENV"
+      - name: Run exact Scroll v17 regression harness
+        run: python tests/scroll-v17-regression-harness.py tests/fixtures/scroll-v17/index.gh-pages-v17.html --json
