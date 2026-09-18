@@ -1,0 +1,56 @@
+name: Prometeo Growth Campaign Projection
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/guide/GROWTH_CAMPAIGN_V1.json'
+      - '.github/workflows/growth-campaign.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prometeo-growth-campaign
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: source
+          fetch-depth: 1
+
+      - name: Validate campaign
+        run: |
+          node -e "const p=require('./source/coordination/guide/GROWTH_CAMPAIGN_V1.json'); if(p.schema!=='prometeo.growth-campaign/v1'||!p.current_stage||!Array.isArray(p.stages)) process.exit(1)"
+
+      - name: Checkout public site
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          fetch-depth: 5
+
+      - name: Publish plan
+        run: |
+          set -euo pipefail
+          git -C site config user.name github-actions[bot]
+          git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C site pull --ff-only origin gh-pages
+          mkdir -p site/growth
+          cp source/coordination/guide/GROWTH_CAMPAIGN_V1.json site/growth/plan.json
+          git -C site add growth/plan.json
+          if git -C site diff --cached --quiet; then exit 0; fi
+          git -C site commit -m "growth: refresh campaign plan"
+          for n in 1 2 3; do
+            if git -C site push origin HEAD:gh-pages; then exit 0; fi
+            git -C site fetch origin gh-pages
+            git -C site rebase origin/gh-pages
+          done
+          exit 1
