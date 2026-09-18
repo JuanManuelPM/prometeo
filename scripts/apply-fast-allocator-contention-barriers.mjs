@@ -49,17 +49,17 @@ function validRelease(release, barrier, entrantWorkerIds = null) {
   if (!isObject(release) || release.schema !== 'prometeo.portfolio-contention-release/v1') return false;
   if (release.fixture_id !== barrier.fixture_id) return false;
   if (release.grants_execution_authority !== false || release.next_action !== 'RACE_DETERMINISTIC_PIN') return false;
+  if (Number(release.required_contenders) !== Number(barrier.required_contenders)) return false;
   const released = parseTime(release.released_at);
-  if (!released || released >= parseTime(barrier.deadline_at)) return false;
+  if (!released || released < parseTime(barrier.opened_at) || released >= parseTime(barrier.deadline_at)) return false;
   const ids = arr(release.entrant_worker_ids).filter(Boolean).map(String);
   const unique = uniq(ids);
   const required = Number(barrier.required_contenders);
   if (ids.length !== required || unique.length !== required) return false;
   if (ids.some((id, index) => id !== unique[index])) return false;
   if (Array.isArray(entrantWorkerIds)) {
-    const expected = selectReleaseCohort(entrantWorkerIds, required);
-    if (expected.length !== required) return false;
-    if (expected.some((id, index) => id !== unique[index])) return false;
+    const entrants = new Set(uniq(entrantWorkerIds));
+    if (unique.some(id => !entrants.has(id))) return false;
   }
   return true;
 }
@@ -167,7 +167,7 @@ export function routePortfolioCandidate(candidate, barrierRow, nowIso) {
         release_ref: barrierRow.release_ref || `coordination/portfolio/contention_barriers/${b.fixture_id}/RELEASE.json`,
         released_at: barrierRow.release.released_at,
         entrant_worker_ids: releasedWorkerIds,
-        cohort_rule: 'LEXICOGRAPHIC_FIRST_REQUIRED_DISTINCT_WORKER_IDS'
+        cohort_rule: 'LEXICOGRAPHIC_FIRST_REQUIRED_DISTINCT_WORKER_IDS_FROM_OBSERVED_ENTRANTS'
       },
       next_action: 'CHECK_RELEASE_MEMBERSHIP',
       post_claim_validate: false,
@@ -245,7 +245,7 @@ export function routePortfolioCandidate(candidate, barrierRow, nowIso) {
       ...meta,
       entrant_worker_ids: uniq(barrierRow.entrant_worker_ids),
       entrant_count: uniq(barrierRow.entrant_worker_ids).length,
-      cohort_rule: 'LEXICOGRAPHIC_FIRST_REQUIRED_DISTINCT_WORKER_IDS',
+      cohort_rule: 'LEXICOGRAPHIC_FIRST_REQUIRED_DISTINCT_WORKER_IDS_FROM_OBSERVED_ENTRANTS',
       release_payload_shape: {
         schema: 'prometeo.portfolio-contention-release/v1',
         fixture_id: b.fixture_id,
@@ -304,7 +304,8 @@ function batchFaninDescriptor(candidates = []) {
     release_path: b.release_path,
     timeout_path: b.timeout_path,
     grants_execution_authority: false,
-    cohort_rule: 'LEXICOGRAPHIC_FIRST_REQUIRED_DISTINCT_WORKER_IDS',
+    required_capabilities: arr(candidate.required_capabilities),
+    cohort_rule: 'LEXICOGRAPHIC_FIRST_REQUIRED_DISTINCT_WORKER_IDS_FROM_OBSERVED_ENTRANTS',
     entrant_worker_ids: arr(b.entrant_worker_ids),
     entrant_count: Number(b.entrant_count || 0),
     released_worker_ids: b.state === 'RELEASED' ? arr(b.entrant_worker_ids) : [],
