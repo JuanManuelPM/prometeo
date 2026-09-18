@@ -15,6 +15,19 @@ export function projectPlannerSuppressedBySourceDebt(stateDoc = {}, projectGuide
   if (prefix && !arr(stateDoc?.blockers).some(value => String(value).startsWith(prefix))) return false;
   return true;
 }
+
+export function projectPlannerSuppressedByHumanDecision(stateDoc = {}, projectGuideMesh = {}) {
+  const gate = projectGuideMesh?.human_decision_planner_gate || null;
+  if (!gate?.enabled) return false;
+  const statuses = arr(gate.statuses).length
+    ? arr(gate.statuses).map(value => String(value))
+    : [String(gate.status || 'VERIFIED_CANDIDATE_AWAITING_REVIEW')];
+  if (!statuses.includes(String(stateDoc?.status || ''))) return false;
+  if (gate.require_empty_frontier_refs === true && arr(stateDoc?.frontier_refs).length !== 0) return false;
+  const prefix = String(gate.required_blocker_prefix || '');
+  if (prefix && !arr(stateDoc?.blockers).some(value => String(value).startsWith(prefix))) return false;
+  return true;
+}
 const finiteInt = (value, fallback = 0) => {
   const n = Number(value);
   return Number.isInteger(n) && n >= 0 ? n : fallback;
@@ -757,7 +770,8 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
         const frontierClassification = classifyProjectGuideFrontier(stateDoc, jobs, projectGuideMesh);
         const localReady = frontierClassification.effective_count;
         const localWorking = workingByProject.get(project.project_id) || 0;
-        const plannerSuppressed = projectPlannerSuppressedBySourceDebt(stateDoc, projectGuideMesh);
+        const plannerSuppressed = projectPlannerSuppressedBySourceDebt(stateDoc, projectGuideMesh) ||
+          projectPlannerSuppressedByHumanDecision(stateDoc, projectGuideMesh);
         return {
           project,
           stateRow,
