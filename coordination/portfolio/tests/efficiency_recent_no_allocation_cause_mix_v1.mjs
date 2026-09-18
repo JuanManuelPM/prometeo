@@ -74,7 +74,13 @@ const allocator=buildFastAllocator(baseFeed,{...efficiency,status:'REGRESSION',r
 const rescate=allocator.role_ready.find(row=>row.role==='GUIDE_RESCATE' && row.trigger==='LOW_YIELD');
 assert(rescate,'efficiency regression must compile LOW_YIELD GUIDE_RESCATE');
 assert(rescate.evidence.includes('gh-pages:live/efficiency.json#no_allocation_causes'));
-for(const ref of expectedRefs.values()) assert(rescate.evidence.includes(ref),`rescate missing recent receipt ${ref}`);
+for(const [reason,ref] of expectedRefs){
+  if(reason==='CLAIM_TRANSPORT_BLOCKED'){
+    assert(!rescate.evidence.includes(ref),`explicit transport denial must stay telemetry-only, not repair evidence: ${ref}`);
+  }else{
+    assert(rescate.evidence.includes(ref),`rescate missing actionable recent receipt ${ref}`);
+  }
+}
 assert.deepEqual(allocator.efficiency.no_allocation_causes.histogram_recent,efficiency.no_allocation_causes.histogram_recent);
 
 const claimFeed={
