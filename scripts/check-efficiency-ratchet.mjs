@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048','EFF050']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048','EFF050','EFF049']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -56,6 +56,18 @@ const frontierPressureTest = read(root, 'coordination/portfolio/tests/capability
 must('capability-aware-frontier-pressure', frontierPressureTest, 'CAPABILITY_AWARE_FRONTIER_PRESSURE_PASS');
 must('capability-aware-frontier-pressure', frontierPressureTest, 'generic_compatible_clean_frontier');
 must('capability-aware-frontier-pressure', frontierPressureTest, 'unknown_capabilities');
+
+const noAllocationCauseMixItem = baseline?.items?.find(x=>x.id==='EFF049');
+if (noAllocationCauseMixItem?.required?.exact_recent_reason_histogram !== true) errors.push('baseline: EFF049 exact reason histogram drift');
+if (noAllocationCauseMixItem?.required?.recent_window_minutes !== 10) errors.push('baseline: EFF049 recent window drift');
+if (noAllocationCauseMixItem?.required?.bounded_recent_receipt_refs_max !== 12) errors.push('baseline: EFF049 receipt bound drift');
+if (noAllocationCauseMixItem?.required?.cumulative_no_allocation_metrics_preserved !== true) errors.push('baseline: EFF049 cumulative metric drift');
+if (noAllocationCauseMixItem?.required?.guide_low_yield_evidence_ref !== 'gh-pages:live/efficiency.json#no_allocation_causes') errors.push('baseline: EFF049 Guide evidence ref drift');
+if (noAllocationCauseMixItem?.required?.guide_exact_recent_receipts !== true) errors.push('baseline: EFF049 exact receipt evidence drift');
+if (noAllocationCauseMixItem?.required?.claim_semantics_unchanged !== true) errors.push('baseline: EFF049 claim semantics guard drift');
+if (noAllocationCauseMixItem?.required?.regression_test !== 'coordination/portfolio/tests/efficiency_recent_no_allocation_cause_mix_v1.mjs') errors.push('baseline: EFF049 regression test drift');
+if (noAllocationCauseMixItem?.required?.ci_entrypoint !== 'coordination/portfolio/tests/efficiency_recent_no_allocation_regression_v1.mjs') errors.push('baseline: EFF049 CI entrypoint drift');
+if (noAllocationCauseMixItem?.required?.ci_entrypoint_executes_regression_test !== true) errors.push('baseline: EFF049 CI chaining drift');
 
 const recoveryRescatePressureItem = baseline?.items?.find(x=>x.id==='EFF044');
 if (recoveryRescatePressureItem?.required?.recovery_pressure_source !== 'candidate.required_capabilities') errors.push('baseline: EFF044 recovery pressure source drift');
@@ -218,6 +230,9 @@ must('efficiency-builder-ttfa-window', efficiencyBuilder, "const eff037 = Array.
 must('efficiency-builder-ttfa-window', efficiencyBuilder, 'ttfa_p90_recent_ms');
 must('efficiency-builder-ttfa-window', efficiencyBuilder, 'ttfa_regression_window_minutes:ttfaRegressionWindowMinutes');
 must('efficiency-builder-ttfa-window', efficiencyBuilder, 'const ttfaBad=metrics.ttfa_p90_recent_ms!=null');
+must('efficiency-builder-cause-mix', efficiencyBuilder, 'no_allocation_causes:noAllocationCauses');
+must('efficiency-builder-cause-mix', efficiencyBuilder, 'histogram_recent:noAllocationCauseHistogramRecent');
+must('efficiency-builder-cause-mix', efficiencyBuilder, 'recent_receipts:recentNoAllocationReceipts');
 
 const wc = read(root, 'wc');
 must('wc', wc, 'CLAIM NOW');
@@ -659,6 +674,8 @@ must('fast-allocator', allocator, 'item.predecessor_pin_ref || item.source_path 
 must('fast-allocator', allocator, 'claim_path:');
 must('fast-allocator', allocator, 'claim_payload_shape:');
 must('fast-allocator', allocator, "mode: 'fixed_generation'");
+must('fast-allocator-cause-mix', allocator, 'gh-pages:live/efficiency.json#no_allocation_causes');
+must('fast-allocator-cause-mix', allocator, 'efficiencyNoAllocationReceipts');
 must('fast-allocator', allocator, 'ordinary_next_generation_eligible');
 must('fast-allocator', allocator, 'fixed_generation_attention');
 must('fast-allocator', allocator, 'loadRecoveryPolicies');
@@ -735,6 +752,17 @@ const recentNoAllocationTest = read(root, 'coordination/portfolio/tests/efficien
 must('recent-no-allocation-test', recentNoAllocationTest, 'EFFICIENCY_RECENT_NO_ALLOCATION_REGRESSION_PASS');
 must('recent-no-allocation-test', recentNoAllocationTest, 'no_allocation_close_p90_recent_ms');
 must('recent-no-allocation-test', recentNoAllocationTest, 'historical-only tail must not pin current regression');
+must('recent-no-allocation-test', recentNoAllocationTest, 'efficiency_recent_no_allocation_cause_mix_v1.mjs');
+
+const noAllocationCauseMixTest = read(root, 'coordination/portfolio/tests/efficiency_recent_no_allocation_cause_mix_v1.mjs');
+must('no-allocation-cause-mix-test', noAllocationCauseMixTest, 'EFFICIENCY_RECENT_NO_ALLOCATION_CAUSE_MIX_PASS');
+must('no-allocation-cause-mix-test', noAllocationCauseMixTest, 'ALLOCATOR_READ_TRUNCATED_JSON');
+must('no-allocation-cause-mix-test', noAllocationCauseMixTest, 'CLAIM_ATTEMPTS_EXHAUSTED');
+must('no-allocation-cause-mix-test', noAllocationCauseMixTest, 'CLAIM_TRANSPORT_BLOCKED');
+must('no-allocation-cause-mix-test', noAllocationCauseMixTest, 'CLAIM_TRANSPORT_AMBIGUOUS');
+must('no-allocation-cause-mix-test', noAllocationCauseMixTest, 'CAPABILITY_MISMATCH_PRECLAIM_EXHAUSTED');
+must('no-allocation-cause-mix-test', noAllocationCauseMixTest, 'gh-pages:live/efficiency.json#no_allocation_causes');
+must('no-allocation-cause-mix-test', noAllocationCauseMixTest, 'cause telemetry must not alter authority payload semantics');
 
 const eff027 = baseline.items?.find(item => item.id === 'EFF027');
 if (!eff027) errors.push('ratchet: EFF027 missing');
