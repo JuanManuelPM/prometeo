@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const readJson = rel => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'));
 const { buildFastAllocator, recoveryBasisGate } = await import(pathToFileURL(path.join(root, 'scripts/build-fast-allocator.mjs')).href);
+const { buildClaimFrontier } = await import(pathToFileURL(path.join(root, 'scripts/build-claim-frontier.mjs')).href);
 
 const joseReturn = readJson('coordination/portfolio/returns/portfolio-jose-v11-pinned-payload-corruption-recovery-v1/RETURN-wc-20260918T0043Z-mesh03-7f2c-G000003-ROUTE_ABORTED.json');
 assert.equal(joseReturn.outcome, 'ROUTE_ABORTED');
@@ -326,6 +327,19 @@ const dependentAttention = dependentAllocator.recovery_attention.find(row => row
 assert.ok(dependentAttention, 'dependent SOURCE_DEBT must remain visible in recovery_attention');
 assert.equal(dependentAttention.reason, 'SOURCE_DEBT_BASIS_UNCHANGED');
 assert.equal(dependentAttention.source_debt?.dependency_return_ref, dependencyReturnRef);
+
+const dependentClaimFrontier = buildClaimFrontier(dependentAllocator);
+assert.equal(
+  dependentClaimFrontier.candidates.some(row => row.job_id === dependentSourceDebt.job_id),
+  false,
+  'dependent SOURCE_DEBT must remain non-claimable in compact claim frontier'
+);
+const dependentFrontierAttention = dependentClaimFrontier.recovery_attention.find(row => row.job_id === dependentSourceDebt.job_id);
+assert.ok(dependentFrontierAttention, 'compact claim frontier must keep dependent SOURCE_DEBT observable');
+assert.equal(dependentFrontierAttention.reason, 'SOURCE_DEBT_BASIS_UNCHANGED');
+assert.equal(dependentFrontierAttention.source_debt_job_id, 'portfolio-jose-v12-pinned-v11-material-recovery-v1');
+assert.equal(dependentFrontierAttention.source_debt_ref, dependencyReturnRef);
+assert.equal(dependentFrontierAttention.ordinary_claim_eligible, false);
 
 const dependentWithNewBasis = {
   ...dependentSourceDebt,
