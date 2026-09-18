@@ -19,7 +19,7 @@ Before a PIN/claim the worker may do ONLY:
 1. load the canonical `/wc` bootstrap;
 2. create its launch beacon;
 3. read ONE compact claim-frontier snapshot;
-4. make atomic CREATE attempts against exact claim paths supplied by that snapshot; or, only when the selected candidate explicitly says `PORTFOLIO_BARRIER_ENTER`, execute the exact bounded barrier entrant/RELEASE/timeout paths supplied by that same allocator candidate before the PIN race.
+4. make atomic CREATE attempts against exact claim paths supplied by that snapshot; or, only for an explicit actionable top-level `batch_contention_fanin` in a batched invocation or when the selected candidate explicitly says `PORTFOLIO_BARRIER_ENTER`, execute the exact bounded barrier entrant/RELEASE/timeout paths supplied by that same compact frontier before the PIN race.
 
 Forbidden before ownership:
 - broad repo archaeology;
@@ -79,6 +79,7 @@ Before calculating the shard index, inspect only the already-loaded compact fron
 
 - If it is absent, null, `AMBIGUOUS`, or not an actionable `ARMING`/`RELEASED` descriptor, perform normal unified sharding with zero barrier coordination.
 - `batch_contention_fanin` is valid only for one explicit durable contention fixture and always has `grants_execution_authority=false`. It is timing coordination, not ownership, and does not consume an authority CREATE attempt.
+- Before any fan-in entrant write, compare only descriptor-supplied `required_capabilities` with capabilities definitively known from the runtime. Definitive mismatch skips fan-in and continues normal sharding; unknown is not absence. Do not read project context to decide.
 - For `ARMING`, CREATE only the supplied entrant path/payload for this worker, then inspect only that fixture's supplied entrant/release paths until release or deadline. Once at least `required_contenders` valid entrants exist, compute the cohort as the lexicographically sorted distinct worker IDs truncated to exactly `required_contenders`. Any contender may atomically CREATE the single RELEASE naming exactly that cohort.
 - A valid RELEASE MUST name exactly `required_contenders` distinct worker IDs in canonical lexicographic order. Extra IDs, missing IDs, duplicates, or a cohort different from the deterministic first-N set are invalid.
 - For `RELEASED`, or after a valid RELEASE appears, check membership before any PIN attempt. If this `worker_id` is named in `released_worker_ids`, race `post_release_claim` exactly. If it is not named, attempt no PIN and immediately continue normal unified sharding.
