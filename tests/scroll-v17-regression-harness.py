@@ -73,9 +73,19 @@ def major_border_widths(page) -> list[dict[str, Any]]:
     )
 
 
-def run_viewport(browser, html: str, name: str, width: int, height: int) -> dict[str, Any]:
+def run_viewport(browser, html: str | None, name: str, width: int, height: int, url: str | None = None) -> dict[str, Any]:
     page = browser.new_page(viewport={"width": width, "height": height})
-    page.set_content(html, wait_until="load")
+    served_blob = None
+    if url:
+        response = page.goto(url, wait_until="load", timeout=30000)
+        check(response is not None, "served_navigation_no_response", {"url": url, "viewport": name})
+        check(response.ok, "served_navigation_http_error", {"url": url, "status": response.status, "viewport": name})
+        served_bytes = response.body()
+        served_blob = git_blob_sha(served_bytes)
+        check(served_blob == EXPECTED_BLOB, "served_blob_sha", {"expected": EXPECTED_BLOB, "actual": served_blob, "url": url, "viewport": name})
+    else:
+        check(html is not None, "html_fixture_required")
+        page.set_content(html, wait_until="load")
     page.wait_for_timeout(10)
 
     counts = page.evaluate(
@@ -208,17 +218,19 @@ def run_viewport(browser, html: str, name: str, width: int, height: int) -> dict
         "scroll_width_px": overflow["sw"],
         "transitions": transitions,
         "final": {"max_scroll_y": max_scroll, "number_04_top_at_max_minus_50": final_a, "number_04_top_at_max": final_b},
+        "served_url": url,
+        "served_git_blob_sha": served_blob,
         "result": "PASS",
     }
 
 
-def run_suite(html: str, chromium_executable: str) -> dict[str, Any]:
+def run_suite(html: str | None, chromium_executable: str, url: str | None = None) -> dict[str, Any]:
     results = {}
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=chromium_executable, headless=True, args=["--no-sandbox"])
         try:
             for name, (w, h) in VIEWPORTS.items():
-                results[name] = run_viewport(browser, html, name, w, h)
+                results[name] = run_viewport(browser, html, name, w, h, url=url)
         finally:
             browser.close()
     return results
@@ -226,10 +238,27 @@ def run_suite(html: str, chromium_executable: str) -> dict[str, Any]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("fixture", type=Path)
+    ap.add_argument("fixture", type=Path, nargs="?")
+    ap.add_argument("--url")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--chromium-executable", default=os.environ.get("CHROMIUM_EXECUTABLE", "/usr/bin/chromium"))
     args = ap.parse_args()
+
+    if bool(args.fixture) == bool(args.url):
+        ap.error("provide exactly one of fixture or --url")
+
+    if args.url:
+        baseline = run_suite(None, args.chromium_executable, url=args.url)
+        result = {
+            "schema": "prometeo.scroll-v17-served-regression-result/v1",
+            "served_url": args.url,
+            "expected_git_blob_sha": EXPECTED_BLOB,
+            "chromium_executable": args.chromium_executable,
+            "baseline": baseline,
+            "overall": "PASS",
+        }
+        print(json.dumps(result, ensure_ascii=False, indent=2 if args.json else None, sort_keys=True))
+        return 0
 
     data = args.fixture.read_bytes()
     blob = git_blob_sha(data)
