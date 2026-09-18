@@ -21,7 +21,7 @@ TOUCH_TOL = 1.1
 
 def git_blob_sha(data: bytes) -> str:
     h = hashlib.sha1()
-    h.update(f"blob {len(data)}\\0".encode())
+    h.update(f"blob {len(data)}\0".encode())
     h.update(data)
     return h.hexdigest()
 
