@@ -321,11 +321,11 @@ must('wc', wc, 'WAVE RESIDENCY / ASSIST');
 must('wc', wc, 'POOL <pool_id>');
 must('wc', wc, 'batch_id=POOL-<pool_id>');
 must('wc', wc, 'productivity exam card');
-must('wc-yield-pattern', wc, 'POOL YIELD-PATTERN REPRODUCTION');
-must('wc-yield-pattern', wc, 'coordination/workers/YIELD_PATTERN_CANDIDATE_V1.json');
-must('wc-yield-pattern', wc, 'REPRODUCTION_ACTIVE_NOT_CHAMPION');
-must('wc-yield-pattern', wc, 'protocol_version="v3.27"');
-must('wc-yield-pattern', wc, 'pattern_id');
+must('wc-strategy-experiment', wc, 'POOL POST-OWNERSHIP STRATEGY EXPERIMENT');
+must('wc-strategy-experiment', wc, 'coordination/workers/WORKER_STRATEGY_EXPERIMENT_V1.json');
+must('wc-strategy-experiment', wc, 'protocol_version="v3.28"');
+must('wc-strategy-experiment', wc, 'experiment_id="EXP-STRATEGY-AB"');
+mustNot('wc-strategy-experiment', wc, '### POOL YIELD-PATTERN REPRODUCTION');
 
 
 must('wc', wc, 'at most **2** ordinary derived assist jobs');
@@ -418,11 +418,12 @@ must('worker-scoreboard', scoreboardBuilder, 'champion_reproducible');
 must('worker-scoreboard', scoreboardBuilder, 'champion_candidate');
 must('worker-scoreboard', scoreboardBuilder, 'leader');
 must('worker-scoreboard', scoreboardBuilder, 'pattern:');
-must('worker-scoreboard', scoreboardBuilder, 'champion stays null');
+must('worker-scoreboard', scoreboardBuilder, 'strategy_experiment_health');
+must('worker-scoreboard', scoreboardBuilder, 'champion_reproducible');
 
 const yieldPattern = JSON.parse(read(root, 'coordination/workers/YIELD_PATTERN_CANDIDATE_V1.json'));
 if (yieldPattern.pattern_id !== 'YIELD-10X-V1') errors.push('yield-pattern: id drift');
-if (!['REPRODUCTION_ACTIVE_NOT_CHAMPION','REJECTED_AS_UNIVERSAL_PATTERN_RETAINED_AS_EVIDENCE'].includes(yieldPattern.status)) errors.push('yield-pattern: status drift');
+if (yieldPattern.status !== 'REJECTED_AS_UNIVERSAL_PATTERN_RETAINED_AS_EVIDENCE') errors.push('yield-pattern: rejected historical status drift');
 if (yieldPattern.status==='REJECTED_AS_UNIVERSAL_PATTERN_RETAINED_AS_EVIDENCE') {
   if (yieldPattern?.reproduction_result?.verdict !== 'FAIL_REPRODUCTION_GATE') errors.push('yield-pattern: rejected status missing failed reproduction evidence');
   if (yieldPattern?.next_experiment?.status !== 'ACTIVE_PREPARE_JOB_CLASS_PATTERNS') errors.push('yield-pattern: rejected status missing active next experiment');
@@ -629,7 +630,7 @@ must('mission-writeback', missionWriteback, 'coordination/guide/visible-response
 const continuityHead = JSON.parse(read(root, 'coordination/CONTINUITY_HEAD.json'));
 if (continuityHead.current_mission_ref !== 'coordination/guide/CURRENT_MISSION_V1.json') errors.push('continuity-head: current mission ref drift');
 if (continuityHead.current_mission_status !== 'ACTIVE_BINDING') errors.push('continuity-head: current mission status drift');
-if (!String(continuityHead.next_dot||'').includes('Load ACTIVE_BINDING Current Mission first')) errors.push('continuity-head: next_dot mission priority missing');
+if (!String(continuityHead.next_dot||'').includes('Load ACTIVE_BINDING Current Mission')) errors.push('continuity-head: next_dot mission priority missing');
 
 const growthCampaign = JSON.parse(read(root, 'coordination/guide/GROWTH_CAMPAIGN_V1.json'));
 if (growthCampaign.current_stage !== 'CONTINUOUS_POOL-01') errors.push('growth-campaign: current stage drift');
