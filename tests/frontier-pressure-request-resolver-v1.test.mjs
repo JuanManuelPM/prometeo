@@ -95,3 +95,17 @@ test('malformed request source_sha and filename mismatch fail closed', () => {
   assert.throws(() => validateRequest({ schema: REQUEST_SCHEMA, request_id: 'a', source_sha: 'abc' }, 'coordination/portfolio/frontier-pressure-requests/a.json'), /exactly 40 hex/);
   assert.throws(() => validateRequest({ schema: REQUEST_SCHEMA, request_id: 'other', source_sha: HISTORICAL }, 'coordination/portfolio/frontier-pressure-requests/a.json'), /match filename/);
 });
+
+
+test('workflow envelope manifest fails closed before historical snapshot regressions', async () => {
+  const workflowPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../.github/workflows/frontier-pressure-exact-snapshot.yml');
+  const workflow = await fs.readFile(workflowPath, 'utf8');
+  const capture = workflow.indexOf('Capture regression manifest from workflow envelope');
+  const checkout = workflow.indexOf('Checkout exact snapshot');
+  assert.ok(capture >= 0 && checkout > capture, 'regression manifest must be captured before exact-snapshot checkout');
+  assert.match(workflow, /frontier-pressure-routable-scope-parity-v1\.test\.mjs/);
+  assert.match(workflow, /MISSING_EXPECTED_REGRESSION/);
+  assert.match(workflow, /EXPECTED_REGRESSION_PATH_MISSING/);
+  assert.match(workflow, /CURRENT_WORKFLOW_ENVELOPE/);
+  assert.match(workflow, /exit 66/);
+});
