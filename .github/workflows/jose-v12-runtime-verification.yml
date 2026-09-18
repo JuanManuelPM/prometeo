@@ -18,6 +18,28 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Prepare immutable V11 fixture
+        run: |
+          CANDIDATE='pages/lab/jose-study-design-20260911/PROMETEO_JOSE_RECOVERY_ENGINE_V12_MAP_REFINEMENT_CANDIDATE.html'
+          EXPECTED_BLOB='8f22dd9e0079dab7174eaba784a0d6c793e0ac90'
+          SOURCE_COMMIT='158357fe4e1cb672e4574d9ebe6f317b9418a30f'
+          SOURCE_PATH='coordination/workstreams/jose-study-design-20260911/material/PROMETEO_JOSE_RECOVERY_ENGINE_V11.html.gz.b64'
+          test "$(git hash-object "$CANDIDATE")" = "$EXPECTED_BLOB"
+          git fetch --no-tags --depth=1 origin "$SOURCE_COMMIT"
+          git show "$SOURCE_COMMIT:$SOURCE_PATH" > /tmp/jose-v11.b64
+          python3 - <<'PY'
+          import base64,gzip,hashlib,pathlib
+          p=pathlib.Path('/tmp/jose-v11.b64')
+          text=p.read_text(encoding='utf-8')
+          compact=''.join(text.split())
+          gz=base64.b64decode(compact, validate=True)
+          html=gzip.decompress(gz)
+          digest=hashlib.sha256(html).hexdigest()
+          expected='0cf9a40fb53e977dccb40c9755d668a3ee922ccd61883f19229bb4a113139a05'
+          print(f'FIXTURE_BASE64_PASS chars={len(compact)} gzip_bytes={len(gz)} html_bytes={len(html)} sha256={digest}')
+          assert digest == expected, (digest, expected)
+          PY
+
       - name: Install browser driver
         run: |
           npm --silent install puppeteer-core@24
@@ -34,6 +56,8 @@ jobs:
 
           const candidate='pages/lab/jose-study-design-20260911/PROMETEO_JOSE_RECOVERY_ENGINE_V12_MAP_REFINEMENT_CANDIDATE.html';
           const expectedBlob='8f22dd9e0079dab7174eaba784a0d6c793e0ac90';
+          const sourceUrl='https://raw.githubusercontent.com/JuanManuelPM/prometeo/158357fe4e1cb672e4574d9ebe6f317b9418a30f/coordination/workstreams/jose-study-design-20260911/material/PROMETEO_JOSE_RECOVERY_ENGINE_V11.html.gz.b64';
+          const fixtureText=fs.readFileSync('/tmp/jose-v11.b64','utf8');
           const topics=[
             {name:'Index Laws',aliases:['index laws','leyes de índices','leyes de indices','índices','indices']},
             {name:'Factorization',aliases:['factorization','factorización','factorizacion']},
@@ -52,6 +76,17 @@ jobs:
             page.on('console',m=>console.log('BROWSER_CONSOLE',m.type(),m.text()));
             page.on('pageerror',e=>console.log('BROWSER_PAGEERROR',String(e)));
             await page.setViewport({width:1280,height:900,deviceScaleFactor:1});
+            await page.setRequestInterception(true);
+            page.on('request',req=>{
+              if(req.url()===sourceUrl){
+                req.respond({
+                  status:200,
+                  contentType:'text/plain; charset=utf-8',
+                  headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'no-store'},
+                  body:fixtureText
+                });
+              } else req.continue();
+            });
 
             async function loadMenu(){
               await page.goto('http://127.0.0.1:8765/'+candidate,{waitUntil:'domcontentloaded',timeout:30000});
@@ -138,3 +173,4 @@ jobs:
             /tmp/jose-v12-runtime.png
           if-no-files-found: warn
 # wc-trigger: wc-20260918T010400Z-gpt56sol-a7d4
+# wc-harness-fix: immutable git fixture interception
