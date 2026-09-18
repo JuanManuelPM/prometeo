@@ -7,8 +7,8 @@ const BRANCH = 'gh-pages';
 const RAW_ROOT = `https://raw.githubusercontent.com/JuanManuelPM/prometeo/${BRANCH}/`;
 const SPECS = {
   index: { path: 'pages/study-library/index.html', sha: 'b088b71517f081e641e984bd8378e22e9be3f368' },
-  v11: { path: 'pages/study-library/study-v11-experience.js', sha: '787c09e69551a0b889cde141823dc46d87d36eed' },
-  v18: { path: 'pages/study-library/study-v18.js', sha: '4cd21828c71aeb87dd957c18977abb9bd440a252' },
+  v11: { path: 'pages/study-library/study-v11-experience.js', sha: 'b1f6b5bd68e2cbaf205d627697332591d1e2b433' },
+  v18: { path: 'pages/study-library/study-v18.js', sha: 'b54ed6324d6f08f94b2116b3dc410d50244699c9' },
   fix5: { path: 'pages/study-library/study-v18-5-fix.js', sha: '26ead844db7e93934fe742ce86a16d60f71beff6' },
   fix6: { path: 'pages/study-library/study-v18-6-fix.js', sha: '1754527feefbda95b59e79a0235d367ce16591a5' },
   css: { path: 'pages/study-library/study-v18.css', sha: 'd06e0df3580c64c86a06e5eb3db2798b255b745b' }
@@ -140,6 +140,27 @@ function evaluate(bundle) {
         "if(activeTab==='schedule')loadSchedule(row)",
         'Versión anterior'
       ]) && !bundle.v18.text.includes('Acá se va a conectar el cronograma real')
+    },
+    {
+      id: 'native_notes_date_legacy_bridge',
+      ok: containsAll(bundle.v11.text, [
+        'async function courseSessionsBridge11(courseId,title)',
+        "from('study_class_sessions')",
+        "from('study_session_docs')",
+        "select('shared_notes')",
+        "source:'study_class_sessions+study_session_docs'",
+        'async courseSessions(courseId,title)'
+      ]) && containsAll(bundle.v18.text, [
+        'notesState=new Map()',
+        'function notesPanel(row)',
+        'async function loadNotes(row,force=false)',
+        'window.PrometeoStudyCalendarV11',
+        'api.courseSessions(row.course_id,row.canonical_title)',
+        'No voy a inventar fechas ni notas',
+        'No hay clases guardadas para esta materia',
+        'Versión anterior'
+      ]) && !bundle.v18.text.includes('Fecha por definir') &&
+          !/Clase 0[1-4]/.test(bundle.v18.text)
     },
     {
       id: 'theme_persistence',
