@@ -1,11 +1,11 @@
 # Guide Successor Fixlist v1
 
-Status: VERIFIED_FRESH_G_CANARY_PASS — CORE SUCCESSION DEBT CLOSED; POINTER REFRESH CLOSED; CURRENT-MISSION EXTENSION AWAITING FRESH /g CANARY
+Status: VERIFIED_FRESH_G_CANARY_PASS — CORE SUCCESSION DEBT CLOSED; POINTER REFRESH CLOSED; CURRENT-MISSION EXTENSION VERIFIED
 Owner: `chat-object-prometeo-chat-control-main`
 Created from human correction on 2026-09-17.
 Repair explicitly started by human on 2026-09-17 while the mass `/wc` wave was being launched.
 
-Purpose: preserve the exact succession failures identified after a long guide chat hit its conversation limit, so the next `/g` does not reconstruct continuity too shallowly. A genuinely fresh `/g` canary already demonstrated the core binding behavior and persisted an exact receipt, so core succession is VERIFIED. Continuity Head, FOCUS and CHAT_OBJECT have now been refreshed. A newer extension is active: CURRENT_MISSION_V1 must take priority over stale historical next-step choreography, and a bare `/g` must act on that mission and persist writeback before replying. That extension is encoded but still awaits its own genuinely fresh `/g` canary.
+Purpose: preserve the exact succession failures identified after a long guide chat hit its conversation limit, so the next `/g` does not reconstruct continuity too shallowly. A genuinely fresh `/g` canary already demonstrated the core binding behavior and persisted an exact receipt, so core succession is VERIFIED. Continuity Head, FOCUS and CHAT_OBJECT have now been refreshed. A newer extension is active: CURRENT_MISSION_V1 must take priority over stale historical next-step choreography, and a bare `/g` must act on that mission and persist writeback before replying. That extension is now VERIFIED by fresh-guide durable evidence, including the 2026-09-18 yield-pattern falsification cycle.
 
 ## 1. Core succession failure
 
@@ -165,7 +165,7 @@ CLOSED on 2026-09-18.
 
 Continuity Head, FOCUS and CHAT_OBJECT were refreshed to current truth. They now distinguish:
 - core Guide Succession: `VERIFIED_FRESH_G_CANARY_PASS`;
-- Current Mission/writeback extension: `ENCODED_AWAITING_FRESH_G_CANARY`.
+- Current Mission/writeback extension: `VERIFIED_FRESH_G_CANARY_PASS`.
 
 Do not collapse these two statuses.
 
@@ -200,5 +200,5 @@ Fresh Current-Mission canary acceptance:
 7. persists material writeback/session receipt before replying;
 8. asks the human for no recap of the deleted predecessor chat.
 
-Only after a genuinely fresh `/g` demonstrates these eight points may `current_mission_handoff_status` become VERIFIED.
+VERIFIED on 2026-09-18. A genuinely fresh `/g` satisfied these eight points again in `coordination/guide/sessions/G-20260918-YIELD-PATTERN-FALSIFICATION-SOL56.json`: it loaded current mission/trajectory/evidence, detected the failed YIELD-10X reproduction route, materially corrected durable experiment state, persisted writeback, and required no human reconstruction. `current_mission_handoff_status` may therefore remain VERIFIED.
 
