@@ -1,4 +1,4 @@
-# Prometeo Fast Allocation Protocol v2.7
+# Prometeo Fast Allocation Protocol v2.8
 
 Status: CANARY / binding for `/wc`.
 
@@ -75,7 +75,7 @@ When the HUMAN invocation contains `BATCH <batch_id> EXPECTED <n>` with `n > 1`,
 
 - Retain the commit SHA returned by the already-required beacon CREATE as `beacon_commit_sha` when the write tool exposes it. Never add a read just to recover that SHA.
 - Use `claim-frontier.candidates` exactly as published. Start at `parseInt(first 8 hex chars of beacon_commit_sha,16) mod candidates.length`.
-- After `CREATE_EXISTS` / `CAS_LOST`, advance cyclically to the next untried candidate in that unified array, while preserving the existing maximum of 3 authority CREATE attempts.
+- After `CREATE_EXISTS`, advance cyclically to the next untried candidate in that unified array, while preserving the existing maximum of 3 authority CREATE attempts. `BRANCH_HEAD_MOVED` is transport/CAS stabilization, not a candidate collision; apply the bounded same-path retry below before advancing.
 - Do not re-impose lane priority locally for a batched worker: the compiler already selected and ordered the product / Guide mesh represented by `candidates`.
 - Unbatched workers preserve normal allocator lane order: `ready -> queue_ready -> role_ready -> recovery`.
 - If `beacon_commit_sha` is unavailable or its first 8 characters are not hexadecimal, preserve the published `candidates` order.
@@ -87,9 +87,22 @@ This is an efficiency mechanism only. Atomic CREATE remains the sole ownership r
 
 At most 3 atomic candidate attempts are allowed for races/stale hints.
 
-After 2 `CREATE_EXISTS` / `CAS_LOST` outcomes in the same lane, the next attempt MUST come from the next non-empty lane in allocator order. Do not spend all three attempts colliding against one stale/crowded snapshot segment while `role_ready` or another useful lane is available.
+After 2 `CREATE_EXISTS` outcomes in the same lane, the next attempt MUST come from the next non-empty lane in allocator order. Do not spend all three attempts colliding against one stale/crowded snapshot segment while `role_ready` or another useful lane is available.
 
 A transport/authorization block is different: `CLAIM_TRANSPORT_BLOCKED` stops immediately.
+
+### Branch-ref CAS stabilization
+
+GitHub Contents writes may fail because another commit advanced the target branch even when nobody created the requested claim path. That is not an ownership collision.
+
+When the connector/GitHub error explicitly proves only a branch-ref mismatch (`BRANCH_HEAD_MOVED`, e.g. the branch “is at <new> but expected <old>”) and does NOT prove the exact target path exists:
+- retry the same exact claim path and byte-identical payload once against the refreshed branch head;
+- do not pre-read the PIN/claim path before that retry;
+- the stabilization retry does not consume one of the 3 authority candidate attempts and does not count toward lane diversification;
+- retry success means ownership won; retry `CREATE_EXISTS` means the ownership race was actually lost;
+- a second consecutive branch-head movement becomes `CLAIM_TRANSPORT_UNSTABLE` and STOPs immediately; never loop or spend attempts 2–3 on branch churn.
+
+`CAS_LOST` is a legacy umbrella label and MUST NOT by itself be treated as proof of an ownership collision. Disambiguate only from the returned write error: target-path existence => `CREATE_EXISTS`; explicit branch-ref movement => `BRANCH_HEAD_MOVED`; otherwise treat it as bounded transport failure without inventing ownership evidence.
 
 ## Optimistic claim
 
@@ -156,7 +169,9 @@ DO NOT pre-read the candidate's pin directory, claims, returns or heartbeats.
 Attempt the atomic CREATE first only after the bounded allocator payload has passed the structural field check. For explicit barrier candidates, the entrant/RELEASE/timeout action happens before and separately from this authority CREATE.
 
 - PIN/claim CREATE succeeds -> ownership reservation won; persist STARTED and enter post-claim validation.
-- CREATE_EXISTS / CAS_LOST on authority path -> race lost; apply lane diversification and try the next candidate.
+- `CREATE_EXISTS` on the authority path -> race lost; apply lane diversification and try the next candidate.
+- explicit `BRANCH_HEAD_MOVED` without target-path existence -> retry the same exact claim path and byte-identical payload once; no pre-read, no authority-attempt consumption, no lane-collision count.
+- second consecutive `BRANCH_HEAD_MOVED` -> `CLAIM_TRANSPORT_UNSTABLE`; STOP immediately instead of looping.
 - barrier entrant/RELEASE CREATE_EXISTS -> consume existing bounded fixture evidence; it is not an ownership collision.
 - barrier timeout -> no PIN attempt; re-enter allocation.
 - CLAIM_TRANSPORT_BLOCKED / connector authorization failure -> STOP immediately; do not spend additional candidate attempts reproducing it.

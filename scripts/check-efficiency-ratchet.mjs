@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -65,6 +65,12 @@ if (compoundingItem?.required?.productive_units_hard_cap !== 4) errors.push('bas
 if (compoundingItem?.required?.same_project_soft_cap !== 2) errors.push('baseline: EFF024 same-project soft cap drift');
 if (compoundingItem?.required?.same_worker_id_across_chain !== true) errors.push('baseline: EFF024 worker identity must persist across chain');
 if (compoundingItem?.required?.reenter_compact_frontier_after_each_productive_return !== true) errors.push('baseline: EFF024 compact frontier re-entry must remain true');
+const branchHeadItem = baseline?.items?.find(x=>x.id==='EFF025');
+if (branchHeadItem?.required?.explicit_ref_head_move_classification !== 'BRANCH_HEAD_MOVED') errors.push('baseline: EFF025 branch-head classification drift');
+if (branchHeadItem?.required?.same_exact_create_retry_max !== 1) errors.push('baseline: EFF025 retry bound drift');
+if (branchHeadItem?.required?.head_move_retry_consumes_authority_attempt !== false) errors.push('baseline: EFF025 branch-head retry must not consume authority attempt');
+if (branchHeadItem?.required?.pre_read_before_retry_forbidden !== true) errors.push('baseline: EFF025 pre-read must remain forbidden');
+if (branchHeadItem?.required?.second_consecutive_head_move !== 'CLAIM_TRANSPORT_UNSTABLE') errors.push('baseline: EFF025 second head move classification drift');
 
 const wc = read(root, 'wc');
 must('wc', wc, 'CLAIM NOW');
@@ -73,7 +79,12 @@ must('wc', wc, 'gh-pages:live/claim-frontier.json');
 must('wc', wc, '`live/allocator.json` is diagnostics only and is FORBIDDEN on the ordinary preclaim path.');
 must('wc', wc, 'first 8 hex chars of beacon_commit_sha');
 must('wc', wc, 'Maximum 3 fast CREATE attempts');
-must('wc', wc, 'Lane diversification: after 2 CREATE_EXISTS/CAS_LOST outcomes in the same lane');
+must('wc', wc, 'Lane diversification: after 2 CREATE_EXISTS outcomes in the same lane');
+must('wc', wc, '`BRANCH_HEAD_MOVED`');
+must('wc', wc, 'retry the same exact claim path and payload once');
+must('wc', wc, 'does NOT consume an authority CREATE attempt');
+must('wc', wc, '`CLAIM_TRANSPORT_UNSTABLE`');
+mustNot('wc', wc, 'CREATE_EXISTS/CAS_LOST');
 must('wc', wc, 'GUIDE_ROLE_PIN_CREATE');
 must('wc', wc, 'prometeo.guide-role-pin/v1');
 must('wc', wc, 'ROLE_FRONTIER_PROTOCOL_V1.md');
@@ -111,7 +122,11 @@ must('fast-allocation', fast, '1. `ready` portfolio work;');
 must('fast-allocation', fast, '2. `queue_ready` normal work;');
 must('fast-allocation', fast, '3. `role_ready` centrally compiled Guide work;');
 must('fast-allocation', fast, '4. only then `recovery` work.');
-must('fast-allocation', fast, 'After 2 `CREATE_EXISTS` / `CAS_LOST` outcomes in the same lane');
+must('fast-allocation', fast, 'After 2 `CREATE_EXISTS` outcomes in the same lane');
+must('fast-allocation', fast, '`BRANCH_HEAD_MOVED`');
+must('fast-allocation', fast, 'same exact claim path and byte-identical payload once');
+must('fast-allocation', fast, 'does not consume one of the 3 authority candidate attempts');
+must('fast-allocation', fast, '`CLAIM_TRANSPORT_UNSTABLE`');
 must('fast-allocation', fast, 'METABOLISM_POLICY_V1.json -> durable signals -> role_ready -> atomic role PIN');
 must('fast-allocation', fast, 'prometeo.guide-role-pin/v1');
 must('fast-allocation', fast, 'ROLE_FRONTIER_PROTOCOL_V1.md');
@@ -210,6 +225,7 @@ must('live-workflow', live, 'scripts/apply-project-coverage.mjs');
 must('live-workflow', live, 'coordination/portfolio/tests/project_coverage_allocator_v1.mjs');
 must('live-workflow', live, 'coordination/portfolio/tests/batched_lane_sharding_v1.mjs');
 must('live-workflow', live, 'coordination/portfolio/tests/role_signal_compaction_v1.mjs');
+must('live-workflow', live, 'coordination/portfolio/tests/claim_branch_head_move_retry_v1.mjs');
 must('live-workflow', live, 'node source/scripts/build-fast-allocator.mjs /tmp/feed.json /tmp/efficiency.json /tmp/allocator.json source');
 must('live-workflow', live, 'node source/scripts/apply-project-coverage.mjs /tmp/allocator.json /tmp/feed.json /tmp/allocator.json source');
 must('live-workflow', live, 'live/efficiency.json');
@@ -309,6 +325,8 @@ const claimFrontierTest = read(root, 'coordination/portfolio/tests/claim_frontie
 must('claim-frontier-test', claimFrontierTest, 'CLAIM_FRONTIER_COMPACT_PASS');
 must('claim-frontier-test', claimFrontierTest, 'bytes<64000');
 
+const branchHeadRetryTest = read(root, 'coordination/portfolio/tests/claim_branch_head_move_retry_v1.mjs');
+must('branch-head-retry-test', branchHeadRetryTest, 'CLAIM_BRANCH_HEAD_MOVE_RETRY_PASS');
 const capabilityFitTest = read(root, 'coordination/portfolio/tests/fast_allocator_capability_fit_v1.mjs');
 must('capability-fit-test', capabilityFitTest, 'FAST_ALLOCATOR_CAPABILITY_FIT_PASS');
 must('capability-fit-test', capabilityFitTest, 'unrestricted_public_http_origin_fetch');

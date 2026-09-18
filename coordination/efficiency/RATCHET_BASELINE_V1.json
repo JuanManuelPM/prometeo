@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-18T00:45:00Z",
+  "updated_at": "2026-09-18T00:55:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -522,6 +522,32 @@
         "boundary_no_action_transport_do_not_count": true,
         "reenter_compact_frontier_after_each_productive_return": true,
         "stop_only_on_real_boundary_or_exhaustion": true
+      },
+      "status": "STATIC_GUARDED_PENDING_RUNTIME"
+    },
+    {
+      "id": "EFF025",
+      "title": "Branch-head churn does not impersonate an ownership collision",
+      "scope": [
+        "wc",
+        "worker-allocation",
+        "github-contents",
+        "wave-contention"
+      ],
+      "observed_failure": "During WAVE-20260917-MESH-03, an unchanged beacon CREATE first received GitHub 409 because main moved from the connector's expected head, then succeeded on immediate retry. Another worker in the same batch spent its third authority slot on CAS_LOST after two genuine CREATE_EXISTS outcomes and closed NO_ALLOCATION. Branch-ref churn can therefore masquerade as a job collision and waste scarce claim attempts under concurrent commits.",
+      "invariant": "Only exact target-path existence proves an ownership collision. An explicit branch-ref head mismatch gets one same-path, byte-identical CREATE stabilization retry with no pre-read and no authority-attempt cost; a second consecutive head movement stops as transport instability instead of consuming more candidate attempts.",
+      "required": {
+        "explicit_ref_head_move_classification": "BRANCH_HEAD_MOVED",
+        "same_exact_create_retry_max": 1,
+        "same_path_and_payload_required": true,
+        "head_move_retry_consumes_authority_attempt": false,
+        "head_move_counts_as_lane_collision": false,
+        "pre_read_before_retry_forbidden": true,
+        "create_exists_still_collision": true,
+        "second_consecutive_head_move": "CLAIM_TRANSPORT_UNSTABLE",
+        "transport_unstable_stop_immediately": true,
+        "max_real_authority_attempts": 3,
+        "regression_test": "coordination/portfolio/tests/claim_branch_head_move_retry_v1.mjs"
       },
       "status": "STATIC_GUARDED_PENDING_RUNTIME"
     }

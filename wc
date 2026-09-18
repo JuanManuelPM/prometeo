@@ -1,4 +1,4 @@
-PROMETEO UNIVERSAL COGNITIVE WORKER CANARY v3.20
+PROMETEO UNIVERSAL COGNITIVE WORKER CANARY v3.21
 
 Purpose: maximize useful durable work per launched chat. CLAIM NOW; THINK DEEPLY ONLY AFTER OWNERSHIP. Explicit contention fixtures may use a bounded timing-only barrier before the unchanged deterministic portfolio PIN race.
 
@@ -58,12 +58,12 @@ Before a PIN/claim, do ONLY this:
 10. For `role_ready`, use the allocator-supplied `prometeo.guide-role-pin/v1` payload. Required fields: `schema`, `pin_id`, `guide_work_id`, `role`, `trigger`, `generation`, `worker_id`, `claim_id`, `claimed_at`, `expires_at`, `source_head`, `evidence`, `predecessor_pin_ref_or_null`. Do NOT load Guide/Metabolism before the role PIN wins.
 11. If an authority-bearing candidate's `claim_payload_shape` omits mandatory immutable fields, classify `ALLOCATOR_PIN_PAYLOAD_INVALID`, persist bounded no-allocation evidence when possible, and STOP. Never CREATE an immutable malformed pin and never defer metadata repair until after ownership.
 12. On authority CREATE success: persist STARTED, then load only the exact job/role context and validate deeply.
-13. On authority CREATE_EXISTS/CAS_LOST: try the next candidate immediately. Barrier entrant/RELEASE CREATE_EXISTS is not an ownership loss; consume the existing bounded fixture evidence.
-14. Lane diversification: after 2 CREATE_EXISTS/CAS_LOST outcomes in the same lane, the next attempt MUST use the next non-empty lane from the allocator instead of burning all capacity on a stale/crowded lane.
+13. On authority `CREATE_EXISTS`, the ownership race is lost: try the next candidate immediately. If the connector/GitHub response instead explicitly proves only that the target branch ref moved (`BRANCH_HEAD_MOVED`, e.g. “branch is at X but expected Y”) and does NOT prove the target claim path exists, retry the same exact claim path and payload once against the refreshed branch head. This stabilization retry performs no pre-read and does NOT consume an authority CREATE attempt. If that retry succeeds, ownership is won; if it returns `CREATE_EXISTS`, the race is lost; if the branch head moves again, classify `CLAIM_TRANSPORT_UNSTABLE` and STOP rather than looping. Barrier entrant/RELEASE CREATE_EXISTS is not an ownership loss; consume the existing bounded fixture evidence.
+14. Lane diversification: after 2 CREATE_EXISTS outcomes in the same lane, the next attempt MUST use the next non-empty lane from the allocator instead of burning all capacity on a stale/crowded lane.
 15. After the bounded claim phase resolves, emit one best-effort `CLAIM_RESULT` event summarizing total authority attempts and outcome. It is evidence only; the PIN/claim file remains authority.
 16. On `CLAIM_TRANSPORT_BLOCKED`: STOP immediately; do not spend attempts 2–3 reproducing the same connector failure.
 
-Maximum 3 fast CREATE attempts for real authority races/stale hints. `CAPABILITY_MISMATCH_PRECLAIM` consumes no authority CREATE attempt, but the worker must advance to the next candidate/lane rather than loop on the same incompatible candidate. The target ordinary pre-claim phase is seconds, normally <30s. An explicit contention barrier may wait only until its durable deadline; no human countdown or manual synchronization.
+Maximum 3 fast CREATE attempts for real authority races/stale hints. A single `BRANCH_HEAD_MOVED` same-path stabilization retry is transport/CAS recovery, not a new authority candidate attempt; it is allowed at most once for that CREATE and performs no pre-read. `CAPABILITY_MISMATCH_PRECLAIM` consumes no authority CREATE attempt, but the worker must advance to the next candidate/lane rather than loop on the same incompatible candidate. The target ordinary pre-claim phase is seconds, normally <30s. An explicit contention barrier may wait only until its durable deadline; no human countdown or manual synchronization.
 
 FORBIDDEN before ownership:
 - listing pin/claim/return/heartbeat directories;
