@@ -11,9 +11,13 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/frontier-pressure-exact-snapshot.yml'
+      - 'coordination/portfolio/FRONTIER_PRESSURE_REQUEST_PROTOCOL_V1.md'
+      - 'coordination/portfolio/frontier-pressure-requests/*.json'
       - 'scripts/compile-frontier-pressure-base.mjs'
       - 'scripts/compile-frontier-pressure.mjs'
+      - 'scripts/resolve-frontier-pressure-request.mjs'
       - 'scripts/run-frontier-pressure-exact-snapshot.mjs'
+      - 'tests/frontier-pressure-request-resolver-v1.test.mjs'
       - 'tests/frontier-pressure-exact-snapshot-executor-v1.test.mjs'
       - 'tests/frontier-pressure-compiler-v1.test.mjs'
       - 'tests/frontier-pressure-dedupe-repair-v1.test.mjs'
@@ -31,25 +35,39 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout request envelope and resolver
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate request resolver regression
+        if: github.event_name == 'push'
+        shell: bash
+        run: node --test tests/frontier-pressure-request-resolver-v1.test.mjs
+
       - name: Resolve exact source SHA
         id: request
         shell: bash
         env:
           DISPATCH_SHA: ${{ inputs.source_sha }}
           EVENT_SHA: ${{ github.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            SOURCE_SHA="$DISPATCH_SHA"
-          else
-            SOURCE_SHA="$EVENT_SHA"
-          fi
-          if [[ ! "$SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            echo "Invalid source SHA: $SOURCE_SHA" >&2
-            exit 2
-          fi
-          echo "source_sha=${SOURCE_SHA,,}" >> "$GITHUB_OUTPUT"
+          node scripts/resolve-frontier-pressure-request.mjs \
+            --root . \
+            --event-name "$EVENT_NAME" \
+            --dispatch-sha "$DISPATCH_SHA" \
+            --before-sha "$BEFORE_SHA" \
+            --event-sha "$EVENT_SHA" \
+            --github-output "$GITHUB_OUTPUT"
 
       - name: Checkout exact snapshot
         uses: actions/checkout@v4
@@ -57,21 +75,21 @@ jobs:
           ref: ${{ steps.request.outputs.source_sha }}
           fetch-depth: 1
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
       - name: Verify checkout identity
         shell: bash
         env:
           SOURCE_SHA: ${{ steps.request.outputs.source_sha }}
+          REQUEST_MODE: ${{ steps.request.outputs.request_mode }}
+          REQUEST_ID: ${{ steps.request.outputs.request_id }}
+          REQUEST_PATH: ${{ steps.request.outputs.request_path }}
         run: |
           set -euo pipefail
           ACTUAL_SHA="$(git rev-parse HEAD)"
           test "$ACTUAL_SHA" = "$SOURCE_SHA"
           mkdir -p artifacts
-          printf '{"requested_source_sha":"%s","checked_out_source_sha":"%s"}\n' "$SOURCE_SHA" "$ACTUAL_SHA" > artifacts/frontier-pressure-request.json
+          printf '{"requested_source_sha":"%s","checked_out_source_sha":"%s","request_mode":"%s","request_id":"%s","request_path":"%s"}\n' \
+            "$SOURCE_SHA" "$ACTUAL_SHA" "$REQUEST_MODE" "$REQUEST_ID" "$REQUEST_PATH" \
+            > artifacts/frontier-pressure-request.json
 
       - name: Run executor and regression tests with durable receipt
         id: regressions
