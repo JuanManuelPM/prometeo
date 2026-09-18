@@ -56,6 +56,26 @@ must('capability-aware-frontier-pressure', frontierPressureTest, 'CAPABILITY_AWA
 must('capability-aware-frontier-pressure', frontierPressureTest, 'generic_compatible_clean_frontier');
 must('capability-aware-frontier-pressure', frontierPressureTest, 'unknown_capabilities');
 
+const recoveryRescatePressureItem = baseline?.items?.find(x=>x.id==='EFF044');
+if (recoveryRescatePressureItem?.required?.recovery_pressure_source !== 'candidate.required_capabilities') errors.push('baseline: EFF044 recovery pressure source drift');
+if (recoveryRescatePressureItem?.required?.generic_compatible_recovery_published !== true) errors.push('baseline: EFF044 generic recovery metric missing');
+if (recoveryRescatePressureItem?.required?.specialized_recovery_does_not_count_toward_replaceable_trigger !== true) errors.push('baseline: EFF044 specialized recovery threshold drift');
+if (recoveryRescatePressureItem?.required?.specialized_recovery_remains_claimable_to_compatible_workers !== true) errors.push('baseline: EFF044 specialized recovery visibility drift');
+if (recoveryRescatePressureItem?.required?.recovery_capability_pressure_published !== true) errors.push('baseline: EFF044 recovery capability telemetry missing');
+if (recoveryRescatePressureItem?.required?.recovery_evidence_for_replaceable_trigger_uses_generic_compatible_rows !== true) errors.push('baseline: EFF044 recovery evidence drift');
+if (JSON.stringify(recoveryRescatePressureItem?.required?.other_low_yield_triggers_preserved) !== JSON.stringify(['collision_pressure','efficiency_regression','recent_no_allocation'])) errors.push('baseline: EFF044 other LOW_YIELD triggers drift');
+if (recoveryRescatePressureItem?.required?.claim_authority_unchanged !== true) errors.push('baseline: EFF044 claim authority drift');
+if (recoveryRescatePressureItem?.required?.max_fast_claim_attempts_unchanged !== 3) errors.push('baseline: EFF044 claim attempt bound drift');
+if (recoveryRescatePressureItem?.required?.regression_test !== 'coordination/portfolio/tests/guide_rescate_capability_recovery_pressure_v1.mjs') errors.push('baseline: EFF044 regression test drift');
+const recoveryRescatePressureTest = read(root, 'coordination/portfolio/tests/guide_rescate_capability_recovery_pressure_v1.mjs');
+must('guide-rescate-capability-recovery-pressure', recoveryRescatePressureTest, 'GUIDE_RESCATE_CAPABILITY_RECOVERY_PRESSURE_PASS');
+must('guide-rescate-capability-recovery-pressure', recoveryRescatePressureTest, 'specialized recovery pressure alone must not spawn generic GUIDE_RESCATE');
+must('guide-rescate-capability-recovery-pressure', recoveryRescatePressureTest, 'generic recovery pressure must preserve LOW_YIELD rescate');
+must('fast-allocator', allocator, 'genericRecoveryPressure >= Number(signals.replaceable_trigger || 3)');
+must('fast-allocator', allocator, 'recovery_capability_pressure: recoveryCapabilityPressure');
+must('fast-allocator', allocator, 'generic_compatible_recovery: genericRecoveryPressure');
+mustNot('fast-allocator', allocator, 'recovery.length >= Number(signals.replaceable_trigger || 3)');
+
 const capabilityItem = baseline?.items?.find(x=>x.id==='EFF020');
 if (capabilityItem?.required?.portfolio_required_capabilities_compiled !== true) errors.push('baseline: EFF020 portfolio_required_capabilities_compiled must be true');
 if (capabilityItem?.required?.legacy_capability_requirements_alias_normalized !== true) errors.push('baseline: EFF020 legacy_capability_requirements_alias_normalized must be true');
