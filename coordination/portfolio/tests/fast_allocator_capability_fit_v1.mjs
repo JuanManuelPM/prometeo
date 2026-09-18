@@ -309,4 +309,113 @@ for (const needle of [
   assert.ok(fast.includes(needle), `fast allocation protocol missing capability-fit contract: ${needle}`);
 }
 
+
+const starvationNow = new Date().toISOString();
+const starvationSignals = {
+  recent_launch_window_minutes: 10,
+  heartbeat_target_minutes: 3,
+  stale_suspect_minutes: 6,
+  recovery_eligible_minutes: 10,
+  frontier_floor_absolute: 8,
+  frontier_per_recent_launch: 1.5,
+  frontier_ceiling: 40,
+  unconsumed_returns_trigger: 3,
+  replaceable_trigger: 3,
+  partial_loop_trigger: 2,
+  collision_pressure_trigger: 3,
+  young_active_pin_guard_minimum: 4,
+  young_active_pin_guard_fraction_of_recent_launches: 0.5,
+  young_active_pin_guard_age_minutes: 3,
+  collision_pressure_window_minutes: 30
+};
+const starvationRoleContext = {
+  metabolism: { signals: starvationSignals },
+  guideReceipts: [],
+  guidePins: [],
+  heartbeats: [],
+  beacons: Array.from({length:8}, (_,i) => ({
+    path:`coordination/workers/beacons/fixture-overload-${i}.json`,
+    doc:{worker_id:`fixture-overload-${i}`, launched_at:starvationNow}
+  })),
+  noAlloc: [],
+  projectGuideMesh: null,
+  projectGuideStates: [],
+  portfolio: null
+};
+const starvationWorkers = Array.from({length:4}, (_,i) => ({
+  worker_id:`fixture-young-${i}`,
+  job_id:`fixture-owned-${i}`,
+  pin_at:starvationNow,
+  last_signal_at:starvationNow
+}));
+const specializedOnlyJob = {
+  job_id:'fixture-specialized-only-frontier',
+  dedupe_key:'fixture:specialized-only-frontier:v1',
+  project_id:'fixture',
+  source_path:'coordination/portfolio/derived/fixture/fixture-specialized-only-frontier.json',
+  title:'Specialized-only frontier fixture',
+  priority:90,
+  state:'ready',
+  pin_generation:0,
+  required_capabilities:['representative_javascript_browser']
+};
+const starvationFeed = {
+  generated_at:starvationNow,
+  source_sha:'generic-starvation-override-fixture',
+  summary:{workers:{}},
+  workers:starvationWorkers,
+  plans:[],
+  projects:[{project_id:'fixture',label:'Fixture',jobs:[specializedOnlyJob]}]
+};
+const starvationAllocator = buildFastAllocator(
+  starvationFeed,
+  {status:'HEALTHY',metrics:{},reasons:[]},
+  {recoveryPolicies:[],roleContext:starvationRoleContext}
+);
+assert.equal(starvationAllocator.metabolism.overload_guard, true, 'fixture must activate overload guard');
+assert.equal(starvationAllocator.metabolism.generic_compatible_clean_frontier, 0, 'fixture must expose zero generic-compatible clean work');
+assert.equal(starvationAllocator.metabolism.capability_pressure.specialized_total, 1, 'fixture must be specialized-only');
+assert.equal(starvationAllocator.metabolism.generic_starvation_override, true, 'specialized-only overload must activate the bounded starvation override');
+assert.ok(
+  starvationAllocator.role_ready.some(row => row.role === 'GUIDE_PLANNER' && row.trigger === 'FRONTIER_THIN'),
+  'zero generic-compatible work must keep one evidence-backed FRONTIER_THIN planner claimable even while overload guard is active'
+);
+
+const genericAvailableFeed = {
+  ...starvationFeed,
+  source_sha:'generic-starvation-guard-preservation-fixture',
+  projects:[{
+    project_id:'fixture',
+    label:'Fixture',
+    jobs:[
+      specializedOnlyJob,
+      {
+        job_id:'fixture-generic-ready',
+        dedupe_key:'fixture:generic-ready:v1',
+        project_id:'fixture',
+        source_path:'coordination/portfolio/derived/fixture/fixture-generic-ready.json',
+        title:'Generic ready fixture',
+        priority:80,
+        state:'ready',
+        pin_generation:0,
+        required_capabilities:[]
+      }
+    ]
+  }]
+};
+const guardedAllocator = buildFastAllocator(
+  genericAvailableFeed,
+  {status:'HEALTHY',metrics:{},reasons:[]},
+  {recoveryPolicies:[],roleContext:starvationRoleContext}
+);
+assert.equal(guardedAllocator.metabolism.overload_guard, true);
+assert.equal(guardedAllocator.metabolism.generic_compatible_clean_frontier, 1);
+assert.equal(guardedAllocator.metabolism.generic_starvation_override, false, 'existing generic work must preserve the overload guard');
+assert.equal(
+  guardedAllocator.role_ready.some(row => row.role === 'GUIDE_PLANNER' && row.trigger === 'FRONTIER_THIN'),
+  false,
+  'overload guard must still suppress global frontier replenishment when generic-compatible work already exists'
+);
+console.log('GENERIC_STARVATION_OVERRIDE_PASS');
+
 console.log('FAST_ALLOCATOR_CAPABILITY_FIT_PASS');
