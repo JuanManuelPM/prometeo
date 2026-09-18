@@ -61,6 +61,64 @@ export function classifyJobCapabilities(job = {}) {
 const jobRequiredCapabilities = job => classifyJobCapabilities(job).required_capabilities;
 const jobCapabilityRouteable = job => classifyJobCapabilities(job).unsupported_legacy_capabilities.length === 0;
 
+const GENERIC_FRONTIER_CAPABILITIES = new Set(['repository_test_runtime']);
+const SPECIALIZED_FRONTIER_CAPABILITIES = Object.freeze({
+  browser: new Set([
+    'representative_javascript_browser',
+    'browser_network_navigation_to_github_pages',
+    'unrestricted_public_http_origin_fetch'
+  ]),
+  mobile: new Set(['mobile_touch_input']),
+  host: new Set([
+    'authorized_readonly_target_host_runtime',
+    'cross_device_tv_phone_or_equivalent'
+  ]),
+  dispatch: new Set(['authorized_worker_dispatch'])
+});
+function frontierCapabilityBucket(capability) {
+  const value = String(capability || '').trim();
+  if (!value || GENERIC_FRONTIER_CAPABILITIES.has(value)) return null;
+  for (const [bucket, values] of Object.entries(SPECIALIZED_FRONTIER_CAPABILITIES)) {
+    if (values.has(value)) return bucket;
+  }
+  if (value.includes('browser') || value === 'unrestricted_public_http_origin_fetch') return 'browser';
+  if (value.startsWith('mobile_') || value.includes('touch_input')) return 'mobile';
+  if (value.includes('target_host') || value.includes('cross_device') || value.includes('hdmi')) return 'host';
+  if (value.includes('dispatch') || value.includes('spawn_worker')) return 'dispatch';
+  return 'unknown';
+}
+export function classifyFrontierCapabilityPressure(candidates = []) {
+  const rows = arr(candidates);
+  const buckets = { browser:0, mobile:0, host:0, dispatch:0, unknown:0 };
+  const unknown = new Set();
+  let genericCompatible = 0;
+  let specializedTotal = 0;
+  for (const candidate of rows) {
+    const required = uniq(arr(candidate?.required_capabilities).map(value => String(value).trim()).filter(Boolean));
+    const seen = new Set();
+    let specialized = false;
+    for (const capability of required) {
+      if (GENERIC_FRONTIER_CAPABILITIES.has(capability)) continue;
+      const bucket = frontierCapabilityBucket(capability);
+      if (!bucket) continue;
+      seen.add(bucket);
+      specialized = true;
+      if (bucket === 'unknown') unknown.add(capability);
+    }
+    if (!specialized) genericCompatible += 1;
+    else specializedTotal += 1;
+    for (const bucket of seen) buckets[bucket] += 1;
+  }
+  return {
+    basis: 'candidate.required_capabilities',
+    total: rows.length,
+    generic_compatible: genericCompatible,
+    specialized_total: specializedTotal,
+    buckets,
+    unknown_capabilities: [...unknown].sort((a, b) => Buffer.from(a).compare(Buffer.from(b)))
+  };
+}
+
 export function classifyProjectGuideFrontier(stateDoc = {}, jobs = [], projectGuideMesh = {}) {
   const baselineCapabilities = new Set(
     arr(projectGuideMesh?.project_frontier_baseline_capabilities || ['repository_test_runtime'])
@@ -633,7 +691,10 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
   const perLaunch = Number(signals.frontier_per_recent_launch || 1.5);
   const ceiling = Number(signals.frontier_ceiling || 40);
   const targetClaimable = clamp(floor, Math.ceil(perLaunch * recentBeacons.length), ceiling);
-  const cleanFrontier = ready.length + queueReady.length;
+  const capabilityPressure = classifyFrontierCapabilityPressure([...ready, ...queueReady]);
+  const cleanFrontier = capabilityPressure.total;
+  const genericCompatibleFrontier = capabilityPressure.generic_compatible;
+  const capabilityPressureEvidenceRef = 'gh-pages:live/allocator.json#metabolism.capability_pressure';
 
   const recentReturnWindow = 6 * 60 * 60_000;
   const collisionPressureWindow = Number(signals.collision_pressure_window_minutes || 30) * 60_000;
@@ -828,19 +889,23 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       priority: 170
     }));
   }
-  if (cleanFrontier < targetClaimable && unresolvedEvidence.length && !overloadGuard) {
+  if (genericCompatibleFrontier < targetClaimable && unresolvedEvidence.length && !overloadGuard) {
     roleReady.push(candidate({
       role: 'GUIDE_PLANNER',
       trigger: 'FRONTIER_THIN',
-      evidence: unresolvedEvidence,
-      title: `Reponer frontier útil (${cleanFrontier}/${targetClaimable})`,
-      mission: 'Usá los objetivos y pendientes evidenciados para materializar 1–7 trabajos no duplicados de implementación/verificación/integración. Nada de filler ni análisis sin jobs. Después intentá ejecutar o verificar uno.',
+      evidence: uniq([
+        ...unresolvedEvidence,
+        ...(capabilityPressure.specialized_total ? [capabilityPressureEvidenceRef] : [])
+      ]),
+      title: `Reponer frontier útil genérica (${genericCompatibleFrontier}/${targetClaimable}; total ${cleanFrontier})`,
+      mission: 'Usá los objetivos y pendientes evidenciados para materializar 1–7 trabajos no duplicados de implementación/verificación/integración que aumenten frontier útil para workers genéricos cuando sea posible. Preservá trabajo especializado y unknown como tal: no lo marques ausente ni lo suprimas. Nada de filler ni análisis sin jobs. Después intentá ejecutar o verificar uno.',
       priority: 165
     }));
   }
   const rescueEvidence = uniq([
     ...recoveryEvidence,
     ...collisionEvidence,
+    ...(capabilityPressure.specialized_total && genericCompatibleFrontier < cleanFrontier ? [capabilityPressureEvidenceRef] : []),
     ...(efficiency.status === 'REGRESSION' ? ['coordination/efficiency/RATCHET_BASELINE_V1.json'] : []),
     ...recentNoAlloc.slice(0, 4).map(row => row.path)
   ]);
@@ -880,6 +945,9 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       recent_launches: recentBeacons.length,
       target_claimable: targetClaimable,
       clean_frontier: cleanFrontier,
+      clean_frontier_total: cleanFrontier,
+      generic_compatible_clean_frontier: genericCompatibleFrontier,
+      capability_pressure: capabilityPressure,
       overload_guard: overloadGuard,
       young_active: youngActive,
       unconsumed_returns: unconsumedReturnRefs.length,
