@@ -30,6 +30,67 @@ const attentionOutcome = row => {
   return ['partial', 'boundary', 'route_aborted'].includes(value) ? value : null;
 };
 
+function detectPartialLoop(jobs = [], threshold = 2) {
+  const minimum = Math.max(2, finiteInt(threshold, 2));
+  const attentionJobs = arr(jobs)
+    .filter(job => job?.state !== 'done')
+    .filter(job => {
+      const latest = returnEvidenceRows(job).at(-1) || job?.latest_return || null;
+      return ['partial', 'blocked'].includes(job?.state) || Boolean(attentionOutcome(latest));
+    });
+
+  const returnOwner = new Map();
+  for (const job of attentionJobs) {
+    for (const ret of returnEvidenceRows(job).filter(row => Boolean(attentionOutcome(row)))) {
+      if (ret?.path) returnOwner.set(ret.path, job);
+    }
+  }
+
+  const groups = [];
+  for (const job of attentionJobs) {
+    const rows = returnEvidenceRows(job).filter(row => Boolean(attentionOutcome(row)));
+
+    if (rows.length >= minimum) {
+      const selected = rows.slice(-minimum);
+      groups.push({
+        kind: 'SAME_JOB_RECURRENCE',
+        return_count: selected.length,
+        latest_at: Math.max(0, ...selected.map(eventTime)),
+        evidence: uniq([...selected.map(row => row.path), roleEvidenceRef(job)])
+      });
+    }
+
+    const parentRef = job?.derived_from_return || null;
+    const parent = parentRef ? returnOwner.get(parentRef) : null;
+    if (!parent || parent.job_id === job.job_id) continue;
+
+    const parentRows = returnEvidenceRows(parent).filter(row => Boolean(attentionOutcome(row)));
+    const parentReturn = parentRows.find(row => row?.path === parentRef) || parentRows.at(-1) || null;
+    const childReturn = rows.at(-1) || null;
+    const returnRefs = uniq([parentReturn?.path, childReturn?.path]);
+    if (returnRefs.length < minimum) continue;
+
+    groups.push({
+      kind: 'DERIVED_NONTERMINAL_LINEAGE',
+      return_count: returnRefs.length,
+      latest_at: Math.max(eventTime(parentReturn), eventTime(childReturn)),
+      evidence: uniq([
+        parentReturn?.path,
+        roleEvidenceRef(parent),
+        childReturn?.path,
+        roleEvidenceRef(job)
+      ])
+    });
+  }
+
+  groups.sort((a, b) =>
+    b.return_count - a.return_count ||
+    b.latest_at - a.latest_at ||
+    a.evidence.join('\n').localeCompare(b.evidence.join('\n'))
+  );
+  return groups[0] || { kind: null, return_count: 0, latest_at: 0, evidence: [] };
+}
+
 export function normalizeRecoveryPolicy(job = {}, policy = null) {
   const source = policy && typeof policy === 'object' ? policy : {};
   if (source.mode === 'fixed_generation') {
@@ -178,17 +239,7 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
     })
     .map(row => row.path)
     .slice(-12));
-  const partialEvidence = uniq(jobs
-    .filter(job => job.state !== 'done')
-    .filter(job => {
-      const latest = returnEvidenceRows(job).at(-1) || job.latest_return || null;
-      return ['partial', 'blocked'].includes(job.state) || Boolean(attentionOutcome(latest));
-    })
-    .flatMap(job => {
-      const latest = returnEvidenceRows(job).at(-1) || job.latest_return || null;
-      return [latest?.path, roleEvidenceRef(job)];
-    })
-    .slice(0, 12));
+  const partialLoop = detectPartialLoop(jobs, Number(signals.partial_loop_trigger || 2));
   const unresolvedEvidence = uniq(jobs
     .filter(job => job.state !== 'done')
     .sort((a, b) => (b.priority || 0) - (a.priority || 0))
@@ -375,13 +426,16 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       priority: 175
     }));
   }
-  if (partialEvidence.length >= Number(signals.partial_loop_trigger || 2) || efficiency.status === 'REGRESSION') {
+  if (partialLoop.evidence.length || efficiency.status === 'REGRESSION') {
+    const hasPartialLoop = partialLoop.evidence.length > 0;
     roleReady.push(candidate({
       role: 'GUIDE_CRITIC',
-      trigger: 'PARTIAL_LOOP',
-      evidence: uniq([...partialEvidence, ...(efficiency.status === 'REGRESSION' ? ['coordination/efficiency/RATCHET_BASELINE_V1.json'] : [])]),
-      title: 'Atacar un loop parcial o una señal falsa de cierre',
-      mission: 'Auditá independientemente la ruta débil evidenciada. Si el defecto es solucionable, materializá o implementá el repair/verify mínimo; no devuelvas sólo crítica.',
+      trigger: hasPartialLoop ? 'PARTIAL_LOOP' : 'LOW_YIELD',
+      evidence: uniq([...partialLoop.evidence, ...(efficiency.status === 'REGRESSION' ? ['coordination/efficiency/RATCHET_BASELINE_V1.json'] : [])]),
+      title: hasPartialLoop ? 'Atacar un loop parcial causal' : 'Atacar una regresión de eficiencia',
+      mission: hasPartialLoop
+        ? 'Auditá independientemente la cadena no terminal evidenciada. Si el defecto es solucionable, materializá o implementá el repair/verify mínimo; no devuelvas sólo crítica.'
+        : 'Auditá la regresión de eficiencia evidenciada y materializá o implementá el repair/verify mínimo; no inventes un PARTIAL_LOOP sin lineage.',
       priority: 160
     }));
   }
@@ -396,7 +450,10 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       overload_guard: overloadGuard,
       young_active: youngActive,
       unconsumed_returns: unconsumedReturnRefs.length,
-      recent_no_allocation: recentNoAlloc.length
+      recent_no_allocation: recentNoAlloc.length,
+      partial_loop_detected: partialLoop.evidence.length > 0,
+      partial_loop_kind: partialLoop.kind,
+      partial_loop_return_count: partialLoop.return_count
     }
   };
 }
