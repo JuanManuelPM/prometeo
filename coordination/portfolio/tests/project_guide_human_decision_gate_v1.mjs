@@ -26,6 +26,15 @@ assert.equal(
 assert.equal(
   projectPlannerSuppressedByHumanDecision({
     ...gated,
+    status: 'HUMAN_DECISION_GATE'
+  }, mesh),
+  true,
+  'explicit HUMAN_DECISION_GATE status with matching blocker and empty frontier must suppress PROJECT_FRONTIER_THIN'
+);
+
+assert.equal(
+  projectPlannerSuppressedByHumanDecision({
+    ...gated,
     frontier_refs: ['coordination/portfolio/derived/example/new-evidence-review-v1.json']
   }, mesh),
   false,
