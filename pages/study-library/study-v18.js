@@ -9,7 +9,7 @@ const LOGO='https://upload.wikimedia.org/wikipedia/commons/b/b4/Logo-up.jpg';
 const THEMES=['mono','violet','forest','clay'];
 const THEME_LABEL={mono:'UP Mono',violet:'Noche violeta',forest:'Bosque',clay:'Arcilla'};
 const YEARS={1:['1','RO'],2:['2','DO'],3:['3','RO'],4:['4','TO']};
-let curriculum=[],enrich=[],byId=new Map(),openYear=1,activeCourse=null,activeTab='notes',scheduleState=new Map(),logoSourcePromise=null;
+let curriculum=[],enrich=[],byId=new Map(),openYear=1,activeCourse=null,activeTab='notes',scheduleState=new Map(),notesState=new Map(),logoSourcePromise=null;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const microlink=url=>'https://api.microlink.io/?'+new URLSearchParams({url,embed:'image.url'}).toString();
 const currentTheme=()=>document.documentElement.dataset.studyTheme||'mono';
@@ -32,7 +32,32 @@ function homeHTML(){const left=(openYear-1)*25;return `<main class="v18Shell v18
 function examStrip(){return `<div class="v18Exams" aria-label="Evaluaciones"><span>1º parcial</span><span>2º parcial</span><span>Final</span></div>`}
 function tabButton(key,label){return `<button class="v18Tab ${activeTab===key?'on':''}" type="button" data-v18-tab="${key}">${label}</button>`}
 function driveIcon(){return `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M17 7h14l12 21-7 12H12L5 28 17 7Zm0 0 12 21M5 28h24m14 0H29L17 7" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linejoin="round"/></svg>`}
-function notesPanel(row){const items=[1,2,3,4].map((n,i)=>`<details class="v18NoteItem" ${i===0?'open':''}><summary><span>Clase ${String(n).padStart(2,'0')}</span><small>Fecha por definir</small></summary><div class="v18NoteBody"><p>Espacio compartido para las notas de esta clase. La fecha y el tema se vincularán al cronograma de la materia.</p><a href="${esc(legacyURL(row.course_id))}">Abrir herramientas anteriores</a></div></details>`).join('');return `<div class="v18SectionHead"><b>Notas de clase</b><span>Todas las clases en un solo lugar</span></div><div class="v18NotesList">${items}</div>`}
+function notesDateLabel(value){if(!value)return'Fecha no registrada';const d=new Date(String(value).length===10?value+'T12:00:00':value);return Number.isNaN(d.getTime())?'Fecha no registrada':d.toLocaleDateString('es-AR',{weekday:'short',day:'2-digit',month:'short',year:'numeric'}).replace('.','')}
+function notesPanel(row){
+ const s=notesState.get(row.course_id)||{status:'idle',sessions:[]};
+ const fallback=`<div class="v18MoreList"><a href="${esc(legacyURL(row.course_id))}"><b>Versión anterior</b><span>Abrir clases y notas legacy</span></a></div>`;
+ if(s.status==='loading'||s.status==='idle')return `<div class="v18SectionHead"><b>Notas de clase</b><span>Clases reales guardadas</span></div><div class="v18ScheduleStub"><b>Cargando clases…</b><p>Estoy leyendo las sesiones y notas ya guardadas en Study Library.</p></div>${fallback}`;
+ if(s.status==='error')return `<div class="v18SectionHead"><b>Notas de clase</b><span>Clases reales guardadas</span></div><div class="v18ScheduleStub"><b>No pude cargar las clases guardadas</b><p>No voy a inventar fechas ni notas. La versión anterior sigue disponible.</p><button type="button" data-v18-notes-retry>Reintentar</button></div>${fallback}`;
+ const sessions=s.sessions||[];
+ const items=sessions.map((x,i)=>`<details class="v18NoteItem" ${i===0?'open':''}><summary><span>${esc(x.title||'Clase registrada')}</span><small>${esc(notesDateLabel(x.class_date))}</small></summary><div class="v18NoteBody">${x.shared_notes?`<p>${esc(x.shared_notes).replace(/\\n/g,'<br>')}</p>`:'<p>Sin notas compartidas guardadas para esta clase.</p>'}<a href="${esc(legacyURL(row.course_id))}">Abrir herramientas anteriores</a></div></details>`).join('');
+ const meta=s.remote_error_count? `${sessions.length} clases leídas · ${s.remote_error_count} sin acceso` : `${sessions.length} clases guardadas`;
+ return `<div class="v18SectionHead"><b>Notas de clase</b><span>${esc(meta)}</span></div><div class="v18NotesList">${items||'<div class="v18Empty">No hay clases guardadas para esta materia.</div>'}</div>${fallback}`;
+}
+function repaintNotes(row){if(activeCourse!==row.course_id||activeTab!=='notes')return;const panel=root().querySelector('[data-v18-panel]');if(!panel)return;panel.innerHTML=notesPanel(row);panel.querySelector('[data-v18-notes-retry]')?.addEventListener('click',()=>loadNotes(row,true))}
+async function loadNotes(row,force=false){
+ const prev=notesState.get(row.course_id);
+ if(prev?.status==='loading'||(!force&&prev?.status==='ready'))return;
+ notesState.set(row.course_id,{status:'loading',sessions:[]});repaintNotes(row);
+ try{
+  const ensure=window.__STUDY_ENSURE_LEGACY;if(typeof ensure!=='function')throw new Error('legacy_bridge_unavailable');
+  await ensure();
+  const api=window.PrometeoStudyCalendarV11;if(!api?.courseSessions)throw new Error('legacy_sessions_bridge_unavailable');
+  const data=await api.courseSessions(row.course_id,row.canonical_title);
+  if(data?.status==='degraded'&&!(data.sessions||[]).length)throw new Error('legacy_sessions_unreadable');
+  notesState.set(row.course_id,{...data,status:'ready'});
+ }catch(error){console.warn('Study V18 notes',error);notesState.set(row.course_id,{status:'error',sessions:[]})}
+ repaintNotes(row);
+}
 function resourcesPanel(row){const e=enrichRow(row.course_id),c=e?.current_external,h=e?.historical_archive,drive=h?.url||c?.url||'';const driveBtn=drive?`<a class="v18Drive" href="${esc(drive)}" target="_blank" rel="noopener"><i>${driveIcon()}</i><span><b>Drive viejo</b><small>Link al archivo de la materia</small></span><em>↗</em></a>`:`<div class="v18Drive disabled"><i>${driveIcon()}</i><span><b>Drive viejo</b><small>Link pendiente de configurar</small></span></div>`;const cards=[c?`<a href="${esc(c.url)}" target="_blank" rel="noopener"><b>Material actual</b><span>${esc(c.label||'Abrir carpeta')}</span></a>`:'',h?`<a href="${esc(h.url)}" target="_blank" rel="noopener"><b>Archivo histórico</b><span>${esc(h.label||'Abrir archivo')}</span></a>`:''].filter(Boolean).join('');return `<div class="v18SectionHead"><b>Recursos</b><span>Material y enlaces de la materia</span></div>${driveBtn}<div class="v18ResourceList">${cards||'<div class="v18Empty">Todavía no hay material asociado.</div>'}</div>`}
 function scheduleDateLabel(value){const d=new Date(value);return Number.isNaN(d.getTime())?'Fecha a confirmar':d.toLocaleDateString('es-AR',{weekday:'short',day:'2-digit',month:'short'}).replace('.','')}
 function schedulePanel(row){
@@ -67,7 +92,7 @@ function root(){let r=document.getElementById('studyV18Root');if(!r){r=document.
 function toast(text){const live=document.querySelector('[data-theme-live]');if(!live)return;live.textContent=text;live.classList.add('show');setTimeout(()=>live.classList.remove('show'),1100)}
 function wireOptions(scope){const menu=scope.querySelector('[data-v18-menu-panel]'),btn=scope.querySelector('[data-v18-menu]');if(!menu||!btn)return;btn.onclick=e=>{e.stopPropagation();menu.classList.toggle('open')};scope.querySelector('[data-v18-theme-menu]')?.addEventListener('click',()=>{cycleTheme();menu.classList.remove('open')});scope.addEventListener('click',e=>{if(!e.target.closest('.v18Options'))menu.classList.remove('open')})}
 function wireShelf(scope){scope.querySelectorAll('.v18Shelf').forEach(row=>{let sx=0,sy=0,drag=false,suppressUntil=0;row.addEventListener('pointerdown',e=>{sx=e.clientX;sy=e.clientY;drag=false},{passive:true});row.addEventListener('pointermove',e=>{if(Math.hypot(e.clientX-sx,e.clientY-sy)>7)drag=true},{passive:true});row.addEventListener('pointerup',()=>{if(drag)suppressUntil=Date.now()+350},{passive:true});row.addEventListener('pointercancel',()=>{if(drag)suppressUntil=Date.now()+350},{passive:true});row.addEventListener('click',e=>{if(Date.now()<suppressUntil){e.preventDefault();e.stopPropagation()}},true);row.addEventListener('wheel',e=>{if(row.scrollWidth<=row.clientWidth)return;const d=Math.abs(e.deltaY)>=Math.abs(e.deltaX)?e.deltaY:e.deltaX;if(!d)return;e.preventDefault();row.scrollLeft+=d},{passive:false})})}
-function wireCourse(row){const r=root();r.querySelector('[data-v18-back]').onclick=()=>renderHome(true);wireOptions(r);r.querySelectorAll('[data-v18-tab]').forEach(b=>b.onclick=()=>{activeTab=b.dataset.v18Tab;r.querySelectorAll('[data-v18-tab]').forEach(x=>x.classList.toggle('on',x===b));r.querySelector('[data-v18-panel]').innerHTML=panelHTML(row);if(activeTab==='schedule')loadSchedule(row)})}
+function wireCourse(row){const r=root();r.querySelector('[data-v18-back]').onclick=()=>renderHome(true);wireOptions(r);r.querySelectorAll('[data-v18-tab]').forEach(b=>b.onclick=()=>{activeTab=b.dataset.v18Tab;r.querySelectorAll('[data-v18-tab]').forEach(x=>x.classList.toggle('on',x===b));r.querySelector('[data-v18-panel]').innerHTML=panelHTML(row);if(activeTab==='notes')loadNotes(row);if(activeTab==='schedule')loadSchedule(row)});if(activeTab==='notes')loadNotes(row);if(activeTab==='schedule')loadSchedule(row)}
 function wireCourseCards(r){r.querySelectorAll('[data-v18-course]').forEach(el=>{const open=()=>renderCourse(el.dataset.v18Course,true);el.addEventListener('click',open);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}})})}
 function renderHome(push=true){activeCourse=null;if(push){const u=new URL(location.href);u.searchParams.delete('course');u.searchParams.delete('legacy');history.pushState({v18:'home'},'',u)}const r=root();r.innerHTML=homeHTML();wireOptions(r);wireShelf(r);wireCourseCards(r);paintLogos(r);r.querySelectorAll('[data-v18-year]').forEach(b=>b.onclick=()=>{openYear=Number(b.dataset.v18Year);renderHome(false)});window.scrollTo({top:0,behavior:'auto'})}
 function renderCourse(id,push=true){const row=courseRow(id);if(!row)return;activeCourse=id;activeTab='notes';if(push){const u=new URL(location.href);u.searchParams.delete('legacy');u.searchParams.set('course',id);history.pushState({v18:'course',course:id},'',u)}const r=root();r.innerHTML=courseHTML(row);wireCourse(row);window.scrollTo({top:0,behavior:'auto'})}
