@@ -946,9 +946,12 @@ const eff038 = baseline.items?.find(item => item.id === 'EFF038');
 if (!eff038) errors.push('ratchet: EFF038 missing');
 else {
   if (eff038.required?.guide_status_only_forbidden_when_high_yield_candidate !== true) errors.push('ratchet: EFF038 Guide action drift');
-  if (eff038.required?.candidate_pattern_ref !== 'coordination/workers/YIELD_PATTERN_CANDIDATE_V1.json') errors.push('ratchet: EFF038 candidate ref drift');
-  if (eff038.required?.active_pattern_id !== 'YIELD-10X-V1') errors.push('ratchet: EFF038 pattern id drift');
-  if (eff038.required?.worker_protocol_version !== 'v3.27') errors.push('ratchet: EFF038 worker protocol drift');
+  if (eff038.required?.historical_candidate_pattern_ref !== 'coordination/workers/YIELD_PATTERN_CANDIDATE_V1.json') errors.push('ratchet: EFF038 historical candidate ref drift');
+  if (eff038.required?.historical_pattern_id !== 'YIELD-10X-V1') errors.push('ratchet: EFF038 historical pattern id drift');
+  if (eff038.required?.historical_worker_protocol_version !== 'v3.27') errors.push('ratchet: EFF038 historical worker protocol drift');
+  if (eff038.required?.reproduction_result !== 'FAIL_REPRODUCTION_GATE') errors.push('ratchet: EFF038 falsification result drift');
+  if (eff038.required?.new_assignment_forbidden !== true) errors.push('ratchet: EFF038 retired assignment guard drift');
+  if (eff038.required?.superseded_for_active_strategy_by !== 'EFF051') errors.push('ratchet: EFF038 supersession drift');
   if (eff038.required?.scoreboard_leader_distinct_from_champion !== true) errors.push('ratchet: EFF038 scoreboard semantics drift');
   if (eff038.required?.champion_requires_non_null_pattern_id !== true) errors.push('ratchet: EFF038 pattern gate drift');
   if (eff038.required?.champion_min_independent_workers !== 3) errors.push('ratchet: EFF038 reproduction count drift');
