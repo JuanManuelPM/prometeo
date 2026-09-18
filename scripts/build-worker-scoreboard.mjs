@@ -53,6 +53,63 @@ for(const p of files){
 }
 rows.sort((a,b)=>b.score-a.score || (b.productive_slots-a.productive_slots) || String(a.closed_at||'').localeCompare(String(b.closed_at||'')));
 const latest=[...rows].sort((a,b)=>Date.parse(b.closed_at||0)-Date.parse(a.closed_at||0)).slice(0,20);
+const median=vals=>{
+  const a=vals.filter(Number.isFinite).sort((x,y)=>x-y);
+  if(!a.length) return null;
+  const m=Math.floor(a.length/2);
+  return a.length%2?a[m]:(a[m-1]+a[m])/2;
+};
+const patternHealth={};
+for(const r of latest){
+  if(!r.pattern_id) continue;
+  if(!patternHealth[r.pattern_id]) patternHealth[r.pattern_id]={
+    pattern_id:r.pattern_id,
+    tagged_exams:0,
+    qualifying_ge_min_score:0,
+    scores:[],
+    productive_slots:[],
+    collisions_total:0,
+    no_allocation_workers:0,
+    reproduced_successor_workers:0,
+    visible_change_workers:0,
+    low_waste_workers:0
+  };
+  const p=patternHealth[r.pattern_id];
+  p.tagged_exams++;
+  p.scores.push(r.score);
+  p.productive_slots.push(r.productive_slots);
+  if(r.score>=Number(spec?.champion_policy?.champion_min_score||8)) p.qualifying_ge_min_score++;
+  p.collisions_total+=r.collisions;
+  if(r.no_allocation_count>0) p.no_allocation_workers++;
+  if(r.reproduction) p.reproduced_successor_workers++;
+  if(r.visible_change) p.visible_change_workers++;
+  if(r.low_waste) p.low_waste_workers++;
+}
+for(const p of Object.values(patternHealth)){
+  p.max_score=p.scores.length?Math.max(...p.scores):null;
+  p.median_score=median(p.scores);
+  p.median_productive_slots=median(p.productive_slots);
+  p.avg_collisions=p.tagged_exams?Number((p.collisions_total/p.tagged_exams).toFixed(2)):null;
+  p.no_allocation_rate=p.tagged_exams?Number((p.no_allocation_workers/p.tagged_exams).toFixed(3)):null;
+  p.successor_reproduction_rate=p.tagged_exams?Number((p.reproduced_successor_workers/p.tagged_exams).toFixed(3)):null;
+  p.visible_change_rate=p.tagged_exams?Number((p.visible_change_workers/p.tagged_exams).toFixed(3)):null;
+  p.low_waste_rate=p.tagged_exams?Number((p.low_waste_workers/p.tagged_exams).toFixed(3)):null;
+  p.status=p.tagged_exams<5?'SAMPLE_TOO_SMALL'
+    :p.qualifying_ge_min_score>=3?'REPRODUCIBLE'
+    :p.qualifying_ge_min_score>0?'PARTIAL_REPRODUCTION'
+    :'UNDERPERFORMING_SAMPLE';
+  delete p.scores;
+  delete p.productive_slots;
+}
+let activePatternId=null;
+const activePatternRef=spec?.pattern_measurement?.active_pattern_ref;
+if(activePatternRef){
+  const ap=readJson(path.join(root,activePatternRef));
+  activePatternId=ap?.pattern_id||null;
+}
+const activePatternHealth=activePatternId ? (patternHealth[activePatternId]||{
+  pattern_id:activePatternId,tagged_exams:0,qualifying_ge_min_score:0,status:'NO_TAGGED_SAMPLE'
+}) : null;
 const reproductionCounts={};
 const minScore=Number(spec?.champion_policy?.champion_min_score||8);
 for(const r of latest){
@@ -82,7 +139,10 @@ const out={
   latest20:latest,
   reproduction_counts:reproductionCounts,
   protocol_reproduction_counts:reproductionCounts,
-  note:'Observability only. leader/champion_candidate is the best observed card; champion stays null until a non-null pattern_id is independently reproduced by >=3 workers at score >=8. Verbosity never adds points.'
+  pattern_health:patternHealth,
+  active_pattern_id:activePatternId,
+  active_pattern_health:activePatternHealth,
+  note:'Observability only. leader/champion_candidate is the best observed card; champion stays null until a non-null pattern_id is independently reproduced by >=3 workers at score >=8. pattern_health makes failed/partial reproduction explicit instead of forcing Guide to infer it from raw cards. Verbosity never adds points.'
 };
 fs.mkdirSync(path.dirname(outPath),{recursive:true});
 fs.writeFileSync(outPath,JSON.stringify(out,null,2)+'\n');
