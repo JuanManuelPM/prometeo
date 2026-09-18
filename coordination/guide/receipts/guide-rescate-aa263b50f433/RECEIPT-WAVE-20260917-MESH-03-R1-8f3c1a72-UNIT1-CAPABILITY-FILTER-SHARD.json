@@ -1,0 +1,67 @@
+{
+  "schema": "prometeo.guide-receipt/v1",
+  "receipt_id": "RECEIPT-WAVE-20260917-MESH-03-R1-8f3c1a72-UNIT1-CAPABILITY-FILTER-SHARD",
+  "guide_work_id": "guide-rescate-aa263b50f433",
+  "role": "GUIDE_RESCATE",
+  "trigger": "LOW_YIELD",
+  "worker_id": "wc-WAVE-20260917-MESH-03-R1-8f3c1a72",
+  "batch_id": "WAVE-20260917-MESH-03-R1",
+  "expected_workers": 10,
+  "authority_ref": "coordination/guide/pins/guide-rescate-aa263b50f433/G000001.json",
+  "authority_commit_sha": "28239c5ea994ec591e65e5bf8e095b17d8e43345",
+  "started_ref": "coordination/workers/started/wc-WAVE-20260917-MESH-03-R1-8f3c1a72-guide-rescate-aa263b50f433.json",
+  "created_at": "2026-09-18T01:11:56.585Z",
+  "evidence": [
+    "coordination/efficiency/RATCHET_BASELINE_V1.json",
+    "coordination/workers/no-allocation/wc-20260918T0104Z-r1-6f3a9c2d.json",
+    "coordination/workers/no-allocation/worker-wave-20260917-mesh-03-r1-20260918010434-sol.json",
+    "coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md",
+    "wc",
+    "coordination/portfolio/tests/batched_lane_sharding_v1.mjs"
+  ],
+  "diagnosis": {
+    "bottleneck": "POST_HASH_CAPABILITY_SKIP_CONVERGENCE",
+    "observed_effect": "Distinct batch shards that landed in specialized candidates skipped the same definitely-unavailable capabilities and converged on the same generic Guide/recovery survivors, causing repeated CREATE_EXISTS and slow NO_ALLOCATION closes.",
+    "live_regression_at_diagnosis": "NO_ALLOCATION_P90_GT_90S",
+    "p90_ms": 110000
+  },
+  "intervention": {
+    "mechanism_patch_adopted_from_concurrent_workers": [
+      "673e9c238e5fadf9ee5669b117b2d6a1ece27d92",
+      "3a64216497053b5025b828762c286f9d3f8f44ee"
+    ],
+    "mechanism": "Filter only definitively incompatible candidates into stable batch_compatible_candidates before hashing; preserve survivor order, retain unknown capabilities, and rotate collisions inside the filtered view.",
+    "ratchet_commits": [
+      "baa25b820da31fcfee19452ff844e0e2b1e57431",
+      "b6f80d9d52acc58195b0673a53b552f9a3495731",
+      "0a972283eae5eb2395c50d383f896074b0b327e9",
+      "38974d29abd176bd6033e7d98765615a09c221b4"
+    ]
+  },
+  "changed_paths": [
+    "coordination/efficiency/RATCHET_BASELINE_V1.json",
+    "coordination/portfolio/tests/batched_lane_sharding_v1.mjs",
+    "scripts/check-efficiency-ratchet.mjs"
+  ],
+  "verification": [
+    {
+      "type": "github_actions",
+      "workflow": "EFF021 batched lane sharding",
+      "run_id": 35294281986,
+      "head_sha": "38974d29abd176bd6033e7d98765615a09c221b4",
+      "conclusion": "success"
+    },
+    {
+      "type": "github_actions",
+      "workflow": "Prometeo Efficiency Ratchet",
+      "run_id": 35294281958,
+      "head_sha": "38974d29abd176bd6033e7d98765615a09c221b4",
+      "conclusion": "success"
+    }
+  ],
+  "created_jobs": [],
+  "consumed_returns": [],
+  "remaining_boundary": "RUNTIME_EFFECT_REQUIRES_FRESH_POST_PATCH_BATCH_OBSERVATION; static non-regression is PASS.",
+  "outcome": "REPAIR_STATIC_GUARDED",
+  "next_action": "REENTER_COMPACT_FRONTIER"
+}
