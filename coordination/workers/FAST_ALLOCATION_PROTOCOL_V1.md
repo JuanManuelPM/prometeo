@@ -1,4 +1,4 @@
-# Prometeo Fast Allocation Protocol v2.8
+# Prometeo Fast Allocation Protocol v2.9
 
 Status: CANARY / binding for `/wc`.
 
@@ -73,15 +73,30 @@ Reason: clean execution should win first; if the materialized frontier thins whi
 
 When the HUMAN invocation contains `BATCH <batch_id> EXPECTED <n>` with `n > 1`, concurrent identical workers MUST shard over the compact frontier `candidates` array instead of independently restarting lane traversal.
 
+### Explicit batch contention fan-in exception
+
+Before calculating the shard index, inspect only the already-loaded compact frontier top-level `batch_contention_fanin`.
+
+- If it is absent, null, `AMBIGUOUS`, or not an actionable `ARMING`/`RELEASED` descriptor, perform normal unified sharding with zero barrier coordination.
+- `batch_contention_fanin` is valid only for one explicit durable contention fixture and always has `grants_execution_authority=false`. It is timing coordination, not ownership, and does not consume an authority CREATE attempt.
+- For `ARMING`, CREATE only the supplied entrant path/payload for this worker, then inspect only that fixture's supplied entrant/release paths until release or deadline. Once at least `required_contenders` valid entrants exist, compute the cohort as the lexicographically sorted distinct worker IDs truncated to exactly `required_contenders`. Any contender may atomically CREATE the single RELEASE naming exactly that cohort.
+- A valid RELEASE MUST name exactly `required_contenders` distinct worker IDs in canonical lexicographic order. Extra IDs, missing IDs, duplicates, or a cohort different from the deterministic first-N set are invalid.
+- For `RELEASED`, or after a valid RELEASE appears, check membership before any PIN attempt. If this `worker_id` is named in `released_worker_ids`, race `post_release_claim` exactly. If it is not named, attempt no PIN and immediately continue normal unified sharding.
+- Workers arriving after cohort closure cannot join the cohort or inflate collision count. They consume the immutable RELEASE as nonmembers and re-enter sharding.
+- If deadline arrives before valid RELEASE, persist only the supplied no-authority timeout with `pin_attempted=false`, then continue normal allocation. Never release or PIN late.
+- The descriptor is processed before hash sharding so a `BATCH EXPECTED 10` can feed a barrier requiring 5 even when the barrier candidate itself occupies only one unified candidate slot.
+
+Then apply normal unified sharding:
+
 - Retain the commit SHA returned by the already-required beacon CREATE as `beacon_commit_sha` when the write tool exposes it. Never add a read just to recover that SHA.
 - Use `claim-frontier.candidates` exactly as published. Start at `parseInt(first 8 hex chars of beacon_commit_sha,16) mod candidates.length`.
 - After `CREATE_EXISTS`, advance cyclically to the next untried candidate in that unified array, while preserving the existing maximum of 3 authority CREATE attempts. `BRANCH_HEAD_MOVED` is transport/CAS stabilization, not a candidate collision; apply the bounded same-path retry below before advancing.
 - Do not re-impose lane priority locally for a batched worker: the compiler already selected and ordered the product / Guide mesh represented by `candidates`.
 - Unbatched workers preserve normal allocator lane order: `ready -> queue_ready -> role_ready -> recovery`.
 - If `beacon_commit_sha` is unavailable or its first 8 characters are not hexadecimal, preserve the published `candidates` order.
-- Sharding is local ordering over the one allocator snapshot already read: no extra preclaim read or write, no extra claim attempt, no authority change.
+- Sharding itself is local ordering over the one allocator snapshot already read: no extra preclaim read or write, no extra claim attempt, no authority change. The only bounded pre-shard write exception is the explicit no-authority `batch_contention_fanin` path above.
 
-This is an efficiency mechanism only. Atomic CREATE remains the sole ownership race primitive.
+This is an efficiency mechanism only. Atomic CREATE of the deterministic PIN/claim remains the sole execution-ownership race primitive.
 
 ## Lane diversification
 
@@ -125,12 +140,20 @@ This is timing-only and grants NO execution authority.
 1. Fill `<worker_id>` and `<now_iso>` in the supplied `prometeo.portfolio-contention-entrant/v1` payload and atomically CREATE the exact entrant `claim_path`.
 2. Do NOT persist STARTED and do NOT begin substantive work. The entrant receipt is not a PIN/claim.
 3. Until `contention_barrier.deadline_at`, inspect only the supplied fixture-local `entrant_dir` and `release_path`. No project/global archaeology.
-4. If a valid RELEASE already exists, consume it. If distinct valid entrants reach `required_contenders` before deadline and RELEASE does not yet exist, contenders may atomically CREATE the exact `release_path` using `release_payload_shape` with the distinct entrant worker IDs.
-5. RELEASE MUST have `grants_execution_authority=false` and `next_action=RACE_DETERMINISTIC_PIN`. It coordinates timing only.
-6. After a valid RELEASE, use `candidate.post_release_claim` unchanged and race its exact deterministic `PORTFOLIO_PIN_CREATE` path. Only that PIN winner owns execution; losers create no execution claim and follow normal collision/reallocation law.
+4. If a valid RELEASE already exists, consume it. If distinct valid entrants reach `required_contenders` before deadline and RELEASE does not yet exist, compute the canonical cohort as the lexicographically sorted distinct entrant worker IDs truncated to exactly `required_contenders`; contenders may atomically CREATE the exact `release_path` using that exact cohort.
+5. RELEASE MUST name exactly `required_contenders` distinct worker IDs in canonical order, have `grants_execution_authority=false`, and `next_action=RACE_DETERMINISTIC_PIN`. It coordinates timing only.
+6. After a valid RELEASE, race `candidate.post_release_claim` unchanged ONLY when this worker_id is in the immutable RELEASE cohort. Nonmembers, late entrants and extras attempt no PIN and re-enter allocation. Only the deterministic PIN winner owns execution; cohort losers create no execution claim and follow normal collision/reallocation law.
 7. If deadline arrives without valid RELEASE, CREATE the supplied timeout receipt (`pin_attempted=false`, `next_action=REENTER_ALLOCATION`) and re-enter allocation. Never attempt the PIN late.
 
 No human countdown, numbered routing or manual synchronization is allowed.
+
+#### `PORTFOLIO_BARRIER_RELEASED`
+
+This mode is still non-authoritative. The allocator has validated one immutable exact-size RELEASE cohort.
+
+- If this `worker_id` is in `contention_barrier.entrant_worker_ids`, race `post_release_claim` exactly.
+- If this `worker_id` is absent, attempt no PIN and immediately continue normal allocation/sharding.
+- Never reconstruct or enlarge the released cohort locally.
 
 #### `PORTFOLIO_BARRIER_TIMEOUT`
 
