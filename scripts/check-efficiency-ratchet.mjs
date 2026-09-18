@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
