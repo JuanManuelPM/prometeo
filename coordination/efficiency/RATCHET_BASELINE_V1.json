@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-18T01:06:00Z",
+  "updated_at": "2026-09-18T01:11:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -607,6 +607,37 @@
           "portfolio-jose-v12-payload-base64-runtime-fix-v1"
         ]
       }
+    },
+    {
+      "id": "EFF027",
+      "title": "Capability filtering precedes batched sharding",
+      "scope": [
+        "wc",
+        "worker-allocation",
+        "wave-contention",
+        "capability-routing"
+      ],
+      "observed_failure": "In WAVE-20260917-MESH-03-R1, generic workers with different beacon seeds skipped several specialized candidates after hashing because required capabilities were definitively absent, then converged on the same small set of role/recovery candidates and exhausted three authority attempts on CREATE_EXISTS.",
+      "invariant": "For explicit batches, workers stable-filter only definitively incompatible candidates from the already-loaded compact frontier before applying the beacon hash. Surviving candidates retain compiler order, unknown capabilities remain eligible, no extra preclaim read/write is introduced, and atomic CREATE plus the three-attempt budget remain unchanged.",
+      "required": {
+        "batched_capability_filter_before_hash": true,
+        "filter_source": "claim-frontier.candidates.required_capabilities",
+        "stable_survivor_order": true,
+        "definitive_absence_only": true,
+        "unknown_capability_is_not_absence": true,
+        "seed_source": "beacon_commit_sha_first_8_hex",
+        "modulo_target": "batch_compatible_candidates.length",
+        "empty_compatible_view_no_authority_create": true,
+        "no_extra_preclaim_reads_or_writes": true,
+        "max_fast_claim_attempts": 3,
+        "ownership_primitive": "ATOMIC_CREATE_IF_ABSENT",
+        "regression_test": "coordination/portfolio/tests/batched_lane_sharding_v1.mjs",
+        "evidence": [
+          "coordination/workers/no-allocation/wc-20260918T0104Z-r1-6f3a9c2d.json",
+          "coordination/workers/no-allocation/worker-wave-20260917-mesh-03-r1-20260918010434-sol.json"
+        ]
+      },
+      "status": "STATIC_GUARDED_PENDING_RUNTIME"
     }
   ],
   "status_legend": {
