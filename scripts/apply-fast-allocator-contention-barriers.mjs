@@ -28,14 +28,40 @@ function validBarrier(doc) {
     parseTime(doc.opened_at) > 0 && parseTime(doc.deadline_at) > parseTime(doc.opened_at);
 }
 
-function validRelease(release, barrier) {
+export function selectReleaseCohort(workerIds, requiredContenders) {
+  const required = Number(requiredContenders);
+  if (!Number.isInteger(required) || required < 2) return [];
+  const ids = uniq(workerIds);
+  return ids.length >= required ? ids.slice(0, required) : [];
+}
+
+function validEntrant(receipt, barrier) {
+  if (!isObject(receipt) || receipt.schema !== 'prometeo.portfolio-contention-entrant/v1') return false;
+  if (receipt.fixture_id !== barrier.fixture_id) return false;
+  if (receipt.target_job_id !== (barrier.job_id || barrier.target_job_id)) return false;
+  if (typeof receipt.worker_id !== 'string' || !receipt.worker_id.length) return false;
+  if (receipt.grants_execution_authority !== false) return false;
+  const registered = parseTime(receipt.registered_at);
+  return registered >= parseTime(barrier.opened_at) && registered < parseTime(barrier.deadline_at);
+}
+
+function validRelease(release, barrier, entrantWorkerIds = null) {
   if (!isObject(release) || release.schema !== 'prometeo.portfolio-contention-release/v1') return false;
   if (release.fixture_id !== barrier.fixture_id) return false;
   if (release.grants_execution_authority !== false || release.next_action !== 'RACE_DETERMINISTIC_PIN') return false;
   const released = parseTime(release.released_at);
   if (!released || released >= parseTime(barrier.deadline_at)) return false;
-  const ids = [...new Set(arr(release.entrant_worker_ids).filter(Boolean))];
-  return ids.length >= Number(barrier.required_contenders);
+  const ids = arr(release.entrant_worker_ids).filter(Boolean).map(String);
+  const unique = uniq(ids);
+  const required = Number(barrier.required_contenders);
+  if (ids.length !== required || unique.length !== required) return false;
+  if (ids.some((id, index) => id !== unique[index])) return false;
+  if (Array.isArray(entrantWorkerIds)) {
+    const expected = selectReleaseCohort(entrantWorkerIds, required);
+    if (expected.length !== required) return false;
+    if (expected.some((id, index) => id !== unique[index])) return false;
+  }
+  return true;
 }
 
 function validTimeout(receipt, barrier) {
@@ -45,6 +71,18 @@ function validTimeout(receipt, barrier) {
     typeof receipt.worker_id === 'string' && receipt.worker_id.length > 0 &&
     receipt.pin_attempted === false &&
     receipt.grants_execution_authority === false;
+}
+
+function loadEntrantWorkerIds(dir, barrier) {
+  const entrantDir = path.join(dir, 'entrants');
+  if (!fs.existsSync(entrantDir)) return [];
+  const ids = [];
+  for (const ent of fs.readdirSync(entrantDir, { withFileTypes: true })) {
+    if (!ent.isFile() || !ent.name.endsWith('.json')) continue;
+    const receipt = readJson(path.join(entrantDir, ent.name));
+    if (validEntrant(receipt, barrier)) ids.push(receipt.worker_id);
+  }
+  return uniq(ids);
 }
 
 function loadTimeoutWorkerIds(dir, barrier) {
@@ -73,6 +111,7 @@ export function loadContentionBarriers(root = '.') {
       job_id: barrier.job_id || barrier.target_job_id,
       barrier,
       release: readJson(path.join(dir, 'RELEASE.json')),
+      entrant_worker_ids: loadEntrantWorkerIds(dir, barrier),
       timeout_worker_ids: loadTimeoutWorkerIds(dir, barrier),
       barrier_ref: `coordination/portfolio/contention_barriers/${barrier.fixture_id}/BARRIER.json`,
       release_ref: `coordination/portfolio/contention_barriers/${barrier.fixture_id}/RELEASE.json`
@@ -113,18 +152,26 @@ export function routePortfolioCandidate(candidate, barrierRow, nowIso) {
   const now = parseTime(nowIso);
   const opened = parseTime(b.opened_at);
   const deadline = parseTime(b.deadline_at);
-  const releaseOkay = validRelease(barrierRow.release, b);
+  const releaseOkay = validRelease(barrierRow.release, b, Array.isArray(barrierRow.entrant_worker_ids) ? barrierRow.entrant_worker_ids : null);
   const pinCandidate = structuredClone(candidate);
 
   if (releaseOkay) {
+    const releasedWorkerIds = uniq(barrierRow.release.entrant_worker_ids);
     return {
       ...candidate,
+      claim_mode: 'PORTFOLIO_BARRIER_RELEASED',
+      claim_path: null,
+      claim_payload_shape: null,
       contention_barrier: {
         ...barrierMeta(barrierRow, 'RELEASED'),
         release_ref: barrierRow.release_ref || `coordination/portfolio/contention_barriers/${b.fixture_id}/RELEASE.json`,
         released_at: barrierRow.release.released_at,
-        entrant_worker_ids: [...new Set(arr(barrierRow.release.entrant_worker_ids).filter(Boolean))]
-      }
+        entrant_worker_ids: releasedWorkerIds,
+        cohort_rule: 'LEXICOGRAPHIC_FIRST_REQUIRED_DISTINCT_WORKER_IDS'
+      },
+      next_action: 'CHECK_RELEASE_MEMBERSHIP',
+      post_claim_validate: false,
+      post_release_claim: pinCandidate
     };
   }
 
@@ -196,12 +243,15 @@ export function routePortfolioCandidate(candidate, barrierRow, nowIso) {
     },
     contention_barrier: {
       ...meta,
+      entrant_worker_ids: uniq(barrierRow.entrant_worker_ids),
+      entrant_count: uniq(barrierRow.entrant_worker_ids).length,
+      cohort_rule: 'LEXICOGRAPHIC_FIRST_REQUIRED_DISTINCT_WORKER_IDS',
       release_payload_shape: {
         schema: 'prometeo.portfolio-contention-release/v1',
         fixture_id: b.fixture_id,
         released_at: '<now_iso>',
         required_contenders: Number(b.required_contenders),
-        entrant_worker_ids: '<distinct_entrant_worker_ids>',
+        entrant_worker_ids: '<lexicographic_first_required_distinct_entrant_worker_ids>',
         grants_execution_authority: false,
         next_action: 'RACE_DETERMINISTIC_PIN'
       },
@@ -220,8 +270,57 @@ export function routePortfolioCandidate(candidate, barrierRow, nowIso) {
   };
 }
 
+function batchFaninDescriptor(candidates = []) {
+  const eligible = arr(candidates)
+    .filter(candidate => ['PORTFOLIO_BARRIER_ENTER', 'PORTFOLIO_BARRIER_RELEASED'].includes(candidate?.claim_mode))
+    .filter(candidate => candidate?.contention_barrier?.fixture_id);
+  const byFixture = new Map();
+  for (const candidate of eligible) {
+    const fixtureId = candidate.contention_barrier.fixture_id;
+    if (!byFixture.has(fixtureId)) byFixture.set(fixtureId, candidate);
+  }
+  if (byFixture.size === 0) return null;
+  if (byFixture.size > 1) {
+    return {
+      schema: 'prometeo.batch-contention-fanin/v1',
+      state: 'AMBIGUOUS',
+      grants_execution_authority: false,
+      fixture_ids: [...byFixture.keys()].sort(),
+      next_action: 'USE_NORMAL_SHARDING_NO_BATCH_FANIN'
+    };
+  }
+  const candidate = [...byFixture.values()][0];
+  const b = candidate.contention_barrier;
+  return {
+    schema: 'prometeo.batch-contention-fanin/v1',
+    state: b.state,
+    fixture_id: b.fixture_id,
+    target_job_id: candidate.job_id,
+    required_contenders: b.required_contenders,
+    opened_at: b.opened_at,
+    deadline_at: b.deadline_at,
+    entrant_dir: b.entrant_dir,
+    entrant_path: b.entrant_path,
+    release_path: b.release_path,
+    timeout_path: b.timeout_path,
+    grants_execution_authority: false,
+    cohort_rule: 'LEXICOGRAPHIC_FIRST_REQUIRED_DISTINCT_WORKER_IDS',
+    entrant_worker_ids: arr(b.entrant_worker_ids),
+    entrant_count: Number(b.entrant_count || 0),
+    released_worker_ids: b.state === 'RELEASED' ? arr(b.entrant_worker_ids) : [],
+    claim_payload_shape: candidate.claim_mode === 'PORTFOLIO_BARRIER_ENTER' ? candidate.claim_payload_shape : null,
+    release_payload_shape: b.release_payload_shape || null,
+    timeout_payload_shape: b.timeout_payload_shape || null,
+    post_release_claim: candidate.post_release_claim || null,
+    next_action: candidate.claim_mode === 'PORTFOLIO_BARRIER_RELEASED'
+      ? 'CHECK_RELEASE_MEMBERSHIP_BEFORE_SHARDING'
+      : 'ENTER_NO_AUTHORITY_BARRIER_BEFORE_SHARDING'
+  };
+}
+
 export function applyContentionBarrierRouting(allocator = {}, barriers = [], nowIso = allocator.generated_at || new Date().toISOString()) {
-  const routeLane = lane => arr(allocator[lane]).map(candidate => routePortfolioCandidate(candidate, selectBarrier(candidate.job_id, barriers), nowIso));
+  const routeOne = candidate => routePortfolioCandidate(candidate, selectBarrier(candidate?.job_id, barriers), nowIso);
+  const routeLane = lane => arr(allocator[lane]).map(routeOne);
   const routedReady = routeLane('ready');
   const routedRecovery = routeLane('recovery');
   const isExpiredObserved = candidate => candidate?.claim_mode === 'PORTFOLIO_BARRIER_EXPIRED_OBSERVED';
@@ -237,6 +336,12 @@ export function applyContentionBarrierRouting(allocator = {}, barriers = [], now
     }));
   const ready = routedReady.filter(candidate => !isExpiredObserved(candidate));
   const recovery = routedRecovery.filter(candidate => !isExpiredObserved(candidate));
+  const batchCandidates = arr(allocator.batch_candidates).map(candidate => {
+    if (!['ready', 'recovery'].includes(candidate?.lane)) return candidate;
+    return { ...routeOne(candidate), lane: candidate.lane };
+  }).filter(candidate => !isExpiredObserved(candidate));
+  const faninSource = batchCandidates.length ? batchCandidates : [...ready, ...recovery];
+  const batchContentionFanin = batchFaninDescriptor(faninSource);
   return {
     ...allocator,
     schema: allocator.schema || 'prometeo.fast-allocator/v3',
@@ -246,8 +351,12 @@ export function applyContentionBarrierRouting(allocator = {}, barriers = [], now
       authority: 'TIMING_ONLY_UNTIL_DETERMINISTIC_PIN_WIN',
       ordinary_jobs_direct_to_pin: true,
       expired_after_first_timeout_evidence: true,
+      batch_fanin_before_sharding: true,
+      release_membership_gates_pin: true,
       suppressed_expired_candidates: suppressed
     },
+    batch_contention_fanin: batchContentionFanin,
+    batch_candidates: batchCandidates.length ? batchCandidates : allocator.batch_candidates,
     ready,
     recovery,
     counts: {
@@ -255,6 +364,7 @@ export function applyContentionBarrierRouting(allocator = {}, barriers = [], now
       ready: ready.length,
       recovery: recovery.length,
       barrier_enter: [...ready, ...recovery].filter(x => x.claim_mode === 'PORTFOLIO_BARRIER_ENTER').length,
+      barrier_released: [...ready, ...recovery].filter(x => x.claim_mode === 'PORTFOLIO_BARRIER_RELEASED').length,
       barrier_timeout: [...ready, ...recovery].filter(x => x.claim_mode === 'PORTFOLIO_BARRIER_TIMEOUT').length,
       barrier_expired_suppressed: suppressed.length
     }
