@@ -231,7 +231,10 @@ const history=[...historyMap.values()].map(h=>({date:h.date,seen:h.seen,finished
 const inbox=docs(inboxFiles).map(r=>({message_id:first(r.doc.message_id,path.posix.basename(r.path,'.json')),created_at:r.doc.created_at||timeOf(r.doc),author:r.doc.author||'guide',text:String(r.doc.text||'').slice(0,180),topic:r.doc.topic||null,refs:Array.isArray(r.doc.refs)?r.doc.refs:[]})).filter(x=>x.text).sort((a,b)=>Date.parse(b.created_at||0)-Date.parse(a.created_at||0)).slice(0,80);
 
 const jobs=projects.flatMap(p=>p.jobs);
-const reproduction=buildGroundedReproductionMetric(jobs);
+const reconciledNonterminalReturnRefs=docs(
+  portfolioFiles.filter(x=>x.startsWith('coordination/portfolio/return-reconciliations/'))
+).filter(r=>r.doc?.effect==='NONTERMINAL_ROUTE_ABORT'&&r.doc?.return_ref).map(r=>r.doc.return_ref);
+const reproduction=buildGroundedReproductionMetric(jobs,{excluded_return_refs:reconciledNonterminalReturnRefs});
 const summary={
   workers:{seen:workers.length,working:workers.filter(w=>['working','recovery'].includes(w.status)).length,suspect:workers.filter(w=>w.status==='suspect').length,replaceable:workers.filter(w=>['replaceable','silent'].includes(w.status)).length,allocating:workers.filter(w=>w.status==='allocating').length,finished:workers.filter(w=>!!w.end_at).length,collisions:workers.reduce((n,w)=>n+(w.collision_count||0),0)},
   portfolio:{projects:projects.length,jobs:jobs.length,ready:jobs.filter(j=>['ready','partial'].includes(j.state)).length,working:jobs.filter(j=>['working','recovery'].includes(j.state)).length,suspect:jobs.filter(j=>j.state==='suspect').length,replaceable:jobs.filter(j=>j.state==='replaceable').length,done:jobs.filter(j=>j.state==='done').length,collisions:jobs.reduce((n,j)=>n+j.collision_count,0),derived:jobs.filter(j=>j.origin==='derived').length,terminal_returns:jobs.filter(j=>j.terminal_return).length,reproduction},
