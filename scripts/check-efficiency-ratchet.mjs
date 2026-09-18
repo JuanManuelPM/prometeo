@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -59,6 +59,12 @@ if (compactFrontierItem?.required?.compact_frontier !== 'live/claim-frontier.jso
 if (compactFrontierItem?.required?.schema !== 'prometeo.claim-frontier/v1') errors.push('baseline: EFF023 schema drift');
 if (compactFrontierItem?.required?.max_candidates !== 24) errors.push('baseline: EFF023 candidate bound drift');
 if (compactFrontierItem?.required?.full_allocator_preclaim_forbidden !== true) errors.push('baseline: EFF023 full allocator must stay off hot path');
+const compoundingItem = baseline?.items?.find(x=>x.id==='EFF024');
+if (compoundingItem?.required?.productive_units_target !== 3) errors.push('baseline: EFF024 productive target drift');
+if (compoundingItem?.required?.productive_units_hard_cap !== 4) errors.push('baseline: EFF024 productive hard cap drift');
+if (compoundingItem?.required?.same_project_soft_cap !== 2) errors.push('baseline: EFF024 same-project soft cap drift');
+if (compoundingItem?.required?.same_worker_id_across_chain !== true) errors.push('baseline: EFF024 worker identity must persist across chain');
+if (compoundingItem?.required?.reenter_compact_frontier_after_each_productive_return !== true) errors.push('baseline: EFF024 compact frontier re-entry must remain true');
 
 const wc = read(root, 'wc');
 must('wc', wc, 'CLAIM NOW');
@@ -93,6 +99,10 @@ must('wc', wc, 'candidate.required_capabilities');
 must('wc', wc, 'CAPABILITY_MISMATCH_PRECLAIM');
 must('wc', wc, 'Unknown or ambiguous capability is NOT absence');
 must('wc', wc, 'Never read repository/project context to prove capability fit.');
+must('wc', wc, 'PRODUCTIVE CHAIN — SAME CHAT');
+must('wc', wc, 'Target **3 productive units** per useful chat; hard cap **4**.');
+must('wc', wc, 'at most **2 consecutive productive units in the same project**');
+must('wc', wc, 'Healthy compounding worker:');
 
 
 const fast = read(root, 'coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md');
@@ -123,6 +133,11 @@ must('fast-allocation', fast, 'claim-frontier.candidates');
 must('fast-allocation', fast, 'gh-pages:live/claim-frontier.json');
 must('fast-allocation', fast, 'first 8 hex chars of beacon_commit_sha');
 must('fast-allocation', fast, 'Do not re-impose lane priority locally for a batched worker');
+
+const projectGuideMesh = JSON.parse(read(root, 'coordination/guide/PROJECT_GUIDE_MESH_V1.json'));
+if (projectGuideMesh.worker_chain_target_productive_units !== 3) errors.push('project-guide-mesh: chain target drift');
+if (projectGuideMesh.worker_chain_max_productive_units !== 4) errors.push('project-guide-mesh: chain hard cap drift');
+if (projectGuideMesh.worker_chain_same_project_soft_cap !== 2) errors.push('project-guide-mesh: same-project soft cap drift');
 
 const eventProtocol = read(root, 'coordination/workers/WORKER_EVENT_STREAM_V1.md');
 must('worker-events', eventProtocol, 'Issue: https://github.com/JuanManuelPM/prometeo/issues/22');
