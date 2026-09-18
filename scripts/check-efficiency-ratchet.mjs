@@ -65,6 +65,9 @@ if (compoundingItem?.required?.productive_units_hard_cap !== 4) errors.push('bas
 if (compoundingItem?.required?.same_project_soft_cap !== 2) errors.push('baseline: EFF024 same-project soft cap drift');
 if (compoundingItem?.required?.same_worker_id_across_chain !== true) errors.push('baseline: EFF024 worker identity must persist across chain');
 if (compoundingItem?.required?.reenter_compact_frontier_after_each_productive_return !== true) errors.push('baseline: EFF024 compact frontier re-entry must remain true');
+if (compoundingItem?.required?.telemetry_close_only_at_chat_close !== true) errors.push('baseline: EFF024 CLOSE must be terminal to the chat chain');
+if (compoundingItem?.required?.regression_test !== 'scripts/check-efficiency-ratchet.mjs') errors.push('baseline: EFF024 regression guard drift');
+if (compoundingItem?.required?.workflow_guard !== '.github/workflows/efficiency-ratchet.yml') errors.push('baseline: EFF024 workflow guard drift');
 const branchHeadItem = baseline?.items?.find(x=>x.id==='EFF025');
 if (branchHeadItem?.required?.explicit_ref_head_move_classification !== 'BRANCH_HEAD_MOVED') errors.push('baseline: EFF025 branch-head classification drift');
 if (branchHeadItem?.required?.same_exact_create_retry_max !== 1) errors.push('baseline: EFF025 retry bound drift');
@@ -114,6 +117,11 @@ must('wc', wc, 'PRODUCTIVE CHAIN — SAME CHAT');
 must('wc', wc, 'Target **3 productive units** per useful chat; hard cap **4**.');
 must('wc', wc, 'at most **2 consecutive productive units in the same project**');
 must('wc', wc, 'Healthy compounding worker:');
+must('wc-close', wc, '`CLOSE`: once when the worker/chat chain finally closes');
+must('wc-close', wc, 'Intermediate durable RETURN/guide receipts do NOT emit lifecycle `CLOSE`.');
+must('wc-close', wc, 'do NOT emit lifecycle `CLOSE` after an intermediate durable RETURN/guide receipt');
+mustNot('wc-close', wc, '`CLOSE`: once at RETURN or terminal STOP.');
+mustNot('wc-close', wc, 'emit one best-effort `CLOSE` event to issue #22 after durable RETURN/terminal STOP');
 
 
 const fast = read(root, 'coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md');
@@ -162,6 +170,8 @@ must('worker-events', eventProtocol, 'ROUTED');
 must('worker-events', eventProtocol, 'CLAIM_RESULT');
 must('worker-events', eventProtocol, 'CLOSE');
 mustI('worker-events', eventProtocol, 'never launch workers to repair missing telemetry');
+must('worker-events-close', eventProtocol, 'Intermediate RETURN/guide receipts do not emit CLOSE.');
+mustNot('worker-events-close', eventProtocol, 'At RETURN/terminal STOP.');
 
 const workerRuntime = read(root, 'scripts/build-worker-runtime.mjs');
 must('worker-runtime', workerRuntime, "schema:'prometeo.worker-runtime/v1'");
