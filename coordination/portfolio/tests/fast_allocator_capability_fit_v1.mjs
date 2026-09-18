@@ -11,14 +11,42 @@ const { buildFastAllocator } = await import(pathToFileURL(path.join(root, 'scrip
 
 const josePath = 'coordination/portfolio/derived/alumnos/portfolio-alumnos-jose-v11-unrestricted-browser-verify-v1.json';
 const studentHttpPath = 'coordination/portfolio/derived/alumnos/portfolio-alumnos-student-world-live-route-bridge-public-http-verify-v1.json';
+const ttsBrowserPath = 'coordination/portfolio/derived/audio-text-to-speech/portfolio-tts-generic-text-surface-browser-smoke-v1.json';
+const ttsVerifyPath = 'coordination/portfolio/derived/audio-text-to-speech/portfolio-tts-generic-text-surface-verify-v1.json';
+const ttsCachePath = 'coordination/portfolio/derived/audio-text-to-speech/portfolio-tts-existing-cache-get-verify-v1.json';
+const sttLivePath = 'coordination/portfolio/derived/audio-speech-to-text/portfolio-stt-live-canary-entrypoint-v1.json';
 const jose = readJson(josePath);
 const studentHttp = readJson(studentHttpPath);
+const ttsBrowser = readJson(ttsBrowserPath);
+const ttsVerify = readJson(ttsVerifyPath);
+const ttsCache = readJson(ttsCachePath);
+const sttLive = readJson(sttLivePath);
 
 assert.ok(Array.isArray(jose.required_capabilities) && jose.required_capabilities.length > 0, 'Jose unrestricted-browser fixture must remain capability-bound');
 assert.deepEqual(
   studentHttp.required_capabilities,
   ['unrestricted_public_http_origin_fetch'],
   'Student World public-HTTP verifier must declare its specialized network capability'
+);
+assert.deepEqual(
+  ttsBrowser.required_capabilities,
+  ['browser_network_navigation_to_github_pages', 'representative_javascript_browser'],
+  'TTS browser smoke must route only to representative networked browser workers'
+);
+assert.deepEqual(
+  ttsVerify.required_capabilities,
+  ['unrestricted_public_http_origin_fetch'],
+  'TTS served/health verifier must require direct public HTTP/DNS'
+);
+assert.deepEqual(
+  ttsCache.required_capabilities,
+  ['unrestricted_public_http_origin_fetch'],
+  'TTS cache GET verifier must require direct public HTTP/DNS'
+);
+assert.deepEqual(
+  sttLive.required_capabilities,
+  ['browser_network_navigation_to_github_pages', 'representative_javascript_browser', 'unrestricted_public_http_origin_fetch'],
+  'STT live canary must require browser microphone route plus direct selftest network access'
 );
 
 const feed = {
@@ -27,14 +55,32 @@ const feed = {
   summary: { workers: {} },
   workers: [],
   plans: [],
-  projects: [{
-    project_id: 'alumnos',
-    label: 'Alumnos / Student World',
-    jobs: [
-      { ...jose, state: 'ready', pin_generation: 0, last_signal_at: null },
-      { ...studentHttp, state: 'replaceable', pin_generation: 1, last_signal_at: '2026-09-17T21:00:00Z' }
-    ]
-  }]
+  projects: [
+    {
+      project_id: 'alumnos',
+      label: 'Alumnos / Student World',
+      jobs: [
+        { ...jose, state: 'ready', pin_generation: 0, last_signal_at: null },
+        { ...studentHttp, state: 'replaceable', pin_generation: 1, last_signal_at: '2026-09-17T21:00:00Z' }
+      ]
+    },
+    {
+      project_id: 'audio-text-to-speech',
+      label: 'Audio / Text to Speech',
+      jobs: [
+        { ...ttsBrowser, state: 'ready', pin_generation: 0, last_signal_at: null },
+        { ...ttsVerify, state: 'ready', pin_generation: 0, last_signal_at: null },
+        { ...ttsCache, state: 'ready', pin_generation: 0, last_signal_at: null }
+      ]
+    },
+    {
+      project_id: 'audio-speech-to-text',
+      label: 'Audio / Speech to Text',
+      jobs: [
+        { ...sttLive, state: 'ready', pin_generation: 0, last_signal_at: null }
+      ]
+    }
+  ]
 };
 
 const allocator = buildFastAllocator(
@@ -50,6 +96,17 @@ assert.deepEqual(joseCandidate.required_capabilities, [...jose.required_capabili
 const studentCandidate = allocator.recovery.find(row => row.job_id === studentHttp.job_id);
 assert.ok(studentCandidate, 'Student World capability-bound recovery must remain visible for compatible workers');
 assert.deepEqual(studentCandidate.required_capabilities, ['unrestricted_public_http_origin_fetch']);
+
+for (const [job, expected] of [
+  [ttsBrowser, ['browser_network_navigation_to_github_pages', 'representative_javascript_browser']],
+  [ttsVerify, ['unrestricted_public_http_origin_fetch']],
+  [ttsCache, ['unrestricted_public_http_origin_fetch']],
+  [sttLive, ['browser_network_navigation_to_github_pages', 'representative_javascript_browser', 'unrestricted_public_http_origin_fetch']]
+]) {
+  const candidate = allocator.ready.find(row => row.job_id === job.job_id);
+  assert.ok(candidate, `${job.job_id} must remain visible to compatible workers`);
+  assert.deepEqual(candidate.required_capabilities, expected, `${job.job_id} capability metadata must survive allocator compilation`);
+}
 
 const liveBuilder = read('.github/scripts/build-live-feed.mjs');
 assert.ok(
