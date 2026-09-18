@@ -12,6 +12,13 @@ const joseReturn = readJson('coordination/portfolio/returns/portfolio-jose-v11-p
 assert.equal(joseReturn.outcome, 'ROUTE_ABORTED');
 assert.match(joseReturn.summary, /SOURCE_DEBT/);
 
+const joseV12DebtReturn = readJson('coordination/portfolio/returns/portfolio-jose-v12-pinned-v11-material-recovery-v1/RETURN-WC-JOSE-V11-MATERIAL-BOUNDARY-20260918T011637Z-GPT56SOL-A7D4.json');
+const joseV12LatestReturn = readJson('coordination/portfolio/returns/portfolio-jose-v12-pinned-v11-material-recovery-v1/RETURN-wc-20260918T013450Z-d8c55ec2-G000004-ROUTE_ABORTED.json');
+assert.equal(joseV12DebtReturn.source_debt.status, 'OPEN');
+assert.equal(joseV12DebtReturn.search_coverage.git_history.result, 'NO_EXACT_MATCH');
+assert.equal(joseV12DebtReturn.search_coverage.git_history.exact_matches, 0);
+assert.equal(joseV12DebtReturn.exact_source_found, false);
+
 const sourceDebt = {
   job_id: 'portfolio-jose-v11-pinned-payload-corruption-recovery-v1',
   dedupe_key: 'jose:v11-pinned-payload-corruption-recovery:v1',
@@ -169,6 +176,86 @@ const basis2 = {
   },
   updated_at: '2026-09-18T01:06:00Z'
 };
+
 assert.equal(recoveryBasisGate(basis2).eligible, true, 'new artifact/evidence revision or retry-safe trigger must re-enable recovery');
+
+const structuredJoseDebt = {
+  job_id: 'portfolio-jose-v12-pinned-v11-material-recovery-v1',
+  dedupe_key: 'jose:v12-pinned-v11-material-recovery:v1',
+  project_id: 'jose',
+  title: 'Recover byte-complete Jose V11 material',
+  priority: 92,
+  state: 'replaceable',
+  pin_generation: 4,
+  claimed_at: '2026-09-18T01:35:00Z',
+  last_signal_at: joseV12LatestReturn.returned_at,
+  latest_return: {
+    path: 'coordination/portfolio/returns/portfolio-jose-v12-pinned-v11-material-recovery-v1/RETURN-wc-20260918T013450Z-d8c55ec2-G000004-ROUTE_ABORTED.json',
+    outcome: joseV12LatestReturn.outcome,
+    summary: 'Post-claim validation found no materially new recovery basis.',
+    returned_at: joseV12LatestReturn.returned_at
+  },
+  latest_source_debt_return: {
+    path: 'coordination/portfolio/returns/portfolio-jose-v12-pinned-v11-material-recovery-v1/RETURN-WC-JOSE-V11-MATERIAL-BOUNDARY-20260918T011637Z-GPT56SOL-A7D4.json',
+    returned_at: joseV12DebtReturn.returned_at,
+    status: joseV12DebtReturn.source_debt.status,
+    exhaustive_negative: (
+      joseV12DebtReturn.exact_source_found === false &&
+      joseV12DebtReturn.search_coverage.git_history.result === 'NO_EXACT_MATCH' &&
+      joseV12DebtReturn.search_coverage.git_history.exact_matches === 0
+    ),
+    structurally_valid: Boolean(
+      joseV12DebtReturn.source_debt.status === 'OPEN' &&
+      joseV12DebtReturn.source_debt.missing &&
+      joseV12DebtReturn.source_debt.acceptable_future_source &&
+      joseV12DebtReturn.exact_source_found === false &&
+      joseV12DebtReturn.search_coverage.git_history.result === 'NO_EXACT_MATCH' &&
+      joseV12DebtReturn.search_coverage.git_history.exact_matches === 0
+    )
+  }
+};
+
+const structuredGate = recoveryBasisGate(structuredJoseDebt);
+assert.equal(structuredGate.eligible, false, 'structured OPEN exhaustive-negative SOURCE_DEBT must suppress time-only recovery even without summary keywords');
+assert.equal(structuredGate.reason, 'SOURCE_DEBT_BASIS_UNCHANGED');
+
+const structuredAllocator = buildFastAllocator(
+  feedFor([structuredJoseDebt]),
+  { status: 'HEALTHY', metrics: {}, reasons: [] },
+  { recoveryPolicies: [], roleContext: null }
+);
+assert.equal(
+  structuredAllocator.recovery.some(row => row.job_id === structuredJoseDebt.job_id),
+  false,
+  'portfolio-jose-v12-pinned-v11-material-recovery-v1 must not emit a G5 recovery from age alone'
+);
+assert.equal(
+  structuredAllocator.recovery_attention.some(row => row.job_id === structuredJoseDebt.job_id && row.reason === 'SOURCE_DEBT_BASIS_UNCHANGED'),
+  true,
+  'structured SOURCE_DEBT remains visible as unresolved recovery attention'
+);
+
+const structuredWithNewBasis = {
+  ...structuredJoseDebt,
+  recovery_basis: {
+    revision: 1,
+    updated_at: '2026-09-18T01:47:00Z',
+    evidence: ['external-artifact:new-byte-exact-v11-source']
+  },
+  updated_at: '2026-09-18T01:47:00Z'
+};
+assert.equal(recoveryBasisGate(structuredWithNewBasis).eligible, true, 'durable evidence newer than the latest return must reopen bounded recovery');
+assert.equal(recoveryBasisGate(structuredWithNewBasis).reason, 'SOURCE_DEBT_BASIS_CHANGED');
+
+const malformedStructuredDebt = {
+  ...structuredJoseDebt,
+  latest_source_debt_return: {
+    ...structuredJoseDebt.latest_source_debt_return,
+    structurally_valid: false,
+    exhaustive_negative: false
+  }
+};
+assert.equal(recoveryBasisGate(malformedStructuredDebt).eligible, false, 'malformed structured SOURCE_DEBT must fail closed');
+assert.equal(recoveryBasisGate(malformedStructuredDebt).reason, 'SOURCE_DEBT_MALFORMED_FAIL_CLOSED');
 
 console.log('SOURCE_DEBT_RECOVERY_BASIS_GATE_PASS');
