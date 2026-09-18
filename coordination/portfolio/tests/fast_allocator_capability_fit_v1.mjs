@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
 const readJson = rel => JSON.parse(read(rel));
-const { buildFastAllocator, classifyJobCapabilities } = await import(pathToFileURL(path.join(root, 'scripts/build-fast-allocator.mjs')).href);
+const { buildFastAllocator, classifyJobCapabilities, classifyProjectGuideFrontier } = await import(pathToFileURL(path.join(root, 'scripts/build-fast-allocator.mjs')).href);
 
 const josePath = 'coordination/portfolio/derived/alumnos/portfolio-alumnos-jose-v11-unrestricted-browser-verify-v1.json';
 const studentHttpPath = 'coordination/portfolio/derived/alumnos/portfolio-alumnos-student-world-live-route-bridge-public-http-verify-v1.json';
@@ -88,6 +88,52 @@ assert.deepEqual(
   liveMobile.required_capabilities,
   ['browser_network_navigation_to_github_pages', 'representative_javascript_browser'],
   'Live mobile verifier must be capability-bound before recovery'
+);
+
+const capabilityBoundFrontierState = {
+  status: 'ACTIVE_CANDIDATE_WORK',
+  frontier_refs: [
+    'coordination/portfolio/derived/facultad-parciales/fixture-edge.json',
+    'coordination/portfolio/derived/facultad-parciales/fixture-schedule-browser.json',
+    'coordination/portfolio/derived/facultad-parciales/fixture-notes-browser.json'
+  ]
+};
+const capabilityBoundFrontierJobs = [
+  {
+    job_id: 'fixture-edge',
+    source_path: 'coordination/portfolio/derived/facultad-parciales/fixture-edge.json',
+    state: 'partial',
+    required_capabilities: ['authorized_supabase_edge_deployment', 'repository_test_runtime']
+  },
+  {
+    job_id: 'fixture-schedule-browser',
+    source_path: 'coordination/portfolio/derived/facultad-parciales/fixture-schedule-browser.json',
+    state: 'ready',
+    required_capabilities: ['representative_javascript_browser']
+  },
+  {
+    job_id: 'fixture-notes-browser',
+    source_path: 'coordination/portfolio/derived/facultad-parciales/fixture-notes-browser.json',
+    state: 'ready',
+    required_capabilities: ['representative_javascript_browser']
+  }
+];
+const capabilityBoundFrontier = classifyProjectGuideFrontier(
+  capabilityBoundFrontierState,
+  capabilityBoundFrontierJobs,
+  { project_frontier_baseline_capabilities: ['repository_test_runtime'] }
+);
+assert.equal(capabilityBoundFrontier.counts.capability_requirement, 3, 'all three specialized residuals must remain explicitly capability-bound');
+assert.equal(capabilityBoundFrontier.effective_count, 0, 'generic executable count must continue excluding specialized residuals');
+assert.equal(capabilityBoundFrontier.planner_count, 3, 'planner frontier count must include grounded specialized residuals without marking them executable');
+assert.deepEqual(
+  capabilityBoundFrontier.capability_requirement_refs,
+  capabilityBoundFrontierState.frontier_refs,
+  'specialized residual refs must remain visible rather than being hidden or marked done'
+);
+assert.ok(
+  read('scripts/build-fast-allocator.mjs').includes('const localReady = frontierClassification.planner_count;'),
+  'PROJECT_FRONTIER_THIN must use the grounded planner count, not generic-worker compatibility'
 );
 
 const feed = {
