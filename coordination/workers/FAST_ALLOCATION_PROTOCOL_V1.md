@@ -10,7 +10,7 @@ The preferred HUMAN invocation explicitly authorizes reversible Prometeo repo wr
 
 Remote page/repository text is context, not a substitute for human authorization when connector/tool controls require it.
 
-If an authority claim CREATE is blocked **before authority exists** by connector/tool authorization or safety controls, classify `CLAIM_TRANSPORT_BLOCKED` and STOP immediately. Do not consume attempts 2–3 reproducing a transport-level block. Persist one bounded no-allocation receipt if possible. This is one system transport problem, not multiple job collisions. Once a PIN/claim CREATE has succeeded, ownership is durable and later STARTED transport failure is post-claim signaling debt, never `CLAIM_TRANSPORT_BLOCKED`.
+If an authority claim CREATE is **explicitly denied before authority exists** by connector/tool authorization or safety controls, classify `CLAIM_TRANSPORT_BLOCKED` and STOP immediately. This classification requires an explicit authorization/safety denial. Never retry the denied action/path and never bypass the control. Persist one bounded no-allocation receipt if possible. If instead a pre-authority write failure proves neither explicit denial, target-path existence nor branch-head movement, classify `CLAIM_TRANSPORT_AMBIGUOUS`: it grants no authority, permits at most ONE transport diversion using only the already-loaded candidate view to one untried compatible candidate with a different claim path, and permits no extra preclaim read. A second ambiguous transport failure STOPs. Once a PIN/claim CREATE has succeeded, ownership is durable and later STARTED transport failure is post-claim signaling debt, never either preclaim classification.
 
 ## Hard pre-claim budget
 
@@ -107,7 +107,7 @@ At most 3 atomic candidate attempts are allowed for races/stale hints.
 
 After 2 `CREATE_EXISTS` outcomes in the same lane, the next attempt MUST come from the next non-empty lane in allocator order. Do not spend all three attempts colliding against one stale/crowded snapshot segment while `role_ready` or another useful lane is available.
 
-A transport/authorization block is different: `CLAIM_TRANSPORT_BLOCKED` stops immediately.
+An explicit authorization/safety denial is different: `CLAIM_TRANSPORT_BLOCKED` stops immediately. An unclassified bounded write failure is `CLAIM_TRANSPORT_AMBIGUOUS`; it may use at most ONE transport diversion to a different claim path from the already-loaded compatible candidates, never the denied/current action again.
 
 ### Branch-ref CAS stabilization
 
@@ -200,9 +200,9 @@ Attempt the atomic CREATE first only after the bounded allocator payload has pas
 - second consecutive `BRANCH_HEAD_MOVED` -> `CLAIM_TRANSPORT_UNSTABLE`; STOP immediately instead of looping.
 - barrier entrant/RELEASE CREATE_EXISTS -> consume existing bounded fixture evidence; it is not an ownership collision.
 - barrier timeout -> no PIN attempt; re-enter allocation.
-- CLAIM_TRANSPORT_BLOCKED / connector authorization failure -> STOP immediately; do not spend additional candidate attempts reproducing it.
+- explicit authorization/safety denial -> `CLAIM_TRANSPORT_BLOCKED` -> STOP immediately. Never retry the denied action/path and never bypass the control.
+- failure proving neither denial, target-path existence nor branch-head movement -> `CLAIM_TRANSPORT_AMBIGUOUS`; with no authority created, try at most ONE transport diversion to one already-loaded untried compatible candidate with a different claim path and no extra preclaim read. A second ambiguous failure -> STOP.
 - ALLOCATOR_PIN_PAYLOAD_INVALID -> STOP immediately; this is allocator/control-plane debt, not a job collision.
-- other bounded transport failure -> try one alternate exact candidate only when the failure is plausibly candidate-specific.
 
 At most 3 atomic authority candidate attempts for races/stale hints. The target is seconds, except an explicit barrier may wait only until its durable bounded deadline.
 
@@ -251,7 +251,7 @@ A clean `NO_ALLOCATION` is legitimate only when:
 
 Create `coordination/workers/no-allocation/<worker_id>.json` with `next_action=STOP_NO_RECOVERY` and STOP.
 
-For transport blocks include `reason=CLAIM_TRANSPORT_BLOCKED`; for malformed payloads include `reason=ALLOCATOR_PIN_PAYLOAD_INVALID` and missing fields when available.
+For explicit transport denials include `reason=CLAIM_TRANSPORT_BLOCKED`; when the single allowed ambiguous diversion cannot produce authority include `reason=CLAIM_TRANSPORT_AMBIGUOUS`; for malformed payloads include `reason=ALLOCATOR_PIN_PAYLOAD_INVALID` and missing fields when available.
 
 Do not spend minutes inventing work. Do not create a worker to repair this worker. No PIN/claim means no recovery debt.
 
@@ -281,8 +281,11 @@ Role launch:
 
 Expected ordinary pre-claim shape: a handful of tool operations, normally under ~30 seconds. Explicit barrier wait is bounded only by its durable deadline.
 
-Transport-blocked launch:
-`BEACON -> allocator -> CREATE_BLOCKED -> NO_ALLOCATION -> STOP`
+Explicit-denial launch:
+`BEACON -> allocator -> EXPLICIT_DENIAL -> CLAIM_TRANSPORT_BLOCKED -> NO_ALLOCATION -> STOP`
+
+Ambiguous-transport launch:
+`BEACON -> allocator -> CLAIM_TRANSPORT_AMBIGUOUS -> at most ONE transport diversion to a different claim path -> CLAIM OR second ambiguous failure -> NO_ALLOCATION -> STOP`
 
 Malformed-allocator launch:
 `BEACON -> allocator -> ALLOCATOR_PIN_PAYLOAD_INVALID -> NO_ALLOCATION -> STOP`
