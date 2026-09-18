@@ -157,7 +157,6 @@ ps.suspect = portfolioJobs.filter(j => j.state === 'suspect').length;
 ps.replaceable = portfolioJobs.filter(j => j.state === 'replaceable').length;
 ps.done = portfolioJobs.filter(j => j.state === 'done').length;
 ps.terminal_returns = portfolioJobs.filter(j => !!j.terminal_return).length;
-if (Number.isFinite(Number(ps.derived))) ps.reproduction = Number(ps.derived) / Math.max(1, ps.terminal_returns);
 
 fs.writeFileSync(feedPath, JSON.stringify(feed, null, 2) + '\n');
 console.log(`normalized live: visible=${kept.length} no-allocation=${noAllocation.length} superseded=${superseded.length} reopened=${jobsReopened}`);
