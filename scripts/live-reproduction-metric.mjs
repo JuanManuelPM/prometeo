@@ -13,12 +13,13 @@ const lineageRefs = job => {
 const isTerminalReturn = row =>
   TERMINAL_OUTCOMES.has(lower(row?.outcome ?? row?.status ?? row?.result));
 
-export function buildGroundedReproductionMetric(jobs = []) {
+export function buildGroundedReproductionMetric(jobs = [], options = {}) {
+  const excluded = new Set((options.excluded_return_refs || []).map(normalizeRef).filter(Boolean));
   const eligible = new Set();
   for (const job of jobs) {
     for (const row of job?.returns || []) {
       const returnPath = normalizeRef(row?.path);
-      if (returnPath && isTerminalReturn(row)) eligible.add(returnPath);
+      if (returnPath && !excluded.has(returnPath) && isTerminalReturn(row)) eligible.add(returnPath);
     }
   }
 
