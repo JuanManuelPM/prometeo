@@ -2,7 +2,7 @@
 
 ## Estado auditado
 
-Prometeo sigue en **CONTINUOUS_POOL-01 / POOL PROD-01** y el diagnóstico estratégico permanece **MIXED_BUT_IMROVING**: hay capacidad real de producir mucho por chat, pero todavía no hay evidencia para llamar al crecimiento exponencial ni para promover un patrón campeón.
+Prometeo sigue en **CONTINUOUS_POOL-01 / POOL PROD-01** y el diagnóstico estratégico permanece **MIXED_BUT_IMPROVING**: hay capacidad real de producir mucho por chat, pero todavía no hay evidencia para llamar al crecimiento exponencial ni para promover un patrón campeón.
 
 El scoreboard vigente tiene **19 exámenes**. Hay un líder observado de **10/10**, con 6 unidades productivas, cambio visible, 6 proyectos y 0 colisiones; pero su `pattern_id` es nulo y `champion_reproducible=false`. Por lo tanto, **YIELD-10X-V1 sigue siendo candidato en reproducción, no champion**. El runtime de occupancy sigue siendo más viejo que el frontier, así que no fabrico un número de workers a lanzar.
 
@@ -12,7 +12,7 @@ Encontré un segundo bypass del mismo límite que TKV1 había empezado a cerrar.
 
 Lo corregí en el mecanismo, no worker por worker: agregué una recovery policy semántica `fixed_generation=1`, usando el soporte que ya tenía el allocator. Commit material: https://github.com/JuanManuelPM/prometeo/commit/cc77f8079e6d9e7ad275906f8fd6ff856c486bf6
 
-La proyección live se regeneró a **2026-09-18 16:13:22Z** desde ese commit. El candidato de recovery de José desapareció y el frontier claimable pasó de **22 a 21**. También confirmé que no reapareció un planner de José. Esto verifica el efecto en la proyección live; **no** recupera los bytes V11 faltantes ni elimina SOURCE_DEBT.
+La proyección live se regeneró a **2026-09-18 16:13:22Z** desde ese commit. El candidato de recovery de José desapareció y el set compacto de candidatos pasó de **22 a 21**. También confirmé que no reapareció un planner de José. Esto verifica el efecto en la proyección live; **no** recupera los bytes V11 faltantes ni elimina SOURCE_DEBT.
 
 Actualicé además el STATE de José a rev11, la brújula estratégica y GRW001 para que el próximo Guide no vuelva a descubrir este mismo desvío.
 
