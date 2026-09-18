@@ -95,7 +95,9 @@ assert.equal(armed.batch_contention_fanin.state,'ARMING');
 assert.equal(armed.batch_contention_fanin.required_contenders,5);
 assert.equal(armed.batch_contention_fanin.next_action,'ENTER_NO_AUTHORITY_BARRIER_BEFORE_SHARDING');
 assert.equal(armed.batch_contention_fanin.grants_execution_authority,false);
+assert.deepEqual(armed.batch_contention_fanin.required_capabilities,[]);
 assert.equal(armed.batch_contention_fanin.post_release_claim.claim_path,'coordination/portfolio/pins/fanin-fixture/G000001.json');
+assert.equal(armed.batch_contention_fanin.post_release_claim.claim_payload_shape.generation,1);
 
 const frontier = buildClaimFrontier(armed,24);
 assert(frontier.batch_contention_fanin,'compact frontier must publish batch-wide fan-in before shard selection');
@@ -141,6 +143,10 @@ assert.equal(members.length,5);
 assert.equal(nonmembers.length,5);
 assert(members.every(id=>released.batch_contention_fanin.released_worker_ids.includes(id)));
 assert(nonmembers.every(id=>!released.batch_contention_fanin.released_worker_ids.includes(id)));
+assert.equal(members.length-1,4,'a five-member deterministic PIN race has exactly four losing contenders after one winner');
+const workerContract = fs.readFileSync(path.join(repoRoot,'coordination/portfolio/WORKER_CONTRACT_V1.md'),'utf8');
+assert(workerContract.includes('prometeo.portfolio-pin-collision/v1'),'losing PIN contenders must have the durable collision receipt contract');
+assert(workerContract.includes('Only the winning pin owner may CREATE the append-only execution claim receipt'),'only one PIN winner may create execution claim authority');
 
 // Overfull or non-canonical RELEASE is invalid and cannot open the PIN gate.
 const overfullRelease = {...release, entrant_worker_ids:workers.slice(0,6)};
