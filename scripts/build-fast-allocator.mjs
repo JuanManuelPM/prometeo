@@ -725,6 +725,13 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
   const recentWindow = Number(signals.recent_launch_window_minutes || 10) * 60_000;
   const recentBeacons = arr(beacons).filter(row => now - eventTime(row.doc) <= recentWindow);
   const recentNoAlloc = arr(noAlloc).filter(row => now - eventTime(row.doc) <= recentWindow);
+  const explicitTransportBlockedNoAlloc = recentNoAlloc.filter(row => {
+    const doc = row?.doc || {};
+    return [doc.reason, doc.outcome]
+      .map(value => String(value || '').trim().toUpperCase())
+      .includes('CLAIM_TRANSPORT_BLOCKED');
+  });
+  const rescueEligibleNoAlloc = recentNoAlloc.filter(row => !explicitTransportBlockedNoAlloc.includes(row));
   const floor = Number(signals.frontier_floor_absolute || 8);
   const perLaunch = Number(signals.frontier_per_recent_launch || 1.5);
   const ceiling = Number(signals.frontier_ceiling || 40);
@@ -971,13 +978,13 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
     ...(capabilityPressure.specialized_total && genericCompatibleFrontier < cleanFrontier ? [capabilityPressureEvidenceRef] : []),
     ...(recoveryCapabilityPressure.specialized_total ? [recoveryCapabilityPressureEvidenceRef] : []),
     ...(efficiency.status === 'REGRESSION' ? ['coordination/efficiency/RATCHET_BASELINE_V1.json'] : []),
-    ...recentNoAlloc.slice(0, 4).map(row => row.path)
+    ...rescueEligibleNoAlloc.slice(0, 4).map(row => row.path)
   ]);
   if (
     genericRecoveryPressure >= Number(signals.replaceable_trigger || 3) ||
     collisionEvidence.length >= Number(signals.collision_pressure_trigger || 3) ||
     efficiency.status === 'REGRESSION' ||
-    recentNoAlloc.length >= 3
+    rescueEligibleNoAlloc.length >= 3
   ) {
     roleReady.push(candidate({
       role: 'GUIDE_RESCATE',
@@ -1021,6 +1028,8 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       young_active: youngActive,
       unconsumed_returns: unconsumedReturnRefs.length,
       recent_no_allocation: recentNoAlloc.length,
+      rescue_eligible_recent_no_allocation: rescueEligibleNoAlloc.length,
+      explicit_transport_blocked_recent_no_allocation: explicitTransportBlockedNoAlloc.length,
       partial_loop_detected: partialLoop.evidence.length > 0,
       partial_loop_kind: partialLoop.kind,
       partial_loop_return_count: partialLoop.return_count
