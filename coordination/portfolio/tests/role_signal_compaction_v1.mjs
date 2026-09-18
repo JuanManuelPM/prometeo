@@ -20,6 +20,7 @@ const jobs = [
   {
     job_id:'boundary-b', dedupe_key:'boundary:b', project_id:'p', source_path:'coordination/portfolio/derived/p/boundary-b.json',
     title:'Boundary B', priority:99, state:'partial', pin_generation:0,
+    derived_from_return:'coordination/portfolio/returns/partial-a/r1.json',
     latest_return:{path:'coordination/portfolio/returns/boundary-b/r1.json', outcome:'BOUNDARY', returned_at:ago(3)},
     recent_return_evidence:[{path:'coordination/portfolio/returns/boundary-b/r1.json', outcome:'BOUNDARY', returned_at:ago(3)}],
     recent_collision_evidence:[{path:'coordination/portfolio/collisions/boundary-b/c1.json', observed_at:ago(3)}]
@@ -76,6 +77,12 @@ const roleContext = {
   portfolio:null
 };
 
+const unrelatedFeed = structuredClone(feed);
+delete unrelatedFeed.projects[0].jobs.find(job => job.job_id === 'boundary-b').derived_from_return;
+const unrelatedOut = buildFastAllocator(unrelatedFeed, {status:'HEALTHY',metrics:{},reasons:[]}, {recoveryPolicies:[],roleContext});
+assert(!unrelatedOut.role_ready.some(row => row.role === 'GUIDE_CRITIC'), 'unrelated PARTIAL/BOUNDARY jobs must not synthesize a false PARTIAL_LOOP');
+assert.equal(unrelatedOut.metabolism.partial_loop_detected, false);
+
 const out = buildFastAllocator(feed, {status:'HEALTHY',metrics:{},reasons:[]}, {recoveryPolicies:[],roleContext});
 const byRole = new Map(out.role_ready.map(row => [row.role,row]));
 
@@ -86,9 +93,26 @@ for (const id of ['partial-a','boundary-b','partial-c']) {
 }
 
 const critic = byRole.get('GUIDE_CRITIC');
-assert(critic, 'compact PARTIAL/BOUNDARY evidence must trigger GUIDE_CRITIC');
+assert(critic, 'causal derived nonterminal lineage must trigger GUIDE_CRITIC');
 assert(critic.evidence.some(ref => ref.includes('returns/partial-a/r1.json')));
 assert(critic.evidence.some(ref => ref.includes('returns/boundary-b/r1.json')));
+assert(!critic.evidence.some(ref => ref.includes('returns/partial-c/r1.json')), 'unrelated partial evidence must not contaminate the causal loop');
+assert.equal(out.metabolism.partial_loop_detected, true);
+assert.equal(out.metabolism.partial_loop_kind, 'DERIVED_NONTERMINAL_LINEAGE');
+
+const recurrenceFeed = structuredClone(feed);
+recurrenceFeed.projects[0].jobs = [{
+  ...recurrenceFeed.projects[0].jobs.find(job => job.job_id === 'partial-a'),
+  derived_from_return: undefined,
+  recent_return_evidence:[
+    {path:'coordination/portfolio/returns/partial-a/r0.json', outcome:'BOUNDARY', returned_at:ago(5)},
+    {path:'coordination/portfolio/returns/partial-a/r1.json', outcome:'PARTIAL', returned_at:ago(2)}
+  ]
+}];
+const recurrenceOut = buildFastAllocator(recurrenceFeed, {status:'HEALTHY',metrics:{},reasons:[]}, {recoveryPolicies:[],roleContext});
+const recurrenceCritic = recurrenceOut.role_ready.find(row => row.role === 'GUIDE_CRITIC');
+assert(recurrenceCritic, 'same-job nonterminal recurrence must trigger GUIDE_CRITIC');
+assert.equal(recurrenceOut.metabolism.partial_loop_kind, 'SAME_JOB_RECURRENCE');
 
 const rescate = byRole.get('GUIDE_RESCATE');
 assert(rescate, 'three recent compact collisions must trigger GUIDE_RESCATE');
