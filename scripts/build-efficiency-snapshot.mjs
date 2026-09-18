@@ -98,7 +98,7 @@ const launches=[...beacons.values()].sort((a,b)=>b.launched-a.launched).slice(0,
   const n=noAlloc.get(b.worker_id)||null;
   const ttfa=a?Math.max(0,a.time-b.launched):null;
   const close=!a&&n?Math.max(0,n.time-b.launched):null;
-  return {worker_id:b.worker_id,launched_at:b.launched_at,declared_launched_at:b.declared_launched_at,authority_at:a?.at||null,declared_authority_at:a?.declared_at||null,authority_kind:a?.kind||null,authority_ref:a?.ref||null,no_allocation_at:n?.at||null,declared_no_allocation_at:n?.declared_at||null,no_allocation_reason:n?.reason||null,time_to_first_authority_ms:ttfa,no_allocation_close_ms:close,state:a?'ALLOCATED':n?'NO_ALLOCATION':'OPEN'};
+  return {worker_id:b.worker_id,launched_at:b.launched_at,declared_launched_at:b.declared_launched_at,authority_at:a?.at||null,declared_authority_at:a?.declared_at||null,authority_kind:a?.kind||null,authority_ref:a?.ref||null,no_allocation_at:n?.at||null,declared_no_allocation_at:n?.declared_at||null,no_allocation_reason:n?.reason||null,no_allocation_ref:n?.ref||null,time_to_first_authority_ms:ttfa,no_allocation_close_ms:close,state:a?'ALLOCATED':n?'NO_ALLOCATION':'OPEN'};
 });
 
 const allocated=launches.filter(x=>x.state==='ALLOCATED');
@@ -122,6 +122,31 @@ const closedRecent=closed.filter(x=>{
   return at && now-at<=noAllocationRegressionWindowMs;
 });
 const noCloseRecent=closedRecent.map(x=>x.no_allocation_close_ms);
+const reasonHistogram = rows => rows.reduce((acc,row)=>{
+  const reason=String(row?.no_allocation_reason||'UNSPECIFIED');
+  acc[reason]=(acc[reason]||0)+1;
+  return acc;
+},{});
+const noAllocationCauseHistogram=reasonHistogram(closed);
+const noAllocationCauseHistogramRecent=reasonHistogram(closedRecent);
+const recentNoAllocationReceipts=[...closedRecent]
+  .sort((a,b)=>time(b.no_allocation_at)-time(a.no_allocation_at) || String(a.worker_id).localeCompare(String(b.worker_id)))
+  .slice(0,12)
+  .map(row=>({
+    reason:String(row.no_allocation_reason||'UNSPECIFIED'),
+    ref:row.no_allocation_ref||null,
+    worker_id:row.worker_id,
+    no_allocation_at:row.no_allocation_at
+  }))
+  .filter(row=>row.ref);
+const noAllocationCauses={
+  window_minutes:noAllocationRegressionWindowMinutes,
+  recent_total:closedRecent.length,
+  cumulative_total:closed.length,
+  histogram_recent:noAllocationCauseHistogramRecent,
+  histogram_cumulative:noAllocationCauseHistogram,
+  recent_receipts:recentNoAllocationReceipts
+};
 const metrics={
   launches_observed:launches.length,
   resolved_sample:sample,
@@ -187,6 +212,7 @@ const snapshot={
   status,
   reasons,
   metrics,
+  no_allocation_causes:noAllocationCauses,
   rescue,
   latest_launches:launches.slice(0,30),
   privacy:'Derived from durable repository events; no private reasoning traces.'
