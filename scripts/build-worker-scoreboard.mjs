@@ -23,6 +23,8 @@ for(const p of files){
   const slots=Array.isArray(d.slots)?d.slots:[];
   const valid=slots.filter(s=>s && s.evidence_ref && ['MUTATION','VERIFICATION','INTEGRATION','GUIDE_FRONTIER'].includes(String(s.kind||'')));
   const productive=Math.min(6,valid.length);
+  const experimentalValid=valid.filter(s=>s.experimental_slot===true);
+  const experimentalProjects=[...new Set(experimentalValid.map(s=>s.project_id).filter(Boolean))];
   const visible=valid.some(s=>s.visible_change===true)?1:0;
   const reproduction=valid.some(s=>Number(s.successors_created||0)>0)?1:0;
   const productProjects=[...new Set((Array.isArray(d.projects_touched)?d.projects_touched:[]).filter(Boolean).filter(x=>!['prometeo-live','prometeo-autonomous-growth'].includes(x)))];
@@ -34,6 +36,11 @@ for(const p of files){
     batch_id:d.batch_id||null,
     protocol_version:d.protocol_version||null,
     pattern_id:d.pattern_id||null,
+    experiment_id:d.experiment_id||null,
+    experiment_enrolled:d.experiment_enrolled===true,
+    job_class:d.job_class||null,
+    strategy_variant:d.strategy_variant||null,
+    strategy_assignment_basis:d.strategy_assignment_basis||null,
     closed_at:d.closed_at||null,
     score,
     productive_slots:productive,
@@ -46,6 +53,10 @@ for(const p of files){
     changed_paths_total:valid.reduce((a,s)=>a+Number(s.changed_paths_count||0),0),
     tests_total:valid.reduce((a,s)=>a+Number(s.tests_count||0),0),
     successors_total:valid.reduce((a,s)=>a+Number(s.successors_created||0),0),
+    experimental_productive_slots:experimentalValid.length,
+    experimental_visible_change:experimentalValid.some(s=>s.visible_change===true),
+    experimental_reproduction:experimentalValid.some(s=>Number(s.successors_created||0)>0),
+    experimental_project_breadth:experimentalProjects.length,
     summary_word_count:Number(d.summary_word_count||0),
     wall_clock_seconds:Number(d.wall_clock_seconds||0)||null,
     exam_ref:path.relative(root,p).split(path.sep).join('/')
@@ -104,17 +115,35 @@ for(const p of Object.values(patternHealth)){
 let activePatternId=null;
 let patternCandidateId=null;
 let patternCandidateStatus=null;
-const activePatternRef=spec?.pattern_measurement?.active_pattern_ref;
-if(activePatternRef){
-  const ap=readJson(path.join(root,activePatternRef));
-  patternCandidateId=ap?.pattern_id||null;
-  patternCandidateStatus=ap?.status||null;
-  if(patternCandidateStatus==='REPRODUCTION_ACTIVE_NOT_CHAMPION') activePatternId=patternCandidateId;
+const patternCandidateRef=spec?.pattern_measurement?.historical_candidate_ref||spec?.pattern_measurement?.active_pattern_ref||null;
+if(patternCandidateRef){const candidate=readJson(path.join(root,patternCandidateRef));patternCandidateId=candidate?.pattern_id||null;patternCandidateStatus=candidate?.status||null;}
+const activePatternRef=spec?.pattern_measurement?.active_pattern_ref||null;
+if(activePatternRef){const active=readJson(path.join(root,activePatternRef));if(active?.status==='REPRODUCTION_ACTIVE_NOT_CHAMPION')activePatternId=active?.pattern_id||null;}
+const patternCandidateHealth=patternCandidateId?(patternHealth[patternCandidateId]||{pattern_id:patternCandidateId,tagged_exams:0,qualifying_ge_min_score:0,status:'NO_TAGGED_SAMPLE'}):null;
+const activePatternHealth=activePatternId?(patternHealth[activePatternId]||{pattern_id:activePatternId,tagged_exams:0,qualifying_ge_min_score:0,status:'NO_TAGGED_SAMPLE'}):null;
+
+const activeStrategyRef=spec?.strategy_measurement?.active_experiment_ref||null;
+const strategyExperiment=activeStrategyRef?readJson(path.join(root,activeStrategyRef)):null;
+const strategyExperimentId=strategyExperiment?.status==='ACTIVE_CANARY'?strategyExperiment?.experiment_id||null:null;
+const strategyMinWorkers=Number(strategyExperiment?.measurement?.min_independent_workers_per_variant||3);
+const strategyWindow=[...rows].filter(r=>strategyExperimentId&&r.experiment_id===strategyExperimentId&&r.experiment_enrolled===true).sort((a,b)=>Date.parse(b.closed_at||0)-Date.parse(a.closed_at||0)).slice(0,60);
+const strategyExperimentHealth=strategyExperimentId?{experiment_id:strategyExperimentId,status:'SAMPLE_BUILDING',applies_after:strategyExperiment?.applies_after||'OWNERSHIP',min_independent_workers_per_variant:strategyMinWorkers,enrolled_cards:strategyWindow.length,classes:{}}:null;
+if(strategyExperimentHealth){
+ let anyReady=false;
+ for(const [jobClass,def] of Object.entries(strategyExperiment?.classes||{})){
+  const classOut={status:'SAMPLE_BUILDING',variants:{}};
+  for(const variantDef of (def?.variants||[])){
+   const variantId=variantDef?.id;
+   const group=strategyWindow.filter(r=>r.job_class===jobClass&&r.strategy_variant===variantId);
+   const eligible=group.filter(r=>r.experimental_productive_slots>0);
+   const avg=fn=>eligible.length?Number((eligible.reduce((a,r)=>a+Number(fn(r)||0),0)/eligible.length).toFixed(3)):null;
+   classOut.variants[variantId]={enrolled_cards:group.length,independent_workers_with_experimental_slots:eligible.length,experimental_productive_slots_total:eligible.reduce((a,r)=>a+r.experimental_productive_slots,0),median_experimental_productive_slots:median(eligible.map(r=>r.experimental_productive_slots)),experimental_visible_change_worker_rate:eligible.length?Number((eligible.filter(r=>r.experimental_visible_change).length/eligible.length).toFixed(3)):null,experimental_successor_worker_rate:eligible.length?Number((eligible.filter(r=>r.experimental_reproduction).length/eligible.length).toFixed(3)):null,avg_experimental_project_breadth:avg(r=>r.experimental_project_breadth),end_to_end_score_median_context_only:median(eligible.map(r=>r.score)),preclaim_diagnostics:{avg_collisions:avg(r=>r.collisions),no_allocation_worker_rate:eligible.length?Number((eligible.filter(r=>r.no_allocation_count>0).length/eligible.length).toFixed(3)):null,low_waste_worker_rate:eligible.length?Number((eligible.filter(r=>r.low_waste).length/eligible.length).toFixed(3)):null,causal_for_variant:false},status:eligible.length>=strategyMinWorkers?'SAMPLE_READY':'SAMPLE_BUILDING'};
+  }
+  const vs=Object.values(classOut.variants);classOut.status=vs.length>=2&&vs.every(v=>v.independent_workers_with_experimental_slots>=strategyMinWorkers)?'READY_FOR_GUIDE_COMPARISON':'SAMPLE_BUILDING';if(classOut.status==='READY_FOR_GUIDE_COMPARISON')anyReady=true;strategyExperimentHealth.classes[jobClass]=classOut;
+ }
+ strategyExperimentHealth.status=anyReady?'READY_FOR_GUIDE_COMPARISON':'SAMPLE_BUILDING';
+ strategyExperimentHealth.causal_boundary='Post-ownership variant metrics are separated from preclaim collision/no-allocation diagnostics; no automatic cross-class winner.';
 }
-const patternCandidateHealth=patternCandidateId ? (patternHealth[patternCandidateId]||{
-  pattern_id:patternCandidateId,tagged_exams:0,qualifying_ge_min_score:0,status:'NO_TAGGED_SAMPLE'
-}) : null;
-const activePatternHealth=activePatternId ? patternCandidateHealth : null;
 const reproductionCounts={};
 const minScore=Number(spec?.champion_policy?.champion_min_score||8);
 for(const r of latest){
@@ -150,7 +179,10 @@ const out={
   pattern_candidate_health:patternCandidateHealth,
   active_pattern_id:activePatternId,
   active_pattern_health:activePatternHealth,
-  note:'Observability only. leader/champion_candidate is the best observed card; champion stays null until a non-null pattern_id is independently reproduced by >=3 workers at score >=8. pattern_health makes failed/partial reproduction explicit instead of forcing Guide to infer it from raw cards. Verbosity never adds points.'
+  strategy_experiment_id:strategyExperimentId,
+  strategy_experiment_status:strategyExperiment?.status||null,
+  strategy_experiment_health:strategyExperimentHealth,
+  note:'Observability only. Global score is end-to-end; strategy_experiment_health compares only post-ownership experimental slots within job class and publishes collisions/no-allocation separately as non-causal preclaim diagnostics. Retired pattern evidence is preserved without making it active. Verbosity never adds points.'
 };
 fs.mkdirSync(path.dirname(outPath),{recursive:true});
 fs.writeFileSync(outPath,JSON.stringify(out,null,2)+'\n');
