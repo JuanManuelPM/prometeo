@@ -102,6 +102,10 @@ if (sourceDebtPlannerItem?.required?.status !== 'SOURCE_DEBT') errors.push('base
 if (sourceDebtPlannerItem?.required?.require_empty_frontier_refs !== true) errors.push('baseline: EFF026 empty-frontier predicate drift');
 if (sourceDebtPlannerItem?.required?.required_blocker_prefix !== 'NEW_EVIDENCE_GATE:') errors.push('baseline: EFF026 blocker prefix drift');
 if (sourceDebtPlannerItem?.required?.suppress_trigger !== 'PROJECT_FRONTIER_THIN') errors.push('baseline: EFF026 trigger drift');
+if (sourceDebtPlannerItem?.required?.project_coverage_postprocessor_gate !== true) errors.push('baseline: EFF026 project coverage postprocessor gate must be true');
+if (JSON.stringify(sourceDebtPlannerItem?.required?.suppressed_triggers) !== JSON.stringify(['PROJECT_FRONTIER_THIN','PROJECT_COVERAGE_GAP'])) errors.push('baseline: EFF026 suppressed trigger set drift');
+if (sourceDebtPlannerItem?.required?.state_source !== 'coordination/project-guides/<project_id>/STATE.json') errors.push('baseline: EFF026 durable state source drift');
+if (sourceDebtPlannerItem?.required?.project_coverage_regression_test !== 'coordination/portfolio/tests/project_coverage_allocator_v1.mjs') errors.push('baseline: EFF026 coverage regression test drift');
 const staleCollisionRefreshItem = baseline?.items?.find(x=>x.id==='EFF034');
 if (staleCollisionRefreshItem?.required?.ordinary_compact_frontier_reads !== 1) errors.push('baseline: EFF034 ordinary frontier read drift');
 if (staleCollisionRefreshItem?.required?.stale_collision_refresh_max !== 1) errors.push('baseline: EFF034 refresh bound drift');
@@ -278,6 +282,14 @@ must('fast-allocation', fast, 'first 8 hex chars of beacon_commit_sha');
 must('fast-allocation', fast, 'Do not re-impose lane priority locally for a batched worker');
 must('fast-allocation', fast, 'batch_compatible_candidates');
 mustI('fast-allocation', fast, 'definitively incompatible candidates before the hash');
+
+const projectCoverage = read(root, 'scripts/apply-project-coverage.mjs');
+must('project-coverage-source-debt-gate', projectCoverage, 'projectPlannerSuppressedBySourceDebt');
+must('project-coverage-human-decision-gate', projectCoverage, 'projectPlannerSuppressedByHumanDecision');
+must('project-coverage-planner-suppression', projectCoverage, '!row.plannerSuppressed');
+const projectCoverageTest = read(root, 'coordination/portfolio/tests/project_coverage_allocator_v1.mjs');
+must('project-coverage-test-source-debt', projectCoverageTest, 'SOURCE_DEBT + empty frontier + NEW_EVIDENCE_GATE');
+must('project-coverage-test-human-decision', projectCoverageTest, 'HUMAN_DECISION_GATE + empty frontier');
 
 const projectGuideMesh = JSON.parse(read(root, 'coordination/guide/PROJECT_GUIDE_MESH_V1.json'));
 if (projectGuideMesh.worker_chain_checkpoint_productive_units !== 3) errors.push('project-guide-mesh: checkpoint drift');
