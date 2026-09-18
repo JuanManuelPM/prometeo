@@ -980,12 +980,29 @@ else {
   if (eff029.required?.dependent_source_debt_compact_frontier_observable !== true) errors.push('ratchet: EFF029 dependent SOURCE_DEBT compact-frontier observability drift');
 }
 
+const eff053 = baseline.items?.find(item => item.id === 'EFF053');
+if (!eff053) errors.push('ratchet: EFF053 missing');
+else {
+  if (eff053.required?.latest_return_generation_preserved !== true) errors.push('ratchet: EFF053 latest-return generation drift');
+  if (eff053.required?.one_silent_owner_liveness_retry_preserved !== true) errors.push('ratchet: EFF053 single silent-owner retry drift');
+  if (eff053.required?.repeated_same_basis_silent_owner_retry_bounded !== true) errors.push('ratchet: EFF053 repeated silent-owner bound drift');
+  if (eff053.required?.repeated_silent_owner_threshold !== 2) errors.push('ratchet: EFF053 threshold drift');
+  if (eff053.required?.exhausted_reason !== 'SOURCE_DEBT_SILENT_OWNER_RETRY_EXHAUSTED') errors.push('ratchet: EFF053 exhausted reason drift');
+  if (eff053.required?.recovery_attention_preserved !== true) errors.push('ratchet: EFF053 recovery-attention drift');
+  if (eff053.required?.new_material_basis_reopens_recovery !== true) errors.push('ratchet: EFF053 new-basis reopen drift');
+  if (eff053.required?.no_history_scan_required !== true) errors.push('ratchet: EFF053 history-scan drift');
+  if (eff053.required?.regression_test !== 'coordination/portfolio/tests/source_debt_recovery_basis_gate_v1.mjs') errors.push('ratchet: EFF053 regression-test drift');
+}
+
 must('fast-allocator', allocator, 'recoveryBasisGate');
 must('fast-allocator', allocator, 'SOURCE_DEBT_BASIS_UNCHANGED');
+must('fast-allocator', allocator, 'SOURCE_DEBT_SILENT_OWNER_RETRY_EXHAUSTED');
+must('fast-allocator', allocator, 'silent_owners_since_return');
 must('fast-allocator', allocator, 'source_debt_dependency_return_ref');
 must('fast-allocator', allocator, "source_debt: gate.gate_kind === 'source_debt'");
 must('fast-allocator', allocator, 'recovery_attention: recoveryAttention');
 must('live-feed', liveBuilder, 'latest_pin_recovery_basis:latestPin?.doc?.recovery_basis_or_null || null');
+must('live-feed', liveBuilder, 'generation:generation(latestReturn)');
 must('fast-allocator', allocator, 'authorityBoundaryGate');
 must('fast-allocator', allocator, 'AUTHORITY_DEBT_UNSATISFIED');
 must('fast-allocator', allocator, 'AUTHORITY_GATE_MALFORMED_FAIL_CLOSED');
@@ -1008,6 +1025,9 @@ must('authority-boundary-recovery-test', authorityBoundaryRecoveryTest, 'Faculta
 const sourceDebtRecoveryTest = read(root, 'coordination/portfolio/tests/source_debt_recovery_basis_gate_v1.mjs');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'SOURCE_DEBT_RECOVERY_BASIS_GATE_PASS');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'SILENT_OWNER_STALE_AFTER_LAST_RETURN');
+must('source-debt-recovery-test', sourceDebtRecoveryTest, 'SOURCE_DEBT_SILENT_OWNER_RETRY_EXHAUSTED');
+must('source-debt-recovery-test', sourceDebtRecoveryTest, 'repeated silent SOURCE_DEBT basis must not emit another ordinary generation');
+must('source-debt-recovery-test', sourceDebtRecoveryTest, 'Live feed must preserve latest portfolio return generation');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'latest_source_debt_return');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'SOURCE_DEBT_MALFORMED_FAIL_CLOSED');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'portfolio-jose-v12-pinned-v11-material-recovery-v1 must not emit a G5 recovery from age alone');
