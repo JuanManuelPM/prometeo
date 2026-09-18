@@ -1,0 +1,18 @@
+import fs from 'node:fs';import path from 'node:path';
+const source=path.resolve(process.argv[2]||'.'),site=process.argv[3]?path.resolve(process.argv[3]):null,fail=[];
+const read=(b,r)=>{const p=path.join(b,r);if(!fs.existsSync(p)){fail.push('missing '+r);return ''}return fs.readFileSync(p,'utf8')};
+const json=(b,r)=>{try{return JSON.parse(read(b,r))}catch{fail.push('invalid json '+r);return {}}};
+const has=(n,t,x)=>{if(!String(t).includes(x))fail.push(n+' missing '+x)};
+const g=read(source,'g');has('g',g,'PROMETEO GUIDE v1.7');has('g',g,'## ACTIVE CURRENT MISSION — PRIORITY OVERRIDE');has('g',g,'GUIDE_CURRENT_MISSION_WRITEBACK_V1.md');has('g',g,'there is no arbitrary one-action cap');
+const p=read(source,'p.txt');has('p',p,'PROMETEO v4.9.3');has('p',p,'CURRENT_MISSION_V1.json');
+const m=json(source,'coordination/guide/CURRENT_MISSION_V1.json');if(m.status!=='ACTIVE_BINDING')fail.push('mission status');if(m?.operating_mode?.mode!=='ROLLING_POOL'||m?.operating_mode?.pool_id!=='PROD-01')fail.push('mission pool');if(m?.operating_mode?.worker_residency?.checkpoint_productive_units!==3||m?.operating_mode?.worker_residency?.target_productive_units!==6||m?.operating_mode?.worker_residency?.hard_cap_productive_units!==8)fail.push('mission residency');
+const h=json(source,'coordination/CONTINUITY_HEAD.json');if(h.current_mission_ref!=='coordination/guide/CURRENT_MISSION_V1.json'||h.current_mission_status!=='ACTIVE_BINDING')fail.push('head mission');if(h.handoff_verification_status!=='VERIFIED_FRESH_G_CANARY_PASS_CORE_SUCCESSION'||h.current_mission_handoff_status!=='ENCODED_AWAITING_FRESH_G_CANARY')fail.push('head succession truth');
+const f=json(source,'coordination/workstreams/chat-native-control-plane-v1/FOCUS.json');if(f.guide_succession_status!=='VERIFIED_FRESH_G_CANARY_PASS'||f.current_mission_handoff_status!=='ENCODED_AWAITING_FRESH_G_CANARY')fail.push('focus succession truth');has('focus',f.current_frontier,'LOW_YIELD_OVERLOAD');
+const c=json(source,'coordination/workstreams/chat-native-control-plane-v1/CHAT_OBJECT.json');if(c.guide_succession_status!=='VERIFIED_FRESH_G_CANARY_PASS'||c.current_mission_handoff_status!=='ENCODED_AWAITING_FRESH_G_CANARY')fail.push('chat succession truth');
+const gr=json(source,'coordination/guide/GROWTH_CAMPAIGN_V1.json');if(gr.current_stage!=='CONTINUOUS_POOL-01'||gr?.continuity_refs?.current_mission!=='coordination/guide/CURRENT_MISSION_V1.json')fail.push('growth mission');
+has('continuity',read(source,'coordination/guide/CONTINUOUS_COGNITIVE_PRODUCTION_CONTINUITY_V1.md'),'The human should not become the transport, scheduler, merger or memory system.');
+has('writeback',read(source,'coordination/guide/GUIDE_CURRENT_MISSION_WRITEBACK_V1.md'),'Mandatory writeback');
+has('fixlist',read(source,'coordination/workstreams/chat-native-control-plane-v1/GUIDE_SUCCESSOR_FIXLIST_V1.md'),'## 14. Current Mission succession extension');
+const e=json(source,'.well-known/prometeo.json');has('entry',e.current_mission,'/coordination/guide/CURRENT_MISSION_V1.json');
+if(site){has('public p',read(site,'p.txt'),'CURRENT_MISSION_V1.json');const se=json(site,'.well-known/prometeo.json');has('public entry',se.current_mission,'/coordination/guide/CURRENT_MISSION_V1.json');has('public g',read(site,'g/index.html'),'coordination/guide/CURRENT_MISSION_V1.json')}
+if(fail.length){console.error('GUIDE_CURRENT_MISSION_CONTINUITY_FAIL');for(const x of fail)console.error('- '+x);process.exit(1)}console.log('GUIDE_CURRENT_MISSION_CONTINUITY_PASS');
