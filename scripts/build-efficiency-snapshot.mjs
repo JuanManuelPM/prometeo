@@ -15,6 +15,9 @@ const transportRegressionWindowMs = Math.max(1, transportRegressionWindowMinutes
 const eff028 = Array.isArray(baseline.items) ? baseline.items.find(item => item?.id === 'EFF028') : null;
 const noAllocationRegressionWindowMinutes = Number(eff028?.required?.no_allocation_regression_window_minutes || 10);
 const noAllocationRegressionWindowMs = Math.max(1, noAllocationRegressionWindowMinutes) * 60_000;
+const eff037 = Array.isArray(baseline.items) ? baseline.items.find(item => item?.id === 'EFF037') : null;
+const ttfaRegressionWindowMinutes = Number(eff037?.required?.ttfa_regression_window_minutes || 10);
+const ttfaRegressionWindowMs = Math.max(1, ttfaRegressionWindowMinutes) * 60_000;
 
 const read = p => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } };
 const walk = dir => {
@@ -109,6 +112,11 @@ const transportBlockedRecent=transportBlocked.filter(x=>{
   const at=time(x.no_allocation_at);
   return at && now-at<=transportRegressionWindowMs;
 });
+const allocatedRecent=allocated.filter(x=>{
+  const at=time(x.authority_at);
+  return at && now-at<=ttfaRegressionWindowMs;
+});
+const ttfaRecent=allocatedRecent.map(x=>x.time_to_first_authority_ms);
 const closedRecent=closed.filter(x=>{
   const at=time(x.no_allocation_at);
   return at && now-at<=noAllocationRegressionWindowMs;
@@ -125,6 +133,12 @@ const metrics={
   ttfa_p90_ms:q(ttfa,.9),
   ttfa_under_30s_percent:pct(ttfa.filter(x=>x<=30000).length,ttfa.length),
   ttfa_under_90s_percent:pct(ttfa.filter(x=>x<=90000).length,ttfa.length),
+  ttfa_recent:allocatedRecent.length,
+  ttfa_p50_recent_ms:q(ttfaRecent,.5),
+  ttfa_p90_recent_ms:q(ttfaRecent,.9),
+  ttfa_under_30s_recent_percent:pct(ttfaRecent.filter(x=>x<=30000).length,ttfaRecent.length),
+  ttfa_under_90s_recent_percent:pct(ttfaRecent.filter(x=>x<=90000).length,ttfaRecent.length),
+  ttfa_regression_window_minutes:ttfaRegressionWindowMinutes,
   no_allocation_close_p50_ms:q(noClose,.5),
   no_allocation_close_p90_ms:q(noClose,.9),
   no_allocation_under_90s_percent:pct(noClose.filter(x=>x<=90000).length,noClose.length),
@@ -140,10 +154,10 @@ const metrics={
 let status='INSUFFICIENT_SAMPLE';
 const reasons=[];
 if(sample>=5){
-  const ttfaBad=metrics.ttfa_p90_ms!=null && metrics.ttfa_p90_ms>90000;
+  const ttfaBad=metrics.ttfa_p90_recent_ms!=null && metrics.ttfa_p90_recent_ms>90000;
   const closeBad=metrics.no_allocation_close_p90_recent_ms!=null && metrics.no_allocation_close_p90_recent_ms>90000;
   const transportBad=metrics.claim_transport_blocked_recent>=2;
-  const ttfaStrong=metrics.ttfa_p50_ms!=null && metrics.ttfa_p50_ms<=30000 && (!metrics.ttfa_p90_ms||metrics.ttfa_p90_ms<=90000);
+  const ttfaStrong=metrics.ttfa_p50_recent_ms!=null && metrics.ttfa_p50_recent_ms<=30000 && (!metrics.ttfa_p90_recent_ms||metrics.ttfa_p90_recent_ms<=90000);
   const closeStrong=metrics.no_allocation_close_p90_recent_ms==null || metrics.no_allocation_close_p90_recent_ms<=90000;
   if(ttfaBad) reasons.push('TTFA_P90_GT_90S');
   if(closeBad) reasons.push('NO_ALLOCATION_P90_GT_90S');

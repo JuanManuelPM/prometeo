@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -142,6 +142,20 @@ if (noAllocationWindowItem?.required?.no_allocation_regression_window_minutes !=
 if (noAllocationWindowItem?.required?.current_metric !== 'no_allocation_close_p90_recent_ms') errors.push('baseline: EFF028 current metric drift');
 if (noAllocationWindowItem?.required?.regression_threshold_ms !== 90000) errors.push('baseline: EFF028 threshold drift');
 if (noAllocationWindowItem?.required?.regression_test !== 'coordination/portfolio/tests/efficiency_recent_no_allocation_regression_v1.mjs') errors.push('baseline: EFF028 regression test drift');
+
+const ttfaWindowItem = baseline?.items?.find(x=>x.id==='EFF037');
+if (ttfaWindowItem?.required?.global_runtime_epoch_preserved !== true) errors.push('baseline: EFF037 global runtime epoch must be preserved');
+if (ttfaWindowItem?.required?.historical_ttfa_metrics_preserved !== true) errors.push('baseline: EFF037 historical TTFA metrics must be preserved');
+if (ttfaWindowItem?.required?.ttfa_regression_uses_recent_durable_events !== true) errors.push('baseline: EFF037 recent durable-event window drift');
+if (ttfaWindowItem?.required?.ttfa_regression_window_minutes !== 10) errors.push('baseline: EFF037 TTFA regression window drift');
+if (ttfaWindowItem?.required?.current_metric !== 'ttfa_p90_recent_ms') errors.push('baseline: EFF037 current metric drift');
+if (ttfaWindowItem?.required?.regression_threshold_ms !== 90000) errors.push('baseline: EFF037 threshold drift');
+if (ttfaWindowItem?.required?.regression_test !== 'coordination/portfolio/tests/efficiency_recent_ttfa_regression_v1.mjs') errors.push('baseline: EFF037 regression test drift');
+const efficiencyBuilder = read(root, 'scripts/build-efficiency-snapshot.mjs');
+must('efficiency-builder-ttfa-window', efficiencyBuilder, "const eff037 = Array.isArray(baseline.items)");
+must('efficiency-builder-ttfa-window', efficiencyBuilder, 'ttfa_p90_recent_ms');
+must('efficiency-builder-ttfa-window', efficiencyBuilder, 'ttfa_regression_window_minutes:ttfaRegressionWindowMinutes');
+must('efficiency-builder-ttfa-window', efficiencyBuilder, 'const ttfaBad=metrics.ttfa_p90_recent_ms!=null');
 
 const wc = read(root, 'wc');
 must('wc', wc, 'CLAIM NOW');
