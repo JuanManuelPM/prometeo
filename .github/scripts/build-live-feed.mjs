@@ -126,6 +126,7 @@ function inspectPortfolioJob(project, job) {
     replaceable_at:lastSignalAt ? new Date(Date.parse(lastSignalAt)+REPLACE_MS).toISOString() : null,
     collision_count:collisions.length + Math.max(0, claims.length-(authority?1:0)),
     latest_return:latestReturn ? {path:latestReturn.path,outcome:first(latestReturn.doc.outcome,latestReturn.doc.status),summary:latestReturn.doc.summary||null,returned_at:timeOf(latestReturn.doc),worker_id:latestReturn.doc.worker_id||null} : null,
+    latest_pin_recovery_basis:latestPin?.doc?.recovery_basis_or_null || null,
     terminal_return:terminalReturn ? {path:terminalReturn.path,outcome:first(terminalReturn.doc.outcome,terminalReturn.doc.status),returned_at:timeOf(terminalReturn.doc),worker_id:terminalReturn.doc.worker_id||null} : null,
     recent_return_evidence:returns.slice(-3).map(r=>({path:r.path,outcome:first(r.doc.outcome,r.doc.status),returned_at:timeOf(r.doc)})),
     recent_collision_evidence:collisions.slice(-3).map(r=>({path:r.path,observed_at:timeOf(r.doc)})),

@@ -136,9 +136,127 @@ export function normalizeRecoveryPolicy(job = {}, policy = null) {
   };
 }
 
+
+function normalizedRecoveryBasis(job = {}) {
+  const raw = job?.recovery_basis && typeof job.recovery_basis === 'object' ? job.recovery_basis : {};
+  const revision = finiteInt(raw.revision ?? job?.recovery_basis_revision, 0);
+  const evidence = uniq([...arr(job?.evidence), ...arr(raw.evidence), ...arr(raw.artifacts)]);
+  const explicitEvidence = uniq([...arr(raw.evidence), ...arr(raw.artifacts)]);
+  const requiredCapabilities = jobRequiredCapabilities(job);
+  const explicitCapabilities = uniq(arr(raw.required_capabilities));
+  const retryTrigger = raw.retry_safe_trigger || job?.recovery_retry_trigger || null;
+  const updatedAt = raw.updated_at || job?.recovery_basis_updated_at || job?.updated_at || job?.created_at || null;
+  const fingerprint = sha12(JSON.stringify({
+    revision,
+    evidence,
+    required_capabilities: requiredCapabilities,
+    retry_trigger: retryTrigger
+  }));
+  return {
+    revision,
+    evidence,
+    explicit_evidence: explicitEvidence,
+    required_capabilities: requiredCapabilities,
+    explicit_capabilities: explicitCapabilities,
+    retry_trigger: retryTrigger,
+    updated_at: updatedAt,
+    updated_at_ms: parseTime(updatedAt),
+    fingerprint,
+    capability_fingerprint: sha12(JSON.stringify(requiredCapabilities)),
+    explicit: Boolean(
+      job?.recovery_basis ||
+      finiteInt(job?.recovery_basis_revision, 0) > 0 ||
+      job?.recovery_retry_trigger
+    )
+  };
+}
+
+function evidenceBoundSourceDebt(job = {}) {
+  const ret = job?.latest_return || null;
+  const outcome = lower(ret?.outcome || ret?.status);
+  if (!['boundary', 'route_aborted', 'partial'].includes(outcome)) return false;
+  const summary = lower(ret?.summary || '');
+  return (
+    summary.includes('source_debt') ||
+    summary.includes('source debt') ||
+    summary.includes('requires a new external') ||
+    summary.includes('requires an authentic external') ||
+    summary.includes('authentic external preserved') ||
+    summary.includes('new external preserved artifact')
+  );
+}
+
+export function recoveryBasisGate(job = {}) {
+  const basis = normalizedRecoveryBasis(job);
+  if (!evidenceBoundSourceDebt(job)) {
+    return {
+      eligible: true,
+      evidence_bound: false,
+      reason: 'NOT_EVIDENCE_BOUND_SOURCE_DEBT',
+      basis
+    };
+  }
+
+  const returnedAt = parseTime(job?.latest_return?.returned_at);
+  const claimedAt = parseTime(job?.claimed_at);
+
+  // If the latest owner claimed after the latest return and then went silent,
+  // preserve ordinary stale-owner recovery. SOURCE_DEBT only gates completed
+  // nonterminal attempts that explicitly say a new basis is required.
+  if (claimedAt && (!returnedAt || claimedAt > returnedAt)) {
+    return {
+      eligible: true,
+      evidence_bound: true,
+      reason: 'SILENT_OWNER_STALE_AFTER_LAST_RETURN',
+      basis
+    };
+  }
+
+  const prior = job?.latest_pin_recovery_basis && typeof job.latest_pin_recovery_basis === 'object'
+    ? job.latest_pin_recovery_basis
+    : {};
+  const priorFingerprint = prior.basis_fingerprint || null;
+  const priorRevision = finiteInt(prior.basis_revision, 0);
+  const updatedAfterReturn = Boolean(returnedAt && basis.updated_at_ms > returnedAt);
+
+  const legacyMaterialBasis = (
+    !priorFingerprint &&
+    updatedAfterReturn &&
+    basis.explicit &&
+    (
+      basis.revision > priorRevision ||
+      Boolean(basis.retry_trigger) ||
+      basis.explicit_evidence.length > 0 ||
+      basis.explicit_capabilities.length > 0
+    )
+  );
+  const stampedMaterialBasis = (
+    Boolean(priorFingerprint) &&
+    updatedAfterReturn &&
+    basis.fingerprint !== priorFingerprint
+  );
+
+  if (legacyMaterialBasis || stampedMaterialBasis) {
+    return {
+      eligible: true,
+      evidence_bound: true,
+      reason: 'SOURCE_DEBT_BASIS_CHANGED',
+      basis
+    };
+  }
+
+  return {
+    eligible: false,
+    evidence_bound: true,
+    reason: 'SOURCE_DEBT_BASIS_UNCHANGED',
+    basis
+  };
+}
+
 function compactPortfolio(feed, semantic, job, targetGeneration = null) {
   const current = finiteInt(job.pin_generation, 0);
   const recovery = semantic(job);
+  const basisGate = recoveryBasisGate(job);
   const next = targetGeneration ?? current + 1;
   const predecessor = current ? `coordination/portfolio/pins/${job.job_id}/G${g(current)}.json` : null;
   return {
@@ -156,6 +274,7 @@ function compactPortfolio(feed, semantic, job, targetGeneration = null) {
     next_generation: next,
     claim_generation_mode: recovery.mode === 'fixed_generation' ? 'FIXED' : 'NEXT',
     recovery_semantics: recovery,
+    recovery_basis_gate: basisGate,
     claim_mode: 'PORTFOLIO_PIN_CREATE',
     claim_path: `coordination/portfolio/pins/${job.job_id}/G${g(next)}.json`,
     claim_payload_shape: {
@@ -175,7 +294,14 @@ function compactPortfolio(feed, semantic, job, targetGeneration = null) {
       recovery_basis_or_null: current ? {
         allocator_generated_at: feed.generated_at,
         predecessor_last_signal_at: job.last_signal_at || null,
-        allocator_state: job.state
+        allocator_state: job.state,
+        ...(basisGate.evidence_bound || basisGate.basis.explicit ? {
+          basis_revision: basisGate.basis.revision,
+          basis_fingerprint: basisGate.basis.fingerprint,
+          capability_fingerprint: basisGate.basis.capability_fingerprint,
+          basis_updated_at: basisGate.basis.updated_at,
+          retry_trigger: basisGate.basis.retry_trigger
+        } : {})
       } : null
     },
     predecessor_pin_ref: predecessor,
@@ -477,6 +603,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
 
   const ready = jobs
     .filter(job => ['ready', 'partial'].includes(job.state))
+    .filter(job => job.state !== 'partial' || recoveryBasisGate(job).eligible)
     .filter(job => {
       const semantics = semantic(job);
       if (semantics.mode !== 'fixed_generation') return semantics.valid;
@@ -512,8 +639,33 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
   const recovery = jobs
     .filter(job => job.state === 'replaceable')
     .filter(job => semantic(job).valid && semantic(job).ordinary_next_generation_eligible)
+    .filter(job => recoveryBasisGate(job).eligible)
     .sort(byPriority)
     .map(job => compactPortfolio(feed, semantic, job))
+    .slice(0, 30);
+
+  const recoveryAttention = jobs
+    .filter(job => ['replaceable', 'partial'].includes(job.state))
+    .filter(job => semantic(job).valid && semantic(job).ordinary_next_generation_eligible)
+    .map(job => ({ job, gate: recoveryBasisGate(job) }))
+    .filter(({ gate }) => !gate.eligible)
+    .sort((a, b) => byPriority(a.job, b.job))
+    .map(({ job, gate }) => ({
+      job_id: job.job_id,
+      dedupe_key: job.dedupe_key || null,
+      project_id: job.project_id || null,
+      project_label: job.project_label || null,
+      title: job.title || job.job_id,
+      source_path: job.source_path || null,
+      required_capabilities: jobRequiredCapabilities(job),
+      priority: job.priority || 0,
+      state: job.state,
+      pin_generation: finiteInt(job.pin_generation, 0),
+      latest_return: job.latest_return || null,
+      reason: gate.reason,
+      recovery_basis: gate.basis,
+      ordinary_next_generation_eligible: false
+    }))
     .slice(0, 30);
 
   const fixedAttentionResolved = (job, semantics) => {
@@ -589,12 +741,14 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
       queue_ready: queueReady.length,
       role_ready: roles.role_ready.length,
       recovery: recovery.length,
+      recovery_attention: recoveryAttention.length,
       fixed_generation_attention: fixedGenerationAttention.length
     },
     ready,
     queue_ready: queueReady,
     role_ready: roles.role_ready,
     recovery,
+    recovery_attention: recoveryAttention,
     fixed_generation_attention: fixedGenerationAttention,
     metabolism: roles.metabolism,
     worker_projection: feed.summary?.workers || {},

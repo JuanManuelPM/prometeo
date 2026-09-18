@@ -379,6 +379,23 @@ else {
   if (eff027.required?.no_extra_preclaim_reads_or_writes !== true) errors.push('ratchet: EFF027 preclaim-overhead drift');
 }
 
+const eff028 = baseline.items?.find(item => item.id === 'EFF028');
+if (!eff028) errors.push('ratchet: EFF028 missing');
+else {
+  if (eff028.required?.source_debt_time_only_retry_suppressed !== true) errors.push('ratchet: EFF028 time-only SOURCE_DEBT suppression drift');
+  if (eff028.required?.unresolved_attention_preserved !== true) errors.push('ratchet: EFF028 unresolved attention drift');
+  if (eff028.required?.next_pin_stamps_basis_fingerprint !== true) errors.push('ratchet: EFF028 basis fingerprint drift');
+  if (eff028.required?.silent_owner_recovery_preserved !== true) errors.push('ratchet: EFF028 silent-owner recovery drift');
+}
+
+must('fast-allocator', allocator, 'recoveryBasisGate');
+must('fast-allocator', allocator, 'SOURCE_DEBT_BASIS_UNCHANGED');
+must('fast-allocator', allocator, 'recovery_attention: recoveryAttention');
+must('live-feed', liveBuilder, 'latest_pin_recovery_basis:latestPin?.doc?.recovery_basis_or_null || null');
+const sourceDebtRecoveryTest = read(root, 'coordination/portfolio/tests/source_debt_recovery_basis_gate_v1.mjs');
+must('source-debt-recovery-test', sourceDebtRecoveryTest, 'SOURCE_DEBT_RECOVERY_BASIS_GATE_PASS');
+must('source-debt-recovery-test', sourceDebtRecoveryTest, 'SILENT_OWNER_STALE_AFTER_LAST_RETURN');
+
 const claimFrontier = read(root, 'scripts/build-claim-frontier.mjs');
 must('claim-frontier', claimFrontier, "schema:'prometeo.claim-frontier/v1'");
 must('claim-frontier', claimFrontier, 'maxCandidates = 24');
