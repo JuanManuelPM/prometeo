@@ -1,0 +1,57 @@
+name: Prometeo Worker Productivity Scoreboard
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/workers/exams/**'
+      - 'coordination/workers/WORKER_PRODUCTIVITY_EXAM_V1.json'
+      - 'scripts/build-worker-scoreboard.mjs'
+      - '.github/workflows/worker-productivity-scoreboard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prometeo-worker-productivity-scoreboard
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: source
+          fetch-depth: 1
+
+      - name: Build scoreboard
+        run: node source/scripts/build-worker-scoreboard.mjs source scoreboard.json
+
+      - name: Checkout public site
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          fetch-depth: 5
+
+      - name: Publish scoreboard
+        run: |
+          set -euo pipefail
+          git -C site config user.name github-actions[bot]
+          git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C site pull --ff-only origin gh-pages
+          mkdir -p site/live
+          cp scoreboard.json site/live/worker-scoreboard.json
+          git -C site add live/worker-scoreboard.json
+          if git -C site diff --cached --quiet; then exit 0; fi
+          git -C site commit -m "live: refresh worker productivity scoreboard"
+          for n in 1 2 3; do
+            if git -C site push origin HEAD:gh-pages; then exit 0; fi
+            git -C site fetch origin gh-pages
+            git -C site rebase origin/gh-pages
+          done
+          exit 1
