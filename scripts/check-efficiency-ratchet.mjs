@@ -77,6 +77,25 @@ must('fast-allocator', allocator, 'recovery_capability_pressure: recoveryCapabil
 must('fast-allocator', allocator, 'generic_compatible_recovery: genericRecoveryPressure');
 mustNot('fast-allocator', allocator, 'recovery.length >= Number(signals.replaceable_trigger || 3)');
 
+const tailRescueItem = baseline?.items?.find(x=>x.id==='EFF045');
+if (!tailRescueItem) errors.push('baseline: EFF045 missing');
+else {
+  if (tailRescueItem.required?.base_fast_claim_attempts !== 3) errors.push('baseline: EFF045 base claim bound drift');
+  if (tailRescueItem.required?.pool_tail_rescue_max !== 1) errors.push('baseline: EFF045 tail rescue count drift');
+  if (tailRescueItem.required?.total_authority_create_max_with_tail !== 4) errors.push('baseline: EFF045 total authority CREATE bound drift');
+  if (tailRescueItem.required?.requires_three_create_exists !== true) errors.push('baseline: EFF045 three-collision gate drift');
+  if (tailRescueItem.required?.requires_untried_retained_compatible_candidate !== true) errors.push('baseline: EFF045 retained candidate gate drift');
+  if (tailRescueItem.required?.extra_frontier_read_for_tail_forbidden !== true) errors.push('baseline: EFF045 extra read drift');
+  if (tailRescueItem.required?.payload_fabrication_for_tail_forbidden !== true) errors.push('baseline: EFF045 payload fabrication drift');
+  if (tailRescueItem.required?.unbatched_tail_rescue_forbidden !== true) errors.push('baseline: EFF045 unbatched guard drift');
+  if (tailRescueItem.required?.transport_failure_tail_rescue_forbidden !== true) errors.push('baseline: EFF045 transport guard drift');
+  if (tailRescueItem.required?.regression_test !== 'coordination/portfolio/tests/claim_tail_rescue_after_three_collisions_v1.mjs') errors.push('baseline: EFF045 regression test drift');
+}
+const tailRescueTest = read(root, 'coordination/portfolio/tests/claim_tail_rescue_after_three_collisions_v1.mjs');
+must('claim-tail-rescue', tailRescueTest, 'CLAIM_TAIL_RESCUE_AFTER_THREE_COLLISIONS_PASS');
+must('claim-tail-rescue', tailRescueTest, 'POOL_TAIL_RESCUE');
+must('claim-tail-rescue', tailRescueTest, 'untried retained candidate');
+
 const capabilityItem = baseline?.items?.find(x=>x.id==='EFF020');
 if (capabilityItem?.required?.portfolio_required_capabilities_compiled !== true) errors.push('baseline: EFF020 portfolio_required_capabilities_compiled must be true');
 if (capabilityItem?.required?.legacy_capability_requirements_alias_normalized !== true) errors.push('baseline: EFF020 legacy_capability_requirements_alias_normalized must be true');
@@ -213,6 +232,9 @@ must('wc-stale-refresh', wc, 'snapshot is >90 seconds old at the post-collision 
 must('wc-stale-refresh', wc, 'reload exactly `gh-pages:live/claim-frontier.json` once');
 must('wc-stale-refresh', wc, 'remaining third authority CREATE');
 must('wc-stale-refresh', wc, 'Never refresh after `CLAIM_TRANSPORT_BLOCKED` or `CLAIM_TRANSPORT_AMBIGUOUS`');
+must('wc-tail-rescue', wc, 'POOL_TAIL_RESCUE');
+must('wc-tail-rescue', wc, 'total authority CREATE attempts are hard-capped at 4');
+must('wc-tail-rescue', wc, 'untried retained candidate');
 must('wc', wc, '`BRANCH_HEAD_MOVED`');
 must('wc', wc, 'retry the same exact claim path and payload once');
 must('wc', wc, 'does NOT consume an authority CREATE attempt');
@@ -287,6 +309,9 @@ must('fast-stale-refresh', fast, 'snapshot is >90 seconds old at the post-collis
 must('fast-stale-refresh', fast, 'reload exactly `gh-pages:live/claim-frontier.json` once');
 must('fast-stale-refresh', fast, 'remaining third authority CREATE');
 must('fast-stale-refresh', fast, 'Never refresh after `CLAIM_TRANSPORT_BLOCKED` or `CLAIM_TRANSPORT_AMBIGUOUS`');
+must('fast-tail-rescue', fast, 'POOL_TAIL_RESCUE');
+must('fast-tail-rescue', fast, 'Total authority CREATE attempts are hard-capped at 4');
+must('fast-tail-rescue', fast, 'untried retained candidate');
 must('fast-allocation', fast, '`BRANCH_HEAD_MOVED`');
 must('fast-allocation', fast, 'same exact claim path and byte-identical payload once');
 must('fast-allocation', fast, 'does not consume one of the 3 authority candidate attempts');
