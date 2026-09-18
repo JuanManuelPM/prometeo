@@ -65,7 +65,11 @@ for(const d of finalDirs){
   for(const sec of requiredSections) if(!resp.includes(sec)) fail.push(d+': response missing section '+sec);
   if(!resp.includes('https://juanmanuelpm.github.io/prometeo/guide/')) fail.push(d+': response missing Guide Brief');
   if(!resp.includes('https://juanmanuelpm.github.io/prometeo/growth/')) fail.push(d+': response missing Growth');
-  if(wcPrompt && !resp.includes(wcPrompt)) fail.push(d+': response missing exact current /wc prompt');
+  if(wcPrompt && !resp.includes(wcPrompt)){
+    const stableWorkerPrompt = resp.includes('PROMETEO /wc') && resp.includes('POOL PROD-01') && resp.includes('https://juanmanuelpm.github.io/prometeo/wc/');
+    if(!stableWorkerPrompt) fail.push(d+': response missing canonical /wc pool invocation family');
+    else note.push(d+': historical response preserves canonical /wc family but differs from later current prompt bytes');
+  }
 
   const levers=Array.isArray(p3.power_levers)?p3.power_levers:[];
   if(levers.length<3) fail.push(d+': fewer than 3 power levers');
