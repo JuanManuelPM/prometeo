@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -388,6 +388,13 @@ must('guide-utility-footer', guide, 'RELEVANT PAGES');
 must('guide-utility-footer', guide, '/wc PROMPT');
 must('guide-utility-footer', guide, 'HUMAN ACTION');
 must('guide-utility-footer', guide, 'NEXT GUIDE CYCLE');
+must('guide-takeover', guide, '## STRICT TAKEOVER CANARY TKV1');
+must('guide-takeover', guide, 'coordination/guide/GUIDE_TAKEOVER_CANARY_V1.json');
+must('guide-takeover', guide, '00_STARTED');
+must('guide-takeover', guide, '10_HYDRATED');
+must('guide-takeover', guide, '20_ACTED');
+must('guide-takeover', guide, '30_FINAL');
+
 
 
 
@@ -401,6 +408,23 @@ const currentMission = JSON.parse(read(root, 'coordination/guide/CURRENT_MISSION
 if (currentMission.status !== 'ACTIVE_BINDING') errors.push('current-mission: status drift');
 if (currentMission?.operating_mode?.mode !== 'ROLLING_POOL') errors.push('current-mission: rolling pool mode drift');
 if (currentMission?.operating_mode?.pool_id !== 'PROD-01') errors.push('current-mission: pool id drift');
+if (currentMission?.guide_takeover_canary?.canary_id !== 'TKV1') errors.push('current-mission: takeover canary id drift');
+if (currentMission?.guide_takeover_canary?.status !== 'PENDING_FRESH_CHAT_EXECUTION') errors.push('current-mission: takeover canary status drift');
+if (currentMission?.continuity_verification?.quality_takeover_canary !== 'PENDING_TKV1') errors.push('current-mission: quality canary truth drift');
+const takeoverSpec = JSON.parse(read(root, 'coordination/guide/GUIDE_TAKEOVER_CANARY_V1.json'));
+if (takeoverSpec.canary_id !== 'TKV1' || takeoverSpec.trigger_token !== 'TAKEOVER CANARY TKV1') errors.push('guide-takeover: spec identity drift');
+if (!Array.isArray(takeoverSpec.sequence) || JSON.stringify(takeoverSpec.sequence.map(x=>x.phase)) !== JSON.stringify(['00_STARTED','10_HYDRATED','20_ACTED','30_FINAL'])) errors.push('guide-takeover: phase sequence drift');
+const takeoverPrompt = read(root, 'coordination/guide/TAKEOVER_CANARY_PROMPT_V1.txt');
+must('guide-takeover-prompt', takeoverPrompt, 'TAKEOVER CANARY TKV1');
+must('guide-takeover-prompt', takeoverPrompt, 'https://juanmanuelpm.github.io/prometeo/g/');
+const takeoverValidator = read(root, 'scripts/check-guide-takeover-v1.mjs');
+must('guide-takeover-validator', takeoverValidator, 'GUIDE_TAKEOVER_TKV1_PASS');
+must('guide-takeover-validator', takeoverValidator, 'visible response too short');
+must('guide-takeover-validator', takeoverValidator, 'power_levers');
+const takeoverWorkflow = read(root, '.github/workflows/guide-takeover-canary.yml');
+must('guide-takeover-workflow', takeoverWorkflow, 'Prometeo Guide Takeover Canary');
+must('guide-takeover-workflow', takeoverWorkflow, 'check-guide-takeover-v1.mjs');
+
 if (currentMission?.operating_mode?.worker_residency?.checkpoint_productive_units !== 3) errors.push('current-mission: checkpoint drift');
 if (currentMission?.operating_mode?.worker_residency?.target_productive_units !== 6) errors.push('current-mission: target drift');
 if (currentMission?.operating_mode?.worker_residency?.hard_cap_productive_units !== 8) errors.push('current-mission: hard cap drift');
@@ -661,6 +685,21 @@ else {
   if (eff033.required?.human_worker_recap_required !== false) errors.push('ratchet: EFF033 human recap drift');
   if (eff033.required?.rolling_pool_default !== 'PROD-01') errors.push('ratchet: EFF033 pool default drift');
   if (eff033.required?.evaluation_pauses_pool !== false) errors.push('ratchet: EFF033 evaluation pause drift');
+}
+
+const eff041 = baseline.items?.find(item => item.id === 'EFF041');
+if (!eff041) errors.push('ratchet: EFF041 missing');
+else {
+  if (eff041.required?.trigger_token !== 'TAKEOVER CANARY TKV1') errors.push('ratchet: EFF041 trigger drift');
+  if (eff041.required?.guide_version !== 'v1.9') errors.push('ratchet: EFF041 guide version drift');
+  if (JSON.stringify(eff041.required?.phases) !== JSON.stringify(['00_STARTED','10_HYDRATED','20_ACTED','30_FINAL'])) errors.push('ratchet: EFF041 phases drift');
+  if (eff041.required?.material_action_min !== 1) errors.push('ratchet: EFF041 action minimum drift');
+  if (eff041.required?.status_refresh_is_material_action !== false) errors.push('ratchet: EFF041 status-only drift');
+  if (eff041.required?.visible_response_min_chars !== 3500) errors.push('ratchet: EFF041 response completeness drift');
+  if (eff041.required?.power_levers_min !== 3) errors.push('ratchet: EFF041 power lever drift');
+  if (eff041.required?.relevant_page_urls_min !== 3) errors.push('ratchet: EFF041 page link drift');
+  if (eff041.required?.exact_visible_response_persistence_required !== true) errors.push('ratchet: EFF041 response persistence drift');
+  if (eff041.required?.pass_without_all_phase_artifacts_forbidden !== true) errors.push('ratchet: EFF041 pass integrity drift');
 }
 
 const eff040 = baseline.items?.find(item => item.id === 'EFF040');
