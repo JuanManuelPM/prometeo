@@ -488,11 +488,41 @@ export function recoveryBasisGate(job = {}) {
 
   const returnedAt = parseTime(job?.latest_return?.returned_at);
   const claimedAt = parseTime(job?.claimed_at);
+  const latestReturnGeneration = finiteInt(job?.latest_return?.generation, 0);
+  const latestPinGeneration = finiteInt(job?.pin_generation, 0);
+  const prior = job?.latest_pin_recovery_basis && typeof job.latest_pin_recovery_basis === 'object'
+    ? job.latest_pin_recovery_basis
+    : {};
+  const priorFingerprint = prior.basis_fingerprint || null;
+  const priorRevision = finiteInt(prior.basis_revision, 0);
 
-  // If the latest owner claimed after the latest return and then went silent,
-  // preserve ordinary stale-owner recovery. SOURCE_DEBT only gates completed
-  // nonterminal attempts that explicitly say a new basis is required.
+  // A silent owner after the latest completed SOURCE_DEBT return gets one
+  // ordinary liveness retry. Do not let repeated silent owners reopen the
+  // exact same stamped basis forever: once two post-return generations have
+  // been materialized without a newer return/basis, fail closed into attention.
   if (claimedAt && (!returnedAt || claimedAt > returnedAt)) {
+    const silentOwnersSinceReturn = latestReturnGeneration > 0
+      ? Math.max(0, latestPinGeneration - latestReturnGeneration)
+      : 0;
+    const repeatedSameStampedBasis = (
+      silentOwnersSinceReturn >= 2 &&
+      Boolean(priorFingerprint) &&
+      priorFingerprint === basis.fingerprint
+    );
+    if (repeatedSameStampedBasis) {
+      return {
+        eligible: false,
+        evidence_bound: true,
+        reason: 'SOURCE_DEBT_SILENT_OWNER_RETRY_EXHAUSTED',
+        basis,
+        source_debt: structuredDebt,
+        silent_owner_retry: {
+          latest_return_generation: latestReturnGeneration,
+          latest_pin_generation: latestPinGeneration,
+          silent_owners_since_return: silentOwnersSinceReturn
+        }
+      };
+    }
     return {
       eligible: true,
       evidence_bound: true,
@@ -501,12 +531,6 @@ export function recoveryBasisGate(job = {}) {
       source_debt: structuredDebt
     };
   }
-
-  const prior = job?.latest_pin_recovery_basis && typeof job.latest_pin_recovery_basis === 'object'
-    ? job.latest_pin_recovery_basis
-    : {};
-  const priorFingerprint = prior.basis_fingerprint || null;
-  const priorRevision = finiteInt(prior.basis_revision, 0);
   const updatedAfterReturn = Boolean(returnedAt && basis.updated_at_ms > returnedAt);
 
   const legacyMaterialBasis = (
