@@ -1,0 +1,45 @@
+name: Calendar habits custom trackers mobile touch canary v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/portfolio/tests/calendar_habits_custom_trackers_mobile_touch_ci_v1.mjs'
+      - '.github/workflows/calendar-habits-custom-trackers-mobile-touch-ci-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-touch-canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser runtime
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Serve exact checkout
+        run: |
+          python3 -m http.server 8000 --directory "$RUNNER_WORKSPACE" > /tmp/prometeo-mobile-touch-http.log 2>&1 &
+          echo $! > /tmp/prometeo-mobile-touch-http.pid
+          for i in {1..30}; do
+            curl -fsS "http://127.0.0.1:8000/prometeo/candidate/calendar-habits-custom-trackers-v1/" >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/prometeo-mobile-touch-http.log
+          exit 1
+      - name: Run touch-enabled Chromium canary
+        run: node coordination/portfolio/tests/calendar_habits_custom_trackers_mobile_touch_ci_v1.mjs
+      - name: Upload exact mobile/touch evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: calendar-habits-mobile-touch-canary-evidence
+          path: artifacts/calendar-habits-mobile-touch-canary/
+          if-no-files-found: warn
