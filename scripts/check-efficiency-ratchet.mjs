@@ -577,11 +577,15 @@ must('source-debt-recovery-test', sourceDebtRecoveryTest, 'portfolio-jose-v12-pi
 
 const claimFrontier = read(root, 'scripts/build-claim-frontier.mjs');
 must('claim-frontier', claimFrontier, "schema:'prometeo.claim-frontier/v1'");
-must('claim-frontier', claimFrontier, 'maxCandidates = 24');
+must('claim-frontier', claimFrontier, 'DEFAULT_MAX_CANDIDATES = 24');
+must('claim-frontier', claimFrontier, 'DEFAULT_MAX_SERIALIZED_BYTES = 24_000');
+must('claim-frontier', claimFrontier, "'source_path'");
 must('claim-frontier', claimFrontier, 'claim_payload_shape');
+must('claim-frontier', claimFrontier, "fs.writeFileSync(outPath,JSON.stringify(out)+'\\n')");
 const claimFrontierTest = read(root, 'coordination/portfolio/tests/claim_frontier_compact_v1.mjs');
 must('claim-frontier-test', claimFrontierTest, 'CLAIM_FRONTIER_COMPACT_PASS');
-must('claim-frontier-test', claimFrontierTest, 'bytes<64000');
+must('claim-frontier-test', claimFrontierTest, 'bytes<24000');
+must('claim-frontier-test', claimFrontierTest, 'byte budget must trim before transport overflow');
 
 const branchHeadRetryTest = read(root, 'coordination/portfolio/tests/claim_branch_head_move_retry_v1.mjs');
 must('branch-head-retry-test', branchHeadRetryTest, 'CLAIM_BRANCH_HEAD_MOVE_RETRY_PASS');
