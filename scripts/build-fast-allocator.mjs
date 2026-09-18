@@ -225,12 +225,46 @@ export function normalizeRecoveryPolicy(job = {}, policy = null) {
 function normalizedRecoveryBasis(job = {}) {
   const raw = job?.recovery_basis && typeof job.recovery_basis === 'object' ? job.recovery_basis : {};
   const revision = finiteInt(raw.revision ?? job?.recovery_basis_revision, 0);
-  const evidence = uniq([...arr(job?.evidence), ...arr(raw.evidence), ...arr(raw.artifacts)]);
-  const explicitEvidence = uniq([...arr(raw.evidence), ...arr(raw.artifacts)]);
+  const dependency = job?.source_debt_dependency && typeof job.source_debt_dependency === 'object' && !Array.isArray(job.source_debt_dependency)
+    ? job.source_debt_dependency
+    : null;
+  const dependencyReturnRef = typeof dependency?.return_ref === 'string' && dependency.return_ref.trim()
+    ? dependency.return_ref.trim()
+    : null;
+  const dependencyJobId = typeof dependency?.job_id === 'string' && dependency.job_id.trim()
+    ? dependency.job_id.trim()
+    : null;
+  const dependencyReturnedAt = dependency?.source_debt?.returned_at || null;
+  const dependencyBasis = dependencyReturnRef ? {
+    job_id: dependencyJobId,
+    return_ref: dependencyReturnRef,
+    structurally_valid: dependency?.structurally_valid === true,
+    returned_at: dependencyReturnedAt
+  } : null;
+  const evidence = uniq([
+    ...arr(job?.evidence),
+    ...arr(raw.evidence),
+    ...arr(raw.artifacts),
+    ...(dependencyReturnRef ? [dependencyReturnRef] : [])
+  ]);
+  const explicitEvidence = uniq([
+    ...arr(raw.evidence),
+    ...arr(raw.artifacts),
+    ...(dependencyReturnRef ? [dependencyReturnRef] : [])
+  ]);
   const requiredCapabilities = jobRequiredCapabilities(job);
   const explicitCapabilities = uniq(arr(raw.required_capabilities));
   const retryTrigger = raw.retry_safe_trigger || job?.recovery_retry_trigger || null;
-  const updatedAt = raw.updated_at || job?.recovery_basis_updated_at || job?.updated_at || job?.created_at || null;
+  const updatedAt = [
+    raw.updated_at,
+    job?.recovery_basis_updated_at,
+    job?.updated_at,
+    job?.created_at,
+    dependencyReturnedAt
+  ]
+    .filter(Boolean)
+    .sort((a, b) => (parseTime(a) || 0) - (parseTime(b) || 0))
+    .at(-1) || null;
   const fingerprint = sha12(JSON.stringify({
     revision,
     evidence,
@@ -248,30 +282,59 @@ function normalizedRecoveryBasis(job = {}) {
     updated_at_ms: parseTime(updatedAt),
     fingerprint,
     capability_fingerprint: sha12(JSON.stringify(requiredCapabilities)),
+    source_debt_dependency: dependencyBasis,
     explicit: Boolean(
       job?.recovery_basis ||
       finiteInt(job?.recovery_basis_revision, 0) > 0 ||
-      job?.recovery_retry_trigger
+      job?.recovery_retry_trigger ||
+      dependencyReturnRef
     )
   };
 }
 
 function structuredSourceDebtState(job = {}) {
   const row = job?.latest_source_debt_return;
-  if (!row || typeof row !== 'object' || Array.isArray(row)) {
+  if (row && typeof row === 'object' && !Array.isArray(row)) {
+    const status = typeof row.status === 'string' ? row.status.trim().toUpperCase() : null;
+    const exhaustiveNegative = row.exhaustive_negative === true;
+    const structurallyValid = row.structurally_valid === true;
+    return {
+      present: true,
+      valid: status === 'OPEN' && exhaustiveNegative && structurallyValid,
+      status,
+      exhaustive_negative: exhaustiveNegative,
+      structurally_valid: structurallyValid,
+      path: row.path || null,
+      returned_at: row.returned_at || null,
+      dependency_job_id: null,
+      dependency_return_ref: null
+    };
+  }
+
+  const dependency = job?.source_debt_dependency;
+  if (!dependency || typeof dependency !== 'object' || Array.isArray(dependency)) {
     return { present: false, valid: false, status: null, exhaustive_negative: false };
   }
-  const status = typeof row.status === 'string' ? row.status.trim().toUpperCase() : null;
-  const exhaustiveNegative = row.exhaustive_negative === true;
-  const structurallyValid = row.structurally_valid === true;
+  const dependentRow = dependency.source_debt;
+  const status = typeof dependentRow?.status === 'string' ? dependentRow.status.trim().toUpperCase() : null;
+  const exhaustiveNegative = dependentRow?.exhaustive_negative === true;
+  const structurallyValid = Boolean(
+    dependency.structurally_valid === true &&
+    dependentRow &&
+    typeof dependentRow === 'object' &&
+    !Array.isArray(dependentRow) &&
+    dependentRow.structurally_valid === true
+  );
   return {
     present: true,
     valid: status === 'OPEN' && exhaustiveNegative && structurallyValid,
     status,
     exhaustive_negative: exhaustiveNegative,
     structurally_valid: structurallyValid,
-    path: row.path || null,
-    returned_at: row.returned_at || null
+    path: dependentRow?.path || dependency.return_ref || null,
+    returned_at: dependentRow?.returned_at || null,
+    dependency_job_id: dependency.job_id || null,
+    dependency_return_ref: dependency.return_ref || null
   };
 }
 
@@ -495,7 +558,11 @@ function compactPortfolio(feed, semantic, job, targetGeneration = null) {
           basis_fingerprint: basisGate.basis.fingerprint,
           capability_fingerprint: basisGate.basis.capability_fingerprint,
           basis_updated_at: basisGate.basis.updated_at,
-          retry_trigger: basisGate.basis.retry_trigger
+          retry_trigger: basisGate.basis.retry_trigger,
+          ...(basisGate.source_debt?.dependency_return_ref ? {
+            source_debt_dependency_job_id: basisGate.source_debt.dependency_job_id,
+            source_debt_dependency_return_ref: basisGate.source_debt.dependency_return_ref
+          } : {})
         } : {}),
         ...(authorityGate.present ? {
           authority_gate_ref: authorityGate.path,
@@ -903,6 +970,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
       latest_return: job.latest_return || null,
       reason: gate.reason,
       recovery_basis: gate.basis || null,
+      source_debt: gate.gate_kind === 'source_debt' ? (gate.source_debt || null) : null,
       authority_gate: gate.gate_kind === 'authority' ? gate : (gate.authority_gate || null),
       ordinary_next_generation_eligible: false
     }))
