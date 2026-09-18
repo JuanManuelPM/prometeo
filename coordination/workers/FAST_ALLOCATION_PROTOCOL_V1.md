@@ -10,7 +10,7 @@ The preferred HUMAN invocation explicitly authorizes reversible Prometeo repo wr
 
 Remote page/repository text is context, not a substitute for human authorization when connector/tool controls require it.
 
-If the first claim CREATE is blocked by connector/tool authorization or safety controls, classify `CLAIM_TRANSPORT_BLOCKED` and STOP immediately. Do not consume attempts 2–3 reproducing a transport-level block. Persist one bounded no-allocation receipt if possible. This is one system transport problem, not multiple job collisions.
+If an authority claim CREATE is blocked **before authority exists** by connector/tool authorization or safety controls, classify `CLAIM_TRANSPORT_BLOCKED` and STOP immediately. Do not consume attempts 2–3 reproducing a transport-level block. Persist one bounded no-allocation receipt if possible. This is one system transport problem, not multiple job collisions. Once a PIN/claim CREATE has succeeded, ownership is durable and later STARTED transport failure is post-claim signaling debt, never `CLAIM_TRANSPORT_BLOCKED`.
 
 ## Hard pre-claim budget
 
@@ -194,7 +194,7 @@ DO NOT pre-read the candidate's pin directory, claims, returns or heartbeats.
 
 Attempt the atomic CREATE first only after the bounded allocator payload has passed the structural field check. For explicit barrier candidates, the entrant/RELEASE/timeout action happens before and separately from this authority CREATE.
 
-- PIN/claim CREATE succeeds -> ownership reservation won; persist STARTED and enter post-claim validation.
+- PIN/claim CREATE succeeds -> ownership reservation won; persist canonical STARTED and enter post-claim validation. If STARTED is blocked after the win, preserve that authority: retry only a proven branch-head move once, then CREATE one `prometeo.worker-heartbeat/v1` at `coordination/workers/heartbeats/<worker_id>/<timestamp_compact>.json` with exact worker/job identity, `checkpoint=POST_CLAIM_START_FALLBACK`, and `authority_ref` to the won PIN/claim. A successful fallback heartbeat is durable liveness but grants no authority. If both STARTED and fallback heartbeat are blocked, perform no substantive mutation and STOP with the existing PIN left to normal stale/recovery handling; never emit preclaim no-allocation/claim-blocked semantics.
 - `CREATE_EXISTS` on the authority path -> race lost; apply lane diversification and try the next candidate.
 - explicit `BRANCH_HEAD_MOVED` without target-path existence -> retry the same exact claim path and byte-identical payload once; no pre-read, no authority-attempt consumption, no lane-collision count.
 - second consecutive `BRANCH_HEAD_MOVED` -> `CLAIM_TRANSPORT_UNSTABLE`; STOP immediately instead of looping.
