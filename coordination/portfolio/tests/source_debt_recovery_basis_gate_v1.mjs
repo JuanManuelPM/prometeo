@@ -265,6 +265,10 @@ assert.equal(recoveryBasisGate(malformedStructuredDebt).reason, 'SOURCE_DEBT_MAL
 const dependentBoundaryRef = 'coordination/portfolio/returns/portfolio-jose-v12-payload-base64-runtime-fix-v1/RETURN-wc-prod01-gpt56sol-20260918T115600Z-a7f3-G000005-BOUNDARY.json';
 const dependentBoundary = readJson(dependentBoundaryRef);
 const dependencyReturnRef = 'coordination/portfolio/returns/portfolio-jose-v12-pinned-v11-material-recovery-v1/RETURN-WC-JOSE-V11-MATERIAL-BOUNDARY-20260918T011637Z-GPT56SOL-A7D4.json';
+const sourceRepairJob = readJson('coordination/portfolio/derived/jose/portfolio-jose-v11-pinned-source-integrity-repair-v1.json');
+assert.equal(sourceRepairJob.source_debt_dependency?.schema, 'prometeo.source-debt-dependency/v1', 'Jose V11 source repair must retain a structured SOURCE_DEBT dependency');
+assert.equal(sourceRepairJob.source_debt_dependency?.job_id, 'portfolio-jose-v12-pinned-v11-material-recovery-v1', 'Jose V11 source repair dependency job drift');
+assert.equal(sourceRepairJob.source_debt_dependency?.return_ref, dependencyReturnRef, 'Jose V11 source repair must stay pinned to the exact durable V11 material boundary');
 const liveTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'prometeo-source-debt-live-'));
 const liveOut = path.join(liveTmp, 'feed.json');
 const liveRun = spawnSync(
