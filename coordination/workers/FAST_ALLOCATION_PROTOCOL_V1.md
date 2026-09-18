@@ -40,6 +40,7 @@ Before any candidate-specific claim, PIN, barrier-entrant or timeout write:
 1. Inspect only allocator-supplied `candidate.required_capabilities`.
 2. Compare those requirements only with capabilities definitively known from the current runtime/tool surface. Do not read repository/project context to prove capability fit.
 3. If any required capability is definitively absent, classify `CAPABILITY_MISMATCH_PRECLAIM`, skip that candidate without creating a PIN/claim/barrier entrant, and advance to the next bounded candidate/lane.
+3a. **HTTP IS NOT A REPRESENTATIVE JS BROWSER:** HTTP/search/fetch/navigation alone never satisfies `representative_javascript_browser`. If the current runtime exposes retrieval/navigation tools but exposes no tool capable of executing page JavaScript and interacting with the DOM, `representative_javascript_browser` is definitively absent and MUST be classified `CAPABILITY_MISMATCH_PRECLAIM` before any authority CREATE. This is capability-specific: it does not turn unrelated unknown capabilities into absence.
 4. Unknown or ambiguous capability is NOT absence. Proceed to the normal atomic authority attempt and post-claim validation.
 5. `CAPABILITY_MISMATCH_PRECLAIM` is candidate-specific: it is not `CLAIM_TRANSPORT_BLOCKED`, does not consume an authority CREATE attempt, and does not justify `NO_ALLOCATION` while another compatible candidate remains.
 
