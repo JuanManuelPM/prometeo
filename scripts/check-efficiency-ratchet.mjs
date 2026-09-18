@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -88,6 +88,14 @@ if (sourceDebtPlannerItem?.required?.status !== 'SOURCE_DEBT') errors.push('base
 if (sourceDebtPlannerItem?.required?.require_empty_frontier_refs !== true) errors.push('baseline: EFF026 empty-frontier predicate drift');
 if (sourceDebtPlannerItem?.required?.required_blocker_prefix !== 'NEW_EVIDENCE_GATE:') errors.push('baseline: EFF026 blocker prefix drift');
 if (sourceDebtPlannerItem?.required?.suppress_trigger !== 'PROJECT_FRONTIER_THIN') errors.push('baseline: EFF026 trigger drift');
+const noAllocationWindowItem = baseline?.items?.find(x=>x.id==='EFF028');
+if (noAllocationWindowItem?.required?.global_runtime_epoch_preserved !== true) errors.push('baseline: EFF028 global runtime epoch must be preserved');
+if (noAllocationWindowItem?.required?.historical_no_allocation_metrics_preserved !== true) errors.push('baseline: EFF028 historical no-allocation metrics must be preserved');
+if (noAllocationWindowItem?.required?.no_allocation_regression_uses_recent_durable_events !== true) errors.push('baseline: EFF028 recent durable-event window drift');
+if (noAllocationWindowItem?.required?.no_allocation_regression_window_minutes !== 10) errors.push('baseline: EFF028 no-allocation regression window drift');
+if (noAllocationWindowItem?.required?.current_metric !== 'no_allocation_close_p90_recent_ms') errors.push('baseline: EFF028 current metric drift');
+if (noAllocationWindowItem?.required?.regression_threshold_ms !== 90000) errors.push('baseline: EFF028 threshold drift');
+if (noAllocationWindowItem?.required?.regression_test !== 'coordination/portfolio/tests/efficiency_recent_no_allocation_regression_v1.mjs') errors.push('baseline: EFF028 regression test drift');
 
 const wc = read(root, 'wc');
 must('wc', wc, 'CLAIM NOW');
@@ -241,6 +249,10 @@ must('guide', guide, 'Prefer compiled/index/current views over N raw directory r
 must('guide', guide, 'If EPOCH and the relevant durable pointers are unchanged');
 must('guide', guide, 'A sustained efficiency regression is ONE system bottleneck.');
 
+const efficiencyWorkflow = read(root, '.github/workflows/efficiency-ratchet.yml');
+must('efficiency-workflow', efficiencyWorkflow, 'Check recent no-allocation efficiency regression');
+must('efficiency-workflow', efficiencyWorkflow, 'efficiency_recent_no_allocation_regression_v1.mjs');
+
 const live = read(root, '.github/workflows/live-feed.yml');
 must('live-workflow', live, 'cancel-in-progress: false');
 must('live-workflow', live, 'fetch-depth: 500');
@@ -352,6 +364,11 @@ must('batch-sharding-test', batchShardingTest, 'BATCHED_UNIFIED_SHARDING_PASS');
 must('batch-sharding-test', batchShardingTest, 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD');
 must('batch-sharding-test', batchShardingTest, 'beacon_commit_sha_first_8_hex');
 must('batch-sharding-test', batchShardingTest, 'BATCHED_CAPABILITY_FILTERED_SHARDING_PASS');
+
+const recentNoAllocationTest = read(root, 'coordination/portfolio/tests/efficiency_recent_no_allocation_regression_v1.mjs');
+must('recent-no-allocation-test', recentNoAllocationTest, 'EFFICIENCY_RECENT_NO_ALLOCATION_REGRESSION_PASS');
+must('recent-no-allocation-test', recentNoAllocationTest, 'no_allocation_close_p90_recent_ms');
+must('recent-no-allocation-test', recentNoAllocationTest, 'historical-only tail must not pin current regression');
 
 const eff027 = baseline.items?.find(item => item.id === 'EFF027');
 if (!eff027) errors.push('ratchet: EFF027 missing');
