@@ -17,6 +17,34 @@ function walk(dir) {
 }
 function readJson(p) { try { return JSON.parse(fs.readFileSync(p,'utf8')); } catch { return null; } }
 
+const NON_PRODUCTIVE_OUTCOME_RE = /(NO_ACTION|ROUTE_ABORTED|BOUNDARY|STALE|TRANSPORT|CANCELLED|CANCELED|CLAIM_LOST|CREATE_EXISTS|NO_ALLOCATION)/;
+const CONTROL_ONLY_PREFIXES = [
+  'coordination/portfolio/pins/',
+  'coordination/portfolio/claims/',
+  'coordination/guide/pins/',
+  'coordination/workers/beacons/',
+  'coordination/workers/started/',
+  'coordination/workers/heartbeats/',
+  'coordination/workers/no-allocation/'
+];
+function asArray(value) { return Array.isArray(value) ? value : []; }
+function repoRef(root,p) { return path.relative(root,p).split(path.sep).join('/'); }
+function productiveUnit(row, kind, ref) {
+  const d=row||{};
+  if (!d.worker_id || d.productive_unit_counted === false) return null;
+  const at=d.returned_at||d.created_at||d.completed_at||d.updated_at||null;
+  if (d.productive_unit_counted === true) return {ref,kind,at,basis:'EXPLICIT_RECEIPT_MARKER'};
+  const outcome=String(d.outcome||d.status||d.state||'').toUpperCase();
+  if (NON_PRODUCTIVE_OUTCOME_RE.test(outcome)) return null;
+  const materialPaths=asArray(d.changed_paths).filter(p=>p && !CONTROL_ONLY_PREFIXES.some(prefix=>String(p).startsWith(prefix)));
+  const frontierChanges=asArray(d.created_jobs).filter(Boolean).length + asArray(d.spawn_candidates).filter(Boolean).length;
+  const integrations=asArray(d.consumed_returns).filter(Boolean).length;
+  const verification=asArray(d.tests).filter(Boolean).length > 0 &&
+    (/(DONE|COMPLETE|COMPLETED|PASS|PASSED|SUCCESS|VERIFIED|RETURNED)/.test(outcome) || kind==='guide-receipt');
+  if (!materialPaths.length && !frontierChanges && !integrations && !verification) return null;
+  return {ref,kind,at,basis:'DURABLE_RECEIPT_EVIDENCE'};
+}
+
 export function parseEventComment(comment) {
   const body = String(comment?.body || '');
   let raw = null;
@@ -42,8 +70,8 @@ export function parseEventComment(comment) {
 }
 
 function repoEvidence(root) {
-  const beacons = new Map(), pins = new Map(), noalloc = new Map(), beaconDocs = [];
-  if (!root) return {beacons,pins,noalloc,beaconDocs};
+  const beacons = new Map(), pins = new Map(), noalloc = new Map(), beaconDocs = [], productiveByWorker = new Map();
+  if (!root) return {beacons,pins,noalloc,beaconDocs,productiveByWorker};
 
   for (const p of walk(path.join(root,'coordination','workers','beacons'))) {
     const d=readJson(p); if (d?.worker_id) {
@@ -62,9 +90,23 @@ function repoEvidence(root) {
     }
   }
   for (const p of walk(path.join(root,'coordination','workers','no-allocation'))) {
-    const d=readJson(p); if (d?.worker_id) noalloc.set(d.worker_id,path.relative(root,p).split(path.sep).join('/'));
+    const d=readJson(p); if (d?.worker_id) noalloc.set(d.worker_id,repoRef(root,p));
   }
-  return {beacons,pins,noalloc,beaconDocs};
+  for (const [base,kind] of [
+    [path.join(root,'coordination','portfolio','returns'),'portfolio-return'],
+    [path.join(root,'coordination','guide','receipts'),'guide-receipt']
+  ]) for (const p of walk(base).filter(x=>x.endsWith('.json'))) {
+    const d=readJson(p);
+    const unit=productiveUnit(d,kind,repoRef(root,p));
+    if (!unit) continue;
+    const units=productiveByWorker.get(d.worker_id)||[];
+    units.push(unit);
+    productiveByWorker.set(d.worker_id,units);
+  }
+  for (const units of productiveByWorker.values()) {
+    units.sort((a,b)=>Date.parse(a.at||0)-Date.parse(b.at||0)||String(a.ref).localeCompare(String(b.ref)));
+  }
+  return {beacons,pins,noalloc,beaconDocs,productiveByWorker};
 }
 
 export function compileRuntime(comments, root=null, nowIso=new Date().toISOString()) {
@@ -124,6 +166,9 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
       const collisionCount=explicitCollisions+arrayCollisions+
         (!explicitCollisions&&!arrayCollisions&&rawOutcome.includes('COLLISION')?Math.max(1,attemptCount):0);
       const authorityWon=pinRefs.length>0 || normalizedOutcome==='WON';
+      const productiveUnits=repo.productiveByWorker.get(w.worker_id)||[];
+      const productiveCount=productiveUnits.length;
+      const productiveChainState=productiveCount>=8?'HARD_CAP_REACHED':productiveCount>=6?'TARGET_REACHED':productiveCount>=3?'CHECKPOINT_REACHED':'BUILDING';
       const state=close?'CLOSED':authorityWon?(claim?.started?'ACTIVE':'OWNED'):claim?'CLAIM_RESOLVED':routed?'ROUTED':'BEACONED';
       const anomalies=[];
       if (normalizedOutcome==='WON' && root && !pinRefs.length) anomalies.push('CLAIM_WON_WITHOUT_REPO_PIN');
@@ -135,6 +180,9 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
         claim:claim?{outcome:normalizedOutcome,raw_outcome:claim.outcome||null,attempts:attemptCount,collisions:collisionCount,candidate_id:claim.candidate_id||claim.job_id||claim.guide_work_id||null,authority_ref_or_null:claim.authority_ref_or_null||claim.pin_ref||claim.claim_path||null,started:!!claim.started,at:claim.server_created_at}:null,
         repo:{beacon_ref:repo.beacons.get(w.worker_id)||null,pin_refs:pinRefs,no_allocation_ref:repo.noalloc.get(w.worker_id)||null},
         authority_won:authorityWon,
+        productive_units:productiveCount,
+        productive_chain_state:productiveChainState,
+        productive_unit_refs:productiveUnits.slice(-8).map(unit=>unit.ref),
         close:close?{outcome:close.outcome||null,job_id_or_null:close.job_id_or_null||close.job_id||close.guide_work_id||null,result_ref_or_null:close.result_ref_or_null||close.return_ref||close.receipt_ref||null,at:close.server_created_at}:null,
         anomalies
       };
@@ -154,6 +202,11 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
       started:workers.filter(w=>w.claim?.started).length,
       closed:workers.filter(w=>w.close).length,
       active:workers.filter(w=>w.state==='ACTIVE').length,
+      productive_units_total:workers.reduce((n,w)=>n+(w.productive_units||0),0),
+      productive_units_max:workers.reduce((n,w)=>Math.max(n,w.productive_units||0),0),
+      workers_at_checkpoint:workers.filter(w=>(w.productive_units||0)>=3).length,
+      workers_at_target:workers.filter(w=>(w.productive_units||0)>=6).length,
+      workers_at_hard_cap:workers.filter(w=>(w.productive_units||0)>=8).length,
       anomalies:workers.reduce((n,w)=>n+w.anomalies.length,0)
     };
     return {batch_id:b.batch_id,expected_workers:b.expected_workers,first_event_at:b.first_event_at,last_event_at:b.last_event_at,summary,workers};
@@ -163,7 +216,7 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
   return {
     schema:'prometeo.worker-runtime/v1',
     generated_at:nowIso,
-    source:{type:'github_issue_comments_plus_repo_beacons',issue_number:22,authority:false,measurement_clock:'GITHUB_COMMENT_SERVER_TIME_PLUS_BEACON_DECLARED_TIME'},
+    source:{type:'github_issue_comments_plus_repo_evidence',issue_number:22,authority:false,measurement_clock:'GITHUB_COMMENT_SERVER_TIME_PLUS_BEACON_DECLARED_TIME',productive_units:'DURABLE_PORTFOLIO_RETURNS_PLUS_GUIDE_RECEIPTS'},
     current_batch:(named[0]||null)?.batch_id||null,
     batches:compiled.slice(0,20),
     event_count:events.length,
