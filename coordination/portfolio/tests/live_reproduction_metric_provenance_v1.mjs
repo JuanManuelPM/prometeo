@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { buildGroundedReproductionMetric } from '../../../scripts/live-reproduction-metric.mjs';
 
 const parentPath='coordination/portfolio/returns/job-parent/RETURN-parent.json';
@@ -33,6 +36,22 @@ assert.deepEqual(
   buildGroundedReproductionMetric([parent,partial,linkedOne,linkedTwo,unrelated,linkedPartial]),
   {grounded_successors:2,eligible_terminal_returns:1,ratio:2},
   'two distinct successors linked to one eligible return must count as two grounded successors'
+);
+
+assert.deepEqual(
+  buildGroundedReproductionMetric(
+    [parent,partial,linkedOne,linkedTwo,unrelated,linkedPartial],
+    {excluded_return_refs:[parentPath]}
+  ),
+  {grounded_successors:0,eligible_terminal_returns:0,ratio:0},
+  'a terminal receipt reconciled to NONTERMINAL_ROUTE_ABORT must not count as an eligible closure or ground successors'
+);
+
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..');
+const normalize=fs.readFileSync(path.join(root,'.github/scripts/normalize-live-feed.mjs'),'utf8');
+assert.ok(
+  !normalize.includes('ps.reproduction = Number(ps.derived) / Math.max(1, ps.terminal_returns)'),
+  'normalization must not restore the coarse derived/terminal_returns ratio'
 );
 
 console.log('LIVE_REPRODUCTION_METRIC_PROVENANCE_PASS');
