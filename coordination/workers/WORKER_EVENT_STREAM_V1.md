@@ -38,7 +38,7 @@ Post at most these lifecycle comments to issue #22:
    outcome is one of WON, COLLISION_EXHAUSTED, NO_COMPATIBLE_CANDIDATE, TRANSPORT_BLOCKED, INVALID_ALLOCATOR.
    If WON, persist STARTED first when required, then set started=true.
 3. CLOSE
-   At RETURN/terminal STOP. outcome is RETURNED, NO_ALLOCATION, ABORTED, SUPERSEDED, or other bounded terminal result.
+   Once when the worker/chat chain finally closes: terminal STOP, real boundary/exhaustion, or productive-chain target/hard-cap close. Intermediate RETURN/guide receipts do not emit CLOSE. outcome is RETURNED, NO_ALLOCATION, ABORTED, SUPERSEDED, or other bounded terminal result.
 
 Long-running workers use the existing durable heartbeat mechanism; they do not spam issue comments.
 
