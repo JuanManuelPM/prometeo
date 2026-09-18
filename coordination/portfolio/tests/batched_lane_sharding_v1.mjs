@@ -95,12 +95,14 @@ const mesh = [
 const compatible = mesh.filter(c => !c.required_capabilities.some(cap => missing.has(cap)));
 assert.deepEqual(compatible.map(c=>c.id), ['generic-a','generic-b','generic-c'], 'capability filtering must preserve published survivor order');
 const oldPostSkipFirst = shaPrefix8 => {
-  const order=routedOrder(mesh.length, shaPrefix8);
-  return order.map(i=>mesh[i]).find(c=>!c.required_capabilities.some(cap=>missing.has(cap)))?.id || null;
+  const n=Number.parseInt(String(shaPrefix8).slice(0,8),16);
+  const start=Number.isFinite(n) ? n % mesh.length : 0;
+  const rawOrder=Array.from({length:mesh.length},(_,i)=>mesh[(start+i)%mesh.length]);
+  return rawOrder.find(candidate=>!candidate.required_capabilities.some(cap=>missing.has(cap)))?.id || null;
 };
 const oldSeedChoices = Array.from({length:9},(_,n)=>oldPostSkipFirst(n.toString(16).padStart(8,'0')));
 assert.equal(new Set(oldSeedChoices).size,1,'fixture must demonstrate post-hash capability-skip convergence');
-const filteredSeedChoices = new Set(Array.from({length:9},(_,n)=>compatible[routedOrder(compatible.length,n.toString(16).padStart(8,'0'))[0]].id));
+const filteredSeedChoices = new Set(Array.from({length:9},(_,n)=>routedOrder(compatible,n.toString(16).padStart(8,'0'))[0].id));
 assert.equal(filteredSeedChoices.size,3,'filter-before-hash must spread the same seeds across all compatible candidates');
 
 const wc = fs.readFileSync(path.join(repoRoot, 'wc'), 'utf8');
