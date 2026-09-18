@@ -72,4 +72,24 @@ assert.equal(out.metabolism.recent_no_allocation, 3);
 assert.equal(out.metabolism.rescue_eligible_recent_no_allocation, 1);
 assert.equal(out.metabolism.explicit_transport_blocked_recent_no_allocation, 2);
 
+const efficiencyRegression = {
+  status:'REGRESSION',
+  no_allocation_causes:{
+    recent_total:3,
+    recent_receipts:[
+      {reason:'CLAIM_TRANSPORT_BLOCKED',ref:'coordination/workers/no-allocation/blocked-efficiency.json'},
+      {reason:'CLAIM_RACE_EXHAUSTED',ref:'coordination/workers/no-allocation/race-efficiency.json'},
+      {outcome:'CLAIM_TRANSPORT_BLOCKED',ref:'coordination/workers/no-allocation/blocked-outcome-efficiency.json'}
+    ]
+  }
+};
+out = compileRoleFrontier(feed, efficiencyRegression, [], [], [], [], {...baseContext,noAlloc:mixedNoAlloc});
+const efficiencyRescue = out.role_ready.find(row => row.role === 'GUIDE_RESCATE');
+assert.ok(efficiencyRescue, 'efficiency regression must preserve GUIDE_RESCATE');
+const efficiencyEvidence = efficiencyRescue.claim_payload_shape?.evidence || efficiencyRescue.evidence || [];
+assert.ok(efficiencyEvidence.includes('gh-pages:live/efficiency.json#no_allocation_causes'), 'bounded cause summary stays in rescue evidence');
+assert.ok(efficiencyEvidence.includes('coordination/workers/no-allocation/race-efficiency.json'), 'actionable efficiency no-allocation receipt stays in rescue evidence');
+assert.ok(!efficiencyEvidence.includes('coordination/workers/no-allocation/blocked-efficiency.json'), 'transport-blocked efficiency receipt must not re-enter rescue evidence through efficiencyRegressionEvidence');
+assert.ok(!efficiencyEvidence.includes('coordination/workers/no-allocation/blocked-outcome-efficiency.json'), 'transport-blocked outcome receipt must not re-enter rescue evidence through efficiencyRegressionEvidence');
+
 console.log('GUIDE_RESCATE_NO_ALLOCATION_SIGNAL_PASS');
