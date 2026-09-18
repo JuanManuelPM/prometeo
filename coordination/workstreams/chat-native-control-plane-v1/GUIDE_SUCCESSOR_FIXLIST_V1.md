@@ -1,11 +1,11 @@
 # Guide Successor Fixlist v1
 
-Status: VERIFIED_FRESH_G_CANARY_PASS — CORE SUCCESSION DEBT CLOSED; POINTER REFRESH DEBT REMAINS
+Status: VERIFIED_FRESH_G_CANARY_PASS — CORE SUCCESSION DEBT CLOSED; POINTER REFRESH CLOSED; CURRENT-MISSION EXTENSION AWAITING FRESH /g CANARY
 Owner: `chat-object-prometeo-chat-control-main`
 Created from human correction on 2026-09-17.
 Repair explicitly started by human on 2026-09-17 while the mass `/wc` wave was being launched.
 
-Purpose: preserve the exact succession failures identified after a long guide chat hit its conversation limit, so the next `/g` does not reconstruct continuity too shallowly. The binding repair is encoded in `GUIDE_SUCCESSION_PROTOCOL_V1.md`, `/g` v1.3 and `p.txt` v4.9.2. A genuinely fresh `/g` canary has now demonstrated the binding behavior and persisted an exact receipt. The core succession-behavior debt is therefore VERIFIED. `Continuity Head`, `FOCUS` and `CHAT_OBJECT` may still contain older projection text until their next safe refresh; successors must treat that as pointer/projection staleness, not as evidence that the verified canary did not occur.
+Purpose: preserve the exact succession failures identified after a long guide chat hit its conversation limit, so the next `/g` does not reconstruct continuity too shallowly. A genuinely fresh `/g` canary already demonstrated the core binding behavior and persisted an exact receipt, so core succession is VERIFIED. Continuity Head, FOCUS and CHAT_OBJECT have now been refreshed. A newer extension is active: CURRENT_MISSION_V1 must take priority over stale historical next-step choreography, and a bare `/g` must act on that mission and persist writeback before replying. That extension is encoded but still awaits its own genuinely fresh `/g` canary.
 
 ## 1. Core succession failure
 
@@ -159,11 +159,46 @@ Material drift detected by the canary included:
 - the GEN2 two-generation Planner canary produced exact durable N+1/N+2 evidence without human task wording between generations;
 - the compounding-gate verifier became dynamically ready and started.
 
-## 13. Remaining pointer-refresh debt
+## 13. Pointer-refresh debt
 
-Core guide-succession behavior is VERIFIED. Do not regress it.
+CLOSED on 2026-09-18.
 
-Remaining housekeeping debt is narrower: refresh `Continuity Head`, `FOCUS` and `CHAT_OBJECT` when a safe CAS window exists so their projected status stops saying `ENCODED_AWAITING_FRESH_G_CANARY` and reflects the post-canary frontier. Until then:
-- exact newer evidence + this fixlist + the canary receipt supersede those stale projection strings;
-- do not call stale projection text current merely because it lives in a canonical pointer file;
-- do not confuse this pointer refresh debt with the still-open global autonomous-metabolism proof.
+Continuity Head, FOCUS and CHAT_OBJECT were refreshed to current truth. They now distinguish:
+- core Guide Succession: `VERIFIED_FRESH_G_CANARY_PASS`;
+- Current Mission/writeback extension: `ENCODED_AWAITING_FRESH_G_CANARY`.
+
+Do not collapse these two statuses.
+
+## 14. Current Mission succession extension
+
+The human explicitly required that deletion of the current guide chat must not lose the rolling/exponential-growth objective, worker-learning method, or the requirement that the next Guide **act and write back**, not merely read context.
+
+Binding refs:
+- `coordination/guide/CURRENT_MISSION_V1.json`
+- `coordination/guide/CONTINUOUS_COGNITIVE_PRODUCTION_CONTINUITY_V1.md`
+- `coordination/guide/GUIDE_CURRENT_MISSION_WRITEBACK_V1.md`
+- `coordination/guide/GROWTH_CAMPAIGN_V1.json`
+- `coordination/guide/sessions/G-20260918-CONTINUITY-CLOSE.json`
+
+Current mission laws:
+- rolling `POOL PROD-01` is the ordinary production model; do not regress to stop/start finite waves for normal evaluation;
+- 3 productive units is checkpoint, target 6, hard cap 8;
+- worker quality comes from evidence-backed exam cards; verbosity is not scored;
+- champion protocol propagation requires independent reproduction;
+- evaluation does not pause ordinary product/assist work;
+- a bare `/g` has no arbitrary one-action cap in the current turn;
+- before replying, a bare `/g` persists material mission/campaign/project writeback or a Guide session receipt when safe;
+- the human must not reconstruct workers, returns, routing or the deleted predecessor conversation.
+
+Fresh Current-Mission canary acceptance:
+1. loads stable identity/EPOCH/Continuity Head;
+2. detects `CURRENT_MISSION_V1.status=ACTIVE_BINDING`;
+3. loads Current Mission before stale historical `next_dot` choreography;
+4. loads current GRW001 + runtime/frontier/worker-scoreboard;
+5. correctly distinguishes raw pool scale from useful productive yield;
+6. executes at least one safe useful mission action when grounded;
+7. persists material writeback/session receipt before replying;
+8. asks the human for no recap of the deleted predecessor chat.
+
+Only after a genuinely fresh `/g` demonstrates these eight points may `current_mission_handoff_status` become VERIFIED.
+
