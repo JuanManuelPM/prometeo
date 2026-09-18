@@ -195,7 +195,28 @@ function normalizedRecoveryBasis(job = {}) {
   };
 }
 
+function structuredSourceDebtState(job = {}) {
+  const row = job?.latest_source_debt_return;
+  if (!row || typeof row !== 'object' || Array.isArray(row)) {
+    return { present: false, valid: false, status: null, exhaustive_negative: false };
+  }
+  const status = typeof row.status === 'string' ? row.status.trim().toUpperCase() : null;
+  const exhaustiveNegative = row.exhaustive_negative === true;
+  const structurallyValid = row.structurally_valid === true;
+  return {
+    present: true,
+    valid: status === 'OPEN' && exhaustiveNegative && structurallyValid,
+    status,
+    exhaustive_negative: exhaustiveNegative,
+    structurally_valid: structurallyValid,
+    path: row.path || null,
+    returned_at: row.returned_at || null
+  };
+}
+
 function evidenceBoundSourceDebt(job = {}) {
+  const structured = structuredSourceDebtState(job);
+  if (structured.present) return true;
   const ret = job?.latest_return || null;
   const outcome = lower(ret?.outcome || ret?.status);
   if (!['boundary', 'route_aborted', 'partial'].includes(outcome)) return false;
@@ -212,6 +233,16 @@ function evidenceBoundSourceDebt(job = {}) {
 
 export function recoveryBasisGate(job = {}) {
   const basis = normalizedRecoveryBasis(job);
+  const structuredDebt = structuredSourceDebtState(job);
+  if (structuredDebt.present && !structuredDebt.valid) {
+    return {
+      eligible: false,
+      evidence_bound: true,
+      reason: 'SOURCE_DEBT_MALFORMED_FAIL_CLOSED',
+      basis,
+      source_debt: structuredDebt
+    };
+  }
   if (!evidenceBoundSourceDebt(job)) {
     return {
       eligible: true,
