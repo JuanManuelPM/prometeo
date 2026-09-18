@@ -8,7 +8,7 @@ const KEEP = [
   'project_id','scope_project_id','project_label','title','source_path',
   'role','trigger','state_ref','state_revision','priority','state',
   'required_capabilities','claim_mode','claim_path','claim_payload_shape',
-  'post_claim_validate','contention_barrier','post_release_claim',
+  'post_claim_validate','contention_barrier','post_release_claim','next_action',
   'release_path','release_payload_shape','timeout_payload_shape',
   'deadline_at','entrant_dir','plan_id','mission'
 ];
@@ -64,6 +64,7 @@ export function buildClaimFrontier(allocator = {}, maxCandidates = 24) {
     source_sha:allocator.source_sha || null,
     allocator_schema:allocator.schema || null,
     batch_strategy:allocator.batch_strategy || null,
+    batch_contention_fanin:allocator.batch_contention_fanin || null,
     preferred_order:arr(allocator.preferred_order),
     candidate_count:candidates.length,
     candidates,
