@@ -141,7 +141,11 @@
   }
   function renderProduction(f){
     const hist=historyFromWorkers(f),todayRow=hist.find(h=>h.date===today())||{seen:0,finished:0,replaceable:0,median_duration_ms:null};const workers=f.workers||[];const todayFinished=workers.filter(w=>w.end_at&&dayKey(w.first_seen)===today());const med=todayRow.median_duration_ms??(()=>{const a=todayFinished.map(w=>w.duration_ms).filter(Number.isFinite).sort((a,b)=>a-b);return a.length?a[Math.floor(a.length/2)]:null})();
-    $('productionStats').innerHTML=`<div class="prodStat"><strong>${todayRow.finished||todayFinished.length}</strong><span>terminaron hoy</span></div><div class="prodStat"><strong>${esc(duration(med))}</strong><span>duración mediana</span></div><div class="prodStat"><strong>${f.summary?.workers?.replaceable||0}</strong><span>reemplazables</span></div><div class="prodStat"><strong>×${Number(f.summary?.portfolio?.reproduction||0).toFixed(1)}</strong><span>sucesores / cierre</span></div>`;
+    const reproduction=f.summary?.portfolio?.reproduction;
+    const grounded=reproduction&&typeof reproduction==='object'?Number(reproduction.grounded_successors||0):0;
+    const eligible=reproduction&&typeof reproduction==='object'?Number(reproduction.eligible_terminal_returns||0):0;
+    const ratio=reproduction&&typeof reproduction==='object'?Number(reproduction.ratio||0):0;
+    $('productionStats').innerHTML=`<div class="prodStat"><strong>${todayRow.finished||todayFinished.length}</strong><span>terminaron hoy</span></div><div class="prodStat"><strong>${esc(duration(med))}</strong><span>duración mediana</span></div><div class="prodStat"><strong>${f.summary?.workers?.replaceable||0}</strong><span>reemplazables</span></div><div class="prodStat"><strong>×${ratio.toFixed(1)}</strong><span>reproducción causal · ${grounded}/${eligible}</span></div>`;
     const max=Math.max(1,...hist.slice(0,14).map(h=>h.finished||0));$('productionDays').innerHTML=hist.slice(0,14).map(h=>`<div class="prodDay"><span>${esc(dayLabel(h.date))}</span><span class="prodBar"><i style="width:${Math.max(3,(h.finished||0)/max*100)}%"></i></span><b>${h.finished||0}</b></div>`).join('');
     $('plans').innerHTML=(f.plans||[]).slice().reverse().map(p=>`<article class="plan"><div class="planTop"><b>${esc(p.label)}</b><span>${p.percent}%</span></div><div class="planBar"><i style="width:${p.percent}%"></i></div><small>${p.remaining} pendientes · ${p.done}/${p.total} cerrados</small></article>`).join('')||'<div class="empty">Sin planes.</div>';
   }
