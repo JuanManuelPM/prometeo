@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
 const readJson = rel => JSON.parse(read(rel));
-const { buildFastAllocator, classifyJobCapabilities, classifyProjectGuideFrontier } = await import(pathToFileURL(path.join(root, 'scripts/build-fast-allocator.mjs')).href);
+const { buildFastAllocator, classifyJobCapabilities, classifyProjectGuideFrontier, classifyFrontierCapabilityPressure } = await import(pathToFileURL(path.join(root, 'scripts/build-fast-allocator.mjs')).href);
 
 const josePath = 'coordination/portfolio/derived/alumnos/portfolio-alumnos-jose-v11-unrestricted-browser-verify-v1.json';
 const studentHttpPath = 'coordination/portfolio/derived/alumnos/portfolio-alumnos-student-world-live-route-bridge-public-http-verify-v1.json';
@@ -276,6 +276,30 @@ for (const [job, expected] of [
   const candidate = allocator.ready.find(row => row.job_id === job.job_id);
   assert.ok(candidate, `${job.job_id} must remain visible to compatible workers`);
   assert.deepEqual(candidate.required_capabilities, expected, `${job.job_id} capability metadata must survive allocator compilation`);
+}
+
+const capabilityPressurePolicy = readJson('coordination/guide/METABOLISM_POLICY_V1.json');
+const prod01CapabilityShape = [
+  { required_capabilities: [] },
+  { required_capabilities: ['repository_test_runtime'] },
+  { required_capabilities: ['representative_javascript_browser'] },
+  { required_capabilities: ['browser_network_navigation_to_github_pages', 'representative_javascript_browser'] },
+  { required_capabilities: ['unrestricted_public_http_origin_fetch'] },
+  { required_capabilities: ['mobile_touch_input'] },
+  { required_capabilities: ['authorized_readonly_target_host_runtime'] },
+  { required_capabilities: ['cross_device_tv_phone_or_equivalent'] },
+  { required_capabilities: ['unknown_future_runtime'] }
+];
+const capabilityPressure = classifyFrontierCapabilityPressure(prod01CapabilityShape, capabilityPressurePolicy);
+assert.equal(capabilityPressure.total_clean_frontier, 9, 'PROD-01 capability-pressure shape must retain every candidate');
+assert.equal(capabilityPressure.generic_compatible_count, 2, 'specialized candidates must not inflate generic-compatible frontier pressure');
+assert.equal(capabilityPressure.specialized_candidate_count, 6, 'known specialized candidates must remain explicit capability demand');
+assert.equal(capabilityPressure.unknown_capability_candidate_count, 1, 'unknown capability must remain unknown rather than generic or absent');
+assert.equal(capabilityPressure.specialized_buckets.find(row => row.bucket === 'browser_js')?.count, 2, 'browser capability bucket must group browser-bound candidates');
+assert.deepEqual(capabilityPressure.unknown_capabilities, ['unknown_future_runtime']);
+const allocatorSource = read('scripts/build-fast-allocator.mjs');
+for (const needle of ['generic_compatible_frontier', 'capability_pressure: capabilityPressure', 'pressureEvidenceRef']) {
+  assert.ok(allocatorSource.includes(needle), `allocator missing capability-pressure projection: ${needle}`);
 }
 
 const liveBuilder = read('.github/scripts/build-live-feed.mjs');
