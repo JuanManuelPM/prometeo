@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-18T12:08:00Z",
+  "updated_at": "2026-09-18T12:10:30Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -518,19 +518,28 @@
         "live",
         "wave-contention"
       ],
-      "observed_failure": "The full allocator accumulated diagnostics, recovery evidence and duplicated candidate structures until connector output could truncate it. Workers then lost the unified batch mesh and fell back to the first visible candidate.",
-      "invariant": "The ordinary hot path reads live/claim-frontier.json, a bounded compiler projection containing only exact claim data needed before ownership. Full allocator.json remains diagnostic and is forbidden on the ordinary preclaim path.",
+      "observed_failure": "The full allocator first exceeded connector limits, then two PROD-01 workers still received a truncated supposedly-compact claim frontier at 24 candidates and closed without any authority attempt. A 64 KB target was therefore not transport-safe for the actual /wc runtime.",
+      "invariant": "The ordinary hot path reads live/claim-frontier.json, a bounded compiler projection containing only exact claim data needed before ownership. The serialized frontier is hard-capped at 24,000 UTF-8 bytes; candidate count may shrink to preserve that transport invariant, while every published atomic CREATE payload remains exact. Full allocator.json remains diagnostic and forbidden on the ordinary preclaim path.",
       "required": {
         "compact_frontier": "live/claim-frontier.json",
         "schema": "prometeo.claim-frontier/v1",
         "max_candidates": 24,
-        "target_max_bytes": 64000,
+        "target_max_bytes": 24000,
         "full_allocator_preclaim_forbidden": true,
         "seed_source": "beacon_commit_sha_first_8_hex",
         "regression_test": "coordination/portfolio/tests/claim_frontier_compact_v1.mjs",
-        "workflow_guard": ".github/workflows/live-feed.yml"
+        "workflow_guard": ".github/workflows/live-feed.yml",
+        "hard_serialized_bytes_max": 24000,
+        "byte_budget_may_reduce_candidate_count": true,
+        "published_claim_payload_must_remain_exact": true
       },
-      "status": "STATIC_GUARDED_PENDING_RUNTIME"
+      "status": "STATIC_GUARDED_PENDING_RUNTIME",
+      "evidence": [
+        "coordination/workers/no-allocation/gpt56sol-20260918T115543Z-b246446b46.json",
+        "coordination/workers/no-allocation/gpt56sol-20260918T115600Z-prod01-a83c.json",
+        "commit:f1b6a01a41461c4d6e1068633d50376e4a2d89d6",
+        "commit:535e9e7f73be65cf289eb93ab075159c1bbd132f"
+      ]
     },
     {
       "id": "EFF024",
