@@ -1055,6 +1055,22 @@ const wcHttpVsJsContract = read(root, 'wc');
 const fastHttpVsJsContract = read(root, 'coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md');
 must('EFF050 wc', wcHttpVsJsContract, 'HTTP/search/fetch/navigation alone never satisfies `representative_javascript_browser`');
 must('EFF050 fast allocation', fastHttpVsJsContract, 'HTTP/search/fetch/navigation alone never satisfies `representative_javascript_browser`');
+
+const unrestrictedOriginHttpItem = baseline?.items?.find(x=>x.id==='EFF052');
+if (!unrestrictedOriginHttpItem) errors.push('ratchet: EFF052 missing');
+else {
+  if (unrestrictedOriginHttpItem.required?.mediated_web_satisfies_unrestricted_public_http !== false) errors.push('ratchet: EFF052 mediated-web truth drift');
+  if (unrestrictedOriginHttpItem.required?.code_runtime_without_network_satisfies_unrestricted_public_http !== false) errors.push('ratchet: EFF052 code-runtime network truth drift');
+  if (unrestrictedOriginHttpItem.required?.absence_of_arbitrary_origin_http_client_is_definitive_absence !== true) errors.push('ratchet: EFF052 definitive-absence drift');
+  if (unrestrictedOriginHttpItem.required?.genuine_arbitrary_origin_http_client_remains_eligible !== true) errors.push('ratchet: EFF052 genuine-client eligibility drift');
+  if (unrestrictedOriginHttpItem.required?.ambiguous_origin_http_capability_is_not_absence !== true) errors.push('ratchet: EFF052 unknown-is-not-absence drift');
+  if (unrestrictedOriginHttpItem.required?.capability_mismatch_preclaim_zero_authority_attempts !== true) errors.push('ratchet: EFF052 preclaim-attempt drift');
+  if (unrestrictedOriginHttpItem.required?.regression_test !== 'coordination/portfolio/tests/fast_allocator_capability_fit_v1.mjs') errors.push('ratchet: EFF052 regression-test drift');
+}
+must('EFF052 wc', wcHttpVsJsContract, 'MEDIATED WEB ACCESS IS NOT UNRESTRICTED ORIGIN HTTP');
+must('EFF052 wc', wcHttpVsJsContract, 'unrestricted_public_http_origin_fetch');
+must('EFF052 fast allocation', fastHttpVsJsContract, 'MEDIATED WEB ACCESS IS NOT UNRESTRICTED ORIGIN HTTP');
+must('EFF052 fast allocation', fastHttpVsJsContract, 'unrestricted_public_http_origin_fetch');
 const capabilityFitTest = read(root, 'coordination/portfolio/tests/fast_allocator_capability_fit_v1.mjs');
 must('capability-fit-test', capabilityFitTest, 'FAST_ALLOCATOR_CAPABILITY_FIT_PASS');
 must('capability-fit-test', capabilityFitTest, 'unrestricted_public_http_origin_fetch');
@@ -1063,6 +1079,9 @@ must('capability-fit-test', capabilityFitTest, 'legacySingularRows');
 must('capability-fit-test', capabilityFitTest, 'real_browser_execution');
 must('capability-fit-test', capabilityFitTest, 'authorityCreateAttempts');
 must('capability-fit-test', capabilityFitTest, 'WEB_FETCH_ONLY_PRECLAIM_SKIP_PASS');
+must('capability-fit-test', capabilityFitTest, 'MEDIATED_WEB_PUBLIC_HTTP_PRECLAIM_SKIP_PASS');
+must('capability-fit-test', capabilityFitTest, 'arbitrary public-origin HTTP client');
+must('capability-fit-test', capabilityFitTest, 'ambiguous arbitrary-origin HTTP capability must remain unknown rather than becoming absence');
 must('capability-fit-test', capabilityFitTest, 'representative-JS profile must remain eligible for Jose V12');
 must('capability-fit-test', capabilityFitTest, 'unknown JavaScript/DOM execution capability must remain unknown rather than becoming absence');
 must('capability-fit-test', capabilityFitTest, 'unknown_legacy_runtime');
