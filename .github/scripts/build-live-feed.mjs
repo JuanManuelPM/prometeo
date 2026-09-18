@@ -147,6 +147,36 @@ function compactSourceDebtReturn(row) {
     exact_matches: exactMatches
   };
 }
+
+function compactSourceDebtDependency(job) {
+  const raw = job?.source_debt_dependency;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const schema = typeof raw.schema === 'string' ? raw.schema.trim() : null;
+  const jobId = typeof raw.job_id === 'string' ? raw.job_id.trim() : null;
+  const returnRef = typeof raw.return_ref === 'string' ? raw.return_ref.trim() : null;
+  const refBounded = Boolean(
+    returnRef &&
+    /^coordination\/portfolio\/returns\/[^/]+\/[^/]+\.json$/.test(returnRef)
+  );
+  const row = refBounded ? { path:returnRef, doc:read(returnRef) } : null;
+  const sourceDebt = row?.doc ? compactSourceDebtReturn(row) : null;
+  const structurallyValid = Boolean(
+    schema === 'prometeo.source-debt-dependency/v1' &&
+    jobId &&
+    refBounded &&
+    row?.doc &&
+    row.doc.job_id === jobId &&
+    sourceDebt?.structurally_valid === true
+  );
+  return {
+    schema,
+    job_id:jobId,
+    return_ref:returnRef,
+    ref_bounded:refBounded,
+    structurally_valid:structurallyValid,
+    source_debt:sourceDebt
+  };
+}
 function compactAuthorityGate(row) {
   if (!row?.doc) return null;
   const d = row.doc;
@@ -213,6 +243,7 @@ function inspectPortfolioJob(project, job) {
     collision_count:collisions.length + Math.max(0, claims.length-(authority?1:0)),
     latest_return:latestReturn ? {path:latestReturn.path,outcome:first(latestReturn.doc.outcome,latestReturn.doc.status),summary:latestReturn.doc.summary||null,returned_at:timeOf(latestReturn.doc),worker_id:latestReturn.doc.worker_id||null} : null,
     latest_source_debt_return:compactSourceDebtReturn(latestSourceDebtReturn),
+    source_debt_dependency:compactSourceDebtDependency(job),
     authority_gate:compactAuthorityGate(authorityGate),
     latest_pin_recovery_basis:latestPin?.doc?.recovery_basis_or_null || null,
     terminal_return:terminalReturn ? {path:terminalReturn.path,outcome:first(terminalReturn.doc.outcome,terminalReturn.doc.status),returned_at:timeOf(terminalReturn.doc),worker_id:terminalReturn.doc.worker_id||null} : null,
