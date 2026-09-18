@@ -28,10 +28,37 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048','EFF050','EFF049']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048','EFF050','EFF049','EFF051']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
+const strategyExperimentItem = baseline?.items?.find(x=>x.id==='EFF051');
+if (!strategyExperimentItem) errors.push('baseline: EFF051 missing');
+else {
+  if (strategyExperimentItem.required?.active_experiment_ref !== 'coordination/workers/WORKER_STRATEGY_EXPERIMENT_V1.json') errors.push('baseline: EFF051 experiment ref drift');
+  if (strategyExperimentItem.required?.worker_protocol_version !== 'v3.28') errors.push('baseline: EFF051 protocol version drift');
+  if (strategyExperimentItem.required?.applies_after !== 'OWNERSHIP') errors.push('baseline: EFF051 ownership boundary drift');
+  if (strategyExperimentItem.required?.preclaim_reads_added !== 0) errors.push('baseline: EFF051 preclaim read regression');
+  if (strategyExperimentItem.required?.claim_authority_unchanged !== true) errors.push('baseline: EFF051 claim authority drift');
+  if (strategyExperimentItem.required?.preclaim_diagnostics_not_causal !== true) errors.push('baseline: EFF051 causal boundary drift');
+  if (strategyExperimentItem.required?.growth_campaign_strategy_authority_forbidden !== true) errors.push('baseline: EFF051 campaign authority drift');
+}
+const strategyExperiment = JSON.parse(read(root, 'coordination/workers/WORKER_STRATEGY_EXPERIMENT_V1.json')||'{}');
+if (strategyExperiment.status !== 'ACTIVE_CANARY' || strategyExperiment.applies_after !== 'OWNERSHIP') errors.push('strategy-experiment: active ownership boundary drift');
+if (strategyExperiment?.authority_boundary?.preclaim_reads_added !== 0 || strategyExperiment?.authority_boundary?.claim_authority_changed !== false) errors.push('strategy-experiment: preclaim/authority regression');
+const strategyExam = JSON.parse(read(root, 'coordination/workers/WORKER_PRODUCTIVITY_EXAM_V1.json')||'{}');
+if (strategyExam.current_worker_protocol_version !== 'v3.28') errors.push('strategy-experiment: exam protocol drift');
+if (strategyExam?.strategy_measurement?.active_experiment_ref !== 'coordination/workers/WORKER_STRATEGY_EXPERIMENT_V1.json') errors.push('strategy-experiment: exam ref drift');
+if (strategyExam?.pattern_measurement?.active_pattern_ref !== null) errors.push('strategy-experiment: retired pattern still active');
+const strategyWc = read(root, 'wc');
+must('strategy-wc', strategyWc, 'POOL POST-OWNERSHIP STRATEGY EXPERIMENT');
+must('strategy-wc', strategyWc, 'WORKER_STRATEGY_EXPERIMENT_V1.json');
+mustNot('strategy-wc', strategyWc, '### POOL YIELD-PATTERN REPRODUCTION');
+const strategyScoreboard = read(root, 'scripts/build-worker-scoreboard.mjs');
+must('strategy-scoreboard', strategyScoreboard, 'strategy_experiment_health');
+must('strategy-scoreboard', strategyScoreboard, 'preclaim_diagnostics');
+must('strategy-scoreboard', strategyScoreboard, 'experimental_productive_slots');
+
 const allocator = read(root, 'scripts/build-fast-allocator.mjs');
 const latentItem = baseline?.items?.find(x=>x.id==='EFF013');
 if (latentItem?.required?.role_ready_compiled_centrally !== true) errors.push('baseline: EFF013 role_ready_compiled_centrally must be true');
