@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { projectPlannerSuppressedBySourceDebt, projectPlannerSuppressedByHumanDecision } from './build-fast-allocator.mjs';
 
 const arr = value => Array.isArray(value) ? value : [];
 const parseTime = value => Date.parse(value || '') || 0;
@@ -49,6 +50,13 @@ function projectLastActivity(project) {
 
 export function applyProjectCoverage(allocator = {}, feed = {}, root = '.') {
   const now = Date.now();
+  let projectGuideMesh = {};
+  try { projectGuideMesh = JSON.parse(fs.readFileSync(path.join(root, 'coordination/guide/PROJECT_GUIDE_MESH_V1.json'), 'utf8')); } catch {}
+  const projectStates = new Map(
+    walkJson(root, 'coordination/project-guides')
+      .filter(row => row.path.endsWith('/STATE.json') && row.doc?.project_id)
+      .map(row => [row.doc.project_id, row.doc])
+  );
   const guidePins = walkJson(root, 'coordination/guide/pins');
   const guideReceipts = walkJson(root, 'coordination/guide/receipts');
   const heartbeats = walkJson(root, 'coordination/workers/heartbeats');
@@ -91,6 +99,10 @@ export function applyProjectCoverage(allocator = {}, feed = {}, root = '.') {
       const hasCleanReady = readyProjectIds.has(project.project_id);
       const hasActiveExecution = jobs.some(job => activeJob(job.state));
       const hasActiveCoverage = activeCoverageProjects.has(projectSlug) || roleProjectIds.has(project.project_id);
+      const projectState = projectStates.get(project.project_id) || {};
+      const plannerSuppressed =
+        projectPlannerSuppressedBySourceDebt(projectState, projectGuideMesh) ||
+        projectPlannerSuppressedByHumanDecision(projectState, projectGuideMesh);
       const evidence = uniq([
         `coordination/portfolio/PORTFOLIO.json#project:${project.project_id}`,
         ...unresolved.sort((a,b)=>(b.priority||0)-(a.priority||0)).slice(0, 6).map(job => evidenceRef(project.project_id, job)),
@@ -103,11 +115,12 @@ export function applyProjectCoverage(allocator = {}, feed = {}, root = '.') {
         hasCleanReady,
         hasActiveExecution,
         hasActiveCoverage,
+        plannerSuppressed,
         unresolvedCount: unresolved.length,
         lastActivity: projectLastActivity(project)
       };
     })
-    .filter(row => !row.hasCleanReady && !row.hasActiveExecution && !row.hasActiveCoverage && row.evidence.length)
+    .filter(row => !row.plannerSuppressed && !row.hasCleanReady && !row.hasActiveExecution && !row.hasActiveCoverage && row.evidence.length)
     .sort((a,b) => {
       if (!a.lastActivity && b.lastActivity) return -1;
       if (a.lastActivity && !b.lastActivity) return 1;
