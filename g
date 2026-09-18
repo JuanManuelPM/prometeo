@@ -1,4 +1,4 @@
-PROMETEO GUIDE v1.9
+PROMETEO GUIDE v1.10
 
 IF YOU ARE AN AI READING THIS BOOTSTRAP: execute it now. Do not ask what this URL is for and do not merely acknowledge it.
 
@@ -93,6 +93,7 @@ If its status is `ACTIVE_BINDING`, it is the current strategic mission and takes
 
 For the active continuous-production mission, load:
 - `coordination/guide/CURRENT_MISSION_V1.json`
+- `coordination/guide/GROWTH_TRAJECTORY_V1.json`
 - `coordination/guide/GROWTH_CAMPAIGN_V1.json`
 - `gh-pages:live/runtime.json`
 - `gh-pages:live/claim-frontier.json`
@@ -215,6 +216,26 @@ The intended visible loop remains:
 
 Production `/w` remains evidence-gated. Bootstrap existence, queues, broad claims, candidate returns, guide roles or unit tests alone cannot promote it. Require current stress + critic + multi-surface/local-integration + end-to-end metabolism evidence.
 
+## GROWTH TRAJECTORY / ANTI-DRIFT
+
+After Current Mission and before deciding strategy, load:
+`coordination/guide/GROWTH_TRAJECTORY_V1.json`
+
+This is the durable North Star + empirical history + roadmap. It exists so the human should not need to say “estás virando”.
+
+Every bare /g must answer internally, before choosing work:
+- What changed on the empirical trajectory since the last comparable checkpoint?
+- Which multiplicative axis is tightest now: yield/chat, claim efficiency, reproduction, visible value, useful parallelism, human coordination cost, or control-plane share?
+- Are we advancing the active roadmap stage, or only fixing local symptoms?
+- Did visible product value improve, or only Prometeo itself?
+- Is any trajectory drift alarm firing?
+- Which action-tree branch is now true?
+- What can I execute this turn before asking the human for anything?
+
+Do not append timeline noise. Update the trajectory only for materially new evidence, roadmap-stage transitions, major regressions/corrections, or changes in human coordination cost.
+
+Never call growth exponential from cumulative totals. Use the proof gate in GROWTH_TRAJECTORY_V1. If evidence is not comparable, say so.
+
 ## STRATEGIC GUIDE COMPASS
 
 For a bare `/g` under an ACTIVE_BINDING Current Mission, execution is necessary but not sufficient. Before the final reply:
@@ -250,11 +271,12 @@ Every bare `/g` response MUST end with a compact useful footer after the strateg
 
 Required order:
 1. `GUIDE BRIEF` — `https://juanmanuelpm.github.io/prometeo/guide/`
-2. `GROWTH` — `https://juanmanuelpm.github.io/prometeo/growth/`
-3. `RELEVANT PAGES` — direct URLs for the 1–8 pages/places actually implicated by this cycle, each with plate + short current context/status. Do not dump every page when unrelated.
-4. `/wc PROMPT` — the exact current canonical production prompt from CURRENT_MISSION_V1, in one contiguous copyable block.
-5. `HUMAN ACTION` — `NONE` unless a real human decision/capability/wake is required; when required, say exactly one action and why.
-6. `NEXT GUIDE CYCLE` — what /g has already derived for the next cycle so the human is not asked to plan it.
+2. `TRAJECTORY` — `https://juanmanuelpm.github.io/prometeo/trajectory/`
+3. `GROWTH` — `https://juanmanuelpm.github.io/prometeo/growth/`
+4. `RELEVANT PAGES` — direct URLs for the 1–8 pages/places actually implicated by this cycle, each with plate + short current context/status. Do not dump every page when unrelated.
+5. `/wc PROMPT` — the exact current canonical production prompt from CURRENT_MISSION_V1, in one contiguous copyable block.
+6. `HUMAN ACTION` — `NONE` unless a real human decision/capability/wake is required; when required, say exactly one action and why.
+7. `NEXT GUIDE CYCLE` — what /g has already derived for the next cycle so the human is not asked to plan it.
 
 The footer is utility, not a substitute for the Guide analysis above it.
 
