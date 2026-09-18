@@ -8,7 +8,7 @@ const RAW_ROOT = `https://raw.githubusercontent.com/JuanManuelPM/prometeo/${BRAN
 const SPECS = {
   index: { path: 'pages/study-library/index.html', sha: 'b088b71517f081e641e984bd8378e22e9be3f368' },
   v11: { path: 'pages/study-library/study-v11-experience.js', sha: '787c09e69551a0b889cde141823dc46d87d36eed' },
-  v18: { path: 'pages/study-library/study-v18.js', sha: 'ffa0da1bb56cbb972743847700198fdd62f3553f' },
+  v18: { path: 'pages/study-library/study-v18.js', sha: '4cd21828c71aeb87dd957c18977abb9bd440a252' },
   fix5: { path: 'pages/study-library/study-v18-5-fix.js', sha: '26ead844db7e93934fe742ce86a16d60f71beff6' },
   fix6: { path: 'pages/study-library/study-v18-6-fix.js', sha: '1754527feefbda95b59e79a0235d367ce16591a5' },
   css: { path: 'pages/study-library/study-v18.css', sha: 'd06e0df3580c64c86a06e5eb3db2798b255b745b' }
@@ -116,6 +116,14 @@ function evaluate(bundle) {
       id: 'javascript_parse',
       ok: jsParses(bundle.v11.text) && jsParses(bundle.v18.text) &&
           jsParses(bundle.fix5.text) && jsParses(bundle.fix6.text)
+    },
+    {
+      id: 'login_capability_honesty',
+      ok: containsAll(bundle.v18.text, [
+        'data-v18-login disabled',
+        'Inicio de sesión no configurado',
+        'No hay un proveedor de autenticación configurado para esta vista'
+      ]) && !bundle.v18.text.includes('Inicio de sesión · próximamente')
     },
     {
       id: 'native_schedule_legacy_bridge',
