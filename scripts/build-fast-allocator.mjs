@@ -61,61 +61,99 @@ export function classifyJobCapabilities(job = {}) {
 const jobRequiredCapabilities = job => classifyJobCapabilities(job).required_capabilities;
 const jobCapabilityRouteable = job => classifyJobCapabilities(job).unsupported_legacy_capabilities.length === 0;
 
-const GENERIC_FRONTIER_CAPABILITIES = new Set(['repository_test_runtime']);
-const SPECIALIZED_FRONTIER_CAPABILITIES = Object.freeze({
-  browser: new Set([
-    'representative_javascript_browser',
-    'browser_network_navigation_to_github_pages',
-    'unrestricted_public_http_origin_fetch'
-  ]),
-  mobile: new Set(['mobile_touch_input']),
-  host: new Set([
-    'authorized_readonly_target_host_runtime',
-    'cross_device_tv_phone_or_equivalent'
-  ]),
-  dispatch: new Set(['authorized_worker_dispatch'])
+const DEFAULT_FRONTIER_CAPABILITY_PRESSURE = Object.freeze({
+  generic_capabilities:['repository_test_runtime'],
+  specialized_buckets:{
+    browser_js:['representative_javascript_browser','browser_network_navigation_to_github_pages'],
+    public_http:['unrestricted_public_http_origin_fetch'],
+    mobile_touch:['mobile_touch_input'],
+    target_host:['authorized_readonly_target_host_runtime'],
+    cross_device:['cross_device_tv_phone_or_equivalent'],
+    dispatch:['authorized_worker_dispatch']
+  },
+  max_specialized_buckets:8,
+  max_unknown_capabilities:8
 });
-function frontierCapabilityBucket(capability) {
-  const value = String(capability || '').trim();
-  if (!value || GENERIC_FRONTIER_CAPABILITIES.has(value)) return null;
-  for (const [bucket, values] of Object.entries(SPECIALIZED_FRONTIER_CAPABILITIES)) {
-    if (values.has(value)) return bucket;
-  }
-  if (value.includes('browser') || value === 'unrestricted_public_http_origin_fetch') return 'browser';
-  if (value.startsWith('mobile_') || value.includes('touch_input')) return 'mobile';
-  if (value.includes('target_host') || value.includes('cross_device') || value.includes('hdmi')) return 'host';
-  if (value.includes('dispatch') || value.includes('spawn_worker')) return 'dispatch';
-  return 'unknown';
-}
-export function classifyFrontierCapabilityPressure(candidates = []) {
+const frontierPressurePolicy = policy => {
+  const raw = policy?.capability_pressure && typeof policy.capability_pressure === 'object'
+    ? policy.capability_pressure
+    : {};
+  const generic = uniq(arr(raw.generic_capabilities).length ? raw.generic_capabilities : DEFAULT_FRONTIER_CAPABILITY_PRESSURE.generic_capabilities);
+  const bucketSource = raw.specialized_buckets && typeof raw.specialized_buckets === 'object'
+    ? raw.specialized_buckets
+    : DEFAULT_FRONTIER_CAPABILITY_PRESSURE.specialized_buckets;
+  const specialized = {};
+  for (const [bucket, values] of Object.entries(bucketSource)) specialized[String(bucket)] = uniq(values.map(value => String(value).trim()).filter(Boolean));
+  return {
+    generic_capabilities:generic,
+    specialized_buckets:specialized,
+    max_specialized_buckets:Math.max(1, finiteInt(raw.max_specialized_buckets, DEFAULT_FRONTIER_CAPABILITY_PRESSURE.max_specialized_buckets)),
+    max_unknown_capabilities:Math.max(1, finiteInt(raw.max_unknown_capabilities, DEFAULT_FRONTIER_CAPABILITY_PRESSURE.max_unknown_capabilities))
+  };
+};
+export function classifyFrontierCapabilityPressure(candidates = [], policy = {}) {
   const rows = arr(candidates);
-  const buckets = { browser:0, mobile:0, host:0, dispatch:0, unknown:0 };
+  const model = frontierPressurePolicy(policy);
+  const generic = new Set(model.generic_capabilities);
+  const capabilityToBucket = new Map();
+  for (const [bucket, capabilities] of Object.entries(model.specialized_buckets)) {
+    for (const capability of capabilities) capabilityToBucket.set(capability, bucket);
+  }
+  const bucketCounts = new Map(Object.keys(model.specialized_buckets).map(bucket => [bucket, 0]));
+  const coarseBuckets = { browser:0, mobile:0, host:0, dispatch:0, unknown:0 };
   const unknown = new Set();
   let genericCompatible = 0;
-  let specializedTotal = 0;
+  let specializedCandidates = 0;
+  let unknownCandidates = 0;
   for (const candidate of rows) {
     const required = uniq(arr(candidate?.required_capabilities).map(value => String(value).trim()).filter(Boolean));
-    const seen = new Set();
-    let specialized = false;
+    const seenBuckets = new Set();
+    let hasKnownSpecialized = false;
+    let hasUnknown = false;
+    const coarseSeen = new Set();
     for (const capability of required) {
-      if (GENERIC_FRONTIER_CAPABILITIES.has(capability)) continue;
-      const bucket = frontierCapabilityBucket(capability);
-      if (!bucket) continue;
-      seen.add(bucket);
-      specialized = true;
-      if (bucket === 'unknown') unknown.add(capability);
+      if (generic.has(capability)) continue;
+      const bucket = capabilityToBucket.get(capability);
+      if (bucket) {
+        seenBuckets.add(bucket);
+        hasKnownSpecialized = true;
+        if (bucket.includes('browser') || bucket === 'public_http') coarseSeen.add('browser');
+        else if (bucket.includes('mobile') || bucket.includes('touch')) coarseSeen.add('mobile');
+        else if (bucket.includes('host') || bucket.includes('cross_device')) coarseSeen.add('host');
+        else if (bucket.includes('dispatch')) coarseSeen.add('dispatch');
+      } else {
+        hasUnknown = true;
+        unknown.add(capability);
+        coarseSeen.add('unknown');
+      }
     }
-    if (!specialized) genericCompatible += 1;
-    else specializedTotal += 1;
-    for (const bucket of seen) buckets[bucket] += 1;
+    if (!hasKnownSpecialized && !hasUnknown) genericCompatible += 1;
+    if (hasKnownSpecialized) specializedCandidates += 1;
+    if (hasUnknown) unknownCandidates += 1;
+    for (const bucket of seenBuckets) bucketCounts.set(bucket, (bucketCounts.get(bucket) || 0) + 1);
+    for (const bucket of coarseSeen) coarseBuckets[bucket] += 1;
   }
+  const specializedBuckets = [...bucketCounts.entries()]
+    .filter(([, count]) => count > 0)
+    .map(([bucket,count]) => ({bucket,count}))
+    .sort((a,b)=>b.count-a.count || a.bucket.localeCompare(b.bucket))
+    .slice(0, model.max_specialized_buckets);
+  const unknownCapabilities = [...unknown]
+    .sort((a,b)=>Buffer.from(a).compare(Buffer.from(b)))
+    .slice(0, model.max_unknown_capabilities);
   return {
-    basis: 'candidate.required_capabilities',
-    total: rows.length,
-    generic_compatible: genericCompatible,
-    specialized_total: specializedTotal,
-    buckets,
-    unknown_capabilities: [...unknown].sort((a, b) => Buffer.from(a).compare(Buffer.from(b)))
+    basis:'candidate.required_capabilities',
+    total_clean_frontier:rows.length,
+    generic_compatible_count:genericCompatible,
+    specialized_candidate_count:specializedCandidates,
+    unknown_capability_candidate_count:unknownCandidates,
+    specialized_buckets:specializedBuckets,
+    unknown_capabilities:unknownCapabilities,
+    // Compatibility aliases for already-published canary consumers.
+    total:rows.length,
+    generic_compatible:genericCompatible,
+    specialized_total:specializedCandidates + unknownCandidates,
+    buckets:coarseBuckets
   };
 }
 
@@ -691,12 +729,14 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
   const perLaunch = Number(signals.frontier_per_recent_launch || 1.5);
   const ceiling = Number(signals.frontier_ceiling || 40);
   const targetClaimable = clamp(floor, Math.ceil(perLaunch * recentBeacons.length), ceiling);
-  const capabilityPressure = classifyFrontierCapabilityPressure([...ready, ...queueReady]);
-  const cleanFrontier = capabilityPressure.total;
-  const genericCompatibleFrontier = capabilityPressure.generic_compatible;
-  const capabilityPressureEvidenceRef = 'gh-pages:live/allocator.json#metabolism.capability_pressure';
-  const recoveryCapabilityPressure = classifyFrontierCapabilityPressure(recovery);
-  const genericRecoveryPressure = recoveryCapabilityPressure.generic_compatible;
+  const capabilityPressure = classifyFrontierCapabilityPressure([...ready, ...queueReady], metabolism);
+  const cleanFrontier = capabilityPressure.total_clean_frontier;
+  const generic_compatible_frontier = capabilityPressure.generic_compatible_count;
+  const genericCompatibleFrontier = generic_compatible_frontier;
+  const pressureEvidenceRef = 'gh-pages:live/allocator.json#metabolism.capability_pressure';
+  const capabilityPressureEvidenceRef = pressureEvidenceRef;
+  const recoveryCapabilityPressure = classifyFrontierCapabilityPressure(recovery, metabolism);
+  const genericRecoveryPressure = recoveryCapabilityPressure.generic_compatible_count;
   const recoveryCapabilityPressureEvidenceRef = 'gh-pages:live/allocator.json#metabolism.recovery_capability_pressure';
 
   const recentReturnWindow = 6 * 60 * 60_000;
@@ -715,7 +755,7 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
   materialReturns.sort((a, b) => b.when - a.when || a.path.localeCompare(b.path));
   const unconsumedReturnRefs = uniq(materialReturns.slice(0, 12).map(row => row.path));
 
-  const genericRecovery = recovery.filter(item => classifyFrontierCapabilityPressure([item]).generic_compatible === 1);
+  const genericRecovery = recovery.filter(item => classifyFrontierCapabilityPressure([item], metabolism).generic_compatible_count === 1);
   const recoveryEvidence = uniq(genericRecovery.slice(0, 8).map(item => item.predecessor_pin_ref || item.source_path || `coordination/portfolio/PORTFOLIO.json#job:${item.job_id}`));
   const collisionEvidence = uniq(jobs
     .flatMap(job => collisionEvidenceRows(job))
@@ -956,6 +996,7 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       clean_frontier: cleanFrontier,
       clean_frontier_total: cleanFrontier,
       generic_compatible_clean_frontier: genericCompatibleFrontier,
+      generic_compatible_frontier: genericCompatibleFrontier,
       capability_pressure: capabilityPressure,
       recovery_total: recovery.length,
       generic_compatible_recovery: genericRecoveryPressure,
