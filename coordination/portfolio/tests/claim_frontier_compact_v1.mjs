@@ -53,7 +53,7 @@ assert(f.candidates.every(x=>!('project_id' in x)));
 assert(f.candidates.every(x=>x.claim_path && x.claim_payload_shape));
 assert(f.candidates.filter(x=>x.job_id).every(x=>x.source_path));
 const bytes=Buffer.byteLength(JSON.stringify(f));
-assert(bytes<24000,`compact frontier too large: ${bytes}`);
+assert(bytes<=24000,`compact frontier too large: ${bytes}`);
 
 const bloatedRoles=Array.from({length:24},(_,i)=>({
   role_id:'bloated-'+i,guide_work_id:'bloated-'+i,
@@ -73,5 +73,9 @@ const bounded=buildClaimFrontier({
 const boundedBytes=Buffer.byteLength(JSON.stringify(bounded));
 assert(bounded.candidate_count>0 && bounded.candidate_count<24,'byte budget must trim before transport overflow');
 assert(boundedBytes<=8000,`transport budget exceeded: ${boundedBytes}`);
+for (const candidate of bounded.candidates) {
+  const source=bloatedRoles.find(x=>x.claim_path===candidate.claim_path);
+  assert.deepEqual(candidate.claim_payload_shape,source.claim_payload_shape,'published authority payload was altered');
+}
 
 console.log('CLAIM_FRONTIER_COMPACT_PASS',bytes,boundedBytes,bounded.candidate_count);
