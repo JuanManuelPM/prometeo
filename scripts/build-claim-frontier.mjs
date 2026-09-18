@@ -4,6 +4,7 @@ import fs from 'node:fs';
 const arr = v => Array.isArray(v) ? v : [];
 const DEFAULT_MAX_CANDIDATES = 24;
 const DEFAULT_MAX_SERIALIZED_BYTES = 24_000;
+const DEFAULT_CAPABILITY_DIVERSITY_SLOTS = 8;
 
 // Pre-claim needs authority bytes, capability routing, and one exact post-claim source.
 // Human-facing labels, priority/state and duplicated identity already live in allocator/job files.
@@ -48,6 +49,33 @@ function serializedBytes(value) {
   return Buffer.byteLength(JSON.stringify(value), 'utf8');
 }
 
+function capabilitySignature(candidate) {
+  return JSON.stringify(
+    arr(candidate?.required_capabilities)
+      .map(value => String(value).trim())
+      .filter(Boolean)
+      .sort()
+  );
+}
+
+function preserveCapabilityDiversity(ordered, { prefix = 4, maxPromotions = DEFAULT_CAPABILITY_DIVERSITY_SLOTS } = {}) {
+  const rows = arr(ordered);
+  if (rows.length <= 1) return rows;
+  const head = rows.slice(0, Math.max(0, prefix));
+  const tail = rows.slice(head.length);
+  const seenSignatures = new Set(head.map(capabilitySignature));
+  const promoted = [];
+  for (const candidate of tail) {
+    const signature = capabilitySignature(candidate);
+    if (seenSignatures.has(signature)) continue;
+    seenSignatures.add(signature);
+    promoted.push(candidate);
+    if (promoted.length >= Math.max(0, maxPromotions)) break;
+  }
+  const promotedSet = new Set(promoted);
+  return [...head, ...promoted, ...tail.filter(candidate => !promotedSet.has(candidate))];
+}
+
 export function buildClaimFrontier(
   allocator = {},
   maxCandidates = DEFAULT_MAX_CANDIDATES,
@@ -83,7 +111,12 @@ export function buildClaimFrontier(
     ordered.push(compactCandidate(row,lane));
   }
 
-  const bounded = ordered.slice(0, Math.max(1, maxCandidates));
+  // Preserve allocator preference at the front while ensuring the compact transport
+  // carries at least one exemplar of each observed capability signature when space permits.
+  // This prevents byte/candidate truncation from hiding e.g. public-HTTP-only recovery behind
+  // many browser-only rows and making otherwise compatible workers appear idle.
+  const capabilityDiverse = preserveCapabilityDiversity(ordered);
+  const bounded = capabilityDiverse.slice(0, Math.max(1, maxCandidates));
   const recoveryAttention = arr(allocator.recovery_attention)
     .map(compactRecoveryAttention)
     .filter(row => row.job_id && row.reason)
