@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 from typing import Any
 
@@ -211,10 +212,10 @@ def run_viewport(browser, html: str, name: str, width: int, height: int) -> dict
     }
 
 
-def run_suite(html: str) -> dict[str, Any]:
+def run_suite(html: str, chromium_executable: str) -> dict[str, Any]:
     results = {}
     with sync_playwright() as p:
-        browser = p.chromium.launch(executable_path="/usr/bin/chromium", headless=True, args=["--no-sandbox"])
+        browser = p.chromium.launch(executable_path=chromium_executable, headless=True, args=["--no-sandbox"])
         try:
             for name, (w, h) in VIEWPORTS.items():
                 results[name] = run_viewport(browser, html, name, w, h)
@@ -227,6 +228,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("fixture", type=Path)
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--chromium-executable", default=os.environ.get("CHROMIUM_EXECUTABLE", "/usr/bin/chromium"))
     args = ap.parse_args()
 
     data = args.fixture.read_bytes()
@@ -234,14 +236,14 @@ def main() -> int:
     check(blob == EXPECTED_BLOB, "fixture_blob_sha", {"expected":EXPECTED_BLOB,"actual":blob,"path":str(args.fixture)})
     html = data.decode("utf-8")
 
-    baseline = run_suite(html)
+    baseline = run_suite(html, args.chromium_executable)
 
     mutation = html.replace("position:sticky;", "position:relative;", 1)
     check(mutation != html, "mutation_applied")
     mutation_detected = False
     mutation_error = None
     try:
-        run_suite(mutation)
+        run_suite(mutation, args.chromium_executable)
     except AssertionError as e:
         mutation_detected = True
         mutation_error = str(e)
@@ -251,6 +253,7 @@ def main() -> int:
         "schema": "prometeo.scroll-v17-regression-result/v1",
         "fixture_git_blob_sha": blob,
         "expected_git_blob_sha": EXPECTED_BLOB,
+        "chromium_executable": args.chromium_executable,
         "baseline": baseline,
         "mutation": {
             "change": "first .chapter-number position:sticky -> position:relative",
