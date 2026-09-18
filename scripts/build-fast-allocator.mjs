@@ -958,6 +958,12 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
     }));
   }
   const efficiencyNoAllocationReceipts = arr(efficiency?.no_allocation_causes?.recent_receipts)
+    .filter(row => {
+      if (typeof row === 'string') return true;
+      return ![row?.reason, row?.outcome]
+        .map(value => String(value || '').trim().toUpperCase())
+        .includes('CLAIM_TRANSPORT_BLOCKED');
+    })
     .map(row => typeof row === 'string' ? row : row?.ref)
     .filter(Boolean)
     .slice(0, 8);
