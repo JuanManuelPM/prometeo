@@ -32,6 +32,30 @@ Stop only on a real human/authority/privacy/irreversibility/Human-Acceptance bou
 
 This does not imply background execution after the response.
 
+## Strategic Guide aftercare
+
+Before a bare `/g` reply, update or confirm `coordination/guide/GUIDE_POWER_COMPASS_V1.json`.
+
+The Guide must leave the human oriented, not merely informed. The Compass records:
+- compounding health across parallelism, yield/chat, reproduction, visible value and autonomy;
+- current multiplicative experiments;
+- creative alternatives with evidence/rejection gates;
+- minimal file plans;
+- what still depends on the human.
+
+Do not force generic idea lists. Prefer a small set of mechanisms that could materially multiply useful output.
+
+## Exact visible-response writeback
+
+For bare `/g`:
+1. complete execution and durable state writeback;
+2. draft the exact final human-facing response;
+3. persist the exact UTF-8 response bytes at `coordination/guide/visible-responses/<session_id>.md`;
+4. include `visible_response_ref` in the session receipt;
+5. send the same text.
+
+This gives the next Guide a literal artifact to compare against actual durable actions/evidence. It is a quality-audit tool, not authority.
+
 ## Mandatory writeback
 
 Before the human-facing reply, persist every material change to the narrowest canonical object:
