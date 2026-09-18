@@ -12,6 +12,7 @@ const urls=s=>[...String(s||'').matchAll(/https:\/\/[^\s)"']+/g)].map(m=>m[0].re
 const mission=json(source,'coordination/guide/CURRENT_MISSION_V1.json')||{};
 const compass=json(source,'coordination/guide/GUIDE_POWER_COMPASS_V1.json')||{};
 const campaign=json(source,'coordination/guide/GROWTH_CAMPAIGN_V1.json')||{};
+const trajectory=json(source,'coordination/guide/GROWTH_TRAJECTORY_V1.json')||{};
 const pages=json(source,'coordination/live/PAGE_WATCH_REGISTRY_V1.json')||{pages:[]};
 const portfolio=json(source,'coordination/portfolio/PORTFOLIO.json')||{projects:[]};
 const runtime=json(site,'live/runtime.json')||{};
