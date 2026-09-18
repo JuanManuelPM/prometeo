@@ -65,15 +65,20 @@ export function activeGuideRescatePins({ guidePins = [], heartbeats = [], receip
     .sort((a, b) => String(a.guide_work_id).localeCompare(String(b.guide_work_id)));
 }
 
-export function suppressConcurrentGuideRescate(allocator = {}, state = {}, now = Date.now()) {
-  const active = activeGuideRescatePins(state, now);
-  if (!active.length) return allocator;
+export function suppressClaimedGuideRoleCandidates(allocator = {}, guidePins = []) {
+  const claimedPaths = new Set(
+    arr(guidePins)
+      .filter(row => row?.doc?.schema === 'prometeo.guide-role-pin/v1')
+      .map(row => row?.path)
+      .filter(Boolean)
+  );
+  if (!claimedPaths.size) return allocator;
 
   const roleReady = arr(allocator.role_ready);
-  const suppressed = roleReady.filter(candidate => candidate?.role === 'GUIDE_RESCATE');
+  const suppressed = roleReady.filter(candidate => candidate?.claim_path && claimedPaths.has(candidate.claim_path));
   if (!suppressed.length) return allocator;
 
-  const kept = roleReady.filter(candidate => candidate?.role !== 'GUIDE_RESCATE');
+  const kept = roleReady.filter(candidate => !candidate?.claim_path || !claimedPaths.has(candidate.claim_path));
   return {
     ...allocator,
     role_ready: kept,
@@ -83,6 +88,39 @@ export function suppressConcurrentGuideRescate(allocator = {}, state = {}, now =
     },
     diagnostics: {
       ...(allocator.diagnostics || {}),
+      guide_claim_path_suppression: {
+        schema: 'prometeo.guide-claim-path-suppression/v1',
+        policy: 'SUPPRESS_EXACT_EXISTING_IMMUTABLE_PIN_PATH',
+        suppressed_candidates: suppressed.map(candidate => ({
+          guide_work_id: candidate.guide_work_id || candidate.role_id || null,
+          role: candidate.role || null,
+          trigger: candidate.trigger || null,
+          claim_path: candidate.claim_path || null
+        }))
+      }
+    }
+  };
+}
+
+export function suppressConcurrentGuideRescate(allocator = {}, state = {}, now = Date.now()) {
+  const claimedFiltered = suppressClaimedGuideRoleCandidates(allocator, state.guidePins);
+  const active = activeGuideRescatePins(state, now);
+  if (!active.length) return claimedFiltered;
+
+  const roleReady = arr(claimedFiltered.role_ready);
+  const suppressed = roleReady.filter(candidate => candidate?.role === 'GUIDE_RESCATE');
+  if (!suppressed.length) return claimedFiltered;
+
+  const kept = roleReady.filter(candidate => candidate?.role !== 'GUIDE_RESCATE');
+  return {
+    ...claimedFiltered,
+    role_ready: kept,
+    counts: {
+      ...(claimedFiltered.counts || {}),
+      role_ready: kept.length
+    },
+    diagnostics: {
+      ...(claimedFiltered.diagnostics || {}),
       guide_rescate_active_suppression: {
         policy: 'ONE_ACTIVE_GUIDE_RESCATE_ACROSS_FINGERPRINT_CHURN',
         active_pins: active,
@@ -108,7 +146,7 @@ export function runCli(argv = process.argv.slice(2)) {
   const next = suppressConcurrentGuideRescate(allocator, state);
   fs.writeFileSync(allocatorPath, `${JSON.stringify(next, null, 2)}\n`);
   const suppressed = next.diagnostics?.guide_rescate_active_suppression?.suppressed_candidates?.length || 0;
-  process.stdout.write(`guide-rescate suppression active=${activeGuideRescatePins(state).length} suppressed=${suppressed}\n`);
+  const claimed = next.diagnostics?.guide_claim_path_suppression?.suppressed_candidates?.length || 0;\n  process.stdout.write(`guide-role suppression claimed=${claimed} active_rescate=${activeGuideRescatePins(state).length} rescate_suppressed=${suppressed}\\n`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
