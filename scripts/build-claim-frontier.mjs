@@ -26,6 +26,20 @@ function compactCandidate(item, lane) {
   return out;
 }
 
+function compactRecoveryAttention(item) {
+  const sourceDebt = item?.source_debt && typeof item.source_debt === 'object' ? item.source_debt : null;
+  const sourceDebtRef = sourceDebt?.dependency_return_ref || sourceDebt?.path || null;
+  const sourceDebtJobId = sourceDebt?.dependency_job_id || (sourceDebtRef ? item?.job_id || null : null);
+  return {
+    job_id:item?.job_id || null,
+    reason:item?.reason || null,
+    source_path:item?.source_path || null,
+    source_debt_job_id:sourceDebtJobId,
+    source_debt_ref:sourceDebtRef,
+    ordinary_claim_eligible:false
+  };
+}
+
 function keyOf(x) {
   return x?.claim_path || [x?.lane,x?.job_id,x?.opportunity_id,x?.role_id,x?.guide_work_id].filter(Boolean).join(':');
 }
@@ -70,6 +84,10 @@ export function buildClaimFrontier(
   }
 
   const bounded = ordered.slice(0, Math.max(1, maxCandidates));
+  const recoveryAttention = arr(allocator.recovery_attention)
+    .map(compactRecoveryAttention)
+    .filter(row => row.job_id && row.reason)
+    .slice(0, 8);
   const base = {
     schema:'prometeo.claim-frontier/v1',
     generated_at:allocator.generated_at || new Date().toISOString(),
@@ -79,6 +97,8 @@ export function buildClaimFrontier(
     batch_contention_fanin:allocator.batch_contention_fanin || null,
     preferred_order:arr(allocator.preferred_order),
     candidate_total:bounded.length,
+    recovery_attention_total:arr(allocator.recovery_attention).length,
+    recovery_attention:recoveryAttention,
     transport_bytes_max:maxSerializedBytes,
     truth_boundary:'COMPACT_CLAIM_HINT_ONLY_ATOMIC_CREATE_REMAINS_AUTHORITY'
   };
