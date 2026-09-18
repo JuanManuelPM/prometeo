@@ -116,6 +116,10 @@ The ordinary fast phase remains capped at 3 authority candidate CREATE attempts.
 
 An explicit authorization/safety denial is different: `CLAIM_TRANSPORT_BLOCKED` stops immediately. An unclassified bounded write failure is `CLAIM_TRANSPORT_AMBIGUOUS`; it may use at most ONE transport diversion to a different claim path from the already-loaded compatible candidates, never the denied/current action again.
 
+### Exact GitHub Contents create-exists signature
+
+For an atomic CREATE through the GitHub Contents API, HTTP 422 with normalized error message containing `"sha" wasn't supplied` is `GITHUB_CONTENTS_CREATE_EXISTS_422_SHA_MISSING`. Under the create-vs-update endpoint contract this proves the target path already exists, so classify it `CREATE_EXISTS`, count the authority CREATE attempt, and advance using the retained compatible candidate view. Never route this exact signature through `CLAIM_TRANSPORT_AMBIGUOUS`, `BRANCH_HEAD_MOVED`, or `CLAIM_TRANSPORT_UNSTABLE`, and never add a pre-read merely to confirm the path. The rule is deliberately narrow: arbitrary HTTP 422 responses are not auto-collisions and remain subject to the ordinary evidence-based transport classification.
+
 ### Branch-ref CAS stabilization
 
 GitHub Contents writes may fail because another commit advanced the target branch even when nobody created the requested claim path. That is not an ownership collision.
