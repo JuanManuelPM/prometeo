@@ -64,4 +64,44 @@ assert.equal(beaconOnly.batches[0].summary.missing_expected,1);
 assert.equal(beaconOnly.batches[0].workers[0].state,'BEACONED');
 fs.rmSync(root,{recursive:true,force:true});
 
+// Pool CLOSE is only terminal when the required productivity exam exists.
+const poolRoot=fs.mkdtempSync(path.join(os.tmpdir(),'prometeo-runtime-pool-'));
+const poolBeaconDir=path.join(poolRoot,'coordination','workers','beacons');
+fs.mkdirSync(poolBeaconDir,{recursive:true});
+fs.writeFileSync(path.join(poolBeaconDir,'pool-w1.json'),JSON.stringify({
+  schema:'prometeo.worker-beacon/v1',
+  worker_id:'pool-w1',
+  launched_at:'2026-09-17T22:05:00Z',
+  batch_id:'POOL-PROD-01',
+  expected_workers:null
+}));
+const poolBase={schema:'prometeo.worker-event/v1',batch_id:'POOL-PROD-01',expected_workers:null,worker_id:'pool-w1'};
+const poolComments=[
+  c(20,'2026-09-17T22:05:01Z',{...poolBase,event:'ROUTED',lane:'ready',candidate_id:'job-p'}),
+  c(21,'2026-09-17T22:05:02Z',{...poolBase,event:'CLAIM_RESULT',outcome:'WON',attempts:1,candidate_id:'job-p',started:true}),
+  c(22,'2026-09-17T22:05:03Z',{...poolBase,event:'CLOSE',outcome:'RETURNED',job_id_or_null:'job-p'})
+];
+const poolPreExam=compileRuntime(poolComments,poolRoot,'2026-09-17T22:05:04Z');
+assert.equal(poolPreExam.batches[0].workers[0].state,'ACTIVE');
+assert.equal(poolPreExam.batches[0].workers[0].close.terminal,false);
+assert.equal(poolPreExam.batches[0].summary.closed,0);
+assert.equal(poolPreExam.batches[0].summary.active,1);
+assert.ok(poolPreExam.batches[0].workers[0].anomalies.includes('POOL_CLOSE_WITHOUT_TERMINAL_EXAM'));
+
+const examDir=path.join(poolRoot,'coordination','workers','exams');
+fs.mkdirSync(examDir,{recursive:true});
+fs.writeFileSync(path.join(examDir,'pool-w1.json'),JSON.stringify({
+  schema:'prometeo.worker-productivity-exam-card/v1',
+  worker_id:'pool-w1',
+  batch_id:'POOL-PROD-01',
+  closed_at:'2026-09-17T22:05:03Z',
+  slots:[]
+}));
+const poolWithExam=compileRuntime(poolComments,poolRoot,'2026-09-17T22:05:05Z');
+assert.equal(poolWithExam.batches[0].workers[0].state,'CLOSED');
+assert.equal(poolWithExam.batches[0].workers[0].close.terminal,true);
+assert.equal(poolWithExam.batches[0].summary.closed,1);
+assert.equal(poolWithExam.batches[0].workers[0].repo.exam_ref,'coordination/workers/exams/pool-w1.json');
+fs.rmSync(poolRoot,{recursive:true,force:true});
+
 console.log('WORKER_RUNTIME_EVENTS_PASS');
