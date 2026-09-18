@@ -147,7 +147,7 @@ must('wc', wc, 'WAVE RESIDENCY / ASSIST');
 must('wc', wc, 'at most **2** ordinary derived assist jobs');
 must('wc', wc, 'The parent owner (or a later explicit steward) retains integration authority.');
 must('wc', wc, 'Cross-worker help is advertised only through durable assist jobs');
-must('wc', wc, 'Healthy compounding worker:');
+must('wc', wc, 'Healthy resident compounding worker:');
 must('wc-close', wc, '`CLOSE`: once when the worker/chat chain finally closes');
 must('wc-close', wc, 'Intermediate durable RETURN/guide receipts do NOT emit lifecycle `CLOSE`.');
 must('wc-close', wc, 'do NOT emit lifecycle `CLOSE` after an intermediate durable RETURN/guide receipt');
