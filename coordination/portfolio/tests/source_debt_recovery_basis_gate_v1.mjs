@@ -345,6 +345,72 @@ assert.equal(dependentFrontierAttention.source_debt_job_id, 'portfolio-jose-v12-
 assert.equal(dependentFrontierAttention.source_debt_ref, dependencyReturnRef);
 assert.equal(dependentFrontierAttention.ordinary_claim_eligible, false);
 
+
+const reviewablePreviewJob = readJson('coordination/portfolio/derived/alumnos/portfolio-alumnos-jose-v11-reviewable-preview-v1.json');
+assert.equal(reviewablePreviewJob.source_debt_dependency?.schema, 'prometeo.source-debt-dependency/v1', 'reviewable Jose V11 preview must retain a structured SOURCE_DEBT dependency');
+assert.equal(reviewablePreviewJob.source_debt_dependency?.job_id, 'portfolio-jose-v12-pinned-v11-material-recovery-v1', 'reviewable Jose V11 preview dependency job drift');
+assert.equal(reviewablePreviewJob.source_debt_dependency?.return_ref, dependencyReturnRef, 'reviewable Jose V11 preview must stay pinned to the exact durable V11 material boundary');
+const reviewablePreviewProjection = (liveFeed.projects || [])
+  .flatMap(project => project.jobs || [])
+  .find(job => job.job_id === 'portfolio-alumnos-jose-v11-reviewable-preview-v1');
+assert.ok(reviewablePreviewProjection, 'reviewable Jose V11 preview must remain projected in Live feed');
+assert.equal(reviewablePreviewProjection.source_debt_dependency?.ref_bounded, true, 'reviewable preview dependency must use one bounded exact portfolio return ref');
+assert.equal(reviewablePreviewProjection.source_debt_dependency?.structurally_valid, true, 'reviewable preview dependency must resolve to valid structured SOURCE_DEBT');
+assert.equal(reviewablePreviewProjection.source_debt_dependency?.return_ref, dependencyReturnRef);
+
+const reviewablePreviewSourceDebt = {
+  job_id: reviewablePreviewJob.job_id,
+  dedupe_key: reviewablePreviewJob.dedupe_key,
+  project_id: reviewablePreviewJob.project_id,
+  title: reviewablePreviewJob.title,
+  priority: reviewablePreviewJob.priority,
+  state: 'replaceable',
+  pin_generation: 7,
+  claimed_at: '2026-09-18T12:00:00Z',
+  last_signal_at: '2026-09-18T12:10:38Z',
+  created_at: reviewablePreviewJob.created_at,
+  evidence: reviewablePreviewJob.evidence || [],
+  required_capabilities: reviewablePreviewJob.required_capabilities || [],
+  source_debt_dependency: reviewablePreviewProjection.source_debt_dependency,
+  latest_return: {
+    path: 'coordination/portfolio/returns/portfolio-alumnos-jose-v11-reviewable-preview-v1/RETURN-wc-prod01-20260918T115504Z-sol-G000007-ROUTE_ABORTED.json',
+    outcome: 'ROUTE_ABORTED',
+    summary: 'No material V11 recovery basis; resume only when a genuinely new byte-complete V11 source reproduces the exact recorded digest.',
+    returned_at: '2026-09-18T12:10:38Z'
+  },
+  latest_pin_recovery_basis: null
+};
+const reviewablePreviewGate = recoveryBasisGate(reviewablePreviewSourceDebt);
+assert.equal(reviewablePreviewGate.eligible, false, 'reviewable Jose V11 preview must not re-enter recovery from age alone');
+assert.equal(reviewablePreviewGate.reason, 'SOURCE_DEBT_BASIS_UNCHANGED');
+
+const reviewablePreviewAllocator = buildFastAllocator(
+  feedFor([reviewablePreviewSourceDebt]),
+  { status: 'HEALTHY', metrics: {}, reasons: [] },
+  { recoveryPolicies: [], roleContext: null }
+);
+assert.equal(
+  reviewablePreviewAllocator.recovery.some(row => row.job_id === reviewablePreviewSourceDebt.job_id),
+  false,
+  'reviewable Jose V11 preview must stay out of ordinary recovery while the durable source debt is unchanged'
+);
+const reviewablePreviewAttention = reviewablePreviewAllocator.recovery_attention.find(row => row.job_id === reviewablePreviewSourceDebt.job_id);
+assert.ok(reviewablePreviewAttention, 'reviewable Jose V11 preview must remain visible as recovery attention');
+assert.equal(reviewablePreviewAttention.reason, 'SOURCE_DEBT_BASIS_UNCHANGED');
+
+const reviewablePreviewFrontier = buildClaimFrontier(reviewablePreviewAllocator);
+assert.equal(
+  reviewablePreviewFrontier.candidates.some(row => row.job_id === reviewablePreviewSourceDebt.job_id),
+  false,
+  'reviewable Jose V11 preview must stay non-claimable in compact claim frontier while source debt is unchanged'
+);
+const reviewablePreviewFrontierAttention = reviewablePreviewFrontier.recovery_attention.find(row => row.job_id === reviewablePreviewSourceDebt.job_id);
+assert.ok(reviewablePreviewFrontierAttention, 'compact claim frontier must keep reviewable Jose V11 source debt observable');
+assert.equal(reviewablePreviewFrontierAttention.reason, 'SOURCE_DEBT_BASIS_UNCHANGED');
+assert.equal(reviewablePreviewFrontierAttention.source_debt_job_id, 'portfolio-jose-v12-pinned-v11-material-recovery-v1');
+assert.equal(reviewablePreviewFrontierAttention.source_debt_ref, dependencyReturnRef);
+assert.equal(reviewablePreviewFrontierAttention.ordinary_claim_eligible, false);
+
 const dependentWithNewBasis = {
   ...dependentSourceDebt,
   recovery_basis: {
