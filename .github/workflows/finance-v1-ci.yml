@@ -1,0 +1,42 @@
+name: Finance v1 CI
+
+on:
+  push:
+    branches:
+      - finance-remote-synthetic-v1
+    paths:
+      - 'shared/finance/**'
+      - 'pages/calendar/app-04-finance.js'
+      - 'supabase/**'
+      - 'tests/finance-remote-static.test.mjs'
+      - '.github/workflows/finance-v1-ci.yml'
+  pull_request:
+    paths:
+      - 'shared/finance/**'
+      - 'pages/calendar/app-04-finance.js'
+      - 'supabase/**'
+      - 'tests/finance-remote-static.test.mjs'
+      - '.github/workflows/finance-v1-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  finance-static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run Finance boundary tests
+        run: node --test tests/finance-remote-static.test.mjs
+      - name: Public leak gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -R -n -E 'APP_USR-|MP_CLIENT_SECRET[[:space:]]*=|MP_ACCESS_TOKEN[[:space:]]*=|refresh_token[[:space:]]*=|SUPABASE_SECRET_KEY[[:space:]]*=|SUPABASE_SERVICE_ROLE_KEY[[:space:]]*=' shared/finance pages/calendar/app-04-finance.js; then
+            echo 'Sensitive credential pattern found in public Finance surface.' >&2
+            exit 1
+          fi
+          echo 'Public Finance surface contains no forbidden credential patterns.'
