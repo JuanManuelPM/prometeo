@@ -1,0 +1,111 @@
+{
+  "schema": "prometeo.worker-pipeline/v1",
+  "pipeline_id": "WORKER-PIPELINE-V1",
+  "status": "ACTIVE_BINDING",
+  "updated_at": "2026-09-19T16:24:59.017Z",
+  "purpose": "Decompose a worker launch into observable stages so failures can be located and improved without changing the whole worker at once.",
+  "global_law": "Optimize the pipeline stage that is actually weak. Do not compensate for a weak entry/decision stage by launching more workers, and do not let experiments reduce product completion.",
+  "stages": [
+    {
+      "id": "E0_ENVELOPE",
+      "name": "Interpret launch envelope",
+      "goal": "Resolve NEW/RESUME, run_id/pool/batch, authorization and exact first durable action before consulting historical worker evidence.",
+      "hard_rule": "For NEW launches, historical identity/result reuse is forbidden.",
+      "evidence": "beacon invocation fields"
+    },
+    {
+      "id": "E1_IDENTITY",
+      "name": "Fresh identity",
+      "goal": "Create fresh worker_id + launch_nonce and atomically CREATE own beacon.",
+      "hard_rule": "Beacon is the first durable worker write.",
+      "evidence": "coordination/workers/beacons/<worker_id>.json"
+    },
+    {
+      "id": "E2_ASSIGN",
+      "name": "Unique assignment",
+      "goal": "In RUN mode atomically self-claim one compatible launch slot; otherwise use the normal allocator.",
+      "hard_rule": "One RUN slot has at most one owner; human does not number or route slots.",
+      "evidence": "coordination/launch-packets/<run_id>/claims/<slot_id>.json or normal PIN"
+    },
+    {
+      "id": "E3_CONTEXT",
+      "name": "Exact context load",
+      "goal": "Read only the assigned long capsule/exact sources needed to execute the owned objective.",
+      "hard_rule": "No broad project archaeology before the packet/capsule proves it necessary.",
+      "evidence": "exam stage_trace + exact source refs"
+    },
+    {
+      "id": "E4_PLAN_LOCK",
+      "name": "Execution lock",
+      "goal": "Convert the objective into a small actionable contract tied to hard gates before large implementation work.",
+      "hard_rule": "Planning is bounded and must immediately lead to implementation; no status-only plan.",
+      "evidence": "exam stage_trace.plan_lock or benchmark receipt"
+    },
+    {
+      "id": "E5_PRODUCE",
+      "name": "Production",
+      "goal": "Implement the entire owned objective through its definition of done, not just the first edit.",
+      "hard_rule": "Do not stop at first commit/checkpoint when executable acceptance work remains.",
+      "evidence": "changed paths + durable return"
+    },
+    {
+      "id": "E6_VERIFY",
+      "name": "Verification",
+      "goal": "Run available static/runtime/browser/public checks and map every hard gate to evidence or an explicit capability boundary.",
+      "hard_rule": "Never claim a check that was not executed.",
+      "evidence": "tests + benchmark receipt feature_evidence"
+    },
+    {
+      "id": "E7_RETURN",
+      "name": "Durable return",
+      "goal": "Persist the primary result/evidence so another actor can reconstruct what changed.",
+      "hard_rule": "No terminal human answer before durable return/receipt when the scope is executable.",
+      "evidence": "RETURN/benchmark receipt"
+    },
+    {
+      "id": "E8_REALLOCATE",
+      "name": "Autonomous reallocation",
+      "goal": "After primary completion, take a compatible second objective without new human routing.",
+      "hard_rule": "Primary completion is not terminal in graduation RUNs.",
+      "evidence": "reallocation claim + second-project evidence"
+    },
+    {
+      "id": "E9_EXAM_CLOSE",
+      "name": "Exam and close",
+      "goal": "Write one structured exam/benchmark receipt exposing stage outcomes and only then close when the run contract permits.",
+      "hard_rule": "The exam reports failures; it does not excuse them or manufacture evidence.",
+      "evidence": "coordination/workers/exams/<worker_id>.json + benchmark receipt"
+    }
+  ],
+  "timing": {
+    "clock": "durable artifact timestamps when available; worker-authored timestamps otherwise are diagnostic only",
+    "optimize_for": [
+      "time_to_fresh_beacon",
+      "time_to_unique_assignment",
+      "time_to_first_material_edit",
+      "time_to_primary_complete",
+      "time_to_verified_complete",
+      "time_to_reallocation"
+    ],
+    "speed_never_overrides": [
+      "hard_gate_completion",
+      "authority",
+      "evidence_truth",
+      "product_quality"
+    ]
+  },
+  "stage_failure_codes": [
+    "ENVELOPE_AMBIGUOUS",
+    "FRESH_LAUNCH_BEACON_NOT_CREATED",
+    "NO_COMPATIBLE_LAUNCH_SLOT",
+    "SLOT_CLAIM_TRANSPORT_BLOCKED",
+    "CAPSULE_MISSING_OR_INVALID",
+    "PLAN_LOOP_NO_IMPLEMENTATION",
+    "PRODUCTION_INCOMPLETE",
+    "VERIFICATION_INCOMPLETE",
+    "RETURN_NOT_PERSISTED",
+    "REALLOCATION_NOT_COMPLETED",
+    "EXAM_NOT_PERSISTED"
+  ],
+  "experiment_boundary": "Evolution rounds may vary one stage rule at a time. Identity, authority, safety, benchmark objective, hard gates and evidence truth remain invariant."
+}
