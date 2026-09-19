@@ -284,7 +284,6 @@ for(const [workerId,b] of beaconByWorker){
     pool_id:poolId,
     explicit_exam:!!explicit,
     productive_units:units.length,
-    pool_residency:poolResidency,
     close_reason:explicit?.close_reason||null,
     close_evidence_refs:explicit?.close_evidence_refs||[]
   });
@@ -305,6 +304,7 @@ for(const [workerId,b] of beaconByWorker){
     no_allocation:!!noalloc,
     no_allocation_reason:noalloc?.doc?.reason||null,
     productive_units:units.length,
+    pool_residency:poolResidency,
     product_value_units:units.filter(u=>u.value_class==='PRODUCT_VALUE').length,
     system_multiplier_units:units.filter(u=>u.value_class==='SYSTEM_MULTIPLIER').length,
     control_overhead_units:units.filter(u=>u.value_class==='CONTROL_OVERHEAD').length,
