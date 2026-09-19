@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#11110f">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src https://openapi.tuyacn.com https://openapi.tuyaus.com https://openapi.tuyaeu.com https://openapi.tuyain.com https://openapi-ueaz.tuyaus.com https://openapi-weaz.tuyaeu.com https://openapi-sg.iotbing.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src https://catnohyouxqjjtseaueb.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
 <title>LUZ · Prometeo</title>
 <style>
 :root{color-scheme:dark;--bg:#11110f;--fg:#f3f0e8;--muted:#99958c;--line:#302f2a;--soft:#1a1916;--hot:#ffb14a;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -49,7 +49,7 @@ details{border-top:1px solid var(--line);padding-top:18px;margin-top:16px}summar
       <div class="keyrow"><input id="keyInput" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-…"><button class="paste" id="pasteBtn" type="button">PEGAR</button></div>
       <button class="action" id="connectBtn" type="button" style="margin-top:10px">CONECTAR MI LUZ</button>
       <div class="statusmsg" id="setupStatus"></div>
-      <p class="note">La clave no se sube a GitHub ni se escribe en el código. Se guarda sólo en el almacenamiento de este navegador y se envía únicamente al endpoint oficial de Tuya.</p>
+      <p class="note">La clave no se sube a GitHub ni se escribe en el código. Se guarda sólo en este navegador. El puente de Prometeo la usa en memoria para hablar con Tuya y no la persiste.</p>
     </div>
   </section>
 
@@ -108,6 +108,7 @@ details{border-top:1px solid var(--line);padding-top:18px;margin-top:16px}summar
 'use strict';
 const K_KEY='prometeo_luz_tuya_key_v1';
 const K_DEVICE='prometeo_luz_tuya_device_v1';
+const PROXY='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-tuya-proxy-v1';
 const endpoints={AY:'https://openapi.tuyacn.com',AZ:'https://openapi.tuyaus.com',EU:'https://openapi.tuyaeu.com',IN:'https://openapi.tuyain.com',UE:'https://openapi-ueaz.tuyaus.com',WE:'https://openapi-weaz.tuyaeu.com',SG:'https://openapi-sg.iotbing.com'};
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -134,21 +135,22 @@ function keyInfo(key){
 }
 async function api(path,{method='GET',body}={}){
   if(!state.key||!state.base)throw new Error('Falta autorización de Tuya.');
-  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),12000);
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),14000);
   let r;
   try{
-    r=await fetch(state.base+path,{method,mode:'cors',cache:'no-store',signal:ctrl.signal,headers:{'Authorization':'Bearer '+state.key,...(body!==undefined?{'Content-Type':'application/json'}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{})});
+    const payload={apiKey:state.key,method,path};if(body!==undefined)payload.body=body;
+    r=await fetch(PROXY,{method:'POST',mode:'cors',cache:'no-store',signal:ctrl.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   }catch(e){
     clearTimeout(timer);log('network-error',{path,error:String(e)});
     if(e.name==='AbortError')throw new Error('Tuya tardó demasiado en responder.');
-    throw new Error('El navegador no pudo llegar a Tuya. Revisá Internet o volvé a abrir esta página.');
+    throw new Error('No pude llegar al puente de control. Revisá Internet y volvé a intentar.');
   }
   clearTimeout(timer);
   let data={};
-  try{data=await r.json()}catch{throw new Error('Tuya devolvió una respuesta inválida.')}
-  log(method+' '+path,{http:r.status,success:data.success,code:data.code,msg:data.msg});
+  try{data=await r.json()}catch{throw new Error('La respuesta de control fue inválida.')}
+  log(method+' '+path,{http:r.status,success:data.success,code:data.code,msg:data.msg,error:data.error});
   if(!r.ok||data.success===false){
-    const err=new Error(data.msg||('Tuya respondió '+r.status));err.code=data.code||r.status;throw err;
+    const err=new Error(data.msg||data.error||('Tuya respondió '+r.status));err.code=data.code||r.status;throw err;
   }
   return data.result!==undefined?data.result:data;
 }
