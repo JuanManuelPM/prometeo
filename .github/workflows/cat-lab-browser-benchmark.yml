@@ -1,0 +1,63 @@
+name: CAT-LAB Browser Benchmark
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pages/bench/cat-lab/**'
+      - 'tests/cat-lab-browser-v1.mjs'
+      - 'tests/cat-lab-contract-v1.mjs'
+      - '.github/workflows/cat-lab-browser-benchmark.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cat-lab-browser-benchmark
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Static contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -d pages/bench/cat-lab ]; then
+            echo "No Cat Lab slots yet."
+            exit 0
+          fi
+          while IFS= read -r -d '' f; do
+            node tests/cat-lab-contract-v1.mjs "$(dirname "$f")"
+          done < <(find pages/bench/cat-lab -type f -name index.html -print0)
+      - name: Install representative Chromium
+        if: ${{ hashFiles('pages/bench/cat-lab/**/index.html') != '' }}
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Serve benchmark pages
+        if: ${{ hashFiles('pages/bench/cat-lab/**/index.html') != '' }}
+        shell: bash
+        run: |
+          python3 -m http.server 4173 --directory pages >/tmp/catlab-http.log 2>&1 &
+          echo $! >/tmp/catlab-http.pid
+          sleep 2
+      - name: Browser contracts
+        if: ${{ hashFiles('pages/bench/cat-lab/**/index.html') != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' f; do
+            rel="${f#pages/}"
+            dir="$(dirname "$rel")"
+            node tests/cat-lab-browser-v1.mjs "http://127.0.0.1:4173/$dir/"
+          done < <(find pages/bench/cat-lab -type f -name index.html -print0)
