@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.worker-productivity-exam/v1",
   "status": "CANARY_BINDING",
-  "purpose": "Measure end-to-end useful work per launched chat while separately measuring causal post-ownership strategy experiments; raw verbosity is never a proxy.",
+  "purpose": "Measure end-to-end useful work per launched chat, preserve explicit worker evidence when available, and keep causal post-ownership strategy metrics separate from derived launch-funnel/value observability.",
   "exam_path": "coordination/workers/exams/<worker_id>.json",
   "slots": 6,
   "slot_schema": {
@@ -13,7 +13,9 @@
     "tests_count": "integer >= 0",
     "successors_created": "integer >= 0",
     "visible_change": "boolean",
-    "experimental_slot": "optional boolean; true only when this evidence-backed slot matched the enrolled job_class and was actually governed by the assigned strategy variant"
+    "experimental_slot": "optional boolean; true only when this evidence-backed slot matched the enrolled job_class and was actually governed by the assigned strategy variant",
+    "value_class": "optional PRODUCT_VALUE | SYSTEM_MULTIPLIER | CONTROL_OVERHEAD | BOUNDARY; routing/measurement metadata only, never Human Acceptance",
+    "successor_relay_ref": "optional exact derived successor ref created from a concrete residual; absent when no relay was needed"
   },
   "required_fields": [
     "schema",
@@ -64,7 +66,10 @@
     "Workers must not create filler successors, visible mutations, or lower-value work merely to satisfy score components.",
     "Retired YIELD-10X-V1 must not be newly assigned or written as pattern_id.",
     "Post-ownership strategy evaluation must not attribute preclaim collisions/no-allocation causally to the strategy variant.",
-    "experimental_slot=true requires durable evidence and an actual governed choice in the enrolled job_class; other productive slots remain global score evidence only."
+    "experimental_slot=true requires durable evidence and an actual governed choice in the enrolled job_class; other productive slots remain global score evidence only.",
+    "Derived launch rows must never invent experiment enrollment, strategy variant, visible change, successor creation, acceptance or Served status.",
+    "value_class is not a reward label; workers may use it only as a soft comparable-work routing preference under WORKER_GROWTH_POLICY_V1.",
+    "A successor relay counts only when a concrete non-duplicate residual job is durably materialized; no filler relay."
   ],
   "champion_policy": {
     "window": "latest 20 closed exam cards, plus per-pool view",
@@ -74,7 +79,7 @@
     "leader_definition": "highest scoring observed worker/card regardless of reproducibility",
     "champion_definition": "reproduced pattern meeting the independent gate; null otherwise"
   },
-  "current_worker_protocol_version": "v3.28",
+  "current_worker_protocol_version": "v3.29",
   "pattern_measurement": {
     "historical_candidate_ref": "coordination/workers/YIELD_PATTERN_CANDIDATE_V1.json",
     "active_pattern_ref": null,
@@ -93,7 +98,8 @@
       "experiment_enrolled",
       "job_class",
       "strategy_variant",
-      "strategy_assignment_basis"
+      "strategy_assignment_basis",
+      "strategy_assignment_snapshot"
     ],
     "slot_field": "experimental_slot",
     "legacy_cards_without_strategy_metadata_remain_valid": true,
@@ -109,12 +115,21 @@
       "no_allocation_count",
       "low_waste"
     ],
-    "truth_boundary": "Compare strategy variants only within the same job_class. Preclaim diagnostics are reported beside the sample but are not causal strategy metrics."
+    "truth_boundary": "Compare strategy variants only within the same job_class. Preclaim diagnostics are reported beside the sample but are not causal strategy metrics.",
+    "assignment_balance": "v3.29 may use a fresh post-ownership class underrepresentation hint; hash remains tie/fallback. The chosen basis must be reconstructible."
   },
   "strategy_policy": {
     "sample_ready": "Both variants in a job_class have >=3 independent enrolled workers with >=1 experimental slot.",
     "automatic_promotion": false,
     "promotion_target": "class-specific post-ownership law only",
     "cross_class_universal_winner_forbidden": true
+  },
+  "launch_measurement": {
+    "policy_ref": "coordination/workers/WORKER_GROWTH_POLICY_V1.json",
+    "scoreboard_ref": "gh-pages:live/worker-scoreboard.json#launch_measurements",
+    "rule": "Every durable beacon gets a derived launch row from repository evidence even when an explicit terminal exam is missing.",
+    "explicit_exam_preferred": true,
+    "derived_row_is_observability_only": true,
+    "derived_row_may_not_supply_strategy_causality": true
   }
 }
