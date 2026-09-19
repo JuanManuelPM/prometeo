@@ -24,7 +24,7 @@ try{
     if(!row.explicit_exam) assert.equal(row.causal_strategy_eligible,false,'derived rows cannot become causal strategy evidence');
   }
   assert.ok(d.growth_health);
-  for(const key of ['terminal_classification_rate','authority_rate','productive_worker_rate','productive_units_per_launch','product_value_unit_share','system_multiplier_unit_share','control_overhead_unit_share']){
+  for(const key of ['terminal_classification_rate','authority_rate','productive_worker_rate','productive_units_per_launch','capability_mismatch_rate','product_value_unit_share','system_multiplier_unit_share','control_overhead_unit_share']){
     assert.ok(Object.prototype.hasOwnProperty.call(d.growth_health,key),key+' missing');
   }
   if(d.strategy_experiment_health){
