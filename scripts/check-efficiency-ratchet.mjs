@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048','EFF050','EFF049','EFF051']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048','EFF050','EFF049','EFF051','EFF055']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -36,7 +36,7 @@ const strategyExperimentItem = baseline?.items?.find(x=>x.id==='EFF051');
 if (!strategyExperimentItem) errors.push('baseline: EFF051 missing');
 else {
   if (strategyExperimentItem.required?.active_experiment_ref !== 'coordination/workers/WORKER_STRATEGY_EXPERIMENT_V1.json') errors.push('baseline: EFF051 experiment ref drift');
-  if (strategyExperimentItem.required?.worker_protocol_version !== 'v3.28') errors.push('baseline: EFF051 protocol version drift');
+  if (strategyExperimentItem.required?.worker_protocol_version !== 'v3.29') errors.push('baseline: EFF051 protocol version drift');
   if (strategyExperimentItem.required?.applies_after !== 'OWNERSHIP') errors.push('baseline: EFF051 ownership boundary drift');
   if (strategyExperimentItem.required?.preclaim_reads_added !== 0) errors.push('baseline: EFF051 preclaim read regression');
   if (strategyExperimentItem.required?.claim_authority_unchanged !== true) errors.push('baseline: EFF051 claim authority drift');
@@ -47,7 +47,7 @@ const strategyExperiment = JSON.parse(read(root, 'coordination/workers/WORKER_ST
 if (strategyExperiment.status !== 'ACTIVE_CANARY' || strategyExperiment.applies_after !== 'OWNERSHIP') errors.push('strategy-experiment: active ownership boundary drift');
 if (strategyExperiment?.authority_boundary?.preclaim_reads_added !== 0 || strategyExperiment?.authority_boundary?.claim_authority_changed !== false) errors.push('strategy-experiment: preclaim/authority regression');
 const strategyExam = JSON.parse(read(root, 'coordination/workers/WORKER_PRODUCTIVITY_EXAM_V1.json')||'{}');
-if (strategyExam.current_worker_protocol_version !== 'v3.28') errors.push('strategy-experiment: exam protocol drift');
+if (strategyExam.current_worker_protocol_version !== 'v3.29') errors.push('strategy-experiment: exam protocol drift');
 if (strategyExam?.strategy_measurement?.active_experiment_ref !== 'coordination/workers/WORKER_STRATEGY_EXPERIMENT_V1.json') errors.push('strategy-experiment: exam ref drift');
 if (strategyExam?.pattern_measurement?.active_pattern_ref !== null) errors.push('strategy-experiment: retired pattern still active');
 const strategyWc = read(root, 'wc');
@@ -58,6 +58,42 @@ const strategyScoreboard = read(root, 'scripts/build-worker-scoreboard.mjs');
 must('strategy-scoreboard', strategyScoreboard, 'strategy_experiment_health');
 must('strategy-scoreboard', strategyScoreboard, 'preclaim_diagnostics');
 must('strategy-scoreboard', strategyScoreboard, 'experimental_productive_slots');
+must('strategy-scoreboard', strategyScoreboard, 'assignment_hint');
+must('strategy-scoreboard', strategyScoreboard, 'launch_measurements');
+must('strategy-scoreboard', strategyScoreboard, 'growth_health');
+
+const growthItem = baseline?.items?.find(x=>x.id==='EFF055');
+if (!growthItem) errors.push('baseline: EFF055 missing');
+else {
+  if (growthItem.required?.worker_protocol_version !== 'v3.29') errors.push('baseline: EFF055 protocol drift');
+  if (growthItem.required?.growth_policy_ref !== 'coordination/workers/WORKER_GROWTH_POLICY_V1.json') errors.push('baseline: EFF055 policy ref drift');
+  if (growthItem.required?.every_beacon_has_launch_row !== true) errors.push('baseline: EFF055 beacon measurement drift');
+  if (growthItem.required?.derived_launch_strategy_causality_forbidden !== true) errors.push('baseline: EFF055 causal leakage');
+  if (growthItem.required?.strategy_balance_mode !== 'ADAPTIVE_MIN_SAMPLE_THEN_HASH_TIEBREAK') errors.push('baseline: EFF055 assignment mode drift');
+  if (growthItem.required?.preclaim_reads_added !== 0) errors.push('baseline: EFF055 preclaim regression');
+  if (growthItem.required?.control_overhead_soft_max_share !== 0.15) errors.push('baseline: EFF055 overhead budget drift');
+  if (growthItem.required?.successor_relay_max_per_terminal_close !== 1) errors.push('baseline: EFF055 relay bound drift');
+}
+const growthPolicy = JSON.parse(read(root, 'coordination/workers/WORKER_GROWTH_POLICY_V1.json')||'{}');
+if (growthPolicy.status !== 'ACTIVE_CANARY') errors.push('growth-policy: must be ACTIVE_CANARY');
+if (growthPolicy.worker_protocol_min_version !== 'v3.29') errors.push('growth-policy: protocol drift');
+if (growthPolicy?.automatic_launch_measurement?.synthesized_strategy_causality_forbidden !== true) errors.push('growth-policy: derived causal leakage');
+if (growthPolicy?.strategy_balance?.assignment_mode !== 'ADAPTIVE_MIN_SAMPLE_THEN_HASH_TIEBREAK') errors.push('growth-policy: assignment mode drift');
+if (growthPolicy?.strategy_balance?.read_timing !== 'POST_OWNERSHIP_ONLY') errors.push('growth-policy: assignment read timing drift');
+if (growthPolicy?.strategy_balance?.preclaim_reads_added !== 0) errors.push('growth-policy: preclaim read regression');
+if (growthPolicy?.value_budget?.control_overhead_soft_max_share !== 0.15) errors.push('growth-policy: overhead budget drift');
+if (growthPolicy?.successor_relay?.max_new_successors_per_terminal_close !== 1) errors.push('growth-policy: relay bound drift');
+if (growthPolicy?.capability_specialization?.status !== 'ACTIVE_PARALLEL') errors.push('growth-policy: S4 not parallel active');
+if (growthPolicy?.value_budget?.status !== 'ACTIVE_PARALLEL') errors.push('growth-policy: S5 not parallel active');
+must('strategy-wc', strategyWc, 'WORKER_GROWTH_POLICY_V1.json');
+must('strategy-wc', strategyWc, 'SUCCESSOR RELAY');
+must('allocator', allocator, 'value_class');
+const claimFrontier = read(root, 'scripts/build-claim-frontier.mjs');
+must('claim-frontier', claimFrontier, 'postclaim_context');
+must('claim-frontier', claimFrontier, 'value_class');
+const growthTest = read(root, 'tests/worker-growth-pipeline-v1.test.mjs');
+must('growth-test', growthTest, 'launch_observation_coverage');
+must('growth-test', growthTest, 'ADAPTIVE_MIN_SAMPLE_THEN_HASH_TIEBREAK');
 
 const allocator = read(root, 'scripts/build-fast-allocator.mjs');
 const latentItem = baseline?.items?.find(x=>x.id==='EFF013');
