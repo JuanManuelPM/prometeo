@@ -421,6 +421,31 @@ const reviewablePreviewSourceDebt = {
   },
   latest_pin_recovery_basis: null
 };
+const reviewablePreviewMalformedLocalProjection = {
+  ...reviewablePreviewSourceDebt,
+  latest_source_debt_return: {
+    path: 'coordination/portfolio/returns/portfolio-alumnos-jose-v11-reviewable-preview-v1/RETURN-G000010-DERIVATIVE-SOURCE-DEBT.json',
+    returned_at: '2026-09-18T21:38:52Z',
+    status: 'OPEN',
+    exhaustive_negative: false,
+    structurally_valid: false
+  }
+};
+const reviewablePreviewMalformedLocalGate = recoveryBasisGate(reviewablePreviewMalformedLocalProjection);
+assert.equal(
+  reviewablePreviewMalformedLocalGate.eligible,
+  false,
+  'invalid local SOURCE_DEBT projection must not mask a valid bounded dependency'
+);
+assert.equal(
+  reviewablePreviewMalformedLocalGate.reason,
+  'SOURCE_DEBT_BASIS_UNCHANGED',
+  'valid bounded dependency must retain causal SOURCE_DEBT semantics instead of generic malformed fail-closed'
+);
+assert.equal(reviewablePreviewMalformedLocalGate.source_debt?.dependency_job_id, 'portfolio-jose-v12-pinned-v11-material-recovery-v1');
+assert.equal(reviewablePreviewMalformedLocalGate.source_debt?.dependency_return_ref, dependencyReturnRef);
+assert.equal(reviewablePreviewMalformedLocalGate.source_debt?.local_source_debt_invalid?.structurally_valid, false);
+
 const reviewablePreviewGate = recoveryBasisGate(reviewablePreviewSourceDebt);
 assert.equal(reviewablePreviewGate.eligible, false, 'reviewable Jose V11 preview must not re-enter recovery from age alone');
 assert.equal(reviewablePreviewGate.reason, 'SOURCE_DEBT_BASIS_UNCHANGED');
