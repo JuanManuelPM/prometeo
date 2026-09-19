@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-19T14:20:00Z",
+  "updated_at": "2026-09-19T15:02:07Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -2069,6 +2069,48 @@
         "scripts/build-worker-scoreboard.mjs",
         "tests/worker-residency-integrity-v1.test.mjs"
       ]
+    },
+    {
+      "id": "EFF061",
+      "title": "Compact claim frontier preserves bounded zero-capability capacity under specialization pressure",
+      "scope": [
+        "claim-frontier",
+        "worker-allocation",
+        "pool-residency",
+        "capability-routing",
+        "efficiency-ratchet"
+      ],
+      "observed_failure": "The live allocator exposed multiple no-special-capability claims/recoveries while the 24KB compact claim frontier collapsed required_capabilities=[] to a single capability signature. Under a specialized-heavy frontier, generic /wc workers could therefore see only one or two compatible claim paths and collide/close even though additional compatible durable work existed.",
+      "invariant": "Capability-signature diversity remains preserved, but the compact frontier also protects a bounded minimum of four distinct candidates whose required_capabilities array is empty when that many exist. This is transport ordering only: allocator prefix, 24KB cap, claim payloads and atomic authority semantics remain unchanged.",
+      "required": {
+        "allocator_preferred_prefix_preserved": true,
+        "exact_capability_signature_diversity_preserved": true,
+        "zero_capability_candidates_min_when_available": 4,
+        "zero_capability_claim_paths_must_remain_distinct": true,
+        "transport_bytes_max_unchanged": 24000,
+        "authority_payload_unchanged": true,
+        "atomic_claim_authority_unchanged": true,
+        "implementation": "scripts/build-claim-frontier.mjs",
+        "regression_test": "coordination/portfolio/tests/claim_frontier_compact_v1.mjs",
+        "workflow_guard": ".github/workflows/efficiency-ratchet.yml"
+      },
+      "status": "RATCHETED",
+      "evidence": [
+        "gh-pages:live/claim-frontier.json@generated_at:2026-09-19T14:59:29.996Z",
+        "scripts/build-claim-frontier.mjs@27c434ab3adb4ff01342154c4d99c5f77e7c285d",
+        "coordination/portfolio/tests/claim_frontier_compact_v1.mjs@d956559acfdfcf3aa88af51ae3be7ada32cd9dab",
+        "github-actions-run:35450486947",
+        "gh-pages:live/claim-frontier.json@generated_at:2026-09-19T15:01:19.518Z"
+      ],
+      "runtime_evidence": {
+        "observed_at": "2026-09-19T15:01:19.518Z",
+        "live_frontier_source_sha": "d956559acfdfcf3aa88af51ae3be7ada32cd9dab",
+        "pre_patch_visible_zero_capability_candidates": 2,
+        "post_patch_visible_zero_capability_candidates": 4,
+        "post_patch_candidate_count": 12,
+        "efficiency_ratchet_run_id": 35450486947,
+        "efficiency_ratchet_conclusion": "success"
+      }
     }
   ],
   "status_legend": {
