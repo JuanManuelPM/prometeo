@@ -1,0 +1,43 @@
+{
+  "schema": "prometeo.guide-receipt/v1",
+  "guide_work_id": "guide-rescate-551e9d1c54fd",
+  "receipt_id": "receipt-20260919T151150Z-eff064",
+  "worker_id": "wc-20260919T145558Z-d1ee83e359d9",
+  "role": "GUIDE_RESCATE",
+  "created_at": "2026-09-19T15:11:50Z",
+  "trigger": "LOW_YIELD",
+  "authority_ref": "coordination/guide/pins/guide-rescate-551e9d1c54fd/G000001.json",
+  "diagnosis": "The current TTFA regression was materially inflated because build-efficiency-snapshot treated portfolio PINs and opportunity claims as execution authority but omitted Guide role PINs. Workers that won Guide authority promptly were measured as unallocated until a later portfolio PIN; observed examples were inflated to 312s and 712s.",
+  "root_cause": "scripts/build-efficiency-snapshot.mjs omitted coordination/guide/pins both from its durable git commit-time scan and from firstAuthority selection.",
+  "intervention": "Added Guide PINs to the durable measurement clock and earliest-authority selection, added a dedicated regression fixture, wired it into efficiency-ratchet CI, added checker invariants, and ratcheted EFF064.",
+  "changed_paths": [
+    "scripts/build-efficiency-snapshot.mjs",
+    "coordination/portfolio/tests/efficiency_guide_authority_ttfa_v1.mjs",
+    ".github/workflows/efficiency-ratchet.yml",
+    "scripts/check-efficiency-ratchet.mjs",
+    "coordination/efficiency/RATCHET_BASELINE_V1.json"
+  ],
+  "evidence": [
+    "commit:093838fb601ee0eba9be3202d99c80d813f2e6d6",
+    "commit:17a4c60351355d3b5c4f3ab74efcfb42d7f5445e",
+    "commit:ee27bde4c93f312b41919982967f347635f9ec26",
+    "commit:71fa292799ead89f7e76fc07f1b9d57a1130b691",
+    "commit:883ad0b7fab6d62498139f8b97ed5c41f469e51a",
+    "gh-pages:live/efficiency.json@generated_at:2026-09-19T15:08:52.206Z",
+    "gh-pages:live/efficiency.json@generated_at:2026-09-19T15:10:47.313Z"
+  ],
+  "tests": [
+    "STATIC_GUARD_COMMITTED: efficiency_guide_authority_ttfa_v1.mjs asserts Guide-first authority wins over a later portfolio PIN and keeps a healthy cohort out of false TTFA regression.",
+    "RATCHET_CHECKER_GUARD_COMMITTED: check-efficiency-ratchet now requires the guide-pin authority path and EFF064 invariants.",
+    "RUNTIME: PASS — Live status changed REGRESSION -> WATCH; overall TTFA p90 became 53s and 100% of observed allocated workers were under 90s.",
+    "RUNTIME WORKER: PASS — wc-20260919T145558Z-d1ee83e359d9 now projects guide-pin as first authority at 53s instead of the later 312s portfolio PIN.",
+    "RUNTIME WORKER: PASS — wc-20260919T145556Z-a4b4a573d136 now projects guide-pin as first authority at 28s instead of 712s.",
+    "CI_CONCLUSION: NOT_INDEPENDENTLY_OBSERVED — workflow guard is committed; no CI success is invented."
+  ],
+  "remaining_boundary": "No transport/safety denial was bypassed. Current WATCH status has no active efficiency regression reason; future CI/live snapshots remain the durable independent guard.",
+  "created_jobs": [],
+  "consumed_returns": [],
+  "productive_unit": true,
+  "value_class": "SYSTEM_MULTIPLIER",
+  "next_action": "REENTER_FAST_ALLOCATION"
+}
