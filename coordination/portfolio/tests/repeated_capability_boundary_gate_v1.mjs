@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { capabilityConfirmationGate, buildFastAllocator } from '../../scripts/build-fast-allocator.mjs';
+import { capabilityConfirmationGate, buildFastAllocator } from '../../../scripts/build-fast-allocator.mjs';
 
 const capability = 'unrestricted_public_http_origin_fetch';
 const repeated = {
