@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-19T15:11:24Z",
+  "updated_at": "2026-09-19T15:14:30Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -2286,6 +2286,48 @@
         "regression_reason_cleared": "TTFA_P90_GT_90S",
         "conclusion": "RUNTIME_REPRODUCED_GUIDE_AUTHORITY_COUNTED"
       }
+    },
+    {
+      "id": "EFF065",
+      "title": "Causally diverse generic recovery does not spawn rescue overhead",
+      "scope": [
+        "worker-allocation",
+        "guide-rescate",
+        "recovery",
+        "efficiency-ratchet"
+      ],
+      "observed_failure": "GUIDE_RESCATE was emitted from generic_compatible_recovery=3 even though recent NO_ALLOCATION and collision pressure were absent and the three replaceable rows had three distinct durable recovery-basis fingerprints. Raw count alone converted healthy heterogeneous retries into control-plane overhead.",
+      "invariant": "Generic recovery count may trigger GUIDE_RESCATE only when causal concentration is present or recovery-basis diversity is not known. When every generic recovery row has a durable basis fingerprint and all fingerprints are distinct, raw replaceable count alone is insufficient. Collision pressure, actionable NO_ALLOCATION and efficiency regression retain independent rescue triggers.",
+      "required": {
+        "generic_recovery_threshold_preserved": 3,
+        "basis_source": "recovery_basis_gate.basis.fingerprint",
+        "fallback_basis_source": "recovery_gate.basis.fingerprint",
+        "complete_basis_observation_required_for_diversity_suppression": true,
+        "all_distinct_known_basis_suppresses_count_only_rescate": true,
+        "repeated_basis_preserves_rescate": true,
+        "missing_basis_preserves_legacy_rescate": true,
+        "collision_trigger_preserved": true,
+        "actionable_no_allocation_trigger_preserved": true,
+        "efficiency_regression_trigger_preserved": true,
+        "recovery_candidates_preserved": true,
+        "claim_authority_unchanged": true,
+        "diagnostic_fields": [
+          "generic_recovery_basis_fingerprint_count",
+          "generic_recovery_distinct_basis_count",
+          "generic_recovery_diversity_known",
+          "generic_recovery_rescue_pressure"
+        ],
+        "implementation": "scripts/build-fast-allocator.mjs",
+        "regression_test": "coordination/portfolio/tests/guide_rescate_capability_recovery_pressure_v1.mjs",
+        "workflow_guard": ".github/workflows/efficiency-ratchet.yml"
+      },
+      "status": "STATIC_GUARDED_PENDING_RUNTIME",
+      "evidence": [
+        "gh-pages:live/allocator.json@generated_at:2026-09-19T15:13:38.421Z",
+        "coordination/portfolio/pins/portfolio-eff034-live-stale-collision-refresh-observation-v1/G000001.json",
+        "coordination/portfolio/pins/portfolio-v330-canonical-worker-prompt-alias-convergence-v1/G000001.json",
+        "coordination/portfolio/pins/portfolio-v330-smoke-pass-control-plane-reconcile-v1/G000001.json"
+      ]
     }
   ],
   "status_legend": {
