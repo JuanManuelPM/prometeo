@@ -45,7 +45,7 @@ const scoreboard=read('scripts/build-worker-scoreboard.mjs');
 for(const needle of ['strategy_experiment_health','experimental_productive_slots','preclaim_diagnostics','causal_for_variant:false','assignment_hint','launch_measurements','growth_health']) assert.ok(scoreboard.includes(needle),'scoreboard missing '+needle);
 
 const compass=json('coordination/guide/GUIDE_POWER_COMPASS_V1.json');
-assert.equal(compass.creative_lever_catalog.find(x=>x.id==='A_B_WORKER_STRATEGIES').current_status,'ACTIVE');
+assert.ok(['ACTIVE','ACTIVE_BALANCED_POST_OWNERSHIP'].includes(compass.creative_lever_catalog.find(x=>x.id==='A_B_WORKER_STRATEGIES').current_status));
 assert.ok(compass.creative_lever_catalog.find(x=>x.id==='PATTERN_REPRODUCTION').current_status.startsWith('RETIRED_'));
 assert.equal(compass.current_priority_experiments.find(x=>x.id==='EXP-STRATEGY-AB').status,'ACTIVE_RUNNING_CANARY');
 
