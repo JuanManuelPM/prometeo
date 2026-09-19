@@ -71,7 +71,8 @@
     "value_class is not a reward label; workers may use it only as a soft comparable-work routing preference under WORKER_GROWTH_POLICY_V1.",
     "A successor relay counts only when a concrete non-duplicate residual job is durably materialized; no filler relay.",
     "A fresh /wc launch must never reuse a historical worker_id or present an old terminal exam as current execution.",
-    "For v3.30 cards, launch_nonce must match the worker's fresh current-turn beacon launch_nonce."
+    "For v3.30 cards, launch_nonce must match the worker's fresh current-turn beacon launch_nonce.",
+    "A v3.30 POOL terminal exam below target 6 without an allowed close_reason plus durable close_evidence_refs is an unjustified early close and cannot count toward the fresh-launch smoke."
   ],
   "champion_policy": {
     "window": "latest 20 closed exam cards, plus per-pool view",
@@ -141,5 +142,27 @@
       "launch_nonce"
     ],
     "rule": "For protocol v3.30, launch_nonce must match the current worker beacon. Historical worker ids/exams cannot satisfy a fresh launch."
+  },
+  "v330_pool_residency": {
+    "policy_ref": "coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json#productive_smoke",
+    "applies_when": "protocol_version=v3.30 and pool_id is non-null",
+    "checkpoint_productive_units": 3,
+    "target_productive_units": 6,
+    "hard_cap_productive_units": 8,
+    "conditional_terminal_fields": [
+      "pool_id",
+      "close_reason",
+      "close_evidence_refs"
+    ],
+    "allowed_early_close_reasons": [
+      "SAFETY_BOUNDARY",
+      "AUTHORITY_BOUNDARY",
+      "CAPABILITY_BOUNDARY",
+      "TRANSPORT_BOUNDARY",
+      "EXHAUSTED_COMPATIBLE_FRONTIER",
+      "DUPLICATE_OWNERSHIP_RISK",
+      "RUNTIME_BOUNDARY"
+    ],
+    "rule": "An explicit v3.30 POOL exam with fewer than 6 durable productive units is valid only when close_reason is one of the allowed real stop conditions and close_evidence_refs contains at least one durable exact ref. Active/derived workers without an explicit terminal exam are not residency failures."
   }
 }
