@@ -84,13 +84,21 @@ for(const p of walk(oppClaimsDir).filter(x=>x.endsWith('.json'))){
   const d=read(p); consider(d?.worker_id||d?.worker,p,d?.claimed_at||d?.created_at,'opportunity-claim',path.relative(root,p));
 }
 
+const canonicalNoAllocationReason = d => {
+  const reason=String(d?.reason||'').trim();
+  if(reason) return reason;
+  const outcome=String(d?.outcome||'').trim();
+  if(outcome) return outcome;
+  return null;
+};
+
 const noAlloc=new Map();
 for(const p of walk(noAllocDir).filter(x=>x.endsWith('.json'))){
   const d=read(p); if(!d?.worker_id||!beacons.has(d.worker_id)) continue;
   const declared=d.closed_at||d.observed_at||d.completed_at||d.created_at||null;
   const iso=durableIso(p,declared);
   const t=durableTime(p,declared); if(!t) continue;
-  noAlloc.set(d.worker_id,{time:t,at:iso,declared_at:declared,ref:path.relative(root,p),reason:d.reason||null});
+  noAlloc.set(d.worker_id,{time:t,at:iso,declared_at:declared,ref:path.relative(root,p),reason:canonicalNoAllocationReason(d)});
 }
 
 const launches=[...beacons.values()].sort((a,b)=>b.launched-a.launched).slice(0,100).map(b=>{
