@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
 const readJson = rel => JSON.parse(read(rel));
-const { buildFastAllocator, classifyJobCapabilities, classifyProjectGuideFrontier } = await import(pathToFileURL(path.join(root, 'scripts/build-fast-allocator.mjs')).href);
+const { buildFastAllocator, classifyJobCapabilities, classifyProjectGuideFrontier, capabilityConfirmationGate } = await import(pathToFileURL(path.join(root, 'scripts/build-fast-allocator.mjs')).href);
 
 const josePath = 'coordination/portfolio/derived/alumnos/portfolio-alumnos-jose-v11-unrestricted-browser-verify-v1.json';
 const studentHttpPath = 'coordination/portfolio/derived/alumnos/portfolio-alumnos-student-world-live-route-bridge-public-http-verify-v1.json';
@@ -476,5 +476,67 @@ assert.equal(
   'overload guard must still suppress global frontier replenishment when generic-compatible work already exists'
 );
 console.log('GENERIC_STARVATION_OVERRIDE_PASS');
+
+const repeatedHttpBoundaryFixture = {
+  job_id:'fixture-repeated-http-boundary',
+  dedupe_key:'fixture:repeated-http-boundary:v1',
+  project_id:'fixture',
+  source_path:'coordination/portfolio/derived/fixture/repeated-http-boundary.json',
+  title:'Repeated HTTP boundary fixture',
+  kind:'verification',
+  priority:79,
+  state:'replaceable',
+  pin_generation:2,
+  claimed_at:'2026-09-19T14:55:00Z',
+  last_signal_at:'2026-09-19T15:00:00Z',
+  required_capabilities:['unrestricted_public_http_origin_fetch'],
+  latest_return:{path:'returns/G2.json',outcome:'BOUNDARY',returned_at:'2026-09-19T15:00:00Z'},
+  recent_return_evidence:[
+    {path:'returns/G1.json',outcome:'BOUNDARY',returned_at:'2026-09-19T14:50:00Z'},
+    {path:'returns/G2.json',outcome:'BOUNDARY',returned_at:'2026-09-19T15:00:00Z'}
+  ]
+};
+const repeatedHttpGate = capabilityConfirmationGate(repeatedHttpBoundaryFixture);
+assert.equal(repeatedHttpGate.required,true);
+assert.equal(repeatedHttpGate.capability,'unrestricted_public_http_origin_fetch');
+assert.equal(repeatedHttpGate.unknown_or_absent_skip_preclaim,true);
+
+const repeatedHttpAllocator = buildFastAllocator(
+  {
+    generated_at:'2026-09-19T15:01:00Z',
+    source_sha:'repeated-http-boundary-fixture',
+    summary:{workers:{}},
+    workers:[],
+    plans:[],
+    projects:[{project_id:'fixture',label:'Fixture',jobs:[repeatedHttpBoundaryFixture]}]
+  },
+  {status:'HEALTHY',metrics:{},reasons:[]},
+  {recoveryPolicies:[],roleContext:null}
+);
+const repeatedHttpRow = repeatedHttpAllocator.recovery.find(row=>row.job_id===repeatedHttpBoundaryFixture.job_id);
+assert.ok(repeatedHttpRow);
+assert.equal(repeatedHttpRow.capability_confirmation_required.capability,'unrestricted_public_http_origin_fetch');
+assert.equal(repeatedHttpRow.capability_confirmation_required.positive_runtime_contract_required,true);
+
+const repeatedHttpAfterSuccess = {
+  ...repeatedHttpBoundaryFixture,
+  recent_return_evidence:[
+    {path:'returns/G1.json',outcome:'BOUNDARY',returned_at:'2026-09-19T14:40:00Z'},
+    {path:'returns/G2.json',outcome:'VERIFIED',returned_at:'2026-09-19T14:50:00Z'},
+    {path:'returns/G3.json',outcome:'BOUNDARY',returned_at:'2026-09-19T15:00:00Z'}
+  ]
+};
+assert.equal(capabilityConfirmationGate(repeatedHttpAfterSuccess).required,false,'intervening success must clear repeated-boundary confirmation');
+
+const repeatedHttpNewBasis = {
+  ...repeatedHttpBoundaryFixture,
+  recovery_basis:{
+    revision:1,
+    updated_at:'2026-09-19T15:01:00Z',
+    evidence:['runtime-contract:arbitrary-http-client']
+  }
+};
+assert.equal(capabilityConfirmationGate(repeatedHttpNewBasis).required,false,'new material basis must clear repeated-boundary confirmation');
+console.log('REPEATED_CAPABILITY_BOUNDARY_GATE_PASS');
 
 console.log('FAST_ALLOCATOR_CAPABILITY_FIT_PASS');
