@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048','EFF050','EFF049','EFF051','EFF055']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048','EFF050','EFF049','EFF051','EFF055','EFF056']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -93,6 +93,32 @@ must('claim-frontier', growthClaimFrontier, 'value_class');
 const growthTest = read(root, 'tests/worker-growth-pipeline-v1.test.mjs');
 must('growth-test', growthTest, 'launch_observation_coverage');
 must('growth-test', growthTest, 'ADAPTIVE_MIN_SAMPLE_THEN_HASH_TIEBREAK');
+
+const handoffItem = baseline?.items?.find(x=>x.id==='EFF056');
+if (!handoffItem) errors.push('baseline: EFF056 missing');
+else {
+  if (handoffItem.required?.handoff_policy_ref !== 'coordination/guide/GUIDE_WORKER_HANDOFF_V1.json') errors.push('baseline: EFF056 policy ref drift');
+  if (handoffItem.required?.exhaustive_same_turn_before_handoff !== true) errors.push('baseline: EFF056 exhaustive handoff drift');
+  if (handoffItem.required?.canonical_prompt_first_copyable_block !== true) errors.push('baseline: EFF056 prompt-first drift');
+  if (handoffItem.required?.approximate_count_required !== true) errors.push('baseline: EFF056 count requirement drift');
+  if (handoffItem.required?.count_withholding_on_stale_runtime_forbidden !== true) errors.push('baseline: EFF056 stale runtime count drift');
+  if (handoffItem.required?.current_approx_workers !== 15) errors.push('baseline: EFF056 current approx count drift');
+  if (handoffItem.required?.human_worker_routing_forbidden !== true) errors.push('baseline: EFF056 routing drift');
+}
+const handoffPolicy = JSON.parse(read(root, 'coordination/guide/GUIDE_WORKER_HANDOFF_V1.json')||'{}');
+if (handoffPolicy.status !== 'ACTIVE_BINDING') errors.push('guide-handoff: policy must be ACTIVE_BINDING');
+if (handoffPolicy?.launch_estimator?.bounded_canary?.minimum !== 10 || handoffPolicy?.launch_estimator?.bounded_canary?.maximum !== 20) errors.push('guide-handoff: bounded canary drift');
+if (handoffPolicy?.launch_estimator?.bounded_canary?.frontier_multiplier !== 1.25) errors.push('guide-handoff: frontier multiplier drift');
+if (handoffPolicy?.current_recommendation_example?.recommended_approx_workers !== 15) errors.push('guide-handoff: current recommendation drift');
+const guideBootstrap = read(root, 'g');
+must('guide-handoff', guideBootstrap, 'WORKER HANDOFF RESPONSE OVERRIDE');
+must('guide-handoff', guideBootstrap, 'first visible copyable block');
+must('guide-handoff', guideBootstrap, 'MANDÁ ~<N> /wc Y VOLVÉ A /g');
+const guideHandoffTest = read(root, 'tests/guide-worker-handoff-v1.test.mjs');
+must('guide-handoff-test', guideHandoffTest, 'GUIDE_WORKER_HANDOFF_V1_PASS');
+const guideBriefBuilder = read(root, 'scripts/build-guide-brief.mjs');
+must('guide-brief-handoff', guideBriefBuilder, 'approximate_additional_workers_before_next_guide_return');
+must('guide-brief-handoff', guideBriefBuilder, 'strategy_sample_gaps');
 
 const allocator = read(root, 'scripts/build-fast-allocator.mjs');
 must('allocator', allocator, 'value_class');
