@@ -71,7 +71,8 @@ export function parseEventComment(comment) {
 
 function repoEvidence(root) {
   const beacons = new Map(), pins = new Map(), noalloc = new Map(), exams = new Map(), beaconDocs = [], productiveByWorker = new Map();
-  if (!root) return {beacons,pins,noalloc,exams,beaconDocs,productiveByWorker};
+  const launchClaims = new Map(), reallocationClaims = new Map(), benchmarkReceipts = new Map(), runPackets = new Map();
+  if (!root) return {beacons,pins,noalloc,exams,beaconDocs,productiveByWorker,launchClaims,reallocationClaims,benchmarkReceipts,runPackets};
 
   for (const p of walk(path.join(root,'coordination','workers','beacons'))) {
     const d=readJson(p); if (d?.worker_id) {
@@ -79,6 +80,21 @@ function repoEvidence(root) {
       beacons.set(d.worker_id,ref);
       beaconDocs.push({path:ref,doc:d});
     }
+  }
+  for (const p of walk(path.join(root,'coordination','launch-packets')).filter(x=>x.endsWith('.json'))) {
+    const d=readJson(p); if (!d) continue;
+    const ref=repoRef(root,p);
+    if (path.basename(p)==='PACKET.json' && d.run_id) {
+      runPackets.set(d.run_id,{doc:d,ref});
+      continue;
+    }
+    if (!d.worker_id || !d.run_id || !d.slot_id) continue;
+    const row={doc:d,ref};
+    if (ref.includes('/reallocation-claims/')) reallocationClaims.set(d.worker_id,row);
+    else if (ref.includes('/claims/')) launchClaims.set(d.worker_id,row);
+  }
+  for (const p of walk(path.join(root,'coordination','workers','benchmark-receipts')).filter(x=>x.endsWith('.json'))) {
+    const d=readJson(p); if (d?.worker_id) benchmarkReceipts.set(d.worker_id,{doc:d,ref:repoRef(root,p)});
   }
   for (const base of [
     path.join(root,'coordination','portfolio','pins'),
@@ -109,7 +125,7 @@ function repoEvidence(root) {
   for (const units of productiveByWorker.values()) {
     units.sort((a,b)=>Date.parse(a.at||0)-Date.parse(b.at||0)||String(a.ref).localeCompare(String(b.ref)));
   }
-  return {beacons,pins,noalloc,exams,beaconDocs,productiveByWorker};
+  return {beacons,pins,noalloc,exams,beaconDocs,productiveByWorker,launchClaims,reallocationClaims,benchmarkReceipts,runPackets};
 }
 
 export function compileRuntime(comments, root=null, nowIso=new Date().toISOString()) {
@@ -154,6 +170,9 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
       const claim=[...w.events].reverse().find(e=>e.event==='CLAIM_RESULT')||null;
       const close=[...w.events].reverse().find(e=>e.event==='CLOSE')||null;
       const pinRefs=repo.pins.get(w.worker_id)||[];
+      const launchClaim=repo.launchClaims.get(w.worker_id)||null;
+      const reallocationClaim=repo.reallocationClaims.get(w.worker_id)||null;
+      const benchmarkReceipt=repo.benchmarkReceipts.get(w.worker_id)||null;
       const rawOutcome=String(claim?.outcome||'').toUpperCase();
       const normalizedOutcome=['WON','WIN','CLAIM_WON'].includes(rawOutcome)?'WON':(rawOutcome||null);
       const attemptRows=Array.isArray(claim?.attempts)?claim.attempts:[];
@@ -168,7 +187,7 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
         + outcomeRows.filter(x=>['CREATE_EXISTS','CAS_LOST','COLLISION'].includes(String(x||'').toUpperCase())).length;
       const collisionCount=explicitCollisions+arrayCollisions+
         (!explicitCollisions&&!arrayCollisions&&rawOutcome.includes('COLLISION')?Math.max(1,attemptCount):0);
-      const authorityWon=pinRefs.length>0 || normalizedOutcome==='WON';
+      const authorityWon=pinRefs.length>0 || normalizedOutcome==='WON' || !!launchClaim;
       const productiveUnits=repo.productiveByWorker.get(w.worker_id)||[];
       const productiveCount=productiveUnits.length;
       const productiveChainState=productiveCount>=8?'HARD_CAP_REACHED':productiveCount>=6?'TARGET_REACHED':productiveCount>=3?'CHECKPOINT_REACHED':'BUILDING';
@@ -183,9 +202,15 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
       if (close?.outcome==='NO_ALLOCATION' && root && !repo.noalloc.has(w.worker_id)) anomalies.push('NO_ALLOCATION_EVENT_WITHOUT_REPO_RECEIPT');
       return {
         worker_id:w.worker_id,state,first_event_at:w.first_event_at,last_event_at:w.last_event_at,
+        run_id:launchClaim?.doc?.run_id||benchmarkReceipt?.doc?.run_id||null,
+        slot_id:launchClaim?.doc?.slot_id||benchmarkReceipt?.doc?.slot_id||null,
+        evolution_variant:launchClaim?.doc?.evolution_variant||benchmarkReceipt?.doc?.evolution_variant||null,
+        reallocation_slot_id:reallocationClaim?.doc?.slot_id||benchmarkReceipt?.doc?.reallocation_slot_id||null,
+        primary_complete:benchmarkReceipt?.doc?.primary_complete===true,
+        reallocation_complete:benchmarkReceipt?.doc?.reallocation_complete===true,
         routed:routed?{lane:routed.lane||null,candidate_id:routed.candidate_id||null,candidate_title:routed.candidate_title||null,at:routed.server_created_at}:null,
         claim:claim?{outcome:normalizedOutcome,raw_outcome:claim.outcome||null,attempts:attemptCount,collisions:collisionCount,candidate_id:claim.candidate_id||claim.job_id||claim.guide_work_id||null,authority_ref_or_null:claim.authority_ref_or_null||claim.pin_ref||claim.claim_path||null,started:!!claim.started,at:claim.server_created_at}:null,
-        repo:{beacon_ref:repo.beacons.get(w.worker_id)||null,pin_refs:pinRefs,no_allocation_ref:repo.noalloc.get(w.worker_id)||null,exam_ref:examRef},
+        repo:{beacon_ref:repo.beacons.get(w.worker_id)||null,pin_refs:pinRefs,no_allocation_ref:repo.noalloc.get(w.worker_id)||null,exam_ref:examRef,launch_slot_ref:launchClaim?.ref||null,reallocation_slot_ref:reallocationClaim?.ref||null,benchmark_receipt_ref:benchmarkReceipt?.ref||null},
         authority_won:authorityWon,
         productive_units:productiveCount,
         productive_chain_state:productiveChainState,
@@ -219,6 +244,36 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
     return {batch_id:b.batch_id,expected_workers:b.expected_workers,first_event_at:b.first_event_at,last_event_at:b.last_event_at,summary,workers};
   }).sort((a,b)=>Date.parse(b.last_event_at||0)-Date.parse(a.last_event_at||0));
 
+  const launchRuns=[...repo.runPackets.entries()].map(([runId,p])=>{
+    const primary=[...repo.launchClaims.values()].filter(x=>x.doc?.run_id===runId);
+    const realloc=[...repo.reallocationClaims.values()].filter(x=>x.doc?.run_id===runId);
+    const receipts=[...repo.benchmarkReceipts.values()].filter(x=>x.doc?.run_id===runId);
+    const beacons=(repo.beaconDocs||[]).filter(x=>x.doc?.run_id===runId);
+    const primaryByWorker=new Map();
+    for(const x of primary){
+      const arr=primaryByWorker.get(x.doc.worker_id)||[]; arr.push(x); primaryByWorker.set(x.doc.worker_id,arr);
+    }
+    const slotsTotal=Array.isArray(p.doc?.slots)?p.doc.slots.length:0;
+    const claimedIds=new Set(primary.map(x=>x.doc.slot_id).filter(Boolean));
+    const reallocationTotal=Array.isArray(p.doc?.reallocation_slots)?p.doc.reallocation_slots.length:0;
+    const reallocationClaimedIds=new Set(realloc.map(x=>x.doc.slot_id).filter(Boolean));
+    return {
+      run_id:runId,
+      status:p.doc?.status||null,
+      packet_ref:p.ref,
+      slots_total:slotsTotal,
+      slots_claimed:claimedIds.size,
+      slots_unclaimed:Math.max(0,slotsTotal-claimedIds.size),
+      reallocation_slots_total:reallocationTotal,
+      reallocation_slots_claimed:reallocationClaimedIds.size,
+      workers_beaconed:new Set(beacons.map(x=>x.doc.worker_id)).size,
+      primary_complete:new Set(receipts.filter(x=>x.doc?.primary_complete===true).map(x=>x.doc.worker_id)).size,
+      reallocation_complete:new Set(receipts.filter(x=>x.doc?.reallocation_complete===true).map(x=>x.doc.worker_id)).size,
+      workers_with_multiple_primary_slots:[...primaryByWorker.entries()].filter(([,xs])=>xs.length>1).map(([wid])=>wid),
+      duplicate_primary_slot_ids:primary.map(x=>x.doc.slot_id).filter((id,i,a)=>id&&a.indexOf(id)!==i),
+      exact_denominator:true
+    };
+  }).sort((a,b)=>a.run_id.localeCompare(b.run_id));
   const named=compiled.filter(b=>b.batch_id!=='UNBATCHED' && !b.batch_id.startsWith('SYNTH-'));
   return {
     schema:'prometeo.worker-runtime/v1',
@@ -226,6 +281,7 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
     source:{type:'github_issue_comments_plus_repo_evidence',issue_number:22,authority:false,measurement_clock:'GITHUB_COMMENT_SERVER_TIME_PLUS_BEACON_DECLARED_TIME',productive_units:'DURABLE_PORTFOLIO_RETURNS_PLUS_GUIDE_RECEIPTS'},
     current_batch:(named[0]||null)?.batch_id||null,
     batches:compiled.slice(0,20),
+    launch_runs:launchRuns,
     event_count:events.length,
     truth_boundary:'OBSERVABILITY_ONLY_GITHUB_PINS_REMAIN_AUTHORITY'
   };
