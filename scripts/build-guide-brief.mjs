@@ -13,6 +13,7 @@ const mission=json(source,'coordination/guide/CURRENT_MISSION_V1.json')||{};
 const compass=json(source,'coordination/guide/GUIDE_POWER_COMPASS_V1.json')||{};
 const campaign=json(source,'coordination/guide/GROWTH_CAMPAIGN_V1.json')||{};
 const trajectory=json(source,'coordination/guide/GROWTH_TRAJECTORY_V1.json')||{};
+const handoffPolicy=json(source,'coordination/guide/GUIDE_WORKER_HANDOFF_V1.json')||{};
 const pages=json(source,'coordination/live/PAGE_WATCH_REGISTRY_V1.json')||{pages:[]};
 const portfolio=json(source,'coordination/portfolio/PORTFOLIO.json')||{projects:[]};
 const runtime=json(site,'live/runtime.json')||{};
@@ -41,6 +42,59 @@ const pageRows=(pages.pages||[]).map(p=>({
 const pool=(runtime.batches||[]).find(x=>x.batch_id==='POOL-PROD-01')||null;
 const prompt=mission?.operating_mode?.invocation||campaign?.next_launch?.prompt||'';
 const generatedAt=new Date().toISOString();
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+const frontierCandidates=frontier.candidates||[];
+const launchCfg=handoffPolicy?.launch_estimator?.bounded_canary||{};
+const launchMin=Number(launchCfg.minimum)||10;
+const launchMax=Number(launchCfg.maximum)||20;
+const frontierMultiplier=Number(launchCfg.frontier_multiplier)||1.25;
+const frontierTarget=frontierCandidates.length?clamp(Math.ceil(frontierCandidates.length*frontierMultiplier),launchMin,launchMax):launchMin;
+const classForCandidate=x=>{
+  const k=String(x?.kind||'').toLowerCase();
+  if(x?.lane==='role_ready'||String(x?.role||'').startsWith('GUIDE_')) return 'GUIDE_FRONTIER';
+  if(['verification','audit','test','browser_verify','runtime_verification','static_verification'].includes(k)) return 'VERIFICATION';
+  if(['mutation','implementation','product_change','implementation_repair','content_mutation','ux_mutation'].includes(k)) return 'MUTATION';
+  if(['integration','integrate','return_integration','merge','publication','release_integration'].includes(k)) return 'INTEGRATION';
+  return null;
+};
+const representedClasses=[...new Set(frontierCandidates.map(classForCandidate).filter(Boolean))];
+const seh=scoreboard.strategy_experiment_health||null;
+const rate=Math.max(0.20,(Number(scoreboard?.growth_health?.authority_rate)||0)*(Number(scoreboard?.growth_health?.explicit_exam_rate)||0));
+let attemptsForGap=0;
+const sampleGaps=[];
+if(seh){
+  for(const cls of representedClasses){
+    const row=seh?.classes?.[cls];
+    const variant=row?.assignment_hint?.underrepresented_variant;
+    if(!variant) continue;
+    const cur=Number(row?.variants?.[variant]?.independent_workers_with_experimental_slots)||0;
+    const target=Number(seh?.min_independent_workers_per_variant)||3;
+    const gap=Math.max(0,target-cur);
+    const attempts=gap?Math.ceil(gap/rate):0;
+    attemptsForGap=Math.max(attemptsForGap,attempts);
+    sampleGaps.push({job_class:cls,variant,current:cur,target,gap,attempts_estimate:attempts});
+  }
+}
+const recommendedWorkers=clamp(Math.max(frontierTarget,attemptsForGap,launchMin),launchMin,launchMax);
+const runtimeGeneratedAt=runtime.generated_at||null;
+const runtimeAgeSeconds=runtimeGeneratedAt?Math.max(0,(Date.parse(generatedAt)-Date.parse(runtimeGeneratedAt))/1000):null;
+const runtimeFresh=runtimeAgeSeconds!==null&&Number.isFinite(runtimeAgeSeconds)&&runtimeAgeSeconds<=Number(handoffPolicy?.launch_estimator?.freshness_seconds||900);
+const workerHandoff={
+  policy_id:handoffPolicy.policy_id||null,
+  approximate_additional_workers_before_next_guide_return:recommendedWorkers,
+  exact:false,
+  runtime_fresh:runtimeFresh,
+  runtime_generated_at:runtimeGeneratedAt,
+  runtime_age_seconds:runtimeAgeSeconds!==null&&Number.isFinite(runtimeAgeSeconds)?Math.round(runtimeAgeSeconds):null,
+  frontier_generated_at:frontier.generated_at||null,
+  frontier_candidates:frontierCandidates.length,
+  frontier_target:frontierTarget,
+  represented_strategy_classes:representedClasses,
+  strategy_sample_gaps:sampleGaps,
+  strategy_attempts_target:attemptsForGap,
+  basis:runtimeFresh?'fresh frontier/scoreboard with contemporaneous runtime available; still approximate':'fresh frontier/scoreboard bounded estimator because runtime occupancy is stale or unavailable',
+  final_line:`MANDÁ ~${recommendedWorkers} /wc Y VOLVÉ A /g · ${frontierCandidates.length} candidatos actuales; canary acotado para medir v3.29`
+};
 const data={
   schema:'prometeo.guide-brief/v1',generated_at:generatedAt,
   mission:{id:mission.mission_id,status:mission.status,title:mission.title,worker_protocol:mission?.operating_mode?.current_worker_protocol_version,pool_id:mission?.operating_mode?.pool_id},
@@ -49,6 +103,7 @@ const data={
   pool:pool?{summary:pool.summary||null,last_event_at:pool.last_event_at||runtime.last_event_at||null}:null,
   scoreboard:{generated_at:scoreboard.generated_at||null,source_exam_count:scoreboard.source_exam_count||0,source_beacon_count:scoreboard.source_beacon_count||0,leader:scoreboard.leader||scoreboard.champion_candidate||null,champion:scoreboard.champion||null,champion_reproducible:!!scoreboard.champion_reproducible,champion_pattern_id:scoreboard.champion_pattern_id||null,reproduction_counts:scoreboard.reproduction_counts||{},pattern_candidate_id:scoreboard.pattern_candidate_id||null,pattern_candidate_status:scoreboard.pattern_candidate_status||null,active_pattern_id:scoreboard.active_pattern_id||null,active_pattern_health:scoreboard.active_pattern_health||null,strategy_experiment_id:scoreboard.strategy_experiment_id||null,strategy_experiment_status:scoreboard.strategy_experiment_status||null,strategy_experiment_health:scoreboard.strategy_experiment_health||null,measurement_coverage:scoreboard.measurement_coverage||null,growth_health:scoreboard.growth_health||null,launch_measurements:scoreboard.launch_measurements||[]},
   frontier:{generated_at:frontier.generated_at||null,candidate_count:(frontier.candidates||[]).length},
+  worker_handoff:workerHandoff,
   projects,pages:pageRows,worker_prompt:prompt,
   links:{guide:'https://juanmanuelpm.github.io/prometeo/guide/',trajectory:'https://juanmanuelpm.github.io/prometeo/trajectory/',growth:'https://juanmanuelpm.github.io/prometeo/growth/',worker:'https://juanmanuelpm.github.io/prometeo/wc/',bootstrap:'https://juanmanuelpm.github.io/prometeo/g/'}
 };
@@ -71,7 +126,7 @@ const html=`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta nam
 :root{color-scheme:dark;background:#10100f;color:#eee;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}*{box-sizing:border-box}body{margin:0;max-width:1100px;padding:28px;margin:auto}h1{font-size:22px;margin:0 0 4px}h2{font-size:14px;text-transform:uppercase;letter-spacing:.12em;margin:32px 0 10px;color:#ff9b54}p{line-height:1.45}.muted,small{color:#a9a49d}.top{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:18px 0}.metric,.row{border-top:1px solid #36332e;padding:12px 0}.metric b{display:block;font-size:20px}.pill{font-size:11px;border:1px solid #5a5148;padding:2px 6px;margin-left:8px}.row>div{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.row p{margin:7px 0}.links,a{color:#ff9b54}.links{display:flex;gap:12px;flex-wrap:wrap}.prompt{white-space:pre-wrap;border:1px solid #5a5148;padding:14px;user-select:all;overflow:auto}.nav{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px}details{border-top:1px solid #36332e;padding:10px 0}summary{cursor:pointer}.stamp{font-size:11px;color:#777;margin-top:28px}</style></head><body>
 <h1>Prometeo · Guide Brief</h1><div class="muted">Estado compilado para que el humano vea lo mismo que el Guide sin leer receipts.</div>
 <div class="nav"><a href="./brief.json">JSON</a><a href="https://juanmanuelpm.github.io/prometeo/trajectory/">Trajectory</a><a href="https://juanmanuelpm.github.io/prometeo/growth/">Growth</a><a href="https://juanmanuelpm.github.io/prometeo/g/">/g</a><a href="https://juanmanuelpm.github.io/prometeo/wc/">/wc</a></div>
-<h2>Brújula</h2><div class="top"><div class="metric">salud<b>${health}</b></div><div class="metric">workers activos<b>${esc(pool?.summary?.active??'—')}</b></div><div class="metric">unidades productivas<b>${esc(pool?.summary?.productive_units_total??'—')}</b></div><div class="metric">launches medidos<b>${esc(scoreboard.source_beacon_count||0)}</b></div><div class="metric">exámenes explícitos<b>${esc(scoreboard.source_exam_count||0)}</b></div><div class="metric">leader<b>${esc(leader?.score??'—')}/10</b></div></div>\n<h2>Growth funnel</h2><section class="row"><div><b>measurement ${pct(coverage?.launch_observation_coverage)}</b><span class="pill">terminal ${pct(growth?.terminal_classification_rate)}</span></div><p>authority ${pct(growth?.authority_rate)} · productive workers ${pct(growth?.productive_worker_rate)} · units/launch ${esc(growth?.productive_units_per_launch??'—')} · product ${pct(growth?.product_value_unit_share)} · multiplier ${pct(growth?.system_multiplier_unit_share)} · control ${pct(growth?.control_overhead_unit_share)} (${esc(growth?.control_overhead_budget_state||'—')})</p></section>
+<h2>Próximo handoff</h2><section class="row"><div><b>~${esc(workerHandoff.approximate_additional_workers_before_next_guide_return)} workers</b><span class="pill">${workerHandoff.runtime_fresh?'runtime fresh':'runtime stale · aprox'}</span></div><p>${esc(workerHandoff.basis)} · frontier ${esc(workerHandoff.frontier_candidates)} · sample pressure ${esc(workerHandoff.strategy_attempts_target)}</p></section>\n<h2>Brújula</h2><div class="top"><div class="metric">salud<b>${health}</b></div><div class="metric">workers activos<b>${esc(pool?.summary?.active??'—')}</b></div><div class="metric">unidades productivas<b>${esc(pool?.summary?.productive_units_total??'—')}</b></div><div class="metric">launches medidos<b>${esc(scoreboard.source_beacon_count||0)}</b></div><div class="metric">exámenes explícitos<b>${esc(scoreboard.source_exam_count||0)}</b></div><div class="metric">leader<b>${esc(leader?.score??'—')}/10</b></div></div>\n<h2>Growth funnel</h2><section class="row"><div><b>measurement ${pct(coverage?.launch_observation_coverage)}</b><span class="pill">terminal ${pct(growth?.terminal_classification_rate)}</span></div><p>authority ${pct(growth?.authority_rate)} · productive workers ${pct(growth?.productive_worker_rate)} · units/launch ${esc(growth?.productive_units_per_launch??'—')} · product ${pct(growth?.product_value_unit_share)} · multiplier ${pct(growth?.system_multiplier_unit_share)} · control ${pct(growth?.control_overhead_unit_share)} (${esc(growth?.control_overhead_budget_state||'—')})</p></section>
 <h2>Experimento estratégico</h2><section class="row"><div><b>${esc(scoreboard.strategy_experiment_id||trajectory?.current_state?.active_experiment||'—')}</b><span class="pill">${esc(seh?.status||scoreboard.strategy_experiment_status||'UNKNOWN')}</span></div><p>${esc(seSummary)} · causalidad: post-ownership por clase; preclaim se publica aparte.</p></section>
 <h2>Patrón reproducible</h2><section class="row"><div><b>${esc(scoreboard.champion_pattern_id||'ninguno')}</b><span class="pill">${scoreboard.champion_reproducible?'REPRODUCIBLE':'NONE'}</span></div><p>Un experimento estratégico activo no equivale a un patrón universal promovido.</p></section>
 <h2>Patrón histórico / candidato</h2><section class="row"><div><b>${esc(scoreboard.pattern_candidate_id||'—')}</b><span class="pill">${esc(scoreboard.pattern_candidate_status||aph?.status||'—')}</span></div><p>La evidencia histórica permanece visible sin reactivar un patrón retirado.</p></section>
