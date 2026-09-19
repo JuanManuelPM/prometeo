@@ -644,7 +644,16 @@ function combinedRecoveryGate(job = {}) {
   };
 }
 
-function compactPortfolio(feed, semantic, job, targetGeneration = null) {
+function candidateValueClass(item = {}, lane = 'portfolio', growthPolicy = {}) {
+  const projectId = item.project_id || item.scope_project_id || null;
+  const systemProjects = new Set(arr(growthPolicy?.value_budget?.system_multiplier_projects || ['prometeo-autonomous-growth','prometeo-live']));
+  if (lane === 'guide' || lane === 'queue') return 'SYSTEM_MULTIPLIER';
+  if (projectId && systemProjects.has(projectId)) return 'SYSTEM_MULTIPLIER';
+  if (projectId) return 'PRODUCT_VALUE';
+  return 'CONTROL_OVERHEAD';
+}
+
+function compactPortfolio(feed, semantic, job, targetGeneration = null, growthPolicy = {}) {
   const current = finiteInt(job.pin_generation, 0);
   const recovery = semantic(job);
   const basisGate = recoveryBasisGate(job);
@@ -658,6 +667,8 @@ function compactPortfolio(feed, semantic, job, targetGeneration = null) {
     project_id: job.project_id || null,
     project_label: job.project_label || null,
     title: job.title || job.job_id,
+    kind: job.kind || null,
+    value_class: candidateValueClass(job, 'portfolio', growthPolicy),
     source_path: job.source_path || null,
     required_capabilities: jobRequiredCapabilities(job),
     priority: job.priority || 0,
@@ -721,7 +732,7 @@ function roleEvidenceRef(job) {
 
 export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready = [], queueReady = [], recovery = [], roleContext = null) {
   if (!roleContext?.metabolism) return { role_ready: [], metabolism: null };
-  const { metabolism, guideReceipts, guidePins, heartbeats, beacons, noAlloc, projectGuideMesh, projectGuideStates, portfolio } = roleContext;
+  const { metabolism, guideReceipts, guidePins, heartbeats, beacons, noAlloc, projectGuideMesh, projectGuideStates, portfolio, growthPolicy } = roleContext;
   const now = Date.now();
   const signals = metabolism.signals || {};
 
@@ -861,6 +872,7 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       mission,
       priority,
       evidence: refs,
+      value_class: candidateValueClass({scope_project_id}, 'guide', growthPolicy),
       state: state.generation ? 'replaceable' : 'ready',
       generation: state.generation,
       next_generation: next,
@@ -1068,6 +1080,7 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
 }
 
 export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicies = [], roleContext = null } = {}) {
+  const growthPolicy = roleContext?.growthPolicy || {};
   const jobs = arr(feed.projects).flatMap(project => arr(project.jobs).map(job => ({ ...job, project_label: project.label })));
   const policyByJob = new Map(arr(recoveryPolicies).filter(Boolean).map(policy => [policy.job_id, policy]));
   const semantic = job => normalizeRecoveryPolicy(job, policyByJob.get(job.job_id));
@@ -1086,7 +1099,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
     .sort(byPriority)
     .map(job => {
       const semantics = semantic(job);
-      return compactPortfolio(feed, semantic, job, semantics.mode === 'fixed_generation' ? semantics.fixed_generation : null);
+      return compactPortfolio(feed, semantic, job, semantics.mode === 'fixed_generation' ? semantics.fixed_generation : null, growthPolicy);
     })
     .slice(0, 40);
 
@@ -1095,6 +1108,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
     .map(item => ({
       opportunity_id: item.opportunity_id,
       mission: item.mission,
+      value_class: 'SYSTEM_MULTIPLIER',
       priority: item.priority || 0,
       plan_id: plan.id,
       claim_mode: 'OPPORTUNITY_CLAIM_CREATE',
@@ -1117,7 +1131,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
     .filter(job => authorityBoundaryGate(job).eligible)
     .filter(job => recoveryBasisGate(job).eligible)
     .sort(byPriority)
-    .map(job => compactPortfolio(feed, semantic, job))
+    .map(job => compactPortfolio(feed, semantic, job, null, growthPolicy))
     .slice(0, 30);
 
   const capabilityAttention = jobs
@@ -1318,7 +1332,8 @@ export function loadRoleContext(root = '.') {
     guidePins: loadJsonRows(root, 'coordination/guide/pins'),
     heartbeats: loadJsonRows(root, 'coordination/workers/heartbeats'),
     beacons: loadJsonRows(root, 'coordination/workers/beacons'),
-    noAlloc: loadJsonRows(root, 'coordination/workers/no-allocation')
+    noAlloc: loadJsonRows(root, 'coordination/workers/no-allocation'),
+    growthPolicy: fs.existsSync(path.join(root, 'coordination', 'workers', 'WORKER_GROWTH_POLICY_V1.json')) ? JSON.parse(fs.readFileSync(path.join(root, 'coordination', 'workers', 'WORKER_GROWTH_POLICY_V1.json'), 'utf8')) : null
   };
 }
 
