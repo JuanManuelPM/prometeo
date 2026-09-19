@@ -14,6 +14,33 @@ export const EARLY_CLOSE_REASONS=new Set([
 
 const arr=v=>Array.isArray(v)?v:[];
 
+export function canonicalPoolTerminalClose({
+  no_allocation=null,
+  no_allocation_ref=null
+}={}){
+  const diagnostic=String(no_allocation?.outcome||no_allocation?.reason||'').trim().toUpperCase()||null;
+  const evidence=no_allocation_ref?[String(no_allocation_ref)]:[];
+  if(diagnostic==='CLAIM_TRANSPORT_BLOCKED'){
+    return {
+      close_reason:'TRANSPORT_BOUNDARY',
+      close_evidence_refs:evidence,
+      diagnostic_outcome:diagnostic
+    };
+  }
+  if(EARLY_CLOSE_REASONS.has(diagnostic)){
+    return {
+      close_reason:diagnostic,
+      close_evidence_refs:evidence,
+      diagnostic_outcome:diagnostic
+    };
+  }
+  return {
+    close_reason:null,
+    close_evidence_refs:evidence,
+    diagnostic_outcome:diagnostic
+  };
+}
+
 export function classifyPoolResidency({
   protocol_version=null,
   pool_id=null,
