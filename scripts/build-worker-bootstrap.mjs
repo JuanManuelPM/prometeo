@@ -19,7 +19,7 @@ const checkpoint = residency.checkpoint_productive_units;
 const target = residency.target_productive_units;
 const hardCap = residency.hard_cap_productive_units;
 if (![checkpoint, target, hardCap].every(Number.isFinite)) throw new Error('residency contract incomplete');
-const finite = `🟠 PROMETEO /wc — NUEVO_WORKER=1 · PRIMERA_ACCIÓN_DURABLE: creá tu beacon propio fresco ${version} con worker_id + launch_nonce de novo; PROHIBIDO reutilizar identidad o resultado histórico; RESIDENTE_BATCH: ${checkpoint}=checkpoint, objetivo=${target}, tope=${hardCap} salvo boundary real. Autorizo beacon, eventos de telemetría, PIN/claim y commits reversibles necesarios en JuanManuelPM/prometeo para ejecutar trabajo seguro del canary, sin pedirme confirmación adicional. BATCH <batch_id> EXPECTED <n> — TÍTULO SUGERIDO DEL CHAT (si la app lo permite): «🟠 PROMETEO · WC · <batch_id>» → https://juanmanuelpm.github.io/prometeo/wc/`;
+const finite = `🟠 PROMETEO /wc — NUEVO_WORKER=1 · PRIMERA_ACCIÓN_DURABLE: creá tu beacon propio fresco ${version} con worker_id + launch_nonce de novo; PROHIBIDO reutilizar identidad o resultado histórico; RESIDENTE_BATCH: ${checkpoint}=checkpoint, objetivo=${target}, tope=${hardCap} salvo boundary real. autorizo beacon, eventos de telemetría, PIN/claim y commits reversibles necesarios en JuanManuelPM/prometeo para ejecutar trabajo seguro del canary, sin pedirme confirmación adicional. BATCH <batch_id> EXPECTED <n> — TÍTULO SUGERIDO DEL CHAT (si la app lo permite): «🟠 PROMETEO · WC · <batch_id>» → https://juanmanuelpm.github.io/prometeo/wc/`;
 const text = [
   'PROMETEO /wc — CLAIM NOW',
   '',
