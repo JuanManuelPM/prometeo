@@ -1,0 +1,38 @@
+name: Study content pipeline v1
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, study-content-pipeline-integration-v1]
+    paths:
+      - '.study-system/document-pipeline/v1/**'
+      - 'shared/study-ingestion/v1/**'
+      - 'shared/contracts/v1/study-*.schema.json'
+      - 'scripts/study-document-extract-v1.mjs'
+      - 'scripts/validate-contract-json-v1.mjs'
+      - 'tests/study-content-pipeline-integration-v1.test.mjs'
+      - 'demos/study-content-pipeline-v1/**'
+      - 'integrations/blackboard-bridge/**'
+      - 'supabase/migrations/*study_document_contract_v1*'
+      - '.github/workflows/study-content-pipeline-v1.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify existing canonical/reader/TTS contract fixtures
+        run: node .study-system/document-pipeline/v1/verify.mjs
+      - name: Run provider/extractor integration tests
+        run: node tests/study-content-pipeline-integration-v1.test.mjs
+      - name: Rebuild public canary payloads from the authoritative projector
+        run: node demos/study-content-pipeline-v1/build-demo.mjs
+      - name: Validate public canary against authoritative schemas
+        run: |
+          node scripts/validate-contract-json-v1.mjs .study-system/document-pipeline/v1/CANONICAL_DOCUMENT.schema.json demos/study-content-pipeline-v1/demo.canonical.json
+          node scripts/validate-contract-json-v1.mjs .study-system/document-pipeline/v1/READER_PAYLOAD.schema.json demos/study-content-pipeline-v1/demo.reader.json
+          node scripts/validate-contract-json-v1.mjs .study-system/document-pipeline/v1/TTS_CHUNK_SET.schema.json demos/study-content-pipeline-v1/demo.tts.json
+      - name: Syntax-check public reader
+        run: node --check demos/study-content-pipeline-v1/app.js
