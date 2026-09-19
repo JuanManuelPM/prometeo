@@ -123,5 +123,45 @@ assert.equal(
   'HTTP-only recovery must be visible inside the bounded compact frontier'
 );
 
+const zeroReady=capabilityRow(300,[]);
+const buriedZeroRecovery=[
+  capabilityRow(400,[]),
+  capabilityRow(401,[]),
+  capabilityRow(402,[])
+];
+const duplicateBrowserTail=Array.from({length:10},(_,i)=>capabilityRow(500+i,['representative_javascript_browser']));
+const zeroCapacityAllocator={
+  schema:'prometeo.fast-allocator/v3',
+  generated_at:'2026-09-19T15:00:00Z',
+  source_sha:'zero-capacity-pressure-fixture',
+  batch_strategy:'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD',
+  preferred_order:['ready','queue_ready','role_ready','recovery'],
+  ready:[...browserRecovery.slice(0,4),zeroReady,...duplicateBrowserTail,publicHttpRecovery[0]],
+  queue_ready:[],
+  role_ready:[],
+  recovery:buriedZeroRecovery,
+  batch_candidates:[
+    ...browserRecovery.slice(0,4).map(x=>({lane:'ready',...x})),
+    {lane:'ready',...zeroReady},
+    {lane:'ready',...publicHttpRecovery[0]},
+    ...duplicateBrowserTail.map(x=>({lane:'ready',...x})),
+    ...buriedZeroRecovery.map(x=>({lane:'recovery',...x}))
+  ]
+};
+const zeroCapacity=buildClaimFrontier(zeroCapacityAllocator,10,24000);
+const visibleZero=zeroCapacity.candidates.filter(x=>(x.required_capabilities||[]).length===0);
+assert.equal(
+  visibleZero.length,
+  4,
+  'compact frontier must preserve four distinct no-special-capability claim paths under specialized pressure'
+);
+for (const expected of ['job-400','job-401','job-402']) {
+  assert.equal(
+    zeroCapacity.candidates.some(x=>x.job_id===expected),
+    true,
+    `buried zero-capability recovery ${expected} must be promoted into the bounded frontier`
+  );
+}
+
 console.log('CLAIM_FRONTIER_CAPABILITY_DIVERSITY_PASS',diverse.candidate_count);
 console.log('CLAIM_FRONTIER_COMPACT_PASS',bytes,boundedBytes,bounded.candidate_count);
