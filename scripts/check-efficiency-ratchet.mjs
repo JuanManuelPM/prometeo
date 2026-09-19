@@ -359,7 +359,7 @@ must('wc', wc, 'batch_id=POOL-<pool_id>');
 must('wc', wc, 'productivity exam card');
 must('wc-strategy-experiment', wc, 'POOL POST-OWNERSHIP STRATEGY EXPERIMENT');
 must('wc-strategy-experiment', wc, 'coordination/workers/WORKER_STRATEGY_EXPERIMENT_V1.json');
-must('wc-strategy-experiment', wc, 'protocol_version="v3.28"');
+must('wc-strategy-experiment', wc, 'protocol_version="v3.29"');
 must('wc-strategy-experiment', wc, 'experiment_id="EXP-STRATEGY-AB"');
 mustNot('wc-strategy-experiment', wc, '### POOL YIELD-PATTERN REPRODUCTION');
 
