@@ -272,6 +272,14 @@ But `NO_ALLOCATION` while a usable `role_ready` was simply ignored is a protocol
 
 ## After ownership
 
+v3.29 growth extensions are owned by `coordination/workers/WORKER_GROWTH_POLICY_V1.json` and remain strictly post-ownership:
+
+- allocator/frontier `value_class` is a soft comparable-work preference, never authority or acceptance;
+- `postclaim_context.source_ref` is the exact-source seed for a bounded context capsule; do not turn it into preclaim archaeology;
+- a fresh scoreboard strategy `assignment_hint` may fill one uniquely underrepresented class variant only after ownership; hash remains tie/stale fallback;
+- derived launch measurements exist so every durable beacon is observable even if the worker misses its exam, but they can never supply A/B causal evidence;
+- if termination leaves one concrete non-duplicate residual, a worker may materialize at most one successor relay with bounded context; no residual means no relay.
+
 Execute normally:
 - CAS/re-fetch mutable targets;
 - heartbeat on longer work;
