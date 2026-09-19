@@ -113,8 +113,12 @@ if (handoffPolicy.status !== 'ACTIVE_BINDING') errors.push('guide-handoff: polic
 if (handoffPolicy?.launch_estimator?.bounded_canary?.minimum !== 10 || handoffPolicy?.launch_estimator?.bounded_canary?.maximum !== 20) errors.push('guide-handoff: bounded canary drift');
 if (handoffPolicy?.launch_estimator?.bounded_canary?.frontier_multiplier !== 1.25) errors.push('guide-handoff: frontier multiplier drift');
 const handoffApprox = handoffPolicy?.current_recommendation_example?.recommended_approx_workers;
+const platformGraduationHold = handoffPolicy?.platform_graduation_override?.status === 'ACTIVE';
 const freshLaunchPolicyForHandoff = JSON.parse(read(root,'coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json')||'{}');
-if (freshLaunchPolicyForHandoff?.smoke_gate?.status === 'SMOKE_PASS') {
+if (platformGraduationHold) {
+  if (handoffApprox !== 0) errors.push('guide-handoff: platform graduation hold must recommend zero broad workers');
+  if (handoffPolicy?.platform_graduation_override?.exact !== true) errors.push('guide-handoff: platform graduation zero hold must be exact');
+} else if (freshLaunchPolicyForHandoff?.smoke_gate?.status === 'SMOKE_PASS') {
   if (handoffPolicy?.integrity_smoke_override?.status === 'ACTIVE') errors.push('guide-handoff: smoke override still active after SMOKE_PASS');
   if (!Number.isInteger(handoffApprox) || handoffApprox < 10 || handoffApprox > 20) errors.push('guide-handoff: post-smoke recommendation outside bounded estimator');
 } else if (handoffPolicy?.integrity_smoke_override?.status === 'ACTIVE') {
