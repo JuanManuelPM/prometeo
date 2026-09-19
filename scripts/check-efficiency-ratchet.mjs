@@ -1264,6 +1264,17 @@ must('efficiency-runtime', runtime, 'ONE_SYSTEM_BOTTLENECK_NOT_PER_WORKER');
 must('efficiency-runtime', runtime, "execFileSync('git'");
 must('efficiency-runtime', runtime, "measurement_clock:'GIT_COMMIT_TIME_PREFERRED'");
 must('efficiency-runtime', runtime, 'claim_transport_blocked');
+must('efficiency-runtime', runtime, "coordination/guide/pins");
+must('efficiency-runtime', runtime, "'guide-pin'");
+const eff064 = baseline.items?.find(item => item.id === 'EFF064');
+if (!eff064) errors.push('ratchet: EFF064 missing');
+else {
+  if (eff064.required?.guide_pin_directory_in_durable_commit_clock !== true) errors.push('ratchet: EFF064 guide commit clock drift');
+  if (eff064.required?.guide_role_pin_counts_as_authority !== true) errors.push('ratchet: EFF064 authority semantics drift');
+  if (eff064.required?.earliest_authority_across_supported_kinds !== true) errors.push('ratchet: EFF064 earliest-authority drift');
+  if (eff064.required?.later_portfolio_pin_cannot_replace_earlier_guide_pin !== true) errors.push('ratchet: EFF064 late portfolio override drift');
+  if (eff064.required?.runtime_baseline_epoch_preserved !== true) errors.push('ratchet: EFF064 runtime epoch drift');
+}
 
 if (site) {
   const pointer = read(site, 'wc/index.html');
