@@ -16,14 +16,19 @@ const mission=json('coordination/guide/CURRENT_MISSION_V1.json');
 const oldExam=json('coordination/workers/exams/wc-20260918T212321Z-94fec87501.json');
 const oldBeacon=json('coordination/workers/beacons/wc-20260918T212321Z-94fec87501.json');
 const scoreboard=read('scripts/build-worker-scoreboard.mjs');
+const poolPrompt=read('coordination/workers/POOL_PROD01_PROMPT.txt');
 const site=process.argv[3]?path.resolve(process.argv[3]):null;
 
 assert.equal(policy.status,'ACTIVE_BINDING');
 assert.equal(policy.human_inline_launch_guard.status,'ACTIVE_BINDING');
 assert.equal(policy.productive_smoke.status,'ACTIVE');
 assert.equal(policy.productive_smoke.target_productive_units,6);
+assert.equal(mission.human_prompts.worker.prompt,mission.operating_mode.invocation,'worker human prompt alias must equal canonical operating invocation');
+assert.equal(poolPrompt,mission.operating_mode.invocation+'\n','POOL PROD-01 prompt alias must equal canonical operating invocation plus final newline');
 for(const marker of policy.human_inline_launch_guard.required_markers){
   assert.ok(mission.operating_mode.invocation.includes(marker),'mission invocation missing inline guard '+marker);
+  assert.ok(mission.human_prompts.worker.prompt.includes(marker),'worker human prompt alias missing inline guard '+marker);
+  assert.ok(poolPrompt.includes(marker),'POOL PROD-01 prompt alias missing inline guard '+marker);
 }
 assert.equal(policy.incident.diagnosis,'FRESH_LAUNCH_REPLAY');
 assert.equal(policy.incident.historical_exam_ref,'coordination/workers/exams/wc-20260918T212321Z-94fec87501.json');
