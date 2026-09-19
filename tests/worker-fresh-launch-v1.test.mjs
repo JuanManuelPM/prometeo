@@ -49,6 +49,9 @@ assert.ok(wc.includes('HUMAN INLINE LAUNCH GUARD'),'wc must carry defense-in-dep
 assert.ok(wc.includes('For **BATCH and POOL launches**'),'POOL residency target must be explicit');
 assert.ok(wc.includes("historical worker's exhaustion/no-allocation evidence never satisfies this launch"),'below-target close cannot inherit historical exhaustion');
 assert.equal(examSpec.current_worker_protocol_version,'v3.30');
+assert.equal(examSpec.v330_pool_residency.target_productive_units,6);
+assert.ok(examSpec.v330_pool_residency.conditional_terminal_fields.includes('close_reason'));
+assert.ok(examSpec.v330_pool_residency.conditional_terminal_fields.includes('close_evidence_refs'));
 assert.equal(examSpec.v330_fresh_launch.policy_ref,'coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json');
 assert.equal(growth.worker_protocol_min_version,'v3.30');
 assert.equal(strategy.protocol_min_version,'v3.30');
@@ -58,7 +61,7 @@ assert.equal(mission.operating_mode.current_worker_protocol_version,'v3.30');
 assert.equal(mission.current_snapshot.fresh_launch_incident.status,'CONFIRMED_REPLAY');
 assert.equal(mission.current_snapshot.occupancy.recommended_additional_launches_at_snapshot,3);
 
-for(const needle of ['fresh_launch_integrity','beacon_launch_nonce','exam_launch_nonce','SMOKE_PASS']) assert.ok(scoreboard.includes(needle),'scoreboard missing '+needle);
+for(const needle of ['fresh_launch_integrity','pool_residency_integrity','EARLY_CLOSE_UNJUSTIFIED','beacon_launch_nonce','exam_launch_nonce','SMOKE_PASS']) assert.ok(scoreboard.includes(needle),'scoreboard missing '+needle);
 
 if(site){
   const publicWc=fs.readFileSync(path.join(site,'wc','index.html'),'utf8');
