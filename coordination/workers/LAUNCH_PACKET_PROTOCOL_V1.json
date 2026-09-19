@@ -1,0 +1,103 @@
+{
+  "schema": "prometeo.launch-packet/v1",
+  "protocol_id": "LAUNCH-PACKET-V1",
+  "status": "ACTIVE_BINDING_IMPLEMENTATION_PENDING",
+  "updated_at": "2026-09-19T15:20:56.602Z",
+  "purpose": "Replace anonymous repeated /wc launches against mutable global frontier with one Guide-compiled immutable run packet whose workers atomically self-assign unique launch slots, load long exact context only after slot ownership, and remain resident after completing the slot's first project.",
+  "human_contract": {
+    "same_prompt_for_entire_run": true,
+    "human_numbers_prompts": false,
+    "human_routes_workers": false,
+    "human_tracks_results": false,
+    "required_human_fields": [
+      "run_id"
+    ],
+    "note": "The Guide emits one prompt containing one run_id. Slot numbers are machine-assigned atomically; the human never types or tracks S01/S02/etc."
+  },
+  "packet_projection": {
+    "canonical_source_pattern": "coordination/launch-packets/<run_id>/PACKET.json",
+    "public_projection_pattern": "https://juanmanuelpm.github.io/prometeo/launch/<run_id>/",
+    "immutable_after_arm": true,
+    "may_be_long": true,
+    "rationale": "Pages is the compiled read surface. Put enough exact context, acceptance criteria, candidate bundles, source refs, non-goals and test commands there to minimize worker archaeology."
+  },
+  "slot_model": {
+    "slot_count": "GUIDE_COMPILED_FROM_COMPATIBLE_DEMAND",
+    "slot_ids": "S001..SNNN",
+    "slot_claim_mode": "ATOMIC_CREATE",
+    "claim_path_pattern": "coordination/launch-packets/<run_id>/claims/<slot_id>.json",
+    "worker_selects_slot": true,
+    "selection_seed": "fresh beacon commit SHA when available; otherwise launch_nonce",
+    "selection_rule": "Filter packet slots by capabilities definitively available in the runtime; hash into the compatible slot list; on CREATE_EXISTS advance cyclically through untried compatible slots. No mutable frontier reread is required to obtain a slot.",
+    "no_compatible_slot_outcome": "NO_COMPATIBLE_LAUNCH_SLOT",
+    "duplicate_slot_ownership_forbidden": true,
+    "historical_claim_reuse_forbidden": true
+  },
+  "slot_capsule": {
+    "loaded_after_slot_claim": true,
+    "fields": [
+      "slot_id",
+      "project_or_lane",
+      "required_capabilities",
+      "primary_objective",
+      "acceptance_contract",
+      "exact_sources",
+      "target_paths",
+      "non_goals",
+      "test_commands",
+      "public_projection",
+      "fallback_candidates",
+      "reallocation_rule"
+    ],
+    "long_context_allowed": true,
+    "authority_boundary": "The packet/capsule supplies context and routing intent; durable PIN/claim remains execution authority unless the slot itself is an explicitly authorized synthetic benchmark fixture."
+  },
+  "capability_aware_occupancy": {
+    "rule": "Guide computes launch slots from compatible demand, not total candidate count. Generic chat runtimes do not consume slots whose required capabilities are definitively unavailable.",
+    "categories": [
+      "GENERIC_REPOSITORY",
+      "BROWSER_JS",
+      "PUBLIC_HTTP",
+      "MOBILE_TOUCH",
+      "CROSS_DEVICE",
+      "OTHER_EXPLICIT"
+    ],
+    "oversubscription_default": 1,
+    "oversubscription_allowed_when": "Measured slot completion/replenishment evidence justifies it; never infer from raw frontier_total alone."
+  },
+  "observability": {
+    "denominator": "packet.slot_count",
+    "required_counts": [
+      "slots_total",
+      "slots_claimed",
+      "slots_unclaimed",
+      "workers_beaconed",
+      "workers_started",
+      "workers_primary_complete",
+      "workers_reallocated",
+      "workers_terminal",
+      "failures_by_reason"
+    ],
+    "benefit": "A human statement such as 'I launched 17 chats' becomes directly comparable to a durable run packet instead of being inferred from timestamps."
+  },
+  "residency": {
+    "primary_project_completion_is_not_terminal": true,
+    "after_primary_complete": "Return evidence, refresh exact allowed allocation surface, claim a second compatible project/lane, and continue until residency target or real boundary.",
+    "existing_pool_law": "3 checkpoint / target 6 / cap 8 remains binding unless benchmark-specific stricter completion is declared."
+  },
+  "implementation_order": [
+    "Build canonical PACKET compiler from Current Mission + compatible frontier + capability buckets",
+    "Build public /launch/<run_id>/ projection containing packet + per-slot capsules",
+    "Add atomic launch-slot claim protocol to /wc before ordinary job allocation",
+    "Add run/slot fields to beacon, runtime and scoreboard",
+    "Add packet accounting tests so slots_claimed can never exceed slots_total and one slot has at most one owner",
+    "Only then arm the graduation benchmark"
+  ],
+  "non_goals": [
+    "making the human number prompts",
+    "replacing execution authority with a static webpage",
+    "creating filler slots to hit a desired worker count",
+    "making packet creation an endless experiment",
+    "claiming unattended chat wake"
+  ]
+}
