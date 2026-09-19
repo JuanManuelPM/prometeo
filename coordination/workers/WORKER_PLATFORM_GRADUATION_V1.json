@@ -2,7 +2,7 @@
   "schema": "prometeo.worker-platform-graduation/v1",
   "objective_id": "WORKER-PLATFORM-GRADUATION-V1",
   "status": "ACTIVE_BINDING",
-  "updated_at": "2026-09-19T15:20:56.602Z",
+  "updated_at": "2026-09-19T16:32:36.448Z",
   "title": "Finish the worker/Guide platform before broad product scaling",
   "separation": {
     "rail_a_platform": {
@@ -21,34 +21,41 @@
   "phase_plan": [
     {
       "id": "P1_LAUNCH_PACKET",
-      "status": "NEXT",
-      "goal": "Implement LAUNCH-PACKET-V1 so repeated identical human prompts self-assign unique compatible slots and load long compiled context without human numbering/routing.",
+      "status": "IMPLEMENTED_STATIC_VERIFIED",
+      "goal": "Repeated identical human prompts self-assign unique compatible slots, load long compiled context and expose exact run accounting without human numbering/routing.",
       "ref": "coordination/workers/LAUNCH_PACKET_PROTOCOL_V1.json",
-      "exit_gate": "One synthetic packet with >=3 slots can be claimed 3/3 by distinct fresh workers with exact slot accounting and no duplicate owner."
+      "exit_gate": "Static/public/runtime/scoreboard packet plumbing passes and CATLAB-EVO-01 can be ARMED."
     },
     {
-      "id": "P2_SOLO_PRODUCT_GAUNTLET",
-      "status": "ARMED_AFTER_P1",
-      "goal": "Run the same complete synthetic product benchmark independently in three isolated slots to test whether a single worker can finish a real page end-to-end.",
-      "benchmark_id": "CAT-LAB-V1",
-      "exit_gate": "3/3 workers satisfy every hard gate; no human routing, no manual result transport, no worker-specific prompt edits."
+      "id": "P2A_EVOLUTION_EXPLORATION",
+      "status": "NEXT_AFTER_ARM",
+      "goal": "Run 10 independent Cat Lab workers as 5 controlled pipeline variants × 2 replicas. Same objective, same hard gates, same human prompt; only one stage rule changes per variant.",
+      "run_id": "CATLAB-EVO-01",
+      "experiment_ref": "coordination/workers/WORKER_EVOLUTION_LAB_V1.json",
+      "exit_gate": "10 slot accounting is complete enough to compare stage failures/product completion. Select at most two candidate laws; no automatic winner."
+    },
+    {
+      "id": "P2B_CONFIRMATION",
+      "status": "BLOCKED_ON_P2A",
+      "goal": "Reproduce each selected stage law with >=3 independent confirmation workers before promoting it into the baseline worker pipeline.",
+      "exit_gate": "At least one candidate law reaches 3/3 hard-gate-valid confirmations without authority/evidence regression."
     },
     {
       "id": "P3_RESIDENT_REALLOCATION",
-      "status": "ARMED_AFTER_P2",
-      "goal": "Each benchmark worker, after completing its primary page, must autonomously take one bounded task from a different synthetic project/lane and produce durable evidence.",
-      "exit_gate": "3/3 primary-complete workers successfully reallocate once without a new human instruction."
+      "status": "MEASURED_INSIDE_P2A_AND_P2B",
+      "goal": "Primary-complete workers must autonomously claim and complete a second synthetic project without another human instruction.",
+      "exit_gate": "The promoted/confirmed law demonstrates 3/3 cross-project reallocations."
     },
     {
       "id": "P4_FREEZE_AND_SCALE",
-      "status": "BLOCKED_ON_P1_P2_P3",
-      "goal": "Freeze a known-good worker baseline, keep regression tests binding, then resume real-project scale using packet-sized compatible demand.",
+      "status": "BLOCKED_ON_P2B_P3",
+      "goal": "Freeze the known-good pipeline, keep regression tests binding, then resume real-project scale using capability-compatible launch-packet demand.",
       "exit_gate": "Graduation receipt marks PASS and Guide removes platform scale hold."
     }
   ],
   "benchmark": {
     "benchmark_id": "CAT-LAB-V1",
-    "status": "SPEC_READY_NOT_CLAIMABLE",
+    "status": "EVOLUTION_PACKET_READY_FOR_ARM",
     "purpose": "A neutral synthetic product with enough UI, state, audio and publication surface to reveal whether a worker really completes a project rather than only producing commits or control-plane receipts.",
     "isolation": "Each slot writes to its own route and files; workers do not edit each other's CAT-LAB output.",
     "route_pattern": "/bench/cat-lab/<run_id>/<slot_id>/",
@@ -95,17 +102,25 @@
       "PRIMARY_PROJECT_RETURN_PERSISTED",
       "SECOND_PROJECT_REALLOCATION_SUCCEEDED"
     ],
-    "pass_rule": "Graduation PASS requires 3/3 independent workers to satisfy every hard gate. A failed worker produces one bounded systemic repair opportunity; do not create an open-ended experiment ladder.",
-    "human_acceptance": "Human visual/taste review is informative but separate from machine graduation. Machine PASS never claims final Human Acceptance of aesthetics."
+    "pass_rule": "Exploration does not auto-graduate. It identifies at most two stage-law candidates. Graduation requires >=3 independent confirmation workers for a selected law, all primary hard gates, and 3/3 autonomous second-project reallocations.",
+    "human_acceptance": "Human visual/taste review is informative but separate from machine graduation. Machine PASS never claims final Human Acceptance of aesthetics.",
+    "exploration_run": {
+      "run_id": "CATLAB-EVO-01",
+      "workers": 10,
+      "design": "5 variants x 2 replicas",
+      "prompt_mode": "ONE_IDENTICAL_PROMPT",
+      "packet_url": "https://juanmanuelpm.github.io/prometeo/launch/CATLAB-EVO-01/",
+      "status_url": "https://juanmanuelpm.github.io/prometeo/launch/CATLAB-EVO-01/status.json"
+    }
   },
   "scale_hold": {
     "broad_new_worker_launches": "HOLD",
-    "reason": "Finish platform mechanics and the end-to-end worker graduation benchmark before using large cohorts on real projects.",
+    "reason": "Finish P2A controlled evolution + P2B confirmation + P3 reallocation before broad real-project scaling. This is a bounded platform graduation, not an open-ended experiment program.",
     "exceptions": [
       "workers already launched may finish",
       "small implementation/verification workers explicitly needed to build or test P1-P3",
       "critical safety/authority repair"
     ]
   },
-  "success_definition": "After PASS, a normal worker can arrive with one common prompt, self-identify, self-assign one compatible slot, ingest exact long context, finish a substantial product objective, verify/publish/return it, then continue onto useful work elsewhere without the human acting as router or memory."
+  "success_definition": "After PASS, a normal worker can arrive with one common prompt, create fresh identity, atomically self-assign one compatible slot, ingest exact long context, finish a substantial product objective, verify/publish/return it, then continue onto useful work elsewhere. The winning behavior is a reproducible stage law, not a historical persona."
 }
