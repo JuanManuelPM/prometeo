@@ -79,6 +79,10 @@ for(const p of examFiles){
     experimental_project_breadth:experimentalProjects.length,
     summary_word_count:n(d.summary_word_count),
     wall_clock_seconds:n(d.wall_clock_seconds)||null,
+    run_id:d.run_id||null,
+    slot_id:d.slot_id||null,
+    evolution_variant:d.evolution_variant||null,
+    pipeline_first_non_pass_stage:d.pipeline_first_non_pass_stage||null,
     close_reason:d.close_reason||null,
     close_evidence_refs:arr(d.close_evidence_refs).filter(Boolean),
     exam_ref:repoRef(p)
@@ -204,6 +208,22 @@ for(const p of walk(path.join(root,'coordination','workers','beacons')).filter(x
   const d=readJson(p); if(!d?.worker_id) continue;
   beaconByWorker.set(d.worker_id,{doc:d,ref:repoRef(p)});
 }
+const launchClaimsByWorker=new Map();
+const reallocationClaimsByWorker=new Map();
+const runPackets=new Map();
+for(const p of walk(path.join(root,'coordination','launch-packets')).filter(x=>x.endsWith('.json'))){
+  const d=readJson(p); if(!d) continue;
+  const ref=repoRef(p);
+  if(path.basename(p)==='PACKET.json' && d.run_id){ runPackets.set(d.run_id,{doc:d,ref}); continue; }
+  if(!d.worker_id||!d.run_id||!d.slot_id) continue;
+  const row={doc:d,ref};
+  if(ref.includes('/reallocation-claims/')) reallocationClaimsByWorker.set(d.worker_id,row);
+  else if(ref.includes('/claims/')) launchClaimsByWorker.set(d.worker_id,row);
+}
+const benchmarkReceiptsByWorker=new Map();
+for(const p of walk(path.join(root,'coordination','workers','benchmark-receipts')).filter(x=>x.endsWith('.json'))){
+  const d=readJson(p); if(d?.worker_id) benchmarkReceiptsByWorker.set(d.worker_id,{doc:d,ref:repoRef(p)});
+}
 const noallocByWorker=new Map();
 for(const p of walk(path.join(root,'coordination','workers','no-allocation')).filter(x=>x.endsWith('.json'))){
   const d=readJson(p); if(d?.worker_id) noallocByWorker.set(d.worker_id,{doc:d,ref:repoRef(p)});
@@ -262,6 +282,17 @@ for(const [base,kind] of [
     const units=productiveByWorker.get(d.worker_id)||[]; units.push(unit); productiveByWorker.set(d.worker_id,units);
   }
 }
+for(const [workerId,row] of benchmarkReceiptsByWorker){
+  const d=row.doc||{};
+  const units=productiveByWorker.get(workerId)||[];
+  if(d.primary_complete===true){
+    units.push({ref:row.ref+'#primary',kind:'benchmark-primary',at:d.primary_completed_at||d.closed_at_or_null||d.updated_at||null,project_id:d.primary_project_id||'cat-lab',value_class:'PRODUCT_VALUE',successor_count:0,visible_change:true});
+  }
+  if(d.reallocation_complete===true){
+    units.push({ref:row.ref+'#reallocation',kind:'benchmark-reallocation',at:d.reallocation_completed_at||d.closed_at_or_null||d.updated_at||null,project_id:d.reallocation_project_id||'dog-notes',value_class:'PRODUCT_VALUE',successor_count:0,visible_change:true});
+  }
+  productiveByWorker.set(workerId,units);
+}
 for(const units of productiveByWorker.values()) units.sort((a,b)=>Date.parse(a.at||0)-Date.parse(b.at||0)||a.ref.localeCompare(b.ref));
 
 const launchMeasurements=[];
@@ -269,14 +300,17 @@ for(const [workerId,b] of beaconByWorker){
   const explicit=examByWorker.get(workerId)||null;
   const noalloc=noallocByWorker.get(workerId)||null;
   const pins=pinRefsByWorker.get(workerId)||[];
+  const launchClaim=launchClaimsByWorker.get(workerId)||null;
+  const reallocationClaim=reallocationClaimsByWorker.get(workerId)||null;
+  const benchmarkReceipt=benchmarkReceiptsByWorker.get(workerId)||null;
   const units=productiveByWorker.get(workerId)||[];
-  const authorityWon=pins.length>0 || noalloc?.doc?.authority_won===true || noalloc?.doc?.authority_acquired===true;
+  const authorityWon=pins.length>0 || noalloc?.doc?.authority_won===true || noalloc?.doc?.authority_acquired===true || !!launchClaim;
   let measurementState='BEACON_ONLY';
   if(explicit) measurementState='EXPLICIT_EXAM';
   else if(noalloc && authorityWon) measurementState='DERIVED_POSTCLAIM_BOUNDARY';
   else if(noalloc) measurementState='DERIVED_PRECLAIM_TERMINAL';
-  else if(authorityWon || units.length) measurementState='DERIVED_DURABLE_ACTIVITY';
-  const terminalClassified=!!explicit || !!noalloc;
+  else if(authorityWon || units.length || benchmarkReceipt) measurementState='DERIVED_DURABLE_ACTIVITY';
+  const terminalClassified=!!explicit || !!noalloc || !!benchmarkReceipt?.doc?.closed_at_or_null;
   const protocolVersion=explicit?.protocol_version||b.doc?.canary_protocol||b.doc?.protocol_version||null;
   const poolId=explicit?.pool_id||b.doc?.pool_id||null;
   const poolResidency=classifyPoolResidency({
@@ -290,6 +324,13 @@ for(const [workerId,b] of beaconByWorker){
   launchMeasurements.push({
     worker_id:workerId,
     batch_id:b.doc?.batch_id||null,
+    run_id:launchClaim?.doc?.run_id||benchmarkReceipt?.doc?.run_id||b.doc?.run_id||null,
+    slot_id:launchClaim?.doc?.slot_id||benchmarkReceipt?.doc?.slot_id||null,
+    evolution_variant:launchClaim?.doc?.evolution_variant||benchmarkReceipt?.doc?.evolution_variant||null,
+    reallocation_slot_id:reallocationClaim?.doc?.slot_id||benchmarkReceipt?.doc?.reallocation_slot_id||null,
+    primary_complete:benchmarkReceipt?.doc?.primary_complete===true,
+    reallocation_complete:benchmarkReceipt?.doc?.reallocation_complete===true,
+    benchmark_receipt_ref:benchmarkReceipt?.ref||null,
     pool_id:poolId,
     protocol_version:protocolVersion,
     launched_at:b.doc?.launched_at||b.doc?.observed_at||b.doc?.created_at||null,
@@ -310,6 +351,8 @@ for(const [workerId,b] of beaconByWorker){
     control_overhead_units:units.filter(u=>u.value_class==='CONTROL_OVERHEAD').length,
     boundary_units:units.filter(u=>u.value_class==='BOUNDARY').length,
     pin_count:pins.length,
+    launch_slot_ref:launchClaim?.ref||null,
+    reallocation_slot_ref:reallocationClaim?.ref||null,
     beacon_ref:b.ref,
     no_allocation_ref:noalloc?.ref||null,
     exam_ref:explicit?.exam_ref||null,
@@ -407,6 +450,66 @@ const minRep=3;
 const winningKey=Object.entries(reproductionCounts).filter(([key,count])=>key.startsWith('pattern:')&&count>=minRep).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))[0]?.[0]||null;
 const champion=winningKey?rows.find(r=>r.pattern_id&&('pattern:'+r.pattern_id)===winningKey&&r.score>=minScore)||null:null;
 
+const pipelineStageOrder=['E0_ENVELOPE','E1_IDENTITY','E2_ASSIGN','E3_CONTEXT','E4_PLAN_LOCK','E5_PRODUCE','E6_VERIFY','E7_RETURN','E8_REALLOCATE','E9_EXAM_CLOSE'];
+const launchRuns=[...runPackets.entries()].map(([runId,p])=>{
+  const primary=[...launchClaimsByWorker.values()].filter(x=>x.doc?.run_id===runId);
+  const realloc=[...reallocationClaimsByWorker.values()].filter(x=>x.doc?.run_id===runId);
+  const receipts=[...benchmarkReceiptsByWorker.values()].filter(x=>x.doc?.run_id===runId);
+  const beacons=[...beaconByWorker.values()].filter(x=>x.doc?.run_id===runId);
+  const slots=arr(p.doc?.slots);
+  const slotOwnerIds=new Set(primary.map(x=>x.doc?.slot_id).filter(Boolean));
+  const byWorker={};
+  for(const x of primary){(byWorker[x.doc.worker_id]??=[]).push(x.doc.slot_id);}
+  const firstNonPass=d=>{
+    const trace=d?.stage_trace||{};
+    for(const id of pipelineStageOrder){
+      const st=String(trace?.[id]?.status||'NOT_REACHED');
+      if(st!=='PASS') return {stage:id,status:st,failure_code:trace?.[id]?.failure_code||null};
+    }
+    return null;
+  };
+  const variants={};
+  for(const slot of slots){
+    const id=slot.evolution_variant||'UNSPECIFIED';
+    variants[id]??={slots_total:0,slots_claimed:0,receipts:0,primary_complete:0,reallocation_complete:0,hard_gate_pass_counts:[],wall_clock_seconds:[],first_non_pass:{}};
+    variants[id].slots_total++;
+  }
+  for(const x of primary){
+    const id=x.doc?.evolution_variant||'UNSPECIFIED';
+    variants[id]??={slots_total:0,slots_claimed:0,receipts:0,primary_complete:0,reallocation_complete:0,hard_gate_pass_counts:[],wall_clock_seconds:[],first_non_pass:{}};
+    variants[id].slots_claimed++;
+  }
+  for(const x of receipts){
+    const d=x.doc||{}; const id=d.evolution_variant||'UNSPECIFIED';
+    variants[id]??={slots_total:0,slots_claimed:0,receipts:0,primary_complete:0,reallocation_complete:0,hard_gate_pass_counts:[],wall_clock_seconds:[],first_non_pass:{}};
+    const v=variants[id]; v.receipts++;
+    if(d.primary_complete===true) v.primary_complete++;
+    if(d.reallocation_complete===true) v.reallocation_complete++;
+    const gates=Object.values(d.hard_gates||{});
+    v.hard_gate_pass_counts.push(gates.filter(x=>String(x?.status||x)==='PASS').length);
+    if(Number.isFinite(Number(d.wall_clock_seconds))) v.wall_clock_seconds.push(Number(d.wall_clock_seconds));
+    const np=firstNonPass(d); if(np){const key=np.stage+':'+np.status+(np.failure_code?':'+np.failure_code:'');v.first_non_pass[key]=(v.first_non_pass[key]||0)+1;}
+  }
+  for(const v of Object.values(variants)){
+    v.primary_completion_rate=ratio(v.primary_complete,v.slots_total);
+    v.reallocation_completion_rate=ratio(v.reallocation_complete,v.slots_total);
+    v.median_hard_gate_pass_count=median(v.hard_gate_pass_counts);
+    v.median_wall_clock_seconds=median(v.wall_clock_seconds);
+    delete v.hard_gate_pass_counts; delete v.wall_clock_seconds;
+  }
+  return {
+    run_id:runId,status:p.doc?.status||null,packet_ref:p.ref,
+    slots_total:slots.length,slots_claimed:slotOwnerIds.size,slots_unclaimed:Math.max(0,slots.length-slotOwnerIds.size),
+    workers_beaconed:new Set(beacons.map(x=>x.doc.worker_id)).size,
+    primary_complete:new Set(receipts.filter(x=>x.doc?.primary_complete===true).map(x=>x.doc.worker_id)).size,
+    reallocation_complete:new Set(receipts.filter(x=>x.doc?.reallocation_complete===true).map(x=>x.doc.worker_id)).size,
+    workers_with_multiple_primary_slots:Object.entries(byWorker).filter(([,ids])=>ids.length>1).map(([wid])=>wid),
+    variants,
+    automatic_winner:false,
+    truth_boundary:'Variant metrics are descriptive exploration evidence. n=2 per variant cannot auto-promote a pipeline law.'
+  };
+});
+
 const out={
   schema:'prometeo.worker-scoreboard/v1',
   generated_at:new Date().toISOString(),
@@ -421,6 +524,7 @@ const out={
   top:rows.slice(0,20),
   latest20:latest,
   launch_measurements:latestLaunches,
+  launch_runs:launchRuns,
   measurement_coverage:measurementCoverage,
   fresh_launch_integrity:freshLaunchIntegrity,
   pool_residency_integrity:poolResidencyIntegrity,
@@ -436,7 +540,7 @@ const out={
   strategy_experiment_id:strategyExperimentId,
   strategy_experiment_status:strategyExperiment?.status||null,
   strategy_experiment_health:strategyExperimentHealth,
-  note:'Observability only. Every beacon receives a derived launch row; v3.30 fresh-launch and pooled-residency integrity are tracked separately, and only explicit worker exams can supply causal strategy evidence. Global score remains end-to-end; strategy_experiment_health is class-local post-ownership evidence. Product/system/control value classes are routing/measurement aids, not Human Acceptance or Served authority.'
+  note:'Observability only. Launch-packet RUN metrics expose exact slot denominators and stage-level benchmark evidence without granting authority. Every beacon receives a derived launch row; v3.30 fresh-launch and pooled-residency integrity are tracked separately, and only explicit worker exams can supply causal strategy evidence. Global score remains end-to-end; strategy_experiment_health is class-local post-ownership evidence. Product/system/control value classes are routing/measurement aids, not Human Acceptance or Served authority.'
 };
 fs.mkdirSync(path.dirname(outPath),{recursive:true});
 fs.writeFileSync(outPath,JSON.stringify(out,null,2)+'\n');
