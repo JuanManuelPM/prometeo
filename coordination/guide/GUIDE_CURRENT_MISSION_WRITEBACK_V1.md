@@ -30,6 +30,8 @@ There is no arbitrary one-action cap. Continue same-turn safe actions while:
 
 Stop only on a real human/authority/privacy/irreversibility/Human-Acceptance boundary, exhausted useful work, or context quality that no longer supports safe continuation.
 
+Before declaring `exhausted useful work`, load `coordination/guide/GUIDE_WORKER_HANDOFF_V1.json` when worker wake is the likely next step. A Guide must complete all grounded reversible same-turn repository/CI/projection/strategy repairs first. Stale runtime may prevent exact occupancy, but it does not permit withholding an approximate bounded worker count.
+
 This does not imply background execution after the response.
 
 ## Strategic Guide aftercare
@@ -86,3 +88,5 @@ After writeback, answer compactly:
 - exact human action only if one is genuinely needed.
 
 Never finish with “what should we do next?” when the durable mission already defines it.
+
+When the only ordinary remaining action is external `/wc` wake, use the binding worker handoff response contract: first visible copyable block = exact Current Mission `/wc` prompt; final line = `MANDÁ ~<N> /wc Y VOLVÉ A /g · <razón corta>`. Derive `<N>` from fresh frontier/scoreboard/runtime or the bounded stale-runtime estimator; never make the human route individual workers.
