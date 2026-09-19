@@ -9,7 +9,7 @@ const DEFAULT_CAPABILITY_DIVERSITY_SLOTS = 8;
 // Pre-claim needs authority bytes, capability routing, and one exact post-claim source.
 // Human-facing labels, priority/state and duplicated identity already live in allocator/job files.
 const KEEP = [
-  'job_id','opportunity_id','role_id','guide_work_id','source_path',
+  'job_id','opportunity_id','role_id','guide_work_id','source_path','project_id','scope_project_id','kind','role','trigger','value_class',
   'required_capabilities','claim_mode','claim_path','claim_payload_shape',
   'post_claim_validate','contention_barrier','post_release_claim','next_action',
   'release_path','release_payload_shape','timeout_payload_shape',
@@ -19,10 +19,11 @@ const KEEP = [
 function compactCandidate(item, lane) {
   const out = { lane };
   for (const k of KEEP) if (item?.[k] !== undefined && item?.[k] !== null) out[k] = item[k];
-  // Opportunity candidates may have no durable job file, so retain bounded execution context only there.
-  if (item?.opportunity_id) {
+  if (item?.source_path) out.postclaim_context = { source_ref:item.source_path, compile:'EXACT_SOURCE_ONLY_AFTER_OWNERSHIP' };
+  // Opportunity/Guide candidates may have no durable job file, so retain bounded execution context only there.
+  if (item?.opportunity_id || lane==='role_ready') {
     if (item?.title) out.title = item.title;
-    if (item?.mission) out.mission = String(item.mission).slice(0, 180);
+    if (item?.mission) out.mission = String(item.mission).slice(0, 220);
   }
   return out;
 }
