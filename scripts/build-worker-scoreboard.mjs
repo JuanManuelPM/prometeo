@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { classifyPoolResidency, poolResidencyFailure } from './worker-residency-integrity.mjs';
 
 const root=process.argv[2]||'.';
 const outPath=process.argv[3]||path.join(root,'worker-scoreboard.json');
@@ -51,6 +52,7 @@ for(const p of examFiles){
   const row={
     worker_id:d.worker_id,
     batch_id:d.batch_id||null,
+    pool_id:d.pool_id||null,
     protocol_version:d.protocol_version||null,
     launch_nonce:d.launch_nonce||null,
     pattern_id:d.pattern_id||null,
@@ -77,6 +79,8 @@ for(const p of examFiles){
     experimental_project_breadth:experimentalProjects.length,
     summary_word_count:n(d.summary_word_count),
     wall_clock_seconds:n(d.wall_clock_seconds)||null,
+    close_reason:d.close_reason||null,
+    close_evidence_refs:arr(d.close_evidence_refs).filter(Boolean),
     exam_ref:repoRef(p)
   };
   rows.push(row);
@@ -273,10 +277,22 @@ for(const [workerId,b] of beaconByWorker){
   else if(noalloc) measurementState='DERIVED_PRECLAIM_TERMINAL';
   else if(authorityWon || units.length) measurementState='DERIVED_DURABLE_ACTIVITY';
   const terminalClassified=!!explicit || !!noalloc;
+  const protocolVersion=explicit?.protocol_version||b.doc?.canary_protocol||b.doc?.protocol_version||null;
+  const poolId=explicit?.pool_id||b.doc?.pool_id||null;
+  const poolResidency=classifyPoolResidency({
+    protocol_version:protocolVersion,
+    pool_id:poolId,
+    explicit_exam:!!explicit,
+    productive_units:units.length,
+    pool_residency:poolResidency,
+    close_reason:explicit?.close_reason||null,
+    close_evidence_refs:explicit?.close_evidence_refs||[]
+  });
   launchMeasurements.push({
     worker_id:workerId,
     batch_id:b.doc?.batch_id||null,
-    protocol_version:explicit?.protocol_version||b.doc?.canary_protocol||b.doc?.protocol_version||null,
+    pool_id:poolId,
+    protocol_version:protocolVersion,
     launched_at:b.doc?.launched_at||b.doc?.observed_at||b.doc?.created_at||null,
     fresh_launch:b.doc?.fresh_launch===true,
     beacon_launch_nonce:b.doc?.launch_nonce||null,
@@ -337,16 +353,35 @@ const v330Launches=launchMeasurements.filter(x=>x.protocol_version==='v3.30');
 const v330DistinctWorkers=new Set(v330Launches.map(x=>x.worker_id)).size;
 const v330NonceMismatch=v330Launches.filter(x=>x.explicit_exam && x.exam_launch_nonce!==x.beacon_launch_nonce).length;
 const v330MissingFreshBeacon=v330Launches.filter(x=>x.fresh_launch!==true || !x.beacon_launch_nonce).length;
+const v330PoolResidencyFailures=v330Launches.filter(x=>poolResidencyFailure(x.pool_residency));
+const v330SmokeConforming=v330Launches.filter(x=>
+  x.fresh_launch_integrity===true &&
+  !poolResidencyFailure(x.pool_residency)
+);
+const v330ConformingDistinctWorkers=new Set(v330SmokeConforming.map(x=>x.worker_id)).size;
+const poolResidencyIntegrity={
+  policy_ref:'coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json#productive_smoke',
+  protocol_version:'v3.30',
+  checkpoint_productive_units:3,
+  target_productive_units:6,
+  hard_cap_productive_units:8,
+  pooled_launches:v330Launches.filter(x=>x.pool_id).length,
+  unjustified_early_terminal_count:v330PoolResidencyFailures.length,
+  unjustified_early_terminal_workers:v330PoolResidencyFailures.map(x=>x.worker_id),
+  rule:'Active/derived launches are not failures. An explicit v3.30 POOL exam below target 6 must name an allowed real close_reason and at least one durable close_evidence_ref.'
+};
 const freshLaunchIntegrity={
   policy_ref:'coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json',
   protocol_version:'v3.30',
   required_distinct_fresh_workers:3,
   observed_distinct_fresh_workers:v330DistinctWorkers,
+  conforming_distinct_fresh_workers:v330ConformingDistinctWorkers,
   v330_launch_rows:v330Launches.length,
   explicit_exam_nonce_mismatches:v330NonceMismatch,
   missing_fresh_beacon_marker_or_nonce:v330MissingFreshBeacon,
-  status:(v330DistinctWorkers>=3 && v330NonceMismatch===0 && v330MissingFreshBeacon===0)?'SMOKE_PASS':'SMOKE_BUILDING',
-  replay_guard:'Historical terminal artifacts never substitute for a current launch; PASS requires fresh v3.30 beacons.'
+  residency_integrity_failures:v330PoolResidencyFailures.length,
+  status:(v330ConformingDistinctWorkers>=3)?'SMOKE_PASS':'SMOKE_BUILDING',
+  replay_guard:'Historical terminal artifacts never substitute for a current launch; PASS requires three fresh v3.30 workers with nonce integrity and no unjustified early POOL terminal.'
 };
 
 const measurementCoverage={
@@ -388,6 +423,7 @@ const out={
   launch_measurements:latestLaunches,
   measurement_coverage:measurementCoverage,
   fresh_launch_integrity:freshLaunchIntegrity,
+  pool_residency_integrity:poolResidencyIntegrity,
   growth_health:growthHealth,
   reproduction_counts:reproductionCounts,
   protocol_reproduction_counts:reproductionCounts,
@@ -400,7 +436,7 @@ const out={
   strategy_experiment_id:strategyExperimentId,
   strategy_experiment_status:strategyExperiment?.status||null,
   strategy_experiment_health:strategyExperimentHealth,
-  note:'Observability only. Every beacon receives a derived launch row; v3.30 fresh-launch integrity is tracked separately, and only explicit worker exams can supply causal strategy evidence. Global score remains end-to-end; strategy_experiment_health is class-local post-ownership evidence. Product/system/control value classes are routing/measurement aids, not Human Acceptance or Served authority.'
+  note:'Observability only. Every beacon receives a derived launch row; v3.30 fresh-launch and pooled-residency integrity are tracked separately, and only explicit worker exams can supply causal strategy evidence. Global score remains end-to-end; strategy_experiment_health is class-local post-ownership evidence. Product/system/control value classes are routing/measurement aids, not Human Acceptance or Served authority.'
 };
 fs.mkdirSync(path.dirname(outPath),{recursive:true});
 fs.writeFileSync(outPath,JSON.stringify(out,null,2)+'\n');
