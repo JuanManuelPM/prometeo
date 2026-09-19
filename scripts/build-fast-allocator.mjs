@@ -870,6 +870,17 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
   const unconsumedReturnRefs = uniq(materialReturns.slice(0, 12).map(row => row.path));
 
   const genericRecovery = recovery.filter(item => classifyFrontierCapabilityPressure([item], metabolism).generic_compatible_count === 1);
+  const replaceableTrigger = Number(signals.replaceable_trigger || 3);
+  const genericRecoveryBasisFingerprints = genericRecovery
+    .map(item => item?.recovery_basis_gate?.basis?.fingerprint || item?.recovery_gate?.basis?.fingerprint || null)
+    .filter(Boolean);
+  const genericRecoveryDiversityKnown = genericRecovery.length > 0 &&
+    genericRecoveryBasisFingerprints.length === genericRecovery.length;
+  const genericRecoveryDistinctBasisCount = new Set(genericRecoveryBasisFingerprints).size;
+  const genericRecoveryCausallyConcentrated = !genericRecoveryDiversityKnown ||
+    genericRecoveryDistinctBasisCount < genericRecoveryBasisFingerprints.length;
+  const genericRecoveryRescuePressure = genericRecoveryPressure >= replaceableTrigger &&
+    genericRecoveryCausallyConcentrated;
   const recoveryEvidence = uniq(genericRecovery.slice(0, 8).map(item => item.predecessor_pin_ref || item.source_path || `coordination/portfolio/PORTFOLIO.json#job:${item.job_id}`));
   const collisionEvidence = uniq(jobs
     .flatMap(job => collisionEvidenceRows(job))
@@ -1095,7 +1106,7 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
     ...rescueEligibleNoAlloc.slice(0, 4).map(row => row.path)
   ]);
   if (
-    genericRecoveryPressure >= Number(signals.replaceable_trigger || 3) ||
+    genericRecoveryRescuePressure ||
     collisionEvidence.length >= Number(signals.collision_pressure_trigger || 3) ||
     efficiency.status === 'REGRESSION' ||
     rescueEligibleNoAlloc.length >= 3
@@ -1136,6 +1147,10 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       capability_pressure: capabilityPressure,
       recovery_total: recovery.length,
       generic_compatible_recovery: genericRecoveryPressure,
+      generic_recovery_basis_fingerprint_count: genericRecoveryBasisFingerprints.length,
+      generic_recovery_distinct_basis_count: genericRecoveryDistinctBasisCount,
+      generic_recovery_diversity_known: genericRecoveryDiversityKnown,
+      generic_recovery_rescue_pressure: genericRecoveryRescuePressure,
       recovery_capability_pressure: recoveryCapabilityPressure,
       overload_guard: overloadGuard,
       generic_starvation_override: genericStarvationOverride,
