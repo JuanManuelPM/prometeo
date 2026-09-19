@@ -50,7 +50,7 @@ assert.ok(compass.creative_lever_catalog.find(x=>x.id==='PATTERN_REPRODUCTION').
 assert.equal(compass.current_priority_experiments.find(x=>x.id==='EXP-STRATEGY-AB').status,'ACTIVE_RUNNING_CANARY');
 
 const trajectory=json('coordination/guide/GROWTH_TRAJECTORY_V1.json');
-assert.ok(['S3_JOB_CLASS_STRATEGIES','S3_S4_S5_PARALLEL_GROWTH'].includes(trajectory.current_state.active_stage));
+assert.ok(['S3_JOB_CLASS_STRATEGIES','S3_S4_S5_PARALLEL_GROWTH','WORKER_PLATFORM_GRADUATION_P1'].includes(trajectory.current_state.active_stage));
 assert.equal(trajectory.current_state.active_experiment,'EXP-STRATEGY-AB');
 assert.ok(trajectory.roadmap.find(x=>x.stage==='S3_JOB_CLASS_STRATEGIES').status.startsWith('ACTIVE'));
 assert.ok(['ACTIVE_PARALLEL','ONGOING','ACTIVE_PARALLEL_MEASURED'].includes(trajectory.roadmap.find(x=>x.stage==='S4_CAPABILITY_SPECIALIZATION').status));
