@@ -16,8 +16,15 @@ const mission=json('coordination/guide/CURRENT_MISSION_V1.json');
 const oldExam=json('coordination/workers/exams/wc-20260918T212321Z-94fec87501.json');
 const oldBeacon=json('coordination/workers/beacons/wc-20260918T212321Z-94fec87501.json');
 const scoreboard=read('scripts/build-worker-scoreboard.mjs');
+const site=process.argv[3]?path.resolve(process.argv[3]):null;
 
 assert.equal(policy.status,'ACTIVE_BINDING');
+assert.equal(policy.human_inline_launch_guard.status,'ACTIVE_BINDING');
+assert.equal(policy.productive_smoke.status,'ACTIVE');
+assert.equal(policy.productive_smoke.target_productive_units,6);
+for(const marker of policy.human_inline_launch_guard.required_markers){
+  assert.ok(mission.operating_mode.invocation.includes(marker),'mission invocation missing inline guard '+marker);
+}
 assert.equal(policy.incident.diagnosis,'FRESH_LAUNCH_REPLAY');
 assert.equal(policy.incident.historical_exam_ref,'coordination/workers/exams/wc-20260918T212321Z-94fec87501.json');
 assert.equal(oldExam.worker_id,'wc-20260918T212321Z-94fec87501');
@@ -38,6 +45,9 @@ for(const needle of [
 ]) assert.ok(wc.includes(needle),'wc missing '+needle);
 assert.ok(wc.indexOf('atomically CREATE \`coordination/workers/beacons/<worker_id>.json\`') < wc.indexOf('Read ONE compact claim frontier directly:'),'fresh beacon must precede frontier read');
 
+assert.ok(wc.includes('HUMAN INLINE LAUNCH GUARD'),'wc must carry defense-in-depth launch envelope semantics');
+assert.ok(wc.includes('For **BATCH and POOL launches**'),'POOL residency target must be explicit');
+assert.ok(wc.includes("historical worker's exhaustion/no-allocation evidence never satisfies this launch"),'below-target close cannot inherit historical exhaustion');
 assert.equal(examSpec.current_worker_protocol_version,'v3.30');
 assert.equal(examSpec.v330_fresh_launch.policy_ref,'coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json');
 assert.equal(growth.worker_protocol_min_version,'v3.30');
@@ -49,5 +59,13 @@ assert.equal(mission.current_snapshot.fresh_launch_incident.status,'CONFIRMED_RE
 assert.equal(mission.current_snapshot.occupancy.recommended_additional_launches_at_snapshot,3);
 
 for(const needle of ['fresh_launch_integrity','beacon_launch_nonce','exam_launch_nonce','SMOKE_PASS']) assert.ok(scoreboard.includes(needle),'scoreboard missing '+needle);
+
+if(site){
+  const publicWc=fs.readFileSync(path.join(site,'wc','index.html'),'utf8');
+  assert.ok(publicWc.includes(mission.operating_mode.invocation),'public /wc must render exact canonical mission invocation');
+  for(const marker of policy.human_inline_launch_guard.required_markers){
+    assert.ok(publicWc.includes(marker),'public /wc missing inline guard '+marker);
+  }
+}
 
 console.log('WORKER_FRESH_LAUNCH_V1_PASS');
