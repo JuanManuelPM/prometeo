@@ -7,10 +7,10 @@ This remains `/wc` CANARY. Production `/w` is evidence-gated.
 ## INVOCATION / WRITE AUTHORIZATION
 
 Preferred finite-wave invocation:
-`🟠 PROMETEO /wc — autorizo beacon, eventos de telemetría, PIN/claim y commits reversibles necesarios en JuanManuelPM/prometeo para ejecutar trabajo seguro del canary, sin pedirme confirmación adicional. BATCH <batch_id> EXPECTED <n> — TÍTULO SUGERIDO DEL CHAT (si la app lo permite): «🟠 PROMETEO · WC · <batch_id>» → https://juanmanuelpm.github.io/prometeo/wc/`
+`🟠 PROMETEO /wc — NUEVO_WORKER=1 · PRIMERA_ACCIÓN_DURABLE: creá tu beacon propio fresco v3.30 con worker_id + launch_nonce de novo; PROHIBIDO reutilizar identidad o resultado histórico; RESIDENTE_BATCH: 3=checkpoint, objetivo=6, tope=8 salvo boundary real. Autorizo beacon, eventos de telemetría, PIN/claim y commits reversibles necesarios en JuanManuelPM/prometeo para ejecutar trabajo seguro del canary, sin pedirme confirmación adicional. BATCH <batch_id> EXPECTED <n> — TÍTULO SUGERIDO DEL CHAT (si la app lo permite): «🟠 PROMETEO · WC · <batch_id>» → https://juanmanuelpm.github.io/prometeo/wc/`
 
 Preferred continuous-pool invocation:
-`🟠 PROMETEO /wc — autorizo beacon, eventos de telemetría, PIN/claim y commits reversibles necesarios en JuanManuelPM/prometeo para ejecutar trabajo seguro del canary, sin pedirme confirmación adicional. POOL <pool_id> — TÍTULO SUGERIDO DEL CHAT (si la app lo permite): «🟠 PROMETEO · WC · <pool_id>» → https://juanmanuelpm.github.io/prometeo/wc/`
+`🟠 PROMETEO /wc — NUEVO_WORKER=1 · PRIMERA_ACCIÓN_DURABLE: creá tu beacon propio fresco v3.30 con worker_id + launch_nonce de novo; PROHIBIDO reutilizar identidad o resultado histórico; RESIDENTE_POOL: 3=checkpoint, objetivo=6, tope=8 salvo boundary real. Autorizo beacon, eventos de telemetría, PIN/claim y commits reversibles necesarios en JuanManuelPM/prometeo para ejecutar trabajo seguro del canary, sin pedirme confirmación adicional. POOL <pool_id> — TÍTULO SUGERIDO DEL CHAT (si la app lo permite): «🟠 PROMETEO · WC · <pool_id>» → https://juanmanuelpm.github.io/prometeo/wc/`
 
 Chat title hints are UX-only. They never change worker_id, pool/batch identity, routing, authority, claims or evidence. Do not spend work trying to rename the chat if the client does not expose that ability.
 
@@ -36,6 +36,17 @@ For a NEW launch:
 - if no fresh beacon can be created after the bounded attempts, STOP as `FRESH_LAUNCH_BEACON_NOT_CREATED`. Do not present any historical worker completion as a substitute.
 
 A terminal human response for a new launch is FORBIDDEN unless this chat created its own fresh beacon in this turn.
+
+### HUMAN INLINE LAUNCH GUARD — DEFENSE IN DEPTH
+
+The canonical HUMAN invocation itself MUST front-load the launch invariant because a fresh chat may have project/model memory before it dereferences the /wc URL. Current canonical prompts therefore carry `NUEVO_WORKER=1`, `PRIMERA_ACCIÓN_DURABLE`, the explicit historical-reuse prohibition, and resident-work depth.
+
+- `NUEVO_WORKER=1` means this human message is a fresh launch envelope, never an implicit resume.
+- `PRIMERA_ACCIÓN_DURABLE` means create this launch's own fresh beacon before any claim, historical worker inspection, or terminal answer.
+- Historical completion text, even if true, is NEVER a valid response to a `NUEVO_WORKER=1` launch.
+- For POOL/BATCH launch envelopes, the human-message residency clause is binding: 3 productive units is checkpoint, target 6, hard cap 8, except a real safety/authority/capability/transport/exhaustion boundary.
+- This inline guard is defense in depth, not a second authority system. Durable beacon + PIN/claim remain the machine evidence/authority.
+
 
 
 If an authority claim CREATE is **explicitly denied before authority exists** by connector/tool authorization or safety controls, classify `CLAIM_TRANSPORT_BLOCKED` and STOP immediately. This classification requires an explicit authorization/safety denial. Never retry the denied action/path and never bypass the control. Persist one no-allocation receipt when possible. If instead a pre-authority write failure proves neither explicit denial, target-path existence nor branch-head movement, classify `CLAIM_TRANSPORT_AMBIGUOUS`: it grants no authority and may use at most ONE transport diversion, using only the already-loaded compatible candidate view, to one untried candidate with a different claim path and no extra preclaim read. A second ambiguous transport failure STOPs. Once a PIN/claim CREATE has succeeded, ownership is durable and later STARTED transport failure is post-claim signaling debt, never either preclaim classification.
@@ -222,19 +233,19 @@ A useful worker should not stop after one productive unit.
 
 - Maintain `productive_units` in-chat, starting at 0 after the first ownership win.
 - Increment only after a durable RETURN/guide receipt that changed product/evidence/frontier or completed a real verification. Telemetry-only, NO_ACTION, stale-hint abort, pure boundary and failed transport do NOT count.
-- For explicit batches, **3 productive units is a checkpoint, not a stop**. Target **6 productive units**; hard cap **8**. Unbatched workers may still stop earlier when their bounded work is complete.
+- For **BATCH and POOL launches**, **3 productive units is a checkpoint, not a stop**. Target **6 productive units**; hard cap **8**. Unbatched workers may still stop earlier when their bounded work is complete.
 - Prefer at most **2 consecutive productive units in the same project**. Then diversify through the compact frontier unless that project is the only grounded compatible work.
 - After each counted unit: materialize grounded successors when authorized, refresh only the compact claim frontier, and immediately claim the next compatible unit. When several compatible candidates are comparably grounded, honor `value_class` plus the active growth budget instead of defaulting to more optional control-plane work.
 - **SUCCESSOR RELAY:** if the chat must stop while one concrete residual remains unfinished, create at most ONE non-duplicate derived successor when authorized. It must carry stable dedupe_key, predecessor evidence ref, project_id, kind, required_capabilities, mission, definition_of_done and the bounded context capsule. No residual -> no relay. Never manufacture successors to improve metrics.
 - A PROJECT GUIDE cycle counts as productive only if it updates its STATE revision and either creates/repairs grounded frontier or executes/verifies local work.
-- Do not close merely because the first job finished or because checkpoint 3 was reached. In an explicit batch, close before target 6 only for a hard safety/authority/capability/transport boundary, genuinely exhausted compatible product/assist/guide frontier, or duplicate ownership risk. After target 6, continue while compatible product/assist work remains until hard cap 8.
+- Do not close merely because the first job finished or because checkpoint 3 was reached. In **BATCH or POOL**, close before target 6 only for a hard safety/authority/capability/transport boundary, genuinely exhausted compatible product/assist/guide frontier, or duplicate ownership risk. Before a below-target frontier-exhaustion close, refresh the compact frontier once after the latest productive RETURN and prove locally that no compatible unowned candidate remains; a historical worker's exhaustion/no-allocation evidence never satisfies this launch. After target 6, continue while compatible product/assist work remains until hard cap 8.
 - The same `worker_id` and batch identity survive across the chain; do not create a new beacon for each unit.
 - Emit the lifecycle `CLOSE` telemetry only when the chat itself finally closes, not after each unit. Durable per-unit truth lives in RETURN/guide receipts.
 - Immediately before terminal CLOSE, verify that this chat still holds the fresh current-turn worker_id + launch_nonce created by its own beacon. Never substitute a historical worker/exam. Then write one evidence-backed productivity exam card at `coordination/workers/exams/<worker_id>.json` following `coordination/workers/WORKER_PRODUCTIVITY_EXAM_V1.json`. Fill up to six numbered slots from this worker's own durable RETURN/guide evidence. Do not invent units to fill blanks; empty slots are allowed and score zero. This one exam write is part of CLOSE and does not change authority. If that final exam write is unavailable/blocked, do not fabricate or loop: durable beacon/PIN/no-allocation/RETURN evidence will still produce a derived launch measurement in the public scoreboard; that derived row is observability only and cannot become A/B causal evidence. For v3.30 cards include `protocol_version="v3.30"` and the current `launch_nonce`; the exam launch_nonce MUST equal this launch's beacon launch_nonce. If enrolled, include top-level `experiment_id`, `experiment_enrolled=true`, `job_class`, `strategy_variant`, truthful `strategy_assignment_basis`, optional real `strategy_assignment_snapshot`, and mark only governed matching-class slots `experimental_slot=true`. If not enrolled, use `experiment_enrolled=false` and do not fabricate class/variant metadata. `pattern_id` is reserved for an actually active pattern explicitly loaded after ownership; never write retired `YIELD-10X-V1` on new cards.
 
 ### WAVE RESIDENCY / ASSIST
 
-Explicit-batch workers are resident capacity, not one-shot jobs.
+BATCH and POOL workers are resident capacity, not one-shot jobs.
 
 - Reaching productive unit 3 changes internal mode to `CHECKPOINT_REACHED`; it MUST NOT emit CLOSE or stop solely for quota completion.
 - After checkpoint, prefer claimable product work and bounded assist children over generic infrastructure work.
