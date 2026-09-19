@@ -58,17 +58,17 @@ const classForCandidate=x=>{
   return null;
 };
 const representedClasses=[...new Set(frontierCandidates.map(classForCandidate).filter(Boolean))];
-const seh=scoreboard.strategy_experiment_health||null;
+const handoffSeh=scoreboard.strategy_experiment_health||null;
 const rate=Math.max(0.20,(Number(scoreboard?.growth_health?.authority_rate)||0)*(Number(scoreboard?.growth_health?.explicit_exam_rate)||0));
 let attemptsForGap=0;
 const sampleGaps=[];
-if(seh){
+if(handoffSeh){
   for(const cls of representedClasses){
-    const row=seh?.classes?.[cls];
+    const row=handoffSeh?.classes?.[cls];
     const variant=row?.assignment_hint?.underrepresented_variant;
     if(!variant) continue;
     const cur=Number(row?.variants?.[variant]?.independent_workers_with_experimental_slots)||0;
-    const target=Number(seh?.min_independent_workers_per_variant)||3;
+    const target=Number(handoffSeh?.min_independent_workers_per_variant)||3;
     const gap=Math.max(0,target-cur);
     const attempts=gap?Math.ceil(gap/rate):0;
     attemptsForGap=Math.max(attemptsForGap,attempts);
