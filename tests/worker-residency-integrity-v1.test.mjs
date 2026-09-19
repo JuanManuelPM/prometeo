@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   classifyPoolResidency,
+  canonicalPoolTerminalClose,
   poolResidencyFailure,
   POOL_RESIDENCY_CHECKPOINT,
   POOL_RESIDENCY_TARGET,
@@ -43,6 +44,39 @@ const fake=classifyPoolResidency({
   close_reason:'DONE',close_evidence_refs:['some/ref']
 });
 assert.equal(fake.status,'EARLY_CLOSE_UNJUSTIFIED');
+
+const transportBlockedProjection=canonicalPoolTerminalClose({
+  no_allocation:{outcome:'CLAIM_TRANSPORT_BLOCKED'},
+  no_allocation_ref:'coordination/workers/no-allocation/wc-transport-blocked.json'
+});
+assert.equal(transportBlockedProjection.diagnostic_outcome,'CLAIM_TRANSPORT_BLOCKED');
+assert.equal(transportBlockedProjection.close_reason,'TRANSPORT_BOUNDARY');
+assert.deepEqual(transportBlockedProjection.close_evidence_refs,['coordination/workers/no-allocation/wc-transport-blocked.json']);
+const transportExplained=classifyPoolResidency({
+  protocol_version:'v3.30',pool_id:'PROD-01',explicit_exam:true,productive_units:0,
+  close_reason:transportBlockedProjection.close_reason,
+  close_evidence_refs:transportBlockedProjection.close_evidence_refs
+});
+assert.equal(transportExplained.status,'EARLY_CLOSE_EXPLAINED');
+assert.equal(poolResidencyFailure(transportExplained),false);
+
+const transportBlockedWithoutDurableRef=canonicalPoolTerminalClose({
+  no_allocation:{outcome:'CLAIM_TRANSPORT_BLOCKED'}
+});
+const transportStillFailClosed=classifyPoolResidency({
+  protocol_version:'v3.30',pool_id:'PROD-01',explicit_exam:true,productive_units:0,
+  close_reason:transportBlockedWithoutDurableRef.close_reason,
+  close_evidence_refs:transportBlockedWithoutDurableRef.close_evidence_refs
+});
+assert.equal(transportStillFailClosed.status,'EARLY_CLOSE_UNJUSTIFIED');
+assert.equal(poolResidencyFailure(transportStillFailClosed),true);
+
+const diagnosticReasonIsNotTerminalReason=classifyPoolResidency({
+  protocol_version:'v3.30',pool_id:'PROD-01',explicit_exam:true,productive_units:0,
+  close_reason:'CLAIM_TRANSPORT_BLOCKED',
+  close_evidence_refs:['coordination/workers/no-allocation/wc-transport-blocked.json']
+});
+assert.equal(diagnosticReasonIsNotTerminalReason.status,'EARLY_CLOSE_UNJUSTIFIED');
 
 const unbatched=classifyPoolResidency({
   protocol_version:'v3.30',pool_id:null,explicit_exam:true,productive_units:1
