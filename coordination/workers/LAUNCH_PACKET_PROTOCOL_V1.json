@@ -1,8 +1,8 @@
 {
   "schema": "prometeo.launch-packet/v1",
   "protocol_id": "LAUNCH-PACKET-V1",
-  "status": "ACTIVE_BINDING_IMPLEMENTATION_PENDING",
-  "updated_at": "2026-09-19T15:20:56.602Z",
+  "status": "ACTIVE_BINDING",
+  "updated_at": "2026-09-19T16:32:17.688Z",
   "purpose": "Replace anonymous repeated /wc launches against mutable global frontier with one Guide-compiled immutable run packet whose workers atomically self-assign unique launch slots, load long exact context only after slot ownership, and remain resident after completing the slot's first project.",
   "human_contract": {
     "same_prompt_for_entire_run": true,
@@ -78,7 +78,10 @@
       "workers_terminal",
       "failures_by_reason"
     ],
-    "benefit": "A human statement such as 'I launched 17 chats' becomes directly comparable to a durable run packet instead of being inferred from timestamps."
+    "benefit": "A human statement such as 'I launched 17 chats' becomes directly comparable to a durable run packet instead of being inferred from timestamps.",
+    "public_run_status": "https://juanmanuelpm.github.io/prometeo/launch/<run_id>/status.json",
+    "runtime_ref": "gh-pages:live/runtime.json#launch_runs",
+    "scoreboard_ref": "gh-pages:live/worker-scoreboard.json#launch_runs"
   },
   "residency": {
     "primary_project_completion_is_not_terminal": true,
@@ -86,12 +89,13 @@
     "existing_pool_law": "3 checkpoint / target 6 / cap 8 remains binding unless benchmark-specific stricter completion is declared."
   },
   "implementation_order": [
-    "Build canonical PACKET compiler from Current Mission + compatible frontier + capability buckets",
-    "Build public /launch/<run_id>/ projection containing packet + per-slot capsules",
-    "Add atomic launch-slot claim protocol to /wc before ordinary job allocation",
-    "Add run/slot fields to beacon, runtime and scoreboard",
-    "Add packet accounting tests so slots_claimed can never exceed slots_total and one slot has at most one owner",
-    "Only then arm the graduation benchmark"
+    "DONE: canonical packet compiler + public /launch/<run_id>/ projection",
+    "DONE: exact long slot capsules and public status.json",
+    "DONE: RUN mode in /wc with fresh beacon then atomic slot claim",
+    "DONE: run/slot fields in runtime and scoreboard",
+    "DONE: static packet accounting validator and runtime regression",
+    "DONE: static Cat Lab/Dog Notes contracts plus representative Chromium workflow",
+    "NEXT: arm CATLAB-EVO-01 and execute the bounded 10-worker exploration run"
   ],
   "non_goals": [
     "making the human number prompts",
@@ -99,5 +103,59 @@
     "creating filler slots to hit a desired worker count",
     "making packet creation an endless experiment",
     "claiming unattended chat wake"
-  ]
+  ],
+  "pipeline_ref": "coordination/workers/WORKER_PIPELINE_V1.json",
+  "evolution_ref": "coordination/workers/WORKER_EVOLUTION_LAB_V1.json",
+  "benchmark_receipt_ref": "coordination/workers/WORKER_BENCHMARK_RECEIPT_V1.json",
+  "entry_chain": {
+    "invariant": "Human prompt -> parse RUN -> fresh beacon -> exact packet -> atomic slot -> slot capsule -> bounded plan -> produce -> verify -> receipt -> reallocate -> exam/close.",
+    "first_durable_action": "fresh beacon CREATE",
+    "second_durable_action_when_run": "atomic launch-slot CREATE",
+    "pre_slot_reads": [
+      "wc bootstrap",
+      "fresh-launch policy",
+      "exact /launch/<run_id>/packet.json only"
+    ],
+    "forbidden_before_slot": [
+      "mutable claim frontier",
+      "project archaeology",
+      "historical worker selection",
+      "variant choice by human"
+    ]
+  },
+  "slot_claim_schema": {
+    "schema": "prometeo.launch-slot-claim/v1",
+    "required_fields": [
+      "schema",
+      "run_id",
+      "slot_id",
+      "worker_id",
+      "launch_nonce",
+      "beacon_ref",
+      "evolution_variant",
+      "claimed_at",
+      "write_scope"
+    ],
+    "primary_path": "coordination/launch-packets/<run_id>/claims/<slot_id>.json",
+    "reallocation_path": "coordination/launch-packets/<run_id>/reallocation-claims/<slot_id>.json",
+    "atomicity": "CREATE_ONLY",
+    "collision": "CREATE_EXISTS means owned by another worker; cycle to next retained compatible slot",
+    "owner_uniqueness": "One claim path = one slot owner. A worker claiming >1 primary slot is a protocol failure."
+  },
+  "selection_engineering": {
+    "wall_clock_hashing": "FORBIDDEN_AS_PRIMARY",
+    "reason": "Second/minute-based assignment can synchronize many launches onto the same shard and is not stable enough for reconstruction.",
+    "seed_priority": [
+      "beacon_commit_sha:first8hex",
+      "launch_nonce:first8hex"
+    ],
+    "algorithm": "stable compatible slot list; seed modulo length; cyclic linear probe on CREATE_EXISTS; each compatible slot at most once",
+    "benefit": "No human numbering, exact reproducibility, bounded collisions, and all slots remain reachable even under identical starting seeds."
+  },
+  "stage_evolution": {
+    "mode": "CONTROLLED_COMPONENT_EVOLUTION",
+    "rule": "Test stage-level laws rather than ten unrelated full prompts. Current exploration uses 5 variants x 2 replicas on identical Cat Lab objectives; only one stage rule changes per variant.",
+    "promotion": "Exploration n=2 selects at most two candidates; any law requires >=3 independent confirmation workers before promotion.",
+    "automatic_winner": false
+  }
 }
