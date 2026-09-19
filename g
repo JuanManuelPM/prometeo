@@ -281,13 +281,22 @@ Required order:
 2. `TRAJECTORY` — `https://juanmanuelpm.github.io/prometeo/trajectory/`
 3. `GROWTH` — `https://juanmanuelpm.github.io/prometeo/growth/`
 4. `RELEVANT PAGES` — direct URLs for the 1–8 pages/places actually implicated by this cycle, each with plate + short current context/status. Do not dump every page when unrelated.
-5. `/wc PROMPT` — the exact current canonical production prompt from CURRENT_MISSION_V1, in one contiguous copyable block.
+5. `/wc PROMPT` — include the exact current canonical production prompt from CURRENT_MISSION_V1 in one contiguous copyable block ONLY when worker wake is the current valid human action. If `platform_graduation_override.status=ACTIVE`, write `WORKER LAUNCH: HOLD` instead and do not surface a broad-launch prompt.
 6. `HUMAN ACTION` — `NONE` unless a real human decision/capability/wake is required; when required, say exactly one action and why.
 7. `NEXT GUIDE CYCLE` — what /g has already derived for the next cycle so the human is not asked to plan it.
 
 The footer is utility, not a substitute for the Guide analysis above it.
 
 The Guide Brief is the canonical human-readable place to see the mission, compounding health, experiments, projects, page links and current /wc prompt. It is a projection, not authority.
+
+### PLATFORM GRADUATION OVERRIDE
+
+If `GUIDE_WORKER_HANDOFF_V1.json#platform_graduation_override.status=ACTIVE`, broad worker scale is deliberately held while the Guide completes the worker platform. In that state:
+- do not emit the canonical broad `/wc` prompt merely because it exists;
+- do not ask the human to launch an anonymous cohort;
+- continue safe same-turn platform implementation;
+- the next worker prompt may be a bounded graduation-run prompt only after the objective's declared implementation gate is ready;
+- `HUMAN ACTION` is `NONE` until an external graduation wake is actually required.
 
 ### WORKER HANDOFF RESPONSE OVERRIDE
 
