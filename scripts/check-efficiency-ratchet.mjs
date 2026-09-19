@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048','EFF050','EFF049','EFF051','EFF055','EFF056']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048','EFF050','EFF049','EFF051','EFF055','EFF056','EFF057']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -36,7 +36,7 @@ const strategyExperimentItem = baseline?.items?.find(x=>x.id==='EFF051');
 if (!strategyExperimentItem) errors.push('baseline: EFF051 missing');
 else {
   if (strategyExperimentItem.required?.active_experiment_ref !== 'coordination/workers/WORKER_STRATEGY_EXPERIMENT_V1.json') errors.push('baseline: EFF051 experiment ref drift');
-  if (strategyExperimentItem.required?.worker_protocol_version !== 'v3.29') errors.push('baseline: EFF051 protocol version drift');
+  if (strategyExperimentItem.required?.worker_protocol_version !== 'v3.30') errors.push('baseline: EFF051 protocol version drift');
   if (strategyExperimentItem.required?.applies_after !== 'OWNERSHIP') errors.push('baseline: EFF051 ownership boundary drift');
   if (strategyExperimentItem.required?.preclaim_reads_added !== 0) errors.push('baseline: EFF051 preclaim read regression');
   if (strategyExperimentItem.required?.claim_authority_unchanged !== true) errors.push('baseline: EFF051 claim authority drift');
@@ -47,7 +47,7 @@ const strategyExperiment = JSON.parse(read(root, 'coordination/workers/WORKER_ST
 if (strategyExperiment.status !== 'ACTIVE_CANARY' || strategyExperiment.applies_after !== 'OWNERSHIP') errors.push('strategy-experiment: active ownership boundary drift');
 if (strategyExperiment?.authority_boundary?.preclaim_reads_added !== 0 || strategyExperiment?.authority_boundary?.claim_authority_changed !== false) errors.push('strategy-experiment: preclaim/authority regression');
 const strategyExam = JSON.parse(read(root, 'coordination/workers/WORKER_PRODUCTIVITY_EXAM_V1.json')||'{}');
-if (strategyExam.current_worker_protocol_version !== 'v3.29') errors.push('strategy-experiment: exam protocol drift');
+if (strategyExam.current_worker_protocol_version !== 'v3.30') errors.push('strategy-experiment: exam protocol drift');
 if (strategyExam?.strategy_measurement?.active_experiment_ref !== 'coordination/workers/WORKER_STRATEGY_EXPERIMENT_V1.json') errors.push('strategy-experiment: exam ref drift');
 if (strategyExam?.pattern_measurement?.active_pattern_ref !== null) errors.push('strategy-experiment: retired pattern still active');
 const strategyWc = read(root, 'wc');
@@ -65,7 +65,7 @@ must('strategy-scoreboard', strategyScoreboard, 'growth_health');
 const growthItem = baseline?.items?.find(x=>x.id==='EFF055');
 if (!growthItem) errors.push('baseline: EFF055 missing');
 else {
-  if (growthItem.required?.worker_protocol_version !== 'v3.29') errors.push('baseline: EFF055 protocol drift');
+  if (growthItem.required?.worker_protocol_version !== 'v3.30') errors.push('baseline: EFF055 protocol drift');
   if (growthItem.required?.growth_policy_ref !== 'coordination/workers/WORKER_GROWTH_POLICY_V1.json') errors.push('baseline: EFF055 policy ref drift');
   if (growthItem.required?.every_beacon_has_launch_row !== true) errors.push('baseline: EFF055 beacon measurement drift');
   if (growthItem.required?.derived_launch_strategy_causality_forbidden !== true) errors.push('baseline: EFF055 causal leakage');
@@ -76,7 +76,7 @@ else {
 }
 const growthPolicy = JSON.parse(read(root, 'coordination/workers/WORKER_GROWTH_POLICY_V1.json')||'{}');
 if (growthPolicy.status !== 'ACTIVE_CANARY') errors.push('growth-policy: must be ACTIVE_CANARY');
-if (growthPolicy.worker_protocol_min_version !== 'v3.29') errors.push('growth-policy: protocol drift');
+if (growthPolicy.worker_protocol_min_version !== 'v3.30') errors.push('growth-policy: protocol drift');
 if (growthPolicy?.automatic_launch_measurement?.synthesized_strategy_causality_forbidden !== true) errors.push('growth-policy: derived causal leakage');
 if (growthPolicy?.strategy_balance?.assignment_mode !== 'ADAPTIVE_MIN_SAMPLE_THEN_HASH_TIEBREAK') errors.push('growth-policy: assignment mode drift');
 if (growthPolicy?.strategy_balance?.read_timing !== 'POST_OWNERSHIP_ONLY') errors.push('growth-policy: assignment read timing drift');
@@ -102,14 +102,14 @@ else {
   if (handoffItem.required?.canonical_prompt_first_copyable_block !== true) errors.push('baseline: EFF056 prompt-first drift');
   if (handoffItem.required?.approximate_count_required !== true) errors.push('baseline: EFF056 count requirement drift');
   if (handoffItem.required?.count_withholding_on_stale_runtime_forbidden !== true) errors.push('baseline: EFF056 stale runtime count drift');
-  if (handoffItem.required?.current_approx_workers !== 15) errors.push('baseline: EFF056 current approx count drift');
+  if (handoffItem.required?.current_approx_workers !== 3) errors.push('baseline: EFF056 current approx count drift');
   if (handoffItem.required?.human_worker_routing_forbidden !== true) errors.push('baseline: EFF056 routing drift');
 }
 const handoffPolicy = JSON.parse(read(root, 'coordination/guide/GUIDE_WORKER_HANDOFF_V1.json')||'{}');
 if (handoffPolicy.status !== 'ACTIVE_BINDING') errors.push('guide-handoff: policy must be ACTIVE_BINDING');
 if (handoffPolicy?.launch_estimator?.bounded_canary?.minimum !== 10 || handoffPolicy?.launch_estimator?.bounded_canary?.maximum !== 20) errors.push('guide-handoff: bounded canary drift');
 if (handoffPolicy?.launch_estimator?.bounded_canary?.frontier_multiplier !== 1.25) errors.push('guide-handoff: frontier multiplier drift');
-if (handoffPolicy?.current_recommendation_example?.recommended_approx_workers !== 15) errors.push('guide-handoff: current recommendation drift');
+if (handoffPolicy?.current_recommendation_example?.recommended_approx_workers !== 3) errors.push('guide-handoff: current recommendation drift');
 const guideBootstrap = read(root, 'g');
 must('guide-handoff', guideBootstrap, 'WORKER HANDOFF RESPONSE OVERRIDE');
 must('guide-handoff', guideBootstrap, 'first visible copyable block');
@@ -119,6 +119,29 @@ must('guide-handoff-test', guideHandoffTest, 'GUIDE_WORKER_HANDOFF_V1_PASS');
 const handoffGuideBriefBuilder = read(root, 'scripts/build-guide-brief.mjs');
 must('guide-brief-handoff', handoffGuideBriefBuilder, 'approximate_additional_workers_before_next_guide_return');
 must('guide-brief-handoff', handoffGuideBriefBuilder, 'strategy_sample_gaps');
+
+const freshLaunchItem = baseline?.items?.find(x=>x.id==='EFF057');
+if (!freshLaunchItem) errors.push('baseline: EFF057 missing');
+else {
+  if (freshLaunchItem.required?.worker_protocol_version !== 'v3.30') errors.push('baseline: EFF057 protocol drift');
+  if (freshLaunchItem.required?.fresh_launch_policy_ref !== 'coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json') errors.push('baseline: EFF057 policy ref drift');
+  if (freshLaunchItem.required?.fresh_worker_id_de_novo !== true) errors.push('baseline: EFF057 worker identity drift');
+  if (freshLaunchItem.required?.launch_nonce_de_novo !== true) errors.push('baseline: EFF057 nonce drift');
+  if (freshLaunchItem.required?.beacon_create_before_allocation !== true) errors.push('baseline: EFF057 beacon ordering drift');
+  if (freshLaunchItem.required?.historical_terminal_substitution_forbidden !== true) errors.push('baseline: EFF057 replay guard drift');
+  if (freshLaunchItem.required?.smoke_distinct_workers_required !== 3) errors.push('baseline: EFF057 smoke count drift');
+}
+const freshLaunchPolicy = JSON.parse(read(root,'coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json')||'{}');
+if (freshLaunchPolicy.status !== 'ACTIVE_BINDING') errors.push('fresh-launch: policy must be ACTIVE_BINDING');
+if (freshLaunchPolicy?.fresh_identity?.atomic_uniqueness_gate?.includes?.('CREATE') !== true) errors.push('fresh-launch: atomic beacon gate missing');
+if (freshLaunchPolicy?.smoke_gate?.required_distinct_fresh_workers !== 3) errors.push('fresh-launch: smoke gate drift');
+must('fresh-launch-wc', strategyWc, 'FRESH LAUNCH / ANTI-REPLAY');
+must('fresh-launch-wc', strategyWc, 'fresh_launch=true');
+must('fresh-launch-wc', strategyWc, 'launch_nonce');
+must('fresh-launch-wc', strategyWc, 'FRESH_LAUNCH_BEACON_NOT_CREATED');
+must('fresh-launch-scoreboard', strategyScoreboard, 'fresh_launch_integrity');
+const freshLaunchTest = read(root,'tests/worker-fresh-launch-v1.test.mjs');
+must('fresh-launch-test', freshLaunchTest, 'WORKER_FRESH_LAUNCH_V1_PASS');
 
 const allocator = read(root, 'scripts/build-fast-allocator.mjs');
 must('allocator', allocator, 'value_class');
@@ -385,7 +408,7 @@ must('wc', wc, 'batch_id=POOL-<pool_id>');
 must('wc', wc, 'productivity exam card');
 must('wc-strategy-experiment', wc, 'POOL POST-OWNERSHIP STRATEGY EXPERIMENT');
 must('wc-strategy-experiment', wc, 'coordination/workers/WORKER_STRATEGY_EXPERIMENT_V1.json');
-must('wc-strategy-experiment', wc, 'protocol_version="v3.29"');
+must('wc-strategy-experiment', wc, 'protocol_version="v3.30"');
 must('wc-strategy-experiment', wc, 'experiment_id="EXP-STRATEGY-AB"');
 mustNot('wc-strategy-experiment', wc, '### POOL YIELD-PATTERN REPRODUCTION');
 
