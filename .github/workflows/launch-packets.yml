@@ -1,0 +1,97 @@
+name: Prometeo Launch Packets
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/launch-packets/**'
+      - 'coordination/workers/LAUNCH_PACKET_PROTOCOL_V1.json'
+      - 'coordination/workers/WORKER_PIPELINE_V1.json'
+      - 'coordination/workers/WORKER_EVOLUTION_LAB_V1.json'
+      - 'coordination/workers/WORKER_BENCHMARK_RECEIPT_V1.json'
+      - 'scripts/build-launch-packets.mjs'
+      - 'scripts/check-launch-packet-v1.mjs'
+      - 'tests/cat-lab-contract-v1.mjs'
+      - 'tests/dog-notes-contract-v1.mjs'
+      - 'pages/bench/**'
+      - '.github/workflows/launch-packets.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prometeo-launch-packets
+  cancel-in-progress: false
+
+jobs:
+  validate-build-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: source
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate canonical packet
+        run: node source/scripts/check-launch-packet-v1.mjs source
+
+      - name: Validate any completed benchmark source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d source/pages/bench/cat-lab ]; then
+            while IFS= read -r -d '' f; do
+              node source/tests/cat-lab-contract-v1.mjs "$(dirname "$f")"
+            done < <(find source/pages/bench/cat-lab -type f -name index.html -print0)
+          fi
+          if [ -d source/pages/bench/dog-notes ]; then
+            while IFS= read -r -d '' f; do
+              node source/tests/dog-notes-contract-v1.mjs "$(dirname "$f")"
+            done < <(find source/pages/bench/dog-notes -type f -name index.html -print0)
+          fi
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          fetch-depth: 20
+
+      - name: Build public launch packets
+        run: node source/scripts/build-launch-packets.mjs source site
+
+      - name: Validate public projection
+        run: node source/scripts/check-launch-packet-v1.mjs source site
+
+      - name: Sync benchmark pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p site/bench
+          if [ -d source/pages/bench ]; then
+            rsync -a source/pages/bench/ site/bench/
+          fi
+
+      - name: Publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C site config user.name github-actions[bot]
+          git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C site pull --rebase origin gh-pages
+          git -C site add launch bench
+          if git -C site diff --cached --quiet; then exit 0; fi
+          git -C site commit -m "launch: publish packet and benchmark projections"
+          for n in 1 2 3 4; do
+            if git -C site push origin HEAD:gh-pages; then exit 0; fi
+            git -C site fetch origin gh-pages
+            git -C site rebase origin/gh-pages
+          done
+          exit 1
