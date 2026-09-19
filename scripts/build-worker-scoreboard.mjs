@@ -223,7 +223,11 @@ function unitValueClass(d,kind,ref){
   if(['PRODUCT_VALUE','SYSTEM_MULTIPLIER','CONTROL_OVERHEAD','BOUNDARY'].includes(explicit)) return explicit;
   const jobId=d?.job_id||inferJobIdFromRef(ref);
   const projectId=d?.project_id||d?.scope_project_id||jobProject.get(jobId)||null;
-  if(kind==='guide-receipt') return 'SYSTEM_MULTIPLIER';
+  if(kind==='guide-receipt'){
+    const reusable=arr(d?.created_jobs).filter(Boolean).length+arr(d?.spawn_candidates).filter(Boolean).length+arr(d?.consumed_returns).filter(Boolean).length>0;
+    const outcome=String(d?.outcome||d?.status||d?.state||d?.summary||'').toUpperCase();
+    return reusable || /(RATCHET|REPAIR|RESCUE|INTEGRAT|UNLOCK|FIX|FRONTIER)/.test(outcome) ? 'SYSTEM_MULTIPLIER' : 'CONTROL_OVERHEAD';
+  }
   if(projectId && systemProjects.has(projectId)) return 'SYSTEM_MULTIPLIER';
   if(projectId) return 'PRODUCT_VALUE';
   return 'CONTROL_OVERHEAD';
@@ -310,6 +314,7 @@ const growthHealth={
   productive_worker_rate:ratio(latestLaunches.filter(x=>x.productive_units>0).length,latestLaunches.length),
   productive_units_per_launch:latestLaunches.length?Number((latestUnits.length/latestLaunches.length).toFixed(3)):null,
   productive_units_total:latestUnits.length,
+  capability_mismatch_rate:ratio(latestLaunches.filter(x=>String(x.no_allocation_reason||'').toUpperCase().startsWith('CAPABILITY_MISMATCH')).length,latestLaunches.length),
   product_value_units:productUnits,
   system_multiplier_units:multiplierUnits,
   control_overhead_units:overheadUnits,
