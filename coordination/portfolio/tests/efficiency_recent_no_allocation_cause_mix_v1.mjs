@@ -48,21 +48,37 @@ const expected=[
 ];
 const expectedRefs=new Map(expected.map(([id,minutes,reason])=>[reason,close(id,minutes,reason)]));
 close('historical',25,'HISTORICAL_ONLY');
+const closeByOutcome=(id,minutesAgo,outcome,durationMs=20_000)=>{
+  const launched=now-minutesAgo*60_000;
+  write(`coordination/workers/beacons/${id}.json`,{schema:'prometeo.worker-beacon/v1',worker_id:id,launched_at:iso(launched)});
+  return write(`coordination/workers/no-allocation/${id}.json`,{
+    schema:'prometeo.worker-no-allocation/v1',worker_id:id,closed_at:iso(launched+durationMs),outcome
+  });
+};
+
+const outcomeBlockedRef=closeByOutcome('outcome-only-blocked',1,'CLAIM_TRANSPORT_BLOCKED');
+const outcomeExhaustedRef=closeByOutcome('outcome-only-exhausted',1.5,'EXHAUSTED_COMPATIBLE_FRONTIER');
+
 
 execFileSync(process.execPath,[builder,root,out],{stdio:'pipe'});
 const efficiency=JSON.parse(fs.readFileSync(out,'utf8'));
-assert.equal(efficiency.metrics.no_allocation,6);
-assert.equal(efficiency.metrics.no_allocation_recent,5);
+assert.equal(efficiency.metrics.no_allocation,8);
+assert.equal(efficiency.metrics.no_allocation_recent,7);
 assert.equal(efficiency.no_allocation_causes.window_minutes,10);
-assert.equal(efficiency.no_allocation_causes.recent_total,5);
-assert.equal(efficiency.no_allocation_causes.cumulative_total,6);
+assert.equal(efficiency.no_allocation_causes.recent_total,7);
+assert.equal(efficiency.no_allocation_causes.cumulative_total,8);
 assert.equal(efficiency.no_allocation_causes.histogram_cumulative.HISTORICAL_ONLY,1);
 assert.equal(efficiency.no_allocation_causes.histogram_recent.HISTORICAL_ONLY,undefined,'historical-only cause must not pin current mix');
 for(const [reason,ref] of expectedRefs){
   assert.equal(efficiency.no_allocation_causes.histogram_recent[reason],1,`missing exact recent reason ${reason}`);
   assert(efficiency.no_allocation_causes.recent_receipts.some(row=>row.reason===reason && row.ref===ref),`missing exact receipt ref for ${reason}`);
 }
-assert.equal(efficiency.no_allocation_causes.recent_receipts.length,5);
+assert.equal(efficiency.no_allocation_causes.histogram_recent.CLAIM_TRANSPORT_BLOCKED,2,'outcome-only transport denial must retain its explicit cause');
+assert.equal(efficiency.no_allocation_causes.histogram_recent.EXHAUSTED_COMPATIBLE_FRONTIER,1,'outcome-only exhaustion must retain its explicit cause');
+assert(efficiency.no_allocation_causes.recent_receipts.some(row=>row.reason==='CLAIM_TRANSPORT_BLOCKED' && row.ref===outcomeBlockedRef),'outcome-only blocked receipt must be classified');
+assert(efficiency.no_allocation_causes.recent_receipts.some(row=>row.reason==='EXHAUSTED_COMPATIBLE_FRONTIER' && row.ref===outcomeExhaustedRef),'outcome-only exhaustion receipt must be classified');
+assert.equal(efficiency.metrics.claim_transport_blocked_recent,2,'reason + outcome transport denials must both feed bounded transport regression telemetry');
+assert.equal(efficiency.no_allocation_causes.recent_receipts.length,7);
 
 const roleContext={
   metabolism:{signals:{}},
