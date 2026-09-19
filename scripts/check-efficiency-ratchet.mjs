@@ -87,7 +87,6 @@ if (growthPolicy?.capability_specialization?.status !== 'ACTIVE_PARALLEL') error
 if (growthPolicy?.value_budget?.status !== 'ACTIVE_PARALLEL') errors.push('growth-policy: S5 not parallel active');
 must('strategy-wc', strategyWc, 'WORKER_GROWTH_POLICY_V1.json');
 must('strategy-wc', strategyWc, 'SUCCESSOR RELAY');
-must('allocator', allocator, 'value_class');
 const claimFrontier = read(root, 'scripts/build-claim-frontier.mjs');
 must('claim-frontier', claimFrontier, 'postclaim_context');
 must('claim-frontier', claimFrontier, 'value_class');
@@ -96,6 +95,7 @@ must('growth-test', growthTest, 'launch_observation_coverage');
 must('growth-test', growthTest, 'ADAPTIVE_MIN_SAMPLE_THEN_HASH_TIEBREAK');
 
 const allocator = read(root, 'scripts/build-fast-allocator.mjs');
+must('allocator', allocator, 'value_class');
 const latentItem = baseline?.items?.find(x=>x.id==='EFF013');
 if (latentItem?.required?.role_ready_compiled_centrally !== true) errors.push('baseline: EFF013 role_ready_compiled_centrally must be true');
 if (JSON.stringify(latentItem?.required?.candidate_order) !== JSON.stringify(['ready','queue_ready','role_ready','recovery'])) errors.push('baseline: EFF013 candidate order drift');
