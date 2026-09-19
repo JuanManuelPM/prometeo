@@ -1,0 +1,278 @@
+:root{
+  --paper:#efedef;
+  --ink:#111111;
+  --muted:#6d6a6d;
+  --line:rgba(17,17,17,.26);
+  --edge:clamp(8px,1.1vw,16px);
+  --rail:clamp(36px,4.1vw,56px);
+  --square:calc(var(--edge) + var(--rail));
+  --col-gap:clamp(16px,3.5vw,56px);
+  --section-gap:clamp(18px,2.35vw,30px);
+  --title:clamp(58px,8.7vw,144px);
+  --audio-bar:10px;
+}
+*{box-sizing:border-box}
+html,body{
+  margin:0;
+  min-height:100%;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:Arial,Helvetica,sans-serif;
+}
+body{overflow-x:hidden}
+button{font:inherit;color:inherit}
+
+.rail-line{
+  position:fixed;
+  z-index:4;
+  left:calc(var(--edge) + var(--rail));
+  top:0;
+  bottom:0;
+  width:1px;
+  background:var(--line);
+  pointer-events:none;
+}
+
+main{
+  position:relative;
+  margin-left:var(--edge);
+  padding-bottom:20svh;
+}
+.chapter{
+  position:relative;
+  display:grid;
+  grid-template-columns:var(--rail) var(--col-gap) minmax(0,1fr);
+  align-items:stretch;
+  min-height:132svh;
+}
+.chapter::before{
+  content:"";
+  position:absolute;
+  z-index:2;
+  left:0;
+  right:0;
+  top:0;
+  height:1px;
+  background:var(--line);
+  pointer-events:none;
+}
+.number-track{
+  grid-column:1;
+  grid-row:1;
+  position:relative;
+  align-self:stretch;
+  min-width:0;
+}
+.chapter-number{
+  position:sticky;
+  top:0;
+  z-index:30;
+  width:var(--square);
+  height:var(--square);
+  margin-left:calc(-1 * var(--edge));
+  display:grid;
+  place-items:center;
+  background:var(--ink);
+  color:#fff;
+  font-size:clamp(19px,1.9vw,28px);
+  font-weight:900;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-.05em;
+  line-height:1;
+}
+
+.content{
+  grid-column:3;
+  grid-row:1;
+  width:min(100%,1080px);
+  padding-top:var(--section-gap);
+  padding-right:clamp(18px,7vw,112px);
+  padding-bottom:28svh;
+}
+h1{
+  margin:0;
+  max-width:7.6ch;
+  font-size:var(--title);
+  line-height:.87;
+  letter-spacing:-.065em;
+  text-transform:uppercase;
+  font-weight:900;
+  text-wrap:balance;
+}
+.text{
+  width:min(100%,690px);
+  margin-top:clamp(38px,5.4vw,72px);
+  font-size:clamp(16px,1.25vw,20px);
+  line-height:1.6;
+  color:var(--muted);
+  text-wrap:pretty;
+}
+.text p{
+  margin:0 0 1.28em;
+  transition:color .14s linear;
+}
+.text p:last-child{margin-bottom:0}
+.chapter.audio-active .text p.reading{color:var(--ink)}
+
+/* V4: the reader is no longer a widget. It becomes a hard black strip
+   attached to the structural rail, always staying on its left side. */
+.chapter-audio{
+  position:absolute;
+  z-index:8;
+  left:calc(-1 * var(--edge));
+  top:0;
+  bottom:0;
+  width:var(--square);
+  pointer-events:none;
+}
+
+.audio-track{
+  position:absolute;
+  right:0;
+  width:30px;
+  pointer-events:auto;
+  touch-action:none;
+  cursor:pointer;
+}
+.audio-track::before{
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  right:2px;
+  width:var(--audio-bar);
+  background:var(--ink);
+  pointer-events:none;
+}
+.audio-fill{
+  position:absolute;
+  top:0;
+  right:4px;
+  width:calc(var(--audio-bar) - 4px);
+  height:0;
+  background:var(--paper);
+  pointer-events:none;
+}
+.audio-thumb{
+  position:absolute;
+  z-index:12;
+  right:-8px;
+  top:0;
+  width:30px;
+  height:34px;
+  transform:translateY(-50%);
+  border:0;
+  padding:0;
+  background:transparent;
+  cursor:grab;
+  touch-action:none;
+}
+.audio-thumb::before{
+  content:"";
+  position:absolute;
+  right:2px;
+  top:50%;
+  width:var(--audio-bar);
+  height:20px;
+  transform:translateY(-50%);
+  background:var(--paper);
+  border-top:2px solid var(--ink);
+  border-bottom:2px solid var(--ink);
+}
+.audio-thumb:active{cursor:grabbing}
+.audio-thumb svg{
+  position:absolute;
+  z-index:2;
+  right:4px;
+  top:50%;
+  width:6px;
+  height:8px;
+  transform:translateY(-50%);
+  color:var(--ink);
+}
+.audio-thumb .pause-icon{display:none}
+.audio-thumb[data-playing="1"] .play-icon{display:none}
+.audio-thumb[data-playing="1"] .pause-icon{display:block}
+.audio-thumb.loading::before{
+  animation:loadingPulse .75s steps(2,end) infinite;
+}
+.audio-track.dragging .audio-thumb::before{
+  height:24px;
+}
+@keyframes loadingPulse{
+  50%{background:var(--ink)}
+}
+.audio-thumb.loading svg{color:var(--ink)}
+.audio-thumb.loading::after{
+  content:"";
+  position:absolute;
+  right:4px;
+  top:50%;
+  width:6px;
+  height:8px;
+  transform:translateY(-50%);
+  background:var(--paper);
+  opacity:.72;
+}
+
+.audio-track:focus-visible,
+.audio-thumb:focus-visible{
+  outline:1px solid var(--ink);
+  outline-offset:2px;
+}
+
+.status-live{
+  position:absolute;
+  width:1px;
+  height:1px;
+  overflow:hidden;
+  clip:rect(0 0 0 0);
+  white-space:nowrap;
+}
+
+@media(max-width:700px){
+  :root{
+    --edge:8px;
+    --rail:30px;
+    --col-gap:14px;
+    --section-gap:18px;
+    --title:clamp(47px,15.2vw,74px);
+    --audio-bar:9px;
+  }
+  .chapter{min-height:126svh}
+  .chapter-number{font-size:18px}
+  .content{
+    padding-right:15px;
+    padding-bottom:27svh;
+  }
+  h1{
+    max-width:7ch;
+    line-height:.89;
+  }
+  .text{
+    margin-top:31px;
+    max-width:34rem;
+    font-size:15px;
+    line-height:1.58;
+  }
+  .audio-track{width:28px}
+  .audio-thumb{
+    right:-9px;
+    width:28px;
+    height:32px;
+  }
+  .audio-thumb::before{
+    right:2px;
+    height:18px;
+  }
+  .audio-thumb svg{
+    right:4px;
+    width:5px;
+    height:7px;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .text p{transition:none}
+  .audio-thumb.loading::before{animation-duration:1.5s}
+}
