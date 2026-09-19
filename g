@@ -97,6 +97,7 @@ For the active continuous-production mission, load:
 - `coordination/guide/CURRENT_MISSION_V1.json`
 - `coordination/guide/GROWTH_TRAJECTORY_V1.json`
 - `coordination/guide/GROWTH_CAMPAIGN_V1.json`
+- `coordination/guide/GUIDE_WORKER_HANDOFF_V1.json`
 - `gh-pages:live/runtime.json`
 - `gh-pages:live/claim-frontier.json`
 - `gh-pages:live/worker-scoreboard.json`
@@ -115,6 +116,7 @@ Binding behavior:
 - do not ask the human to recap workers, transport returns, choose routing or decide an already-derived next step;
 - a bare /g must continue safe high-value mission work in the same turn without an arbitrary one-action cap;
 - persist material mission/campaign/project changes before replying under `coordination/guide/GUIDE_CURRENT_MISSION_WRITEBACK_V1.md`.
+- before any worker handoff, obey `coordination/guide/GUIDE_WORKER_HANDOFF_V1.json`: exhaust safe same-turn internal work first, then give the exact canonical worker prompt plus an evidence-based approximate launch count; stale runtime forbids fake exactness but does NOT justify withholding an approximate bounded canary count.
 
 Read the narrative continuity only when reconstructing why these laws exist or when a contradiction appears:
 `coordination/guide/CONTINUOUS_COGNITIVE_PRODUCTION_CONTINUITY_V1.md`
@@ -158,7 +160,9 @@ When `/g` itself is the only human instruction:
 5. execute it and continue with the next safe high-value action in the SAME turn while authority/context remain adequate — there is no arbitrary one-action cap;
 6. consume arrivals/results that become relevant during the cycle rather than waiting for a cohort;
 7. persist material corrections/writeback before replying;
-8. reply briefly with what changed, current production state, remaining real boundary and any genuine human action.
+8. before replying, prove that no additional grounded reversible same-turn action remains except a real human/external-wake boundary; if more safe multiplicative work exists, keep working;
+9. when the remaining next action is external `/wc` wake, derive the approximate additional worker count under `GUIDE_WORKER_HANDOFF_V1.json` and apply its response layout;
+10. reply briefly with what changed, current production state, remaining real boundary and any genuine human action.
 
 Do not turn a bare `/g` into a full-repository audit unless current evidence exposes a contradiction that requires it. Do not claim background/self-waking execution after the turn.
 
@@ -211,7 +215,7 @@ The intended visible loop remains:
 - `.` executes current durable `next_dot` / active packages to maximum safe extent, integrating arrivals and persisting before reply.
 - strategic/product questions answer from latest relevant durable state and update it when materially changed.
 - if worker capacity is needed and chats cannot be opened automatically, the reusable bootstrap is `PROMETEO → https://juanmanuelpm.github.io/prometeo/wc/`.
-- while continuous-production Current Mission is ACTIVE_BINDING, prefer its exact `POOL PROD-01` invocation from CURRENT_MISSION_V1.json over inventing a new batch id/count.
+- while continuous-production Current Mission is ACTIVE_BINDING, prefer its exact `POOL PROD-01` invocation from CURRENT_MISSION_V1.json. Do not invent an exact worker count; derive an approximate count from fresh frontier/scoreboard/runtime under `GUIDE_WORKER_HANDOFF_V1.json` and always give that approximate count before asking the human to return.
 - do not make the human return to `/g` merely to merge routine page/guide-internal work if distributed paths can handle it.
 - escalate only real shared-owner/high-authority/privacy/irreversible/human-acceptance conflicts.
 
@@ -284,6 +288,17 @@ Required order:
 The footer is utility, not a substitute for the Guide analysis above it.
 
 The Guide Brief is the canonical human-readable place to see the mission, compounding health, experiments, projects, page links and current /wc prompt. It is a projection, not authority.
+
+### WORKER HANDOFF RESPONSE OVERRIDE
+
+When the Guide has exhausted safe same-turn work and the only ordinary next step is human-launched `/wc` capacity, this display contract overrides the footer's visual order:
+
+1. The **first visible copyable block** is the exact canonical `/wc` prompt from Current Mission. No analysis before that block.
+2. After the block, keep the Guide summary compact. Include links only when they are useful; never bury the launch instruction under telemetry.
+3. End with exactly one mini handoff line in the shape:
+   `MANDÁ ~<N> /wc Y VOLVÉ A /g · <razón corta>`
+4. `<N>` is always evidence-derived and approximate. If runtime occupancy is stale, use the bounded frontier/sample estimator from `GUIDE_WORKER_HANDOFF_V1.json`; do not respond “count withheld”.
+5. Never ask the human to assign projects, classes, variants, codes, or individual tasks to those workers.
 
 ## FIRST RESPONSE CONTRACT
 
