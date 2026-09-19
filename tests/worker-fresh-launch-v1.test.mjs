@@ -16,6 +16,7 @@ const mission=json('coordination/guide/CURRENT_MISSION_V1.json');
 const oldExam=json('coordination/workers/exams/wc-20260918T212321Z-94fec87501.json');
 const oldBeacon=json('coordination/workers/beacons/wc-20260918T212321Z-94fec87501.json');
 const scoreboard=read('scripts/build-worker-scoreboard.mjs');
+const residencyGuard=read('scripts/worker-residency-integrity.mjs');
 const poolPrompt=read('coordination/workers/POOL_PROD01_PROMPT.txt');
 const site=process.argv[3]?path.resolve(process.argv[3]):null;
 
@@ -66,7 +67,8 @@ assert.equal(mission.operating_mode.current_worker_protocol_version,'v3.30');
 assert.equal(mission.current_snapshot.fresh_launch_incident.status,'CONFIRMED_REPLAY');
 assert.equal(mission.current_snapshot.occupancy.recommended_additional_launches_at_snapshot,3);
 
-for(const needle of ['fresh_launch_integrity','pool_residency_integrity','EARLY_CLOSE_UNJUSTIFIED','beacon_launch_nonce','exam_launch_nonce','SMOKE_PASS']) assert.ok(scoreboard.includes(needle),'scoreboard missing '+needle);
+for(const needle of ['fresh_launch_integrity','pool_residency_integrity','beacon_launch_nonce','exam_launch_nonce','SMOKE_PASS']) assert.ok(scoreboard.includes(needle),'scoreboard missing '+needle);
+assert.ok(residencyGuard.includes('EARLY_CLOSE_UNJUSTIFIED'),'residency helper must classify unjustified early terminal');
 
 if(site){
   const publicWc=fs.readFileSync(path.join(site,'wc','index.html'),'utf8');
