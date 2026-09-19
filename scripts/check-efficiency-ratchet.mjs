@@ -206,7 +206,9 @@ const recoveryRescatePressureTest = read(root, 'coordination/portfolio/tests/gui
 must('guide-rescate-capability-recovery-pressure', recoveryRescatePressureTest, 'GUIDE_RESCATE_CAPABILITY_RECOVERY_PRESSURE_PASS');
 must('guide-rescate-capability-recovery-pressure', recoveryRescatePressureTest, 'specialized recovery pressure alone must not spawn generic GUIDE_RESCATE');
 must('guide-rescate-capability-recovery-pressure', recoveryRescatePressureTest, 'generic recovery pressure must preserve LOW_YIELD rescate');
-must('fast-allocator', allocator, 'genericRecoveryPressure >= Number(signals.replaceable_trigger || 3)');
+must('fast-allocator', allocator, 'genericRecoveryRescuePressure ||');
+must('fast-allocator', allocator, 'genericRecoveryPressure >= replaceableTrigger');
+must('guide-rescate-capability-recovery-pressure', recoveryRescatePressureTest, 'generic recovery pressure must preserve LOW_YIELD rescate');
 must('fast-allocator', allocator, 'recovery_capability_pressure: recoveryCapabilityPressure');
 must('fast-allocator', allocator, 'generic_compatible_recovery: genericRecoveryPressure');
 mustNot('fast-allocator', allocator, 'recovery.length >= Number(signals.replaceable_trigger || 3)');
