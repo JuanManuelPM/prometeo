@@ -195,9 +195,13 @@ public class MainActivity extends Activity {
                     exec(session, "(sleep 1; /mnt/us/documents/PROMETEO.sh >/dev/null 2>&1 </dev/null &) >/dev/null 2>&1; echo launched");
                 } catch (Exception ignored) {
                 }
+                try {
+                    closeBootstrapSsh(session);
+                } catch (Exception ignored) {
+                }
                 session.disconnect();
 
-                final String successDetail = "Listo. Ya no necesitás IP, archivos ni comandos. Si querés cerrar el bootstrap de forma segura, podés apagar ‘Login without password’ en KOReader; Bridge ya dejó una clave local preparada para futuras conexiones.";
+                final String successDetail = "Listo. Ya no necesitás IP, archivos ni comandos. Bridge cerró automáticamente el SSH temporal del bootstrap y dejó una clave local preparada para recuperación futura.";
                 runOnUiThread(() -> {
                     state.setText("✓ PROMETEO LISTO");
                     detail.setText(successDetail);
@@ -293,6 +297,16 @@ public class MainActivity extends Activity {
         }
         ExecResult r = execWithInput(session, "cat > " + remote + " && chmod 755 " + remote, bytes);
         if (r.exitCode != 0) throw new Exception("No pude transferir el instalador al Kindle.");
+    }
+
+    private void closeBootstrapSsh(Session session) throws Exception {
+        String command = "(sleep 1; port=2222; " +
+                "iptables -D INPUT -p tcp --dport $port -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null || true; " +
+                "iptables -D OUTPUT -p tcp --sport $port -m conntrack --ctstate ESTABLISHED -j ACCEPT 2>/dev/null || true; " +
+                "pid=$(cat /tmp/dropbear_koreader.pid 2>/dev/null || true); " +
+                "[ -n \"$pid\" ] && kill \"$pid\" 2>/dev/null || true; " +
+                "rm -f /tmp/dropbear_koreader.pid) >/dev/null 2>&1 </dev/null & echo closing";
+        exec(session, command);
     }
 
     private void provisionKey(Session session) throws Exception {
