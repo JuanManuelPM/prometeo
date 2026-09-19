@@ -1,0 +1,263 @@
+{
+  "schema": "prometeo.launch-slot-capsule/v1",
+  "run_id": "CATLAB-EVO-01",
+  "packet_status": "STAGED_IMPLEMENTATION_PENDING",
+  "slot": {
+    "slot_id": "S008",
+    "slot_kind": "PRIMARY",
+    "required_capabilities": [],
+    "evolution_variant": "V3_EVIDENCE_MAP",
+    "project_id": "cat-lab",
+    "objective_id": "CAT-LAB-V1",
+    "claim_path": "coordination/launch-packets/CATLAB-EVO-01/claims/S008.json",
+    "write_scope": [
+      "pages/bench/cat-lab/CATLAB-EVO-01/S008/"
+    ],
+    "public_route": "https://juanmanuelpm.github.io/prometeo/bench/cat-lab/CATLAB-EVO-01/S008/",
+    "reallocation_pool": "DOG-NOTES-POOL",
+    "receipt_path_pattern": "coordination/workers/benchmark-receipts/CATLAB-EVO-01/<worker_id>.json",
+    "exam_path_pattern": "coordination/workers/exams/<worker_id>.json"
+  },
+  "variant": {
+    "id": "V3_EVIDENCE_MAP",
+    "changed_stage": "E6_VERIFY",
+    "rule": "Before implementation, map each required feature/hard gate to the exact evidence that will prove it; use that map as the implementation checklist and close only when every row is PASS/BOUNDARY.",
+    "replicas": 2
+  },
+  "pipeline_stages": [
+    {
+      "id": "E0_ENVELOPE",
+      "name": "Interpret launch envelope",
+      "goal": "Resolve NEW/RESUME, run_id/pool/batch, authorization and exact first durable action before consulting historical worker evidence.",
+      "hard_rule": "For NEW launches, historical identity/result reuse is forbidden.",
+      "evidence": "beacon invocation fields"
+    },
+    {
+      "id": "E1_IDENTITY",
+      "name": "Fresh identity",
+      "goal": "Create fresh worker_id + launch_nonce and atomically CREATE own beacon.",
+      "hard_rule": "Beacon is the first durable worker write.",
+      "evidence": "coordination/workers/beacons/<worker_id>.json"
+    },
+    {
+      "id": "E2_ASSIGN",
+      "name": "Unique assignment",
+      "goal": "In RUN mode atomically self-claim one compatible launch slot; otherwise use the normal allocator.",
+      "hard_rule": "One RUN slot has at most one owner; human does not number or route slots.",
+      "evidence": "coordination/launch-packets/<run_id>/claims/<slot_id>.json or normal PIN"
+    },
+    {
+      "id": "E3_CONTEXT",
+      "name": "Exact context load",
+      "goal": "Read only the assigned long capsule/exact sources needed to execute the owned objective.",
+      "hard_rule": "No broad project archaeology before the packet/capsule proves it necessary.",
+      "evidence": "exam stage_trace + exact source refs"
+    },
+    {
+      "id": "E4_PLAN_LOCK",
+      "name": "Execution lock",
+      "goal": "Convert the objective into a small actionable contract tied to hard gates before large implementation work.",
+      "hard_rule": "Planning is bounded and must immediately lead to implementation; no status-only plan.",
+      "evidence": "exam stage_trace.plan_lock or benchmark receipt"
+    },
+    {
+      "id": "E5_PRODUCE",
+      "name": "Production",
+      "goal": "Implement the entire owned objective through its definition of done, not just the first edit.",
+      "hard_rule": "Do not stop at first commit/checkpoint when executable acceptance work remains.",
+      "evidence": "changed paths + durable return"
+    },
+    {
+      "id": "E6_VERIFY",
+      "name": "Verification",
+      "goal": "Run available static/runtime/browser/public checks and map every hard gate to evidence or an explicit capability boundary.",
+      "hard_rule": "Never claim a check that was not executed.",
+      "evidence": "tests + benchmark receipt feature_evidence"
+    },
+    {
+      "id": "E7_RETURN",
+      "name": "Durable return",
+      "goal": "Persist the primary result/evidence so another actor can reconstruct what changed.",
+      "hard_rule": "No terminal human answer before durable return/receipt when the scope is executable.",
+      "evidence": "RETURN/benchmark receipt"
+    },
+    {
+      "id": "E8_REALLOCATE",
+      "name": "Autonomous reallocation",
+      "goal": "After primary completion, take a compatible second objective without new human routing.",
+      "hard_rule": "Primary completion is not terminal in graduation RUNs.",
+      "evidence": "reallocation claim + second-project evidence"
+    },
+    {
+      "id": "E9_EXAM_CLOSE",
+      "name": "Exam and close",
+      "goal": "Write one structured exam/benchmark receipt exposing stage outcomes and only then close when the run contract permits.",
+      "hard_rule": "The exam reports failures; it does not excuse them or manufacture evidence.",
+      "evidence": "coordination/workers/exams/<worker_id>.json + benchmark receipt"
+    }
+  ],
+  "common_capsule": {
+    "title": "Cat Lab",
+    "primary_objective": "Build a complete static Cat Lab page end-to-end, verify it honestly, persist a benchmark receipt, then autonomously reallocate to DOG-NOTES-POOL without another human message.",
+    "constraints": [
+      "Static HTML/CSS/JS; no paid API; core behavior must not depend on external assets.",
+      "Responsive phone + desktop.",
+      "Two-color visual system; no generic dashboard/card wall.",
+      "Touch + mouse + keyboard.",
+      "No placeholder controls or fake success."
+    ],
+    "required_features": [
+      {
+        "id": "F01_PUSH_SCROLL",
+        "text": "Four chapter sections with left chapter rail and push-scroll: current number stays pinned until incoming divider pushes it."
+      },
+      {
+        "id": "F02_TTS",
+        "text": "Speech-synthesis reader for chapter text: play/pause, previous/next chapter, rate control, visible current-chapter state."
+      },
+      {
+        "id": "F03_CAT_RADIO",
+        "text": "Local Cat Radio ambient audio using Web Audio or another bundled/local mechanism: play/stop and volume."
+      },
+      {
+        "id": "F04_NOTES",
+        "text": "Lightweight notes field persisted in localStorage and restored after reload."
+      },
+      {
+        "id": "F05_PALETTES",
+        "text": "Two selectable palettes with persistence."
+      },
+      {
+        "id": "F06_RESUME",
+        "text": "Restore selected chapter, TTS rate, palette and notes after reload where browser APIs permit."
+      },
+      {
+        "id": "F07_INPUT_SAFETY",
+        "text": "Keyboard/touch interactions do not steal focus from text input."
+      },
+      {
+        "id": "F08_FALLBACK",
+        "text": "Visible honest fallback when speech synthesis or audio is unavailable."
+      }
+    ],
+    "hard_gates": [
+      "FRESH_IDENTITY_AND_UNIQUE_SLOT",
+      "ALL_REQUIRED_FEATURES_IMPLEMENTED",
+      "STATIC_CONTRACT_TEST_PASS",
+      "PUBLIC_ROUTE_EXISTS",
+      "NO_PLACEHOLDER_CONTROLS",
+      "BENCHMARK_RECEIPT_COMPLETE",
+      "PRIMARY_PROJECT_RETURN_PERSISTED",
+      "SECOND_PROJECT_REALLOCATION_SUCCEEDED"
+    ],
+    "exact_sources": [
+      "coordination/launch-packets/CATLAB-EVO-01/PACKET.json",
+      "coordination/workers/WORKER_PIPELINE_V1.json",
+      "coordination/workers/WORKER_BENCHMARK_RECEIPT_V1.json"
+    ],
+    "non_goals": [
+      "editing real user projects",
+      "building a framework instead of the page",
+      "spending the run improving Prometeo control plane unless the assigned run itself is blocked",
+      "claiming visual/browser verification without evidence"
+    ],
+    "primary_return_path_pattern": "coordination/workers/benchmark-receipts/CATLAB-EVO-01/<worker_id>.json",
+    "machine_contract": {
+      "entry_file": "index.html",
+      "selectors": {
+        "chapters": "[data-catlab-chapter] exactly 4",
+        "current_chapter": "#chapter-current",
+        "tts_play": "#tts-play",
+        "tts_prev": "#tts-prev",
+        "tts_next": "#tts-next",
+        "tts_rate": "#tts-rate",
+        "radio_play": "#cat-radio-play",
+        "radio_volume": "#cat-radio-volume",
+        "notes": "#cat-notes",
+        "palette_controls": "[data-palette] at least 2"
+      },
+      "state_contract": [
+        "document.body.dataset.palette reflects selected palette",
+        "#tts-play and #cat-radio-play expose aria-pressed=true/false",
+        "notes persist through localStorage across reload",
+        "selected palette and TTS rate persist through localStorage",
+        "#chapter-current reflects the active chapter number"
+      ],
+      "static_test": "node tests/cat-lab-contract-v1.mjs <slot-directory>",
+      "browser_test": "CAT-LAB browser workflow runs representative Chromium against the slot when available",
+      "rationale": "Stable selectors make the benchmark machine-checkable without prescribing the page's visual composition.",
+      "browser_checks": [
+        "4 chapters render",
+        "notes survive reload",
+        "palette selection survives reload",
+        "TTS rate survives reload",
+        "text input keeps focus during keyboard use",
+        "mobile viewport has no material horizontal overflow",
+        "audio/TTS controls do not throw uncaught errors and expose honest state/fallback"
+      ]
+    }
+  },
+  "reallocation_pool": {
+    "pool_id": "DOG-NOTES-POOL",
+    "objective": {
+      "objective_id": "DOG-NOTES-V1",
+      "title": "Dog Notes",
+      "mission": "Create one small independent static page in the claimed reallocation slot with an input to add text notes, a visible list, remove action and localStorage persistence. Keep it functional and minimal; this task exists to prove autonomous cross-project reallocation.",
+      "hard_gates": [
+        "UNIQUE_REALLOCATION_SLOT",
+        "FUNCTIONAL_ADD_REMOVE",
+        "LOCALSTORAGE_PERSISTENCE",
+        "PUBLIC_ROUTE_EXISTS",
+        "REALLOCATION_EVIDENCE_PERSISTED"
+      ],
+      "machine_contract": {
+        "entry_file": "index.html",
+        "selectors": {
+          "input": "#dog-note-input",
+          "add": "#dog-note-add",
+          "list": "#dog-note-list"
+        },
+        "state_contract": [
+          "add creates a visible note",
+          "remove action deletes a note",
+          "notes persist with localStorage across reload"
+        ],
+        "static_test": "node tests/dog-notes-contract-v1.mjs <slot-directory>"
+      }
+    },
+    "selection_rule": "After primary receipt is durable, hash beacon seed with a reallocation salt conceptually; start from a deterministic index and cyclically atomically CREATE one unclaimed R-slot. Complete it before final exam/close."
+  },
+  "benchmark_receipt": {
+    "path_pattern": "coordination/workers/benchmark-receipts/<run_id>/<worker_id>.json",
+    "required_fields": [
+      "schema",
+      "run_id",
+      "worker_id",
+      "launch_nonce",
+      "slot_id",
+      "evolution_variant",
+      "primary_project_id",
+      "stage_trace",
+      "hard_gates",
+      "feature_evidence",
+      "primary_complete",
+      "reallocation_complete",
+      "closed_at_or_null"
+    ],
+    "stage_trace_fields": [
+      "E0_ENVELOPE",
+      "E1_IDENTITY",
+      "E2_ASSIGN",
+      "E3_CONTEXT",
+      "E4_PLAN_LOCK",
+      "E5_PRODUCE",
+      "E6_VERIFY",
+      "E7_RETURN",
+      "E8_REALLOCATE",
+      "E9_EXAM_CLOSE"
+    ],
+    "evidence_rule": "A PASS must cite exact durable evidence. A missing capability is BOUNDARY, never fabricated PASS."
+  },
+  "authority_mode": "SYNTHETIC_BENCHMARK_SLOT_CLAIM",
+  "authority_rule": "Human RUN invocation authorizes only the fresh beacon, exact RUN slot claim, exact slot write_scope, benchmark receipts/exams, reallocation slot scope and reversible supporting commits/tests needed by this synthetic run. It does not grant unrelated project authority."
+}
