@@ -5,6 +5,7 @@ const arr = v => Array.isArray(v) ? v : [];
 const DEFAULT_MAX_CANDIDATES = 24;
 const DEFAULT_MAX_SERIALIZED_BYTES = 24_000;
 const DEFAULT_CAPABILITY_DIVERSITY_SLOTS = 8;
+const DEFAULT_ZERO_CAPABILITY_CAPACITY = 4;
 
 // Pre-claim needs authority bytes, capability routing, and one exact post-claim source.
 // Human-facing labels, priority/state and duplicated identity already live in allocator/job files.
@@ -59,7 +60,20 @@ function capabilitySignature(candidate) {
   );
 }
 
-function preserveCapabilityDiversity(ordered, { prefix = 4, maxPromotions = DEFAULT_CAPABILITY_DIVERSITY_SLOTS } = {}) {
+function hasZeroRequiredCapabilities(candidate) {
+  return arr(candidate?.required_capabilities)
+    .map(value => String(value).trim())
+    .filter(Boolean).length === 0;
+}
+
+function preserveCapabilityDiversity(
+  ordered,
+  {
+    prefix = 4,
+    maxPromotions = DEFAULT_CAPABILITY_DIVERSITY_SLOTS,
+    minZeroCapabilityCandidates = DEFAULT_ZERO_CAPABILITY_CAPACITY
+  } = {}
+) {
   const rows = arr(ordered);
   if (rows.length <= 1) return rows;
   const head = rows.slice(0, Math.max(0, prefix));
@@ -73,8 +87,27 @@ function preserveCapabilityDiversity(ordered, { prefix = 4, maxPromotions = DEFA
     promoted.push(candidate);
     if (promoted.length >= Math.max(0, maxPromotions)) break;
   }
+
+  // Capability diversity alone collapses every [] candidate into one signature. In a pooled
+  // launch that can hide several distinct no-special-capability claims behind a long
+  // specialized tail, leaving generic workers to collide on only one or two visible paths.
+  // Preserve the allocator prefix + exact capability exemplars, then reserve a small bounded
+  // amount of additional zero-capacity claim paths. This changes transport ordering only;
+  // claim payloads and atomic authority semantics stay untouched.
   const promotedSet = new Set(promoted);
-  return [...head, ...promoted, ...tail.filter(candidate => !promotedSet.has(candidate))];
+  const zeroPromoted = [];
+  let zeroCount = [...head, ...promoted].filter(hasZeroRequiredCapabilities).length;
+  const zeroTarget = Math.max(0, minZeroCapabilityCandidates);
+  if (zeroCount < zeroTarget) {
+    for (const candidate of tail) {
+      if (promotedSet.has(candidate) || !hasZeroRequiredCapabilities(candidate)) continue;
+      zeroPromoted.push(candidate);
+      zeroCount += 1;
+      if (zeroCount >= zeroTarget) break;
+    }
+  }
+  const protectedSet = new Set([...promoted, ...zeroPromoted]);
+  return [...head, ...promoted, ...zeroPromoted, ...tail.filter(candidate => !protectedSet.has(candidate))];
 }
 
 export function buildClaimFrontier(
