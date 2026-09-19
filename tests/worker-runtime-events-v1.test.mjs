@@ -104,4 +104,48 @@ assert.equal(poolWithExam.batches[0].summary.closed,1);
 assert.equal(poolWithExam.batches[0].workers[0].repo.exam_ref,'coordination/workers/exams/pool-w1.json');
 fs.rmSync(poolRoot,{recursive:true,force:true});
 
+
+// Launch-packet RUN exposes an exact denominator and joins slot/receipt evidence to the worker.
+const runRoot=fs.mkdtempSync(path.join(os.tmpdir(),'prometeo-runtime-run-'));
+fs.mkdirSync(path.join(runRoot,'coordination','workers','beacons'),{recursive:true});
+fs.mkdirSync(path.join(runRoot,'coordination','launch-packets','RUN-T1','claims'),{recursive:true});
+fs.mkdirSync(path.join(runRoot,'coordination','launch-packets','RUN-T1','reallocation-claims'),{recursive:true});
+fs.mkdirSync(path.join(runRoot,'coordination','workers','benchmark-receipts','RUN-T1'),{recursive:true});
+fs.writeFileSync(path.join(runRoot,'coordination','launch-packets','RUN-T1','PACKET.json'),JSON.stringify({
+  schema:'prometeo.launch-packet-instance/v1',run_id:'RUN-T1',status:'ARMED',
+  slots:[{slot_id:'S001'},{slot_id:'S002'},{slot_id:'S003'}],
+  reallocation_slots:[{slot_id:'R001'},{slot_id:'R002'},{slot_id:'R003'}]
+}));
+fs.writeFileSync(path.join(runRoot,'coordination','workers','beacons','run-w1.json'),JSON.stringify({
+  schema:'prometeo.worker-beacon/v1',worker_id:'run-w1',launch_nonce:'aa11',fresh_launch:true,
+  launched_at:'2026-09-17T22:06:00Z',batch_id:'RUN-RUN-T1',run_id:'RUN-T1'
+}));
+fs.writeFileSync(path.join(runRoot,'coordination','launch-packets','RUN-T1','claims','S002.json'),JSON.stringify({
+  schema:'prometeo.launch-slot-claim/v1',run_id:'RUN-T1',slot_id:'S002',worker_id:'run-w1',launch_nonce:'aa11',evolution_variant:'V1'
+}));
+fs.writeFileSync(path.join(runRoot,'coordination','launch-packets','RUN-T1','reallocation-claims','R003.json'),JSON.stringify({
+  schema:'prometeo.launch-slot-claim/v1',run_id:'RUN-T1',slot_id:'R003',worker_id:'run-w1',launch_nonce:'aa11'
+}));
+fs.writeFileSync(path.join(runRoot,'coordination','workers','benchmark-receipts','RUN-T1','run-w1.json'),JSON.stringify({
+  schema:'prometeo.worker-benchmark-receipt/v1',run_id:'RUN-T1',worker_id:'run-w1',slot_id:'S002',
+  evolution_variant:'V1',primary_complete:true,reallocation_complete:true,reallocation_slot_id:'R003'
+}));
+const runCompiled=compileRuntime([],runRoot,'2026-09-17T22:06:10Z');
+assert.equal(runCompiled.launch_runs.length,1);
+assert.equal(runCompiled.launch_runs[0].slots_total,3);
+assert.equal(runCompiled.launch_runs[0].slots_claimed,1);
+assert.equal(runCompiled.launch_runs[0].slots_unclaimed,2);
+assert.equal(runCompiled.launch_runs[0].primary_complete,1);
+assert.equal(runCompiled.launch_runs[0].reallocation_complete,1);
+const runWorker=runCompiled.batches[0].workers[0];
+assert.equal(runWorker.run_id,'RUN-T1');
+assert.equal(runWorker.slot_id,'S002');
+assert.equal(runWorker.evolution_variant,'V1');
+assert.equal(runWorker.reallocation_slot_id,'R003');
+assert.equal(runWorker.authority_won,true);
+assert.equal(runWorker.primary_complete,true);
+assert.equal(runWorker.reallocation_complete,true);
+assert.equal(runWorker.repo.launch_slot_ref,'coordination/launch-packets/RUN-T1/claims/S002.json');
+fs.rmSync(runRoot,{recursive:true,force:true});
+
 console.log('WORKER_RUNTIME_EVENTS_PASS');
