@@ -87,9 +87,9 @@ if (growthPolicy?.capability_specialization?.status !== 'ACTIVE_PARALLEL') error
 if (growthPolicy?.value_budget?.status !== 'ACTIVE_PARALLEL') errors.push('growth-policy: S5 not parallel active');
 must('strategy-wc', strategyWc, 'WORKER_GROWTH_POLICY_V1.json');
 must('strategy-wc', strategyWc, 'SUCCESSOR RELAY');
-const claimFrontier = read(root, 'scripts/build-claim-frontier.mjs');
-must('claim-frontier', claimFrontier, 'postclaim_context');
-must('claim-frontier', claimFrontier, 'value_class');
+const growthClaimFrontier = read(root, 'scripts/build-claim-frontier.mjs');
+must('claim-frontier', growthClaimFrontier, 'postclaim_context');
+must('claim-frontier', growthClaimFrontier, 'value_class');
 const growthTest = read(root, 'tests/worker-growth-pipeline-v1.test.mjs');
 must('growth-test', growthTest, 'launch_observation_coverage');
 must('growth-test', growthTest, 'ADAPTIVE_MIN_SAMPLE_THEN_HASH_TIEBREAK');
