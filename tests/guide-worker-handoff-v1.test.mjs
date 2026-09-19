@@ -33,7 +33,7 @@ assert.equal(mission.worker_handoff_policy_ref,'coordination/guide/GUIDE_WORKER_
 assert.equal(mission.operating_mode.worker_handoff.require_exhaustive_same_turn_work_before_handoff,true);
 assert.equal(mission.operating_mode.worker_handoff.canonical_prompt_must_be_first_copyable_block,true);
 assert.ok(platformHold?approx===0:(approx>=10&&approx<=20));
-assert.equal(mission.current_snapshot.occupancy.recommendation_exact,false);
+assert.equal(mission.current_snapshot.occupancy.recommendation_exact,platformHold?true:false);
 
 assert.equal(head.worker_handoff_policy_ref,'coordination/guide/GUIDE_WORKER_HANDOFF_V1.json');
 assert.equal(head.human_contract.current_approx_workers_before_guide_return,approx);
