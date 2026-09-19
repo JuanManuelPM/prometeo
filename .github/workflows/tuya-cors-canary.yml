@@ -1,0 +1,26 @@
+name: Tuya CORS canary
+on:
+  push:
+    paths:
+      - ".github/workflows/tuya-cors-canary.yml"
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check browser preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          for host in openapi-ueaz.tuyaus.com openapi.tuyaus.com; do
+            echo "=== $host ==="
+            curl -sS -D /tmp/h -o /tmp/b -X OPTIONS "https://$host/v1.0/end-user/devices/all" \
+              -H "Origin: https://juanmanuelpm.github.io" \
+              -H "Access-Control-Request-Method: GET" \
+              -H "Access-Control-Request-Headers: authorization"
+            cat /tmp/h
+            echo "--- body ---"
+            cat /tmp/b || true
+            echo
+            grep -qi '^access-control-allow-origin:' /tmp/h
+            grep -qi '^access-control-allow-headers:.*authorization' /tmp/h
+          done
