@@ -52,6 +52,7 @@ for(const p of examFiles){
     worker_id:d.worker_id,
     batch_id:d.batch_id||null,
     protocol_version:d.protocol_version||null,
+    launch_nonce:d.launch_nonce||null,
     pattern_id:d.pattern_id||null,
     experiment_id:d.experiment_id||null,
     experiment_enrolled:d.experiment_enrolled===true,
@@ -275,8 +276,12 @@ for(const [workerId,b] of beaconByWorker){
   launchMeasurements.push({
     worker_id:workerId,
     batch_id:b.doc?.batch_id||null,
-    protocol_version:explicit?.protocol_version||b.doc?.protocol_version||null,
+    protocol_version:explicit?.protocol_version||b.doc?.canary_protocol||b.doc?.protocol_version||null,
     launched_at:b.doc?.launched_at||b.doc?.observed_at||b.doc?.created_at||null,
+    fresh_launch:b.doc?.fresh_launch===true,
+    beacon_launch_nonce:b.doc?.launch_nonce||null,
+    exam_launch_nonce:explicit?.launch_nonce||null,
+    fresh_launch_integrity:(String(explicit?.protocol_version||b.doc?.canary_protocol||b.doc?.protocol_version||'')==='v3.30') ? (b.doc?.fresh_launch===true && !!b.doc?.launch_nonce && (!explicit || explicit.launch_nonce===b.doc.launch_nonce)) : null,
     measurement_state:measurementState,
     terminal_classified:terminalClassified,
     explicit_exam:!!explicit,
@@ -328,6 +333,22 @@ const growthHealth={
   successor_worker_rate_explicit_only:ratio(explicitLatest.filter(x=>x.reproduction).length,explicitLatest.length),
   causal_boundary:'Launch funnel/value metrics may use derived durable evidence; strategy A/B causal metrics remain explicit-exam-only.'
 };
+const v330Launches=launchMeasurements.filter(x=>x.protocol_version==='v3.30');
+const v330DistinctWorkers=new Set(v330Launches.map(x=>x.worker_id)).size;
+const v330NonceMismatch=v330Launches.filter(x=>x.explicit_exam && x.exam_launch_nonce!==x.beacon_launch_nonce).length;
+const v330MissingFreshBeacon=v330Launches.filter(x=>x.fresh_launch!==true || !x.beacon_launch_nonce).length;
+const freshLaunchIntegrity={
+  policy_ref:'coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json',
+  protocol_version:'v3.30',
+  required_distinct_fresh_workers:3,
+  observed_distinct_fresh_workers:v330DistinctWorkers,
+  v330_launch_rows:v330Launches.length,
+  explicit_exam_nonce_mismatches:v330NonceMismatch,
+  missing_fresh_beacon_marker_or_nonce:v330MissingFreshBeacon,
+  status:(v330DistinctWorkers>=3 && v330NonceMismatch===0 && v330MissingFreshBeacon===0)?'SMOKE_PASS':'SMOKE_BUILDING',
+  replay_guard:'Historical terminal artifacts never substitute for a current launch; PASS requires fresh v3.30 beacons.'
+};
+
 const measurementCoverage={
   total_beacons:launchMeasurements.length,
   launch_rows:launchMeasurements.length,
@@ -366,6 +387,7 @@ const out={
   latest20:latest,
   launch_measurements:latestLaunches,
   measurement_coverage:measurementCoverage,
+  fresh_launch_integrity:freshLaunchIntegrity,
   growth_health:growthHealth,
   reproduction_counts:reproductionCounts,
   protocol_reproduction_counts:reproductionCounts,
@@ -378,7 +400,7 @@ const out={
   strategy_experiment_id:strategyExperimentId,
   strategy_experiment_status:strategyExperiment?.status||null,
   strategy_experiment_health:strategyExperimentHealth,
-  note:'Observability only. Every beacon receives a derived launch row, but only explicit worker exams can supply causal strategy evidence. Global score remains end-to-end; strategy_experiment_health is class-local post-ownership evidence. Product/system/control value classes are routing/measurement aids, not Human Acceptance or Served authority.'
+  note:'Observability only. Every beacon receives a derived launch row; v3.30 fresh-launch integrity is tracked separately, and only explicit worker exams can supply causal strategy evidence. Global score remains end-to-end; strategy_experiment_health is class-local post-ownership evidence. Product/system/control value classes are routing/measurement aids, not Human Acceptance or Served authority.'
 };
 fs.mkdirSync(path.dirname(outPath),{recursive:true});
 fs.writeFileSync(outPath,JSON.stringify(out,null,2)+'\n');
