@@ -40,7 +40,10 @@ const pageRows=(pages.pages||[]).map(p=>({
 }));
 
 const pool=(runtime.batches||[]).find(x=>x.batch_id==='POOL-PROD-01')||null;
-const prompt=mission?.operating_mode?.invocation||campaign?.next_launch?.prompt||'';
+const normalPrompt=mission?.operating_mode?.invocation||campaign?.next_launch?.prompt||'';
+const graduationRun=handoffPolicy?.platform_graduation_override?.graduation_run||campaign?.graduation_next_launch||mission?.platform_graduation?.graduation_run||null;
+const graduationArmed=handoffPolicy?.platform_graduation_override?.status==='ACTIVE'&&graduationRun?.status==='ARMED';
+const prompt=graduationArmed?(graduationRun.prompt||''):normalPrompt;
 const generatedAt=new Date().toISOString();
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
 const frontierCandidates=frontier.candidates||[];
@@ -77,14 +80,14 @@ if(handoffSeh){
 }
 const platformHold=handoffPolicy?.platform_graduation_override?.status==='ACTIVE';
 const smokeOverride=handoffPolicy?.integrity_smoke_override?.status==='ACTIVE'?Number(handoffPolicy.integrity_smoke_override.approximate_workers_before_next_guide_return)||null:null;
-const recommendedWorkers=platformHold?0:(smokeOverride||clamp(Math.max(frontierTarget,attemptsForGap,launchMin),launchMin,launchMax));
+const recommendedWorkers=graduationArmed?Number(graduationRun.exact_workers||0):(platformHold?0:(smokeOverride||clamp(Math.max(frontierTarget,attemptsForGap,launchMin),launchMin,launchMax)));
 const runtimeGeneratedAt=runtime.generated_at||null;
 const runtimeAgeSeconds=runtimeGeneratedAt?Math.max(0,(Date.parse(generatedAt)-Date.parse(runtimeGeneratedAt))/1000):null;
 const runtimeFresh=runtimeAgeSeconds!==null&&Number.isFinite(runtimeAgeSeconds)&&runtimeAgeSeconds<=Number(handoffPolicy?.launch_estimator?.freshness_seconds||900);
 const workerHandoff={
   policy_id:handoffPolicy.policy_id||null,
   approximate_additional_workers_before_next_guide_return:recommendedWorkers,
-  exact:false,
+  exact:graduationArmed?true:false,
   runtime_fresh:runtimeFresh,
   runtime_generated_at:runtimeGeneratedAt,
   runtime_age_seconds:runtimeAgeSeconds!==null&&Number.isFinite(runtimeAgeSeconds)?Math.round(runtimeAgeSeconds):null,
@@ -96,8 +99,10 @@ const workerHandoff={
   strategy_attempts_target:attemptsForGap,
   integrity_smoke_override_active:!!smokeOverride,
   platform_graduation_hold_active:platformHold,
-  basis:platformHold?'platform graduation hold: finish launch packets + CAT-LAB before broad scale':(smokeOverride?'fresh-launch replay smoke override: validate 3 distinct v3.30 beacons before restoring normal scale':(runtimeFresh?'fresh frontier/scoreboard with contemporaneous runtime available; still approximate':'fresh frontier/scoreboard bounded estimator because runtime occupancy is stale or unavailable')),
-  final_line:platformHold?'NO MANDES /wc · terminando plataforma de workers':(smokeOverride?`MANDÁ ~${recommendedWorkers} /wc Y VOLVÉ A /g · smoke anti-replay v3.30`:`MANDÁ ~${recommendedWorkers} /wc Y VOLVÉ A /g · ${frontierCandidates.length} candidatos actuales; canary acotado para medir v3.30`)
+  graduation_run:graduationRun,
+  graduation_run_armed:graduationArmed,
+  basis:graduationArmed?`graduation RUN ${graduationRun.run_id}: immutable packet with ${recommendedWorkers} exact slots; broad PROD-01 remains held`:(platformHold?'platform graduation hold: no broad launch until the bounded graduation run is ready':(smokeOverride?'fresh-launch replay smoke override: validate 3 distinct v3.30 beacons before restoring normal scale':(runtimeFresh?'fresh frontier/scoreboard with contemporaneous runtime available; still approximate':'fresh frontier/scoreboard bounded estimator because runtime occupancy is stale or unavailable'))),
+  final_line:graduationArmed?`MANDÁ EXACTAMENTE ${recommendedWorkers} RUN ${graduationRun.run_id} Y VOLVÉ A /g · slots/variantes automáticos`:(platformHold?'NO MANDES /wc · graduación de workers todavía no armada':(smokeOverride?`MANDÁ ~${recommendedWorkers} /wc Y VOLVÉ A /g · smoke anti-replay v3.30`:`MANDÁ ~${recommendedWorkers} /wc Y VOLVÉ A /g · ${frontierCandidates.length} candidatos actuales; canary acotado para medir v3.30`))
 };
 const data={
   schema:'prometeo.guide-brief/v1',generated_at:generatedAt,
@@ -108,7 +113,7 @@ const data={
   scoreboard:{generated_at:scoreboard.generated_at||null,source_exam_count:scoreboard.source_exam_count||0,source_beacon_count:scoreboard.source_beacon_count||0,leader:scoreboard.leader||scoreboard.champion_candidate||null,champion:scoreboard.champion||null,champion_reproducible:!!scoreboard.champion_reproducible,champion_pattern_id:scoreboard.champion_pattern_id||null,reproduction_counts:scoreboard.reproduction_counts||{},pattern_candidate_id:scoreboard.pattern_candidate_id||null,pattern_candidate_status:scoreboard.pattern_candidate_status||null,active_pattern_id:scoreboard.active_pattern_id||null,active_pattern_health:scoreboard.active_pattern_health||null,strategy_experiment_id:scoreboard.strategy_experiment_id||null,strategy_experiment_status:scoreboard.strategy_experiment_status||null,strategy_experiment_health:scoreboard.strategy_experiment_health||null,measurement_coverage:scoreboard.measurement_coverage||null,fresh_launch_integrity:scoreboard.fresh_launch_integrity||null,growth_health:scoreboard.growth_health||null,launch_measurements:scoreboard.launch_measurements||[]},
   frontier:{generated_at:frontier.generated_at||null,candidate_count:(frontier.candidates||[]).length},
   worker_handoff:workerHandoff,
-  projects,pages:pageRows,worker_prompt:prompt,
+  projects,pages:pageRows,worker_prompt:prompt,graduation_run:graduationRun,
   links:{guide:'https://juanmanuelpm.github.io/prometeo/guide/',trajectory:'https://juanmanuelpm.github.io/prometeo/trajectory/',growth:'https://juanmanuelpm.github.io/prometeo/growth/',worker:'https://juanmanuelpm.github.io/prometeo/wc/',bootstrap:'https://juanmanuelpm.github.io/prometeo/g/'}
 };
 fs.mkdirSync(outDir,{recursive:true});
@@ -131,14 +136,14 @@ const html=`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta nam
 :root{color-scheme:dark;background:#10100f;color:#eee;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}*{box-sizing:border-box}body{margin:0;max-width:1100px;padding:28px;margin:auto}h1{font-size:22px;margin:0 0 4px}h2{font-size:14px;text-transform:uppercase;letter-spacing:.12em;margin:32px 0 10px;color:#ff9b54}p{line-height:1.45}.muted,small{color:#a9a49d}.top{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:18px 0}.metric,.row{border-top:1px solid #36332e;padding:12px 0}.metric b{display:block;font-size:20px}.pill{font-size:11px;border:1px solid #5a5148;padding:2px 6px;margin-left:8px}.row>div{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.row p{margin:7px 0}.links,a{color:#ff9b54}.links{display:flex;gap:12px;flex-wrap:wrap}.prompt{white-space:pre-wrap;border:1px solid #5a5148;padding:14px;user-select:all;overflow:auto}.nav{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px}details{border-top:1px solid #36332e;padding:10px 0}summary{cursor:pointer}.stamp{font-size:11px;color:#777;margin-top:28px}</style></head><body>
 <h1>Prometeo · Guide Brief</h1><div class="muted">Estado compilado para que el humano vea lo mismo que el Guide sin leer receipts.</div>
 <div class="nav"><a href="./brief.json">JSON</a><a href="https://juanmanuelpm.github.io/prometeo/trajectory/">Trajectory</a><a href="https://juanmanuelpm.github.io/prometeo/growth/">Growth</a><a href="https://juanmanuelpm.github.io/prometeo/g/">/g</a><a href="https://juanmanuelpm.github.io/prometeo/wc/">/wc</a></div>
-<h2>Próximo handoff</h2><section class="row"><div><b>~${esc(workerHandoff.approximate_additional_workers_before_next_guide_return)} workers</b><span class="pill">${workerHandoff.runtime_fresh?'runtime fresh':'runtime stale · aprox'}</span></div><p>${esc(workerHandoff.basis)} · frontier ${esc(workerHandoff.frontier_candidates)} · sample pressure ${esc(workerHandoff.strategy_attempts_target)}</p></section>\n<h2>Brújula</h2><div class="top"><div class="metric">salud<b>${health}</b></div><div class="metric">workers activos<b>${esc(pool?.summary?.active??'—')}</b></div><div class="metric">unidades productivas<b>${esc(pool?.summary?.productive_units_total??'—')}</b></div><div class="metric">launches medidos<b>${esc(scoreboard.source_beacon_count||0)}</b></div><div class="metric">exámenes explícitos<b>${esc(scoreboard.source_exam_count||0)}</b></div><div class="metric">leader<b>${esc(leader?.score??'—')}/10</b></div></div>\n<h2>Growth funnel</h2><section class="row"><div><b>measurement ${pct(coverage?.launch_observation_coverage)}</b><span class="pill">terminal ${pct(growth?.terminal_classification_rate)}</span></div><p>authority ${pct(growth?.authority_rate)} · productive workers ${pct(growth?.productive_worker_rate)} · units/launch ${esc(growth?.productive_units_per_launch??'—')} · product ${pct(growth?.product_value_unit_share)} · multiplier ${pct(growth?.system_multiplier_unit_share)} · control ${pct(growth?.control_overhead_unit_share)} (${esc(growth?.control_overhead_budget_state||'—')})</p></section>\n<h2>Fresh launch integrity</h2><section class="row"><div><b>${esc(freshLaunch?.status||'—')}</b><span class="pill">v3.30 ${esc(freshLaunch?.observed_distinct_fresh_workers??0)}/${esc(freshLaunch?.required_distinct_fresh_workers??3)}</span></div><p>nonce mismatches ${esc(freshLaunch?.explicit_exam_nonce_mismatches??0)} · missing fresh beacon/nonce ${esc(freshLaunch?.missing_fresh_beacon_marker_or_nonce??0)}. Historical completions do not count as a new launch.</p></section>
+<h2>Próximo handoff</h2><section class="row"><div><b>${workerHandoff.exact?'exactamente ':'~'}${esc(workerHandoff.approximate_additional_workers_before_next_guide_return)} workers</b><span class="pill">${workerHandoff.graduation_run_armed?'GRADUATION RUN':(workerHandoff.runtime_fresh?'runtime fresh':'runtime stale · aprox')}</span></div><p>${esc(workerHandoff.basis)}</p>${workerHandoff.graduation_run_armed?`<div class="links"><a href="${esc(graduationRun.packet_url||'')}" target="_blank">launch packet</a><a href="${esc(graduationRun.status_url||'')}" target="_blank">run status</a></div>`:''}</section>\n<h2>Brújula</h2><div class="top"><div class="metric">salud<b>${health}</b></div><div class="metric">workers activos<b>${esc(pool?.summary?.active??'—')}</b></div><div class="metric">unidades productivas<b>${esc(pool?.summary?.productive_units_total??'—')}</b></div><div class="metric">launches medidos<b>${esc(scoreboard.source_beacon_count||0)}</b></div><div class="metric">exámenes explícitos<b>${esc(scoreboard.source_exam_count||0)}</b></div><div class="metric">leader<b>${esc(leader?.score??'—')}/10</b></div></div>\n<h2>Growth funnel</h2><section class="row"><div><b>measurement ${pct(coverage?.launch_observation_coverage)}</b><span class="pill">terminal ${pct(growth?.terminal_classification_rate)}</span></div><p>authority ${pct(growth?.authority_rate)} · productive workers ${pct(growth?.productive_worker_rate)} · units/launch ${esc(growth?.productive_units_per_launch??'—')} · product ${pct(growth?.product_value_unit_share)} · multiplier ${pct(growth?.system_multiplier_unit_share)} · control ${pct(growth?.control_overhead_unit_share)} (${esc(growth?.control_overhead_budget_state||'—')})</p></section>\n<h2>Fresh launch integrity</h2><section class="row"><div><b>${esc(freshLaunch?.status||'—')}</b><span class="pill">v3.30 ${esc(freshLaunch?.observed_distinct_fresh_workers??0)}/${esc(freshLaunch?.required_distinct_fresh_workers??3)}</span></div><p>nonce mismatches ${esc(freshLaunch?.explicit_exam_nonce_mismatches??0)} · missing fresh beacon/nonce ${esc(freshLaunch?.missing_fresh_beacon_marker_or_nonce??0)}. Historical completions do not count as a new launch.</p></section>
 <h2>Experimento estratégico</h2><section class="row"><div><b>${esc(scoreboard.strategy_experiment_id||trajectory?.current_state?.active_experiment||'—')}</b><span class="pill">${esc(seh?.status||scoreboard.strategy_experiment_status||'UNKNOWN')}</span></div><p>${esc(seSummary)} · causalidad: post-ownership por clase; preclaim se publica aparte.</p></section>
 <h2>Patrón reproducible</h2><section class="row"><div><b>${esc(scoreboard.champion_pattern_id||'ninguno')}</b><span class="pill">${scoreboard.champion_reproducible?'REPRODUCIBLE':'NONE'}</span></div><p>Un experimento estratégico activo no equivale a un patrón universal promovido.</p></section>
 <h2>Patrón histórico / candidato</h2><section class="row"><div><b>${esc(scoreboard.pattern_candidate_id||'—')}</b><span class="pill">${esc(scoreboard.pattern_candidate_status||aph?.status||'—')}</span></div><p>La evidencia histórica permanece visible sin reactivar un patrón retirado.</p></section>
 <h2>Experimentos multiplicativos</h2>${expHtml||'<p class="muted">Sin experimentos activos.</p>'}
 <h2>Proyectos · contexto actual</h2>${projectHtml}
 <h2>Páginas / lugares que deberían estar online</h2>${pageHtml}
-<h2>Prompt fijo de producción</h2><div class="prompt">${esc(prompt)}</div>
+<h2>${graduationArmed?'Prompt actual · graduation RUN':'Prompt fijo de producción'}</h2><div class="prompt">${esc(prompt)}</div>
 <div class="stamp">generado ${esc(generatedAt)} · se refresca automáticamente cuando cambian fuentes del brief</div>
 </body></html>`;
 fs.writeFileSync(path.join(outDir,'index.html'),html);
