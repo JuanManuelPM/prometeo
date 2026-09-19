@@ -25,11 +25,14 @@ const roleContext = {
 };
 const feed = { source_sha: 'test-sha', workers: [] };
 const efficiency = { status: 'OK', metrics: {}, reasons: [] };
-const recovery = (prefix, capabilities) => Array.from({ length: 3 }, (_, i) => ({
+const recovery = (prefix, capabilities, basisFingerprints = null) => Array.from({ length: 3 }, (_, i) => ({
   job_id: `${prefix}-${i + 1}`,
   source_path: `coordination/portfolio/derived/test/${prefix}-${i + 1}.json`,
   predecessor_pin_ref: `coordination/portfolio/pins/${prefix}-${i + 1}/G000001.json`,
-  required_capabilities: capabilities
+  required_capabilities: capabilities,
+  ...(basisFingerprints ? {
+    recovery_basis_gate: { basis: { fingerprint: basisFingerprints[i] } }
+  } : {})
 }));
 
 const specialized = compileRoleFrontier(
@@ -67,6 +70,43 @@ assert.equal(
   mixed.role_ready.some(row => row.role === 'GUIDE_RESCATE'),
   false,
   'specialized rows must not push sub-threshold generic recovery over the rescate threshold'
+);
+
+const diverseGeneric = compileRoleFrontier(
+  feed,
+  efficiency,
+  [],
+  [],
+  [],
+  recovery('diverse-generic', [], ['basis-a', 'basis-b', 'basis-c']),
+  roleContext
+);
+assert.equal(diverseGeneric.metabolism.generic_compatible_recovery, 3);
+assert.equal(diverseGeneric.metabolism.generic_recovery_diversity_known, true);
+assert.equal(diverseGeneric.metabolism.generic_recovery_distinct_basis_count, 3);
+assert.equal(diverseGeneric.metabolism.generic_recovery_rescue_pressure, false);
+assert.equal(
+  diverseGeneric.role_ready.some(row => row.role === 'GUIDE_RESCATE'),
+  false,
+  'three causally distinct generic recoveries must not spawn GUIDE_RESCATE from count alone'
+);
+
+const concentratedGeneric = compileRoleFrontier(
+  feed,
+  efficiency,
+  [],
+  [],
+  [],
+  recovery('concentrated-generic', [], ['shared-basis', 'shared-basis', 'shared-basis']),
+  roleContext
+);
+assert.equal(concentratedGeneric.metabolism.generic_recovery_diversity_known, true);
+assert.equal(concentratedGeneric.metabolism.generic_recovery_distinct_basis_count, 1);
+assert.equal(concentratedGeneric.metabolism.generic_recovery_rescue_pressure, true);
+assert.equal(
+  concentratedGeneric.role_ready.some(row => row.role === 'GUIDE_RESCATE' && row.trigger === 'LOW_YIELD'),
+  true,
+  'causally concentrated generic recovery must preserve GUIDE_RESCATE'
 );
 
 console.log('GUIDE_RESCATE_CAPABILITY_RECOVERY_PRESSURE_PASS');
