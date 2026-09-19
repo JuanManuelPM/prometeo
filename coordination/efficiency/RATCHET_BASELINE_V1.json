@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-19T15:02:07Z",
+  "updated_at": "2026-09-19T15:02:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -2111,6 +2111,56 @@
         "efficiency_ratchet_run_id": 35450486947,
         "efficiency_ratchet_conclusion": "success"
       }
+    },
+    {
+      "id": "EFF062",
+      "title": "Immutable compact-frontier replay repairs local retention loss without a second snapshot",
+      "scope": [
+        "wc",
+        "worker-allocation",
+        "pool",
+        "claim-frontier",
+        "github-connector",
+        "efficiency-ratchet"
+      ],
+      "observed_failure": "A PROD-01 worker read one compact frontier with three compatible candidates and retained the exact frontier blob SHA, then lost its first atomic race. Runtime/tool orchestration no longer held the two unselected contract-complete candidate objects, so the worker stopped CONTRACT_COMPLETE_LOCAL_RETENTION_UNAVAILABLE_AFTER_COLLISION rather than advancing, even though rereading mutable frontier state and fabricating payloads were both correctly forbidden.",
+      "invariant": "For BATCH/POOL only, after a real CREATE_EXISTS, if the original GitHub compact-frontier read's exact immutable blob SHA was retained but unselected contract-complete objects were lost from active runtime context, the worker may fetch that same Git blob exactly once solely to reconstruct the byte-identical originally observed candidate view. Immutable replay is not a new allocator snapshot, observes no newer state, preserves original shard/capability/attempt accounting, and never increases authority attempt ceilings.",
+      "required": {
+        "batch_or_pool_only": true,
+        "requires_real_create_exists": true,
+        "requires_retained_exact_initial_frontier_blob_sha": true,
+        "replay_transport": "GITHUB_FETCH_BLOB",
+        "immutable_replay_max_per_worker_lifecycle": 1,
+        "byte_identical_original_snapshot_only": true,
+        "newer_state_visibility": false,
+        "state_discovery_added": 0,
+        "original_beacon_commit_sha_reused": true,
+        "original_capability_facts_reused": true,
+        "original_candidate_order_reused": true,
+        "authority_attempt_accounting_unchanged": true,
+        "base_authority_create_attempts_max": 3,
+        "pool_tail_rescue_max": 1,
+        "initial_routing_replay_forbidden": true,
+        "stale_refresh_replay_forbidden": true,
+        "transport_denial_or_ambiguity_replay_forbidden": true,
+        "branch_head_only_movement_replay_forbidden": true,
+        "capability_mismatch_replay_forbidden": true,
+        "barrier_timing_replay_forbidden": true,
+        "payload_fabrication_forbidden": true,
+        "directory_archaeology_forbidden": true,
+        "protocol_refs": [
+          "wc",
+          "coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md"
+        ],
+        "regression_test": "coordination/portfolio/tests/claim_frontier_immutable_replay_v1.mjs",
+        "workflow_guard": ".github/workflows/efficiency-ratchet.yml"
+      },
+      "status": "STATIC_GUARDED_PENDING_RUNTIME",
+      "evidence": [
+        "coordination/workers/no-allocation/wc-20260919T145701Z-9309ecd3c774.json",
+        "wc",
+        "coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md"
+      ]
     }
   ],
   "status_legend": {
