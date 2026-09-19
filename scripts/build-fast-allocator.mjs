@@ -648,6 +648,61 @@ export function authorityBoundaryGate(job = {}) {
   return { ...base, valid: true, eligible: true, reason: 'NEW_AUTHORITY_GATE_SATISFIED' };
 }
 
+const REPEATED_CAPABILITY_BOUNDARY_OUTCOMES = new Set([
+  'boundary',
+  'capability_boundary',
+  'http_boundary',
+  'route_aborted'
+]);
+
+export function capabilityConfirmationGate(job = {}) {
+  const required = jobRequiredCapabilities(job);
+  if (required.length !== 1) {
+    return { required: false, reason: 'NOT_SINGLE_REQUIRED_CAPABILITY', capability: null, evidence: [] };
+  }
+  const recent = arr(job?.recent_return_evidence)
+    .map(row => ({
+      path: row?.path || null,
+      outcome: lower(row?.outcome || row?.status || '').replaceAll('-', '_'),
+      returned_at: row?.returned_at || null,
+      returned_at_ms: parseTime(row?.returned_at)
+    }))
+    .filter(row => row.path)
+    .sort((a, b) => b.returned_at_ms - a.returned_at_ms);
+
+  const consecutive = [];
+  for (const row of recent) {
+    if (!REPEATED_CAPABILITY_BOUNDARY_OUTCOMES.has(row.outcome)) break;
+    consecutive.push(row);
+  }
+  if (consecutive.length < 2) {
+    return { required: false, reason: 'REPEATED_BOUNDARY_THRESHOLD_NOT_MET', capability: required[0], evidence: consecutive.map(row => row.path) };
+  }
+
+  const latestBoundaryAt = consecutive[0]?.returned_at_ms || 0;
+  const basis = normalizedRecoveryBasis(job);
+  const newMaterialBasis = basis.explicit && basis.updated_at_ms > latestBoundaryAt;
+  if (newMaterialBasis) {
+    return {
+      required: false,
+      reason: 'NEW_MATERIAL_BASIS_AFTER_BOUNDARY',
+      capability: required[0],
+      evidence: consecutive.map(row => row.path),
+      basis_fingerprint: basis.fingerprint
+    };
+  }
+
+  return {
+    required: true,
+    reason: 'REPEATED_TERMINAL_CAPABILITY_BOUNDARY',
+    capability: required[0],
+    boundary_count: consecutive.length,
+    evidence: consecutive.slice(0, 3).map(row => row.path),
+    positive_runtime_contract_required: true,
+    unknown_or_absent_skip_preclaim: true
+  };
+}
+
 function combinedRecoveryGate(job = {}) {
   const authority = authorityBoundaryGate(job);
   if (!authority.eligible) return { ...authority, gate_kind: 'authority' };
@@ -674,6 +729,7 @@ function compactPortfolio(feed, semantic, job, targetGeneration = null, growthPo
   const basisGate = recoveryBasisGate(job);
   const authorityGate = authorityBoundaryGate(job);
   const recoveryGate = combinedRecoveryGate(job);
+  const capabilityConfirmation = current > 0 ? capabilityConfirmationGate(job) : { required: false, reason: 'FIRST_ATTEMPT' };
   const next = targetGeneration ?? current + 1;
   const predecessor = current ? `coordination/portfolio/pins/${job.job_id}/G${g(current)}.json` : null;
   return {
@@ -696,6 +752,7 @@ function compactPortfolio(feed, semantic, job, targetGeneration = null, growthPo
     recovery_basis_gate: basisGate,
     authority_gate: authorityGate.present ? authorityGate : null,
     recovery_gate: recoveryGate,
+    capability_confirmation_required: capabilityConfirmation.required ? capabilityConfirmation : null,
     claim_mode: 'PORTFOLIO_PIN_CREATE',
     claim_path: `coordination/portfolio/pins/${job.job_id}/G${g(next)}.json`,
     claim_payload_shape: {
