@@ -1310,6 +1310,29 @@ must('wc', wc, '"sha" wasn\'t supplied');
 must('fast-allocation', fast, 'GITHUB_CONTENTS_CREATE_EXISTS_422_SHA_MISSING');
 must('fast-allocation', fast, 'arbitrary HTTP 422');
 
+
+const eff062 = baseline.items?.find(item => item.id === 'EFF062');
+if (!eff062) errors.push('ratchet: EFF062 missing');
+else {
+  if (eff062.required?.batch_or_pool_only !== true) errors.push('ratchet: EFF062 pool/batch scope drift');
+  if (eff062.required?.requires_real_create_exists !== true) errors.push('ratchet: EFF062 collision gate drift');
+  if (eff062.required?.requires_retained_exact_initial_frontier_blob_sha !== true) errors.push('ratchet: EFF062 blob-SHA gate drift');
+  if (eff062.required?.replay_transport !== 'GITHUB_FETCH_BLOB') errors.push('ratchet: EFF062 replay transport drift');
+  if (eff062.required?.immutable_replay_max_per_worker_lifecycle !== 1) errors.push('ratchet: EFF062 replay bound drift');
+  if (eff062.required?.byte_identical_original_snapshot_only !== true) errors.push('ratchet: EFF062 immutable snapshot drift');
+  if (eff062.required?.newer_state_visibility !== false || eff062.required?.state_discovery_added !== 0) errors.push('ratchet: EFF062 state-discovery drift');
+  if (eff062.required?.authority_attempt_accounting_unchanged !== true) errors.push('ratchet: EFF062 attempt accounting drift');
+  if (eff062.required?.base_authority_create_attempts_max !== 3 || eff062.required?.pool_tail_rescue_max !== 1) errors.push('ratchet: EFF062 attempt ceiling drift');
+  if (eff062.required?.payload_fabrication_forbidden !== true || eff062.required?.directory_archaeology_forbidden !== true) errors.push('ratchet: EFF062 anti-fabrication drift');
+  if (eff062.required?.regression_test !== 'coordination/portfolio/tests/claim_frontier_immutable_replay_v1.mjs') errors.push('ratchet: EFF062 regression-test drift');
+}
+must('EFF062 wc', wcHttpVsJsContract, 'IMMUTABLE FRONTIER REPLAY');
+must('EFF062 wc', wcHttpVsJsContract, 'fetch_blob');
+must('EFF062 fast allocation', fastHttpVsJsContract, 'IMMUTABLE FRONTIER REPLAY');
+must('EFF062 fast allocation', fastHttpVsJsContract, 'fetch_blob');
+const immutableReplayTest = read(root, 'coordination/portfolio/tests/claim_frontier_immutable_replay_v1.mjs');
+must('immutable-frontier-replay-test', immutableReplayTest, 'CLAIM_FRONTIER_IMMUTABLE_REPLAY_PASS');
+
 if (errors.length) {
   console.error('EFFICIENCY_RATCHET_FAIL');
   for (const e of errors) console.error(`- ${e}`);
