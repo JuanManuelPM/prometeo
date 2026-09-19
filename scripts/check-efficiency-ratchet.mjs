@@ -1079,6 +1079,17 @@ else {
   if (eff053.required?.regression_test !== 'coordination/portfolio/tests/source_debt_recovery_basis_gate_v1.mjs') errors.push('ratchet: EFF053 regression-test drift');
 }
 
+const eff059 = baseline.items?.find(item => item.id === 'EFF059');
+if (!eff059) errors.push('ratchet: EFF059 missing');
+else {
+  if (eff059.required?.invalid_local_with_valid_dependency_falls_back !== true) errors.push('ratchet: EFF059 dependency fallback drift');
+  if (eff059.required?.malformed_without_valid_dependency_fails_closed !== true) errors.push('ratchet: EFF059 fail-closed drift');
+  if (eff059.required?.explicit_bounded_dependency_only !== true) errors.push('ratchet: EFF059 bounded-dependency drift');
+  if (eff059.required?.recursive_source_debt_evidence_traversal_forbidden !== true) errors.push('ratchet: EFF059 recursive traversal drift');
+  if (eff059.required?.unchanged_reason !== 'SOURCE_DEBT_BASIS_UNCHANGED') errors.push('ratchet: EFF059 unchanged-reason drift');
+  if (eff059.required?.regression_test !== 'coordination/portfolio/tests/source_debt_recovery_basis_gate_v1.mjs') errors.push('ratchet: EFF059 regression-test drift');
+}
+
 const eff054 = baseline.items?.find(item => item.id === 'EFF054');
 if (!eff054) errors.push('ratchet: EFF054 missing');
 else {
@@ -1132,6 +1143,8 @@ must('source-debt-recovery-test', sourceDebtRecoveryTest, 'Live feed must preser
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'latest_source_debt_return');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'SOURCE_DEBT_MALFORMED_FAIL_CLOSED');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'portfolio-jose-v12-pinned-v11-material-recovery-v1 must not emit a G5 recovery from age alone');
+must('source-debt-recovery-test', sourceDebtRecoveryTest, 'invalid local SOURCE_DEBT projection must not mask a valid bounded dependency');
+must('fast-allocator', allocator, 'local_source_debt_invalid');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'dependent SOURCE_DEBT must suppress time-only recovery');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'source_debt_dependency');
 must('source-debt-recovery-test', sourceDebtRecoveryTest, 'source_debt_dependency_return_ref');
