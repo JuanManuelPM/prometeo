@@ -116,9 +116,9 @@ must('guide-handoff', guideBootstrap, 'first visible copyable block');
 must('guide-handoff', guideBootstrap, 'MANDÁ ~<N> /wc Y VOLVÉ A /g');
 const guideHandoffTest = read(root, 'tests/guide-worker-handoff-v1.test.mjs');
 must('guide-handoff-test', guideHandoffTest, 'GUIDE_WORKER_HANDOFF_V1_PASS');
-const guideBriefBuilder = read(root, 'scripts/build-guide-brief.mjs');
-must('guide-brief-handoff', guideBriefBuilder, 'approximate_additional_workers_before_next_guide_return');
-must('guide-brief-handoff', guideBriefBuilder, 'strategy_sample_gaps');
+const handoffGuideBriefBuilder = read(root, 'scripts/build-guide-brief.mjs');
+must('guide-brief-handoff', handoffGuideBriefBuilder, 'approximate_additional_workers_before_next_guide_return');
+must('guide-brief-handoff', handoffGuideBriefBuilder, 'strategy_sample_gaps');
 
 const allocator = read(root, 'scripts/build-fast-allocator.mjs');
 must('allocator', allocator, 'value_class');
