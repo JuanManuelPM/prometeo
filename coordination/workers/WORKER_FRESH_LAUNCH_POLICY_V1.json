@@ -1,0 +1,62 @@
+{
+  "schema": "prometeo.worker-fresh-launch/v1",
+  "policy_id": "WORKER-FRESH-LAUNCH-V1",
+  "status": "ACTIVE_BINDING",
+  "activated_at": "2026-09-19T13:24:00Z",
+  "incident": {
+    "observed": "A newly opened /wc chat returned the exact historical completion for worker wc-20260918T212321Z-94fec87501.",
+    "historical_exam_ref": "coordination/workers/exams/wc-20260918T212321Z-94fec87501.json",
+    "historical_exam_closed_at": "2026-09-18T21:38:00Z",
+    "historical_protocol": "v3.28",
+    "diagnosis": "FRESH_LAUNCH_REPLAY",
+    "truth_boundary": "The text matched durable historical evidence, but no new beacon/worker identity was created for the new human launch. Historical truth was replayed as if it were current execution."
+  },
+  "invariant": "Every canonical human /wc invocation is a NEW worker launch unless the human explicitly names an existing worker_id and asks to resume it. New launches may never adopt a worker_id from memory, prior chats, model context, repository examples, runtime, scoreboard, receipts, exams or no-allocation artifacts.",
+  "fresh_identity": {
+    "format": "wc-<current_utc_compact>-<fresh_12hex>",
+    "generation": "Generate current UTC timestamp plus a de-novo 12-hex suffix in this turn. Never copy the suffix or whole worker_id from any observed artifact.",
+    "atomic_uniqueness_gate": "CREATE coordination/workers/beacons/<worker_id>.json before frontier allocation. Never pre-read the candidate beacon path.",
+    "create_exists": "If beacon CREATE returns CREATE_EXISTS, discard the worker_id completely, generate a new suffix and retry beacon CREATE, maximum 3 total beacon identity attempts.",
+    "freeze_after_success": true
+  },
+  "beacon_required_fields": [
+    "schema",
+    "worker_id",
+    "launched_at",
+    "batch_id",
+    "expected_workers",
+    "pool_id",
+    "canary_protocol",
+    "source",
+    "fresh_launch",
+    "launch_nonce"
+  ],
+  "beacon_values": {
+    "schema": "prometeo.worker-beacon/v1",
+    "canary_protocol": "v3.30",
+    "source": "/wc",
+    "fresh_launch": true,
+    "launch_nonce": "fresh de-novo 16hex generated in this turn; must not be copied from prior artifacts"
+  },
+  "replay_guards": [
+    "Existing exam/RETURN/no-allocation/CLOSE evidence for any other worker_id is historical evidence only and can never satisfy the current launch.",
+    "A current launch cannot emit a terminal human response before its own fresh beacon CREATE succeeded.",
+    "For v3.30 terminal exams, launch_nonce must equal the current beacon launch_nonce.",
+    "If a worker cannot create a fresh beacon after the bounded identity attempts, close as FRESH_LAUNCH_BEACON_NOT_CREATED. It must not summarize or present a historical worker as the current result.",
+    "A worker may resume an old worker_id only when the HUMAN MESSAGE explicitly names that exact worker_id and explicitly requests resume/recovery."
+  ],
+  "smoke_gate": {
+    "status": "ACTIVE_AFTER_REPLAY_INCIDENT",
+    "required_distinct_fresh_workers": 3,
+    "pass_when": "3 distinct v3.30 beacons exist from post-fix human launches; none reuse a prior worker_id; any explicit v3.30 exam matches its beacon launch_nonce.",
+    "broad_scale_after_pass": true,
+    "human_worker_routing_required": false
+  },
+  "refs": [
+    "wc",
+    "coordination/workers/WORKER_PRODUCTIVITY_EXAM_V1.json",
+    "scripts/build-worker-scoreboard.mjs",
+    "tests/worker-fresh-launch-v1.test.mjs",
+    "coordination/efficiency/RATCHET_BASELINE_V1.json"
+  ]
+}
