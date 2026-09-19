@@ -75,7 +75,8 @@ if(handoffSeh){
     sampleGaps.push({job_class:cls,variant,current:cur,target,gap,attempts_estimate:attempts});
   }
 }
-const recommendedWorkers=clamp(Math.max(frontierTarget,attemptsForGap,launchMin),launchMin,launchMax);
+const smokeOverride=handoffPolicy?.integrity_smoke_override?.status==='ACTIVE'?Number(handoffPolicy.integrity_smoke_override.approximate_workers_before_next_guide_return)||null:null;
+const recommendedWorkers=smokeOverride||clamp(Math.max(frontierTarget,attemptsForGap,launchMin),launchMin,launchMax);
 const runtimeGeneratedAt=runtime.generated_at||null;
 const runtimeAgeSeconds=runtimeGeneratedAt?Math.max(0,(Date.parse(generatedAt)-Date.parse(runtimeGeneratedAt))/1000):null;
 const runtimeFresh=runtimeAgeSeconds!==null&&Number.isFinite(runtimeAgeSeconds)&&runtimeAgeSeconds<=Number(handoffPolicy?.launch_estimator?.freshness_seconds||900);
@@ -92,8 +93,9 @@ const workerHandoff={
   represented_strategy_classes:representedClasses,
   strategy_sample_gaps:sampleGaps,
   strategy_attempts_target:attemptsForGap,
-  basis:runtimeFresh?'fresh frontier/scoreboard with contemporaneous runtime available; still approximate':'fresh frontier/scoreboard bounded estimator because runtime occupancy is stale or unavailable',
-  final_line:`MANDÁ ~${recommendedWorkers} /wc Y VOLVÉ A /g · ${frontierCandidates.length} candidatos actuales; canary acotado para medir v3.29`
+  integrity_smoke_override_active:!!smokeOverride,
+  basis:smokeOverride?'fresh-launch replay smoke override: validate 3 distinct v3.30 beacons before restoring normal scale':(runtimeFresh?'fresh frontier/scoreboard with contemporaneous runtime available; still approximate':'fresh frontier/scoreboard bounded estimator because runtime occupancy is stale or unavailable'),
+  final_line:smokeOverride?`MANDÁ ~${recommendedWorkers} /wc Y VOLVÉ A /g · smoke anti-replay v3.30`:`MANDÁ ~${recommendedWorkers} /wc Y VOLVÉ A /g · ${frontierCandidates.length} candidatos actuales; canary acotado para medir v3.30`
 };
 const data={
   schema:'prometeo.guide-brief/v1',generated_at:generatedAt,
