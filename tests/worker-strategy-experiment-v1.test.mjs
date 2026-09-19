@@ -14,14 +14,14 @@ assert.equal(exp.applies_after,'OWNERSHIP');
 assert.equal(exp.authority_boundary.preclaim_reads_added,0);
 assert.equal(exp.authority_boundary.claim_authority_changed,false);
 assert.equal(exp.measurement.min_independent_workers_per_variant,3);
-assert.equal(exp.protocol_min_version,'v3.29');
+assert.equal(exp.protocol_min_version,'v3.30');
 assert.equal(exp.enrollment.assignment_mode,'ADAPTIVE_MIN_SAMPLE_THEN_HASH_TIEBREAK');
 assert.equal(exp.enrollment.scoreboard_read_timing,'POST_OWNERSHIP_ONLY');
 assert.equal(exp.enrollment.preclaim_reads_added,0);
 for(const c of ['MUTATION','VERIFICATION','INTEGRATION','GUIDE_FRONTIER']) assert.equal(exp.classes[c].variants.length,2,c+' must have two variants');
 
 const wc=read('wc');
-assert.ok(wc.startsWith('PROMETEO UNIVERSAL COGNITIVE WORKER CANARY v3.29'));
+assert.ok(wc.startsWith('PROMETEO UNIVERSAL COGNITIVE WORKER CANARY v3.30'));
 const after=wc.indexOf('## AFTER OWNERSHIP');
 const expRef=wc.indexOf('coordination/workers/WORKER_STRATEGY_EXPERIMENT_V1.json');
 assert.ok(after>=0 && expRef>after,'strategy experiment must load only after ownership');
@@ -32,7 +32,7 @@ assert.ok(wc.includes('beacon_commit_sha_hash_tie'));
 assert.ok(wc.includes('WORKER_GROWTH_POLICY_V1.json'));
 
 const exam=json('coordination/workers/WORKER_PRODUCTIVITY_EXAM_V1.json');
-assert.equal(exam.current_worker_protocol_version,'v3.29');
+assert.equal(exam.current_worker_protocol_version,'v3.30');
 assert.equal(exam.pattern_measurement.active_pattern_ref,null);
 assert.equal(exam.pattern_measurement.historical_candidate_ref,'coordination/workers/YIELD_PATTERN_CANDIDATE_V1.json');
 assert.equal(exam.strategy_measurement.active_experiment_ref,'coordination/workers/WORKER_STRATEGY_EXPERIMENT_V1.json');
@@ -57,7 +57,7 @@ assert.ok(['ACTIVE_PARALLEL','ONGOING','ACTIVE_PARALLEL_MEASURED'].includes(traj
 assert.ok(['ACTIVE_PARALLEL','ONGOING','ACTIVE_PARALLEL_MEASURED'].includes(trajectory.roadmap.find(x=>x.stage==='S5_PRODUCT_VALUE_DOMINANCE').status));
 
 const mission=json('coordination/guide/CURRENT_MISSION_V1.json');
-assert.equal(mission.operating_mode.current_worker_protocol_version,'v3.29');
+assert.equal(mission.operating_mode.current_worker_protocol_version,'v3.30');
 assert.equal(mission.strategy_experiment_ref,'coordination/workers/WORKER_STRATEGY_EXPERIMENT_V1.json');
 
 const campaign=json('coordination/guide/GROWTH_CAMPAIGN_V1.json');
