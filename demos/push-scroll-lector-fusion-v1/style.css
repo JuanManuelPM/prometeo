@@ -1,0 +1,349 @@
+  :root{
+    --paper:#efedef;
+    --ink:#111111;
+    --muted:#747174;
+    --line:rgba(17,17,17,.28);
+    --soft:rgba(17,17,17,.13);
+    --edge:clamp(8px,1.15vw,18px);
+    --rail:clamp(54px,6vw,82px);
+    --square:calc(var(--edge) + var(--rail));
+    --col-gap:clamp(24px,5vw,82px);
+    --section-gap:clamp(20px,2.6vw,34px);
+    --title:clamp(62px,9.4vw,156px);
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink);font-family:Arial,Helvetica,sans-serif}
+  body{overflow-x:hidden}
+  button,input{font:inherit;color:inherit}
+
+  /* The single persistent rail line from Push Scroll v17. */
+  .rail-line{
+    position:fixed;
+    z-index:7;
+    left:calc(var(--edge) + var(--rail));
+    top:0;
+    bottom:0;
+    width:1px;
+    background:var(--line);
+    pointer-events:none;
+  }
+
+  main{
+    position:relative;
+    margin-left:var(--edge);
+    padding-top:0;
+    padding-bottom:20svh;
+  }
+
+  .chapter{
+    position:relative;
+    display:grid;
+    grid-template-columns:var(--rail) var(--col-gap) minmax(0,1fr);
+    align-items:stretch;
+    min-height:132svh;
+  }
+
+  .chapter::before{
+    content:"";
+    position:absolute;
+    z-index:2;
+    left:0;
+    right:0;
+    top:0;
+    height:1px;
+    background:var(--line);
+    pointer-events:none;
+  }
+
+  .number-track{
+    grid-column:1;
+    grid-row:1;
+    position:relative;
+    align-self:stretch;
+    min-width:0;
+    margin:0;
+    padding:0;
+  }
+
+  /* Sacred push physics: sticky lives inside each chapter, so the next
+     chapter boundary pushes the previous number without scroll math. */
+  .chapter-number{
+    position:sticky;
+    top:0;
+    z-index:30;
+    width:var(--square);
+    height:var(--square);
+    margin:0 0 0 calc(-1 * var(--edge));
+    padding:0;
+    display:grid;
+    place-items:center;
+    background:var(--ink);
+    color:#fff;
+    font-size:clamp(23px,2.35vw,35px);
+    font-weight:900;
+    font-variant-numeric:tabular-nums;
+    letter-spacing:-.055em;
+    line-height:1;
+  }
+
+  .content{
+    grid-column:3;
+    grid-row:1;
+    width:min(100%,1120px);
+    padding-top:var(--section-gap);
+    padding-right:clamp(18px,8vw,128px);
+    padding-bottom:28svh;
+  }
+
+  h1{
+    margin:0;
+    max-width:7.4ch;
+    font-size:var(--title);
+    line-height:.84;
+    letter-spacing:-.07em;
+    text-transform:uppercase;
+    font-weight:900;
+    text-wrap:balance;
+  }
+
+  .text{
+    width:min(100%,700px);
+    margin-top:clamp(42px,6vw,84px);
+    font-size:clamp(16px,1.32vw,21px);
+    line-height:1.62;
+    color:var(--muted);
+    text-wrap:pretty;
+  }
+  .text p{margin:0 0 1.3em;transition:color .18s linear}
+  .text p:last-child{margin-bottom:0}
+  .chapter.is-audio-active .text p.is-reading{color:var(--ink)}
+
+  /*
+    Global reader lives inside the existing rail instead of adding a sidebar.
+    The shell has no painted box: the one vertical rail remains the dominant
+    structural line. Incoming chapter squares are z-index 30 and can cover it.
+  */
+  .rail-player{
+    position:fixed;
+    z-index:8;
+    left:0;
+    top:calc(var(--square) + clamp(12px,2svh,22px));
+    bottom:max(12px,env(safe-area-inset-bottom));
+    width:var(--square);
+    pointer-events:none;
+    user-select:none;
+  }
+  .rail-player-inner{
+    position:absolute;
+    inset:0 0 0 0;
+    pointer-events:none;
+  }
+  .rail-meta,
+  .rail-play,
+  .rail-settings-button,
+  .rail-times,
+  .rail-progress,
+  .rail-settings{pointer-events:auto}
+
+  .rail-meta{
+    width:calc(100% - 9px);
+    padding-left:max(7px,var(--edge));
+    text-align:center;
+    font-size:8px;
+    line-height:1.15;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--muted);
+    font-variant-numeric:tabular-nums;
+  }
+  .rail-meta strong{
+    display:block;
+    margin-top:3px;
+    font-size:11px;
+    letter-spacing:-.01em;
+    color:var(--ink);
+  }
+
+  .rail-play{
+    position:absolute;
+    top:39px;
+    left:50%;
+    transform:translateX(-50%);
+    width:38px;
+    height:38px;
+    border:0;
+    border-radius:50%;
+    background:var(--ink);
+    display:grid;
+    place-items:center;
+    cursor:pointer;
+    padding:0;
+    touch-action:manipulation;
+  }
+  .rail-play svg{width:15px;height:15px;color:var(--paper)}
+  .rail-play .pause-icon{display:none}
+  .rail-play[data-playing="1"] .play-icon{display:none}
+  .rail-play[data-playing="1"] .pause-icon{display:block}
+  .rail-play.is-loading::after{
+    content:"";
+    position:absolute;
+    inset:-4px;
+    border:1px solid var(--soft);
+    border-top-color:var(--ink);
+    border-radius:50%;
+    animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* Progress uses the same x coordinate as the one rail line, so the player
+     does not introduce a second permanent vertical line. */
+  .rail-progress{
+    position:absolute;
+    left:100%;
+    top:88px;
+    bottom:89px;
+    width:23px;
+    transform:translateX(-11px);
+    cursor:pointer;
+    touch-action:none;
+  }
+  .rail-progress::before{
+    content:"";
+    position:absolute;
+    left:11px;
+    top:0;
+    bottom:0;
+    width:1px;
+    background:transparent;
+  }
+  .progress-buffer,
+  .progress-fill{
+    position:absolute;
+    left:10px;
+    top:0;
+    width:3px;
+    height:0;
+    border-radius:999px;
+    pointer-events:none;
+  }
+  .progress-buffer{background:rgba(17,17,17,.18)}
+  .progress-fill{background:var(--ink)}
+  .progress-thumb{
+    position:absolute;
+    z-index:2;
+    left:11px;
+    top:0;
+    width:11px;
+    height:11px;
+    border-radius:50%;
+    background:var(--ink);
+    transform:translate(-50%,-50%);
+    pointer-events:none;
+    transition:transform .1s ease;
+  }
+  .rail-progress.dragging .progress-thumb{transform:translate(-50%,-50%) scale(1.22)}
+
+  .rail-times{
+    position:absolute;
+    left:0;
+    right:8px;
+    bottom:39px;
+    padding-left:max(7px,var(--edge));
+    text-align:center;
+    font:8.5px/1.28 ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-variant-numeric:tabular-nums;
+    color:var(--muted);
+  }
+  .rail-times span{display:block}
+  .buffer-hint{
+    min-height:11px;
+    margin-top:3px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    font-family:Arial,Helvetica,sans-serif;
+    color:var(--muted);
+  }
+
+  .rail-settings-button{
+    position:absolute;
+    left:50%;
+    bottom:0;
+    transform:translateX(-50%);
+    width:30px;
+    height:28px;
+    border:0;
+    background:transparent;
+    cursor:pointer;
+    padding:0;
+    font-size:17px;
+    line-height:1;
+    color:var(--muted);
+  }
+  .rail-settings-button[aria-expanded="true"]{color:var(--ink)}
+
+  .rail-settings{
+    position:absolute;
+    left:calc(100% + 15px);
+    bottom:0;
+    width:min(286px,calc(100vw - var(--square) - 34px));
+    padding:11px 0 12px;
+    background:var(--paper);
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+    color:var(--ink);
+    user-select:auto;
+  }
+  .rail-settings[hidden]{display:none!important}
+  .setting-group+.setting-group{margin-top:13px}
+  .setting-label{
+    margin-bottom:7px;
+    font-size:8.5px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .choice-row{display:flex;gap:5px;flex-wrap:wrap}
+  .choice{
+    border:1px solid var(--line);
+    border-radius:999px;
+    background:transparent;
+    padding:6px 9px;
+    font-size:10px;
+    line-height:1;
+    cursor:pointer;
+  }
+  .choice.active{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+
+  .status-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+  @media (max-width:700px){
+    :root{
+      --edge:8px;
+      --rail:50px;
+      --col-gap:18px;
+      --section-gap:20px;
+      --title:clamp(52px,17.2vw,84px);
+    }
+    main{padding-top:0}
+    .chapter{min-height:126svh}
+    .chapter-number{font-size:22px}
+    .content{padding-right:18px;padding-bottom:27svh}
+    h1{max-width:6.8ch;line-height:.86}
+    .text{margin-top:36px;max-width:34rem;font-size:15px;line-height:1.58}
+    .rail-player{top:calc(var(--square) + 10px);bottom:max(10px,env(safe-area-inset-bottom))}
+    .rail-meta{font-size:7px;padding-left:7px}
+    .rail-meta strong{font-size:10px}
+    .rail-play{top:35px;width:34px;height:34px}
+    .rail-play svg{width:14px;height:14px}
+    .rail-progress{top:80px;bottom:86px}
+    .rail-times{right:6px;bottom:37px;padding-left:7px;font-size:7.8px}
+    .buffer-hint{font-size:7px}
+    .rail-settings{left:calc(100% + 12px);width:min(280px,calc(100vw - var(--square) - 26px));padding:10px 0 11px}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    .text p{transition:none}
+    .rail-play.is-loading::after{animation-duration:1.6s}
+  }
