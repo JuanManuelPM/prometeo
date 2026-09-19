@@ -43,7 +43,7 @@ const pct = (n,d) => d ? Math.round(n*1000/d)/10 : null;
 const commitTimes = new Map();
 try {
   const raw=execFileSync('git',['-C',root,'log','-500','--format=@@%cI','--name-only','--',
-    'coordination/workers/beacons','coordination/workers/no-allocation','coordination/portfolio/pins','coordination/opportunities/claims'],
+    'coordination/workers/beacons','coordination/workers/no-allocation','coordination/portfolio/pins','coordination/guide/pins','coordination/opportunities/claims'],
     {encoding:'utf8',stdio:['ignore','pipe','ignore']});
   let current=null;
   for(const line of raw.split(/\r?\n/)){
@@ -58,6 +58,7 @@ const durableTime=(p,fallback)=>time(durableIso(p,fallback));
 const beaconsDir=path.join(root,'coordination/workers/beacons');
 const noAllocDir=path.join(root,'coordination/workers/no-allocation');
 const pinsDir=path.join(root,'coordination/portfolio/pins');
+const guidePinsDir=path.join(root,'coordination/guide/pins');
 const oppClaimsDir=path.join(root,'coordination/opportunities/claims');
 
 const beacons=new Map();
@@ -79,6 +80,9 @@ const consider=(wid,p,declaredIso,kind,ref)=>{
 };
 for(const p of walk(pinsDir).filter(x=>x.endsWith('.json'))){
   const d=read(p); consider(d?.worker_id,p,d?.claimed_at||d?.created_at,'portfolio-pin',path.relative(root,p));
+}
+for(const p of walk(guidePinsDir).filter(x=>x.endsWith('.json'))){
+  const d=read(p); consider(d?.worker_id,p,d?.claimed_at||d?.created_at,'guide-pin',path.relative(root,p));
 }
 for(const p of walk(oppClaimsDir).filter(x=>x.endsWith('.json'))){
   const d=read(p); consider(d?.worker_id||d?.worker,p,d?.claimed_at||d?.created_at,'opportunity-claim',path.relative(root,p));
