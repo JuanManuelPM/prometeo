@@ -1344,6 +1344,29 @@ must('EFF062 fast allocation', fastHttpVsJsContract, 'fetch_blob');
 const immutableReplayTest = read(root, 'coordination/portfolio/tests/claim_frontier_immutable_replay_v1.mjs');
 must('immutable-frontier-replay-test', immutableReplayTest, 'CLAIM_FRONTIER_IMMUTABLE_REPLAY_PASS');
 
+
+const eff065 = baseline.items?.find(item => item.id === 'EFF065');
+if (!eff065) errors.push('ratchet: EFF065 missing');
+else {
+  if (eff065.required?.generic_recovery_threshold_preserved !== 3) errors.push('ratchet: EFF065 threshold drift');
+  if (eff065.required?.basis_source !== 'recovery_basis_gate.basis.fingerprint') errors.push('ratchet: EFF065 basis source drift');
+  if (eff065.required?.fallback_basis_source !== 'recovery_gate.basis.fingerprint') errors.push('ratchet: EFF065 fallback basis source drift');
+  if (eff065.required?.complete_basis_observation_required_for_diversity_suppression !== true) errors.push('ratchet: EFF065 incomplete-basis guard drift');
+  if (eff065.required?.all_distinct_known_basis_suppresses_count_only_rescate !== true) errors.push('ratchet: EFF065 distinct-basis suppression drift');
+  if (eff065.required?.repeated_basis_preserves_rescate !== true) errors.push('ratchet: EFF065 concentration preservation drift');
+  if (eff065.required?.missing_basis_preserves_legacy_rescate !== true) errors.push('ratchet: EFF065 unknown-basis fail-open drift');
+  if (eff065.required?.collision_trigger_preserved !== true || eff065.required?.actionable_no_allocation_trigger_preserved !== true || eff065.required?.efficiency_regression_trigger_preserved !== true) errors.push('ratchet: EFF065 independent trigger drift');
+  if (eff065.required?.recovery_candidates_preserved !== true || eff065.required?.claim_authority_unchanged !== true) errors.push('ratchet: EFF065 authority/recovery drift');
+  if (eff065.required?.regression_test !== 'coordination/portfolio/tests/guide_rescate_capability_recovery_pressure_v1.mjs') errors.push('ratchet: EFF065 regression-test drift');
+}
+const recoveryDiversityAllocator = read(root, 'scripts/build-fast-allocator.mjs');
+must('EFF065 allocator', recoveryDiversityAllocator, 'genericRecoveryRescuePressure');
+must('EFF065 allocator', recoveryDiversityAllocator, 'genericRecoveryDiversityKnown');
+must('EFF065 allocator', recoveryDiversityAllocator, 'generic_recovery_distinct_basis_count');
+const recoveryDiversityTest = read(root, 'coordination/portfolio/tests/guide_rescate_capability_recovery_pressure_v1.mjs');
+must('EFF065 recovery-diversity-test', recoveryDiversityTest, 'three causally distinct generic recoveries must not spawn GUIDE_RESCATE from count alone');
+must('EFF065 recovery-diversity-test', recoveryDiversityTest, 'causally concentrated generic recovery must preserve GUIDE_RESCATE');
+
 if (errors.length) {
   console.error('EFFICIENCY_RATCHET_FAIL');
   for (const e of errors) console.error(`- ${e}`);
