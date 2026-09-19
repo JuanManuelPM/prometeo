@@ -70,7 +70,7 @@ assert.equal(efficiency.no_allocation_causes.cumulative_total,8);
 assert.equal(efficiency.no_allocation_causes.histogram_cumulative.HISTORICAL_ONLY,1);
 assert.equal(efficiency.no_allocation_causes.histogram_recent.HISTORICAL_ONLY,undefined,'historical-only cause must not pin current mix');
 for(const [reason,ref] of expectedRefs){
-  assert.equal(efficiency.no_allocation_causes.histogram_recent[reason],1,`missing exact recent reason ${reason}`);
+  assert.equal(efficiency.no_allocation_causes.histogram_recent[reason],reason==='CLAIM_TRANSPORT_BLOCKED'?2:1,`missing exact recent reason ${reason}`);
   assert(efficiency.no_allocation_causes.recent_receipts.some(row=>row.reason===reason && row.ref===ref),`missing exact receipt ref for ${reason}`);
 }
 assert.equal(efficiency.no_allocation_causes.histogram_recent.CLAIM_TRANSPORT_BLOCKED,2,'outcome-only transport denial must retain its explicit cause');
