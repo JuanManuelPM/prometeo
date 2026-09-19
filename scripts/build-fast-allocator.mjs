@@ -404,11 +404,12 @@ function normalizedRecoveryBasis(job = {}) {
 
 function structuredSourceDebtState(job = {}) {
   const row = job?.latest_source_debt_return;
+  let invalidLocal = null;
   if (row && typeof row === 'object' && !Array.isArray(row)) {
     const status = typeof row.status === 'string' ? row.status.trim().toUpperCase() : null;
     const exhaustiveNegative = row.exhaustive_negative === true;
     const structurallyValid = row.structurally_valid === true;
-    return {
+    const localState = {
       present: true,
       valid: status === 'OPEN' && exhaustiveNegative && structurallyValid,
       status,
@@ -419,11 +420,13 @@ function structuredSourceDebtState(job = {}) {
       dependency_job_id: null,
       dependency_return_ref: null
     };
+    if (localState.valid) return localState;
+    invalidLocal = localState;
   }
 
   const dependency = job?.source_debt_dependency;
   if (!dependency || typeof dependency !== 'object' || Array.isArray(dependency)) {
-    return { present: false, valid: false, status: null, exhaustive_negative: false };
+    return invalidLocal || { present: false, valid: false, status: null, exhaustive_negative: false };
   }
   const dependentRow = dependency.source_debt;
   const status = typeof dependentRow?.status === 'string' ? dependentRow.status.trim().toUpperCase() : null;
@@ -435,7 +438,7 @@ function structuredSourceDebtState(job = {}) {
     !Array.isArray(dependentRow) &&
     dependentRow.structurally_valid === true
   );
-  return {
+  const dependencyState = {
     present: true,
     valid: status === 'OPEN' && exhaustiveNegative && structurallyValid,
     status,
@@ -446,6 +449,18 @@ function structuredSourceDebtState(job = {}) {
     dependency_job_id: dependency.job_id || null,
     dependency_return_ref: dependency.return_ref || null
   };
+  if (dependencyState.valid && invalidLocal) {
+    return {
+      ...dependencyState,
+      local_source_debt_invalid: {
+        path: invalidLocal.path,
+        status: invalidLocal.status,
+        exhaustive_negative: invalidLocal.exhaustive_negative,
+        structurally_valid: invalidLocal.structurally_valid
+      }
+    };
+  }
+  return invalidLocal || dependencyState;
 }
 
 function evidenceBoundSourceDebt(job = {}) {
