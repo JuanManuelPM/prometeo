@@ -102,14 +102,24 @@ else {
   if (handoffItem.required?.canonical_prompt_first_copyable_block !== true) errors.push('baseline: EFF056 prompt-first drift');
   if (handoffItem.required?.approximate_count_required !== true) errors.push('baseline: EFF056 count requirement drift');
   if (handoffItem.required?.count_withholding_on_stale_runtime_forbidden !== true) errors.push('baseline: EFF056 stale runtime count drift');
-  if (handoffItem.required?.current_approx_workers !== 3) errors.push('baseline: EFF056 current approx count drift');
+  if (handoffItem.required?.current_estimator_min !== 10 || handoffItem.required?.current_estimator_max !== 20) errors.push('baseline: EFF056 estimator range drift');
+  if (handoffItem.required?.post_smoke_returns_to_ordinary_estimator !== true) errors.push('baseline: EFF056 post-smoke estimator drift');
+  if (handoffItem.required?.integrity_smoke_override_supported !== true || handoffItem.required?.integrity_smoke_workers !== 3) errors.push('baseline: EFF056 smoke override support drift');
+  if (handoffItem.required?.smoke_pass_disables_override !== true) errors.push('baseline: EFF056 smoke-pass disable drift');
   if (handoffItem.required?.human_worker_routing_forbidden !== true) errors.push('baseline: EFF056 routing drift');
 }
 const handoffPolicy = JSON.parse(read(root, 'coordination/guide/GUIDE_WORKER_HANDOFF_V1.json')||'{}');
 if (handoffPolicy.status !== 'ACTIVE_BINDING') errors.push('guide-handoff: policy must be ACTIVE_BINDING');
 if (handoffPolicy?.launch_estimator?.bounded_canary?.minimum !== 10 || handoffPolicy?.launch_estimator?.bounded_canary?.maximum !== 20) errors.push('guide-handoff: bounded canary drift');
 if (handoffPolicy?.launch_estimator?.bounded_canary?.frontier_multiplier !== 1.25) errors.push('guide-handoff: frontier multiplier drift');
-if (handoffPolicy?.current_recommendation_example?.recommended_approx_workers !== 3) errors.push('guide-handoff: current recommendation drift');
+const handoffApprox = handoffPolicy?.current_recommendation_example?.recommended_approx_workers;
+const freshLaunchPolicyForHandoff = JSON.parse(read(root,'coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json')||'{}');
+if (freshLaunchPolicyForHandoff?.smoke_gate?.status === 'SMOKE_PASS') {
+  if (handoffPolicy?.integrity_smoke_override?.status === 'ACTIVE') errors.push('guide-handoff: smoke override still active after SMOKE_PASS');
+  if (!Number.isInteger(handoffApprox) || handoffApprox < 10 || handoffApprox > 20) errors.push('guide-handoff: post-smoke recommendation outside bounded estimator');
+} else if (handoffPolicy?.integrity_smoke_override?.status === 'ACTIVE') {
+  if (handoffApprox !== handoffPolicy?.integrity_smoke_override?.approximate_workers_before_next_guide_return) errors.push('guide-handoff: active smoke recommendation drift');
+}
 const guideBootstrap = read(root, 'g');
 must('guide-handoff', guideBootstrap, 'WORKER HANDOFF RESPONSE OVERRIDE');
 must('guide-handoff', guideBootstrap, 'first visible copyable block');
