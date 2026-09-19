@@ -23,6 +23,7 @@ const site=process.argv[3]?path.resolve(process.argv[3]):null;
 assert.equal(policy.status,'ACTIVE_BINDING');
 assert.equal(policy.human_inline_launch_guard.status,'ACTIVE_BINDING');
 assert.equal(policy.productive_smoke.status,'ACTIVE');
+assert.equal(policy.smoke_gate.status,'SMOKE_PASS');
 assert.equal(policy.productive_smoke.target_productive_units,6);
 assert.equal(mission.human_prompts.worker.prompt,mission.operating_mode.invocation,'worker human prompt alias must equal canonical operating invocation');
 assert.equal(poolPrompt,mission.operating_mode.invocation+'\n','POOL PROD-01 prompt alias must equal canonical operating invocation plus final newline');
@@ -61,11 +62,11 @@ assert.ok(examSpec.v330_pool_residency.conditional_terminal_fields.includes('clo
 assert.equal(examSpec.v330_fresh_launch.policy_ref,'coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json');
 assert.equal(growth.worker_protocol_min_version,'v3.30');
 assert.equal(strategy.protocol_min_version,'v3.30');
-assert.equal(handoff.integrity_smoke_override.status,'ACTIVE');
-assert.equal(handoff.integrity_smoke_override.approximate_workers_before_next_guide_return,3);
+assert.equal(handoff.integrity_smoke_override.status,'DISABLED_AFTER_SMOKE_PASS');
+assert.equal(handoff.integrity_smoke_override.pass_gate,'gh-pages:live/worker-scoreboard.json#fresh_launch_integrity.status == SMOKE_PASS');
 assert.equal(mission.operating_mode.current_worker_protocol_version,'v3.30');
-assert.equal(mission.current_snapshot.fresh_launch_incident.status,'CONFIRMED_REPLAY');
-assert.equal(mission.current_snapshot.occupancy.recommended_additional_launches_at_snapshot,3);
+assert.equal(mission.current_snapshot.fresh_launch_incident.status,'MITIGATED_SMOKE_PASS');
+assert.equal(mission.current_snapshot.occupancy.recommended_additional_launches_at_snapshot,17);
 
 for(const needle of ['fresh_launch_integrity','pool_residency_integrity','beacon_launch_nonce','exam_launch_nonce','SMOKE_PASS']) assert.ok(scoreboard.includes(needle),'scoreboard missing '+needle);
 assert.ok(residencyGuard.includes('EARLY_CLOSE_UNJUSTIFIED'),'residency helper must classify unjustified early terminal');
