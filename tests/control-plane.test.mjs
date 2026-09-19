@@ -8,9 +8,9 @@ const json=rel=>JSON.parse(fs.readFileSync(path.join(ROOT,rel),'utf8'));
 const now=json('coordination/NOW.json');
 const feed=json('coordination/DELTA_FEED.json');
 const entry=json('.well-known/prometeo.json');
-assert.ok(['prometeo.agent-entry/v1','prometeo.agent-entry/v2','prometeo.agent-entry/v3'].includes(entry.schema));
+assert.ok(['prometeo.agent-entry/v1','prometeo.agent-entry/v2','prometeo.agent-entry/v3','prometeo.agent-entry/v4'].includes(entry.schema));
 if(entry.schema!=='prometeo.agent-entry/v1')assert.ok(String(entry.runtime_manifest||'').includes('/agent-runtime/manifest.json'));
-if(entry.schema==='prometeo.agent-entry/v3'){
+if(['prometeo.agent-entry/v3','prometeo.agent-entry/v4'].includes(entry.schema)){
   assert.ok(String(entry.fast_epoch||'').includes('/agent-runtime/epoch.json'));
   assert.ok(String(entry.network||'').includes('/agent-runtime/network.json'));
   assert.ok(String(entry.short_bootstrap||'').endsWith('/p.txt'));
