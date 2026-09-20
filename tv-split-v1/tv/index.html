@@ -6,60 +6,83 @@
 <meta name="theme-color" content="#000000">
 <title>Canal TV</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:Arial,Helvetica,sans-serif}.surface{position:fixed;inset:0;background:#000}.surface.hide{display:none}#pageFrame{position:fixed;inset:0;width:100%;height:100%;border:0;background:#000}#yt,#yt iframe{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;border:0!important}.clock{display:grid;place-items:center;overflow:hidden}.clockFace{position:relative;display:grid;place-items:center;width:min(64vw,64vh);aspect-ratio:1;border:2px solid #fff;border-radius:50%}.clockTime{font-size:clamp(70px,13vw,190px);font-weight:900;letter-spacing:-.08em;font-variant-numeric:tabular-nums;z-index:2}.sweep{position:absolute;width:1px;height:48%;background:#fff;top:2%;left:50%;transform-origin:50% 100%;animation:spin 60s linear infinite}.center{position:absolute;width:10px;height:10px;background:#fff;border-radius:50%}@keyframes spin{to{transform:rotate(360deg)}}.unlock{position:fixed;z-index:20;inset:0;display:none;place-items:center;border:0;background:#000;color:#fff;font-size:14px;font-weight:900;letter-spacing:.12em}.unlock.show{display:grid}.status{position:fixed;right:10px;top:10px;z-index:25;width:6px;height:6px;border-radius:50%;background:#333;opacity:.45}.status.err{background:#fff}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:Arial,Helvetica,sans-serif}
+#stage{position:fixed;inset:0;display:grid;background:#000;gap:1px}
+#stage.n1{grid-template-columns:1fr;grid-template-rows:1fr}
+#stage.n2{grid-template-columns:1fr 1fr;grid-template-rows:1fr}
+#stage.n3{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr}
+#stage.n4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+.panel{position:relative;overflow:hidden;background:#000;min-width:0;min-height:0}
+.panel iframe,.ytHost,.ytHost iframe{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;border:0!important}
+.clockPanel{display:grid;place-items:center}
+.clockFace{position:relative;display:grid;place-items:center;width:min(68%,68vh);aspect-ratio:1;border:2px solid #fff;border-radius:50%}
+.clockTime{font-size:clamp(36px,8vw,150px);font-weight:900;letter-spacing:-.08em;font-variant-numeric:tabular-nums;z-index:2;white-space:nowrap}
+.sweep{position:absolute;width:1px;height:48%;background:#fff;top:2%;left:50%;transform-origin:50% 100%;animation:spin 60s linear infinite}.center{position:absolute;width:8px;height:8px;background:#fff;border-radius:50%}
+@keyframes spin{to{transform:rotate(360deg)}}
+.unlock{position:fixed;z-index:50;inset:0;display:none;place-items:center;border:0;background:#000;color:#fff;font-size:14px;font-weight:900;letter-spacing:.12em}.unlock.show{display:grid}
+.status{position:fixed;right:8px;top:8px;z-index:60;width:5px;height:5px;border-radius:50%;background:#333;opacity:.35}.status.err{background:#fff}
+@media(max-aspect-ratio:1/1){#stage.n2{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
-<div id="black" class="surface"></div>
-<div id="clock" class="surface clock hide"><div class="clockFace"><div id="clockTime" class="clockTime">00:00</div><div class="sweep"></div><div class="center"></div></div></div>
-<iframe id="pageFrame" class="surface hide" allow="autoplay; fullscreen; picture-in-picture"></iframe>
-<div id="youtube" class="surface hide"><div id="yt"></div></div>
+<main id="stage" class="n1"></main>
 <button id="unlock" class="unlock">TOCAR PARA ACTIVAR</button>
 <div id="status" class="status"></div>
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
 (()=>{
 'use strict';
-const SCHEDULE='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
+const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const p=new URLSearchParams(location.hash.slice(1));
 const room={code:p.get('room')||'',token:p.get('t')||'',role:'tv'};
-const $=id=>document.getElementById(id);
-let blocks=[],activeId=null,yt=null,ytReady=false,currentVideo='';
-function ba(){const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());const get=t=>Number(parts.find(x=>x.type===t)?.value||0);return{h:get('hour'),m:get('minute')}}
-function nowMin(){const x=ba();return x.h*60+x.m}
-function active(){const n=nowMin();return blocks.find(b=>b.enabled!==false&&n>=b.start_minute&&n<b.end_minute)||null}
-async function api(){const r=await fetch(SCHEDULE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'list',code:room.code,role:'tv',token:room.token}),cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||'SCHEDULE');return d}
-function hideAll(){for(const id of ['black','clock','pageFrame','youtube'])$(id).classList.add('hide')}
-function show(id){hideAll();$(id).classList.remove('hide')}
-function stopYT(){try{yt?.pauseVideo()}catch{}}
-function renderBlock(b){
- if(!b){activeId=null;stopYT();$('pageFrame').src='about:blank';show('black');return}
- if(activeId===b.id)return;
- activeId=b.id;
- if(b.kind==='black'){stopYT();$('pageFrame').src='about:blank';show('black');return}
- if(b.kind==='clock'){stopYT();$('pageFrame').src='about:blank';show('clock');return}
- if(b.kind==='page'){stopYT();$('pageFrame').src=b.payload?.url||'about:blank';show('pageFrame');return}
- if(b.kind==='youtube'){show('youtube');playYouTube(b.payload?.video_id||'');return}
+const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
+let blocks=[],renderKey='',players=[],ytReady=false;
+window.onYouTubeIframeAPIReady=()=>{ytReady=true;renderActive(true)};
+
+function ba(){const ps=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());const get=t=>Number(ps.find(x=>x.type===t)?.value||0);return{h:get('hour'),m:get('minute')}}
+function nowMin(){const n=ba();return n.h*60+n.m}
+function activeBlocks(){const n=nowMin();return blocks.filter(b=>b.enabled!==false&&n>=b.start_minute&&n<b.end_minute).sort((a,b)=>a.start_minute-b.start_minute||String(a.id).localeCompare(String(b.id)))}
+async function api(){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'list',code:room.code,role:'tv',token:room.token}),cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||'SCHEDULE');return d}
+function destroyPlayers(){for(const p of players){try{p.destroy()}catch{}}players=[]}
+function clockMarkup(){return '<div class="clockFace"><div class="clockTime">00:00</div><div class="sweep"></div><div class="center"></div></div>'}
+function makePanel(b,i){
+  const panel=document.createElement('section');panel.className='panel';
+  if(b.kind==='black')return panel;
+  if(b.kind==='clock'){panel.classList.add('clockPanel');panel.innerHTML=clockMarkup();return panel}
+  if(b.kind==='page'){const f=document.createElement('iframe');f.src=b.payload?.url||'about:blank';f.allow='autoplay; fullscreen; picture-in-picture';panel.appendChild(f);return panel}
+  if(b.kind==='youtube'){
+    const host=document.createElement('div');host.className='ytHost';host.id='yt-'+i+'-'+String(b.id).replace(/[^a-z0-9_-]/gi,'');panel.appendChild(host);
+    if(ytReady&&window.YT?.Player){
+      queueMicrotask(()=>{try{
+        const player=new YT.Player(host.id,{videoId:b.payload?.video_id||'',playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,fs:0,iv_load_policy:3,disablekb:1},events:{
+          onReady:e=>{try{e.target.playVideo()}catch{}},
+          onAutoplayBlocked:()=>unlock.classList.add('show')
+        }});
+        players.push(player);
+      }catch{}});
+    }
+    return panel;
+  }
+  return panel;
 }
-function playYouTube(id){
- if(!id)return;
- currentVideo=id;
- if(!window.YT||!YT.Player){setTimeout(()=>playYouTube(id),120);return}
- if(!yt){
-   yt=new YT.Player('yt',{videoId:id,playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,fs:0,iv_load_policy:3,disablekb:1},events:{
-     onReady:e=>{ytReady=true;e.target.playVideo()},
-     onAutoplayBlocked:()=>{$('unlock').classList.add('show')}
-   }});
- }else if(ytReady){const now=yt.getVideoData?.().video_id||'';if(now!==id)yt.loadVideoById(id);else yt.playVideo()}
+function renderActive(force=false){
+  let act=activeBlocks();
+  const key=act.map(b=>b.id+':'+b.kind).join('|');
+  if(!force&&key===renderKey){tickClock();return}
+  renderKey=key;destroyPlayers();stage.innerHTML='';
+  if(!act.length){stage.className='n1';stage.appendChild(document.createElement('section')).className='panel';return}
+  // Up to four concurrent surfaces. More remain scheduled but only first four are visible.
+  act=act.slice(0,4);
+  stage.className='n'+act.length;
+  act.forEach((b,i)=>stage.appendChild(makePanel(b,i)));
+  tickClock();
 }
-async function load(){
- try{const d=await api();blocks=d.blocks||[];$('status').className='status';renderBlock(active())}
- catch{$('status').className='status err'}
-}
-function tickClock(){const x=ba();$('clockTime').textContent=String(x.h).padStart(2,'0')+':'+String(x.m).padStart(2,'0');renderBlock(active())}
-$('unlock').onclick=async()=>{$('unlock').classList.remove('show');try{await document.documentElement.requestFullscreen?.()}catch{}try{yt?.playVideo()}catch{}};
+function tickClock(){const n=ba(),t=String(n.h).padStart(2,'0')+':'+String(n.m).padStart(2,'0');document.querySelectorAll('.clockTime').forEach(el=>el.textContent=t)}
+async function load(){try{const d=await api();blocks=d.blocks||[];status.className='status';renderActive()}catch{status.className='status err'}}
+unlock.onclick=async()=>{unlock.classList.remove('show');try{await document.documentElement.requestFullscreen?.()}catch{}for(const p of players){try{p.playVideo()}catch{}}};
 document.addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.()}catch{}},{once:true});
-tickClock();setInterval(tickClock,1000);load();setInterval(load,10000);
+setInterval(()=>{tickClock();renderActive()},1000);
+load();setInterval(load,8000);
 })();
 </script>
 </body>
