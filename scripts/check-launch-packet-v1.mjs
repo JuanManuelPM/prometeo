@@ -18,6 +18,8 @@ if(protocol.status!=='ACTIVE_BINDING_IMPLEMENTATION_PENDING'&&protocol.status!==
 if(pipeline.status!=='ACTIVE_BINDING') fail('pipeline inactive');
 if(evolution.status!=='ACTIVE_BINDING') fail('evolution inactive');
 if(receipt.status!=='ACTIVE_BINDING') fail('receipt spec inactive');
+if(protocol.replenishment?.status!=='ACTIVE_BINDING') fail('run replenishment inactive');
+if(protocol.residency?.terminal_reply_latch?.status!=='ACTIVE_BINDING') fail('run terminal latch inactive');
 if(packet.run_id!=='CATLAB-EVO-01') fail('run id drift');
 if(packet.same_prompt_for_every_worker!==true||packet.human_numbers_slots!==false) fail('human routing/numbering regression');
 if(!String(packet.human_invocation||'').includes('RUN CATLAB-EVO-01')) fail('run prompt missing run id');
@@ -99,6 +101,10 @@ if(siteArg){
   if(status.run_id!==packet.run_id||status.packet_status!==packet.status) fail('public status identity drift');
   if(status.slots_total!==slots.length||status.reallocation_slots_total!==realloc.length) fail('public status denominator drift');
   if(status.human_numbering_required!==false) fail('public status human-routing regression');
+  if(!Number.isInteger(status.workers_beaconed_without_primary_claim)) fail('public status missing beacon-without-claim count');
+  if(!Number.isInteger(status.replacement_launches_recommended)) fail('public status missing refill recommendation');
+  if(!Number.isInteger(status.workers_terminal)) fail('public status missing terminal count');
+  if(!Array.isArray(status.incomplete_worker_states)) fail('public status missing incomplete worker states');
 }
 
 console.log(JSON.stringify({ok:true,run_id:packet.run_id,status:packet.status,slots:slots.length,reallocation_slots:realloc.length,variant_counts:counts}));
