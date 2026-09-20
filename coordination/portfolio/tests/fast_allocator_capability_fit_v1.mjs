@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { buildClaimFrontier } from '../../../scripts/build-claim-frontier.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -13,6 +14,8 @@ const josePath = 'coordination/portfolio/derived/alumnos/portfolio-alumnos-jose-
 const studentHttpPath = 'coordination/portfolio/derived/alumnos/portfolio-alumnos-student-world-live-route-bridge-public-http-verify-v1.json';
 const ttsBrowserPath = 'coordination/portfolio/derived/audio-text-to-speech/portfolio-tts-generic-text-surface-browser-smoke-v1.json';
 const ttsVerifyPath = 'coordination/portfolio/derived/audio-text-to-speech/portfolio-tts-generic-text-surface-verify-v1.json';
+const ttsBoundaryOnePath = 'coordination/portfolio/returns/portfolio-tts-generic-text-surface-verify-v1/RETURN-wc-prod-01-20260918T085619-0300-sol-G000006-BOUNDARY.json';
+const ttsBoundaryTwoPath = 'coordination/portfolio/returns/portfolio-tts-generic-text-surface-verify-v1/RETURN-wc-20260919T145702Z-b4a9587e3851-G000008-HTTP-BOUNDARY.json';
 const ttsCachePath = 'coordination/portfolio/derived/audio-text-to-speech/portfolio-tts-existing-cache-get-verify-v1.json';
 const sttLivePath = 'coordination/portfolio/derived/audio-speech-to-text/portfolio-stt-live-canary-entrypoint-v1.json';
 const studentLegacyBrowserPath = 'coordination/portfolio/derived/alumnos/portfolio-alumnos-student-world-live-route-bridge-browser-verify.json';
@@ -22,6 +25,8 @@ const jose = readJson(josePath);
 const studentHttp = readJson(studentHttpPath);
 const ttsBrowser = readJson(ttsBrowserPath);
 const ttsVerify = readJson(ttsVerifyPath);
+const ttsBoundaryOne = readJson(ttsBoundaryOnePath);
+const ttsBoundaryTwo = readJson(ttsBoundaryTwoPath);
 const ttsCache = readJson(ttsCachePath);
 const sttLive = readJson(sttLivePath);
 const studentLegacyBrowser = readJson(studentLegacyBrowserPath);
@@ -490,10 +495,10 @@ const repeatedHttpBoundaryFixture = {
   claimed_at:'2026-09-19T14:55:00Z',
   last_signal_at:'2026-09-19T15:00:00Z',
   required_capabilities:['unrestricted_public_http_origin_fetch'],
-  latest_return:{path:'returns/G2.json',outcome:'BOUNDARY',returned_at:'2026-09-19T15:00:00Z'},
+  latest_return:{path:ttsBoundaryTwoPath,outcome:ttsBoundaryTwo.outcome,returned_at:ttsBoundaryTwo.returned_at},
   recent_return_evidence:[
-    {path:'returns/G1.json',outcome:'BOUNDARY',returned_at:'2026-09-19T14:50:00Z'},
-    {path:'returns/G2.json',outcome:'BOUNDARY',returned_at:'2026-09-19T15:00:00Z'}
+    {path:ttsBoundaryOnePath,outcome:ttsBoundaryOne.outcome,returned_at:ttsBoundaryOne.returned_at},
+    {path:ttsBoundaryTwoPath,outcome:ttsBoundaryTwo.outcome,returned_at:ttsBoundaryTwo.returned_at}
   ]
 };
 const repeatedHttpGate = capabilityConfirmationGate(repeatedHttpBoundaryFixture);
@@ -517,6 +522,31 @@ const repeatedHttpRow = repeatedHttpAllocator.recovery.find(row=>row.job_id===re
 assert.ok(repeatedHttpRow);
 assert.equal(repeatedHttpRow.capability_confirmation_required.capability,'unrestricted_public_http_origin_fetch');
 assert.equal(repeatedHttpRow.capability_confirmation_required.positive_runtime_contract_required,true);
+assert.deepEqual(
+  repeatedHttpRow.capability_confirmation_required.evidence,
+  [ttsBoundaryTwoPath, ttsBoundaryOnePath],
+  'the bounded confirmation marker must cite the two newest durable TTS capability boundaries'
+);
+const repeatedHttpFrontier = buildClaimFrontier(repeatedHttpAllocator);
+const repeatedHttpFrontierRow = repeatedHttpFrontier.candidates.find(row=>row.job_id===repeatedHttpBoundaryFixture.job_id);
+assert.ok(repeatedHttpFrontierRow,'confirmation-gated recovery must survive compact frontier transport');
+assert.equal(
+  repeatedHttpFrontierRow.capability_confirmation_required?.capability,
+  'unrestricted_public_http_origin_fetch',
+  'compact preclaim transport must preserve the capability confirmation gate'
+);
+const positiveCapabilityContract = new Set(['unrestricted_public_http_origin_fetch']);
+const positiveRuntimeWouldSkip = Boolean(
+  repeatedHttpFrontierRow.capability_confirmation_required &&
+  !positiveCapabilityContract.has(repeatedHttpFrontierRow.capability_confirmation_required.capability)
+);
+assert.equal(positiveRuntimeWouldSkip,false,'an explicitly capable runtime must remain eligible for the gated recovery');
+const unknownCapabilityContract = new Set();
+const unknownRuntimeWouldSkip = Boolean(
+  repeatedHttpFrontierRow.capability_confirmation_required &&
+  !unknownCapabilityContract.has(repeatedHttpFrontierRow.capability_confirmation_required.capability)
+);
+assert.equal(unknownRuntimeWouldSkip,true,'unknown capability must skip only this repeated-boundary gated recovery before authority');
 
 const repeatedHttpAfterSuccess = {
   ...repeatedHttpBoundaryFixture,
