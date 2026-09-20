@@ -41,10 +41,24 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
   const receipts=walk(receiptDir).filter(x=>x.endsWith('.json')).map(readJsonSafe).filter(Boolean);
   const beaconDir=path.join(root,'coordination','workers','beacons');
   const runBeacons=walk(beaconDir).filter(x=>x.endsWith('.json')).map(readJsonSafe).filter(x=>x?.run_id===runId);
+  const examDir=path.join(root,'coordination','workers','exams');
+  const runExams=walk(examDir).filter(x=>x.endsWith('.json')).map(readJsonSafe).filter(x=>x?.run_id===runId);
   const claimedIds=new Set(primaryClaims.map(x=>x.slot_id).filter(Boolean));
   const reallocClaimedIds=new Set(reallocationClaims.map(x=>x.slot_id).filter(Boolean));
   const claimedWorkerIds=new Set(primaryClaims.map(x=>x.worker_id).filter(Boolean));
   const unassignedBeacons=runBeacons.filter(x=>x?.worker_id&&!claimedWorkerIds.has(x.worker_id));
+  const examWorkerIds=new Set(runExams.map(x=>x.worker_id).filter(Boolean));
+  const receiptByWorker=new Map(receipts.filter(x=>x?.worker_id).map(x=>[x.worker_id,x]));
+  const terminalWorkers=runBeacons.filter(x=>x?.worker_id&&examWorkerIds.has(x.worker_id)&&receiptByWorker.get(x.worker_id)?.reallocation_complete===true);
+  const incompleteWorkers=runBeacons.filter(x=>x?.worker_id&&!terminalWorkers.some(t=>t.worker_id===x.worker_id)).map(x=>{
+    const rcpt=receiptByWorker.get(x.worker_id)||null;
+    let state='UNKNOWN_INCOMPLETE';
+    if(!claimedWorkerIds.has(x.worker_id)) state='E2_ASSIGN_NOT_REACHED_NO_PRIMARY_CLAIM';
+    else if(rcpt?.primary_complete===true&&rcpt?.reallocation_complete!==true) state='E8_REALLOCATE_NOT_COMPLETED';
+    else if(rcpt?.reallocation_complete===true&&!examWorkerIds.has(x.worker_id)) state='E9_EXAM_CLOSE_NOT_COMPLETED';
+    else if(!rcpt) state='CLAIMED_WITHOUT_BENCHMARK_RECEIPT';
+    return {worker_id:x.worker_id,state};
+  });
   const slots=packet.slots||[];
   const variantStatus={};
   for(const slot of slots){
@@ -74,6 +88,11 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
     workers_beaconed_without_primary_claim:unassignedBeacons.length,
     unassigned_beacon_workers:unassignedBeacons.map(x=>({worker_id:x.worker_id,launched_at:x.launched_at||null,stage_observation:'E2_ASSIGN:NOT_REACHED_NO_CLAIM_EVIDENCE'})),
     assignment_success_rate:runBeacons.length?Number((claimedWorkerIds.size/runBeacons.length).toFixed(3)):null,
+    replacement_launches_recommended:(runBeacons.length>=(packet.expected_human_launches??slots.length))?Math.min(Math.max(0,slots.length-claimedIds.size),unassignedBeacons.length):0,
+    workers_terminal:terminalWorkers.length,
+    terminal_completion_rate:slots.length?Number((terminalWorkers.length/slots.length).toFixed(3)):null,
+    workers_incomplete:incompleteWorkers.length,
+    incomplete_worker_states:incompleteWorkers,
     reallocation_slots_total:(packet.reallocation_slots||[]).length,
     reallocation_slots_claimed:reallocClaimedIds.size,
     primary_complete:new Set(receipts.filter(x=>x.primary_complete===true).map(x=>x.worker_id)).size,
