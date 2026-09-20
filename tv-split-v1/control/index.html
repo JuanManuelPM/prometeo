@@ -34,12 +34,8 @@ button{font:inherit;color:inherit}
 .halfLabel{position:absolute;left:7px;top:-8px;font:800 8px ui-monospace,SFMono-Regular,Menlo,monospace;color:#55554f;background:var(--bg);padding:0 3px}
 .layer{position:absolute;inset:0;z-index:5}
 .block{position:absolute;left:64px;right:8px;min-height:28px;background:var(--fg);color:var(--bg);border:0;overflow:visible;user-select:none;touch-action:pan-y;transition:top .12s cubic-bezier(.2,.8,.2,1),height .12s cubic-bezier(.2,.8,.2,1),box-shadow .12s ease,outline-color .12s ease}
-.block.selected{outline:0;touch-action:none;z-index:20}.block.stretching{outline:0;box-shadow:none}
-.block.selected:before,.block.selected:after{content:'';position:absolute;left:50%;transform:translateX(-50%);width:38px;height:2px;background:var(--now);border-radius:2px;z-index:30;pointer-events:none}
-.block.selected:before{top:-8px}.block.selected:after{bottom:-8px}
-.block.fresh{animation:pulseEdge .72s ease-in-out infinite}
-.block.conflict{background:#282824;color:#fff;outline:2px dashed var(--now);outline-offset:2px}
-@keyframes pulseEdge{0%,100%{box-shadow:0 0 0 0 #ff3b3000}50%{box-shadow:0 0 0 3px #ff3b30}}
+.block.selected{outline:2px solid var(--now);outline-offset:0;touch-action:none;z-index:20}.block.stretching{outline:2px solid var(--now);box-shadow:none}
+.block.fresh{outline:2px solid var(--now);outline-offset:0}
 .blockBody{position:absolute;inset:0;padding:5px 28px 5px 8px;text-align:left;overflow:hidden;background:var(--fg);display:flex;flex-direction:column;justify-content:center}
 .kind{font-size:6px;font-weight:900;line-height:1;letter-spacing:.12em;opacity:.48;white-space:nowrap}
 .name{font-size:12px;font-weight:900;line-height:1;letter-spacing:-.025em;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -51,11 +47,12 @@ button{font:inherit;color:inherit}
 .block.onehour .blockBody{padding-top:4px;padding-bottom:4px}
 .block.onehour .name{font-size:11px}
 .block.onehour .time{font-size:6.5px}
-.moveMark{display:none;position:absolute;right:7px;top:50%;transform:translateY(-50%);font-size:16px;font-weight:900;color:var(--bg);opacity:.9;pointer-events:none}
-.block.selected .moveMark{display:block}
-.handle{display:none;position:absolute;left:-14px;right:-14px;height:34px;z-index:25;touch-action:none;background:transparent!important;border:0!important;box-shadow:none!important;opacity:0}
+.moveMark{display:none!important}
+.handle{display:none;position:absolute;left:18%;right:18%;height:34px;z-index:25;touch-action:none;background:transparent!important;border:0!important;box-shadow:none!important;-webkit-appearance:none;appearance:none}
 .block.selected .handle{display:block}
-.handle.top{top:-22px}.handle.bottom{bottom:-22px}
+.handle.top{top:-21px}.handle.bottom{bottom:-21px}
+.handle:after{content:'';position:absolute;left:50%;transform:translateX(-50%);width:36px;height:2px;background:var(--now);border-radius:2px;pointer-events:none}
+.handle.top:after{bottom:3px}.handle.bottom:after{top:3px}
 .nowLine{position:absolute;left:54px;right:0;height:2px;background:var(--now);z-index:40;pointer-events:none}
 .nowDot{position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--now)}
 .nowLabel{position:absolute;left:-50px;top:-13px;background:var(--now);color:#fff;padding:2px 4px;font:900 8px ui-monospace,monospace}
@@ -111,7 +108,7 @@ const samples={
 };
 let blocks=[],selected=null,freshId=null,ppm=1,loaded=false,lastHaptic=null;
 const dirty=new Map();
-const cacheKey='tv.program.cache.v13.'+room.code;
+const cacheKey='tv.program.cache.v14.'+room.code;
 
 function measure(){ppm=Math.max(.58,viewport.clientHeight/(12*60));day.style.height=(1440*ppm)+'px'}
 function y(m){return Number(m)*ppm}
@@ -134,7 +131,7 @@ function replaceId(oldId,newBlock){
   renderBlocks();cache();
 }
 function scheduleWrite(block){
-  if(!block||localOverlap(block))return;
+  if(!block)return;
   const key=block.id;
   const token=(dirty.get(key)||0)+1;dirty.set(key,token);
   const isTemp=String(key).startsWith('tmp-');
@@ -173,15 +170,15 @@ function updateNow(){const n=ba(),m=n.h*60+n.m;$('nowTop').textContent=fmt(m);$(
 function scrollAroundNow(){viewport.scrollTop=Math.max(0,y(nowMin()-5.5*60))}
 function select(id){selected=id;renderBlocks()}
 function blockEl(b){
-  const conflict=localOverlap(b),isSelected=selected===b.id,dur=b.end_minute-b.start_minute;
+  const isSelected=selected===b.id,dur=b.end_minute-b.start_minute;
   const sizeClass=dur<=30?' halfhour':dur<=60?' onehour':'';
-  const el=document.createElement('div');el.className='block'+sizeClass+(isSelected?' selected':'')+(freshId===b.id?' fresh':'')+(conflict?' conflict':'');el.dataset.id=b.id;
+  const el=document.createElement('div');el.className='block'+sizeClass+(isSelected?' selected':'')+(freshId===b.id?' fresh':'');el.dataset.id=b.id;
   el.style.top=y(b.start_minute)+'px';el.style.height=Math.max(20,y(dur))+'px';
   const title=b.title||labels[b.kind];
   const same=String(title).toUpperCase()===labels[b.kind];
   const compactTitle=dur<=30&&!same?labels[b.kind]+' · '+title:title;
   const kindHTML=(!same&&dur>30)?'<div class="kind">'+labels[b.kind]+'</div>':'';
-  el.innerHTML='<div class="handle top" aria-label="Cambiar inicio"></div><div class="blockBody">'+kindHTML+'<div class="name">'+esc(compactTitle)+'</div><div class="time">'+fmt(b.start_minute)+' — '+fmt(b.end_minute)+'</div></div><div class="moveMark">↕</div><div class="handle bottom" aria-label="Cambiar fin"></div>';
+  el.innerHTML='<div class="handle top" aria-label="Cambiar inicio"></div><div class="blockBody">'+kindHTML+'<div class="name">'+esc(compactTitle)+'</div><div class="time">'+fmt(b.start_minute)+' — '+fmt(b.end_minute)+'</div></div><div class="handle bottom" aria-label="Cambiar fin"></div>';
   if(isSelected){
     el.addEventListener('pointerdown',e=>beginMoveGesture(e,b,el));
     el.querySelector('.handle.top').addEventListener('pointerdown',e=>beginResizeHandle(e,b,el,'start'));
@@ -307,7 +304,7 @@ function addSample(kind){
   const b={id,title:s.title,kind,start_minute:start,end_minute:start+dur,payload:s.payload,enabled:true};
   blocks.push(b);selected=id;freshId=id;renderBlocks();
   requestAnimationFrame(()=>viewport.scrollTo({top:Math.max(0,y(start)-viewport.clientHeight*.43),behavior:'smooth'}));
-  if(!localOverlap(b))scheduleWrite(b);
+  scheduleWrite(b);
   setTimeout(()=>{if(freshId===id){freshId=null;renderBlocks()}},8000);
 }
 $('addBtn').onclick=()=>palette.classList.toggle('open');
