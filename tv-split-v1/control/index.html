@@ -17,6 +17,13 @@ button{font:inherit;color:inherit}
 .add{width:34px;height:34px;border:0;background:var(--fg);color:var(--bg);font-size:23px;line-height:1;padding:0}
 .previewBtn{height:34px;border:1px solid #2d2d29;background:#0b0b0a;color:var(--fg);padding:0 10px;font-size:8px;font-weight:900;letter-spacing:.08em}
 .now{font:900 11px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em}
+.remoteBar{display:none;height:34px;align-items:center;gap:6px;padding:0 8px;border-top:1px solid #181816;background:#080807}
+.remoteBar.show{display:flex}
+.remoteState{min-width:0;flex:1;display:flex;align-items:center;gap:6px;font:800 7px ui-monospace,SFMono-Regular,Menlo,monospace;color:#8f8e86;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.remoteDot{width:6px;height:6px;border-radius:50%;background:#343431;flex:0 0 auto}
+.remoteBar.live .remoteDot{background:#f4f2ea}.remoteBar.stale .remoteDot{background:var(--red)}
+.remoteCmd{height:24px;min-width:34px;border:1px solid #2d2d29;background:#0d0d0c;color:var(--fg);padding:0 8px;font-size:8px;font-weight:900}
+.remoteCmd:disabled{opacity:.28}
 .palette{display:grid;grid-template-rows:0fr;transition:grid-template-rows .14s ease}
 .palette.open{grid-template-rows:1fr}
 .paletteInner{overflow:hidden}
@@ -70,6 +77,7 @@ button{font:inherit;color:inherit}
 <div class="app">
 <header class="top">
   <div class="topbar"><div class="topLeft"><button id="add" class="add" aria-label="Agregar">+</button><button id="previewBtn" class="previewBtn" aria-label="Ver TV">TV</button></div><div id="now" class="now">--:--</div></div>
+  <div id="remoteBar" class="remoteBar"><div class="remoteState"><span class="remoteDot"></span><span id="remoteText">TV · SIN SEÑAL</span></div><button id="remotePlay" class="remoteCmd">▶</button><button id="remotePause" class="remoteCmd">Ⅱ</button><button id="remoteMute" class="remoteCmd">MUTE</button></div>
   <div id="palette" class="palette"><div class="paletteInner"><div class="tools">
     <button class="tool ytPreset" data-channel="UCHnyfMqiRRG1u-2MsSQLbXA">YOUTUBE<span>Veritasium</span></button>
     <button class="tool ytPreset" data-channel="UCsXVk37bltHxD1rDPwtNM8Q">YOUTUBE<span>Kurzgesagt</span></button>
@@ -109,7 +117,8 @@ const samples={clock:{title:'RELOJ 25/5',payload:{style:'focus25-5'}},page:{titl
 const ytLatest=new Map();
 let blocks=[],serverBlocks=[],selected=null,ppm=.7,cycleH=1000,loaded=false,rendering=false,saving=false;
 const dirtyBlocks=new Set(),pendingDeletes=new Set();
-const cacheKey='tv.program.editor.v25.'+room.code;
+const cacheKey='tv.program.editor.v26.'+room.code;
+let tvState=null;
 
 function clone(x){return JSON.parse(JSON.stringify(x))}
 function ba(){const ps=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());const get=t=>Number(ps.find(x=>x.type===t)?.value||0);return{h:get('hour'),m:get('minute')}}
@@ -118,6 +127,18 @@ function fmt(m){m=((Number(m)%1440)+1440)%1440;return String(Math.floor(m/60)).p
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('show'),1200)}
 async function api(body){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:room.code,role:'remote',token:room.token,client_id:client,...body}),cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||'ERROR');return d}
+function remoteTarget(){const b=blocks.find(x=>String(x.id)===String(selected)&&x.kind==='youtube');return b?b.id:''}
+async function sendRemote(command){try{await api({action:'command',command,block_id:remoteTarget()})}catch(e){toast(String(e.message||e))}}
+function renderRemote(){
+ const bar=$('remoteBar'),text=$('remoteText'),play=$('remotePlay'),pause=$('remotePause'),mute=$('remoteMute');
+ bar.classList.add('show');bar.classList.remove('live','stale');
+ const age=tvState?.updated_at?Date.now()-new Date(tvState.updated_at).getTime():Infinity;
+ const live=age<4500,ys=tvState?.active_youtube_ids||[],build=String(tvState?.build||'');
+ if(live){bar.classList.add('live');text.textContent=build==='8'?(ys.length?'TV · YOUTUBE EN VIVO':'TV · EN VIVO'):'TV · VERSIÓN VIEJA';}
+ else{bar.classList.add('stale');text.textContent='TV · SIN SEÑAL';}
+ const enabled=live&&ys.length>0;play.disabled=!enabled;pause.disabled=!enabled;mute.disabled=!enabled
+}
+async function pollTVState(){try{const d=await api({action:'state'});tvState=d.state||null;renderRemote()}catch{tvState=null;renderRemote()}}
 async function loadYTPresets(){
   if(!mediaToken)return;
   try{
@@ -206,6 +227,9 @@ function addYT(channelId,label){
   selected=id;dirtyBlocks.add(id);renderBlocks();updateEditor()
 }
 $('add').onclick=()=>palette.classList.toggle('open');
+$('remotePlay').onclick=()=>sendRemote('play');
+$('remotePause').onclick=()=>sendRemote('pause');
+$('remoteMute').onclick=()=>sendRemote('mute');
 $('previewBtn').onclick=()=>{
   const wrap=$('tvPreview'),frame=$('tvPreviewFrame');
   if(!frame.src)frame.src='https://juanmanuelpm.github.io/prometeo/tv/';
@@ -240,7 +264,7 @@ $('save').onclick=saveAll;$('cancel').onclick=cancelAll;$('delete').onclick=()=>
 async function syncServer(initial=false){if(hasDraft()&&!initial)return;try{const d=await api({action:'list'});serverBlocks=clone(d.blocks||[]);if(!hasDraft()){blocks=clone(serverBlocks);cache();renderBlocks()}if(initial&&!loaded){loaded=true;requestAnimationFrame(scrollInitial)}}catch(e){if(initial)toast(String(e.message||e))}}
 try{const c=JSON.parse(localStorage.getItem(cacheKey)||'null');if(c&&Array.isArray(c.blocks)){serverBlocks=clone(c.blocks);blocks=clone(serverBlocks);loaded=true}}catch{}
 function layout(){measure();grid();renderBlocks();updateNow()}
-layout();loadYTPresets();requestAnimationFrame(()=>{if(loaded)scrollInitial();syncServer(true)});setInterval(updateNow,15000);setInterval(()=>syncServer(false),30000);window.addEventListener('resize',layout);
+layout();loadYTPresets();renderRemote();pollTVState();requestAnimationFrame(()=>{if(loaded)scrollInitial();syncServer(true)});setInterval(updateNow,15000);setInterval(()=>syncServer(false),30000);setInterval(pollTVState,900);window.addEventListener('resize',layout);
 })();
 </script>
 </body>
