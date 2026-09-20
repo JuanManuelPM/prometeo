@@ -46,13 +46,13 @@ for(const needle of [
   'GUIDE_WORKER_HANDOFF_V1.json',
   'WORKER HANDOFF RESPONSE OVERRIDE',
   'first visible copyable block',
-  'MANDÁ ~<N> /wc Y VOLVÉ A /g'
+  'MANDÁ ~<N> /w Y VOLVÉ A /g'
 ]) assert.ok(g.includes(needle),'g missing '+needle);
 
 for(const needle of [
   'GUIDE_WORKER_HANDOFF_V1.json',
   'first visible copyable block',
-  'MANDÁ ~<N> /wc Y VOLVÉ A /g'
+  'MANDÁ ~<N> /w Y VOLVÉ A /g'
 ]) assert.ok(writeback.includes(needle),'writeback missing '+needle);
 
 for(const needle of [
