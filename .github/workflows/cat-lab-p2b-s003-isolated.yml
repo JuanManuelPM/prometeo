@@ -1,0 +1,36 @@
+name: CAT-LAB P2B S003 Isolated Benchmark
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pages/bench/cat-lab/CATLAB-P2B-01/S003/**'
+      - '.github/workflows/cat-lab-p2b-s003-isolated.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Static contract S003
+        run: node tests/cat-lab-contract-v1.mjs pages/bench/cat-lab/CATLAB-P2B-01/S003
+      - name: Install representative Chromium
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Serve benchmark pages
+        run: |
+          python3 -m http.server 4173 --directory pages >/tmp/catlab-http.log 2>&1 &
+          sleep 2
+      - name: Browser contract S003
+        run: node tests/cat-lab-browser-v1.mjs http://127.0.0.1:4173/bench/cat-lab/CATLAB-P2B-01/S003/
