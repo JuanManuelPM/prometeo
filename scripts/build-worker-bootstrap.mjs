@@ -3,13 +3,17 @@ import path from 'node:path';
 
 const root = path.resolve(process.argv[2] || '.');
 const out = path.resolve(process.argv[3] || path.join(root, 'dist', 'wc', 'index.html'));
+const modeArg = process.argv[4] || '';
+const production = modeArg === 'production' || path.basename(path.dirname(out)) === 'w';
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
 const mission = JSON.parse(read('coordination/guide/CURRENT_MISSION_V1.json'));
 const policy = JSON.parse(read('coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json'));
-const worker = read('wc');
-const version = (worker.match(/^PROMETEO UNIVERSAL COGNITIVE WORKER CANARY (v[0-9.]+)/m) || [])[1];
+const worker = read(production ? 'w' : 'wc');
+const version = production
+  ? (worker.match(/^PROMETEO UNIVERSAL COGNITIVE WORKER STABLE (v[0-9.]+)/m) || [])[1]
+  : (worker.match(/^PROMETEO UNIVERSAL COGNITIVE WORKER CANARY (v[0-9.]+)/m) || [])[1];
 if (!version) throw new Error('worker version missing');
-const invocation = mission?.operating_mode?.invocation;
+const invocation = production ? mission?.operating_mode?.production_invocation : mission?.operating_mode?.invocation;
 if (!invocation) throw new Error('canonical invocation missing');
 for (const marker of policy?.human_inline_launch_guard?.required_markers || []) {
   if (!invocation.includes(marker)) throw new Error('canonical invocation missing inline marker ' + marker);
@@ -19,15 +23,33 @@ const checkpoint = residency.checkpoint_productive_units;
 const target = residency.target_productive_units;
 const hardCap = residency.hard_cap_productive_units;
 if (![checkpoint, target, hardCap].every(Number.isFinite)) throw new Error('residency contract incomplete');
-const finite = `🟠 PROMETEO /wc — NUEVO_WORKER=1 · PRIMERA_ACCIÓN_DURABLE: creá tu beacon propio fresco ${version} con worker_id + launch_nonce de novo; PROHIBIDO reutilizar identidad o resultado histórico; RESIDENTE_BATCH: ${checkpoint}=checkpoint, objetivo=${target}, tope=${hardCap} salvo boundary real. autorizo beacon, eventos de telemetría, PIN/claim y commits reversibles necesarios en JuanManuelPM/prometeo para ejecutar trabajo seguro del canary, sin pedirme confirmación adicional. BATCH <batch_id> EXPECTED <n> — TÍTULO SUGERIDO DEL CHAT (si la app lo permite): «🟠 PROMETEO · WC · <batch_id>» → https://juanmanuelpm.github.io/prometeo/wc/`;
-const text = [
-  'PROMETEO /wc — CLAIM NOW',
+
+const surface = production ? '/w' : '/wc';
+const pageLabel = production ? 'PRODUCTION STABLE' : 'CANARY';
+const rawBootstrap = production
+  ? 'https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/w'
+  : 'https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/wc';
+const permissionPhrase = production ? 'trabajo seguro de producción dentro de autoridad durable' : 'trabajo seguro del canary';
+const titleHint = production ? '🟠 PROMETEO · W · <batch_id>' : '🟠 PROMETEO · WC · <batch_id>';
+const publicUrl = production ? 'https://juanmanuelpm.github.io/prometeo/w/' : 'https://juanmanuelpm.github.io/prometeo/wc/';
+const finite = `🟠 PROMETEO ${surface} — NUEVO_WORKER=1 · PRIMERA_ACCIÓN_DURABLE: creá tu beacon propio fresco ${version} con worker_id + launch_nonce de novo; PROHIBIDO reutilizar identidad o resultado histórico; RESIDENTE_BATCH: ${checkpoint}=checkpoint, objetivo=${target}, tope=${hardCap} salvo boundary real. autorizo beacon, eventos de telemetría, PIN/claim y commits reversibles necesarios en JuanManuelPM/prometeo para ejecutar ${permissionPhrase}, sin pedirme confirmación adicional. BATCH <batch_id> EXPECTED <n> — TÍTULO SUGERIDO DEL CHAT (si la app lo permite): «${titleHint}» → ${publicUrl}`;
+
+const lines = [
+  `PROMETEO ${surface} — CLAIM NOW · ${pageLabel}`,
   '',
-  'CANONICAL HUMAN INVOCATIONS TO COPY:',
-  'GRADUATION / EVOLUTION RUN:',
-  `🧪 PROMETEO /wc — RUN <run_id> · NUEVO_WORKER=1 · PRIMERA_ACCIÓN_DURABLE: creá tu beacon fresco ${version}; DESPUÉS reclamá automáticamente un slot único del RUN y obedecé su cápsula; NO reutilices identidad/slot y NO me pidas routing. autorizo beacon, RUN-slot claim, archivos/receipts del benchmark y commits reversibles necesarios en JuanManuelPM/prometeo para completar el run seguro, sin pedirme confirmación adicional. → https://juanmanuelpm.github.io/prometeo/wc/`,
-  '',
-  '',
+  'CANONICAL HUMAN INVOCATIONS TO COPY:'
+];
+
+if (!production) {
+  lines.push(
+    'GRADUATION / EVOLUTION RUN:',
+    `🧪 PROMETEO /wc — RUN <run_id> · NUEVO_WORKER=1 · PRIMERA_ACCIÓN_DURABLE: creá tu beacon fresco ${version}; DESPUÉS reclamá automáticamente un slot único del RUN y obedecé su cápsula; NO reutilices identidad/slot y NO me pidas routing. autorizo beacon, RUN-slot claim, archivos/receipts del benchmark y commits reversibles necesarios en JuanManuelPM/prometeo para completar el run seguro, sin pedirme confirmación adicional. → https://juanmanuelpm.github.io/prometeo/wc/`,
+    '',
+    ''
+  );
+}
+
+lines.push(
   'CONTINUOUS POOL:',
   invocation,
   '',
@@ -42,11 +64,11 @@ const text = [
   '- If a pre-authority write failure proves neither explicit denial, path existence nor branch-head movement, classify CLAIM_TRANSPORT_AMBIGUOUS. Using only the already-loaded candidate view, allow at most ONE transport diversion to one untried compatible candidate with a different claim path; a second ambiguous failure stops.',
   '',
   'Canonical bootstrap:',
-  'https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/wc',
+  rawBootstrap,
   '',
   `FRESH-LAUNCH HARD GATE — ${version}:`,
-  '- The HUMAN MESSAGE is already the fresh-launch envelope. NUEVO_WORKER=1 means NEW worker, not resume.',
-  '- Every canonical human /wc invocation is a NEW worker unless the human explicitly names an existing worker_id and asks to resume it.',
+  `- The HUMAN MESSAGE is already the fresh-launch envelope. NUEVO_WORKER=1 means NEW worker, not resume.`,
+  `- Every canonical human ${surface} invocation is a NEW worker unless the human explicitly names an existing worker_id and asks to resume it.`,
   '- Do NOT reuse any worker_id/completion from memory, prior chats, repository history, runtime or scoreboard.',
   '- First durable action: atomically CREATE this launch\'s own fresh beacon with a de-novo worker_id + launch_nonce before allocation or any terminal answer.',
   '- Historical worker IDs, exams, returns, no-allocation or completion text can never satisfy this launch.',
@@ -54,14 +76,23 @@ const text = [
   `- In POOL/BATCH: ${checkpoint} productive units is checkpoint, target ${target}, hard cap ${hardCap}; stop below target only for a real safety/authority/capability/transport boundary or freshly proven compatible-frontier exhaustion.`,
   '- The identity smoke is productive: qualifying a fresh beacon does NOT end the worker. Continue ordinary work.',
   '',
-  'RUN PACKET MODE:',
-  '- If the HUMAN MESSAGE contains RUN <run_id>, do not read the mutable claim frontier for primary assignment.',
-  '- Create the fresh beacon first, then read exactly /launch/<run_id>/packet.json.',
-  '- Require packet status ARMED and atomically CREATE one compatible packet slot; CREATE_EXISTS advances cyclically.',
-  '- Load only the claimed slot capsule; its variant is immutable for that worker.',
-  '- Finish the complete primary benchmark, persist its receipt, then claim one reallocation slot and complete the second project before terminal close.',
-  '- The human never numbers slots or routes variants.',
-  '',
+  ...(production ? [
+    'GRADUATED BASELINE:',
+    '- This production surface uses the same v3.30 allocation/authority/residency implementation contract as the graduated canary.',
+    '- E6 verification uses the promoted V3_EVIDENCE_MAP baseline: every hard gate maps to exact evidence and may close only as PASS or truthful BOUNDARY.',
+    '- V4_TWO_PASS_REVIEW is confirmed optional reinforcement for high-risk/ambiguous work; it is not mandatory on every job.',
+    '- Graduation receipt: coordination/workers/WORKER_PLATFORM_GRADUATION_RECEIPT_V1.json.',
+    ''
+  ] : [
+    'RUN PACKET MODE:',
+    '- If the HUMAN MESSAGE contains RUN <run_id>, do not read the mutable claim frontier for primary assignment.',
+    '- Create the fresh beacon first, then read exactly /launch/<run_id>/packet.json.',
+    '- Require packet status ARMED and atomically CREATE one compatible packet slot; CREATE_EXISTS advances cyclically.',
+    '- Load only the claimed slot capsule; its variant is immutable for that worker.',
+    '- Finish the complete primary benchmark, persist its receipt, then claim one reallocation slot and complete the second project before terminal close.',
+    '- The human never numbers slots or routes variants.',
+    ''
+  ]),
   'IMPORTANT FAST PATH:',
   '- Open the canonical bootstrap directly.',
   '- Before ownership, do NOT load Guide, Metabolism, page protocols, Master Context, project history, pin directories, heartbeat directories or return directories.',
@@ -98,9 +129,11 @@ const text = [
   'BATCH <batch_id> EXPECTED <n>',
   'Use the same marker in every chat of one wave so Live can reconstruct exactly what happened.',
   '',
-  `Human contract: repeated identical guarded /wc launches must become distinct fresh workers, become useful owners quickly, and do resident work rather than replaying old completions or stopping at checkpoint ${checkpoint}. An empty materialized queue is NOT the same as an empty project: useful latent work must surface through ROLE_READY. Observability must never block coordination.`
-].join('\n');
+  `Human contract: repeated identical guarded ${surface} launches must become distinct fresh workers, become useful owners quickly, and do resident work rather than replaying old completions or stopping at checkpoint ${checkpoint}. An empty materialized queue is NOT the same as an empty project: useful latent work must surface through ROLE_READY. Observability must never block coordination.`
+);
+
+const text = lines.join('\n');
 const html = '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Prometeo Worker</title><style>html{background:#050506;color:#eee;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}body{max-width:900px;margin:auto;padding:28px 18px}pre{white-space:pre-wrap;line-height:1.5;font-size:14px}</style></head><body><pre>' + text + '</pre></body></html>\n';
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, html);
-console.log(JSON.stringify({ ok: true, version, invocation, out }));
+console.log(JSON.stringify({ ok: true, mode: production ? 'production' : 'canary', version, invocation, out }));
