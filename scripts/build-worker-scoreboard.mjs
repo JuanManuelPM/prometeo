@@ -224,6 +224,10 @@ const benchmarkReceiptsByWorker=new Map();
 for(const p of walk(path.join(root,'coordination','workers','benchmark-receipts')).filter(x=>x.endsWith('.json'))){
   const d=readJson(p); if(d?.worker_id) benchmarkReceiptsByWorker.set(d.worker_id,{doc:d,ref:repoRef(p)});
 }
+const browserAdjudicationByRun=new Map();
+for(const p of walk(path.join(root,'coordination','workers','benchmark-adjudications')).filter(x=>x.endsWith('browser-latest.json'))){
+  const d=readJson(p); if(d?.run_id) browserAdjudicationByRun.set(d.run_id,{doc:d,ref:repoRef(p)});
+}
 const noallocByWorker=new Map();
 for(const p of walk(path.join(root,'coordination','workers','no-allocation')).filter(x=>x.endsWith('.json'))){
   const d=readJson(p); if(d?.worker_id) noallocByWorker.set(d.worker_id,{doc:d,ref:repoRef(p)});
@@ -457,6 +461,8 @@ const launchRuns=[...runPackets.entries()].map(([runId,p])=>{
   const receipts=[...benchmarkReceiptsByWorker.values()].filter(x=>x.doc?.run_id===runId);
   const beacons=[...beaconByWorker.values()].filter(x=>x.doc?.run_id===runId);
   const slots=arr(p.doc?.slots);
+  const browserAdj=browserAdjudicationByRun.get(runId)||null;
+  const browserBySlot=new Map(arr(browserAdj?.doc?.slots).map(x=>[x.slot_id,x]));
   const slotOwnerIds=new Set(primary.map(x=>x.doc?.slot_id).filter(Boolean));
   const primaryWorkerIds=new Set(primary.map(x=>x.doc?.worker_id).filter(Boolean));
   const unassignedBeacons=beacons.filter(x=>x.doc?.worker_id&&!primaryWorkerIds.has(x.doc.worker_id));
@@ -469,29 +475,42 @@ const launchRuns=[...runPackets.entries()].map(([runId,p])=>{
   for(const x of primary){(byWorker[x.doc.worker_id]??=[]).push(x.doc.slot_id);}
   const firstNonPass=d=>{
     const trace=d?.stage_trace||{};
+    const externalBrowser=browserBySlot.get(d?.slot_id)||null;
     for(const id of pipelineStageOrder){
-      const st=String(trace?.[id]?.status||'NOT_REACHED');
-      if(st!=='PASS') return {stage:id,status:st,failure_code:trace?.[id]?.failure_code||null};
+      if(id==='E6_VERIFY' && externalBrowser?.status==='FAIL'){
+        return {stage:id,status:'FAIL',failure_code:externalBrowser.failure_code||'REPRESENTATIVE_BROWSER_CONTRACT_FAIL',adjudication_ref:browserAdj?.ref||null};
+      }
+      let st=String(trace?.[id]?.status||'NOT_REACHED');
+      let failure=trace?.[id]?.failure_code||null;
+      if(id==='E6_VERIFY' && externalBrowser?.status==='PASS' && st==='BOUNDARY' && failure==='REPRESENTATIVE_BROWSER_BLOCKED_BY_OTHER_SLOT'){
+        st='PASS'; failure=null;
+      }
+      if(st!=='PASS') return {stage:id,status:st,failure_code:failure};
     }
     return null;
   };
   const variants={};
   for(const slot of slots){
     const id=slot.evolution_variant||'UNSPECIFIED';
-    variants[id]??={slots_total:0,slots_claimed:0,receipts:0,primary_complete:0,reallocation_complete:0,hard_gate_pass_counts:[],wall_clock_seconds:[],first_non_pass:{}};
+    variants[id]??={slots_total:0,slots_claimed:0,receipts:0,primary_complete:0,reallocation_complete:0,effective_hard_gate_valid_complete:0,external_browser_pass:0,external_browser_fail:0,hard_gate_pass_counts:[],wall_clock_seconds:[],first_non_pass:{}};
     variants[id].slots_total++;
   }
   for(const x of primary){
     const id=x.doc?.evolution_variant||'UNSPECIFIED';
-    variants[id]??={slots_total:0,slots_claimed:0,receipts:0,primary_complete:0,reallocation_complete:0,hard_gate_pass_counts:[],wall_clock_seconds:[],first_non_pass:{}};
+    variants[id]??={slots_total:0,slots_claimed:0,receipts:0,primary_complete:0,reallocation_complete:0,effective_hard_gate_valid_complete:0,external_browser_pass:0,external_browser_fail:0,hard_gate_pass_counts:[],wall_clock_seconds:[],first_non_pass:{}};
     variants[id].slots_claimed++;
   }
   for(const x of receipts){
     const d=x.doc||{}; const id=d.evolution_variant||'UNSPECIFIED';
-    variants[id]??={slots_total:0,slots_claimed:0,receipts:0,primary_complete:0,reallocation_complete:0,hard_gate_pass_counts:[],wall_clock_seconds:[],first_non_pass:{}};
+    variants[id]??={slots_total:0,slots_claimed:0,receipts:0,primary_complete:0,reallocation_complete:0,effective_hard_gate_valid_complete:0,external_browser_pass:0,external_browser_fail:0,hard_gate_pass_counts:[],wall_clock_seconds:[],first_non_pass:{}};
     const v=variants[id]; v.receipts++;
     if(d.primary_complete===true) v.primary_complete++;
     if(d.reallocation_complete===true) v.reallocation_complete++;
+    const externalBrowser=browserBySlot.get(d.slot_id)||null;
+    if(externalBrowser?.status==='PASS') v.external_browser_pass++;
+    if(externalBrowser?.status==='FAIL') v.external_browser_fail++;
+    const effectiveBrowserOk=externalBrowser?.status!=='FAIL';
+    if(d.primary_complete===true && effectiveBrowserOk) v.effective_hard_gate_valid_complete++;
     const gates=Object.values(d.hard_gates||{});
     v.hard_gate_pass_counts.push(gates.filter(x=>String(x?.status||x)==='PASS').length);
     if(Number.isFinite(Number(d.wall_clock_seconds))) v.wall_clock_seconds.push(Number(d.wall_clock_seconds));
@@ -500,6 +519,7 @@ const launchRuns=[...runPackets.entries()].map(([runId,p])=>{
   for(const v of Object.values(variants)){
     v.primary_completion_rate=ratio(v.primary_complete,v.slots_total);
     v.reallocation_completion_rate=ratio(v.reallocation_complete,v.slots_total);
+    v.effective_hard_gate_valid_completion_rate=ratio(v.effective_hard_gate_valid_complete,v.slots_total);
     v.median_hard_gate_pass_count=median(v.hard_gate_pass_counts);
     v.median_wall_clock_seconds=median(v.wall_clock_seconds);
     delete v.hard_gate_pass_counts; delete v.wall_clock_seconds;
@@ -513,12 +533,14 @@ const launchRuns=[...runPackets.entries()].map(([runId,p])=>{
     assignment_success_rate:ratio(primaryWorkerIds.size,new Set(beacons.map(x=>x.doc.worker_id)).size),
     replacement_launches_recommended:(beacons.length>=(p.doc?.expected_human_launches??slots.length))?Math.min(Math.max(0,slots.length-slotOwnerIds.size),unassignedBeacons.length):0,
     preclaim_stage_observations,
+    browser_adjudication_ref:browserAdj?.ref||null,
+    browser_adjudication_source_sha:browserAdj?.doc?.source_sha||null,
     primary_complete:new Set(receipts.filter(x=>x.doc?.primary_complete===true).map(x=>x.doc.worker_id)).size,
     reallocation_complete:new Set(receipts.filter(x=>x.doc?.reallocation_complete===true).map(x=>x.doc.worker_id)).size,
     workers_with_multiple_primary_slots:Object.entries(byWorker).filter(([,ids])=>ids.length>1).map(([wid])=>wid),
     variants,
     automatic_winner:false,
-    truth_boundary:'Variant metrics are descriptive exploration evidence. n=2 per variant cannot auto-promote a pipeline law. Pre-variant E0-E2 launch losses are reported separately from slot variants and must not be attributed to whichever slot remained unclaimed.'
+    truth_boundary:'Variant metrics are descriptive exploration evidence. n=2 per variant cannot auto-promote a pipeline law. Pre-variant E0-E2 launch losses are reported separately from slot variants. Independent browser adjudication overrides worker self-report for E6 comparison and may resolve only aggregate-workflow blockage boundaries.'
   };
 });
 
