@@ -30,7 +30,7 @@ assert.equal(packet.capability_aware_occupancy.oversubscription_default,1);
 assert.equal(mission.platform_graduation.status,'ACTIVE_BINDING');
 assert.equal(mission.platform_graduation.broad_scale_hold,true);
 assert.equal(mission.current_snapshot.occupancy.recommended_additional_launches_at_snapshot,0);
-assert.equal(mission.current_snapshot.occupancy.launch_timing,'HOLD_BROAD_SCALE_PLATFORM_GRADUATION');
+assert.equal(mission.current_snapshot.occupancy.launch_timing,'BROAD_HOLD_GRADUATION_RUN_ARMED');
 assert.equal(handoff.platform_graduation_override.status,'ACTIVE');
 assert.equal(handoff.current_recommendation_example.recommended_approx_workers,0);
 assert.equal(campaign.next_launch.approximate_additional_workers_before_next_guide_return,0);
