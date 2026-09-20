@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dog Notes · R002</title>
+<style>
+:root{--paper:#f5f0e6;--ink:#111}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Arial,Helvetica,sans-serif;min-height:100vh;display:grid;grid-template-rows:auto 1fr}
+header{padding:28px clamp(18px,5vw,64px);border-bottom:3px solid var(--ink)}
+h1{margin:0;font-size:clamp(2.4rem,8vw,6rem);line-height:.9;letter-spacing:-.06em}
+main{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.2fr)}
+.composer,.notes{padding:clamp(20px,4vw,48px)}
+.composer{border-right:2px solid var(--ink)}
+label{display:block;font-weight:700;margin-bottom:10px}
+textarea{width:100%;min-height:180px;resize:vertical;border:2px solid var(--ink);border-radius:0;background:var(--paper);color:var(--ink);padding:12px;font:inherit}
+button{border:2px solid var(--ink);border-radius:0;background:var(--ink);color:var(--paper);font:inherit;font-weight:700;padding:10px 14px;cursor:pointer}
+#dog-note-add{margin-top:10px}
+#dog-note-list{list-style:none;margin:0;padding:0}
+#dog-note-list li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:start;padding:14px 0;border-bottom:2px solid var(--ink)}
+.note-text{white-space:pre-wrap;overflow-wrap:anywhere}
+.note-remove{background:var(--paper);color:var(--ink)}
+.empty{font-family:Georgia,serif;font-size:1.15rem}
+@media(max-width:680px){
+  main{grid-template-columns:1fr}
+  .composer{border-right:0;border-bottom:2px solid var(--ink)}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Dog Notes.</h1>
+</header>
+<main>
+  <section class="composer">
+    <label for="dog-note-input">New note</label>
+    <textarea id="dog-note-input" placeholder="Write a short note"></textarea>
+    <button id="dog-note-add" type="button">Add note</button>
+  </section>
+  <section class="notes" aria-labelledby="notes-title">
+    <h2 id="notes-title">Saved notes</h2>
+    <ul id="dog-note-list"></ul>
+    <p id="empty-state" class="empty">No notes yet.</p>
+  </section>
+</main>
+<script>
+(() => {
+  'use strict';
+  const input = document.getElementById('dog-note-input');
+  const add = document.getElementById('dog-note-add');
+  const list = document.getElementById('dog-note-list');
+  const empty = document.getElementById('empty-state');
+  const KEY = 'dog-notes-catlab-evo-01-r002';
+  let notes = [];
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEY) || '[]');
+    if (Array.isArray(raw)) notes = raw.filter(x => typeof x === 'string');
+  } catch {}
+
+  const persist = () => {
+    try { localStorage.setItem(KEY, JSON.stringify(notes)); } catch {}
+  };
+
+  const render = () => {
+    list.replaceChildren();
+    notes.forEach((text, index) => {
+      const li = document.createElement('li');
+      const span = document.createElement('span');
+      span.className = 'note-text';
+      span.textContent = text;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'note-remove';
+      remove.textContent = 'Remove';
+      remove.setAttribute('aria-label', 'Remove note ' + (index + 1));
+      remove.addEventListener('click', () => {
+        notes.splice(index, 1);
+        persist();
+        render();
+      });
+      li.append(span, remove);
+      list.append(li);
+    });
+    empty.hidden = notes.length > 0;
+  };
+
+  const addNote = () => {
+    const text = input.value.trim();
+    if (!text) return;
+    notes.push(text);
+    persist();
+    input.value = '';
+    render();
+    input.focus();
+  };
+
+  add.addEventListener('click', addNote);
+  input.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') addNote();
+  });
+  render();
+})();
+</script>
+</body>
+</html>
