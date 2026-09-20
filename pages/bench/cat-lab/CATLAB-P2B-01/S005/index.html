@@ -109,23 +109,24 @@ p{font-size:clamp(1.05rem,2vw,1.4rem);line-height:1.55;max-width:68ch}
   document.getElementById('tts-next').addEventListener('click',()=>setChapter(state.chapter+1,{scroll:true}));
   document.addEventListener('keydown',e=>{const t=e.target;if(t.matches('input,textarea,select,button')||t.isContentEditable)return;if(e.key==='ArrowDown'){e.preventDefault();setChapter(state.chapter+1,{scroll:true})}if(e.key==='ArrowUp'){e.preventDefault();setChapter(state.chapter-1,{scroll:true})}});
 
-  let utterance=null;
+  let utterance=null,speechMode='idle';
   const speechOK='speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
   if(!speechOK){ttsPlay.disabled=true;ttsStatus.textContent='Speech synthesis is unavailable in this browser.'}
-  const stopSpeech=()=>{if(speechOK)window.speechSynthesis.cancel();utterance=null;ttsPlay.setAttribute('aria-pressed','false');ttsPlay.textContent='Play'};
+  const syncSpeechButton=()=>{const playing=speechMode==='playing';ttsPlay.setAttribute('aria-pressed',String(playing));ttsPlay.textContent=speechMode==='paused'?'Resume':playing?'Pause':'Play'};
+  const stopSpeech=()=>{if(speechOK)window.speechSynthesis.cancel();utterance=null;speechMode='idle';syncSpeechButton()};
   ttsPlay.addEventListener('click',()=>{
     if(!speechOK)return;
-    const active=ttsPlay.getAttribute('aria-pressed')==='true';
-    if(active){stopSpeech();ttsStatus.textContent='Paused at chapter '+state.chapter+'.';return}
+    if(speechMode==='playing'){window.speechSynthesis.pause();speechMode='paused';syncSpeechButton();ttsStatus.textContent='Paused at chapter '+state.chapter+'.';return}
+    if(speechMode==='paused'){window.speechSynthesis.resume();speechMode='playing';syncSpeechButton();ttsStatus.textContent='Reading chapter '+state.chapter+'.';return}
     window.speechSynthesis.cancel();
     utterance=new SpeechSynthesisUtterance(chapters[state.chapter-1].querySelector('.chapter-copy').innerText);
     utterance.rate=Number(rate.value)||1;
-    utterance.onstart=()=>{ttsPlay.setAttribute('aria-pressed','true');ttsPlay.textContent='Pause';ttsStatus.textContent='Reading chapter '+state.chapter+'.'};
-    utterance.onend=()=>{ttsPlay.setAttribute('aria-pressed','false');ttsPlay.textContent='Play';ttsStatus.textContent='Chapter '+state.chapter+' complete.';utterance=null};
-    utterance.onerror=()=>{ttsPlay.setAttribute('aria-pressed','false');ttsPlay.textContent='Play';ttsStatus.textContent='Speech synthesis stopped or is unavailable.';utterance=null};
+    utterance.onstart=()=>{speechMode='playing';syncSpeechButton();ttsStatus.textContent='Reading chapter '+state.chapter+'.'};
+    utterance.onend=()=>{speechMode='idle';syncSpeechButton();ttsStatus.textContent='Chapter '+state.chapter+' complete.';utterance=null};
+    utterance.onerror=()=>{speechMode='idle';syncSpeechButton();ttsStatus.textContent='Speech synthesis stopped or is unavailable.';utterance=null};
     window.speechSynthesis.speak(utterance);
   });
-  ['tts-prev','tts-next'].forEach(id=>document.getElementById(id).addEventListener('click',()=>{if(speechOK&&window.speechSynthesis.speaking)stopSpeech()}));
+  ['tts-prev','tts-next'].forEach(id=>document.getElementById(id).addEventListener('click',()=>{if(speechOK&&speechMode!=='idle')stopSpeech()}));
 
   const AC=window.AudioContext||window.webkitAudioContext;
   let audioCtx=null,osc=null,gain=null,lfo=null,lfoGain=null;
