@@ -22,7 +22,7 @@ const receipt=read(path.join(root,'coordination','workers','WORKER_BENCHMARK_REC
 
 if(protocol.status!=='ACTIVE_BINDING_IMPLEMENTATION_PENDING'&&protocol.status!=='ACTIVE_BINDING') fail('launch packet protocol inactive');
 if(pipeline.status!=='ACTIVE_BINDING') fail('pipeline inactive');
-if(evolution.status!=='ACTIVE_BINDING') fail('evolution inactive');
+if(!['ACTIVE_BINDING','COMPLETE_GRADUATED'].includes(evolution.status)) fail('evolution inactive');
 if(receipt.status!=='ACTIVE_BINDING') fail('receipt spec inactive');
 if(protocol.replenishment?.status!=='ACTIVE_BINDING') fail('run replenishment inactive');
 if(protocol.residency?.terminal_reply_latch?.status!=='ACTIVE_BINDING') fail('run terminal latch inactive');
