@@ -25,9 +25,11 @@ jobs:
         with:
           ref: main
           fetch-depth: 2
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+
       - name: Static contracts
         shell: bash
         run: |
@@ -36,32 +38,26 @@ jobs:
             echo "No Cat Lab slots yet."
             exit 0
           fi
-          targets=/tmp/catlab-targets.txt
-          git diff --name-only HEAD^ HEAD -- 'pages/bench/cat-lab/**/index.html' | sort > "$targets"
-          if [ ! -s "$targets" ]; then
-            find pages/bench/cat-lab -type f -name index.html | sort > "$targets"
-          fi
-          echo "CATLAB targets:"
-          cat "$targets"
           failures=0
-          while IFS= read -r f; do
-            [ -n "$f" ] || continue
+          while IFS= read -r -d '' f; do
             echo "::group::STATIC $f"
             if ! node tests/cat-lab-contract-v1.mjs "$(dirname "$f")"; then
               failures=$((failures+1))
             fi
             echo "::endgroup::"
-          done < "$targets"
+          done < <(find pages/bench/cat-lab -type f -name index.html -print0 | sort -z)
           if [ "$failures" -ne 0 ]; then
             echo "CATLAB_STATIC_FAILURES=$failures"
             exit 1
           fi
+
       - name: Install representative Chromium
         if: ${{ hashFiles('pages/bench/cat-lab/**/index.html') != '' }}
         run: |
           npm init -y >/dev/null 2>&1
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
+
       - name: Serve benchmark pages
         if: ${{ hashFiles('pages/bench/cat-lab/**/index.html') != '' }}
         shell: bash
@@ -69,27 +65,90 @@ jobs:
           python3 -m http.server 4173 --directory pages >/tmp/catlab-http.log 2>&1 &
           echo $! >/tmp/catlab-http.pid
           sleep 2
+
       - name: Browser contracts
+        id: browser_contracts
         if: ${{ hashFiles('pages/bench/cat-lab/**/index.html') != '' }}
         shell: bash
         run: |
           set -u
-          targets=/tmp/catlab-targets.txt
-          if [ ! -s "$targets" ]; then
-            find pages/bench/cat-lab -type f -name index.html | sort > "$targets"
-          fi
+          mkdir -p /tmp/catlab-browser
           failures=0
-          while IFS= read -r f; do
-            [ -n "$f" ] || continue
+          while IFS= read -r -d '' f; do
             rel="${f#pages/}"
             dir="$(dirname "$rel")"
+            slot="$(basename "$dir")"
             echo "::group::BROWSER $dir"
-            if ! node tests/cat-lab-browser-v1.mjs "http://127.0.0.1:4173/$dir/"; then
+            if output="$(node tests/cat-lab-browser-v1.mjs "http://127.0.0.1:4173/$dir/" 2>&1)"; then
+              printf '%s\n' "$output"
+              printf 'PASS\n' > "/tmp/catlab-browser/$slot.status"
+              printf '%s\n' "$output" > "/tmp/catlab-browser/$slot.log"
+            else
+              code=$?
+              printf '%s\n' "$output"
+              printf 'FAIL\n' > "/tmp/catlab-browser/$slot.status"
+              printf '%s\n' "$output" > "/tmp/catlab-browser/$slot.log"
+              printf '%s\n' "$code" > "/tmp/catlab-browser/$slot.exit"
               failures=$((failures+1))
             fi
             echo "::endgroup::"
-          done < "$targets"
+          done < <(find pages/bench/cat-lab -type f -name index.html -print0 | sort -z)
+          printf '%s\n' "$failures" > /tmp/catlab-browser/failures
           if [ "$failures" -ne 0 ]; then
             echo "CATLAB_BROWSER_FAILURES=$failures"
             exit 1
           fi
+
+      - name: Persist browser adjudication
+        if: ${{ always() && hashFiles('pages/bench/cat-lab/**/index.html') != '' }}
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git pull --ff-only origin main
+          mkdir -p coordination/workers/benchmark-adjudications/CATLAB-EVO-01
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          const dir='/tmp/catlab-browser';
+          const files=fs.existsSync(dir)?fs.readdirSync(dir).filter(x=>/^S\d{3}\.status$/.test(x)).sort():[];
+          const slots=files.map(name=>{
+            const slot_id=name.replace('.status','');
+            const status=fs.readFileSync(path.join(dir,name),'utf8').trim();
+            const logPath=path.join(dir,slot_id+'.log');
+            const log=fs.existsSync(logPath)?fs.readFileSync(logPath,'utf8'):'';
+            const detail=log.split(/\r?\n/).filter(x=>/Error:|FAIL|overflow|persist/i.test(x)).slice(-1)[0]||null;
+            return {
+              slot_id,
+              status,
+              failure_code:status==='PASS'?null:'REPRESENTATIVE_BROWSER_CONTRACT_FAIL',
+              detail,
+              source_sha:process.env.SOURCE_SHA
+            };
+          });
+          const doc={
+            schema:'prometeo.benchmark-browser-adjudication/v1',
+            run_id:'CATLAB-EVO-01',
+            generated_at:new Date().toISOString(),
+            workflow_run_id:Number(process.env.WORKFLOW_RUN_ID),
+            source_sha:process.env.SOURCE_SHA,
+            slots,
+            truth_rule:'Independent representative Chromium result overrides worker self-report for E6 browser verification. PASS may resolve only a worker boundary caused solely by aggregate-workflow blockage; FAIL creates an E6 verification failure for experiment comparison.'
+          };
+          fs.writeFileSync('coordination/workers/benchmark-adjudications/CATLAB-EVO-01/browser-latest.json',JSON.stringify(doc,null,2)+'\n');
+          NODE
+          git add coordination/workers/benchmark-adjudications/CATLAB-EVO-01/browser-latest.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "catlab: publish browser adjudication"
+          for n in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            git fetch origin main
+            git rebase origin/main
+          done
+          exit 1
