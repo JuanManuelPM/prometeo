@@ -1,103 +1,59 @@
 <!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#000000">
-<title>Canal TV</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"><meta name="theme-color" content="#000"><title>Canal TV</title>
 <style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:Arial,Helvetica,sans-serif}
 #stage{position:fixed;inset:0;display:grid;background:#000;gap:1px}
-#stage.n1{grid-template-columns:1fr;grid-template-rows:1fr}
-#stage.n2{grid-template-rows:1fr}
-#stage.n3{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr}
-#stage.n4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+#stage.n1{grid-template-columns:1fr;grid-template-rows:1fr}#stage.n2{grid-template-rows:1fr}#stage.n3{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr}#stage.n4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
 .panel{position:relative;overflow:hidden;background:#000;min-width:0;min-height:0}
 .panel iframe,.ytHost,.ytHost iframe{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;border:0!important}
 .clockPanel{display:grid;place-items:center;background:#050505}
-.focusClock{position:relative;width:min(72%,72vh);aspect-ratio:1;border-radius:50%;overflow:hidden;border:2px solid #f4f3ee;background:conic-gradient(from -90deg,#ff3b30 0deg 150deg,#171717 150deg 180deg,#ff3b30 180deg 330deg,#171717 330deg 360deg);box-shadow:0 0 0 1px #000}
+.focusClock{position:relative;width:min(72%,72vh);aspect-ratio:1;border-radius:50%;overflow:hidden;border:2px solid #f4f3ee;background:conic-gradient(from -90deg,#ff3b30 0deg 150deg,#171717 150deg 180deg,#ff3b30 180deg 330deg,#171717 330deg 360deg)}
 .focusClock:after{content:'';position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from -90deg,#ffffffbb 0deg 1deg,transparent 1deg 30deg);-webkit-mask:radial-gradient(circle,transparent 0 91%,#000 91% 100%);mask:radial-gradient(circle,transparent 0 91%,#000 91% 100%);pointer-events:none}
-.hand{position:absolute;left:50%;bottom:50%;transform-origin:50% 100%;border-radius:99px;z-index:3;filter:drop-shadow(0 1px 1px #0008)}
-.hourHand{width:6px;height:27%;background:#f4f3ee}
-.minuteHand{width:3px;height:39%;background:#f4f3ee}
-.secondHand{width:1px;height:43%;background:#f4f3ee}
-.centerPin{position:absolute;left:50%;top:50%;width:12px;height:12px;transform:translate(-50%,-50%);border-radius:50%;background:#050505;border:2px solid #f4f3ee;z-index:5}
-.unlock{position:fixed;z-index:50;inset:0;display:none;place-items:center;border:0;background:#000;color:#fff;font-size:14px;font-weight:900;letter-spacing:.12em}.unlock.show{display:grid}
-.status{position:fixed;right:8px;top:8px;z-index:60;width:5px;height:5px;border-radius:50%;background:#333;opacity:.35}.status.err{background:#fff}
+.hand{position:absolute;left:50%;bottom:50%;transform-origin:50% 100%;border-radius:99px;z-index:3}.hourHand{width:6px;height:27%;background:#f4f3ee}.minuteHand{width:3px;height:39%;background:#f4f3ee}.secondHand{width:1px;height:43%;background:#f4f3ee}.centerPin{position:absolute;left:50%;top:50%;width:12px;height:12px;transform:translate(-50%,-50%);border-radius:50%;background:#050505;border:2px solid #f4f3ee;z-index:5}
+.unlock{position:fixed;z-index:50;inset:0;display:none;place-items:center;border:0;background:#000;color:#fff;font-size:14px;font-weight:900;letter-spacing:.12em}.unlock.show{display:grid}.status{position:fixed;right:8px;top:8px;z-index:60;width:5px;height:5px;border-radius:50%;background:#333;opacity:.35}.status.err{background:#fff}
 </style>
 </head>
-<body>
-<main id="stage" class="n1"></main>
-<button id="unlock" class="unlock">TOCAR PARA ACTIVAR</button>
-<div id="status" class="status"></div>
-<script src="https://www.youtube.com/iframe_api"></script>
+<body><main id="stage" class="n1"></main><button id="unlock" class="unlock">TOCAR PARA ACTIVAR</button><div id="status" class="status"></div><script src="https://www.youtube.com/iframe_api"></script>
 <script>
 (()=>{
 'use strict';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
-const p=new URLSearchParams(location.hash.slice(1));
-const room={code:p.get('room')||'',token:p.get('t')||'',role:'tv'};
+const p=new URLSearchParams(location.hash.slice(1));const room={code:p.get('room')||'',token:p.get('t')||'',role:'tv'};
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
-let blocks=[],layouts=[],renderKey='',players=[],ytReady=false;
-window.onYouTubeIframeAPIReady=()=>{ytReady=true;renderActive(true)};
-
-function nowParts(){
-  const d=new Date(),parts=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(d);
-  const get=t=>Number(parts.find(x=>x.type===t)?.value||0);return{h:get('hour'),m:get('minute'),s:get('second')};
-}
+let blocks=[],layouts=[],ytReady=false;const views=new Map();
+window.onYouTubeIframeAPIReady=()=>{ytReady=true;syncStage(true)};
+function nowParts(){const ps=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date());const get=t=>Number(ps.find(x=>x.type===t)?.value||0);return{h:get('hour'),m:get('minute'),s:get('second')}}
 function nowMin(){const n=nowParts();return n.h*60+n.m}
-function activeBlocks(){const n=nowMin();return blocks.filter(b=>b.enabled!==false&&n>=b.start_minute&&n<b.end_minute).sort((a,b)=>String(a.id).localeCompare(String(b.id)))}
-function pairIds(a,b){return [String(a),String(b)].sort()}
-function layoutFor(a,b){const [x,y]=pairIds(a,b);return layouts.find(l=>String(l.block_a)===x&&String(l.block_b)===y)||{block_a:x,block_b:y,ratio:.5}}
+function active(){const n=nowMin();return blocks.filter(b=>b.enabled!==false&&n>=b.start_minute&&n<b.end_minute).sort((a,b)=>String(a.id).localeCompare(String(b.id))).slice(0,4)}
+function pairIds(a,b){return[String(a),String(b)].sort()}function layoutFor(a,b){const[x,y]=pairIds(a,b);return layouts.find(l=>String(l.block_a)===x&&String(l.block_b)===y)||{ratio:.5}}
 async function api(){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'list',code:room.code,role:'tv',token:room.token}),cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||'SCHEDULE');return d}
-function destroyPlayers(){for(const p of players){try{p.destroy()}catch{}}players=[]}
 function clockMarkup(){return '<div class="focusClock"><div class="hand hourHand"></div><div class="hand minuteHand"></div><div class="hand secondHand"></div><div class="centerPin"></div></div>'}
-function makePanel(b,i){
-  const panel=document.createElement('section');panel.className='panel';
-  if(b.kind==='black')return panel;
-  if(b.kind==='clock'){panel.classList.add('clockPanel');panel.innerHTML=clockMarkup();return panel}
-  if(b.kind==='page'){const f=document.createElement('iframe');f.src=b.payload?.url||'about:blank';f.allow='autoplay; fullscreen; picture-in-picture';panel.appendChild(f);return panel}
-  if(b.kind==='youtube'){
-    const host=document.createElement('div');host.className='ytHost';host.id='yt-'+i+'-'+String(b.id).replace(/[^a-z0-9_-]/gi,'');panel.appendChild(host);
-    if(ytReady&&window.YT?.Player)queueMicrotask(()=>{try{
-      const player=new YT.Player(host.id,{videoId:b.payload?.video_id||'',playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,fs:0,iv_load_policy:3,disablekb:1},events:{
-        onReady:e=>{try{e.target.playVideo()}catch{}},
-        onAutoplayBlocked:()=>unlock.classList.add('show')
-      }});players.push(player);
-    }catch{}});
-    return panel;
-  }
-  return panel;
+function sig(b){return b.kind+'|'+JSON.stringify(b.payload||{})}
+function destroyView(id){const v=views.get(id);if(!v)return;try{v.player?.destroy()}catch{}try{v.el.remove()}catch{}views.delete(id)}
+function createView(b){
+ const el=document.createElement('section');el.className='panel';let player=null;
+ if(b.kind==='clock'){el.classList.add('clockPanel');el.innerHTML=clockMarkup()}
+ else if(b.kind==='page'){const f=document.createElement('iframe');f.src=b.payload?.url||'about:blank';f.allow='autoplay; fullscreen; picture-in-picture';el.appendChild(f)}
+ else if(b.kind==='youtube'){const host=document.createElement('div');host.className='ytHost';host.id='yt-'+String(b.id).replace(/[^a-z0-9_-]/gi,'');el.appendChild(host);if(ytReady&&window.YT?.Player)queueMicrotask(()=>{try{const v=views.get(String(b.id));if(!v||v.el!==el)return;v.player=new YT.Player(host.id,{videoId:b.payload?.video_id||'',playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,fs:0,iv_load_policy:3,disablekb:1},events:{onReady:e=>{try{e.target.playVideo()}catch{}},onAutoplayBlocked:()=>unlock.classList.add('show')}})}catch{}})}
+ const v={el,player,sig:sig(b),kind:b.kind};views.set(String(b.id),v);return v
 }
-function renderActive(force=false){
-  let act=activeBlocks().slice(0,4);
-  let ratioKey='';
-  if(act.length===2){const l=layoutFor(act[0].id,act[1].id);ratioKey=':'+Number(l.ratio).toFixed(3)}
-  const key=act.map(b=>b.id+':'+b.kind).join('|')+ratioKey;
-  if(!force&&key===renderKey){tickClock();return}
-  renderKey=key;destroyPlayers();stage.innerHTML='';
-  if(!act.length){stage.className='n1';stage.style.gridTemplateColumns='1fr';stage.appendChild(document.createElement('section')).className='panel';return}
-  stage.className='n'+act.length;stage.style.gridTemplateColumns='';
-  if(act.length===2){
-    const [x,y]=pairIds(act[0].id,act[1].id),l=layoutFor(x,y);
-    act=[act.find(b=>String(b.id)===x),act.find(b=>String(b.id)===y)];
-    stage.style.gridTemplateColumns=(l.ratio*100)+'% '+((1-l.ratio)*100)+'%';
-  }
-  act.forEach((b,i)=>stage.appendChild(makePanel(b,i)));
-  tickClock();
+function ensureView(b,force=false){const id=String(b.id),existing=views.get(id);if(existing&&!force&&existing.sig===sig(b))return existing;if(existing)destroyView(id);return createView(b)}
+function syncStage(force=false){
+ const act=active(),ids=new Set(act.map(b=>String(b.id)));
+ for(const id of [...views.keys()])if(!ids.has(id))destroyView(id);
+ for(const b of act){const v=ensureView(b,force);stage.appendChild(v.el)}
+ stage.className='n'+Math.max(1,act.length);stage.style.gridTemplateColumns='';
+ if(!act.length){if(!stage.querySelector('.empty')){const e=document.createElement('section');e.className='panel empty';stage.appendChild(e)}return}
+ stage.querySelector('.empty')?.remove();
+ if(act.length===2){const[x,y]=pairIds(act[0].id,act[1].id),l=layoutFor(x,y),ordered=[act.find(b=>String(b.id)===x),act.find(b=>String(b.id)===y)];for(const b of ordered)stage.appendChild(views.get(String(b.id)).el);stage.style.gridTemplateColumns=(l.ratio*100)+'% '+((1-l.ratio)*100)+'%'}
+ tickClock()
 }
-function tickClock(){
-  const n=nowParts(),hour=((n.h%12)+(n.m/60)+(n.s/3600))*30,minute=(n.m+n.s/60)*6,second=n.s*6;
-  document.querySelectorAll('.hourHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+hour+'deg)');
-  document.querySelectorAll('.minuteHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+minute+'deg)');
-  document.querySelectorAll('.secondHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+second+'deg)');
-}
-async function load(){try{const d=await api();blocks=d.blocks||[];layouts=d.layouts||[];status.className='status';renderActive()}catch{status.className='status err'}}
-unlock.onclick=async()=>{unlock.classList.remove('show');try{await document.documentElement.requestFullscreen?.()}catch{}for(const p of players){try{p.playVideo()}catch{}}};
+function tickClock(){const n=nowParts(),ha=((n.h%12)+(n.m/60)+(n.s/3600))*30,ma=(n.m+n.s/60)*6,sa=n.s*6;document.querySelectorAll('.hourHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+ha+'deg)');document.querySelectorAll('.minuteHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+ma+'deg)');document.querySelectorAll('.secondHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+sa+'deg)')}
+async function load(){try{const d=await api();blocks=d.blocks||[];layouts=d.layouts||[];status.className='status';syncStage(false)}catch{status.className='status err'}}
+unlock.onclick=async()=>{unlock.classList.remove('show');try{await document.documentElement.requestFullscreen?.()}catch{}for(const v of views.values())try{v.player?.playVideo()}catch{}};
 document.addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.()}catch{}},{once:true});
-setInterval(()=>{tickClock();renderActive()},250);
-load();setInterval(load,700);
+setInterval(()=>{tickClock();syncStage(false)},250);load();setInterval(load,650);
 })();
-</script>
-</body>
-</html>
+</script></body></html>
