@@ -45,10 +45,22 @@ async function bbRenderedSnapshot(url,settle=3600){
  }catch{return null}
  finally{if(tab?.id!=null)try{await api.tabs.remove(tab.id)}catch{}}
 }
+function bbCourseNameKey(s=''){
+ let x=bbPrettyCourseTitle(String(s||''),'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\bIII\b/g,'3').replace(/\bII\b/g,'2').replace(/\bI\b/g,'1');
+ return x.replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+}
 function bbBuildRegistry(...sets){
  const all=sets.flat().filter(Boolean),internalToAcademic=new Map(),byAcademic=new Map();
- for(const c of all){
-  const academic=bbAcademicCode(c),internal=String(c?.course_key||''),href=bbCanonicalPageUrl(c?.href||'');
+ const rows=all.map(c=>({c,academic:bbAcademicCode(c),internal:String(c?.course_key||''),href:bbCanonicalPageUrl(c?.href||''),key:bbCourseNameKey(c?.title||c?.course_key||'')}));
+ const academicRows=rows.filter(r=>r.academic);
+ for(const r of rows){
+  if(r.academic)continue;
+  if(!r.internal||/^20\d{2}C[12]C_/i.test(r.internal)||!bbGoodCourseUrl(r.href)||!r.key)continue;
+  const matches=academicRows.filter(a=>a.key&&(a.key===r.key||a.key.includes(r.key)||r.key.includes(a.key)));
+  if(matches.length===1)r.academic=matches[0].academic;
+ }
+ for(const r of rows){
+  const {c,academic,internal,href}=r;
   if(academic&&internal&&!/^20\d{2}C[12]C_/i.test(internal))internalToAcademic.set(internal,academic);
   if(academic){
     const prev=byAcademic.get(academic)||{academic,internal:'',href:'',title:''};
