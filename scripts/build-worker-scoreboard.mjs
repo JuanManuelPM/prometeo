@@ -511,6 +511,7 @@ const launchRuns=[...runPackets.entries()].map(([runId,p])=>{
     workers_beaconed_without_primary_claim:unassignedBeacons.length,
     unassigned_beacon_workers:unassignedBeacons.map(x=>({worker_id:x.doc.worker_id,launched_at:x.doc.launched_at||null,stage_observation:'E2_ASSIGN:NOT_REACHED_NO_CLAIM_EVIDENCE'})),
     assignment_success_rate:ratio(primaryWorkerIds.size,new Set(beacons.map(x=>x.doc.worker_id)).size),
+    replacement_launches_recommended:(beacons.length>=(p.doc?.expected_human_launches??slots.length))?Math.min(Math.max(0,slots.length-slotOwnerIds.size),unassignedBeacons.length):0,
     preclaim_stage_observations,
     primary_complete:new Set(receipts.filter(x=>x.doc?.primary_complete===true).map(x=>x.doc.worker_id)).size,
     reallocation_complete:new Set(receipts.filter(x=>x.doc?.reallocation_complete===true).map(x=>x.doc.worker_id)).size,
