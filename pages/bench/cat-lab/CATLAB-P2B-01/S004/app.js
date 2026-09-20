@@ -38,7 +38,7 @@
   };
   ttsPlay.addEventListener('click',()=>{
     if(!speechOk)return;
-    if(speechSynthesis.speaking&&!speechSynthesis.paused){speechSynthesis.pause();setTts(false,'Lectura pausada.');return}
+    if(speechSynthesis.speaking&&!speechSynthesis.paused){speechSynthesis.pause();setTts(false,'Lectura pausada.');ttsPlay.textContent='reanudar';return}
     if(speechSynthesis.paused){speechSynthesis.resume();setTts(true,`Leyendo capítulo ${state.chapter}.`);return}
     speakCurrent();
   });
