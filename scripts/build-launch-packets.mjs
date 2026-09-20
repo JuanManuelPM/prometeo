@@ -39,8 +39,12 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
   const reallocationClaims=walk(reallocClaimDir).filter(x=>x.endsWith('.json')).map(readJsonSafe).filter(Boolean);
   const receiptDir=path.join(root,'coordination','workers','benchmark-receipts',runId);
   const receipts=walk(receiptDir).filter(x=>x.endsWith('.json')).map(readJsonSafe).filter(Boolean);
+  const beaconDir=path.join(root,'coordination','workers','beacons');
+  const runBeacons=walk(beaconDir).filter(x=>x.endsWith('.json')).map(readJsonSafe).filter(x=>x?.run_id===runId);
   const claimedIds=new Set(primaryClaims.map(x=>x.slot_id).filter(Boolean));
   const reallocClaimedIds=new Set(reallocationClaims.map(x=>x.slot_id).filter(Boolean));
+  const claimedWorkerIds=new Set(primaryClaims.map(x=>x.worker_id).filter(Boolean));
+  const unassignedBeacons=runBeacons.filter(x=>x?.worker_id&&!claimedWorkerIds.has(x.worker_id));
   const slots=packet.slots||[];
   const variantStatus={};
   for(const slot of slots){
@@ -66,6 +70,10 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
     slots_unclaimed:Math.max(0,slots.length-claimedIds.size),
     unclaimed_slot_ids:slots.map(x=>x.slot_id).filter(id=>!claimedIds.has(id)),
     distinct_primary_workers:new Set(primaryClaims.map(x=>x.worker_id).filter(Boolean)).size,
+    workers_beaconed:new Set(runBeacons.map(x=>x.worker_id).filter(Boolean)).size,
+    workers_beaconed_without_primary_claim:unassignedBeacons.length,
+    unassigned_beacon_workers:unassignedBeacons.map(x=>({worker_id:x.worker_id,launched_at:x.launched_at||null,stage_observation:'E2_ASSIGN:NOT_REACHED_NO_CLAIM_EVIDENCE'})),
+    assignment_success_rate:runBeacons.length?Number((claimedWorkerIds.size/runBeacons.length).toFixed(3)):null,
     reallocation_slots_total:(packet.reallocation_slots||[]).length,
     reallocation_slots_claimed:reallocClaimedIds.size,
     primary_complete:new Set(receipts.filter(x=>x.primary_complete===true).map(x=>x.worker_id)).size,
@@ -73,7 +81,7 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
     receipts:receipts.length,
     variants:variantStatus,
     human_numbering_required:false,
-    truth_boundary:'Durable main-branch packet claims and benchmark receipts only; chat UIs themselves are not observable unless they create durable evidence.'
+    truth_boundary:'Durable main-branch beacons, packet claims and benchmark receipts only. A beacon without a primary claim is an observable E1-complete/E2-not-reached launch outcome, not proof of why the chat stopped.'
   };
   fs.writeFileSync(path.join(outDir,'status.json'),JSON.stringify(status,null,2)+'\n');
   for(const slot of packet.slots||[]){
