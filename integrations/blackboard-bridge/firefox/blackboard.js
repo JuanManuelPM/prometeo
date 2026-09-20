@@ -8,16 +8,36 @@ function bbPretty(label='',code=''){let s=bbC(label,500)||String(code||'').repla
 function bbCode(text=''){const m=String(text).match(/202\dC\dC_[A-Z0-9ÁÉÍÓÚÑ._-]+/i);return m?m[0]:''}
 function bodyCourses(text=''){const out=new Map(),re=/-?([A-ZÁÉÍÓÚÑ0-9._-]{5,}?)\s*\((202\dC\dC_[^)]+)\)/gi;let m;while((m=re.exec(String(text||'')))){const code=bbC(m[2],300),label=bbPretty(m[1],code);if(code)out.set(code,{course_key:code,title:`${label} (${code})`,href:'',raw:{captured:true,via:'page_text'}})}return [...out.values()]}
 function snapshot(){
-  const url=location.href,ck=bbCourse(url),title=bbC(document.querySelector('h1')?.textContent||document.querySelector('#pageTitleText')?.textContent||document.title,500),courses=[],items=[],seen=new Set(),courseMap=new Map();
-  const addCourse=(k,n,h,raw={})=>{if(!k)return;const next={course_key:k,title:bbC(n,500)||k,href:bbIsFile(h,n)?'':h,raw:{captured:true,...raw}},prev=courseMap.get(k);if(!prev||bbTitleScore(next.title,k)>bbTitleScore(prev.title,k)||(!prev.href&&next.href))courseMap.set(k,{...prev,...next});};if(ck&&!bbIsFile(url,title))addCourse(ck,title,url,{via:'page'});
-  const body=bbC(document.body?.innerText||'',30000);for(const c of bodyCourses(body))addCourse(c.course_key,c.title,c.href,c.raw);
-  for(const a of [...document.querySelectorAll('a[href]')].slice(0,1600)){
-    let href='';try{href=new URL(a.href,location.href).href}catch{}if(!href||!href.startsWith(location.origin))continue;const text=bbC(a.textContent||a.title||a.getAttribute('aria-label'),600),near=bbC(a.closest('li,article,div,tr')?.textContent||'',1200),k=bbCourse(href)||ck||bbCode(near);if(k&&!bbIsFile(href,text))addCourse(k,/^202\dC\dC_/i.test(k)?bbPretty('',k):text,href,{via:'link'});if(!text&&!bbIsFile(href,text))continue;const type=bbIsFile(href,text)?'file':/announcement|anuncio/i.test(href+' '+text)?'announcement':/assignment|assessment|test|quiz|submit/i.test(href+' '+text)?'assignment':'link';if(type==='link'&&!k)continue;const key=(k||'global')+':live:'+bbF((a.id||href)+'|'+text);if(seen.has(key))continue;seen.add(key);items.push({item_key:key,course_key:k||null,item_type:type,title:text||href.split('/').pop()||type,href,source_page:url,raw:{live:true}})}
+  const url=location.href,ck=bbCourse(url),title=bbC(document.querySelector('h1')?.textContent||document.querySelector('#pageTitleText')?.textContent||document.title,500),courses=[],items=[],enqueue=[],seen=new Set(),courseMap=new Map();
+  const addCourse=(k,n,h,raw={})=>{if(!k)return;const next={course_key:k,title:bbC(n,500)||k,href:bbIsFile(h,n)?'':h,raw:{captured:true,...raw}},prev=courseMap.get(k);if(!prev||bbTitleScore(next.title,k)>bbTitleScore(prev.title,k)||(!prev.href&&next.href))courseMap.set(k,{...prev,...next});};
+  if(ck&&!bbIsFile(url,title))addCourse(ck,title,url,{via:'page'});
+  const body=bbC(document.body?.innerText||'',30000);
+  for(const c of bodyCourses(body))addCourse(c.course_key,c.title,c.href,c.raw);
+  const useful=h=>!!h&&h.startsWith(location.origin)&&!/logout|logoff|delete|remove|modify|editMode|gradebook\/do|email/i.test(h)&&/course_id=|courseId=|type=Course|\/courses\/|\/ultra\/(?:course|stream|calendar|grades|messages)|outline|listContent|announcement|message|mygrades|grade|content|calendar|bbcswebdav|attachment|resource/i.test(h);
+  for(const a of [...document.querySelectorAll('a[href]')].slice(0,2200)){
+    let href='';try{href=new URL(a.href,location.href).href}catch{}
+    if(!href||!href.startsWith(location.origin))continue;
+    const text=bbC(a.textContent||a.title||a.getAttribute('aria-label'),600),near=bbC(a.closest('li,article,div,tr')?.textContent||'',1600);
+    const internal=bbCourse(href),academic=bbCode(near)||bbCode(text),k=internal||ck||academic;
+    if(k&&!bbIsFile(href,text)){
+      const label=/^202\dC\dC_/i.test(k)?bbPretty('',k):text;
+      addCourse(k,label,href,{via:'link',academic_code:academic||(/^202\dC\dC_/i.test(k)?k:'')});
+    }
+    if(!text&&!bbIsFile(href,text)){if(useful(href))enqueue.push(href);continue}
+    const type=bbIsFile(href,text)?'file':/announcement|anuncio/i.test(href+' '+text)?'announcement':/assignment|assessment|test|quiz|submit/i.test(href+' '+text)?'assignment':'link';
+    if(type!=='link'||k){
+      const key=(k||'global')+':live:'+bbF((a.id||href)+'|'+text);
+      if(!seen.has(key)){seen.add(key);items.push({item_key:key,course_key:k||null,item_type:type,title:text||href.split('/').pop()||type,href,file_name:type==='file'?(text||null):null,source_page:url,raw:{live:true,academic_code:academic||null}})}
+    }
+    if(useful(href)&&!bbIsFile(href,text))enqueue.push(href);
+  }
   courses.push(...courseMap.values());
-  const pk=(ck||'global')+':livepage:'+bbF(url);items.push({item_key:pk,course_key:ck||null,item_type:/announcement/i.test(url)?'announcement-page':/calendar/i.test(url)?'calendar-page':/stream/i.test(url)?'activity-page':/message/i.test(url)?'messages-page':'page',title:title||url,body_text:body,href:url,source_page:url,raw:{live:true}});
-  return{url,courses,items};
+  const pk=(ck||'global')+':livepage:'+bbF(url);
+  items.push({item_key:pk,course_key:ck||null,item_type:/announcement/i.test(url)?'announcement-page':/calendar/i.test(url)?'calendar-page':/stream/i.test(url)?'activity-page':/message/i.test(url)?'messages-page':'page',title:title||url,body_text:body,href:url,source_page:url,raw:{live:true}});
+  return{url,courses,items,enqueue:[...new Set(enqueue)],needs_login:!!document.querySelector('input[type=password]')||/login|auth/i.test(location.pathname)};
 }
 function sendSnapshot(){bbApi2.runtime.sendMessage({type:'PAGE_SNAPSHOT',payload:snapshot()}).catch(()=>{})}
+bbApi2.runtime.onMessage.addListener(m=>{if(m?.type==='PROMETEO_BB_SNAPSHOT')return Promise.resolve(snapshot())});
 setTimeout(sendSnapshot,1600);setTimeout(sendSnapshot,5000);
 if(!document.getElementById('prometeo-bb-dot')){
  const b=document.createElement('button');b.id='prometeo-bb-dot';b.textContent='P';b.title='Sincronizar con Prometeo';Object.assign(b.style,{position:'fixed',right:'10px',bottom:'10px',zIndex:'2147483647',width:'28px',height:'28px',border:'1px solid rgba(0,0,0,.25)',background:'#111326',color:'#d8d1ff',font:'700 11px system-ui',opacity:'.42',cursor:'pointer'});b.onmouseenter=()=>b.style.opacity='.92';b.onmouseleave=()=>b.style.opacity='.42';b.onclick=async()=>{b.textContent='…';try{sendSnapshot();await bbApi2.runtime.sendMessage({type:'SYNC'});b.textContent='✓';setTimeout(()=>b.textContent='P',1500)}catch{b.textContent='!'}};document.documentElement.appendChild(b)
