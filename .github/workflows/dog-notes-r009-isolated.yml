@@ -1,0 +1,64 @@
+name: DOG-NOTES R009 Isolated Benchmark
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pages/bench/dog-notes/CATLAB-EVO-01/R009/**'
+      - '.github/workflows/dog-notes-r009-isolated.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Static contract R009
+        run: node tests/dog-notes-contract-v1.mjs pages/bench/dog-notes/CATLAB-EVO-01/R009
+      - name: Install representative Chromium
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Serve benchmark pages
+        run: |
+          python3 -m http.server 4173 --directory pages >/tmp/dognotes-http.log 2>&1 &
+          sleep 2
+      - name: Browser contract R009
+        shell: bash
+        run: |
+          cat > /tmp/dog-notes-r009.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          const url='http://127.0.0.1:4173/bench/dog-notes/CATLAB-EVO-01/R009/';
+          const browser=await chromium.launch({headless:true});
+          const page=await browser.newPage({viewport:{width:390,height:844}});
+          const errors=[];
+          page.on('pageerror',e=>errors.push(String(e)));
+          await page.goto(url,{waitUntil:'networkidle'});
+          const input=page.locator('#dog-note-input');
+          await input.fill('walk after rain');
+          await page.locator('#dog-note-add').click();
+          if(await page.locator('#dog-note-list .note').count()!==1) throw new Error('add did not create one visible note');
+          await page.reload({waitUntil:'networkidle'});
+          if(await page.locator('#dog-note-list .note').count()!==1) throw new Error('note did not persist across reload');
+          const text=await page.locator('#dog-note-list .note span').textContent();
+          if(text!=='walk after rain') throw new Error('persisted note text mismatch');
+          await page.locator('#dog-note-list .note button').click();
+          if(await page.locator('#dog-note-list .note').count()!==0) throw new Error('remove did not delete note');
+          await page.reload({waitUntil:'networkidle'});
+          if(await page.locator('#dog-note-list .note').count()!==0) throw new Error('deletion did not persist');
+          const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth);
+          if(overflow>4) throw new Error('mobile horizontal overflow '+overflow+'px');
+          if(errors.length) throw new Error('page errors: '+errors.join(' | '));
+          await browser.close();
+          console.log(JSON.stringify({ok:true,url,add:true,persist:true,remove:true,mobile_overflow:overflow}));
+          EOF
+          node /tmp/dog-notes-r009.mjs
