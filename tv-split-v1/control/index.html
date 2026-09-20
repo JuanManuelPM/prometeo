@@ -33,8 +33,8 @@ button{font:inherit;color:inherit}
 .half{position:absolute;left:56px;right:0;height:1px;background:var(--half);z-index:1}
 .halfLabel{position:absolute;left:7px;top:-8px;font:800 8px ui-monospace,SFMono-Regular,Menlo,monospace;color:#55554f;background:var(--bg);padding:0 3px}
 .layer{position:absolute;inset:0;z-index:5}
-.block{position:absolute;left:64px;right:8px;min-height:28px;background:var(--fg);color:var(--bg);border:0;overflow:hidden;user-select:none;touch-action:none;transition:top .12s cubic-bezier(.2,.8,.2,1),height .12s cubic-bezier(.2,.8,.2,1),box-shadow .12s ease,outline-color .12s ease}
-.block.selected{outline:2px solid var(--now);outline-offset:2px}
+.block{position:absolute;left:64px;right:8px;min-height:28px;background:var(--fg);color:var(--bg);border:0;overflow:hidden;user-select:none;touch-action:pan-y;transition:top .12s cubic-bezier(.2,.8,.2,1),height .12s cubic-bezier(.2,.8,.2,1),box-shadow .12s ease,outline-color .12s ease}
+.block.selected{outline:2px solid var(--now);outline-offset:2px;touch-action:none}.block.stretching{outline-style:dashed;box-shadow:0 0 0 3px #ff3b3033}
 .block.fresh{animation:pulseEdge .72s ease-in-out infinite}
 .block.conflict{background:#282824;color:#fff;outline:2px dashed var(--now);outline-offset:2px}
 @keyframes pulseEdge{0%,100%{box-shadow:0 0 0 0 #ff3b3000}50%{box-shadow:0 0 0 3px #ff3b30}}
@@ -48,10 +48,11 @@ button{font:inherit;color:inherit}
 .nowLabel{position:absolute;left:-50px;top:-13px;background:var(--now);color:#fff;padding:2px 4px;font:900 8px ui-monospace,monospace}
 .dragTime{position:fixed;z-index:125;pointer-events:none;background:var(--now);color:#fff;padding:4px 6px;font:900 10px ui-monospace,monospace;display:none}
 .dragTime.show{display:block}
-.inspector{position:fixed;left:50%;bottom:10px;z-index:90;transform:translateX(-50%) translateY(120%);width:min(430px,calc(100% - 18px));background:#11110ff3;border:1px solid #3b3b37;backdrop-filter:blur(14px);padding:7px;display:grid;grid-template-columns:56px 1fr 56px 64px;gap:6px;transition:transform .16s ease}
+.inspector{position:fixed;left:50%;bottom:10px;z-index:90;transform:translateX(-50%) translateY(120%);width:min(430px,calc(100% - 18px));background:#11110ff3;border:1px solid #3b3b37;backdrop-filter:blur(14px);padding:7px;display:grid;grid-template-columns:1fr 72px;gap:6px;transition:transform .16s ease}
 .inspector.show{transform:translateX(-50%) translateY(0)}
-.inspector button{height:42px;border:1px solid #3b3b37;background:#171714;font-size:11px;font-weight:900}
-.inspector .dur{display:grid;place-items:center;border:1px solid #3b3b37;font:900 10px ui-monospace,monospace}
+.inspector button{height:46px;border:1px solid #3b3b37;background:#171714;font-size:11px;font-weight:900}
+.inspector .dur{display:flex;flex-direction:column;justify-content:center;border:1px solid #3b3b37;padding:0 10px;font:900 10px ui-monospace,monospace}
+.inspector .dur span{display:block;margin-top:3px;color:var(--muted);font:700 7px Arial,Helvetica,sans-serif;letter-spacing:.04em}
 .inspector .delete{font-size:8px;letter-spacing:.04em}
 .toast{position:fixed;z-index:140;left:50%;bottom:70px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 12px;font-size:9px;font-weight:900;display:none;white-space:nowrap}.toast.show{display:block}
 </style>
@@ -83,9 +84,7 @@ button{font:inherit;color:inherit}
 </div>
 
 <div id="inspector" class="inspector">
-  <button id="less">−30</button>
-  <div id="dur" class="dur">30 min</div>
-  <button id="more">+30</button>
+  <div id="dur" class="dur">30 min<span>ARRASTRÁ · MANTENÉ PARA ESTIRAR</span></div>
   <button id="delete" class="delete">BORRAR</button>
 </div>
 <div id="dragTime" class="dragTime">--:--</div>
@@ -170,44 +169,87 @@ function grid(){
 function updateNow(){const n=ba(),m=n.h*60+n.m;$('nowTop').textContent=fmt(m);$('nowLabel').textContent=fmt(m);$('nowLine').style.top=y(m)+'px'}
 function scrollAroundNow(){viewport.scrollTop=Math.max(0,y(nowMin()-5.5*60))}
 function select(id){selected=id;renderBlocks();renderInspector()}
-function renderInspector(){const b=blocks.find(x=>x.id===selected);inspector.classList.toggle('show',!!b);if(b)$('dur').textContent=(b.end_minute-b.start_minute)+' min'}
+function renderInspector(){const b=blocks.find(x=>x.id===selected);inspector.classList.toggle('show',!!b);if(b)$('dur').innerHTML=(b.end_minute-b.start_minute)+' min<span>ARRASTRÁ · MANTENÉ PARA ESTIRAR</span>'}
 function blockEl(b){
-  const conflict=localOverlap(b);
-  const el=document.createElement('div');el.className='block'+(selected===b.id?' selected':'')+(freshId===b.id?' fresh':'')+(conflict?' conflict':'');el.dataset.id=b.id;
+  const conflict=localOverlap(b),isSelected=selected===b.id;
+  const el=document.createElement('div');el.className='block'+(isSelected?' selected':'')+(freshId===b.id?' fresh':'')+(conflict?' conflict':'');el.dataset.id=b.id;
   el.style.top=y(b.start_minute)+'px';el.style.height=Math.max(28,y(b.end_minute-b.start_minute))+'px';
   el.innerHTML='<div class="blockBody"><div class="kind">'+labels[b.kind]+'</div><div class="name">'+esc(b.title||labels[b.kind])+'</div><div class="time">'+fmt(b.start_minute)+' — '+fmt(b.end_minute)+'</div></div><div class="moveMark">↕</div>';
-  el.addEventListener('pointerdown',e=>beginBlockDrag(e,b,el));el.addEventListener('click',e=>{e.stopPropagation();select(b.id)});return el
+  if(isSelected)el.addEventListener('pointerdown',e=>beginSelectedGesture(e,b,el));
+  else el.addEventListener('pointerdown',e=>armSelectionTap(e,b));
+  return el
 }
 function renderBlocks(){layer.innerHTML='';for(const b of blocks.slice().sort((a,b)=>a.start_minute-b.start_minute))layer.appendChild(blockEl(b));renderInspector()}
 day.addEventListener('click',()=>select(null));
 
-function showDragTime(clientX,clientY,m){dragTime.textContent=fmt(m);dragTime.style.left=Math.min(window.innerWidth-58,clientX+12)+'px';dragTime.style.top=Math.max(8,clientY-22)+'px';dragTime.classList.add('show')}
+function showDragTime(clientX,clientY,label,m){dragTime.textContent=(label?label+' ':'')+fmt(m);dragTime.style.left=Math.min(window.innerWidth-94,clientX+12)+'px';dragTime.style.top=Math.max(8,clientY-22)+'px';dragTime.classList.add('show')}
 function vibrate(slot){if(slot===lastHaptic)return;lastHaptic=slot;try{navigator.vibrate?.(8)}catch{}}
-function beginBlockDrag(e,b,el){
+function armSelectionTap(e,b){
   if(e.button!==undefined&&e.button!==0)return;
-  e.preventDefault();e.stopPropagation();select(b.id);
-  const startY=e.clientY,base=b.start_minute,dur=b.end_minute-b.start_minute;
-  const threshold=Math.max(34,y(30)*1.18);
-  let current=base,moved=false,lastStep=0;
+  const sx=e.clientX,sy=e.clientY,pid=e.pointerId;
+  let cancelled=false;
+  const move=ev=>{if(ev.pointerId===pid&&Math.hypot(ev.clientX-sx,ev.clientY-sy)>9)cancelled=true};
+  const finish=ev=>{
+    window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel);
+    if(!cancelled&&ev.pointerId===pid){ev.stopPropagation();select(b.id)}
+  };
+  const cancel=()=>{cancelled=true;window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel)};
+  window.addEventListener('pointermove',move,{passive:true});
+  window.addEventListener('pointerup',finish,{once:true});
+  window.addEventListener('pointercancel',cancel,{once:true});
+}
+function beginSelectedGesture(e,b,el){
+  if(e.button!==undefined&&e.button!==0)return;
+  e.preventDefault();e.stopPropagation();
+  const startY=e.clientY,baseStart=b.start_minute,baseEnd=b.end_minute,dur=baseEnd-baseStart;
+  const rect=el.getBoundingClientRect(),edge=(e.clientY<rect.top+rect.height/2)?'start':'end';
+  const moveThreshold=Math.max(34,y(30)*1.18);
+  let mode='pending',currentStart=baseStart,currentEnd=baseEnd,lastStep=0,changed=false;
+  const hold=setTimeout(()=>{
+    if(mode!=='pending')return;
+    mode='resize';freshId=null;el.classList.add('stretching');vibrate('hold-'+b.id);
+    showDragTime(e.clientX,e.clientY,edge==='start'?'INICIO':'FIN',edge==='start'?currentStart:currentEnd);
+  },460);
   const move=ev=>{
     ev.preventDefault();
     const dy=ev.clientY-startY;
-    const step=dy<0?Math.ceil(dy/threshold):Math.floor(dy/threshold);
+    if(mode==='pending'&&Math.abs(dy)>10){clearTimeout(hold);mode='move'}
+    if(mode==='pending')return;
+    const step=dy<0?Math.ceil(dy/moveThreshold):Math.floor(dy/moveThreshold);
     if(step===lastStep)return;
     lastStep=step;
-    let next=base+step*30;next=Math.max(0,Math.min(1440-dur,next));
-    if(next===current)return;
-    current=next;moved=true;
-    updateBlockLocal(b.id,{start_minute:current,end_minute:current+dur});
-    showDragTime(ev.clientX,ev.clientY,current);vibrate(current);
+    if(mode==='move'){
+      let ns=baseStart+step*30;ns=Math.max(0,Math.min(1440-dur,ns));
+      if(ns===currentStart)return;
+      currentStart=ns;currentEnd=ns+dur;changed=true;
+      updateBlockLocal(b.id,{start_minute:currentStart,end_minute:currentEnd});
+      showDragTime(ev.clientX,ev.clientY,'',currentStart);vibrate('m'+currentStart);
+    }else{
+      if(edge==='start'){
+        const ns=Math.max(0,Math.min(baseEnd-30,baseStart+step*30));
+        if(ns===currentStart)return;
+        currentStart=ns;changed=true;
+        updateBlockLocal(b.id,{start_minute:currentStart,end_minute:currentEnd});
+        showDragTime(ev.clientX,ev.clientY,'INICIO',currentStart);vibrate('s'+currentStart);
+      }else{
+        const ne=Math.max(baseStart+30,Math.min(1440,baseEnd+step*30));
+        if(ne===currentEnd)return;
+        currentEnd=ne;changed=true;
+        updateBlockLocal(b.id,{start_minute:currentStart,end_minute:currentEnd});
+        showDragTime(ev.clientX,ev.clientY,'FIN',currentEnd);vibrate('e'+currentEnd);
+      }
+    }
   };
-  const up=()=>{
-    window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);
-    dragTime.classList.remove('show');lastHaptic=null;
+  const finish=()=>{
+    clearTimeout(hold);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel);
+    dragTime.classList.remove('show');lastHaptic=null;el.classList.remove('stretching');
     const latest=blocks.find(x=>x.id===b.id);
-    if(moved&&latest){freshId=null;renderBlocks();scheduleWrite(latest)}
+    if(changed&&latest){freshId=null;renderBlocks();scheduleWrite(latest)}
   };
-  window.addEventListener('pointermove',move,{passive:false});window.addEventListener('pointerup',up,{once:true});
+  const cancel=()=>{clearTimeout(hold);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel);dragTime.classList.remove('show');lastHaptic=null;el.classList.remove('stretching');renderBlocks()};
+  window.addEventListener('pointermove',move,{passive:false});
+  window.addEventListener('pointerup',finish,{once:true});
+  window.addEventListener('pointercancel',cancel,{once:true});
 }
 function addSample(kind){
   palette.classList.remove('open');
@@ -220,14 +262,6 @@ function addSample(kind){
   if(!localOverlap(b))scheduleWrite(b);
   setTimeout(()=>{if(freshId===id){freshId=null;renderBlocks()}},8000);
 }
-function resizeSelected(delta){
-  const b=blocks.find(x=>x.id===selected);if(!b)return;
-  const end=Math.max(b.start_minute+30,Math.min(1440,b.end_minute+delta));
-  const latest=updateBlockLocal(b.id,{end_minute:end});freshId=null;
-  if(latest&&!localOverlap(latest))scheduleWrite(latest);
-  else if(latest)localOverlap(latest)&&toast('No entra ahí: se superpone.');
-}
-$('less').onclick=()=>resizeSelected(-30);$('more').onclick=()=>resizeSelected(30);
 $('delete').onclick=()=>{
   if(!selected)return;
   const id=selected,wasTemp=String(id).startsWith('tmp-');
