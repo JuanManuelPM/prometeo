@@ -42,7 +42,13 @@ button{font:inherit;color:inherit}
 .kind{font-size:7px;font-weight:900;letter-spacing:.14em;opacity:.48}
 .name{font-size:14px;font-weight:900;line-height:1;letter-spacing:-.03em;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .time{font:800 8px ui-monospace,SFMono-Regular,Menlo,monospace;opacity:.58;margin-top:4px}
-.moveMark{position:absolute;right:7px;top:50%;transform:translateY(-50%);font-size:19px;font-weight:900;opacity:.58}
+.moveMark{display:none;position:absolute;right:7px;top:50%;transform:translateY(-50%);font-size:19px;font-weight:900;opacity:.58;pointer-events:none}
+.block.selected .moveMark{display:block}
+.handle{display:none;position:absolute;left:0;right:0;height:16px;z-index:8;touch-action:none}
+.block.selected .handle{display:block}
+.handle.top{top:0}.handle.bottom{bottom:0}
+.handle:after{content:'';position:absolute;left:50%;transform:translateX(-50%);width:42px;height:3px;background:var(--now);border-radius:3px}
+.handle.top:after{top:3px}.handle.bottom:after{bottom:3px}
 .nowLine{position:absolute;left:54px;right:0;height:2px;background:var(--now);z-index:40;pointer-events:none}
 .nowDot{position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--now)}
 .nowLabel{position:absolute;left:-50px;top:-13px;background:var(--now);color:#fff;padding:2px 4px;font:900 8px ui-monospace,monospace}
@@ -169,14 +175,17 @@ function grid(){
 function updateNow(){const n=ba(),m=n.h*60+n.m;$('nowTop').textContent=fmt(m);$('nowLabel').textContent=fmt(m);$('nowLine').style.top=y(m)+'px'}
 function scrollAroundNow(){viewport.scrollTop=Math.max(0,y(nowMin()-5.5*60))}
 function select(id){selected=id;renderBlocks();renderInspector()}
-function renderInspector(){const b=blocks.find(x=>x.id===selected);inspector.classList.toggle('show',!!b);if(b)$('dur').innerHTML=(b.end_minute-b.start_minute)+' min<span>ARRASTRÁ · MANTENÉ PARA ESTIRAR</span>'}
+function renderInspector(){const b=blocks.find(x=>x.id===selected);inspector.classList.toggle('show',!!b);if(b)$('dur').innerHTML=(b.end_minute-b.start_minute)+' min<span>↕ MOVER · MANIJAS = INICIO / FIN</span>'}
 function blockEl(b){
   const conflict=localOverlap(b),isSelected=selected===b.id;
   const el=document.createElement('div');el.className='block'+(isSelected?' selected':'')+(freshId===b.id?' fresh':'')+(conflict?' conflict':'');el.dataset.id=b.id;
   el.style.top=y(b.start_minute)+'px';el.style.height=Math.max(28,y(b.end_minute-b.start_minute))+'px';
-  el.innerHTML='<div class="blockBody"><div class="kind">'+labels[b.kind]+'</div><div class="name">'+esc(b.title||labels[b.kind])+'</div><div class="time">'+fmt(b.start_minute)+' — '+fmt(b.end_minute)+'</div></div><div class="moveMark">↕</div>';
-  if(isSelected)el.addEventListener('pointerdown',e=>beginSelectedGesture(e,b,el));
-  else el.addEventListener('pointerdown',e=>armSelectionTap(e,b));
+  el.innerHTML='<div class="handle top" aria-label="Cambiar inicio"></div><div class="blockBody"><div class="kind">'+labels[b.kind]+'</div><div class="name">'+esc(b.title||labels[b.kind])+'</div><div class="time">'+fmt(b.start_minute)+' — '+fmt(b.end_minute)+'</div></div><div class="moveMark">↕</div><div class="handle bottom" aria-label="Cambiar fin"></div>';
+  if(isSelected){
+    el.addEventListener('pointerdown',e=>beginMoveGesture(e,b,el));
+    el.querySelector('.handle.top').addEventListener('pointerdown',e=>beginResizeHandle(e,b,el,'start'));
+    el.querySelector('.handle.bottom').addEventListener('pointerdown',e=>beginResizeHandle(e,b,el,'end'));
+  }else el.addEventListener('pointerdown',e=>armSelectionTap(e,b));
   return el
 }
 function renderBlocks(){layer.innerHTML='';for(const b of blocks.slice().sort((a,b)=>a.start_minute-b.start_minute))layer.appendChild(blockEl(b));renderInspector()}
@@ -198,55 +207,71 @@ function armSelectionTap(e,b){
   window.addEventListener('pointerup',finish,{once:true});
   window.addEventListener('pointercancel',cancel,{once:true});
 }
-function beginSelectedGesture(e,b,el){
+function beginMoveGesture(e,b,el){
   if(e.button!==undefined&&e.button!==0)return;
+  if(e.target.closest('.handle'))return;
   e.preventDefault();e.stopPropagation();
-  const startY=e.clientY,baseStart=b.start_minute,baseEnd=b.end_minute,dur=baseEnd-baseStart;
-  const rect=el.getBoundingClientRect(),edge=(e.clientY<rect.top+rect.height/2)?'start':'end';
-  const moveThreshold=Math.max(34,y(30)*1.18);
-  let mode='pending',currentStart=baseStart,currentEnd=baseEnd,lastStep=0,changed=false;
-  const hold=setTimeout(()=>{
-    if(mode!=='pending')return;
-    mode='resize';freshId=null;el.classList.add('stretching');vibrate('hold-'+b.id);
-    showDragTime(e.clientX,e.clientY,edge==='start'?'INICIO':'FIN',edge==='start'?currentStart:currentEnd);
-  },460);
+  const startY=e.clientY,baseStart=b.start_minute,dur=b.end_minute-b.start_minute;
+  const threshold=Math.max(34,y(30)*1.18);
+  let current=baseStart,lastStep=0,changed=false;
   const move=ev=>{
     ev.preventDefault();
     const dy=ev.clientY-startY;
-    if(mode==='pending'&&Math.abs(dy)>10){clearTimeout(hold);mode='move'}
-    if(mode==='pending')return;
-    const step=dy<0?Math.ceil(dy/moveThreshold):Math.floor(dy/moveThreshold);
+    const step=dy<0?Math.ceil(dy/threshold):Math.floor(dy/threshold);
     if(step===lastStep)return;
     lastStep=step;
-    if(mode==='move'){
-      let ns=baseStart+step*30;ns=Math.max(0,Math.min(1440-dur,ns));
-      if(ns===currentStart)return;
-      currentStart=ns;currentEnd=ns+dur;changed=true;
-      updateBlockLocal(b.id,{start_minute:currentStart,end_minute:currentEnd});
-      showDragTime(ev.clientX,ev.clientY,'',currentStart);vibrate('m'+currentStart);
+    let ns=baseStart+step*30;ns=Math.max(0,Math.min(1440-dur,ns));
+    if(ns===current)return;
+    current=ns;changed=true;
+    updateBlockLocal(b.id,{start_minute:current,end_minute:current+dur});
+    showDragTime(ev.clientX,ev.clientY,'',current);vibrate('m'+current);
+  };
+  const finish=()=>{
+    window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel);
+    dragTime.classList.remove('show');lastHaptic=null;
+    const latest=blocks.find(x=>x.id===b.id);
+    if(changed&&latest){freshId=null;renderBlocks();scheduleWrite(latest)}
+  };
+  const cancel=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel);dragTime.classList.remove('show');lastHaptic=null;renderBlocks()};
+  window.addEventListener('pointermove',move,{passive:false});
+  window.addEventListener('pointerup',finish,{once:true});
+  window.addEventListener('pointercancel',cancel,{once:true});
+}
+function beginResizeHandle(e,b,el,edge){
+  if(e.button!==undefined&&e.button!==0)return;
+  e.preventDefault();e.stopPropagation();
+  const startY=e.clientY,baseStart=b.start_minute,baseEnd=b.end_minute;
+  const threshold=Math.max(34,y(30)*1.18);
+  let current=edge==='start'?baseStart:baseEnd,lastStep=0,changed=false;
+  el.classList.add('stretching');
+  showDragTime(e.clientX,e.clientY,edge==='start'?'INICIO':'FIN',current);
+  const move=ev=>{
+    ev.preventDefault();
+    const dy=ev.clientY-startY;
+    const step=dy<0?Math.ceil(dy/threshold):Math.floor(dy/threshold);
+    if(step===lastStep)return;
+    lastStep=step;
+    if(edge==='start'){
+      const ns=Math.max(0,Math.min(baseEnd-30,baseStart+step*30));
+      if(ns===current)return;
+      current=ns;changed=true;
+      updateBlockLocal(b.id,{start_minute:current,end_minute:baseEnd});
+      showDragTime(ev.clientX,ev.clientY,'INICIO',current);vibrate('s'+current);
     }else{
-      if(edge==='start'){
-        const ns=Math.max(0,Math.min(baseEnd-30,baseStart+step*30));
-        if(ns===currentStart)return;
-        currentStart=ns;changed=true;
-        updateBlockLocal(b.id,{start_minute:currentStart,end_minute:currentEnd});
-        showDragTime(ev.clientX,ev.clientY,'INICIO',currentStart);vibrate('s'+currentStart);
-      }else{
-        const ne=Math.max(baseStart+30,Math.min(1440,baseEnd+step*30));
-        if(ne===currentEnd)return;
-        currentEnd=ne;changed=true;
-        updateBlockLocal(b.id,{start_minute:currentStart,end_minute:currentEnd});
-        showDragTime(ev.clientX,ev.clientY,'FIN',currentEnd);vibrate('e'+currentEnd);
-      }
+      const ne=Math.max(baseStart+30,Math.min(1440,baseEnd+step*30));
+      if(ne===current)return;
+      current=ne;changed=true;
+      updateBlockLocal(b.id,{start_minute:baseStart,end_minute:current});
+      showDragTime(ev.clientX,ev.clientY,'FIN',current);vibrate('e'+current);
     }
   };
   const finish=()=>{
-    clearTimeout(hold);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel);
+    window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel);
     dragTime.classList.remove('show');lastHaptic=null;el.classList.remove('stretching');
     const latest=blocks.find(x=>x.id===b.id);
     if(changed&&latest){freshId=null;renderBlocks();scheduleWrite(latest)}
   };
-  const cancel=()=>{clearTimeout(hold);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel);dragTime.classList.remove('show');lastHaptic=null;el.classList.remove('stretching');renderBlocks()};
+  const cancel=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel);dragTime.classList.remove('show');lastHaptic=null;el.classList.remove('stretching');renderBlocks()};
   window.addEventListener('pointermove',move,{passive:false});
   window.addEventListener('pointerup',finish,{once:true});
   window.addEventListener('pointercancel',cancel,{once:true});
