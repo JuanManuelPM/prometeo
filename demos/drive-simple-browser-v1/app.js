@@ -17,6 +17,10 @@ const root=[
 
 const PRIVATE_TEXT_ENDPOINT='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/study-drive-text-v1';
 const PRIVATE_TOKEN_KEY='study_bb_workspace_token';
+const PREVIEW_TOKEN_KEY='prometeo_drive_preview_token';
+const hashParams=new URLSearchParams(location.hash.replace(/^#/,''));
+const incomingPreview=hashParams.get('preview')||'';
+if(incomingPreview){localStorage.setItem(PREVIEW_TOKEN_KEY,incomingPreview);history.replaceState(null,'',location.pathname+location.search);}
 
 const module2=[
  {type:'file',id:'1VhggV-9Ivmiijqoex-xpIrUlQItoPPzz',name:'Mieles barrera Aportes de la ciencia cognitiva a la comprension de la cognicion 2024.pdf',mime:'application/pdf',size:'251 KB',doc:'mieles'},
@@ -112,13 +116,17 @@ async function renderPrivateDoc(item){
  const fallback=docs[item.doc]||{title:item.name,author:''};
  view.innerHTML=`<header class="doc-head"><h1>${esc(fallback.title)}</h1><p class="doc-sub">${esc(fallback.author)} · ${esc(item.name)}</p></header><article class="doc"><p>Cargando archivo completo…</p></article>`;
  const token=localStorage.getItem(PRIVATE_TOKEN_KEY)||'';
- if(!token){
+ const previewToken=localStorage.getItem(PREVIEW_TOKEN_KEY)||'';
+ if(!token&&!previewToken){
    view.innerHTML=`<header class="doc-head"><h1>${esc(fallback.title)}</h1><p class="doc-sub">${esc(fallback.author)} · ${esc(item.name)}</p></header><div class="notice">El texto completo está guardado en el runtime privado. Este navegador todavía no tiene el token de Study Library. Abrí Study Library una vez y volvé.</div><p><a class="private-link" href="../../pages/study-library/">Abrir Study Library</a></p>`;
    return;
  }
  try{
    const url=PRIVATE_TEXT_ENDPOINT+'?provider_item_id='+encodeURIComponent(item.id);
-   const r=await fetch(url,{headers:{'x-study-token':token,'x-study-workspace':'colo-study'},cache:'no-store'});
+   const headers={'x-study-workspace':'colo-study'};
+   if(token)headers['x-study-token']=token;
+   if(previewToken)headers['x-study-preview']=previewToken;
+   const r=await fetch(url,{headers,cache:'no-store'});
    const data=await r.json().catch(()=>({}));
    if(!r.ok||!data.document)throw new Error(data.error||('http_'+r.status));
    const d=data.document;
@@ -147,4 +155,9 @@ function render(state){
  }
 }
 back.addEventListener('click',goBack);
-render({kind:'root'});
+const direct=new URLSearchParams(location.search).get('open');
+if(direct==='teoria'){
+ const item=module2.find(x=>x.doc==='teoria');
+ stack=[{kind:'root'},{kind:'module2'},{kind:'privateDoc',item}];
+ renderPrivateDoc(item);
+}else render({kind:'root'});
