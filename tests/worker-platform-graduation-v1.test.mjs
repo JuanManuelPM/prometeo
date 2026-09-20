@@ -17,7 +17,7 @@ const g=read('g');
 assert.equal(graduation.status,'ACTIVE_BINDING');
 assert.equal(graduation.scale_hold.broad_new_worker_launches,'HOLD');
 assert.equal(graduation.benchmark.benchmark_id,'CAT-LAB-V1');
-assert.ok(['EVOLUTION_PACKET_READY_FOR_ARM','EVOLUTION_RUN_ARMED'].includes(graduation.benchmark.status));
+assert.ok(['EVOLUTION_PACKET_READY_FOR_ARM','EVOLUTION_RUN_ARMED','CONFIRMATION_RUN_ARMED'].includes(graduation.benchmark.status));
 assert.equal(graduation.phase_plan[0].id,'P1_LAUNCH_PACKET');
 assert.equal(graduation.phase_plan[1].id,'P2A_EVOLUTION_EXPLORATION');
 assert.equal(graduation.phase_plan[1].run_id,'CATLAB-EVO-01');
