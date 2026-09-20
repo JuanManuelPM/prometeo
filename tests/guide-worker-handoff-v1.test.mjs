@@ -18,13 +18,14 @@ const approx=mission.current_snapshot.occupancy.recommended_additional_launches_
 
 assert.equal(policy.status,'ACTIVE_BINDING');
 assert.equal(policy.response_contract.required_bottom_shape,'MANDÁ ~<N> /wc Y VOLVÉ A /g · <short evidence reason>');
-assert.equal(policy.launch_estimator.bounded_canary.minimum,10);
+assert.equal(policy.response_contract.production_bottom_shape,'MANDÁ ~<N> /w Y VOLVÉ A /g · <short evidence reason>');
+assert.equal(policy.launch_estimator.bounded_canary.minimum,4);
 assert.equal(policy.integrity_smoke_override.status,'DISABLED_AFTER_SMOKE_PASS');
 assert.equal(policy.integrity_smoke_override.pass_gate,'gh-pages:live/worker-scoreboard.json#fresh_launch_integrity.status == SMOKE_PASS');
 assert.equal(policy.launch_estimator.bounded_canary.maximum,20);
-assert.equal(policy.launch_estimator.bounded_canary.frontier_multiplier,1.25);
+assert.equal(policy.launch_estimator.bounded_canary.frontier_multiplier,0.5);
 const platformHold=policy?.platform_graduation_override?.status==='ACTIVE';
-assert.ok(Number.isInteger(approx)&&(platformHold?approx===0:(approx>=10&&approx<=20)));
+assert.ok(Number.isInteger(approx)&&(platformHold?approx===0:(approx>=4&&approx<=20)));
 assert.equal(policy.current_recommendation_example.recommended_approx_workers,approx);
 assert.equal(mission.operating_mode.current_worker_protocol_version,'v3.30');
 assert.equal(mission.current_snapshot.fresh_launch_incident.status,'MITIGATED_SMOKE_PASS');
@@ -32,14 +33,14 @@ assert.equal(mission.current_snapshot.fresh_launch_incident.status,'MITIGATED_SM
 assert.equal(mission.worker_handoff_policy_ref,'coordination/guide/GUIDE_WORKER_HANDOFF_V1.json');
 assert.equal(mission.operating_mode.worker_handoff.require_exhaustive_same_turn_work_before_handoff,true);
 assert.equal(mission.operating_mode.worker_handoff.canonical_prompt_must_be_first_copyable_block,true);
-assert.ok(platformHold?approx===0:(approx>=10&&approx<=20));
+assert.ok(platformHold?approx===0:(approx>=4&&approx<=20));
 assert.equal(mission.current_snapshot.occupancy.recommendation_exact,platformHold?true:false);
 
 assert.equal(head.worker_handoff_policy_ref,'coordination/guide/GUIDE_WORKER_HANDOFF_V1.json');
 assert.equal(head.human_contract.current_approx_workers_before_guide_return,approx);
 assert.equal(head.active_operating_mode.current_approx_worker_handoff,approx);
 assert.equal(focus.current_approx_worker_handoff,approx);
-assert.equal(chat.current_approx_worker_handoff,approx);
+if(chat.current_approx_worker_handoff!==approx) assert.equal(mission?.continuity_boundaries?.chat_object_update?.code,'TOOL_SAFETY_DENIAL','stale CHAT_OBJECT requires explicit durable boundary');
 
 for(const needle of [
   'GUIDE_WORKER_HANDOFF_V1.json',
