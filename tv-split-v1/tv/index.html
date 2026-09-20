@@ -22,12 +22,11 @@
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const p=new URLSearchParams(location.hash.slice(1));const room={code:p.get('room')||'',token:p.get('t')||'',role:'tv'};
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
-let blocks=[],layouts=[],ytReady=false;const views=new Map();
+let blocks=[],ytReady=false;const views=new Map();
 window.onYouTubeIframeAPIReady=()=>{ytReady=true;syncStage(true)};
 function nowParts(){const ps=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date());const get=t=>Number(ps.find(x=>x.type===t)?.value||0);return{h:get('hour'),m:get('minute'),s:get('second')}}
 function nowMin(){const n=nowParts();return n.h*60+n.m}
 function active(){const n=nowMin();return blocks.filter(b=>b.enabled!==false&&n>=b.start_minute&&n<b.end_minute).sort((a,b)=>String(a.id).localeCompare(String(b.id))).slice(0,4)}
-function pairIds(a,b){return[String(a),String(b)].sort()}function layoutFor(a,b){const[x,y]=pairIds(a,b);return layouts.find(l=>String(l.block_a)===x&&String(l.block_b)===y)||{ratio:.5}}
 async function api(){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'list',code:room.code,role:'tv',token:room.token}),cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||'SCHEDULE');return d}
 function clockMarkup(){return '<div class="focusClock"><div class="hand hourHand"></div><div class="hand minuteHand"></div><div class="hand secondHand"></div><div class="centerPin"></div></div>'}
 function sig(b){return b.kind+'|'+JSON.stringify(b.payload||{})}
@@ -47,11 +46,11 @@ function syncStage(force=false){
  stage.className='n'+Math.max(1,act.length);stage.style.gridTemplateColumns='';
  if(!act.length){if(!stage.querySelector('.empty')){const e=document.createElement('section');e.className='panel empty';stage.appendChild(e)}return}
  stage.querySelector('.empty')?.remove();
- if(act.length===2){const[x,y]=pairIds(act[0].id,act[1].id),l=layoutFor(x,y),ordered=[act.find(b=>String(b.id)===x),act.find(b=>String(b.id)===y)];for(const b of ordered)stage.appendChild(views.get(String(b.id)).el);stage.style.gridTemplateColumns=(l.ratio*100)+'% '+((1-l.ratio)*100)+'%'}
+ if(act.length===2)stage.style.gridTemplateColumns='1fr 1fr';
  tickClock()
 }
 function tickClock(){const n=nowParts(),ha=((n.h%12)+(n.m/60)+(n.s/3600))*30,ma=(n.m+n.s/60)*6,sa=n.s*6;document.querySelectorAll('.hourHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+ha+'deg)');document.querySelectorAll('.minuteHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+ma+'deg)');document.querySelectorAll('.secondHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+sa+'deg)')}
-async function load(){try{const d=await api();blocks=d.blocks||[];layouts=d.layouts||[];status.className='status';syncStage(false)}catch{status.className='status err'}}
+async function load(){try{const d=await api();blocks=d.blocks||[];status.className='status';syncStage(false)}catch{status.className='status err'}}
 unlock.onclick=async()=>{unlock.classList.remove('show');try{await document.documentElement.requestFullscreen?.()}catch{}for(const v of views.values())try{v.player?.playVideo()}catch{}};
 document.addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.()}catch{}},{once:true});
 setInterval(()=>{tickClock();syncStage(false)},250);load();setInterval(load,650);
