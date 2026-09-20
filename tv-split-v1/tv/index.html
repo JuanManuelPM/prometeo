@@ -9,19 +9,21 @@
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:Arial,Helvetica,sans-serif}
 #stage{position:fixed;inset:0;display:grid;background:#000;gap:1px}
 #stage.n1{grid-template-columns:1fr;grid-template-rows:1fr}
-#stage.n2{grid-template-columns:1fr 1fr;grid-template-rows:1fr}
+#stage.n2{grid-template-rows:1fr}
 #stage.n3{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr}
 #stage.n4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
 .panel{position:relative;overflow:hidden;background:#000;min-width:0;min-height:0}
 .panel iframe,.ytHost,.ytHost iframe{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;border:0!important}
-.clockPanel{display:grid;place-items:center}
-.clockFace{position:relative;display:grid;place-items:center;width:min(68%,68vh);aspect-ratio:1;border:2px solid #fff;border-radius:50%}
-.clockTime{font-size:clamp(36px,8vw,150px);font-weight:900;letter-spacing:-.08em;font-variant-numeric:tabular-nums;z-index:2;white-space:nowrap}
-.sweep{position:absolute;width:1px;height:48%;background:#fff;top:2%;left:50%;transform-origin:50% 100%;animation:spin 60s linear infinite}.center{position:absolute;width:8px;height:8px;background:#fff;border-radius:50%}
-@keyframes spin{to{transform:rotate(360deg)}}
+.clockPanel{display:grid;place-items:center;background:#050505}
+.focusClock{position:relative;width:min(72%,72vh);aspect-ratio:1;border-radius:50%;overflow:hidden;border:2px solid #f4f3ee;background:conic-gradient(from -90deg,#ff3b30 0deg 150deg,#171717 150deg 180deg,#ff3b30 180deg 330deg,#171717 330deg 360deg);box-shadow:0 0 0 1px #000}
+.focusClock:after{content:'';position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from -90deg,#ffffffbb 0deg 1deg,transparent 1deg 30deg);-webkit-mask:radial-gradient(circle,transparent 0 91%,#000 91% 100%);mask:radial-gradient(circle,transparent 0 91%,#000 91% 100%);pointer-events:none}
+.hand{position:absolute;left:50%;bottom:50%;transform-origin:50% 100%;border-radius:99px;z-index:3;filter:drop-shadow(0 1px 1px #0008)}
+.hourHand{width:6px;height:27%;background:#f4f3ee}
+.minuteHand{width:3px;height:39%;background:#f4f3ee}
+.secondHand{width:1px;height:43%;background:#f4f3ee}
+.centerPin{position:absolute;left:50%;top:50%;width:12px;height:12px;transform:translate(-50%,-50%);border-radius:50%;background:#050505;border:2px solid #f4f3ee;z-index:5}
 .unlock{position:fixed;z-index:50;inset:0;display:none;place-items:center;border:0;background:#000;color:#fff;font-size:14px;font-weight:900;letter-spacing:.12em}.unlock.show{display:grid}
 .status{position:fixed;right:8px;top:8px;z-index:60;width:5px;height:5px;border-radius:50%;background:#333;opacity:.35}.status.err{background:#fff}
-@media(max-aspect-ratio:1/1){#stage.n2{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -36,15 +38,20 @@ const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1'
 const p=new URLSearchParams(location.hash.slice(1));
 const room={code:p.get('room')||'',token:p.get('t')||'',role:'tv'};
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
-let blocks=[],renderKey='',players=[],ytReady=false;
+let blocks=[],layouts=[],renderKey='',players=[],ytReady=false;
 window.onYouTubeIframeAPIReady=()=>{ytReady=true;renderActive(true)};
 
-function ba(){const ps=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());const get=t=>Number(ps.find(x=>x.type===t)?.value||0);return{h:get('hour'),m:get('minute')}}
-function nowMin(){const n=ba();return n.h*60+n.m}
-function activeBlocks(){const n=nowMin();return blocks.filter(b=>b.enabled!==false&&n>=b.start_minute&&n<b.end_minute).sort((a,b)=>a.start_minute-b.start_minute||String(a.id).localeCompare(String(b.id)))}
+function nowParts(){
+  const d=new Date(),parts=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(d);
+  const get=t=>Number(parts.find(x=>x.type===t)?.value||0);return{h:get('hour'),m:get('minute'),s:get('second')};
+}
+function nowMin(){const n=nowParts();return n.h*60+n.m}
+function activeBlocks(){const n=nowMin();return blocks.filter(b=>b.enabled!==false&&n>=b.start_minute&&n<b.end_minute).sort((a,b)=>String(a.id).localeCompare(String(b.id)))}
+function pairIds(a,b){return [String(a),String(b)].sort()}
+function layoutFor(a,b){const [x,y]=pairIds(a,b);return layouts.find(l=>String(l.block_a)===x&&String(l.block_b)===y)||{block_a:x,block_b:y,ratio:.5}}
 async function api(){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'list',code:room.code,role:'tv',token:room.token}),cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||'SCHEDULE');return d}
 function destroyPlayers(){for(const p of players){try{p.destroy()}catch{}}players=[]}
-function clockMarkup(){return '<div class="clockFace"><div class="clockTime">00:00</div><div class="sweep"></div><div class="center"></div></div>'}
+function clockMarkup(){return '<div class="focusClock"><div class="hand hourHand"></div><div class="hand minuteHand"></div><div class="hand secondHand"></div><div class="centerPin"></div></div>'}
 function makePanel(b,i){
   const panel=document.createElement('section');panel.className='panel';
   if(b.kind==='black')return panel;
@@ -52,37 +59,44 @@ function makePanel(b,i){
   if(b.kind==='page'){const f=document.createElement('iframe');f.src=b.payload?.url||'about:blank';f.allow='autoplay; fullscreen; picture-in-picture';panel.appendChild(f);return panel}
   if(b.kind==='youtube'){
     const host=document.createElement('div');host.className='ytHost';host.id='yt-'+i+'-'+String(b.id).replace(/[^a-z0-9_-]/gi,'');panel.appendChild(host);
-    if(ytReady&&window.YT?.Player){
-      queueMicrotask(()=>{try{
-        const player=new YT.Player(host.id,{videoId:b.payload?.video_id||'',playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,fs:0,iv_load_policy:3,disablekb:1},events:{
-          onReady:e=>{try{e.target.playVideo()}catch{}},
-          onAutoplayBlocked:()=>unlock.classList.add('show')
-        }});
-        players.push(player);
-      }catch{}});
-    }
+    if(ytReady&&window.YT?.Player)queueMicrotask(()=>{try{
+      const player=new YT.Player(host.id,{videoId:b.payload?.video_id||'',playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,fs:0,iv_load_policy:3,disablekb:1},events:{
+        onReady:e=>{try{e.target.playVideo()}catch{}},
+        onAutoplayBlocked:()=>unlock.classList.add('show')
+      }});players.push(player);
+    }catch{}});
     return panel;
   }
   return panel;
 }
 function renderActive(force=false){
-  let act=activeBlocks();
-  const key=act.map(b=>b.id+':'+b.kind).join('|');
+  let act=activeBlocks().slice(0,4);
+  let ratioKey='';
+  if(act.length===2){const l=layoutFor(act[0].id,act[1].id);ratioKey=':'+Number(l.ratio).toFixed(3)}
+  const key=act.map(b=>b.id+':'+b.kind).join('|')+ratioKey;
   if(!force&&key===renderKey){tickClock();return}
   renderKey=key;destroyPlayers();stage.innerHTML='';
-  if(!act.length){stage.className='n1';stage.appendChild(document.createElement('section')).className='panel';return}
-  // Up to four concurrent surfaces. More remain scheduled but only first four are visible.
-  act=act.slice(0,4);
-  stage.className='n'+act.length;
+  if(!act.length){stage.className='n1';stage.style.gridTemplateColumns='1fr';stage.appendChild(document.createElement('section')).className='panel';return}
+  stage.className='n'+act.length;stage.style.gridTemplateColumns='';
+  if(act.length===2){
+    const [x,y]=pairIds(act[0].id,act[1].id),l=layoutFor(x,y);
+    act=[act.find(b=>String(b.id)===x),act.find(b=>String(b.id)===y)];
+    stage.style.gridTemplateColumns=(l.ratio*100)+'% '+((1-l.ratio)*100)+'%';
+  }
   act.forEach((b,i)=>stage.appendChild(makePanel(b,i)));
   tickClock();
 }
-function tickClock(){const n=ba(),t=String(n.h).padStart(2,'0')+':'+String(n.m).padStart(2,'0');document.querySelectorAll('.clockTime').forEach(el=>el.textContent=t)}
-async function load(){try{const d=await api();blocks=d.blocks||[];status.className='status';renderActive()}catch{status.className='status err'}}
+function tickClock(){
+  const n=nowParts(),hour=((n.h%12)+(n.m/60)+(n.s/3600))*30,minute=(n.m+n.s/60)*6,second=n.s*6;
+  document.querySelectorAll('.hourHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+hour+'deg)');
+  document.querySelectorAll('.minuteHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+minute+'deg)');
+  document.querySelectorAll('.secondHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+second+'deg)');
+}
+async function load(){try{const d=await api();blocks=d.blocks||[];layouts=d.layouts||[];status.className='status';renderActive()}catch{status.className='status err'}}
 unlock.onclick=async()=>{unlock.classList.remove('show');try{await document.documentElement.requestFullscreen?.()}catch{}for(const p of players){try{p.playVideo()}catch{}}};
 document.addEventListener('click',async()=>{try{await document.documentElement.requestFullscreen?.()}catch{}},{once:true});
-setInterval(()=>{tickClock();renderActive()},1000);
-load();setInterval(load,8000);
+setInterval(()=>{tickClock();renderActive()},250);
+load();setInterval(load,700);
 })();
 </script>
 </body>
