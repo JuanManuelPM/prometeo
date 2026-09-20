@@ -169,6 +169,7 @@ main,.poster{
   -ms-overflow-style:none;
   -webkit-overflow-scrolling:touch;
   touch-action:pan-x;
+  scroll-behavior:smooth;
 }
 .level-marquee::-webkit-scrollbar{display:none}
 .level-track{
@@ -182,9 +183,14 @@ main,.poster{
   gap:clamp(14px,3.8vw,24px);
   align-items:flex-start;
 }
+.level-set::after{
+  content:"";
+  flex:0 0 calc(100vw - min(62vw,320px) - var(--pad));
+}
 .level-item{
   flex:0 0 min(62vw,320px);
   scroll-snap-align:start;
+  scroll-snap-stop:always;
   white-space:nowrap;
   font-family:"Teko","Arial Narrow",sans-serif;
   font-weight:700;
@@ -554,13 +560,19 @@ function setLevelDot(index) {
   });
 }
 
+function itemTarget(index) {
+  const item = levelItems[index];
+  if (!item || !levelRail) return 0;
+  return item.offsetLeft - parseFloat(getComputedStyle(levelRail).scrollPaddingLeft || 0);
+}
+
 function nearestLevelIndex() {
   if (!levelRail || !levelItems.length) return 0;
-  const railLeft = levelRail.getBoundingClientRect().left;
+  const x = levelRail.scrollLeft;
   let best = 0;
   let distance = Infinity;
   levelItems.forEach((item, i) => {
-    const d = Math.abs(item.getBoundingClientRect().left - railLeft);
+    const d = Math.abs(itemTarget(i) - x);
     if (d < distance) {
       distance = d;
       best = i;
@@ -569,26 +581,46 @@ function nearestLevelIndex() {
   return best;
 }
 
+function snapLevel(index, smooth = true) {
+  if (!levelRail || !levelItems[index]) return;
+  levelRail.scrollTo({
+    left:itemTarget(index),
+    behavior:smooth ? "smooth" : "auto"
+  });
+  setLevelDot(index);
+}
+
 if (levelRail && levelDots.length) {
-  let ticking = false;
+  let settleTimer = null;
+  let rafPending = false;
+
+  const settle = () => {
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => {
+      snapLevel(nearestLevelIndex(), true);
+    }, 90);
+  };
+
   levelRail.addEventListener("scroll", () => {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(() => {
-      setLevelDot(nearestLevelIndex());
-      ticking = false;
-    });
+    if (!rafPending) {
+      rafPending = true;
+      requestAnimationFrame(() => {
+        setLevelDot(nearestLevelIndex());
+        rafPending = false;
+      });
+    }
+    settle();
   }, { passive:true });
 
+  levelRail.addEventListener("pointerup", settle, { passive:true });
+  levelRail.addEventListener("touchend", settle, { passive:true });
+
   levelDots.forEach((dot, index) => {
-    dot.addEventListener("click", () => {
-      levelItems[index]?.scrollIntoView({
-        behavior:"smooth",
-        block:"nearest",
-        inline:"start"
-      });
-      setLevelDot(index);
-    });
+    dot.addEventListener("click", () => snapLevel(index, true));
+  });
+
+  window.addEventListener("resize", () => {
+    snapLevel(nearestLevelIndex(), false);
   });
 }
 </script>
