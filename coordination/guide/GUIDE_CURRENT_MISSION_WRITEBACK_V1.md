@@ -89,4 +89,4 @@ After writeback, answer compactly:
 
 Never finish with “what should we do next?” when the durable mission already defines it.
 
-When the only ordinary remaining action is external `/wc` wake, use the binding worker handoff response contract: first visible copyable block = exact Current Mission `/wc` prompt; final line = `MANDÁ ~<N> /wc Y VOLVÉ A /g · <razón corta>`. Derive `<N>` from fresh frontier/scoreboard/runtime or the bounded stale-runtime estimator; never make the human route individual workers.
+When the only ordinary remaining action is external worker wake, use the binding worker handoff response contract. After worker-platform graduation PASS, first visible copyable block = exact Current Mission stable `/w` production prompt and final line uses `MANDÁ ~<N> /w Y VOLVÉ A /g`; while graduation/canary is active use the corresponding `/wc` form. Derive `<N>` from fresh capability-compatible frontier/scoreboard/runtime or the bounded stale-runtime estimator; never make the human route individual workers.
