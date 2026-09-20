@@ -1,0 +1,45 @@
+name: STT browser cold-start CI v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/portfolio/tests/stt_browser_cold_start_ci_v1.mjs'
+      - '.github/workflows/stt-browser-cold-start-ci-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stt-browser-cold-start-ci-v1
+  cancel-in-progress: true
+
+jobs:
+  browser-cold-start:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install representative Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Probe deployed STT cold and warmed paths
+        env:
+          STT_TARGET_URL: https://juanmanuelpm.github.io/prometeo/pages/voice/
+          STT_PROBE_TIMEOUT_MS: '360000'
+        run: node coordination/portfolio/tests/stt_browser_cold_start_ci_v1.mjs
+      - name: Upload machine-readable STT evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stt-browser-cold-start-ci-v1
+          path: artifacts/stt-browser-cold-start/
+          if-no-files-found: error
+          retention-days: 14
