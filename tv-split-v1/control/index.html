@@ -30,8 +30,10 @@ button{font:inherit;color:inherit}
 .halfLine{background:var(--grid2)}
 .hourLabel{position:absolute;left:-42px;top:-6px;width:32px;text-align:right;background:var(--bg);font:900 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#d8d6ce;padding-right:2px;z-index:40}
 .eventLayer{position:absolute;left:52px;right:6px;top:0;bottom:0}
-.block{position:absolute;min-height:18px;background:#151513;color:var(--fg);border:0;overflow:visible;user-select:none;touch-action:pan-y;transition:top .10s ease,height .10s ease,left .08s linear,width .08s linear}
-.block.splitSlice{box-shadow:inset 2px 0 0 var(--bg),inset -2px 0 0 var(--bg)}
+.block{position:absolute;min-height:18px;background:#151513;color:var(--fg);border:0;overflow:visible;user-select:none;touch-action:pan-y;transition:top .10s ease,height .10s ease,left .08s linear,width .08s linear;box-shadow:inset 1px 0 0 #2a2a26,inset -1px 0 0 #2a2a26}
+.block.firstSlice{border-top:1px solid #2a2a26}
+.block.lastSlice{border-bottom:1px solid #2a2a26}
+.block.splitSlice{box-shadow:inset 1px 0 0 #2a2a26,inset -1px 0 0 #2a2a26}
 .blockBody{position:absolute;inset:0;padding:5px 8px;overflow:hidden;display:flex;flex-direction:column;justify-content:center;background:transparent}
 .kind{display:none}
 .name{font-size:11px;font-weight:900;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0}
@@ -39,14 +41,16 @@ button{font:inherit;color:inherit}
 .block.halfhour .blockBody{padding:0 7px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:center}
 .block.halfhour .name{font-size:8px;margin:0}
 .block.halfhour .time{font-size:6px;margin:0;color:#9b9a93}
-.block.selected{outline:2px solid var(--red);outline-offset:-2px;z-index:30;touch-action:none}
+.block.selected{outline:0;z-index:30;touch-action:none;box-shadow:inset 2px 0 0 var(--red),inset -2px 0 0 var(--red)}
+.block.selected.firstSlice{border-top:2px solid var(--red)}
+.block.selected.lastSlice{border-bottom:2px solid var(--red)}
 .handle{display:none;position:absolute;left:14%;right:14%;height:30px;z-index:40;touch-action:none;background:transparent;border:0;padding:0}
 .block.selected.firstSlice .handle.top,.block.selected.lastSlice .handle.bottom{display:block}
 .handle.top{top:-19px}.handle.bottom{bottom:-19px}
 .handle:after{content:'';position:absolute;left:50%;transform:translateX(-50%);width:32px;height:2px;background:var(--red);border-radius:2px}
 .handle.top:after{bottom:2px}.handle.bottom:after{top:2px}
 .splitGrip{position:absolute;width:26px;transform:translateX(-50%);z-index:22;touch-action:none;background:transparent}
-.splitGrip:after{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;transform:translateX(-50%);background:#6d6d67}
+.splitGrip:after{content:'';position:absolute;left:50%;top:0;bottom:0;width:2px;transform:translateX(-50%);background:#4b4b46}
 .splitGrip.active:after{width:2px;background:var(--red)}
 .nowLine{position:absolute;left:48px;right:0;height:2px;background:var(--red);z-index:50;pointer-events:none}
 .nowDot{position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--red)}
@@ -104,7 +108,7 @@ const samples={
 };
 let blocks=[],layouts=[],selected=null,ppm=.7,cycleH=1000,loaded=false,lastHaptic=null,rendering=false;
 const dirty=new Map();
-const cacheKey='tv.program.loop.v17.'+room.code;
+const cacheKey='tv.program.loop.v18.'+room.code;
 
 function ba(){
  const ps=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
@@ -221,13 +225,12 @@ function beginResize(e,b,edge){
  const done=()=>{window.removeEventListener('pointermove',mv);window.removeEventListener('pointerup',done);window.removeEventListener('pointercancel',done);dragTime.classList.remove('show');const latest=blocks.find(x=>x.id===b.id);if(changed&&latest)scheduleWrite(latest)};
  window.addEventListener('pointermove',mv,{passive:false});window.addEventListener('pointerup',done,{once:true});window.addEventListener('pointercancel',done,{once:true})
 }
-function sliceEl(b,seg,left,width,cycle){
+function sliceEl(b,seg,left,width,cycle,showLabel){
  const first=seg.start===b.start_minute,last=seg.end===b.end_minute,isSelected=selected===b.id,dur=seg.end-seg.start;
  const el=document.createElement('div');el.className='block'+(dur<=30?' halfhour':'')+(width<.999?' splitSlice':'')+(isSelected?' selected':'')+(first?' firstSlice':'')+(last?' lastSlice':'');
- el.style.top=y(cycle*1440+seg.start)+'px';el.style.height=Math.max(18,y(dur))+'px';el.style.left=(left*100)+'%';el.style.width=(width*100)+'%';
+ el.style.top=y(cycle*1440+seg.start)+'px';el.style.height=Math.max(18,y(dur)+1)+'px';el.style.left=(left*100)+'%';el.style.width=(width*100)+'%';
  const title=b.title||labels[b.kind],same=String(title).toUpperCase()===labels[b.kind],compact=dur<=30&&!same?labels[b.kind]+' · '+title:title;
- const showTime=first;
- const body='<div class="name">'+esc(compact)+'</div>'+(showTime?'<div class="time">'+fmt(b.start_minute)+'–'+fmt(b.end_minute)+'</div>':'');
+ const body=showLabel?'<div class="name">'+esc(compact)+'</div><div class="time">'+fmt(b.start_minute)+'–'+fmt(b.end_minute)+'</div>':'';
  el.innerHTML='<button class="handle top"></button><div class="blockBody">'+body+'</div><button class="handle bottom"></button>';
  if(isSelected){el.addEventListener('pointerdown',e=>beginMove(e,b));if(first)el.querySelector('.handle.top').addEventListener('pointerdown',e=>beginResize(e,b,'start'));if(last)el.querySelector('.handle.bottom').addEventListener('pointerdown',e=>beginResize(e,b,'end'))}
  else el.addEventListener('pointerdown',e=>armSelection(e,b));
@@ -241,9 +244,20 @@ function beginSplit(e,pair){
 }
 function renderBlocks(){
  rendering=true;eventLayer.innerHTML='';const segs=segments();
+ const bestLabel=new Map();
+ for(const seg of segs){
+   for(const item of seg.items){
+     const score=(seg.end-seg.start)*item.width;
+     const prev=bestLabel.get(item.b.id);
+     if(!prev||score>prev.score)bestLabel.set(item.b.id,{seg,score});
+   }
+ }
  for(let cycle=0;cycle<3;cycle++){
    for(const seg of segs){
-     for(const item of seg.items)eventLayer.appendChild(sliceEl(item.b,seg,item.left,item.width,cycle));
+     for(const item of seg.items){
+       const showLabel=bestLabel.get(item.b.id)?.seg===seg;
+       eventLayer.appendChild(sliceEl(item.b,seg,item.left,item.width,cycle,showLabel));
+     }
      if(seg.pair){
        const grip=document.createElement('div');grip.className='splitGrip';grip.style.top=y(cycle*1440+seg.start)+'px';grip.style.height=Math.max(18,y(seg.end-seg.start))+'px';grip.style.left=(seg.pair.ratio*100)+'%';grip.addEventListener('pointerdown',e=>beginSplit(e,seg.pair));eventLayer.appendChild(grip)
      }
