@@ -2,7 +2,7 @@
   "schema": "prometeo.launch-packet/v1",
   "protocol_id": "LAUNCH-PACKET-V1",
   "status": "ACTIVE_BINDING",
-  "updated_at": "2026-09-19T16:38:22.606Z",
+  "updated_at": "2026-09-20T18:10:00Z",
   "purpose": "Replace anonymous repeated /wc launches against mutable global frontier with one Guide-compiled immutable run packet whose workers atomically self-assign unique launch slots, load long exact context only after slot ownership, and remain resident after completing the slot's first project.",
   "human_contract": {
     "same_prompt_for_entire_run": true,
@@ -12,7 +12,10 @@
     "required_human_fields": [
       "run_id"
     ],
-    "note": "The Guide emits one prompt containing one run_id. Slot numbers are machine-assigned atomically; the human never types or tracks S01/S02/etc."
+    "note": "The Guide emits one prompt containing one run_id. Slot numbers are machine-assigned atomically; the human never types or tracks S01/S02/etc.",
+    "initial_launches_are_capacity_attempts_not_completion_denominator": true,
+    "replenishment_rule": "After the initial identical launches, Guide computes durable run occupancy from beacons + primary claims. Any fresh RUN beacon with no primary claim is a lost capacity attempt, not a filled slot. While packet status remains ARMED and compatible primary slots remain unclaimed, Guide may request exactly the number of replacement launches needed to refill those slots, using the same human prompt and no human numbering/routing. Replacement launches are additional launch attempts, not extra experiment replicas.",
+    "human_action_boundary": "External chat creation remains a human wake boundary. Guide must minimize it to one identical prompt repeated only for the exact refill count derived from durable status."
   },
   "packet_projection": {
     "canonical_source_pattern": "coordination/launch-packets/<run_id>/PACKET.json",
@@ -76,17 +79,33 @@
       "workers_primary_complete",
       "workers_reallocated",
       "workers_terminal",
-      "failures_by_reason"
+      "failures_by_reason",
+      "workers_beaconed_without_primary_claim",
+      "assignment_success_rate",
+      "replacement_launches_recommended"
     ],
     "benefit": "A human statement such as 'I launched 17 chats' becomes directly comparable to a durable run packet instead of being inferred from timestamps.",
     "public_run_status": "https://juanmanuelpm.github.io/prometeo/launch/<run_id>/status.json",
     "runtime_ref": "gh-pages:live/runtime.json#launch_runs",
-    "scoreboard_ref": "gh-pages:live/worker-scoreboard.json#launch_runs"
+    "scoreboard_ref": "gh-pages:live/worker-scoreboard.json#launch_runs",
+    "denominators": {
+      "launch_attempts": "workers_beaconed",
+      "slot_occupancy": "slots_claimed / slots_total",
+      "end_to_end_completion": "workers_terminal / slots_total",
+      "rule": "Never substitute launch_attempt count for slot occupancy or terminal completion."
+    }
   },
   "residency": {
     "primary_project_completion_is_not_terminal": true,
     "after_primary_complete": "Return evidence, refresh exact allowed allocation surface, claim a second compatible project/lane, and continue until residency target or real boundary.",
-    "existing_pool_law": "3 checkpoint / target 6 / cap 8 remains binding unless benchmark-specific stricter completion is declared."
+    "existing_pool_law": "3 checkpoint / target 6 / cap 8 remains binding unless benchmark-specific stricter completion is declared.",
+    "terminal_reply_latch": {
+      "status": "ACTIVE_BINDING",
+      "run_rule": "In RUN mode, a human-facing terminal response is forbidden immediately after primary completion/E7. Before any final response, the worker must either (A) complete E8 reallocation and E9 exam/close with durable receipt evidence, or (B) persist an explicit terminal boundary/no-allocation record naming the earliest non-PASS stage and exact failure code.",
+      "primary_receipt_is_not_terminal": true,
+      "missing_e8_e9_means_incomplete": true,
+      "abrupt_runtime_end_boundary": "A runtime/chat that ends without satisfying the latch can still happen; Guide/runtime observability must classify it as incomplete and replenish/recover rather than treating UI cessation as success."
+    }
   },
   "implementation_order": [
     "DONE: canonical packet compiler + public /launch/<run_id>/ projection",
@@ -95,7 +114,9 @@
     "DONE: run/slot fields in runtime and scoreboard",
     "DONE: static packet accounting validator and runtime regression",
     "DONE: static Cat Lab/Dog Notes contracts plus representative Chromium workflow",
-    "DONE: CATLAB-EVO-01 ARMED with 10 exact slots; next external action is exactly 10 identical RUN launches"
+    "DONE: CATLAB-EVO-01 ARMED with 10 exact slots; next external action is exactly 10 identical RUN launches",
+    "DONE: RUN refill accounting distinguishes launch attempts from slot occupancy after observed 10-beacon/9-claim CATLAB loss",
+    "DONE: RUN terminal-reply latch forbids silent stop after primary receipt and requires E8/E9 or durable boundary evidence"
   ],
   "non_goals": [
     "making the human number prompts",
@@ -166,5 +187,14 @@
     "public_url": "https://juanmanuelpm.github.io/prometeo/launch/CATLAB-EVO-01/",
     "status_url": "https://juanmanuelpm.github.io/prometeo/launch/CATLAB-EVO-01/status.json",
     "human_numbers_slots": false
+  },
+  "replenishment": {
+    "status": "ACTIVE_BINDING",
+    "trigger": "packet ARMED AND slots_unclaimed > 0 AND durable RUN beacons without primary claim > 0 after the initial launch burst has visibly settled",
+    "refill_count": "min(slots_unclaimed, workers_beaconed_without_primary_claim) for the immediate repair cycle; recompute after every refill, never prelaunch a speculative surplus",
+    "prompt": "Reuse packet.human_invocation byte-for-byte",
+    "human_numbers_slots": false,
+    "experiment_semantics": "A replacement that claims an existing unclaimed slot becomes that slot's intended replica. The failed preclaim launch remains run-level E0-E2 platform evidence and is never attributed to the replacement slot's variant.",
+    "stop": "No refill when slots_unclaimed=0, packet is not ARMED, or a real authority/safety boundary blocks further launch attempts."
   }
 }
