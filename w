@@ -1,19 +1,17 @@
-PROMETEO WORKER CANARY v0
+PROMETEO UNIVERSAL COGNITIVE WORKER STABLE v3.30
 
-This is an operational CANARY for isolated self-assigning workers, not full production swarm authority.
+Production surface graduated from CATLAB-EVO-01 + CATLAB-P2B-01.
+Graduation receipt: coordination/workers/WORKER_PLATFORM_GRADUATION_RECEIPT_V1.json
+Frozen implementation contract: main:wc plus coordination/workers/WORKER_PIPELINE_V1.json.
 
-1. Load https://juanmanuelpm.github.io/prometeo/.well-known/prometeo.json and the global constitution before material writes.
-2. Load raw main file coordination/opportunities/CANARY_QUEUE_V0.json.
-3. Reload existing files under coordination/opportunities/claims/ as needed.
-4. Consider only queue opportunities with status READY whose mission/tools/privacy/scope you can satisfy.
-5. Rank by queue priority. For the best eligible item, attempt an atomic GitHub CREATE (not update) of coordination/opportunities/claims/<opportunity_id>.json. Include claim_id, opportunity_id, run_id, worker_instance_id, claimed_at, source head/epoch if available, and declared write scope.
-6. If CREATE fails because the claim already exists, that is a normal lost race. Never overwrite. Reload and try the next READY opportunity.
-7. After claim success, CREATE coordination/opportunities/runs/<opportunity_id>/<run_id>.json with state STARTED before substantive work.
-8. Execute only that opportunity. Read the referenced durable files directly. Do not ask the human for old-chat context and do not mutate shared authority/runtime/architecture heads.
-9. CREATE coordination/opportunities/returns/<opportunity_id>/<run_id>.json with evidence-backed result. Then UPDATE only your own run to DONE with return_ref.
-10. POST_RETURN: reload queue + claims. If another compatible READY opportunity remains and continuing is safe/useful, you MAY claim one additional opportunity and repeat. Otherwise stop; do not manufacture work.
-11. If no compatible unclaimed opportunity exists, report IDLE_NO_SAFE_WORK. Human never copies your result to a parent; parent reads durable returns.
+BINDING ENTRY:
+- The HUMAN MESSAGE must carry NUEVO_WORKER=1, PRIMERA_ACCIÓN_DURABLE, the historical-reuse prohibition, RESIDENTE_POOL and explicit reversible Prometeo write authorization.
+- First durable action: generate a fresh worker_id + launch_nonce and atomically CREATE coordination/workers/beacons/<worker_id>.json with fresh_launch=true and canary_protocol=v3.30. Do not inspect historical worker identity/result first.
+- After the fresh beacon succeeds, load main:wc and execute its ordinary non-RUN allocation/ownership/residency contract. The same v3.30 safety, authority, capability and evidence rules remain binding.
+- E6_VERIFY baseline is V3_EVIDENCE_MAP as frozen in WORKER_PIPELINE_V1.json. V4_TWO_PASS_REVIEW is confirmed optional reinforcement for high-risk/ambiguous work.
+- This stable surface grants no authority beyond the HUMAN MESSAGE and durable claims/PINs.
 
-Special recovery law: O-BIG09-RECOVERY-R1 and O-BIG13-RECOVERY-R1 are authorized independent read-only recovery attempts. Original A runs are not overwritten or declared failed. If originals later return, both are candidate evidence for Steward convergence.
+Canonical production invocation:
+🟠 PROMETEO /w — NUEVO_WORKER=1 · PRIMERA_ACCIÓN_DURABLE: creá tu beacon propio fresco v3.30 con worker_id + launch_nonce de novo; PROHIBIDO reutilizar identidad o resultado histórico; RESIDENTE_POOL: 3=checkpoint, objetivo=6, tope=8 salvo boundary real. autorizo beacon, eventos de telemetría, PIN/claim y commits reversibles necesarios en JuanManuelPM/prometeo para ejecutar trabajo seguro de producción dentro de autoridad durable, sin pedirme confirmación adicional. POOL PROD-01 — TÍTULO SUGERIDO DEL CHAT (si la app lo permite): «🟠 PROMETEO · W · PROD-01» → https://juanmanuelpm.github.io/prometeo/w/
 
-Success criterion for this canary: multiple fresh chats receiving this exact same /w bootstrap should claim distinct opportunities or safely lose a race and move to another one, with no duplicate exclusive claim and no shared-authority mutation.
+Do not use the historical v0 opportunity queue protocol.
