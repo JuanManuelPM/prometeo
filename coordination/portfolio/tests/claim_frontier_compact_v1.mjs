@@ -94,6 +94,15 @@ const capabilityRow=(i,required_capabilities)=>({
 });
 const browserRecovery=Array.from({length:8},(_,i)=>capabilityRow(100+i,['representative_javascript_browser']));
 const publicHttpRecovery=Array.from({length:3},(_,i)=>capabilityRow(200+i,['unrestricted_public_http_origin_fetch']));
+publicHttpRecovery[0].capability_confirmation_required={
+  required:true,
+  reason:'REPEATED_TERMINAL_CAPABILITY_BOUNDARY',
+  capability:'unrestricted_public_http_origin_fetch',
+  boundary_count:2,
+  evidence:['returns/tts-boundary-g2.json','returns/tts-boundary-g1.json'],
+  positive_runtime_contract_required:true,
+  unknown_or_absent_skip_preclaim:true
+};
 const diversityAllocator={
   schema:'prometeo.fast-allocator/v3',
   generated_at:'2026-09-18T21:39:22Z',
@@ -121,6 +130,13 @@ assert.equal(
   diverse.candidates.findIndex(x=>JSON.stringify(x.required_capabilities)===JSON.stringify(['unrestricted_public_http_origin_fetch'])) < 6,
   true,
   'HTTP-only recovery must be visible inside the bounded compact frontier'
+);
+const gatedHttp = diverse.candidates.find(x=>x.job_id==='job-200');
+assert.ok(gatedHttp,'confirmation-gated HTTP recovery must remain visible');
+assert.deepEqual(
+  gatedHttp.capability_confirmation_required,
+  publicHttpRecovery[0].capability_confirmation_required,
+  'compact frontier must preserve the full repeated-boundary capability confirmation contract'
 );
 
 const zeroReady=capabilityRow(300,[]);
