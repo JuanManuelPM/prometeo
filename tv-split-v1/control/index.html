@@ -33,33 +33,27 @@ button{font:inherit;color:inherit}
 .half{position:absolute;left:56px;right:0;height:1px;background:var(--half);z-index:1}
 .halfLabel{position:absolute;left:7px;top:-8px;font:800 8px ui-monospace,SFMono-Regular,Menlo,monospace;color:#55554f;background:var(--bg);padding:0 3px}
 .layer{position:absolute;inset:0;z-index:5}
-.block{position:absolute;left:64px;right:8px;min-height:28px;background:var(--fg);color:var(--bg);border:0;overflow:hidden;user-select:none;touch-action:pan-y;transition:top .12s cubic-bezier(.2,.8,.2,1),height .12s cubic-bezier(.2,.8,.2,1),box-shadow .12s ease,outline-color .12s ease}
+.block{position:absolute;left:64px;right:8px;min-height:28px;background:var(--fg);color:var(--bg);border:0;overflow:visible;user-select:none;touch-action:pan-y;transition:top .12s cubic-bezier(.2,.8,.2,1),height .12s cubic-bezier(.2,.8,.2,1),box-shadow .12s ease,outline-color .12s ease}
 .block.selected{outline:2px solid var(--now);outline-offset:2px;touch-action:none}.block.stretching{outline-style:dashed;box-shadow:0 0 0 3px #ff3b3033}
 .block.fresh{animation:pulseEdge .72s ease-in-out infinite}
 .block.conflict{background:#282824;color:#fff;outline:2px dashed var(--now);outline-offset:2px}
 @keyframes pulseEdge{0%,100%{box-shadow:0 0 0 0 #ff3b3000}50%{box-shadow:0 0 0 3px #ff3b30}}
-.blockBody{position:absolute;inset:0;padding:6px 30px 6px 8px;text-align:left}
+.blockBody{position:absolute;inset:0;padding:6px 30px 6px 8px;text-align:left;overflow:hidden;background:var(--fg)}
 .kind{font-size:7px;font-weight:900;letter-spacing:.14em;opacity:.48}
 .name{font-size:14px;font-weight:900;line-height:1;letter-spacing:-.03em;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .time{font:800 8px ui-monospace,SFMono-Regular,Menlo,monospace;opacity:.58;margin-top:4px}
-.moveMark{display:none;position:absolute;right:7px;top:50%;transform:translateY(-50%);font-size:19px;font-weight:900;opacity:.58;pointer-events:none}
+.moveMark{display:none;position:absolute;right:7px;top:50%;transform:translateY(-50%);font-size:19px;font-weight:900;color:var(--bg);opacity:1;pointer-events:none}
 .block.selected .moveMark{display:block}
-.handle{display:none;position:absolute;left:0;right:0;height:16px;z-index:8;touch-action:none}
+.handle{display:none;position:absolute;left:-10px;right:-10px;height:34px;z-index:12;touch-action:none;background:transparent}
 .block.selected .handle{display:block}
-.handle.top{top:0}.handle.bottom{bottom:0}
-.handle:after{content:'';position:absolute;left:50%;transform:translateX(-50%);width:42px;height:3px;background:var(--now);border-radius:3px}
-.handle.top:after{top:3px}.handle.bottom:after{bottom:3px}
+.handle.top{top:-18px}.handle.bottom{bottom:-18px}
+.handle:after{content:'';position:absolute;left:50%;transform:translateX(-50%);width:28px;height:4px;background:var(--now);border-radius:99px}
+.handle.top:after{bottom:13px}.handle.bottom:after{top:13px}
 .nowLine{position:absolute;left:54px;right:0;height:2px;background:var(--now);z-index:40;pointer-events:none}
 .nowDot{position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--now)}
 .nowLabel{position:absolute;left:-50px;top:-13px;background:var(--now);color:#fff;padding:2px 4px;font:900 8px ui-monospace,monospace}
 .dragTime{position:fixed;z-index:125;pointer-events:none;background:var(--now);color:#fff;padding:4px 6px;font:900 10px ui-monospace,monospace;display:none}
 .dragTime.show{display:block}
-.inspector{position:fixed;left:50%;bottom:10px;z-index:90;transform:translateX(-50%) translateY(120%);width:min(430px,calc(100% - 18px));background:#11110ff3;border:1px solid #3b3b37;backdrop-filter:blur(14px);padding:7px;display:grid;grid-template-columns:1fr 72px;gap:6px;transition:transform .16s ease}
-.inspector.show{transform:translateX(-50%) translateY(0)}
-.inspector button{height:46px;border:1px solid #3b3b37;background:#171714;font-size:11px;font-weight:900}
-.inspector .dur{display:flex;flex-direction:column;justify-content:center;border:1px solid #3b3b37;padding:0 10px;font:900 10px ui-monospace,monospace}
-.inspector .dur span{display:block;margin-top:3px;color:var(--muted);font:700 7px Arial,Helvetica,sans-serif;letter-spacing:.04em}
-.inspector .delete{font-size:8px;letter-spacing:.04em}
 .toast{position:fixed;z-index:140;left:50%;bottom:70px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 12px;font-size:9px;font-weight:900;display:none;white-space:nowrap}.toast.show{display:block}
 </style>
 </head>
@@ -89,10 +83,6 @@ button{font:inherit;color:inherit}
   </main>
 </div>
 
-<div id="inspector" class="inspector">
-  <div id="dur" class="dur">30 min<span>ARRASTRÁ · MANTENÉ PARA ESTIRAR</span></div>
-  <button id="delete" class="delete">BORRAR</button>
-</div>
 <div id="dragTime" class="dragTime">--:--</div>
 <div id="toast" class="toast"></div>
 
@@ -104,7 +94,7 @@ const params=new URLSearchParams(location.hash.slice(1));
 const room={code:params.get('room')||'',token:params.get('t')||'',role:'remote'};
 const client='timeline-v4-'+Math.random().toString(36).slice(2,9);
 const $=id=>document.getElementById(id);
-const viewport=$('viewport'),day=$('day'),layer=$('layer'),palette=$('palette'),inspector=$('inspector'),dragTime=$('dragTime');
+const viewport=$('viewport'),day=$('day'),layer=$('layer'),palette=$('palette'),dragTime=$('dragTime');
 const labels={youtube:'YOUTUBE',clock:'RELOJ',page:'PÁGINA',black:'NEGRO'};
 const samples={
   youtube:{title:'VERITASIUM',payload:{url:'https://www.youtube.com/watch?v=J1WoNuemKOg'}},
@@ -174,8 +164,7 @@ function grid(){
 }
 function updateNow(){const n=ba(),m=n.h*60+n.m;$('nowTop').textContent=fmt(m);$('nowLabel').textContent=fmt(m);$('nowLine').style.top=y(m)+'px'}
 function scrollAroundNow(){viewport.scrollTop=Math.max(0,y(nowMin()-5.5*60))}
-function select(id){selected=id;renderBlocks();renderInspector()}
-function renderInspector(){const b=blocks.find(x=>x.id===selected);inspector.classList.toggle('show',!!b);if(b)$('dur').innerHTML=(b.end_minute-b.start_minute)+' min<span>↕ MOVER · MANIJAS = INICIO / FIN</span>'}
+function select(id){selected=id;renderBlocks()}
 function blockEl(b){
   const conflict=localOverlap(b),isSelected=selected===b.id;
   const el=document.createElement('div');el.className='block'+(isSelected?' selected':'')+(freshId===b.id?' fresh':'')+(conflict?' conflict':'');el.dataset.id=b.id;
@@ -188,7 +177,7 @@ function blockEl(b){
   }else el.addEventListener('pointerdown',e=>armSelectionTap(e,b));
   return el
 }
-function renderBlocks(){layer.innerHTML='';for(const b of blocks.slice().sort((a,b)=>a.start_minute-b.start_minute))layer.appendChild(blockEl(b));renderInspector()}
+function renderBlocks(){layer.innerHTML='';for(const b of blocks.slice().sort((a,b)=>a.start_minute-b.start_minute))layer.appendChild(blockEl(b))}
 day.addEventListener('click',()=>select(null));
 
 function showDragTime(clientX,clientY,label,m){dragTime.textContent=(label?label+' ':'')+fmt(m);dragTime.style.left=Math.min(window.innerWidth-94,clientX+12)+'px';dragTime.style.top=Math.max(8,clientY-22)+'px';dragTime.classList.add('show')}
@@ -196,13 +185,24 @@ function vibrate(slot){if(slot===lastHaptic)return;lastHaptic=slot;try{navigator
 function armSelectionTap(e,b){
   if(e.button!==undefined&&e.button!==0)return;
   const sx=e.clientX,sy=e.clientY,pid=e.pointerId;
-  let cancelled=false;
-  const move=ev=>{if(ev.pointerId===pid&&Math.hypot(ev.clientX-sx,ev.clientY-sy)>9)cancelled=true};
-  const finish=ev=>{
-    window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel);
-    if(!cancelled&&ev.pointerId===pid){ev.stopPropagation();select(b.id)}
+  let cancelled=false,selectedByHold=false;
+  const timer=setTimeout(()=>{
+    if(cancelled)return;
+    selectedByHold=true;freshId=null;select(b.id);vibrate('select-'+b.id);
+  },460);
+  const move=ev=>{
+    if(ev.pointerId!==pid)return;
+    if(Math.hypot(ev.clientX-sx,ev.clientY-sy)>9){
+      cancelled=true;clearTimeout(timer);
+    }
   };
-  const cancel=()=>{cancelled=true;window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel)};
+  const finish=ev=>{
+    clearTimeout(timer);
+    window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel);
+    // Ordinary taps intentionally do nothing.
+    if(selectedByHold)ev.stopPropagation();
+  };
+  const cancel=()=>{cancelled=true;clearTimeout(timer);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel)};
   window.addEventListener('pointermove',move,{passive:true});
   window.addEventListener('pointerup',finish,{once:true});
   window.addEventListener('pointercancel',cancel,{once:true});
@@ -241,29 +241,40 @@ function beginResizeHandle(e,b,el,edge){
   if(e.button!==undefined&&e.button!==0)return;
   e.preventDefault();e.stopPropagation();
   const startY=e.clientY,baseStart=b.start_minute,baseEnd=b.end_minute;
+  const anchor=edge==='start'?baseEnd:baseStart;
+  const baseDragged=edge==='start'?baseStart:baseEnd;
   const threshold=Math.max(34,y(30)*1.18);
-  let current=edge==='start'?baseStart:baseEnd,lastStep=0,changed=false;
+  let dragged=baseDragged,lastStep=0,changed=false,activeEdge=edge;
   el.classList.add('stretching');
-  showDragTime(e.clientX,e.clientY,edge==='start'?'INICIO':'FIN',current);
+
+  const applyDragged=(value,clientX,clientY)=>{
+    let v=Math.max(0,Math.min(1440,value));
+    // Keep at least 30 minutes. Crossing the opposite endpoint flips which
+    // endpoint is being edited, instead of stopping the gesture.
+    if(v===anchor)v += (activeEdge==='start'?-30:30);
+    v=Math.max(0,Math.min(1440,v));
+    let ns,ne;
+    if(v<anchor){ns=v;ne=anchor;activeEdge='start'}
+    else{ns=anchor;ne=v;activeEdge='end'}
+    if(ne-ns<30){
+      if(activeEdge==='start')ns=Math.max(0,ne-30);
+      else ne=Math.min(1440,ns+30);
+    }
+    dragged=v;changed=true;
+    updateBlockLocal(b.id,{start_minute:ns,end_minute:ne});
+    showDragTime(clientX,clientY,activeEdge==='start'?'INICIO':'FIN',activeEdge==='start'?ns:ne);
+    vibrate((activeEdge==='start'?'s':'e')+(activeEdge==='start'?ns:ne));
+  };
+
+  showDragTime(e.clientX,e.clientY,edge==='start'?'INICIO':'FIN',baseDragged);
+
   const move=ev=>{
     ev.preventDefault();
     const dy=ev.clientY-startY;
     const step=dy<0?Math.ceil(dy/threshold):Math.floor(dy/threshold);
     if(step===lastStep)return;
     lastStep=step;
-    if(edge==='start'){
-      const ns=Math.max(0,Math.min(baseEnd-30,baseStart+step*30));
-      if(ns===current)return;
-      current=ns;changed=true;
-      updateBlockLocal(b.id,{start_minute:current,end_minute:baseEnd});
-      showDragTime(ev.clientX,ev.clientY,'INICIO',current);vibrate('s'+current);
-    }else{
-      const ne=Math.max(baseStart+30,Math.min(1440,baseEnd+step*30));
-      if(ne===current)return;
-      current=ne;changed=true;
-      updateBlockLocal(b.id,{start_minute:baseStart,end_minute:current});
-      showDragTime(ev.clientX,ev.clientY,'FIN',current);vibrate('e'+current);
-    }
+    applyDragged(baseDragged+step*30,ev.clientX,ev.clientY);
   };
   const finish=()=>{
     window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel);
@@ -287,12 +298,6 @@ function addSample(kind){
   if(!localOverlap(b))scheduleWrite(b);
   setTimeout(()=>{if(freshId===id){freshId=null;renderBlocks()}},8000);
 }
-$('delete').onclick=()=>{
-  if(!selected)return;
-  const id=selected,wasTemp=String(id).startsWith('tmp-');
-  blocks=blocks.filter(b=>b.id!==id);selected=null;freshId=null;renderBlocks();cache();
-  if(!wasTemp)queueMicrotask(()=>api({action:'delete',id}).catch(()=>toast('No se pudo sincronizar el borrado.')));
-};
 $('addBtn').onclick=()=>palette.classList.toggle('open');
 document.querySelectorAll('.tool').forEach(b=>b.onclick=()=>addSample(b.dataset.kind));
 
