@@ -4,115 +4,263 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#090909">
-<title>Control de programación</title>
+<title>TV · horario</title>
 <style>
-:root{--bg:#090909;--fg:#f3f2ed;--muted:#8c8c86;--line:#2a2a27}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);font-family:Arial,Helvetica,sans-serif}button,input,select{font:inherit;color:inherit}.app{width:min(760px,100%);margin:auto;padding:18px 14px 120px}.head{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;border-bottom:2px solid var(--fg);padding-bottom:18px}.kicker{font-size:10px;font-weight:900;letter-spacing:.18em}.title{font-size:clamp(34px,10vw,68px);font-weight:900;letter-spacing:-.055em;line-height:.84;margin-top:6px}.clockNow{text-align:right;font-size:30px;font-weight:900;letter-spacing:-.05em;font-variant-numeric:tabular-nums}.room{font:700 8px ui-monospace,monospace;color:var(--muted);margin-top:4px}.air{display:grid;grid-template-columns:92px 1fr;border-bottom:1px solid var(--line);min-height:76px;align-items:center}.airLabel{font-size:9px;font-weight:900;letter-spacing:.16em;color:var(--muted)}.airMain{font-size:16px;font-weight:800;line-height:1.05}.airTime{font-size:9px;color:var(--muted);margin-top:5px}.tools{display:flex;justify-content:space-between;align-items:center;padding:18px 0 10px}.tools strong{font-size:12px;letter-spacing:.08em}.add{border:1px solid var(--fg);background:var(--fg);color:var(--bg);height:38px;padding:0 13px;font-size:10px;font-weight:900;letter-spacing:.08em}.timeline{border-top:1px solid var(--fg)}.row{display:grid;grid-template-columns:92px 1fr;min-height:72px;border-bottom:1px solid var(--line);background:transparent;color:var(--fg);width:100%;padding:0;text-align:left;border-left:0;border-right:0;border-top:0}.row.block{cursor:pointer}.row.live{background:var(--fg);color:var(--bg)}.rowTime{padding:15px 10px 12px 0;font:800 12px ui-monospace,monospace;line-height:1.35}.rowBody{padding:14px 0 12px 14px;border-left:1px solid currentColor}.rowKind{font-size:8px;font-weight:900;letter-spacing:.16em;opacity:.55}.rowTitle{font-size:20px;font-weight:900;letter-spacing:-.035em;margin-top:4px;line-height:1}.rowMeta{font-size:9px;opacity:.55;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gap{color:#656560}.gap .rowBody{border-left-color:#2a2a27}.empty{padding:36px 0;color:var(--muted);font-size:11px}.editor{position:fixed;z-index:30;inset:0;display:none;background:#000b;align-items:flex-end}.editor.open{display:flex}.sheet{width:100%;max-width:760px;margin:auto;background:var(--bg);border-top:2px solid var(--fg);padding:18px 14px calc(22px + env(safe-area-inset-bottom));max-height:92dvh;overflow:auto}.sheetTop{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.sheetTitle{font-size:26px;font-weight:900;letter-spacing:-.04em}.close{border:0;background:transparent;font-size:28px;padding:0 2px}.field{border-top:1px solid var(--line);padding:12px 0}.label{font-size:8px;font-weight:900;letter-spacing:.16em;color:var(--muted);margin-bottom:8px}.field input,.field select{width:100%;height:44px;border:0;border-bottom:1px solid var(--fg);background:transparent;border-radius:0;outline:none;font-size:16px;padding:0}.times{display:grid;grid-template-columns:1fr 1fr;gap:18px}.urlField.hide{display:none}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}.save,.delete{height:48px;border:1px solid var(--fg);font-weight:900;font-size:10px;letter-spacing:.1em}.save{background:var(--fg);color:var(--bg)}.delete{background:transparent;color:var(--fg)}.delete.hide{visibility:hidden}.err{min-height:18px;font-size:9px;color:var(--muted);padding-top:8px}.hint{font-size:9px;line-height:1.4;color:var(--muted);margin-top:7px}@media(min-width:700px){.editor{align-items:stretch;justify-content:flex-end}.sheet{width:430px;height:100dvh;margin:0;border-top:0;border-left:2px solid var(--fg);padding-top:28px}}
+:root{--bg:#090909;--fg:#f4f3ee;--muted:#777771;--line:#262623;--now:#ff3b30;--ppm:2px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);font-family:Arial,Helvetica,sans-serif;overscroll-behavior:none}
+button{font:inherit;color:inherit}
+.app{min-height:100dvh;background:var(--bg)}
+.top{position:sticky;top:0;z-index:50;background:#090909f2;backdrop-filter:blur(14px);border-bottom:1px solid var(--fg)}
+.topInner{max-width:760px;margin:auto;padding:10px 12px 9px}
+.bar{display:flex;align-items:center;gap:7px;overflow-x:auto;scrollbar-width:none}
+.bar::-webkit-scrollbar{display:none}
+.tool{flex:0 0 auto;height:42px;min-width:76px;border:1px solid #3a3a36;background:#11110f;padding:0 12px;font-size:10px;font-weight:900;letter-spacing:.04em;touch-action:none}
+.tool:active{background:var(--fg);color:var(--bg)}
+.tool.page{min-width:68px}
+.topMeta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font:700 8px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.deleteSel{display:none;border:0;background:transparent;color:var(--fg);font-size:9px;font-weight:900;padding:4px 0}
+.deleteSel.show{display:block}
+.viewport{max-width:760px;margin:auto;position:relative;height:calc(100dvh - 70px);overflow:auto;overscroll-behavior:contain;scrollbar-width:none}
+.viewport::-webkit-scrollbar{display:none}
+.day{position:relative;height:calc(1440 * var(--ppm));min-height:2880px;margin-left:56px;border-left:1px solid #3a3a36}
+.hour{position:absolute;left:-56px;right:0;height:1px;background:var(--line)}
+.hourLabel{position:absolute;left:-54px;top:-7px;width:46px;text-align:right;padding-right:8px;font:700 9px ui-monospace,SFMono-Regular,Menlo,monospace;color:#676760}
+.half{position:absolute;left:0;right:0;height:1px;background:#171714}
+.layer{position:absolute;inset:0}
+.block{position:absolute;left:8px;right:10px;min-height:24px;background:var(--fg);color:var(--bg);border:0;overflow:hidden;touch-action:none;user-select:none}
+.block.selected{outline:2px solid var(--now);outline-offset:2px}
+.block .grab{position:absolute;inset:0 0 10px 0;padding:8px 12px;text-align:left}
+.kind{font-size:8px;font-weight:900;letter-spacing:.16em;opacity:.55}
+.name{font-size:16px;font-weight:900;line-height:1;letter-spacing:-.035em;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.time{font:700 8px ui-monospace,SFMono-Regular,Menlo,monospace;opacity:.55;margin-top:5px}
+.resize{position:absolute;left:0;right:0;bottom:0;height:12px;background:var(--bg);cursor:ns-resize}
+.resize:after{content:'';position:absolute;left:50%;top:5px;width:34px;height:2px;transform:translateX(-50%);background:var(--fg)}
+.nowLine{position:absolute;left:-56px;right:0;height:2px;background:var(--now);z-index:30;pointer-events:none}
+.nowDot{position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--now)}
+.nowLabel{position:absolute;left:-52px;top:-14px;background:var(--now);color:#fff;padding:2px 4px;font:900 8px ui-monospace,monospace}
+.ghost{position:fixed;z-index:100;pointer-events:none;width:180px;min-height:58px;background:var(--fg);color:var(--bg);padding:9px 11px;box-shadow:0 14px 35px #0008;transform:translate(-50%,-50%);font-weight:900}
+.toast{position:fixed;z-index:120;left:50%;bottom:22px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 12px;font-size:9px;font-weight:900;display:none}
+.toast.show{display:block}
+.empty{position:absolute;top:18px;left:12px;color:var(--muted);font-size:9px;pointer-events:none}
+@media(min-width:700px){:root{--ppm:1.75px}.viewport{height:calc(100dvh - 69px)}.day{min-height:2520px}}
 </style>
 </head>
 <body>
-<main class="app">
-  <header class="head">
-    <div><div class="kicker">CANAL PERSONAL</div><div class="title">PROGRAMACIÓN</div></div>
-    <div><div id="nowClock" class="clockNow">--:--</div><div id="room" class="room">—</div></div>
-  </header>
-  <section class="air"><div class="airLabel">AL AIRE</div><div><div id="airMain" class="airMain">NEGRO</div><div id="airTime" class="airTime">sin programación activa</div></div></section>
-  <div class="tools"><strong>ITINERARIO DIARIO</strong><button id="add" class="add">+ TRAMO</button></div>
-  <section id="timeline" class="timeline"><div class="empty">cargando programación…</div></section>
-</main>
-
-<div id="editor" class="editor">
-  <div class="sheet">
-    <div class="sheetTop"><div id="sheetTitle" class="sheetTitle">Nuevo tramo</div><button id="close" class="close">×</button></div>
-    <div class="times">
-      <div class="field"><div class="label">DESDE</div><input id="start" type="time" step="60"></div>
-      <div class="field"><div class="label">HASTA</div><input id="end" type="time" step="60"></div>
+<div class="app">
+  <header class="top">
+    <div class="topInner">
+      <div class="bar">
+        <button class="tool" data-kind="youtube">YOUTUBE</button>
+        <button class="tool" data-kind="clock">RELOJ</button>
+        <button class="tool page" data-kind="page">PÁGINA</button>
+        <button class="tool" data-kind="black">NEGRO</button>
+        <button id="deleteSel" class="deleteSel">ELIMINAR</button>
+      </div>
+      <div class="topMeta"><span id="room">—</span><span id="status">arrastrá algo al horario</span></div>
     </div>
-    <div class="field"><div class="label">QUÉ SALE AL AIRE</div><select id="kind"><option value="clock">Reloj</option><option value="youtube">YouTube</option><option value="page">Página web</option><option value="black">Negro</option></select></div>
-    <div class="field"><div class="label">NOMBRE</div><input id="name" placeholder="ej. Noticias / Música / Reloj"></div>
-    <div id="urlField" class="field urlField hide"><div id="urlLabel" class="label">URL</div><input id="url" inputmode="url" placeholder="https://..."><div id="urlHint" class="hint"></div></div>
-    <div id="err" class="err"></div>
-    <div class="actions"><button id="delete" class="delete hide">ELIMINAR</button><button id="save" class="save">GUARDAR</button></div>
-  </div>
+  </header>
+
+  <main id="viewport" class="viewport">
+    <section id="day" class="day">
+      <div id="grid"></div>
+      <div id="layer" class="layer"></div>
+      <div id="nowLine" class="nowLine"><span class="nowDot"></span><span id="nowLabel" class="nowLabel">--:--</span></div>
+    </section>
+  </main>
 </div>
+<div id="toast" class="toast"></div>
 
 <script>
 (()=>{
 'use strict';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
-const p=new URLSearchParams(location.hash.slice(1));
-const room={code:p.get('room')||'',token:p.get('t')||'',role:'remote'};
-const client='program-'+Math.random().toString(36).slice(2,9);
+const params=new URLSearchParams(location.hash.slice(1));
+const room={code:params.get('room')||'',token:params.get('t')||'',role:'remote'};
+const client='timeline-'+Math.random().toString(36).slice(2,9);
 const $=id=>document.getElementById(id);
-let blocks=[],editing=null;
-const LABEL={clock:'RELOJ',youtube:'YOUTUBE',page:'PÁGINA',black:'NEGRO'};
+const viewport=$('viewport'),day=$('day'),layer=$('layer'),deleteSel=$('deleteSel');
+const labels={youtube:'YOUTUBE',clock:'RELOJ',page:'PÁGINA',black:'NEGRO'};
+let blocks=[],selected=null,activeGesture=null,ppm=2,loadedOnce=false;
 
-function minTime(m){if(m===1440)return'24:00';m=Math.max(0,Number(m)||0);return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')}
-function inputTime(m){m=Math.max(0,Math.min(1439,Number(m)||0));return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')}
-function toMin(s){const [h,m]=String(s||'').split(':').map(Number);return h*60+m}
-function baParts(){
- const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
- const get=t=>Number(parts.find(x=>x.type===t)?.value||0);return{h:get('hour'),m:get('minute')};
+function readPPM(){
+  const v=getComputedStyle(document.documentElement).getPropertyValue('--ppm').trim();
+  ppm=parseFloat(v)||2;
 }
-function nowMin(){const x=baParts();return x.h*60+x.m}
-function liveBlock(){const n=nowMin();return blocks.find(b=>b.enabled!==false&&n>=b.start_minute&&n<b.end_minute)||null}
-function kindMeta(b){
- if(b.kind==='page')return b.payload?.url||'';
- if(b.kind==='youtube')return b.payload?.url||'';
- if(b.kind==='clock')return'Reloj animado';
- return'Pantalla negra';
-}
-function render(){
- const root=$('timeline');root.innerHTML='';let cursor=0;const sorted=[...blocks].sort((a,b)=>a.start_minute-b.start_minute);
- const live=liveBlock();
- const addGap=(a,b)=>{if(b<=a)return;const d=document.createElement('div');d.className='row gap';d.innerHTML='<div class="rowTime">'+minTime(a)+'<br>'+minTime(b)+'</div><div class="rowBody"><div class="rowKind">LIBRE</div><div class="rowTitle">NEGRO</div></div>';root.appendChild(d)};
- for(const b of sorted){
-   addGap(cursor,b.start_minute);
-   const btn=document.createElement('button');btn.className='row block'+(live?.id===b.id?' live':'');btn.dataset.id=b.id;
-   btn.innerHTML='<div class="rowTime">'+minTime(b.start_minute)+'<br>'+minTime(b.end_minute)+'</div><div class="rowBody"><div class="rowKind">'+LABEL[b.kind]+'</div><div class="rowTitle">'+esc(b.title||LABEL[b.kind])+'</div><div class="rowMeta">'+esc(kindMeta(b))+'</div></div>';
-   btn.onclick=()=>openEdit(b);root.appendChild(btn);cursor=Math.max(cursor,b.end_minute);
- }
- addGap(cursor,1440);
- const lb=liveBlock();
- $('airMain').textContent=lb?(lb.title||LABEL[lb.kind]):'NEGRO';
- $('airTime').textContent=lb?minTime(lb.start_minute)+' → '+minTime(lb.end_minute):'sin programación activa';
-}
+function minToY(m){return Number(m)*ppm}
+function yToMin(y){return snap(Math.round(y/ppm))}
+function snap(m){return Math.max(0,Math.min(1440,Math.round(m/5)*5))}
+function fmt(m){if(m>=1440)return'24:00';m=Math.max(0,Math.min(1439,Number(m)||0));return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function ba(){
+  const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+  const get=t=>Number(parts.find(x=>x.type===t)?.value||0);return{h:get('hour'),m:get('minute')};
+}
+function nowMin(){const x=ba();return x.h*60+x.m}
+function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>$('toast').classList.remove('show'),1600)}
+function setStatus(s){$('status').textContent=s}
 async function api(body){
- const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:room.code,role:'remote',token:room.token,client_id:client,...body}),cache:'no-store'});
- const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||'ERROR');return d;
+  const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:room.code,role:'remote',token:room.token,client_id:client,...body}),cache:'no-store'});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok||!d.ok)throw new Error(d.error||'ERROR');
+  return d;
 }
-async function load(){try{const d=await api({action:'list'});blocks=d.blocks||[];render()}catch(e){$('timeline').innerHTML='<div class="empty">'+esc(e.message||e)+'</div>'}}
-function updateUrlField(){
- const k=$('kind').value,show=k==='youtube'||k==='page';$('urlField').classList.toggle('hide',!show);
- $('urlLabel').textContent=k==='youtube'?'LINK DE YOUTUBE':'URL DE LA PÁGINA';
- $('url').placeholder=k==='youtube'?'https://youtu.be/...':'https://...';
- $('urlHint').textContent=k==='page'?'Tiene que ser una página que permita mostrarse dentro de un iframe. GitHub Pages funciona bien.':'Pegá el link exacto del video.';
+async function load(){
+  try{
+    const d=await api({action:'list'});
+    blocks=d.blocks||[];
+    renderBlocks();
+    setStatus('arrastrá algo al horario');
+    if(!loadedOnce){loadedOnce=true;requestAnimationFrame(scrollToNow)}
+  }catch(e){setStatus(String(e.message||e))}
 }
-function openNew(){
- editing=null;$('sheetTitle').textContent='Nuevo tramo';$('delete').classList.add('hide');$('err').textContent='';
- const n=nowMin(),start=Math.min(1410,Math.ceil(n/30)*30),end=Math.min(1440,start+30);
- $('start').value=inputTime(start);$('end').value=end===1440?'23:59':inputTime(end);$('kind').value='clock';$('name').value='';$('url').value='';updateUrlField();$('editor').classList.add('open');
+function grid(){
+  const g=$('grid');g.innerHTML='';
+  for(let h=0;h<=24;h++){
+    const line=document.createElement('div');line.className='hour';line.style.top=minToY(h*60)+'px';
+    if(h<24)line.innerHTML='<span class="hourLabel">'+String(h).padStart(2,'0')+':00</span>';
+    g.appendChild(line);
+    if(h<24){const half=document.createElement('div');half.className='half';half.style.top=minToY(h*60+30)+'px';g.appendChild(half)}
+  }
 }
-function openEdit(b){
- editing=b;$('sheetTitle').textContent='Editar tramo';$('delete').classList.remove('hide');$('err').textContent='';
- $('start').value=inputTime(b.start_minute);$('end').value=b.end_minute===1440?'23:59':inputTime(b.end_minute);$('kind').value=b.kind;$('name').value=b.title||'';$('url').value=b.payload?.url||'';updateUrlField();$('editor').classList.add('open');
+function updateNow(){
+  const x=ba(),m=x.h*60+x.m;
+  $('nowLine').style.top=minToY(m)+'px';
+  $('nowLabel').textContent=fmt(m);
 }
-function closeEditor(){$('editor').classList.remove('open')}
-$('add').onclick=openNew;$('close').onclick=closeEditor;$('editor').onclick=e=>{if(e.target===$('editor'))closeEditor()};$('kind').onchange=updateUrlField;
-$('save').onclick=async()=>{
- const start=toMin($('start').value),rawEnd=toMin($('end').value),end=$('end').value==='23:59'?1440:rawEnd;
- const kind=$('kind').value,payload=(kind==='page'||kind==='youtube')?{url:$('url').value.trim()}:{};
- $('err').textContent='';$('save').disabled=true;
- try{
-   await api({action:'save',id:editing?.id||'',title:$('name').value.trim(),kind,start_minute:start,end_minute:end,payload});
-   closeEditor();await load();
- }catch(e){$('err').textContent=String(e.message||e)==='TIME_OVERLAP'?'Ese horario se superpone con otro tramo.':String(e.message||e)}
- $('save').disabled=false;
+function scrollToNow(){
+  const y=minToY(nowMin())-viewport.clientHeight*.36;
+  viewport.scrollTop=Math.max(0,y);
+}
+function blockEl(b){
+  const el=document.createElement('div');el.className='block'+(selected===b.id?' selected':'');el.dataset.id=b.id;
+  el.style.top=minToY(b.start_minute)+'px';el.style.height=Math.max(28,minToY(b.end_minute-b.start_minute))+'px';
+  el.innerHTML='<div class="grab"><div class="kind">'+labels[b.kind]+'</div><div class="name">'+esc(b.title||labels[b.kind])+'</div><div class="time">'+fmt(b.start_minute)+' — '+fmt(b.end_minute)+'</div></div><div class="resize"></div>';
+  el.querySelector('.grab').addEventListener('pointerdown',e=>beginMove(e,b,el));
+  el.querySelector('.resize').addEventListener('pointerdown',e=>beginResize(e,b,el));
+  el.addEventListener('click',e=>{e.stopPropagation();selectBlock(b.id)});
+  return el;
+}
+function renderBlocks(){
+  layer.innerHTML='';
+  for(const b of blocks.slice().sort((a,b)=>a.start_minute-b.start_minute))layer.appendChild(blockEl(b));
+}
+function selectBlock(id){
+  selected=id;deleteSel.classList.toggle('show',!!id);
+  renderBlocks();
+}
+day.addEventListener('click',()=>selectBlock(null));
+deleteSel.onclick=async()=>{
+  if(!selected)return;
+  try{await api({action:'delete',id:selected});selected=null;deleteSel.classList.remove('show');await load()}catch(e){toast(String(e.message||e))}
 };
-$('delete').onclick=async()=>{if(!editing)return;$('delete').disabled=true;try{await api({action:'delete',id:editing.id});closeEditor();await load()}catch(e){$('err').textContent=String(e.message||e)}$('delete').disabled=false};
-function tick(){const x=baParts();$('nowClock').textContent=String(x.h).padStart(2,'0')+':'+String(x.m).padStart(2,'0');$('room').textContent=room.code||'sin sala';render()}
-tick();setInterval(tick,15000);load();setInterval(load,30000);
+
+function dayY(clientY){
+  const r=day.getBoundingClientRect();
+  return clientY-r.top;
+}
+function beginMove(e,b,el){
+  if(e.button!==undefined&&e.button!==0)return;
+  e.preventDefault();e.stopPropagation();selectBlock(b.id);
+  const startY=e.clientY,start=b.start_minute,dur=b.end_minute-b.start_minute;
+  activeGesture={type:'move',id:b.id,el,startY,start,dur,orig:{...b}};
+  el.setPointerCapture?.(e.pointerId);
+  const move=ev=>{
+    if(!activeGesture)return;
+    const delta=snap(Math.round((ev.clientY-startY)/ppm));
+    let s=snap(start+delta);s=Math.max(0,Math.min(1440-dur,s));
+    preview(el,s,s+dur);
+  };
+  const up=async ev=>{
+    window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);
+    if(!activeGesture)return;
+    const r=parsePreview(el);
+    activeGesture=null;
+    await persistBlock(b,r.start,r.end);
+  };
+  window.addEventListener('pointermove',move,{passive:false});
+  window.addEventListener('pointerup',up,{once:true});
+}
+function beginResize(e,b,el){
+  if(e.button!==undefined&&e.button!==0)return;
+  e.preventDefault();e.stopPropagation();selectBlock(b.id);
+  const startY=e.clientY,startEnd=b.end_minute;
+  activeGesture={type:'resize',id:b.id,el,startY,startEnd,orig:{...b}};
+  const move=ev=>{
+    if(!activeGesture)return;
+    const delta=snap(Math.round((ev.clientY-startY)/ppm));
+    const end=Math.max(b.start_minute+10,Math.min(1440,snap(startEnd+delta)));
+    preview(el,b.start_minute,end);
+  };
+  const up=async()=>{
+    window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);
+    if(!activeGesture)return;
+    const r=parsePreview(el);activeGesture=null;
+    await persistBlock(b,r.start,r.end);
+  };
+  window.addEventListener('pointermove',move,{passive:false});
+  window.addEventListener('pointerup',up,{once:true});
+}
+function preview(el,start,end){
+  el.dataset.start=start;el.dataset.end=end;
+  el.style.top=minToY(start)+'px';el.style.height=Math.max(28,minToY(end-start))+'px';
+  const t=el.querySelector('.time');if(t)t.textContent=fmt(start)+' — '+fmt(end);
+}
+function parsePreview(el){return{start:Number(el.dataset.start||blocks.find(b=>b.id===el.dataset.id)?.start_minute||0),end:Number(el.dataset.end||blocks.find(b=>b.id===el.dataset.id)?.end_minute||0)}}
+async function persistBlock(b,start,end){
+  try{
+    await api({action:'save',id:b.id,title:b.title||labels[b.kind],kind:b.kind,start_minute:start,end_minute:end,payload:b.payload||{}});
+    await load();
+  }catch(e){toast(e.message==='TIME_OVERLAP'?'Ese espacio ya está ocupado.':String(e.message||e));await load()}
+}
+
+function defaultDuration(kind){return kind==='youtube'?60:kind==='page'?60:kind==='clock'?30:30}
+async function createAt(kind,minute){
+  const dur=defaultDuration(kind),start=Math.max(0,Math.min(1440-dur,snap(minute))),end=start+dur;
+  let title=labels[kind],payload={};
+  if(kind==='youtube'){
+    const url=prompt('Pegá el link del video de YouTube');
+    if(!url)return;
+    payload={url};
+  }else if(kind==='page'){
+    const url=prompt('Pegá la URL de la página o app');
+    if(!url)return;
+    const name=prompt('Nombre corto','PÁGINA');
+    title=(name||'PÁGINA').trim()||'PÁGINA';payload={url};
+  }
+  try{
+    const d=await api({action:'save',title,kind,start_minute:start,end_minute:end,payload});
+    selected=d.block?.id||null;deleteSel.classList.toggle('show',!!selected);
+    await load();
+  }catch(e){toast(e.message==='TIME_OVERLAP'?'Ese espacio ya está ocupado.':String(e.message||e))}
+}
+function paletteDrag(e,kind){
+  if(e.button!==undefined&&e.button!==0)return;
+  e.preventDefault();
+  const ghost=document.createElement('div');ghost.className='ghost';ghost.textContent=labels[kind];document.body.appendChild(ghost);
+  const move=ev=>{
+    ghost.style.left=ev.clientX+'px';ghost.style.top=ev.clientY+'px';
+    const r=viewport.getBoundingClientRect();
+    if(ev.clientY<r.top+50)viewport.scrollTop-=12;
+    if(ev.clientY>r.bottom-50)viewport.scrollTop+=12;
+  };
+  move(e);
+  const up=async ev=>{
+    window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);
+    ghost.remove();
+    const r=day.getBoundingClientRect();
+    if(ev.clientX<r.left-60||ev.clientX>r.right||ev.clientY<r.top||ev.clientY>r.bottom)return;
+    await createAt(kind,yToMin(ev.clientY-r.top));
+  };
+  window.addEventListener('pointermove',move,{passive:false});
+  window.addEventListener('pointerup',up,{once:true});
+}
+document.querySelectorAll('.tool[data-kind]').forEach(b=>b.addEventListener('pointerdown',e=>paletteDrag(e,b.dataset.kind)));
+
+$('room').textContent=room.code||'sin sala';
+readPPM();grid();updateNow();load();
+setInterval(updateNow,15000);
+window.addEventListener('resize',()=>{readPPM();grid();renderBlocks();updateNow()});
 })();
 </script>
 </body>
