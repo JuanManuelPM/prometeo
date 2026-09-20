@@ -30,14 +30,23 @@ jobs:
       - name: Static contracts
         shell: bash
         run: |
-          set -euo pipefail
+          set -u
           if [ ! -d pages/bench/cat-lab ]; then
             echo "No Cat Lab slots yet."
             exit 0
           fi
+          failures=0
           while IFS= read -r -d '' f; do
-            node tests/cat-lab-contract-v1.mjs "$(dirname "$f")"
-          done < <(find pages/bench/cat-lab -type f -name index.html -print0)
+            echo "::group::STATIC $f"
+            if ! node tests/cat-lab-contract-v1.mjs "$(dirname "$f")"; then
+              failures=$((failures+1))
+            fi
+            echo "::endgroup::"
+          done < <(find pages/bench/cat-lab -type f -name index.html -print0 | sort -z)
+          if [ "$failures" -ne 0 ]; then
+            echo "CATLAB_STATIC_FAILURES=$failures"
+            exit 1
+          fi
       - name: Install representative Chromium
         if: ${{ hashFiles('pages/bench/cat-lab/**/index.html') != '' }}
         run: |
@@ -55,9 +64,18 @@ jobs:
         if: ${{ hashFiles('pages/bench/cat-lab/**/index.html') != '' }}
         shell: bash
         run: |
-          set -euo pipefail
+          set -u
+          failures=0
           while IFS= read -r -d '' f; do
             rel="${f#pages/}"
             dir="$(dirname "$rel")"
-            node tests/cat-lab-browser-v1.mjs "http://127.0.0.1:4173/$dir/"
-          done < <(find pages/bench/cat-lab -type f -name index.html -print0)
+            echo "::group::BROWSER $dir"
+            if ! node tests/cat-lab-browser-v1.mjs "http://127.0.0.1:4173/$dir/"; then
+              failures=$((failures+1))
+            fi
+            echo "::endgroup::"
+          done < <(find pages/bench/cat-lab -type f -name index.html -print0 | sort -z)
+          if [ "$failures" -ne 0 ]; then
+            echo "CATLAB_BROWSER_FAILURES=$failures"
+            exit 1
+          fi
