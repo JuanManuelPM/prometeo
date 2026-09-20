@@ -102,7 +102,11 @@ else {
   if (handoffItem.required?.canonical_prompt_first_copyable_block !== true) errors.push('baseline: EFF056 prompt-first drift');
   if (handoffItem.required?.approximate_count_required !== true) errors.push('baseline: EFF056 count requirement drift');
   if (handoffItem.required?.count_withholding_on_stale_runtime_forbidden !== true) errors.push('baseline: EFF056 stale runtime count drift');
-  if (handoffItem.required?.current_estimator_min !== 10 || handoffItem.required?.current_estimator_max !== 20) errors.push('baseline: EFF056 estimator range drift');
+  if (handoffItem.required?.current_estimator_min !== 4 || handoffItem.required?.current_estimator_max !== 20) errors.push('baseline: EFF056 estimator range drift');
+  if (handoffItem.required?.post_graduation_stable_surface !== '/w') errors.push('baseline: EFF056 production surface drift');
+  if (handoffItem.required?.canary_surface !== '/wc') errors.push('baseline: EFF056 canary surface drift');
+  if (handoffItem.required?.post_graduation_capability_compatible_frontier_required !== true) errors.push('baseline: EFF056 capability-aware estimator drift');
+  if (handoffItem.required?.raw_frontier_overlaunch_forbidden !== true) errors.push('baseline: EFF056 raw-frontier overlaunch drift');
   if (handoffItem.required?.post_smoke_returns_to_ordinary_estimator !== true) errors.push('baseline: EFF056 post-smoke estimator drift');
   if (handoffItem.required?.integrity_smoke_override_supported !== true || handoffItem.required?.integrity_smoke_workers !== 3) errors.push('baseline: EFF056 smoke override support drift');
   if (handoffItem.required?.smoke_pass_disables_override !== true) errors.push('baseline: EFF056 smoke-pass disable drift');
@@ -110,8 +114,8 @@ else {
 }
 const handoffPolicy = JSON.parse(read(root, 'coordination/guide/GUIDE_WORKER_HANDOFF_V1.json')||'{}');
 if (handoffPolicy.status !== 'ACTIVE_BINDING') errors.push('guide-handoff: policy must be ACTIVE_BINDING');
-if (handoffPolicy?.launch_estimator?.bounded_canary?.minimum !== 10 || handoffPolicy?.launch_estimator?.bounded_canary?.maximum !== 20) errors.push('guide-handoff: bounded canary drift');
-if (handoffPolicy?.launch_estimator?.bounded_canary?.frontier_multiplier !== 1.25) errors.push('guide-handoff: frontier multiplier drift');
+if (handoffPolicy?.launch_estimator?.bounded_canary?.minimum !== 4 || handoffPolicy?.launch_estimator?.bounded_canary?.maximum !== 20) errors.push('guide-handoff: bounded canary drift');
+if (handoffPolicy?.launch_estimator?.bounded_canary?.frontier_multiplier !== 0.5) errors.push('guide-handoff: frontier multiplier drift');
 const handoffApprox = handoffPolicy?.current_recommendation_example?.recommended_approx_workers;
 const platformGraduationHold = handoffPolicy?.platform_graduation_override?.status === 'ACTIVE';
 const freshLaunchPolicyForHandoff = JSON.parse(read(root,'coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json')||'{}');
@@ -120,14 +124,14 @@ if (platformGraduationHold) {
   if (handoffPolicy?.platform_graduation_override?.exact !== true) errors.push('guide-handoff: platform graduation zero hold must be exact');
 } else if (freshLaunchPolicyForHandoff?.smoke_gate?.status === 'SMOKE_PASS') {
   if (handoffPolicy?.integrity_smoke_override?.status === 'ACTIVE') errors.push('guide-handoff: smoke override still active after SMOKE_PASS');
-  if (!Number.isInteger(handoffApprox) || handoffApprox < 10 || handoffApprox > 20) errors.push('guide-handoff: post-smoke recommendation outside bounded estimator');
+  if (!Number.isInteger(handoffApprox) || handoffApprox < 4 || handoffApprox > 20) errors.push('guide-handoff: post-smoke recommendation outside bounded estimator');
 } else if (handoffPolicy?.integrity_smoke_override?.status === 'ACTIVE') {
   if (handoffApprox !== handoffPolicy?.integrity_smoke_override?.approximate_workers_before_next_guide_return) errors.push('guide-handoff: active smoke recommendation drift');
 }
 const guideBootstrap = read(root, 'g');
 must('guide-handoff', guideBootstrap, 'WORKER HANDOFF RESPONSE OVERRIDE');
 must('guide-handoff', guideBootstrap, 'first visible copyable block');
-must('guide-handoff', guideBootstrap, 'MANDÁ ~<N> /wc Y VOLVÉ A /g');
+must('guide-handoff', guideBootstrap, 'MANDÁ ~<N> /w Y VOLVÉ A /g');
 const guideHandoffTest = read(root, 'tests/guide-worker-handoff-v1.test.mjs');
 must('guide-handoff-test', guideHandoffTest, 'GUIDE_WORKER_HANDOFF_V1_PASS');
 const handoffGuideBriefBuilder = read(root, 'scripts/build-guide-brief.mjs');
@@ -609,7 +613,7 @@ must('guide-visible-response', guide, 'coordination/guide/visible-responses/<ses
 must('guide-utility-footer', guide, '## HUMAN UTILITY FOOTER');
 must('guide-utility-footer', guide, 'https://juanmanuelpm.github.io/prometeo/guide/');
 must('guide-utility-footer', guide, 'RELEVANT PAGES');
-must('guide-utility-footer', guide, '/wc PROMPT');
+must('guide-utility-footer', guide, 'WORKER PROMPT');
 must('guide-utility-footer', guide, 'HUMAN ACTION');
 must('guide-utility-footer', guide, 'NEXT GUIDE CYCLE');
 must('guide-growth-trajectory', guide, '## GROWTH TRAJECTORY / ANTI-DRIFT');
