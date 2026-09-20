@@ -14,87 +14,100 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 #stage.n3{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr}
 #stage.n4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
 .panel{position:relative;overflow:hidden;background:#000;min-width:0;min-height:0}
-.panel>iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+.panel iframe,.ytHost,.ytHost iframe{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;border:0!important}
 .clockPanel{display:grid;place-items:center;background:#050505}
 .focusClock{position:relative;width:min(72%,72vh);aspect-ratio:1;border-radius:50%;overflow:hidden;border:2px solid #f4f3ee;background:conic-gradient(from -90deg,#ff3b30 0deg 150deg,#171717 150deg 180deg,#ff3b30 180deg 330deg,#171717 330deg 360deg)}
 .focusClock:after{content:'';position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from -90deg,#ffffffaa 0deg 1deg,transparent 1deg 30deg);-webkit-mask:radial-gradient(circle,transparent 0 91%,#000 91% 100%);mask:radial-gradient(circle,transparent 0 91%,#000 91% 100%);pointer-events:none}
 .hand{position:absolute;left:50%;bottom:50%;transform-origin:50% 100%;border-radius:99px;z-index:3}
-.hourHand{width:6px;height:27%;background:#f4f3ee}
-.minuteHand{width:3px;height:39%;background:#f4f3ee}
-.secondHand{width:1px;height:43%;background:#f4f3ee}
+.hourHand{width:6px;height:27%;background:#f4f3ee}.minuteHand{width:3px;height:39%;background:#f4f3ee}.secondHand{width:1px;height:43%;background:#f4f3ee}
 .centerPin{position:absolute;left:50%;top:50%;width:12px;height:12px;transform:translate(-50%,-50%);border-radius:50%;background:#050505;border:2px solid #f4f3ee;z-index:5}
 .unlock{position:fixed;z-index:50;right:12px;bottom:12px;display:none;border:1px solid #ffffff55;background:#000c;color:#fff;height:36px;padding:0 12px;font-size:9px;font-weight:900;letter-spacing:.08em}
 .unlock.show{display:block}
-.status{position:fixed;right:8px;top:8px;z-index:60;width:5px;height:5px;border-radius:50%;background:#333;opacity:.35}
-.status.err{background:#fff}
+.status{position:fixed;right:8px;top:8px;z-index:60;width:5px;height:5px;border-radius:50%;background:#333;opacity:.35}.status.err{background:#fff}
 </style>
 </head>
 <body>
 <main id="stage" class="n1"></main>
-<button id="unlock" class="unlock">TOCAR PARA ACTIVAR</button>
+<button id="unlock" class="unlock">ACTIVAR VIDEO</button>
 <div id="status" class="status"></div>
+<script src="https://www.youtube.com/iframe_api"></script>
 <script>
 (()=>{
 'use strict';
-const BUILD='9';
+const BUILD='10';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const RUNTIME='https://juanmanuelpm.github.io/prometeo/experiments/tv-split-v1-runtime.json';
 const p=new URLSearchParams(location.hash.slice(1));
 const room={code:p.get('room')||'',token:p.get('t')||'',role:'tv'};
-const client='tv-v8-'+Math.random().toString(36).slice(2,10);
+const client='tv-v10-'+Math.random().toString(36).slice(2,10);
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
 const views=new Map();
-let blocks=[],serverActive=[],lastCommandId=0,updatePending=false,pageStarted=Date.now(),runtimeBuild=BUILD,lastRevision='';
+let blocks=[],serverActive=[],ytReady=false,lastCommandId=0,updatePending=false,pageStarted=Date.now();
+
+window.onYouTubeIframeAPIReady=()=>{ytReady=true;for(const b of active())ensureView(b,true)};
 
 function nowParts(){
  const ps=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
  const get=t=>Number(ps.find(x=>x.type===t)?.value||0);return{h:get('hour'),m:get('minute'),s:get('second')}
 }
-function nowMin(){const n=nowParts();return n.h*60+n.m}
 function active(){return (serverActive||[]).slice().sort((a,b)=>String(a.id).localeCompare(String(b.id))).slice(0,4)}
 async function api(body){
  const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:room.code,role:'tv',token:room.token,client_id:client,...body}),cache:'no-store'});
  const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||'TV_API');return d
 }
 function sig(b){return b.kind+'|'+JSON.stringify(b.payload||{})}
-function videoId(b){return String(b.payload?.video_id||'')}
-function ytSrc(id){return 'https://www.youtube.com/embed/'+encodeURIComponent(id)+'?autoplay=1&playsinline=1&controls=1&rel=0&enablejsapi=1&origin='+encodeURIComponent(location.origin)}
-function postYT(v,func,args=[]){try{v.iframe?.contentWindow?.postMessage(JSON.stringify({event:'command',func,args}),'https://www.youtube.com')}catch{}}
-function armYT(v){
- if(!v.iframe)return;
- setTimeout(()=>{try{v.iframe.contentWindow.postMessage(JSON.stringify({event:'listening',id:v.iframe.id,channel:'prometeo'}),'https://www.youtube.com')}catch{};postYT(v,'playVideo')},250)
-}
 function clockMarkup(){return '<div class="focusClock"><div class="hand hourHand"></div><div class="hand minuteHand"></div><div class="hand secondHand"></div><div class="centerPin"></div></div>'}
-function createView(b){
- const el=document.createElement('section');el.className='panel';const id=String(b.id);
- const v={id,el,kind:b.kind,sig:sig(b),iframe:null,state:null,muted:false};
- if(b.kind==='clock'){el.classList.add('clockPanel');el.innerHTML=clockMarkup()}
- else if(b.kind==='page'){const f=document.createElement('iframe');f.src=b.payload?.url||'about:blank';f.allow='autoplay; fullscreen; picture-in-picture';el.appendChild(f);v.iframe=f}
- else if(b.kind==='youtube'){
-   const f=document.createElement('iframe');f.id='yt-'+id.replace(/[^a-z0-9_-]/gi,'');f.src=ytSrc(videoId(b));f.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';f.referrerPolicy='strict-origin-when-cross-origin';f.addEventListener('load',()=>{armYT(v);unlock.classList.add('show')});el.appendChild(f);v.iframe=f
- }
- views.set(id,v);stage.appendChild(el);return v
+function destroyView(id){
+ const v=views.get(String(id));if(!v)return;
+ try{v.player?.destroy()}catch{}
+ try{v.el.remove()}catch{}
+ views.delete(String(id))
 }
-function destroyView(id){const v=views.get(String(id));if(!v)return;try{v.el.remove()}catch{}views.delete(String(id))}
-function ensureView(b){
- const id=String(b.id),v=views.get(id);
- if(v&&v.sig===sig(b))return v;
- if(v)destroyView(id);
+function createView(b){
+ const id=String(b.id),el=document.createElement('section');el.className='panel';
+ const v={id,el,kind:b.kind,sig:sig(b),player:null,ready:false,muted:false,state:null};
+ views.set(id,v);stage.appendChild(el);
+ if(b.kind==='clock'){el.classList.add('clockPanel');el.innerHTML=clockMarkup()}
+ else if(b.kind==='page'){const f=document.createElement('iframe');f.src=b.payload?.url||'about:blank';f.allow='autoplay; fullscreen; picture-in-picture';el.appendChild(f)}
+ else if(b.kind==='youtube'){
+   const host=document.createElement('div');host.className='ytHost';host.id='yt-'+id.replace(/[^a-z0-9_-]/gi,'');el.appendChild(host);
+   if(ytReady&&window.YT?.Player)mountPlayer(b,v)
+ }
+ return v
+}
+function mountPlayer(b,v){
+ if(v.player||!ytReady||!window.YT?.Player)return;
+ try{
+  v.player=new YT.Player(v.el.querySelector('.ytHost').id,{
+    videoId:String(b.payload?.video_id||''),
+    playerVars:{autoplay:1,controls:1,playsinline:1,rel:0,fs:1,iv_load_policy:3,disablekb:0},
+    events:{
+      onReady:e=>{v.ready=true;try{e.target.playVideo()}catch{}},
+      onStateChange:e=>{v.state=Number(e.data)},
+      onAutoplayBlocked:()=>unlock.classList.add('show'),
+      onError:()=>unlock.classList.add('show')
+    }
+  })
+ }catch{unlock.classList.add('show')}
+}
+function ensureView(b,forceMount=false){
+ const id=String(b.id),old=views.get(id);
+ if(old&&old.sig===sig(b)){if(forceMount&&b.kind==='youtube')mountPlayer(b,old);return old}
+ if(old)destroyView(id);
  return createView(b)
 }
 function applyGrid(act){
  const n=Math.max(1,act.length);stage.className='n'+n;
- act.forEach((b,i)=>{
-   const v=views.get(String(b.id));if(!v)return;
-   v.el.style.display='';
+ for(let i=0;i<act.length;i++){
+   const v=views.get(String(act[i].id));if(!v)continue;
    if(n<=3){v.el.style.gridColumn=String(i+1);v.el.style.gridRow='1'}
-   else{v.el.style.gridColumn=String((i%2)+1);v.el.style.gridRow=String(Math.floor(i/2)+1)}
- })
+   else{v.el.style.gridColumn=String(i%2+1);v.el.style.gridRow=String(Math.floor(i/2)+1)}
+ }
 }
 function syncStage(){
  const act=active(),ids=new Set(act.map(b=>String(b.id)));
  for(const id of [...views.keys()])if(!ids.has(id))destroyView(id);
- for(const b of act)ensureView(b);
+ for(const b of act)ensureView(b,true);
  if(!act.length){
    stage.className='n1';
    if(!stage.querySelector('.empty')){const e=document.createElement('section');e.className='panel empty';stage.appendChild(e)}
@@ -107,72 +120,61 @@ function tickClock(){
  document.querySelectorAll('.minuteHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+ma+'deg)');
  document.querySelectorAll('.secondHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+sa+'deg)')
 }
-function activeYoutubeViews(){return active().filter(b=>b.kind==='youtube').map(b=>views.get(String(b.id))).filter(Boolean)}
-function commandTarget(blockId){if(blockId&&views.has(String(blockId)))return[views.get(String(blockId))];return activeYoutubeViews()}
+function youtubeViews(){return active().filter(b=>b.kind==='youtube').map(b=>views.get(String(b.id))).filter(Boolean)}
+function targets(blockId){if(blockId&&views.has(String(blockId)))return[views.get(String(blockId))];return youtubeViews()}
 function playerCommand(cmd,blockId){
- const targets=commandTarget(blockId);
- for(const v of targets){
-   if(v.kind!=='youtube')continue;
-   if(cmd==='play'){postYT(v,'playVideo');v.state=1}
-   else if(cmd==='pause'){postYT(v,'pauseVideo');v.state=2}
-   else if(cmd==='toggle'){if(v.state===1){postYT(v,'pauseVideo');v.state=2}else{postYT(v,'playVideo');v.state=1}}
-   else if(cmd==='mute'){postYT(v,'mute');v.muted=true}
-   else if(cmd==='unmute'){postYT(v,'unMute');v.muted=false}
+ for(const v of targets(blockId)){
+   if(v.kind!=='youtube'||!v.player)continue;
+   try{
+    if(cmd==='play')v.player.playVideo();
+    else if(cmd==='pause')v.player.pauseVideo();
+    else if(cmd==='toggle'){const s=v.player.getPlayerState();s===1?v.player.pauseVideo():v.player.playVideo()}
+    else if(cmd==='mute'){v.player.mute();v.muted=true}
+    else if(cmd==='unmute'){v.player.unMute();v.muted=false}
+   }catch{}
  }
 }
-function refreshPanel(blockId){
- const b=blocks.find(x=>String(x.id)===String(blockId));if(!b)return;
- destroyView(blockId);ensureView(b);applyGrid(active())
-}
+function refreshPanel(blockId){const b=blocks.find(x=>String(x.id)===String(blockId));if(!b)return;destroyView(blockId);ensureView(b,true);applyGrid(active())}
 function hardReload(){location.replace(location.pathname+'?v='+Date.now()+location.hash)}
-function maybeApplyPendingUpdate(){if(updatePending&&activeYoutubeViews().length===0)hardReload()}
+function maybeApplyPendingUpdate(){if(updatePending&&youtubeViews().length===0)hardReload()}
 async function pollCommands(){
  try{
-   const d=await api({action:'commands',after_id:lastCommandId});
-   for(const ev of d.events||[]){
-     lastCommandId=Math.max(lastCommandId,Number(ev.id)||0);
-     if(new Date(ev.created_at).getTime()<pageStarted-1500)continue;
-     const x=ev.payload||{},cmd=String(x.command||''),blockId=String(x.block_id||'');
-     if(['play','pause','toggle','mute','unmute'].includes(cmd))playerCommand(cmd,blockId);
-     else if(cmd==='refresh_panel')refreshPanel(blockId);
-     else if(cmd==='reload_now')hardReload();
-     else if(cmd==='reload_when_idle'){updatePending=true;maybeApplyPendingUpdate()}
-   }
+  const d=await api({action:'commands',after_id:lastCommandId});
+  for(const ev of d.events||[]){
+   lastCommandId=Math.max(lastCommandId,Number(ev.id)||0);
+   if(new Date(ev.created_at).getTime()<pageStarted-1500)continue;
+   const x=ev.payload||{},cmd=String(x.command||''),blockId=String(x.block_id||'');
+   if(['play','pause','toggle','mute','unmute'].includes(cmd))playerCommand(cmd,blockId);
+   else if(cmd==='refresh_panel')refreshPanel(blockId);
+   else if(cmd==='reload_now')hardReload();
+   else if(cmd==='reload_when_idle'){updatePending=true;maybeApplyPendingUpdate()}
+  }
  }catch{}
 }
 async function sendState(){
- const act=active(),ys=act.filter(b=>b.kind==='youtube');
- const playerState={};
- for(const b of ys){const v=views.get(String(b.id));playerState[String(b.id)]={state:v?.state??null,muted:!!v?.muted,video_id:b.payload?.video_id||''}}
+ const act=active(),ys=act.filter(b=>b.kind==='youtube'),playerState={};
+ for(const b of ys){
+  const v=views.get(String(b.id));let state=null,muted=false,time=null;
+  try{state=v?.player?.getPlayerState?.()??v?.state??null;muted=!!v?.player?.isMuted?.();time=v?.player?.getCurrentTime?.()??null}catch{}
+  playerState[String(b.id)]={state,muted,current_time:time,video_id:b.payload?.video_id||''}
+ }
  try{await api({action:'tv_state',build:BUILD,active_ids:act.map(b=>b.id),active_youtube_ids:ys.map(b=>b.id),player_state:playerState,update_pending:updatePending})}catch{}
 }
 async function loadSchedule(){
  try{
-   const d=await api({action:'list'});
-   blocks=d.blocks||[];
-   serverActive=d.active_blocks||[];
-   lastRevision=String(d.revision||lastRevision||'');
-   runtimeBuild=String(d.runtime_build||BUILD);
-   status.className='status';
-   syncStage()
+  const d=await api({action:'list'});
+  blocks=d.blocks||[];serverActive=d.active_blocks||[];
+  status.className='status';syncStage()
  }catch{status.className='status err'}
 }
 async function checkRuntime(){
  try{
-   const r=await fetch(RUNTIME+'?t='+Date.now(),{cache:'no-store'}),d=await r.json();
-   runtimeBuild=String(d.build||BUILD);
-   if(runtimeBuild!==BUILD){if(activeYoutubeViews().length)updatePending=true;else hardReload()}
+  const r=await fetch(RUNTIME+'?t='+Date.now(),{cache:'no-store'}),d=await r.json();
+  if(String(d.build||BUILD)!==BUILD){if(youtubeViews().length)updatePending=true;else hardReload()}
  }catch{}
 }
-window.addEventListener('message',e=>{
- if(!String(e.origin||'').includes('youtube.com'))return;
- let d=e.data;try{if(typeof d==='string')d=JSON.parse(d)}catch{return}
- const state=d?.info?.playerState??d?.info?.infoDelivery?.playerState??d?.infoDelivery?.playerState;
- if(state===undefined)return;
- for(const v of views.values())if(v.iframe?.contentWindow===e.source){v.state=Number(state);break}
-});
-unlock.onclick=()=>{unlock.classList.remove('show');for(const v of activeYoutubeViews())postYT(v,'playVideo')};
-document.addEventListener('click',()=>{for(const v of activeYoutubeViews())postYT(v,'playVideo')},{once:true});
+unlock.onclick=()=>{unlock.classList.remove('show');for(const v of youtubeViews())try{v.player?.playVideo()}catch{}};
+document.addEventListener('click',()=>{for(const v of youtubeViews())try{v.player?.playVideo()}catch{}},{once:true});
 setInterval(()=>{tickClock();syncStage()},250);
 setInterval(loadSchedule,700);
 setInterval(pollCommands,350);
