@@ -21,7 +21,7 @@ button{font:inherit;color:inherit}
 .remoteBar.show{display:flex}
 .remoteState{min-width:0;flex:1;display:flex;align-items:center;gap:6px;font:800 7px ui-monospace,SFMono-Regular,Menlo,monospace;color:#8f8e86;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .remoteDot{width:6px;height:6px;border-radius:50%;background:#343431;flex:0 0 auto}
-.remoteBar.live .remoteDot{background:#f4f2ea}.remoteBar.stale .remoteDot{background:var(--red)}
+.remoteBar.live .remoteDot{background:#f4f2ea}.remoteBar.available .remoteDot{background:#77766f}.remoteBar.stale .remoteDot{background:var(--red)}
 .remoteCmd{height:24px;min-width:34px;border:1px solid #2d2d29;background:#0d0d0c;color:var(--fg);padding:0 8px;font-size:8px;font-weight:900}
 .remoteCmd:disabled{opacity:.28}
 .palette{display:grid;grid-template-rows:0fr;transition:grid-template-rows .14s ease}
@@ -117,8 +117,8 @@ const samples={clock:{title:'RELOJ 25/5',payload:{style:'focus25-5'}},page:{titl
 const ytLatest=new Map();
 let blocks=[],serverBlocks=[],selected=null,ppm=.7,cycleH=1000,loaded=false,rendering=false,saving=false;
 const dirtyBlocks=new Set(),pendingDeletes=new Set();
-const cacheKey='tv.program.editor.v26.'+room.code;
-let tvState=null;
+const cacheKey='tv.program.editor.v27.'+room.code;
+let tvState=null,previewOpen=false;
 
 function clone(x){return JSON.parse(JSON.stringify(x))}
 function ba(){const ps=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());const get=t=>Number(ps.find(x=>x.type===t)?.value||0);return{h:get('hour'),m:get('minute')}}
@@ -131,12 +131,18 @@ function remoteTarget(){const b=blocks.find(x=>String(x.id)===String(selected)&&
 async function sendRemote(command){try{await api({action:'command',command,block_id:remoteTarget()})}catch(e){toast(String(e.message||e))}}
 function renderRemote(){
  const bar=$('remoteBar'),text=$('remoteText'),play=$('remotePlay'),pause=$('remotePause'),mute=$('remoteMute');
- bar.classList.add('show');bar.classList.remove('live','stale');
+ bar.classList.add('show');bar.classList.remove('live','available','stale');
  const age=tvState?.updated_at?Date.now()-new Date(tvState.updated_at).getTime():Infinity;
- const live=age<4500,ys=tvState?.active_youtube_ids||[],build=String(tvState?.build||'');
- if(live){bar.classList.add('live');text.textContent=build==='8'?(ys.length?'TV · YOUTUBE EN VIVO':'TV · EN VIVO'):'TV · VERSIÓN VIEJA';}
- else{bar.classList.add('stale');text.textContent='TV · SIN SEÑAL';}
- const enabled=live&&ys.length>0;play.disabled=!enabled;pause.disabled=!enabled;mute.disabled=!enabled
+ const externalLive=age<4500,ys=tvState?.active_youtube_ids||[],build=String(tvState?.build||'');
+ if(previewOpen){
+   bar.classList.add('live');text.textContent='TV · ABIERTA EN ESTE CELULAR';
+ }else if(externalLive){
+   bar.classList.add('live');text.textContent=build==='8'?(ys.length?'TV · PANTALLA EXTERNA · YOUTUBE':'TV · PANTALLA EXTERNA'):'TV · PANTALLA EXTERNA · VERSIÓN VIEJA';
+ }else{
+   bar.classList.add('available');text.textContent='TV · DISPONIBLE';
+ }
+ const enabled=externalLive&&ys.length>0;
+ play.disabled=!enabled;pause.disabled=!enabled;mute.disabled=!enabled
 }
 async function pollTVState(){try{const d=await api({action:'state'});tvState=d.state||null;renderRemote()}catch{tvState=null;renderRemote()}}
 async function loadYTPresets(){
@@ -233,11 +239,11 @@ $('remoteMute').onclick=()=>sendRemote('mute');
 $('previewBtn').onclick=()=>{
   const wrap=$('tvPreview'),frame=$('tvPreviewFrame');
   if(!frame.src)frame.src='https://juanmanuelpm.github.io/prometeo/tv/';
-  wrap.classList.add('open');wrap.setAttribute('aria-hidden','false')
+  previewOpen=true;wrap.classList.add('open');wrap.setAttribute('aria-hidden','false');renderRemote()
 };
 $('tvBack').onclick=()=>{
   const wrap=$('tvPreview'),frame=$('tvPreviewFrame');
-  wrap.classList.remove('open');wrap.setAttribute('aria-hidden','true');
+  previewOpen=false;wrap.classList.remove('open');wrap.setAttribute('aria-hidden','true');renderRemote();
   frame.src='about:blank';setTimeout(()=>frame.removeAttribute('src'),0)
 };
 document.querySelectorAll('.tool[data-kind]').forEach(b=>b.onclick=()=>addSample(b.dataset.kind));
