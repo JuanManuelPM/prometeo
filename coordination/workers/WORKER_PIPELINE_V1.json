@@ -2,7 +2,7 @@
   "schema": "prometeo.worker-pipeline/v1",
   "pipeline_id": "WORKER-PIPELINE-V1",
   "status": "ACTIVE_BINDING",
-  "updated_at": "2026-09-20T22:52:20Z",
+  "updated_at": "2026-09-20T23:46:00Z",
   "purpose": "Decompose a worker launch into observable stages so failures can be located and improved without changing the whole worker at once.",
   "global_law": "Optimize the pipeline stage that is actually weak. Do not compensate for a weak entry/decision stage by launching more workers, and do not let experiments reduce product completion.",
   "stages": [
@@ -71,16 +71,38 @@
     {
       "id": "E7_RETURN",
       "name": "Durable return",
-      "goal": "Persist the primary result/evidence so another actor can reconstruct what changed.",
-      "hard_rule": "No terminal human answer before durable return/receipt when the scope is executable.",
-      "evidence": "RETURN/benchmark receipt"
+      "goal": "Persist the primary result/evidence so another actor can reconstruct what changed. A transport denial must remain explicit and must not erase already durable production/verification evidence.",
+      "hard_rule": "No terminal human answer before durable RETURN/guide receipt when the scope is executable. For non-RUN BATCH/POOL only: if an explicit tool/connector safety denial proves the canonical RETURN/guide receipt was NOT persisted after E5 and E6 completed, never retry or bypass the denied operation/path. If a separate permitted transport-boundary receipt is durably persisted with exact authority_ref, started_ref and completed evidence refs, keep E7=BOUNDARY and allow only E8 continuation to unrelated compatible work. The blocked unit does not count as productive, prior authority is not released, and the blocked job remains recovery debt.",
+      "evidence": "RETURN/guide receipt; or explicit transport-boundary receipt proving non-persistence plus exact authority/STARTED/product/test evidence (BOUNDARY only, never PASS)",
+      "transport_continuation": {
+        "status": "ACTIVE_BINDING",
+        "scope": "NON_RUN_BATCH_OR_POOL_ONLY",
+        "trigger": "EXPLICIT_RETURN_OR_GUIDE_RECEIPT_TRANSPORT_DENIAL_AFTER_E5_E6_COMPLETE",
+        "required_durable_evidence": [
+          "authority_ref",
+          "started_ref",
+          "completed_product_or_frontier_evidence",
+          "verification_evidence",
+          "transport_boundary_receipt"
+        ],
+        "forbidden": [
+          "retry_denied_operation_or_path",
+          "alternate_path_used_as_fake_RETURN",
+          "count_blocked_unit_as_productive",
+          "release_or_overwrite_prior_authority",
+          "continue_into_same exclusive mutation target",
+          "reinterpret E7 as PASS"
+        ],
+        "continuation": "E7 remains BOUNDARY; worker may enter E8 and claim unrelated compatible work under the same fresh worker_id. Old job stays immutable/recovery-bound until normal recovery resolves the missing RETURN.",
+        "run_mode": "DISALLOWED_UNLESS_PACKET_EXPLICITLY_AUTHORIZES; default RUN behavior remains terminal boundary"
+      }
     },
     {
       "id": "E8_REALLOCATE",
       "name": "Autonomous reallocation",
-      "goal": "After primary completion, take a compatible second objective without new human routing.",
-      "hard_rule": "Primary completion is not terminal in graduation RUNs.",
-      "evidence": "reallocation claim + second-project evidence"
+      "goal": "After a counted RETURN, or after an explicitly evidenced non-RUN E7 transport boundary that permits continuation, take a compatible unrelated objective without new human routing.",
+      "hard_rule": "Primary completion is not terminal in graduation RUNs. In ordinary BATCH/POOL, an E7 transport-boundary continuation never counts the blocked unit and must not touch the still-owned blocked target; it only preserves resident capacity for unrelated compatible work.",
+      "evidence": "reallocation claim + next-objective evidence; when entered from E7 BOUNDARY also cite the exact transport-boundary receipt"
     },
     {
       "id": "E9_EXAM_CLOSE",
@@ -118,7 +140,8 @@
     "VERIFICATION_INCOMPLETE",
     "RETURN_NOT_PERSISTED",
     "REALLOCATION_NOT_COMPLETED",
-    "EXAM_NOT_PERSISTED"
+    "EXAM_NOT_PERSISTED",
+    "RETURN_TRANSPORT_BLOCKED_CONTINUATION"
   ],
   "experiment_boundary": "Future evolution rounds may vary one stage rule at a time. Identity, authority, safety, benchmark objective, hard gates and evidence truth remain invariant. V3_EVIDENCE_MAP is the frozen E6 baseline after CATLAB-P2B-01; future experiments compare against it rather than the former direct-control E6."
 }
