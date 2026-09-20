@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cat Lab · S002</title>
+<style>
+:root{--paper:#f2eadb;--ink:#111;--rail:88px}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;background:var(--paper)}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Arial,Helvetica,sans-serif;overflow-x:hidden}
+body[data-palette="night"]{--paper:#111;--ink:#f2eadb}
+button,select,textarea{font:inherit;color:inherit;background:var(--paper);border:2px solid var(--ink);border-radius:0}
+button{cursor:pointer}
+button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+.mast{min-height:100svh;display:grid;grid-template-rows:auto 1fr auto;border-bottom:3px solid var(--ink)}
+.topbar{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;padding:18px 20px;border-bottom:2px solid var(--ink);text-transform:uppercase;font-weight:800;letter-spacing:.04em}
+.brand{font-size:clamp(28px,6vw,72px);line-height:.84;max-width:8ch}
+.status{display:grid;gap:6px;text-align:right;font-size:12px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,420px);gap:clamp(24px,6vw,84px);align-items:end;padding:clamp(28px,7vw,92px) 20px}
+.hero h1{margin:0;font-size:clamp(52px,12vw,160px);line-height:.78;letter-spacing:-.08em;text-transform:uppercase}
+.hero p{margin:0 0 8px;font-size:clamp(18px,2.4vw,32px);line-height:1.05;max-width:18ch;font-weight:700}
+.control-strip{display:flex;flex-wrap:wrap;border-top:2px solid var(--ink)}
+.control-strip>*{min-height:52px;border:0;border-right:2px solid var(--ink);padding:12px 16px;font-weight:800;text-transform:uppercase}
+.control-strip button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,32vw)}
+.reader{border-right:3px solid var(--ink)}
+.chapter{display:grid;grid-template-columns:var(--rail) minmax(0,1fr);min-height:100svh;border-bottom:2px solid var(--ink);position:relative}
+.rail{border-right:2px solid var(--ink);position:relative}
+.rail-num{position:sticky;top:0;height:var(--rail);display:grid;place-items:center;background:var(--ink);color:var(--paper);font-size:34px;font-weight:900;z-index:4}
+.chapter-copy{padding:clamp(28px,6vw,72px) clamp(20px,5vw,70px) clamp(70px,12vw,150px)}
+.chapter-copy .kicker{text-transform:uppercase;font-weight:900;font-size:12px;letter-spacing:.12em}
+.chapter-copy h2{font-size:clamp(42px,8vw,105px);line-height:.86;letter-spacing:-.06em;margin:14px 0 30px;max-width:10ch;text-transform:uppercase}
+.chapter-copy p{font-family:Georgia,"Times New Roman",serif;font-size:clamp(20px,2vw,29px);line-height:1.5;max-width:34em;margin:0 0 1.35em}
+.chapter-copy .fact{font-family:Arial,Helvetica,sans-serif;font-weight:800;font-size:clamp(20px,2.5vw,34px);line-height:1.15;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);padding:18px 0;margin:36px 0}
+.side{position:sticky;top:0;align-self:start;min-height:100svh;display:grid;grid-template-rows:auto auto 1fr auto}
+.panel{border-bottom:2px solid var(--ink);padding:18px}
+.panel h3{font-size:13px;text-transform:uppercase;letter-spacing:.12em;margin:0 0 12px}
+.transport{display:grid;grid-template-columns:repeat(3,1fr)}
+.transport button{min-height:58px;border-width:2px 0 0 0;border-top-color:var(--ink)}
+.transport button+button{border-left:2px solid var(--ink)}
+#tts-play[aria-pressed="true"],#cat-radio-play[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.rate-row,.radio-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center}
+.rate-row select,.radio-row input{width:100%}
+#tts-fallback,#radio-fallback{font-size:12px;line-height:1.35;margin-top:10px;font-weight:700}
+#cat-notes{width:100%;min-height:190px;resize:vertical;padding:12px;line-height:1.35}
+.palette-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.palette-row button{min-height:48px;font-weight:800;text-transform:uppercase}
+.palette-row button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.chapter-readout{font-size:clamp(54px,8vw,100px);font-weight:900;letter-spacing:-.08em;line-height:.8}
+.chapter-readout small{display:block;font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:16px}
+.footer{padding:18px 20px;text-transform:uppercase;font-size:11px;font-weight:800;border-top:2px solid var(--ink)}
+@media(max-width:900px){
+  :root{--rail:62px}
+  .hero{grid-template-columns:1fr;align-items:start}
+  .layout{grid-template-columns:1fr}
+  .reader{border-right:0}
+  .side{position:relative;min-height:auto;border-top:3px solid var(--ink)}
+  .chapter{grid-template-columns:var(--rail) minmax(0,1fr)}
+  .chapter-copy{padding-left:20px;padding-right:20px}
+  .chapter-copy h2{font-size:clamp(42px,14vw,82px)}
+  .rail-num{height:var(--rail);font-size:25px}
+}
+@media(max-width:520px){
+  .topbar{padding:14px}
+  .hero{padding-left:14px;padding-right:14px}
+  .control-strip>*{flex:1 1 50%;border-bottom:2px solid var(--ink)}
+  .status{font-size:10px}
+}
+</style>
+</head>
+<body data-palette="paper">
+<header class="mast">
+  <div class="topbar">
+    <div>CAT LAB / S002</div>
+    <div class="status"><span>Static · local-first</span><span id="capability-state">Audio APIs: checking</span></div>
+  </div>
+  <div class="hero">
+    <h1>Read cats differently.</h1>
+    <p>Four short chapters about how cats move, listen, rest and communicate — built as a tactile reading experiment.</p>
+  </div>
+  <div class="control-strip" aria-label="Quick controls">
+    <button type="button" data-palette="paper" aria-pressed="true">Paper</button>
+    <button type="button" data-palette="night" aria-pressed="false">Night</button>
+    <button type="button" id="jump-reader">Start chapter 1</button>
+  </div>
+</header>
+
+<main class="layout">
+  <article class="reader" id="reader">
+    <section class="chapter" data-catlab-chapter="1" id="chapter-1">
+      <div class="rail"><div class="rail-num" aria-hidden="true">01</div></div>
+      <div class="chapter-copy">
+        <div class="kicker">Chapter 01 · movement</div>
+        <h2>The quiet geometry of a jump</h2>
+        <p>A cat rarely launches at random. Before the leap, the body compresses, the eyes measure the landing and the hind legs store energy like springs. The tail is not decoration in that moment: it helps fine-tune balance while the body is airborne.</p>
+        <div class="fact">A good landing begins before the paws leave the floor.</div>
+        <p>That is why a cat can appear still while doing a surprising amount of work. Small shifts of weight, whisker position and head angle are part of the calculation. The dramatic jump is only the visible last step.</p>
+      </div>
+    </section>
+    <section class="chapter" data-catlab-chapter="2" id="chapter-2">
+      <div class="rail"><div class="rail-num" aria-hidden="true">02</div></div>
+      <div class="chapter-copy">
+        <div class="kicker">Chapter 02 · hearing</div>
+        <h2>Ears that aim</h2>
+        <p>Cat ears can rotate independently, letting the animal sample direction without moving its whole head. This makes a room feel acoustically larger than it does to us: a soft scrape behind furniture can become a precise point of attention.</p>
+        <div class="fact">Listening is also movement — just on a smaller scale.</div>
+        <p>Watch the ears when a cat seems relaxed. They continuously reorient toward footsteps, birds, plumbing and voices. A sudden flattening is different: it can signal discomfort or an attempt to protect the ears during conflict.</p>
+      </div>
+    </section>
+    <section class="chapter" data-catlab-chapter="3" id="chapter-3">
+      <div class="rail"><div class="rail-num" aria-hidden="true">03</div></div>
+      <div class="chapter-copy">
+        <div class="kicker">Chapter 03 · rest</div>
+        <h2>Sleep as a survival skill</h2>
+        <p>Cats spend long stretches resting, but not every quiet moment is deep sleep. Light dozing keeps the body ready to react, while deeper sleep arrives in shorter windows. Domestic life is safer than the wild, yet the old rhythm remains.</p>
+        <div class="fact">Rest is not inactivity; it is part of the cat's energy budget.</div>
+        <p>This rhythm explains sudden bursts of play after hours of calm. Energy is conserved, then released quickly. For indoor cats, predictable play sessions give that cycle a useful outlet and can make the household rhythm easier to read.</p>
+      </div>
+    </section>
+    <section class="chapter" data-catlab-chapter="4" id="chapter-4">
+      <div class="rail"><div class="rail-num" aria-hidden="true">04</div></div>
+      <div class="chapter-copy">
+        <div class="kicker">Chapter 04 · communication</div>
+        <h2>The message between the meows</h2>
+        <p>Much of feline communication is visual and spatial. Tail height, body angle, blinking, distance and approach speed can matter more than volume. Slow blinking is often used in calm social exchanges, while a whipping tail suggests rising arousal.</p>
+        <div class="fact">To read a cat, combine signals instead of trusting one gesture.</div>
+        <p>A single cue can be ambiguous. The useful question is what the ears, tail, posture, eyes and environment are saying together. Context turns a movement into a message.</p>
+      </div>
+    </section>
+  </article>
+
+  <aside class="side" aria-label="Reader controls">
+    <section class="panel">
+      <h3>Current chapter</h3>
+      <div class="chapter-readout"><small>Reading</small><span id="chapter-current">1</span>/4</div>
+    </section>
+
+    <section class="panel">
+      <h3>Speech reader</h3>
+      <div class="rate-row">
+        <label for="tts-rate">Rate</label>
+        <select id="tts-rate" aria-label="Speech rate">
+          <option value="0.8">0.8×</option>
+          <option value="1" selected>1×</option>
+          <option value="1.2">1.2×</option>
+          <option value="1.5">1.5×</option>
+        </select>
+      </div>
+      <div id="tts-fallback" role="status" hidden>Speech synthesis is not available in this browser. The text remains fully readable.</div>
+      <div class="transport">
+        <button id="tts-prev" type="button" aria-label="Previous chapter">←</button>
+        <button id="tts-play" type="button" aria-pressed="false" aria-label="Play chapter">Play</button>
+        <button id="tts-next" type="button" aria-label="Next chapter">→</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>Cat Radio · local ambient</h3>
+      <div class="radio-row">
+        <button id="cat-radio-play" type="button" aria-pressed="false">Play</button>
+        <label>Volume <input id="cat-radio-volume" type="range" min="0" max="1" value="0.22" step="0.01"></label>
+      </div>
+      <div id="radio-fallback" role="status" hidden>Local Web Audio is unavailable here. No remote stream is used.</div>
+    </section>
+
+    <section class="panel">
+      <h3>Field notes</h3>
+      <textarea id="cat-notes" aria-label="Cat Lab notes" placeholder="Write a note. It stays in this browser."></textarea>
+    </section>
+
+    <section class="panel">
+      <h3>Palette</h3>
+      <div class="palette-row">
+        <button type="button" data-palette="paper" aria-pressed="true">Paper</button>
+        <button type="button" data-palette="night" aria-pressed="false">Night</button>
+      </div>
+    </section>
+    <div class="footer">CAT LAB · static benchmark · no external runtime dependency</div>
+  </aside>
+</main>
+
+<script>
+(() => {
+  const KEY = 'catlab:s002:v1';
+  const chapters = [...document.querySelectorAll('[data-catlab-chapter]')];
+  const currentEl = document.getElementById('chapter-current');
+  const notes = document.getElementById('cat-notes');
+  const rate = document.getElementById('tts-rate');
+  const ttsPlay = document.getElementById('tts-play');
+  const ttsPrev = document.getElementById('tts-prev');
+  const ttsNext = document.getElementById('tts-next');
+  const ttsFallback = document.getElementById('tts-fallback');
+  const radioPlay = document.getElementById('cat-radio-play');
+  const radioVolume = document.getElementById('cat-radio-volume');
+  const radioFallback = document.getElementById('radio-fallback');
+  const capabilityState = document.getElementById('capability-state');
+
+  let state = {chapter:1, rate:'1', palette:'paper', notes:''};
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+    state = Object.assign(state, saved);
+  } catch (_) {}
+
+  function persist() {
+    localStorage.setItem(KEY, JSON.stringify(state));
+  }
+
+  function setPalette(name) {
+    state.palette = name === 'night' ? 'night' : 'paper';
+    document.body.dataset.palette = state.palette;
+    document.querySelectorAll('[data-palette]').forEach(btn => {
+      btn.setAttribute('aria-pressed', String(btn.dataset.palette === state.palette));
+    });
+    persist();
+  }
+
+  function setChapter(n, scroll) {
+    const next = Math.max(1, Math.min(4, Number(n) || 1));
+    state.chapter = next;
+    currentEl.textContent = String(next);
+    persist();
+    if (scroll) chapters[next - 1].scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  notes.value = state.notes || '';
+  rate.value = ['0.8','1','1.2','1.5'].includes(String(state.rate)) ? String(state.rate) : '1';
+  setPalette(state.palette);
+
+  notes.addEventListener('input', () => {
+    state.notes = notes.value;
+    persist();
+  });
+  rate.addEventListener('change', () => {
+    state.rate = rate.value;
+    persist();
+    if (window.speechSynthesis && speechSynthesis.speaking) stopSpeech();
+  });
+  document.querySelectorAll('[data-palette]').forEach(btn => btn.addEventListener('click', () => setPalette(btn.dataset.palette)));
+  document.getElementById('jump-reader').addEventListener('click', () => setChapter(1, true));
+
+  const observer = new IntersectionObserver(entries => {
+    const visible = entries.filter(e => e.isIntersecting).sort((a,b) => b.intersectionRatio - a.intersectionRatio)[0];
+    if (visible) setChapter(visible.target.dataset.catlabChapter, false);
+  }, {rootMargin:'-20% 0px -55% 0px', threshold:[0,.15,.4,.7]});
+  chapters.forEach(ch => observer.observe(ch));
+
+  function activeText() {
+    const copy = chapters[state.chapter - 1].querySelector('.chapter-copy');
+    return copy ? copy.innerText.trim() : '';
+  }
+
+  function stopSpeech() {
+    if (!('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    ttsPlay.setAttribute('aria-pressed','false');
+    ttsPlay.textContent='Play';
+  }
+
+  const speechReady = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+  if (!speechReady) {
+    ttsFallback.hidden = false;
+    [ttsPlay,ttsPrev,ttsNext,rate].forEach(el => el.disabled = true);
+  }
+
+  ttsPlay.addEventListener('click', () => {
+    if (!speechReady) return;
+    if (ttsPlay.getAttribute('aria-pressed') === 'true') {
+      stopSpeech();
+      return;
+    }
+    speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(activeText());
+    utterance.rate = Number(rate.value);
+    utterance.lang = 'en-US';
+    utterance.onend = utterance.onerror = () => {
+      ttsPlay.setAttribute('aria-pressed','false');
+      ttsPlay.textContent='Play';
+    };
+    ttsPlay.setAttribute('aria-pressed','true');
+    ttsPlay.textContent='Pause';
+    speechSynthesis.speak(utterance);
+  });
+
+  ttsPrev.addEventListener('click', () => { stopSpeech(); setChapter(state.chapter - 1, true); });
+  ttsNext.addEventListener('click', () => { stopSpeech(); setChapter(state.chapter + 1, true); });
+
+  document.addEventListener('keydown', e => {
+    const target = e.target;
+    const editing = target && (target.matches('input, textarea, select') || target.isContentEditable);
+    if (editing) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); ttsPrev.click(); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); ttsNext.click(); }
+    if (e.key === ' ') { e.preventDefault(); ttsPlay.click(); }
+  });
+
+  const AC = window.AudioContext || window.webkitAudioContext;
+  let ctx = null, master = null, nodes = [];
+  const audioReady = !!AC;
+  if (!audioReady) {
+    radioFallback.hidden = false;
+    radioPlay.disabled = true;
+    radioVolume.disabled = true;
+  }
+
+  function stopRadio() {
+    nodes.forEach(node => { try { node.stop && node.stop(); } catch (_) {} try { node.disconnect(); } catch (_) {} });
+    nodes = [];
+    if (master) { try { master.disconnect(); } catch (_) {} master = null; }
+    if (ctx) { try { ctx.close(); } catch (_) {} ctx = null; }
+    radioPlay.setAttribute('aria-pressed','false');
+    radioPlay.textContent='Play';
+  }
+
+  function startRadio() {
+    if (!audioReady) return;
+    ctx = new AC();
+    master = ctx.createGain();
+    master.gain.value = Number(radioVolume.value);
+    master.connect(ctx.destination);
+
+    const low = ctx.createOscillator();
+    const lowGain = ctx.createGain();
+    low.type='sine'; low.frequency.value=96; lowGain.gain.value=.05;
+    low.connect(lowGain).connect(master); low.start();
+
+    const purr = ctx.createOscillator();
+    const purrGain = ctx.createGain();
+    purr.type='triangle'; purr.frequency.value=27; purrGain.gain.value=.045;
+    purr.connect(purrGain).connect(master); purr.start();
+
+    const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i=0;i<data.length;i++) data[i] = (Math.random()*2-1) * .13;
+    const noise = ctx.createBufferSource();
+    const noiseGain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    filter.type='lowpass'; filter.frequency.value=500;
+    noise.buffer=buffer; noise.loop=true; noise.connect(filter).connect(noiseGain).connect(master); noiseGain.gain.value=.035; noise.start();
+
+    nodes=[low,purr,noise];
+    radioPlay.setAttribute('aria-pressed','true');
+    radioPlay.textContent='Stop';
+  }
+
+  radioPlay.addEventListener('click', () => {
+    if (radioPlay.getAttribute('aria-pressed') === 'true') stopRadio();
+    else startRadio();
+  });
+  radioVolume.addEventListener('input', () => {
+    if (master && ctx) master.gain.setTargetAtTime(Number(radioVolume.value), ctx.currentTime, .02);
+  });
+
+  capabilityState.textContent = 'Speech ' + (speechReady ? 'ready' : 'unavailable') + ' · Radio ' + (audioReady ? 'ready' : 'unavailable');
+
+  requestAnimationFrame(() => {
+    if (state.chapter > 1) chapters[state.chapter - 1].scrollIntoView({behavior:'auto', block:'start'});
+  });
+})();
+</script>
+</body>
+</html>
