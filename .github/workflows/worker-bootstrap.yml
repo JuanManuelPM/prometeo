@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'wc'
+      - 'w'
       - 'coordination/guide/CURRENT_MISSION_V1.json'
       - 'coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json'
       - 'coordination/launch-packets/**'
@@ -47,10 +48,12 @@ jobs:
           path: site
           fetch-depth: 10
 
-      - name: Build public /wc from Current Mission
-        run: node source/scripts/build-worker-bootstrap.mjs source site/wc/index.html
+      - name: Build public worker surfaces from Current Mission
+        run: |
+          node source/scripts/build-worker-bootstrap.mjs source site/wc/index.html canary
+          node source/scripts/build-worker-bootstrap.mjs source site/w/index.html production
 
-      - name: Guard exact public launch prompt
+      - name: Guard exact public launch prompts
         run: node source/tests/worker-fresh-launch-v1.test.mjs source site
 
       - name: Publish guarded worker bootstrap
@@ -58,15 +61,16 @@ jobs:
           set -euo pipefail
           git -C site config user.name github-actions[bot]
           git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git -C site add wc/index.html
+          git -C site add wc/index.html w/index.html
           if git -C site diff --cached --quiet; then exit 0; fi
           git -C site commit -m "wc: publish guarded fresh resident launch"
           for n in 1 2 3 4; do
             if git -C site push origin HEAD:gh-pages; then exit 0; fi
             git -C site fetch origin gh-pages
             git -C site rebase origin/gh-pages
-            node source/scripts/build-worker-bootstrap.mjs source site/wc/index.html
-            git -C site add wc/index.html
+            node source/scripts/build-worker-bootstrap.mjs source site/wc/index.html canary
+            node source/scripts/build-worker-bootstrap.mjs source site/w/index.html production
+            git -C site add wc/index.html w/index.html
             git -C site commit --amend --no-edit
           done
           exit 1
