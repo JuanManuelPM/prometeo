@@ -15,12 +15,15 @@ const root=[
  {type:'file',id:'15w9i0jF0Fi_PGEDTRDh5zb8PEDjzMAg9',name:'Corte Codigo enigma.mp4',mime:'video/mp4',size:'607 MB'}
 ];
 
+const PRIVATE_TEXT_ENDPOINT='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/study-drive-text-v1';
+const PRIVATE_TOKEN_KEY='study_bb_workspace_token';
+
 const module2=[
  {type:'file',id:'1VhggV-9Ivmiijqoex-xpIrUlQItoPPzz',name:'Mieles barrera Aportes de la ciencia cognitiva a la comprension de la cognicion 2024.pdf',mime:'application/pdf',size:'251 KB',doc:'mieles'},
  {type:'file',id:'1WL_vbL3hjwBDYsevXALX0H5gGCDAX6Qq',name:'Rojas paradigma simbolico computacional 2022.pdf',mime:'application/pdf',size:'168 KB',doc:'rojas'},
  {type:'file',id:'1hugwcx3p_IWWEVEJrCNiuqYAqDdog0o8',name:'Miller La_revolucion_cognitiva_una_perspectiva 2006.pdf',mime:'application/pdf',size:'65 KB',doc:'miller'},
  {type:'file',id:'1i3LxEQMF2LgH1AHGBsxQaadhO8ji6rGG',name:'Recorrido de los cientificos Cognitivos_evolucion_pensamiento_Bruner Apunte de catedra.pdf',mime:'application/pdf',size:'241 KB',doc:'bruner'},
- {type:'file',id:'1i3LVQbkeAEWxJdd73M21w9EFDtBcTy71',name:'Teoria_computacional Apunte de Catedra.pdf',mime:'application/pdf',size:'376 KB',doc:'teoria'},
+ {type:'file',id:'1i3LVQbkeAEWxJdd73M21w9EFDtBcTy71',name:'Teoria_computacional Apunte de Catedra.pdf',mime:'application/pdf',size:'376 KB',doc:'teoria',privateFull:true},
  {type:'file',id:'1E1iSOM1Iz4xAjdLRdnvNJ5WFVY1X9JFQ',name:'Diaz García, Ruiz Fernández y Villalobos Crespo (2017). Manual de técnicas y terapias cognitivo conductuales.pdf',mime:'application/pdf',size:'3.36 MB'},
  {type:'file',id:'1CpEezUw_xc5xEA2tXltXucxXhA-E8WXP',name:'Mahoney M. y Freeman A. (1988). Cognición y Psicoterapia. Cap. 3.pdf',mime:'application/pdf',size:'979 KB',doc:'mahoney'},
  {type:'file',id:'1Co6S2eUSajqHjaPa-UmwFL9KgQSh3WPN',name:'Fernández Álvarez H. (1988). Fundamentos de un modelo integrativo en psicoterapia. Cap 3..pdf',mime:'application/pdf',size:'1.16 MB',doc:'fernandez'},
@@ -92,6 +95,7 @@ function openItem(x){
    else push({kind:'empty',name:x.name});
    return;
  }
+ if(x.privateFull){push({kind:'privateDoc',item:x});return}
  if(x.type==='demo'||x.doc){push({kind:'doc',item:x});return}
  push({kind:'unsupported',item:x});
 }
@@ -102,10 +106,33 @@ function renderDoc(item){
  const note=d.full?'':'Este es un fragmento real extraído del archivo. La demo pública no incrusta la obra completa.';
  view.innerHTML=`<header class="doc-head"><h1>${esc(d.title)}</h1><p class="doc-sub">${esc(d.author)} · ${esc(item.name)}</p>${note?`<div class="notice">${esc(note)}</div>`:''}</header><article class="doc">${d.parts.map(([h,p])=>`<section><h2>${esc(h)}</h2><p>${esc(p)}</p></section>`).join('')}</article>`;
 }
+async function renderPrivateDoc(item){
+ crumb.textContent='PROMETEO / DRIVE / MODULO 2 / ARCHIVO';
+ back.hidden=false;
+ const fallback=docs[item.doc]||{title:item.name,author:''};
+ view.innerHTML=`<header class="doc-head"><h1>${esc(fallback.title)}</h1><p class="doc-sub">${esc(fallback.author)} · ${esc(item.name)}</p></header><article class="doc"><p>Cargando archivo completo…</p></article>`;
+ const token=localStorage.getItem(PRIVATE_TOKEN_KEY)||'';
+ if(!token){
+   view.innerHTML=`<header class="doc-head"><h1>${esc(fallback.title)}</h1><p class="doc-sub">${esc(fallback.author)} · ${esc(item.name)}</p></header><div class="notice">El texto completo está guardado en el runtime privado. Este navegador todavía no tiene el token de Study Library. Abrí Study Library una vez y volvé.</div><p><a class="private-link" href="../../pages/study-library/">Abrir Study Library</a></p>`;
+   return;
+ }
+ try{
+   const url=PRIVATE_TEXT_ENDPOINT+'?provider_item_id='+encodeURIComponent(item.id);
+   const r=await fetch(url,{headers:{'x-study-token':token,'x-study-workspace':'colo-study'},cache:'no-store'});
+   const data=await r.json().catch(()=>({}));
+   if(!r.ok||!data.document)throw new Error(data.error||('http_'+r.status));
+   const d=data.document;
+   view.innerHTML=`<header class="doc-head"><h1>${esc(fallback.title)}</h1><p class="doc-sub">${esc(fallback.author)} · ${esc(item.name)} · archivo completo · ${Number(d.char_count||0).toLocaleString('es-AR')} caracteres</p></header><article class="doc"><div class="fulltext">${esc(d.full_text||'')}</div></article>`;
+ }catch(e){
+   view.innerHTML=`<header class="doc-head"><h1>${esc(fallback.title)}</h1><p class="doc-sub">${esc(fallback.author)} · ${esc(item.name)}</p></header><div class="notice">No pude abrir el texto privado completo en este navegador. El archivo sigue guardado de forma privada.</div>`;
+ }
+}
+
 function render(state){
  window.scrollTo(0,0);
  if(state.kind==='root'){if(!stack.length)stack=[state];renderList('Modelos II',root,'MODELOS II');return}
  if(state.kind==='module2'){renderList('Módulo 2',module2,'MODELOS II / MODULO 2');return}
+ if(state.kind==='privateDoc'){renderPrivateDoc(state.item);return}
  if(state.kind==='doc'){renderDoc(state.item);return}
  if(state.kind==='empty'){
    crumb.textContent='PROMETEO / DRIVE / '+state.name;
