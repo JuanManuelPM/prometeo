@@ -78,17 +78,19 @@ jobs:
             rel="${f#pages/}"
             dir="$(dirname "$rel")"
             slot="$(basename "$dir")"
+            run_id="$(basename "$(dirname "$dir")")"
+            key="${run_id}__${slot}"
             echo "::group::BROWSER $dir"
             if output="$(node tests/cat-lab-browser-v1.mjs "http://127.0.0.1:4173/$dir/" 2>&1)"; then
               printf '%s\n' "$output"
-              printf 'PASS\n' > "/tmp/catlab-browser/$slot.status"
-              printf '%s\n' "$output" > "/tmp/catlab-browser/$slot.log"
+              printf 'PASS\n' > "/tmp/catlab-browser/$key.status"
+              printf '%s\n' "$output" > "/tmp/catlab-browser/$key.log"
             else
               code=$?
               printf '%s\n' "$output"
-              printf 'FAIL\n' > "/tmp/catlab-browser/$slot.status"
-              printf '%s\n' "$output" > "/tmp/catlab-browser/$slot.log"
-              printf '%s\n' "$code" > "/tmp/catlab-browser/$slot.exit"
+              printf 'FAIL\n' > "/tmp/catlab-browser/$key.status"
+              printf '%s\n' "$output" > "/tmp/catlab-browser/$key.log"
+              printf '%s\n' "$code" > "/tmp/catlab-browser/$key.exit"
               failures=$((failures+1))
             fi
             echo "::endgroup::"
@@ -110,38 +112,47 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git pull --ff-only origin main
-          mkdir -p coordination/workers/benchmark-adjudications/CATLAB-EVO-01
+          mkdir -p coordination/workers/benchmark-adjudications
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           import path from 'node:path';
           const dir='/tmp/catlab-browser';
-          const files=fs.existsSync(dir)?fs.readdirSync(dir).filter(x=>/^S\d{3}\.status$/.test(x)).sort():[];
-          const slots=files.map(name=>{
-            const slot_id=name.replace('.status','');
+          const files=fs.existsSync(dir)?fs.readdirSync(dir).filter(x=>/^.+__S\d{3}\.status$/.test(x)).sort():[];
+          const byRun=new Map();
+          for(const name of files){
+            const m=name.match(/^(.+)__(S\d{3})\.status$/);
+            if(!m) continue;
+            const [,run_id,slot_id]=m;
             const status=fs.readFileSync(path.join(dir,name),'utf8').trim();
-            const logPath=path.join(dir,slot_id+'.log');
+            const logPath=path.join(dir,`${run_id}__${slot_id}.log`);
             const log=fs.existsSync(logPath)?fs.readFileSync(logPath,'utf8'):'';
             const detail=log.split(/\r?\n/).filter(x=>/Error:|FAIL|overflow|persist/i.test(x)).slice(-1)[0]||null;
-            return {
+            const slots=byRun.get(run_id)||[];
+            slots.push({
               slot_id,
               status,
               failure_code:status==='PASS'?null:'REPRESENTATIVE_BROWSER_CONTRACT_FAIL',
               detail,
               source_sha:process.env.SOURCE_SHA
+            });
+            byRun.set(run_id,slots);
+          }
+          for(const [run_id,slots] of byRun){
+            const outDir=path.join('coordination','workers','benchmark-adjudications',run_id);
+            fs.mkdirSync(outDir,{recursive:true});
+            const doc={
+              schema:'prometeo.benchmark-browser-adjudication/v1',
+              run_id,
+              generated_at:new Date().toISOString(),
+              workflow_run_id:Number(process.env.WORKFLOW_RUN_ID),
+              source_sha:process.env.SOURCE_SHA,
+              slots:slots.sort((a,b)=>a.slot_id.localeCompare(b.slot_id)),
+              truth_rule:'Independent representative Chromium result overrides worker self-report for E6 browser verification. PASS may resolve only a worker boundary caused solely by aggregate-workflow blockage; FAIL creates an E6 verification failure for experiment comparison.'
             };
-          });
-          const doc={
-            schema:'prometeo.benchmark-browser-adjudication/v1',
-            run_id:'CATLAB-EVO-01',
-            generated_at:new Date().toISOString(),
-            workflow_run_id:Number(process.env.WORKFLOW_RUN_ID),
-            source_sha:process.env.SOURCE_SHA,
-            slots,
-            truth_rule:'Independent representative Chromium result overrides worker self-report for E6 browser verification. PASS may resolve only a worker boundary caused solely by aggregate-workflow blockage; FAIL creates an E6 verification failure for experiment comparison.'
-          };
-          fs.writeFileSync('coordination/workers/benchmark-adjudications/CATLAB-EVO-01/browser-latest.json',JSON.stringify(doc,null,2)+'\n');
+            fs.writeFileSync(path.join(outDir,'browser-latest.json'),JSON.stringify(doc,null,2)+'\n');
+          }
           NODE
-          git add coordination/workers/benchmark-adjudications/CATLAB-EVO-01/browser-latest.json
+          git add coordination/workers/benchmark-adjudications
           if git diff --cached --quiet; then
             exit 0
           fi
