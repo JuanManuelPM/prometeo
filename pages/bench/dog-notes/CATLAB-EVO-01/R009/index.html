@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dog Notes · R009</title>
+<style>
+:root{--paper:#f4efe4;--ink:#111}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink);font-family:Arial,Helvetica,sans-serif}
+body{min-height:100svh;display:grid;grid-template-rows:auto 1fr auto}
+header,footer{padding:18px 20px;border-bottom:2px solid var(--ink);text-transform:uppercase;font-weight:900;letter-spacing:.06em}
+footer{border-top:2px solid var(--ink);border-bottom:0;font-size:11px}
+main{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,36vw);min-height:0}
+.intro{padding:clamp(28px,7vw,90px) 20px;border-right:2px solid var(--ink);display:flex;flex-direction:column;justify-content:space-between;gap:50px}
+h1{font-size:clamp(58px,12vw,150px);line-height:.78;letter-spacing:-.08em;text-transform:uppercase;margin:0;max-width:7ch}
+.intro p{font-family:Georgia,serif;font-size:clamp(20px,2.2vw,30px);line-height:1.35;max-width:22em}
+.workspace{display:grid;grid-template-rows:auto 1fr}
+.composer{padding:18px;border-bottom:2px solid var(--ink);display:grid;grid-template-columns:1fr auto;gap:8px}
+input,button{font:inherit;border:2px solid var(--ink);border-radius:0;background:var(--paper);color:var(--ink);min-height:52px}
+input{padding:0 12px;min-width:0}
+button{padding:0 18px;font-weight:900;text-transform:uppercase;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+#dog-note-list{list-style:none;margin:0;padding:0;align-self:start}
+.note{display:grid;grid-template-columns:1fr auto;border-bottom:2px solid var(--ink);min-height:72px}
+.note span{padding:18px;overflow-wrap:anywhere;align-self:center}
+.note button{border:0;border-left:2px solid var(--ink);height:100%}
+.empty{padding:22px;font-weight:800;text-transform:uppercase;font-size:12px;letter-spacing:.08em}
+@media(max-width:760px){
+  main{grid-template-columns:1fr}
+  .intro{min-height:52svh;border-right:0;border-bottom:2px solid var(--ink)}
+}
+@media(max-width:420px){
+  .composer{grid-template-columns:1fr}
+  .composer button{width:100%}
+}
+</style>
+</head>
+<body>
+<header>DOG NOTES / R009</header>
+<main>
+  <section class="intro">
+    <h1>Keep the small things.</h1>
+    <p>A tiny local notebook for dog observations. Notes stay in this browser and can be removed one by one.</p>
+  </section>
+  <section class="workspace" aria-label="Dog notes">
+    <form class="composer" id="dog-note-form">
+      <input id="dog-note-input" autocomplete="off" aria-label="New dog note" placeholder="Add a dog note">
+      <button id="dog-note-add" type="submit">Add</button>
+    </form>
+    <div>
+      <ul id="dog-note-list" aria-live="polite"></ul>
+      <div id="dog-note-empty" class="empty">No notes yet.</div>
+    </div>
+  </section>
+</main>
+<footer>Local-only · persistent · removable</footer>
+<script>
+(() => {
+  const KEY='dog-notes:catlab-evo-01:r009:v1';
+  const form=document.getElementById('dog-note-form');
+  const input=document.getElementById('dog-note-input');
+  const list=document.getElementById('dog-note-list');
+  const empty=document.getElementById('dog-note-empty');
+  let notes=[];
+  try {
+    const saved=JSON.parse(localStorage.getItem(KEY)||'[]');
+    if(Array.isArray(saved)) notes=saved.filter(x=>typeof x==='string');
+  } catch (_) {}
+
+  const save=()=>localStorage.setItem(KEY,JSON.stringify(notes));
+
+  function render(){
+    list.replaceChildren();
+    notes.forEach((text,index)=>{
+      const li=document.createElement('li');
+      li.className='note';
+      const value=document.createElement('span');
+      value.textContent=text;
+      const remove=document.createElement('button');
+      remove.type='button';
+      remove.textContent='Remove';
+      remove.setAttribute('aria-label','Remove note '+(index+1));
+      remove.addEventListener('click',()=>{
+        notes.splice(index,1);
+        save();
+        render();
+      });
+      li.append(value,remove);
+      list.append(li);
+    });
+    empty.hidden=notes.length>0;
+  }
+
+  form.addEventListener('submit',event=>{
+    event.preventDefault();
+    const text=input.value.trim();
+    if(!text) return;
+    notes.push(text);
+    save();
+    input.value='';
+    input.focus();
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
