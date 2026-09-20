@@ -1,0 +1,59 @@
+name: DOG-NOTES R007 Isolated Benchmark
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pages/bench/dog-notes/CATLAB-EVO-01/R007/**'
+      - '.github/workflows/dog-notes-r007-isolated.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Static contract R007
+        run: node tests/dog-notes-contract-v1.mjs pages/bench/dog-notes/CATLAB-EVO-01/R007
+      - name: Install representative Chromium
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Serve benchmark pages
+        run: |
+          python3 -m http.server 4173 --directory pages >/tmp/dognotes-http.log 2>&1 &
+          sleep 2
+      - name: Functional browser contract R007
+        run: |
+          node --input-type=module <<'NODE'
+          import { chromium } from 'playwright';
+          const browser=await chromium.launch({headless:true});
+          const page=await browser.newPage({viewport:{width:390,height:844}});
+          const errors=[];
+          page.on('pageerror',e=>errors.push(String(e)));
+          const url='http://127.0.0.1:4173/bench/dog-notes/CATLAB-EVO-01/R007/';
+          await page.goto(url,{waitUntil:'networkidle'});
+          await page.locator('#dog-note-input').fill('walk at 7');
+          await page.locator('#dog-note-add').click();
+          if(await page.locator('#dog-note-list').getByText('walk at 7').count()!==1) throw new Error('add did not create visible note');
+          await page.reload({waitUntil:'networkidle'});
+          if(await page.locator('#dog-note-list').getByText('walk at 7').count()!==1) throw new Error('note did not persist');
+          await page.locator('#dog-note-list .remove-note').click();
+          if(await page.locator('#dog-note-list').getByText('walk at 7').count()!==0) throw new Error('remove did not delete note');
+          await page.reload({waitUntil:'networkidle'});
+          if(await page.locator('#dog-note-list').getByText('walk at 7').count()!==0) throw new Error('deletion did not persist');
+          const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth);
+          if(overflow>4) throw new Error('mobile horizontal overflow '+overflow+'px');
+          if(errors.length) throw new Error('page errors: '+errors.join(' | '));
+          await browser.close();
+          console.log(JSON.stringify({ok:true,url,add:true,remove:true,persistence:true,overflow}));
+          NODE
