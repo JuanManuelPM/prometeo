@@ -2336,6 +2336,78 @@
         "coordination/portfolio/pins/portfolio-v330-canonical-worker-prompt-alias-convergence-v1/G000001.json",
         "coordination/portfolio/pins/portfolio-v330-smoke-pass-control-plane-reconcile-v1/G000001.json"
       ]
+    },
+    {
+      "id": "EFF066",
+      "title": "Explicit postclaim RETURN transport denial preserves resident capacity without fabricating PASS",
+      "scope": [
+        "wc",
+        "w",
+        "worker-pipeline",
+        "pool-residency",
+        "return-transport",
+        "efficiency-ratchet"
+      ],
+      "observed_failure": "Two independent stable /w PROD-01 workers completed E5 production and E6 verification, then hit explicit connector safety denials while persisting canonical RETURN/Guide receipt. Both closed at E7_RETURN, retiring useful resident capacity even though durable authority, STARTED and completion evidence already existed.",
+      "invariant": "For ordinary non-RUN BATCH/POOL only, an explicit denial that proves canonical RETURN/Guide receipt non-persistence may preserve resident capacity without bypassing the denial. The worker persists one separately permitted transport-boundary receipt with exact authority/STARTED/completion evidence, keeps E7=BOUNDARY, counts zero productive units for the blocked job, leaves prior authority/recovery debt untouched, and may enter E8 only for unrelated compatible work. Ambiguous transport, missing boundary receipt, same-target mutation, RUN packet work, retry/bypass or fake RETURN remain forbidden.",
+      "required": {
+        "applies_non_run_batch_pool_only": true,
+        "requires_E5_PASS": true,
+        "requires_E6_PASS": true,
+        "requires_explicit_denial_proving_non_persistence": true,
+        "transport_boundary_receipt_required": true,
+        "E7_status": "BOUNDARY",
+        "blocked_unit_productive_units": 0,
+        "retry_denied_operation_forbidden": true,
+        "alternate_fake_return_forbidden": true,
+        "prior_authority_release_forbidden": true,
+        "same_target_continuation_forbidden": true,
+        "unrelated_E8_continuation_allowed": true,
+        "ambiguous_transport_continuation_forbidden": true,
+        "run_mode_default": "NO_CONTINUATION",
+        "stable_surface_single_beacon_handoff": true,
+        "implementation_refs": [
+          "wc",
+          "w",
+          "coordination/workers/WORKER_PIPELINE_V1.json",
+          "coordination/workers/WORKER_GROWTH_POLICY_V1.json"
+        ],
+        "regression_test": "tests/worker-return-transport-continuation-v1.test.mjs",
+        "workflow_guard": ".github/workflows/efficiency-ratchet.yml"
+      },
+      "status": "STATIC_GUARDED_PENDING_RUNTIME",
+      "evidence": [
+        "coordination/workers/exams/w-20260920T2329Z-7c4e91b2a6fd.json",
+        "coordination/workers/exams/w-20260920T233011Z-c7fe7e63889d.json",
+        "coordination/workers/receipts/w-20260920T2329Z-7c4e91b2a6fd-transport-boundary.json",
+        "commit:c211cfe6360ac9ea7880f754a50eda310e2f3c08",
+        "commit:b3c632d0cd36cc8456b6e7d99c9bfb5eb51fa93d",
+        "commit:0d7bc055c841a04b5de7d3f08158ae9a76f720bf",
+        "commit:1fff9bc4aba4b5a7917b46a21151f757d05a343a"
+      ],
+      "runtime_evidence": {
+        "observed_workers": [
+          {
+            "worker_id": "w-20260920T2329Z-7c4e91b2a6fd",
+            "E5": "PASS",
+            "E6": "PASS",
+            "E7": "BOUNDARY",
+            "boundary_code": "PORTFOLIO_RETURN_TRANSPORT_BLOCKED",
+            "counted_productive_units_before_boundary": 2
+          },
+          {
+            "worker_id": "w-20260920T233011Z-c7fe7e63889d",
+            "E5": "PASS",
+            "E6": "PASS",
+            "E7": "BOUNDARY",
+            "boundary_code": "GUIDE_RECEIPT_TRANSPORT_BLOCKED",
+            "counted_productive_units_before_boundary": 0
+          }
+        ],
+        "repeated_stage": "E7_RETURN",
+        "independent_workers": 2,
+        "conclusion": "REPEATED_E7_TRANSPORT_RETIREMENT_TRIGGERED_SYSTEMIC_FIX"
+      }
     }
   ],
   "status_legend": {
