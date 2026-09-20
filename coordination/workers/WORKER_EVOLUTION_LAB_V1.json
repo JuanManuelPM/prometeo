@@ -2,7 +2,7 @@
   "schema": "prometeo.worker-evolution-lab/v1",
   "experiment_id": "WORKER-EVOLUTION-LAB-V1",
   "status": "ACTIVE_BINDING",
-  "updated_at": "2026-09-19T16:24:59.017Z",
+  "updated_at": "2026-09-20T13:55:00Z",
   "purpose": "Evolve worker production by testing controlled stage-level changes on the same synthetic objective instead of changing the whole worker or inferring quality from raw launch count.",
   "current_round": {
     "run_id": "CATLAB-EVO-01",
@@ -17,7 +17,8 @@
     "Use two independent replicas per variant in the exploration round so one lucky/unlucky worker does not determine direction.",
     "Do not automatically promote a variant from n=2. Select at most two candidates, then reproduce the candidate law on >=3 independent confirmation workers.",
     "Primary comparison is hard-gate/product completion and autonomous reallocation. Speed/waste are tie-break diagnostics, not substitutes for completion.",
-    "A failed variant may reveal a useful component; never copy a whole persona or historical worker identity."
+    "A failed variant may reveal a useful component; never copy a whole persona or historical worker identity.",
+    "Candidate selection must align with the observed first failing pipeline stage; if the weak stage is not covered by the current variants, run a bounded stage-specific follow-up instead of promoting an unrelated winner."
   ],
   "variants": [
     {
@@ -66,12 +67,26 @@
     "candidate_limit": 2,
     "confirmation_independent_workers_per_candidate": 3,
     "promote_target": "stage-specific law in WORKER-PIPELINE-V1/wc, not a worker persona",
-    "rollback": "Any promoted law causing authority regression, lower hard-gate completion or material overhead regression is removed."
+    "rollback": "Any promoted law causing authority regression, lower hard-gate completion or material overhead regression is removed.",
+    "stage_alignment_required": true,
+    "uncovered_stage_followup_required": true,
+    "diagnostic_gate_ref": "#diagnostic_gate"
   },
   "refs": [
     "coordination/workers/WORKER_PIPELINE_V1.json",
     "coordination/workers/WORKER_BENCHMARK_RECEIPT_V1.json",
     "coordination/workers/WORKER_PLATFORM_GRADUATION_V1.json",
     "coordination/launch-packets/CATLAB-EVO-01/PACKET.json"
-  ]
+  ],
+  "diagnostic_gate": {
+    "status": "ACTIVE_BINDING",
+    "purpose": "Prevent exploration from promoting a locally attractive rule that does not address the stage actually limiting end-to-end worker yield.",
+    "first_failure_distribution_required": true,
+    "comparison_population": "Use pipeline_first_non_pass_stage across all hard-gate-valid CATLAB-EVO-01 receipts. Variant workers may inform the distribution, but V0 control remains the reference for whether a changed stage improved or merely moved the failure.",
+    "candidate_stage_alignment": "A variant may enter P2B only if (a) its changed_stage matches a repeated observed weak stage, or (b) it materially improves primary hard-gate completion/reallocation versus V0 without causing an earlier new failure stage. Speed/score alone never qualifies.",
+    "repeated_failure_threshold": "At least 2 independent workers reaching the same first non-PASS stage is enough to flag an exploration-stage weakness; this is a routing signal, not proof of a winning law.",
+    "uncovered_stage_rule": "If a repeated first failure emerges at E3_CONTEXT, E5_PRODUCE, E7_RETURN, E8_REALLOCATE, E9_EXAM_CLOSE, or another stage not directly targeted by a current intervention, do not promote an unrelated current variant. Arm one bounded follow-up variant that changes only that uncovered stage, then require the normal >=3 independent confirmation gate before baseline promotion.",
+    "control_boundary": "V0 has n=2 in exploration and is descriptive only. No causal claim or baseline promotion may be made from two control replicas alone.",
+    "no_proxy_winner": "Higher speed, lower context reads, higher word/token efficiency, or a better global productivity score cannot override lower primary completion, weaker evidence, or failed reallocation."
+  }
 }
