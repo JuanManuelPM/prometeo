@@ -458,6 +458,13 @@ const launchRuns=[...runPackets.entries()].map(([runId,p])=>{
   const beacons=[...beaconByWorker.values()].filter(x=>x.doc?.run_id===runId);
   const slots=arr(p.doc?.slots);
   const slotOwnerIds=new Set(primary.map(x=>x.doc?.slot_id).filter(Boolean));
+  const primaryWorkerIds=new Set(primary.map(x=>x.doc?.worker_id).filter(Boolean));
+  const unassignedBeacons=beacons.filter(x=>x.doc?.worker_id&&!primaryWorkerIds.has(x.doc.worker_id));
+  const preclaim_stage_observations={};
+  for(const b of unassignedBeacons){
+    const key='E2_ASSIGN:NOT_REACHED_NO_CLAIM_EVIDENCE';
+    preclaim_stage_observations[key]=(preclaim_stage_observations[key]||0)+1;
+  }
   const byWorker={};
   for(const x of primary){(byWorker[x.doc.worker_id]??=[]).push(x.doc.slot_id);}
   const firstNonPass=d=>{
@@ -501,12 +508,16 @@ const launchRuns=[...runPackets.entries()].map(([runId,p])=>{
     run_id:runId,status:p.doc?.status||null,packet_ref:p.ref,
     slots_total:slots.length,slots_claimed:slotOwnerIds.size,slots_unclaimed:Math.max(0,slots.length-slotOwnerIds.size),
     workers_beaconed:new Set(beacons.map(x=>x.doc.worker_id)).size,
+    workers_beaconed_without_primary_claim:unassignedBeacons.length,
+    unassigned_beacon_workers:unassignedBeacons.map(x=>({worker_id:x.doc.worker_id,launched_at:x.doc.launched_at||null,stage_observation:'E2_ASSIGN:NOT_REACHED_NO_CLAIM_EVIDENCE'})),
+    assignment_success_rate:ratio(primaryWorkerIds.size,new Set(beacons.map(x=>x.doc.worker_id)).size),
+    preclaim_stage_observations,
     primary_complete:new Set(receipts.filter(x=>x.doc?.primary_complete===true).map(x=>x.doc.worker_id)).size,
     reallocation_complete:new Set(receipts.filter(x=>x.doc?.reallocation_complete===true).map(x=>x.doc.worker_id)).size,
     workers_with_multiple_primary_slots:Object.entries(byWorker).filter(([,ids])=>ids.length>1).map(([wid])=>wid),
     variants,
     automatic_winner:false,
-    truth_boundary:'Variant metrics are descriptive exploration evidence. n=2 per variant cannot auto-promote a pipeline law.'
+    truth_boundary:'Variant metrics are descriptive exploration evidence. n=2 per variant cannot auto-promote a pipeline law. Pre-variant E0-E2 launch losses are reported separately from slot variants and must not be attributed to whichever slot remained unclaimed.'
   };
 });
 
