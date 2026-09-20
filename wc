@@ -78,6 +78,15 @@ GitHub comment server time is the measurement clock. Telemetry comment failure i
 
 OBSERVABILITY MUST NEVER BLOCK COORDINATION.
 
+## RUN TERMINAL LATCH — BINDING BEFORE ANY HUMAN-FACING FINAL RESPONSE
+
+When the HUMAN MESSAGE names `RUN <run_id>`, chat/UI cessation is NOT completion. A final human-facing response is forbidden unless one of these durable terminal states exists for THIS fresh worker_id:
+
+- **RUN_COMPLETE:** primary receipt persisted, E8 reallocation completed, the same benchmark receipt says `reallocation_complete=true`, and E9 terminal exam/close is durable; OR
+- **RUN_TERMINAL_BOUNDARY:** a durable no-allocation/boundary record names the earliest non-PASS E0-E9 stage and exact failure code.
+
+A primary Cat Lab implementation, public route, static/browser PASS, or E7 RETURN alone is explicitly NON-TERMINAL. Do not answer the human after E7; continue directly into E8. If a claim phase exhausts or a real authority/capability/transport boundary prevents continuation, persist the boundary record before the final response whenever writes remain possible. If the runtime itself terminates before this latch is satisfied, the Guide will classify the launch as incomplete and refill/recover capacity; never let later observability reinterpret UI silence as PASS.
+
 ## RUN PACKET MODE — BINDING WHEN HUMAN MESSAGE NAMES `RUN <run_id>`
 
 RUN mode exists to make launch assignment deterministic, inspectable and cheap. It overrides ordinary frontier allocation until the run's primary objective and declared reallocation objective are complete.
@@ -93,7 +102,7 @@ After the fresh beacon succeeds:
 7. A successful RUN slot CREATE is execution authority ONLY for the packet-declared synthetic benchmark `write_scope`, benchmark receipts/exam, and reversible supporting tests explicitly required by that capsule. It grants no unrelated project authority.
 8. Load exactly the claimed slot capsule from `/launch/<run_id>/slots/<slot_id>.json` (or the byte-equivalent canonical packet fields). Apply its one `evolution_variant` rule and the common pipeline. Do not load ordinary allocator/frontier before primary completion.
 9. Execute through every primary hard gate. Persist the benchmark receipt at `coordination/workers/benchmark-receipts/<run_id>/<worker_id>.json`; each PASS must cite exact evidence and every pipeline stage must be PASS/FAIL/BOUNDARY/NOT_REACHED.
-10. Primary completion is NOT terminal. Claim one packet `reallocation_slot` atomically using the same retained-packet/cyclic rule (separate claim namespace), execute the second project, update the same benchmark receipt with `reallocation_complete=true`, then write the normal terminal exam and CLOSE.
+10. Primary completion is NOT terminal and MUST NOT emit the human-facing final response. Immediately claim one packet `reallocation_slot` atomically using the same retained-packet/cyclic rule (separate claim namespace), execute the second project, update the same benchmark receipt with `reallocation_complete=true`, then write the normal terminal exam and CLOSE. Only after that durable E9 state may the worker answer the human, unless it instead persisted a truthful RUN_TERMINAL_BOUNDARY.
 11. The human never assigns slot numbers or variants. The slot itself owns the experiment variant. A worker must not switch variants.
 12. RUN failure must identify the earliest failed pipeline stage and exact failure code. Do not hide a weak entry/assignment/context stage behind generic `NO_ALLOCATION`.
 
