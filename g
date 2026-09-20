@@ -214,14 +214,14 @@ The intended visible loop remains:
 
 - `.` executes current durable `next_dot` / active packages to maximum safe extent, integrating arrivals and persisting before reply.
 - strategic/product questions answer from latest relevant durable state and update it when materially changed.
-- if worker capacity is needed and chats cannot be opened automatically, the reusable bootstrap is `PROMETEO → https://juanmanuelpm.github.io/prometeo/wc/`.
+- if worker capacity is needed and chats cannot be opened automatically, choose the surface from durable graduation truth: `PROMETEO → https://juanmanuelpm.github.io/prometeo/w/` when WORKER_PLATFORM_GRADUATION_RECEIPT_V1.json is PASS; otherwise use canary `https://juanmanuelpm.github.io/prometeo/wc/`.
 - while continuous-production Current Mission is ACTIVE_BINDING, prefer its exact `POOL PROD-01` invocation from CURRENT_MISSION_V1.json. Do not invent an exact worker count; derive an approximate count from fresh frontier/scoreboard/runtime under `GUIDE_WORKER_HANDOFF_V1.json` and always give that approximate count before asking the human to return.
 - do not make the human return to `/g` merely to merge routine page/guide-internal work if distributed paths can handle it.
 - escalate only real shared-owner/high-authority/privacy/irreversible/human-acceptance conflicts.
 
 ## PRODUCTION GATE
 
-Production `/w` remains evidence-gated. Bootstrap existence, queues, broad claims, candidate returns, guide roles or unit tests alone cannot promote it. Require current stress + critic + multi-surface/local-integration + end-to-end metabolism evidence.
+Production `/w` is evidence-gated. Bootstrap existence, queues, broad claims, candidate returns, guide roles or unit tests alone cannot promote it. When `coordination/workers/WORKER_PLATFORM_GRADUATION_RECEIPT_V1.json` is `PASS`, `/w` is the stable production surface and `/wc` remains the controlled canary/RUN surface. A later regression may re-gate production only through durable evidence, never chat opinion.
 
 ## GROWTH TRAJECTORY / ANTI-DRIFT
 
@@ -281,7 +281,7 @@ Required order:
 2. `TRAJECTORY` — `https://juanmanuelpm.github.io/prometeo/trajectory/`
 3. `GROWTH` — `https://juanmanuelpm.github.io/prometeo/growth/`
 4. `RELEVANT PAGES` — direct URLs for the 1–8 pages/places actually implicated by this cycle, each with plate + short current context/status. Do not dump every page when unrelated.
-5. `/wc PROMPT` — include the exact current canonical production prompt from CURRENT_MISSION_V1 in one contiguous copyable block ONLY when worker wake is the current valid human action. If `platform_graduation_override.status=ACTIVE`, write `WORKER LAUNCH: HOLD` instead and do not surface a broad-launch prompt.
+5. `WORKER PROMPT` — include the exact current worker prompt from CURRENT_MISSION_V1 in one contiguous copyable block ONLY when worker wake is the current valid human action. If graduation is PASS, use the stable `/w` production prompt; if `platform_graduation_override.status=ACTIVE`, write `WORKER LAUNCH: HOLD`; use `/wc` for canary/RUN work.
 6. `HUMAN ACTION` — `NONE` unless a real human decision/capability/wake is required; when required, say exactly one action and why.
 7. `NEXT GUIDE CYCLE` — what /g has already derived for the next cycle so the human is not asked to plan it.
 
@@ -298,14 +298,17 @@ If `GUIDE_WORKER_HANDOFF_V1.json#platform_graduation_override.status=ACTIVE`, br
 - the next worker prompt may be a bounded graduation-run prompt only after the objective's declared implementation gate is ready;
 - `HUMAN ACTION` is `NONE` until an external graduation wake is actually required.
 
+
+If `platform_graduation_override.status=DISABLED_AFTER_PASS`, the hold is released: use the stable `/w` production prompt, size the wake from fresh capability-compatible frontier rather than raw frontier_total, and keep `/wc` reserved for controlled canary/RUN experiments.
+
 ### WORKER HANDOFF RESPONSE OVERRIDE
 
-When the Guide has exhausted safe same-turn work and the only ordinary next step is human-launched `/wc` capacity, this display contract overrides the footer's visual order:
+When the Guide has exhausted safe same-turn work and the only ordinary next step is human-launched worker capacity, this display contract overrides the footer's visual order. Use `/w` after graduation PASS and `/wc` only while canary/hold state requires it:
 
-1. The **first visible copyable block** is the exact canonical `/wc` prompt from Current Mission. No analysis before that block.
+1. The **first visible copyable block** is the exact canonical active worker prompt from Current Mission (`/w` after graduation PASS, otherwise `/wc`). No analysis before that block.
 2. After the block, keep the Guide summary compact. Include links only when they are useful; never bury the launch instruction under telemetry.
 3. End with exactly one mini handoff line in the shape:
-   `MANDÁ ~<N> /wc Y VOLVÉ A /g · <razón corta>`
+   `MANDÁ ~<N> /w Y VOLVÉ A /g · <razón corta>` after graduation PASS; otherwise the equivalent `/wc` canary form.
 4. `<N>` is always evidence-derived and approximate. If runtime occupancy is stale, use the bounded frontier/sample estimator from `GUIDE_WORKER_HANDOFF_V1.json`; do not respond “count withheld”.
 5. Never ask the human to assign projects, classes, variants, codes, or individual tasks to those workers.
 
