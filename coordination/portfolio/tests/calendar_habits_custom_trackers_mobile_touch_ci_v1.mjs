@@ -59,8 +59,15 @@ try {
     const box = await page.locator(selector).boundingBox();
     assert.ok(box, `${name} must have a bounding box`);
     assert.ok(box.width > 0 && box.height > 0, `${name} must have non-zero size`);
-    assert.ok(box.x + box.width > 0 && box.x < 390, `${name} must intersect viewport horizontally`);
+    assert.ok(box.x >= -1, `${name} must not be clipped off the left edge: x=${box.x}`);
+    assert.ok(box.x + box.width <= 391, `${name} must not be clipped off the right edge: ${box.x + box.width}`);
     assert.ok(box.y + box.height > 0, `${name} must not be clipped above viewport`);
+    const hit = await page.locator(selector).evaluate(el => {
+      const r = el.getBoundingClientRect();
+      const node = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(r.height / 2, window.innerHeight - r.top - 1));
+      return Boolean(node && (node === el || el.contains(node)));
+    });
+    assert.equal(hit, true, `${name} center must be an unobstructed touch target`);
     return { x: Math.round(box.x), y: Math.round(box.y), width: Math.round(box.width), height: Math.round(box.height) };
   };
 
@@ -70,10 +77,33 @@ try {
   }
   mark('primary_mode_controls_visible', modeBoxes);
 
+  const modeNames = Object.keys(modeBoxes);
+  for (let i = 0; i < modeNames.length; i++) {
+    for (let j = i + 1; j < modeNames.length; j++) {
+      const a = modeBoxes[modeNames[i]], b = modeBoxes[modeNames[j]];
+      const overlaps = a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+      assert.equal(overlaps, false, `mode controls overlap: ${modeNames[i]} / ${modeNames[j]}`);
+    }
+  }
+  mark('primary_mode_controls_non_overlapping_and_hit_tested', modeBoxes);
+
+  const assertOnlySpace = async active => {
+    const state = await page.evaluate(() => ({
+      calendar: !document.querySelector('#calendarSpace')?.hidden,
+      habits: !document.querySelector('#habitsSpace')?.hidden,
+      money: !document.querySelector('#moneySpace')?.hidden
+    }));
+    for (const key of ['calendar','habits','money']) {
+      assert.equal(state[key], key === active, `unexpected ${key} activation while ${active} should be active`);
+    }
+    return state;
+  };
+
   await page.getByRole('button', { name: 'HÁBITOS' }).tap();
   await page.waitForSelector('#habitsSpace:not([hidden])');
   assert.equal(await page.locator('#activeTitle').textContent(), 'Hábitos');
   await assertVisibleInViewport('#habitTrackerManage', 'habitTrackerManage');
+  mark('habits_single_active_space', await assertOnlySpace('habits'));
 
   const initialRange = (await page.locator('#traceRange').textContent()) || '';
   await page.locator('#tracePrev').tap();
@@ -105,6 +135,7 @@ try {
   await page.getByRole('button', { name: 'DINERO' }).tap();
   await page.waitForSelector('#moneySpace:not([hidden])');
   assert.equal(await page.locator('#activeTitle').textContent(), 'Dinero');
+  mark('money_single_active_space', await assertOnlySpace('money'));
   await page.locator('#moneyAdd').tap();
   assert.ok(await page.locator('#moneyEditor').evaluate(el => el.open || el.hasAttribute('open')), 'money editor should open via touch');
   await page.locator('#moneyEditorCancel').tap();
@@ -113,6 +144,7 @@ try {
   await page.getByRole('button', { name: 'CALENDARIO' }).tap();
   await page.waitForSelector('#calendarSpace:not([hidden])');
   assert.equal(await page.locator('#activeTitle').textContent(), 'Calendario');
+  mark('calendar_single_active_space', await assertOnlySpace('calendar'));
   const frame = page.frameLocator('#romanticCalendarFrame');
   await frame.locator('body').waitFor({ state: 'attached', timeout: 15000 });
   mark('calendar_touch_mode_reachable');
