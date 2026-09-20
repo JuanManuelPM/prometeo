@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048','EFF050','EFF049','EFF051','EFF055','EFF056','EFF057']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048','EFF050','EFF049','EFF051','EFF055','EFF056','EFF057','EFF066']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -1376,6 +1376,30 @@ must('EFF065 allocator', recoveryDiversityAllocator, 'generic_recovery_distinct_
 const recoveryDiversityTest = read(root, 'coordination/portfolio/tests/guide_rescate_capability_recovery_pressure_v1.mjs');
 must('EFF065 recovery-diversity-test', recoveryDiversityTest, 'three causally distinct generic recoveries must not spawn GUIDE_RESCATE from count alone');
 must('EFF065 recovery-diversity-test', recoveryDiversityTest, 'causally concentrated generic recovery must preserve GUIDE_RESCATE');
+
+
+const eff066 = baseline.items?.find(item => item.id === 'EFF066');
+if (!eff066) errors.push('ratchet: EFF066 missing');
+else {
+  if (eff066.required?.applies_non_run_batch_pool_only !== true) errors.push('ratchet: EFF066 scope drift');
+  if (eff066.required?.requires_E5_PASS !== true || eff066.required?.requires_E6_PASS !== true) errors.push('ratchet: EFF066 production/verification gate drift');
+  if (eff066.required?.requires_explicit_denial_proving_non_persistence !== true) errors.push('ratchet: EFF066 denial proof drift');
+  if (eff066.required?.transport_boundary_receipt_required !== true) errors.push('ratchet: EFF066 boundary receipt drift');
+  if (eff066.required?.E7_status !== 'BOUNDARY' || eff066.required?.blocked_unit_productive_units !== 0) errors.push('ratchet: EFF066 evidence truth drift');
+  if (eff066.required?.retry_denied_operation_forbidden !== true || eff066.required?.alternate_fake_return_forbidden !== true) errors.push('ratchet: EFF066 anti-bypass drift');
+  if (eff066.required?.prior_authority_release_forbidden !== true || eff066.required?.same_target_continuation_forbidden !== true) errors.push('ratchet: EFF066 authority isolation drift');
+  if (eff066.required?.unrelated_E8_continuation_allowed !== true) errors.push('ratchet: EFF066 continuation drift');
+  if (eff066.required?.ambiguous_transport_continuation_forbidden !== true || eff066.required?.run_mode_default !== 'NO_CONTINUATION') errors.push('ratchet: EFF066 boundary scope drift');
+  if (eff066.required?.stable_surface_single_beacon_handoff !== true) errors.push('ratchet: EFF066 stable handoff drift');
+  if (eff066.required?.regression_test !== 'tests/worker-return-transport-continuation-v1.test.mjs') errors.push('ratchet: EFF066 regression test drift');
+}
+const returnTransportContinuationTest = read(root, 'tests/worker-return-transport-continuation-v1.test.mjs');
+must('EFF066 test', returnTransportContinuationTest, 'WORKER_RETURN_TRANSPORT_CONTINUATION_V1_PASS');
+must('EFF066 wc', wc, 'POST-OWNERSHIP E7 TRANSPORT CONTINUATION');
+must('EFF066 wc', wc, 'immediately enter E8');
+const stableWorker = read(root, 'w');
+must('EFF066 w', stableWorker, 'ENTER AT ITS POST-BEACON ORDINARY NON-RUN STEP');
+must('EFF066 w', stableWorker, 'Do NOT create a second beacon');
 
 if (errors.length) {
   console.error('EFFICIENCY_RATCHET_FAIL');
