@@ -10,6 +10,7 @@ const wc=read('wc');
 const w=read('w');
 const pipeline=json('coordination/workers/WORKER_PIPELINE_V1.json');
 const growth=json('coordination/workers/WORKER_GROWTH_POLICY_V1.json');
+const mission=json('coordination/guide/CURRENT_MISSION_V1.json');
 const examA=json('coordination/workers/exams/w-20260920T2329Z-7c4e91b2a6fd.json');
 const examB=json('coordination/workers/exams/w-20260920T233011Z-c7fe7e63889d.json');
 const boundaryA=json('coordination/workers/receipts/w-20260920T2329Z-7c4e91b2a6fd-transport-boundary.json');
@@ -39,6 +40,8 @@ for (const forbidden of [
 assert.ok(e8.hard_rule.includes('never counts the blocked unit'));
 assert.equal(growth.postclaim_return_transport_continuation.status,'ACTIVE_BINDING');
 assert.equal(growth.postclaim_return_transport_continuation.run_mode_default,'NO_CONTINUATION');
+assert.ok(String(mission.current_snapshot.occupancy.launch_timing).startsWith('GRADUATED_PRODUCTION_'),'EFF066 runtime confirmation mode must remain graduated production');
+assert.equal(mission.current_snapshot.occupancy.recommended_additional_launches_at_snapshot,4,'EFF066 runtime confirmation wake must remain bounded at four');
 
 for (const needle of [
   'POST-OWNERSHIP E7 TRANSPORT CONTINUATION',
