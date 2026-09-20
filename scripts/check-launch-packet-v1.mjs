@@ -22,6 +22,9 @@ if(packet.run_id!=='CATLAB-EVO-01') fail('run id drift');
 if(packet.same_prompt_for_every_worker!==true||packet.human_numbers_slots!==false) fail('human routing/numbering regression');
 if(!String(packet.human_invocation||'').includes('RUN CATLAB-EVO-01')) fail('run prompt missing run id');
 if(!String(packet.human_invocation||'').includes('RUN-slot claim')) fail('run prompt missing slot authorization');
+for(const marker of ['NUEVO_WORKER=1','PRIMERA_ACCIÓN_DURABLE','NO reutilices identidad/slot','https://juanmanuelpm.github.io/prometeo/wc/']){
+  if(!String(packet.human_invocation||'').includes(marker)) fail('run prompt missing '+marker);
+}
 
 const slots=Array.isArray(packet.slots)?packet.slots:[];
 const realloc=Array.isArray(packet.reallocation_slots)?packet.reallocation_slots:[];
@@ -81,8 +84,21 @@ if(siteArg){
   if(JSON.stringify(publicPacket)!==JSON.stringify(packet)) fail('public packet differs from canonical packet');
   for(const s of slots){
     const cap=read(path.join(siteArg,'launch','CATLAB-EVO-01','slots',s.slot_id+'.json'));
-    if(cap.run_id!==packet.run_id||cap.slot?.slot_id!==s.slot_id||cap.variant?.id!==s.evolution_variant) fail('bad public capsule '+s.slot_id);
+    if(cap.run_id!==packet.run_id||cap.packet_status!==packet.status||cap.slot?.slot_id!==s.slot_id||cap.variant?.id!==s.evolution_variant) fail('bad public capsule '+s.slot_id);
+    if(cap.authority_mode!==packet.authority_mode) fail('public capsule authority drift '+s.slot_id);
+    if(JSON.stringify(cap.common_capsule)!==JSON.stringify(packet.common_capsule)) fail('public common capsule drift '+s.slot_id);
+    if(JSON.stringify(cap.reallocation_pool)!==JSON.stringify(packet.reallocation_pool)) fail('public reallocation pool drift '+s.slot_id);
   }
+  for(const s of realloc){
+    const cap=read(path.join(siteArg,'launch','CATLAB-EVO-01','reallocation-slots',s.slot_id+'.json'));
+    if(cap.run_id!==packet.run_id||cap.packet_status!==packet.status||cap.slot?.slot_id!==s.slot_id) fail('bad public reallocation capsule '+s.slot_id);
+    if(cap.authority_mode!==packet.authority_mode) fail('public reallocation authority drift '+s.slot_id);
+    if(JSON.stringify(cap.objective)!==JSON.stringify(packet.reallocation_pool?.objective||null)) fail('public reallocation objective drift '+s.slot_id);
+  }
+  const status=read(path.join(siteArg,'launch','CATLAB-EVO-01','status.json'));
+  if(status.run_id!==packet.run_id||status.packet_status!==packet.status) fail('public status identity drift');
+  if(status.slots_total!==slots.length||status.reallocation_slots_total!==realloc.length) fail('public status denominator drift');
+  if(status.human_numbering_required!==false) fail('public status human-routing regression');
 }
 
 console.log(JSON.stringify({ok:true,run_id:packet.run_id,status:packet.status,slots:slots.length,reallocation_slots:realloc.length,variant_counts:counts}));
