@@ -961,6 +961,7 @@ async function makeCanonicalWavChunk(file, segment) {
       numberOfChannels: 1,
       sampleRate: 16000,
       sampleFormat: 's16',
+      codec: 'pcm-s16',
       forceTranscode: true
     },
     trim: {
