@@ -101,6 +101,33 @@ h1{
 }
 .query:first-child{border-left:1px solid var(--line)}
 .query[aria-selected="true"]{background:var(--ink);color:var(--paper)}
+.filter-bar{
+  display:flex;
+  gap:0;
+  overflow-x:auto;
+  scrollbar-width:none;
+  border-left:1px solid var(--line);
+  border-right:1px solid var(--line);
+  border-bottom:2px solid var(--line);
+  background:var(--paper);
+}
+.filter-bar::-webkit-scrollbar{display:none}
+.filter-chip{
+  appearance:none;
+  border:0;
+  border-right:1px solid var(--line);
+  background:transparent;
+  color:var(--ink);
+  min-height:48px;
+  padding:0 15px;
+  white-space:nowrap;
+  cursor:pointer;
+  touch-action:manipulation;
+  font-weight:900;
+  font-size:11px;
+  letter-spacing:.03em;
+}
+.filter-chip[aria-selected="true"]{background:var(--ink);color:var(--paper)}
 .stage{padding-top:28px}
 .stage-head{
   display:grid;
@@ -212,6 +239,7 @@ h1{
   .search-wrap input{font-size:16px;padding:15px 13px}
   .search-wrap button{padding:0 15px}
   .query{padding:0 14px;min-height:50px}
+  .filter-chip{padding:0 13px;min-height:48px}
   .stage-head{grid-template-columns:1fr}
   .counter{width:max-content}
   .gallery{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
@@ -238,6 +266,8 @@ h1{
     <button type="submit">BUSCAR</button>
   </form>
 
+  <div class="filter-bar" id="filterBar" aria-label="Estilo visual de la búsqueda"></div>
+
   <nav class="query-nav" id="queryNav" aria-label="Consultas de prueba"></nav>
 
   <section class="stage" aria-live="polite">
@@ -253,13 +283,28 @@ h1{
 
   <footer class="note">
     <p><strong>Sin botón rojo.</strong> Ya no hay iframes ni embeds oficiales. La página obtiene la URL de imagen de Pinterest y la renderiza como un <code>&lt;img&gt;</code> normal.</p>
-    <p><strong>Búsqueda libre.</strong> Escribí cualquier término arriba. El resolver busca referencias visuales de Pinterest y devuelve hasta diez imágenes limpias.</p>
+    <p><strong>Búsqueda por estilo.</strong> Escribí una palabra una sola vez y cambiá entre Normal, Símbolo UI, Líneas, Dibujo a mano, Pictograma, Grabado y otros modos. Cada filtro transforma la consulta sin que tengas que reescribirla.</p>
   </footer>
 </main>
 
 <script>
 const API="https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1";
 const KEY="pql-v1-7f2b9e31";
+
+const searchFilters=[
+  {id:"normal",label:"Normal",suffix:""},
+  {id:"ui",label:"Símbolo UI",suffix:"minimal ui symbol icon"},
+  {id:"line",label:"Líneas",suffix:"simple line drawing"},
+  {id:"hand",label:"Dibujo a mano",suffix:"simple hand drawn illustration"},
+  {id:"doodle",label:"Garabato",suffix:"minimal doodle sketch"},
+  {id:"graphic",label:"Símbolo",suffix:"minimal graphic symbol"},
+  {id:"pictogram",label:"Pictograma",suffix:"pictogram signage symbol"},
+  {id:"silhouette",label:"Silueta",suffix:"simple black silhouette"},
+  {id:"isolated",label:"Aislado",suffix:"isolated object plain background"},
+  {id:"geometric",label:"Geométrico",suffix:"minimal geometric symbol"},
+  {id:"emblem",label:"Emblema",suffix:"vintage emblem stamp graphic"},
+  {id:"engraving",label:"Grabado",suffix:"vintage engraving black and white"}
+];
 
 const groups=[
   {
@@ -289,6 +334,7 @@ const groups=[
 ];
 
 const nav=document.getElementById("queryNav");
+const filterBar=document.getElementById("filterBar");
 const gallery=document.getElementById("gallery");
 const title=document.getElementById("title");
 const searchCopy=document.getElementById("searchCopy");
@@ -297,6 +343,58 @@ const form=document.getElementById("searchForm");
 const input=document.getElementById("searchInput");
 
 let requestId=0;
+let activeFilterId="normal";
+let lastTypedQuery="";
+
+function getFilterById(id){
+  return searchFilters.find(filter=>filter.id===id)||searchFilters[0];
+}
+
+function composeSearchQuery(baseTerm,filterId){
+  const term=String(baseTerm||"").trim().replace(/\s+/g," ");
+  const filter=getFilterById(filterId);
+  if(!term)return "";
+  return filter.suffix?term+" "+filter.suffix:term;
+}
+
+function renderFilterBar(){
+  filterBar.replaceChildren(...searchFilters.map(filter=>{
+    const button=document.createElement("button");
+    button.className="filter-chip";
+    button.type="button";
+    button.textContent=filter.label;
+    button.setAttribute("aria-selected",String(filter.id===activeFilterId));
+    button.addEventListener("click",()=>{
+      activeFilterId=filter.id;
+      renderFilterBar();
+      if(lastTypedQuery) executeTypedSearch(lastTypedQuery,{push:true});
+    });
+    return button;
+  }));
+}
+
+function updateTypedSearchCopy(baseTerm,realQuery){
+  const filter=getFilterById(activeFilterId);
+  searchCopy.textContent=filter.id==="normal"
+    ? 'consulta: "'+baseTerm+'"'
+    : filter.label+' · búsqueda real: "'+realQuery+'"';
+}
+
+function executeTypedSearch(rawTerm,{push=true}={}){
+  const clean=String(rawTerm||"").trim().replace(/\s+/g," ");
+  if(!clean)return;
+  lastTypedQuery=clean;
+  const realQuery=composeSearchQuery(clean,activeFilterId);
+  runSearch(realQuery,{label:clean,limit:10,index:-1,push:false});
+  updateTypedSearchCopy(clean,realQuery);
+  if(push){
+    const u=new URL(location.href);
+    u.searchParams.set("q",clean);
+    if(activeFilterId==="normal")u.searchParams.delete("filter");
+    else u.searchParams.set("filter",activeFilterId);
+    history.replaceState(null,"",u);
+  }
+}
 
 function setActive(index){
   [...nav.children].forEach((button,i)=>button.setAttribute("aria-selected",String(i===index)));
@@ -398,6 +496,7 @@ groups.forEach((group,index)=>{
   button.setAttribute("aria-selected",String(index===0));
   button.addEventListener("click",()=>{
     input.value="";
+    lastTypedQuery="";
     runSearch(group.query,{label:group.title,limit:5,index,pins:group.pins});
   });
   nav.append(button);
@@ -407,13 +506,18 @@ form.addEventListener("submit",(event)=>{
   event.preventDefault();
   const q=input.value.trim();
   if(!q)return;
-  runSearch(q,{label:q,limit:10,index:-1});
+  executeTypedSearch(q,{push:true});
 });
 
-const initial=new URL(location.href).searchParams.get("q");
+const initialUrl=new URL(location.href);
+const initial=initialUrl.searchParams.get("q");
+const initialFilter=initialUrl.searchParams.get("filter");
+if(searchFilters.some(filter=>filter.id===initialFilter)) activeFilterId=initialFilter;
+renderFilterBar();
+
 if(initial){
   input.value=initial;
-  runSearch(initial,{label:initial,limit:10,index:-1,push:false});
+  executeTypedSearch(initial,{push:false});
 }else{
   runSearch(groups[0].query,{label:groups[0].title,limit:5,index:0,push:false,pins:groups[0].pins});
 }
