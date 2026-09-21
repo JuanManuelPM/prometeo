@@ -17,7 +17,7 @@ button{font:inherit;color:inherit}
 .add{width:34px;height:34px;border:0;background:var(--fg);color:var(--bg);font-size:23px;line-height:1;padding:0}
 .previewBtn,.historyBtn{height:34px;border:1px solid #2d2d29;background:#0b0b0a;color:var(--fg);padding:0 10px;font-size:8px;font-weight:900;letter-spacing:.08em}
 .now{font:900 11px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em}
-.remoteDock{position:fixed;z-index:170;right:0;top:34%;display:flex;align-items:center;pointer-events:none}
+.remoteDock{position:fixed;z-index:170;right:0;top:34%;display:flex;flex-direction:row-reverse;align-items:center;pointer-events:none}
 .remoteHandle{pointer-events:auto;width:44px;height:66px;border:1px solid #373731;border-right:0;background:#0b0b0a;color:var(--fg);display:grid;place-items:center;padding:0;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:8px 0 0 8px}
 .remoteHandleIcon{font-size:18px;line-height:1}.remoteHandleDot{position:absolute;width:5px;height:5px;border-radius:50%;background:#4a4a45;margin-top:36px}
 .remoteDock.live .remoteHandleDot{background:var(--fg)}.remoteDock.stale .remoteHandleDot{background:var(--red)}
@@ -158,7 +158,7 @@ async function api(body){const r=await fetch(API,{method:'POST',headers:{'Conten
 function activeRemoteTarget(){return String(tvState?.active_youtube_ids?.[0]||'')}
 async function sendRemote(command){try{await api({action:'command',command,block_id:activeRemoteTarget()})}catch(e){toast(String(e.message||e))}}
 async function loadRemoteLibrary(){
-  try{remoteLibrary=await api({action:'youtube_library'});renderRemote()}catch{remoteLibrary=null;renderRemote()}
+  try{remoteLibrary=await api({action:'youtube_library'});remoteLibrary._fetched_at=Date.now();renderRemote()}catch{remoteLibrary=null;renderRemote()}
 }
 async function stepRemote(delta){
   try{
@@ -213,7 +213,7 @@ function initRemoteDock(){
  };
  addEventListener('resize',()=>{y=clamp(y);apply()})
 }
-async function pollTVState(){try{const d=await api({action:'state'});tvState=d.state||null;renderRemote()}catch{tvState=null;renderRemote()}}
+async function pollTVState(){try{const d=await api({action:'state'});tvState=d.state||null;renderRemote();if(remoteOpen&&(!remoteLibrary||Date.now()-Number(remoteLibrary._fetched_at||0)>2500))loadRemoteLibrary()}catch{tvState=null;renderRemote()}}
 async function loadHistory(){
   try{
     const d=await api({action:'watch_history',limit:100});
