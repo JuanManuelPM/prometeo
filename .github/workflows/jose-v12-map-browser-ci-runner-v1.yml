@@ -1,0 +1,53 @@
+name: José V12 map browser CI runner v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pages/lab/jose-study-design-20260911/PROMETEO_JOSE_RECOVERY_ENGINE_V12_MAP_REFINEMENT_CANDIDATE.html'
+      - 'coordination/portfolio/tests/jose_v12_map_browser_ci_runner_v1.mjs'
+      - '.github/workflows/jose-v12-map-browser-ci-runner-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jose-v12-map-browser-ci-runner-v1
+  cancel-in-progress: true
+
+jobs:
+  representative-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install representative Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Serve exact checkout
+        run: |
+          python3 -m http.server 8000 --directory "$GITHUB_WORKSPACE" > /tmp/jose-v12-http.log 2>&1 &
+          echo $! > /tmp/jose-v12-http.pid
+          for i in {1..30}; do
+            curl -fsS "http://127.0.0.1:8000/pages/lab/jose-study-design-20260911/PROMETEO_JOSE_RECOVERY_ENGINE_V12_MAP_REFINEMENT_CANDIDATE.html" >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/jose-v12-http.log
+          exit 1
+      - name: Run José V12 representative browser verification
+        env:
+          JOSE_V12_TARGET_URL: http://127.0.0.1:8000/pages/lab/jose-study-design-20260911/PROMETEO_JOSE_RECOVERY_ENGINE_V12_MAP_REFINEMENT_CANDIDATE.html
+        run: node coordination/portfolio/tests/jose_v12_map_browser_ci_runner_v1.mjs
+      - name: Upload bounded machine-readable evidence and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jose-v12-map-browser-ci-evidence
+          path: artifacts/jose-v12-map-browser-ci/
+          if-no-files-found: error
+          retention-days: 14
