@@ -15,6 +15,9 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 #stage.n4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
 .panel{position:relative;overflow:hidden;background:#000;min-width:0;min-height:0}
 .panel iframe,.ytHost,.ytHost iframe{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;border:0!important}
+.ytHost iframe{pointer-events:none!important}
+.videoProgress{position:absolute;left:0;right:0;bottom:0;height:4px;z-index:8;background:#2b2b2b;pointer-events:none}
+.videoProgressFill{height:100%;width:0;background:#f4f3ee;transition:width .20s linear}
 .clockPanel{display:grid;place-items:center;background:#050505}
 .focusClock{position:relative;width:min(72%,72vh);aspect-ratio:1;border-radius:50%;overflow:hidden;border:2px solid #f4f3ee;background:conic-gradient(from -90deg,#ff3b30 0deg 150deg,#171717 150deg 180deg,#ff3b30 180deg 330deg,#171717 330deg 360deg)}
 .focusClock:after{content:'';position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from -90deg,#ffffffaa 0deg 1deg,transparent 1deg 30deg);-webkit-mask:radial-gradient(circle,transparent 0 91%,#000 91% 100%);mask:radial-gradient(circle,transparent 0 91%,#000 91% 100%);pointer-events:none}
@@ -34,12 +37,12 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 <script>
 (()=>{
 'use strict';
-const BUILD='11';
+const BUILD='12';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const RUNTIME='https://juanmanuelpm.github.io/prometeo/experiments/tv-split-v1-runtime.json';
 const p=new URLSearchParams(location.hash.slice(1));
 const room={code:p.get('room')||'',token:p.get('t')||'',role:'tv'};
-const client='tv-v11-'+Math.random().toString(36).slice(2,10);
+const client='tv-v12-'+Math.random().toString(36).slice(2,10);
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
 const views=new Map(),advancing=new Set();
 let blocks=[],serverActive=[],ytReady=false,lastCommandId=0,updatePending=false,pageStarted=Date.now();
@@ -65,12 +68,14 @@ function destroyView(id){
 }
 function createView(b){
  const id=String(b.id),el=document.createElement('section');el.className='panel';
- const v={id,el,kind:b.kind,sig:sig(b),player:null,ready:false,muted:false,state:null};
+ const v={id,el,kind:b.kind,sig:sig(b),player:null,ready:false,muted:false,state:null,progressFill:null};
  views.set(id,v);stage.appendChild(el);
  if(b.kind==='clock'){el.classList.add('clockPanel');el.innerHTML=clockMarkup()}
  else if(b.kind==='page'){const f=document.createElement('iframe');f.src=b.payload?.url||'about:blank';f.allow='autoplay; fullscreen; picture-in-picture';el.appendChild(f)}
  else if(b.kind==='youtube'){
    const host=document.createElement('div');host.className='ytHost';host.id='yt-'+id.replace(/[^a-z0-9_-]/gi,'');el.appendChild(host);
+   const progress=document.createElement('div');progress.className='videoProgress';
+   const fill=document.createElement('div');fill.className='videoProgressFill';progress.appendChild(fill);el.appendChild(progress);v.progressFill=fill;
    if(ytReady&&window.YT?.Player)mountPlayer(b,v)
  }
  return v
@@ -80,7 +85,7 @@ function mountPlayer(b,v){
  try{
   v.player=new YT.Player(v.el.querySelector('.ytHost').id,{
     videoId:String(b.payload?.video_id||''),
-    playerVars:{autoplay:1,controls:1,playsinline:1,rel:0,fs:1,iv_load_policy:3,disablekb:0},
+    playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,fs:0,iv_load_policy:3,disablekb:1},
     events:{
       onReady:e=>{v.ready=true;try{e.target.playVideo()}catch{}},
       onStateChange:e=>{v.state=Number(e.data);if(Number(e.data)===0)advanceYoutube(b,v)},
@@ -119,6 +124,15 @@ function tickClock(){
  document.querySelectorAll('.hourHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+ha+'deg)');
  document.querySelectorAll('.minuteHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+ma+'deg)');
  document.querySelectorAll('.secondHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+sa+'deg)')
+}
+function updateProgress(){
+ for(const v of views.values()){
+  if(v.kind!=='youtube'||!v.progressFill)continue;
+  let current=0,duration=0;
+  try{current=Number(v.player?.getCurrentTime?.()||0);duration=Number(v.player?.getDuration?.()||0)}catch{}
+  const pct=duration>0?Math.max(0,Math.min(100,current/duration*100)):0;
+  v.progressFill.style.width=pct+'%'
+ }
 }
 function youtubeViews(){return active().filter(b=>b.kind==='youtube').map(b=>views.get(String(b.id))).filter(Boolean)}
 function targets(blockId){if(blockId&&views.has(String(blockId)))return[views.get(String(blockId))];return youtubeViews()}
@@ -196,7 +210,8 @@ async function checkRuntime(){
 }
 unlock.onclick=()=>{unlock.classList.remove('show');for(const v of youtubeViews())try{v.player?.playVideo()}catch{}};
 document.addEventListener('click',()=>{for(const v of youtubeViews())try{v.player?.playVideo()}catch{}},{once:true});
-setInterval(()=>{tickClock();syncStage()},250);
+stage.addEventListener('contextmenu',e=>e.preventDefault());
+setInterval(()=>{tickClock();updateProgress();syncStage()},250);
 setInterval(loadSchedule,700);
 setInterval(pollCommands,350);
 setInterval(sendState,1000);
