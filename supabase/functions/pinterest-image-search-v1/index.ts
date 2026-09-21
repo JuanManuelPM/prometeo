@@ -14,26 +14,6 @@ function json(data:unknown,status=200){
   return new Response(JSON.stringify(data),{status,headers:{...CORS,"Content-Type":"application/json; charset=utf-8"}});
 }
 
-function cleanHtml(raw:string){
-  return raw
-    .replace(/\\u002F/gi,"/")
-    .replace(/\\u0026/gi,"&")
-    .replace(/\\u003D/gi,"=")
-    .replace(/\\\//g,"/")
-    .replace(/&amp;/g,"&");
-}
-
-function decodeEntities(raw:string){
-  return raw
-    .replace(/&quot;/g,'"')
-    .replace(/&#34;/g,'"')
-    .replace(/&#39;/g,"'")
-    .replace(/&apos;/g,"'")
-    .replace(/&amp;/g,"&")
-    .replace(/&lt;/g,"<")
-    .replace(/&gt;/g,">");
-}
-
 function canonicalKey(url:string){
   try{
     const u=new URL(url);
@@ -44,61 +24,35 @@ function canonicalKey(url:string){
   }catch{return url}
 }
 
-function quality(url:string){
-  if(url.includes("/originals/")) return 10000;
-  const m=url.match(/\/(\d+)x(?:\d+)?\//);
-  return m?Number(m[1]):0;
+async function fetchPinterestJson(url:string){
+  const r=await fetch(url,{
+    headers:{
+      "User-Agent":UA,
+      "Accept":"application/json, text/javascript, */*, q=0.01",
+      "X-Requested-With":"XMLHttpRequest",
+      "X-Pinterest-AppState":"active",
+      "X-Pinterest-Source-Url":"/ideas/",
+      "X-Pinterest-PWS-Handler":"www/ideas.js"
+    },
+    redirect:"follow",
+    signal:AbortSignal.timeout(15000)
+  });
+  if(!r.ok) throw new Error("PINTEREST_HTTP_"+r.status);
+  return await r.json();
 }
 
-function extractPinImages(raw:string){
-  const html=cleanHtml(raw);
-  const re=/https:\/\/i\.pinimg\.com\/(?:originals|\d+x|\d+x\d+)\/[A-Za-z0-9_./%~-]+?\.(?:jpg|jpeg|png|webp)/gi;
-  const byKey=new Map<string,string>();
-  for(const match of html.matchAll(re)){
-    const url=match[0].replace(/[),.;]+$/,"");
-    if(/\/(?:30x30|60x60|75x75|90x90|100x100|140x140|170x)\//.test(url)) continue;
-    const key=canonicalKey(url);
-    const prev=byKey.get(key);
-    if(!prev || quality(url)>quality(prev)) byKey.set(key,url);
-  }
-  return [...byKey.values()].sort((a,b)=>quality(b)-quality(a));
-}
-
-function parseBingImageResults(raw:string){
-  const html=cleanHtml(raw);
-  const out:any[]=[];
-  const seen=new Set<string>();
-
-  for(const match of html.matchAll(/<a\b[^>]*>/gi)){
-    const tag=match[0];
-    if(!/\bclass=(["'])[^"']*\biusc\b[^"']*\1/i.test(tag)) continue;
-    const meta=tag.match(/\bm=(["'])([\s\S]*?)\1/i);
-    if(!meta) continue;
-
-    try{
-      const data=JSON.parse(decodeEntities(meta[2]));
-      const image=String(data?.murl||"");
-      const source=String(data?.purl||"");
-      const thumb=String(data?.turl||"");
-      const title=String(data?.t||data?.desc||"").trim();
-
-      if(!/^https:\/\/i\.pinimg\.com\//i.test(image)) continue;
-      if(source && !/^https:\/\/(?:www\.)?pinterest\.[^/]+\/pin\//i.test(source)) continue;
-
-      const key=canonicalKey(image);
-      if(seen.has(key)) continue;
-      seen.add(key);
-
-      out.push({
-        image,
-        source_url:source || "https://www.pinterest.com/",
-        thumbnail:thumb,
-        title
-      });
-    }catch{}
-  }
-
-  return out.sort((a,b)=>quality(b.image)-quality(a.image));
+async function fetchJson(url:string){
+  const r=await fetch(url,{
+    headers:{
+      "User-Agent":UA,
+      "Accept":"application/json,text/plain,*/*",
+      "Accept-Language":"en-US,en;q=0.9,es;q=0.7"
+    },
+    redirect:"follow",
+    signal:AbortSignal.timeout(12000)
+  });
+  if(!r.ok) throw new Error("HTTP_"+r.status);
+  return await r.json();
 }
 
 async function fetchText(url:string){
@@ -115,18 +69,24 @@ async function fetchText(url:string){
   return await r.text();
 }
 
-async function fetchJson(url:string){
-  const r=await fetch(url,{
-    headers:{
-      "User-Agent":UA,
-      "Accept":"application/json,text/plain,*/*",
-      "Accept-Language":"en-US,en;q=0.9,es;q=0.7"
-    },
-    redirect:"follow",
-    signal:AbortSignal.timeout(12000)
-  });
-  if(!r.ok) throw new Error("HTTP_"+r.status);
-  return await r.json();
+function extractPinImages(raw:string){
+  const html=raw
+    .replace(/\\u002F/gi,"/")
+    .replace(/\\u0026/gi,"&")
+    .replace(/\\u003D/gi,"=")
+    .replace(/\\\//g,"/")
+    .replace(/&amp;/g,"&");
+  const re=/https:\/\/i\.pinimg\.com\/(?:originals|\d+x|\d+x\d+)\/[A-Za-z0-9_./%~-]+?\.(?:jpg|jpeg|png|webp)/gi;
+  const seen=new Set<string>();
+  const out:string[]=[];
+  for(const match of html.matchAll(re)){
+    const url=match[0].replace(/[),.;]+$/,"");
+    const key=canonicalKey(url);
+    if(seen.has(key)) continue;
+    seen.add(key);
+    out.push(url);
+  }
+  return out;
 }
 
 async function resolvePin(id:string){
@@ -155,54 +115,71 @@ async function resolvePins(ids:string[]){
   return {provider:"pinterest-pin",results};
 }
 
+function pinTitle(pin:any){
+  const title=String(pin?.title||pin?.grid_title||"").trim();
+  if(title.length>=3) return title;
+  const visual=pin?.pin_join?.visual_annotation;
+  if(Array.isArray(visual)&&visual[0]) return String(visual[0]);
+  return String(pin?.name||pin?.auto_alt_text||"").trim();
+}
+
+async function pinterestSearchPage(query:string,bookmark:string|null){
+  const payload={
+    options:{
+      query,
+      bookmarks:[bookmark||""]
+    },
+    context:{}
+  };
+  const u=new URL("https://www.pinterest.com/resource/BaseSearchResource/get/");
+  u.searchParams.set("data",JSON.stringify(payload));
+  const body:any=await fetchPinterestJson(u.toString());
+  const rr=body?.resource_response||{};
+  if(rr.status && rr.status!=="success") throw new Error("PINTEREST_"+String(rr.status).toUpperCase());
+  const raw=Array.isArray(rr?.data?.results)?rr.data.results:[];
+  const results=raw
+    .filter((pin:any)=>pin?.type!=="story")
+    .map((pin:any)=>{
+      const image=String(pin?.images?.orig?.url||"");
+      if(!/^https:\/\/i\.pinimg\.com\//.test(image)) return null;
+      const id=String(pin?.id||"").trim();
+      if(!id) return null;
+      return {
+        id,
+        image,
+        source_url:"https://www.pinterest.com/pin/"+id+"/",
+        title:pinTitle(pin),
+        width:Number(pin?.images?.orig?.width||0),
+        height:Number(pin?.images?.orig?.height||0)
+      };
+    })
+    .filter(Boolean);
+  return {results,bookmark:String(rr?.bookmark||"")};
+}
+
 async function searchPinterest(query:string,limit:number){
-  const pinterestUrl="https://www.pinterest.com/search/pins/?q="+encodeURIComponent(query)+"&rs=typed";
+  const wanted=Math.max(1,Math.min(limit,20));
   const results:any[]=[];
   const seen=new Set<string>();
+  let bookmark:string|null=null;
 
-  // Bing's image-result metadata is much safer than scanning the page for any
-  // pinimg URL: it couples the full image to its actual Pinterest Pin page.
-  for(const first of [1,20,40]){
-    if(results.length>=limit) break;
-    try{
-      const bing=new URL("https://www.bing.com/images/search");
-      bing.searchParams.set("q",query+" site:pinterest.com/pin/");
-      bing.searchParams.set("form","HDRSC3");
-      bing.searchParams.set("first",String(first));
-      bing.searchParams.set("count","35");
-      const parsed=parseBingImageResults(await fetchText(bing.toString()));
-      for(const item of parsed){
-        const key=canonicalKey(item.image);
-        if(seen.has(key)) continue;
-        seen.add(key);
-        results.push(item);
-        if(results.length>=limit) break;
-      }
-    }catch{}
-  }
-
-  // Fallback: direct Pinterest search page, but only after structured Bing
-  // results. It is intentionally lower-priority because Pinterest also serves
-  // decorative pinimg assets that are not search-result Pins.
-  if(results.length<limit){
-    try{
-      const direct=extractPinImages(await fetchText(pinterestUrl));
-      for(const image of direct){
-        const key=canonicalKey(image);
-        if(seen.has(key)) continue;
-        seen.add(key);
-        results.push({image,source_url:pinterestUrl,title:""});
-        if(results.length>=limit) break;
-      }
-    }catch{}
+  for(let page=0;page<2 && results.length<wanted;page++){
+    const batch=await pinterestSearchPage(query,bookmark);
+    for(const item of batch.results){
+      const key=canonicalKey(item.image);
+      if(seen.has(key)) continue;
+      seen.add(key);
+      results.push(item);
+      if(results.length>=wanted) break;
+    }
+    if(!batch.bookmark || batch.bookmark===bookmark) break;
+    bookmark=batch.bookmark;
   }
 
   return {
-    provider:results.some(x=>/\/pin\//.test(x.source_url))?"bing-pinterest-pins":"pinterest-fallback",
-    source_url:pinterestUrl,
-    results:results
-      .slice(0,Math.max(1,Math.min(limit,20)))
-      .map((item,index)=>({id:String(index+1),...item}))
+    provider:"pinterest-native-search",
+    source_url:"https://www.pinterest.com/search/pins/?q="+encodeURIComponent(query),
+    results:results.slice(0,wanted)
   };
 }
 
