@@ -262,10 +262,30 @@ const API="https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image
 const KEY="pql-v1-7f2b9e31";
 
 const groups=[
-  {label:"Gatos · B&N",title:"Dibujos de gatos en blanco y negro",query:"black and white cat drawing"},
-  {label:"Brutalismo",title:"Arquitectura brutalista en blanco y negro",query:"brutalist architecture black and white"},
-  {label:"Botánica · tinta",title:"Ilustración botánica en tinta",query:"botanical ink drawing black and white"},
-  {label:"Astronomía",title:"Grabados antiguos de astronomía",query:"vintage astronomy engraving"}
+  {
+    label:"Gatos · B&N",
+    title:"Dibujos de gatos en blanco y negro",
+    query:"black and white cat drawing",
+    pins:["263671753178772450","561894491029428460","441775044713130835","563018698218327","750553094174053609"]
+  },
+  {
+    label:"Brutalismo",
+    title:"Arquitectura brutalista en blanco y negro",
+    query:"brutalist architecture black and white",
+    pins:["1110418851899655705","66850375718051484","131448882870236426","302304193728489801","165507355046943902"]
+  },
+  {
+    label:"Botánica · tinta",
+    title:"Ilustración botánica en tinta",
+    query:"botanical ink drawing black and white",
+    pins:["849702654717645401","12666442694920259","633387443011277","174021973074857780","371476669265240594"]
+  },
+  {
+    label:"Astronomía",
+    title:"Grabados antiguos de astronomía",
+    query:"vintage astronomy engraving",
+    pins:["875176140081720321","1129348044041877600","629167010424577443","26036504090464529","299348706466997159"]
+  }
 ];
 
 const nav=document.getElementById("queryNav");
@@ -332,7 +352,7 @@ function renderResults(data){
   counter.textContent=data.results.length+" resultado"+(data.results.length===1?"":"s");
 }
 
-async function runSearch(query,{label=query,limit=10,index=-1,push=true}={}){
+async function runSearch(query,{label=query,limit=10,index=-1,push=true,pins=null}={}){
   query=String(query||"").trim().replace(/\s+/g," ");
   if(!query)return;
 
@@ -351,14 +371,17 @@ async function runSearch(query,{label=query,limit=10,index=-1,push=true}={}){
 
   try{
     const url=new URL(API);
-    url.searchParams.set("q",query);
-    url.searchParams.set("limit",String(limit));
+    if(pins?.length) url.searchParams.set("pins",pins.join(","));
+    else{
+      url.searchParams.set("q",query);
+      url.searchParams.set("limit",String(limit));
+    }
     url.searchParams.set("k",KEY);
     const response=await fetch(url,{headers:{"x-prometeo-lab":"pinterest-image-query-lab-v1"}});
     const data=await response.json().catch(()=>({ok:false,error:"INVALID_RESPONSE"}));
     if(my!==requestId)return;
     if(!response.ok||!data.ok)throw new Error(data.error||("HTTP_"+response.status));
-    renderResults(data);
+    renderResults({...data,query:data.query||query});
   }catch(error){
     if(my!==requestId)return;
     gallery.innerHTML='<div class="empty">La búsqueda no respondió correctamente.<br>Probá de nuevo en unos segundos.</div>';
@@ -375,7 +398,7 @@ groups.forEach((group,index)=>{
   button.setAttribute("aria-selected",String(index===0));
   button.addEventListener("click",()=>{
     input.value="";
-    runSearch(group.query,{label:group.title,limit:5,index});
+    runSearch(group.query,{label:group.title,limit:5,index,pins:group.pins});
   });
   nav.append(button);
 });
@@ -392,7 +415,7 @@ if(initial){
   input.value=initial;
   runSearch(initial,{label:initial,limit:10,index:-1,push:false});
 }else{
-  runSearch(groups[0].query,{label:groups[0].title,limit:5,index:0,push:false});
+  runSearch(groups[0].query,{label:groups[0].title,limit:5,index:0,push:false,pins:groups[0].pins});
 }
 </script>
 </body>
