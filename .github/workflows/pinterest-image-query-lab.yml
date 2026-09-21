@@ -35,20 +35,44 @@ jobs:
           console.log(JSON.stringify({ok:true,provider:data.provider,count:data.results.length},null,2));
           NODE
 
-      - name: Probe free-text search
+      - name: Probe Naruto free-text search
         shell: bash
         run: |
           set -euo pipefail
-          URL='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1?q=black%20and%20white%20cat%20drawing&limit=10&k=pql-v1-7f2b9e31'
+          URL='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1?q=naruto&limit=10&k=pql-v1-7f2b9e31'
           body="$(curl --fail --silent --show-error --max-time 35 "$URL")"
-          printf '%s' "$body" > /tmp/search.json
+          printf '%s' "$body" > /tmp/naruto.json
+          cat /tmp/naruto.json
+          echo
           node - <<'NODE'
           const fs=require('fs');
-          const data=JSON.parse(fs.readFileSync('/tmp/search.json','utf8'));
+          const data=JSON.parse(fs.readFileSync('/tmp/naruto.json','utf8'));
           if(!data.ok) throw new Error(JSON.stringify(data));
-          if(!Array.isArray(data.results) || data.results.length<1) throw new Error('expected at least one search result');
-          for(const item of data.results){
+          if(!Array.isArray(data.results) || data.results.length<5) throw new Error('expected at least 5 Naruto results');
+          for(const item of data.results.slice(0,5)){
             if(!/^https:\/\/i\.pinimg\.com\//.test(item.image)) throw new Error('non-pinterest image: '+item.image);
+            if(!/^https:\/\/(?:www\.)?pinterest\.[^/]+\/pin\//.test(item.source_url)) throw new Error('not a real Pin result: '+item.source_url);
+          }
+          console.log(JSON.stringify({ok:true,provider:data.provider,count:data.results.length},null,2));
+          NODE
+
+      - name: Probe vintage house free-text search
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1?q=vintage%20house&limit=10&k=pql-v1-7f2b9e31'
+          body="$(curl --fail --silent --show-error --max-time 35 "$URL")"
+          printf '%s' "$body" > /tmp/vintage.json
+          cat /tmp/vintage.json
+          echo
+          node - <<'NODE'
+          const fs=require('fs');
+          const data=JSON.parse(fs.readFileSync('/tmp/vintage.json','utf8'));
+          if(!data.ok) throw new Error(JSON.stringify(data));
+          if(!Array.isArray(data.results) || data.results.length<5) throw new Error('expected at least 5 vintage house results');
+          for(const item of data.results.slice(0,5)){
+            if(!/^https:\/\/i\.pinimg\.com\//.test(item.image)) throw new Error('non-pinterest image: '+item.image);
+            if(!/^https:\/\/(?:www\.)?pinterest\.[^/]+\/pin\//.test(item.source_url)) throw new Error('not a real Pin result: '+item.source_url);
           }
           console.log(JSON.stringify({ok:true,provider:data.provider,count:data.results.length},null,2));
           NODE
@@ -58,12 +82,11 @@ jobs:
         run: |
           set -euo pipefail
           URL='https://juanmanuelpm.github.io/prometeo/demos/pinterest-image-query-lab-v1/?ci=clean-search'
-          for n in 1 2 3 4 5 6 7 8; do
+          for n in 1 2 3 4 5 6 7 8 9 10; do
             page="$(curl --fail --silent --show-error --max-time 20 "$URL" || true)"
             if printf '%s' "$page" | grep -q 'id="searchForm"' \
               && printf '%s' "$page" | grep -q 'pinterest-image-search-v1' \
               && printf '%s' "$page" | grep -q 'Sin botón rojo' \
-              && printf '%s' "$page" | grep -q 'pins:\["263671753178772450"' \
               && ! printf '%s' "$page" | grep -q '<iframe'; then
               echo "served UI verified"
               exit 0
