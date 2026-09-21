@@ -50,13 +50,35 @@ function cleanPayload(kind:string,p:any){
   if(kind==="clock")return {style:String(x.style||"orbit").slice(0,32)};
   if(kind==="black")return {};
   if(kind==="youtube"){
-    const video_id=ytId(String(x.url||x.video_id||""));if(!video_id)fail("YOUTUBE_URL_INVALID");
+    const queue=(Array.isArray(x.queue)?x.queue:[]).slice(0,50).map((v:any)=>{
+      const video_id=ytId(String(v?.video_id||v?.url||""));if(!video_id)return null;
+      return {
+        video_id,
+        title:String(v?.title||v?.video_title||"YouTube").slice(0,200),
+        channel_id:String(v?.channel_id||"").slice(0,80),
+        channel_title:String(v?.channel_title||"").slice(0,120),
+        thumbnail:String(v?.thumbnail||`https://i.ytimg.com/vi/${video_id}/mqdefault.jpg`).slice(0,500),
+        watch_url:`https://www.youtube.com/watch?v=${video_id}`
+      };
+    }).filter(Boolean);
+    let video_id=ytId(String(x.url||x.video_id||""));
+    let queue_index=Math.max(0,Math.floor(Number(x.queue_index)||0));
+    if(queue.length){
+      const explicit=queue.findIndex((v:any)=>v.video_id===video_id);
+      if(explicit>=0)queue_index=explicit;
+      queue_index=Math.min(queue.length-1,queue_index);
+      video_id=queue[queue_index].video_id;
+    }
+    const current=queue.find((v:any)=>v.video_id===video_id)||null;
     return {
+      mode:String(x.mode||"session").slice(0,24),
+      queue,
+      queue_index:queue.length?queue_index:0,
       video_id,
-      url:`https://www.youtube.com/watch?v=${video_id}`,
-      channel_id:String(x.channel_id||"").slice(0,80),
-      channel_title:String(x.channel_title||"").slice(0,120),
-      video_title:String(x.video_title||"").slice(0,200),
+      url:video_id?`https://www.youtube.com/watch?v=${video_id}`:"",
+      channel_id:String(current?.channel_id||x.channel_id||"").slice(0,80),
+      channel_title:String(current?.channel_title||x.channel_title||"").slice(0,120),
+      video_title:String(current?.title||x.video_title||"").slice(0,200),
       auto_next:x.auto_next!==false
     };
   }
@@ -78,7 +100,28 @@ async function advanceYoutubeBlock(room:any,blockId:string,expected:string,clien
   const current=String(payload.video_id||"");
   if(expected&&current!==expected)return {ok:true,stale:true,block};
   if(payload.auto_next===false)return {ok:true,advanced:false,reason:"AUTO_NEXT_OFF",block};
-  const channelId=String(payload.channel_id||"");if(!channelId)fail("YOUTUBE_CHANNEL_REQUIRED");
+
+  const queue=Array.isArray(payload.queue)?payload.queue:[];
+  if(queue.length){
+    let idx=Math.max(0,Math.min(queue.length-1,Math.floor(Number(payload.queue_index)||0)));
+    const found=queue.findIndex((v:any)=>String(v?.video_id||"")===current);
+    if(found>=0)idx=found;
+    const currentMeta=queue[idx]||{};
+    if(current){
+      const h={room_id:room.id,video_id:current,channel_id:String(currentMeta.channel_id||payload.channel_id||""),channel_title:String(currentMeta.channel_title||payload.channel_title||block.title||""),title:String(currentMeta.title||payload.video_title||block.title||""),watched_at:new Date().toISOString()};
+      const hq=await db.from("tv_watch_history").upsert(h,{onConflict:"room_id,video_id"});if(hq.error)throw hq.error;
+    }
+    const nextIndex=idx+1;
+    if(nextIndex>=queue.length)return {ok:true,advanced:false,reason:"QUEUE_END",block};
+    const next:any=queue[nextIndex];
+    const nextPayload={...payload,queue_index:nextIndex,video_id:String(next.video_id||""),url:`https://www.youtube.com/watch?v=${String(next.video_id||"")}`,channel_id:String(next.channel_id||""),channel_title:String(next.channel_title||""),video_title:String(next.title||""),auto_next:true};
+    const uq=await db.from("tv_program_blocks").update({payload:nextPayload,updated_at:new Date().toISOString()}).eq("id",blockId).eq("room_id",room.id).select().single();
+    if(uq.error)throw uq.error;
+    await changed(room,"tv",clientId);
+    return {ok:true,advanced:true,block:uq.data,next};
+  }
+
+  const channelId=String(payload.channel_id||"");if(!channelId)return {ok:true,advanced:false,reason:"NO_QUEUE",block};
   const feed=await channelFeed(channelId);
   const currentMeta=feed.find((v:any)=>v.video_id===current);
   if(current){
@@ -115,14 +158,14 @@ Deno.serve(async(req:Request)=>{try{
     const now_minute=get("hour")*60+get("minute");
     const active_blocks=blocks.filter((x:any)=>now_minute>=Number(x.start_minute)&&now_minute<Number(x.end_minute));
     const revision=blocks.reduce((m:any,x:any)=>String(x.updated_at||"")>m?String(x.updated_at||""):m,"");
-    return json(req,{ok:true,timezone:"America/Argentina/Buenos_Aires",now_minute,blocks,active_blocks,revision,runtime_build:"19"});
+    return json(req,{ok:true,timezone:"America/Argentina/Buenos_Aires",now_minute,blocks,active_blocks,revision,runtime_build:"20"});
   }
   if(action==="state"){
     if(role!=="remote")fail("REMOTE_REQUIRED",403);
     const q=await db.from("tv_live_state").select("*").eq("room_id",room.id).order("updated_at",{ascending:false}).limit(20);
     if(q.error)throw q.error;
     const states=q.data||[];
-    return json(req,{ok:true,state:states[0]||null,states,runtime_build:"19"});
+    return json(req,{ok:true,state:states[0]||null,states,runtime_build:"20"});
   }
   if(action==="tv_state"){
     if(role!=="tv")fail("TV_REQUIRED",403);
