@@ -140,16 +140,23 @@ assert.deepEqual(
 );
 
 const zeroReady=capabilityRow(300,[]);
+const prodGenericIds=[
+  'portfolio-eff034-live-stale-collision-refresh-observation-v1',
+  'portfolio-eff060-runtime-ratchet-reconcile-v1',
+  'portfolio-v330-transport-boundary-exam-contract-v1'
+];
 const buriedZeroRecovery=[
-  capabilityRow(400,[]),
-  capabilityRow(401,[]),
-  capabilityRow(402,[])
+  ...prodGenericIds.map((job_id,i)=>({...capabilityRow(400+i,[]),job_id,claim_path:`pins/${job_id}.json`})),
+  capabilityRow(403,[]),
+  capabilityRow(404,[]),
+  capabilityRow(405,[]),
+  capabilityRow(406,[])
 ];
 const duplicateBrowserTail=Array.from({length:10},(_,i)=>capabilityRow(500+i,['representative_javascript_browser']));
 const zeroCapacityAllocator={
   schema:'prometeo.fast-allocator/v3',
-  generated_at:'2026-09-19T15:00:00Z',
-  source_sha:'zero-capacity-pressure-fixture',
+  generated_at:'2026-09-21T00:08:49.326Z',
+  source_sha:'prod-01-mixed-capability-shape',
   batch_strategy:'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD',
   preferred_order:['ready','queue_ready','role_ready','recovery'],
   ready:[...browserRecovery.slice(0,4),zeroReady,...duplicateBrowserTail,publicHttpRecovery[0]],
@@ -164,20 +171,30 @@ const zeroCapacityAllocator={
     ...buriedZeroRecovery.map(x=>({lane:'recovery',...x}))
   ]
 };
-const zeroCapacity=buildClaimFrontier(zeroCapacityAllocator,10,24000);
+const zeroCapacity=buildClaimFrontier(zeroCapacityAllocator,13,24000);
 const visibleZero=zeroCapacity.candidates.filter(x=>(x.required_capabilities||[]).length===0);
 assert.equal(
   visibleZero.length,
-  4,
-  'compact frontier must preserve four distinct no-special-capability claim paths under specialized pressure'
+  8,
+  'compact frontier must preserve eight distinct no-special-capability claim paths under specialized pressure'
 );
-for (const expected of ['job-400','job-401','job-402']) {
+for (const expected of prodGenericIds) {
   assert.equal(
     zeroCapacity.candidates.some(x=>x.job_id===expected),
     true,
-    `buried zero-capability recovery ${expected} must be promoted into the bounded frontier`
+    `PROD-01 generic-ready job ${expected} must remain reachable inside the bounded compact frontier`
   );
 }
+assert.equal(
+  zeroCapacity.candidates.some(x=>JSON.stringify(x.required_capabilities)===JSON.stringify(['representative_javascript_browser'])),
+  true,
+  'generic reservation must not erase the browser capability exemplar'
+);
+assert.equal(
+  zeroCapacity.candidates.some(x=>JSON.stringify(x.required_capabilities)===JSON.stringify(['unrestricted_public_http_origin_fetch'])),
+  true,
+  'generic reservation must not erase the HTTP capability exemplar'
+);
 
 console.log('CLAIM_FRONTIER_CAPABILITY_DIVERSITY_PASS',diverse.candidate_count);
 console.log('CLAIM_FRONTIER_COMPACT_PASS',bytes,boundedBytes,bounded.candidate_count);
