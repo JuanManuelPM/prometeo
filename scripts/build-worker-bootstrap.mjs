@@ -79,7 +79,8 @@ lines.push(
   ...(production ? [
     'GRADUATED BASELINE:',
     '- This production surface uses the same v3.30 allocation/authority/residency implementation contract as the graduated canary.',
-    '- /w creates exactly one fresh beacon itself. After that beacon succeeds, load main:wc at its POST-BEACON ordinary non-RUN step; do NOT create a second beacon or regenerate worker identity.',
+    '- /w creates exactly one fresh beacon itself. Before that write, parse only launch-envelope identity: BATCH <batch_id> EXPECTED <n> => exact batch_id/expected_workers and pool_id=null; POOL <pool_id> => batch_id=POOL-<pool_id>, expected_workers=null, pool_id=<pool_id>. Persist those fields plus source=/w in the first beacon.',
+    '- After that beacon succeeds, load main:wc at its POST-BEACON ordinary non-RUN step; do NOT create a second beacon, regenerate worker identity, or change batch_id/expected_workers/pool_id.',
     '- E6 verification uses the promoted V3_EVIDENCE_MAP baseline: every hard gate maps to exact evidence and may close only as PASS or truthful BOUNDARY.',
     '- V4_TWO_PASS_REVIEW is confirmed optional reinforcement for high-risk/ambiguous work; it is not mandatory on every job.',
     '- If an explicit postclaim RETURN/Guide receipt transport denial occurs after durable production+verification, obey the bounded E7 transport-continuation rule: E7 stays BOUNDARY, blocked unit=0, no retry/bypass, unrelated E8 work may continue only after a durable boundary receipt.',
@@ -129,7 +130,7 @@ lines.push(
   '',
   'Wave marker:',
   'BATCH <batch_id> EXPECTED <n>',
-  'Use the same marker in every chat of one wave so Live can reconstruct exactly what happened.',
+  'Use the same marker in every chat of one finite wave so Live can reconstruct expected vs observed and compute missing_expected. Refill uses the identical batch marker and only the missing count.',
   '',
   `Human contract: repeated identical guarded ${surface} launches must become distinct fresh workers, become useful owners quickly, and do resident work rather than replaying old completions or stopping at checkpoint ${checkpoint}. An empty materialized queue is NOT the same as an empty project: useful latent work must surface through ROLE_READY. Observability must never block coordination.`
 );
