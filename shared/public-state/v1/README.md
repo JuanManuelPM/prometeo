@@ -136,6 +136,8 @@ Core envelope:
 
 `expires_at` is optional for state that becomes false/stale merely by passage of time, such as `pomodoro.remaining`. Consumers treat expired entries as absent/stale rather than displaying a frozen old truth.
 
+`value_json` must be genuine JSON data (no `undefined`, functions, symbols, BigInt, `NaN`, or infinities) and is capped at 16 KiB in the v1 client prototype. Production validation must enforce its registered per-key schema and size server-side as well.
+
 ## 6. Optional State Event
 
 `state-event.schema.json` defines an immutable event generated only when a key opts into `history_mode: "changes"`.

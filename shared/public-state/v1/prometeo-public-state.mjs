@@ -7,7 +7,8 @@ const SOURCE_RE=/^[a-z][a-z0-9_-]*(\.[a-z][a-z0-9_-]*)*\/v[1-9][0-9]*$/;
 const MAX_VALUE_BYTES=16*1024;
 const clone=v=>v==null?v:structuredClone(v);
 const aid=a=>`${a.workspaceId}\u0000${a.channel}\u0000${a.key}`;
-const digest=v=>JSON.stringify(v);
+const encodeJson=v=>{let s;try{s=JSON.stringify(v,(k,x)=>{if(typeof x==='number'&&!Number.isFinite(x))throw new PublicStateError('VALUE_NOT_JSON');if(['undefined','function','symbol','bigint'].includes(typeof x))throw new PublicStateError('VALUE_NOT_JSON');return x;});}catch(e){if(e instanceof PublicStateError)throw e;throw new PublicStateError('VALUE_NOT_JSON');}if(s===undefined)throw new PublicStateError('VALUE_NOT_JSON');return s;};
+const digest=encodeJson;
 const uuid=()=>globalThis.crypto?.randomUUID?.()||`ps-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export class PublicStateError extends Error{
@@ -30,7 +31,7 @@ export function validateProjection(input={}){
   if(!VISIBILITIES.has(visibility)) throw new PublicStateError('VISIBILITY_INVALID',{visibility});
   if(!['none','changes'].includes(historyMode)) throw new PublicStateError('HISTORY_MODE_INVALID',{historyMode});
   if(visibility==='public_anonymous'&&input.publicSafe!==true) throw new PublicStateError('PUBLIC_SAFE_ASSERTION_REQUIRED');
-  if(new TextEncoder().encode(JSON.stringify(input.value)).byteLength>MAX_VALUE_BYTES) throw new PublicStateError('VALUE_TOO_LARGE');
+  if(new TextEncoder().encode(encodeJson(input.value)).byteLength>MAX_VALUE_BYTES) throw new PublicStateError('VALUE_TOO_LARGE');
   if(input.expiresAt!=null&&Number.isNaN(Date.parse(String(input.expiresAt)))) throw new PublicStateError('EXPIRES_AT_INVALID');
   return {...address,value:clone(input.value),source,sourceVersion,visibility,historyMode,
     schemaId:input.schemaId==null?null:String(input.schemaId),
@@ -132,7 +133,7 @@ export function createPrometeoPublicState({workspaceId,store,transport,registry=
     if(emitCurrent){const e=await getEntry(key,{channel});if(e)notify(a,e);}
     return()=>{subscribers.get(k)?.delete(r);if(subscribers.get(k)?.size===0){subscribers.delete(k);remoteUnsub.get(k)?.();remoteUnsub.delete(k);}};
   }
-  async function reconnect(){await flush();for(const k of subscribers.keys()){if(remoteUnsub.has(k))continue;const [ws,channel,key]=k.split('\u0000'),a={workspaceId:ws,channel,key};
+  async function reconnect(){await flush();for(const k of subscribers.keys()){remoteUnsub.get(k)?.();remoteUnsub.delete(k);const [ws,channel,key]=k.split('\u0000'),a={workspaceId:ws,channel,key};
     try{const e=await transport.get(a);if(e){await store.putEntry(a,e);notify(a,e);}await attach(a);}catch(error){if(error?.code!=='OFFLINE')throw error;}}}
   return Object.freeze({publish,get,getEntry,subscribe,flush,reconnect});
 }

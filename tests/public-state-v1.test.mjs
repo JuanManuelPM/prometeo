@@ -113,3 +113,25 @@ test('get refreshes remote current state instead of freezing a cached renderer v
   await producer.publish('habits.exercise.current_streak',8,{channel:'home',source:'habits.projection/v1',sourceVersion:2,visibility:'workspace'});
   assert.equal(await consumer.get('habits.exercise.current_streak',{channel:'home'}),8);
 });
+
+
+test('rejects JavaScript values that cannot be represented faithfully as JSON', () => {
+  assert.throws(() => validateProjection({workspaceId:'w',channel:'home',key:'x.y',value:undefined,source:'x/v1',sourceVersion:1}), /VALUE_NOT_JSON/);
+  assert.throws(() => validateProjection({workspaceId:'w',channel:'home',key:'x.y',value:NaN,source:'x/v1',sourceVersion:1}), /VALUE_NOT_JSON/);
+  assert.throws(() => validateProjection({workspaceId:'w',channel:'home',key:'x.y',value:1n,source:'x/v1',sourceVersion:1}), /VALUE_NOT_JSON/);
+});
+
+test('reconnect flushes offline state, reconciles snapshot, and reattaches subscriptions', async()=>{
+  const transport=createMemoryTransport({online:false});
+  const producer=client(transport);
+  const renderer=createPrometeoPublicState({workspaceId:'ws-test',store:createMemoryStore(),transport});
+  const seen=[];
+  const unsubscribe=await renderer.subscribe('habits.exercise.current_streak',v=>seen.push(v),{channel:'home'});
+  await producer.publish('habits.exercise.current_streak',7,publishOpts({operationId:'offline-reconnect'}));
+  transport.setOnline(true);
+  await producer.reconnect();
+  await renderer.reconnect();
+  await producer.publish('habits.exercise.current_streak',8,publishOpts({operationId:'after-reconnect',sourceVersion:2}));
+  unsubscribe();
+  assert.deepEqual(seen,[7,8]);
+});
