@@ -23,8 +23,6 @@ jobs:
           URL='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1?q=black%20and%20white%20cat%20drawing&limit=5&k=pql-v1-7f2b9e31'
           body="$(curl --fail --silent --show-error --max-time 25 "$URL")"
           printf '%s' "$body" > /tmp/result.json
-          cat /tmp/result.json
-          echo
           node - <<'NODE'
           const fs=require('fs');
           const data=JSON.parse(fs.readFileSync('/tmp/result.json','utf8'));
@@ -33,5 +31,24 @@ jobs:
           for(const item of data.results.slice(0,5)){
             if(!/^https:\/\/i\.pinimg\.com\//.test(item.image)) throw new Error('non-pinterest image: '+item.image);
           }
-          console.log(JSON.stringify({ok:true,query:data.query,provider:data.provider,count:data.results.length,first:data.results[0].image},null,2));
+          console.log(JSON.stringify({ok:true,query:data.query,provider:data.provider,count:data.results.length},null,2));
           NODE
+
+      - name: Probe served GitHub Pages UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://juanmanuelpm.github.io/prometeo/demos/pinterest-image-query-lab-v1/?ci=clean-search'
+          for n in 1 2 3 4 5 6 7 8; do
+            page="$(curl --fail --silent --show-error --max-time 20 "$URL" || true)"
+            if printf '%s' "$page" | grep -q 'id="searchForm"' \
+              && printf '%s' "$page" | grep -q 'pinterest-image-search-v1' \
+              && printf '%s' "$page" | grep -q 'Sin botón rojo' \
+              && ! printf '%s' "$page" | grep -q '<iframe'; then
+              echo "served UI verified"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "served page did not converge to clean-search build" >&2
+          exit 1
