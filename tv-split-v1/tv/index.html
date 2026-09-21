@@ -19,11 +19,18 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 .videoProgress{position:absolute;left:0;right:0;bottom:0;height:4px;z-index:8;background:#2b2b2b;pointer-events:none}
 .videoProgressFill{height:100%;width:0;background:#f4f3ee;transition:width .20s linear}
 .clockPanel{display:grid;place-items:center;background:#050505}
-.focusClock{position:relative;width:min(72%,72vh);aspect-ratio:1;border-radius:50%;overflow:hidden;border:2px solid #f4f3ee;background:conic-gradient(from -90deg,#ff3b30 0deg 150deg,#171717 150deg 180deg,#ff3b30 180deg 330deg,#171717 330deg 360deg)}
-.focusClock:after{content:'';position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from -90deg,#ffffffaa 0deg 1deg,transparent 1deg 30deg);-webkit-mask:radial-gradient(circle,transparent 0 91%,#000 91% 100%);mask:radial-gradient(circle,transparent 0 91%,#000 91% 100%);pointer-events:none}
-.hand{position:absolute;left:50%;bottom:50%;transform-origin:50% 100%;border-radius:99px;z-index:3}
-.hourHand{width:6px;height:27%;background:#f4f3ee}.minuteHand{width:3px;height:39%;background:#f4f3ee}.secondHand{width:1px;height:43%;background:#f4f3ee}
-.centerPin{position:absolute;left:50%;top:50%;width:12px;height:12px;transform:translate(-50%,-50%);border-radius:50%;background:#050505;border:2px solid #f4f3ee;z-index:5}
+.cycleClock{position:relative;width:min(78%,76vh);aspect-ratio:1;border-radius:50%}
+.cycleDial{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from -90deg,#f4f3ee 0deg 300deg,#ff3b30 300deg 360deg)}
+.cycleDial:before{content:'';position:absolute;inset:16px;border-radius:50%;background:#050505}
+.cycleTicks{position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from -90deg,#050505 0deg 1.2deg,transparent 1.2deg 12deg);-webkit-mask:radial-gradient(circle,transparent 0 86%,#000 86% 100%);mask:radial-gradient(circle,transparent 0 86%,#000 86% 100%);pointer-events:none}
+.phaseRing{position:absolute;inset:28px;border-radius:50%;background:conic-gradient(from -90deg,var(--phaseColor,#f4f3ee) 0 var(--phasePct,100%),#1c1c1a var(--phasePct,100%) 100%);-webkit-mask:radial-gradient(circle,transparent 0 78%,#000 78% 100%);mask:radial-gradient(circle,transparent 0 78%,#000 78% 100%);transition:background .2s linear}
+.cycleMarker{position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;background:#050505;border:2px solid #f4f3ee;transform-origin:0 0;z-index:6}
+.cycleCore{position:absolute;inset:58px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#050505}
+.phaseLabel{font-size:clamp(11px,2.1vw,20px);font-weight:900;letter-spacing:.16em}
+.phaseCountdown{margin-top:5px;font:900 clamp(30px,7vw,76px)/.95 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.06em}
+.wallTime{margin-top:10px;font:800 clamp(9px,1.6vw,16px)/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#77766f}
+.cycleLegend{position:absolute;left:50%;bottom:5%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;font:900 clamp(7px,1vw,11px)/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;color:#8a8981;white-space:nowrap}
+.cycleLegend span{display:flex;align-items:center;gap:5px}.cycleLegend i{width:7px;height:7px;border-radius:50%;display:block}.cycleLegend .work i{background:#f4f3ee}.cycleLegend .rest i{background:#ff3b30}
 .unlock{position:fixed;z-index:50;right:12px;bottom:12px;display:none;border:1px solid #ffffff55;background:#000c;color:#fff;height:36px;padding:0 12px;font-size:9px;font-weight:900;letter-spacing:.08em}
 .unlock.show{display:block}
 .status{position:fixed;right:8px;top:8px;z-index:60;width:5px;height:5px;border-radius:50%;background:#333;opacity:.35}.status.err{background:#fff}
@@ -37,12 +44,12 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 <script>
 (()=>{
 'use strict';
-const BUILD='12';
+const BUILD='13';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const RUNTIME='https://juanmanuelpm.github.io/prometeo/experiments/tv-split-v1-runtime.json';
 const p=new URLSearchParams(location.hash.slice(1));
 const room={code:p.get('room')||'',token:p.get('t')||'',role:'tv'};
-const client='tv-v12-'+Math.random().toString(36).slice(2,10);
+const client='tv-v13-'+Math.random().toString(36).slice(2,10);
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
 const views=new Map(),advancing=new Set();
 let blocks=[],serverActive=[],ytReady=false,lastCommandId=0,updatePending=false,pageStarted=Date.now();
@@ -59,7 +66,7 @@ async function api(body){
  const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||'TV_API');return d
 }
 function sig(b){return b.kind+'|'+JSON.stringify(b.payload||{})}
-function clockMarkup(){return '<div class="focusClock"><div class="hand hourHand"></div><div class="hand minuteHand"></div><div class="hand secondHand"></div><div class="centerPin"></div></div>'}
+function clockMarkup(){return '<div class="cycleClock"><div class="cycleDial"></div><div class="cycleTicks"></div><div class="phaseRing"></div><div class="cycleMarker"></div><div class="cycleCore"><div class="phaseLabel">FOCO</div><div class="phaseCountdown">25:00</div><div class="wallTime">--:--</div></div><div class="cycleLegend"><span class="work"><i></i>25 FOCO</span><span class="rest"><i></i>5 RECREO</span></div></div>'}
 function destroyView(id){
  const v=views.get(String(id));if(!v)return;
  try{v.player?.destroy()}catch{}
@@ -120,10 +127,17 @@ function syncStage(){
  applyGrid(act);tickClock();maybeApplyPendingUpdate()
 }
 function tickClock(){
- const n=nowParts(),ha=((n.h%12)+(n.m/60)+(n.s/3600))*30,ma=(n.m+n.s/60)*6,sa=n.s*6;
- document.querySelectorAll('.hourHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+ha+'deg)');
- document.querySelectorAll('.minuteHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+ma+'deg)');
- document.querySelectorAll('.secondHand').forEach(el=>el.style.transform='translateX(-50%) rotate('+sa+'deg)')
+ const n=nowParts(),sec=n.s,cycleMinute=n.m%30,cycleSec=cycleMinute*60+sec,work=cycleSec<25*60;
+ const phaseStart=work?0:25*60,phaseLength=work?25*60:5*60,phaseElapsed=cycleSec-phaseStart,remaining=Math.max(0,phaseLength-phaseElapsed);
+ const mm=Math.floor(remaining/60),ss=Math.floor(remaining%60),cyclePct=cycleSec/(30*60),phasePct=Math.max(0,Math.min(100,(1-phaseElapsed/phaseLength)*100));
+ document.querySelectorAll('.cycleClock').forEach(clock=>{
+   const ring=clock.querySelector('.phaseRing'),marker=clock.querySelector('.cycleMarker'),label=clock.querySelector('.phaseLabel'),count=clock.querySelector('.phaseCountdown'),wall=clock.querySelector('.wallTime');
+   if(ring){ring.style.setProperty('--phasePct',phasePct+'%');ring.style.setProperty('--phaseColor',work?'#f4f3ee':'#ff3b30')}
+   if(marker){const ang=cyclePct*360-90,r=clock.clientWidth/2-8;marker.style.transform='rotate('+ang+'deg) translateX('+r+'px) translate(-50%,-50%)';marker.style.borderColor=work?'#f4f3ee':'#ff3b30'}
+   if(label){label.textContent=work?'FOCO':'RECREO';label.style.color=work?'#f4f3ee':'#ff3b30'}
+   if(count)count.textContent=String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0')
+   if(wall)wall.textContent=String(n.h).padStart(2,'0')+':'+String(n.m).padStart(2,'0')
+ })
 }
 function updateProgress(){
  for(const v of views.values()){
