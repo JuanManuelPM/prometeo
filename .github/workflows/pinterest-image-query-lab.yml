@@ -13,85 +13,32 @@ permissions:
   contents: read
 
 jobs:
-  probe:
+  diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe clean preset Pin resolver
+      - name: Inspect public image-search responses
         shell: bash
         run: |
           set -euo pipefail
-          URL='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1?pins=263671753178772450,561894491029428460,441775044713130835,563018698218327,750553094174053609&k=pql-v1-7f2b9e31'
-          body="$(curl --fail --silent --show-error --max-time 35 "$URL")"
-          printf '%s' "$body" > /tmp/preset.json
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
+          curl -L --silent --show-error --max-time 25 -A "$UA"             'https://www.bing.com/images/search?q=naruto%20site%3Apinterest.com%2Fpin%2F&form=HDRSC3&first=1&count=35' > /tmp/bing.html
+          curl -L --silent --show-error --max-time 25 -A "$UA"             'https://www.google.com/search?udm=2&q=naruto%20site%3Apinterest.com%2Fpin%2F' > /tmp/google.html
+          curl -L --silent --show-error --max-time 25 -A "$UA"             'https://duckduckgo.com/?q=naruto%20site%3Apinterest.com%2Fpin%2F' > /tmp/ddg.html
+
           node - <<'NODE'
           const fs=require('fs');
-          const data=JSON.parse(fs.readFileSync('/tmp/preset.json','utf8'));
-          if(!data.ok) throw new Error(JSON.stringify(data));
-          if(!Array.isArray(data.results) || data.results.length!==5) throw new Error('expected exactly 5 preset results');
-          for(const item of data.results){
-            if(!/^https:\/\/i\.pinimg\.com\//.test(item.image)) throw new Error('non-pinterest image: '+item.image);
-            if(!/^https:\/\/www\.pinterest\.com\/pin\//.test(item.source_url)) throw new Error('missing exact Pin source');
+          for(const name of ['bing','google','ddg']){
+            const html=fs.readFileSync('/tmp/'+name+'.html','utf8');
+            const pinimg=[...html.matchAll(/https:\/\/i\.pinimg\.com\/[A-Za-z0-9_./%?=&;~-]+/gi)].map(x=>x[0].replace(/&amp;/g,'&'));
+            const pins=[...html.matchAll(/https:\/\/(?:www\.)?pinterest\.[^"' <]+\/pin\/[A-Za-z0-9_-]+/gi)].map(x=>x[0]);
+            const iusc=(html.match(/\biusc\b/gi)||[]).length;
+            console.log('\n### '+name.toUpperCase());
+            console.log(JSON.stringify({bytes:html.length,pinimgCount:pinimg.length,pinCount:pins.length,iusc},null,2));
+            console.log('pinimg samples', [...new Set(pinimg)].slice(0,12));
+            console.log('pin samples', [...new Set(pins)].slice(0,8));
+            if(name==='bing'){
+              const idx=html.indexOf('i.pinimg.com');
+              console.log('bing context', idx>=0?html.slice(Math.max(0,idx-800),idx+1400):'NO PINIMG');
+            }
           }
-          console.log(JSON.stringify({ok:true,provider:data.provider,count:data.results.length},null,2));
           NODE
-
-      - name: Probe Naruto free-text search
-        shell: bash
-        run: |
-          set -euo pipefail
-          URL='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1?q=naruto&limit=10&k=pql-v1-7f2b9e31'
-          body="$(curl --fail --silent --show-error --max-time 35 "$URL")"
-          printf '%s' "$body" > /tmp/naruto.json
-          cat /tmp/naruto.json
-          echo
-          node - <<'NODE'
-          const fs=require('fs');
-          const data=JSON.parse(fs.readFileSync('/tmp/naruto.json','utf8'));
-          if(!data.ok) throw new Error(JSON.stringify(data));
-          if(!Array.isArray(data.results) || data.results.length<5) throw new Error('expected at least 5 Naruto results');
-          for(const item of data.results.slice(0,5)){
-            if(!/^https:\/\/i\.pinimg\.com\//.test(item.image)) throw new Error('non-pinterest image: '+item.image);
-            if(!/^https:\/\/(?:www\.)?pinterest\.[^/]+\/pin\//.test(item.source_url)) throw new Error('not a real Pin result: '+item.source_url);
-          }
-          console.log(JSON.stringify({ok:true,provider:data.provider,count:data.results.length},null,2));
-          NODE
-
-      - name: Probe vintage house free-text search
-        shell: bash
-        run: |
-          set -euo pipefail
-          URL='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1?q=vintage%20house&limit=10&k=pql-v1-7f2b9e31'
-          body="$(curl --fail --silent --show-error --max-time 35 "$URL")"
-          printf '%s' "$body" > /tmp/vintage.json
-          cat /tmp/vintage.json
-          echo
-          node - <<'NODE'
-          const fs=require('fs');
-          const data=JSON.parse(fs.readFileSync('/tmp/vintage.json','utf8'));
-          if(!data.ok) throw new Error(JSON.stringify(data));
-          if(!Array.isArray(data.results) || data.results.length<5) throw new Error('expected at least 5 vintage house results');
-          for(const item of data.results.slice(0,5)){
-            if(!/^https:\/\/i\.pinimg\.com\//.test(item.image)) throw new Error('non-pinterest image: '+item.image);
-            if(!/^https:\/\/(?:www\.)?pinterest\.[^/]+\/pin\//.test(item.source_url)) throw new Error('not a real Pin result: '+item.source_url);
-          }
-          console.log(JSON.stringify({ok:true,provider:data.provider,count:data.results.length},null,2));
-          NODE
-
-      - name: Probe served GitHub Pages UI
-        shell: bash
-        run: |
-          set -euo pipefail
-          URL='https://juanmanuelpm.github.io/prometeo/demos/pinterest-image-query-lab-v1/?ci=clean-search'
-          for n in 1 2 3 4 5 6 7 8 9 10; do
-            page="$(curl --fail --silent --show-error --max-time 20 "$URL" || true)"
-            if printf '%s' "$page" | grep -q 'id="searchForm"' \
-              && printf '%s' "$page" | grep -q 'pinterest-image-search-v1' \
-              && printf '%s' "$page" | grep -q 'Sin botón rojo' \
-              && ! printf '%s' "$page" | grep -q '<iframe'; then
-              echo "served UI verified"
-              exit 0
-            fi
-            sleep 3
-          done
-          echo "served page did not converge to clean-search build" >&2
-          exit 1
