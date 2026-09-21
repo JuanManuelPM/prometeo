@@ -15,7 +15,7 @@ button{font:inherit;color:inherit}
 .topbar{height:46px;display:flex;align-items:center;justify-content:space-between;padding:0 10px}
 .topLeft{display:flex;align-items:center;gap:6px}
 .add{width:34px;height:34px;border:0;background:var(--fg);color:var(--bg);font-size:23px;line-height:1;padding:0}
-.previewBtn{height:34px;border:1px solid #2d2d29;background:#0b0b0a;color:var(--fg);padding:0 10px;font-size:8px;font-weight:900;letter-spacing:.08em}
+.previewBtn,.historyBtn{height:34px;border:1px solid #2d2d29;background:#0b0b0a;color:var(--fg);padding:0 10px;font-size:8px;font-weight:900;letter-spacing:.08em}
 .now{font:900 11px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em}
 .remoteBar{display:none;height:34px;align-items:center;gap:6px;padding:0 8px;border-top:1px solid #181816;background:#080807}
 .remoteBar.show{display:flex}
@@ -71,12 +71,22 @@ button{font:inherit;color:inherit}
 .tvPreview.open{display:block}
 .tvPreview iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
 .tvBack{position:absolute;z-index:210;left:max(10px,env(safe-area-inset-left));top:max(10px,env(safe-area-inset-top));height:36px;border:1px solid #ffffff55;background:#000c;color:#fff;padding:0 12px;font-size:8px;font-weight:900;letter-spacing:.08em}
+.historyWin{position:fixed;z-index:190;left:8px;right:8px;top:56px;bottom:12px;background:#090908;border:1px solid #34342f;box-shadow:0 20px 60px #000c;display:none;flex-direction:column}
+.historyWin.open{display:flex}
+.historyHead{height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 11px;border-bottom:1px solid #22221f}
+.historyHead strong{font-size:9px;letter-spacing:.12em}.historyClose{height:28px;border:1px solid #33332f;background:#10100f;color:var(--fg);font-size:8px;font-weight:900;padding:0 9px}
+.historyList{overflow:auto;padding:6px}
+.historyRow{padding:9px 7px;border-bottom:1px solid #20201d}
+.historyRow:last-child{border-bottom:0}
+.historyTitle{font-size:9px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.historyMeta{margin-top:3px;font:700 6px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:#77766f}
+.historyEmpty{padding:18px 9px;color:#77766f;font-size:8px}
 </style>
 </head>
 <body>
 <div class="app">
 <header class="top">
-  <div class="topbar"><div class="topLeft"><button id="add" class="add" aria-label="Agregar">+</button><button id="previewBtn" class="previewBtn" aria-label="Ver TV">TV</button></div><div id="now" class="now">--:--</div></div>
+  <div class="topbar"><div class="topLeft"><button id="add" class="add" aria-label="Agregar">+</button><button id="previewBtn" class="previewBtn" aria-label="Ver TV">TV</button><button id="historyBtn" class="historyBtn" aria-label="Videos vistos">VISTOS</button></div><div id="now" class="now">--:--</div></div>
   <div id="remoteBar" class="remoteBar"><div class="remoteState"><span class="remoteDot"></span><span id="remoteText">TV · SIN SEÑAL</span></div><button id="remotePlay" class="remoteCmd">▶</button><button id="remotePause" class="remoteCmd">Ⅱ</button><button id="remoteMute" class="remoteCmd">MUTE</button></div>
   <div id="palette" class="palette"><div class="paletteInner"><div class="tools">
     <button class="tool ytPreset" data-channel="UCHnyfMqiRRG1u-2MsSQLbXA">YOUTUBE<span>Veritasium</span></button>
@@ -102,6 +112,7 @@ button{font:inherit;color:inherit}
 </section>
 <div id="dragTime" class="dragTime">--:--</div><div id="toast" class="toast"></div>
 <section id="tvPreview" class="tvPreview" aria-hidden="true"><iframe id="tvPreviewFrame" title="Vista temporal de TV" allow="autoplay; fullscreen; picture-in-picture"></iframe><button id="tvBack" class="tvBack">← CONTROL</button></section>
+<section id="historyWin" class="historyWin" aria-hidden="true"><div class="historyHead"><strong>VIDEOS VISTOS</strong><button id="historyClose" class="historyClose">CERRAR</button></div><div id="historyList" class="historyList"></div></section>
 
 <script>
 (()=>{
@@ -114,10 +125,10 @@ const client='tv-editor-'+Math.random().toString(36).slice(2,9);
 const $=id=>document.getElementById(id),viewport=$('viewport'),timeline=$('timeline'),gridLayer=$('gridLayer'),eventLayer=$('eventLayer'),palette=$('palette'),dragTime=$('dragTime'),editWin=$('editWin');
 const labels={youtube:'YOUTUBE',clock:'RELOJ',page:'PÁGINA',black:'NEGRO'};
 const samples={clock:{title:'RELOJ 25/5',payload:{style:'focus25-5'}},page:{title:'CALENDARIO',payload:{url:'https://juanmanuelpm.github.io/prometeo/experiments/tv-split-v1-sample-calendar.html'}},black:{title:'NEGRO',payload:{}}};
-const ytLatest=new Map();
+const ytLatest=new Map(),ytByChannel=new Map(),watchedIds=new Set();
 let blocks=[],serverBlocks=[],selected=null,ppm=.7,cycleH=1000,loaded=false,rendering=false,saving=false;
 const dirtyBlocks=new Set(),pendingDeletes=new Set();
-const cacheKey='tv.program.editor.v29.'+room.code;
+const cacheKey='tv.program.editor.v30.'+room.code;
 let tvState=null,previewOpen=false;
 
 function clone(x){return JSON.parse(JSON.stringify(x))}
@@ -137,7 +148,7 @@ function renderRemote(){
  if(previewOpen){
    bar.classList.add('live');text.textContent='TV · ABIERTA EN ESTE CELULAR';
  }else if(externalLive){
-   bar.classList.add('live');text.textContent=(build==='10'||build==='9'||build==='8')?(ys.length?'TV · PANTALLA EXTERNA · YOUTUBE':'TV · PANTALLA EXTERNA'):'TV · PANTALLA EXTERNA · VERSIÓN VIEJA';
+   bar.classList.add('live');text.textContent=(build==='11'||build==='10'||build==='9'||build==='8')?(ys.length?'TV · PANTALLA EXTERNA · YOUTUBE':'TV · PANTALLA EXTERNA'):'TV · PANTALLA EXTERNA · VERSIÓN VIEJA';
  }else{
    bar.classList.add('available');text.textContent='TV · DISPONIBLE';
  }
@@ -145,12 +156,29 @@ function renderRemote(){
  play.disabled=!enabled;pause.disabled=!enabled;mute.disabled=!enabled
 }
 async function pollTVState(){try{const d=await api({action:'state'});tvState=d.state||null;renderRemote()}catch{tvState=null;renderRemote()}}
+async function loadHistory(){
+  try{
+    const d=await api({action:'watch_history',limit:100});
+    watchedIds.clear();
+    for(const h of d.history||[])watchedIds.add(String(h.video_id));
+    const list=$('historyList');
+    if(list){
+      list.innerHTML=(d.history||[]).length?(d.history||[]).map(h=>'<div class="historyRow"><div class="historyTitle">'+esc(h.title||h.video_id)+'</div><div class="historyMeta">'+esc(h.channel_title||'YOUTUBE')+' · '+new Date(h.watched_at).toLocaleString()+'</div></div>').join(''):'<div class="historyEmpty">Todavía no hay videos terminados.</div>'
+    }
+    for(const [channel,arr] of ytByChannel){const next=arr.find(v=>!watchedIds.has(String(v.video_id)))||arr[0];if(next)ytLatest.set(channel,next)}
+  }catch{}
+}
 async function loadYTPresets(){
   if(!mediaToken)return;
   try{
     const r=await fetch(FEED,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'feed',token:mediaToken}),cache:'no-store'});
     const d=await r.json();if(!r.ok||!d.ok)return;
-    for(const v of d.result?.videos||[])if(!ytLatest.has(v.channel_id))ytLatest.set(v.channel_id,v);
+    ytByChannel.clear();
+    for(const v of d.result?.videos||[]){
+      if(!ytByChannel.has(v.channel_id))ytByChannel.set(v.channel_id,[]);
+      ytByChannel.get(v.channel_id).push(v)
+    }
+    for(const [channel,arr] of ytByChannel){const next=arr.find(v=>!watchedIds.has(String(v.video_id)))||arr[0];if(next)ytLatest.set(channel,next)}
     document.querySelectorAll('.ytPreset').forEach(btn=>{const v=ytLatest.get(btn.dataset.channel);if(v)btn.title=v.title||''});
   }catch{}
 }
@@ -226,19 +254,22 @@ eventLayer.addEventListener('click',e=>{if(e.target===eventLayer){selected=null;
 function addSample(kind){palette.classList.remove('open');const dur=kind==='page'?60:30,start=Math.floor(nowMin()/30)*30,s=samples[kind],id='tmp-'+Date.now().toString(36);blocks.push({id,title:s.title,kind,start_minute:start,end_minute:start+dur,payload:s.payload,enabled:true});selected=id;dirtyBlocks.add(id);renderBlocks();updateEditor()}
 function addYT(channelId,label){
   palette.classList.remove('open');
-  const v=ytLatest.get(channelId);
-  const fallback={title:label||'YOUTUBE',watch_url:'https://www.youtube.com/watch?v=J1WoNuemKOg'};
+  const arr=ytByChannel.get(channelId)||[],v=arr.find(x=>!watchedIds.has(String(x.video_id)))||ytLatest.get(channelId);
+  if(arr.length&&v&&watchedIds.has(String(v.video_id))){toast('NO HAY VIDEOS NUEVOS');return}
+  const fallback={title:label||'YOUTUBE',watch_url:'https://www.youtube.com/watch?v=J1WoNuemKOg',channel_title:label||'YOUTUBE'};
   const picked=v||fallback,start=Math.floor(nowMin()/30)*30,id='tmp-'+Date.now().toString(36);
-  blocks.push({id,title:(v?.channel_title||label||'YOUTUBE').toUpperCase(),kind:'youtube',start_minute:start,end_minute:start+60,payload:{url:picked.watch_url},enabled:true});
+  blocks.push({id,title:(picked.channel_title||label||'YOUTUBE').toUpperCase(),kind:'youtube',start_minute:start,end_minute:start+60,payload:{url:picked.watch_url,channel_id:channelId,channel_title:picked.channel_title||label||'YOUTUBE',video_title:picked.title||'',auto_next:true},enabled:true});
   selected=id;dirtyBlocks.add(id);renderBlocks();updateEditor()
 }
 $('add').onclick=()=>palette.classList.toggle('open');
 $('remotePlay').onclick=()=>sendRemote('play');
 $('remotePause').onclick=()=>sendRemote('pause');
 $('remoteMute').onclick=()=>sendRemote('mute');
+$('historyBtn').onclick=async()=>{await loadHistory();$('historyWin').classList.add('open');$('historyWin').setAttribute('aria-hidden','false')};
+$('historyClose').onclick=()=>{$('historyWin').classList.remove('open');$('historyWin').setAttribute('aria-hidden','true')};
 $('previewBtn').onclick=()=>{
   const wrap=$('tvPreview'),frame=$('tvPreviewFrame');
-  if(!frame.src)frame.src='https://juanmanuelpm.github.io/prometeo/experiments/tv-split-v1-tv.html?v=10#room=TV-PM2K7Q&t=6e7f4b74d76d2488ac3779832c77632475dd845db3a9b598765a757c7f18c327';
+  if(!frame.src)frame.src='https://juanmanuelpm.github.io/prometeo/experiments/tv-split-v1-tv.html?v=11#room=TV-PM2K7Q&t=6e7f4b74d76d2488ac3779832c77632475dd845db3a9b598765a757c7f18c327';
   previewOpen=true;wrap.classList.add('open');wrap.setAttribute('aria-hidden','false');renderRemote()
 };
 $('tvBack').onclick=()=>{
@@ -270,7 +301,7 @@ $('save').onclick=saveAll;$('cancel').onclick=cancelAll;$('delete').onclick=()=>
 async function syncServer(initial=false){if(hasDraft()&&!initial)return;try{const d=await api({action:'list'});serverBlocks=clone(d.blocks||[]);if(!hasDraft()){blocks=clone(serverBlocks);cache();renderBlocks()}if(initial&&!loaded){loaded=true;requestAnimationFrame(scrollInitial)}}catch(e){if(initial)toast(String(e.message||e))}}
 try{const c=JSON.parse(localStorage.getItem(cacheKey)||'null');if(c&&Array.isArray(c.blocks)){serverBlocks=clone(c.blocks);blocks=clone(serverBlocks);loaded=true}}catch{}
 function layout(){measure();grid();renderBlocks();updateNow()}
-layout();loadYTPresets();renderRemote();pollTVState();requestAnimationFrame(()=>{if(loaded)scrollInitial();syncServer(true)});setInterval(updateNow,15000);setInterval(()=>syncServer(false),30000);setInterval(pollTVState,900);window.addEventListener('resize',layout);
+layout();loadHistory().then(loadYTPresets);renderRemote();pollTVState();requestAnimationFrame(()=>{if(loaded)scrollInitial();syncServer(true)});setInterval(updateNow,15000);setInterval(()=>syncServer(false),30000);setInterval(pollTVState,900);setInterval(loadHistory,10000);window.addEventListener('resize',layout);
 })();
 </script>
 </body>
