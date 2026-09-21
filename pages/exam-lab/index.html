@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>10 exámenes</title>
+<style>
+:root{--bg:#f4f0e7;--ink:#111;--muted:#767168;--line:#111;--soft:#d8d2c7}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{min-height:100dvh}
+.app{min-height:100dvh;display:grid;grid-template-rows:auto auto 1fr}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;padding:16px 20px 13px;border-bottom:2px solid var(--line)}
+.title{font-size:clamp(27px,5vw,58px);font-weight:1000;letter-spacing:-.06em;line-height:.9}
+.stats{text-align:right;font-variant-numeric:tabular-nums}
+.bigstat{font-size:clamp(24px,4vw,42px);font-weight:1000;letter-spacing:-.05em}
+.small{font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.workers{min-height:58px;border-bottom:2px solid var(--line);display:flex;gap:8px;align-items:center;padding:9px 15px;overflow:auto;scrollbar-width:none}
+.workers::-webkit-scrollbar{display:none}
+.worker{display:flex;align-items:center;gap:7px;border:2px solid var(--line);padding:7px 10px;white-space:nowrap;font-size:12px;font-weight:950}
+.dot{width:9px;height:9px;border-radius:50%;border:2px solid var(--line);background:var(--bg)}
+.worker.writing .dot{background:var(--ink);animation:pulse .85s infinite alternate}
+.worker.done{opacity:.48}
+.emptyworkers{font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+main{padding:0 14px 30px}
+.exam{display:grid;grid-template-columns:74px 105px 1fr 1fr 1fr;border-bottom:2px solid var(--line);min-height:118px}
+.examno{display:grid;place-items:center;border-right:2px solid var(--line);font-size:38px;font-weight:1000;letter-spacing:-.06em}
+.owner{display:flex;align-items:center;justify-content:center;border-right:2px solid var(--line);font-size:18px;font-weight:1000}
+.owner.none{color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.q{position:relative;padding:12px 13px;border-right:1px solid var(--soft);min-width:0;overflow:hidden}
+.q:last-child{border-right:0}
+.qhead{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:7px;font-size:10px;font-weight:950;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.answer{font-size:clamp(16px,2vw,25px);font-weight:850;line-height:1.08;letter-spacing:-.025em;overflow-wrap:anywhere}
+.pending .answer{color:var(--soft);font-size:24px}
+.writing{background:var(--ink);color:var(--bg)}
+.q.writing .qhead{color:#aaa69e}
+.q.writing .answer{font-size:clamp(18px,2.2vw,28px)}
+.dots span{display:inline-block;animation:blink 1s infinite both}.dots span:nth-child(2){animation-delay:.15s}.dots span:nth-child(3){animation-delay:.3s}
+.elapsed{font-variant-numeric:tabular-nums;font-weight:950}
+.finished .qhead{color:var(--muted)}
+.finished .elapsed{color:var(--ink)}
+.runstate{position:fixed;right:12px;bottom:12px;background:var(--ink);color:var(--bg);padding:8px 10px;font-size:10px;font-weight:950;letter-spacing:.09em;text-transform:uppercase;z-index:10}
+@keyframes pulse{from{opacity:.35}to{opacity:1}}
+@keyframes blink{0%,25%{opacity:.25}65%,100%{opacity:1}}
+@media(max-width:820px){
+ header{padding:12px 13px 10px}.title{font-size:34px}.bigstat{font-size:25px}
+ main{padding:0 9px 45px}
+ .exam{grid-template-columns:48px 60px 1fr;min-height:0}
+ .examno{grid-row:1/4;font-size:27px}
+ .owner{grid-row:1/4;font-size:14px}
+ .q{grid-column:3;border-right:0;border-bottom:1px solid var(--soft);min-height:92px;padding:10px 11px}
+ .q:last-child{border-bottom:0}
+ .answer{font-size:18px}.q.writing .answer{font-size:20px}
+ .workers{min-height:52px;padding:7px 9px}
+ .worker{padding:6px 8px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div>
+    <div class="title">10 EXÁMENES</div>
+    <div class="small" id="runLabel">EXAM-10-01</div>
+  </div>
+  <div class="stats">
+    <div class="bigstat"><span id="published">0</span>/30</div>
+    <div class="small"><span id="doneExams">0</span>/10 terminados · <span id="totalTime">0.0 s</span></div>
+  </div>
+</header>
+<div class="workers" id="workers"><div class="emptyworkers">Esperando chats…</div></div>
+<main id="main"></main>
+</div>
+<div class="runstate" id="runstate">READY</div>
+<script>
+const SUPABASE_URL='https://catnohyouxqjjtseaueb.supabase.co';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const RUN=new URLSearchParams(location.search).get('run')||'EXAM-10-01';
+const H={apikey:KEY,Authorization:'Bearer '+KEY};
+const main=document.getElementById('main'), workersEl=document.getElementById('workers');
+const publishedEl=document.getElementById('published'),doneExamsEl=document.getElementById('doneExams');
+const totalTimeEl=document.getElementById('totalTime'),runstate=document.getElementById('runstate'),runLabel=document.getElementById('runLabel');
+runLabel.textContent=RUN;
+let DATA={run:null,workers:[],exams:[],questions:[]};
+let sig='';
+
+async function get(path){
+ const r=await fetch(SUPABASE_URL+'/rest/v1/'+path,{headers:H,cache:'no-store'});
+ if(!r.ok)throw new Error(r.status+' '+await r.text());
+ return r.json();
+}
+function ms(x){
+ if(x==null)return '';
+ if(x<1000)return x+' ms';
+ return (x/1000).toFixed(x<10000?2:1)+' s';
+}
+function age(ts){return ts?Date.now()-new Date(ts).getTime():0}
+function renderWorkers(){
+ const ws=DATA.workers;
+ if(!ws.length){workersEl.innerHTML='<div class="emptyworkers">Esperando chats…</div>';return}
+ workersEl.innerHTML='';
+ ws.forEach(w=>{
+   const d=document.createElement('div');
+   d.className='worker '+(w.status==='WRITING'?'writing ':'')+(w.status==='DONE'?'done':'');
+   let desc=w.exam_no?'E'+String(w.exam_no).padStart(2,'0'):'sin trabajo';
+   if(w.status==='WRITING'){
+     const ex=DATA.exams.find(e=>e.exam_no===w.exam_no);
+     if(ex)desc+=' · R'+ex.current_question;
+   }
+   if(w.status==='DONE')desc+=' · ✓';
+   d.innerHTML='<span class="dot"></span><b>'+w.worker_code+'</b><span>'+desc+'</span>';
+   workersEl.appendChild(d);
+ });
+}
+function renderMain(){
+ main.innerHTML='';
+ for(let n=1;n<=10;n++){
+   const ex=DATA.exams.find(e=>e.exam_no===n);
+   const row=document.createElement('section');row.className='exam';
+   const no=document.createElement('div');no.className='examno';no.textContent=String(n).padStart(2,'0');row.appendChild(no);
+   const owner=document.createElement('div');owner.className='owner '+(!ex?.worker_code?'none':'');owner.textContent=ex?.worker_code||'libre';row.appendChild(owner);
+   for(let qn=1;qn<=3;qn++){
+     const q=DATA.questions.find(x=>x.exam_no===n&&x.question_no===qn);
+     const cell=document.createElement('div');
+     const st=q?.status||'PENDING';
+     cell.className='q '+(st==='WRITING'?'writing':st==='PUBLISHED'?'finished':'pending');
+     const head=document.createElement('div');head.className='qhead';
+     const label=document.createElement('span');label.textContent='respuesta '+qn;
+     const time=document.createElement('span');time.className='elapsed';
+     if(st==='WRITING')time.textContent=ms(age(q.started_at));
+     if(st==='PUBLISHED')time.textContent=ms(q.elapsed_ms);
+     head.append(label,time);cell.appendChild(head);
+     const ans=document.createElement('div');ans.className='answer';
+     if(st==='PENDING')ans.textContent='○';
+     else if(st==='WRITING')ans.innerHTML='escribiendo<span class="dots"><span>.</span><span>.</span><span>.</span></span>';
+     else ans.textContent=q.answer;
+     cell.appendChild(ans);row.appendChild(cell);
+   }
+   main.appendChild(row);
+ }
+}
+function renderStats(){
+ const pub=DATA.questions.filter(q=>q.status==='PUBLISHED').length;
+ const done=DATA.exams.filter(e=>e.status==='DONE').length;
+ publishedEl.textContent=pub;doneExamsEl.textContent=done;
+ const r=DATA.run;
+ let elapsed=0;
+ if(r?.started_at)elapsed=(new Date(r.finished_at||Date.now()).getTime()-new Date(r.started_at).getTime());
+ totalTimeEl.textContent=ms(Math.max(0,elapsed));
+ runstate.textContent=r?.status||'READY';
+}
+function render(){renderWorkers();renderMain();renderStats()}
+async function fetchAll(){
+ try{
+  const [runs,workers,exams,questions]=await Promise.all([
+   get('exam_lab_runs?run_id=eq.'+encodeURIComponent(RUN)+'&select=*'),
+   get('exam_lab_workers?run_id=eq.'+encodeURIComponent(RUN)+'&select=*&order=joined_at.asc'),
+   get('exam_lab_exams?run_id=eq.'+encodeURIComponent(RUN)+'&select=*&order=exam_no.asc'),
+   get('exam_lab_questions?run_id=eq.'+encodeURIComponent(RUN)+'&select=*&order=exam_no.asc,question_no.asc')
+  ]);
+  DATA={run:runs[0]||null,workers,exams,questions};
+  const s=JSON.stringify([DATA.run?.status,DATA.run?.started_at,DATA.run?.finished_at,workers.map(w=>[w.worker_code,w.status,w.last_seen_at]),exams.map(e=>[e.exam_no,e.status,e.worker_code,e.current_question]),questions.map(q=>[q.exam_no,q.question_no,q.status,q.answer,q.elapsed_ms,q.started_at])]);
+  if(s!==sig){sig=s;render()}else renderStats();
+ }catch(e){runstate.textContent='REINTENTANDO'}
+}
+fetchAll();
+setInterval(fetchAll,350);
+setInterval(()=>{if(DATA.questions.some(q=>q.status==='WRITING'))renderMain();renderStats()},150);
+</script>
+</body>
+</html>
