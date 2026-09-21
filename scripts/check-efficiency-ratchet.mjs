@@ -28,7 +28,7 @@ const baselineText = read(root, 'coordination/efficiency/RATCHET_BASELINE_V1.jso
 let baseline = null;
 try { baseline = JSON.parse(baselineText); } catch { errors.push('baseline: invalid JSON'); }
 if (!baseline?.items?.length) errors.push('baseline: no ratchet items');
-for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048','EFF050','EFF049','EFF051','EFF055','EFF056','EFF057','EFF066']) {
+for (const id of ['EFF001','EFF002','EFF003','EFF004','EFF005','EFF006','EFF007','EFF008','EFF009','EFF010','EFF011','EFF012','EFF013','EFF014','EFF015','EFF016','EFF017','EFF018','EFF019','EFF020','EFF021','EFF022','EFF023','EFF024','EFF025','EFF026','EFF027','EFF028','EFF029','EFF030','EFF031','EFF032','EFF033','EFF034','EFF035','EFF036','EFF037','EFF038','EFF039','EFF040','EFF041','EFF042','EFF043','EFF044','EFF048','EFF050','EFF049','EFF051','EFF055','EFF056','EFF057','EFF066','EFF067']) {
   if (!baseline?.items?.some(x => x.id === id)) errors.push(`baseline: missing ${id}`);
 }
 if (!baseline?.runtime_baseline_activated_at) errors.push('baseline: missing runtime_baseline_activated_at');
@@ -1400,6 +1400,26 @@ must('EFF066 wc', wc, 'immediately enter E8');
 const stableWorker = read(root, 'w');
 must('EFF066 w', stableWorker, 'ENTER AT ITS POST-BEACON ORDINARY NON-RUN STEP');
 must('EFF066 w', stableWorker, 'Do NOT create a second beacon');
+
+
+const eff067 = baseline.items?.find(item => item.id === 'EFF067');
+if (!eff067) errors.push('ratchet: EFF067 missing');
+else {
+  if (eff067.required?.stable_surface !== '/w') errors.push('ratchet: EFF067 stable surface drift');
+  if (eff067.required?.finite_wave_marker !== 'BATCH <batch_id> EXPECTED <n>') errors.push('ratchet: EFF067 marker drift');
+  if (eff067.required?.identical_prompt_within_batch !== true) errors.push('ratchet: EFF067 identical prompt drift');
+  if (eff067.required?.runtime_missing_expected !== true || eff067.required?.exact_refill_only !== true) errors.push('ratchet: EFF067 refill accounting drift');
+  if (eff067.required?.refill_reuses_same_batch_id !== true) errors.push('ratchet: EFF067 batch identity drift');
+  if (eff067.required?.no_cause_inference_for_missing_beacon !== true) errors.push('ratchet: EFF067 truth boundary drift');
+  if (eff067.required?.rolling_pool_preserved !== true) errors.push('ratchet: EFF067 pool preservation drift');
+  if (eff067.required?.regression_test !== 'tests/worker-production-batch-envelope-v1.test.mjs') errors.push('ratchet: EFF067 regression test drift');
+}
+const productionBatchEnvelopeTest = read(root, 'tests/worker-production-batch-envelope-v1.test.mjs');
+must('EFF067 test', productionBatchEnvelopeTest, 'WORKER_PRODUCTION_BATCH_ENVELOPE_V1_PASS');
+const stableW = read(root, 'w');
+must('EFF067 w', stableW, 'BATCH <batch_id> EXPECTED <n>');
+must('EFF067 w', stableW, 'source=/w');
+must('EFF067 runtime', read(root, 'scripts/build-worker-runtime.mjs'), 'missing_expected');
 
 if (errors.length) {
   console.error('EFFICIENCY_RATCHET_FAIL');
