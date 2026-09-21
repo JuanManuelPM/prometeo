@@ -299,13 +299,13 @@ If `GUIDE_WORKER_HANDOFF_V1.json#platform_graduation_override.status=ACTIVE`, br
 - `HUMAN ACTION` is `NONE` until an external graduation wake is actually required.
 
 
-If `platform_graduation_override.status=DISABLED_AFTER_PASS`, the hold is released: use the stable `/w` production prompt, size the wake from fresh capability-compatible frontier rather than raw frontier_total, and keep `/wc` reserved for controlled canary/RUN experiments.
+If `platform_graduation_override.status=DISABLED_AFTER_PASS`, the hold is released: use the stable `/w` production prompt, size the wake from fresh capability-compatible frontier rather than raw frontier_total, and keep `/wc` reserved for controlled canary/RUN experiments. If `CURRENT_MISSION.operating_mode.production_wave.status=ARMED`, use its exact `production_wave_invocation` instead of the rolling pool prompt; on the next Guide turn read `live/runtime.json` for that batch and request exactly `missing_expected` refills with the identical prompt until the expected denominator is complete.
 
 ### WORKER HANDOFF RESPONSE OVERRIDE
 
 When the Guide has exhausted safe same-turn work and the only ordinary next step is human-launched worker capacity, this display contract overrides the footer's visual order. Use `/w` after graduation PASS and `/wc` only while canary/hold state requires it:
 
-1. The **first visible copyable block** is the exact canonical active worker prompt from Current Mission (`/w` after graduation PASS, otherwise `/wc`). No analysis before that block.
+1. The **first visible copyable block** is the exact active worker prompt from Current Mission: armed `production_wave_invocation` first, otherwise stable `/w` after graduation PASS, otherwise `/wc`. No analysis before that block.
 2. After the block, keep the Guide summary compact. Include links only when they are useful; never bury the launch instruction under telemetry.
 3. End with exactly one mini handoff line in the shape:
    `MANDÁ ~<N> /w Y VOLVÉ A /g · <razón corta>` after graduation PASS; otherwise the equivalent `/wc` canary form.
