@@ -34,14 +34,14 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 <script>
 (()=>{
 'use strict';
-const BUILD='10';
+const BUILD='11';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const RUNTIME='https://juanmanuelpm.github.io/prometeo/experiments/tv-split-v1-runtime.json';
 const p=new URLSearchParams(location.hash.slice(1));
 const room={code:p.get('room')||'',token:p.get('t')||'',role:'tv'};
-const client='tv-v10-'+Math.random().toString(36).slice(2,10);
+const client='tv-v11-'+Math.random().toString(36).slice(2,10);
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
-const views=new Map();
+const views=new Map(),advancing=new Set();
 let blocks=[],serverActive=[],ytReady=false,lastCommandId=0,updatePending=false,pageStarted=Date.now();
 
 window.onYouTubeIframeAPIReady=()=>{ytReady=true;for(const b of active())ensureView(b,true)};
@@ -83,7 +83,7 @@ function mountPlayer(b,v){
     playerVars:{autoplay:1,controls:1,playsinline:1,rel:0,fs:1,iv_load_policy:3,disablekb:0},
     events:{
       onReady:e=>{v.ready=true;try{e.target.playVideo()}catch{}},
-      onStateChange:e=>{v.state=Number(e.data)},
+      onStateChange:e=>{v.state=Number(e.data);if(Number(e.data)===0)advanceYoutube(b,v)},
       onAutoplayBlocked:()=>unlock.classList.add('show'),
       onError:()=>unlock.classList.add('show')
     }
@@ -133,6 +133,27 @@ function playerCommand(cmd,blockId){
     else if(cmd==='unmute'){v.player.unMute();v.muted=false}
    }catch{}
  }
+}
+function replaceBlock(updated){
+ const id=String(updated.id);
+ blocks=blocks.map(x=>String(x.id)===id?updated:x);
+ serverActive=serverActive.map(x=>String(x.id)===id?updated:x)
+}
+async function advanceYoutube(b,v){
+ const id=String(b.id),current=String(b.payload?.video_id||'');
+ if(!current||advancing.has(id)||b.payload?.auto_next===false)return;
+ advancing.add(id);
+ try{
+  const d=await api({action:'youtube_advance',block_id:id,video_id:current});
+  if(d.advanced&&d.block){
+    replaceBlock(d.block);
+    destroyView(id);
+    ensureView(d.block,true);
+    applyGrid(active());
+    unlock.classList.remove('show')
+  }
+ }catch{}
+ finally{setTimeout(()=>advancing.delete(id),800)}
 }
 function refreshPanel(blockId){const b=blocks.find(x=>String(x.id)===String(blockId));if(!b)return;destroyView(blockId);ensureView(b,true);applyGrid(active())}
 function hardReload(){location.replace(location.pathname+'?v='+Date.now()+location.hash)}
