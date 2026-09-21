@@ -983,7 +983,9 @@ async function makeCanonicalWavChunk(file, segment) {
   await conversion.execute();
   const buffer = target.buffer;
   if (!buffer || buffer.byteLength < 256) throw new Error('El recorte canónico quedó vacío.');
-  return new Blob([buffer], { type: 'audio/wav' });
+  const blob = new Blob([buffer], { type: 'audio/wav' });
+  input.dispose();
+  return blob;
 }
 
 async function processFileDecoded(file) {
