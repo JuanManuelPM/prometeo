@@ -39,8 +39,8 @@ async function readOnlyFetch(url,options={}){
   return response;
 }
 
-assert.throws(
-  ()=>{ void readOnlyFetch('https://example.invalid',{method:'POST'}); },
+await assert.rejects(
+  ()=>readOnlyFetch('https://example.invalid',{method:'POST'}),
   /READ_ONLY_GUARD_BLOCKED_METHOD:POST/
 );
 pass('mutating_method_guard',{blocked_method:'POST',network_request_emitted:false});
