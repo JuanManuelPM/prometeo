@@ -34,7 +34,15 @@ assert.equal(mission.worker_handoff_policy_ref,'coordination/guide/GUIDE_WORKER_
 assert.equal(mission.operating_mode.worker_handoff.require_exhaustive_same_turn_work_before_handoff,true);
 assert.equal(mission.operating_mode.worker_handoff.canonical_prompt_must_be_first_copyable_block,true);
 assert.ok(platformHold?approx===0:(approx>=4&&approx<=20));
-assert.equal(mission.current_snapshot.occupancy.recommendation_exact,platformHold?true:false);
+const finiteWaveArmed=mission?.operating_mode?.production_wave?.status==='ARMED';
+assert.equal(mission.current_snapshot.occupancy.recommendation_exact,platformHold||finiteWaveArmed);
+if(finiteWaveArmed){
+  assert.equal(approx,mission.operating_mode.production_wave.expected_workers);
+  assert.equal(policy.current_recommendation_example.exact,true);
+  assert.equal(policy.current_recommendation_example.recommended_exact_workers,approx);
+  assert.equal(policy.current_recommendation_example.batch_id,mission.operating_mode.production_wave.batch_id);
+  assert.ok(mission.operating_mode.production_wave_invocation.includes(`BATCH ${mission.operating_mode.production_wave.batch_id} EXPECTED ${approx}`));
+}
 
 assert.equal(head.worker_handoff_policy_ref,'coordination/guide/GUIDE_WORKER_HANDOFF_V1.json');
 assert.equal(head.human_contract.current_approx_workers_before_guide_return,approx);
