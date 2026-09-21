@@ -193,6 +193,20 @@ Deno.serve(async(req:Request)=>{try{
     const q=await db.from("tv_youtube_folders").update({name}).eq("room_id",room.id).eq("id",id).select("id,name,sort_order,created_at").single();if(q.error)throw q.error;
     return json(req,{ok:true,folder:q.data,...await youtubeLibrary(room)});
   }
+  if(action==="youtube_folder_set_channels"){
+    if(role!=="remote")fail("REMOTE_REQUIRED",403);
+    const folder_id=String(b.folder_id||"");if(!folder_id)fail("FOLDER_REQUIRED");
+    const ids=[...new Set((Array.isArray(b.channel_ids)?b.channel_ids:[]).map((x:any)=>String(x)).filter(Boolean))].slice(0,500);
+    const fq=await db.from("tv_youtube_folders").select("id").eq("room_id",room.id).eq("id",folder_id).maybeSingle();
+    if(fq.error)throw fq.error;if(!fq.data)fail("FOLDER_NOT_FOUND",404);
+    const clear=await db.from("tv_youtube_channels").update({folder_id:null}).eq("room_id",room.id).eq("folder_id",folder_id);
+    if(clear.error)throw clear.error;
+    if(ids.length){
+      const setq=await db.from("tv_youtube_channels").update({folder_id}).eq("room_id",room.id).in("channel_id",ids);
+      if(setq.error)throw setq.error;
+    }
+    return json(req,{ok:true,...await youtubeLibrary(room)});
+  }
   if(action==="youtube_folder_delete"){
     if(role!=="remote")fail("REMOTE_REQUIRED",403);
     const id=String(b.folder_id||"");if(!id)fail("FOLDER_REQUIRED");
