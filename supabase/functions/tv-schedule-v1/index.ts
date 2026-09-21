@@ -130,14 +130,14 @@ Deno.serve(async(req:Request)=>{try{
     const now_minute=get("hour")*60+get("minute");
     const active_blocks=blocks.filter((x:any)=>now_minute>=Number(x.start_minute)&&now_minute<Number(x.end_minute));
     const revision=blocks.reduce((m:any,x:any)=>String(x.updated_at||"")>m?String(x.updated_at||""):m,"");
-    return json(req,{ok:true,timezone:"America/Argentina/Buenos_Aires",now_minute,blocks,active_blocks,revision,runtime_build:"21"});
+    return json(req,{ok:true,timezone:"America/Argentina/Buenos_Aires",now_minute,blocks,active_blocks,revision,runtime_build:"22"});
   }
   if(action==="state"){
     if(role!=="remote")fail("REMOTE_REQUIRED",403);
     const q=await db.from("tv_live_state").select("*").eq("room_id",room.id).order("updated_at",{ascending:false}).limit(20);
     if(q.error)throw q.error;
     const states=q.data||[];
-    return json(req,{ok:true,state:states[0]||null,states,runtime_build:"21"});
+    return json(req,{ok:true,state:states[0]||null,states,runtime_build:"22"});
   }
   if(action==="tv_state"){
     if(role!=="tv")fail("TV_REQUIRED",403);
