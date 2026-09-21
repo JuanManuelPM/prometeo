@@ -9,6 +9,13 @@ export const CAPTURE_CONFIG = Object.freeze({
   captureVersion: 'canonical-v2'
 });
 
+export const FILE_CAPTURE_CONFIG = Object.freeze({
+  ...CAPTURE_CONFIG,
+  stepMs: 145000,
+  overlapMs: 5000,
+  captureVersion: 'file-canonical-v3-overlap5s'
+});
+
 export function cleanText(value, limit = 200000) {
   return String(value ?? '')
     .replace(/\r/g, '')

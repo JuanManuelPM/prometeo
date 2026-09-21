@@ -1,6 +1,7 @@
 import {
   AsyncJobQueue,
   CAPTURE_CONFIG,
+  FILE_CAPTURE_CONFIG,
   cleanText,
   formatClock,
   mergeSegments,
@@ -36,6 +37,7 @@ const ui = {
   recordLabel: $('recordLabel'), timer: $('timer'), pauseBtn: $('pauseBtn'), stopBtn: $('stopBtn'), discardBtn: $('discardBtn'),
   micHint: $('micHint'), fileInput: $('fileInput'), fileTrigger: $('fileTrigger'), fileName: $('fileName'),
   fileProgress: $('fileProgress'), phase: $('phase'), percentage: $('percentage'), progressFill: $('progressFill'), chunkCount: $('chunkCount'),
+  fileDuration: $('fileDuration'), filePlan: $('filePlan'), chunkRail: $('chunkRail'), chunkHint: $('chunkHint'),
   resumeBtn: $('resumeBtn'), retryBtn: $('retryBtn'), errorLine: $('errorLine'),
   docTitle: $('docTitle'), transcriptPlaceholder: $('transcriptPlaceholder'), canonical: $('canonical'), provisional: $('provisional'),
   editor: $('editor'), actions: $('actions'), copyBtn: $('copyBtn'), txtBtn: $('txtBtn'), jsonBtn: $('jsonBtn'), newBtn: $('newBtn'),
@@ -226,19 +228,104 @@ function render() {
   const working = segments.filter(s => ['queued', 'transcribing'].includes(s.status)).length;
   const pending = segments.filter(s => s.status === 'pending').length;
   const total = segments.length;
-  const completed = ready + errors;
-  const pct = total ? Math.min(100, Math.round(completed / total * 100)) : 0;
+  const fileCursor = Number(session?.file_cursor_ms || 0);
+  const activeCaptureIds = new Set(fileRuntime?.active ? [...fileRuntime.active.keys()] : []);
+
+  let captureUnits = 0;
+  let transcriptionUnits = 0;
+  for (const segment of segments) {
+    const status = segment.status;
+    if (segment.audio_key || ['queued', 'transcribing', 'ready', 'error'].includes(status)) captureUnits += 1;
+    else if (activeCaptureIds.has(segment.id)) {
+      const span = Math.max(1, Number(segment.end_ms || 0) - Number(segment.start_ms || 0));
+      captureUnits += Math.max(0.04, Math.min(0.98, (fileCursor - Number(segment.start_ms || 0)) / span));
+    }
+    if (status === 'queued') transcriptionUnits += 0.30;
+    else if (status === 'transcribing') transcriptionUnits += 0.70;
+    else if (status === 'ready' || status === 'error') transcriptionUnits += 1;
+  }
+
+  const captureRatio = total ? Math.min(1, captureUnits / total) : 0;
+  const transcriptionRatio = total ? Math.min(1, transcriptionUnits / total) : 0;
+  const pct = total ? Math.min(100, Math.round((captureRatio * 0.38 + transcriptionRatio * 0.62) * 100)) : 0;
 
   ui.fileProgress.hidden = !(session?.kind === 'file');
   if (session?.kind === 'file') {
+    const durationMs = Number(session.duration_ms || 0);
+    const durationSeconds = Math.max(0, Math.round(durationMs / 1000));
+    const overlapMs = Number(segments.find(s => Number(s.overlap_ms || 0) > 0)?.overlap_ms || FILE_CAPTURE_CONFIG.overlapMs);
+    const overlapSeconds = Math.round(overlapMs / 1000);
+    const captured = segments.filter(s => s.audio_key || ['queued', 'transcribing', 'ready', 'error'].includes(s.status)).length;
+    const liveCaptures = activeCaptureIds.size;
+
     ui.fileName.textContent = session.source?.name || session.title || 'Audio';
+    ui.fileDuration.textContent = durationMs
+      ? `Duración ${formatClock(durationMs, durationMs >= 3600000)} · ${durationSeconds} s`
+      : 'Midiendo duración…';
+    ui.filePlan.textContent = total
+      ? `${total} recortes · 150 s máx. · margen ${overlapSeconds} s`
+      : 'Calculando recortes…';
+    ui.chunkHint.textContent = `Cada corte comparte ${overlapSeconds} s con el siguiente; al unir, Prometeo elimina el texto repetido.`;
+
     let phase = FRIENDLY_STATE[uiState] || 'Preparando…';
-    if (uiState === 'ERROR_RECOVERABLE' && errors) phase = `${errors} fragmento${errors === 1 ? '' : 's'} para reintentar`;
+    if (uiState === 'UPLOADING_FILE') phase = total ? 'Plan listo · guardando el original…' : 'Leyendo duración y preparando recortes…';
+    else if (uiState === 'TRANSCRIBING_FILE') {
+      phase = `Recortando ${formatClock(fileCursor, durationMs >= 3600000)} / ${formatClock(durationMs, durationMs >= 3600000)}`;
+    } else if (uiState === 'CANONICALIZING') phase = 'Recortes listos · terminando transcripciones…';
+    else if (uiState === 'MERGING') phase = 'Uniendo partes y quitando repeticiones…';
+    else if (uiState === 'DONE') phase = 'Transcripción completa';
+    else if (uiState === 'ERROR_RECOVERABLE' && errors) phase = `${errors} fragmento${errors === 1 ? '' : 's'} para reintentar`;
     else if (uiState === 'ERROR_RECOVERABLE' && pending) phase = 'Listo para continuar';
+
     ui.phase.textContent = phase;
-    ui.percentage.textContent = `${pct}%`;
-    ui.progressFill.style.width = `${pct}%`;
-    ui.chunkCount.textContent = total ? `${completed} / ${total} bloques${working ? ` · ${working} en proceso` : ''}` : 'Preparando…';
+    ui.fileProgress.classList.toggle('planning', !durationMs || !total);
+    ui.percentage.textContent = total ? `${pct}%` : '…';
+    ui.progressFill.style.width = total ? `${pct}%` : '18%';
+    ui.chunkCount.textContent = total
+      ? `${captured}/${total} recortes · ${ready}/${total} transcritos${working ? ` · ${working} en proceso` : ''}${liveCaptures ? ` · ${liveCaptures} recortando` : ''}`
+      : 'Preparando…';
+
+    const stageLabel = {
+      pending: 'esperando',
+      capturing: 'recortando',
+      queued: 'corte listo',
+      transcribing: 'transcribiendo',
+      ready: 'listo',
+      error: 'requiere reintento'
+    };
+    const signature = segments.map(segment => {
+      const stage = activeCaptureIds.has(segment.id) ? 'capturing' : segment.status;
+      const local = stage === 'capturing'
+        ? Math.max(0, Math.min(1, (fileCursor - Number(segment.start_ms || 0)) / Math.max(1, Number(segment.end_ms || 0) - Number(segment.start_ms || 0))))
+        : stage === 'queued' ? 0.30 : stage === 'transcribing' ? 0.70 : ['ready', 'error'].includes(stage) ? 1 : 0;
+      return `${segment.id}:${stage}:${Math.round(local * 20)}`;
+    }).join('|');
+
+    if (ui.chunkRail.dataset.signature !== signature) {
+      ui.chunkRail.dataset.signature = signature;
+      const fragment = document.createDocumentFragment();
+      for (const segment of segments) {
+        const stage = activeCaptureIds.has(segment.id) ? 'capturing' : segment.status;
+        const local = stage === 'capturing'
+          ? Math.max(0.04, Math.min(0.98, (fileCursor - Number(segment.start_ms || 0)) / Math.max(1, Number(segment.end_ms || 0) - Number(segment.start_ms || 0))))
+          : stage === 'queued' ? 0.30 : stage === 'transcribing' ? 0.70 : ['ready', 'error'].includes(stage) ? 1 : 0;
+        const cell = document.createElement('span');
+        cell.className = `chunk-cell state-${stage}`;
+        cell.setAttribute('role', 'listitem');
+        cell.style.setProperty('--chunk-progress', String(local));
+        const start = formatClock(segment.start_ms, durationMs >= 3600000);
+        const end = formatClock(segment.end_ms, durationMs >= 3600000);
+        const label = `Parte ${segment.seq} · ${start}–${end} · ${stageLabel[stage] || stage}`;
+        cell.title = label;
+        cell.setAttribute('aria-label', label);
+        fragment.appendChild(cell);
+      }
+      ui.chunkRail.replaceChildren(fragment);
+    }
+  } else {
+    ui.fileProgress.classList.remove('planning');
+    ui.chunkRail.replaceChildren();
+    delete ui.chunkRail.dataset.signature;
   }
 
   const canonical = hasSession ? mergeSegments(segments, { durationMs: session.duration_ms || 0, includeGaps: false }) : '';
@@ -751,6 +838,16 @@ async function handleFile(file) {
 
   try {
     if (!sameInterrupted || !session.duration_ms) session.duration_ms = await probeAudio(file);
+    if (!sameInterrupted || !session.segments.length) {
+      session.segments = planWindows(session.duration_ms, FILE_CAPTURE_CONFIG)
+        .map(segment => ({ ...segment, id: uuid(), audio_key: null, created_at: nowISO(), attempt: 0 }));
+    }
+    setState(
+      'UPLOADING_FILE',
+      `Audio de ${formatClock(session.duration_ms, session.duration_ms >= 3600000)} · ${session.segments.length} recortes · guardando original…`
+    );
+    await saveSession();
+
     const sourceKey = `source:${session.id}`;
     try {
       await persistBlob(sourceKey, file);
@@ -758,9 +855,6 @@ async function handleFile(file) {
     } catch (error) {
       session.source = { ...source, ref: `local-file://${file.name}`, persisted: false };
       session.last_error = 'El archivo se puede procesar, pero el navegador no dio espacio para conservar una copia local durable. Si recargás, tendrás que elegir el mismo archivo otra vez.';
-    }
-    if (!sameInterrupted || !session.segments.length) {
-      session.segments = planWindows(session.duration_ms).map(segment => ({ ...segment, id: uuid(), audio_key: null, created_at: nowISO(), attempt: 0 }));
     }
     await saveSession();
     await processFile(file);

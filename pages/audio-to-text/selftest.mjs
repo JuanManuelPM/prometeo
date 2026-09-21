@@ -1,21 +1,22 @@
 import assert from 'node:assert/strict';
-import { AsyncJobQueue, CAPTURE_CONFIG, fuzzyTrim, mergeSegments, planWindows, qualityGate, transcriptDocument } from './core.mjs';
+import { AsyncJobQueue, CAPTURE_CONFIG, FILE_CAPTURE_CONFIG, fuzzyTrim, mergeSegments, planWindows, qualityGate, transcriptDocument } from './core.mjs';
 
-const long = planWindows(2 * 60 * 60 * 1000);
-assert.equal(long.length, 54, '2 h fixture should be split into 54 durable windows');
+const long = planWindows(2 * 60 * 60 * 1000, FILE_CAPTURE_CONFIG);
+assert.equal(FILE_CAPTURE_CONFIG.windowMs - FILE_CAPTURE_CONFIG.stepMs, 5000, 'file cuts must share exactly 5 seconds at each boundary');
+assert.equal(long.length, 50, '2 h fixture should be split into 50 durable windows with 5 s overlap');
 assert.deepEqual(long[0], {
   id: null, seq: 1, segment_no: 1, start_ms: 0, end_ms: 150000, overlap_ms: 0,
-  capture_window_ms: 150000, capture_version: 'canonical-v2', status: 'pending', transcript: '', quality: null,
+  capture_window_ms: 150000, capture_version: 'file-canonical-v3-overlap5s', status: 'pending', transcript: '', quality: null,
   source: null, error: null, audio_key: null
 });
-assert.equal(long[1].start_ms, CAPTURE_CONFIG.stepMs);
-assert.equal(long[1].overlap_ms, CAPTURE_CONFIG.overlapMs);
+assert.equal(long[1].start_ms, FILE_CAPTURE_CONFIG.stepMs);
+assert.equal(long[1].overlap_ms, FILE_CAPTURE_CONFIG.overlapMs);
 assert.equal(long.at(-1).end_ms, 7200000);
 
 const trimmed = fuzzyTrim(
   'la memoria se reconstruye cada vez que recordamos una experiencia importante',
   'recordamos una experiencia importante y por eso puede cambiar con el tiempo',
-  15000,
+  5000,
   150000
 );
 assert.match(trimmed, /^y por eso/i, 'overlap should be reconciled instead of duplicated');
@@ -55,7 +56,7 @@ assert.equal(order.length, 4, 'canonical queue must drain every job');
 
 console.log(JSON.stringify({
   ok:true,
-  tests:8,
+  checks:15,
   long_file_fixture:{duration_hours:2,windows:long.length},
   merge_gap_marker:true,
   quality_gate:true,
