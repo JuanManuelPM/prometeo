@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Pinterest Image Query Lab · Prometeo</title>
+<style>
+:root{
+  --paper:#f3f0e8;
+  --ink:#111;
+  --muted:#6b6963;
+  --line:#111;
+  --soft:#d9d5cb;
+  --pad:clamp(18px,4vw,48px);
+  --max:1440px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink);font-family:Arial,Helvetica,sans-serif}
+body{overflow-x:hidden}
+button,a{font:inherit}
+.app{width:min(100%,var(--max));margin:0 auto;padding:var(--pad)}
+header{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:24px;
+  align-items:end;
+  padding-bottom:22px;
+  border-bottom:2px solid var(--line);
+}
+.kicker{
+  margin:0 0 9px;
+  font:800 11px/1.1 ui-monospace,SFMono-Regular,Menlo,monospace;
+  letter-spacing:.13em;
+  text-transform:uppercase;
+}
+h1{
+  margin:0;
+  max-width:940px;
+  font-size:clamp(42px,8vw,112px);
+  line-height:.84;
+  letter-spacing:-.075em;
+  font-weight:900;
+}
+.intro{
+  max-width:410px;
+  margin:0;
+  font-size:14px;
+  line-height:1.4;
+  text-align:right;
+}
+.query-nav{
+  display:flex;
+  gap:0;
+  overflow-x:auto;
+  scrollbar-width:none;
+  border-bottom:2px solid var(--line);
+}
+.query-nav::-webkit-scrollbar{display:none}
+.query{
+  appearance:none;
+  border:0;
+  border-right:1px solid var(--line);
+  background:transparent;
+  color:var(--ink);
+  min-height:54px;
+  padding:0 18px;
+  white-space:nowrap;
+  cursor:pointer;
+  font-weight:900;
+  font-size:12px;
+  letter-spacing:.03em;
+}
+.query:first-child{border-left:1px solid var(--line)}
+.query[aria-selected="true"]{background:var(--ink);color:var(--paper)}
+.stage{padding-top:28px}
+.stage-head{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:20px;
+  align-items:end;
+  margin-bottom:18px;
+}
+.stage-head h2{
+  margin:0;
+  font-size:clamp(31px,5.4vw,74px);
+  line-height:.92;
+  letter-spacing:-.055em;
+}
+.search-copy{
+  margin:8px 0 0;
+  font:700 12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:var(--muted);
+  word-break:break-word;
+}
+.counter{
+  align-self:start;
+  border:1px solid var(--line);
+  padding:9px 11px;
+  font:800 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+  text-transform:uppercase;
+  letter-spacing:.1em;
+}
+.gallery{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:10px;
+}
+.pin{
+  position:relative;
+  min-width:0;
+  border:1px solid var(--line);
+  background:#fff;
+  overflow:hidden;
+}
+.visual{
+  position:relative;
+  aspect-ratio:4/5;
+  overflow:hidden;
+  background:
+    linear-gradient(135deg,#e8e4db 25%,#f5f2eb 25% 50%,#e8e4db 50% 75%,#f5f2eb 75%);
+  background-size:24px 24px;
+}
+.visual iframe{
+  position:absolute;
+  left:50%;
+  top:0;
+  width:360px;
+  height:535px;
+  max-width:none;
+  border:0;
+  transform:translateX(-50%);
+  pointer-events:none;
+  background:white;
+}
+.pin-link{
+  position:absolute;
+  inset:0;
+  z-index:3;
+  color:transparent;
+  text-indent:-9999px;
+}
+.pin-foot{
+  min-height:45px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  border-top:1px solid var(--line);
+  padding:9px 10px;
+  font:800 10px/1.15 ui-monospace,SFMono-Regular,Menlo,monospace;
+  text-transform:uppercase;
+}
+.pin-foot span:last-child{color:var(--muted)}
+.note{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:28px;
+  margin-top:36px;
+  padding-top:18px;
+  border-top:1px solid var(--line);
+  font-size:12px;
+  line-height:1.45;
+}
+.note p{margin:0}
+.note strong{font-weight:900}
+@media(max-width:1100px){
+  .gallery{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:720px){
+  .app{padding:18px 14px 28px}
+  header{grid-template-columns:1fr;gap:14px}
+  .intro{text-align:left;max-width:640px}
+  .query{padding:0 14px;min-height:50px}
+  .stage-head{grid-template-columns:1fr}
+  .counter{width:max-content}
+  .gallery{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .visual iframe{width:320px;height:480px}
+  .note{grid-template-columns:1fr;gap:10px}
+}
+@media(max-width:390px){
+  .gallery{grid-template-columns:1fr}
+  .visual{aspect-ratio:5/4}
+  .visual iframe{width:360px;height:535px}
+}
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <div>
+      <p class="kicker">Prometeo · visual query playground</p>
+      <h1>Buscar texto.<br>Mirar imágenes.</h1>
+    </div>
+    <p class="intro">Un laboratorio aislado para ver cómo se comportan consultas simples cuando las convertimos en referencias visuales de Pinterest. No usa materias ni toca Facultad.</p>
+  </header>
+
+  <nav class="query-nav" id="queryNav" aria-label="Consultas de prueba"></nav>
+
+  <section class="stage" aria-live="polite">
+    <div class="stage-head">
+      <div>
+        <h2 id="title"></h2>
+        <p class="search-copy" id="searchCopy"></p>
+      </div>
+      <div class="counter">5 resultados · Pinterest</div>
+    </div>
+    <div class="gallery" id="gallery"></div>
+  </section>
+
+  <footer class="note">
+    <p><strong>Qué se está probando.</strong> Una frase breve produce un pequeño conjunto visual. La gracia es comparar cuánto cambia el resultado al cambiar las palabras, sin buscar y descargar fotos una por una.</p>
+    <p><strong>Fuente.</strong> Cada pieza es un embed público de Pinterest y abre su Pin original al tocarla. Las imágenes no se duplican dentro del repositorio.</p>
+  </footer>
+</main>
+
+<script>
+const groups=[
+  {
+    label:"Gatos · B&N",
+    title:"Dibujos de gatos en blanco y negro",
+    query:"black and white cat drawing",
+    pins:["263671753178772450","561894491029428460","441775044713130835","563018698218327","750553094174053609"]
+  },
+  {
+    label:"Brutalismo",
+    title:"Arquitectura brutalista en blanco y negro",
+    query:"brutalist architecture black and white",
+    pins:["1110418851899655705","66850375718051484","131448882870236426","302304193728489801","165507355046943902"]
+  },
+  {
+    label:"Botánica · tinta",
+    title:"Ilustración botánica en tinta",
+    query:"botanical ink drawing black and white",
+    pins:["849702654717645401","12666442694920259","633387443011277","174021973074857780","371476669265240594"]
+  },
+  {
+    label:"Astronomía",
+    title:"Grabados antiguos de astronomía",
+    query:"vintage astronomy engraving",
+    pins:["875176140081720321","1129348044041877600","629167010424577443","26036504090464529","299348706466997159"]
+  }
+];
+
+const nav=document.getElementById("queryNav");
+const gallery=document.getElementById("gallery");
+const title=document.getElementById("title");
+const searchCopy=document.getElementById("searchCopy");
+
+function pinUrl(id){return "https://www.pinterest.com/pin/"+id+"/"}
+function embedUrl(id){return "https://assets.pinterest.com/ext/embed.html?id="+id}
+
+function render(index){
+  const group=groups[index];
+  [...nav.children].forEach((button,i)=>button.setAttribute("aria-selected",String(i===index)));
+  title.textContent=group.title;
+  searchCopy.textContent='consulta: "'+group.query+'"';
+  gallery.replaceChildren(...group.pins.map((id,i)=>{
+    const card=document.createElement("article");
+    card.className="pin";
+
+    const visual=document.createElement("div");
+    visual.className="visual";
+
+    const frame=document.createElement("iframe");
+    frame.src=embedUrl(id);
+    frame.title="Resultado "+(i+1)+" de "+group.title;
+    frame.loading=i<2?"eager":"lazy";
+    frame.scrolling="no";
+    frame.referrerPolicy="strict-origin-when-cross-origin";
+    frame.setAttribute("sandbox","allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox");
+
+    const link=document.createElement("a");
+    link.className="pin-link";
+    link.href=pinUrl(id);
+    link.target="_blank";
+    link.rel="noopener noreferrer";
+    link.textContent="Abrir Pin "+(i+1);
+
+    const foot=document.createElement("div");
+    foot.className="pin-foot";
+    foot.innerHTML="<span>0"+(i+1)+"</span><span>abrir ↗</span>";
+
+    visual.append(frame,link);
+    card.append(visual,foot);
+    return card;
+  }));
+}
+
+groups.forEach((group,index)=>{
+  const button=document.createElement("button");
+  button.className="query";
+  button.type="button";
+  button.textContent=group.label;
+  button.setAttribute("aria-selected",String(index===0));
+  button.addEventListener("click",()=>render(index));
+  nav.append(button);
+});
+
+render(0);
+</script>
+</body>
+</html>
