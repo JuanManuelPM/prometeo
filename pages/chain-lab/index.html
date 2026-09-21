@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cadena de workers</title>
+<style>
+:root{--bg:#f3efe6;--ink:#111;--muted:#777168;--soft:#d7d0c4;--paper:#fffdf8}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{min-height:100dvh}
+header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:2px solid var(--ink)}
+.top{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;padding:14px 16px 11px}
+.title{font-size:clamp(27px,5vw,54px);font-weight:1000;letter-spacing:-.06em;line-height:.9}
+.run{margin-top:6px;font-size:10px;font-weight:950;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.totals{text-align:right;font-variant-numeric:tabular-nums}
+.big{font-size:clamp(22px,4vw,40px);font-weight:1000;letter-spacing:-.05em}
+.small{font-size:10px;font-weight:950;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.pipeline{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--soft)}
+.stage{padding:8px 10px;border-right:1px solid var(--soft);text-align:center}
+.stage:last-child{border-right:0}
+.stage b{display:block;font-size:19px}
+.stage span{font-size:9px;font-weight:950;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+main{padding:10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding-bottom:45px}
+.card{border:2px solid var(--ink);background:var(--paper);min-height:260px}
+.cardhead{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-bottom:2px solid var(--ink)}
+.worker{font-size:24px;font-weight:1000;letter-spacing:-.04em}
+.status{font-size:9px;font-weight:1000;letter-spacing:.1em;text-transform:uppercase}
+.status.live::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ink);margin-right:6px;animation:pulse .8s infinite alternate}
+.body{display:grid;grid-template-columns:1fr 34px 1fr;min-height:205px}
+.pane{padding:10px 11px;min-width:0}
+.arrow{display:grid;place-items:center;border-left:1px solid var(--soft);border-right:1px solid var(--soft);font-size:24px;font-weight:1000}
+.label{font-size:9px;font-weight:1000;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+.value{font-size:17px;font-weight:900;line-height:1.08;letter-spacing:-.02em}
+.preview{margin-top:7px;font-size:12px;line-height:1.28;color:#514c45;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:5;overflow:hidden}
+.meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;font-size:10px;font-weight:950;font-variant-numeric:tabular-nums}
+.wait{font-size:21px;font-weight:1000;letter-spacing:-.04em}
+.waiting{animation:fade 1s infinite alternate}
+.from{margin-top:8px;padding:6px 7px;background:var(--ink);color:var(--paper);display:inline-block;font-size:10px;font-weight:1000;letter-spacing:.08em;text-transform:uppercase}
+.clickable{cursor:pointer}
+.badge{position:fixed;right:10px;bottom:10px;background:var(--ink);color:var(--bg);padding:7px 9px;font-size:9px;font-weight:1000;letter-spacing:.1em;text-transform:uppercase;z-index:30}
+dialog{width:min(860px,calc(100vw - 18px));max-height:88dvh;border:2px solid var(--ink);padding:0;background:var(--paper);color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.46)}
+.modalhead{position:sticky;top:0;background:var(--paper);display:flex;justify-content:space-between;gap:12px;align-items:center;padding:11px 13px;border-bottom:2px solid var(--ink)}
+.modaltitle{font-size:19px;font-weight:1000}
+.close{border:2px solid var(--ink);background:var(--ink);color:var(--paper);font:inherit;font-weight:1000;padding:7px 9px}
+.modalmeta{padding:9px 13px;border-bottom:1px solid var(--soft);font-size:11px;font-weight:900}
+.modaltext{padding:17px 15px 24px;white-space:pre-wrap;line-height:1.5;font-size:15px}
+@keyframes pulse{from{opacity:.3}to{opacity:1}}
+@keyframes fade{from{opacity:.45}to{opacity:1}}
+@media(max-width:900px){
+ main{grid-template-columns:1fr}
+}
+@media(max-width:620px){
+ .top{padding:11px 10px 9px}.title{font-size:31px}.big{font-size:23px}
+ main{padding:7px 7px 42px}.body{grid-template-columns:1fr}.arrow{min-height:32px;border-left:0;border-right:0;border-top:1px solid var(--soft);border-bottom:1px solid var(--soft);transform:rotate(90deg)}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div><div class="title">CADENA</div><div class="run" id="runLabel"></div></div>
+    <div class="totals"><div class="big"><span id="workersCount">0</span>/<span id="expected">10</span></div><div class="small" id="timer">esperando workers</div></div>
+  </div>
+  <div class="pipeline">
+    <div class="stage"><b id="ideasCount">0/10</b><span>ideas</span></div>
+    <div class="stage"><b id="assignCount">0/10</b><span>asignaciones</span></div>
+    <div class="stage"><b id="doneCount">0/10</b><span>desarrollos</span></div>
+  </div>
+</header>
+<main id="main"></main>
+<div class="badge" id="badge">OPEN</div>
+<dialog id="dialog">
+  <div class="modalhead"><div class="modaltitle" id="modalTitle"></div><button class="close" id="close">CERRAR</button></div>
+  <div class="modalmeta" id="modalMeta"></div>
+  <div class="modaltext" id="modalText"></div>
+</dialog>
+<script>
+const SUPABASE_URL='https://catnohyouxqjjtseaueb.supabase.co';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const RUN=new URLSearchParams(location.search).get('run')||'CHAIN-10-01';
+const H={apikey:KEY,Authorization:'Bearer '+KEY};
+const $=id=>document.getElementById(id);
+$('runLabel').textContent=RUN;
+$('close').onclick=()=>$('dialog').close();
+let D={run:null,workers:[],ideas:[],assignments:[],developments:[],events:[]};
+let signature='';
+async function get(path){
+  const r=await fetch(SUPABASE_URL+'/rest/v1/'+path,{headers:H,cache:'no-store'});
+  if(!r.ok)throw new Error(r.status+' '+await r.text());
+  return r.json();
+}
+function ms(x){if(x==null)return '';if(x<1000)return x+' ms';return (x/1000).toFixed(x<10000?2:1)+' s'}
+function age(ts){return ts?Math.max(0,Date.now()-new Date(ts).getTime()):0}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function eventTime(code,type){
+  const e=[...D.events].reverse().find(x=>x.worker_code===code&&x.event_type===type);
+  return e?.created_at||null;
+}
+function openModal(title,meta,text){
+  $('modalTitle').textContent=title;$('modalMeta').textContent=meta;$('modalText').textContent=text||'';$('dialog').showModal();
+}
+function statusLabel(w){
+  const map={
+    CREATING_IDEA:'creando idea',
+    WAITING_ASSIGNMENT:'esperando',
+    ASSIGNED:'asignado',
+    DEVELOPING:'desarrollando',
+    RETRY_LENGTH:'ajustando longitud',
+    DONE:'terminado',
+    NO_WORK:'sin trabajo'
+  };
+  return map[w?.status]||'sin conectar';
+}
+function render(){
+  const run=D.run, expected=run?.expected_workers||10;
+  $('expected').textContent=expected;
+  $('workersCount').textContent=D.workers.length;
+  $('ideasCount').textContent=D.ideas.length+'/'+expected;
+  $('assignCount').textContent=D.assignments.length+'/'+expected;
+  $('doneCount').textContent=D.assignments.filter(a=>a.status==='DONE').length+'/'+expected;
+  $('badge').textContent=run?.status||'OPEN';
+
+  if(run?.status==='OPEN'&&run.first_entered_at){
+    const left=Math.max(0,(new Date(run.first_entered_at).getTime()+run.seal_after_seconds*1000)-Date.now());
+    $('timer').textContent=D.ideas.length>=expected?'sellando cohorte':'cierre de seguridad · '+Math.ceil(left/1000)+' s';
+  }else if(run?.status==='RUNNING'){
+    $('timer').textContent='cohorte sellada';
+  }else if(run?.status==='DONE'){
+    $('timer').textContent='completo';
+  }else{
+    $('timer').textContent='esperando workers';
+  }
+
+  const main=$('main');main.innerHTML='';
+  for(let i=1;i<=expected;i++){
+    const code='K'+String(i).padStart(3,'0');
+    const w=D.workers.find(x=>x.worker_code===code);
+    const idea=D.ideas.find(x=>x.author_code===code);
+    const a=D.assignments.find(x=>x.recipient_code===code);
+    const dev=D.developments.find(x=>x.recipient_code===code);
+    const c=document.createElement('section');c.className='card';
+
+    const live=w&&['CREATING_IDEA','WAITING_ASSIGNMENT','ASSIGNED','DEVELOPING','RETRY_LENGTH'].includes(w.status);
+    c.innerHTML='<div class="cardhead"><div class="worker">'+code+'</div><div class="status '+(live?'live':'')+'">'+statusLabel(w)+'</div></div>';
+
+    const body=document.createElement('div');body.className='body';
+
+    const left=document.createElement('div');left.className='pane';
+    left.innerHTML='<div class="label">idea propia</div>';
+    if(!w){
+      left.innerHTML+='<div class="wait">sin conectar</div>';
+    }else if(!idea){
+      const t=eventTime(code,'ENTER');
+      left.innerHTML+='<div class="wait waiting">escribiendo…</div><div class="meta"><span>'+ms(age(t))+'</span><span>'+run.idea_min_words+'–'+run.idea_max_words+' palabras</span></div>';
+    }else{
+      left.innerHTML+='<div class="value clickable">publicada ✓</div><div class="preview">'+esc(idea.idea_text)+'</div><div class="meta"><span>'+idea.word_count+' palabras</span><span>'+idea.char_count+' caracteres</span></div>';
+      left.onclick=()=>openModal(code+' · idea propia',idea.word_count+' palabras · '+idea.char_count+' caracteres',idea.idea_text);
+      left.classList.add('clickable');
+    }
+
+    const arrow=document.createElement('div');arrow.className='arrow';arrow.textContent='→';
+
+    const right=document.createElement('div');right.className='pane';
+    right.innerHTML='<div class="label">idea recibida / desarrollo</div>';
+    if(!w){
+      right.innerHTML+='<div class="wait">—</div>';
+    }else if(!idea){
+      right.innerHTML+='<div class="wait">—</div>';
+    }else if(!a){
+      const since=idea.published_at;
+      right.innerHTML+='<div class="wait waiting">esperando asignación…</div><div class="meta"><span>'+ms(age(since))+'</span></div>';
+    }else{
+      const sourceIdea=D.ideas.find(x=>x.author_code===a.source_code);
+      right.innerHTML+='<div class="from">← '+esc(a.source_code)+'</div>';
+      if(a.status==='READY'){
+        right.innerHTML+='<div class="wait waiting" style="margin-top:9px">asignada · esperando detección</div>';
+      }else if(a.status==='DEVELOPING'){
+        const t=a.detected_at;
+        const rejected=w.status==='RETRY_LENGTH';
+        right.innerHTML+='<div class="wait waiting" style="margin-top:9px">'+(rejected?'ajustando longitud…':'desarrollando…')+'</div><div class="meta"><span>'+ms(age(t))+'</span><span>'+run.development_min_words+'–'+run.development_max_words+' palabras</span></div>';
+      }else if(a.status==='DONE'&&dev){
+        right.innerHTML+='<div class="value clickable" style="margin-top:9px">publicado ✓</div><div class="preview">'+esc(dev.development_text||'')+'</div><div class="meta"><span>'+dev.word_count+' palabras</span><span>'+dev.char_count+' caracteres</span><span>'+ms(dev.elapsed_ms)+'</span></div>';
+      }
+      if(sourceIdea){
+        right.ondblclick=()=>openModal(code+' recibió '+a.source_code,'Idea original de '+a.source_code,sourceIdea.idea_text);
+      }
+      if(a.status==='DONE'&&dev){
+        right.onclick=()=>openModal(code+' · desarrollo de '+a.source_code,dev.word_count+' palabras · '+dev.char_count+' caracteres · '+ms(dev.elapsed_ms),dev.development_text);
+        right.classList.add('clickable');
+      }
+    }
+    body.append(left,arrow,right);c.appendChild(body);main.appendChild(c);
+  }
+}
+async function tick(){
+  try{
+    const [runs,workers,ideas,assignments,developments,events]=await Promise.all([
+      get('chain_lab_runs?run_id=eq.'+encodeURIComponent(RUN)+'&select=*'),
+      get('chain_lab_workers?run_id=eq.'+encodeURIComponent(RUN)+'&select=*&order=worker_code.asc'),
+      get('chain_lab_ideas?run_id=eq.'+encodeURIComponent(RUN)+'&select=*&order=author_code.asc'),
+      get('chain_lab_assignments?run_id=eq.'+encodeURIComponent(RUN)+'&select=*&order=recipient_code.asc'),
+      get('chain_lab_developments?run_id=eq.'+encodeURIComponent(RUN)+'&select=*&order=recipient_code.asc'),
+      get('chain_lab_events?run_id=eq.'+encodeURIComponent(RUN)+'&select=*&order=event_id.asc')
+    ]);
+    D={run:runs[0]||null,workers,ideas,assignments,developments,events};
+    const sig=JSON.stringify([D.run?.status,D.run?.sealed_at,D.run?.finished_at,workers.map(w=>[w.worker_code,w.status,w.last_seen_at]),ideas.map(i=>[i.author_code,i.word_count]),assignments.map(a=>[a.recipient_code,a.source_code,a.status,a.detected_at]),developments.map(d=>[d.recipient_code,d.word_count,d.elapsed_ms,d.retry_count])]);
+    if(sig!==signature){signature=sig;render()}
+    else if(D.workers.some(w=>['CREATING_IDEA','WAITING_ASSIGNMENT','DEVELOPING','RETRY_LENGTH'].includes(w.status))) render();
+  }catch(e){$('badge').textContent='REINTENTANDO'}
+}
+tick();setInterval(tick,500);
+</script>
+</body>
+</html>
