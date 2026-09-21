@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pool residente · 8×20</title>
+<style>
+:root{--bg:#f3efe6;--ink:#111;--muted:#746e64;--line:#111;--soft:#d6cec1;--paper:#fffdf8}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{min-height:100dvh}
+header{position:sticky;top:0;z-index:30;background:var(--bg);border-bottom:2px solid var(--ink)}
+.top{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;padding:13px 15px 10px}
+.title{font-size:clamp(28px,5vw,54px);font-weight:1000;letter-spacing:-.06em;line-height:.9}
+.run{margin-top:6px;font-size:10px;font-weight:950;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.stats{text-align:right;font-variant-numeric:tabular-nums}
+.big{font-size:clamp(23px,4vw,40px);font-weight:1000;letter-spacing:-.05em}
+.small{font-size:10px;font-weight:950;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.strip{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--soft)}
+.metric{padding:7px 8px;text-align:center;border-right:1px solid var(--soft)}
+.metric:last-child{border-right:0}
+.metric b{display:block;font-size:18px}
+.metric span{display:block;font-size:8px;font-weight:1000;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+section{padding:10px}
+.sectionTitle{font-size:10px;font-weight:1000;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 7px 2px}
+.workers{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.worker{border:2px solid var(--ink);background:var(--paper);min-height:118px;padding:8px 9px;position:relative}
+.workerTop{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.workerCode{font-size:21px;font-weight:1000;letter-spacing:-.04em}
+.workerState{font-size:8px;font-weight:1000;letter-spacing:.08em;text-transform:uppercase}
+.workerState.live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ink);margin-right:5px;animation:pulse .8s infinite alternate}
+.assignment{margin-top:11px;font-size:16px;font-weight:950;letter-spacing:-.025em}
+.assignment small{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.workerMeta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;font-size:9px;font-weight:950;color:var(--muted)}
+.rescueFlag{display:inline-block;background:var(--ink);color:var(--paper);padding:3px 5px;font-size:8px;font-weight:1000;letter-spacing:.08em;text-transform:uppercase}
+.layout{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,.8fr);gap:10px;align-items:start}
+.tasks{border:2px solid var(--ink);background:var(--paper)}
+.task{display:grid;grid-template-columns:44px minmax(180px,1.5fr) 86px 78px 92px 92px;min-height:63px;border-bottom:1px solid var(--soft);align-items:stretch}
+.task:last-child{border-bottom:0}
+.cell{padding:8px 9px;display:flex;align-items:center;border-right:1px solid var(--soft);min-width:0}
+.cell:last-child{border-right:0}
+.num{font-size:20px;font-weight:1000;justify-content:center}
+.taskTitle{font-size:13px;font-weight:900;line-height:1.08}
+.sub{font-size:8px;font-weight:950;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:4px}
+.state{font-size:9px;font-weight:1000;letter-spacing:.08em;text-transform:uppercase}
+.state.ready{color:var(--muted)}
+.state.leased{background:var(--ink);color:var(--paper);padding:4px 5px}
+.state.done{font-size:14px}
+.timer{font-size:12px;font-weight:1000;font-variant-numeric:tabular-nums}
+.timer.over{font-size:10px}
+.out{font-size:9px;font-weight:950;line-height:1.2}
+.out button{font:inherit;border:0;border-bottom:1px solid var(--ink);padding:0;background:none;cursor:pointer;color:inherit}
+.events{border:2px solid var(--ink);background:var(--paper);position:sticky;top:128px}
+.eventHead{padding:8px 9px;border-bottom:2px solid var(--ink);font-size:10px;font-weight:1000;letter-spacing:.1em;text-transform:uppercase}
+.event{padding:8px 9px;border-bottom:1px solid var(--soft)}
+.event:last-child{border-bottom:0}
+.eventMain{font-size:11px;font-weight:950;line-height:1.2}
+.eventMeta{margin-top:3px;font-size:8px;font-weight:900;color:var(--muted);font-variant-numeric:tabular-nums}
+.badge{position:fixed;right:9px;bottom:9px;background:var(--ink);color:var(--paper);padding:7px 9px;font-size:9px;font-weight:1000;letter-spacing:.1em;text-transform:uppercase;z-index:40}
+dialog{width:min(900px,calc(100vw - 18px));max-height:88dvh;border:2px solid var(--ink);padding:0;background:var(--paper);color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.46)}
+.modalHead{position:sticky;top:0;background:var(--paper);display:flex;justify-content:space-between;gap:12px;align-items:center;padding:11px 13px;border-bottom:2px solid var(--ink)}
+.modalTitle{font-size:18px;font-weight:1000}
+.close{border:2px solid var(--ink);background:var(--ink);color:var(--paper);font:inherit;font-weight:1000;padding:7px 9px}
+.modalMeta{padding:8px 13px;border-bottom:1px solid var(--soft);font-size:10px;font-weight:900}
+.modalText{padding:16px 15px 24px;white-space:pre-wrap;font-size:15px;line-height:1.5}
+@keyframes pulse{from{opacity:.25}to{opacity:1}}
+@media(max-width:1000px){.workers{grid-template-columns:repeat(2,minmax(0,1fr))}.layout{grid-template-columns:1fr}.events{position:static}}
+@media(max-width:680px){
+ .top{padding:11px 9px 8px}.title{font-size:31px}.big{font-size:22px}
+ .strip{grid-template-columns:repeat(5,minmax(0,1fr))}.metric{padding:6px 2px}.metric b{font-size:15px}.metric span{font-size:7px}
+ section{padding:7px}.workers{grid-template-columns:1fr 1fr;gap:5px}.worker{min-height:102px}
+ .task{grid-template-columns:38px 1fr 65px}.task .cell:nth-child(4),.task .cell:nth-child(5),.task .cell:nth-child(6){grid-column:2/4;border-top:1px solid var(--soft)}
+ .task .cell:nth-child(4){grid-column:2}.task .cell:nth-child(5){grid-column:3}.task .cell:nth-child(6){grid-column:2/4}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div><div class="title">POOL RESIDENTE</div><div class="run" id="runLabel"></div></div>
+    <div class="stats"><div class="big"><span id="done">0</span>/<span id="total">20</span></div><div class="small"><span id="elapsed">0 s</span> · <span id="words">0</span> palabras</div></div>
+  </div>
+  <div class="strip">
+    <div class="metric"><b id="workerCount">0/8</b><span>workers</span></div>
+    <div class="metric"><b id="active">0</b><span>trabajando</span></div>
+    <div class="metric"><b id="waiting">0</b><span>esperando</span></div>
+    <div class="metric"><b id="ready">20</b><span>por hacer</span></div>
+    <div class="metric"><b id="rescues">0</b><span>rescates</span></div>
+  </div>
+</header>
+
+<section>
+  <div class="sectionTitle">Workers residentes</div>
+  <div class="workers" id="workers"></div>
+</section>
+
+<section class="layout">
+  <div>
+    <div class="sectionTitle">20 trabajos · rescates tienen prioridad</div>
+    <div class="tasks" id="tasks"></div>
+  </div>
+  <div>
+    <div class="sectionTitle">Eventos</div>
+    <div class="events"><div class="eventHead">Actividad reciente</div><div id="events"></div></div>
+  </div>
+</section>
+
+<div class="badge" id="badge">OPEN</div>
+<dialog id="dialog">
+  <div class="modalHead"><div class="modalTitle" id="modalTitle"></div><button class="close" id="close">CERRAR</button></div>
+  <div class="modalMeta" id="modalMeta"></div>
+  <div class="modalText" id="modalText"></div>
+</dialog>
+
+<script>
+const URL='https://catnohyouxqjjtseaueb.supabase.co';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const RUN=new URLSearchParams(location.search).get('run')||'POOL-8-20-01';
+const H={apikey:KEY,Authorization:'Bearer '+KEY};
+const $=id=>document.getElementById(id);
+$('runLabel').textContent=RUN;
+$('close').onclick=()=>$('dialog').close();
+let D={run:null,workers:[],tasks:[],outputs:[],events:[]},sig='';
+
+async function get(path){
+ const r=await fetch(URL+'/rest/v1/'+path,{headers:H,cache:'no-store'});
+ if(!r.ok)throw new Error(r.status+' '+await r.text());
+ return r.json();
+}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function fmtMs(ms){if(ms==null)return '';if(ms<1000)return ms+' ms';return (ms/1000).toFixed(ms<10000?2:1)+' s'}
+function since(ts){return ts?Math.max(0,Date.now()-new Date(ts).getTime()):0}
+function leaseText(t){
+ if(!t.lease_expires_at)return '';
+ const d=new Date(t.lease_expires_at).getTime()-Date.now();
+ if(d>=0)return Math.ceil(d/1000)+' s';
+ return '+'+Math.ceil(-d/1000)+' s vencido';
+}
+function output(task,phase){return D.outputs.find(o=>o.task_no===task&&o.phase===phase)}
+async function openOutput(taskNo,phase){
+ const rows=await get('pool_lab_outputs?run_id=eq.'+encodeURIComponent(RUN)+'&task_no=eq.'+taskNo+'&phase=eq.'+phase+'&select=*');
+ const o=rows[0]; if(!o)return;
+ $('modalTitle').textContent='Tarea '+String(taskNo).padStart(2,'0')+' · fase '+phase;
+ $('modalMeta').textContent=o.worker_code+' · '+o.word_count+' palabras · '+o.char_count+' caracteres · '+fmtMs(o.elapsed_ms)+(o.rescued?' · RESCATE':'');
+ $('modalText').textContent=o.output_text;
+ $('dialog').showModal();
+}
+function workerState(w){
+ if(!w)return 'sin conectar';
+ const map={IDLE:'libre',WORKING:'trabajando',WAITING:'esperando',DONE:'terminado',NO_WORK:'sin trabajo'};
+ return map[w.status]||w.status.toLowerCase();
+}
+function renderWorkers(){
+ const root=$('workers');root.innerHTML='';
+ const expected=D.run?.expected_workers||8;
+ for(let i=1;i<=expected;i++){
+   const code='K'+String(i).padStart(3,'0');
+   const w=D.workers.find(x=>x.worker_code===code);
+   const c=document.createElement('div');c.className='worker';
+   const live=w&&['WORKING','WAITING','IDLE'].includes(w.status);
+   let body='<div class="assignment">—</div>';
+   if(w?.status==='WORKING'){
+     const t=D.tasks.find(x=>x.task_no===w.current_task_no);
+     body='<div class="assignment">T'+String(w.current_task_no).padStart(2,'0')+' · fase '+w.current_phase+(t?.is_rescue?' <span class="rescueFlag">rescate</span>':'')+'</div>';
+     if(t)body+='<div class="workerMeta"><span>'+esc(t.title)+'</span><span>'+leaseText(t)+'</span></div>';
+   }else if(w?.status==='WAITING'){
+     body='<div class="assignment"><small>esperando trabajo o rescate</small></div>';
+   }else if(w?.status==='DONE'){
+     body='<div class="assignment"><small>run completado</small></div>';
+   }
+   c.innerHTML='<div class="workerTop"><div class="workerCode">'+code+'</div><div class="workerState '+(live?'live':'')+'">'+workerState(w)+'</div></div>'+body+
+     '<div class="workerMeta"><span>'+(w?.tasks_done||0)+' terminadas</span><span>'+(w?.rescues_done||0)+' rescates</span></div>';
+   root.appendChild(c);
+ }
+}
+function renderTasks(){
+ const root=$('tasks');root.innerHTML='';
+ const total=D.run?.total_tasks||20;
+ for(let n=1;n<=total;n++){
+   const t=D.tasks.find(x=>x.task_no===n);
+   if(!t)continue;
+   const p1=output(n,1),p2=output(n,2);
+   const row=document.createElement('div');row.className='task';
+   const state=t.status==='DONE'?'✓':t.status==='LEASED'?(t.is_rescue?'RESCATE':'ACTIVA'):(t.is_rescue?'RESCATE':'READY');
+   const stateClass=t.status.toLowerCase();
+   const timer=t.status==='LEASED'?leaseText(t):'';
+   row.innerHTML=
+     '<div class="cell num">'+String(n).padStart(2,'0')+'</div>'+
+     '<div class="cell"><div><div class="taskTitle">'+esc(t.title)+'</div><div class="sub">fase '+t.phase+' · gen '+t.generation+(t.rescue_count?' · '+t.rescue_count+' rescate(s)':'')+'</div></div></div>'+
+     '<div class="cell"><span class="state '+stateClass+'">'+state+'</span></div>'+
+     '<div class="cell"><div class="out">'+(t.assigned_worker_code||'—')+'</div></div>'+
+     '<div class="cell"><div class="timer '+(timer.includes('vencido')?'over':'')+'">'+timer+'</div></div>'+
+     '<div class="cell"><div class="out">'+
+       (p1?'<button data-task="'+n+'" data-phase="1">P1 '+p1.word_count+'p</button>':'P1 —')+'<br>'+
+       (p2?'<button data-task="'+n+'" data-phase="2">P2 '+p2.word_count+'p</button>':'P2 —')+
+     '</div></div>';
+   root.appendChild(row);
+ }
+ root.querySelectorAll('button[data-task]').forEach(b=>b.onclick=()=>openOutput(Number(b.dataset.task),Number(b.dataset.phase)));
+}
+function labelEvent(e){
+ const t=e.task_no?'T'+String(e.task_no).padStart(2,'0'):'';
+ const w=e.worker_code||'SISTEMA';
+ const map={
+  ENTER:w+' entró',
+  TASK_ASSIGNED:w+' ← '+t,
+  RESCUE_ASSIGNED:w+' rescata '+t,
+  PHASE1_PUBLISHED:w+' publicó plan de '+t,
+  TASK_COMPLETED:w+' terminó '+t,
+  LEASE_EXPIRED:t+' venció en '+w,
+  STALE_RESULT_REJECTED:'resultado tardío rechazado · '+w,
+  OUTPUT_REJECTED_LENGTH:'longitud rechazada · '+w+' '+t,
+  EXTRA_WORKER:w+' quedó fuera'
+ };
+ return map[e.event_type]||e.event_type+' · '+w+' '+t;
+}
+function renderEvents(){
+ const root=$('events');root.innerHTML='';
+ const rows=[...D.events].slice(-18).reverse();
+ if(!rows.length){root.innerHTML='<div class="event"><div class="eventMain">Esperando actividad…</div></div>';return}
+ rows.forEach(e=>{
+   const d=document.createElement('div');d.className='event';
+   d.innerHTML='<div class="eventMain">'+esc(labelEvent(e))+'</div><div class="eventMeta">'+new Date(e.created_at).toLocaleTimeString('es-AR')+(e.elapsed_ms?' · '+fmtMs(e.elapsed_ms):'')+(e.word_count?' · '+e.word_count+' palabras':'')+'</div>';
+   root.appendChild(d);
+ });
+}
+function renderStats(){
+ const r=D.run,total=r?.total_tasks||20;
+ const done=D.tasks.filter(t=>t.status==='DONE').length;
+ const active=D.workers.filter(w=>w.status==='WORKING').length;
+ const waiting=D.workers.filter(w=>w.status==='WAITING').length;
+ const ready=D.tasks.filter(t=>t.status==='READY').length;
+ const rescues=D.tasks.reduce((a,t)=>a+(t.rescue_count||0),0);
+ const words=D.outputs.reduce((a,o)=>a+(o.word_count||0),0);
+ $('done').textContent=done;$('total').textContent=total;
+ $('workerCount').textContent=D.workers.filter(w=>w.status!=='NO_WORK').length+'/'+(r?.expected_workers||8);
+ $('active').textContent=active;$('waiting').textContent=waiting;$('ready').textContent=ready;$('rescues').textContent=rescues;
+ $('words').textContent=words.toLocaleString('es-AR');
+ let elapsed=0;if(r?.started_at)elapsed=new Date(r.finished_at||Date.now())-new Date(r.started_at);
+ $('elapsed').textContent=fmtMs(Math.max(0,elapsed));
+ $('badge').textContent=r?.status||'OPEN';
+}
+function render(){renderWorkers();renderTasks();renderEvents();renderStats()}
+async function tick(){
+ try{
+  const [runs,workers,tasks,outputs,events]=await Promise.all([
+   get('pool_lab_runs?run_id=eq.'+encodeURIComponent(RUN)+'&select=*'),
+   get('pool_lab_workers?run_id=eq.'+encodeURIComponent(RUN)+'&select=*&order=worker_code.asc'),
+   get('pool_lab_tasks?run_id=eq.'+encodeURIComponent(RUN)+'&select=*&order=task_no.asc'),
+   get('pool_lab_outputs?run_id=eq.'+encodeURIComponent(RUN)+'&select=run_id,task_no,phase,generation,worker_code,word_count,char_count,published_at,elapsed_ms,rescued&order=task_no.asc,phase.asc'),
+   get('pool_lab_events?run_id=eq.'+encodeURIComponent(RUN)+'&select=*&order=event_id.asc')
+  ]);
+  D={run:runs[0]||null,workers,tasks,outputs,events};
+  const s=JSON.stringify([D.run?.status,D.run?.started_at,D.run?.finished_at,workers.map(w=>[w.worker_code,w.status,w.current_task_no,w.current_phase,w.tasks_done,w.rescues_done]),tasks.map(t=>[t.task_no,t.status,t.phase,t.generation,t.assigned_worker_code,t.lease_expires_at,t.is_rescue,t.rescue_count]),outputs.map(o=>[o.task_no,o.phase,o.worker_code,o.word_count,o.elapsed_ms,o.rescued]),events.length]);
+  if(s!==sig){sig=s;render()}else{renderWorkers();renderTasks();renderStats()}
+ }catch(e){$('badge').textContent='REINTENTANDO'}
+}
+tick();setInterval(tick,500);
+</script>
+</body>
+</html>
