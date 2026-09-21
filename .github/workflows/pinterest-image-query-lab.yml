@@ -16,29 +16,25 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect public image-search responses
+      - name: Inspect Bing image result metadata
         shell: bash
         run: |
           set -euo pipefail
           UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
           curl -L --silent --show-error --max-time 25 -A "$UA"             'https://www.bing.com/images/search?q=naruto%20site%3Apinterest.com%2Fpin%2F&form=HDRSC3&first=1&count=35' > /tmp/bing.html
-          curl -L --silent --show-error --max-time 25 -A "$UA"             'https://www.google.com/search?udm=2&q=naruto%20site%3Apinterest.com%2Fpin%2F' > /tmp/google.html
-          curl -L --silent --show-error --max-time 25 -A "$UA"             'https://duckduckgo.com/?q=naruto%20site%3Apinterest.com%2Fpin%2F' > /tmp/ddg.html
-
           node - <<'NODE'
           const fs=require('fs');
-          for(const name of ['bing','google','ddg']){
-            const html=fs.readFileSync('/tmp/'+name+'.html','utf8');
-            const pinimg=[...html.matchAll(/https:\/\/i\.pinimg\.com\/[A-Za-z0-9_./%?=&;~-]+/gi)].map(x=>x[0].replace(/&amp;/g,'&'));
-            const pins=[...html.matchAll(/https:\/\/(?:www\.)?pinterest\.[^"' <]+\/pin\/[A-Za-z0-9_-]+/gi)].map(x=>x[0]);
-            const iusc=(html.match(/\biusc\b/gi)||[]).length;
-            console.log('\n### '+name.toUpperCase());
-            console.log(JSON.stringify({bytes:html.length,pinimgCount:pinimg.length,pinCount:pins.length,iusc},null,2));
-            console.log('pinimg samples', [...new Set(pinimg)].slice(0,12));
-            console.log('pin samples', [...new Set(pins)].slice(0,8));
-            if(name==='bing'){
-              const idx=html.indexOf('i.pinimg.com');
-              console.log('bing context', idx>=0?html.slice(Math.max(0,idx-800),idx+1400):'NO PINIMG');
+          const html=fs.readFileSync('/tmp/bing.html','utf8');
+          const tags=[...html.matchAll(/<a\b[^>]*>/gi)].map(x=>x[0]).filter(x=>/\biusc\b/i.test(x));
+          console.log('iusc tags', tags.length);
+          function dec(s){return s.replace(/&quot;/g,'"').replace(/&#34;/g,'"').replace(/&amp;/g,'&').replace(/&#39;/g,"'")}
+          for(const [i,tag] of tags.slice(0,8).entries()){
+            const mm=tag.match(/\bm=(["'])([\s\S]*?)\1/i);
+            console.log('\nTAG '+i, tag.slice(0,1200));
+            if(mm){
+              const raw=dec(mm[2]);
+              console.log('META RAW',raw.slice(0,2500));
+              try{console.log('META JSON',JSON.stringify(JSON.parse(raw),null,2).slice(0,3500))}catch(e){console.log('JSON ERR',String(e))}
             }
           }
           NODE
