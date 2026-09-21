@@ -49,39 +49,7 @@ function cleanPayload(kind:string,p:any){
   const x=(p&&typeof p==="object")?p:{};
   if(kind==="clock")return {style:String(x.style||"orbit").slice(0,32)};
   if(kind==="black")return {};
-  if(kind==="youtube"){
-    const queue=(Array.isArray(x.queue)?x.queue:[]).slice(0,50).map((v:any)=>{
-      const video_id=ytId(String(v?.video_id||v?.url||""));if(!video_id)return null;
-      return {
-        video_id,
-        title:String(v?.title||v?.video_title||"YouTube").slice(0,200),
-        channel_id:String(v?.channel_id||"").slice(0,80),
-        channel_title:String(v?.channel_title||"").slice(0,120),
-        thumbnail:String(v?.thumbnail||`https://i.ytimg.com/vi/${video_id}/mqdefault.jpg`).slice(0,500),
-        watch_url:`https://www.youtube.com/watch?v=${video_id}`
-      };
-    }).filter(Boolean);
-    let video_id=ytId(String(x.url||x.video_id||""));
-    let queue_index=Math.max(0,Math.floor(Number(x.queue_index)||0));
-    if(queue.length){
-      const explicit=queue.findIndex((v:any)=>v.video_id===video_id);
-      if(explicit>=0)queue_index=explicit;
-      queue_index=Math.min(queue.length-1,queue_index);
-      video_id=queue[queue_index].video_id;
-    }
-    const current=queue.find((v:any)=>v.video_id===video_id)||null;
-    return {
-      mode:String(x.mode||"session").slice(0,24),
-      queue,
-      queue_index:queue.length?queue_index:0,
-      video_id,
-      url:video_id?`https://www.youtube.com/watch?v=${video_id}`:"",
-      channel_id:String(current?.channel_id||x.channel_id||"").slice(0,80),
-      channel_title:String(current?.channel_title||x.channel_title||"").slice(0,120),
-      video_title:String(current?.title||x.video_title||"").slice(0,200),
-      auto_next:x.auto_next!==false
-    };
-  }
+  if(kind==="youtube")return {};
   if(kind==="page"){
     let u:URL;try{u=new URL(String(x.url||""))}catch{fail("PAGE_URL_INVALID")}
     if(!["http:","https:"].includes(u!.protocol))fail("PAGE_URL_INVALID");
@@ -89,6 +57,42 @@ function cleanPayload(kind:string,p:any){
   }
   fail("KIND_INVALID");
 }
+
+async function youtubeState(room:any){
+  const q=await db.from("tv_youtube_state").select("*").eq("room_id",room.id).maybeSingle();
+  if(q.error)throw q.error;
+  if(q.data)return q.data;
+  const row={room_id:room.id,queue:[],current_index:0,current_video_id:"",updated_at:new Date().toISOString()};
+  const ins=await db.from("tv_youtube_state").upsert(row,{onConflict:"room_id"}).select().single();
+  if(ins.error)throw ins.error;return ins.data;
+}
+function normalizedQueue(raw:any){
+  return (Array.isArray(raw)?raw:[]).slice(0,100).map((v:any)=>{
+    const video_id=ytId(String(v?.video_id||v?.watch_url||v?.url||""));if(!video_id)return null;
+    return {video_id,title:String(v?.title||v?.video_title||"YouTube").slice(0,200),channel_id:String(v?.channel_id||"").slice(0,80),channel_title:String(v?.channel_title||"").slice(0,120),thumbnail:String(v?.thumbnail||`https://i.ytimg.com/vi/${video_id}/mqdefault.jpg`).slice(0,500),watch_url:`https://www.youtube.com/watch?v=${video_id}`};
+  }).filter(Boolean);
+}
+function currentFromState(state:any){
+  const queue=normalizedQueue(state?.queue);
+  let index=Math.max(0,Math.floor(Number(state?.current_index)||0));
+  if(index>=queue.length)return {queue,index,video:null};
+  return {queue,index,video:queue[index]||null};
+}
+function hydrateYoutubeBlock(block:any,state:any){
+  const cur=currentFromState(state),v:any=cur.video;
+  return {...block,title:"YOUTUBE",payload:v?{video_id:v.video_id,url:v.watch_url,video_title:v.title,channel_id:v.channel_id,channel_title:v.channel_title,auto_next:true}:{}}; 
+}
+async function youtubeLibrary(room:any){
+  const [cq,sq,hq]=await Promise.all([
+    db.from("tv_youtube_channels").select("channel_id,title,thumbnail,enabled,sort_order,added_at").eq("room_id",room.id).eq("enabled",true).order("sort_order").order("added_at"),
+    db.from("tv_youtube_state").select("*").eq("room_id",room.id).maybeSingle(),
+    db.from("tv_watch_history").select("video_id",{count:"exact",head:true}).eq("room_id",room.id)
+  ]);
+  if(cq.error)throw cq.error;if(sq.error)throw sq.error;if(hq.error)throw hq.error;
+  const state=sq.data||await youtubeState(room);
+  return {channels:cq.data||[],state:{queue:normalizedQueue(state.queue),current_index:Number(state.current_index||0),current_video_id:String(state.current_video_id||"")},watched_count:Number(hq.count||0)};
+}
+
 async function changed(room:any,source:string,clientId:string){
   await db.from("prometeo_tv_events").insert({room_id:room.id,source,client_id:clientId||"legacy",event_type:"schedule.changed",payload:{at:new Date().toISOString()}});
 }
@@ -96,50 +100,16 @@ async function advanceYoutubeBlock(room:any,blockId:string,expected:string,clien
   if(!blockId)fail("ID_REQUIRED");
   const q=await db.from("tv_program_blocks").select("*").eq("id",blockId).eq("room_id",room.id).eq("kind","youtube").maybeSingle();
   if(q.error)throw q.error;if(!q.data)fail("BLOCK_NOT_FOUND",404);
-  const block=q.data,payload=(block.payload&&typeof block.payload==="object")?block.payload:{};
-  const current=String(payload.video_id||"");
-  if(expected&&current!==expected)return {ok:true,stale:true,block};
-  if(payload.auto_next===false)return {ok:true,advanced:false,reason:"AUTO_NEXT_OFF",block};
-
-  const queue=Array.isArray(payload.queue)?payload.queue:[];
-  if(queue.length){
-    let idx=Math.max(0,Math.min(queue.length-1,Math.floor(Number(payload.queue_index)||0)));
-    const found=queue.findIndex((v:any)=>String(v?.video_id||"")===current);
-    if(found>=0)idx=found;
-    const currentMeta=queue[idx]||{};
-    if(current){
-      const h={room_id:room.id,video_id:current,channel_id:String(currentMeta.channel_id||payload.channel_id||""),channel_title:String(currentMeta.channel_title||payload.channel_title||block.title||""),title:String(currentMeta.title||payload.video_title||block.title||""),watched_at:new Date().toISOString()};
-      const hq=await db.from("tv_watch_history").upsert(h,{onConflict:"room_id,video_id"});if(hq.error)throw hq.error;
-    }
-    const nextIndex=idx+1;
-    if(nextIndex>=queue.length)return {ok:true,advanced:false,reason:"QUEUE_END",block};
-    const next:any=queue[nextIndex];
-    const nextPayload={...payload,queue_index:nextIndex,video_id:String(next.video_id||""),url:`https://www.youtube.com/watch?v=${String(next.video_id||"")}`,channel_id:String(next.channel_id||""),channel_title:String(next.channel_title||""),video_title:String(next.title||""),auto_next:true};
-    const uq=await db.from("tv_program_blocks").update({payload:nextPayload,updated_at:new Date().toISOString()}).eq("id",blockId).eq("room_id",room.id).select().single();
-    if(uq.error)throw uq.error;
-    await changed(room,"tv",clientId);
-    return {ok:true,advanced:true,block:uq.data,next};
-  }
-
-  const channelId=String(payload.channel_id||"");if(!channelId)return {ok:true,advanced:false,reason:"NO_QUEUE",block};
-  const feed=await channelFeed(channelId);
-  const currentMeta=feed.find((v:any)=>v.video_id===current);
-  if(current){
-    const h={room_id:room.id,video_id:current,channel_id:channelId,channel_title:String(payload.channel_title||block.title||""),title:String(payload.video_title||currentMeta?.title||block.title||""),watched_at:new Date().toISOString()};
-    const hq=await db.from("tv_watch_history").upsert(h,{onConflict:"room_id,video_id"});if(hq.error)throw hq.error;
-  }
-  const wq=await db.from("tv_watch_history").select("video_id").eq("room_id",room.id);
-  if(wq.error)throw wq.error;
-  const seen=new Set((wq.data||[]).map((x:any)=>String(x.video_id)));
-  const idx=feed.findIndex((v:any)=>v.video_id===current);
-  const ordered=idx>=0?[...feed.slice(idx+1),...feed.slice(0,idx)]:feed;
-  const next=ordered.find((v:any)=>v.video_id!==current&&!seen.has(v.video_id));
-  if(!next)return {ok:true,advanced:false,reason:"NO_UNWATCHED_VIDEO",block};
-  const nextPayload={...payload,video_id:next.video_id,url:`https://www.youtube.com/watch?v=${next.video_id}`,channel_id:channelId,video_title:next.title,auto_next:true};
-  const uq=await db.from("tv_program_blocks").update({payload:nextPayload,updated_at:new Date().toISOString()}).eq("id",blockId).eq("room_id",room.id).select().single();
-  if(uq.error)throw uq.error;
+  const block=q.data,state=await youtubeState(room),cur=currentFromState(state),current:any=cur.video;
+  if(expected&&String(current?.video_id||"")!==expected)return {ok:true,stale:true,block:hydrateYoutubeBlock(block,state)};
+  if(!current)return {ok:true,advanced:false,reason:"NO_CURRENT_VIDEO",block:hydrateYoutubeBlock(block,state)};
+  const h={room_id:room.id,video_id:current.video_id,channel_id:String(current.channel_id||""),channel_title:String(current.channel_title||""),title:String(current.title||"YouTube"),watched_at:new Date().toISOString()};
+  const hq=await db.from("tv_watch_history").upsert(h,{onConflict:"room_id,video_id"});if(hq.error)throw hq.error;
+  const nextIndex=cur.index+1,next:any=cur.queue[nextIndex]||null;
+  const nextState={room_id:room.id,queue:cur.queue,current_index:nextIndex,current_video_id:String(next?.video_id||""),updated_at:new Date().toISOString()};
+  const uq=await db.from("tv_youtube_state").upsert(nextState,{onConflict:"room_id"}).select().single();if(uq.error)throw uq.error;
   await changed(room,"tv",clientId);
-  return {ok:true,advanced:true,block:uq.data,next};
+  return {ok:true,advanced:true,ended:!next,block:hydrateYoutubeBlock(block,uq.data),next};
 }
 Deno.serve(async(req:Request)=>{try{
   const{ok,h}=cors(req);if(req.method==="OPTIONS")return new Response(null,{status:ok?204:403,headers:h});
@@ -152,20 +122,21 @@ Deno.serve(async(req:Request)=>{try{
   if(action==="list"){
     const bq=await db.from("tv_program_blocks").select("*").eq("room_id",room.id).eq("enabled",true).order("start_minute").order("sort_order");
     if(bq.error)throw bq.error;
-    const blocks=bq.data||[];
+    const rawBlocks=bq.data||[],ytState=await youtubeState(room);
+    const blocks=rawBlocks.map((x:any)=>x.kind==="youtube"?hydrateYoutubeBlock(x,ytState):x);
     const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"America/Argentina/Buenos_Aires",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date());
     const get=(t:string)=>Number(parts.find(x=>x.type===t)?.value||0);
     const now_minute=get("hour")*60+get("minute");
     const active_blocks=blocks.filter((x:any)=>now_minute>=Number(x.start_minute)&&now_minute<Number(x.end_minute));
     const revision=blocks.reduce((m:any,x:any)=>String(x.updated_at||"")>m?String(x.updated_at||""):m,"");
-    return json(req,{ok:true,timezone:"America/Argentina/Buenos_Aires",now_minute,blocks,active_blocks,revision,runtime_build:"20"});
+    return json(req,{ok:true,timezone:"America/Argentina/Buenos_Aires",now_minute,blocks,active_blocks,revision,runtime_build:"21"});
   }
   if(action==="state"){
     if(role!=="remote")fail("REMOTE_REQUIRED",403);
     const q=await db.from("tv_live_state").select("*").eq("room_id",room.id).order("updated_at",{ascending:false}).limit(20);
     if(q.error)throw q.error;
     const states=q.data||[];
-    return json(req,{ok:true,state:states[0]||null,states,runtime_build:"20"});
+    return json(req,{ok:true,state:states[0]||null,states,runtime_build:"21"});
   }
   if(action==="tv_state"){
     if(role!=="tv")fail("TV_REQUIRED",403);
@@ -195,6 +166,43 @@ Deno.serve(async(req:Request)=>{try{
     const q=await db.from("tv_watch_history").select("video_id,channel_id,channel_title,title,watched_at").eq("room_id",room.id).order("watched_at",{ascending:false}).limit(limit);
     if(q.error)throw q.error;
     return json(req,{ok:true,history:q.data||[]});
+  }
+  if(action==="youtube_library"){
+    if(role!=="remote")fail("REMOTE_REQUIRED",403);
+    return json(req,{ok:true,...await youtubeLibrary(room)});
+  }
+  if(action==="youtube_channel_add"){
+    if(role!=="remote")fail("REMOTE_REQUIRED",403);
+    const channel_id=String(b.channel_id||"").slice(0,80);if(!channel_id)fail("CHANNEL_ID_REQUIRED");
+    const row={room_id:room.id,channel_id,title:String(b.title||"").slice(0,160),thumbnail:String(b.thumbnail||"").slice(0,500),enabled:true,sort_order:Number(b.sort_order)||0,added_at:new Date().toISOString()};
+    const q=await db.from("tv_youtube_channels").upsert(row,{onConflict:"room_id,channel_id"}).select().single();if(q.error)throw q.error;
+    return json(req,{ok:true,channel:q.data,...await youtubeLibrary(room)});
+  }
+  if(action==="youtube_channel_remove"){
+    if(role!=="remote")fail("REMOTE_REQUIRED",403);
+    const channel_id=String(b.channel_id||"");if(!channel_id)fail("CHANNEL_ID_REQUIRED");
+    const q=await db.from("tv_youtube_channels").delete().eq("room_id",room.id).eq("channel_id",channel_id);if(q.error)throw q.error;
+    return json(req,{ok:true,...await youtubeLibrary(room)});
+  }
+  if(action==="youtube_queue_set"){
+    if(role!=="remote")fail("REMOTE_REQUIRED",403);
+    const queue=normalizedQueue(b.queue),old=await youtubeState(room);
+    const keep=String(b.keep_current||"")||String(old.current_video_id||"");
+    let index=queue.findIndex((v:any)=>v.video_id===keep);if(index<0)index=0;
+    const current:any=queue[index]||null;
+    const row={room_id:room.id,queue,current_index:index,current_video_id:String(current?.video_id||""),updated_at:new Date().toISOString()};
+    const q=await db.from("tv_youtube_state").upsert(row,{onConflict:"room_id"}).select().single();if(q.error)throw q.error;
+    await changed(room,"remote",clientId);
+    return json(req,{ok:true,state:q.data});
+  }
+  if(action==="youtube_play_index"){
+    if(role!=="remote")fail("REMOTE_REQUIRED",403);
+    const state=await youtubeState(room),cur=currentFromState(state),index=Math.max(0,Math.min(cur.queue.length,Math.floor(Number(b.index)||0))),video:any=cur.queue[index]||null;
+    const row={room_id:room.id,queue:cur.queue,current_index:index,current_video_id:String(video?.video_id||""),updated_at:new Date().toISOString()};
+    const q=await db.from("tv_youtube_state").upsert(row,{onConflict:"room_id"}).select().single();if(q.error)throw q.error;
+    await changed(room,"remote",clientId);
+    await db.from("prometeo_tv_events").insert({room_id:room.id,source:"remote",client_id:clientId||null,event_type:"player.command",payload:{command:"refresh_panel",block_id:"",value:null,at:new Date().toISOString()}});
+    return json(req,{ok:true,state:q.data});
   }
   if(action==="youtube_advance"){
     if(role!=="tv")fail("TV_REQUIRED",403);
