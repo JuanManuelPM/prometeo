@@ -81,7 +81,7 @@ assert.equal(diagnosticReasonIsNotTerminalReason.status,'EARLY_CLOSE_UNJUSTIFIED
 
 // Reproduce the exact historical PROD-01 transport-blocked case without rewriting it.
 const historicalTransportNoAllocation=JSON.parse(
-  fs.readFileSync('coordination/workers/no-allocation/wc-20260919T145500Z-b83f2a6d91c4.json','utf8')
+  fs.readFileSync(new URL('../coordination/workers/no-allocation/wc-20260919T145500Z-b83f2a6d91c4.json',import.meta.url),'utf8')
 );
 assert.equal(historicalTransportNoAllocation.outcome,'CLAIM_TRANSPORT_BLOCKED');
 const historicalTransportProjection=canonicalPoolTerminalClose({
