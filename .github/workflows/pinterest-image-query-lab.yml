@@ -13,37 +13,71 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe current Pinterest BaseSearchResource contract
+      - name: Probe preset gallery
         shell: bash
         run: |
           set -euo pipefail
-          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
-          DATA='{"options":{"query":"naruto","bookmarks":[""]},"context":{}}'
-          code="$(curl -L --silent --show-error --max-time 30 -A "$UA"             -H 'Accept: application/json, text/javascript, */*, q=0.01'             -H 'X-Requested-With: XMLHttpRequest'             -H 'X-Pinterest-AppState: active'             -H 'X-Pinterest-Source-Url: /ideas/'             -H 'X-Pinterest-PWS-Handler: www/ideas.js'             --get             --data-urlencode "data=$DATA"             -o /tmp/pinterest.json             -w '%{http_code}'             'https://www.pinterest.com/resource/BaseSearchResource/get/')"
-          echo "HTTP $code"
-          head -c 600 /tmp/pinterest.json || true
-          echo
+          URL='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1?pins=263671753178772450,561894491029428460,441775044713130835,563018698218327,750553094174053609&k=pql-v1-7f2b9e31'
+          curl --fail --silent --show-error --max-time 35 "$URL" > /tmp/preset.json
           node - <<'NODE'
           const fs=require('fs');
-          const raw=fs.readFileSync('/tmp/pinterest.json','utf8');
-          const data=JSON.parse(raw);
-          const rr=data.resource_response||{};
-          const results=rr.data?.results||[];
-          console.log(JSON.stringify({
-            status:rr.status,
-            count:results.length,
-            bookmark:rr.bookmark,
-            sample:results.slice(0,3).map(x=>({
-              id:x.id,
-              type:x.type,
-              title:x.title||x.grid_title||x.auto_alt_text||'',
-              image:x.images?.orig?.url,
-              thumb:x.images?.['236x']?.url
-            }))
-          },null,2));
-          if(results.length<5) throw new Error('expected >=5 Pinterest results');
-          if(!results.slice(0,5).every(x=>/^https:\/\/i\.pinimg\.com\//.test(x.images?.orig?.url||''))) throw new Error('missing clean pinimg originals');
+          const data=JSON.parse(fs.readFileSync('/tmp/preset.json','utf8'));
+          if(!data.ok || data.results?.length!==5) throw new Error(JSON.stringify(data));
+          for(const item of data.results){
+            if(!/^https:\/\/i\.pinimg\.com\//.test(item.image)) throw new Error('bad image '+item.image);
+            if(!/^https:\/\/www\.pinterest\.com\/pin\/\d+\//.test(item.source_url)) throw new Error('bad pin '+item.source_url);
+          }
+          console.log('preset PASS',data.results.length);
           NODE
+
+      - name: Probe Naruto native search
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1?q=naruto&limit=10&k=pql-v1-7f2b9e31'
+          curl --fail --silent --show-error --max-time 35 "$URL" > /tmp/naruto.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const data=JSON.parse(fs.readFileSync('/tmp/naruto.json','utf8'));
+          if(!data.ok) throw new Error(JSON.stringify(data));
+          if(data.provider!=='pinterest-native-search') throw new Error('wrong provider '+data.provider);
+          if(data.results?.length!==10) throw new Error('expected 10, got '+data.results?.length);
+          for(const item of data.results){
+            if(!/^https:\/\/i\.pinimg\.com\//.test(item.image)) throw new Error('bad image '+item.image);
+            if(!/^https:\/\/www\.pinterest\.com\/pin\/\d+\//.test(item.source_url)) throw new Error('bad pin '+item.source_url);
+          }
+          console.log('naruto PASS',data.results.length,data.results[0].title||'');
+          NODE
+
+      - name: Probe vintage house native search
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1?q=vintage%20house&limit=10&k=pql-v1-7f2b9e31'
+          curl --fail --silent --show-error --max-time 35 "$URL" > /tmp/vintage.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const data=JSON.parse(fs.readFileSync('/tmp/vintage.json','utf8'));
+          if(!data.ok) throw new Error(JSON.stringify(data));
+          if(data.provider!=='pinterest-native-search') throw new Error('wrong provider '+data.provider);
+          if(data.results?.length!==10) throw new Error('expected 10, got '+data.results?.length);
+          for(const item of data.results){
+            if(!/^https:\/\/i\.pinimg\.com\//.test(item.image)) throw new Error('bad image '+item.image);
+            if(!/^https:\/\/www\.pinterest\.com\/pin\/\d+\//.test(item.source_url)) throw new Error('bad pin '+item.source_url);
+          }
+          console.log('vintage house PASS',data.results.length,data.results[0].title||'');
+          NODE
+
+      - name: Verify source UI contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error             'https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/demos/pinterest-image-query-lab-v1/index.html' > /tmp/page.html
+          grep -q 'id="searchForm"' /tmp/page.html
+          grep -q 'pinterest-image-search-v1' /tmp/page.html
+          grep -q 'link.href=item.source_url||item.image' /tmp/page.html
+          ! grep -q '<iframe' /tmp/page.html
+          echo 'UI source PASS'
