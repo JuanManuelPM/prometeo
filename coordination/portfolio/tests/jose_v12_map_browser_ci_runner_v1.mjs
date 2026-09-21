@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { chromium } from 'playwright';
 
 const target=process.env.JOSE_V12_TARGET_URL||'http://127.0.0.1:8000/pages/lab/jose-study-design-20260911/PROMETEO_JOSE_RECOVERY_ENGINE_V12_MAP_REFINEMENT_CANDIDATE.html';
@@ -9,6 +10,7 @@ const outDir=process.env.JOSE_V12_OUT||'artifacts/jose-v12-map-browser-ci';
 const candidatePath='pages/lab/jose-study-design-20260911/PROMETEO_JOSE_RECOVERY_ENGINE_V12_MAP_REFINEMENT_CANDIDATE.html';
 const expectedDigest='0cf9a40fb53e977dccb40c9755d668a3ee922ccd61883f19229bb4a113139a05';
 const expectedSourceCommit='158357fe4e1cb672e4574d9ebe6f317b9418a30f';
+const sourceUrl='https://raw.githubusercontent.com/JuanManuelPM/prometeo/'+expectedSourceCommit+'/coordination/workstreams/jose-study-design-20260911/material/PROMETEO_JOSE_RECOVERY_ENGINE_V11.html.gz.b64';
 
 fs.mkdirSync(outDir,{recursive:true});
 const evidence={
@@ -20,6 +22,7 @@ const evidence={
   authority_boundary:'technical verification only; no Current/Human Accepted/Served promotion',
   expected_v11_sha256:expectedDigest,
   expected_source_commit:expectedSourceCommit,
+  source_url:sourceUrl,
   checks:{},
   console_errors:[],
   page_errors:[],
@@ -41,6 +44,41 @@ pass('static_pin_contract',{
   candidate_sha256:evidence.candidate_sha256
 });
 
+try{
+  const response=await fetch(sourceUrl,{cache:'no-store'});
+  const sourceText=await response.text();
+  const clean=sourceText.replace(/\s+/g,'');
+  const invalid=[];
+  for(let i=0;i<clean.length;i++){
+    if(!/[A-Za-z0-9+/=]/.test(clean[i])){
+      invalid.push({index:i,char:clean[i],context:clean.slice(Math.max(0,i-24),i+40)});
+      if(invalid.length>=8) break;
+    }
+  }
+  evidence.source_transport={
+    http_status:response.status,
+    raw_characters:sourceText.length,
+    compact_characters:clean.length,
+    modulo_4:clean.length%4,
+    invalid_characters:invalid
+  };
+  if(response.ok && invalid.length===0 && clean.length%4===0){
+    const gzipBytes=Buffer.from(clean,'base64');
+    const htmlBytes=zlib.gunzipSync(gzipBytes);
+    const observedDigest=crypto.createHash('sha256').update(htmlBytes).digest('hex');
+    evidence.source_transport.gzip_bytes=gzipBytes.length;
+    evidence.source_transport.html_bytes=htmlBytes.length;
+    evidence.source_transport.observed_v11_sha256=observedDigest;
+    assert.equal(observedDigest,expectedDigest,'raw V11 payload must decode and match the pinned SHA-256');
+    pass('raw_source_transport',evidence.source_transport);
+  }else{
+    fail('raw_source_transport',evidence.source_transport);
+  }
+}catch(error){
+  evidence.source_transport_error={message:String(error?.message||error)};
+  fail('raw_source_transport',evidence.source_transport_error);
+}
+
 let browser;
 let page;
 try{
@@ -52,11 +90,18 @@ try{
 
   await page.goto(target,{waitUntil:'domcontentloaded',timeout:30000});
   await page.waitForFunction(
-    ()=>document.querySelector('#status')?.textContent?.includes('V11 SHA-256 PASS'),
+    ()=>document.querySelector('#status')?.textContent?.includes('V11 SHA-256 PASS') ||
+        document.querySelector('#fatal')?.classList.contains('show'),
     null,
     {timeout:30000}
   );
-  assert.equal(await page.locator('#fatal').evaluate(el=>el.classList.contains('show')),false,'candidate must not fail closed');
+  const failedClosed=await page.locator('#fatal').evaluate(el=>el.classList.contains('show'));
+  if(failedClosed){
+    const fatalText=(await page.locator('#fatalText').textContent()||'').trim();
+    evidence.candidate_fail_closed={fatal_text:fatalText,status:(await page.locator('#status').textContent()||'').trim()};
+    fail('runtime_v11_sha256_gate',evidence.candidate_fail_closed);
+    throw new Error('CANDIDATE_FAIL_CLOSED: '+fatalText);
+  }
   const gateStatus=(await page.locator('#status').textContent()||'').trim();
   pass('runtime_v11_sha256_gate',{status:gateStatus,expected_v11_sha256:expectedDigest});
 
