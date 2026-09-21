@@ -8,11 +8,17 @@
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:Arial,Helvetica,sans-serif}
-#stage{position:fixed;inset:0;display:grid;background:#000;gap:1px}
-#stage.n1{grid-template-columns:1fr;grid-template-rows:1fr}
-#stage.n2{grid-template-columns:1fr 1fr;grid-template-rows:1fr}
-#stage.n3{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr}
-#stage.n4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+#stage{position:fixed;inset:0;display:grid;background:#000;gap:1px;grid-template-columns:1fr;grid-template-rows:1fr}
+#stage.layout-single{grid-template-columns:1fr;grid-template-rows:1fr}
+#stage.layout-two-stack{grid-template-columns:1fr;grid-template-rows:minmax(0,44fr) minmax(0,56fr)}
+#stage.layout-two-side{grid-template-columns:minmax(0,34fr) minmax(0,66fr);grid-template-rows:1fr}
+#stage.layout-two-equal{grid-template-columns:1fr 1fr;grid-template-rows:1fr}
+#stage.layout-three-wide-bottom{grid-template-columns:minmax(0,34fr) minmax(0,66fr);grid-template-rows:minmax(0,42fr) minmax(0,58fr)}
+#stage.layout-three-side-stack{grid-template-columns:minmax(0,31fr) minmax(0,69fr);grid-template-rows:1fr 1fr}
+#stage.layout-three-balanced{grid-template-columns:1fr 1fr;grid-template-rows:minmax(0,48fr) minmax(0,52fr)}
+#stage.layout-four-wide-bottom{grid-template-columns:repeat(3,1fr);grid-template-rows:minmax(0,43fr) minmax(0,57fr)}
+#stage.layout-four-two-wide{grid-template-columns:1fr 1fr;grid-template-rows:minmax(0,42fr) minmax(0,58fr)}
+#stage.layout-four-grid{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
 .panel{position:relative;overflow:hidden;background:#000;min-width:0;min-height:0}
 .panel iframe,.ytHost,.ytHost iframe{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;border:0!important}
 .ytHost iframe{pointer-events:none!important}
@@ -50,6 +56,14 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
   .wallTimeBig{margin-top:7px;font-size:clamp(26px,8cqw,44px)}
   .wallLabel{display:none}
 }
+.panel.mode-compact.clockPanel .clockLayout{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto;gap:0;padding:7px}
+.panel.mode-compact.clockPanel .hybridClock{width:min(90cqw,64cqh)}
+.panel.mode-compact.clockPanel .clockReadout{align-items:center;text-align:center;padding:0 0 6px}
+.panel.mode-compact.clockPanel .phaseName{font-size:clamp(15px,5cqw,25px)}
+.panel.mode-compact.clockPanel .phaseRemaining{margin-top:3px;font-size:clamp(30px,9cqw,54px)}
+.panel.mode-compact.clockPanel .phaseHint,.panel.mode-compact.clockPanel .wallLabel{display:none}
+.panel.mode-compact.clockPanel .wallTimeBig{margin-top:5px;font-size:clamp(22px,7cqw,36px)}
+.panel.mode-wide iframe,.panel.mode-wide .ytHost,.panel.mode-wide .ytHost iframe{object-fit:contain}
 .unlock{position:fixed;z-index:50;right:12px;bottom:12px;display:none;border:1px solid #ffffff55;background:#000c;color:#fff;height:36px;padding:0 12px;font-size:9px;font-weight:900;letter-spacing:.08em}
 .unlock.show{display:block}
 .status{position:fixed;right:8px;top:8px;z-index:60;width:5px;height:5px;border-radius:50%;background:#333;opacity:.35}.status.err{background:#fff}
@@ -98,7 +112,7 @@ function createView(b){
  const v={id,el,kind:b.kind,sig:sig(b),player:null,ready:false,muted:false,state:null,progressFill:null,playbackSeen:false};
  views.set(id,v);stage.appendChild(el);
  if(b.kind==='clock'){el.classList.add('clockPanel');el.innerHTML=clockMarkup()}
- else if(b.kind==='page'){const f=document.createElement('iframe');f.src=b.payload?.url||'about:blank';f.allow='autoplay; fullscreen; picture-in-picture';el.appendChild(f)}
+ else if(b.kind==='page'){const f=document.createElement('iframe');f.src=b.payload?.url||'about:blank';f.allow='autoplay; fullscreen; picture-in-picture';f.addEventListener('load',()=>setTimeout(()=>applyGrid(active()),30));el.appendChild(f)}
  else if(b.kind==='youtube'){
    const videoId=String(b.payload?.video_id||'');
    if(!videoId){const empty=document.createElement('div');empty.className='youtubeEmpty';empty.innerHTML='<div>YOUTUBE<span>SIN CONTENIDO</span></div>';el.appendChild(empty)}
@@ -141,13 +155,88 @@ function ensureView(b,forceMount=false){
  if(old)destroyView(id);
  return createView(b)
 }
+function displaySpec(b){
+  const raw=(b?.payload?.display&&typeof b.payload.display==='object')?b.payload.display:
+            (b?.payload?.layout&&typeof b.payload.layout==='object')?b.payload.layout:{};
+  const allowed=new Set(['wide','compact','flex']);
+  let profile=allowed.has(String(raw.profile||''))?String(raw.profile):'';
+  if(!profile)profile=b.kind==='youtube'?'wide':b.kind==='clock'?'compact':'flex';
+  let position=String(raw.position||'');
+  if(!['top','bottom','side','auto'].includes(position))position=profile==='wide'?'bottom':profile==='compact'?'side':'auto';
+  return{profile,position}
+}
+function clearPlacement(act){
+  stage.removeAttribute('style');
+  for(const b of act){
+    const v=views.get(String(b.id));if(!v)continue;
+    v.el.style.gridColumn='';v.el.style.gridRow='';v.el.style.gridArea='';
+    v.el.classList.remove('mode-wide','mode-compact','mode-flex');
+    v.el.classList.add('mode-'+displaySpec(b).profile)
+  }
+}
+function place(b,col,row){
+  const v=views.get(String(b.id));if(!v)return;
+  v.el.style.gridColumn=col;v.el.style.gridRow=row
+}
+function notifyPageLayout(b,mode,count){
+  if(b.kind!=='page')return;
+  const v=views.get(String(b.id)),frame=v?.el?.querySelector('iframe');if(!v||!frame)return;
+  requestAnimationFrame(()=>{
+    const r=v.el.getBoundingClientRect();
+    try{frame.contentWindow?.postMessage({type:'prometeo:layout',mode,profile:displaySpec(b).profile,width:Math.round(r.width),height:Math.round(r.height),count,orientation:r.width>=r.height?'landscape':'portrait'},'*')}catch{}
+  })
+}
 function applyGrid(act){
- const n=Math.max(1,act.length);stage.className='n'+n;
- for(let i=0;i<act.length;i++){
-   const v=views.get(String(act[i].id));if(!v)continue;
-   if(n<=3){v.el.style.gridColumn=String(i+1);v.el.style.gridRow='1'}
-   else{v.el.style.gridColumn=String(i%2+1);v.el.style.gridRow=String(Math.floor(i/2)+1)}
- }
+  const n=Math.max(1,act.length);clearPlacement(act);
+  if(!act.length){stage.className='layout-single';return}
+  const entries=act.map(b=>({b,...displaySpec(b)}));
+  const wide=entries.filter(x=>x.profile==='wide'),compact=entries.filter(x=>x.profile==='compact'),flex=entries.filter(x=>x.profile==='flex');
+  let mode='layout-single';
+
+  if(n===1){
+    mode='layout-single';place(act[0],'1','1')
+  }else if(n===2){
+    if(wide.length){
+      mode='layout-two-stack';
+      const w=wide[0],other=entries.find(x=>x!==w);
+      place(other.b,'1','1');place(w.b,'1','2')
+    }else if(compact.length===1){
+      mode='layout-two-side';
+      const c=compact[0],other=entries.find(x=>x!==c);
+      place(c.b,'1','1');place(other.b,'2','1')
+    }else{
+      mode='layout-two-equal';place(act[0],'1','1');place(act[1],'2','1')
+    }
+  }else if(n===3){
+    if(wide.length===1){
+      mode='layout-three-wide-bottom';
+      const w=wide[0],tops=entries.filter(x=>x!==w).sort((a,b)=>(a.profile==='compact'?-1:1)-(b.profile==='compact'?-1:1));
+      place(tops[0].b,'1','1');place(tops[1].b,'2','1');place(w.b,'1 / -1','2')
+    }else if(wide.length>=2||compact.length===1){
+      mode='layout-three-side-stack';
+      const side=compact[0]||flex[0]||entries[0],others=entries.filter(x=>x!==side);
+      place(side.b,'1','1 / -1');place(others[0].b,'2','1');place(others[1].b,'2','2')
+    }else{
+      mode='layout-three-balanced';
+      place(act[0],'1','1');place(act[1],'2','1');place(act[2],'1 / -1','2')
+    }
+  }else{
+    if(wide.length===1){
+      mode='layout-four-wide-bottom';
+      const w=wide[0],tops=entries.filter(x=>x!==w);
+      tops.forEach((x,i)=>place(x.b,String(i+1),'1'));place(w.b,'1 / -1','2')
+    }else if(wide.length===2){
+      mode='layout-four-two-wide';
+      const tops=entries.filter(x=>!wide.includes(x));
+      place(tops[0].b,'1','1');place(tops[1].b,'2','1');place(wide[0].b,'1','2');place(wide[1].b,'2','2')
+    }else{
+      mode='layout-four-grid';
+      act.forEach((b,i)=>place(b,String(i%2+1),String(Math.floor(i/2)+1)))
+    }
+  }
+
+  stage.className=mode;
+  for(const b of act)notifyPageLayout(b,mode,n)
 }
 function syncStage(){
  const act=active(),ids=new Set(act.map(b=>String(b.id)));
