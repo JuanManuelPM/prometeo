@@ -1040,7 +1040,32 @@ async function processFileDecoded(file) {
   await finishAfterQueue();
 }
 
+async function upgradeLegacyFileSession() {
+  if (!session || session.kind !== 'file' || !session.segments?.length) return false;
+  const currentVersion = FILE_CAPTURE_CONFIG.captureVersion;
+  if (session.segments.every(segment => segment.capture_version === currentVersion)) return false;
+
+  const oldKeys = session.segments.map(segment => segment.audio_key).filter(Boolean);
+  for (const key of new Set(oldKeys)) await dbDelete(BLOB_STORE, key).catch(() => {});
+  if (session.edited_text) session.legacy_edited_text = session.edited_text;
+  session.edited_text = null;
+  session.file_cursor_ms = 0;
+  session.last_error = null;
+  session.interrupted = false;
+  session.segments = planWindows(session.duration_ms, FILE_CAPTURE_CONFIG).map(segment => ({
+    ...segment,
+    id: uuid(),
+    audio_key: null,
+    created_at: nowISO(),
+    attempt: 0,
+    local_progress: 0
+  }));
+  setState('UPLOADING_FILE', 'Actualizando esta sesión al procesamiento de archivos más confiable…');
+  await saveSession();
+  return true;
+}
 async function processFile(file) {
+  await upgradeLegacyFileSession();
   try {
     await processFileDecoded(file);
   } catch (decodedError) {
