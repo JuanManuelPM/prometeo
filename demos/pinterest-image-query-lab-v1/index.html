@@ -18,11 +18,12 @@
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink);font-family:Arial,Helvetica,sans-serif}
 body{overflow-x:hidden}
-button,a{font:inherit}
+button,input{font:inherit}
+button{color:inherit}
 .app{width:min(100%,var(--max));margin:0 auto;padding:var(--pad)}
 header{
   display:grid;
-  grid-template-columns:minmax(0,1fr) auto;
+  grid-template-columns:minmax(0,1fr) minmax(260px,410px);
   gap:24px;
   align-items:end;
   padding-bottom:22px;
@@ -48,6 +49,33 @@ h1{
   font-size:14px;
   line-height:1.4;
   text-align:right;
+}
+.search-wrap{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  margin-top:18px;
+  border:2px solid var(--line);
+  background:var(--paper);
+}
+.search-wrap input{
+  min-width:0;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:var(--ink);
+  padding:17px 18px;
+  font-size:18px;
+  font-weight:800;
+}
+.search-wrap input::placeholder{color:#8d8981}
+.search-wrap button{
+  border:0;
+  border-left:2px solid var(--line);
+  background:var(--ink);
+  color:var(--paper);
+  padding:0 22px;
+  font-weight:900;
+  cursor:pointer;
 }
 .query-nav{
   display:flex;
@@ -100,6 +128,7 @@ h1{
   font:800 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
   text-transform:uppercase;
   letter-spacing:.1em;
+  min-width:max-content;
 }
 .gallery{
   display:grid;
@@ -107,7 +136,7 @@ h1{
   gap:10px;
 }
 .pin{
-  position:relative;
+  margin:0;
   min-width:0;
   border:1px solid var(--line);
   background:#fff;
@@ -121,37 +150,45 @@ h1{
     linear-gradient(135deg,#e8e4db 25%,#f5f2eb 25% 50%,#e8e4db 50% 75%,#f5f2eb 75%);
   background-size:24px 24px;
 }
-.visual iframe{
-  position:absolute;
-  left:50%;
-  top:0;
-  width:360px;
-  height:535px;
-  max-width:none;
-  border:0;
-  transform:translateX(-50%);
-  pointer-events:none;
-  background:white;
+.visual img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+  background:#ece8df;
 }
-.pin-link{
-  position:absolute;
-  inset:0;
-  z-index:3;
-  color:transparent;
-  text-indent:-9999px;
+.visual a{
+  display:block;
+  width:100%;
+  height:100%;
 }
 .pin-foot{
-  min-height:45px;
+  min-height:39px;
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:8px;
   border-top:1px solid var(--line);
-  padding:9px 10px;
+  padding:8px 10px;
   font:800 10px/1.15 ui-monospace,SFMono-Regular,Menlo,monospace;
   text-transform:uppercase;
 }
 .pin-foot span:last-child{color:var(--muted)}
+.loading .visual{
+  animation:pulse 1s steps(2,end) infinite;
+}
+@keyframes pulse{50%{opacity:.56}}
+.empty{
+  grid-column:1/-1;
+  min-height:260px;
+  display:grid;
+  place-items:center;
+  border:1px solid var(--line);
+  text-align:center;
+  padding:28px;
+  font-weight:900;
+  line-height:1.35;
+}
 .note{
   display:grid;
   grid-template-columns:1fr 1fr;
@@ -171,17 +208,18 @@ h1{
   .app{padding:18px 14px 28px}
   header{grid-template-columns:1fr;gap:14px}
   .intro{text-align:left;max-width:640px}
+  .search-wrap{grid-template-columns:minmax(0,1fr) auto}
+  .search-wrap input{font-size:16px;padding:15px 13px}
+  .search-wrap button{padding:0 15px}
   .query{padding:0 14px;min-height:50px}
   .stage-head{grid-template-columns:1fr}
   .counter{width:max-content}
   .gallery{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-  .visual iframe{width:320px;height:480px}
   .note{grid-template-columns:1fr;gap:10px}
 }
 @media(max-width:390px){
   .gallery{grid-template-columns:1fr}
   .visual{aspect-ratio:5/4}
-  .visual iframe{width:360px;height:535px}
 }
 </style>
 </head>
@@ -192,99 +230,141 @@ h1{
       <p class="kicker">Prometeo · visual query playground</p>
       <h1>Buscar texto.<br>Mirar imágenes.</h1>
     </div>
-    <p class="intro">Un laboratorio aislado para ver cómo se comportan consultas simples cuando las convertimos en referencias visuales de Pinterest. No usa materias ni toca Facultad.</p>
+    <p class="intro">Pinterest como fuente visual, pero sin el embed: cada resultado se muestra como imagen limpia. Podés usar una búsqueda preparada o escribir cualquier palabra o frase.</p>
   </header>
+
+  <form class="search-wrap" id="searchForm">
+    <input id="searchInput" type="search" autocomplete="off" enterkeyhint="search" placeholder="gatos negros, brutalismo, astronautas..." aria-label="Buscar imágenes">
+    <button type="submit">BUSCAR</button>
+  </form>
 
   <nav class="query-nav" id="queryNav" aria-label="Consultas de prueba"></nav>
 
   <section class="stage" aria-live="polite">
     <div class="stage-head">
       <div>
-        <h2 id="title"></h2>
-        <p class="search-copy" id="searchCopy"></p>
+        <h2 id="title">Dibujos de gatos en blanco y negro</h2>
+        <p class="search-copy" id="searchCopy">consulta: "black and white cat drawing"</p>
       </div>
-      <div class="counter">5 resultados · Pinterest</div>
+      <div class="counter" id="counter">buscando…</div>
     </div>
     <div class="gallery" id="gallery"></div>
   </section>
 
   <footer class="note">
-    <p><strong>Qué se está probando.</strong> Una frase breve produce un pequeño conjunto visual. La gracia es comparar cuánto cambia el resultado al cambiar las palabras, sin buscar y descargar fotos una por una.</p>
-    <p><strong>Fuente.</strong> Cada pieza es un embed público de Pinterest y abre su Pin original al tocarla. Las imágenes no se duplican dentro del repositorio.</p>
+    <p><strong>Sin botón rojo.</strong> Ya no hay iframes ni embeds oficiales. La página obtiene la URL de imagen de Pinterest y la renderiza como un <code>&lt;img&gt;</code> normal.</p>
+    <p><strong>Búsqueda libre.</strong> Escribí cualquier término arriba. El resolver busca referencias visuales de Pinterest y devuelve hasta diez imágenes limpias.</p>
   </footer>
 </main>
 
 <script>
+const API="https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1";
+const KEY="pql-v1-7f2b9e31";
+
 const groups=[
-  {
-    label:"Gatos · B&N",
-    title:"Dibujos de gatos en blanco y negro",
-    query:"black and white cat drawing",
-    pins:["263671753178772450","561894491029428460","441775044713130835","563018698218327","750553094174053609"]
-  },
-  {
-    label:"Brutalismo",
-    title:"Arquitectura brutalista en blanco y negro",
-    query:"brutalist architecture black and white",
-    pins:["1110418851899655705","66850375718051484","131448882870236426","302304193728489801","165507355046943902"]
-  },
-  {
-    label:"Botánica · tinta",
-    title:"Ilustración botánica en tinta",
-    query:"botanical ink drawing black and white",
-    pins:["849702654717645401","12666442694920259","633387443011277","174021973074857780","371476669265240594"]
-  },
-  {
-    label:"Astronomía",
-    title:"Grabados antiguos de astronomía",
-    query:"vintage astronomy engraving",
-    pins:["875176140081720321","1129348044041877600","629167010424577443","26036504090464529","299348706466997159"]
-  }
+  {label:"Gatos · B&N",title:"Dibujos de gatos en blanco y negro",query:"black and white cat drawing"},
+  {label:"Brutalismo",title:"Arquitectura brutalista en blanco y negro",query:"brutalist architecture black and white"},
+  {label:"Botánica · tinta",title:"Ilustración botánica en tinta",query:"botanical ink drawing black and white"},
+  {label:"Astronomía",title:"Grabados antiguos de astronomía",query:"vintage astronomy engraving"}
 ];
 
 const nav=document.getElementById("queryNav");
 const gallery=document.getElementById("gallery");
 const title=document.getElementById("title");
 const searchCopy=document.getElementById("searchCopy");
+const counter=document.getElementById("counter");
+const form=document.getElementById("searchForm");
+const input=document.getElementById("searchInput");
 
-function pinUrl(id){return "https://www.pinterest.com/pin/"+id+"/"}
-function embedUrl(id){return "https://assets.pinterest.com/ext/embed.html?id="+id}
+let requestId=0;
 
-function render(index){
-  const group=groups[index];
+function setActive(index){
   [...nav.children].forEach((button,i)=>button.setAttribute("aria-selected",String(i===index)));
-  title.textContent=group.title;
-  searchCopy.textContent='consulta: "'+group.query+'"';
-  gallery.replaceChildren(...group.pins.map((id,i)=>{
+}
+
+function skeleton(count){
+  gallery.replaceChildren(...Array.from({length:count},(_,i)=>{
     const card=document.createElement("article");
+    card.className="pin loading";
+    card.innerHTML='<div class="visual"></div><div class="pin-foot"><span>0'+(i+1)+'</span><span>cargando</span></div>';
+    return card;
+  }));
+}
+
+function renderResults(data){
+  if(!data.results?.length){
+    gallery.innerHTML='<div class="empty">No encontré imágenes para esa búsqueda.<br>Probá con otra palabra o una frase un poco más específica.</div>';
+    counter.textContent="0 resultados";
+    return;
+  }
+
+  gallery.replaceChildren(...data.results.map((item,i)=>{
+    const card=document.createElement("figure");
     card.className="pin";
 
     const visual=document.createElement("div");
     visual.className="visual";
 
-    const frame=document.createElement("iframe");
-    frame.src=embedUrl(id);
-    frame.title="Resultado "+(i+1)+" de "+group.title;
-    frame.loading=i<2?"eager":"lazy";
-    frame.scrolling="no";
-    frame.referrerPolicy="strict-origin-when-cross-origin";
-    frame.setAttribute("sandbox","allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox");
-
     const link=document.createElement("a");
-    link.className="pin-link";
-    link.href=pinUrl(id);
+    link.href=item.image;
     link.target="_blank";
     link.rel="noopener noreferrer";
-    link.textContent="Abrir Pin "+(i+1);
+    link.title="Abrir imagen";
 
-    const foot=document.createElement("div");
+    const img=document.createElement("img");
+    img.src=item.image;
+    img.alt="Resultado "+(i+1)+" para "+data.query;
+    img.loading=i<5?"eager":"lazy";
+    img.decoding="async";
+    img.referrerPolicy="no-referrer";
+
+    link.append(img);
+    visual.append(link);
+
+    const foot=document.createElement("figcaption");
     foot.className="pin-foot";
-    foot.innerHTML="<span>0"+(i+1)+"</span><span>abrir ↗</span>";
+    foot.innerHTML="<span>"+String(i+1).padStart(2,"0")+"</span><span>imagen limpia</span>";
 
-    visual.append(frame,link);
     card.append(visual,foot);
     return card;
   }));
+
+  counter.textContent=data.results.length+" resultado"+(data.results.length===1?"":"s");
+}
+
+async function runSearch(query,{label=query,limit=10,index=-1,push=true}={}){
+  query=String(query||"").trim().replace(/\s+/g," ");
+  if(!query)return;
+
+  const my=++requestId;
+  setActive(index);
+  title.textContent=label;
+  searchCopy.textContent='consulta: "'+query+'"';
+  counter.textContent="buscando…";
+  skeleton(Math.min(limit,10));
+
+  if(push){
+    const u=new URL(location.href);
+    u.searchParams.set("q",query);
+    history.replaceState(null,"",u);
+  }
+
+  try{
+    const url=new URL(API);
+    url.searchParams.set("q",query);
+    url.searchParams.set("limit",String(limit));
+    url.searchParams.set("k",KEY);
+    const response=await fetch(url,{headers:{"x-prometeo-lab":"pinterest-image-query-lab-v1"}});
+    const data=await response.json().catch(()=>({ok:false,error:"INVALID_RESPONSE"}));
+    if(my!==requestId)return;
+    if(!response.ok||!data.ok)throw new Error(data.error||("HTTP_"+response.status));
+    renderResults(data);
+  }catch(error){
+    if(my!==requestId)return;
+    gallery.innerHTML='<div class="empty">La búsqueda no respondió correctamente.<br>Probá de nuevo en unos segundos.</div>';
+    counter.textContent="error de búsqueda";
+    console.error(error);
+  }
 }
 
 groups.forEach((group,index)=>{
@@ -293,11 +373,27 @@ groups.forEach((group,index)=>{
   button.type="button";
   button.textContent=group.label;
   button.setAttribute("aria-selected",String(index===0));
-  button.addEventListener("click",()=>render(index));
+  button.addEventListener("click",()=>{
+    input.value="";
+    runSearch(group.query,{label:group.title,limit:5,index});
+  });
   nav.append(button);
 });
 
-render(0);
+form.addEventListener("submit",(event)=>{
+  event.preventDefault();
+  const q=input.value.trim();
+  if(!q)return;
+  runSearch(q,{label:q,limit:10,index:-1});
+});
+
+const initial=new URL(location.href).searchParams.get("q");
+if(initial){
+  input.value=initial;
+  runSearch(initial,{label:initial,limit:10,index:-1,push:false});
+}else{
+  runSearch(groups[0].query,{label:groups[0].title,limit:5,index:0,push:false});
+}
 </script>
 </body>
 </html>
