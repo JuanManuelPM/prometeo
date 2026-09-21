@@ -42,14 +42,12 @@ jobs:
           node - <<'NODE'
           const fs=require('fs');
           const data=JSON.parse(fs.readFileSync('/tmp/naruto.json','utf8'));
-          if(!data.ok) throw new Error(JSON.stringify(data));
-          if(data.provider!=='pinterest-native-search') throw new Error('wrong provider '+data.provider);
-          if(data.results?.length!==10) throw new Error('expected 10, got '+data.results?.length);
+          if(!data.ok || data.provider!=='pinterest-native-search' || data.results?.length!==10) throw new Error(JSON.stringify(data));
           for(const item of data.results){
             if(!/^https:\/\/i\.pinimg\.com\//.test(item.image)) throw new Error('bad image '+item.image);
             if(!/^https:\/\/www\.pinterest\.com\/pin\/\d+\//.test(item.source_url)) throw new Error('bad pin '+item.source_url);
           }
-          console.log('naruto PASS',data.results.length,data.results[0].title||'');
+          console.log('naruto PASS',data.results.length);
           NODE
 
       - name: Probe vintage house native search
@@ -61,23 +59,24 @@ jobs:
           node - <<'NODE'
           const fs=require('fs');
           const data=JSON.parse(fs.readFileSync('/tmp/vintage.json','utf8'));
-          if(!data.ok) throw new Error(JSON.stringify(data));
-          if(data.provider!=='pinterest-native-search') throw new Error('wrong provider '+data.provider);
-          if(data.results?.length!==10) throw new Error('expected 10, got '+data.results?.length);
+          if(!data.ok || data.provider!=='pinterest-native-search' || data.results?.length!==10) throw new Error(JSON.stringify(data));
           for(const item of data.results){
             if(!/^https:\/\/i\.pinimg\.com\//.test(item.image)) throw new Error('bad image '+item.image);
             if(!/^https:\/\/www\.pinterest\.com\/pin\/\d+\//.test(item.source_url)) throw new Error('bad pin '+item.source_url);
           }
-          console.log('vintage house PASS',data.results.length,data.results[0].title||'');
+          console.log('vintage house PASS',data.results.length);
           NODE
 
-      - name: Verify source UI contract
+      - name: Verify served GitHub Pages UI
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error             'https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/demos/pinterest-image-query-lab-v1/index.html' > /tmp/page.html
+          URL='https://juanmanuelpm.github.io/prometeo/demos/pinterest-image-query-lab-v1/?ci=final-native-search'
+          page="$(curl --fail --silent --show-error --max-time 25 "$URL")"
+          printf '%s' "$page" > /tmp/page.html
           grep -q 'id="searchForm"' /tmp/page.html
           grep -q 'pinterest-image-search-v1' /tmp/page.html
           grep -q 'link.href=item.source_url||item.image' /tmp/page.html
+          grep -q 'pins:\["263671753178772450"' /tmp/page.html
           ! grep -q '<iframe' /tmp/page.html
-          echo 'UI source PASS'
+          echo 'served UI PASS'
