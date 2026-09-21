@@ -11,13 +11,14 @@
     "diagnosis": "FRESH_LAUNCH_REPLAY",
     "truth_boundary": "The text matched durable historical evidence, but no new beacon/worker identity was created for the new human launch. Historical truth was replayed as if it were current execution."
   },
-  "invariant": "Every canonical human /wc invocation is a NEW worker launch unless the human explicitly names an existing worker_id and asks to resume it. New launches may never adopt a worker_id from memory, prior chats, model context, repository examples, runtime, scoreboard, receipts, exams or no-allocation artifacts.",
+  "invariant": "Every canonical human /w or /wc invocation is a NEW worker launch unless the human explicitly names an existing worker_id and asks to resume it. New launches may never adopt a worker_id from memory, prior chats, model context, repository examples, runtime, scoreboard, receipts, exams or no-allocation artifacts.",
   "fresh_identity": {
     "format": "wc-<current_utc_compact>-<fresh_12hex>",
     "generation": "Generate current UTC timestamp plus a de-novo 12-hex suffix in this turn. Never copy the suffix or whole worker_id from any observed artifact.",
     "atomic_uniqueness_gate": "CREATE coordination/workers/beacons/<worker_id>.json before frontier allocation. Never pre-read the candidate beacon path.",
     "create_exists": "If beacon CREATE returns CREATE_EXISTS, discard the worker_id completely, generate a new suffix and retry beacon CREATE, maximum 3 total beacon identity attempts.",
-    "freeze_after_success": true
+    "freeze_after_success": true,
+    "stable_surface_format": "w-<current_utc_compact>-<fresh_suffix>"
   },
   "beacon_required_fields": [
     "schema",
@@ -34,7 +35,7 @@
   "beacon_values": {
     "schema": "prometeo.worker-beacon/v1",
     "canary_protocol": "v3.30",
-    "source": "/wc",
+    "source": "surface that created the beacon: /w for stable production, /wc for canary/RUN",
     "fresh_launch": true,
     "launch_nonce": "fresh de-novo 16hex generated in this turn; must not be copied from prior artifacts"
   },
@@ -69,7 +70,7 @@
     "tests/worker-fresh-launch-v1.test.mjs",
     "coordination/efficiency/RATCHET_BASELINE_V1.json"
   ],
-  "updated_at": "2026-09-19T14:22:10Z",
+  "updated_at": "2026-09-21T12:00:00Z",
   "human_inline_launch_guard": {
     "status": "ACTIVE_BINDING",
     "reason": "The replay incident occurred before a new worker beacon existed; repository/page-only anti-replay text is too late if a chat answers from historical project/model context without dereferencing the launcher.",
@@ -80,8 +81,12 @@
       "RESIDENTE_POOL: 3=checkpoint, objetivo=6, tope=8 salvo boundary real"
     ],
     "canonical_source": "coordination/guide/CURRENT_MISSION_V1.json#operating_mode.invocation",
-    "rule": "A Guide must hand the human the guarded canonical invocation verbatim. A /wc receiving NUEVO_WORKER=1 treats the message as a fresh launch envelope before consulting historical worker evidence.",
-    "durable_truth": "The inline marker does not itself prove launch success; only this turn's own fresh beacon does."
+    "rule": "A Guide must hand the human the exact guarded active invocation. /w or /wc receiving NUEVO_WORKER=1 treats the message as a fresh launch envelope before consulting historical worker evidence. Finite measured waves additionally preserve BATCH/EXPECTED in the first beacon.",
+    "durable_truth": "The inline marker does not itself prove launch success; only this turn's own fresh beacon does.",
+    "canonical_sources": [
+      "coordination/guide/CURRENT_MISSION_V1.json#operating_mode.production_invocation",
+      "coordination/guide/CURRENT_MISSION_V1.json#operating_mode.production_wave_invocation"
+    ]
   },
   "productive_smoke": {
     "status": "ACTIVE",
@@ -91,5 +96,18 @@
     "hard_cap_productive_units": 8,
     "below_target_stop_requires_real_boundary_or_fresh_exhaustion": true,
     "historical_exhaustion_substitution_forbidden": true
+  },
+  "launch_envelope": {
+    "status": "ACTIVE_BINDING",
+    "parsing_before_first_write_only": true,
+    "authority": false,
+    "forms": {
+      "batch": "BATCH <batch_id> EXPECTED <n> => preserve exact batch_id and positive integer expected_workers; pool_id=null",
+      "pool": "POOL <pool_id> => batch_id=POOL-<pool_id>, expected_workers=null, pool_id=<pool_id>",
+      "unbatched": "otherwise batch_id=UNBATCHED, expected_workers=null, pool_id=null"
+    },
+    "first_beacon_rule": "The surface creating the first beacon must persist parsed batch_id, expected_workers and pool_id in that beacon before loading any mutable repo state.",
+    "refill_rule": "A finite BATCH is complete when durable runtime observed workers reaches expected_workers. If fewer are observed, Guide requests exactly missing_expected fresh launches using the identical BATCH prompt. Existing batch workers are never relaunched/recounted.",
+    "no_inference": "No cause may be inferred for a human wake that produced no durable beacon."
   }
 }
