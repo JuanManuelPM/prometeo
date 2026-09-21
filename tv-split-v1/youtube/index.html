@@ -25,7 +25,20 @@ button,input{font:inherit;color:inherit}button{cursor:pointer}
 .tab.active{color:var(--fg)}
 .tab:active,.icon:active,.textBtn:active,.addTiny:active,.more:active,.channelTap:active,.qmore:active,.folderBack:active,.folderMore:active,.primaryText:active,.sheetRow:active{opacity:.55}
 .pane{display:none}.pane.active{display:block}.searchPane{display:none}.searchPane.open{display:block}.searchPane.open~.pane{display:none!important}
-.summary{padding:14px 0 2px;color:var(--muted);font-size:8px;font-weight:900}
+.summary{display:none}
+.sourceRail{display:flex;gap:4px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scrollbar-width:none;padding:8px 0 2px;margin:0 -14px;padding-left:14px;padding-right:14px}
+.sourceRail::-webkit-scrollbar{display:none}
+.sourceItem{flex:0 0 auto;min-width:64px;max-width:96px;min-height:62px;border:0;background:transparent;color:var(--muted);padding:5px 6px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;scroll-snap-align:start;touch-action:manipulation}
+.sourceItem.active{color:var(--fg)}
+.sourceAvatar{width:34px;height:34px;border-radius:50%;object-fit:cover;background:#171715}
+.sourceFolder{width:36px;height:28px;display:grid;place-items:end center;border-bottom:2px solid currentColor;font-size:8px;font-weight:900}
+.sourceLabel{width:100%;font-size:7px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.sourceItem.active .sourceLabel{text-decoration:underline;text-underline-offset:4px}
+.folderSwitch{display:flex;gap:22px;min-height:50px;align-items:end;border-bottom:1px solid var(--line);margin-bottom:2px}
+.folderSwitch button{min-height:48px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);padding:0 0 10px;font-size:10px;font-weight:900;touch-action:manipulation}
+.folderSwitch button.active{color:var(--fg);border-bottom-color:var(--fg)}
+.folderCrumb{min-height:48px;border:0;background:transparent;padding:0;color:var(--muted);font-size:9px;font-weight:900;text-align:left;touch-action:manipulation}
+.libraryHeader{padding:18px 0 4px}.libraryHeader h1{margin:0;font-size:24px;letter-spacing:-.04em}
 .section{display:flex;align-items:end;justify-content:space-between;gap:12px;padding:20px 0 8px}
 .section h2{margin:0;font-size:19px;line-height:1;font-weight:900;letter-spacing:-.03em}
 .textBtn{min-width:44px;min-height:44px;border:0;background:transparent;padding:0 8px;color:var(--fg);font-size:10px;font-weight:900;touch-action:manipulation}
@@ -81,7 +94,7 @@ button,input{font:inherit;color:inherit}button{cursor:pointer}
 <div id="searchWrap" class="search"><input id="search" autocomplete="off" placeholder="Buscar en YouTube"><button id="searchClear" class="searchClear">×</button><button id="searchGo">⌕</button></div>
 </header>
 <section id="searchPane" class="searchPane"><div id="searchContext" class="searchContext"></div><div id="resultList"></div></section>
-<section id="home" class="pane active"><div id="summary" class="summary"></div><div id="nowWrap"></div><div class="section"><h2>Recientes</h2></div><div id="recentList" class="list"></div></section>
+<section id="home" class="pane active"><div id="summary" class="summary"></div><div id="nowWrap"></div><div id="homeSources" class="sourceRail" aria-label="Filtrar recientes"></div><div class="section"><h2 id="recentTitle">Recientes</h2></div><div id="recentList" class="list"></div></section>
 <section id="channels" class="pane"><div id="channelRoot"></div></section>
 <section id="queue" class="pane"><div class="section"><h2>Cola</h2></div><div id="queueList" class="list"></div></section>
 <section id="history" class="pane"><div class="section"><h2>Vistos</h2></div><div id="historyList" class="list"></div></section>
@@ -100,7 +113,7 @@ const q=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_REMOTE='1f1a186a7bdc6aa3c9bfbf2016fed69d6b6cbf3066fab5ad8e122e25aa45c63e',DEFAULT_MEDIA='NZT8S9zPPRuTdUQUZK20jEvA-Nly6Ck4HUImnPuBsgQ';
 const room={code:q.get('room')||DEFAULT_ROOM,token:q.get('t')||DEFAULT_REMOTE},mediaToken=q.get('k')||DEFAULT_MEDIA;
 const client='yt-global-v6-'+Math.random().toString(36).slice(2,9),$=id=>document.getElementById(id);
-let library={channels:[],folders:[],state:{queue:[],current_index:0,current_video_id:''},watched_count:0},watchHistory=[],recent=[],searchResults=[],openFolder='',targetFolder='',searchTimer=0,folderSyncTimer=0,pendingDelete=null;
+let library={channels:[],folders:[],state:{queue:[],current_index:0,current_video_id:''},watched_count:0},watchHistory=[],recent=[],searchResults=[],openFolder='',folderView='recent',homeScope={type:'all',id:''},targetFolder='',searchTimer=0,folderSyncTimer=0,pendingDelete=null;
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function img(s){const x=String(s||'');return x.startsWith('//')?'https:'+x:x}
@@ -110,14 +123,50 @@ async function api(body){const r=await fetch(API,{method:'POST',headers:{'Conten
 async function media(body){const r=await fetch(MEDIA,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:mediaToken,...body}),cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.message||d.error||'YOUTUBE_ERROR');return d.result}
 function video(v){const id=String(v?.video_id||'');return {video_id:id,title:String(v?.title||'YouTube'),channel_id:String(v?.channel_id||''),channel_title:String(v?.channel_title||v?.channel||''),thumbnail:img(v?.thumbnail||('https://i.ytimg.com/vi/'+id+'/mqdefault.jpg')),watch_url:String(v?.watch_url||('https://www.youtube.com/watch?v='+id)),published_at:v?.published_at||''}}
 function applyServer(lib){library={channels:lib.channels||library.channels,folders:lib.folders||library.folders,state:lib.state||library.state,watched_count:Number(lib.watched_count??library.watched_count??0)}}
-function selectTab(name){closeSheet();closeSearch(false);openFolder='';window.history.replaceState({yt:'root'},'');document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));document.querySelectorAll('.pane').forEach(x=>x.classList.toggle('active',x.id===name));if(name==='channels')renderChannels()}
+function selectTab(name){closeSheet();closeSearch(false);openFolder='';folderView='recent';window.history.replaceState({yt:'root'},'');document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));document.querySelectorAll('.pane').forEach(x=>x.classList.toggle('active',x.id===name));if(name==='channels')renderChannels();if(name==='home'){renderHomeSources();renderRecent()}}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>selectTab(b.dataset.tab));
 
 function currentVideo(){const list=library.state.queue||[],i=Math.max(0,Number(library.state.current_index)||0);return list[i]||null}
 function renderSummary(){$('summary').textContent=library.channels.length+' canales · '+(library.state.queue||[]).length+' en cola · '+Number(library.watched_count||watchHistory.length||0)+' vistos'}
 function renderNow(){const root=$('nowWrap'),v=currentVideo();root.innerHTML=v?'<div class="now"><img class="thumb" src="'+esc(img(v.thumbnail))+'" alt=""><div><div class="eyebrow">Ahora</div><div class="title">'+esc(v.title)+'</div><div class="meta">'+esc(v.channel_title||'YouTube')+'</div></div></div>':'<div class="now empty">La cola está vacía.</div>'}
 function videoRow(raw){const v=video(raw),row=document.createElement('div');row.className='video';row.innerHTML='<img class="thumb" src="'+esc(v.thumbnail)+'" alt=""><div><div class="title">'+esc(v.title)+'</div><div class="meta">'+esc(v.channel_title||'YouTube')+'</div></div><button class="addTiny">＋</button>';row.querySelector('.addTiny').onclick=()=>addToQueue(v);return row}
-function renderRecent(){const root=$('recentList');root.innerHTML='';if(!recent.length){root.innerHTML='<div class="empty">No hay videos recientes.</div>';return}recent.forEach(v=>root.appendChild(videoRow(v)))}
+function scopeLabel(){
+  if(homeScope.type==='folder')return folderById(homeScope.id)?.name||'Carpeta';
+  if(homeScope.type==='channel')return library.channels.find(c=>c.channel_id===homeScope.id)?.title||'Canal';
+  return 'Recientes';
+}
+function scopedRecent(scope=homeScope){
+  if(scope.type==='all')return recent;
+  if(scope.type==='channel')return recent.filter(v=>String(v.channel_id||'')===String(scope.id));
+  if(scope.type==='folder'){
+    const ids=new Set(folderChannels(scope.id).map(c=>String(c.channel_id)));
+    return recent.filter(v=>ids.has(String(v.channel_id||'')));
+  }
+  return recent;
+}
+function setHomeScope(type,id=''){
+  homeScope={type,id};
+  renderHomeSources();renderRecent();
+}
+function renderHomeSources(){
+  const root=$('homeSources');if(!root)return;root.innerHTML='';
+  if(homeScope.type==='folder'&&!folderById(homeScope.id))homeScope={type:'all',id:''};
+  if(homeScope.type==='channel'&&!library.channels.some(c=>c.channel_id===homeScope.id))homeScope={type:'all',id:''};
+  const add=(type,id,label,visual)=>{
+    const b=document.createElement('button');b.className='sourceItem'+(homeScope.type===type&&String(homeScope.id)===String(id)?' active':'');
+    b.innerHTML=visual+'<span class="sourceLabel">'+esc(label)+'</span>';
+    b.onclick=()=>setHomeScope(type,id);root.appendChild(b)
+  };
+  add('all','','Todos','<div class="sourceFolder">TODO</div>');
+  for(const f of library.folders)add('folder',f.id,f.name,'<div class="sourceFolder">'+folderChannels(f.id).length+'</div>');
+  for(const c of library.channels)add('channel',c.channel_id,c.title||'Canal',channelAvatar(c)?'<img class="sourceAvatar" src="'+esc(channelAvatar(c))+'" alt="">':'<div class="sourceAvatar"></div>');
+}
+function renderRecent(){
+  const root=$('recentList'),items=scopedRecent();root.innerHTML='';
+  $('recentTitle').textContent=homeScope.type==='all'?'Recientes':scopeLabel();
+  if(!items.length){root.innerHTML='<div class="empty">No hay videos recientes para esta selección.</div>';return}
+  items.forEach(v=>root.appendChild(videoRow(v)))
+}
 
 async function persistQueue(snapshot,keep){try{const d=await api({action:'youtube_queue_set',queue:(library.state.queue||[]).map(video),keep_current:keep||library.state.current_video_id||''});library.state=d.state||library.state;renderQueue();renderNow();renderSummary()}catch(e){library.state=snapshot;renderQueue();renderNow();renderSummary();toast('No se pudo guardar')}}
 function addToQueue(v){const x=video(v),list=(library.state.queue||[]).map(video);if(list.some(y=>y.video_id===x.video_id)){toast('Ya está en la cola');return}const snapshot=structuredClone(library.state);library.state.queue=[...list,x];renderQueue();renderSummary();persistQueue(snapshot,snapshot.current_video_id);toast('Agregado')}
@@ -193,14 +242,37 @@ function folderChannels(id){return library.channels.filter(c=>String(c.folder_id
 function folderById(id){return library.folders.find(f=>String(f.id)===String(id))}
 function syncClass(f){return f?._sync==='saving'?'saving':f?._sync==='error'?'error':''}
 function renderChannelRow(c){const row=document.createElement('div');row.className='channel';const f=folderById(c.folder_id);row.innerHTML=(channelAvatar(c)?'<img class="avatar" src="'+esc(channelAvatar(c))+'" alt="">':'<div class="avatar"></div>')+'<div><div class="channelName">'+esc(c.title||c.channel_id)+'<span class="sync '+(c._sync==='saving'?'saving':c._sync==='error'?'error':'')+'"></span></div><div class="channelSub">'+esc(f?.name||'Sin carpeta')+'</div></div><button class="channelTap">›</button>';row.onclick=e=>{if(e.target.closest('button'))return;openChannelPicker(c)};row.querySelector('.channelTap').onclick=()=>openChannelPicker(c);return row}
-function folderRow(f){const chans=folderChannels(f.id),b=document.createElement('div');b.className='folder';if(f._editing){b.innerHTML='<div><input class="inlineName" value="'+esc(f.name||'Nueva carpeta')+'"><span class="sync '+syncClass(f)+'"></span></div><div></div>';const inp=b.querySelector('input');setTimeout(()=>{inp.focus();inp.select()},0);const done=()=>commitFolderName(f,inp.value);inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();done()}};inp.onblur=done;return b}b.innerHTML='<button data-open style="all:unset;display:flex;min-height:80px;align-items:center;width:100%;cursor:pointer;touch-action:manipulation"><div><div class="folderName">'+esc(f.name)+'<span class="sync '+syncClass(f)+'"></span></div><div class="folderMeta">'+chans.length+' '+(chans.length===1?'canal':'canales')+'</div></div></button><div class="folderRight"><div class="faces">'+chans.slice(0,4).map(faceHtml).join('')+'</div><button class="more">···</button></div>';b.querySelector('[data-open]').onclick=()=>{openFolder=f.id;window.history.pushState({yt:'folder'},'');renderChannels()};b.querySelector('.more').onclick=()=>folderMenu(f);return b}
-function renderChannels(){const root=$('channelRoot');root.innerHTML='';if(openFolder){const f=folderById(openFolder);if(!f){openFolder='';return renderChannels()}const top=document.createElement('div');top.innerHTML='<div class="folderTop"><button class="folderBack">←</button><div class="folderTitle">'+esc(f.name)+'<span class="sync '+syncClass(f)+'"></span></div><button class="folderMore">···</button></div>';top.querySelector('.folderBack').onclick=()=>{if(window.history.state?.yt==='folder')window.history.back();else{openFolder='';renderChannels()}};top.querySelector('.folderMore').onclick=()=>folderMenu(f);root.appendChild(top);const sec=document.createElement('div');sec.className='section';sec.innerHTML='<h2>'+folderChannels(f.id).length+' canales</h2><button class="textBtn">EDITAR</button>';sec.querySelector('button').onclick=()=>openFolderEditor(f);root.appendChild(sec);const list=document.createElement('div');list.className='list';const chans=folderChannels(f.id);if(!chans.length)list.innerHTML='<div class="empty">Carpeta vacía.</div>';else chans.forEach(c=>list.appendChild(renderChannelRow(c)));root.appendChild(list);return}
- const sec=document.createElement('div');sec.className='section';sec.innerHTML='<h2>Canales</h2><button class="textBtn">+ CARPETA</button>';sec.querySelector('button').onclick=createFolderOptimistic;root.appendChild(sec);
- const folders=document.createElement('div');folders.className='list';library.folders.forEach(f=>folders.appendChild(folderRow(f)));root.appendChild(folders);
- const loose=folderChannels(''),sec2=document.createElement('div');sec2.className='section';sec2.innerHTML='<h2>Sin carpeta</h2><button class="textBtn">+ CANAL</button>';sec2.querySelector('button').onclick=()=>focusSearch('');root.appendChild(sec2);const rows=document.createElement('div');rows.className='list';if(!loose.length)rows.innerHTML='<div class="empty">No hay canales sueltos.</div>';else loose.forEach(c=>rows.appendChild(renderChannelRow(c)));root.appendChild(rows)
+function folderRow(f){const chans=folderChannels(f.id),b=document.createElement('div');b.className='folder';if(f._editing){b.innerHTML='<div><input class="inlineName" value="'+esc(f.name||'Nueva carpeta')+'"><span class="sync '+syncClass(f)+'"></span></div><div></div>';const inp=b.querySelector('input');setTimeout(()=>{inp.focus();inp.select()},0);const done=()=>commitFolderName(f,inp.value);inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();done()}};inp.onblur=done;return b}b.innerHTML='<button data-open style="all:unset;display:flex;min-height:80px;align-items:center;width:100%;cursor:pointer;touch-action:manipulation"><div><div class="folderName">'+esc(f.name)+'<span class="sync '+syncClass(f)+'"></span></div><div class="folderMeta">'+chans.length+' '+(chans.length===1?'canal':'canales')+'</div></div></button><div class="folderRight"><div class="faces">'+chans.slice(0,4).map(faceHtml).join('')+'</div><button class="more">···</button></div>';b.querySelector('[data-open]').onclick=()=>{openFolder=f.id;folderView='recent';window.history.pushState({yt:'folder'},'');renderChannels()};b.querySelector('.more').onclick=()=>folderMenu(f);return b}
+function renderFolderRecent(f,root){
+  const ids=new Set(folderChannels(f.id).map(c=>String(c.channel_id))),items=recent.filter(v=>ids.has(String(v.channel_id||'')));
+  const list=document.createElement('div');list.className='list';
+  if(!items.length)list.innerHTML='<div class="empty">No hay videos recientes de esta carpeta.</div>';
+  else items.forEach(v=>list.appendChild(videoRow(v)));
+  root.appendChild(list)
+}
+function renderChannels(){
+  const root=$('channelRoot');root.innerHTML='';
+  if(openFolder){
+    const f=folderById(openFolder);if(!f){openFolder='';folderView='recent';return renderChannels()}
+    const crumb=document.createElement('button');crumb.className='folderCrumb';crumb.textContent='← Todas las carpetas';crumb.onclick=()=>{if(window.history.state?.yt==='folder')window.history.back();else{openFolder='';folderView='recent';renderChannels()}};root.appendChild(crumb);
+    const top=document.createElement('div');top.innerHTML='<div class="folderTop"><div></div><div class="folderTitle">'+esc(f.name)+'<span class="sync '+syncClass(f)+'"></span></div><button class="folderMore">···</button></div>';
+    top.querySelector('.folderMore').onclick=()=>folderMenu(f);root.appendChild(top);
+    const sw=document.createElement('div');sw.className='folderSwitch';sw.innerHTML='<button data-view="recent">Recientes</button><button data-view="channels">Canales</button>';
+    sw.querySelectorAll('button').forEach(b=>{b.classList.toggle('active',b.dataset.view===folderView);b.onclick=()=>{folderView=b.dataset.view;renderChannels()}});root.appendChild(sw);
+    if(folderView==='recent'){renderFolderRecent(f,root);return}
+    const sec=document.createElement('div');sec.className='section';sec.innerHTML='<h2>'+folderChannels(f.id).length+' canales</h2><button class="textBtn">EDITAR</button>';sec.querySelector('button').onclick=()=>openFolderEditor(f);root.appendChild(sec);
+    const list=document.createElement('div');list.className='list';const chans=folderChannels(f.id);if(!chans.length)list.innerHTML='<div class="empty">Carpeta vacía.</div>';else chans.forEach(c=>list.appendChild(renderChannelRow(c)));root.appendChild(list);return
+  }
+  const head=document.createElement('div');head.className='libraryHeader';head.innerHTML='<h1>Biblioteca</h1>';root.appendChild(head);
+  const sec=document.createElement('div');sec.className='section';sec.innerHTML='<h2>Carpetas</h2><button class="textBtn">+ NUEVA</button>';sec.querySelector('button').onclick=createFolderOptimistic;root.appendChild(sec);
+  const folders=document.createElement('div');folders.className='list';
+  if(!library.folders.length)folders.innerHTML='<div class="empty">Todavía no hay carpetas.</div>';else library.folders.forEach(f=>folders.appendChild(folderRow(f)));
+  root.appendChild(folders);
+  const sec2=document.createElement('div');sec2.className='section';sec2.innerHTML='<h2>Todos los canales</h2><button class="textBtn">BUSCAR</button>';sec2.querySelector('button').onclick=()=>focusSearch('');root.appendChild(sec2);
+  const rows=document.createElement('div');rows.className='list';if(!library.channels.length)rows.innerHTML='<div class="empty">Todavía no agregaste canales.</div>';else library.channels.forEach(c=>rows.appendChild(renderChannelRow(c)));root.appendChild(rows)
 }
 function createFolderOptimistic(){if(library.folders.some(f=>f._editing))return;const f={id:'tmp-'+Date.now(),name:'Nueva carpeta',sort_order:0,_editing:true,_sync:'saving'};library.folders.push(f);renderChannels()}
-async function commitFolderName(f,nameRaw){if(!f._editing)return;const name=String(nameRaw||'').trim()||'Nueva carpeta';f.name=name;f._editing=false;f._sync='saving';renderChannels();if(String(f.id).startsWith('tmp-')){try{const d=await api({action:'youtube_folder_create',name});const real=d.folder;const old=f.id;f.id=real.id;f.name=real.name;f._sync='';library.channels.forEach(c=>{if(c.folder_id===old)c.folder_id=real.id});renderChannels();openFolderEditor(f)}catch(e){f._sync='error';renderChannels();toast('No se pudo crear')}}else{try{await api({action:'youtube_folder_rename',folder_id:f.id,name});f._sync=''}catch(e){f._sync='error'}renderChannels()}}
+async function commitFolderName(f,nameRaw){if(!f._editing)return;const name=String(nameRaw||'').trim()||'Nueva carpeta';f.name=name;f._editing=false;f._sync='saving';renderChannels();if(String(f.id).startsWith('tmp-')){try{const d=await api({action:'youtube_folder_create',name});const real=d.folder;const old=f.id;f.id=real.id;f.name=real.name;f._sync='';library.channels.forEach(c=>{if(c.folder_id===old)c.folder_id=real.id});renderHomeSources();renderChannels();openFolderEditor(f)}catch(e){f._sync='error';renderChannels();toast('No se pudo crear')}}else{try{await api({action:'youtube_folder_rename',folder_id:f.id,name});f._sync=''}catch(e){f._sync='error'}renderChannels()}}
 function folderMenu(f){openSheet(f.name,[['Editar canales',()=>openFolderEditor(f)],['Buscar canal nuevo',()=>startFolderSearch(f)],['Renombrar',()=>{f._editing=true;renderChannels()}],['Eliminar carpeta',()=>deleteFolderOptimistic(f)]])}
 function openFolderEditor(f){
   closeSheet();
@@ -241,11 +313,11 @@ function startFolderSearch(f){
   },80);
 }
 function toggleFolderChannel(f,c,row){const isOn=String(c.folder_id||'')===String(f.id);c.folder_id=isOn?null:f.id;const check=row.querySelector('.check');check.classList.toggle('on',!isOn);check.textContent=!isOn?'✓':'';row.querySelector('.channelSub').textContent=!isOn?f.name:'Sin carpeta';f._sync='saving';renderChannels();clearTimeout(folderSyncTimer);folderSyncTimer=setTimeout(()=>persistFolderMembers(f),280)}
-async function persistFolderMembers(f){const ids=folderChannels(f.id).map(c=>c.channel_id);try{const d=await api({action:'youtube_folder_set_channels',folder_id:f.id,channel_ids:ids});applyServer(d);const fresh=folderById(f.id);if(fresh)fresh._sync='';renderChannels()}catch(e){f._sync='error';renderChannels();toast('No se pudo guardar');loadLibrary(false)}}
+async function persistFolderMembers(f){const ids=folderChannels(f.id).map(c=>c.channel_id);try{const d=await api({action:'youtube_folder_set_channels',folder_id:f.id,channel_ids:ids});applyServer(d);const fresh=folderById(f.id);if(fresh)fresh._sync='';renderHomeSources();renderRecent();renderChannels()}catch(e){f._sync='error';renderChannels();toast('No se pudo guardar');loadLibrary(false)}}
 function openChannelPicker(c){const opts=[{id:'',name:'Sin carpeta'},...library.folders].map(f=>[f.name,()=>moveChannelOptimistic(c,f.id||'')]);opts.push(['Quitar canal',()=>removeChannelOptimistic(c)]);openSheet(c.title||'Canal',opts)}
-async function moveChannelOptimistic(c,folderId){const old=c.folder_id||null;c.folder_id=folderId||null;c._sync='saving';renderChannels();try{await api({action:'youtube_channel_move',channel_id:c.channel_id,folder_id:folderId||''});c._sync=''}catch(e){c.folder_id=old;c._sync='error';toast('No se pudo mover')}renderChannels()}
+async function moveChannelOptimistic(c,folderId){const old=c.folder_id||null;c.folder_id=folderId||null;c._sync='saving';renderChannels();try{await api({action:'youtube_channel_move',channel_id:c.channel_id,folder_id:folderId||''});c._sync=''}catch(e){c.folder_id=old;c._sync='error';toast('No se pudo mover')}renderHomeSources();renderRecent();renderChannels()}
 function removeChannelOptimistic(c){const idx=library.channels.indexOf(c);if(idx<0)return;library.channels.splice(idx,1);renderChannels();renderSummary();let cancelled=false;snack('Canal quitado','DESHACER',()=>{cancelled=true;library.channels.splice(Math.min(idx,library.channels.length),0,c);renderChannels();renderSummary()});setTimeout(async()=>{if(cancelled)return;try{await api({action:'youtube_channel_remove',channel_id:c.channel_id})}catch(e){library.channels.splice(Math.min(idx,library.channels.length),0,c);renderChannels();renderSummary();toast('No se pudo quitar')}},5200)}
-function deleteFolderOptimistic(f){closeSheet();const idx=library.folders.indexOf(f),members=folderChannels(f.id).map(c=>c.channel_id);if(idx<0)return;library.folders.splice(idx,1);library.channels.forEach(c=>{if(String(c.folder_id||'')===String(f.id))c.folder_id=null});if(openFolder===f.id)openFolder='';renderChannels();pendingDelete={f,idx,members,cancelled:false};snack('Carpeta eliminada','DESHACER',()=>{if(!pendingDelete)return;pendingDelete.cancelled=true;library.folders.splice(Math.min(idx,library.folders.length),0,f);library.channels.forEach(c=>{if(members.includes(c.channel_id))c.folder_id=f.id});pendingDelete=null;renderChannels()});setTimeout(async()=>{const p=pendingDelete;if(!p||p.f!==f||p.cancelled)return;pendingDelete=null;try{await api({action:'youtube_folder_delete',folder_id:f.id})}catch(e){library.folders.splice(Math.min(idx,library.folders.length),0,f);library.channels.forEach(c=>{if(members.includes(c.channel_id))c.folder_id=f.id});renderChannels();toast('No se pudo eliminar')}},5200)}
+function deleteFolderOptimistic(f){closeSheet();const idx=library.folders.indexOf(f),members=folderChannels(f.id).map(c=>c.channel_id);if(homeScope.type==='folder'&&String(homeScope.id)===String(f.id))homeScope={type:'all',id:''};if(idx<0)return;library.folders.splice(idx,1);library.channels.forEach(c=>{if(String(c.folder_id||'')===String(f.id))c.folder_id=null});if(openFolder===f.id)openFolder='';renderChannels();pendingDelete={f,idx,members,cancelled:false};snack('Carpeta eliminada','DESHACER',()=>{if(!pendingDelete)return;pendingDelete.cancelled=true;library.folders.splice(Math.min(idx,library.folders.length),0,f);library.channels.forEach(c=>{if(members.includes(c.channel_id))c.folder_id=f.id});pendingDelete=null;renderChannels()});setTimeout(async()=>{const p=pendingDelete;if(!p||p.f!==f||p.cancelled)return;pendingDelete=null;try{await api({action:'youtube_folder_delete',folder_id:f.id})}catch(e){library.folders.splice(Math.min(idx,library.folders.length),0,f);library.channels.forEach(c=>{if(members.includes(c.channel_id))c.folder_id=f.id});renderChannels();toast('No se pudo eliminar')}},5200)}
 function openSheet(title,rows){$('sheetTitle').textContent=title;$('sheetBody').innerHTML='';$('sheetClose').textContent='CERRAR';for(const [label,fn] of rows){const b=document.createElement('button');b.className='sheetRow';b.innerHTML='<span>'+esc(label)+'</span><span>›</span>';b.onclick=()=>{if(window.history.state?.yt==='sheet'){window.history.back();setTimeout(fn,0)}else{closeSheet();fn()}};$('sheetBody').appendChild(b)}$('sheet').classList.add('open');if(window.history.state?.yt!=='sheet')window.history.pushState({yt:'sheet'},'')}
 function closeSheet(){$('sheet').classList.remove('open')}$('sheetClose').onclick=()=>{if(window.history.state?.yt==='sheet')window.history.back();else closeSheet()};$('sheet').onclick=e=>{if(e.target===$('sheet')){if(window.history.state?.yt==='sheet')window.history.back();else closeSheet()}}
 
@@ -259,14 +331,14 @@ $('search').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();clearTimeout(se
 async function runSearch(){const text=$('search').value.trim();if(text.length<2)return;openSearch();$('resultList').innerHTML='<div class="loading">Buscando…</div>';try{const out=await media({action:'search_all',q:text});if(text!==$('search').value.trim())return;searchResults=out.results||[];renderResults()}catch(e){$('resultList').innerHTML='<div class="empty">'+esc(e.message||e)+'</div>'}}
 function renderResults(){const root=$('resultList');root.innerHTML='';if(!searchResults.length){root.innerHTML='<div class="empty">Sin resultados.</div>';return}const channels=searchResults.filter(r=>r.type==='channel'),videos=searchResults.filter(r=>r.type==='video');if(channels.length){const s=document.createElement('div');s.className='section';s.innerHTML='<h2>Canales</h2>';root.appendChild(s);for(const r of channels)root.appendChild(resultChannel(r))}if(videos.length){const s=document.createElement('div');s.className='section';s.innerHTML='<h2>Videos</h2>';root.appendChild(s);for(const r of videos)root.appendChild(videoRow(r))}}
 function resultChannel(r){const added=library.channels.find(c=>c.channel_id===r.channel_id),row=document.createElement('div');row.className='resultChannel';row.innerHTML=(r.thumbnail?'<img class="avatar" src="'+esc(img(r.thumbnail))+'" alt="">':'<div class="avatar"></div>')+'<div><div class="resultType">Canal</div><div class="channelName">'+esc(r.title||r.channel_id)+'</div><div class="channelSub">'+esc((r.description||'').slice(0,100))+'</div></div><button class="primaryText">'+(added?'✓':'AGREGAR')+'</button>';const btn=row.querySelector('button');btn.disabled=!!added;btn.onclick=()=>addChannelOptimistic(r,btn);return row}
-async function addChannelOptimistic(r,btn){const temp={channel_id:r.channel_id,title:r.title||r.channel_id,thumbnail:img(r.thumbnail||''),folder_id:targetFolder||null,enabled:true,sort_order:0,added_at:new Date().toISOString(),_sync:'saving'};library.channels.unshift(temp);btn.textContent='✓';btn.disabled=true;renderChannels();try{const d=await api({action:'youtube_channel_add',channel_id:r.channel_id,title:r.title,thumbnail:temp.thumbnail,folder_id:targetFolder||''});applyServer(d);toast('Canal agregado');renderChannels()}catch(e){library.channels=library.channels.filter(c=>c!==temp);btn.textContent='AGREGAR';btn.disabled=false;renderChannels();toast('No se pudo agregar')}}
+async function addChannelOptimistic(r,btn){const temp={channel_id:r.channel_id,title:r.title||r.channel_id,thumbnail:img(r.thumbnail||''),folder_id:targetFolder||null,enabled:true,sort_order:0,added_at:new Date().toISOString(),_sync:'saving'};library.channels.unshift(temp);btn.textContent='✓';btn.disabled=true;renderHomeSources();renderChannels();try{const d=await api({action:'youtube_channel_add',channel_id:r.channel_id,title:r.title,thumbnail:temp.thumbnail,folder_id:targetFolder||''});applyServer(d);toast('Canal agregado');renderChannels()}catch(e){library.channels=library.channels.filter(c=>c!==temp);renderHomeSources();btn.textContent='AGREGAR';btn.disabled=false;renderChannels();toast('No se pudo agregar')}}
 
-async function loadRecent(){recent=[];for(const c of library.channels){try{const out=await media({action:'channel_latest_id',channel_id:c.channel_id,label:c.title});recent.push(...(out.videos||[]).map(video))}catch{}}recent.sort((a,b)=>new Date(b.published_at||0)-new Date(a.published_at||0));recent=recent.slice(0,30);renderRecent()}
-async function loadLibrary(withRecent=true){try{const [lib,h]=await Promise.all([api({action:'youtube_library'}),api({action:'watch_history',limit:100})]);applyServer(lib);watchHistory=h.history||[];renderSummary();renderNow();renderQueue();renderChannels();renderHistory();if(withRecent)await loadRecent()}catch(e){toast(String(e.message||e))}}
+async function loadRecent(){recent=[];for(const c of library.channels){try{const out=await media({action:'channel_latest_id',channel_id:c.channel_id,label:c.title});recent.push(...(out.videos||[]).map(video))}catch{}}recent.sort((a,b)=>new Date(b.published_at||0)-new Date(a.published_at||0));recent=recent.slice(0,60);renderHomeSources();renderRecent();if(openFolder)renderChannels()}
+async function loadLibrary(withRecent=true){try{const [lib,h]=await Promise.all([api({action:'youtube_library'}),api({action:'watch_history',limit:100})]);applyServer(lib);watchHistory=h.history||[];renderSummary();renderNow();renderHomeSources();renderRecent();renderQueue();renderChannels();renderHistory();if(withRecent)await loadRecent()}catch(e){toast(String(e.message||e))}}
 
 $('back').onclick=()=>{location.href='/prometeo/ctrl/#room='+encodeURIComponent(room.code)+'&t='+encodeURIComponent(room.token)+'&k='+encodeURIComponent(mediaToken)};$('tv').onclick=()=>{location.href='/prometeo/tv/'};
 window.history.replaceState({yt:'root'},'');
-window.addEventListener('popstate',()=>{if($('sheet').classList.contains('open'))return closeSheet();if($('searchPane').classList.contains('open'))return closeSearch(true);if(openFolder){openFolder='';renderChannels()}});
+window.addEventListener('popstate',()=>{if($('sheet').classList.contains('open'))return closeSheet();if($('searchPane').classList.contains('open'))return closeSearch(true);if(openFolder){openFolder='';folderView='recent';renderChannels()}});
 async function checkCanonical(){try{const r=await fetch(CANONICAL+'?t='+Date.now(),{cache:'no-store'}),d=await r.json();if(String(d.yt_build||'6')!=='6')location.reload()}catch{}}
 loadLibrary(true);checkCanonical();setInterval(checkCanonical,15000);
 })();
