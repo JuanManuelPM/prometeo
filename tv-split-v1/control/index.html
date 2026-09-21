@@ -121,16 +121,18 @@ button{font:inherit;color:inherit}
 'use strict';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const FEED='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-public-feed-v1';
+const CONTROL_BUILD='34',CANONICAL='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const q=new URLSearchParams(location.hash.slice(1));
-const room={code:q.get('room')||'',token:q.get('t')||'',role:'remote'},mediaToken=q.get('k')||'';
-const client='tv-editor-'+Math.random().toString(36).slice(2,9);
+const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_REMOTE='1f1a186a7bdc6aa3c9bfbf2016fed69d6b6cbf3066fab5ad8e122e25aa45c63e',DEFAULT_MEDIA='NZT8S9zPPRuTdUQUZK20jEvA-Nly6Ck4HUImnPuBsgQ';
+const room={code:q.get('room')||DEFAULT_ROOM,token:q.get('t')||DEFAULT_REMOTE,role:'remote'},mediaToken=q.get('k')||DEFAULT_MEDIA;
+const client='tv-editor-v34-'+Math.random().toString(36).slice(2,9);
 const $=id=>document.getElementById(id),viewport=$('viewport'),timeline=$('timeline'),gridLayer=$('gridLayer'),eventLayer=$('eventLayer'),palette=$('palette'),dragTime=$('dragTime'),editWin=$('editWin');
 const labels={youtube:'YOUTUBE',clock:'RELOJ',page:'PÁGINA',black:'NEGRO'};
 const samples={clock:{title:'RELOJ 25/5',payload:{style:'focus25-5'}},page:{title:'CALENDARIO',payload:{url:'https://juanmanuelpm.github.io/prometeo/experiments/tv-split-v1-sample-calendar.html'}},black:{title:'NEGRO',payload:{}}};
 const ytLatest=new Map(),ytByChannel=new Map(),watchedIds=new Set();
 let blocks=[],serverBlocks=[],selected=null,ppm=.7,cycleH=1000,loaded=false,rendering=false,saving=false;
 const dirtyBlocks=new Set(),pendingDeletes=new Set();
-const cacheKey='tv.program.editor.v33.'+room.code;
+const cacheKey='tv.program.editor.v34.'+room.code;
 let tvState=null,previewOpen=false;
 
 function clone(x){return JSON.parse(JSON.stringify(x))}
@@ -275,7 +277,7 @@ $('historyBtn').onclick=async()=>{await loadHistory();$('historyWin').classList.
 $('historyClose').onclick=()=>{$('historyWin').classList.remove('open');$('historyWin').setAttribute('aria-hidden','true')};
 $('previewBtn').onclick=()=>{
   const wrap=$('tvPreview'),frame=$('tvPreviewFrame');
-  if(!frame.src)frame.src='https://juanmanuelpm.github.io/prometeo/experiments/tv-split-v1-tv.html?v=13#room=TV-PM2K7Q&t=6e7f4b74d76d2488ac3779832c77632475dd845db3a9b598765a757c7f18c327';
+  if(!frame.src)frame.src='https://juanmanuelpm.github.io/prometeo/tv/?embed=1';
   previewOpen=true;wrap.classList.add('open');wrap.setAttribute('aria-hidden','false');renderRemote()
 };
 $('tvBack').onclick=()=>{
@@ -307,7 +309,8 @@ $('save').onclick=saveAll;$('cancel').onclick=cancelAll;$('delete').onclick=()=>
 async function syncServer(initial=false){if(hasDraft()&&!initial)return;try{const d=await api({action:'list'});serverBlocks=clone(d.blocks||[]);if(!hasDraft()){blocks=clone(serverBlocks);cache();renderBlocks()}if(initial&&!loaded){loaded=true;requestAnimationFrame(scrollInitial)}}catch(e){if(initial)toast(String(e.message||e))}}
 try{const c=JSON.parse(localStorage.getItem(cacheKey)||'null');if(c&&Array.isArray(c.blocks)){serverBlocks=clone(c.blocks);blocks=clone(serverBlocks);loaded=true}}catch{}
 function layout(){measure();grid();renderBlocks();updateNow()}
-layout();loadHistory().then(loadYTPresets);renderRemote();pollTVState();requestAnimationFrame(()=>{if(loaded)scrollInitial();syncServer(true)});setInterval(updateNow,15000);setInterval(()=>syncServer(false),30000);setInterval(pollTVState,900);setInterval(loadHistory,10000);window.addEventListener('resize',layout);
+async function checkCanonical(){try{const r=await fetch(CANONICAL+'?t='+Date.now(),{cache:'no-store'}),d=await r.json();if(String(d.control_build||CONTROL_BUILD)!==CONTROL_BUILD)location.replace('/prometeo/ctrl/?v='+Date.now())}catch{}}
+layout();loadHistory().then(loadYTPresets);renderRemote();pollTVState();checkCanonical();requestAnimationFrame(()=>{if(loaded)scrollInitial();syncServer(true)});setInterval(updateNow,15000);setInterval(()=>syncServer(false),30000);setInterval(pollTVState,900);setInterval(loadHistory,10000);setInterval(checkCanonical,15000);window.addEventListener('resize',layout);
 })();
 </script>
 </body>
