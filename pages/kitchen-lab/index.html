@@ -78,29 +78,34 @@ const fmtMs=ms=>{
   if(ms<1000)return ms+' ms';
   return (ms/1000).toFixed(ms<10000?2:1)+' s';
 };
+const LIVE_MS=7000;
+const fresh=a=>!!a && (Date.now()-new Date(a.last_seen_at).getTime())<LIVE_MS;
 function statusLabel(a,run){
   if(!a)return 'sin detectar';
   if(run?.status==='DONE')return 'terminó';
+  if(!fresh(a))return 'sin señal';
   if(a.status==='TURN')return 'pensando…';
-  if(run?.status==='COUNTDOWN')return 'listo';
+  if(a.status==='WAITING_PARTNER')return 'esperando a la otra';
+  if(a.status==='COUNTDOWN')return 'listo';
   if(a.status==='WAITING')return 'esperando turno';
   return 'conectado';
 }
 function render(run,agents,events){
   const A=agents.find(a=>a.slot==='A'), B=agents.find(a=>a.slot==='B');
-  personA.classList.toggle('online',!!A);personB.classList.toggle('online',!!B);
+  const aliveA=fresh(A), aliveB=fresh(B);
+  personA.classList.toggle('online',aliveA);personB.classList.toggle('online',aliveB);
   stateA.textContent=statusLabel(A,run);stateB.textContent=statusLabel(B,run);
 
   const now=Date.now();
   if(run?.status==='COUNTDOWN' && run.started_at){
     const left=Math.max(0,new Date(run.started_at).getTime()-now);
-    if(left>0){
+    if(left>0 && aliveA && aliveB){
       countdown.classList.add('show');
       number.textContent=Math.max(1,Math.ceil(left/1000));
       center.textContent='ambas detectadas';
     }else{
       countdown.classList.remove('show');
-      center.textContent='turno '+(run.next_slot||'A');
+      center.textContent=(aliveA&&aliveB)?'esperando '+(run.next_slot||'A'):'sin señal';
     }
   }else{
     countdown.classList.remove('show');
@@ -111,7 +116,10 @@ function render(run,agents,events){
 
   const turns=events.filter(e=>e.event_type==='TURN' || e.event_type==='DONE');
   if(!turns.length){
-    feed.innerHTML='<div class="empty">'+(agents.length===0?'Esperando al primer chat.':agents.length===1?'Primer chat detectado.<br>Esperando al segundo.':'Los dos están listos.')+'</div>';
+    let msg='Esperando al primer chat.';
+    if(agents.length===1) msg=aliveA||aliveB?'Primer chat detectado.<br>Esperando al segundo.':'Primer chat sin señal.';
+    if(agents.length===2) msg=(aliveA&&aliveB)?'Esperando la primera acción.':'La ejecución se detuvo.';
+    feed.innerHTML='<div class="empty">'+msg+'</div>';
   }else{
     feed.innerHTML='';
     turns.forEach(e=>{
@@ -135,7 +143,7 @@ function render(run,agents,events){
   }else if(run?.status==='RUNNING'){
     bottom.textContent='midiendo tiempo entre respuestas';
   }else if(run?.status==='COUNTDOWN'){
-    bottom.textContent='arranque automático';
+    bottom.textContent=(aliveA&&aliveB)?'arranque automático':'esperando señal activa';
   }else{
     bottom.textContent='conexión en vivo · '+RUN;
   }
