@@ -16,34 +16,34 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe Pinterest BaseSearchResource
+      - name: Probe current Pinterest BaseSearchResource contract
         shell: bash
         run: |
           set -euo pipefail
           UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
-          SOURCE='/search/pins/?q=naruto&rs=typed'
-          DATA='{"options":{"query":"naruto","scope":"pins","rs":"typed","source_url":"/search/pins/?q=naruto&rs=typed","redux_normalize_feed":true},"context":{}}'
-          code="$(curl -L --silent --show-error --max-time 30 -A "$UA"             -H 'Accept: application/json, text/javascript, */*, q=0.01'             -H 'X-Requested-With: XMLHttpRequest'             --get             --data-urlencode "source_url=$SOURCE"             --data-urlencode "data=$DATA"             -o /tmp/pinterest.json             -w '%{http_code}'             'https://www.pinterest.com/resource/BaseSearchResource/get/')"
+          DATA='{"options":{"query":"naruto","bookmarks":[""]},"context":{}}'
+          code="$(curl -L --silent --show-error --max-time 30 -A "$UA"             -H 'Accept: application/json, text/javascript, */*, q=0.01'             -H 'X-Requested-With: XMLHttpRequest'             -H 'X-Pinterest-AppState: active'             -H 'X-Pinterest-Source-Url: /ideas/'             -H 'X-Pinterest-PWS-Handler: www/ideas.js'             --get             --data-urlencode "data=$DATA"             -o /tmp/pinterest.json             -w '%{http_code}'             'https://www.pinterest.com/resource/BaseSearchResource/get/')"
           echo "HTTP $code"
-          head -c 1200 /tmp/pinterest.json || true
+          head -c 600 /tmp/pinterest.json || true
           echo
           node - <<'NODE'
           const fs=require('fs');
           const raw=fs.readFileSync('/tmp/pinterest.json','utf8');
-          console.log('bytes',raw.length);
-          try{
-            const data=JSON.parse(raw);
-            console.log('top keys',Object.keys(data));
-            const rr=data.resource_response||{};
-            console.log('resource keys',Object.keys(rr));
-            const body=rr.data||{};
-            console.log('data keys',Object.keys(body));
-            const results=body.results||body;
-            console.log('results type',Array.isArray(results)?'array':typeof results,'count',Array.isArray(results)?results.length:null);
-            if(Array.isArray(results)){
-              console.log(JSON.stringify(results.slice(0,2),null,2).slice(0,8000));
-            } else {
-              console.log(JSON.stringify(body,null,2).slice(0,8000));
-            }
-          }catch(e){console.log('JSON ERR',String(e))}
+          const data=JSON.parse(raw);
+          const rr=data.resource_response||{};
+          const results=rr.data?.results||[];
+          console.log(JSON.stringify({
+            status:rr.status,
+            count:results.length,
+            bookmark:rr.bookmark,
+            sample:results.slice(0,3).map(x=>({
+              id:x.id,
+              type:x.type,
+              title:x.title||x.grid_title||x.auto_alt_text||'',
+              image:x.images?.orig?.url,
+              thumb:x.images?.['236x']?.url
+            }))
+          },null,2));
+          if(results.length<5) throw new Error('expected >=5 Pinterest results');
+          if(!results.slice(0,5).every(x=>/^https:\/\/i\.pinimg\.com\//.test(x.images?.orig?.url||''))) throw new Error('missing clean pinimg originals');
           NODE
