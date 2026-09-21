@@ -5,7 +5,7 @@ const arr = v => Array.isArray(v) ? v : [];
 const DEFAULT_MAX_CANDIDATES = 24;
 const DEFAULT_MAX_SERIALIZED_BYTES = 24_000;
 const DEFAULT_CAPABILITY_DIVERSITY_SLOTS = 8;
-const DEFAULT_ZERO_CAPABILITY_CAPACITY = 4;
+const DEFAULT_ZERO_CAPABILITY_CAPACITY = 8;
 
 // Pre-claim needs authority bytes, capability routing, and one exact post-claim source.
 // Human-facing labels, priority/state and duplicated identity already live in allocator/job files.
@@ -92,7 +92,7 @@ function preserveCapabilityDiversity(
   // launch that can hide several distinct no-special-capability claims behind a long
   // specialized tail, leaving generic workers to collide on only one or two visible paths.
   // Preserve the allocator prefix + exact capability exemplars, then reserve a small bounded
-  // amount of additional zero-capacity claim paths. This changes transport ordering only;
+  // amount of additional zero-capacity claim paths. Eight keeps a full generic-worker safety\n  // margin inside the 24-candidate ceiling while capability exemplars remain protected.\n  // This changes transport ordering only;
   // claim payloads and atomic authority semantics stay untouched.
   const promotedSet = new Set(promoted);
   const zeroPromoted = [];
