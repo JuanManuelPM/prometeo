@@ -18,6 +18,8 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 .ytHost iframe{pointer-events:none!important}
 .videoProgress{position:absolute;left:0;right:0;bottom:0;height:4px;z-index:8;background:#2b2b2b;pointer-events:none}
 .videoProgressFill{height:100%;width:0;background:#f4f3ee;transition:width .20s linear}
+.youtubeEmpty{position:absolute;inset:0;display:grid;place-items:center;background:#000;color:#f4f2ea;font:900 clamp(14px,2.2vw,28px)/1 Arial,Helvetica,sans-serif;letter-spacing:.12em}
+.youtubeEmpty span{color:#77766f;font-size:.38em;display:block;text-align:center;margin-top:9px;letter-spacing:.1em}
 .clockPanel{display:grid;place-items:center;background:#050505;container-type:size}
 .clockLayout{width:100%;height:100%;display:grid;grid-template-columns:minmax(0,1.42fr) minmax(230px,.58fr);align-items:center;gap:min(2.2cqw,28px);padding:min(2.3cqh,22px) min(2.2cqw,28px)}
 .hybridClock{position:relative;width:min(72cqw,94cqh);max-width:100%;aspect-ratio:1;border-radius:50%;justify-self:center;background:#050505;overflow:hidden}
@@ -61,13 +63,13 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 <script>
 (()=>{
 'use strict';
-const BUILD='19';
+const BUILD='20';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const RUNTIME='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const p=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_TOKEN='6e7f4b74d76d2488ac3779832c77632475dd845db3a9b598765a757c7f18c327';
 const room={code:p.get('room')||DEFAULT_ROOM,token:p.get('t')||DEFAULT_TOKEN,role:'tv'};
-const client='tv-v19-'+Math.random().toString(36).slice(2,10);
+const client='tv-v20-'+Math.random().toString(36).slice(2,10);
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
 const views=new Map(),advancing=new Set();
 let blocks=[],serverActive=[],ytReady=false,lastCommandId=0,updatePending=false,pageStarted=Date.now();
@@ -98,15 +100,19 @@ function createView(b){
  if(b.kind==='clock'){el.classList.add('clockPanel');el.innerHTML=clockMarkup()}
  else if(b.kind==='page'){const f=document.createElement('iframe');f.src=b.payload?.url||'about:blank';f.allow='autoplay; fullscreen; picture-in-picture';el.appendChild(f)}
  else if(b.kind==='youtube'){
-   const host=document.createElement('div');host.className='ytHost';host.id='yt-'+id.replace(/[^a-z0-9_-]/gi,'');el.appendChild(host);
-   const progress=document.createElement('div');progress.className='videoProgress';
-   const fill=document.createElement('div');fill.className='videoProgressFill';progress.appendChild(fill);el.appendChild(progress);v.progressFill=fill;
-   if(ytReady&&window.YT?.Player)mountPlayer(b,v)
+   const videoId=String(b.payload?.video_id||'');
+   if(!videoId){const empty=document.createElement('div');empty.className='youtubeEmpty';empty.innerHTML='<div>YOUTUBE<span>SIN CONTENIDO</span></div>';el.appendChild(empty)}
+   else{
+     const host=document.createElement('div');host.className='ytHost';host.id='yt-'+id.replace(/[^a-z0-9_-]/gi,'');el.appendChild(host);
+     const progress=document.createElement('div');progress.className='videoProgress';
+     const fill=document.createElement('div');fill.className='videoProgressFill';progress.appendChild(fill);el.appendChild(progress);v.progressFill=fill;
+     if(ytReady&&window.YT?.Player)mountPlayer(b,v)
+   }
  }
  return v
 }
 function mountPlayer(b,v){
- if(v.player||!ytReady||!window.YT?.Player)return;
+ if(v.player||!ytReady||!window.YT?.Player||!b.payload?.video_id)return;
  try{
   v.player=new YT.Player(v.el.querySelector('.ytHost').id,{
     videoId:String(b.payload?.video_id||''),
