@@ -27,6 +27,12 @@ assert.equal(policy.smoke_gate.status,'SMOKE_PASS');
 assert.equal(policy.productive_smoke.target_productive_units,6);
 assert.equal(mission.human_prompts.worker.prompt,mission.operating_mode.invocation,'worker human prompt alias must equal canonical operating invocation');
 assert.equal(mission.human_prompts.worker_production.prompt,mission.operating_mode.production_invocation,'production worker prompt alias must equal canonical production invocation');
+if(mission.operating_mode.production_wave?.status==='ARMED'){
+  assert.ok(mission.operating_mode.production_wave_invocation.includes('/w'),'production wave must use /w');
+  assert.ok(mission.operating_mode.production_wave_invocation.includes('NUEVO_WORKER=1'),'production wave missing fresh marker');
+  assert.ok(mission.operating_mode.production_wave_invocation.includes('RESIDENTE_BATCH'),'production wave missing batch residency');
+  assert.ok(mission.operating_mode.production_wave_invocation.includes(`BATCH ${mission.operating_mode.production_wave.batch_id} EXPECTED ${mission.operating_mode.production_wave.expected_workers}`),'production wave marker mismatch');
+}
 assert.ok(mission.operating_mode.production_invocation.includes('/w'),'production invocation must use /w');
 assert.ok(mission.operating_mode.production_invocation.includes('NUEVO_WORKER=1'),'production invocation missing fresh launch marker');
 assert.equal(poolPrompt,mission.operating_mode.invocation+'\n','POOL PROD-01 prompt alias must equal canonical operating invocation plus final newline');
@@ -83,6 +89,8 @@ if(site){
   assert.ok(publicW.includes(mission.operating_mode.production_invocation),'public /w must render exact canonical production invocation');
   assert.ok(publicW.includes('PRODUCTION STABLE'),'public /w must identify stable production');
   assert.ok(publicW.includes('V3_EVIDENCE_MAP'),'public /w must expose promoted E6 baseline');
+  assert.ok(publicW.includes('source=/w'),'public /w must expose stable beacon source');
+  assert.ok(publicW.includes('missing_expected'),'public /w must expose exact finite-wave refill accounting');
   for(const marker of policy.human_inline_launch_guard.required_markers){
     assert.ok(publicWc.includes(marker),'public /wc missing inline guard '+marker);
     assert.ok(publicW.includes(marker),'public /w missing inline guard '+marker);
