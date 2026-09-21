@@ -61,13 +61,13 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 <script>
 (()=>{
 'use strict';
-const BUILD='18';
+const BUILD='19';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const RUNTIME='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const p=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_TOKEN='6e7f4b74d76d2488ac3779832c77632475dd845db3a9b598765a757c7f18c327';
 const room={code:p.get('room')||DEFAULT_ROOM,token:p.get('t')||DEFAULT_TOKEN,role:'tv'};
-const client='tv-v17-'+Math.random().toString(36).slice(2,10);
+const client='tv-v19-'+Math.random().toString(36).slice(2,10);
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
 const views=new Map(),advancing=new Set();
 let blocks=[],serverActive=[],ytReady=false,lastCommandId=0,updatePending=false,pageStarted=Date.now();
@@ -93,7 +93,7 @@ function destroyView(id){
 }
 function createView(b){
  const id=String(b.id),el=document.createElement('section');el.className='panel';
- const v={id,el,kind:b.kind,sig:sig(b),player:null,ready:false,muted:false,state:null,progressFill:null};
+ const v={id,el,kind:b.kind,sig:sig(b),player:null,ready:false,muted:false,state:null,progressFill:null,playbackSeen:false};
  views.set(id,v);stage.appendChild(el);
  if(b.kind==='clock'){el.classList.add('clockPanel');el.innerHTML=clockMarkup()}
  else if(b.kind==='page'){const f=document.createElement('iframe');f.src=b.payload?.url||'about:blank';f.allow='autoplay; fullscreen; picture-in-picture';el.appendChild(f)}
@@ -113,7 +113,16 @@ function mountPlayer(b,v){
     playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,fs:0,iv_load_policy:3,disablekb:1},
     events:{
       onReady:e=>{v.ready=true;try{e.target.playVideo()}catch{}},
-      onStateChange:e=>{v.state=Number(e.data);if(Number(e.data)===0)advanceYoutube(b,v)},
+      onStateChange:e=>{
+        v.state=Number(e.data);
+        if(v.state===1)v.playbackSeen=true;
+        if(v.state===0){
+          let current=0,duration=0;
+          try{current=Number(e.target.getCurrentTime?.()||0);duration=Number(e.target.getDuration?.()||0)}catch{}
+          const nearEnd=duration>0&&(current>=duration-3||current/duration>=.97);
+          if(v.playbackSeen&&nearEnd)advanceYoutube(b,v);
+        }
+      },
       onAutoplayBlocked:()=>unlock.classList.add('show'),
       onError:()=>unlock.classList.add('show')
     }
