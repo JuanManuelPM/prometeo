@@ -1,0 +1,39 @@
+name: TTS public-origin CI attestation v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/portfolio/tests/tts_public_origin_ci_attest_runner_v1.mjs'
+      - '.github/workflows/tts-public-origin-ci-attest-runner-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tts-public-origin-ci-attest-runner-v1
+  cancel-in-progress: true
+
+jobs:
+  public-origin-read-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Attest public candidate and read-only health
+        env:
+          TTS_CANDIDATE_URL: https://juanmanuelpm.github.io/prometeo/__canary/portfolio-tts-generic-text-surface-v1/
+          TTS_HEALTH_URL: https://catnohyouxqjjtseaueb.supabase.co/functions/v1/audio-lab-page-audio-v1
+        run: node coordination/portfolio/tests/tts_public_origin_ci_attest_runner_v1.mjs
+      - name: Upload bounded TTS public-origin evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tts-public-origin-ci-attest-evidence
+          path: artifacts/tts-public-origin-ci-attest/
+          if-no-files-found: error
+          retention-days: 14
