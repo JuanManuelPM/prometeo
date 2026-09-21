@@ -16,28 +16,34 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect web search for Pinterest Pin URLs
+      - name: Probe Pinterest BaseSearchResource
         shell: bash
         run: |
           set -euo pipefail
           UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
-          curl -L --silent --show-error --max-time 25 -A "$UA"             'https://www.bing.com/search?q=naruto%20site%3Apinterest.com%2Fpin%2F&count=50' > /tmp/bing-web.html
-          curl -L --silent --show-error --max-time 25 -A "$UA"             'https://www.google.com/search?q=naruto%20site%3Apinterest.com%2Fpin%2F&num=50' > /tmp/google-web.html
-
+          SOURCE='/search/pins/?q=naruto&rs=typed'
+          DATA='{"options":{"query":"naruto","scope":"pins","rs":"typed","source_url":"/search/pins/?q=naruto&rs=typed","redux_normalize_feed":true},"context":{}}'
+          code="$(curl -L --silent --show-error --max-time 30 -A "$UA"             -H 'Accept: application/json, text/javascript, */*, q=0.01'             -H 'X-Requested-With: XMLHttpRequest'             --get             --data-urlencode "source_url=$SOURCE"             --data-urlencode "data=$DATA"             -o /tmp/pinterest.json             -w '%{http_code}'             'https://www.pinterest.com/resource/BaseSearchResource/get/')"
+          echo "HTTP $code"
+          head -c 1200 /tmp/pinterest.json || true
+          echo
           node - <<'NODE'
           const fs=require('fs');
-          for(const name of ['bing-web','google-web']){
-            const html=fs.readFileSync('/tmp/'+name+'.html','utf8')
-              .replace(/&amp;/g,'&')
-              .replace(/%2F/gi,'/')
-              .replace(/%3A/gi,':');
-            const ids=[...html.matchAll(/pinterest\.[a-z.]+\/pin\/(?:[^0-9"' <]*)(\d{8,20})/gi)].map(x=>x[1]);
-            const urls=[...html.matchAll(/https?:\/\/(?:www\.)?pinterest\.[^"' <&]+\/pin\/[^"' <&]+/gi)].map(x=>x[0]);
-            console.log('\n### '+name);
-            console.log(JSON.stringify({bytes:html.length,uniquePinIds:[...new Set(ids)].length},null,2));
-            console.log('ids', [...new Set(ids)].slice(0,20));
-            console.log('urls', [...new Set(urls)].slice(0,12));
-            const idx=html.toLowerCase().indexOf('pinterest');
-            console.log('context', idx>=0?html.slice(Math.max(0,idx-500),idx+1800):'NO PINTEREST');
-          }
+          const raw=fs.readFileSync('/tmp/pinterest.json','utf8');
+          console.log('bytes',raw.length);
+          try{
+            const data=JSON.parse(raw);
+            console.log('top keys',Object.keys(data));
+            const rr=data.resource_response||{};
+            console.log('resource keys',Object.keys(rr));
+            const body=rr.data||{};
+            console.log('data keys',Object.keys(body));
+            const results=body.results||body;
+            console.log('results type',Array.isArray(results)?'array':typeof results,'count',Array.isArray(results)?results.length:null);
+            if(Array.isArray(results)){
+              console.log(JSON.stringify(results.slice(0,2),null,2).slice(0,8000));
+            } else {
+              console.log(JSON.stringify(body,null,2).slice(0,8000));
+            }
+          }catch(e){console.log('JSON ERR',String(e))}
           NODE
