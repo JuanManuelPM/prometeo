@@ -83,14 +83,15 @@ function hydrateYoutubeBlock(block:any,state:any){
   return {...block,title:"YOUTUBE",payload:v?{video_id:v.video_id,url:v.watch_url,video_title:v.title,channel_id:v.channel_id,channel_title:v.channel_title,auto_next:true}:{}}; 
 }
 async function youtubeLibrary(room:any){
-  const [cq,sq,hq]=await Promise.all([
-    db.from("tv_youtube_channels").select("channel_id,title,thumbnail,enabled,sort_order,added_at").eq("room_id",room.id).eq("enabled",true).order("sort_order").order("added_at"),
+  const [cq,sq,hq,fq]=await Promise.all([
+    db.from("tv_youtube_channels").select("channel_id,title,thumbnail,enabled,sort_order,added_at,folder_id").eq("room_id",room.id).eq("enabled",true).order("sort_order").order("added_at"),
     db.from("tv_youtube_state").select("*").eq("room_id",room.id).maybeSingle(),
-    db.from("tv_watch_history").select("video_id",{count:"exact",head:true}).eq("room_id",room.id)
+    db.from("tv_watch_history").select("video_id",{count:"exact",head:true}).eq("room_id",room.id),
+    db.from("tv_youtube_folders").select("id,name,sort_order,created_at").eq("room_id",room.id).order("sort_order").order("created_at")
   ]);
-  if(cq.error)throw cq.error;if(sq.error)throw sq.error;if(hq.error)throw hq.error;
+  if(cq.error)throw cq.error;if(sq.error)throw sq.error;if(hq.error)throw hq.error;if(fq.error)throw fq.error;
   const state=sq.data||await youtubeState(room);
-  return {channels:cq.data||[],state:{queue:normalizedQueue(state.queue),current_index:Number(state.current_index||0),current_video_id:String(state.current_video_id||"")},watched_count:Number(hq.count||0)};
+  return {channels:cq.data||[],folders:fq.data||[],state:{queue:normalizedQueue(state.queue),current_index:Number(state.current_index||0),current_video_id:String(state.current_video_id||"")},watched_count:Number(hq.count||0)};
 }
 
 async function changed(room:any,source:string,clientId:string){
@@ -129,14 +130,14 @@ Deno.serve(async(req:Request)=>{try{
     const now_minute=get("hour")*60+get("minute");
     const active_blocks=blocks.filter((x:any)=>now_minute>=Number(x.start_minute)&&now_minute<Number(x.end_minute));
     const revision=blocks.reduce((m:any,x:any)=>String(x.updated_at||"")>m?String(x.updated_at||""):m,"");
-    return json(req,{ok:true,timezone:"America/Argentina/Buenos_Aires",now_minute,blocks,active_blocks,revision,runtime_build:"21"});
+    return json(req,{ok:true,timezone:"America/Argentina/Buenos_Aires",now_minute,blocks,active_blocks,revision,runtime_build:"22"});
   }
   if(action==="state"){
     if(role!=="remote")fail("REMOTE_REQUIRED",403);
     const q=await db.from("tv_live_state").select("*").eq("room_id",room.id).order("updated_at",{ascending:false}).limit(20);
     if(q.error)throw q.error;
     const states=q.data||[];
-    return json(req,{ok:true,state:states[0]||null,states,runtime_build:"21"});
+    return json(req,{ok:true,state:states[0]||null,states,runtime_build:"22"});
   }
   if(action==="tv_state"){
     if(role!=="tv")fail("TV_REQUIRED",403);
@@ -174,9 +175,37 @@ Deno.serve(async(req:Request)=>{try{
   if(action==="youtube_channel_add"){
     if(role!=="remote")fail("REMOTE_REQUIRED",403);
     const channel_id=String(b.channel_id||"").slice(0,80);if(!channel_id)fail("CHANNEL_ID_REQUIRED");
-    const row={room_id:room.id,channel_id,title:String(b.title||"").slice(0,160),thumbnail:String(b.thumbnail||"").slice(0,500),enabled:true,sort_order:Number(b.sort_order)||0,added_at:new Date().toISOString()};
+    const folder_id=String(b.folder_id||"")||null;
+    if(folder_id){const fq=await db.from("tv_youtube_folders").select("id").eq("room_id",room.id).eq("id",folder_id).maybeSingle();if(fq.error)throw fq.error;if(!fq.data)fail("FOLDER_NOT_FOUND",404)}
+    const row={room_id:room.id,channel_id,title:String(b.title||"").slice(0,160),thumbnail:String(b.thumbnail||"").slice(0,500),enabled:true,sort_order:Number(b.sort_order)||0,folder_id,added_at:new Date().toISOString()};
     const q=await db.from("tv_youtube_channels").upsert(row,{onConflict:"room_id,channel_id"}).select().single();if(q.error)throw q.error;
     return json(req,{ok:true,channel:q.data,...await youtubeLibrary(room)});
+  }
+  if(action==="youtube_folder_create"){
+    if(role!=="remote")fail("REMOTE_REQUIRED",403);
+    const name=String(b.name||"").trim().slice(0,80);if(!name)fail("FOLDER_NAME_REQUIRED");
+    const q=await db.from("tv_youtube_folders").insert({room_id:room.id,name,sort_order:Number(b.sort_order)||0}).select("id,name,sort_order,created_at").single();
+    if(q.error)throw q.error;return json(req,{ok:true,folder:q.data,...await youtubeLibrary(room)});
+  }
+  if(action==="youtube_folder_rename"){
+    if(role!=="remote")fail("REMOTE_REQUIRED",403);
+    const id=String(b.folder_id||""),name=String(b.name||"").trim().slice(0,80);if(!id||!name)fail("FOLDER_REQUIRED");
+    const q=await db.from("tv_youtube_folders").update({name}).eq("room_id",room.id).eq("id",id).select("id,name,sort_order,created_at").single();if(q.error)throw q.error;
+    return json(req,{ok:true,folder:q.data,...await youtubeLibrary(room)});
+  }
+  if(action==="youtube_folder_delete"){
+    if(role!=="remote")fail("REMOTE_REQUIRED",403);
+    const id=String(b.folder_id||"");if(!id)fail("FOLDER_REQUIRED");
+    const uq=await db.from("tv_youtube_channels").update({folder_id:null}).eq("room_id",room.id).eq("folder_id",id);if(uq.error)throw uq.error;
+    const q=await db.from("tv_youtube_folders").delete().eq("room_id",room.id).eq("id",id);if(q.error)throw q.error;
+    return json(req,{ok:true,...await youtubeLibrary(room)});
+  }
+  if(action==="youtube_channel_move"){
+    if(role!=="remote")fail("REMOTE_REQUIRED",403);
+    const channel_id=String(b.channel_id||""),folder_id=String(b.folder_id||"")||null;if(!channel_id)fail("CHANNEL_ID_REQUIRED");
+    if(folder_id){const fq=await db.from("tv_youtube_folders").select("id").eq("room_id",room.id).eq("id",folder_id).maybeSingle();if(fq.error)throw fq.error;if(!fq.data)fail("FOLDER_NOT_FOUND",404)}
+    const q=await db.from("tv_youtube_channels").update({folder_id}).eq("room_id",room.id).eq("channel_id",channel_id);if(q.error)throw q.error;
+    return json(req,{ok:true,...await youtubeLibrary(room)});
   }
   if(action==="youtube_channel_remove"){
     if(role!=="remote")fail("REMOTE_REQUIRED",403);
