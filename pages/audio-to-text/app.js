@@ -11,6 +11,9 @@ import {
 } from './core.mjs';
 
 const TRANSCRIBE_URL = 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/study-transcribe-v1';
+const MEDIA_TOOLKIT_URL = 'https://cdn.jsdelivr.net/npm/mediabunny@1.58.1/+esm';
+const BACKEND_MIN_START_GAP_MS = 3000;
+const BACKEND_TIMEOUT_MS = 180000;
 const DB_NAME = 'prometeo-audio-to-text-v1';
 const DB_VERSION = 1;
 const SESSION_STORE = 'sessions';
@@ -66,6 +69,9 @@ let editorSaveTimer = null;
 let fileRuntime = null;
 let renderTimer = null;
 let backendInfo = null;
+let mediaToolkitPromise = null;
+let backendGate = Promise.resolve();
+let backendNextStartAt = 0;
 const scheduledJobs = new Set();
 const deletedSessionIds = new Set();
 
@@ -83,6 +89,29 @@ function uuid() {
 const nowISO = () => new Date().toISOString();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+async function loadMediaToolkit() {
+  if (!mediaToolkitPromise) {
+    mediaToolkitPromise = import(MEDIA_TOOLKIT_URL).catch(error => {
+      mediaToolkitPromise = null;
+      throw error;
+    });
+  }
+  return mediaToolkitPromise;
+}
+
+async function waitForBackendSlot() {
+  let release;
+  const previous = backendGate;
+  backendGate = new Promise(resolve => { release = resolve; });
+  await previous;
+  try {
+    const wait = Math.max(0, backendNextStartAt - Date.now());
+    if (wait) await sleep(wait);
+    backendNextStartAt = Date.now() + BACKEND_MIN_START_GAP_MS;
+  } finally {
+    release();
+  }
+}
 function openDB() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
@@ -225,11 +254,12 @@ function render() {
   const segments = session?.segments || [];
   const ready = segments.filter(s => s.status === 'ready').length;
   const errors = segments.filter(s => s.status === 'error').length;
-  const working = segments.filter(s => ['queued', 'transcribing'].includes(s.status)).length;
-  const pending = segments.filter(s => s.status === 'pending').length;
+  const working = segments.filter(s => ['extracting', 'queued', 'transcribing'].includes(s.status)).length;
+  const pending = segments.filter(s => ['pending', 'extracting'].includes(s.status)).length;
   const total = segments.length;
   const fileCursor = Number(session?.file_cursor_ms || 0);
   const activeCaptureIds = new Set(fileRuntime?.active ? [...fileRuntime.active.keys()] : []);
+  for (const segment of segments) if (segment.status === 'extracting') activeCaptureIds.add(segment.id);
 
   let captureUnits = 0;
   let transcriptionUnits = 0;
@@ -238,7 +268,9 @@ function render() {
     if (segment.audio_key || ['queued', 'transcribing', 'ready', 'error'].includes(status)) captureUnits += 1;
     else if (activeCaptureIds.has(segment.id)) {
       const span = Math.max(1, Number(segment.end_ms || 0) - Number(segment.start_ms || 0));
-      captureUnits += Math.max(0.04, Math.min(0.98, (fileCursor - Number(segment.start_ms || 0)) / span));
+      const explicit = Number(segment.local_progress);
+      const inferred = (fileCursor - Number(segment.start_ms || 0)) / span;
+      captureUnits += Math.max(0.04, Math.min(0.98, Number.isFinite(explicit) ? explicit : inferred));
     }
     if (status === 'queued') transcriptionUnits += 0.30;
     else if (status === 'transcribing') transcriptionUnits += 0.70;
@@ -263,7 +295,7 @@ function render() {
       ? `Duración ${formatClock(durationMs, durationMs >= 3600000)} · ${durationSeconds} s`
       : 'Midiendo duración…';
     ui.filePlan.textContent = total
-      ? `${total} recortes · 150 s máx. · margen ${overlapSeconds} s`
+      ? `${total} recortes · ${Math.round(FILE_CAPTURE_CONFIG.windowMs / 1000)} s máx. · margen ${overlapSeconds} s`
       : 'Calculando recortes…';
     ui.chunkHint.textContent = `Cada corte comparte ${overlapSeconds} s con el siguiente; al unir, Prometeo elimina el texto repetido.`;
 
@@ -295,8 +327,9 @@ function render() {
     };
     const signature = segments.map(segment => {
       const stage = activeCaptureIds.has(segment.id) ? 'capturing' : segment.status;
+      const explicit = Number(segment.local_progress);
       const local = stage === 'capturing'
-        ? Math.max(0, Math.min(1, (fileCursor - Number(segment.start_ms || 0)) / Math.max(1, Number(segment.end_ms || 0) - Number(segment.start_ms || 0))))
+        ? Math.max(0, Math.min(1, Number.isFinite(explicit) ? explicit : (fileCursor - Number(segment.start_ms || 0)) / Math.max(1, Number(segment.end_ms || 0) - Number(segment.start_ms || 0))))
         : stage === 'queued' ? 0.30 : stage === 'transcribing' ? 0.70 : ['ready', 'error'].includes(stage) ? 1 : 0;
       return `${segment.id}:${stage}:${Math.round(local * 20)}`;
     }).join('|');
@@ -306,8 +339,9 @@ function render() {
       const fragment = document.createDocumentFragment();
       for (const segment of segments) {
         const stage = activeCaptureIds.has(segment.id) ? 'capturing' : segment.status;
+        const explicit = Number(segment.local_progress);
         const local = stage === 'capturing'
-          ? Math.max(0.04, Math.min(0.98, (fileCursor - Number(segment.start_ms || 0)) / Math.max(1, Number(segment.end_ms || 0) - Number(segment.start_ms || 0))))
+          ? Math.max(0.04, Math.min(0.98, Number.isFinite(explicit) ? explicit : (fileCursor - Number(segment.start_ms || 0)) / Math.max(1, Number(segment.end_ms || 0) - Number(segment.start_ms || 0))))
           : stage === 'queued' ? 0.30 : stage === 'transcribing' ? 0.70 : ['ready', 'error'].includes(stage) ? 1 : 0;
         const cell = document.createElement('span');
         cell.className = `chunk-cell state-${stage}`;
@@ -706,7 +740,7 @@ async function transcribeJob(job) {
     if (session?.id === target.id) render();
 
     let lastError = null;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
       try {
         if (deletedSessionIds.has(target.id)) return;
         segment.attempt = attempt;
@@ -722,7 +756,15 @@ async function transcribeJob(job) {
           audio_chunk_id: segment.audio_key, language: CAPTURE_CONFIG.language, locale: CAPTURE_CONFIG.locale
         };
         for (const [key, value] of Object.entries(values)) form.append(key, String(value));
-        const response = await fetch(TRANSCRIBE_URL, { method: 'POST', body: form });
+        await waitForBackendSlot();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
+        let response;
+        try {
+          response = await fetch(TRANSCRIBE_URL, { method: 'POST', body: form, signal: controller.signal });
+        } finally {
+          clearTimeout(timeout);
+        }
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.ok) {
           const error = Object.assign(new Error(data.detail || data.error || `Transcripción ${response.status}`), { status: response.status });
@@ -737,15 +779,23 @@ async function transcribeJob(job) {
         segment.quality = data.quality || quality;
         segment.error = null;
         segment.finished_processing_at = nowISO();
+        segment.local_progress = 1;
         await persistSessionObject(target);
+        if (target.kind === 'file' && segment.audio_key) {
+          const completedChunkKey = segment.audio_key;
+          await dbDelete(BLOB_STORE, completedChunkKey).catch(() => {});
+          segment.audio_key = null;
+          segment.chunk_evicted = true;
+          await persistSessionObject(target);
+        }
         if (session?.id === target.id) render();
         return;
       } catch (error) {
         lastError = error;
         const status = Number(error?.status || 0);
         const transient = !error?.nonRetryable && (!status || status === 429 || status >= 500);
-        if (transient && attempt < 2) {
-          await sleep(1400 * (2 ** attempt));
+        if (transient && attempt < 4) {
+          await sleep(Math.min(16000, 1800 * (2 ** attempt)));
           continue;
         }
         break;
@@ -791,7 +841,7 @@ async function finishAfterQueue() {
   setState('MERGING');
   await saveSession();
   const errors = session.segments.filter(s => s.status === 'error').length;
-  const pending = session.segments.filter(s => ['pending', 'queued', 'transcribing'].includes(s.status)).length;
+  const pending = session.segments.filter(s => ['pending', 'extracting', 'queued', 'transcribing'].includes(s.status)).length;
   if (errors || pending) {
     session.last_error = errors
       ? `${errors} fragmento${errors === 1 ? '' : 's'} quedó pendiente. Podés reintentarlo sin reprocesar lo que ya salió bien.`
@@ -825,6 +875,25 @@ async function probeAudio(file) {
   });
 }
 
+async function probeAudioWithToolkit(file) {
+  const { Input, ALL_FORMATS, BlobSource } = await loadMediaToolkit();
+  const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(file) });
+  const duration = Number(await input.computeDuration());
+  if (!Number.isFinite(duration) || duration <= 0) throw new Error('No pude determinar la duración del archivo.');
+  return Math.round(duration * 1000);
+}
+
+async function probeAudioAny(file) {
+  try {
+    return await probeAudio(file);
+  } catch (mediaElementError) {
+    try {
+      return await probeAudioWithToolkit(file);
+    } catch (toolkitError) {
+      throw new Error('No pude abrir este audio: ' + (toolkitError?.message || mediaElementError?.message || 'formato no compatible'));
+    }
+  }
+}
 async function handleFile(file) {
   if (!file || fileRuntime || ACTIVE_MIC_STATES.has(uiState) || uiState === 'PAUSED') return;
   const source = { kind: 'file', name: file.name, mime_type: file.type || 'application/octet-stream', size: file.size, ref: null, persisted: false };
@@ -837,7 +906,7 @@ async function handleFile(file) {
   await requestDurableStorage();
 
   try {
-    if (!sameInterrupted || !session.duration_ms) session.duration_ms = await probeAudio(file);
+    if (!sameInterrupted || !session.duration_ms) session.duration_ms = await probeAudioAny(file);
     if (!sameInterrupted || !session.segments.length) {
       session.segments = planWindows(session.duration_ms, FILE_CAPTURE_CONFIG)
         .map(segment => ({ ...segment, id: uuid(), audio_key: null, created_at: nowISO(), attempt: 0 }));
@@ -875,9 +944,120 @@ async function waitForEvent(target, name, timeout = 10000) {
   });
 }
 
-async function processFile(file) {
+async function makeCanonicalWavChunk(file, segment) {
+  const { Input, ALL_FORMATS, BlobSource, Output, BufferTarget, WavOutputFormat, Conversion } = await loadMediaToolkit();
+  const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(file) });
+  const track = await input.getPrimaryAudioTrack();
+  if (!track) throw new Error('El archivo no contiene una pista de audio.');
+  if (!(await track.canDecode())) throw new Error('El navegador no puede decodificar el códec de este archivo.');
+
+  const target = new BufferTarget();
+  const output = new Output({ format: new WavOutputFormat(), target });
+  const conversion = await Conversion.init({
+    input,
+    output,
+    tracks: 'primary',
+    audio: {
+      numberOfChannels: 1,
+      sampleRate: 16000,
+      sampleFormat: 's16',
+      forceTranscode: true
+    },
+    trim: {
+      start: Number(segment.start_ms || 0) / 1000,
+      end: Number(segment.end_ms || 0) / 1000
+    },
+    copy: false,
+    tags: {},
+    showWarnings: false
+  });
+  if (!conversion.isValid) throw new Error('No pude convertir esta pista a audio canónico.');
+  conversion.onProgress = progress => {
+    if (!session) return;
+    const p = Math.max(0, Math.min(1, Number(progress || 0)));
+    segment.local_progress = p;
+    session.file_cursor_ms = Math.round(segment.start_ms + (segment.end_ms - segment.start_ms) * p);
+    render();
+  };
+  await conversion.execute();
+  const buffer = target.buffer;
+  if (!buffer || buffer.byteLength < 256) throw new Error('El recorte canónico quedó vacío.');
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+async function processFileDecoded(file) {
   if (!session || session.kind !== 'file') return;
-  if (!window.AudioContext && !window.webkitAudioContext) throw new Error('Este navegador no ofrece Web Audio para procesar el archivo en ventanas.');
+  for (const segment of session.segments) {
+    if (segment.status === 'extracting') segment.status = 'pending';
+    if (['queued', 'transcribing'].includes(segment.status) && segment.audio_key) {
+      segment.status = 'queued';
+      enqueueSegment(segment.id);
+    }
+  }
+
+  const pendingCapture = session.segments
+    .filter(s => s.status === 'pending' && !s.audio_key)
+    .sort((a, b) => a.start_ms - b.start_ms);
+  if (!pendingCapture.length) {
+    setState('CANONICALIZING', 'Terminando bloques guardados…');
+    await saveSession();
+    await queue.whenIdle();
+    return finishAfterQueue();
+  }
+
+  setState('TRANSCRIBING_FILE', 'Decodificando y normalizando el archivo…');
+  await saveSession();
+  for (const segment of pendingCapture) {
+    if (!session || session.kind !== 'file') return;
+    while (queue.running + queue.pending.length >= 4) await sleep(250);
+    segment.status = 'extracting';
+    segment.local_progress = 0;
+    session.file_cursor_ms = segment.start_ms;
+    stateDetail = 'Preparando parte ' + segment.seq + ' de ' + session.segments.length + '…';
+    await saveSession();
+
+    const blob = await makeCanonicalWavChunk(file, segment);
+    if (blob.size > 24 * 1024 * 1024) throw new Error('Un recorte canónico superó el límite de tamaño.');
+    const key = 'chunk:' + session.id + ':' + segment.id;
+    await persistBlob(key, blob);
+    segment.audio_key = key;
+    segment.mime_type = 'audio/wav';
+    segment.byte_size = blob.size;
+    segment.status = 'queued';
+    segment.error = null;
+    segment.local_progress = 1;
+    session.file_cursor_ms = segment.end_ms;
+    await saveSession();
+    enqueueSegment(segment.id);
+  }
+
+  setState('CANONICALIZING', 'Todos los recortes están preparados · terminando transcripciones…');
+  await saveSession();
+  await queue.whenIdle();
+  await finishAfterQueue();
+}
+
+async function processFile(file) {
+  try {
+    await processFileDecoded(file);
+  } catch (decodedError) {
+    if (!session || session.kind !== 'file') throw decodedError;
+    for (const segment of session.segments) {
+      if (segment.status === 'extracting') {
+        segment.status = 'pending';
+        segment.local_progress = 0;
+      }
+    }
+    session.status_detail = 'El decodificador directo no estuvo disponible; usando compatibilidad en tiempo real…';
+    await saveSession();
+    return processFileRealtimeFallback(file, decodedError);
+  }
+}
+
+async function processFileRealtimeFallback(file, decodedError = null) {
+  if (!session || session.kind !== 'file') return;
+  if (decodedError) session.decoder_fallback = cleanText(decodedError?.message || decodedError, 500);
+  if (!window.AudioContext && !window.webkitAudioContext) throw new Error('No pude decodificar el archivo y este navegador tampoco ofrece la ruta de compatibilidad Web Audio.');
   if (!window.MediaRecorder) throw new Error('Este navegador no ofrece MediaRecorder para procesar el archivo.');
   if (fileRuntime) await stopFileRuntime();
 
@@ -902,6 +1082,8 @@ async function processFile(file) {
   audio.src = objectUrl;
   audio.preload = 'auto';
   audio.playsInline = true;
+  audio.defaultMuted = true;
+  audio.muted = true;
   const context = new AudioContextClass();
   const source = context.createMediaElementSource(audio);
   const destination = context.createMediaStreamDestination();
@@ -1081,6 +1263,10 @@ async function restoreLastSession() {
   if (!session) { setState('IDLE'); return; }
   for (const segment of session.segments || []) {
     if (segment.status === 'transcribing') segment.status = 'queued';
+    if (segment.status === 'extracting') {
+      segment.status = 'pending';
+      segment.local_progress = 0;
+    }
   }
   if (['RECORDING', 'LIVE_TRANSCRIBING', 'PAUSED', 'REQUESTING_MIC', 'TRANSCRIBING_FILE', 'UPLOADING_FILE', 'CANONICALIZING', 'MERGING'].includes(session.status)) {
     session.interrupted = true;

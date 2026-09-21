@@ -11,9 +11,10 @@ export const CAPTURE_CONFIG = Object.freeze({
 
 export const FILE_CAPTURE_CONFIG = Object.freeze({
   ...CAPTURE_CONFIG,
-  stepMs: 145000,
+  windowMs: 90000,
+  stepMs: 85000,
   overlapMs: 5000,
-  captureVersion: 'file-canonical-v3-overlap5s'
+  captureVersion: 'file-canonical-v4-wav16k-overlap5s'
 });
 
 export function cleanText(value, limit = 200000) {
