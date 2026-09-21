@@ -16,22 +16,41 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe clean Pinterest search
+      - name: Probe clean preset Pin resolver
         shell: bash
         run: |
           set -euo pipefail
-          URL='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1?q=black%20and%20white%20cat%20drawing&limit=5&k=pql-v1-7f2b9e31'
-          body="$(curl --fail --silent --show-error --max-time 25 "$URL")"
-          printf '%s' "$body" > /tmp/result.json
+          URL='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1?pins=263671753178772450,561894491029428460,441775044713130835,563018698218327,750553094174053609&k=pql-v1-7f2b9e31'
+          body="$(curl --fail --silent --show-error --max-time 35 "$URL")"
+          printf '%s' "$body" > /tmp/preset.json
           node - <<'NODE'
           const fs=require('fs');
-          const data=JSON.parse(fs.readFileSync('/tmp/result.json','utf8'));
+          const data=JSON.parse(fs.readFileSync('/tmp/preset.json','utf8'));
           if(!data.ok) throw new Error(JSON.stringify(data));
-          if(!Array.isArray(data.results) || data.results.length<5) throw new Error('expected >=5 results');
-          for(const item of data.results.slice(0,5)){
+          if(!Array.isArray(data.results) || data.results.length!==5) throw new Error('expected exactly 5 preset results');
+          for(const item of data.results){
+            if(!/^https:\/\/i\.pinimg\.com\//.test(item.image)) throw new Error('non-pinterest image: '+item.image);
+            if(!/^https:\/\/www\.pinterest\.com\/pin\//.test(item.source_url)) throw new Error('missing exact Pin source');
+          }
+          console.log(JSON.stringify({ok:true,provider:data.provider,count:data.results.length},null,2));
+          NODE
+
+      - name: Probe free-text search
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/pinterest-image-search-v1?q=black%20and%20white%20cat%20drawing&limit=10&k=pql-v1-7f2b9e31'
+          body="$(curl --fail --silent --show-error --max-time 35 "$URL")"
+          printf '%s' "$body" > /tmp/search.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const data=JSON.parse(fs.readFileSync('/tmp/search.json','utf8'));
+          if(!data.ok) throw new Error(JSON.stringify(data));
+          if(!Array.isArray(data.results) || data.results.length<1) throw new Error('expected at least one search result');
+          for(const item of data.results){
             if(!/^https:\/\/i\.pinimg\.com\//.test(item.image)) throw new Error('non-pinterest image: '+item.image);
           }
-          console.log(JSON.stringify({ok:true,query:data.query,provider:data.provider,count:data.results.length},null,2));
+          console.log(JSON.stringify({ok:true,provider:data.provider,count:data.results.length},null,2));
           NODE
 
       - name: Probe served GitHub Pages UI
@@ -44,6 +63,7 @@ jobs:
             if printf '%s' "$page" | grep -q 'id="searchForm"' \
               && printf '%s' "$page" | grep -q 'pinterest-image-search-v1' \
               && printf '%s' "$page" | grep -q 'Sin botón rojo' \
+              && printf '%s' "$page" | grep -q 'pins:\["263671753178772450"' \
               && ! printf '%s' "$page" | grep -q '<iframe'; then
               echo "served UI verified"
               exit 0
