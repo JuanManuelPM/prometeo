@@ -164,7 +164,7 @@
 137. **[DISENADO] Cap de 90% en trabajos activos.** No considerar completo algo no publicado.
 138. **[HECHO] ETA sin IA.** `pages/forge-blueprint/` calcula en navegador presupuesto ponderado restante / throughput observado con datos existentes y sin llamada a IA.
 139. **[HECHO] Usar timestamps Supabase.** `blueprint_publish` calcula `elapsed_ms` con `now()-lease_started_at` y persiste `completed_at=now()`; outputs y eventos usan timestamps server-side, sin estimaciones de workers.
-140. **[DISENADO] Arranque con histórico.** Usar runs anteriores antes de tener muestras suficientes.
+140. **[HECHO] Arranque con histórico.** Usar runs anteriores antes de tener muestras suficientes.
 141. **[DISENADO] Migrar a datos del run actual.** La estimación se adapta automáticamente.
 142. **[DISENADO] Usar mediana.** Reducir sensibilidad a outliers.
 143. **[DISENADO] Duración por fase.** Aprender tiempos distintos para Architect, Development, etc.
