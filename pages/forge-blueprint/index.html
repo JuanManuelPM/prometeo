@@ -191,6 +191,55 @@ function activeJobWeight(j,now=Date.now()){
  const elapsed=Math.max(0,now-new Date(j.started_at).getTime());
  return jobWeight(j)*Math.min(.9,elapsed/expected);
 }
+function simulateScheduler(now=Date.now()){
+ const configured=Math.max(1,Number(D.project?.expected_workers)||0);
+ const observed=D.workers.filter(w=>w.status!=='NO_WORK').length;
+ const capacity=Math.max(1,observed||configured);
+ const lanes=Array.from({length:capacity},()=>now);
+ const pointState=new Map(),remainingByPoint=new Map();
+ for(const p of D.points){
+  const jobs=pointJobs(p.point_no).filter(j=>j.status!=='DONE');
+  if(!jobs.length)continue;
+  remainingByPoint.set(p.point_no,jobs);
+  pointState.set(p.point_no,{index:0,readyAt:now});
+ }
+ const active=D.jobs.filter(j=>j.status==='LEASED'&&j.started_at);
+ if(active.length>capacity)return null;
+ for(const j of active){
+  const expected=expectedJobMs(j);if(!expected)return null;
+  const elapsed=Math.max(0,now-new Date(j.started_at).getTime());
+  const remaining=Math.max(expected*.1,expected-elapsed);
+  let lane=0;for(let i=1;i<lanes.length;i++)if(lanes[i]<lanes[lane])lane=i;
+  const finish=now+remaining;lanes[lane]=finish;
+  const state=pointState.get(j.point_no),seq=remainingByPoint.get(j.point_no)||[];
+  const idx=seq.findIndex(x=>x.phase===j.phase);
+  if(state&&idx>=0){state.index=idx+1;state.readyAt=finish}
+ }
+ let unscheduled=0;
+ for(const [point,seq] of remainingByPoint){
+  const state=pointState.get(point);
+  unscheduled+=Math.max(0,seq.length-(state?.index||0));
+ }
+ while(unscheduled>0){
+  let best=null;
+  for(const [point,seq] of remainingByPoint){
+   const state=pointState.get(point);if(!state||state.index>=seq.length)continue;
+   const job=seq[state.index];
+   if(job.status==='LEASED')return null;
+   let lane=0;for(let i=1;i<lanes.length;i++)if(lanes[i]<lanes[lane])lane=i;
+   const start=Math.max(state.readyAt,lanes[lane]);
+   if(!best||start<best.start)best={point,state,job,lane,start};
+  }
+  if(!best)return null;
+  const duration=expectedJobMs(best.job);if(!duration)return null;
+  const finish=best.start+duration;
+  lanes[best.lane]=finish;
+  best.state.readyAt=finish;
+  best.state.index++;
+  unscheduled--;
+ }
+ return Math.max(0,Math.max(...lanes)-now);
+}
 function estimator(){
  const total=D.jobs.reduce((a,j)=>a+jobWeight(j),0);
  const done=D.jobs.filter(j=>j.status==='DONE').reduce((a,j)=>a+jobWeight(j),0);
@@ -200,15 +249,19 @@ function estimator(){
  const progress=total?Math.min(1,effective/total):0;
  if(!total)return {progress:0,eta:null,ready:false,partial:0,source:null};
  if(D.project?.status==='DONE'||done>=total)return {progress:1,eta:0,ready:true,partial:0,source:'current'};
+ const simulatedEta=simulateScheduler();
  if(!D.project?.started_at||doneJobs<3||done<=0){
   const rate=median(historyRates);
-  const eta=rate>0?(total-effective)/rate:null;
-  return {progress,eta,ready:Number.isFinite(eta),partial,source:Number.isFinite(eta)?'history':null};
+  const fallbackEta=rate>0?(total-effective)/rate:null;
+  const eta=Number.isFinite(simulatedEta)?simulatedEta:fallbackEta;
+  const source=Number.isFinite(simulatedEta)?'scheduler':(Number.isFinite(fallbackEta)?'history':null);
+  return {progress,eta,ready:Number.isFinite(eta),partial,source};
  }
  const elapsed=Math.max(1,Date.now()-new Date(D.project.started_at).getTime());
  const rate=done/elapsed;
- const eta=rate>0?(total-effective)/rate:null;
- return {progress,eta,ready:Number.isFinite(eta),partial,source:'current'};
+ const fallbackEta=rate>0?(total-effective)/rate:null;
+ const eta=Number.isFinite(simulatedEta)?simulatedEta:fallbackEta;
+ return {progress,eta,ready:Number.isFinite(eta),partial,source:Number.isFinite(simulatedEta)?'scheduler':'current'};
 }
 function phaseName(p){return ['','Arquitectura','Desarrollo','Adversarial','Canónico','Aprendizaje'][p]}
 function renderWorkers(){
@@ -332,7 +385,7 @@ function renderStats(){
  $('progressW').textContent=pct;
  $('progressMetric').title='Ponderado por midpoint de min_words/max_words. DONE suma 100%; LEASED aporta estimación temporal basada en duración histórica, con cap 90%.';
  $('eta').textContent=est.eta===0?'listo':(est.ready?fmt(est.eta):'—');
- $('etaMetric').title=est.ready?(est.source==='history'?'ETA inicial desde '+historyRuns+' run(s) histórico(s) completado(s); migra al run actual al llegar a 3 jobs DONE.':'ETA = presupuesto ponderado restante / throughput ponderado observado desde started_at.'):'Sin muestras actuales suficientes ni runs históricos completados.';
+ $('etaMetric').title=est.ready?(est.source==='scheduler'?'ETA = simulación JavaScript de cola restante: cadenas por punto, capacidad de workers, jobs activos y duraciones observadas.':est.source==='history'?'ETA inicial desde '+historyRuns+' run(s) histórico(s) completado(s); migra al run actual al llegar a evidencia suficiente.':'ETA fallback = presupuesto ponderado restante / throughput DONE observado desde started_at.'):'Sin evidencia temporal suficiente para proyectar.';
  $('active').textContent=D.jobs.filter(x=>x.status==='LEASED').length;
  $('rescues').textContent=D.jobs.reduce((a,x)=>a+(x.rescue_count||0),0);
  let ms=0;if(p?.started_at)ms=new Date(p.finished_at||Date.now())-new Date(p.started_at);
