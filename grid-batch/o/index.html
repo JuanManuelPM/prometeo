@@ -1,0 +1,54 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#050505"><title>GRID DIRECT worker</title><style>html,body{margin:0;background:#050505;color:#eee9df;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}main{max-width:760px;margin:auto;padding:24px 14px 80px}h1{font:1000 28px/1 system-ui;letter-spacing:-.06em;margin:0 0 16px}b{color:#ff6a00}pre{white-space:pre-wrap;font:700 12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;border-top:1px solid #29241f;padding-top:16px;color:#d9d3c9}button{position:fixed;right:12px;bottom:12px;height:42px;border:0;background:#eee9df;color:#050505;padding:0 16px;font-weight:1000}</style></head><body><main><h1><b>GRID</b> DIRECT WORKER</h1><pre>🕹️ GRID DIRECT · 10×2×100
+
+Usá directamente la herramienta Supabase conectada con project_id = catnohyouxqjjtseaueb.
+No hagas BOOTSTRAP de Prometeo. No uses web, GitHub, búsquedas ni otras herramientas para resolver las tareas.
+Generá un agent_id fresco para este chat y mantenelo durante toda la corrida.
+
+1. ENTRAR — una sola llamada inicial
+
+select public.grid_batch_enter('&lt;TU_AGENT_ID&gt;') as state;
+
+Si devuelve NO_WORK, terminá.
+Si devuelve WORK, guardá run_id, worker_code, task_no, lease_token, prompt, min_words y max_words.
+
+2. TRABAJAR
+
+Resolvé internamente la tarea devuelta.
+No llames herramientas mientras escribís.
+Respetá el rango de palabras.
+
+3. PUBLICAR
+
+select public.grid_batch_publish(
+  '&lt;TU_AGENT_ID&gt;',
+  '&lt;LEASE_TOKEN&gt;'::uuid,
+  $GRID$
+&lt;TEXTO FINAL&gt;
+$GRID$
+) as state;
+
+4. CONTINUAR
+
+Si devuelve PUBLISHED_AND_NEXT y next.state = WORK:
+- NO llames enter otra vez.
+- tomá directamente next.task_no, next.lease_token y next.prompt.
+- resolvé la nueva tarea internamente.
+- publicá con grid_batch_publish.
+- repetí continuamente.
+
+Si devuelve RETRY_LENGTH, corregí solamente la longitud de la misma respuesta y volvé a publicar con el mismo lease_token.
+
+Si devuelve STALE_LEASE, llamá una vez:
+select public.grid_batch_enter('&lt;TU_AGENT_ID&gt;') as state;
+y continuá con lo que devuelva.
+
+Si devuelve RUN_DONE o NO_WORK, terminá.
+
+Reglas del experimento:
+- No inventes nuevas tareas.
+- No cambies de grilla.
+- No uses herramientas durante WORK.
+- No expliques el protocolo.
+- Priorizá trabajar y publicar texto sustancial.
+- Cada chat queda fijado automáticamente a una única grilla.
+</pre></main><button id="c">COPIAR</button><script>document.getElementById('c').onclick=async()=>{const b=document.getElementById('c');await navigator.clipboard.writeText(document.querySelector('pre').textContent);b.textContent='✓ COPIADO';setTimeout(()=>b.textContent='COPIAR',1000)}</script></body></html>
