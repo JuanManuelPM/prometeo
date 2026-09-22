@@ -7,9 +7,9 @@
 - Total de ítems: **253**
 - HECHO: **83**
 - CONCLUSION: **5**
-- DISENADO: **111**
+- DISENADO: **112**
 - DESCUBRIMIENTO: **3**
-- PENDIENTE: **42**
+- PENDIENTE: **41**
 - CONCEPTO: **1**
 - OBJETIVO: **8**
 
