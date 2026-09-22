@@ -115,7 +115,7 @@ declare
   v_good_check jsonb;
   v_reused_check jsonb;
   v_dirty_check jsonb;
-  v_bundle jsonb;
+  v_version_count integer;
 begin
   v_input := jsonb_build_object(
     'run_kind','FORGE_GOAL',
@@ -153,13 +153,14 @@ begin
   v_good_check := public.forge_create_real_run_result_validate(v_input,v_good);
   v_reused_check := public.forge_create_real_run_result_validate(v_input,v_reused);
   v_dirty_check := public.forge_create_real_run_result_validate(v_input,v_dirty);
-  v_bundle := public.forge_skill_execution_bundle('CREATE_REAL_RUN',1);
+  select count(*) into v_version_count
+  from public.forge_skill_versions
+  where skill_id='CREATE_REAL_RUN' and version_no=1;
 
   if v_good_check->>'state' <> 'REAL_RUN_VIRGINITY_VALID'
      or v_reused_check->>'state' <> 'RUN_ID_ALREADY_EXISTS'
      or v_dirty_check->>'state' <> 'RUN_VIRGINITY_CONTAMINATED'
-     or coalesce((v_bundle->>'ok')::boolean,false) is not true
-     or v_bundle->>'authority_granted' <> 'false'
+     or v_version_count <> 1
   then
     raise exception 'BACKLOG-193 CREATE_REAL_RUN smoke failed';
   end if;
@@ -170,11 +171,10 @@ begin
     'fresh_fixture','PASS',
     'reused_id_guard','PASS',
     'contamination_guard','PASS',
-    'execution_bundle','PASS',
+    'version_present','PASS',
     'authority_granted',false,
     'skill_id','CREATE_REAL_RUN',
-    'version_no',1,
-    'definition_hash',v_bundle->>'definition_hash'
+    'version_no',1
   );
 end;
 $$;
@@ -324,4 +324,21 @@ begin
 end;
 $$;
 
-select public.forge_create_real_run_skill_smoke_test();
+do $
+declare
+  v_bundle jsonb;
+begin
+  v_bundle := public.forge_skill_execution_bundle('CREATE_REAL_RUN',1);
+  if coalesce((v_bundle->>'ok')::boolean,false) is not true
+     or v_bundle->>'maturity_state' <> 'ACCEPTED'
+     or v_bundle->>'authority_granted' <> 'false'
+  then
+    raise exception 'BACKLOG-193 accepted execution bundle failed: %',v_bundle;
+  end if;
+end;
+$;
+
+select jsonb_build_object(
+  'smoke',public.forge_create_real_run_skill_smoke_test(),
+  'bundle',public.forge_skill_execution_bundle('CREATE_REAL_RUN',1)
+);
