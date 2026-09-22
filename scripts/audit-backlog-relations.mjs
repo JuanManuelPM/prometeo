@@ -19,8 +19,17 @@ export function normalizeBacklogText(value) {
 }
 
 function stemToken(token) {
-  if (token.length > 6 && token.endsWith('es')) return token.slice(0, -2);
-  if (token.length > 5 && token.endsWith('s')) return token.slice(0, -1);
+  const suffixes = [
+    'amientos','imientos','amiento','imiento',
+    'aciones','adores','adoras','acion','ador','adora',
+    'ados','adas','idos','idas','ado','ada','ido','ida',
+    'mente','es','s'
+  ];
+  for (const suffix of suffixes) {
+    if (!token.endsWith(suffix)) continue;
+    const root = token.slice(0, -suffix.length);
+    if (root.length >= 4) return root;
+  }
   return token;
 }
 
