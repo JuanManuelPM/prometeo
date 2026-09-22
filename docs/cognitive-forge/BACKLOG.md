@@ -229,7 +229,7 @@
 202. **[DISENADO] Versionado de Skills.** Mantener versiones e historial.
 203. **[DISENADO] Comparar Skill nueva vs anterior.** Probar sobre casos conocidos antes de promoción.
 204. **[DISENADO] SUPERSEDED en vez de borrar.** Preservar historia y trazabilidad.
-205. **[PENDIENTE] Banco de regresión para Skills.** Casos reutilizables para probar nuevas versiones.
+205. **[DISENADO] Banco de regresión para Skills.** Casos reutilizables para probar nuevas versiones. Spec ejecutable: `docs/cognitive-forge/BACKLOG-205-SKILL-REGRESSION-BANK-SPEC.md`.
 206. **[PENDIENTE] Trazar qué Skill produjo qué acción.** Observabilidad del procedimiento usado.
 207. **[DISENADO] Deep Skill ABSTRAER EL PROCEDIMIENTO.** Extraer el método reusable detrás de una solución.
 208. **[DISENADO] Deep Skill CONSEJO DE PERSPECTIVAS.** Analizar desde empresario, IT, automatización, operaciones, UX, seguridad y otros roles.
