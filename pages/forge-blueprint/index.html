@@ -156,18 +156,37 @@ function jobWeight(j){
  const lo=Number(j.min_words)||0,hi=Number(j.max_words)||0;
  return Math.max(1,lo&&hi?(lo+hi)/2:(hi||lo||1));
 }
+function median(xs){const a=xs.filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return null;const m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2}
+function expectedJobMs(j){
+ const same=D.outputs.filter(o=>o.phase===j.phase&&Number(o.elapsed_ms)>0).map(o=>Number(o.elapsed_ms));
+ const phaseMedian=median(same);if(phaseMedian)return phaseMedian;
+ const normalized=D.outputs.filter(o=>Number(o.elapsed_ms)>0).map(o=>{
+  const source=D.jobs.find(x=>x.point_no===o.point_no&&x.phase===o.phase);
+  return source?Number(o.elapsed_ms)/jobWeight(source):NaN;
+ });
+ const msPerWeight=median(normalized);
+ return msPerWeight?msPerWeight*jobWeight(j):null;
+}
+function activeJobWeight(j,now=Date.now()){
+ if(j.status!=='LEASED'||!j.started_at)return 0;
+ const expected=expectedJobMs(j);if(!expected||expected<=0)return 0;
+ const elapsed=Math.max(0,now-new Date(j.started_at).getTime());
+ return jobWeight(j)*Math.min(.9,elapsed/expected);
+}
 function estimator(){
  const total=D.jobs.reduce((a,j)=>a+jobWeight(j),0);
  const done=D.jobs.filter(j=>j.status==='DONE').reduce((a,j)=>a+jobWeight(j),0);
+ const partial=D.jobs.reduce((a,j)=>a+activeJobWeight(j),0);
  const doneJobs=D.jobs.filter(j=>j.status==='DONE').length;
- const progress=total?Math.min(1,done/total):0;
- if(!total)return {progress:0,eta:null,ready:false};
- if(D.project?.status==='DONE'||done>=total)return {progress:1,eta:0,ready:true};
- if(!D.project?.started_at||doneJobs<3||done<=0)return {progress,eta:null,ready:false};
+ const effective=Math.min(total,done+partial);
+ const progress=total?Math.min(1,effective/total):0;
+ if(!total)return {progress:0,eta:null,ready:false,partial:0};
+ if(D.project?.status==='DONE'||done>=total)return {progress:1,eta:0,ready:true,partial:0};
+ if(!D.project?.started_at||doneJobs<3||done<=0)return {progress,eta:null,ready:false,partial};
  const elapsed=Math.max(1,Date.now()-new Date(D.project.started_at).getTime());
  const rate=done/elapsed;
- const eta=rate>0?(total-done)/rate:null;
- return {progress,eta,ready:Number.isFinite(eta)};
+ const eta=rate>0?(total-effective)/rate:null;
+ return {progress,eta,ready:Number.isFinite(eta),partial};
 }
 function phaseName(p){return ['','Arquitectura','Desarrollo','Adversarial','Canónico','Aprendizaje'][p]}
 function renderWorkers(){
@@ -289,7 +308,7 @@ function renderStats(){
  $('jobsTotal').textContent=D.jobs.length||420;
  const est=estimator(),pct=(est.progress*100).toFixed(1)+'%';
  $('progressW').textContent=pct;
- $('progressMetric').title='Ponderado por el midpoint de min_words/max_words de cada job; sólo DONE suma progreso.';
+ $('progressMetric').title='Ponderado por midpoint de min_words/max_words. DONE suma 100%; LEASED aporta estimación temporal basada en duración histórica, con cap 90%.';
  $('eta').textContent=est.eta===0?'listo':(est.ready?fmt(est.eta):'—');
  $('etaMetric').title=est.ready?'ETA = presupuesto ponderado restante / throughput ponderado observado desde started_at.':'ETA aparece después de al menos 3 jobs DONE.';
  $('active').textContent=D.jobs.filter(x=>x.status==='LEASED').length;
