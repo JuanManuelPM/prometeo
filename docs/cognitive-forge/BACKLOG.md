@@ -42,7 +42,7 @@
 15. **[CONCLUSION] La cola dejó de ser el límite principal.** Ahora importa más profundidad, duración y estructura del trabajo que la cantidad bruta de jobs.
 16. **[CONCLUSION] Aumentar densidad cognitiva.** Conviene enriquecer cada tarea en vez de sólo multiplicar tareas.
 17. **[DISENADO] Tareas largas como secuencias cognitivas.** Observar, modelar, criticar, reconstruir, especificar y verificar.
-18. **[DISENADO] Presupuestos de palabras por operación.** Evitar pedir miles de palabras sin función; repartir longitud entre operaciones mentales distintas.
+18. **[DISENADO] Presupuestos de palabras por operación.** `budget.operation_allocations` reparte min/target/max_words y propósito por operación; enforcement/receipts runtime están delegados a `FOLLOWUP-B223-RUNTIME-CONTRACT-ENFORCEMENT`.
 19. **[DISENADO] Transferencia entre workers.** Un worker produce y otro continúa, critica o verifica.
 20. **[DISENADO] Blind reconstruction.** Un worker ve la referencia; otro recibe sólo su descripción para medir pérdida de información.
 21. **[HECHO] Cognitive Forge FORGE-8-01.** Creamos un Goal sin cola preescrita.
