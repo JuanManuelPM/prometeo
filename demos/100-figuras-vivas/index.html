@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>100 figuras vivas</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff;color:#000}
+body{font-family:Arial,Helvetica,sans-serif;touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;background:#fff;touch-action:none}
+.controls{
+  position:fixed;top:max(8px,env(safe-area-inset-top));right:8px;z-index:2;
+  display:flex;gap:6px;opacity:.88;transition:opacity .2s;
+}
+.controls:hover,.controls:focus-within{opacity:1}
+button{
+  appearance:none;border:2px solid #000;background:#fff;color:#000;
+  padding:7px 9px;font:700 10px/1 Arial,Helvetica,sans-serif;
+  letter-spacing:.04em;cursor:pointer
+}
+button:active{background:#000;color:#fff}
+.note{
+  position:fixed;left:8px;bottom:max(7px,env(safe-area-inset-bottom));z-index:2;
+  font:700 9px/1 Arial,Helvetica,sans-serif;background:#fff;color:#000;padding:4px 5px;
+  opacity:.58;pointer-events:none
+}
+@media(max-width:520px){
+  button{padding:6px 7px;font-size:9px}
+  .note{font-size:8px}
+}
+</style>
+</head>
+<body>
+<canvas id="world" aria-label="Cien figuras pixeladas moviéndose libremente"></canvas>
+<div class="controls">
+  <button id="order">ORDENAR</button>
+  <button id="pause">PAUSA</button>
+</div>
+<div class="note">ARRASTRÁ CUALQUIERA</div>
+<script>
+(() => {
+"use strict";
+
+const RAW = [[0,0,528,288,1008,4092,7902,8190,4092,7710,4626,0,0,0],[0,528,288,480,1008,5850,6138,8190,3084,3560,1560,1560,0,0],[0,0,480,1008,5850,7902,7902,4092,2040,1688,1688,0,0,0],[0,528,528,1008,480,480,1512,1512,880,2040,2040,720,656,0],[0,0,816,496,2040,3804,8190,8190,7182,7654,3084,3084,0,0],[0,0,480,1008,2040,1224,2040,5106,4092,2044,288,816,0,0],[0,0,1560,784,304,2040,2040,1752,8190,8190,3372,3372,0,0],[0,528,1008,2040,3564,7470,8190,1008,1560,1560,3084,2052,0,0],[0,128,448,960,992,864,3960,4088,5092,8188,4088,1712,1712,0],[0,448,320,2032,2032,1168,4088,6132,2032,2032,2032,1168,1168,0],[0,0,528,288,4578,8186,7902,2040,2040,1008,816,1848,0,0],[0,192,480,1008,1848,1848,6138,6138,8190,816,816,816,0,0],[0,0,6150,5090,8190,3804,3804,2040,1008,528,1560,0,0,0],[0,1560,1584,992,2040,8190,6350,7630,8190,1848,1008,3608,3612,0],[0,1552,1584,864,480,4092,5090,992,560,1584,1584,1584,0,0],[0,0,1032,528,1008,2040,3804,8190,7182,3084,3060,2580,0,0],[0,192,1512,2040,816,1008,1512,1512,1008,480,352,352,352,0],[0,480,288,480,4092,6630,6646,7998,4092,2040,1008,1560,1560,0],[0,128,448,448,2032,2032,3224,4088,8188,6156,4088,4092,6156,0],[0,992,2032,2376,2032,992,992,1008,1592,1056,1056,1120,3168,0],[0,0,528,288,1008,4092,4092,8190,6150,4092,1560,0,0,0],[0,192,1008,2040,4092,4092,6438,6438,8190,8190,3372,3372,3372,0],[0,1032,1032,2040,2040,1560,2040,992,976,1744,992,976,1752,0],[0,0,528,2040,4092,3276,8190,8190,6150,4092,1544,1032,0,0],[0,288,1008,1008,4092,6870,6870,8190,3564,1320,1320,1320,0,0],[0,1224,728,1016,4092,7662,7662,8190,3900,2340,6438,4386,0,0],[0,192,192,480,1008,816,1008,816,1008,1008,816,2040,1560,0],[0,3096,3128,1584,2032,4088,7324,8188,4080,3096,8172,4716,4716,0],[0,7158,8190,3804,3804,2040,1008,480,480,2040,1560,3612,3084,0],[0,7196,7196,8188,7148,7148,8188,8188,4088,7196,7196,7196,6156,0],[0,1032,1848,1008,2040,3276,8190,8190,8190,1320,2340,6150,6150,0],[0,480,1008,2040,1752,3804,4092,8190,7158,2804,2804,2804,0,0],[0,128,128,448,448,2032,1712,4088,2032,992,1904,3640,3096,0],[0,0,6150,4098,4098,7662,3804,2040,1008,1912,1384,0,0,0],[0,960,992,1904,1904,2032,1904,6132,6004,8060,5092,5092,6116,0],[0,0,3868,7998,6630,8190,8190,2040,3060,6868,6868,0,0,0],[0,3640,544,992,2032,1904,2032,992,864,864,1904,1904,1072,0],[0,448,992,2032,3952,8060,8188,4080,7020,8188,2032,2032,1040,0],[0,0,288,480,2040,3804,3804,8190,7182,2040,1560,3084,0,0],[0,288,1008,2040,1752,1752,1752,2040,2040,2040,2040,2340,2340,0],[0,0,3900,8190,6630,6630,8190,4092,4088,6150,6150,0,0,0],[0,0,7710,7710,4626,7158,8190,2040,2032,1512,3368,3368,0,0],[0,192,192,192,480,1008,720,2040,4092,3564,4092,1592,1560,0],[0,0,4110,4098,4098,6630,3804,3804,1008,1008,1560,1560,0,0],[0,6150,536,1560,480,480,288,1008,2040,2040,1560,2040,2040,0],[0,0,0,3612,8190,7662,7662,4088,2040,1752,1752,0,0,0,0],[0,128,448,2032,2032,4088,3048,3048,8188,8188,4080,2920,7020,0],[0,192,480,1008,1848,5690,7742,4092,2040,4578,4578,1848,1848,0],[0,192,720,1016,4092,8190,7662,7662,8190,2040,3084,3084,0,0],[0,0,0,2040,6342,6342,8190,2040,2348,2348,0,0,0,0],[0,992,2032,3256,3256,1712,2032,2032,1584,2032,2032,1168,3224,0],[0,528,304,480,1016,3804,3804,8190,7182,7662,3564,3612,3612,0],[0,480,1008,2040,4092,3364,8190,8190,2040,1048,3100,3100,0,0],[0,2032,4088,4088,3288,4088,4088,2032,4088,4088,5812,5812,5812,0],[0,288,816,4092,4092,5106,8190,8190,1008,1848,1560,1032,0,0],[0,0,2040,8190,7662,8190,1848,1008,1008,1560,1032,0,0,0],[0,0,1032,1560,2040,4076,4076,8190,6150,3084,1560,0,0,0],[0,7196,7196,5140,8188,8060,864,448,992,864,864,864,864,0],[0,0,4092,4092,8190,4290,8190,4092,7182,6150,6150,0,0,0],[0,1040,7324,5268,6132,8188,8188,4088,4088,4088,8188,7020,7020,0],[0,8188,8188,3480,3224,4088,992,992,992,2032,1456,1168,1168,0],[0,448,992,2032,3544,7324,8188,8188,3224,2032,2040,7196,6156,0],[0,0,1848,1320,4092,4092,4098,4098,6150,8188,3084,7182,0,0],[0,544,992,448,864,992,992,4964,5092,4964,8060,8188,992,0],[0,3900,7998,4294,4294,4294,8190,8190,7182,4092,3084,3084,0,0],[0,7182,7182,7182,2040,1008,720,1008,2040,7710,7182,7182,0,0],[0,192,480,2040,2040,3900,4092,8190,8190,8190,3372,3372,3372,0],[0,448,448,992,2032,4088,7644,8188,4088,2032,4080,6172,6172,0],[0,1552,816,480,2040,3804,8190,8190,3372,4092,4092,7182,0,0],[0,1848,2040,3272,8190,8190,3964,3896,816,1848,1848,1560,0,0],[0,1008,6138,7390,1752,2040,1008,480,192,192,288,288,0,0],[0,192,720,720,4092,4092,6438,8190,8190,3900,2040,3084,7182,0],[0,0,0,816,720,4092,4092,7182,6678,2580,0,0,0,0],[0,816,480,192,192,1008,1752,3800,4088,7470,7662,8190,2040,0],[0,6150,6150,7710,2040,2040,1752,2040,2040,8190,7182,6150,0,0],[0,480,480,480,1008,1008,1512,1512,1512,1512,2040,1008,720,0],[0,2040,2040,4092,3804,4092,4092,8190,7462,7470,8190,8190,3084,0],[0,1592,1840,2040,3900,7710,7182,7998,4092,4092,6158,6150,0,0],[0,288,1320,1512,1008,2040,3804,8190,8190,6138,5658,3084,0,0],[0,0,1008,1224,1224,2040,2040,3084,7182,6150,4098,0,0,0],[0,0,0,1008,4088,3436,8190,7534,4092,2040,1384,0,0,0],[0,0,560,816,448,448,1008,6138,7902,8190,1008,528,0,0],[0,448,448,3704,3960,2032,608,608,608,608,2032,2032,1360,0],[0,0,0,3084,8190,6138,4092,3276,3276,4092,2040,0,0,0],[0,0,4578,5106,8190,4094,3372,4076,2040,1008,528,0,0,0],[0,128,128,992,2032,2032,3224,4088,8188,8188,5812,5812,5812,0],[0,7158,4092,4092,8188,6340,6340,6628,8188,4092,4092,6150,0,0],[0,0,192,192,1008,1752,3804,8190,7182,4092,2040,1032,0,0],[0,0,7710,7710,5106,5110,8190,4092,3612,3612,816,1032,0,0],[0,0,3084,1032,2040,2040,3548,8190,7182,6150,3084,0,0,0],[0,0,2040,2040,560,4092,8190,7182,6150,7142,2916,0,0,0],[0,0,720,2040,4092,3804,8190,8190,4092,2032,1560,3612,0,0],[0,8190,8190,7694,7694,7694,8190,8190,1008,2040,3564,6630,4582,0],[0,0,2052,1032,1560,4092,3804,8190,6150,3084,1032,0,0,0],[0,3612,3612,2532,1008,1752,3800,1008,1008,6150,3612,3612,0,0],[0,0,528,816,288,2040,3804,8190,8190,6150,7158,6678,0,0],[0,128,128,6132,8188,3224,4088,8188,8188,8188,6284,6284,6284,0],[0,2040,2040,1560,1560,1560,2040,2040,3564,2532,4578,288,288,0],[0,3612,6950,4578,6630,8190,3804,4092,8190,4582,3900,3612,0,0],[0,528,480,1008,1752,3804,4092,7182,8190,4088,2340,2340,0,0]];
+const N = 14;
+const COUNT = 100;
+const canvas = document.getElementById("world");
+const ctx = canvas.getContext("2d", {alpha:false});
+const pauseButton = document.getElementById("pause");
+const orderButton = document.getElementById("order");
+
+let W=0,H=0,DPR=1,unit=3,footprint=42;
+let paused=false, dragging=-1, orderedUntil=0, last=performance.now();
+let pointerLast={x:0,y:0,t:0};
+const creatures=[];
+
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+function makeCreature(i){
+  const a=rnd(0,Math.PI*2);
+  const speed=rnd(9,24);
+  return {
+    id:i, rows:RAW[i], x:0,y:0,
+    vx:Math.cos(a)*speed, vy:Math.sin(a)*speed,
+    phase:rnd(0,Math.PI*2), drift:rnd(.35,.9),
+    turn:rnd(.8,1.8)
+  };
+}
+for(let i=0;i<COUNT;i++) creatures.push(makeCreature(i));
+
+function resize(){
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  W=innerWidth; H=innerHeight;
+  canvas.width=Math.round(W*DPR);
+  canvas.height=Math.round(H*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.imageSmoothingEnabled=false;
+
+  const target=clamp(Math.min(W,H)*0.062,25,54);
+  unit=Math.max(2,Math.floor(target/N));
+  footprint=N*unit;
+
+  if(!creatures[0]._placed) placeGrid(false);
+  else for(const c of creatures){
+    c.x=clamp(c.x,footprint/2,W-footprint/2);
+    c.y=clamp(c.y,footprint/2,H-footprint/2);
+  }
+}
+
+function placeGrid(hold=true){
+  const top=44;
+  const usableH=Math.max(80,H-top);
+  const dx=W/10, dy=usableH/10;
+  creatures.forEach((c,i)=>{
+    const col=i%10,row=Math.floor(i/10);
+    c.x=(col+.5)*dx;
+    c.y=top+(row+.5)*dy;
+    const a=rnd(0,Math.PI*2),s=rnd(9,22);
+    c.vx=Math.cos(a)*s;c.vy=Math.sin(a)*s;
+    c._placed=true;
+  });
+  if(hold) orderedUntil=performance.now()+900;
+}
+
+function drawSprite(c){
+  const left=Math.round(c.x-footprint/2);
+  const top=Math.round(c.y-footprint/2);
+  ctx.fillStyle="#000";
+  for(let y=0;y<N;y++){
+    const row=c.rows[y];
+    for(let x=0;x<N;x++){
+      if(row & (1<<(N-1-x))){
+        ctx.fillRect(left+x*unit,top+y*unit,unit,unit);
+      }
+    }
+  }
+}
+
+function separate(){
+  const minD=footprint*.66;
+  const minD2=minD*minD;
+  for(let i=0;i<COUNT;i++){
+    const a=creatures[i];
+    if(i===dragging) continue;
+    for(let j=i+1;j<COUNT;j++){
+      const b=creatures[j];
+      if(j===dragging) continue;
+      const dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;
+      if(d2>0 && d2<minD2){
+        const d=Math.sqrt(d2),push=(minD-d)*.006;
+        const nx=dx/d,ny=dy/d;
+        a.vx-=nx*push;a.vy-=ny*push;
+        b.vx+=nx*push;b.vy+=ny*push;
+      }
+    }
+  }
+}
+
+function update(dt,t){
+  if(paused || t<orderedUntil) return;
+  separate();
+
+  const half=footprint/2;
+  const topBound=2;
+  for(let i=0;i<COUNT;i++){
+    if(i===dragging) continue;
+    const c=creatures[i];
+
+    c.vx += Math.sin(t*.00035*c.turn+c.phase)*c.drift*dt;
+    c.vy += Math.cos(t*.00029*c.turn+c.phase)*c.drift*dt;
+
+    let speed=Math.hypot(c.vx,c.vy);
+    if(speed<8){
+      const k=8/(speed||1); c.vx*=k;c.vy*=k;
+    } else if(speed>27){
+      const k=27/speed;c.vx*=k;c.vy*=k;
+    }
+
+    c.x+=c.vx*dt;
+    c.y+=c.vy*dt;
+
+    if(c.x<half){c.x=half;c.vx=Math.abs(c.vx)}
+    if(c.x>W-half){c.x=W-half;c.vx=-Math.abs(c.vx)}
+    if(c.y<topBound+half){c.y=topBound+half;c.vy=Math.abs(c.vy)}
+    if(c.y>H-half){c.y=H-half;c.vy=-Math.abs(c.vy)}
+  }
+}
+
+function render(now){
+  const dt=Math.min(.034,(now-last)/1000||0);last=now;
+  update(dt,now);
+  ctx.fillStyle="#fff";ctx.fillRect(0,0,W,H);
+  for(const c of creatures) drawSprite(c);
+  requestAnimationFrame(render);
+}
+
+function pointerPos(e){
+  const r=canvas.getBoundingClientRect();
+  return {x:e.clientX-r.left,y:e.clientY-r.top};
+}
+
+function hit(x,y){
+  const half=footprint*.52;
+  let best=-1,bestD=Infinity;
+  for(let i=COUNT-1;i>=0;i--){
+    const c=creatures[i];
+    const dx=x-c.x,dy=y-c.y;
+    if(Math.abs(dx)<=half && Math.abs(dy)<=half){
+      const d=dx*dx+dy*dy;
+      if(d<bestD){best=i;bestD=d}
+    }
+  }
+  return best;
+}
+
+canvas.addEventListener("pointerdown",e=>{
+  const p=pointerPos(e);
+  dragging=hit(p.x,p.y);
+  if(dragging<0) return;
+  canvas.setPointerCapture(e.pointerId);
+  const c=creatures[dragging];
+  c.x=p.x;c.y=p.y;c.vx=0;c.vy=0;
+  pointerLast={x:p.x,y:p.y,t:performance.now()};
+});
+
+canvas.addEventListener("pointermove",e=>{
+  if(dragging<0) return;
+  const p=pointerPos(e),c=creatures[dragging],now=performance.now();
+  const dt=Math.max(16,now-pointerLast.t)/1000;
+  c.vx=clamp((p.x-pointerLast.x)/dt,-90,90);
+  c.vy=clamp((p.y-pointerLast.y)/dt,-90,90);
+  const half=footprint/2;
+  c.x=clamp(p.x,half,W-half);
+  c.y=clamp(p.y,half,H-half);
+  pointerLast={x:p.x,y:p.y,t:now};
+});
+
+function release(e){
+  if(dragging<0) return;
+  if(canvas.hasPointerCapture?.(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+  const c=creatures[dragging];
+  if(Math.hypot(c.vx,c.vy)<7){
+    const a=rnd(0,Math.PI*2),s=rnd(11,20);
+    c.vx=Math.cos(a)*s;c.vy=Math.sin(a)*s;
+  }
+  dragging=-1;
+}
+canvas.addEventListener("pointerup",release);
+canvas.addEventListener("pointercancel",release);
+
+pauseButton.addEventListener("click",()=>{
+  paused=!paused;
+  pauseButton.textContent=paused?"SEGUIR":"PAUSA";
+});
+orderButton.addEventListener("click",()=>placeGrid(true));
+
+addEventListener("resize",resize,{passive:true});
+resize();
+requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>
