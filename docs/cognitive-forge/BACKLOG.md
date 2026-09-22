@@ -224,7 +224,7 @@
 197. **[HECHO] Registry durable de Skills.** `forge_skills` persiste identidad estable, estado y provenance; implementación durable: migración `forge_skill_registry_and_version_schema`.
 198. **[HECHO] Schema de Skill.** `forge_skill_versions` conserva versiones históricas con inputs/outputs, pasos, rollback, verificación, evidencia y madurez; smoke reproducible: `forge_skill_registry_smoke_test()`.
 199. **[HECHO] No depender de prompts largos.** Resolver pinneado + contrato `skill_ref` + smoke implementados; spec: `docs/cognitive-forge/BACKLOG-199-SKILL-REFERENCE-RUNTIME-SPEC.md`.
-200. **[PENDIENTE] Extraer determinismo de la IA.** Cálculos y procedimientos repetibles deben ejecutarse sin razonamiento generativo.
+200. **[HECHO] Extraer determinismo de la IA.** Executor SQL determinista v1 para porcentajes, medianas, tasas, ETA, redondeo y batches acotados; smoke reproducible PASS. Evidencia: `docs/cognitive-forge/BACKLOG-200-DETERMINISTIC-EXECUTION-EVIDENCE.md`.
 201. **[DISENADO] SKILL_COMPILER.** Detectar pasos repetidos en ejecuciones exitosas y crear Skill candidates.
 202. **[DISENADO] Versionado de Skills.** Mantener versiones e historial.
 203. **[DISENADO] Comparar Skill nueva vs anterior.** Probar sobre casos conocidos antes de promoción.
