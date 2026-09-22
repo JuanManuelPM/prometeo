@@ -225,3 +225,28 @@ El receipt no debe incluir chain-of-thought ni scratchpad.
 ## Criterio de cierre
 
 BACKLOG-223 puede pasar de DISEÑADO a HECHO cuando el contrato esté persistido/versionado, al menos tres Deep Skills reales lo usen, la validación de rango y outputs sea automática antes de publish, y los ocho casos de aceptación produzcan receipts reproducibles.
+
+
+## Implementación runtime verificada · 2026-09-22
+
+La brecha propia de este contrato quedó integrada sin sembrar Deep Skills reales ni duplicar BACKLOG-222:
+
+- storage nullable y versionado: `forge_skill_versions.execution_contract jsonb`;
+- validación runtime: `forge_deep_skill_contract_validate`, incluyendo `min_words <= target_words <= max_words`;
+- `forge_skill_add_version`, `forge_skill_definition_hash` y `forge_skill_execution_bundle` incorporan `execution_contract`;
+- enforcement pre-publish: `prometeo_publish_v1_core` llama `forge_deep_skill_pre_publish` antes de `prometeo_publish_core`;
+- jobs sin `skill_ref` hacen bypass; Skills legacy con versión exacta pero sin `execution_contract` también hacen bypass;
+- ejecuciones con contrato v1 validan rango, tools/children budget, operaciones, outputs, evidence refs y degradación;
+- el receipt server-side usa `prometeo.deep-skill-execution-receipt/v1` con `skill_id`, `version_no`, `contract_schema`, budget usado, outputs y evidence refs, sin razonamiento privado;
+- smoke reproducible: `forge_deep_skill_contract_smoke_test()`;
+- migración durable: `supabase/migrations/20260922042900_deep_skill_runtime_contract_enforcement_v1.sql`.
+
+### Verificación
+
+`forge_deep_skill_contract_smoke_test()` PASS: ordering de presupuesto, rechazo under/over range, outputs obligatorios, evidence obligatoria, TOOL_ERROR/degradación, historia de versiones, bypass sin skill, bypass Skill legacy, hook de publish y limpieza de fixtures.
+
+También siguen PASS `forge_skill_registry_smoke_test()` y `forge_skill_execution_bundle_smoke_test()`, confirmando compatibilidad legacy.
+
+### Estado de cierre
+
+BACKLOG-223 continúa **DISEÑADO**. La integración runtime ya existe, pero el criterio canónico exige que al menos tres Deep Skills reales usen el contrato. BACKLOG-222 sigue PENDIENTE y no hay Deep Skills reales sembradas; este follow-up no debe apropiarse de esa frontera.
