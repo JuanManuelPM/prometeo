@@ -29,6 +29,7 @@ deaths=safe("prometeo_worker_deaths?select=death_id,worker_code,reason,detected_
 flight=safe("prometeo_worker_flight_recorder?select=*&order=first_observed_at.desc&limit=120",[])
 postmortems=safe("prometeo_worker_postmortems?select=death_id,worker_code,protocol_version,launch_batch,terminal_phase,terminal_state,observed_cause,inferred_cause,event_count,checkpoint_count,publish_count,tool_failure_count,observed_ms,productive_ms,work_pct,wait_pct,detected_at,recovered_at&order=death_id.desc&limit=120",[])
 learning=first(safe("prometeo_runtime_learning_snapshot?select=*",[]))
+growth=first(safe("prometeo_frontier_metrics?select=*",[]))
 
 if isinstance(cohorts,dict) and "data" in cohorts: cohorts=cohorts["data"]
 if not isinstance(cohorts,list): cohorts=[]
@@ -94,6 +95,16 @@ snapshot={
     "ingress_admitted_1m":admitted_1m,
     "bottleneck":bottleneck
   },
+  "growth":{
+    "mode":growth.get("growth_mode"),
+    "frontier_ratio":growth.get("frontier_ratio"),
+    "productive_branching":growth.get("productive_branching"),
+    "meta_share":growth.get("meta_share"),
+    "production_ready":growth.get("production_ready"),
+    "production_leased":growth.get("production_leased"),
+    "unused_sources":growth.get("unused_sources"),
+    "productive_outputs_15m":growth.get("productive_outputs_15m")
+  },
   "guide":{
     "cycle_id":guide.get("cycle_id"),
     "status":guide.get("cycle_status"),
@@ -110,7 +121,7 @@ snapshot={
   "recent_deaths":deaths[:100],
   "engine_actions":{
     "requires_cognitive_attention": bool(invariants or bottleneck in {"INGRESS","TELEMETRY","LIVENESS"}),
-    "suggested_focus": bottleneck,
+    "suggested_focus": growth.get("growth_mode") or bottleneck,
     "deterministic_checks":["cohort_funnel","ingress_pressure","ready_supply","liveness","guide_presence"]
   }
 }
