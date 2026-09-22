@@ -230,7 +230,7 @@
 203. **[DISENADO] Comparar Skill nueva vs anterior.** Probar sobre casos conocidos antes de promoción.
 204. **[DISENADO] SUPERSEDED en vez de borrar.** Preservar historia y trazabilidad.
 205. **[DISENADO] Banco de regresión para Skills.** Casos reutilizables para probar nuevas versiones. Spec ejecutable: `docs/cognitive-forge/BACKLOG-205-SKILL-REGRESSION-BANK-SPEC.md`.
-206. **[DISENADO] Trazar qué Skill produjo qué acción.** Observabilidad durable del procedimiento usado. Spec ejecutable: `docs/cognitive-forge/BACKLOG-206-SKILL-ACTION-TRACE-SPEC.md`.
+206. **[HECHO] Trazar qué Skill produjo qué acción.** Persistencia + RPCs + smoke reproducible implementados en `forge_skill_action_traces`; spec: `docs/cognitive-forge/BACKLOG-206-SKILL-ACTION-TRACE-SPEC.md`.
 207. **[DISENADO] Deep Skill ABSTRAER EL PROCEDIMIENTO.** Extraer el método reusable detrás de una solución.
 208. **[DISENADO] Deep Skill CONSEJO DE PERSPECTIVAS.** Analizar desde empresario, IT, automatización, operaciones, UX, seguridad y otros roles.
 209. **[DISENADO] Perspectivas deben discutir.** Resolver contradicciones entre puntos de vista.
