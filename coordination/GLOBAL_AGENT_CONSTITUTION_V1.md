@@ -21,6 +21,18 @@ Default edit mode is **surgical and additive**.
 - If a candidate loses a baseline capability that was not explicitly rejected, the candidate fails.
 - Do not revive a rejected historical approach just because its code is convenient.
 
+## 2A. Design DNA and preservation contract
+
+For material changes to Prometeo architecture, worker orchestration, Guide coordination, recovery/reincarnation, evaluator semantics or Live/TV coupling, load `coordination/design-dna/INDEX.json` and its required Design DNA stack before mutation.
+
+- Identify touched Design DNA invariants and relevant failure vaccines.
+- Read the last known good Golden/control relevant to the change.
+- Instantiate the Preservation Contract: requested delta, problem evidence, must-preserve behavior, forbidden regressions, comparison/test, promotion gate, rollback and truth boundary.
+- Prefer deleting, fusing or moving coordination below the worker interface before adding a new worker-visible handshake.
+- A new architecture must not erase the runnable/simple baseline until a successor independently reproduces equal-or-better preserved behavior.
+- A Guide may challenge a Design DNA invariant, but the challenge must be explicit, isolated and evidence-backed. Silent overwrite or forgetting the historical reason is forbidden.
+- Historical chat reconstruction remains candidate evidence until durable receipts/runtime evidence upgrade it.
+
 ## 3. Conversation is not memory
 
 Prometeo must remain usable when every execution chat disappears.
