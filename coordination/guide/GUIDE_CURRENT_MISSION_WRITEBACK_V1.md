@@ -66,6 +66,7 @@ Before the human-facing reply, persist every material change to the narrowest ca
 - growth/pool/champion/gate state -> `coordination/guide/GROWTH_CAMPAIGN_V1.json`
 - project-specific focus/frontier/blocker -> `coordination/project-guides/<project_id>/STATE.json`
 - reusable method regression -> Efficiency Ratchet + guard when cheap
+- Design DNA / method regression -> update `coordination/design-dna/` invariants/vaccines/Goldens only when material evidence or an explicit human directive changes the lesson; preserve lineage and evidence ceiling
 - fresh Guide-cycle audit -> append one session receipt under `coordination/guide/sessions/<session_id>.json`
 
 A session receipt should include:
