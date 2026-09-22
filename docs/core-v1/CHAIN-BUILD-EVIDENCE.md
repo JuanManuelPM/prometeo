@@ -1,0 +1,39 @@
+# CORE-V1 · CHAIN · BUILD evidence
+
+Status: VERIFIED — no runtime code change required
+
+Scope: `prometeo_publish / prometeo_allocate / active lease packet`.
+
+## Canonical publish → next path
+
+Current backend definition of `public.prometeo_publish_core` closes the completed lease, records the output, refreshes readiness, then calls `public.prometeo_allocate(p_agent_id)` directly when the worker is not stopping. It returns:
+
+`PUBLISHED_AND_NEXT` with `next = prometeo_allocate(...)`.
+
+There is therefore no required client-side WAIT between a successful publish and the next assignment when compatible work exists.
+
+`public.prometeo_allocate_core` creates a fresh UUID lease token, writes the next job as `LEASED`, assigns the same `agent_id/worker_code`, updates the worker to `WORKING`, and returns the complete WORK packet with the new lease.
+
+`public.prometeo_publish_v1_core` additionally resets `consecutive_waits=0` when the publish result is `PUBLISHED_AND_NEXT` and `next.state=WORK`.
+
+## Repeated live evidence
+
+Observed OBEY-v2 session telemetry contains repeated publish→work chains with no same-transition WAIT:
+
+- K128: 12 `PUBLISHED_AND_NEXT`; 12 had WORK at the same timestamp; 0 had WAIT at that timestamp.
+- K122: 7/7 immediate WORK; 0 same-timestamp WAIT.
+- K139: 8/8 immediate WORK; 0 same-timestamp WAIT.
+- K123: 8/8 immediate WORK; 0 same-timestamp WAIT.
+- K124: 8/8 immediate WORK; 0 same-timestamp WAIT.
+- K133: 6/6 immediate WORK; 0 same-timestamp WAIT.
+- K138: 2/2 immediate WORK; 0 same-timestamp WAIT.
+
+This worker, K145, also exercised the path live: publishing `FR-BACKLOG-173` returned `PUBLISHED_AND_NEXT` and the next `WORK` packet for `CORE-V1-CHAIN-BUILD` in the same response/session. Session events at `2026-09-22 04:47:07.229094+00` contain PUBLISH, WORK and PUBLISH_RESULT/PUBLISHED_AND_NEXT at the same timestamp, with no WAIT event in that transition.
+
+The previous lease was consumed by publish and the returned next packet carried a distinct lease for the newly assigned job, matching the intended lease handoff contract.
+
+## Remaining gaps
+
+No functional CHAIN gap was found in the exercised runtime path.
+
+A direct call to `prometeo_active_lease_packet` was security-blocked by the connector during this sheet and was not rerouted through another mutating path. This limits one optional evidence source but does not contradict the direct publish response, function definitions, or repeated session telemetry above.
