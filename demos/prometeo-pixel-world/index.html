@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#090908">
+<title>Prometeo · Mundo vivo</title>
+<style>
+:root{--bg:#090908;--paper:#f0eadf;--muted:#746f66;--line:#2c2923;--soft:#151411;--orange:#ff6500}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--paper);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated;touch-action:none}
+.top{position:fixed;left:0;right:0;top:0;height:62px;z-index:5;display:grid;grid-template-columns:minmax(180px,1fr) repeat(4,minmax(72px,118px));background:rgba(9,9,8,.94);border-bottom:1px solid var(--line);backdrop-filter:blur(7px)}
+.brand{display:flex;align-items:center;gap:9px;padding:8px 12px;min-width:0}.mark{width:5px;height:32px;background:var(--orange);flex:none}.brand h1{margin:0;font-size:22px;line-height:.9;font-weight:1000;letter-spacing:-.055em}.brand small{display:block;margin-top:5px;font:900 6px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi{border-left:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;padding:7px 9px;min-width:0}.kpi b{font-size:18px;line-height:1;font-weight:1000;letter-spacing:-.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kpi span{font:900 6px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:6px}
+.tabs{position:fixed;left:12px;top:72px;z-index:5;display:flex;gap:5px}
+button{appearance:none;border:1px solid #575249;background:#0d0d0b;color:#aaa49a;padding:8px 11px;font:950 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+button.on{background:var(--paper);color:#080807;border-color:var(--paper)}
+.status{position:fixed;right:12px;top:72px;z-index:5;font:900 7px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;background:#0d0d0b;border:1px solid var(--line);padding:9px 10px}
+.panel{position:fixed;right:12px;bottom:12px;width:min(320px,calc(100vw - 24px));max-height:44vh;z-index:6;background:rgba(12,12,10,.96);border:1px solid #4a463f;display:none;overflow:auto}
+.panel.show{display:block}.ph{display:flex;align-items:center;justify-content:space-between;padding:10px 11px;border-bottom:1px solid var(--line)}.ph b{font-size:11px;letter-spacing:.04em}.ph button{padding:5px 7px}.pb{padding:10px 11px;display:grid;gap:8px}.row{display:grid;grid-template-columns:78px 1fr;gap:8px;font-size:10px;line-height:1.25}.row span:first-child{font:900 7px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}.row strong{font-weight:850}
+.hint{position:fixed;left:12px;bottom:10px;z-index:4;font:850 7px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:#5d5952;letter-spacing:.08em;text-transform:uppercase;pointer-events:none}
+@media(max-width:760px){
+ .top{height:58px;grid-template-columns:minmax(128px,1fr) repeat(3,minmax(58px,74px))}
+ .kpi:nth-of-type(5){display:none}.brand{padding:7px 8px}.brand h1{font-size:18px}.brand small{font-size:5.5px}.kpi{padding:5px 6px}.kpi b{font-size:15px}.kpi span{font-size:5.3px}
+ .tabs{top:66px;left:7px}.status{top:66px;right:7px;padding:8px;font-size:6px}
+ .panel{right:7px;bottom:7px;width:calc(100vw - 14px);max-height:34vh}
+ .hint{left:7px;bottom:7px}
+}
+</style>
+</head>
+<body>
+<canvas id="world"></canvas>
+<div class="top">
+ <div class="brand"><i class="mark"></i><div><h1>PROMETEO</h1><small id="sub">mundo vivo · conectando</small></div></div>
+ <div class="kpi"><b id="workPct">—</b><span>trabajo</span></div>
+ <div class="kpi"><b id="eta">—</b><span>eta</span></div>
+ <div class="kpi"><b id="live">—</b><span>workers</span></div>
+ <div class="kpi"><b id="morgue">—</b><span>morgue</span></div>
+</div>
+<div class="tabs"><button class="on" id="worldBtn">MUNDO</button><button id="raceBtn">RENDIMIENTO</button></div>
+<div class="status" id="status">conectando</div>
+<div class="panel" id="panel"><div class="ph"><b id="panelTitle">WORKER</b><button id="close">×</button></div><div class="pb" id="panelBody"></div></div>
+<div class="hint">tocá un worker o un edificio · los estados se mueven</div>
+<script>
+(()=>{
+"use strict";
+const RAW=[[0,0,3120,1072,992,4080,8188,32158,32190,32766,16380,27702,27702,0,0,0],[0,0,1072,1600,576,4080,3504,23994,32766,30782,14364,7128,6200,7224,0,0],[0,0,960,2016,3504,18870,31166,14780,16380,8184,2992,2352,2352,0,0,0],[0,1056,1056,1056,2016,960,960,5064,7128,3696,8184,8184,8184,3504,3504,0],[0,0,1056,2016,4080,8184,14748,32766,32766,30734,29646,30702,4104,4104,0,0],[0,0,960,2016,4080,7128,7128,20466,18402,16380,960,576,1632,0,0,0],[0,0,2072,3088,1056,8184,8184,7608,6552,31134,32766,32766,12876,12876,0,0],[0,3120,2016,4080,16380,29262,29262,32766,4080,4080,7224,6168,12300,8196,0,0],[0,256,1984,1984,4064,4064,3168,15992,16376,28652,28644,16376,6448,6432,6432,0],[0,896,640,4064,4064,4064,6448,16376,20452,4064,4064,4064,3488,2336,2336,0],[0,0,3120,576,960,20466,32190,15804,8184,8184,1632,3120,3120,0,0,0],[0,0,384,992,2016,4080,3696,3696,20470,32766,32766,1632,1632,1632,0,0],[0,0,24582,16386,18402,32766,14780,15804,7608,4080,4064,3120,7216,0,0,0],[0,6168,7192,1632,2016,8184,29646,29070,29646,32766,15996,4080,4080,14364,14364,0],[0,2096,3120,3184,1984,8184,16380,18402,2016,1120,3184,3120,3120,3184,0,0],[0,0,2064,1056,2016,4080,7608,32766,32766,12296,8184,12276,11316,0,0,0],[0,384,5064,5064,3696,3696,1984,5064,5064,4080,2016,1760,1632,1632,1632,0],[0,2016,1632,1632,16376,16380,26598,26598,32382,16380,8184,4080,3120,7224,7224,0],[0,768,896,1984,1984,4064,7088,14648,16376,32764,28700,28700,16376,28700,28700,0],[0,2016,4080,4696,7896,4080,2016,960,2032,3192,3128,3104,3168,7264,7264,0],[0,0,0,3088,1568,2016,8184,15324,32766,28686,28686,16380,6168,0,0,0],[0,896,896,4064,8176,16376,16376,26316,26316,32764,32764,14040,14040,14040,14040,0],[0,4112,4112,6192,8176,6192,6192,8176,1984,3040,7088,4064,1984,2976,7088,0],[0,0,3120,4080,8184,15324,15324,32766,32766,24582,32766,16380,6168,6168,0,0],[0,0,576,1760,4080,16380,16380,28086,32766,32766,4680,4680,4680,4680,0,0],[0,6544,3504,4080,8176,16380,29662,29662,32766,15992,13928,12876,25158,16966,0,0],[0,256,256,384,1984,3808,3808,4064,3808,3808,4064,3808,7920,8176,6192,0],[0,12312,12312,7280,3168,8176,15288,31036,32764,8176,4144,32764,28652,27756,27756,0],[0,26598,32766,16380,14748,8184,4080,2016,2016,2016,4080,6168,14364,12300,0,0],[0,14364,14396,16380,16380,13260,14316,16380,16380,4080,15420,14364,14364,12300,12300,0],[0,6168,7224,3696,4080,15320,15324,32766,32766,16088,4680,8772,8196,8196,0,0],[0,0,960,2016,4080,7128,14748,16380,32766,32766,30126,13740,13740,13740,0,0],[0,256,256,896,1984,1984,8176,6456,15288,16376,4064,4064,7280,14392,14392,0],[0,0,28686,24582,16386,25542,30702,15804,7608,4080,2016,6736,6744,0,0,0],[0,1984,1984,3808,3680,4064,4064,3808,20452,20452,32380,32764,18372,18372,20452,0],[0,0,15420,32382,30702,30702,32382,32382,8184,8184,28084,28084,28084,0,0,0],[0,7224,7224,2016,2016,3696,3696,4064,2016,1760,1632,3696,3696,3696,3120,0],[0,896,896,8176,8176,16120,32508,16376,8176,28364,28396,32764,8176,6192,6192,0],[0,0,1632,1632,4080,4080,14748,15804,32766,28686,32766,8184,14364,14364,0,0],[0,1632,1888,4088,4088,2456,2456,3512,4088,4088,4088,4088,16252,13932,13932,0],[0,0,0,15420,32382,25542,25542,25542,32766,8184,8184,28686,28686,0,0,0],[0,0,31806,31806,27686,26598,32766,32766,4080,4080,5832,4680,4680,0,0,0],[0,384,384,384,960,2016,4064,3504,8184,8184,15324,16380,16380,3120,3120,0],[0,0,16414,16398,16386,26574,30702,15804,8184,4064,2016,7224,7224,0,0,0],[0,28686,2064,3120,992,960,576,992,2016,8184,8184,7192,8184,8184,0,0],[0,0,0,14364,32766,32766,31710,8184,8184,3504,6552,6552,0,0,0,0],[0,256,896,1984,8176,8176,16376,10200,10184,32764,32764,8176,8176,26312,26312,0],[0,384,1984,2016,4080,3120,27702,31806,16376,8176,4080,25542,25542,3696,3696,0],[0,384,3504,4080,4088,16380,32766,29646,29646,32766,8184,8184,14364,14364,0,0],[0,0,0,0,8184,8188,24966,32766,32766,8184,13896,13896,0,0,0,0],[0,2016,4080,7608,7608,7608,4080,4080,4080,3632,4080,4080,4080,3504,7608,0],[0,3120,1632,1888,4080,8184,15804,16380,32766,28686,29646,14280,15416,14392,0,0],[0,0,1984,4080,8184,8184,12900,12908,32766,32766,8184,6160,14364,14364,0,0],[0,4080,8184,8184,6552,6552,8184,8184,2032,4080,8184,13740,9636,9636,9636,0],[0,1632,1632,4080,16380,32766,20470,32766,32766,2016,3696,3696,2064,2064,0,0],[0,0,4080,32766,29646,32766,32766,7800,4080,4064,4080,7224,6168,0,0,0],[0,0,0,4104,2064,4080,8184,14940,32766,32766,28686,12300,6168,0,0,0],[0,30780,30780,18468,30780,32764,32508,1728,960,1984,1728,1728,1728,1728,1728,0],[0,0,0,8188,16380,32766,16770,32766,32766,16380,28686,24582,24582,0,0,0],[0,2096,14652,14780,12260,16380,16380,16380,4080,4080,4080,16380,14060,13932,13932,0],[0,16380,16380,16380,2456,2456,4088,2016,2016,2016,2016,4080,2448,2448,2448,0],[0,896,960,4080,4080,6552,14748,16380,16380,14748,4080,4080,7800,12300,12300,0],[0,0,3696,2640,8184,16380,24582,24582,24582,32766,16380,12300,12302,0,0,0],[0,3168,1984,1984,3808,3808,4064,3808,20196,20452,20452,20196,32764,4064,4064,0],[0,15996,32318,24966,24966,24966,24966,32766,32766,28702,16380,8184,4120,4120,0,0],[0,0,28702,30750,30734,8184,4088,3504,3504,4080,7224,30750,28686,30734,0,0],[0,448,960,4080,4080,3696,15996,16380,16380,32766,32766,13932,12876,12876,12876,0],[0,1984,1984,1984,4064,16376,13208,29596,32764,16376,8160,8176,12312,28700,28700,0],[0,2096,3120,1632,4080,8184,14780,32766,32766,29262,5880,8184,16380,28686,0,0],[0,7800,7800,6552,31134,32766,32766,7800,7800,1632,1632,7800,7224,6168,0,0],[0,2016,20466,31166,31134,6584,4080,4080,2016,384,384,576,1600,1600,0,0],[0,2448,3472,3472,4080,16380,30702,30318,32766,32766,15996,7800,8184,12302,28686,0],[0,0,0,0,3696,3504,3504,16380,30750,30750,25638,9252,0,0,0,0],[0,1632,1632,960,960,960,4080,7608,7608,8184,32766,29262,32766,32766,8184,0],[0,24582,24582,30750,32766,8184,8120,6584,8184,8184,32766,30750,28678,24582,0,0],[0,960,576,960,2016,2016,2016,7112,7112,7112,7112,7112,8184,1440,1440,0],[0,4080,4080,16380,14748,14748,16380,16380,16380,30286,30286,32766,32766,12300,12300,0],[0,3120,3120,4080,16376,15420,30750,30750,31806,15996,8188,14364,28686,28678,0,0],[0,576,4680,6744,2032,4080,8184,7608,32766,32766,28662,19506,6168,6168,0,0],[0,0,4080,8184,6552,7064,8184,8184,14364,30750,28686,24582,16390,0,0,0],[0,0,0,4080,4080,15324,14940,32766,31326,15324,8184,6744,6744,0,0,0],[0,0,1056,1632,576,960,960,2016,20466,28086,32190,4080,4080,3120,0,0],[0,896,896,3296,15480,16376,4064,3168,3168,3168,3168,3808,8176,7920,4752,0],[0,0,0,14364,32766,20470,16380,14748,14748,14748,16380,8184,0,0,0,0],[0,0,0,17346,18402,20466,32766,15324,12876,8184,8184,3120,3120,0,0,0],[0,256,256,1984,4064,8160,6960,15160,16376,32764,32764,32764,18788,18788,18788,0],[0,28662,28662,16376,32764,32764,25540,25540,25540,25548,32764,16380,16380,24582,24582,0],[0,0,384,384,2016,8176,15804,32764,32766,28686,8184,6168,4104,0,0,0],[0,0,31806,31806,28662,20454,32766,32766,16380,14360,14360,1056,3104,2064,0,0],[0,0,4104,4104,8176,4088,8152,15260,32766,32766,28686,24582,12300,0,0,0],[0,0,8184,8184,3696,3696,16380,16380,28686,28686,25542,10212,9828,0,0,0],[0,0,3504,3504,8188,16380,31134,32766,32766,16380,4080,3120,7224,7224,0,0],[0,32766,32766,30750,30750,30750,30750,32766,32766,2016,2032,7128,5084,25542,25542,0],[0,0,12300,6152,2064,8184,16380,14780,32766,28686,12300,6168,6168,0,0,0],[0,0,14364,15420,9316,4080,4080,7608,8184,4080,26606,28686,14396,6200,0,0],[0,0,3088,3120,1632,8184,8184,14748,32766,32766,24582,26598,28662,27702,0,0],[0,384,384,2016,12260,15804,6584,8176,16376,16380,16380,12684,12684,12684,12684,0],[0,8184,8184,8184,7224,7224,7224,4080,4080,6136,5068,25542,17378,608,608,0],[0,15416,15420,25286,25542,32766,32190,15804,16380,16380,26566,25542,15420,15416,0,0],[0,1056,1632,2016,4080,7608,16380,16380,28686,30750,8184,14316,13932,13932,0,0]];
+const N=16;
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const HEAD={apikey:KEY,Authorization:'Bearer '+KEY};
+const COLORS=['#ff6a00','#f2c94c','#54d2d2','#7bd88f','#ff87b7','#9fa8ff','#ef8354','#b8e986','#d8a7ff','#f7f0d0','#70c1ff','#f48fb1','#b0e0a8','#ffa94d'];
+const c=document.getElementById('world'),ctx=c.getContext('2d',{alpha:false});
+const $=id=>document.getElementById(id);
+let W=0,H=0,DPR=1,last=performance.now(),mode='world',selected=null;
+let workers=[],projects=[],outputs=[],liveness=[],summary=null,agents=[],stations=[],sparks=[],demo=false;
+const rnd=(a,b)=>a+Math.random()*(b-a),clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function hash(s){s=String(s||'');let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+function safe(v,d='—'){return v===null||v===undefined||v===''?d:String(v)}
+function stateOf(w){
+ const liv=liveness.find(x=>String(x.worker_code||x.worker_id||'')===String(w.worker_code||w.worker_id||w.id||''));
+ const l=String(liv&&liv.liveness||'').toUpperCase();
+ if(l.includes('DEAD'))return'dead'; if(l.includes('SILENT'))return'silent';
+ const s=String(w.runtime_state||w.status||w.state||w.phase||'').toUpperCase();
+ if(s.includes('DEAD'))return'dead'; if(s.includes('SILENT'))return'silent'; if(s.includes('WORK'))return'working'; if(s.includes('ASSIGN')||s.includes('READY'))return'assignable'; if(s.includes('PARK')||s.includes('WAIT'))return'parked';
+ return'assignable';
+}
+function codeOf(w,i){return safe(w.worker_code||w.worker_id||w.id,'W-'+String(i+1).padStart(3,'0'))}
+function scoreOf(w){return Number(w.outputs_done||0)*1000+Number(w.words_done||0)+Number(w.rescues_done||0)*500}
+async function get(p){try{const r=await fetch(BASE+p,{headers:HEAD,cache:'no-store'});if(!r.ok)return[];return await r.json()}catch(e){return[]}}
+function resize(){
+ DPR=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;c.width=Math.round(W*DPR);c.height=Math.round(H*DPR);ctx.setTransform(DPR,0,0,DPR,0,0);ctx.imageSmoothingEnabled=false;layoutStations();
+}
+function layoutStations(){
+ const top=116,bottom=H-30,usable=Math.max(260,bottom-top);
+ stations=[
+  {id:'P0',name:projects[0]?(projects[0].title||projects[0].project_id||'GUIDE'):'GUIDE',x:W*.10,y:top+usable*.05,w:W*.24,h:usable*.29,kind:'guide'},
+  {id:'P1',name:projects[1]?(projects[1].title||projects[1].project_id||'RESERVE'):'WORK RESERVE',x:W*.40,y:top+usable*.04,w:W*.23,h:usable*.30,kind:'reserve'},
+  {id:'P2',name:projects[2]?(projects[2].title||projects[2].project_id||'RUNTIME'):'RUNTIME',x:W*.68,y:top+usable*.03,w:W*.25,h:usable*.42,kind:'forge'},
+  {id:'P3',name:projects[3]?(projects[3].title||projects[3].project_id||'MONITOR'):'WORKER MONITOR',x:W*.13,y:top+usable*.57,w:W*.29,h:usable*.25,kind:'monitor'},
+  {id:'POOL',name:'POOL / OFF',x:W*.68,y:top+usable*.63,w:W*.24,h:usable*.25,kind:'pool'},
+  {id:'PARK',name:'WAIT / PARK',x:W*.45,y:top+usable*.58,w:W*.17,h:usable*.22,kind:'park'}
+ ];
+ if(W<760){
+   stations[0]={...stations[0],x:W*.05,w:W*.29};
+   stations[1]={...stations[1],x:W*.37,w:W*.27};
+   stations[2]={...stations[2],x:W*.67,w:W*.28};
+   stations[3]={...stations[3],x:W*.05,w:W*.33};
+   stations[5]={...stations[5],x:W*.41,w:W*.22};
+   stations[4]={...stations[4],x:W*.67,w:W*.28};
+ }
+}
+function demoWorkers(){
+ const a=[];for(let i=0;i<38;i++){a.push({worker_code:'G-K'+String(20+i).padStart(3,'0'),runtime_state:i<5?'WORKING':i<29?'PARKED':i<34?'ASSIGNABLE':i<36?'SILENT':'DEAD',outputs_done:(i*7)%19,words_done:(i*317)%9000,current_job:'demo route '+((i%4)+1)})}return a;
+}
+function syncAgents(){
+ const old=new Map(agents.map(a=>[a.code,a]));const src=workers.length?workers:demoWorkers();demo=!workers.length;
+ agents=src.slice(0,100).map((w,i)=>{
+   const code=codeOf(w,i),prev=old.get(code),h=hash(code),st=stateOf(w);
+   const a=prev||{code,w,i,shape:h%RAW.length,color:COLORS[h%COLORS.length],x:rnd(W*.06,W*.60),y:rnd(140,H-40),vx:rnd(-10,10),vy:rnd(-8,8),target:null,visual:'assignable',phase:rnd(0,6.28),deadArrived:false};
+   a.w=w;a.i=i;a.shape=h%RAW.length;a.color=COLORS[h%COLORS.length];a.desired=st;
+   return a;
+ });
+}
+function stationFor(a){
+ if(a.desired==='dead')return stations.find(s=>s.id==='POOL');
+ if(a.desired==='parked'||a.desired==='silent')return stations.find(s=>s.id==='PARK');
+ const idx=hash(a.code)%4;return stations[idx];
+}
+function pointIn(s,pad=18){return{x:rnd(s.x+pad,s.x+s.w-pad),y:rnd(s.y+28,s.y+s.h-pad)}}
+function reconcile(a){
+ if(a.desired==='working'&&a.visual!=='working'&&a.visual!=='walkWork'){a.target=pointIn(stationFor(a),20);a.visual='walkWork'}
+ else if((a.desired==='parked'||a.desired==='silent')&&a.visual!==a.desired&&a.visual!=='walkPark'){a.target=pointIn(stationFor(a),12);a.visual='walkPark'}
+ else if(a.desired==='dead'&&a.visual!=='dead'&&a.visual!=='walkDead'&&a.visual!=='falling'){a.target=pointIn(stationFor(a),14);a.visual='walkDead'}
+ else if(a.desired==='assignable'&&a.visual!=='assignable'&&a.visual!=='wander'){a.target={x:rnd(W*.08,W*.58),y:rnd(150,H-36)};a.visual='wander'}
+}
+function moveTo(a,dt){
+ if(!a.target)return true;const dx=a.target.x-a.x,dy=a.target.y-a.y,d=Math.hypot(dx,dy);if(d<3){a.x=a.target.x;a.y=a.target.y;return true}const sp=40;a.x+=dx/d*sp*dt;a.y+=dy/d*sp*dt;return false
+}
+function update(a,dt,t){
+ reconcile(a);
+ if(a.visual==='walkWork'&&moveTo(a,dt)){a.visual='working';a.target=null}
+ else if(a.visual==='walkPark'&&moveTo(a,dt)){a.visual=a.desired;a.target=null}
+ else if(a.visual==='walkDead'&&moveTo(a,dt)){a.visual='falling';a.fall=.45;a.target=null}
+ else if(a.visual==='falling'){a.fall-=dt;a.y+=34*dt;if(a.fall<=0)a.visual='dead'}
+ else if(a.visual==='wander'&&moveTo(a,dt)){a.visual='assignable';a.target=null}
+ else if(a.visual==='assignable'){
+  a.x+=a.vx*dt;a.y+=a.vy*dt;
+  if(Math.random()<dt*.12){a.vx=rnd(-13,13);a.vy=rnd(-10,10)}
+  if(a.x<30||a.x>W*.64)a.vx*=-1;if(a.y<145||a.y>H-30)a.vy*=-1;
+ }
+ if(a.visual==='working'&&Math.random()<dt*1.5)sparks.push({x:a.x+rnd(-6,6),y:a.y-8,vx:rnd(-10,10),vy:rnd(-25,-9),life:rnd(.25,.5),color:a.color});
+}
+function rect(s,fill,stroke){ctx.fillStyle=fill;ctx.fillRect(s.x,s.y,s.w,s.h);ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.strokeRect(s.x+.5,s.y+.5,s.w-1,s.h-1)}
+function text(txt,x,y,size=8,color='#706b63',align='left'){ctx.fillStyle=color;ctx.font='900 '+size+'px ui-monospace,SFMono-Regular,Menlo,monospace';ctx.textAlign=align;ctx.textBaseline='top';ctx.fillText(String(txt).slice(0,28),x,y)}
+function drawStation(s,t){
+ if(s.kind==='pool'){rect(s,'#070707','#555047');ctx.fillStyle='#26231f';for(let i=0;i<5;i++)ctx.fillRect(s.x+10+i*(s.w-20)/5,s.y+27,(s.w-28)/6,4)}
+ else{rect(s,'#10100e','#454138')}
+ text(s.name.toUpperCase(),s.x+8,s.y+8,Math.max(6,Math.min(9,W/120)),'#b0aaa0');
+ if(s.kind==='forge'){for(let i=0;i<4;i++){const x=s.x+14+i*(s.w-28)/4;ctx.fillStyle='#25221d';ctx.fillRect(x,s.y+34,8,s.h-48);ctx.fillStyle='#ff6500';ctx.fillRect(x+3,s.y+38,2,s.h-56)}}
+ if(s.kind==='reserve'){for(let i=0;i<5;i++){ctx.fillStyle=i%2?'#2b2822':'#1c1a16';ctx.fillRect(s.x+12+i*(s.w-24)/5,s.y+38,(s.w-32)/7,s.h-54)}}
+ if(s.kind==='guide'){ctx.strokeStyle='#38342e';for(let i=0;i<4;i++){ctx.beginPath();ctx.moveTo(s.x+12,s.y+38+i*22);ctx.lineTo(s.x+s.w-12,s.y+38+i*22);ctx.stroke()}}
+ if(s.kind==='monitor'){ctx.fillStyle='#171613';ctx.fillRect(s.x+12,s.y+34,s.w-24,s.h-48);ctx.strokeStyle='#4b4740';ctx.beginPath();for(let i=0;i<7;i++){const x=s.x+16+i*(s.w-32)/6,y=s.y+s.h-24-Math.sin(i*.8+t*.001)*Math.min(26,s.h*.22);i?ctx.lineTo(x,y):ctx.moveTo(x,y)}ctx.stroke()}
+ if(s.kind==='park'){ctx.fillStyle='#171613';for(let i=0;i<3;i++)ctx.fillRect(s.x+12,s.y+36+i*24,s.w-24,5)}
+}
+function drawSprite(a,t,scale){
+ const rows=RAW[a.shape],sz=scale||Math.max(2,Math.floor(Math.min(W,H)/290)),w=N*sz,h=N*sz,x0=Math.round(a.x-w/2),y0=Math.round(a.y-h/2+(a.visual==='working'?(Math.floor(t/180+a.i)%2):0));
+ let col=a.color;if(a.visual==='silent')col='#6a665f';if(a.visual==='dead')col='#3d3a35';if(a.visual==='falling')col='#777169';
+ ctx.fillStyle=col;
+ for(let y=0;y<N;y++){const row=rows[y]||0;for(let x=0;x<N;x++)if(row&(1<<(N-1-x)))ctx.fillRect(x0+x*sz,y0+y*sz,sz,sz)}
+ if(a.visual==='working'){ctx.fillStyle='#ff6500';const f=(Math.floor(t/160+a.i)%2);ctx.fillRect(x0+w+2,y0+5+f*4,3,7)}
+ if(selected===a.code){ctx.strokeStyle='#f0eadf';ctx.strokeRect(x0-4,y0-4,w+8,h+8)}
+}
+function drawWorld(t){
+ ctx.fillStyle='#090908';ctx.fillRect(0,0,W,H);
+ ctx.strokeStyle='#14130f';for(let x=0;x<W;x+=28){ctx.beginPath();ctx.moveTo(x+.5,62);ctx.lineTo(x+.5,H);ctx.stroke()}for(let y=62;y<H;y+=28){ctx.beginPath();ctx.moveTo(0,y+.5);ctx.lineTo(W,y+.5);ctx.stroke()}
+ ctx.fillStyle='#0d0d0b';ctx.fillRect(W*.04,120,W*.59,H-150);ctx.strokeStyle='#27241f';ctx.setLineDash([5,6]);ctx.strokeRect(W*.04+.5,120.5,W*.59-1,H-151);ctx.setLineDash([]);
+ for(const s of stations)drawStation(s,t);
+ const ordered=[...agents].sort((a,b)=>(a.visual==='dead'?0:1)-(b.visual==='dead'?0:1));for(const a of ordered)drawSprite(a,t);
+ for(const sp of sparks){ctx.fillStyle=sp.color;ctx.fillRect(sp.x,sp.y,2,2)}
+}
+function topWorkers(){
+ return [...agents].sort((a,b)=>scoreOf(b.w)-scoreOf(a.w)).slice(0,6)
+}
+function drawRace(t){
+ ctx.fillStyle='#090908';ctx.fillRect(0,0,W,H);
+ const top=topWorkers(),left=Math.max(42,W*.08),right=W-30,topY=135,bottom=H-65;
+ text('MEJORES WORKERS · PRODUCCIÓN ACUMULADA',left,104,9,'#f0eadf');
+ ctx.strokeStyle='#2a2722';for(let i=0;i<5;i++){const y=topY+i*(bottom-topY)/4;ctx.beginPath();ctx.moveTo(left,y+.5);ctx.lineTo(right,y+.5);ctx.stroke()}
+ const max=Math.max(1,...top.map(a=>scoreOf(a.w)));
+ top.forEach((a,idx)=>{
+   const base=scoreOf(a.w)/max,pts=14;ctx.strokeStyle=a.color;ctx.lineWidth=2;ctx.beginPath();
+   for(let i=0;i<pts;i++){const x=left+i*(right-left)/12,y=bottom-(bottom-topY)*(base*(.16+.84*i/(pts-1)))*(1+Math.sin(i*.9+idx)*.04);i?ctx.lineTo(x,y):ctx.moveTo(x,y)}ctx.stroke();
+   const y=topY+idx*22;drawSprite({...a,x:left+11,y:y+5,visual:'assignable'},t,1);text(a.code,left+30,y,7,a.color);text(String(scoreOf(a.w)),right,y,7,a.color,'right')
+ });
+}
+function updateSparks(dt){for(let i=sparks.length-1;i>=0;i--){const s=sparks[i];s.life-=dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.vy+=60*dt;if(s.life<=0)sparks.splice(i,1)}}
+function hit(x,y){let best=null,bd=1e9;for(const a of agents){const d=(a.x-x)*(a.x-x)+(a.y-y)*(a.y-y);if(d<bd&&d<900){best=a;bd=d}}return best}
+function stationHit(x,y){return stations.find(s=>x>=s.x&&x<=s.x+s.w&&y>=s.y&&y<=s.y+s.h)}
+function panelWorker(a){
+ selected=a.code;$('panelTitle').textContent=a.code;$('panelBody').innerHTML='<div class="row"><span>Estado</span><strong>'+a.desired.toUpperCase()+'</strong></div><div class="row"><span>Trabajo</span><strong>'+safe(a.w.current_job||a.w.unit||a.w.assignment||a.w.target,'—')+'</strong></div><div class="row"><span>Outputs</span><strong>'+safe(a.w.outputs_done,0)+'</strong></div><div class="row"><span>Palabras</span><strong>'+safe(a.w.words_done,0)+'</strong></div><div class="row"><span>Proyecto</span><strong>'+stationFor(a).name+'</strong></div>';$('panel').classList.add('show')
+}
+function panelStation(s){
+ selected=null;$('panelTitle').textContent=s.name;$('panelBody').innerHTML='<div class="row"><span>Zona</span><strong>'+s.kind.toUpperCase()+'</strong></div><div class="row"><span>Workers</span><strong>'+agents.filter(a=>stationFor(a)===s).length+'</strong></div><div class="row"><span>Lectura</span><strong>'+((summary&&(summary.guide_headline||summary.guide_summary))||'Sector visual del runtime')+'</strong></div>';$('panel').classList.add('show')
+}
+c.addEventListener('pointerdown',e=>{if(mode!=='world')return;const r=c.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,a=hit(x,y);if(a){panelWorker(a);return}const s=stationHit(x,y);if(s)panelStation(s)});
+$('close').onclick=()=>{$('panel').classList.remove('show');selected=null};
+$('worldBtn').onclick=()=>{mode='world';$('worldBtn').classList.add('on');$('raceBtn').classList.remove('on')};
+$('raceBtn').onclick=()=>{mode='race';$('raceBtn').classList.add('on');$('worldBtn').classList.remove('on');$('panel').classList.remove('show');selected=null};
+async function tick(){
+ const [m,w,p,o,l]=await Promise.all([get('prometeo_control_minimal?select=*'),get('prometeo_control_workers?select=*&order=joined_at.asc&limit=100'),get('prometeo_control_projects?select=*&order=created_at.desc&limit=12'),get('prometeo_control_outputs?select=worker_code,word_count,published_at&order=published_at.desc&limit=500'),get('prometeo_control_worker_liveness?select=*&order=worker_code.asc&limit=300')]);
+ summary=m[0]||summary;workers=w;projects=p;outputs=o;liveness=l;layoutStations();syncAgents();
+ const liveN=agents.filter(a=>a.desired!=='dead').length,deadN=agents.filter(a=>a.desired==='dead').length,workN=agents.filter(a=>a.desired==='working').length;
+ $('live').textContent=liveN;$('morgue').textContent=deadN;
+ $('workPct').textContent=summary&&summary.batch_work_pct!==undefined?Number(summary.batch_work_pct).toFixed(0)+'%':(agents.length?Math.round(workN/agents.length*100)+'%':'—');
+ $('eta').textContent=summary&&summary.eta?summary.eta:(summary&&summary.latest_batch?summary.latest_batch:'—');
+ $('sub').textContent=(demo?'demo visual':'datos vivos')+' · '+agents.length+' entidades';
+ $('status').textContent=demo?'demo':'vivo · '+new Date().toLocaleTimeString();
+}
+function frame(t){
+ const dt=Math.min(.034,(t-last)/1000||0);last=t;if(mode==='world'){for(const a of agents)update(a,dt,t);updateSparks(dt);drawWorld(t)}else drawRace(t);requestAnimationFrame(frame)
+}
+addEventListener('resize',resize,{passive:true});resize();syncAgents();tick();setInterval(tick,4500);requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
