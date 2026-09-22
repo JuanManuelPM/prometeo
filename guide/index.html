@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#090908">
+<title>Prometeo Guide</title>
+<style>
+:root{--bg:#090908;--paper:#f2ede3;--muted:#8f897e;--line:#35322d;--accent:#ff6a00}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--paper);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{min-height:100vh}main{max-width:900px;margin:auto;padding:18px}.eyebrow{font-size:11px;letter-spacing:.16em;font-weight:950;color:var(--accent)}
+h1{font-size:clamp(34px,8vw,78px);line-height:.88;letter-spacing:-.06em;margin:8px 0 14px}
+.lead{max-width:720px;color:#c7c0b5;font-size:14px;line-height:1.5;margin:0 0 18px}
+.box{border-top:1px solid var(--line);padding:14px 0}.label{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:950;margin-bottom:7px}
+.value{font-size:14px;line-height:1.45}.grid{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}.prompt{background:#151411;border:1px solid var(--line);padding:14px;font:800 15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.btn{min-height:44px;border:1px solid var(--paper);background:transparent;color:var(--paper);padding:0 14px;font-weight:950;letter-spacing:.04em;cursor:pointer}.btn.primary{background:var(--paper);color:#0a0a09}.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+ul{margin:0;padding-left:18px}.meta{font-size:11px;color:var(--muted);margin-top:10px}
+@media(max-width:640px){main{padding:14px}.grid{grid-template-columns:1fr}.lead{font-size:13px}}
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">PROMETEO · CONTINUIDAD</div>
+<h1>GUIDE</h1>
+<p class="lead">Este es el punto de reentrada estable para cualquier chat que tenga que continuar el control de Prometeo. El estado útil vive fuera del chat.</p>
+
+<section class="box">
+ <div class="label">Invocación universal</div>
+ <div class="prompt" id="prompt">GUIDE
+https://juanmanuelpm.github.io/prometeo/guide/</div>
+ <div class="actions">
+   <button class="btn primary" id="copy">COPIAR INVOCACIÓN</button>
+   <a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="/prometeo/control/">VOLVER A CONTROL</a>
+ </div>
+ <div class="meta" id="copyStatus">Pegá esas dos líneas en un chat nuevo.</div>
+</section>
+
+<div class="grid">
+ <section class="box"><div class="label">Objetivo actual</div><div class="value" id="intent">cargando…</div></section>
+ <section class="box"><div class="label">Estrategia</div><div class="value" id="strategy">cargando…</div></section>
+ <section class="box"><div class="label">Situación</div><div class="value" id="situation">cargando…</div></section>
+ <section class="box"><div class="label">Próximas acciones</div><div class="value"><ul id="next"><li>cargando…</li></ul></div></section>
+</div>
+
+<section class="box">
+ <div class="label">Contrato del chat GUIDE</div>
+ <div class="value">
+   <ol>
+    <li>No sos un worker: sos la capa de control humano de Prometeo.</li>
+    <li>Usá Supabase del proyecto <code>catnohyouxqjjtseaueb</code>.</li>
+    <li>Primera acción: <code>select public.prometeo_guide_context() as context;</code></li>
+    <li>Leé proyectos, workers globales, workers legacy, eventos, órdenes y Guide State antes de decidir.</li>
+    <li>Podés crear proyectos/jobs y retargetear workers globales mediante las funciones <code>prometeo_*</code>.</li>
+    <li>No interrumpas un lease activo si alcanza con retarget después del job.</li>
+    <li>Después de una decisión importante, actualizá Guide State con <code>prometeo_update_guide_state</code>.</li>
+    <li>No afirmes que un worker legacy está bajo control global hasta que el bridge lo pruebe.</li>
+   </ol>
+ </div>
+</section>
+</main>
+<script>
+(()=>{
+ const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/';
+ const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+ const HEAD={apikey:KEY,Authorization:'Bearer '+KEY};
+ async function load(){
+  try{
+   const r=await fetch(BASE+'prometeo_guide_state?guide_id=eq.MAIN&select=*',{headers:HEAD,cache:'no-store'});
+   const d=(await r.json())[0]; if(!d)return;
+   document.getElementById('intent').textContent=d.current_intent||'—';
+   document.getElementById('strategy').textContent=d.current_strategy||'—';
+   document.getElementById('situation').textContent=d.situation_summary||'—';
+   const ul=document.getElementById('next');ul.innerHTML='';(d.next_actions||[]).forEach(x=>{const li=document.createElement('li');li.textContent=x;ul.appendChild(li)});
+  }catch(e){}
+ }
+ document.getElementById('copy').addEventListener('click',async()=>{
+   const t=document.getElementById('prompt').textContent;
+   try{await navigator.clipboard.writeText(t);document.getElementById('copyStatus').textContent='Invocación copiada.'}
+   catch(e){document.getElementById('copyStatus').textContent='Seleccioná las dos líneas de arriba y copialas.'}
+ });
+ load();setInterval(load,5000);
+})();
+</script>
+</body>
+</html>
