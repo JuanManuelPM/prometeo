@@ -271,7 +271,7 @@
 244. **[PENDIENTE] Mostrar capacidad desbloqueada.** Cada item debería declarar qué habilita.
 245. **[PENDIENTE] Recomendar siguiente pendiente.** El sistema puede priorizar sin reemplazar preferencias humanas.
 246. **[OBJETIVO] Prometeo recuerda procedimientos.** No depender de volver a explicarle cómo hacer algo ya aprendido.
-247. **[OBJETIVO] Objetos durables en vez de prompts.** Mover memoria operacional fuera de conversaciones.
+247. **[HECHO] Objetos durables en vez de prompts.** La memoria operacional central vive en projects/jobs/outputs, Guide State, sesiones/eventos y Skills versionadas; el prompt queda como protocolo de entrada, no como source of truth.
 248. **[OBJETIVO] Goals generan trabajo.** Dejar de inventar manualmente cada cola.
 249. **[OBJETIVO] Trabajo genera aprendizaje.** Cada ejecución puede producir conocimiento reusable.
 250. **[OBJETIVO] Aprendizaje genera Skills.** Convertir patrones probados en procedimientos verificables.
