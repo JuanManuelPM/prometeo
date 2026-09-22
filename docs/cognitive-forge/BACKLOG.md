@@ -266,7 +266,7 @@
 239. **[PENDIENTE] Priorizar backlog.** Valor, dependencia, costo, riesgo y capacidad desbloqueada.
 240. **[PENDIENTE] Separar mejora de experimento.** Distinguir construir Prometeo de aprender algo sobre Prometeo.
 241. **[PENDIENTE] Registrar autoría/origen.** Usuario, worker o análisis posterior.
-242. **[PENDIENTE] Conservar ideas rechazadas.** Guardar razones y evidencia.
+242. **[HECHO] Conservar ideas rechazadas.** Guardar razones y evidencia.
 243. **[PENDIENTE] Vista visual del backlog.** Conectarla con el taller de workers.
 244. **[PENDIENTE] Mostrar capacidad desbloqueada.** Cada item debería declarar qué habilita.
 245. **[PENDIENTE] Recomendar siguiente pendiente.** El sistema puede priorizar sin reemplazar preferencias humanas.
