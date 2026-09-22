@@ -52,8 +52,9 @@ background-size:26px 26px}
 .worker.working{background:var(--paper);color:var(--ink);border-color:var(--paper)}
 .worker.working .sig{background:var(--ink);position:relative;overflow:hidden}.worker.working .sig::after{content:"";position:absolute;left:0;right:0;height:35%;top:-35%;background:var(--accent);animation:run 2.3s linear infinite}
 .worker.working .job{color:#575248}
-.worker.waiting .sig{background:transparent;border:1px solid #777168}
-.worker.stale{border-style:dashed}.worker.stale .sig{background:var(--accent)}
+.worker.assignable{border-color:#6b655b}.worker.assignable .sig{background:transparent;border:1px solid #aaa398}
+.worker.parked{border-style:dashed;border-color:#716a60}.worker.parked .sig{background:transparent;border:1px solid #716a60}
+.worker.silent{border-style:dashed;border-color:var(--accent)}.worker.silent .sig{background:var(--accent)}
 .worker.focus{outline:2px solid var(--accent);outline-offset:1px}
 @keyframes run{to{transform:translateY(390%)}}
 @media(prefers-reduced-motion:reduce){.worker.working .sig::after{animation:none;top:32%}}
@@ -98,7 +99,7 @@ background-size:26px 26px}
  <div class="brand"><span class="mark"></span><div class="brandCopy"><h1>PROMETEO</h1><div class="sub" id="sub">mesa de mando · conectando</div></div></div>
  <div class="kpi"><b id="progress">—</b><span>trabajo</span></div>
  <div class="kpi"><b id="eta">—</b><span>ETA</span></div>
- <div class="kpi"><b id="deathKpi">☠0</b><span>muertos</span></div>
+ <div class="kpi"><b id="deathKpi">☠0</b><span>morgue</span></div>
 </header>
 
 <section class="projectRail">
@@ -182,10 +183,57 @@ background-size:26px 26px}
    if(w.project_type==='FORGE')return'F·K'+n;
    return'P·K'+n;
  }
+ function liveInfo(w){return w._live||{}}
+ function explicitReason(w){
+   const l=liveInfo(w);
+   return l.reason_code||l.no_assignment_reason_code||l.assignment_reason_code||l.park_reason_code||
+          w.reason_code||w.no_assignment_reason_code||w.assignment_reason_code||w.park_reason_code||null;
+ }
+ function protocolVersion(w){
+   const l=liveInfo(w),v=l.protocol_version??w.protocol_version;
+   return v===null||v===undefined||String(v).trim()===''?null:String(v);
+ }
+ function evidencedStreak(w){
+   const l=liveInfo(w);
+   const val=l.checkpoint_streak??l.streak??w.checkpoint_streak??w.streak;
+   const ev=l.streak_evidence??l.checkpoint_streak_evidence??w.streak_evidence??w.checkpoint_streak_evidence;
+   const hasEvidence=ev===true||(Array.isArray(ev)&&ev.length>0)||(typeof ev==='string'&&ev.trim().length>0)||(ev&&typeof ev==='object'&&Object.keys(ev).length>0);
+   return hasEvidence&&Number.isFinite(Number(val))?Number(val):null;
+ }
+ function workerState(w){
+   const l=liveInfo(w),live=String(l.liveness||w._liveness||'').toUpperCase(),st=String(l.durable_status||w.status||'').toUpperCase();
+   const age=w.last_seen_at?Date.now()-new Date(w.last_seen_at):0;
+   if(live==='DEAD')return'DEAD';
+   if(live==='SILENT'||live==='SUSPECT'||(st==='WORKING'&&age>180000))return'SILENT';
+   if(st==='WORKING')return'WORKING';
+   if(st==='PARKED'||String(l.assignment_state||'').toUpperCase()==='PARKED')return'PARKED';
+   if(st==='WAITING'){
+     const reason=String(explicitReason(w)||'').toUpperCase();
+     if(l.next_project_id||w.next_project_id||/TARGET|PARK|NO_READY|NO_WORK/.test(reason))return'PARKED';
+     return'ASSIGNABLE';
+   }
+   return st||'ASSIGNABLE';
+ }
+ function stateDetail(w){
+   const l=liveInfo(w),state=workerState(w),pv=protocolVersion(w),streak=evidencedStreak(w),reason=explicitReason(w);
+   const target=l.next_project_id||w.next_project_id;
+   const ttl=l.target_ttl_seconds??l.assignment_ttl_seconds??w.target_ttl_seconds??w.assignment_ttl_seconds;
+   const bits=[state];
+   if(pv)bits.push('PV '+pv);
+   if(streak!==null)bits.push('S'+streak);
+   if(reason)bits.push(String(reason));
+   else if(state==='PARKED'&&target)bits.push('TARGET '+String(target));
+   else if(state==='PARKED'||state==='ASSIGNABLE')bits.push('reason —');
+   if(Number.isFinite(Number(ttl)))bits.push(Math.max(0,Math.round(Number(ttl)))+'s');
+   return bits.join(' · ');
+ }
  function workerJob(w){
-   if(!w.current_unit)return w.status==='WAITING'?'LIBRE':'—';
+   if(workerState(w)!=='WORKING')return stateDetail(w);
+   if(!w.current_unit)return stateDetail(w);
    let s=String(w.current_unit).replace('VISUAL-LAB-01','VIS').replace('LEGACY-BRIDGE-01','BRG').replace('FORGE-BLUEPRINT-84-01','B84');
-   return s.length>20?s.slice(0,19)+'…':s;
+   const lead=stateDetail(w);
+   s=s.length>15?s.slice(0,14)+'…':s;
+   return lead+' · '+s;
  }
  function scoreWorkers(ws){
    const prod=ws.filter(w=>num(w.outputs_done)>0);
@@ -224,14 +272,13 @@ background-size:26px 26px}
  }
  function renderWorkers(workers,projects){
    const root=$('workerGrid');root.innerHTML='';if(!workers.length){root.innerHTML='<div class="empty">sin workers</div>';return}
-   const sorted=[...workers].sort((a,b)=>{
-     const so={WORKING:0,WAITING:1,PAUSED:2,DONE:3};return(so[a.status]??4)-(so[b.status]??4)||displayWorker(a).localeCompare(displayWorker(b));
-   });
+   const order={WORKING:0,ASSIGNABLE:1,PARKED:2,SILENT:3};
+   const sorted=[...workers].sort((a,b)=>(order[workerState(a)]??4)-(order[workerState(b)]??4)||displayWorker(a).localeCompare(displayWorker(b)));
    const f=fitWorkers(sorted.length);root.style.gridTemplateColumns='repeat('+f.cols+','+Math.max(25,f.w)+'px)';root.style.gridTemplateRows='repeat('+f.rows+','+Math.max(18,f.h)+'px)';
    const idfs=clamp(Math.min(f.h*.26,f.w*.11),5,10),jobfs=clamp(idfs*.7,4.5,7);root.style.setProperty('--idfs',idfs+'px');root.style.setProperty('--jobfs',jobfs+'px');
    sorted.forEach(w=>{
-     const b=document.createElement('button'),st=String(w.status||'').toUpperCase();b.type='button';b.className='worker '+(st==='WORKING'?'working':st==='WAITING'?'waiting':'')+((w._liveness==='SILENT'||w._liveness==='SUSPECT'||(w.last_seen_at&&Date.now()-new Date(w.last_seen_at)>180000&&st==='WORKING'))?' stale':'')+(S.focus&&S.focus.type==='worker'&&S.focus.uid===w.project_type+'|'+w.project_id+'|'+w.worker_code?' focus':'');
-     b.innerHTML='<i class="sig"></i><span class="wid">'+displayWorker(w)+'</span><span class="job">'+workerJob(w)+'</span>';b.title=displayWorker(w)+' · '+st+' · '+workerJob(w);
+     const b=document.createElement('button'),state=workerState(w);b.type='button';b.className='worker '+state.toLowerCase()+(S.focus&&S.focus.type==='worker'&&S.focus.uid===w.project_type+'|'+w.project_id+'|'+w.worker_code?' focus':'');
+     b.innerHTML='<i class="sig"></i><span class="wid">'+displayWorker(w)+'</span><span class="job">'+workerJob(w)+'</span>';b.title=displayWorker(w)+' · '+stateDetail(w);
      b.addEventListener('click',()=>{S.focus={type:'worker',uid:w.project_type+'|'+w.project_id+'|'+w.worker_code,worker:w};render()});root.appendChild(b);
    });
  }
@@ -246,18 +293,22 @@ background-size:26px 26px}
    leaders.forEach((w,i)=>{const id=w.project_type+'|'+w.project_id+'|'+w.worker_code,p=pts.get(id).map(([x,c])=>[x,H-pad-(H-2*pad)*c/max]),path=document.createElementNS(ns,'path');path.setAttribute('d',p.map((q,j)=>(j?'L':'M')+q[0].toFixed(1)+' '+q[1].toFixed(1)).join(' '));path.setAttribute('fill','none');path.setAttribute('stroke',i===0?'#ff6900':'#ded7cc');path.setAttribute('stroke-opacity',String(i===0?1:.78-i*.11));path.setAttribute('stroke-width',i===0?'3':'2');if(i>1)path.setAttribute('stroke-dasharray',i===2?'6 4':'2 4');svg.appendChild(path)})
  }
  function guideDefault(projects,workers){
-   const global=workers.filter(w=>w.project_type==='GLOBAL_POOL'),legacy=workers.filter(w=>w.project_type!=='GLOBAL_POOL'),working=workers.filter(w=>w.status==='WORKING').length,free=global.filter(w=>w.status==='WAITING').length,dead=(S.liveness||[]).filter(x=>x.liveness==='DEAD').length,batch=(S.batches||[])[0];
+   const counts={WORKING:0,ASSIGNABLE:0,PARKED:0,SILENT:0};workers.forEach(w=>{const s=workerState(w);if(s in counts)counts[s]++});
+   const dead=(S.liveness||[]).filter(x=>String(x.liveness).toUpperCase()==='DEAD').length,batches=(S.batches||[]),batch=batches[0];
    const high=projects[0],blocked=projects.reduce((s,p)=>s+num(p.blocked_units),0),next=(S.guide?.next_actions||[])[0]||'Sin siguiente acción registrada.';
-   return '<div class="guideBlock"><div class="gLabel">Ahora</div><div class="gBig">'+working+' trabajando · '+free+' libres</div><div class="gText">'+global.length+' globales · '+legacy.length+' legacy visibles</div></div>'+
+   const versions=[...new Set(workers.map(protocolVersion).filter(Boolean))];
+   return '<div class="guideBlock"><div class="gLabel">Runtime</div><div class="gBig">W'+counts.WORKING+' · A'+counts.ASSIGNABLE+' · P'+counts.PARKED+' · S'+counts.SILENT+'</div><div class="gText">protocol '+(versions.length?versions.join(', '):'—')+' · sólo vivos ocupan mesa</div></div>'+
    '<div class="guideBlock"><div class="gLabel">Foco</div><div class="gText">'+(high?projectAlias(high)+' · '+high.title:'Sin proyecto activo')+'</div></div>'+
-   '<div class="guideBlock"><div class="gLabel">Veo</div><div class="gText '+(blocked?'gAlert':'')+'">'+blocked+' jobs bloqueados · ☠'+dead+' muertos fuera de la mesa. '+(legacy.length?'Todavía hay workers legacy fuera del control global.':'Todos los visibles son globales.')+'</div></div>'+ '<div class="guideBlock"><div class="gLabel">Morgue</div><div class="gText">'+(batch?batch.batch_id+' · '+batch.death_count+' expedientes · '+batch.status:'sin lote pendiente')+'</div></div>'+
+   '<div class="guideBlock"><div class="gLabel">Asignación</div><div class="gText '+(blocked?'gAlert':'')+'">'+blocked+' jobs bloqueados · PARKED expone reason/target cuando existe; sin evidencia muestra “reason —”.</div></div>'+
+   '<div class="guideBlock"><div class="gLabel">Morgue por lotes</div><div class="gText">☠'+dead+' fuera de la mesa · '+batches.length+' lotes recientes'+(batch?' · último '+batch.batch_id+' / '+batch.death_count+' / '+batch.status:'')+'</div></div>'+
    '<div class="guideBlock"><div class="gLabel">Siguiente</div><div class="gText">'+next+'</div></div>';
  }
  function guideWorker(w,projects){
-   const p=projectForWorker(w,projects),age=w.last_seen_at?Math.max(0,Math.round((Date.now()-new Date(w.last_seen_at))/1000))+'s':'—';
-   return '<div class="guideBlock"><div class="gLabel">Worker</div><div class="gBig">'+displayWorker(w)+'</div><div class="gText">'+w.status+' · '+(p?projectAlias(p)+' '+p.title:'sin proyecto')+'</div></div>'+
-   '<div class="guideBlock"><div class="gLabel">Trabajo</div><div class="gText">'+workerJob(w)+'</div></div>'+
-   '<div class="guideBlock"><div class="gLabel">Historial</div><div class="gText">'+num(w.outputs_done)+' outputs · '+short(num(w.words_done))+' palabras · '+num(w.words_per_min).toFixed(0)+' p/min · '+num(w.rescues_done)+' rescates</div></div>'+
+   const p=projectForWorker(w,projects),age=w.last_seen_at?Math.max(0,Math.round((Date.now()-new Date(w.last_seen_at))/1000))+'s':'—',pv=protocolVersion(w),streak=evidencedStreak(w),reason=explicitReason(w);
+   return '<div class="guideBlock"><div class="gLabel">Worker</div><div class="gBig">'+displayWorker(w)+'</div><div class="gText">'+workerState(w)+' · protocol '+(pv||'—')+' · '+(p?projectAlias(p)+' '+p.title:'sin proyecto')+'</div></div>'+
+   '<div class="guideBlock"><div class="gLabel">Asignación</div><div class="gText">'+workerJob(w)+(reason?' · reason '+reason:'')+'</div></div>'+
+   '<div class="guideBlock"><div class="gLabel">Evidencia</div><div class="gText">'+(streak===null?'streak oculto: sin evidencia explícita':'checkpoint streak '+streak+' · evidencia presente')+'</div></div>'+
+   '<div class="guideBlock"><div class="gLabel">Historial</div><div class="gText">'+num(w.outputs_done)+' outputs · '+short(num(w.words_done))+' palabras · '+num(w.rescues_done)+' rescates</div></div>'+
    '<div class="guideBlock"><div class="gLabel">Última señal</div><div class="gText">hace '+age+'</div></div>';
  }
  function guideProject(p){
@@ -276,14 +327,14 @@ background-size:26px 26px}
  function render(){
    const projects=relevantProjects(),pkeys=new Set(projects.map(p=>pk(p.project_type,p.project_id)));
    const liveMap=new Map((S.liveness||[]).map(x=>[x.worker_code,x]));
-   const workers=S.workers.map(w=>w.project_type==='GLOBAL_POOL'?({...w,_liveness:(liveMap.get(w.worker_code)?.liveness||'LIVE')}):w)
-     .filter(w=>w.status!=='NO_WORK'&&w._liveness!=='DEAD'&&((w.project_type==='GLOBAL_POOL'&&w.status!=='STOPPED')||pkeys.has(pk(w.project_type,w.project_id))));
-   const dead=(S.liveness||[]).filter(x=>x.liveness==='DEAD').length;
-   const silent=(S.liveness||[]).filter(x=>x.liveness==='SILENT'||x.liveness==='SUSPECT').length;
-   const pr=calcProgress(projects,S.units,S.outputs,workers),working=workers.filter(w=>w.status==='WORKING').length,globalFree=workers.filter(w=>w.project_type==='GLOBAL_POOL'&&w.status==='WAITING').length;
-   $('progress').textContent=pr.pct.toFixed(pr.pct<10?1:0)+'%';$('eta').textContent=fmt(pr.eta);$('deathKpi').textContent='☠'+dead;
-   $('sub').textContent=projects.length+' proyectos · '+working+' trabajando · '+globalFree+' libres · '+silent+' silenciosos';
-   $('capacity').textContent=working+' trabajando · '+globalFree+' libres · ☠'+dead+' · '+workers.filter(w=>w.project_type!=='GLOBAL_POOL').length+' legacy';
+   const workers=S.workers.map(w=>({...w,_live:liveMap.get(w.worker_code)||null,_liveness:(liveMap.get(w.worker_code)?.liveness||'LIVE')}))
+     .filter(w=>w.status!=='NO_WORK'&&workerState(w)!=='DEAD'&&((w.project_type==='GLOBAL_POOL'&&w.status!=='STOPPED')||pkeys.has(pk(w.project_type,w.project_id))));
+   const dead=(S.liveness||[]).filter(x=>String(x.liveness).toUpperCase()==='DEAD').length;
+   const counts={WORKING:0,ASSIGNABLE:0,PARKED:0,SILENT:0};workers.forEach(w=>{const s=workerState(w);if(s in counts)counts[s]++});
+   const pr=calcProgress(projects,S.units,S.outputs,workers),versions=[...new Set(workers.map(protocolVersion).filter(Boolean))];
+   $('progress').textContent=pr.pct.toFixed(pr.pct<10?1:0)+'%';$('eta').textContent=fmt(pr.eta);$('deathKpi').textContent='☠'+dead+(S.batches.length?' · '+S.batches.length+'L':'');
+   $('sub').textContent=projects.length+' proyectos · W'+counts.WORKING+' · A'+counts.ASSIGNABLE+' · P'+counts.PARKED+' · S'+counts.SILENT+' · PV '+(versions.length?versions.join('/'):'—');
+   $('capacity').textContent='WORKING '+counts.WORKING+' · ASSIGNABLE '+counts.ASSIGNABLE+' · PARKED '+counts.PARKED+' · SILENT '+counts.SILENT;
    renderProjects(projects);renderWorkers(workers,projects);renderRace(workers);renderGuide(projects,workers);renderEvents();
    $('workerGrid').style.display=S.mode==='board'?'grid':'none';$('raceView').classList.toggle('show',S.mode==='race');$('modeBoard').classList.toggle('on',S.mode==='board');$('modeRace').classList.toggle('on',S.mode==='race');
  }
