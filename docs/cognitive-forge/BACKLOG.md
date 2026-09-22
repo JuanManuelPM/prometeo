@@ -7,9 +7,9 @@
 - Total de ítems: **253**
 - HECHO: **83**
 - CONCLUSION: **5**
-- DISENADO: **115**
+- DISENADO: **114**
 - DESCUBRIMIENTO: **3**
-- PENDIENTE: **38**
+- PENDIENTE: **39**
 - CONCEPTO: **1**
 - OBJETIVO: **8**
 
@@ -151,7 +151,7 @@
 124. **[DISENADO] Inspeccionar worker.** Ver recorrido, tareas, rescates y conocimiento creado.
 125. **[DISENADO] Inspeccionar tarea.** Ver Goal, Card, Plumas, Tools, inputs y outputs.
 126. **[DISENADO] Inspeccionar objeto cognitivo.** Ver definición, procedencia, revisiones y uso histórico.
-127. **[PENDIENTE] Construir visualización física.** Hoy existe sólo el observador funcional.
+127. **[HECHO] Construir visualización física.** Pixel Campus en `demos/prometeo-pixel-world/`: mundo físico de workers conectado al runtime real, con fallback demo sólo si la lectura live falla.
 128. **[DISENADO] Progreso ponderado.** No usar sólo jobs terminados / jobs totales.
 129. **[DISENADO] Peso por fase.** Cada fase vale según trabajo esperado.
 130. **[DISENADO] Peso Architect ~13,8%.** Estimación inicial dentro de un punto.
@@ -187,7 +187,7 @@
 160. **[DISENADO] Más workers = más paralelismo.** Mientras existan nodos READY.
 161. **[DISENADO] Sobrantes deberían esperar.** WAIT es mejor que NO_WORK si puede aparecer trabajo futuro.
 162. **[PENDIENTE] Eliminar hard cap rígido.** Runtime final debe aceptar cohortes variables.
-163. **[DISENADO] Medir beneficio decreciente.** Encontrar empíricamente el punto donde sumar workers casi no ayuda. Spec ejecutable: `docs/cognitive-forge/BACKLOG-163-DIMINISHING-RETURNS-EXPERIMENT-SPEC.md`.
+163. **[PENDIENTE] Medir beneficio decreciente.** Encontrar empíricamente el punto donde sumar workers casi no ayuda.
 164. **[DISENADO] No implementar directo desde 84 documentos.** Primero hace falta una capa de compilación.
 165. **[DISENADO] Interfaz compacta por punto.** Además del canonical largo, extraer un contrato pequeño.
 166. **[DISENADO] Contenido de interfaz compacta.** Propósito, inputs, outputs, estados, funciones, eventos, invariantes y pruebas.
