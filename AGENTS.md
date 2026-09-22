@@ -1,3 +1,12 @@
+# Current worker control-plane entry: OBEY-v2
+
+When a human explicitly authorizes connected tools for Prometeo and invokes the public worker protocol at `/o/`, that protocol is the authoritative entry for the session.
+
+- Start with `PREFLIGHT`; do not run repository archaeology, Agent Runtime v3 boot, scheduler inspection, or alternate routing before the server accepts PREFLIGHT.
+- Follow only the durable server state machine returned by OBEY-v2: `PREFLIGHT → ENTER → WORK | WAIT → CHECKPOINT → PUBLISH → NEXT`.
+- A `WORK` assignment defines the only permitted job scope for that lease. Publish before requesting NEXT.
+- The Agent Runtime v3 rules below remain applicable to the legacy `Prometeo` / `PROMETEO EXECUTE` flows when `/o/` is not the invoked authority; they must not override an active OBEY-v2 session.
+
 # Prometeo Agent Runtime v3
 
 Prometeo is intentionally multi-chat. **Route before archaeology; EPOCH before coordination reread; compiled packet before raw owners.**
