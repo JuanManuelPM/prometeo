@@ -119,7 +119,7 @@
 92. **[HECHO] Smoke test eliminado.** Los datos de prueba fueron limpiados.
 93. **[HECHO] Blueprint virgen antes del lanzamiento.** Se verificó 0 workers y 0 outputs.
 94. **[HECHO] 8 workers lanzados.** La cohorte actual está trabajando sobre el blueprint.
-95. **[PENDIENTE] Dejar terminar sin intervención innecesaria.** Intervenir sólo ante fallo estructural.
+95. **[HECHO] Dejar terminar sin intervención innecesaria.** Runtime actual preserva leases válidos, permite DRAINING sin cortar trabajo activo y reserva la intervención para fallos/estados estructurales. Evidencia: `docs/cognitive-forge/BACKLOG-095-NO-UNNECESSARY-INTERVENTION-EVIDENCE.md`.
 96. **[PENDIENTE] Analizar distribución de 420 jobs.** Medir quién hizo qué y cuánto.
 97. **[PENDIENTE] Comprobar ancho real.** Ver si 84 raíces evitan concentración de trabajo.
 98. **[PENDIENTE] Medir rescates del blueprint largo.** Analizar expiraciones y recuperación.
