@@ -22,6 +22,11 @@ header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:2px s
 .metric b{display:block;font-size:17px}
 .metric small{display:block;margin-top:2px;font:800 7px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);letter-spacing:.03em;text-transform:uppercase;white-space:nowrap}
 .metric span{display:block;font-size:8px;font-weight:1000;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+#etaMetric .etaBand{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;align-items:end}
+#etaMetric .etaBand div{min-width:0}
+#etaMetric .etaBand i{display:block;font-size:6px;font-style:normal;font-weight:1000;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#etaMetric .etaBand b{display:block;font-size:11px;line-height:1.2;letter-spacing:-.035em;white-space:nowrap}
+#etaMetric>small{display:block;margin-top:2px;font-size:7px;font-weight:800;color:var(--muted)}
 section{padding:10px}
 .sectionTitle{font-size:10px;font-weight:1000;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin:0 0 7px 2px}
 .workers{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:5px}
@@ -107,7 +112,7 @@ dialog::backdrop{background:rgba(0,0,0,.46)}
   <div class="metric"><b id="active">0</b><span>trabajando</span></div>
   <div class="metric"><b id="rescues">0</b><span>rescates</span></div>
   <div class="metric"><b id="elapsed">0 s</b><span>tiempo</span></div>
-  <div class="metric" id="etaMetric"><b id="eta">—</b><span>ETA</span><small id="etaConfidence">sin muestras</small></div>
+  <div class="metric" id="etaMetric"><div class="etaBand"><div><i>ráp</i><b id="etaFast">—</b></div><div><i>cen</i><b id="etaCentral">—</b></div><div><i>len</i><b id="etaSlow">—</b></div></div><span>ETA p25 · p50 · p75</span><small id="etaConfidence">sin muestras</small></div>
  </div>
 </header>
 
@@ -175,24 +180,33 @@ function jobWeight(j){
  const lo=Number(j.min_words)||0,hi=Number(j.max_words)||0;
  return Math.max(1,lo&&hi?(lo+hi)/2:(hi||lo||1));
 }
-function median(xs){const a=xs.filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return null;const m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2}
-function expectedJobMs(j){
- const same=D.outputs.filter(o=>o.phase===j.phase&&Number(o.elapsed_ms)>0).map(o=>Number(o.elapsed_ms));
- const phaseMedian=median(same);if(phaseMedian)return phaseMedian;
- const normalized=D.outputs.filter(o=>Number(o.elapsed_ms)>0).map(o=>{
+function percentile(xs,q){
+ const a=xs.filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return null;
+ const pos=(a.length-1)*Math.max(0,Math.min(1,q)),lo=Math.floor(pos),hi=Math.ceil(pos),t=pos-lo;
+ return lo===hi?a[lo]:a[lo]+(a[hi]-a[lo])*t;
+}
+function median(xs){return percentile(xs,.5)}
+function normalizedJobDurations(){
+ return D.outputs.filter(o=>Number(o.elapsed_ms)>0).map(o=>{
   const source=D.jobs.find(x=>x.point_no===o.point_no&&x.phase===o.phase);
   return source?Number(o.elapsed_ms)/jobWeight(source):NaN;
- });
- const msPerWeight=median(normalized);
+ }).filter(x=>Number.isFinite(x)&&x>0);
+}
+function expectedJobMsAt(j,q=.5){
+ const same=D.outputs.filter(o=>o.phase===j.phase&&Number(o.elapsed_ms)>0).map(o=>Number(o.elapsed_ms));
+ const phaseQ=percentile(same,q);if(phaseQ)return phaseQ;
+ const normalized=normalizedJobDurations();
+ const msPerWeight=percentile(normalized,q);
  return msPerWeight?msPerWeight*jobWeight(j):null;
 }
+function expectedJobMs(j){return expectedJobMsAt(j,.5)}
 function activeJobWeight(j,now=Date.now()){
  if(j.status!=='LEASED'||!j.started_at)return 0;
  const expected=expectedJobMs(j);if(!expected||expected<=0)return 0;
  const elapsed=Math.max(0,now-new Date(j.started_at).getTime());
  return jobWeight(j)*Math.min(.9,elapsed/expected);
 }
-function simulateScheduler(now=Date.now()){
+function simulateScheduler(now=Date.now(),durationQ=.5){
  const configured=Math.max(1,Number(D.project?.expected_workers)||0);
  const observed=D.workers.filter(w=>w.status!=='NO_WORK').length;
  const capacity=Math.max(1,observed||configured);
@@ -207,7 +221,7 @@ function simulateScheduler(now=Date.now()){
  const active=D.jobs.filter(j=>j.status==='LEASED'&&j.started_at);
  if(active.length>capacity)return null;
  for(const j of active){
-  const expected=expectedJobMs(j);if(!expected)return null;
+  const expected=expectedJobMsAt(j,durationQ);if(!expected)return null;
   const elapsed=Math.max(0,now-new Date(j.started_at).getTime());
   const remaining=Math.max(expected*.1,expected-elapsed);
   let lane=0;for(let i=1;i<lanes.length;i++)if(lanes[i]<lanes[lane])lane=i;
@@ -232,7 +246,7 @@ function simulateScheduler(now=Date.now()){
    if(!best||start<best.start)best={point,state,job,lane,start};
   }
   if(!best)return null;
-  const duration=expectedJobMs(best.job);if(!duration)return null;
+  const duration=expectedJobMsAt(best.job,durationQ);if(!duration)return null;
   const finish=best.start+duration;
   lanes[best.lane]=finish;
   best.state.readyAt=finish;
@@ -241,6 +255,18 @@ function simulateScheduler(now=Date.now()){
  }
  return Math.max(0,Math.max(...lanes)-now);
 }
+function currentEtaBand(center){
+ const samples=normalizedJobDurations(),p25=percentile(samples,.25),p50=percentile(samples,.5),p75=percentile(samples,.75);
+ if(!Number.isFinite(center))return {fast:null,central:null,slow:null,samples:samples.length,basis:'none'};
+ if(center===0)return {fast:0,central:0,slow:0,samples:samples.length,basis:'current'};
+ if(!(p25>0&&p50>0&&p75>0))return {fast:center,central:center,slow:center,samples:samples.length,basis:'current'};
+ return {fast:center*(p25/p50),central:center,slow:center*(p75/p50),samples:samples.length,basis:'current-job-percentiles'};
+}
+function historyEtaBand(remaining){
+ const p25=percentile(historyRates,.25),p50=percentile(historyRates,.5),p75=percentile(historyRates,.75);
+ if(!(remaining>=0&&p25>0&&p50>0&&p75>0))return {fast:null,central:null,slow:null,samples:historyRates.length,basis:'history'};
+ return {fast:remaining/p75,central:remaining/p50,slow:remaining/p25,samples:historyRates.length,basis:'history-run-percentiles'};
+}
 function estimator(){
  const total=D.jobs.reduce((a,j)=>a+jobWeight(j),0);
  const done=D.jobs.filter(j=>j.status==='DONE').reduce((a,j)=>a+jobWeight(j),0);
@@ -248,21 +274,29 @@ function estimator(){
  const doneJobs=D.jobs.filter(j=>j.status==='DONE').length;
  const effective=Math.min(total,done+partial);
  const progress=total?Math.min(1,effective/total):0;
- if(!total)return {progress:0,eta:null,ready:false,partial:0,source:null};
- if(D.project?.status==='DONE'||done>=total)return {progress:1,eta:0,ready:true,partial:0,source:'current'};
- const simulatedEta=simulateScheduler();
- if(!D.project?.started_at||doneJobs<3||done<=0){
-  const rate=median(historyRates);
-  const fallbackEta=rate>0?(total-effective)/rate:null;
-  const eta=Number.isFinite(simulatedEta)?simulatedEta:fallbackEta;
-  const source=Number.isFinite(simulatedEta)?'scheduler':(Number.isFinite(fallbackEta)?'history':null);
-  return {progress,eta,ready:Number.isFinite(eta),partial,source};
+ const remaining=Math.max(0,total-effective);
+ if(!total)return {progress:0,eta:{fast:null,central:null,slow:null,samples:0,basis:'none'},ready:false,partial:0,source:null};
+ if(D.project?.status==='DONE'||done>=total)return {progress:1,eta:{fast:0,central:0,slow:0,samples:normalizedJobDurations().length,basis:'done'},ready:true,partial:0,source:'current'};
+ const now=Date.now();
+ const schedulerBand={
+  fast:simulateScheduler(now,.25),
+  central:simulateScheduler(now,.5),
+  slow:simulateScheduler(now,.75)
+ };
+ if([schedulerBand.fast,schedulerBand.central,schedulerBand.slow].every(Number.isFinite)){
+  return {progress,eta:{...schedulerBand,samples:D.outputs.filter(o=>Number(o.elapsed_ms)>0).length,basis:'scheduler-duration-percentiles'},ready:true,partial,source:'scheduler'};
  }
- const elapsed=Math.max(1,Date.now()-new Date(D.project.started_at).getTime());
+ if(!D.project?.started_at||doneJobs<3||done<=0){
+  const eta=historyEtaBand(remaining);
+  const ready=[eta.fast,eta.central,eta.slow].every(Number.isFinite);
+  return {progress,eta,ready,partial,source:ready?'history':null};
+ }
+ const elapsed=Math.max(1,now-new Date(D.project.started_at).getTime());
  const rate=done/elapsed;
- const fallbackEta=rate>0?(total-effective)/rate:null;
- const eta=Number.isFinite(simulatedEta)?simulatedEta:fallbackEta;
- return {progress,eta,ready:Number.isFinite(eta),partial,source:Number.isFinite(simulatedEta)?'scheduler':'current'};
+ const center=rate>0?remaining/rate:null;
+ const eta=currentEtaBand(center);
+ const ready=[eta.fast,eta.central,eta.slow].every(Number.isFinite);
+ return {progress,eta,ready,partial,source:ready?'current':null};
 }
 function etaConfidence(est){
  const current=D.jobs.filter(j=>j.status==='DONE').length;
@@ -391,9 +425,12 @@ function renderStats(){
  const est=estimator(),pct=(est.progress*100).toFixed(1)+'%';
  $('progressW').textContent=pct;
  $('progressMetric').title='Ponderado por midpoint de min_words/max_words. DONE suma 100%; LEASED aporta estimación temporal basada en duración histórica, con cap 90%.';
- $('eta').textContent=est.eta===0?'listo':(est.ready?fmt(est.eta):'—');
+ const etaDone=est.ready&&est.eta.central===0;
+ $('etaFast').textContent=etaDone?'listo':(est.ready?fmt(est.eta.fast):'—');
+ $('etaCentral').textContent=etaDone?'listo':(est.ready?fmt(est.eta.central):'—');
+ $('etaSlow').textContent=etaDone?'listo':(est.ready?fmt(est.eta.slow):'—');
  const conf=etaConfidence(est);$('etaConfidence').textContent=conf.label;
- $('etaMetric').title=(est.ready?(est.source==='scheduler'?'ETA = simulación JavaScript de cola restante: cadenas por punto, capacidad de workers, jobs activos y duraciones observadas.':est.source==='history'?'ETA inicial desde '+historyRuns+' run(s) histórico(s) completado(s); migra al run actual al llegar a evidencia suficiente.':'ETA fallback = presupuesto ponderado restante / throughput DONE observado desde started_at.'):'Sin evidencia temporal suficiente para proyectar.')+' La banda de confianza es una heurística monotónica por cantidad de muestras, no un intervalo estadístico.';
+ $('etaMetric').title=(est.ready?(est.source==='scheduler'?'Banda ETA por simulación de cola: rápido=p25, central=p50 y lento=p75 de duraciones observadas por fase, con fallback normalizado por peso.':est.source==='history'?'Banda temporal histórica: rápido usa p75 de throughput, central p50 y lento p25; equivale a p25/p50/p75 de tiempo.':'ETA central por throughput actual; banda rápido/lento modulada por p25/p50/p75 de duración normalizada de jobs.'):'Sin evidencia temporal suficiente para proyectar una banda.')+' '+conf.label+'.';
  $('active').textContent=D.jobs.filter(x=>x.status==='LEASED').length;
  $('rescues').textContent=D.jobs.reduce((a,x)=>a+(x.rescue_count||0),0);
  let ms=0;if(p?.started_at)ms=new Date(p.finished_at||Date.now())-new Date(p.started_at);
