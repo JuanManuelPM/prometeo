@@ -194,18 +194,18 @@ button{font:inherit;color:inherit}
 'use strict';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const FEED='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-public-feed-v1';
-const CONTROL_BUILD='45',CANONICAL='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
+const CONTROL_BUILD='46',CANONICAL='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const q=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_REMOTE='1f1a186a7bdc6aa3c9bfbf2016fed69d6b6cbf3066fab5ad8e122e25aa45c63e',DEFAULT_MEDIA='NZT8S9zPPRuTdUQUZK20jEvA-Nly6Ck4HUImnPuBsgQ';
 const room={code:q.get('room')||DEFAULT_ROOM,token:q.get('t')||DEFAULT_REMOTE,role:'remote'},mediaToken=q.get('k')||DEFAULT_MEDIA;
-const client='tv-editor-v45-'+Math.random().toString(36).slice(2,9);
+const client='tv-editor-v46-'+Math.random().toString(36).slice(2,9);
 const $=id=>document.getElementById(id),viewport=$('viewport'),timeline=$('timeline'),gridLayer=$('gridLayer'),eventLayer=$('eventLayer'),palette=$('palette'),dragTime=$('dragTime'),editWin=$('editWin');
 const labels={youtube:'YOUTUBE',clock:'RELOJ',page:'PÁGINA',black:'NEGRO'};
-const samples={youtube:{title:'YOUTUBE',payload:{mode:'session',queue:[],queue_index:0,video_id:'',auto_next:true}},clock:{title:'TIMER VISUAL 25/5',payload:{style:'time-mass-25-5'}},page:{title:'CALENDARIO',payload:{url:'https://juanmanuelpm.github.io/prometeo/experiments/tv-split-v1-sample-calendar.html'}},black:{title:'NEGRO',payload:{}}};
+const samples={youtube:{title:'YOUTUBE',payload:{}},clock:{title:'TIMER VISUAL 25/5',payload:{style:'time-mass-25-5',focus_minutes:25,break_minutes:5}},page:{title:'CALENDARIO',payload:{url:'https://juanmanuelpm.github.io/prometeo/experiments/tv-split-v1-sample-calendar.html',display:{profile:'flex',position:'auto'},control:{label:'CALENDARIO',actions:['previous','next','refresh']}}},black:{title:'NEGRO',payload:{}}};
 const ytLatest=new Map(),ytByChannel=new Map(),watchedIds=new Set();
 let blocks=[],serverBlocks=[],selected=null,ppm=.7,cycleH=1000,loaded=false,rendering=false,saving=false;
 const dirtyBlocks=new Set(),pendingDeletes=new Set();
-const cacheKey='tv.program.editor.v45.'+room.code;
+const cacheKey='tv.program.editor.v46.'+room.code;
 let tvState=null,previewOpen=false,remoteLibrary=null,remoteOpen=false,remoteMuted=false,remoteUtilityOpen=false,remoteRenderSig='',contextSaveTimer=0;
 
 function clone(x){return JSON.parse(JSON.stringify(x))}
@@ -232,42 +232,119 @@ async function stepRemote(delta){
     await loadRemoteLibrary()
   }catch(e){toast(String(e.message||e))}
 }
+function contextBlock(){
+ if(selected){const b=blocks.find(x=>String(x.id)===String(selected));if(b)return b}
+ const ids=Array.isArray(tvState?.active_ids)?tvState.active_ids:[];
+ for(const id of ids){const b=blocks.find(x=>String(x.id)===String(id));if(b)return b}
+ return null
+}
 function currentRemotePlayer(){
-  const id=activeRemoteTarget(),ps=tvState?.player_state||{};
-  return id&&ps[id]?ps[id]:Object.values(ps)[0]||null
+ const b=contextBlock(),id=b?.kind==='youtube'?String(b.id):String(tvState?.active_youtube_ids?.[0]||''),ps=tvState?.player_state||{};
+ return id&&ps[id]?ps[id]:Object.values(ps)[0]||null
+}
+function icon(name){
+ const m={
+  prev:'<svg viewBox="0 0 32 32"><path d="M9 7v18"/><path d="M24 8 12 16l12 8z"/></svg>',
+  next:'<svg viewBox="0 0 32 32"><path d="M23 7v18"/><path d="M8 8l12 8-12 8z"/></svg>',
+  play:'<svg viewBox="0 0 32 32"><path d="M11 8l13 8-13 8z"/></svg>',
+  pause:'<svg viewBox="0 0 32 32"><path d="M11 9v14M21 9v14"/></svg>',
+  sound:'<svg viewBox="0 0 32 32"><path d="M6 13h5l6-5v16l-6-5H6z"/><path d="M21 12c2 2 2 6 0 8"/><path d="M24 9c4 4 4 10 0 14"/></svg>',
+  mute:'<svg viewBox="0 0 32 32"><path d="M6 13h5l6-5v16l-6-5H6z"/><path d="M22 12l6 8M28 12l-6 8"/></svg>',
+  refresh:'<svg viewBox="0 0 32 32"><path d="M25 12a10 10 0 1 0 1 8"/><path d="M25 6v7h-7"/></svg>',
+  open:'<svg viewBox="0 0 32 32"><path d="M12 8H7v17h17v-5"/><path d="M15 17 26 6M18 6h8v8"/></svg>',
+  reset:'<svg viewBox="0 0 32 32"><path d="M9 10H4v-5"/><path d="M5 10a11 11 0 1 1-1 11"/></svg>',
+  toggle:'<svg viewBox="0 0 32 32"><path d="M11 8l13 8-13 8z"/></svg>'
+ };return m[name]||m.open
+}
+function contextOpenUrl(b){
+ if(!b)return'';
+ if(b.kind==='youtube')return youtubeEditorUrl();
+ if(b.kind==='page')return String(b.payload?.control?.settings_url||b.payload?.url||'');
+ return ''
+}
+function renderInstrument(b,playing,muted,queue,idx){
+ if(!b)return '<div class="instEmpty">TOCÁ UN EVENTO PARA CONTROLARLO</div>';
+ if(b.kind==='youtube'){
+  return '<div class="instDeck">'+
+   '<div class="instWell"><button class="instRound" data-remote-action="yt-prev" aria-label="Anterior">'+icon('prev')+'</button><div class="instCapsule"><button class="instSegment lit" data-remote-action="yt-toggle" aria-label="'+(playing?'Pausar':'Reproducir')+'">'+icon(playing?'pause':'play')+'</button><button class="instSegment" data-remote-action="yt-next" aria-label="Siguiente">'+icon('next')+'</button></div></div>'+
+   '<div class="instWell compact"><button class="instRound '+(!muted?'lit':'')+'" data-remote-action="yt-mute" aria-label="'+(muted?'Activar sonido':'Silenciar')+'">'+icon(muted?'mute':'sound')+'</button><button class="instAction" data-remote-action="open-app">'+icon('open')+'<span>BIBLIOTECA</span></button></div>'+
+  '</div>'
+ }
+ if(b.kind==='clock'){
+  const focus=Math.max(5,Math.min(120,Number(b.payload?.focus_minutes)||25)),rest=Math.max(1,Math.min(60,Number(b.payload?.break_minutes)||5)),angle=Math.round(-130+(focus-5)/115*260);
+  const marks=[-120,-60,0,60,120].map(a=>'<i class="instDialMark" style="--a:'+a+'deg"></i>').join('');
+  return '<div class="instDeck"><div class="instDialArea"><button class="instDial" data-remote-action="clock-preset" style="--dial-angle:'+angle+'deg" aria-label="Cambiar preset">'+marks+'<span class="instDialKnob">'+focus+'</span></button>'+
+   '<div class="instClockSide"><div><div class="instClockLabel">FOCO</div><div class="instClockValue">'+focus+' min</div><div class="instPair"><button data-remote-action="focus-minus">−</button><button data-remote-action="focus-plus">+</button></div></div>'+
+   '<div><div class="instClockLabel">RECREO</div><div class="instClockValue">'+rest+' min</div><div class="instPair"><button data-remote-action="break-minus">−</button><button data-remote-action="break-plus">+</button></div></div></div></div></div>'
+ }
+ if(b.kind==='page'){
+  const c=b.payload?.control||{},actions=Array.isArray(c.actions)?c.actions:['refresh'];
+  const names={previous:'ANTERIOR',next:'SIGUIENTE',toggle:'PLAY / PAUSA',reset:'REINICIAR',refresh:'RECARGAR'};
+  const icons={previous:'prev',next:'next',toggle:'toggle',reset:'reset',refresh:'refresh'};
+  let buttons=actions.map(a=>'<button class="instAction" data-remote-action="page-'+esc(a)+'">'+icon(icons[a]||'open')+'<span>'+esc(names[a]||String(a).toUpperCase())+'</span></button>').join('');
+  buttons+='<button class="instAction" data-remote-action="page-open">'+icon('open')+'<span>ABRIR</span></button>';
+  if(c.settings_url)buttons+='<button class="instAction" data-remote-action="page-settings">'+icon('reset')+'<span>AJUSTES</span></button>';
+  return '<div class="instPageGrid">'+buttons+'</div>'
+ }
+ return '<div class="instEmpty">ESTE EVENTO NO TIENE CONTROLES</div>'
 }
 function renderRemote(){
- const dock=$('remoteDock'),text=$('remoteText'),toggle=$('remoteToggle'),mute=$('remoteMute'),update=$('remoteUpdate'),prev=$('remotePrev'),next=$('remoteNext');
+ const dock=$('remoteDock'),text=$('remoteText'),update=$('remoteUpdate'),b=contextBlock();
  dock.classList.remove('live','available','stale');
  const age=tvState?.updated_at?Date.now()-new Date(tvState.updated_at).getTime():Infinity;
- const externalLive=age<4500,ys=tvState?.active_youtube_ids||[],build=String(tvState?.build||''),outdated=externalLive&&build&&build!=='22';
+ const externalLive=age<4500,build=String(tvState?.build||''),outdated=externalLive&&build&&build!=='23';
  update.classList.toggle('show',outdated);
- if(externalLive)dock.classList.add('live');else dock.classList.add('available');
- const player=currentRemotePlayer(),playing=Number(player?.state)===1,muted=!!player?.muted;
- remoteMuted=muted;
- toggle.classList.toggle('lit',externalLive&&ys.length>0);
- toggle.setAttribute('aria-label',playing?'Pausar':'Reproducir');
- const playPath=$('remotePlayPath');
- if(playPath)playPath.setAttribute('d',playing?'M11 9v14M21 9v14':'M11 8l13 8-13 8z');
- mute.classList.toggle('soundOn',externalLive&&ys.length>0&&!muted);
- mute.setAttribute('aria-label',muted?'Activar sonido':'Silenciar');
- const w1=$('remoteSoundWave1'),w2=$('remoteSoundWave2'),x1=$('remoteMuteX1'),x2=$('remoteMuteX2');
- if(w1)w1.style.display=muted?'none':'';
- if(w2)w2.style.display=muted?'none':'';
- if(x1)x1.style.display=muted?'':'none';
- if(x2)x2.style.display=muted?'':'none';
+ dock.classList.add(externalLive?'live':'available');
+ const player=currentRemotePlayer(),playing=Number(player?.state)===1,muted=!!player?.muted;remoteMuted=muted;
  const state=remoteLibrary?.state||{},queue=Array.isArray(state.queue)?state.queue:[],currentId=String(state.current_video_id||''),idx=currentId?queue.findIndex(v=>String(v.video_id)===currentId):-1,item=idx>=0?queue[idx]:null;
- $('remoteVideo').textContent=item?.title||'Sin video activo';
- $('remoteMeta').textContent=item?((idx+1)+' / '+queue.length+(item?.channel_title?' · '+item.channel_title:'')):(queue.length?(queue.length+' en cola'):'cola vacía');
- const canVideo=externalLive&&ys.length>0;
- toggle.disabled=!canVideo;mute.disabled=!canVideo;prev.disabled=queue.length<2;next.disabled=queue.length<2;
- text.textContent=outdated?'ACTUALIZACIÓN DISPONIBLE':(externalLive?(ys.length?'TV CONECTADA · YOUTUBE':'TV CONECTADA'):'TV SIN CONEXIÓN');
- $('remoteA11y').textContent=(playing?'Reproduciendo. ':'Pausado. ')+(item?.title||'Sin video')+'. '+(queue.length?((idx+1)+' de '+queue.length):'Cola vacía')
+ const appName=b?(b.kind==='page'?String(b.payload?.control?.label||b.title||'PÁGINA'):String(labels[b.kind]||b.kind).toUpperCase()):'CONTROL';
+ $('remoteAppName').textContent=appName;
+ const openUrl=contextOpenUrl(b);$('remoteOpenApp').style.visibility=openUrl?'visible':'hidden';
+ let title='Sin selección',meta='—';
+ if(b?.kind==='youtube'){title=item?.title||'YouTube';meta=item?((idx+1)+' / '+queue.length+(item.channel_title?' · '+item.channel_title:'')):(queue.length?queue.length+' en cola':'cola vacía')}
+ else if(b?.kind==='clock'){const f=Number(b.payload?.focus_minutes)||25,r=Number(b.payload?.break_minutes)||5;title=b.title||'Reloj';meta=f+' / '+r+' min'}
+ else if(b?.kind==='page'){title=b.title||b.payload?.control?.label||'Página';meta=b.payload?.url||''}
+ else if(b){title=b.title||labels[b.kind]||b.kind;meta=fmt(b.start_minute)+' — '+fmt(b.end_minute)}
+ $('remoteVideo').textContent=title;$('remoteMeta').textContent=meta;
+ const sig=[b?.id,b?.kind,playing,muted,queue.length,idx,b?.payload?.focus_minutes,b?.payload?.break_minutes,JSON.stringify(b?.payload?.control||{})].join('|');
+ if(sig!==remoteRenderSig){remoteRenderSig=sig;$('remoteInstrument').innerHTML=renderInstrument(b,playing,muted,queue,idx)}
+ text.textContent=outdated?'ACTUALIZACIÓN DISPONIBLE':(externalLive?'TV CONECTADA':'TV SIN CONEXIÓN');
+ $('remoteA11y').textContent=b?(appName+'. '+title):'Sin evento seleccionado'
 }
+function sendContextCommand(command){
+ const b=contextBlock();if(!b||String(b.id).startsWith('tmp-'))return;
+ return api({action:'command',command,block_id:String(b.id)})
+}
+function mergeSavedBlock(saved){
+ blocks=blocks.map(x=>String(x.id)===String(saved.id)?{...x,...saved}:x);
+ serverBlocks=serverBlocks.map(x=>String(x.id)===String(saved.id)?{...x,...saved}:x);
+ dirtyBlocks.delete(String(saved.id));renderBlocks();updateEditor();remoteRenderSig='';renderRemote()
+}
+async function persistContextBlock(b){
+ if(!b)return;
+ if(String(b.id).startsWith('tmp-')){dirtyBlocks.add(String(b.id));updateEditor();return}
+ try{
+  const d=await api({action:'save',id:b.id,title:b.title||labels[b.kind],kind:b.kind,start_minute:b.start_minute,end_minute:b.end_minute,payload:b.payload||{}});
+  if(d.block)mergeSavedBlock(d.block)
+ }catch(e){toast(String(e.message||e))}
+}
+function scheduleContextSave(b){clearTimeout(contextSaveTimer);contextSaveTimer=setTimeout(()=>persistContextBlock(b),260)}
+function adjustClock(field,delta){
+ const b=contextBlock();if(!b||b.kind!=='clock')return;
+ const key=field==='focus'?'focus_minutes':'break_minutes',lo=field==='focus'?5:1,hi=field==='focus'?120:60,step=field==='focus'?5:1;
+ b.payload={...(b.payload||{}),[key]:Math.max(lo,Math.min(hi,(Number(b.payload?.[key])||(field==='focus'?25:5))+delta*step))};
+ remoteRenderSig='';renderRemote();scheduleContextSave(b)
+}
+function cycleClockPreset(){
+ const b=contextBlock();if(!b||b.kind!=='clock')return;
+ const presets=[[15,5],[25,5],[45,10],[50,10]],f=Number(b.payload?.focus_minutes)||25,r=Number(b.payload?.break_minutes)||5,at=presets.findIndex(x=>x[0]===f&&x[1]===r),n=presets[(at+1+presets.length)%presets.length];
+ b.payload={...(b.payload||{}),focus_minutes:n[0],break_minutes:n[1]};remoteRenderSig='';renderRemote();scheduleContextSave(b)
+}
+
 function setRemoteOpen(open){
  remoteOpen=!!open;$('remoteDock').classList.toggle('open',remoteOpen);$('remoteHandle').setAttribute('aria-expanded',String(remoteOpen));
  if(!remoteOpen)setRemoteUtility(false);
- if(remoteOpen)loadRemoteLibrary()
+ if(remoteOpen&&contextBlock()?.kind==='youtube')loadRemoteLibrary()
 }
 function setRemoteUtility(open){
  remoteUtilityOpen=!!open;$('remoteUtility').classList.toggle('open',remoteUtilityOpen);$('remoteMore').setAttribute('aria-expanded',String(remoteUtilityOpen))
@@ -288,7 +365,7 @@ function initRemoteDock(){
  };
  addEventListener('resize',()=>{y=clamp(y);apply()})
 }
-async function pollTVState(){try{const d=await api({action:'state'});tvState=d.state||null;renderRemote();if(remoteOpen&&(!remoteLibrary||Date.now()-Number(remoteLibrary._fetched_at||0)>2500))loadRemoteLibrary()}catch{tvState=null;renderRemote()}}
+async function pollTVState(){try{const d=await api({action:'state'});tvState=d.state||null;renderRemote();if(remoteOpen&&contextBlock()?.kind==='youtube'&&(!remoteLibrary||Date.now()-Number(remoteLibrary._fetched_at||0)>2500))loadRemoteLibrary()}catch{tvState=null;renderRemote()}}
 async function loadHistory(){
   try{
     const d=await api({action:'watch_history',limit:100});
@@ -413,10 +490,24 @@ function addYT(channelId,label){
 $('add').onclick=()=>palette.classList.toggle('open');
 $('remoteUpdate').onclick=async()=>{await sendRemote('reload_now');toast('ACTUALIZANDO TV')};
 $('remoteMore').onclick=()=>setRemoteUtility(!remoteUtilityOpen);
-$('remotePrev').onclick=()=>stepRemote(-1);
-$('remoteNext').onclick=()=>stepRemote(1);
-$('remoteToggle').onclick=()=>{const p=currentRemotePlayer();sendRemote(Number(p?.state)===1?'pause':'play')};
-$('remoteMute').onclick=()=>sendRemote(remoteMuted?'unmute':'mute');
+$('remoteOpenApp').onclick=()=>{const u=contextOpenUrl(contextBlock());if(u)location.href=u};
+$('remoteInstrument').onclick=async e=>{
+ const btn=e.target.closest('[data-remote-action]');if(!btn)return;const a=btn.dataset.remoteAction,b=contextBlock();if(!b)return;
+ if(a==='yt-prev')return stepRemote(-1);
+ if(a==='yt-next')return stepRemote(1);
+ if(a==='yt-toggle'){const p=currentRemotePlayer();return sendRemote(Number(p?.state)===1?'pause':'play')}
+ if(a==='yt-mute')return sendRemote(remoteMuted?'unmute':'mute');
+ if(a==='open-app'){const u=contextOpenUrl(b);if(u)location.href=u;return}
+ if(a==='clock-preset')return cycleClockPreset();
+ if(a==='focus-minus')return adjustClock('focus',-1);
+ if(a==='focus-plus')return adjustClock('focus',1);
+ if(a==='break-minus')return adjustClock('break',-1);
+ if(a==='break-plus')return adjustClock('break',1);
+ if(a==='page-open'){if(b.payload?.url)location.href=b.payload.url;return}
+ if(a==='page-settings'){if(b.payload?.control?.settings_url)location.href=b.payload.control.settings_url;return}
+ if(a==='page-refresh')return sendContextCommand('refresh_panel');
+ if(a.startsWith('page-'))return sendContextCommand('widget_'+a.slice(5))
+};
 $('youtubeBtn').onclick=()=>openYouTubeEditor();
 $('historyBtn').onclick=async()=>{await loadHistory();$('historyWin').classList.add('open');$('historyWin').setAttribute('aria-hidden','false')};
 $('historyClose').onclick=()=>{$('historyWin').classList.remove('open');$('historyWin').setAttribute('aria-hidden','true')};
