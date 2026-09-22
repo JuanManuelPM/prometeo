@@ -258,7 +258,7 @@
 231. **[PENDIENTE] Backlog durable.** Externalizar pendientes y decisiones fuera de este chat.
 232. **[HECHO] Cada backlog item como objeto online.** `backlog.json` expone 253 objetos con IDs 1–253 únicos y estado estable; Productive Frontier los referencia por `source_ref` y `frontier_source_key` sin colisiones observadas.
 233. **[PENDIENTE] Estados del backlog.** IDEA, DESIGNED, READY, WORKING, VALIDATING, DONE y SUPERSEDED.
-234. **[PENDIENTE] Relacionar backlog con origen.** Goals, Blueprint points, Skills, Tools y Plumas.
+234. **[HECHO] Relacionar backlog con origen.** `forge_backlog_origins` y primitives de validación/enlace/lectura cubren GOAL, BLUEPRINT_POINT, SKILL, TOOL y PLUME con `evidence_ref` obligatorio, dedupe y rechazo de orígenes inexistentes. Spec: `docs/cognitive-forge/BACKLOG-234-BACKLOG-ORIGIN-LINEAGE-SPEC.md`.
 235. **[PENDIENTE] Workers reclaman backlog automáticamente.** Cuando termine el Blueprint actual, poder consumir pendientes sin intervención manual.
 236. **[PENDIENTE] Descomponer pendientes complejos.** Un worker puede convertir un backlog item en subtrabajo.
 237. **[PENDIENTE] Pendientes pueden crear pendientes.** Permitir crecimiento controlado del backlog.
