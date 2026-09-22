@@ -77,13 +77,13 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 <script>
 (()=>{
 'use strict';
-const BUILD='22';
+const BUILD='23';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const RUNTIME='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const p=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_TOKEN='6e7f4b74d76d2488ac3779832c77632475dd845db3a9b598765a757c7f18c327';
 const room={code:p.get('room')||DEFAULT_ROOM,token:p.get('t')||DEFAULT_TOKEN,role:'tv'};
-const client='tv-v22-'+Math.random().toString(36).slice(2,10);
+const client='tv-v23-'+Math.random().toString(36).slice(2,10);
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
 const views=new Map(),advancing=new Set();
 let blocks=[],serverActive=[],ytReady=false,lastCommandId=0,updatePending=false,pageStarted=Date.now();
@@ -249,12 +249,13 @@ function syncStage(){
  applyGrid(act);tickClock();maybeApplyPendingUpdate()
 }
 function tickClock(){
- const n=nowParts(),totalSec=n.m*60+n.s,halfSec=totalSec%(30*60),work=halfSec<25*60;
- const phaseElapsed=work?halfSec:halfSec-25*60,phaseLength=work?25*60:5*60,remaining=Math.max(0,phaseLength-phaseElapsed);
- const hh=((n.h%12)+(n.m/60)+(n.s/3600))*30,mm=(n.m+n.s/60)*6,ss=n.s*6;
- const remM=Math.floor(remaining/60),remS=Math.floor(remaining%60),timeText=String(n.h).padStart(2,'0')+':'+String(n.m).padStart(2,'0');
- const massAngle=Math.max(0,Math.min(360,remaining/3600*360));
- document.querySelectorAll('.clockLayout').forEach(layout=>{
+ const n=nowParts(),daySec=n.h*3600+n.m*60+n.s;
+ const hh=((n.h%12)+(n.m/60)+(n.s/3600))*30,mm=(n.m+n.s/60)*6,ss=n.s*6,timeText=String(n.h).padStart(2,'0')+':'+String(n.m).padStart(2,'0');
+ for(const b of active().filter(x=>x.kind==='clock')){
+   const v=views.get(String(b.id)),layout=v?.el?.querySelector('.clockLayout');if(!layout)continue;
+   const focus=Math.max(5,Math.min(120,Number(b.payload?.focus_minutes)||25))*60,rest=Math.max(1,Math.min(60,Number(b.payload?.break_minutes)||5))*60,cycle=focus+rest,pos=daySec%cycle,work=pos<focus;
+   const phaseElapsed=work?pos:pos-focus,phaseLength=work?focus:rest,remaining=Math.max(0,phaseLength-phaseElapsed);
+   const remM=Math.floor(remaining/60),remS=Math.floor(remaining%60),massAngle=Math.max(0,Math.min(360,remaining/Math.max(1,phaseLength)*360));
    const hour=layout.querySelector('.clockHour'),minute=layout.querySelector('.clockMinute'),second=layout.querySelector('.clockSecond'),mass=layout.querySelector('.timeMass');
    const name=layout.querySelector('.phaseName'),left=layout.querySelector('.phaseRemaining'),hint=layout.querySelector('.phaseHint'),wall=layout.querySelector('.wallTimeBig');
    if(hour)hour.style.transform='translateX(-50%) rotate('+hh+'deg)';
@@ -264,8 +265,8 @@ function tickClock(){
    if(wall)wall.textContent=timeText;
    if(name)name.textContent=work?'FOCO':'RECREO';
    if(left)left.textContent=String(remM).padStart(2,'0')+':'+String(remS).padStart(2,'0');
-   if(hint)hint.textContent=work?'la superficie roja es el foco que queda':'la superficie roja es el recreo que queda';
- })
+   if(hint)hint.textContent=work?('foco '+Math.round(focus/60)+' min'):('recreo '+Math.round(rest/60)+' min');
+ }
 }
 function updateProgress(){
  for(const v of views.values()){
@@ -289,6 +290,11 @@ function playerCommand(cmd,blockId){
     else if(cmd==='unmute'){v.player.unMute();v.muted=false}
    }catch{}
  }
+}
+function widgetCommand(cmd,blockId){
+ const v=views.get(String(blockId||''));if(!v||v.kind!=='page')return;
+ const frame=v.el?.querySelector('iframe');if(!frame)return;
+ try{frame.contentWindow?.postMessage({type:'prometeo:control',action:String(cmd).replace(/^widget_/,''),block_id:String(blockId||'')},'*')}catch{}
 }
 function replaceBlock(updated){
  const id=String(updated.id);
@@ -322,6 +328,7 @@ async function pollCommands(){
    if(new Date(ev.created_at).getTime()<pageStarted-1500)continue;
    const x=ev.payload||{},cmd=String(x.command||''),blockId=String(x.block_id||'');
    if(['play','pause','toggle','mute','unmute'].includes(cmd))playerCommand(cmd,blockId);
+   else if(['widget_previous','widget_next','widget_toggle','widget_reset'].includes(cmd))widgetCommand(cmd,blockId);
    else if(cmd==='refresh_panel')refreshPanel(blockId);
    else if(cmd==='reload_now')hardReload();
    else if(cmd==='reload_when_idle'){updatePending=true;maybeApplyPendingUpdate()}
