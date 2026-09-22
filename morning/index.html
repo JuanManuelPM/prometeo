@@ -62,7 +62,7 @@ async function get(p){const r=await fetch(BASE+p,{headers:H,cache:'no-store'});i
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function ageMin(n){if(n==null)return '—';n=Math.round(Number(n));return n<60?n+'m':Math.floor(n/60)+'h '+String(n%60).padStart(2,'0')+'m'}
 function durMs(ms){if(ms==null)return '—';const s=Math.round(Number(ms)/1000),m=Math.floor(s/60),h=Math.floor(m/60);return h?h+'h '+(m%60)+'m':m?m+'m '+(s%60)+'s':s+'s'}
-function doneReal(p){return p.status==='DONE'&&!!p.finished_at&&Number(p.sheets_total)>0&&Number(p.sheets_done)===Number(p.sheets_total)&&Number(p.sheets_crossfilled)>=Number(p.sheets_crossfill_required)}
+function doneReal(p){return typeof p.done_real==='boolean'?p.done_real:(p.status==='DONE'&&!!p.finished_at&&Number(p.sheets_total)>0&&Number(p.sheets_done)===Number(p.sheets_total)&&Number(p.sheets_crossfilled)>=Number(p.sheets_crossfill_required))}
 function render(products,sheets,events,startup,growth){
   $('doneCount').textContent=products.filter(doneReal).length;
   $('totalCount').textContent=products.length;
@@ -111,13 +111,13 @@ function render(products,sheets,events,startup,growth){
 }
 async function tick(){
  try{
-  const [p,s,e,h,g]=await Promise.all([
-   get('prometeo_morning_products?select=*&order=sequence_no.asc'),
-   get('prometeo_morning_sheets?select=*'),
+  const [p,e,h,g]=await Promise.all([
+   get('prometeo_night_report?select=*&order=sequence_no.asc'),
    get('prometeo_morning_timeline?select=*&order=at.desc&limit=30'),
    get('prometeo_startup_health?select=*'),
    get('prometeo_frontier_metrics?select=*')
   ]);
+  const s=p.flatMap(product=>(Array.isArray(product.sheets)?product.sheets:[]).map(sheet=>({...sheet,product_id:product.product_id})));
   render(p,s,e,h[0],g[0]);
  }catch(err){$('health').textContent='REINTENTANDO · '+err.message}
 }
