@@ -83,7 +83,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:12px;pa
 .dayPct{text-align:right;color:#bcb5aa}
 .legendDay{display:flex;gap:7px 10px;flex-wrap:wrap;margin-top:6px}.legendDay span{font:800 6.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}.legendDay i{display:inline-block;width:7px;height:7px;margin-right:3px;vertical-align:-1px}.legendDay .lj{background:var(--fg)}.legendDay .ls{background:#777168}.legendDay .lw{background:var(--amber)}.legendDay .lr{background:var(--red)}.legendDay .lu{background:#37332e}
 
-.copy{position:fixed;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(calc(100% - 28px),952px);height:54px;border:0;background:var(--fg);color:#060605;font-weight:1000;font-size:15px;letter-spacing:-.025em;z-index:8;box-shadow:0 -8px 28px #000}
+.copy{position:fixed;right:12px;bottom:max(10px,env(safe-area-inset-bottom));width:auto;min-width:168px;max-width:calc(100% - 24px);height:42px;padding:0 16px;border:1px solid #2f2c27;background:var(--fg);color:#060605;font-weight:1000;font-size:12px;letter-spacing:-.02em;z-index:8;box-shadow:0 6px 22px #000}
 .copy:disabled{opacity:.72}
 @media(max-width:620px){
   .wrap{padding-left:12px;padding-right:12px}
@@ -93,6 +93,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:12px;pa
   .gaugeText strong{font-size:23px}
   .telemetry{grid-template-columns:1fr}
   .productTop{grid-template-columns:minmax(0,1fr) auto}.pworkers{grid-column:1/-1}
+  .copy{height:40px;min-width:154px;padding:0 13px;font-size:11px}
 }
 @media(prefers-reduced-motion:reduce){.gaugeValue,.needle,.fill{transition:none}}
 </style>
@@ -102,7 +103,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:12px;pa
 <header>
   <div class="brand"><span class="mark"></span>PROMETEO</div>
   <div class="headerRight">
-    <div class="micro engine" id="engine">ENGINE —</div>
+    <div class="micro engine ok" id="engine">SWARM —</div>
     <div class="micro" id="clock">—</div>
   </div>
 </header>
@@ -147,8 +148,8 @@ header{display:flex;justify-content:space-between;align-items:center;gap:12px;pa
   <div class="heroMeta">
     <span class="hm"><b id="heroSheets">—</b> hojas</span>
     <span class="hm"><b id="heroCross">—</b> cross-fill</span>
-    <span class="hm"><b id="eta">—</b> ETA</span>
-    <span class="hm"><b id="throughput">—</b>/15m</span>
+    <span class="hm"><b id="readyPackets">—</b> packets READY</span>
+    <span class="hm"><b id="nextGate">—</b> siguiente</span>
     <span class="hm alert"><b id="bottleneck">—</b></span>
   </div>
 </section>
@@ -184,17 +185,14 @@ header{display:flex;justify-content:space-between;align-items:center;gap:12px;pa
       <span>REC <b id="recPct">—</b></span>
     </div>
     <div class="metrics">
-      <span class="metric">FR <b id="frontier">—</b></span>
-      <span class="metric">BR <b id="branch">—</b></span>
-      <span class="metric">META <b id="metaShare">—</b></span>
-      <span class="metric">START <b id="startup">—</b></span>
-      <span class="metric warn">LOST <b id="lost">—</b></span>
-      <span class="metric">PROB <b id="probation">—</b></span>
-      <span class="metric">EVID <b id="evidenceActive">—</b></span>
-      <span class="metric">SALV <b id="salvaged">—</b></span>
+      <span class="metric">READY <b id="readyNow">—</b></span>
+      <span class="metric">ÚTILES <b id="usefulNow">—</b></span>
       <span class="metric">PKT <b id="packetsTaken">—</b></span>
       <span class="metric">ACC <b id="packetsAccepted">—</b></span>
       <span class="metric">YIELD <b id="packetYield">—</b></span>
+      <span class="metric">SALV <b id="salvaged">—</b></span>
+      <span class="metric">START <b id="startup">—</b></span>
+      <span class="metric warn">LOST <b id="lost">—</b></span>
       <span class="metric">☠ <b id="dead">—</b></span>
     </div>
   </div>
@@ -208,8 +206,8 @@ header{display:flex;justify-content:space-between;align-items:center;gap:12px;pa
       <div id="f4">—<small>PUB</small></div>
     </div>
     <div class="metrics">
-      <span class="metric">SENTINEL <b id="sentinel">—</b></span>
-      <span class="metric">GROWTH <b id="growthMode">—</b></span>
+      <span class="metric">FASE <b id="phaseNow">—</b></span>
+      <span class="metric">NEXT <b id="nextNow">—</b></span>
       <span class="metric">STARTUP <b id="startupState">—</b></span>
     </div>
   </div>
@@ -340,10 +338,7 @@ async function rpc(name,args={}){
   return r.json();
 }
 async function loadPrompt(){prompt=SWARM_PROMPT}
-async function getEngine(){
-  try{const r=await fetch(ENGINE,{cache:'no-store'});if(!r.ok)throw new Error();engineState=await r.json()}catch(e){engineState=null}
-  renderEngine();
-}
+async function getEngine(){return}
 function clamp(n){return Math.max(0,Math.min(100,Number(n)||0))}
 function fmtEta(sec){
   sec=Math.max(0,Number(sec)||0);if(!sec)return '0m';if(sec<90)return '~1m';if(sec<3600)return '~'+Math.round(sec/60)+'m';
@@ -360,11 +355,7 @@ function setGauge(prefix,working,desired,pct,zone){
   z.textContent=zone==='RED'?'MÁXIMO':zone==='AMBER'?'CARGA MEDIA':'CAPACIDAD LIBRE';
   z.className='zone '+zone;
 }
-function renderEngine(){
-  const e=$('engine');if(!engineState){e.textContent='ENGINE —';e.className='micro engine bad';return}
-  const stale=Date.now()-new Date(engineState.generated_at)>12*60*1000;
-  e.textContent='ENGINE '+(stale?'STALE':'✓');e.className='micro engine '+(stale?'bad':'ok');
-}
+function renderEngine(){const e=$('engine');e.textContent='SWARM LIVE';e.className='micro engine ok'}
 function sheetClass(s){
   if(s.status==='DONE'&&Number(s.distinct_workers)>=2)return 'done';
   if(s.review_status==='LEASED'||s.status==='REVIEW')return 'review';
@@ -464,6 +455,16 @@ function renderToday(rows,summary){
     root.appendChild(row);
   });
 }
+function nextProductStep(active,l){
+  if(!active)return '—';
+  if(active.status==='MERGE') return active.merge_status==='DONE'?'FINAL VERIFY':active.merge_status==='LEASED'?'MERGE EN CURSO':'MERGE FINAL';
+  if(active.status==='VERIFY') return active.verify_status==='DONE'?'DONE':active.verify_status==='LEASED'?'VERIFY EN CURSO':'FINAL VERIFY';
+  if(active.status==='CONTRACT') return Number(l.product_ready||0)>0?'CERRAR HOJAS':'MERGE';
+  if(active.status==='FILL'||active.status==='EXPAND') return Number(l.product_ready||0)>0?'FILL':'CONTRACT';
+  if(active.status==='BLOCKED') return 'DESBLOQUEAR';
+  if(active.status==='DONE') return 'DONE';
+  return active.status||'—';
+}
 function renderDashboard(d){
   const f=d.flow||{},l=d.load||{},g=d.growth||{},h=d.startup||{},pb=d.probation||{},sw=d.swarm||{},products=d.products||[],sheets=d.sheets||[];
   workers=d.workers||[];
@@ -477,16 +478,24 @@ function renderDashboard(d){
     $('heroSheets').textContent=(active.sheets_done||0)+'/'+(active.sheets_total||0);
     $('heroCross').textContent=(active.sheets_crossfilled||0)+'/'+(active.sheets_crossfill_required||0);
   }
-  $('eta').textContent=fmtEta(f.eta_seconds);$('throughput').textContent=f.throughput_15m??0;
-  $('bottleneck').textContent=(h.startup_state&&h.startup_state!=='HEALTHY')?h.startup_state:((g.growth_mode&&g.growth_mode!=='BALANCED')?g.growth_mode:(f.bottleneck_code||'—'));
+  const nextStep=nextProductStep(active,l);
+  $('readyPackets').textContent=l.product_ready??0;
+  $('nextGate').textContent=nextStep;
+  $('bottleneck').textContent=
+    Number(l.product_ready||0)>0 && Number(l.product_working||0)===0
+      ? 'ESPERANDO WORKER'
+      : Number(l.product_working||0)>0
+        ? 'EN CURSO'
+        : 'SIN PARALELISMO ÚTIL';
   renderProducts(products,sheets,l);renderFlow();renderToday(todayRows,todaySummary);renderReceipts(d.receipts||[]);
   const vals={work:clamp(f.work_pct),coord:clamp(f.coord_pct),wait:clamp(f.wait_pct),rec:clamp(f.recovery_pct)};
   $('segWork').style.width=vals.work+'%';$('segCoord').style.width=vals.coord+'%';$('segWait').style.width=vals.wait+'%';$('segRec').style.width=vals.rec+'%';
   $('workPct').textContent=vals.work.toFixed(0)+'%';$('coordPct').textContent=vals.coord.toFixed(0)+'%';$('waitPct').textContent=vals.wait.toFixed(0)+'%';$('recPct').textContent=vals.rec.toFixed(0)+'%';
-  $('frontier').textContent=Number(g.frontier_ratio||0).toFixed(1)+'×';$('branch').textContent=Number(g.productive_branching||0).toFixed(2)+'×';$('metaShare').textContent=Math.round(Number(g.meta_share||0)*100)+'%';
-  const startMs=Number(h.p90_copy_to_work_ms??h.p90_contact_to_work_ms??0);$('startup').textContent=startMs?Math.round(startMs/1000)+'s':'—';$('lost').textContent=h.copied_unlinked_60s??0;
-  $('probation').textContent=pb.in_probation??0;
-  $('evidenceActive').textContent=pb.evidence_active??0;
+  const startMs=Number(h.p90_copy_to_work_ms??h.p90_contact_to_work_ms??0);
+  $('startup').textContent=startMs?Math.round(startMs/1000)+'s':'—';
+  $('lost').textContent=h.copied_unlinked_60s??0;
+  $('readyNow').textContent=l.product_ready??0;
+  $('usefulNow').textContent=l.product_desired??0;
   $('salvaged').textContent=pb.salvaged_expiries??0;
   $('packetsTaken').textContent=sw.packets_taken??0;
   $('packetsAccepted').textContent=sw.packets_accepted??0;
@@ -494,7 +503,16 @@ function renderDashboard(d){
   $('dead').textContent=f.dead_count??0;
   $('batch').textContent='COHORTE '+(f.latest_batch||'—');const fv=[f.funnel_launched,f.funnel_bootstrap,f.funnel_entered,f.funnel_work,f.funnel_published];
   ['f0','f1','f2','f3','f4'].forEach((id,i)=>$(id).childNodes[0].nodeValue=fv[i]??0);
-  $('sentinel').textContent=[f.guide_cycle,f.guide_status,f.guide_worker].filter(Boolean).join('·')||'—';$('growthMode').textContent=g.growth_mode||'—';$('startupState').textContent=h.startup_state||'—';
+  $('phaseNow').textContent=active?.status||'—';
+  $('nextNow').textContent=nextStep;
+  $('startupState').textContent=h.startup_state||'—';
+  renderEngine();
+  const gap=Math.max(0,Number(l.product_desired||0)-Number(l.product_working||0));
+  const copy=$('copy');
+  if(!copy.disabled){
+    copy.textContent=gap>0?'🕹️ COPIAR PROMPT · '+gap+' ÚTIL'+(gap===1?'':'ES'):'✓ CAPACIDAD COMPLETA';
+    copy.dataset.capacity=String(gap);
+  }
   $('clock').textContent=new Date(d.server_time||Date.now()).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }
 async function tick(){
@@ -511,6 +529,7 @@ async function tickToday(){
   }catch(e){}
 }
 $('copy').addEventListener('click',async()=>{
+  if(Number($('copy').dataset.capacity||0)<=0)return;
   if(!prompt)await loadPrompt();if(!prompt)return;
   const b=$('copy'),old=b.textContent;b.disabled=true;b.textContent='MARCANDO PIN…';let copied=false;
   try{
@@ -520,10 +539,10 @@ $('copy').addEventListener('click',async()=>{
     await navigator.clipboard.writeText(text);copied=true;
     try{await rpc('prometeo_mark_launch_intent_copied',{p_intent_token:token});b.textContent='PIN ✓ · COPIADO'}catch(e){b.textContent='PIN COPIADO · SIN ACK'}
   }catch(e){b.textContent=copied?'PIN COPIADO · SIN ACK':'PIN ERROR · REINTENTÁ'}
-  finally{setTimeout(()=>{b.textContent=old;b.disabled=false},1500)}
+  finally{setTimeout(()=>{b.disabled=false;const gap=Number(b.dataset.capacity||0);b.textContent=gap>0?'🕹️ COPIAR PROMPT · '+gap+' ÚTIL'+(gap===1?'':'ES'):'✓ CAPACIDAD COMPLETA'},1500)}
 });
-loadPrompt();getEngine();tickToday();tick();
-setInterval(tick,2500);setInterval(tickToday,15000);setInterval(getEngine,30000);setInterval(loadPrompt,60000);
+loadPrompt();tickToday();tick();
+setInterval(tick,2500);setInterval(tickToday,15000);setInterval(loadPrompt,60000);
 })();
 </script>
 </body>
