@@ -61,20 +61,22 @@ const $=id=>document.getElementById(id);
 async function get(p){const r=await fetch(BASE+p,{headers:H,cache:'no-store'});if(!r.ok)throw new Error(r.status);return r.json()}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function ageMin(n){if(n==null)return '—';n=Math.round(Number(n));return n<60?n+'m':Math.floor(n/60)+'h '+String(n%60).padStart(2,'0')+'m'}
+function durMs(ms){if(ms==null)return '—';const s=Math.round(Number(ms)/1000),m=Math.floor(s/60),h=Math.floor(m/60);return h?h+'h '+(m%60)+'m':m?m+'m '+(s%60)+'s':s+'s'}
+function doneReal(p){return p.status==='DONE'&&!!p.finished_at&&Number(p.sheets_total)>0&&Number(p.sheets_done)===Number(p.sheets_total)&&Number(p.sheets_crossfilled)>=Number(p.sheets_crossfill_required)}
 function render(products,sheets,events,startup,growth){
-  $('doneCount').textContent=products.filter(p=>p.status==='DONE').length;
+  $('doneCount').textContent=products.filter(doneReal).length;
   $('totalCount').textContent=products.length;
   const active=products.find(p=>p.status!=='DONE'&&p.status!=='QUEUED');
   $('headline').textContent=active
     ? active.title+' · '+active.status+' · '+active.sheets_done+'/'+active.sheets_total+' hojas'
-    : (products.every(p=>p.status==='DONE')?'Turno cerrado: todos los productos llegaron a DONE.':'Esperando siguiente producto finito.');
+    : (products.every(doneReal)?'Turno cerrado: todos los productos pasaron DONE real.':'Esperando siguiente producto finito.');
   $('products').innerHTML=products.map(p=>{
     const ps=sheets.filter(s=>s.product_id===p.product_id);
     const pct=Number(p.sheet_progress_pct||0);
     const sheetHtml=ps.map(s=>`<div class="sheet ${s.status==='DONE'?'done':''}">
       <span class="dot"></span>
-      <span class="sheetTitle">${esc(s.title)}</span>
-      <span class="sheetMeta">${esc(s.status)} · ${s.distinct_workers||0}W</span>
+      <span class="sheetTitle" title="${esc(s.artifact_scope||'')}">${esc(s.title)}</span>
+      <span class="sheetMeta">${esc(s.status)} · ${s.distinct_workers||0}W · ${esc(s.build_status||'—')}/${esc(s.review_status||'—')}</span>
     </div>`).join('');
     return `<article class="product">
       <div class="productHead">
@@ -82,7 +84,7 @@ function render(products,sheets,events,startup,growth){
           <div class="micro">${esc(p.product_id)}</div>
           <div class="title">${esc(p.title)}</div>
         </div>
-        <div class="state">${esc(p.status)}</div>
+        <div class="state">${doneReal(p)?'DONE REAL':esc(p.status)}</div>
       </div>
       <div class="progressRow"><div class="track"><div class="fill" style="width:${Math.max(0,Math.min(100,pct))}%"></div></div><div class="pct">${pct.toFixed(0)}%</div></div>
       <div class="stats">
@@ -91,7 +93,9 @@ function render(products,sheets,events,startup,growth){
         <span class="stat"><b>${p.distinct_workers}</b> workers</span>
         <span class="stat"><b>${p.working_jobs}</b> trabajando</span>
         <span class="stat"><b>${p.outputs}</b> outputs</span>
+        <span class="stat"><b>${durMs(p.worker_elapsed_ms)}</b> trabajo</span>
         <span class="stat"><b>${ageMin(p.wall_minutes)}</b> pared</span>
+        <span class="stat"><b>${p.last_output_at?new Date(p.last_output_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'—'}</b> último output</span>
       </div>
       <div class="sheets">${sheetHtml}</div>
       ${p.artifact_url?`<a class="artifact" href="${esc(p.artifact_url)}">VER ARTEFACTO</a>`:''}
