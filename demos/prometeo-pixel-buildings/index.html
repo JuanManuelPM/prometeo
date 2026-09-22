@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Prometeo · Edificios vivos</title>
+<style>
+:root{
+  --bg:#0a0a09;
+  --paper:#efe9de;
+  --muted:#7d756b;
+  --line:#2e2a25;
+  --soft:#171613;
+  --orange:#ff6500;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--paper)}
+body{font-family:Inter,Arial,Helvetica,sans-serif;touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated}
+.hud{
+  position:fixed;left:0;right:0;top:0;height:64px;z-index:3;
+  display:grid;grid-template-columns:minmax(150px,1fr) repeat(4,minmax(60px,90px));
+  background:rgba(10,10,9,.94);border-bottom:1px solid var(--line)
+}
+.brand{display:flex;align-items:center;gap:10px;padding:8px 11px}
+.mark{width:5px;height:34px;background:var(--orange)}
+.brand h1{margin:0;font-size:21px;line-height:.9;font-weight:1000;letter-spacing:-.05em}
+.brand small{display:block;margin-top:5px;font:900 6px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.kpi{border-left:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;padding:6px 7px}
+.kpi b{font-size:16px;line-height:1;font-weight:1000;letter-spacing:-.04em}
+.kpi span{margin-top:6px;font:900 5.7px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.note{
+  position:fixed;left:10px;bottom:10px;z-index:2;
+  font:800 6px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:#5a544d;letter-spacing:.07em;text-transform:uppercase
+}
+@media(max-width:700px){
+ .hud{height:60px;grid-template-columns:minmax(120px,1fr) repeat(3,minmax(54px,74px))}
+ .kpi:nth-child(5){display:none}
+ .brand{padding:7px 8px}.brand h1{font-size:18px}.brand small{font-size:5.3px}
+ .kpi{padding:5px 6px}.kpi b{font-size:14px}.kpi span{font-size:5px}
+}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div class="hud">
+  <div class="brand"><i class="mark"></i><div><h1>PROMETEO</h1><small>simulación más clara · edificios con ventanas</small></div></div>
+  <div class="kpi"><b id="alive">100</b><span>vivos</span></div>
+  <div class="kpi"><b id="working">54</b><span>trabajando</span></div>
+  <div class="kpi"><b id="moving">24</b><span>moviéndose</span></div>
+  <div class="kpi"><b id="off">10</b><span>off</span></div>
+</div>
+<div class="note">los workers solo entran y salen por puertas · adentro se ven por ventanas</div>
+
+<script>
+(()=>{
+const c=document.getElementById('view');
+const ctx=c.getContext('2d',{alpha:false});
+const $=id=>document.getElementById(id);
+
+const BG='#0a0a09', PAPER='#efe9de', MUTED='#7d756b', LINE='#2e2a25', SOFT='#171613', ORANGE='#ff6500';
+const COLORS=['#ff6500','#f3c74a','#5ed9d2','#7cdd92','#f58bc0','#9da8ff','#77c4ff','#d6a7ff','#ffb062','#c1e97d'];
+
+let W=0,H=0,DPR=1,last=performance.now(),scale=1,ox=0,oy=0;
+const VW=1000, VH=1350, TOP=90;
+const rnd=(a,b)=>a+Math.random()*(b-a), clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+const buildings = [
+  {id:'guide', title:'GUIDE SENTINEL', x:70, y:190, w:230, h:520, floors:5, cols:2, door:{x:185,y:710}, color:'#191816'},
+  {id:'runtime', title:'RUNTIME FORGE', x:385, y:120, w:230, h:590, floors:6, cols:2, door:{x:500,y:710}, color:'#181816'},
+  {id:'monitor', title:'WORKER MONITOR', x:700, y:170, w:230, h:540, floors:5, cols:2, door:{x:815,y:710}, color:'#171816'},
+  {id:'park', title:'WAIT / PARK', x:150, y:900, w:250, h:160, floors:0, cols:0, door:{x:275,y:900}, color:'#141512'},
+  {id:'pool', title:'POOL / OFF', x:600, y:900, w:250, h:160, floors:0, cols:0, door:{x:725,y:900}, color:'#121315'}
+];
+
+const roadY = 800;
+const nodes = {
+  left:{x:110,y:800},
+  g:{x:185,y:800},
+  r:{x:500,y:800},
+  m:{x:815,y:800},
+  p:{x:275,y:900},
+  o:{x:725,y:900}
+};
+
+function buildingSlots(b){
+  if (!b.floors) return [];
+  const slots=[];
+  const topPad=56, bottomPad=66, leftPad=36, rightPad=36;
+  const innerW=b.w-leftPad-rightPad, innerH=b.h-topPad-bottomPad;
+  const rowH=innerH/b.floors, colW=innerW/b.cols;
+  for(let fy=0; fy<b.floors; fy++){
+    for(let fx=0; fx<b.cols; fx++){
+      slots.push({
+        x:b.x+leftPad+fx*colW+colW/2,
+        y:b.y+topPad+fy*rowH+rowH/2,
+        busy:false, building:b.id
+      });
+    }
+  }
+  return slots;
+}
+const slotsByBuilding = Object.fromEntries(buildings.map(b=>[b.id, buildingSlots(b)]));
+
+const SPRITES = [
+ [0,0,0,1,0,0,1,1,1,0,0,1,1,1,0,1,1,1,1,1,1,1,1,0,1,0,1,1,1,0,1,0,0,1,0,1,0,0,0,0],
+ [0,0,1,0,0,1,1,1,1,0,1,0,1,1,1,0,1,1,1,1,1,1,0,1,1,0,1,1,1,0,1,0,1,0,1,0,0,0,0,0],
+ [0,0,1,0,1,0,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1,0,1,0,1,0,1,0,1,1,0,0,0,0,1,0,0,0,0],
+ [0,0,0,1,0,0,1,0,1,0,1,1,1,1,1,1,0,1,1,1,1,0,1,1,0,1,0,0,1,0,1,0,0,0,1,0,0,0,0,0],
+ [0,0,1,1,0,0,1,1,1,1,1,0,1,0,1,1,1,1,1,1,1,1,1,0,0,1,0,1,0,0,1,0,1,0,1,0,0,0,0,0]
+];
+
+function makeWorker(i){
+  const color=COLORS[i%COLORS.length];
+  const sprite=SPRITES[i%SPRITES.length];
+  const w={
+    id:i,color,sprite,role:null,state:'walking',x:nodes.left.x,y:nodes.left.y,
+    route:[],ri:0,target:null,slot:null,phase:rnd(0,6.28),timer:rnd(1500,6000),sleep:false
+  };
+
+  if(i < 30){
+    const target=['guide','runtime','monitor'][i%3];
+    w.role=target; w.target=target;
+    const slot=acquireSlot(target);
+    if(slot){
+      w.slot=slot; w.x=slot.x; w.y=slot.y; w.state='working'; w.timer=rnd(3500,10000);
+    }else{
+      w.state='parked'; w.target='park';
+      w.slot={x:buildings[3].x+38+((i%6)*32), y:buildings[3].y+58+((i%3)*25)};
+      w.x=w.slot.x; w.y=w.slot.y; w.timer=rnd(2500,7000);
+    }
+  }else if(i < 50){
+    w.role='park'; w.target='park'; w.state='parked';
+    w.slot={x:buildings[3].x+34+((i%7)*30), y:buildings[3].y+55+(((i-30)%3)*27)};
+    w.x=w.slot.x; w.y=w.slot.y; w.timer=rnd(1800,6500);
+  }else if(i < 90){
+    const target=['guide','runtime','monitor'][i%3];
+    w.role=target; sendTo(w,target);
+    const seg=Math.min(w.route.length-1, (i-50)%Math.max(1,w.route.length));
+    const from=seg===0?nodes.left:w.route[seg-1];
+    const to=w.route[seg];
+    const mix=.18+(((i*37)%70)/100);
+    w.x=from.x+(to.x-from.x)*mix+((i%5)-2)*4;
+    w.y=from.y+(to.y-from.y)*mix+(((i*3)%5)-2)*3;
+    w.ri=seg;
+  }else{
+    w.role='pool'; w.state='off'; w.target='pool';
+    w.slot={x:buildings[4].x+38+((i-90)%5)*40, y:buildings[4].y+52+(((i-90)/5|0)*38)};
+    w.x=w.slot.x; w.y=w.slot.y; w.sleep=true;
+  }
+  return w;
+}
+const workers=Array.from({length:100}, (_,i)=>makeWorker(i));
+function pathFor(target){
+  if(target==='guide') return [nodes.left,nodes.g,{x:buildings[0].door.x,y:buildings[0].door.y}];
+  if(target==='runtime') return [nodes.left,nodes.r,{x:buildings[1].door.x,y:buildings[1].door.y}];
+  if(target==='monitor') return [nodes.left,nodes.m,{x:buildings[2].door.x,y:buildings[2].door.y}];
+  if(target==='park') return [nodes.left,nodes.p,{x:buildings[3].door.x,y:buildings[3].door.y}];
+  if(target==='pool') return [nodes.left,nodes.r,nodes.o,{x:buildings[4].door.x,y:buildings[4].door.y}];
+  return [nodes.left];
+}
+function acquireSlot(target){
+  const arr=slotsByBuilding[target]||[];
+  for(const s of arr){ if(!s.busy){ s.busy=true; return s; } }
+  return null;
+}
+function releaseSlot(w){
+  if(w.slot && w.slot.building){
+    w.slot.busy=false;
+  }
+  w.slot=null;
+}
+function sendTo(w,target){
+  releaseSlot(w);
+  w.target=target;
+  w.route=pathFor(target).map(p=>({x:p.x+rnd(-3,3),y:p.y+rnd(-3,3)}));
+  w.ri=0;
+  w.state='walking';
+}
+function tryMoveRole(w,target){
+  if(w.state==='off') return;
+  sendTo(w,target);
+}
+function drawPixelSprite(sprite, x, y, s, color, sleeping=false, work=false, t=0){
+  ctx.save();
+  ctx.translate(x,y);
+  if(sleeping) ctx.rotate(Math.PI/2);
+  ctx.fillStyle=color;
+  const wob = work ? ((Math.floor(t/160)%2)*s*0.5) : 0;
+  for(let py=0; py<5; py++){
+    for(let px=0; px<8; px++){
+      const bit=sprite[py*8+px];
+      if(bit) ctx.fillRect(Math.round((-4+px)*s), Math.round((-2.5+py)*s + wob), Math.ceil(s), Math.ceil(s));
+    }
+  }
+  if(work){
+    ctx.fillStyle=ORANGE;
+    ctx.fillRect(Math.round(5*s), Math.round(-1*s + (Math.floor(t/120)%2)*s), Math.ceil(s), Math.ceil(2*s));
+  }
+  ctx.restore();
+}
+function fit(){
+  DPR=Math.min(2, window.devicePixelRatio||1);
+  W=innerWidth; H=innerHeight;
+  c.width=Math.round(W*DPR); c.height=Math.round(H*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0); ctx.imageSmoothingEnabled=false;
+  const usableH=H-64;
+  scale=Math.min(W/VW, usableH/(VH-TOP));
+  ox=(W-VW*scale)/2;
+  oy=64-TOP*scale;
+}
+function SX(v){ return ox+v*scale; }
+function SY(v){ return oy+v*scale; }
+
+function drawText(text,x,y,size=10,color=MUTED,align='left'){
+  ctx.fillStyle=color;
+  ctx.font='900 '+(size*scale)+'px ui-monospace,SFMono-Regular,Menlo,monospace';
+  ctx.textAlign=align;
+  ctx.textBaseline='top';
+  ctx.fillText(text,SX(x),SY(y));
+}
+function rect(x,y,w,h,fill,stroke=null,lw=1){
+  ctx.fillStyle=fill;
+  ctx.fillRect(SX(x),SY(y),w*scale,h*scale);
+  if(stroke){
+    ctx.strokeStyle=stroke;
+    ctx.lineWidth=lw*scale;
+    ctx.strokeRect(SX(x)+.5,SY(y)+.5,w*scale-1,h*scale-1);
+  }
+}
+function drawRoad(){
+  rect(40,roadY-26,920,52,'#11110f','#27241f',2);
+  ctx.strokeStyle='#4a443a';
+  ctx.lineWidth=2*scale;
+  ctx.setLineDash([9*scale,9*scale]);
+  ctx.beginPath();
+  ctx.moveTo(SX(65),SY(roadY));
+  ctx.lineTo(SX(935),SY(roadY));
+  ctx.stroke();
+  ctx.setLineDash([]);
+  [nodes.g,nodes.r,nodes.m].forEach(n=>{
+    ctx.fillStyle='#191915';
+    ctx.fillRect(SX(n.x-10),SY(roadY-28),20*scale,52*scale);
+  });
+  [nodes.p,nodes.o].forEach(n=>{
+    ctx.fillStyle='#191915';
+    ctx.fillRect(SX(n.x-10),SY(roadY),20*scale,85*scale);
+  });
+}
+function drawBuilding(b,t){
+  rect(b.x-8,b.y-8,b.w+16,b.h+16,'#0d0e0c');
+  rect(b.x,b.y,b.w,b.h,b.color,'#5c554c',2);
+  rect(b.x,b.y+b.h-18,b.w,18,'#131411');
+  rect(b.door.x-18,b.door.y-2,36,20,'#080909','#4b463f',2);
+  rect(b.door.x-4,b.door.y+2,8,16,'#1e1f1d');
+  if(b.floors){
+    const leftPad=28, rightPad=28, topPad=46, bottomPad=56;
+    const innerW=b.w-leftPad-rightPad, innerH=b.h-topPad-bottomPad;
+    const rowH=innerH/b.floors, colW=innerW/b.cols;
+    for(let fy=0; fy<b.floors; fy++){
+      for(let fx=0; fx<b.cols; fx++){
+        const wx=b.x+leftPad+fx*colW;
+        const wy=b.y+topPad+fy*rowH;
+        rect(wx,wy,colW-12,rowH-12,'#0f1011','#35312a',1);
+      }
+    }
+  } else if(b.id==='park'){
+    for(let i=0;i<4;i++){
+      rect(b.x+24,b.y+34+i*24,b.w-48,8,'#2f2a23');
+      rect(b.x+40+i*40,b.y+b.h-36,18,14,i%2?'#394435':'#2d372a');
+    }
+  } else if(b.id==='pool'){
+    for(let i=0;i<4;i++){
+      ctx.strokeStyle = i===0 ? '#364046' : '#20262a';
+      ctx.lineWidth=2*scale;
+      ctx.beginPath();
+      ctx.moveTo(SX(b.x+22), SY(b.y+44+i*22));
+      ctx.lineTo(SX(b.x+b.w-22), SY(b.y+44+i*22));
+      ctx.stroke();
+    }
+  }
+  if(b.id==='runtime'){
+    for(let i=0;i<4;i++){
+      rect(b.x+26+i*46,b.y+56,10,b.h-115,'#2c2923');
+      rect(b.x+30+i*46,b.y+66,2,b.h-135,ORANGE);
+    }
+  }
+  if(b.id==='guide'){
+    for(let i=0;i<4;i++){
+      ctx.strokeStyle='#4e493f';
+      ctx.lineWidth=2*scale;
+      ctx.beginPath();
+      ctx.moveTo(SX(b.x+24), SY(b.y+82+i*88));
+      ctx.lineTo(SX(b.x+b.w-24), SY(b.y+82+i*88));
+      ctx.stroke();
+    }
+  }
+  if(b.id==='monitor'){
+    rect(b.x+28,b.y+52,b.w-56,94,'#0b0c0c');
+    ctx.strokeStyle=ORANGE;
+    ctx.lineWidth=2*scale;
+    ctx.beginPath();
+    for(let i=0;i<8;i++){
+      const x=b.x+34+i*(b.w-68)/7;
+      const y=b.y+128-(Math.sin(t*0.0012+i)*18+18);
+      i?ctx.lineTo(SX(x),SY(y)):ctx.moveTo(SX(x),SY(y));
+    }
+    ctx.stroke();
+  }
+  drawText(b.title,b.x+b.w/2-70,b.y+b.h+16,9,PAPER);
+}
+function stepWorker(w,dt,t){
+  if(w.state==='off') return;
+  if(w.state==='working'){
+    w.timer-=dt*1000;
+    if(w.timer<=0){
+      releaseSlot(w);
+      sendTo(w,'park');
+    }
+    return;
+  }
+  if(w.state==='parked'){
+    w.timer-=dt*1000;
+    if(w.timer<=0){
+      w.timer=rnd(4000,9000);
+      const next = ['guide','runtime','monitor'][Math.floor(rnd(0,3))];
+      sendTo(w,next);
+    }
+    return;
+  }
+
+  const target = w.route[w.ri];
+  if(!target){
+    if(w.target==='park'){
+      w.slot = {x: buildings[3].x+40+((w.id%6)*30), y: buildings[3].y+60+((w.id%2)*28)};
+      w.x=w.slot.x; w.y=w.slot.y; w.state='parked'; w.timer=rnd(2500,7000);
+      return;
+    }
+    if(w.target==='pool'){
+      w.slot = {x: buildings[4].x+42+((w.id%6)*28), y: buildings[4].y+58+((w.id%3)*24)};
+      w.x=w.slot.x; w.y=w.slot.y; w.state='off'; w.sleep=true;
+      return;
+    }
+    const slot = acquireSlot(w.target);
+    if(slot){
+      w.slot=slot; w.x=slot.x; w.y=slot.y; w.state='working'; w.timer=rnd(3500,10000);
+    }else{
+      sendTo(w,'park');
+    }
+    return;
+  }
+
+  let ax=0, ay=0;
+  for(const other of workers){
+    if(other===w || other.state==='off' || other.state==='working') continue;
+    const dx=w.x-other.x, dy=w.y-other.y;
+    const d2=dx*dx+dy*dy;
+    if(d2>0 && d2<580){
+      const d=Math.sqrt(d2);
+      const f=(24-d)*1.2;
+      ax += dx/d*f; ay += dy/d*f;
+    }
+  }
+
+  const dx=target.x-w.x, dy=target.y-w.y;
+  const d=Math.hypot(dx,dy);
+  if(d<5){
+    w.ri++;
+    return;
+  }
+  let vx=dx/d*58 + ax;
+  let vy=dy/d*58 + ay;
+  const speed=Math.hypot(vx,vy);
+  if(speed>66){vx*=66/speed; vy*=66/speed}
+  w.x += vx*dt;
+  w.y += vy*dt;
+}
+function drawWorkers(t){
+  for(const b of buildings){
+    if(!b.floors) continue;
+    for(const w of workers){
+      if(w.state==='working' && w.target===b.id && w.slot){
+        drawPixelSprite(w.sprite,SX(w.x),SY(w.y),2.6*scale,w.color,false,true,t);
+      }
+    }
+  }
+  for(const w of workers){
+    if(w.state==='working') continue;
+    if(w.state==='off'){
+      drawPixelSprite(w.sprite,SX(w.x),SY(w.y),2.5*scale,'#4f4b45',true,false,t);
+    }else if(w.state==='parked'){
+      drawPixelSprite(w.sprite,SX(w.x),SY(w.y),2.6*scale,'#938c82',false,false,t);
+    }else{
+      drawPixelSprite(w.sprite,SX(w.x),SY(w.y),2.8*scale,w.color,false,false,t);
+    }
+  }
+}
+function updateHUD(){
+  const off=workers.filter(w=>w.state==='off').length;
+  const working=workers.filter(w=>w.state==='working').length;
+  const moving=workers.filter(w=>w.state==='walking').length;
+  $('alive').textContent=100-off;
+  $('working').textContent=working;
+  $('moving').textContent=moving;
+  $('off').textContent=off;
+}
+function frame(t){
+  const dt=Math.min(0.034, (t-last)/1000 || 0); last=t;
+  ctx.fillStyle=BG;
+  ctx.fillRect(0,0,W,H);
+  rect(0,0,VW,VH,'#090a09');
+  rect(40,120,920,1040,'#0f100e');
+  for(let x=44; x<955; x+=28){
+    for(let y=124; y<1156; y+=28){
+      ctx.fillStyle=((x+y)/28|0)%2 ? '#11120f' : '#0e0f0d';
+      ctx.fillRect(SX(x),SY(y),27*scale,27*scale);
+    }
+  }
+
+  for(const w of workers) stepWorker(w,dt,t);
+  drawRoad();
+  buildings.forEach(b=>drawBuilding(b,t));
+  drawWorkers(t);
+  updateHUD();
+  requestAnimationFrame(frame);
+}
+addEventListener('resize', fit, {passive:true});
+fit();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
