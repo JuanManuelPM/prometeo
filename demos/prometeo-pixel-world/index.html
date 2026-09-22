@@ -75,21 +75,24 @@ const zones=[
  {id:'runtime',name:'RUNTIME FORGE',x:695,y:150,w:235,h:360,door:{x:695,y:400},kind:'factory'},
  {id:'monitor',name:'WORKER OBSERVATORY',x:80,y:690,w:295,h:270,door:{x:375,y:795},kind:'monitor'},
  {id:'park',name:'WAIT GARDEN',x:430,y:720,w:205,h:215,door:{x:532,y:720},kind:'park'},
- {id:'pool',name:'POOL / OFF',x:690,y:760,w:245,h:245,door:{x:690,y:825},kind:'pool'}
+ {id:'pool',name:'POOL / OFF',x:690,y:760,w:245,h:245,door:{x:690,y:825},kind:'pool'},
+ {id:'feathers',name:'PLUMAS · COGNITIVE',x:390,y:970,w:250,h:115,door:{x:640,y:1025},kind:'feathers'}
 ];
 const nodes={
  spawn:{x:90,y:565}, hub1:{x:325,y:565}, hub2:{x:515,y:565}, hub3:{x:690,y:565},
  guide:{x:325,y:355}, reserve:{x:510,y:445}, runtime:{x:695,y:400},
- monitor:{x:375,y:795}, park:{x:532,y:720}, pool:{x:690,y:825}
+ monitor:{x:375,y:795}, park:{x:532,y:720}, pool:{x:690,y:825},
+ featherHub:{x:660,y:690}, feathers:{x:640,y:1025}
 };
 const routes={
  guide:['spawn','hub1','guide'],reserve:['spawn','hub1','hub2','reserve'],runtime:['spawn','hub1','hub2','hub3','runtime'],
- monitor:['spawn','hub1','monitor'],park:['spawn','hub1','hub2','park'],pool:['spawn','hub1','hub2','hub3','pool']
+ monitor:['spawn','hub1','monitor'],park:['spawn','hub1','hub2','park'],pool:['spawn','hub1','hub2','hub3','pool'],
+ feathers:['spawn','hub1','hub2','hub3','featherHub','feathers']
 };
 function zone(id){return zones.find(z=>z.id===id)}
 function lanePoint(p,id){const o=((id%5)-2)*3;return{x:p.x,y:p.y+o}}
 function slot(z,id){
- const cols=z.kind==='pool'?6:4,rows=z.kind==='pool'?5:4;
+ const cols=z.kind==='pool'?6:z.kind==='feathers'?5:4,rows=z.kind==='pool'?5:z.kind==='feathers'?2:4;
  const i=id%(cols*rows),cx=i%cols,cy=(i/cols)|0;
  return{x:z.x+32+cx*(z.w-64)/(cols-1||1),y:z.y+58+cy*(z.h-84)/(rows-1||1)};
 }
@@ -120,7 +123,7 @@ function drawWorkerObjectLinks(){
 function makeAgent(i){
  const h=hash(i),dead=i>=88;
  const state=dead?'dead':i<44?'working':i<70?'parked':'walking';
- const target=dead?'pool':state==='working'?['guide','reserve','runtime','monitor'][i%4]:state==='parked'?'park':['guide','reserve','runtime','monitor'][i%4];
+ const demoTargets=['guide','reserve','runtime','monitor','feathers'];const target=dead?'pool':state==='working'?demoTargets[i%demoTargets.length]:state==='parked'?'park':demoTargets[i%demoTargets.length];
  const a={id:i,code:'K'+String(i+1).padStart(3,'0'),shape:i%RAW.length,color:PALETTE[h%PALETTE.length],state,target,x:90+rnd(-20,20),y:565+rnd(-15,15),route:[],ri:0,phase:rnd(0,6.28),workUntil:performance.now()+rnd(4000,12000),sleep:false,score:Math.round(8000+rnd(0,24000)+i*97)};
  a.route=routeFor(i,target);if(dead){const p=slot(zone('pool'),i);a.x=p.x;a.y=p.y;a.state='dead';a.sleep=true;a.route=[]} return a
 }
@@ -132,11 +135,17 @@ function liveVisualState(row){
  if(p==='WAIT'||p==='PARKED'||s==='WAIT'||s==='PARKED')return'parked';
  return'working';
 }
+function isFeatherWork(row){
+ const key=String(row&&row.job_key||'').toUpperCase(),title=String(row&&row.job_title||'').toUpperCase();
+ const m=key.match(/FR-BACKLOG-(\d+)/),n=m?Number(m[1]):0;
+ return title.includes('DEEP SKILL')||title.includes('RETHINK')||(n>=207&&n<=218);
+}
 function liveTarget(row){
  const desired=liveVisualState(row),phase=String(row&&row.phase||'').toUpperCase(),project=String(row&&row.project_id||'').toUpperCase();
  if(desired==='dead')return'pool';
  if(desired==='parked')return'park';
  if(phase==='CHECKPOINT'||phase==='PUBLISH'||phase==='NEXT')return'monitor';
+ if(isFeatherWork(row))return'feathers';
  if(project.includes('GUIDE'))return'guide';
  if(project.includes('WORK-RESERVOIR'))return'reserve';
  if(project.includes('PRODUCTIVE-FRONTIER'))return'runtime';
@@ -203,7 +212,7 @@ function stepAgent(a,dt,t){
   return;
  }
  if(a.state==='parked'){
-  if(!liveMode&&Math.random()<dt*.08){const tar=['guide','reserve','runtime','monitor'][(a.id+(t/10000|0))%4];setRoute(a,tar,'walking')}
+  if(!liveMode&&Math.random()<dt*.08){const ts=['guide','reserve','runtime','monitor','feathers'],tar=ts[(a.id+(t/10000|0))%ts.length];setRoute(a,tar,'walking')}
   return;
  }
  if(!a.route.length){setRoute(a,a.target,'walking');return}
@@ -274,12 +283,23 @@ function drawPool(z,t){
  ctx.strokeStyle='#54514a';ctx.lineWidth=2*scale;ctx.stroke();drawText(z.name,z.x+16,z.y+12,10,'#8a857d');
  for(let i=0;i<5;i++){ctx.strokeStyle=i===0?'#363d41':'#202528';ctx.beginPath();ctx.moveTo(sx(z.x+22),sy(z.y+48+i*30+Math.sin(t*.001+i)*3));ctx.lineTo(sx(z.x+z.w-22),sy(z.y+48+i*30+Math.sin(t*.001+i)*3));ctx.stroke()}
 }
+function drawFeathers(z,t){
+ buildingBase(z,'#11120f','#6b655a');
+ drawText(z.name,z.x+12,z.y+10,9,'#d5cec2');
+ drawText('preguntas · perspectivas · deep skills',z.x+12,z.y+28,6,'#777169');
+ for(let i=0;i<6;i++){
+  const x=z.x+18+i*36,y=z.y+61+(i%2)*13;
+  ctx.strokeStyle=i===0?'#ff6500':'#777169';ctx.lineWidth=1.4*scale;
+  ctx.beginPath();ctx.moveTo(sx(x),sy(y+18));ctx.quadraticCurveTo(sx(x+10),sy(y-10),sx(x+20),sy(y-19));ctx.stroke();
+  ctx.beginPath();ctx.moveTo(sx(x+5),sy(y+7));ctx.lineTo(sx(x+16),sy(y));ctx.stroke();
+ }
+}
 function drawWorld(t){
  ctx.fillStyle='#080908';ctx.fillRect(0,0,W,H);
  ctx.fillStyle='#0d0f0d';ctx.fillRect(sx(35),sy(125),930*scale,960*scale);
  for(let x=40;x<960;x+=32){for(let y=130;y<1090;y+=32){ctx.fillStyle=((x+y)/32|0)%2?'#10110f':'#0e100e';ctx.fillRect(sx(x),sy(y),31*scale,31*scale)}}
- road(nodes.spawn,nodes.hub1);road(nodes.hub1,nodes.hub2);road(nodes.hub2,nodes.hub3);road(nodes.hub1,nodes.guide);road(nodes.hub2,nodes.reserve);road(nodes.hub3,nodes.runtime);road(nodes.hub1,nodes.monitor);road(nodes.hub2,nodes.park);road(nodes.hub3,nodes.pool);
- for(const z of zones){if(z.kind==='office')drawGuide(z);else if(z.kind==='warehouse')drawReserve(z);else if(z.kind==='factory')drawRuntime(z);else if(z.kind==='monitor')drawMonitor(z,t);else if(z.kind==='park')drawPark(z);else drawPool(z,t)}
+ road(nodes.spawn,nodes.hub1);road(nodes.hub1,nodes.hub2);road(nodes.hub2,nodes.hub3);road(nodes.hub1,nodes.guide);road(nodes.hub2,nodes.reserve);road(nodes.hub3,nodes.runtime);road(nodes.hub1,nodes.monitor);road(nodes.hub2,nodes.park);road(nodes.hub3,nodes.pool);road(nodes.hub3,nodes.featherHub,20);road(nodes.featherHub,nodes.feathers,20);
+ for(const z of zones){if(z.kind==='office')drawGuide(z);else if(z.kind==='warehouse')drawReserve(z);else if(z.kind==='factory')drawRuntime(z);else if(z.kind==='monitor')drawMonitor(z,t);else if(z.kind==='park')drawPark(z);else if(z.kind==='feathers')drawFeathers(z,t);else drawPool(z,t)}
  drawWorkerObjectLinks();
  // lamps / wayfinding pixels
  for(const p of [nodes.spawn,nodes.hub1,nodes.hub2,nodes.hub3]){ctx.fillStyle='#27231e';ctx.fillRect(sx(p.x-5),sy(p.y-8),10*scale,16*scale);ctx.fillStyle='#ff6500';ctx.fillRect(sx(p.x-2),sy(p.y-5),4*scale,4*scale)}
