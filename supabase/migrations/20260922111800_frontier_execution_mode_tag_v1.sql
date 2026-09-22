@@ -7,13 +7,13 @@ create or replace function public.prometeo_frontier_execution_mode(p_source_stat
 returns text
 language sql
 immutable
-as $
+as $mode$
   select case
     when upper(btrim(coalesce(p_source_status,'')))='CONCLUSION'
       then 'CONCLUSION_VERIFY_FASTPATH'
     else 'STANDARD'
   end;
-$;
+$mode$;
 
 create or replace function public.prometeo_frontier_instruction_prefix(p_source_status text)
 returns text
