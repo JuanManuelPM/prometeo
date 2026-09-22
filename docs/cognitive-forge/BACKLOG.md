@@ -7,9 +7,9 @@
 - Total de ítems: **253**
 - HECHO: **83**
 - CONCLUSION: **5**
-- DISENADO: **112**
+- DISENADO: **113**
 - DESCUBRIMIENTO: **3**
-- PENDIENTE: **41**
+- PENDIENTE: **40**
 - CONCEPTO: **1**
 - OBJETIVO: **8**
 
@@ -247,7 +247,7 @@
 220. **[DISENADO] COMPRESSION_FINDINGS.** Buscar fusiones, funciones, contratos y políticas.
 221. **[DISENADO] CAPABILITY_FINDINGS.** Buscar capacidades que el sistema supone falsamente que no tiene.
 222. **[PENDIENTE] Persistir Deep Skills.** Convertirlas en objetos reales.
-223. **[PENDIENTE] Rangos y contratos de Deep Skills.** Definir presupuestos y outputs obligatorios.
+223. **[DISENADO] Rangos y contratos de Deep Skills.** Definir presupuestos y outputs obligatorios. Spec ejecutable: `docs/cognitive-forge/BACKLOG-223-DEEP-SKILL-CONTRACTS-SPEC.md`.
 224. **[PENDIENTE] Medir utilidad de Deep Skills.** Registrar qué perspectivas producen hallazgos aceptados.
 225. **[PENDIENTE] Evolución de Deep Skills.** Permitir que mejoren según evidencia.
 226. **[DISENADO] Skill = determinismo + cognición + verificación.** Separar claramente las tres capas.
