@@ -171,7 +171,7 @@
 144. **[DISENADO] Throughput por worker.** Usarlo para capacidad efectiva, no como ranking humano.
 145. **[DISENADO] Simulación del scheduler.** Proyectar cola restante en JavaScript.
 146. **[DISENADO] ETA rápido/central/lento.** Usar percentiles para banda temporal.
-147. **[DISENADO] Confianza del ETA.** Mostrar cuánta evidencia respalda la estimación.
+147. **[HECHO] Confianza del ETA.** `public.blueprint_eta_confidence` expone muestras, cobertura global/por fase y weakest/strongest phase samples sin score sintético. Blueprint 84 observado: 182/420 muestras (43,3%) y 3/5 fases (60%).
 148. **[DISENADO] Confianza crece con muestras.** No inventar certeza temprana.
 149. **[DISENADO] Utilización de workers.** Mostrar cuántos están efectivamente ocupados.
 150. **[DISENADO] Detectar cuello de botella.** Identificar fase que domina tiempo restante.
