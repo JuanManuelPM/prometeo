@@ -74,7 +74,7 @@
 47. **[HECHO] Herramienta.** Procedimiento concreto para hacer algo.
 48. **[HECHO] Pluma.** Pregunta que desbloquea o redirige razonamiento.
 49. **[HECHO] Recipe.** Combinación reusable de Cards, Plumas y Herramientas.
-50. **[DISENADO] Skill.** Procedimiento completo que combina estado, herramientas, cognición y verificación.
+50. **[HECHO] Skill.** `forge_skills` + `forge_skill_versions` preservan identidad/versionado, schemas, procedimiento, rollback, verificación, evidencia y provenance; `forge_skill_execution_bundle` entrega una versión `ACCEPTED` exacta con hash estable. Smokes: `SKILL_REGISTRY_SMOKE_OK` y `SKILL_EXECUTION_BUNDLE_SMOKE_OK`.
 51. **[HECHO] 8 Plumas persistidas.** Primera biblioteca de preguntas cognitivas.
 52. **[HECHO] Pluma: ¿Realmente no podés?.** Ataca falsas declaraciones de incapacidad.
 53. **[HECHO] Pluma: ¿Ya funcionó antes?.** Busca evidencia de caminos ya demostrados.
