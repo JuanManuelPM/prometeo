@@ -37,3 +37,18 @@ The previous lease was consumed by publish and the returned next packet carried 
 No functional CHAIN gap was found in the exercised runtime path.
 
 A direct call to `prometeo_active_lease_packet` was security-blocked by the connector during this sheet and was not rerouted through another mutating path. This limits one optional evidence source but does not contradict the direct publish response, function definitions, or repeated session telemetry above.
+
+
+## Independent review / cross-fill check
+
+A second live check on session `d95778da-2539-4758-8111-6292a46925fe` after the BUILD publish observed two completed resident chains in the same session:
+
+- `chain_count=2`
+- `immediate_work_count=2`
+- `same_transition_wait_count=0`
+- published jobs: `FR-BACKLOG-173`, then `CORE-V1-CHAIN-BUILD`
+- transition timestamps: `2026-09-22 04:47:07.229094+00` and `2026-09-22 04:49:49.295723+00`
+
+This independently confirms the "repeated" requirement on one resident session, not only across other workers.
+
+Provenance caveat: the backend allocated both `CORE-V1-CHAIN-BUILD` and `CORE-V1-CHAIN-REVIEW` to K145. Therefore this REVIEW contributes a second verification pass but does **not** prove two-distinct-worker cross-fill. The current job packet did not expose `requires_crossfill=true`; if a higher-level sheet policy requires distinct workers, that remains an orchestration closure condition and must not be inferred as satisfied here.
