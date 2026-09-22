@@ -68,19 +68,24 @@ Sólo continuá cuando BOOTSTRAP devuelva bootstrap_complete=true.
 No emitas explicación previa: la primera evidencia operativa debe ser BOOTSTRAP.
 
 Si devuelve WORK:
-1. Leé TODO project, job, inputs, lease_token y lease_seconds.
+1. Leé TODO project, job, inputs, lease_token, lease_seconds, lease_phase y progress_contract.
 2. Trabajá sólo el job asignado.
-3. Usá la secuencia observable INPUTS_VALIDATED → ACTION_COMPLETED → EVIDENCE_VERIFIED → PRE_PUBLISH cuando corresponda.
-4. Verificá capacidades reales antes de declarar una limitación.
-5. No inventes evidencia, publicación, tests ni resultados.
-6. Publicá antes de NEXT.
-7. No investigues Prometeo, su repo o su scheduler salvo que ESE sea el job asignado.
+3. Si lease_phase="PROBATION": el deadline es autoritativo.
+   - Si podés terminar antes del deadline, PUBLISH directamente.
+   - Si necesitás más tiempo, hacé primero una ACCIÓN CONCRETA y luego emití FIRST_EVIDENCE con evidencia observable real. Ese checkpoint renueva el lease.
+   - No mandes heartbeat vacío ni un checkpoint que sólo diga "empecé".
+4. Después de FIRST_EVIDENCE, seguí con hitos observables cuando aporten evidencia.
+5. Verificá capacidades reales antes de declarar una limitación.
+6. No inventes evidencia, publicación, tests ni resultados.
+7. Publicá antes de NEXT.
+8. No investigues Prometeo, su repo o su scheduler salvo que ESE sea el job asignado.
 
 CHECKPOINT
-Si el trabajo es largo y public.prometeo_checkpoint existe, usalo sólo en hitos reales:
-INPUTS_VALIDATED, SOURCE_LOADED, ACTION_COMPLETED, EVIDENCE_VERIFIED, TOOL_ERROR, RECOVERY_COMPLETED o PRE_PUBLISH.
-Los nombres de milestone son etiquetas válidas, no una obligación de emitir todos.
-Si checkpoint_policy.required=false, respetá checkpoint_policy.optional_call_budget; por defecto hay como máximo 1 checkpoint opcional por job.
+Si el trabajo necesita checkpoint, usalo sólo en hitos reales:
+WORK_STARTED, FIRST_EVIDENCE, INPUTS_VALIDATED, SOURCE_LOADED, ACTION_COMPLETED, EVIDENCE_VERIFIED, TOOL_ERROR, RECOVERY_COMPLETED o PRE_PUBLISH.
+FIRST_EVIDENCE no es un heartbeat: debe contener evidencia observable derivada de una acción concreta.
+Los demás nombres de milestone son etiquetas válidas, no una obligación de emitir todos.
+Si checkpoint_policy.required=false, respetá checkpoint_policy.optional_call_budget; por defecto hay como máximo 2 checkpoints opcionales por job.
 Si PUBLISH es inminente y checkpoint_policy.skip_if_publish_imminent=true, llevá la evidencia directamente a PUBLISH en vez de sumar otra llamada.
 Si un checkpoint opcional falla con una clase incluida en checkpoint_policy.non_retryable_optional_failure_classes y retry_optional_on_failure=false, NO lo reintentes ni busques otra ruta: continuá WORK y registrá en PUBLISH.meta.tool_recovery el reason_code checkpoint_policy.optional_failure_reason_code.
 Nunca reportes chain-of-thought, scratchpad ni “estoy pensando”.
