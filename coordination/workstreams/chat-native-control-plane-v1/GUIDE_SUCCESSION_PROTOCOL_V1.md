@@ -22,6 +22,7 @@ Before telling the human where Prometeo currently stands, load and reconcile:
 7. exact active queues, claims, runs, returns, recovery claims, proposals, receipts and current authority relevant to the frontier;
 8. Universal Cognitive Worker / Stale Recovery / Multi-Surface Swarm sources when the distributed swarm is active;
 9. Master Context + Gap Audit + Strategic Non-Regression + Verification/Critic Control for strategic decisions.
+10. **Design DNA / preservation guard** (`coordination/design-dna/INDEX.json`) before proposing or applying architecture/runtime/worker-protocol/Guide-coordination/reincarnation/evaluator/Live changes. Load relevant invariants, failure vaccines and Goldens; historical reconstructed evidence must keep its evidence ceiling.
 
 Old summaries are pointers. Exact current evidence wins.
 
@@ -46,6 +47,18 @@ The guide must explicitly check:
 5. What is the highest-value broken loop rather than merely the most visible local blocker?
 6. Is any “no human action required” statement accidentally implying autonomous continuation that is not proven?
 7. What exact current evidence makes the next action safe?
+
+## 2A. Design-judgment succession
+
+A successor Guide must inherit not only current state but the durable criteria used to change the system safely. Before architecture or runtime mutation it must be able to answer:
+- Which Design DNA invariants does this touch?
+- Which historical failure vaccine resembles the proposal?
+- What is the last known good/simple baseline?
+- Can the problem be solved by removing/fusing/hiding a worker-visible step?
+- What Preservation Contract and rollback protect the known-good behavior?
+- What controlled evidence would be sufficient to challenge the current rule?
+
+Failure to recover these answers is incomplete Guide succession for architecture work, even if factual state recovery is correct.
 
 ## 3. Preserve the actual autonomy gap
 
