@@ -89,6 +89,9 @@ footer{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
     <div class="metric"><b id="working">—</b> WORK</div>
     <div class="metric"><b id="rate">—</b>/15m <span id="trend">→</span></div>
     <div class="metric hot"><b id="cap">—</b> CAP</div>
+    <div class="metric"><b id="frontier">—</b> FR</div>
+    <div class="metric"><b id="branch">—</b> BR</div>
+    <div class="metric"><b id="metaShare">—</b> META</div>
     <div class="metric"><b id="bottle">—</b></div>
     <div class="metric"><b id="parked">—</b> P</div>
     <div class="metric"><b id="dead">—</b> ☠</div>
@@ -199,7 +202,7 @@ footer{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
  }
  function trend(t){return t==='UP'?'↗':t==='DOWN'?'↘':'→'}
 
- function renderSummary(s){
+ function renderSummary(s,g){
    const p=clamp(s.progress_pct);
    $('mode').textContent=s.progress_mode==='FRONT'?'FRENTE ACTUAL':'RONDA ACTUAL';
    $('pct').textContent=p.toFixed(p>=99?0:1);
@@ -210,7 +213,10 @@ footer{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
    $('rate').textContent=s.throughput_15m??0;
    $('trend').textContent=trend(s.throughput_trend);
    $('cap').textContent='+'+(s.capacity_open??0);
-   $('bottle').textContent=s.bottleneck_code||'—';
+   $('frontier').textContent=g?Number(g.frontier_ratio||0).toFixed(1)+'×':'—';
+   $('branch').textContent=g?Number(g.productive_branching||0).toFixed(1)+'×':'—';
+   $('metaShare').textContent=g?Math.round(Number(g.meta_share||0)*100)+'%':'—';
+   $('bottle').textContent=(g?.growth_mode&&g.growth_mode!=='BALANCED')?g.growth_mode:(s.bottleneck_code||'—');
    $('parked').textContent=s.parked_count??0;
    $('dead').textContent=s.dead_count??0;
    $('silent').textContent=s.silent_workers??0;
@@ -279,13 +285,14 @@ footer{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
  }
  async function tick(){
    try{
-     const [s,w,r,p]=await Promise.all([
+     const [s,w,r,p,g]=await Promise.all([
        get('prometeo_control_flow_summary?select=*'),
        get('prometeo_control_live_workers?select=*&order=phase_started_at.desc'),
        get('prometeo_control_recent_receipts?select=*&order=at.desc&limit=8'),
-       get('prometeo_control_worker_prompt?select=*')
+       get('prometeo_control_worker_prompt?select=*'),
+       get('prometeo_frontier_metrics?select=*')
      ]);
-     if(s[0])renderSummary(s[0]);
+     if(s[0])renderSummary(s[0],g[0]||null);
      workers=w||[];
      if(selected&&!workers.some(x=>x.session_id===selected))selected=null;
      renderFlow();renderReceipts(r||[]);
