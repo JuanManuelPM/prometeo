@@ -4,35 +4,152 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#050505">
-<title>IA · TV</title>
+<title>PROMETEO · GRID TV</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050505;color:#f2eee6;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-#frame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#050505}
-#bar{position:absolute;z-index:5;left:8px;top:8px;display:flex;gap:7px;align-items:center;max-width:calc(100% - 16px);pointer-events:none}
-#dot{width:7px;height:7px;border-radius:50%;background:#89ff62;box-shadow:0 0 8px #89ff6290;flex:0 0 auto}
-#label{font:1000 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;background:#050505cc;padding:5px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#note{color:#8f887f;font-weight:800}
-body.compact #bar{left:5px;top:5px}body.compact #label{font-size:6px;padding:4px 5px}body.compact #note{display:none}
-#error{position:absolute;inset:0;display:none;place-items:center;text-align:center;color:#777169;font:900 9px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+:root{--bg:#050505;--fg:#f2eee6;--muted:#706a62;--line:#29251f;--hot:#ff6a00;--live:#89ff62;--dead:#ff5148}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{position:relative}
+#stats{position:absolute;z-index:30;right:2.2vw;top:2vh;display:flex;gap:1.2vw;align-items:baseline;padding:.55em .7em;background:#050505d9;font:1000 clamp(11px,1.25vw,18px)/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.06em}
+#stats .work{color:var(--live)}#stats .dead{color:var(--dead)}
+#idle{position:absolute;inset:0;background:var(--bg);opacity:1;transition:opacity .5s}
+#idle.off{opacity:0;pointer-events:none}
+#idleMark{position:absolute;right:2.2vw;bottom:2.2vh;color:#211f1c;font:1000 clamp(10px,1vw,15px)/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em}
+#active{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .5s}
+#active.on{opacity:1;pointer-events:auto}
+.scene{position:absolute;inset:0;padding:2vh 2.1vw 2.2vh;opacity:0;transform:translateY(3%);transition:opacity .6s,transform .75s cubic-bezier(.2,.8,.2,1)}
+.scene.on{opacity:1;transform:none}
+.wall{height:100%;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:1.15vw}
+.mini{min-width:0;min-height:0;border-top:1px solid var(--line);padding-top:.7vh;display:grid;grid-template-rows:auto minmax(0,1fr);gap:.6vh}
+.minihead{display:flex;justify-content:space-between;align-items:end;font-weight:1000;letter-spacing:-.04em}
+.minihead strong{font-size:clamp(10px,1.2vw,18px)}.minihead b{font-size:clamp(13px,1.7vw,25px);color:var(--hot)}
+.grid{position:relative;display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:clamp(1px,.22vw,4px);align-self:center}
+.cell{aspect-ratio:1;border:1px solid #25211d;background:#090807;position:relative;overflow:hidden}
+.cell.done{background:var(--hot);border-color:var(--hot)}
+.cell.work{background:#0d120c;border-color:var(--live);box-shadow:inset 0 0 0 1px #89ff6233}
+.cell.rescue:after{content:"";position:absolute;inset:18%;border:1px solid var(--fg)}
+.hero{height:100%;display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,31vw);gap:2vw;align-items:center}
+.heroLeft{min-width:0}.heroTag{font:1000 clamp(10px,1.2vw,17px)/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;color:var(--hot);margin-bottom:1.5vh}
+.hero .grid{gap:clamp(2px,.42vw,7px)}
+.hero .cell:before{content:attr(data-n);position:absolute;inset:0;display:grid;place-items:center;color:#423d37;font:900 clamp(5px,.65vw,10px)/1 ui-monospace,SFMono-Regular,Menlo,monospace}
+.hero .cell.done:before{color:#080604}.hero .cell.work:before{color:var(--live)}
+.side{height:76%;border-left:1px solid var(--line);padding-left:2vw;display:flex;flex-direction:column;justify-content:center}
+.big{font-size:clamp(60px,10vw,150px);font-weight:1000;line-height:.72;letter-spacing:-.09em;color:var(--hot)}
+.of{margin-top:1.3vh;color:var(--muted);font:900 clamp(9px,1vw,14px)/1 ui-monospace,SFMono-Regular,Menlo,monospace}
+.workerList{display:grid;gap:1vh;margin-top:4vh}
+.worker{border-top:1px solid var(--line);padding-top:.9vh;display:grid;grid-template-columns:auto 1fr auto;gap:.8vw;align-items:center;font:900 clamp(8px,.9vw,13px)/1.15 ui-monospace,SFMono-Regular,Menlo,monospace}
+.worker .lamp{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.worker.active .lamp{background:var(--live);box-shadow:0 0 8px #89ff6280}.worker.dead .lamp{background:var(--dead)}
+.worker span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.worker em{font-style:normal;color:var(--muted)}
+.bot{position:absolute;width:18px;height:18px;transform:translate(-50%,-50%);z-index:5;filter:drop-shadow(0 2px 4px #000)}
+.bot:before{content:"";position:absolute;inset:2px;border-radius:50%;background:var(--fg);border:4px solid #111;box-shadow:0 0 0 2px var(--live),0 0 9px #89ff6250}
+.bot.dead:before{box-shadow:0 0 0 2px var(--dead);background:#6d625d}
+#total{position:absolute;left:2.1vw;bottom:1.7vh;z-index:20;color:var(--muted);font:1000 clamp(8px,.85vw,12px)/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em}
+@media(max-width:720px),(max-aspect-ratio:1.15/1){
+ .wall{grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(5,1fr);gap:1vh 1.5vw}
+ .hero{grid-template-columns:1fr}.side{position:absolute;right:3vw;bottom:4vh;height:auto;width:32vw;background:#050505e8;padding:1.5vw;border-left:1px solid var(--line)}
+ .workerList{display:none}.big{font-size:clamp(42px,16vw,100px)}
+}
+@media(prefers-reduced-motion:reduce){.scene,#active,#idle{transition:none}}
 </style>
 </head>
 <body>
-<iframe id="frame" allow="autoplay; fullscreen; picture-in-picture"></iframe>
-<div id="bar"><i id="dot"></i><span id="label">IA · <span id="title">CARGANDO</span> <span id="note"></span></span></div>
-<div id="error">IA · SIN SUPERFICIE</div>
+<div id="stats"><span class="work"><b id="workCount">0</b> WORK</span><span class="dead"><b id="deadCount">0</b> DEAD</span></div>
+<section id="idle"><div id="idleMark">10 × 100 · ARMED</div></section>
+<section id="active">
+  <div class="scene on" id="wallScene"><div class="wall" id="wall"></div></div>
+  <div class="scene" id="heroScene">
+    <div class="hero">
+      <div class="heroLeft"><div class="heroTag" id="heroTag">GRID 01</div><div class="grid" id="heroGrid"></div></div>
+      <aside class="side"><div class="big" id="heroDone">0</div><div class="of">/ 100 COMPLETADAS</div><div class="workerList" id="workerList"></div></aside>
+    </div>
+  </div>
+  <div id="total"><span id="totalDone">0</span> / 1000 · <span id="gridDone">0</span> / 10 GRIDS</div>
+</section>
 <script>
 (()=>{
 'use strict';
-const frame=document.getElementById('frame'),title=document.getElementById('title'),note=document.getElementById('note'),err=document.getElementById('error');
-const current='/prometeo/grid-batch/?tv=1';
-title.textContent='GRID BATCH · 10×100';
-note.textContent='· LIVE';
-frame.src=current;
-window.addEventListener('message',e=>{
- const d=e.data||{};
- if(d.type==='prometeo:layout') document.body.classList.toggle('compact',d.profile==='compact'||Number(d.width||0)<520);
- if(d.type==='prometeo:control'&&d.action==='refresh') frame.src=current+(current.includes('?')?'&':'?')+'tvrefresh='+Date.now();
-});
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const HEAD={apikey:KEY,Authorization:'Bearer '+KEY};
+const $=id=>document.getElementById(id);
+let rows=[],scene='wall',focus=0,hadExperiment=false,failures=0;
+
+function statusCounts(){
+ let work=0,dead=0;
+ for(const d of rows)for(const m of (d.member_rows||[])){
+   if(String(m.status).toUpperCase()==='DEAD')dead++;
+   else if(String(m.status).toUpperCase()==='ACTIVE' && m.current_task_no)work++;
+ }
+ return {work,dead};
+}
+function experimentVisible(){
+ return hadExperiment || rows.some(d=>(d.members||0)>0 || (d.done||0)>0 || (d.working||0)>0 || ['RUNNING','DONE'].includes(String(d.status).toUpperCase()));
+}
+function cellHtml(t,nums){
+ const cls=['cell'];
+ if(t.status==='DONE')cls.push('done');
+ if(t.status==='LEASED')cls.push('work');
+ if((t.rescue_count||0)>0)cls.push('rescue');
+ return '<i class="'+cls.join(' ')+'"'+(nums?' data-n="'+String(t.task_no).padStart(2,'0')+'"':'')+'></i>';
+}
+function gridHtml(d,nums){return (d.tasks||[]).map(t=>cellHtml(t,nums)).join('')}
+function botsHtml(d){
+ let h='';
+ for(const m of (d.member_rows||[])){
+   if(!m.current_task_no)continue;
+   const n=Math.max(1,Math.min(100,Number(m.current_task_no)))-1;
+   const x=((n%10)+.5)*10,y=(Math.floor(n/10)+.5)*10;
+   h+='<i class="bot '+(String(m.status).toUpperCase()==='DEAD'?'dead':'')+'" style="left:'+x+'%;top:'+y+'%"></i>';
+ }
+ return h;
+}
+function workerHtml(m,i){
+ const st=String(m.status||'').toUpperCase(),cls=st==='DEAD'?'dead':(st==='ACTIVE'?'active':'');
+ const task=m.current_task_no?'T'+String(m.current_task_no).padStart(2,'0'):'—';
+ return '<div class="worker '+cls+'"><i class="lamp"></i><span>'+(m.worker_code||('W'+(i+1)))+'</span><em>'+task+'</em></div>';
+}
+function render(){
+ const c=statusCounts();
+ $('workCount').textContent=c.work;$('deadCount').textContent=c.dead;
+ const visible=experimentVisible();
+ if(visible)hadExperiment=true;
+ $('idle').classList.toggle('off',visible);
+ $('active').classList.toggle('on',visible);
+ if(!visible)return;
+
+ $('wall').innerHTML=rows.map((d,i)=>'<article class="mini"><div class="minihead"><strong>G'+String(i+1).padStart(2,'0')+'</strong><b>'+Number(d.done||0)+'</b></div><div class="grid">'+gridHtml(d,false)+'</div></article>').join('');
+ const totalDone=rows.reduce((a,d)=>a+Number(d.done||0),0);
+ $('totalDone').textContent=totalDone;
+ $('gridDone').textContent=rows.filter(d=>String(d.status).toUpperCase()==='DONE'||Number(d.done||0)>=100).length;
+
+ if(rows.length){
+   const d=rows[focus%rows.length];
+   $('heroTag').textContent='GRID '+String((focus%rows.length)+1).padStart(2,'0')+' · '+String(d.status||'').toUpperCase();
+   $('heroDone').textContent=Number(d.done||0);
+   $('heroGrid').innerHTML=gridHtml(d,true)+botsHtml(d);
+   $('workerList').innerHTML=(d.member_rows||[]).map(workerHtml).join('');
+ }
+ $('wallScene').classList.toggle('on',scene==='wall');
+ $('heroScene').classList.toggle('on',scene==='hero');
+}
+async function pull(){
+ try{
+   const r=await fetch(BASE+'grid_batch_dashboard?select=*',{headers:HEAD,cache:'no-store'});
+   if(!r.ok)throw Error(String(r.status));
+   const d=await r.json();
+   if(Array.isArray(d)&&d.length){rows=d;failures=0;render()}
+ }catch(e){
+   failures++;
+   if(failures>2){$('workCount').textContent='—';$('deadCount').textContent='—'}
+ }
+}
+setInterval(()=>{
+ if(!experimentVisible()||!rows.length)return;
+ if(scene==='wall'){scene='hero'}else{scene='wall';focus=(focus+1)%rows.length}
+ render();
+},8000);
+pull();setInterval(pull,1200);
 })();
 </script>
 </body>
