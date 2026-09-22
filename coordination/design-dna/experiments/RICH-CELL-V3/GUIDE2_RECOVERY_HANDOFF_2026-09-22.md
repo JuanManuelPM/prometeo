@@ -256,3 +256,57 @@ First:
 - avoid asking the human to relay messages between Guides.
 
 Then continue the post-C0 runbook toward SCREEN-10 ARMED.
+
+
+## Update · 2026-09-22 22:33Z
+
+C0 is analytically classified as effectively stalled without mutating batch state: snapshots at 22:06:39Z and 22:29:56Z were identical at 302/1000 DONE and 803,593 words.
+
+GUIDE-3 Phase A findings now durable in Mesh:
+- strong low-grid greedy seriality;
+- 17/17 observed backend sessions admitted; exact human-attempt denominator is not backend-durable;
+- review became de facto mandatory because every produced cell required review;
+- repeated roles got faster and shorter, but causal quality improvement remains unresolved;
+- no new confirmed engine continuity defect yet; WAIT/terminal instrumentation is missing prospectively.
+
+GUIDE-4 methodology findings:
+- keep 10 SCREEN arms but separate inference lanes;
+- S01-S07 are worker-policy promotion lane;
+- S08-S10 are protocol probes, not competitors in one Top-3 ranking;
+- 60 launch attempts are not 60 admissions;
+- use a synchronized common start barrier;
+- define n=5 degraded behavior for pair/triad/specialization arms;
+- promotion requires integrity invariants plus >=96/120 DONE with evidence from all 10 grids unless durable terminal/no-rescue occurs, and joint quality + active-worker-seconds evidence.
+
+Approved Work Traces:
+- #22 GUIDE-3 rich/observatory-v1 — prospective transition instrumentation + read-only Observatory; C0 history immutable.
+- #23 GUIDE-3 rich/v3-screen10-substrate — isolated generic V3 substrate/smoke only; no real ARM before methodology/Observatory.
+- #24 GUIDE-5 rich/replay-read-model-v1 — normalized replay/read model, on-demand ~60s checkpoints, catch-up-to-live, multi-arm sync; C0 arm_id remains null.
+- #25 GUIDE-4 rich/screen10-methodology-finalization-v1 — docs/methodology only.
+- #21 GUIDE-1 worker-animation-lab-v1 — reconcile already-published visual lab and close trace.
+
+Guide Observatory v1 now exists:
+- public.prometeo_guide_observatory_v1
+- public.prometeo_guide_jobs_v1
+- public.prometeo_guide_timeline_v1
+
+Guide timeline cue semantics:
+- GUIDE_JOINED → join cue
+- CLAIMED → work-start cue
+- WORK_FINISHED → completion cue
+- WORK_REJECTED → rework cue
+- dedupe by canonical event_id
+
+Guide Work Traces are treated as Guide Jobs v1. Avoid creating a duplicate Guide scheduler until this lifecycle proves insufficient.
+
+Worker support for Guides is defined in:
+coordination/design-dna/GUIDE_WORKER_DELEGATION_V1.md
+
+Immediate coordinator order now:
+1. consume GUIDE-4 finalized methodology;
+2. consume GUIDE-3 Phase B forensic snapshot;
+3. consume GUIDE-5 replay implementation;
+4. integrate Observatory/replay with GUIDE-1 TV;
+5. spend research workers only on unresolved Q10/Q21 power-horizon calibration and Q24/Q31 order-bias questions before SCREEN implementation is frozen;
+6. keep C0 immutable;
+7. do not ask human to relay Guide results.
