@@ -45,7 +45,7 @@ Los conteos coinciden exactamente.
 
 La definición actual de `prometeo_control_minimal` deriva `working_workers` sólo de `liveness='WORKING'` y cuenta `DEAD` por separado. `recommended_open` se calcula desde jobs rank-0 READY y slots libres de proyectos activos; no suma workers históricos ni cadáveres.
 
-El `control/index.html` actual consume `prometeo_control_minimal` y presenta `working_workers` + `recommended_open`. El render detallado de I006 fue reemplazado intencionalmente por commits posteriores de la consola mínima; la invariancia de capacidad viva se conserva en la fuente actual.
+`control/index.html` ya no consume directamente `prometeo_control_minimal`. La consola vigente consulta `prometeo_control_flow_summary`, `prometeo_control_live_workers`, `prometeo_control_recent_receipts` y `prometeo_control_worker_prompt`. `prometeo_control_minimal` sigue conservando la invariancia backend de capacidad viva —`working_workers` deriva sólo de `liveness='WORKING'`, `dead_workers` se cuenta por separado y `recommended_open` usa jobs rank-0 READY más slots libres—, pero ya no es la fuente directa del frontend. La consola actual muestra las métricas equivalentes desde su superficie de control vigente.
 
 ## Morgue después de Q026
 
