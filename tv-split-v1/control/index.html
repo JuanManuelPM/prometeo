@@ -205,19 +205,19 @@ button{font:inherit;color:inherit}
 'use strict';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const FEED='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-public-feed-v1';
-const CONTROL_BUILD='48',CANONICAL='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
+const CONTROL_BUILD='49',CANONICAL='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const q=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_REMOTE='1f1a186a7bdc6aa3c9bfbf2016fed69d6b6cbf3066fab5ad8e122e25aa45c63e',DEFAULT_MEDIA='NZT8S9zPPRuTdUQUZK20jEvA-Nly6Ck4HUImnPuBsgQ';
 const room={code:q.get('room')||DEFAULT_ROOM,token:q.get('t')||DEFAULT_REMOTE,role:'remote'},mediaToken=q.get('k')||DEFAULT_MEDIA;
-const client='tv-editor-v48-'+Math.random().toString(36).slice(2,9);
+const client='tv-editor-v49-'+Math.random().toString(36).slice(2,9);
 const $=id=>document.getElementById(id),viewport=$('viewport'),timeline=$('timeline'),gridLayer=$('gridLayer'),eventLayer=$('eventLayer'),palette=$('palette'),dragTime=$('dragTime'),editWin=$('editWin');
 const labels={youtube:'YOUTUBE',clock:'RELOJ',page:'PÁGINA',black:'NEGRO'};
 const samples={youtube:{title:'YOUTUBE',payload:{}},clock:{title:'TIMER VISUAL 25/5',payload:{style:'time-mass-25-5',focus_minutes:25,break_minutes:5}},page:{title:'CALENDARIO',payload:{url:'https://juanmanuelpm.github.io/prometeo/experiments/tv-split-v1-sample-calendar.html',display:{profile:'flex',position:'auto'},control:{label:'CALENDARIO',actions:['previous','next','refresh']}}},black:{title:'NEGRO',payload:{}}};
 const ytLatest=new Map(),ytByChannel=new Map(),watchedIds=new Set();
 let blocks=[],serverBlocks=[],selected=null,ppm=.7,cycleH=1000,loaded=false,rendering=false,saving=false;
 const dirtyBlocks=new Set(),pendingDeletes=new Set();
-const cacheKey='tv.program.editor.v48.'+room.code;
-let tvState=null,previewOpen=false,remoteLibrary=null,remoteOpen=false,remoteMuted=false,remoteUtilityOpen=false,remoteRenderSig='',contextSaveTimer=0,remoteScrubbing=false;
+const cacheKey='tv.program.editor.v49.'+room.code;
+let tvState=null,previewOpen=false,remoteLibrary=null,remoteOpen=false,remoteMuted=false,remoteUtilityOpen=false,remoteRenderSig='',contextSaveTimer=0,remoteScrubbing=false,remoteSampleAt=0;
 
 function clone(x){return JSON.parse(JSON.stringify(x))}
 function ba(){const ps=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());const get=t=>Number(ps.find(x=>x.type===t)?.value||0);return{h:get('hour'),m:get('minute')}}
@@ -279,21 +279,31 @@ function mediaTime(sec){
  sec=Math.max(0,Math.floor(Number(sec)||0));const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),ss=sec%60;
  return h?(h+':'+String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0')):(m+':'+String(ss).padStart(2,'0'))
 }
+function estimatedRemotePosition(player){
+ const d=Math.max(0,Number(player?.duration)||0),base=Math.max(0,Number(player?.current_time)||0);
+ const elapsed=Number(player?.state)===1&&remoteSampleAt?Math.max(0,(Date.now()-remoteSampleAt)/1000):0;
+ return d>0?Math.min(d,base+elapsed):base+elapsed
+}
 function updateRemoteScrubber(position,duration){
  const range=$('remoteInstrument')?.querySelector('[data-yt-scrub]');if(!range||remoteScrubbing)return;
  const d=Math.max(0,Number(duration)||0),p=Math.max(0,d>0?Math.min(d,Number(position)||0):0);
- range.max=String(Math.max(5,Math.ceil(d/5)*5));range.value=String(p);range.disabled=d<=0;
+ range.max=String(Math.max(5,Math.ceil(d)));range.value=String(p);range.disabled=d<=0;
  const pct=d>0?Math.max(0,Math.min(100,p/d*100)):0;range.style.setProperty('--seek-pct',pct+'%');
  const a=$('remoteInstrument').querySelector('[data-yt-now]'),z=$('remoteInstrument').querySelector('[data-yt-total]');
  if(a)a.textContent=mediaTime(p);if(z)z.textContent=mediaTime(d)
 }
+function tickRemoteScrubber(){
+ if(!remoteOpen||remoteScrubbing||contextBlock()?.kind!=='youtube')return;
+ const p=currentRemotePlayer();if(!p)return;
+ updateRemoteScrubber(estimatedRemotePosition(p),Number(p.duration)||0)
+}
 function renderInstrument(b,playing,muted,queue,idx,position=0,duration=0){
  if(!b)return '<div class="instEmpty">TOCÁ UN EVENTO PARA CONTROLARLO</div>';
  if(b.kind==='youtube'){
-  const d=Math.max(0,Number(duration)||0),p=Math.max(0,d>0?Math.min(d,Number(position)||0):0),pct=d>0?Math.max(0,Math.min(100,p/d*100)):0,max=Math.max(5,Math.ceil(d/5)*5);
+  const d=Math.max(0,Number(duration)||0),p=Math.max(0,d>0?Math.min(d,Number(position)||0):0),pct=d>0?Math.max(0,Math.min(100,p/d*100)):0,max=Math.max(5,Math.ceil(d));
   return '<div class="instDeck">'+
    '<div class="instWell"><button class="instRound" data-remote-action="yt-prev" aria-label="Video anterior">'+icon('prev')+'</button><div class="instCapsule"><button class="instSegment lit" data-remote-action="yt-toggle" aria-label="'+(playing?'Pausar':'Reproducir')+'">'+icon(playing?'pause':'play')+'</button><button class="instSegment" data-remote-action="yt-next" aria-label="Siguiente video">'+icon('next')+'</button></div></div>'+
-   '<div class="instScrub"><div class="instScrubTop"><span data-yt-now>'+mediaTime(p)+'</span><span data-yt-total>'+mediaTime(d)+'</span></div><input data-yt-scrub type="range" min="0" max="'+max+'" step="5" value="'+p+'" style="--seek-pct:'+pct+'%" '+(d>0?'':'disabled')+' aria-label="Posición del video en pasos de cinco segundos"><div class="instScrubHint">ARRASTRAR · PASOS DE 5 s</div></div>'+
+   '<div class="instScrub"><div class="instScrubTop"><span data-yt-now>'+mediaTime(p)+'</span><span data-yt-total>'+mediaTime(d)+'</span></div><input data-yt-scrub type="range" min="0" max="'+max+'" step="1" value="'+p+'" style="--seek-pct:'+pct+'%" '+(d>0?'':'disabled')+' aria-label="Posición del video"><div class="instScrubHint">POSICIÓN REAL · DESTINO EN PASOS DE 5 s</div></div>'+
    '<div class="instWell compact"><button class="instRound" data-remote-action="yt-back15" aria-label="Retroceder 15 segundos">'+icon('back15')+'</button><div class="instCapsule"><button class="instSegment" data-remote-action="yt-forward15" aria-label="Adelantar 15 segundos">'+icon('forward15')+'</button><button class="instSegment '+(!muted?'lit':'')+'" data-remote-action="yt-mute" aria-label="'+(muted?'Activar sonido':'Silenciar')+'">'+icon(muted?'mute':'sound')+'</button></div></div>'+
   '</div>'
  }
@@ -319,10 +329,10 @@ function renderRemote(){
  const dock=$('remoteDock'),text=$('remoteText'),update=$('remoteUpdate'),b=contextBlock();
  dock.classList.remove('live','available','stale');
  const age=tvState?.updated_at?Date.now()-new Date(tvState.updated_at).getTime():Infinity;
- const externalLive=age<4500,build=String(tvState?.build||''),outdated=externalLive&&build&&build!=='25';
+ const externalLive=age<4500,build=String(tvState?.build||''),outdated=externalLive&&build&&build!=='26';
  update.classList.toggle('show',outdated);
  dock.classList.add(externalLive?'live':'available');
- const player=currentRemotePlayer(),playing=Number(player?.state)===1,muted=!!player?.muted,position=Math.max(0,Number(player?.current_time)||0),duration=Math.max(0,Number(player?.duration)||0);remoteMuted=muted;
+ const player=currentRemotePlayer(),playing=Number(player?.state)===1,muted=!!player?.muted,duration=Math.max(0,Number(player?.duration)||0),position=estimatedRemotePosition(player);remoteMuted=muted;
  const state=remoteLibrary?.state||{},queue=Array.isArray(state.queue)?state.queue:[],currentId=String(state.current_video_id||''),idx=currentId?queue.findIndex(v=>String(v.video_id)===currentId):-1,item=idx>=0?queue[idx]:null;
  const appName=b?(b.kind==='page'?String(b.payload?.control?.label||b.title||'PÁGINA'):String(labels[b.kind]||b.kind).toUpperCase()):'CONTROL';
  $('remoteAppName').textContent=appName;
@@ -393,7 +403,7 @@ function initRemoteDock(){
  };
  addEventListener('resize',()=>{y=clamp(y);apply()})
 }
-async function pollTVState(){try{const d=await api({action:'state'});tvState=d.state||null;renderRemote();if(remoteOpen&&contextBlock()?.kind==='youtube'&&(!remoteLibrary||Date.now()-Number(remoteLibrary._fetched_at||0)>2500))loadRemoteLibrary()}catch{tvState=null;renderRemote()}}
+async function pollTVState(){try{const d=await api({action:'state'});tvState=d.state||null;remoteSampleAt=Date.now();renderRemote();if(remoteOpen&&contextBlock()?.kind==='youtube'&&(!remoteLibrary||Date.now()-Number(remoteLibrary._fetched_at||0)>2500))loadRemoteLibrary()}catch{tvState=null;remoteSampleAt=0;renderRemote()}}
 async function loadHistory(){
   try{
     const d=await api({action:'watch_history',limit:100});
@@ -541,12 +551,14 @@ $('remoteInstrument').onclick=async e=>{
 $('remoteInstrument').addEventListener('pointerdown',e=>{if(e.target.matches('[data-yt-scrub]'))remoteScrubbing=true});
 $('remoteInstrument').addEventListener('input',e=>{
  const r=e.target;if(!r.matches('[data-yt-scrub]'))return;remoteScrubbing=true;
- const val=Number(r.value)||0,max=Number(r.max)||0,pct=max>0?val/max*100:0;r.style.setProperty('--seek-pct',pct+'%');
+ const max=Number(r.max)||0,val=Math.max(0,Math.min(max,Math.round((Number(r.value)||0)/5)*5));r.value=String(val);
+ const pct=max>0?val/max*100:0;r.style.setProperty('--seek-pct',pct+'%');
  const a=$('remoteInstrument').querySelector('[data-yt-now]');if(a)a.textContent=mediaTime(val)
 });
 $('remoteInstrument').addEventListener('change',e=>{
  const r=e.target;if(!r.matches('[data-yt-scrub]'))return;const val=Math.round((Number(r.value)||0)/5)*5;
- sendRemote('seek_absolute',val);remoteScrubbing=false
+ const p=currentRemotePlayer();if(p){p.current_time=val;remoteSampleAt=Date.now()}
+ sendRemote('seek_absolute',val);remoteScrubbing=false;updateRemoteScrubber(val,Number(p?.duration)||0)
 });
 $('remoteInstrument').addEventListener('pointercancel',e=>{if(e.target.matches('[data-yt-scrub]'))remoteScrubbing=false});
 $('youtubeBtn').onclick=()=>openYouTubeEditor();
@@ -588,7 +600,7 @@ async function syncServer(initial=false){if(hasDraft()&&!initial)return;try{cons
 try{const c=JSON.parse(localStorage.getItem(cacheKey)||'null');if(c&&Array.isArray(c.blocks)){serverBlocks=clone(c.blocks);blocks=clone(serverBlocks);loaded=true}}catch{}
 function layout(){measure();grid();renderBlocks();updateNow()}
 async function checkCanonical(){try{const r=await fetch(CANONICAL+'?t='+Date.now(),{cache:'no-store'}),d=await r.json();if(String(d.control_build||CONTROL_BUILD)!==CONTROL_BUILD)location.replace('/prometeo/ctrl/?v='+Date.now())}catch{}}
-layout();loadHistory();renderRemote();pollTVState();checkCanonical();requestAnimationFrame(()=>{if(loaded)scrollInitial();syncServer(true)});setInterval(updateNow,15000);setInterval(()=>syncServer(false),30000);setInterval(pollTVState,900);setInterval(loadHistory,10000);setInterval(checkCanonical,15000);window.addEventListener('resize',layout);
+layout();loadHistory();renderRemote();pollTVState();checkCanonical();requestAnimationFrame(()=>{if(loaded)scrollInitial();syncServer(true)});setInterval(updateNow,15000);setInterval(()=>syncServer(false),30000);setInterval(pollTVState,900);setInterval(tickRemoteScrubber,200);setInterval(loadHistory,10000);setInterval(checkCanonical,15000);window.addEventListener('resize',layout);
 })();
 </script>
 </body>
