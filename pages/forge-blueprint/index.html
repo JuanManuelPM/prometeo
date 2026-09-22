@@ -110,7 +110,7 @@ dialog::backdrop{background:rgba(0,0,0,.46)}
   <div class="metric"><b id="jobsTotal">420</b><span>jobs total</span></div>
   <div class="metric" id="progressMetric"><b id="progressW">0%</b><span>progreso pond.</span></div>
   <div class="metric"><b id="active">0</b><span>trabajando</span></div>
-  <div class="metric"><b id="rescues">0</b><span>rescates</span></div>
+  <div class="metric" id="rescueMetric"><b id="rescues">0</b><span>rescates · retrabajo est.</span></div>
   <div class="metric"><b id="elapsed">0 s</b><span>tiempo</span></div>
   <div class="metric" id="etaMetric"><div class="etaBand"><div><i>ráp</i><b id="etaFast">—</b></div><div><i>cen</i><b id="etaCentral">—</b></div><div><i>len</i><b id="etaSlow">—</b></div></div><span>ETA p25 · p50 · p75</span><small id="etaConfidence">sin muestras</small></div>
  </div>
@@ -415,6 +415,16 @@ function renderGraph(){
  });
 }
 
+function compactWeight(v){const n=Math.max(0,Number(v)||0);return n>=1000?(n/1000).toFixed(n>=10000?0:1)+'k':Math.round(n).toString()}
+function rescueCost(){
+ let attempts=0,expectedRework=0,rescuedJobs=0;
+ for(const j of D.jobs){
+  const n=Math.max(0,Number(j.rescue_count)||0);
+  if(!n)continue;
+  attempts+=n;rescuedJobs++;expectedRework+=jobWeight(j)*n;
+ }
+ return {attempts,rescuedJobs,expectedRework};
+}
 function renderStats(){
  const p=D.project,done=D.points.filter(x=>x.status==='DONE').length;
  $('done').textContent=done;
@@ -432,7 +442,11 @@ function renderStats(){
  const conf=etaConfidence(est);$('etaConfidence').textContent=conf.label;
  $('etaMetric').title=(est.ready?(est.source==='scheduler'?'Banda ETA por simulación de cola: rápido=p25, central=p50 y lento=p75 de duraciones observadas por fase, con fallback normalizado por peso.':est.source==='history'?'Banda temporal histórica: rápido usa p75 de throughput, central p50 y lento p25; equivale a p25/p50/p75 de tiempo.':'ETA central por throughput actual; banda rápido/lento modulada por p25/p50/p75 de duración normalizada de jobs.'):'Sin evidencia temporal suficiente para proyectar una banda.')+' '+conf.label+'.';
  $('active').textContent=D.jobs.filter(x=>x.status==='LEASED').length;
- $('rescues').textContent=D.jobs.reduce((a,x)=>a+(x.rescue_count||0),0);
+ const rescue=rescueCost();
+ $('rescues').textContent=rescue.attempts+' · '+compactWeight(rescue.expectedRework)+'p';
+ $('rescueMetric').title=rescue.attempts
+  ?rescue.rescuedJobs+' job(s) requirieron rescate. Retrabajo estimado = suma de peso esperado del job × rescue_count; expresa costo equivalente de trabajo, no tiempo perdido inventado.'
+  :'Sin rescates observados en este run.';
  let ms=0;if(p?.started_at)ms=new Date(p.finished_at||Date.now())-new Date(p.started_at);
  $('elapsed').textContent=fmt(ms);$('badge').textContent=p?.status||'OPEN';
 }
