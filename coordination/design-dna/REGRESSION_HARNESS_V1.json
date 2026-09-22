@@ -1,0 +1,106 @@
+{
+  "schema": "prometeo.regression-harness/v1",
+  "status": "SPEC_ACTIVE_IMPLEMENTATION_CANDIDATE",
+  "version": 1,
+  "purpose": "Permanent behavioral canary for worker orchestration changes. It should be cheap enough to run routinely and strict enough to catch the regressions that historically looked like architectural progress.",
+  "short_suite": [
+    {
+      "id": "RH01_CHAIN",
+      "test": "Resident worker completes several easy tasks through repeated SUBMIT_AND_NEXT without re-bootstrap."
+    },
+    {
+      "id": "RH02_OVERFLOW",
+      "test": "Capacity-overflow worker receives NO_WORK/WAIT and cannot steal protected scope."
+    },
+    {
+      "id": "RH03_DUPLICATE",
+      "test": "Duplicate/late submit cannot create two accepted completions."
+    },
+    {
+      "id": "RH04_STALE_LEASE",
+      "test": "Expired incarnation result is rejected or reconciled without corrupting accepted successor work."
+    },
+    {
+      "id": "RH05_RESCUE",
+      "test": "Abandoned task becomes safely recoverable and is completed once."
+    },
+    {
+      "id": "RH06_REINCARNATE",
+      "test": "Fresh incarnation continues a durable logical slot without human recap and without repeating completed tasks."
+    },
+    {
+      "id": "RH07_SCOPE",
+      "test": "Worker cannot mutate/claim another protected grid/scope."
+    },
+    {
+      "id": "RH08_EVALUATOR",
+      "test": "DONE and PASS remain separately measurable; intentionally bad output is not promoted."
+    },
+    {
+      "id": "RH09_TV_INDEPENDENCE",
+      "test": "Run remains correct with projection/TV disabled."
+    },
+    {
+      "id": "RH10_HUMAN_ZERO",
+      "test": "Clean autonomous run completes with zero human routing/recap/merge actions."
+    }
+  ],
+  "full_experiment_candidate": {
+    "id": "GRID-10X100X2-V1",
+    "grids": 10,
+    "tasks_per_grid": 100,
+    "resident_workers_per_grid": 2,
+    "total_workers": 20,
+    "overflow_worker_behavior": "NO_WORK",
+    "worker_abi": [
+      "ENTER",
+      "WORK",
+      "SUBMIT_AND_NEXT",
+      "WAIT",
+      "RUN_DONE",
+      "STALE_LEASE"
+    ],
+    "arms": [
+      {
+        "id": "A_SIMPLE_BASELINE",
+        "description": "Reconstruct the simplest resident pool semantics."
+      },
+      {
+        "id": "B_CURRENT_RUNTIME",
+        "description": "Frozen current orchestration path."
+      },
+      {
+        "id": "C_MINIMAL_ABI_MODERN_RUNTIME",
+        "description": "Modern durable leases/recovery/evidence hidden behind minimal worker ABI."
+      }
+    ],
+    "compressed_epochs": [
+      "E0_CLEAN_BASELINE",
+      "E1_REPEATABILITY",
+      "E2_LONG_LIVED_FATIGUE",
+      "E3_FORCED_DEATH_AND_RESCUE",
+      "E4_REINCARNATION",
+      "E5_CONCURRENCY",
+      "E6_BLIND_TASKSET"
+    ],
+    "metrics": [
+      "completion_rate",
+      "independent_quality_pass_rate",
+      "false_done_rate",
+      "duplicate_accept_rate",
+      "lost_task_rate",
+      "cross_grid_contamination",
+      "submit_to_next_latency_p50",
+      "submit_to_next_latency_p90",
+      "productive_tasks_per_worker_incarnation",
+      "degradation_slope_first_vs_last_quartile",
+      "rescue_success_rate",
+      "reincarnation_continuity_rate",
+      "human_interventions",
+      "runtime/tool_failure_class"
+    ],
+    "freeze_rule": "No material runtime/prompt/evaluator changes inside a measured epoch. Change => new version/epoch or contaminated classification.",
+    "promotion_rule": "Candidate C may replace a production path only after it preserves safety/authority invariants, has zero cross-grid/lost-task corruption in the qualifying runs, reincarnates without human recap, and independently reproduces performance/quality that is materially no worse than the simple baseline."
+  },
+  "implementation_note": "This file defines the permanent harness contract; executable RPC/script wiring remains separate and must produce receipts before the harness is called operational."
+}
