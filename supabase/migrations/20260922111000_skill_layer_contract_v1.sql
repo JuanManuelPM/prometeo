@@ -46,7 +46,6 @@ begin
     'schema','prometeo.skill-layer-bundle/v1',
     'skill_ref',jsonb_build_object('skill_id',v.skill_id,'version_no',v.version_no),
     'maturity_state',v.maturity_state,
-    'definition_hash',v.definition_hash,
     'layer_order',jsonb_build_array('DETERMINISM','COGNITION','VERIFICATION'),
     'layers',jsonb_build_object(
       'determinism',jsonb_build_object(
