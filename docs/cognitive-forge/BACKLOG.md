@@ -43,7 +43,7 @@
 16. **[CONCLUSION] Aumentar densidad cognitiva.** Conviene enriquecer cada tarea en vez de sólo multiplicar tareas.
 17. **[DISENADO] Tareas largas como secuencias cognitivas.** Observar, modelar, criticar, reconstruir, especificar y verificar.
 18. **[DISENADO] Presupuestos de palabras por operación.** `budget.operation_allocations` reparte min/target/max_words y propósito por operación; enforcement/receipts runtime están delegados a `FOLLOWUP-B223-RUNTIME-CONTRACT-ENFORCEMENT`.
-19. **[DISENADO] Transferencia entre workers.** Un worker produce y otro continúa, critica o verifica.
+19. **[HECHO] Transferencia entre workers.** `forge_task_handoffs` + guard en `forge_allocate`: CRITIQUE/VERIFICATION exigen worker distinto y CONTINUE puede declararse explícitamente. Smoke `WORKER_HANDOFF_SMOKE_OK`; spec `docs/cognitive-forge/BACKLOG-019-WORKER-HANDOFF-SPEC.md`.
 20. **[DISENADO] Blind reconstruction.** Un worker ve la referencia; otro recibe sólo su descripción para medir pérdida de información.
 21. **[HECHO] Cognitive Forge FORGE-8-01.** Creamos un Goal sin cola preescrita.
 22. **[HECHO] Planner único.** El primer worker gana el rol de planificador.
