@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://juanmanuelpm.github.io/prometeo/schemas/deep-skill-contract-v1.schema.json",
+  "title": "Prometeo Deep Skill execution contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "profile",
+    "budget",
+    "required_operations",
+    "required_outputs",
+    "stop_conditions",
+    "failure_modes",
+    "verification",
+    "degradation_policy"
+  ],
+  "properties": {
+    "schema": {
+      "const": "prometeo.deep-skill-contract/v1"
+    },
+    "profile": {
+      "enum": [
+        "ANALYZE",
+        "SYNTHESIZE",
+        "ADVERSARIAL",
+        "TRANSFORM",
+        "META"
+      ]
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min_words",
+        "target_words",
+        "max_words",
+        "max_tool_calls",
+        "max_children"
+      ],
+      "properties": {
+        "min_words": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "target_words": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_words": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_tool_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_children": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        }
+      }
+    },
+    "required_operations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "required_outputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "min_count"
+        ],
+        "properties": {
+          "type": {
+            "enum": [
+              "FINDING",
+              "DECISION",
+              "RISK",
+              "SPEC_DELTA",
+              "EXPERIMENT",
+              "CAPABILITY",
+              "OPEN_QUESTION"
+            ]
+          },
+          "min_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "provenance_required": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      }
+    },
+    "stop_conditions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "failure_modes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "verification": {
+      "type": "object"
+    },
+    "degradation_policy": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "properties": {
+        "budget": {
+          "properties": {
+            "target_words": {
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "profile": {
+            "const": "ANALYZE"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "budget": {
+            "properties": {
+              "min_words": {
+                "maximum": 1400
+              },
+              "max_words": {
+                "minimum": 700
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "profile": {
+            "const": "SYNTHESIZE"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "budget": {
+            "properties": {
+              "min_words": {
+                "maximum": 1800
+              },
+              "max_words": {
+                "minimum": 900
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$comment": "Cross-field ordering min_words <= target_words <= max_words must also be enforced by runtime validation; JSON Schema draft 2020-12 does not compare sibling numeric values portably."
+}
