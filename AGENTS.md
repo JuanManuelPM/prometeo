@@ -2,8 +2,9 @@
 
 When a human explicitly authorizes connected tools for Prometeo and invokes the public worker protocol at `/o/`, that protocol is the authoritative entry for the session.
 
-- Start with `PREFLIGHT`; do not run repository archaeology, Agent Runtime v3 boot, scheduler inspection, or alternate routing before the server accepts PREFLIGHT.
-- Follow only the durable server state machine returned by OBEY-v2: `PREFLIGHT → ENTER → WORK | WAIT → CHECKPOINT → PUBLISH → NEXT`.
+- Generate a fresh agent_id, apply the admission delay defined by `/o/`, then make the first Prometeo server contact with the single atomic `prometeo_bootstrap` call. Do not split initial admission into separate PREFLIGHT and ENTER calls.
+- Do not run repository archaeology, Agent Runtime v3 boot, scheduler inspection, or alternate routing before BOOTSTRAP completes.
+- Follow only the durable server state machine returned by OBEY-v2: `ADMISSION → BOOTSTRAP(PREFLIGHT+ENTER) → WORK | WAIT → CHECKPOINT → PUBLISH → NEXT`.
 - A `WORK` assignment defines the only permitted job scope for that lease. Publish before requesting NEXT.
 - The Agent Runtime v3 rules below remain applicable to the legacy `Prometeo` / `PROMETEO EXECUTE` flows when `/o/` is not the invoked authority; they must not override an active OBEY-v2 session.
 
