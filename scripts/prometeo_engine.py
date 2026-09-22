@@ -26,17 +26,34 @@ ingress=first(safe("prometeo_control_ingress?select=*",[]))
 cohorts=safe("prometeo_control_cohort_timing?select=*&order=cohort_last_seen_at.desc&limit=12",[])
 guide=first(safe("prometeo_control_guide_latest?select=*",[]))
 deaths=safe("prometeo_worker_deaths?select=death_id,worker_code,reason,detected_at,recovered_at,batch_id&order=detected_at.desc&limit=100",[])
+flight=safe("prometeo_worker_flight_recorder?select=*&order=first_observed_at.desc&limit=120",[])
+postmortems=safe("prometeo_worker_postmortems?select=death_id,worker_code,protocol_version,launch_batch,terminal_phase,terminal_state,observed_cause,inferred_cause,event_count,checkpoint_count,publish_count,tool_failure_count,observed_ms,productive_ms,work_pct,wait_pct,detected_at,recovered_at&order=death_id.desc&limit=120",[])
+learning=first(safe("prometeo_runtime_learning_snapshot?select=*",[]))
 
 if isinstance(cohorts,dict) and "data" in cohorts: cohorts=cohorts["data"]
 if not isinstance(cohorts,list): cohorts=[]
 if isinstance(deaths,dict) and "data" in deaths: deaths=deaths["data"]
 if not isinstance(deaths,list): deaths=[]
+if isinstance(flight,dict) and "data" in flight: flight=flight["data"]
+if not isinstance(flight,list): flight=[]
+if isinstance(postmortems,dict) and "data" in postmortems: postmortems=postmortems["data"]
+if not isinstance(postmortems,list): postmortems=[]
 
 invariants=[]
-for c in cohorts:
-    s=int(c.get("sessions") or 0); e=int(c.get("entered") or 0); w=int(c.get("reached_work") or 0); p=int(c.get("published") or 0)
+legacy_invariants=[]
+for co in cohorts:
+    s=int(co.get("sessions") or 0); e=int(co.get("entered") or 0); w=int(co.get("reached_work") or 0); p=int(co.get("published") or 0)
+    item={"code":"COHORT_FUNNEL_IMPOSSIBLE","batch":co.get("launch_batch"),"protocol_version":co.get("protocol_version"),"sessions":s,"entered":e,"work":w,"published":p}
     if not (p<=w<=e<=s):
-        invariants.append({"code":"COHORT_FUNNEL_IMPOSSIBLE","batch":c.get("launch_batch"),"sessions":s,"entered":e,"work":w,"published":p})
+        if str(co.get("protocol_version") or "").upper()=="OBEY-V2":
+            invariants.append(item)
+        else:
+            legacy_invariants.append(item)
+
+for fr in flight:
+    pubs=int(fr.get("publish_count") or 0)
+    if pubs>0 and not fr.get("first_work_observed_at"):
+        invariants.append({"code":"PUBLISH_WITHOUT_WORK_EVIDENCE","worker_code":fr.get("worker_code"),"session_id":fr.get("session_id"),"publish_count":pubs})
 
 admitted_1m=int(ingress.get("admitted_1m") or 0)
 ready=int(minimal.get("ready_jobs") or 0)
@@ -85,7 +102,11 @@ snapshot={
     "headline":guide.get("headline")
   },
   "invariants":invariants,
+  "legacy_invariants":legacy_invariants,
   "cohorts":cohorts[:12],
+  "flight_recorder":flight[:120],
+  "postmortems":postmortems[:120],
+  "runtime_learning":learning.get("snapshot") if isinstance(learning,dict) else None,
   "recent_deaths":deaths[:100],
   "engine_actions":{
     "requires_cognitive_attention": bool(invariants or bottleneck in {"INGRESS","TELEMETRY","LIVENESS"}),
