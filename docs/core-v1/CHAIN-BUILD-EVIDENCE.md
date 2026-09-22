@@ -52,3 +52,15 @@ A second live check on session `d95778da-2539-4758-8111-6292a46925fe` after the 
 This independently confirms the "repeated" requirement on one resident session, not only across other workers.
 
 Provenance caveat: the backend allocated both `CORE-V1-CHAIN-BUILD` and `CORE-V1-CHAIN-REVIEW` to K145. Therefore this REVIEW contributes a second verification pass but does **not** prove two-distinct-worker cross-fill. The current job packet did not expose `requires_crossfill=true`; if a higher-level sheet policy requires distinct workers, that remains an orchestration closure condition and must not be inferred as satisfied here.
+
+
+## Extra cross-fill verification
+
+A later independent telemetry pass strengthened the repeated-chain evidence:
+
+- K128: 15 `PUBLISHED_AND_NEXT` transitions, 15 immediate WORK transitions, 0 same-transition WAIT.
+- K145: 5 `PUBLISHED_AND_NEXT` transitions, 5 immediate WORK transitions, 0 same-transition WAIT.
+
+K128's sequence includes work across Productive Frontier and multiple CORE-V1 sheets, so the resident-chain behavior is not confined to this artifact's authoring session. K145's sequence now spans five consecutive publishes in the current resident session and still shows no unnecessary WAIT between accepted output and immediately available work.
+
+Cross-fill identity caveat remains: this extra CHAIN job was again allocated to K145, the same worker that authored BUILD/REVIEW. The evidence independently samples K128's runtime behavior, but this touch itself does not create a second CHAIN sheet author identity. If the sheet requires `distinct_workers >= 2`, the orchestration state must satisfy that separately; this document does not claim it has.
