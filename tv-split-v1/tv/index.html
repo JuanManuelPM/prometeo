@@ -21,9 +21,10 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 #stage.layout-four-grid{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
 .panel{position:relative;overflow:hidden;background:#000;min-width:0;min-height:0}
 .panel iframe,.ytHost,.ytHost iframe{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;border:0!important}
-.youtubePanel{background:#000}
-.youtubePanel .ytHost{overflow:hidden!important;inset:0!important;background:#000}
-.youtubePanel .ytHost iframe{pointer-events:none!important;transform:scale(1.07)!important;transform-origin:center center!important}
+.youtubePanel{background:#000;overflow:hidden}
+.nativeVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;border:0;outline:0}
+.youtubeStatus{position:absolute;inset:0;display:grid;place-items:center;background:#000;color:#5d5c55;text-align:center;font:900 clamp(8px,1.1vw,13px) ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;z-index:2;pointer-events:none}
+.youtubeStatus span{display:block;margin-top:8px;color:#363630;font-size:.72em}
 .videoProgress{display:none!important}
 .videoProgressFill{display:none!important}
 .youtubeEmpty{position:absolute;inset:0;display:grid;place-items:center;background:#000;color:#f4f2ea;font:900 clamp(14px,2.2vw,28px)/1 Arial,Helvetica,sans-serif;letter-spacing:.12em}
@@ -75,22 +76,25 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 <main id="stage" class="n1"></main>
 <button id="unlock" class="unlock">ACTIVAR VIDEO</button>
 <div id="status" class="status"></div>
-<script src="https://www.youtube.com/iframe_api"></script>
 <script>
 (()=>{
 'use strict';
-const BUILD='24';
+const BUILD='25';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const RUNTIME='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const p=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_TOKEN='6e7f4b74d76d2488ac3779832c77632475dd845db3a9b598765a757c7f18c327';
 const room={code:p.get('room')||DEFAULT_ROOM,token:p.get('t')||DEFAULT_TOKEN,role:'tv'};
-const client='tv-v24-'+Math.random().toString(36).slice(2,10);
+const client='tv-v25-'+Math.random().toString(36).slice(2,10);
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
 const views=new Map(),advancing=new Set();
-let blocks=[],serverActive=[],ytReady=false,lastCommandId=0,updatePending=false,pageStarted=Date.now();
-
-window.onYouTubeIframeAPIReady=()=>{ytReady=true;for(const b of active())ensureView(b,true)};
+const PIPED_APIS=[
+ 'https://pipedapi.kavin.rocks','https://pipedapi.leptons.xyz','https://pipedapi-libre.kavin.rocks',
+ 'https://piped-api.privacy.com.de','https://pipedapi.adminforge.de','https://api.piped.yt',
+ 'https://pipedapi.drgns.space','https://pipedapi.owo.si','https://piped-api.codespace.cz',
+ 'https://api.piped.private.coffee','https://pipedapi.darkness.services','https://pipedapi.orangenet.cc'
+];
+let blocks=[],serverActive=[],lastCommandId=0,updatePending=false,pageStarted=Date.now();
 
 function nowParts(){
  const ps=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
@@ -106,13 +110,73 @@ function clockMarkup(){return '<div class="clockLayout"><div class="hybridClock"
 function destroyView(id){
  const v=views.get(String(id));if(!v)return;
  try{v.player?.destroy()}catch{}
+ try{v.abort?.abort()}catch{}
  try{v.el.remove()}catch{}
  views.delete(String(id))
+}
+function chooseMuxedStream(data){
+ const xs=(Array.isArray(data?.videoStreams)?data.videoStreams:[]).filter(x=>x&&x.url&&!x.videoOnly&&String(x.mimeType||'').startsWith('video/'));
+ xs.sort((a,b)=>{
+   const amp=/mp4/i.test(String(a.mimeType||a.format||''))?1:0,bmp=/mp4/i.test(String(b.mimeType||b.format||''))?1:0;
+   if(amp!==bmp)return bmp-amp;
+   const ah=Number(a.height||0),bh=Number(b.height||0),ac=ah<=1080?ah:-ah,bc=bh<=1080?bh:-bh;
+   return bc-ac||Number(b.bitrate||0)-Number(a.bitrate||0)
+ });
+ return xs[0]||null
+}
+async function resolveCleanStream(videoId,signal){
+ let last='';
+ for(const base of PIPED_APIS){
+  try{
+   const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),4200);
+   const relay=()=>ctl.abort();signal?.addEventListener('abort',relay,{once:true});
+   const r=await fetch(base+'/streams/'+encodeURIComponent(videoId),{cache:'no-store',signal:ctl.signal,headers:{Accept:'application/json'}});
+   clearTimeout(timer);signal?.removeEventListener('abort',relay);
+   if(!r.ok){last=base+' '+r.status;continue}
+   const d=await r.json(),stream=chooseMuxedStream(d);
+   if(stream?.url)return{url:String(stream.url),duration:Number(d.duration||0),title:String(d.title||''),source:base,mime:String(stream.mimeType||'video/mp4')}
+   last=base+' sin stream combinado'
+  }catch(e){last=String(e?.message||e)}
+ }
+ throw new Error(last||'SIN_RESOLVER')
+}
+function nativeAdapter(video,v){
+ return{
+  playVideo(){return video.play()},
+  pauseVideo(){video.pause()},
+  getPlayerState(){return video.ended?0:video.paused?2:(video.readyState<3?3:1)},
+  mute(){video.muted=true;v.muted=true},
+  unMute(){video.muted=false;v.muted=false},
+  isMuted(){return !!video.muted},
+  getCurrentTime(){return Number(video.currentTime||0)},
+  getDuration(){return Number(video.duration||v.streamDuration||0)},
+  seekTo(t){const d=Number(video.duration||v.streamDuration||0),n=Math.max(0,d>0?Math.min(d-.05,Number(t)||0):Number(t)||0);video.currentTime=n},
+  destroy(){try{video.pause();video.removeAttribute('src');video.load()}catch{}}
+ }
+}
+async function startNativePlayback(v){
+ const video=v?.video;if(!video)return;
+ try{video.muted=false;await video.play();v.muted=false;unlock.classList.remove('show');return}catch{}
+ try{video.muted=true;v.muted=true;await video.play();unlock.classList.remove('show')}catch{unlock.classList.add('show')}
+}
+async function loadNativeStream(b,v){
+ const videoId=String(b.payload?.video_id||'');if(!videoId||!v.video)return;
+ try{v.abort?.abort()}catch{}
+ const abort=new AbortController();v.abort=abort;const ticket=(v.loadTicket||0)+1;v.loadTicket=ticket;
+ v.ready=false;v.state=3;v.playbackSeen=false;v.status.textContent='BUSCANDO VIDEO LIMPIO';
+ try{
+   const out=await resolveCleanStream(videoId,abort.signal);
+   if(abort.signal.aborted||ticket!==v.loadTicket)return;
+   v.videoId=videoId;v.streamDuration=out.duration||0;v.streamSource=out.source;v.video.src=out.url;v.video.load();v.status.textContent='CARGANDO';await startNativePlayback(v)
+ }catch(e){
+   if(abort.signal.aborted||ticket!==v.loadTicket)return;
+   v.state=-1;v.status.innerHTML='VIDEO NO DISPONIBLE<span>NO SE USÓ EL EMBED DE YOUTUBE</span>';status.className='status err'
+ }
 }
 function createView(b){
  const id=String(b.id),el=document.createElement('section');el.className='panel';
  const videoId=String(b.payload?.video_id||'');
- const v={id,el,kind:b.kind,sig:sig(b),block:b,videoId,player:null,ready:false,muted:false,state:null,progressFill:null,playbackSeen:false};
+ const v={id,el,kind:b.kind,sig:sig(b),block:b,videoId,player:null,video:null,status:null,abort:null,loadTicket:0,ready:false,muted:false,state:null,streamDuration:0,streamSource:'',playbackSeen:false};
  views.set(id,v);stage.appendChild(el);
  if(b.kind==='clock'){el.classList.add('clockPanel');el.innerHTML=clockMarkup()}
  else if(b.kind==='page'){const f=document.createElement('iframe');f.src=b.payload?.url||'about:blank';f.allow='autoplay; fullscreen; picture-in-picture';f.addEventListener('load',()=>setTimeout(()=>applyGrid(active()),30));el.appendChild(f)}
@@ -120,70 +184,23 @@ function createView(b){
    el.classList.add('youtubePanel');
    if(!videoId){const empty=document.createElement('div');empty.className='youtubeEmpty';empty.innerHTML='<div>YOUTUBE<span>SIN CONTENIDO</span></div>';el.appendChild(empty)}
    else{
-     const host=document.createElement('div');host.className='ytHost';host.id='yt-'+id.replace(/[^a-z0-9_-]/gi,'');el.appendChild(host);
-     if(ytReady&&window.YT?.Player)mountPlayer(b,v)
+     const video=document.createElement('video');video.className='nativeVideo';video.autoplay=true;video.playsInline=true;video.preload='auto';video.controls=false;video.disablePictureInPicture=true;video.setAttribute('disableRemotePlayback','');video.setAttribute('aria-label','Video');
+     const st=document.createElement('div');st.className='youtubeStatus';st.textContent='BUSCANDO VIDEO LIMPIO';el.append(video,st);
+     v.video=video;v.status=st;v.player=nativeAdapter(video,v);
+     video.addEventListener('loadedmetadata',()=>{v.ready=true;v.streamDuration=Number(video.duration||v.streamDuration||0);st.textContent='';st.style.display='none'});
+     video.addEventListener('playing',()=>{v.state=1;v.playbackSeen=true;v.muted=video.muted;st.style.display='none'});
+     video.addEventListener('pause',()=>{if(!video.ended)v.state=2});
+     video.addEventListener('waiting',()=>{v.state=3});
+     video.addEventListener('ended',()=>{v.state=0;const d=Number(video.duration||0),t=Number(video.currentTime||0);if(v.playbackSeen&&d>0&&(t>=d-3||t/d>=.97))advanceYoutube(v.block,v)});
+     video.addEventListener('error',()=>{if(v.ready){st.style.display='grid';st.innerHTML='STREAM INTERRUMPIDO<span>RECONECTANDO</span>';setTimeout(()=>loadNativeStream(v.block,v),900)}});
+     loadNativeStream(b,v)
    }
  }
  return v
 }
-function startYoutubePlayback(v,{restoreSound=true}={}){
- const p=v?.player;if(!p)return;
- const wantedMuted=!!v.muted;
- try{p.mute();p.playVideo()}catch{}
- setTimeout(()=>{
-   try{
-     if(restoreSound&&!wantedMuted)p.unMute();
-     p.playVideo();
-   }catch{}
-   setTimeout(()=>{
-     try{
-       if(Number(p.getPlayerState?.())!==1){
-         p.mute();v.muted=true;p.playVideo();unlock.classList.remove('show')
-       }else{v.muted=!!p.isMuted?.();unlock.classList.remove('show')}
-     }catch{}
-   },420)
- },90)
-}
 function switchYoutubeVideo(b,v){
  const next=String(b.payload?.video_id||'');if(!next||next===v.videoId)return;
- v.block=b;v.videoId=next;v.playbackSeen=false;v.state=null;
- if(v.player&&v.ready){
-   try{v.player.loadVideoById({videoId:next,startSeconds:0});startYoutubePlayback(v)}catch{}
- }
-}
-function mountPlayer(b,v){
- if(v.player||!ytReady||!window.YT?.Player||!v.videoId)return;
- v.block=b;
- try{
-  v.player=new YT.Player(v.el.querySelector('.ytHost').id,{
-    videoId:v.videoId,
-    playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,fs:0,iv_load_policy:3,disablekb:1,cc_load_policy:0,modestbranding:1},
-    events:{
-      onReady:e=>{
-        v.ready=true;
-        try{
-          const actual=String(e.target.getVideoData?.().video_id||'');
-          if(v.videoId&&actual&&actual!==v.videoId)e.target.loadVideoById({videoId:v.videoId,startSeconds:0})
-        }catch{}
-        startYoutubePlayback(v)
-      },
-      onStateChange:e=>{
-        v.state=Number(e.data);
-        if(v.state===1){v.playbackSeen=true;try{v.muted=!!e.target.isMuted?.()}catch{}}
-        if(v.state===0){
-          let current=0,duration=0;
-          try{current=Number(e.target.getCurrentTime?.()||0);duration=Number(e.target.getDuration?.()||0)}catch{}
-          const nearEnd=duration>0&&(current>=duration-3||current/duration>=.97);
-          if(v.playbackSeen&&nearEnd&&v.block)advanceYoutube(v.block,v)
-        }
-      },
-      onAutoplayBlocked:()=>{
-        try{v.player?.mute();v.muted=true;v.player?.playVideo();unlock.classList.remove('show')}catch{unlock.classList.add('show')}
-      },
-      onError:()=>unlock.classList.add('show')
-    }
-  })
- }catch{unlock.classList.add('show')}
+ v.block=b;v.videoId=next;v.playbackSeen=false;v.state=3;loadNativeStream(b,v)
 }
 function ensureView(b,forceMount=false){
  const id=String(b.id),old=views.get(id),nextVideo=String(b.payload?.video_id||'');
@@ -192,8 +209,7 @@ function ensureView(b,forceMount=false){
    if(b.kind==='youtube'){
      const had=!!old.videoId,has=!!nextVideo;
      if(had!==has){destroyView(id);return createView(b)}
-     if(has&&nextVideo!==old.videoId)switchYoutubeVideo(b,old);
-     if(forceMount)mountPlayer(b,old)
+     if(has&&nextVideo!==old.videoId)switchYoutubeVideo(b,old)
    }
    return old
  }
@@ -336,6 +352,9 @@ function playerCommand(cmd,blockId,value){
     else if(cmd==='seek_relative'){
       const cur=Number(v.player.getCurrentTime?.()||0),dur=Number(v.player.getDuration?.()||0),delta=Math.max(-120,Math.min(120,Number(value)||0)),to=Math.max(0,dur>0?Math.min(dur-.1,cur+delta):cur+delta);
       v.player.seekTo(to,true)
+    }else if(cmd==='seek_absolute'){
+      const dur=Number(v.player.getDuration?.()||0),to=Math.max(0,dur>0?Math.min(dur-.1,Number(value)||0):Number(value)||0);
+      v.player.seekTo(to,true)
     }
    }catch{}
  }
@@ -375,7 +394,7 @@ async function pollCommands(){
    lastCommandId=Math.max(lastCommandId,Number(ev.id)||0);
    if(new Date(ev.created_at).getTime()<pageStarted-1500)continue;
    const x=ev.payload||{},cmd=String(x.command||''),blockId=String(x.block_id||'');
-   if(['play','pause','toggle','mute','unmute','seek_relative'].includes(cmd))playerCommand(cmd,blockId,x.value);
+   if(['play','pause','toggle','mute','unmute','seek_relative','seek_absolute'].includes(cmd))playerCommand(cmd,blockId,x.value);
    else if(['widget_previous','widget_next','widget_toggle','widget_reset'].includes(cmd))widgetCommand(cmd,blockId);
    else if(cmd==='refresh_panel')refreshPanel(blockId);
    else if(cmd==='reload_now')hardReload();
@@ -386,9 +405,9 @@ async function pollCommands(){
 async function sendState(){
  const act=active(),ys=act.filter(b=>b.kind==='youtube'),playerState={};
  for(const b of ys){
-  const v=views.get(String(b.id));let state=null,muted=false,time=null;
-  try{state=v?.player?.getPlayerState?.()??v?.state??null;muted=!!v?.player?.isMuted?.();time=v?.player?.getCurrentTime?.()??null}catch{}
-  playerState[String(b.id)]={state,muted,current_time:time,video_id:b.payload?.video_id||''}
+  const v=views.get(String(b.id));let state=null,muted=false,time=null,duration=null;
+  try{state=v?.player?.getPlayerState?.()??v?.state??null;muted=!!v?.player?.isMuted?.();time=v?.player?.getCurrentTime?.()??null;duration=v?.player?.getDuration?.()??null}catch{}
+  playerState[String(b.id)]={state,muted,current_time:time,duration,video_id:b.payload?.video_id||'',stream_source:v?.streamSource||''}
  }
  try{await api({action:'tv_state',build:BUILD,active_ids:act.map(b=>b.id),active_youtube_ids:ys.map(b=>b.id),player_state:playerState,update_pending:updatePending})}catch{}
 }
@@ -405,8 +424,8 @@ async function checkRuntime(){
   if(String(d.tv_build||d.build||BUILD)!==BUILD){if(youtubeViews().length)updatePending=true;else hardReload()}
  }catch{}
 }
-unlock.onclick=()=>{unlock.classList.remove('show');for(const v of youtubeViews())try{v.player?.playVideo()}catch{}};
-document.addEventListener('click',()=>{for(const v of youtubeViews())try{v.player?.playVideo()}catch{}},{once:true});
+unlock.onclick=()=>{unlock.classList.remove('show');for(const v of youtubeViews())try{v.player?.unMute?.();v.player?.playVideo()}catch{}};
+document.addEventListener('click',()=>{for(const v of youtubeViews())try{v.player?.unMute?.();v.player?.playVideo()}catch{}},{once:true});
 stage.addEventListener('contextmenu',e=>e.preventDefault());
 setInterval(()=>{tickClock();updateProgress();syncStage()},250);
 setInterval(loadSchedule,700);
