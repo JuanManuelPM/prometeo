@@ -16,7 +16,7 @@ header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:2px s
 .stats{text-align:right;font-variant-numeric:tabular-nums}
 .big{font-size:clamp(21px,4vw,36px);font-weight:1000;letter-spacing:-.05em}
 .small{font-size:9px;font-weight:950;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.metrics{display:grid;grid-template-columns:repeat(6,1fr);border-top:1px solid var(--soft)}
+.metrics{display:grid;grid-template-columns:repeat(8,1fr);border-top:1px solid var(--soft)}
 .metric{text-align:center;padding:7px 4px;border-right:1px solid var(--soft)}
 .metric:last-child{border-right:0}
 .metric b{display:block;font-size:17px}
@@ -56,10 +56,10 @@ dialog::backdrop{background:rgba(0,0,0,.46)}
 .tab.active{background:var(--ink);color:var(--paper)}
 .modalText{padding:16px 15px 28px;white-space:pre-wrap;font-size:14px;line-height:1.52}
 @keyframes pulse{from{opacity:.3}to{opacity:1}}
-@media(max-width:1000px){.workers{grid-template-columns:repeat(4,1fr)}.grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:1000px){.metrics{grid-template-columns:repeat(4,1fr)}.metric:nth-child(-n+4){border-bottom:1px solid var(--soft)}.workers{grid-template-columns:repeat(4,1fr)}.grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:620px){
- .top{padding:11px 9px 8px}.title{font-size:30px}.metrics{grid-template-columns:repeat(3,1fr)}
- .metric:nth-child(-n+3){border-bottom:1px solid var(--soft)}.workers{grid-template-columns:repeat(2,1fr)}
+ .top{padding:11px 9px 8px}.title{font-size:30px}.metrics{grid-template-columns:repeat(4,1fr)}
+ .workers{grid-template-columns:repeat(2,1fr)}
  section{padding:7px}.grid{grid-template-columns:1fr}.point{min-height:128px}
 }
 </style>
@@ -74,9 +74,11 @@ dialog::backdrop{background:rgba(0,0,0,.46)}
   <div class="metric"><b id="workersN">0/8</b><span>workers</span></div>
   <div class="metric"><b id="jobsDone">0</b><span>jobs done</span></div>
   <div class="metric"><b id="jobsTotal">420</b><span>jobs total</span></div>
+  <div class="metric" id="progressMetric"><b id="progressW">0%</b><span>progreso pond.</span></div>
   <div class="metric"><b id="active">0</b><span>trabajando</span></div>
   <div class="metric"><b id="rescues">0</b><span>rescates</span></div>
   <div class="metric"><b id="elapsed">0 s</b><span>tiempo</span></div>
+  <div class="metric" id="etaMetric"><b id="eta">—</b><span>ETA</span></div>
  </div>
 </header>
 
@@ -111,7 +113,24 @@ async function get(path){
  return r.json();
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-function fmt(ms){if(!ms)return '0 s';const s=ms/1000;if(s<60)return s.toFixed(0)+' s';return (s/60).toFixed(1)+' min'}
+function fmt(ms){if(!ms)return '0 s';const s=ms/1000;if(s<60)return s.toFixed(0)+' s';if(s<3600)return (s/60).toFixed(1)+' min';if(s<86400)return (s/3600).toFixed(1)+' h';return (s/86400).toFixed(1)+' d'}
+function jobWeight(j){
+ const lo=Number(j.min_words)||0,hi=Number(j.max_words)||0;
+ return Math.max(1,lo&&hi?(lo+hi)/2:(hi||lo||1));
+}
+function estimator(){
+ const total=D.jobs.reduce((a,j)=>a+jobWeight(j),0);
+ const done=D.jobs.filter(j=>j.status==='DONE').reduce((a,j)=>a+jobWeight(j),0);
+ const doneJobs=D.jobs.filter(j=>j.status==='DONE').length;
+ const progress=total?Math.min(1,done/total):0;
+ if(!total)return {progress:0,eta:null,ready:false};
+ if(D.project?.status==='DONE'||done>=total)return {progress:1,eta:0,ready:true};
+ if(!D.project?.started_at||doneJobs<3||done<=0)return {progress,eta:null,ready:false};
+ const elapsed=Math.max(1,Date.now()-new Date(D.project.started_at).getTime());
+ const rate=done/elapsed;
+ const eta=rate>0?(total-done)/rate:null;
+ return {progress,eta,ready:Number.isFinite(eta)};
+}
 function phaseName(p){return ['','Arquitectura','Desarrollo','Adversarial','Canónico','Aprendizaje'][p]}
 function renderWorkers(){
  const root=$('workers');root.innerHTML='';
@@ -180,6 +199,11 @@ function renderStats(){
  $('workersN').textContent=D.workers.filter(x=>x.status!=='NO_WORK').length+'/'+(p?.expected_workers||8);
  $('jobsDone').textContent=D.jobs.filter(x=>x.status==='DONE').length;
  $('jobsTotal').textContent=D.jobs.length||420;
+ const est=estimator(),pct=(est.progress*100).toFixed(1)+'%';
+ $('progressW').textContent=pct;
+ $('progressMetric').title='Ponderado por el midpoint de min_words/max_words de cada job; sólo DONE suma progreso.';
+ $('eta').textContent=est.eta===0?'listo':(est.ready?fmt(est.eta):'—');
+ $('etaMetric').title=est.ready?'ETA = presupuesto ponderado restante / throughput ponderado observado desde started_at.':'ETA aparece después de al menos 3 jobs DONE.';
  $('active').textContent=D.jobs.filter(x=>x.status==='LEASED').length;
  $('rescues').textContent=D.jobs.reduce((a,x)=>a+(x.rescue_count||0),0);
  let ms=0;if(p?.started_at)ms=new Date(p.finished_at||Date.now())-new Date(p.started_at);
@@ -191,7 +215,7 @@ async function tick(){
   const [projects,points,jobs,outputs,workers]=await Promise.all([
    get('blueprint_projects?blueprint_id=eq.'+encodeURIComponent(BP)+'&select=*'),
    get('blueprint_points?blueprint_id=eq.'+encodeURIComponent(BP)+'&select=blueprint_id,point_no,section,title,seed_text,status,canonical_words,canonical_chars,completed_at&order=point_no.asc'),
-   get('blueprint_jobs?blueprint_id=eq.'+encodeURIComponent(BP)+'&select=point_no,phase,phase_name,status,assigned_worker_code,is_rescue,rescue_count,lease_expires_at&order=point_no.asc,phase.asc'),
+   get('blueprint_jobs?blueprint_id=eq.'+encodeURIComponent(BP)+'&select=point_no,phase,phase_name,status,assigned_worker_code,is_rescue,rescue_count,lease_expires_at,min_words,max_words,started_at,completed_at&order=point_no.asc,phase.asc'),
    get('blueprint_outputs?blueprint_id=eq.'+encodeURIComponent(BP)+'&select=point_no,phase,worker_code,word_count,char_count,elapsed_ms,rescued,published_at&order=point_no.asc,phase.asc'),
    get('blueprint_workers?blueprint_id=eq.'+encodeURIComponent(BP)+'&select=*&order=worker_code.asc')
   ]);
