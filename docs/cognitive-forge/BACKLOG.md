@@ -162,7 +162,7 @@
 135. **[DISENADO] Dos porcentajes.** Mostrar puntos completos y trabajo estimado completo.
 136. **[DISENADO] Progreso parcial activo.** Una tarea en curso puede aportar progreso estimado.
 137. **[DISENADO] Cap de 90% en trabajos activos.** No considerar completo algo no publicado.
-138. **[DISENADO] ETA sin IA.** Calcular en navegador usando datos existentes.
+138. **[HECHO] ETA sin IA.** `pages/forge-blueprint/` calcula en navegador presupuesto ponderado restante / throughput observado con datos existentes y sin llamada a IA.
 139. **[DISENADO] Usar timestamps Supabase.** No gastar workers en estimaciones.
 140. **[DISENADO] Arranque con histórico.** Usar runs anteriores antes de tener muestras suficientes.
 141. **[DISENADO] Migrar a datos del run actual.** La estimación se adapta automáticamente.
