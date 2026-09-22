@@ -7,9 +7,9 @@
 - Total de ítems: **253**
 - HECHO: **83**
 - CONCLUSION: **5**
-- DISENADO: **110**
+- DISENADO: **111**
 - DESCUBRIMIENTO: **3**
-- PENDIENTE: **43**
+- PENDIENTE: **42**
 - CONCEPTO: **1**
 - OBJETIVO: **8**
 
@@ -94,7 +94,7 @@
 67. **[DISENADO] Madurez del conocimiento.** CANDIDATE, REVIEWING, ACCEPTED, REJECTED y SUPERSEDED.
 68. **[PENDIENTE] Revisión independiente real.** Nuevas Plumas/Herramientas deben ser revisadas por otro worker.
 69. **[PENDIENTE] Promoción automática con evidencia.** Promover sólo después de pruebas suficientes.
-70. **[PENDIENTE] Medir utilidad histórica.** Registrar qué objetos cognitivos realmente ayudaron.
+70. **[DISENADO] Medir utilidad histórica.** Registrar qué objetos cognitivos realmente ayudaron. Spec ejecutable: `docs/cognitive-forge/BACKLOG-070-HISTORICAL-UTILITY-SPEC.md`.
 71. **[HECHO] 84 puntos online.** Los 84 pasos fueron convertidos en objetos independientes.
 72. **[HECHO] Blueprint FORGE-BLUEPRINT-84-01.** Proyecto durable para desarrollar los 84 puntos.
 73. **[HECHO] 84 puntos persistidos.** Cada punto tiene identidad y estado propios.
