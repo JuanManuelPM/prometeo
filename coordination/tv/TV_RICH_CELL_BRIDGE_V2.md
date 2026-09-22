@@ -10,3 +10,11 @@ Top-level fields:
 The bridge exposes the latest 100-cell window for every logical grid, while `total_cells`, `max_cell_no` and `window_count` preserve elastic growth beyond 100.
 
 Artifacts are canonical only. Event payloads remove packet/agent tokens. Artifact slot remains hidden while `global.artifact_slot_visible=false`.
+
+## Window RPC
+
+For any 100-cell page, use read-only:
+
+`public.prometeo_tv_rich_cell_window_v2(batch_id, grid_no, page)`
+
+Verified smoke: page 2 of the elastic-frontier batch returned canonical cell 101. The RPC exposes no agent_id or packet_token.
