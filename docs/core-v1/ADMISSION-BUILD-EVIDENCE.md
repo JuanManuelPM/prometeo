@@ -27,8 +27,20 @@ Generic connector backoff is also explicit in the worker prompt: respect RATE_LI
 
 Agent `wc-20260922T0122-8f3c9d20` entered through `prometeo_bootstrap` and received the durable OBEY-v2 WORK state/session used for this closeout. The first connector attempt was security-blocked; the same bootstrap operation was retried without lateral routing and succeeded.
 
+## Independent cross-fill verification
+
+K145 independently inspected the current backend definition of `public.prometeo_bootstrap(p_agent_id, p_declaration)`. The function:
+
+- calls `public.prometeo_preflight(..., 'OBEY-v2', ...)`;
+- returns immediately with `bootstrap_complete=false` if PREFLIGHT does not return `PREFLIGHT_OK`;
+- calls `public.prometeo_enter(p_agent_id)` only after PREFLIGHT succeeds;
+- records one BOOTSTRAP session touch;
+- returns the ENTER result augmented with `bootstrap_state='BOOTSTRAP_OK'`, `bootstrap_complete=true`, the PREFLIGHT state and the original t0.
+
+This closes the earlier evidence-access gap: atomic PREFLIGHT+ENTER is now verified from the live backend function body, not only from protocol text.
+
+The canonical OBEY-v2 page independently preserves the same `agent_id` across admission retries, retries the same bootstrap operation on rate limit, and forbids lateral GitHub/SQL/scheduler substitution after bootstrap failure.
+
 ## Remaining gaps
 
-No functional admission gap was found in the canonical protocol/launcher/runtime behavior exercised here.
-
-Direct backend function-body introspection was blocked by connector security during this sheet and was not retried through an alternate route. This is an evidence-access limitation, not evidence of a runtime defect.
+No functional admission gap was found in the canonical protocol or in the current backend implementation inspected by the cross-fill worker.
