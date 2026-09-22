@@ -22,12 +22,15 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 .panel{position:relative;overflow:hidden;background:#000;min-width:0;min-height:0}
 .panel iframe,.ytHost,.ytHost iframe{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;border:0!important}
 .youtubePanel,.newsPanel{background:#000;overflow:hidden}
-.nativeVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;border:0;outline:0}
+.nativeVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;border:0;outline:0;z-index:1}
 .newsPanel .nativeVideo{object-fit:contain}
+.ytFallback{position:absolute;inset:0;z-index:1;overflow:hidden;background:#000}
+.ytFallback>div,.ytFallback iframe{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;border:0!important;pointer-events:none!important}
+.ytFallback iframe{transform:scale(1.07);transform-origin:center}
 .newsCaption{position:absolute;z-index:4;left:16px;right:16px;bottom:44px;pointer-events:none;text-shadow:0 1px 5px #000}
 .newsChannel{font:900 8px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;color:#f0ede4}
 .newsTitle{margin-top:5px;max-width:80%;font:800 clamp(12px,2vw,22px)/1.08 system-ui,sans-serif;color:#f0ede4}
-.youtubeStatus{position:absolute;inset:0;display:grid;place-items:center;background:#000;color:#5d5c55;text-align:center;font:900 clamp(8px,1.1vw,13px) ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;z-index:2;pointer-events:none}
+.youtubeStatus{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.18);color:#d5d1c7;text-align:center;text-shadow:0 1px 5px #000;font:900 clamp(8px,1.1vw,13px) ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;z-index:2;pointer-events:none}
 .youtubeStatus span{display:block;margin-top:8px;color:#363630;font-size:.72em}
 .tvProgress{position:absolute;z-index:5;left:14px;right:14px;bottom:10px;height:26px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:10px;pointer-events:none;opacity:.94}
 .tvProgressTrack{height:4px;align-self:end;background:#2a2925;overflow:hidden}
@@ -87,13 +90,13 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 <script>
 (()=>{
 'use strict';
-const BUILD='29';
+const BUILD='30';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const RUNTIME='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const p=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_TOKEN='6e7f4b74d76d2488ac3779832c77632475dd845db3a9b598765a757c7f18c327';
 const room={code:p.get('room')||DEFAULT_ROOM,token:p.get('t')||DEFAULT_TOKEN,role:'tv'};
-const client='tv-v29-'+Math.random().toString(36).slice(2,10);
+const client='tv-v30-'+Math.random().toString(36).slice(2,10);
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
 const views=new Map(),advancing=new Set();
 const PIPED_APIS=[
@@ -116,7 +119,7 @@ const PIPED_APIS=[
  'https://piapi.ggtyler.dev',
  'https://api.watch.pluto.lat'
 ];
-let blocks=[],serverActive=[],lastCommandId=0,updatePending=false,pageStarted=Date.now();
+let blocks=[],serverActive=[],lastCommandId=0,updatePending=false,pageStarted=Date.now(),ytFallbackPromise=null;
 
 function nowParts(){
  const ps=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
@@ -167,6 +170,36 @@ async function resolveCleanStream(videoId,signal){
  try{return await Promise.race([Promise.any(attempts),deadline])}
  catch(e){throw new Error('SIN_STREAM_LIMPIO')}
 }
+function ensureYTFallback(){
+ if(window.YT?.Player)return Promise.resolve(window.YT);
+ if(ytFallbackPromise)return ytFallbackPromise;
+ ytFallbackPromise=new Promise((resolve,reject)=>{
+  const old=window.onYouTubeIframeAPIReady,timer=setTimeout(()=>reject(new Error('YT_FALLBACK_TIMEOUT')),9000);
+  window.onYouTubeIframeAPIReady=()=>{clearTimeout(timer);try{old?.()}catch{}resolve(window.YT)};
+  const sc=document.createElement('script');sc.src='https://www.youtube.com/iframe_api';sc.async=true;sc.onerror=()=>{clearTimeout(timer);reject(new Error('YT_FALLBACK_LOAD'))};document.head.appendChild(sc)
+ });
+ return ytFallbackPromise
+}
+async function mountYoutubeFallback(b,v){
+ const videoId=String(b.payload?.video_id||'');if(!videoId)return;
+ try{v.abort?.abort()}catch{}
+ try{v.video?.pause();if(v.video)v.video.style.display='none'}catch{}
+ if(v.fallbackWrap)try{v.fallbackWrap.remove()}catch{}
+ const wrap=document.createElement('div');wrap.className='ytFallback';const host=document.createElement('div');host.id='yt-fallback-'+String(v.id).replace(/[^a-z0-9_-]/gi,'');wrap.appendChild(host);v.el.insertBefore(wrap,v.status);v.fallbackWrap=wrap;
+ v.status.innerHTML='ABRIENDO VIDEO<span>MODO DE EMERGENCIA</span>';
+ try{
+  await ensureYTFallback();if(!views.has(String(v.id))||String(v.block?.payload?.video_id||'')!==videoId)return;
+  const p=new YT.Player(host,{videoId,playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,fs:0,iv_load_policy:3,disablekb:1,modestbranding:1},
+   events:{
+    onReady:e=>{v.fallbackPlayer=e.target;v.player=e.target;v.streamSource='youtube-fallback';v.ready=true;try{e.target.mute();e.target.playVideo()}catch{};v.status.style.display='none'},
+    onStateChange:e=>{v.state=Number(e.data);if(v.state===1){v.playbackSeen=true;v.status.style.display='none'}if(v.state===0&&v.playbackSeen){if(v.kind==='news')advanceNews(v.block,v);else advanceYoutube(v.block,v)}},
+    onAutoplayBlocked:()=>{try{p.mute();p.playVideo()}catch{}},
+    onError:()=>{v.status.style.display='grid';v.status.innerHTML='NO PUDE ABRIR ESTE SHORT<span>PASANDO AL SIGUIENTE</span>';setTimeout(()=>{if(v.kind==='news')advanceNews(v.block,v)},1200)}
+   }});
+ }catch{
+  v.status.style.display='grid';v.status.innerHTML='NO PUDE ABRIR ESTE SHORT<span>PASANDO AL SIGUIENTE</span>';setTimeout(()=>{if(v.kind==='news')advanceNews(v.block,v)},1200)
+ }
+}
 function nativeAdapter(video,v){
  return{
   playVideo(){return video.play()},
@@ -197,13 +230,13 @@ async function loadNativeStream(b,v){
    v.videoId=videoId;v.streamDuration=out.duration||0;v.streamSource=out.source;v.video.src=out.url;v.video.load();v.status.textContent='CARGANDO';await startNativePlayback(v)
  }catch(e){
    if(abort.signal.aborted||ticket!==v.loadTicket)return;
-   v.state=-1;v.status.innerHTML='NO ENCONTRÉ STREAM LIMPIO<span>REINTENTO AUTOMÁTICO</span>';status.className='status err';setTimeout(()=>loadNativeStream(v.block,v),5000)
+   v.state=3;await mountYoutubeFallback(b,v)
  }
 }
 function createView(b){
  const id=String(b.id),el=document.createElement('section');el.className='panel';
  const videoId=String(b.payload?.video_id||'');
- const v={id,el,kind:b.kind,sig:sig(b),block:b,videoId,player:null,video:null,status:null,progress:null,progressFill:null,remaining:null,abort:null,loadTicket:0,ready:false,muted:false,state:null,streamDuration:0,streamSource:'',playbackSeen:false};
+ const v={id,el,kind:b.kind,sig:sig(b),block:b,videoId,player:null,video:null,status:null,progress:null,progressFill:null,remaining:null,abort:null,fallbackWrap:null,fallbackPlayer:null,loadTicket:0,ready:false,muted:false,state:null,streamDuration:0,streamSource:'',playbackSeen:false};
  views.set(id,v);stage.appendChild(el);
  if(b.kind==='clock'){el.classList.add('clockPanel');el.innerHTML=clockMarkup()}
  else if(b.kind==='page'){const f=document.createElement('iframe');f.src=b.payload?.url||'about:blank';f.allow='autoplay; fullscreen; picture-in-picture';f.addEventListener('load',()=>setTimeout(()=>applyGrid(active()),30));el.appendChild(f)}
@@ -211,8 +244,8 @@ function createView(b){
    el.classList.add(b.kind==='news'?'newsPanel':'youtubePanel');
    if(!videoId){const empty=document.createElement('div');empty.className='youtubeEmpty';empty.innerHTML='<div>'+(b.kind==='news'?'NOTICIAS':'YOUTUBE')+'<span>SIN CONTENIDO</span></div>';el.appendChild(empty)}
    else{
-     const video=document.createElement('video');video.className='nativeVideo';video.autoplay=true;video.playsInline=true;video.preload='auto';video.controls=false;video.disablePictureInPicture=true;video.setAttribute('disableRemotePlayback','');video.setAttribute('aria-label',b.kind==='news'?'Short de noticias':'Video');
-     const st=document.createElement('div');st.className='youtubeStatus';st.textContent='BUSCANDO VIDEO LIMPIO';
+     const video=document.createElement('video');video.className='nativeVideo';video.autoplay=true;video.playsInline=true;video.preload='auto';video.controls=false;video.disablePictureInPicture=true;video.poster=String(b.payload?.thumbnail||('https://i.ytimg.com/vi/'+videoId+'/maxresdefault.jpg'));video.setAttribute('disableRemotePlayback','');video.setAttribute('aria-label',b.kind==='news'?'Short de noticias':'Video');
+     const st=document.createElement('div');st.className='youtubeStatus';st.innerHTML='PREPARANDO VIDEO<span>'+String(b.payload?.channel_title||'').toUpperCase()+'</span>';
      const pr=document.createElement('div');pr.className='tvProgress';pr.innerHTML='<div class="tvProgressTrack"><div class="tvProgressFill"></div></div><div class="tvRemaining">--:--</div>';
      el.append(video,st,pr);
      if(b.kind==='news'){const cap=document.createElement('div');cap.className='newsCaption';cap.innerHTML='<div class="newsChannel"></div><div class="newsTitle"></div>';el.appendChild(cap);v.caption=cap}
@@ -231,7 +264,8 @@ function createView(b){
 }
 function switchYoutubeVideo(b,v){
  const next=String(b.payload?.video_id||'');if(!next||next===v.videoId)return;
- v.block=b;v.videoId=next;v.playbackSeen=false;v.state=3;loadNativeStream(b,v)
+ try{v.fallbackPlayer?.destroy()}catch{};v.fallbackPlayer=null;v.fallbackWrap=null;v.player=nativeAdapter(v.video,v);if(v.video)v.video.style.display='';
+ v.block=b;v.videoId=next;v.playbackSeen=false;v.state=3;if(v.video)v.video.poster=String(b.payload?.thumbnail||('https://i.ytimg.com/vi/'+next+'/maxresdefault.jpg'));loadNativeStream(b,v)
 }
 function ensureView(b,forceMount=false){
  const id=String(b.id),old=views.get(id),nextVideo=String(b.payload?.video_id||'');
@@ -369,7 +403,7 @@ function updateProgress(){
  for(const v of views.values()){
   if(!['youtube','news'].includes(v.kind)||!v.progressFill)continue;
   let current=0,duration=0;
-  try{current=Number(v.video?.currentTime??v.player?.getCurrentTime?.()??0);duration=Number(v.video?.duration||v.streamDuration||v.player?.getDuration?.()||0)}catch{}
+  try{current=v.fallbackPlayer?Number(v.fallbackPlayer.getCurrentTime?.()||0):Number(v.video?.currentTime||0);duration=v.fallbackPlayer?Number(v.fallbackPlayer.getDuration?.()||0):Number(v.video?.duration||v.streamDuration||0)}catch{}
   const pct=duration>0?Math.max(0,Math.min(100,current/duration*100)):0;
   v.progressFill.style.width=pct+'%';
   if(v.remaining)v.remaining.textContent=duration>0?mediaTimeLeft(duration-current):'--:--'
@@ -434,7 +468,7 @@ async function advanceNews(b,v){
  finally{setTimeout(()=>advancing.delete(id),500)}
 }
 function refreshPanel(blockId){const b=blocks.find(x=>String(x.id)===String(blockId));if(!b)return;destroyView(blockId);ensureView(b,true);applyGrid(active())}
-function hardReload(){location.replace('/prometeo/tv/?v='+Date.now()+location.hash)}
+function hardReload(){location.replace('/prometeo/tv/?fresh='+Date.now()+location.hash)}
 function maybeApplyPendingUpdate(){if(updatePending&&youtubeViews().length===0)hardReload()}
 async function pollCommands(){
  try{
@@ -470,7 +504,7 @@ async function loadSchedule(){
 async function checkRuntime(){
  try{
   const r=await fetch(RUNTIME+'?t='+Date.now(),{cache:'no-store'}),d=await r.json();
-  if(String(d.tv_build||d.build||BUILD)!==BUILD){if(youtubeViews().length)updatePending=true;else hardReload()}
+  if(String(d.tv_build||d.build||BUILD)!==BUILD){location.replace('/prometeo/tv/?v='+encodeURIComponent(String(d.tv_build||d.build||''))+'&fresh='+Date.now()+location.hash)}
  }catch{}
 }
 unlock.onclick=()=>{unlock.classList.remove('show');for(const v of mediaViews())try{v.player?.unMute?.();v.player?.playVideo()}catch{}};
