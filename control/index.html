@@ -86,6 +86,7 @@ footer{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end}
  const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/';
  const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
  const HEAD={apikey:KEY,Authorization:'Bearer '+KEY};
+ const RPC_HEAD={...HEAD,'Content-Type':'application/json'};
  const $=id=>document.getElementById(id);
  let prompt='';
 
@@ -93,6 +94,27 @@ footer{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end}
    const r=await fetch(BASE+path,{headers:HEAD,cache:'no-store'});
    if(!r.ok)throw new Error(String(r.status));
    return r.json();
+ }
+
+ async function rpc(name,args){
+   const r=await fetch(BASE+'rpc/'+name,{
+     method:'POST',
+     headers:RPC_HEAD,
+     body:JSON.stringify(args||{}),
+     cache:'no-store'
+   });
+   if(!r.ok)throw new Error(name+':'+r.status);
+   return r.json();
+ }
+
+ function withLaunchIntent(basePrompt,token){
+   if(!token)return basePrompt;
+   const baseUrl='https://juanmanuelpm.github.io/prometeo/o/';
+   if(!basePrompt.includes(baseUrl))return basePrompt;
+   return basePrompt.replace(
+     baseUrl,
+     baseUrl+'?launch_intent_token='+encodeURIComponent(token)
+   );
  }
 
  function fmtEta(sec){
@@ -135,12 +157,42 @@ footer{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end}
 
  $('copy').addEventListener('click',async()=>{
    if(!prompt)return;
+   const b=$('copy'),old=b.textContent;
+   if(b.disabled)return;
+   b.disabled=true;
+
+   let token=null;
+   let launchText=prompt;
    try{
-     await navigator.clipboard.writeText(prompt);
-     const b=$('copy'),old=b.textContent;
-     b.textContent='COPIADO';
-     setTimeout(()=>b.textContent=old,1200);
-   }catch(e){}
+     try{
+       const intent=await rpc('prometeo_issue_launch_intent',{
+         p_launch_batch:'AUTO',
+         p_source:'CONTROL'
+       });
+       token=intent?.intent_token||null;
+       launchText=withLaunchIntent(prompt,token);
+     }catch(e){
+       token=null;
+       launchText=prompt;
+     }
+
+     await navigator.clipboard.writeText(launchText);
+
+     if(token){
+       try{
+         await rpc('prometeo_mark_launch_intent_copied',{p_intent_token:token});
+         b.textContent='COPIADO';
+       }catch(e){
+         b.textContent='COPIADO · SIN ACK';
+       }
+     }else{
+       b.textContent='COPIADO';
+     }
+   }catch(e){
+     b.textContent='NO COPIADO';
+   }finally{
+     setTimeout(()=>{b.textContent=old;b.disabled=false},1200);
+   }
  });
 
  tick();
