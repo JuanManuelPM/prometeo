@@ -96,6 +96,27 @@ function slot(z,id){
 function routeFor(id,target){
  const names=routes[target]||routes.park,pts=names.map(n=>lanePoint(nodes[n],id));pts.push(slot(zone(target),id));return pts
 }
+function objectAnchor(a){
+ const z=zone(a.target);if(!z)return null;
+ const row=a.live||{},key=String(row.job_key||row.project_id||a.target||a.code),h=hashCode(key),pad=28;
+ const fx=(h%997)/996,fy=((h>>>10)%997)/996;
+ return{x:z.x+pad+fx*Math.max(1,z.w-pad*2),y:z.y+52+fy*Math.max(1,z.h-88),label:String(row.job_key||row.project_id||a.target)};
+}
+function drawWorkerObjectLinks(){
+ if(!liveMode)return;
+ for(const a of agents){
+  if(a.departedAt||a.state!=='working'||!a.live)continue;
+  const p=objectAnchor(a);if(!p)continue;
+  const d=Math.hypot(p.x-a.x,p.y-a.y);if(d<8)continue;
+  const focus=selected===a.id;
+  ctx.save();
+  ctx.strokeStyle=a.color;ctx.globalAlpha=focus?.88:.30;ctx.lineWidth=(focus?2:1)*scale;ctx.setLineDash([5*scale,4*scale]);
+  ctx.beginPath();ctx.moveTo(sx(a.x),sy(a.y));ctx.lineTo(sx(p.x),sy(p.y));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=a.color;ctx.globalAlpha=focus?1:.55;ctx.fillRect(sx(p.x-2),sy(p.y-2),4*scale,4*scale);
+  ctx.restore();
+  if(focus)drawText(p.label.slice(0,28),p.x+7,p.y-5,7,a.color);
+ }
+}
 function makeAgent(i){
  const h=hash(i),dead=i>=88;
  const state=dead?'dead':i<44?'working':i<70?'parked':'walking';
@@ -259,6 +280,7 @@ function drawWorld(t){
  for(let x=40;x<960;x+=32){for(let y=130;y<1090;y+=32){ctx.fillStyle=((x+y)/32|0)%2?'#10110f':'#0e100e';ctx.fillRect(sx(x),sy(y),31*scale,31*scale)}}
  road(nodes.spawn,nodes.hub1);road(nodes.hub1,nodes.hub2);road(nodes.hub2,nodes.hub3);road(nodes.hub1,nodes.guide);road(nodes.hub2,nodes.reserve);road(nodes.hub3,nodes.runtime);road(nodes.hub1,nodes.monitor);road(nodes.hub2,nodes.park);road(nodes.hub3,nodes.pool);
  for(const z of zones){if(z.kind==='office')drawGuide(z);else if(z.kind==='warehouse')drawReserve(z);else if(z.kind==='factory')drawRuntime(z);else if(z.kind==='monitor')drawMonitor(z,t);else if(z.kind==='park')drawPark(z);else drawPool(z,t)}
+ drawWorkerObjectLinks();
  // lamps / wayfinding pixels
  for(const p of [nodes.spawn,nodes.hub1,nodes.hub2,nodes.hub3]){ctx.fillStyle='#27231e';ctx.fillRect(sx(p.x-5),sy(p.y-8),10*scale,16*scale);ctx.fillStyle='#ff6500';ctx.fillRect(sx(p.x-2),sy(p.y-5),4*scale,4*scale)}
  for(const a of agents)drawSprite(a,t,1.85);
@@ -309,7 +331,7 @@ function hud(){
  $('alive').textContent=TOTAL-dead;$('off').textContent=dead;$('work').textContent=Math.round(working/(TOTAL-dead||1)*100)+'%';$('eta').textContent=(1+Math.floor((performance.now()/60000)%4))+'m'+String(Math.floor((performance.now()/1000)%60)).padStart(2,'0')
 }
 function hit(p){let best=null,bd=999999;for(const a of agents){const d=(a.x-p.x)**2+(a.y-p.y)**2;if(d<bd&&d<520){best=a;bd=d}}return best}
-function showAgent(a){selected=a.id;$('panelTitle').textContent=a.code;const row=a.live;if(liveMode&&row){$('panelBody').innerHTML='<div class="info"><span>Fase</span><strong>'+esc(row.phase||a.state)+'</strong></div><div class="info"><span>Proyecto</span><strong>'+esc(row.project_title||row.project_id)+'</strong></div><div class="info"><span>Job</span><strong>'+esc(row.job_title||row.job_key)+'</strong></div><div class="info"><span>Estado</span><strong>'+esc(row.last_state||row.liveness)+'</strong></div><div class="info"><span>Ruta</span><strong>corredor → '+esc(zone(a.target).name.toLowerCase())+'</strong></div>'}else{$('panelBody').innerHTML='<div class="info"><span>Estado</span><strong>'+a.state.toUpperCase()+'</strong></div><div class="info"><span>Destino</span><strong>'+zone(a.target).name+'</strong></div><div class="info"><span>Score</span><strong>'+a.score.toLocaleString('es-AR')+'</strong></div><div class="info"><span>Ruta</span><strong>corredor → nodo → '+zone(a.target).name.toLowerCase()+'</strong></div>'}$('panel').classList.add('show')}
+function showAgent(a){selected=a.id;$('panelTitle').textContent=a.code;const row=a.live;if(liveMode&&row){const obj=objectAnchor(a);$('panelBody').innerHTML='<div class="info"><span>Fase</span><strong>'+esc(row.phase||a.state)+'</strong></div><div class="info"><span>Proyecto</span><strong>'+esc(row.project_title||row.project_id)+'</strong></div><div class="info"><span>Job</span><strong>'+esc(row.job_title||row.job_key)+'</strong></div><div class="info"><span>Objeto</span><strong>'+esc(obj&&obj.label||row.job_key||row.project_id)+'</strong></div><div class="info"><span>Estado</span><strong>'+esc(row.last_state||row.liveness)+'</strong></div><div class="info"><span>Ruta</span><strong>corredor → '+esc(zone(a.target).name.toLowerCase())+'</strong></div>'}else{$('panelBody').innerHTML='<div class="info"><span>Estado</span><strong>'+a.state.toUpperCase()+'</strong></div><div class="info"><span>Destino</span><strong>'+zone(a.target).name+'</strong></div><div class="info"><span>Score</span><strong>'+a.score.toLocaleString('es-AR')+'</strong></div><div class="info"><span>Ruta</span><strong>corredor → nodo → '+zone(a.target).name.toLowerCase()+'</strong></div>'}$('panel').classList.add('show')}
 c.addEventListener('pointerdown',e=>{if(mode!=='map')return;const a=hit(worldPoint(e));if(a)showAgent(a)});
 $('close').onclick=()=>{$('panel').classList.remove('show');selected=null};
 $('mapBtn').onclick=()=>{mode='map';$('mapBtn').classList.add('on');$('raceBtn').classList.remove('on');$('panel').classList.remove('show');selected=null};
