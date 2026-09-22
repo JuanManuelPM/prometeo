@@ -319,28 +319,29 @@ footer{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
    if(!prompt)return;
    const b=$('copy'),old=b.textContent;
    b.disabled=true;b.textContent='MARCANDO PIN…';
-   let text=prompt,token=null;
+   let copied=false;
    try{
      const issued=await rpc('prometeo_issue_launch_intent',{p_launch_batch:'AUTO',p_source:'CONTROL'});
-     token=issued?.intent_token||null;
-     if(token){
-       text=text.replace(
-         'https://juanmanuelpm.github.io/prometeo/o/',
-         'https://juanmanuelpm.github.io/prometeo/o/?launch_intent_token='+encodeURIComponent(token)
-       );
-     }
+     const token=issued?.intent_token||null;
+     if(!token)throw new Error('launch_intent_missing');
+     const baseUrl='https://juanmanuelpm.github.io/prometeo/o/';
+     if(!prompt.includes(baseUrl))throw new Error('bootstrap_url_missing');
+     const text=prompt.replace(
+       baseUrl,
+       baseUrl+'?launch_intent_token='+encodeURIComponent(token)
+     );
      await navigator.clipboard.writeText(text);
-     if(token){
-       await rpc('prometeo_mark_launch_intent_copied',{p_intent_token:token});
-     }
-     b.textContent='PIN ✓ · COPIADO';
-   }catch(e){
+     copied=true;
      try{
-       await navigator.clipboard.writeText(prompt);
-       b.textContent='COPIADO';
-     }catch(_){b.textContent='REINTENTÁ'}
+       await rpc('prometeo_mark_launch_intent_copied',{p_intent_token:token});
+       b.textContent='PIN ✓ · COPIADO';
+     }catch(e){
+       b.textContent='PIN COPIADO · SIN ACK';
+     }
+   }catch(e){
+     b.textContent=copied?'PIN COPIADO · SIN ACK':'PIN ERROR · REINTENTÁ';
    }finally{
-     setTimeout(()=>{b.textContent=old;b.disabled=false},1200);
+     setTimeout(()=>{b.textContent=old;b.disabled=false},1600);
    }
  });
  getEngine().then(renderEngine);setInterval(()=>getEngine().then(renderEngine),30000);
