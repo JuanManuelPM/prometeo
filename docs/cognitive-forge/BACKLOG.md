@@ -223,7 +223,7 @@
 196. **[DISENADO] Skill LEARN_FROM_COMPLETED_WORK.** Extraer Skills, Tools, Plumas y Recipes de una ejecución.
 197. **[HECHO] Registry durable de Skills.** `forge_skills` persiste identidad estable, estado y provenance; implementación durable: migración `forge_skill_registry_and_version_schema`.
 198. **[HECHO] Schema de Skill.** `forge_skill_versions` conserva versiones históricas con inputs/outputs, pasos, rollback, verificación, evidencia y madurez; smoke reproducible: `forge_skill_registry_smoke_test()`.
-199. **[PENDIENTE] No depender de prompts largos.** Skills repetitivas deben vivir fuera de la conversación.
+199. **[DISENADO] No depender de prompts largos.** Skills repetitivas se referencian por versión pinneada fuera de la conversación. Spec: `docs/cognitive-forge/BACKLOG-199-SKILL-REFERENCE-RUNTIME-SPEC.md`.
 200. **[PENDIENTE] Extraer determinismo de la IA.** Cálculos y procedimientos repetibles deben ejecutarse sin razonamiento generativo.
 201. **[DISENADO] SKILL_COMPILER.** Detectar pasos repetidos en ejecuciones exitosas y crear Skill candidates.
 202. **[DISENADO] Versionado de Skills.** Mantener versiones e historial.
