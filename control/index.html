@@ -189,6 +189,9 @@ header{display:flex;justify-content:space-between;align-items:center;gap:12px;pa
       <span class="metric">META <b id="metaShare">—</b></span>
       <span class="metric">START <b id="startup">—</b></span>
       <span class="metric warn">LOST <b id="lost">—</b></span>
+      <span class="metric">PROB <b id="probation">—</b></span>
+      <span class="metric">EVID <b id="evidenceActive">—</b></span>
+      <span class="metric">SALV <b id="salvaged">—</b></span>
       <span class="metric">☠ <b id="dead">—</b></span>
     </div>
   </div>
@@ -239,7 +242,7 @@ const ENGINE='https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/state
 const phases=['BOOTSTRAP','WORK','CHECKPOINT','PUBLISH','NEXT'];
 const labels={BOOTSTRAP:'BOOT',WORK:'WORK',CHECKPOINT:'CHECK',PUBLISH:'PUB',NEXT:'NEXT'};
 const $=id=>document.getElementById(id);
-let prompt='',selected=null,workers=[],engineState=null;
+let prompt='',selected=null,workers=[],engineState=null,todayRows=[],todaySummary={};
 
 async function get(path){
   const r=await fetch(BASE+path,{headers:HEAD,cache:'no-store'});
@@ -346,6 +349,9 @@ function renderToday(rows,summary){
     '<span><b>'+(s.reached_work??0)+'</b> WORK</span>'+
     '<span><b>'+(s.published_workers??0)+'</b> PUBLICARON</span>'+
     '<span><b>'+(s.working_now??0)+'</b> AHORA</span>'+
+    '<span><b>'+(s.reached_evidence??0)+'</b> EVID</span>'+
+    '<span><b>'+((Number(s.evidence_p50_ms||0)/1000).toFixed(0))+'s</b> EVID P50</span>'+
+    '<span><b>'+((Number(s.evidence_p90_ms||0)/1000).toFixed(0))+'s</b> EVID P90</span>'+
     '<span class="bad"><b>'+(s.no_enter??0)+'</b> NO ENTER</span>'+
     '<span class="bad"><b>'+(s.no_output??0)+'</b> SIN OUTPUT</span>'+
     '<span><b>'+Number(s.avg_job_pct||0).toFixed(0)+'%</b> JOB</span>'+
@@ -376,7 +382,7 @@ function renderToday(rows,summary){
   });
 }
 function renderDashboard(d){
-  const f=d.flow||{},l=d.load||{},g=d.growth||{},h=d.startup||{},products=d.products||[],sheets=d.sheets||[];
+  const f=d.flow||{},l=d.load||{},g=d.growth||{},h=d.startup||{},pb=d.probation||{},products=d.products||[],sheets=d.sheets||[];
   workers=d.workers||[];
   setGauge('sys',l.system_working,l.system_desired,l.system_load_pct,l.system_zone||'GREEN');
   setGauge('prod',l.product_working,l.product_desired,l.product_load_pct,l.product_zone||'GREEN');
@@ -390,12 +396,13 @@ function renderDashboard(d){
   }
   $('eta').textContent=fmtEta(f.eta_seconds);$('throughput').textContent=f.throughput_15m??0;
   $('bottleneck').textContent=(h.startup_state&&h.startup_state!=='HEALTHY')?h.startup_state:((g.growth_mode&&g.growth_mode!=='BALANCED')?g.growth_mode:(f.bottleneck_code||'—'));
-  renderProducts(products,sheets,l);renderFlow();renderToday(d.workers_today||[],d.workers_today_summary||{});renderReceipts(d.receipts||[]);
+  renderProducts(products,sheets,l);renderFlow();renderToday(todayRows,todaySummary);renderReceipts(d.receipts||[]);
   const vals={work:clamp(f.work_pct),coord:clamp(f.coord_pct),wait:clamp(f.wait_pct),rec:clamp(f.recovery_pct)};
   $('segWork').style.width=vals.work+'%';$('segCoord').style.width=vals.coord+'%';$('segWait').style.width=vals.wait+'%';$('segRec').style.width=vals.rec+'%';
   $('workPct').textContent=vals.work.toFixed(0)+'%';$('coordPct').textContent=vals.coord.toFixed(0)+'%';$('waitPct').textContent=vals.wait.toFixed(0)+'%';$('recPct').textContent=vals.rec.toFixed(0)+'%';
   $('frontier').textContent=Number(g.frontier_ratio||0).toFixed(1)+'×';$('branch').textContent=Number(g.productive_branching||0).toFixed(2)+'×';$('metaShare').textContent=Math.round(Number(g.meta_share||0)*100)+'%';
-  const startMs=Number(h.p90_copy_to_work_ms??h.p90_contact_to_work_ms??0);$('startup').textContent=startMs?Math.round(startMs/1000)+'s':'—';$('lost').textContent=h.copied_unlinked_60s??0;$('dead').textContent=f.dead_count??0;
+  const startMs=Number(h.p90_copy_to_work_ms??h.p90_contact_to_work_ms??0);$('startup').textContent=startMs?Math.round(startMs/1000)+'s':'—';$('lost').textContent=h.copied_unlinked_60s??0;
+  $('probation').textContent=pb.in_probation??0;$('evidenceActive').textContent=pb.evidence_active??0;$('salvaged').textContent=pb.salvaged_expiries??0;$('dead').textContent=f.dead_count??0;
   $('batch').textContent='COHORTE '+(f.latest_batch||'—');const fv=[f.funnel_launched,f.funnel_bootstrap,f.funnel_entered,f.funnel_work,f.funnel_published];
   ['f0','f1','f2','f3','f4'].forEach((id,i)=>$(id).childNodes[0].nodeValue=fv[i]??0);
   $('sentinel').textContent=[f.guide_cycle,f.guide_status,f.guide_worker].filter(Boolean).join('·')||'—';$('growthMode').textContent=g.growth_mode||'—';$('startupState').textContent=h.startup_state||'—';
@@ -403,6 +410,16 @@ function renderDashboard(d){
 }
 async function tick(){
   try{const d=await get('prometeo_control_dashboard?select=*');if(d[0])renderDashboard(d[0])}catch(e){$('clock').textContent='reintentando'}
+}
+async function tickToday(){
+  try{
+    const d=await get('prometeo_control_workers_today_snapshot?select=*');
+    if(d[0]){
+      todayRows=d[0].workers||[];
+      todaySummary=d[0].summary||{};
+      renderToday(todayRows,todaySummary);
+    }
+  }catch(e){}
 }
 $('copy').addEventListener('click',async()=>{
   if(!prompt)await loadPrompt();if(!prompt)return;
@@ -416,8 +433,8 @@ $('copy').addEventListener('click',async()=>{
   }catch(e){b.textContent=copied?'PIN COPIADO · SIN ACK':'PIN ERROR · REINTENTÁ'}
   finally{setTimeout(()=>{b.textContent=old;b.disabled=false},1500)}
 });
-loadPrompt();getEngine();tick();
-setInterval(tick,2500);setInterval(getEngine,30000);setInterval(loadPrompt,60000);
+loadPrompt();getEngine();tickToday();tick();
+setInterval(tick,2500);setInterval(tickToday,15000);setInterval(getEngine,30000);setInterval(loadPrompt,60000);
 })();
 </script>
 </body>
