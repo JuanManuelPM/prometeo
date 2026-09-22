@@ -47,13 +47,26 @@ async function channelFeed(channelId:string){
 }
 function cleanPayload(kind:string,p:any){
   const x=(p&&typeof p==="object")?p:{};
-  if(kind==="clock")return {style:String(x.style||"orbit").slice(0,32)};
+  const cleanDisplay=()=>{
+    const d=(x.display&&typeof x.display==="object")?x.display:{};
+    const profile=["wide","compact","flex"].includes(String(d.profile||""))?String(d.profile):"";
+    const position=["top","bottom","side","auto"].includes(String(d.position||""))?String(d.position):"";
+    return (profile||position)?{...(profile?{profile}:{}),...(position?{position}:{})}:undefined;
+  };
+  if(kind==="clock")return {
+    style:String(x.style||"time-mass-25-5").slice(0,32),
+    focus_minutes:Math.max(5,Math.min(120,Math.round(Number(x.focus_minutes)||25))),
+    break_minutes:Math.max(1,Math.min(60,Math.round(Number(x.break_minutes)||5)))
+  };
   if(kind==="black")return {};
   if(kind==="youtube")return {};
   if(kind==="page"){
     let u:URL;try{u=new URL(String(x.url||""))}catch{fail("PAGE_URL_INVALID")}
     if(!["http:","https:"].includes(u!.protocol))fail("PAGE_URL_INVALID");
-    return {url:u!.toString()};
+    const c=(x.control&&typeof x.control==="object")?x.control:{},allowed=["previous","next","toggle","reset","refresh"],actions=Array.isArray(c.actions)?c.actions.map(String).filter((a:string)=>allowed.includes(a)).slice(0,8):[];
+    let settings_url="";if(c.settings_url){try{const su=new URL(String(c.settings_url),u!.toString());if(["http:","https:"].includes(su.protocol))settings_url=su.toString()}catch{}}
+    const display=cleanDisplay(),control=(actions.length||settings_url||c.label)?{...(c.label?{label:String(c.label).slice(0,40)}:{}),...(actions.length?{actions}:{}),...(settings_url?{settings_url}:{})}:undefined;
+    return {url:u!.toString(),...(display?{display}:{}),...(control?{control}:{})};
   }
   fail("KIND_INVALID");
 }
@@ -271,7 +284,7 @@ Deno.serve(async(req:Request)=>{try{
   if(role!=="remote")fail("REMOTE_REQUIRED",403);
   if(action==="command"){
     const command=String(b.command||"");
-    if(!["play","pause","toggle","mute","unmute","refresh_panel","reload_when_idle","reload_now"].includes(command))fail("COMMAND_INVALID");
+    if(!["play","pause","toggle","mute","unmute","refresh_panel","reload_when_idle","reload_now","widget_previous","widget_next","widget_toggle","widget_reset"].includes(command))fail("COMMAND_INVALID");
     const payload={command,block_id:String(b.block_id||"").slice(0,80),value:b.value??null,at:new Date().toISOString()};
     const q=await db.from("prometeo_tv_events").insert({room_id:room.id,source:"remote",client_id:clientId||null,event_type:"player.command",payload}).select("id").single();
     if(q.error)throw q.error;
