@@ -163,28 +163,23 @@ exception
 end;
 $$;
 
-do $
-begin
-  if exists (
+update public.forge_skill_versions
+set evidence=jsonb_build_array(
+  'prometeo_outputs:PRODUCTIVE-FRONTIER-01/FR-BACKLOG-220',
+  'forge_deep_skill_contract_validate:DEEP_SKILL_CONTRACT_VALID'
+)
+where skill_id='DEEP_COMPRESSION_FINDINGS'
+  and version_no=1
+  and maturity_state='ACCEPTED'
+  and jsonb_typeof(evidence)='array'
+  and jsonb_array_length(evidence)=0
+  and exists (
     select 1
     from public.prometeo_outputs
     where project_id='PRODUCTIVE-FRONTIER-01'
       and job_key='FR-BACKLOG-220'
       and meta->>'outcome'='IMPLEMENTED'
-  ) then
-    update public.forge_skill_versions
-    set evidence=jsonb_build_array(
-      'prometeo_outputs:PRODUCTIVE-FRONTIER-01/FR-BACKLOG-220',
-      'forge_deep_skill_contract_validate:DEEP_SKILL_CONTRACT_VALID'
-    )
-    where skill_id='DEEP_COMPRESSION_FINDINGS'
-      and version_no=1
-      and maturity_state='ACCEPTED'
-      and jsonb_typeof(evidence)='array'
-      and jsonb_array_length(evidence)=0;
-  end if;
-end;
-$;
+  );
 
 alter table public.forge_skill_versions
   drop constraint if exists forge_skill_versions_evidence_nonempty;
