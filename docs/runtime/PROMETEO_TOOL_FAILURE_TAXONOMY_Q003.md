@@ -37,6 +37,8 @@ A TOOL_ERROR checkpoint/event should record only the minimum needed to classify 
 
 **TOOL_SECURITY_BLOCKED:** distinguish it from a backend rejection using `backend_response_received=false` when observable. One exact retry can establish whether the block was transient; repeated blocks remain the same class and become a boundary, not a prompt to bypass safety.
 
+**OBEY-v2 operation override:** the sentence above is taxonomy-level fallback, not a universal retry mandate. The active protocol owns retry policy per operation: an optional `prometeo_checkpoint` blocked by security is not retried; BOOTSTRAP stops after the second explicit security block; WAIT permits at most one retry when the environment allows it. Never convert a protocol-specific “do not retry” rule into the generic taxonomy fallback.
+
 **TOOL_CONNECTOR_ERROR:** preserve connector/provider machine codes. Syntax/validation errors are generally non-retryable without correcting the request; transport/5xx errors may be retried under a bounded policy. The taxonomy does not infer retryability from the word “connector”.
 
 **CONTROL_STALE_LEASE:** do not retry the old write. Prometeo already provides the next action; the old lease is no longer authoritative.
