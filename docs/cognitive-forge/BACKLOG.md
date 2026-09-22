@@ -221,8 +221,8 @@
 194. **[DISENADO] Skill PUBLISH_OBSERVER.** Construir, publicar y verificar observador.
 195. **[DISENADO] Skill GENERATE_WORKER_PROTOCOL.** Convertir estados/RPCs reales en prompt homogéneo.
 196. **[DISENADO] Skill LEARN_FROM_COMPLETED_WORK.** Extraer Skills, Tools, Plumas y Recipes de una ejecución.
-197. **[PENDIENTE] Registry durable de Skills.** Persistir Skills como objetos de primera clase.
-198. **[PENDIENTE] Schema de Skill.** Inputs, outputs, pasos, rollback, verificación y evidencia.
+197. **[HECHO] Registry durable de Skills.** `forge_skills` persiste identidad estable, estado y provenance; implementación durable: migración `forge_skill_registry_and_version_schema`.
+198. **[HECHO] Schema de Skill.** `forge_skill_versions` conserva versiones históricas con inputs/outputs, pasos, rollback, verificación, evidencia y madurez; smoke reproducible: `forge_skill_registry_smoke_test()`.
 199. **[PENDIENTE] No depender de prompts largos.** Skills repetitivas deben vivir fuera de la conversación.
 200. **[PENDIENTE] Extraer determinismo de la IA.** Cálculos y procedimientos repetibles deben ejecutarse sin razonamiento generativo.
 201. **[DISENADO] SKILL_COMPILER.** Detectar pasos repetidos en ejecuciones exitosas y crear Skill candidates.
