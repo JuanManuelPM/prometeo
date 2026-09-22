@@ -90,13 +90,13 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 <script>
 (()=>{
 'use strict';
-const BUILD='31';
+const BUILD='32';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const RUNTIME='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const p=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_TOKEN='6e7f4b74d76d2488ac3779832c77632475dd845db3a9b598765a757c7f18c327';
 const room={code:p.get('room')||DEFAULT_ROOM,token:p.get('t')||DEFAULT_TOKEN,role:'tv'};
-const client='tv-v31-'+Math.random().toString(36).slice(2,10);
+const client='tv-v32-'+Math.random().toString(36).slice(2,10);
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
 const views=new Map(),advancing=new Set();
 const PIPED_APIS=[
@@ -210,7 +210,7 @@ function startDesiredPlayback(v){
   setTimeout(()=>{
    if(!views.has(String(v.id))||v.userPaused)return;
    const state=playerStateOf(v),muted=playerMuted(v);
-   if(state===1&&!muted){v.muted=false;hideSoundUnlock();return}
+   if(state===1&&!muted){v.muted=false;soundGestureUnlocked=true;hideSoundUnlock();return}
    try{v.player.mute?.();v.muted=true;v.player.playVideo?.()}catch{}
    showSoundUnlock()
   },380)
@@ -252,7 +252,7 @@ async function mountYoutubeFallback(b,v){
     onReady:e=>{v.fallbackPlayer=e.target;v.player=e.target;v.streamSource='youtube-fallback';v.ready=true;v.userPaused=false;v.status.style.display='none';startDesiredPlayback(v)},
     onStateChange:e=>{
       v.state=Number(e.data);
-      if(v.state===1){v.playbackSeen=true;v.muted=playerMuted(v);v.status.style.display='none';if(soundWanted&&!v.muted)hideSoundUnlock()}
+      if(v.state===1){v.playbackSeen=true;v.muted=playerMuted(v);v.status.style.display='none';if(soundWanted&&!v.muted){soundGestureUnlocked=true;hideSoundUnlock()}}
       if(v.state===2&&Date.now()<Number(v.audioTransitionUntil||0)&&!v.userPaused){
         try{if(soundWanted&&!soundGestureUnlocked){v.player.mute();v.muted=true;showSoundUnlock()}v.player.playVideo()}catch{}
       }
@@ -332,8 +332,19 @@ function createView(b){
 }
 function switchYoutubeVideo(b,v){
  const next=String(b.payload?.video_id||'');if(!next||next===v.videoId)return;
- try{v.fallbackPlayer?.destroy()}catch{};v.fallbackPlayer=null;v.fallbackWrap=null;v.player=nativeAdapter(v.video,v);if(v.video)v.video.style.display='';
- v.block=b;v.videoId=next;v.playbackSeen=false;v.userPaused=false;v.state=3;if(v.video)v.video.poster=String(b.payload?.thumbnail||('https://i.ytimg.com/vi/'+next+'/maxresdefault.jpg'));loadNativeStream(b,v)
+ v.block=b;v.videoId=next;v.playbackSeen=false;v.userPaused=false;v.state=3;
+ if(v.video)v.video.poster=String(b.payload?.thumbnail||('https://i.ytimg.com/vi/'+next+'/maxresdefault.jpg'));
+ if(v.fallbackPlayer&&v.streamSource==='youtube-fallback'){
+   try{
+    v.player=v.fallbackPlayer;
+    v.status.style.display='none';
+    v.fallbackPlayer.loadVideoById({videoId:next,startSeconds:0});
+    setTimeout(()=>startDesiredPlayback(v),60);
+    return
+   }catch{}
+ }
+ try{v.fallbackPlayer?.destroy()}catch{};v.fallbackPlayer=null;v.fallbackWrap=null;v.streamSource='';v.player=nativeAdapter(v.video,v);if(v.video)v.video.style.display='';
+ loadNativeStream(b,v)
 }
 function ensureView(b,forceMount=false){
  const id=String(b.id),old=views.get(id),nextVideo=String(b.payload?.video_id||'');
