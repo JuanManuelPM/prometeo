@@ -3,7 +3,7 @@
 ## Estado
 
 - Backlog origen: **206 · Trazar qué Skill produjo qué acción**
-- Estado propuesto: **DISEÑADO**
+- Estado: **HECHO**
 - Dependencias satisfechas: BACKLOG-197/198 (forge_skills, forge_skill_versions)
 - Alcance: observabilidad durable del procedimiento usado; no ranking de workers ni promoción automática.
 
@@ -98,3 +98,11 @@ Estas métricas son evidencia descriptiva, no promoción automática.
 ## Criterio de cierre
 
 BACKLOG-206 pasa a HECHO sólo cuando A-C estén implementadas y verificadas con receipts reproducibles. D/E pueden continuar como evolución sin bloquear la existencia del primitive de trazabilidad.
+
+## Evidencia de implementación
+
+- Migración Supabase aplicada: `forge_skill_action_trace_v1`.
+- Fuente versionada: `supabase/migrations/20260922040030_forge_skill_action_trace_v1.sql`.
+- Primitive durable: `forge_skill_action_traces`.
+- RPCs: `forge_skill_trace_action_start`, `forge_skill_trace_action_finish`, `forge_skill_action_trace`, `forge_skill_action_history`.
+- Smoke: `forge_skill_action_trace_smoke_test()` devolvió `SKILL_ACTION_TRACE_SMOKE_OK` con dedupe, missing-version, evidence gate, idempotencia, conflicto, reversión e historia por versión en PASS; fixture limpiado.
