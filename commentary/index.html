@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prometeo · Relator</title>
+<style>
+html,body{margin:0;background:#000;color:#fff;font-family:system-ui,sans-serif}
+main{min-height:100vh;display:grid;place-items:center}
+section{width:min(520px,90vw)}
+button{width:100%;padding:18px;border:1px solid #fff;background:#000;color:#fff;font:700 18px system-ui;cursor:pointer}
+#status{margin-top:16px;font-size:14px;line-height:1.45;opacity:.86}
+#last{margin-top:12px;font-size:12px;line-height:1.45;opacity:.55}
+</style>
+</head>
+<body>
+<main><section>
+<button id="toggle">ACTIVAR RELATOR</button>
+<div id="status">Audio apagado.</div>
+<div id="last"></div>
+</section></main>
+<script>
+(()=>{
+'use strict';
+const EXP='PROMETEO-SCREEN10-V3-E1';
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+const TTS='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/audio-lab-page-audio-v1';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const HEAD={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
+const toggle=document.getElementById('toggle');
+const status=document.getElementById('status');
+const last=document.getElementById('last');
+const cursorKey='prometeo-commentary-cursor:'+EXP;
+let cursor=localStorage.getItem(cursorKey)||null;
+let enabled=false,busy=false,ctx=null,voicePrompt='',timer=null;
+const queue=[],known=new Set();
+
+async function rpc(name,args){
+  const r=await fetch(BASE+name,{method:'POST',headers:HEAD,body:JSON.stringify(args),cache:'no-store'});
+  if(!r.ok)throw new Error(name+' '+r.status);
+  return await r.json();
+}
+async function event(id,type,meta={}){
+  try{await rpc('prometeo_commentary_playback_event_v1',{p_commentary_id:id,p_event_type:type,p_meta:meta})}catch{}
+}
+function setStatus(s){status.textContent=s}
+async function unlock(){
+  if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();
+  await ctx.resume();
+  const b=ctx.createBuffer(1,1,22050),src=ctx.createBufferSource();
+  src.buffer=b;src.connect(ctx.destination);src.start();
+}
+async function fetchFeed(){
+  const data=await rpc('prometeo_commentary_audio_feed_v1',{p_experiment_id:EXP,p_after:cursor});
+  voicePrompt=data.voice_prompt||voicePrompt;
+  const items=Array.isArray(data.items)?data.items:[];
+  for(const item of items){
+    if(!item?.commentary_id||known.has(item.commentary_id))continue;
+    known.add(item.commentary_id);
+    queue.push(item);
+  }
+  if(enabled&&!busy)processQueue();
+}
+async function speak(item){
+  const t0=performance.now();
+  await event(item.commentary_id,'TTS_REQUESTED',{queue_depth:queue.length});
+  const r=await fetch(TTS,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      messageId:item.tts_message_id,
+      text:item.script,
+      voicePrompt
+    })
+  });
+  if(!r.ok)throw new Error('TTS '+r.status);
+  const arr=await r.arrayBuffer();
+  await event(item.commentary_id,'TTS_READY',{tts_ms:Math.round(performance.now()-t0),bytes:arr.byteLength});
+  const buf=await ctx.decodeAudioData(arr.slice(0));
+  const src=ctx.createBufferSource();
+  src.buffer=buf;src.connect(ctx.destination);
+  await event(item.commentary_id,'PLAY_STARTED',{duration_s:Number(buf.duration.toFixed(2))});
+  setStatus('RELATANDO · '+(item.headline||'Prometeo'));
+  last.textContent=item.script||'';
+  await new Promise((resolve,reject)=>{
+    src.onended=resolve;
+    try{src.start()}catch(e){reject(e)}
+  });
+  await event(item.commentary_id,'PLAY_ENDED',{duration_s:Number(buf.duration.toFixed(2))});
+}
+async function processQueue(){
+  if(busy||!enabled)return;
+  busy=true;
+  while(enabled&&queue.length){
+    const item=queue.shift();
+    try{
+      await speak(item);
+      cursor=item.completed_at;
+      localStorage.setItem(cursorKey,cursor);
+    }catch(e){
+      await event(item.commentary_id,'PLAY_ERROR',{error:String(e?.message||e).slice(0,120)});
+      setStatus('Error de audio; sigo esperando el próximo relato.');
+      cursor=item.completed_at;
+      localStorage.setItem(cursorKey,cursor);
+    }
+  }
+  busy=false;
+  if(enabled)setStatus('RELATOR ACTIVO · esperando próxima jugada');
+}
+async function poll(){
+  if(!enabled)return;
+  try{await fetchFeed()}catch(e){setStatus('Relator activo · reconectando')}
+}
+toggle.addEventListener('click',async()=>{
+  if(!enabled){
+    try{
+      await unlock();
+      enabled=true;
+      toggle.textContent='APAGAR RELATOR';
+      setStatus('RELATOR ACTIVO · buscando estado actual');
+      await fetchFeed();
+      timer=setInterval(poll,4000);
+    }catch(e){setStatus('No pude habilitar audio: '+String(e?.message||e))}
+  }else{
+    enabled=false;
+    toggle.textContent='ACTIVAR RELATOR';
+    setStatus('Audio apagado.');
+    if(timer)clearInterval(timer);
+  }
+});
+})();
+</script>
+</body>
+</html>
