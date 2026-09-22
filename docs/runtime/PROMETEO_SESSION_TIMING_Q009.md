@@ -1,6 +1,20 @@
 # Q009 — Timing model validation
 
-## Verified defects in the current view
+## Reconciliación con backend vigente · 2026-09-22
+
+Los puntos 1–4 de la sección histórica siguiente describen defectos del snapshot previo a las correcciones de timing; ya no deben leerse como defectos del view vigente. La definición actual de `public.prometeo_control_session_timing`:
+
+- cierra la cola abierta con `end_at` usando `closed_at` para sesiones cerradas y el máximo observable entre `last_seen_at`, `last_event_at` y `first_observed_at` para sesiones abiertas;
+- recorta intervalos contra `t0_bound` con `greatest(event_at, t0_bound)`;
+- colapsa timestamps iguales mediante `row_number() over (partition by session_id, created_at ...)` antes de calcular `lead()`;
+- clasifica `PUBLISH_RESULT + RETRY_LENGTH/RETRY_CHILDREN` como WORK y `STALE_LEASE/WAIT/WAIT_TIMEOUT_CONTINUE/PARKED/PAUSED` como WAIT;
+- conserva el intervalo total calculando `other_ms` como residual no negativo del observado.
+
+El punto 5 está **parcialmente mitigado, no cerrado**: el view actual incorpora `prometeo_events` como fallback para los primeros hitos ENTER / JOB_ASSIGNED|RESCUE_ASSIGNED / JOB_COMPLETED, pero no reconstruye por esa vía todas las transiciones repetidas de WAIT o WORK que falten en `prometeo_worker_session_events`. Por eso la recomendación histórica de identidades de evento por ciclo/request sigue vigente para trazabilidad completa.
+
+La sección siguiente se conserva como diagnóstico histórico y justificación de las correcciones implementadas.
+
+## Defectos verificados en el snapshot previo
 
 1. **Open-tail loss.** The last event uses `coalesce(next_at, created_at)`, so its duration is always zero. Separately, `observed_ms` uses `coalesce(last_event_at, last_seen_at, t0)`; whenever a last event exists, a later `last_seen_at` is ignored. In K056, `last_event_at=02:59:08.511569Z` while `last_seen_at=03:01:59.476433Z`, so roughly 171 seconds disappeared from both buckets and the denominator.
 
