@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://juanmanuelpm.github.io/prometeo/schemas/forge-point-interface.v1.schema.json",
+  "title": "Prometeo Forge Point Interface v1",
+  "description": "Compact machine-readable contract compiled from one durable Cognitive Forge canonical point.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "point_id",
+    "interface_version",
+    "source",
+    "purpose",
+    "inputs",
+    "outputs",
+    "states",
+    "operations",
+    "events",
+    "invariants",
+    "dependencies",
+    "tests",
+    "open_decisions"
+  ],
+  "properties": {
+    "schema": { "const": "prometeo.forge-point-interface/v1" },
+    "point_id": { "type": "string", "pattern": "^P[0-9]{3}$" },
+    "interface_version": { "type": "integer", "minimum": 1 },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonical_ref", "canonical_version", "source_hash"],
+      "properties": {
+        "canonical_ref": { "type": "string", "minLength": 1 },
+        "canonical_version": { "type": "integer", "minimum": 1 },
+        "source_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "purpose": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "inputs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ioPort" }
+    },
+    "outputs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ioPort" }
+    },
+    "states": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/state" }
+    },
+    "operations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/operation" }
+    },
+    "events": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/event" }
+    },
+    "invariants": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/invariant" }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/dependency" }
+    },
+    "tests": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/testCase" }
+    },
+    "open_decisions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/openDecision" }
+    }
+  },
+  "$defs": {
+    "stableId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]{2,127}$"
+    },
+    "ioPort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "required", "description", "constraints"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "type": { "type": "string", "minLength": 1 },
+        "required": { "type": "boolean" },
+        "description": { "type": "string", "minLength": 1 },
+        "constraints": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "terminal"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "description": { "type": "string", "minLength": 1 },
+        "terminal": { "type": "boolean" }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "requires_state",
+        "input_ids",
+        "output_ids",
+        "next_state",
+        "event_ids",
+        "failure_modes"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "requires_state": {
+          "oneOf": [{ "$ref": "#/$defs/stableId" }, { "type": "null" }]
+        },
+        "input_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/stableId" }
+        },
+        "output_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/stableId" }
+        },
+        "next_state": {
+          "oneOf": [{ "$ref": "#/$defs/stableId" }, { "type": "null" }]
+        },
+        "event_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/stableId" }
+        },
+        "failure_modes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "trigger", "payload"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "trigger": { "type": "string", "minLength": 1 },
+        "payload": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "type", "required"],
+            "properties": {
+              "name": { "$ref": "#/$defs/stableId" },
+              "type": { "type": "string", "minLength": 1 },
+              "required": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "invariant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "status", "statement", "evidence_ref"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "status": { "enum": ["CANDIDATE", "CANONICAL"] },
+        "statement": { "type": "string", "minLength": 1 },
+        "evidence_ref": {
+          "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "CANONICAL" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "evidence_ref": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      ]
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["point_id", "relation", "interface_version"],
+      "properties": {
+        "point_id": { "type": "string", "pattern": "^P[0-9]{3}$" },
+        "relation": {
+          "enum": ["REQUIRES", "CONSUMES", "EXTENDS", "CONFLICTS_WITH"]
+        },
+        "interface_version": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "testCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "precondition", "action", "expected_observable_result"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "precondition": { "type": "string", "minLength": 1 },
+        "action": { "type": "string", "minLength": 1 },
+        "expected_observable_result": { "type": "string", "minLength": 1 }
+      }
+    },
+    "openDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "status", "question", "alternatives", "provenance"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "status": { "const": "OPEN" },
+        "question": { "type": "string", "minLength": 1 },
+        "alternatives": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "provenance": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
