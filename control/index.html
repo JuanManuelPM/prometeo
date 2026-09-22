@@ -123,7 +123,7 @@ background-size:26px 26px}
   <div class="guideHead"><div class="guideTitle">GUÍA</div><a class="guideOpen" href="/prometeo/guide/" target="_blank">INVOCAR</a></div>
   <div class="guideBody" id="guideBody"></div>
   <div class="guideActions">
-   <button class="gBtn primary" id="copyGuide">COPIAR GUÍA</button>
+   <button class="gBtn primary" id="copyGuide">COPIAR PROMPT</button>
    <button class="gBtn" id="clearFocus">ESTADO</button>
   </div>
  </aside>
@@ -145,7 +145,7 @@ background-size:26px 26px}
  const med=a=>{if(!a.length)return 0;const b=[...a].sort((x,y)=>x-y),m=Math.floor(b.length/2);return b.length%2?b[m]:(b[m-1]+b[m])/2};
  const short=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(n>=1e4?0:1)+'k':String(Math.round(n));
  const fmt=m=>!isFinite(m)||m<=0?'—':m<1?'<1m':m<60?Math.round(m)+'m':Math.floor(m/60)+'h'+String(Math.round(m%60)).padStart(2,'0');
- let S={projects:[],workers:[],units:[],outputs:[],activity:[],guide:null,orders:[],liveness:[],batches:[],timings:[],cohorts:[],gate:null,focus:null,mode:'board'},busy=false;
+ let S={projects:[],workers:[],units:[],outputs:[],activity:[],guide:null,orders:[],liveness:[],batches:[],timings:[],cohorts:[],gate:null,sentinel:null,nextPrompt:null,focus:null,mode:'board'},busy=false;
  async function get(p){const r=await fetch(BASE+p,{headers:HEAD,cache:'no-store'});if(!r.ok)throw new Error(r.status+' '+p);return r.json()}
  const pk=(t,id)=>t+'|'+id;
  function relevantProjects(){
@@ -299,6 +299,7 @@ background-size:26px 26px}
    const versions=[...new Set(workers.map(protocolVersion).filter(Boolean))],cohort=(S.cohorts||[])[0];
    return '<div class="guideBlock"><div class="gLabel">Runtime</div><div class="gBig">W'+counts.WORKING+' · A'+counts.ASSIGNABLE+' · P'+counts.PARKED+' · S'+counts.SILENT+'</div><div class="gText">protocol '+(versions.length?versions.join(', '):'—')+' · sólo vivos ocupan mesa</div></div>'+
    '<div class="guideBlock"><div class="gLabel">Launch gate</div><div class="gBig '+(S.gate?.state==='GO'?'':'gAlert')+'">'+(S.gate?(S.gate.state+' '+S.gate.recommended_launch):'—')+'</div><div class="gText">'+(S.gate?(S.gate.ready_rank0_jobs+' READY · '+S.gate.assignable_slots_now+' slots · buffer '+S.gate.buffer_after_requested):'sin lectura')+'</div></div>'+
+   '<div class="guideBlock"><div class="gLabel">Sentinel</div><div class="gText">'+(S.sentinel?(S.sentinel.cycle_id+' · '+S.sentinel.cycle_status+(S.sentinel.assigned_worker_code?' · '+S.sentinel.assigned_worker_code:'')+(S.sentinel.decision?' · '+S.sentinel.decision:'')):'sin ciclo')+'</div><div class="gText">'+(S.sentinel?.headline||((S.sentinel?.focus_questions||[])[0]||'observación automática'))+'</div></div>'+
    '<div class="guideBlock"><div class="gLabel">Cohorte</div><div class="gText">'+(cohort?(cohort.launch_batch+' · '+cohort.sessions+' boot → '+cohort.entered+' enter → '+cohort.reached_work+' work → '+cohort.published+' publish · WORK '+(cohort.avg_work_pct??'—')+'% · WAIT '+(cohort.avg_wait_pct??'—')+'%'):'sin cohorte instrumentada')+'</div></div>'+
    '<div class="guideBlock"><div class="gLabel">Foco</div><div class="gText">'+(high?projectAlias(high)+' · '+high.title:'Sin proyecto activo')+'</div></div>'+
    '<div class="guideBlock"><div class="gLabel">Asignación</div><div class="gText '+(blocked?'gAlert':'')+'">'+blocked+' jobs bloqueados · PARKED expone reason/target cuando existe; sin evidencia muestra “reason —”.</div></div>'+
@@ -339,14 +340,14 @@ background-size:26px 26px}
    $('sub').textContent=projects.length+' proyectos · W'+counts.WORKING+' · A'+counts.ASSIGNABLE+' · P'+counts.PARKED+' · S'+counts.SILENT+' · PV '+(versions.length?versions.join('/'):'—');
    $('capacity').textContent='WORKING '+counts.WORKING+' · ASSIGNABLE '+counts.ASSIGNABLE+' · PARKED '+counts.PARKED+' · SILENT '+counts.SILENT;
    renderProjects(projects);renderWorkers(workers,projects);renderRace(workers);renderGuide(projects,workers);renderEvents();
-   $('workerGrid').style.display=S.mode==='board'?'grid':'none';$('raceView').classList.toggle('show',S.mode==='race');$('modeBoard').classList.toggle('on',S.mode==='board');$('modeRace').classList.toggle('on',S.mode==='race');
+   $('workerGrid').style.display=S.mode==='board'?'grid':'none';$('raceView').classList.toggle('show',S.mode==='race');$('modeBoard').classList.toggle('on',S.mode==='board');$('modeRace').classList.toggle('on',S.mode==='race');const cp=$('copyGuide');if(cp){const go=S.nextPrompt?.state==='GO'&&S.nextPrompt?.prompt_text;cp.disabled=!go;cp.textContent=go?'COPIAR '+(S.nextPrompt.next_batch||'PROMPT'):'HOLD';}
  }
  async function tick(){
   if(busy)return;busy=true;
   try{
    const projects=await get('prometeo_control_projects?select=*&order=created_at.desc&limit=60');
    const earliest=projects.filter(p=>['RUNNING','OPEN','PLANNING','DRAINING'].includes(String(p.status).toUpperCase())).map(p=>p.started_at||p.created_at).filter(Boolean).sort()[0],since=encodeURIComponent(earliest||new Date(Date.now()-86400000).toISOString());
-   const [workers,units,outputs,activity,guide,orders,liveness,batches,timings,cohorts,gate]=await Promise.all([
+   const [workers,units,outputs,activity,guide,orders,liveness,batches,timings,cohorts,gate,sentinel,nextPrompt]=await Promise.all([
     get('prometeo_control_workers?select=*&order=joined_at.asc&limit=800'),
     get('prometeo_control_units?select=*&order=started_at.desc.nullslast&limit=6000'),
     get('prometeo_control_outputs?select=project_type,project_id,worker_code,unit,stage,word_count,elapsed_ms,rescued,published_at&published_at=gte.'+since+'&order=published_at.desc&limit=4500'),
@@ -357,14 +358,16 @@ background-size:26px 26px}
     get('prometeo_death_batches?select=*&order=created_at.desc&limit=8'),
     get('prometeo_control_session_timing?select=*&order=t0.desc&limit=300'),
     get('prometeo_control_cohort_timing?select=*&order=cohort_last_seen_at.desc&limit=6'),
-    get('prometeo_control_launch_gate?select=*')
+    get('prometeo_control_launch_gate?select=*'),
+    get('prometeo_control_guide_latest?select=*'),
+    get('prometeo_control_next_prompt?select=*')
    ]);
-   S={...S,projects,workers,units,outputs,activity,guide:guide[0]||null,orders,liveness,batches,timings,cohorts,gate:gate[0]||null};render();
+   S={...S,projects,workers,units,outputs,activity,guide:guide[0]||null,orders,liveness,batches,timings,cohorts,gate:gate[0]||null,sentinel:sentinel[0]||null,nextPrompt:nextPrompt[0]||null};render();
   }catch(e){$('sub').textContent='reintentando conexión · '+String(e.message||e).slice(0,50)}finally{busy=false}
  }
  $('modeBoard').addEventListener('click',()=>{S.mode='board';render()});$('modeRace').addEventListener('click',()=>{S.mode='race';render()});
  $('clearFocus').addEventListener('click',()=>{S.focus=null;render()});
- $('copyGuide').addEventListener('click',async()=>{const t='GUIDE\nhttps://juanmanuelpm.github.io/prometeo/guide/';try{await navigator.clipboard.writeText(t);$('copyGuide').textContent='COPIADO'}catch(e){window.open('/prometeo/guide/','_blank')}setTimeout(()=>$('copyGuide').textContent='COPIAR GUÍA',1500)});
+ $('copyGuide').addEventListener('click',async()=>{const t=S.nextPrompt?.prompt_text;if(!t)return;try{await navigator.clipboard.writeText(t);$('copyGuide').textContent='COPIADO'}catch(e){}setTimeout(()=>render(),1500)});
  window.addEventListener('resize',render);tick();setInterval(tick,2000);
 })();
 </script>
