@@ -191,3 +191,20 @@ The distinction is:
 - integration authority.
 
 Chats are transport shells.
+
+
+## Addendum — COMMENTARY job class
+
+COMMENTARY is now a first-class auxiliary Universal Worker job.
+
+Purpose:
+- turn canonical experiment/production state into short spoken status reports;
+- use the same durable job, lease, submit and evidence model as other worker work;
+- allow time/event-triggered narration without creating a Guide-only capability.
+
+Current safety rule:
+- active SCREEN-10 benchmark workers remain EXPERIMENT_CELL-only;
+- COMMENTARY runs in a PREP cohort so benchmark treatment is not contaminated;
+- future non-benchmark universal pools may consume COMMENTARY alongside RESEARCH / CRITIQUE / SYNTHESIS / VERIFY_READONLY / PREPARE_BOUNDED.
+
+COMMENTARY payload is typed evidence only. It cannot contain executable runtime authority.
