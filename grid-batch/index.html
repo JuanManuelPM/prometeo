@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#050505">
+<title>GRID BATCH · Prometeo Lab</title>
+<style>
+:root{--bg:#050505;--fg:#f1eee7;--muted:#777169;--line:#27231f;--hot:#ff6a00;--visor:#89ff62;--dead:#ff5148}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-snap-type:y mandatory;background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow-x:hidden}
+.top{position:fixed;inset:0 0 auto 0;height:48px;z-index:50;background:rgba(5,5,5,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 12px}
+.brand{font-size:14px;font-weight:1000;letter-spacing:-.04em}.brand b{color:var(--hot)}.summary{display:flex;gap:10px;font:900 7px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}.summary b{color:var(--fg)}
+.jump{position:fixed;right:8px;top:58px;z-index:40;display:grid;gap:4px}.jump a{width:22px;height:22px;border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);text-decoration:none;font:900 7px/1 ui-monospace,SFMono-Regular,Menlo,monospace;background:#080706}.jump a.live{border-color:var(--hot);color:var(--hot)}
+.run{min-height:100dvh;scroll-snap-align:start;padding:62px 42px 18px 12px;display:flex;align-items:center}
+.shell{width:min(860px,100%);margin:auto}
+.runhead{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:9px}.tag{font:900 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--hot);letter-spacing:.12em}.name{font-size:clamp(27px,8vw,48px);font-weight:1000;letter-spacing:-.065em;line-height:.9}.score{font-size:clamp(32px,10vw,60px);font-weight:1000;letter-spacing:-.075em;line-height:.8;color:var(--hot)}
+.meta{display:flex;gap:8px 14px;flex-wrap:wrap;margin:10px 0}.meta span{font:850 7px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}.meta b{color:var(--fg);font-size:9px}
+.arena{position:relative;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px 0 12px}
+.grid{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:4px;position:relative}
+.cell{aspect-ratio:1;border:1px solid #2b2722;background:#090807;position:relative;display:grid;place-items:center;color:#48433d;font:900 clamp(5px,1.5vw,9px)/1 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+.cell.done{background:var(--hot);border-color:var(--hot);color:#040302}.cell.leased{border-color:var(--visor);color:var(--fg);background:#0d110c}
+.cell.leased:after{content:"";position:absolute;inset:-40% -160%;background:linear-gradient(110deg,transparent 42%,rgba(137,255,98,.42) 50%,transparent 58%);animation:sweep 1.2s linear infinite}
+.cell.rescue:before{content:"↺";position:absolute;left:2px;top:2px;color:var(--fg);font-size:6px;z-index:2}
+@keyframes sweep{to{transform:translateX(72%)}}
+.avatars{position:absolute;inset:14px 0 12px;pointer-events:none}.avatar{position:absolute;width:34px;height:38px;transform:translate(-50%,-54%);transition:left .8s cubic-bezier(.2,.8,.2,1),top .8s cubic-bezier(.2,.8,.2,1),opacity .25s;z-index:8;filter:drop-shadow(0 3px 4px #000)}
+.avatar.idle{opacity:.38}.avatar.wait{opacity:.55}.avatar.work{opacity:1}.avatar .back{position:absolute;left:4px;top:2px;width:26px;height:24px;background:repeating-linear-gradient(135deg,#181818 0 2px,#0b0b0b 2px 4px);clip-path:polygon(7% 0,93% 4%,100% 84%,0 100%)}
+.avatar .head{position:absolute;left:7px;top:3px;width:21px;height:24px;background:radial-gradient(circle at 35% 30%,#fff 0 18%,#d8d3ca 19% 55%,#8c877f 56% 61%,#f2eee7 62%);border-radius:46% 46% 41% 41%;border:1px solid #171717}
+.avatar .ears:before,.avatar .ears:after{content:"";position:absolute;top:11px;width:5px;height:8px;background:#ded9d0;border:1px solid #151515;border-radius:50%}.avatar .ears:before{left:4px}.avatar .ears:after{right:4px}
+.avatar .visor{position:absolute;left:4px;top:10px;width:27px;height:8px;background:linear-gradient(#c5ffb1,#67ff3a);border:2px solid #0b0b0b;box-shadow:0 0 6px rgba(137,255,98,.5);clip-path:polygon(4% 16%,96% 0,100% 78%,0 100%)}
+.avatar .body{position:absolute;left:3px;bottom:0;width:29px;height:12px;background:#e7e2d8;border:1px solid #161616;clip-path:polygon(20% 0,80% 0,100% 100%,0 100%)}
+.avatar .mouth{position:absolute;left:14px;top:22px;width:6px;height:1px;background:#111}.avatar.work .mouth{height:3px;border-radius:50%;animation:talk .35s steps(2,end) infinite}
+@keyframes talk{50%{height:1px}}
+.avatar .label{position:absolute;left:50%;top:39px;transform:translateX(-50%);font:1000 6px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--visor);white-space:nowrap;text-shadow:0 1px 2px #000}
+.workers{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.worker{min-height:42px;border-top:1px solid var(--line);padding-top:7px;display:grid;grid-template-columns:45px 1fr auto;gap:7px;align-items:start;font:800 8px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace}.worker .code{font-weight:1000;color:var(--fg)}.worker .st{color:var(--muted)}.worker .st.work{color:var(--visor)}.worker .n{text-align:right;color:var(--hot);font-size:12px;font-weight:1000}.empty{opacity:.35}
+.foot{display:flex;justify-content:space-between;gap:10px;margin-top:9px;font:800 7px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.copy{position:fixed;left:12px;bottom:max(10px,env(safe-area-inset-bottom));z-index:60;height:42px;border:0;background:var(--fg);color:#040302;padding:0 15px;font-weight:1000;font-size:11px;box-shadow:0 5px 22px #000}
+.copy:disabled{background:#181512;color:#69635b}
+@media(max-width:560px){.run{padding-right:38px}.grid{gap:3px}.workers{grid-template-columns:1fr}.summary span:nth-child(n+4){display:none}.avatar{width:30px;height:34px;transform:translate(-50%,-50%) scale(.86)}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.avatar{transition:none}.cell.leased:after,.avatar.work .mouth{animation:none}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand"><b>GRID</b> BATCH · 10×2×100</div>
+  <div class="summary">
+    <span><b id="sumDone">0</b>/1000</span>
+    <span><b id="sumWorkers">0</b>/20 workers</span>
+    <span><b id="sumWorking">0</b> working</span>
+    <span><b id="sumGrids">0</b>/10 done</span>
+  </div>
+</div>
+<nav class="jump" id="jump"></nav>
+<main id="runs"></main>
+<button class="copy" id="copy">COPIAR WORKER · 20 PLAZAS</button>
+<script>
+(()=>{
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const HEAD={apikey:KEY,Authorization:'Bearer '+KEY};
+const $=x=>document.getElementById(x);
+let current=[],promptCache=null;
+const age=ts=>{if(!ts)return'—';let s=Math.max(0,Math.round((Date.now()-new Date(ts))/1000));return s<60?s+'s':Math.floor(s/60)+'m'};
+const dur=ms=>!ms?'—':(ms<60000?Math.round(ms/1000)+'s':(ms/60000).toFixed(1)+'m');
+async function get(path){const r=await fetch(BASE+path,{headers:HEAD,cache:'no-store'});if(!r.ok)throw Error(r.status);return r.json()}
+function cellPos(task){const i=Math.max(1,Math.min(100,Number(task||1)))-1;return {x:((i%10)+.5)*10,y:(Math.floor(i/10)+.5)*10}}
+function avatar(code,task,state,seat){
+  const p=cellPos(task||((seat||1)===1?1:100));
+  const off=seat===1?-1.4:1.4;
+  return '<div class="avatar '+state+'" style="left:calc('+p.x+'% + '+off+'px);top:'+p.y+'%"><i class="back"></i><i class="ears"></i><i class="head"></i><i class="visor"></i><i class="mouth"></i><i class="body"></i><span class="label">'+(code||'WAIT')+'</span></div>'
+}
+function workerRow(w,seat){
+  if(!w)return '<div class="worker empty"><div class="code">SEAT '+seat+'</div><div class="st">esperando chat</div><div class="n">0</div></div>';
+  const st=w.current_task_no?'work':'idle';
+  return '<div class="worker"><div class="code">'+w.worker_code+'</div><div class="st '+st+'">'+(w.current_task_no?'T'+String(w.current_task_no).padStart(2,'0')+' · trabajando':'en espera')+' · '+age(w.last_seen_at)+'</div><div class="n">'+w.tasks_done+'✓</div></div>';
+}
+function renderRun(d){
+  const num=d.run_id.slice(-2), members=d.member_rows||[], m1=members.find(x=>x.seat_no===1),m2=members.find(x=>x.seat_no===2);
+  let cells='';for(const t of d.tasks||[]){cells+='<div class="cell '+String(t.status).toLowerCase()+(t.rescue_count>0?' rescue':'')+'">'+String(t.task_no).padStart(2,'0')+'</div>'}
+  const av=avatar(m1?.worker_code,m1?.current_task_no,m1?.current_task_no?'work':(m1?'idle':'wait'),1)+avatar(m2?.worker_code,m2?.current_task_no,m2?.current_task_no?'work':(m2?'idle':'wait'),2);
+  return '<section class="run" id="g'+num+'"><div class="shell">'+
+    '<div class="runhead"><div><div class="tag">'+d.status+' · GRID '+num+'</div><div class="name">'+d.run_id+'</div></div><div class="score">'+d.done+'</div></div>'+
+    '<div class="meta"><span><b>'+d.done+'/100</b> DONE</span><span><b>'+d.members+'/2</b> WORKERS</span><span><b>'+d.working+'</b> LEASED</span><span><b>'+dur(d.p50_ms)+'</b> P50</span><span><b>'+Number(d.throughput_5m||0).toFixed(1)+'</b>/MIN</span><span><b>'+(d.eta_minutes==null?'—':Number(d.eta_minutes).toFixed(1)+'m')+'</b> ETA</span></div>'+
+    '<div class="arena"><div class="grid">'+cells+'</div><div class="avatars">'+av+'</div></div>'+
+    '<div class="workers">'+workerRow(m1,1)+workerRow(m2,2)+'</div>'+
+    '<div class="foot"><span>'+(d.recent_events?.[0]?String(d.recent_events[0].event_type).replaceAll('_',' ')+' · '+age(d.recent_events[0].at):'esperando primer worker')+'</span><span>'+d.ready+' READY · '+d.rescued+' RESCATES</span></div>'+
+  '</div></section>';
+}
+function render(rows,sum){
+  current=rows;
+  $('runs').innerHTML=rows.map(renderRun).join('');
+  $('jump').innerHTML=rows.map((d,i)=>'<a href="#g'+d.run_id.slice(-2)+'" class="'+(d.members>0&&d.status!=='DONE'?'live':'')+'">'+String(i+1).padStart(2,'0')+'</a>').join('');
+  const joined=sum?.workers_joined??rows.reduce((a,d)=>a+d.members,0);
+  $('sumDone').textContent=sum?.tasks_done??rows.reduce((a,d)=>a+d.done,0);
+  $('sumWorkers').textContent=joined;
+  $('sumWorking').textContent=sum?.tasks_working??rows.reduce((a,d)=>a+d.working,0);
+  $('sumGrids').textContent=sum?.grids_done??rows.filter(d=>d.status==='DONE').length;
+  const left=Math.max(0,20-joined),b=$('copy');
+  if(left>0){b.disabled=false;b.textContent='COPIAR WORKER · '+left+' PLAZA'+(left===1?'':'S')}
+  else{b.disabled=true;b.textContent='COHORTE COMPLETA · 20/20'}
+}
+async function tick(){try{const [rows,sum]=await Promise.all([get('grid_batch_dashboard?select=*'),get('grid_batch_summary?select=*')]);render(rows,sum[0])}catch(e){}}
+$('copy').onclick=async()=>{
+  const b=$('copy');if(b.disabled)return;const old=b.textContent;b.textContent='COPIANDO…';
+  try{
+    if(!promptCache){const r=await fetch('./o/',{cache:'no-store'});const h=await r.text();const d=new DOMParser().parseFromString(h,'text/html');promptCache=d.querySelector('pre').textContent.trim()}
+    await navigator.clipboard.writeText(promptCache);b.textContent='✓ WORKER COPIADO';
+  }catch(e){b.textContent='ERROR · REINTENTÁ'}
+  setTimeout(()=>{b.textContent=old},1200)
+};
+tick();setInterval(tick,1200);
+})();
+</script>
+</body>
+</html>
