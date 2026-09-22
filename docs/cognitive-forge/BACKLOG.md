@@ -201,7 +201,7 @@
 174. **[DISENADO] Section Specifications.** Una especificación integrada por sección.
 175. **[DISENADO] System Spec global.** PROMETEO COGNITIVE FORGE SYSTEM SPEC.
 176. **[DISENADO] Contrato exacto de interfaces compactas.** Definir schema reusable. Spec ejecutable: `docs/cognitive-forge/BACKLOG-176-COMPACT-INTERFACE-SCHEMA-SPEC.md`.
-177. **[PENDIENTE] Integrador de sección.** Diseñar y ejecutar su Skill.
+177. **[HECHO] Integrador de sección.** `FORGE_SECTION_INTEGRATOR` v1 quedó ACTIVE/ACCEPTED con contrato versionado, `forge_section_integrator_result_validate`, fixture de promoción y smoke reproducible. Spec: `docs/cognitive-forge/BACKLOG-177-SECTION-INTEGRATOR-SKILL-SPEC.md`.
 178. **[PENDIENTE] Integrador global.** Diseñar y ejecutar la compilación final.
 179. **[DISENADO] System Spec → Build Graph.** Compilar conocimiento en trabajo de implementación.
 180. **[DISENADO] Generar tareas reales de implementación.** El sistema produce jobs técnicos a partir de la spec.
