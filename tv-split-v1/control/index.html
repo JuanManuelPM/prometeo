@@ -176,18 +176,18 @@ button{font:inherit;color:inherit}
 'use strict';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const FEED='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-public-feed-v1';
-const CONTROL_BUILD='44',CANONICAL='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
+const CONTROL_BUILD='45',CANONICAL='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const q=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_REMOTE='1f1a186a7bdc6aa3c9bfbf2016fed69d6b6cbf3066fab5ad8e122e25aa45c63e',DEFAULT_MEDIA='NZT8S9zPPRuTdUQUZK20jEvA-Nly6Ck4HUImnPuBsgQ';
 const room={code:q.get('room')||DEFAULT_ROOM,token:q.get('t')||DEFAULT_REMOTE,role:'remote'},mediaToken=q.get('k')||DEFAULT_MEDIA;
-const client='tv-editor-v44-'+Math.random().toString(36).slice(2,9);
+const client='tv-editor-v45-'+Math.random().toString(36).slice(2,9);
 const $=id=>document.getElementById(id),viewport=$('viewport'),timeline=$('timeline'),gridLayer=$('gridLayer'),eventLayer=$('eventLayer'),palette=$('palette'),dragTime=$('dragTime'),editWin=$('editWin');
 const labels={youtube:'YOUTUBE',clock:'RELOJ',page:'PÁGINA',black:'NEGRO'};
 const samples={youtube:{title:'YOUTUBE',payload:{mode:'session',queue:[],queue_index:0,video_id:'',auto_next:true}},clock:{title:'TIMER VISUAL 25/5',payload:{style:'time-mass-25-5'}},page:{title:'CALENDARIO',payload:{url:'https://juanmanuelpm.github.io/prometeo/experiments/tv-split-v1-sample-calendar.html'}},black:{title:'NEGRO',payload:{}}};
 const ytLatest=new Map(),ytByChannel=new Map(),watchedIds=new Set();
 let blocks=[],serverBlocks=[],selected=null,ppm=.7,cycleH=1000,loaded=false,rendering=false,saving=false;
 const dirtyBlocks=new Set(),pendingDeletes=new Set();
-const cacheKey='tv.program.editor.v44.'+room.code;
+const cacheKey='tv.program.editor.v45.'+room.code;
 let tvState=null,previewOpen=false,remoteLibrary=null,remoteOpen=false,remoteMuted=false,remoteUtilityOpen=false;
 
 function clone(x){return JSON.parse(JSON.stringify(x))}
@@ -206,8 +206,8 @@ async function stepRemote(delta){
   try{
     const lib=await api({action:'youtube_library'}),state=lib.state||{},queue=Array.isArray(state.queue)?state.queue:[];
     if(!queue.length)return toast('COLA VACÍA');
-    const cur=Math.max(0,Math.min(queue.length-1,Number(state.current_index)||0)),next=Math.max(0,Math.min(queue.length-1,cur+delta));
-    if(next===cur)return toast(delta>0?'FIN DE COLA':'INICIO DE COLA');
+    const id=String(state.current_video_id||''),cur=id?queue.findIndex(v=>String(v.video_id)===id):-1;
+    const next=cur<0?(delta>0?0:queue.length-1):(cur+delta+queue.length)%queue.length;
     remoteLibrary={...lib,state:{...state,current_index:next,current_video_id:String(queue[next]?.video_id||'')}};
     renderRemote();
     await api({action:'youtube_play_index',index:next});
@@ -238,11 +238,11 @@ function renderRemote(){
  if(w2)w2.style.display=muted?'none':'';
  if(x1)x1.style.display=muted?'':'none';
  if(x2)x2.style.display=muted?'':'none';
- const state=remoteLibrary?.state||{},queue=Array.isArray(state.queue)?state.queue:[],idx=Math.max(0,Math.min(Math.max(0,queue.length-1),Number(state.current_index)||0)),item=queue[idx]||null;
+ const state=remoteLibrary?.state||{},queue=Array.isArray(state.queue)?state.queue:[],currentId=String(state.current_video_id||''),idx=currentId?queue.findIndex(v=>String(v.video_id)===currentId):-1,item=idx>=0?queue[idx]:null;
  $('remoteVideo').textContent=item?.title||'Sin video activo';
- $('remoteMeta').textContent=queue.length?((idx+1)+' / '+queue.length+(item?.channel_title?' · '+item.channel_title:'')):'cola vacía';
+ $('remoteMeta').textContent=item?((idx+1)+' / '+queue.length+(item?.channel_title?' · '+item.channel_title:'')):(queue.length?(queue.length+' en cola'):'cola vacía');
  const canVideo=externalLive&&ys.length>0;
- toggle.disabled=!canVideo;mute.disabled=!canVideo;prev.disabled=!canVideo||!queue.length||idx<=0;next.disabled=!canVideo||!queue.length||idx>=queue.length-1;
+ toggle.disabled=!canVideo;mute.disabled=!canVideo;prev.disabled=queue.length<2;next.disabled=queue.length<2;
  text.textContent=outdated?'ACTUALIZACIÓN DISPONIBLE':(externalLive?(ys.length?'TV CONECTADA · YOUTUBE':'TV CONECTADA'):'TV SIN CONEXIÓN');
  $('remoteA11y').textContent=(playing?'Reproduciendo. ':'Pausado. ')+(item?.title||'Sin video')+'. '+(queue.length?((idx+1)+' de '+queue.length):'Cola vacía')
 }
