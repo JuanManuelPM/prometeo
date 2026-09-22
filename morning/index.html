@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Prometeo · Morning Report</title>
+<style>
+:root{--bg:#000;--fg:#f1ede4;--muted:#777168;--line:#25221d;--accent:#ff6a00}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--fg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{min-height:100dvh}.wrap{max-width:920px;margin:auto;padding:max(18px,env(safe-area-inset-top)) 16px max(40px,env(safe-area-inset-bottom))}
+header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-bottom:24px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:9px;font-weight:1000;font-size:22px;letter-spacing:-.05em}.mark{width:5px;height:27px;background:var(--accent)}
+.micro{font:850 9px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.hero{padding:28px 0 18px}.hero h1{font-size:clamp(46px,12vw,104px);line-height:.82;letter-spacing:-.075em;margin:0;font-weight:1000}.hero h1 span{color:var(--accent)}
+.hero p{margin:18px 0 0;color:#b9b2a7;font-weight:750;max-width:640px}
+.products{border-top:1px solid var(--line)}
+.product{padding:24px 0;border-bottom:1px solid var(--line)}
+.productHead{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start}.title{font-size:clamp(24px,5vw,42px);font-weight:1000;letter-spacing:-.055em;line-height:.95}
+.state{font:950 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;color:var(--accent);text-align:right}
+.progressRow{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;margin-top:18px}.track{height:8px;background:var(--line);overflow:hidden}.fill{height:100%;background:var(--accent)}.pct{font-size:22px;font-weight:1000;letter-spacing:-.04em}
+.stats{display:flex;gap:10px 20px;flex-wrap:wrap;margin-top:12px}.stat{font-size:12px;font-weight:800}.stat b{font-size:15px}
+.sheets{margin-top:18px;display:grid;gap:5px}.sheet{display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 0}.dot{width:7px;height:7px;border:1px solid var(--muted);border-radius:50%}.sheet.done .dot{background:var(--accent);border-color:var(--accent)}.sheetTitle{font-size:11px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sheetMeta{font:800 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);white-space:nowrap}
+.artifact{display:inline-block;margin-top:18px;color:var(--fg);text-decoration:none;border-bottom:2px solid var(--accent);font-weight:900;font-size:12px;padding-bottom:2px}
+.timeline{padding-top:26px}.timeline h2{margin:0 0 12px;font-size:16px;letter-spacing:-.025em}.event{display:grid;grid-template-columns:54px 74px 48px minmax(0,1fr);gap:7px;padding:5px 0;font:800 8px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;border-top:1px solid #131210}.event time{color:var(--muted)}.event .type{color:var(--accent)}.event .worker{color:#aaa399}.event .subject{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+footer{margin-top:26px;padding-top:14px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+@media(max-width:600px){.productHead{grid-template-columns:1fr}.state{text-align:left}.event{grid-template-columns:42px 64px 40px minmax(0,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="brand"><span class="mark"></span>PROMETEO</div>
+  <div class="micro" id="clock">TURN0 NOCTURNO</div>
+</header>
+
+<section class="hero">
+  <div class="micro">MORNING REPORT</div>
+  <h1><span id="doneCount">0</span>/<span id="totalCount">2</span> DONE</h1>
+  <p id="headline">Leyendo productos finitos, hojas, cross-fills y evidencia real.</p>
+</section>
+
+<section class="products" id="products"></section>
+
+<section class="timeline">
+  <h2>Actividad real</h2>
+  <div id="events"></div>
+</section>
+
+<footer>
+  <div class="micro" id="health">—</div>
+  <a class="artifact" href="../control/">ABRIR CONTROL</a>
+</footer>
+</div>
+<script>
+(()=>{
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const H={apikey:KEY,Authorization:'Bearer '+KEY};
+const $=id=>document.getElementById(id);
+async function get(p){const r=await fetch(BASE+p,{headers:H,cache:'no-store'});if(!r.ok)throw new Error(r.status);return r.json()}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function ageMin(n){if(n==null)return '—';n=Math.round(Number(n));return n<60?n+'m':Math.floor(n/60)+'h '+String(n%60).padStart(2,'0')+'m'}
+function render(products,sheets,events,startup,growth){
+  $('doneCount').textContent=products.filter(p=>p.status==='DONE').length;
+  $('totalCount').textContent=products.length;
+  const active=products.find(p=>p.status!=='DONE'&&p.status!=='QUEUED');
+  $('headline').textContent=active
+    ? active.title+' · '+active.status+' · '+active.sheets_done+'/'+active.sheets_total+' hojas'
+    : (products.every(p=>p.status==='DONE')?'Turno cerrado: todos los productos llegaron a DONE.':'Esperando siguiente producto finito.');
+  $('products').innerHTML=products.map(p=>{
+    const ps=sheets.filter(s=>s.product_id===p.product_id);
+    const pct=Number(p.sheet_progress_pct||0);
+    const sheetHtml=ps.map(s=>`<div class="sheet ${s.status==='DONE'?'done':''}">
+      <span class="dot"></span>
+      <span class="sheetTitle">${esc(s.title)}</span>
+      <span class="sheetMeta">${esc(s.status)} · ${s.distinct_workers||0}W</span>
+    </div>`).join('');
+    return `<article class="product">
+      <div class="productHead">
+        <div>
+          <div class="micro">${esc(p.product_id)}</div>
+          <div class="title">${esc(p.title)}</div>
+        </div>
+        <div class="state">${esc(p.status)}</div>
+      </div>
+      <div class="progressRow"><div class="track"><div class="fill" style="width:${Math.max(0,Math.min(100,pct))}%"></div></div><div class="pct">${pct.toFixed(0)}%</div></div>
+      <div class="stats">
+        <span class="stat"><b>${p.sheets_done}/${p.sheets_total}</b> hojas</span>
+        <span class="stat"><b>${p.sheets_crossfilled}/${p.sheets_crossfill_required}</b> cross-fill</span>
+        <span class="stat"><b>${p.distinct_workers}</b> workers</span>
+        <span class="stat"><b>${p.working_jobs}</b> trabajando</span>
+        <span class="stat"><b>${p.outputs}</b> outputs</span>
+        <span class="stat"><b>${ageMin(p.wall_minutes)}</b> pared</span>
+      </div>
+      <div class="sheets">${sheetHtml}</div>
+      ${p.artifact_url?`<a class="artifact" href="${esc(p.artifact_url)}">VER ARTEFACTO</a>`:''}
+    </article>`;
+  }).join('');
+  $('events').innerHTML=events.slice(0,18).map(e=>{
+    const d=new Date(e.at);const t=d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    return `<div class="event"><time>${t}</time><span class="type">${esc(e.event_type)}</span><span class="worker">${esc(e.worker_code||'SYS')}</span><span class="subject">${esc(e.product_id+' · '+e.subject)}</span></div>`;
+  }).join('')||'<div class="micro">sin eventos todavía</div>';
+  const start=startup?.startup_state||'—',gm=growth?.growth_mode||'—',fr=growth?.frontier_ratio??'—';
+  $('health').textContent='START '+start+' · GROWTH '+gm+' · FR '+fr;
+  $('clock').textContent=new Date(products[0]?.server_time||Date.now()).toLocaleTimeString();
+}
+async function tick(){
+ try{
+  const [p,s,e,h,g]=await Promise.all([
+   get('prometeo_morning_products?select=*&order=sequence_no.asc'),
+   get('prometeo_morning_sheets?select=*'),
+   get('prometeo_morning_timeline?select=*&order=at.desc&limit=30'),
+   get('prometeo_startup_health?select=*'),
+   get('prometeo_frontier_metrics?select=*')
+  ]);
+  render(p,s,e,h[0],g[0]);
+ }catch(err){$('health').textContent='REINTENTANDO · '+err.message}
+}
+tick();setInterval(tick,5000);
+})();
+</script>
+</body>
+</html>
