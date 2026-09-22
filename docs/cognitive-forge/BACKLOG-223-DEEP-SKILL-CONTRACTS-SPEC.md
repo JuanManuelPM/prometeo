@@ -75,6 +75,24 @@ Los límites de palabras son guardrails de forma, no una métrica de calidad.
 - `max_tool_calls`: límite de coordinación; no obliga a consumir herramientas.
 - `max_children`: expansión permitida sólo si aparece trabajo nuevo e independiente.
 
+### Presupuesto por operación · BACKLOG-18
+
+Cuando una Skill contiene varias operaciones cognitivas, `budget.operation_allocations` reparte longitud por función en vez de inflar un único total. Cada entrada declara `operation`, `min_words`, `target_words`, `max_words` y `purpose`.
+
+Ejemplo:
+
+```json
+{
+  "operation_allocations": [
+    {"operation":"OBSERVE","min_words":120,"target_words":180,"max_words":260,"purpose":"registrar evidencia sin interpretación"},
+    {"operation":"MODEL","min_words":180,"target_words":280,"max_words":420,"purpose":"construir el modelo causal"},
+    {"operation":"VERIFY","min_words":120,"target_words":180,"max_words":280,"purpose":"intentar falsar el resultado"}
+  ]
+}
+```
+
+Reglas runtime: `min <= target <= max` en cada operación; nombres únicos; si `operation_allocations` está presente, toda `required_operation` debe estar presupuestada; y la suma debe ser factible dentro del budget global. El presupuesto es un guardrail funcional, no una cuota que deba rellenarse con texto.
+
 Una ejecución fuera de `min_words/max_words` no debe publicarse como completa. Debe corregirse localmente primero, igual que OBEY-v2 hace con outputs de jobs.
 
 ## Perfiles iniciales
