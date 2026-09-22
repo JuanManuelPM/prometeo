@@ -8,6 +8,7 @@ Los puntos 1–4 de la sección histórica siguiente describen defectos del snap
 - recorta intervalos contra `t0_bound` con `greatest(event_at, t0_bound)`;
 - colapsa timestamps iguales mediante `row_number() over (partition by session_id, created_at ...)` antes de calcular `lead()`;
 - clasifica `PUBLISH_RESULT + RETRY_LENGTH/RETRY_CHILDREN` como WORK y `STALE_LEASE/WAIT/WAIT_TIMEOUT_CONTINUE/PARKED/PAUSED` como WAIT;
+- cuando `PUBLISH_RESULT + PUBLISHED_AND_NEXT` comparte timestamp con una transición WORK, usa `same_ts_has_work` para conservar ese intervalo en WORK en vez de atribuirlo a PUBLISH;
 - conserva el intervalo total calculando `other_ms` como residual no negativo del observado.
 
 El punto 5 está **parcialmente mitigado, no cerrado**: el view actual incorpora `prometeo_events` como fallback para los primeros hitos ENTER / JOB_ASSIGNED|RESCUE_ASSIGNED / JOB_COMPLETED, pero no reconstruye por esa vía todas las transiciones repetidas de WAIT o WORK que falten en `prometeo_worker_session_events`. Por eso la recomendación histórica de identidades de evento por ciclo/request sigue vigente para trazabilidad completa.
@@ -38,7 +39,7 @@ Use one explicit interval `[t0, end_at]`, where closed sessions use `closed_at` 
 
 Clip all pre-T0 backfill to zero. Any uncovered gap must be assigned to OTHER rather than existing only in the denominator. Percentages must divide by the exact conserved bucket sum / observed interval so `BOOT + COORDINATION + WAIT + WORK + PUBLISH + OTHER = observed_ms` (allowing at most rounding noise).
 
-State-aware bucket rules: WORK state and CHECKPOINT => WORK; PUBLISH request => PUBLISH only until its result; PUBLISH_RESULT RETRY_LENGTH/RETRY_CHILDREN => WORK; PUBLISH_RESULT STALE_LEASE/WAIT/PARKED/PAUSED => WAIT; WAIT/WAIT_RESULT non-WORK => WAIT; PREFLIGHT/ENTER/CONTRACT_COMPAT => COORDINATION.
+State-aware bucket rules: WORK state and CHECKPOINT => WORK; `PUBLISH_RESULT + PUBLISHED_AND_NEXT` at a timestamp that also contains WORK => WORK; PUBLISH request => PUBLISH only until its result; PUBLISH_RESULT RETRY_LENGTH/RETRY_CHILDREN => WORK; PUBLISH_RESULT STALE_LEASE/WAIT/PARKED/PAUSED => WAIT; WAIT/WAIT_RESULT non-WORK => WAIT; PREFLIGHT/ENTER/CONTRACT_COMPAT => COORDINATION.
 
 For historical backfill, union canonical `prometeo_events` transitions into the timing stream when the session-event record is missing: PARKED => WAIT, JOB_ASSIGNED/RESCUE_ASSIGNED => WORK, LEASE_EXPIRED/STALE_RESULT_REJECTED => WAIT, plus publish outcomes. Future event keys should include a request/sequence identity (wait cycle, lease fingerprint, or durable event id), not only agent+state, so repeated transitions remain observable.
 
