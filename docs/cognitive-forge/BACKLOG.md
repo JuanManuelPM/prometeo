@@ -133,7 +133,7 @@
 106. **[DISENADO] Taller vivo, no dashboard.** La visualización futura debe mostrar trabajo como acción física.
 107. **[DISENADO] Workers como piezas.** Grilla estable de presencia.
 108. **[DISENADO] Pulso de worker activo.** Animación mínima para actividad.
-109. **[DISENADO] Grafo físico central.** Tareas y dependencias como nodos espaciales.
+109. **[HECHO] Grafo físico central.** Tareas y dependencias como nodos espaciales.
 110. **[DISENADO] Brazo/línea worker→objeto.** Mostrar qué toca cada worker.
 111. **[DISENADO] Mano/pinza como acento.** Usarla sólo en tomar/depositar objetos importantes.
 112. **[DISENADO] Zona de Herramientas.** Espacio visual separado para Tools.
