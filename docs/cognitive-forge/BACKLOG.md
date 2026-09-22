@@ -144,7 +144,7 @@
 117. **[DISENADO] Nacimiento de candidata.** Una nueva pieza de conocimiento emerge desde el trabajo.
 118. **[DISENADO] Revisión visual.** Otro worker toma la candidata y la evalúa.
 119. **[DISENADO] Promoción visible.** La candidata aceptada entra a biblioteca permanente.
-120. **[DISENADO] Rechazo con historial.** El rechazo no borra procedencia ni evidencia.
+120. **[HECHO] Rechazo con historial.** `forge_knowledge_review_publish(...,'REJECT',...)` conserva reviewer, revisión y evidencia en `forge_knowledge_reviews`; `forge_knowledge_review_history` los recupera y el objeto queda `REJECTED`. Smoke: `REJECT_HISTORY_SMOKE_OK`. Primitive: `forge_independent_review_v1`.
 121. **[DISENADO] Vista global.** Primer nivel de inspección.
 122. **[DISENADO] Detalle de tarea.** Segundo nivel de inspección.
 123. **[DISENADO] Detalle de conocimiento.** Tercer nivel de inspección.
