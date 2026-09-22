@@ -137,7 +137,7 @@
 110. **[DISENADO] Brazo/línea worker→objeto.** Mostrar qué toca cada worker.
 111. **[DISENADO] Mano/pinza como acento.** Usarla sólo en tomar/depositar objetos importantes.
 112. **[DISENADO] Zona de Herramientas.** Espacio visual separado para Tools.
-113. **[DISENADO] Zona de Plumas.** Espacio visual separado para preguntas cognitivas.
+113. **[HECHO] Zona de Plumas.** Pixel Campus incorpora `PLUMAS · COGNITIVE`, un espacio físico separado para trabajo cognitivo live (Deep Skills/rethink/BACKLOG-207..218).
 114. **[DISENADO] Zona de Recipes.** Espacio visual separado para combinaciones.
 115. **[DISENADO] Subtareas nacen de su madre.** Mostrar causalidad visual.
 116. **[DISENADO] Rescate como transferencia.** Visualizar el paso de una tarea vencida a otro worker.
