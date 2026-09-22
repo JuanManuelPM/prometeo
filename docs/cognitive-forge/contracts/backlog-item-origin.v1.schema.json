@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://juanmanuelpm.github.io/prometeo/schemas/backlog-item-origin.v1.schema.json",
+  "title": "Prometeo Cognitive Forge backlog item origin v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema","author_kind","author_ref","source_ref","authored_at","recorded_at","confidence"],
+  "properties": {
+    "schema": { "const": "prometeo.backlog-item-origin/v1" },
+    "author_kind": { "enum": ["USER","WORKER","POST_HOC_ANALYSIS","UNKNOWN_LEGACY"] },
+    "author_ref": { "oneOf": [{"type":"string","minLength":1},{"type":"null"}] },
+    "source_ref": { "type":"string","minLength":1 },
+    "authored_at": { "oneOf": [{"type":"string","format":"date-time"},{"type":"null"}] },
+    "recorded_at": { "type":"string","format":"date-time" },
+    "confidence": { "enum": ["DIRECT","ATTRIBUTED","UNKNOWN"] }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "author_kind": { "const":"UNKNOWN_LEGACY" } }, "required":["author_kind"] },
+      "then": {
+        "properties": {
+          "author_ref": { "type":"null" },
+          "confidence": { "const":"UNKNOWN" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "author_kind": { "const":"USER" } }, "required":["author_kind"] },
+      "then": {
+        "properties": { "author_ref": { "const":"USER" } }
+      }
+    },
+    {
+      "if": { "properties": { "author_kind": { "enum":["WORKER","POST_HOC_ANALYSIS"] } }, "required":["author_kind"] },
+      "then": {
+        "properties": { "author_ref": { "type":"string","minLength":1 } }
+      }
+    }
+  ]
+}
