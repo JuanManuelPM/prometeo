@@ -20,6 +20,7 @@ header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:2px s
 .metric{text-align:center;padding:7px 4px;border-right:1px solid var(--soft)}
 .metric:last-child{border-right:0}
 .metric b{display:block;font-size:17px}
+.metric small{display:block;margin-top:2px;font:800 7px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);letter-spacing:.03em;text-transform:uppercase;white-space:nowrap}
 .metric span{display:block;font-size:8px;font-weight:1000;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 section{padding:10px}
 .sectionTitle{font-size:10px;font-weight:1000;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin:0 0 7px 2px}
@@ -106,7 +107,7 @@ dialog::backdrop{background:rgba(0,0,0,.46)}
   <div class="metric"><b id="active">0</b><span>trabajando</span></div>
   <div class="metric"><b id="rescues">0</b><span>rescates</span></div>
   <div class="metric"><b id="elapsed">0 s</b><span>tiempo</span></div>
-  <div class="metric" id="etaMetric"><b id="eta">—</b><span>ETA</span></div>
+  <div class="metric" id="etaMetric"><b id="eta">—</b><span>ETA</span><small id="etaConfidence">sin muestras</small></div>
  </div>
 </header>
 
@@ -263,6 +264,12 @@ function estimator(){
  const eta=Number.isFinite(simulatedEta)?simulatedEta:fallbackEta;
  return {progress,eta,ready:Number.isFinite(eta),partial,source:Number.isFinite(simulatedEta)?'scheduler':'current'};
 }
+function etaConfidence(est){
+ const current=D.jobs.filter(j=>j.status==='DONE').length;
+ const n=est.source==='history'?historyRuns:current;
+ const band=n<3?'muy baja':n<6?'baja':n<12?'media':'alta';
+ return {n,band,label:est.ready?('confianza '+band+' · n='+n+(est.source==='history'?' runs hist.':' jobs')):('confianza — · n='+n)};
+}
 function phaseName(p){return ['','Arquitectura','Desarrollo','Adversarial','Canónico','Aprendizaje'][p]}
 function renderWorkers(){
  const root=$('workers');root.innerHTML='';
@@ -385,7 +392,8 @@ function renderStats(){
  $('progressW').textContent=pct;
  $('progressMetric').title='Ponderado por midpoint de min_words/max_words. DONE suma 100%; LEASED aporta estimación temporal basada en duración histórica, con cap 90%.';
  $('eta').textContent=est.eta===0?'listo':(est.ready?fmt(est.eta):'—');
- $('etaMetric').title=est.ready?(est.source==='scheduler'?'ETA = simulación JavaScript de cola restante: cadenas por punto, capacidad de workers, jobs activos y duraciones observadas.':est.source==='history'?'ETA inicial desde '+historyRuns+' run(s) histórico(s) completado(s); migra al run actual al llegar a evidencia suficiente.':'ETA fallback = presupuesto ponderado restante / throughput DONE observado desde started_at.'):'Sin evidencia temporal suficiente para proyectar.';
+ const conf=etaConfidence(est);$('etaConfidence').textContent=conf.label;
+ $('etaMetric').title=(est.ready?(est.source==='scheduler'?'ETA = simulación JavaScript de cola restante: cadenas por punto, capacidad de workers, jobs activos y duraciones observadas.':est.source==='history'?'ETA inicial desde '+historyRuns+' run(s) histórico(s) completado(s); migra al run actual al llegar a evidencia suficiente.':'ETA fallback = presupuesto ponderado restante / throughput DONE observado desde started_at.'):'Sin evidencia temporal suficiente para proyectar.')+' La banda de confianza es una heurística monotónica por cantidad de muestras, no un intervalo estadístico.';
  $('active').textContent=D.jobs.filter(x=>x.status==='LEASED').length;
  $('rescues').textContent=D.jobs.reduce((a,x)=>a+(x.rescue_count||0),0);
  let ms=0;if(p?.started_at)ms=new Date(p.finished_at||Date.now())-new Date(p.started_at);
