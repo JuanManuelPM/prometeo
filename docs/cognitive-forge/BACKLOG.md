@@ -156,7 +156,7 @@
 129. **[DISENADO] Peso por fase.** Cada fase vale según trabajo esperado.
 130. **[DISENADO] Peso Architect ~13,8%.** Estimación inicial dentro de un punto.
 131. **[DISENADO] Peso Development ~28,8%.** Estimación inicial dentro de un punto.
-132. **[DISENADO] Peso Adversarial ~15,4%.** Estimación inicial dentro de un punto.
+132. **[HECHO] Peso Adversarial ~15,4%.** Verificado en `FORGE-BLUEPRINT-84-01`: midpoints por fase 1800/3750/2000/4250/1200 palabras; total 13.000 y ADVERSARIAL 2.000/13.000 = 15,38%. Límite live de fase 3: 1600–2400.
 133. **[DISENADO] Peso Canonical ~32,7%.** Estimación inicial dentro de un punto.
 134. **[DISENADO] Peso Learning ~9,2%.** Estimación inicial dentro de un punto.
 135. **[DISENADO] Dos porcentajes.** Mostrar puntos completos y trabajo estimado completo.
