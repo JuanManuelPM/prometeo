@@ -10,11 +10,11 @@
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 body{position:relative}
-#stats{position:absolute;z-index:30;right:2.2vw;top:2vh;display:flex;gap:1.2vw;align-items:baseline;padding:.55em .7em;background:#050505d9;font:1000 clamp(11px,1.25vw,18px)/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.06em}
+#stats{position:absolute;z-index:30;right:2.4vw;top:2.4vh;display:flex;gap:2vw;align-items:baseline;padding:.55em .72em;background:#050505e8;border:1px solid #29251f;font:1000 clamp(18px,2.25vw,42px)/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.035em}
 #stats .work{color:var(--live)}#stats .dead{color:var(--dead)}
-#idle{position:absolute;inset:0;background:var(--bg);opacity:1;transition:opacity .5s}
+#idle{position:absolute;inset:0;background:var(--bg);opacity:1;transition:opacity .5s;padding:11vh 2.1vw 2.8vh}
 #idle.off{opacity:0;pointer-events:none}
-#idleMark{position:absolute;right:2.2vw;bottom:2.2vh;color:#211f1c;font:1000 clamp(10px,1vw,15px)/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em}
+#idleMark{position:absolute;left:2.2vw;top:2.8vh;color:#f2eee6;font:1000 clamp(18px,2.4vw,44px)/.95 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.04em}#idleMark small{display:block;margin-top:.45em;color:#706a62;font-size:.38em;letter-spacing:.14em}#idleWall{height:100%;opacity:.62}#idleWall .mini{border-top-color:#3a342d}#idleWall .cell{border-color:#38322c;background:#0d0b09}
 #active{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .5s}
 #active.on{opacity:1;pointer-events:auto}
 .scene{position:absolute;inset:0;padding:2vh 2.1vw 2.2vh;opacity:0;transform:translateY(3%);transition:opacity .6s,transform .75s cubic-bezier(.2,.8,.2,1)}
@@ -46,6 +46,8 @@ body{position:relative}
 .bot.dead:before{box-shadow:0 0 0 2px var(--dead);background:#6d625d}
 #total{position:absolute;left:2.1vw;bottom:1.7vh;z-index:20;color:var(--muted);font:1000 clamp(8px,.85vw,12px)/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em}
 @media(max-width:720px),(max-aspect-ratio:1.15/1){
+ #stats{right:3vw;top:2vh;font-size:clamp(18px,5.2vw,30px);gap:3vw}
+ #idle{padding:13vh 3vw 3vh}#idleMark{left:3vw;top:2.4vh;font-size:clamp(22px,7vw,38px)}
  .wall{grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(5,1fr);gap:1vh 1.5vw}
  .hero{grid-template-columns:1fr}.side{position:absolute;right:3vw;bottom:4vh;height:auto;width:32vw;background:#050505e8;padding:1.5vw;border-left:1px solid var(--line)}
  .workerList{display:none}.big{font-size:clamp(42px,16vw,100px)}
@@ -55,7 +57,7 @@ body{position:relative}
 </head>
 <body>
 <div id="stats"><span class="work"><b id="workCount">0</b> WORK</span><span class="dead"><b id="deadCount">0</b> DEAD</span></div>
-<section id="idle"><div id="idleMark">10 × 100 · ARMED</div></section>
+<section id="idle"><div id="idleMark">10 × 100<small>ARMED · ESPERANDO WORKERS</small></div><div class="wall" id="idleWall"></div></section>
 <section id="active">
   <div class="scene on" id="wallScene"><div class="wall" id="wall"></div></div>
   <div class="scene" id="heroScene">
@@ -113,12 +115,14 @@ function render(){
  const c=statusCounts();
  $('workCount').textContent=c.work;$('deadCount').textContent=c.dead;
  const visible=experimentVisible();
+ const wallHtml=rows.map((d,i)=>'<article class="mini"><div class="minihead"><strong>G'+String(i+1).padStart(2,'0')+'</strong><b>'+Number(d.done||0)+'</b></div><div class="grid">'+gridHtml(d,false)+'</div></article>').join('');
+ $('idleWall').innerHTML=wallHtml;
  if(visible)hadExperiment=true;
  $('idle').classList.toggle('off',visible);
  $('active').classList.toggle('on',visible);
  if(!visible)return;
 
- $('wall').innerHTML=rows.map((d,i)=>'<article class="mini"><div class="minihead"><strong>G'+String(i+1).padStart(2,'0')+'</strong><b>'+Number(d.done||0)+'</b></div><div class="grid">'+gridHtml(d,false)+'</div></article>').join('');
+ $('wall').innerHTML=wallHtml;
  const totalDone=rows.reduce((a,d)=>a+Number(d.done||0),0);
  $('totalDone').textContent=totalDone;
  $('gridDone').textContent=rows.filter(d=>String(d.status).toUpperCase()==='DONE'||Number(d.done||0)>=100).length;
