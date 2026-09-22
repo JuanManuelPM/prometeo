@@ -33,7 +33,7 @@ button.on{background:var(--paper);color:#080807;border-color:var(--paper)}
 <canvas id="game" aria-label="Mundo físico de workers de Prometeo"></canvas>
 <div class="hud">
  <div class="brand"><i class="mark"></i><div><h1>PROMETEO</h1><small id="modeSub">pixel campus · conectando runtime</small></div></div>
- <div class="kpi"><b id="work">54%</b><span>trabajo</span></div>
+ <div class="kpi"><b id="work">54%</b><span>progreso</span></div>
  <div class="kpi"><b id="eta">2m18</b><span>ciclo</span></div>
  <div class="kpi"><b id="alive">88</b><span>vivos</span></div>
  <div class="kpi"><b id="off">12</b><span>morgue</span></div>
@@ -362,12 +362,22 @@ function drawRace(t){
  ranks.forEach((id,i)=>{const a=agents[id],v=history[leaders.indexOf(id)].at(-1),y=1030+i*27;drawText(String(i+1).padStart(2,'0'),105,y,8,'#777169');drawSprite({...a,x:145,y:y+7,state:'parked'},t,1);drawText(a.code,170,y,8,a.color);drawText(v.toLocaleString('es-AR'),900,y,8,a.color,'right')})
 }
 function updateParticles(dt){for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=55*dt;if(p.life<=0)particles.splice(i,1)}}
+function weightedFrontProgress(s){
+ const total=Math.max(0,Number(s&&s.front_total)||0),done=Math.max(0,Number(s&&s.front_done)||0);
+ if(!total)return 0;
+ const partial=
+   Math.max(0,Number(s&&s.phase_work)||0)*.45+
+   Math.max(0,Number(s&&s.phase_checkpoint)||0)*.65+
+   Math.max(0,Number(s&&s.phase_publish)||0)*.80+
+   Math.max(0,Number(s&&s.phase_next)||0)*.90;
+ return clamp((done+partial)/total*100,0,100);
+}
 function hud(){
  if(liveMode){
   const active=agents.filter(a=>!a.departedAt&&a.state!=='dead').length,sec=Math.max(0,Number(liveSummary&&liveSummary.eta_seconds)||0);
   $('alive').textContent=active;
   $('off').textContent=Number(liveSummary&&liveSummary.dead_count)||0;
-  $('work').textContent=(Number(liveSummary&&liveSummary.work_pct)||0).toFixed(0)+'%';
+  $('work').textContent=weightedFrontProgress(liveSummary).toFixed(0)+'%';
   $('eta').textContent=sec<60?Math.round(sec)+'s':Math.floor(sec/60)+'m'+String(Math.round(sec%60)).padStart(2,'0');
   return;
  }
