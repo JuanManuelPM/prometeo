@@ -92,7 +92,7 @@
 65. **[HECHO] Tool resident wait.** Esperar trabajo sin terminar chat.
 66. **[HECHO] Tool knowledge promotion.** Candidato, revisión y promoción de conocimiento.
 67. **[DISENADO] Madurez del conocimiento.** CANDIDATE, REVIEWING, ACCEPTED, REJECTED y SUPERSEDED.
-68. **[PENDIENTE] Revisión independiente real.** Nuevas Plumas/Herramientas deben ser revisadas por otro worker.
+68. **[DISENADO] Revisión independiente real.** Nuevas Plumas/Herramientas deben ser revisadas por otro worker. Spec ejecutable: `docs/cognitive-forge/BACKLOG-068-INDEPENDENT-REVIEW-SPEC.md`.
 69. **[PENDIENTE] Promoción automática con evidencia.** Promover sólo después de pruebas suficientes.
 70. **[DISENADO] Medir utilidad histórica.** Registrar qué objetos cognitivos realmente ayudaron. Spec ejecutable: `docs/cognitive-forge/BACKLOG-070-HISTORICAL-UTILITY-SPEC.md`.
 71. **[HECHO] 84 puntos online.** Los 84 pasos fueron convertidos en objetos independientes.
