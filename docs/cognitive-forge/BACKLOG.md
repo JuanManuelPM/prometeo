@@ -142,7 +142,7 @@
 115. **[DISENADO] Subtareas nacen de su madre.** Mostrar causalidad visual.
 116. **[DISENADO] Rescate como transferencia.** Visualizar el paso de una tarea vencida a otro worker.
 117. **[DISENADO] Nacimiento de candidata.** Una nueva pieza de conocimiento emerge desde el trabajo.
-118. **[DISENADO] Revisión visual.** Otro worker toma la candidata y la evalúa.
+118. **[HECHO] Revisión visual.** Pixel Campus enruta jobs de review/revisión a REVIEW TABLE; el reviewer se desplaza físicamente hacia una candidata marcada como objeto C y queda enlazado a ella. Evidencia: `demos/prometeo-pixel-world/index.html`, commit `2bf729c049702d61599d28af57c04476f43204f5`.
 119. **[DISENADO] Promoción visible.** La candidata aceptada entra a biblioteca permanente.
 120. **[HECHO] Rechazo con historial.** `forge_knowledge_review_publish(...,'REJECT',...)` conserva reviewer, revisión y evidencia en `forge_knowledge_reviews`; `forge_knowledge_review_history` los recupera y el objeto queda `REJECTED`. Smoke: `REJECT_HISTORY_SMOKE_OK`. Primitive: `forge_independent_review_v1`.
 121. **[DISENADO] Vista global.** Primer nivel de inspección.
