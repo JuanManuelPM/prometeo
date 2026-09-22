@@ -459,6 +459,24 @@ function snap(i,smooth=true){
 }
 
 let timer=null,raf=false;
+let touchStartIndex=0;
+let touchStartLeft=0;
+let touching=false;
+
+function finishTouch(){
+  if(!touching) return;
+  touching=false;
+  clearTimeout(timer);
+
+  const delta=rail.scrollLeft-touchStartLeft;
+  const width=items[touchStartIndex]?.offsetWidth||innerWidth*.5;
+  const threshold=Math.max(18,Math.min(48,width*.12));
+  const step=Math.abs(delta)>=threshold?(delta>0?1:-1):0;
+  const next=Math.max(0,Math.min(items.length-1,touchStartIndex+step));
+
+  snap(next,true);
+}
+
 rail.addEventListener("scroll",()=>{
   if(!raf){
     raf=true;
@@ -467,18 +485,19 @@ rail.addEventListener("scroll",()=>{
       raf=false;
     });
   }
+  if(touching) return;
   clearTimeout(timer);
   timer=setTimeout(()=>snap(nearest(),true),90);
 },{passive:true});
 
-rail.addEventListener("touchend",()=>{
+rail.addEventListener("touchstart",()=>{
+  touching=true;
   clearTimeout(timer);
-  timer=setTimeout(()=>snap(nearest(),true),80);
+  touchStartIndex=nearest();
+  touchStartLeft=rail.scrollLeft;
 },{passive:true});
-rail.addEventListener("pointerup",()=>{
-  clearTimeout(timer);
-  timer=setTimeout(()=>snap(nearest(),true),80);
-},{passive:true});
+rail.addEventListener("touchend",finishTouch,{passive:true});
+rail.addEventListener("touchcancel",finishTouch,{passive:true});
 
 dots.forEach((d,i)=>d.addEventListener("click",()=>snap(i,true)));
 addEventListener("resize",()=>snap(nearest(),false));
