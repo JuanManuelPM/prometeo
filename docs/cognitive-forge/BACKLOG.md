@@ -210,7 +210,7 @@
 183. **[DISENADO] Revisión posterior.** Separar constructor y revisor cuando sea posible.
 184. **[DISENADO] Promoción posterior.** Sólo cambios validados llegan a producción.
 185. **[CONCEPTO] Bootstrap cognitivo.** Idea → Blueprint → Spec → Build → Test → Promote → sistema mejor.
-186. **[PENDIENTE] Trazabilidad spec→cambio.** Cada cambio técnico debe rastrearse al punto que lo originó.
+186. **[HECHO] Trazabilidad spec→cambio.** Vista `public.prometeo_control_spec_change_trace` implementada: une `frontier_source_key`/`source_ref` con referencias de artefacto, commit, migración o cambio y marca implementaciones sin referencia explícita. Migración: `supabase/migrations/20260922042200_frontier_spec_change_traceability_v1.sql`.
 187. **[PENDIENTE] Aislamiento y rollback.** Definir cómo probar y revertir builds generados por workers.
 188. **[DISENADO] Skill INSPECT_RUN.** Leer configuración, workers, jobs, outputs, eventos y métricas.
 189. **[DISENADO] Skill DIAGNOSE_COORDINATION.** Detectar stalls, concentración, ancho insuficiente y fallos.
