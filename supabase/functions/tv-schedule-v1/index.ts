@@ -284,7 +284,7 @@ Deno.serve(async(req:Request)=>{try{
   if(role!=="remote")fail("REMOTE_REQUIRED",403);
   if(action==="command"){
     const command=String(b.command||"");
-    if(!["play","pause","toggle","mute","unmute","refresh_panel","reload_when_idle","reload_now","widget_previous","widget_next","widget_toggle","widget_reset"].includes(command))fail("COMMAND_INVALID");
+    if(!["play","pause","toggle","mute","unmute","refresh_panel","reload_when_idle","reload_now","widget_previous","widget_next","widget_toggle","widget_reset","seek_relative"].includes(command))fail("COMMAND_INVALID");
     const payload={command,block_id:String(b.block_id||"").slice(0,80),value:b.value??null,at:new Date().toISOString()};
     const q=await db.from("prometeo_tv_events").insert({room_id:room.id,source:"remote",client_id:clientId||null,event_type:"player.command",payload}).select("id").single();
     if(q.error)throw q.error;
