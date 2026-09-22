@@ -60,6 +60,28 @@ A successor Guide must inherit not only current state but the durable criteria u
 
 Failure to recover these answers is incomplete Guide succession for architecture work, even if factual state recovery is correct.
 
+## 2B. Guide Mesh governance succession
+
+When `prometeo_guide_mesh_context()` exposes a coordinator policy, a fresh/replacement Guide must recover:
+- current coordinator Guide/agent;
+- its own role (COORDINATOR or EXECUTOR);
+- pending Work Traces and approvals;
+- active claims;
+- shared Guide metrics;
+- latest human directives affecting governance.
+
+Equal cognitive capability does not imply equal mutation authority.
+
+Under `COORDINATOR_GATED`:
+- read-only analysis and OBSERVATION publication remain free;
+- material mutation requires `prometeo_guide_mesh_work_start` + coordinator approval + CLAIM;
+- all Guides use `prometeo_guide_mesh_work_finish` so reasoning summary, explicit questions, actions and word-count metrics remain comparable;
+- never store or request private chain-of-thought; persist concise decision rationale only.
+
+Canonical refs:
+- `coordination/guide/GUIDE_MESH_GOVERNANCE_V1.md`
+- `coordination/guide/GUIDE_WORK_TRACE_SCHEMA_V1.json`
+
 ## 3. Preserve the actual autonomy gap
 
 Do not reduce the open problem to worker count, queue size or Page Thread Bridge alone.
