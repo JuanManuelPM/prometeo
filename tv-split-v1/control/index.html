@@ -194,18 +194,18 @@ button{font:inherit;color:inherit}
 'use strict';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const FEED='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-public-feed-v1';
-const CONTROL_BUILD='46',CANONICAL='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
+const CONTROL_BUILD='47',CANONICAL='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const q=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_REMOTE='1f1a186a7bdc6aa3c9bfbf2016fed69d6b6cbf3066fab5ad8e122e25aa45c63e',DEFAULT_MEDIA='NZT8S9zPPRuTdUQUZK20jEvA-Nly6Ck4HUImnPuBsgQ';
 const room={code:q.get('room')||DEFAULT_ROOM,token:q.get('t')||DEFAULT_REMOTE,role:'remote'},mediaToken=q.get('k')||DEFAULT_MEDIA;
-const client='tv-editor-v46-'+Math.random().toString(36).slice(2,9);
+const client='tv-editor-v47-'+Math.random().toString(36).slice(2,9);
 const $=id=>document.getElementById(id),viewport=$('viewport'),timeline=$('timeline'),gridLayer=$('gridLayer'),eventLayer=$('eventLayer'),palette=$('palette'),dragTime=$('dragTime'),editWin=$('editWin');
 const labels={youtube:'YOUTUBE',clock:'RELOJ',page:'PÁGINA',black:'NEGRO'};
 const samples={youtube:{title:'YOUTUBE',payload:{}},clock:{title:'TIMER VISUAL 25/5',payload:{style:'time-mass-25-5',focus_minutes:25,break_minutes:5}},page:{title:'CALENDARIO',payload:{url:'https://juanmanuelpm.github.io/prometeo/experiments/tv-split-v1-sample-calendar.html',display:{profile:'flex',position:'auto'},control:{label:'CALENDARIO',actions:['previous','next','refresh']}}},black:{title:'NEGRO',payload:{}}};
 const ytLatest=new Map(),ytByChannel=new Map(),watchedIds=new Set();
 let blocks=[],serverBlocks=[],selected=null,ppm=.7,cycleH=1000,loaded=false,rendering=false,saving=false;
 const dirtyBlocks=new Set(),pendingDeletes=new Set();
-const cacheKey='tv.program.editor.v46.'+room.code;
+const cacheKey='tv.program.editor.v47.'+room.code;
 let tvState=null,previewOpen=false,remoteLibrary=null,remoteOpen=false,remoteMuted=false,remoteUtilityOpen=false,remoteRenderSig='',contextSaveTimer=0;
 
 function clone(x){return JSON.parse(JSON.stringify(x))}
@@ -216,7 +216,7 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('show'),1200)}
 async function api(body){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:room.code,role:'remote',token:room.token,client_id:client,...body}),cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||'ERROR');return d}
 function activeRemoteTarget(){return String(tvState?.active_youtube_ids?.[0]||'')}
-async function sendRemote(command){try{await api({action:'command',command,block_id:activeRemoteTarget()})}catch(e){toast(String(e.message||e))}}
+async function sendRemote(command,value=null){try{await api({action:'command',command,block_id:activeRemoteTarget(),value})}catch(e){toast(String(e.message||e))}}
 async function loadRemoteLibrary(){
   try{remoteLibrary=await api({action:'youtube_library'});remoteLibrary._fetched_at=Date.now();renderRemote()}catch{remoteLibrary=null;renderRemote()}
 }
@@ -253,7 +253,9 @@ function icon(name){
   refresh:'<svg viewBox="0 0 32 32"><path d="M25 12a10 10 0 1 0 1 8"/><path d="M25 6v7h-7"/></svg>',
   open:'<svg viewBox="0 0 32 32"><path d="M12 8H7v17h17v-5"/><path d="M15 17 26 6M18 6h8v8"/></svg>',
   reset:'<svg viewBox="0 0 32 32"><path d="M9 10H4v-5"/><path d="M5 10a11 11 0 1 1-1 11"/></svg>',
-  toggle:'<svg viewBox="0 0 32 32"><path d="M11 8l13 8-13 8z"/></svg>'
+  toggle:'<svg viewBox="0 0 32 32"><path d="M11 8l13 8-13 8z"/></svg>',
+  back15:'<svg viewBox="0 0 32 32"><path d="M11 8H5v6"/><path d="M6 13a11 11 0 1 1-1 8"/><text x="16" y="20" text-anchor="middle" style="fill:currentColor;stroke:none;font:700 8px Arial">15</text></svg>',
+  forward15:'<svg viewBox="0 0 32 32"><path d="M21 8h6v6"/><path d="M26 13a11 11 0 1 0 1 8"/><text x="16" y="20" text-anchor="middle" style="fill:currentColor;stroke:none;font:700 8px Arial">15</text></svg>'
  };return m[name]||m.open
 }
 function contextOpenUrl(b){
@@ -266,8 +268,8 @@ function renderInstrument(b,playing,muted,queue,idx){
  if(!b)return '<div class="instEmpty">TOCÁ UN EVENTO PARA CONTROLARLO</div>';
  if(b.kind==='youtube'){
   return '<div class="instDeck">'+
-   '<div class="instWell"><button class="instRound" data-remote-action="yt-prev" aria-label="Anterior">'+icon('prev')+'</button><div class="instCapsule"><button class="instSegment lit" data-remote-action="yt-toggle" aria-label="'+(playing?'Pausar':'Reproducir')+'">'+icon(playing?'pause':'play')+'</button><button class="instSegment" data-remote-action="yt-next" aria-label="Siguiente">'+icon('next')+'</button></div></div>'+
-   '<div class="instWell compact"><button class="instRound '+(!muted?'lit':'')+'" data-remote-action="yt-mute" aria-label="'+(muted?'Activar sonido':'Silenciar')+'">'+icon(muted?'mute':'sound')+'</button><button class="instAction" data-remote-action="open-app">'+icon('open')+'<span>BIBLIOTECA</span></button></div>'+
+   '<div class="instWell"><button class="instRound" data-remote-action="yt-prev" aria-label="Video anterior">'+icon('prev')+'</button><div class="instCapsule"><button class="instSegment lit" data-remote-action="yt-toggle" aria-label="'+(playing?'Pausar':'Reproducir')+'">'+icon(playing?'pause':'play')+'</button><button class="instSegment" data-remote-action="yt-next" aria-label="Siguiente video">'+icon('next')+'</button></div></div>'+
+   '<div class="instWell compact"><button class="instRound" data-remote-action="yt-back15" aria-label="Retroceder 15 segundos">'+icon('back15')+'</button><div class="instCapsule"><button class="instSegment" data-remote-action="yt-forward15" aria-label="Adelantar 15 segundos">'+icon('forward15')+'</button><button class="instSegment '+(!muted?'lit':'')+'" data-remote-action="yt-mute" aria-label="'+(muted?'Activar sonido':'Silenciar')+'">'+icon(muted?'mute':'sound')+'</button></div></div>'+
   '</div>'
  }
  if(b.kind==='clock'){
@@ -292,7 +294,7 @@ function renderRemote(){
  const dock=$('remoteDock'),text=$('remoteText'),update=$('remoteUpdate'),b=contextBlock();
  dock.classList.remove('live','available','stale');
  const age=tvState?.updated_at?Date.now()-new Date(tvState.updated_at).getTime():Infinity;
- const externalLive=age<4500,build=String(tvState?.build||''),outdated=externalLive&&build&&build!=='23';
+ const externalLive=age<4500,build=String(tvState?.build||''),outdated=externalLive&&build&&build!=='24';
  update.classList.toggle('show',outdated);
  dock.classList.add(externalLive?'live':'available');
  const player=currentRemotePlayer(),playing=Number(player?.state)===1,muted=!!player?.muted;remoteMuted=muted;
@@ -497,6 +499,8 @@ $('remoteInstrument').onclick=async e=>{
  if(a==='yt-next')return stepRemote(1);
  if(a==='yt-toggle'){const p=currentRemotePlayer();return sendRemote(Number(p?.state)===1?'pause':'play')}
  if(a==='yt-mute')return sendRemote(remoteMuted?'unmute':'mute');
+ if(a==='yt-back15')return sendRemote('seek_relative',-15);
+ if(a==='yt-forward15')return sendRemote('seek_relative',15);
  if(a==='open-app'){const u=contextOpenUrl(b);if(u)location.href=u;return}
  if(a==='clock-preset')return cycleClockPreset();
  if(a==='focus-minus')return adjustClock('focus',-1);
