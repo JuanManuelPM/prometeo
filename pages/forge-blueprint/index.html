@@ -24,7 +24,7 @@ header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:2px s
 section{padding:10px}
 .sectionTitle{font-size:10px;font-weight:1000;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin:0 0 7px 2px}
 .workers{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:5px}
-.worker{border:2px solid var(--ink);background:var(--paper);padding:7px;min-height:79px}
+.worker{border:2px solid var(--ink);background:var(--paper);padding:7px;min-height:79px;position:relative}
 .wcode{font-size:17px;font-weight:1000}
 .wstate{font-size:8px;font-weight:1000;letter-spacing:.06em;text-transform:uppercase;margin-top:3px}
 .wtask{font-size:9px;font-weight:900;color:var(--muted);margin-top:8px;line-height:1.2}
@@ -44,6 +44,13 @@ section{padding:10px}
 .phase.done{background:var(--ink);border-color:var(--ink)}
 .phase.live{animation:pulse .7s infinite alternate;background:#777}
 .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;font-size:8px;font-weight:950;color:var(--muted)}
+.gripAccent{position:absolute;right:7px;top:7px;width:28px;height:18px;pointer-events:none;z-index:4;animation:gripAccent .72s ease-out both}
+.gripAccent::before,.gripAccent::after{content:"";position:absolute;top:2px;width:9px;height:14px;border:2px solid var(--ink)}
+.gripAccent::before{left:0;border-right:0}
+.gripAccent::after{right:0;border-left:0}
+.gripAccent i{position:absolute;left:11px;top:6px;width:6px;height:6px;background:var(--ink)}
+.gripAccent.deposit{transform:rotate(180deg)}
+@keyframes gripAccent{0%{opacity:0;transform:scale(1.22)}18%{opacity:1;transform:scale(.88)}48%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1)}}
 .badge{position:fixed;right:9px;bottom:9px;background:var(--ink);color:var(--paper);padding:7px 9px;font-size:9px;font-weight:1000;letter-spacing:.1em;text-transform:uppercase;z-index:30}
 dialog{width:min(960px,calc(100vw - 18px));max-height:90dvh;border:2px solid var(--ink);padding:0;background:var(--paper);color:var(--ink)}
 dialog::backdrop{background:rgba(0,0,0,.46)}
@@ -105,7 +112,7 @@ const H={apikey:KEY,Authorization:'Bearer '+KEY};
 const $=id=>document.getElementById(id);
 $('bid').textContent=BP;
 $('close').onclick=()=>$('dialog').close();
-let D={project:null,points:[],jobs:[],outputs:[],workers:[]},signature='';
+let D={project:null,points:[],jobs:[],outputs:[],workers:[]},signature='',jobState=new Map(),jobStatePrimed=false;
 
 async function get(path){
  const r=await fetch(URL+'/rest/v1/'+path,{headers:H,cache:'no-store'});
@@ -138,7 +145,7 @@ function renderWorkers(){
   const code='K'+String(i).padStart(3,'0'),w=D.workers.find(x=>x.worker_code===code);
   const live=w&&['WAITING','WORKING'].includes(w.status);
   const task=w?.status==='WORKING'?'P'+String(w.current_point_no).padStart(2,'0')+' · '+phaseName(w.current_phase):(w?.status==='WAITING'?'esperando':(w?.status==='DONE'?'terminado':'—'));
-  const c=document.createElement('div');c.className='worker';
+  const c=document.createElement('div');c.className='worker';c.dataset.worker=code;
   c.innerHTML='<div class="wcode">'+code+'</div><div class="wstate '+(live?'live':'')+'">'+(w?.status||'offline')+'</div><div class="wtask">'+esc(task)+'</div>';
   root.appendChild(c);
  }
@@ -156,7 +163,7 @@ function renderPoints(){
   const grid=block.querySelector('.grid');
   pts.forEach(p=>{
    const jobs=pointJobs(p.point_no),outs=pointOutputs(p.point_no);
-   const c=document.createElement('div');c.className='point';
+   const c=document.createElement('div');c.className='point';c.dataset.point=String(p.point_no);
    c.innerHTML='<div class="pno">'+String(p.point_no).padStart(2,'0')+'</div><div class="ptitle">'+esc(p.title)+'</div><div class="seed">'+esc(p.seed_text)+'</div>'+
     '<div class="phases">'+jobs.map(j=>'<span class="phase '+(j.status==='DONE'?'done':j.status==='LEASED'?'live':'')+'"></span>').join('')+'</div>'+
     '<div class="meta"><span>'+outs.reduce((a,o)=>a+(o.word_count||0),0).toLocaleString('es-AR')+' palabras</span><span>'+p.status+'</span></div>';
@@ -210,6 +217,30 @@ function renderStats(){
  $('elapsed').textContent=fmt(ms);$('badge').textContent=p?.status||'OPEN';
 }
 function render(){renderWorkers();renderPoints();renderStats()}
+function importantGripJob(j){return Number(j?.phase)>=4}
+function collectGripEvents(jobs){
+ const next=new Map(),events=[];
+ for(const j of jobs){
+  const key=j.point_no+':'+j.phase;
+  const cur={status:j.status,worker:j.assigned_worker_code,point:j.point_no,phase:j.phase};
+  next.set(key,cur);
+  const prev=jobState.get(key);
+  if(jobStatePrimed&&prev&&importantGripJob(j)&&prev.status!==cur.status){
+   if(cur.status==='LEASED'&&cur.worker)events.push({mode:'take',worker:cur.worker,point:cur.point});
+   if(prev.status==='LEASED'&&cur.status==='DONE')events.push({mode:'deposit',worker:prev.worker||cur.worker,point:cur.point});
+  }
+ }
+ jobState=next;jobStatePrimed=true;return events;
+}
+function flashGrip(evt){
+ const target=evt.mode==='take'
+  ?document.querySelector('[data-worker="'+evt.worker+'"]')
+  :document.querySelector('[data-point="'+evt.point+'"]');
+ if(!target)return;
+ target.querySelectorAll('.gripAccent').forEach(x=>x.remove());
+ const mark=document.createElement('span');mark.className='gripAccent '+evt.mode;mark.setAttribute('aria-hidden','true');mark.innerHTML='<i></i>';
+ target.appendChild(mark);setTimeout(()=>mark.remove(),760);
+}
 async function tick(){
  try{
   const [projects,points,jobs,outputs,workers]=await Promise.all([
@@ -220,8 +251,10 @@ async function tick(){
    get('blueprint_workers?blueprint_id=eq.'+encodeURIComponent(BP)+'&select=*&order=worker_code.asc')
   ]);
   D={project:projects[0]||null,points,jobs,outputs,workers};
+  const gripEvents=collectGripEvents(jobs);
   const s=JSON.stringify([D.project?.status,D.project?.finished_at,points.map(x=>[x.point_no,x.status,x.canonical_words]),jobs.map(x=>[x.point_no,x.phase,x.status,x.assigned_worker_code,x.rescue_count]),outputs.map(x=>[x.point_no,x.phase,x.word_count]),workers.map(x=>[x.worker_code,x.status,x.current_point_no,x.current_phase,x.jobs_done])]);
   if(s!==signature){signature=s;render()}else{renderWorkers();renderStats()}
+  gripEvents.forEach(flashGrip);
   const selected=Number(new URLSearchParams(location.search).get('point'));
   if(selected&&!$('dialog').dataset.auto){$('dialog').dataset.auto='1';openPoint(selected,D.points.find(x=>x.point_no===selected)?.canonical_words?4:0)}
  }catch(e){$('badge').textContent='REINTENTANDO'}
