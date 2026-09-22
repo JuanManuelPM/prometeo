@@ -151,7 +151,7 @@
 124. **[DISENADO] Inspeccionar worker.** Ver recorrido, tareas, rescates y conocimiento creado.
 125. **[DISENADO] Inspeccionar tarea.** Ver Goal, Card, Plumas, Tools, inputs y outputs.
 126. **[DISENADO] Inspeccionar objeto cognitivo.** Ver definición, procedencia, revisiones y uso histórico.
-127. **[PENDIENTE] Construir visualización física.** Hoy existe sólo el observador funcional.
+127. **[HECHO] Construir visualización física.** Pixel Campus en `demos/prometeo-pixel-world/`: mundo físico de workers conectado al runtime real, con fallback demo sólo si la lectura live falla.
 128. **[DISENADO] Progreso ponderado.** No usar sólo jobs terminados / jobs totales.
 129. **[DISENADO] Peso por fase.** Cada fase vale según trabajo esperado.
 130. **[DISENADO] Peso Architect ~13,8%.** Estimación inicial dentro de un punto.
