@@ -1,0 +1,36 @@
+name: Prometeo Engine
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prometeo-engine
+  cancel-in-progress: true
+
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile Prometeo state
+        run: python scripts/prometeo_engine.py
+      - name: Commit snapshot if changed
+        run: |
+          git config user.name "prometeo-engine"
+          git config user.email "actions@users.noreply.github.com"
+          git add state/prometeo-engine.json
+          if git diff --cached --quiet; then
+            echo "No state change"
+            exit 0
+          fi
+          git commit -m "engine: refresh deterministic state"
+          git push
