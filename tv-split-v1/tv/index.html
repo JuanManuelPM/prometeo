@@ -90,13 +90,13 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 <script>
 (()=>{
 'use strict';
-const BUILD='35';
+const BUILD='36';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const RUNTIME='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const p=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_TOKEN='6e7f4b74d76d2488ac3779832c77632475dd845db3a9b598765a757c7f18c327';
 const room={code:p.get('room')||DEFAULT_ROOM,token:p.get('t')||DEFAULT_TOKEN,role:'tv'};
-const client='tv-v35-'+Math.random().toString(36).slice(2,10);
+const client='tv-v36-'+Math.random().toString(36).slice(2,10);
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
 const views=new Map(),advancing=new Set();
 const PIPED_APIS=[
@@ -120,7 +120,8 @@ const PIPED_APIS=[
  'https://api.watch.pluto.lat'
 ];
 let blocks=[],serverActive=[],lastCommandId=0,updatePending=false,pageStarted=Date.now(),ytFallbackPromise=null;
-let soundWanted=localStorage.getItem('prometeo.tv.sound')!=='0',soundGestureUnlocked=false;
+let soundWanted=true,soundGestureUnlocked=false;
+try{localStorage.setItem('prometeo.tv.sound','1')}catch{}
 
 function nowParts(){
  const ps=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
@@ -223,9 +224,21 @@ function startDesiredPlayback(v){
  if(!v?.player)return;
  v.userPaused=false;
  if(soundWanted){
-  try{v.player.unMute?.();v.muted=false}catch{}
+  // Legacy behavior that previously worked here: ask YouTube to play first,
+  // without forcing an audio state before playback.
   try{v.player.playVideo?.()}catch{}
-  watchSoundAttempt(v)
+  setTimeout(()=>{
+   if(!views.has(String(v.id))||v.userPaused)return;
+   const st=playerStateOf(v),muted=playerMuted(v);
+   if(st===1&&!muted){v.muted=false;soundGestureUnlocked=true;hideSoundUnlock();return}
+   if(st===1&&muted){
+    try{v.player.unMute?.();v.muted=false}catch{}
+    watchSoundAttempt(v);return
+   }
+   // Audible autoplay was rejected: keep the sequence alive muted,
+   // but expose one local gesture to unlock sound for the persistent player.
+   recoverBlockedSound(v)
+  },700)
  }else{
   try{v.player.mute?.();v.muted=true;v.player.playVideo?.()}catch{}
   hideSoundUnlock()
@@ -262,7 +275,7 @@ async function mountYoutubeFallback(b,v){
   await ensureYTFallback();if(!views.has(String(v.id))||String(v.block?.payload?.video_id||'')!==videoId)return;
   const p=new YT.Player(host,{videoId,playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,fs:0,iv_load_policy:3,disablekb:1,modestbranding:1},
    events:{
-    onReady:e=>{v.fallbackPlayer=e.target;v.player=e.target;v.streamSource='youtube-fallback';v.ready=true;v.userPaused=false;v.status.style.display='none';startDesiredPlayback(v)},
+    onReady:e=>{v.fallbackPlayer=e.target;v.player=e.target;v.streamSource='youtube-fallback';v.ready=true;v.userPaused=false;v.muted=!!e.target.isMuted?.();v.status.style.display='none';startDesiredPlayback(v)},
     onStateChange:e=>{
       v.state=Number(e.data);
       if(v.state===1){v.playbackSeen=true;v.muted=playerMuted(v);v.status.style.display='none';if(soundWanted&&!v.muted){soundGestureUnlocked=true;hideSoundUnlock()}}
