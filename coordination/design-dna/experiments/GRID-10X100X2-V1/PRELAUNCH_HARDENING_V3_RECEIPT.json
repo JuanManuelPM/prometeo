@@ -1,0 +1,74 @@
+{
+  "schema": "prometeo.grid-prelaunch-hardening-receipt/v1",
+  "experiment_id": "GRID-10X100X2-V1",
+  "guide": "GUIDE-3",
+  "work_trace_id": 6,
+  "claim_key": "grid/prelaunch-enforcement-hardening",
+  "migration": "20260922183704 grid_lab_prelaunch_enforcement_hardening_v3",
+  "status": "PASS_ISOLATED_SMOKE",
+  "scope": {
+    "changed": [
+      "public.grid_lab_try_take",
+      "public.grid_lab_submit_packet"
+    ],
+    "untouched": [
+      "GRID-10X100X2-V1-C-E0 taskset",
+      "C/E0 members",
+      "C/E0 outputs",
+      "C/E0 launch state",
+      "worker ABI"
+    ]
+  },
+  "fixes": [
+    {
+      "id": "LEASE_EXPIRY_PRECEDENCE",
+      "rule": "Expired lease is rejected before schema/length retry logic; an expired packet can never renew itself via RETRY_RESULT.",
+      "smoke": [
+        "GRID-HARDEN-LEASE-SCHEMA-01: expired + malformed => STALE_LEASE / LATE_REJECTED / noncanonical",
+        "GRID-HARDEN-LEASE-LENGTH-01: expired + wrong length => STALE_LEASE / LATE_REJECTED / noncanonical"
+      ]
+    },
+    {
+      "id": "SAME_BATCH_TERMINAL_AGENT_ISOLATION",
+      "rule": "An agent already terminal in one run of a launch_batch cannot join another run in the same batch.",
+      "smoke": [
+        "grid-harden-reentry-a completed GRID-HARDEN-REENTRY-01 then grid_lab_try_take => NO_WORK / GRID_AGENT_TERMINAL_BATCH",
+        "fresh grid-harden-reentry-b successfully admitted to GRID-HARDEN-REENTRY-02"
+      ]
+    },
+    {
+      "id": "MINIMAL_ABI_REGRESSION",
+      "rule": "BOOTSTRAP->WORK and SUBMIT_AND_NEXT remain intact.",
+      "smoke": [
+        "GRID-HARDEN-CHAIN-01 task1 => ACCEPTED_AND_NEXT with task2",
+        "task2 => ACCEPTED_AND_STOP / RUN_DONE"
+      ]
+    }
+  ],
+  "c_e0_postcheck": {
+    "state": "ARMED",
+    "grids": 10,
+    "ready": 1000,
+    "members": 0,
+    "leased": 0,
+    "done": 0,
+    "outputs": 0,
+    "taskset_hashes": [
+      "68321e54c78f41e1416c63c329c03529",
+      "c77dbd441a4e7cffd92adfb846c62bac",
+      "a13a1fed49e3187eceed93cd2b207430",
+      "0ab778c7f60a23db3404e88844412530",
+      "5c100f94a25b29a5a65ba3cc615a00b1",
+      "a3f7bde06ea9aeba0e124d23ce865e18",
+      "4c075c8e1173c6d5f979ff692524ca1e",
+      "ae0018226df9741b10246c0f08891f60",
+      "d29189642d70ee4515ddb694b765a67d",
+      "0fc5d8aedfd426827a2fe9c6f505301e"
+    ]
+  },
+  "remaining_boundaries": [
+    "Real 21-fresh-chat C/E0 run not yet executed.",
+    "Full A/B/C comparison not yet executed.",
+    "This receipt proves isolated server-side enforcement smokes, not production promotion."
+  ]
+}
