@@ -61,6 +61,16 @@ section{padding:10px}
 .event:last-child{border-bottom:0}
 .eventMain{font-size:11px;font-weight:950;line-height:1.2}
 .eventMeta{margin-top:3px;font-size:8px;font-weight:900;color:var(--muted)}
+.recipes{border:2px solid var(--ink);background:var(--paper)}
+.recipe{display:grid;grid-template-columns:minmax(210px,.62fr) minmax(0,1.38fr);border-bottom:1px solid var(--soft)}
+.recipe:last-child{border-bottom:0}
+.recipeMeta{padding:10px 11px;border-right:1px solid var(--soft)}
+.recipeName{font-size:15px;font-weight:1000;letter-spacing:-.02em}
+.recipeId{margin-top:4px;font-size:8px;font-weight:950;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.recipeDesc{margin-top:7px;font-size:11px;line-height:1.35;color:var(--muted)}
+.recipeFlow{padding:10px;display:flex;align-content:flex-start;align-items:center;flex-wrap:wrap;gap:5px}
+.recipeStep{display:inline-flex;align-items:center;gap:5px;font-size:9px;font-weight:950}
+.recipeStep:not(:last-child)::after{content:"→";color:var(--muted);font-weight:1000}
 .library{border:2px solid var(--ink);background:var(--paper)}
 .family{border-bottom:1px solid var(--soft)}
 .family:last-child{border-bottom:0}
@@ -87,6 +97,7 @@ dialog::backdrop{background:rgba(0,0,0,.46)}
  .task{grid-template-columns:45px 1fr 76px}.task .cell:nth-child(4),.task .cell:nth-child(5),.task .cell:nth-child(6){border-top:1px solid var(--soft)}
  .task .cell:nth-child(4){grid-column:1/2}.task .cell:nth-child(5){grid-column:2}.task .cell:nth-child(6){grid-column:3}
  .deps{font-size:9px}
+ .recipe{grid-template-columns:1fr}.recipeMeta{border-right:0;border-bottom:1px solid var(--soft)}
 }
 </style>
 </head>
@@ -127,6 +138,11 @@ dialog::backdrop{background:rgba(0,0,0,.46)}
 </section>
 
 <section>
+  <div class="sectionTitle">Recipes</div>
+  <div class="recipes" id="recipes"><div class="event"><div class="eventMain">Cargando combinaciones…</div></div></div>
+</section>
+
+<section>
   <div class="sectionTitle">Biblioteca cognitiva</div>
   <div class="library" id="library"></div>
 </section>
@@ -146,8 +162,8 @@ const H={apikey:KEY,Authorization:'Bearer '+KEY};
 const $=id=>document.getElementById(id);
 $('goalId').textContent=GOAL;
 $('close').onclick=()=>$('dialog').close();
-let D={goal:null,workers:[],tasks:[],deps:[],outputs:[],events:[],cards:[]};
-let sig='',cardsLoaded=false;
+let D={goal:null,workers:[],tasks:[],deps:[],outputs:[],events:[],cards:[],recipes:[]};
+let sig='',libraryLoaded=false;
 
 async function get(path){
  const r=await fetch(URL+'/rest/v1/'+path,{headers:H,cache:'no-store'});
@@ -258,6 +274,19 @@ function renderEvents(){
    root.appendChild(x);
  });
 }
+function cardName(id){return D.cards.find(c=>c.card_id===id)?.name||id}
+function renderRecipes(){
+ const root=$('recipes');root.innerHTML='';
+ if(!D.recipes.length){root.innerHTML='<div class="event"><div class="eventMain">No hay Recipes activas.</div></div>';return}
+ D.recipes.forEach(r=>{
+   const row=document.createElement('div');row.className='recipe';
+   const ids=Array.isArray(r.card_ids)?r.card_ids:[];
+   row.innerHTML=
+    '<div class="recipeMeta"><div class="recipeName">'+esc(r.name)+'</div><div class="recipeId">'+esc(r.recipe_id)+' · '+ids.length+' pasos</div><div class="recipeDesc">'+esc(r.description)+'</div></div>'+
+    '<div class="recipeFlow">'+ids.map(id=>'<span class="recipeStep"><span class="cardTag">'+esc(cardName(id))+'</span></span>').join('')+'</div>';
+   root.appendChild(row);
+ });
+}
 function renderLibrary(){
  if(!D.cards.length)return;
  const root=$('library');root.innerHTML='';
@@ -283,7 +312,7 @@ function renderStats(){
  $('elapsed').textContent=fmtMs(Math.max(0,elapsed));
  $('badge').textContent=g?.status||'OPEN';
 }
-function render(){renderGoal();renderWorkers();renderTasks();renderEvents();renderStats();renderLibrary()}
+function render(){renderGoal();renderWorkers();renderTasks();renderEvents();renderStats();renderRecipes();renderLibrary()}
 async function tick(){
  try{
    const requests=[
@@ -294,10 +323,13 @@ async function tick(){
     get('forge_outputs?goal_id=eq.'+encodeURIComponent(GOAL)+'&select=goal_id,task_key,generation,worker_code,word_count,char_count,rescued,published_at,elapsed_ms'),
     get('forge_events?goal_id=eq.'+encodeURIComponent(GOAL)+'&select=*&order=event_id.desc&limit=80')
    ];
-   if(!cardsLoaded)requests.push(get('forge_cards?enabled=eq.true&select=card_id,family,name&order=family.asc,card_id.asc'));
+   if(!libraryLoaded){
+     requests.push(get('forge_cards?enabled=eq.true&select=card_id,family,name&order=family.asc,card_id.asc'));
+     requests.push(get('forge_recipes?enabled=eq.true&select=recipe_id,name,description,card_ids&order=recipe_id.asc'));
+   }
    const r=await Promise.all(requests);
    D.goal=r[0][0]||null;D.workers=r[1];D.tasks=r[2];D.deps=r[3];D.outputs=r[4];D.events=r[5];
-   if(!cardsLoaded){D.cards=r[6];cardsLoaded=true}
+   if(!libraryLoaded){D.cards=r[6];D.recipes=r[7];libraryLoaded=true}
    const s=JSON.stringify([D.goal?.status,D.goal?.planner_worker_code,D.goal?.plan_published_at,D.goal?.finished_at,D.workers.map(w=>[w.worker_code,w.status,w.current_task_key,w.tasks_done,w.rescues_done]),D.tasks.map(t=>[t.task_key,t.status,t.assigned_worker_code,t.lease_expires_at,t.rescue_count,t.parent_task_key]),D.outputs.map(o=>[o.task_key,o.word_count,o.elapsed_ms]),D.events[0]?.event_id]);
    if(s!==sig){sig=s;render()}else{renderWorkers();renderTasks();renderStats()}
  }catch(e){$('badge').textContent='REINTENTANDO'}
