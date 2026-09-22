@@ -7,9 +7,9 @@
 - Total de ítems: **253**
 - HECHO: **83**
 - CONCLUSION: **5**
-- DISENADO: **114**
+- DISENADO: **115**
 - DESCUBRIMIENTO: **3**
-- PENDIENTE: **39**
+- PENDIENTE: **38**
 - CONCEPTO: **1**
 - OBJETIVO: **8**
 
@@ -187,7 +187,7 @@
 160. **[DISENADO] Más workers = más paralelismo.** Mientras existan nodos READY.
 161. **[DISENADO] Sobrantes deberían esperar.** WAIT es mejor que NO_WORK si puede aparecer trabajo futuro.
 162. **[PENDIENTE] Eliminar hard cap rígido.** Runtime final debe aceptar cohortes variables.
-163. **[PENDIENTE] Medir beneficio decreciente.** Encontrar empíricamente el punto donde sumar workers casi no ayuda.
+163. **[DISENADO] Medir beneficio decreciente.** Encontrar empíricamente el punto donde sumar workers casi no ayuda. Spec ejecutable: `docs/cognitive-forge/BACKLOG-163-DIMINISHING-RETURNS-EXPERIMENT-SPEC.md`.
 164. **[DISENADO] No implementar directo desde 84 documentos.** Primero hace falta una capa de compilación.
 165. **[DISENADO] Interfaz compacta por punto.** Además del canonical largo, extraer un contrato pequeño.
 166. **[DISENADO] Contenido de interfaz compacta.** Propósito, inputs, outputs, estados, funciones, eventos, invariantes y pruebas.
