@@ -174,6 +174,16 @@ footer{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
    if(!r.ok)throw new Error(String(r.status));
    return r.json();
  }
+ async function rpc(name,args={}){
+   const r=await fetch(BASE+'rpc/'+name,{
+     method:'POST',
+     headers:{...HEAD,'Content-Type':'application/json'},
+     body:JSON.stringify(args),
+     cache:'no-store'
+   });
+   if(!r.ok)throw new Error(String(r.status));
+   return r.json();
+ }
  async function getEngine(){
    try{
      const r=await fetch(ENGINE,{cache:'no-store'});
@@ -301,10 +311,31 @@ footer{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
  }
  $('copy').addEventListener('click',async()=>{
    if(!prompt)return;
+   const b=$('copy'),old=b.textContent;
+   b.disabled=true;b.textContent='MARCANDO PIN…';
+   let text=prompt,token=null;
    try{
-     await navigator.clipboard.writeText(prompt);
-     const b=$('copy'),old=b.textContent;b.textContent='COPIADO';setTimeout(()=>b.textContent=old,1100);
-   }catch(e){}
+     const issued=await rpc('prometeo_issue_launch_intent',{p_launch_batch:'AUTO',p_source:'CONTROL'});
+     token=issued?.intent_token||null;
+     if(token){
+       text=text.replace(
+         'https://juanmanuelpm.github.io/prometeo/o/',
+         'https://juanmanuelpm.github.io/prometeo/o/?launch_intent_token='+encodeURIComponent(token)
+       );
+     }
+     await navigator.clipboard.writeText(text);
+     if(token){
+       await rpc('prometeo_mark_launch_intent_copied',{p_intent_token:token});
+     }
+     b.textContent='PIN ✓ · COPIADO';
+   }catch(e){
+     try{
+       await navigator.clipboard.writeText(prompt);
+       b.textContent='COPIADO';
+     }catch(_){b.textContent='REINTENTÁ'}
+   }finally{
+     setTimeout(()=>{b.textContent=old;b.disabled=false},1200);
+   }
  });
  getEngine().then(renderEngine);setInterval(()=>getEngine().then(renderEngine),30000);
  tick();setInterval(tick,2000);
