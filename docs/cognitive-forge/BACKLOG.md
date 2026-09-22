@@ -249,7 +249,7 @@
 222. **[PENDIENTE] Persistir Deep Skills.** Convertirlas en objetos reales.
 223. **[DISENADO] Rangos y contratos de Deep Skills.** Definir presupuestos y outputs obligatorios. Spec ejecutable: `docs/cognitive-forge/BACKLOG-223-DEEP-SKILL-CONTRACTS-SPEC.md`.
 224. **[PENDIENTE] Medir utilidad de Deep Skills.** Registrar qué perspectivas producen hallazgos aceptados.
-225. **[PENDIENTE] Evolución de Deep Skills.** Permitir que mejoren según evidencia.
+225. **[HECHO] Evolución de Deep Skills.** `forge_skill_propose_evolution` exige baseline `ACCEPTED` exacto y evidencia estructurada, rechaza cambios idénticos y crea sólo una versión `CANDIDATE` sin auto-promoción. Smoke: `SKILL_EVOLUTION_SMOKE_OK`. Migración: `supabase/migrations/20260922042500_forge_skill_evolution_v1.sql`.
 226. **[DISENADO] Skill = determinismo + cognición + verificación.** Separar claramente las tres capas.
 227. **[DISENADO] No gastar IA en cálculos.** Medianas, porcentajes y ETAs deben ser deterministas.
 228. **[DISENADO] Usar IA para interpretación.** Anomalías, hipótesis y cambios de arquitectura sí requieren cognición.
