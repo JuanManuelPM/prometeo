@@ -205,18 +205,18 @@ button{font:inherit;color:inherit}
 'use strict';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const FEED='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-public-feed-v1';
-const CONTROL_BUILD='49',CANONICAL='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
+const CONTROL_BUILD='50',CANONICAL='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const q=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_REMOTE='1f1a186a7bdc6aa3c9bfbf2016fed69d6b6cbf3066fab5ad8e122e25aa45c63e',DEFAULT_MEDIA='NZT8S9zPPRuTdUQUZK20jEvA-Nly6Ck4HUImnPuBsgQ';
 const room={code:q.get('room')||DEFAULT_ROOM,token:q.get('t')||DEFAULT_REMOTE,role:'remote'},mediaToken=q.get('k')||DEFAULT_MEDIA;
-const client='tv-editor-v49-'+Math.random().toString(36).slice(2,9);
+const client='tv-editor-v50-'+Math.random().toString(36).slice(2,9);
 const $=id=>document.getElementById(id),viewport=$('viewport'),timeline=$('timeline'),gridLayer=$('gridLayer'),eventLayer=$('eventLayer'),palette=$('palette'),dragTime=$('dragTime'),editWin=$('editWin');
-const labels={youtube:'YOUTUBE',clock:'RELOJ',page:'PÁGINA',black:'NEGRO'};
+const labels={youtube:'YOUTUBE',news:'NOTICIAS',clock:'RELOJ',page:'PÁGINA',black:'NEGRO'};
 const samples={youtube:{title:'YOUTUBE',payload:{}},clock:{title:'TIMER VISUAL 25/5',payload:{style:'time-mass-25-5',focus_minutes:25,break_minutes:5}},page:{title:'CALENDARIO',payload:{url:'https://juanmanuelpm.github.io/prometeo/experiments/tv-split-v1-sample-calendar.html',display:{profile:'flex',position:'auto'},control:{label:'CALENDARIO',actions:['previous','next','refresh']}}},black:{title:'NEGRO',payload:{}}};
 const ytLatest=new Map(),ytByChannel=new Map(),watchedIds=new Set();
 let blocks=[],serverBlocks=[],selected=null,ppm=.7,cycleH=1000,loaded=false,rendering=false,saving=false;
 const dirtyBlocks=new Set(),pendingDeletes=new Set();
-const cacheKey='tv.program.editor.v49.'+room.code;
+const cacheKey='tv.program.editor.v50.'+room.code;
 let tvState=null,previewOpen=false,remoteLibrary=null,remoteOpen=false,remoteMuted=false,remoteUtilityOpen=false,remoteRenderSig='',contextSaveTimer=0,remoteScrubbing=false,remoteSampleAt=0;
 
 function clone(x){return JSON.parse(JSON.stringify(x))}
@@ -250,7 +250,7 @@ function contextBlock(){
  return null
 }
 function currentRemotePlayer(){
- const b=contextBlock(),id=b?.kind==='youtube'?String(b.id):String(tvState?.active_youtube_ids?.[0]||''),ps=tvState?.player_state||{};
+ const b=contextBlock(),id=(b?.kind==='youtube'||b?.kind==='news')?String(b.id):String(tvState?.active_youtube_ids?.[0]||''),ps=tvState?.player_state||{};
  return id&&ps[id]?ps[id]:Object.values(ps)[0]||null
 }
 function icon(name){
@@ -307,6 +307,12 @@ function renderInstrument(b,playing,muted,queue,idx,position=0,duration=0){
    '<div class="instWell compact"><button class="instRound" data-remote-action="yt-back15" aria-label="Retroceder 15 segundos">'+icon('back15')+'</button><div class="instCapsule"><button class="instSegment" data-remote-action="yt-forward15" aria-label="Adelantar 15 segundos">'+icon('forward15')+'</button><button class="instSegment '+(!muted?'lit':'')+'" data-remote-action="yt-mute" aria-label="'+(muted?'Activar sonido':'Silenciar')+'">'+icon(muted?'mute':'sound')+'</button></div></div>'+
   '</div>'
  }
+ if(b.kind==='news'){
+  return '<div class="instDeck">'+
+   '<div class="instWell"><button class="instRound" data-remote-action="news-prev" aria-label="Noticia anterior">'+icon('prev')+'</button><div class="instCapsule"><button class="instSegment lit" data-remote-action="news-toggle" aria-label="'+(playing?'Pausar':'Reproducir')+'">'+icon(playing?'pause':'play')+'</button><button class="instSegment" data-remote-action="news-next" aria-label="Siguiente noticia">'+icon('next')+'</button></div></div>'+
+   '<div class="instWell compact"><button class="instRound '+(!muted?'lit':'')+'" data-remote-action="news-mute" aria-label="'+(muted?'Activar sonido':'Silenciar')+'">'+icon(muted?'mute':'sound')+'</button><button class="instAction" data-remote-action="news-refresh">'+icon('refresh')+'<span>ACTUALIZAR</span></button></div>'+
+  '</div>'
+ }
  if(b.kind==='clock'){
   const focus=Math.max(5,Math.min(120,Number(b.payload?.focus_minutes)||25)),rest=Math.max(1,Math.min(60,Number(b.payload?.break_minutes)||5)),angle=Math.round(-130+(focus-5)/115*260);
   const marks=[-120,-60,0,60,120].map(a=>'<i class="instDialMark" style="--a:'+a+'deg"></i>').join('');
@@ -329,7 +335,7 @@ function renderRemote(){
  const dock=$('remoteDock'),text=$('remoteText'),update=$('remoteUpdate'),b=contextBlock();
  dock.classList.remove('live','available','stale');
  const age=tvState?.updated_at?Date.now()-new Date(tvState.updated_at).getTime():Infinity;
- const externalLive=age<4500,build=String(tvState?.build||''),outdated=externalLive&&build&&build!=='26';
+ const externalLive=age<4500,build=String(tvState?.build||''),outdated=externalLive&&build&&build!=='27';
  update.classList.toggle('show',outdated);
  dock.classList.add(externalLive?'live':'available');
  const player=currentRemotePlayer(),playing=Number(player?.state)===1,muted=!!player?.muted,duration=Math.max(0,Number(player?.duration)||0),position=estimatedRemotePosition(player);remoteMuted=muted;
@@ -339,6 +345,7 @@ function renderRemote(){
  const openUrl=contextOpenUrl(b);$('remoteOpenApp').style.visibility=openUrl?'visible':'hidden';
  let title='Sin selección',meta='—';
  if(b?.kind==='youtube'){title=item?.title||'YouTube';meta=item?((idx+1)+' / '+queue.length+(item.channel_title?' · '+item.channel_title:'')):(queue.length?queue.length+' en cola':'cola vacía')}
+ else if(b?.kind==='news'){title=String(b.payload?.video_title||'Noticias');meta=String(b.payload?.channel_title||'NOTICIAS')}
  else if(b?.kind==='clock'){const f=Number(b.payload?.focus_minutes)||25,r=Number(b.payload?.break_minutes)||5;title=b.title||'Reloj';meta=f+' / '+r+' min'}
  else if(b?.kind==='page'){title=b.title||b.payload?.control?.label||'Página';meta=b.payload?.url||''}
  else if(b){title=b.title||labels[b.kind]||b.kind;meta=fmt(b.start_minute)+' — '+fmt(b.end_minute)}
@@ -349,9 +356,9 @@ function renderRemote(){
  text.textContent=outdated?'ACTUALIZACIÓN DISPONIBLE':(externalLive?'TV CONECTADA':'TV SIN CONEXIÓN');
  $('remoteA11y').textContent=b?(appName+'. '+title):'Sin evento seleccionado'
 }
-function sendContextCommand(command){
+function sendContextCommand(command,value=null){
  const b=contextBlock();if(!b||String(b.id).startsWith('tmp-'))return;
- return api({action:'command',command,block_id:String(b.id)})
+ return api({action:'command',command,block_id:String(b.id),value})
 }
 function mergeSavedBlock(saved){
  blocks=blocks.map(x=>String(x.id)===String(saved.id)?{...x,...saved}:x);
@@ -531,6 +538,11 @@ $('remoteMore').onclick=()=>setRemoteUtility(!remoteUtilityOpen);
 $('remoteOpenApp').onclick=()=>{const u=contextOpenUrl(contextBlock());if(u)location.href=u};
 $('remoteInstrument').onclick=async e=>{
  const btn=e.target.closest('[data-remote-action]');if(!btn)return;const a=btn.dataset.remoteAction,b=contextBlock();if(!b)return;
+ if(a==='news-prev')return api({action:'news_step',block_id:String(b.id),delta:-1}).then(()=>pollTVState()).catch(e=>toast(String(e.message||e)));
+ if(a==='news-next')return api({action:'news_step',block_id:String(b.id),delta:1}).then(()=>pollTVState()).catch(e=>toast(String(e.message||e)));
+ if(a==='news-toggle'){const p=currentRemotePlayer();return sendContextCommand(Number(p?.state)===1?'pause':'play')}
+ if(a==='news-mute')return sendContextCommand(remoteMuted?'unmute':'mute');
+ if(a==='news-refresh')return api({action:'news_refresh'}).then(()=>{toast('NOTICIAS ACTUALIZADAS');syncServer(true)}).catch(e=>toast(String(e.message||e)));
  if(a==='yt-prev')return stepRemote(-1);
  if(a==='yt-next')return stepRemote(1);
  if(a==='yt-toggle'){const p=currentRemotePlayer();return sendRemote(Number(p?.state)===1?'pause':'play')}
