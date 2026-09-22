@@ -62,6 +62,20 @@ dialog::backdrop{background:rgba(0,0,0,.46)}
 .tab{border:0;border-right:1px solid var(--soft);background:transparent;padding:9px 10px;font:inherit;font-size:9px;font-weight:1000;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
 .tab.active{background:var(--ink);color:var(--paper)}
 .modalText{padding:16px 15px 28px;white-space:pre-wrap;font-size:14px;line-height:1.52}
+
+.graphStage{border:2px solid var(--ink);background:var(--paper);padding:8px;overflow:hidden}
+.graphLegend{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:2px 2px 8px;font-size:8px;font-weight:1000;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.graphLegend i{display:inline-block;width:9px;height:9px;border:1.5px solid var(--ink);margin-right:4px;vertical-align:-1px;background:var(--paper)}
+.graphLegend .done{background:var(--ink)}.graphLegend .leased{background:var(--muted)}.graphLegend .blocked{background:var(--soft);border-color:var(--soft)}
+.graphSvg{display:block;width:100%;height:auto;background:var(--paper)}
+.graphCell{fill:none;stroke:var(--soft);stroke-width:1}
+.graphLabel{fill:var(--ink);font:1000 11px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.graphEdge{stroke:var(--soft);stroke-width:2}
+.graphEdge.done{stroke:var(--ink)}
+.graphJob{stroke:var(--ink);stroke-width:2;fill:var(--paper);cursor:pointer}
+.graphJob.done{fill:var(--ink)}.graphJob.leased{fill:var(--muted);animation:pulse .7s infinite alternate}.graphJob.blocked{fill:var(--soft);stroke:var(--soft)}
+.graphJob:hover{stroke-width:4}
+
 @keyframes pulse{from{opacity:.3}to{opacity:1}}
 @media(max-width:1000px){.metrics{grid-template-columns:repeat(4,1fr)}.metric:nth-child(-n+4){border-bottom:1px solid var(--soft)}.workers{grid-template-columns:repeat(4,1fr)}.grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:620px){
@@ -92,6 +106,15 @@ dialog::backdrop{background:rgba(0,0,0,.46)}
 <section>
  <div class="sectionTitle">Pool residente</div>
  <div class="workers" id="workers"></div>
+</section>
+
+
+<section>
+ <div class="sectionTitle">Grafo físico central · 84 puntos × 5 jobs</div>
+ <div class="graphStage">
+  <div class="graphLegend"><span><i class="done"></i>done</span><span><i class="leased"></i>leased</span><span><i></i>ready</span><span><i class="blocked"></i>blocked</span></div>
+  <svg id="jobGraph" class="graphSvg" viewBox="0 0 1000 1200" role="img" aria-label="Grafo físico de jobs y dependencias del Blueprint"></svg>
+ </div>
 </section>
 
 <section id="sections"></section>
@@ -199,6 +222,37 @@ async function openPoint(n,phase=4){
  if(!$('dialog').open)$('dialog').showModal();
  history.replaceState(null,'',location.pathname+'?blueprint='+encodeURIComponent(BP)+'&point='+n);
 }
+
+const SVGNS='http://www.w3.org/2000/svg';
+function svg(tag,attrs={}){const n=document.createElementNS(SVGNS,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,v);return n}
+function renderGraph(){
+ const root=$('jobGraph');root.innerHTML='';
+ const pts=[...D.points].sort((a,b)=>a.point_no-b.point_no);
+ const cols=6,cellW=160,cellH=82,ox=20,oy=24;
+ pts.forEach((p,i)=>{
+  const col=i%cols,row=Math.floor(i/cols),x=ox+col*cellW,y=oy+row*cellH;
+  const g=svg('g',{'data-point':p.point_no});
+  g.appendChild(svg('rect',{x,y,width:148,height:70,rx:0,class:'graphCell'}));
+  const label=svg('text',{x:x+8,y:y+15,class:'graphLabel'});label.textContent=String(p.point_no).padStart(2,'0');g.appendChild(label);
+  const jobs=pointJobs(p.point_no);
+  for(let phase=1;phase<=5;phase++){
+   const j=jobs.find(v=>v.phase===phase);
+   const nx=x+30+(phase-1)*25,ny=y+38;
+   if(phase>1){
+    const prev=jobs.find(v=>v.phase===phase-1);
+    g.appendChild(svg('line',{x1:nx-13,y1:ny+6,x2:nx-1,y2:ny+6,class:'graphEdge '+(prev?.status==='DONE'?'done':'')}));
+   }
+   const cls='graphJob '+String(j?.status||'BLOCKED').toLowerCase();
+   const node=svg('rect',{x:nx,y:ny,width:12,height:12,class:cls,tabindex:'0',role:'button','aria-label':String(p.point_no).padStart(2,'0')+' '+phaseName(phase)+' '+(j?.status||'BLOCKED')});
+   const title=svg('title');title.textContent=String(p.point_no).padStart(2,'0')+' · '+p.title+' · '+phaseName(phase)+' · '+(j?.status||'BLOCKED');node.appendChild(title);
+   node.addEventListener('click',()=>openPoint(p.point_no,phase));
+   node.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openPoint(p.point_no,phase)}});
+   g.appendChild(node);
+  }
+  root.appendChild(g);
+ });
+}
+
 function renderStats(){
  const p=D.project,done=D.points.filter(x=>x.status==='DONE').length;
  $('done').textContent=done;
@@ -216,7 +270,7 @@ function renderStats(){
  let ms=0;if(p?.started_at)ms=new Date(p.finished_at||Date.now())-new Date(p.started_at);
  $('elapsed').textContent=fmt(ms);$('badge').textContent=p?.status||'OPEN';
 }
-function render(){renderWorkers();renderPoints();renderStats()}
+function render(){renderWorkers();renderGraph();renderPoints();renderStats()}
 function importantGripJob(j){return Number(j?.phase)>=4}
 function collectGripEvents(jobs){
  const next=new Map(),events=[];
