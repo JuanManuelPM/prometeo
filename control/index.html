@@ -145,7 +145,7 @@ background-size:26px 26px}
  const med=a=>{if(!a.length)return 0;const b=[...a].sort((x,y)=>x-y),m=Math.floor(b.length/2);return b.length%2?b[m]:(b[m-1]+b[m])/2};
  const short=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(n>=1e4?0:1)+'k':String(Math.round(n));
  const fmt=m=>!isFinite(m)||m<=0?'—':m<1?'<1m':m<60?Math.round(m)+'m':Math.floor(m/60)+'h'+String(Math.round(m%60)).padStart(2,'0');
- let S={projects:[],workers:[],units:[],outputs:[],activity:[],guide:null,orders:[],liveness:[],batches:[],timings:[],cohorts:[],focus:null,mode:'board'},busy=false;
+ let S={projects:[],workers:[],units:[],outputs:[],activity:[],guide:null,orders:[],liveness:[],batches:[],timings:[],cohorts:[],gate:null,focus:null,mode:'board'},busy=false;
  async function get(p){const r=await fetch(BASE+p,{headers:HEAD,cache:'no-store'});if(!r.ok)throw new Error(r.status+' '+p);return r.json()}
  const pk=(t,id)=>t+'|'+id;
  function relevantProjects(){
@@ -298,6 +298,7 @@ background-size:26px 26px}
    const high=projects[0],blocked=projects.reduce((s,p)=>s+num(p.blocked_units),0),next=(S.guide?.next_actions||[])[0]||'Sin siguiente acción registrada.';
    const versions=[...new Set(workers.map(protocolVersion).filter(Boolean))],cohort=(S.cohorts||[])[0];
    return '<div class="guideBlock"><div class="gLabel">Runtime</div><div class="gBig">W'+counts.WORKING+' · A'+counts.ASSIGNABLE+' · P'+counts.PARKED+' · S'+counts.SILENT+'</div><div class="gText">protocol '+(versions.length?versions.join(', '):'—')+' · sólo vivos ocupan mesa</div></div>'+
+   '<div class="guideBlock"><div class="gLabel">Launch gate</div><div class="gBig '+(S.gate?.state==='GO'?'':'gAlert')+'">'+(S.gate?(S.gate.state+' '+S.gate.recommended_launch):'—')+'</div><div class="gText">'+(S.gate?(S.gate.ready_rank0_jobs+' READY · '+S.gate.assignable_slots_now+' slots · buffer '+S.gate.buffer_after_requested):'sin lectura')+'</div></div>'+
    '<div class="guideBlock"><div class="gLabel">Cohorte</div><div class="gText">'+(cohort?(cohort.launch_batch+' · '+cohort.sessions+' boot → '+cohort.entered+' enter → '+cohort.reached_work+' work → '+cohort.published+' publish · WORK '+(cohort.avg_work_pct??'—')+'% · WAIT '+(cohort.avg_wait_pct??'—')+'%'):'sin cohorte instrumentada')+'</div></div>'+
    '<div class="guideBlock"><div class="gLabel">Foco</div><div class="gText">'+(high?projectAlias(high)+' · '+high.title:'Sin proyecto activo')+'</div></div>'+
    '<div class="guideBlock"><div class="gLabel">Asignación</div><div class="gText '+(blocked?'gAlert':'')+'">'+blocked+' jobs bloqueados · PARKED expone reason/target cuando existe; sin evidencia muestra “reason —”.</div></div>'+
@@ -345,7 +346,7 @@ background-size:26px 26px}
   try{
    const projects=await get('prometeo_control_projects?select=*&order=created_at.desc&limit=60');
    const earliest=projects.filter(p=>['RUNNING','OPEN','PLANNING','DRAINING'].includes(String(p.status).toUpperCase())).map(p=>p.started_at||p.created_at).filter(Boolean).sort()[0],since=encodeURIComponent(earliest||new Date(Date.now()-86400000).toISOString());
-   const [workers,units,outputs,activity,guide,orders,liveness,batches,timings,cohorts]=await Promise.all([
+   const [workers,units,outputs,activity,guide,orders,liveness,batches,timings,cohorts,gate]=await Promise.all([
     get('prometeo_control_workers?select=*&order=joined_at.asc&limit=800'),
     get('prometeo_control_units?select=*&order=started_at.desc.nullslast&limit=6000'),
     get('prometeo_control_outputs?select=project_type,project_id,worker_code,unit,stage,word_count,elapsed_ms,rescued,published_at&published_at=gte.'+since+'&order=published_at.desc&limit=4500'),
@@ -355,9 +356,10 @@ background-size:26px 26px}
     get('prometeo_control_worker_liveness?select=*&order=worker_code.asc'),
     get('prometeo_death_batches?select=*&order=created_at.desc&limit=8'),
     get('prometeo_control_session_timing?select=*&order=t0.desc&limit=300'),
-    get('prometeo_control_cohort_timing?select=*&order=cohort_last_seen_at.desc&limit=6')
+    get('prometeo_control_cohort_timing?select=*&order=cohort_last_seen_at.desc&limit=6'),
+    get('prometeo_control_launch_gate?select=*')
    ]);
-   S={...S,projects,workers,units,outputs,activity,guide:guide[0]||null,orders,liveness,batches,timings,cohorts};render();
+   S={...S,projects,workers,units,outputs,activity,guide:guide[0]||null,orders,liveness,batches,timings,cohorts,gate:gate[0]||null};render();
   }catch(e){$('sub').textContent='reintentando conexión · '+String(e.message||e).slice(0,50)}finally{busy=false}
  }
  $('modeBoard').addEventListener('click',()=>{S.mode='board';render()});$('modeRace').addEventListener('click',()=>{S.mode='race';render()});
