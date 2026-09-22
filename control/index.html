@@ -242,7 +242,89 @@ const ENGINE='https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/state
 const phases=['BOOTSTRAP','WORK','CHECKPOINT','PUBLISH','NEXT'];
 const labels={BOOTSTRAP:'BOOT',WORK:'WORK',CHECKPOINT:'CHECK',PUBLISH:'PUB',NEXT:'NEXT'};
 const $=id=>document.getElementById(id);
-let prompt='',selected=null,workers=[],engineState=null,todayRows=[],todaySummary={};
+const SWARM_PROMPT=`🕹️ PROMETEO · SWARM v1
+
+Usá directamente la herramienta Supabase conectada con project_id = catnohyouxqjjtseaueb.
+
+No busques el project_id, no hagas web search, GitHub ni rutas alternativas antes del primer RPC.
+
+Generá un agent_id fresco para este chat.
+
+1. BOOTSTRAP — una sola vez
+
+select public.prometeo_bootstrap(
+  '<TU_AGENT_ID>',
+  '{
+    "authority":"USER",
+    "mode":"CONTINUOUS",
+    "publish_before_next":true,
+    "no_hot_poll":true,
+    "work_trace":true,
+    "launch_batch":"AUTO",
+    "bootstrap_attempt":1
+  }'::jsonb
+) as state;
+
+Si la URL que te trajo contiene ?launch_intent_token=<UUID>, agregá ese UUID al declaration JSON como "launch_intent_token":"<UUID>" antes de BOOTSTRAP.
+
+Si el conector devuelve RATE_LIMITED con Retry-After, respetá exactamente ese intervalo y repetí la MISMA llamada con el mismo agent_id.
+
+2. TAKE PACKET
+
+select public.prometeo_take_packet('<TU_AGENT_ID>') as packet;
+
+Si devuelve PARKED, terminá. No hagas polling.
+
+Si devuelve WORK, hacé exactamente el trabajo del packet.
+El packet es autosuficiente: objetivo, contexto, trabajo previo y result_schema.
+
+No investigues Prometeo.
+No llames checkpoint.
+No heartbeat.
+No crees jobs directamente.
+No hagas trabajo fuera del packet.
+
+3. SUBMIT
+
+Entregá una sola estructura:
+
+select public.prometeo_submit_packet(
+  '<TU_AGENT_ID>',
+  '<PACKET_TOKEN>'::uuid,
+  '{
+    "contribution":"<trabajo concreto>",
+    "evidence":[],
+    "remaining_gaps":[],
+    "artifacts":[],
+    "continuation_candidates":[]
+  }'::jsonb
+) as state;
+
+continuation_candidates es opcional conceptualmente pero el campo siempre debe existir. Sólo proponé hasta 3 continuaciones cuando descubriste superficie REAL, independiente y necesaria del mismo producto. Cada propuesta usa:
+{"title":"...","objective":"...","artifact_scope":"..."}
+
+El servidor deduplica y decide si crea una hoja. No crees trabajo para mantener workers ocupados.
+
+Si SUBMIT devuelve ACCEPTED_AND_NEXT y next.state=WORK:
+trabajá directamente next.packet y repetí SUBMIT usando next.packet_token.
+NO vuelvas a llamar TAKE entre packets encadenados.
+
+Si devuelve RETRY_RESULT:
+corregí solamente tu resultado según result_schema y repetí SUBMIT.
+
+Si devuelve LATE_RESULT_SALVAGED:
+tu aporte tardío quedó guardado como evidencia no canónica. Si next.state=WORK, continuá ese next packet.
+
+Si devuelve ACCEPTED_AND_STOP, PARKED o next.state distinto de WORK:
+terminá.
+
+No inventes evidencia, archivos, commits, tests ni publicaciones.
+
+El objetivo no es mantener el chat ocupado. El objetivo es aumentar el producto durable con la menor coordinación posible.
+
+Referencia:
+https://juanmanuelpm.github.io/prometeo/o/`;
+let prompt=SWARM_PROMPT,selected=null,workers=[],engineState=null,todayRows=[],todaySummary={};
 
 async function get(path){
   const r=await fetch(BASE+path,{headers:HEAD,cache:'no-store'});
@@ -254,9 +336,7 @@ async function rpc(name,args={}){
   if(!r.ok)throw new Error(String(r.status));
   return r.json();
 }
-async function loadPrompt(){
-  try{const x=await get('prometeo_control_worker_prompt?select=prompt_text');prompt=x[0]?.prompt_text||prompt}catch(e){}
-}
+async function loadPrompt(){prompt=SWARM_PROMPT}
 async function getEngine(){
   try{const r=await fetch(ENGINE,{cache:'no-store'});if(!r.ok)throw new Error();engineState=await r.json()}catch(e){engineState=null}
   renderEngine();
