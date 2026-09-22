@@ -155,7 +155,7 @@
 128. **[HECHO] Progreso ponderado.** Pixel Campus calcula progreso de ronda con jobs completos + crédito parcial por fase observable de trabajos activos, en vez de depender sólo de jobs terminados / total. Implementación: `demos/prometeo-pixel-world/index.html`, commit `378b28ceeed6b49f713a73d097d5c37475bb1543`. Los pesos cognitivos específicos de 129–134 quedan como refinamientos separados.
 129. **[DISENADO] Peso por fase.** Cada fase vale según trabajo esperado.
 130. **[DISENADO] Peso Architect ~13,8%.** Estimación inicial dentro de un punto.
-131. **[DISENADO] Peso Development ~28,8%.** Estimación inicial dentro de un punto.
+131. **[HECHO] Peso Development ~28,8%.** ALREADY_DONE: DEEP_DEVELOPMENT usa 3000–4500 palabras (midpoint 3750), equivalente al 28,8% de los 13000 midpoint-words por punto. Evidencia: `docs/cognitive-forge/BACKLOG-131-DEVELOPMENT-WEIGHT-EVIDENCE.md`.
 132. **[HECHO] Peso Adversarial ~15,4%.** Verificado en `FORGE-BLUEPRINT-84-01`: midpoints por fase 1800/3750/2000/4250/1200 palabras; total 13.000 y ADVERSARIAL 2.000/13.000 = 15,38%. Límite live de fase 3: 1600–2400.
 133. **[DISENADO] Peso Canonical ~32,7%.** Estimación inicial dentro de un punto.
 134. **[HECHO] Peso Learning ~9,2%.** Verificado en `FORGE-BLUEPRINT-84-01`: LEARNING 900–1500, midpoint 1200; total de midpoints 13.000 y 1200/13.000 = 9,23%.
