@@ -75,6 +75,13 @@ header{display:flex;justify-content:space-between;align-items:center;gap:12px;pa
 .metrics{display:flex;gap:8px 14px;flex-wrap:wrap;margin-top:8px}.metric{font:850 7.5px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}.metric b{color:var(--fg);font-size:9px}.metric.warn b{color:var(--red)}
 
 .receipts{display:grid;gap:4px}.receipt{display:grid;grid-template-columns:40px 42px minmax(0,1fr);gap:5px;font:800 7.5px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:nowrap}.receipt .t{color:var(--muted)}.receipt .k{color:var(--fg)}.receipt .d{color:#8e887e;overflow:hidden;text-overflow:ellipsis}.receipt.pub .k{color:var(--accent)}
+.todaySummary{display:flex;gap:8px 14px;flex-wrap:wrap;margin-bottom:8px}.todaySummary span{font:850 7.5px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}.todaySummary b{color:var(--fg);font-size:9px}.todaySummary .bad b{color:var(--red)}
+.workerDay{display:grid;gap:3px;max-height:46vh;overflow:auto;padding-right:2px}
+.dayRow{display:grid;grid-template-columns:42px 30px minmax(92px,1fr) 34px 34px 36px;gap:5px;align-items:center;min-height:23px;border-top:1px solid #141310;font:800 7px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
+.dayCode{font-weight:1000;color:var(--fg)}.dayOut{text-align:right;color:#aaa398}.dayState{text-align:right;color:var(--muted)}.dayLoss{text-align:right;color:var(--muted)}.dayLoss.bad{color:var(--red)}
+.lifeBar{height:7px;background:#1b1916;display:flex;overflow:hidden}.lifeBar i{height:100%;display:block}.lifeBar .job{background:var(--fg)}.lifeBar .start{background:#777168}.lifeBar .wait{background:var(--amber)}.lifeBar .rec{background:var(--red)}.lifeBar .unknown{background:#37332e}
+.dayPct{text-align:right;color:#bcb5aa}
+.legendDay{display:flex;gap:7px 10px;flex-wrap:wrap;margin-top:6px}.legendDay span{font:800 6.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}.legendDay i{display:inline-block;width:7px;height:7px;margin-right:3px;vertical-align:-1px}.legendDay .lj{background:var(--fg)}.legendDay .ls{background:#777168}.legendDay .lw{background:var(--amber)}.legendDay .lr{background:var(--red)}.legendDay .lu{background:#37332e}
 
 .copy{position:fixed;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(calc(100% - 28px),952px);height:54px;border:0;background:var(--fg);color:#060605;font-weight:1000;font-size:15px;letter-spacing:-.025em;z-index:8;box-shadow:0 -8px 28px #000}
 .copy:disabled{opacity:.72}
@@ -203,6 +210,19 @@ header{display:flex;justify-content:space-between;align-items:center;gap:12px;pa
 </section>
 
 <section class="section">
+  <div class="sectionHead"><div class="sectionTitle">HOY · WORKERS</div><div class="micro" id="todayCount">—</div></div>
+  <div class="todaySummary" id="todaySummary"></div>
+  <div class="workerDay" id="workerDay"></div>
+  <div class="legendDay">
+    <span><i class="lj"></i>EN JOB</span>
+    <span><i class="ls"></i>START</span>
+    <span><i class="lw"></i>WAIT</span>
+    <span><i class="lr"></i>REC</span>
+    <span><i class="lu"></i>NO ATRIB.</span>
+  </div>
+</section>
+
+<section class="section">
   <div class="sectionHead"><div class="sectionTitle">RECIBOS RECIENTES</div><div class="micro">evidencia real</div></div>
   <div class="receipts" id="receipts"></div>
 </section>
@@ -318,6 +338,43 @@ function renderReceipts(rows){
     root.appendChild(d);
   });
 }
+function renderToday(rows,summary){
+  const s=summary||{};
+  $('todayCount').textContent=(s.sessions??rows.length)+' sesiones · '+(s.outputs??0)+' outputs';
+  $('todaySummary').innerHTML=
+    '<span><b>'+(s.entered_workers??0)+'</b> ENTER</span>'+
+    '<span><b>'+(s.reached_work??0)+'</b> WORK</span>'+
+    '<span><b>'+(s.published_workers??0)+'</b> PUBLICARON</span>'+
+    '<span><b>'+(s.working_now??0)+'</b> AHORA</span>'+
+    '<span class="bad"><b>'+(s.no_enter??0)+'</b> NO ENTER</span>'+
+    '<span class="bad"><b>'+(s.no_output??0)+'</b> SIN OUTPUT</span>'+
+    '<span><b>'+Number(s.avg_job_pct||0).toFixed(0)+'%</b> JOB</span>'+
+    '<span><b>'+Number(s.avg_unattributed_pct||0).toFixed(0)+'%</b> ?</span>';
+  const root=$('workerDay');root.innerHTML='';
+  (rows||[]).forEach(w=>{
+    const life=Math.max(1,Number(w.life_ms||0));
+    const job=clamp(w.job_pct),start=clamp(w.startup_pct),wait=clamp(w.wait_pct),rec=clamp(w.recovery_pct);
+    const unk=clamp(w.unattributed_pct);
+    let loss=w.loss_code||'OK';
+    if(w.worker_code&&Number(w.outputs||0)===0&&w.first_work_observed_at&&w.worker_state!=='WORKING')loss='ASSIGNED→NO OUTPUT';
+    const row=document.createElement('div');row.className='dayRow';
+    row.title=[w.worker_state,w.current_project_id,w.current_job_key,w.last_reason_code].filter(Boolean).join(' · ');
+    row.innerHTML=
+      '<span class="dayCode">'+w.display_code+'</span>'+
+      '<span class="dayOut">'+(w.outputs||0)+'×</span>'+
+      '<span class="lifeBar">'+
+        '<i class="job" style="width:'+job+'%"></i>'+
+        '<i class="start" style="width:'+start+'%"></i>'+
+        '<i class="wait" style="width:'+wait+'%"></i>'+
+        '<i class="rec" style="width:'+rec+'%"></i>'+
+        '<i class="unknown" style="width:'+unk+'%"></i>'+
+      '</span>'+
+      '<span class="dayPct">'+job.toFixed(0)+'%</span>'+
+      '<span class="dayState">'+(w.worker_state||'—').slice(0,8)+'</span>'+
+      '<span class="dayLoss '+(loss==='OK'?'':'bad')+'">'+(loss==='OK'?'✓':loss.replace('UNATTRIBUTED','?').replace('TELEMETRY_GAP','TEL').replace('ASSIGNED→NO OUTPUT','A→Ø')).slice(0,5)+'</span>';
+    root.appendChild(row);
+  });
+}
 function renderDashboard(d){
   const f=d.flow||{},l=d.load||{},g=d.growth||{},h=d.startup||{},products=d.products||[],sheets=d.sheets||[];
   workers=d.workers||[];
@@ -333,7 +390,7 @@ function renderDashboard(d){
   }
   $('eta').textContent=fmtEta(f.eta_seconds);$('throughput').textContent=f.throughput_15m??0;
   $('bottleneck').textContent=(h.startup_state&&h.startup_state!=='HEALTHY')?h.startup_state:((g.growth_mode&&g.growth_mode!=='BALANCED')?g.growth_mode:(f.bottleneck_code||'—'));
-  renderProducts(products,sheets,l);renderFlow();renderReceipts(d.receipts||[]);
+  renderProducts(products,sheets,l);renderFlow();renderToday(d.workers_today||[],d.workers_today_summary||{});renderReceipts(d.receipts||[]);
   const vals={work:clamp(f.work_pct),coord:clamp(f.coord_pct),wait:clamp(f.wait_pct),rec:clamp(f.recovery_pct)};
   $('segWork').style.width=vals.work+'%';$('segCoord').style.width=vals.coord+'%';$('segWait').style.width=vals.wait+'%';$('segRec').style.width=vals.rec+'%';
   $('workPct').textContent=vals.work.toFixed(0)+'%';$('coordPct').textContent=vals.coord.toFixed(0)+'%';$('waitPct').textContent=vals.wait.toFixed(0)+'%';$('recPct').textContent=vals.rec.toFixed(0)+'%';
