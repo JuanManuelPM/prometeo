@@ -115,6 +115,24 @@ snapshot={
   }
 }
 
+# Keep the persisted snapshot byte-stable when only wall-clock time changed.
+# generated_at means "last semantic snapshot change", while each workflow run
+# still has its own timestamp in Actions logs.
+previous={}
+try:
+    with open(OUT,"r",encoding="utf-8") as f:
+        previous=json.load(f)
+except (OSError, json.JSONDecodeError):
+    previous={}
+
+if isinstance(previous,dict):
+    previous_semantic=dict(previous)
+    current_semantic=dict(snapshot)
+    previous_semantic.pop("generated_at",None)
+    current_semantic.pop("generated_at",None)
+    if previous_semantic==current_semantic and previous.get("generated_at"):
+        snapshot["generated_at"]=previous["generated_at"]
+
 os.makedirs(os.path.dirname(OUT),exist_ok=True)
 tmp=OUT+".tmp"
 with open(tmp,"w",encoding="utf-8") as f:
