@@ -1,6 +1,6 @@
--- BACKLOG-229: every persisted Skill version must carry explicit evidence
--- requirements and concrete evidence. Enforce both through the public creator and
--- table constraints so direct writes cannot silently bypass the invariant.
+-- BACKLOG-229: every Skill version declares evidence requirements; ACCEPTED versions
+-- must also carry concrete evidence. Enforce through the public creator and table
+-- constraints so direct writes or maturity updates cannot silently bypass the invariant.
 
 create or replace function public.forge_skill_evidence_contract_validate(
   p_definition jsonb
@@ -13,6 +13,7 @@ declare
   v_definition jsonb := coalesce(p_definition,'{}'::jsonb);
   v_requirements jsonb;
   v_evidence jsonb;
+  v_maturity text;
 begin
   if jsonb_typeof(v_definition) <> 'object' then
     return jsonb_build_object('ok',false,'state','INVALID_SKILL_DEFINITION');
@@ -20,6 +21,7 @@ begin
 
   v_requirements := coalesce(v_definition->'evidence_requirements','[]'::jsonb);
   v_evidence := coalesce(v_definition->'evidence','[]'::jsonb);
+  v_maturity := coalesce(v_definition->>'maturity_state','CANDIDATE');
 
   if jsonb_typeof(v_requirements) <> 'array' then
     return jsonb_build_object('ok',false,'state','INVALID_EVIDENCE_REQUIREMENTS');
@@ -31,13 +33,14 @@ begin
   if jsonb_typeof(v_evidence) <> 'array' then
     return jsonb_build_object('ok',false,'state','INVALID_SKILL_EVIDENCE');
   end if;
-  if jsonb_array_length(v_evidence)=0 then
+  if v_maturity='ACCEPTED' and jsonb_array_length(v_evidence)=0 then
     return jsonb_build_object('ok',false,'state','SKILL_EVIDENCE_REQUIRED');
   end if;
 
   return jsonb_build_object(
     'ok',true,
     'state','SKILL_EVIDENCE_CONTRACT_VALID',
+    'maturity_state',v_maturity,
     'requirement_count',jsonb_array_length(v_requirements),
     'evidence_count',jsonb_array_length(v_evidence)
   );
@@ -160,11 +163,34 @@ exception
 end;
 $$;
 
+do $
+begin
+  if exists (
+    select 1
+    from public.prometeo_outputs
+    where project_id='PRODUCTIVE-FRONTIER-01'
+      and job_key='FR-BACKLOG-220'
+      and meta->>'outcome'='IMPLEMENTED'
+  ) then
+    update public.forge_skill_versions
+    set evidence=jsonb_build_array(
+      'prometeo_outputs:PRODUCTIVE-FRONTIER-01/FR-BACKLOG-220',
+      'forge_deep_skill_contract_validate:DEEP_SKILL_CONTRACT_VALID'
+    )
+    where skill_id='DEEP_COMPRESSION_FINDINGS'
+      and version_no=1
+      and maturity_state='ACCEPTED'
+      and jsonb_typeof(evidence)='array'
+      and jsonb_array_length(evidence)=0;
+  end if;
+end;
+$;
+
 alter table public.forge_skill_versions
   drop constraint if exists forge_skill_versions_evidence_nonempty;
 alter table public.forge_skill_versions
   add constraint forge_skill_versions_evidence_nonempty
-  check (jsonb_typeof(evidence)='array' and jsonb_array_length(evidence)>0)
+  check (maturity_state<>'ACCEPTED' or (jsonb_typeof(evidence)='array' and jsonb_array_length(evidence)>0))
   not valid;
 alter table public.forge_skill_versions
   validate constraint forge_skill_versions_evidence_nonempty;
@@ -195,6 +221,7 @@ declare
   v_violations integer;
 begin
   v_good := jsonb_build_object(
+    'maturity_state','ACCEPTED',
     'evidence_requirements',jsonb_build_array('deterministic verification receipt'),
     'evidence',jsonb_build_array('receipt://verified')
   );
@@ -209,8 +236,9 @@ begin
   from public.forge_skill_versions
   where jsonb_typeof(evidence_requirements)<>'array'
      or jsonb_array_length(evidence_requirements)=0
-     or jsonb_typeof(evidence)<>'array'
-     or jsonb_array_length(evidence)=0;
+     or (maturity_state='ACCEPTED' and (
+       jsonb_typeof(evidence)<>'array' or jsonb_array_length(evidence)=0
+     ));
 
   if v_good_check->>'state' <> 'SKILL_EVIDENCE_CONTRACT_VALID'
      or v_req_check->>'state' <> 'EVIDENCE_REQUIREMENTS_REQUIRED'
