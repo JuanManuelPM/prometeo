@@ -152,7 +152,7 @@
 125. **[DISENADO] Inspeccionar tarea.** Ver Goal, Card, Plumas, Tools, inputs y outputs.
 126. **[DISENADO] Inspeccionar objeto cognitivo.** Ver definición, procedencia, revisiones y uso histórico.
 127. **[HECHO] Construir visualización física.** Pixel Campus en `demos/prometeo-pixel-world/`: mundo físico de workers conectado al runtime real, con fallback demo sólo si la lectura live falla.
-128. **[DISENADO] Progreso ponderado.** No usar sólo jobs terminados / jobs totales.
+128. **[HECHO] Progreso ponderado.** Pixel Campus calcula progreso de ronda con jobs completos + crédito parcial por fase observable de trabajos activos, en vez de depender sólo de jobs terminados / total. Implementación: `demos/prometeo-pixel-world/index.html`, commit `378b28ceeed6b49f713a73d097d5c37475bb1543`. Los pesos cognitivos específicos de 129–134 quedan como refinamientos separados.
 129. **[DISENADO] Peso por fase.** Cada fase vale según trabajo esperado.
 130. **[DISENADO] Peso Architect ~13,8%.** Estimación inicial dentro de un punto.
 131. **[DISENADO] Peso Development ~28,8%.** Estimación inicial dentro de un punto.
