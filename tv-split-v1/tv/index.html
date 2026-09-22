@@ -87,24 +87,34 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 <script>
 (()=>{
 'use strict';
-const BUILD='27';
+const BUILD='28';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const RUNTIME='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const p=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_TOKEN='6e7f4b74d76d2488ac3779832c77632475dd845db3a9b598765a757c7f18c327';
 const room={code:p.get('room')||DEFAULT_ROOM,token:p.get('t')||DEFAULT_TOKEN,role:'tv'};
-const client='tv-v27-'+Math.random().toString(36).slice(2,10);
+const client='tv-v28-'+Math.random().toString(36).slice(2,10);
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
 const views=new Map(),advancing=new Set();
 const PIPED_APIS=[
- 'https://pipedapi.kavin.rocks','https://pipedapi.leptons.xyz','https://pipedapi-libre.kavin.rocks',
- 'https://piped-api.privacy.com.de','https://pipedapi.adminforge.de','https://api.piped.yt',
- 'https://pipedapi.drgns.space','https://pipedapi.owo.si','https://piped-api.codespace.cz',
- 'https://api.piped.private.coffee','https://pipedapi.darkness.services','https://pipedapi.orangenet.cc'
-];
-const INVIDIOUS_APIS=[
- 'https://inv.nadeko.net','https://invidious.nerdvpn.de','https://yt.chocolatemoo53.com',
- 'https://invidious.tiekoetter.com','https://invidious.f5.si'
+ 'https://pipedapi.kavin.rocks',
+ 'https://pipedapi.tokhmi.xyz',
+ 'https://pipedapi.moomoo.me',
+ 'https://pipedapi.syncpundit.io',
+ 'https://api-piped.mha.fi',
+ 'https://piped-api.garudalinux.org',
+ 'https://pipedapi.qdi.fi',
+ 'https://piped-api.hostux.net',
+ 'https://pdapi.vern.cc',
+ 'https://pipedapi.pfcd.me',
+ 'https://pipedapi.frontendfriendly.xyz',
+ 'https://api.piped.yt',
+ 'https://pipedapi.astartes.nl',
+ 'https://pipedapi.osphost.fi',
+ 'https://pipedapi.simpleprivacy.fr',
+ 'https://pipedapi.drgns.space',
+ 'https://piapi.ggtyler.dev',
+ 'https://api.watch.pluto.lat'
 ];
 let blocks=[],serverActive=[],lastCommandId=0,updatePending=false,pageStarted=Date.now();
 
@@ -136,35 +146,26 @@ function chooseMuxedStream(data){
  });
  return xs[0]||null
 }
+async function resolveFromPiped(base,videoId,outerSignal){
+ const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),5200);
+ const abort=()=>ctl.abort();outerSignal?.addEventListener('abort',abort,{once:true});
+ try{
+  const r=await fetch(base+'/streams/'+encodeURIComponent(videoId),{
+   cache:'no-store',signal:ctl.signal,headers:{Accept:'application/json'}
+  });
+  if(!r.ok)throw new Error(base+' '+r.status);
+  const d=await r.json(),stream=chooseMuxedStream(d);
+  if(!stream?.url)throw new Error(base+' sin stream combinado');
+  return{url:String(stream.url),duration:Number(d.duration||0),title:String(d.title||''),source:base,mime:String(stream.mimeType||'video/mp4')}
+ }finally{
+  clearTimeout(timer);outerSignal?.removeEventListener('abort',abort)
+ }
+}
 async function resolveCleanStream(videoId,signal){
- let last='';
- for(const base of PIPED_APIS){
-  try{
-   const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),3500);
-   const relay=()=>ctl.abort();signal?.addEventListener('abort',relay,{once:true});
-   const r=await fetch(base+'/streams/'+encodeURIComponent(videoId),{cache:'no-store',signal:ctl.signal,headers:{Accept:'application/json'}});
-   clearTimeout(timer);signal?.removeEventListener('abort',relay);
-   if(!r.ok){last=base+' '+r.status;continue}
-   const d=await r.json(),stream=chooseMuxedStream(d);
-   if(stream?.url)return{url:String(stream.url),duration:Number(d.duration||0),title:String(d.title||''),source:base,mime:String(stream.mimeType||'video/mp4')}
-   last=base+' sin stream combinado'
-  }catch(e){last=String(e?.message||e)}
- }
- for(const base of INVIDIOUS_APIS){
-  try{
-   const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),3500);
-   const relay=()=>ctl.abort();signal?.addEventListener('abort',relay,{once:true});
-   const r=await fetch(base+'/api/v1/videos/'+encodeURIComponent(videoId)+'?region=AR',{cache:'no-store',signal:ctl.signal,headers:{Accept:'application/json'}});
-   clearTimeout(timer);signal?.removeEventListener('abort',relay);
-   if(!r.ok){last=base+' '+r.status;continue}
-   const d=await r.json(),xs=(Array.isArray(d?.formatStreams)?d.formatStreams:[]).filter(x=>x?.url&&/^video\//.test(String(x.type||'')));
-   xs.sort((a,b)=>{const ah=parseInt(String(a.qualityLabel||a.quality||'0'))||0,bh=parseInt(String(b.qualityLabel||b.quality||'0'))||0;return (bh<=1080?bh:-bh)-(ah<=1080?ah:-ah)});
-   const stream=xs[0];
-   if(stream?.url)return{url:String(stream.url),duration:Number(d.lengthSeconds||0),title:String(d.title||''),source:base,mime:String(stream.type||'video/mp4')}
-   last=base+' sin formatStreams'
-  }catch(e){last=String(e?.message||e)}
- }
- throw new Error(last||'SIN_RESOLVER')
+ const attempts=PIPED_APIS.map(base=>resolveFromPiped(base,videoId,signal));
+ const deadline=new Promise((_,reject)=>setTimeout(()=>reject(new Error('RESOLVER_TIMEOUT')),6500));
+ try{return await Promise.race([Promise.any(attempts),deadline])}
+ catch(e){throw new Error('SIN_STREAM_LIMPIO')}
 }
 function nativeAdapter(video,v){
  return{
@@ -189,14 +190,14 @@ async function loadNativeStream(b,v){
  const videoId=String(b.payload?.video_id||'');if(!videoId||!v.video)return;
  try{v.abort?.abort()}catch{}
  const abort=new AbortController();v.abort=abort;const ticket=(v.loadTicket||0)+1;v.loadTicket=ticket;
- v.ready=false;v.state=3;v.playbackSeen=false;v.status.textContent='BUSCANDO VIDEO LIMPIO';
+ v.ready=false;v.state=3;v.playbackSeen=false;v.status.innerHTML='BUSCANDO VIDEO LIMPIO<span>PROBANDO FUENTES EN PARALELO</span>';
  try{
    const out=await resolveCleanStream(videoId,abort.signal);
    if(abort.signal.aborted||ticket!==v.loadTicket)return;
    v.videoId=videoId;v.streamDuration=out.duration||0;v.streamSource=out.source;v.video.src=out.url;v.video.load();v.status.textContent='CARGANDO';await startNativePlayback(v)
  }catch(e){
    if(abort.signal.aborted||ticket!==v.loadTicket)return;
-   v.state=-1;v.status.innerHTML='VIDEO NO DISPONIBLE<span>NO SE USÓ EL EMBED DE YOUTUBE</span>';status.className='status err'
+   v.state=-1;v.status.innerHTML='NO ENCONTRÉ STREAM LIMPIO<span>REINTENTO AUTOMÁTICO</span>';status.className='status err';setTimeout(()=>loadNativeStream(v.block,v),5000)
  }
 }
 function createView(b){
