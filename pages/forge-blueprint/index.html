@@ -144,11 +144,29 @@ const $=id=>document.getElementById(id);
 $('bid').textContent=BP;
 $('close').onclick=()=>$('dialog').close();
 let D={project:null,points:[],jobs:[],outputs:[],workers:[]},signature='',jobState=new Map(),jobStatePrimed=false;
+let historyRates=[],historyRuns=0,historyPromise=null;
 
 async function get(path){
  const r=await fetch(URL+'/rest/v1/'+path,{headers:H,cache:'no-store'});
  if(!r.ok)throw new Error(r.status+' '+await r.text());
  return r.json();
+}
+async function loadHistoryRates(){
+ if(historyPromise)return historyPromise;
+ historyPromise=(async()=>{
+  const projects=await get('blueprint_projects?blueprint_id=neq.'+encodeURIComponent(BP)+'&status=eq.DONE&select=blueprint_id,started_at,finished_at&order=finished_at.desc&limit=8');
+  const samples=await Promise.all(projects.map(async p=>{
+   if(!p.started_at||!p.finished_at)return null;
+   const jobs=await get('blueprint_jobs?blueprint_id=eq.'+encodeURIComponent(p.blueprint_id)+'&select=min_words,max_words,status');
+   const weight=jobs.filter(j=>j.status==='DONE').reduce((a,j)=>a+jobWeight(j),0);
+   const elapsed=new Date(p.finished_at)-new Date(p.started_at);
+   return weight>0&&elapsed>0?weight/elapsed:null;
+  }));
+  historyRates=samples.filter(x=>Number.isFinite(x)&&x>0);
+  historyRuns=historyRates.length;
+  return historyRates;
+ })().catch(e=>{historyRates=[];historyRuns=0;return historyRates});
+ return historyPromise;
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function fmt(ms){if(!ms)return '0 s';const s=ms/1000;if(s<60)return s.toFixed(0)+' s';if(s<3600)return (s/60).toFixed(1)+' min';if(s<86400)return (s/3600).toFixed(1)+' h';return (s/86400).toFixed(1)+' d'}
@@ -180,13 +198,17 @@ function estimator(){
  const doneJobs=D.jobs.filter(j=>j.status==='DONE').length;
  const effective=Math.min(total,done+partial);
  const progress=total?Math.min(1,effective/total):0;
- if(!total)return {progress:0,eta:null,ready:false,partial:0};
- if(D.project?.status==='DONE'||done>=total)return {progress:1,eta:0,ready:true,partial:0};
- if(!D.project?.started_at||doneJobs<3||done<=0)return {progress,eta:null,ready:false,partial};
+ if(!total)return {progress:0,eta:null,ready:false,partial:0,source:null};
+ if(D.project?.status==='DONE'||done>=total)return {progress:1,eta:0,ready:true,partial:0,source:'current'};
+ if(!D.project?.started_at||doneJobs<3||done<=0){
+  const rate=median(historyRates);
+  const eta=rate>0?(total-effective)/rate:null;
+  return {progress,eta,ready:Number.isFinite(eta),partial,source:Number.isFinite(eta)?'history':null};
+ }
  const elapsed=Math.max(1,Date.now()-new Date(D.project.started_at).getTime());
  const rate=done/elapsed;
  const eta=rate>0?(total-effective)/rate:null;
- return {progress,eta,ready:Number.isFinite(eta),partial};
+ return {progress,eta,ready:Number.isFinite(eta),partial,source:'current'};
 }
 function phaseName(p){return ['','Arquitectura','Desarrollo','Adversarial','Canónico','Aprendizaje'][p]}
 function renderWorkers(){
@@ -310,7 +332,7 @@ function renderStats(){
  $('progressW').textContent=pct;
  $('progressMetric').title='Ponderado por midpoint de min_words/max_words. DONE suma 100%; LEASED aporta estimación temporal basada en duración histórica, con cap 90%.';
  $('eta').textContent=est.eta===0?'listo':(est.ready?fmt(est.eta):'—');
- $('etaMetric').title=est.ready?'ETA = presupuesto ponderado restante / throughput ponderado observado desde started_at.':'ETA aparece después de al menos 3 jobs DONE.';
+ $('etaMetric').title=est.ready?(est.source==='history'?'ETA inicial desde '+historyRuns+' run(s) histórico(s) completado(s); migra al run actual al llegar a 3 jobs DONE.':'ETA = presupuesto ponderado restante / throughput ponderado observado desde started_at.'):'Sin muestras actuales suficientes ni runs históricos completados.';
  $('active').textContent=D.jobs.filter(x=>x.status==='LEASED').length;
  $('rescues').textContent=D.jobs.reduce((a,x)=>a+(x.rescue_count||0),0);
  let ms=0;if(p?.started_at)ms=new Date(p.finished_at||Date.now())-new Date(p.started_at);
@@ -343,6 +365,7 @@ function flashGrip(evt){
 }
 async function tick(){
  try{
+  await loadHistoryRates();
   const [projects,points,jobs,outputs,workers]=await Promise.all([
    get('blueprint_projects?blueprint_id=eq.'+encodeURIComponent(BP)+'&select=*'),
    get('blueprint_points?blueprint_id=eq.'+encodeURIComponent(BP)+'&select=blueprint_id,point_no,section,title,seed_text,status,canonical_words,canonical_chars,completed_at&order=point_no.asc'),
