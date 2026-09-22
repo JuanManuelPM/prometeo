@@ -90,13 +90,13 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 <script>
 (()=>{
 'use strict';
-const BUILD='32';
+const BUILD='33';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const RUNTIME='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const p=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_TOKEN='6e7f4b74d76d2488ac3779832c77632475dd845db3a9b598765a757c7f18c327';
 const room={code:p.get('room')||DEFAULT_ROOM,token:p.get('t')||DEFAULT_TOKEN,role:'tv'};
-const client='tv-v32-'+Math.random().toString(36).slice(2,10);
+const client='tv-v33-'+Math.random().toString(36).slice(2,10);
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
 const views=new Map(),advancing=new Set();
 const PIPED_APIS=[
@@ -191,6 +191,25 @@ function preservePlayingAfterAudio(v,wasPlaying){
   }catch{}
  },120)
 }
+function recoverBlockedSound(v){
+ if(!v?.player||v.userPaused)return;
+ try{v.player.mute?.();v.muted=true;v.player.playVideo?.()}catch{}
+ showSoundUnlock()
+}
+function watchSoundAttempt(v){
+ if(!v?.player)return;
+ const until=Date.now()+4500;v.audioTransitionUntil=until;
+ const id=String(v.id);
+ const check=()=>{
+  if(!views.has(id)||v.userPaused)return;
+  const st=playerStateOf(v),muted=playerMuted(v);
+  if(st===1&&!muted){v.muted=false;soundGestureUnlocked=true;hideSoundUnlock();return}
+  if(st===2||st===5){recoverBlockedSound(v);return}
+  if(Date.now()>=until){if(st!==1)recoverBlockedSound(v);else if(muted)showSoundUnlock();return}
+  setTimeout(check,180)
+ };
+ setTimeout(check,180)
+}
 function applyMutePreference(v,on,{forcePlay=false}={}){
  if(!v?.player)return;
  const wasPlaying=forcePlay||playerStateOf(v)===1||(!v.userPaused&&v.playbackSeen);
@@ -206,14 +225,7 @@ function startDesiredPlayback(v){
  if(soundWanted){
   try{v.player.unMute?.();v.muted=false}catch{}
   try{v.player.playVideo?.()}catch{}
-  v.audioTransitionUntil=Date.now()+900;
-  setTimeout(()=>{
-   if(!views.has(String(v.id))||v.userPaused)return;
-   const state=playerStateOf(v),muted=playerMuted(v);
-   if(state===1&&!muted){v.muted=false;soundGestureUnlocked=true;hideSoundUnlock();return}
-   try{v.player.mute?.();v.muted=true;v.player.playVideo?.()}catch{}
-   showSoundUnlock()
-  },380)
+  watchSoundAttempt(v)
  }else{
   try{v.player.mute?.();v.muted=true;v.player.playVideo?.()}catch{}
   hideSoundUnlock()
@@ -225,6 +237,7 @@ function unlockSoundFromGesture(){
   if(!v?.player)continue;
   v.userPaused=false;
   try{v.player.unMute?.();v.muted=false;v.player.playVideo?.()}catch{}
+  setTimeout(()=>{try{if(playerStateOf(v)!==1)v.player.playVideo?.();v.muted=playerMuted(v)}catch{}},220)
  }
  hideSoundUnlock()
 }
@@ -253,9 +266,7 @@ async function mountYoutubeFallback(b,v){
     onStateChange:e=>{
       v.state=Number(e.data);
       if(v.state===1){v.playbackSeen=true;v.muted=playerMuted(v);v.status.style.display='none';if(soundWanted&&!v.muted){soundGestureUnlocked=true;hideSoundUnlock()}}
-      if(v.state===2&&Date.now()<Number(v.audioTransitionUntil||0)&&!v.userPaused){
-        try{if(soundWanted&&!soundGestureUnlocked){v.player.mute();v.muted=true;showSoundUnlock()}v.player.playVideo()}catch{}
-      }
+      if(v.state===2&&Date.now()<Number(v.audioTransitionUntil||0)&&!v.userPaused)recoverBlockedSound(v)
       if(v.state===0&&v.playbackSeen){if(v.kind==='news')advanceNews(v.block,v);else advanceYoutube(v.block,v)}
     },
     onAutoplayBlocked:()=>{try{v.player?.mute?.();v.muted=true;v.player?.playVideo?.()}catch{};if(soundWanted)showSoundUnlock()},
@@ -511,15 +522,8 @@ function playerCommand(cmd,blockId,value){
     }else if(cmd==='unmute'){
       soundWanted=true;persistSoundWanted();
       const wasPlaying=playerStateOf(v)===1||!v.userPaused;
-      v.audioTransitionUntil=Date.now()+1000;
       try{v.player.unMute?.();v.muted=false;if(wasPlaying)v.player.playVideo?.()}catch{}
-      setTimeout(()=>{
-       if(v.userPaused)return;
-       if(playerStateOf(v)!==1){
-        try{v.player.mute?.();v.muted=true;v.player.playVideo?.()}catch{}
-        showSoundUnlock()
-       }else if(playerMuted(v)){showSoundUnlock()}else hideSoundUnlock()
-      },260)
+      if(wasPlaying)watchSoundAttempt(v)
     }else if(cmd==='seek_relative'){
       const cur=Number(v.player.getCurrentTime?.()||0),dur=Number(v.player.getDuration?.()||0),delta=Math.max(-120,Math.min(120,Number(value)||0)),to=Math.max(0,dur>0?Math.min(dur-.1,cur+delta):cur+delta);
       v.player.seekTo(to,true)
