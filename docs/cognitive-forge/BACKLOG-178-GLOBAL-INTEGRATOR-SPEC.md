@@ -28,6 +28,8 @@ Deben existir exactamente siete Section Specifications, una por:
 6. `experimento`
 7. `evaluacion`
 
+La identidad normativa y el orden canónico de estas secciones viven en `docs/cognitive-forge/forge-sections.v1.json` (`prometeo.forge-section-registry/v1`). G1 MUST validar contra ese registro en vez de mantener una segunda lista independiente.
+
 Cada entrada MUST exponer, como mínimo:
 
 ```json
