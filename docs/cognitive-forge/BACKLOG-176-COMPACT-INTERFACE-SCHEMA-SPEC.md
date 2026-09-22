@@ -182,3 +182,18 @@ Esto mantiene la separación:
 ## Criterio de cierre
 
 BACKLOG-176 pasa de DISEÑADO a HECHO cuando el schema esté persistido/versionado, exista un validador reproducible, al menos tres puntos reales hayan sido compilados, los ocho casos de aceptación tengan evidencia y un integrador de sección pueda consumir esas interfaces sin releer los canonicals en el camino normal.
+
+
+## Implementación verificada · 2026-09-22
+
+El núcleo ejecutable de este contrato ya existe en `main`:
+
+- JSON Schema versionado: `docs/cognitive-forge/contracts/forge-point-interface.v1.schema.json`.
+- Validador reproducible sin dependencias externas: `scripts/validate-forge-point-interface.mjs`.
+- Suite contractual: `tests/forge-point-interface-v1.mjs`.
+- Verificación sobre los bytes actuales del repo: **9/9 checks PASS** (válido, IDs duplicados, referencia de estado inexistente, stale por versión/hash, coexistencia histórica, contradicción explícita, criterio de build observable, provenance preservada y rechazo de `TBD` fuera de decisiones abiertas).
+- `FORGE_SECTION_INTEGRATOR` v1 ya declara `prometeo.forge-point-interface/v1` como input primario.
+
+### Brecha restante para HECHO
+
+El estado correcto continúa siendo **DISEÑADO**, no HECHO. Al momento de esta verificación `blueprint_points` contiene **0 canonicals reales** no vacíos, por lo que no es posible fabricar honestamente los tres ejemplos reales requeridos por el criterio de cierre. Cuando existan al menos tres canonicals, el siguiente paso es compilarlos a v1, validarlos contra este contrato y ejecutar un consumo real por el integrador de sección conservando provenance.
