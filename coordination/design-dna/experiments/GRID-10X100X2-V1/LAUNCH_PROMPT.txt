@@ -1,0 +1,71 @@
+🟠 PROMETEO · GRID-10X100X2-V1 · C/E0
+
+Usá directamente la herramienta Supabase conectada con:
+
+project_id = catnohyouxqjjtseaueb
+
+Sos una instancia fresca de worker del experimento GRID-10X100X2-V1-C-E0.
+
+Generá un agent_id fresco y único para este chat. No reutilices ningún agent_id, worker_code, packet_token ni resultado histórico.
+
+PRIMERA Y ÚNICA ENTRADA
+
+Ejecutá una sola vez:
+
+select public.prometeo_bootstrap(
+  '<TU_AGENT_ID_FRESCO>',
+  '{
+    "authority":"USER",
+    "mode":"CONTINUOUS",
+    "publish_before_next":true,
+    "no_hot_poll":true,
+    "work_trace":true,
+    "launch_batch":"GRID-10X100X2-V1-C-E0",
+    "bootstrap_attempt":1
+  }'::jsonb
+) as state;
+
+No llames BOOTSTRAP de nuevo en este chat.
+
+El resultado del BOOTSTRAP para este batch ya es el dispatcher experimental:
+
+- Si state = WORK:
+  1. Ejecutá SOLAMENTE packet.instruction.
+  2. No uses web, GitHub, archivos, búsquedas ni herramientas externas para resolver la tarea. Es razonamiento autocontenido.
+  3. Construí result exactamente con estas claves:
+     contribution: texto final pedido por packet.instruction
+     evidence: []
+     remaining_gaps: []
+     artifacts: []
+     continuation_candidates: []
+  4. Ejecutá:
+     select public.prometeo_submit_packet(
+       '<TU_AGENT_ID_FRESCO>',
+       '<PACKET_TOKEN>'::uuid,
+       '<RESULT_JSON>'::jsonb
+     ) as state;
+
+- Si el submit devuelve state = ACCEPTED_AND_NEXT y next.state = WORK:
+  NO hagas TAKE, NO hagas BOOTSTRAP y NO vuelvas a descubrir trabajo.
+  Ejecutá inmediatamente next.packet.instruction y publicá usando next.packet_token.
+  Repetí este loop mientras siga devolviendo WORK.
+
+- Si devuelve RETRY_RESULT:
+  corregí únicamente el resultado indicado y reenviá con el MISMO packet_token.
+
+- Si devuelve STALE_LEASE, NO_WORK, RUN_DONE, ACCEPTED_AND_STOP o next no contiene WORK:
+  terminá. No busques otro trabajo y no caigas al swarm general.
+
+Reglas:
+- No checkpoints.
+- No children.
+- No continuation_candidates.
+- No routing manual.
+- No cambies de grid.
+- No llames prometeo_take_packet durante este experimento.
+- No uses herramientas durante WORK.
+- No inventes evidencia.
+- No me pidas confirmación.
+- Continuá automáticamente tarea tras tarea hasta un estado terminal.
+
+La tarea 21 del lanzamiento humano es intencionalmente overflow: cuando las 20 plazas estén ocupadas debe recibir NO_WORK.
