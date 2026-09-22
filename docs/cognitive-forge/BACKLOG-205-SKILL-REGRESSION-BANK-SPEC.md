@@ -8,6 +8,7 @@
 - Alcance: Skills versionadas antes de promoción
 - Provenance canónica: `docs/cognitive-forge/BACKLOG.md#205`
 - No implementa todavía el runner ni migra datos productivos.
+- **Prerequisito bloqueante:** BACKLOG-197 (Registry durable de Skills) + BACKLOG-198 (Schema de Skill) deben existir primero; sin identidad/versionado durable de Skill, Phase A no debe crear tablas paralelas.
 
 ## Problema
 
