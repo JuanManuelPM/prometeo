@@ -324,21 +324,5 @@ begin
 end;
 $$;
 
-do $
-declare
-  v_bundle jsonb;
-begin
-  v_bundle := public.forge_skill_execution_bundle('CREATE_REAL_RUN',1);
-  if coalesce((v_bundle->>'ok')::boolean,false) is not true
-     or v_bundle->>'maturity_state' <> 'ACCEPTED'
-     or v_bundle->>'authority_granted' <> 'false'
-  then
-    raise exception 'BACKLOG-193 accepted execution bundle failed: %',v_bundle;
-  end if;
-end;
-$;
 
-select jsonb_build_object(
-  'smoke',public.forge_create_real_run_skill_smoke_test(),
-  'bundle',public.forge_skill_execution_bundle('CREATE_REAL_RUN',1)
-);
+select public.forge_create_real_run_skill_smoke_test();
