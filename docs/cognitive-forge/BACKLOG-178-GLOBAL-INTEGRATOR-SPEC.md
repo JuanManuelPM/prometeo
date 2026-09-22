@@ -184,3 +184,34 @@ Releer los artefactos emitidos y verificar:
 El Blueprint `FORGE-BLUEPRINT-84-01` todavía no tiene canonical finales persistidos; BACKLOG-177 sigue pendiente y no existen siete Section Specifications. Por lo tanto, esta spec completa el diseño ejecutable del integrador global, pero la compilación final permanece correctamente en `WAITING_INPUTS`.
 
 No corresponde crear la System Spec global todavía.
+
+
+## Handoff machine-readable hacia BACKLOG-179
+
+El boundary de build queda implementado por `public.forge_global_build_directives_compile(p_sections jsonb)` y verificado por `forge_global_build_directives_smoke_test()`.
+
+Una Section Specification puede aportar `implementation_units[]` explícitos con contrato compatible con `forge_build_graph_compile`:
+
+```json
+{
+  "unit_id": "U01",
+  "title": "Implementar contrato X",
+  "kind": "BUILD",
+  "target_ref": "forge://target/x",
+  "depends_on": [],
+  "acceptance": ["criterio verificable"],
+  "source_refs": ["forge://section/ejecucion"]
+}
+```
+
+Reglas del handoff:
+
+- las siete secciones canónicas siguen siendo obligatorias;
+- `implementation_units` debe ser dato estructurado; el integrador no deriva trabajo desde prosa narrativa;
+- cada unidad exige `unit_id`, `title`, `kind`, `target_ref`, `depends_on`, `acceptance` no vacío y `source_refs` no vacío;
+- los IDs son únicos y todas las dependencias deben resolver globalmente;
+- la salida ordena secciones y unidades de forma determinista antes de calcular `system_spec_hash`;
+- la System Spec COMPILED resultante usa schema `prometeo.cognitive-forge-system-spec/v1` y puede consumirse directamente por `forge_build_graph_compile`;
+- este handoff no concede autoridad de ejecución y no cambia el gate de inputs reales: sin siete Section Specifications reales, la compilación productiva sigue bloqueada.
+
+Evidencia ejecutable: el smoke construye un fixture de siete secciones con siete unidades explícitas, compila el mismo contenido en orden normal e inverso y exige el mismo `system_spec_hash`; luego alimenta la System Spec a `forge_build_graph_compile` y exige `BUILD_GRAPH_READY`. Migración: `supabase/migrations/20260922045800_forge_global_build_directives_handoff_v1.sql`.
