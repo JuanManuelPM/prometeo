@@ -59,6 +59,12 @@ dialog::backdrop{background:rgba(0,0,0,.46)}
 .close{border:2px solid var(--ink);background:var(--ink);color:var(--paper);font:inherit;font-weight:1000;padding:7px 9px}
 .modalMeta{padding:8px 13px;border-bottom:1px solid var(--soft);font-size:10px;font-weight:900}
 .tabs{display:flex;gap:0;border-bottom:1px solid var(--soft);overflow:auto}
+.taskDetail{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-bottom:1px solid var(--soft)}
+.taskDatum{padding:8px 10px;border-right:1px solid var(--soft);border-bottom:1px solid var(--soft);min-width:0}
+.taskDatum:nth-child(4n){border-right:0}
+.taskDatum b{display:block;font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.taskDatum span{display:block;font-size:11px;font-weight:950;overflow-wrap:anywhere}
+.taskDetail[hidden]{display:none}
 .tab{border:0;border-right:1px solid var(--soft);background:transparent;padding:9px 10px;font:inherit;font-size:9px;font-weight:1000;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
 .tab.active{background:var(--ink);color:var(--paper)}
 .modalText{padding:16px 15px 28px;white-space:pre-wrap;font-size:14px;line-height:1.52}
@@ -81,6 +87,7 @@ dialog::backdrop{background:rgba(0,0,0,.46)}
 @media(max-width:620px){
  .top{padding:11px 9px 8px}.title{font-size:30px}.metrics{grid-template-columns:repeat(4,1fr)}
  .workers{grid-template-columns:repeat(2,1fr)}
+ .taskDetail{grid-template-columns:repeat(2,minmax(0,1fr))}.taskDatum:nth-child(4n){border-right:1px solid var(--soft)}.taskDatum:nth-child(2n){border-right:0}
  section{padding:7px}.grid{grid-template-columns:1fr}.point{min-height:128px}
 }
 </style>
@@ -124,6 +131,7 @@ dialog::backdrop{background:rgba(0,0,0,.46)}
  <div class="modalHead"><div class="modalTitle" id="modalTitle"></div><button class="close" id="close">CERRAR</button></div>
  <div class="modalMeta" id="modalMeta"></div>
  <div class="tabs" id="tabs"></div>
+ <div class="taskDetail" id="taskDetail" hidden></div>
  <div class="modalText" id="modalText"></div>
 </dialog>
 
@@ -196,31 +204,50 @@ function renderPoints(){
   root.appendChild(block);
  });
 }
+function taskDatum(label,value){return '<div class="taskDatum"><b>'+esc(label)+'</b><span>'+esc(value??'—')+'</span></div>'}
+function renderTaskDetail(job,out){
+ const root=$('taskDetail');
+ if(!job){root.hidden=true;root.innerHTML='';return}
+ root.hidden=false;
+ const budget=(job.min_words||job.max_words)?((job.min_words||0)+'–'+(job.max_words||0)+' palabras'):'—';
+ const elapsed=out?.elapsed_ms?fmt(out.elapsed_ms):(job.started_at?fmt((job.completed_at?new Date(job.completed_at):new Date())-new Date(job.started_at)):'—');
+ root.innerHTML=[
+  taskDatum('estado',job.status),
+  taskDatum('worker',job.assigned_worker_code||out?.worker_code||'—'),
+  taskDatum('fase',job.phase+' · '+phaseName(job.phase)),
+  taskDatum('presupuesto',budget),
+  taskDatum('rescates',job.rescue_count||0),
+  taskDatum('lease',job.lease_expires_at||'—'),
+  taskDatum('duración',elapsed),
+  taskDatum('output',out?((out.word_count||0)+' palabras'):'sin publicar')
+ ].join('');
+}
 async function openPoint(n,phase=4){
- const p=D.points.find(x=>x.point_no===n),outs=pointOutputs(n);
+ const p=D.points.find(x=>x.point_no===n),outs=pointOutputs(n),jobs=pointJobs(n);
  $('modalTitle').textContent=String(n).padStart(2,'0')+' · '+p.title;
  $('modalMeta').textContent=p.section+' · '+p.status+(p.canonical_words?' · canónico '+p.canonical_words+' palabras':'');
  const tabs=$('tabs');tabs.innerHTML='';
  const seed=document.createElement('button');seed.className='tab '+(phase===0?'active':'');seed.textContent='Semilla';seed.onclick=()=>openPoint(n,0);tabs.appendChild(seed);
  for(let i=1;i<=5;i++){
-  const o=outs.find(x=>x.phase===i),b=document.createElement('button');
-  b.className='tab '+(phase===i?'active':'');b.textContent=phaseName(i)+(o?' · '+o.word_count+'p':'');
-  b.disabled=!o;b.onclick=()=>openPoint(n,i);tabs.appendChild(b);
+  const o=outs.find(x=>x.phase===i),j=jobs.find(x=>x.phase===i),b=document.createElement('button');
+  b.className='tab '+(phase===i?'active':'');b.textContent=phaseName(i)+' · '+(j?.status||'—')+(o?' · '+o.word_count+'p':'');
+  b.disabled=!j;b.onclick=()=>openPoint(n,i);tabs.appendChild(b);
  }
- if(phase===0){$('modalText').textContent=p.seed_text}
- else{
+ if(phase===0){
+  renderTaskDetail(null,null);
+  $('modalText').textContent=p.seed_text;
+ } else {
+  const j=jobs.find(x=>x.phase===phase);
   let o=outs.find(x=>x.phase===phase);
-  if(!o){
-   const rows=await get('blueprint_outputs?blueprint_id=eq.'+encodeURIComponent(BP)+'&point_no=eq.'+n+'&phase=eq.'+phase+'&select=*');
-   o=rows[0];
-  } else {
-   const rows=await get('blueprint_outputs?blueprint_id=eq.'+encodeURIComponent(BP)+'&point_no=eq.'+n+'&phase=eq.'+phase+'&select=output_text,meta,worker_code,word_count,elapsed_ms');
+  if(o){
+   const rows=await get('blueprint_outputs?blueprint_id=eq.'+encodeURIComponent(BP)+'&point_no=eq.'+n+'&phase=eq.'+phase+'&select=output_text,meta,worker_code,word_count,elapsed_ms,rescued,published_at');
    if(rows[0])o={...o,...rows[0]};
   }
+  renderTaskDetail(j,o);
   $('modalText').textContent=o?.output_text||'Todavía no producido.';
  }
  if(!$('dialog').open)$('dialog').showModal();
- history.replaceState(null,'',location.pathname+'?blueprint='+encodeURIComponent(BP)+'&point='+n);
+ history.replaceState(null,'',location.pathname+'?blueprint='+encodeURIComponent(BP)+'&point='+n+'&phase='+phase);
 }
 
 const SVGNS='http://www.w3.org/2000/svg';
@@ -309,8 +336,8 @@ async function tick(){
   const s=JSON.stringify([D.project?.status,D.project?.finished_at,points.map(x=>[x.point_no,x.status,x.canonical_words]),jobs.map(x=>[x.point_no,x.phase,x.status,x.assigned_worker_code,x.rescue_count]),outputs.map(x=>[x.point_no,x.phase,x.word_count]),workers.map(x=>[x.worker_code,x.status,x.current_point_no,x.current_phase,x.jobs_done])]);
   if(s!==signature){signature=s;render()}else{renderWorkers();renderStats()}
   gripEvents.forEach(flashGrip);
-  const selected=Number(new URLSearchParams(location.search).get('point'));
-  if(selected&&!$('dialog').dataset.auto){$('dialog').dataset.auto='1';openPoint(selected,D.points.find(x=>x.point_no===selected)?.canonical_words?4:0)}
+  const params=new URLSearchParams(location.search),selected=Number(params.get('point')),selectedPhase=Number(params.get('phase'));
+  if(selected&&!$('dialog').dataset.auto){$('dialog').dataset.auto='1';openPoint(selected,Number.isInteger(selectedPhase)&&selectedPhase>=0&&selectedPhase<=5?selectedPhase:(D.points.find(x=>x.point_no===selected)?.canonical_words?4:0))}
  }catch(e){$('badge').textContent='REINTENTANDO'}
 }
 tick();setInterval(tick,800);
