@@ -7,9 +7,9 @@
 - Total de ítems: **253**
 - HECHO: **83**
 - CONCLUSION: **5**
-- DISENADO: **113**
+- DISENADO: **114**
 - DESCUBRIMIENTO: **3**
-- PENDIENTE: **40**
+- PENDIENTE: **39**
 - CONCEPTO: **1**
 - OBJETIVO: **8**
 
@@ -200,7 +200,7 @@
 173. **[DISENADO] Separar decisiones abiertas/canónicas.** No reabrir decisiones cerradas sin evidencia.
 174. **[DISENADO] Section Specifications.** Una especificación integrada por sección.
 175. **[DISENADO] System Spec global.** PROMETEO COGNITIVE FORGE SYSTEM SPEC.
-176. **[PENDIENTE] Contrato exacto de interfaces compactas.** Definir schema reusable.
+176. **[DISENADO] Contrato exacto de interfaces compactas.** Definir schema reusable. Spec ejecutable: `docs/cognitive-forge/BACKLOG-176-COMPACT-INTERFACE-SCHEMA-SPEC.md`.
 177. **[PENDIENTE] Integrador de sección.** Diseñar y ejecutar su Skill.
 178. **[PENDIENTE] Integrador global.** Diseñar y ejecutar la compilación final.
 179. **[DISENADO] System Spec → Build Graph.** Compilar conocimiento en trabajo de implementación.
