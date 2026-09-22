@@ -89,7 +89,7 @@ function initialDataFromHtml(html:string){
 }
 function shortTitle(raw:string){
   let t=String(raw||'').trim();
-  t=t.replace(/,\s*[\d.,]+\s+(?:vistas?|views?).*$/i,'').replace(/,\s*reproducir\s+Short.*$/i,'').trim();
+  t=t.replace(/,\s*[\d.,]+\s*(?:mil|k|m)?\s+(?:vistas?|views?).*$/i,'').replace(/,\s*reproducir\s+Short.*$/i,'').trim();
   return t||'Noticia'
 }
 async function channelShorts(channelId:string,label:string){
@@ -170,9 +170,9 @@ async function refreshNews(room:any){
     for(const row of rows){const v=row.videos[n];if(v){merged.push(v);added=true;if(merged.length>=120)break}}
     if(!added)break;n++
   }
-  const queue=normalizedNewsQueue(merged),old=await newsState(room),keep=String(old.current_video_id||'');
-  let index=queue.findIndex((v:any)=>v.video_id===keep);if(index<0)index=0;
-  const current:any=queue[index]||null,row={room_id:room.id,queue,current_index:index,current_video_id:String(current?.video_id||''),refreshed_at:new Date().toISOString(),updated_at:new Date().toISOString()};
+  let queue=normalizedNewsQueue(merged);const old=await newsState(room),keep=String(old.current_video_id||'');
+  const kept=queue.find((v:any)=>v.video_id===keep)||null;if(kept)queue=[kept,...queue.filter((v:any)=>v.video_id!==keep)];
+  const index=0,current:any=queue[0]||null,row={room_id:room.id,queue,current_index:index,current_video_id:String(current?.video_id||''),refreshed_at:new Date().toISOString(),updated_at:new Date().toISOString()};
   const uq=await db.from("tv_news_state").upsert(row,{onConflict:"room_id"}).select().single();if(uq.error)throw uq.error;
   return uq.data
 }
