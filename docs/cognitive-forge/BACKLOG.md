@@ -5,11 +5,11 @@
 ## Estado
 
 - Total de ítems: **253**
-- HECHO: **83**
+- HECHO: **84**
 - CONCLUSION: **5**
 - DISENADO: **115**
 - DESCUBRIMIENTO: **3**
-- PENDIENTE: **38**
+- PENDIENTE: **37**
 - CONCEPTO: **1**
 - OBJETIVO: **8**
 
@@ -256,7 +256,7 @@
 229. **[DISENADO] Toda Skill termina con evidencia.** No basta con declarar éxito.
 230. **[DISENADO] Intervención humana justificada.** Sólo autorización, preferencia real o acción física necesaria.
 231. **[PENDIENTE] Backlog durable.** Externalizar pendientes y decisiones fuera de este chat.
-232. **[PENDIENTE] Cada backlog item como objeto online.** Estado y referencia estables.
+232. **[HECHO] Cada backlog item como objeto online.** `backlog.json` expone 253 objetos con IDs 1–253 únicos y estado estable; Productive Frontier los referencia por `source_ref` y `frontier_source_key` sin colisiones observadas.
 233. **[PENDIENTE] Estados del backlog.** IDEA, DESIGNED, READY, WORKING, VALIDATING, DONE y SUPERSEDED.
 234. **[PENDIENTE] Relacionar backlog con origen.** Goals, Blueprint points, Skills, Tools y Plumas.
 235. **[PENDIENTE] Workers reclaman backlog automáticamente.** Cuando termine el Blueprint actual, poder consumir pendientes sin intervención manual.
