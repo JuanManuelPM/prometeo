@@ -129,11 +129,11 @@ function makeLiveAgent(row,i){
  return a;
 }
 function syncLiveAgents(rows,summary){
- const now=Date.now(),prev=new Map(agents.map(a=>[a.code,a])),seen=new Set(),next=[];
+ const now=Date.now(),wasLive=liveMode,prev=new Map(agents.map(a=>[a.code,a])),seen=new Set(),next=[];
  rows.slice(0,100).forEach((row,i)=>{
    const code=String(row.display_code||row.worker_code||('W-'+String(i+1).padStart(3,'0')));
    seen.add(code);
-   let a=prev.get(code);
+   let a=wasLive?prev.get(code):null;
    if(!a||a.state==='dead')a=makeLiveAgent(row,i);
    a.id=i;a.live=row;a.departedAt=null;a.workUntil=Infinity;
    const target=liveTarget(row),desired=liveVisualState(row);
@@ -142,7 +142,7 @@ function syncLiveAgents(rows,summary){
    else if(desired==='working'&&(a.target!==target||a.state==='parked'))setRoute(a,target,'walking');
    next.push(a);
  });
- for(const [code,a] of prev){
+ if(wasLive)for(const [code,a] of prev){
    if(seen.has(code))continue;
    if(!a.departedAt){a.departedAt=now;a.live=null;if(a.state!=='dead')setRoute(a,'pool','walking')}
    if(now-a.departedAt<8000)next.push(a);
