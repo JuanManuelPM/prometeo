@@ -19,7 +19,7 @@ button{appearance:none;border:1px solid #514c43;background:#0c0d0b;color:#aaa49a
 button.on{background:var(--paper);color:#080807;border-color:var(--paper)}
 .badge{position:fixed;right:9px;top:74px;z-index:6;border:1px solid var(--line);background:#0c0d0b;padding:8px 9px;font:900 6.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);letter-spacing:.09em;text-transform:uppercase}
 .panel{position:fixed;right:9px;bottom:9px;width:min(310px,calc(100vw - 18px));z-index:7;border:1px solid #49443c;background:rgba(11,12,10,.97);display:none;max-height:38vh;overflow:auto}
-.panel.show{display:block}.panelHead{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 9px;border-bottom:1px solid var(--line)}.panelHead b{font-size:10px}.panelHead button{padding:4px 7px}.panelBody{padding:9px;display:grid;gap:7px}.info{display:grid;grid-template-columns:70px 1fr;gap:7px;font-size:9px;line-height:1.25}.info span{font:900 6.5px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);letter-spacing:.09em;text-transform:uppercase}
+.panel.show{display:block}.panelHead{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 9px;border-bottom:1px solid var(--line)}.panelHead b{font-size:10px}.panelHead button{padding:4px 7px}.panelBody{padding:9px;display:grid;gap:7px}.info{display:grid;grid-template-columns:70px 1fr;gap:7px;font-size:9px;line-height:1.25}.info span{font:900 6.5px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);letter-spacing:.09em;text-transform:uppercase}.inspectSection{border-top:1px solid var(--line);padding-top:7px;display:grid;gap:5px}.inspectTitle{font:950 6.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}.inspectRow{display:grid;grid-template-columns:64px 1fr;gap:7px;font-size:8px;line-height:1.3}.inspectRow time{font:850 6px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:#716b62}.inspectRow b{font-weight:850}.inspectFlag{color:var(--orange)}.inspectLearn{font-size:8px;line-height:1.35;padding-left:7px;border-left:2px solid #49443c}
 .credit{position:fixed;left:9px;bottom:8px;z-index:3;font:800 5.5px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:#4d4942;letter-spacing:.06em;text-transform:uppercase;pointer-events:none}
 @media(max-width:700px){
  .hud{height:62px;grid-template-columns:minmax(112px,1fr) repeat(4,minmax(48px,62px))}
@@ -390,7 +390,36 @@ function hud(){
  $('alive').textContent=TOTAL-dead;$('off').textContent=dead;$('points').textContent='—';$('work').textContent=Math.round(working/(TOTAL-dead||1)*100)+'%';$('eta').textContent=(1+Math.floor((performance.now()/60000)%4))+'m'+String(Math.floor((performance.now()/1000)%60)).padStart(2,'0')
 }
 function hit(p){let best=null,bd=999999;for(const a of agents){const d=(a.x-p.x)**2+(a.y-p.y)**2;if(d<bd&&d<520){best=a;bd=d}}return best}
-function showAgent(a){selected=a.id;$('panelTitle').textContent=a.code;const row=a.live;if(liveMode&&row){const obj=objectAnchor(a);$('panelBody').innerHTML='<div class="info"><span>Fase</span><strong>'+esc(row.phase||a.state)+'</strong></div><div class="info"><span>Proyecto</span><strong>'+esc(row.project_title||row.project_id)+'</strong></div><div class="info"><span>Job</span><strong>'+esc(row.job_title||row.job_key)+'</strong></div><div class="info"><span>Objeto</span><strong>'+esc(obj&&obj.label||row.job_key||row.project_id)+'</strong></div><div class="info"><span>Estado</span><strong>'+esc(row.last_state||row.liveness)+'</strong></div><div class="info"><span>Ruta</span><strong>corredor → '+esc(zone(a.target).name.toLowerCase())+'</strong></div>'}else{$('panelBody').innerHTML='<div class="info"><span>Estado</span><strong>'+a.state.toUpperCase()+'</strong></div><div class="info"><span>Destino</span><strong>'+zone(a.target).name+'</strong></div><div class="info"><span>Score</span><strong>'+a.score.toLocaleString('es-AR')+'</strong></div><div class="info"><span>Ruta</span><strong>corredor → nodo → '+zone(a.target).name.toLowerCase()+'</strong></div>'}$('panel').classList.add('show')}
+function fmtAt(v){if(!v)return'—';const d=new Date(v);return Number.isNaN(d.getTime())?'—':d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+function inspectionHtml(a,row,ins){
+ const obj=objectAnchor(a),tasks=Array.isArray(ins&&ins.tasks)?ins.tasks:[],route=Array.isArray(ins&&ins.route)?ins.route:[],knowledge=Array.isArray(ins&&ins.knowledge_created)?ins.knowledge_created:[];
+ const current='<div class="info"><span>Fase</span><strong>'+esc(row.phase||a.state)+'</strong></div><div class="info"><span>Proyecto</span><strong>'+esc(row.project_title||row.project_id)+'</strong></div><div class="info"><span>Job</span><strong>'+esc(row.job_title||row.job_key)+'</strong></div><div class="info"><span>Objeto</span><strong>'+esc(obj&&obj.label||row.job_key||row.project_id)+'</strong></div><div class="info"><span>Estado</span><strong>'+esc(row.last_state||row.liveness)+'</strong></div><div class="info"><span>Ruta</span><strong>corredor → '+esc(zone(a.target).name.toLowerCase())+'</strong></div>';
+ if(!ins)return current+'<div class="inspectSection"><div class="inspectTitle">expediente</div><div class="inspectLearn">cargando historial durable…</div></div>';
+ const totals='<div class="inspectSection"><div class="inspectTitle">expediente durable</div><div class="info"><span>Tareas</span><strong>'+esc(ins.task_count)+'</strong></div><div class="info"><span>Rescates</span><strong class="'+(Number(ins.rescue_count)>0?'inspectFlag':'')+'">'+esc(ins.rescue_count)+'</strong></div><div class="info"><span>Eventos</span><strong>'+esc(ins.event_count)+'</strong></div><div class="info"><span>Recovery</span><strong>'+esc(Math.round(Number(ins.recovery_ms||0)/1000))+'s</strong></div></div>';
+ const taskRows=tasks.slice(0,6).map(x=>'<div class="inspectRow"><time>'+esc(fmtAt(x.published_at))+'</time><b>'+(x.rescued?'<span class="inspectFlag">RESCATE · </span>':'')+esc(x.job_key)+(x.outcome?' · '+esc(x.outcome):'')+'</b></div>').join('');
+ const taskBlock='<div class="inspectSection"><div class="inspectTitle">tareas publicadas</div>'+(taskRows||'<div class="inspectLearn">sin publicaciones</div>')+'</div>';
+ const routeRows=route.slice(0,8).map(x=>'<div class="inspectRow"><time>'+esc(fmtAt(x.at))+'</time><b>'+esc(x.phase||x.state)+(x.job_key?' · '+esc(x.job_key):'')+'</b></div>').join('');
+ const routeBlock='<div class="inspectSection"><div class="inspectTitle">recorrido de sesión</div>'+(routeRows||'<div class="inspectLearn">sin eventos</div>')+'</div>';
+ const learnRows=knowledge.slice(0,4).map(x=>'<div class="inspectLearn">'+esc(x.learning)+'<br><small>'+esc(x.job_key)+' · '+esc(fmtAt(x.published_at))+'</small></div>').join('');
+ const learnBlock='<div class="inspectSection"><div class="inspectTitle">conocimiento / aprendizaje declarado</div>'+(learnRows||'<div class="inspectLearn">sin aprendizaje reusable declarado</div>')+'</div>';
+ return current+totals+taskBlock+routeBlock+learnBlock;
+}
+async function showAgent(a){
+ selected=a.id;$('panelTitle').textContent=a.code;const row=a.live;
+ if(liveMode&&row){
+  $('panelBody').innerHTML=inspectionHtml(a,row,null);$('panel').classList.add('show');
+  try{
+   const code=String(row.worker_code||a.code),rows=await api('prometeo_worker_inspection?select=*&worker_code=eq.'+encodeURIComponent(code)+'&limit=1');
+   if(selected!==a.id)return;
+   $('panelBody').innerHTML=inspectionHtml(a,row,rows&&rows[0]||{task_count:0,rescue_count:0,event_count:0,recovery_ms:0,tasks:[],route:[],knowledge_created:[]});
+  }catch(e){
+   if(selected!==a.id)return;
+   $('panelBody').innerHTML=inspectionHtml(a,row,null).replace('cargando historial durable…','expediente no disponible · estado actual preservado');
+  }
+ }else{
+  $('panelBody').innerHTML='<div class="info"><span>Estado</span><strong>'+a.state.toUpperCase()+'</strong></div><div class="info"><span>Destino</span><strong>'+zone(a.target).name+'</strong></div><div class="info"><span>Score</span><strong>'+a.score.toLocaleString('es-AR')+'</strong></div><div class="info"><span>Ruta</span><strong>corredor → nodo → '+zone(a.target).name.toLowerCase()+'</strong></div>';$('panel').classList.add('show');
+ }
+}
 c.addEventListener('pointerdown',e=>{if(mode!=='map')return;const a=hit(worldPoint(e));if(a)showAgent(a)});
 $('close').onclick=()=>{$('panel').classList.remove('show');selected=null};
 $('mapBtn').onclick=()=>{mode='map';$('mapBtn').classList.add('on');$('raceBtn').classList.remove('on');$('panel').classList.remove('show');selected=null};
