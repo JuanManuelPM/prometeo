@@ -8,6 +8,7 @@
 - Provenance canónica: `docs/cognitive-forge/BACKLOG.md#223`
 - Relacionados: BACKLOG-197/198 (registry + versionado), BACKLOG-207..218 (familia Deep Skills), BACKLOG-222 (persistencia de Deep Skills), BACKLOG-224/225 (utilidad y evolución).
 - Esta spec no persiste todavía las Deep Skills ni cambia el scheduler.
+- Schema machine-readable: `docs/cognitive-forge/schemas/deep-skill-contract-v1.schema.json`.
 
 ## Evidencia previa y dedupe
 
