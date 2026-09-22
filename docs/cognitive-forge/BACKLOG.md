@@ -69,7 +69,7 @@
 42. **[DESCUBRIMIENTO] Cuatro workers quedaron ociosos.** K003, K004, K005 y K007 no ejecutaron tareas.
 43. **[CONCLUSION] DAG demasiado angosto.** El grafo fue correcto pero perdió paralelismo después de las raíces.
 44. **[CONCLUSION] Necesitamos más ramas independientes.** El siguiente sistema debía ofrecer más ancho ejecutable.
-45. **[DISENADO] Separar Card, Tool, Plume, Recipe y Skill.** Cinco tipos de conocimiento con responsabilidades diferentes.
+45. **[HECHO] Separar Card, Tool, Plume, Recipe y Skill.** Cinco tipos de conocimiento con responsabilidades diferentes.
 46. **[HECHO] Cognitive Card.** Forma reusable de pensar una tarea.
 47. **[HECHO] Herramienta.** Procedimiento concreto para hacer algo.
 48. **[HECHO] Pluma.** Pregunta que desbloquea o redirige razonamiento.
