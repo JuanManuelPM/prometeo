@@ -67,10 +67,13 @@ async function youtubeState(room:any){
   if(ins.error)throw ins.error;return ins.data;
 }
 function normalizedQueue(raw:any){
-  return (Array.isArray(raw)?raw:[]).slice(0,100).map((v:any)=>{
-    const video_id=ytId(String(v?.video_id||v?.watch_url||v?.url||""));if(!video_id)return null;
-    return {video_id,title:String(v?.title||v?.video_title||"YouTube").slice(0,200),channel_id:String(v?.channel_id||"").slice(0,80),channel_title:String(v?.channel_title||"").slice(0,120),thumbnail:String(v?.thumbnail||`https://i.ytimg.com/vi/${video_id}/mqdefault.jpg`).slice(0,500),watch_url:`https://www.youtube.com/watch?v=${video_id}`};
-  }).filter(Boolean);
+  const seen=new Set<string>(),out:any[]=[];
+  for(const v of (Array.isArray(raw)?raw:[]).slice(0,100)){
+    const video_id=ytId(String(v?.video_id||v?.watch_url||v?.url||""));if(!video_id||seen.has(video_id))continue;
+    seen.add(video_id);
+    out.push({video_id,title:String(v?.title||v?.video_title||"YouTube").slice(0,200),channel_id:String(v?.channel_id||"").slice(0,80),channel_title:String(v?.channel_title||"").slice(0,120),thumbnail:String(v?.thumbnail||`https://i.ytimg.com/vi/${video_id}/mqdefault.jpg`).slice(0,500),watch_url:`https://www.youtube.com/watch?v=${video_id}`});
+  }
+  return out;
 }
 function currentFromState(state:any){
   const queue=normalizedQueue(state?.queue);
@@ -238,9 +241,22 @@ Deno.serve(async(req:Request)=>{try{
     await changed(room,"remote",clientId);
     return json(req,{ok:true,state:q.data});
   }
+  if(action==="youtube_play_now"){
+    if(role!=="remote")fail("REMOTE_REQUIRED",403);
+    const state=await youtubeState(room),queue=normalizedQueue(state.queue),incoming:any=normalizedQueue([b.video||b])[0]||null;
+    if(!incoming)fail("VIDEO_REQUIRED");
+    const existing:any=queue.find((v:any)=>v.video_id===incoming.video_id)||null;
+    const chosen:any=existing?{...existing,...incoming}:incoming;
+    const nextQueue=[chosen,...queue.filter((v:any)=>v.video_id!==chosen.video_id)];
+    const row={room_id:room.id,queue:nextQueue,current_index:0,current_video_id:String(chosen.video_id),updated_at:new Date().toISOString()};
+    const q=await db.from("tv_youtube_state").upsert(row,{onConflict:"room_id"}).select().single();if(q.error)throw q.error;
+    await changed(room,"remote",clientId);
+    await db.from("prometeo_tv_events").insert({room_id:room.id,source:"remote",client_id:clientId||null,event_type:"player.command",payload:{command:"refresh_panel",block_id:"",value:null,at:new Date().toISOString()}});
+    return json(req,{ok:true,state:q.data});
+  }
   if(action==="youtube_play_index"){
     if(role!=="remote")fail("REMOTE_REQUIRED",403);
-    const state=await youtubeState(room),cur=currentFromState(state),index=Math.max(0,Math.min(cur.queue.length,Math.floor(Number(b.index)||0))),video:any=cur.queue[index]||null;
+    const state=await youtubeState(room),cur=currentFromState(state),max=Math.max(0,cur.queue.length-1),index=Math.max(0,Math.min(max,Math.floor(Number(b.index)||0))),video:any=cur.queue[index]||null;
     const row={room_id:room.id,queue:cur.queue,current_index:index,current_video_id:String(video?.video_id||""),updated_at:new Date().toISOString()};
     const q=await db.from("tv_youtube_state").upsert(row,{onConflict:"room_id"}).select().single();if(q.error)throw q.error;
     await changed(room,"remote",clientId);
