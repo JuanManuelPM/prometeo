@@ -1,7 +1,8 @@
 -- CORE-V1 · CLOSURE REVIEW
--- Independent transactional smoke for the cross-fill barrier.
--- Proves that missing second-worker evidence keeps the product in CONTRACT,
--- and that satisfying the cross-fill count allows MERGE without touching live CORE-V1.
+-- Independent transactional smoke for the real cross-fill barrier.
+-- Proves that missing second-worker evidence keeps the product in CONTRACT
+-- and its merge blocked, then opens the gate and MERGE after cross-fill completes.
+-- All fixture and tick side effects are rolled back.
 
 create or replace function public.prometeo_project_closure_crossfill_smoke_test()
 returns jsonb
@@ -13,9 +14,12 @@ declare
   v_suffix text := substr(md5(clock_timestamp()::text || random()::text),1,10);
   v_project text := '__CLOSURE_XFILL_SMOKE_PROJECT__'||v_suffix;
   v_product text := '__CLOSURE_XFILL_SMOKE_PRODUCT__'||v_suffix;
+  v_gate text := v_product||'-CROSSFILL-GATE';
   v_merge text := 'MERGE';
   v_phase_contract text;
   v_phase_merge text;
+  v_gate_before text;
+  v_gate_after text;
   v_merge_before text;
   v_merge_after text;
   v_spawn_after_contract boolean;
@@ -73,14 +77,22 @@ begin
     insert into public.prometeo_jobs(
       project_id,job_key,title,objective,instruction,status,priority,
       generation,lease_seconds,min_words,max_words
-    ) values(
-      v_project,v_merge,'Merge','fixture merge','fixture','BLOCKED',1,0,300,0,20
-    );
+    ) values
+      (v_project,v_gate,'Cross-fill gate','fixture gate','fixture','BLOCKED',1,0,300,0,20),
+      (v_project,v_merge,'Merge','fixture merge','fixture','BLOCKED',1,0,300,0,20);
+
+    insert into public.prometeo_job_dependencies(
+      project_id,job_key,depends_on_project_id,depends_on_job_key
+    ) values
+      (v_project,v_gate,v_project,v_gate),
+      (v_project,v_merge,v_project,v_gate);
 
     perform public.prometeo_night_shift_tick();
 
     select status into v_phase_contract
     from public.prometeo_products where product_id=v_product;
+    select status into v_gate_before
+    from public.prometeo_jobs where project_id=v_project and job_key=v_gate;
     select status into v_merge_before
     from public.prometeo_jobs where project_id=v_project and job_key=v_merge;
     select allow_spawn into v_spawn_after_contract
@@ -92,28 +104,36 @@ begin
     ) into v_cross_job_created;
 
     if v_phase_contract <> 'CONTRACT'
+       or v_gate_before <> 'BLOCKED'
        or v_merge_before <> 'BLOCKED'
        or v_spawn_after_contract is not false
        or not v_cross_job_created
     then
-      raise exception 'cross-fill gate assertion failed before second worker: %,%,%,%',
-        v_phase_contract,v_merge_before,v_spawn_after_contract,v_cross_job_created;
+      raise exception 'cross-fill gate assertion failed before second worker: %,%,%,%,%',
+        v_phase_contract,v_gate_before,v_merge_before,
+        v_spawn_after_contract,v_cross_job_created;
     end if;
 
     update public.prometeo_product_sheets
     set distinct_workers=2
     where product_id=v_product and sheet_key='S01';
 
+    perform public.prometeo_crossfill_gate_tick();
     perform public.prometeo_night_shift_tick();
 
     select status into v_phase_merge
     from public.prometeo_products where product_id=v_product;
+    select status into v_gate_after
+    from public.prometeo_jobs where project_id=v_project and job_key=v_gate;
     select status into v_merge_after
     from public.prometeo_jobs where project_id=v_project and job_key=v_merge;
 
-    if v_phase_merge <> 'MERGE' or v_merge_after <> 'READY' then
-      raise exception 'cross-fill gate assertion failed after second worker: %,%',
-        v_phase_merge,v_merge_after;
+    if v_phase_merge <> 'MERGE'
+       or v_gate_after <> 'DONE'
+       or v_merge_after <> 'READY'
+    then
+      raise exception 'cross-fill gate assertion failed after second worker: %,%,%',
+        v_phase_merge,v_gate_after,v_merge_after;
     end if;
 
     raise exception using
@@ -140,12 +160,14 @@ begin
     'state','PROJECT_CLOSURE_CROSSFILL_SMOKE_OK',
     'before_second_worker',jsonb_build_object(
       'product_status',v_phase_contract,
+      'gate_status',v_gate_before,
       'merge_status',v_merge_before,
       'allow_spawn',v_spawn_after_contract,
       'crossfill_job_created',v_cross_job_created
     ),
     'after_second_worker',jsonb_build_object(
       'product_status',v_phase_merge,
+      'gate_status',v_gate_after,
       'merge_status',v_merge_after
     ),
     'fixture_rolled_back',true
