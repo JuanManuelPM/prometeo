@@ -78,25 +78,25 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 .panel.mode-compact.clockPanel .phaseHint,.panel.mode-compact.clockPanel .wallLabel{display:none}
 .panel.mode-compact.clockPanel .wallTimeBig{margin-top:5px;font-size:clamp(22px,7cqw,36px)}
 .panel.mode-wide iframe,.panel.mode-wide .ytHost,.panel.mode-wide .ytHost iframe{object-fit:contain}
-.unlock{position:fixed;z-index:50;right:12px;bottom:12px;display:none;border:1px solid #ffffff55;background:#000c;color:#fff;height:36px;padding:0 12px;font-size:9px;font-weight:900;letter-spacing:.08em}
+.unlock{position:fixed;z-index:70;right:12px;bottom:12px;display:none;border:1px solid #ffffff66;background:#080806e8;color:#f2eee5;min-height:44px;padding:0 15px;font-size:9px;font-weight:900;letter-spacing:.09em;box-shadow:0 8px 24px #000a}
 .unlock.show{display:block}
 .status{position:fixed;right:8px;top:8px;z-index:60;width:5px;height:5px;border-radius:50%;background:#333;opacity:.35}.status.err{background:#fff}
 </style>
 </head>
 <body>
 <main id="stage" class="n1"></main>
-<button id="unlock" class="unlock">ACTIVAR VIDEO</button>
+<button id="unlock" class="unlock">ACTIVAR SONIDO</button>
 <div id="status" class="status"></div>
 <script>
 (()=>{
 'use strict';
-const BUILD='30';
+const BUILD='31';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const RUNTIME='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const p=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_TOKEN='6e7f4b74d76d2488ac3779832c77632475dd845db3a9b598765a757c7f18c327';
 const room={code:p.get('room')||DEFAULT_ROOM,token:p.get('t')||DEFAULT_TOKEN,role:'tv'};
-const client='tv-v30-'+Math.random().toString(36).slice(2,10);
+const client='tv-v31-'+Math.random().toString(36).slice(2,10);
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
 const views=new Map(),advancing=new Set();
 const PIPED_APIS=[
@@ -120,6 +120,7 @@ const PIPED_APIS=[
  'https://api.watch.pluto.lat'
 ];
 let blocks=[],serverActive=[],lastCommandId=0,updatePending=false,pageStarted=Date.now(),ytFallbackPromise=null;
+let soundWanted=localStorage.getItem('prometeo.tv.sound')!=='0',soundGestureUnlocked=false;
 
 function nowParts(){
  const ps=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
@@ -170,6 +171,63 @@ async function resolveCleanStream(videoId,signal){
  try{return await Promise.race([Promise.any(attempts),deadline])}
  catch(e){throw new Error('SIN_STREAM_LIMPIO')}
 }
+function persistSoundWanted(){
+ try{localStorage.setItem('prometeo.tv.sound',soundWanted?'1':'0')}catch{}
+}
+function showSoundUnlock(){
+ if(soundWanted){unlock.textContent='ACTIVAR SONIDO';unlock.classList.add('show')}
+}
+function hideSoundUnlock(){unlock.classList.remove('show')}
+function playerStateOf(v){try{return Number(v?.player?.getPlayerState?.()??v?.state??-1)}catch{return-1}}
+function playerMuted(v){try{return !!v?.player?.isMuted?.()}catch{return !!v?.muted}}
+function preservePlayingAfterAudio(v,wasPlaying){
+ if(!wasPlaying||v?.userPaused)return;
+ setTimeout(()=>{
+  try{
+   if(playerStateOf(v)!==1){
+    if(soundWanted&&!soundGestureUnlocked){v.player?.mute?.();v.muted=true;showSoundUnlock()}
+    v.player?.playVideo?.()
+   }
+  }catch{}
+ },120)
+}
+function applyMutePreference(v,on,{forcePlay=false}={}){
+ if(!v?.player)return;
+ const wasPlaying=forcePlay||playerStateOf(v)===1||(!v.userPaused&&v.playbackSeen);
+ try{
+  if(on){v.player.unMute?.();v.muted=false}
+  else{v.player.mute?.();v.muted=true}
+ }catch{}
+ preservePlayingAfterAudio(v,wasPlaying)
+}
+function startDesiredPlayback(v){
+ if(!v?.player)return;
+ v.userPaused=false;
+ if(soundWanted){
+  try{v.player.unMute?.();v.muted=false}catch{}
+  try{v.player.playVideo?.()}catch{}
+  v.audioTransitionUntil=Date.now()+900;
+  setTimeout(()=>{
+   if(!views.has(String(v.id))||v.userPaused)return;
+   const state=playerStateOf(v),muted=playerMuted(v);
+   if(state===1&&!muted){v.muted=false;hideSoundUnlock();return}
+   try{v.player.mute?.();v.muted=true;v.player.playVideo?.()}catch{}
+   showSoundUnlock()
+  },380)
+ }else{
+  try{v.player.mute?.();v.muted=true;v.player.playVideo?.()}catch{}
+  hideSoundUnlock()
+ }
+}
+function unlockSoundFromGesture(){
+ soundGestureUnlocked=true;soundWanted=true;persistSoundWanted();
+ for(const v of mediaViews()){
+  if(!v?.player)continue;
+  v.userPaused=false;
+  try{v.player.unMute?.();v.muted=false;v.player.playVideo?.()}catch{}
+ }
+ hideSoundUnlock()
+}
 function ensureYTFallback(){
  if(window.YT?.Player)return Promise.resolve(window.YT);
  if(ytFallbackPromise)return ytFallbackPromise;
@@ -191,9 +249,16 @@ async function mountYoutubeFallback(b,v){
   await ensureYTFallback();if(!views.has(String(v.id))||String(v.block?.payload?.video_id||'')!==videoId)return;
   const p=new YT.Player(host,{videoId,playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,fs:0,iv_load_policy:3,disablekb:1,modestbranding:1},
    events:{
-    onReady:e=>{v.fallbackPlayer=e.target;v.player=e.target;v.streamSource='youtube-fallback';v.ready=true;try{e.target.mute();e.target.playVideo()}catch{};v.status.style.display='none'},
-    onStateChange:e=>{v.state=Number(e.data);if(v.state===1){v.playbackSeen=true;v.status.style.display='none'}if(v.state===0&&v.playbackSeen){if(v.kind==='news')advanceNews(v.block,v);else advanceYoutube(v.block,v)}},
-    onAutoplayBlocked:()=>{try{p.mute();p.playVideo()}catch{}},
+    onReady:e=>{v.fallbackPlayer=e.target;v.player=e.target;v.streamSource='youtube-fallback';v.ready=true;v.userPaused=false;v.status.style.display='none';startDesiredPlayback(v)},
+    onStateChange:e=>{
+      v.state=Number(e.data);
+      if(v.state===1){v.playbackSeen=true;v.muted=playerMuted(v);v.status.style.display='none';if(soundWanted&&!v.muted)hideSoundUnlock()}
+      if(v.state===2&&Date.now()<Number(v.audioTransitionUntil||0)&&!v.userPaused){
+        try{if(soundWanted&&!soundGestureUnlocked){v.player.mute();v.muted=true;showSoundUnlock()}v.player.playVideo()}catch{}
+      }
+      if(v.state===0&&v.playbackSeen){if(v.kind==='news')advanceNews(v.block,v);else advanceYoutube(v.block,v)}
+    },
+    onAutoplayBlocked:()=>{try{v.player?.mute?.();v.muted=true;v.player?.playVideo?.()}catch{};if(soundWanted)showSoundUnlock()},
     onError:()=>{v.status.style.display='grid';v.status.innerHTML='NO PUDE ABRIR ESTE SHORT<span>PASANDO AL SIGUIENTE</span>';setTimeout(()=>{if(v.kind==='news')advanceNews(v.block,v)},1200)}
    }});
  }catch{
@@ -215,9 +280,12 @@ function nativeAdapter(video,v){
  }
 }
 async function startNativePlayback(v){
- const video=v?.video;if(!video)return;
- try{video.muted=false;await video.play();v.muted=false;unlock.classList.remove('show');return}catch{}
- try{video.muted=true;v.muted=true;await video.play();unlock.classList.remove('show')}catch{unlock.classList.add('show')}
+ const video=v?.video;if(!video)return;v.userPaused=false;
+ if(!soundWanted){
+  try{video.muted=true;v.muted=true;await video.play();hideSoundUnlock();return}catch{unlock.classList.add('show');return}
+ }
+ try{video.muted=false;await video.play();v.muted=false;hideSoundUnlock();return}catch{}
+ try{video.muted=true;v.muted=true;await video.play();showSoundUnlock()}catch{unlock.classList.add('show')}
 }
 async function loadNativeStream(b,v){
  const videoId=String(b.payload?.video_id||'');if(!videoId||!v.video)return;
@@ -236,7 +304,7 @@ async function loadNativeStream(b,v){
 function createView(b){
  const id=String(b.id),el=document.createElement('section');el.className='panel';
  const videoId=String(b.payload?.video_id||'');
- const v={id,el,kind:b.kind,sig:sig(b),block:b,videoId,player:null,video:null,status:null,progress:null,progressFill:null,remaining:null,abort:null,fallbackWrap:null,fallbackPlayer:null,loadTicket:0,ready:false,muted:false,state:null,streamDuration:0,streamSource:'',playbackSeen:false};
+ const v={id,el,kind:b.kind,sig:sig(b),block:b,videoId,player:null,video:null,status:null,progress:null,progressFill:null,remaining:null,abort:null,fallbackWrap:null,fallbackPlayer:null,loadTicket:0,ready:false,muted:false,state:null,streamDuration:0,streamSource:'',playbackSeen:false,userPaused:false,audioTransitionUntil:0};
  views.set(id,v);stage.appendChild(el);
  if(b.kind==='clock'){el.classList.add('clockPanel');el.innerHTML=clockMarkup()}
  else if(b.kind==='page'){const f=document.createElement('iframe');f.src=b.payload?.url||'about:blank';f.allow='autoplay; fullscreen; picture-in-picture';f.addEventListener('load',()=>setTimeout(()=>applyGrid(active()),30));el.appendChild(f)}
@@ -265,7 +333,7 @@ function createView(b){
 function switchYoutubeVideo(b,v){
  const next=String(b.payload?.video_id||'');if(!next||next===v.videoId)return;
  try{v.fallbackPlayer?.destroy()}catch{};v.fallbackPlayer=null;v.fallbackWrap=null;v.player=nativeAdapter(v.video,v);if(v.video)v.video.style.display='';
- v.block=b;v.videoId=next;v.playbackSeen=false;v.state=3;if(v.video)v.video.poster=String(b.payload?.thumbnail||('https://i.ytimg.com/vi/'+next+'/maxresdefault.jpg'));loadNativeStream(b,v)
+ v.block=b;v.videoId=next;v.playbackSeen=false;v.userPaused=false;v.state=3;if(v.video)v.video.poster=String(b.payload?.thumbnail||('https://i.ytimg.com/vi/'+next+'/maxresdefault.jpg'));loadNativeStream(b,v)
 }
 function ensureView(b,forceMount=false){
  const id=String(b.id),old=views.get(id),nextVideo=String(b.payload?.video_id||'');
@@ -417,12 +485,31 @@ function playerCommand(cmd,blockId,value){
  for(const v of targets(blockId)){
    if(!['youtube','news'].includes(v.kind)||!v.player)continue;
    try{
-    if(cmd==='play')v.player.playVideo();
-    else if(cmd==='pause')v.player.pauseVideo();
-    else if(cmd==='toggle'){const s=v.player.getPlayerState();s===1?v.player.pauseVideo():v.player.playVideo()}
-    else if(cmd==='mute'){v.player.mute();v.muted=true}
-    else if(cmd==='unmute'){v.player.unMute();v.muted=false}
-    else if(cmd==='seek_relative'){
+    if(cmd==='play'){
+      v.userPaused=false;
+      if(soundWanted)startDesiredPlayback(v);else v.player.playVideo()
+    }else if(cmd==='pause'){
+      v.userPaused=true;v.player.pauseVideo()
+    }else if(cmd==='toggle'){
+      const st=playerStateOf(v);
+      if(st===1){v.userPaused=true;v.player.pauseVideo()}
+      else{v.userPaused=false;if(soundWanted)startDesiredPlayback(v);else v.player.playVideo()}
+    }else if(cmd==='mute'){
+      soundWanted=false;persistSoundWanted();
+      const wasPlaying=playerStateOf(v)===1;applyMutePreference(v,false,{forcePlay:wasPlaying});hideSoundUnlock()
+    }else if(cmd==='unmute'){
+      soundWanted=true;persistSoundWanted();
+      const wasPlaying=playerStateOf(v)===1||!v.userPaused;
+      v.audioTransitionUntil=Date.now()+1000;
+      try{v.player.unMute?.();v.muted=false;if(wasPlaying)v.player.playVideo?.()}catch{}
+      setTimeout(()=>{
+       if(v.userPaused)return;
+       if(playerStateOf(v)!==1){
+        try{v.player.mute?.();v.muted=true;v.player.playVideo?.()}catch{}
+        showSoundUnlock()
+       }else if(playerMuted(v)){showSoundUnlock()}else hideSoundUnlock()
+      },260)
+    }else if(cmd==='seek_relative'){
       const cur=Number(v.player.getCurrentTime?.()||0),dur=Number(v.player.getDuration?.()||0),delta=Math.max(-120,Math.min(120,Number(value)||0)),to=Math.max(0,dur>0?Math.min(dur-.1,cur+delta):cur+delta);
       v.player.seekTo(to,true)
     }else if(cmd==='seek_absolute'){
@@ -507,8 +594,8 @@ async function checkRuntime(){
   if(String(d.tv_build||d.build||BUILD)!==BUILD){location.replace('/prometeo/tv/?v='+encodeURIComponent(String(d.tv_build||d.build||''))+'&fresh='+Date.now()+location.hash)}
  }catch{}
 }
-unlock.onclick=()=>{unlock.classList.remove('show');for(const v of mediaViews())try{v.player?.unMute?.();v.player?.playVideo()}catch{}};
-document.addEventListener('click',()=>{for(const v of mediaViews())try{v.player?.unMute?.();v.player?.playVideo()}catch{}},{once:true});
+unlock.onclick=e=>{e.preventDefault();e.stopPropagation();unlockSoundFromGesture()};
+document.addEventListener('pointerdown',()=>{if(soundWanted&&!soundGestureUnlocked)unlockSoundFromGesture()},{once:true,capture:true});
 stage.addEventListener('contextmenu',e=>e.preventDefault());
 setInterval(()=>{tickClock();updateProgress();syncStage()},250);
 setInterval(loadSchedule,700);
