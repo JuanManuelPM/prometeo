@@ -21,9 +21,11 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 #stage.layout-four-grid{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
 .panel{position:relative;overflow:hidden;background:#000;min-width:0;min-height:0}
 .panel iframe,.ytHost,.ytHost iframe{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;border:0!important}
-.ytHost iframe{pointer-events:none!important}
-.videoProgress{position:absolute;left:0;right:0;bottom:0;height:4px;z-index:8;background:#2b2b2b;pointer-events:none}
-.videoProgressFill{height:100%;width:0;background:#f4f3ee;transition:width .20s linear}
+.youtubePanel{background:#000}
+.youtubePanel .ytHost{overflow:hidden!important;inset:0!important;background:#000}
+.youtubePanel .ytHost iframe{pointer-events:none!important;transform:scale(1.07)!important;transform-origin:center center!important}
+.videoProgress{display:none!important}
+.videoProgressFill{display:none!important}
 .youtubeEmpty{position:absolute;inset:0;display:grid;place-items:center;background:#000;color:#f4f2ea;font:900 clamp(14px,2.2vw,28px)/1 Arial,Helvetica,sans-serif;letter-spacing:.12em}
 .youtubeEmpty span{color:#77766f;font-size:.38em;display:block;text-align:center;margin-top:9px;letter-spacing:.1em}
 .clockPanel{display:grid;place-items:center;background:#050505;container-type:size}
@@ -77,13 +79,13 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 <script>
 (()=>{
 'use strict';
-const BUILD='23';
+const BUILD='24';
 const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/tv-schedule-v1';
 const RUNTIME='https://juanmanuelpm.github.io/prometeo/tv/canonical.json';
 const p=new URLSearchParams(location.hash.slice(1));
 const DEFAULT_ROOM='TV-PM2K7Q',DEFAULT_TOKEN='6e7f4b74d76d2488ac3779832c77632475dd845db3a9b598765a757c7f18c327';
 const room={code:p.get('room')||DEFAULT_ROOM,token:p.get('t')||DEFAULT_TOKEN,role:'tv'};
-const client='tv-v23-'+Math.random().toString(36).slice(2,10);
+const client='tv-v24-'+Math.random().toString(36).slice(2,10);
 const stage=document.getElementById('stage'),unlock=document.getElementById('unlock'),status=document.getElementById('status');
 const views=new Map(),advancing=new Set();
 let blocks=[],serverActive=[],ytReady=false,lastCommandId=0,updatePending=false,pageStarted=Date.now();
@@ -99,7 +101,7 @@ async function api(body){
  const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:room.code,role:'tv',token:room.token,client_id:client,...body}),cache:'no-store'});
  const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||'TV_API');return d
 }
-function sig(b){return b.kind+'|'+JSON.stringify(b.payload||{})}
+function sig(b){return b.kind==='youtube'?'youtube':b.kind+'|'+JSON.stringify(b.payload||{})}
 function clockMarkup(){return '<div class="clockLayout"><div class="hybridClock"><div class="timeMass"></div><div class="dialRim"></div><div class="hourTicks"></div><div class="minuteTicks"></div><span class="clockNumber n12">12</span><span class="clockNumber n3">3</span><span class="clockNumber n6">6</span><span class="clockNumber n9">9</span><div class="clockHand clockHour"></div><div class="clockHand clockMinute"></div><div class="clockHand clockSecond"></div><div class="clockCenter"></div></div><div class="clockReadout"><div class="phaseName">FOCO</div><div class="phaseRemaining">25:00</div><div class="phaseHint">la superficie roja es el tiempo que queda</div><div class="wallTimeBig">--:--</div><div class="wallLabel">hora actual</div></div></div>'}
 function destroyView(id){
  const v=views.get(String(id));if(!v)return;
@@ -109,49 +111,92 @@ function destroyView(id){
 }
 function createView(b){
  const id=String(b.id),el=document.createElement('section');el.className='panel';
- const v={id,el,kind:b.kind,sig:sig(b),player:null,ready:false,muted:false,state:null,progressFill:null,playbackSeen:false};
+ const videoId=String(b.payload?.video_id||'');
+ const v={id,el,kind:b.kind,sig:sig(b),block:b,videoId,player:null,ready:false,muted:false,state:null,progressFill:null,playbackSeen:false};
  views.set(id,v);stage.appendChild(el);
  if(b.kind==='clock'){el.classList.add('clockPanel');el.innerHTML=clockMarkup()}
  else if(b.kind==='page'){const f=document.createElement('iframe');f.src=b.payload?.url||'about:blank';f.allow='autoplay; fullscreen; picture-in-picture';f.addEventListener('load',()=>setTimeout(()=>applyGrid(active()),30));el.appendChild(f)}
  else if(b.kind==='youtube'){
-   const videoId=String(b.payload?.video_id||'');
+   el.classList.add('youtubePanel');
    if(!videoId){const empty=document.createElement('div');empty.className='youtubeEmpty';empty.innerHTML='<div>YOUTUBE<span>SIN CONTENIDO</span></div>';el.appendChild(empty)}
    else{
      const host=document.createElement('div');host.className='ytHost';host.id='yt-'+id.replace(/[^a-z0-9_-]/gi,'');el.appendChild(host);
-     const progress=document.createElement('div');progress.className='videoProgress';
-     const fill=document.createElement('div');fill.className='videoProgressFill';progress.appendChild(fill);el.appendChild(progress);v.progressFill=fill;
      if(ytReady&&window.YT?.Player)mountPlayer(b,v)
    }
  }
  return v
 }
+function startYoutubePlayback(v,{restoreSound=true}={}){
+ const p=v?.player;if(!p)return;
+ const wantedMuted=!!v.muted;
+ try{p.mute();p.playVideo()}catch{}
+ setTimeout(()=>{
+   try{
+     if(restoreSound&&!wantedMuted)p.unMute();
+     p.playVideo();
+   }catch{}
+   setTimeout(()=>{
+     try{
+       if(Number(p.getPlayerState?.())!==1){
+         p.mute();v.muted=true;p.playVideo();unlock.classList.remove('show')
+       }else{v.muted=!!p.isMuted?.();unlock.classList.remove('show')}
+     }catch{}
+   },420)
+ },90)
+}
+function switchYoutubeVideo(b,v){
+ const next=String(b.payload?.video_id||'');if(!next||next===v.videoId)return;
+ v.block=b;v.videoId=next;v.playbackSeen=false;v.state=null;
+ if(v.player&&v.ready){
+   try{v.player.loadVideoById({videoId:next,startSeconds:0});startYoutubePlayback(v)}catch{}
+ }
+}
 function mountPlayer(b,v){
- if(v.player||!ytReady||!window.YT?.Player||!b.payload?.video_id)return;
+ if(v.player||!ytReady||!window.YT?.Player||!v.videoId)return;
+ v.block=b;
  try{
   v.player=new YT.Player(v.el.querySelector('.ytHost').id,{
-    videoId:String(b.payload?.video_id||''),
-    playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,fs:0,iv_load_policy:3,disablekb:1},
+    videoId:v.videoId,
+    playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,fs:0,iv_load_policy:3,disablekb:1,cc_load_policy:0,modestbranding:1},
     events:{
-      onReady:e=>{v.ready=true;try{e.target.playVideo()}catch{}},
+      onReady:e=>{
+        v.ready=true;
+        try{
+          const actual=String(e.target.getVideoData?.().video_id||'');
+          if(v.videoId&&actual&&actual!==v.videoId)e.target.loadVideoById({videoId:v.videoId,startSeconds:0})
+        }catch{}
+        startYoutubePlayback(v)
+      },
       onStateChange:e=>{
         v.state=Number(e.data);
-        if(v.state===1)v.playbackSeen=true;
+        if(v.state===1){v.playbackSeen=true;try{v.muted=!!e.target.isMuted?.()}catch{}}
         if(v.state===0){
           let current=0,duration=0;
           try{current=Number(e.target.getCurrentTime?.()||0);duration=Number(e.target.getDuration?.()||0)}catch{}
           const nearEnd=duration>0&&(current>=duration-3||current/duration>=.97);
-          if(v.playbackSeen&&nearEnd)advanceYoutube(b,v);
+          if(v.playbackSeen&&nearEnd&&v.block)advanceYoutube(v.block,v)
         }
       },
-      onAutoplayBlocked:()=>unlock.classList.add('show'),
+      onAutoplayBlocked:()=>{
+        try{v.player?.mute();v.muted=true;v.player?.playVideo();unlock.classList.remove('show')}catch{unlock.classList.add('show')}
+      },
       onError:()=>unlock.classList.add('show')
     }
   })
  }catch{unlock.classList.add('show')}
 }
 function ensureView(b,forceMount=false){
- const id=String(b.id),old=views.get(id);
- if(old&&old.sig===sig(b)){if(forceMount&&b.kind==='youtube')mountPlayer(b,old);return old}
+ const id=String(b.id),old=views.get(id),nextVideo=String(b.payload?.video_id||'');
+ if(old&&old.kind===b.kind&&old.sig===sig(b)){
+   old.block=b;
+   if(b.kind==='youtube'){
+     const had=!!old.videoId,has=!!nextVideo;
+     if(had!==has){destroyView(id);return createView(b)}
+     if(has&&nextVideo!==old.videoId)switchYoutubeVideo(b,old);
+     if(forceMount)mountPlayer(b,old)
+   }
+   return old
+ }
  if(old)destroyView(id);
  return createView(b)
 }
@@ -279,7 +324,7 @@ function updateProgress(){
 }
 function youtubeViews(){return active().filter(b=>b.kind==='youtube').map(b=>views.get(String(b.id))).filter(Boolean)}
 function targets(blockId){if(blockId&&views.has(String(blockId)))return[views.get(String(blockId))];return youtubeViews()}
-function playerCommand(cmd,blockId){
+function playerCommand(cmd,blockId,value){
  for(const v of targets(blockId)){
    if(v.kind!=='youtube'||!v.player)continue;
    try{
@@ -288,6 +333,10 @@ function playerCommand(cmd,blockId){
     else if(cmd==='toggle'){const s=v.player.getPlayerState();s===1?v.player.pauseVideo():v.player.playVideo()}
     else if(cmd==='mute'){v.player.mute();v.muted=true}
     else if(cmd==='unmute'){v.player.unMute();v.muted=false}
+    else if(cmd==='seek_relative'){
+      const cur=Number(v.player.getCurrentTime?.()||0),dur=Number(v.player.getDuration?.()||0),delta=Math.max(-120,Math.min(120,Number(value)||0)),to=Math.max(0,dur>0?Math.min(dur-.1,cur+delta):cur+delta);
+      v.player.seekTo(to,true)
+    }
    }catch{}
  }
 }
@@ -309,7 +358,6 @@ async function advanceYoutube(b,v){
   const d=await api({action:'youtube_advance',block_id:id,video_id:current});
   if(d.advanced&&d.block){
     replaceBlock(d.block);
-    destroyView(id);
     ensureView(d.block,true);
     applyGrid(active());
     unlock.classList.remove('show')
@@ -327,7 +375,7 @@ async function pollCommands(){
    lastCommandId=Math.max(lastCommandId,Number(ev.id)||0);
    if(new Date(ev.created_at).getTime()<pageStarted-1500)continue;
    const x=ev.payload||{},cmd=String(x.command||''),blockId=String(x.block_id||'');
-   if(['play','pause','toggle','mute','unmute'].includes(cmd))playerCommand(cmd,blockId);
+   if(['play','pause','toggle','mute','unmute','seek_relative'].includes(cmd))playerCommand(cmd,blockId,x.value);
    else if(['widget_previous','widget_next','widget_toggle','widget_reset'].includes(cmd))widgetCommand(cmd,blockId);
    else if(cmd==='refresh_panel')refreshPanel(blockId);
    else if(cmd==='reload_now')hardReload();
