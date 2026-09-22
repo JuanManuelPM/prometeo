@@ -3,7 +3,7 @@
 ## Estado
 
 - Backlog origen: **199 · No depender de prompts largos**
-- Estado propuesto: **DISEÑADO**
+- Estado: **HECHO**
 - Dependencias satisfechas: BACKLOG-197/198 (`forge_skills`, `forge_skill_versions`).
 - Objetivo: que trabajo repetitivo pueda referenciar una Skill durable/versionada sin copiar su procedimiento completo en la conversación.
 
@@ -22,7 +22,7 @@ Forma mínima sugerida en `job.input_context.skill_ref`:
 - `skill_id`: identidad estable.
 - `version_no`: entero exacto; nunca `latest` en un job ya asignado.
 - `binding_source`: quién fijó la referencia (`JOB`, `SCHEDULER`, `HUMAN`, `COMPILER`).
-- `binding_provenance`: receipt/origen durable.
+- `binding_provenance`: texto no vacío con receipt/origen durable.
 
 El scheduler puede resolver una policy de selección antes de asignar, pero el WORK final debe transportar una versión pinneada.
 
@@ -96,3 +96,12 @@ Jobs actuales sin `skill_ref` funcionan igual. La adopción es incremental y rev
 ## Criterio de cierre
 
 BACKLOG-199 pasa a HECHO cuando A-B estén implementadas y al menos un smoke pruebe version pinning, no-fallback y hash estable. La migración de consumers continúa incrementalmente.
+
+## Evidencia de implementación
+
+- Migración aplicada: `forge_skill_execution_bundle_v1`.
+- Fuente: `supabase/migrations/20260922041100_forge_skill_execution_bundle_v1.sql`.
+- Primitive: `forge_skill_execution_bundle(skill_id, version_no)`.
+- Validador: `forge_skill_ref_validate(skill_ref)` exige versión exacta, binding_source y binding_provenance.
+- Hash: `forge_skill_definition_hash` sobre la definición versionada canónica.
+- Smoke: `forge_skill_execution_bundle_smoke_test()` devolvió `SKILL_EXECUTION_BUNDLE_SMOKE_OK` con exact-version, no-fallback, CANDIDATE/RETIRED rejected, hash estable/diferente y authority=false; fixture cleaned.
