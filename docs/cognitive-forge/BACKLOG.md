@@ -167,7 +167,7 @@
 140. **[HECHO] Arranque con histórico.** Usar runs anteriores antes de tener muestras suficientes.
 141. **[DISENADO] Migrar a datos del run actual.** La estimación se adapta automáticamente.
 142. **[DISENADO] Usar mediana.** Reducir sensibilidad a outliers.
-143. **[DISENADO] Duración por fase.** Aprender tiempos distintos para Architect, Development, etc.
+143. **[HECHO] Duración por fase.** Vista dinámica `blueprint_phase_duration_summary` aprende avg/mediana/p90, cobertura y ms/1000 palabras desde outputs reales; smoke PASS con 182 muestras. Evidencia: `docs/cognitive-forge/BACKLOG-143-PHASE-DURATION-EVIDENCE.md`.
 144. **[DISENADO] Throughput por worker.** Usarlo para capacidad efectiva, no como ranking humano.
 145. **[DISENADO] Simulación del scheduler.** Proyectar cola restante en JavaScript.
 146. **[DISENADO] ETA rápido/central/lento.** Usar percentiles para banda temporal.
