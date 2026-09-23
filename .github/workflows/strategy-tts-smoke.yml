@@ -80,6 +80,33 @@ jobs:
             echo "AUDIO sha256=$(sha256sum post.audio | awk '{print $1}')"
           fi
 
+      - name: Verify two-chunk E1 identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          API="https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-strategy-audio-v1"
+          check_chunk() {
+            local id="$1" text="$2" headers audio code voice bytes cache payload
+            headers="/tmp/$id.headers"
+            audio="/tmp/$id.audio"
+            code="$(curl --retry 2 --retry-delay 2 --max-time 60 -sS -D "$headers" -o "$audio" -w '%{http_code}' "$API?id=$id")"
+            if [ "$code" = "404" ]; then
+              payload="$(jq -nc --arg id "$id" --arg text "$text" '{messageId:$id,text:$text}')"
+              code="$(curl --retry 2 --retry-delay 4 --max-time 300 -sS -D "$headers" -o "$audio" -w '%{http_code}' -H 'content-type: application/json' --data "$payload" "$API")"
+            fi
+            voice="$(grep -i '^x-prometeo-voice:' "$headers" | tail -1 | tr -d '\r' | cut -d' ' -f2)"
+            cache="$(grep -i '^x-prometeo-cache:' "$headers" | tail -1 | tr -d '\r' | cut -d' ' -f2)"
+            bytes="$(wc -c < "$audio")"
+            echo "MULTI id=$id http=$code cache=$cache voice=$voice bytes=$bytes"
+            test "$code" = "200"
+            test "$voice" = "prometeo-c-e1-ironic-clone-v4"
+            test "$bytes" -gt 1000
+            python3 -c 'import sys; from pathlib import Path; b=Path(sys.argv[1]).read_bytes(); ok=b[:4] in (b"RIFF",b"OggS",b"fLaC") or b[:3]==b"ID3" or (len(b)>2 and b[0]==0xff and (b[1]&0xe0)==0xe0); assert len(b)>1000 and ok, repr(b[:12])' "$audio"
+          }
+          check_chunk "strategy-e1-multichunk-v1-1" "Prometeo ya separó el problema en partes concretas; primero conserva lo que funciona y después mueve sólo la pieza que bloquea el avance."
+          check_chunk "strategy-e1-multichunk-v1-2" "La segunda parte mantiene exactamente la misma identidad vocal, mientras cambia únicamente el contenido y la prosodia necesaria para continuar la lectura."
+          echo "MULTI identity=prometeo-c-e1-ironic-clone-v4 chunks=2"
+
       - name: Verify published strategy page
         shell: bash
         run: |
