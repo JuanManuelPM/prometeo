@@ -28,24 +28,25 @@ jobs:
           grep -q "FIRST_AUDIO_CHARS=220" strategy/index.html
           grep -q "AHEAD=5" strategy/index.html
           grep -q "WORKERS=2" strategy/index.html
-          grep -q "prometeo-strategy-voice-v3" strategy/index.html
+          grep -q "prometeo-strategy-fixed-v1" strategy/index.html
+          grep -q "prometeo-strategy-audio-v1" strategy/index.html
+          grep -q 'id="toggleText"' strategy/index.html
+          grep -q 'id="toggleThought"' strategy/index.html
           if grep -q "audio-lab-page-audio-v1" strategy/index.html; then exit 1; fi
 
       - name: Generate fresh audio and recover it from cache
         shell: bash
         run: |
           set -euo pipefail
-          API="https://catnohyouxqjjtseaueb.supabase.co/functions/v1/modelos-room-audio-v2"
+          API="https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-strategy-audio-v1"
           ID="strategy-live-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           TEXT="Prometeo ya tiene voz real. Esta prueba genera audio nuevo, lo recupera desde la caché y verifica sus bytes."
-          PROMPT="Voz masculina adulta, español rioplatense natural, tono de coordinador estratégico: directo, calmo, preciso y analítico. Nada de tono de tráiler ni entusiasmo artificial."
-
-          payload="$(jq -nc --arg id "$ID" --arg text "$TEXT" --arg prompt "$PROMPT" '{messageId:$id,text:$text,voicePrompt:$prompt}')"
+          payload="$(jq -nc --arg id "$ID" --arg text "$TEXT" '{messageId:$id,text:$text}')"
 
           code="$(curl --retry 2 --retry-delay 4 --max-time 300 -sS -D post.headers -o post.audio -w '%{http_code}' -H 'content-type: application/json' --data "$payload" "$API")"
           test "$code" = "200"
 
-          POST_CACHE="$(awk 'BEGIN{IGNORECASE=1}/^x-modelos-cache:/{gsub("\r","");print $2}' post.headers | tail -1)"
+          POST_CACHE="$(awk 'BEGIN{IGNORECASE=1}/^x-prometeo-cache:/{gsub("\r","");print $2}' post.headers | tail -1)"
           POST_BYTES="$(wc -c < post.audio)"
           test "$POST_CACHE" = "MISS"
           test "$POST_BYTES" -gt 1000
@@ -54,7 +55,7 @@ jobs:
 
           get_code="$(curl --retry 2 --retry-delay 2 --max-time 60 -sS -D get.headers -o get.audio -w '%{http_code}' "$API?id=$ID")"
           test "$get_code" = "200"
-          GET_CACHE="$(awk 'BEGIN{IGNORECASE=1}/^x-modelos-cache:/{gsub("\r","");print $2}' get.headers | tail -1)"
+          GET_CACHE="$(awk 'BEGIN{IGNORECASE=1}/^x-prometeo-cache:/{gsub("\r","");print $2}' get.headers | tail -1)"
           test "$GET_CACHE" = "HIT"
           cmp post.audio get.audio
 
@@ -76,7 +77,10 @@ jobs:
               && grep -q "FIRST_AUDIO_CHARS=220" /tmp/strategy-public.html \
               && grep -q "AHEAD=5" /tmp/strategy-public.html \
               && grep -q "WORKERS=2" /tmp/strategy-public.html \
-              && grep -q "prometeo-strategy-voice-v3" /tmp/strategy-public.html \
+              && grep -q "prometeo-strategy-fixed-v1" /tmp/strategy-public.html \
+              && grep -q "prometeo-strategy-audio-v1" /tmp/strategy-public.html \
+              && grep -q 'id="toggleText"' /tmp/strategy-public.html \
+              && grep -q 'id="toggleThought"' /tmp/strategy-public.html \
               && ! grep -q "audio-lab-page-audio-v1" /tmp/strategy-public.html; then
               ok=1
               break
@@ -84,4 +88,4 @@ jobs:
             sleep 5
           done
           test "$ok" = "1"
-          echo "PUBLIC http=200 bytes=$(wc -c < /tmp/strategy-public.html) tts=modelos-room-audio-v2"
+          echo "PUBLIC http=200 bytes=$(wc -c < /tmp/strategy-public.html) tts=prometeo-strategy-audio-v1"
