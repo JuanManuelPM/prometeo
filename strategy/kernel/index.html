@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Prometeo · Worker Kernel V2</title>
+<style>
+:root{color-scheme:dark;--bg:#000;--fg:#fff;--dim:#9b9b9b;--line:#2b2b2b}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+main{width:min(1200px,100%);margin:auto;padding:18px}
+header{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;border-bottom:1px solid var(--line);padding-bottom:12px}
+h1{font:900 26px/1 system-ui,sans-serif;letter-spacing:-.04em;margin:4px 0 0}
+.kicker,.small{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+a{color:#fff}
+.metrics{display:grid;grid-template-columns:repeat(6,1fr);border-bottom:1px solid var(--line)}
+.metric{padding:14px 8px;border-right:1px solid var(--line)}
+.metric:last-child{border-right:0}
+.metric b{display:block;font:900 23px/1 system-ui,sans-serif}
+.metric span{display:block;margin-top:5px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+section{border-bottom:1px solid var(--line);padding:16px 0}
+h2{font:800 12px/1 system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;margin:0 0 12px}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th,td{padding:8px 7px;border-top:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--dim);font-weight:600}
+.variant{font-weight:900}
+.state{display:inline-block;padding:3px 5px;border:1px solid currentColor;font-size:9px;font-weight:900}
+.grid{display:grid;grid-template-columns:110px repeat(4,1fr);border-top:1px solid var(--line);border-left:1px solid var(--line)}
+.cell{min-height:34px;padding:7px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);font-size:10px}
+.cell.head{font-weight:900;background:#111}
+.cell.task{color:var(--dim)}
+.done{background:#fff;color:#000}
+.active{outline:2px solid #fff;outline-offset:-2px}
+.blocked{opacity:.35}
+.stagewrap{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.stagecol h3{font:800 11px/1.2 system-ui,sans-serif;margin:0 0 8px}
+.stage{display:grid;grid-template-columns:minmax(90px,1fr) 58px;gap:8px;padding:4px 0;border-top:1px solid #181818;font-size:9px}
+.workers{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+.worker{border:1px solid var(--line);padding:9px;font-size:10px}
+.worker b{font-size:12px}
+.baseline{font-size:11px;line-height:1.5;color:#ccc}
+.notice{font:12px/1.45 system-ui,sans-serif}
+@media(max-width:800px){
+  .metrics{grid-template-columns:repeat(3,1fr)}
+  .metric:nth-child(3){border-right:0}
+  .metric:nth-child(n+4){border-top:1px solid var(--line)}
+  .stagewrap{grid-template-columns:1fr 1fr}
+  .grid{grid-template-columns:72px repeat(4,minmax(88px,1fr));overflow-x:auto}
+}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div><div class="kicker">PROMETEO · EXPERIMENT</div><h1>WORKER KERNEL V2</h1></div>
+  <div class="small" id="stamp">cargando…</div>
+</header>
+
+<div class="metrics">
+  <div class="metric"><b id="workers">–</b><span>workers</span></div>
+  <div class="metric"><b id="live">–</b><span>exec 120s</span></div>
+  <div class="metric"><b id="success">–</b><span>primary success</span></div>
+  <div class="metric"><b id="active">–</b><span>active</span></div>
+  <div class="metric"><b id="ready">–</b><span>ready</span></div>
+  <div class="metric"><b id="blocked">–</b><span>blocked</span></div>
+</div>
+
+<section class="notice">
+  15 tareas matched × 4 kernels = 60 trabajos comparables. D agrega 4 trabajos colaborativos fuera de la comparación primaria.
+  <a href="/prometeo/coordination/design-dna/experiments/WORKER-KERNEL-V2/WORKER_PROMPT.txt">PROMPT ÚNICO</a>
+</section>
+
+<section>
+  <h2>Variantes</h2>
+  <table>
+    <thead><tr><th>kernel</th><th>workers</th><th>success</th><th>ready</th><th>active</th><th>recoveries</th><th>checkpoints</th><th>reused</th><th>1st signal</th><th>submit</th><th>words</th></tr></thead>
+    <tbody id="variants"></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Workers</h2>
+  <div class="workers" id="workerList"><span class="small">sin shells todavía</span></div>
+</section>
+
+<section>
+  <h2>Matriz matched</h2>
+  <div class="grid" id="matrix"></div>
+</section>
+
+<section>
+  <h2>Tiempo por etapa</h2>
+  <div class="stagewrap" id="stages"></div>
+</section>
+
+<section>
+  <h2>Baseline P001</h2>
+  <div class="baseline" id="baseline"></div>
+</section>
+</main>
+<script>
+(()=>{
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const HEAD={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
+const BID='PROMETEO-WORKER-KERNEL-V2-E1';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const sec=v=>v==null?'–':Number(v)<60?Number(v).toFixed(1)+'s':(Number(v)/60).toFixed(1)+'m';
+const fmt=t=>!t?'–':new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(t));
+const short=k=>({A_V1_BASELINE:'A',B_V2_CHECKPOINT:'B',C_V2_TELEMETRY:'C',D_V2_COLLAB:'D'}[k]||k);
+async function load(){
+ try{
+  const r=await fetch(BASE+'prometeo_worker_kernel_status_v1',{method:'POST',headers:HEAD,body:JSON.stringify({p_benchmark_id:BID}),cache:'no-store'});
+  if(!r.ok) throw new Error(r.status);
+  render(await r.json());
+ }catch(e){$('stamp').textContent='reconectando · '+e.message}
+}
+function render(s){
+ const c=s.counts||{},b=s.benchmark||{};
+ $('workers').textContent=c.workers??0;
+ $('live').textContent=c.durable_execution_seen_120s??0;
+ $('success').textContent=(c.primary_success??0)+'/'+(c.primary_total??60);
+ $('active').textContent=c.active??0;$('ready').textContent=c.ready??0;$('blocked').textContent=c.blocked??0;
+ $('stamp').innerHTML=esc(b.status||'')+' · '+fmt(s.server_time);
+
+ $('variants').innerHTML=(s.variants||[]).map(v=>'<tr>'+
+   '<td class="variant">'+esc(short(v.variant_key))+' · '+esc(v.title)+'</td>'+
+   '<td>'+esc(v.sessions)+'</td>'+
+   '<td>'+esc(v.primary_success)+'/'+esc(v.primary_total)+'</td>'+
+   '<td>'+esc(v.ready_jobs)+'</td>'+
+   '<td>'+esc(v.active_jobs)+'</td>'+
+   '<td>'+esc(v.recoveries||0)+'</td>'+
+   '<td>'+esc(v.checkpoints||0)+'</td>'+
+   '<td>'+esc(v.recovered_checkpoint_reuses||0)+'</td>'+
+   '<td>'+esc(sec(v.avg_seconds_to_first_signal))+'</td>'+
+   '<td>'+esc(sec(v.avg_submit_seconds))+'</td>'+
+   '<td>'+esc(v.accepted_words||0)+'</td>'+
+ '</tr>').join('');
+
+ const ws=s.workers||[];
+ $('workerList').innerHTML=ws.length?ws.map(w=>{
+   const recent=w.last_durable_execution_at&&Date.now()-new Date(w.last_durable_execution_at).getTime()<120000;
+   return '<div class="worker"><b>'+esc(w.benchmark_worker_code)+'</b> · '+esc(short(w.variant_key))+
+     '<br><span class="small">'+(recent?'DURABLE EXECUTION RECENT':'NO RECENT EXECUTION')+'</span>'+
+     '<br>phase '+esc(w.current_phase||'–')+' · '+fmt(w.last_durable_execution_at)+'</div>';
+ }).join(''):'<span class="small">sin shells todavía</span>';
+
+ const tasks=s.tasks||[];
+ const vars=['A_V1_BASELINE','B_V2_CHECKPOINT','C_V2_TELEMETRY','D_V2_COLLAB'];
+ const primary=[...new Set(tasks.filter(x=>x.is_primary).map(x=>x.task_key))].sort();
+ let mh='<div class="cell head">TASK</div>'+vars.map(v=>'<div class="cell head">'+short(v)+'</div>').join('');
+ for(const tk of primary){
+   mh+='<div class="cell task">'+esc(tk)+'</div>';
+   for(const vk of vars){
+     const x=tasks.find(z=>z.is_primary&&z.task_key===tk&&z.variant_key===vk)||{};
+     const cls=x.state==='DONE'?'done':x.state==='ACTIVE'?'active':x.state==='BLOCKED'?'blocked':'';
+     mh+='<div class="cell '+cls+'">'+esc(x.state||'–')+(x.recovery_count?'<br>R'+esc(x.recovery_count):'')+'</div>';
+   }
+ }
+ $('matrix').innerHTML=mh;
+
+ $('stages').innerHTML=(s.variants||[]).map(v=>{
+   const obj=v.stage_seconds||{};
+   const rows=Object.entries(obj).sort((a,b)=>Number(b[1])-Number(a[1])).map(([k,val])=>'<div class="stage"><span>'+esc(k)+'</span><b>'+esc(sec(val))+'</b></div>').join('');
+   return '<div class="stagecol"><h3>'+esc(short(v.variant_key))+' · '+esc(v.title)+'</h3>'+(rows||'<span class="small">sin datos</span>')+'</div>';
+ }).join('');
+
+ const bl=s.baseline||{};
+ $('baseline').innerHTML=
+   'P001 · Strategic Exam V1 · '+esc(sec(bl.wall_seconds_to_final_watchdog))+' wall · '+
+   esc(bl.successful_attempts||0)+' SUCCESS · '+esc(bl.accepted_words||0)+' palabras aceptadas · '+
+   esc(bl.recoverable_fail_attempts||0)+' recoverable failures · '+esc(bl.watchdog_attempts||0)+' watchdog.<br>'+
+   'FINALIZING representó '+esc((bl.stage_percent||{}).FINALIZING||0)+'% del tiempo medido; la decisión final llegó a ~1600 palabras antes de perderse en la frontera shell→commit.';
+}
+load();setInterval(load,3000);
+})();
+</script>
+</body>
+</html>
