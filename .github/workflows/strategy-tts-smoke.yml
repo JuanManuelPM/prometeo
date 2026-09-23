@@ -117,6 +117,24 @@ jobs:
           test -f strategy/audio-viz/hand-drawn-recipe-v1.md
           grep -q "posterized at ~8 fps" strategy/audio-viz/hand-drawn-recipe-v1.md
 
+      - name: Check reactive mask mouth lab
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -c 'from pathlib import Path; import re; s=Path("strategy/mask-mouth/index.html").read_text(); m=re.search(r"<script>(.*?)</script>",s,re.S); assert m; Path("/tmp/strategy-mask-mouth.js").write_text(m.group(1))'
+          node --check /tmp/strategy-mask-mouth.js
+          grep -q "prometeo_strategic_console_v2" strategy/mask-mouth/index.html
+          grep -q "prometeo-strategy-audio-v1" strategy/mask-mouth/index.html
+          grep -q "prometeo-c-e1-ironic-clone-v4" strategy/mask-mouth/index.html
+          grep -q 'id="mouth1"' strategy/mask-mouth/index.html
+          grep -q 'id="mouth2"' strategy/mask-mouth/index.html
+          grep -q 'id="mouth3"' strategy/mask-mouth/index.html
+          grep -q 'id="mouth4"' strategy/mask-mouth/index.html
+          grep -q 'id="mouth5"' strategy/mask-mouth/index.html
+          grep -q 'id="mouth6"' strategy/mask-mouth/index.html
+          grep -q "data:image/jpeg;base64" strategy/mask-mouth/index.html
+          grep -q "BOIL_MS=125" strategy/mask-mouth/index.html
+
       - name: Generate fixed-voice audio and recover it from cache
         shell: bash
         run: |
@@ -331,3 +349,27 @@ jobs:
           done
           test "$ok" = "1"
           echo "AUDIO_VIZ_HAND http=200 line_boil=8fps modules=6 voice=E1"
+
+      - name: Verify published reactive mask mouth lab
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for n in $(seq 1 18); do
+            URL="https://juanmanuelpm.github.io/prometeo/strategy/mask-mouth/?verify=${GITHUB_RUN_ID}-${n}-$(date +%s)"
+            code="$(curl --max-time 60 -sS -L -o /tmp/strategy-mask-mouth-public.html -w '%{http_code}' "$URL" || true)"
+            if [ "$code" = "200" ] \
+              && grep -q "prometeo_strategic_console_v2" /tmp/strategy-mask-mouth-public.html \
+              && grep -q "prometeo-strategy-audio-v1" /tmp/strategy-mask-mouth-public.html \
+              && grep -q "prometeo-c-e1-ironic-clone-v4" /tmp/strategy-mask-mouth-public.html \
+              && grep -q 'id="mouth1"' /tmp/strategy-mask-mouth-public.html \
+              && grep -q 'id="mouth6"' /tmp/strategy-mask-mouth-public.html \
+              && grep -q "data:image/jpeg;base64" /tmp/strategy-mask-mouth-public.html \
+              && grep -q "BOIL_MS=125" /tmp/strategy-mask-mouth-public.html; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ok" = "1"
+          echo "MASK_MOUTH http=200 mouths=6 source=user-mask voice=E1"
