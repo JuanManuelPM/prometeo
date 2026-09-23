@@ -39,9 +39,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          SRC="https://catnohyouxqjjtseaueb.supabase.co/functions/v1/modelos-room-audio-v2?id=prometeo-c-sametext-tones-v1-e-1r"
+          REST="https://catnohyouxqjjtseaueb.supabase.co/rest/v1/casa_audio_cache?select=audio_b64&message_id=eq.prometeo-c-sametext-tones-v1-e-1r"
           STORE="https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-voice-clone-test-v1"
-          curl --retry 3 --retry-delay 2 --max-time 90 -sS "$SRC" -o /tmp/e1-full.wav
+          KEY="$(python3 - <<'PY'
+import re
+s=open('strategy/index.html',encoding='utf-8').read()
+m=re.search(r"const KEY='([^']+)'",s)
+assert m, 'strategy publishable key not found'
+print(m.group(1))
+PY
+)"
+          code="$(curl --retry 3 --retry-delay 2 --max-time 45 -sS -o /tmp/e1-row.json -w '%{http_code}' -H "apikey: $KEY" -H "Authorization: Bearer $KEY" "$REST")"
+          echo "E1 REST http=$code bytes=$(wc -c < /tmp/e1-row.json)"
+          test "$code" = "200"
+          python3 - <<'PY'
+import json,base64
+rows=json.load(open('/tmp/e1-row.json'))
+assert len(rows)==1 and rows[0].get('audio_b64'), rows
+open('/tmp/e1-full.wav','wb').write(base64.b64decode(rows[0]['audio_b64']))
+PY
           python3 - <<'PY'
           import wave, struct, json, base64, math
           src='/tmp/e1-full.wav'; out='/tmp/e1-short.wav'
