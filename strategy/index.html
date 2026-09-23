@@ -87,10 +87,11 @@ li{margin:4px 0}
 const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
 const TTS='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/modelos-room-audio-v2';
 const TTS_MAX=500;
+const FIRST_AUDIO_CHARS=220;
 const AHEAD=5;
 const WORKERS=2;
 const POST_MIN_GAP=3500;
-const AUDIO_CACHE_VERSION='prometeo-strategy-voice-v2';
+const AUDIO_CACHE_VERSION='prometeo-strategy-voice-v3';
 const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
 const HEAD={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
 const CHANNEL='PROMETEO_MAIN';
@@ -113,9 +114,14 @@ function strategicSurface(){
 }
 function strategicAudioSurface(){
   const p=state?.preview||null,f=state?.firm||null;
-  if(!f)return null;
-  if(p&&surfaceTime(p)>surfaceTime(f))return null;
-  return f;
+  if(p&&(!f||surfaceTime(p)>surfaceTime(f))){
+    return {
+      ...p,
+      spoken_brief:p.preview_text||'',
+      tts_message_id:'strategic-preview-'+String(p.epoch_id||'current')
+    };
+  }
+  return f||null;
 }
 function render(){
   const ch=state?.channel||{};
@@ -179,15 +185,16 @@ function chunkAudioText(raw,max=TTS_MAX){
   let s=normalizeAudioText(raw),offset=0;
   const out=[];
   while(s.length){
-    if(s.length<=max){out.push({text:s,start:offset,end:offset+s.length});break}
-    const window=s.slice(0,max+1);
+    const limit=out.length===0?FIRST_AUDIO_CHARS:max;
+    if(s.length<=limit){out.push({text:s,start:offset,end:offset+s.length});break}
+    const window=s.slice(0,limit+1);
     let cut=-1;
     for(const sep of ['. ','! ','? ','; ',': ',', ',' ']){
       const i=window.lastIndexOf(sep);
-      if(i>=Math.floor(max*.55))cut=Math.max(cut,i+sep.length-1);
+      if(i>=Math.floor(limit*.55))cut=Math.max(cut,i+sep.length-1);
     }
     if(cut<1)cut=window.lastIndexOf(' ');
-    if(cut<1)cut=max-1;
+    if(cut<1)cut=limit-1;
     const part=s.slice(0,cut+1).trim();
     out.push({text:part,start:offset,end:offset+part.length});
     const consumed=s.slice(0,cut+1).length;
@@ -279,8 +286,8 @@ function syncAudio(cur){
   audioText=nextText;
   audioChunks=chunkAudioText(audioText);
   audioTotalChars=Math.max(1,audioText.length);
-  setAudioStatus('precargando voz · '+audioChunks.length+' fragmento'+(audioChunks.length===1?'':'s'));
-  maintainAudioBuffer();
+  setAudioStatus('preparando primer audio…');
+  ensureAudio(0,true);
   updateAudioProgress();
 }
 function ensureAudio(i,priority=false){
@@ -349,6 +356,7 @@ async function acceptAudio(job,c,response){
   c.status='ready';
   c.error=null;
   c.cache=response.headers.get('x-modelos-cache')||'?';
+  if(job.i===0)setTimeout(()=>maintainAudioBuffer(),0);
   c.audio.addEventListener('error',()=>{
     if(job.epoch!==audioEpoch)return;
     c.status='idle';c.error='media_error';
