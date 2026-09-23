@@ -1,4 +1,4 @@
-# PROMETEO · GUIDE-2 RECOVERY HANDOFF · 2026-09-22
+> **RECOVERY POINTER · V2**\n> This handoff is preserved as historical context. For the compact current derived state and explicit stale-artifact markers, read first:\n> `coordination/design-dna/experiments/RICH-CELL-V3/CURRENT_RECOVERY_STATE_V2.json`\n> Dynamic facts still require live Supabase recheck.\n\n# PROMETEO · GUIDE-2 RECOVERY HANDOFF · 2026-09-22
 
 Purpose: recover this coordination state if the current GUIDE-2 chat is lost, truncated, or becomes unusably slow.
 
