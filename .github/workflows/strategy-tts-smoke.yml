@@ -28,7 +28,7 @@ jobs:
           grep -q "FIRST_AUDIO_CHARS=220" strategy/index.html
           grep -q "AHEAD=5" strategy/index.html
           grep -q "WORKERS=2" strategy/index.html
-          grep -q "prometeo-strategy-fixed-v1" strategy/index.html
+          grep -q "prometeo-strategy-fumado-v2" strategy/index.html
           grep -q "prometeo-strategy-audio-v1" strategy/index.html
           grep -q 'id="toggleText"' strategy/index.html
           grep -q 'id="toggleThought"' strategy/index.html
@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           API="https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-strategy-audio-v1"
           ID="strategy-fixed-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          TEXT="Prometeo mantiene la misma voz entre fragmentos. Habla con calma, un poco de humor seco y sin tono de locutor."
+          TEXT="Prometeo mantiene la misma voz entre fragmentos y habla en español argentino claro, con una actuación cómica desinhibida."
           payload="$(jq -nc --arg id "$ID" --arg text "$TEXT" '{messageId:$id,text:$text}')"
 
           code="$(curl --retry 2 --retry-delay 4 --max-time 300 -sS -D post.headers -o post.audio -w '%{http_code}' -H 'content-type: application/json' --data "$payload" "$API")"
@@ -51,7 +51,7 @@ jobs:
           POST_VOICE="$(awk 'BEGIN{IGNORECASE=1}/^x-prometeo-voice:/{gsub("\r","");print $2}' post.headers | tail -1)"
           POST_BYTES="$(wc -c < post.audio)"
           test "$POST_CACHE" = "MISS"
-          test "$POST_VOICE" = "prometeo-ryan-v1"
+          test "$POST_VOICE" = "prometeo-ryan-fumado-v2"
           test "$POST_BYTES" -gt 1000
 
           python3 -c 'from pathlib import Path; b=Path("post.audio").read_bytes(); ok=b[:4] in (b"RIFF",b"OggS",b"fLaC") or b[:3]==b"ID3" or (len(b)>2 and b[0]==0xff and (b[1]&0xe0)==0xe0); assert len(b)>1000 and ok, repr(b[:12]); print("audio_signature_ok",b[:12].hex())'
@@ -61,7 +61,7 @@ jobs:
           GET_CACHE="$(awk 'BEGIN{IGNORECASE=1}/^x-prometeo-cache:/{gsub("\r","");print $2}' get.headers | tail -1)"
           GET_VOICE="$(awk 'BEGIN{IGNORECASE=1}/^x-prometeo-voice:/{gsub("\r","");print $2}' get.headers | tail -1)"
           test "$GET_CACHE" = "HIT"
-          test "$GET_VOICE" = "prometeo-ryan-v1"
+          test "$GET_VOICE" = "prometeo-ryan-fumado-v2"
           cmp post.audio get.audio
 
           echo "POST http=$code cache=$POST_CACHE voice=$POST_VOICE bytes=$POST_BYTES"
@@ -81,7 +81,7 @@ jobs:
               && grep -q "FIRST_AUDIO_CHARS=220" /tmp/strategy-public.html \
               && grep -q "AHEAD=5" /tmp/strategy-public.html \
               && grep -q "WORKERS=2" /tmp/strategy-public.html \
-              && grep -q "prometeo-strategy-fixed-v1" /tmp/strategy-public.html \
+              && grep -q "prometeo-strategy-fumado-v2" /tmp/strategy-public.html \
               && grep -q "prometeo-strategy-audio-v1" /tmp/strategy-public.html \
               && grep -q 'id="toggleText"' /tmp/strategy-public.html \
               && grep -q 'id="toggleThought"' /tmp/strategy-public.html \
