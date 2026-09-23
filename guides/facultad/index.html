@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prometeo · Guide</title>
+<style>
+:root{color-scheme:dark;--bg:#000;--fg:#fff;--line:#2b2b2b;--dim:#8d8d8d}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{width:min(760px,100%);margin:auto;padding:16px 14px 52px}
+header{display:flex;justify-content:space-between;gap:14px;align-items:start;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.back{color:#fff;text-decoration:none;font:800 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em}
+#state{font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid #fff;padding:5px 6px}
+.hero{padding:20px 0;border-bottom:1px solid var(--line)}
+.kicker{font-size:9px;letter-spacing:.14em;text-transform:uppercase;opacity:.5}
+h1{font-size:30px;line-height:1;letter-spacing:-.045em;margin:7px 0 10px}
+#mission{font-size:14px;line-height:1.5;opacity:.72;max-width:680px}
+.message{padding:18px 0;border-bottom:1px solid var(--line)}
+#headline{font:24px/1.18 Georgia,"Times New Roman",serif;margin-bottom:10px}
+#spoken{font:16px/1.55 Georgia,"Times New Roman",serif;opacity:.84}
+.actions{display:flex;gap:8px;flex-wrap:wrap;padding:14px 0;border-bottom:1px solid var(--line)}
+button,a.action{border:1px solid #fff;background:#fff;color:#000;min-height:40px;padding:0 12px;display:inline-flex;align-items:center;text-decoration:none;font:900 10px/1 system-ui;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+a.action.alt{background:#000;color:#fff}
+section{padding:17px 0;border-bottom:1px solid var(--line)}
+h2{font-size:9px;letter-spacing:.14em;text-transform:uppercase;opacity:.5;margin:0 0 10px}
+.item{padding:7px 0;border-top:1px solid #171717;font-size:13px;line-height:1.42}
+.item:first-child{border-top:0}
+.empty{font-size:13px;opacity:.45}
+.rel a{color:#fff;text-decoration:none;font-weight:750}
+#copyStatus{font-size:10px;opacity:.6;align-self:center}
+</style>
+</head>
+<body><main>
+<header><a class="back" href="/prometeo/guides/">← GUIDES</a><div id="state">cargando</div></header>
+<div class="hero"><div class="kicker" id="kind">GUIDE</div><h1 id="title">…</h1><div id="mission"></div></div>
+<div class="message"><div class="kicker">MENSAJE ACTUAL</div><div id="headline">cargando…</div><div id="spoken"></div></div>
+<div class="actions">
+  <button id="copy">INVOCAR GUIDE</button>
+  <a id="rawPrompt" class="action alt" href="#">VER PROMPT</a>
+  
+  <span id="copyStatus"></span>
+</div>
+<section><h2>Ahora</h2><div id="read"></div></section>
+<section><h2>Trabajo abierto</h2><div id="work"></div></section>
+<section><h2>Ideas</h2><div id="ideas"></div></section>
+<section><h2>Capacidades</h2><div id="caps"></div></section>
+<section><h2>Examen</h2><div id="exam"></div></section>
+<section><h2>Relaciones</h2><div id="rels"></div></section>
+</main>
+<script>
+(()=>{
+const GUIDE='STUDY';
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const HEAD={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const items=(id,a)=>document.getElementById(id).innerHTML=(Array.isArray(a)&&a.length)?a.map(x=>'<div class="item">'+esc(typeof x==='string'?x:JSON.stringify(x))+'</div>').join(''):'<div class="empty">Sin contenido todavía.</div>';
+let ctx=null;
+async function load(){
+ try{
+  const r=await fetch(BASE+'prometeo_domain_guide_context_v1',{method:'POST',headers:HEAD,body:JSON.stringify({p_guide_key:GUIDE}),cache:'no-store'});
+  if(!r.ok)throw new Error(r.status);
+  ctx=await r.json();
+  const g=ctx.guide||{},c=ctx.capsule||{};
+  document.title=(g.short_title||'Guide')+' · Prometeo';
+  document.getElementById('state').textContent=c.capsule_status||g.status||'';
+  document.getElementById('kind').textContent=(g.domain_type||'GUIDE')+' · '+(g.guide_key||'');
+  document.getElementById('title').textContent=g.short_title||g.title||'Guide';
+  document.getElementById('mission').textContent=g.mission||'';
+  document.getElementById('headline').textContent=c.headline||'Sin CURRENT todavía.';
+  document.getElementById('spoken').textContent=c.spoken_brief||'Todavía no hay una síntesis hablada de este dominio.';
+  items('read',c.current_read);items('work',c.open_work);items('ideas',c.ideas);items('caps',c.capabilities);
+  document.getElementById('exam').innerHTML='<div class="item">'+esc(JSON.stringify(c.exam_state||{}))+'</div>';
+  document.getElementById('rels').innerHTML=(ctx.related_guides||[]).map(x=>'<div class="item rel"><a href="/prometeo'+esc(x.page_route)+'">'+esc(x.title)+'</a> · '+esc(x.status)+'</div>').join('')||'<div class="empty">Sin relaciones.</div>';
+  const route=g.invoke_route||'';
+  document.getElementById('rawPrompt').href='/prometeo'+route;
+ }catch(e){document.getElementById('state').textContent='ERROR'}
+}
+document.getElementById('copy').onclick=async()=>{
+ try{
+  if(!ctx)await load();
+  const route=ctx?.guide?.invoke_route;
+  const r=await fetch('/prometeo'+route,{cache:'no-store'});
+  const t=await r.text();
+  await navigator.clipboard.writeText(t);
+  document.getElementById('copyStatus').textContent='copiado';
+ }catch(e){document.getElementById('copyStatus').textContent='no se pudo copiar'}
+};
+load();setInterval(load,15000);
+})();
+</script>
+</body></html>
