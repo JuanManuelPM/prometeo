@@ -56,3 +56,16 @@ jobs:
           echo "POST http=$code type=$POST_TYPE cache=$POST_CACHE bytes=$POST_BYTES"
           echo "GET  http=$get_code cache=$GET_CACHE bytes=$GET_BYTES"
           echo "AUDIO sha256=$SHA"
+
+      - name: Verify published strategy page
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://juanmanuelpm.github.io/prometeo/strategy/?verify=$(date +%s)"
+          code="$(curl --retry 4 --retry-delay 3 --max-time 60 -sS -L -o /tmp/strategy-public.html -w '%{http_code}' "$URL")"
+          test "$code" = "200"
+          grep -q "TTS_MAX=1700" /tmp/strategy-public.html
+          grep -q "audio=new Audio()" /tmp/strategy-public.html
+          grep -q "type='audio/wav'" /tmp/strategy-public.html
+          if grep -q "decodeAudioData" /tmp/strategy-public.html; then exit 1; fi
+          echo "PUBLIC http=$code bytes=$(wc -c < /tmp/strategy-public.html) tts=verified"
