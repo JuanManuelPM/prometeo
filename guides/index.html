@@ -64,7 +64,7 @@ h2{font-size:9px;letter-spacing:.14em;text-transform:uppercase;opacity:.45;margi
 <header><div><div class="brand">PROMETEO</div><h1>GUIDES</h1></div><div class="stamp" id="server">cargando…</div></header>
 <div class="topline">
  <div class="metric"><b id="mGuides">–</b><span>guides</span></div>
- <div class="metric"><b id="mSurfaces">–</b><span>superficies verificadas</span></div>
+ <div class="metric"><b id="mSurfaces">–</b><span>superficies públicas</span></div>
  <div class="metric"><b id="mActive">–</b><span>trabajos activos</span></div>
  <div class="metric"><b id="mFoundry">–</b><span>foundry success</span></div>
 </div>
@@ -91,6 +91,7 @@ h2{font-size:9px;letter-spacing:.14em;text-transform:uppercase;opacity:.45;margi
   </div>
 
   <section><h2>Pool ahora · trabajo global</h2><div id="pool"></div></section>
+  <section><h2>Guide Work Broker</h2><div id="broker"></div></section>
 
   <div class="columns">
     <section><h2>Ahora</h2><div id="read"></div></section>
@@ -139,7 +140,7 @@ async function rpc(name,args){
 function renderMetrics(){
  const f=dashboard?.foundry?.counts||{};
  document.getElementById('mGuides').textContent=registry.length||0;
- document.getElementById('mSurfaces').textContent=registry.reduce((a,g)=>a+(g.surface_count||0),0);
+ document.getElementById('mSurfaces').textContent=registry.reduce((a,g)=>a+(g.public_surface_count||0),0);
  document.getElementById('mActive').textContent=registry.reduce((a,g)=>a+((g.work||{}).active||0),0);
  document.getElementById('mFoundry').textContent=(f.success??0)+'/'+(f.total??0);
 }
@@ -154,6 +155,11 @@ function renderNav(){
    '</button>';
  }).join('');
  document.querySelectorAll('.guideBtn').forEach(b=>b.onclick=()=>selectGuide(b.dataset.key));
+}
+function renderBroker(){
+ const b=dashboard?.broker||{},cfg=b.config||{},cnt=b.counts||{};
+ document.getElementById('broker').innerHTML='<div class="workrow"><div><b>'+esc(cfg.broker_key||'GUIDE_WORK_BROKER_V1')+'</b><div class="wmeta">demanda durable → Worker Bus V2 · dispatch '+(cfg.mode==='SHADOW'?'desactivado':'activo')+'</div></div><div class="wstate">'+esc(cfg.mode||'—')+'</div></div>'+
+   '<div class="item">'+esc(cnt.eligible||0)+' elegibles · '+esc(cnt.coalesced||0)+' coalescidas · '+esc(cnt.compiled_or_running||0)+' despachadas · '+esc(cnt.result_candidates||0)+' resultados candidatos</div>';
 }
 function renderPool(){
  const tasks=dashboard?.foundry?.tasks||[];
@@ -215,7 +221,7 @@ async function load(){
   const matched=registry.find(g=>String(g.slug).toLowerCase()===hash.toLowerCase());
   if(matched)selected=matched.guide_key;
   else if(!registry.some(g=>g.guide_key===selected)&&registry[0])selected=registry[0].guide_key;
-  renderMetrics();renderNav();renderPool();await selectGuide(selected);
+  renderMetrics();renderNav();renderPool();renderBroker();await selectGuide(selected);
  }catch(e){document.getElementById('server').textContent='reconectando'}
 }
 document.getElementById('invoke').onclick=async()=>{
