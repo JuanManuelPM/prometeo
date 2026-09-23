@@ -204,10 +204,15 @@ async function readFallback(){
     degraded_read:true
   }
 }
+async function activeTraces(){
+  try{return await view('prometeo_guide_mesh_work_traces?select=trace_id,claim_key,status,claimed_at,proposed_at,finished_at&guide_code=eq.GUIDE-2&status=eq.ACTIVE&order=trace_id.desc&limit=8')}catch(e){return[]}
+}
 async function read(){
-  try{return await readPrimary()}catch(primaryError){
-    var x=await readFallback();x.primary_error=String(primaryError&&primaryError.message||primaryError);return x
+  var x;
+  try{x=await readPrimary()}catch(primaryError){
+    x=await readFallback();x.primary_error=String(primaryError&&primaryError.message||primaryError)
   }
+  x.active_traces=await activeTraces();return x
 }
 function waveSummary(x){
   var rt=((x.worker_bus_v2||{}).runtime||{}),jobs=arr(rt.jobs),states=(x.next_wave||{}).states||{};
@@ -265,11 +270,16 @@ function renderJobs(x){
   }).join('')||'<article class="job DONE"><div class="jobName">SIN JOBS VISIBLES</div></article>'
 }
 function renderGuide(x){
-  var gs=arr(x.guides),g=gs.find(function(v){return v.guide_code==='GUIDE-2'})||gs[0]||{};
-  $('guideCode').textContent=g.guide_code||'GUIDE-2';$('guideLive').textContent=(g.observed_liveness||'—')+' · '+(g.role||'COORDINATOR');
-  $('guideWork').textContent=short(g.current_claim_key||'sin trabajo material reclamado',74);
-  $('guideTrace').textContent=g.current_trace_id||'—';$('guideTraceState').textContent=g.current_trace_status||'—';$('guideAge').textContent=age(g.seconds_since_seen);
-  $('guideOthers').textContent=gs.filter(function(v){return v.guide_code!==(g.guide_code||'')}).map(function(v){return v.guide_code+':'+v.observed_liveness}).join(' · ')||'—'
+  var gs=arr(x.guides),g=gs.find(function(v){return v.guide_code==='GUIDE-2'})||gs[0]||{},ts=arr(x.active_traces);
+  var runtime=ts.find(function(t){return String(t.claim_key||'').indexOf('runtime/')===0})||null;
+  var visual=ts.find(function(t){return String(t.claim_key||'').indexOf('visual/')===0})||null;
+  $('guideCode').textContent='MAIN · GUIDE-2';$('guideLive').textContent=(g.observed_liveness||'—')+' · '+(g.role||'COORDINATOR');
+  $('guideWork').textContent=short(runtime&&runtime.claim_key||g.current_claim_key||'sin trabajo runtime reclamado',74);
+  $('guideTrace').textContent=runtime?runtime.trace_id:(g.current_trace_id||'—');
+  $('guideTraceState').textContent=runtime?runtime.status:(g.current_trace_status||'—');
+  $('guideAge').textContent=age(g.seconds_since_seen);
+  var others=gs.filter(function(v){return v.guide_code!==(g.guide_code||'')}).map(function(v){return v.guide_code+':'+v.observed_liveness}).join(' · ');
+  $('guideOthers').textContent=(visual?'VISUAL T'+visual.trace_id+' '+short(visual.claim_key,28)+(others?' · ':''):'')+(others||'—')
 }
 function renderContext(x){
   var s=x.screen10||{};$('screenState').textContent=String(s.observed_activity||'—')+(n(s.done)<n(s.total_cells)?' · PARTIAL':'');
