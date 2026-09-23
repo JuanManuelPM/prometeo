@@ -16,6 +16,30 @@ The Foundry does not create permanent chat personalities. It uses universal work
 
 Canonical Guides are not auto-mutated by Foundry results.
 
+## Post-Worker-Kernel refinement
+
+Worker Kernel V2 completed 64/64 SUCCESS.
+
+The Foundry adopts the parts that had the strongest operational justification before launch:
+- idempotent ENTER,
+- FIRST_SIGNAL,
+- explicit RESULT_SERIALIZE,
+- generation-fenced durable candidate checkpoint,
+- SUBMIT_START,
+- exact current-generation checkpoint/result match before SUBMIT,
+- recovery candidates exposed only as DATA.
+
+Collaboration remains selective: critique and synthesis exist only where the graph justifies them.
+
+## Cognitive breadth contract
+
+Every Foundry job answers three 70–180 word micro-lenses before the integrated long answer:
+1. reality/evidence,
+2. adversary/alternatives,
+3. transfer/falsification.
+
+The long answer keeps its existing task-specific word range. The mini-lenses are not extra jobs and should not duplicate the final answer.
+
 ## Declared Guides
 
 - STRATEGY · Prometeo
@@ -65,8 +89,10 @@ Every Domain Exam blueprint must contain:
 Reuses Worker Bus V2:
 - ENTER wrapper is idempotent
 - TAKE V4 owns routing
-- PROGRESS uses durable stages
+- FIRST_SIGNAL establishes early durable execution
+- checkpoint preserves full candidate result before submit
 - FAIL_RECOVERABLE / watchdog / generation fencing remain canonical
+- RESULT_SERIALIZE + SUBMIT_START isolate shell-to-commit latency
 - SUBMIT V6 commits accepted results
 - dependencies unlock only after SUCCESS
 
@@ -75,11 +101,11 @@ Reuses Worker Bus V2:
 Foundry output is candidate architecture.
 
 After completion:
-- inspect synthesis
-- compare proposed Guide boundaries
-- review privacy/authority
-- choose what to promote
-- create/upgrade actual Domain Exams
-- execute selected Domain Exams to produce real DOMAIN_CURRENT versions
+- inspect synthesis,
+- compare proposed Guide boundaries,
+- review privacy/authority,
+- choose what to promote,
+- create/upgrade actual Domain Exams,
+- execute selected Domain Exams to produce real DOMAIN_CURRENT versions.
 
 No automatic promotion is allowed.
