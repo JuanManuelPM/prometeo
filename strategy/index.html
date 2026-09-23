@@ -21,6 +21,9 @@ header{display:flex;align-items:center;justify-content:space-between;gap:14px;pa
 .voiceCopy{min-width:0}
 .kicker{font-size:9px;font-weight:900;letter-spacing:.15em;text-transform:uppercase;opacity:.48;margin-bottom:7px}
 #headline{font-size:19px;line-height:1.13;font-weight:780;letter-spacing:-.025em;max-width:520px}
+.messageMeta{display:flex;align-items:center;gap:7px;min-height:14px;margin:-1px 0 6px;font-size:9px;font-weight:850;letter-spacing:.11em;text-transform:uppercase;opacity:.58}
+#unheardDot{width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 8px rgba(255,255,255,.95);flex:0 0 auto}
+#unheardDot[hidden]{display:none}
 #audioStatus{font-size:11px;line-height:1.35;opacity:.55;min-height:15px;margin-top:7px}
 .audioProgress{position:relative;height:4px;margin-top:18px;background:rgba(255,255,255,.16)}
 .audioProgress>i{display:block;width:0;height:100%;background:#fff;transition:width .12s linear}
@@ -73,6 +76,7 @@ li{margin:4px 0}
       <button id="play" type="button" aria-label="Reproducir">▶</button>
       <div class="voiceCopy">
         <div class="kicker">VOZ PROMETEO</div>
+        <div class="messageMeta"><i id="unheardDot" aria-label="Mensaje sin escuchar"></i><span id="messageTime"></span></div>
         <div id="headline"></div>
         <div id="audioStatus" role="status" aria-live="polite"></div>
       </div>
@@ -131,6 +135,8 @@ const AUDIO_CACHE_VERSION='prometeo-strategy-c-e1-v4';
 const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
 const HEAD={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
 const CHANNEL='PROMETEO_MAIN';
+const HEARD_KEY='prometeo-strategy-heard-v1';
+const MESSAGE_TZ='America/Argentina/Buenos_Aires';
 let state=null;
 let audioKey='',audioEpoch=0,audioText='',audioChunks=[],audioTotalChars=1,audioIndex=0,audioIntent=false,audioPlaying=false,audio=null,audioPendingFraction=0,audioQueue=[],audioActiveJobs=0,audioLastPost=0,audioPostGate=Promise.resolve(),audioClips=new Map(),audioControllers=new Set();
 
@@ -143,6 +149,49 @@ async function rpc(name,args){
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function arr(v){return Array.isArray(v)?v:[]}
 function surfaceTime(v){const t=Date.parse(v?.generated_at||'');return Number.isFinite(t)?t:0}
+function messageIdentity(v){
+  if(!v)return '';
+  const base=String(v.tts_message_id||v.epoch_id||'current');
+  const text=normalizeAudioText(v.spoken_brief||v.preview_text||'');
+  return base+'|'+hashText(text);
+}
+function heardIds(){
+  try{const x=JSON.parse(localStorage.getItem(HEARD_KEY)||'[]');return Array.isArray(x)?x:[]}catch{return []}
+}
+function isHeard(v){const id=messageIdentity(v);return !!id&&heardIds().includes(id)}
+function markHeard(v){
+  const id=messageIdentity(v);if(!id)return;
+  const ids=heardIds().filter(x=>x!==id);
+  ids.unshift(id);
+  try{localStorage.setItem(HEARD_KEY,JSON.stringify(ids.slice(0,50)))}catch{}
+}
+function zonedDateParts(d){
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:MESSAGE_TZ,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(d);
+  const out={};for(const p of parts)if(p.type!=='literal')out[p.type]=p.value;
+  return {y:Number(out.year),m:Number(out.month),d:Number(out.day)};
+}
+function formatMessageTime(v){
+  const ms=surfaceTime(v);if(!ms)return '';
+  const d=new Date(ms),now=new Date();
+  const a=zonedDateParts(d),b=zonedDateParts(now);
+  const dayA=Date.UTC(a.y,a.m-1,a.d)/86400000,dayB=Date.UTC(b.y,b.m-1,b.d)/86400000;
+  const delta=Math.round(dayB-dayA);
+  const time=new Intl.DateTimeFormat('es-AR',{timeZone:MESSAGE_TZ,hour:'2-digit',minute:'2-digit',hour12:false}).format(d);
+  let day='';
+  if(delta===0)day='HOY';
+  else if(delta===1)day='AYER';
+  else day=new Intl.DateTimeFormat('es-AR',{timeZone:MESSAGE_TZ,day:'2-digit',month:'short',year:a.y===b.y?undefined:'numeric'}).format(d).replace('.','').toUpperCase();
+  return day+' · '+time;
+}
+function renderMessageMeta(v){
+  const t=$('messageTime'),dot=$('unheardDot');if(!t||!dot)return;
+  t.textContent=formatMessageTime(v);
+  const heard=isHeard(v);
+  dot.hidden=!v||heard;
+  dot.title=heard?'':'Mensaje sin escuchar';
+  const ms=surfaceTime(v);
+  t.title=ms?new Intl.DateTimeFormat('es-AR',{timeZone:MESSAGE_TZ,dateStyle:'full',timeStyle:'short'}).format(new Date(ms)):'';
+}
 function strategicSurface(){
   const p=state?.preview||null,f=state?.firm||null;
   if(p&&(!f||!f.is_high_firm||surfaceTime(p)>surfaceTime(f)))return p;
@@ -176,7 +225,9 @@ function render(){
 
   $('headline').textContent=cur.headline||'Estado actual';
   $('brief').textContent=cur.preview_text||cur.spoken_brief||'';
-  syncAudio(strategicAudioSurface());
+  const audioCur=strategicAudioSurface();
+  renderMessageMeta(audioCur||cur);
+  syncAudio(audioCur);
 
   const read=arr(cur.current_read);
   const fr=arr(cur.frictions);
@@ -512,6 +563,9 @@ function advanceAudio(){
     audioPlaying=false;
     audioPendingFraction=0;
     setAudioStatus('terminado');
+    const heardSurface=strategicAudioSurface();
+    markHeard(heardSurface);
+    renderMessageMeta(heardSurface);
     const fill=$('audioFill'),pct=$('audioPct');
     if(fill)fill.style.width='100%';
     if(pct)pct.textContent='100%';
