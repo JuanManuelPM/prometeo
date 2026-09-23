@@ -1,0 +1,70 @@
+<!doctype html><html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Prometeo · World Live</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{display:grid;place-items:center}
+.stage{position:relative;width:100vw;height:100vh;background:#000;overflow:hidden}
+iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+.hud{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.88) 34%,#000 100%);padding:34px 24px 18px;pointer-events:none}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:10px}
+.brand{font:900 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em}
+.status{font:900 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.09em}
+.progress{height:14px;border:1px solid rgba(255,255,255,.72);position:relative;background:#000}
+.fill{height:100%;width:0;background:#fff;transition:width .7s ease}
+.meta{display:grid;grid-template-columns:auto auto auto 1fr auto;gap:18px;align-items:center;margin-top:10px;font:800 10px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace}
+.meta strong{font-size:15px}.dim{opacity:.54}
+.taskline{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.done{font-size:22px;font-weight:950;letter-spacing:-.02em}
+.flash{animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{opacity:.42}}
+.corner{position:absolute;top:14px;right:16px;background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.3);padding:8px 10px;font:800 9px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace}
+@media(max-width:800px){.hud{padding:28px 12px 12px}.meta{grid-template-columns:auto auto 1fr;gap:10px}.meta .hideSmall{display:none}.top{margin-bottom:8px}.brand,.status{font-size:9px}.progress{height:10px}}
+</style></head><body>
+<div class="stage">
+  <iframe id="world" src="/prometeo/guides/world/?view=tv" allow="autoplay"></iframe>
+  <div class="corner" id="clock">LIVE</div>
+  <div class="hud">
+    <div class="top">
+      <div class="brand">PROMETEO · AUTONOMY MESH V1</div>
+      <div class="status" id="status">CARGANDO</div>
+    </div>
+    <div class="progress"><div class="fill" id="fill"></div></div>
+    <div class="meta">
+      <div><strong id="pct">0%</strong></div>
+      <div><span id="done">0</span>/<span id="total">0</span> DONE</div>
+      <div><span id="active">0</span> ACTIVE</div>
+      <div class="taskline" id="taskline">sin trabajo activo</div>
+      <div class="hideSmall"><span id="workers">0</span> WORKERS · <span id="remaining">0</span> FALTAN</div>
+    </div>
+  </div>
+</div>
+<script>
+(()=>{
+const B='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+const K='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const H={apikey:K,Authorization:'Bearer '+K,'Content-Type':'application/json'};
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+let lastWorldReload=Date.now();
+async function load(){
+ try{
+  const x=await fetch(B+'prometeo_autonomy_mesh_tv_v1',{method:'POST',headers:H,body:'{}',cache:'no-store'}).then(r=>r.json());
+  const c=x.counts||{},s=x.sessions||{},p=Number(x.percent||0);
+  fill.style.width=Math.max(0,Math.min(100,p))+'%';
+  pct.textContent=p.toFixed(1)+'%';
+  done.textContent=c.success||0; total.textContent=c.total||0; active.textContent=c.active||0; remaining.textContent=x.remaining||0; workers.textContent=s.recent_exec_120s||0;
+  const ats=x.active_tasks||[];
+  taskline.textContent=ats.length?ats.map(t=>(t.guide_key?t.guide_key+' · ':'')+t.task_key+' · '+(t.progress_stage||'WORK')).join('   /   '):'sin trabajo activo';
+  const complete=(c.total||0)>0&&(c.success||0)===(c.total||0);
+  status.textContent=complete?'COMPLETO':((s.recent_exec_120s||0)>0?'TRABAJANDO':'ESPERANDO');
+  status.className='status'+(!complete&&(s.recent_exec_120s||0)>0?' flash':'');
+  clock.textContent=new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(x.server_time));
+ }catch(e){status.textContent='RECONEXIÓN'}
+ if(Date.now()-lastWorldReload>300000){
+   const fr=document.getElementById('world');
+   fr.src='/prometeo/guides/world/?view=tv&v='+Date.now();
+   lastWorldReload=Date.now();
+ }
+}
+load();setInterval(load,3000);
+})();
+</script></body></html>
