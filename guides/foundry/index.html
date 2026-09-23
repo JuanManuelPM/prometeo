@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prometeo · Domain Foundry</title>
+<style>
+:root{color-scheme:dark;--bg:#000;--fg:#fff;--line:#292929;--dim:#8d8d8d}
+*{box-sizing:border-box}html,body{margin:0;background:#000;color:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{width:min(900px,100%);margin:auto;padding:16px 14px 50px}
+header{display:flex;justify-content:space-between;align-items:end;gap:14px;border-bottom:1px solid var(--line);padding-bottom:13px}
+h1{font-size:26px;letter-spacing:-.04em;margin:5px 0 0}.k{font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.1em;opacity:.5}
+#stamp{font:800 9px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;opacity:.5;text-align:right}
+.metrics{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid var(--line)}
+.m{padding:13px 8px;border-right:1px solid var(--line)}.m:last-child{border-right:0}.m b{font-size:22px}.m span{display:block;font-size:9px;letter-spacing:.1em;opacity:.5;text-transform:uppercase;margin-top:4px}
+.notice{font-size:12px;line-height:1.45;padding:13px 0;border-bottom:1px solid var(--line)}
+.notice a{color:#fff;font-weight:800}
+.task{display:grid;grid-template-columns:34px 1fr auto;gap:10px;padding:14px 0;border-bottom:1px solid var(--line)}
+.n{font:900 17px/1 ui-monospace,SFMono-Regular,Menlo,monospace}.meta{font-size:9px;text-transform:uppercase;letter-spacing:.1em;opacity:.5;margin-bottom:5px}.title{font-size:15px;font-weight:800}
+.state{font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid currentColor;padding:5px 6px;height:max-content}
+.sub{font-size:10px;opacity:.55;margin-top:6px}.summary{font-size:12px;line-height:1.4;margin-top:7px;opacity:.7}
+@media(max-width:600px){.metrics{grid-template-columns:repeat(3,1fr)}.task{grid-template-columns:30px 1fr}.state{grid-column:2;width:max-content}}
+</style></head>
+<body><main>
+<header><div><div class="k">PROMETEO · GUIDES</div><h1>DOMAIN FOUNDRY V1</h1></div><div id="stamp">cargando…</div></header>
+<div class="metrics">
+<div class="m"><b id="done">–</b><span>done</span></div>
+<div class="m"><b id="ready">–</b><span>ready</span></div>
+<div class="m"><b id="active">–</b><span>active</span></div>
+<div class="m"><b id="blocked">–</b><span>blocked</span></div>
+<div class="m"><b id="workers">–</b><span>workers</span></div>
+</div>
+<div class="notice">Audita Guides y diseña sus exámenes; no promueve cambios automáticamente. <a href="/prometeo/coordination/design-dna/experiments/DOMAIN-FOUNDRY-V1/WORKER_PROMPT.txt">PROMPT ÚNICO</a> · <a href="/prometeo/guides/">GUIDES</a></div>
+<div id="tasks"></div>
+</main>
+<script>
+(()=>{
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const HEAD={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+async function load(){
+ try{
+  const r=await fetch(BASE+'prometeo_domain_foundry_status_v1',{method:'POST',headers:HEAD,body:'{}',cache:'no-store'});
+  if(!r.ok)throw new Error(r.status);
+  const s=await r.json(),c=s.counts||{},ss=s.sessions||{},run=s.run||{};
+  document.getElementById('done').textContent=c.done??0;
+  document.getElementById('ready').textContent=c.ready??0;
+  document.getElementById('active').textContent=c.active??0;
+  document.getElementById('blocked').textContent=c.blocked??0;
+  document.getElementById('workers').textContent=ss.total??0;
+  document.getElementById('stamp').textContent=(run.status||'')+' · '+new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(s.server_time));
+  document.getElementById('tasks').innerHTML=(s.tasks||[]).map(t=>'<div class="task"><div class="n">'+String(t.ordinal).padStart(2,'0')+'</div><div><div class="meta">'+esc(t.task_kind)+(t.guide_key?' · '+esc(t.guide_key):'')+'</div><div class="title">'+esc(t.title)+'</div><div class="sub">gen '+esc(t.generation||0)+' · recovery '+esc(t.recovery_count||0)+' · stage '+esc(t.progress_stage||'–')+'</div>'+(t.summary?'<div class="summary">'+esc(t.summary)+'</div>':'')+'</div><div class="state">'+esc(t.state)+'</div></div>').join('');
+ }catch(e){document.getElementById('stamp').textContent='reconectando'}
+}
+load();setInterval(load,3000);
+})();
+</script></body></html>
