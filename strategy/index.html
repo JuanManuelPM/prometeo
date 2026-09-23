@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Prometeo · Ahora</title>
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:#000;color:#fff;font-family:system-ui,-apple-system,sans-serif}
+body{min-height:100vh}
+main{width:min(760px,100%);margin:0 auto;padding:24px 18px 48px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:26px}
+h1{font-size:20px;margin:0;font-weight:750}
+small,.muted{opacity:.55}
+section{border-top:1px solid #fff;padding:18px 0}
+h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin:0 0 12px}
+#headline{font-size:26px;line-height:1.08;font-weight:800;margin:0 0 12px}
+#brief{font-size:18px;line-height:1.45;white-space:pre-wrap}
+button{font:inherit;border:1px solid #fff;background:#000;color:#fff;padding:12px 14px;cursor:pointer}
+button.primary{background:#fff;color:#000;font-weight:750}
+button:disabled{opacity:.35;cursor:default}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.note{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.15);font-size:14px;line-height:1.35}
+.note:last-child{border-bottom:0}
+.option{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.15)}
+.option input{width:20px;height:20px;margin:2px 0 0}
+.option b{display:block;margin-bottom:4px}
+.option p{margin:0;line-height:1.35;opacity:.75}
+.badge{display:inline-block;border:1px solid rgba(255,255,255,.5);font-size:11px;padding:2px 6px;margin-left:6px;vertical-align:2px}
+#empty{padding:28px 0;font-size:18px;line-height:1.4}
+#status{font-size:12px;opacity:.55}
+#actionResult{margin-top:10px;font-size:13px}
+ul{margin:8px 0 0 18px;padding:0}
+li{margin:4px 0}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>PROMETEO · AHORA</h1>
+  <div id="status">cargando…</div>
+</header>
+
+<section id="currentSection">
+  <div id="empty">Esperando el primer brief estratégico.</div>
+  <div id="current" hidden>
+    <h2>Última lectura</h2>
+    <div id="headline"></div>
+    <div id="brief"></div>
+    <div class="controls">
+      <button id="play">▶ PLAY</button>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Notas acumuladas</h2>
+  <div id="notes"></div>
+</section>
+
+<section id="optionsSection" hidden>
+  <h2>¿Qué querés que Prometeo trabaje?</h2>
+  <div id="options"></div>
+  <div class="controls">
+    <button id="ok" class="primary">OK</button>
+  </div>
+  <div id="actionResult"></div>
+</section>
+
+<section id="contextSection" hidden>
+  <h2>Lectura corta</h2>
+  <div id="read"></div>
+</section>
+</main>
+
+<script>
+(()=>{
+'use strict';
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+const TTS='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/audio-lab-page-audio-v1';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const HEAD={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
+const CHANNEL='PROMETEO_MAIN';
+let state=null,ctx=null,currentAudioEpoch=null,playing=false;
+
+const $=id=>document.getElementById(id);
+async function rpc(name,args){
+  const r=await fetch(BASE+name,{method:'POST',headers:HEAD,body:JSON.stringify(args),cache:'no-store'});
+  if(!r.ok)throw new Error(name+' '+r.status);
+  return await r.json();
+}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function arr(v){return Array.isArray(v)?v:[]}
+function render(){
+  const ch=state?.channel||{};
+  const rw=state?.resident_workers||{};
+  $('status').textContent=(ch.enabled?'activo':'en preparación')+' · workers '+(rw.sessions||0)+'/'+(ch.resident_workers_target||5);
+
+  const notes=arr(state?.notes);
+  $('notes').innerHTML=notes.length?notes.map(n=>'<div class="note"><b>'+esc(n.category)+'</b> · '+esc(n.text)+'</div>').join(''):'<div class="muted">Todavía no hay notas.</div>';
+
+  const cur=state?.current;
+  $('empty').hidden=!!cur;
+  $('current').hidden=!cur;
+  $('optionsSection').hidden=true;
+  $('contextSection').hidden=true;
+  if(!cur)return;
+
+  $('headline').textContent=cur.headline||'Estado actual';
+  $('brief').textContent=cur.spoken_brief||'';
+  $('play').disabled=!cur.spoken_brief;
+
+  const read=arr(cur.current_read);
+  const fr=arr(cur.frictions);
+  if(read.length||fr.length){
+    $('contextSection').hidden=false;
+    $('read').innerHTML=
+      (read.length?'<b>Ahora</b><ul>'+read.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'')+
+      (fr.length?'<br><b>Fricciones</b><ul>'+fr.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'');
+  }
+
+  const opts=arr(cur.action_options);
+  if(opts.length){
+    $('optionsSection').hidden=false;
+    const chosen=new Map(arr(state?.choices).map(x=>[x.option_id,x.selected]));
+    $('options').innerHTML=opts.map(o=>{
+      const id=esc(o.option_id);
+      const checked=chosen.has(o.option_id)?chosen.get(o.option_id):false;
+      const disabled=chosen.has(o.option_id)?' disabled':'';
+      return '<label class="option"><input type="checkbox" data-option="'+id+'" '+(checked?'checked':'')+disabled+'><div><b>'+esc(o.label)+'<span class="badge">'+esc(o.perspective||'')+'</span></b><p>'+esc(o.why_now||o.objective||'')+'</p></div></label>';
+    }).join('');
+    const already=arr(state?.choices).length>0;
+    $('ok').disabled=already;
+    $('actionResult').textContent=already?'Selección publicada.':'';
+  }
+}
+async function load(){
+  try{
+    state=await rpc('prometeo_strategic_console_v1',{p_channel_key:CHANNEL});
+    render();
+  }catch(e){
+    $('status').textContent='reconectando';
+  }
+}
+async function ensureAudio(){
+  if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();
+  await ctx.resume();
+}
+async function playCurrent(){
+  const cur=state?.current;
+  if(!cur?.spoken_brief||playing)return;
+  playing=true;$('play').disabled=true;$('play').textContent='…';
+  try{
+    await ensureAudio();
+    const tts=await fetch(TTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      messageId:cur.tts_message_id||('strategic-'+cur.epoch_id),
+      text:cur.spoken_brief,
+      voicePrompt:state?.channel?.voice_prompt||'Voz masculina adulta, español rioplatense natural, directa y analítica.'
+    })});
+    if(!tts.ok)throw new Error('TTS '+tts.status);
+    const data=await tts.arrayBuffer();
+    const buf=await ctx.decodeAudioData(data.slice(0));
+    const src=ctx.createBufferSource();src.buffer=buf;src.connect(ctx.destination);
+    currentAudioEpoch=cur.epoch_id;
+    await new Promise((resolve,reject)=>{src.onended=resolve;try{src.start()}catch(e){reject(e)}});
+  }catch(e){
+    $('actionResult').textContent='No pude reproducir el audio.';
+  }finally{
+    playing=false;$('play').disabled=false;$('play').textContent='▶ PLAY';
+  }
+}
+async function apply(){
+  const cur=state?.current;if(!cur)return;
+  const ids=[...document.querySelectorAll('input[data-option]:checked')].map(x=>x.dataset.option);
+  $('ok').disabled=true;$('actionResult').textContent='Publicando…';
+  try{
+    const r=await rpc('prometeo_strategic_apply_choices_v1',{
+      p_channel_key:CHANNEL,p_epoch_id:cur.epoch_id,p_selected_option_ids:ids
+    });
+    if(r?.state!=='APPLIED')throw new Error(r?.reason||'apply');
+    $('actionResult').textContent='Listo · '+r.selected_count+' trabajos publicados · '+r.discarded_count+' descartados.';
+    await load();
+  }catch(e){
+    $('ok').disabled=false;$('actionResult').textContent='No se pudo publicar la selección.';
+  }
+}
+$('play').addEventListener('click',playCurrent);
+$('ok').addEventListener('click',apply);
+load();
+setInterval(load,8000);
+})();
+</script>
+</body>
+</html>
