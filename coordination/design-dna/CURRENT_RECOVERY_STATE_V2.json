@@ -1,6 +1,6 @@
 {
   "schema": "prometeo.current-recovery-state/v2",
-  "updated_at": "2026-09-23T14:15:00+00:00",
+  "updated_at": "2026-09-23T16:07:15.56388+00:00",
   "source_of_truth_rule": "FILES_ARE_RECOVERY_HINTS_NOT_LIVE_STATE__ALWAYS_QUERY_RUNTIME_FIRST",
   "current_truth": {
     "screen10": {
@@ -102,19 +102,19 @@
     },
     "strategic_exam_v1": {
       "exam_id": "PROMETEO-STRATEGIC-EXAM-V1-PILOT",
-      "status": "ARMED",
+      "status": "RUNNING",
       "wave_id": "PROMETEO-STRATEGIC-EXAM-V1-PILOT-WAVE",
       "launch_batch": "PROMETEO-STRATEGIC-EXAM-V1-PILOT-WORKERS",
       "target_workers": 1,
       "max_workers": 8,
       "queue": {
-        "ready": 7,
+        "ready": 1,
         "active": 0,
-        "blocked": 1,
-        "done": 0
+        "blocked": 0,
+        "done": 7
       },
       "decision_node": "EXAM:DECISION-01",
-      "decision_rule": "BLOCKED until EXAM:REALITY-01, EXAM:AUTONOMY-01, EXAM:GROWTH-01, EXAM:EVIDENCE-01, EXAM:ARCH-01, EXAM:HUMAN-01 and EXAM:ADVERSARY-01 all complete with completion_class=SUCCESS",
+      "decision_rule": "Seven analytic cells are SUCCESS. EXAM:DECISION-01 is READY after generation-1 HEARTBEAT_TIMEOUT recovery.",
       "answer_ranges": "analytic 800–1500 words depending on question; DECISION 1200–2200",
       "progress_stages": [
         "PACKET_READ",
@@ -136,7 +136,83 @@
       "trace_id": 56,
       "trace_state": "DONE_AFTER_PUBLICATION_VERIFICATION",
       "pages_run": 35872712727,
-      "pages_deploy": "SUCCESS"
+      "pages_deploy": "SUCCESS",
+      "decision_recovery": {
+        "state": "READY",
+        "assignment_generation": 1,
+        "recovery_count": 1,
+        "failure_code": "HEARTBEAT_TIMEOUT",
+        "last_progress_at": "2026-09-23T14:55:51.009813+00:00",
+        "last_requeued_at": "2026-09-23T15:00:00.30148+00:00",
+        "observed_before_loss": "Worker reported ~1600 drafted words and reached FINALIZING; no accepted final result exists."
+      }
+    },
+    "worker_kernel_v2": {
+      "benchmark_id": "PROMETEO-WORKER-KERNEL-V2-E1",
+      "version": "2.0",
+      "status": "ARMED",
+      "target_workers": 20,
+      "target_workers_per_variant": 5,
+      "variants": {
+        "A_V1_BASELINE": "coarse V1 stages, no candidate checkpoint",
+        "B_V2_CHECKPOINT": "FIRST_SIGNAL + durable generation-fenced candidate checkpoint",
+        "C_V2_TELEMETRY": "B plus RESULT_SERIALIZE and SUBMIT_START telemetry",
+        "D_V2_COLLAB": "C plus durable producer→critic→synthesis dependency work"
+      },
+      "workload": {
+        "primary_task_instances": 15,
+        "matched_primary_jobs": 60,
+        "collaboration_extra_jobs": 4,
+        "total_jobs": 64,
+        "ready": 60,
+        "active": 0,
+        "blocked": 4,
+        "memberships": 0,
+        "checkpoints": 0
+      },
+      "baseline": {
+        "source": "PROMETEO-STRATEGIC-EXAM-V1-PILOT/P001",
+        "wall_seconds_to_final_watchdog": 2355.9,
+        "successful_attempts": 7,
+        "accepted_words": 7160,
+        "recoverable_failures": 3,
+        "watchdog_requeues": 1,
+        "finalizing_time_share_pct": 42.5,
+        "pre_progress_time_share_pct": 14.3
+      },
+      "runtime_reuse": [
+        "prometeo_worker_enter_v1",
+        "prometeo_worker_take_v4",
+        "prometeo_worker_progress_v1",
+        "prometeo_worker_fail_recoverable_v1",
+        "prometeo_worker_wait_v3",
+        "prometeo_worker_submit_v6",
+        "prometeo_worker_watchdog_v2",
+        "prometeo_work_wave_tick_v2"
+      ],
+      "checkpoint_rule": "B/C/D can persist candidate_result fenced by job/session/generation/token. A later generation may receive it as DATA, but must audit and checkpoint anew before submit.",
+      "matched_comparison_rule": "Compare A/B/C/D only on the 60 primary matched jobs. D collaboration extension is reported separately.",
+      "transactional_smoke": {
+        "result": "PASS",
+        "rolled_back": true,
+        "receipts": [
+          "ENTER balanced A→B→C",
+          "B FIRST_SIGNAL accepted",
+          "B checkpoint CHECKPOINTED",
+          "B submit ACCEPTED",
+          "C submit without RESULT_SERIALIZE/SUBMIT_START rejected",
+          "C submit after telemetry ACCEPTED",
+          "post-smoke benchmark pristine: 0 memberships / 60 READY / 4 BLOCKED / 0 checkpoints"
+        ]
+      },
+      "observability": "public.prometeo_worker_kernel_status_v1",
+      "publication": {
+        "page": "/strategy/kernel/",
+        "prompt": "/coordination/design-dna/experiments/WORKER-KERNEL-V2/WORKER_PROMPT.txt",
+        "contract": "/coordination/design-dna/experiments/WORKER-KERNEL-V2/README.md"
+      },
+      "strategic_note_id": 36,
+      "trace_id": 57
     }
   },
   "drift_repaired": [
@@ -144,11 +220,13 @@
     "Trace 42 and Trace 44 were stale ACTIVE and were closed from later canonical receipts.",
     "S05 semantics moved from unresolved soft-preference finding to explicit strict temporal fallback and a material patch with A/B/C executor smoke PASS.",
     "Verifier exclusion wording was narrowed: same-session source/verifier exclusion is proven; generic job counters do not globally exclude verifier work.",
-    "CURRENT_RECOVERY_STATE_V2 still listed Trace 53 ACTIVE after it had finished; active_coordination was corrected while arming Strategic Exam V1."
+    "CURRENT_RECOVERY_STATE_V2 still listed Trace 53 ACTIVE after it had finished; active_coordination was corrected while arming Strategic Exam V1.",
+    "Strategic Exam V1 recovery hint was stale at ARMED/0 DONE; live state is now 7 SUCCESS + DECISION-01 READY after watchdog recovery."
   ],
   "active_coordination": {
     "trace54": "runtime/s05-strict-spillover-v2 ACTIVE until independent verification resolves",
-    "trace55": "runtime/s05-strict-spillover-independent-verify ACTIVE while VERIFY_S05_STRICT_SPILLOVER_REPAIR_V2 is recoverable"
+    "trace55": "runtime/s05-strict-spillover-independent-verify ACTIVE while VERIFY_S05_STRICT_SPILLOVER_REPAIR_V2 is recoverable",
+    "trace57": "runtime/worker-kernel-v2-benchmark ACTIVE until public deployment and ARMED verification finish"
   },
   "required_next_logic": [
     "Never infer shell liveness from membership, ACTIVE, current_job_id, lease, or watchdog-updated last_seen.",
@@ -160,6 +238,12 @@
     "Strategic Exam V1 is a separate fixed-cutoff pilot. Do not silently replace /strategy/ CURRENT/FIRM with its answers until the exam completes and a promotion decision is made.",
     "For the Strategic Exam pilot, one fresh worker is sufficient to test sequential priority routing; do not manually assign questions.",
     "DECISION-01 must remain blocked until all seven analytic exam nodes complete SUCCESS. Its worker receives the full accepted prior answers.",
-    "Treat exam word volume as useful only when it changes a decision; preserve evidence, counterargument, falsification and capability-gain requirements."
+    "Treat exam word volume as useful only when it changes a decision; preserve evidence, counterargument, falsification and capability-gain requirements.",
+    "Worker Kernel V2 benchmark is isolated from Strategic Exam V1 and S05 verification. Do not move jobs across those cohorts.",
+    "Do not manually assign Worker Kernel V2 variants or tasks. One universal ENTER balances new shells across A/B/C/D; TAKE V4 chooses work by priority inside the assigned cohort.",
+    "Compare Worker Kernel variants only on the 60 primary matched jobs; D-only collaboration jobs are a separate secondary result.",
+    "For B/C/D, a recovery_candidate is draft DATA only. A replacement generation must audit it and create a fresh current-generation checkpoint before SUBMIT.",
+    "Do not infer benchmark liveness from 20 memberships or ACTIVE rows; use recent durable ASSIGNED/RESUME/PROGRESS/SUBMIT/FAIL events.",
+    "P001 baseline is frozen evidence; do not rewrite it after Worker Kernel V2 begins."
   ]
 }
