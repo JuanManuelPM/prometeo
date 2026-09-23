@@ -63,6 +63,22 @@ jobs:
           grep -q "prometeo-c-e1-ironic-clone-v4" strategy/widget/index.html
           grep -q "prometeo-strategy-audio-v1" strategy/widget/index.html
 
+      - name: Check synchronized audio visualizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -c 'from pathlib import Path; import re; s=Path("strategy/audio-viz/index.html").read_text(); m=re.search(r"<script>(.*?)</script>",s,re.S); assert m; Path("/tmp/strategy-audio-viz.js").write_text(m.group(1))'
+          node --check /tmp/strategy-audio-viz.js
+          grep -q "prometeo_strategic_console_v2" strategy/audio-viz/index.html
+          grep -q "prometeo-strategy-audio-v1" strategy/audio-viz/index.html
+          grep -q "prometeo-c-e1-ironic-clone-v4" strategy/audio-viz/index.html
+          grep -q 'id="meterBar"' strategy/audio-viz/index.html
+          grep -q 'id="voiceState"' strategy/audio-viz/index.html
+          grep -q 'id="wave"' strategy/audio-viz/index.html
+          grep -q 'id="spectrum"' strategy/audio-viz/index.html
+          grep -q 'id="avatar"' strategy/audio-viz/index.html
+          grep -q 'createAnalyser' strategy/audio-viz/index.html
+
       - name: Generate fixed-voice audio and recover it from cache
         shell: bash
         run: |
@@ -197,3 +213,29 @@ jobs:
           done
           test "$ok" = "1"
           echo "WIDGET http=200 bytes=$(wc -c < /tmp/strategy-widget-public.html) square=1 unread=shared voice=E1"
+
+      - name: Verify published audio visualizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for n in $(seq 1 18); do
+            URL="https://juanmanuelpm.github.io/prometeo/strategy/audio-viz/?verify=${GITHUB_RUN_ID}-${n}-$(date +%s)"
+            code="$(curl --max-time 60 -sS -L -o /tmp/strategy-audio-viz-public.html -w '%{http_code}' "$URL" || true)"
+            if [ "$code" = "200" ] \
+              && grep -q "prometeo_strategic_console_v2" /tmp/strategy-audio-viz-public.html \
+              && grep -q "prometeo-strategy-audio-v1" /tmp/strategy-audio-viz-public.html \
+              && grep -q "prometeo-c-e1-ironic-clone-v4" /tmp/strategy-audio-viz-public.html \
+              && grep -q 'id="meterBar"' /tmp/strategy-audio-viz-public.html \
+              && grep -q 'id="voiceState"' /tmp/strategy-audio-viz-public.html \
+              && grep -q 'id="wave"' /tmp/strategy-audio-viz-public.html \
+              && grep -q 'id="spectrum"' /tmp/strategy-audio-viz-public.html \
+              && grep -q 'id="avatar"' /tmp/strategy-audio-viz-public.html \
+              && grep -q 'createAnalyser' /tmp/strategy-audio-viz-public.html; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ok" = "1"
+          echo "AUDIO_VIZ http=200 synchronized=1 modules=6 voice=E1"
