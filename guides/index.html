@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prometeo · Guides</title>
+<style>
+:root{color-scheme:dark;--bg:#000;--fg:#fff;--line:#2b2b2b;--dim:#8f8f8f}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{width:min(860px,100%);margin:auto;padding:18px 16px 48px}
+header{display:flex;justify-content:space-between;align-items:end;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.brand{font-size:11px;font-weight:900;letter-spacing:.18em}.stamp{font-size:10px;opacity:.5}
+h1{font-size:28px;letter-spacing:-.04em;margin:8px 0 0}
+.intro{font-size:14px;line-height:1.5;padding:16px 0;border-bottom:1px solid var(--line);max-width:700px}
+.grid{display:grid;grid-template-columns:1fr 1fr}
+.card{display:block;color:inherit;text-decoration:none;padding:18px 14px;border-bottom:1px solid var(--line);min-height:160px}
+.card:nth-child(odd){border-right:1px solid var(--line)}
+.meta{font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;opacity:.5}
+.title{font-size:22px;font-weight:850;margin:8px 0 6px;letter-spacing:-.03em}
+.headline{font-size:13px;line-height:1.45;opacity:.72}
+.status{display:inline-block;margin-top:14px;border:1px solid currentColor;padding:4px 6px;font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
+.pending{opacity:.62}
+@media(max-width:620px){.grid{grid-template-columns:1fr}.card:nth-child(odd){border-right:0}}
+</style>
+</head>
+<body><main>
+<header><div><div class="brand">PROMETEO</div><h1>GUIDES</h1></div><div class="stamp" id="stamp">cargando…</div></header>
+<div class="intro">Los Guides son estado durable. Un chat es sólo una shell temporal: podés abrir cualquier Guide, leer su estado y copiar una invocación para continuarlo desde un chat nuevo.</div>
+<div class="grid" id="grid"></div>
+</main>
+<script>
+(()=>{
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const HEAD={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+async function load(){
+ try{
+  const r=await fetch(BASE+'prometeo_domain_guide_registry_v1',{method:'POST',headers:HEAD,body:'{}',cache:'no-store'});
+  if(!r.ok)throw new Error(r.status);
+  const s=await r.json();
+  document.getElementById('stamp').textContent=new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit'}).format(new Date(s.server_time));
+  document.getElementById('grid').innerHTML=(s.guides||[]).map(g=>'<a class="card '+(g.status==='CURRENT'?'':'pending')+'" href="/prometeo'+esc(g.page_route)+'">'+
+    '<div class="meta">'+esc(g.domain_type)+' · v'+esc(g.current_version)+'</div>'+
+    '<div class="title">'+esc(g.short_title)+'</div>'+
+    '<div class="headline">'+esc(g.headline||g.mission)+'</div>'+
+    '<div class="status">'+esc(g.capsule_status||g.status)+'</div>'+
+  '</a>').join('');
+ }catch(e){document.getElementById('stamp').textContent='reconectando'}
+}
+load();setInterval(load,15000);
+})();
+</script></body></html>
