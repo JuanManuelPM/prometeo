@@ -14,7 +14,7 @@ permissions:
 jobs:
   tts-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -23,49 +23,63 @@ jobs:
         run: |
           python3 -c 'from pathlib import Path; import re; s=Path("strategy/index.html").read_text(); m=re.search(r"<script>(.*?)</script>",s,re.S); assert m; Path("/tmp/strategy.js").write_text(m.group(1))'
           node --check /tmp/strategy.js
+          grep -q "modelos-room-audio-v2" strategy/index.html
+          grep -q "TTS_MAX=500" strategy/index.html
+          grep -q "AHEAD=5" strategy/index.html
+          grep -q "WORKERS=2" strategy/index.html
+          grep -q "prometeo-strategy-voice-v2" strategy/index.html
+          if grep -q "audio-lab-page-audio-v1" strategy/index.html; then exit 1; fi
 
-      - name: Generate and recover cached audio
+      - name: Generate fresh audio and recover it from cache
         shell: bash
         run: |
           set -euo pipefail
-          API="https://catnohyouxqjjtseaueb.supabase.co/functions/v1/audio-lab-page-audio-v1"
-          ID="strategy-tts-smoke-v2"
-          TEXT="Prometeo prueba el audio estratégico con una voz rioplatense clara y estable."
-          PROMPT="Speaker identity: Martín, 31, native Buenos Aires. Warm medium-low male voice, calm, intelligent, authentic Rioplatense Spanish, conversational and clear. Never Iberian, never announcer cadence."
+          API="https://catnohyouxqjjtseaueb.supabase.co/functions/v1/modelos-room-audio-v2"
+          ID="strategy-live-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          TEXT="Prometeo ya tiene voz real. Esta prueba genera audio nuevo, lo recupera desde la caché y verifica sus bytes."
+          PROMPT="Voz masculina adulta, español rioplatense natural, tono de coordinador estratégico: directo, calmo, preciso y analítico. Nada de tono de tráiler ni entusiasmo artificial."
 
           payload="$(jq -nc --arg id "$ID" --arg text "$TEXT" --arg prompt "$PROMPT" '{messageId:$id,text:$text,voicePrompt:$prompt}')"
 
-          code="$(curl --retry 2 --retry-delay 3 --max-time 300 -sS -D post.headers -o post.audio -w '%{http_code}' -H 'content-type: application/json' --data "$payload" "$API")"
+          code="$(curl --retry 2 --retry-delay 4 --max-time 300 -sS -D post.headers -o post.audio -w '%{http_code}' -H 'content-type: application/json' --data "$payload" "$API")"
           test "$code" = "200"
 
-          POST_TYPE="$(awk 'BEGIN{IGNORECASE=1}/^content-type:/{gsub("\r","");print $2}' post.headers | tail -1)"
-          POST_CACHE="$(awk 'BEGIN{IGNORECASE=1}/^x-audio-lab-cache:/{gsub("\r","");print $2}' post.headers | tail -1)"
+          POST_CACHE="$(awk 'BEGIN{IGNORECASE=1}/^x-modelos-cache:/{gsub("\r","");print $2}' post.headers | tail -1)"
           POST_BYTES="$(wc -c < post.audio)"
+          test "$POST_CACHE" = "MISS"
           test "$POST_BYTES" -gt 1000
 
           python3 -c 'from pathlib import Path; b=Path("post.audio").read_bytes(); ok=b[:4] in (b"RIFF",b"OggS",b"fLaC") or b[:3]==b"ID3" or (len(b)>2 and b[0]==0xff and (b[1]&0xe0)==0xe0); assert len(b)>1000 and ok, repr(b[:12]); print("audio_signature_ok",b[:12].hex())'
 
           get_code="$(curl --retry 2 --retry-delay 2 --max-time 60 -sS -D get.headers -o get.audio -w '%{http_code}' "$API?id=$ID")"
           test "$get_code" = "200"
+          GET_CACHE="$(awk 'BEGIN{IGNORECASE=1}/^x-modelos-cache:/{gsub("\r","");print $2}' get.headers | tail -1)"
+          test "$GET_CACHE" = "HIT"
           cmp post.audio get.audio
 
-          GET_CACHE="$(awk 'BEGIN{IGNORECASE=1}/^x-audio-lab-cache:/{gsub("\r","");print $2}' get.headers | tail -1)"
-          GET_BYTES="$(wc -c < get.audio)"
-          SHA="$(sha256sum get.audio | awk '{print $1}')"
-
-          echo "POST http=$code type=$POST_TYPE cache=$POST_CACHE bytes=$POST_BYTES"
-          echo "GET  http=$get_code cache=$GET_CACHE bytes=$GET_BYTES"
-          echo "AUDIO sha256=$SHA"
+          echo "POST http=$code cache=$POST_CACHE bytes=$POST_BYTES"
+          echo "GET  http=$get_code cache=$GET_CACHE bytes=$(wc -c < get.audio)"
+          echo "AUDIO sha256=$(sha256sum get.audio | awk '{print $1}')"
 
       - name: Verify published strategy page
         shell: bash
         run: |
           set -euo pipefail
-          URL="https://juanmanuelpm.github.io/prometeo/strategy/?verify=$(date +%s)"
-          code="$(curl --retry 4 --retry-delay 3 --max-time 60 -sS -L -o /tmp/strategy-public.html -w '%{http_code}' "$URL")"
-          test "$code" = "200"
-          grep -q "TTS_MAX=1700" /tmp/strategy-public.html
-          grep -q "audio=new Audio()" /tmp/strategy-public.html
-          grep -q "type='audio/wav'" /tmp/strategy-public.html
-          if grep -q "decodeAudioData" /tmp/strategy-public.html; then exit 1; fi
-          echo "PUBLIC http=$code bytes=$(wc -c < /tmp/strategy-public.html) tts=verified"
+          ok=0
+          for n in $(seq 1 18); do
+            URL="https://juanmanuelpm.github.io/prometeo/strategy/?verify=${GITHUB_RUN_ID}-${n}-$(date +%s)"
+            code="$(curl --max-time 60 -sS -L -o /tmp/strategy-public.html -w '%{http_code}' "$URL" || true)"
+            if [ "$code" = "200" ] \
+              && grep -q "modelos-room-audio-v2" /tmp/strategy-public.html \
+              && grep -q "TTS_MAX=500" /tmp/strategy-public.html \
+              && grep -q "AHEAD=5" /tmp/strategy-public.html \
+              && grep -q "WORKERS=2" /tmp/strategy-public.html \
+              && grep -q "prometeo-strategy-voice-v2" /tmp/strategy-public.html \
+              && ! grep -q "audio-lab-page-audio-v1" /tmp/strategy-public.html; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ok" = "1"
+          echo "PUBLIC http=200 bytes=$(wc -c < /tmp/strategy-public.html) tts=modelos-room-audio-v2"
