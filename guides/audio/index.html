@@ -28,6 +28,7 @@ h1{font-size:33px;letter-spacing:-.05em;margin:7px 0 8px}.mission{font-size:13px
 <section><h2>Trabajo abierto</h2><div id="work"></div></section>
 <section><h2>Ideas</h2><div id="ideas"></div></section>
 </div>
+<section><h2>Guide Work Broker</h2><div id="broker"></div></section>
 <section><h2>Superficies existentes</h2><div class="arch" id="arch">Inventario cargando…</div><div class="surfaceGrid" id="surfaces"></div></section>
 <section><h2>Capacidades</h2><div id="caps"></div></section>
 </main>
@@ -41,11 +42,14 @@ function list(id,a){document.getElementById(id).innerHTML=Array.isArray(a)&&a.le
 async function rpc(n,a){const r=await fetch(BASE+n,{method:'POST',headers:H,body:JSON.stringify(a||{}),cache:'no-store'});if(!r.ok)throw new Error(r.status);return await r.json()}
 let ctx=null;
 async function load(){try{
- ctx=await rpc('prometeo_domain_guide_operating_view_v1',{p_guide_key:GUIDE});
+ ctx=await rpc('prometeo_domain_guide_operating_view_v2',{p_guide_key:GUIDE});
  const g=ctx.guide||{},c=ctx.capsule||{},sa=ctx.surface_archaeology;
  state.textContent=c.capsule_status||g.status||'';kind.textContent=(g.domain_type||'GUIDE')+' · '+g.guide_key;title.textContent=g.short_title||g.title;mission.textContent=g.mission||'';headline.textContent=c.headline||'Sin CURRENT todavía.';updated.textContent='CAPSULE '+fmt(c.generated_at)+' · v'+(c.version||0);spoken.textContent=c.spoken_brief||'Todavía no hay un mensaje hablado sintetizado para este Guide.';
  list('read',c.current_read);list('work',c.open_work);list('ideas',c.ideas);list('caps',c.capabilities);
  jobs.innerHTML=(ctx.domain_work||[]).map(x=>'<div class="workrow"><div><b>'+esc(x.task_key)+'</b><div class="wmeta">'+esc(x.task_kind||'')+' · '+esc(x.progress_stage||'—')+(x.worker_code?' · '+esc(x.worker_code):'')+'</div></div><div class="wstate">'+esc(x.state)+'</div></div>').join('')||'<div class="empty">Sin jobs del dominio todavía.</div>';
+ const bi=ctx.broker_inbox||{},dem=bi.demands||[];
+ broker.innerHTML='<div class="workrow"><div><b>GUIDE_WORK_BROKER_V1</b><div class="wmeta">demanda tipada durable · dispatch desactivado en SHADOW</div></div><div class="wstate">'+esc(bi.broker_mode||'—')+'</div></div>'+
+   (dem.length?dem.slice(0,6).map(x=>'<div class="workrow"><div><b>'+esc(x.request_key)+'</b><div class="wmeta">'+esc(x.objective||'')+' · score '+esc(x.shadow_score??'—')+'</div></div><div class="wstate">'+esc(x.status)+'</div></div>').join(''):'<div class="empty">Todavía no hay demanda registrada para este Guide.</div>');
  arch.textContent=sa?.state==='DONE'?('Arqueología terminada: '+(sa.summary||'resultado disponible.')):sa?.state==='ACTIVE'?('Arqueología en curso · '+(sa.progress_stage||'WORKING')):'Arqueología pendiente. Se muestran rutas reales del repo; sólo gh-pages verificadas son navegables.';
  surfaces.innerHTML=(ctx.surface_inventory||[]).map(s=>{const ok=s.route_status==='GH_PAGES_PRESENT',sh=(s.shared_with||[]).length?'Compartida: '+s.shared_with.join(', '):'';const b='<div class="sk">'+esc(s.surface_kind)+' · '+esc(s.route_status)+'</div><div class="st">'+esc((s.notes||s.repo_path).replace(/\.$/,''))+'</div><div class="sp">'+esc(s.public_route||s.repo_path)+'</div>'+(sh?'<div class="shared">'+esc(sh)+'</div>':'');return ok?'<a class="surface" href="/prometeo'+esc(s.public_route)+'">'+b+'</a>':'<div class="surface off">'+b+'</div>'}).join('');
 }catch(e){state.textContent='ERROR'}}
