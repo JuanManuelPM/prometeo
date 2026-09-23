@@ -45,11 +45,17 @@ jobs:
           payload="$(jq -nc --arg id "$ID" --arg text "$TEXT" '{messageId:$id,text:$text}')"
 
           code="$(curl --retry 2 --retry-delay 4 --max-time 300 -sS -D post.headers -o post.audio -w '%{http_code}' -H 'content-type: application/json' --data "$payload" "$API")"
-          test "$code" = "200"
 
           POST_CACHE="$(awk 'BEGIN{IGNORECASE=1}/^x-prometeo-cache:/{gsub("\r","");print $2}' post.headers | tail -1)"
           POST_VOICE="$(awk 'BEGIN{IGNORECASE=1}/^x-prometeo-voice:/{gsub("\r","");print $2}' post.headers | tail -1)"
           POST_BYTES="$(wc -c < post.audio)"
+          echo "POST diagnostic http=$code cache=${POST_CACHE:-none} voice=${POST_VOICE:-none} bytes=$POST_BYTES"
+          if [ "$code" != "200" ]; then
+            echo "POST body:"
+            head -c 1200 post.audio || true
+            echo
+          fi
+          test "$code" = "200"
           test "$POST_CACHE" = "MISS"
           test "$POST_VOICE" = "prometeo-c-e1-ironic-clone-v4"
           test "$POST_BYTES" -gt 1000
