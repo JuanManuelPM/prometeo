@@ -79,6 +79,25 @@ jobs:
           grep -q 'id="avatar"' strategy/audio-viz/index.html
           grep -q 'createAnalyser' strategy/audio-viz/index.html
 
+      - name: Check richer audio FX lab
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -c 'from pathlib import Path; import re; s=Path("strategy/audio-viz-fx/index.html").read_text(); m=re.search(r"<script>(.*?)</script>",s,re.S); assert m; Path("/tmp/strategy-audio-viz-fx.js").write_text(m.group(1))'
+          node --check /tmp/strategy-audio-viz-fx.js
+          grep -q "prometeo_strategic_console_v2" strategy/audio-viz-fx/index.html
+          grep -q "prometeo-strategy-audio-v1" strategy/audio-viz-fx/index.html
+          grep -q "prometeo-c-e1-ironic-clone-v4" strategy/audio-viz-fx/index.html
+          grep -q 'id="mirror"' strategy/audio-viz-fx/index.html
+          grep -q 'id="radial"' strategy/audio-viz-fx/index.html
+          grep -q 'id="particles"' strategy/audio-viz-fx/index.html
+          grep -q 'id="rings"' strategy/audio-viz-fx/index.html
+          grep -q 'id="trail"' strategy/audio-viz-fx/index.html
+          grep -q 'id="orb"' strategy/audio-viz-fx/index.html
+          grep -q "createAnalyser" strategy/audio-viz-fx/index.html
+          test -f strategy/audio-viz/audio-reactive-contract-v1.md
+          grep -q "one audio analysis stream" strategy/audio-viz/audio-reactive-contract-v1.md
+
       - name: Generate fixed-voice audio and recover it from cache
         shell: bash
         run: |
@@ -239,3 +258,30 @@ jobs:
           done
           test "$ok" = "1"
           echo "AUDIO_VIZ http=200 synchronized=1 modules=6 voice=E1"
+
+      - name: Verify published richer audio FX lab
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for n in $(seq 1 18); do
+            URL="https://juanmanuelpm.github.io/prometeo/strategy/audio-viz-fx/?verify=${GITHUB_RUN_ID}-${n}-$(date +%s)"
+            code="$(curl --max-time 60 -sS -L -o /tmp/strategy-audio-viz-fx-public.html -w '%{http_code}' "$URL" || true)"
+            if [ "$code" = "200" ] \
+              && grep -q "prometeo_strategic_console_v2" /tmp/strategy-audio-viz-fx-public.html \
+              && grep -q "prometeo-strategy-audio-v1" /tmp/strategy-audio-viz-fx-public.html \
+              && grep -q "prometeo-c-e1-ironic-clone-v4" /tmp/strategy-audio-viz-fx-public.html \
+              && grep -q 'id="mirror"' /tmp/strategy-audio-viz-fx-public.html \
+              && grep -q 'id="radial"' /tmp/strategy-audio-viz-fx-public.html \
+              && grep -q 'id="particles"' /tmp/strategy-audio-viz-fx-public.html \
+              && grep -q 'id="rings"' /tmp/strategy-audio-viz-fx-public.html \
+              && grep -q 'id="trail"' /tmp/strategy-audio-viz-fx-public.html \
+              && grep -q 'id="orb"' /tmp/strategy-audio-viz-fx-public.html \
+              && grep -q "createAnalyser" /tmp/strategy-audio-viz-fx-public.html; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ok" = "1"
+          echo "AUDIO_VIZ_FX http=200 synchronized=1 modules=6 voice=E1"
