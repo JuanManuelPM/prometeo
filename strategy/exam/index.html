@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Prometeo · Strategic Exam V1</title>
+<style>
+:root{color-scheme:dark;--bg:#000;--fg:#fff;--dim:rgba(255,255,255,.58);--line:rgba(255,255,255,.22)}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{width:min(980px,100%);margin:0 auto;padding:20px 16px 56px}
+header{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;border-bottom:1px solid var(--line);padding-bottom:14px}
+.brand{font-size:12px;font-weight:900;letter-spacing:.17em}
+h1{font-size:22px;line-height:1.05;margin:8px 0 0;letter-spacing:-.03em}
+#stamp{text-align:right;font-size:10px;line-height:1.5;opacity:.55}
+.summary{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid var(--line)}
+.metric{padding:15px 8px;border-right:1px solid var(--line)}
+.metric:last-child{border-right:0}
+.metric b{display:block;font-size:23px;line-height:1}
+.metric span{display:block;margin-top:6px;font-size:9px;letter-spacing:.13em;text-transform:uppercase;opacity:.5}
+.notice{padding:13px 0;border-bottom:1px solid var(--line);font-size:12px;line-height:1.45}
+.notice a{color:#fff;font-weight:800}
+.question{border-bottom:1px solid var(--line);padding:18px 0}
+.qhead{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:12px;align-items:start}
+.num{font:900 24px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
+.meta{font-size:9px;letter-spacing:.13em;text-transform:uppercase;opacity:.5;margin-bottom:5px}
+.title{font-size:17px;font-weight:820;line-height:1.18}
+.state{font:900 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--fg);padding:6px 7px;white-space:nowrap}
+.questionText{font:15px/1.5 Georgia,"Times New Roman",serif;margin:13px 0 0 58px;max-width:760px}
+.subline{margin:9px 0 0 58px;font-size:10px;opacity:.55;display:flex;gap:14px;flex-wrap:wrap}
+.progress{margin:14px 0 0 58px;border-top:1px solid rgba(255,255,255,.12);padding-top:11px}
+.progressRow{display:flex;gap:14px;flex-wrap:wrap;font-size:10px;line-height:1.4}
+.progressRow b{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.attempt{margin-top:9px;padding-top:9px;border-top:1px dashed rgba(255,255,255,.18)}
+.stage{display:grid;grid-template-columns:130px 1fr 70px;gap:8px;align-items:center;margin:5px 0;font-size:9px}
+.bar{height:5px;background:rgba(255,255,255,.14)}
+.bar i{display:block;height:100%;background:#fff}
+.answer{margin:14px 0 0 58px;border-top:1px solid var(--line);padding-top:12px}
+.answer summary{cursor:pointer;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}
+.answerText{white-space:pre-wrap;font:15px/1.55 Georgia,"Times New Roman",serif;margin-top:12px}
+.thesis{font-size:13px;line-height:1.45;margin-top:10px}
+.muted{opacity:.5}
+@media(max-width:640px){
+  main{padding:14px 12px 40px}
+  header{align-items:flex-start}
+  .summary{grid-template-columns:repeat(3,1fr)}
+  .metric:nth-child(3){border-right:0}
+  .metric:nth-child(n+4){border-top:1px solid var(--line)}
+  .qhead{grid-template-columns:36px minmax(0,1fr)}
+  .state{grid-column:2;width:max-content;margin-top:3px}
+  .questionText,.subline,.progress,.answer{margin-left:48px}
+  .stage{grid-template-columns:104px 1fr 58px}
+}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div>
+    <div class="brand">PROMETEO · EXPERIMENT</div>
+    <h1>STRATEGIC EXAM V1</h1>
+  </div>
+  <div id="stamp">cargando…</div>
+</header>
+
+<section class="summary">
+  <div class="metric"><b id="done">–</b><span>done</span></div>
+  <div class="metric"><b id="ready">–</b><span>ready</span></div>
+  <div class="metric"><b id="active">–</b><span>active</span></div>
+  <div class="metric"><b id="blocked">–</b><span>blocked</span></div>
+  <div class="metric"><b id="exec">–</b><span>exec 120s</span></div>
+</section>
+
+<div class="notice">
+  7 preguntas analíticas → DECISION se desbloquea sólo con 7 × SUCCESS.
+  El worker no elige tarea: backend asigna por prioridad.
+  <a href="/prometeo/coordination/design-dna/experiments/STRATEGIC-EXAM-V1/WORKER_PROMPT.txt">PROMPT ÚNICO</a>
+</div>
+
+<section id="questions"></section>
+</main>
+<script>
+(()=>{
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const HEAD={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
+const EXAM='PROMETEO-STRATEGIC-EXAM-V1-PILOT';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const n=v=>Number(v||0);
+const fsec=v=>v==null?'–':(n(v)<60?n(v).toFixed(1)+'s':(n(v)/60).toFixed(1)+'m');
+const fmt=t=>{if(!t)return'–';return new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(t))};
+async function load(){
+  try{
+    const r=await fetch(BASE+'prometeo_strategic_exam_status_v1',{method:'POST',headers:HEAD,body:JSON.stringify({p_exam_id:EXAM}),cache:'no-store'});
+    if(!r.ok)throw new Error(r.status);
+    const s=await r.json();
+    render(s);
+  }catch(e){$('stamp').textContent='reconectando · '+e.message}
+}
+function render(s){
+  const c=s.counts||{},ss=s.sessions||{},ex=s.exam||{};
+  $('done').textContent=c.done??0;$('ready').textContent=c.ready??0;$('active').textContent=c.active??0;$('blocked').textContent=c.blocked??0;
+  $('exec').textContent=ss.durable_execution_seen_120s??0;
+  $('stamp').innerHTML=esc(ex.status||'')+' · '+esc(s.wave_status||'')+'<br>'+fmt(s.server_time)+' · cutoff '+fmt(ex.state_cutoff_at);
+  $('questions').innerHTML=(s.questions||[]).map(q=>{
+    const attempts=(q.attempts||[]).map(a=>{
+      const stages=a.stage_percent||{},seconds=a.stage_seconds||{};
+      const stageHtml=Object.entries(stages).map(([k,p])=>
+        '<div class="stage"><span>'+esc(k)+'</span><div class="bar"><i style="width:'+Math.max(0,Math.min(100,n(p)))+'%"></i></div><span>'+esc(fsec(seconds[k]))+' · '+esc(p)+'%</span></div>'
+      ).join('');
+      return '<div class="attempt"><div class="progressRow">'+
+        '<span>worker <b>'+esc(a.worker_code||'–')+'</b></span>'+
+        '<span>gen <b>'+esc(a.generation)+'</b></span>'+
+        '<span>enter→assign <b>'+esc(fsec(a.seconds_enter_to_assign))+'</b></span>'+
+        '<span>assign→1st progress <b>'+esc(fsec(a.seconds_to_first_progress))+'</b></span>'+
+        '<span>total <b>'+esc(fsec(a.total_assignment_seconds))+'</b></span>'+
+        '<span>end <b>'+esc(a.terminal_event||'–')+'</b></span>'+
+      '</div>'+stageHtml+'</div>';
+    }).join('');
+    const ans=q.answer_text?'<details class="answer"><summary>respuesta publicada · '+esc(q.answer_word_count||'')+' palabras</summary>'+
+      '<div class="thesis"><b>Tesis:</b> '+esc(q.thesis||'')+'</div>'+
+      '<div class="answerText">'+esc(q.answer_text)+'</div></details>':'';
+    return '<article class="question">'+
+      '<div class="qhead"><div class="num">'+String(q.ordinal).padStart(2,'0')+'</div><div><div class="meta">'+esc(q.category)+' · '+esc(q.question_key)+'</div><div class="title">'+esc(q.title)+'</div></div><div class="state">'+esc(q.state)+'</div></div>'+
+      '<div class="questionText">'+esc(q.question_text)+'</div>'+
+      '<div class="subline"><span>'+esc(q.min_words)+'–'+esc(q.max_words)+' palabras</span><span>priority '+esc(q.priority)+'</span><span>stage '+esc(q.progress_stage||'–')+'</span><span>gen '+esc(q.assignment_generation||0)+'</span><span>recovery '+esc(q.recovery_count||0)+'</span></div>'+
+      ((q.attempts||[]).length?'<div class="progress">'+attempts+'</div>':'')+
+      ans+
+    '</article>';
+  }).join('');
+}
+load();setInterval(load,3000);
+})();
+</script>
+</body>
+</html>
