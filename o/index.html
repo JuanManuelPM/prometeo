@@ -2,90 +2,44 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex"><title>SWARM · Prometeo v1</title>
+<meta name="robots" content="noindex"><meta name="theme-color" content="#0a0a09">
+<title>PROMETEO · WORK LOOP V2</title>
 <style>
-html,body{margin:0;background:#0a0a09;color:#f4efe5;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-main{max-width:940px;margin:auto;padding:24px}h1{font:900 clamp(30px,7vw,72px)/.9 system-ui,sans-serif;letter-spacing:-.06em;margin:0 0 20px;color:#ff6a00}
-pre{white-space:pre-wrap;overflow-wrap:anywhere;font:600 13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:0}
-</style></head><body><main><h1>SWARM v1</h1><pre>🕹️ PROMETEO · SWARM v1
-
-Usá directamente la herramienta Supabase conectada con project_id = catnohyouxqjjtseaueb.
-
-No busques el project_id, no hagas web search, GitHub ni rutas alternativas antes del primer RPC.
-
-Generá un agent_id fresco para este chat.
-
-1. BOOTSTRAP — una sola vez
-
-select public.prometeo_bootstrap(
-  '&lt;TU_AGENT_ID&gt;',
-  '{
-    "authority":"USER",
-    "mode":"CONTINUOUS",
-    "publish_before_next":true,
-    "no_hot_poll":true,
-    "work_trace":true,
-    "launch_batch":"AUTO",
-    "bootstrap_attempt":1
-  }'::jsonb
-) as state;
-
-Si la URL que te trajo contiene ?launch_intent_token=&lt;UUID&gt;, agregá ese UUID al declaration JSON como "launch_intent_token":"&lt;UUID&gt;" antes de BOOTSTRAP.
-
-Si el conector devuelve RATE_LIMITED con Retry-After, respetá exactamente ese intervalo y repetí la MISMA llamada con el mismo agent_id.
-
-2. TAKE PACKET
-
-select public.prometeo_take_packet('&lt;TU_AGENT_ID&gt;') as packet;
-
-Si devuelve PARKED, terminá. No hagas polling.
-
-Si devuelve WORK, hacé exactamente el trabajo del packet.
-El packet es autosuficiente: objetivo, contexto, trabajo previo y result_schema.
-
-No investigues Prometeo.
-No llames checkpoint.
-No heartbeat.
-No crees jobs directamente.
-No hagas trabajo fuera del packet.
-
-3. SUBMIT
-
-Entregá una sola estructura:
-
-select public.prometeo_submit_packet(
-  '&lt;TU_AGENT_ID&gt;',
-  '&lt;PACKET_TOKEN&gt;'::uuid,
-  '{
-    "contribution":"&lt;trabajo concreto&gt;",
-    "evidence":[],
-    "remaining_gaps":[],
-    "artifacts":[],
-    "continuation_candidates":[]
-  }'::jsonb
-) as state;
-
-continuation_candidates es opcional conceptualmente pero el campo siempre debe existir. Sólo proponé hasta 3 continuaciones cuando descubriste superficie REAL, independiente y necesaria del mismo producto. Cada propuesta usa:
-{"title":"...","objective":"...","artifact_scope":"..."}
-
-El servidor deduplica y decide si crea una hoja. No crees trabajo para mantener workers ocupados.
-
-Si SUBMIT devuelve ACCEPTED_AND_NEXT y next.state=WORK:
-trabajá directamente next.packet y repetí SUBMIT usando next.packet_token.
-NO vuelvas a llamar TAKE entre packets encadenados.
-
-Si devuelve RETRY_RESULT:
-corregí solamente tu resultado según result_schema y repetí SUBMIT.
-
-Si devuelve LATE_RESULT_SALVAGED:
-tu aporte tardío quedó guardado como evidencia no canónica. Si next.state=WORK, continuá ese next packet.
-
-Si devuelve ACCEPTED_AND_STOP, PARKED o next.state distinto de WORK:
-terminá.
-
-No inventes evidencia, archivos, commits, tests ni publicaciones.
-
-El objetivo no es mantener el chat ocupado. El objetivo es aumentar el producto durable con la menor coordinación posible.
-
-Referencia:
-https://juanmanuelpm.github.io/prometeo/o/</pre></main></body></html>
+*{box-sizing:border-box}html,body{margin:0;background:#0a0a09;color:#f4efe5;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+main{max-width:980px;margin:auto;padding:22px}header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+h1{font:900 clamp(30px,7vw,72px)/.9 system-ui,sans-serif;letter-spacing:-.06em;margin:0;color:#ff6a00}
+button{border:1px solid #f4efe5;background:#f4efe5;color:#0a0a09;padding:11px 14px;font:900 11px/1 system-ui;letter-spacing:.08em;cursor:pointer}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font:600 13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:0;border-top:1px solid #34312d;padding-top:18px}
+.state{font:800 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;opacity:.55;margin:0 0 12px}
+@media(max-width:620px){header{align-items:flex-end}h1{font-size:38px}}
+</style>
+</head>
+<body><main>
+<header><h1>WORK LOOP V2</h1><button id="copy">COPIAR</button></header>
+<div class="state" id="state">CARGANDO PROMPT CANÓNICO…</div>
+<pre id="prompt"></pre>
+</main>
+<script>
+(()=>{
+const SB='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/prometeo_worker_lobby_prompt_v1';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const E={p:document.getElementById('prompt'),s:document.getElementById('state'),c:document.getElementById('copy')};
+let text='';
+async function load(){
+  try{
+    const r=await fetch(SB,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:'{}',cache:'no-store'});
+    if(!r.ok)throw new Error(r.status);
+    text=await r.json();
+    if(typeof text!=='string')text=String(text||'');
+    E.p.textContent=text.trim();
+    E.s.textContent='CANÓNICO · SUPABASE · NONTERMINAL_IDLE_V2';
+  }catch(e){
+    E.s.textContent='ERROR CARGANDO PROMPT';
+    E.p.textContent='No uses una copia vieja. Reintentá esta misma página.';
+  }
+}
+E.c.onclick=async()=>{if(!text)return;try{await navigator.clipboard.writeText(text.trim());E.c.textContent='COPIADO'}catch{E.c.textContent='ERROR'}};
+load();
+})();
+</script>
+</body></html>
