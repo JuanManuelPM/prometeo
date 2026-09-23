@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Prometeo · Audio visual</title>
+<style>
+:root{color-scheme:dark;--bg:#000;--fg:#fff;--dim:rgba(255,255,255,.56);--line:rgba(255,255,255,.2)}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{min-height:100vh}
+main{width:min(1120px,100%);margin:0 auto;padding:18px}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.brand{font-size:12px;font-weight:950;letter-spacing:.18em}
+.meta{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:850;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+#dot{width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 8px rgba(255,255,255,.95)}
+#dot[hidden]{display:none}
+.hero{display:grid;grid-template-columns:108px 1fr;gap:18px;align-items:center;padding:20px 0}
+#play{width:108px;height:108px;border:0;background:#fff;color:#000;font-size:38px;font-weight:900;cursor:pointer}
+#play:disabled{opacity:.28;cursor:default}
+.kicker{font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:7px}
+#headline{font-size:clamp(20px,3.2vw,34px);line-height:1.03;font-weight:820;letter-spacing:-.035em;max-width:820px}
+#status{margin-top:8px;font-size:11px;color:var(--dim)}
+.progress{height:4px;background:rgba(255,255,255,.14);margin-bottom:18px}
+#progressFill{height:100%;width:0;background:#fff}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.card{border:1px solid var(--line);min-height:240px;padding:14px;position:relative;overflow:hidden}
+.cardHead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.cardTitle{font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.cardValue{font-size:11px;font-variant-numeric:tabular-nums;color:var(--dim)}
+#meterTrack{height:160px;display:flex;align-items:flex-end;border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08);padding:12px 0}
+#meterBar{width:100%;height:2%;background:#fff;transition:height .06s linear}
+#voiceState{font-size:clamp(28px,5vw,58px);font-weight:900;letter-spacing:-.05em;line-height:.95;margin-top:18px}
+#voiceSub{font-size:11px;color:var(--dim);margin-top:9px}
+canvas{display:block;width:100%;height:170px;background:#020202}
+.spectrum{height:170px;display:grid;grid-template-columns:repeat(12,1fr);gap:4px;align-items:end;padding:12px 0}
+.spectrum i{display:block;background:#fff;min-height:2px;height:2%}
+.avatarStage{height:170px;display:grid;place-items:center}
+.avatar{position:relative;width:98px;height:98px;border:3px solid #fff;border-radius:50%;transform:scale(1);transition:transform .05s linear}
+.eye{position:absolute;top:33px;width:8px;height:8px;background:#fff;border-radius:50%}
+.eye.l{left:26px}.eye.r{right:26px}
+.mouth{position:absolute;left:50%;bottom:22px;width:30px;height:8px;background:#fff;transform:translateX(-50%);transform-origin:center;transition:height .05s linear,border-radius .05s linear}
+.avatarMeta{position:absolute;left:14px;bottom:12px;font-size:10px;color:var(--dim)}
+.debug{margin-top:12px;border-top:1px solid var(--line);padding-top:12px;font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:rgba(255,255,255,.72)}
+@media(max-width:760px){
+  main{padding:12px}
+  .hero{grid-template-columns:82px 1fr;gap:13px}
+  #play{width:82px;height:82px;font-size:30px}
+  .grid{grid-template-columns:1fr}
+  .card{min-height:220px}
+}
+@media(prefers-reduced-motion:reduce){#meterBar,.avatar,.mouth{transition:none}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="brand">PROMETEO</div>
+  <div class="meta"><i id="dot" aria-label="Mensaje sin escuchar"></i><span id="time">—</span></div>
+</header>
+
+<section class="hero">
+  <button id="play" type="button" aria-label="Reproducir" disabled>▶</button>
+  <div>
+    <div class="kicker">MISMO AUDIO · CUATRO LECTURAS VISUALES</div>
+    <div id="headline">Esperando una lectura estratégica.</div>
+    <div id="status">cargando</div>
+  </div>
+</section>
+
+<div class="progress" aria-hidden="true"><div id="progressFill"></div></div>
+
+<section class="grid">
+  <article class="card">
+    <div class="cardHead"><div class="cardTitle">01 · Energía</div><div id="rmsValue" class="cardValue">0.000</div></div>
+    <div id="meterTrack"><div id="meterBar"></div></div>
+  </article>
+
+  <article class="card">
+    <div class="cardHead"><div class="cardTitle">02 · Voz / silencio</div><div id="voiceValue" class="cardValue">—</div></div>
+    <div id="voiceState">SILENCIO</div>
+    <div id="voiceSub">umbral dinámico basado en energía actual</div>
+  </article>
+
+  <article class="card">
+    <div class="cardHead"><div class="cardTitle">03 · Waveform</div><div id="waveValue" class="cardValue">tiempo real</div></div>
+    <canvas id="wave" width="900" height="300"></canvas>
+  </article>
+
+  <article class="card">
+    <div class="cardHead"><div class="cardTitle">04 · Espectro</div><div id="freqValue" class="cardValue">12 bandas</div></div>
+    <div id="spectrum" class="spectrum"></div>
+  </article>
+
+  <article class="card">
+    <div class="cardHead"><div class="cardTitle">05 · Avatar reactivo</div><div id="avatarValue" class="cardValue">energía → gesto</div></div>
+    <div class="avatarStage">
+      <div id="avatar" class="avatar">
+        <i class="eye l"></i><i class="eye r"></i><i id="mouth" class="mouth"></i>
+      </div>
+    </div>
+    <div class="avatarMeta">escala, boca y pulso salen del mismo RMS</div>
+  </article>
+
+  <article class="card">
+    <div class="cardHead"><div class="cardTitle">06 · Datos</div><div id="part" class="cardValue">0 / 0</div></div>
+    <div id="debug" class="debug">Sin audio todavía.</div>
+  </article>
+</section>
+</main>
+
+<script>
+(()=>{
+'use strict';
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+const TTS='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-strategy-audio-v1';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const HEAD={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
+const CHANNEL='PROMETEO_MAIN';
+const HEARD_KEY='prometeo-strategy-heard-v1';
+const TZ='America/Argentina/Buenos_Aires';
+const CACHE_VERSION='prometeo-strategy-c-e1-v4';
+const VOICE='prometeo-c-e1-ironic-clone-v4';
+const FIRST=220,MAX=500,AHEAD=2;
+const $=id=>document.getElementById(id);
+
+let state=null,surface=null,text='',chunks=[],index=0,audio=null,intent=false,playing=false,epoch=0,clips=new Map();
+let audioCtx=null,analyser=null,timeData=null,freqData=null,visualRms=0,raf=0;
+const connected=new WeakSet();
+
+async function rpc(name,args){
+  const r=await fetch(BASE+name,{method:'POST',headers:HEAD,body:JSON.stringify(args),cache:'no-store'});
+  if(!r.ok)throw new Error(name+' '+r.status);
+  return r.json();
+}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function hashText(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return(h>>>0).toString(36)}
+function clean(s){return String(s||'').replace(/[^a-zA-Z0-9._:-]/g,'-').slice(0,82)}
+function norm(s){return String(s||'').replace(/\s+/g,' ').trim()}
+function timeMs(v){const t=Date.parse(v?.generated_at||'');return Number.isFinite(t)?t:0}
+function choose(){
+  const p=state?.preview||null,f=state?.firm||null;
+  if(p&&(!f||timeMs(p)>timeMs(f)))return {...p,spoken_brief:p.preview_text||'',tts_message_id:'strategic-preview-'+String(p.epoch_id||'current')};
+  return f||p||null;
+}
+function msgId(v){if(!v)return '';return String(v.tts_message_id||v.epoch_id||'current')+'|'+hashText(norm(v.spoken_brief||v.preview_text||''))}
+function heard(){try{const a=JSON.parse(localStorage.getItem(HEARD_KEY)||'[]');return Array.isArray(a)?a:[]}catch{return[]}}
+function isHeard(v){const id=msgId(v);return !!id&&heard().includes(id)}
+function markHeard(v){const id=msgId(v);if(!id)return;const a=heard().filter(x=>x!==id);a.unshift(id);try{localStorage.setItem(HEARD_KEY,JSON.stringify(a.slice(0,50)))}catch{}}
+function dateParts(d){
+  const p=new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(d),o={};
+  for(const x of p)if(x.type!=='literal')o[x.type]=x.value;
+  return {y:+o.year,m:+o.month,d:+o.day};
+}
+function labelTime(v){
+  const ms=timeMs(v);if(!ms)return '—';
+  const d=new Date(ms),n=new Date(),a=dateParts(d),b=dateParts(n);
+  const delta=Math.round((Date.UTC(b.y,b.m-1,b.d)-Date.UTC(a.y,a.m-1,a.d))/86400000);
+  const tm=new Intl.DateTimeFormat('es-AR',{timeZone:TZ,hour:'2-digit',minute:'2-digit',hour12:false}).format(d);
+  const day=delta===0?'HOY':delta===1?'AYER':new Intl.DateTimeFormat('es-AR',{timeZone:TZ,day:'2-digit',month:'short',year:a.y===b.y?undefined:'numeric'}).format(d).replace('.','').toUpperCase();
+  return day+' · '+tm;
+}
+function chunk(raw){
+  let s=norm(raw),out=[],off=0;
+  while(s.length){
+    const lim=out.length?MAX:FIRST;
+    if(s.length<=lim){out.push({text:s,start:off,end:off+s.length});break}
+    const w=s.slice(0,lim+1);let cut=-1;
+    for(const sep of ['. ','! ','? ','; ',': ',', ',' ']){
+      const i=w.lastIndexOf(sep);if(i>=Math.floor(lim*.55))cut=Math.max(cut,i+sep.length-1);
+    }
+    if(cut<1)cut=w.lastIndexOf(' ');if(cut<1)cut=lim-1;
+    const part=s.slice(0,cut+1).trim();out.push({text:part,start:off,end:off+part.length});
+    off+=s.slice(0,cut+1).length;s=s.slice(cut+1).trimStart();
+  }
+  return out;
+}
+function audioId(i){
+  const c=chunks[i],base=clean(surface?.tts_message_id||surface?.epoch_id||'current');
+  return CACHE_VERSION+'-'+base+'-'+(i+1)+'-'+hashText(VOICE+'|'+c.text);
+}
+function clip(i){if(!clips.has(i))clips.set(i,{status:'idle',audio:null,url:null,promise:null});return clips.get(i)}
+
+async function ensureGraph(a){
+  if(!audioCtx){
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    analyser=audioCtx.createAnalyser();
+    analyser.fftSize=2048;
+    analyser.smoothingTimeConstant=.72;
+    timeData=new Uint8Array(analyser.fftSize);
+    freqData=new Uint8Array(analyser.frequencyBinCount);
+    analyser.connect(audioCtx.destination);
+  }
+  if(audioCtx.state==='suspended')await audioCtx.resume();
+  if(!connected.has(a)){
+    const src=audioCtx.createMediaElementSource(a);
+    src.connect(analyser);
+    connected.add(a);
+  }
+}
+function setButton(){
+  const b=$('play');b.disabled=!chunks.length;
+  if(playing){b.textContent='Ⅱ';b.setAttribute('aria-label','Pausar')}
+  else if(intent){b.textContent='…';b.setAttribute('aria-label','Preparando audio')}
+  else{b.textContent='▶';b.setAttribute('aria-label','Reproducir')}
+}
+function updateProgress(){
+  $('time').textContent=labelTime(surface);
+  $('dot').hidden=!surface||isHeard(surface);
+  $('headline').textContent=surface?.headline||'Esperando una lectura estratégica.';
+  $('part').textContent=chunks.length?(Math.min(index+1,chunks.length)+' / '+chunks.length):'0 / 0';
+  let p=0,c=chunks[index];
+  if(c){
+    let f=0;if(audio&&Number.isFinite(audio.duration)&&audio.duration>0)f=clamp(audio.currentTime/audio.duration,0,1);
+    p=(c.start+(c.end-c.start)*f)/Math.max(1,text.length);
+  }
+  $('progressFill').style.width=(clamp(p,0,1)*100)+'%';
+  setButton();
+}
+async function ensure(i){
+  if(i<0||i>=chunks.length)return null;
+  const c=clip(i);if(c.status==='ready')return c;
+  if(c.promise)return c.promise;
+  const my=epoch;
+  c.promise=(async()=>{
+    c.status='loading';$('status').textContent='preparando '+(i+1)+'/'+chunks.length;setButton();
+    let r=await fetch(TTS+'?id='+encodeURIComponent(audioId(i)),{cache:'no-store'});
+    if(r.status===404)r=await fetch(TTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messageId:audioId(i),text:chunks[i].text})});
+    if(!r.ok)throw new Error('TTS '+r.status);
+    const b=await r.blob();if(my!==epoch)throw new Error('stale');if(b.size<1000)throw new Error('audio vacío');
+    if(c.url)URL.revokeObjectURL(c.url);
+    c.url=URL.createObjectURL(b);c.audio=new Audio(c.url);c.audio.preload='auto';c.status='ready';
+    if(i===0&&!playing)$('status').textContent='listo';
+    return c;
+  })().catch(e=>{c.status='idle';c.promise=null;if(e.message!=='stale')$('status').textContent='reintentar';throw e});
+  return c.promise;
+}
+function prefetch(){for(let i=index+1;i<Math.min(chunks.length,index+1+AHEAD);i++)ensure(i).catch(()=>{})}
+
+async function start(){
+  if(!chunks.length)return;
+  intent=true;setButton();
+  try{
+    const c=await ensure(index);if(!intent||!c?.audio)return;
+    audio=c.audio;
+    await ensureGraph(audio);
+    audio.ontimeupdate=updateProgress;
+    audio.onplay=()=>{playing=true;$('status').textContent='reproduciendo';setButton();prefetch()};
+    audio.onpause=()=>{if(!audio.ended){playing=false;$('status').textContent='pausado';setButton()}};
+    audio.onended=advance;
+    await audio.play();
+  }catch(e){intent=false;playing=false;$('status').textContent='tocá PLAY para reintentar';setButton()}
+}
+function advance(){
+  if(index>=chunks.length-1){
+    intent=false;playing=false;markHeard(surface);$('dot').hidden=true;$('progressFill').style.width='100%';$('status').textContent='escuchado';setButton();return;
+  }
+  index++;audio=null;playing=false;updateProgress();if(intent)start();
+}
+$('play').addEventListener('click',()=>{
+  if(playing){intent=false;audio?.pause();return}
+  start();
+});
+
+function buildSpectrum(){
+  const s=$('spectrum');s.innerHTML='';
+  for(let i=0;i<12;i++){const b=document.createElement('i');s.appendChild(b)}
+}
+function drawVisuals(){
+  const canvas=$('wave'),ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#020202';ctx.fillRect(0,0,W,H);
+
+  let rms=0;
+  if(analyser&&timeData&&freqData&&playing){
+    analyser.getByteTimeDomainData(timeData);
+    analyser.getByteFrequencyData(freqData);
+    let sum=0;
+    for(const v of timeData){const x=(v-128)/128;sum+=x*x}
+    rms=Math.sqrt(sum/timeData.length);
+
+    ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();
+    for(let i=0;i<timeData.length;i++){
+      const x=i/(timeData.length-1)*W;
+      const y=(timeData[i]/255)*H;
+      if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }else{
+    ctx.strokeStyle='rgba(255,255,255,.18)';ctx.beginPath();ctx.moveTo(0,H/2);ctx.lineTo(W,H/2);ctx.stroke();
+  }
+
+  visualRms=visualRms*.78+rms*.22;
+  const normalized=clamp(visualRms/.18,0,1);
+  $('rmsValue').textContent=visualRms.toFixed(3);
+  $('meterBar').style.height=Math.max(2,normalized*100)+'%';
+
+  const active=visualRms>.018&&playing;
+  $('voiceState').textContent=active?'VOZ':'SILENCIO';
+  $('voiceValue').textContent=active?'activo':'reposo';
+
+  const bars=[...$('spectrum').children];
+  if(freqData&&playing){
+    const usable=Math.floor(freqData.length*.55);
+    for(let i=0;i<bars.length;i++){
+      const a=Math.floor(i*usable/bars.length),b=Math.max(a+1,Math.floor((i+1)*usable/bars.length));
+      let sum=0;for(let j=a;j<b;j++)sum+=freqData[j];
+      const v=(sum/(b-a))/255;
+      bars[i].style.height=Math.max(2,v*100)+'%';
+    }
+  }else{
+    for(const b of bars)b.style.height='2%';
+  }
+
+  const scale=1+normalized*.18;
+  $('avatar').style.transform='scale('+scale.toFixed(3)+')';
+  $('mouth').style.height=Math.max(6,8+normalized*34)+'px';
+  $('mouth').style.borderRadius=active?'45%':'0';
+
+  $('debug').textContent=[
+    'time: '+(audio?.currentTime||0).toFixed(2)+' s',
+    'rms: '+visualRms.toFixed(4),
+    'normalized: '+normalized.toFixed(3),
+    'voice: '+(active?'true':'false'),
+    'chunk: '+(chunks.length?index+1:0)+'/'+chunks.length
+  ].join('\n');
+
+  raf=requestAnimationFrame(drawVisuals);
+}
+
+async function load(){
+  try{
+    const next=await rpc('prometeo_strategic_console_v2',{p_channel_key:CHANNEL});
+    state=next;const s=choose(),key=msgId(s);
+    if(key!==msgId(surface)){
+      epoch++;intent=false;playing=false;try{audio?.pause()}catch{}
+      for(const c of clips.values())if(c.url)try{URL.revokeObjectURL(c.url)}catch{}
+      clips.clear();surface=s;text=norm(s?.spoken_brief||s?.preview_text||'');chunks=chunk(text);index=0;audio=null;
+      $('status').textContent=chunks.length?'preparando':'sin mensaje';
+      updateProgress();if(chunks.length)ensure(0).catch(()=>{});
+    }else{surface=s;updateProgress()}
+  }catch(e){$('status').textContent='reconectando'}
+}
+buildSpectrum();
+cancelAnimationFrame(raf);
+drawVisuals();
+load();
+setInterval(load,8000);
+})();
+</script>
+</body>
+</html>
