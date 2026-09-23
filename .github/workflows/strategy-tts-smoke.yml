@@ -41,6 +41,22 @@ jobs:
           if grep -q "modelos-room-audio-v2" strategy/index.html; then exit 1; fi
           if grep -q "audio-lab-page-audio-v1" strategy/index.html; then exit 1; fi
 
+      - name: Check square strategy widget
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -c 'from pathlib import Path; import re; s=Path("strategy/widget/index.html").read_text(); m=re.search(r"<script>(.*?)</script>",s,re.S); assert m; Path("/tmp/strategy-widget.js").write_text(m.group(1))'
+          node --check /tmp/strategy-widget.js
+          grep -q 'aspect-ratio:1' strategy/widget/index.html
+          grep -q 'id="play"' strategy/widget/index.html
+          grep -q 'id="dot"' strategy/widget/index.html
+          grep -q 'id="time"' strategy/widget/index.html
+          grep -q "prometeo-strategy-heard-v1" strategy/widget/index.html
+          grep -q "America/Argentina/Buenos_Aires" strategy/widget/index.html
+          grep -q "prometeo-strategy-c-e1-v4" strategy/widget/index.html
+          grep -q "prometeo-c-e1-ironic-clone-v4" strategy/widget/index.html
+          grep -q "prometeo-strategy-audio-v1" strategy/widget/index.html
+
       - name: Generate fixed-voice audio and recover it from cache
         shell: bash
         run: |
@@ -143,3 +159,29 @@ jobs:
           done
           test "$ok" = "1"
           echo "PUBLIC http=200 bytes=$(wc -c < /tmp/strategy-public.html) tts=prometeo-strategy-audio-v1 ui=minimal"
+
+      - name: Verify published square widget
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for n in $(seq 1 18); do
+            URL="https://juanmanuelpm.github.io/prometeo/strategy/widget/?verify=${GITHUB_RUN_ID}-${n}-$(date +%s)"
+            code="$(curl --max-time 60 -sS -L -o /tmp/strategy-widget-public.html -w '%{http_code}' "$URL" || true)"
+            if [ "$code" = "200" ] \
+              && grep -q 'aspect-ratio:1' /tmp/strategy-widget-public.html \
+              && grep -q 'id="play"' /tmp/strategy-widget-public.html \
+              && grep -q 'id="dot"' /tmp/strategy-widget-public.html \
+              && grep -q 'id="time"' /tmp/strategy-widget-public.html \
+              && grep -q "prometeo-strategy-heard-v1" /tmp/strategy-widget-public.html \
+              && grep -q "America/Argentina/Buenos_Aires" /tmp/strategy-widget-public.html \
+              && grep -q "prometeo-strategy-c-e1-v4" /tmp/strategy-widget-public.html \
+              && grep -q "prometeo-c-e1-ironic-clone-v4" /tmp/strategy-widget-public.html \
+              && grep -q "prometeo-strategy-audio-v1" /tmp/strategy-widget-public.html; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ok" = "1"
+          echo "WIDGET http=200 bytes=$(wc -c < /tmp/strategy-widget-public.html) square=1 unread=shared voice=E1"
