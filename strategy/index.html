@@ -135,7 +135,18 @@ function render(){
     }).join('');
     const already=arr(state?.choices).length>0;
     $('ok').disabled=already;
-    $('actionResult').function hashText(s){
+    $('actionResult').textContent=already?'Selección publicada.':'';
+  }
+}
+async function load(){
+  try{
+    state=await rpc('prometeo_strategic_console_v1',{p_channel_key:CHANNEL});
+    render();
+  }catch(e){
+    $('status').textContent='reconectando';
+  }
+}
+function hashText(s){
   let h=2166136261;
   for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}
   return (h>>>0).toString(36);
@@ -158,7 +169,7 @@ function chunkSpeech(raw,max=TTS_MAX){
   if(s)out.push(s);
   return out;
 }
-function cleanAudioId(s){return String(s||'').replace(/[^a-zA-Z0-9._:-]/g,'-').slice(0,88)}
+function cleanAudioId(s){return String(s||'').replace(/[^a-zA-Z0-9._:-]/g,'-').slice(0,112)}
 function makeAudioPlan(cur){
   const text=String(cur?.spoken_brief||'').trim();
   if(!text)return[];
@@ -167,7 +178,7 @@ function makeAudioPlan(cur){
   const base=existing||cleanAudioId('strategic-'+(cur?.epoch_id||'current')+'-'+hashText(text));
   return chunks.map((text,i)=>({
     text,
-    id:chunks.length===1?base:cleanAudioId(base).slice(0,82)+'-p'+(i+1)+'of'+chunks.length
+    id:chunks.length===1?base:base.slice(0,82)+'-p'+(i+1)+'of'+chunks.length
   }));
 }
 function setAudioStatus(s){$('audioStatus').textContent=s||''}
@@ -223,10 +234,7 @@ function ensureAudioElement(){
 }
 function syncAudio(cur){
   const nextKey=cur?.spoken_brief?String(cur.epoch_id||'')+'|'+String(cur.tts_message_id||'')+'|'+hashText(String(cur.spoken_brief)):'';
-  if(nextKey===audioKey){
-    updateAudioButton();
-    return;
-  }
+  if(nextKey===audioKey){updateAudioButton();return}
   resetAudio();
   audioKey=nextKey;
   if(!cur?.spoken_brief){updateAudioButton();return}
@@ -326,7 +334,7 @@ async function advanceAudio(){
   if(audioIndex+1>=audioPlan.length){
     audioBusy=false;
     setAudioStatus('terminado');
-    if(audio){audio.currentTime=0}
+    if(audio)audio.currentTime=0;
     updateAudioButton();
     return;
   }
@@ -334,8 +342,11 @@ async function advanceAudio(){
   $('play').disabled=true;
   const next=audioIndex+1;
   setAudioStatus('preparando '+(next+1)+'/'+audioPlan.length);
-  try{await prepareChunk(next,false);audioBusy=false;await startPrepared(next)}
-  catch(e){
+  try{
+    await prepareChunk(next,false);
+    audioBusy=false;
+    await startPrepared(next);
+  }catch(e){
     audioBusy=false;
     setAudioStatus('audio no disponible · reintentar');
     $('play').textContent='↻ REINTENTAR';
@@ -347,12 +358,16 @@ async function playCurrent(){
   if(!cur?.spoken_brief)return;
   syncAudio(cur);
   const a=ensureAudioElement();
-  if(!a.paused&&!a.ended){a.pause();updateAudioButton();setAudioStatus('pausado');return}
+  if(!a.paused&&!a.ended){
+    a.pause();
+    updateAudioButton();
+    setAudioStatus('pausado');
+    return;
+  }
   if(audioBusy)return;
   if(audioUrls[audioIndex]&&a.src===audioUrls[audioIndex]&&!a.ended){
-    try{await a.play()}catch(e){
-      if(e?.name!=='NotAllowedError'){setAudioStatus('no se pudo reproducir · reintentar')}
-    }
+    try{await a.play()}
+    catch(e){if(e?.name!=='NotAllowedError')setAudioStatus('no se pudo reproducir · reintentar')}
     return;
   }
   audioBusy=true;
@@ -370,13 +385,6 @@ async function playCurrent(){
   }
 }
 
-ect)=>{src.onended=resolve;try{src.start()}catch(e){reject(e)}});
-  }catch(e){
-    $('actionResult').textContent='No pude reproducir el audio.';
-  }finally{
-    playing=false;$('play').disabled=false;$('play').textContent='▶ PLAY';
-  }
-}
 async function apply(){
   const cur=state?.current;if(!cur)return;
   const ids=[...document.querySelectorAll('input[data-option]:checked')].map(x=>x.dataset.option);
