@@ -146,7 +146,8 @@ main{min-height:0;display:grid;grid-template-columns:39cqw 37cqw 24cqw;grid-temp
 <script>
 (function(){
 'use strict';
-var BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+var ROOT='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/';
+var RPC=ROOT+'rpc/';
 var KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
 var HEAD={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json','Cache-Control':'no-cache'};
 var lastSig='';
@@ -157,7 +158,57 @@ var esc=function(v){return String(v==null?'—':v).replace(/[&<>"']/g,function(m
 function clock(ts){try{return new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date(ts||Date.now()))}catch(e){return'—'}}
 function age(s){if(s==null)return'—';s=Math.max(0,Math.round(Number(s)));if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m '+String(s%60).padStart(2,'0')+'s';return Math.floor(s/3600)+'h '+String(Math.floor((s%3600)/60)).padStart(2,'0')+'m'}
 function short(s,max){s=String(s||'—');return s.length>max?s.slice(0,max-1)+'…':s}
-async function rpc(){var r=await fetch(BASE+'prometeo_operational_now_v2?_='+Date.now(),{method:'POST',headers:HEAD,body:'{}',cache:'no-store'});if(!r.ok)throw new Error('operational_now_v2 '+r.status);return r.json()}
+async function call(name,args){
+  var ctl=new AbortController(),timer=setTimeout(function(){ctl.abort()},4200);
+  try{
+    var r=await fetch(RPC+name+'?_='+Date.now(),{method:'POST',headers:HEAD,body:JSON.stringify(args||{}),cache:'no-store',signal:ctl.signal});
+    if(!r.ok)throw new Error(name+' '+r.status);return r.json()
+  }finally{clearTimeout(timer)}
+}
+async function view(path){
+  var ctl=new AbortController(),timer=setTimeout(function(){ctl.abort()},4200);
+  try{
+    var r=await fetch(ROOT+path,{headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Cache-Control':'no-cache'},cache:'no-store',signal:ctl.signal});
+    if(!r.ok)throw new Error(path+' '+r.status);return r.json()
+  }finally{clearTimeout(timer)}
+}
+async function readPrimary(){return call('prometeo_operational_now_v2',{})}
+function latestEvent(arms){var t=null;arr(arms).forEach(function(a){if(a.last_event_at&&(!t||Date.parse(a.last_event_at)>Date.parse(t)))t=a.last_event_at});return t}
+async function readFallback(){
+  var rs=await Promise.allSettled([
+    call('prometeo_worker_runtime_v2',{p_launch_batch:'PROMETEO-UNIVERSAL-V2-NEXT-WAVE-E1'}),
+    call('prometeo_work_wave_status_v1',{p_wave_id:'V2-AUTONOMY-E2-NEXT-V1'}),
+    call('prometeo_v3_status_v1',{p_experiment_id:'PROMETEO-SCREEN10-V3-E1'}),
+    call('prometeo_e2_microscreen_status_v2',{}),
+    call('prometeo_strategic_console_v2',{p_channel_key:'PROMETEO_MAIN'}),
+    view('prometeo_guide_observatory_v1?select=guide_code,role,member_status,seconds_since_seen,current_trace_id,current_claim_key,current_trace_status,last_event_type,last_event_at&order=guide_code')
+  ]);
+  var rt=rs[0].status==='fulfilled'?rs[0].value:{sessions:[],jobs:[]};
+  var wave=rs[1].status==='fulfilled'?rs[1].value:{states:{},sessions:{},wave:{}};
+  var sc=rs[2].status==='fulfilled'?rs[2].value:{arms:[],backend_sessions:0,admitted_workers:0,experiment:{}};
+  var micro=rs[3].status==='fulfilled'?rs[3].value:{};
+  var strat=rs[4].status==='fulfilled'?rs[4].value:{};
+  var guides=rs[5].status==='fulfilled'?rs[5].value:[];
+  var last=latestEvent(sc.arms),done=arr(sc.arms).reduce(function(a,x){return a+n(x.done)},0),total=arr(sc.arms).reduce(function(a,x){return a+n(x.cells_total)},0),ageS=last?(Date.now()-Date.parse(last))/1000:1e9;
+  var states=wave.states||{},sessions=arr(rt.sessions),recent=sessions.filter(function(s){return n(s.seconds_since_seen)<=120}).length;
+  var action=n(states.READY)>0&&sessions.length===0?'LAUNCH_4_V2_WORKERS':n(states.READY)>0&&recent===0&&sessions.length<8?'RECOVER_V2_WORKER_CAPACITY':n(states.READY)>0||n(states.ACTIVE)>0||n(states.BLOCKED)>0?'NONE':'REVIEW_FINAL_GRAPH';
+  return{
+    server_time:wave.server_time||rt.server_time||new Date().toISOString(),
+    screen10:{experiment_id:'PROMETEO-SCREEN10-V3-E1',declared_state:(sc.experiment||{}).state,backend_sessions:sc.backend_sessions,admitted_workers:sc.admitted_workers,done:done,total_cells:total,last_event_at:last,observed_activity:ageS<=120?'RECENT':ageS<=900?'QUIET':'QUIESCENT'},
+    worker_bus_v2:{runtime:rt},
+    next_wave:wave,
+    e2_microscreen_v2:micro,
+    strategy:{preview:strat.preview||null,firm:strat.firm||null,transport_certification:strat.transport_certification||null},
+    guides:guides,
+    human:{action_now:action,return_when:'FINAL_NEXT_MATERIAL_GRAPH_V2 is DONE or the wave emits a bounded material decision requiring human authority.'},
+    degraded_read:true
+  }
+}
+async function read(){
+  try{return await readPrimary()}catch(primaryError){
+    var x=await readFallback();x.primary_error=String(primaryError&&primaryError.message||primaryError);return x
+  }
+}
 function waveSummary(x){
   var rt=((x.worker_bus_v2||{}).runtime||{}),jobs=arr(rt.jobs),states=(x.next_wave||{}).states||{};
   var working=jobs.filter(function(j){return j.observed_liveness==='WORKING'}).length;
@@ -236,7 +287,7 @@ function render(x){
   var sig=JSON.stringify([s.state,s.states,s.working,s.recovering,arr(x.guides).map(function(g){return[g.guide_code,g.current_trace_id,g.current_trace_status]}),arr((((x.worker_bus_v2||{}).runtime||{}).jobs)).map(function(j){return[j.job_id,j.state,j.observed_liveness,j.assignment_generation,j.progress_stage,j.recovery_count]})]);
   flash(sig);$('error').style.display='none'
 }
-async function load(){try{render(await rpc())}catch(e){$('error').textContent='READ MODEL DELAY · '+String(e.message||e);$('error').style.display='block'}}
+async function load(){try{render(await read())}catch(e){$('error').textContent='READ MODEL DELAY · '+String(e.message||e);$('error').style.display='block'}}
 setInterval(function(){$('clock').textContent=clock(Date.now())},1000);
 load();setInterval(load,5500);
 })();
