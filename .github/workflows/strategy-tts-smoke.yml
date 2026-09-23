@@ -25,17 +25,9 @@ jobs:
           TEXT="Prometeo prueba el audio estratégico con una voz rioplatense clara y estable."
           PROMPT="Speaker identity: Martín, 31, native Buenos Aires. Warm medium-low male voice, calm, intelligent, authentic Rioplatense Spanish, conversational and clear. Never Iberian, never announcer cadence."
 
-          payload="$(python3 - <<'PY'
-import json, os
-print(json.dumps({
-  "messageId": os.environ["ID"],
-  "text": os.environ["TEXT"],
-  "voicePrompt": os.environ["PROMPT"],
-}))
-PY
-          )"
+          payload="$(jq -nc --arg id "$ID" --arg text "$TEXT" --arg prompt "$PROMPT" '{messageId:$id,text:$text,voicePrompt:$prompt}')"
 
-          code="$(curl --retry 2 --retry-delay 3 --max-time 300 -sS -D post.headers -o post.audio -w '%{http_code}'             -H 'content-type: application/json'             --data "$payload"             "$API")"
+          code="$(curl --retry 2 --retry-delay 3 --max-time 300 -sS -D post.headers -o post.audio -w '%{http_code}' -H 'content-type: application/json' --data "$payload" "$API")"
           test "$code" = "200"
 
           POST_TYPE="$(awk 'BEGIN{IGNORECASE=1}/^content-type:/{gsub("\r","");print $2}' post.headers | tail -1)"
@@ -43,16 +35,9 @@ PY
           POST_BYTES="$(wc -c < post.audio)"
           test "$POST_BYTES" -gt 1000
 
-          python3 - <<'PY'
-from pathlib import Path
-b=Path("post.audio").read_bytes()
-assert len(b)>1000
-ok = b[:4] in (b"RIFF", b"OggS", b"fLaC") or b[:3] == b"ID3" or (len(b)>2 and b[0]==0xff and (b[1]&0xe0)==0xe0)
-assert ok, f"unexpected audio signature: {b[:12]!r}"
-print("audio_signature_ok", b[:12].hex())
-PY
+          python3 -c 'from pathlib import Path; b=Path("post.audio").read_bytes(); ok=b[:4] in (b"RIFF",b"OggS",b"fLaC") or b[:3]==b"ID3" or (len(b)>2 and b[0]==0xff and (b[1]&0xe0)==0xe0); assert len(b)>1000 and ok, repr(b[:12]); print("audio_signature_ok",b[:12].hex())'
 
-          get_code="$(curl --retry 2 --retry-delay 2 --max-time 60 -sS -D get.headers -o get.audio -w '%{http_code}'             "$API?id=$ID")"
+          get_code="$(curl --retry 2 --retry-delay 2 --max-time 60 -sS -D get.headers -o get.audio -w '%{http_code}' "$API?id=$ID")"
           test "$get_code" = "200"
           cmp post.audio get.audio
 
@@ -63,7 +48,3 @@ PY
           echo "POST http=$code type=$POST_TYPE cache=$POST_CACHE bytes=$POST_BYTES"
           echo "GET  http=$get_code cache=$GET_CACHE bytes=$GET_BYTES"
           echo "AUDIO sha256=$SHA"
-        env:
-          ID: strategy-tts-smoke-v2
-          TEXT: Prometeo prueba el audio estratégico con una voz rioplatense clara y estable.
-          PROMPT: Speaker identity: Martín, 31, native Buenos Aires. Warm medium-low male voice, calm, intelligent, authentic Rioplatense Spanish, conversational and clear. Never Iberian, never announcer cadence.
