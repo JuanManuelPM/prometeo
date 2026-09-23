@@ -70,7 +70,25 @@ Then:
 Then:
 - FOUNDRY-SYNTHESIS
 
-11 jobs total.
+Phase 2, automatically after that synthesis:
+- SURFACE-STRATEGY
+- SURFACE-STUDY
+- SURFACE-PERSONAL
+- SURFACE-STUDENTS
+- SURFACE-VISUAL
+- SURFACE-AUDIO
+- GUIDE-WORK-BROKER
+
+Final:
+- GUIDE-SURFACE-PORTAL-SYNTHESIS
+
+19 jobs total.
+
+Phase 2 reuses the same universal shell pool. No extra human assignment is required.
+
+Each SURFACE job receives a verified repository inventory and classifies existing routes as KEEP / LINK / EMBED / MERGE / SUPERSEDE / ARCHIVE / SHARED_PRIMITIVE. Existing useful pages are preserved by default.
+
+GUIDE-WORK-BROKER designs the missing Guide → shared worker-demand layer: Guides create typed demand, while workers remain one fungible shared pool rather than belonging to a Guide.
 
 ## Exam design rule
 
