@@ -1,0 +1,69 @@
+name: Strategy TTS smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/strategy-tts-smoke.yml"
+      - "strategy/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tts-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Generate and recover cached audio
+        shell: bash
+        run: |
+          set -euo pipefail
+          API="https://catnohyouxqjjtseaueb.supabase.co/functions/v1/audio-lab-page-audio-v1"
+          ID="strategy-tts-smoke-v2"
+          TEXT="Prometeo prueba el audio estratégico con una voz rioplatense clara y estable."
+          PROMPT="Speaker identity: Martín, 31, native Buenos Aires. Warm medium-low male voice, calm, intelligent, authentic Rioplatense Spanish, conversational and clear. Never Iberian, never announcer cadence."
+
+          payload="$(python3 - <<'PY'
+import json, os
+print(json.dumps({
+  "messageId": os.environ["ID"],
+  "text": os.environ["TEXT"],
+  "voicePrompt": os.environ["PROMPT"],
+}))
+PY
+          )"
+
+          code="$(curl --retry 2 --retry-delay 3 --max-time 300 -sS -D post.headers -o post.audio -w '%{http_code}'             -H 'content-type: application/json'             --data "$payload"             "$API")"
+          test "$code" = "200"
+
+          POST_TYPE="$(awk 'BEGIN{IGNORECASE=1}/^content-type:/{gsub("\r","");print $2}' post.headers | tail -1)"
+          POST_CACHE="$(awk 'BEGIN{IGNORECASE=1}/^x-audio-lab-cache:/{gsub("\r","");print $2}' post.headers | tail -1)"
+          POST_BYTES="$(wc -c < post.audio)"
+          test "$POST_BYTES" -gt 1000
+
+          python3 - <<'PY'
+from pathlib import Path
+b=Path("post.audio").read_bytes()
+assert len(b)>1000
+ok = b[:4] in (b"RIFF", b"OggS", b"fLaC") or b[:3] == b"ID3" or (len(b)>2 and b[0]==0xff and (b[1]&0xe0)==0xe0)
+assert ok, f"unexpected audio signature: {b[:12]!r}"
+print("audio_signature_ok", b[:12].hex())
+PY
+
+          get_code="$(curl --retry 2 --retry-delay 2 --max-time 60 -sS -D get.headers -o get.audio -w '%{http_code}'             "$API?id=$ID")"
+          test "$get_code" = "200"
+          cmp post.audio get.audio
+
+          GET_CACHE="$(awk 'BEGIN{IGNORECASE=1}/^x-audio-lab-cache:/{gsub("\r","");print $2}' get.headers | tail -1)"
+          GET_BYTES="$(wc -c < get.audio)"
+          SHA="$(sha256sum get.audio | awk '{print $1}')"
+
+          echo "POST http=$code type=$POST_TYPE cache=$POST_CACHE bytes=$POST_BYTES"
+          echo "GET  http=$get_code cache=$GET_CACHE bytes=$GET_BYTES"
+          echo "AUDIO sha256=$SHA"
+        env:
+          ID: strategy-tts-smoke-v2
+          TEXT: Prometeo prueba el audio estratégico con una voz rioplatense clara y estable.
+          PROMPT: Speaker identity: Martín, 31, native Buenos Aires. Warm medium-low male voice, calm, intelligent, authentic Rioplatense Spanish, conversational and clear. Never Iberian, never announcer cadence.
