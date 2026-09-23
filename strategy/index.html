@@ -105,15 +105,27 @@ async function rpc(name,args){
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function arr(v){return Array.isArray(v)?v:[]}
+function surfaceTime(v){const t=Date.parse(v?.generated_at||'');return Number.isFinite(t)?t:0}
+function strategicSurface(){
+  const p=state?.preview||null,f=state?.firm||null;
+  if(p&&(!f||!f.is_high_firm||surfaceTime(p)>surfaceTime(f)))return p;
+  return f||p||null;
+}
+function strategicAudioSurface(){
+  const p=state?.preview||null,f=state?.firm||null;
+  if(!f)return null;
+  if(p&&surfaceTime(p)>surfaceTime(f))return null;
+  return f;
+}
 function render(){
   const ch=state?.channel||{};
-  const rw=state?.resident_workers||{};
-  $('status').textContent=(ch.enabled?'activo':'en preparación')+' · workers '+(rw.sessions||0)+'/'+(ch.resident_workers_target||5);
+  const lw=state?.light_workers||{},hw=state?.high_workers||{};
+  $('status').textContent=(ch.enabled?'activo':'en preparación')+' · light '+(lw.sessions||0)+'/'+(ch.resident_workers_target||5)+' · high '+(hw.sessions||0);
 
   const notes=arr(state?.notes);
   $('notes').innerHTML=notes.length?notes.map(n=>'<div class="note"><b>'+esc(n.category)+'</b> · '+esc(n.text)+'</div>').join(''):'<div class="muted">Todavía no hay notas.</div>';
 
-  const cur=state?.current;
+  const cur=strategicSurface();
   $('empty').hidden=!!cur;
   $('current').hidden=!cur;
   $('optionsSection').hidden=true;
@@ -121,8 +133,8 @@ function render(){
   if(!cur){syncAudio(null);return;}
 
   $('headline').textContent=cur.headline||'Estado actual';
-  $('brief').textContent=cur.spoken_brief||'';
-  syncAudio(cur);
+  $('brief').textContent=cur.preview_text||cur.spoken_brief||'';
+  syncAudio(strategicAudioSurface());
 
   const read=arr(cur.current_read);
   const fr=arr(cur.frictions);
@@ -136,21 +148,22 @@ function render(){
   const opts=arr(cur.action_options);
   if(opts.length){
     $('optionsSection').hidden=false;
-    const chosen=new Map(arr(state?.choices).map(x=>[x.option_id,x.selected]));
+    const epochChoices=arr(state?.choices).filter(x=>String(x.epoch_id)===String(cur.epoch_id));
+    const chosen=new Map(epochChoices.map(x=>[x.option_id,x.selected]));
     $('options').innerHTML=opts.map(o=>{
       const id=esc(o.option_id);
       const checked=chosen.has(o.option_id)?chosen.get(o.option_id):false;
       const disabled=chosen.has(o.option_id)?' disabled':'';
       return '<label class="option"><input type="checkbox" data-option="'+id+'" '+(checked?'checked':'')+disabled+'><div><b>'+esc(o.label)+'<span class="badge">'+esc(o.perspective||'')+'</span></b><p>'+esc(o.why_now||o.objective||'')+'</p></div></label>';
     }).join('');
-    const already=arr(state?.choices).length>0;
+    const already=epochChoices.length>0;
     $('ok').disabled=already;
     $('actionResult').textContent=already?'Selección publicada.':'';
   }
 }
 async function load(){
   try{
-    state=await rpc('prometeo_strategic_console_v1',{p_channel_key:CHANNEL});
+    state=await rpc('prometeo_strategic_console_v2',{p_channel_key:CHANNEL});
     render();
   }catch(e){
     $('status').textContent='reconectando';
@@ -190,7 +203,8 @@ function currentVoicePrompt(){
 }
 function audioMessageId(i){
   const c=audioChunks[i];
-  const base=cleanAudioId(state?.current?.tts_message_id||state?.current?.epoch_id||'current');
+  const src=strategicAudioSurface();
+  const base=cleanAudioId(src?.tts_message_id||src?.epoch_id||'current');
   return AUDIO_CACHE_VERSION+'-'+base+'-'+(i+1)+'-'+hashText(currentVoicePrompt()+'|'+c.text);
 }
 function audioClip(i){
@@ -473,18 +487,23 @@ function advanceAudio(){
 }
 
 async function apply(){
-  const cur=state?.current;if(!cur)return;
+  const cur=strategicSurface();if(!cur)return;
   const ids=[...document.querySelectorAll('input[data-option]:checked')].map(x=>x.dataset.option);
   $('ok').disabled=true;$('actionResult').textContent='Publicando…';
   try{
-    const r=await rpc('prometeo_strategic_apply_choices_v1',{
+    const r=await rpc('prometeo_strategic_apply_choices_v2',{
       p_channel_key:CHANNEL,p_epoch_id:cur.epoch_id,p_selected_option_ids:ids
     });
+    if(r?.state==='STALE'&&r?.reason==='OPTION_SOURCE_CHANGED'){
+      await load();
+      throw new Error('source_changed');
+    }
     if(r?.state!=='APPLIED')throw new Error(r?.reason||'apply');
-    $('actionResult').textContent='Listo · '+r.selected_count+' trabajos publicados · '+r.discarded_count+' descartados.';
+    $('actionResult').textContent='Listo · '+r.selected_count+' seleccionados · '+(r.new_jobs_count||0)+' trabajos nuevos.';
     await load();
   }catch(e){
-    $('ok').disabled=false;$('actionResult').textContent='No se pudo publicar la selección.';
+    $('ok').disabled=false;
+    $('actionResult').textContent=e?.message==='source_changed'?'La lectura cambió. Revisá las opciones actualizadas y tocá OK de nuevo.':'No se pudo publicar la selección.';
   }
 }
 $('play').addEventListener('click',playCurrent);
