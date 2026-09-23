@@ -126,14 +126,16 @@ jobs:
           grep -q "prometeo_strategic_console_v2" strategy/mask-mouth/index.html
           grep -q "prometeo-strategy-audio-v1" strategy/mask-mouth/index.html
           grep -q "prometeo-c-e1-ironic-clone-v4" strategy/mask-mouth/index.html
-          grep -q 'id="mouth1"' strategy/mask-mouth/index.html
-          grep -q 'id="mouth2"' strategy/mask-mouth/index.html
-          grep -q 'id="mouth3"' strategy/mask-mouth/index.html
-          grep -q 'id="mouth4"' strategy/mask-mouth/index.html
-          grep -q 'id="mouth5"' strategy/mask-mouth/index.html
-          grep -q 'id="mouth6"' strategy/mask-mouth/index.html
-          grep -q "data:image/jpeg;base64" strategy/mask-mouth/index.html
-          grep -q "BOIL_MS=125" strategy/mask-mouth/index.html
+          grep -q './assets/mask-transparent.webp' strategy/mask-mouth/index.html
+          grep -q 'id="mask"' strategy/mask-mouth/index.html
+          grep -q 'id="mouthLayer"' strategy/mask-mouth/index.html
+          grep -q 'id="mouthShape"' strategy/mask-mouth/index.html
+          grep -q 'id="states"' strategy/mask-mouth/index.html
+          grep -q "const MOUTHS=" strategy/mask-mouth/index.html
+          grep -q "FRAME_MS=110" strategy/mask-mouth/index.html
+          grep -q "function classify" strategy/mask-mouth/index.html
+          test -f strategy/mask-mouth/assets/mask-transparent.webp
+          test "$(wc -c < strategy/mask-mouth/assets/mask-transparent.webp)" -gt 1000
 
       - name: Generate fixed-voice audio and recover it from cache
         shell: bash
@@ -358,18 +360,26 @@ jobs:
           for n in $(seq 1 18); do
             URL="https://juanmanuelpm.github.io/prometeo/strategy/mask-mouth/?verify=${GITHUB_RUN_ID}-${n}-$(date +%s)"
             code="$(curl --max-time 60 -sS -L -o /tmp/strategy-mask-mouth-public.html -w '%{http_code}' "$URL" || true)"
+            asset_url="https://juanmanuelpm.github.io/prometeo/strategy/mask-mouth/assets/mask-transparent.webp?verify=${GITHUB_RUN_ID}-${n}-$(date +%s)"
+            asset_code="$(curl --max-time 60 -sS -L -o /tmp/strategy-mask-public.webp -w '%{http_code}' "$asset_url" || true)"
             if [ "$code" = "200" ] \
+              && [ "$asset_code" = "200" ] \
+              && [ "$(wc -c < /tmp/strategy-mask-public.webp)" -gt 1000 ] \
               && grep -q "prometeo_strategic_console_v2" /tmp/strategy-mask-mouth-public.html \
               && grep -q "prometeo-strategy-audio-v1" /tmp/strategy-mask-mouth-public.html \
               && grep -q "prometeo-c-e1-ironic-clone-v4" /tmp/strategy-mask-mouth-public.html \
-              && grep -q 'id="mouth1"' /tmp/strategy-mask-mouth-public.html \
-              && grep -q 'id="mouth6"' /tmp/strategy-mask-mouth-public.html \
-              && grep -q "data:image/jpeg;base64" /tmp/strategy-mask-mouth-public.html \
-              && grep -q "BOIL_MS=125" /tmp/strategy-mask-mouth-public.html; then
+              && grep -q './assets/mask-transparent.webp' /tmp/strategy-mask-mouth-public.html \
+              && grep -q 'id="mask"' /tmp/strategy-mask-mouth-public.html \
+              && grep -q 'id="mouthLayer"' /tmp/strategy-mask-mouth-public.html \
+              && grep -q 'id="mouthShape"' /tmp/strategy-mask-mouth-public.html \
+              && grep -q 'id="states"' /tmp/strategy-mask-mouth-public.html \
+              && grep -q "const MOUTHS=" /tmp/strategy-mask-mouth-public.html \
+              && grep -q "FRAME_MS=110" /tmp/strategy-mask-mouth-public.html \
+              && grep -q "function classify" /tmp/strategy-mask-mouth-public.html; then
               ok=1
               break
             fi
             sleep 5
           done
           test "$ok" = "1"
-          echo "MASK_MOUTH http=200 mouths=6 source=user-mask voice=E1"
+          echo "MASK_MOUTH http=200 states=8 source=user-mask classifier=audio voice=E1"
