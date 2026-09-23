@@ -250,11 +250,17 @@ async function fetchTimeout(url,options={},ms=8000){
   finally{clearTimeout(timer)}
 }
 async function responseBlob(r){
-  const b=await r.blob();
-  if(b.size<1000)throw new Error('audio vacío');
-  const type=(r.headers.get('content-type')||b.type||'').toLowerCase();
-  if(type&&!type.startsWith('audio/'))throw new Error('respuesta no es audio');
-  return b;
+  const data=await r.arrayBuffer();
+  if(data.byteLength<1000)throw new Error('audio vacío');
+  const u=new Uint8Array(data);
+  const raw=(r.headers.get('content-type')||'').toLowerCase().split(';')[0];
+  let type=raw.startsWith('audio/')?raw:'';
+  if(!type&&u[0]===0x52&&u[1]===0x49&&u[2]===0x46&&u[3]===0x46)type='audio/wav';
+  if(!type&&u[0]===0x4f&&u[1]===0x67&&u[2]===0x67&&u[3]===0x53)type='audio/ogg';
+  if(!type&&u[0]===0x49&&u[1]===0x44&&u[2]===0x33)type='audio/mpeg';
+  if(!type&&u[0]===0xff&&(u[1]&0xe0)===0xe0)type='audio/mpeg';
+  if(!type)throw new Error('respuesta no es audio');
+  return new Blob([data],{type});
 }
 function rememberAudio(i,b){
   if(audioUrls[i])URL.revokeObjectURL(audioUrls[i]);
