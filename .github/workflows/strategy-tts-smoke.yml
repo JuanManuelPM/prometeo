@@ -35,6 +35,18 @@ jobs:
           if grep -q "modelos-room-audio-v2" strategy/index.html; then exit 1; fi
           if grep -q "audio-lab-page-audio-v1" strategy/index.html; then exit 1; fi
 
+      - name: Prepare exact E1 short reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-voice-clone-test-v1?prepare=1"
+          code="$(curl --retry 2 --retry-delay 2 --max-time 90 -sS -o /tmp/e1-prep.json -w '%{http_code}' "$URL")"
+          echo "E1 PREP http=$code"
+          cat /tmp/e1-prep.json
+          echo
+          test "$code" = "200"
+          grep -q '"ok":true' /tmp/e1-prep.json
+
       - name: Generate fixed-voice audio and recover it from cache
         shell: bash
         run: |
