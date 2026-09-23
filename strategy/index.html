@@ -30,7 +30,7 @@ button:disabled{opacity:.35;cursor:default}
 .badge{display:inline-block;border:1px solid rgba(255,255,255,.5);font-size:11px;padding:2px 6px;margin-left:6px;vertical-align:2px}
 #empty{padding:28px 0;font-size:18px;line-height:1.4}
 #status{font-size:12px;opacity:.55}
-#actionResult{margin-top:10px;font-size:13px}
+#actionResult{margin-top:10px;font-size:13px}\n#audioStatus{font-size:12px;opacity:.58;align-self:center;min-height:1em}
 ul{margin:8px 0 0 18px;padding:0}
 li{margin:4px 0}
 </style>
@@ -50,6 +50,7 @@ li{margin:4px 0}
     <div id="brief"></div>
     <div class="controls">
       <button id="play">▶ PLAY</button>
+      <span id="audioStatus" role="status" aria-live="polite"></span>
     </div>
   </div>
 </section>
@@ -79,10 +80,12 @@ li{margin:4px 0}
 'use strict';
 const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
 const TTS='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/audio-lab-page-audio-v1';
+const TTS_MAX=1700;
 const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
 const HEAD={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
 const CHANNEL='PROMETEO_MAIN';
-let state=null,ctx=null,currentAudioEpoch=null,playing=false;
+let state=null;
+let audio=null,audioKey='',audioEpoch=null,audioIndex=0,audioPlan=[],audioUrls=[],audioInflight=new Map(),audioBusy=false;
 
 const $=id=>document.getElementById(id);
 async function rpc(name,args){
@@ -105,11 +108,11 @@ function render(){
   $('current').hidden=!cur;
   $('optionsSection').hidden=true;
   $('contextSection').hidden=true;
-  if(!cur)return;
+  if(!cur){syncAudio(null);return;}
 
   $('headline').textContent=cur.headline||'Estado actual';
   $('brief').textContent=cur.spoken_brief||'';
-  $('play').disabled=!cur.spoken_brief;
+  syncAudio(cur);
 
   const read=arr(cur.current_read);
   const fr=arr(cur.frictions);
@@ -132,38 +135,242 @@ function render(){
     }).join('');
     const already=arr(state?.choices).length>0;
     $('ok').disabled=already;
-    $('actionResult').textContent=already?'Selección publicada.':'';
+    $('actionResult').function hashText(s){
+  let h=2166136261;
+  for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}
+  return (h>>>0).toString(36);
+}
+function chunkSpeech(raw,max=TTS_MAX){
+  let s=String(raw||'').replace(/\s+/g,' ').trim();
+  const out=[];
+  while(s.length>max){
+    const w=s.slice(0,max+1);
+    let cut=-1;
+    for(const sep of ['. ','! ','? ','; ',': ',', ',' ']){
+      const i=w.lastIndexOf(sep);
+      if(i>=0)cut=Math.max(cut,i+sep.length-1);
+    }
+    if(cut<Math.floor(max*.55))cut=w.lastIndexOf(' ');
+    if(cut<1)cut=max-1;
+    out.push(s.slice(0,cut+1).trim());
+    s=s.slice(cut+1).trim();
+  }
+  if(s)out.push(s);
+  return out;
+}
+function cleanAudioId(s){return String(s||'').replace(/[^a-zA-Z0-9._:-]/g,'-').slice(0,88)}
+function makeAudioPlan(cur){
+  const text=String(cur?.spoken_brief||'').trim();
+  if(!text)return[];
+  const chunks=chunkSpeech(text);
+  const existing=cleanAudioId(cur?.tts_message_id);
+  const base=existing||cleanAudioId('strategic-'+(cur?.epoch_id||'current')+'-'+hashText(text));
+  return chunks.map((text,i)=>({
+    text,
+    id:chunks.length===1?base:cleanAudioId(base).slice(0,82)+'-p'+(i+1)+'of'+chunks.length
+  }));
+}
+function setAudioStatus(s){$('audioStatus').textContent=s||''}
+function updateAudioButton(){
+  const has=!!state?.current?.spoken_brief;
+  if(!has){$('play').disabled=true;$('play').textContent='▶ PLAY';return}
+  if(audioBusy){$('play').disabled=true;return}
+  $('play').disabled=false;
+  if(audio&&!audio.paused&&!audio.ended)$('play').textContent='❚❚ PAUSA';
+  else if(audio&&audio.src&&audio.currentTime>0&&!audio.ended)$('play').textContent='▶ CONTINUAR';
+  else $('play').textContent='▶ PLAY';
+}
+function stopAudio(){
+  if(audio){
+    audio.pause();
+    audio.removeAttribute('src');
+    try{audio.load()}catch{}
   }
 }
-async function load(){
+function clearAudioUrls(){
+  for(const u of audioUrls)if(u)URL.revokeObjectURL(u);
+  audioUrls=[];
+}
+function resetAudio(){
+  stopAudio();
+  clearAudioUrls();
+  audioInflight.clear();
+  audioPlan=[];
+  audioIndex=0;
+  audioEpoch=null;
+  audioBusy=false;
+  setAudioStatus('');
+}
+function ensureAudioElement(){
+  if(audio)return audio;
+  audio=new Audio();
+  audio.preload='metadata';
+  audio.onplay=()=>{
+    updateAudioButton();
+    const n=audioPlan.length;
+    setAudioStatus(n>1?'reproduciendo '+(audioIndex+1)+'/'+n:'reproduciendo');
+    if(audioIndex+1<n)prepareChunk(audioIndex+1,true).catch(()=>{});
+  };
+  audio.onpause=()=>{if(!audio.ended)updateAudioButton()};
+  audio.onended=()=>advanceAudio();
+  audio.onerror=()=>{
+    audioBusy=false;
+    setAudioStatus('error de reproducción · reintentar');
+    $('play').textContent='↻ REINTENTAR';
+    $('play').disabled=false;
+  };
+  return audio;
+}
+function syncAudio(cur){
+  const nextKey=cur?.spoken_brief?String(cur.epoch_id||'')+'|'+String(cur.tts_message_id||'')+'|'+hashText(String(cur.spoken_brief)):'';
+  if(nextKey===audioKey){
+    updateAudioButton();
+    return;
+  }
+  resetAudio();
+  audioKey=nextKey;
+  if(!cur?.spoken_brief){updateAudioButton();return}
+  audioEpoch=cur.epoch_id;
+  audioPlan=makeAudioPlan(cur);
+  audioUrls=new Array(audioPlan.length).fill(null);
+  updateAudioButton();
+  warmCachedFirst().catch(()=>{});
+}
+async function fetchTimeout(url,options={},ms=8000){
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),ms);
+  try{return await fetch(url,{...options,signal:ctrl.signal})}
+  finally{clearTimeout(timer)}
+}
+async function responseBlob(r){
+  const b=await r.blob();
+  if(b.size<1000)throw new Error('audio vacío');
+  const type=(r.headers.get('content-type')||b.type||'').toLowerCase();
+  if(type&&!type.startsWith('audio/'))throw new Error('respuesta no es audio');
+  return b;
+}
+function rememberAudio(i,b){
+  if(audioUrls[i])URL.revokeObjectURL(audioUrls[i]);
+  const u=URL.createObjectURL(b);
+  audioUrls[i]=u;
+  return u;
+}
+async function getCached(i,background=false){
+  const d=audioPlan[i];
+  if(!d)return null;
+  if(!background)setAudioStatus(audioPlan.length>1?'buscando cache '+(i+1)+'/'+audioPlan.length:'buscando cache');
   try{
-    state=await rpc('prometeo_strategic_console_v1',{p_channel_key:CHANNEL});
-    render();
+    const r=await fetchTimeout(TTS+'?id='+encodeURIComponent(d.id),{cache:'no-store'},7000);
+    if(r.status===404)return null;
+    if(!r.ok)throw new Error('cache '+r.status);
+    return rememberAudio(i,await responseBlob(r));
   }catch(e){
-    $('status').textContent='reconectando';
+    if(e?.name==='AbortError')return null;
+    throw e;
   }
 }
-async function ensureAudio(){
-  if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();
-  await ctx.resume();
+async function generateChunk(i,background=false){
+  const d=audioPlan[i];
+  if(!d)throw new Error('parte inexistente');
+  if(!background)setAudioStatus(audioPlan.length>1?'generando '+(i+1)+'/'+audioPlan.length:'generando audio');
+  const prompt=state?.channel?.voice_prompt||'Speaker identity: Martín, 31, native Buenos Aires. Warm medium-low male voice, calm, intelligent, authentic Rioplatense Spanish, conversational, direct and analytical. Never Iberian and never announcer cadence.';
+  const r=await fetchTimeout(TTS,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({messageId:d.id,text:d.text,voicePrompt:prompt})
+  },180000);
+  if(!r.ok){
+    let detail='';try{detail=(await r.text()).slice(0,160)}catch{}
+    throw new Error('TTS '+r.status+(detail?' · '+detail:''));
+  }
+  return rememberAudio(i,await responseBlob(r));
+}
+async function prepareChunk(i,background=false){
+  if(audioUrls[i])return audioUrls[i];
+  const d=audioPlan[i];
+  if(!d)throw new Error('parte inexistente');
+  if(audioInflight.has(d.id))return await audioInflight.get(d.id);
+  const p=(async()=>{
+    const hit=await getCached(i,background);
+    if(hit)return hit;
+    return await generateChunk(i,background);
+  })();
+  audioInflight.set(d.id,p);
+  try{return await p}
+  finally{audioInflight.delete(d.id)}
+}
+async function warmCachedFirst(){
+  if(!audioPlan.length||audioUrls[0])return;
+  try{
+    const u=await getCached(0,true);
+    if(u&&audioIndex===0&&!audioBusy)setAudioStatus('audio en caché');
+  }catch{}
+}
+async function startPrepared(i){
+  const a=ensureAudioElement();
+  audioIndex=i;
+  const u=audioUrls[i]||await prepareChunk(i,false);
+  if(a.src!==u){a.src=u;a.load()}
+  try{
+    await a.play();
+  }catch(e){
+    if(e?.name==='NotAllowedError'){
+      setAudioStatus('audio listo · tocá PLAY');
+      $('play').textContent='▶ PLAY';
+      $('play').disabled=false;
+      return;
+    }
+    throw e;
+  }
+}
+async function advanceAudio(){
+  if(audioIndex+1>=audioPlan.length){
+    audioBusy=false;
+    setAudioStatus('terminado');
+    if(audio){audio.currentTime=0}
+    updateAudioButton();
+    return;
+  }
+  audioBusy=true;
+  $('play').disabled=true;
+  const next=audioIndex+1;
+  setAudioStatus('preparando '+(next+1)+'/'+audioPlan.length);
+  try{await prepareChunk(next,false);audioBusy=false;await startPrepared(next)}
+  catch(e){
+    audioBusy=false;
+    setAudioStatus('audio no disponible · reintentar');
+    $('play').textContent='↻ REINTENTAR';
+    $('play').disabled=false;
+  }
 }
 async function playCurrent(){
   const cur=state?.current;
-  if(!cur?.spoken_brief||playing)return;
-  playing=true;$('play').disabled=true;$('play').textContent='…';
+  if(!cur?.spoken_brief)return;
+  syncAudio(cur);
+  const a=ensureAudioElement();
+  if(!a.paused&&!a.ended){a.pause();updateAudioButton();setAudioStatus('pausado');return}
+  if(audioBusy)return;
+  if(audioUrls[audioIndex]&&a.src===audioUrls[audioIndex]&&!a.ended){
+    try{await a.play()}catch(e){
+      if(e?.name!=='NotAllowedError'){setAudioStatus('no se pudo reproducir · reintentar')}
+    }
+    return;
+  }
+  audioBusy=true;
+  $('play').disabled=true;
+  $('play').textContent='…';
   try{
-    await ensureAudio();
-    const tts=await fetch(TTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      messageId:cur.tts_message_id||('strategic-'+cur.epoch_id),
-      text:cur.spoken_brief,
-      voicePrompt:state?.channel?.voice_prompt||'Voz masculina adulta, español rioplatense natural, directa y analítica.'
-    })});
-    if(!tts.ok)throw new Error('TTS '+tts.status);
-    const data=await tts.arrayBuffer();
-    const buf=await ctx.decodeAudioData(data.slice(0));
-    const src=ctx.createBufferSource();src.buffer=buf;src.connect(ctx.destination);
-    currentAudioEpoch=cur.epoch_id;
-    await new Promise((resolve,reject)=>{src.onended=resolve;try{src.start()}catch(e){reject(e)}});
+    await prepareChunk(audioIndex,false);
+    audioBusy=false;
+    await startPrepared(audioIndex);
+  }catch(e){
+    audioBusy=false;
+    setAudioStatus('audio no disponible · reintentar');
+    $('play').textContent='↻ REINTENTAR';
+    $('play').disabled=false;
+  }
+}
+
+ect)=>{src.onended=resolve;try{src.start()}catch(e){reject(e)}});
   }catch(e){
     $('actionResult').textContent='No pude reproducir el audio.';
   }finally{
