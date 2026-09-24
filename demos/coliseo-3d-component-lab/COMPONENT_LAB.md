@@ -1,0 +1,209 @@
+# Coliseo Component Lab · V1.2
+
+## Purpose
+
+This lab separates visual review into exactly three surfaces:
+
+1. Structures
+2. Workers
+3. Signs + fire
+
+The goal is to stop debugging geometry, character animation and effects inside one noisy scene.
+
+## 1. Structures
+
+This is the primary geometry regression surface.
+
+Rules:
+
+- no workers;
+- no construction loop;
+- no ritual;
+- no live/synthetic dependency traffic;
+- no effect clutter;
+- automatic camera rotation by default;
+- manual drag temporarily pauses rotation;
+- `?spin=0` disables autorotation.
+
+Every displayed structure is built from the same modular physical primitive.
+
+### Single structure primitive
+
+All structure builders call:
+
+`componentModuleBox(...)`
+
+The primitive decomposes requested solids into modules no larger than approximately:
+
+`0.72 world units`
+
+This intentionally copies the behavior that already works well for construction blocks.
+
+Large bases are not rendered as one monolithic cuboid.
+
+A broad platform is physically represented as many small solids.
+
+This gives the painter local depth information instead of asking one giant object to choose a single global depth.
+
+### Same projection rules everywhere
+
+Every module:
+
+- exists in world space;
+- uses the same camera projection;
+- generates the same six candidate faces;
+- receives the same back-face culling;
+- participates in the same internal-face cancellation;
+- uses the same opaque face renderer;
+- uses the same depth ordering.
+
+Gate, bridge, monument, workshop and archive do not implement private projection rules.
+
+### Face-switch rule
+
+Side-face visibility is determined by the exact camera-facing sign:
+
+`dot(faceNormal, cameraDirection) > 0`
+
+There is no visibility dead-band.
+
+The previous threshold could create a small angular interval where one face disappeared before its opposite became valid.
+
+The intended behavior is mechanical:
+
+- old face compresses toward zero width;
+- at edge-on it vanishes;
+- opposite face grows from zero width.
+
+### Stable ordering rule
+
+The structures screen deliberately does not use the pair-dependent H4 comparator.
+
+That comparator could produce unstable ordering because A-vs-B, B-vs-C and A-vs-C could select different tie rules.
+
+All component structures are small modules, so ordering can use the same stable concept as the working construction blocks:
+
+1. module camera depth;
+2. module base height;
+3. face order;
+4. stable module ID.
+
+The ordering relation therefore does not change merely because a different third object overlaps on screen.
+
+### Internal faces
+
+Adjacent modules generate matching internal faces.
+
+Matching solid faces cancel before rasterization.
+
+This keeps a modular structure inexpensive while preserving the visual advantages of small blocks.
+
+### Structure gallery
+
+Current prototypes:
+
+- tower / construction blocks;
+- broad plinth + central core;
+- monumental gate;
+- bridge;
+- workshop;
+- archive tower;
+- second tall tower.
+
+The page rotates through all camera angles continuously.
+
+The top badge reports:
+
+- camera angle;
+- compiled visible face count.
+
+## 2. Workers
+
+The workers screen contains seven isolated action stations:
+
+- IDLE
+- WALK
+- DESIGN
+- BUILD
+- CARRY
+- STALE
+- DONE
+
+No towers build behind them.
+
+This makes character animation, energy, scale and props independently reviewable.
+
+The workers screen does not autorotate by default because the primary variable under review is animation rather than structure projection.
+
+## 3. Signs + fire
+
+This screen isolates:
+
+- three physical signs at different world angles;
+- projected text;
+- several torch/fire intensity variants;
+- one larger burning-mass experiment.
+
+It exists to review:
+
+- sign perspective;
+- text compression;
+- edge-on hiding;
+- flame shape;
+- glow;
+- animation timing;
+
+without workers or construction obscuring the result.
+
+## Performance discipline
+
+The static background is cached.
+
+Camera rotation does not repaint the entire backdrop.
+
+Only the small world registration grid and the reviewed components update while rotating.
+
+The structure geometry compiler still exposes:
+
+`window.WORLD_RENDER_STATS`
+
+## Mobile
+
+The forced-landscape presentation from the heavy lab is retained.
+
+Portrait phone viewport:
+- renders a virtual landscape viewport;
+- rotates the application surface;
+- maps touch coordinates back into landscape space.
+
+## Review rule
+
+A structure is not approved because it looks correct from one angle.
+
+Review while it rotates through:
+
+- front;
+- 30–45°;
+- side;
+- almost edge-on;
+- rear;
+- opposite side.
+
+Reject if any of these happen:
+
+- a rear face appears through a front solid;
+- two faces alternate/flicker around an angle;
+- an internal wall becomes visible;
+- a broad base covers a structure standing above it;
+- a face changes state before it geometrically reaches edge-on;
+- an object uses different perspective behavior from the standard blocks.
+
+## Integration rule
+
+Do not repair these bugs inside individual structures.
+
+If a gate fails, first determine which shared rule failed.
+
+Only structure-specific geometry may live in the gate builder.
+
+Projection, culling, material opacity and painter order remain shared renderer responsibilities.
