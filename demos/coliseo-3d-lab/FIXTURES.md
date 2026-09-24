@@ -79,3 +79,21 @@ Append:
 Speeds up synthetic topology/artifact timing.
 
 Use only for review.
+
+
+## 20 / 100 node stress
+
+`?fixture=20&layout=1`
+
+`?fixture=100&layout=1`
+
+These fixtures add synthetic ghost nodes to the universal manifest and compute radial causal target slots.
+
+They intentionally do not mutate the canonical five tower structures.
+
+Use them to inspect:
+- slot density;
+- clustering pressure;
+- label-free visual density;
+- layout target stability;
+- basic rendering cost.
