@@ -1247,7 +1247,8 @@ function drawProgressTube(c,site,index){
   c.restore();
 }
 
-const LAST_UPDATE_MS=Date.parse('2026-09-24T10:41:52.922Z');
+const LAST_UPDATE_MS=Date.parse('2026-09-24T10:55:16.812Z');
+const BUILD_VERSION='V3.3';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -1280,37 +1281,32 @@ function drawDigit(c,ch,x,y,s,seed){
   for(let i=0;i<7;i++)segPoly(c,segs[i][0],segs[i][1],segs[i][2],segs[i][3],!!on[i],seed*11+i);
 }
 function drawClock(c,now){
-  const wallAng=-Math.PI/2;
+  const wallAng=-2.10;
   const facing=Math.sin(wallAng+yaw);
   if(cut(wallAng)||facing>-0.08)return;
 
-  const halfAng=.115;
-  const center=pr(17.98,wallAng,5.20);
-  const pL=pr(17.98,wallAng-halfAng,5.20),pR=pr(17.98,wallAng+halfAng,5.20);
-  const rot=Math.atan2(pR.y-pL.y,pR.x-pL.x);
-  const w=Math.max(scale*1.0,Math.hypot(pR.x-pL.x,pR.y-pL.y));
-  const h=scale*1.74*(.72+.28*clamp(-facing,0,1));
-  if(w<scale*.9)return;
+  const halfAng=.145;
+  const center=pr(18.08,wallAng,5.78);
+  const pL=pr(18.08,wallAng-halfAng,5.78),pR=pr(18.08,wallAng+halfAng,5.78);
+  let rot=Math.atan2(pR.y-pL.y,pR.x-pL.x);
+  if(Math.cos(rot)<0)rot+=Math.PI;
+  const w=Math.max(scale*2.35,Math.hypot(pR.x-pL.x,pR.y-pL.y));
+  const h=scale*1.56*(.74+.26*clamp(-facing,0,1));
 
-  const elapsed=Math.max(0,Math.floor((Date.now()-LAST_UPDATE_MS)/1000));
-  let a,b,label;
-  if(elapsed<3600){
-    a=Math.floor(elapsed/60);b=elapsed%60;label='ACTUALIZADO · MIN:SEG';
-  }else{
-    a=Math.min(99,Math.floor(elapsed/3600));b=Math.floor((elapsed%3600)/60);label='ACTUALIZADO · H:MIN';
-  }
-  const str=String(a).padStart(2,'0')+String(b).padStart(2,'0');
+  // Device/browser local time, so it is the actual current clock.
+  const d=new Date();
+  const str=String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
 
   c.save();c.translate(q(center.x),q(center.y));c.rotate(rot);
   const frame=[
     {x:-w*.58,y:-h*.60},{x:w*.58,y:-h*.60},{x:w*.58,y:h*.60},{x:-w*.58,y:h*.60}
   ];
   fillRagged(c,frame,'#080705','#1a0d09',Math.max(1.2,scale*.09),2401);
-  c.globalAlpha=.72;roughStroke(c,frame,'#6d2a1c',Math.max(.7,scale*.04),2402,true);c.globalAlpha=1;
+  c.globalAlpha=.75;roughStroke(c,frame,'#6d2a1c',Math.max(.7,scale*.04),2402,true);c.globalAlpha=1;
 
   c.fillStyle='#b68b67';c.textAlign='center';c.textBaseline='middle';
   c.font=`700 ${Math.max(5,scale*.16)}px system-ui`;
-  c.fillText(label,0,-h*.43);
+  c.fillText('HORA ACTUAL',0,-h*.43);
 
   const ds=h*.60,dw=ds*.74,gap=ds*.10;
   const total=dw*4+gap*5+ds*.20;
@@ -1319,8 +1315,8 @@ function drawClock(c,now){
     if(i===2){
       const cx0=xx-gap*.10;
       c.globalCompositeOperation='screen';
-      c.fillStyle=(Math.floor(now/1000)%2===0)?'#e34a24':'#5c2018';
-      c.globalAlpha=(Math.floor(now/1000)%2===0)?.90:.25;
+      c.fillStyle=(d.getSeconds()%2===0)?'#e34a24':'#5c2018';
+      c.globalAlpha=(d.getSeconds()%2===0)?.92:.26;
       blob(c,cx0,yy+ds*.43,ds*.055,ds*.055,c.fillStyle,null,0,2500,.08,10);
       blob(c,cx0,yy+ds*.83,ds*.055,ds*.055,c.fillStyle,null,0,2501,.08,10);
       c.globalAlpha=1;c.globalCompositeOperation='source-over';xx+=ds*.20;
@@ -1328,15 +1324,12 @@ function drawClock(c,now){
     drawDigit(c,str[i],xx,yy,ds*.92,2600+i);xx+=dw+gap;
   }
 
-  c.globalCompositeOperation='screen';c.globalAlpha=.14;
-  const glow=c.createRadialGradient(0,0,0,0,0,w*.50);
-  glow.addColorStop(0,'rgba(238,77,36,.46)');glow.addColorStop(1,'rgba(0,0,0,0)');
-  c.fillStyle=glow;c.beginPath();c.ellipse(0,0,w*.50,h*.50,0,0,TAU);c.fill();
+  c.globalCompositeOperation='screen';c.globalAlpha=.13;
+  const glow=c.createRadialGradient(0,0,0,0,0,w*.48);
+  glow.addColorStop(0,'rgba(238,77,36,.42)');glow.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=glow;c.beginPath();c.ellipse(0,0,w*.48,h*.48,0,0,TAU);c.fill();
   c.restore();
 }
-
-
-
 
 function globalBurnRatio(now){
   let total=0;
@@ -1352,62 +1345,56 @@ function globalBurnRatio(now){
   return total/sites.length;
 }
 function drawGlobalProgressBoard(c,now){
-  // Separate from the clock, but mounted on the same outer wall.
-  const wallAng=.58;
+  const wallAng=-.25;
   const facing=Math.sin(wallAng+yaw);
   if(cut(wallAng)||facing>-0.08)return;
 
-  const halfAng=.19;
-  const center=pr(18.06,wallAng,5.48);
-  const pL=pr(18.06,wallAng-halfAng,5.48),pR=pr(18.06,wallAng+halfAng,5.48);
+  const halfAng=.18;
+  const center=pr(18.08,wallAng,5.72);
+  const pL=pr(18.08,wallAng-halfAng,5.72),pR=pr(18.08,wallAng+halfAng,5.72);
   let rot=Math.atan2(pR.y-pL.y,pR.x-pL.x);
   if(Math.cos(rot)<0)rot+=Math.PI;
 
-  const worldW=Math.hypot(pR.x-pL.x,pR.y-pL.y);
-  const w=Math.max(scale*3.35,worldW);
-  const h=scale*1.78*(.74+.26*clamp(-facing,0,1));
-  const ratio=globalBurnRatio(now),pct=Math.round(ratio*100);
+  const w=Math.max(scale*3.15,Math.hypot(pR.x-pL.x,pR.y-pL.y));
+  const h=scale*1.70*(.74+.26*clamp(-facing,0,1));
+  const done=globalBurnRatio(now);
+  const remaining=clamp(1-done,0,1);
+  const pct=Math.round(remaining*100);
 
   c.save();c.translate(q(center.x),q(center.y));c.rotate(rot);
-
-  // Same print/LED family as the clock, with a heavier block-built frame.
   const frame=[
     {x:-w*.56,y:-h*.58},{x:w*.56,y:-h*.58},
     {x:w*.56,y:h*.58},{x:-w*.56,y:h*.58}
   ];
   fillRagged(c,frame,'#090706','#1a0d09',Math.max(1.2,scale*.09),11800);
-  c.globalAlpha=.78;roughStroke(c,frame,'#6d2a1c',Math.max(.7,scale*.045),11810,true);c.globalAlpha=1;
+  c.globalAlpha=.80;roughStroke(c,frame,'#76401f',Math.max(.7,scale*.045),11810,true);c.globalAlpha=1;
 
-  // Four block-like corner brackets.
-  const bw=w*.10,bh=h*.13;
+  // Chunky block corners, same family as the local construction signs.
+  const bw=w*.095,bh=h*.12;
   for(const sx of [-1,1])for(const sy of [-1,1]){
     const x=sx*(w*.49-bw*.5),y=sy*(h*.49-bh*.5);
     const pts=[
       {x:x-bw*.5,y:y-bh*.5},{x:x+bw*.5,y:y-bh*.46},
       {x:x+bw*.46,y:y+bh*.5},{x:x-bw*.52,y:y+bh*.46}
     ];
-    fillRagged(c,pts,sx===sy?'#6a4938':'#51372d','#160d09',Math.max(.6,scale*.03),11830+(sx>0?1:0)+(sy>0?2:0));
+    fillRagged(c,pts,sx===sy?'#795034':'#593824','#160d09',Math.max(.6,scale*.03),11830+(sx>0?1:0)+(sy>0?2:0));
   }
 
-  c.fillStyle='#a97b57';c.textAlign='center';c.textBaseline='middle';
+  c.fillStyle='#bd8c5f';c.textAlign='center';c.textBaseline='middle';
   c.font=`700 ${Math.max(5,scale*.15)}px system-ui`;
-  c.fillText('PROGRESO TOTAL',0,-h*.42);
+  c.fillText('FALTA PARA TERMINAR',0,-h*.42);
 
-  // Three stable seven-segment digits. Same primitive the clock already uses.
   const str=String(pct).padStart(3,'0');
-  const ds=h*.56,dw=ds*.74,gap=ds*.10;
-  const total=dw*3+gap*2;
-  let xx=-total*.5,yy=-ds*.44;
+  const ds=h*.53,dw=ds*.74,gap=ds*.09,total=dw*3+gap*2;
+  let xx=-total*.5,yy=-ds*.43;
   for(let i=0;i<3;i++){drawDigit(c,str[i],xx,yy,ds*.92,11900+i);xx+=dw+gap;}
 
-  c.globalCompositeOperation='screen';
-  c.globalAlpha=.82;c.fillStyle='#e49b54';
-  c.font=`900 ${Math.max(7,scale*.23)}px Georgia,serif`;
-  c.fillText('%',w*.31,-h*.02);
-  c.globalCompositeOperation='source-over';c.globalAlpha=1;
+  c.save();c.globalCompositeOperation='screen';c.globalAlpha=.86;
+  c.fillStyle='#e49b54';c.font=`900 ${Math.max(7,scale*.22)}px Georgia,serif`;
+  c.fillText('%',w*.30,-h*.02);c.restore();
 
-  // A real progress bar made of luminous cells, safely contained in the panel.
-  const cells=14,filled=Math.round(ratio*cells);
+  // Remaining cells go dark as work finishes.
+  const cells=14,lit=Math.ceil(remaining*cells);
   const cellGap=w*.012,cellW=(w*.76-cellGap*(cells-1))/cells,cellH=h*.15;
   const startX=-w*.38,barY=h*.29;
   for(let i=0;i<cells;i++){
@@ -1416,19 +1403,71 @@ function drawGlobalProgressBoard(c,now){
       {x,y:barY-cellH*.5},{x:x+cellW,y:barY-cellH*.47},
       {x:x+cellW-cellW*.07,y:barY+cellH*.5},{x:x+cellW*.07,y:barY+cellH*.47}
     ];
-    const on=i<filled;
-    fillRagged(c,pts,on?'#b43a23':'#2c1b16','#140c09',Math.max(.45,scale*.024),12000+i);
+    const on=i<lit;
+    fillRagged(c,pts,on?'#b94b24':'#291a15','#140c09',Math.max(.45,scale*.024),12000+i);
     if(on){
-      c.save();c.globalCompositeOperation='screen';c.globalAlpha=.30;
-      c.fillStyle='#f19b52';path(c,pts,true);c.fill();c.restore();
+      c.save();c.globalCompositeOperation='screen';c.globalAlpha=.28;
+      c.fillStyle='#f1a15a';path(c,pts,true);c.fill();c.restore();
     }
   }
 
-  // Controlled halo, derived from the panel and clipped visually to its area.
-  c.save();c.globalCompositeOperation='screen';c.globalAlpha=.10+.08*ratio;
-  const glow=c.createRadialGradient(0,0,0,0,0,w*.46);
-  glow.addColorStop(0,'rgba(231,78,35,.45)');glow.addColorStop(1,'rgba(0,0,0,0)');
-  c.fillStyle=glow;c.beginPath();c.ellipse(0,0,w*.46,h*.42,0,0,TAU);c.fill();c.restore();
+  c.save();c.globalCompositeOperation='screen';c.globalAlpha=.08+.10*remaining;
+  const glow=c.createRadialGradient(0,0,0,0,0,w*.45);
+  glow.addColorStop(0,'rgba(233,113,48,.42)');glow.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=glow;c.beginPath();c.ellipse(0,0,w*.45,h*.40,0,0,TAU);c.fill();c.restore();
+  c.restore();
+}
+
+// Third independent panel: build/version info in a different color and lower position.
+function drawVersionBoard(c,now){
+  const wallAng=-1.18;
+  const facing=Math.sin(wallAng+yaw);
+  if(cut(wallAng)||facing>-0.08)return;
+
+  const halfAng=.155;
+  const center=pr(18.02,wallAng,3.35);
+  const pL=pr(18.02,wallAng-halfAng,3.35),pR=pr(18.02,wallAng+halfAng,3.35);
+  let rot=Math.atan2(pR.y-pL.y,pR.x-pL.x);
+  if(Math.cos(rot)<0)rot+=Math.PI;
+
+  const w=Math.max(scale*2.55,Math.hypot(pR.x-pL.x,pR.y-pL.y));
+  const h=scale*1.28*(.76+.24*clamp(-facing,0,1));
+  const updated=new Date(LAST_UPDATE_MS).toLocaleString([],{
+    day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'
+  });
+
+  c.save();c.translate(q(center.x),q(center.y));c.rotate(rot);
+  const frame=[
+    {x:-w*.55,y:-h*.58},{x:w*.55,y:-h*.58},
+    {x:w*.55,y:h*.58},{x:-w*.55,y:h*.58}
+  ];
+  fillRagged(c,frame,'#080b09','#111914',Math.max(1.1,scale*.08),12600);
+  c.globalAlpha=.82;roughStroke(c,frame,'#466653',Math.max(.7,scale*.04),12610,true);c.globalAlpha=1;
+
+  // Teal/green signal blocks make this panel clearly different from clock/progress.
+  for(let i=0;i<7;i++){
+    const on=i<5;
+    const x=-w*.38+i*w*.125;
+    const pts=[
+      {x:x-w*.022,y:-h*.38},{x:x+w*.022,y:-h*.38},
+      {x:x+w*.020,y:-h*.29},{x:x-w*.024,y:-h*.29}
+    ];
+    fillRagged(c,pts,on?'#587b63':'#26372d','#0f1712',Math.max(.4,scale*.02),12630+i);
+  }
+
+  c.textAlign='center';c.textBaseline='middle';
+  c.fillStyle='#83a98e';c.font=`800 ${Math.max(6,scale*.18)}px Georgia,serif`;
+  c.fillText(BUILD_VERSION,0,-h*.05);
+
+  c.fillStyle='#9dbaa2';c.font=`700 ${Math.max(4.5,scale*.12)}px system-ui`;
+  c.fillText('ÚLTIMA ACTUALIZACIÓN',0,h*.20);
+  c.fillStyle='#c1d0bf';c.font=`700 ${Math.max(5,scale*.14)}px system-ui`;
+  c.fillText(updated,0,h*.37);
+
+  c.save();c.globalCompositeOperation='screen';c.globalAlpha=.10;
+  const glow=c.createRadialGradient(0,0,0,0,0,w*.42);
+  glow.addColorStop(0,'rgba(96,160,117,.40)');glow.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=glow;c.beginPath();c.ellipse(0,0,w*.42,h*.40,0,0,TAU);c.fill();c.restore();
 
   c.restore();
 }
@@ -1869,6 +1908,7 @@ function drawDynamic(now){
   ctx.drawImage(staticCanvas,weaveX,weaveY);
   drawClock(ctx,now);
   drawGlobalProgressBoard(ctx,now);
+  drawVersionBoard(ctx,now);
   drawWindowEyes(ctx,now);
 
   const t=now/1000;
