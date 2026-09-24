@@ -16,6 +16,15 @@ body{overscroll-behavior:none}
 #app{position:fixed;inset:0;overflow:hidden;background:#050504}
 #wrap{position:absolute;inset:0;overflow:hidden;background:#050504}
 #scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;filter:contrast(1.08) saturate(.82) brightness(.89)}
+#postfx{position:absolute;inset:0;width:100%;height:100%;display:none;pointer-events:none;z-index:2}
+#mapStage{position:absolute;inset:0;width:100%;height:100%;border:0;display:none;background:#050504;z-index:2}
+#wrap.maps #scene,#wrap.maps #veil,#wrap.maps #grain,#wrap.maps #grade,#wrap.maps #exposure{display:none}
+#wrap.maps #mapStage{display:block}
+#wrap.effects #postfx{display:block}
+.fxbar{position:absolute;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9;display:none;gap:5px;flex-wrap:wrap;justify-content:center;max-width:min(94vw,900px);pointer-events:auto}
+.fxbar.on{display:flex}
+.fxbar a{font:800 7px/1 system-ui;letter-spacing:.05em;text-transform:uppercase;color:#a48d76;text-decoration:none;padding:6px 8px;border-radius:999px;border:1px solid rgba(190,140,87,.14);background:rgba(6,5,4,.76)}
+.fxbar a.on{color:#f0cf9a;border-color:rgba(224,147,74,.42);background:rgba(52,28,18,.84)}
 #veil{position:absolute;inset:-3%;pointer-events:none;background:
  radial-gradient(ellipse at 50% 53%,transparent 31%,rgba(0,0,0,.17) 57%,rgba(0,0,0,.88) 100%),
  repeating-linear-gradient(91deg,rgba(224,184,134,.012) 0 1px,transparent 1px 5px);
@@ -47,7 +56,7 @@ body{overscroll-behavior:none}
 .labnav{position:absolute;left:50%;top:max(12px,env(safe-area-inset-top));transform:translateX(-50%);z-index:8;display:flex;gap:5px;flex-wrap:wrap;justify-content:center;max-width:min(82vw,720px);pointer-events:auto}
 .labnav a{font:750 8px/1 system-ui;letter-spacing:.06em;text-transform:uppercase;color:#bda58a;text-decoration:none;padding:6px 8px;border:1px solid rgba(190,140,87,.16);background:rgba(6,5,4,.72);border-radius:999px}
 .labnav a.on{color:#f0cf9a;border-color:rgba(224,147,74,.42);background:rgba(52,28,18,.78)}
-@media(max-width:700px){.labnav{top:52px;max-width:94vw}.labnav a{font-size:7px;padding:5px 7px}}
+@media(max-width:700px){.labnav{top:52px;max-width:94vw}.labnav a{font-size:7px;padding:5px 7px}.fxbar a{font-size:6px;padding:5px 7px}}
 @media(orientation:portrait){
   #app{
     inset:auto;
@@ -68,14 +77,17 @@ body{overscroll-behavior:none}
 <div id="app">
 <div id="wrap">
   <canvas id="scene" aria-label="Coliseo nocturno ilustrado con jugadores en movimiento"></canvas>
+  <canvas id="postfx" aria-hidden="true"></canvas>
+  <iframe id="mapStage" title="Mapa canónico del Coliseo" src="../coliseo-3d/"></iframe>
   <div id="veil" aria-hidden="true"></div>
   <div id="grain" aria-hidden="true"></div>
   <div id="grade" aria-hidden="true"></div>
   <div id="exposure" aria-hidden="true"></div>
 </div>
 <div class="labnav" id="componentNav"></div>
+<div class="fxbar" id="fxbar"></div>
 <div class="ui">
-  <div class="brand"><div class="mark">LAB</div><div class="copy"><b>Coliseo Component Lab</b><span>estructuras · workers · efectos</span></div></div>
+  <div class="brand"><div class="mark">LAB</div><div class="copy"><b>Coliseo Component Lab</b><span>estructuras · workers · efectos · mapas</span></div></div>
   <div class="badge" id="labBadge">LAB · SYNTHETIC</div>
   <div class="help" id="labHelp">estructuras: rotación automática · arrastrá para inspeccionar · pinch/rueda para zoom</div>
 </div>
@@ -89,6 +101,89 @@ const staticCanvas=document.createElement('canvas');
 const sctx=staticCanvas.getContext('2d',{alpha:false});
 const fxCanvas=document.createElement('canvas');
 const fxctx=fxCanvas.getContext('2d',{alpha:false});
+const postCanvas=document.getElementById('postfx');
+const postGL=postCanvas.getContext('webgl',{alpha:false,antialias:false,preserveDrawingBuffer:false});
+let postProgram=null,postTexture=null,postPos=null,postUV=null;
+function initPostFX(){
+  if(!postGL||postProgram)return !!postProgram;
+  const gl=postGL;
+  const vsSrc='attribute vec2 a_pos;attribute vec2 a_uv;varying vec2 v_uv;void main(){v_uv=a_uv;gl_Position=vec4(a_pos,0.0,1.0);}';
+  const fsSrc=[
+    'precision mediump float;',
+    'varying vec2 v_uv;',
+    'uniform sampler2D u_tex;',
+    'uniform vec2 u_res;',
+    'uniform float u_time;',
+    'uniform float u_pixel;',
+    'uniform float u_levels;',
+    'uniform float u_dither;',
+    'uniform float u_wobble;',
+    'uniform float u_chroma;',
+    'uniform float u_grain;',
+    'uniform float u_scan;',
+    'uniform float u_vignette;',
+    'uniform float u_poster;',
+    'float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}',
+    'float bayer4(vec2 p){',
+      'vec2 q=mod(floor(p),4.0);',
+      'float i=q.x+q.y*4.0;',
+      'if(i==0.0)return 0.0/16.0;if(i==1.0)return 8.0/16.0;if(i==2.0)return 2.0/16.0;if(i==3.0)return 10.0/16.0;',
+      'if(i==4.0)return 12.0/16.0;if(i==5.0)return 4.0/16.0;if(i==6.0)return 14.0/16.0;if(i==7.0)return 6.0/16.0;',
+      'if(i==8.0)return 3.0/16.0;if(i==9.0)return 11.0/16.0;if(i==10.0)return 1.0/16.0;if(i==11.0)return 9.0/16.0;',
+      'if(i==12.0)return 15.0/16.0;if(i==13.0)return 7.0/16.0;if(i==14.0)return 13.0/16.0;return 5.0/16.0;',
+    '}',
+    'void main(){',
+      'vec2 uv=v_uv;',
+      'float tear=sin(uv.y*74.0+u_time*5.0)*u_wobble;',
+      'tear+=step(.93,fract(uv.y*11.0-u_time*.45))*sin(u_time*19.0)*u_wobble*2.2;',
+      'uv.x+=tear;',
+      'vec2 pix=max(vec2(1.0),u_res/max(1.0,u_pixel));',
+      'uv=(floor(uv*pix)+.5)/pix;',
+      'vec3 c;',
+      'if(u_chroma>.00001){',
+        'float r=texture2D(u_tex,uv+vec2(u_chroma,0.0)).r;',
+        'float g=texture2D(u_tex,uv).g;',
+        'float b=texture2D(u_tex,uv-vec2(u_chroma,0.0)).b;',
+        'c=vec3(r,g,b);',
+      '}else c=texture2D(u_tex,uv).rgb;',
+      'float d=(bayer4(gl_FragCoord.xy)-.5)*u_dither;',
+      'float n=(hash(gl_FragCoord.xy+u_time*60.0)-.5)*u_grain;',
+      'c+=d/max(2.0,u_levels)+n;',
+      'c=floor(c*u_levels)/max(1.0,u_levels-1.0);',
+      'if(u_poster>0.0){float l=dot(c,vec3(.299,.587,.114));c=mix(c,vec3(step(.46,l)*.74+.08)*c/max(.18,l),u_poster);}',
+      'float scan=sin(gl_FragCoord.y*3.14159)*.5+.5;c*=1.0-u_scan*scan*.30;',
+      'float v=distance(v_uv,vec2(.5));c*=1.0-u_vignette*smoothstep(.34,.74,v);',
+      'gl_FragColor=vec4(clamp(c,0.0,1.0),1.0);',
+    '}'
+  ].join('');
+  function mk(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s}
+  const p=gl.createProgram();gl.attachShader(p,mk(gl.VERTEX_SHADER,vsSrc));gl.attachShader(p,mk(gl.FRAGMENT_SHADER,fsSrc));gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));
+  postProgram=p;postTexture=gl.createTexture();postPos=gl.createBuffer();postUV=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,postPos);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,postUV);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([0,1,1,1,0,0,0,0,1,1,1,0]),gl.STATIC_DRAW);
+  gl.bindTexture(gl.TEXTURE_2D,postTexture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  return true;
+}
+function applyPostFX(now){
+  if(COMPONENT_MODE!=='effects'||!initPostFX())return;
+  const gl=postGL;
+  if(postCanvas.width!==IW||postCanvas.height!==IH){postCanvas.width=IW;postCanvas.height=IH;gl.viewport(0,0,IW,IH)}
+  gl.useProgram(postProgram);
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,postTexture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,canvas);
+  const aPos=gl.getAttribLocation(postProgram,'a_pos'),aUV=gl.getAttribLocation(postProgram,'a_uv');
+  gl.bindBuffer(gl.ARRAY_BUFFER,postPos);gl.enableVertexAttribArray(aPos);gl.vertexAttribPointer(aPos,2,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ARRAY_BUFFER,postUV);gl.enableVertexAttribArray(aUV);gl.vertexAttribPointer(aUV,2,gl.FLOAT,false,0,0);
+  const uni=(n,v,kind='1f')=>{const l=gl.getUniformLocation(postProgram,n);kind==='2f'?gl.uniform2f(l,v[0],v[1]):gl.uniform1f(l,v)};
+  gl.uniform1i(gl.getUniformLocation(postProgram,'u_tex'),0);
+  uni('u_res',[IW,IH],'2f');uni('u_time',now/1000);
+  uni('u_pixel',FX_CFG.pixel);uni('u_levels',FX_CFG.levels);uni('u_dither',FX_CFG.dither);uni('u_wobble',FX_CFG.wobble);
+  uni('u_chroma',FX_CFG.chroma);uni('u_grain',FX_CFG.grain);uni('u_scan',FX_CFG.scan);uni('u_vignette',FX_CFG.vignette);uni('u_poster',FX_CFG.poster);
+  gl.drawArrays(gl.TRIANGLES,0,6);
+}
+
 const TAU=Math.PI*2;
 let IW=640,IH=360,W=innerWidth,H=innerHeight,scale=1,cx=320,cy=220;
 let VIEW_ROTATED=innerHeight>innerWidth;
@@ -98,6 +193,16 @@ const pointers=new Map(); let pinch=0;
 const LAB_PARAMS=new URLSearchParams(location.search);
 const COMPONENT_MODE=(LAB_PARAMS.get('mode')||'structures').toLowerCase();
 const COMPONENT_SPIN=LAB_PARAMS.get('spin')!=='0';
+const FX_PRESET=(LAB_PARAMS.get('fx')||'pixel').toLowerCase();
+const FX_PRESETS={
+  clean:{label:'limpio',pixel:1,levels:256,dither:0,wobble:0,chroma:0,grain:0,scan:0,vignette:.10,snap:0,poster:0},
+  pixel:{label:'pixel crunch',pixel:3,levels:10,dither:.34,wobble:.002,chroma:.0015,grain:.06,scan:.04,vignette:.28,snap:0,poster:.10},
+  psx:{label:'psx wobble',pixel:2,levels:12,dither:.48,wobble:.006,chroma:.0025,grain:.08,scan:.03,vignette:.24,snap:1.6,poster:.08},
+  dither:{label:'dither fog',pixel:2,levels:7,dither:.82,wobble:.001,chroma:.001,grain:.04,scan:0,vignette:.34,snap:0,poster:.16},
+  tape:{label:'tape damage',pixel:2,levels:18,dither:.16,wobble:.012,chroma:.006,grain:.12,scan:.15,vignette:.42,snap:0,poster:.04},
+  nightmare:{label:'nightmare',pixel:4,levels:6,dither:.72,wobble:.010,chroma:.007,grain:.15,scan:.08,vignette:.52,snap:1.2,poster:.30}
+};
+const FX_CFG=FX_PRESETS[FX_PRESET]||FX_PRESETS.pixel;
 const LAB_FIXTURE='chain';
 const LAB_VISUAL='component';
 const LAB_SHOW_LAYOUT=LAB_PARAMS.get('layout')==='1';
@@ -111,9 +216,26 @@ if(labBadge)labBadge.textContent='COMPONENT LAB · '+COMPONENT_MODE.toUpperCase(
 zoom=COMPONENT_MODE==='structures'?.78:(COMPONENT_MODE==='workers'?1.02:.90);
 const componentNav=document.getElementById('componentNav');
 if(componentNav){
-  const modes=[['structures','estructuras'],['workers','workers'],['effects','carteles + fuego']];
+  const modes=[['structures','estructuras'],['workers','workers'],['effects','efectos'],['maps','mapas']];
   componentNav.innerHTML=modes.map(([id,label])=>'<a class="'+(COMPONENT_MODE===id?'on':'')+'" href="?mode='+id+'">'+label+'</a>').join('');
 }
+const fxbar=document.getElementById('fxbar');
+if(fxbar&&COMPONENT_MODE==='effects'){
+  fxbar.classList.add('on');
+  fxbar.innerHTML=Object.entries(FX_PRESETS).map(([id,v])=>'<a class="'+(FX_PRESET===id?'on':'')+'" href="?mode=effects&fx='+id+'">'+v.label+'</a>').join('');
+}
+const wrap=document.getElementById('wrap');
+if(wrap)wrap.classList.add(COMPONENT_MODE);
+const mapStage=document.getElementById('mapStage');
+if(mapStage&&COMPONENT_MODE==='maps')mapStage.src='../coliseo-3d/?v=8ef25c0a';
+const labHelp=document.getElementById('labHelp');
+if(labHelp){
+  labHelp.textContent=COMPONENT_MODE==='structures'?'estructuras: rotación automática · arrastrá · zoom':
+    COMPONENT_MODE==='workers'?'workers: estados aislados · sin construcción':
+    COMPONENT_MODE==='effects'?'efectos indie: elegí preset abajo · arrastrá · zoom':
+    'mapas: Coliseo canónico actual · futuros mapas se agregan acá';
+}
+
 
 const C={
  black:'#060504', deep:'#0d0b09', ink:'#17100c', red:'#a82f1c', red2:'#682016',
@@ -222,6 +344,7 @@ function resize(){
   if(IW<300){IW=300;IH=Math.round(IW/aspect)}
   canvas.width=staticCanvas.width=fxCanvas.width=IW;canvas.height=staticCanvas.height=fxCanvas.height=IH;
   canvas.style.width=W+'px';canvas.style.height=H+'px';
+  if(postCanvas){postCanvas.width=IW;postCanvas.height=IH;postCanvas.style.width=W+'px';postCanvas.style.height=H+'px';}
   scale=Math.min(IW/37,IH/22.5)*zoom;cx=IW*.5;cy=IH*(W<620?.63:.61);
   staticDirty=true;
 }
@@ -232,7 +355,12 @@ function pr(r,ang,h){
 }
 function wp(x,z,h){
   const r=Math.hypot(x,z),ang=Math.atan2(z,x);
-  return pr(r,ang,h);
+  const p=pr(r,ang,h);
+  if(COMPONENT_MODE==='effects'&&FX_CFG.snap>0){
+    const s=FX_CFG.snap;
+    p.x=Math.round(p.x/s)*s;p.y=Math.round(p.y/s)*s;
+  }
+  return p;
 }
 function shade(hex,amount){
   const n=parseInt(hex.slice(1),16);
@@ -1324,7 +1452,7 @@ function drawProgressTube(c,site,index){
 }
 
 const LAST_UPDATE_MS=Date.parse('2026-09-24T12:43:59.511Z');
-const BUILD_VERSION='COMPONENT-LAB-2';
+const BUILD_VERSION='COMPONENT-LAB-3';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -2357,6 +2485,11 @@ function drawEffectsGallery(now){
 }
 
 function drawComponentLab(now){
+  if(COMPONENT_MODE==='maps'){
+    if(labBadge)labBadge.textContent='MAPAS · COLISEO CANÓNICO · 8EF25C0A';
+    return;
+  }
+
   ctx.fillStyle=C.black;ctx.fillRect(0,0,IW,IH);
   ctx.drawImage(staticCanvas,0,0);
 
@@ -2373,11 +2506,12 @@ function drawComponentLab(now){
     }else if(COMPONENT_MODE==='workers'){
       labBadge.textContent='WORKERS · 7 ESTADOS · SIN CONSTRUCCIÓN';
     }else{
-      labBadge.textContent='CARTELES + FUEGO · '+deg.toFixed(0)+'°';
+      labBadge.textContent='EFECTOS · '+FX_CFG.label.toUpperCase()+' · '+deg.toFixed(0)+'°';
     }
   }
 
   drawAnalogSignal(ctx,now);
+  applyPostFX(now);
 }
 
 /* =========================================================
@@ -3223,7 +3357,7 @@ function drawDynamic(now){
 }
 function frame(now){
   if(!visible){requestAnimationFrame(frame);return}
-  if(COMPONENT_SPIN&&COMPONENT_MODE!=='workers'&&now>COMPONENT_USER_DRAG_UNTIL){
+  if(COMPONENT_SPIN&&COMPONENT_MODE!=='workers'&&COMPONENT_MODE!=='maps'&&now>COMPONENT_USER_DRAG_UNTIL){
     yaw+=.0022;
   }
   if(now-last>=FRAME){
