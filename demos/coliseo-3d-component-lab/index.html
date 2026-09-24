@@ -250,7 +250,19 @@ const FPS=24,FRAME=1000/FPS;
 const pointers=new Map(); let pinch=0;
 const LAB_PARAMS=new URLSearchParams(location.search);
 let COMPONENT_MODE=(LAB_PARAMS.get('mode')||'structures').toLowerCase();
+let CURRENT_MAP=(LAB_PARAMS.get('map')||'coliseo').toLowerCase();
 const COMPONENT_SPIN=LAB_PARAMS.get('spin')!=='0';
+const MAP_DEFS={
+  coliseo:{label:'coliseo'},
+  fortaleza:{label:'fortaleza'},
+  archivo:{label:'archivo'},
+  pozo:{label:'pozo'},
+  ciudadela:{label:'ciudadela'},
+  fundicion:{label:'fundición'},
+  observatorio:{label:'observatorio'},
+  laberinto:{label:'laberinto'}
+};
+if(!MAP_DEFS[CURRENT_MAP])CURRENT_MAP='coliseo';
 let FX_PRESET=(LAB_PARAMS.get('fx')||'off').toLowerCase();
 let FX_DRAWER_OPEN=false;
 const FX_PRESETS={
@@ -290,6 +302,7 @@ function updateURL(){
   const u=new URL(location.href);
   u.searchParams.set('mode',COMPONENT_MODE);
   if(FX_PRESET!=='off')u.searchParams.set('fx',FX_PRESET);else u.searchParams.delete('fx');
+  if(COMPONENT_MODE==='maps')u.searchParams.set('map',CURRENT_MAP);else u.searchParams.delete('map');
   history.replaceState(null,'',u.pathname+u.search);
 }
 function renderPicker(){
@@ -298,7 +311,8 @@ function renderPicker(){
   let html=modes.map(([id,label])=>'<button data-mode="'+id+'" class="'+(COMPONENT_MODE===id?'on':'')+'">'+label+'</button>').join('');
   html+='<span class="sep"></span><button data-open-fx="1" class="sub '+(FX_DRAWER_OPEN?'on':'')+'">ajustes fx'+(FX_PRESET!=='off'?' · '+FX_PRESET:'')+'</button>';
   if(COMPONENT_MODE==='maps'){
-    html+='<span class="sep"></span><button class="sub on" data-map="coliseo">coliseo canónico</button>';
+    html+='<span class="sep"></span>';
+    html+=Object.entries(MAP_DEFS).map(([id,v])=>'<button data-map="'+id+'" class="sub '+(CURRENT_MAP===id?'on':'')+'">'+v.label+'</button>').join('');
   }
   componentPicker.innerHTML=html;
   requestAnimationFrame(()=>{
@@ -362,7 +376,7 @@ function applyModeState(resetZoom=true){
     labHelp.textContent=COMPONENT_MODE==='structures'?'coliseo circular: rotá para recorrer estructuras · zoom para detalle':
       COMPONENT_MODE==='workers'?'workers distribuidos en el anillo · rotá para recorrerlos':
       COMPONENT_MODE==='effects'?'escena de prueba FX · los ajustes FX también funcionan en todos los otros modos':
-      'mapas: Coliseo canónico · mismo shell para futuros mapas';
+      'mapas: deslizá para cambiar mundo · misma cámara, depth, rotación y FX';
   }
   staticDirty=true;
   resize();
@@ -379,10 +393,19 @@ function switchMode(mode){
 function switchFX(id){
   setFxPreset(id);
 }
+function switchMap(id){
+  if(!MAP_DEFS[id])return;
+  CURRENT_MAP=id;
+  COMPONENT_MODE='maps';
+  staticDirty=true;
+  renderPicker();
+  updateURL();
+}
 if(componentPicker){
   componentPicker.addEventListener('click',e=>{
     const b=e.target.closest('button');if(!b)return;
     if(b.dataset.mode)switchMode(b.dataset.mode);
+    else if(b.dataset.map)switchMap(b.dataset.map);
     else if(b.dataset.openFx){
       FX_DRAWER_OPEN=!FX_DRAWER_OPEN;
       renderPicker();renderFxDrawer();
@@ -675,7 +698,7 @@ function paintArenaRelics(c){
   }
 }
 
-function paintBackdrop(){
+function paintCanonicalColiseoBackdrop(){
   const c=sctx;
   c.fillStyle='#050504';c.fillRect(0,0,IW,IH);
 
@@ -739,6 +762,24 @@ function paintBackdrop(){
   // clean half-section edges
   paintCutEdges(c);
 }
+function paintGenericMapBackdrop(){
+  const cc=sctx;
+  cc.fillStyle='#050504';cc.fillRect(0,0,IW,IH);
+  const tint=CURRENT_MAP==='archivo'?'#18231d':CURRENT_MAP==='fundicion'?'#34160e':CURRENT_MAP==='observatorio'?'#152027':'#23160f';
+  inkWash(cc,IW*.18,IH*.42,IW*.34,IH*.52,tint,.13,6100,3);
+  inkWash(cc,IW*.82,IH*.34,IW*.30,IH*.44,'#18231d',.09,6140,2);
+  blob(cc,cx,cy+scale*4.2,scale*19.0,scale*4.8,'rgba(0,0,0,.66)',null,0,6200,.025,58);
+  blob(cc,cx,cy+scale*.20,scale*12.6,scale*4.15,CURRENT_MAP==='observatorio'?'#27302f':'#33261f','#130c08',1.5,6210,.018,76);
+  cc.save();cc.globalAlpha=.16;
+  const a=arc(11.8,.03,52,.02,6230);
+  roughStroke(cc,a,CURRENT_MAP==='fundicion'?'#8f4328':'#665244',Math.max(.7,scale*.045),6240,false);
+  cc.restore();
+}
+function paintBackdrop(){
+  if(COMPONENT_MODE==='maps'&&CURRENT_MAP!=='coliseo')paintGenericMapBackdrop();
+  else paintCanonicalColiseoBackdrop();
+}
+
 function windowBasis(ang){
   return wallBoardBasis(ang,18.18,4.92);
 }
@@ -1678,7 +1719,7 @@ function drawProgressTube(c,site,index){
 }
 
 const LAST_UPDATE_MS=Date.parse('2026-09-24T12:43:59.511Z');
-const BUILD_VERSION='COMPONENT-LAB-7';
+const BUILD_VERSION='COMPONENT-LAB-8';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -2800,10 +2841,211 @@ function drawEffectsGallery(now){
 
 /* ---------- one circular world for every mode ---------- */
 
+
+/* ---------- MAP DEFINITIONS: all reuse Component World v2 ---------- */
+
+function mapRingFrame(angle,radius){
+  return slotFrame({id:'map',angle,label:''},radius);
+}
+function mapRingSegment(angle,radius,baseH,tangentW,radialD,height,color,seed){
+  const f=mapRingFrame(angle,radius);
+  slotBox(f,0,0,baseH,tangentW,radialD,height,color,seed);
+}
+function mapCut(angle,threshold=.08){
+  return Math.sin(angle+yaw)>threshold;
+}
+function buildMapTowerAt(angle,radius,levels,color,seed,size=.82){
+  const f=mapRingFrame(angle,radius);
+  for(let y=0;y<levels;y++){
+    const s=size*(1-y/(levels*14));
+    slotBox(f,0,0,.02+y*.56,s,s,.52,y%2?shade(color,-5):color,seed+y*7);
+  }
+  const top=.02+levels*.56;
+  for(let k=0;k<4;k++){
+    const a=k*TAU/4;
+    slotBox(f,Math.cos(a)*size*.48,Math.sin(a)*size*.48,top,.20,.20,.30,shade(color,12),seed+90+k);
+  }
+}
+function buildMapFortaleza(){
+  resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
+  const N=28;
+  for(let i=0;i<N;i++){
+    const a=i*TAU/N+.02;
+    if(!mapCut(a,.18))mapRingSegment(a,10.2,.02,2.36,.72,1.42,i%2?'#514238':'#635044',41000+i);
+    if(!mapCut(a,.28)&&i%2===0)mapRingSegment(a,6.45,.02,2.10,.62,.92,'#37483f',41100+i);
+  }
+  for(let i=0;i<8;i++){
+    const a=i*TAU/8+.02;if(mapCut(a,.20))continue;
+    buildMapTowerAt(a,10.15,7,i%2?'#4c3e34':'#5a4638',41200+i*20,1.02);
+  }
+  // Central keep: persistent landmark.
+  for(let y=0;y<7;y++){
+    const w=4.25-y*.18;
+    componentModuleBox(0,0,.02+y*.62,w,w,.58,y%2?'#45584c':'#635044',41300+y*20,Math.PI/4);
+  }
+  for(const a of [0,Math.PI/2,Math.PI,Math.PI*1.5]){
+    const x=Math.cos(a)*2.25,z=Math.sin(a)*2.25;
+    componentModuleBox(x,z,.02,1.05,1.05,3.10,'#3b493f',41400+Math.round(a*100),0);
+  }
+}
+function buildMapArchivo(){
+  resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
+  const rings=[
+    {r:9.8,h:.02,w:2.15,d:.78,col:'#37483f'},
+    {r:8.1,h:.58,w:1.96,d:.72,col:'#4b4034'},
+    {r:6.4,h:1.16,w:1.78,d:.68,col:'#34483d'},
+    {r:4.8,h:1.74,w:1.62,d:.64,col:'#5a4638'}
+  ];
+  for(let ri=0;ri<rings.length;ri++){
+    const rr=rings[ri],N=26-ri*2;
+    for(let i=0;i<N;i++){
+      const a=i*TAU/N+.04;
+      if(mapCut(a,.10+ri*.04))continue;
+      mapRingSegment(a,rr.r,rr.h,rr.w,rr.d,.52,i%4===0?'#80603a':rr.col,42000+ri*100+i);
+    }
+  }
+  // Archive core / beacon.
+  for(let y=0;y<10;y++){
+    const w=2.30-y*.10;
+    componentModuleBox(0,0,2.34+y*.52,w,w,.48,y%2?'#34483d':'#635044',42500+y*9,0);
+  }
+}
+function buildMapPozo(){
+  resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
+  const N=30,R=9.1;
+  // Hollow shaft wall. Front half is removed by the same camera-facing cut.
+  for(let i=0;i<N;i++){
+    const a=i*TAU/N;
+    if(mapCut(a,.02))continue;
+    for(let y=0;y<7;y++)mapRingSegment(a,R,.02+y*.62,1.95,.54,.58,y%2?'#2f3633':'#4c4037',43000+i*20+y);
+  }
+  // Interior galleries on three heights.
+  for(const [level,r,col] of [[1.35,7.0,'#45584c'],[2.85,6.55,'#514238'],[4.35,7.15,'#3a493f']]){
+    for(let i=0;i<22;i++){
+      const a=i*TAU/22+.04;if(mapCut(a,.15))continue;
+      mapRingSegment(a,r,level,2.10,.45,.16,col,43400+Math.round(level*100)+i);
+    }
+  }
+  // Crossing bridges.
+  for(const rot of [0,Math.PI/2]){
+    componentModuleBox(0,0,2.98,11.8,.55,.18,'#6b4935',43800+Math.round(rot*100),rot);
+  }
+  // Pit marker / bottom core.
+  componentModuleBox(0,0,-.04,2.4,2.4,.10,'#15110f',43900,0);
+}
+function buildMapCiudadela(){
+  resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
+  // Central plaza.
+  componentModuleBox(0,0,.02,4.3,4.3,.16,'#46382f',44000,Math.PI/4);
+  const districts=8;
+  for(let i=0;i<districts;i++){
+    const a=i*TAU/districts+.10,f=mapRingFrame(a,7.5);
+    // radial avenue
+    const p=slotPoint(f,0,-3.75,.02);
+    componentModuleBox(p.x,p.z,.02,.52,6.6,.08,i%2?'#4a4037':'#37413a',44100+i,f.rot+Math.PI/2);
+    // district landmark cluster
+    const palette=['#635044','#45584c','#80603a','#34483d'];
+    for(let y=0;y<4+(i%3);y++){
+      const w=1.75-y*.12;
+      slotBox(f,0,.55,.12+y*.52,w,1.55,.48,palette[i%palette.length],44200+i*40+y);
+    }
+    for(const sx of [-1,1])slotBox(f,sx*1.35,.90,.12,.50,.50,1.20,shade(palette[i%palette.length],-8),44300+i*20+(sx>0?1:0));
+  }
+  // outer civic wall, cut at front
+  for(let i=0;i<28;i++){const a=i*TAU/28;if(!mapCut(a,.20))mapRingSegment(a,10.2,.02,2.25,.55,.72,'#403831',44400+i)}
+}
+function buildMapFundicion(now){
+  resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
+  // Central furnace.
+  for(let y=0;y<6;y++){
+    const r=2.25-y*.12;
+    for(let i=0;i<12;i++){
+      const a=i*TAU/12;
+      mapRingSegment(a,r,.02+y*.48,1.20,.48,.44,y%2?'#5b3829':'#3d3028',45000+y*30+i);
+    }
+  }
+  addWorldEmissive(0,0,2.70,2.25,.72,1.0,45100);
+  // Conveyor ring.
+  for(let i=0;i<28;i++){
+    const a=i*TAU/28+.02;
+    mapRingSegment(a,6.0,.24,1.45,.54,.14,i%2?'#5a4638':'#37413a',45200+i);
+  }
+  // Workshops + exhaust towers.
+  for(let i=0;i<8;i++){
+    const a=i*TAU/8,f=mapRingFrame(a,8.8);
+    slotBox(f,0,0,.02,2.2,1.55,.16,'#41362f',45300+i);
+    slotBox(f,-.72,.10,.18,.18,.18,2.15,'#4c4037',45400+i);
+    slotBox(f,.72,.10,.18,.18,.18,1.65,'#635044',45500+i);
+    const flame=slotPoint(f,0,.35,.58);
+    addWorldEmissive(flame.x,flame.z,.58,.82,.30,.72,45600+i);
+  }
+}
+function buildMapObservatorio(now){
+  resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
+  // Circular gallery, open at camera-facing half.
+  for(let i=0;i<28;i++){
+    const a=i*TAU/28;
+    if(!mapCut(a,.16))mapRingSegment(a,9.6,.02,2.15,.58,.58,i%2?'#33423f':'#4a4037',46000+i);
+  }
+  // Central orrery.
+  componentModuleBox(0,0,.02,1.15,1.15,3.10,'#4b4035',46100,0);
+  for(const [r,h,col] of [[2.4,1.05,'#80603a'],[3.5,1.70,'#45584c'],[4.55,2.35,'#6b4935']]){
+    for(let i=0;i<18;i++){
+      const a=i*TAU/18+now*.00005*(h+1);
+      mapRingSegment(a,r,h,.74,.14,.12,col,46200+Math.round(r*100)+i);
+    }
+  }
+  addWorldEmissive(0,0,3.18,.75,.34,.65,46600);
+  // Perimeter instruments.
+  for(let i=0;i<8;i++){
+    const a=i*TAU/8+.20,f=mapRingFrame(a,7.2);
+    slotBox(f,0,0,.02,.85,.85,.68,i%2?'#34483d':'#514238',46700+i);
+    slotBox(f,0,0,.70,.18,.18,1.15,'#80603a',46800+i);
+  }
+}
+function buildMapLaberinto(){
+  resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
+  const rings=[9.6,7.5,5.4,3.3];
+  for(let ri=0;ri<rings.length;ri++){
+    const r=rings[ri],N=28-ri*2;
+    for(let i=0;i<N;i++){
+      const a=i*TAU/N;
+      const gate=(i+ri*3)%(6-ri===0?3:6)===0;
+      if(gate||mapCut(a,.08+ri*.03))continue;
+      mapRingSegment(a,r,.02,2.05,.48,.82,ri%2?'#37483f':'#514238',47000+ri*100+i);
+    }
+  }
+  // radial gates / blockers
+  for(let i=0;i<8;i++){
+    const a=i*TAU/8+.15,f=mapRingFrame(a,6.45);
+    slotBox(f,0,0,.02,.32,2.25,1.10,i%2?'#6b4935':'#40342d',47600+i,Math.PI/2);
+  }
+  // central goal chamber
+  for(let y=0;y<4;y++)componentModuleBox(0,0,.02+y*.56,1.75-y*.12,1.75-y*.12,.52,y%2?'#80603a':'#34483d',47700+y,Math.PI/4);
+}
+function buildSelectedMap(now){
+  if(CURRENT_MAP==='fortaleza')buildMapFortaleza();
+  else if(CURRENT_MAP==='archivo')buildMapArchivo();
+  else if(CURRENT_MAP==='pozo')buildMapPozo();
+  else if(CURRENT_MAP==='ciudadela')buildMapCiudadela();
+  else if(CURRENT_MAP==='fundicion')buildMapFundicion(now);
+  else if(CURRENT_MAP==='observatorio')buildMapObservatorio(now);
+  else if(CURRENT_MAP==='laberinto')buildMapLaberinto();
+}
 function drawMapGallery(now){
-  // Maps mode intentionally shows only the approved canonical Coliseo shell.
-  // Future maps must plug into this same camera/world contract.
-  if(labBadge)labBadge.textContent='MAPAS · COLISEO CANÓNICO · WORLD CONTRACT V2';
+  if(CURRENT_MAP==='coliseo'){
+    // Canonical Coliseo is the approved legacy shell already painted in the backdrop.
+    resetWorldGeometry();resetWorldEmissive();
+  }else{
+    buildSelectedMap(now);
+    const gpuOK=renderWorldSolidsGL(ctx);
+    if(!gpuOK){
+      const faces=compileWorldFaces();
+      faces.sort(componentFaceComparator);
+      for(const face of faces)renderGeomFace(ctx,face);
+    }
+  }
+  if(labBadge)labBadge.textContent='MAPAS · '+MAP_DEFS[CURRENT_MAP].label.toUpperCase()+' · WORLD CONTRACT V2';
 }
 
 function drawComponentLab(now){
@@ -2825,6 +3067,8 @@ function drawComponentLab(now){
       labBadge.textContent='WORKERS · ANILLO · '+deg.toFixed(0)+'°';
     }else if(COMPONENT_MODE==='effects'){
       labBadge.textContent='EFECTOS · '+FX_CFG.label.toUpperCase()+' · '+deg.toFixed(0)+'°';
+    }else if(COMPONENT_MODE==='maps'){
+      labBadge.textContent='MAPAS · '+MAP_DEFS[CURRENT_MAP].label.toUpperCase()+' · '+deg.toFixed(0)+'°';
     }
   }
 
