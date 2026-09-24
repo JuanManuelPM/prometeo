@@ -573,7 +573,20 @@ function cellAnchor(site,cell,prev){
   let ox=0,oz=0;
   if(prev){
     const dx=cell.gx-prev.gx,dz=cell.gz-prev.gz;
-    ox=dx*BLOCK_STEP*.08;oz=dz*BLOCK_STEP*.08;
+    ox+=dx*BLOCK_STEP*.10;oz+=dz*BLOCK_STEP*.10;
+    const sidePush=PLAYER_R*.70;
+    if(dx!==0){
+      const up=getHeight(site,cell.gx,cell.gz+1)>cell.h;
+      const dn=getHeight(site,cell.gx,cell.gz-1)>cell.h;
+      if(up&&!dn)oz-=sidePush;
+      else if(dn&&!up)oz+=sidePush;
+    }
+    if(dz!==0){
+      const rt=getHeight(site,cell.gx+1,cell.gz)>cell.h;
+      const lf=getHeight(site,cell.gx-1,cell.gz)>cell.h;
+      if(rt&&!lf)ox-=sidePush;
+      else if(lf&&!rt)ox+=sidePush;
+    }
   }
   return {x:w.x+ox,z:w.z+oz};
 }
@@ -912,11 +925,14 @@ function siteTopHeight(site){
 }
 // TASK NOTE: previous replies incorrectly claimed GitHub publication was unavailable.
 // Correct behavior is to retry the connected GitHub writer and publish the requested change directly.
-const BANNER_W=3.45;
-const BANNER_H=2.95;
-const BANNER_POLE_H=3.95;
-const BANNER_POLE_GAP=3.55;
-const TORCH_STAKE_H=1.02;
+const BANNER_W=3.95;
+const BANNER_H=3.25;
+const BANNER_POLE_H=4.25;
+const BANNER_POLE_GAP=3.90;
+const TORCH_STAKE_H=1.08;
+const TUBE_H=2.28;
+const TUBE_R=.18;
+const PLAYER_R=BLOCK_STEP*.22;
 
 function siteBannerAnchor(site,index){
   // Keep the banner inside the arena, a little farther out than its tower.
@@ -928,7 +944,7 @@ function siteBannerAnchor(site,index){
   return {
     x:Math.cos(ang)*r + (-Math.sin(ang))*tangent,
     z:Math.sin(ang)*r + ( Math.cos(ang))*tangent,
-    h:2.55,
+    h:2.85,
     ang
   };
 }
@@ -976,10 +992,54 @@ function fitWorldText(c,text,maxWidth,maxSize,minSize,weight,family){
   c.font=wt+' '+s+'px '+fam;
   return s;
 }
+function drawTorchLight(c,x,z,h,power=1){
+  const p=wp(x,z,h);
+  const r1=scale*(1.8*power),r2=scale*(4.3*power);
+  c.save();c.globalCompositeOperation='screen';
+  let g=c.createRadialGradient(p.x,p.y,0,p.x,p.y,r1);
+  g.addColorStop(0,'rgba(255,220,130,.42)');
+  g.addColorStop(.25,'rgba(255,160,60,.24)');
+  g.addColorStop(.65,'rgba(200,70,28,.10)');
+  g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=g;c.beginPath();c.arc(p.x,p.y,r1,0,TAU);c.fill();
+  g=c.createRadialGradient(p.x,p.y,0,p.x,p.y,r2);
+  g.addColorStop(0,'rgba(255,130,40,.18)');
+  g.addColorStop(.45,'rgba(155,42,20,.10)');
+  g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=g;c.beginPath();c.arc(p.x,p.y,r2,0,TAU);c.fill();
+  c.restore();
+}
+function drawViolentTorchFlame(c,x,z,h,seed,now,power=1){
+  const p=wp(x,z,h);
+  const flick=.88+.22*Math.sin(now*.020+seed*1.7);
+  const H=scale*(1.05*power*flick),W=scale*(.42*power);
+  c.save();c.globalCompositeOperation='screen';
+  c.fillStyle='rgba(255,214,120,.92)';
+  c.beginPath();c.moveTo(p.x,p.y-H*.98);
+  c.quadraticCurveTo(p.x+W*.42,p.y-H*.34,p.x,p.y-H*.08);
+  c.quadraticCurveTo(p.x-W*.42,p.y-H*.34,p.x,p.y-H*.98);c.fill();
+  c.fillStyle='rgba(255,124,46,.70)';
+  c.beginPath();c.moveTo(p.x,p.y-H*1.18);
+  c.quadraticCurveTo(p.x+W*.88,p.y-H*.44,p.x+W*.12,p.y);
+  c.quadraticCurveTo(p.x-W*.74,p.y-H*.28,p.x,p.y-H*1.18);c.fill();
+  for(let i=0;i<3;i++){
+    const side=i-1,sW=W*(.42+.18*i),lift=H*(.55+.12*i);
+    c.fillStyle=i===1?'rgba(255,98,34,.44)':'rgba(214,54,24,.34)';
+    c.beginPath();c.moveTo(p.x,p.y-H*.70);
+    c.quadraticCurveTo(p.x+side*sW*1.7,p.y-lift,p.x+side*sW,p.y-H*.08);
+    c.quadraticCurveTo(p.x+side*sW*.15,p.y-H*.18,p.x,p.y-H*.70);c.fill();
+  }
+  c.restore();
+}
 function drawTorchStakeWorld(c,x,z,h,seed,now,lit=true){
   const bottom=wp(x,z,h),top=wp(x,z,h+TORCH_STAKE_H);
   roughStroke(c,[bottom,top],'rgba(39,23,15,.92)',Math.max(.75,scale*.045),8500+seed,false);
-  if(lit)drawFlame(c,top,Math.floor(now/120)%5,8600+seed);
+  if(lit){
+    c.save();c.fillStyle='rgba(24,15,10,.96)';
+    c.beginPath();c.ellipse(top.x,top.y,scale*.10,scale*.035,0,0,TAU);c.fill();c.restore();
+    drawTorchLight(c,x,z,h+TORCH_STAKE_H,1.15);
+    drawViolentTorchFlame(c,x,z,h+TORCH_STAKE_H,seed,now,1.0);
+  }
 }
 function bannerTorchWorld(site,index,side){
   const base=bannerBasis(site,index);
@@ -1049,25 +1109,17 @@ function drawTowerBanner(c,site,index,now){
   c.moveTo(.68,-.58);c.quadraticCurveTo(.88,.03,.54,.56);
   c.stroke();
 
-  // Text uses world-space font sizes and therefore shrinks/grows with the blocks.
+  // Large title: use as much horizontal cloth space as possible.
   c.globalAlpha=1;c.textAlign='center';c.textBaseline='middle';
   c.fillStyle='#d7ad76';
-  fitWorldText(c,title,BANNER_W*.76,.42,.20,700,'system-ui');
-  c.fillText(title,0,-BANNER_H*.19);
+  fitWorldText(c,title,BANNER_W*.84,.54,.24,700,'system-ui');
+  c.fillText(title,0,-BANNER_H*.16);
 
-  // Progress bar is geometry on the cloth plane, not a screen overlay.
-  const barW=BANNER_W*.74,barH=.22;
-  const bx=-barW*.5,by=.02;
-  c.fillStyle='rgba(18,13,10,.94)';
-  c.fillRect(bx-.035,by-.035,barW+.07,barH+.07);
-  c.fillStyle='rgba(61,45,35,.94)';
-  c.fillRect(bx,by,barW,barH);
-  c.fillStyle=prog.ratio>=1?'#b33a24':'#d77a2d';
-  c.fillRect(bx,by,barW*prog.ratio,barH);
-
-  c.fillStyle='#ab947a';
-  fitWorldText(c,Math.round(prog.ratio*100)+'%',BANNER_W*.42,.28,.14,700,'Georgia');
-  c.fillText(Math.round(prog.ratio*100)+'%',0,BANNER_H*.26);
+  // Keep only the numeric percentage on the banner. The world-space tube is the bar.
+  const pctText=Math.round(prog.ratio*100)+'%';
+  c.fillStyle='#b79d82';
+  fitWorldText(c,pctText,BANNER_W*.50,.34,.16,700,'Georgia');
+  c.fillText(pctText,0,BANNER_H*.24);
 
   c.restore();
   c.restore();
@@ -1079,6 +1131,54 @@ function drawTowerBanner(c,site,index,now){
     drawTorchStakeWorld(c,tl.x,tl.z,tl.h,index*2,now,true);
     drawTorchStakeWorld(c,tr.x,tr.z,tr.h,index*2+1,now,true);
   }
+}
+
+
+function tubeAnchor(site,index){
+  const b=bannerBasis(site,index);
+  const p=bannerWorldPoint(b,BANNER_W*.68,0);
+  return {x:p.x,z:p.z,h:b.a.h};
+}
+function drawProgressTube(c,site,index){
+  if(site.ritual&&site.ritual.phase==='ashes')return;
+  const prog=siteProgress(site);
+  const a=tubeAnchor(site,index);
+  const top=a.h+TUBE_H*.5,bot=a.h-TUBE_H*.5;
+  const pTop=wp(a.x,a.z,top),pBot=wp(a.x,a.z,bot),pMid=wp(a.x,a.z,a.h);
+  const rx=scale*TUBE_R*.95,ry=scale*TUBE_R*.34;
+  const H=Math.max(4,pBot.y-pTop.y);
+
+  c.save();
+  c.fillStyle='rgba(14,11,9,.92)';
+  c.strokeStyle='#231611';
+  c.lineWidth=Math.max(.7,scale*.04);
+  c.beginPath();
+  c.moveTo(pTop.x-rx,pTop.y);
+  c.lineTo(pBot.x-rx,pBot.y);
+  c.ellipse(pBot.x,pBot.y,rx,ry,0,Math.PI,0,true);
+  c.lineTo(pTop.x+rx,pTop.y);
+  c.ellipse(pTop.x,pTop.y,rx,ry,0,0,Math.PI,true);
+  c.closePath();c.fill();c.stroke();
+
+  const fillH=H*prog.ratio,fillTopY=pBot.y-fillH;
+  c.save();
+  c.beginPath();
+  c.moveTo(pTop.x-rx+1,pTop.y);
+  c.lineTo(pBot.x-rx+1,pBot.y);
+  c.ellipse(pBot.x,pBot.y,Math.max(1,rx-1),Math.max(1,ry-1),0,Math.PI,0,true);
+  c.lineTo(pTop.x+rx-1,pTop.y);
+  c.ellipse(pTop.x,pTop.y,Math.max(1,rx-1),Math.max(1,ry-1),0,0,Math.PI,true);
+  c.closePath();c.clip();
+  c.fillStyle=prog.ratio>=1?'#d74623':'#d77a2d';
+  c.fillRect(pBot.x-rx,fillTopY,rx*2,fillH+2);
+  c.fillStyle=prog.ratio>=1?'#ef6a31':'#eaa14a';
+  c.beginPath();c.ellipse(pMid.x,fillTopY,Math.max(1,rx-1),Math.max(1,ry-1),0,0,TAU);c.fill();
+  c.restore();
+
+  c.save();c.globalAlpha=.18;c.fillStyle='#ead7ba';
+  c.fillRect(pTop.x-rx*.36,pTop.y+2,Math.max(1,rx*.22),Math.max(1,H-4));
+  c.restore();
+  c.restore();
 }
 
 const DIGITS={
@@ -1287,33 +1387,54 @@ function drawRitualTorches(c,site,index,now){
     }
   }
 }
+function drawViolentTowerFlame(c,x,z,h,height,seed,now){
+  const p=wp(x,z,h);
+  const flick=.82+.28*Math.sin(now*.018+seed);
+  const H=scale*(.85+height*.34)*flick,W=scale*(.30+height*.08);
+  c.save();c.globalCompositeOperation='screen';
+  c.fillStyle='rgba(255,220,135,.88)';
+  c.beginPath();c.moveTo(p.x,p.y-H*.95);
+  c.quadraticCurveTo(p.x+W*.55,p.y-H*.30,p.x,p.y-H*.05);
+  c.quadraticCurveTo(p.x-W*.55,p.y-H*.30,p.x,p.y-H*.95);c.fill();
+  c.fillStyle='rgba(255,126,44,.64)';
+  c.beginPath();c.moveTo(p.x,p.y-H*1.18);
+  c.quadraticCurveTo(p.x+W*1.35,p.y-H*.42,p.x+W*.14,p.y);
+  c.quadraticCurveTo(p.x-W*1.08,p.y-H*.24,p.x,p.y-H*1.18);c.fill();
+  c.fillStyle='rgba(208,50,22,.30)';
+  c.beginPath();c.moveTo(p.x,p.y-H*1.28);
+  c.quadraticCurveTo(p.x+W*1.85,p.y-H*.56,p.x+W*.36,p.y+.06*H);
+  c.quadraticCurveTo(p.x-W*1.42,p.y-H*.22,p.x,p.y-H*1.28);c.fill();
+  c.restore();
+}
 function drawTowerFire(c,site,index,now){
   if(!site.ritual||site.ritual.phase!=='burning')return;
-  const elapsed=now-site.ritual.started;
-  const p=clamp(elapsed/site.ritual.burnDuration,0,1);
+  const elapsed=now-site.ritual.started,p=clamp(elapsed/site.ritual.burnDuration,0,1);
   const top=Math.max(BLOCK_H,siteTopHeight(site));
-  const flameFrame=Math.floor(now/110)%5;
-
+  const glow=wp(site.x,site.z,top*.45);
   c.save();c.globalCompositeOperation='screen';
-  for(let i=0;i<10;i++){
-    const a=i*TAU/10+hash(index,i)*.30+now*.00016*(i%2?1:-1);
-    const r=.45+hash(i,index)*1.55;
-    const h=(.20+hash(i,77)*.80)*top*(.72+.28*(1-p));
-    const wp0=wp(site.x+Math.cos(a)*r,site.z+Math.sin(a)*r,h);
-    const flick=.82+hash(flameFrame+i,index*13+i)*.30;
-    const g=c.createRadialGradient(wp0.x,wp0.y,0,wp0.x,wp0.y,scale*(.55+.55*flick));
-    g.addColorStop(0,'rgba(239,143,58,'+(.22*flick)+')');
-    g.addColorStop(.42,'rgba(187,52,27,'+(.12*flick)+')');
-    g.addColorStop(1,'rgba(0,0,0,0)');
-    c.fillStyle=g;c.beginPath();c.arc(wp0.x,wp0.y,scale*(.70+.45*flick),0,TAU);c.fill();
-    drawFlame(c,wp0,flameFrame,index*31+i);
-  }
-  c.restore();
+  let g=c.createRadialGradient(glow.x,glow.y,0,glow.x,glow.y,scale*5.2);
+  g.addColorStop(0,'rgba(255,170,72,.32)');
+  g.addColorStop(.28,'rgba(235,92,34,.22)');
+  g.addColorStop(.68,'rgba(90,18,10,.10)');
+  g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=g;c.beginPath();c.arc(glow.x,glow.y,scale*5.2,0,TAU);c.fill();c.restore();
 
-  // Soot veil gets denser as the structure burns.
-  const crown=wp(site.x,site.z,top*.82);
-  c.save();c.globalAlpha=.08+.16*p;
-  inkWash(c,crown.x,crown.y,scale*1.4,scale*.9,'#18110d',1,7000+index,3);
+  for(let i=0;i<22;i++){
+    const a=i*TAU/22+now*.00025*(i%2?1:-1)+hash(index,i)*.42;
+    const r=.20+hash(i,index)*1.28;
+    const fh=(.60+hash(i,77)*1.12)*top*(.90+.34*(1-p));
+    drawViolentTowerFlame(c,site.x+Math.cos(a)*r,site.z+Math.sin(a)*r,.08,fh,i+index*31,now);
+  }
+
+  // Sparse rising smoke wisps only; no opaque black blot.
+  const smoke=wp(site.x,site.z,top*1.05);
+  c.save();c.globalAlpha=.09+.08*p;c.globalCompositeOperation='multiply';
+  for(let i=0;i<5;i++){
+    const ox=(hash(i,index)-.5)*scale*1.5;
+    const oy=(hash(index,i)-.5)*scale*.65-i*scale*.28;
+    c.beginPath();c.ellipse(smoke.x+ox,smoke.y+oy,scale*(.42+.12*i),scale*(.18+.06*i),0,0,TAU);
+    c.fillStyle='rgba(45,29,20,.18)';c.fill();
+  }
   c.restore();
 }
 function drawAshes(c,site,index,now){
@@ -1369,6 +1490,8 @@ function drawDynamic(now){
     if(bb.facing>.035){
       const bpv=bannerProject(bb,0,0);
       items.push({type:'banner',si,depth:bpv.zv,py:bpv.y,h:bb.a.h/BLOCK_H});
+      const ta=tubeAnchor(site,si),tp=wp(ta.x,ta.z,ta.h);
+      items.push({type:'tube',si,depth:tp.zv,py:tp.y,h:ta.h/BLOCK_H});
     }
   }
   for(let i=0;i<players.length;i++){
@@ -1381,6 +1504,7 @@ function drawDynamic(now){
     else if(it.type==='blueprint')drawBlueprint(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
     else if(it.type==='building')drawBuildingBlock(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
     else if(it.type==='banner')drawTowerBanner(ctx,sites[it.si],it.si,now);
+    else if(it.type==='tube')drawProgressTube(ctx,sites[it.si],it.si);
     else drawPlayer(ctx,players[it.i],t,it.i);
   }
 
