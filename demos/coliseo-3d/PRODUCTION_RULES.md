@@ -587,3 +587,392 @@ Applied to the live Coliseo:
 Still valid hard rule:
 
 > Future visual changes must extend these systems instead of adding a new one-off screen-space drawing path.
+
+
+## 20. WORLD architecture canon · V2
+
+The Coliseo is no longer defined as “the whole Prometeo world”.
+
+Canonical separation:
+
+> INSIDE THE COLISEO = transient work of the current run.
+>
+> OUTSIDE THE COLISEO = persistent world built from durable accepted results.
+
+This separation is structural, not decorative.
+
+The current arena may reset, reorganize or completely change when the run changes.
+The exterior must only receive things that survived acceptance/promotion.
+
+This protects the renderer from scheduler/version/methodology changes.
+
+## 21. Universal semantic contract
+
+The renderer must never depend on workflow-specific names.
+
+It consumes only universal entities:
+
+- node
+- edge
+- agent
+- artifact
+- state
+- event
+- metric
+- focus
+
+The renderer must not know what Product-100, Continuity, Planner, Critic, Guide-2 or any future workflow-specific concept means.
+
+Semantic adapters translate backend-specific concepts into the universal contract.
+
+New workflow type = adapter change.
+Not renderer rewrite.
+
+## 22. World Manifest
+
+Long-term input contract:
+
+```json
+{
+  "nodes": [],
+  "edges": [],
+  "agents": [],
+  "artifacts": [],
+  "events": [],
+  "focus": {},
+  "metrics": {}
+}
+```
+
+Renderer responsibility:
+- layout;
+- projection;
+- animation;
+- materials;
+- interaction;
+- visibility;
+- depth.
+
+Adapter responsibility:
+- map canonical Prometeo state into the manifest;
+- assign semantic classes;
+- expose durable evidence/state transitions;
+- never inject visual implementation details.
+
+Workers may modify adapters.
+Workers must not modify camera, physics, layout, navigation or core rendering merely because a new backend concept appeared.
+
+## 23. The arena is a temporal work graph
+
+The Coliseo represents the current run.
+
+Minimum semantics:
+
+- tower/site = current line of work;
+- block = durable unit of state;
+- worker = real execution shell;
+- road = real dependency/transfer relation;
+- work pad = active job position;
+- trophy/artifact = durable output produced by a completed line;
+- gate = real phase/dependency barrier;
+- exterior object = persistent accepted artifact/result.
+
+Worker activity and durable progress are separate dimensions.
+
+> agents show activity.
+>
+> structures show accepted state.
+
+Twenty moving workers with zero accepted state is visually allowed and semantically important.
+
+## 24. Minimal state language before adding complexity
+
+Do not model every backend enum immediately.
+
+Initial universal block lifecycle:
+
+1. INTENT
+   - faint / transparent plan
+
+2. ACTIVE
+   - construction scaffold / active work
+
+3. ACCEPTED
+   - solid structural material
+
+Additional states may be added only when they create a visibly useful distinction.
+
+Candidate, verification, superseded, revise, watchdog and historical states belong in the future material vocabulary, not in the first transport/layout implementation.
+
+## 25. Spatial model
+
+Use the circle intentionally.
+
+### Center
+Current focus / objective.
+
+### Inner causal ring
+Things directly blocking or feeding the focus.
+
+### Middle rings
+Dependencies at increasing causal distance.
+
+### Outer active ring
+Parallel current work not directly on the shortest blocking chain.
+
+### Exterior / darkness
+Persistent accepted outputs, history and future world structures.
+
+### Optional lower/archive layer
+Superseded or historical material.
+
+Distance from center should gradually become a semantic property:
+
+> distance ≈ causal distance / present relevance
+
+Never encode a permanent Product-100-specific geography.
+
+## 26. Dynamic radial layout
+
+Current tower coordinates are allowed to remain while the visual language is still stabilizing.
+
+The next layout system must eventually compute placement from data.
+
+Rules:
+
+- siblings share a sector;
+- closer-to-focus nodes prefer inner slots;
+- dependencies influence orientation;
+- completed current-run branches drift outward;
+- historical nodes exit the active arena;
+- sectors resize when branch count changes;
+- related branches cluster before density becomes unreadable.
+
+Use an invisible polar slot grid:
+
+- inner / middle / outer radial slots;
+- bounded angular slots;
+- collision checks;
+- road reservations;
+- label-safe spacing.
+
+Visual layout may interpolate between old and new positions.
+
+Never teleport a whole graph unless changing run.
+
+## 27. Roads are the next major world primitive
+
+Roads are not decoration.
+
+A road exists only when the manifest contains a real edge.
+
+First implementation vocabulary:
+
+- dim road = relation exists;
+- lit section = transfer ready/recent;
+- moving artifact = result/handoff in transit;
+- broken/closed road = dependency not satisfied;
+- branching road = one result feeds several nodes;
+- converging roads = fan-in.
+
+Do not add arrows, UML labels or ornamental paths.
+
+Road width may later encode meaningful transfer/event volume, but not generic throughput.
+
+## 28. Transportable artifact rule
+
+The current trophy ritual becomes useful infrastructure.
+
+Current canonical sequence can evolve into:
+
+tower completes
+→ ritual
+→ artifact appears
+→ worker carries artifact
+→ artifact travels on a real road
+→ dependent work becomes available
+→ accepted artifact can eventually leave the arena
+
+Initially use ONE generic transportable artifact.
+
+Do not create many trophy/item types yet.
+
+Only after the transport system proves readable should semantic artifact families be introduced.
+
+## 29. Work pads
+
+Workers should not visually equal blocks.
+
+Introduce a small work pad between worker and durable structure.
+
+States:
+
+- READY = empty pad / available blueprint;
+- CLAIMED = worker occupies pad;
+- ACTIVE = tools/material pulse;
+- SUBMIT = result leaves pad;
+- ACCEPTED = block integrates structurally.
+
+This allows many workers around one branch without turning the tower into particle soup.
+
+## 30. Liveness contract
+
+A worker animates because of recent real events, not because membership/session says ACTIVE.
+
+Visual worker rules:
+
+- TAKE recent → moves to assignment;
+- PROGRESS recent → visibly works;
+- heartbeat healthy but no new progress → low-intensity working state;
+- nearing stale tolerance → energy drains;
+- stale → stops;
+- watchdog/requeue → work becomes available again;
+- finite burst complete → worker returns to pool or disappears.
+
+The current energy bars can eventually derive from seconds-since-progress / tolerance rather than a purely simulated drain.
+
+## 31. Critical path
+
+Future high-value layer:
+
+- one restrained luminous route marks the current shortest blocking path to focus;
+- it must derive from graph/dependency data;
+- it must not be a forecast or invented priority;
+- it is a visualization of dependency structure and currently unresolved blockers.
+
+Do not implement this until edges and causal layout are real.
+
+## 32. Persistent exterior
+
+The darkness outside the Coliseo is reserved for durable world state.
+
+Initial rule:
+
+- current-run accepted artifact may exit the arena;
+- once outside, it does not disappear merely because the run changes;
+- the exterior may later contain archives, kingdoms, durable towers, constellations or domain worlds.
+
+The exterior is not a dumping ground for current jobs.
+
+Only durable accepted/persisted things cross the boundary.
+
+## 33. Renderer vs adapters
+
+Stable renderer owns:
+
+- projection;
+- camera;
+- block language;
+- world materials;
+- layout engine;
+- road rendering;
+- work-pad rendering;
+- animation primitives;
+- depth;
+- visibility;
+- interaction;
+- performance budgets;
+- semantic readability gates.
+
+Adapters own:
+
+- mapping backend records to manifest nodes/edges/agents/artifacts/events;
+- workflow-specific names;
+- status normalization;
+- dependency extraction;
+- current focus selection;
+- durable acceptance classification.
+
+Hard rule:
+
+> a new scheduler/workflow concept should require an adapter change, not an HTML visual rewrite.
+
+## 34. Synthetic test worlds before live backend connection
+
+Before replacing manual tower placement, build a deterministic test harness.
+
+Required fixtures:
+
+1. one node / one job;
+2. 20 parallel jobs;
+3. chain A → B → C → D;
+4. eight branches converging into one reducer;
+5. 100 nodes with clustering;
+6. graph radically changes while camera is running;
+7. worker goes stale and job is requeued;
+8. accepted artifact exits arena;
+9. node becomes superseded/history;
+10. run changes entirely.
+
+Every fixture must preserve:
+
+- no overlaps;
+- no roads through towers;
+- workers can route;
+- labels do not explode;
+- camera remains usable;
+- current visual canon still holds.
+
+## 35. Safe migration plan
+
+Do NOT rewrite the current Coliseo in one pass.
+
+Migration must be additive and reversible.
+
+### Phase A · Data boundary
+Create a local `WORLD_MANIFEST_DEMO` adapter from the current existing simulation state.
+The rendered world should look the same.
+
+Success criterion:
+same current scene, but renderer reads normalized entities instead of tower-specific assumptions where practical.
+
+### Phase B · Roads only
+Add dependency edges and world-projected roads between existing towers.
+
+Do not move towers yet.
+
+Success criterion:
+roads look correct from all camera angles and introduce no visual regressions.
+
+### Phase C · Artifact transport
+Reuse the existing trophy ritual.
+After completion, move one generic artifact along a road to another tower.
+
+Do not change block materials yet.
+
+### Phase D · Work pads
+Separate worker assignment animation from structural block integration.
+
+### Phase E · Dynamic layout sandbox
+Implement radial/polar layout only in synthetic fixtures.
+Do not turn it on in the live canonical scene yet.
+
+### Phase F · Live dynamic layout
+Enable calculated sectors/rings only after fixture tests pass.
+
+### Phase G · Persistent exterior
+Allow accepted artifacts to cross into the outer darkness.
+
+## 36. Immediate next implementation
+
+The safest ambitious next feature is:
+
+> dependency roads between the current existing towers, using the current geometry and current tower positions.
+
+Why:
+
+- additive;
+- visually useful from every camera angle;
+- does not replace the working tower art;
+- creates the first reusable edge primitive;
+- prepares artifact transport;
+- prepares causal layout;
+- can be turned off without affecting construction;
+- proves the manifest/edge model before a larger architectural migration.
+
+Do not move towers in the same patch.
+Do not change the ritual in the same patch.
+Do not change worker behavior in the same patch.
+Do not connect live Prometeo state in the same patch.
+
+First prove one world primitive at a time.
