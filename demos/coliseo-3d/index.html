@@ -14,12 +14,12 @@
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050504;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 body{overscroll-behavior:none}
 #wrap{position:fixed;inset:0;overflow:hidden;background:#050504}
-#scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;filter:contrast(1.13) saturate(.78) brightness(.92)}
+#scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;filter:contrast(1.08) saturate(.82) brightness(.89)}
 #veil{position:absolute;inset:-3%;pointer-events:none;background:
  radial-gradient(ellipse at 50% 53%,transparent 31%,rgba(0,0,0,.17) 57%,rgba(0,0,0,.88) 100%),
  repeating-linear-gradient(91deg,rgba(224,184,134,.012) 0 1px,transparent 1px 5px);
  box-shadow:inset 0 0 12vw rgba(0,0,0,.68);mix-blend-mode:multiply}
-#grain{position:absolute;inset:-5%;pointer-events:none;opacity:.18;mix-blend-mode:screen;
+#grain{position:absolute;inset:-5%;pointer-events:none;opacity:.065;mix-blend-mode:screen;
  background:
  radial-gradient(circle at 11% 23%,rgba(238,199,146,.16) 0 .6px,transparent .8px),
  radial-gradient(circle at 67% 41%,rgba(238,199,146,.10) 0 .7px,transparent .9px),
@@ -34,8 +34,8 @@ body{overscroll-behavior:none}
  mix-blend-mode:soft-light}
 #exposure{position:absolute;inset:0;pointer-events:none;z-index:4;
  background:radial-gradient(circle at 52% 56%,rgba(228,143,71,.055),transparent 42%);
- mix-blend-mode:screen;animation:exposurePulse 5.4s steps(4,end) infinite}
-@keyframes exposurePulse{0%,100%{opacity:.58}25%{opacity:.72}52%{opacity:.50}78%{opacity:.66}}
+ mix-blend-mode:screen;opacity:.46}
+25%{opacity:.72}52%{opacity:.50}78%{opacity:.66}}
 .ui{position:fixed;inset:0;pointer-events:none;z-index:5}
 .brand{position:absolute;left:max(14px,env(safe-area-inset-left));top:max(14px,env(safe-area-inset-top));display:flex;align-items:center;gap:10px;text-shadow:0 1px 0 #000}
 .mark{width:32px;height:32px;border-radius:50%;border:1px solid rgba(213,163,105,.22);display:grid;place-items:center;background:rgba(6,5,4,.70);font:900 12px/1 system-ui;color:#d28a4b}
@@ -65,6 +65,8 @@ const canvas=document.getElementById('scene');
 const ctx=canvas.getContext('2d',{alpha:false});
 const staticCanvas=document.createElement('canvas');
 const sctx=staticCanvas.getContext('2d',{alpha:false});
+const fxCanvas=document.createElement('canvas');
+const fxctx=fxCanvas.getContext('2d',{alpha:false});
 const TAU=Math.PI*2;
 let IW=640,IH=360,W=innerWidth,H=innerHeight,scale=1,cx=320,cy=220;
 let yaw=-.48,zoom=1,staticDirty=true,last=0,visible=true;
@@ -156,7 +158,7 @@ const players=playerSeed.map((color,i)=>{
   return {
     color,x:spawn.x,z:spawn.z,h:0,jump:0,
     size:.39+(i%3)*.040,speed:1.48+hash(i,355)*.46,
-    siteIndex,wait:hash(i,356)*.6,
+    siteIndex,wait:hash(i,356)*.6,energy:1,
     task:null,path:[],segment:null,lastX:spawn.x,lastZ:spawn.z,lastH:0
   };
 });
@@ -170,7 +172,7 @@ function resize(){
   IH=360;IW=Math.round(IH*aspect);
   if(IW>720){IW=720;IH=Math.round(IW/aspect)}
   if(IW<300){IW=300;IH=Math.round(IW/aspect)}
-  canvas.width=staticCanvas.width=IW;canvas.height=staticCanvas.height=IH;
+  canvas.width=staticCanvas.width=fxCanvas.width=IW;canvas.height=staticCanvas.height=fxCanvas.height=IH;
   canvas.style.width=W+'px';canvas.style.height=H+'px';
   scale=Math.min(IW/37,IH/22.5)*zoom;cx=IW*.5;cy=IH*(W<620?.63:.61);
   staticDirty=true;
@@ -702,6 +704,13 @@ function updatePlayers(dt,now){
   for(let i=0;i<players.length;i++){
     const pl=players[i],site=sites[pl.siteIndex];
     pl.lastX=pl.x;pl.lastZ=pl.z;pl.lastH=pl.h;
+    const moving=!!pl.segment||pl.path.length>0;
+    const labor=!!pl.task&&(pl.task.type==='build'||pl.task.type==='design');
+    const ritualBusy=!!site.ritual&&site.ritual.phase!=='complete';
+    const active=moving||labor||ritualBusy;
+    const delta=active?-(labor?.022:.013):.040;
+    pl.energy=clamp((pl.energy==null?1:pl.energy)+dt*delta,.055,1);
+    if(pl.wait>0)pl.energy=clamp(pl.energy+dt*.020,.055,1);
     if(updateRitualPlayer(pl,i,site,dt,now))continue;
     if(pl.wait>0){pl.wait=Math.max(0,pl.wait-dt);updateMovement(pl,dt);continue}
     if(!pl.task&&!pl.path.length&&!pl.segment)assignTask(pl,i);
@@ -891,6 +900,22 @@ function drawPlayer(c,pl,t,index){
   c.lineWidth=Math.max(.6,R*.035);c.beginPath();
   c.arc(p.x,p.y,R*(1.06+.015*edgeFrame),(.7+edgeFrame*.9),2.15+edgeFrame*.75);c.stroke();c.restore();
 
+  // 2D energy cell, but drawn with the same ragged print language as the blocks.
+  const e=clamp(pl.energy==null?1:pl.energy,0,1);
+  const bw=R*1.62,bh=Math.max(2.0,R*.20),by=p.y-R*1.46;
+  const framePts=[
+    {x:p.x-bw*.54,y:by-bh*.62},{x:p.x+bw*.54,y:by-bh*.58},
+    {x:p.x+bw*.52,y:by+bh*.58},{x:p.x-bw*.55,y:by+bh*.62}
+  ];
+  fillRagged(c,framePts,'#090705',C.ink,Math.max(.65,R*.055),1080+index);
+  const pad=Math.max(1,R*.07),ix=p.x-bw*.46,iw=bw*.92,iy=by-bh*.31,ih=bh*.62;
+  c.save();c.beginPath();c.rect(ix,iy,iw*e,ih);c.clip();
+  const ec=e>.58?shade('#506657',10):(e>.28?C.ochre:C.red);
+  c.fillStyle=ec;c.fillRect(ix,iy,iw,ih);
+  c.globalAlpha=.25;c.fillStyle='#d8b27a';c.fillRect(ix,iy,iw,Math.max(.7,ih*.22));
+  c.restore();
+  c.save();c.globalAlpha=.20;roughStroke(c,framePts,shade(pl.color,26),Math.max(.55,R*.040),1110+index+edgeFrame,true);c.restore();
+
   if(pl.task&&(pl.task.type==='build'||pl.task.type==='design')){
     const site=sites[pl.siteIndex],cand=pl.task.cand,target=worldCell(site,cand.gx,cand.gz);
     const tp=wp(target.x,target.z,cand.y*BLOCK_H+.03);
@@ -1031,124 +1056,108 @@ function drawViolentTorchFlame(c,x,z,h,seed,now,power=1){
   c.restore();
 }
 function drawTorchStakeWorld(c,x,z,h,seed,now,lit=true){
-  const bottom=wp(x,z,h),top=wp(x,z,h+TORCH_STAKE_H);
-  roughStroke(c,[bottom,top],'rgba(39,23,15,.92)',Math.max(.75,scale*.045),8500+seed,false);
+  const bottom=wp(x,z,h),mid=wp(x,z,h+TORCH_STAKE_H*.72),top=wp(x,z,h+TORCH_STAKE_H);
+  const w=scale*.095;
+  const shaft=[
+    {x:bottom.x-w*.58,y:bottom.y},{x:bottom.x+w*.50,y:bottom.y},
+    {x:mid.x+w*.36,y:mid.y},{x:mid.x-w*.42,y:mid.y}
+  ];
+  fillRagged(c,shaft,seed%2?'#5f432e':'#4a392b','#160d09',Math.max(.65,scale*.035),8500+seed);
+  const base=[
+    {x:bottom.x-scale*.16,y:bottom.y+scale*.05},{x:bottom.x+scale*.16,y:bottom.y+scale*.05},
+    {x:bottom.x+scale*.12,y:bottom.y-scale*.05},{x:bottom.x-scale*.12,y:bottom.y-scale*.05}
+  ];
+  fillRagged(c,base,'#3c2a20','#130b08',Math.max(.6,scale*.03),8530+seed);
+  c.save();c.fillStyle='#21140e';
+  c.beginPath();c.ellipse(top.x,top.y,scale*.14,scale*.050,0,0,TAU);c.fill();c.restore();
   if(lit){
-    c.save();c.fillStyle='rgba(24,15,10,.96)';
-    c.beginPath();c.ellipse(top.x,top.y,scale*.10,scale*.035,0,0,TAU);c.fill();c.restore();
-    drawTorchLight(c,x,z,h+TORCH_STAKE_H,1.15);
-    drawViolentTorchFlame(c,x,z,h+TORCH_STAKE_H,seed,now,1.0);
+    drawTorchLight(c,x,z,h+TORCH_STAKE_H,1.20);
+    drawViolentTorchFlame(c,x,z,h+TORCH_STAKE_H,seed,now,1.08);
   }
 }
 function bannerTorchWorld(site,index,side){
   const base=bannerBasis(site,index);
-  const localX=side*BANNER_W*.32;
-  const p=bannerWorldPoint(base,localX,-BANNER_H*.5-.74);
-  return {x:p.x,z:p.z,h:Math.max(.06,p.h)};
+  const localX=side*BANNER_POLE_GAP*.48;
+  const p=bannerWorldPoint(base,localX,0);
+  return {x:p.x,z:p.z,h:.055};
 }
 
 function drawTowerBanner(c,site,index,now){
   if(site.ritual&&['trophy_wait','trophy_carry','trophy_drop','complete'].includes(site.ritual.phase))return;
-
   const base=bannerBasis(site,index);
-
-  // Same back-face rule as the cubes: the reverse of the cloth simply does not exist visually.
   if(base.facing<=.035)return;
-
   const center=bannerProject(base,0,0);
-  if(center.x<-180||center.x>IW+180||center.y<-140||center.y>IH+180)return;
+  if(center.x<-180||center.x>IW+180||center.y<-170||center.y>IH+190)return;
 
-  const title=TOWER_NAMES[index%TOWER_NAMES.length];
-  const prog=siteProgress(site);
+  const title=TOWER_NAMES[index%TOWER_NAMES.length],prog=siteProgress(site);
+  const poleColor=shade(site.baseColor,-42),clothDark=shade(site.baseColor,-54),clothMid=shade(site.baseColor,-28);
+  c.save();bannerAffine(c,base);
 
-  // Everything below is WORLD geometry. Perspective, foreshortening and disappearance
-  // come from the same projection/culling logic as the blocks.
-  c.save();
-  bannerAffine(c,base);
-
-  // Poles are world-space vertical members.
-  c.strokeStyle='rgba(24,14,10,.92)';
-  c.lineWidth=.095;
-  c.beginPath();
-  c.moveTo(-BANNER_POLE_GAP*.5,-BANNER_POLE_H*.5);
-  c.lineTo(-BANNER_POLE_GAP*.5, BANNER_POLE_H*.5);
-  c.moveTo( BANNER_POLE_GAP*.5,-BANNER_POLE_H*.5);
-  c.lineTo( BANNER_POLE_GAP*.5, BANNER_POLE_H*.5);
-  c.stroke();
-
-  c.lineWidth=.065;
-  c.beginPath();
-  c.moveTo(-BANNER_POLE_GAP*.5,-BANNER_H*.49);
-  c.lineTo( BANNER_POLE_GAP*.5,-BANNER_H*.49);
-  c.moveTo(-BANNER_POLE_GAP*.5, BANNER_H*.49);
-  c.lineTo( BANNER_POLE_GAP*.5, BANNER_H*.49);
-  c.stroke();
-
-  // Tiny roof-style pennants at the top of each pole.
-  const poleTop=BANNER_POLE_H*.5;
+  // Poles are now chunky printed members, closer to the block language.
+  const pw=.18,top=BANNER_POLE_H*.5,bot=-BANNER_POLE_H*.5;
   for(const side of [-1,1]){
     const x=side*BANNER_POLE_GAP*.5;
-    const dir=side<0?1:-1;
-    const flag=[
-      {x,y:poleTop-.05},
-      {x:x+dir*.68,y:poleTop-.18},
-      {x:x+dir*.52,y:poleTop-.50},
-      {x,y:poleTop-.38}
-    ];
-    fillRagged(c,flag,index%2?'#6f2b1d':'#8e3423','#1a0d09',.045,9150+index*3+(side>0?1:0));
+    const front=[{x:x-pw*.55,y:bot},{x:x+pw*.48,y:bot},{x:x+pw*.44,y:top},{x:x-pw*.50,y:top}];
+    fillRagged(c,front,poleColor,'#140b08',.055,9100+index*7+(side>0?1:0));
+    const rim=[{x:x+pw*.24,y:bot},{x:x+pw*.48,y:bot},{x:x+pw*.44,y:top},{x:x+pw*.18,y:top}];
+    fillRagged(c,rim,shade(poleColor,-22),null,0,9120+index*7+(side>0?1:0));
+    // block-like cap instead of a flag
+    const cap=[{x:x-.22,y:top-.08},{x:x+.22,y:top-.08},{x:x+.18,y:top+.18},{x:x-.17,y:top+.18}];
+    fillRagged(c,cap,shade(site.baseColor,-20),'#140b08',.045,9140+index*7+(side>0?1:0));
   }
 
-  // Fabric is also world geometry.
   const cloth=[
-    {x:-BANNER_W*.49,y:-BANNER_H*.45},
-    {x: BANNER_W*.49,y:-BANNER_H*.44},
-    {x: BANNER_W*.47,y: BANNER_H*.43},
-    {x:-BANNER_W*.48,y: BANNER_H*.44}
+    {x:-BANNER_W*.49,y:-BANNER_H*.45},{x:BANNER_W*.49,y:-BANNER_H*.44},
+    {x:BANNER_W*.47,y:BANNER_H*.43},{x:-BANNER_W*.48,y:BANNER_H*.44}
   ];
-  path(c,cloth,true);
-  c.fillStyle='rgba(9,7,6,.95)';
-  c.fill();
-  c.strokeStyle='#1a0d09';c.lineWidth=.065;c.stroke();
+  fillRagged(c,cloth,clothDark,'#140b08',.075,9200+index);
 
-  // Print registration and folds are local to the same plane.
-  c.save();c.globalAlpha=.23;c.translate(.045,-.03);
-  path(c,cloth,true);c.strokeStyle='#8a301f';c.lineWidth=.045;c.stroke();c.restore();
-
+  // Broad facets echo block faces instead of decorative fabric lines.
   c.save();path(c,cloth,true);c.clip();
-  c.globalAlpha=.14;c.strokeStyle='#c36f38';c.lineWidth=.035;
-  c.beginPath();
-  c.moveTo(-.86,-.62);c.quadraticCurveTo(-.45,-.03,-.62,.58);
-  c.moveTo(-.12,-.64);c.quadraticCurveTo(.18,.02,-.05,.60);
-  c.moveTo(.68,-.58);c.quadraticCurveTo(.88,.03,.54,.56);
-  c.stroke();
+  const leftFacet=[
+    {x:-BANNER_W*.48,y:-BANNER_H*.43},{x:-BANNER_W*.02,y:-BANNER_H*.42},
+    {x:-BANNER_W*.18,y:BANNER_H*.43},{x:-BANNER_W*.48,y:BANNER_H*.44}
+  ];
+  fillRagged(c,leftFacet,shade(clothMid,-6),null,0,9220+index);
+  const rightFacet=[
+    {x:BANNER_W*.05,y:-BANNER_H*.43},{x:BANNER_W*.49,y:-BANNER_H*.42},
+    {x:BANNER_W*.47,y:BANNER_H*.43},{x:BANNER_W*.19,y:BANNER_H*.43}
+  ];
+  fillRagged(c,rightFacet,shade(clothMid,-22),null,0,9230+index);
+  c.globalAlpha=.20;
+  for(let k=0;k<8;k++){
+    const y=-BANNER_H*.36+k*BANNER_H*.10;
+    roughStroke(c,[{x:-BANNER_W*.43,y},{x:BANNER_W*.43,y:y+(hash(k,index)-.5)*.08}],
+      k%3===0?C.ochre:'#24150f',.026,9250+index*20+k,false);
+  }
+  c.restore();
 
-  // Large title: use as much horizontal cloth space as possible.
-  c.globalAlpha=1;c.textAlign='center';c.textBaseline='middle';
-  c.save();
+  // Printed title: broad, worn, and tied to the tower palette.
   c.textAlign='center';c.textBaseline='middle';
-  fitWorldText(c,title,BANNER_W*.94,.74,.34,800,'"Palatino Linotype",Georgia,serif');
-  c.globalAlpha=.32;c.fillStyle='#8b2d1f';c.fillText(title,.055,-BANNER_H*.16+.035);
-  c.globalAlpha=1;c.fillStyle='#e0bd83';c.fillText(title,0,-BANNER_H*.16);
-  c.restore();
+  fitWorldText(c,title,BANNER_W*.92,.72,.31,900,'Georgia,serif');
+  c.globalAlpha=.48;c.fillStyle='#120b08';c.fillText(title,.055,-BANNER_H*.14+.045);
+  c.globalAlpha=1;c.fillStyle=shade(site.baseColor,76);c.fillText(title,0,-BANNER_H*.14);
+  c.globalAlpha=.28;c.fillStyle=C.ochre;c.fillText(title,-.035,-BANNER_H*.14-.025);
 
-  // Keep only the numeric percentage on the banner. The world-space tube is the bar.
   const pctText=Math.round(prog.ratio*100)+'%';
-  c.fillStyle='#b79d82';
-  fitWorldText(c,pctText,BANNER_W*.54,.40,.19,700,'Georgia');
-  c.fillText(pctText,0,BANNER_H*.24);
+  fitWorldText(c,pctText,BANNER_W*.44,.38,.18,800,'Georgia,serif');
+  c.globalAlpha=.88;c.fillStyle='#b99b72';c.fillText(pctText,0,BANNER_H*.25);
+
+  // Four corner studs make the cloth read like the other constructed props.
+  for(const sx of [-1,1])for(const sy of [-1,1]){
+    c.fillStyle=shade(site.baseColor,18);
+    c.fillRect(sx*BANNER_W*.43-.055,sy*BANNER_H*.38-.055,.11,.11);
+  }
 
   c.restore();
-  c.restore();
 
-  const r=site.ritual;
-  const torchesStillHere=!r || r.phase==='fetching';
+  const r=site.ritual,torchesStillHere=!r||r.phase==='fetching';
   if(torchesStillHere){
     const tl=bannerTorchWorld(site,index,-1),tr=bannerTorchWorld(site,index,1);
     drawTorchStakeWorld(c,tl.x,tl.z,tl.h,index*2,now,true);
     drawTorchStakeWorld(c,tr.x,tr.z,tr.h,index*2+1,now,true);
   }
 }
-
 
 function tubeAnchor(site,index){
   const b=bannerBasis(site,index);
@@ -1197,7 +1206,7 @@ function drawProgressTube(c,site,index){
   c.restore();
 }
 
-const LAST_UPDATE_MS=Date.parse('2026-09-24T04:27:45.547Z');
+const LAST_UPDATE_MS=Date.parse('2026-09-24T04:41:11.036Z');
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -1730,9 +1739,46 @@ function drawWindowEyes(c,now){
   c.restore();
 }
 
+
+function drawAnalogSignal(c,now){
+  const f=Math.floor(now/92);
+  fxctx.setTransform(1,0,0,1,0,0);
+  fxctx.drawImage(canvas,0,0);
+
+  // Source-derived chromatic registration, so bright structures bleed from themselves.
+  c.save();c.globalCompositeOperation='screen';c.globalAlpha=.030;
+  c.drawImage(fxCanvas,1,0);
+  c.globalAlpha=.018;c.drawImage(fxCanvas,-1,0);
+  c.restore();
+
+  // A few unstable horizontal bands, like gate/signal weave rather than scanline wallpaper.
+  c.save();c.globalAlpha=.055;
+  for(let i=0;i<3;i++){
+    const y=Math.floor(hash(f,i+41)*IH),h=1+Math.floor(hash(i,f+19)*3);
+    const dx=(hash(f+7,i+91)-.5)*2.2;
+    c.drawImage(fxCanvas,0,y,IW,h,dx,y,IW,h);
+  }
+  c.restore();
+
+  // Sparse temporal grain. It changes with the scene frame and never becomes a fixed texture layer.
+  c.save();
+  for(let i=0;i<92;i++){
+    const x=Math.floor(hash(f*97+i,701)*IW),y=Math.floor(hash(i+37,f*53)*IH);
+    const light=hash(i,f+719)>.56;
+    c.globalCompositeOperation=light?'screen':'multiply';
+    c.globalAlpha=.018+hash(i+5,f)*.030;
+    c.fillStyle=light?'#d3aa78':'#120b08';
+    const sz=hash(i,f+3)>.84?2:1;
+    c.fillRect(x,y,sz,1);
+  }
+  c.restore();
+}
+
 function drawDynamic(now){
   ctx.fillStyle=C.black;ctx.fillRect(0,0,IW,IH);
-  ctx.drawImage(staticCanvas,0,0);
+  const weaveFrame=Math.floor(now/125);
+  const weaveX=(hash(weaveFrame,811)-.5)*.70,weaveY=(hash(weaveFrame,827)-.5)*.42;
+  ctx.drawImage(staticCanvas,weaveX,weaveY);
   drawClock(ctx,now);
   drawGlobalBurnProgress(ctx,now);
   drawWindowEyes(ctx,now);
@@ -1816,6 +1862,8 @@ function drawDynamic(now){
   ctx.save();ctx.globalAlpha=.055;ctx.fillStyle='#9b5e37';
   blob(ctx,cx,cy+scale*1.85,scale*11.2,scale*2.85,'#9b5e37',null,0,990,.07,30);
   ctx.restore();
+
+  drawAnalogSignal(ctx,now);
 }
 function frame(now){
   if(!visible){requestAnimationFrame(frame);return}
