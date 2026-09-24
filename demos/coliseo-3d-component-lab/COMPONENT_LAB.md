@@ -463,3 +463,78 @@ Maps remains inside Component Lab.
 The currently approved map is the existing canonical Coliseo, embedded without its duplicate outer UI.
 
 Future maps should join this same selector rather than creating separate standalone labs.
+
+
+## V5 · Shared renderer enforcement
+
+### Correction
+
+Earlier documentation overstated renderer unification.
+
+Before V5:
+- Structures used the WebGL depth renderer.
+- Effects still built physical signs/pedestals with older 2D cuboid routines.
+- Fire was a screen-space overlay.
+- Worker props also used older 2D cuboids.
+- Maps intentionally embedded the legacy canonical Coliseo.
+
+That meant the claim that every Component Lab physical object used the same renderer was not yet true.
+
+### V5 contract
+
+All **new Component Lab physical solids** now use:
+
+`componentModuleBox -> addWorldBox -> renderWorldSolidsGL`
+
+This covers:
+- Structures;
+- effect sign posts;
+- effect sign panels;
+- torch pedestals;
+- burning fuel blocks;
+- worker physical props.
+
+Runtime contract marker:
+
+`prometeo.component_renderer/v1`
+
+### Fire / emissive rule
+
+Fire is no longer drawn as a 2D overlay in the Effects screen.
+
+Emissive flames:
+- exist at world coordinates;
+- use the same camera projection;
+- are drawn into the same WebGL depth buffer after opaque solids;
+- use blending with depth writes disabled;
+- are therefore hidden automatically by walls/solid geometry in front of them.
+
+This prevents the repeated class of bug where fire or a bar visually leaked through a nearer wall.
+
+### Mobile landscape shell
+
+In portrait the **entire logical application** rotates as one landscape surface:
+- world;
+- UI;
+- picker;
+- badges.
+
+The logical viewport dimensions are still width=physical-height and height=physical-width.
+
+The previous V4 split, where only the world rotated and the UI stayed portrait, has been removed.
+
+### Stable effect selection
+
+Changing an effect preset no longer calls resize or resets camera framing.
+
+Only the shader configuration changes.
+
+### Legacy map exception
+
+Maps still embeds the exact canonical Coliseo implementation.
+
+It is deliberately preserved because that renderer is already visually approved.
+
+Do not describe it as using `prometeo.component_renderer/v1` yet.
+
+Future newly-authored maps should use the shared Component renderer unless/until the canonical Coliseo is explicitly migrated.
