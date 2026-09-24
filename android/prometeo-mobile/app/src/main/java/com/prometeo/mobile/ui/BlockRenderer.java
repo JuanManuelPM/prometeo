@@ -33,6 +33,7 @@ public final class BlockRenderer {
         void onPlayVoice(JSONObject voice);
         void onApplyStrategic(String epochId, List<String> optionIds);
         void onRetryPendingAction();
+        void onOpenUpdate(JSONObject update);
     }
 
     private final Activity activity;
@@ -102,6 +103,9 @@ public final class BlockRenderer {
                     break;
                 case "strategic_choices":
                     renderStrategic(home.optJSONObject("strategic"), actionsEnabled);
+                    break;
+                case "app_update":
+                    renderUpdate(snapshot.optJSONObject("update"), snapshot);
                     break;
                 default:
                     // Forward compatibility: unknown native blocks are ignored safely.
@@ -336,6 +340,28 @@ public final class BlockRenderer {
         LinearLayout.LayoutParams applyLp = buttonParams();
         applyLp.setMargins(0, dp(10), 0, 0);
         root.addView(apply, applyLp);
+        separator();
+    }
+
+    private void renderUpdate(JSONObject update, JSONObject snapshot) {
+        if (update == null) return;
+        int recommended = snapshot.optInt("recommended_app_version_code", 0);
+        String url = update.optString("update_url", "");
+        if (recommended <= BuildConfig.VERSION_CODE || url.isEmpty()) return;
+
+        sectionLabel("ACTUALIZACIÓN");
+
+        String version = update.optString("version_name", "");
+        String label = version.isEmpty()
+                ? "Hay una versión nueva disponible."
+                : "Versión " + version + " disponible.";
+        root.addView(body(label));
+
+        Button open = actionButton("ABRIR ACTUALIZACIÓN FIRMADA");
+        open.setOnClickListener(v -> host.onOpenUpdate(update));
+        LinearLayout.LayoutParams lp = buttonParams();
+        lp.setMargins(0, dp(12), 0, 0);
+        root.addView(open, lp);
         separator();
     }
 
