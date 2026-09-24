@@ -52,7 +52,7 @@ body{overscroll-behavior:none}
 </div>
 <div class="ui">
   <div class="brand"><div class="mark">III</div><div class="copy"><b>Arena</b><span>collage · campo amplio · construcción</span></div></div>
-  <div class="badge">12 constructores · rutas + escaleras + reloj</div>
+  <div class="badge">12 constructores · blueprint → obra · reloj</div>
   <div class="help">arrastrá para rotar · pellizcá para acercar</div>
 </div>
 <script>
@@ -119,7 +119,7 @@ function newSite(i){
   const targets=makePattern(i+1);
   return {
     x:Math.cos(ang)*r,z:Math.sin(ang)*r,targets,
-    heights:new Map(),blocks:[],reservations:new Map(),
+    heights:new Map(),blocks:[],blueprints:new Map(),reservations:new Map(),
     baseColor:BLOCK_COLORS[Math.floor(hash(i,303)*BLOCK_COLORS.length)],
     lastBuilt:-9999
   };
@@ -470,14 +470,16 @@ function candidateList(site){
     const h=getHeight(site,gx,gz);
     if(h>=targetH)continue;
     const rk=gx+','+gz+','+h;
-    if(site.reservations.has(rk))continue;
+    if(site.blueprints.has(rk)||site.reservations.has('block:'+rk))continue;
 
     for(const d of DIR4){
       const sx=gx+d[0],sz=gz+d[1];
       if(!insideNav(sx,sz))continue;
       if(getHeight(site,sx,sz)!==h)continue;
       if(!reach.has(key2(sx,sz)))continue;
-      const cand={gx,gz,y:h,standGx:sx,standGz:sz,key:rk,targetH};
+      const standKey=sx+','+sz+','+h;
+      if(site.reservations.has('stand:'+standKey))continue;
+      const cand={gx,gz,y:h,standGx:sx,standGz:sz,key:rk,standKey,targetH};
       if(hasExitAfterPlacement(site,cand))out.push(cand);
     }
   }
@@ -536,8 +538,42 @@ function pathToWorld(site,cells){
     return {x:w.x,z:w.z,h:cell.h*BLOCK_H,gx:cell.gx,gz:cell.gz};
   });
 }
+function reserveCandidate(site,cand,owner){
+  site.reservations.set('block:'+cand.key,owner);
+  site.reservations.set('stand:'+cand.standKey,owner);
+}
+function releaseCandidate(site,cand){
+  site.reservations.delete('block:'+cand.key);
+  site.reservations.delete('stand:'+cand.standKey);
+}
+function readyBlueprints(site,index){
+  const list=[];
+  for(const [k,bp] of site.blueprints){
+    if(bp.status!=='ready'||bp.designer===index||bp.builder!=null)continue;
+    if(!validateTask(site,bp.cand))continue;
+    list.push({key:k,bp});
+  }
+  list.sort((a,b)=>b.bp.cand.y-a.bp.cand.y || a.bp.createdAt-b.bp.createdAt);
+  return list;
+}
 function assignTask(pl,index){
   const site=sites[pl.siteIndex];
+
+  // A different worker must turn a finished blueprint into a real block.
+  const ready=readyBlueprints(site,index);
+  if(ready.length){
+    const chosen=ready[0],bp=chosen.bp;
+    bp.builder=index;bp.status='claimed';
+    pl.task={type:'build',bpKey:chosen.key,cand:bp.cand,started:0,duration:1050+hash(index,bp.cand.y+91)*650};
+    const start=nearestNavCell(site,pl);
+    const route=findPath(site,start,{gx:bp.cand.standGx,gz:bp.cand.standGz});
+    pl.path=pathToWorld(site,route);
+    if(!pl.path.length&&(start.gx!==bp.cand.standGx||start.gz!==bp.cand.standGz)){
+      bp.builder=null;bp.status='ready';pl.task=null;pl.wait=.28;
+    }
+    return;
+  }
+
   if(buildComplete(site)){
     if(!pl.path.length&&!pl.segment){
       const start=nearestNavCell(site,pl);
@@ -551,15 +587,18 @@ function assignTask(pl,index){
     }
     return;
   }
+
+  // Otherwise the worker is a drafter. It reserves a block AND the tread needed
+  // to build it so another structure cannot erase the staircase while the blueprint waits.
   const cand=pickCandidate(site,index);
-  if(!cand){pl.wait=.45;return}
-  site.reservations.set(cand.key,index);
-  pl.task={type:'build',cand};
+  if(!cand){pl.wait=.40;return}
+  reserveCandidate(site,cand,'design:'+index);
+  pl.task={type:'design',cand,started:0,duration:430+hash(index,cand.y+44)*320};
   const start=nearestNavCell(site,pl);
   const route=findPath(site,start,{gx:cand.standGx,gz:cand.standGz});
   pl.path=pathToWorld(site,route);
-  if(!pl.path.length && (start.gx!==cand.standGx||start.gz!==cand.standGz)){
-    site.reservations.delete(cand.key);pl.task=null;pl.wait=.35;
+  if(!pl.path.length&&(start.gx!==cand.standGx||start.gz!==cand.standGz)){
+    releaseCandidate(site,cand);pl.task=null;pl.wait=.28;
   }
 }
 function startNextSegment(pl){
@@ -591,10 +630,9 @@ function validateTask(site,cand){
          getHeight(site,cand.standGx,cand.standGz)===cand.y &&
          hasExitAfterPlacement(site,cand);
 }
-function placeTaskBlock(site,cand,playerIndex,now){
+function placeTaskBlock(site,cand,color,now){
   if(!validateTask(site,cand))return false;
-  const ci=Math.floor(hash(playerIndex*37+cand.gx*13+cand.y,cand.gz*23+cand.y)*BLOCK_COLORS.length);
-  site.blocks.push({gx:cand.gx,gz:cand.gz,y:cand.y,color:BLOCK_COLORS[ci],born:now});
+  site.blocks.push({gx:cand.gx,gz:cand.gz,y:cand.y,color,born:-9999});
   setHeight(site,cand.gx,cand.gz,cand.y+1);
   site.lastBuilt=now;
   return true;
@@ -607,41 +645,90 @@ function updatePlayers(dt,now){
     if(!pl.task&&!pl.path.length&&!pl.segment)assignTask(pl,i);
     updateMovement(pl,dt);
 
-    if(pl.task&&pl.task.type==='build'&&!pl.path.length&&!pl.segment){
+    if(!pl.task||pl.path.length||pl.segment)continue;
+
+    if(pl.task.type==='design'){
       const cand=pl.task.cand;
-      placeTaskBlock(site,cand,i,now);
-      site.reservations.delete(cand.key);
-      pl.task=null;pl.wait=.24+hash(i,Math.floor(now/1000))*.45;
-    }else if(pl.task&&pl.task.type==='exit'&&!pl.path.length&&!pl.segment){
-      pl.task=null;pl.wait=1.0;
+      if(!pl.task.started)pl.task.started=now;
+      const progress=clamp((now-pl.task.started)/pl.task.duration,0,1);
+      pl.jump=Math.sin(progress*Math.PI*4)*.025;
+      if(progress>=1){
+        const ci=Math.floor(hash(i*41+cand.gx*17+cand.y,cand.gz*29+cand.y)*BLOCK_COLORS.length);
+        site.blueprints.set(cand.key,{
+          cand:{...cand},designer:i,builder:null,status:'ready',
+          progress:0,color:BLOCK_COLORS[ci],createdAt:now
+        });
+        // Keep the block/tread reservation alive for the blueprint.
+        reserveCandidate(site,cand,'blueprint:'+cand.key);
+        pl.task=null;pl.jump=0;pl.wait=.30+hash(i,91)*.35;
+      }
+    }else if(pl.task.type==='build'){
+      const bp=site.blueprints.get(pl.task.bpKey);
+      if(!bp){pl.task=null;pl.wait=.25;continue}
+      if(!validateTask(site,bp.cand)){
+        releaseCandidate(site,bp.cand);site.blueprints.delete(pl.task.bpKey);
+        pl.task=null;pl.wait=.30;continue;
+      }
+      if(!pl.task.started){
+        pl.task.started=now;bp.status='building';bp.progress=.02;
+      }
+      bp.progress=clamp((now-pl.task.started)/pl.task.duration,0,1);
+      pl.jump=.035+Math.sin(bp.progress*Math.PI*8)*.030;
+      if(bp.progress>=1){
+        const ok=placeTaskBlock(site,bp.cand,bp.color,now);
+        releaseCandidate(site,bp.cand);
+        site.blueprints.delete(pl.task.bpKey);
+        pl.task=null;pl.jump=0;pl.wait=.36+hash(i,Math.floor(now/1000))*.40;
+        if(!ok)pl.wait=.55;
+      }
+    }else if(pl.task.type==='exit'){
+      pl.task=null;pl.wait=.90;
     }
   }
 }
 function blockWorld(site,b){
   return {x:site.x+b.gx*BLOCK_STEP,z:site.z+b.gz*BLOCK_STEP};
 }
-function drawBlock(c,site,block,blockIndex,now,siteIndex){
-  const half=.33,bh=BLOCK_H;
-  const pos=blockWorld(site,block),wx=pos.x,wz=pos.z,baseH=block.y*bh;
-  let grow=1;
-  const age=now-(block.born||-9999);
-  if(age>=0&&age<380){const p=clamp(age/380,0,1);grow=1-Math.pow(1-p,3)}
-  const topH=baseH+bh*grow;
-  const corners={
+const LIGHT_X=-.62,LIGHT_Z=-.78;
+function faceTone(nx,nz){
+  const lit=nx*LIGHT_X+nz*LIGHT_Z;
+  return -31+lit*14;
+}
+function blockGeometry(wx,wz,baseH,topH,half){
+  return {
     A:wp(wx-half,wz-half,baseH),B:wp(wx+half,wz-half,baseH),
     Cc:wp(wx+half,wz+half,baseH),D:wp(wx-half,wz+half,baseH),
     At:wp(wx-half,wz-half,topH),Bt:wp(wx+half,wz-half,topH),
     Ct:wp(wx+half,wz+half,topH),Dt:wp(wx-half,wz+half,topH)
   };
-  const viewX=Math.sin(yaw),viewZ=Math.cos(yaw),faces=[];
-  if(viewX>=0)faces.push({pts:[corners.B,corners.Cc,corners.Ct,corners.Bt],tone:-20,s:1});
-  else faces.push({pts:[corners.D,corners.A,corners.At,corners.Dt],tone:-28,s:2});
-  if(viewZ>=0)faces.push({pts:[corners.Cc,corners.D,corners.Dt,corners.Ct],tone:-36,s:3});
-  else faces.push({pts:[corners.A,corners.B,corners.Bt,corners.At],tone:-42,s:4});
-  faces.sort((u,v)=>u.pts.reduce((s,p)=>s+p.d,0)-v.pts.reduce((s,p)=>s+p.d,0));
-  for(const face of faces)fillRagged(c,face.pts,shade(block.color,face.tone),C.ink,.95,1500+siteIndex*97+blockIndex*7+face.s);
-  const top=[corners.At,corners.Bt,corners.Ct,corners.Dt];
-  fillRagged(c,top,shade(block.color,18),'rgba(9,6,5,.96)',.85,1700+siteIndex*97+blockIndex);
+}
+function drawBlock(c,site,block,blockIndex,now,siteIndex){
+  const half=.33,bh=BLOCK_H,pos=blockWorld(site,block),wx=pos.x,wz=pos.z,baseH=block.y*bh,topH=baseH+bh;
+  const g=blockGeometry(wx,wz,baseH,topH,half);
+  const cameraX=Math.sin(yaw),cameraZ=Math.cos(yaw);
+
+  const sides=[
+    {nx:1,nz:0,dx:1,dz:0,pts:[g.B,g.Cc,g.Ct,g.Bt],seed:1},
+    {nx:-1,nz:0,dx:-1,dz:0,pts:[g.D,g.A,g.At,g.Dt],seed:2},
+    {nx:0,nz:1,dx:0,dz:1,pts:[g.Cc,g.D,g.Dt,g.Ct],seed:3},
+    {nx:0,nz:-1,dx:0,dz:-1,pts:[g.A,g.B,g.Bt,g.At],seed:4}
+  ];
+  const visible=sides.filter(face=>{
+    const facesCamera=face.nx*cameraX+face.nz*cameraZ>0;
+    const neighbourFilled=getHeight(site,block.gx+face.dx,block.gz+face.dz)>block.y;
+    return facesCamera&&!neighbourFilled;
+  });
+  visible.sort((u,v)=>u.pts.reduce((s,p)=>s+p.d,0)-v.pts.reduce((s,p)=>s+p.d,0));
+  for(const face of visible){
+    fillRagged(c,face.pts,shade(block.color,faceTone(face.nx,face.nz)),C.ink,.95,1500+siteIndex*97+blockIndex*7+face.seed);
+  }
+
+  // Never draw a hidden top surface. This was the main source of the "painted inside" illusion.
+  const topExposed=getHeight(site,block.gx,block.gz)===block.y+1;
+  if(topExposed){
+    const top=[g.At,g.Bt,g.Ct,g.Dt];
+    fillRagged(c,top,shade(block.color,19),'rgba(9,6,5,.96)',.85,1700+siteIndex*97+blockIndex);
+  }
 }
 function drawSiteShadow(c,site,index){
   if(!site.blocks.length)return;
@@ -654,6 +741,74 @@ function drawSiteMarker(c,site,index){
   c.save();c.globalAlpha=.16;c.translate(q(p.x),q(p.y));c.rotate((hash(index,888)-.5)*.16);
   c.strokeStyle=shade(site.baseColor,18);c.lineWidth=Math.max(.7,scale*.04);c.strokeRect(-s*.5,-s*.18,s,s*.36);c.restore();
 }
+
+function candidateGeometry(site,cand,progress){
+  const w=worldCell(site,cand.gx,cand.gz),half=.33;
+  const baseH=cand.y*BLOCK_H,topH=baseH+BLOCK_H*progress;
+  return {g:blockGeometry(w.x,w.z,baseH,topH,half),w,baseH,topH};
+}
+function drawBlueprint(c,site,bp,now,siteIndex){
+  const cand=bp.cand,geo=candidateGeometry(site,cand,1),g=geo.g;
+  const cameraX=Math.sin(yaw),cameraZ=Math.cos(yaw);
+  const faces=[
+    {nx:1,nz:0,pts:[g.B,g.Cc,g.Ct,g.Bt]},
+    {nx:-1,nz:0,pts:[g.D,g.A,g.At,g.Dt]},
+    {nx:0,nz:1,pts:[g.Cc,g.D,g.Dt,g.Ct]},
+    {nx:0,nz:-1,pts:[g.A,g.B,g.Bt,g.At]}
+  ].filter(f=>f.nx*cameraX+f.nz*cameraZ>0);
+
+  c.save();c.globalAlpha=.62;c.setLineDash([3,3]);c.lineWidth=Math.max(.7,scale*.045);
+  for(let i=0;i<faces.length;i++){
+    path(c,faces[i].pts,true);
+    c.strokeStyle=i?'#6d9f91':'#9fc5ae';c.stroke();
+  }
+  c.setLineDash([]);
+  const top=[g.At,g.Bt,g.Ct,g.Dt];
+  roughStroke(c,top,'rgba(151,198,176,.82)',Math.max(.7,scale*.04),3000+siteIndex,true);
+
+  // Corner ticks and a little plan mark make it read as "designed", not translucent geometry.
+  const p=wp(geo.w.x,geo.w.z,geo.baseH+.02),s=scale*.12;
+  c.strokeStyle='rgba(142,192,171,.58)';c.lineWidth=.7;
+  c.beginPath();c.moveTo(p.x-s,p.y);c.lineTo(p.x+s,p.y);c.moveTo(p.x,p.y-s*.5);c.lineTo(p.x,p.y+s*.5);c.stroke();
+  c.restore();
+}
+function drawBuildingBlock(c,site,bp,now,siteIndex){
+  const p=clamp(bp.progress||0,0,1),cand=bp.cand;
+  const eased=1-Math.pow(1-p,2.4);
+  const geo=candidateGeometry(site,cand,.10+.90*eased),g=geo.g;
+  const cameraX=Math.sin(yaw),cameraZ=Math.cos(yaw);
+  const sides=[
+    {nx:1,nz:0,pts:[g.B,g.Cc,g.Ct,g.Bt]},
+    {nx:-1,nz:0,pts:[g.D,g.A,g.At,g.Dt]},
+    {nx:0,nz:1,pts:[g.Cc,g.D,g.Dt,g.Ct]},
+    {nx:0,nz:-1,pts:[g.A,g.B,g.Bt,g.At]}
+  ].filter(f=>f.nx*cameraX+f.nz*cameraZ>0);
+
+  // Construction texture: dark rough body + scaffold hatching. It becomes solid only at completion.
+  c.save();c.globalAlpha=.42+.48*p;
+  for(let i=0;i<sides.length;i++){
+    fillRagged(c,sides[i].pts,shade(bp.color,-50+i*5),C.ink,.9,3200+siteIndex*31+i);
+    path(c,sides[i].pts,true);c.clip();
+    c.strokeStyle='rgba(222,126,61,.34)';c.lineWidth=.7;
+    const box=sides[i].pts;
+    const minX=Math.min(...box.map(v=>v.x)),maxX=Math.max(...box.map(v=>v.x));
+    const minY=Math.min(...box.map(v=>v.y)),maxY=Math.max(...box.map(v=>v.y));
+    for(let yy=minY-8;yy<maxY+8;yy+=4){
+      c.beginPath();c.moveTo(minX-6,yy);c.lineTo(maxX+6,yy-(maxX-minX)*.22);c.stroke();
+    }
+    c.restore();c.save();c.globalAlpha=.42+.48*p;
+  }
+  c.restore();
+
+  const top=[g.At,g.Bt,g.Ct,g.Dt];
+  fillRagged(c,top,shade(bp.color,-8),'rgba(16,8,5,.92)',.8,3300+siteIndex);
+
+  // Keep a fading blueprint shell around the material while it is being built.
+  if(p<.88){
+    c.save();c.globalAlpha=(1-p)*.55;c.setLineDash([3,3]);roughStroke(c,top,'#84b7a3',.75,3400+siteIndex,true);c.setLineDash([]);c.restore();
+  }
+}
+
 function drawPlayer(c,pl,t,index){
   const p=wp(pl.x,pl.z,pl.h+pl.jump+.42),g=wp(pl.x,pl.z,pl.h+.02);
   const depth=(p.d+1)*.5,R=scale*pl.size*(.80+depth*.22);
@@ -665,10 +820,10 @@ function drawPlayer(c,pl,t,index){
   const pts=blob(c,p.x,p.y,R,R,pl.color,C.black,Math.max(1,R*.16),830+index,.075,18);
   c.save();c.translate(1,-.6);c.globalAlpha=.28;roughStroke(c,pts,C.red,Math.max(.7,R*.055),870+index,true);c.restore();
 
-  if(pl.task&&pl.task.type==='build'){
+  if(pl.task&&(pl.task.type==='build'||pl.task.type==='design')){
     const site=sites[pl.siteIndex],cand=pl.task.cand,target=worldCell(site,cand.gx,cand.gz);
     const tp=wp(target.x,target.z,cand.y*BLOCK_H+.03);
-    c.save();c.globalAlpha=.10;c.strokeStyle=shade(site.baseColor,28);c.lineWidth=.6;c.setLineDash([2,3]);
+    c.save();c.globalAlpha=.10;c.strokeStyle=pl.task.type==='design'?'#79a999':shade(site.baseColor,28);c.lineWidth=.6;c.setLineDash([2,3]);
     c.beginPath();c.moveTo(p.x,p.y);c.lineTo(tp.x,tp.y);c.stroke();c.setLineDash([]);c.restore();
   }
 }
@@ -768,6 +923,10 @@ function drawDynamic(now){
       const b=site.blocks[bi],pos=blockWorld(site,b),p=wp(pos.x,pos.z,(b.y+.5)*BLOCK_H);
       items.push({type:'block',si,bi,d:p.d,h:b.y});
     }
+    for(const [bpKey,bp] of site.blueprints){
+      const pos=worldCell(site,bp.cand.gx,bp.cand.gz),p=wp(pos.x,pos.z,(bp.cand.y+.5)*BLOCK_H);
+      items.push({type:bp.status==='building'?'building':'blueprint',si,bpKey,d:p.d,h:bp.cand.y});
+    }
   }
   for(let i=0;i<players.length;i++){
     const pl=players[i],p=wp(pl.x,pl.z,pl.h+pl.jump+.42);
@@ -776,6 +935,8 @@ function drawDynamic(now){
   items.sort((u,v)=>u.d-v.d || u.h-v.h);
   for(const it of items){
     if(it.type==='block')drawBlock(ctx,sites[it.si],sites[it.si].blocks[it.bi],it.bi,now,it.si);
+    else if(it.type==='blueprint')drawBlueprint(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
+    else if(it.type==='building')drawBuildingBlock(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
     else drawPlayer(ctx,players[it.i],t,it.i);
   }
 
