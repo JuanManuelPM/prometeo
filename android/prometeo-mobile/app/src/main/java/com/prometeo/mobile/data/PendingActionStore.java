@@ -22,10 +22,17 @@ public final class PendingActionStore {
 
     public synchronized String load() {
         if (!hasPending()) return null;
-        try (FileInputStream in = new FileInputStream(file)) {
-            byte[] bytes = in.readAllBytes();
-            if (bytes.length > 64 * 1024) return null;
-            return new String(bytes, StandardCharsets.UTF_8);
+        try (FileInputStream in = new FileInputStream(file);
+             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int n;
+            int total = 0;
+            while ((n = in.read(buffer)) != -1) {
+                total += n;
+                if (total > 64 * 1024) return null;
+                out.write(buffer, 0, n);
+            }
+            return out.toString(StandardCharsets.UTF_8.name());
         } catch (Exception ignored) {
             return null;
         }
