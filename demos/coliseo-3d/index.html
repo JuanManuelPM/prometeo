@@ -88,6 +88,10 @@ body{overscroll-behavior:none}
   .capScale{right:29px}
 }
 
+
+/* PROMETEO WORLD CAPACITY MONUMENT V1
+   The live metric is rendered in world-space; the old web HUD stays hidden. */
+.capacityHud{display:none!important}
 </style>
 </head>
 <body>
@@ -116,7 +120,7 @@ body{overscroll-behavior:none}
     </div>
   </div>
   <div class="brand"><div class="mark">III</div><div class="copy"><b>Arena</b><span>collage · campo amplio · construcción</span></div></div>
-  <div class="badge">12 constructores · fuego → trofeo → relevo</div>
+  <div class="badge" id="arenaBadge">telemetría · cargando mundo vivo</div>
   <div class="help">arrastrá para rotar · pellizcá para acercar</div>
 </div>
 <script>
@@ -2003,6 +2007,124 @@ function drawAnalogSignal(c,now){
   c.restore();
 }
 
+
+/* PROMETEO WORLD CAPACITY MONUMENT V1 */
+function capacityMonumentState(){
+  const g=window.PROMETEO_CAPACITY;
+  if(!g)return null;
+  const active=Math.max(0,Number(g.active_workers||0));
+  const need=Math.max(0,Number(g.core_demand||0));
+  const reserve=Math.max(0,active-need);
+  const scaleSteps=[8,12,16,24,32,48,64,96];
+  const cap=scaleSteps.find(v=>v>=Math.max(8,active+2,need+2))||96;
+  const ang=-.72,r=11.05;
+  return {
+    active,need,reserve,cap,
+    x:Math.cos(ang)*r,z:Math.sin(ang)*r,
+    coreWorkers:Math.min(active,need),
+    reserveWorkers:Math.max(0,active-need),
+    deficit:Math.max(0,need-active)
+  };
+}
+function drawCapacityMonument(c,now){
+  const s=capacityMonumentState();if(!s)return;
+  const H=6.35,base=.12,w=.72;
+  const coreH=H*(s.coreWorkers/s.cap);
+  const reserveH=H*(s.reserveWorkers/s.cap);
+  const needH=H*(s.need/s.cap);
+
+  // Foundation + physical shaft. Nothing here is screen-space UI.
+  drawWorldCuboid(c,s.x,s.z,.02,1.18,.24,'#3b3028',24600);
+  if(coreH>.025)drawWorldCuboid(c,s.x,s.z,base,w,coreH,'#9b5728',24620);
+  if(reserveH>.025)drawWorldCuboid(c,s.x,s.z,base+coreH,w*.92,reserveH,'#506657',24640);
+
+  // CORE NEED is a literal stone/ivory crosspiece through the tower.
+  drawWorldCuboid(c,s.x,s.z,base+needH-.035,1.36,.075,s.deficit>0?'#9d3a2b':'#c6aa83',24660);
+
+  // A deficit is marked above the existing shaft, never faked as filled capacity.
+  if(s.deficit>0){
+    const missH=H*(s.deficit/s.cap);
+    const start=base+H*(s.active/s.cap);
+    for(let i=0;i<Math.min(4,s.deficit);i++){
+      drawCandidateCuboid(c,s.x,s.z,start+i*(missH/Math.max(1,s.deficit)),w*.72,Math.max(.10,missH/Math.max(1,s.deficit)*.72),24700+i,'#b44a31');
+    }
+  }
+
+  // Top cap makes the silhouette readable from the TV.
+  const topH=base+H*(s.active/s.cap);
+  drawWorldCuboid(c,s.x,s.z,Math.max(base,topH),.92,.12,s.reserve>0?'#6d816f':'#7a4a2f',24780);
+
+  // Small grounded marker so the tower reads as an instrument, not another building.
+  groundPatch(c,s.x,s.z,.92,.52,s.deficit>0?'#6f2c22':'#27312a',.28,24790,14);
+}
+function proposalAnchor(slot){
+  const s=((slot%12)+12)%12;
+  const ang=.20+s*TAU/12;
+  const r=10.30+(s%2)*.38;
+  return {x:Math.cos(ang)*r,z:Math.sin(ang)*r,ang};
+}
+function drawCandidateCuboid(c,x,z,baseH,w,height,seed,color='#84b7a3'){
+  const g=blockGeometry(x,z,baseH,baseH+height,w*.5);
+  const cameraX=Math.sin(yaw),cameraZ=Math.cos(yaw);
+  const faces=[
+    {nx:1,nz:0,pts:[g.B,g.Cc,g.Ct,g.Bt]},
+    {nx:-1,nz:0,pts:[g.D,g.A,g.At,g.Dt]},
+    {nx:0,nz:1,pts:[g.Cc,g.D,g.Dt,g.Ct]},
+    {nx:0,nz:-1,pts:[g.A,g.B,g.Bt,g.At]}
+  ].filter(f=>f.nx*cameraX+f.nz*cameraZ>0);
+  c.save();
+  c.globalAlpha=.58;
+  c.setLineDash([Math.max(.8,scale*.10),Math.max(.9,scale*.12)]);
+  c.lineWidth=Math.max(.7,scale*.042);
+  for(const f of faces){path(c,f.pts,true);c.strokeStyle=color;c.stroke()}
+  roughStroke(c,[g.At,g.Bt,g.Ct,g.Dt],color,Math.max(.65,scale*.038),seed,true);
+  c.setLineDash([]);
+  c.restore();
+}
+function drawProposalBlueprint(c,proposal,index,now){
+  const spec=proposal&&proposal.render_spec||{};
+  const primitive=String(spec.primitive||proposal.object_kind||'pillar');
+  const slot=Number.isFinite(Number(spec.slot))?Number(spec.slot):index;
+  const a=proposalAnchor(slot);
+  const sc=clamp(Number(spec.scale||1),.4,1.8);
+  const h=clamp(Number(spec.height||2),.3,6.5);
+  const colors={ochre:'#d19a56',red:'#b55339',moss:'#7da090',bone:'#c4b28d',stone:'#88786d'};
+  const col=colors[spec.accent]||'#84b7a3';
+  const seed=25100+slot*37;
+
+  groundPatch(c,a.x,a.z,.62*sc,.38*sc,col,.10,seed,12);
+
+  if(primitive==='gate'){
+    drawCandidateCuboid(c,a.x-.55*sc,a.z,.02,.28*sc,h,seed+1,col);
+    drawCandidateCuboid(c,a.x+.55*sc,a.z,.02,.28*sc,h,seed+2,col);
+    drawCandidateCuboid(c,a.x,a.z,h-.12*sc,1.35*sc,.25*sc,seed+3,col);
+  }else if(primitive==='ring'){
+    for(let i=0;i<8;i++){
+      const aa=i*TAU/8,rr=.72*sc;
+      drawCandidateCuboid(c,a.x+Math.cos(aa)*rr,a.z+Math.sin(aa)*rr,.02,.22*sc,.28*sc,seed+i,col);
+    }
+  }else if(primitive==='stair'){
+    for(let i=0;i<4;i++)drawCandidateCuboid(c,a.x+(i-1.5)*.28*sc,a.z,.02,.26*sc,.24*sc*(i+1),seed+i,col);
+  }else if(primitive==='banner'){
+    drawCandidateCuboid(c,a.x-.48*sc,a.z,.02,.18*sc,h,seed+1,col);
+    drawCandidateCuboid(c,a.x+.48*sc,a.z,.02,.18*sc,h,seed+2,col);
+    for(let i=0;i<5;i++)drawCandidateCuboid(c,a.x+(i-2)*.22*sc,a.z,h*.55,.18*sc,.72*sc,seed+10+i,col);
+  }else if(primitive==='wall_relief'){
+    for(let i=0;i<6;i++)drawCandidateCuboid(c,a.x+(i-2.5)*.23*sc,a.z,.02,.20*sc,h*.42,seed+i,col);
+  }else if(primitive==='brazier'){
+    drawCandidateCuboid(c,a.x,a.z,.02,.62*sc,.34*sc,seed+1,col);
+    drawCandidateCuboid(c,a.x,a.z,.36*sc,.38*sc,.30*sc,seed+2,col);
+  }else if(primitive==='tower'){
+    drawCandidateCuboid(c,a.x,a.z,.02,.78*sc,h*.48,seed+1,col);
+    drawCandidateCuboid(c,a.x,a.z,.02+h*.48,.60*sc,h*.34,seed+2,col);
+    drawCandidateCuboid(c,a.x,a.z,.02+h*.82,.42*sc,h*.18,seed+3,col);
+  }else{
+    const ww=primitive==='obelisk'?.42:(primitive==='beacon'?.52:.62);
+    drawCandidateCuboid(c,a.x,a.z,.02,ww*sc,h,seed+1,col);
+    if(primitive==='beacon')drawCandidateCuboid(c,a.x,a.z,h+.02,.82*sc,.16*sc,seed+2,col);
+  }
+}
+
 function drawDynamic(now){
   ctx.fillStyle=C.black;ctx.fillRect(0,0,IW,IH);
   ctx.drawImage(staticCanvas,0,0);
@@ -2023,6 +2145,18 @@ function drawDynamic(now){
   }
 
   const items=[];
+  const capState=capacityMonumentState();
+  if(capState){
+    const cp=wp(capState.x,capState.z,3.2);
+    items.push({type:'capacityMonument',depth:cp.zv,py:cp.y,h:5});
+  }
+  const liveProps=Array.isArray(window.PROMETEO_VISUAL_PROPOSALS)?window.PROMETEO_VISUAL_PROPOSALS.slice(0,6):[];
+  for(let pi=0;pi<liveProps.length;pi++){
+    const spec=liveProps[pi]&&liveProps[pi].render_spec||{};
+    const a=proposalAnchor(Number.isFinite(Number(spec.slot))?Number(spec.slot):pi);
+    const pp=wp(a.x,a.z,Number(spec.height||2)*.45);
+    items.push({type:'visualProposal',proposalIndex:pi,proposal:liveProps[pi],depth:pp.zv,py:pp.y,h:Number(spec.height||2)});
+  }
   for(let si=0;si<sites.length;si++){
     const site=sites[si];
     for(let bi=0;bi<site.blocks.length;bi++){
@@ -2062,6 +2196,8 @@ function drawDynamic(now){
     else if(it.type==='building')drawBuildingBlock(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
     else if(it.type==='banner')drawTowerBanner(ctx,sites[it.si],it.si,now);
     else if(it.type==='trophy')drawRitualTrophy(ctx,sites[it.si],it.si,now);
+    else if(it.type==='capacityMonument')drawCapacityMonument(ctx,now);
+    else if(it.type==='visualProposal')drawProposalBlueprint(ctx,it.proposal,it.proposalIndex,now);
     else drawPlayer(ctx,players[it.i],t,it.i);
   }
 
@@ -2131,6 +2267,7 @@ resize();requestAnimationFrame(frame);
 (function(){
 'use strict';
 const hud=document.getElementById('capacityHud');
+const arenaBadge=document.getElementById('arenaBadge');
 if(!hud)return;
 const $=id=>document.getElementById(id);
 const el={
@@ -2158,11 +2295,24 @@ async function rpc(){
  if(!r.ok)throw new Error('capacity '+r.status);
  return r.json();
 }
+async function visualRpc(){
+ const k=await getKey();
+ const r=await fetch(BASE+'prometeo_visual_proposals_feed_v1',{
+   method:'POST',
+   headers:{apikey:k,Authorization:'Bearer '+k,'Content-Type':'application/json'},
+   body:JSON.stringify({p_limit:8}),cache:'no-store'
+ });
+ if(!r.ok)throw new Error('visual proposals '+r.status);
+ return r.json();
+}
 function scaleFor(n){
  const steps=[8,12,16,24,32,48,64,96,128];
  return steps.find(x=>x>=n)||Math.ceil(n/32)*32;
 }
-function render(g){
+function render(g,v){
+ window.PROMETEO_CAPACITY=g;
+ window.PROMETEO_VISUAL_PROPOSALS=(v&&Array.isArray(v.proposals))?v.proposals:[];
+ window.PROMETEO_VISUAL_META=v||null;
  const active=Number(g.active_workers||0);
  const need=Number(g.core_demand||0);
  const reserve=Math.max(0,Number(g.reserve_workers||0));
@@ -2191,10 +2341,14 @@ function render(g){
    cognitive>0?'BUFFER OK · prework activo':'BUFFER OK';
  hud.classList.toggle('shortage',gap<0);
  hud.classList.remove('noData');
+ if(arenaBadge){
+   const pCount=v&&v.counts?Number(v.counts.proposed||0):window.PROMETEO_VISUAL_PROPOSALS.length;
+   arenaBadge.textContent=active+' workers · core '+need+' · '+(gap<0?'faltan '+Math.abs(gap):'reserva +'+reserve)+' · forja '+pCount;
+ }
  lastGood=Date.now();
 }
 async function refresh(){
- try{render(await rpc())}
+ try{const [g,v]=await Promise.all([rpc(),visualRpc()]);render(g,v)}
  catch(e){
    if(Date.now()-lastGood>30000){
      hud.classList.add('noData');
