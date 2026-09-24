@@ -29,7 +29,7 @@ h1{font-size:33px;letter-spacing:-.05em;margin:7px 0 8px}.mission{font-size:13px
 <section><h2>Ideas</h2><div id="ideas"></div></section>
 </div>
 <section><h2>Guide Work Broker</h2><div id="broker"></div></section>
-<section><h2>Superficies existentes</h2><div class="arch" id="arch">Inventario cargando…</div><div class="surfaceGrid" id="surfaces"></div></section>
+<section><h2>Herramientas públicas</h2><div class="arch" id="arch">Proyección pública cargando…</div><div class="surfaceGrid" id="surfaces"></div></section>
 <section><h2>Capacidades</h2><div id="caps"></div></section>
 </main>
 <script>
@@ -37,6 +37,11 @@ h1{font-size:33px;letter-spacing:-.05em;margin:7px 0 8px}.mission{font-size:13px
 const GUIDE='STUDENTS',BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/',KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
 window.PROMETEO_GUIDE_SURFACE={guide:GUIDE,base:BASE,key:KEY};
 const H={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},TZ='America/Argentina/Buenos_Aires';
+const SAFE_PUBLIC_ROUTES=new Set([
+ '/pages/PROMETEO_CLASS_PLAYER_ULTIMA_VERSION_BUENA_v26.html',
+ '/pages/PROMETEO_STUDENT_VISUAL_VAULT.html',
+ '/pages/PROMETEO_STUDENT_WORLD_MAP_FIXED_OPEN_ME.html'
+]);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const fmt=t=>!t?'sin actualización':new Intl.DateTimeFormat('es-AR',{timeZone:TZ,day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(t));
 function list(id,a){document.getElementById(id).innerHTML=Array.isArray(a)&&a.length?a.map(x=>'<div class="item">'+esc(typeof x==='string'?x:JSON.stringify(x))+'</div>').join(''):'<div class="empty">Sin contenido todavía.</div>'}
@@ -51,8 +56,9 @@ async function load(){try{
  const bi=ctx.broker_inbox||{},dem=bi.demands||[];
  broker.innerHTML='<div class="workrow"><div><b>GUIDE_WORK_BROKER_V1</b><div class="wmeta">demanda tipada durable · dispatch desactivado en SHADOW</div></div><div class="wstate">'+esc(bi.broker_mode||'—')+'</div></div>'+
    (dem.length?dem.slice(0,6).map(x=>'<div class="workrow"><div><b>'+esc(x.request_key)+'</b><div class="wmeta">'+esc(x.objective||'')+' · score '+esc(x.shadow_score??'—')+'</div></div><div class="wstate">'+esc(x.status)+'</div></div>').join(''):'<div class="empty">Todavía no hay demanda registrada para este Guide.</div>');
- arch.textContent=sa?.state==='DONE'?('Arqueología terminada: '+(sa.summary||'resultado disponible.')):sa?.state==='ACTIVE'?('Arqueología en curso · '+(sa.progress_stage||'WORKING')):'Arqueología pendiente. Se muestran rutas reales del repo; sólo gh-pages verificadas son navegables.';
- surfaces.innerHTML=(ctx.surface_inventory||[]).map(s=>{const ok=s.route_status==='GH_PAGES_PRESENT',sh=(s.shared_with||[]).length?'Compartida: '+s.shared_with.join(', '):'';const b='<div class="sk">'+esc(s.surface_kind)+' · '+esc(s.route_status)+'</div><div class="st">'+esc((s.notes||s.repo_path).replace(/\.$/,''))+'</div><div class="sp">'+esc(s.public_route||s.repo_path)+'</div>'+(sh?'<div class="shared">'+esc(sh)+'</div>':'');return ok?'<a class="surface" href="/prometeo'+esc(s.public_route)+'">'+b+'</a>':'<div class="surface off">'+b+'</div>'}).join('');
+ const publicSurfaces=(ctx.surface_inventory||[]).filter(s=>SAFE_PUBLIC_ROUTES.has(s.public_route));
+ arch.textContent=sa?.state==='DONE'?'Proyección pública: sólo herramientas genéricas aprobadas. Superficies individuales quedan fuera de este Guide público.':sa?.state==='ACTIVE'?('Arqueología en curso · '+(sa.progress_stage||'WORKING')+' · se mantiene proyección pública mínima'):'Proyección pública mínima: sólo herramientas genéricas aprobadas.';
+ surfaces.innerHTML=publicSurfaces.length?publicSurfaces.map(s=>{const ok=s.route_status==='GH_PAGES_PRESENT',sh=(s.shared_with||[]).length?'Compartida: '+s.shared_with.join(', '):'';const b='<div class="sk">'+esc(s.surface_kind)+' · '+esc(s.route_status)+'</div><div class="st">'+esc((s.notes||s.repo_path).replace(/\.$/,''))+'</div><div class="sp">'+esc(s.public_route||s.repo_path)+'</div>'+(sh?'<div class="shared">'+esc(sh)+'</div>':'');return ok?'<a class="surface" href="/prometeo'+esc(s.public_route)+'">'+b+'</a>':'<div class="surface off">'+b+'</div>'}).join(''):'<div class="empty">Sin herramientas genéricas publicables todavía.</div>';
 }catch(e){state.textContent='ERROR'}}
 invoke.onclick=async()=>{try{const r=await fetch('/prometeo'+ctx.guide.invoke_route,{cache:'no-store'});if(!r.ok)throw new Error(r.status);await navigator.clipboard.writeText(await r.text());copy.textContent='copiado'}catch(e){copy.textContent='error'}};
 load();setInterval(load,20000);
