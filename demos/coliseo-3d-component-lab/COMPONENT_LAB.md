@@ -398,3 +398,68 @@ The effect vocabulary is based on techniques repeatedly used in contemporary ret
 - CRT/VHS-style tracking and color damage.
 
 The goal is not to reproduce one game's exact style. The lab exposes the underlying techniques as reusable controls.
+
+
+## V4 · Mobile-first one-page shell
+
+The Component Lab is now a true single-page switcher.
+
+### Mobile layout fix
+
+The portrait fallback no longer rotates the entire application.
+
+Only the world surface (`#wrap`) rotates into virtual landscape.
+
+The UI remains upright in physical screen space.
+
+This fixes the previous mobile failure where:
+- the top navigation became a vertical stack after rotation;
+- effect controls overlapped the scene;
+- controls consumed too much of the narrow phone viewport.
+
+### Swipe picker
+
+One horizontally scrollable bottom picker replaces the stacked navigation bars.
+
+It switches in place between:
+- Structures
+- Workers
+- Effects
+- Maps
+
+Effects expose their presets inside the same picker.
+
+No page reload is required for mode/preset changes; URL state is updated with history.replaceState.
+
+### Effect framing
+
+The effects gallery now recomputes its camera framing from the gallery world bounds at every yaw.
+
+It calculates the projected bounds first, then derives scale and center so the whole scene stays inside a safe viewport region.
+
+This removes the old bottom-left drift/cropping on narrow mobile screens.
+
+### Effect renderer additions
+
+The fullscreen pass now also supports:
+- mild barrel / lens curvature;
+- moving tracking-roll bands.
+
+Existing:
+- screen-space pixel crunch;
+- color quantization;
+- Bayer dithering;
+- projection snapping;
+- chroma separation;
+- temporal grain;
+- scan modulation;
+- posterization;
+- vignette.
+
+### Maps
+
+Maps remains inside Component Lab.
+
+The currently approved map is the existing canonical Coliseo, embedded without its duplicate outer UI.
+
+Future maps should join this same selector rather than creating separate standalone labs.
