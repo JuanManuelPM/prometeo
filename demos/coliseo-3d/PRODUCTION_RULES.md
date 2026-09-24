@@ -976,3 +976,157 @@ Do not change worker behavior in the same patch.
 Do not connect live Prometeo state in the same patch.
 
 First prove one world primitive at a time.
+
+
+## 37. Semantic geometry bug · exact root cause and permanent rule
+
+Observed failure:
+- physical wall-board frames render correctly;
+- inner clock digits / progress cells / version marks collapse into orange lines or wedges;
+- tower sign text remains readable.
+
+Exact root cause:
+
+The helper `beginSemanticContent(...)` installs a local-to-screen canvas transform.
+After that transform, semantic shapes are drawn with `fillRagged(...)` / `path(...)`.
+
+But `path(...)` currently rounds every point with `q(...)` BEFORE the canvas transform:
+
+```js
+moveTo(q(localX), q(localY))
+```
+
+Semantic coordinates are intentionally small world/local values such as:
+
+```
+0.035
+0.18
+0.46
+```
+
+Rounding those local coordinates first turns most of them into `0` or `1`.
+
+The later canvas transform cannot recover geometry that was already quantized away.
+
+That is why:
+- frames survive: their points are projected to screen coordinates before `fillRagged`;
+- tower words survive: native `fillText` is drawn after a screen-space translate/rotate and is not quantized by `q()`;
+- LED/digit/cell polygons fail: small local points pass through `path()` and collapse before projection.
+
+This is a coordinate-space bug, not an artistic problem.
+
+### Permanent rule: never mix local semantic coordinates with screen-quantizing helpers
+
+Every drawing helper must declare one coordinate contract:
+
+1. `SCREEN`
+   - inputs are already screen pixels;
+   - `q()` may be used where helpful;
+   - examples: projected block faces, final screen effects.
+
+2. `WORLD`
+   - inputs are world coordinates;
+   - helper must project them before rasterization.
+
+3. `LOCAL_PANEL`
+   - inputs are local panel units;
+   - helper must NOT round/quantize before the panel transform.
+
+No helper may silently accept more than one contract.
+
+### Forbidden
+
+Inside any non-identity local/world canvas transform, do NOT call:
+
+- `path(...)`
+- `fillRagged(...)`
+- `roughStroke(...)`
+- `blob(...)`
+
+if those helpers quantize coordinates before the transform.
+
+### Required semantic primitives
+
+Create transform-safe variants:
+
+- `pathLocal()`
+- `fillRaggedLocal()`
+- `roughStrokeLocal()`
+- `segPolyLocal()`
+
+These must use raw floating-point local coordinates.
+
+No `q()`.
+No pixel minimums before projection.
+No screen rounding until after the transform has produced final screen coordinates.
+
+Alternative acceptable implementation:
+
+- explicitly project each local semantic vertex through `boardProject(...)`;
+- then use the existing screen-space helpers on the projected points.
+
+The project-explicit approach is preferred for structural semantic geometry because it makes the coordinate space obvious.
+
+### Text rule
+
+Text has two valid implementations:
+
+A. native text:
+- compute a projected anchor;
+- compute readable projected scale/rotation;
+- call `fillText` in screen space.
+
+B. physical glyphs:
+- build each glyph from simple world/local geometric strokes/blocks;
+- project those primitives exactly like the frame.
+
+Never fake physical lettering by stretching a screen font through a collapsing wall transform.
+
+### Physical-number rule
+
+Clock digits may be made from actual small block/LED segments:
+
+- each segment has local width, height and depth;
+- each segment is a physical mini-cuboid attached to the panel;
+- solid core first;
+- glow second;
+- if panel becomes too edge-on, semantic segments hide before degenerating.
+
+This is preferred over glowing flat polygons when the desired aesthetic is “same physics/art as the frame”.
+
+### Progress-cell rule
+
+Progress cells are mini physical blocks inset into the board.
+
+They must:
+- be constructed with the same projection grammar as block faces;
+- remain dark when inactive;
+- gain an illuminated face when active;
+- never be represented only by glow;
+- never be drawn with local coordinates that pass through a screen-quantizing helper.
+
+### Regression test required before any of the 10 WORLD roadmap steps
+
+Before roads / manifest / transport / work pads / dynamic layout work begins, wall semantic rendering must pass:
+
+- center view;
+- left edge;
+- right edge;
+- near edge-on;
+- zoom min;
+- zoom max.
+
+For each wall board:
+
+- frame remains world-fixed;
+- frame does not face camera;
+- text/digits are readable when SAFE;
+- content disappears before collapse;
+- no orange line/wedge artifacts;
+- no mirrored glyphs;
+- no semantic geometry escapes panel bounds;
+- no glow without opaque core.
+
+This is a hard gate.
+
+> Do not start the architectural WORLD roadmap on top of a known coordinate-space rendering bug.
