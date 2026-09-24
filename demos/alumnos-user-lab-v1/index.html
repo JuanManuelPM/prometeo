@@ -12,10 +12,11 @@
 <main class="wrap">
 <header class="top"><div class="brand">PROMETEO / ALUMNOS</div><div class="state" id="state">CARGANDO</div></header>
 <section class="hero"><div><div class="k">Superficie docente · proyección pública segura</div><h1>Alumnos</h1><div class="lede" id="mission">Leyendo estado docente durable…</div></div><div class="metrics"><div class="metric"><b id="openCount">—</b><span>frentes abiertos</span></div><div class="metric"><b id="materialCount">—</b><span>materiales publicados</span></div><div class="metric"><b id="doneCount">—</b><span>trabajos success</span></div></div></section>
-<nav class="actions"><a class="btn primary" href="/prometeo/guides/alumnos/">Abrir Guide</a><a class="btn disabled" id="player" href="#" aria-disabled="true">Class Player</a><button class="btn" id="refresh" type="button">Actualizar</button></nav>
+<nav class="actions"><a class="btn primary" href="/prometeo/guides/alumnos/">Abrir Guide</a><a class="btn disabled" id="player" href="#" aria-disabled="true">Class Player</a><button class="btn" id="refresh" type="button">Actualizar</button><button class="btn" id="copyPlan" type="button">Copiar preparación</button><span class="mono" id="copyState" aria-live="polite"></span></nav>
 <section class="panel"><h2>Flujo de clase</h2><div class="flow" id="flow"></div></section>
 <div class="layout"><div>
 <section class="panel"><h2>Estado docente</h2><div class="headline" id="headline">Cargando CURRENT…</div><div class="copy" id="current"></div></section>
+<section class="panel"><h2>Preparar esta clase</h2><div id="focus"></div></section>
 <section class="panel"><h2>Materiales y herramientas verificadas</h2><div class="toolbar"><input id="filter" type="search" autocomplete="off" placeholder="Filtrar materiales por nombre o ruta" aria-label="Filtrar materiales"></div><div class="cards" id="cards"></div></section>
 </div><aside>
 <section class="panel"><h2>Estado verificable</h2><div id="verified"></div></section>
@@ -31,7 +32,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 const publicHref=r=>typeof r==='string'&&r.startsWith('/')?'/prometeo'+r:'#';
 const row=(n,t,d='')=>'<div class="row"><div class="num">'+String(n).padStart(2,'0')+'</div><div><b>'+esc(t)+'</b>'+(d?'<small>'+esc(d)+'</small>':'')+'</div></div>';
 const flowData=[['Leer evidencia','Habilidades demostradas y errores observados, no perfiles.'],['Preparar clase','Objetivo, ejercicios y material reusable.'],['Dar la clase','Herramientas docentes sin publicar estado individual.'],['Registrar evidencia','Sólo lo que cambie una decisión pedagógica futura.']];
-let materials=[];
+let materials=[],snapshot=null;
 function renderFlow(){flow.innerHTML=flowData.map((x,i)=>'<div class="step"><div class="num">'+String(i+1).padStart(2,'0')+'</div><b>'+esc(x[0])+'</b><small>'+esc(x[1])+'</small></div>').join('')}
 function renderMaterials(){
  const q=filter.value.trim().toLowerCase(),xs=materials.filter(x=>!q||(x.name+' '+x.route+' '+x.kind).toLowerCase().includes(q));
@@ -54,23 +55,23 @@ async function load(){
  try{
   const r=await fetch(BASE+'prometeo_domain_guide_operating_view_v2',{method:'POST',headers:H,body:JSON.stringify({p_guide_key:'STUDENTS'}),cache:'no-store'});
   if(!r.ok)throw new Error('HTTP '+r.status);
-  const x=await r.json(),g=x.guide||{},c=x.capsule||{},dw=Array.isArray(x.domain_work)?x.domain_work:[],openWork=Array.isArray(c.open_work)?c.open_work:[],read=Array.isArray(c.current_read)?c.current_read:[],done=dw.filter(j=>j.completion_class==='SUCCESS');
+  const x=await r.json(),g=x.guide||{},c=x.capsule||{},dw=Array.isArray(x.domain_work)?x.domain_work:[],openWork=Array.isArray(c.open_work)?c.open_work:[],read=Array.isArray(c.current_read)?c.current_read:[],done=dw.filter(j=>j.completion_class==='SUCCESS');snapshot=x;
   materials=safeMaterials(x);
   state.textContent=c.capsule_status||g.status||'SIN ESTADO';
   mission.textContent=g.mission||'Visión reusable del trabajo docente.';
   headline.textContent=c.headline||'Sin CURRENT sintetizado.';
   current.textContent=read.join(' ')||'Todavía no hay lectura docente consolidada.';
-  openCount.textContent=openWork.length;materialCount.textContent=materials.length;doneCount.textContent=done.length;
+  openCount.textContent=openWork.length;materialCount.textContent=materials.length;doneCount.textContent=done.length;focus.innerHTML=row(1,'Objetivo actual',openWork[0]||c.headline||'Sin foco abierto publicado por el Guide.')+row(2,'Preparación',openWork[1]||'Elegir material reusable sólo desde superficies verificadas.')+row(3,'Material disponible',materials.length?materials.length+' superficie(s) pública(s) verificadas.':'Sin material público verificable todavía.');
   verified.innerHTML=row(1,'Guide',g.status||'—')+row(2,'Exam',c.exam_state?.state||'—')+row(3,'Trabajo verificado',done.length+' job(s) SUCCESS');
   open.innerHTML=openWork.length?openWork.slice(0,6).map((t,i)=>row(i+1,t)).join(''):row(1,'Sin trabajo abierto','El Guide no reporta pendientes.');
   renderMaterials();setPlayer();
   const t=x.server_time?new Date(x.server_time):new Date();
   foot.innerHTML='Fuente: STUDENTS operating view · sólo lectura · <span class="fresh">'+esc(new Intl.DateTimeFormat('es-AR',{dateStyle:'short',timeStyle:'short',timeZone:TZ}).format(t))+'</span>';
  }catch(e){
-  state.textContent='SIN BACKEND';headline.innerHTML='<div class="err">No se pudo leer el estado docente. La página conserva el flujo y los límites, pero no inventa CURRENT, materiales ni pendientes.</div>';current.textContent='';openCount.textContent='—';materialCount.textContent='—';doneCount.textContent='—';materials=[];renderMaterials();setPlayer();verified.innerHTML=row(1,'Estado','Sin lectura verificable');open.innerHTML=row(1,'Pendientes','No disponibles sin backend');foot.innerHTML='Fuente: STUDENTS operating view · <span class="stale">lectura fallida</span>';
+  snapshot=null;state.textContent='SIN BACKEND';focus.innerHTML=row(1,'Preparación','No disponible sin estado verificable.');headline.innerHTML='<div class="err">No se pudo leer el estado docente. La página conserva el flujo y los límites, pero no inventa CURRENT, materiales ni pendientes.</div>';current.textContent='';openCount.textContent='—';materialCount.textContent='—';doneCount.textContent='—';materials=[];renderMaterials();setPlayer();verified.innerHTML=row(1,'Estado','Sin lectura verificable');open.innerHTML=row(1,'Pendientes','No disponibles sin backend');foot.innerHTML='Fuente: STUDENTS operating view · <span class="stale">lectura fallida</span>';
  }finally{refresh.disabled=false}
 }
-renderFlow();filter.addEventListener('input',renderMaterials);refresh.addEventListener('click',load);load();setInterval(load,30000);
+renderFlow();filter.addEventListener('input',renderMaterials);refresh.addEventListener('click',load);copyPlan.addEventListener('click',async()=>{if(!snapshot){copyState.textContent='sin estado';return}const c=snapshot.capsule||{},openWork=Array.isArray(c.open_work)?c.open_work:[],read=Array.isArray(c.current_read)?c.current_read:[];const text=['ALUMNOS · PREPARACIÓN','CURRENT: '+(c.headline||'sin headline'),'LECTURA: '+(read.join(' ')||'sin lectura'),'FOCO: '+(openWork[0]||'sin foco abierto'),'LÍMITE: no enviar mensajes, cobrar ni modificar agenda desde esta vista.'].join('\n');try{await navigator.clipboard.writeText(text);copyState.textContent='copiado'}catch(e){copyState.textContent='no disponible'}});load();setInterval(load,30000);
 })();
 </script>
 </body>
