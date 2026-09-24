@@ -323,3 +323,78 @@ It does NOT decide:
 Those are renderer responsibilities.
 
 This is the universal mechanism to carry forward into WORLD.
+
+
+## V3 · One-page lab
+
+The preferred review surface is now the Component Lab itself.
+
+It contains four tabs:
+
+- structures;
+- workers;
+- effects;
+- maps.
+
+The standalone experimental map/effect pages are not the preferred review path.
+
+### Maps
+
+The Maps tab embeds the exact canonical Coliseo implementation from:
+
+`/demos/coliseo-3d/`
+
+Pinned canonical content marker:
+
+`8ef25c0a`
+
+Reason:
+
+The simplified experimental map renderer introduced visual regressions that were already solved in the canonical Coliseo. The lab must reuse the known-good map instead of reimplementing it.
+
+Future maps should be added to the Maps tab/registry only after they inherit the same renderer rules.
+
+### Effects
+
+The Effects tab keeps the existing physical sign/fire test scene and adds a fullscreen WebGL post-process pass.
+
+Presets:
+
+- clean;
+- pixel crunch;
+- PSX wobble;
+- dither fog;
+- tape damage;
+- nightmare.
+
+Implemented techniques:
+
+- low-resolution pixel crunch;
+- color quantization;
+- ordered 4×4 Bayer dithering;
+- screen-space wobble / tracking tears;
+- RGB channel separation;
+- temporal grain;
+- scan modulation;
+- vignette;
+- posterized luma response;
+- optional projection snapping for the PSX preset.
+
+The geometry scene is still generated normally first.
+
+Then the whole frame is uploaded as one texture and processed in one fullscreen shader pass.
+
+This keeps the weird-camera look separate from geometry correctness.
+
+### Research basis
+
+The effect vocabulary is based on techniques repeatedly used in contemporary retro/indie rendering:
+
+- camera-level pixel crunch and distortion;
+- low color depth;
+- ordered dithering;
+- vertex/projection snapping;
+- fog / visibility reduction;
+- CRT/VHS-style tracking and color damage.
+
+The goal is not to reproduce one game's exact style. The lab exposes the underlying techniques as reusable controls.
