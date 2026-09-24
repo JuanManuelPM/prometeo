@@ -11,7 +11,7 @@ body{min-height:100vh}a{color:inherit}.shell{width:min(1180px,100%);margin:auto;
 .brand{font-size:10px;font-weight:950;letter-spacing:.15em;margin-right:auto;white-space:nowrap}.nav{height:31px;padding:0 9px;border:1px solid var(--line);display:inline-flex;align-items:center;text-decoration:none;font:850 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.06em;white-space:nowrap}.nav.current{background:#fff;color:#000;border-color:#fff}
 .hero{padding:16px 0 14px;border-bottom:1px solid var(--line)}.eyebrow{font:900 8px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;color:var(--muted)}
 h1{font-size:clamp(30px,6vw,54px);line-height:.95;letter-spacing:-.055em;margin:7px 0 8px}.lead{font-size:12px;line-height:1.45;color:#aaa;max-width:850px}
-.now{display:grid;grid-template-columns:1fr 1fr 1.3fr;border-bottom:1px solid var(--line)}.now>div{padding:12px 10px;border-right:1px solid var(--line);min-width:0}.now>div:last-child{border-right:0}.now b{display:block;font-size:22px;letter-spacing:-.04em}.now span{font:800 8px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.now{display:grid;grid-template-columns:.8fr 1fr 1fr 1.3fr;border-bottom:1px solid var(--line)}.now>div{padding:12px 10px;border-right:1px solid var(--line);min-width:0}.now>div:last-child{border-right:0}.now b{display:block;font-size:22px;letter-spacing:-.04em}.now span{font:800 8px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
 .action{background:#fff;color:#000}.action span{color:#555}.action b{font-size:20px}.action a{display:inline-block;margin-top:7px;padding:7px 9px;border:1px solid #000;text-decoration:none;font:900 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
 .map{padding:16px 0;border-bottom:1px solid var(--line)}.mapTitle{font-size:20px;font-weight:920;letter-spacing:-.035em;margin-bottom:8px}.mapRail{display:flex;gap:5px;overflow-x:auto;padding-bottom:5px;scrollbar-width:none}.mapRail::-webkit-scrollbar{display:none}.phaseChip{flex:0 0 auto;border:1px solid var(--line);padding:8px 9px;min-width:112px;text-decoration:none}.phaseChip b{display:block;font-size:9px}.phaseChip span{display:block;font:750 7px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);margin-top:4px}.phaseChip.done{background:#fff;color:#000;border-color:#fff}.phaseChip.done span{color:#555}
 .rule{margin-top:10px;border:1px solid var(--line);padding:10px;font-size:11px;line-height:1.45;color:#aaa}.rule b{color:#fff}
@@ -29,7 +29,8 @@ h1{font-size:clamp(30px,6vw,54px);line-height:.95;letter-spacing:-.055em;margin:
 <div class="now">
  <div><span>PLAN</span><b id="planProgress">…</b><span id="planProgressSub">cargando checklist</span></div>
  <div><span>PRODUCT-100</span><b id="productProgress">…</b><span id="productSub">estado live</span></div>
- <div class="action"><span>TU SIGUIENTE ACCIÓN HUMANA</span><b id="humanAction">cargando…</b><span id="humanActionSub"></span><a id="humanActionLink" href="/prometeo/o/">ABRIR WORKERS</a></div>
+ <div><span>COGNITIVE FRONTIER</span><b id="cognitiveProgress">…</b><span id="cognitiveSub">canary live</span></div>
+ <div class="action"><span>TU SIGUIENTE ACCIÓN HUMANA</span><b id="humanAction">cargando…</b><span id="humanActionSub"></span><a id="humanActionLink" href="https://juanmanuelpm.github.io/prometeo/worker-prompts/global-work-loop-v52.txt">ABRIR PROMPT V5.2</a></div>
 </div>
 
 <section class="map"><div class="mapTitle">Mapa de la rompiente</div><div class="mapRail" id="mapRail"></div>
@@ -51,20 +52,38 @@ function renderPlan(p){
  mapRail.innerHTML=phases.map((ph,i)=>{const c=ph.counts||{},done=c.total>0&&c.verified===c.total;return '<a class="phaseChip '+(done?'done':'')+'" href="#phase-'+i+'"><b>'+esc(ph.phase)+'</b><span>'+esc(c.verified||0)+'/'+esc(c.total||0)+' verified</span></a>'}).join('');
  content.innerHTML=phases.map((ph,i)=>{const c=ph.counts||{};return '<section class="section" id="phase-'+i+'"><div class="sectionHead"><div class="sectionTitle">'+esc(ph.phase)+'</div><div class="counts">'+esc(c.verified||0)+' VERIFIED · '+esc(c.pending||0)+' PENDING · '+esc(c.active||0)+' ACTIVE</div></div><div class="items">'+(ph.items||[]).map(it=>'<details><summary><span class="id">'+esc(it.item_key)+'</span><span class="status '+esc(it.status)+'">'+esc(it.status)+'</span><span class="title">'+esc(it.title)+'</span><span class="owner">'+esc(it.owner)+' · '+esc(it.execution_mode)+'</span></summary><div class="detail"><div><b>CÓMO</b>'+esc(it.how)+'</div><div><b>MONITOREO</b>'+esc(it.monitor)+'</div><div><b>VERIFICACIÓN</b>'+esc(it.verify)+'</div></div></details>').join('')+'</div></section>'}).join('');
 }
-function renderLive(product,health){
+function renderLive(product,health,cf){
  const j=product?.jobs||{},pct=product?.percentage||{};productProgress.textContent=(j.done_success||0)+' / 30';productSub.textContent=(pct.display??0)+'% verified · '+(j.ready||0)+' READY · '+(j.active||0)+' ACTIVE · '+(j.blocked||0)+' BLOCKED';
- const n=Number(health?.recommended_new_shells||0),active=Number(health?.useful_active||0),ready=Number(health?.useful_ready_width||0);
- if(n>0){humanAction.textContent='LANZAR '+n+' WORKER'+(n===1?'':'S');humanActionSub.textContent='Hay '+ready+' jobs útiles reclamables y 0 capacidad elegible observada.';humanActionLink.style.display='inline-block'}
- else if(active>0){humanAction.textContent='NO HACER NADA';humanActionSub.textContent=active+' jobs útiles ya están activos. No uses al humano como scheduler.';humanActionLink.style.display='none'}
- else if(ready>0){humanAction.textContent='FALTA CAPACIDAD';humanActionSub.textContent=ready+' jobs READY sin capacidad elegible.';humanActionLink.style.display='inline-block'}
- else{humanAction.textContent='SIN ACCIÓN';humanActionSub.textContent='No hay déficit útil reclamable según health live.';humanActionLink.style.display='none'}
+ const cj=cf?.jobs||{},cs=cf?.sessions||{},ca=cf?.artifacts||{};
+ cognitiveProgress.textContent=(cj.ready||0)+' READY · '+(cj.active||0)+' ACTIVE';
+ cognitiveSub.textContent=(cj.success||0)+' SUCCESS · '+(cs.total||0)+'/16 sessions · '+(ca.words||0)+' words';
+ const materialNeed=Number(health?.recommended_new_shells||0), materialActive=Number(health?.useful_active||0);
+ const cognitiveSlots=Math.max(0,16-Number(cs.total||0));
+ const cognitiveNeed=Math.min(cognitiveSlots,Number(cj.ready||0));
+ if(materialNeed>0){
+   humanAction.textContent='LANZAR '+materialNeed+' V5.2';
+   humanActionSub.textContent='Primero cubrir '+materialNeed+' job(s) material/verify; el mismo V5.2 cae al cognitive frontier después.';
+   humanActionLink.style.display='inline-block';
+ }else if(cognitiveNeed>0){
+   humanAction.textContent='LANZAR '+cognitiveNeed+' V5.2';
+   humanActionSub.textContent=(cj.ready||0)+' jobs cognitive READY · '+cognitiveSlots+' asientos del burst todavía libres.';
+   humanActionLink.style.display='inline-block';
+ }else if(materialActive>0 || Number(cj.active||0)>0){
+   humanAction.textContent='NO HACER NADA';
+   humanActionSub.textContent=(materialActive||0)+' material + '+(cj.active||0)+' cognitive activos; dejá que consuman el frontier.';
+   humanActionLink.style.display='none';
+ }else{
+   humanAction.textContent='SIN ACCIÓN';
+   humanActionSub.textContent='No hay frontier reclamable o el burst ya consumió sus 16 admissions.';
+   humanActionLink.style.display='none';
+ }
 }
 async function load(){
  try{
-  const [p,prod,h]=await Promise.all([rpc('prometeo_operating_plan_v1',{p_plan_key:'COGNITIVE_FRONTIER_BREAKER_V1'}),rpc('prometeo_product100_status_v1',{}),rpc('prometeo_worker_health_v1',{})]);
-  renderPlan(p);renderLive(prod,h);
+  const [p,prod,h,cf]=await Promise.all([rpc('prometeo_operating_plan_v1',{p_plan_key:'COGNITIVE_FRONTIER_BREAKER_V1'}),rpc('prometeo_product100_status_v1',{}),rpc('prometeo_worker_health_v1',{}),rpc('prometeo_cognitive_frontier_status_v1',{})]);
+  renderPlan(p);renderLive(prod,h,cf);
  }catch(e){content.innerHTML='<section class="section">Error cargando plan: '+esc(e.message||e)+'</section>'}
 }
-load();setInterval(async()=>{try{const [prod,h]=await Promise.all([rpc('prometeo_product100_status_v1',{}),rpc('prometeo_worker_health_v1',{})]);renderLive(prod,h)}catch(e){}},20000);
+load();setInterval(async()=>{try{const [prod,h,cf]=await Promise.all([rpc('prometeo_product100_status_v1',{}),rpc('prometeo_worker_health_v1',{}),rpc('prometeo_cognitive_frontier_status_v1',{})]);renderLive(prod,h,cf)}catch(e){}},20000);
 })();
 </script></body></html>
