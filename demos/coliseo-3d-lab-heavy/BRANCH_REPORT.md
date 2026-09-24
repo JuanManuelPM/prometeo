@@ -76,3 +76,23 @@ Persistence becomes skyline.
 Failure/history become ruins.
 
 That is the direction to evaluate visually before connecting live Prometeo state.
+
+
+## LAB-H3 correction
+
+### Mobile
+- forced landscape presentation in portrait mobile viewport;
+- virtual render dimensions swap width/height;
+- app surface rotates 90°;
+- pointer/touch coordinates are mapped back correctly;
+- visualViewport resize tracking added.
+
+### Occlusion
+- identified the scene-order bug: separate heavy subsystems were drawn in fixed code order;
+- introduced a shared HEAVY_PAINTER queue;
+- heavy world cuboids, board cuboids and ghost structures now enter the same painter list as canonical dynamic objects;
+- courier is queued before sort;
+- exterior skyline components are depth-sorted before static-wall compositing.
+
+Build:
+- `LAB-H3`
