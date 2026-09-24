@@ -88,6 +88,7 @@ function buildReceipt(out,payload){
     state:out?.state||'UNKNOWN',
     intake_id:out?.intake_id||null,
     candidate_ref:out?.candidate_ref||null,
+    lineage:out?.lineage||null,
     input_type:out?.input_type||payload.input_type||'UNKNOWN',
     guide_key:GUIDE,
     routing_state:out?.routing_state||'UNKNOWN',
