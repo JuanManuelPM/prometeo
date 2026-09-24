@@ -28,6 +28,10 @@ style.textContent=`
 .sharedForm button{justify-content:center}
 .sharedNote,.sharedReceipt{font:750 9px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;opacity:.58;margin-top:8px}
 .sharedReceipt{opacity:1;overflow-wrap:anywhere}
+.sharedReceipt details{margin-top:8px;border-top:1px solid #222;padding-top:7px}
+.sharedReceipt summary{cursor:pointer;font-weight:900}
+.sharedReceipt pre{white-space:pre-wrap;word-break:break-word;margin:7px 0 0;padding:8px;border:1px solid #222;background:#030303;font:700 8px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace}
+.sharedReceipt button{margin-top:7px;padding:7px 9px;border:1px solid #333;background:#080808;color:#fff;font:850 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
 .domainBranches{display:grid;grid-template-columns:repeat(2,1fr);border-left:1px solid var(--line);border-top:1px solid var(--line);margin-top:10px}
 .domainBranch{padding:9px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-width:0}
 .domainBranch b{display:block;font-size:11px}.domainBranch span{font:750 8px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;opacity:.5}
@@ -78,6 +82,39 @@ function syncType(){
 }
 typeEl.addEventListener('change',syncType);syncType();
 
+function buildReceipt(out,payload){
+  return {
+    schema:'prometeo.domain_input_upload_receipt/v1',
+    state:out?.state||'UNKNOWN',
+    intake_id:out?.intake_id||null,
+    candidate_ref:out?.candidate_ref||null,
+    input_type:out?.input_type||payload.input_type||'UNKNOWN',
+    guide_key:GUIDE,
+    routing_state:out?.routing_state||'UNKNOWN',
+    routed_guide_key:out?.routed_guide_key||null,
+    objective_state:out?.objective_state||'UNKNOWN',
+    dispatch_created:out?.dispatch_created===true,
+    demand_created:out?.demand_created===true,
+    job_created:out?.job_created===true,
+    origin:payload.origin||null,
+    provenance:Array.isArray(payload.provenance)?payload.provenance:[],
+    content_ref:isRefType(payload.input_type)?(payload.content_ref||null):null,
+    dedupe_key:payload.dedupe_key||null,
+    client_rendered_at:new Date().toISOString()
+  };
+}
+
+function renderReceipt(receipt){
+  const json=JSON.stringify(receipt,null,2);
+  const status=[receipt.state,receipt.candidate_ref||'sin candidate_ref','intake='+(receipt.intake_id||'—'),'type='+receipt.input_type,'routing='+receipt.routing_state,'dispatch='+(receipt.dispatch_created?'YES':'NO')].join(' · ');
+  receiptEl.innerHTML='<div><b>'+esc(status)+'</b></div><details><summary>RECIBO JSON · v1</summary><pre>'+esc(json)+'</pre></details><button type="button" data-copy-receipt>COPIAR RECIBO</button>';
+  const btn=receiptEl.querySelector('[data-copy-receipt]');
+  btn?.addEventListener('click',async()=>{
+    try{await navigator.clipboard.writeText(json);btn.textContent='RECIBO COPIADO';}
+    catch{btn.textContent='NO SE PUDO COPIAR';}
+  });
+}
+
 async function loadDomainState(){
   try{
     const ctx=await rpc('prometeo_domain_guide_operating_view_v2',{p_guide_key:GUIDE});
@@ -103,14 +140,15 @@ section.querySelector('#sharedGuideInput').addEventListener('submit',async ev=>{
     input_type:inputType,guide_key:GUIDE,
     origin:{source_ref:'guide-page:'+GUIDE+':'+location.pathname,surface:'GUIDE_DOMAIN_PAGE',guide_key:GUIDE,client_event_id:eventId},
     provenance:[{ref:location.href.split('#')[0]+'#input-'+eventId,kind:isRefType(inputType)?'USER_CONTENT_REF':'USER_LITERAL',captured_at:now}],
-    content_meta:{surface_path:location.pathname,guide_key:GUIDE,client_event_id:eventId,captured_at:now}
+    content_meta:{surface_path:location.pathname,guide_key:GUIDE,client_event_id:eventId,captured_at:now,receipt_schema:'prometeo.domain_input_upload_receipt/v1'},
+    dedupe_key:'guide-page:'+GUIDE+':'+eventId
   };
   if(objectiveRef)payload.objective_ref=objectiveRef;
   if(isRefType(inputType))payload.content_ref=refEl.value.trim();else payload.literal_text=literalEl.value.trim();
   try{
     const out=await rpc('prometeo_guide_intake_capture_v1',{p_input:payload});
     if(out?.state==='ERROR')throw new Error(out.reason||'INTAKE_ERROR');
-    receiptEl.textContent=[out?.state||'RECORDED',out?.candidate_ref||'sin candidate_ref','routing='+(out?.routing_state||'UNKNOWN'),'objective='+(out?.objective_state||'UNKNOWN'),'dispatch='+(out?.dispatch_created===true?'YES':'NO')].join(' · ');
+    renderReceipt(buildReceipt(out,payload));
     if(isRefType(inputType))refEl.value='';else literalEl.value='';
     await loadDomainState();
   }catch(e){receiptEl.textContent='ERROR · '+(e?.message||String(e));}
