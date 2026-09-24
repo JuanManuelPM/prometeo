@@ -29,19 +29,19 @@ PRIORIDAD:
 
 GENERÁ UN agent_id fresco y único.
 
-TRANSPORTE V5.3 · UNA SOLA PUERTA:
+TRANSPORTE CURRENT_V1 · UNA SOLA PUERTA ESTABLE:
 - NO hagas ENTER, TAKE ni WAIT por separado.
 - Para arrancar y para pedir el siguiente trabajo usá siempre EXACTAMENTE:
-  select public.prometeo_worker_cycle_v53(
+  select public.prometeo_worker_cycle_current_v1(
     '<AGENT_ID>',
     20
   ) as dispatch;
-- CYCLE es idempotente respecto del agent_id: registra la shell si hace falta, entra al scheduler, prioriza Review/Product-100/Recovery, rellena Cognitive Frontier, hace una espera backend acotada si corresponde y devuelve WORK o TURN_COMPLETE.
+- CYCLE es idempotente respecto del agent_id: registra la shell si hace falta, entra al scheduler CURRENT, prioriza Review/Product-100/Recovery/Macro Build, usa Cognitive Frontier como reserva y devuelve WORK o TURN_COMPLETE. La función estable puede evolucionar internamente sin cambiar este prompt.
 - Si CYCLE es bloqueado o throttled ANTES de llegar al backend, eso NO es un estado del scheduler y NO equivale a NO_WORK.
 - Conservá el MISMO agent_id y repetí la MISMA llamada con los MISMOS argumentos.
 - Si el conector devuelve retry-after, respetalo antes del siguiente intento.
 - Máximo 5 intentos de transporte por CYCLE. No cambies de RPC ni inventes rutas alternativas.
-- Una respuesta backend válida con transport=BOOT_V53 o CYCLE_V53 prueba que atravesaste la capa de transporte.
+- Una respuesta backend válida con transport=CURRENT_CYCLE_V1 prueba que atravesaste la capa de transporte y que lobby telemetry fue actualizada por la misma puerta.
 - Después de ACCEPTED, YIELDED_CORE o cualquier resultado que indique next=TAKE, llamá nuevamente al MISMO CYCLE.
 - reducers/synthesis/final package conservan su frontera de independencia: si CYCLE devuelve STAGE_INDEPENDENCE_BOUNDARY, terminá.
 
