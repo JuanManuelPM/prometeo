@@ -282,8 +282,9 @@ function renderStatus(){
  if(!product)return;const j=product.jobs||{},pct=product.percentage||{};
  packageCount.textContent=(j.done_success||0)+' / 30';packageSub.textContent=(j.ready||0)+' READY · '+(j.active||0)+' ACTIVE · '+(j.blocked||0)+' BLOCKED';
  verifiedPct.textContent=(pct.display??0)+'%';gateState.textContent='gate: '+(pct.limiting_gate||'—');goalState.textContent=product.released?'RELEASED':'NO RELEASED';
- const capState=compact(capacity?.capacity_state??capacity?.capacity?.state??capacity?.recommendation??product.capacity??'UNKNOWN');
- const reasons=arr(capacity?.reason_codes??capacity?.capacity?.reason_codes??capacity?.reasons);
+ const cap=capacity?.capacity||{};
+ const capState=compact(capacity?.capacity_state??cap.signal??capacity?.recommendation??product.capacity??'UNKNOWN');
+ const reasons=arr(capacity?.stale_reason_codes??capacity?.reason_codes??cap.reason_codes??capacity?.reasons);
  const n=Number(capacity?.recommended_new_shells??capacity?.capacity?.recommended_new_shells??0);
  if(n>0){humanAction.textContent='LANZAR '+n+' WORKER'+(n===1?'':'S');humanActionSub.textContent=reasons.join(' · ')||capState}
  else if(capState==='NEED_MORE'){humanAction.textContent='FALTA CAPACIDAD';humanActionSub.textContent=reasons.join(' · ')||'NEED_MORE'}
@@ -297,12 +298,13 @@ function renderStatus(){
 function renderControlPlane(){
  const pct=product?.percentage||{},nodes=graph?.nodes||[],active=(graph?.summary?.active_nodes||[]),ready=(graph?.summary?.ready_nodes||[]);
  cpGate.textContent=pct.limiting_gate||'UNKNOWN';cpGateSub.textContent='cap '+compact(pct.gate_cap)+'% · verificado '+compact(pct.raw_verified)+'%';
+ const frontier=nodes.filter(n=>n.state==='READY'||n.state==='ACTIVE').sort((a,b)=>(b.direct_unlock_count||0)-(a.direct_unlock_count||0)||b.priority-a.priority),keyNode=frontier[0];
  const supplied=capacity?.critical_path??capacity?.bottleneck??capacity?.critical_node;
- cpCritical.textContent=compact(supplied??active.join(' + ')??'UNKNOWN');
- cpCriticalSub.textContent=active.length?'ACTIVE '+active.join(' · '):(ready.length?'READY '+ready.join(' · '):'sin frontier útil visible');
- const capState=compact(capacity?.capacity_state??capacity?.capacity?.state??capacity?.recommendation??product?.capacity??'UNKNOWN');
- const reasons=arr(capacity?.reason_codes??capacity?.capacity?.reason_codes??capacity?.reasons);
- cpCapacity.textContent=capState;cpCapacityReason.textContent=reasons.join(' · ')||'sin reason_codes';
+ cpCritical.textContent=compact(supplied??(keyNode?keyNode.key:'UNKNOWN'));
+ cpCriticalSub.textContent=keyNode?(keyNode.state+' · desbloquea '+(keyNode.direct_unlock_count||0)+' · '+(keyNode.direct_unlocks||[]).join(' · ')):(active.length?'ACTIVE '+active.join(' · '):(ready.length?'READY '+ready.join(' · '):'sin frontier útil visible'));
+ const cap=capacity?.capacity||{},capState=compact(capacity?.capacity_state??cap.signal??capacity?.recommendation??product?.capacity??'UNKNOWN');
+ const reasons=arr(capacity?.stale_reason_codes??capacity?.reason_codes??cap.reason_codes??capacity?.reasons);
+ cpCapacity.textContent=capState;cpCapacityReason.textContent=[...reasons,'knowledge='+compact(cap.knowledge_state),'ready='+compact(cap.useful_ready_width),'active='+compact(cap.active_width),'blocked='+compact(cap.blocked_width)].filter(Boolean).join(' · ');
  const snap=capacity?.evaluation_at??capacity?.generated_at??capacity?.state_cutoff_at??capacity?.state_cutoff??graph?.generated_at??product?.server_time;
  cpAge.textContent=age(snap);cpAge.title=String(snap||'');
  const verified=nodes.filter(n=>n.state==='DONE'&&n.completion_class==='SUCCESS'&&(n.job_class==='VERIFY_READONLY'||String(n.key).endsWith('V'))).sort((a,b)=>new Date(b.completed_at||0)-new Date(a.completed_at||0))[0];
@@ -312,9 +314,11 @@ function renderControlPlane(){
  const cutoff=capacity?.state_cutoff_at??capacity?.state_cutoff??capacity?.cutoff??'UNKNOWN';
  const compat=capacity?.compatibility??capacity?.contract_compatibility??capacity?.compatibility_state??'UNKNOWN';
  const live=capacity?.liveness??capacity?.liveness_state??capacity?.worker_liveness??'UNKNOWN';
- const recovery=capacity?.recovery??capacity?.recovery_state??capacity?.recovery_summary??'UNKNOWN';
- cpAlarms.innerHTML='<b>ALARMS</b> '+esc(alarms.length?alarms.map(compact).join(' · '):'ninguna reportada')+'<br><b>REASON_CODES</b> '+esc(reasons.length?reasons.join(' · '):'—')+'<br><b>CUTOFF</b> '+esc(compact(cutoff))+' · <b>COMPAT</b> '+esc(compact(compat))+' · <b>LIVENESS</b> '+esc(compact(live))+' · <b>RECOVERY</b> '+esc(compact(recovery));
- invokeGuide.href='/prometeo/guide/?guide_key=MAIN&origin='+encodeURIComponent(location.pathname+location.search+location.hash);
+ const recovery=capacity?.replay??capacity?.recovery??capacity?.recovery_state??capacity?.recovery_summary??'UNKNOWN';
+ const liveText=live&&typeof live==='object'?((live.operational_stale?'STALE':'FRESH')+' · open '+compact(live.open_attempts)+' · stale '+compact(live.stale_open_attempts)):compact(live);
+ const recoveryText=recovery&&typeof recovery==='object'?('requeues '+compact(recovery.requeue_events_total)+' · watchdog '+compact(recovery.watchdog_requeue_attempts)+' · max/job '+compact(recovery.max_job_watchdog_requeues)):compact(recovery);
+ cpAlarms.innerHTML='<b>ALARMS</b> '+esc(alarms.length?alarms.map(compact).join(' · '):'ninguna reportada')+'<br><b>REASON_CODES</b> '+esc(reasons.length?reasons.join(' · '):'—')+'<br><b>CUTOFF</b> '+esc(compact(cutoff))+' · <b>COMPAT</b> '+esc(compact(compat))+' · <b>LIVENESS</b> '+esc(liveText)+' · <b>RECOVERY</b> '+esc(recoveryText);
+ invokeGuide.href='/prometeo/guide/?guide_key=STRATEGY&origin='+encodeURIComponent(location.pathname+location.search+location.hash);
 }
 function renderGuides(){
  const gs=dashboard?.guides||[];guides.innerHTML=gs.map(g=>{const w=g.work||{};return '<a class="guide" href="/prometeo'+esc(g.page_route||'/guides/')+'"><div class="guideTop"><span class="guideName">'+esc(g.short_title||g.title)+'</span><span class="guideState">'+esc(g.capsule_status||g.status||'—')+'</span></div><div class="guideMeta">'+esc(w.active||0)+' ACTIVE · '+esc(w.ready||0)+' READY<br>'+esc(g.surface_count||0)+' superficies · abrir →</div></a>'}).join('');
