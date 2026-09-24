@@ -56,7 +56,7 @@ body{overscroll-behavior:none}
 <div class="ui">
   <div class="brand"><div class="mark">LAB</div><div class="copy"><b>Coliseo Heavy Lab</b><span>synthetic world-manifest · renderer sandbox</span></div></div>
   <div class="badge" id="labBadge">LAB · SYNTHETIC</div>
-  <div class="help" id="labHelp">arrastrá · zoom · ?fixture=chain|fanin|dynamic · ?layout=1</div>
+  <div class="help" id="labHelp">arrastrá · zoom · chain/fanin/parallel/dynamic · layout=1 · WORLD_MANIFEST_DEMO</div>
 </div>
 <script>
 (function(){
@@ -2012,10 +2012,27 @@ function labTransportState(now,edges){
   const cycle=LAB_FAST?6500:12000;
   const raw=(now%cycle)/cycle;
   const edge=edges[Math.floor((now/cycle))%edges.length];
-  if(raw<.16||raw>.84)return {edge,state:'idle',t:raw<.16?0:1};
-  return {edge,state:'transfer',t:clamp((raw-.16)/.68,0,1)};
+  if(raw<.16)return {edge,state:'idle',t:0};
+  if(raw<=.84)return {edge,state:'transfer',t:clamp((raw-.16)/.68,0,1)};
+  return {edge,state:'delivered',t:1};
 }
 
+const LAB_EVENT_MEMORY=new Map();
+function labSyntheticEvents(now){
+  const events=[];
+  for(let i=0;i<players.length;i++){
+    const pl=players[i],id='agent-'+i;
+    const moving=Math.hypot(pl.x-pl.lastX,pl.z-pl.lastZ)>.012||!!pl.segment;
+    const task=pl.task?pl.task.type:'idle';
+    const prev=LAB_EVENT_MEMORY.get(id)||{assignment:null,moving:false,task:'idle'};
+    const assignment='tower-'+pl.siteIndex;
+    if(prev.assignment!==assignment)events.push({type:'TAKE',agent_id:id,node_id:assignment,at:now});
+    if(moving&&!prev.moving)events.push({type:'PROGRESS',agent_id:id,node_id:assignment,at:now});
+    if(prev.task!=='idle'&&task==='idle')events.push({type:'SUBMIT',agent_id:id,node_id:assignment,at:now});
+    LAB_EVENT_MEMORY.set(id,{assignment,moving,task});
+  }
+  return events;
+}
 function buildWorldManifest(now){
   const edges=labFixtureEdges(now);
   const nodes=sites.map((site,i)=>({
@@ -2038,9 +2055,9 @@ function buildWorldManifest(now){
     position:{x:pl.x,z:pl.z,h:pl.h}
   }));
   const transit=labTransportState(now,edges);
-  const artifacts=transit&&transit.state==='transfer'?[{
+  const artifacts=transit&&transit.state!=='idle'?[{
     id:'artifact-demo-0',source:transit.edge.from,destination:transit.edge.to,
-    status:'in_transit',durable:true,t:transit.t
+    status:transit.state==='transfer'?'in_transit':'delivered',durable:true,t:transit.t
   }]:[];
   const manifest={
     schema:'prometeo.world_manifest/demo-v1',
@@ -2049,6 +2066,7 @@ function buildWorldManifest(now){
     baseline_sha:LAB_BASELINE,
     build:LAB_BUILD,
     nodes,edges,agents,artifacts,
+    events:labSyntheticEvents(now),
     focus:{node_id:'tower-4'},
     metrics:{
       frontier:nodes.filter(n=>n.status==='ready').length,
@@ -2143,8 +2161,19 @@ function drawLabCourier(c,edge,t,now){
 }
 function drawLabArtifactTransport(c,manifest,now){
   const tr=labTransportState(now,manifest.edges);
-  if(!tr||tr.state!=='transfer')return;
-  drawLabCourier(c,tr.edge,tr.t,now);
+  if(!tr)return;
+  if(tr.state==='transfer'){
+    drawLabCourier(c,tr.edge,tr.t,now);
+    return;
+  }
+  if(tr.state==='delivered'){
+    const pair=labEdgeSites(tr.edge);if(!pair)return;
+    const b=pair.b,a=Math.atan2(b.z,b.x);
+    const x=b.x+Math.cos(a)*2.25,z=b.z+Math.sin(a)*2.25;
+    // Delivered result waits as a blueprint/material seed beside the dependent node.
+    groundPatch(c,x,z,.50,.28,'#456159',.24,19100,10);
+    drawWorldCuboid(c,x,z,.03,.34,.18,'#6e8c7f',19120);
+  }
 }
 function drawLabExterior(c,manifest,now){
   // Persistent prototype lives outside the Coliseo. It is easiest to inspect by zooming out.
