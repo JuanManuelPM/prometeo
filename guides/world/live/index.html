@@ -15,11 +15,12 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000
 .barline{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center}
 .label{font-size:9px;font-weight:900;opacity:.7}.value{font:900 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
 .track{height:10px;border:1px solid rgba(255,255,255,.58);background:#000}.fill{height:100%;width:0;background:#fff;transition:width .5s ease}
-.meta{display:grid;grid-template-columns:auto auto auto auto 1fr;gap:14px;align-items:center;margin-top:9px;font-size:9px;font-weight:800}
+.meta{display:grid;grid-template-columns:auto auto auto auto auto 1fr;gap:14px;align-items:center;margin-top:9px;font-size:9px;font-weight:800}
 .taskline{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.72}
 .flash{animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{opacity:.42}}
 .corner{position:absolute;top:14px;right:16px;background:#000c;border:1px solid #ffffff4d;padding:7px 9px;font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
-@media(max-width:800px){.hud{padding:30px 12px 12px}.bars{grid-template-columns:1fr}.meta{grid-template-columns:auto auto auto 1fr}.hideSmall{display:none}.brand,.status{font-size:9px}}
+.healthRed{font-weight:1000}.healthYellow{font-weight:1000;opacity:.85}
+@media(max-width:800px){.hud{padding:30px 12px 12px}.bars{grid-template-columns:1fr}.meta{grid-template-columns:auto auto auto auto 1fr}.hideSmall{display:none}.brand,.status{font-size:9px}}
 </style>
 </head>
 <body>
@@ -32,113 +33,71 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000
       <div class="status" id="status">CARGANDO</div>
     </div>
     <div class="bars">
-      <div class="barline">
-        <span class="label">REVIEW</span>
-        <div class="track"><div class="fill" id="reviewFill"></div></div>
-        <span class="value" id="reviewPct">0%</span>
-      </div>
-      <div class="barline">
-        <span class="label">PRODUCT</span>
-        <div class="track"><div class="fill" id="productFill"></div></div>
-        <span class="value" id="productPct">0%</span>
-      </div>
+      <div class="barline"><span class="label">REVIEW</span><div class="track"><div class="fill" id="reviewFill"></div></div><span class="value" id="reviewPct">0%</span></div>
+      <div class="barline"><span class="label">PRODUCT</span><div class="track"><div class="fill" id="productFill"></div></div><span class="value" id="productPct">0%</span></div>
     </div>
     <div class="meta">
       <div><span id="reviewDone">0</span>/<span id="reviewTotal">0</span> REVIEW</div>
       <div><span id="primary">0</span> PRIMARY</div>
       <div><span id="utilityActive">0</span> UTILITY</div>
       <div><span id="utilityReady">0</span> U-READY</div>
-      <div class="taskline hideSmall" id="taskline">sin trabajo activo</div><div id="health">HEALTH UNKNOWN</div>
+      <div id="health">FLOTA UNKNOWN</div>
+      <div class="taskline hideSmall" id="taskline">sin trabajo activo</div>
     </div>
   </div>
 </div>
 <script>
 (() => {
-  const B = 'https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
-  const K = 'sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
-  const H = {apikey:K, Authorization:'Bearer '+K, 'Content-Type':'application/json'};
-  const el = id => document.getElementById(id);
-  const E = {
-    world:el('world'), clock:el('clock'), brand:el('brand'), status:el('status'),
-    reviewFill:el('reviewFill'), reviewPct:el('reviewPct'),
-    productFill:el('productFill'), productPct:el('productPct'),
-    reviewDone:el('reviewDone'), reviewTotal:el('reviewTotal'),
-    primary:el('primary'), utilityActive:el('utilityActive'), utilityReady:el('utilityReady'),
-    taskline:el('taskline'), health:el('health')
-  };
-  let lastWorldReload = Date.now();
-
-  function num(v,d=0){ const x=Number(v); return Number.isFinite(x)?x:d; }
-  function upper(v){ return String(v ?? 'UNKNOWN').toUpperCase(); }
+  const B='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+  const K='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+  const H={apikey:K,Authorization:'Bearer '+K,'Content-Type':'application/json'};
+  const el=id=>document.getElementById(id);
+  const E={world:el('world'),clock:el('clock'),brand:el('brand'),status:el('status'),reviewFill:el('reviewFill'),reviewPct:el('reviewPct'),productFill:el('productFill'),productPct:el('productPct'),reviewDone:el('reviewDone'),reviewTotal:el('reviewTotal'),primary:el('primary'),utilityActive:el('utilityActive'),utilityReady:el('utilityReady'),health:el('health'),taskline:el('taskline')};
+  let lastWorldReload=Date.now();
+  const num=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
+  const upper=v=>String(v??'UNKNOWN').toUpperCase();
   async function snapshot(){
-    const r = await fetch(B+'prometeo_world_snapshot_v1',{method:'POST',headers:H,body:'{}',cache:'no-store'});
-    if(!r.ok) throw new Error('snapshot '+r.status);
-    const x = await r.json();
-    if(!x || x.schema!=='prometeo.world_snapshot/v1' || Number(x.contract_version)!==1) throw new Error('WORLD_V1_CONTRACT');
-    return x;
+    const r=await fetch(B+'prometeo_world_snapshot_v1',{method:'POST',headers:H,body:'{}',cache:'no-store'});
+    if(!r.ok)throw new Error('snapshot '+r.status);
+    return r.json();
   }
-
   async function load(){
     try{
-      const x = await snapshot();
-      const run = x.focus_run || {};
-      const counts = run.counts || {};
-      const rt = run.runtime || {};
-      const product = x.product_completion || {};
-      const pp = product.percentage || {};
-      const ub = x.utility_text_board || {};
-      const uc = ub.counts || {};
-      const lobby = x.worker_lobby || {};
-
-      const reviewDone = num(counts.success, num(counts.done,0));
-      const reviewTotal = num(counts.total,0);
-      const rawRatio = num(run.job_completion_ratio, reviewTotal ? reviewDone/reviewTotal : 0);
-      const reviewPct = Math.max(0,Math.min(100,rawRatio<=1.0001 ? rawRatio*100 : rawRatio));
-      const productPct = Math.max(0,Math.min(100,num(pp.display,0)));
-
-      const activeJobs = (rt.jobs||[]).filter(j => upper(j.state)==='ACTIVE');
-      const primary = Math.max(num(lobby.primary_executing,0),activeJobs.length);
-      const utility = num(uc.active,0);
-      const utilityReady = num(uc.ready,0);
-
-      E.brand.textContent = 'PROMETEO · '+String(run.run_id || 'WORLD');
-      E.reviewFill.style.width = reviewPct+'%';
-      E.reviewPct.textContent = reviewPct.toFixed(0)+'%';
-      E.productFill.style.width = productPct+'%';
-      E.productPct.textContent = productPct.toFixed(0)+'%';
-      E.reviewDone.textContent = reviewDone;
-      E.reviewTotal.textContent = reviewTotal;
-      E.primary.textContent = primary;
-      E.utilityActive.textContent = utility;
-      E.utilityReady.textContent = utilityReady;
-
-      E.taskline.textContent = activeJobs.length
-        ? activeJobs.map(j => (j.node_key||j.job_id||'JOB')+' · '+(j.progress_stage||j.observed_liveness||'UNKNOWN')).join(' / ')
-        : utility>0 ? utility+' workers en UTILITY_TEXT' : 'sin trabajo activo';
-
-      const rs = upper(run.status);
-      const working = primary + utility;
-      E.status.textContent = upper(health.severity)==='RED' ? 'ALERTA · +'+num(health.recommended_new_shells,0)+' WORKERS' : working>0 ? 'TRABAJANDO' : rs==='RUNNING' ? 'ESPERANDO' : rs;
-      E.status.className = 'status'+(working>0?' flash':'');
-      E.clock.textContent = new Intl.DateTimeFormat('es-AR',{
-        timeZone:'America/Argentina/Buenos_Aires',
-        hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false
-      }).format(new Date(x.generated_at || Date.now()));
+      const x=await snapshot();
+      const run=x.focus_run||{},counts=run.counts||{},rt=run.runtime||{};
+      const pp=(x.product_completion||{}).percentage||{};
+      const uc=(x.utility_text_board||{}).counts||{};
+      const bc=(x.utility_batch_board||{}).counts||{};
+      const health=x.worker_health||{};
+      const lobby=x.worker_lobby||{};
+      const reviewDone=num(counts.success,num(counts.done,0));
+      const reviewTotal=num(counts.total,0);
+      const ratio=num(run.job_completion_ratio,reviewTotal?reviewDone/reviewTotal:0);
+      const reviewPct=Math.max(0,Math.min(100,ratio<=1.0001?ratio*100:ratio));
+      const productPct=Math.max(0,Math.min(100,num(pp.display,0)));
+      const activeJobs=(rt.jobs||[]).filter(j=>upper(j.state)==='ACTIVE');
+      const primary=Math.max(num(lobby.primary_executing,0),activeJobs.length);
+      const utility=num(uc.active,0)+num(bc.active,0);
+      const utilityReady=num(uc.ready,0)+num(bc.ready,0);
+      const sev=upper(health.severity),rec=num(health.recommended_new_shells,0);
+      E.brand.textContent='PROMETEO · '+String(run.run_id||'WORLD');
+      E.reviewFill.style.width=reviewPct+'%'; E.reviewPct.textContent=reviewPct.toFixed(0)+'%';
+      E.productFill.style.width=productPct+'%'; E.productPct.textContent=productPct.toFixed(0)+'%';
+      E.reviewDone.textContent=reviewDone; E.reviewTotal.textContent=reviewTotal;
+      E.primary.textContent=primary; E.utilityActive.textContent=utility; E.utilityReady.textContent=utilityReady;
+      E.health.textContent=sev==='RED'?'FLOTA RED · +'+rec+' WORKERS':sev==='YELLOW'?'FLOTA AMARILLA · +'+rec:'FLOTA '+sev;
+      E.health.className=sev==='RED'?'healthRed':sev==='YELLOW'?'healthYellow':'';
+      E.taskline.textContent=activeJobs.length?activeJobs.map(j=>(j.node_key||j.job_id||'JOB')+' · '+(j.progress_stage||j.observed_liveness||'UNKNOWN')).join(' / '):utility>0?utility+' workers en soporte útil':'sin trabajo activo';
+      const rs=upper(run.status),working=primary+utility;
+      E.status.textContent=sev==='RED'?'ALERTA · +'+rec+' WORKERS':working>0?'TRABAJANDO':rs==='RUNNING'?'ESPERANDO':rs;
+      E.status.className='status'+(sev==='RED'||working>0?' flash':'');
+      E.clock.textContent=new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(x.generated_at||Date.now()));
     }catch(err){
-      console.error(err);
-      E.status.textContent='RECONEXIÓN';
-      E.status.className='status';
+      console.error(err);E.status.textContent='RECONEXIÓN';E.status.className='status';
     }
-
-    if(Date.now()-lastWorldReload>300000){
-      E.world.src='/prometeo/guides/world/?view=tv&v='+Date.now();
-      lastWorldReload=Date.now();
-    }
+    if(Date.now()-lastWorldReload>300000){E.world.src='/prometeo/guides/world/?view=tv&v='+Date.now();lastWorldReload=Date.now()}
   }
-
-  load();
-  setInterval(load,3000);
+  load();setInterval(load,3000);
 })();
 </script>
-</body>
-</html>
+</body></html>
