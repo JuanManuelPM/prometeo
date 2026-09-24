@@ -75,7 +75,7 @@ const C={
 };
 const TOWER_NAMES=['ASTERION','EREBOS','HELIOS','NYX','KAIROS'];
 const CUT=.05;
-const torches=Array.from({length:8},(_,i)=>({ang:i*TAU/8+.08,phase:i*1.81}));
+const torches=[]; // old stand torches removed: only tower ritual torches light the arena
 const BLOCK_COLORS=['#a53b24','#c66d31','#a68a43','#506657','#3c5961','#816049','#b89a68','#6f3631','#58604d'];
 const GRID_R=3,BLOCK_STEP=.78,BLOCK_H=.62;
 const DIR4=[[1,0],[-1,0],[0,1],[0,-1]];
@@ -372,14 +372,10 @@ function paintBackdrop(){
     fillRagged(c,pts,i%3===0?C.red:'#6c2b1c',C.ink,.8,440+i);
   }
 
-  // torch stains are baked into the picture
-  for(const tr of torches){
-    if(cut(tr.ang))continue;
-    const p=pr(13.34,tr.ang,1.22);
-    const g=c.createRadialGradient(p.x,p.y,0,p.x,p.y,scale*2.3);
-    g.addColorStop(0,'rgba(220,111,45,.22)');g.addColorStop(.38,'rgba(151,55,28,.11)');g.addColorStop(1,'rgba(0,0,0,0)');
-    c.fillStyle=g;c.beginPath();c.arc(p.x,p.y,scale*2.3,0,TAU);c.fill();
-  }
+  // old stand torch stains removed
+
+  // overall darkness: old stand torches are gone, ritual fire now owns the light.
+  c.save();c.fillStyle='rgba(0,0,0,.20)';c.fillRect(0,0,IW,IH);c.restore();
 
   // clean half-section edges
   paintCutEdges(c);
@@ -925,13 +921,13 @@ function siteTopHeight(site){
 }
 // TASK NOTE: previous replies incorrectly claimed GitHub publication was unavailable.
 // Correct behavior is to retry the connected GitHub writer and publish the requested change directly.
-const BANNER_W=3.95;
-const BANNER_H=3.25;
-const BANNER_POLE_H=4.25;
-const BANNER_POLE_GAP=3.90;
-const TORCH_STAKE_H=1.08;
-const TUBE_H=2.28;
-const TUBE_R=.18;
+const BANNER_W=4.75;
+const BANNER_H=3.75;
+const BANNER_POLE_H=5.05;
+const BANNER_POLE_GAP=4.62;
+const TORCH_STAKE_H=1.18;
+const TUBE_H=3.05;
+const TUBE_R=.23;
 const PLAYER_R=BLOCK_STEP*.22;
 
 function siteBannerAnchor(site,index){
@@ -944,7 +940,7 @@ function siteBannerAnchor(site,index){
   return {
     x:Math.cos(ang)*r + (-Math.sin(ang))*tangent,
     z:Math.sin(ang)*r + ( Math.cos(ang))*tangent,
-    h:2.85,
+    h:3.25,
     ang
   };
 }
@@ -1112,13 +1108,13 @@ function drawTowerBanner(c,site,index,now){
   // Large title: use as much horizontal cloth space as possible.
   c.globalAlpha=1;c.textAlign='center';c.textBaseline='middle';
   c.fillStyle='#d7ad76';
-  fitWorldText(c,title,BANNER_W*.84,.54,.24,700,'system-ui');
+  fitWorldText(c,title,BANNER_W*.90,.66,.30,800,'system-ui');
   c.fillText(title,0,-BANNER_H*.16);
 
   // Keep only the numeric percentage on the banner. The world-space tube is the bar.
   const pctText=Math.round(prog.ratio*100)+'%';
   c.fillStyle='#b79d82';
-  fitWorldText(c,pctText,BANNER_W*.50,.34,.16,700,'Georgia');
+  fitWorldText(c,pctText,BANNER_W*.54,.40,.19,700,'Georgia');
   c.fillText(pctText,0,BANNER_H*.24);
 
   c.restore();
@@ -1181,6 +1177,7 @@ function drawProgressTube(c,site,index){
   c.restore();
 }
 
+const LAST_UPDATE_MS=Date.parse('2026-09-24T04:18:39.018Z');
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -1222,20 +1219,32 @@ function drawClock(c,now){
   const pL=pr(17.98,wallAng-halfAng,5.20),pR=pr(17.98,wallAng+halfAng,5.20);
   const rot=Math.atan2(pR.y-pL.y,pR.x-pL.x);
   const w=Math.max(scale*1.0,Math.hypot(pR.x-pL.x,pR.y-pL.y));
-  const h=scale*1.62*(.72+.28*clamp(-facing,0,1));
+  const h=scale*1.74*(.72+.28*clamp(-facing,0,1));
   if(w<scale*.9)return;
+
+  const elapsed=Math.max(0,Math.floor((Date.now()-LAST_UPDATE_MS)/1000));
+  let a,b,label;
+  if(elapsed<3600){
+    a=Math.floor(elapsed/60);b=elapsed%60;label='ACTUALIZADO · MIN:SEG';
+  }else{
+    a=Math.min(99,Math.floor(elapsed/3600));b=Math.floor((elapsed%3600)/60);label='ACTUALIZADO · H:MIN';
+  }
+  const str=String(a).padStart(2,'0')+String(b).padStart(2,'0');
 
   c.save();c.translate(q(center.x),q(center.y));c.rotate(rot);
   const frame=[
-    {x:-w*.54,y:-h*.56},{x:w*.54,y:-h*.56},{x:w*.54,y:h*.56},{x:-w*.54,y:h*.56}
+    {x:-w*.58,y:-h*.60},{x:w*.58,y:-h*.60},{x:w*.58,y:h*.60},{x:-w*.58,y:h*.60}
   ];
   fillRagged(c,frame,'#080705','#1a0d09',Math.max(1.2,scale*.09),2401);
   c.globalAlpha=.72;roughStroke(c,frame,'#6d2a1c',Math.max(.7,scale*.04),2402,true);c.globalAlpha=1;
 
-  const d=new Date(),hh=String(d.getHours()).padStart(2,'0'),mm=String(d.getMinutes()).padStart(2,'0'),str=hh+mm;
-  const ds=h*.72,dw=ds*.74,gap=ds*.10;
+  c.fillStyle='#b68b67';c.textAlign='center';c.textBaseline='middle';
+  c.font=`700 ${Math.max(5,scale*.16)}px system-ui`;
+  c.fillText(label,0,-h*.43);
+
+  const ds=h*.60,dw=ds*.74,gap=ds*.10;
   const total=dw*4+gap*5+ds*.20;
-  let xx=-total*.5+gap,yy=-ds*.55;
+  let xx=-total*.5+gap,yy=-ds*.40;
   for(let i=0;i<4;i++){
     if(i===2){
       const cx0=xx-gap*.10;
@@ -1249,13 +1258,38 @@ function drawClock(c,now){
     drawDigit(c,str[i],xx,yy,ds*.92,2600+i);xx+=dw+gap;
   }
 
-  c.globalCompositeOperation='screen';c.globalAlpha=.12;
-  const glow=c.createRadialGradient(0,0,0,0,0,w*.48);
-  glow.addColorStop(0,'rgba(238,77,36,.42)');glow.addColorStop(1,'rgba(0,0,0,0)');
-  c.fillStyle=glow;c.beginPath();c.ellipse(0,0,w*.48,h*.48,0,0,TAU);c.fill();
+  c.globalCompositeOperation='screen';c.globalAlpha=.14;
+  const glow=c.createRadialGradient(0,0,0,0,0,w*.50);
+  glow.addColorStop(0,'rgba(238,77,36,.46)');glow.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=glow;c.beginPath();c.ellipse(0,0,w*.50,h*.50,0,0,TAU);c.fill();
   c.restore();
 }
 
+
+function chooseHelpSite(fromIndex){
+  let best=-1,bestScore=Infinity;
+  for(let i=0;i<sites.length;i++){
+    if(i===fromIndex)continue;
+    const s=sites[i],r=siteProgress(s).ratio;
+    if(r>=.9999)continue;
+    if(s.ritual&&s.ritual.phase!=='ashes')continue;
+    const helpers=players.reduce((n,p)=>n+(p.siteIndex===i?1:0),0);
+    const score=r+helpers*.025;
+    if(score<bestScore){bestScore=score;best=i}
+  }
+  return best;
+}
+function releaseWorkersToHelp(fromIndex){
+  const target=chooseHelpSite(fromIndex);
+  if(target<0)return false;
+  for(let i=0;i<players.length;i++){
+    const pl=players[i];
+    if(pl.siteIndex!==fromIndex)continue;
+    pl.siteIndex=target;pl.task=null;pl.path.length=0;pl.segment=null;pl.jump=0;
+    pl.wait=.05+hash(i,target)*.18;
+  }
+  return true;
+}
 
 function siteCarrierIndex(siteIndex){
   for(let i=0;i<players.length;i++)if(players[i].siteIndex===siteIndex)return i;
@@ -1278,6 +1312,10 @@ function updateSiteRituals(now){
 
     if(!site.ritual)continue;
     const r=site.ritual,age=now-r.started;
+
+    if(r.phase==='ashes' && !r.workersReleased && age>1300){
+      r.workersReleased=releaseWorkersToHelp(si);
+    }
 
     if(r.phase==='fetching' && age>900){
       r.phase='carrying';r.started=now;
@@ -1458,10 +1496,65 @@ function drawAshes(c,site,index,now){
   c.restore();
 }
 
+
+function drawWindowEyes(c,now){
+  const COUNT=20,CYCLE=2350;
+  const slot=Math.floor(now/CYCLE),phase=(now%CYCLE)/CYCLE;
+  // deliberate dark pause between appearances
+  if(phase<.08||phase>.80)return;
+
+  let idx=Math.floor(hash(slot,911)*COUNT);
+  for(let tries=0;tries<COUNT&&cut(idx*TAU/COUNT+.02);tries++)idx=(idx+1)%COUNT;
+  const ang=idx*TAU/COUNT+.02;
+  if(cut(ang))return;
+
+  const mid=pr(18.28,ang,4.92);
+  const depth=.72+.28*((Math.sin(ang+yaw)+1)*.5);
+  const fade=Math.min(1,(phase-.08)/.12,(.80-phase)/.14);
+  const blinkT=(now+slot*617)%1850;
+  const open=(blinkT>1280&&blinkT<1440)?Math.max(.08,Math.abs(blinkT-1360)/80):1;
+  const w=scale*.53*depth,h=scale*.27*depth*open;
+  const look=Math.sin(now*.0028+slot*1.7)*w*.14;
+  const style=Math.floor(hash(slot,933)*4);
+
+  c.save();c.translate(q(mid.x),q(mid.y));
+  c.rotate((hash(idx,13)-.5)*.055);
+  c.globalAlpha=.92*fade;
+  c.globalCompositeOperation='screen';
+
+  // almond-shaped sclera that lives inside the same black arch.
+  c.beginPath();
+  c.moveTo(-w*.48,0);
+  c.quadraticCurveTo(0,-h,w*.48,0);
+  c.quadraticCurveTo(0,h,-w*.48,0);
+  c.closePath();
+  c.fillStyle=style===2?'rgba(188,169,128,.72)':'rgba(205,191,158,.78)';
+  c.fill();
+
+  const irisR=Math.max(1,w*.16);
+  c.beginPath();c.arc(look,0,irisR,0,TAU);
+  c.fillStyle=style===0?'rgba(185,48,28,.92)':style===1?'rgba(198,133,55,.92)':style===2?'rgba(74,112,88,.92)':'rgba(143,79,108,.92)';
+  c.fill();
+
+  c.globalCompositeOperation='source-over';
+  c.fillStyle='#050403';
+  if(style===1){
+    c.beginPath();c.ellipse(look,0,irisR*.23,irisR*.78,0,0,TAU);c.fill();
+  }else{
+    c.beginPath();c.arc(look,0,irisR*.40,0,TAU);c.fill();
+  }
+
+  // a tiny highlight makes the gaze readable from far away.
+  c.globalCompositeOperation='screen';c.globalAlpha=.55*fade;
+  c.fillStyle='#f0c778';c.beginPath();c.arc(look-irisR*.22,-irisR*.20,Math.max(.7,irisR*.12),0,TAU);c.fill();
+  c.restore();
+}
+
 function drawDynamic(now){
   ctx.fillStyle=C.black;ctx.fillRect(0,0,IW,IH);
   ctx.drawImage(staticCanvas,0,0);
   drawClock(ctx,now);
+  drawWindowEyes(ctx,now);
 
   const t=now/1000;
   const dt=Math.min(.08,FRAME/1000);
@@ -1495,7 +1588,13 @@ function drawDynamic(now){
     }
   }
   for(let i=0;i<players.length;i++){
-    const pl=players[i],p=wp(pl.x,pl.z,pl.h+pl.jump+.42);
+    const pl=players[i];
+    const dirX=pl.segment?(pl.segment.ex-pl.segment.sx):0;
+    const dirZ=pl.segment?(pl.segment.ez-pl.segment.sz):0;
+    const len=Math.max(.0001,Math.hypot(dirX,dirZ));
+    const fx=pl.x+(dirX/len)*PLAYER_R;
+    const fz=pl.z+(dirZ/len)*PLAYER_R;
+    const p=wp(fx,fz,pl.h+pl.jump+.42);
     items.push({type:'player',i,depth:p.zv,py:p.y,h:(pl.h+pl.jump)/BLOCK_H});
   }
   items.sort((u,v)=>u.depth-v.depth || u.py-v.py || u.h-v.h);
@@ -1513,18 +1612,7 @@ function drawDynamic(now){
     drawTowerFire(ctx,sites[i],i,now);
   }
 
-  ctx.save();ctx.globalCompositeOperation='screen';
-  const flameFrame=Math.floor(now/165)%4;
-  for(const tr of torches){
-    if(cut(tr.ang))continue;
-    const p=pr(13.34,tr.ang,1.22);
-    const flick=.82+hash(flameFrame,tr.phase)*.22;
-    const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,scale*(1.55+.25*flick));
-    g.addColorStop(0,'rgba(226,129,54,'+(0.18*flick)+')');g.addColorStop(.45,'rgba(177,52,28,'+(0.08*flick)+')');g.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,scale*(1.55+.25*flick),0,TAU);ctx.fill();
-    drawFlame(ctx,p,flameFrame,Math.floor(tr.phase*19));
-  }
-  ctx.restore();
+  // old stand torches removed; only ritual flames illuminate the arena.
 
   // Selective print flash: only freshly placed blocks get a brief colored afterimage.
   ctx.save();ctx.globalCompositeOperation='screen';
