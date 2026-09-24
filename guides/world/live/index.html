@@ -13,6 +13,17 @@
 .meta{display:grid;grid-template-columns:auto auto auto auto 1fr;gap:14px;align-items:center;margin-top:9px;font-size:9px;font-weight:850}.critical{margin-top:8px;font-size:10px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dim{opacity:.62}.flash{animation:pulse 1.1s ease-in-out infinite}@keyframes pulse{50%{opacity:.38}}.corner{position:absolute;top:14px;right:16px;background:#000c;border:1px solid #ffffff4d;padding:7px 9px;font:850 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
 @media(max-width:900px){.bars{grid-template-columns:1fr}.hud{padding:34px 12px 11px}.meta{grid-template-columns:auto auto auto 1fr}.hideSmall{display:none}.brand,.status{font-size:9px}}
+
+/* TV-READABILITY */
+@media(min-width:1100px){
+  .hud{padding:64px 30px 20px}
+  .brand,.status{font-size:15px}
+  .label{font-size:12px}.value{font-size:16px}
+  .track{height:14px}
+  .meta{font-size:11px;gap:18px;margin-top:12px}
+  .critical{font-size:13px;margin-top:10px}
+  .corner{font-size:12px;padding:9px 11px}
+}
 </style>
 </head>
 <body>
@@ -52,13 +63,13 @@ async function load(){
     const reviewDone=num(counts.success,num(counts.done)),reviewTotal=num(counts.total),reviewPct=reviewTotal?clamp(reviewDone/reviewTotal*100):0;
     const recoveryDone=num(rc.done_success),recoveryTotal=num(rc.total),recoveryPct=recoveryTotal?clamp(recoveryDone/recoveryTotal*100):0;
     const productPct=clamp(pp.display),ready=num(health.useful_ready_width),active=num(health.useful_active),need=num(health.recommended_new_shells);
-    const critical=String(health.critical_node||'—'),criticalAge=num(health.critical_age_seconds),stale=!!health.critical_stale,capacity=upper(health.capacity_decision);
+    const readyJobs=((run.runtime||{}).jobs||[]).filter(j=>upper(j.state)==='READY');const critical=String(health.critical_node||readyJobs[0]?.node_key||'—'),criticalAge=num(health.critical_age_seconds),stale=!!health.critical_stale,capacity=upper(health.capacity_decision);
     E.brand.textContent='PROMETEO · '+String(run.run_id||'WORLD');
     E.reviewFill.style.width=reviewPct+'%';E.reviewPct.textContent=reviewPct.toFixed(0)+'%';E.reviewDone.textContent=reviewDone;E.reviewTotal.textContent=reviewTotal;
     E.recoveryFill.style.width=recoveryPct+'%';E.recoveryPct.textContent=recoveryPct.toFixed(0)+'%';E.recoveryDone.textContent=recoveryDone;E.recoveryTotal.textContent=recoveryTotal;
     E.productFill.style.width=productPct+'%';E.productPct.textContent=productPct.toFixed(0)+'%';
     E.frontier.textContent=ready;E.active.textContent=active;E.need.textContent=need;E.capacity.textContent=capacity.replaceAll('_',' ');
-    E.critical.textContent='CRITICAL · '+critical+' · AGE '+age(criticalAge)+(stale?' · STALE':'');
+    E.critical.textContent=(health.critical_node?'CRITICAL':'NEXT')+' · '+critical+(health.critical_node?' · AGE '+age(criticalAge):'')+(stale?' · STALE':'');
     E.status.textContent=stale?'STALL DETECTED':need>0?'NEED +'+need+' WORKERS':active>0?'WORKING · '+active+' ACTIVE':ready>0?'READY · '+ready:'NO CLAIMABLE FRONTIER';
     E.status.className='status'+(stale||need>0?' flash':'');
     E.clock.textContent=new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(x.generated_at||Date.now()));
