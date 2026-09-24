@@ -68,7 +68,8 @@ function pointerPoint(e){if(!rotated)return{x:e.clientX,y:e.clientY};return{x:e.
 function resize(){
  rotated=innerHeight>innerWidth;W=rotated?innerHeight:innerWidth;H=rotated?innerWidth:innerHeight;
  const dpr=Math.min(1.5,devicePixelRatio||1);IW=Math.max(480,Math.round(W*dpr));IH=Math.max(270,Math.round(H*dpr));
- for(const c of [canvas,base,glow,temp]){c.width=IW;c.height=IH;c.style.width=W+'px';c.style.height=H+'px'}
+ for(const c of [canvas,base,glow]){c.width=IW;c.height=IH;c.style.width=W+'px';c.style.height=H+'px'}
+ temp.width=Math.max(240,Math.round(IW*.5));temp.height=Math.max(135,Math.round(IH*.5));
  cx=IW*.5;cy=IH*.62;scale=Math.min(IW/38,IH/21)*zoom;
 }
 function pr(x,z,h){
@@ -149,11 +150,16 @@ function composite(t){
  ctx.save();
  if(enabled.has('grade'))ctx.filter='contrast('+cfg.contrast+') saturate('+cfg.sat+') brightness('+cfg.bright+')';
  ctx.drawImage(base,dx,dy);ctx.restore();
+ if(enabled.has('bloom')||enabled.has('halation')){
+  // Blur runs at half resolution: ~75% fewer blur pixels on mobile.
+  tctx.clearRect(0,0,temp.width,temp.height);
+  tctx.drawImage(glow,0,0,temp.width,temp.height);
+ }
  if(enabled.has('bloom')){
-  ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=cfg.bloom*.42;ctx.filter='blur('+Math.max(2,scale*.24)+'px)';ctx.drawImage(glow,0,0);ctx.restore();
+  ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=cfg.bloom*.42;ctx.filter='blur('+Math.max(1.5,scale*.12)+'px)';ctx.drawImage(temp,0,0,IW,IH);ctx.restore();
  }
  if(enabled.has('halation')){
-  ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=cfg.halation*.20;ctx.filter='blur('+Math.max(4,scale*.48)+'px) saturate(1.2)';ctx.drawImage(glow,0,0);ctx.restore();
+  ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=cfg.halation*.20;ctx.filter='blur('+Math.max(2,scale*.24)+'px) saturate(1.2)';ctx.drawImage(temp,0,0,IW,IH);ctx.restore();
  }
  ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=.95;ctx.drawImage(glow,0,0);ctx.restore();
  if(enabled.has('chroma')&&cfg.chroma>0){
