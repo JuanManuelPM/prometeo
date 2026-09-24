@@ -52,6 +52,7 @@ public final class MainActivity extends Activity implements BlockRenderer.Host {
 
     private JSONObject currentSnapshot;
     private boolean refreshing;
+    private boolean hasNetworkSnapshot;
     private int cacheTtlSeconds = 30;
     private CancellationSignal approvalCancellation;
 
@@ -108,6 +109,7 @@ public final class MainActivity extends Activity implements BlockRenderer.Host {
 
     private void showCachedAndRefresh() {
         currentSnapshot = repository.cached();
+        hasNetworkSnapshot = false;
         if (currentSnapshot != null) {
             cacheTtlSeconds = Math.max(
                     5,
@@ -125,9 +127,7 @@ public final class MainActivity extends Activity implements BlockRenderer.Host {
         refreshing = true;
 
         if (currentSnapshot != null) {
-            renderSnapshot(currentSnapshot == repository.cached()
-                    ? "local"
-                    : "refreshing");
+            renderSnapshot(hasNetworkSnapshot ? "refreshing" : "local");
         }
 
         repository.refresh(new PrometeoRepository.Callback() {
@@ -136,6 +136,7 @@ public final class MainActivity extends Activity implements BlockRenderer.Host {
                 runOnUiThread(() -> {
                     refreshing = false;
                     currentSnapshot = snapshot;
+                    hasNetworkSnapshot = true;
                     cacheTtlSeconds = Math.max(
                             5,
                             snapshot.optInt("cache_ttl_seconds", 30)
@@ -416,11 +417,7 @@ public final class MainActivity extends Activity implements BlockRenderer.Host {
                 runOnUiThread(() -> {
                     toast(userMessage(e));
                     if (currentSnapshot != null) {
-                        renderSnapshot(
-                                currentSnapshot == repository.cached()
-                                        ? "local"
-                                        : "connected"
-                        );
+                        renderSnapshot(hasNetworkSnapshot ? "connected" : "local");
                     }
                     if (isDefinitiveActionFailure(e)) refresh();
                 });
