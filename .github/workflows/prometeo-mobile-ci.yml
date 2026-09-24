@@ -1,0 +1,59 @@
+name: Prometeo Mobile CI
+
+on:
+  push:
+    branches:
+      - android-mobile-v1
+    paths:
+      - 'android/prometeo-mobile/**'
+      - 'backend/mobile/**'
+      - '.github/workflows/prometeo-mobile-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK
+        run: |
+          SDKMANAGER="${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Unit tests
+        working-directory: android/prometeo-mobile
+        run: gradle --no-daemon testDebugUnitTest
+
+      - name: Lint
+        working-directory: android/prometeo-mobile
+        run: gradle --no-daemon lintDebug
+
+      - name: Build debug APK
+        working-directory: android/prometeo-mobile
+        run: gradle --no-daemon assembleDebug
+
+      - name: Upload verification APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: prometeo-mobile-v1-verification
+          path: android/prometeo-mobile/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
