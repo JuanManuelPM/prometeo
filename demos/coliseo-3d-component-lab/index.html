@@ -384,21 +384,6 @@ function paintBackdrop(){
   blob(c,cx,cy+scale*2.30,scale*17.3,scale*4.55,'rgba(0,0,0,.62)',null,0,9001,.022,64);
   blob(c,cx,cy+scale*.20,scale*14.8,scale*3.65,'#31261f','#100b08',1.4,9002,.018,74);
 
-  // Sparse world-grid registration marks make projection errors visible.
-  c.save();c.globalAlpha=.16;
-  for(let x=-12;x<=12;x+=2){
-    const a=wp(x,-7,.012),b=wp(x,7,.012);
-    roughStroke(c,[a,b],x===0?'#69402d':'#54443a',Math.max(.45,scale*.018),9100+x+20,false);
-  }
-  for(let z=-6;z<=6;z+=2){
-    const a=wp(-13,z,.012),b=wp(13,z,.012);
-    roughStroke(c,[a,b],z===0?'#69402d':'#54443a',Math.max(.45,scale*.018),9200+z+20,false);
-  }
-  c.restore();
-
-  // A restrained horizon line only, so structure silhouette stays obvious.
-  const l=wp(-15,7.8,.02),r=wp(15,7.8,.02);
-  c.save();c.globalAlpha=.20;roughStroke(c,[l,r],'#6a5140',Math.max(.65,scale*.026),9300,false);c.restore();
 }
 function windowBasis(ang){
   return wallBoardBasis(ang,18.18,4.92);
@@ -1339,7 +1324,7 @@ function drawProgressTube(c,site,index){
 }
 
 const LAST_UPDATE_MS=Date.parse('2026-09-24T12:43:59.511Z');
-const BUILD_VERSION='COMPONENT-LAB-1';
+const BUILD_VERSION='COMPONENT-LAB-1.1';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -2076,12 +2061,47 @@ function componentFaceComparator(a,b){
   return (a.faceOrder||0)-(b.faceOrder||0)||(a.stableId||0)-(b.stableId||0);
 }
 
+function drawComponentWorldGrid(c){
+  c.save();c.globalAlpha=.15;
+  for(let x=-12;x<=12;x+=2){
+    const a=wp(x,-7,.012),b=wp(x,7,.012);
+    roughStroke(c,[a,b],x===0?'#69402d':'#54443a',Math.max(.45,scale*.018),29100+x+20,false);
+  }
+  for(let z=-6;z<=6;z+=2){
+    const a=wp(-13,z,.012),b=wp(13,z,.012);
+    roughStroke(c,[a,b],z===0?'#69402d':'#54443a',Math.max(.45,scale*.018),29200+z+20,false);
+  }
+  c.restore();
+}
+
+function drawStructureLabels(c){
+  const labels=[
+    [-7.8,-1.3,'TORRE / BLOQUES'],
+    [-2.6,-.7,'BASE + NÚCLEO'],
+    [2.4,-.6,'PUERTA'],
+    [7.1,-.9,'PUENTE'],
+    [-5.2,3.1,'TALLER'],
+    [.4,3.2,'ARCHIVO'],
+    [6.1,3.1,'TORRE ALTA']
+  ];
+  c.save();c.textAlign='center';c.textBaseline='middle';
+  c.font='750 '+Math.max(7,scale*.27)+'px system-ui';
+  c.fillStyle='rgba(199,170,137,.70)';
+  for(const [x,z,label] of labels){
+    const p=wp(x,z,-.24);
+    c.fillText(label,p.x,p.y+scale*.70);
+  }
+  c.restore();
+}
+
 function drawStructureGallery(now){
+  drawComponentWorldGrid(ctx);
   buildStructureGallery(now);
   const faces=compileWorldFaces();
   faces.sort(componentFaceComparator);
   for(const face of faces)renderGeomFace(ctx,face);
   flushTransparentGeometry(ctx);
+  drawStructureLabels(ctx);
 }
 
 function workerDemoData(now){
@@ -3020,7 +3040,6 @@ function frame(now){
   if(!visible){requestAnimationFrame(frame);return}
   if(COMPONENT_SPIN&&COMPONENT_MODE!=='workers'&&now>COMPONENT_USER_DRAG_UNTIL){
     yaw+=.0022;
-    staticDirty=true;
   }
   if(now-last>=FRAME){
     if(staticDirty){paintBackdrop();staticDirty=false}
@@ -3038,7 +3057,7 @@ function pd(e){
 function pm(e){
   const old=pointers.get(e.pointerId);if(!old)return;
   const next=pointerPoint(e);pointers.set(e.pointerId,next);
-  if(pointers.size===1){yaw+=(next.x-old.x)*.008;COMPONENT_USER_DRAG_UNTIL=performance.now()+2600;staticDirty=true}
+  if(pointers.size===1){yaw+=(next.x-old.x)*.008;COMPONENT_USER_DRAG_UNTIL=performance.now()+2600}
   else if(pointers.size===2){
     const p=[...pointers.values()],d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);
     if(pinch){zoom=clamp(zoom*d/pinch,.34,3.40);scale=Math.min(IW/37,IH/22.5)*zoom;staticDirty=true}
