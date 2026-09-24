@@ -24,8 +24,7 @@ import javax.net.ssl.HttpsURLConnection;
 
 public final class MobileGatewayClient {
     public static final String CONTRACT = "prometeo.mobile/v1";
-    private static final String REQUEST_CANON = "prometeo.mobile.request/v1";
-    private static final String PATH = "/functions/v1/prometeo-mobile-v1";
+    private static final String PATH = RequestCanonicalizer.PATH;
     private static final String ENDPOINT =
             "https://catnohyouxqjjtseaueb.supabase.co" + PATH;
 
@@ -95,13 +94,11 @@ public final class MobileGatewayClient {
                 Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING
         );
 
-        String bodyHash = sha256Hex(exactBody);
-        String canonical = REQUEST_CANON + "\n"
-                + "POST\n"
-                + PATH + "\n"
-                + timestamp + "\n"
-                + nonce + "\n"
-                + bodyHash;
+        String canonical = RequestCanonicalizer.canonical(
+                timestamp,
+                nonce,
+                exactBody
+        );
 
         String signature = identity.sign(canonical);
         return new PreparedRequest(
@@ -227,14 +224,6 @@ public final class MobileGatewayClient {
             }
             return out.toByteArray();
         }
-    }
-
-    private static String sha256Hex(String value) throws Exception {
-        byte[] digest = MessageDigest.getInstance("SHA-256")
-                .digest(value.getBytes(StandardCharsets.UTF_8));
-        StringBuilder out = new StringBuilder(digest.length * 2);
-        for (byte b : digest) out.append(String.format("%02x", b & 0xff));
-        return out.toString();
     }
 
     public static final class PreparedRequest {
