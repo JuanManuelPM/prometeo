@@ -7,11 +7,12 @@ const browser=$('browser'),reader=$('reader'),list=$('list'),title=$('folderTitl
 const searchToggle=$('searchToggle'),searchPanel=$('searchPanel'),searchInput=$('search'),snapshot=$('snapshot'),mode=$('mode');
 const readerTitle=$('readerTitle'),readerKind=$('readerKind'),readerBody=$('readerBody'),readerMeta=$('readerMeta');
 const sourceLabel=$('sourceLabel'),sourceMeta=$('sourceMeta'),documentLabel=$('documentLabel'),documentMeta=$('documentMeta'),readerState=$('readerState');
-const readerNav=$('readerNav'),readerPrev=$('readerPrev'),readerNext=$('readerNext'),readerProgress=$('readerProgress');
+const readerNav=$('readerNav'),readerPrev=$('readerPrev'),readerNext=$('readerNext'),readerCenter=$('readerCenter'),readerProgress=$('readerProgress');
 
 let share='',nodes=[],byId=new Map(),childrenMap=new Map();
 let folderState={ids:['root'],label:'Psicología',path:[]},historyStack=[],searching=false;
 let currentPayload=null,currentSegmentIndex=0,lastOpenId='',scrollTick=false;
+if('scrollRestoration' in history)history.scrollRestoration='manual';
 
 const demoNodes=[
  {node_id:'demo:modelos',parent_id:'root',node_type:'folder',title:'Modelos y Teorías II',mime_type:'application/vnd.google-apps.folder',text_status:'folder',sort_order:1},
@@ -173,16 +174,20 @@ function savedPosition(documentId){
  const raw=Number(localStorage.getItem(POS_PREFIX+documentId));
  return Number.isFinite(raw)&&raw>=0?raw:0;
 }
-function selectSegment(index,scroll=true){
+function selectSegment(index,scroll=true,behavior='smooth'){
  if(!currentPayload?.segments?.length)return;
  currentSegmentIndex=Math.max(0,Math.min(index,currentPayload.segments.length-1));
  const els=[...readerBody.querySelectorAll('.reader-segment')];
- els.forEach((el,i)=>el.classList.toggle('is-current',i===currentSegmentIndex));
+ els.forEach((el,i)=>{
+   const active=i===currentSegmentIndex;
+   el.classList.toggle('is-current',active);
+   if(active)el.setAttribute('aria-current','true');else el.removeAttribute('aria-current');
+ });
  readerPrev.disabled=currentSegmentIndex===0;
  readerNext.disabled=currentSegmentIndex===currentPayload.segments.length-1;
  readerProgress.textContent=(currentSegmentIndex+1)+' / '+currentPayload.segments.length;
  localStorage.setItem(POS_PREFIX+currentPayload.document_id,String(currentSegmentIndex));
- if(scroll&&els[currentSegmentIndex])els[currentSegmentIndex].scrollIntoView({behavior:'smooth',block:'center'});
+ if(scroll&&els[currentSegmentIndex])els[currentSegmentIndex].scrollIntoView({behavior,block:'center'});
 }
 function syncSegmentFromViewport(){
  if(reader.hidden||!currentPayload?.segments?.length)return;
@@ -193,6 +198,7 @@ function syncSegmentFromViewport(){
 }
 async function openFile(id){
  const n=byId.get(id);if(!n)return;
+ let resumeIndex=null;
  lastOpenId=id;currentPayload=null;currentSegmentIndex=0;readerNav.hidden=true;
  browser.hidden=true;reader.hidden=false;resetStages();stage('index','done');stage('source','active');
  readerTitle.textContent=n.title;readerKind.textContent=typeLabel(n)+' · '+(pathForNode(n)||'Drive');
@@ -224,13 +230,17 @@ async function openFile(id){
    documentMeta.textContent='prometeo.reader-payload/v1 · '+canonical.document_id.slice(-12)+' · posición guardada localmente';
    readerMeta.textContent=(cache==='hit'?'Caché reutilizada':cache==='created'?'Texto extraído y cacheado':cache==='demo'?'Demostración local':'Texto disponible')+' · '+payload.readable_text.length.toLocaleString('es-AR')+' caracteres · Drive permanece como fuente, Reader consume la proyección normalizada.';
    setReaderState();
-   if(payload.segments.length)selectSegment(savedPosition(payload.document_id),false);
+   if(payload.segments.length){
+     resumeIndex=savedPosition(payload.document_id);
+     selectSegment(resumeIndex,false);
+   }
  }catch(e){
    documentLabel.textContent='Interrumpido';documentMeta.textContent='No se modificó el índice ni la fuente.';
    readerMeta.textContent='El índice quedó intacto; falló una etapa posterior.';
    setReaderState('error','No pude preparar este archivo',e.message||'Error desconocido',true);
  }
  window.scrollTo({top:0,behavior:'instant'});
+ if(resumeIndex>0)requestAnimationFrame(()=>selectSegment(resumeIndex,true,'instant'));
 }
 back.onclick=()=>{if(searching){renderFolder();return}if(!historyStack.length)return;folderState=historyStack.pop();renderFolder();window.scrollTo({top:0,behavior:'instant'})};
 $('readerBack').onclick=()=>{reader.hidden=true;browser.hidden=false;currentPayload=null;readerNav.hidden=true;renderFolder();window.scrollTo({top:0,behavior:'instant'})};
@@ -238,11 +248,14 @@ searchToggle.onclick=()=>{searchPanel.hidden=!searchPanel.hidden;if(!searchPanel
 searchInput.oninput=()=>search(searchInput.value);
 
 readerPrev.onclick=()=>selectSegment(currentSegmentIndex-1,true);
+readerCenter.onclick=()=>selectSegment(currentSegmentIndex,true);
 readerNext.onclick=()=>selectSegment(currentSegmentIndex+1,true);
 addEventListener('keydown',e=>{
  if(reader.hidden||!currentPayload?.segments?.length||/INPUT|TEXTAREA/.test(document.activeElement?.tagName||''))return;
  if(e.key==='ArrowDown'||e.key==='ArrowRight'){e.preventDefault();selectSegment(currentSegmentIndex+1,true)}
  if(e.key==='ArrowUp'||e.key==='ArrowLeft'){e.preventDefault();selectSegment(currentSegmentIndex-1,true)}
+ if(e.key==='Home'){e.preventDefault();selectSegment(0,true)}
+ if(e.key==='End'){e.preventDefault();selectSegment(currentPayload.segments.length-1,true)}
 });
 addEventListener('scroll',()=>{
  if(scrollTick)return;scrollTick=true;requestAnimationFrame(()=>{scrollTick=false;syncSegmentFromViewport()});
