@@ -207,3 +207,119 @@ If a gate fails, first determine which shared rule failed.
 Only structure-specific geometry may live in the gate builder.
 
 Projection, culling, material opacity and painter order remain shared renderer responsibilities.
+
+
+## V2 · Universal occlusion fix
+
+The reason some structures looked correct and others did not was structural, not artistic.
+
+### Why the original construction blocks behaved better
+
+The original tower blocks are:
+- small;
+- locally regular;
+- mostly non-interpenetrating;
+- drawn from a limited set of neighboring cells.
+
+That means a coarse painter order often happens to be sufficient.
+
+### Why ARCHIVE / GATE exposed the bug
+
+ARCHIVE has:
+- changing footprint by height;
+- many vertically overlapping modules;
+- broad top surfaces underneath smaller upper levels.
+
+GATE has:
+- thick walls/pylons;
+- thin bars behind those walls;
+- multiple pieces overlapping the same screen pixels at different heights and depths.
+
+A face-level painter still assigns one order to an entire polygon.
+
+That cannot universally solve a case where different pixels of the same polygon have different visibility relationships.
+
+### New universal rule
+
+Opaque solid visibility is now solved per pixel with a real depth buffer.
+
+The structures screen uses an off-screen WebGL surface only for opaque physical solids.
+
+The 2D illustrated layer remains responsible for:
+- background;
+- labels;
+- workers;
+- fire;
+- semantic effects;
+- analog post-processing.
+
+### Projection compatibility
+
+The WebGL renderer does NOT introduce a new camera.
+
+Screen coordinates use the exact existing projection:
+
+```
+screenX = centerX + rotatedX * scale
+screenY = centerY + forward * scale * 0.35 - height * scale * 0.57
+```
+
+The missing depth coordinate is the orthogonal companion:
+
+```
+cameraDepth = forward * 0.57 + height * 0.35
+```
+
+This is crucial.
+
+The old renderer mostly ordered by forward distance alone.
+That is why a low foreground base could incorrectly cover a taller object standing above it.
+
+The new depth value includes both:
+- horizontal forward distance;
+- world height.
+
+### Z-buffer behavior
+
+For every opaque triangle:
+- vertices receive screen X/Y;
+- vertices receive camera depth;
+- depth is interpolated across the triangle;
+- each pixel keeps only the nearest solid fragment.
+
+Therefore:
+- gate bars behind a stone pylon cannot leak through it;
+- rear blocks cannot appear over front blocks;
+- a lower platform cannot paint over a tower standing above it;
+- overlapping archive tiers resolve locally per pixel;
+- object creation order becomes irrelevant.
+
+### Structural edges
+
+Physical ink edges are rendered in the same WebGL depth buffer after fills.
+
+Hidden edges therefore cannot appear through opaque walls.
+
+### Fallback
+
+If WebGL is unavailable, the component lab falls back to the previous CPU face painter.
+
+The fallback is retained for compatibility, not as the target renderer.
+
+### Architectural consequence
+
+The geometry author now only declares:
+- box dimensions;
+- position;
+- rotation basis;
+- material.
+
+It does NOT decide:
+- which object is in front;
+- which wall should hide a bar;
+- whether a higher block should win;
+- draw order.
+
+Those are renderer responsibilities.
+
+This is the universal mechanism to carry forward into WORLD.
