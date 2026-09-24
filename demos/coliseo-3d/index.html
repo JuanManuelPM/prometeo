@@ -23,6 +23,16 @@ body{overscroll-behavior:none}
  radial-gradient(circle at 38% 72%,rgba(238,199,146,.11) 0 .5px,transparent .8px);
  background-size:9px 11px,13px 15px,17px 19px;
  }
+#grade{position:absolute;inset:0;pointer-events:none;z-index:3;
+ background:
+ radial-gradient(circle at 48% 61%,rgba(173,68,34,.13),transparent 34%),
+ radial-gradient(circle at 20% 22%,rgba(28,57,50,.16),transparent 39%),
+ linear-gradient(180deg,rgba(11,24,23,.08),rgba(94,40,24,.10));
+ mix-blend-mode:soft-light}
+#exposure{position:absolute;inset:0;pointer-events:none;z-index:4;
+ background:radial-gradient(circle at 52% 56%,rgba(228,143,71,.055),transparent 42%);
+ mix-blend-mode:screen;animation:exposurePulse 5.4s steps(4,end) infinite}
+@keyframes exposurePulse{0%,100%{opacity:.58}25%{opacity:.72}52%{opacity:.50}78%{opacity:.66}}
 .ui{position:fixed;inset:0;pointer-events:none;z-index:5}
 .brand{position:absolute;left:max(14px,env(safe-area-inset-left));top:max(14px,env(safe-area-inset-top));display:flex;align-items:center;gap:10px;text-shadow:0 1px 0 #000}
 .mark{width:32px;height:32px;border-radius:50%;border:1px solid rgba(213,163,105,.22);display:grid;place-items:center;background:rgba(6,5,4,.70);font:900 12px/1 system-ui;color:#d28a4b}
@@ -37,10 +47,12 @@ body{overscroll-behavior:none}
   <canvas id="scene" aria-label="Coliseo nocturno ilustrado con jugadores en movimiento"></canvas>
   <div id="veil" aria-hidden="true"></div>
   <div id="grain" aria-hidden="true"></div>
+  <div id="grade" aria-hidden="true"></div>
+  <div id="exposure" aria-hidden="true"></div>
 </div>
 <div class="ui">
-  <div class="brand"><div class="mark">III</div><div class="copy"><b>Arena</b><span>collage · campo amplio · tinta</span></div></div>
-  <div class="badge">12 jugadores · escena estable</div>
+  <div class="brand"><div class="mark">III</div><div class="copy"><b>Arena</b><span>collage · campo amplio · construcción</span></div></div>
+  <div class="badge">12 constructores · escena estable</div>
   <div class="help">arrastrá para rotar · pellizcá para acercar</div>
 </div>
 <script>
@@ -63,12 +75,31 @@ const C={
 };
 const CUT=.05;
 const torches=Array.from({length:8},(_,i)=>({ang:i*TAU/8+.08,phase:i*1.81}));
-const players=[
- ['#201c18',2.7,.34,.12],['#8a321f',3.8,-.28,1.1],['#806b31',4.8,.24,2.0],
- ['#32423d',6.1,-.22,3.0],['#6d362c',7.1,.27,3.9],['#766958',8.1,-.19,4.8],
- ['#273028',9.0,.18,5.5],['#7d4828',4.4,.31,.7],['#4a5647',6.8,-.26,1.65],
- ['#8a744a',7.8,.23,2.6],['#302925',5.6,-.30,3.7],['#6a2c20',9.2,.16,5.1]
-].map((v,i)=>({color:v[0],r:v[1]*1.22,speed:v[2],phase:v[3],size:.34+(i%3)*.035}));
+const BLOCK_COLORS=['#a53b24','#c66d31','#a68a43','#506657','#3c5961','#816049','#b89a68','#6f3631','#58604d'];
+const sites=Array.from({length:10},(_,i)=>{
+  const ang=.30+i*TAU/10+(hash(i,301)-.5)*.28;
+  const r=4.2+hash(i,302)*7.3;
+  return {
+    x:Math.cos(ang)*r,z:Math.sin(ang)*r,
+    levels:[BLOCK_COLORS[Math.floor(hash(i,303)*BLOCK_COLORS.length)]],
+    max:6+Math.floor(hash(i,304)*6),
+    lastBuilt:-9999
+  };
+});
+const playerSeed=[
+ ['#201c18',2.7,.12],['#8a321f',3.8,1.1],['#806b31',4.8,2.0],
+ ['#32423d',6.1,3.0],['#6d362c',7.1,3.9],['#766958',8.1,4.8],
+ ['#273028',9.0,5.5],['#7d4828',4.4,.7],['#4a5647',6.8,1.65],
+ ['#8a744a',7.8,2.6],['#302925',5.6,3.7],['#6a2c20',9.2,5.1]
+];
+const players=playerSeed.map((v,i)=>{
+  const r=v[1]*1.14,a=v[2];
+  return {
+    color:v[0],x:Math.cos(a)*r,z:Math.sin(a)*r,
+    size:.34+(i%3)*.035,speed:.80+hash(i,355)*.42,
+    target:i%sites.length,wait:hash(i,356)*.8,lastX:0,lastZ:0
+  };
+});
 
 function hash(a,b){const n=Math.sin(a*12.9898+b*78.233)*43758.5453;return n-Math.floor(n)}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
@@ -87,6 +118,15 @@ function resize(){
 function pr(r,ang,h){
   const t=ang+yaw;
   return {x:cx+Math.cos(t)*r*scale,y:cy+Math.sin(t)*r*scale*.35-h*scale*.57,d:Math.sin(t),t};
+}
+function wp(x,z,h){
+  const r=Math.hypot(x,z),ang=Math.atan2(z,x);
+  return pr(r,ang,h);
+}
+function shade(hex,amount){
+  const n=parseInt(hex.slice(1),16);
+  const r=clamp((n>>16)+amount,0,255),g=clamp(((n>>8)&255)+amount,0,255),b=clamp((n&255)+amount,0,255);
+  return '#'+((1<<24)+(Math.round(r)<<16)+(Math.round(g)<<8)+Math.round(b)).toString(16).slice(1);
 }
 function cut(ang){return Math.sin(ang+yaw)>CUT}
 function visibleArc(){
@@ -334,24 +374,127 @@ function drawFlame(c,p,frame,seed){
   fillRagged(c,inner,C.ochre,null,0,seed+90);
   c.restore();
 }
+
+function chooseNextSite(playerIndex,current){
+  let next=(current+1+Math.floor(hash(playerIndex+current,711)*(sites.length-1)))%sites.length;
+  for(let tries=0;tries<sites.length;tries++){
+    if(sites[next].levels.length<sites[next].max)return next;
+    next=(next+1)%sites.length;
+  }
+  return current;
+}
+function updatePlayers(dt,now){
+  for(let i=0;i<players.length;i++){
+    const pl=players[i],site=sites[pl.target];
+    pl.lastX=pl.x;pl.lastZ=pl.z;
+    if(pl.wait>0){pl.wait=Math.max(0,pl.wait-dt);continue}
+    const dx=site.x-pl.x,dz=site.z-pl.z,dist=Math.hypot(dx,dz);
+    if(dist<.34){
+      if(site.levels.length<site.max && now-site.lastBuilt>420){
+        const level=site.levels.length;
+        const ci=Math.floor(hash(pl.target*17+level,i*23+level)*BLOCK_COLORS.length);
+        site.levels.push(BLOCK_COLORS[ci]);
+        site.lastBuilt=now;
+      }
+      pl.target=chooseNextSite(i,pl.target);
+      pl.wait=.36+hash(i,Math.floor(now/1000))*1.0;
+      continue;
+    }
+    const step=Math.min(dist,pl.speed*dt);
+    pl.x+=dx/dist*step;pl.z+=dz/dist*step;
+  }
+}
+function drawBlock(c,site,level,color,now,index){
+  const half=.42,bh=.58;
+  const baseH=level*bh;
+  let grow=1;
+  if(level===site.levels.length-1){
+    const age=now-site.lastBuilt;
+    if(age<460){
+      const p=clamp(age/460,0,1);
+      grow=1-Math.pow(1-p,3);
+    }
+  }
+  const topH=baseH+bh*grow;
+  const x=site.x,z=site.z;
+  const A=wp(x-half,z-half,baseH),B=wp(x+half,z-half,baseH),C1=wp(x+half,z+half,baseH),D=wp(x-half,z+half,baseH);
+  const At=wp(x-half,z-half,topH),Bt=wp(x+half,z-half,topH),Ct=wp(x+half,z+half,topH),Dt=wp(x-half,z+half,topH);
+  fillRagged(c,[D,C1,Ct,Dt],shade(color,-34),C.ink,.9,1500+index*31+level);
+  fillRagged(c,[B,C1,Ct,Bt],shade(color,-18),C.ink,.9,1600+index*31+level);
+  fillRagged(c,[At,Bt,Ct,Dt],shade(color,20),'rgba(10,6,5,.88)',.85,1700+index*31+level);
+  c.save();c.globalAlpha=.23;c.translate(1,-.7);
+  roughStroke(c,[At,Bt,Ct,Dt],C.red,Math.max(.55,scale*.035),1800+index*31+level,true);
+  c.restore();
+}
+function drawTower(c,site,now,index){
+  const p=wp(site.x,site.z,0);
+  const R=scale*.34;
+  blob(c,p.x,p.y+R*.30,R*1.5,R*.35,'rgba(0,0,0,.36)',null,0,1900+index,.11,14);
+  for(let l=0;l<site.levels.length;l++)drawBlock(c,site,l,site.levels[l],now,index);
+
+  const age=now-site.lastBuilt;
+  if(age>=0 && age<320){
+    const p0=wp(site.x,site.z,site.levels.length*.58);
+    const k=1-age/320;
+    c.save();c.globalAlpha=.28*k;c.strokeStyle=C.ochre;c.lineWidth=1;
+    c.beginPath();c.arc(p0.x,p0.y,scale*(.15+(1-k)*.70),0,TAU);c.stroke();
+    c.restore();
+  }
+}
+function drawSiteMarker(c,site,index){
+  const p=wp(site.x,site.z,.01),s=scale*.46;
+  c.save();c.globalAlpha=.20;
+  c.translate(q(p.x),q(p.y));c.rotate((hash(index,888)-.5)*.16);
+  c.strokeStyle=shade(site.levels[0],18);c.lineWidth=Math.max(.7,scale*.04);
+  c.strokeRect(-s*.5,-s*.18,s,s*.36);
+  c.restore();
+}
+
 function drawPlayer(c,pl,t,index){
-  const ang=pl.phase+t*pl.speed,rr=pl.r+Math.sin(t*.7+pl.phase*2.1)*.12;
-  const p=pr(rr,ang,.42),g=pr(rr,ang,.02);
+  const p=wp(pl.x,pl.z,.42),g=wp(pl.x,pl.z,.02);
   const depth=(p.d+1)*.5,R=scale*pl.size*(.80+depth*.22);
+
+  // soft movement residue only on moving actors, never on architecture.
+  const old=wp(pl.lastX,pl.lastZ,.42);
+  if(Math.hypot(pl.x-pl.lastX,pl.z-pl.lastZ)>.005){
+    c.save();c.globalAlpha=.08;
+    blob(c,old.x,old.y,R*.92,R*.92,pl.color,null,0,820+index,.07,16);
+    c.restore();
+  }
+
   blob(c,g.x,g.y+R*.26,R*.90,R*.25,'rgba(0,0,0,.56)',null,0,800+index,.12,14);
   const pts=blob(c,p.x,p.y,R,R,pl.color,C.black,Math.max(1,R*.16),830+index,.075,18);
   c.save();c.translate(1,-.6);c.globalAlpha=.30;roughStroke(c,pts,C.red,Math.max(.7,R*.06),870+index,true);c.restore();
   blob(c,p.x-R*.24,p.y-R*.26,R*.16,R*.12,'rgba(230,181,110,.64)',null,0,900+index,.15,10);
-  c.fillStyle='rgba(5,4,3,.48)';
-  for(let k=0;k<3;k++){const aa=ang+k*2.1,rad=R*(.18+.18*k);c.beginPath();c.arc(p.x+Math.cos(aa)*rad,p.y+Math.sin(aa)*rad,Math.max(.45,R*.055),0,TAU);c.fill()}
+
+  const target=sites[pl.target],tp=wp(target.x,target.z,.03);
+  c.save();c.globalAlpha=.13;c.strokeStyle=shade(target.levels[0],28);c.lineWidth=.65;
+  c.setLineDash([2,3]);c.beginPath();c.moveTo(p.x,p.y);c.lineTo(tp.x,tp.y);c.stroke();c.setLineDash([]);c.restore();
 }
 function drawDynamic(now){
   ctx.fillStyle=C.black;ctx.fillRect(0,0,IW,IH);
   ctx.drawImage(staticCanvas,0,0);
 
   const t=now/1000;
-  const states=players.map((p,i)=>({p,i,d:Math.sin(p.phase+t*p.speed+yaw)})).sort((x,y)=>x.d-y.d);
-  for(const st of states)drawPlayer(ctx,st.p,t,st.i);
+  const dt=Math.min(.08,FRAME/1000);
+  updatePlayers(dt,now);
+
+  for(let i=0;i<sites.length;i++)drawSiteMarker(ctx,sites[i],i);
+
+  const items=[];
+  for(let i=0;i<sites.length;i++){
+    const p=wp(sites[i].x,sites[i].z,0);
+    items.push({type:'tower',i,d:p.d});
+  }
+  for(let i=0;i<players.length;i++){
+    const p=wp(players[i].x,players[i].z,.42);
+    items.push({type:'player',i,d:p.d});
+  }
+  items.sort((u,v)=>u.d-v.d);
+  for(const it of items){
+    if(it.type==='tower')drawTower(ctx,sites[it.i],now,it.i);
+    else drawPlayer(ctx,players[it.i],t,it.i);
+  }
 
   ctx.save();ctx.globalCompositeOperation='screen';
   const flameFrame=Math.floor(now/165)%4;
@@ -363,6 +506,20 @@ function drawDynamic(now){
     g.addColorStop(0,'rgba(226,129,54,'+(0.18*flick)+')');g.addColorStop(.45,'rgba(177,52,28,'+(0.08*flick)+')');g.addColorStop(1,'rgba(0,0,0,0)');
     ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,scale*(1.55+.25*flick),0,TAU);ctx.fill();
     drawFlame(ctx,p,flameFrame,Math.floor(tr.phase*19));
+  }
+  ctx.restore();
+
+  // Selective print flash: only freshly placed blocks get a brief colored afterimage.
+  ctx.save();ctx.globalCompositeOperation='screen';
+  for(let i=0;i<sites.length;i++){
+    const age=now-sites[i].lastBuilt;
+    if(age>=0 && age<240){
+      const p=wp(sites[i].x,sites[i].z,sites[i].levels.length*.58);
+      const k=1-age/240;
+      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,scale*(.45+.55*(1-k)));
+      g.addColorStop(0,'rgba(227,111,47,'+(0.14*k)+')');g.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,scale*.9,0,TAU);ctx.fill();
+    }
   }
   ctx.restore();
 
