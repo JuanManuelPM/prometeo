@@ -349,16 +349,12 @@ function paintBackdrop(){
     drawArch(c,ang,i);
   }
 
-  // sparse brush pilasters, never bright straight spokes
+  // Structural pilasters use the same cuboid grammar as blocks/sign frames.
   for(let i=0;i<13;i++){
     const ang=i*TAU/13+.04;if(cut(ang))continue;
-    const p0=pr(18.08,ang,2.56),p1=pr(18.08,ang,7.16);
-    const pts=[];
-    for(let k=0;k<8;k++){
-      const t=k/7;
-      pts.push({x:p0.x+(p1.x-p0.x)*t+(hash(i,k)-.5)*1.6,y:p0.y+(p1.y-p0.y)*t+(hash(k,i)-.5)*1.4});
-    }
-    roughStroke(c,pts,'rgba(17,10,8,.56)',Math.max(1.3,scale*.11),500+i,false);
+    const base=wallBoardBasis(ang,18.08,4.86);
+    if(base.facing<=.025)continue;
+    drawBoardCuboid(c,base,0,0,.30,4.60,.24,i%3===0?'#5d493d':'#45463d',500+i*9);
   }
 
   paintWallDetails(c);
@@ -366,16 +362,7 @@ function paintBackdrop(){
   // crown
   band(c,17.86,18.62,7.36,7.92,'#715043','#3d2c26',360);
 
-  // tiny paper flags
-  for(let i=0;i<15;i++){
-    const ang=i*TAU/15+.08;if(cut(ang))continue;
-    const p=pr(18.38,ang,8.62);
-    const pole=pr(18.38,ang,7.90);
-    roughStroke(c,[pole,p],C.ink,1,410+i,false);
-    const s=2.2+scale*.10;
-    const pts=[p,{x:p.x+s*(.9+hash(i,2)*.3),y:p.y-1.5},{x:p.x+s*.72,y:p.y+s*.36}];
-    fillRagged(c,pts,i%3===0?C.red:'#6c2b1c',C.ink,.8,440+i);
-  }
+  // Crown intentionally left structural; legacy paper flags were removed.
 
   // old stand torch stains removed
 
@@ -385,23 +372,27 @@ function paintBackdrop(){
   // clean half-section edges
   paintCutEdges(c);
 }
+function windowBasis(ang){
+  return wallBoardBasis(ang,18.18,4.92);
+}
 function drawArch(c,ang,index){
-  const mid=pr(18.28,ang,4.92);
-  const depth=.72+.28*((Math.sin(ang+yaw)+1)*.5);
-  const w=scale*.78*depth,h=scale*1.78*depth;
-  c.save();c.translate(q(mid.x),q(mid.y));
-  const lean=(hash(index,9)-.5)*.06;c.rotate(lean);
-  const j=(hash(index,13)-.5)*.055;
-  c.beginPath();
-  c.moveTo(-w*.48,h*.48);
-  c.lineTo(-w*.50,-h*.02);
-  c.quadraticCurveTo(-w*.43,-h*.48,0,-h*(.52+j));
-  c.quadraticCurveTo(w*.45,-h*.47,w*.48,-h*.02);
-  c.lineTo(w*.48,h*.48);c.closePath();
-  c.fillStyle='#050403';c.fill();
-  c.strokeStyle='rgba(8,5,4,.95)';c.lineWidth=Math.max(1,scale*.09);c.stroke();
-  c.save();c.globalAlpha=.22;c.translate(1,-1);c.strokeStyle=C.red;c.lineWidth=Math.max(.6,scale*.045);c.stroke();c.restore();
-  c.restore();
+  const base=windowBasis(ang);
+  if(cut(ang)||base.facing<=.025)return;
+  const W=.88,H=1.86;
+  const stone=index%3===0?'#60483a':(index%3===1?'#4f493d':'#485348');
+  const rail=shade(stone,-12);
+
+  // Black recess first, then the frame as the same cuboid grammar used by tower signs.
+  drawBoardCuboid(c,base,0,0,W*.78,H*.82,.055,'#050403',17000+index*20);
+  drawBoardCuboid(c,base,-W*.45,0,.19,H,.20,rail,17001+index*20);
+  drawBoardCuboid(c,base, W*.45,0,.19,H,.20,rail,17002+index*20);
+  drawBoardCuboid(c,base,0,H*.43,W,.18,.20,shade(stone,10),17003+index*20);
+  drawBoardCuboid(c,base,0,-H*.43,W,.18,.22,shade(stone,-18),17004+index*20);
+
+  // Three chunky voussoir blocks suggest an arch without screen-space vector curves.
+  drawBoardCuboid(c,base,-W*.27,H*.54,.28,.30,.19,shade(stone,4),17005+index*20);
+  drawBoardCuboid(c,base,0,H*.61,.30,.28,.19,shade(stone,12),17006+index*20);
+  drawBoardCuboid(c,base, W*.27,H*.54,.28,.30,.19,shade(stone,-2),17007+index*20);
 }
 function paintCutEdges(c){
   const A=Math.asin(CUT);
@@ -808,9 +799,14 @@ function drawSiteShadow(c,site,index){
 }
 function drawSiteMarker(c,site,index){
   if(site.blocks.length>3)return;
-  const p=wp(site.x,site.z,.01),s=scale*.42;
-  c.save();c.globalAlpha=.16;c.translate(q(p.x),q(p.y));c.rotate((hash(index,888)-.5)*.16);
-  c.strokeStyle=shade(site.baseColor,18);c.lineWidth=Math.max(.7,scale*.04);c.strokeRect(-s*.5,-s*.18,s,s*.36);c.restore();
+  const half=.34;
+  const pts=[
+    wp(site.x-half,site.z-half,.012),wp(site.x+half,site.z-half,.012),
+    wp(site.x+half,site.z+half,.012),wp(site.x-half,site.z+half,.012)
+  ];
+  c.save();c.globalAlpha=.14;
+  roughStroke(c,pts,shade(site.baseColor,18),Math.max(.6,scale*.035),1880+index,true);
+  c.restore();
 }
 
 function candidateGeometry(site,cand,progress){
@@ -828,7 +824,7 @@ function drawBlueprint(c,site,bp,now,siteIndex){
     {nx:0,nz:-1,pts:[g.A,g.B,g.Bt,g.At]}
   ].filter(f=>f.nx*cameraX+f.nz*cameraZ>0);
 
-  c.save();c.globalAlpha=.62;c.setLineDash([3,3]);c.lineWidth=Math.max(.7,scale*.045);
+  c.save();c.globalAlpha=.62;c.setLineDash([Math.max(.8,scale*.11),Math.max(.9,scale*.12)]);c.lineWidth=Math.max(.7,scale*.045);
   for(let i=0;i<faces.length;i++){
     path(c,faces[i].pts,true);
     c.strokeStyle=i?'#6d9f91':'#9fc5ae';c.stroke();
@@ -864,7 +860,8 @@ function drawBuildingBlock(c,site,bp,now,siteIndex){
     const box=sides[i].pts;
     const minX=Math.min(...box.map(v=>v.x)),maxX=Math.max(...box.map(v=>v.x));
     const minY=Math.min(...box.map(v=>v.y)),maxY=Math.max(...box.map(v=>v.y));
-    for(let yy=minY-8;yy<maxY+8;yy+=4){
+    const hatchStep=Math.max(2,scale*.22);
+    for(let yy=minY-hatchStep*2;yy<maxY+hatchStep*2;yy+=hatchStep){
       c.beginPath();c.moveTo(minX-6,yy);c.lineTo(maxX+6,yy-(maxX-minX)*.22);c.stroke();
     }
     c.restore();c.save();c.globalAlpha=.42+.48*p;
@@ -916,12 +913,6 @@ function drawPlayer(c,pl,t,index){
   c.restore();
   c.save();c.globalAlpha=.20;roughStroke(c,framePts,shade(pl.color,26),Math.max(.55,R*.040),1110+index+edgeFrame,true);c.restore();
 
-  if(pl.task&&(pl.task.type==='build'||pl.task.type==='design')){
-    const site=sites[pl.siteIndex],cand=pl.task.cand,target=worldCell(site,cand.gx,cand.gz);
-    const tp=wp(target.x,target.z,cand.y*BLOCK_H+.03);
-    c.save();c.globalAlpha=.10;c.strokeStyle=pl.task.type==='design'?'#79a999':shade(site.baseColor,28);c.lineWidth=.6;c.setLineDash([2,3]);
-    c.beginPath();c.moveTo(p.x,p.y);c.lineTo(tp.x,tp.y);c.stroke();c.setLineDash([]);c.restore();
-  }
 }
 
 
@@ -1060,20 +1051,14 @@ function drawViolentTorchFlame(c,x,z,h,seed,now,power=1){
   c.restore();
 }
 function drawTorchStakeWorld(c,x,z,h,seed,now,lit=true){
-  const bottom=wp(x,z,h),mid=wp(x,z,h+TORCH_STAKE_H*.72),top=wp(x,z,h+TORCH_STAKE_H);
-  const w=scale*.095;
-  const shaft=[
-    {x:bottom.x-w*.58,y:bottom.y},{x:bottom.x+w*.50,y:bottom.y},
-    {x:mid.x+w*.36,y:mid.y},{x:mid.x-w*.42,y:mid.y}
-  ];
-  fillRagged(c,shaft,seed%2?'#5f432e':'#4a392b','#160d09',Math.max(.65,scale*.035),8500+seed);
-  const base=[
-    {x:bottom.x-scale*.16,y:bottom.y+scale*.05},{x:bottom.x+scale*.16,y:bottom.y+scale*.05},
-    {x:bottom.x+scale*.12,y:bottom.y-scale*.05},{x:bottom.x-scale*.12,y:bottom.y-scale*.05}
-  ];
-  fillRagged(c,base,'#3c2a20','#130b08',Math.max(.6,scale*.03),8530+seed);
-  c.save();c.fillStyle='#21140e';
-  c.beginPath();c.ellipse(top.x,top.y,scale*.14,scale*.050,0,0,TAU);c.fill();c.restore();
+  const ang=Math.atan2(z,x);
+  const a={x,z,h:h+TORCH_STAKE_H*.5,ang};
+  const ux=-Math.sin(ang),uz=Math.cos(ang),nx=-Math.cos(ang),nz=-Math.sin(ang);
+  const base={a,ux,uz,nx,nz,facing:1};
+  drawBoardCuboid(c,base,0,0,.16,TORCH_STAKE_H,.16,seed%2?'#5f432e':'#4a392b',8500+seed);
+
+  const foot={a:{x,z,h:h+.07,ang},ux,uz,nx,nz,facing:1};
+  drawBoardCuboid(c,foot,0,0,.42,.14,.34,'#3c2a20',8530+seed);
   if(lit){
     drawTorchLight(c,x,z,h+TORCH_STAKE_H,1.20);
     drawViolentTorchFlame(c,x,z,h+TORCH_STAKE_H,seed,now,1.08);
@@ -1142,6 +1127,36 @@ function drawReadableBoardText(c,base,text,localX,localY,maxWidthWorld,maxSizeWo
   c.fillStyle=color;c.fillText(text,0,0);
   c.restore();
 }
+
+
+function semanticMetrics(base,normalOffset=0){
+  const p=boardProject(base,0,0,normalOffset);
+  const px=boardProject(base,1,0,normalOffset);
+  const py=boardProject(base,0,1,normalOffset);
+  let ux=px.x-p.x,uy=px.y-p.y;
+  const vx=py.x-p.x,vy=py.y-p.y;
+  const sx=Math.hypot(ux,uy),sy=Math.hypot(vx,vy);
+  let rot=Math.atan2(uy,ux);
+  if(Math.cos(rot)<0)rot+=Math.PI;
+  while(rot>Math.PI)rot-=TAU;
+  while(rot<-Math.PI)rot+=TAU;
+  const health=sx/Math.max(.001,sy);
+  const state=(sx<scale*.22||health<.12)?'EDGE':((sx<scale*.42||health<.24)?'COMPRESSED':'SAFE');
+  return {p,sx,sy,health,state,rot:clamp(rot,-.14,.14)};
+}
+function beginSemanticContent(c,base,normalOffset=0,allowCompressed=true){
+  const m=semanticMetrics(base,normalOffset);
+  if(m.state==='EDGE'||(!allowCompressed&&m.state!=='SAFE'))return null;
+  const safeSx=m.state==='SAFE'?m.sx:Math.max(m.sx,m.sy*.42);
+  c.save();
+  c.setTransform(
+    Math.cos(m.rot)*safeSx,Math.sin(m.rot)*safeSx,
+    0,-m.sy,
+    m.p.x,m.p.y
+  );
+  return m;
+}
+function endSemanticContent(c){c.restore()}
 
 function drawTowerBanner(c,site,index,now){
   if(site.ritual&&['trophy_wait','trophy_carry','trophy_drop','complete'].includes(site.ritual.phase))return;
@@ -1255,8 +1270,8 @@ function drawProgressTube(c,site,index){
   c.restore();
 }
 
-const LAST_UPDATE_MS=Date.parse('2026-09-24T11:58:00.520Z');
-const BUILD_VERSION='V3.6';
+const LAST_UPDATE_MS=Date.parse('2026-09-24T12:14:50.072Z');
+const BUILD_VERSION='V3.7';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -1320,15 +1335,18 @@ function drawClock(c,now){
   if(cut(wallAng)||base.facing<=.035)return;
 
   const W=3.30,H=1.72;
-  const panelColor='#3f3028',railColor='#6b4734';
-  drawBlockPanel(c,base,W,H,panelColor,railColor,15000);
+  drawBlockPanel(c,base,W,H,'#3f3028','#6b4734',15000);
 
   const d=new Date();
   const str=String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
+  const m=beginSemanticContent(c,base,.071,true);
+  if(!m)return;
 
-  drawReadableBoardText(c,base,'HORA ACTUAL',0,-H*.34,W*.72,.18,.10,800,'system-ui','#c2a784',.067);
+  if(m.state==='SAFE'){
+    c.fillStyle='#c2a784';c.textAlign='center';c.textBaseline='middle';
+    c.font='800 .16px system-ui';c.fillText('HORA',0,-H*.34);
+  }
 
-  c.save();boardAffine(c,base,.069);
   const s=.46,dw=s*.74,gap=.075,total=dw*4+gap*3+.14;
   let x=-total*.5,y=-.28;
   for(let i=0;i<4;i++){
@@ -1339,8 +1357,7 @@ function drawClock(c,now){
       c.beginPath();c.arc(x+.02,.20,.035,0,TAU);c.fill();c.restore();
       x+=.14;
     }
-    const on=DIGITS[str[i]]||DIGITS['0'];
-    const t=s*.15,L=s*.56;
+    const on=DIGITS[str[i]]||DIGITS['0'],t=s*.15,L=s*.56;
     const segs=[
       [x+t,y,L,t],[x+t+L,y+t,t,L],[x+t+L,y+t+L,t,L],
       [x+t,y+t+L*2,L,t],[x,y+t+L,t,L],[x,y+t,t,L],[x+t,y+t+L,L,t]
@@ -1352,11 +1369,11 @@ function drawClock(c,now){
         {x:sx+w-cv,y:sy+h},{x:sx+cv,y:sy+h},{x:sx,y:sy+h*.5}
       ];
       fillRagged(c,pts,on[j]?'#d74a29':'#4b241c',on[j]?'#1b0c09':null,on[j]?.025:0,15100+i*20+j);
-      if(on[j]){c.save();c.globalCompositeOperation='screen';c.globalAlpha=.22;c.fillStyle='#f2a15a';path(c,pts,true);c.fill();c.restore();}
+      if(on[j]){c.save();c.globalCompositeOperation='screen';c.globalAlpha=.19;c.fillStyle='#f2a15a';path(c,pts,true);c.fill();c.restore()}
     }
     x+=dw+gap;
   }
-  c.restore();
+  endSemanticContent(c);
 }
 
 function globalBurnRatio(now){
@@ -1377,54 +1394,35 @@ function drawGlobalProgressBoard(c,now){
   const base=wallBoardBasis(wallAng,18.02,5.72);
   if(cut(wallAng)||base.facing<=.035)return;
 
-  const W=4.70,H=1.82;
-  const panelColor='#39261f',railColor='#74492f';
-  drawBlockPanel(c,base,W,H,panelColor,railColor,15400);
+  const W=4.78,H=1.42;
+  drawBlockPanel(c,base,W,H,'#39261f','#74492f',15400);
 
   const done=globalBurnRatio(now);
-  const remaining=clamp(1-done,0,1);
-  const pct=Math.round(remaining*100);
+  const m=beginSemanticContent(c,base,.071,true);
+  if(!m)return;
 
-  drawReadableBoardText(c,base,'FALTA PARA TERMINAR',0,-H*.35,W*.78,.16,.09,800,'system-ui','#c59872',.067);
-
-  c.save();boardAffine(c,base,.069);
-
-  const str=String(pct).padStart(3,'0');
-  const ds=.42,dw=ds*.74,gap=.065,total=dw*3+gap*2;
-  let xx=-total*.5-.10,yy=-.30;
-  for(let i=0;i<3;i++){
-    const on=DIGITS[str[i]]||DIGITS['0'],t=ds*.15,L=ds*.56;
-    const segs=[
-      [xx+t,yy,L,t],[xx+t+L,yy+t,t,L],[xx+t+L,yy+t+L,t,L],
-      [xx+t,yy+t+L*2,L,t],[xx,yy+t+L,t,L],[xx,yy+t,t,L],[xx+t,yy+t+L,L,t]
-    ];
-    for(let j=0;j<7;j++){
-      const [sx,sy,w,h]=segs[j],cv=Math.min(w,h)*.25;
-      const pts=[
-        {x:sx+cv,y:sy},{x:sx+w-cv,y:sy},{x:sx+w,y:sy+h*.5},
-        {x:sx+w-cv,y:sy+h},{x:sx+cv,y:sy+h},{x:sx,y:sy+h*.5}
-      ];
-      fillRagged(c,pts,on[j]?'#c94827':'#46231b',on[j]?'#180b08':null,on[j]?.023:0,15500+i*20+j);
-      if(on[j]){c.save();c.globalCompositeOperation='screen';c.globalAlpha=.20;c.fillStyle='#ed9a55';path(c,pts,true);c.fill();c.restore();}
-    }
-    xx+=dw+gap;
+  if(m.state==='SAFE'){
+    c.fillStyle='#c59872';c.textAlign='left';c.textBaseline='middle';
+    c.font='800 .13px system-ui';c.fillText('PROGRESO',-W*.41,-H*.28);
   }
-  c.fillStyle='#df9962';c.font='900 .25px Georgia,serif';c.textAlign='left';c.textBaseline='middle';c.fillText('%',.67,-.03);
 
-  const cells=14,lit=Math.ceil(remaining*cells);
-  const cellGap=.055,cellW=(W*.76-cellGap*(cells-1))/cells,cellH=.23;
-  const startX=-W*.38,barY=.48;
+  const cells=20,filled=Math.floor(done*cells+1e-6);
+  const gap=.052,cellW=(W*.82-gap*(cells-1))/cells,cellH=.30;
+  const start=-W*.41,y=.06;
   for(let i=0;i<cells;i++){
-    const x=startX+i*(cellW+cellGap);
+    const x=start+i*(cellW+gap),on=i<filled,lead=i===filled&&filled<cells;
     const pts=[
-      {x,y:barY-cellH*.5},{x:x+cellW,y:barY-cellH*.47},
-      {x:x+cellW-cellW*.07,y:barY+cellH*.5},{x:x+cellW*.07,y:barY+cellH*.47}
+      {x,y:y-cellH*.5},{x:x+cellW,y:y-cellH*.47},
+      {x:x+cellW-.014,y:y+cellH*.5},{x:x+.014,y:y+cellH*.47}
     ];
-    const on=i<lit;
-    fillRagged(c,pts,on?'#a94327':'#271914','#140c09',.020,15600+i);
-    if(on){c.save();c.globalCompositeOperation='screen';c.globalAlpha=.22;c.fillStyle='#efa05a';path(c,pts,true);c.fill();c.restore();}
+    fillRagged(c,pts,on?'#ac4226':lead?'#5c291e':'#261713','#120a08',.020,15600+i);
+    if(on||lead){
+      c.save();c.globalCompositeOperation='screen';
+      c.globalAlpha=on?.18:(.07+.09*(.5+.5*Math.sin(now*.006)));
+      c.fillStyle=on?'#efa05a':'#c44c29';path(c,pts,true);c.fill();c.restore();
+    }
   }
-  c.restore();
+  endSemanticContent(c);
 }
 
 // Third independent panel: build/version info in a different color and lower position.
@@ -1434,33 +1432,39 @@ function drawVersionBoard(c,now){
   if(cut(wallAng)||base.facing<=.035)return;
 
   const W=3.35,H=1.48;
-  const panelColor='#26372d',railColor='#4b6754';
-  drawBlockPanel(c,base,W,H,panelColor,railColor,15900);
+  drawBlockPanel(c,base,W,H,'#26372d','#4b6754',15900);
 
   const d=new Date(LAST_UPDATE_MS);
   const updated=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+
     ' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
 
-  c.save();boardAffine(c,base,.069);
-  for(let i=0;i<7;i++){
-    const on=i<5,x=-.86+i*.285;
-    const pts=[{x:x-.08,y:-.48},{x:x+.08,y:-.48},{x:x+.075,y:-.36},{x:x-.085,y:-.36}];
-    fillRagged(c,pts,on?'#6b8f73':'#1d2b23','#0d1510',.018,16000+i);
-  }
-  c.restore();
+  const m=beginSemanticContent(c,base,.071,true);
+  if(!m)return;
 
-  drawReadableBoardText(c,base,BUILD_VERSION,0,-.03,W*.55,.30,.16,900,'Georgia,serif','#b3c9b5',.071);
-  drawReadableBoardText(c,base,'ÚLTIMA ACTUALIZACIÓN',0,.31,W*.72,.13,.08,800,'system-ui','#8ca690',.071);
-  drawReadableBoardText(c,base,updated,0,.50,W*.55,.17,.10,800,'system-ui','#d0ddd0',.071);
+  if(m.state==='SAFE'){
+    for(let i=0;i<6;i++){
+      const x=-.73+i*.29,on=i<4;
+      const pts=[{x:x-.08,y:-.48},{x:x+.08,y:-.48},{x:x+.075,y:-.36},{x:x-.085,y:-.36}];
+      fillRagged(c,pts,on?'#5f8068':'#1d2b23','#0d1510',.018,16000+i);
+    }
+    c.fillStyle='#819d87';c.textAlign='center';c.textBaseline='middle';
+    c.font='700 .105px system-ui';c.fillText('ACTUALIZADO',0,.28);
+    c.fillStyle='#b6c7b7';c.font='700 .145px system-ui';c.fillText(updated,0,.47);
+  }
+
+  c.fillStyle='#a9c1ad';c.textAlign='center';c.textBaseline='middle';
+  c.font='900 .27px Georgia,serif';c.fillText(BUILD_VERSION,0,-.04);
+  endSemanticContent(c);
 }
 
 function chooseHelpSite(fromIndex){
   let best=-1,bestScore=Infinity;
   for(let i=0;i<sites.length;i++){
     if(i===fromIndex)continue;
-    const s=sites[i],r=siteProgress(s).ratio;
+    const s=sites[i];
+    if(s.ritual)continue;
+    const r=siteProgress(s).ratio;
     if(r>=.9999)continue;
-    if(s.ritual&&s.ritual.phase!=='ashes')continue;
     const helpers=players.reduce((n,p)=>n+(p.siteIndex===i?1:0),0);
     const score=r+helpers*.025;
     if(score<bestScore){bestScore=score;best=i}
@@ -1510,17 +1514,21 @@ function drawTrophyWorld(c,x,z,h,seed,now){
   c.beginPath();c.moveTo(L.x,L.y);c.quadraticCurveTo(cupTop.x,cupTop.y,R.x,R.y);c.stroke();
   c.restore();
 }
-function drawRitualTrophy(c,site,index,now){
-  const r=site.ritual;if(!r)return;
+
+function trophyWorldState(site,index){
+  const r=site.ritual;if(!r)return null;
   const carrier=players[r.trophyCarrier??r.carrier];
-  if(r.phase==='trophy_wait'){
-    drawTrophyWorld(c,site.x,site.z,.04,9000+index,now);
-  }else if(r.phase==='trophy_carry' && carrier){
-    drawTrophyWorld(c,carrier.x,carrier.z,carrier.h+.30,9000+index,now);
-  }else if(r.phase==='trophy_drop' || r.phase==='complete'){
-    const t=r.trophyTarget||trophyStandTarget(site);
-    drawTrophyWorld(c,t.x,t.z,t.h,9000+index,now);
+  if(r.phase==='trophy_wait')return {x:site.x,z:site.z,h:.04};
+  if(r.phase==='trophy_carry'&&carrier)return {x:carrier.x,z:carrier.z,h:carrier.h+.30};
+  if(r.phase==='trophy_drop'||r.phase==='complete'){
+    const t=r.trophyTarget||trophyStandTarget(site);return {x:t.x,z:t.z,h:t.h};
   }
+  return null;
+}
+
+function drawRitualTrophy(c,site,index,now){
+  const t=trophyWorldState(site,index);if(!t)return;
+  drawTrophyWorld(c,t.x,t.z,t.h,9000+index,now);
 }
 
 function siteCarrierIndex(siteIndex){
@@ -1798,56 +1806,52 @@ function drawAshes(c,site,index,now){
 function drawWindowEyes(c,now){
   const COUNT=20,CYCLE=2350;
   const slot=Math.floor(now/CYCLE),phase=(now%CYCLE)/CYCLE;
-  // deliberate dark pause between appearances
   if(phase<.08||phase>.80)return;
 
   let idx=Math.floor(hash(slot,911)*COUNT);
   for(let tries=0;tries<COUNT&&cut(idx*TAU/COUNT+.02);tries++)idx=(idx+1)%COUNT;
   const ang=idx*TAU/COUNT+.02;
-  if(cut(ang))return;
+  const base=windowBasis(ang);
+  if(cut(ang)||base.facing<=.025)return;
 
-  const mid=pr(18.28,ang,4.92);
-  const depth=.72+.28*((Math.sin(ang+yaw)+1)*.5);
+  // Eyes disappear before the opening becomes too oblique.
+  const m=beginSemanticContent(c,base,.074,false);
+  if(!m)return;
+
   const fade=Math.min(1,(phase-.08)/.12,(.80-phase)/.14);
   const blinkT=(now+slot*617)%1850;
-  const open=(blinkT>1280&&blinkT<1440)?Math.max(.08,Math.abs(blinkT-1360)/80):1;
-  const w=scale*.53*depth,h=scale*.27*depth*open;
-  const look=Math.sin(now*.0028+slot*1.7)*w*.14;
+  const open=(blinkT>1280&&blinkT<1440)?Math.max(.10,Math.abs(blinkT-1360)/80):1;
+  const look=Math.sin(now*.0028+slot*1.7)*.075;
   const style=Math.floor(hash(slot,933)*4);
 
-  c.save();c.translate(q(mid.x),q(mid.y));
-  c.rotate((hash(idx,13)-.5)*.055);
+  // Clip the semantic layer inside the real black recess.
+  c.beginPath();c.rect(-.31,-.59,.62,1.18);c.clip();
   c.globalAlpha=.92*fade;
   c.globalCompositeOperation='screen';
 
-  // almond-shaped sclera that lives inside the same black arch.
+  const ew=.52,eh=.18*open;
   c.beginPath();
-  c.moveTo(-w*.48,0);
-  c.quadraticCurveTo(0,-h,w*.48,0);
-  c.quadraticCurveTo(0,h,-w*.48,0);
+  c.moveTo(-ew*.5,0);
+  c.quadraticCurveTo(0,-eh,ew*.5,0);
+  c.quadraticCurveTo(0,eh,-ew*.5,0);
   c.closePath();
   c.fillStyle=style===2?'rgba(188,169,128,.72)':'rgba(205,191,158,.78)';
   c.fill();
 
-  const irisR=Math.max(1,w*.16);
+  const irisR=.082;
   c.beginPath();c.arc(look,0,irisR,0,TAU);
   c.fillStyle=style===0?'rgba(185,48,28,.92)':style===1?'rgba(198,133,55,.92)':style===2?'rgba(74,112,88,.92)':'rgba(143,79,108,.92)';
   c.fill();
 
   c.globalCompositeOperation='source-over';
   c.fillStyle='#050403';
-  if(style===1){
-    c.beginPath();c.ellipse(look,0,irisR*.23,irisR*.78,0,0,TAU);c.fill();
-  }else{
-    c.beginPath();c.arc(look,0,irisR*.40,0,TAU);c.fill();
-  }
+  if(style===1){c.beginPath();c.ellipse(look,0,irisR*.23,irisR*.78,0,0,TAU);c.fill()}
+  else{c.beginPath();c.arc(look,0,irisR*.40,0,TAU);c.fill()}
 
-  // a tiny highlight makes the gaze readable from far away.
-  c.globalCompositeOperation='screen';c.globalAlpha=.55*fade;
-  c.fillStyle='#f0c778';c.beginPath();c.arc(look-irisR*.22,-irisR*.20,Math.max(.7,irisR*.12),0,TAU);c.fill();
-  c.restore();
+  c.globalCompositeOperation='screen';c.globalAlpha=.52*fade;
+  c.fillStyle='#f0c778';c.beginPath();c.arc(look-irisR*.22,-irisR*.20,irisR*.12,0,TAU);c.fill();
+  endSemanticContent(c);
 }
-
 
 function drawAnalogSignal(c,now){
   const f=Math.floor(now/92);
@@ -1885,9 +1889,7 @@ function drawAnalogSignal(c,now){
 
 function drawDynamic(now){
   ctx.fillStyle=C.black;ctx.fillRect(0,0,IW,IH);
-  const weaveFrame=Math.floor(now/125);
-  const weaveX=(hash(weaveFrame,811)-.5)*.70,weaveY=(hash(weaveFrame,827)-.5)*.42;
-  ctx.drawImage(staticCanvas,weaveX,weaveY);
+  ctx.drawImage(staticCanvas,0,0);
   drawClock(ctx,now);
   drawGlobalProgressBoard(ctx,now);
   drawVersionBoard(ctx,now);
@@ -1902,7 +1904,6 @@ function drawDynamic(now){
     drawSiteShadow(ctx,sites[i],i);
     drawSiteMarker(ctx,sites[i],i);
     drawAshes(ctx,sites[i],i,now);
-    drawRitualTrophy(ctx,sites[i],i,now);
   }
 
   const items=[];
@@ -1922,6 +1923,11 @@ function drawDynamic(now){
       const bpv=bannerProject(bb,0,0);
       items.push({type:'banner',si,depth:bpv.zv,py:bpv.y,h:bb.a.h/BLOCK_H});
     }
+    const tw=trophyWorldState(site,si);
+    if(tw){
+      const tp=wp(tw.x,tw.z,tw.h+.40);
+      items.push({type:'trophy',si,depth:tp.zv,py:tp.y,h:tw.h/BLOCK_H});
+    }
   }
   for(let i=0;i<players.length;i++){
     const pl=players[i];
@@ -1939,6 +1945,7 @@ function drawDynamic(now){
     else if(it.type==='blueprint')drawBlueprint(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
     else if(it.type==='building')drawBuildingBlock(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
     else if(it.type==='banner')drawTowerBanner(ctx,sites[it.si],it.si,now);
+    else if(it.type==='trophy')drawRitualTrophy(ctx,sites[it.si],it.si,now);
     else drawPlayer(ctx,players[it.i],t,it.i);
   }
 
