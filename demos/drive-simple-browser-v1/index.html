@@ -18,7 +18,7 @@ html{scroll-padding-top:118px}
 .flowStep b{display:grid;place-items:center;width:23px;height:23px;border:1px solid var(--line);font-size:.58rem}
 .flowStep[data-active="1"]{color:var(--ink);font-weight:800}.flowStep[data-active="1"] b{border-color:var(--ink);background:var(--ink);color:var(--paper)}
 .statebar{display:flex;align-items:center;gap:8px;min-height:34px;padding:8px 0;border-bottom:1px solid var(--line);font-size:.68rem;line-height:1.35;color:var(--muted)}
-.stateDot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 auto}.statebar[data-tone="busy"]{color:#7d651f}.statebar[data-tone="error"]{color:var(--warn)}.statebar[data-tone="ready"]{color:var(--ok)}
+.stateDot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 auto}.statebar[data-tone="busy"]{color:#7d651f}.statebar[data-tone="error"]{color:var(--warn)}.statebar[data-tone="ready"]{color:var(--ok)}.statebar[data-tone="partial"]{color:#635a49}.recovery{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:.68rem;line-height:1.35}.recovery[hidden]{display:none}.recovery a,.recovery button{min-height:40px;border:1px solid var(--ink);background:transparent;color:var(--ink);display:inline-flex;align-items:center;padding:0 10px;font:800 .62rem/1 ui-monospace,monospace;text-decoration:none;text-transform:uppercase;letter-spacing:.05em}.recoveryText{color:var(--muted)}
 .item{min-height:62px;touch-action:manipulation}.item:focus-visible,.back:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 .item .arrow{font-size:1.25rem}.notice{font-weight:600}.doc-head{scroll-margin-top:124px}
 @media(max-width:480px){
@@ -26,7 +26,7 @@ html{scroll-padding-top:118px}
  .top{margin:0 -14px;padding:10px 14px 9px}
  .flow{top:53px;margin:0 -14px;padding:9px 14px 10px}
  .flowStep{font-size:.57rem}.flowStep b{width:21px;height:21px}
- .statebar{margin:0 -14px;padding:8px 14px}
+ .statebar{margin:0 -14px;padding:8px 14px}.recovery{margin:0 -14px;padding:9px 14px;align-items:flex-start;flex-direction:column}.recovery a,.recovery button{width:100%;justify-content:center}
  .title{margin-top:28px}
  .item{grid-template-columns:34px minmax(0,1fr) 22px;padding:16px 2px;gap:10px}
  .name{font-size:1.04rem}.meta{font-size:.66rem;line-height:1.35}
@@ -48,6 +48,7 @@ html{scroll-padding-top:118px}
     </div>
   </nav>
   <div id="statebar" class="statebar" data-tone="neutral" role="status" aria-live="polite"><span class="stateDot"></span><span id="stateText">Elegí una carpeta para empezar.</span></div>
+  <div id="recovery" class="recovery" hidden><span class="recoveryText" id="recoveryText"></span><a id="recoveryLink" href="../../pages/study-library/">Abrir Study Library</a></div>
   <section id="view"></section>
 </main>
 <script src="./app.js?v=1"></script>
@@ -55,35 +56,62 @@ html{scroll-padding-top:118px}
 (function(){
   const statebar=document.getElementById('statebar');
   const stateText=document.getElementById('stateText');
+  const recovery=document.getElementById('recovery');
+  const recoveryText=document.getElementById('recoveryText');
   const steps=Array.from(document.querySelectorAll('.flowStep'));
   function setStep(n){steps.forEach(function(el){el.dataset.active=String(Number(el.dataset.step)===n?'1':'0')})}
   function setState(text,tone){stateText.textContent=text;statebar.dataset.tone=tone||'neutral'}
+  function setRecovery(show,text){
+    recovery.hidden=!show;
+    recoveryText.textContent=show?(text||''):'';
+  }
   function classify(){
     const c=(document.getElementById('crumb').textContent||'').toUpperCase();
     const v=document.getElementById('view');
     const text=(v.textContent||'').toLowerCase();
     const hasItems=!!v.querySelector('.items');
     const hasDoc=!!v.querySelector('.doc');
+    const hasFullText=!!v.querySelector('.fulltext');
     const hasNotice=!!v.querySelector('.notice');
+    setRecovery(false,'');
+
+    if(hasFullText){
+      setStep(3);
+      setState('Texto privado completo cargado y disponible para lectura.','ready');
+      return;
+    }
     if(hasDoc){
       setStep(3);
-      if(text.includes('cargando archivo completo')) setState('Verificando acceso al texto privado…','busy');
-      else setState('Documento abierto dentro de Prometeo.','ready');
+      if(text.includes('cargando archivo completo')){
+        setState('Verificando autenticación y acceso al texto privado…','busy');
+      }else if(hasNotice){
+        setState('Vista pública parcial. Este contenido no es el archivo completo.','partial');
+      }else if(text.includes('documento completo de prueba')){
+        setState('Demo local abierta. No representa una extracción privada real.','partial');
+      }else{
+        setState('Vista de lectura disponible; integridad completa no verificada.','partial');
+      }
       return;
     }
     if(hasNotice){
       setStep(c.includes('ARCHIVO')?3:2);
-      if(text.includes('token')||text.includes('no pude abrir')) setState('El acceso privado no está disponible en este navegador.','error');
-      else if(text.includes('sólo precargó')) setState('Esta carpeta no está precargada en la demo pública.','error');
-      else if(text.includes('todavía no tiene vista interna')) setState('Este archivo no tiene vista interna disponible.','error');
-      else setState('Hay una limitación para este contenido.','error');
+      if(text.includes('token')||text.includes('no pude abrir')){
+        setState('No hay acceso privado autenticado en este navegador.','error');
+        setRecovery(true,'La lectura completa requiere la sesión privada de Study Library. No se marca como éxito.');
+      }else if(text.includes('sólo precargó')){
+        setState('Carpeta sin contenido precargado en esta superficie.','error');
+      }else if(text.includes('todavía no tiene vista interna')){
+        setState('Archivo sin vista interna disponible.','error');
+      }else{
+        setState('Contenido no disponible en esta superficie.','error');
+      }
       return;
     }
     if(hasItems){
       if(c.includes('MODULO 2')){
-        setStep(2);setState('Carpeta abierta. Elegí un documento.','neutral');
+        setStep(2);setState('Carpeta abierta. Tocá un documento para pasar a lectura.','neutral');
       }else{
-        setStep(1);setState('Elegí una carpeta para ver sus documentos.','neutral');
+        setStep(1);setState('Tocá una carpeta para ver sus documentos.','neutral');
       }
       return;
     }
