@@ -5,15 +5,95 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Prometeo · Drive simple</title>
 <link rel="stylesheet" href="./style.css?v=1">
+<style>
+:root{--ok:#315a3a;--warn:#8b3d25}
+html{scroll-padding-top:118px}
+.top{position:sticky;top:0;z-index:20;background:rgba(241,236,223,.97);padding-top:12px}
+.crumb{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.back{display:flex;align-items:center;gap:7px;min-height:44px;min-width:72px;justify-content:flex-end}
+.backLabel{font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;font-weight:800}
+.flow{position:sticky;top:58px;z-index:18;background:rgba(241,236,223,.97);border-bottom:1px solid var(--ink);padding:10px 0 11px}
+.flowSteps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.flowStep{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:6px;color:var(--muted);font-size:.63rem;line-height:1.05;text-transform:uppercase;letter-spacing:.055em}
+.flowStep b{display:grid;place-items:center;width:23px;height:23px;border:1px solid var(--line);font-size:.58rem}
+.flowStep[data-active="1"]{color:var(--ink);font-weight:800}.flowStep[data-active="1"] b{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+.statebar{display:flex;align-items:center;gap:8px;min-height:34px;padding:8px 0;border-bottom:1px solid var(--line);font-size:.68rem;line-height:1.35;color:var(--muted)}
+.stateDot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 auto}.statebar[data-tone="busy"]{color:#7d651f}.statebar[data-tone="error"]{color:var(--warn)}.statebar[data-tone="ready"]{color:var(--ok)}
+.item{min-height:62px;touch-action:manipulation}.item:focus-visible,.back:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.item .arrow{font-size:1.25rem}.notice{font-weight:600}.doc-head{scroll-margin-top:124px}
+@media(max-width:480px){
+ .page{padding-top:0;padding-bottom:48px}
+ .top{margin:0 -14px;padding:10px 14px 9px}
+ .flow{top:53px;margin:0 -14px;padding:9px 14px 10px}
+ .flowStep{font-size:.57rem}.flowStep b{width:21px;height:21px}
+ .statebar{margin:0 -14px;padding:8px 14px}
+ .title{margin-top:28px}
+ .item{grid-template-columns:34px minmax(0,1fr) 22px;padding:16px 2px;gap:10px}
+ .name{font-size:1.04rem}.meta{font-size:.66rem;line-height:1.35}
+ .back{min-width:66px;padding-left:8px}.backLabel{font-size:.62rem}
+}
+</style>
 </head>
 <body>
 <main class="page">
   <header class="top">
     <div class="crumb" id="crumb">PROMETEO / DRIVE</div>
-    <button id="back" class="back" type="button" hidden>←</button>
+    <button id="back" class="back" type="button" hidden aria-label="Volver"><span aria-hidden="true">←</span><span class="backLabel">Volver</span></button>
   </header>
+  <nav class="flow" aria-label="Ruta de navegación">
+    <div class="flowSteps">
+      <div class="flowStep" data-step="1"><b>01</b><span>Carpeta</span></div>
+      <div class="flowStep" data-step="2"><b>02</b><span>Documento</span></div>
+      <div class="flowStep" data-step="3"><b>03</b><span>Lectura</span></div>
+    </div>
+  </nav>
+  <div id="statebar" class="statebar" data-tone="neutral" role="status" aria-live="polite"><span class="stateDot"></span><span id="stateText">Elegí una carpeta para empezar.</span></div>
   <section id="view"></section>
 </main>
 <script src="./app.js?v=1"></script>
+<script>
+(function(){
+  const statebar=document.getElementById('statebar');
+  const stateText=document.getElementById('stateText');
+  const steps=Array.from(document.querySelectorAll('.flowStep'));
+  function setStep(n){steps.forEach(function(el){el.dataset.active=String(Number(el.dataset.step)===n?'1':'0')})}
+  function setState(text,tone){stateText.textContent=text;statebar.dataset.tone=tone||'neutral'}
+  function classify(){
+    const c=(document.getElementById('crumb').textContent||'').toUpperCase();
+    const v=document.getElementById('view');
+    const text=(v.textContent||'').toLowerCase();
+    const hasItems=!!v.querySelector('.items');
+    const hasDoc=!!v.querySelector('.doc');
+    const hasNotice=!!v.querySelector('.notice');
+    if(hasDoc){
+      setStep(3);
+      if(text.includes('cargando archivo completo')) setState('Verificando acceso al texto privado…','busy');
+      else setState('Documento abierto dentro de Prometeo.','ready');
+      return;
+    }
+    if(hasNotice){
+      setStep(c.includes('ARCHIVO')?3:2);
+      if(text.includes('token')||text.includes('no pude abrir')) setState('El acceso privado no está disponible en este navegador.','error');
+      else if(text.includes('sólo precargó')) setState('Esta carpeta no está precargada en la demo pública.','error');
+      else if(text.includes('todavía no tiene vista interna')) setState('Este archivo no tiene vista interna disponible.','error');
+      else setState('Hay una limitación para este contenido.','error');
+      return;
+    }
+    if(hasItems){
+      if(c.includes('MODULO 2')){
+        setStep(2);setState('Carpeta abierta. Elegí un documento.','neutral');
+      }else{
+        setStep(1);setState('Elegí una carpeta para ver sus documentos.','neutral');
+      }
+      return;
+    }
+    setStep(1);setState('Cargando contenido…','busy');
+  }
+  const observer=new MutationObserver(classify);
+  observer.observe(document.getElementById('view'),{subtree:true,childList:true,characterData:true});
+  observer.observe(document.getElementById('crumb'),{subtree:true,childList:true,characterData:true});
+  classify();
+})();
+</script>
 </body>
 </html>
