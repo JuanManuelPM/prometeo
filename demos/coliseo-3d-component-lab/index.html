@@ -268,7 +268,8 @@ const MAP_DEFS={
   ciudadela:{label:'ciudadela'},
   fundicion:{label:'fundición'},
   observatorio:{label:'observatorio'},
-  laberinto:{label:'laberinto'}
+  laberinto:{label:'laberinto'},
+  camara:{label:'cámara'}
 };
 if(!MAP_DEFS[CURRENT_MAP])CURRENT_MAP='coliseo';
 let FX_PRESET=(LAB_PARAMS.get('fx')||'off').toLowerCase();
@@ -803,7 +804,102 @@ function paintCanonicalColiseoBackdrop(){
   // clean half-section edges
   paintCutEdges(c);
 }
+function paintCamaraFloorPattern(cc,x,y,rx,ry){
+  cc.save();
+  cc.beginPath();cc.ellipse(x,y,rx,ry,0,0,TAU);cc.clip();
+
+  cc.fillStyle='#d8cf82';cc.fillRect(x-rx,y-ry,rx*2,ry*2);
+
+  // Radial optical floor: a single coherent motif, not a field of visible cubes.
+  const rings=7,petals=36;
+  for(let ring=0;ring<rings;ring++){
+    const r0=ring/rings,r1=(ring+1)/rings;
+    for(let i=0;i<petals;i++){
+      const a0=i*TAU/petals,a1=(i+1)*TAU/petals;
+      cc.beginPath();
+      const p0={x:x+Math.cos(a0)*rx*r0,y:y+Math.sin(a0)*ry*r0};
+      const p1={x:x+Math.cos(a0)*rx*r1,y:y+Math.sin(a0)*ry*r1};
+      const p2={x:x+Math.cos(a1)*rx*r1,y:y+Math.sin(a1)*ry*r1};
+      const p3={x:x+Math.cos(a1)*rx*r0,y:y+Math.sin(a1)*ry*r0};
+      cc.moveTo(p0.x,p0.y);cc.lineTo(p1.x,p1.y);cc.lineTo(p2.x,p2.y);cc.lineTo(p3.x,p3.y);cc.closePath();
+      cc.fillStyle=((i+ring)&1)?'#20241f':'#d7cf84';cc.fill();
+    }
+  }
+
+  // Central floral/star burst.
+  const starR=rx*.22,inner=rx*.08;
+  cc.beginPath();
+  for(let i=0;i<32;i++){
+    const a=i*TAU/32-Math.PI/2;
+    const rr=i%2?inner:starR;
+    const px=x+Math.cos(a)*rr,py=y+Math.sin(a)*(rr*(ry/rx));
+    if(i===0)cc.moveTo(px,py);else cc.lineTo(px,py);
+  }
+  cc.closePath();cc.fillStyle='#22251f';cc.fill();
+
+  cc.beginPath();cc.ellipse(x,y,rx*.065,ry*.065,0,0,TAU);cc.fillStyle='#d9ce80';cc.fill();
+  cc.restore();
+}
+
+function paintCamaraHole(cc){
+  // Hole is anchored in world space so it rotates with the room.
+  const hp=wp(-4.65,1.85,.035);
+  const rx=scale*1.42,ry=scale*.60;
+  const pts=[];
+  for(let i=0;i<26;i++){
+    const a=i*TAU/26;
+    const rough=.82+hash(i,71110)*.38;
+    pts.push({x:hp.x+Math.cos(a)*rx*rough,y:hp.y+Math.sin(a)*ry*rough});
+  }
+  cc.save();
+  fillRagged(cc,pts,'#050504','#c8bf88',Math.max(1.1,scale*.065),71120);
+  // broken floor lips
+  cc.globalAlpha=.7;
+  for(let i=0;i<7;i++){
+    const a=Math.PI*.78+i*.18;
+    const p0={x:hp.x+Math.cos(a)*rx*.76,y:hp.y+Math.sin(a)*ry*.76};
+    const p1={x:hp.x+Math.cos(a)*rx*1.15,y:hp.y+Math.sin(a)*ry*1.15};
+    roughStroke(cc,[p0,p1],'#b8ad78',Math.max(.7,scale*.035),71140+i,false);
+  }
+  cc.restore();
+}
+
+function paintCamaraBackdrop(){
+  const cc=sctx;
+  cc.fillStyle='#070806';cc.fillRect(0,0,IW,IH);
+
+  // Sickly green room atmosphere from the supplied reference.
+  inkWash(cc,cx,cy-scale*1.8,scale*15.2,scale*5.8,'#89994e',.32,71000,4);
+  inkWash(cc,cx-scale*6.4,cy-scale*2.0,scale*5.0,scale*4.2,'#5f7138',.20,71010,3);
+  inkWash(cc,cx+scale*6.2,cy-scale*1.5,scale*4.7,scale*3.7,'#a2a35a',.16,71020,3);
+
+  // Floor reads as one designed object.
+  paintCamaraFloorPattern(cc,cx,cy+scale*.52,scale*8.05,scale*3.05);
+  paintCamaraHole(cc);
+
+  // Edge shadow makes the room feel enclosed before physical wall pieces are drawn.
+  cc.save();
+  const vg=cc.createRadialGradient(cx,cy,scale*4.5,cx,cy,scale*13.0);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(.75,'rgba(13,15,9,.10)');
+  vg.addColorStop(1,'rgba(0,0,0,.72)');
+  cc.fillStyle=vg;cc.fillRect(0,0,IW,IH);
+  cc.restore();
+
+  // Warm chandelier spill.
+  const lp=wp(0,0,3.1);
+  cc.save();
+  const lg=cc.createRadialGradient(lp.x,lp.y,0,lp.x,lp.y,scale*2.7);
+  lg.addColorStop(0,'rgba(230,194,83,.16)');
+  lg.addColorStop(1,'rgba(230,194,83,0)');
+  cc.fillStyle=lg;cc.fillRect(0,0,IW,IH);cc.restore();
+}
+
 function paintGenericMapBackdrop(){
+  if(CURRENT_MAP==='camara'){
+    paintCamaraBackdrop();
+    return;
+  }
   const cc=sctx;
   cc.fillStyle='#050504';cc.fillRect(0,0,IW,IH);
   const tint=CURRENT_MAP==='archivo'?'#18231d':CURRENT_MAP==='fundicion'?'#34160e':CURRENT_MAP==='observatorio'?'#152027':'#23160f';
@@ -1760,7 +1856,7 @@ function drawProgressTube(c,site,index){
 }
 
 const LAST_UPDATE_MS=Date.parse('2026-09-24T12:43:59.511Z');
-const BUILD_VERSION='COMPONENT-LAB-8.1';
+const BUILD_VERSION='COMPONENT-LAB-8.2';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -3064,6 +3160,94 @@ function buildMapLaberinto(){
   // central goal chamber
   for(let y=0;y<4;y++)componentModuleBox(0,0,.02+y*.56,1.75-y*.12,1.75-y*.12,.52,y%2?'#80603a':'#34483d',47700+y,Math.PI/4);
 }
+function camaraVisible(angle){
+  return !mapCut(angle,.12);
+}
+function buildCamaraDoorAt(angle,variant,seed){
+  if(!camaraVisible(angle))return;
+  const f=mapRingFrame(angle,8.92);
+  const frame='#72664b';
+  const leaf=variant==='main'?'#2a2119':variant==='dark'?'#231f1a':variant==='light'?'#c6bd83':'#52442f';
+
+  // Deep frame reads as architecture, not as isolated sticks.
+  slotBox(f,0,.02,.02,1.78,.36,.12,'#504936',seed+1);
+  slotBox(f,-.72,0,.12,.22,.30,2.25,frame,seed+2);
+  slotBox(f, .72,0,.12,.22,.30,2.25,frame,seed+3);
+  slotBox(f,0,0,2.18,1.66,.34,.27,shade(frame,12),seed+4);
+  slotBox(f,0,.08,.16,1.18,.12,1.98,leaf,seed+5);
+
+  // Decorative header differs by door family.
+  if(variant==='main'){
+    slotBox(f,0,0,2.47,1.82,.32,.24,'#403529',seed+6);
+    slotBox(f,-.48,-.04,2.40,.28,.22,.28,'#716042',seed+7);
+    slotBox(f, .48,-.04,2.40,.28,.22,.28,'#716042',seed+8);
+  }else if(variant==='light'){
+    slotBox(f,0,0,2.44,1.48,.28,.16,'#ddd59a',seed+9);
+  }else{
+    slotBox(f,0,0,2.42,1.48,.28,.16,shade(frame,-5),seed+10);
+  }
+}
+function buildCamaraCurtainAt(angle,seed){
+  if(!camaraVisible(angle))return;
+  const f=mapRingFrame(angle,8.90);
+  slotBox(f,0,0,2.42,1.58,.12,.10,'#4a4031',seed+1);
+  // Folded curtain as narrow overlapping physical ribbons.
+  for(let i=0;i<7;i++){
+    const x=-.54+i*.18;
+    slotBox(f,x,.08,.28,.17,.10,2.04,i%2?'#4e1318':'#671820',seed+10+i);
+  }
+}
+function buildCamaraRoundTable(angle,seed){
+  const f=mapRingFrame(angle,5.75);
+  // Hex/octagonal approximation keeps depth rules while reading as round at map scale.
+  for(let i=0;i<8;i++){
+    const a=i*TAU/8;
+    slotBox(f,Math.cos(a)*.46,Math.sin(a)*.46,1.02,.42,.42,.10,'#2d241f',seed+10+i,a);
+  }
+  slotBox(f,0,0,.08,.28,.28,.94,'#2a211c',seed+30);
+  for(const sx of [-1,1])for(const sz of [-1,1])slotBox(f,sx*.31,sz*.26,.04,.10,.10,.54,'#2a211c',seed+40+(sx>0?2:0)+(sz>0?1:0));
+}
+function buildCamaraChandelier(seed){
+  componentModuleBox(0,0,3.15,.12,.12,1.18,'#78673c',seed+1,0);
+  for(let i=0;i<6;i++){
+    const a=i*TAU/6+.18,x=Math.cos(a)*.72,z=Math.sin(a)*.72;
+    componentModuleBox(x*.52,z*.52,2.82,.62,.09,.08,'#826e3d',seed+10+i,a);
+    componentModuleBox(x,z,2.67,.12,.12,.25,'#8c743d',seed+20+i,0);
+    addWorldEmissive(x,z,2.92,.40,.13,.26,seed+30+i);
+  }
+}
+function buildMapCamara(now){
+  resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
+
+  // Continuous circular room envelope. Modules are implementation detail;
+  // repetition + shared color make it read as one wall.
+  const N=42;
+  for(let i=0;i<N;i++){
+    const a=i*TAU/N;
+    if(!camaraVisible(a))continue;
+
+    // pale lower wainscot
+    mapRingSegment(a,8.78,.02,1.42,.34,1.05,i%3===0?'#c6c391':'#b9bc82',50000+i);
+
+    // tall green plaster field
+    mapRingSegment(a,9.12,1.07,1.48,.40,2.28,i%4===0?'#87974d':'#98a459',50100+i);
+
+    // horizontal moulding bands
+    mapRingSegment(a,8.95,1.08,1.48,.42,.11,'#6c7047',50200+i);
+    mapRingSegment(a,9.22,3.34,1.50,.43,.14,'#555a3c',50300+i);
+  }
+
+  // Five intentionally distinct doors, as in the reference.
+  buildCamaraDoorAt(-2.52,'wood',50400);
+  buildCamaraCurtainAt(-1.32,50500);
+  buildCamaraDoorAt(-.10,'main',50600);
+  buildCamaraDoorAt(1.05,'dark',50700);
+  buildCamaraDoorAt(2.12,'light',50800);
+
+  buildCamaraRoundTable(1.38,50900);
+  buildCamaraChandelier(51000);
+}
+
 function buildSelectedMap(now){
   if(CURRENT_MAP==='fortaleza')buildMapFortaleza();
   else if(CURRENT_MAP==='archivo')buildMapArchivo();
@@ -3072,6 +3256,7 @@ function buildSelectedMap(now){
   else if(CURRENT_MAP==='fundicion')buildMapFundicion(now);
   else if(CURRENT_MAP==='observatorio')buildMapObservatorio(now);
   else if(CURRENT_MAP==='laberinto')buildMapLaberinto();
+  else if(CURRENT_MAP==='camara')buildMapCamara(now);
 }
 function drawMapGallery(now){
   if(CURRENT_MAP==='coliseo'){
