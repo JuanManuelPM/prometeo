@@ -1,100 +1,144 @@
-<!doctype html><html lang="es"><head>
+<!doctype html>
+<html lang="es">
+<head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Prometeo · World Live</title>
 <style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-body{display:grid;place-items:center}
 .stage{position:relative;width:100vw;height:100vh;background:#000;overflow:hidden}
 iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
-.hud{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.88) 34%,#000 100%);padding:34px 24px 18px;pointer-events:none}
-.top{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:10px}
-.brand{font:900 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em}
-.status{font:900 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.09em}
-.progress{height:14px;border:1px solid rgba(255,255,255,.72);position:relative;background:#000}
-.fill{height:100%;width:0;background:#fff;transition:width .7s ease}
-.meta{display:grid;grid-template-columns:auto auto auto 1fr auto;gap:18px;align-items:center;margin-top:10px;font:800 10px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace}
-.meta strong{font-size:15px}.dim{opacity:.54}
-.taskline{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.done{font-size:22px;font-weight:950;letter-spacing:-.02em}
+.hud{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.9) 24%,#000 100%);padding:38px 24px 16px;pointer-events:none}
+.top{display:flex;justify-content:space-between;gap:18px;align-items:flex-end;margin-bottom:9px}
+.brand,.status,.label,.meta{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.brand,.status{font-size:10px;font-weight:900;letter-spacing:.12em}
+.bars{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.barline{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center}
+.label{font-size:9px;font-weight:900;opacity:.7}.value{font:900 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
+.track{height:10px;border:1px solid rgba(255,255,255,.58);background:#000}.fill{height:100%;width:0;background:#fff;transition:width .5s ease}
+.meta{display:grid;grid-template-columns:auto auto auto auto 1fr;gap:14px;align-items:center;margin-top:9px;font-size:9px;font-weight:800}
+.taskline{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.72}
 .flash{animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{opacity:.42}}
-.corner{position:absolute;top:14px;right:16px;background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.3);padding:8px 10px;font:800 9px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace}
-@media(max-width:800px){.hud{padding:28px 12px 12px}.meta{grid-template-columns:auto auto 1fr;gap:10px}.meta .hideSmall{display:none}.top{margin-bottom:8px}.brand,.status{font-size:9px}.progress{height:10px}}
-</style></head><body>
+.corner{position:absolute;top:14px;right:16px;background:#000c;border:1px solid #ffffff4d;padding:7px 9px;font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
+@media(max-width:800px){.hud{padding:30px 12px 12px}.bars{grid-template-columns:1fr}.meta{grid-template-columns:auto auto auto 1fr}.hideSmall{display:none}.brand,.status{font-size:9px}}
+</style>
+</head>
+<body>
 <div class="stage">
   <iframe id="world" src="/prometeo/guides/world/?view=tv" allow="autoplay"></iframe>
   <div class="corner" id="clock">LIVE</div>
   <div class="hud">
     <div class="top">
-      <div class="brand" id="brand">PROMETEO · AUTONOMY</div>
+      <div class="brand" id="brand">PROMETEO · WORLD</div>
       <div class="status" id="status">CARGANDO</div>
     </div>
-    <div class="progress"><div class="fill" id="fill"></div></div>
+    <div class="bars">
+      <div class="barline">
+        <span class="label">REVIEW</span>
+        <div class="track"><div class="fill" id="reviewFill"></div></div>
+        <span class="value" id="reviewPct">0%</span>
+      </div>
+      <div class="barline">
+        <span class="label">PRODUCT</span>
+        <div class="track"><div class="fill" id="productFill"></div></div>
+        <span class="value" id="productPct">0%</span>
+      </div>
+    </div>
     <div class="meta">
-      <div><strong id="pct">0%</strong> <span class="dim">PRODUCT</span></div>
-      <div><span id="done">0</span>/<span id="total">0</span> DONE</div>
-      <div><span id="active">0</span> ACTIVE</div>
-      <div class="taskline" id="taskline">sin trabajo activo</div>
-      <div class="hideSmall"><span id="workers">0</span> PRIMARY · <span id="utilityActive">0</span> UTILITY · <span id="utilityReady">0</span> U-READY</div>
+      <div><span id="reviewDone">0</span>/<span id="reviewTotal">0</span> REVIEW</div>
+      <div><span id="primary">0</span> PRIMARY</div>
+      <div><span id="utilityActive">0</span> UTILITY</div>
+      <div><span id="utilityReady">0</span> U-READY</div>
+      <div class="taskline hideSmall" id="taskline">sin trabajo activo</div>
     </div>
   </div>
 </div>
 <script>
-(()=>{
-const B='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
-const K='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
-const H={apikey:K,Authorization:'Bearer '+K,'Content-Type':'application/json'};
-let lastWorldReload=Date.now();
+(() => {
+  const B = 'https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+  const K = 'sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+  const H = {apikey:K, Authorization:'Bearer '+K, 'Content-Type':'application/json'};
+  const el = id => document.getElementById(id);
+  const E = {
+    world:el('world'), clock:el('clock'), brand:el('brand'), status:el('status'),
+    reviewFill:el('reviewFill'), reviewPct:el('reviewPct'),
+    productFill:el('productFill'), productPct:el('productPct'),
+    reviewDone:el('reviewDone'), reviewTotal:el('reviewTotal'),
+    primary:el('primary'), utilityActive:el('utilityActive'), utilityReady:el('utilityReady'),
+    taskline:el('taskline')
+  };
+  let lastWorldReload = Date.now();
 
-async function snapshot(){
- const r=await fetch(B+'prometeo_world_snapshot_v1',{method:'POST',headers:H,body:'{}',cache:'no-store'});
- if(!r.ok)throw new Error('snapshot '+r.status);
- const x=await r.json();
- if(!x||x.schema!=='prometeo.world_snapshot/v1'||Number(x.contract_version)!==1)throw new Error('WORLD V1 CONTRACT');
- return x;
-}
-function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x:d}
-function up(v){return String(v??'UNKNOWN').toUpperCase()}
-async function load(){
- try{
-   const x=await snapshot(),run=x.focus_run||{},counts=run.counts||{},rt=run.runtime||{};
-   const product=x.product_completion||{},pp=product.percentage||{};
-   const p=Math.max(0,Math.min(100,n(pp.display,0)));
-   const success=n(counts.success,counts.done||0),total=n(counts.total,0),active=n(counts.active,0);
-   const lobby=x.worker_lobby||{},ub=x.utility_text_board||{},uc=ub.counts||{};\n   const primary=n(lobby.primary_executing,0),utility=n(lobby.utility_executing,n(uc.active,0)),utilityReadyCount=n(uc.ready,0);\n   const working=(rt.sessions||[]).filter(s=>up(s.observed_liveness)==='WORKING').length;
-   const activeJobs=(rt.jobs||[]).filter(j=>up(j.state)==='ACTIVE');
+  function num(v,d=0){ const x=Number(v); return Number.isFinite(x)?x:d; }
+  function upper(v){ return String(v ?? 'UNKNOWN').toUpperCase(); }
+  async function snapshot(){
+    const r = await fetch(B+'prometeo_world_snapshot_v1',{method:'POST',headers:H,body:'{}',cache:'no-store'});
+    if(!r.ok) throw new Error('snapshot '+r.status);
+    const x = await r.json();
+    if(!x || x.schema!=='prometeo.world_snapshot/v1' || Number(x.contract_version)!==1) throw new Error('WORLD_V1_CONTRACT');
+    return x;
+  }
 
-   brand.textContent='PROMETEO · '+String(run.run_id||'WORLD');
-   fill.style.width=p+'%';
-   pct.textContent=p.toFixed(1)+'%';
-   done.textContent=success;
-   total.textContent=total;
-   active.textContent=active;
-   remaining.textContent=Math.max(0,total-success);
-   workers.textContent=primary;\n   utilityActive.textContent=utility;\n   utilityReady.textContent=utilityReadyCount;
-   taskline.textContent=activeJobs.length
-     ? activeJobs.map(j=>(j.node_key||j.job_id||'JOB')+' · '+(j.progress_stage||j.observed_liveness||'UNKNOWN')).join('   /   ')
-     : 'sin trabajo activo';
+  async function load(){
+    try{
+      const x = await snapshot();
+      const run = x.focus_run || {};
+      const counts = run.counts || {};
+      const rt = run.runtime || {};
+      const product = x.product_completion || {};
+      const pp = product.percentage || {};
+      const ub = x.utility_text_board || {};
+      const uc = ub.counts || {};
+      const lobby = x.worker_lobby || {};
 
-   const rs=up(run.status);
-   const complete=rs==='DONE';
-   status.textContent=complete?'COMPLETO':(primary+utility)>0?'TRABAJANDO':rs==='ARMED'?'ARMED':rs==='RUNNING'?'ESPERANDO':rs;
-   status.className='status'+(!complete&&(primary+utility)>0?' flash':'');
-   clock.textContent=new Intl.DateTimeFormat('es-AR',{
-     timeZone:'America/Argentina/Buenos_Aires',
-     hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false
-   }).format(new Date(x.generated_at||Date.now()));
- }catch(err){
-   console.error(err);
-   status.textContent='RECONEXIÓN';
-   status.className='status';
- }
- if(Date.now()-lastWorldReload>300000){
-   const fr=document.getElementById('world');
-   fr.src='/prometeo/guides/world/?view=tv&v='+Date.now();
-   lastWorldReload=Date.now();
- }
-}
-load();
-setInterval(load,3000);
+      const reviewDone = num(counts.success, num(counts.done,0));
+      const reviewTotal = num(counts.total,0);
+      const rawRatio = num(run.job_completion_ratio, reviewTotal ? reviewDone/reviewTotal : 0);
+      const reviewPct = Math.max(0,Math.min(100,rawRatio<=1.0001 ? rawRatio*100 : rawRatio));
+      const productPct = Math.max(0,Math.min(100,num(pp.display,0)));
+
+      const activeJobs = (rt.jobs||[]).filter(j => upper(j.state)==='ACTIVE');
+      const primary = Math.max(num(lobby.primary_executing,0),activeJobs.length);
+      const utility = num(uc.active,0);
+      const utilityReady = num(uc.ready,0);
+
+      E.brand.textContent = 'PROMETEO · '+String(run.run_id || 'WORLD');
+      E.reviewFill.style.width = reviewPct+'%';
+      E.reviewPct.textContent = reviewPct.toFixed(0)+'%';
+      E.productFill.style.width = productPct+'%';
+      E.productPct.textContent = productPct.toFixed(0)+'%';
+      E.reviewDone.textContent = reviewDone;
+      E.reviewTotal.textContent = reviewTotal;
+      E.primary.textContent = primary;
+      E.utilityActive.textContent = utility;
+      E.utilityReady.textContent = utilityReady;
+
+      E.taskline.textContent = activeJobs.length
+        ? activeJobs.map(j => (j.node_key||j.job_id||'JOB')+' · '+(j.progress_stage||j.observed_liveness||'UNKNOWN')).join(' / ')
+        : utility>0 ? utility+' workers en UTILITY_TEXT' : 'sin trabajo activo';
+
+      const rs = upper(run.status);
+      const working = primary + utility;
+      E.status.textContent = working>0 ? 'TRABAJANDO' : rs==='RUNNING' ? 'ESPERANDO' : rs;
+      E.status.className = 'status'+(working>0?' flash':'');
+      E.clock.textContent = new Intl.DateTimeFormat('es-AR',{
+        timeZone:'America/Argentina/Buenos_Aires',
+        hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false
+      }).format(new Date(x.generated_at || Date.now()));
+    }catch(err){
+      console.error(err);
+      E.status.textContent='RECONEXIÓN';
+      E.status.className='status';
+    }
+
+    if(Date.now()-lastWorldReload>300000){
+      E.world.src='/prometeo/guides/world/?view=tv&v='+Date.now();
+      lastWorldReload=Date.now();
+    }
+  }
+
+  load();
+  setInterval(load,3000);
 })();
-</script></body></html>
+</script>
+</body>
+</html>
