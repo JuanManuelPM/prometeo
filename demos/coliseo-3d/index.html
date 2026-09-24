@@ -52,7 +52,7 @@ body{overscroll-behavior:none}
 </div>
 <div class="ui">
   <div class="brand"><div class="mark">III</div><div class="copy"><b>Arena</b><span>collage · campo amplio · construcción</span></div></div>
-  <div class="badge">12 constructores · banderas + ritual final · reloj</div>
+  <div class="badge">12 constructores · banderas de progreso · ritual final</div>
   <div class="help">arrastrá para rotar · pellizcá para acercar</div>
 </div>
 <script>
@@ -889,106 +889,106 @@ function siteTopHeight(site){
   return top;
 }
 function siteBannerAnchor(site,index){
-  const top=siteTopHeight(site);
-  const mag=Math.max(.001,Math.hypot(site.x,site.z));
-  const ox=site.x/mag,oz=site.z/mag;
-  const side=(index%2?1:-1);
-  const tx=-oz*side,tz=ox*side;
-  const sideOffset=1.18;
-  const radialOffset=.34;
+  // Move the banner toward the stands, behind the tower from the arena-facing view.
+  const ang=Math.atan2(site.z,site.x);
+  const bannerR=15.25;
+  const tangent=(index%2?1:-1)*.34;
   return {
-    x:site.x+tx*sideOffset+ox*radialOffset,
-    z:site.z+tz*sideOffset+oz*radialOffset,
-    h:Math.max(1.42,top*.46+.72)
+    x:Math.cos(ang)*bannerR + (-Math.sin(ang))*tangent,
+    z:Math.sin(ang)*bannerR + ( Math.cos(ang))*tangent,
+    h:2.62
   };
 }
-function fitBannerText(c,text,maxWidth,maxSize,minSize,weight,family){
+function fitStableText(c,text,maxWidth,maxSize,minSize,weight,family){
   let size=maxSize;
   const fam=family||'system-ui';
+  const wt=weight||700;
   while(size>minSize){
-    c.font=(weight||700)+' '+size+'px '+fam;
+    c.font=wt+' '+size+'px '+fam;
     if(c.measureText(text).width<=maxWidth)break;
     size-=.5;
   }
-  c.font=(weight||700)+' '+size+'px '+fam;
+  c.font=wt+' '+size+'px '+fam;
   return size;
-}
-function drawCompressedText(c,text,x,y,maxWidth,maxSize,minSize,weight,family){
-  fitBannerText(c,text,maxWidth,maxSize,minSize,weight,family);
-  const measured=Math.max(1,c.measureText(text).width);
-  const sx=Math.min(1,maxWidth/measured);
-  c.save();c.translate(x,y);c.scale(sx,1);c.fillText(text,0,0);c.restore();
 }
 function drawTowerBanner(c,site,index){
   if(site.ritual&&site.ritual.phase==='ashes')return;
 
   const a=siteBannerAnchor(site,index),p=wp(a.x,a.z,a.h);
-  if(p.x<-140||p.x>IW+140||p.y<-120||p.y>IH+160)return;
-
-  const camX=Math.sin(yaw),camZ=Math.cos(yaw);
-  const toCenterX=site.x-a.x,toCenterZ=site.z-a.z;
-  const facing=Math.abs(camX*toCenterX+camZ*toCenterZ);
-  const foreshorten=.48+.52*clamp(facing,0,1);
+  if(p.x<-190||p.x>IW+190||p.y<-130||p.y>IH+190)return;
 
   const title=TOWER_NAMES[index%TOWER_NAMES.length];
-  const progress=siteProgress(site);
-  const subtitle=progress.remaining+'% restante';
+  const prog=siteProgress(site);
 
-  const w=Math.max(scale*1.42,24)*foreshorten;
-  const h=Math.max(scale*2.04,35);
+  // Stable dimensions. Only global scene zoom changes them.
+  const w=Math.max(scale*2.72,58);
+  const h=Math.max(scale*1.92,42);
 
+  // Billboard behavior: the banner stays readable while still living in world depth.
   c.save();c.translate(q(p.x),q(p.y));
-  c.rotate((hash(index,901)-.5)*.075);
+  c.rotate((hash(index,901)-.5)*.035);
 
-  c.strokeStyle='rgba(24,14,10,.86)';
-  c.lineWidth=Math.max(1.05,scale*.052);
+  const poleX=w*.53;
+  c.strokeStyle='rgba(24,14,10,.91)';
+  c.lineWidth=Math.max(1.1,scale*.055);
+
+  // Two poles, one at each side.
   c.beginPath();
-  c.moveTo(-w*.54,-h*.56);
-  c.lineTo(-w*.54,h*.72);
+  c.moveTo(-poleX,-h*.60);c.lineTo(-poleX,h*.60);
+  c.moveTo( poleX,-h*.60);c.lineTo( poleX,h*.60);
   c.stroke();
 
+  // Small caps/crossbars make it feel physically held, not UI.
   c.beginPath();
-  c.moveTo(-w*.54,-h*.50);
-  c.lineTo(-w*.34,-h*.50);
+  c.moveTo(-poleX,-h*.50);c.lineTo(poleX,-h*.50);
+  c.moveTo(-poleX, h*.50);c.lineTo(poleX, h*.50);
   c.stroke();
 
   const cloth=[
-    {x:-w*.36,y:-h*.48},
-    {x:w*.46,y:-h*.44},
-    {x:w*.40,y:h*.34},
-    {x:w*.08,y:h*.55},
-    {x:-w*.34,y:h*.34}
+    {x:-w*.47,y:-h*.46},
+    {x: w*.47,y:-h*.45},
+    {x: w*.46,y: h*.43},
+    {x:-w*.46,y: h*.44}
   ];
-  fillRagged(c,cloth,'rgba(9,7,6,.93)','#1b0d09',Math.max(.9,scale*.05),6100+index);
+  fillRagged(c,cloth,'rgba(9,7,6,.95)','#1a0d09',Math.max(.9,scale*.05),6100+index);
 
-  c.save();c.globalAlpha=.24;c.translate(1.0,-.65);
+  c.save();c.globalAlpha=.22;c.translate(1.05,-.6);
   roughStroke(c,cloth,'#8a301f',Math.max(.7,scale*.04),6140+index,true);
   c.restore();
 
-  c.save();c.globalAlpha=.16;c.strokeStyle='#c36f38';c.lineWidth=Math.max(.55,scale*.028);
+  // Subtle cloth weave/folds.
+  c.save();path(c,cloth,true);c.clip();
+  c.globalAlpha=.14;c.strokeStyle='#c36f38';c.lineWidth=Math.max(.55,scale*.028);
   c.beginPath();
-  c.moveTo(-w*.14,-h*.36);c.quadraticCurveTo(w*.05,-h*.10,-w*.02,h*.28);
-  c.moveTo(w*.18,-h*.31);c.quadraticCurveTo(w*.27,-h*.03,w*.12,h*.30);
-  c.stroke();c.restore();
+  c.moveTo(-w*.30,-h*.33);c.quadraticCurveTo(-w*.18,-h*.02,-w*.22,h*.30);
+  c.moveTo(-w*.03,-h*.34);c.quadraticCurveTo( w*.08,0,-w*.02,h*.31);
+  c.moveTo( w*.24,-h*.31);c.quadraticCurveTo( w*.32,.02, w*.18,h*.29);
+  c.stroke();
 
-  // Absolute safety: text is clipped to the fabric itself, then compressed if necessary.
-  c.save();
-  path(c,cloth,true);c.clip();
   c.textAlign='center';c.textBaseline='middle';
 
+  // Fixed design system: title always fits the same reserved zone.
   c.fillStyle='#d7ad76';
-  drawCompressedText(
-    c,title,w*.03,-h*.07,w*.64,
-    Math.max(8,scale*.235),Math.max(4.5,scale*.11),700,'system-ui'
-  );
+  fitStableText(c,title,w*.72,Math.max(9,scale*.245),Math.max(5,scale*.11),700,'system-ui');
+  c.fillText(title,0,-h*.18);
 
-  c.globalAlpha=.80;c.fillStyle='#a58f76';
-  drawCompressedText(
-    c,subtitle,w*.02,h*.19,w*.58,
-    Math.max(6,scale*.155),Math.max(4,scale*.09),'italic','Georgia'
-  );
+  // Progress bar.
+  const barW=w*.70,barH=Math.max(5,scale*.12);
+  const barX=-barW*.5,barY=h*.015;
+  c.fillStyle='rgba(18,13,10,.92)';
+  c.fillRect(barX-1.5,barY-1.5,barW+3,barH+3);
+  c.fillStyle='rgba(61,45,35,.92)';
+  c.fillRect(barX,barY,barW,barH);
+  c.fillStyle=prog.ratio>=1?'#b33a24':'#d77a2d';
+  c.fillRect(barX,barY,barW*prog.ratio,barH);
+
+  // Percentage stays inside the lower cloth area.
+  const pct=Math.round(prog.ratio*100)+'%';
+  c.fillStyle='#ab947a';
+  fitStableText(c,pct,w*.40,Math.max(7,scale*.16),Math.max(4.5,scale*.095),600,'Georgia');
+  c.fillText(pct,0,h*.25);
+
   c.restore();
-
   c.restore();
 }
 
@@ -1215,7 +1215,7 @@ function drawDynamic(now){
       items.push({type:bp.status==='building'?'building':'blueprint',si,bpKey,depth:p.zv,py:p.y,h:bp.cand.y});
     }
     const ba=siteBannerAnchor(site,si),bpv=wp(ba.x,ba.z,ba.h);
-    items.push({type:'banner',si,depth:bpv.zv,py:bpv.y,h:ba.h/BLOCK_H});
+    items.push({type:'banner',si,depth:bpv.zv-.22,py:bpv.y,h:ba.h/BLOCK_H});
   }
   for(let i=0;i<players.length;i++){
     const pl=players[i],p=wp(pl.x,pl.z,pl.h+pl.jump+.42);
