@@ -33,6 +33,7 @@ button:disabled{opacity:.35;cursor:default}
 .status{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;font:800 9px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#aaa;min-height:25px}
 .progress{height:3px;background:#1b1b1b;margin-top:10px;overflow:hidden}
 .progress i{display:block;height:100%;width:0;background:#fff}
+.progressMeta{display:flex;justify-content:space-between;gap:12px;margin-top:6px;font:800 8px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
 .voice{margin-top:18px;border:1px solid var(--line);padding:13px}
 .voice b{display:block;font-size:12px;margin-bottom:5px}
 .voice p{margin:0;font-size:11px;line-height:1.5;color:#aaa}
@@ -72,14 +73,15 @@ button:disabled{opacity:.35;cursor:default}
   <section class="panel">
     <div class="label">PLAYBACK / TTS · CAPACIDAD REAL</div>
     <h2>Escuchar texto</h2>
-    <div class="small">Backend usado: la Edge Function TTS que ya consume <code>/strategy/</code>. El audio vuelve como blob y se reproduce en el navegador. No se atribuye proveedor, modelo ni voz que los bytes no demuestren.</div>
-    <textarea id="text" maxlength="900" spellcheck="true">Prometeo puede leer este texto usando la capacidad TTS que ya existe en la superficie Strategy.</textarea>
+    <div class="small">Backend usado: la misma Edge Function TTS que consume <code>/strategy/</code>. El texto largo se divide en partes acotadas, cada parte consulta caché y sólo genera audio si falta. No se atribuye proveedor, modelo ni voz que los bytes no demuestren.</div>
+    <textarea id="text" maxlength="1800" spellcheck="true">Prometeo puede leer este texto usando la capacidad TTS que ya existe en la superficie Strategy. Si el texto es largo, esta superficie lo divide en partes y las reproduce en orden.</textarea>
     <div class="actions">
       <button id="play" type="button">ESCUCHAR</button>
       <button id="stop" class="alt" type="button" disabled>DETENER</button>
       <a class="button alt" href="/prometeo/strategy/">ABRIR STRATEGY</a>
     </div>
     <div class="progress" aria-hidden="true"><i id="fill"></i></div>
+    <div class="progressMeta"><span id="part">0 / 0</span><span id="pct">0%</span></div>
     <div class="status" id="status" role="status" aria-live="polite">LISTO · no se genera audio hasta que toques ESCUCHAR.</div>
 
     <div class="voice">
@@ -96,6 +98,10 @@ button:disabled{opacity:.35;cursor:default}
       <p>No se habilitan micrófono, upload ni “transcribir” porque no apareció una ruta de backend verificable para esas capacidades en los bytes inspeccionados. Cuando exista una ruta real, debe conectarse aquí sin mezclarla con TTS.</p>
     </div>
     <div class="fact"><b>Estado honesto:</b> esta página no graba, no sube audio y no llama a una API de transcripción.</div>
+    <div class="empty">
+      <strong>Waveform / spectrum no conectado.</strong>
+      <p>No apareció una implementación verificable de visualización de audio en el branch inspeccionado. Esta superficie no dibuja una animación decorativa y la presenta como señal real.</p>
+    </div>
   </section>
 </div>
 
@@ -110,15 +116,16 @@ button:disabled{opacity:.35;cursor:default}
   </div>
 </section>
 
-<div class="fact"><b>Visualización verificada:</b> <code>/strategy/audio-viz-hand/</code> contiene waveform + spectrum + cuatro variantes reactivas; <code>/strategy/audio-viz-lines/</code> contiene seis estudios de líneas y actualmente usa audio demo local. Ambas rutas existen en main y gh-pages con bytes coincidentes.</div>\n\n<div class="fact"><b>Transporte TTS:</b> <code>https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-strategy-audio-v1</code>. Primero se consulta caché por <code>messageId</code>; ante 404 se genera por POST. Errores y rate limits quedan visibles, no se disfrazan de éxito.</div>
+<div class="fact"><b>Visualización verificada:</b> <code>/strategy/audio-viz-hand/</code> contiene waveform + spectrum + cuatro variantes reactivas; <code>/strategy/audio-viz-lines/</code> contiene seis estudios de líneas y actualmente usa audio demo local. Ambas rutas existen en main y gh-pages con bytes coincidentes.</div>\n\n<div class="fact"><b>Transporte TTS:</b> función remota de Prometeo <code>prometeo-strategy-audio-v1</code>. Cada parte consulta caché por <code>messageId</code>; ante 404 se genera por POST y luego se reproduce en secuencia. Errores y rate limits quedan visibles, no se disfrazan de éxito.</div>
 </main>
 
 <script>
 (()=>{
 'use strict';
 const TTS='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-strategy-audio-v1';
+const CHUNK_MAX=420;
 const $=id=>document.getElementById(id);
-let audio=null,url=null,epoch=0;
+let audio=null,url=null,epoch=0,stopResolve=null;
 
 function hash(s){
   let h=2166136261;
@@ -126,58 +133,130 @@ function hash(s){
   return (h>>>0).toString(36);
 }
 function clean(s){return String(s||'').replace(/\s+/g,' ').trim()}
+function chunkText(raw,max=CHUNK_MAX){
+  let s=clean(raw),offset=0;
+  const out=[];
+  while(s.length){
+    if(s.length<=max){out.push(s);break}
+    const w=s.slice(0,max+1);
+    let cut=-1;
+    for(const sep of ['. ','! ','? ','; ',': ',', ',' ']){
+      const i=w.lastIndexOf(sep);
+      if(i>=Math.floor(max*.55))cut=Math.max(cut,i+sep.length-1);
+    }
+    if(cut<1)cut=w.lastIndexOf(' ');
+    if(cut<1)cut=max-1;
+    out.push(s.slice(0,cut+1).trim());
+    s=s.slice(cut+1).trimStart();
+    offset+=cut+1;
+  }
+  return out.filter(Boolean);
+}
 function setStatus(s){$('status').textContent=s}
-function resetAudio(){
-  epoch++;
+function setProgress(i,n,f=0){
+  const p=n?Math.max(0,Math.min(1,(i+f)/n)):0;
+  $('fill').style.width=(p*100)+'%';
+  $('part').textContent=n?(Math.min(i+1,n)+' / '+n):'0 / 0';
+  $('pct').textContent=Math.round(p*100)+'%';
+}
+function cleanupCurrent(){
+  if(stopResolve){const r=stopResolve;stopResolve=null;r('stopped')}
   if(audio){try{audio.pause()}catch{} audio=null}
   if(url){try{URL.revokeObjectURL(url)}catch{} url=null}
-  $('fill').style.width='0%';
-  $('stop').disabled=true;
 }
-async function getAudio(text,myEpoch){
-  const id='audio-user-lab-v1-'+hash(text);
+function cancelRun(message='DETENIDO'){
+  epoch++;
+  cleanupCurrent();
+  $('play').disabled=false;
+  $('stop').disabled=true;
+  setStatus(message);
+}
+async function getChunk(text,id,myEpoch){
   let r=await fetch(TTS+'?id='+encodeURIComponent(id),{cache:'no-store'});
   if(myEpoch!==epoch)throw new Error('stale');
+  let source='CACHE';
   if(r.status===404){
-    setStatus('GENERANDO · la caché no tenía este texto.');
-    r=await fetch(TTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messageId:id,text})});
-  }else if(r.ok){
-    setStatus('CACHÉ · audio existente encontrado.');
+    source='GENERATED';
+    r=await fetch(TTS,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({messageId:id,text})
+    });
   }
+  if(myEpoch!==epoch)throw new Error('stale');
   if(!r.ok){
     const detail=await r.text().catch(()=> '');
     throw new Error('TTS '+r.status+(detail?' · '+detail.slice(0,100):''));
   }
-  return r.blob();
+  const blob=await r.blob();
+  if(blob.size<1000)throw new Error('audio vacío');
+  return {blob,source};
+}
+function playBlob(blob,i,n,myEpoch){
+  cleanupCurrent();
+  url=URL.createObjectURL(blob);
+  audio=new Audio(url);
+  audio.preload='auto';
+  return new Promise((resolve,reject)=>{
+    let settled=false;
+    const finish=(kind,err)=>{
+      if(settled)return;
+      settled=true;
+      stopResolve=null;
+      if(err)reject(err);else resolve(kind);
+    };
+    stopResolve=()=>finish('stopped');
+    audio.addEventListener('timeupdate',()=>{
+      if(myEpoch!==epoch||!audio||!Number.isFinite(audio.duration)||audio.duration<=0)return;
+      setProgress(i,n,audio.currentTime/audio.duration);
+    });
+    audio.addEventListener('ended',()=>finish('ended'),{once:true});
+    audio.addEventListener('error',()=>finish(null,new Error('media_error')),{once:true});
+    audio.play().catch(e=>finish(null,e));
+  });
 }
 $('play').addEventListener('click',async()=>{
   const text=clean($('text').value);
   if(!text){setStatus('FALTA TEXTO · escribí algo para escuchar.');return}
-  resetAudio();
+  epoch++;
+  cleanupCurrent();
   const myEpoch=epoch;
+  const chunks=chunkText(text);
+  if(!chunks.length){setStatus('FALTA TEXTO · escribí algo para escuchar.');return}
   $('play').disabled=true;
-  setStatus('BUSCANDO CACHÉ…');
+  $('stop').disabled=false;
+  setProgress(0,chunks.length,0);
   try{
-    const blob=await getAudio(text,myEpoch);
-    if(myEpoch!==epoch)return;
-    if(blob.size<1000)throw new Error('audio vacío');
-    url=URL.createObjectURL(blob);
-    audio=new Audio(url);
-    $('stop').disabled=false;
-    audio.addEventListener('timeupdate',()=>{
-      if(!audio||!Number.isFinite(audio.duration)||audio.duration<=0)return;
-      $('fill').style.width=Math.max(0,Math.min(100,audio.currentTime/audio.duration*100))+'%';
-    });
-    audio.addEventListener('ended',()=>{setStatus('TERMINADO');$('fill').style.width='100%';$('stop').disabled=true});
-    await audio.play();
-    setStatus('REPRODUCIENDO · blob real recibido.');
+    for(let i=0;i<chunks.length;i++){
+      if(myEpoch!==epoch)return;
+      setProgress(i,chunks.length,0);
+      setStatus('PARTE '+(i+1)+'/'+chunks.length+' · BUSCANDO CACHÉ…');
+      const id='audio-user-lab-v2-'+hash(text)+'-'+(i+1)+'-'+hash(chunks[i]);
+      const {blob,source}=await getChunk(chunks[i],id,myEpoch);
+      if(myEpoch!==epoch)return;
+      setStatus('PARTE '+(i+1)+'/'+chunks.length+' · '+(source==='CACHE'?'CACHÉ':'GENERADA')+' · REPRODUCIENDO');
+      const why=await playBlob(blob,i,chunks.length,myEpoch);
+      cleanupCurrent();
+      if(why==='stopped'||myEpoch!==epoch)return;
+      setProgress(i+1,chunks.length,0);
+    }
+    if(myEpoch===epoch){
+      $('fill').style.width='100%';
+      $('pct').textContent='100%';
+      $('part').textContent=chunks.length+' / '+chunks.length;
+      setStatus('TERMINADO · '+chunks.length+' '+(chunks.length===1?'parte':'partes')+'.');
+    }
   }catch(e){
-    if(e?.message!=='stale')setStatus('ERROR · '+(e?.message||'no se pudo reproducir'));
+    if(e?.message!=='stale'&&myEpoch===epoch)setStatus('ERROR · '+(e?.message||'no se pudo reproducir'));
   }finally{
-    $('play').disabled=false;
+    if(myEpoch===epoch){
+      cleanupCurrent();
+      $('play').disabled=false;
+      $('stop').disabled=true;
+    }
   }
 });
-$('stop').addEventListener('click',()=>{resetAudio();setStatus('DETENIDO')});
+$('stop').addEventListener('click',()=>cancelRun('DETENIDO'));
 })();
 </script>
 </body>
