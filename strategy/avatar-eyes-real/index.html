@@ -3,196 +3,186 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Prometeo · Máscara ojos reales · V12 restaurada</title>
+<title>Prometeo · Máscara ojos reales · V13</title>
 <style>
 :root{color-scheme:light}
 *{box-sizing:border-box}
 html,body{width:100%;height:100%;margin:0}
-body{overflow:hidden;background:#e9e9e9;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{overflow:hidden;background:#e9e9e9;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-tap-highlight-color:transparent}
 .stage{position:fixed;inset:0;display:grid;place-items:center}
-.scene{position:relative;width:min(92vw,92vh * 1.03984);aspect-ratio:1279/1230;user-select:none;touch-action:manipulation}
-.eye{position:absolute;z-index:1;width:17%;aspect-ratio:1;border-radius:50%;overflow:hidden;transform:translate(-50%,-50%);background:#000}
+.scene{position:relative;width:min(92vw,92vh * 1.03984);aspect-ratio:1279/1230;user-select:none;touch-action:manipulation;cursor:pointer}
+.eye{position:absolute;z-index:1;width:17%;aspect-ratio:1;border-radius:50%;overflow:hidden;transform:translate(-50%,-50%);background:#000;isolation:isolate}
 .eye.left{left:33.85%;top:52.36%}
 .eye.right{left:68.81%;top:50.72%}
-.eye video{position:absolute;inset:-1%;width:102%;height:102%;object-fit:cover;opacity:0;transition:opacity .42s ease;filter:grayscale(1) contrast(1.48) brightness(.58);transform:scale(1.34);transform-origin:center}
+.eye video{position:absolute;inset:-2%;width:104%;height:104%;object-fit:cover;opacity:0;transition:opacity .28s ease;transform-origin:center;will-change:opacity,transform,filter}
 .eye video.on{opacity:1}
-.eye video.favorite{filter:grayscale(1) contrast(1.38) brightness(.70);transform:scale(1.28)}
-.shut{position:absolute;inset:0;z-index:4;background:#000;opacity:0;transition:opacity .16s linear;pointer-events:none}
-.sleeping .shut{opacity:1}
+.shut{position:absolute;inset:-2px;z-index:4;background:#000;opacity:1;transition:opacity .18s ease;pointer-events:none}
+.eyes-on .shut{opacity:0}
 .mask{position:absolute;inset:0;z-index:5;width:100%;height:100%;object-fit:contain;pointer-events:none;-webkit-user-drag:none}
 .loading{position:fixed;inset:0;display:grid;place-items:center;font:800 10px/1 system-ui;letter-spacing:.14em;text-transform:uppercase;color:#555;z-index:30;pointer-events:none;transition:opacity .25s}
 .ready .loading{opacity:0}
-.debug{display:none;position:fixed;z-index:30;top:10px;left:10px;max-width:min(460px,90vw);padding:8px 10px;background:rgba(0,0,0,.82);color:#fff;font:700 10px/1.35 ui-monospace,monospace;white-space:pre-wrap}
-body.debugging .debug{display:block}
-.credit{position:fixed;z-index:20;right:8px;bottom:6px;font:600 8px/1.2 system-ui;color:rgba(0,0,0,.24);text-decoration:none}
+.hint{position:fixed;z-index:12;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);font:800 9px/1 system-ui;letter-spacing:.13em;text-transform:uppercase;color:rgba(0,0,0,.28);white-space:nowrap;transition:opacity .45s;pointer-events:none}
+.used .hint{opacity:0}
+.credit{position:fixed;z-index:20;right:8px;bottom:6px;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 7px/1.2 system-ui;color:rgba(0,0,0,.20);text-decoration:none;transition:opacity .2s}
+.credit:empty{opacity:0}
 .credit:hover{color:#111}
-@media(max-width:650px){.scene{width:98vw}.credit{font-size:7px}}
+.debug{display:none;position:fixed;z-index:30;top:10px;left:10px;max-width:min(520px,92vw);padding:8px 10px;background:rgba(0,0,0,.84);color:#fff;font:700 10px/1.4 ui-monospace,monospace;white-space:pre-wrap;pointer-events:none}
+body.debugging .debug{display:block}
+@media(max-width:650px){.scene{width:98vw}.credit{font-size:6px;max-width:55vw}.hint{font-size:8px}}
+@media(prefers-reduced-motion:reduce){.eye video,.shut{transition:none}}
 </style>
 </head>
 <body>
 <div class="stage">
-  <div class="scene" id="scene" aria-label="Máscara de Prometeo con ojos reales animados">
-    <div class="eye left" id="leftEye">
-      <video muted playsinline preload="auto"></video><video muted playsinline preload="auto"></video><i class="shut"></i>
-    </div>
-    <div class="eye right" id="rightEye">
-      <video muted playsinline preload="auto"></video><video muted playsinline preload="auto"></video><i class="shut"></i>
-    </div>
+  <div class="scene" id="scene" aria-label="Máscara de Prometeo con ojos reales interactivos" role="button" tabindex="0">
+    <div class="eye left" id="leftEye"><video muted playsinline preload="metadata"></video><video muted playsinline preload="metadata"></video><i class="shut"></i></div>
+    <div class="eye right" id="rightEye"><video muted playsinline preload="metadata"></video><video muted playsinline preload="metadata"></video><i class="shut"></i></div>
     <img class="mask" id="mask" alt="Máscara de Prometeo" draggable="false">
   </div>
 </div>
 <div class="loading">cargando máscara</div>
+<div class="hint">tocá · ojos / negro</div>
 <div class="debug" id="debug"></div>
-<a class="credit" href="https://commons.wikimedia.org/wiki/Category:Eye_movement_in_humans" target="_blank" rel="noreferrer">eye footage · InkassoSchroeder · CC BY-SA 4.0</a>
-
+<a class="credit" id="credit" href="" target="_blank" rel="noreferrer"></a>
 <script>
 (() => {
 'use strict';
 
-const FAVORITE = {
-  id:'S',
-  label:'S · favorito',
-  url:'https://upload.wikimedia.org/wikipedia/commons/e/e9/This_shows_a_recording_of_the_eye_movements_of_a_participant_looking_freely_at_a_picture.webm',
-  invert:false
+const $=s=>document.querySelector(s);
+const scene=$('#scene'), debug=$('#debug'), credit=$('#credit');
+const eyes={
+  L:{el:$('#leftEye'),layers:[...$('#leftEye').querySelectorAll('video')],active:0},
+  R:{el:$('#rightEye'),layers:[...$('#rightEye').querySelectorAll('video')],active:0}
 };
-const ROTATION = [
-  {id:'free_ir',label:'MIRADA LIBRE',url:'https://upload.wikimedia.org/wikipedia/commons/e/e9/This_shows_a_recording_of_the_eye_movements_of_a_participant_looking_freely_at_a_picture.webm',invert:true},
-  {id:'saccades',label:'SACCADES',url:'https://upload.wikimedia.org/wikipedia/commons/e/ef/Horizontal_saccades.webm',invert:true},
-  {id:'pursuit',label:'SEGUIMIENTO',url:'https://upload.wikimedia.org/wikipedia/commons/f/f7/Smooth_pursuit_eye_movements.webm',invert:true},
-  {id:'okn',label:'NISTAGMO',url:'https://upload.wikimedia.org/wikipedia/commons/6/6c/Optokinetic_reflex.webm',invert:true},
-  {id:'slow',label:'SLOW',url:'https://upload.wikimedia.org/wikipedia/commons/3/3a/Horizontal_saccade%2C_slow_motion.webm',invert:true},
+
+const U={
+  free:'https://upload.wikimedia.org/wikipedia/commons/e/e9/This_shows_a_recording_of_the_eye_movements_of_a_participant_looking_freely_at_a_picture.webm',
+  sacc:'https://upload.wikimedia.org/wikipedia/commons/e/ef/Horizontal_saccades.webm',
+  pursuit:'https://upload.wikimedia.org/wikipedia/commons/f/f7/Smooth_pursuit_eye_movements.webm',
+  okn:'https://upload.wikimedia.org/wikipedia/commons/6/6c/Optokinetic_reflex.webm',
+  slow:'https://upload.wikimedia.org/wikipedia/commons/3/3a/Horizontal_saccade%2C_slow_motion.webm',
+  cat:'https://upload.wikimedia.org/wikipedia/commons/0/0e/Cat_Eye_%28Free_to_Use_Stock_Video_Footage%29.webm',
+  chameleon:'https://upload.wikimedia.org/wikipedia/commons/e/ee/Chameleon_eyes.webm',
+  crocodile:'https://upload.wikimedia.org/wikipedia/commons/0/03/Les_yeux_de_la_crocodile.webm',
+  owl:'https://upload.wikimedia.org/wikipedia/commons/2/23/Great_grey_owl_%28Strix_nebulosa%29.webm',
+  gecko:'https://upload.wikimedia.org/wikipedia/commons/5/5c/Japanese_gecko_%28Gekko_japonicus%29.webm'
+};
+
+const C={
+  human:'https://commons.wikimedia.org/wiki/Category:Eye_movement_in_humans',
+  cat:'https://commons.wikimedia.org/wiki/File:Cat_Eye_(Free_to_Use_Stock_Video_Footage).webm',
+  chameleon:'https://commons.wikimedia.org/wiki/File:Chameleon_eyes.webm',
+  crocodile:'https://commons.wikimedia.org/wiki/File:Les_yeux_de_la_crocodile.webm',
+  owl:'https://commons.wikimedia.org/wiki/File:Great_grey_owl_(Strix_nebulosa).webm',
+  gecko:'https://commons.wikimedia.org/wiki/File:Japanese_gecko_(Gekko_japonicus).webm'
+};
+
+const eye=(url,opt={})=>({url,offset:0,scale:1.3,x:50,y:50,mirror:false,filter:'none',...opt});
+const PAIRS=[
+  {id:'human-void',label:'HUMANO · NEGRO',credit:'eye movement footage · Wikimedia Commons',href:C.human,
+    L:eye(U.free,{offset:.2,scale:1.34,x:50,y:50,filter:'grayscale(1) contrast(1.58) brightness(.48)'}),
+    R:eye(U.free,{offset:2.1,scale:1.34,x:50,y:50,mirror:true,filter:'grayscale(1) contrast(1.58) brightness(.48)'})},
+  {id:'human-white',label:'HUMANO · INVERSO',credit:'eye movement footage · Wikimedia Commons',href:C.human,
+    L:eye(U.sacc,{offset:.35,scale:1.38,x:50,y:50,filter:'invert(1) grayscale(1) contrast(1.7) brightness(.56)'}),
+    R:eye(U.sacc,{offset:1.3,scale:1.38,x:50,y:50,mirror:true,filter:'invert(1) grayscale(1) contrast(1.7) brightness(.56)'})},
+  {id:'human-pursuit',label:'HUMANO · SEGUIMIENTO',credit:'eye movement footage · Wikimedia Commons',href:C.human,
+    L:eye(U.pursuit,{offset:.15,scale:1.34,x:50,y:50,filter:'grayscale(1) contrast(1.45) brightness(.64)'}),
+    R:eye(U.pursuit,{offset:1.0,scale:1.34,x:50,y:50,mirror:true,filter:'grayscale(1) contrast(1.45) brightness(.64)'})},
+  {id:'human-reflex',label:'HUMANO · REFLEJO',credit:'eye movement footage · Wikimedia Commons',href:C.human,
+    L:eye(U.okn,{offset:.4,scale:1.42,x:50,y:50,filter:'invert(1) grayscale(1) contrast(1.5) brightness(.52)'}),
+    R:eye(U.slow,{offset:.7,scale:1.40,x:50,y:50,mirror:true,filter:'invert(1) grayscale(1) contrast(1.5) brightness(.52)'})},
+  {id:'cat-emerald',label:'GATO · ESMERALDA',credit:'Cat Eye · Jeffrey Beach · CC BY 3.0',href:C.cat,
+    L:eye(U.cat,{offset:2.3,scale:1.20,x:63,y:52,filter:'contrast(1.32) saturate(1.18) brightness(.74)'}),
+    R:eye(U.cat,{offset:7.1,scale:1.20,x:63,y:52,mirror:true,filter:'contrast(1.32) saturate(1.18) brightness(.74)'})},
+  {id:'cat-spectral',label:'GATO · ESPECTRAL',credit:'Cat Eye · Jeffrey Beach · CC BY 3.0',href:C.cat,
+    L:eye(U.cat,{offset:10.2,scale:1.28,x:63,y:52,filter:'grayscale(.82) contrast(1.58) brightness(.54)'}),
+    R:eye(U.cat,{offset:13.0,scale:1.28,x:63,y:52,mirror:true,filter:'grayscale(.82) contrast(1.58) brightness(.54)'})},
+  {id:'chameleon',label:'CAMALEÓN · BRONCE',credit:'Chameleon eyes · James Wasswa · CC BY 4.0',href:C.chameleon,
+    L:eye(U.chameleon,{offset:2.0,scale:1.72,x:70,y:48,filter:'contrast(1.45) saturate(.8) brightness(.62) sepia(.18)'}),
+    R:eye(U.chameleon,{offset:7.0,scale:1.72,x:70,y:48,mirror:true,filter:'contrast(1.45) saturate(.8) brightness(.62) sepia(.18)'})},
+  {id:'crocodile',label:'COCODRILO · ÁMBAR',credit:'Les yeux de la crocodile · Thierry Dugnolle · CC BY-SA 3.0',href:C.crocodile,
+    L:eye(U.crocodile,{offset:12.0,scale:4.25,x:61,y:28,filter:'contrast(1.38) saturate(.88) brightness(.64) sepia(.22)'}),
+    R:eye(U.crocodile,{offset:18.0,scale:4.25,x:61,y:28,mirror:true,filter:'contrast(1.38) saturate(.88) brightness(.64) sepia(.22)'})},
+  {id:'owl',label:'BÚHO · ORO',credit:'Great grey owl · The Nature Box · CC BY-SA 3.0',href:C.owl,
+    L:eye(U.owl,{offset:5.0,scale:2.75,x:43,y:42,filter:'contrast(1.42) saturate(.72) brightness(.58) sepia(.2)'}),
+    R:eye(U.owl,{offset:8.4,scale:2.75,x:57,y:42,filter:'contrast(1.42) saturate(.72) brightness(.58) sepia(.2)'})},
+  {id:'gecko',label:'GECKO · PIEDRA',credit:'Japanese gecko · The Nature Box · CC BY-SA 3.0',href:C.gecko,
+    L:eye(U.gecko,{offset:9.0,scale:2.9,x:54,y:43,filter:'grayscale(.35) contrast(1.48) brightness(.58)'}),
+    R:eye(U.gecko,{offset:15.0,scale:2.9,x:54,y:43,mirror:true,filter:'grayscale(.35) contrast(1.48) brightness(.58)'})}
 ];
 
-const $ = s => document.querySelector(s);
-const scene = $('#scene');
-const debug = $('#debug');
-const eyes = {
-  L:{el:$('#leftEye'), layers:[...$('#leftEye').querySelectorAll('video')], active:0, source:null},
-  R:{el:$('#rightEye'), layers:[...$('#rightEye').querySelectorAll('video')], active:0, source:null}
-};
+let bag=[],lastId=null,eyesOn=false,busy=false,generation=0,currentPair=null,voiceActive=false;
+const params=new URLSearchParams(location.search);
+if(params.get('debug')==='1')document.body.classList.add('debugging');
 
-let favoriteSide = Math.random()<.5?'L':'R';
-let rotationIndex = Math.floor(Math.random()*ROTATION.length);
-let relayTimer = 0;
-let sleeping = false;
-let paused = false;
-let generation = 0;
-
-const rand=(a,b)=>a+Math.random()*(b-a);
-
-function log(){
-  if(!document.body.classList.contains('debugging')) return;
-  debug.textContent =
-    'PROMETEO · MASK EYES V12 RESTORED\n'+
-    'favorito: '+favoriteSide+'\n'+
-    'L: '+(eyes.L.source?.label||'—')+'\n'+
-    'R: '+(eyes.R.source?.label||'—')+'\n'+
-    'sleeping: '+sleeping+' · paused: '+paused;
+function shuffled(){
+  const a=PAIRS.filter(p=>p.id!==lastId).slice();
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a;
 }
-
-function configureVideo(v, src){
-  v.loop=true; v.muted=true; v.playsInline=true; v.autoplay=true;
-  v.classList.toggle('favorite',!src.invert);
-  v.style.filter = src.invert
-    ? 'invert(1) grayscale(1) contrast(1.55) brightness(.50)'
-    : 'grayscale(1) contrast(1.38) brightness(.70)';
+function nextPair(){if(!bag.length)bag=shuffled();const p=bag.pop();lastId=p.id;return p;}
+function transform(cfg){return `scale(${cfg.mirror?-cfg.scale:cfg.scale},${cfg.scale})`;}
+function configure(v,cfg){
+  v.muted=true;v.playsInline=true;v.loop=true;v.preload='metadata';
+  v.style.objectPosition=`${cfg.x}% ${cfg.y}%`;
+  v.style.filter=cfg.filter;
+  v.style.transform=transform(cfg);
 }
-
-async function show(side, src, offset=0){
-  const eye=eyes[side];
-  if(eye.source?.id===src.id && eye.source?.invert===src.invert) return;
-  const next=1-eye.active, incoming=eye.layers[next], outgoing=eye.layers[eye.active];
-  configureVideo(incoming,src);
-  incoming.classList.remove('on');
-  if(incoming.src!==src.url) incoming.src=src.url;
-  try{
-    incoming.currentTime=Math.max(0,offset);
-    await incoming.play();
-  }catch(_){}
-  incoming.classList.add('on');
-  outgoing.classList.remove('on');
-  setTimeout(()=>{ try{outgoing.pause()}catch(_){} },500);
-  eye.active=next; eye.source=src; log();
+function wait(v,name,ms){return new Promise(resolve=>{let done=false;const finish=()=>{if(done)return;done=true;v.removeEventListener(name,finish);resolve();};v.addEventListener(name,finish,{once:true});setTimeout(finish,ms);});}
+async function prepare(side,cfg,g){
+  const e=eyes[side],next=1-e.active,v=e.layers[next],out=e.layers[e.active];
+  configure(v,cfg);v.classList.remove('on');
+  if(v.src!==cfg.url){v.src=cfg.url;v.load();}
+  if(v.readyState<1)await wait(v,'loadedmetadata',2600);
+  if(g!==generation)return null;
+  try{if(Number.isFinite(v.duration)&&v.duration>0)v.currentTime=Math.min(Math.max(0,cfg.offset),Math.max(0,v.duration-.2));}catch(_){}
+  try{await Promise.race([v.play(),new Promise(r=>setTimeout(r,2200))]);}catch(_){}
+  if(g!==generation)return null;
+  return {e,v,out,next};
 }
+function commitLayer(x){if(!x)return;x.v.classList.add('on');x.out.classList.remove('on');x.e.active=x.next;setTimeout(()=>{try{x.out.pause()}catch(_){}},360);}
+function setCredit(pair){credit.textContent=pair?pair.credit:'';credit.href=pair?pair.href:'';}
+function log(){if(!document.body.classList.contains('debugging'))return;debug.textContent=`PROMETEO · MASK EYES V13\nstate: ${eyesOn?'ON':'OFF'} · voice: ${voiceActive}\npair: ${currentPair?.label||'—'}\ngeneration: ${generation}\n${PAIRS.length} pares curados`;}
 
-function nextRotation(){
-  const src=ROTATION[rotationIndex%ROTATION.length];
-  rotationIndex=(rotationIndex+1)%ROTATION.length;
-  return src;
+async function activateNewPair(reason='tap'){
+  const g=++generation,pair=nextPair();busy=true;currentPair=pair;document.body.classList.add('used');
+  const [L,R]=await Promise.all([prepare('L',pair.L,g),prepare('R',pair.R,g)]);
+  if(g!==generation){busy=false;return;}
+  commitLayer(L);commitLayer(R);eyesOn=true;busy=false;scene.classList.add('eyes-on');setCredit(pair);log();
 }
-
-function scheduleRelay(ms=rand(8500,14500)){
-  clearTimeout(relayTimer);
-  const g=++generation;
-  relayTimer=setTimeout(()=>relay(g),ms);
+function deactivateEyes(reason='tap'){
+  generation++;busy=false;eyesOn=false;scene.classList.remove('eyes-on');setCredit(null);log();
+  setTimeout(()=>{if(eyesOn)return;for(const e of Object.values(eyes)){for(const v of e.layers){v.classList.remove('on');try{v.pause()}catch(_){}}}},260);
 }
+function toggle(){if(eyesOn||busy)deactivateEyes('tap');else activateNewPair('tap');}
 
-async function relay(g){
-  if(g!==generation || paused) return;
-  const other=favoriteSide==='L'?'R':'L';
+scene.addEventListener('pointerup',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();toggle();});
+scene.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle();}});
 
-  // Fase v12: durante unos segundos los dos ojos muestran S.
-  await show(other,FAVORITE,.37);
-  const doubleMs=rand(2600,4800);
-
-  relayTimer=setTimeout(async()=>{
-    if(g!==generation || paused) return;
-    const oldFavorite=favoriteSide;
-    favoriteSide=other;
-    await show(oldFavorite,nextRotation(),Math.random()*1.2);
-    scheduleRelay();
-  },doubleMs);
-}
-
-async function start(){
-  const other=favoriteSide==='L'?'R':'L';
-  await Promise.all([
-    show(favoriteSide,FAVORITE,0),
-    show(other,nextRotation(),.55)
-  ]);
-  document.body.classList.add('ready');
-  scheduleRelay();
-}
-
-function setSleeping(value){
-  sleeping=!!value;
-  scene.classList.toggle('sleeping',sleeping);
-  log();
-}
-window.avatarSpeakStart=()=>{
-  paused=false; setSleeping(false);
-  for(const e of Object.values(eyes)) e.layers[e.active].play().catch(()=>{});
-  if(!relayTimer) scheduleRelay();
-};
-window.avatarSpeakEnd=()=>{ setTimeout(()=>setSleeping(true),220); };
+window.avatarSpeakStart=()=>{voiceActive=true;if(!eyesOn&&!busy)activateNewPair('voice');else{for(const e of Object.values(eyes))e.layers[e.active].play().catch(()=>{});}log();};
+window.avatarSpeakEnd=()=>{voiceActive=false;deactivateEyes('voice-end');};
 window.avatarEyesWake=()=>window.avatarSpeakStart();
-window.avatarEyesSleep=()=>setSleeping(true);
-window.avatarEyesRelayNow=()=>{ clearTimeout(relayTimer); relay(++generation); };
+window.avatarEyesSleep=()=>deactivateEyes('external');
+window.avatarEyesNext=()=>{deactivateEyes('next');setTimeout(()=>activateNewPair('next'),190);};
+window.avatarEyesState=()=>({version:13,eyesOn,busy,voiceActive,pair:currentPair?.id||null,pairs:PAIRS.map(p=>p.id)});
 
-scene.addEventListener('click',()=>{
-  setSleeping(!sleeping);
-  if(!sleeping) window.avatarSpeakStart();
-});
 document.addEventListener('visibilitychange',()=>{
-  paused=document.hidden;
-  if(!paused){ for(const e of Object.values(eyes)) e.layers[e.active].play().catch(()=>{}); scheduleRelay(1200); }
+  if(document.hidden){for(const e of Object.values(eyes))for(const v of e.layers)try{v.pause()}catch(_){}}
+  else if(eyesOn){for(const e of Object.values(eyes))e.layers[e.active].play().catch(()=>{});}
 });
-if(new URLSearchParams(location.search).get('debug')==='1') document.body.classList.add('debugging');
 
 async function loadMask(){
   try{
-    const text=await fetch('../avatar-eyes/index.html',{cache:'force-cache'}).then(r=>{if(!r.ok)throw new Error(r.status);return r.text()});
+    const text=await fetch('../avatar-eyes/index.html',{cache:'force-cache'}).then(r=>{if(!r.ok)throw new Error(r.status);return r.text();});
     const m=text.match(/<img[\s\S]*?class=["']mask["'][\s\S]*?src=["'](data:image\/png;base64,[^"']+)["']/i);
-    if(!m) throw new Error('mask-not-found');
+    if(!m)throw new Error('mask-not-found');
     $('#mask').src=m[1];
-  }catch(e){
-    // Respaldo del mismo conjunto visual si cambia la página fuente.
-    $('#mask').src='../mask-mouth/assets/mask-transparent.webp';
-  }
-  if($('#mask').decode) try{await $('#mask').decode()}catch(_){}
+  }catch(_){$('#mask').src='../mask-mouth/assets/mask-transparent.webp';}
+  if($('#mask').decode)try{await $('#mask').decode();}catch(_){}
+  document.body.classList.add('ready');
+  log();
 }
-
-loadMask().then(start);
+loadMask();
 })();
 </script>
 </body>
