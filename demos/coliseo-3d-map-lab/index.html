@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Prometeo · Map Lab</title>
+<style>
+:root{--ink:#d7b48b;--muted:#8a7561;--bg:#050504}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{overscroll-behavior:none}
+#app{position:fixed;inset:0;overflow:hidden;background:#050504}
+#wrap{position:absolute;inset:0;overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#scene{filter:contrast(1.06) saturate(.86) brightness(.92)}
+#grain{position:absolute;inset:-4%;pointer-events:none;opacity:.05;mix-blend-mode:screen;
+background:
+radial-gradient(circle at 11% 23%,rgba(238,199,146,.14) 0 .5px,transparent .8px),
+radial-gradient(circle at 67% 41%,rgba(238,199,146,.10) 0 .6px,transparent .9px),
+radial-gradient(circle at 38% 72%,rgba(238,199,146,.10) 0 .5px,transparent .8px);
+background-size:9px 11px,13px 15px,17px 19px}
+#veil{position:absolute;inset:-2%;pointer-events:none;background:
+radial-gradient(ellipse at 50% 54%,transparent 34%,rgba(0,0,0,.14) 64%,rgba(0,0,0,.80) 100%);
+box-shadow:inset 0 0 11vw rgba(0,0,0,.68)}
+.ui{position:absolute;inset:0;pointer-events:none;z-index:5}
+.brand{position:absolute;left:max(12px,env(safe-area-inset-left));top:max(12px,env(safe-area-inset-top));display:flex;align-items:center;gap:10px;text-shadow:0 1px #000}
+.mark{width:34px;height:34px;border-radius:50%;border:1px solid rgba(213,163,105,.28);display:grid;place-items:center;background:rgba(6,5,4,.72);font:900 10px/1 system-ui;color:#d28a4b}
+.copy b{display:block;font-size:12px;letter-spacing:.12em;text-transform:uppercase}.copy span{display:block;margin-top:2px;font-size:9px;color:var(--muted)}
+.badge{position:absolute;right:max(12px,env(safe-area-inset-right));top:max(12px,env(safe-area-inset-top));padding:7px 9px;border-radius:999px;border:1px solid rgba(213,163,105,.18);background:rgba(6,5,4,.70);font:750 8px/1 system-ui;letter-spacing:.08em;text-transform:uppercase;color:#a99077}
+.help{position:absolute;left:50%;bottom:max(11px,env(safe-area-inset-bottom));transform:translateX(-50%);padding:7px 10px;border-radius:999px;border:1px solid rgba(213,163,105,.12);background:rgba(6,5,4,.60);font:650 8px/1 system-ui;color:#8e7965;white-space:nowrap}
+.nav{position:absolute;left:50%;top:max(10px,env(safe-area-inset-top));transform:translateX(-50%);z-index:8;display:flex;gap:5px;pointer-events:auto}
+.nav a{font:800 8px/1 system-ui;letter-spacing:.05em;text-transform:uppercase;color:#b9a188;text-decoration:none;padding:7px 9px;border-radius:999px;border:1px solid rgba(190,140,87,.14);background:rgba(6,5,4,.70)}
+.nav a.on{color:#f2d09b;border-color:rgba(224,147,74,.42);background:rgba(55,29,18,.82)}
+@media(max-width:760px){.copy span{display:none}.nav{top:48px}.nav a{font-size:7px;padding:6px 7px}.help{font-size:7px}}
+@media(orientation:portrait){
+ #app{inset:auto;left:50%;top:50%;width:100vh;height:100vw;width:100dvh;height:100dvw;transform:translate(-50%,-50%) rotate(90deg);transform-origin:center}
+ .nav{top:7px}.brand{top:7px}.badge{top:7px}.help{bottom:7px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="wrap">
+    <canvas id="scene"></canvas>
+    <div id="grain"></div>
+    <div id="veil"></div>
+  </div>
+  <div class="nav" id="nav"></div>
+  <div class="ui">
+    <div class="brand"><div class="mark">MAP</div><div class="copy"><b>Map Lab</b><span>un mapa por vez · geometría sólida</span></div></div>
+    <div class="badge" id="badge">MAP LAB</div>
+    <div class="help">rotación automática · arrastrá para inspeccionar · pinch/rueda para zoom</div>
+  </div>
+</div>
+<script>
+(()=>{
+'use strict';
+const canvas=document.getElementById('scene');
+const gl=canvas.getContext('webgl',{alpha:false,antialias:true,depth:true,premultipliedAlpha:false});
+if(!gl){document.body.innerHTML='<div style="padding:30px;color:#d7b48b;background:#050504;font:16px system-ui">WebGL no disponible en este navegador.</div>';return}
+const nav=document.getElementById('nav'),badge=document.getElementById('badge');
+const params=new URLSearchParams(location.search);
+const MAP=(params.get('map')||'coliseo').toLowerCase();
+const BUILD='MAP-LAB-1';
+const maps=[['coliseo','coliseo'],['castillo','castillo'],['fortaleza','fortaleza'],['archivo','archivo']];
+nav.innerHTML=maps.map(([id,label])=>'<a class="'+(MAP===id?'on':'')+'" href="?map='+id+'">'+label+'</a>').join('');
+let W=innerWidth,H=innerHeight,IW=960,IH=540,cx=480,cy=300,scale=22,yaw=-.45,zoom=1,rotated=false,last=0,dragUntil=0;
+const ptr=new Map();let pinch=0;
+const boxes=[];
+const palette={
+ stone:'#514238', stone2:'#635044', dark:'#2d2924', moss:'#37483f',
+ green:'#45584c', ochre:'#8c6239', ember:'#8f4328', bone:'#806a55',
+ ink:'#120d09', iron:'#211916', archive:'#34443c'
+};
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function hexRGB(hex){const n=parseInt(hex.slice(1),16);return [((n>>16)&255)/255,((n>>8)&255)/255,(n&255)/255]}
+function shade(hex,a){const n=parseInt(hex.slice(1),16),r=clamp((n>>16)+a,0,255),g=clamp(((n>>8)&255)+a,0,255),b=clamp((n&255)+a,0,255);return '#'+((1<<24)+(Math.round(r)<<16)+(Math.round(g)<<8)+Math.round(b)).toString(16).slice(1)}
+function pointerPoint(e){if(!rotated)return{x:e.clientX,y:e.clientY};return{x:e.clientY,y:innerWidth-e.clientX}}
+function resize(){
+ rotated=innerHeight>innerWidth;
+ W=rotated?innerHeight:innerWidth;H=rotated?innerWidth:innerHeight;
+ const dpr=Math.min(1.5,devicePixelRatio||1);
+ IW=Math.max(480,Math.round(W*dpr));IH=Math.max(270,Math.round(H*dpr));
+ canvas.width=IW;canvas.height=IH;canvas.style.width=W+'px';canvas.style.height=H+'px';
+ cx=IW*.5;cy=IH*.59;scale=Math.min(IW/44,IH/25)*zoom;
+ gl.viewport(0,0,IW,IH);
+}
+function addBox(x,z,bh,w,d,h,color,rot=0,tag='solid'){boxes.push({x,z,bh,w,d,h,color,rot,tag})}
+function addBrickLine(x1,z1,x2,z2,bh,h,color,step=.72,w=.62){
+ const dx=x2-x1,dz=z2-z1,len=Math.hypot(dx,dz),n=Math.max(1,Math.round(len/step)),rot=Math.atan2(dz,dx);
+ for(let i=0;i<=n;i++){const t=i/n;addBox(x1+dx*t,z1+dz*t,bh,w,w,h,color,rot)}
+}
+function tower(x,z,r,levels,color){
+ for(let y=0;y<levels;y++){
+  const rr=r*(1-y/(levels*10));
+  addBox(x,z,.02+y*.62,rr*2,rr*2,.58,y%2?shade(color,-4):color,0);
+ }
+ const top=.02+levels*.62;
+ for(let i=0;i<8;i++){
+  const a=i*Math.PI*2/8,px=x+Math.cos(a)*(r*.88),pz=z+Math.sin(a)*(r*.88);
+  addBox(px,pz,top,.34,.34,.40,shade(color,10),a);
+ }
+}
+function stairs(x,z,rot,width,depth,levels,color){
+ for(let i=0;i<levels;i++){
+  const d=depth/levels,off=-depth*.5+d*(i+.5),ux=Math.cos(rot),uz=Math.sin(rot),nx=-uz,nz=ux;
+  addBox(x+nx*off,z+nz*off,.02+i*.16,width,d*.95,.15,color,rot);
+ }
+}
+function buildColiseo(){
+ const N=36,R=9.4,gaps=new Set([0,1,17,18]);
+ for(let i=0;i<N;i++){
+  if(gaps.has(i))continue;
+  const a=i*Math.PI*2/N,rot=a+Math.PI/2,x=Math.cos(a)*R,z=Math.sin(a)*R;
+  for(let y=0;y<5;y++)addBox(x,z,.02+y*.54,.78,1.08,.50,y%2?palette.stone2:palette.stone,rot);
+  if(i%3===0)addBox(Math.cos(a)*(R+.10),Math.sin(a)*(R+.10),2.76,.92,1.20,.24,palette.ochre,rot);
+ }
+ const inner=6.8;
+ for(let i=0;i<28;i++){
+  const a=i*Math.PI*2/28,rot=a+Math.PI/2,x=Math.cos(a)*inner,z=Math.sin(a)*inner;
+  addBox(x,z,.02,1.10,1.20,.26,palette.dark,rot);
+  if(i%2===0)addBox(x,z,.28,.92,1.02,.22,palette.moss,rot);
+ }
+ for(const a of [0,Math.PI]){
+  const ux=Math.cos(a),uz=Math.sin(a),tx=-uz,tz=ux,x=ux*9.0,z=uz*9.0;
+  for(const s of [-1,1])tower(x+tx*1.55*s,z+tz*1.55*s,.62,5,palette.stone2);
+  addBox(x,z,2.58,3.6,.70,.44,palette.ochre,a+Math.PI/2);
+ }
+}
+function buildCastle(){
+ const a=8.4;
+ addBrickLine(-a,-a,a,-a,.02,1.65,palette.stone2,.72,.66);
+ addBrickLine(-a,a,a,a,.02,1.65,palette.stone,.72,.66);
+ addBrickLine(-a,-a,-a,a,.02,1.65,palette.stone,.72,.66);
+ addBrickLine(a,-a,a,a,.02,1.65,palette.stone2,.72,.66);
+ for(const [x,z] of [[-a,-a],[a,-a],[-a,a],[a,a]])tower(x,z,1.15,8,palette.stone2);
+ tower(-1.65,-a+.3,.88,7,palette.ochre);tower(1.65,-a+.3,.88,7,palette.ochre);
+ addBox(0,-a+.3,3.45,3.0,1.1,.55,palette.ochre,0);
+ for(let y=0;y<7;y++)addBox(0,1.0,.02+y*.70,4.8-y*.18,4.8-y*.18,.66,y%2?palette.green:palette.stone2,0);
+ for(const [x,z] of [[-2,-1],[2,-1],[-2,3],[2,3]])tower(x,z,.62,6,palette.green);
+ stairs(0,-4.5,0,3.0,4.0,7,palette.dark);
+}
+function buildFortress(){
+ const p=[[0,-10],[9,0],[0,10],[-9,0]];
+ for(let i=0;i<4;i++){const a=p[i],b=p[(i+1)%4];addBrickLine(a[0],a[1],b[0],b[1],.02,1.35,i%2?palette.moss:palette.stone,.72,.68)}
+ for(const [x,z] of p)tower(x,z,1.45,6,palette.dark);
+ const q=[[0,-5.4],[5.2,0],[0,5.4],[-5.2,0]];
+ for(let i=0;i<4;i++){const a=q[i],b=q[(i+1)%4];addBrickLine(a[0],a[1],b[0],b[1],.02,1.05,palette.green,.70,.60)}
+ for(let y=0;y<6;y++)addBox(0,0,.02+y*.66,3.5-y*.16,3.5-y*.16,.62,y%2?palette.archive:palette.stone2,Math.PI/4);
+ tower(0,0,.70,10,palette.archive);
+}
+function buildArchive(){
+ for(let level=0;level<7;level++){
+  const half=5.6-level*.62,step=.72,n=Math.max(1,Math.floor((half*2)/step)),y=.02+level*.55;
+  for(let ix=0;ix<=n;ix++)for(let iz=0;iz<=n;iz++){
+   const x=-half+ix*(half*2/n),z=-half+iz*(half*2/n),edge=ix===0||iz===0||ix===n||iz===n;
+   if(edge||level>=4)addBox(x,z,y,.62,.62,.50,(ix+iz+level)%3===0?palette.ochre:palette.archive,0);
+  }
+ }
+ for(let y=0;y<9;y++)addBox(0,0,3.82+y*.54,1.9-y*.10,1.9-y*.10,.50,y%2?palette.stone2:palette.archive,0);
+ stairs(0,-7.0,0,2.0,5.0,9,palette.dark);
+ stairs(0,7.0,Math.PI,2.0,5.0,9,palette.dark);
+ stairs(-7.0,0,Math.PI/2,2.0,5.0,9,palette.dark);
+ stairs(7.0,0,-Math.PI/2,2.0,5.0,9,palette.dark);
+}
+function buildMap(){boxes.length=0;if(MAP==='castillo')buildCastle();else if(MAP==='fortaleza')buildFortress();else if(MAP==='archivo')buildArchive();else buildColiseo()}
+buildMap();
+const vsSrc='attribute vec3 a_pos;attribute vec4 a_color;varying vec4 v_color;void main(){gl_Position=vec4(a_pos,1.0);v_color=a_color;}';
+const fsSrc='precision mediump float;varying vec4 v_color;void main(){gl_FragColor=v_color;}';
+function sh(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s}
+const prog=gl.createProgram();gl.attachShader(prog,sh(gl.VERTEX_SHADER,vsSrc));gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,fsSrc));gl.linkProgram(prog);
+const posBuf=gl.createBuffer(),colBuf=gl.createBuffer(),aPos=gl.getAttribLocation(prog,'a_pos'),aColor=gl.getAttribLocation(prog,'a_color');
+function proj(x,z,h){
+ const cs=Math.cos(yaw),sn=Math.sin(yaw),sx=x*cs-z*sn,fw=z*cs+x*sn;
+ const px=cx+sx*scale,py=cy+fw*scale*.35-h*scale*.57,depth=fw*.57+h*.35;
+ return [px/IW*2-1,1-py/IH*2,clamp(-depth/44,-.98,.98)];
+}
+function corners(b){
+ const cs=Math.cos(b.rot),sn=Math.sin(b.rot),ux=cs,uz=sn,nx=-sn,nz=cs,hw=b.w*.5,hd=b.d*.5,lo=b.bh,hi=b.bh+b.h;
+ const p=(su,sn2,h)=>({x:b.x+ux*su*hw+nx*sn2*hd,z:b.z+uz*su*hw+nz*sn2*hd,h});
+ return {A:p(-1,-1,lo),B:p(1,-1,lo),C:p(1,1,lo),D:p(-1,1,lo),At:p(-1,-1,hi),Bt:p(1,-1,hi),Ct:p(1,1,hi),Dt:p(-1,1,hi),ux,uz,nx,nz};
+}
+function buildBuffers(){
+ const P=[],C=[],LP=[],LC=[];let tri=0;const edge=[.045,.028,.020,1];
+ for(const b of boxes){
+  const g=corners(b);
+  const faces=[
+   {p:[g.A,g.B,g.Bt,g.At],nx:-g.nx,nz:-g.nz,top:false},
+   {p:[g.B,g.C,g.Ct,g.Bt],nx:g.ux,nz:g.uz,top:false},
+   {p:[g.C,g.D,g.Dt,g.Ct],nx:g.nx,nz:g.nz,top:false},
+   {p:[g.D,g.A,g.At,g.Dt],nx:-g.ux,nz:-g.uz,top:false},
+   {p:[g.At,g.Bt,g.Ct,g.Dt],nx:0,nz:0,top:true}
+  ];
+  for(const f of faces){
+   const tone=f.top?18:(-28+(f.nx*.45+f.nz*.25)*15),rgb=hexRGB(shade(b.color,tone)),rgba=[...rgb,1];
+   for(const vi of [0,1,2,0,2,3]){P.push(...proj(f.p[vi].x,f.p[vi].z,f.p[vi].h));C.push(...rgba)}
+   tri+=2;
+   for(const [aa,bb] of [[0,1],[1,2],[2,3],[3,0]]){LP.push(...proj(f.p[aa].x,f.p[aa].z,f.p[aa].h),...proj(f.p[bb].x,f.p[bb].z,f.p[bb].h));LC.push(...edge,...edge)}
+  }
+ }
+ return {P,C,LP,LC,tri};
+}
+function draw(){
+ gl.clearColor(.020,.018,.015,1);gl.clearDepth(1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+ gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LESS);gl.disable(gl.BLEND);gl.useProgram(prog);
+ const b=buildBuffers();
+ gl.bindBuffer(gl.ARRAY_BUFFER,posBuf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(b.P),gl.DYNAMIC_DRAW);gl.enableVertexAttribArray(aPos);gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,0,0);
+ gl.bindBuffer(gl.ARRAY_BUFFER,colBuf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(b.C),gl.DYNAMIC_DRAW);gl.enableVertexAttribArray(aColor);gl.vertexAttribPointer(aColor,4,gl.FLOAT,false,0,0);
+ gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1,1);gl.drawArrays(gl.TRIANGLES,0,b.P.length/3);gl.disable(gl.POLYGON_OFFSET_FILL);
+ gl.bindBuffer(gl.ARRAY_BUFFER,posBuf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(b.LP),gl.DYNAMIC_DRAW);gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,0,0);
+ gl.bindBuffer(gl.ARRAY_BUFFER,colBuf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(b.LC),gl.DYNAMIC_DRAW);gl.vertexAttribPointer(aColor,4,gl.FLOAT,false,0,0);
+ gl.depthFunc(gl.LEQUAL);gl.drawArrays(gl.LINES,0,b.LP.length/3);gl.depthFunc(gl.LESS);
+ badge.textContent=MAP.toUpperCase()+' · '+boxes.length+' BLOQUES · '+b.tri+' TRI';
+}
+function frame(t){if(t-last>33){if(t>dragUntil)yaw+=.0024;draw();last=t}requestAnimationFrame(frame)}
+function pd(e){const p=pointerPoint(e);ptr.set(e.pointerId,p);canvas.setPointerCapture(e.pointerId);if(ptr.size===2){const a=[...ptr.values()];pinch=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y)}}
+function pm(e){const o=ptr.get(e.pointerId);if(!o)return;const n=pointerPoint(e);ptr.set(e.pointerId,n);if(ptr.size===1){yaw+=(n.x-o.x)*.008;dragUntil=performance.now()+2600}else if(ptr.size===2){const a=[...ptr.values()],d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);if(pinch){zoom=clamp(zoom*d/pinch,.45,2.5);resize()}pinch=d}}
+function pu(e){ptr.delete(e.pointerId);pinch=0}
+canvas.addEventListener('pointerdown',pd);canvas.addEventListener('pointermove',pm);canvas.addEventListener('pointerup',pu);canvas.addEventListener('pointercancel',pu);
+canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=clamp(zoom*Math.exp(-e.deltaY*.0009),.45,2.5);resize()},{passive:false});
+addEventListener('resize',resize,{passive:true});if(window.visualViewport)visualViewport.addEventListener('resize',resize,{passive:true});
+resize();requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
