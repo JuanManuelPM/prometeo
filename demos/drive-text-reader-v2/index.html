@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#efe9dc">
 <title>Prometeo · Drive Reader V2</title>
-<link rel="stylesheet" href="./style.css?v=2">
+<link rel="stylesheet" href="./style.css?v=3">
 </head>
 <body>
 <main class="page">
@@ -65,6 +65,12 @@
 
     <div id="readerMeta" class="reader-meta"></div>
     <div id="readerState" class="reader-state" aria-live="polite"></div>
+    <div id="readerTools" class="reader-tools" hidden>
+      <button id="readerOutlineToggle" type="button">BLOQUES</button>
+      <button id="readerTop" type="button">INICIO</button>
+    </div>
+    <aside id="readerOutline" class="reader-outline" aria-label="Bloques del documento" hidden></aside>
+    <div id="readingTrack" class="reading-track" aria-hidden="true" hidden><span id="readingTrackBar"></span></div>
     <div id="readerBody" class="reader-body"></div>
 
     <nav id="readerNav" class="reader-nav" aria-label="Navegación de lectura" hidden>
@@ -77,6 +83,38 @@
     </nav>
   </article>
 </main>
-<script src="./app.js?v=2"></script>
+<script src="./app.js?v=3"></script>
+<script>
+(()=>{
+ const body=document.getElementById('readerBody'),tools=document.getElementById('readerTools'),outline=document.getElementById('readerOutline');
+ const toggle=document.getElementById('readerOutlineToggle'),topBtn=document.getElementById('readerTop');
+ const track=document.getElementById('readingTrack'),bar=document.getElementById('readingTrackBar');
+ let firstResume=true,lastCount=0;
+ function segments(){return [...body.querySelectorAll('.reader-segment')]}
+ function sync(){
+   const segs=segments();
+   if(!segs.length){tools.hidden=true;outline.hidden=true;track.hidden=true;lastCount=0;return}
+   tools.hidden=false;track.hidden=false;
+   const found=segs.findIndex(el=>el.classList.contains('is-current')),current=Math.max(0,found);
+   bar.style.width=(((current+1)/segs.length)*100).toFixed(2)+'%';
+   outline.querySelectorAll('[data-jump]').forEach((el,i)=>el.classList.toggle('is-current',i===current));
+   if(firstResume&&found>0){firstResume=false;requestAnimationFrame(()=>segs[current]?.scrollIntoView({block:'center'}))}
+ }
+ function safe(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+ function rebuild(){
+   const segs=segments();if(!segs.length){sync();return}
+   if(segs.length!==lastCount){
+     lastCount=segs.length;
+     outline.innerHTML=segs.map((el,i)=>{const t=el.textContent.trim();return '<button type="button" data-jump="'+i+'"><span>'+String(i+1).padStart(2,'0')+'</span><b>'+safe(t.slice(0,90))+(t.length>90?'…':'')+'</b></button>'}).join('');
+     outline.querySelectorAll('[data-jump]').forEach(el=>el.onclick=()=>{outline.hidden=true;toggle.textContent='BLOQUES';const i=Number(el.dataset.jump);if(typeof selectSegment==='function')selectSegment(i,true)});
+   }
+   sync();
+ }
+ toggle.onclick=()=>{rebuild();outline.hidden=!outline.hidden;toggle.textContent=outline.hidden?'BLOQUES':'CERRAR'};
+ topBtn.onclick=()=>{if(typeof selectSegment==='function')selectSegment(0,true)};
+ new MutationObserver(rebuild).observe(body,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
+ addEventListener('scroll',sync,{passive:true});
+})();
+</script>
 </body>
 </html>
