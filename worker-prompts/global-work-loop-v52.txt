@@ -101,6 +101,17 @@ FAMILY = COGNITIVE_FRONTIER_CANARY:
     '<PAYLOAD_JSON>'::jsonb
   ) as progress;
 - Emití progreso al menos en FIRST_SIGNAL y antes de una fase larga. Etapas esperables: READ, THINK, WRITE, SERIALIZE, SUBMIT_START.
+- RESERVA ELÁSTICA: en checkpoints coherentes después de READ, THINK o WRITE, si ya tenés un borrador parcial reutilizable, podés consultar/ceder capacidad CORE con:
+  select public.prometeo_cognitive_frontier_yield_v1(
+    '<AGENT_ID>',
+    '<PACKET_TOKEN>'::uuid,
+    <GENERATION>,
+    '<PARTIAL_RESULT_JSON>'::jsonb
+  ) as yield;
+- PARTIAL_RESULT_JSON debe contener todo lo útil acumulado hasta ese momento, especialmente answer_text/draft_text, findings, evidence_refs, assumptions y open_questions.
+- Si yield.state=KEEP_WORKING, continuá el mismo job normalmente.
+- Si yield.state=YIELDED_CORE, el borrador quedó guardado como candidate checkpoint y el job volvió a READY. Hacé TAKE inmediatamente: el router prioriza CORE.
+- CORE_PREEMPT_YIELD no es failure, no es abandono y no habilita authority nueva. Es una cesión voluntaria y medible de una tarea candidate.
 - RESULTADO mínimo:
   {
     "node_key":"<NODE_KEY>",
