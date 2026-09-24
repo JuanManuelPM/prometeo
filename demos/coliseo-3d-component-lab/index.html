@@ -1577,7 +1577,7 @@ function drawProgressTube(c,site,index){
 }
 
 const LAST_UPDATE_MS=Date.parse('2026-09-24T12:43:59.511Z');
-const BUILD_VERSION='COMPONENT-LAB-6';
+const BUILD_VERSION='COMPONENT-LAB-6.1';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -2245,8 +2245,15 @@ function cameraProjectSolid(x,z,h){
   const forward=z*cs+x*sn;
 
   // Screen projection remains EXACTLY the same as wp().
-  const px=cx+sx*scale;
-  const py=cy+forward*scale*.35-h*scale*.57;
+  let px=cx+sx*scale;
+  let py=cy+forward*scale*.35-h*scale*.57;
+
+  // Effects may quantize projected vertices, but they never own a second camera.
+  if(COMPONENT_MODE==='effects'&&FX_CFG.snap>0){
+    const snap=FX_CFG.snap;
+    px=Math.round(px/snap)*snap;
+    py=Math.round(py/snap)*snap;
+  }
 
   // Missing piece in the old painter:
   // camera depth must include BOTH forward distance and height.
@@ -2487,6 +2494,16 @@ function componentModuleBox(x,z,baseH,w,d,h,color,seed,rot=0){
 function slotBlock(frame,lx,lz,y,color,seed){
   slotBox(frame,lx,lz,y*.62,.66,.66,.62,color,seed);
 }
+function componentFaceComparator(a,b){
+  const da=a.ownerDepth==null?a.depth:a.ownerDepth;
+  const db=b.ownerDepth==null?b.depth:b.ownerDepth;
+  if(Math.abs(da-db)>.0005)return da-db;
+  const ha=a.ownerBaseH==null?(a.minH||0):a.ownerBaseH;
+  const hb=b.ownerBaseH==null?(b.minH||0):b.ownerBaseH;
+  if(Math.abs(ha-hb)>.0005)return ha-hb;
+  return (a.faceOrder||0)-(b.faceOrder||0)||(a.stableId||0)-(b.stableId||0);
+}
+
 
 /* ---------- circular structure builders ---------- */
 
@@ -3557,7 +3574,7 @@ function drawDynamic(now){
 }
 function frame(now){
   if(!visible){requestAnimationFrame(frame);return}
-  if(COMPONENT_SPIN&&COMPONENT_MODE!=='workers'&&now>COMPONENT_USER_DRAG_UNTIL){
+  if(COMPONENT_SPIN&&now>COMPONENT_USER_DRAG_UNTIL){
     yaw+=.0022;
     staticDirty=true;
   }
@@ -3596,7 +3613,7 @@ function pu(e){
           const m=window.WORLD_MANIFEST_DEMO;
           const n=m&&m.nodes.find(n=>n.id==='tower-'+LAB_SELECTED);
           labBadge.textContent='HEAVY · '+LAB_VISUAL.toUpperCase()+' · '+(n?n.label:'NODE')+' · '+Math.round((n?n.durable_progress:0)*100)+'%';
-        }else labBadge.textContent='HEAVY · '+LAB_VISUAL.toUpperCase()+' · SYNTHETIC';
+        }else labBadge.textContent='COMPONENT LAB · '+COMPONENT_MODE.toUpperCase();
       }
     }
   }
