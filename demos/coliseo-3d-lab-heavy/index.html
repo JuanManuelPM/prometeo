@@ -2008,7 +2008,7 @@ function heavyDepthItem(x,z,h,type,payload){
 
 function heavyWorldCuboid(c,x,z,baseH,w,height,color,seed){
   if(c===sctx){
-    heavyWorldCuboid(c,x,z,baseH,w,height,color,seed);
+    drawWorldCuboid(c,x,z,baseH,w,height,color,seed);
     return;
   }
   heavyDepthItem(x,z,baseH+height*.5,'heavyWorld',{x,z,baseH,w,height,color,seed});
@@ -2016,7 +2016,7 @@ function heavyWorldCuboid(c,x,z,baseH,w,height,color,seed){
 
 function heavyBoardCuboid(c,base,lx,ly,w,h,d,color,seed){
   if(c===sctx){
-    heavyBoardCuboid(c,base,lx,ly,w,h,d,color,seed);
+    drawBoardCuboid(c,base,lx,ly,w,h,d,color,seed);
     return;
   }
   const world=boardWorldPoint(base,lx,ly,0);
@@ -2024,8 +2024,9 @@ function heavyBoardCuboid(c,base,lx,ly,w,h,d,color,seed){
 }
 
 function drawHeavyQueuedItem(c,it){
-  if(it.type==='heavyWorld')heavyWorldCuboid(c,it.x,it.z,it.baseH,it.w,it.height,it.color,it.seed);
-  else if(it.type==='heavyBoard')heavyBoardCuboid(c,it.base,it.lx,it.ly,it.w,it.bh,it.d,it.color,it.seed);
+  // Render now. Never call queue helpers from the painter flush.
+  if(it.type==='heavyWorld')drawWorldCuboid(c,it.x,it.z,it.baseH,it.w,it.height,it.color,it.seed);
+  else if(it.type==='heavyBoard')drawBoardCuboid(c,it.base,it.lx,it.ly,it.w,it.bh,it.d,it.color,it.seed);
   else if(it.type==='heavyGhost')drawGhostCuboidNow(c,it.x,it.z,it.baseH,it.w,it.height,it.color,it.seed);
 }
 
@@ -2738,8 +2739,8 @@ function pu(e){
         if(LAB_SELECTED>=0){
           const m=window.WORLD_MANIFEST_DEMO;
           const n=m&&m.nodes.find(n=>n.id==='tower-'+LAB_SELECTED);
-          labBadge.textContent='LAB · '+LAB_FIXTURE.toUpperCase()+' · '+(n?n.label:'NODE')+' · '+Math.round((n?n.durable_progress:0)*100)+'%';
-        }else labBadge.textContent='LAB · '+LAB_FIXTURE.toUpperCase()+' · SYNTHETIC';
+          labBadge.textContent='HEAVY · '+LAB_VISUAL.toUpperCase()+' · '+(n?n.label:'NODE')+' · '+Math.round((n?n.durable_progress:0)*100)+'%';
+        }else labBadge.textContent='HEAVY · '+LAB_VISUAL.toUpperCase()+' · SYNTHETIC';
       }
     }
   }
@@ -2748,6 +2749,7 @@ function pu(e){
 canvas.addEventListener('pointerdown',pd);canvas.addEventListener('pointermove',pm);canvas.addEventListener('pointerup',pu);canvas.addEventListener('pointercancel',pu);
 canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=clamp(zoom*Math.exp(-e.deltaY*.0009),.34,3.40);scale=Math.min(IW/37,IH/22.5)*zoom;staticDirty=true},{passive:false});
 addEventListener('resize',resize,{passive:true});
+if(window.visualViewport)visualViewport.addEventListener('resize',resize,{passive:true});
 document.addEventListener('visibilitychange',()=>{visible=!document.hidden;if(visible){last=0;staticDirty=true}});
 resize();requestAnimationFrame(frame);
 })();
