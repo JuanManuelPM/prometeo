@@ -221,3 +221,25 @@ Map selection is in-page and updates URL state with `?mode=maps&map=<id>`.
 - Fundición: central furnace + conveyor ring + perimeter workshops.
 - Observatorio: open gallery + animated orbital rings + perimeter instruments.
 - Laberinto: concentric walls use both gates and camera-facing cuts to expose inner paths.
+
+
+## Cámara hipnótica · implemented V8.2
+
+Reference-driven room based on the supplied green circular interior.
+
+Design goals:
+- coherent circular room envelope rather than exposed block diagrams;
+- optical radial floor as the dominant visual motif;
+- sickly green plaster / pale wainscot palette;
+- five distinct perimeter openings/doors;
+- red curtain portal;
+- round side table;
+- central chandelier with depth-aware emissives;
+- broken floor hole anchored in world space.
+
+Implementation discipline:
+- architecture still uses `Component World v2`;
+- physical solids still go through the shared solid renderer;
+- the optical floor and environmental grime are painted as a map art layer;
+- the front section still follows the rotating cut policy;
+- global FX remain available without introducing a second camera.
