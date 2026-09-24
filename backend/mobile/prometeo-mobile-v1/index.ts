@@ -259,71 +259,44 @@ async function pair(body: any, req: Request) {
   }
 
   const tokenHash = await sha256Hex(pairToken);
-  const pairRes = await rest(
-    `prometeo_mobile_pair_codes?select=id,label,expires_at,used_at&token_hash=eq.${encodeURIComponent(tokenHash)}&limit=1`
-  );
-  if (!pairRes.ok) return json({ code: "PAIR_LOOKUP_FAILED" }, 500);
-  const pairs = await pairRes.json();
-  const p = pairs?.[0];
-  if (!p || p.used_at || !p.expires_at || Date.parse(p.expires_at) < Date.now()) {
-    return json({ code: "PAIR_INVALID_OR_EXPIRED" }, 403);
-  }
-
-  const ownerRes = await rest("prometeo_owner?select=auth_user_id&singleton=eq.true&limit=1");
-  if (!ownerRes.ok) return json({ code: "OWNER_LOOKUP_FAILED" }, 500);
-  const owners = await ownerRes.json();
-  const ownerId = owners?.[0]?.auth_user_id;
-  if (!ownerId) return json({ code: "OWNER_NOT_READY" }, 409);
-
   const uaHash = await sha256Hex(req.headers.get("User-Agent") || "android");
   const compatibilityHash = await sha256Hex(publicKey);
-  const insert = await rest("prometeo_device_sessions", {
-    method: "POST",
-    headers: serviceHeaders({ Prefer: "return=representation" }),
-    body: JSON.stringify({
-      auth_user_id: ownerId,
-      token_hash: compatibilityHash,
-      label: p.label || label,
-      user_agent_hash: uaHash,
-      public_key_spki: publicKey,
-      approval_public_key_spki: approvalKey || null,
-      auth_scheme: "rsa-pkcs1-sha256-v1",
-      app_version_code: appVersionCode,
-      protocol_max: protocolMax,
-      device_model: deviceModel || null,
-    }),
-  });
-  const insertText = await insert.text();
-  if (!insert.ok) return json({ code: "PAIR_SESSION_FAILED", detail: insertText.slice(0,160) }, 500);
-  const rows = JSON.parse(insertText || "[]");
-  const sessionId = rows?.[0]?.id;
-  if (!sessionId) return json({ code: "PAIR_SESSION_FAILED" }, 500);
 
-  const used = await rest(`prometeo_mobile_pair_codes?id=eq.${encodeURIComponent(p.id)}&used_at=is.null`, {
-    method: "PATCH",
-    headers: serviceHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({
-      used_at: new Date().toISOString(),
-      used_by_session_id: sessionId,
-    }),
-  });
-  if (!used.ok) {
-    await rest(`prometeo_device_sessions?id=eq.${encodeURIComponent(sessionId)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ revoked_at: new Date().toISOString() }),
+  try {
+    const result = await rpc("prometeo_mobile_pair_device_v1", {
+      p_token_hash: tokenHash,
+      p_public_key_spki: publicKey,
+      p_approval_public_key_spki: approvalKey,
+      p_compatibility_hash: compatibilityHash,
+      p_label: label,
+      p_user_agent_hash: uaHash,
+      p_app_version_code: appVersionCode,
+      p_protocol_max: protocolMax,
+      p_device_model: deviceModel,
     });
-    return json({ code: "PAIR_FINALIZE_FAILED" }, 500);
+    return json({
+      ...result,
+      schema: CONTRACT,
+      contract_version: 1,
+      expires_in_days: 180,
+      min_app_version_code: MIN_APP_VERSION,
+      recommended_app_version_code: RECOMMENDED_APP_VERSION,
+    });
+  } catch (e) {
+    const detail = String(e);
+    if (detail.includes("mobile_pair_invalid")
+        || detail.includes("mobile_pair_expired")
+        || detail.includes("mobile_pair_used")) {
+      return json({ code: "PAIR_INVALID_OR_EXPIRED" }, 403);
+    }
+    if (detail.includes("mobile_owner_not_ready")) {
+      return json({ code: "OWNER_NOT_READY" }, 409);
+    }
+    if (detail.includes("mobile_public_key_exists")) {
+      return json({ code: "DEVICE_ALREADY_PAIRED" }, 409);
+    }
+    return json({ code: "PAIR_FAILED" }, 500);
   }
-
-  return json({
-    ok: true,
-    schema: CONTRACT,
-    contract_version: 1,
-    session_id: sessionId,
-    expires_in_days: 180,
-    min_app_version_code: MIN_APP_VERSION,
-    recommended_app_version_code: RECOMMENDED_APP_VERSION,
-  });
 }
 
 async function authenticate(req: Request, rawBody: string) {
