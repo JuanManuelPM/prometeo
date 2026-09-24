@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000"><title>Prometeo · Worker Log</title>
+<style>
+:root{color-scheme:dark;--muted:#818181;--line:#292929}
+*{box-sizing:border-box}html,body{margin:0;background:#000;color:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{min-height:100vh}a{color:inherit}.shell{width:min(1180px,100%);margin:auto;padding:0 12px 60px}
+.topbar{position:sticky;top:0;z-index:20;background:#000;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px;padding:9px 0;overflow-x:auto;scrollbar-width:none}
+.topbar::-webkit-scrollbar{display:none}.brand{font-size:10px;font-weight:950;letter-spacing:.15em;margin-right:auto;white-space:nowrap}
+.nav{height:31px;padding:0 9px;border:1px solid var(--line);display:inline-flex;align-items:center;text-decoration:none;font:850 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.06em;white-space:nowrap}.nav.current{background:#fff;color:#000;border-color:#fff}
+.head{padding:16px 0 12px;border-bottom:1px solid var(--line);display:flex;gap:12px;justify-content:space-between;align-items:flex-end}
+h1{font-size:27px;letter-spacing:-.05em;margin:0}.sub{font:750 9px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);margin-top:4px}
+.controls{display:flex;gap:5px;flex-wrap:wrap}.ctrl{border:1px solid var(--line);background:#000;color:#fff;padding:7px 9px;font:850 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace}.ctrl.active{background:#fff;color:#000;border-color:#fff}
+.summary{display:grid;grid-template-columns:repeat(6,1fr);border-bottom:1px solid var(--line)}.metric{padding:10px 8px;border-right:1px solid var(--line)}.metric:last-child{border-right:0}.metric b{display:block;font-size:21px;letter-spacing:-.04em}.metric span{font:800 7px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.legend{padding:9px 0;display:flex;gap:10px;flex-wrap:wrap;font:800 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#888;border-bottom:1px solid var(--line)}
+.dot{width:8px;height:8px;border:1px solid #666;display:inline-block;margin-right:4px;vertical-align:-1px}.dot.WORKING{background:#fff;border-color:#fff}.dot.WAITING{background:#8b8b8b}.dot.SUSPECT{background:#000;border:2px solid #fff}.dot.RECENT_IDLE{background:#555}.dot.SILENT{background:#171717}.dot.TERMINAL{background:#000;border-color:#555}
+.list{border-left:1px solid var(--line);border-top:1px solid var(--line);margin-top:12px}
+.worker{display:grid;grid-template-columns:64px minmax(150px,1.3fr) minmax(180px,2fr) 100px 90px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-height:72px;cursor:pointer;background:#000}.worker:active{background:#0b0b0b}
+.cell{padding:9px;border-right:1px solid var(--line);min-width:0}.cell:last-child{border-right:0}.code{font-size:20px;font-weight:950;letter-spacing:-.04em}.state{display:inline-flex;margin-top:4px;padding:3px 5px;border:1px solid #444;font:850 7px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
+.title{font-size:11px;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meta{font:750 8px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.life{height:8px;border:1px solid #333;margin-top:8px;position:relative;background:#090909}.life i{position:absolute;top:0;bottom:0;background:#5c5c5c}.life i.work{background:#fff}.life i.silent{background:#222}.kpi{font-size:16px;font-weight:900}.kpi small{font:750 7px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);display:block;margin-top:3px}
+.drawer{position:fixed;inset:0;z-index:40;background:#000;transform:translateY(102%);transition:transform .2s ease;overflow-y:auto;overscroll-behavior:auto;touch-action:pan-y}.drawer.open{transform:none}.drawerInner{width:min(900px,100%);margin:auto;padding:0 12px 50px}
+.drawerTop{position:sticky;top:0;z-index:5;background:#000;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;padding:10px 0}.back{width:38px;height:34px;border:1px solid var(--line);background:#000;color:#fff;font-size:22px}.drawerTitle{font-size:18px;font-weight:900}.drawerMeta{font:750 8px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.lifeHead{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);margin-top:12px}.lifeHead>div{padding:9px;border-right:1px solid var(--line)}.lifeHead>div:last-child{border-right:0}.lifeHead b{display:block;font-size:14px}.lifeHead span{font:750 7px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.timelineBox{border:1px solid var(--line);margin-top:10px;padding:12px;overflow-x:auto}.timeline{position:relative;height:72px;min-width:600px;border-top:1px solid #333;margin-top:26px}.jobseg{position:absolute;top:-10px;height:20px;background:#fff;color:#000;border:1px solid #fff;font:850 7px/18px ui-monospace,SFMono-Regular,Menlo,monospace;padding:0 4px;overflow:hidden;white-space:nowrap;min-width:5px}.jobseg.bad{background:#222;color:#fff;border-color:#555}.tick{position:absolute;top:-17px;width:1px;height:34px;background:#555}.tick span{position:absolute;top:38px;left:2px;font:750 7px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#777;white-space:nowrap}
+.jobs{margin-top:12px;border-top:1px solid var(--line);border-left:1px solid var(--line)}.job{display:grid;grid-template-columns:50px minmax(120px,1fr) 88px 88px 74px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}.job>div{padding:8px;border-right:1px solid var(--line);font:750 8px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:#aaa}.job>div:last-child{border-right:0}.job b{color:#fff;font-size:10px}
+.events{margin-top:12px;border-left:1px solid var(--line);border-top:1px solid var(--line)}.event{display:grid;grid-template-columns:58px 108px 1fr;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}.event>div{padding:7px;border-right:1px solid var(--line);font:750 8px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:#999}.event>div:last-child{border-right:0}.event .etype{color:#fff;font-weight:900}
+.note{margin-top:12px;padding:10px;border:1px solid var(--line);font-size:10px;line-height:1.45;color:#999}.note b{color:#fff}.empty{padding:30px 10px;color:#777;font:800 9px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+@media(max-width:700px){.summary{grid-template-columns:repeat(3,1fr)}.metric:nth-child(3){border-right:0}.metric:nth-child(n+4){border-top:1px solid var(--line)}.worker{grid-template-columns:54px 1fr 80px}.worker .cell:nth-child(3){grid-column:1/-1;grid-row:2;border-top:1px solid var(--line);border-right:0}.worker .cell:nth-child(4){grid-column:3;grid-row:1}.worker .cell:nth-child(5){display:none}.head{display:block}.controls{margin-top:9px}.lifeHead{grid-template-columns:1fr 1fr}.lifeHead>div:nth-child(2){border-right:0}.lifeHead>div:nth-child(n+3){border-top:1px solid var(--line)}.job{grid-template-columns:44px 1fr 72px}.job>div:nth-child(4),.job>div:nth-child(5){display:none}.event{grid-template-columns:54px 96px 1fr}}
+</style></head>
+<body><div class="shell">
+<nav class="topbar"><div class="brand">PROMETEO</div><a class="nav" href="/prometeo/guides/">HOME</a><a class="nav" href="/prometeo/o/">WORKERS</a><a class="nav current" href="/prometeo/workers/history/">LOG</a><a class="nav" href="/prometeo/guides/world/live/">WORLD</a><a class="nav" href="/prometeo/strategy/">STRATEGY</a></nav>
+<header class="head"><div><h1>Worker Log</h1><div class="sub">Una vida observable por shell. Evidencia, no estados decorativos.</div></div><div class="controls" id="range"><button class="ctrl active" data-h="6">6H</button><button class="ctrl" data-h="24">24H</button><button class="ctrl" data-h="48">48H</button></div></header>
+<div class="summary" id="summary"></div>
+<div class="legend"><span><i class="dot WORKING"></i>WORKING</span><span><i class="dot WAITING"></i>WAITING</span><span><i class="dot SUSPECT"></i>SUSPECT</span><span><i class="dot RECENT_IDLE"></i>RECENT_IDLE</span><span><i class="dot SILENT"></i>SILENT</span><span><i class="dot TERMINAL"></i>TERMINAL</span></div>
+<div class="list" id="list"><div class="empty">Cargando workers…</div></div></div>
+
+<div class="drawer" id="drawer"><div class="drawerInner">
+<div class="drawerTop"><button class="back" id="close">‹</button><div><div class="drawerTitle" id="drawerTitle">Worker</div><div class="drawerMeta" id="drawerMeta"></div></div></div>
+<div class="lifeHead" id="lifeHead"></div>
+<div class="timelineBox"><div class="sub">VIDA OBSERVADA</div><div class="timeline" id="timeline"></div></div>
+<div class="jobs" id="jobs"></div><div class="events" id="events"></div>
+<div class="note"><b>Semántica:</b> TERMINAL requiere un terminal_at explícito. SILENT significa que dejó de haber evidencia durable, no que sepamos que la shell murió. Los huecos entre un intento terminado y el siguiente TAKE son esperas observadas; no prueban residencia en background.</div>
+</div></div>
+
+<script>
+(()=>{
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/',TZ='America/Argentina/Buenos_Aires';let APIKEY=null,hours=6,registry=null;
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const tm=t=>t?new Intl.DateTimeFormat('es-AR',{timeZone:TZ,hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(t)):'—';
+const dur=s=>{s=Math.max(0,Number(s||0));if(s<60)return Math.round(s)+'s';if(s<3600)return Math.round(s/60)+'m';return (s/3600).toFixed(1)+'h'};
+async function key(){if(APIKEY)return APIKEY;const r=await fetch('/prometeo/guides/prometeo/',{cache:'no-store'}),t=await r.text(),m=t.match(/sb_publishable_[A-Za-z0-9_-]+/);if(!m)throw Error('public key unavailable');return APIKEY=m[0]}
+async function rpc(name,args){const k=await key(),r=await fetch(BASE+name,{method:'POST',headers:{apikey:k,Authorization:'Bearer '+k,'Content-Type':'application/json'},body:JSON.stringify(args||{}),cache:'no-store'});if(!r.ok)throw Error(name+' '+r.status);return r.json()}
+function renderSummary(ws){const states={WORKING:0,WAITING:0,SUSPECT:0,RECENT_IDLE:0,SILENT:0,TERMINAL:0};ws.forEach(w=>states[w.evidence_state]=(states[w.evidence_state]||0)+1);summary.innerHTML=Object.entries(states).map(([k,v])=>'<div class="metric"><b>'+v+'</b><span>'+k+'</span></div>').join('')}
+function render(){
+ const ws=registry?.workers||[];renderSummary(ws);if(!ws.length){list.innerHTML='<div class="empty">No hay sesiones en este rango.</div>';return}
+ const start=Date.now()-hours*3600e3,end=Date.now(),span=end-start;
+ list.innerHTML=ws.map(w=>{const a=Math.max(start,new Date(w.first_ping_at).getTime()),b=Math.min(end,new Date(w.last_evidence_at).getTime()),left=Math.max(0,(a-start)/span*100),width=Math.max(.4,(b-a)/span*100),lifeClass=w.evidence_state==='WORKING'?'work':w.evidence_state==='SILENT'?'silent':'',cj=w.current_job?(w.current_job.node_key||w.current_job.title||'job'):'sin job abierto';
+ return '<div class="worker" data-id="'+esc(w.session_id)+'"><div class="cell"><div class="code">'+esc(w.worker_code||'—')+'</div><span class="state">'+esc(w.evidence_state)+'</span></div><div class="cell"><div class="title">'+esc(cj)+'</div><div class="meta">'+esc(w.agent_id||'')+'</div><div class="meta">'+esc(w.launch_batch||'')+'</div></div><div class="cell"><div class="meta">ping '+tm(w.first_ping_at)+' · trabajo '+tm(w.first_work_at)+' · última evidencia '+tm(w.last_evidence_at)+'</div><div class="life"><i class="'+lifeClass+'" style="left:'+left+'%;width:'+width+'%"></i></div></div><div class="cell"><div class="kpi">'+w.submits_success+'<small>SUCCESS</small></div></div><div class="cell"><div class="kpi">'+w.watchdog_requeues+'<small>REQUEUES</small></div></div></div>'}).join('');
+ list.querySelectorAll('.worker').forEach(el=>el.onclick=()=>openWorker(el.dataset.id))
+}
+function tickMark(p,label){return '<i class="tick" style="left:'+p+'%"><span>'+esc(label)+'</span></i>'}
+async function openWorker(id){
+ drawer.classList.add('open');document.body.style.overflow='hidden';drawerTitle.textContent='Cargando…';drawerMeta.textContent='';jobs.innerHTML='';events.innerHTML='';timeline.innerHTML='';
+ try{
+   const d=await rpc('prometeo_worker_session_timeline_v1',{p_session_id:id}),s=d.session||{},js=d.jobs||[],ev=d.events||[];
+   drawerTitle.textContent=(s.worker_code||'Worker')+' · '+(s.terminal_at?'TERMINAL':'historia');
+   drawerMeta.textContent=(s.agent_id||'')+' · '+(s.protocol_version||'')+' · '+(s.launch_batch||'');
+   const first=new Date(s.first_ping_at||s.joined_at).getTime(),last=Math.max(first+1000,...js.map(j=>new Date(j.ended_at||j.last_progress_at||j.assigned_at).getTime()),new Date(s.terminal_at||s.last_seen_at||s.last_poll_at||Date.now()).getTime()),span=Math.max(1000,last-first);
+   const workSeconds=js.reduce((n,j)=>n+Number(j.observed_work_seconds||0),0),waitSeconds=js.reduce((n,j)=>n+Number(j.wait_before_seconds||0),0);
+   lifeHead.innerHTML='<div><b>'+tm(s.first_ping_at)+'</b><span>PRIMER PING</span></div><div><b>'+tm(js[0]?.assigned_at)+'</b><span>PRIMER TAKE</span></div><div><b>'+dur(workSeconds)+'</b><span>TRABAJO OBSERVADO</span></div><div><b>'+dur(waitSeconds)+'</b><span>ESPERA ENTRE JOBS</span></div>';
+   let tl=tickMark(0,'PING');js.forEach((j,i)=>{const a=(new Date(j.assigned_at).getTime()-first)/span*100,b=(new Date(j.ended_at||j.last_progress_at||j.assigned_at).getTime()-first)/span*100,w=Math.max(.8,b-a);tl+='<i class="jobseg '+(j.status==='SUCCESS'||j.status==='DONE'?'':'bad')+'" style="left:'+a+'%;width:'+w+'%">'+esc(j.node_key||('J'+(i+1)))+'</i>'});if(s.terminal_at)tl+=tickMark(100,'TERMINAL');timeline.innerHTML=tl;
+   jobs.innerHTML=js.length?js.map((j,i)=>'<div class="job"><div><b>#'+(i+1)+'</b><br>'+esc(j.node_key||'—')+'</div><div><b>'+esc(j.title||j.job_class||'job')+'</b><br>'+esc(j.status||'')+(j.failure_code?' · '+esc(j.failure_code):'')+'</div><div>'+tm(j.assigned_at)+'<br>TAKE</div><div>'+tm(j.ended_at||j.last_progress_at)+'<br>FIN/EVID.</div><div>'+dur(j.wait_before_seconds)+'<br>WAIT</div></div>').join(''):'<div class="empty">No tuvo jobs observados.</div>';
+   events.innerHTML=ev.length?ev.map(e=>'<div class="event"><div>'+tm(e.at)+'</div><div class="etype">'+esc(e.type)+'</div><div>'+esc(e.node_key||'')+' '+esc(e.title||'')+'</div></div>').join(''):'<div class="empty">Sin eventos relevantes.</div>';
+ }catch(e){drawerTitle.textContent='Error';drawerMeta.textContent=String(e.message||e)}
+}
+close.onclick=()=>{drawer.classList.remove('open');document.body.style.overflow=''}
+async function load(){try{registry=await rpc('prometeo_worker_registry_v1',{p_hours:hours,p_limit:160});render()}catch(e){list.innerHTML='<div class="empty">'+esc(e.message||e)+'</div>'}}
+range.querySelectorAll('[data-h]').forEach(b=>b.onclick=()=>{hours=Number(b.dataset.h);range.querySelectorAll('.ctrl').forEach(x=>x.classList.toggle('active',x===b));load()});
+load();setInterval(load,20000);
+})();
+</script></body></html>
