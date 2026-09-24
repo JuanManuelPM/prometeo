@@ -76,8 +76,7 @@ body{overscroll-behavior:none}
   .copy span{display:none}.copy b{font-size:10px}.badge{font-size:7px;padding:6px 8px}
 }
 @media(orientation:portrait){
-  #app{inset:0;width:100vw;height:100vh;width:100dvw;height:100dvh;transform:none}
-  #wrap{
+  #app{
     inset:auto;
     left:50%;top:50%;
     width:100vh;height:100vw;
@@ -85,9 +84,11 @@ body{overscroll-behavior:none}
     transform:translate(-50%,-50%) rotate(90deg);
     transform-origin:center center;
   }
-  .brand{top:max(8px,env(safe-area-inset-top));left:10px}
-  .badge{top:max(8px,env(safe-area-inset-top));right:10px}
+  #wrap{inset:0;width:100%;height:100%;transform:none}
+  .brand{top:8px;left:10px}
+  .badge{top:8px;right:10px}
   .help{display:none}
+  .picker{padding-bottom:8px}
 }
 </style>
 </head>
@@ -292,7 +293,12 @@ function switchFX(id){
   if(!FX_PRESETS[id])return;
   FX_PRESET=id;FX_CFG=FX_PRESETS[id];
   COMPONENT_MODE='effects';
-  applyModeState(false);
+  if(wrap){
+    wrap.classList.remove('structures','workers','effects','maps');
+    wrap.classList.add('effects');
+  }
+  renderPicker();
+  updateURL();
 }
 if(componentPicker){
   componentPicker.addEventListener('click',e=>{
@@ -410,8 +416,8 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
 function q(v){return Math.round(v)}
 function pointerPoint(e){
   if(!VIEW_ROTATED)return {x:e.clientX,y:e.clientY};
-  // Only #wrap rotates in portrait. Pointer events on the canvas therefore need
-  // inverse mapping, while the picker/UI remain normal upright screen-space.
+  // The entire logical app rotates in portrait so UI and world share one landscape.
+  // Canvas coordinates are inverse-mapped back into that logical landscape.
   return {x:e.clientY,y:innerWidth-e.clientX};
 }
 function resize(){
@@ -1532,7 +1538,7 @@ function drawProgressTube(c,site,index){
 }
 
 const LAST_UPDATE_MS=Date.parse('2026-09-24T12:43:59.511Z');
-const BUILD_VERSION='COMPONENT-LAB-4';
+const BUILD_VERSION='COMPONENT-LAB-5';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -2236,6 +2242,33 @@ function pushSolidVertex(arr,p){
   arr.push(q0.x,q0.y,q0.z);
 }
 
+const WORLD_EMISSIVE=[];
+function resetWorldEmissive(){WORLD_EMISSIVE.length=0}
+function addWorldEmissive(x,z,baseH,height,width,power,seed){
+  WORLD_EMISSIVE.push({x,z,baseH,height,width,power,seed});
+}
+function appendFlameTriangles(pos,col,flame,now){
+  const screenUX=Math.cos(yaw),screenUZ=-Math.sin(yaw);
+  const phase=now*.010+flame.seed*1.73;
+  const flick=.88+.12*Math.sin(phase*1.7);
+  const h=flame.height*flick,w=flame.width;
+  const drift=Math.sin(phase)*w*.28;
+  const baseL={x:flame.x-screenUX*w*.52,z:flame.z-screenUZ*w*.52,h:flame.baseH};
+  const baseR={x:flame.x+screenUX*w*.52,z:flame.z+screenUZ*w*.52,h:flame.baseH};
+  const midL={x:flame.x-screenUX*w*.26+screenUX*drift*.25,z:flame.z-screenUZ*w*.26+screenUZ*drift*.25,h:flame.baseH+h*.48};
+  const midR={x:flame.x+screenUX*w*.30+screenUX*drift*.35,z:flame.z+screenUZ*w*.30+screenUZ*drift*.35,h:flame.baseH+h*.48};
+  const tip={x:flame.x+screenUX*drift,z:flame.z+screenUZ*drift,h:flame.baseH+h};
+  const hot=[1.0,.47,.12,.86*flame.power],core=[1.0,.86,.42,.92*flame.power],outer=[.72,.16,.055,.58*flame.power];
+  const push=(p,c0)=>{const q=cameraProjectSolid(p.x,p.z,p.h);pos.push(q.x,q.y,q.z);col.push(...c0)};
+  // outer body
+  for(const [p0,c0] of [[baseL,outer],[baseR,outer],[tip,outer],[baseL,outer],[tip,outer],[midL,outer]])push(p0,c0);
+  // hot inner tongue
+  const ibL={x:flame.x-screenUX*w*.24,z:flame.z-screenUZ*w*.24,h:flame.baseH+.02};
+  const ibR={x:flame.x+screenUX*w*.24,z:flame.z+screenUZ*w*.24,h:flame.baseH+.02};
+  const itip={x:flame.x+screenUX*drift*.45,z:flame.z+screenUZ*drift*.45,h:flame.baseH+h*.72};
+  for(const [p0,c0] of [[ibL,hot],[ibR,hot],[itip,core]])push(p0,c0);
+}
+
 function renderWorldSolidsGL(targetCtx){
   if(!solidGL||!initSolidGL())return false;
   const gl=solidGL;
@@ -2306,6 +2339,27 @@ function renderWorldSolidsGL(targetCtx){
   gl.drawArrays(gl.LINES,0,linePos.length/3);
   gl.depthFunc(gl.LESS);
 
+  // Transparent/emissive world effects reuse the SAME projection and SAME depth buffer.
+  // Walls therefore occlude fire automatically instead of fire being a 2D overlay.
+  if(WORLD_EMISSIVE.length){
+    const ePos=[],eCol=[];
+    for(const flame of WORLD_EMISSIVE)appendFlameTriangles(ePos,eCol,flame,performance.now());
+    gl.bindBuffer(gl.ARRAY_BUFFER,solidPosBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(ePos),gl.DYNAMIC_DRAW);
+    gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,solidColorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(eCol),gl.DYNAMIC_DRAW);
+    gl.vertexAttribPointer(aColor,4,gl.FLOAT,false,0,0);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
+    gl.depthMask(false);
+    gl.depthFunc(gl.LEQUAL);
+    gl.drawArrays(gl.TRIANGLES,0,ePos.length/3);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+    gl.depthFunc(gl.LESS);
+  }
+
   targetCtx.drawImage(solidCanvas,0,0);
   window.WORLD_RENDER_STATS={
     renderer:'webgl-depth',
@@ -2313,7 +2367,9 @@ function renderWorldSolidsGL(targetCtx){
     triangles:triangleCount,
     edges:lineCount,
     depthFormula:'0.57*forward + 0.35*height',
-    mode:COMPONENT_MODE
+    mode:COMPONENT_MODE,
+    contract:'prometeo.component_renderer/v1',
+    emissives:WORLD_EMISSIVE.length
   };
   return true;
 }
@@ -2506,23 +2562,31 @@ function workerDemoData(now){
 
 function drawWorkerGallery(now){
   const t=now/1000,data=workerDemoData(now);
-  // Seven isolated stations so animation can be judged without construction clutter.
+
+  resetWorldGeometry();
+  resetWorldEmissive();
+  COMPONENT_SERIAL=1;
+
+  // Every non-agent physical prop uses the same solid renderer.
   for(let i=0;i<data.length;i++){
     const {pl,label}=data[i];
-    groundPatch(ctx,pl.x,pl.z,1.05,.50,i===5?'#2b201d':'#25231f',.65,27000+i,14);
-    drawPlayer(ctx,pl,t,i);
-
     if(label==='DESIGN'){
-      drawWorldCuboid(ctx,pl.x+.36,pl.z,.04,.46,.08,'#4d7770',27100+i);
+      componentModuleBox(pl.x+.36,pl.z,.04,.46,.46,.08,'#4d7770',27100+i);
     }else if(label==='BUILD'){
       const lift=.42+Math.abs(Math.sin(t*3.1))*.42;
-      drawWorldCuboid(ctx,pl.x+.34,pl.z,lift,.38,.28,'#a68a43',27120+i);
+      componentModuleBox(pl.x+.34,pl.z,lift,.38,.38,.28,'#a68a43',27120+i);
     }else if(label==='CARRY'){
-      drawWorldCuboid(ctx,pl.x+.02,pl.z,.62,.42,.34,'#b08445',27140+i);
+      componentModuleBox(pl.x+.02,pl.z,.62,.42,.42,.34,'#b08445',27140+i);
     }else if(label==='DONE'){
-      drawWorldCuboid(ctx,pl.x+.44,pl.z,.03,.34,.18,'#506657',27160+i);
+      componentModuleBox(pl.x+.44,pl.z,.03,.34,.34,.18,'#506657',27160+i);
     }
+  }
+  renderWorldSolidsGL(ctx);
 
+  for(let i=0;i<data.length;i++){
+    const {pl,label}=data[i];
+    groundPatch(ctx,pl.x,pl.z,1.05,.50,i===5?'#2b201d':'#25231f',.48,27000+i,14);
+    drawPlayer(ctx,pl,t,i);
     const p=wp(pl.x,pl.z,-.18);
     ctx.save();ctx.globalAlpha=.72;ctx.fillStyle='#b79b7e';ctx.font='700 '+Math.max(7,scale*.30)+'px system-ui';ctx.textAlign='center';
     ctx.fillText(label,p.x,p.y+scale*.90);ctx.restore();
@@ -2543,40 +2607,70 @@ function fitEffectsCamera(){
   cx=IW*.5-((minU+maxU)*.5)*scale;
   cy=IH*.50-((minV+maxV)*.5)*scale;
 }
+const EFFECT_PANELS=[
+  {x:-5.8,z:-.8,rot:.15,title:'KAIROS',col:'#76503a'},
+  {x:-.5,z:-.8,rot:.72,title:'NYX',col:'#506657'},
+  {x:4.9,z:-.8,rot:1.22,title:'ASTERION',col:'#6f3631'}
+];
+
 function effectPanelBase(x,z,h,rot){
   return heavyBasis(x,z,h,Math.cos(rot),Math.sin(rot));
 }
+function effectLocalPoint(p,lx){
+  const ux=Math.cos(p.rot),uz=Math.sin(p.rot);
+  return {x:p.x+ux*lx,z:p.z+uz*lx};
+}
+function buildEffectsWorld(now){
+  resetWorldGeometry();
+  resetWorldEmissive();
+  COMPONENT_SERIAL=1;
 
-function drawEffectsGallery(now){
-  fitEffectsCamera();
-  // Three fixed physical signs at deliberately different world angles.
-  const panels=[
-    {x:-5.8,z:-.8,rot:.15,title:'KAIROS',col:'#76503a'},
-    {x:-.5,z:-.8,rot:.72,title:'NYX',col:'#506657'},
-    {x:4.9,z:-.8,rot:1.22,title:'ASTERION',col:'#6f3631'}
-  ];
-  for(let i=0;i<panels.length;i++){
-    const p=panels[i],base=effectPanelBase(p.x,p.z,2.15,p.rot);
-    drawBoardCuboid(ctx,base,0,0,3.3,1.75,.16,'#c9bda7',28000+i*30);
-    drawBoardCuboid(ctx,base,0,.78,3.62,.18,.20,p.col,28010+i*30);
-    drawBoardCuboid(ctx,base,0,-.78,3.62,.18,.20,p.col,28020+i*30);
-    drawReadableBoardText(ctx,base,p.title,0,-.10,2.70,.52,.24,900,'Georgia,serif','#211711',.10);
+  // Signs use exactly componentModuleBox, the same primitive as gate/archive/bridge.
+  for(let i=0;i<EFFECT_PANELS.length;i++){
+    const p=EFFECT_PANELS[i],left=effectLocalPoint(p,-1.72),right=effectLocalPoint(p,1.72);
+    componentModuleBox(left.x,left.z,.02,.16,.16,3.05,p.col,30000+i*50,p.rot);
+    componentModuleBox(right.x,right.z,.02,.16,.16,3.05,p.col,30010+i*50,p.rot);
+    componentModuleBox(p.x,p.z,1.25,3.30,.16,1.75,'#c9bda7',30020+i*50,p.rot);
+    const top=effectLocalPoint(p,0),bottom=top;
+    componentModuleBox(top.x,top.z,2.91,3.62,.20,.18,p.col,30030+i*50,p.rot);
+    componentModuleBox(bottom.x,bottom.z,1.18,3.62,.20,.18,p.col,30040+i*50,p.rot);
   }
 
-  // Fire stations are separated from sign testing.
+  // Torch pedestals are also universal solids.
   const fires=[[-5.6,3.0,.72],[-1.9,3.0,1.0],[1.9,3.0,1.35],[5.6,3.0,1.75]];
   for(let i=0;i<fires.length;i++){
     const [x,z,power]=fires[i];
-    drawWorldCuboid(ctx,x,z,.02,.44,.82,'#4b3428',28200+i);
-    drawViolentTorchFlame(ctx,x,z,.88,28300+i,now,power);
+    componentModuleBox(x,z,.02,.44,.44,.82,'#4b3428',30300+i);
+    addWorldEmissive(x,z,.84,.88+power*.34,.36+power*.08,.72+power*.12,30400+i);
   }
 
-  // One isolated "burning mass" without workers/towers.
-  groundPatch(ctx,0,5.15,1.25,.62,'#25150f',.70,28400,16);
-  for(let i=0;i<10;i++){
-    const a=i*TAU/10,r=.18+(i%3)*.22;
-    drawViolentTowerFlame(ctx,Math.cos(a)*r,5.15+Math.sin(a)*r,.06,1.45,28430+i,now);
+  // Burning-mass test: physical fuel first, depth-aware flame second.
+  for(let i=0;i<8;i++){
+    const a=i*TAU/8,r=.18+(i%3)*.17,x=Math.cos(a)*r,z=5.15+Math.sin(a)*r;
+    componentModuleBox(x,z,.02,.30,.30,.18,i%2?'#38251d':'#513124',30500+i);
+    addWorldEmissive(x,z,.18,1.05+(i%3)*.22,.34,1.0,30600+i);
   }
+}
+function drawEffectText(c){
+  // Semantic text stays a surface annotation; its physical panel is depth-rendered.
+  for(let i=0;i<EFFECT_PANELS.length;i++){
+    const p=EFFECT_PANELS[i],base=effectPanelBase(p.x,p.z,2.15,p.rot);
+    drawReadableBoardText(c,base,p.title,0,-.10,2.70,.52,.24,900,'Georgia,serif','#211711',.10);
+  }
+}
+function drawEffectsGallery(now){
+  fitEffectsCamera();
+  drawComponentWorldGrid(ctx);
+  buildEffectsWorld(now);
+
+  const gpuOK=renderWorldSolidsGL(ctx);
+  if(!gpuOK){
+    const faces=compileWorldFaces();
+    faces.sort(componentFaceComparator);
+    for(const face of faces)renderGeomFace(ctx,face);
+    // Fallback fire is intentionally omitted rather than violating depth rules.
+  }
+  drawEffectText(ctx);
 }
 
 function drawComponentLab(now){
