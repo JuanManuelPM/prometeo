@@ -1,6 +1,10 @@
 package com.prometeo.mobile.audio;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -30,14 +34,17 @@ public final class PlaybackService extends MediaSessionService {
     public static final String ACTION_TOGGLE =
             "com.prometeo.mobile.TOGGLE";
 
-    public static final String EXTRA_FIRST_URI = "first_uri";
     public static final String EXTRA_MESSAGE_ID = "message_id";
     public static final String EXTRA_PART_COUNT = "part_count";
     public static final String EXTRA_HEADLINE = "headline";
 
+    private static final String PREP_CHANNEL = "prometeo_voice_prepare";
+    private static final int PREP_NOTIFICATION_ID = 4101;
+
     private ExoPlayer player;
     private MediaSession mediaSession;
     private VoiceAudioRepository audioRepository;
+    private NotificationManager notifications;
     private final ExecutorService loader = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final AtomicInteger generation = new AtomicInteger();
@@ -45,6 +52,17 @@ public final class PlaybackService extends MediaSessionService {
     @Override
     public void onCreate() {
         super.onCreate();
+
+        notifications = getSystemService(NotificationManager.class);
+        NotificationChannel channel = new NotificationChannel(
+                PREP_CHANNEL,
+                "Voz de Prometeo",
+                NotificationManager.IMPORTANCE_LOW
+        );
+        channel.setDescription("Preparación de la voz antes de reproducirla.");
+        channel.setSound(null, null);
+        channel.enableVibration(false);
+        notifications.createNotificationChannel(channel);
 
         AudioAttributes attributes = new AudioAttributes.Builder()
                 .setUsage(C.USAGE_MEDIA)
@@ -98,20 +116,36 @@ public final class PlaybackService extends MediaSessionService {
         }
 
         if (ACTION_PLAY_VOICE.equals(intent.getAction())) {
-            String firstUri = intent.getStringExtra(EXTRA_FIRST_URI);
             String messageId = intent.getStringExtra(EXTRA_MESSAGE_ID);
             String headline = intent.getStringExtra(EXTRA_HEADLINE);
             int partCount = Math.max(1, intent.getIntExtra(EXTRA_PART_COUNT, 1));
 
-            if (firstUri != null && messageId != null) {
-                playVoice(firstUri, messageId, headline, partCount);
+            if (messageId != null && !messageId.isEmpty()) {
+                startPreparationForeground();
+                loadAndPlay(messageId, headline, partCount);
             }
         }
         return result;
     }
 
-    private void playVoice(
-            String firstUri,
+    private void startPreparationForeground() {
+        Notification notification = new Notification.Builder(this, PREP_CHANNEL)
+                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setContentTitle("Prometeo")
+                .setContentText("Preparando voz…")
+                .setCategory(Notification.CATEGORY_TRANSPORT)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .build();
+
+        startForeground(
+                PREP_NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+        );
+    }
+
+    private void loadAndPlay(
             String messageId,
             String headline,
             int partCount
@@ -121,28 +155,50 @@ public final class PlaybackService extends MediaSessionService {
                 ? "Estado actual"
                 : headline;
 
-        player.setMediaItem(item(Uri.parse(firstUri), title, 0));
-        player.prepare();
-        player.play();
-
-        if (partCount <= 1 || audioRepository == null) return;
-
         loader.execute(() -> {
-            for (int part = 1; part < partCount; part++) {
+            if (audioRepository == null) {
+                main.post(this::stopSelf);
+                return;
+            }
+
+            for (int part = 0; part < partCount; part++) {
                 if (generation.get() != run) return;
+
                 try {
                     File file = audioRepository.getOrDownload(messageId, part);
                     int currentPart = part;
+
                     main.post(() -> {
-                        if (generation.get() == run && player != null) {
-                            player.addMediaItem(item(
-                                    Uri.fromFile(file),
-                                    title,
-                                    currentPart
-                            ));
+                        if (generation.get() != run || player == null) return;
+
+                        MediaItem mediaItem = item(
+                                Uri.fromFile(file),
+                                title,
+                                currentPart
+                        );
+
+                        if (currentPart == 0) {
+                            player.setMediaItem(mediaItem);
+                            player.prepare();
+                            player.play();
+
+                            main.postDelayed(() -> {
+                                if (notifications != null) {
+                                    notifications.cancel(PREP_NOTIFICATION_ID);
+                                }
+                            }, 1500L);
+                        } else {
+                            player.addMediaItem(mediaItem);
                         }
                     });
                 } catch (Exception ignored) {
+                    main.post(() -> {
+                        if (generation.get() == run
+                                && player != null
+                                && player.getMediaItemCount() == 0) {
+                            stopSelf();
+                        }
+                    });
                     return;
                 }
             }
@@ -175,6 +231,9 @@ public final class PlaybackService extends MediaSessionService {
         generation.incrementAndGet();
         loader.shutdownNow();
 
+        if (notifications != null) {
+            notifications.cancel(PREP_NOTIFICATION_ID);
+        }
         if (mediaSession != null) {
             mediaSession.release();
             mediaSession = null;
