@@ -47,7 +47,7 @@ public final class BlockRenderer {
 
     public void render(
             JSONObject snapshot,
-            boolean offline,
+            String connectionState,
             boolean pendingAction,
             boolean actionsEnabled
     ) {
@@ -55,7 +55,7 @@ public final class BlockRenderer {
         root.setPadding(dp(20), dp(18), dp(20), dp(40));
         root.setBackgroundColor(Color.BLACK);
 
-        renderHeader(snapshot, offline);
+        renderHeader(snapshot, connectionState);
 
         if (pendingAction) {
             sectionLabel("ACCIÓN PENDIENTE");
@@ -112,7 +112,7 @@ public final class BlockRenderer {
         renderFooter(snapshot);
     }
 
-    private void renderHeader(JSONObject snapshot, boolean offline) {
+    private void renderHeader(JSONObject snapshot, String connectionState) {
         LinearLayout row = new LinearLayout(activity);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -131,14 +131,19 @@ public final class BlockRenderer {
         root.addView(row);
 
         String generated = snapshot.optString("generated_at", "");
-        TextView state = text(
-                offline
-                        ? "OFFLINE · MOSTRANDO ÚLTIMO ESTADO"
-                        : "CONECTADO · " + shortTime(generated),
-                11,
-                offline ? WHITE : MUTED,
-                true
-        );
+        String stateText;
+        int stateColor = MUTED;
+        if ("offline".equals(connectionState)) {
+            stateText = "OFFLINE · ÚLTIMO ESTADO";
+            stateColor = WHITE;
+        } else if ("local".equals(connectionState)) {
+            stateText = "LOCAL · ACTUALIZANDO";
+        } else if ("refreshing".equals(connectionState)) {
+            stateText = "CONECTADO · ACTUALIZANDO";
+        } else {
+            stateText = "CONECTADO · " + shortTime(generated);
+        }
+        TextView state = text(stateText, 11, stateColor, true);
         state.setLetterSpacing(0.08f);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
