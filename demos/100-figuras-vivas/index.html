@@ -25,19 +25,37 @@ button:active{background:#000;color:#fff}
   font:700 9px/1 Arial,Helvetica,sans-serif;background:#fff;color:#000;padding:4px 5px;
   opacity:.58;pointer-events:none
 }
+.bankPanel{
+  position:fixed;left:8px;top:max(8px,env(safe-area-inset-top));z-index:3;
+  width:min(300px,42vw);border:2px solid #000;background:rgba(255,255,255,.96);
+  padding:9px 10px 10px;pointer-events:none
+}
+.bankPanel b{display:block;font:900 12px/1 Arial,Helvetica,sans-serif;letter-spacing:.04em}
+.bankMeta{display:flex;gap:10px;margin-top:6px;font:800 9px/1.15 Arial,Helvetica,sans-serif}
+.bankHint{margin-top:7px;font:700 8px/1.25 Arial,Helvetica,sans-serif;opacity:.68}
+.bankSel{margin-top:7px;min-height:15px;font:900 9px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-word}
 @media(max-width:520px){
-  button{padding:6px 7px;font-size:9px}
+  button{padding:8px 8px;font-size:9px;min-height:36px}
   .note{font-size:8px}
+  .bankPanel{top:auto;bottom:max(34px,calc(env(safe-area-inset-bottom) + 26px));width:calc(100vw - 16px);padding:8px 9px}
+  .bankPanel b{font-size:11px}.bankMeta{font-size:8px}.bankHint{font-size:7px}.bankSel{font-size:8px}
 }
 </style>
 </head>
 <body>
 <canvas id="world" aria-label="Cien figuras pixeladas moviéndose libremente"></canvas>
 <div class="controls">
-  <button id="order">ORDENAR</button>
+  <button id="order">BANCO</button>
   <button id="pause">PAUSA</button>
+  <button id="clear">LIMPIAR</button>
 </div>
-<div class="note">ARRASTRÁ CUALQUIERA</div>
+<div class="bankPanel" id="bankPanel" aria-live="polite">
+  <b>100 FIGURAS VIVAS · BANCO</b>
+  <div class="bankMeta"><span id="selectedCount">0 SELECCIONADAS</span><span id="candidateCount">— CANDIDATOS</span></div>
+  <div class="bankHint">CANDIDATOS = HEURÍSTICA DE SILUETA · NO APROBADOS · TAP EN BANCO PARA SELECCIONAR</div>
+  <div class="bankSel" id="bankSel">SIN SELECCIÓN</div>
+</div>
+<div class="note" id="note">ARRASTRÁ CUALQUIERA · BANCO PARA COMPARAR</div>
 <script>
 (() => {
 "use strict";
@@ -49,14 +67,42 @@ const canvas = document.getElementById("world");
 const ctx = canvas.getContext("2d", {alpha:false});
 const pauseButton = document.getElementById("pause");
 const orderButton = document.getElementById("order");
+const clearButton = document.getElementById("clear");
+const selectedCountEl = document.getElementById("selectedCount");
+const candidateCountEl = document.getElementById("candidateCount");
+const bankSelEl = document.getElementById("bankSel");
+const noteEl = document.getElementById("note");
 
 let W=0,H=0,DPR=1,unit=3,footprint=42;
-let paused=false, dragging=-1, orderedUntil=0, last=performance.now();
+let paused=false, bankMode=false, dragging=-1, orderedUntil=0, last=performance.now();
 let pointerLast={x:0,y:0,t:0};
+const selected=new Set();
 const creatures=[];
 
 const rnd=(a,b)=>a+Math.random()*(b-a);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+function bitAt(row,x){return (row & (1<<(N-1-x)))?1:0}
+function silhouetteScore(rows){
+  let ink=0,mirror=0,totalMirror=0,centerInk=0;
+  for(let y=0;y<N;y++){
+    const row=rows[y];
+    for(let x=0;x<N;x++){
+      const on=bitAt(row,x);ink+=on;
+      if(on && x>=3 && x<=10 && y>=2 && y<=11)centerInk++;
+      if(x<N/2){totalMirror++; if(on===bitAt(row,N-1-x))mirror++}
+    }
+  }
+  const density=ink/(N*N);
+  const symmetry=mirror/Math.max(1,totalMirror);
+  const center=centerInk/Math.max(1,ink);
+  const densityFit=1-Math.min(1,Math.abs(density-.34)/.28);
+  return symmetry*.46+densityFit*.34+center*.20;
+}
+const candidateIds=new Set(
+  RAW.map((rows,id)=>({id,score:silhouetteScore(rows)}))
+    .sort((a,b)=>b.score-a.score||a.id-b.id).slice(0,12).map(x=>x.id)
+);
 
 function makeCreature(i){
   const a=rnd(0,Math.PI*2);
@@ -89,11 +135,19 @@ function resize(){
   }
 }
 
+function bankOrder(){
+  return [...creatures].sort((a,b)=>{
+    const as=selected.has(a.id)?0:(candidateIds.has(a.id)?1:2);
+    const bs=selected.has(b.id)?0:(candidateIds.has(b.id)?1:2);
+    return as-bs||a.id-b.id;
+  });
+}
 function placeGrid(hold=true){
-  const top=44;
+  const top=bankMode?78:44;
   const usableH=Math.max(80,H-top);
   const dx=W/10, dy=usableH/10;
-  creatures.forEach((c,i)=>{
+  const list=bankMode?bankOrder():creatures;
+  list.forEach((c,i)=>{
     const col=i%10,row=Math.floor(i/10);
     c.x=(col+.5)*dx;
     c.y=top+(row+.5)*dy;
@@ -103,10 +157,40 @@ function placeGrid(hold=true){
   });
   if(hold) orderedUntil=performance.now()+900;
 }
+function refreshBankUi(){
+  selectedCountEl.textContent=selected.size+" SELECCIONADA"+(selected.size===1?"":"S");
+  candidateCountEl.textContent=candidateIds.size+" CANDIDATOS";
+  bankSelEl.textContent=selected.size?[...selected].sort((a,b)=>a-b).map(id=>"#"+String(id+1).padStart(2,"0")).join(" · "):"SIN SELECCIÓN";
+  orderButton.textContent=bankMode?"VIVAS":"BANCO";
+  noteEl.textContent=bankMode?"TAP = SELECCIONAR · SEL. PRIMERO · CANDIDATOS DESPUÉS":"ARRASTRÁ CUALQUIERA · BANCO PARA COMPARAR";
+}
+function toggleSelected(id){
+  if(selected.has(id))selected.delete(id);else selected.add(id);
+  if(bankMode)placeGrid(false);
+  refreshBankUi();
+}
 
 function drawSprite(c){
   const left=Math.round(c.x-footprint/2);
   const top=Math.round(c.y-footprint/2);
+  const isSelected=selected.has(c.id), isCandidate=candidateIds.has(c.id);
+  if(bankMode||isSelected){
+    ctx.save();
+    ctx.lineWidth=isSelected?3:1;
+    ctx.strokeStyle=isSelected?"#000":"#777";
+    ctx.setLineDash(isSelected?[]:[3,3]);
+    ctx.strokeRect(left-4,top-4,footprint+8,footprint+8);
+    ctx.setLineDash([]);
+    ctx.fillStyle=isSelected?"#000":"#666";
+    ctx.font=(isSelected?"900 ":"700 ")+Math.max(8,unit*2.4)+"px Arial";
+    ctx.textAlign="left";ctx.textBaseline="bottom";
+    ctx.fillText("#"+String(c.id+1).padStart(2,"0"),left-2,top-6);
+    if(isCandidate&&!isSelected){
+      ctx.textAlign="right";
+      ctx.fillText("◇",left+footprint+2,top-6);
+    }
+    ctx.restore();
+  }
   ctx.fillStyle="#000";
   for(let y=0;y<N;y++){
     const row=c.rows[y];
@@ -139,7 +223,7 @@ function separate(){
 }
 
 function update(dt,t){
-  if(paused || t<orderedUntil) return;
+  if(paused || bankMode || t<orderedUntil) return;
   separate();
 
   const half=footprint/2;
@@ -196,13 +280,14 @@ function hit(x,y){
 }
 
 canvas.addEventListener("pointerdown",e=>{
-  const p=pointerPos(e);
-  dragging=hit(p.x,p.y);
-  if(dragging<0) return;
+  const p=pointerPos(e),idx=hit(p.x,p.y),now=performance.now();
+  if(idx<0) return;
+  if(bankMode){toggleSelected(creatures[idx].id);return}
+  dragging=idx;
   canvas.setPointerCapture(e.pointerId);
   const c=creatures[dragging];
   c.x=p.x;c.y=p.y;c.vx=0;c.vy=0;
-  pointerLast={x:p.x,y:p.y,t:performance.now()};
+  pointerLast={x:p.x,y:p.y,t:now};
 });
 
 canvas.addEventListener("pointermove",e=>{
@@ -234,10 +319,20 @@ pauseButton.addEventListener("click",()=>{
   paused=!paused;
   pauseButton.textContent=paused?"SEGUIR":"PAUSA";
 });
-orderButton.addEventListener("click",()=>placeGrid(true));
+orderButton.addEventListener("click",()=>{
+  bankMode=!bankMode;
+  placeGrid(false);
+  refreshBankUi();
+});
+clearButton.addEventListener("click",()=>{
+  selected.clear();
+  if(bankMode)placeGrid(false);
+  refreshBankUi();
+});
 
 addEventListener("resize",resize,{passive:true});
 resize();
+refreshBankUi();
 requestAnimationFrame(render);
 })();
 </script>
