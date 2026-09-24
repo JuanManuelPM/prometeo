@@ -1167,6 +1167,7 @@ function semanticMetrics(base,normalOffset=0){
   const state=(sx<scale*.22||health<.12)?'EDGE':((sx<scale*.42||health<.24)?'COMPRESSED':'SAFE');
   return {p,sx,sy,health,state,rot:clamp(rot,-.14,.14)};
 }
+// DEPRECATED FOR POLYGONAL PANEL CONTENT: use physical mini-cuboids or direct projected vertices.
 function beginSemanticContent(c,base,normalOffset=0,allowCompressed=true){
   const m=semanticMetrics(base,normalOffset);
   if(m.state==='EDGE'||(!allowCompressed&&m.state!=='SAFE'))return null;
@@ -1293,8 +1294,8 @@ function drawProgressTube(c,site,index){
   c.restore();
 }
 
-const LAST_UPDATE_MS=Date.parse('2026-09-24T12:19:14.881Z');
-const BUILD_VERSION='V3.8';
+const LAST_UPDATE_MS=Date.parse('2026-09-24T12:30:15.512Z');
+const BUILD_VERSION='V3.9';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -1352,6 +1353,44 @@ function drawBlockPanel(c,base,W,H,panelColor,railColor,seed){
   c.restore();
 }
 
+
+function panelSemanticState(base,normalOffset=.071){
+  return semanticMetrics(base,normalOffset);
+}
+function drawPanelSegmentCuboid(c,base,lx,ly,w,h,active,seed,onColor='#b94729',offColor='#2c1a15'){
+  // IMPORTANT: semantic geometry is projected as physical mini-cuboids.
+  // It never passes local fractional coordinates through path()/fillRagged().
+  drawBoardCuboid(c,base,lx,ly,w,h,.075,active?onColor:offColor,seed);
+}
+function drawPhysicalDigit(c,base,ch,cx,cy,s,seed,onColor='#b94729',offColor='#2c1a15'){
+  const on=DIGITS[ch]||DIGITS['0'];
+  const w=s*.50,h=s*.88,t=s*.115,vh=h*.50-t*.65;
+  const segs=[
+    [cx,cy+h*.50,w,t],
+    [cx+w*.50,cy+h*.25,t,vh],
+    [cx+w*.50,cy-h*.25,t,vh],
+    [cx,cy-h*.50,w,t],
+    [cx-w*.50,cy-h*.25,t,vh],
+    [cx-w*.50,cy+h*.25,t,vh],
+    [cx,cy,w,t]
+  ];
+  for(let i=0;i<7;i++){
+    const [x,y,sw,sh]=segs[i];
+    drawPanelSegmentCuboid(c,base,x,y,sw,sh,!!on[i],seed+i*9,onColor,offColor);
+  }
+}
+function drawPhysicalColon(c,base,cx,cy,s,seed,color='#b94729'){
+  const d=s*.105;
+  drawBoardCuboid(c,base,cx,cy+s*.18,d,d,.075,color,seed);
+  drawBoardCuboid(c,base,cx,cy-s*.18,d,d,.075,color,seed+7);
+}
+function drawPhysicalProgressCell(c,base,lx,ly,w,h,state,seed,now){
+  let color='#251713';
+  if(state==='done')color='#a64026';
+  else if(state==='lead')color=(Math.sin(now*.006)>.05?'#6d2e20':'#51241c');
+  drawBoardCuboid(c,base,lx,ly,w,h,.075,color,seed);
+}
+
 function drawClock(c,now){
   const wallAng=-2.10;
   const base=wallBoardBasis(wallAng,18.02,5.78);
@@ -1360,43 +1399,21 @@ function drawClock(c,now){
   const W=3.30,H=1.72;
   drawBlockPanel(c,base,W,H,'#3f3028','#6b4734',15000);
 
+  const m=panelSemanticState(base,.071);
+  if(m.state==='EDGE')return;
+
   const d=new Date();
   const str=String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
-  const m=beginSemanticContent(c,base,.071,true);
-  if(!m)return;
 
   if(m.state==='SAFE'){
-    c.fillStyle='#c2a784';c.textAlign='center';c.textBaseline='middle';
-    c.font='800 .16px system-ui';c.fillText('HORA',0,-H*.34);
+    drawReadableBoardText(c,base,'HORA',0,H*.34,W*.50,.18,.10,800,'system-ui','#c2a784',.082);
   }
 
-  const s=.46,dw=s*.74,gap=.075,total=dw*4+gap*3+.14;
-  let x=-total*.5,y=-.28;
-  for(let i=0;i<4;i++){
-    if(i===2){
-      const on=d.getSeconds()%2===0;
-      c.save();c.globalCompositeOperation='screen';c.globalAlpha=on?.92:.24;c.fillStyle=on?'#e65029':'#5a2218';
-      c.beginPath();c.arc(x+.02,-.07,.035,0,TAU);c.fill();
-      c.beginPath();c.arc(x+.02,.20,.035,0,TAU);c.fill();c.restore();
-      x+=.14;
-    }
-    const on=DIGITS[str[i]]||DIGITS['0'],t=s*.15,L=s*.56;
-    const segs=[
-      [x+t,y,L,t],[x+t+L,y+t,t,L],[x+t+L,y+t+L,t,L],
-      [x+t,y+t+L*2,L,t],[x,y+t+L,t,L],[x,y+t,t,L],[x+t,y+t+L,L,t]
-    ];
-    for(let j=0;j<7;j++){
-      const [sx,sy,w,h]=segs[j],cv=Math.min(w,h)*.25;
-      const pts=[
-        {x:sx+cv,y:sy},{x:sx+w-cv,y:sy},{x:sx+w,y:sy+h*.5},
-        {x:sx+w-cv,y:sy+h},{x:sx+cv,y:sy+h},{x:sx,y:sy+h*.5}
-      ];
-      fillRagged(c,pts,on[j]?'#d74a29':'#4b241c',on[j]?'#1b0c09':null,on[j]?.025:0,15100+i*20+j);
-      if(on[j]){c.save();c.globalCompositeOperation='screen';c.globalAlpha=.19;c.fillStyle='#f2a15a';path(c,pts,true);c.fill();c.restore()}
-    }
-    x+=dw+gap;
-  }
-  endSemanticContent(c);
+  // Physical seven-segment clock: the numbers are miniature block objects on the panel.
+  const s=.72,cy=-.12;
+  const xs=[-.90,-.31,.31,.90];
+  for(let i=0;i<4;i++)drawPhysicalDigit(c,base,str[i],xs[i],cy,s,15100+i*100,'#b94729','#2b1b17');
+  drawPhysicalColon(c,base,0,cy,s,15550,d.getSeconds()%2===0?'#c64d2c':'#6a2b20');
 }
 
 function globalBurnRatio(now){
@@ -1420,32 +1437,23 @@ function drawGlobalProgressBoard(c,now){
   const W=4.78,H=1.42;
   drawBlockPanel(c,base,W,H,'#39261f','#74492f',15400);
 
+  const m=panelSemanticState(base,.071);
+  if(m.state==='EDGE')return;
+
   const done=globalBurnRatio(now);
-  const m=beginSemanticContent(c,base,.071,true);
-  if(!m)return;
-
   if(m.state==='SAFE'){
-    c.fillStyle='#c59872';c.textAlign='left';c.textBaseline='middle';
-    c.font='800 .13px system-ui';c.fillText('PROGRESO',-W*.41,-H*.28);
+    drawReadableBoardText(c,base,'PROGRESO',0,H*.31,W*.44,.15,.09,800,'system-ui','#c59872',.082);
   }
 
+  // No giant percentage. Twenty physical cells are the progress language.
   const cells=20,filled=Math.floor(done*cells+1e-6);
-  const gap=.052,cellW=(W*.82-gap*(cells-1))/cells,cellH=.30;
-  const start=-W*.41,y=.06;
+  const gap=.055,usable=W*.80,cellW=(usable-gap*(cells-1))/cells,cellH=.27;
+  const start=-usable*.5+cellW*.5,cy=-.08;
   for(let i=0;i<cells;i++){
-    const x=start+i*(cellW+gap),on=i<filled,lead=i===filled&&filled<cells;
-    const pts=[
-      {x,y:y-cellH*.5},{x:x+cellW,y:y-cellH*.47},
-      {x:x+cellW-.014,y:y+cellH*.5},{x:x+.014,y:y+cellH*.47}
-    ];
-    fillRagged(c,pts,on?'#ac4226':lead?'#5c291e':'#261713','#120a08',.020,15600+i);
-    if(on||lead){
-      c.save();c.globalCompositeOperation='screen';
-      c.globalAlpha=on?.18:(.07+.09*(.5+.5*Math.sin(now*.006)));
-      c.fillStyle=on?'#efa05a':'#c44c29';path(c,pts,true);c.fill();c.restore();
-    }
+    const x=start+i*(cellW+gap);
+    const state=i<filled?'done':(i===filled&&filled<cells?'lead':'empty');
+    drawPhysicalProgressCell(c,base,x,cy,cellW,cellH,state,15600+i*13,now);
   }
-  endSemanticContent(c);
 }
 
 // Third independent panel: build/version info in a different color and lower position.
@@ -1457,27 +1465,24 @@ function drawVersionBoard(c,now){
   const W=3.35,H=1.48;
   drawBlockPanel(c,base,W,H,'#26372d','#4b6754',15900);
 
+  const m=panelSemanticState(base,.071);
+  if(m.state==='EDGE')return;
+
   const d=new Date(LAST_UPDATE_MS);
   const updated=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+
     ' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
 
-  const m=beginSemanticContent(c,base,.071,true);
-  if(!m)return;
-
+  // Small physical status studs, not glow-only marks.
   if(m.state==='SAFE'){
     for(let i=0;i<6;i++){
-      const x=-.73+i*.29,on=i<4;
-      const pts=[{x:x-.08,y:-.48},{x:x+.08,y:-.48},{x:x+.075,y:-.36},{x:x-.085,y:-.36}];
-      fillRagged(c,pts,on?'#5f8068':'#1d2b23','#0d1510',.018,16000+i);
+      drawBoardCuboid(c,base,-.72+i*.29,H*.34,.14,.10,.070,i<4?'#567660':'#213027',16000+i*11);
     }
-    c.fillStyle='#819d87';c.textAlign='center';c.textBaseline='middle';
-    c.font='700 .105px system-ui';c.fillText('ACTUALIZADO',0,.28);
-    c.fillStyle='#b6c7b7';c.font='700 .145px system-ui';c.fillText(updated,0,.47);
+    drawReadableBoardText(c,base,'ACTUALIZADO',0,-H*.17,W*.66,.13,.08,800,'system-ui','#8ca690',.082);
+    drawReadableBoardText(c,base,updated,0,-H*.34,W*.58,.16,.09,800,'system-ui','#c4d2c5',.082);
   }
 
-  c.fillStyle='#a9c1ad';c.textAlign='center';c.textBaseline='middle';
-  c.font='900 .27px Georgia,serif';c.fillText(BUILD_VERSION,0,-.04);
-  endSemanticContent(c);
+  // Version stays native projected text, the same safe route that already works on KAIROS.
+  drawReadableBoardText(c,base,BUILD_VERSION,0,H*.05,W*.54,.31,.17,900,'Georgia,serif','#b4cab8',.084);
 }
 
 function chooseHelpSite(fromIndex){
