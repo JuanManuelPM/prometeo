@@ -184,3 +184,40 @@ A map may NOT replace:
 - emissive renderer;
 - post FX;
 - mobile shell.
+
+
+## Implemented in Component Lab V8
+
+The following map definitions are now live inside the single Component Lab page:
+
+- Coliseo
+- Fortaleza
+- Archivo
+- Pozo
+- Ciudadela
+- Fundición
+- Observatorio
+- Laberinto
+
+They all share:
+- the same yaw / zoom camera state;
+- the same projection;
+- the same `componentModuleBox -> addWorldBox -> renderWorldSolidsGL` solid path for newly-authored physical geometry;
+- the same depth-tested emissive pass;
+- the same global post-FX drawer;
+- the same swipe picker;
+- the same portrait-to-landscape shell.
+
+The canonical Coliseo remains the approved legacy shell/backdrop. The seven new maps are authored through the Component World v2 renderer.
+
+Map selection is in-page and updates URL state with `?mode=maps&map=<id>`.
+
+### Current reveal rules
+
+- Fortaleza: camera-facing outer and inner wall sectors are omitted to expose the keep.
+- Archivo: front terrace sectors are omitted progressively by tier.
+- Pozo: front shaft wall is removed, exposing galleries and bridges.
+- Ciudadela: districts rotate around a stable central plaza.
+- Fundición: central furnace + conveyor ring + perimeter workshops.
+- Observatorio: open gallery + animated orbital rings + perimeter instruments.
+- Laberinto: concentric walls use both gates and camera-facing cuts to expose inner paths.
