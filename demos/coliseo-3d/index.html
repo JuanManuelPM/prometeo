@@ -52,7 +52,7 @@ body{overscroll-behavior:none}
 </div>
 <div class="ui">
   <div class="brand"><div class="mark">III</div><div class="copy"><b>Arena</b><span>collage · campo amplio · construcción</span></div></div>
-  <div class="badge">12 constructores · banderas de torre · reloj</div>
+  <div class="badge">12 constructores · banderas + ritual final · reloj</div>
   <div class="help">arrastrá para rotar · pellizcá para acercar</div>
 </div>
 <script>
@@ -122,7 +122,7 @@ function newSite(i){
     x:Math.cos(ang)*r,z:Math.sin(ang)*r,targets,
     heights:new Map(),blocks:[],blueprints:new Map(),reservations:new Map(),
     baseColor:BLOCK_COLORS[Math.floor(hash(i,303)*BLOCK_COLORS.length)],
-    lastBuilt:-9999
+    lastBuilt:-9999,ritual:null
   };
 }
 const sites=Array.from({length:5},(_,i)=>newSite(i));
@@ -668,6 +668,7 @@ function updatePlayers(dt,now){
   for(let i=0;i<players.length;i++){
     const pl=players[i],site=sites[pl.siteIndex];
     pl.lastX=pl.x;pl.lastZ=pl.z;pl.lastH=pl.h;
+    if(updateRitualPlayer(pl,i,site,dt,now))continue;
     if(pl.wait>0){pl.wait=Math.max(0,pl.wait-dt);updateMovement(pl,dt);continue}
     if(!pl.task&&!pl.path.length&&!pl.segment)assignTask(pl,i);
     updateMovement(pl,dt);
@@ -901,11 +902,29 @@ function siteBannerAnchor(site,index){
     h:Math.max(1.42,top*.46+.72)
   };
 }
+function fitBannerText(c,text,maxWidth,maxSize,minSize,weight,family){
+  let size=maxSize;
+  const fam=family||'system-ui';
+  while(size>minSize){
+    c.font=(weight||700)+' '+size+'px '+fam;
+    if(c.measureText(text).width<=maxWidth)break;
+    size-=.5;
+  }
+  c.font=(weight||700)+' '+size+'px '+fam;
+  return size;
+}
+function drawCompressedText(c,text,x,y,maxWidth,maxSize,minSize,weight,family){
+  fitBannerText(c,text,maxWidth,maxSize,minSize,weight,family);
+  const measured=Math.max(1,c.measureText(text).width);
+  const sx=Math.min(1,maxWidth/measured);
+  c.save();c.translate(x,y);c.scale(sx,1);c.fillText(text,0,0);c.restore();
+}
 function drawTowerBanner(c,site,index){
+  if(site.ritual&&site.ritual.phase==='ashes')return;
+
   const a=siteBannerAnchor(site,index),p=wp(a.x,a.z,a.h);
   if(p.x<-140||p.x>IW+140||p.y<-120||p.y>IH+160)return;
 
-  // Billboard yaw only: anchored in world, but the cloth turns toward the viewer.
   const camX=Math.sin(yaw),camZ=Math.cos(yaw);
   const toCenterX=site.x-a.x,toCenterZ=site.z-a.z;
   const facing=Math.abs(camX*toCenterX+camZ*toCenterZ);
@@ -921,7 +940,6 @@ function drawTowerBanner(c,site,index){
   c.save();c.translate(q(p.x),q(p.y));
   c.rotate((hash(index,901)-.5)*.075);
 
-  // Pole planted next to the tower.
   c.strokeStyle='rgba(24,14,10,.86)';
   c.lineWidth=Math.max(1.05,scale*.052);
   c.beginPath();
@@ -929,13 +947,11 @@ function drawTowerBanner(c,site,index){
   c.lineTo(-w*.54,h*.72);
   c.stroke();
 
-  // Small top crossbar.
   c.beginPath();
   c.moveTo(-w*.54,-h*.50);
   c.lineTo(-w*.34,-h*.50);
   c.stroke();
 
-  // Vertical cloth, intentionally irregular.
   const cloth=[
     {x:-w*.36,y:-h*.48},
     {x:w*.46,y:-h*.44},
@@ -949,22 +965,28 @@ function drawTowerBanner(c,site,index){
   roughStroke(c,cloth,'#8a301f',Math.max(.7,scale*.04),6140+index,true);
   c.restore();
 
-  // Gentle fabric folds, not glossy shading.
   c.save();c.globalAlpha=.16;c.strokeStyle='#c36f38';c.lineWidth=Math.max(.55,scale*.028);
   c.beginPath();
   c.moveTo(-w*.14,-h*.36);c.quadraticCurveTo(w*.05,-h*.10,-w*.02,h*.28);
   c.moveTo(w*.18,-h*.31);c.quadraticCurveTo(w*.27,-h*.03,w*.12,h*.30);
   c.stroke();c.restore();
 
-  c.fillStyle='#d7ad76';
-  c.font=`700 ${Math.max(8,scale*.235)}px system-ui`;
+  // Absolute safety: text is clipped to the fabric itself, then compressed if necessary.
+  c.save();
+  path(c,cloth,true);c.clip();
   c.textAlign='center';c.textBaseline='middle';
-  c.fillText(title,w*.03,-h*.07);
 
-  // Handwritten-looking progress note.
-  c.save();c.globalAlpha=.80;c.fillStyle='#a58f76';
-  c.font=`italic ${Math.max(6,scale*.155)}px Georgia, "Times New Roman", serif`;
-  c.fillText(subtitle,w*.03,h*.19);
+  c.fillStyle='#d7ad76';
+  drawCompressedText(
+    c,title,w*.03,-h*.07,w*.64,
+    Math.max(8,scale*.235),Math.max(4.5,scale*.11),700,'system-ui'
+  );
+
+  c.globalAlpha=.80;c.fillStyle='#a58f76';
+  drawCompressedText(
+    c,subtitle,w*.02,h*.19,w*.58,
+    Math.max(6,scale*.155),Math.max(4,scale*.09),'italic','Georgia'
+  );
   c.restore();
 
   c.restore();
@@ -1045,6 +1067,125 @@ function drawClock(c,now){
   c.restore();
 }
 
+
+function updateSiteRituals(now){
+  for(let si=0;si<sites.length;si++){
+    const site=sites[si];
+    if(!site.ritual && buildComplete(site) && site.blueprints.size===0){
+      site.ritual={phase:'burning',started:now,burnDuration:7200};
+      for(let i=0;i<players.length;i++){
+        const pl=players[i];
+        if(pl.siteIndex!==si)continue;
+        pl.task=null;pl.wait=0;pl.ritualReady=false;
+        const start=nearestNavCell(site,pl);
+        const exits=boundaryGroundCells(site);
+        exits.sort((a,b)=>{
+          const wa=worldCell(site,a.gx,a.gz),wb=worldCell(site,b.gx,b.gz);
+          return Math.hypot(wa.x-pl.x,wa.z-pl.z)-Math.hypot(wb.x-pl.x,wb.z-pl.z);
+        });
+        const route=findPath(site,start,exits[0]||start);
+        pl.path=pathToWorld(site,route,start);
+        pl.segment=null;
+      }
+    }
+    if(site.ritual && site.ritual.phase==='burning' && now-site.ritual.started>=site.ritual.burnDuration){
+      site.ritual.phase='ashes';
+      site.ritual.ashStarted=now;
+      site.blocks.length=0;
+      for(let i=0;i<players.length;i++){
+        const pl=players[i];
+        if(pl.siteIndex===si){
+          pl.path.length=0;pl.segment=null;pl.task=null;pl.jump=0;pl.ritualReady=true;
+        }
+      }
+    }
+  }
+}
+function updateRitualPlayer(pl,index,site,dt,now){
+  const ritual=site.ritual;
+  if(!ritual)return false;
+
+  if(ritual.phase==='burning'){
+    if(!pl.ritualReady){
+      updateMovement(pl,dt);
+      if(!pl.path.length&&!pl.segment)pl.ritualReady=true;
+      return true;
+    }
+    const peers=players.filter(p=>p.siteIndex===pl.siteIndex);
+    const rank=Math.max(0,peers.indexOf(pl));
+    const base=now*.00155+rank*TAU/Math.max(1,peers.length)+pl.siteIndex*.7;
+    const radius=3.05+.22*Math.sin(now*.003+index);
+    const tx=site.x+Math.cos(base)*radius;
+    const tz=site.z+Math.sin(base)*radius;
+    const k=Math.min(1,dt*3.2);
+    pl.x+=(tx-pl.x)*k;pl.z+=(tz-pl.z)*k;pl.h=0;
+    pl.jump=Math.max(0,Math.sin(now*.010+rank*1.7))*.20;
+    return true;
+  }
+
+  if(ritual.phase==='ashes'){
+    const peers=players.filter(p=>p.siteIndex===pl.siteIndex);
+    const rank=Math.max(0,peers.indexOf(pl));
+    const a=rank*TAU/Math.max(1,peers.length)+pl.siteIndex*.55;
+    const radius=2.85;
+    const tx=site.x+Math.cos(a)*radius;
+    const tz=site.z+Math.sin(a)*radius;
+    const k=Math.min(1,dt*2.0);
+    pl.x+=(tx-pl.x)*k;pl.z+=(tz-pl.z)*k;pl.h=0;pl.jump=0;
+    return true;
+  }
+  return false;
+}
+function drawTowerFire(c,site,index,now){
+  if(!site.ritual||site.ritual.phase!=='burning')return;
+  const elapsed=now-site.ritual.started;
+  const p=clamp(elapsed/site.ritual.burnDuration,0,1);
+  const top=Math.max(BLOCK_H,siteTopHeight(site));
+  const flameFrame=Math.floor(now/110)%5;
+
+  c.save();c.globalCompositeOperation='screen';
+  for(let i=0;i<10;i++){
+    const a=i*TAU/10+hash(index,i)*.30+now*.00016*(i%2?1:-1);
+    const r=.45+hash(i,index)*1.55;
+    const h=(.20+hash(i,77)*.80)*top*(.72+.28*(1-p));
+    const wp0=wp(site.x+Math.cos(a)*r,site.z+Math.sin(a)*r,h);
+    const flick=.82+hash(flameFrame+i,index*13+i)*.30;
+    const g=c.createRadialGradient(wp0.x,wp0.y,0,wp0.x,wp0.y,scale*(.55+.55*flick));
+    g.addColorStop(0,'rgba(239,143,58,'+(.22*flick)+')');
+    g.addColorStop(.42,'rgba(187,52,27,'+(.12*flick)+')');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    c.fillStyle=g;c.beginPath();c.arc(wp0.x,wp0.y,scale*(.70+.45*flick),0,TAU);c.fill();
+    drawFlame(c,wp0,flameFrame,index*31+i);
+  }
+  c.restore();
+
+  // Soot veil gets denser as the structure burns.
+  const crown=wp(site.x,site.z,top*.82);
+  c.save();c.globalAlpha=.08+.16*p;
+  inkWash(c,crown.x,crown.y,scale*1.4,scale*.9,'#18110d',1,7000+index,3);
+  c.restore();
+}
+function drawAshes(c,site,index,now){
+  if(!site.ritual||site.ritual.phase!=='ashes')return;
+  const p=wp(site.x,site.z,.02),R=scale*1.55;
+  c.save();
+  blob(c,p.x,p.y+R*.12,R*1.15,R*.30,'rgba(16,13,11,.88)',null,0,7600+index,.18,26);
+  blob(c,p.x-R*.16,p.y,R*.60,R*.19,'rgba(73,58,49,.74)',null,0,7640+index,.22,18);
+  blob(c,p.x+R*.22,p.y+R*.04,R*.48,R*.15,'rgba(103,79,62,.43)',null,0,7680+index,.24,16);
+
+  // A few dying embers, deliberately sparse.
+  const age=now-site.ritual.ashStarted;
+  const fade=clamp(1-age/12000,0,1);
+  if(fade>0){
+    c.globalCompositeOperation='screen';c.globalAlpha=.20*fade;
+    for(let i=0;i<5;i++){
+      const ex=p.x+(hash(i,index)-.5)*R*.9,ey=p.y+(hash(index,i)-.5)*R*.22;
+      c.fillStyle=i%2?C.red:C.ochre;c.beginPath();c.arc(ex,ey,Math.max(.7,scale*.035),0,TAU);c.fill();
+    }
+  }
+  c.restore();
+}
+
 function drawDynamic(now){
   ctx.fillStyle=C.black;ctx.fillRect(0,0,IW,IH);
   ctx.drawImage(staticCanvas,0,0);
@@ -1052,14 +1193,20 @@ function drawDynamic(now){
 
   const t=now/1000;
   const dt=Math.min(.08,FRAME/1000);
+  updateSiteRituals(now);
   updatePlayers(dt,now);
 
-  for(let i=0;i<sites.length;i++){drawSiteShadow(ctx,sites[i],i);drawSiteMarker(ctx,sites[i],i)}
+  for(let i=0;i<sites.length;i++){
+    drawSiteShadow(ctx,sites[i],i);
+    drawSiteMarker(ctx,sites[i],i);
+    drawAshes(ctx,sites[i],i,now);
+  }
 
   const items=[];
   for(let si=0;si<sites.length;si++){
     const site=sites[si];
     for(let bi=0;bi<site.blocks.length;bi++){
+      if(site.ritual&&site.ritual.phase==='ashes')continue;
       const b=site.blocks[bi],pos=blockWorld(site,b),p=wp(pos.x,pos.z,(b.y+.5)*BLOCK_H);
       items.push({type:'block',si,bi,depth:p.zv,py:p.y,h:b.y});
     }
@@ -1082,6 +1229,8 @@ function drawDynamic(now){
     else if(it.type==='banner')drawTowerBanner(ctx,sites[it.si],it.si);
     else drawPlayer(ctx,players[it.i],t,it.i);
   }
+
+  for(let i=0;i<sites.length;i++)drawTowerFire(ctx,sites[i],i,now);
 
   ctx.save();ctx.globalCompositeOperation='screen';
   const flameFrame=Math.floor(now/165)%4;
