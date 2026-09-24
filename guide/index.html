@@ -31,7 +31,7 @@ ul{margin:0;padding-left:18px}.meta{font-size:11px;color:var(--muted);margin-top
 https://juanmanuelpm.github.io/prometeo/guide/</div>
  <div class="actions">
    <button class="btn primary" id="copy">COPIAR INVOCACIÓN</button>
-   <a class="btn" style="display:inline-grid;place-items:center;text-decoration:none" href="/prometeo/guides/">HOME</a>
+   <a class="btn" id="homeReturn" style="display:inline-grid;place-items:center;text-decoration:none" href="/prometeo/guides/">VOLVER</a>
  </div>
  <div class="meta" id="copyStatus">Pegá esas dos líneas en un chat nuevo.</div>
 </section>
@@ -75,6 +75,12 @@ https://juanmanuelpm.github.io/prometeo/guide/</div>
 (()=>{
  let APIKEY=null;
  const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/';
+ const params=new URLSearchParams(location.search), guideKey=(params.get('guide_key')||'MAIN').trim()||'MAIN';
+ const rawOrigin=params.get('origin')||'/prometeo/guides/';
+ const origin=/^\/prometeo\//.test(rawOrigin)?rawOrigin:'/prometeo/guides/';
+ const fixed='/prometeo/guide/?guide_key='+encodeURIComponent(guideKey)+'&origin='+encodeURIComponent(origin);
+ document.getElementById('prompt').textContent='GUIDE '+guideKey+'\nhttps://juanmanuelpm.github.io'+fixed;
+ document.getElementById('homeReturn').href=origin;
  async function key(){
    if(APIKEY)return APIKEY;
    const r=await fetch('/prometeo/guides/prometeo/',{cache:'no-store'});
@@ -86,15 +92,22 @@ https://juanmanuelpm.github.io/prometeo/guide/</div>
  async function load(){
   try{
    const k=await key();
-   const r=await fetch(BASE+'prometeo_guide_state?guide_id=eq.MAIN&select=*',{headers:{apikey:k,Authorization:'Bearer '+k},cache:'no-store'});
-   const d=(await r.json())[0]; if(!d)return;
-   document.getElementById('intent').textContent=d.current_intent||'—';
-   document.getElementById('strategy').textContent=d.current_strategy||'—';
-   document.getElementById('situation').textContent=d.situation_summary||'—';
+   const r=await fetch(BASE+'rpc/prometeo_bootstrap_manifest_v1',{method:'POST',headers:{apikey:k,Authorization:'Bearer '+k,'Content-Type':'application/json'},body:JSON.stringify({p_guide_key:guideKey}),cache:'no-store'});
+   if(!r.ok)throw new Error('bootstrap '+r.status);
+   const d=await r.json();
+   const pick=(...xs)=>xs.find(x=>x!=null&&x!=='');
+   const intent=pick(d.current_intent,d.intent,d.current?.intent,d.direction?.current_intent,d.guide?.current_intent);
+   const strategy=pick(d.current_strategy,d.strategy,d.current?.strategy,d.direction?.strategy,d.guide?.current_strategy);
+   const situation=pick(d.situation_summary,d.situation,d.current?.situation,d.summary,d.guide?.situation_summary);
+   const next=pick(d.next_actions,d.open_loops,d.current?.next_actions,d.direction?.next_actions,[]);
+   document.getElementById('intent').textContent=intent||('Bootstrap '+guideKey+' cargado');
+   document.getElementById('strategy').textContent=strategy||('knowledge_state: '+(d.knowledge_state||d.state||'KNOWN'));
+   document.getElementById('situation').textContent=situation||('cutoff: '+(d.state_cutoff_at||d.state_cutoff||d.evaluation_at||'UNKNOWN'));
    const ul=document.getElementById('next'); ul.innerHTML='';
-   (d.next_actions||[]).forEach(x=>{const li=document.createElement('li');li.textContent=x;ul.appendChild(li)});
+   (Array.isArray(next)?next:[next]).filter(Boolean).forEach(x=>{const li=document.createElement('li');li.textContent=typeof x==='string'?x:JSON.stringify(x);ul.appendChild(li)});
+   if(!ul.children.length){const li=document.createElement('li');li.textContent='Sin próxima acción durable declarada.';ul.appendChild(li)}
   }catch(e){
-   document.getElementById('situation').textContent='Estado dinámico no disponible; la reentrada GUIDE sigue válida.';
+   document.getElementById('situation').textContent='BootstrapManifestV1 no disponible; la entrada fija /guide/ sigue válida y el estado queda UNKNOWN.';
   }
  }
  document.getElementById('copy').addEventListener('click',async()=>{
