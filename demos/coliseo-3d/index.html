@@ -949,24 +949,22 @@ function siteTopHeight(site){
 }
 // TASK NOTE: previous replies incorrectly claimed GitHub publication was unavailable.
 // Correct behavior is to retry the connected GitHub writer and publish the requested change directly.
-const BANNER_W=4.75;
-const BANNER_H=3.75;
-const BANNER_POLE_H=8.10;
-const BANNER_POLE_GAP=4.62;
+const BANNER_W=4.12;
+const BANNER_H=3.02;
+const BANNER_POLE_H=7.55;
+const BANNER_POLE_GAP=4.06;
 const TORCH_STAKE_H=1.18;
 const PLAYER_R=BLOCK_STEP*.22;
 
 function siteBannerAnchor(site,index){
-  // Keep the banner inside the arena, a little farther out than its tower.
-  // That naturally puts it behind the blocks when viewed from the arena side.
+  // Near the arena edge, just in front of the stands.
   const ang=Math.atan2(site.z,site.x);
-  const siteR=Math.hypot(site.x,site.z);
-  const r=Math.min(11.72,siteR+2.05);
-  const tangent=(index%2?1:-1)*.18;
+  const r=12.55;
+  const tangent=(index%2?1:-1)*.10;
   return {
     x:Math.cos(ang)*r + (-Math.sin(ang))*tangent,
     z:Math.sin(ang)*r + ( Math.cos(ang))*tangent,
-    h:4.45,
+    h:4.18,
     ang
   };
 }
@@ -1113,6 +1111,30 @@ function drawBoardCuboid(c,base,lx,ly,w,h,d,color,seed){
   fillRagged(c,[Af,Bf,Cf,Df],shade(color,20),'rgba(9,6,5,.98)',.85,seed+5);
 }
 
+
+function drawReadableBoardText(c,base,text,localX,localY,maxWidthWorld,maxSizeWorld,minSizeWorld,weight,family,color,normalOffset){
+  const p=boardProject(base,localX,localY,normalOffset||0);
+  const px=boardProject(base,localX+1,localY,normalOffset||0);
+  let rot=Math.atan2(px.y-p.y,px.x-p.x);
+  let unit=Math.hypot(px.x-p.x,px.y-p.y);
+  if(unit<.001)return;
+  // Keep glyphs left-to-right even when the world tangent projects backwards.
+  if(Math.cos(rot)<0)rot+=Math.PI;
+
+  let size=maxSizeWorld*unit;
+  const minSize=minSizeWorld*unit,maxWidth=maxWidthWorld*unit;
+  c.save();c.translate(p.x,p.y);c.rotate(rot);
+  c.textAlign='center';c.textBaseline='middle';
+  while(size>minSize){
+    c.font=(weight||800)+' '+size+'px '+(family||'Georgia,serif');
+    if(c.measureText(text).width<=maxWidth)break;
+    size-=Math.max(.5,unit*.02);
+  }
+  c.font=(weight||800)+' '+size+'px '+(family||'Georgia,serif');
+  c.fillStyle=color;c.fillText(text,0,0);
+  c.restore();
+}
+
 function drawTowerBanner(c,site,index,now){
   if(site.ritual&&['trophy_wait','trophy_carry','trophy_drop','complete'].includes(site.ritual.phase))return;
   const base=bannerBasis(site,index);
@@ -1145,31 +1167,27 @@ function drawTowerBanner(c,site,index,now){
   // Pale board/paper slab, deliberately quiet so the type is finally readable.
   drawBoardCuboid(c,base,0,0,BANNER_W,BANNER_H,.11,panelColor,9400+index*30);
 
-  c.save();
-  boardAffine(c,base,.061);
-
-  // Slight printing defects, but no decorative fabric effects.
-  c.globalAlpha=.10;c.fillStyle=shade(site.baseColor,-18);
-  for(let k=0;k<7;k++){
-    const y=-BANNER_H*.36+k*BANNER_H*.115;
-    c.fillRect(-BANNER_W*.43,y,BANNER_W*(.12+hash(index,k)*.18),.028);
+  // Paper scuffs are world geometry.
+  c.save();boardAffine(c,base,.061);
+  c.globalAlpha=.085;c.fillStyle=shade(site.baseColor,-18);
+  for(let k=0;k<6;k++){
+    const y=-BANNER_H*.33+k*BANNER_H*.12;
+    c.fillRect(-BANNER_W*.40,y,BANNER_W*(.10+hash(index,k)*.16),.024);
   }
+  c.restore();
 
-  // Name is the main object: almost the full board width, dark stencil on pale paper.
-  c.globalAlpha=1;c.textAlign='center';c.textBaseline='middle';
-  fitWorldText(c,title,BANNER_W*.88,.73,.31,900,'Georgia,serif');
-  c.fillStyle='rgba(65,36,25,.20)';c.fillText(title,.045,-BANNER_H*.12+.035);
-  c.fillStyle=panelInk;c.fillText(title,0,-BANNER_H*.12);
-
+  // Text is anchored to the world plane but rendered readable instead of mirrored.
+  drawReadableBoardText(c,base,title,0,-BANNER_H*.12,BANNER_W*.84,.60,.27,900,'Georgia,serif','rgba(57,38,28,.22)',.063);
+  drawReadableBoardText(c,base,title,-.025,-BANNER_H*.14,BANNER_W*.84,.60,.27,900,'Georgia,serif',panelInk,.066);
   const pct=Math.round(prog.ratio*100)+'%';
-  fitWorldText(c,pct,BANNER_W*.34,.38,.18,900,'Georgia,serif');
-  c.fillStyle=shade(site.baseColor,-5);c.fillText(pct,0,BANNER_H*.27);
+  drawReadableBoardText(c,base,pct,0,BANNER_H*.27,BANNER_W*.28,.31,.16,900,'Georgia,serif',shade(site.baseColor,-6),.066);
 
-  // Tiny block ticks instead of ornaments.
+  // Tiny block progress ticks.
+  c.save();boardAffine(c,base,.068);
   for(let i=0;i<5;i++){
-    const x=-BANNER_W*.28+i*BANNER_W*.14;
-    c.fillStyle=i<Math.round(prog.ratio*5)?shade(site.baseColor,12):'#7f7567';
-    c.fillRect(x-.055,BANNER_H*.36,.11,.11);
+    const x=-BANNER_W*.24+i*BANNER_W*.12;
+    c.fillStyle=i<Math.round(prog.ratio*5)?shade(site.baseColor,12):'#81766a';
+    c.fillRect(x-.042,BANNER_H*.35,.084,.084);
   }
   c.restore();
 
@@ -1229,7 +1247,7 @@ function drawProgressTube(c,site,index){
   c.restore();
 }
 
-const LAST_UPDATE_MS=Date.parse('2026-09-24T05:00:14.073Z');
+const LAST_UPDATE_MS=Date.parse('2026-09-24T10:41:52.922Z');
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -1333,79 +1351,84 @@ function globalBurnRatio(now){
   }
   return total/sites.length;
 }
-function globalBoardBasis(){
-  const ang=-.42,r=18.02,h=5.18;
-  const a={x:Math.cos(ang)*r,z:Math.sin(ang)*r,h,ang};
-  const ux=-Math.sin(ang),uz=Math.cos(ang);
-  const nx=-Math.cos(ang),nz=-Math.sin(ang);
-  const cameraX=Math.sin(yaw),cameraZ=Math.cos(yaw);
-  const facing=nx*cameraX+nz*cameraZ;
-  return {a,ux,uz,nx,nz,facing};
-}
-function drawLocalSegDigit(c,ch,x,y,s){
-  const on=DIGITS[ch]||DIGITS['0'],t=s*.15,L=s*.56;
-  const segs=[
-    [x+t,y,L,t],[x+t+L,y+t,t,L],[x+t+L,y+t+L,t,L],
-    [x+t,y+t+L*2,L,t],[x,y+t+L,t,L],[x,y+t,t,L],[x+t,y+t+L,L,t]
-  ];
-  for(let i=0;i<7;i++){
-    const [sx,sy,w,h]=segs[i],cut=Math.min(w,h)*.25;
-    const pts=[
-      {x:sx+cut,y:sy},{x:sx+w-cut,y:sy},{x:sx+w,y:sy+h*.5},
-      {x:sx+w-cut,y:sy+h},{x:sx+cut,y:sy+h},{x:sx,y:sy+h*.5}
-    ];
-    c.globalAlpha=on[i]?1:.13;
-    fillRagged(c,pts,on[i]?'#df4a27':'#4d2119',on[i]?'#2b0b08':null,on[i]?.035:0,9720+i);
-  }
-  c.globalAlpha=1;
-}
 function drawGlobalProgressBoard(c,now){
-  const base=globalBoardBasis();
-  if(base.facing<=.035)return;
-  const center=boardProject(base,0,0,.02);
-  if(center.x<-180||center.x>IW+180||center.y<-160||center.y>IH+190)return;
+  // Separate from the clock, but mounted on the same outer wall.
+  const wallAng=.58;
+  const facing=Math.sin(wallAng+yaw);
+  if(cut(wallAng)||facing>-0.08)return;
 
+  const halfAng=.19;
+  const center=pr(18.06,wallAng,5.48);
+  const pL=pr(18.06,wallAng-halfAng,5.48),pR=pr(18.06,wallAng+halfAng,5.48);
+  let rot=Math.atan2(pR.y-pL.y,pR.x-pL.x);
+  if(Math.cos(rot)<0)rot+=Math.PI;
+
+  const worldW=Math.hypot(pR.x-pL.x,pR.y-pL.y);
+  const w=Math.max(scale*3.35,worldW);
+  const h=scale*1.78*(.74+.26*clamp(-facing,0,1));
   const ratio=globalBurnRatio(now),pct=Math.round(ratio*100);
-  const W=5.35,H=2.72;
-  const frameColor='#654637';
 
-  // Independent object on another wall: block rails + recessed luminous panel.
-  drawBoardCuboid(c,base,0,H*.5-.13,W+.38,.26,.24,frameColor,9680);
-  drawBoardCuboid(c,base,0,-H*.5+.13,W+.38,.26,.24,frameColor,9687);
-  drawBoardCuboid(c,base,-W*.5-.06,0,.26,H,.24,frameColor,9694);
-  drawBoardCuboid(c,base, W*.5+.06,0,.26,H,.24,frameColor,9701);
-  drawBoardCuboid(c,base,0,0,W,H,.12,'#0a0807',9708);
+  c.save();c.translate(q(center.x),q(center.y));c.rotate(rot);
 
-  c.save();boardAffine(c,base,.066);
-  c.textAlign='center';c.textBaseline='middle';
+  // Same print/LED family as the clock, with a heavier block-built frame.
+  const frame=[
+    {x:-w*.56,y:-h*.58},{x:w*.56,y:-h*.58},
+    {x:w*.56,y:h*.58},{x:-w*.56,y:h*.58}
+  ];
+  fillRagged(c,frame,'#090706','#1a0d09',Math.max(1.2,scale*.09),11800);
+  c.globalAlpha=.78;roughStroke(c,frame,'#6d2a1c',Math.max(.7,scale*.045),11810,true);c.globalAlpha=1;
 
-  // Small header, then genuinely luminous segmented percentage.
-  c.globalAlpha=.72;c.fillStyle='#a77b57';
-  c.font='700 .20px system-ui';c.fillText('PROGRESO TOTAL',0,-H*.37);
-
-  const digits=String(pct).padStart(3,'0');
-  const s=.63,dw=s*.74,gap=.08,total=dw*3+gap*2;
-  let x=-total*.5;
-  c.save();c.globalCompositeOperation='screen';c.globalAlpha=.13;
-  c.fillStyle='#c84727';c.fillRect(-1.55,-.58,3.10,1.18);c.restore();
-  for(let i=0;i<3;i++){drawLocalSegDigit(c,digits[i],x,-.48,s);x+=dw+gap;}
-  c.globalAlpha=.92;c.fillStyle='#d89a5b';c.font='900 .40px Georgia,serif';c.fillText('%',1.36,-.04);
-
-  // The bar is a row of block-like luminous cells, not a HUD rectangle.
-  const cells=18,filled=Math.round(ratio*cells),cellW=.235,cellH=.30;
-  const start=-(cells*cellW+(cells-1)*.045)*.5;
-  for(let i=0;i<cells;i++){
-    const x0=start+i*(cellW+.045);
-    const cell=[
-      {x:x0,y:.68},{x:x0+cellW,y:.68},
-      {x:x0+cellW-.018,y:.68+cellH},{x:x0+.018,y:.68+cellH}
+  // Four block-like corner brackets.
+  const bw=w*.10,bh=h*.13;
+  for(const sx of [-1,1])for(const sy of [-1,1]){
+    const x=sx*(w*.49-bw*.5),y=sy*(h*.49-bh*.5);
+    const pts=[
+      {x:x-bw*.5,y:y-bh*.5},{x:x+bw*.5,y:y-bh*.46},
+      {x:x+bw*.46,y:y+bh*.5},{x:x-bw*.52,y:y+bh*.46}
     ];
-    fillRagged(c,cell,i<filled?'#b43a23':'#2b1c16','#130c09',.025,9800+i);
-    if(i<filled){
-      c.save();c.globalCompositeOperation='screen';c.globalAlpha=.26;
-      c.fillStyle='#f29a52';path(c,cell,true);c.fill();c.restore();
+    fillRagged(c,pts,sx===sy?'#6a4938':'#51372d','#160d09',Math.max(.6,scale*.03),11830+(sx>0?1:0)+(sy>0?2:0));
+  }
+
+  c.fillStyle='#a97b57';c.textAlign='center';c.textBaseline='middle';
+  c.font=`700 ${Math.max(5,scale*.15)}px system-ui`;
+  c.fillText('PROGRESO TOTAL',0,-h*.42);
+
+  // Three stable seven-segment digits. Same primitive the clock already uses.
+  const str=String(pct).padStart(3,'0');
+  const ds=h*.56,dw=ds*.74,gap=ds*.10;
+  const total=dw*3+gap*2;
+  let xx=-total*.5,yy=-ds*.44;
+  for(let i=0;i<3;i++){drawDigit(c,str[i],xx,yy,ds*.92,11900+i);xx+=dw+gap;}
+
+  c.globalCompositeOperation='screen';
+  c.globalAlpha=.82;c.fillStyle='#e49b54';
+  c.font=`900 ${Math.max(7,scale*.23)}px Georgia,serif`;
+  c.fillText('%',w*.31,-h*.02);
+  c.globalCompositeOperation='source-over';c.globalAlpha=1;
+
+  // A real progress bar made of luminous cells, safely contained in the panel.
+  const cells=14,filled=Math.round(ratio*cells);
+  const cellGap=w*.012,cellW=(w*.76-cellGap*(cells-1))/cells,cellH=h*.15;
+  const startX=-w*.38,barY=h*.29;
+  for(let i=0;i<cells;i++){
+    const x=startX+i*(cellW+cellGap);
+    const pts=[
+      {x,y:barY-cellH*.5},{x:x+cellW,y:barY-cellH*.47},
+      {x:x+cellW-cellW*.07,y:barY+cellH*.5},{x:x+cellW*.07,y:barY+cellH*.47}
+    ];
+    const on=i<filled;
+    fillRagged(c,pts,on?'#b43a23':'#2c1b16','#140c09',Math.max(.45,scale*.024),12000+i);
+    if(on){
+      c.save();c.globalCompositeOperation='screen';c.globalAlpha=.30;
+      c.fillStyle='#f19b52';path(c,pts,true);c.fill();c.restore();
     }
   }
+
+  // Controlled halo, derived from the panel and clipped visually to its area.
+  c.save();c.globalCompositeOperation='screen';c.globalAlpha=.10+.08*ratio;
+  const glow=c.createRadialGradient(0,0,0,0,0,w*.46);
+  glow.addColorStop(0,'rgba(231,78,35,.45)');glow.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=glow;c.beginPath();c.ellipse(0,0,w*.46,h*.42,0,0,TAU);c.fill();c.restore();
 
   c.restore();
 }
