@@ -538,3 +538,96 @@ It is deliberately preserved because that renderer is already visually approved.
 Do not describe it as using `prometeo.component_renderer/v1` yet.
 
 Future newly-authored maps should use the shared Component renderer unless/until the canonical Coliseo is explicitly migrated.
+
+
+## V6.1 · Circular Coliseo world contract
+
+The Component Lab returns to the canonical circular Coliseo as the shared visual world.
+
+### Canonical shell
+
+The lab now reuses the last approved pre-branch Coliseo backdrop logic:
+- elliptical arena;
+- terraced stands;
+- rear wall;
+- arches;
+- pilasters;
+- rotating open/cut front section;
+- cut edges.
+
+The previous neutral flat component floor is removed.
+
+### Ring layout
+
+Structures, workers and effect stations no longer use linear rows.
+
+They occupy stable angular slots around the interior edge of the arena.
+
+Shared helpers:
+
+- `slotFrame()`
+- `slotPoint()`
+- `slotBox()`
+- `slotFrontness()`
+
+Every slot supplies:
+- angle;
+- radius;
+- tangent orientation;
+- inward radial direction.
+
+The camera rotates around the same world, so near sectors become readable while far sectors naturally recede.
+
+### One camera
+
+All modes use:
+- the same `yaw`;
+- the same `zoom`;
+- the same `cx/cy`;
+- the same `scale`;
+- the same projection equations.
+
+Changing modes does not reset zoom.
+
+The special Effects camera / `fitEffectsCamera()` has been deleted.
+
+### Shared physical path
+
+All newly-authored physical Component objects use:
+
+`slotBox -> componentModuleBox -> addWorldBox -> renderWorldSolidsGL`
+
+This includes:
+- circular structure prototypes;
+- worker station platforms and props;
+- effect panels;
+- effect posts;
+- torch/fuel blocks.
+
+### Shared emissive path
+
+World fire uses:
+- world coordinates;
+- the same projection;
+- the same depth buffer;
+- depth-tested additive blending.
+
+### Shared effects rule
+
+Effects do not own a camera.
+
+Projection snapping, when enabled by an effect preset, happens inside the shared solid projection rather than through a parallel renderer.
+
+Fullscreen post effects still happen after the complete world frame.
+
+### Maps
+
+Maps is no longer a separate iframe.
+
+The Maps mode displays the same canonical Coliseo shell inside the same page and same camera contract.
+
+Future maps must plug into the same world contract rather than creating separate pages/renderers.
+
+### Runtime contract
+
+`prometeo.component_world/v2`
