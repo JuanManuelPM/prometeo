@@ -14,9 +14,9 @@ body{overscroll-behavior:none}
  radial-gradient(circle at 50% 55%,rgba(71,42,20,.20),transparent 38%),
  linear-gradient(#090908,#030303)}
 canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
-#bg{z-index:1;filter:saturate(.72) contrast(1.10) brightness(.78) blur(.22px)}
-#actors{z-index:2;filter:saturate(.82) contrast(1.08) brightness(.90) blur(.30px)}
-#fg{z-index:3;pointer-events:none;filter:saturate(.70) brightness(.78) blur(.20px)}
+#bg{z-index:1;filter:saturate(.70) contrast(1.12) brightness(.78) blur(.10px)}
+#actors{z-index:2;filter:saturate(.78) contrast(1.08) brightness(.90) blur(.16px)}
+#fg{z-index:3;pointer-events:none;filter:saturate(.68) brightness(.78) blur(.08px)}
 #fx{z-index:4;pointer-events:none;mix-blend-mode:screen}
 #post{position:absolute;inset:-3%;z-index:5;pointer-events:none;
  background:
@@ -120,7 +120,20 @@ function pr(r,ang,h){
   const sy=Math.sin(t)*r;
   return {x:cx+sx*scale,y:cy+sy*scale*.34-h*scale*.57,d:Math.sin(t),t};
 }
-function frontCut(ang){return Math.sin(ang+yaw)>.58}
+const CUT=.20;
+function frontCut(ang){return Math.sin(ang+yaw)>CUT}
+function visibleArc(){
+  const A=Math.asin(CUT);
+  return {start:Math.PI-A-yaw,end:TAU+A-yaw};
+}
+function arcPoints(r,h,n){
+  const v=visibleArc(),pts=[];
+  for(let i=0;i<=n;i++){
+    const ang=v.start+(v.end-v.start)*(i/n);
+    pts.push(pr(r,ang,h));
+  }
+  return pts;
+}
 function q(v){return Math.round(v)}
 function line(ctx,p1,p2,color,width){ctx.beginPath();ctx.moveTo(q(p1.x),q(p1.y));ctx.lineTo(q(p2.x),q(p2.y));ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke()}
 function poly(ctx,pts,fill,stroke,width){
@@ -129,8 +142,23 @@ function poly(ctx,pts,fill,stroke,width){
 }
 function ellipse(ctx,x,y,rx,ry,fill,stroke,width){
   ctx.beginPath();ctx.ellipse(q(x),q(y),Math.max(1,rx),Math.max(1,ry),0,0,TAU);ctx.fillStyle=fill;ctx.fill();
-  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=width||1;ctx.stroke();
-    ctx.save();ctx.globalAlpha=.38;ctx.translate(.7,-.45);ctx.strokeStyle='rgba(219,174,116,.28)';ctx.stroke();ctx.restore();}
+  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=width||1;ctx.stroke();}
+}
+function blobEllipse(ctx,x,y,rx,ry,fill,stroke,width,seed,jitter,n){
+  n=n||52;jitter=jitter==null?.018:jitter;
+  const pts=[];
+  for(let i=0;i<n;i++){
+    const ang=i*TAU/n;
+    const j=1+(hash2(i+seed,seed*7+i*.13)-.5)*jitter*2;
+    pts.push({x:x+Math.cos(ang)*rx*j,y:y+Math.sin(ang)*ry*j});
+  }
+  ctx.beginPath();ctx.moveTo(q(pts[0].x),q(pts[0].y));
+  for(let i=1;i<pts.length;i++){
+    const p=pts[i];ctx.lineTo(q(p.x),q(p.y));
+  }
+  ctx.closePath();ctx.fillStyle=fill;ctx.fill();
+  if(stroke)roughOutline(ctx,pts,stroke,width||1,seed);
+  return pts;
 }
 function hash2(x,y){const s=Math.sin(x*12.9898+y*78.233)*43758.5453;return s-Math.floor(s)}
 function roughOutline(ctx,pts,color,width,seed){
@@ -164,33 +192,50 @@ function hatchPoly(ctx,pts,step,alpha,seed){
 }
 
 function ringBand(ctx,r1,r2,h1,h2,fillTop,fillSide,segments){
-  const items=[];
-  for(let i=0;i<segments;i++){
-    const a0=i*TAU/segments,a1=(i+1)*TAU/segments,am=(a0+a1)*.5;
-    if(frontCut(am))continue;
-    items.push({am,depth:Math.sin(am+yaw),a0,a1});
-  }
-  items.sort((x,y)=>x.depth-y.depth);
-  for(const s of items){
-    const p10=pr(r2,s.a0,h1),p11=pr(r2,s.a1,h1);
-    const t00=pr(r1,s.a0,h2),t01=pr(r1,s.a1,h2),t10=pr(r2,s.a0,h2),t11=pr(r2,s.a1,h2);
-    const side=[p10,p11,t11,t10],top=[t00,t01,t11,t10];
-    poly(ctx,side,fillSide,P.line,.82);
-    poly(ctx,top,fillTop,P.line,.72);
-    if(s.depth>.05)hatchPoly(ctx,side,Math.max(5,scale*.34),.18,s.am*19);
+  const n=Math.max(40,segments||64);
+  const outerLow=arcPoints(r2,h1,n);
+  const outerTop=arcPoints(r2,h2,n);
+  const innerTop=arcPoints(r1,h2,n);
+  const side=outerLow.concat(outerTop.slice().reverse());
+  const top=innerTop.concat(outerTop.slice().reverse());
+  poly(ctx,side,fillSide,P.line,1.05);
+  poly(ctx,top,fillTop,'rgba(16,10,8,.68)',.78);
 
+  // Sparse ink breaks, curved with the architecture instead of ruler-straight seams.
+  ctx.save();ctx.globalAlpha=.30;ctx.lineCap='round';
+  for(let k=1;k<7;k++){
+    const rr=r1+(r2-r1)*(k/7);
+    const pts=arcPoints(rr,h2+.01,44);
+    ctx.beginPath();
+    for(let i=0;i<pts.length;i++){
+      const p=pts[i],jy=(hash2(i+k,k*3)-.5)*1.3;
+      if(i===0)ctx.moveTo(p.x,p.y+jy);else ctx.lineTo(p.x,p.y+jy);
+    }
+    ctx.strokeStyle=k%2?'rgba(7,5,4,.55)':'rgba(196,115,63,.16)';
+    ctx.lineWidth=k%2?1.0:.7;ctx.stroke();
   }
+  ctx.restore();
 }
 
 function arena(ctx){
-  ellipse(ctx,cx,cy,10.95*scale,10.95*scale*.34,P.sand,'rgba(160,103,55,.16)',1.1);
-  ellipse(ctx,cx,cy+scale*.03,9.55*scale,9.55*scale*.34,'rgba(163,98,49,.08)',null,0);
-  ctx.save();ctx.strokeStyle='rgba(178,118,66,.10)';ctx.lineWidth=.7;
-  for(let i=0;i<48;i++){
-    const u=((i*47)%101)/101, v=((i*73)%97)/97;
-    const rr=Math.sqrt(u)*9.7,ang=v*TAU;
-    const p=pr(rr,ang,.01);
-    ctx.beginPath();ctx.moveTo(q(p.x-2),q(p.y));ctx.lineTo(q(p.x+2+(i%4)),q(p.y+(i%3-1)));ctx.stroke();
+  blobEllipse(ctx,cx,cy,10.95*scale,10.95*scale*.34,P.sand,'rgba(20,11,8,.88)',1.35,17,.014,72);
+  blobEllipse(ctx,cx,cy+scale*.03,9.62*scale,9.62*scale*.34,'rgba(119,66,36,.16)',null,0,23,.020,64);
+
+  // Dirt is built from ink flecks and translucent washes, not vector scratches.
+  ctx.save();
+  for(let i=0;i<125;i++){
+    const u=((i*47)%127)/127,v=((i*79)%131)/131;
+    const rr=Math.sqrt(u)*9.7,ang=v*TAU,p=pr(rr,ang,.01);
+    const s=.35+((i*13)%7)*.16;
+    ctx.globalAlpha=.10+((i*17)%5)*.025;
+    ctx.fillStyle=i%9===0?P.red2:(i%4===0?'#8a5431':'#17100c');
+    ctx.beginPath();ctx.arc(q(p.x),q(p.y),s,0,TAU);ctx.fill();
+  }
+  ctx.globalAlpha=.08;
+  for(let i=0;i<14;i++){
+    const rr=2.2+((i*37)%83)/83*7.0,ang=((i*53)%97)/97*TAU,p=pr(rr,ang,.01);
+    ctx.fillStyle=i%3===0?'#b34b26':'#241711';
+    ctx.beginPath();ctx.ellipse(p.x,p.y,scale*(.45+(i%4)*.20),scale*(.10+(i%3)*.05),(i*.71)%TAU,0,TAU);ctx.fill();
   }
   ctx.restore();
 }
@@ -216,44 +261,49 @@ function drawArch(ctx,ang,r,baseH,topH,index){
 }
 
 function outerWall(ctx){
-  const N=44,items=[];
-  for(let i=0;i<N;i++){
-    const a0=i*TAU/N,a1=(i+1)*TAU/N,am=(a0+a1)*.5;
-    if(frontCut(am))continue;
-    items.push({a0,a1,am,depth:Math.sin(am+yaw)});
+  ringBand(ctx,17.68,18.18,4.08,8.58,P.stoneHi,P.stone,84);
+
+  // Broad watercolor-like patches break the large wall mass.
+  const wallPts=arcPoints(18.16,6.2,64);
+  b.save();b.globalAlpha=.14;
+  for(let i=5;i<wallPts.length-5;i+=8){
+    const p=wallPts[i],w=scale*(1.6+(i%3)*.45),h=scale*(2.0+(i%4)*.22);
+    b.fillStyle=i%2?'#7b4635':'#273027';
+    b.beginPath();b.ellipse(p.x,p.y,w,h,(i%5-.2)*.03,0,TAU);b.fill();
   }
-  items.sort((x,y)=>x.depth-y.depth);
-  for(const s of items){
-    const p0=pr(18.15,s.a0,4.15),p1=pr(18.15,s.a1,4.15),t1=pr(18.15,s.a1,8.55),t0=pr(18.15,s.a0,8.55);
-    const tone=s.depth<0?P.stone:P.stoneHi;
-    const face=[p0,p1,t1,t0];
-    poly(ctx,face,tone,P.line,1.0);
-    if(s.depth>.02)hatchPoly(ctx,face,Math.max(5,scale*.30),.24,s.am*31);
+  b.restore();
+
+  arcSegments(ctx,18.22,4.14,P.stoneLo,2.0,82);
+  arcSegments(ctx,18.22,8.54,P.stoneLo,1.6,82);
+  for(let i=0;i<22;i++)drawArch(ctx,i*TAU/22,18.30,4.48,7.62,i);
+
+  // Pilasters are now thick, dark brush accents. No bright ruler-like spokes.
+  for(let i=0;i<18;i++){
+    const ang=i*TAU/18+TAU/36;if(frontCut(ang))continue;
+    const p0=pr(18.31,ang,4.20),p1=pr(18.31,ang,8.46);
+    line(ctx,p0,p1,'rgba(13,9,7,.44)',Math.max(1.0,scale*.11));
   }
-  arcSegments(ctx,18.2,4.15,P.stoneLo,1.8,68);
-  arcSegments(ctx,18.2,8.52,P.stoneLo,1.25,68);
-  for(let i=0;i<24;i++)drawArch(ctx,i*TAU/24,18.28,4.55,7.55,i);
-  for(let i=0;i<24;i++){
-    const ang=i*TAU/24+TAU/48;if(frontCut(ang))continue;
-    const p0=pr(18.31,ang,4.15),p1=pr(18.31,ang,8.55);line(ctx,p0,p1,'rgba(81,71,67,.42)',Math.max(.7,scale*.08));
-  }
-  ringBand(ctx,18.0,18.55,8.55,9.10,P.stoneHi,P.stone,56);
+  ringBand(ctx,18.0,18.56,8.55,9.12,P.stoneHi,P.stone,72);
+
   for(let i=0;i<18;i++){
     const ang=i*TAU/18+.02;if(frontCut(ang))continue;
-    const p=pr(18.42,ang,8.86);const ww=scale*.48,hh=scale*.32;
-    ctx.fillStyle='rgba(76,67,62,.48)';ctx.fillRect(q(p.x-ww*.5),q(p.y-hh*.5),q(ww),q(hh));
+    const p=pr(18.42,ang,8.88);
+    blobEllipse(ctx,p.x,p.y,scale*.25,scale*.15,'rgba(10,7,6,.72)',null,0,i+91,.10,14);
   }
 }
 
 function arcSegments(ctx,r,h,color,width,N){
-  ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();let open=false;
-  for(let i=0;i<=N;i++){
-    const ang=i*TAU/N;
-    if(frontCut(ang)){open=false;continue}
-    const p=pr(r,ang,h);
-    if(!open){ctx.moveTo(q(p.x),q(p.y));open=true}else ctx.lineTo(q(p.x),q(p.y));
+  const pts=arcPoints(r,h,Math.max(48,N||64));
+  for(let pass=0;pass<2;pass++){
+    ctx.beginPath();
+    for(let i=0;i<pts.length;i++){
+      const p=pts[i];
+      const j=(hash2(i+pass*11,r*3+h*7)-.5)*(pass?1.4:.8);
+      if(i===0)ctx.moveTo(q(p.x),q(p.y+j));else ctx.lineTo(q(p.x),q(p.y+j));
+    }
+    ctx.strokeStyle=pass?'rgba(193,102,55,.13)':color;
+    ctx.lineWidth=pass?Math.max(.65,width*.55):width;ctx.stroke();
   }
-  ctx.stroke();
 }
 
 function terraces(ctx){
@@ -264,12 +314,19 @@ function terraces(ctx){
     [14.62,15.62,2.20,2.66,P.seat2,P.seat],
     [15.52,16.48,2.64,3.10,P.seat,P.stoneLo]
   ];
-  tiers.forEach(t=>ringBand(ctx,t[0],t[1],t[2],t[3],t[4],t[5],64));
-  for(let i=0;i<16;i++){
-    const ang=i*TAU/16+.015;if(frontCut(ang))continue;
-    line(ctx,pr(11.6,ang,1.4),pr(16.45,ang,3.12),'rgba(220,215,204,.62)',Math.max(.6,scale*.20));
-    line(ctx,pr(11.6,ang,1.4),pr(16.45,ang,3.12),'rgba(70,64,57,.18)',.6);
-  }
+  tiers.forEach((t,idx)=>{
+    ringBand(ctx,t[0],t[1],t[2],t[3],t[4],t[5],72);
+    // A few irregular stains instead of geometric stair spokes.
+    const v=visibleArc();
+    ctx.save();ctx.globalAlpha=.11;
+    for(let j=0;j<5;j++){
+      const ang=v.start+(v.end-v.start)*((j+1)/6)+(hash2(j,idx)-.5)*.08;
+      const p=pr((t[0]+t[1])*.5,ang,t[3]+.02);
+      ctx.fillStyle=(j+idx)%2?'#11100d':'#7a3526';
+      ctx.beginPath();ctx.ellipse(p.x,p.y,scale*(.36+.08*j),scale*.10,ang+yaw,0,TAU);ctx.fill();
+    }
+    ctx.restore();
+  });
 }
 
 function flags(ctx){
@@ -286,24 +343,39 @@ function flags(ctx){
 }
 
 function cutEdges(ctx){
-  const asin=Math.asin(.58);
-  const ts=[asin,Math.PI-asin];
-  for(const t of ts){
-    const ang=t-yaw;
-    const i0=pr(11.25,ang,.2),i1=pr(11.25,ang,1.48),o1=pr(18.58,ang,9.08),o0=pr(18.58,ang,.2);
-    poly(ctx,[i0,o0,o1,i1],P.stoneHi,'rgba(61,52,47,.30)',1.15);
-    line(ctx,pr(12.0,ang,1.2),pr(17.7,ang,8.45),'rgba(91,79,75,.38)',Math.max(1,scale*.10));
+  const A=Math.asin(CUT);
+  const ts=[A,Math.PI-A];
+  for(let n=0;n<ts.length;n++){
+    const ang=ts[n]-yaw;
+    const p0=pr(11.18,ang,.20),p1=pr(18.58,ang,9.08);
+    // dark ink section line
+    line(ctx,p0,p1,'rgba(5,4,3,.96)',Math.max(2.0,scale*.17));
+    // slightly misregistered ochre/red print edge
+    const ox=(n?1:-1)*1.4,oy=-.7;
+    line(ctx,{x:p0.x+ox,y:p0.y+oy},{x:p1.x+ox,y:p1.y+oy},'rgba(177,62,31,.34)',Math.max(.9,scale*.07));
   }
-  const pL=pr(11.22,asin-yaw,.22),pR=pr(11.22,Math.PI-asin-yaw,.22);
-  line(ctx,pL,pR,'rgba(72,58,46,.28)',Math.max(1.3,scale*.11));
+  const v=visibleArc();
+  const left=pr(11.20,v.end,.22),right=pr(11.20,v.start,.22);
+  // Only a soft, irregular lip at the inner arena cut.
+  const pts=[];
+  for(let i=0;i<=34;i++){
+    const t=i/34;
+    const xx=left.x+(right.x-left.x)*t;
+    const yy=left.y+(right.y-left.y)*t+(hash2(i,44)-.5)*1.6;
+    pts.push({x:xx,y:yy});
+  }
+  f.beginPath();f.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length;i++)f.lineTo(pts[i].x,pts[i].y);
+  f.strokeStyle='rgba(16,9,6,.82)';f.lineWidth=Math.max(1.2,scale*.10);f.stroke();
 }
 
 function renderStatic(){
   scale=Math.min(W/41,H/27)*zoom;
   const grd=b.createLinearGradient(0,0,0,H);grd.addColorStop(0,'#11100d');grd.addColorStop(.48,'#080706');grd.addColorStop(1,'#020202');b.fillStyle=grd;b.fillRect(0,0,W,H);
   // grandes papeles superpuestos, apenas visibles: sensación de collage impreso.
-  b.fillStyle='rgba(86,43,31,.16)';b.fillRect(0,H*.17,W*.34,H*.62);
-  b.fillStyle='rgba(41,50,42,.13)';b.fillRect(W*.68,H*.08,W*.32,H*.70);
+  b.save();b.globalAlpha=.15;
+  blobEllipse(b,W*.14,H*.49,W*.28,H*.42,'#51291f',null,0,101,.035,58);
+  blobEllipse(b,W*.84,H*.40,W*.26,H*.36,'#243129',null,0,202,.040,58);
+  b.restore();
   ellipse(b,cx,cy+scale*5.2,19.8*scale,5.3*scale,P.shadow,null,0);
   arena(b);
   ringBand(b,11.0,11.5,.26,1.08,P.stoneHi,P.stone,64);
@@ -326,15 +398,21 @@ function drawPlayer(ctx,st,alpha){
   const rr=scale*st.size*(.80+depth*.22);
   const px=q(p.x),py=q(p.y),gx=q(g.x),gy=q(g.y);
   ctx.save();ctx.globalAlpha=alpha==null?1:alpha;
-  ctx.fillStyle='rgba(0,0,0,.64)';ctx.beginPath();ctx.ellipse(gx,gy+rr*.30,rr*.92,rr*.30,0,0,TAU);ctx.fill();
-  ctx.fillStyle=st.color;ctx.beginPath();ctx.arc(px,py,rr,0,TAU);ctx.fill();
-  ctx.strokeStyle='rgba(5,4,3,.96)';ctx.lineWidth=Math.max(1,rr*.14);ctx.stroke();
-  ctx.save();ctx.translate(1.2,-.8);ctx.globalAlpha=.32;ctx.strokeStyle=P.red;ctx.lineWidth=Math.max(.7,rr*.06);ctx.stroke();ctx.restore();
-  ctx.fillStyle='rgba(233,190,119,.72)';ctx.beginPath();ctx.arc(px-rr*.25,py-rr*.28,rr*.16,0,TAU);ctx.fill();
-  // two little hatch marks make the sprite read as drawn, not as a CSS sphere.
-  ctx.strokeStyle='rgba(4,3,3,.70)';ctx.lineWidth=Math.max(.7,rr*.08);
-  ctx.beginPath();ctx.moveTo(px-rr*.45,py+rr*.12);ctx.lineTo(px+rr*.25,py+rr*.48);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(px-rr*.20,py+rr*.02);ctx.lineTo(px+rr*.45,py+rr*.28);ctx.stroke();
+
+  blobEllipse(ctx,gx,gy+rr*.30,rr*.90,rr*.27,'rgba(0,0,0,.58)',null,0,st.r*17,.08,16);
+
+  const pts=blobEllipse(ctx,px,py,rr,rr,st.color,'rgba(4,3,3,.96)',Math.max(1,rr*.13),st.r*29+st.ang,.075,18);
+  // off-register print edge
+  ctx.save();ctx.globalAlpha=.30;ctx.translate(1.2,-.7);roughOutline(ctx,pts,P.red,Math.max(.7,rr*.055),st.r*11);ctx.restore();
+
+  blobEllipse(ctx,px-rr*.26,py-rr*.28,rr*.17,rr*.13,'rgba(233,190,119,.66)',null,0,st.r*7,.12,12);
+
+  // irregular ink freckles imply texture without turning into geometry lines.
+  ctx.fillStyle='rgba(4,3,3,.46)';
+  for(let i=0;i<4;i++){
+    const ang=st.ang+i*1.61,rad=rr*(.18+.13*i);
+    ctx.beginPath();ctx.arc(px+Math.cos(ang)*rad,py+Math.sin(ang)*rad,Math.max(.55,rr*.055),0,TAU);ctx.fill();
+  }
   ctx.restore();
 }
 
