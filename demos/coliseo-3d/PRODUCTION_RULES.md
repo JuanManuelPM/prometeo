@@ -1151,3 +1151,99 @@ Hard regression rule:
 > If a future panel uses small local fractional geometry, it must either be projected vertex-by-vertex or built with `drawBoardCuboid`. It may not pass those local coordinates through screen-space helpers that quantize with `q()`.
 
 The visual roadmap (roads / manifest / transport / work pads / dynamic layout) remains gated behind this coordinate-space discipline.
+
+
+## 39. Panel text projection · rigid rotation bug
+
+Observed failure:
+- tower sign geometry looked correct at oblique angles;
+- words looked correct front-on;
+- toward the screen edge the entire word rotated as one rigid sprite and approached vertical;
+- this exaggerated from moderate oblique view to stronger oblique view.
+
+Root cause:
+
+The previous text helper did:
+
+```js
+translate(anchor)
+rotate(projectedPanelTangentAngle)
+fillText(...)
+```
+
+That uses only ONE projected axis.
+
+The physical sign uses TWO projected axes:
+- horizontal panel tangent;
+- vertical world-height axis.
+
+Therefore the panel shears/compresses, while the word was rigidly rotating.
+
+A rigid screen rotation is NOT the projection of text painted on the panel.
+
+### Permanent rule
+
+Text attached to a physical panel must use a 2-axis surface basis.
+
+- X axis = projected panel tangent.
+- Y axis = projected world-down / panel vertical.
+- glyph vertical strokes remain vertical in world projection;
+- glyph horizontal strokes shear/compress with the panel;
+- the physical panel itself never rotates toward camera;
+- choose the equivalent left-to-right direction of the horizontal axis to avoid mirrored reading;
+- hide/fade the semantic layer before the projected tangent becomes near-vertical.
+
+### Forbidden
+
+Do not implement panel text as:
+
+```
+translate + rotate + uniformly scaled fillText
+```
+
+when the object itself is an affine-projected world surface.
+
+That turns the word into a billboard/sprite even if its anchor is correct.
+
+### Required readability gate
+
+Define:
+
+`horizontalHealth = abs(projectedHorizontal.x) / length(projectedHorizontal)`
+
+Current tower/wall text policy:
+
+- SAFE: `horizontalHealth >= 0.62`
+- COMPRESSED: `0.40 <= horizontalHealth < 0.62`
+- EDGE: `horizontalHealth < 0.40`
+
+SAFE:
+- full opacity.
+
+COMPRESSED:
+- keep physical shear/compression;
+- fade progressively.
+
+EDGE:
+- hide text.
+
+The sign frame remains visible according to its physical visibility rules.
+
+### V3.10 implementation
+
+`drawReadableBoardText(...)` now uses:
+
+- `panelTextSurfaceMetrics(...)`;
+- full 2-axis affine surface mapping;
+- left-to-right axis normalization without changing physical panel orientation;
+- world-vertical glyph axis;
+- progressive semantic fade near edge;
+- no rigid word rotation.
+
+This applies to:
+- tower names;
+- tower percentages;
+- wall labels;
+- version/update text.
+
+The block/segment semantic rules from V3.9 remain unchanged.
