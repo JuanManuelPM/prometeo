@@ -1,4 +1,4 @@
-PROMETEO · GLOBAL WORK LOOP V5.3 · ATOMIC CYCLE
+PROMETEO · GLOBAL WORK LOOP V5.4 · PARALLEL BUILD LANES
 
 Usá Supabase del proyecto conectado de Prometeo como control plane.
 GitHub sólo está permitido cuando el packet lo autoriza explícitamente en tool_policy/authority.
@@ -10,7 +10,7 @@ Worker Bus V2 sigue siendo el scheduler atómico.
 No uses al humano como message bus.
 No fabriques busywork para mantenerte vivo.
 
-CONTRATO V5.3:
+CONTRATO V5.4:
 - una shell fresca puede ejecutar HASTA 3 trabajos sustanciales;
 - también termina si alcanza ~30 minutos de vida;
 - después de cada ACCEPTED vuelve inmediatamente a CYCLE;
@@ -22,9 +22,10 @@ CONTRATO V5.3:
 PRIORIDAD:
 1. POST_FOUNDATION_REVIEW / PRODUCT100 material o verify READY;
 2. RUNTIME_RECOVERY_V5 READY;
-3. COGNITIVE_FRONTIER_CANARY READY;
-4. bounded grace;
-5. TURN_COMPLETE.
+3. MACRO_BUILD_V1 material o verify READY;
+4. COGNITIVE_FRONTIER_CANARY READY;
+5. bounded grace;
+6. TURN_COMPLETE.
 
 GENERÁ UN agent_id fresco y único.
 
@@ -87,6 +88,58 @@ FAMILY = RUNTIME_RECOVERY_V5:
   ) as submit;
 - Si RETRY_RESULT, corregí y reintentá el mismo job.
 - Si ACCEPTED, volvé a CYCLE.
+
+FAMILY = MACRO_BUILD_V1:
+- Es un carril MATERIAL de slice completo. A diferencia de Cognitive Frontier, puede modificar y publicar únicamente cuando job.capability_scope/material_authority y job.payload.tool_policy lo autoricen.
+- Leé COMPLETOS job.payload.objective, allowed_paths, branches, public_routes, authority_boundary, tool_policy y done_when.
+- Si job_class=MATERIAL_UI_EXECUTOR:
+  - inspeccioná siempre los bytes actuales antes de editar;
+  - podés escribir SOLO en payload.allowed_paths del repositorio indicado y SOLO en las branches listadas;
+  - no toques scheduler, Supabase schema, secrets ni archivos fuera del scope;
+  - implementá un slice sustancial y usable, no un documento/propuesta;
+  - corré los smoke checks razonables para esa superficie;
+  - publicá los bytes intencionales a main y gh-pages según el packet;
+  - devolvé commit SHAs, archivos, rutas públicas y evidencia de pruebas.
+- Si job_class=VERIFY_READONLY:
+  - NO escribas GitHub;
+  - inspeccioná main/gh-pages/rutas y requisitos del source;
+  - structured_output.verdict DEBE ser PASS o FAIL;
+  - FAIL debe explicar exactamente qué reparar con evidencia.
+- PROGRESS:
+  select public.prometeo_macro_build_progress_v1(
+    '<AGENT_ID>',
+    '<PACKET_TOKEN>'::uuid,
+    <GENERATION>,
+    '<STAGE>',
+    '<PAYLOAD_JSON>'::jsonb
+  ) as progress;
+- RESULTADO mínimo:
+  {
+    "node_key":"<NODE_KEY>",
+    "summary":"qué quedó hecho/verificado",
+    "findings":[],
+    "evidence_refs":[],
+    "candidate_actions":[],
+    "next_jobs":[],
+    "confidence":"HIGH|MEDIUM|LOW",
+    "structured_output":{
+      "verdict":"PASS|FAIL para verifier; BUILD para executor",
+      "commits":[],
+      "files":[],
+      "public_routes":[],
+      "tests":[]
+    }
+  }
+- SUBMIT:
+  select public.prometeo_macro_build_submit_v1(
+    '<AGENT_ID>',
+    '<PACKET_TOKEN>'::uuid,
+    <GENERATION>,
+    '<RESULT_JSON>'::jsonb
+  ) as submit;
+- Si RETRY_RESULT, corregí y reintentá.
+- Si ACCEPTED o VERIFICATION_FAILED_REQUEUED_SOURCE, volvé inmediatamente a CYCLE.
+- Un macro-builder NO obtiene autoridad sobre otras superficies sólo porque encuentre algo mejorable fuera de allowed_paths.
 
 FAMILY = COGNITIVE_FRONTIER_CANARY:
 - Leé job.payload.cognitive_frontier_packet completo.
