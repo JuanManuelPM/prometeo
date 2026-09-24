@@ -38,7 +38,13 @@ h1{font-size:clamp(38px,7vw,72px);line-height:.92;letter-spacing:-.065em;margin:
 .dagLegend .done{background:#fff;border-color:#fff}.dagLegend .ready{background:#aaa;border-color:#fff}.dagLegend .active{background:#000;border:2px solid #fff}.dagLegend .blocked{background:#111}
 .nodeDetail{margin-top:9px;border:1px solid var(--line);padding:10px;min-height:58px;font-size:11px;line-height:1.45;color:#aaa}.nodeDetail b{color:#fff}
 .workerTag{font:800 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.05em}
-@media(max-width:860px){.statusGrid{grid-template-columns:1fr 1fr}.statusCell:nth-child(2){border-right:0}.statusCell:nth-child(n+3){border-top:1px solid var(--line)}.phaseGrid{grid-template-columns:repeat(3,1fr)}.guides{grid-template-columns:1fr 1fr}}
+
+.controlPlane{padding:16px 0;border-bottom:1px solid var(--line)}
+.controlTop{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line)}
+.controlTop>div{padding:11px;border-right:1px solid var(--line);min-width:0}.controlTop>div:last-child{border-right:0}.controlTop b{display:block;font-size:17px;letter-spacing:-.03em;overflow-wrap:anywhere}.controlTop span{font:750 8px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.branchStrip{display:grid;grid-template-columns:repeat(4,1fr);border-left:1px solid var(--line);border-top:1px solid var(--line);margin-top:8px}.branchItem{padding:9px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-width:0}.branchItem b{display:block;font-size:13px}.branchItem span{font:750 8px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.alarmBox{margin-top:8px;border:1px solid var(--line);padding:10px;font:750 9px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#aaa}.alarmBox b{color:#fff}.invokeRow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}.invokeBtn{display:inline-flex;align-items:center;min-height:38px;padding:0 12px;background:#fff;color:#000;text-decoration:none;font:950 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em}.invokeMeta{font:750 9px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+@media(max-width:860px){.controlTop,.branchStrip{grid-template-columns:1fr 1fr}.statusGrid{grid-template-columns:1fr 1fr}.statusCell:nth-child(2){border-right:0}.statusCell:nth-child(n+3){border-top:1px solid var(--line)}.phaseGrid{grid-template-columns:repeat(3,1fr)}.guides{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){
  .shell{padding-left:9px;padding-right:9px}.topbar{margin:0 -9px;padding:8px 9px;gap:5px}.brand{font-size:9px;letter-spacing:.12em}.navlink{height:30px;padding:0 8px;font-size:8px}
  h1{font-size:40px}.hero{padding:18px 0 14px}.statusCell{padding:11px 8px}.big{font-size:21px}.actionCell{grid-column:1/-1;border-right:0}
@@ -47,6 +53,7 @@ h1{font-size:clamp(38px,7vw,72px);line-height:.92;letter-spacing:-.065em;margin:
  .dagSummary{grid-template-columns:1.15fr 1fr 1fr;margin-bottom:7px}.dagSummary>div{padding:8px 7px;border-right:1px solid var(--line);border-bottom:0}.dagSummary b{font-size:16px}.dagSummary span{font-size:7px}
  .dagViewport{overflow:visible;border-left:0;border-right:0;margin-left:-9px;margin-right:-9px;touch-action:pan-y;overscroll-behavior-y:auto}.dagViewport::after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 16px 28px #0008,inset 0 -16px 28px #0008}
  #dag{height:auto;min-width:0;width:100%;display:block;touch-action:pan-y}.dagHint{font-size:8px;margin-top:6px}.dagLegend{gap:8px}.nodeDetail{font-size:10px;padding:9px;min-height:52px}
+ .controlTop,.branchStrip{grid-template-columns:1fr}.controlTop>div{border-right:0;border-bottom:1px solid var(--line)}.controlTop>div:last-child{border-bottom:0}
  .goalTrack{gap:2px}.goalSeg{height:16px}
 }
 </style>
@@ -69,6 +76,19 @@ h1{font-size:clamp(38px,7vw,72px);line-height:.92;letter-spacing:-.065em;margin:
  <div class="statusCell"><div class="label">Verificado</div><div class="big" id="verifiedPct">–%</div><div class="sub" id="gateState">gate…</div></div>
  <div class="statusCell actionCell"><div class="label">Qué hacés ahora</div><div class="big" id="humanAction">cargando…</div><div class="sub" id="humanActionSub"></div><a class="actionBtn" href="/prometeo/o/">ABRIR WORKERS</a></div>
 </div>
+
+<section class="controlPlane" id="controlPlane">
+ <div class="sectionHead"><div><div class="eyebrow">CONTROL PLANE · SHOW1</div><div class="sectionTitle">Estado canónico</div><div class="sectionDesc">Ramas, gate, camino crítico, capacidad y alarmas salen de proyecciones con cutoff. La UI no convierte una session row en liveness.</div></div></div>
+ <div class="controlTop">
+  <div><span>GATE LIMITANTE</span><b id="cpGate">–</b><span id="cpGateSub">cargando…</span></div>
+  <div><span>CAMINO CRÍTICO</span><b id="cpCritical">–</b><span id="cpCriticalSub">cargando…</span></div>
+  <div><span>CAPACIDAD</span><b id="cpCapacity">–</b><span id="cpCapacityReason">cargando…</span></div>
+  <div><span>SNAPSHOT AGE</span><b id="cpAge">–</b><span id="cpVerified">último verificado…</span></div>
+ </div>
+ <div class="branchStrip" id="cpBranches"></div>
+ <div class="alarmBox" id="cpAlarms">cargando alarmas…</div>
+ <div class="invokeRow"><a class="invokeBtn" id="invokeGuide" href="/prometeo/guide/">INVOKE STRATEGY</a><span class="invokeMeta">entrada fija /guide/ · bootstrap por guide_key · retorno al origin</span></div>
+</section>
 
 
 <section class="section">
@@ -119,11 +139,14 @@ h1{font-size:clamp(38px,7vw,72px);line-height:.92;letter-spacing:-.065em;margin:
 (()=>{
 const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
 const TZ='America/Argentina/Buenos_Aires';
-let APIKEY=null,hours=48,metric='useful_submits',timeline=null,product=null,health=null,dashboard=null,graph=null;
+let APIKEY=null,hours=48,metric='useful_submits',timeline=null,product=null,capacity=null,dashboard=null,graph=null;
 const metricInfo={useful_submits:{label:'trabajo útil',unit:' submits'},useful_per_worker_hour:{label:'útil / worker-h',unit:'/h'},real_workers:{label:'workers reales',unit:''},product100_submits:{label:'Product-100',unit:' submits'},watchdog_requeues:{label:'requeues',unit:''}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const fmt=t=>new Intl.DateTimeFormat('es-AR',{timeZone:TZ,day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(t));
 const clock=t=>new Intl.DateTimeFormat('es-AR',{timeZone:TZ,hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(t));
+const compact=v=>{if(v==null)return '—';if(Array.isArray(v))return v.length?v.map(compact).join(' · '):'—';if(typeof v==='object'){for(const k of ['state','status','knowledge_state','code','value'])if(v[k]!=null)return compact(v[k]);try{return JSON.stringify(v)}catch(e){return String(v)}}return String(v)};
+const age=t=>{if(!t)return 'UNKNOWN';const sec=Math.max(0,Math.round((Date.now()-new Date(t).getTime())/1000));if(!Number.isFinite(sec))return 'UNKNOWN';return sec<60?sec+'s':sec<3600?Math.round(sec/60)+'m':Math.round(sec/3600)+'h'};
+const arr=v=>Array.isArray(v)?v:(v==null?[]:[v]);
 async function key(){
  if(APIKEY)return APIKEY;
  const r=await fetch('/prometeo/guides/prometeo/',{cache:'no-store'});const txt=await r.text();
@@ -256,17 +279,42 @@ function showDagNode(key){
  nodeDetail.innerHTML='<b>'+esc(n.key)+' · '+esc(n.title||'')+'</b><br>'+esc(n.state)+(n.progress_stage?' · '+esc(n.progress_stage):'')+' · espera: '+esc(deps)+' · faltan '+esc(n.unresolved_dependencies||0)+' dependencias · desbloquea: '+esc(unlock)+workerLine;
 }
 function renderStatus(){
- if(!product||!health)return;const j=product.jobs||{},pct=product.percentage||{};
+ if(!product)return;const j=product.jobs||{},pct=product.percentage||{};
  packageCount.textContent=(j.done_success||0)+' / 30';packageSub.textContent=(j.ready||0)+' READY · '+(j.active||0)+' ACTIVE · '+(j.blocked||0)+' BLOCKED';
  verifiedPct.textContent=(pct.display??0)+'%';gateState.textContent='gate: '+(pct.limiting_gate||'—');goalState.textContent=product.released?'RELEASED':'NO RELEASED';
- const n=Number(health.recommended_new_shells||0);
- if(n>0){humanAction.textContent='LANZAR '+n+' WORKER'+(n===1?'':'S');humanActionSub.textContent=(health.claimable_job_classes||[]).join(' · ')||'hay trabajo útil reclamable'}
- else if(Number(health.useful_active||0)>0){humanAction.textContent='NO HACER NADA';humanActionSub.textContent=health.useful_active+' trabajo útil activo; dejalo terminar'}
- else if(Number(health.useful_ready_width||0)>0){humanAction.textContent='FALTA CAPACIDAD';humanActionSub.textContent=(health.claimable_job_classes||[]).join(' · ')}
- else{humanAction.textContent='SIN LANZAMIENTO';humanActionSub.textContent=(health.reason_codes||[]).join(' · ')||'sin déficit útil demostrado'}
+ const capState=compact(capacity?.capacity_state??capacity?.capacity?.state??capacity?.recommendation??product.capacity??'UNKNOWN');
+ const reasons=arr(capacity?.reason_codes??capacity?.capacity?.reason_codes??capacity?.reasons);
+ const n=Number(capacity?.recommended_new_shells??capacity?.capacity?.recommended_new_shells??0);
+ if(n>0){humanAction.textContent='LANZAR '+n+' WORKER'+(n===1?'':'S');humanActionSub.textContent=reasons.join(' · ')||capState}
+ else if(capState==='NEED_MORE'){humanAction.textContent='FALTA CAPACIDAD';humanActionSub.textContent=reasons.join(' · ')||'NEED_MORE'}
+ else if(capState==='ENOUGH'){humanAction.textContent='NO HACER NADA';humanActionSub.textContent=reasons.join(' · ')||'capacidad suficiente'}
+ else{humanAction.textContent='SIN LANZAMIENTO';humanActionSub.textContent=reasons.join(' · ')||capState}
  productSentence.textContent=(j.done_success||0)+' paquetes SUCCESS; '+(j.ready||0)+' READY, '+(j.active||0)+' ACTIVE y '+(j.blocked||0)+' detrás de dependencias. El porcentaje visible sigue gobernado por '+(pct.limiting_gate||'el gate actual')+'.';
  const done=Math.min(30,Number(j.done_success||0)),ready=Math.min(30-done,Number(j.ready||0)+Number(j.active||0));
  goalTrack.innerHTML=Array.from({length:30},(_,i)=>'<i class="goalSeg '+(i<done?'done':i<done+ready?'ready':'')+'"></i>').join('');
+ renderControlPlane();
+}
+function renderControlPlane(){
+ const pct=product?.percentage||{},nodes=graph?.nodes||[],active=(graph?.summary?.active_nodes||[]),ready=(graph?.summary?.ready_nodes||[]);
+ cpGate.textContent=pct.limiting_gate||'UNKNOWN';cpGateSub.textContent='cap '+compact(pct.gate_cap)+'% · verificado '+compact(pct.raw_verified)+'%';
+ const supplied=capacity?.critical_path??capacity?.bottleneck??capacity?.critical_node;
+ cpCritical.textContent=compact(supplied??active.join(' + ')??'UNKNOWN');
+ cpCriticalSub.textContent=active.length?'ACTIVE '+active.join(' · '):(ready.length?'READY '+ready.join(' · '):'sin frontier útil visible');
+ const capState=compact(capacity?.capacity_state??capacity?.capacity?.state??capacity?.recommendation??product?.capacity??'UNKNOWN');
+ const reasons=arr(capacity?.reason_codes??capacity?.capacity?.reason_codes??capacity?.reasons);
+ cpCapacity.textContent=capState;cpCapacityReason.textContent=reasons.join(' · ')||'sin reason_codes';
+ const snap=capacity?.evaluation_at??capacity?.generated_at??capacity?.state_cutoff_at??capacity?.state_cutoff??graph?.generated_at??product?.server_time;
+ cpAge.textContent=age(snap);cpAge.title=String(snap||'');
+ const verified=nodes.filter(n=>n.state==='DONE'&&n.completion_class==='SUCCESS'&&(n.job_class==='VERIFY_READONLY'||String(n.key).endsWith('V'))).sort((a,b)=>new Date(b.completed_at||0)-new Date(a.completed_at||0))[0];
+ cpVerified.textContent=compact(capacity?.latest_verified_change??(verified?(verified.key+' · '+verified.title):'UNKNOWN'));
+ const branches=product?.branches||{};cpBranches.innerHTML=Object.entries(branches).map(([k,v])=>'<div class="branchItem"><b>'+esc(k.replace(/^[A-H]_/,''))+' · '+esc(v)+'%</b><span>'+esc(k)+'</span></div>').join('');
+ const alarms=arr(capacity?.alarms??capacity?.alerts??capacity?.alarm_codes);
+ const cutoff=capacity?.state_cutoff_at??capacity?.state_cutoff??capacity?.cutoff??'UNKNOWN';
+ const compat=capacity?.compatibility??capacity?.contract_compatibility??capacity?.compatibility_state??'UNKNOWN';
+ const live=capacity?.liveness??capacity?.liveness_state??capacity?.worker_liveness??'UNKNOWN';
+ const recovery=capacity?.recovery??capacity?.recovery_state??capacity?.recovery_summary??'UNKNOWN';
+ cpAlarms.innerHTML='<b>ALARMS</b> '+esc(alarms.length?alarms.map(compact).join(' · '):'ninguna reportada')+'<br><b>REASON_CODES</b> '+esc(reasons.length?reasons.join(' · '):'—')+'<br><b>CUTOFF</b> '+esc(compact(cutoff))+' · <b>COMPAT</b> '+esc(compact(compat))+' · <b>LIVENESS</b> '+esc(compact(live))+' · <b>RECOVERY</b> '+esc(compact(recovery));
+ invokeGuide.href='/prometeo/guide/?guide_key=MAIN&origin='+encodeURIComponent(location.pathname+location.search+location.hash);
 }
 function renderGuides(){
  const gs=dashboard?.guides||[];guides.innerHTML=gs.map(g=>{const w=g.work||{};return '<a class="guide" href="/prometeo'+esc(g.page_route||'/guides/')+'"><div class="guideTop"><span class="guideName">'+esc(g.short_title||g.title)+'</span><span class="guideState">'+esc(g.capsule_status||g.status||'—')+'</span></div><div class="guideMeta">'+esc(w.active||0)+' ACTIVE · '+esc(w.ready||0)+' READY<br>'+esc(g.surface_count||0)+' superficies · abrir →</div></a>'}).join('');
@@ -292,7 +340,12 @@ function renderChart(){
 function showPoint(i){const d=timeline.buckets[i],mi=metricInfo[metric];pointDetail.textContent=fmt(d.at)+' → '+mi.label+': '+(d[metric]??0)+mi.unit+' · workers '+d.real_workers+' · útil '+d.useful_submits+' · Utility '+d.utility_submits+' · requeues '+d.watchdog_requeues}
 async function loadTimeline(){timeline=await rpc('prometeo_throughput_timeline_v1',{p_hours:hours});renderChart();renderMarkers();renderPhases();renderLastHour()}
 async function load(){
- try{const [p,h,d,t,g]=await Promise.all([rpc('prometeo_product100_status_v1',{}),rpc('prometeo_worker_health_v1',{}),rpc('prometeo_guides_dashboard_v2',{}),rpc('prometeo_throughput_timeline_v1',{p_hours:hours}),rpc('prometeo_product100_graph_v2',{})]);product=p;health=h;dashboard=d;timeline=t;graph=g;liveStamp.textContent='LIVE · '+clock(t.generated_at);renderStatus();renderGuides();renderDag();renderMarkers();renderPhases();renderLastHour();renderChart()}catch(e){liveStamp.textContent='ERROR · reintentando';pointDetail.textContent=String(e.message||e)}
+ try{
+  const [p,d,t,g]=await Promise.all([rpc('prometeo_product100_status_v1',{}),rpc('prometeo_guides_dashboard_v2',{}),rpc('prometeo_throughput_timeline_v1',{p_hours:hours}),rpc('prometeo_product100_graph_v2',{})]);
+  product=p;dashboard=d;timeline=t;graph=g;
+  try{capacity=await rpc('prometeo_worker_bus_v2_projection_v1',{p_cohort_scope:p.mesh_id||'PROMETEO-PRODUCT-100-V1'})}catch(e){capacity={capacity_state:'UNKNOWN',reason_codes:['PROJECTION_UNAVAILABLE'],compatibility:'UNKNOWN',liveness:'UNKNOWN',recovery:'UNKNOWN'}}
+  liveStamp.textContent='LIVE · '+clock(graph?.generated_at||product?.server_time||t.generated_at);renderStatus();renderGuides();renderDag();renderMarkers();renderPhases();renderLastHour();renderChart()
+ }catch(e){liveStamp.textContent='ERROR · reintentando';pointDetail.textContent=String(e.message||e)}
 }
 rangeControls.querySelectorAll('[data-hours]').forEach(b=>b.onclick=async()=>{hours=Number(b.dataset.hours);rangeControls.querySelectorAll('.ctrl').forEach(x=>x.classList.toggle('active',x===b));pointDetail.textContent='Cargando rango…';try{await loadTimeline()}catch(e){pointDetail.textContent='No se pudo cargar el rango.'}});
 metricControls.querySelectorAll('[data-metric]').forEach(b=>b.onclick=()=>{metric=b.dataset.metric;metricControls.querySelectorAll('.ctrl').forEach(x=>x.classList.toggle('active',x===b));pointDetail.textContent='Tocá la línea para inspeccionar un bloque de 30 minutos.';renderChart()});
