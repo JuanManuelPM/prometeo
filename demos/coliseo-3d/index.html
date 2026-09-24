@@ -52,7 +52,7 @@ body{overscroll-behavior:none}
 </div>
 <div class="ui">
   <div class="brand"><div class="mark">III</div><div class="copy"><b>Arena</b><span>collage · campo amplio · construcción</span></div></div>
-  <div class="badge">12 constructores · banderas de progreso · ritual final</div>
+  <div class="badge">12 constructores · geometría única · ritual final</div>
   <div class="help">arrastrá para rotar · pellizcá para acercar</div>
 </div>
 <script>
@@ -888,105 +888,139 @@ function siteTopHeight(site){
   for(const bp of site.blueprints.values())top=Math.max(top,(bp.cand.y+1)*BLOCK_H);
   return top;
 }
+const BANNER_W=2.85;
+const BANNER_H=1.86;
+const BANNER_POLE_H=2.42;
+const BANNER_POLE_GAP=3.02;
+
 function siteBannerAnchor(site,index){
-  // Move the banner toward the stands, behind the tower from the arena-facing view.
+  // Same world-space radial logic as the arena: the banner sits by the stands,
+  // directly behind its tower when viewed from the arena center.
   const ang=Math.atan2(site.z,site.x);
-  const bannerR=15.25;
+  const r=15.10;
   const tangent=(index%2?1:-1)*.34;
   return {
-    x:Math.cos(ang)*bannerR + (-Math.sin(ang))*tangent,
-    z:Math.sin(ang)*bannerR + ( Math.cos(ang))*tangent,
-    h:2.62
+    x:Math.cos(ang)*r + (-Math.sin(ang))*tangent,
+    z:Math.sin(ang)*r + ( Math.cos(ang))*tangent,
+    h:2.56
   };
 }
-function fitStableText(c,text,maxWidth,maxSize,minSize,weight,family){
-  let size=maxSize;
-  const fam=family||'system-ui';
-  const wt=weight||700;
-  while(size>minSize){
-    c.font=wt+' '+size+'px '+fam;
+function bannerBasis(site,index){
+  const a=siteBannerAnchor(site,index);
+
+  // Vertical billboard in WORLD space. Width axis rotates toward the camera,
+  // but dimensions stay in world units, exactly like blocks and workers.
+  const ux=Math.cos(-yaw),uz=Math.sin(-yaw);
+  return {a,ux,uz};
+}
+function bannerWorldPoint(base,localX,localY){
+  return {
+    x:base.a.x+base.ux*localX,
+    z:base.a.z+base.uz*localX,
+    h:base.a.h+localY
+  };
+}
+function bannerProject(base,localX,localY){
+  const w=bannerWorldPoint(base,localX,localY);
+  return wp(w.x,w.z,w.h);
+}
+function bannerAffine(c,base){
+  // Map local banner units directly to the same world projection used by cubes.
+  const o=bannerProject(base,0,0);
+  const ex=bannerProject(base,1,0);
+  const ey=bannerProject(base,0,1);
+  c.setTransform(
+    ex.x-o.x,ex.y-o.y,
+    ey.x-o.x,ey.y-o.y,
+    o.x,o.y
+  );
+}
+function fitWorldText(c,text,maxWidth,maxSize,minSize,weight,family){
+  let s=maxSize;
+  const fam=family||'system-ui',wt=weight||700;
+  while(s>minSize){
+    c.font=wt+' '+s+'px '+fam;
     if(c.measureText(text).width<=maxWidth)break;
-    size-=.5;
+    s-=.02;
   }
-  c.font=wt+' '+size+'px '+fam;
-  return size;
+  c.font=wt+' '+s+'px '+fam;
+  return s;
 }
 function drawTowerBanner(c,site,index){
   if(site.ritual&&site.ritual.phase==='ashes')return;
 
-  const a=siteBannerAnchor(site,index),p=wp(a.x,a.z,a.h);
-  if(p.x<-190||p.x>IW+190||p.y<-130||p.y>IH+190)return;
+  const base=bannerBasis(site,index);
+  const center=bannerProject(base,0,0);
+  if(center.x<-180||center.x>IW+180||center.y<-140||center.y>IH+180)return;
 
   const title=TOWER_NAMES[index%TOWER_NAMES.length];
   const prog=siteProgress(site);
 
-  // Stable dimensions. Only global scene zoom changes them.
-  const w=Math.max(scale*2.72,58);
-  const h=Math.max(scale*1.92,42);
+  // Everything below is in WORLD UNITS. No minimum pixel sizes, no HUD scaling.
+  c.save();
+  bannerAffine(c,base);
 
-  // Billboard behavior: the banner stays readable while still living in world depth.
-  c.save();c.translate(q(p.x),q(p.y));
-  c.rotate((hash(index,901)-.5)*.035);
-
-  const poleX=w*.53;
-  c.strokeStyle='rgba(24,14,10,.91)';
-  c.lineWidth=Math.max(1.1,scale*.055);
-
-  // Two poles, one at each side.
+  // Poles are world-space vertical members.
+  c.strokeStyle='rgba(24,14,10,.92)';
+  c.lineWidth=.095;
   c.beginPath();
-  c.moveTo(-poleX,-h*.60);c.lineTo(-poleX,h*.60);
-  c.moveTo( poleX,-h*.60);c.lineTo( poleX,h*.60);
+  c.moveTo(-BANNER_POLE_GAP*.5,-BANNER_POLE_H*.5);
+  c.lineTo(-BANNER_POLE_GAP*.5, BANNER_POLE_H*.5);
+  c.moveTo( BANNER_POLE_GAP*.5,-BANNER_POLE_H*.5);
+  c.lineTo( BANNER_POLE_GAP*.5, BANNER_POLE_H*.5);
   c.stroke();
 
-  // Small caps/crossbars make it feel physically held, not UI.
+  c.lineWidth=.065;
   c.beginPath();
-  c.moveTo(-poleX,-h*.50);c.lineTo(poleX,-h*.50);
-  c.moveTo(-poleX, h*.50);c.lineTo(poleX, h*.50);
+  c.moveTo(-BANNER_POLE_GAP*.5,-BANNER_H*.49);
+  c.lineTo( BANNER_POLE_GAP*.5,-BANNER_H*.49);
+  c.moveTo(-BANNER_POLE_GAP*.5, BANNER_H*.49);
+  c.lineTo( BANNER_POLE_GAP*.5, BANNER_H*.49);
   c.stroke();
 
+  // Fabric is also world geometry.
   const cloth=[
-    {x:-w*.47,y:-h*.46},
-    {x: w*.47,y:-h*.45},
-    {x: w*.46,y: h*.43},
-    {x:-w*.46,y: h*.44}
+    {x:-BANNER_W*.49,y:-BANNER_H*.45},
+    {x: BANNER_W*.49,y:-BANNER_H*.44},
+    {x: BANNER_W*.47,y: BANNER_H*.43},
+    {x:-BANNER_W*.48,y: BANNER_H*.44}
   ];
-  fillRagged(c,cloth,'rgba(9,7,6,.95)','#1a0d09',Math.max(.9,scale*.05),6100+index);
+  path(c,cloth,true);
+  c.fillStyle='rgba(9,7,6,.95)';
+  c.fill();
+  c.strokeStyle='#1a0d09';c.lineWidth=.065;c.stroke();
 
-  c.save();c.globalAlpha=.22;c.translate(1.05,-.6);
-  roughStroke(c,cloth,'#8a301f',Math.max(.7,scale*.04),6140+index,true);
-  c.restore();
+  // Print registration and folds are local to the same plane.
+  c.save();c.globalAlpha=.23;c.translate(.045,-.03);
+  path(c,cloth,true);c.strokeStyle='#8a301f';c.lineWidth=.045;c.stroke();c.restore();
 
-  // Subtle cloth weave/folds.
   c.save();path(c,cloth,true);c.clip();
-  c.globalAlpha=.14;c.strokeStyle='#c36f38';c.lineWidth=Math.max(.55,scale*.028);
+  c.globalAlpha=.14;c.strokeStyle='#c36f38';c.lineWidth=.035;
   c.beginPath();
-  c.moveTo(-w*.30,-h*.33);c.quadraticCurveTo(-w*.18,-h*.02,-w*.22,h*.30);
-  c.moveTo(-w*.03,-h*.34);c.quadraticCurveTo( w*.08,0,-w*.02,h*.31);
-  c.moveTo( w*.24,-h*.31);c.quadraticCurveTo( w*.32,.02, w*.18,h*.29);
+  c.moveTo(-.86,-.62);c.quadraticCurveTo(-.45,-.03,-.62,.58);
+  c.moveTo(-.12,-.64);c.quadraticCurveTo(.18,.02,-.05,.60);
+  c.moveTo(.68,-.58);c.quadraticCurveTo(.88,.03,.54,.56);
   c.stroke();
 
-  c.textAlign='center';c.textBaseline='middle';
-
-  // Fixed design system: title always fits the same reserved zone.
+  // Text uses world-space font sizes and therefore shrinks/grows with the blocks.
+  c.globalAlpha=1;c.textAlign='center';c.textBaseline='middle';
   c.fillStyle='#d7ad76';
-  fitStableText(c,title,w*.72,Math.max(9,scale*.245),Math.max(5,scale*.11),700,'system-ui');
-  c.fillText(title,0,-h*.18);
+  fitWorldText(c,title,BANNER_W*.69,.34,.16,700,'system-ui');
+  c.fillText(title,0,-BANNER_H*.19);
 
-  // Progress bar.
-  const barW=w*.70,barH=Math.max(5,scale*.12);
-  const barX=-barW*.5,barY=h*.015;
-  c.fillStyle='rgba(18,13,10,.92)';
-  c.fillRect(barX-1.5,barY-1.5,barW+3,barH+3);
-  c.fillStyle='rgba(61,45,35,.92)';
-  c.fillRect(barX,barY,barW,barH);
+  // Progress bar is geometry on the cloth plane, not a screen overlay.
+  const barW=BANNER_W*.70,barH=.16;
+  const bx=-barW*.5,by=.02;
+  c.fillStyle='rgba(18,13,10,.94)';
+  c.fillRect(bx-.035,by-.035,barW+.07,barH+.07);
+  c.fillStyle='rgba(61,45,35,.94)';
+  c.fillRect(bx,by,barW,barH);
   c.fillStyle=prog.ratio>=1?'#b33a24':'#d77a2d';
-  c.fillRect(barX,barY,barW*prog.ratio,barH);
+  c.fillRect(bx,by,barW*prog.ratio,barH);
 
-  // Percentage stays inside the lower cloth area.
-  const pct=Math.round(prog.ratio*100)+'%';
   c.fillStyle='#ab947a';
-  fitStableText(c,pct,w*.40,Math.max(7,scale*.16),Math.max(4.5,scale*.095),600,'Georgia');
-  c.fillText(pct,0,h*.25);
+  fitWorldText(c,Math.round(prog.ratio*100)+'%',BANNER_W*.34,.22,.12,600,'Georgia');
+  c.fillText(Math.round(prog.ratio*100)+'%',0,BANNER_H*.26);
 
   c.restore();
   c.restore();
@@ -1214,8 +1248,8 @@ function drawDynamic(now){
       const pos=worldCell(site,bp.cand.gx,bp.cand.gz),p=wp(pos.x,pos.z,(bp.cand.y+.5)*BLOCK_H);
       items.push({type:bp.status==='building'?'building':'blueprint',si,bpKey,depth:p.zv,py:p.y,h:bp.cand.y});
     }
-    const ba=siteBannerAnchor(site,si),bpv=wp(ba.x,ba.z,ba.h);
-    items.push({type:'banner',si,depth:bpv.zv-.22,py:bpv.y,h:ba.h/BLOCK_H});
+    const bb=bannerBasis(site,si),bpv=bannerProject(bb,0,0);
+    items.push({type:'banner',si,depth:bpv.zv,py:bpv.y,h:bb.a.h/BLOCK_H});
   }
   for(let i=0;i<players.length;i++){
     const pl=players[i],p=wp(pl.x,pl.z,pl.h+pl.jump+.42);
