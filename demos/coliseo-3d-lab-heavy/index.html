@@ -109,7 +109,7 @@ if(labBadge)labBadge.textContent='HEAVY · '+LAB_VISUAL.toUpperCase()+' · SYNTH
 zoom=(LAB_VISUAL==='exterior'||LAB_VISUAL==='all')?.68:.82;
 const labNav=document.getElementById('labNav');
 if(labNav){
-  const modes=[['all','todo'],['focus','centro'],['roads','caminos'],['workshops','talleres'],['states','estados'],['gates','puertas'],['exterior','exterior']];
+  const modes=[['all','todo'],['focus','centro'],['occlusion','oclusión'],['roads','caminos'],['workshops','talleres'],['states','estados'],['gates','puertas'],['exterior','exterior']];
   labNav.innerHTML=modes.map(([id,label])=>'<a class="'+(LAB_VISUAL===id?'on':'')+'" href="?fixture='+encodeURIComponent(LAB_FIXTURE)+'&visual='+id+'&fast=1">'+label+'</a>').join('');
 }
 
@@ -1376,7 +1376,7 @@ function drawProgressTube(c,site,index){
 }
 
 const LAST_UPDATE_MS=Date.parse('2026-09-24T12:43:59.511Z');
-const BUILD_VERSION='LAB-H4';
+const BUILD_VERSION='LAB-H4.1';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -2168,7 +2168,12 @@ function compileWorldFaces(){
       if(rf){out.push(rf);WORLD_GEOM.stats.faces++}
     }
   }
-  window.WORLD_RENDER_STATS={...WORLD_GEOM.stats,budget:WORLD_FACE_BUDGET};
+  window.WORLD_RENDER_STATS={
+    ...WORLD_GEOM.stats,
+    budget:WORLD_FACE_BUDGET,
+    pressure:WORLD_GEOM.stats.faces/WORLD_FACE_BUDGET,
+    mode:LAB_VISUAL
+  };
   return out;
 }
 
@@ -2409,6 +2414,43 @@ function drawHeavyCourier(c,manifest,now){
   const g=c.createRadialGradient(ph.x,ph.y,0,ph.x,ph.y,scale*.55);
   g.addColorStop(0,'rgba(236,151,69,.45)');g.addColorStop(1,'rgba(0,0,0,0)');
   c.fillStyle=g;c.beginPath();c.arc(ph.x,ph.y,scale*.55,0,TAU);c.fill();c.restore();
+}
+
+function drawHeavyOcclusionLab(c,now){
+  if(LAB_VISUAL!=='occlusion')return;
+
+  // Deliberate torture-test: broad stacked bases, central tall volume,
+  // four pylons, crossing lintels and foreground/rear blocks.
+  // If the face compiler is wrong, this scene exposes it immediately.
+  groundPatch(c,0,0,4.20,2.10,'#1c1713',.78,23820,22);
+
+  // Wide terraced base. Large top faces are automatically tiled by the compiler.
+  heavyWorldCuboid(c,0,0,.02,4.60,.24,'#44382f',23840);
+  heavyWorldCuboid(c,0,0,.26,3.35,.24,'#594539',23860);
+  heavyWorldCuboid(c,0,0,.50,2.20,.22,'#6a5040',23880);
+
+  // Center tower begins above the plinth. Lower tiles must never paint over it.
+  heavyWorldCuboid(c,0,0,.72,.88,3.35,'#62503f',23900);
+  heavyWorldCuboid(c,0,0,4.07,1.12,.25,'#9a6335',23910);
+
+  // Four pillars straddle front/rear depth and overlap the plinth in screen space.
+  const sent=[[-1.55,-.92],[1.55,-.92],[-1.55,.92],[1.55,.92]];
+  for(let i=0;i<sent.length;i++){
+    const [x,z]=sent[i];
+    heavyWorldCuboid(c,x,z,.73,.52,2.05,i%2?'#48574d':'#604538',23940+i*9);
+    heavyWorldCuboid(c,x,z,2.78,.68,.22,'#79523a',23980+i*9);
+  }
+
+  // Two crossing beams test face-vs-face ordering at different heights.
+  const bx=heavyBasis(0,0,2.35,1,0);
+  heavyBoardCuboid(c,bx,0,0,3.80,.24,.34,'#3e3028',24020);
+  const bz=heavyBasis(0,0,1.58,0,1);
+  heavyBoardCuboid(c,bz,0,0,3.80,.22,.30,'#536054',24040);
+
+  // A low foreground block and high rear block verify that depth cannot
+  // incorrectly override clear vertical separation.
+  heavyWorldCuboid(c,-.15,-2.10,.03,1.10,.46,'#50362d',24060);
+  heavyWorldCuboid(c,.20,2.10,1.45,1.05,1.30,'#3d4c43',24080);
 }
 
 function paintHeavyExteriorBackdrop(c){
@@ -2798,6 +2840,7 @@ function drawDynamic(now){
   drawHeavyFocusMonument(ctx,manifest,now);
   drawHeavyWorkshops(ctx,manifest,now);
   drawHeavyStateGallery(ctx,now);
+  drawHeavyOcclusionLab(ctx,now);
   drawHeavyRoadGallery(ctx);
   drawHeavyCourier(ctx,manifest,now);
   drawLabLayoutTargets(ctx,manifest);
