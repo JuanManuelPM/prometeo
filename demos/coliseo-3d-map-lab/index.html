@@ -22,6 +22,10 @@ background-size:9px 11px,13px 15px,17px 19px}
 #veil{position:absolute;inset:-2%;pointer-events:none;background:
 radial-gradient(ellipse at 50% 54%,transparent 34%,rgba(0,0,0,.14) 64%,rgba(0,0,0,.80) 100%);
 box-shadow:inset 0 0 11vw rgba(0,0,0,.68)}
+.semanticLayer{position:absolute;inset:0;pointer-events:none;z-index:4;overflow:hidden}
+.worldLabel{position:absolute;left:0;top:0;transform:translate(-50%,-100%);padding:5px 7px;border:1px solid rgba(218,166,101,.25);background:rgba(7,6,5,.78);color:#ddbd92;font:850 7px/1 system-ui;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;text-shadow:0 1px #000;transition:opacity .12s linear}
+.worldLabel:after{content:"";position:absolute;left:50%;top:100%;height:12px;border-left:1px solid rgba(218,166,101,.24)}
+.worldLabel.secondary{color:#8eb09e;border-color:rgba(92,132,112,.28)}
 .ui{position:absolute;inset:0;pointer-events:none;z-index:5}
 .brand{position:absolute;left:max(12px,env(safe-area-inset-left));top:max(12px,env(safe-area-inset-top));display:flex;align-items:center;gap:10px;text-shadow:0 1px #000}
 .mark{width:34px;height:34px;border-radius:50%;border:1px solid rgba(213,163,105,.28);display:grid;place-items:center;background:rgba(6,5,4,.72);font:900 10px/1 system-ui;color:#d28a4b}
@@ -42,6 +46,7 @@ box-shadow:inset 0 0 11vw rgba(0,0,0,.68)}
 <div id="app">
   <div id="wrap">
     <canvas id="scene"></canvas>
+    <div class="semanticLayer" id="semanticLayer" aria-live="off"></div>
     <div id="grain"></div>
     <div id="veil"></div>
   </div>
@@ -58,15 +63,16 @@ box-shadow:inset 0 0 11vw rgba(0,0,0,.68)}
 const canvas=document.getElementById('scene');
 const gl=canvas.getContext('webgl',{alpha:false,antialias:true,depth:true,premultipliedAlpha:false});
 if(!gl){document.body.innerHTML='<div style="padding:30px;color:#d7b48b;background:#050504;font:16px system-ui">WebGL no disponible en este navegador.</div>';return}
-const nav=document.getElementById('nav'),badge=document.getElementById('badge');
+const nav=document.getElementById('nav'),badge=document.getElementById('badge'),semanticLayer=document.getElementById('semanticLayer');
 const params=new URLSearchParams(location.search);
 const MAP=(params.get('map')||'coliseo').toLowerCase();
 const BUILD='MAP-LAB-1';
-const maps=[['coliseo','coliseo'],['castillo','castillo'],['fortaleza','fortaleza'],['archivo','archivo']];
+const maps=[['coliseo','coliseo'],['castillo','castillo'],['fortaleza','fortaleza'],['archivo','archivo'],['puerto','puerto']];
 nav.innerHTML=maps.map(([id,label])=>'<a class="'+(MAP===id?'on':'')+'" href="?map='+id+'">'+label+'</a>').join('');
 let W=innerWidth,H=innerHeight,IW=960,IH=540,cx=480,cy=300,scale=22,yaw=-.45,zoom=1,rotated=false,last=0,dragUntil=0;
 const ptr=new Map();let pinch=0;
 const boxes=[];
+const semantics=[];
 const palette={
  stone:'#514238', stone2:'#635044', dark:'#2d2924', moss:'#37483f',
  green:'#45584c', ochre:'#8c6239', ember:'#8f4328', bone:'#806a55',
@@ -163,14 +169,86 @@ function buildArchive(){
  stairs(-7.0,0,Math.PI/2,2.0,5.0,9,palette.dark);
  stairs(7.0,0,-Math.PI/2,2.0,5.0,9,palette.dark);
 }
+
+function addSemantic(id,label,x,z,h,secondary=false){
+ semantics.push({id,label,x,z,h,secondary,el:null});
+}
+function crane(x,z,rot,seed=0){
+ addBox(x,z,.02,.46,.46,3.9,seed%2?palette.iron:palette.stone,rot);
+ addBox(x,z,3.78,3.25,.24,.20,palette.ochre,rot);
+ const ux=Math.cos(rot),uz=Math.sin(rot);
+ addBox(x+ux*1.34,z+uz*1.34,3.40,.12,.12,.72,palette.iron,rot);
+ addBox(x-ux*1.20,z-uz*1.20,.44,.52,.52,.28,palette.dark,rot);
+}
+function warehouse(x,z,rot,w=4.2,d=2.4,h=1.7,seed=0){
+ addBox(x,z,.02,w,d,.18,palette.dark,rot);
+ addBox(x,z,.20,w*.94,d*.94,h,seed%2?palette.stone2:palette.archive,rot);
+ addBox(x,z,.20+h,w*.98,d*.98,.18,palette.ochre,rot);
+ for(const s of [-1,1]){
+   const ux=Math.cos(rot),uz=Math.sin(rot);
+   addBox(x+ux*s*w*.34,z+uz*s*w*.34,.34,.62,d*1.02,.74,palette.iron,rot);
+ }
+}
+function buildPort(){
+ // Continuous outer breakwater turns the exterior into useful pictorial mass.
+ addBrickLine(-11,-10.4,11,-10.4,.02,1.08,palette.stone2,.66,.64);
+ addBrickLine(-11,-10.4,-11,10.4,.02,1.08,palette.stone,.66,.64);
+ addBrickLine(11,-10.4,11,10.4,.02,1.08,palette.stone,.66,.64);
+ addBrickLine(-11,10.4,-4.0,10.4,.02,1.08,palette.stone2,.66,.64);
+ addBrickLine(4.0,10.4,11,10.4,.02,1.08,palette.stone2,.66,.64);
+
+ // Quay spine and three long piers create a continuous navigable harbor silhouette.
+ addBox(0,7.7,.02,18.8,2.25,.34,palette.stone2,0);
+ for(const x of [-6,0,6]){
+   addBox(x,1.6,.02,2.05,10.6,.30,x===0?palette.stone2:palette.stone,0);
+   for(let z=-3.2;z<=5.8;z+=1.15)addBox(x,z,.34,1.70,.92,.16,(Math.round(z*10)+x)%2?palette.moss:palette.dark,0);
+ }
+ // Seaward blocks and ladders make the near exterior legible rather than empty.
+ for(let x=-9;x<=9;x+=1.5){
+   addBox(x,-7.7,.02,1.16,.78,.44,(Math.round(x*10)&1)?palette.dark:palette.moss,0);
+ }
+
+ // Lighthouse: one unmistakable tall landmark.
+ tower(-8.6,-7.1,.82,10,palette.bone);
+ addBox(-8.6,-7.1,6.18,2.10,2.10,.34,palette.ochre,0);
+ addBox(-8.6,-7.1,6.52,.64,.64,.82,palette.bone,0);
+ addSemantic('faro','Faro · señal activa',-8.6,-7.1,7.52,false);
+
+ // Warehouse district uses the full back quay.
+ warehouse(-5.9,8.05,0,4.4,2.2,1.55,1);
+ warehouse(0,8.05,0,4.7,2.35,1.78,2);
+ warehouse(5.9,8.05,0,4.4,2.2,1.55,3);
+
+ // Four cranes frame the water without changing camera or projection.
+ crane(-6.0,5.8,-Math.PI/2,1);
+ crane(-.9,5.6,-Math.PI/2,2);
+ crane(.9,5.6,-Math.PI/2,3);
+ crane(6.0,5.8,-Math.PI/2,4);
+
+ // Central customs/gate landmark at the only opening in the north wall.
+ tower(-2.15,9.75,.70,5,palette.green);
+ tower( 2.15,9.75,.70,5,palette.green);
+ addBox(0,9.70,2.64,4.9,.74,.42,palette.ochre,0);
+ addSemantic('aduana','Aduana · acceso',0,9.4,3.52,true);
+
+ // Semantic berth marker tied to actual pier geometry.
+ addBox(0,-2.8,.42,1.36,.82,.32,palette.ember,0);
+ addSemantic('muelle','Muelle 03',0,-2.8,1.18,false);
+
+ // Small service court and stairs anchor the east exterior.
+ warehouse(8.1,5.6,Math.PI/2,3.6,2.2,1.3,5);
+ stairs(8.0,2.8,Math.PI/2,1.8,3.8,7,palette.dark);
+}
+
 function buildMap(){
- boxes.length=0;
+ boxes.length=0;semantics.length=0;if(semanticLayer)semanticLayer.innerHTML='';
  // One physical floor only; maps do not coexist behind each other.
- const floorColor=MAP==='archivo'?palette.dark:(MAP==='fortaleza'?'#262c28':'#2d241e');
+ const floorColor=MAP==='puerto'?'#152421':(MAP==='archivo'?palette.dark:(MAP==='fortaleza'?'#262c28':'#2d241e'));
  addBox(0,0,-.10,25,25,.10,floorColor,0,'ground');
  if(MAP==='castillo')buildCastle();
  else if(MAP==='fortaleza')buildFortress();
  else if(MAP==='archivo')buildArchive();
+ else if(MAP==='puerto')buildPort();
  else buildColiseo();
 }
 buildMap();
@@ -209,6 +287,22 @@ function buildBuffers(){
  }
  return {P,C,LP,LC,tri};
 }
+function updateSemanticLabels(){
+ if(!semanticLayer)return;
+ for(const s of semantics){
+   if(!s.el){
+     const el=document.createElement('div');
+     el.className='worldLabel'+(s.secondary?' secondary':'');
+     el.textContent=s.label;semanticLayer.appendChild(el);s.el=el;
+   }
+   const cs=Math.cos(yaw),sn=Math.sin(yaw),sx=s.x*cs-s.z*sn,fw=s.z*cs+s.x*sn;
+   const px=cx+sx*scale,py=cy+fw*scale*.35-s.h*scale*.57;
+   const x=px*W/IW,y=py*H/IH;
+   const visible=x>-80&&x<W+80&&y>-50&&y<H+50;
+   s.el.style.left=x+'px';s.el.style.top=y+'px';
+   s.el.style.opacity=visible?String(clamp(.34+(fw+12)/24,0.34,1)):'0';
+ }
+}
 function draw(){
  gl.clearColor(.020,.018,.015,1);gl.clearDepth(1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
  gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LESS);gl.disable(gl.BLEND);gl.useProgram(prog);
@@ -220,6 +314,7 @@ function draw(){
  gl.bindBuffer(gl.ARRAY_BUFFER,colBuf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(b.LC),gl.DYNAMIC_DRAW);gl.vertexAttribPointer(aColor,4,gl.FLOAT,false,0,0);
  gl.depthFunc(gl.LEQUAL);gl.drawArrays(gl.LINES,0,b.LP.length/3);gl.depthFunc(gl.LESS);
  badge.textContent=MAP.toUpperCase()+' · '+boxes.length+' BLOQUES · '+b.tri+' TRI';
+ updateSemanticLabels();
 }
 function frame(t){if(t-last>33){if(t>dragUntil)yaw+=.0024;draw();last=t}requestAnimationFrame(frame)}
 function pd(e){const p=pointerPoint(e);ptr.set(e.pointerId,p);canvas.setPointerCapture(e.pointerId);if(ptr.size===2){const a=[...ptr.values()];pinch=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y)}}
