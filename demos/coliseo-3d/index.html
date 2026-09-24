@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="theme-color" content="#050504">
-<meta name="prometeo-rev" content="20260924T2046Z-MB-VIS-CANON-07">
+<meta name="prometeo-rev" content="MB-VIS-CANON-08">
 <title>Coliseo · collage nocturno</title>
 <style>
 :root{--ink:#d7b48b;--muted:#806f60}
@@ -243,7 +243,7 @@ body{overscroll-behavior:none}
     </div>
 
     <div class="monFoot" id="monFoot">
-      <span id="monRev">V3.16 · 20260924T2046Z-MB-VIS-CANON-07</span>
+      <span id="monRev">V3.17 · MB-VIS-CANON-08</span>
       <span class="updatePulse" id="monUpdate">LIVE</span>
     </div>
   </aside>
@@ -2239,7 +2239,7 @@ function drawAnalogSignal(c,now){
 }
 
 
-/* PROMETEO WORLD CAPACITY MONUMENT V2 */
+/* PROMETEO WORLD CAPACITY MONUMENT V3 · CAP GATE */
 function capacityMonumentState(){
   const g=window.PROMETEO_CAPACITY;
   if(!g)return null;
@@ -2264,6 +2264,26 @@ function drawCapacityMonument(c,now){
   const surplusH=H*(s.surplus/s.cap);
   const needH=H*(s.need/s.cap);
   const tx=-Math.sin(s.ang),tz=Math.cos(s.ang);
+
+  // CAP GATE: one unmistakable outer-ring landmark. Geometry is semantically neutral;
+  // only the shaft/collar/plaque below encode live capacity truth.
+  const gateSpread=1.62;
+  for(const side of [-1,1]){
+    const px=s.x+tx*gateSpread*side,pz=s.z+tz*gateSpread*side;
+    drawWorldCuboid(c,px,pz,.02,.48,H+1.18,'#332a24',24410+(side+1)*7);
+    drawWorldCuboid(c,px,pz,H+1.20,.70,.30,'#6d5641',24430+(side+1)*7);
+    drawWorldCuboid(c,px,pz,H+1.50,.36,.62,'#4e3d31',24450+(side+1)*7);
+  }
+  for(let k=-4;k<=4;k++){
+    const px=s.x+tx*k*.40,pz=s.z+tz*k*.40;
+    drawWorldCuboid(c,px,pz,H+1.17,.42,.24,k===0?'#9a6b3f':'#5b4839',24480+k+4);
+  }
+  // Low civic collar ties the instrument to the outer ring without introducing a new metric.
+  for(let i=0;i<10;i++){
+    const a=i*TAU/10+.15,rr=2.28;
+    const px=s.x+Math.cos(a)*rr,pz=s.z+Math.sin(a)*rr;
+    drawWorldCuboid(c,px,pz,.015,i===0||i===5?.42:.28,i===0||i===5?.18:.11,i%2?'#302823':'#46382f',24500+i);
+  }
 
   // Neutral frame = scale. Colored shaft = observed capacity only.
   for(const side of [-1,1]){
@@ -2325,23 +2345,24 @@ function drawCapacityMonument(c,now){
   function capacityPlaque(panelAng,seedBase){
     const panel=wallBoardBasis(panelAng,11.86,2.28);
     if(cut(panelAng)||panel.facing<=.030)return;
-    const W=6.56,Hb=3.02,alert=s.deficit>0;
+    const W=7.38,Hb=3.42,alert=s.deficit>0;
     drawBlockPanel(c,panel,W,Hb,alert?'#43251f':'#26342c',alert?'#7e3c2d':'#5c6c5b',seedBase);
     const m=panelSemanticState(panel,.071);
     if(m.state==='EDGE')return;
-    if(m.state==='SAFE')drawReadableBoardText(c,panel,'WORKERS',0,Hb*.38,W*.48,.25,.13,950,'system-ui','#d4b68f',.082);
+    if(m.state==='SAFE')drawReadableBoardText(c,panel,'CAPACITY',0,Hb*.39,W*.54,.30,.15,950,'system-ui','#d4b68f',.082);
 
-    // Three-second reading order: what / observed / required / balance.
-    drawReadableBoardText(c,panel,String(s.active),-1.70,.14,W*.23,.72,.35,950,'system-ui','#f0c98f',.082);
-    drawReadableBoardText(c,panel,'VIVOS',-1.70,-.48,W*.22,.22,.12,900,'system-ui','#9d846b',.082);
-    drawReadableBoardText(c,panel,String(s.need),1.70,.14,W*.23,.72,.35,950,'system-ui','#d6c7a8',.082);
-    drawReadableBoardText(c,panel,'NECESARIOS',1.70,-.48,W*.32,.20,.10,900,'system-ui','#9d846b',.082);
+    // Three-second reading order: observed / required / signed balance / scale.
+    drawReadableBoardText(c,panel,String(s.active),-1.92,.20,W*.24,.84,.40,950,'system-ui','#f0c98f',.082);
+    drawReadableBoardText(c,panel,'VIVOS',-1.92,-.52,W*.22,.24,.12,900,'system-ui','#9d846b',.082);
+    drawReadableBoardText(c,panel,String(s.need),1.92,.20,W*.24,.84,.40,950,'system-ui','#d6c7a8',.082);
+    drawReadableBoardText(c,panel,'CORE NEED',1.92,-.52,W*.30,.22,.10,900,'system-ui','#9d846b',.082);
     const balanceText=s.deficit>0?'FALTAN '+s.deficit:'SOBRAN +'+s.surplus;
-    drawReadableBoardText(c,panel,balanceText,0,-1.08,W*.56,.38,.18,950,'system-ui',alert?'#ef7957':'#9bb69f',.084);
-    drawBoardCuboid(c,panel,0,-.76,2.15,.075,.072,alert?'#734033':'#596a5a',seedBase+70);
+    drawReadableBoardText(c,panel,balanceText,0,-1.08,W*.60,.42,.20,950,'system-ui',alert?'#ef7957':'#9bb69f',.084);
+    drawReadableBoardText(c,panel,'ESCALA 0–'+s.cap,0,-1.50,W*.36,.18,.085,900,'system-ui','#7f7061',.082);
+    drawBoardCuboid(c,panel,0,-.75,2.34,.082,.078,alert?'#734033':'#596a5a',seedBase+70);
     // +/- geometry survives distance, desaturation and partial text compression.
-    drawBoardCuboid(c,panel,2.72,-1.07,.36,.11,.078,alert?'#a84631':'#6f8c74',seedBase+80);
-    if(!alert)drawBoardCuboid(c,panel,2.72,-1.07,.11,.36,.078,'#6f8c74',seedBase+81);
+    drawBoardCuboid(c,panel,3.05,-1.08,.42,.12,.082,alert?'#a84631':'#6f8c74',seedBase+80);
+    if(!alert)drawBoardCuboid(c,panel,3.05,-1.08,.12,.42,.082,'#6f8c74',seedBase+81);
   }
 
   // Two opposed plaques share the same observed state. At normal rotations one remains readable,
@@ -2664,7 +2685,7 @@ setInterval(refresh,8000);
 <script>
 (function(){
 'use strict';
-const CURRENT_REV='20260924T2046Z-MB-VIS-CANON-07';
+const CURRENT_REV='MB-VIS-CANON-08';
 const panel=document.getElementById('monitorPanel');
 if(!panel)return;
 
