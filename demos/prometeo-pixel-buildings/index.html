@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Prometeo · Edificios vivos</title>
+<title>Prometeo · Gramática de edificios</title>
 <style>
 :root{
   --bg:#0a0a09;
@@ -45,13 +45,13 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;image-renderi
 <body>
 <canvas id="view"></canvas>
 <div class="hud">
-  <div class="brand"><i class="mark"></i><div><h1>PROMETEO</h1><small>simulación más clara · edificios con ventanas</small></div></div>
+  <div class="brand"><i class="mark"></i><div><h1>PROMETEO</h1><small>pixel buildings · gramática arquitectónica</small></div></div>
   <div class="kpi"><b id="alive">100</b><span>vivos</span></div>
   <div class="kpi"><b id="working">54</b><span>trabajando</span></div>
   <div class="kpi"><b id="moving">24</b><span>moviéndose</span></div>
   <div class="kpi"><b id="off">10</b><span>off</span></div>
 </div>
-<div class="note">los workers solo entran y salen por puertas · adentro se ven por ventanas</div>
+<div class="note">5 arquetipos reutilizables · silueta primero · workers siguen usando puertas</div>
 
 <script>
 (()=>{
@@ -66,12 +66,20 @@ let W=0,H=0,DPR=1,last=performance.now(),scale=1,ox=0,oy=0;
 const VW=1000, VH=1350, TOP=90;
 const rnd=(a,b)=>a+Math.random()*(b-a), clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
+const ARCH = {
+  sentinel:{code:'SENTINEL', accent:'#ff6500', mass:'tower', notes:'espina + hombros + contrafuertes'},
+  forge:{code:'FORGE', accent:'#f3c74a', mass:'stepped', notes:'escalonado + chimeneas + costillas'},
+  observatory:{code:'OBSERVATORY', accent:'#5ed9d2', mass:'asym', notes:'corona lateral + mástil + pantalla'},
+  pavilion:{code:'PAVILION', accent:'#7cdd92', mass:'open', notes:'cubierta serrucho + columnas + vacío'},
+  bunker:{code:'BUNKER', accent:'#9da8ff', mass:'low', notes:'zócalo + silos + ventilación'}
+};
+
 const buildings = [
-  {id:'guide', title:'GUIDE SENTINEL', x:70, y:190, w:230, h:520, floors:5, cols:2, door:{x:185,y:710}, color:'#191816'},
-  {id:'runtime', title:'RUNTIME FORGE', x:385, y:120, w:230, h:590, floors:6, cols:2, door:{x:500,y:710}, color:'#181816'},
-  {id:'monitor', title:'WORKER MONITOR', x:700, y:170, w:230, h:540, floors:5, cols:2, door:{x:815,y:710}, color:'#171816'},
-  {id:'park', title:'WAIT / PARK', x:150, y:900, w:250, h:160, floors:0, cols:0, door:{x:275,y:900}, color:'#141512'},
-  {id:'pool', title:'POOL / OFF', x:600, y:900, w:250, h:160, floors:0, cols:0, door:{x:725,y:900}, color:'#121315'}
+  {id:'guide', grammar:'sentinel', title:'GUIDE SENTINEL', x:70, y:210, w:230, h:500, floors:5, cols:2, door:{x:185,y:710}, color:'#191816'},
+  {id:'runtime', grammar:'forge', title:'RUNTIME FORGE', x:380, y:160, w:240, h:550, floors:6, cols:2, door:{x:500,y:710}, color:'#181816'},
+  {id:'monitor', grammar:'observatory', title:'WORKER OBSERVATORY', x:700, y:220, w:230, h:490, floors:5, cols:2, door:{x:815,y:710}, color:'#171816'},
+  {id:'park', grammar:'pavilion', title:'WAIT PAVILION', x:145, y:915, w:260, h:145, floors:0, cols:0, door:{x:275,y:915}, color:'#141512'},
+  {id:'pool', grammar:'bunker', title:'POOL BUNKER', x:595, y:900, w:260, h:160, floors:0, cols:0, door:{x:725,y:900}, color:'#121315'}
 ];
 
 const roadY = 800;
@@ -248,67 +256,120 @@ function drawRoad(){
     ctx.fillRect(SX(n.x-10),SY(roadY),20*scale,85*scale);
   });
 }
-function drawBuilding(b,t){
+function poly(points,fill,stroke=null,lw=1){
+  ctx.beginPath();
+  points.forEach((p,i)=>i?ctx.lineTo(SX(p[0]),SY(p[1])):ctx.moveTo(SX(p[0]),SY(p[1])));
+  ctx.closePath();
+  ctx.fillStyle=fill; ctx.fill();
+  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw*scale;ctx.stroke();}
+}
+function facadeWindows(b, accent, mode='grid'){
+  if(!b.floors) return;
+  const leftPad=28,rightPad=28,topPad=50,bottomPad=58;
+  const innerW=b.w-leftPad-rightPad, innerH=b.h-topPad-bottomPad;
+  const rowH=innerH/b.floors, colW=innerW/b.cols;
+  for(let fy=0;fy<b.floors;fy++){
+    for(let fx=0;fx<b.cols;fx++){
+      const wx=b.x+leftPad+fx*colW, wy=b.y+topPad+fy*rowH;
+      const inset=mode==='slits'?18:10;
+      rect(wx+inset/2,wy,colW-12-inset,rowH-14,'#0b0c0c','#35312a',1);
+      if((fy+fx)%3===0) rect(wx+inset/2+3,wy+4,Math.max(2,colW-18-inset),2,accent);
+    }
+  }
+}
+function door(b,accent){
+  rect(b.door.x-19,b.door.y-3,38,22,'#070808','#5a5349',2);
+  rect(b.door.x-5,b.door.y+2,10,17,'#1b1d1b');
+  rect(b.door.x-2,b.door.y+5,4,3,accent);
+}
+function baseShell(b){
   rect(b.x-8,b.y-8,b.w+16,b.h+16,'#0d0e0c');
   rect(b.x,b.y,b.w,b.h,b.color,'#5c554c',2);
   rect(b.x,b.y+b.h-18,b.w,18,'#131411');
-  rect(b.door.x-18,b.door.y-2,36,20,'#080909','#4b463f',2);
-  rect(b.door.x-4,b.door.y+2,8,16,'#1e1f1d');
-  if(b.floors){
-    const leftPad=28, rightPad=28, topPad=46, bottomPad=56;
-    const innerW=b.w-leftPad-rightPad, innerH=b.h-topPad-bottomPad;
-    const rowH=innerH/b.floors, colW=innerW/b.cols;
-    for(let fy=0; fy<b.floors; fy++){
-      for(let fx=0; fx<b.cols; fx++){
-        const wx=b.x+leftPad+fx*colW;
-        const wy=b.y+topPad+fy*rowH;
-        rect(wx,wy,colW-12,rowH-12,'#0f1011','#35312a',1);
-      }
-    }
-  } else if(b.id==='park'){
+}
+function drawBuilding(b,t){
+  const g=ARCH[b.grammar];
+  const A=g.accent;
+
+  if(b.grammar==='sentinel'){
+    baseShell(b);
+    rect(b.x+30,b.y-34,b.w-60,34,'#171714','#5c554c',2);
+    rect(b.x+72,b.y-66,b.w-144,32,'#121310','#5c554c',2);
+    rect(b.x+106,b.y-92,18,26,'#11120f','#5c554c',2);
+    rect(b.x-16,b.y+86,16,b.h-110,'#131411','#4b463f',2);
+    rect(b.x+b.w,b.y+86,16,b.h-110,'#131411','#4b463f',2);
+    for(let i=0;i<4;i++) rect(b.x+8+i*58,b.y-8,34,10,i%2?'#161713':'#1b1b16');
+    facadeWindows(b,A,'slits');
     for(let i=0;i<4;i++){
-      rect(b.x+24,b.y+34+i*24,b.w-48,8,'#2f2a23');
-      rect(b.x+40+i*40,b.y+b.h-36,18,14,i%2?'#394435':'#2d372a');
+      ctx.strokeStyle='#4e493f';ctx.lineWidth=2*scale;ctx.beginPath();
+      ctx.moveTo(SX(b.x+26),SY(b.y+92+i*84));ctx.lineTo(SX(b.x+b.w-26),SY(b.y+92+i*84));ctx.stroke();
     }
-  } else if(b.id==='pool'){
+    rect(b.x+b.w/2-3,b.y-82,6,52,A);
+  } else if(b.grammar==='forge'){
+    baseShell(b);
+    rect(b.x-18,b.y+118,18,b.h-138,'#161611','#4b463f',2);
+    rect(b.x+b.w,b.y+118,18,b.h-138,'#161611','#4b463f',2);
+    rect(b.x+24,b.y-22,b.w-48,22,'#191816','#5c554c',2);
+    rect(b.x+64,b.y-52,b.w-128,30,'#171714','#5c554c',2);
+    [38,92,148].forEach((dx,i)=>{
+      rect(b.x+dx,b.y-78-(i%2)*12,18,58+(i%2)*12,'#121310','#514b42',2);
+      rect(b.x+dx-4,b.y-84-(i%2)*12,26,8,'#1f1e19');
+    });
+    facadeWindows(b,A,'grid');
     for(let i=0;i<4;i++){
-      ctx.strokeStyle = i===0 ? '#364046' : '#20262a';
-      ctx.lineWidth=2*scale;
-      ctx.beginPath();
-      ctx.moveTo(SX(b.x+22), SY(b.y+44+i*22));
-      ctx.lineTo(SX(b.x+b.w-22), SY(b.y+44+i*22));
-      ctx.stroke();
+      rect(b.x+28+i*49,b.y+62,11,b.h-126,'#2c2923');
+      rect(b.x+32+i*49,b.y+70,3,b.h-144,A);
     }
-  }
-  if(b.id==='runtime'){
-    for(let i=0;i<4;i++){
-      rect(b.x+26+i*46,b.y+56,10,b.h-115,'#2c2923');
-      rect(b.x+30+i*46,b.y+66,2,b.h-135,ORANGE);
-    }
-  }
-  if(b.id==='guide'){
-    for(let i=0;i<4;i++){
-      ctx.strokeStyle='#4e493f';
-      ctx.lineWidth=2*scale;
-      ctx.beginPath();
-      ctx.moveTo(SX(b.x+24), SY(b.y+82+i*88));
-      ctx.lineTo(SX(b.x+b.w-24), SY(b.y+82+i*88));
-      ctx.stroke();
-    }
-  }
-  if(b.id==='monitor'){
-    rect(b.x+28,b.y+52,b.w-56,94,'#0b0c0c');
-    ctx.strokeStyle=ORANGE;
-    ctx.lineWidth=2*scale;
-    ctx.beginPath();
-    for(let i=0;i<8;i++){
-      const x=b.x+34+i*(b.w-68)/7;
-      const y=b.y+128-(Math.sin(t*0.0012+i)*18+18);
+    ctx.strokeStyle='#6b5d32';ctx.lineWidth=3*scale;ctx.beginPath();
+    ctx.moveTo(SX(b.x+22),SY(b.y+112));ctx.lineTo(SX(b.x+218),SY(b.y+112));ctx.stroke();
+  } else if(b.grammar==='observatory'){
+    baseShell(b);
+    rect(b.x+18,b.y-26,b.w-92,26,'#151714','#5c554c',2);
+    rect(b.x+b.w-74,b.y-58,74,58,'#111413','#5c554c',2);
+    rect(b.x+b.w-42,b.y-118,10,60,'#151817','#5c554c',2);
+    rect(b.x+b.w-58,b.y-126,42,8,A);
+    rect(b.x-14,b.y+150,14,b.h-172,'#111312','#4b463f',2);
+    facadeWindows(b,A,'grid');
+    rect(b.x+30,b.y+58,b.w-60,96,'#080b0b','#34413f',2);
+    ctx.strokeStyle=A;ctx.lineWidth=2*scale;ctx.beginPath();
+    for(let i=0;i<9;i++){
+      const x=b.x+36+i*(b.w-72)/8;
+      const y=b.y+136-(Math.sin(t*.0012+i*.8)*18+22);
       i?ctx.lineTo(SX(x),SY(y)):ctx.moveTo(SX(x),SY(y));
     }
     ctx.stroke();
+    for(let i=0;i<3;i++) rect(b.x+b.w-68+i*18,b.y-48,10,28,'#1d2523');
+  } else if(b.grammar==='pavilion'){
+    rect(b.x-8,b.y+28,b.w+16,b.h-20,'#0d0e0c');
+    poly([
+      [b.x-14,b.y+24],[b.x+26,b.y-10],[b.x+68,b.y+24],[b.x+110,b.y-10],
+      [b.x+152,b.y+24],[b.x+194,b.y-10],[b.x+b.w+14,b.y+24]
+    ],'#1a1b16','#5c554c',2);
+    for(let i=0;i<5;i++) rect(b.x+24+i*52,b.y+30,8,b.h-52,'#34362f');
+    rect(b.x+14,b.y+b.h-28,b.w-28,10,'#252821');
+    for(let i=0;i<5;i++) rect(b.x+26+i*44,b.y+b.h-48,28,10,i%2?'#394435':'#2d372a');
+    rect(b.x+22,b.y+42,b.w-44,4,A);
+  } else {
+    rect(b.x-10,b.y+20,b.w+20,b.h-12,'#0d0e0c');
+    rect(b.x,b.y+34,b.w,b.h-34,b.color,'#5c554c',2);
+    rect(b.x+22,b.y+6,72,28,'#151719','#515861',2);
+    rect(b.x+b.w-94,b.y+12,72,22,'#151719','#515861',2);
+    [0,1,2].forEach(i=>{
+      const x=b.x+38+i*66;
+      rect(x,b.y-18,46,18,'#111316','#4b5057',2);
+      rect(x+6,b.y-28,34,10,'#15181c');
+      rect(x+12,b.y-31,22,3,A);
+    });
+    for(let i=0;i<4;i++){
+      ctx.strokeStyle=i===0?A:'#252a2f';ctx.lineWidth=2*scale;ctx.beginPath();
+      ctx.moveTo(SX(b.x+24),SY(b.y+60+i*20));ctx.lineTo(SX(b.x+b.w-24),SY(b.y+60+i*20));ctx.stroke();
+    }
+    rect(b.x+18,b.y+b.h-44,b.w-36,8,'#1c2227');
   }
-  drawText(b.title,b.x+b.w/2-70,b.y+b.h+16,9,PAPER);
+
+  door(b,A);
+  drawText(b.title,b.x+b.w/2,b.y+b.h+15,9,PAPER,'center');
+  drawText(g.code+' · '+g.notes,b.x+b.w/2,b.y+b.h+29,6,A,'center');
 }
 function stepWorker(w,dt,t){
   if(w.state==='off') return;
