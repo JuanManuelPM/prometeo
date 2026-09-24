@@ -56,7 +56,7 @@ body{overscroll-behavior:none}
 <div class="ui">
   <div class="brand"><div class="mark">LAB</div><div class="copy"><b>Coliseo Heavy Lab</b><span>synthetic world-manifest · renderer sandbox</span></div></div>
   <div class="badge" id="labBadge">LAB · SYNTHETIC</div>
-  <div class="help" id="labHelp">arrastrá · zoom · chain/fanin/parallel/dynamic · layout=1 · WORLD_MANIFEST_DEMO</div>
+  <div class="help" id="labHelp">arrastrá · zoom · chain/fanin/parallel/dynamic/20/100 · layout=1 · WORLD_MANIFEST_DEMO</div>
 </div>
 <script>
 (function(){
@@ -1961,6 +1961,19 @@ function labFixtureEdges(now){
   const mk=(from,to,status='relation',critical=false)=>({
     id:'edge-'+from+'-'+to,from:'tower-'+from,to:'tower-'+to,status,critical
   });
+  const mg=(from,to,status='relation',critical=false)=>({
+    id:'edge-'+from+'-'+to,from,to,status,critical
+  });
+  if(LAB_FIXTURE==='20'||LAB_FIXTURE==='100'){
+    const count=LAB_FIXTURE==='100'?100:20,edges=[];
+    for(let i=5;i<count;i++){
+      const id='ghost-'+i;
+      const cluster='ghost-'+(5+((i-5)%Math.min(8,count-5)));
+      const to=i<13?'tower-4':(cluster===id?'tower-4':cluster);
+      edges.push(mg(id,to,i%11===0?'blocked':'relation',i%17===0));
+    }
+    return edges;
+  }
   if(LAB_FIXTURE==='fanin'){
     return [mk(0,4,'relation',false),mk(1,4,'relation',false),mk(2,4,'blocked',false),mk(3,4,'ready',true)];
   }
@@ -2045,6 +2058,18 @@ function buildWorldManifest(now){
     position:{x:site.x,z:site.z},
     layout_hint:null
   }));
+  if(LAB_FIXTURE==='20'||LAB_FIXTURE==='100'){
+    const count=LAB_FIXTURE==='100'?100:20;
+    for(let i=5;i<count;i++){
+      nodes.push({
+        id:'ghost-'+i,label:'N'+String(i).padStart(2,'0'),kind:'node',ghost:true,
+        status:i%11===0?'blocked':(i%3===0?'active':'ready'),
+        durable_progress:((i*37)%100)/100,
+        importance:.20+((i*13)%70)/100,
+        position:null,layout_hint:null
+      });
+    }
+  }
   const targets=labLayoutTargets(nodes,edges);
   for(const n of nodes)n.layout_hint=targets[n.id]||null;
   const agents=players.map((pl,i)=>({
@@ -2112,6 +2137,7 @@ function drawLabRoadSegment(c,p0,p1,width,color,alpha,seed){
   c.save();c.globalAlpha=alpha;fillRagged(c,pts,color,'rgba(15,9,7,.78)',Math.max(.45,scale*.025),seed);c.restore();
 }
 function drawLabRoad(c,edge,now){
+  if(!labEdgeSites(edge))return;
   const pieces=18,width=edge.critical?.28:.22;
   const col=edge.status==='blocked'?'#3a2420':edge.status==='ready'?'#7b4a2b':'#332821';
   for(let i=0;i<pieces;i++){
@@ -2122,8 +2148,9 @@ function drawLabRoad(c,edge,now){
 }
 function drawLabGate(c,edge,now){
   if(edge.status!=='blocked')return;
+  const pair=labEdgeSites(edge);if(!pair)return;
   const p=labRoadPoint(edge,.55);if(!p)return;
-  const pair=labEdgeSites(edge),dx=pair.b.x-pair.a.x,dz=pair.b.z-pair.a.z,len=Math.max(.001,Math.hypot(dx,dz));
+  const dx=pair.b.x-pair.a.x,dz=pair.b.z-pair.a.z,len=Math.max(.001,Math.hypot(dx,dz));
   const nx=-dz/len,nz=dx/len;
   for(const side of [-1,1]){
     drawWorldCuboid(c,p.x+nx*.52*side,p.z+nz*.52*side,.02,.26,.95,'#4a3429',18400+(side>0?1:0));
@@ -2153,6 +2180,17 @@ function drawLabLayoutTargets(c,manifest){
     drawWorldCuboid(c,t.x,t.z,.02,.18,.12,i===4?'#a66c36':'#40584b',18850+i*7);
   }
 }
+function drawLabGhostNodes(c,manifest){
+  if(!LAB_SHOW_LAYOUT)return;
+  for(let i=0;i<manifest.nodes.length;i++){
+    const n=manifest.nodes[i];
+    if(!n.ghost||!n.layout_hint)continue;
+    const t=n.layout_hint;
+    const col=n.status==='blocked'?'#4b2a24':n.status==='active'?'#496356':'#343b35';
+    drawWorldCuboid(c,t.x,t.z,.018,.18,.11,col,18920+i*3);
+  }
+}
+
 function drawLabCourier(c,edge,t,now){
   const p=labRoadPoint(edge,t);if(!p)return;
   drawWorldCuboid(c,p.x,p.z,.18,.34,.28,'#b27b3e',19000);
@@ -2213,6 +2251,7 @@ function drawDynamic(now){
   drawLabRoads(ctx,manifest,now);
   drawLabWorkPads(ctx,manifest,now);
   drawLabLayoutTargets(ctx,manifest);
+  drawLabGhostNodes(ctx,manifest);
   drawLabPool(ctx,manifest);
 
   const t=now/1000;
