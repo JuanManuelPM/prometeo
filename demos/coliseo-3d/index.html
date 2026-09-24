@@ -244,7 +244,7 @@ body{overscroll-behavior:none}
     </div>
 
     <div class="monFoot" id="monFoot">
-      <span id="monRev">V3.13 · 20260924T1945Z-MONITOR-V3</span>
+      <span id="monRev">V3.13 · 20260924T2039Z-CAPACITY-V2-RELIEF</span>
       <span class="updatePulse" id="monUpdate">LIVE</span>
     </div>
   </aside>
@@ -504,6 +504,41 @@ function paintWallDetails(c){
   c.restore();
 }
 
+function paintOuterRingReliefLandmarks(c){
+  const specs=[
+    {ang:.62,type:'gate',accent:'#76503b'},
+    {ang:2.72,type:'tower',accent:'#53604f'},
+    {ang:4.88,type:'oculus',accent:'#806342'}
+  ];
+  for(let i=0;i<specs.length;i++){
+    const s=specs[i];
+    const base=wallBoardBasis(s.ang,18.10,5.18);
+    if(cut(s.ang)||base.facing<=.028)continue;
+    const rail=shade(s.accent,-18),face=shade(s.accent,8),seed=23200+i*120;
+    // Three stable world-fixed silhouettes act as orientation anchors while rotating.
+    drawBoardCuboid(c,base,0,-1.02,2.50,.16,.18,rail,seed);
+    if(s.type==='gate'){
+      drawBoardCuboid(c,base,-.76,0,.30,2.16,.22,rail,seed+10);
+      drawBoardCuboid(c,base, .76,0,.30,2.16,.22,rail,seed+20);
+      drawBoardCuboid(c,base,0,.92,1.82,.34,.24,face,seed+30);
+      drawBoardCuboid(c,base,0,.34,.96,.16,.16,shade(face,10),seed+40);
+    }else if(s.type==='tower'){
+      drawBoardCuboid(c,base,0,-.28,1.18,1.46,.22,rail,seed+10);
+      drawBoardCuboid(c,base,0,.64,.86,.52,.22,face,seed+20);
+      drawBoardCuboid(c,base,0,1.04,.54,.28,.24,shade(face,12),seed+30);
+      drawBoardCuboid(c,base,-.36,-.38,.16,.82,.15,shade(face,-4),seed+40);
+      drawBoardCuboid(c,base, .36,-.38,.16,.82,.15,shade(face,-4),seed+50);
+    }else{
+      for(let k=0;k<10;k++){
+        const a=k*TAU/10;
+        drawBoardCuboid(c,base,Math.cos(a)*.67,Math.sin(a)*.67,.22,.22,.17,k%2?rail:face,seed+10+k*7);
+      }
+      drawBoardCuboid(c,base,0,0,.34,.34,.13,'#17110d',seed+90);
+      drawBoardCuboid(c,base,0,-.92,1.54,.14,.15,rail,seed+100);
+    }
+  }
+}
+
 function groundPatch(c,x,z,rx,rz,color,alpha,seed,n=12){
   const pts=[];
   for(let i=0;i<n;i++){
@@ -587,6 +622,7 @@ function paintBackdrop(){
   }
 
   paintWallDetails(c);
+  paintOuterRingReliefLandmarks(c);
 
   // crown
   band(c,17.86,18.62,7.36,7.92,'#715043','#3d2c26',360);
@@ -2154,54 +2190,78 @@ function drawAnalogSignal(c,now){
 }
 
 
-/* PROMETEO WORLD CAPACITY MONUMENT V1 */
+/* PROMETEO WORLD CAPACITY MONUMENT V2 */
 function capacityMonumentState(){
   const g=window.PROMETEO_CAPACITY;
   if(!g)return null;
   const active=Math.max(0,Number(g.active_workers||0));
   const need=Math.max(0,Number(g.core_demand||0));
-  const reserve=Math.max(0,active-need);
+  const balance=active-need;
   const scaleSteps=[8,12,16,24,32,48,64,96];
   const cap=scaleSteps.find(v=>v>=Math.max(8,active+2,need+2))||96;
   const ang=-.72,r=11.05;
   return {
-    active,need,reserve,cap,
+    active,need,balance,cap,ang,
     x:Math.cos(ang)*r,z:Math.sin(ang)*r,
     coreWorkers:Math.min(active,need),
-    reserveWorkers:Math.max(0,active-need),
-    deficit:Math.max(0,need-active)
+    surplus:Math.max(0,balance),
+    deficit:Math.max(0,-balance)
   };
 }
 function drawCapacityMonument(c,now){
   const s=capacityMonumentState();if(!s)return;
-  const H=6.35,base=.12,w=.72;
+  const H=6.35,base=.12,w=.78;
   const coreH=H*(s.coreWorkers/s.cap);
-  const reserveH=H*(s.reserveWorkers/s.cap);
+  const surplusH=H*(s.surplus/s.cap);
   const needH=H*(s.need/s.cap);
 
-  // Foundation + physical shaft. Nothing here is screen-space UI.
-  drawWorldCuboid(c,s.x,s.z,.02,1.18,.24,'#3b3028',24600);
+  // Zero plinth + discrete shaft. Capacity that does not exist is never painted as filled.
+  drawWorldCuboid(c,s.x,s.z,.02,1.34,.26,'#3b3028',24600);
   if(coreH>.025)drawWorldCuboid(c,s.x,s.z,base,w,coreH,'#9b5728',24620);
-  if(reserveH>.025)drawWorldCuboid(c,s.x,s.z,base+coreH,w*.92,reserveH,'#506657',24640);
+  if(surplusH>.025)drawWorldCuboid(c,s.x,s.z,base+coreH,w*.94,surplusH,'#506657',24640);
 
-  // CORE NEED is a literal stone/ivory crosspiece through the tower.
-  drawWorldCuboid(c,s.x,s.z,base+needH-.035,1.36,.075,s.deficit>0?'#9d3a2b':'#c6aa83',24660);
+  // CORE NEED is a 360-degree physical collar, not a color legend.
+  drawWorldCuboid(c,s.x,s.z,base+needH-.045,1.52,.09,s.deficit>0?'#9d3a2b':'#c6aa83',24660);
 
-  // A deficit is marked above the existing shaft, never faked as filled capacity.
+  // Quarter-scale courses keep magnitude legible even when text is oblique.
+  for(let i=1;i<=4;i++){
+    const h=base+H*i/4;
+    drawWorldCuboid(c,s.x,s.z,h-.018,1.02,.036,i===4?'#8f7256':'#655649',24670+i);
+  }
+
+  // Deficit uses candidate-outline void markers above the real shaft; no fake filled workers.
   if(s.deficit>0){
     const missH=H*(s.deficit/s.cap);
     const start=base+H*(s.active/s.cap);
-    for(let i=0;i<Math.min(4,s.deficit);i++){
-      drawCandidateCuboid(c,s.x,s.z,start+i*(missH/Math.max(1,s.deficit)),w*.72,Math.max(.10,missH/Math.max(1,s.deficit)*.72),24700+i,'#b44a31');
+    const step=missH/Math.max(1,s.deficit);
+    for(let i=0;i<Math.min(5,s.deficit);i++){
+      drawCandidateCuboid(c,s.x,s.z,start+i*step,w*.74,Math.max(.11,step*.72),24700+i,'#b44a31');
     }
   }
 
-  // Top cap makes the silhouette readable from the TV.
   const topH=base+H*(s.active/s.cap);
-  drawWorldCuboid(c,s.x,s.z,Math.max(base,topH),.92,.12,s.reserve>0?'#6d816f':'#7a4a2f',24780);
+  drawWorldCuboid(c,s.x,s.z,Math.max(base,topH),1.02,.13,s.balance>=0?'#6d816f':'#7a4a2f',24780);
+  groundPatch(c,s.x,s.z,1.02,.58,s.deficit>0?'#6f2c22':'#27312a',.31,24790,14);
 
-  // Small grounded marker so the tower reads as an instrument, not another building.
-  groundPatch(c,s.x,s.z,.92,.52,s.deficit>0?'#6f2c22':'#27312a',.28,24790,14);
+  // Physical semantic plaque: same world-space projection/depth contract as the arena boards.
+  const panelAng=s.ang-.17;
+  const panel=wallBoardBasis(panelAng,11.58,2.05);
+  if(!cut(panelAng)&&panel.facing>.030){
+    const W=4.55,Hb=1.92;
+    const alert=s.deficit>0;
+    drawBlockPanel(c,panel,W,Hb,alert?'#43251f':'#26342c',alert?'#7e3c2d':'#5c6c5b',24820);
+    const m=panelSemanticState(panel,.071);
+    if(m.state!=='EDGE'){
+      if(m.state==='SAFE')drawReadableBoardText(c,panel,'CAPACIDAD',0,Hb*.34,W*.54,.20,.11,900,'system-ui','#d4b68f',.082);
+      drawReadableBoardText(c,panel,'ACTIVOS '+s.active,-1.05,.08,W*.39,.28,.15,900,'system-ui','#e0c090',.082);
+      drawReadableBoardText(c,panel,'CORE '+s.need,1.05,.08,W*.32,.28,.15,900,'system-ui','#d6c7a8',.082);
+      const balanceText=s.deficit>0?'FALTAN '+s.deficit:'SOBRAN +'+s.surplus;
+      drawReadableBoardText(c,panel,balanceText,0,-.54,W*.74,.38,.19,950,'system-ui',alert?'#e06a4a':'#8eaa92',.084);
+      // Redundant +/- geometry means the sign survives desaturation.
+      drawBoardCuboid(c,panel,-1.76,-.54,.34,.10,.075,alert?'#a84631':'#6f8c74',24920);
+      if(!alert)drawBoardCuboid(c,panel,-1.76,-.54,.10,.34,.075,'#6f8c74',24930);
+    }
+  }
 }
 function proposalAnchor(slot){
   const s=((slot%12)+12)%12;
