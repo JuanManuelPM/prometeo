@@ -54,7 +54,7 @@ button{font:inherit;color:inherit}
 .bottomNav{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(980px,100%);display:grid;grid-template-columns:repeat(4,1fr);background:#000;border-top:1px solid #fff;padding-bottom:env(safe-area-inset-bottom);z-index:30}
 .bottomNav a{min-height:58px;display:grid;place-items:center;text-align:center;font:850 8px/1.15 ui-monospace,monospace;border-right:1px solid var(--line);padding:6px}
 .bottomNav a:last-child{border-right:0}
-.loading{padding:34px 0;color:#777;font:800 10px/1.5 ui-monospace,monospace}
+.loading{padding:34px 0;color:#777;font:800 10px/1.5 ui-monospace,monospace}.quick{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}.quick a{min-height:40px;display:inline-flex;align-items:center;padding:0 12px;border:1px solid #fff;font:900 9px/1 ui-monospace,monospace;letter-spacing:.05em;text-transform:uppercase}.quick a.secondary{border-color:var(--line);color:#bbb}
 @media(max-width:720px){
   .shell{padding-left:12px;padding-right:12px}.brand small{display:none}.hero{padding-top:22px}.hero h1{font-size:52px}.now{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.card{min-height:104px}.section{padding:20px 0}.sectionHead h2{font-size:20px}
 }
@@ -80,7 +80,7 @@ button{font:inherit;color:inherit}
       <div class="eyebrow">STUDY · HOME</div>
       <h1>Estudiar desde lo que existe.</h1>
       <p id="mission">Cargando estado del dominio. Esta pantalla no inventa materias, materiales ni pendientes: sólo muestra datos y rutas que devuelve el estado durable de STUDY.</p>
-      <div class="meta"><span id="verified">SIN ESTADO</span><span id="surfaceCount"></span></div>
+      <div class="meta"><span id="verified">SIN ESTADO</span><span id="surfaceCount"></span></div><div class="quick"><a id="readerQuick" href="#" hidden>ABRIR READER</a><a class="secondary" href="#materiales">VER MATERIALES</a></div>
     </section>
 
     <div id="error" class="error" hidden></div>
@@ -115,7 +115,7 @@ button{font:inherit;color:inherit}
       <div class="grid" id="continueGrid"></div>
     </section>
 
-    <section class="section" id="estado" hidden>
+    <section class="section" id="otros" hidden>\n      <div class="sectionHead"><h2>Más recursos</h2><span>RUTAS REALES SIN CATEGORÍA</span></div>\n      <div class="grid" id="otherGrid"></div>\n    </section>\n\n    <section class="section" id="estado" hidden>
       <div class="sectionHead"><h2>Estado real</h2><span>TRABAJO DEL DOMINIO</span></div>
       <div class="work" id="work"></div>
     </section>
@@ -145,7 +145,7 @@ async function rpc(name,args){
   return await r.json();
 }
 function publicHref(route){return route?'/prometeo'+route:'#'}
-function titleOf(s){return String(s.notes||s.repo_path||s.surface_kind||'Superficie').replace(/.$/,'')}
+function titleOf(s){return String(s.notes||s.repo_path||s.surface_kind||'Superficie').replace(/\\.$/,'')}
 function card(s){
   const live=s.route_status==='GH_PAGES_PRESENT'&&s.public_route;
   return '<a class="card '+(live?'':'off')+'" '+(live?'href="'+esc(publicHref(s.public_route))+'"':'aria-disabled="true"')+'>'+
@@ -158,7 +158,7 @@ function renderGrid(id,items){
 function workRow(x){
   return '<div class="workRow"><div><b>'+esc(x.task_key||'Trabajo')+'</b><small>'+esc((x.task_kind||'')+(x.progress_stage?' · '+x.progress_stage:'')+(x.worker_code?' · '+x.worker_code:''))+'</small></div><span class="badge">'+esc(x.state||'—')+'</span></div>';
 }
-function showSections(){['#ahora','#materias','#materiales','#continuar','#estado'].forEach(id=>$(id).hidden=false)}
+function showSections(){['#ahora','#materias','#materiales','#continuar','#otros','#estado'].forEach(id=>$(id).hidden=false)}
 async function load(){
   $('#loading').hidden=false;$('#error').hidden=true;
   try{
@@ -180,9 +180,14 @@ async function load(){
     const courses=live.filter(s=>/COURSE/.test(s.surface_kind||''));
     const materials=live.filter(s=>['APP','SOURCE_BRIDGE','DRIVE_DEMO'].includes(s.surface_kind));
     const cont=live.filter(s=>/READER|RENDERER|AUDIO|WHITEBOARD|TRANSCRIPT/.test(s.surface_kind||''));
+    const known=new Set([...courses,...materials,...cont].map(s=>s.inventory_id));
+    const other=live.filter(s=>!known.has(s.inventory_id));
     renderGrid('#courses',courses);
     renderGrid('#materials',materials);
     renderGrid('#continueGrid',cont);
+    renderGrid('#otherGrid',other);
+    const reader=cont.find(s=>/READER|RENDERER/.test(s.surface_kind||''));
+    if(reader){$('#readerQuick').href=publicHref(reader.public_route);$('#readerQuick').hidden=false}else{$('#readerQuick').hidden=true}
 
     const dw=Array.isArray(ctx.domain_work)?ctx.domain_work:[];
     const open=Array.isArray(c.open_work)?c.open_work:[];
