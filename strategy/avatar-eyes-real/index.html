@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Prometeo · Máscara ojos reales · V12 restaurada</title>
+<style>
+:root{color-scheme:light}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;margin:0}
+body{overflow:hidden;background:#e9e9e9;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.stage{position:fixed;inset:0;display:grid;place-items:center}
+.scene{position:relative;width:min(92vw,92vh * 1.03984);aspect-ratio:1279/1230;user-select:none;touch-action:manipulation}
+.eye{position:absolute;z-index:1;width:17%;aspect-ratio:1;border-radius:50%;overflow:hidden;transform:translate(-50%,-50%);background:#000}
+.eye.left{left:33.85%;top:52.36%}
+.eye.right{left:68.81%;top:50.72%}
+.eye video{position:absolute;inset:-1%;width:102%;height:102%;object-fit:cover;opacity:0;transition:opacity .42s ease;filter:grayscale(1) contrast(1.48) brightness(.58);transform:scale(1.34);transform-origin:center}
+.eye video.on{opacity:1}
+.eye video.favorite{filter:grayscale(1) contrast(1.38) brightness(.70);transform:scale(1.28)}
+.shut{position:absolute;inset:0;z-index:4;background:#000;opacity:0;transition:opacity .16s linear;pointer-events:none}
+.sleeping .shut{opacity:1}
+.mask{position:absolute;inset:0;z-index:5;width:100%;height:100%;object-fit:contain;pointer-events:none;-webkit-user-drag:none}
+.loading{position:fixed;inset:0;display:grid;place-items:center;font:800 10px/1 system-ui;letter-spacing:.14em;text-transform:uppercase;color:#555;z-index:30;pointer-events:none;transition:opacity .25s}
+.ready .loading{opacity:0}
+.debug{display:none;position:fixed;z-index:30;top:10px;left:10px;max-width:min(460px,90vw);padding:8px 10px;background:rgba(0,0,0,.82);color:#fff;font:700 10px/1.35 ui-monospace,monospace;white-space:pre-wrap}
+body.debugging .debug{display:block}
+.credit{position:fixed;z-index:20;right:8px;bottom:6px;font:600 8px/1.2 system-ui;color:rgba(0,0,0,.24);text-decoration:none}
+.credit:hover{color:#111}
+@media(max-width:650px){.scene{width:98vw}.credit{font-size:7px}}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="scene" id="scene" aria-label="Máscara de Prometeo con ojos reales animados">
+    <div class="eye left" id="leftEye">
+      <video muted playsinline preload="auto"></video><video muted playsinline preload="auto"></video><i class="shut"></i>
+    </div>
+    <div class="eye right" id="rightEye">
+      <video muted playsinline preload="auto"></video><video muted playsinline preload="auto"></video><i class="shut"></i>
+    </div>
+    <img class="mask" id="mask" alt="Máscara de Prometeo" draggable="false">
+  </div>
+</div>
+<div class="loading">cargando máscara</div>
+<div class="debug" id="debug"></div>
+<a class="credit" href="https://commons.wikimedia.org/wiki/Category:Eye_movement_in_humans" target="_blank" rel="noreferrer">eye footage · InkassoSchroeder · CC BY-SA 4.0</a>
+
+<script>
+(() => {
+'use strict';
+
+const FAVORITE = {
+  id:'S',
+  label:'S · favorito',
+  url:'https://upload.wikimedia.org/wikipedia/commons/e/e9/This_shows_a_recording_of_the_eye_movements_of_a_participant_looking_freely_at_a_picture.webm',
+  invert:false
+};
+const ROTATION = [
+  {id:'free_ir',label:'MIRADA LIBRE',url:'https://upload.wikimedia.org/wikipedia/commons/e/e9/This_shows_a_recording_of_the_eye_movements_of_a_participant_looking_freely_at_a_picture.webm',invert:true},
+  {id:'saccades',label:'SACCADES',url:'https://upload.wikimedia.org/wikipedia/commons/e/ef/Horizontal_saccades.webm',invert:true},
+  {id:'pursuit',label:'SEGUIMIENTO',url:'https://upload.wikimedia.org/wikipedia/commons/f/f7/Smooth_pursuit_eye_movements.webm',invert:true},
+  {id:'okn',label:'NISTAGMO',url:'https://upload.wikimedia.org/wikipedia/commons/6/6c/Optokinetic_reflex.webm',invert:true},
+  {id:'slow',label:'SLOW',url:'https://upload.wikimedia.org/wikipedia/commons/3/3a/Horizontal_saccade%2C_slow_motion.webm',invert:true},
+];
+
+const $ = s => document.querySelector(s);
+const scene = $('#scene');
+const debug = $('#debug');
+const eyes = {
+  L:{el:$('#leftEye'), layers:[...$('#leftEye').querySelectorAll('video')], active:0, source:null},
+  R:{el:$('#rightEye'), layers:[...$('#rightEye').querySelectorAll('video')], active:0, source:null}
+};
+
+let favoriteSide = Math.random()<.5?'L':'R';
+let rotationIndex = Math.floor(Math.random()*ROTATION.length);
+let relayTimer = 0;
+let sleeping = false;
+let paused = false;
+let generation = 0;
+
+const rand=(a,b)=>a+Math.random()*(b-a);
+
+function log(){
+  if(!document.body.classList.contains('debugging')) return;
+  debug.textContent =
+    'PROMETEO · MASK EYES V12 RESTORED\n'+
+    'favorito: '+favoriteSide+'\n'+
+    'L: '+(eyes.L.source?.label||'—')+'\n'+
+    'R: '+(eyes.R.source?.label||'—')+'\n'+
+    'sleeping: '+sleeping+' · paused: '+paused;
+}
+
+function configureVideo(v, src){
+  v.loop=true; v.muted=true; v.playsInline=true; v.autoplay=true;
+  v.classList.toggle('favorite',!src.invert);
+  v.style.filter = src.invert
+    ? 'invert(1) grayscale(1) contrast(1.55) brightness(.50)'
+    : 'grayscale(1) contrast(1.38) brightness(.70)';
+}
+
+async function show(side, src, offset=0){
+  const eye=eyes[side];
+  if(eye.source?.id===src.id && eye.source?.invert===src.invert) return;
+  const next=1-eye.active, incoming=eye.layers[next], outgoing=eye.layers[eye.active];
+  configureVideo(incoming,src);
+  incoming.classList.remove('on');
+  if(incoming.src!==src.url) incoming.src=src.url;
+  try{
+    incoming.currentTime=Math.max(0,offset);
+    await incoming.play();
+  }catch(_){}
+  incoming.classList.add('on');
+  outgoing.classList.remove('on');
+  setTimeout(()=>{ try{outgoing.pause()}catch(_){} },500);
+  eye.active=next; eye.source=src; log();
+}
+
+function nextRotation(){
+  const src=ROTATION[rotationIndex%ROTATION.length];
+  rotationIndex=(rotationIndex+1)%ROTATION.length;
+  return src;
+}
+
+function scheduleRelay(ms=rand(8500,14500)){
+  clearTimeout(relayTimer);
+  const g=++generation;
+  relayTimer=setTimeout(()=>relay(g),ms);
+}
+
+async function relay(g){
+  if(g!==generation || paused) return;
+  const other=favoriteSide==='L'?'R':'L';
+
+  // Fase v12: durante unos segundos los dos ojos muestran S.
+  await show(other,FAVORITE,.37);
+  const doubleMs=rand(2600,4800);
+
+  relayTimer=setTimeout(async()=>{
+    if(g!==generation || paused) return;
+    const oldFavorite=favoriteSide;
+    favoriteSide=other;
+    await show(oldFavorite,nextRotation(),Math.random()*1.2);
+    scheduleRelay();
+  },doubleMs);
+}
+
+async function start(){
+  const other=favoriteSide==='L'?'R':'L';
+  await Promise.all([
+    show(favoriteSide,FAVORITE,0),
+    show(other,nextRotation(),.55)
+  ]);
+  document.body.classList.add('ready');
+  scheduleRelay();
+}
+
+function setSleeping(value){
+  sleeping=!!value;
+  scene.classList.toggle('sleeping',sleeping);
+  log();
+}
+window.avatarSpeakStart=()=>{
+  paused=false; setSleeping(false);
+  for(const e of Object.values(eyes)) e.layers[e.active].play().catch(()=>{});
+  if(!relayTimer) scheduleRelay();
+};
+window.avatarSpeakEnd=()=>{ setTimeout(()=>setSleeping(true),220); };
+window.avatarEyesWake=()=>window.avatarSpeakStart();
+window.avatarEyesSleep=()=>setSleeping(true);
+window.avatarEyesRelayNow=()=>{ clearTimeout(relayTimer); relay(++generation); };
+
+scene.addEventListener('click',()=>{
+  setSleeping(!sleeping);
+  if(!sleeping) window.avatarSpeakStart();
+});
+document.addEventListener('visibilitychange',()=>{
+  paused=document.hidden;
+  if(!paused){ for(const e of Object.values(eyes)) e.layers[e.active].play().catch(()=>{}); scheduleRelay(1200); }
+});
+if(new URLSearchParams(location.search).get('debug')==='1') document.body.classList.add('debugging');
+
+async function loadMask(){
+  try{
+    const text=await fetch('../avatar-eyes/index.html',{cache:'force-cache'}).then(r=>{if(!r.ok)throw new Error(r.status);return r.text()});
+    const m=text.match(/<img[\s\S]*?class=["']mask["'][\s\S]*?src=["'](data:image\/png;base64,[^"']+)["']/i);
+    if(!m) throw new Error('mask-not-found');
+    $('#mask').src=m[1];
+  }catch(e){
+    // Respaldo del mismo conjunto visual si cambia la página fuente.
+    $('#mask').src='../mask-mouth/assets/mask-transparent.webp';
+  }
+  if($('#mask').decode) try{await $('#mask').decode()}catch(_){}
+}
+
+loadMask().then(start);
+})();
+</script>
+</body>
+</html>
