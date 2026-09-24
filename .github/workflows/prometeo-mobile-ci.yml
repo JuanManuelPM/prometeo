@@ -102,7 +102,7 @@ jobs:
           SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER"             "platform-tools"             "emulator"             "platforms;android-36"             "build-tools;36.0.0"             "system-images;android-33;google_apis;x86_64"
+          "$SDKMANAGER"             "platform-tools"             "emulator"             "platforms;android-36"             "build-tools;36.0.0"             "system-images;android-33;aosp_atd;x86_64"
 
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -121,14 +121,14 @@ jobs:
           export PATH="$SDK/platform-tools:$SDK/emulator:$SDK/cmdline-tools/latest/bin:$PATH"
           APK="app/build/outputs/apk/debug/app-debug.apk"
 
-          echo no | avdmanager create avd             --force             --name prometeo-api33             --package "system-images;android-33;google_apis;x86_64"             --device "pixel_2"
+          echo no | avdmanager create avd             --force             --name prometeo-api33             --package "system-images;android-33;aosp_atd;x86_64"             --device "pixel_2"
 
           if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm || true; fi
 
           emulator             -avd prometeo-api33             -no-window             -noaudio             -no-boot-anim             -no-snapshot             -gpu swiftshader_indirect             > /tmp/prometeo-emulator.log 2>&1 &
 
-          adb wait-for-device
-          for i in $(seq 1 120); do
+          timeout 120 adb wait-for-device
+          for i in $(seq 1 90); do
             if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
               break
             fi
