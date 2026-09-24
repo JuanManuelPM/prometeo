@@ -160,9 +160,22 @@ function worldProjection(world: any) {
   };
 }
 
-function buildHome(state: any, world: any) {
+async function releaseState() {
+  const r = await rest(
+    "prometeo_mobile_release_channels?select=channel,contract_version,min_version_code,recommended_version_code,version_name,distribution,update_url,apk_sha256,updated_at&channel=eq.internal&limit=1"
+  );
+  if (!r.ok) return null;
+  const rows = await r.json();
+  return rows?.[0] || null;
+}
+
+function buildHome(state: any, world: any, release: any) {
   const s = strategicSurface(state);
   const voice = latestVoice(state);
+  const minVersion = Number(release?.min_version_code || MIN_APP_VERSION);
+  const recommendedVersion = Number(
+    release?.recommended_version_code || RECOMMENDED_APP_VERSION
+  );
   const options = Array.isArray(s?.action_options)
     ? s.action_options.map((o: any) => ({
         id: safeText(o?.option_id || "", 120),
@@ -173,11 +186,21 @@ function buildHome(state: any, world: any) {
         risk: "confirm",
       })).filter((o: any) => o.id)
     : [];
+
+  const blocks: any[] = [
+    { type: "voice", id: "current_voice" },
+    { type: "run_status", id: "focus_run" },
+    { type: "strategic_choices", id: "strategy" },
+  ];
+  if (release?.update_url && recommendedVersion > 0) {
+    blocks.push({ type: "app_update", id: "app_update" });
+  }
+
   return {
     schema: CONTRACT,
     contract_version: 1,
-    min_app_version_code: MIN_APP_VERSION,
-    recommended_app_version_code: RECOMMENDED_APP_VERSION,
+    min_app_version_code: minVersion,
+    recommended_app_version_code: recommendedVersion,
     generated_at: new Date().toISOString(),
     cache_ttl_seconds: 30,
     capabilities: {
@@ -187,6 +210,14 @@ function buildHome(state: any, world: any) {
       declarative_surfaces: true,
       push: false,
     },
+    update: release ? {
+      channel: release.channel,
+      version_name: release.version_name,
+      distribution: release.distribution,
+      update_url: release.update_url,
+      apk_sha256: release.apk_sha256,
+      updated_at: release.updated_at,
+    } : null,
     home: {
       voice,
       world: worldProjection(world),
@@ -199,11 +230,7 @@ function buildHome(state: any, world: any) {
         options,
       } : null,
     },
-    blocks: [
-      { type: "voice", id: "current_voice" },
-      { type: "run_status", id: "focus_run" },
-      { type: "strategic_choices", id: "strategy" },
-    ],
+    blocks,
   };
 }
 
@@ -350,11 +377,12 @@ async function authenticate(req: Request, rawBody: string) {
 }
 
 async function currentState() {
-  const [strategy, world] = await Promise.all([
+  const [strategy, world, release] = await Promise.all([
     rpc(STRATEGY_RPC, { p_channel_key: CHANNEL }),
     rpc(WORLD_RPC, {}),
+    releaseState(),
   ]);
-  return { strategy, world };
+  return { strategy, world, release };
 }
 
 async function requireApproval(req: Request, auth: any) {
@@ -447,8 +475,8 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (body?.op === "bootstrap") {
-      const { strategy, world } = await currentState();
-      return json(buildHome(strategy, world));
+      const { strategy, world, release } = await currentState();
+      return json(buildHome(strategy, world, release));
     }
 
     if (body?.op === "voice_audio") {
