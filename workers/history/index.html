@@ -47,7 +47,7 @@ h1{font-size:27px;letter-spacing:-.05em;margin:0}.sub{font:750 9px/1.45 ui-monos
 
 <script>
 (()=>{
-const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/',TZ='America/Argentina/Buenos_Aires';let APIKEY=null,hours=6,registry=null;
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/',TZ='America/Argentina/Buenos_Aires';let APIKEY=null,hours=6,registry=null,deepSession=new URLSearchParams(location.search).get('session'),deepOpened=false;
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const tm=t=>t?new Intl.DateTimeFormat('es-AR',{timeZone:TZ,hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(t)):'—';
 const dur=s=>{s=Math.max(0,Number(s||0));if(s<60)return Math.round(s)+'s';if(s<3600)return Math.round(s/60)+'m';return (s/3600).toFixed(1)+'h'};
@@ -59,7 +59,7 @@ function render(){
  const start=Date.now()-hours*3600e3,end=Date.now(),span=end-start;
  list.innerHTML=ws.map(w=>{const a=Math.max(start,new Date(w.first_ping_at).getTime()),b=Math.min(end,new Date(w.last_evidence_at).getTime()),left=Math.max(0,(a-start)/span*100),width=Math.max(.4,(b-a)/span*100),lifeClass=w.evidence_state==='WORKING'?'work':w.evidence_state==='SILENT'?'silent':'',cj=w.current_job?(w.current_job.node_key||w.current_job.title||'job'):'sin job abierto';
  return '<div class="worker" data-id="'+esc(w.session_id)+'"><div class="cell"><div class="code">'+esc(w.worker_code||'—')+'</div><span class="state">'+esc(w.evidence_state)+'</span></div><div class="cell"><div class="title">'+esc(cj)+'</div><div class="meta">'+esc(w.agent_id||'')+'</div><div class="meta">'+esc(w.launch_batch||'')+'</div></div><div class="cell"><div class="meta">ping '+tm(w.first_ping_at)+' · trabajo '+tm(w.first_work_at)+' · última evidencia '+tm(w.last_evidence_at)+'</div><div class="life"><i class="'+lifeClass+'" style="left:'+left+'%;width:'+width+'%"></i></div></div><div class="cell"><div class="kpi">'+w.submits_success+'<small>SUCCESS</small></div></div><div class="cell"><div class="kpi">'+w.watchdog_requeues+'<small>REQUEUES</small></div></div></div>'}).join('');
- list.querySelectorAll('.worker').forEach(el=>el.onclick=()=>openWorker(el.dataset.id))
+ list.querySelectorAll('.worker').forEach(el=>el.onclick=()=>{const id=el.dataset.id;history.replaceState(null,'','?session='+encodeURIComponent(id));deepSession=id;deepOpened=true;openWorker(id)})
 }
 function tickMark(p,label){return '<i class="tick" style="left:'+p+'%"><span>'+esc(label)+'</span></i>'}
 async function openWorker(id){
@@ -76,8 +76,8 @@ async function openWorker(id){
    events.innerHTML=ev.length?ev.map(e=>'<div class="event"><div>'+tm(e.at)+'</div><div class="etype">'+esc(e.type)+'</div><div>'+esc(e.node_key||'')+' '+esc(e.title||'')+'</div></div>').join(''):'<div class="empty">Sin eventos relevantes.</div>';
  }catch(e){drawerTitle.textContent='Error';drawerMeta.textContent=String(e.message||e)}
 }
-document.getElementById('close').onclick=()=>{drawer.classList.remove('open');document.body.style.overflow=''}
-async function load(){try{registry=await rpc('prometeo_worker_registry_v1',{p_hours:hours,p_limit:160});render()}catch(e){list.innerHTML='<div class="empty">'+esc(e.message||e)+'</div>'}}
+document.getElementById('close').onclick=()=>{drawer.classList.remove('open');document.body.style.overflow='';history.replaceState(null,'',location.pathname);deepSession=null;deepOpened=false}
+async function load(){try{registry=await rpc('prometeo_worker_registry_v1',{p_hours:hours,p_limit:160});render();if(deepSession&&!deepOpened){deepOpened=true;openWorker(deepSession)}}catch(e){list.innerHTML='<div class="empty">'+esc(e.message||e)+'</div>'}}
 range.querySelectorAll('[data-h]').forEach(b=>b.onclick=()=>{hours=Number(b.dataset.h);range.querySelectorAll('.ctrl').forEach(x=>x.classList.toggle('active',x===b));load()});
 load();setInterval(load,20000);
 })();
