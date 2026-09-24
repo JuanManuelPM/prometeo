@@ -110,3 +110,23 @@ Do not merge dynamic layout and roads in the same first canonical patch.
 Inside the Coliseo: transient current work.
 
 Outside the Coliseo: durable accepted world state.
+
+
+### K. Stress fixtures
+- added 20-node and 100-node synthetic manifest fixtures;
+- ghost nodes use radial target slots;
+- canonical towers remain untouched.
+
+### L. Minimal interaction
+- tap/click a canonical tower in the lab;
+- world-space selection highlight appears;
+- lab badge reports selected node label and durable progress;
+- no permanent dashboard/card layer was introduced.
+
+### M. Synthetic event stream
+- manifest now exposes synthetic TAKE / PROGRESS / SUBMIT-like events derived from the lab simulation;
+- these remain explicitly synthetic and are intended to exercise the adapter/event contract.
+
+### N. Delivered artifact preview
+- after transport completes, a generic delivered material seed appears near the dependent node;
+- this demonstrates handoff semantics without mutating canonical tower construction logic.
