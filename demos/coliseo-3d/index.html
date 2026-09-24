@@ -52,7 +52,7 @@ body{overscroll-behavior:none}
 </div>
 <div class="ui">
   <div class="brand"><div class="mark">III</div><div class="copy"><b>Arena</b><span>collage · campo amplio · construcción</span></div></div>
-  <div class="badge">12 constructores · geometría única · ritual final</div>
+  <div class="badge">12 constructores · objetos world-space · ritual final</div>
   <div class="help">arrastrá para rotar · pellizcá para acercar</div>
 </div>
 <script>
@@ -894,24 +894,29 @@ const BANNER_POLE_H=2.42;
 const BANNER_POLE_GAP=3.02;
 
 function siteBannerAnchor(site,index){
-  // Same world-space radial logic as the arena: the banner sits by the stands,
-  // directly behind its tower when viewed from the arena center.
+  // Keep the banner inside the arena, a little farther out than its tower.
+  // That naturally puts it behind the blocks when viewed from the arena side.
   const ang=Math.atan2(site.z,site.x);
-  const r=15.10;
-  const tangent=(index%2?1:-1)*.34;
+  const siteR=Math.hypot(site.x,site.z);
+  const r=Math.min(11.72,siteR+2.05);
+  const tangent=(index%2?1:-1)*.18;
   return {
     x:Math.cos(ang)*r + (-Math.sin(ang))*tangent,
     z:Math.sin(ang)*r + ( Math.cos(ang))*tangent,
-    h:2.56
+    h:1.58,
+    ang
   };
 }
 function bannerBasis(site,index){
   const a=siteBannerAnchor(site,index);
 
-  // Vertical billboard in WORLD space. Width axis rotates toward the camera,
-  // but dimensions stay in world units, exactly like blocks and workers.
-  const ux=Math.cos(-yaw),uz=Math.sin(-yaw);
-  return {a,ux,uz};
+  // Fixed WORLD orientation, like a real banner between two poles:
+  // width follows the arena tangent, front face points toward the arena center.
+  const ux=-Math.sin(a.ang),uz=Math.cos(a.ang);
+  const nx=-Math.cos(a.ang),nz=-Math.sin(a.ang);
+  const cameraX=Math.sin(yaw),cameraZ=Math.cos(yaw);
+  const facing=nx*cameraX+nz*cameraZ;
+  return {a,ux,uz,nx,nz,facing};
 }
 function bannerWorldPoint(base,localX,localY){
   return {
@@ -950,13 +955,18 @@ function drawTowerBanner(c,site,index){
   if(site.ritual&&site.ritual.phase==='ashes')return;
 
   const base=bannerBasis(site,index);
+
+  // Same back-face rule as the cubes: the reverse of the cloth simply does not exist visually.
+  if(base.facing<=.035)return;
+
   const center=bannerProject(base,0,0);
   if(center.x<-180||center.x>IW+180||center.y<-140||center.y>IH+180)return;
 
   const title=TOWER_NAMES[index%TOWER_NAMES.length];
   const prog=siteProgress(site);
 
-  // Everything below is in WORLD UNITS. No minimum pixel sizes, no HUD scaling.
+  // Everything below is WORLD geometry. Perspective, foreshortening and disappearance
+  // come from the same projection/culling logic as the blocks.
   c.save();
   bannerAffine(c,base);
 
@@ -1248,8 +1258,11 @@ function drawDynamic(now){
       const pos=worldCell(site,bp.cand.gx,bp.cand.gz),p=wp(pos.x,pos.z,(bp.cand.y+.5)*BLOCK_H);
       items.push({type:bp.status==='building'?'building':'blueprint',si,bpKey,depth:p.zv,py:p.y,h:bp.cand.y});
     }
-    const bb=bannerBasis(site,si),bpv=bannerProject(bb,0,0);
-    items.push({type:'banner',si,depth:bpv.zv,py:bpv.y,h:bb.a.h/BLOCK_H});
+    const bb=bannerBasis(site,si);
+    if(bb.facing>.035){
+      const bpv=bannerProject(bb,0,0);
+      items.push({type:'banner',si,depth:bpv.zv,py:bpv.y,h:bb.a.h/BLOCK_H});
+    }
   }
   for(let i=0;i<players.length;i++){
     const pl=players[i],p=wp(pl.x,pl.z,pl.h+pl.jump+.42);
