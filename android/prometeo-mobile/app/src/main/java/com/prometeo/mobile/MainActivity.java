@@ -2,6 +2,7 @@ package com.prometeo.mobile;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -368,6 +369,34 @@ public final class MainActivity extends Activity implements BlockRenderer.Host {
     @Override
     public void onRetryPendingAction() {
         authorizePendingAction();
+    }
+
+    @Override
+    public void onOpenUpdate(JSONObject update) {
+        String raw = update == null ? "" : update.optString("update_url", "");
+        Uri uri;
+        try {
+            uri = Uri.parse(raw);
+        } catch (Exception e) {
+            toast("La dirección de actualización no es válida.");
+            return;
+        }
+
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+        boolean allowed = "https".equalsIgnoreCase(scheme)
+                && host != null
+                && (
+                    "github.com".equalsIgnoreCase(host)
+                    || "play.google.com".equalsIgnoreCase(host)
+                );
+
+        if (!allowed) {
+            toast("Prometeo rechazó un destino de actualización no permitido.");
+            return;
+        }
+
+        startActivity(new Intent(Intent.ACTION_VIEW, uri));
     }
 
     private void authorizePendingAction() {
