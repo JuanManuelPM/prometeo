@@ -1130,3 +1130,24 @@ For each wall board:
 This is a hard gate.
 
 > Do not start the architectural WORLD roadmap on top of a known coordinate-space rendering bug.
+
+
+## 38. Semantic wall-board fix · V3.9
+
+Implemented:
+
+- clock digits are now seven-segment physical mini-cuboids attached to the world-space panel;
+- colon is physical panel geometry;
+- progress is exactly 20 physical cells, with no redundant giant percentage;
+- version board uses the already-proven projected native-text path used by tower labels;
+- version status marks are physical cuboids;
+- wall-board polygonal content no longer uses the quantizing `path()/fillRagged()` route inside local transforms;
+- the old transformed polygon route is explicitly deprecated for panel semantics;
+- wall semantic visibility uses a stricter gate than ordinary text so content disappears before edge collapse;
+- physical frames remain world-fixed and do not rotate toward camera.
+
+Hard regression rule:
+
+> If a future panel uses small local fractional geometry, it must either be projected vertex-by-vertex or built with `drawBoardCuboid`. It may not pass those local coordinates through screen-space helpers that quantize with `q()`.
+
+The visual roadmap (roads / manifest / transport / work pads / dynamic layout) remains gated behind this coordinate-space discipline.
