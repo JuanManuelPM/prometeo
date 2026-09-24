@@ -143,3 +143,74 @@ The purpose is to choose a visual vocabulary before live binding.
 The top lab switcher exposes these modes.
 
 The canonical Coliseo remains unchanged.
+
+
+## Composite painter rule · LAB-H3
+
+Observed failure:
+- a rear pillar/stone could appear in front of a nearer object;
+- individual cuboids had correct faces;
+- compound scenes still looked spatially impossible.
+
+Root cause:
+
+The heavy visual prototypes were rendered as whole scene functions in fixed code order:
+
+```
+roads
+focus
+workshops
+states
+...
+canonical towers/workers
+```
+
+That means semantic subsystem order overrode camera depth.
+
+Inside a focus monument, for example:
+- rear pillar might be drawn after a front pillar;
+- all focus pieces were drawn before canonical objects regardless of camera depth;
+- a correct cuboid renderer cannot fix incorrect ordering between separate cuboids.
+
+Permanent rule:
+
+> Every elevated opaque physical primitive that can overlap another world object must enter one shared painter queue.
+
+Queue item needs:
+- world anchor;
+- projected depth;
+- projected Y tie breaker;
+- height;
+- render command.
+
+Then:
+- heavy cuboids;
+- heavy board cuboids;
+- ghost structures;
+- canonical blocks;
+- blueprints;
+- workers;
+- trophies;
+- banners
+
+are sorted together before rasterization.
+
+Ground patches remain underlays.
+Screen effects remain effect layers.
+Static exterior geometry is independently sorted before being baked behind the Coliseo wall.
+
+No future scene function may rely on “function call order” for 3D occlusion.
+
+## Mobile landscape rule · LAB-H3
+
+The lab is landscape-first.
+
+When the physical viewport is portrait:
+- the app gets a virtual landscape viewport;
+- width/height are swapped for rendering;
+- the entire app surface rotates 90°;
+- pointer coordinates are inversely mapped back into the virtual landscape space;
+- drag, pinch and tap use the mapped coordinates;
+- mobile browser viewport changes trigger a resize through `visualViewport`.
+
+This does not depend on the browser granting Screen Orientation API permission.
