@@ -43,6 +43,51 @@ body{overscroll-behavior:none}
 .badge{position:absolute;right:max(14px,env(safe-area-inset-right));top:max(14px,env(safe-area-inset-top));padding:7px 9px;border-radius:999px;border:1px solid rgba(213,163,105,.15);background:rgba(6,5,4,.66);font:750 9px/1 system-ui;letter-spacing:.08em;text-transform:uppercase;color:#9d846b}
 .help{position:absolute;left:50%;bottom:max(13px,env(safe-area-inset-bottom));transform:translateX(-50%);padding:7px 10px;border-radius:999px;border:1px solid rgba(213,163,105,.12);background:rgba(6,5,4,.58);font:650 9px/1 system-ui;color:#8e7965;white-space:nowrap}
 @media(max-width:560px){.copy span{display:none}.badge{font-size:8px}.help{font-size:8px}.mark{width:29px;height:29px}}
+
+/* PROMETEO CAPACITY GAUGE V1 */
+.capacityHud{
+  position:absolute;right:max(13px,env(safe-area-inset-right));top:52px;
+  z-index:14;width:116px;display:grid;grid-template-columns:1fr 28px;gap:8px;
+  align-items:end;pointer-events:none;text-shadow:0 1px 0 #000;
+}
+.capacityCopy{text-align:right;min-width:0}
+.capacityCopy .capValue{font:950 24px/.9 system-ui;letter-spacing:-.055em;color:#e7c28f}
+.capacityCopy .capLabel{display:block;margin-top:4px;font:850 7px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.09em;color:#8d7863}
+.capacityCopy .capGap{display:block;margin-top:8px;font:900 8px/1.15 ui-monospace,SFMono-Regular,Menlo,monospace;color:#657b69}
+.capacityCopy .capMeta{display:block;margin-top:4px;font:750 7px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;color:#76695d}
+.capacityMeter{position:relative;width:28px;height:126px;border:1px solid rgba(213,163,105,.28);background:#080706;overflow:visible}
+.capacityMeter:before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.28;
+  background:repeating-linear-gradient(to top,transparent 0 9px,rgba(215,180,139,.20) 9px 10px)
+}
+.capCoreFill,.capReserveFill{position:absolute;left:3px;right:3px;bottom:3px;transition:height .35s ease,bottom .35s ease}
+.capCoreFill{background:#d77a2d}
+.capReserveFill{background:#506657}
+.capNeedLine{
+  position:absolute;left:-6px;right:-6px;height:0;border-top:2px solid #efd5ad;
+  transition:bottom .35s ease;z-index:3
+}
+.capNeedLine span{
+  position:absolute;right:35px;top:-5px;white-space:nowrap;
+  font:900 7px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#efd5ad
+}
+.capScale{
+  position:absolute;right:34px;top:-2px;font:750 6px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#61574e
+}
+.capacityHud.shortage .capacityCopy .capGap{color:#b44a31}
+.capacityHud.shortage .capNeedLine{border-top-color:#d35b3c}
+.capacityHud.shortage .capNeedLine span{color:#d35b3c}
+.capacityHud.noData{opacity:.52}
+@media(max-width:700px){
+  .capacityHud{right:8px;top:43px;width:105px;grid-template-columns:1fr 24px;gap:6px}
+  .capacityMeter{width:24px;height:108px}
+  .capacityCopy .capValue{font-size:20px}
+  .capacityCopy .capGap{font-size:7px}
+  .capacityCopy .capMeta{font-size:6px}
+  .capNeedLine span{right:30px;font-size:6px}
+  .capScale{right:29px}
+}
+
 </style>
 </head>
 <body>
@@ -54,6 +99,22 @@ body{overscroll-behavior:none}
   <div id="exposure" aria-hidden="true"></div>
 </div>
 <div class="ui">
+
+  <div class="capacityHud noData" id="capacityHud" aria-label="Capacidad real de workers">
+    <div class="capacityCopy">
+      <div class="capValue" id="capActive">—</div>
+      <span class="capLabel">WORKERS VIVOS</span>
+      <span class="capGap" id="capGap">SIN DATOS</span>
+      <span class="capMeta" id="capMeta">CORE — · COG —</span>
+      <span class="capMeta" id="capAction">esperando telemetría</span>
+    </div>
+    <div class="capacityMeter" aria-hidden="true">
+      <div class="capCoreFill" id="capCoreFill"></div>
+      <div class="capReserveFill" id="capReserveFill"></div>
+      <div class="capNeedLine" id="capNeedLine"><span id="capNeedLabel">CORE —</span></div>
+      <div class="capScale" id="capScale">—</div>
+    </div>
+  </div>
   <div class="brand"><div class="mark">III</div><div class="copy"><b>Arena</b><span>collage · campo amplio · construcción</span></div></div>
   <div class="badge">12 constructores · fuego → trofeo → relevo</div>
   <div class="help">arrastrá para rotar · pellizcá para acercar</div>
@@ -2063,6 +2124,87 @@ canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=clamp(zoom*Math.exp(
 addEventListener('resize',resize,{passive:true});
 document.addEventListener('visibilitychange',()=>{visible=!document.hidden;if(visible){last=0;staticDirty=true}});
 resize();requestAnimationFrame(frame);
+})();
+</script>
+
+<script>
+(function(){
+'use strict';
+const hud=document.getElementById('capacityHud');
+if(!hud)return;
+const $=id=>document.getElementById(id);
+const el={
+ active:$('capActive'),gap:$('capGap'),meta:$('capMeta'),action:$('capAction'),
+ core:$('capCoreFill'),reserve:$('capReserveFill'),line:$('capNeedLine'),
+ need:$('capNeedLabel'),scale:$('capScale')
+};
+let apiKey=null,lastGood=0;
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+async function getKey(){
+ if(apiKey)return apiKey;
+ const r=await fetch('/prometeo/guides/prometeo/',{cache:'no-store'});
+ const t=await r.text();
+ const m=t.match(/sb_publishable_[A-Za-z0-9_-]+/);
+ if(!m)throw new Error('public key unavailable');
+ return apiKey=m[0];
+}
+async function rpc(){
+ const k=await getKey();
+ const r=await fetch(BASE+'prometeo_capacity_gauge_v1',{
+   method:'POST',
+   headers:{apikey:k,Authorization:'Bearer '+k,'Content-Type':'application/json'},
+   body:'{}',cache:'no-store'
+ });
+ if(!r.ok)throw new Error('capacity '+r.status);
+ return r.json();
+}
+function scaleFor(n){
+ const steps=[8,12,16,24,32,48,64,96,128];
+ return steps.find(x=>x>=n)||Math.ceil(n/32)*32;
+}
+function render(g){
+ const active=Number(g.active_workers||0);
+ const need=Number(g.core_demand||0);
+ const reserve=Math.max(0,Number(g.reserve_workers||0));
+ const cognitive=Number(g.cognitive_ready||0);
+ const scale=scaleFor(Math.max(8,active+3,need+3));
+ const coreShown=Math.min(active,need);
+ const corePct=Math.max(0,Math.min(100,coreShown/scale*100));
+ const needPct=Math.max(0,Math.min(100,need/scale*100));
+ const reservePct=Math.max(0,Math.min(100,Math.max(0,active-need)/scale*100));
+ const reserveBottom=Math.max(0,Math.min(100,need/scale*100));
+ const gap=active-need;
+ const desiredReserve=4;
+ const launch=Math.max(0,desiredReserve-gap);
+
+ el.active.textContent=active;
+ el.core.style.height=corePct+'%';
+ el.reserve.style.bottom='calc('+reserveBottom+'% + 3px)';
+ el.reserve.style.height=reservePct+'%';
+ el.line.style.bottom='calc('+needPct+'% + 3px)';
+ el.need.textContent='CORE '+need;
+ el.scale.textContent=scale;
+ el.gap.textContent=gap<0?'FALTAN '+Math.abs(gap):'RESERVA +'+reserve;
+ el.meta.textContent='CORE '+Number(g.core_active_workers||0)+' · COG '+Number(g.cognitive_active_workers||0)+' · READY '+cognitive;
+ el.action.textContent=gap<0?'LANZAR +'+Math.abs(gap):
+   launch>0&&cognitive>0?'BUFFER BAJO · +'+launch:
+   cognitive>0?'BUFFER OK · prework activo':'BUFFER OK';
+ hud.classList.toggle('shortage',gap<0);
+ hud.classList.remove('noData');
+ lastGood=Date.now();
+}
+async function refresh(){
+ try{render(await rpc())}
+ catch(e){
+   if(Date.now()-lastGood>30000){
+     hud.classList.add('noData');
+     el.gap.textContent='TELEMETRÍA STALE';
+     el.action.textContent='no inferir liveness';
+   }
+ }
+}
+refresh();
+setInterval(refresh,8000);
 })();
 </script>
 </body>
