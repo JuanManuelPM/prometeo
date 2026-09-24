@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="theme-color" content="#050504">
-<meta name="prometeo-rev" content="MB-VIS-CANON-08">
+<meta name="prometeo-rev" content="MB-VIS-CANON-09">
 <title>Coliseo · collage nocturno</title>
 <style>
 :root{--ink:#d7b48b;--muted:#806f60}
@@ -243,7 +243,7 @@ body{overscroll-behavior:none}
     </div>
 
     <div class="monFoot" id="monFoot">
-      <span id="monRev">V3.17 · MB-VIS-CANON-08</span>
+      <span id="monRev">V3.18 · MB-VIS-CANON-09</span>
       <span class="updatePulse" id="monUpdate">LIVE</span>
     </div>
   </aside>
@@ -2377,6 +2377,146 @@ function drawCapacityMonument(c,now){
   }
 }
 
+
+/* PROMETEO WORLD PLAN INSTRUMENT V1 + PRODUCT ALTAR V1
+   Both consume the already-live monitor payload. They never infer worker liveness,
+   never reuse capacity semantics, and disappear when monitor evidence is stale. */
+function liveMonitorWorldData(){
+  const d=window.PROMETEO_MONITOR_DATA;
+  const at=Number(window.PROMETEO_MONITOR_AT||0);
+  if(!d||!at||Date.now()-at>30000)return null;
+  return d;
+}
+function planInstrumentState(){
+  const d=liveMonitorWorldData();if(!d)return null;
+  const macro=d.macro_build||{};
+  const builders=Array.isArray(macro.builders)?macro.builders:[];
+  if(!builders.length)return null;
+  const counts={DONE:0,ACTIVE:0,READY:0,BLOCKED:0};
+  for(const b of builders){
+    const k=String(b&&b.state||'READY').toUpperCase();
+    if(Object.prototype.hasOwnProperty.call(counts,k))counts[k]++;
+    else counts.BLOCKED++;
+  }
+  const total=builders.length;
+  const ang=.20+3*TAU/12,r=11.52;
+  return {
+    ang,x:Math.cos(ang)*r,z:Math.sin(ang)*r,total,counts,
+    done:counts.DONE,active:counts.ACTIVE,ready:counts.READY,blocked:counts.BLOCKED
+  };
+}
+function drawPlanInstrument(c,now){
+  const s=planInstrumentState();if(!s)return;
+  const tx=-Math.sin(s.ang),tz=Math.cos(s.ang);
+  const H=4.15;
+
+  groundPatch(c,s.x,s.z,2.15,.82,'#514133',.24,25240,18);
+
+  // A low civic gate: PLAN is a queue/state instrument, not a capacity column.
+  for(const side of [-1,1]){
+    const px=s.x+tx*1.52*side,pz=s.z+tz*1.52*side;
+    drawWorldCuboid(c,px,pz,.02,.43,H,'#3c3028',25260+(side+1)*3);
+    drawWorldCuboid(c,px,pz,H,.62,.28,'#6d533e',25270+(side+1)*3);
+  }
+  for(let k=-4;k<=4;k++){
+    const px=s.x+tx*k*.37,pz=s.z+tz*k*.37;
+    drawWorldCuboid(c,px,pz,H-.03,.40,.22,k===0?'#a56d3e':'#66503e',25290+k+4);
+  }
+
+  const lanes=[
+    ['DONE',s.done,'#596a5a'],
+    ['ACTIVE',s.active,'#a74c31'],
+    ['READY',s.ready,'#8d6d3c'],
+    ['BLOCKED',s.blocked,'#4a302b']
+  ];
+  for(let i=0;i<lanes.length;i++){
+    const count=lanes[i][1],col=lanes[i][2];
+    const px=s.x+tx*((i-1.5)*.67),pz=s.z+tz*((i-1.5)*.67);
+    const h=count>0?.42+2.65*(count/s.total):.10;
+    drawWorldCuboid(c,px,pz,.04,.42,h,count>0?col:'#2b2521',25320+i*7);
+    drawWorldCuboid(c,px,pz,.04+h,.50,.08,count>0?shade(col,18):'#3a312a',25321+i*7);
+  }
+
+  function planPlaque(panelAng,seedBase){
+    const panel=wallBoardBasis(panelAng,12.03,2.26);
+    if(cut(panelAng)||panel.facing<=.030)return;
+    const W=7.70,Hb=3.36;
+    drawBlockPanel(c,panel,W,Hb,'#302922','#68513e',seedBase);
+    const m=panelSemanticState(panel,.071);if(m.state==='EDGE')return;
+    if(m.state==='SAFE')drawReadableBoardText(c,panel,'PLAN',0,Hb*.39,W*.48,.32,.15,950,'system-ui','#d5b28b',.082);
+    drawReadableBoardText(c,panel,String(s.done)+'/'+String(s.total),-2.22,.24,W*.25,.72,.34,950,'system-ui','#9fb29c',.082);
+    drawReadableBoardText(c,panel,'DONE',-2.22,-.48,W*.20,.22,.10,900,'system-ui','#8f7b67',.082);
+    drawReadableBoardText(c,panel,String(s.active),-.72,.24,W*.15,.62,.30,950,'system-ui','#dc7955',.082);
+    drawReadableBoardText(c,panel,'ACTIVE',-.72,-.48,W*.19,.20,.09,900,'system-ui','#8f7b67',.082);
+    drawReadableBoardText(c,panel,String(s.ready),.86,.24,W*.15,.62,.30,950,'system-ui','#d8ad67',.082);
+    drawReadableBoardText(c,panel,'READY',.86,-.48,W*.18,.20,.09,900,'system-ui','#8f7b67',.082);
+    drawReadableBoardText(c,panel,String(s.blocked),2.28,.24,W*.15,.62,.30,950,'system-ui','#9b6d61',.082);
+    drawReadableBoardText(c,panel,'BLOCK',2.28,-.48,W*.18,.20,.09,900,'system-ui','#8f7b67',.082);
+    const stateText=s.active>0?'EJECUTANDO':(s.ready>0?'LISTO':'SIN FRONTIER');
+    drawReadableBoardText(c,panel,stateText,0,-1.16,W*.52,.30,.14,950,'system-ui',s.active>0?'#d6784f':'#9b8d7b',.084);
+  }
+  planPlaque(s.ang-.16,25380);
+  planPlaque(s.ang+Math.PI-.16,25480);
+}
+
+function productInstrumentState(){
+  const d=liveMonitorWorldData();if(!d)return null;
+  const ps=d.product_summary||{};
+  const done=Math.max(0,Number(ps.done||0));
+  const active=Math.max(0,Number(ps.active||0));
+  const ready=Math.max(0,Number(ps.ready||0));
+  const blocked=Math.max(0,Number(ps.blocked||0));
+  let total=done+active+ready+blocked;
+  const remaining=Math.max(0,Number((d.product_jobs||{}).remaining||0));
+  if(!total&&remaining>0)total=done+remaining;
+  if(!total)return null;
+  let pct=Number((d.product_percentage||{}).display);
+  if(!Number.isFinite(pct))pct=done/total*100;
+  pct=clamp(pct,0,100);
+  const ang=.20+1*TAU/12,r=11.18;
+  return {ang,x:Math.cos(ang)*r,z:Math.sin(ang)*r,done,active,ready,blocked,total,pct};
+}
+function drawProductInstrument(c,now){
+  const s=productInstrumentState();if(!s)return;
+  const tx=-Math.sin(s.ang),tz=Math.cos(s.ang);
+
+  // PRODUCT is a completion altar: broad, low and radial. It cannot be mistaken for CAPACITY or PLAN.
+  groundPatch(c,s.x,s.z,1.85,1.00,'#4b3b30',.23,25540,20);
+  for(let i=0;i<10;i++){
+    const a=s.ang+i*TAU/10,rr=1.48;
+    const px=s.x+Math.cos(a)*rr,pz=s.z+Math.sin(a)*rr;
+    const filled=i<Math.floor(s.pct/10);
+    drawWorldCuboid(c,px,pz,.02,filled?.38:.27,filled?.33:.15,filled?'#8f6538':'#312a25',25560+i);
+  }
+  const stageH=.44+2.34*(s.pct/100);
+  drawWorldCuboid(c,s.x,s.z,.02,1.70,.24,'#3a3028',25590);
+  drawWorldCuboid(c,s.x,s.z,.27,1.26,.25,'#594534',25591);
+  drawWorldCuboid(c,s.x,s.z,.54,.86,stageH,s.pct>=100?'#65745f':'#8a5534',25592);
+  drawWorldCuboid(c,s.x,s.z,.54+stageH,1.02,.12,s.pct>=100?'#92a08d':'#b47a49',25593);
+
+  // Two short tangent fins make the altar readable as a distinct landmark at TV distance.
+  for(const side of [-1,1]){
+    const px=s.x+tx*1.16*side,pz=s.z+tz*1.16*side;
+    drawWorldCuboid(c,px,pz,.04,.26,1.34,side<0?'#4d4438':'#5a4737',25600+(side+1)*3);
+  }
+
+  function productPlaque(panelAng,seedBase){
+    const panel=wallBoardBasis(panelAng,11.78,1.94);
+    if(cut(panelAng)||panel.facing<=.030)return;
+    const W=7.28,Hb=3.20;
+    drawBlockPanel(c,panel,W,Hb,'#2d2923','#67513c',seedBase);
+    const m=panelSemanticState(panel,.071);if(m.state==='EDGE')return;
+    if(m.state==='SAFE')drawReadableBoardText(c,panel,'PRODUCT',0,Hb*.39,W*.52,.30,.14,950,'system-ui','#d4b58f',.082);
+    drawReadableBoardText(c,panel,String(Math.floor(s.pct))+'%',-1.90,.12,W*.28,.78,.36,950,'system-ui',s.pct>=100?'#a8bea8':'#d19a5f',.082);
+    drawReadableBoardText(c,panel,'DONE '+String(s.done)+'/'+String(s.total),1.38,.26,W*.38,.34,.16,950,'system-ui','#c9b28f',.082);
+    drawReadableBoardText(c,panel,'ACTIVE '+String(s.active)+' · READY '+String(s.ready),1.38,-.42,W*.43,.22,.10,900,'system-ui','#9b8873',.082);
+    drawReadableBoardText(c,panel,'BLOCK '+String(s.blocked),1.38,-.90,W*.30,.20,.09,900,'system-ui','#846f61',.082);
+    drawReadableBoardText(c,panel,s.pct>=100?'PRODUCT COMPLETE':'PRODUCT-100',-1.90,-1.10,W*.33,.22,.10,900,'system-ui',s.pct>=100?'#9fb39d':'#8d7c69',.082);
+  }
+  productPlaque(s.ang-.16,25630);
+  productPlaque(s.ang+Math.PI-.16,25730);
+}
+
 function proposalAnchor(slot){
   const s=((slot%12)+12)%12;
   const ang=.20+s*TAU/12;
@@ -2470,7 +2610,17 @@ function drawDynamic(now){
     const cp=wp(capState.x,capState.z,3.2);
     items.push({type:'capacityMonument',depth:cp.zv,py:cp.y,h:5});
   }
-  const liveProps=Array.isArray(window.PROMETEO_VISUAL_PROPOSALS)?window.PROMETEO_VISUAL_PROPOSALS.slice(0,6):[];
+  const planState=planInstrumentState();
+  if(planState){
+    const pp=wp(planState.x,planState.z,2.0);
+    items.push({type:'planInstrument',depth:pp.zv,py:pp.y,h:4.2});
+  }
+  const productState=productInstrumentState();
+  if(productState){
+    const xp=wp(productState.x,productState.z,1.5);
+    items.push({type:'productInstrument',depth:xp.zv,py:xp.y,h:3.0});
+  }
+    const liveProps=Array.isArray(window.PROMETEO_VISUAL_PROPOSALS)?window.PROMETEO_VISUAL_PROPOSALS.slice(0,6):[];
   for(let pi=0;pi<liveProps.length;pi++){
     const spec=liveProps[pi]&&liveProps[pi].render_spec||{};
     const a=proposalAnchor(Number.isFinite(Number(spec.slot))?Number(spec.slot):pi);
@@ -2517,6 +2667,8 @@ function drawDynamic(now){
     else if(it.type==='banner')drawTowerBanner(ctx,sites[it.si],it.si,now);
     else if(it.type==='trophy')drawRitualTrophy(ctx,sites[it.si],it.si,now);
     else if(it.type==='capacityMonument')drawCapacityMonument(ctx,now);
+    else if(it.type==='planInstrument')drawPlanInstrument(ctx,now);
+    else if(it.type==='productInstrument')drawProductInstrument(ctx,now);
     else if(it.type==='visualProposal')drawProposalBlueprint(ctx,it.proposal,it.proposalIndex,now);
     else drawPlayer(ctx,players[it.i],t,it.i);
   }
@@ -2685,7 +2837,7 @@ setInterval(refresh,8000);
 <script>
 (function(){
 'use strict';
-const CURRENT_REV='MB-VIS-CANON-08';
+const CURRENT_REV='MB-VIS-CANON-09';
 const panel=document.getElementById('monitorPanel');
 if(!panel)return;
 
@@ -3013,6 +3165,8 @@ function fingerprint(data){
 async function refreshMonitor(){
   try{
     const data=await monitorRpc();
+    window.PROMETEO_MONITOR_DATA=data;
+    window.PROMETEO_MONITOR_AT=Date.now();
     renderWorkers(data);updateCapacity(data);renderGraph(data);
     const fp=fingerprint(data);
     if(!firstData && fp!==lastFingerprint){flashUpdate('STATE ↑');chime('state')}
