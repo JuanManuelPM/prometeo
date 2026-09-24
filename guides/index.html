@@ -30,8 +30,8 @@ h1{font-size:clamp(38px,7vw,72px);line-height:.92;letter-spacing:-.065em;margin:
 .dagSummary{display:grid;grid-template-columns:1.25fr 1fr 1fr;border:1px solid var(--line);margin-bottom:10px}
 .dagSummary>div{padding:10px 11px;border-right:1px solid var(--line);min-width:0}.dagSummary>div:last-child{border-right:0}
 .dagSummary b{display:block;font-size:19px;letter-spacing:-.035em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dagSummary span{font-size:9px;line-height:1.35;color:var(--muted)}
-.dagViewport{position:relative;border:1px solid var(--line);overflow:auto;overscroll-behavior:contain;background:#030303;background-image:radial-gradient(#181818 .7px,transparent .7px);background-size:14px 14px}
-#dag{width:100%;height:540px;min-width:1040px;display:block;touch-action:manipulation}
+.dagViewport{position:relative;border:1px solid var(--line);overflow-x:auto;overflow-y:visible;overscroll-behavior-x:contain;overscroll-behavior-y:auto;touch-action:pan-y;background:#030303;background-image:radial-gradient(#181818 .7px,transparent .7px);background-size:14px 14px}
+#dag{width:100%;height:540px;min-width:1040px;display:block;touch-action:pan-y}
 .dagHint{font:800 9px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:#8d8d8d;margin-top:8px}
 .dagLegend{display:flex;gap:12px;flex-wrap:wrap;margin:9px 0 0;font:800 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#888}
 .dagLegend i{width:9px;height:9px;display:inline-block;border:1px solid #555;margin-right:4px;vertical-align:-1px}
@@ -45,8 +45,8 @@ h1{font-size:clamp(38px,7vw,72px);line-height:.92;letter-spacing:-.065em;margin:
  .phaseGrid{grid-template-columns:1fr 1fr}.guides{grid-template-columns:1fr}.section{padding:18px 0}.sectionHead{display:block}.controls{margin-top:10px}
  .chartMeta{grid-template-columns:1fr 1fr}.chartMeta>div:nth-child(2){border-right:0}.chartMeta>div:nth-child(n+3){border-top:1px solid var(--line)}#chart{height:245px}
  .dagSummary{grid-template-columns:1.15fr 1fr 1fr;margin-bottom:7px}.dagSummary>div{padding:8px 7px;border-right:1px solid var(--line);border-bottom:0}.dagSummary b{font-size:16px}.dagSummary span{font-size:7px}
- .dagViewport{overflow:hidden;border-left:0;border-right:0;margin-left:-9px;margin-right:-9px}.dagViewport::after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 16px 28px #0008,inset 0 -16px 28px #0008}
- #dag{height:auto;min-width:0;width:100%;display:block}.dagHint{font-size:8px;margin-top:6px}.dagLegend{gap:8px}.nodeDetail{font-size:10px;padding:9px;min-height:52px}
+ .dagViewport{overflow:visible;border-left:0;border-right:0;margin-left:-9px;margin-right:-9px;touch-action:pan-y;overscroll-behavior-y:auto}.dagViewport::after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 16px 28px #0008,inset 0 -16px 28px #0008}
+ #dag{height:auto;min-width:0;width:100%;display:block;touch-action:pan-y}.dagHint{font-size:8px;margin-top:6px}.dagLegend{gap:8px}.nodeDetail{font-size:10px;padding:9px;min-height:52px}
  .goalTrack{gap:2px}.goalSeg{height:16px}
 }
 </style>
@@ -62,10 +62,8 @@ h1{font-size:clamp(38px,7vw,72px);line-height:.92;letter-spacing:-.065em;margin:
  <span class="live" id="liveStamp">LIVE · …</span>
 </nav>
 
-<header class="hero"><div class="eyebrow">HOME · ESTADO REAL</div><h1>Una sola pantalla para saber si Prometeo avanza.</h1><div class="lede">Objetivo, frontier, velocidad cada 30 minutos y cambios de protocolo. Los workers cuentan sólo cuando dejan evidencia durable; Utility queda separado y nunca se hace pasar por progreso del producto.</div></header>
-
 <div class="statusGrid">
- <div class="statusCell"><div class="label">Objetivo actual</div><div class="big">PRODUCT-100</div><div class="sub" id="goalState">cargando…</div></div>
+ <div class="statusCell"><div class="label">PRODUCT-100</div><div class="big" id="goalState">cargando…</div><div class="sub">camino principal</div></div>
  <div class="statusCell"><div class="label">Paquetes</div><div class="big" id="packageCount">– / 30</div><div class="sub" id="packageSub">SUCCESS reales</div></div>
  <div class="statusCell"><div class="label">Verificado</div><div class="big" id="verifiedPct">–%</div><div class="sub" id="gateState">gate…</div></div>
  <div class="statusCell actionCell"><div class="label">Qué hacés ahora</div><div class="big" id="humanAction">cargando…</div><div class="sub" id="humanActionSub"></div><a class="actionBtn" href="/prometeo/o/">ABRIR WORKERS</a></div>
@@ -258,7 +256,7 @@ function showDagNode(key){
 function renderStatus(){
  if(!product||!health)return;const j=product.jobs||{},pct=product.percentage||{};
  packageCount.textContent=(j.done_success||0)+' / 30';packageSub.textContent=(j.ready||0)+' READY · '+(j.active||0)+' ACTIVE · '+(j.blocked||0)+' BLOCKED';
- verifiedPct.textContent=(pct.display??0)+'%';gateState.textContent='gate: '+(pct.limiting_gate||'—');goalState.textContent=product.released?'RELEASED · verificación en curso':'todavía no RELEASED';
+ verifiedPct.textContent=(pct.display??0)+'%';gateState.textContent='gate: '+(pct.limiting_gate||'—');goalState.textContent=product.released?'RELEASED':'NO RELEASED';
  const n=Number(health.recommended_new_shells||0);
  if(n>0){humanAction.textContent='LANZAR '+n+' WORKER'+(n===1?'':'S');humanActionSub.textContent=(health.claimable_job_classes||[]).join(' · ')||'hay trabajo útil reclamable'}
  else if(Number(health.useful_active||0)>0){humanAction.textContent='NO HACER NADA';humanActionSub.textContent=health.useful_active+' trabajo útil activo; dejalo terminar'}
