@@ -163,7 +163,7 @@ function workerAvatar(w,x,y,scale=1){
  else if(head===1)face='<circle cx="-2.5" cy="-3" r="1.5" fill="none" stroke="#fff"/><circle cx="2.5" cy="-3" r="1.5" fill="none" stroke="#fff"/><path d="M-1 -3h2" stroke="#fff"/>';
  else face='<path d="M-5 -6q5-5 10 0" fill="none" stroke="#fff" stroke-width="1.2"/>';
  const torso=body%2===0?'<path d="M-6 3h12l2 9h-16z" fill="#fff"/>':'<path d="M0 2l7 10h-14z" fill="#fff"/>';
- return '<g transform="translate('+x+' '+y+') scale('+scale+')" opacity="'+(working?'1':'.42')+'">'+bob+
+ return '<g data-worker-session="'+esc(w.session_id||'')+'" data-worker-code="'+esc(w.worker_code||'worker')+'" transform="translate('+x+' '+y+') scale('+scale+')" opacity="'+(working?'1':'.42')+'" style="cursor:pointer">'+bob+
    '<circle cx="0" cy="-3" r="5.2" fill="#090909" stroke="#fff" stroke-width="1.2"/>'+face+torso+
    '<text x="0" y="21" text-anchor="middle" fill="#fff" font-size="6.5" font-family="monospace">'+label+'</text></g>';
 }
@@ -246,12 +246,13 @@ function renderDag(){
  }
  svg.innerHTML=s;
  svg.querySelectorAll('[data-node]').forEach(el=>el.onclick=()=>showDagNode(el.dataset.node));
+ svg.querySelectorAll('[data-worker-session]').forEach(el=>el.onclick=e=>{e.stopPropagation();const id=el.dataset.workerSession;if(id)location.href='/prometeo/workers/history/?session='+encodeURIComponent(id)});
  if(keyNode)showDagNode(keyNode.key);
 }
 function showDagNode(key){
  const n=(graph?.nodes||[]).find(x=>x.key===key);if(!n)return;
  const ws=(graph?.workers||[]).filter(w=>w.node_key===key),deps=(n.depends_on||[]).length?(n.depends_on||[]).join(', '):'ninguno',unlock=(n.direct_unlocks||[]).length?(n.direct_unlocks||[]).join(', '):'ninguno directo';
- const workerLine=ws.length?'<br><b>Workers:</b> '+ws.map(w=>esc(w.worker_code||'worker')+' · '+esc(w.evidence_state)+' · '+esc(w.progress_stage||'—')+' · señal '+esc(w.seconds_since_signal)+'s').join(' | '):'';
+ const workerLine=ws.length?'<br><b>Workers:</b> '+ws.map(w=>'<a href="/prometeo/workers/history/?session='+encodeURIComponent(w.session_id||'')+'">'+esc(w.worker_code||'worker')+' · '+esc(w.evidence_state)+' · '+esc(w.progress_stage||'—')+' · señal '+esc(w.seconds_since_signal)+'s → historia</a>').join(' | '):'';
  nodeDetail.innerHTML='<b>'+esc(n.key)+' · '+esc(n.title||'')+'</b><br>'+esc(n.state)+(n.progress_stage?' · '+esc(n.progress_stage):'')+' · espera: '+esc(deps)+' · faltan '+esc(n.unresolved_dependencies||0)+' dependencias · desbloquea: '+esc(unlock)+workerLine;
 }
 function renderStatus(){
