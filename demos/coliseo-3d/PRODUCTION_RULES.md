@@ -555,3 +555,35 @@ with:
 - solid LED cores;
 - no giant redundant metric;
 - angle test matrix before publish.
+
+
+## 19. Implementation status · V3.8
+
+Applied to the live Coliseo:
+
+- SAFE / COMPRESSED / EDGE semantic gating for wall information;
+- stabilized semantic transform that never rotates the physical sign toward camera;
+- wall clock content uses the semantic gate;
+- global progress is now a simple 20-cell rail without redundant giant percentage;
+- version/update panel is quieter and also semantic-gated;
+- windows are block-built physical openings;
+- window eyes share the exact same physical basis and disappear before edge collapse;
+- eye content is clipped inside the physical recess;
+- pilasters are block-built structural columns;
+- legacy crown flags removed;
+- torches use cuboid stakes and block bases;
+- static-only gate weave removed, so background no longer slips under dynamic props;
+- trophies participate in the painter/depth list;
+- obsolete helper routing through the removed `ashes` phase fixed;
+- tower/site markers use projected world geometry;
+- blueprint dash/hatching measurements scale with the scene;
+- worker-to-task HUD tether removed;
+- arena stains are projected ground patches;
+- arena relics are small world-space debris cuboids;
+- trophy rebuilt as faceted world-space construction;
+- ashes rebuilt as projected burn scar plus charred debris;
+- worker energy bars use LOD and disappear before turning into noise.
+
+Still valid hard rule:
+
+> Future visual changes must extend these systems instead of adding a new one-off screen-space drawing path.
