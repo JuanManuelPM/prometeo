@@ -1324,7 +1324,7 @@ function drawProgressTube(c,site,index){
 }
 
 const LAST_UPDATE_MS=Date.parse('2026-09-24T12:43:59.511Z');
-const BUILD_VERSION='COMPONENT-LAB-1.2';
+const BUILD_VERSION='COMPONENT-LAB-2';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -1946,6 +1946,170 @@ function drawAnalogSignal(c,now){
    structures / workers / effects.
    ========================================================= */
 
+const solidCanvas=document.createElement('canvas');
+const solidGL=solidCanvas.getContext('webgl',{
+  alpha:true,antialias:true,depth:true,stencil:false,
+  premultipliedAlpha:true,preserveDrawingBuffer:false
+});
+
+let solidProgram=null,solidPosBuffer=null,solidColorBuffer=null;
+
+function glCompileShader(gl,type,source){
+  const sh=gl.createShader(type);
+  gl.shaderSource(sh,source);gl.compileShader(sh);
+  if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS)){
+    const msg=gl.getShaderInfoLog(sh)||'shader compile failed';
+    gl.deleteShader(sh);throw new Error(msg);
+  }
+  return sh;
+}
+
+function initSolidGL(){
+  if(!solidGL||solidProgram)return !!solidProgram;
+  const gl=solidGL;
+  const vs=glCompileShader(gl,gl.VERTEX_SHADER,
+    'attribute vec3 a_pos; attribute vec4 a_color; varying vec4 v_color; void main(){ gl_Position=vec4(a_pos,1.0); v_color=a_color; }'
+  );
+  const fs=glCompileShader(gl,gl.FRAGMENT_SHADER,
+    'precision mediump float; varying vec4 v_color; void main(){ gl_FragColor=v_color; }'
+  );
+  const p=gl.createProgram();gl.attachShader(p,vs);gl.attachShader(p,fs);gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p)||'program link failed');
+  solidProgram=p;
+  solidPosBuffer=gl.createBuffer();
+  solidColorBuffer=gl.createBuffer();
+  return true;
+}
+
+function solidHexRGBA(hex,alpha=1){
+  const n=parseInt(hex.slice(1),16);
+  return [((n>>16)&255)/255,((n>>8)&255)/255,(n&255)/255,alpha];
+}
+
+function cameraProjectSolid(x,z,h){
+  const cs=Math.cos(yaw),sn=Math.sin(yaw);
+  const sx=x*cs-z*sn;
+  const forward=z*cs+x*sn;
+
+  // Screen projection remains EXACTLY the same as wp().
+  const px=cx+sx*scale;
+  const py=cy+forward*scale*.35-h*scale*.57;
+
+  // Missing piece in the old painter:
+  // camera depth must include BOTH forward distance and height.
+  // This is the orthogonal companion to screen-Y's (.35*forward - .57*height).
+  const cameraDepth=forward*.57+h*.35;
+
+  return {
+    x:px/IW*2-1,
+    y:1-py/IH*2,
+    z:clamp(-cameraDepth/42,-.98,.98),
+    cameraDepth
+  };
+}
+
+function solidBoxFaces(box){
+  const b=box.baseH,t=box.baseH+box.height;
+  const bm=worldCorner(box,-1,-1,b),bp=worldCorner(box,1,-1,b);
+  const bpp=worldCorner(box,1,1,b),bmp=worldCorner(box,-1,1,b);
+  const tm=worldCorner(box,-1,-1,t),tp=worldCorner(box,1,-1,t);
+  const tpp=worldCorner(box,1,1,t),tmp=worldCorner(box,-1,1,t);
+  return [
+    {corners:[bm,bp,tp,tm],nx:-box.nx,nz:-box.nz,nh:0},
+    {corners:[bp,bpp,tpp,tp],nx:box.ux,nz:box.uz,nh:0},
+    {corners:[bpp,bmp,tmp,tpp],nx:box.nx,nz:box.nz,nh:0},
+    {corners:[bmp,bm,tm,tmp],nx:-box.ux,nz:-box.uz,nh:0},
+    {corners:[tm,tp,tpp,tmp],nx:0,nz:0,nh:1}
+  ];
+}
+
+function pushSolidVertex(arr,p){
+  const q0=cameraProjectSolid(p.x,p.z,p.h);
+  arr.push(q0.x,q0.y,q0.z);
+}
+
+function renderWorldSolidsGL(targetCtx){
+  if(!solidGL||!initSolidGL())return false;
+  const gl=solidGL;
+  if(solidCanvas.width!==IW||solidCanvas.height!==IH){
+    solidCanvas.width=IW;solidCanvas.height=IH;
+  }
+  gl.viewport(0,0,IW,IH);
+  gl.clearColor(0,0,0,0);
+  gl.clearDepth(1);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LESS);
+  gl.disable(gl.BLEND);
+
+  const triPos=[],triCol=[],linePos=[],lineCol=[];
+  let triangleCount=0,lineCount=0;
+  const edgeColor=[.045,.030,.022,1];
+
+  for(const box of WORLD_GEOM.boxes){
+    const faces=solidBoxFaces(box);
+    for(let fi=0;fi<faces.length;fi++){
+      const face=faces[fi],mat=box.material;
+      const amount=face.nh>0?mat.top:faceTone(face.nx,face.nz);
+      const rgba=solidHexRGBA(shade(mat.base,amount),1);
+      const p=face.corners;
+
+      // two triangles per physical face
+      for(const vi of [0,1,2,0,2,3]){
+        pushSolidVertex(triPos,p[vi]);triCol.push(...rgba);
+      }
+      triangleCount+=2;
+
+      // same physical edges, same depth buffer; hidden edges cannot leak through walls.
+      for(const [a,b] of [[0,1],[1,2],[2,3],[3,0]]){
+        pushSolidVertex(linePos,p[a]);pushSolidVertex(linePos,p[b]);
+        lineCol.push(...edgeColor,...edgeColor);lineCount++;
+      }
+    }
+  }
+
+  gl.useProgram(solidProgram);
+  const aPos=gl.getAttribLocation(solidProgram,'a_pos');
+  const aColor=gl.getAttribLocation(solidProgram,'a_color');
+
+  gl.bindBuffer(gl.ARRAY_BUFFER,solidPosBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(triPos),gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(aPos);gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,0,0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER,solidColorBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(triCol),gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(aColor);gl.vertexAttribPointer(aColor,4,gl.FLOAT,false,0,0);
+
+  // Push fills microscopically away so structural ink edges win without z-fighting.
+  gl.enable(gl.POLYGON_OFFSET_FILL);
+  gl.polygonOffset(1,1);
+  gl.drawArrays(gl.TRIANGLES,0,triPos.length/3);
+  gl.disable(gl.POLYGON_OFFSET_FILL);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER,solidPosBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(linePos),gl.DYNAMIC_DRAW);
+  gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,0,0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER,solidColorBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(lineCol),gl.DYNAMIC_DRAW);
+  gl.vertexAttribPointer(aColor,4,gl.FLOAT,false,0,0);
+
+  gl.depthFunc(gl.LEQUAL);
+  gl.drawArrays(gl.LINES,0,linePos.length/3);
+  gl.depthFunc(gl.LESS);
+
+  targetCtx.drawImage(solidCanvas,0,0);
+  window.WORLD_RENDER_STATS={
+    renderer:'webgl-depth',
+    boxes:WORLD_GEOM.boxes.length,
+    triangles:triangleCount,
+    edges:lineCount,
+    depthFormula:'0.57*forward + 0.35*height',
+    mode:COMPONENT_MODE
+  };
+  return true;
+}
+
 const COMPONENT_MODULE=.72;
 let COMPONENT_SERIAL=1;
 let COMPONENT_USER_DRAG_UNTIL=0;
@@ -2097,9 +2261,17 @@ function drawStructureLabels(c){
 function drawStructureGallery(now){
   drawComponentWorldGrid(ctx);
   buildStructureGallery(now);
-  const faces=compileWorldFaces();
-  faces.sort(componentFaceComparator);
-  for(const face of faces)renderGeomFace(ctx,face);
+
+  // Primary path: per-pixel Z-buffer. Object call order no longer decides occlusion.
+  const gpuOK=renderWorldSolidsGL(ctx);
+
+  // Conservative fallback for browsers/devices without WebGL.
+  if(!gpuOK){
+    const faces=compileWorldFaces();
+    faces.sort(componentFaceComparator);
+    for(const face of faces)renderGeomFace(ctx,face);
+  }
+
   flushTransparentGeometry(ctx);
   drawStructureLabels(ctx);
 }
@@ -2196,7 +2368,8 @@ function drawComponentLab(now){
     const deg=((yaw*180/Math.PI)%360+360)%360;
     if(COMPONENT_MODE==='structures'){
       const st=window.WORLD_RENDER_STATS||{};
-      labBadge.textContent='ESTRUCTURAS · '+deg.toFixed(0)+'° · '+(st.faces||0)+' CARAS';
+      const metric=st.renderer==='webgl-depth'?((st.triangles||0)+' TRI'):(st.faces||0)+' CARAS';
+      labBadge.textContent='ESTRUCTURAS · '+deg.toFixed(0)+'° · '+metric;
     }else if(COMPONENT_MODE==='workers'){
       labBadge.textContent='WORKERS · 7 ESTADOS · SIN CONSTRUCCIÓN';
     }else{
