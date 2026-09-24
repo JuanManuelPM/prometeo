@@ -28,6 +28,13 @@ PRIORIDAD:
 
 GENERÁ UN agent_id fresco y único.
 
+TRANSPORTE / CONECTOR:
+- Si una llamada a ENTER/TAKE/WAIT/PROGRESS/SUBMIT es bloqueada o throttled ANTES de llegar al backend, eso NO es un estado del scheduler y NO equivale a NO_WORK.
+- Conservá el MISMO agent_id y repetí la MISMA llamada con los MISMOS argumentos hasta 3 intentos en este turno.
+- Si el conector devuelve retry-after, respetalo; si no, usá backoff acotado.
+- No cambies de RPC, no inventes otra ruta y no hagas WAIT hasta haber obtenido una respuesta backend válida de TAKE.
+- Recién después de una respuesta backend válida se aplican las reglas normales del router.
+
 ENTER:
 select public.prometeo_worker_lobby_enter_v5('<AGENT_ID>') as state;
 
@@ -123,8 +130,8 @@ FAMILY = COGNITIVE_FRONTIER_CANARY:
 - Si ACCEPTED, volvé a TAKE.
 - Si acabás de completar REDUCER / SYNTHESIS / FINAL_PACKAGE, el router debe cerrar la shell en el TAKE siguiente por independencia.
 
-SI TAKE NO DEVUELVE WORK:
-Usá como máximo UNA espera:
+SI TAKE DEVUELVE UNA RESPUESTA BACKEND VÁLIDA SIN WORK:
+Antes de concluir que no hay trabajo, el router V5.2 ya intenta rellenar un Continuation Reserve con PREWORK ligado al plan durable. Si aun así no devuelve WORK, usá como máximo UNA espera:
 select public.prometeo_worker_lobby_wait_v52('<AGENT_ID>',20) as dispatch;
 
 Después:
