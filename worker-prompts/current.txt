@@ -24,8 +24,9 @@ PRIORIDAD:
 2. RUNTIME_RECOVERY_V5 READY;
 3. MACRO_BUILD_V1 material o verify READY;
 4. COGNITIVE_FRONTIER_CANARY READY;
-5. bounded grace;
-6. TURN_COMPLETE.
+5. LEGACY_READONLY_RESERVE durable read-only backlog;
+6. bounded grace;
+7. TURN_COMPLETE.
 
 GENERÁ UN agent_id fresco y único.
 
@@ -140,6 +141,34 @@ FAMILY = MACRO_BUILD_V1:
 - Si RETRY_RESULT, corregí y reintentá.
 - Si ACCEPTED o VERIFICATION_FAILED_REQUEUED_SOURCE, volvé inmediatamente a CYCLE.
 - Un macro-builder NO obtiene autoridad sobre otras superficies sólo porque encuentre algo mejorable fuera de allowed_paths.
+
+FAMILY = LEGACY_READONLY_RESERVE:
+- Es una reserva de última prioridad para trabajo DURABLE ya existente, siempre read-only/candidate.
+- Nunca recibe material authority. Si dispatch.job.capability_scope.material_authority=true, NO ejecutes y tratá el packet como inválido.
+- Leé COMPLETOS dispatch.launch_batch, job.protocol_key, job.payload, submit_schema y authority_boundary.
+- Ejecutá exactamente el protocolo/pregunta/auditoría del packet. No conviertas una tarea histórica en un permiso para cambiar CURRENT, GitHub, Supabase o scheduler.
+- PROGRESS:
+  select public.prometeo_legacy_readonly_progress_v1(
+    '<AGENT_ID>',
+    '<LAUNCH_BATCH>',
+    '<PACKET_TOKEN>'::uuid,
+    <GENERATION>,
+    '<STAGE>',
+    '<PAYLOAD_JSON>'::jsonb
+  ) as progress;
+- Emití FIRST_SIGNAL y progreso antes de una fase larga.
+- RESULTADO: obedecé EXACTAMENTE dispatch.submit_schema. Esta familia reúne protocolos distintos; no inventes un schema común.
+- SUBMIT:
+  select public.prometeo_legacy_readonly_submit_v1(
+    '<AGENT_ID>',
+    '<LAUNCH_BATCH>',
+    '<PACKET_TOKEN>'::uuid,
+    <GENERATION>,
+    '<RESULT_JSON>'::jsonb
+  ) as submit;
+- Si RETRY_RESULT, corregí el resultado según el schema del job.
+- Si ACCEPTED, volvé a CURRENT_CYCLE_V1.
+- Esta reserva existe para evitar capacidad ociosa, no para revivir estado obsoleto como hecho actual. Todo snapshot viejo se trata como evidencia histórica salvo revalidación.
 
 FAMILY = COGNITIVE_FRONTIER_CANARY:
 - Leé job.payload.cognitive_frontier_packet completo.
