@@ -54,6 +54,25 @@ jobs:
         working-directory: android/prometeo-mobile
         run: gradle --no-daemon assembleDebug
 
+      - name: Verify APK signature and launcher contract
+        working-directory: android/prometeo-mobile
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          "$SDK/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+
+          APKANALYZER="$SDK/cmdline-tools/latest/bin/apkanalyzer"
+          APP_ID="$("$APKANALYZER" manifest application-id "$APK")"
+          test -n "$APP_ID"
+
+          "$APKANALYZER" manifest print "$APK" > /tmp/prometeo-manifest.xml
+          grep -q 'android.intent.action.MAIN' /tmp/prometeo-manifest.xml
+          grep -q 'android.intent.category.LAUNCHER' /tmp/prometeo-manifest.xml
+          grep -q 'android:icon=' /tmp/prometeo-manifest.xml
+          grep -q 'android:roundIcon=' /tmp/prometeo-manifest.xml
+          echo "Verified installable launcher package: $APP_ID"
+
       - name: Upload verification APK
         uses: actions/upload-artifact@v4
         with:
@@ -61,3 +80,81 @@ jobs:
           path: android/prometeo-mobile/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
+
+  device-smoke:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK + emulator
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER"             "platform-tools"             "emulator"             "platforms;android-36"             "build-tools;36.0.0"             "system-images;android-33;google_apis;x86_64"
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Build APK for install smoke
+        working-directory: android/prometeo-mobile
+        run: gradle --no-daemon assembleDebug
+
+      - name: Boot Android 13 and install
+        working-directory: android/prometeo-mobile
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          export PATH="$SDK/platform-tools:$SDK/emulator:$SDK/cmdline-tools/latest/bin:$PATH"
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          echo no | avdmanager create avd             --force             --name prometeo-api33             --package "system-images;android-33;google_apis;x86_64"             --device "pixel_2"
+
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm || true; fi
+
+          emulator             -avd prometeo-api33             -no-window             -noaudio             -no-boot-anim             -no-snapshot             -gpu swiftshader_indirect             > /tmp/prometeo-emulator.log 2>&1 &
+
+          adb wait-for-device
+          for i in $(seq 1 120); do
+            if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+              break
+            fi
+            sleep 2
+          done
+          test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
+
+          adb install -r "$APK"
+
+          APKANALYZER="$SDK/cmdline-tools/latest/bin/apkanalyzer"
+          APP_ID="$("$APKANALYZER" manifest application-id "$APK")"
+          adb shell pm list packages | grep -F "package:$APP_ID"
+
+          LAUNCHABLE="$(adb shell cmd package resolve-activity --brief             -a android.intent.action.MAIN             -c android.intent.category.LAUNCHER             "$APP_ID" | tr -d '\r' | tail -n 1)"
+          test -n "$LAUNCHABLE"
+          echo "Launcher resolved to: $LAUNCHABLE"
+
+          adb shell am start -W -n "$LAUNCHABLE"
+          sleep 2
+          adb shell pidof "$APP_ID"
+
+          adb shell dumpsys package "$APP_ID" > /tmp/prometeo-package.txt
+          grep -q "android.intent.category.LAUNCHER" /tmp/prometeo-package.txt
+
+      - name: Emulator diagnostics on failure
+        if: failure()
+        run: |
+          adb logcat -d -t 500 || true
+          cat /tmp/prometeo-emulator.log || true
