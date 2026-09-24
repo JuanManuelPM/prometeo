@@ -13,7 +13,8 @@
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050504;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 body{overscroll-behavior:none}
-#wrap{position:fixed;inset:0;overflow:hidden;background:#050504}
+#app{position:fixed;inset:0;overflow:hidden;background:#050504}
+#wrap{position:absolute;inset:0;overflow:hidden;background:#050504}
 #scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;filter:contrast(1.08) saturate(.82) brightness(.89)}
 #veil{position:absolute;inset:-3%;pointer-events:none;background:
  radial-gradient(ellipse at 50% 53%,transparent 31%,rgba(0,0,0,.17) 57%,rgba(0,0,0,.88) 100%),
@@ -36,20 +37,35 @@ body{overscroll-behavior:none}
  background:radial-gradient(circle at 52% 56%,rgba(228,143,71,.055),transparent 42%);
  mix-blend-mode:screen;opacity:.46}
 25%{opacity:.72}52%{opacity:.50}78%{opacity:.66}}
-.ui{position:fixed;inset:0;pointer-events:none;z-index:5}
+.ui{position:absolute;inset:0;pointer-events:none;z-index:5}
 .brand{position:absolute;left:max(14px,env(safe-area-inset-left));top:max(14px,env(safe-area-inset-top));display:flex;align-items:center;gap:10px;text-shadow:0 1px 0 #000}
 .mark{width:32px;height:32px;border-radius:50%;border:1px solid rgba(213,163,105,.22);display:grid;place-items:center;background:rgba(6,5,4,.70);font:900 12px/1 system-ui;color:#d28a4b}
 .copy b{display:block;font-size:12px;letter-spacing:.13em;text-transform:uppercase}.copy span{display:block;margin-top:2px;font-size:9px;color:var(--muted)}
 .badge{position:absolute;right:max(14px,env(safe-area-inset-right));top:max(14px,env(safe-area-inset-top));padding:7px 9px;border-radius:999px;border:1px solid rgba(213,163,105,.15);background:rgba(6,5,4,.66);font:750 9px/1 system-ui;letter-spacing:.08em;text-transform:uppercase;color:#9d846b}
 .help{position:absolute;left:50%;bottom:max(13px,env(safe-area-inset-bottom));transform:translateX(-50%);padding:7px 10px;border-radius:999px;border:1px solid rgba(213,163,105,.12);background:rgba(6,5,4,.58);font:650 9px/1 system-ui;color:#8e7965;white-space:nowrap}
 @media(max-width:560px){.copy span{display:none}.badge{font-size:8px}.help{font-size:8px}.mark{width:29px;height:29px}}
-.labnav{position:fixed;left:50%;top:max(12px,env(safe-area-inset-top));transform:translateX(-50%);z-index:8;display:flex;gap:5px;flex-wrap:wrap;justify-content:center;max-width:min(82vw,720px);pointer-events:auto}
+.labnav{position:absolute;left:50%;top:max(12px,env(safe-area-inset-top));transform:translateX(-50%);z-index:8;display:flex;gap:5px;flex-wrap:wrap;justify-content:center;max-width:min(82vw,720px);pointer-events:auto}
 .labnav a{font:750 8px/1 system-ui;letter-spacing:.06em;text-transform:uppercase;color:#bda58a;text-decoration:none;padding:6px 8px;border:1px solid rgba(190,140,87,.16);background:rgba(6,5,4,.72);border-radius:999px}
 .labnav a.on{color:#f0cf9a;border-color:rgba(224,147,74,.42);background:rgba(52,28,18,.78)}
 @media(max-width:700px){.labnav{top:52px;max-width:94vw}.labnav a{font-size:7px;padding:5px 7px}}
+@media(orientation:portrait){
+  #app{
+    inset:auto;
+    left:50%;top:50%;
+    width:100vh;height:100vw;
+    width:100dvh;height:100dvw;
+    transform:translate(-50%,-50%) rotate(90deg);
+    transform-origin:center center;
+  }
+  .labnav{top:8px;max-width:76%}
+  .brand{top:8px;left:10px}
+  .badge{top:8px;right:10px}
+  .help{bottom:8px}
+}
 </style>
 </head>
 <body>
+<div id="app">
 <div id="wrap">
   <canvas id="scene" aria-label="Coliseo nocturno ilustrado con jugadores en movimiento"></canvas>
   <div id="veil" aria-hidden="true"></div>
@@ -63,6 +79,7 @@ body{overscroll-behavior:none}
   <div class="badge" id="labBadge">LAB · SYNTHETIC</div>
   <div class="help" id="labHelp">arrastrá · zoom · chain/fanin/parallel/dynamic/20/100 · layout=1 · WORLD_MANIFEST_DEMO</div>
 </div>
+</div>
 <script>
 (function(){
 'use strict';
@@ -74,6 +91,7 @@ const fxCanvas=document.createElement('canvas');
 const fxctx=fxCanvas.getContext('2d',{alpha:false});
 const TAU=Math.PI*2;
 let IW=640,IH=360,W=innerWidth,H=innerHeight,scale=1,cx=320,cy=220;
+let VIEW_ROTATED=innerHeight>innerWidth;
 let yaw=-.48,zoom=1,staticDirty=true,last=0,visible=true;
 const FPS=24,FRAME=1000/FPS;
 const pointers=new Map(); let pinch=0;
@@ -188,8 +206,14 @@ const players=playerSeed.map((color,i)=>{
 function hash(a,b){const n=Math.sin(a*12.9898+b*78.233)*43758.5453;return n-Math.floor(n)}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
 function q(v){return Math.round(v)}
+function pointerPoint(e){
+  if(!VIEW_ROTATED)return {x:e.clientX,y:e.clientY};
+  return {x:e.clientY,y:innerWidth-e.clientX};
+}
 function resize(){
-  W=innerWidth;H=innerHeight;
+  VIEW_ROTATED=innerHeight>innerWidth;
+  W=VIEW_ROTATED?innerHeight:innerWidth;
+  H=VIEW_ROTATED?innerWidth:innerHeight;
   const aspect=W/H;
   IH=360;IW=Math.round(IH*aspect);
   if(IW>720){IW=720;IH=Math.round(IW/aspect)}
@@ -1352,7 +1376,7 @@ function drawProgressTube(c,site,index){
 }
 
 const LAST_UPDATE_MS=Date.parse('2026-09-24T12:43:59.511Z');
-const BUILD_VERSION='LAB-H2';
+const BUILD_VERSION='LAB-H3';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -1973,6 +1997,38 @@ function drawAnalogSignal(c,now){
    These are world-space prototypes, not UI diagrams.
    ========================================================= */
 
+let HEAVY_PAINTER=[];
+
+function resetHeavyPainter(){HEAVY_PAINTER.length=0}
+
+function heavyDepthItem(x,z,h,type,payload){
+  const p=wp(x,z,h);
+  HEAVY_PAINTER.push({type,depth:p.zv,py:p.y,h,...payload});
+}
+
+function heavyWorldCuboid(c,x,z,baseH,w,height,color,seed){
+  if(c===sctx){
+    heavyWorldCuboid(c,x,z,baseH,w,height,color,seed);
+    return;
+  }
+  heavyDepthItem(x,z,baseH+height*.5,'heavyWorld',{x,z,baseH,w,height,color,seed});
+}
+
+function heavyBoardCuboid(c,base,lx,ly,w,h,d,color,seed){
+  if(c===sctx){
+    heavyBoardCuboid(c,base,lx,ly,w,h,d,color,seed);
+    return;
+  }
+  const world=boardWorldPoint(base,lx,ly,0);
+  heavyDepthItem(world.x,world.z,world.h,'heavyBoard',{base,lx,ly,w,bh:h,d,color,seed});
+}
+
+function drawHeavyQueuedItem(c,it){
+  if(it.type==='heavyWorld')heavyWorldCuboid(c,it.x,it.z,it.baseH,it.w,it.height,it.color,it.seed);
+  else if(it.type==='heavyBoard')heavyBoardCuboid(c,it.base,it.lx,it.ly,it.w,it.bh,it.d,it.color,it.seed);
+  else if(it.type==='heavyGhost')drawGhostCuboidNow(c,it.x,it.z,it.baseH,it.w,it.height,it.color,it.seed);
+}
+
 function heavyOn(name){return LAB_VISUAL==='all'||LAB_VISUAL===name}
 
 function heavyBasis(x,z,h,ux,uz){
@@ -2004,9 +2060,9 @@ function drawHeavyRoadNetwork(c,manifest,now){
       const t=(i+.5)/pieces,base=heavyRoadFrame(edge,t);if(!base)continue;
       const critical=edge.critical;
       const stone=edge.status==='ready'?'#6b4932':edge.status==='blocked'?'#3b2a25':'#40372f';
-      drawBoardCuboid(c,base,0,0,.48,.12,.42,stone,21100+ei*100+i*3);
+      heavyBoardCuboid(c,base,0,0,.48,.12,.42,stone,21100+ei*100+i*3);
       if(critical){
-        drawBoardCuboid(c,base,0,.075,.20,.045,.18,'#9a512c',21200+ei*100+i*3);
+        heavyBoardCuboid(c,base,0,.075,.20,.045,.18,'#9a512c',21200+ei*100+i*3);
       }
     }
     if(edge.status==='blocked')drawHeavyMonumentGate(c,edge,now,ei);
@@ -2025,18 +2081,18 @@ function drawHeavyMonumentGate(c,edge,now,index){
   for(const side of [-1,1]){
     const lx=side*.82;
     for(let y=0;y<4;y++){
-      drawBoardCuboid(c,base,lx,.32+y*.58,.48,.54,.52,y%2?'#4c352d':'#5b4033',21600+index*100+(side>0?30:0)+y*7);
+      heavyBoardCuboid(c,base,lx,.32+y*.58,.48,.54,.52,y%2?'#4c352d':'#5b4033',21600+index*100+(side>0?30:0)+y*7);
     }
-    drawBoardCuboid(c,base,lx,2.62,.62,.34,.58,'#6a4735',21700+index*30+(side>0?1:0));
+    heavyBoardCuboid(c,base,lx,2.62,.62,.34,.58,'#6a4735',21700+index*30+(side>0?1:0));
   }
   // Lintel and dark portcullis.
-  drawBoardCuboid(c,base,0,2.72,2.18,.40,.50,'#684431',21730+index);
+  heavyBoardCuboid(c,base,0,2.72,2.18,.40,.50,'#684431',21730+index);
   for(let k=-2;k<=2;k++){
-    drawBoardCuboid(c,base,k*.27,1.34,.09,2.15,.08,'#241714',21800+index*20+k+3);
+    heavyBoardCuboid(c,base,k*.27,1.34,.09,2.15,.08,'#241714',21800+index*20+k+3);
   }
   // Small ember studs make the blocked state readable without neon UI.
   for(const sx of [-1,1]){
-    drawBoardCuboid(c,base,sx*.58,2.69,.12,.12,.09,'#a94d2b',21880+index*10+(sx>0?1:0));
+    heavyBoardCuboid(c,base,sx*.58,2.69,.12,.12,.09,'#a94d2b',21880+index*10+(sx>0?1:0));
   }
 }
 
@@ -2049,29 +2105,29 @@ function drawHeavyFocusMonument(c,manifest,now){
   // Concentric stepped dais.
   for(let y=0;y<3;y++){
     const w=3.10-y*.62;
-    drawWorldCuboid(c,0,0,.02+y*.18,w,.17,y===2?'#554538':'#3b332c',22100+y*13);
+    heavyWorldCuboid(c,0,0,.02+y*.18,w,.17,y===2?'#554538':'#3b332c',22100+y*13);
   }
 
   // Four sentinel pylons.
   const sent=[[-1.45,-.80],[1.45,-.80],[-1.45,.80],[1.45,.80]];
   for(let i=0;i<sent.length;i++){
     const [x,z]=sent[i];
-    drawWorldCuboid(c,x,z,.54,.42,1.30,i%2?'#48574d':'#604538',22160+i*11);
-    drawWorldCuboid(c,x,z,1.84,.54,.18,'#79523a',22220+i*7);
+    heavyWorldCuboid(c,x,z,.54,.42,1.30,i%2?'#48574d':'#604538',22160+i*11);
+    heavyWorldCuboid(c,x,z,1.84,.54,.18,'#79523a',22220+i*7);
   }
 
   // Central unresolved objective. Height reacts to aggregate durable progress.
   const ratio=manifest.metrics.durable_progress;
   const h=1.55+ratio*2.2;
-  drawWorldCuboid(c,0,0,.57,.78,h,'#62503f',22300);
-  drawWorldCuboid(c,0,0,.57+h,.98,.20,ratio>.72?'#9a6335':'#45362d',22320);
+  heavyWorldCuboid(c,0,0,.57,.78,h,'#62503f',22300);
+  heavyWorldCuboid(c,0,0,.57+h,.98,.20,ratio>.72?'#9a6335':'#45362d',22320);
 
   // Causal spokes stop at the center instead of drawing HUD arrows.
   for(let i=0;i<4;i++){
     const a=i*TAU/4+.25;
     for(let j=0;j<5;j++){
       const r=2.3+j*.38,x=Math.cos(a)*r,z=Math.sin(a)*r;
-      drawWorldCuboid(c,x,z,.025,.24,.055,j<Math.round(ratio*5)?'#77462d':'#30251f',22380+i*30+j);
+      heavyWorldCuboid(c,x,z,.025,.24,.055,j<Math.round(ratio*5)?'#77462d':'#30251f',22380+i*30+j);
     }
   }
 }
@@ -2084,20 +2140,20 @@ function drawHeavyWorkshop(c,site,index,manifest,now){
 
   groundPatch(c,x,z,1.25,.70,active?'#43372e':'#27241f',.68,22600+index,16);
   // Raised work platform.
-  drawWorldCuboid(c,x,z,.02,1.45,.12,active?'#4d4d41':'#34332d',22640+index*17);
+  heavyWorldCuboid(c,x,z,.02,1.45,.12,active?'#4d4d41':'#34332d',22640+index*17);
   // Four scaffold posts.
   for(const sx of [-1,1])for(const sz of [-1,1]){
-    drawWorldCuboid(c,x+sx*.62,z+sz*.38,.14,.12,.94,active?'#6c4a32':'#45372b',22700+index*40+(sx>0?10:0)+(sz>0?1:0));
+    heavyWorldCuboid(c,x+sx*.62,z+sz*.38,.14,.12,.94,active?'#6c4a32':'#45372b',22700+index*40+(sx>0?10:0)+(sz>0?1:0));
   }
   // Material stacks. Their amount reflects assigned agents.
   for(let m=0;m<Math.min(4,Math.max(1,agents));m++){
     const ox=-.38+(m%2)*.40,oz=-.17+Math.floor(m/2)*.34;
-    drawWorldCuboid(c,x+ox,z+oz,.15,.28,.22,BLOCK_COLORS[(index+m*2)%BLOCK_COLORS.length],22800+index*30+m);
+    heavyWorldCuboid(c,x+ox,z+oz,.15,.28,.22,BLOCK_COLORS[(index+m*2)%BLOCK_COLORS.length],22800+index*30+m);
   }
   // Blueprint slab is distinct from accepted tower blocks.
   if(active){
     const base=heavyBasis(x,z,.46,-Math.sin(a),Math.cos(a));
-    drawBoardCuboid(c,base,0,0,.82,.06,.52,'#4d7770',22900+index);
+    heavyBoardCuboid(c,base,0,0,.82,.06,.52,'#4d7770',22900+index);
   }
 }
 
@@ -2106,12 +2162,16 @@ function drawHeavyWorkshops(c,manifest,now){
   for(let i=0;i<sites.length;i++)drawHeavyWorkshop(c,sites[i],i,manifest,now);
 }
 
-function drawGhostCuboid(c,x,z,baseH,w,height,color,seed){
+function drawGhostCuboidNow(c,x,z,baseH,w,height,color,seed){
   const g=blockGeometry(x,z,baseH,baseH+height,w*.5);
   c.save();c.globalAlpha=.58;c.setLineDash([Math.max(1,scale*.08),Math.max(1,scale*.06)]);
   const edges=[[g.A,g.B],[g.B,g.Cc],[g.Cc,g.D],[g.D,g.A],[g.At,g.Bt],[g.Bt,g.Ct],[g.Ct,g.Dt],[g.Dt,g.At],[g.A,g.At],[g.B,g.Bt],[g.Cc,g.Ct],[g.D,g.Dt]];
   for(let i=0;i<edges.length;i++)roughStroke(c,edges[i],color,Math.max(.55,scale*.028),seed+i,false);
   c.restore();
+}
+function drawGhostCuboid(c,x,z,baseH,w,height,color,seed){
+  if(c===sctx)return drawGhostCuboidNow(c,x,z,baseH,w,height,color,seed);
+  heavyDepthItem(x,z,baseH+height*.5,'heavyGhost',{x,z,baseH,w,height,color,seed});
 }
 
 function drawHeavyStateGallery(c,now){
@@ -2130,21 +2190,21 @@ function drawHeavyStateGallery(c,now){
       drawGhostCuboid(c,x,z,.04,.78,.62,'#6f9d91',23150+i*20);
       drawGhostCuboid(c,x,z,.66,.62,.52,'#6f9d91',23160+i*20);
     }else if(s.state==='active'){
-      drawWorldCuboid(c,x,z,.03,.74,.38,'#4b4b42',23200+i*20);
-      for(const sx of [-1,1])for(const sz of [-1,1])drawWorldCuboid(c,x+sx*.48,z+sz*.34,.03,.10,1.25,'#795039',23220+i*30+(sx>0?10:0)+(sz>0?1:0));
+      heavyWorldCuboid(c,x,z,.03,.74,.38,'#4b4b42',23200+i*20);
+      for(const sx of [-1,1])for(const sz of [-1,1])heavyWorldCuboid(c,x+sx*.48,z+sz*.34,.03,.10,1.25,'#795039',23220+i*30+(sx>0?10:0)+(sz>0?1:0));
       drawGhostCuboid(c,x,z,.41,.68,.58,'#6f9d91',23280+i*20);
     }else if(s.state==='accepted'){
-      drawWorldCuboid(c,x,z,.03,.86,.56,'#506657',23320+i*20);
-      drawWorldCuboid(c,x,z,.59,.68,.55,'#816049',23340+i*20);
-      drawWorldCuboid(c,x,z,1.14,.46,.44,'#a68a43',23360+i*20);
+      heavyWorldCuboid(c,x,z,.03,.86,.56,'#506657',23320+i*20);
+      heavyWorldCuboid(c,x,z,.59,.68,.55,'#816049',23340+i*20);
+      heavyWorldCuboid(c,x,z,1.14,.46,.44,'#a68a43',23360+i*20);
     }else if(s.state==='failed'){
       groundPatch(c,x,z,1.05,.58,'#351815',.52,23400+i,15);
-      drawWorldCuboid(c,x-.28,z+.10,.03,.46,.22,'#4a2b25',23420+i*20);
-      drawWorldCuboid(c,x+.25,z-.16,.03,.32,.16,'#2c2521',23440+i*20);
-      drawWorldCuboid(c,x+.05,z+.28,.03,.24,.12,'#5b3027',23460+i*20);
+      heavyWorldCuboid(c,x-.28,z+.10,.03,.46,.22,'#4a2b25',23420+i*20);
+      heavyWorldCuboid(c,x+.25,z-.16,.03,.32,.16,'#2c2521',23440+i*20);
+      heavyWorldCuboid(c,x+.05,z+.28,.03,.24,.12,'#5b3027',23460+i*20);
     }else{
-      drawWorldCuboid(c,x,z,.03,.80,.30,'#353932',23500+i*20);
-      drawWorldCuboid(c,x-.18,z+.08,.33,.48,.34,'#42433a',23520+i*20);
+      heavyWorldCuboid(c,x,z,.03,.80,.30,'#353932',23500+i*20);
+      heavyWorldCuboid(c,x-.18,z+.08,.33,.48,.34,'#42433a',23520+i*20);
       groundPatch(c,x+.16,z-.08,.46,.28,'#273329',.28,23540+i,12);
     }
   }
@@ -2156,8 +2216,8 @@ function drawHeavyCourier(c,manifest,now){
   if(!tr||tr.state!=='transfer'||!labEdgeSites(tr.edge))return;
   const p=labRoadPoint(tr.edge,tr.t);if(!p)return;
   // Larger visible reliquary/cart, still block-built.
-  drawWorldCuboid(c,p.x,p.z,.08,.52,.28,'#76523a',23700);
-  drawWorldCuboid(c,p.x,p.z,.36,.34,.36,'#b08445',23720);
+  heavyWorldCuboid(c,p.x,p.z,.08,.52,.28,'#76523a',23700);
+  heavyWorldCuboid(c,p.x,p.z,.36,.34,.36,'#b08445',23720);
   const ph=wp(p.x,p.z,.92);
   c.save();c.globalCompositeOperation='screen';c.globalAlpha=.20;
   const g=c.createRadialGradient(ph.x,ph.y,0,ph.x,ph.y,scale*.55);
@@ -2178,24 +2238,28 @@ function paintHeavyExteriorBackdrop(c){
     {a:2.56,r:23.9,h:6.2,w:1.18,c:'#2e3932'},
     {a:3.02,r:26.3,h:10.2,w:1.72,c:'#4d352a'}
   ];
+  const parts=[];
   for(let i=0;i<towers.length;i++){
     const t=towers[i],x=Math.cos(t.a)*t.r,z=Math.sin(t.a)*t.r;
     groundPatch(c,x,z,t.w*.82,t.w*.42,'#090807',.45,24000+i,14);
     const levels=Math.max(3,Math.round(t.h/.72));
     for(let y=0;y<levels;y++){
-      const w=t.w*(1-y/(levels*5));
-      drawWorldCuboid(c,x,z,.02+y*.70,w,.66,y%2?shade(t.c,-5):t.c,24040+i*100+y*3);
+      const w=t.w*(1-y/(levels*5)),baseH=.02+y*.70,height=.66;
+      const p=wp(x,z,baseH+height*.5);
+      parts.push({x,z,baseH,w,height,color:y%2?shade(t.c,-5):t.c,seed:24040+i*100+y*3,depth:p.zv,py:p.y,h:baseH});
     }
-    // Crown.
-    drawWorldCuboid(c,x,z,.02+levels*.70,t.w*1.12,.22,shade(t.c,18),24140+i*100);
+    const baseH=.02+levels*.70,height=.22,p=wp(x,z,baseH+height*.5);
+    parts.push({x,z,baseH,w:t.w*1.12,height,color:shade(t.c,18),seed:24140+i*100,depth:p.zv,py:p.y,h:baseH});
   }
   // Distant archive bridge between two persistent towers.
   const a1=.72,a2=1.42,r1=25.2,r2=26.0;
   const x1=Math.cos(a1)*r1,z1=Math.sin(a1)*r1,x2=Math.cos(a2)*r2,z2=Math.sin(a2)*r2;
   for(let i=0;i<9;i++){
-    const t=(i+.5)/9,x=x1+(x2-x1)*t,z=z1+(z2-z1)*t;
-    drawWorldCuboid(c,x,z,5.45,.48,.16,'#392d27',24900+i);
+    const t=(i+.5)/9,x=x1+(x2-x1)*t,z=z1+(z2-z1)*t,baseH=5.45,height=.16,p=wp(x,z,baseH+height*.5);
+    parts.push({x,z,baseH,w:.48,height,color:'#392d27',seed:24900+i,depth:p.zv,py:p.y,h:baseH});
   }
+  parts.sort((a,b)=>a.depth-b.depth||a.py-b.py||a.h-b.h);
+  for(const it of parts)drawWorldCuboid(c,it.x,it.z,it.baseH,it.w,it.height,it.color,it.seed);
 }
 
 function drawHeavyHistoryField(c){
@@ -2207,8 +2271,8 @@ function drawHeavyHistoryField(c){
   for(let i=0;i<ruins.length;i++){
     const q0=ruins[i],x=Math.cos(q0.a)*q0.r,z=Math.sin(q0.a)*q0.r;
     groundPatch(c,x,z,1.10,.55,'#0c0b09',.64,25000+i,16);
-    drawWorldCuboid(c,x-.28,z,.03,.62,q0.h,'#302a25',25020+i*20);
-    drawWorldCuboid(c,x+.30,z+.18,.03,.42,q0.h*.55,'#44362d',25040+i*20);
+    heavyWorldCuboid(c,x-.28,z,.03,.62,q0.h,'#302a25',25020+i*20);
+    heavyWorldCuboid(c,x+.30,z+.18,.03,.42,q0.h*.55,'#44362d',25040+i*20);
   }
 }
 
@@ -2224,8 +2288,8 @@ function drawHeavyRoadGallery(c){
     const t0=tests[k];
     for(let i=0;i<11;i++){
       const r=4.4+i*.52,x=Math.cos(t0.a)*r,z=Math.sin(t0.a)*r;
-      drawWorldCuboid(c,x,z,.025,.46,.09,t0.col,25200+k*100+i*3);
-      if(i%2===0)drawWorldCuboid(c,x,z,.12,.18,.035,t0.inlay,25300+k*100+i*3);
+      heavyWorldCuboid(c,x,z,.025,.46,.09,t0.col,25200+k*100+i*3);
+      if(i%2===0)heavyWorldCuboid(c,x,z,.12,.18,.035,t0.inlay,25300+k*100+i*3);
     }
   }
 }
@@ -2542,12 +2606,14 @@ function drawDynamic(now){
   drawWindowEyes(ctx,now);
 
   const manifest=buildWorldManifest(now);
+  resetHeavyPainter();
   drawHeavyHistoryField(ctx);
   drawHeavyRoadNetwork(ctx,manifest,now);
   drawHeavyFocusMonument(ctx,manifest,now);
   drawHeavyWorkshops(ctx,manifest,now);
   drawHeavyStateGallery(ctx,now);
   drawHeavyRoadGallery(ctx);
+  drawHeavyCourier(ctx,manifest,now);
   drawLabLayoutTargets(ctx,manifest);
   drawLabGhostNodes(ctx,manifest);
   drawLabSelection(ctx,manifest);
@@ -2563,7 +2629,7 @@ function drawDynamic(now){
     drawAshes(ctx,sites[i],i,now);
   }
 
-  const items=[];
+  const items=HEAVY_PAINTER.slice();
   for(let si=0;si<sites.length;si++){
     const site=sites[si];
     for(let bi=0;bi<site.blocks.length;bi++){
@@ -2598,7 +2664,8 @@ function drawDynamic(now){
   }
   items.sort((u,v)=>u.depth-v.depth || u.py-v.py || u.h-v.h);
   for(const it of items){
-    if(it.type==='block')drawBlock(ctx,sites[it.si],sites[it.si].blocks[it.bi],it.bi,now,it.si);
+    if(it.type==='heavyWorld'||it.type==='heavyBoard'||it.type==='heavyGhost')drawHeavyQueuedItem(ctx,it);
+    else if(it.type==='block')drawBlock(ctx,sites[it.si],sites[it.si].blocks[it.bi],it.bi,now,it.si);
     else if(it.type==='blueprint')drawBlueprint(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
     else if(it.type==='building')drawBuildingBlock(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
     else if(it.type==='banner')drawTowerBanner(ctx,sites[it.si],it.si,now);
@@ -2610,8 +2677,6 @@ function drawDynamic(now){
     drawRitualTorches(ctx,sites[i],i,now);
     drawTowerFire(ctx,sites[i],i,now);
   }
-  drawHeavyCourier(ctx,manifest,now);
-
   // old stand torches removed; only ritual flames illuminate the arena.
 
   // Selective print flash: only freshly placed blocks get a brief colored afterimage.
@@ -2647,13 +2712,14 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 function pd(e){
-  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});canvas.setPointerCapture(e.pointerId);
-  if(pointers.size===1)LAB_TAP_START={x:e.clientX,y:e.clientY};
+  const pt=pointerPoint(e);
+  pointers.set(e.pointerId,pt);canvas.setPointerCapture(e.pointerId);
+  if(pointers.size===1)LAB_TAP_START={x:pt.x,y:pt.y};
   if(pointers.size===2){const p=[...pointers.values()];pinch=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)}
 }
 function pm(e){
   const old=pointers.get(e.pointerId);if(!old)return;
-  const next={x:e.clientX,y:e.clientY};pointers.set(e.pointerId,next);
+  const next=pointerPoint(e);pointers.set(e.pointerId,next);
   if(pointers.size===1){yaw+=(next.x-old.x)*.008;staticDirty=true}
   else if(pointers.size===2){
     const p=[...pointers.values()],d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);
@@ -2663,9 +2729,10 @@ function pm(e){
 }
 function pu(e){
   if(LAB_TAP_START){
-    const dist=Math.hypot(e.clientX-LAB_TAP_START.x,e.clientY-LAB_TAP_START.y);
+    const pt=pointerPoint(e);
+    const dist=Math.hypot(pt.x-LAB_TAP_START.x,pt.y-LAB_TAP_START.y);
     if(dist<9){
-      const sx=e.clientX*(IW/Math.max(1,W)),sy=e.clientY*(IH/Math.max(1,H));
+      const sx=pt.x*(IW/Math.max(1,W)),sy=pt.y*(IH/Math.max(1,H));
       LAB_SELECTED=labPickNode(sx,sy);
       if(labBadge){
         if(LAB_SELECTED>=0){
