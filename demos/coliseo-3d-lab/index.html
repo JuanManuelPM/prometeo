@@ -77,6 +77,8 @@ const LAB_FIXTURE=(LAB_PARAMS.get('fixture')||'chain').toLowerCase();
 const LAB_SHOW_LAYOUT=LAB_PARAMS.get('layout')==='1';
 const LAB_FAST=LAB_PARAMS.get('fast')==='1';
 const LAB_BASELINE='8ef25c0a34cc9cd68fa9b35152dec9289d5cb3d8';
+let LAB_SELECTED=-1;
+let LAB_TAP_START=null;
 const LAB_BUILD='2026-09-24T13:12:40.272Z';
 const labBadge=document.getElementById('labBadge');
 if(labBadge)labBadge.textContent='LAB · '+LAB_FIXTURE.toUpperCase()+' · SYNTHETIC';
@@ -2229,6 +2231,22 @@ function drawLabExterior(c,manifest,now){
   drawWorldCuboid(c,x2-.35,z2,.02,.52,.55,'#302a25',19370);
   drawWorldCuboid(c,x2+.22,z2+.16,.02,.42,.32,'#44352b',19380);
 }
+function drawLabSelection(c,manifest){
+  if(LAB_SELECTED<0||LAB_SELECTED>=sites.length)return;
+  const s=sites[LAB_SELECTED];
+  groundPatch(c,s.x,s.z,2.05,1.05,'#b47a3c',.16,19500+LAB_SELECTED,18);
+}
+function labPickNode(screenX,screenY){
+  let best=-1,bestD=Infinity;
+  for(let i=0;i<sites.length;i++){
+    const p=wp(sites[i].x,sites[i].z,.4);
+    const d=Math.hypot(p.x-screenX,p.y-screenY);
+    if(d<bestD){bestD=d;best=i}
+  }
+  if(bestD<Math.max(20,scale*1.6))return best;
+  return -1;
+}
+
 function drawLabPool(c,manifest){
   // Pool is a neutral common-zone marker; current canonical workers are not rerouted yet.
   for(let i=0;i<6;i++){
@@ -2253,6 +2271,7 @@ function drawDynamic(now){
   drawLabLayoutTargets(ctx,manifest);
   drawLabGhostNodes(ctx,manifest);
   drawLabPool(ctx,manifest);
+  drawLabSelection(ctx,manifest);
 
   const t=now/1000;
   const dt=Math.min(.08,FRAME/1000);
@@ -2350,6 +2369,7 @@ function frame(now){
 }
 function pd(e){
   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});canvas.setPointerCapture(e.pointerId);
+  if(pointers.size===1)LAB_TAP_START={x:e.clientX,y:e.clientY};
   if(pointers.size===2){const p=[...pointers.values()];pinch=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)}
 }
 function pm(e){
@@ -2362,7 +2382,23 @@ function pm(e){
     pinch=d;
   }
 }
-function pu(e){pointers.delete(e.pointerId);pinch=0}
+function pu(e){
+  if(LAB_TAP_START){
+    const dist=Math.hypot(e.clientX-LAB_TAP_START.x,e.clientY-LAB_TAP_START.y);
+    if(dist<9){
+      const sx=e.clientX*(IW/Math.max(1,W)),sy=e.clientY*(IH/Math.max(1,H));
+      LAB_SELECTED=labPickNode(sx,sy);
+      if(labBadge){
+        if(LAB_SELECTED>=0){
+          const m=window.WORLD_MANIFEST_DEMO;
+          const n=m&&m.nodes.find(n=>n.id==='tower-'+LAB_SELECTED);
+          labBadge.textContent='LAB · '+LAB_FIXTURE.toUpperCase()+' · '+(n?n.label:'NODE')+' · '+Math.round((n?n.durable_progress:0)*100)+'%';
+        }else labBadge.textContent='LAB · '+LAB_FIXTURE.toUpperCase()+' · SYNTHETIC';
+      }
+    }
+  }
+  LAB_TAP_START=null;pointers.delete(e.pointerId);pinch=0
+}
 canvas.addEventListener('pointerdown',pd);canvas.addEventListener('pointermove',pm);canvas.addEventListener('pointerup',pu);canvas.addEventListener('pointercancel',pu);
 canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=clamp(zoom*Math.exp(-e.deltaY*.0009),.34,3.40);scale=Math.min(IW/37,IH/22.5)*zoom;staticDirty=true},{passive:false});
 addEventListener('resize',resize,{passive:true});
