@@ -25,16 +25,16 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000
   <div class="corner" id="clock">LIVE</div>
   <div class="hud">
     <div class="top">
-      <div class="brand">PROMETEO · AUTONOMY MESH V1</div>
+      <div class="brand" id="brand">PROMETEO · AUTONOMY</div>
       <div class="status" id="status">CARGANDO</div>
     </div>
     <div class="progress"><div class="fill" id="fill"></div></div>
     <div class="meta">
-      <div><strong id="pct">0%</strong></div>
+      <div><strong id="pct">0%</strong> <span class="dim">PRODUCT</span></div>
       <div><span id="done">0</span>/<span id="total">0</span> DONE</div>
       <div><span id="active">0</span> ACTIVE</div>
       <div class="taskline" id="taskline">sin trabajo activo</div>
-      <div class="hideSmall"><span id="workers">0</span> WORKERS · <span id="remaining">0</span> FALTAN</div>
+      <div class="hideSmall"><span id="workers">0</span> PRIMARY · <span id="utilityActive">0</span> UTILITY · <span id="utilityReady">0</span> U-READY</div>
     </div>
   </div>
 </div>
@@ -43,28 +43,58 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000
 const B='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
 const K='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
 const H={apikey:K,Authorization:'Bearer '+K,'Content-Type':'application/json'};
-const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 let lastWorldReload=Date.now();
+
+async function snapshot(){
+ const r=await fetch(B+'prometeo_world_snapshot_v1',{method:'POST',headers:H,body:'{}',cache:'no-store'});
+ if(!r.ok)throw new Error('snapshot '+r.status);
+ const x=await r.json();
+ if(!x||x.schema!=='prometeo.world_snapshot/v1'||Number(x.contract_version)!==1)throw new Error('WORLD V1 CONTRACT');
+ return x;
+}
+function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x:d}
+function up(v){return String(v??'UNKNOWN').toUpperCase()}
 async function load(){
  try{
-  const x=await fetch(B+'prometeo_autonomy_mesh_tv_v1',{method:'POST',headers:H,body:'{}',cache:'no-store'}).then(r=>r.json());
-  const c=x.counts||{},s=x.sessions||{},p=Number(x.percent||0);
-  fill.style.width=Math.max(0,Math.min(100,p))+'%';
-  pct.textContent=p.toFixed(1)+'%';
-  done.textContent=c.success||0; total.textContent=c.total||0; active.textContent=c.active||0; remaining.textContent=x.remaining||0; workers.textContent=s.recent_exec_120s||0;
-  const ats=x.active_tasks||[];
-  taskline.textContent=ats.length?ats.map(t=>(t.guide_key?t.guide_key+' · ':'')+t.task_key+' · '+(t.progress_stage||'WORK')).join('   /   '):'sin trabajo activo';
-  const complete=(c.total||0)>0&&(c.success||0)===(c.total||0);
-  status.textContent=complete?'COMPLETO':((s.recent_exec_120s||0)>0?'TRABAJANDO':'ESPERANDO');
-  status.className='status'+(!complete&&(s.recent_exec_120s||0)>0?' flash':'');
-  clock.textContent=new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(x.server_time));
- }catch(e){status.textContent='RECONEXIÓN'}
+   const x=await snapshot(),run=x.focus_run||{},counts=run.counts||{},rt=run.runtime||{};
+   const product=x.product_completion||{},pp=product.percentage||{};
+   const p=Math.max(0,Math.min(100,n(pp.display,0)));
+   const success=n(counts.success,counts.done||0),total=n(counts.total,0),active=n(counts.active,0);
+   const lobby=x.worker_lobby||{},ub=x.utility_text_board||{},uc=ub.counts||{};\n   const primary=n(lobby.primary_executing,0),utility=n(lobby.utility_executing,n(uc.active,0)),utilityReadyCount=n(uc.ready,0);\n   const working=(rt.sessions||[]).filter(s=>up(s.observed_liveness)==='WORKING').length;
+   const activeJobs=(rt.jobs||[]).filter(j=>up(j.state)==='ACTIVE');
+
+   brand.textContent='PROMETEO · '+String(run.run_id||'WORLD');
+   fill.style.width=p+'%';
+   pct.textContent=p.toFixed(1)+'%';
+   done.textContent=success;
+   total.textContent=total;
+   active.textContent=active;
+   remaining.textContent=Math.max(0,total-success);
+   workers.textContent=primary;\n   utilityActive.textContent=utility;\n   utilityReady.textContent=utilityReadyCount;
+   taskline.textContent=activeJobs.length
+     ? activeJobs.map(j=>(j.node_key||j.job_id||'JOB')+' · '+(j.progress_stage||j.observed_liveness||'UNKNOWN')).join('   /   ')
+     : 'sin trabajo activo';
+
+   const rs=up(run.status);
+   const complete=rs==='DONE';
+   status.textContent=complete?'COMPLETO':(primary+utility)>0?'TRABAJANDO':rs==='ARMED'?'ARMED':rs==='RUNNING'?'ESPERANDO':rs;
+   status.className='status'+(!complete&&(primary+utility)>0?' flash':'');
+   clock.textContent=new Intl.DateTimeFormat('es-AR',{
+     timeZone:'America/Argentina/Buenos_Aires',
+     hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false
+   }).format(new Date(x.generated_at||Date.now()));
+ }catch(err){
+   console.error(err);
+   status.textContent='RECONEXIÓN';
+   status.className='status';
+ }
  if(Date.now()-lastWorldReload>300000){
    const fr=document.getElementById('world');
    fr.src='/prometeo/guides/world/?view=tv&v='+Date.now();
    lastWorldReload=Date.now();
  }
 }
-load();setInterval(load,3000);
+load();
+setInterval(load,3000);
 })();
 </script></body></html>
