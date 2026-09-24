@@ -1128,29 +1128,62 @@ function drawBoardCuboid(c,base,lx,ly,w,h,d,color,seed){
 }
 
 
-function drawReadableBoardText(c,base,text,localX,localY,maxWidthWorld,maxSizeWorld,minSizeWorld,weight,family,color,normalOffset){
-  const p=boardProject(base,localX,localY,normalOffset||0);
-  const px=boardProject(base,localX+1,localY,normalOffset||0);
-  let rot=Math.atan2(px.y-p.y,px.x-p.x);
-  let unit=Math.hypot(px.x-p.x,px.y-p.y);
-  if(unit<.001)return;
-  // Keep glyphs left-to-right even when the world tangent projects backwards.
-  if(Math.cos(rot)<0)rot+=Math.PI;
+function panelTextSurfaceMetrics(base,localX,localY,normalOffset=0){
+  const p=boardProject(base,localX,localY,normalOffset);
+  const px=boardProject(base,localX+1,localY,normalOffset);
+  const pd=boardProject(base,localX,localY-1,normalOffset);
 
-  let size=maxSizeWorld*unit;
-  const minSize=minSizeWorld*unit,maxWidth=maxWidthWorld*unit;
-  c.save();c.translate(p.x,p.y);c.rotate(rot);
-  c.textAlign='center';c.textBaseline='middle';
-  while(size>minSize){
-    c.font=(weight||800)+' '+size+'px '+(family||'Georgia,serif');
-    if(c.measureText(text).width<=maxWidth)break;
-    size-=Math.max(.5,unit*.02);
-  }
-  c.font=(weight||800)+' '+size+'px '+(family||'Georgia,serif');
-  c.fillStyle=color;c.fillText(text,0,0);
-  c.restore();
+  let hx={x:px.x-p.x,y:px.y-p.y};
+  // The same physical axis can point either way. Choose the left-to-right orientation
+  // without changing the panel or its projected line.
+  if(hx.x<0){hx.x=-hx.x;hx.y=-hx.y}
+
+  const down={x:pd.x-p.x,y:pd.y-p.y};
+  const hLen=Math.hypot(hx.x,hx.y);
+  const vLen=Math.hypot(down.x,down.y);
+  const horizontalHealth=Math.abs(hx.x)/Math.max(.001,hLen);
+  const slope=Math.atan2(hx.y,hx.x);
+
+  // Native words are allowed to shear/compress with the surface, but disappear
+  // before the panel tangent would turn them into near-vertical rigid-looking labels.
+  const state=horizontalHealth<.40?'EDGE':(horizontalHealth<.62?'COMPRESSED':'SAFE');
+  const alpha=state==='SAFE'?1:clamp((horizontalHealth-.40)/.22,0,1);
+
+  return {p,hx,down,hLen,vLen,horizontalHealth,slope,state,alpha};
 }
 
+function drawReadableBoardText(c,base,text,localX,localY,maxWidthWorld,maxSizeWorld,minSizeWorld,weight,family,color,normalOffset){
+  const m=panelTextSurfaceMetrics(base,localX,localY,normalOffset||0);
+  if(m.state==='EDGE'||m.hLen<.001||m.vLen<.001)return;
+
+  // IMPORTANT: text is not a rigid screen sprite anymore.
+  // X follows the projected panel tangent; Y follows projected world-down.
+  // This shears/compresses glyphs like the physical sign instead of rotating
+  // every letter as one flat word toward vertical at the edge.
+  const TEXT_HEIGHT_COMP=1.72;
+  let size=maxSizeWorld*TEXT_HEIGHT_COMP;
+  const minSize=minSizeWorld*TEXT_HEIGHT_COMP;
+  const fam=family||'system-ui',wt=weight||700;
+
+  c.save();
+  c.setTransform(
+    m.hx.x,m.hx.y,
+    m.down.x,m.down.y,
+    m.p.x,m.p.y
+  );
+  c.globalAlpha*=m.alpha;
+  c.textAlign='center';c.textBaseline='middle';
+
+  while(size>minSize){
+    c.font=wt+' '+size+'px '+fam;
+    if(c.measureText(text).width<=maxWidthWorld)break;
+    size-=.02;
+  }
+  c.font=wt+' '+size+'px '+fam;
+  c.fillStyle=color;
+  c.fillText(text,0,0);
+  c.restore();
+}
 
 function semanticMetrics(base,normalOffset=0){
   const p=boardProject(base,0,0,normalOffset);
@@ -1223,7 +1256,8 @@ function drawTowerBanner(c,site,index,now){
   }
   c.restore();
 
-  // Text is anchored to the world plane but rendered readable instead of mirrored.
+  // Text uses the full panel surface basis: vertical glyph strokes stay world-vertical,
+  // horizontal strokes shear/compress with the sign, and content fades before edge collapse.
   drawReadableBoardText(c,base,title,0,-BANNER_H*.12,BANNER_W*.84,.60,.27,900,'Georgia,serif','rgba(57,38,28,.22)',.063);
   drawReadableBoardText(c,base,title,-.025,-BANNER_H*.14,BANNER_W*.84,.60,.27,900,'Georgia,serif',panelInk,.066);
   const pct=Math.round(prog.ratio*100)+'%';
@@ -1294,8 +1328,8 @@ function drawProgressTube(c,site,index){
   c.restore();
 }
 
-const LAST_UPDATE_MS=Date.parse('2026-09-24T12:31:34.897Z');
-const BUILD_VERSION='V3.9';
+const LAST_UPDATE_MS=Date.parse('2026-09-24T12:43:59.511Z');
+const BUILD_VERSION='V3.10';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
