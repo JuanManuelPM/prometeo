@@ -116,7 +116,7 @@ public final class MainActivity extends Activity {
         io.execute(() -> {
             try {
                 Brief brief = fetchLatestBrief();
-                if (brief.text.isBlank()) throw new IllegalStateException("No hay texto de voz disponible.");
+                if (brief.text.trim().isEmpty()) throw new IllegalStateException("No hay texto de voz disponible.");
 
                 List<String> chunks = splitText(brief.text);
                 ArrayList<String> uris = new ArrayList<>();
@@ -200,7 +200,7 @@ public final class MainActivity extends Activity {
         String messageId = cleanId("android-v1-" + baseId + "-" + (index + 1) + "-" + shortHash(text));
 
         HttpURLConnection cached = open(TTS_URL + "?id=" +
-                java.net.URLEncoder.encode(messageId, StandardCharsets.UTF_8), "GET");
+                java.net.URLEncoder.encode(messageId, "UTF-8"), "GET");
         int cachedCode = cached.getResponseCode();
         if (cachedCode == 200) {
             byte[] bytes = readAll(cached.getInputStream());
@@ -331,7 +331,7 @@ public final class MainActivity extends Activity {
 
     private static String compactError(Exception e) {
         String s = e.getMessage();
-        if (s == null || s.isBlank()) s = e.getClass().getSimpleName();
+        if (s == null || s.trim().isEmpty()) s = e.getClass().getSimpleName();
         return s.length() > 90 ? s.substring(0, 90) : s;
     }
 
@@ -345,5 +345,15 @@ public final class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    private record Brief(String id, String text, String headline) {}
+    private static final class Brief {
+        final String id;
+        final String text;
+        final String headline;
+
+        Brief(String id, String text, String headline) {
+            this.id = id;
+            this.text = text;
+            this.headline = headline;
+        }
+    }
 }
