@@ -949,10 +949,18 @@ function siteTopHeight(site){
 }
 // TASK NOTE: previous replies incorrectly claimed GitHub publication was unavailable.
 // Correct behavior is to retry the connected GitHub writer and publish the requested change directly.
-const BANNER_W=3.96;
-const BANNER_H=2.22;
-const BANNER_POLE_H=6.85;
-const BANNER_POLE_GAP=3.92;
+
+// VISUAL REGRESSION NOTE · V3.4 REJECTED
+// Do NOT reintroduce camera-facing/upright billboards for arena signs.
+// Rejected behavior: signs rotate to face camera, stay visible too often, lose world-fixed orientation,
+// and make every sign read as if it points the same way.
+// Canon: keep signs fixed in world-space with the block/cuboid construction language.
+// If text needs correction, fix text readability/orientation only. Do not rotate the physical sign.
+
+const BANNER_W=4.12;
+const BANNER_H=3.02;
+const BANNER_POLE_H=7.55;
+const BANNER_POLE_GAP=4.06;
 const TORCH_STAKE_H=1.18;
 const PLAYER_R=BLOCK_STEP*.22;
 
@@ -964,20 +972,20 @@ function siteBannerAnchor(site,index){
   return {
     x:Math.cos(ang)*r + (-Math.sin(ang))*tangent,
     z:Math.sin(ang)*r + ( Math.cos(ang))*tangent,
-    h:3.92,
+    h:4.18,
     ang
   };
 }
-function uprightBillboardBasis(a){
-  // Cylindrical billboard: local X is chosen as camera-right in the ground plane.
-  // Under pr(), this vector has zero depth component, so X is exactly horizontal on screen.
-  // Local Y is world height, therefore exactly vertical. No edge shear or mirrored text.
-  const ux=Math.cos(yaw),uz=-Math.sin(yaw);
-  const nx=-Math.sin(yaw),nz=-Math.cos(yaw);
-  return {a,ux,uz,nx,nz,facing:1};
-}
 function bannerBasis(site,index){
-  return uprightBillboardBasis(siteBannerAnchor(site,index));
+  const a=siteBannerAnchor(site,index);
+
+  // Fixed WORLD orientation, like a real banner between two poles:
+  // width follows the arena tangent, front face points toward the arena center.
+  const ux=-Math.sin(a.ang),uz=Math.cos(a.ang);
+  const nx=-Math.cos(a.ang),nz=-Math.sin(a.ang);
+  const cameraX=Math.sin(yaw),cameraZ=Math.cos(yaw);
+  const facing=nx*cameraX+nz*cameraZ;
+  return {a,ux,uz,nx,nz,facing};
 }
 function bannerWorldPoint(base,localX,localY){
   return {
@@ -1072,10 +1080,10 @@ function drawTorchStakeWorld(c,x,z,h,seed,now,lit=true){
   }
 }
 function bannerTorchWorld(site,index,side){
-  const a=siteBannerAnchor(site,index);
-  const ux=-Math.sin(a.ang),uz=Math.cos(a.ang);
+  const base=bannerBasis(site,index);
   const localX=side*BANNER_POLE_GAP*.48;
-  return {x:a.x+ux*localX,z:a.z+uz*localX,h:.055};
+  const p=bannerWorldPoint(base,localX,0);
+  return {x:p.x,z:p.z,h:.055};
 }
 
 
@@ -1144,8 +1152,8 @@ function drawTowerBanner(c,site,index,now){
 
   const title=TOWER_NAMES[index%TOWER_NAMES.length],prog=siteProgress(site);
   const postColor=site.baseColor;
-  const panelColor=shade(site.baseColor,-58);
-  const panelInk='#d6bd96';
+  const panelColor='#c9bda7';
+  const panelInk='#1b1510';
 
   // Posts literally are two tall, thin construction-block prisms.
   const groundLocal=-base.a.h+.08;
@@ -1158,18 +1166,18 @@ function drawTowerBanner(c,site,index,now){
   drawBoardCuboid(c,base, BANNER_POLE_GAP*.5,postY,.28,postHeight,.28,postColor,9310+index*30);
 
   // Four frame rails made from the same block language.
-  const railColor=shade(site.baseColor,-20);
+  const railColor=shade(site.baseColor,-12);
   drawBoardCuboid(c,base,0,panelTop-.12,BANNER_W+.34,.24,.18,railColor,9340+index*30);
   drawBoardCuboid(c,base,0,panelBottom+.12,BANNER_W+.34,.24,.18,railColor,9350+index*30);
   drawBoardCuboid(c,base,-BANNER_W*.5-.05,0,.24,BANNER_H,.18,railColor,9360+index*30);
   drawBoardCuboid(c,base, BANNER_W*.5+.05,0,.24,BANNER_H,.18,railColor,9370+index*30);
 
-  // Dark slate/wood slab: same palette family as the cubes, not a white UI card.
+  // Pale board/paper slab, deliberately quiet so the type is finally readable.
   drawBoardCuboid(c,base,0,0,BANNER_W,BANNER_H,.11,panelColor,9400+index*30);
 
   // Paper scuffs are world geometry.
   c.save();boardAffine(c,base,.061);
-  c.globalAlpha=.16;c.fillStyle=shade(site.baseColor,10);
+  c.globalAlpha=.085;c.fillStyle=shade(site.baseColor,-18);
   for(let k=0;k<6;k++){
     const y=-BANNER_H*.33+k*BANNER_H*.12;
     c.fillRect(-BANNER_W*.40,y,BANNER_W*(.10+hash(index,k)*.16),.024);
@@ -1177,10 +1185,10 @@ function drawTowerBanner(c,site,index,now){
   c.restore();
 
   // Text is anchored to the world plane but rendered readable instead of mirrored.
-  drawReadableBoardText(c,base,title,0,-BANNER_H*.13,BANNER_W*.84,.52,.25,900,'Georgia,serif','rgba(0,0,0,.30)',.063);
-  drawReadableBoardText(c,base,title,-.018,-BANNER_H*.15,BANNER_W*.84,.52,.25,900,'Georgia,serif',panelInk,.066);
+  drawReadableBoardText(c,base,title,0,-BANNER_H*.12,BANNER_W*.84,.60,.27,900,'Georgia,serif','rgba(57,38,28,.22)',.063);
+  drawReadableBoardText(c,base,title,-.025,-BANNER_H*.14,BANNER_W*.84,.60,.27,900,'Georgia,serif',panelInk,.066);
   const pct=Math.round(prog.ratio*100)+'%';
-  drawReadableBoardText(c,base,pct,0,BANNER_H*.25,BANNER_W*.22,.26,.15,900,'Georgia,serif',shade(site.baseColor,45),.066);
+  drawReadableBoardText(c,base,pct,0,BANNER_H*.27,BANNER_W*.28,.31,.16,900,'Georgia,serif',shade(site.baseColor,-6),.066);
 
   // Tiny block progress ticks.
   c.save();boardAffine(c,base,.068);
@@ -1247,8 +1255,8 @@ function drawProgressTube(c,site,index){
   c.restore();
 }
 
-const LAST_UPDATE_MS=Date.parse('2026-09-24T11:49:37.809Z');
-const BUILD_VERSION='V3.4';
+const LAST_UPDATE_MS=Date.parse('2026-09-24T11:53:50.434Z');
+const BUILD_VERSION='V3.5';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -1280,69 +1288,54 @@ function drawDigit(c,ch,x,y,s,seed){
   ];
   for(let i=0;i<7;i++)segPoly(c,segs[i][0],segs[i][1],segs[i][2],segs[i][3],!!on[i],seed*11+i);
 }
-
-function infoBoardBase(ang,r,h){
-  const a={x:Math.cos(ang)*r,z:Math.sin(ang)*r,h,ang};
-  return uprightBillboardBasis(a);
-}
-function infoBoardVisible(ang){
-  return !cut(ang);
-}
-function drawInfoFrame(c,base,W,H,body,rail,seed){
-  drawBoardCuboid(c,base,0, H*.5-.10,W+.30,.20,.18,rail,seed);
-  drawBoardCuboid(c,base,0,-H*.5+.10,W+.30,.20,.18,rail,seed+7);
-  drawBoardCuboid(c,base,-W*.5-.05,0,.20,H,.18,rail,seed+14);
-  drawBoardCuboid(c,base, W*.5+.05,0,.20,H,.18,rail,seed+21);
-  drawBoardCuboid(c,base,0,0,W,H,.10,body,seed+28);
-}
-function drawBoardSegDigit(c,ch,x,y,s,seed,onColor='#d84a27',offColor='#3a1712'){
-  const on=DIGITS[ch]||DIGITS['0'],t=s*.15,L=s*.56;
-  const segs=[
-    [x+t,y,L,t],[x+t+L,y+t,t,L],[x+t+L,y+t+L,t,L],
-    [x+t,y+t+L*2,L,t],[x,y+t+L,t,L],[x,y+t,t,L],[x+t,y+t+L,L,t]
-  ];
-  for(let i=0;i<7;i++){
-    const [sx,sy,w,h]=segs[i],cutv=Math.min(w,h)*.25;
-    const pts=[
-      {x:sx+cutv,y:sy},{x:sx+w-cutv,y:sy},{x:sx+w,y:sy+h*.5},
-      {x:sx+w-cutv,y:sy+h},{x:sx+cutv,y:sy+h},{x:sx,y:sy+h*.5}
-    ];
-    fillRagged(c,pts,on[i]?onColor:offColor,on[i]?'#180908':null,on[i]?.025:0,seed+i);
-    if(on[i]){
-      c.save();c.globalCompositeOperation='screen';c.globalAlpha=.24;
-      c.fillStyle='#f1a05a';path(c,pts,true);c.fill();c.restore();
-    }
-  }
-}
-
 function drawClock(c,now){
-  const ang=-2.30;
-  if(!infoBoardVisible(ang))return;
-  const base=infoBoardBase(ang,17.92,5.95);
-  const W=3.30,H=1.62;
-  drawInfoFrame(c,base,W,H,'#090706','#5b392e',13200);
+  const wallAng=-2.10;
+  const facing=Math.sin(wallAng+yaw);
+  if(cut(wallAng)||facing>-0.08)return;
 
-  c.save();boardAffine(c,base,.058);
-  const d=new Date(),str=String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
-  c.textAlign='center';c.textBaseline='middle';
-  c.fillStyle='#a47b5d';c.font='700 .16px system-ui';c.fillText('HORA',0,-H*.37);
+  const halfAng=.145;
+  const center=pr(18.08,wallAng,5.78);
+  const pL=pr(18.08,wallAng-halfAng,5.78),pR=pr(18.08,wallAng+halfAng,5.78);
+  let rot=Math.atan2(pR.y-pL.y,pR.x-pL.x);
+  if(Math.cos(rot)<0)rot+=Math.PI;
+  const w=Math.max(scale*2.35,Math.hypot(pR.x-pL.x,pR.y-pL.y));
+  const h=scale*1.56*(.74+.26*clamp(-facing,0,1));
 
-  const s=.45,dw=s*.74,gap=.075,total=dw*4+gap*3+.14;
-  let x=-total*.5,y=-.28;
+  // Device/browser local time, so it is the actual current clock.
+  const d=new Date();
+  const str=String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
+
+  c.save();c.translate(q(center.x),q(center.y));c.rotate(rot);
+  const frame=[
+    {x:-w*.58,y:-h*.60},{x:w*.58,y:-h*.60},{x:w*.58,y:h*.60},{x:-w*.58,y:h*.60}
+  ];
+  fillRagged(c,frame,'#080705','#1a0d09',Math.max(1.2,scale*.09),2401);
+  c.globalAlpha=.75;roughStroke(c,frame,'#6d2a1c',Math.max(.7,scale*.04),2402,true);c.globalAlpha=1;
+
+  c.fillStyle='#b68b67';c.textAlign='center';c.textBaseline='middle';
+  c.font=`700 ${Math.max(5,scale*.16)}px system-ui`;
+  c.fillText('HORA ACTUAL',0,-h*.43);
+
+  const ds=h*.60,dw=ds*.74,gap=ds*.10;
+  const total=dw*4+gap*5+ds*.20;
+  let xx=-total*.5+gap,yy=-ds*.40;
   for(let i=0;i<4;i++){
     if(i===2){
-      const on=d.getSeconds()%2===0;
-      c.save();c.globalCompositeOperation='screen';c.globalAlpha=on?.95:.24;c.fillStyle=on?'#e65029':'#5a2218';
-      c.beginPath();c.arc(x+.02,-.07,.035,0,TAU);c.fill();c.beginPath();c.arc(x+.02,.20,.035,0,TAU);c.fill();c.restore();
-      x+=.14;
+      const cx0=xx-gap*.10;
+      c.globalCompositeOperation='screen';
+      c.fillStyle=(d.getSeconds()%2===0)?'#e34a24':'#5c2018';
+      c.globalAlpha=(d.getSeconds()%2===0)?.92:.26;
+      blob(c,cx0,yy+ds*.43,ds*.055,ds*.055,c.fillStyle,null,0,2500,.08,10);
+      blob(c,cx0,yy+ds*.83,ds*.055,ds*.055,c.fillStyle,null,0,2501,.08,10);
+      c.globalAlpha=1;c.globalCompositeOperation='source-over';xx+=ds*.20;
     }
-    drawBoardSegDigit(c,str[i],x,y,s,13300+i*20);x+=dw+gap;
+    drawDigit(c,str[i],xx,yy,ds*.92,2600+i);xx+=dw+gap;
   }
 
-  c.save();c.globalCompositeOperation='screen';c.globalAlpha=.11;
-  const g=c.createRadialGradient(0,0,0,0,0,W*.38);
-  g.addColorStop(0,'rgba(226,78,38,.38)');g.addColorStop(1,'rgba(0,0,0,0)');
-  c.fillStyle=g;c.beginPath();c.ellipse(0,.04,W*.38,H*.34,0,0,TAU);c.fill();c.restore();
+  c.globalCompositeOperation='screen';c.globalAlpha=.13;
+  const glow=c.createRadialGradient(0,0,0,0,0,w*.48);
+  glow.addColorStop(0,'rgba(238,77,36,.42)');glow.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=glow;c.beginPath();c.ellipse(0,0,w*.48,h*.48,0,0,TAU);c.fill();
   c.restore();
 }
 
@@ -1360,67 +1353,130 @@ function globalBurnRatio(now){
   return total/sites.length;
 }
 function drawGlobalProgressBoard(c,now){
-  const ang=.05;
-  if(!infoBoardVisible(ang))return;
-  const base=infoBoardBase(ang,17.90,5.68);
-  const W=5.15,H=1.12;
-  drawInfoFrame(c,base,W,H,'#0a0706','#684028',13600);
+  const wallAng=-.25;
+  const facing=Math.sin(wallAng+yaw);
+  if(cut(wallAng)||facing>-0.08)return;
 
+  const halfAng=.18;
+  const center=pr(18.08,wallAng,5.72);
+  const pL=pr(18.08,wallAng-halfAng,5.72),pR=pr(18.08,wallAng+halfAng,5.72);
+  let rot=Math.atan2(pR.y-pL.y,pR.x-pL.x);
+  if(Math.cos(rot)<0)rot+=Math.PI;
+
+  const w=Math.max(scale*3.15,Math.hypot(pR.x-pL.x,pR.y-pL.y));
+  const h=scale*1.70*(.74+.26*clamp(-facing,0,1));
   const done=globalBurnRatio(now);
-  const cells=20,filled=Math.floor(done*cells+1e-6);
-  c.save();boardAffine(c,base,.058);
+  const remaining=clamp(1-done,0,1);
+  const pct=Math.round(remaining*100);
 
-  c.textAlign='left';c.textBaseline='middle';
-  c.fillStyle='#aa7650';c.font='700 .13px system-ui';c.fillText('PROGRESO',-W*.43,-H*.30);
+  c.save();c.translate(q(center.x),q(center.y));c.rotate(rot);
+  const frame=[
+    {x:-w*.56,y:-h*.58},{x:w*.56,y:-h*.58},
+    {x:w*.56,y:h*.58},{x:-w*.56,y:h*.58}
+  ];
+  fillRagged(c,frame,'#090706','#1a0d09',Math.max(1.2,scale*.09),11800);
+  c.globalAlpha=.80;roughStroke(c,frame,'#76401f',Math.max(.7,scale*.045),11810,true);c.globalAlpha=1;
 
-  const gap=.055,cellW=(W*.84-gap*(cells-1))/cells,cellH=.31,start=-W*.42,y=.04;
-  for(let i=0;i<cells;i++){
-    const x=start+i*(cellW+gap),on=i<filled,lead=i===filled&&filled<cells;
+  // Chunky block corners, same family as the local construction signs.
+  const bw=w*.095,bh=h*.12;
+  for(const sx of [-1,1])for(const sy of [-1,1]){
+    const x=sx*(w*.49-bw*.5),y=sy*(h*.49-bh*.5);
     const pts=[
-      {x,y:y-cellH*.5},{x:x+cellW,y:y-cellH*.47},
-      {x:x+cellW-.015,y:y+cellH*.5},{x:x+.015,y:y+cellH*.47}
+      {x:x-bw*.5,y:y-bh*.5},{x:x+bw*.5,y:y-bh*.46},
+      {x:x+bw*.46,y:y+bh*.5},{x:x-bw*.52,y:y+bh*.46}
     ];
-    fillRagged(c,pts,on?'#b84424':lead?'#5f2a1e':'#251713','#120a08',.022,13700+i);
-    if(on||lead){
-      c.save();c.globalCompositeOperation='screen';
-      c.globalAlpha=on?.24:(.10+.12*(.5+.5*Math.sin(now*.006)));
-      c.fillStyle=on?'#f09b53':'#c44c29';path(c,pts,true);c.fill();c.restore();
+    fillRagged(c,pts,sx===sy?'#795034':'#593824','#160d09',Math.max(.6,scale*.03),11830+(sx>0?1:0)+(sy>0?2:0));
+  }
+
+  c.fillStyle='#bd8c5f';c.textAlign='center';c.textBaseline='middle';
+  c.font=`700 ${Math.max(5,scale*.15)}px system-ui`;
+  c.fillText('FALTA PARA TERMINAR',0,-h*.42);
+
+  const str=String(pct).padStart(3,'0');
+  const ds=h*.53,dw=ds*.74,gap=ds*.09,total=dw*3+gap*2;
+  let xx=-total*.5,yy=-ds*.43;
+  for(let i=0;i<3;i++){drawDigit(c,str[i],xx,yy,ds*.92,11900+i);xx+=dw+gap;}
+
+  c.save();c.globalCompositeOperation='screen';c.globalAlpha=.86;
+  c.fillStyle='#e49b54';c.font=`900 ${Math.max(7,scale*.22)}px Georgia,serif`;
+  c.fillText('%',w*.30,-h*.02);c.restore();
+
+  // Remaining cells go dark as work finishes.
+  const cells=14,lit=Math.ceil(remaining*cells);
+  const cellGap=w*.012,cellW=(w*.76-cellGap*(cells-1))/cells,cellH=h*.15;
+  const startX=-w*.38,barY=h*.29;
+  for(let i=0;i<cells;i++){
+    const x=startX+i*(cellW+cellGap);
+    const pts=[
+      {x,y:barY-cellH*.5},{x:x+cellW,y:barY-cellH*.47},
+      {x:x+cellW-cellW*.07,y:barY+cellH*.5},{x:x+cellW*.07,y:barY+cellH*.47}
+    ];
+    const on=i<lit;
+    fillRagged(c,pts,on?'#b94b24':'#291a15','#140c09',Math.max(.45,scale*.024),12000+i);
+    if(on){
+      c.save();c.globalCompositeOperation='screen';c.globalAlpha=.28;
+      c.fillStyle='#f1a15a';path(c,pts,true);c.fill();c.restore();
     }
   }
 
-  c.textAlign='right';c.fillStyle='#7c604a';c.font='700 .11px system-ui';c.fillText('FIN',W*.43,H*.31);
+  c.save();c.globalCompositeOperation='screen';c.globalAlpha=.08+.10*remaining;
+  const glow=c.createRadialGradient(0,0,0,0,0,w*.45);
+  glow.addColorStop(0,'rgba(233,113,48,.42)');glow.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=glow;c.beginPath();c.ellipse(0,0,w*.45,h*.40,0,0,TAU);c.fill();c.restore();
   c.restore();
 }
 
 // Third independent panel: build/version info in a different color and lower position.
 function drawVersionBoard(c,now){
-  const ang=-1.15;
-  if(!infoBoardVisible(ang))return;
-  const base=infoBoardBase(ang,17.88,3.25);
-  const W=3.35,H=1.42;
-  drawInfoFrame(c,base,W,H,'#08100c','#3e614e',14100);
+  const wallAng=-1.18;
+  const facing=Math.sin(wallAng+yaw);
+  if(cut(wallAng)||facing>-0.08)return;
 
-  const d=new Date(LAST_UPDATE_MS);
-  const updated=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+
-    ' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  const halfAng=.155;
+  const center=pr(18.02,wallAng,3.35);
+  const pL=pr(18.02,wallAng-halfAng,3.35),pR=pr(18.02,wallAng+halfAng,3.35);
+  let rot=Math.atan2(pR.y-pL.y,pR.x-pL.x);
+  if(Math.cos(rot)<0)rot+=Math.PI;
 
-  c.save();boardAffine(c,base,.058);
-  c.textAlign='center';c.textBaseline='middle';
+  const w=Math.max(scale*2.55,Math.hypot(pR.x-pL.x,pR.y-pL.y));
+  const h=scale*1.28*(.76+.24*clamp(-facing,0,1));
+  const updated=new Date(LAST_UPDATE_MS).toLocaleString([],{
+    day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'
+  });
 
-  for(let i=0;i<6;i++){
-    const x=-.73+i*.29,on=i<4;
-    const pts=[{x:x-.08,y:-.47},{x:x+.08,y:-.47},{x:x+.075,y:-.35},{x:x-.085,y:-.35}];
-    fillRagged(c,pts,on?'#577b63':'#203329','#0d1510',.018,14200+i);
+  c.save();c.translate(q(center.x),q(center.y));c.rotate(rot);
+  const frame=[
+    {x:-w*.55,y:-h*.58},{x:w*.55,y:-h*.58},
+    {x:w*.55,y:h*.58},{x:-w*.55,y:h*.58}
+  ];
+  fillRagged(c,frame,'#080b09','#111914',Math.max(1.1,scale*.08),12600);
+  c.globalAlpha=.82;roughStroke(c,frame,'#466653',Math.max(.7,scale*.04),12610,true);c.globalAlpha=1;
+
+  // Teal/green signal blocks make this panel clearly different from clock/progress.
+  for(let i=0;i<7;i++){
+    const on=i<5;
+    const x=-w*.38+i*w*.125;
+    const pts=[
+      {x:x-w*.022,y:-h*.38},{x:x+w*.022,y:-h*.38},
+      {x:x+w*.020,y:-h*.29},{x:x-w*.024,y:-h*.29}
+    ];
+    fillRagged(c,pts,on?'#587b63':'#26372d','#0f1712',Math.max(.4,scale*.02),12630+i);
   }
 
-  c.fillStyle='#91b09a';c.font='800 .28px Georgia,serif';c.fillText(BUILD_VERSION,0,-.05);
-  c.fillStyle='#73917b';c.font='700 .115px system-ui';c.fillText('ACTUALIZADO',0,.28);
-  c.fillStyle='#bed0c1';c.font='700 .16px system-ui';c.fillText(updated,0,.47);
+  c.textAlign='center';c.textBaseline='middle';
+  c.fillStyle='#83a98e';c.font=`800 ${Math.max(6,scale*.18)}px Georgia,serif`;
+  c.fillText(BUILD_VERSION,0,-h*.05);
 
-  c.save();c.globalCompositeOperation='screen';c.globalAlpha=.08;
-  const g=c.createRadialGradient(0,0,0,0,0,W*.36);
-  g.addColorStop(0,'rgba(91,151,111,.34)');g.addColorStop(1,'rgba(0,0,0,0)');
-  c.fillStyle=g;c.beginPath();c.ellipse(0,.05,W*.36,H*.34,0,0,TAU);c.fill();c.restore();
+  c.fillStyle='#9dbaa2';c.font=`700 ${Math.max(4.5,scale*.12)}px system-ui`;
+  c.fillText('ÚLTIMA ACTUALIZACIÓN',0,h*.20);
+  c.fillStyle='#c1d0bf';c.font=`700 ${Math.max(5,scale*.14)}px system-ui`;
+  c.fillText(updated,0,h*.37);
+
+  c.save();c.globalCompositeOperation='screen';c.globalAlpha=.10;
+  const glow=c.createRadialGradient(0,0,0,0,0,w*.42);
+  glow.addColorStop(0,'rgba(96,160,117,.40)');glow.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=glow;c.beginPath();c.ellipse(0,0,w*.42,h*.40,0,0,TAU);c.fill();c.restore();
+
   c.restore();
 }
 
