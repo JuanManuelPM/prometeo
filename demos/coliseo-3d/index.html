@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="theme-color" content="#050504">
-<meta name="prometeo-rev" content="20260924T2030Z-VIS-CANON-V5">
+<meta name="prometeo-rev" content="20260924T2040Z-MB-VIS-CANON-06">
 <title>Coliseo · collage nocturno</title>
 <style>
 :root{--ink:#d7b48b;--muted:#806f60}
@@ -244,7 +244,7 @@ body{overscroll-behavior:none}
     </div>
 
     <div class="monFoot" id="monFoot">
-      <span id="monRev">V3.14 · 20260924T2030Z-VIS-CANON-V5</span>
+      <span id="monRev">V3.15 · 20260924T2040Z-MB-VIS-CANON-06</span>
       <span class="updatePulse" id="monUpdate">LIVE</span>
     </div>
   </aside>
@@ -506,18 +506,24 @@ function paintWallDetails(c){
 
 function paintOuterRingReliefLandmarks(c){
   const specs=[
-    {ang:.62,type:'gate',accent:'#76503b'},
-    {ang:2.72,type:'tower',accent:'#53604f'},
-    {ang:4.88,type:'oculus',accent:'#806342'},
-    {ang:5.72,type:'spire',accent:'#8a5f3d'}
+    {ang:.62,type:'gate',accent:'#76503b',name:'PORTA'},
+    {ang:2.72,type:'tower',accent:'#53604f',name:'BASTION'},
+    {ang:4.88,type:'oculus',accent:'#806342',name:'OCULUS'},
+    {ang:5.72,type:'spire',accent:'#8a5f3d',name:'NEEDLE'}
   ];
   for(let i=0;i<specs.length;i++){
     const s=specs[i];
     const base=wallBoardBasis(s.ang,18.10,5.18);
     if(cut(s.ang)||base.facing<=.028)continue;
     const rail=shade(s.accent,-18),face=shade(s.accent,8),seed=23200+i*120;
-    // Three stable world-fixed silhouettes act as orientation anchors while rotating.
-    drawBoardCuboid(c,base,0,-1.02,2.50,.16,.18,rail,seed);
+
+    // A heavier plinth + cap turns each relief into a true orientation landmark,
+    // not another texture fragment on the wall.
+    drawBoardCuboid(c,base,0,-1.18,2.86,.22,.24,rail,seed);
+    drawBoardCuboid(c,base,0,1.42,2.18,.18,.22,face,seed+2);
+    drawBoardCuboid(c,base,-1.18,.08,.12,2.18,.16,shade(rail,-6),seed+4);
+    drawBoardCuboid(c,base, 1.18,.08,.12,2.18,.16,shade(rail,-6),seed+6);
+
     if(s.type==='gate'){
       drawBoardCuboid(c,base,-.76,0,.30,2.16,.22,rail,seed+10);
       drawBoardCuboid(c,base, .76,0,.30,2.16,.22,rail,seed+20);
@@ -537,12 +543,18 @@ function paintOuterRingReliefLandmarks(c){
       drawBoardCuboid(c,base,0,0,.34,.34,.13,'#17110d',seed+90);
       drawBoardCuboid(c,base,0,-.92,1.54,.14,.15,rail,seed+100);
     }else{
-      // One unmistakable cardinal needle breaks the otherwise even outer-ring rhythm.
       drawBoardCuboid(c,base,0,-.10,.54,2.52,.24,rail,seed+10);
       drawBoardCuboid(c,base,0,1.34,.38,.48,.22,face,seed+20);
       drawBoardCuboid(c,base,0,1.66,.22,.24,.20,shade(face,16),seed+30);
       drawBoardCuboid(c,base,-.46,-.96,.42,.18,.16,face,seed+40);
       drawBoardCuboid(c,base, .46,-.96,.42,.18,.16,face,seed+50);
+    }
+
+    // Short physical nameplate makes rotation/orientation readable without a legend.
+    drawBoardCuboid(c,base,0,-1.48,2.28,.42,.13,'#221b16',seed+108);
+    const m=panelSemanticState(base,.071);
+    if(m.state!=='EDGE'){
+      drawReadableBoardText(c,base,s.name,0,-1.48,1.90,.22,.12,900,'system-ui','#d0b48f',.082);
     }
   }
 }
@@ -2224,8 +2236,7 @@ function drawCapacityMonument(c,now){
   const needH=H*(s.need/s.cap);
   const tx=-Math.sin(s.ang),tz=Math.cos(s.ang);
 
-  // A neutral stone frame makes the instrument recognizable before any text is read.
-  // It encodes scale only; worker capacity remains exclusively in the colored shaft.
+  // Neutral frame = scale. Colored shaft = observed capacity only.
   for(const side of [-1,1]){
     const px=s.x+tx*.76*side,pz=s.z+tz*.76*side;
     drawWorldCuboid(c,px,pz,.02,.18,H+.48,'#4c4035',24520+(side+1)*4);
@@ -2235,21 +2246,17 @@ function drawCapacityMonument(c,now){
     drawWorldCuboid(c,s.x+tx*k*.30,s.z+tz*k*.30,base+H+.34,.25,.16,k===0?'#a57a4f':'#655649',24580+k+2);
   }
 
-  // Zero plinth + discrete shaft. Capacity that does not exist is never painted as filled.
   drawWorldCuboid(c,s.x,s.z,.02,1.34,.26,'#3b3028',24600);
   if(coreH>.025)drawWorldCuboid(c,s.x,s.z,base,w,coreH,'#9b5728',24620);
   if(surplusH>.025)drawWorldCuboid(c,s.x,s.z,base+coreH,w*.94,surplusH,'#506657',24640);
 
-  // CORE NEED is a 360-degree physical collar, not a color legend.
+  // CORE NEED is a 360-degree collar. Deficit never becomes a fake filled worker.
   drawWorldCuboid(c,s.x,s.z,base+needH-.045,1.60,.10,s.deficit>0?'#a84230':'#d2b892',24660);
-
-  // Quarter-scale courses keep magnitude legible even when text is oblique.
   for(let i=1;i<=4;i++){
     const h=base+H*i/4;
     drawWorldCuboid(c,s.x,s.z,h-.018,1.02,.036,i===4?'#8f7256':'#655649',24670+i);
   }
 
-  // Deficit uses candidate-outline void markers above the real shaft; no fake filled workers.
   if(s.deficit>0){
     const missH=H*(s.deficit/s.cap);
     const start=base+H*(s.active/s.cap);
@@ -2263,27 +2270,45 @@ function drawCapacityMonument(c,now){
   drawWorldCuboid(c,s.x,s.z,Math.max(base,topH),1.02,.13,s.balance>=0?'#6d816f':'#7a4a2f',24780);
   groundPatch(c,s.x,s.z,1.18,.68,s.deficit>0?'#6f2c22':'#27312a',.34,24790,14);
 
-  // One-glance physical plaque: ACT / CORE / reserve-or-deficit, all world-fixed.
-  const panelAng=s.ang-.17;
-  const panel=wallBoardBasis(panelAng,11.72,2.18);
-  if(!cut(panelAng)&&panel.facing>.030){
-    const W=5.60,Hb=2.18;
-    const alert=s.deficit>0;
-    drawBlockPanel(c,panel,W,Hb,alert?'#43251f':'#26342c',alert?'#7e3c2d':'#5c6c5b',24820);
-    const m=panelSemanticState(panel,.071);
-    if(m.state!=='EDGE'){
-      if(m.state==='SAFE')drawReadableBoardText(c,panel,'CAPACIDAD',0,Hb*.38,W*.50,.20,.11,900,'system-ui','#d4b68f',.082);
-      drawReadableBoardText(c,panel,'ACT '+s.active,-1.45,.10,W*.32,.38,.20,950,'system-ui','#e0c090',.082);
-      drawReadableBoardText(c,panel,'CORE '+s.need,1.30,.10,W*.34,.34,.18,950,'system-ui','#d6c7a8',.082);
-      drawBoardCuboid(c,panel,0,.10,.08,.74,.070,alert?'#734033':'#596a5a',24890);
-      const balanceText=s.deficit>0?'FALTAN '+s.deficit:'RESERVA +'+s.surplus;
-      drawReadableBoardText(c,panel,balanceText,0,-.58,W*.80,.42,.21,950,'system-ui',alert?'#ef7957':'#9bb69f',.084);
-      // Redundant +/- geometry means the sign survives desaturation.
-      drawBoardCuboid(c,panel,-2.12,-.58,.36,.11,.078,alert?'#a84631':'#6f8c74',24920);
-      if(!alert)drawBoardCuboid(c,panel,-2.12,-.58,.11,.36,.078,'#6f8c74',24930);
-    }
+  // 12-step ground dial: coarse magnitude is readable before the plaque text.
+  // Filled ticks are floored, so the dial never rounds capacity upward.
+  const filledTicks=Math.floor(clamp(s.active/s.cap,0,1)*12);
+  const coreTicks=Math.floor(clamp(s.coreWorkers/s.cap,0,1)*12);
+  const needTick=Math.min(11,Math.max(0,Math.floor(clamp(s.need/s.cap,0,.999)*12)));
+  for(let i=0;i<12;i++){
+    const a=s.ang+i*TAU/12,rr=1.72;
+    const px=s.x+Math.cos(a)*rr,pz=s.z+Math.sin(a)*rr;
+    let col='#342c26',hh=.14,ww=.25;
+    if(i<filledTicks){col=i<coreTicks?'#9b5728':'#506657';hh=.27;ww=.31}
+    if(i===needTick){col=s.deficit>0?'#a84230':'#d2b892';hh=.36;ww=.34}
+    drawWorldCuboid(c,px,pz,.02,ww,hh,col,24795+i);
   }
+
+  function capacityPlaque(panelAng,seedBase){
+    const panel=wallBoardBasis(panelAng,11.86,2.28);
+    if(cut(panelAng)||panel.facing<=.030)return;
+    const W=6.20,Hb=2.48,alert=s.deficit>0;
+    drawBlockPanel(c,panel,W,Hb,alert?'#43251f':'#26342c',alert?'#7e3c2d':'#5c6c5b',seedBase);
+    const m=panelSemanticState(panel,.071);
+    if(m.state==='EDGE')return;
+    if(m.state==='SAFE')drawReadableBoardText(c,panel,'CAPACIDAD',0,Hb*.39,W*.52,.22,.12,950,'system-ui','#d4b68f',.082);
+    drawReadableBoardText(c,panel,String(s.active),-1.68,.08,W*.24,.70,.34,950,'system-ui','#f0c98f',.082);
+    drawReadableBoardText(c,panel,'LIVE',-1.68,-.50,W*.22,.20,.11,900,'system-ui','#9d846b',.082);
+    drawReadableBoardText(c,panel,'CORE '+s.need,1.42,.20,W*.38,.34,.18,950,'system-ui','#d6c7a8',.082);
+    const balanceText=s.deficit>0?'FALTAN '+s.deficit:'RESERVA +'+s.surplus;
+    drawReadableBoardText(c,panel,balanceText,1.42,-.50,W*.42,.34,.18,950,'system-ui',alert?'#ef7957':'#9bb69f',.084);
+    drawBoardCuboid(c,panel,-.12,.03,.09,1.34,.072,alert?'#734033':'#596a5a',seedBase+70);
+    // +/- geometry survives distance, desaturation and partial text compression.
+    drawBoardCuboid(c,panel,2.58,-.51,.36,.11,.078,alert?'#a84631':'#6f8c74',seedBase+80);
+    if(!alert)drawBoardCuboid(c,panel,2.58,-.51,.11,.36,.078,'#6f8c74',seedBase+81);
+  }
+
+  // Two opposed plaques share the same observed state. At normal rotations one remains readable,
+  // eliminating the long blind arc without inventing a second metric.
+  capacityPlaque(s.ang-.17,24820);
+  capacityPlaque(s.ang+Math.PI-.17,24940);
 }
+
 function proposalAnchor(slot){
   const s=((slot%12)+12)%12;
   const ang=.20+s*TAU/12;
@@ -2592,7 +2617,7 @@ setInterval(refresh,8000);
 <script>
 (function(){
 'use strict';
-const CURRENT_REV='20260924T2030Z-VIS-CANON-V5';
+const CURRENT_REV='20260924T2040Z-MB-VIS-CANON-06';
 const panel=document.getElementById('monitorPanel');
 if(!panel)return;
 
