@@ -52,7 +52,7 @@ body{overscroll-behavior:none}
 </div>
 <div class="ui">
   <div class="brand"><div class="mark">III</div><div class="copy"><b>Arena</b><span>collage · campo amplio · construcción</span></div></div>
-  <div class="badge">12 constructores · estructuras + reloj</div>
+  <div class="badge">12 constructores · rutas + escaleras + reloj</div>
   <div class="help">arrastrá para rotar · pellizcá para acercar</div>
 </div>
 <script>
@@ -76,54 +76,69 @@ const C={
 const CUT=.05;
 const torches=Array.from({length:8},(_,i)=>({ang:i*TAU/8+.08,phase:i*1.81}));
 const BLOCK_COLORS=['#a53b24','#c66d31','#a68a43','#506657','#3c5961','#816049','#b89a68','#6f3631','#58604d'];
-function makeBuildPlan(seed){
-  const plan=[];
-  const stem=4+Math.floor(hash(seed,611)*2);
-  for(let y=0;y<stem;y++)plan.push({dx:0,dz:0,y});
-
-  // After the central tower reaches height, it starts spreading sideways.
-  const ring1=[[1,0],[-1,0],[0,1],[0,-1]];
-  const ring2=[[1,1],[-1,1],[1,-1],[-1,-1],[2,0],[-2,0],[0,2],[0,-2]];
-  const flip=hash(seed,612)>.5;
-  const first=flip?ring1.slice().reverse():ring1;
-  for(const [dx,dz] of first)plan.push({dx,dz,y:0});
-  for(const [dx,dz] of first)plan.push({dx,dz,y:1});
-  for(const [dx,dz] of ring2)if(hash(seed+dx*7,dz*13)>.20)plan.push({dx,dz,y:0});
-
-  // Balconies / side growth around the upper part of the original stem.
-  for(const [dx,dz] of ring1)plan.push({dx,dz,y:stem-2});
-  for(const [dx,dz] of ring1)if(hash(seed+dx*17,dz*19)>.28)plan.push({dx,dz,y:stem-1});
-
-  // Some branches continue upward so it starts reading as a structure, not a stack.
-  for(let y=stem;y<stem+3;y++)plan.push({dx:0,dz:0,y});
-  for(const [dx,dz] of first.slice(0,2)){
-    plan.push({dx,dz,y:2});plan.push({dx,dz,y:3});
-  }
-  return plan;
-}
-const sites=Array.from({length:10},(_,i)=>{
-  const ang=.30+i*TAU/10+(hash(i,301)-.5)*.28;
-  const r=4.2+hash(i,302)*7.0;
-  const plan=makeBuildPlan(i+1);
-  const first=plan[0];
-  return {
-    x:Math.cos(ang)*r,z:Math.sin(ang)*r,
-    plan,blocks:[{...first,color:BLOCK_COLORS[Math.floor(hash(i,303)*BLOCK_COLORS.length)]}],
-    cursor:1,lastBuilt:-9999
+const GRID_R=3,BLOCK_STEP=.68,BLOCK_H=.58;
+const DIR4=[[1,0],[-1,0],[0,1],[0,-1]];
+function key2(x,z){return x+','+z}
+function makePattern(seed){
+  const targets=new Map();
+  const put=(x,z,h)=>{
+    if(Math.abs(x)>GRID_R||Math.abs(z)>GRID_R||h<=0)return;
+    const k=key2(x,z);targets.set(k,Math.max(targets.get(k)||0,h));
   };
-});
+  const type=seed%3;
+
+  if(type===0){
+    // SPIRE: every higher layer requires a lower neighbouring tread.
+    for(let x=-GRID_R;x<=GRID_R;x++)for(let z=-GRID_R;z<=GRID_R;z++){
+      const h=4-(Math.abs(x)+Math.abs(z));
+      if(h>0)put(x,z,h);
+    }
+    put(2,1,1);put(-2,-1,1);put(1,-2,1);
+  }else if(type===1){
+    // TWIN PEAKS: two small towers joined by a broad walkable saddle.
+    for(let x=-GRID_R;x<=GRID_R;x++)for(let z=-GRID_R;z<=GRID_R;z++){
+      const d1=Math.abs(x-1)+Math.abs(z),d2=Math.abs(x+1)+Math.abs(z);
+      const h=Math.max(4-d1,4-d2);
+      if(h>0)put(x,z,h);
+    }
+    put(0,2,1);put(0,-2,1);
+  }else{
+    // TERRACE: a short ridge with stepped flanks and side rooms.
+    for(let x=-GRID_R;x<=GRID_R;x++)for(let z=-GRID_R;z<=GRID_R;z++){
+      const ridge=Math.max(0,Math.abs(x)-1);
+      const h=3-(Math.abs(z)+ridge);
+      if(h>0)put(x,z,h);
+    }
+    put(2,1,1);put(2,-1,1);put(-2,1,1);put(-2,-1,1);
+  }
+  return targets;
+}
+function newSite(i){
+  const ang=.22+i*TAU/6+(hash(i,301)-.5)*.22;
+  const r=6.0+hash(i,302)*2.7;
+  const targets=makePattern(i+1);
+  return {
+    x:Math.cos(ang)*r,z:Math.sin(ang)*r,targets,
+    heights:new Map(),blocks:[],reservations:new Map(),
+    baseColor:BLOCK_COLORS[Math.floor(hash(i,303)*BLOCK_COLORS.length)],
+    lastBuilt:-9999
+  };
+}
+const sites=Array.from({length:6},(_,i)=>newSite(i));
+
 const playerSeed=[
- ['#201c18',2.7,.12],['#8a321f',3.8,1.1],['#806b31',4.8,2.0],
- ['#32423d',6.1,3.0],['#6d362c',7.1,3.9],['#766958',8.1,4.8],
- ['#273028',9.0,5.5],['#7d4828',4.4,.7],['#4a5647',6.8,1.65],
- ['#8a744a',7.8,2.6],['#302925',5.6,3.7],['#6a2c20',9.2,5.1]
+ ['#201c18',.12],['#8a321f',1.1],['#806b31',2.0],
+ ['#32423d',3.0],['#6d362c',3.9],['#766958',4.8],
+ ['#273028',5.5],['#7d4828',.7],['#4a5647',1.65],
+ ['#8a744a',2.6],['#302925',3.7],['#6a2c20',5.1]
 ];
 const players=playerSeed.map((v,i)=>{
-  const r=v[1]*1.14,a=v[2];
+  const site=sites[i%sites.length],a=v[1],r=4.8+hash(i,351)*3.0;
   return {
-    color:v[0],x:Math.cos(a)*r,z:Math.sin(a)*r,
-    size:.34+(i%3)*.035,speed:.80+hash(i,355)*.42,
-    target:i%sites.length,wait:hash(i,356)*.8,lastX:0,lastZ:0
+    color:v[0],x:Math.cos(a)*r,z:Math.sin(a)*r,h:0,jump:0,
+    size:.34+(i%3)*.035,speed:.92+hash(i,355)*.38,
+    siteIndex:i%sites.length,wait:hash(i,356)*.6,
+    task:null,path:[],segment:null,lastX:0,lastZ:0,lastH:0
   };
 });
 
@@ -401,149 +416,261 @@ function drawFlame(c,p,frame,seed){
   c.restore();
 }
 
-const BLOCK_STEP=.82,BLOCK_H=.58;
-function siteDone(site){return site.cursor>=site.plan.length}
-function nextBuildSpec(site){
-  if(siteDone(site))return null;
-  return site.plan[site.cursor];
+function getHeight(site,gx,gz){
+  return site.heights.get(key2(gx,gz))||0;
 }
-function buildWorldPos(site,spec){
-  return {x:site.x+spec.dx*BLOCK_STEP,z:site.z+spec.dz*BLOCK_STEP};
+function setHeight(site,gx,gz,h){
+  const k=key2(gx,gz);
+  if(h<=0)site.heights.delete(k);else site.heights.set(k,h);
 }
-function chooseNextSite(playerIndex,current){
-  let next=(current+1+Math.floor(hash(playerIndex+current,711)*(sites.length-1)))%sites.length;
-  for(let tries=0;tries<sites.length;tries++){
-    if(!siteDone(sites[next]))return next;
-    next=(next+1)%sites.length;
+function worldCell(site,gx,gz){
+  return {x:site.x+gx*BLOCK_STEP,z:site.z+gz*BLOCK_STEP};
+}
+function insideNav(gx,gz){return Math.abs(gx)<=GRID_R+1&&Math.abs(gz)<=GRID_R+1}
+function neighbours(gx,gz){return DIR4.map(d=>({gx:gx+d[0],gz:gz+d[1]})).filter(p=>insideNav(p.gx,p.gz))}
+function boundaryGroundCells(site){
+  const out=[];
+  const R=GRID_R+1;
+  for(let x=-R;x<=R;x++)for(let z=-R;z<=R;z++){
+    if(Math.abs(x)!==R&&Math.abs(z)!==R)continue;
+    if(getHeight(site,x,z)===0)out.push({gx:x,gz:z});
   }
-  return current;
+  return out;
+}
+function bfsReachable(site,override){
+  const q=[],seen=new Map();
+  const heightAt=(x,z)=>{
+    const k=key2(x,z);
+    return override&&override.has(k)?override.get(k):getHeight(site,x,z);
+  };
+  for(const p of boundaryGroundCells(site)){
+    const k=key2(p.gx,p.gz);seen.set(k,null);q.push(p);
+  }
+  for(let qi=0;qi<q.length;qi++){
+    const cur=q[qi],ch=heightAt(cur.gx,cur.gz);
+    for(const n of neighbours(cur.gx,cur.gz)){
+      const nk=key2(n.gx,n.gz);if(seen.has(nk))continue;
+      const nh=heightAt(n.gx,n.gz);
+      if(Math.abs(nh-ch)<=1){seen.set(nk,key2(cur.gx,cur.gz));q.push(n)}
+    }
+  }
+  return seen;
+}
+function hasExitAfterPlacement(site,cand){
+  const over=new Map();
+  over.set(key2(cand.gx,cand.gz),cand.y+1);
+  const reach=bfsReachable(site,over);
+  return reach.has(key2(cand.standGx,cand.standGz));
+}
+function candidateList(site){
+  const reach=bfsReachable(site);
+  const out=[];
+  for(const [k,targetH] of site.targets){
+    const [gx,gz]=k.split(',').map(Number);
+    const h=getHeight(site,gx,gz);
+    if(h>=targetH)continue;
+    const rk=gx+','+gz+','+h;
+    if(site.reservations.has(rk))continue;
+
+    for(const d of DIR4){
+      const sx=gx+d[0],sz=gz+d[1];
+      if(!insideNav(sx,sz))continue;
+      if(getHeight(site,sx,sz)!==h)continue;
+      if(!reach.has(key2(sx,sz)))continue;
+      const cand={gx,gz,y:h,standGx:sx,standGz:sz,key:rk,targetH};
+      if(hasExitAfterPlacement(site,cand))out.push(cand);
+    }
+  }
+  return out;
+}
+function pickCandidate(site,playerIndex){
+  const list=candidateList(site);
+  if(!list.length)return null;
+  // Prefer upward progress; if blocked, the rule naturally forces construction of the staircase around it.
+  list.sort((a,b)=>{
+    const sa=a.y*18+a.targetH*3+hash(playerIndex+a.gx*7,a.gz*11)*2;
+    const sb=b.y*18+b.targetH*3+hash(playerIndex+b.gx*7,b.gz*11)*2;
+    return sb-sa;
+  });
+  return list[0];
+}
+function buildComplete(site){
+  for(const [k,h] of site.targets){
+    const [x,z]=k.split(',').map(Number);
+    if(getHeight(site,x,z)<h)return false;
+  }
+  return true;
+}
+function nearestNavCell(site,pl){
+  return {
+    gx:clamp(Math.round((pl.x-site.x)/BLOCK_STEP),-GRID_R-1,GRID_R+1),
+    gz:clamp(Math.round((pl.z-site.z)/BLOCK_STEP),-GRID_R-1,GRID_R+1)
+  };
+}
+function findPath(site,start,goal){
+  const sk=key2(start.gx,start.gz),gk=key2(goal.gx,goal.gz);
+  const q=[start],prev=new Map([[sk,null]]);
+  for(let qi=0;qi<q.length;qi++){
+    const cur=q[qi],ck=key2(cur.gx,cur.gz);
+    if(ck===gk)break;
+    const ch=getHeight(site,cur.gx,cur.gz);
+    for(const n of neighbours(cur.gx,cur.gz)){
+      const nk=key2(n.gx,n.gz);if(prev.has(nk))continue;
+      const nh=getHeight(site,n.gx,n.gz);
+      if(Math.abs(nh-ch)<=1){prev.set(nk,ck);q.push(n)}
+    }
+  }
+  if(!prev.has(gk))return [];
+  const cells=[];let k=gk;
+  while(k&&k!==sk){
+    const [gx,gz]=k.split(',').map(Number);
+    cells.push({gx,gz,h:getHeight(site,gx,gz)});
+    k=prev.get(k);
+  }
+  cells.reverse();
+  return cells;
+}
+function pathToWorld(site,cells){
+  return cells.map(cell=>{
+    const w=worldCell(site,cell.gx,cell.gz);
+    return {x:w.x,z:w.z,h:cell.h*BLOCK_H,gx:cell.gx,gz:cell.gz};
+  });
+}
+function assignTask(pl,index){
+  const site=sites[pl.siteIndex];
+  if(buildComplete(site)){
+    if(!pl.path.length&&!pl.segment){
+      const start=nearestNavCell(site,pl);
+      const exits=boundaryGroundCells(site);
+      exits.sort((a,b)=>{
+        const wa=worldCell(site,a.gx,a.gz),wb=worldCell(site,b.gx,b.gz);
+        return Math.hypot(wa.x-pl.x,wa.z-pl.z)-Math.hypot(wb.x-pl.x,wb.z-pl.z);
+      });
+      const route=findPath(site,start,exits[0]||start);
+      pl.path=pathToWorld(site,route);pl.task={type:'exit'};
+    }
+    return;
+  }
+  const cand=pickCandidate(site,index);
+  if(!cand){pl.wait=.45;return}
+  site.reservations.set(cand.key,index);
+  pl.task={type:'build',cand};
+  const start=nearestNavCell(site,pl);
+  const route=findPath(site,start,{gx:cand.standGx,gz:cand.standGz});
+  pl.path=pathToWorld(site,route);
+  if(!pl.path.length && (start.gx!==cand.standGx||start.gz!==cand.standGz)){
+    site.reservations.delete(cand.key);pl.task=null;pl.wait=.35;
+  }
+}
+function startNextSegment(pl){
+  if(pl.segment||!pl.path.length)return;
+  const end=pl.path.shift();
+  const dx=end.x-pl.x,dz=end.z-pl.z,dist=Math.max(.001,Math.hypot(dx,dz));
+  pl.segment={
+    sx:pl.x,sz:pl.z,sh:pl.h,ex:end.x,ez:end.z,eh:end.h,
+    t:0,dist,climb:Math.abs(end.h-pl.h)>BLOCK_H*.15
+  };
+}
+function updateMovement(pl,dt){
+  startNextSegment(pl);
+  if(!pl.segment){pl.jump=0;return}
+  const s=pl.segment;
+  s.t=clamp(s.t+pl.speed*dt/s.dist,0,1);
+  const smooth=s.t*s.t*(3-2*s.t);
+  pl.x=s.sx+(s.ex-s.sx)*smooth;
+  pl.z=s.sz+(s.ez-s.sz)*smooth;
+  pl.h=s.sh+(s.eh-s.sh)*smooth;
+  const hop=s.climb?.24:.035;
+  pl.jump=Math.sin(Math.PI*s.t)*hop;
+  if(s.t>=1){
+    pl.x=s.ex;pl.z=s.ez;pl.h=s.eh;pl.jump=0;pl.segment=null;
+  }
+}
+function validateTask(site,cand){
+  return getHeight(site,cand.gx,cand.gz)===cand.y &&
+         getHeight(site,cand.standGx,cand.standGz)===cand.y &&
+         hasExitAfterPlacement(site,cand);
+}
+function placeTaskBlock(site,cand,playerIndex,now){
+  if(!validateTask(site,cand))return false;
+  const ci=Math.floor(hash(playerIndex*37+cand.gx*13+cand.y,cand.gz*23+cand.y)*BLOCK_COLORS.length);
+  site.blocks.push({gx:cand.gx,gz:cand.gz,y:cand.y,color:BLOCK_COLORS[ci],born:now});
+  setHeight(site,cand.gx,cand.gz,cand.y+1);
+  site.lastBuilt=now;
+  return true;
 }
 function updatePlayers(dt,now){
   for(let i=0;i<players.length;i++){
-    const pl=players[i],site=sites[pl.target];
-    pl.lastX=pl.x;pl.lastZ=pl.z;
-    if(pl.wait>0){pl.wait=Math.max(0,pl.wait-dt);continue}
+    const pl=players[i],site=sites[pl.siteIndex];
+    pl.lastX=pl.x;pl.lastZ=pl.z;pl.lastH=pl.h;
+    if(pl.wait>0){pl.wait=Math.max(0,pl.wait-dt);updateMovement(pl,dt);continue}
+    if(!pl.task&&!pl.path.length&&!pl.segment)assignTask(pl,i);
+    updateMovement(pl,dt);
 
-    let spec=nextBuildSpec(site);
-    if(!spec){
-      pl.target=chooseNextSite(i,pl.target);pl.wait=.24;continue;
+    if(pl.task&&pl.task.type==='build'&&!pl.path.length&&!pl.segment){
+      const cand=pl.task.cand;
+      placeTaskBlock(site,cand,i,now);
+      site.reservations.delete(cand.key);
+      pl.task=null;pl.wait=.24+hash(i,Math.floor(now/1000))*.45;
+    }else if(pl.task&&pl.task.type==='exit'&&!pl.path.length&&!pl.segment){
+      pl.task=null;pl.wait=1.0;
     }
-    const target=buildWorldPos(site,spec);
-    const dx=target.x-pl.x,dz=target.z-pl.z,dist=Math.hypot(dx,dz);
-
-    if(dist<.30){
-      if(now-site.lastBuilt>360 && !siteDone(site)){
-        spec=nextBuildSpec(site);
-        const ci=Math.floor(hash(pl.target*37+site.cursor,i*23+site.cursor)*BLOCK_COLORS.length);
-        site.blocks.push({...spec,color:BLOCK_COLORS[ci]});
-        site.cursor++;
-        site.lastBuilt=now;
-      }
-      pl.target=chooseNextSite(i,pl.target);
-      pl.wait=.28+hash(i,Math.floor(now/1000))*1.0;
-      continue;
-    }
-    const step=Math.min(dist,pl.speed*dt);
-    pl.x+=dx/dist*step;pl.z+=dz/dist*step;
   }
 }
+function blockWorld(site,b){
+  return {x:site.x+b.gx*BLOCK_STEP,z:site.z+b.gz*BLOCK_STEP};
+}
 function drawBlock(c,site,block,blockIndex,now,siteIndex){
-  const half=.41,bh=BLOCK_H;
-  const wx=site.x+block.dx*BLOCK_STEP,wz=site.z+block.dz*BLOCK_STEP;
-  const baseH=block.y*bh;
+  const half=.33,bh=BLOCK_H;
+  const pos=blockWorld(site,block),wx=pos.x,wz=pos.z,baseH=block.y*bh;
   let grow=1;
-  if(blockIndex===site.blocks.length-1){
-    const age=now-site.lastBuilt;
-    if(age>=0 && age<420){
-      const p=clamp(age/420,0,1);
-      grow=1-Math.pow(1-p,3);
-    }
-  }
+  const age=now-(block.born||-9999);
+  if(age>=0&&age<380){const p=clamp(age/380,0,1);grow=1-Math.pow(1-p,3)}
   const topH=baseH+bh*grow;
-
   const corners={
     A:wp(wx-half,wz-half,baseH),B:wp(wx+half,wz-half,baseH),
     Cc:wp(wx+half,wz+half,baseH),D:wp(wx-half,wz+half,baseH),
     At:wp(wx-half,wz-half,topH),Bt:wp(wx+half,wz-half,topH),
     Ct:wp(wx+half,wz+half,topH),Dt:wp(wx-half,wz+half,topH)
   };
-
-  // Only paint the two side faces that actually face the camera.
-  // The previous version painted back faces too, which looked like the block was inside-out.
-  const viewX=Math.sin(yaw),viewZ=Math.cos(yaw);
-  const sideFaces=[];
-  if(viewX>=0) sideFaces.push({pts:[corners.B,corners.Cc,corners.Ct,corners.Bt],tone:-20,seed:1});
-  else sideFaces.push({pts:[corners.D,corners.A,corners.At,corners.Dt],tone:-28,seed:2});
-  if(viewZ>=0) sideFaces.push({pts:[corners.Cc,corners.D,corners.Dt,corners.Ct],tone:-36,seed:3});
-  else sideFaces.push({pts:[corners.A,corners.B,corners.Bt,corners.At],tone:-42,seed:4});
-
-  sideFaces.sort((u,v)=>{
-    const du=u.pts.reduce((s,p)=>s+p.d,0)/u.pts.length;
-    const dv=v.pts.reduce((s,p)=>s+p.d,0)/v.pts.length;
-    return du-dv;
-  });
-  for(const face of sideFaces){
-    fillRagged(c,face.pts,shade(block.color,face.tone),C.ink,1.0,1500+siteIndex*83+blockIndex*7+face.seed);
-  }
-
+  const viewX=Math.sin(yaw),viewZ=Math.cos(yaw),faces=[];
+  if(viewX>=0)faces.push({pts:[corners.B,corners.Cc,corners.Ct,corners.Bt],tone:-20,s:1});
+  else faces.push({pts:[corners.D,corners.A,corners.At,corners.Dt],tone:-28,s:2});
+  if(viewZ>=0)faces.push({pts:[corners.Cc,corners.D,corners.Dt,corners.Ct],tone:-36,s:3});
+  else faces.push({pts:[corners.A,corners.B,corners.Bt,corners.At],tone:-42,s:4});
+  faces.sort((u,v)=>u.pts.reduce((s,p)=>s+p.d,0)-v.pts.reduce((s,p)=>s+p.d,0));
+  for(const face of faces)fillRagged(c,face.pts,shade(block.color,face.tone),C.ink,.95,1500+siteIndex*97+blockIndex*7+face.s);
   const top=[corners.At,corners.Bt,corners.Ct,corners.Dt];
-  fillRagged(c,top,shade(block.color,18),'rgba(9,6,5,.96)',.9,1700+siteIndex*83+blockIndex);
-  c.save();c.globalAlpha=.20;c.translate(1,-.65);
-  roughStroke(c,top,C.red,Math.max(.55,scale*.034),1800+siteIndex*83+blockIndex,true);
-  c.restore();
+  fillRagged(c,top,shade(block.color,18),'rgba(9,6,5,.96)',.85,1700+siteIndex*97+blockIndex);
 }
-function drawTower(c,site,now,index){
-  const p=wp(site.x,site.z,0);
-  const R=scale*.34;
-  blob(c,p.x,p.y+R*.30,R*1.65,R*.36,'rgba(0,0,0,.38)',null,0,1900+index,.11,14);
-
-  const ordered=site.blocks.map((b,i)=>{
-    const pos=buildWorldPos(site,b),pp=wp(pos.x,pos.z,b.y*BLOCK_H);
-    return {b,i,d:pp.d};
-  }).sort((u,v)=>u.d-v.d || u.b.y-v.b.y);
-  for(const item of ordered)drawBlock(c,site,item.b,item.i,now,index);
-
-  const age=now-site.lastBuilt;
-  if(age>=0 && age<320 && site.blocks.length){
-    const newest=site.blocks[site.blocks.length-1],pos=buildWorldPos(site,newest);
-    const p0=wp(pos.x,pos.z,(newest.y+1)*BLOCK_H);
-    const k=1-age/320;
-    c.save();c.globalAlpha=.28*k;c.strokeStyle=C.ochre;c.lineWidth=1;
-    c.beginPath();c.arc(p0.x,p0.y,scale*(.15+(1-k)*.70),0,TAU);c.stroke();
-    c.restore();
-  }
+function drawSiteShadow(c,site,index){
+  if(!site.blocks.length)return;
+  const p=wp(site.x,site.z,0),R=scale*.48;
+  blob(c,p.x,p.y+R*.25,R*2.1,R*.42,'rgba(0,0,0,.32)',null,0,1900+index,.10,16);
 }
 function drawSiteMarker(c,site,index){
-  const p=wp(site.x,site.z,.01),s=scale*.46;
-  c.save();c.globalAlpha=.20;
-  c.translate(q(p.x),q(p.y));c.rotate((hash(index,888)-.5)*.16);
-  c.strokeStyle=shade(site.blocks[0].color,18);c.lineWidth=Math.max(.7,scale*.04);
-  c.strokeRect(-s*.5,-s*.18,s,s*.36);
-  c.restore();
+  if(site.blocks.length>3)return;
+  const p=wp(site.x,site.z,.01),s=scale*.42;
+  c.save();c.globalAlpha=.16;c.translate(q(p.x),q(p.y));c.rotate((hash(index,888)-.5)*.16);
+  c.strokeStyle=shade(site.baseColor,18);c.lineWidth=Math.max(.7,scale*.04);c.strokeRect(-s*.5,-s*.18,s,s*.36);c.restore();
 }
-
 function drawPlayer(c,pl,t,index){
-  const p=wp(pl.x,pl.z,.42),g=wp(pl.x,pl.z,.02);
+  const p=wp(pl.x,pl.z,pl.h+pl.jump+.42),g=wp(pl.x,pl.z,pl.h+.02);
   const depth=(p.d+1)*.5,R=scale*pl.size*(.80+depth*.22);
-
-  // soft movement residue only on moving actors, never on architecture.
-  const old=wp(pl.lastX,pl.lastZ,.42);
+  const old=wp(pl.lastX,pl.lastZ,pl.lastH+.42);
   if(Math.hypot(pl.x-pl.lastX,pl.z-pl.lastZ)>.005){
-    c.save();c.globalAlpha=.08;
-    blob(c,old.x,old.y,R*.92,R*.92,pl.color,null,0,820+index,.07,16);
-    c.restore();
+    c.save();c.globalAlpha=.07;blob(c,old.x,old.y,R*.90,R*.90,pl.color,null,0,820+index,.07,16);c.restore();
   }
-
-  blob(c,g.x,g.y+R*.26,R*.90,R*.25,'rgba(0,0,0,.56)',null,0,800+index,.12,14);
+  blob(c,g.x,g.y+R*.24,R*.86,R*.23,'rgba(0,0,0,.52)',null,0,800+index,.11,14);
   const pts=blob(c,p.x,p.y,R,R,pl.color,C.black,Math.max(1,R*.16),830+index,.075,18);
-  c.save();c.translate(1,-.6);c.globalAlpha=.30;roughStroke(c,pts,C.red,Math.max(.7,R*.06),870+index,true);c.restore();
-  blob(c,p.x-R*.24,p.y-R*.26,R*.16,R*.12,'rgba(230,181,110,.64)',null,0,900+index,.15,10);
+  c.save();c.translate(1,-.6);c.globalAlpha=.28;roughStroke(c,pts,C.red,Math.max(.7,R*.055),870+index,true);c.restore();
 
-  const target=sites[pl.target],spec=nextBuildSpec(target);
-  const targetPos=spec?buildWorldPos(target,spec):{x:target.x,z:target.z};
-  const tp=wp(targetPos.x,targetPos.z,.03);
-  c.save();c.globalAlpha=.13;c.strokeStyle=shade(target.blocks[0].color,28);c.lineWidth=.65;
-  c.setLineDash([2,3]);c.beginPath();c.moveTo(p.x,p.y);c.lineTo(tp.x,tp.y);c.stroke();c.setLineDash([]);c.restore();
+  if(pl.task&&pl.task.type==='build'){
+    const site=sites[pl.siteIndex],cand=pl.task.cand,target=worldCell(site,cand.gx,cand.gz);
+    const tp=wp(target.x,target.z,cand.y*BLOCK_H+.03);
+    c.save();c.globalAlpha=.10;c.strokeStyle=shade(site.baseColor,28);c.lineWidth=.6;c.setLineDash([2,3]);
+    c.beginPath();c.moveTo(p.x,p.y);c.lineTo(tp.x,tp.y);c.stroke();c.setLineDash([]);c.restore();
+  }
 }
 
 const DIGITS={
@@ -632,20 +759,23 @@ function drawDynamic(now){
   const dt=Math.min(.08,FRAME/1000);
   updatePlayers(dt,now);
 
-  for(let i=0;i<sites.length;i++)drawSiteMarker(ctx,sites[i],i);
+  for(let i=0;i<sites.length;i++){drawSiteShadow(ctx,sites[i],i);drawSiteMarker(ctx,sites[i],i)}
 
   const items=[];
-  for(let i=0;i<sites.length;i++){
-    const p=wp(sites[i].x,sites[i].z,0);
-    items.push({type:'tower',i,d:p.d});
+  for(let si=0;si<sites.length;si++){
+    const site=sites[si];
+    for(let bi=0;bi<site.blocks.length;bi++){
+      const b=site.blocks[bi],pos=blockWorld(site,b),p=wp(pos.x,pos.z,(b.y+.5)*BLOCK_H);
+      items.push({type:'block',si,bi,d:p.d,h:b.y});
+    }
   }
   for(let i=0;i<players.length;i++){
-    const p=wp(players[i].x,players[i].z,.42);
-    items.push({type:'player',i,d:p.d});
+    const pl=players[i],p=wp(pl.x,pl.z,pl.h+pl.jump+.42);
+    items.push({type:'player',i,d:p.d,h:(pl.h+pl.jump)/BLOCK_H});
   }
-  items.sort((u,v)=>u.d-v.d);
+  items.sort((u,v)=>u.d-v.d || u.h-v.h);
   for(const it of items){
-    if(it.type==='tower')drawTower(ctx,sites[it.i],now,it.i);
+    if(it.type==='block')drawBlock(ctx,sites[it.si],sites[it.si].blocks[it.bi],it.bi,now,it.si);
     else drawPlayer(ctx,players[it.i],t,it.i);
   }
 
@@ -667,8 +797,8 @@ function drawDynamic(now){
   for(let i=0;i<sites.length;i++){
     const age=now-sites[i].lastBuilt;
     if(age>=0 && age<240){
-      const newest=sites[i].blocks[sites[i].blocks.length-1];
-      const pos=buildWorldPos(sites[i],newest);
+      const newest=sites[i].blocks[sites[i].blocks.length-1];if(!newest)continue;
+      const pos=blockWorld(sites[i],newest);
       const p=wp(pos.x,pos.z,(newest.y+1)*BLOCK_H);
       const k=1-age/240;
       const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,scale*(.45+.55*(1-k)));
