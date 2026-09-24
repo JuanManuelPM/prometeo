@@ -1376,7 +1376,7 @@ function drawProgressTube(c,site,index){
 }
 
 const LAST_UPDATE_MS=Date.parse('2026-09-24T12:43:59.511Z');
-const BUILD_VERSION='LAB-H3';
+const BUILD_VERSION='LAB-H4';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -1997,13 +1997,32 @@ function drawAnalogSignal(c,now){
    These are world-space prototypes, not UI diagrams.
    ========================================================= */
 
-let HEAVY_PAINTER=[];
+const WORLD_MATERIALS={
+  stone:{base:'#514238',opaque:true,top:18,stroke:'rgba(9,6,5,.96)'},
+  road:{base:'#40372f',opaque:true,top:12,stroke:'rgba(9,6,5,.96)'},
+  structure:{base:'#4d5147',opaque:true,top:16,stroke:'rgba(9,6,5,.96)'},
+  archive:{base:'#343b35',opaque:true,top:10,stroke:'rgba(9,6,5,.96)'}
+};
+const WORLD_GEOM={boxes:[],transparent:[],stats:{boxes:0,baseFaces:0,culledInternal:0,culledBack:0,faces:0,transparent:0}};
+const WORLD_FACE_BUDGET=2400;
 
-function resetHeavyPainter(){HEAVY_PAINTER.length=0}
+function resetWorldGeometry(){
+  WORLD_GEOM.boxes.length=0;
+  WORLD_GEOM.transparent.length=0;
+  WORLD_GEOM.stats={boxes:0,baseFaces:0,culledInternal:0,culledBack:0,faces:0,transparent:0};
+}
 
-function heavyDepthItem(x,z,h,type,payload){
-  const p=wp(x,z,h);
-  HEAVY_PAINTER.push({type,depth:p.zv,py:p.y,h,...payload});
+function materialSpec(material){
+  if(material&&WORLD_MATERIALS[material])return WORLD_MATERIALS[material];
+  if(typeof material==='string'&&material[0]==='#')return {base:material,opaque:true,top:17,stroke:'rgba(9,6,5,.96)'};
+  return WORLD_MATERIALS.stone;
+}
+
+function addWorldBox(box){
+  box.material=materialSpec(box.material||box.color);
+  box.solid=box.solid!==false;
+  WORLD_GEOM.boxes.push(box);
+  WORLD_GEOM.stats.boxes++;
 }
 
 function heavyWorldCuboid(c,x,z,baseH,w,height,color,seed){
@@ -2011,7 +2030,10 @@ function heavyWorldCuboid(c,x,z,baseH,w,height,color,seed){
     drawWorldCuboid(c,x,z,baseH,w,height,color,seed);
     return;
   }
-  heavyDepthItem(x,z,baseH+height*.5,'heavyWorld',{x,z,baseH,w,height,color,seed});
+  addWorldBox({
+    kind:'axisBox',x,z,baseH,width:w,depth:w,height,
+    ux:1,uz:0,nx:0,nz:1,material:color,seed
+  });
 }
 
 function heavyBoardCuboid(c,base,lx,ly,w,h,d,color,seed){
@@ -2019,15 +2041,178 @@ function heavyBoardCuboid(c,base,lx,ly,w,h,d,color,seed){
     drawBoardCuboid(c,base,lx,ly,w,h,d,color,seed);
     return;
   }
-  const world=boardWorldPoint(base,lx,ly,0);
-  heavyDepthItem(world.x,world.z,world.h,'heavyBoard',{base,lx,ly,w,bh:h,d,color,seed});
+  const center=boardWorldPoint(base,lx,ly,0);
+  addWorldBox({
+    kind:'boardBox',x:center.x,z:center.z,baseH:center.h-h*.5,
+    width:w,depth:d,height:h,
+    ux:base.ux,uz:base.uz,nx:base.nx,nz:base.nz,
+    material:color,seed
+  });
 }
 
-function drawHeavyQueuedItem(c,it){
-  // Render now. Never call queue helpers from the painter flush.
-  if(it.type==='heavyWorld')drawWorldCuboid(c,it.x,it.z,it.baseH,it.w,it.height,it.color,it.seed);
-  else if(it.type==='heavyBoard')drawBoardCuboid(c,it.base,it.lx,it.ly,it.w,it.bh,it.d,it.color,it.seed);
-  else if(it.type==='heavyGhost')drawGhostCuboidNow(c,it.x,it.z,it.baseH,it.w,it.height,it.color,it.seed);
+function worldCorner(box,su,sn,h){
+  return {
+    x:box.x+box.ux*su*box.width*.5+box.nx*sn*box.depth*.5,
+    z:box.z+box.uz*su*box.width*.5+box.nz*sn*box.depth*.5,
+    h
+  };
+}
+
+function boxBaseFaces(box){
+  const b=box.baseH,t=box.baseH+box.height;
+  const bm=worldCorner(box,-1,-1,b),bp=worldCorner(box,1,-1,b);
+  const bpp=worldCorner(box,1,1,b),bmp=worldCorner(box,-1,1,b);
+  const tm=worldCorner(box,-1,-1,t),tp=worldCorner(box,1,-1,t);
+  const tpp=worldCorner(box,1,1,t),tmp=worldCorner(box,-1,1,t);
+  return [
+    {corners:[bm,bp,tp,tm],nx:-box.nx,nz:-box.nz,nh:0,du:box.width,dv:box.height,seed:box.seed+1,box},
+    {corners:[bp,bpp,tpp,tp],nx:box.ux,nz:box.uz,nh:0,du:box.depth,dv:box.height,seed:box.seed+2,box},
+    {corners:[bpp,bmp,tmp,tpp],nx:box.nx,nz:box.nz,nh:0,du:box.width,dv:box.height,seed:box.seed+3,box},
+    {corners:[bmp,bm,tm,tmp],nx:-box.ux,nz:-box.uz,nh:0,du:box.depth,dv:box.height,seed:box.seed+4,box},
+    {corners:[tm,tp,tpp,tmp],nx:0,nz:0,nh:1,du:box.width,dv:box.depth,seed:box.seed+5,box},
+    {corners:[bmp,bpp,bp,bm],nx:0,nz:0,nh:-1,du:box.width,dv:box.depth,seed:box.seed+6,box}
+  ];
+}
+
+function faceCoincidenceKey(face){
+  return face.corners.map(p=>
+    Math.round(p.x*1000)+','+Math.round(p.z*1000)+','+Math.round(p.h*1000)
+  ).sort().join('|');
+}
+
+function lerpWorld(a,b,t){
+  return {x:a.x+(b.x-a.x)*t,z:a.z+(b.z-a.z)*t,h:a.h+(b.h-a.h)*t};
+}
+function bilerpWorld(corners,u,v){
+  const a=lerpWorld(corners[0],corners[1],u);
+  const b=lerpWorld(corners[3],corners[2],u);
+  return lerpWorld(a,b,v);
+}
+
+function tileCounts(face){
+  const projected=Math.max(face.du,face.dv)*scale;
+  let tileWorld=999;
+  if(projected>28)tileWorld=.72;
+  else if(projected>15)tileWorld=1.15;
+  let nu=clamp(Math.ceil(face.du/tileWorld),1,5);
+  let nv=clamp(Math.ceil(face.dv/tileWorld),1,5);
+  const remaining=Math.max(1,WORLD_FACE_BUDGET-WORLD_GEOM.stats.faces);
+  if(nu*nv>remaining){nu=1;nv=1}
+  return {nu,nv};
+}
+
+function makeRenderFace(face,corners,tileIndex){
+  const pts=corners.map(p=>wp(p.x,p.z,p.h));
+  const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y),ds=pts.map(p=>p.zv),hs=corners.map(p=>p.h);
+  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+  if(maxX<-8||minX>IW+8||maxY<-8||minY>IH+8)return null;
+
+  const mat=face.box.material;
+  const amount=face.nh>0?mat.top:faceTone(face.nx,face.nz);
+  const depth=ds.reduce((a,b)=>a+b,0)/ds.length;
+  const py=ys.reduce((a,b)=>a+b,0)/ys.length;
+  return {
+    type:'geomFace',
+    pts,
+    fill:shade(mat.base,amount),
+    stroke:mat.stroke,
+    seed:face.seed+tileIndex*17,
+    depth,py,
+    minDepth:Math.min(...ds),maxDepth:Math.max(...ds),
+    minH:Math.min(...hs),maxH:Math.max(...hs),
+    bounds:{minX,maxX,minY,maxY}
+  };
+}
+
+function compileWorldFaces(){
+  const raw=[];
+  for(const box of WORLD_GEOM.boxes)raw.push(...boxBaseFaces(box));
+  WORLD_GEOM.stats.baseFaces=raw.length;
+
+  // Exact touching faces of solid boxes cancel before rasterization.
+  const byKey=new Map();
+  for(let i=0;i<raw.length;i++){
+    const key=faceCoincidenceKey(raw[i]);
+    if(!byKey.has(key))byKey.set(key,[]);
+    byKey.get(key).push(i);
+  }
+  const internal=new Set();
+  for(const ids of byKey.values()){
+    if(ids.length>1)for(const id of ids)internal.add(id);
+  }
+  WORLD_GEOM.stats.culledInternal=internal.size;
+
+  const cameraX=Math.sin(yaw),cameraZ=Math.cos(yaw);
+  const out=[];
+  for(let fi=0;fi<raw.length;fi++){
+    if(internal.has(fi))continue;
+    const face=raw[fi];
+
+    // Closed solids never expose their bottom or camera-away faces.
+    if(face.nh<0){WORLD_GEOM.stats.culledBack++;continue}
+    if(face.nh===0 && face.nx*cameraX+face.nz*cameraZ<=.015){
+      WORLD_GEOM.stats.culledBack++;continue;
+    }
+
+    const {nu,nv}=tileCounts(face);
+    for(let iv=0;iv<nv;iv++)for(let iu=0;iu<nu;iu++){
+      if(WORLD_GEOM.stats.faces>=WORLD_FACE_BUDGET)break;
+      const u0=iu/nu,u1=(iu+1)/nu,v0=iv/nv,v1=(iv+1)/nv;
+      const corners=[
+        bilerpWorld(face.corners,u0,v0),
+        bilerpWorld(face.corners,u1,v0),
+        bilerpWorld(face.corners,u1,v1),
+        bilerpWorld(face.corners,u0,v1)
+      ];
+      const rf=makeRenderFace(face,corners,iu+iv*nu);
+      if(rf){out.push(rf);WORLD_GEOM.stats.faces++}
+    }
+  }
+  window.WORLD_RENDER_STATS={...WORLD_GEOM.stats,budget:WORLD_FACE_BUDGET};
+  return out;
+}
+
+function renderGeomFace(c,it){
+  fillRagged(c,it.pts,it.fill,it.stroke,Math.max(.55,scale*.030),it.seed);
+}
+
+function renderBoundsOverlap(a,b){
+  if(!a.bounds||!b.bounds)return true;
+  return !(a.bounds.maxX<b.bounds.minX||b.bounds.maxX<a.bounds.minX||
+           a.bounds.maxY<b.bounds.minY||b.bounds.maxY<a.bounds.minY);
+}
+
+function renderItemComparator(a,b){
+  const aMinD=a.minDepth==null?a.depth:a.minDepth;
+  const aMaxD=a.maxDepth==null?a.depth:a.maxDepth;
+  const bMinD=b.minDepth==null?b.depth:b.minDepth;
+  const bMaxD=b.maxDepth==null?b.depth:b.maxDepth;
+
+  if(aMaxD<bMinD-.025)return -1;
+  if(bMaxD<aMinD-.025)return 1;
+
+  // When surfaces occupy nearly the same depth, vertical stacking wins.
+  // This is what keeps a raised tower above the top tiles of its own base.
+  const closeDepth=Math.abs(a.depth-b.depth)<.38;
+  if(closeDepth&&renderBoundsOverlap(a,b)&&a.minH!=null&&a.maxH!=null&&b.minH!=null&&b.maxH!=null){
+    if(a.maxH<=b.minH+.012)return -1;
+    if(b.maxH<=a.minH+.012)return 1;
+  }
+
+  return a.depth-b.depth ||
+    ((a.minH==null?a.h||0:a.minH)-(b.minH==null?b.h||0:b.minH)) ||
+    a.py-b.py;
+}
+
+function queueGhostBox(x,z,baseH,w,height,color,seed){
+  const p=wp(x,z,baseH+height*.5);
+  WORLD_GEOM.transparent.push({x,z,baseH,w,height,color,seed,depth:p.zv,py:p.y});
+  WORLD_GEOM.stats.transparent++;
+}
+
+function flushTransparentGeometry(c){
+  WORLD_GEOM.transparent.sort((a,b)=>a.depth-b.depth||a.py-b.py);
+  for(const it of WORLD_GEOM.transparent)drawGhostCuboidNow(c,it.x,it.z,it.baseH,it.w,it.height,it.color,it.seed);
 }
 
 function heavyOn(name){return LAB_VISUAL==='all'||LAB_VISUAL===name}
@@ -2172,7 +2357,7 @@ function drawGhostCuboidNow(c,x,z,baseH,w,height,color,seed){
 }
 function drawGhostCuboid(c,x,z,baseH,w,height,color,seed){
   if(c===sctx)return drawGhostCuboidNow(c,x,z,baseH,w,height,color,seed);
-  heavyDepthItem(x,z,baseH+height*.5,'heavyGhost',{x,z,baseH,w,height,color,seed});
+  queueGhostBox(x,z,baseH,w,height,color,seed);
 }
 
 function drawHeavyStateGallery(c,now){
@@ -2607,7 +2792,7 @@ function drawDynamic(now){
   drawWindowEyes(ctx,now);
 
   const manifest=buildWorldManifest(now);
-  resetHeavyPainter();
+  resetWorldGeometry();
   drawHeavyHistoryField(ctx);
   drawHeavyRoadNetwork(ctx,manifest,now);
   drawHeavyFocusMonument(ctx,manifest,now);
@@ -2630,27 +2815,27 @@ function drawDynamic(now){
     drawAshes(ctx,sites[i],i,now);
   }
 
-  const items=HEAVY_PAINTER.slice();
+  const items=compileWorldFaces();
   for(let si=0;si<sites.length;si++){
     const site=sites[si];
     for(let bi=0;bi<site.blocks.length;bi++){
       if(site.ritual&&['trophy_wait','trophy_carry','trophy_drop','complete'].includes(site.ritual.phase))continue;
       const b=site.blocks[bi],pos=blockWorld(site,b),p=wp(pos.x,pos.z,(b.y+.5)*BLOCK_H);
-      items.push({type:'block',si,bi,depth:p.zv,py:p.y,h:b.y});
+      items.push({type:'block',si,bi,depth:p.zv,py:p.y,h:b.y,minDepth:p.zv,maxDepth:p.zv,minH:b.y*BLOCK_H,maxH:(b.y+1)*BLOCK_H});
     }
     for(const [bpKey,bp] of site.blueprints){
       const pos=worldCell(site,bp.cand.gx,bp.cand.gz),p=wp(pos.x,pos.z,(bp.cand.y+.5)*BLOCK_H);
-      items.push({type:bp.status==='building'?'building':'blueprint',si,bpKey,depth:p.zv,py:p.y,h:bp.cand.y});
+      items.push({type:bp.status==='building'?'building':'blueprint',si,bpKey,depth:p.zv,py:p.y,h:bp.cand.y,minDepth:p.zv,maxDepth:p.zv,minH:bp.cand.y*BLOCK_H,maxH:(bp.cand.y+1)*BLOCK_H});
     }
     const bb=bannerBasis(site,si);
     if(bb.facing>.035){
       const bpv=bannerProject(bb,0,0);
-      items.push({type:'banner',si,depth:bpv.zv,py:bpv.y,h:bb.a.h/BLOCK_H});
+      items.push({type:'banner',si,depth:bpv.zv,py:bpv.y,h:bb.a.h/BLOCK_H,minDepth:bpv.zv,maxDepth:bpv.zv,minH:0,maxH:bb.a.h+BANNER_H});
     }
     const tw=trophyWorldState(site,si);
     if(tw){
       const tp=wp(tw.x,tw.z,tw.h+.40);
-      items.push({type:'trophy',si,depth:tp.zv,py:tp.y,h:tw.h/BLOCK_H});
+      items.push({type:'trophy',si,depth:tp.zv,py:tp.y,h:tw.h/BLOCK_H,minDepth:tp.zv,maxDepth:tp.zv,minH:tw.h,maxH:tw.h+.9});
     }
   }
   for(let i=0;i<players.length;i++){
@@ -2661,11 +2846,11 @@ function drawDynamic(now){
     const fx=pl.x+(dirX/len)*PLAYER_R;
     const fz=pl.z+(dirZ/len)*PLAYER_R;
     const p=wp(fx,fz,pl.h+pl.jump+.42);
-    items.push({type:'player',i,depth:p.zv,py:p.y,h:(pl.h+pl.jump)/BLOCK_H});
+    items.push({type:'player',i,depth:p.zv,py:p.y,h:(pl.h+pl.jump)/BLOCK_H,minDepth:p.zv,maxDepth:p.zv,minH:pl.h+pl.jump,maxH:pl.h+pl.jump+.9});
   }
-  items.sort((u,v)=>u.depth-v.depth || u.py-v.py || u.h-v.h);
+  items.sort(renderItemComparator);
   for(const it of items){
-    if(it.type==='heavyWorld'||it.type==='heavyBoard'||it.type==='heavyGhost')drawHeavyQueuedItem(ctx,it);
+    if(it.type==='geomFace')renderGeomFace(ctx,it);
     else if(it.type==='block')drawBlock(ctx,sites[it.si],sites[it.si].blocks[it.bi],it.bi,now,it.si);
     else if(it.type==='blueprint')drawBlueprint(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
     else if(it.type==='building')drawBuildingBlock(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
@@ -2673,6 +2858,8 @@ function drawDynamic(now){
     else if(it.type==='trophy')drawRitualTrophy(ctx,sites[it.si],it.si,now);
     else drawPlayer(ctx,players[it.i],t,it.i);
   }
+
+  flushTransparentGeometry(ctx);
 
   for(let i=0;i<sites.length;i++){
     drawRitualTorches(ctx,sites[i],i,now);
