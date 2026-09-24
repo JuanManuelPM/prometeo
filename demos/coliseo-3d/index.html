@@ -951,11 +951,9 @@ function siteTopHeight(site){
 // Correct behavior is to retry the connected GitHub writer and publish the requested change directly.
 const BANNER_W=4.75;
 const BANNER_H=3.75;
-const BANNER_POLE_H=7.55;
+const BANNER_POLE_H=8.10;
 const BANNER_POLE_GAP=4.62;
 const TORCH_STAKE_H=1.18;
-const TUBE_H=3.05;
-const TUBE_R=.23;
 const PLAYER_R=BLOCK_STEP*.22;
 
 function siteBannerAnchor(site,index){
@@ -1082,75 +1080,100 @@ function bannerTorchWorld(site,index,side){
   return {x:p.x,z:p.z,h:.055};
 }
 
+
+function boardWorldPoint(base,localX,localY,normalOffset=0){
+  return {
+    x:base.a.x+base.ux*localX+base.nx*normalOffset,
+    z:base.a.z+base.uz*localX+base.nz*normalOffset,
+    h:base.a.h+localY
+  };
+}
+function boardProject(base,localX,localY,normalOffset=0){
+  const w=boardWorldPoint(base,localX,localY,normalOffset);
+  return wp(w.x,w.z,w.h);
+}
+function boardAffine(c,base,normalOffset=0){
+  const o=boardProject(base,0,0,normalOffset);
+  const ex=boardProject(base,1,0,normalOffset);
+  const ey=boardProject(base,0,1,normalOffset);
+  c.setTransform(ex.x-o.x,ex.y-o.y,ey.x-o.x,ey.y-o.y,o.x,o.y);
+}
+function drawBoardCuboid(c,base,lx,ly,w,h,d,color,seed){
+  const x0=lx-w*.5,x1=lx+w*.5,y0=ly-h*.5,y1=ly+h*.5,z0=-d*.5,z1=d*.5;
+  const A=boardProject(base,x0,y0,z0),B=boardProject(base,x1,y0,z0);
+  const C0=boardProject(base,x1,y1,z0),D=boardProject(base,x0,y1,z0);
+  const Af=boardProject(base,x0,y0,z1),Bf=boardProject(base,x1,y0,z1);
+  const Cf=boardProject(base,x1,y1,z1),Df=boardProject(base,x0,y1,z1);
+
+  // Back/side body first, then the arena-facing front, exactly like little blocks.
+  fillRagged(c,[A,B,Bf,Af],shade(color,-32),'rgba(10,7,5,.96)',.75,seed+1);
+  fillRagged(c,[B,C0,Cf,Bf],shade(color,-18),'rgba(10,7,5,.96)',.75,seed+2);
+  fillRagged(c,[D,A,Af,Df],shade(color,-42),'rgba(10,7,5,.96)',.75,seed+3);
+  fillRagged(c,[D,C0,Cf,Df],shade(color,10),'rgba(10,7,5,.96)',.75,seed+4);
+  fillRagged(c,[Af,Bf,Cf,Df],shade(color,20),'rgba(9,6,5,.98)',.85,seed+5);
+}
+
 function drawTowerBanner(c,site,index,now){
   if(site.ritual&&['trophy_wait','trophy_carry','trophy_drop','complete'].includes(site.ritual.phase))return;
   const base=bannerBasis(site,index);
   if(base.facing<=.035)return;
   const center=bannerProject(base,0,0);
-  if(center.x<-180||center.x>IW+180||center.y<-170||center.y>IH+190)return;
+  if(center.x<-190||center.x>IW+190||center.y<-190||center.y>IH+210)return;
 
   const title=TOWER_NAMES[index%TOWER_NAMES.length],prog=siteProgress(site);
-  const poleColor=shade(site.baseColor,-42),clothDark=shade(site.baseColor,-54),clothMid=shade(site.baseColor,-28);
-  c.save();bannerAffine(c,base);
+  const postColor=site.baseColor;
+  const panelColor='#c9bda7';
+  const panelInk='#1b1510';
 
-  // Poles are now chunky printed members, closer to the block language.
-  const pw=.18,top=BANNER_POLE_H*.5,bot=-BANNER_POLE_H*.5;
-  for(const side of [-1,1]){
-    const x=side*BANNER_POLE_GAP*.5;
-    const front=[{x:x-pw*.55,y:bot},{x:x+pw*.48,y:bot},{x:x+pw*.44,y:top},{x:x-pw*.50,y:top}];
-    fillRagged(c,front,poleColor,'#140b08',.055,9100+index*7+(side>0?1:0));
-    const rim=[{x:x+pw*.24,y:bot},{x:x+pw*.48,y:bot},{x:x+pw*.44,y:top},{x:x+pw*.18,y:top}];
-    fillRagged(c,rim,shade(poleColor,-22),null,0,9120+index*7+(side>0?1:0));
-    // block-like cap instead of a flag
-    const cap=[{x:x-.22,y:top-.08},{x:x+.22,y:top-.08},{x:x+.18,y:top+.18},{x:x-.17,y:top+.18}];
-    fillRagged(c,cap,shade(site.baseColor,-20),'#140b08',.045,9140+index*7+(side>0?1:0));
+  // Posts literally are two tall, thin construction-block prisms.
+  const groundLocal=-base.a.h+.08;
+  const panelBottom=-BANNER_H*.50,panelTop=BANNER_H*.50;
+  const postTop=panelTop+1.02;
+  const postHeight=postTop-groundLocal;
+  const postY=groundLocal+postHeight*.5;
+
+  drawBoardCuboid(c,base,-BANNER_POLE_GAP*.5,postY,.28,postHeight,.28,postColor,9300+index*30);
+  drawBoardCuboid(c,base, BANNER_POLE_GAP*.5,postY,.28,postHeight,.28,postColor,9310+index*30);
+
+  // Four frame rails made from the same block language.
+  const railColor=shade(site.baseColor,-12);
+  drawBoardCuboid(c,base,0,panelTop-.12,BANNER_W+.34,.24,.18,railColor,9340+index*30);
+  drawBoardCuboid(c,base,0,panelBottom+.12,BANNER_W+.34,.24,.18,railColor,9350+index*30);
+  drawBoardCuboid(c,base,-BANNER_W*.5-.05,0,.24,BANNER_H,.18,railColor,9360+index*30);
+  drawBoardCuboid(c,base, BANNER_W*.5+.05,0,.24,BANNER_H,.18,railColor,9370+index*30);
+
+  // Pale board/paper slab, deliberately quiet so the type is finally readable.
+  drawBoardCuboid(c,base,0,0,BANNER_W,BANNER_H,.11,panelColor,9400+index*30);
+
+  c.save();
+  boardAffine(c,base,.061);
+
+  // Slight printing defects, but no decorative fabric effects.
+  c.globalAlpha=.10;c.fillStyle=shade(site.baseColor,-18);
+  for(let k=0;k<7;k++){
+    const y=-BANNER_H*.36+k*BANNER_H*.115;
+    c.fillRect(-BANNER_W*.43,y,BANNER_W*(.12+hash(index,k)*.18),.028);
   }
 
-  const cloth=[
-    {x:-BANNER_W*.49,y:-BANNER_H*.45},{x:BANNER_W*.49,y:-BANNER_H*.44},
-    {x:BANNER_W*.47,y:BANNER_H*.43},{x:-BANNER_W*.48,y:BANNER_H*.44}
-  ];
-  fillRagged(c,cloth,clothDark,'#140b08',.075,9200+index);
+  // Name is the main object: almost the full board width, dark stencil on pale paper.
+  c.globalAlpha=1;c.textAlign='center';c.textBaseline='middle';
+  fitWorldText(c,title,BANNER_W*.88,.73,.31,900,'Georgia,serif');
+  c.fillStyle='rgba(65,36,25,.20)';c.fillText(title,.045,-BANNER_H*.12+.035);
+  c.fillStyle=panelInk;c.fillText(title,0,-BANNER_H*.12);
 
-  // Broad facets echo block faces instead of decorative fabric lines.
-  c.save();path(c,cloth,true);c.clip();
-  const leftFacet=[
-    {x:-BANNER_W*.48,y:-BANNER_H*.43},{x:-BANNER_W*.02,y:-BANNER_H*.42},
-    {x:-BANNER_W*.18,y:BANNER_H*.43},{x:-BANNER_W*.48,y:BANNER_H*.44}
-  ];
-  fillRagged(c,leftFacet,shade(clothMid,-6),null,0,9220+index);
-  const rightFacet=[
-    {x:BANNER_W*.05,y:-BANNER_H*.43},{x:BANNER_W*.49,y:-BANNER_H*.42},
-    {x:BANNER_W*.47,y:BANNER_H*.43},{x:BANNER_W*.19,y:BANNER_H*.43}
-  ];
-  fillRagged(c,rightFacet,shade(clothMid,-22),null,0,9230+index);
-  c.globalAlpha=.20;
-  for(let k=0;k<8;k++){
-    const y=-BANNER_H*.36+k*BANNER_H*.10;
-    roughStroke(c,[{x:-BANNER_W*.43,y},{x:BANNER_W*.43,y:y+(hash(k,index)-.5)*.08}],
-      k%3===0?C.ochre:'#24150f',.026,9250+index*20+k,false);
+  const pct=Math.round(prog.ratio*100)+'%';
+  fitWorldText(c,pct,BANNER_W*.34,.38,.18,900,'Georgia,serif');
+  c.fillStyle=shade(site.baseColor,-5);c.fillText(pct,0,BANNER_H*.27);
+
+  // Tiny block ticks instead of ornaments.
+  for(let i=0;i<5;i++){
+    const x=-BANNER_W*.28+i*BANNER_W*.14;
+    c.fillStyle=i<Math.round(prog.ratio*5)?shade(site.baseColor,12):'#7f7567';
+    c.fillRect(x-.055,BANNER_H*.36,.11,.11);
   }
   c.restore();
 
-  // Printed title: broad, worn, and tied to the tower palette.
-  c.textAlign='center';c.textBaseline='middle';
-  fitWorldText(c,title,BANNER_W*.92,.72,.31,900,'Georgia,serif');
-  c.globalAlpha=.48;c.fillStyle='#120b08';c.fillText(title,.055,-BANNER_H*.14+.045);
-  c.globalAlpha=1;c.fillStyle=shade(site.baseColor,76);c.fillText(title,0,-BANNER_H*.14);
-  c.globalAlpha=.28;c.fillStyle=C.ochre;c.fillText(title,-.035,-BANNER_H*.14-.025);
-
-  const pctText=Math.round(prog.ratio*100)+'%';
-  fitWorldText(c,pctText,BANNER_W*.44,.38,.18,800,'Georgia,serif');
-  c.globalAlpha=.88;c.fillStyle='#b99b72';c.fillText(pctText,0,BANNER_H*.25);
-
-  // Four corner studs make the cloth read like the other constructed props.
-  for(const sx of [-1,1])for(const sy of [-1,1]){
-    c.fillStyle=shade(site.baseColor,18);
-    c.fillRect(sx*BANNER_W*.43-.055,sy*BANNER_H*.38-.055,.11,.11);
-  }
-
-  c.restore();
-
+  // Torches remain grounded at the feet of the posts.
   const r=site.ritual,torchesStillHere=!r||r.phase==='fetching';
   if(torchesStillHere){
     const tl=bannerTorchWorld(site,index,-1),tr=bannerTorchWorld(site,index,1);
@@ -1206,7 +1229,7 @@ function drawProgressTube(c,site,index){
   c.restore();
 }
 
-const LAST_UPDATE_MS=Date.parse('2026-09-24T04:41:11.036Z');
+const LAST_UPDATE_MS=Date.parse('2026-09-24T05:00:14.073Z');
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -1296,6 +1319,7 @@ function drawClock(c,now){
 
 
 
+
 function globalBurnRatio(now){
   let total=0;
   for(const site of sites){
@@ -1309,39 +1333,80 @@ function globalBurnRatio(now){
   }
   return total/sites.length;
 }
-function drawGlobalBurnProgress(c,now){
-  const wallAng=-Math.PI/2;
-  const facing=Math.sin(wallAng+yaw);
-  if(cut(wallAng)||facing>-0.08)return;
-
-  const center=pr(17.96,wallAng,2.95);
-  const pL=pr(17.96,wallAng-.22,2.95),pR=pr(17.96,wallAng+.22,2.95);
-  const rot=Math.atan2(pR.y-pL.y,pR.x-pL.x);
-  const w=Math.max(scale*3.9,Math.hypot(pR.x-pL.x,pR.y-pL.y));
-  const h=scale*.62;
-  const ratio=globalBurnRatio(now),pct=Math.round(ratio*100);
-
-  c.save();c.translate(q(center.x),q(center.y));c.rotate(rot);
-  const frame=[
-    {x:-w*.52,y:-h*.56},{x:w*.52,y:-h*.56},{x:w*.52,y:h*.56},{x:-w*.52,y:h*.56}
+function globalBoardBasis(){
+  const ang=-.42,r=18.02,h=5.18;
+  const a={x:Math.cos(ang)*r,z:Math.sin(ang)*r,h,ang};
+  const ux=-Math.sin(ang),uz=Math.cos(ang);
+  const nx=-Math.cos(ang),nz=-Math.sin(ang);
+  const cameraX=Math.sin(yaw),cameraZ=Math.cos(yaw);
+  const facing=nx*cameraX+nz*cameraZ;
+  return {a,ux,uz,nx,nz,facing};
+}
+function drawLocalSegDigit(c,ch,x,y,s){
+  const on=DIGITS[ch]||DIGITS['0'],t=s*.15,L=s*.56;
+  const segs=[
+    [x+t,y,L,t],[x+t+L,y+t,t,L],[x+t+L,y+t+L,t,L],
+    [x+t,y+t+L*2,L,t],[x,y+t+L,t,L],[x,y+t,t,L],[x+t,y+t+L,L,t]
   ];
-  fillRagged(c,frame,'#080705','#1a0d09',Math.max(1.0,scale*.07),2710);
+  for(let i=0;i<7;i++){
+    const [sx,sy,w,h]=segs[i],cut=Math.min(w,h)*.25;
+    const pts=[
+      {x:sx+cut,y:sy},{x:sx+w-cut,y:sy},{x:sx+w,y:sy+h*.5},
+      {x:sx+w-cut,y:sy+h},{x:sx+cut,y:sy+h},{x:sx,y:sy+h*.5}
+    ];
+    c.globalAlpha=on[i]?1:.13;
+    fillRagged(c,pts,on[i]?'#df4a27':'#4d2119',on[i]?'#2b0b08':null,on[i]?.035:0,9720+i);
+  }
+  c.globalAlpha=1;
+}
+function drawGlobalProgressBoard(c,now){
+  const base=globalBoardBasis();
+  if(base.facing<=.035)return;
+  const center=boardProject(base,0,0,.02);
+  if(center.x<-180||center.x>IW+180||center.y<-160||center.y>IH+190)return;
 
-  const ix=-w*.44,iy=-h*.18,iw=w*.88,ih=h*.36;
-  c.fillStyle='#24130f';c.fillRect(ix,iy,iw,ih);
-  if(ratio>0){
-    c.fillStyle=ratio>=1?'#d94b26':'#b13a22';
-    c.fillRect(ix,iy,iw*ratio,ih);
-    c.save();c.globalCompositeOperation='screen';c.globalAlpha=.30;
-    const g=c.createLinearGradient(ix,0,ix+iw,0);
-    g.addColorStop(0,'rgba(255,177,82,.52)');
-    g.addColorStop(1,'rgba(255,82,35,.18)');
-    c.fillStyle=g;c.fillRect(ix,iy,iw*ratio,ih);c.restore();
+  const ratio=globalBurnRatio(now),pct=Math.round(ratio*100);
+  const W=5.35,H=2.72;
+  const frameColor='#654637';
+
+  // Independent object on another wall: block rails + recessed luminous panel.
+  drawBoardCuboid(c,base,0,H*.5-.13,W+.38,.26,.24,frameColor,9680);
+  drawBoardCuboid(c,base,0,-H*.5+.13,W+.38,.26,.24,frameColor,9687);
+  drawBoardCuboid(c,base,-W*.5-.06,0,.26,H,.24,frameColor,9694);
+  drawBoardCuboid(c,base, W*.5+.06,0,.26,H,.24,frameColor,9701);
+  drawBoardCuboid(c,base,0,0,W,H,.12,'#0a0807',9708);
+
+  c.save();boardAffine(c,base,.066);
+  c.textAlign='center';c.textBaseline='middle';
+
+  // Small header, then genuinely luminous segmented percentage.
+  c.globalAlpha=.72;c.fillStyle='#a77b57';
+  c.font='700 .20px system-ui';c.fillText('PROGRESO TOTAL',0,-H*.37);
+
+  const digits=String(pct).padStart(3,'0');
+  const s=.63,dw=s*.74,gap=.08,total=dw*3+gap*2;
+  let x=-total*.5;
+  c.save();c.globalCompositeOperation='screen';c.globalAlpha=.13;
+  c.fillStyle='#c84727';c.fillRect(-1.55,-.58,3.10,1.18);c.restore();
+  for(let i=0;i<3;i++){drawLocalSegDigit(c,digits[i],x,-.48,s);x+=dw+gap;}
+  c.globalAlpha=.92;c.fillStyle='#d89a5b';c.font='900 .40px Georgia,serif';c.fillText('%',1.36,-.04);
+
+  // The bar is a row of block-like luminous cells, not a HUD rectangle.
+  const cells=18,filled=Math.round(ratio*cells),cellW=.235,cellH=.30;
+  const start=-(cells*cellW+(cells-1)*.045)*.5;
+  for(let i=0;i<cells;i++){
+    const x0=start+i*(cellW+.045);
+    const cell=[
+      {x:x0,y:.68},{x:x0+cellW,y:.68},
+      {x:x0+cellW-.018,y:.68+cellH},{x:x0+.018,y:.68+cellH}
+    ];
+    fillRagged(c,cell,i<filled?'#b43a23':'#2b1c16','#130c09',.025,9800+i);
+    if(i<filled){
+      c.save();c.globalCompositeOperation='screen';c.globalAlpha=.26;
+      c.fillStyle='#f29a52';path(c,cell,true);c.fill();c.restore();
+    }
   }
 
-  c.fillStyle='#d9b07d';c.textAlign='center';c.textBaseline='middle';
-  c.font=`800 ${Math.max(7,scale*.20)}px Georgia,serif`;
-  c.fillText('FUEGO GLOBAL  '+pct+'%',0,-h*.37);
   c.restore();
 }
 
@@ -1780,7 +1845,7 @@ function drawDynamic(now){
   const weaveX=(hash(weaveFrame,811)-.5)*.70,weaveY=(hash(weaveFrame,827)-.5)*.42;
   ctx.drawImage(staticCanvas,weaveX,weaveY);
   drawClock(ctx,now);
-  drawGlobalBurnProgress(ctx,now);
+  drawGlobalProgressBoard(ctx,now);
   drawWindowEyes(ctx,now);
 
   const t=now/1000;
@@ -1811,8 +1876,6 @@ function drawDynamic(now){
     if(bb.facing>.035){
       const bpv=bannerProject(bb,0,0);
       items.push({type:'banner',si,depth:bpv.zv,py:bpv.y,h:bb.a.h/BLOCK_H});
-      const ta=tubeAnchor(site,si),tp=wp(ta.x,ta.z,ta.h);
-      items.push({type:'tube',si,depth:tp.zv,py:tp.y,h:ta.h/BLOCK_H});
     }
   }
   for(let i=0;i<players.length;i++){
@@ -1831,7 +1894,6 @@ function drawDynamic(now){
     else if(it.type==='blueprint')drawBlueprint(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
     else if(it.type==='building')drawBuildingBlock(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
     else if(it.type==='banner')drawTowerBanner(ctx,sites[it.si],it.si,now);
-    else if(it.type==='tube')drawProgressTube(ctx,sites[it.si],it.si);
     else drawPlayer(ctx,players[it.i],t,it.i);
   }
 
