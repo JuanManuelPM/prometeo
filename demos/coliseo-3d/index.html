@@ -52,7 +52,7 @@ body{overscroll-behavior:none}
 </div>
 <div class="ui">
   <div class="brand"><div class="mark">III</div><div class="copy"><b>Arena</b><span>collage · campo amplio · construcción</span></div></div>
-  <div class="badge">12 constructores · objetos world-space · ritual final</div>
+  <div class="badge">12 constructores · objetivo rápido · ritual de fuego</div>
   <div class="help">arrastrá para rotar · pellizcá para acercar</div>
 </div>
 <script>
@@ -126,6 +126,19 @@ function newSite(i){
   };
 }
 const sites=Array.from({length:5},(_,i)=>newSite(i));
+function primeShowcaseSite(site){
+  for(const [k,targetH] of site.targets){
+    const [gx,gz]=k.split(',').map(Number);
+    const filled=targetH<=1?targetH:targetH-1;
+    if(filled<=0)continue;
+    site.heights.set(k,filled);
+    for(let y=0;y<filled;y++){
+      const ci=Math.floor(hash(gx*31+y*7,gz*29+y*13)*BLOCK_COLORS.length);
+      site.blocks.push({gx,gz,y,color:BLOCK_COLORS[ci],born:-9999});
+    }
+  }
+}
+primeShowcaseSite(sites[0]);
 
 const playerSeed=[
  '#201c18','#8a321f','#806b31','#32423d','#6d362c','#766958',
@@ -139,7 +152,7 @@ const players=playerSeed.map((color,i)=>{
   const spawn=worldCell(site,gx,gz);
   return {
     color,x:spawn.x,z:spawn.z,h:0,jump:0,
-    size:.39+(i%3)*.040,speed:.96+hash(i,355)*.38,
+    size:.39+(i%3)*.040,speed:1.48+hash(i,355)*.46,
     siteIndex,wait:hash(i,356)*.6,
     task:null,path:[],segment:null,lastX:spawn.x,lastZ:spawn.z,lastH:0
   };
@@ -475,7 +488,16 @@ function hasExitAfterPlacement(site,cand){
   const reach=bfsReachable(site,over);
   return reach.has(key2(cand.standGx,cand.standGz));
 }
+function cleanInvalidBlueprints(site){
+  for(const [k,bp] of [...site.blueprints]){
+    if(bp.status==='ready' && !validateTask(site,bp.cand)){
+      releaseCandidate(site,bp.cand);
+      site.blueprints.delete(k);
+    }
+  }
+}
 function candidateList(site){
+  cleanInvalidBlueprints(site);
   const reach=bfsReachable(site);
   const out=[];
   for(const [k,targetH] of site.targets){
@@ -590,7 +612,7 @@ function assignTask(pl,index){
   if(ready.length){
     const chosen=ready[0],bp=chosen.bp;
     bp.builder=index;bp.status='claimed';
-    pl.task={type:'build',bpKey:chosen.key,cand:bp.cand,started:0,duration:1050+hash(index,bp.cand.y+91)*650};
+    pl.task={type:'build',bpKey:chosen.key,cand:bp.cand,started:0,duration:360+hash(index,bp.cand.y+91)*260};
     const start=nearestNavCell(site,pl);
     const route=findPath(site,start,{gx:bp.cand.standGx,gz:bp.cand.standGz});
     pl.path=pathToWorld(site,route,start);
@@ -619,7 +641,7 @@ function assignTask(pl,index){
   const cand=pickCandidate(site,index);
   if(!cand){pl.wait=.40;return}
   reserveCandidate(site,cand,'design:'+index);
-  pl.task={type:'design',cand,started:0,duration:430+hash(index,cand.y+44)*320};
+  pl.task={type:'design',cand,started:0,duration:170+hash(index,cand.y+44)*140};
   const start=nearestNavCell(site,pl);
   const route=findPath(site,start,{gx:cand.standGx,gz:cand.standGz});
   pl.path=pathToWorld(site,route,start);
@@ -889,9 +911,10 @@ function siteTopHeight(site){
   return top;
 }
 const BANNER_W=2.85;
-const BANNER_H=1.86;
-const BANNER_POLE_H=2.42;
+const BANNER_H=2.34;
+const BANNER_POLE_H=3.18;
 const BANNER_POLE_GAP=3.02;
+const TORCH_STAKE_H=.82;
 
 function siteBannerAnchor(site,index){
   // Keep the banner inside the arena, a little farther out than its tower.
@@ -903,7 +926,7 @@ function siteBannerAnchor(site,index){
   return {
     x:Math.cos(ang)*r + (-Math.sin(ang))*tangent,
     z:Math.sin(ang)*r + ( Math.cos(ang))*tangent,
-    h:1.58,
+    h:2.02,
     ang
   };
 }
@@ -951,7 +974,19 @@ function fitWorldText(c,text,maxWidth,maxSize,minSize,weight,family){
   c.font=wt+' '+s+'px '+fam;
   return s;
 }
-function drawTowerBanner(c,site,index){
+function drawTorchStakeWorld(c,x,z,h,seed,now,lit=true){
+  const bottom=wp(x,z,h),top=wp(x,z,h+TORCH_STAKE_H);
+  roughStroke(c,[bottom,top],'rgba(39,23,15,.92)',Math.max(.75,scale*.045),8500+seed,false);
+  if(lit)drawFlame(c,top,Math.floor(now/120)%5,8600+seed);
+}
+function bannerTorchWorld(site,index,side){
+  const base=bannerBasis(site,index);
+  const localX=side*BANNER_W*.32;
+  const p=bannerWorldPoint(base,localX,-BANNER_H*.5-.74);
+  return {x:p.x,z:p.z,h:Math.max(.06,p.h)};
+}
+
+function drawTowerBanner(c,site,index,now){
   if(site.ritual&&site.ritual.phase==='ashes')return;
 
   const base=bannerBasis(site,index);
@@ -1034,6 +1069,14 @@ function drawTowerBanner(c,site,index){
 
   c.restore();
   c.restore();
+
+  const r=site.ritual;
+  const torchesStillHere=!r || r.phase==='fetching';
+  if(torchesStillHere){
+    const tl=bannerTorchWorld(site,index,-1),tr=bannerTorchWorld(site,index,1);
+    drawTorchStakeWorld(c,tl.x,tl.z,tl.h,index*2,now,true);
+    drawTorchStakeWorld(c,tr.x,tr.z,tr.h,index*2+1,now,true);
+  }
 }
 
 const DIGITS={
@@ -1112,73 +1155,135 @@ function drawClock(c,now){
 }
 
 
+function siteCarrierIndex(siteIndex){
+  for(let i=0;i<players.length;i++)if(players[i].siteIndex===siteIndex)return i;
+  return -1;
+}
 function updateSiteRituals(now){
   for(let si=0;si<sites.length;si++){
     const site=sites[si];
-    if(!site.ritual && buildComplete(site) && site.blueprints.size===0){
-      site.ritual={phase:'burning',started:now,burnDuration:7200};
+    const complete=siteProgress(site).ratio>=.9999 && site.blueprints.size===0;
+
+    if(!site.ritual && complete){
+      const carrier=siteCarrierIndex(si);
+      site.ritual={phase:'fetching',started:now,carrier,burnDuration:5600};
       for(let i=0;i<players.length;i++){
         const pl=players[i];
         if(pl.siteIndex!==si)continue;
-        pl.task=null;pl.wait=0;pl.ritualReady=false;
-        const start=nearestNavCell(site,pl);
-        const exits=boundaryGroundCells(site);
-        exits.sort((a,b)=>{
-          const wa=worldCell(site,a.gx,a.gz),wb=worldCell(site,b.gx,b.gz);
-          return Math.hypot(wa.x-pl.x,wa.z-pl.z)-Math.hypot(wb.x-pl.x,wb.z-pl.z);
-        });
-        const route=findPath(site,start,exits[0]||start);
-        pl.path=pathToWorld(site,route,start);
-        pl.segment=null;
+        pl.task=null;pl.path.length=0;pl.segment=null;pl.wait=0;pl.jump=0;
       }
     }
-    if(site.ritual && site.ritual.phase==='burning' && now-site.ritual.started>=site.ritual.burnDuration){
-      site.ritual.phase='ashes';
-      site.ritual.ashStarted=now;
-      site.blocks.length=0;
+
+    if(!site.ritual)continue;
+    const r=site.ritual,age=now-r.started;
+
+    if(r.phase==='fetching' && age>900){
+      r.phase='carrying';r.started=now;
+    }else if(r.phase==='carrying' && age>1200){
+      r.phase='throwing';r.started=now;
+    }else if(r.phase==='throwing' && age>820){
+      r.phase='burning';r.started=now;
+    }else if(r.phase==='burning' && age>=r.burnDuration){
+      r.phase='ashes';r.ashStarted=now;r.started=now;
+      site.blocks.length=0;site.heights.clear();
       for(let i=0;i<players.length;i++){
         const pl=players[i];
         if(pl.siteIndex===si){
-          pl.path.length=0;pl.segment=null;pl.task=null;pl.jump=0;pl.ritualReady=true;
+          pl.path.length=0;pl.segment=null;pl.task=null;pl.jump=0;
         }
       }
     }
   }
 }
 function updateRitualPlayer(pl,index,site,dt,now){
-  const ritual=site.ritual;
-  if(!ritual)return false;
+  const r=site.ritual;
+  if(!r)return false;
+  const si=pl.siteIndex;
+  const carrier=index===r.carrier;
+  const age=now-r.started;
 
-  if(ritual.phase==='burning'){
-    if(!pl.ritualReady){
-      updateMovement(pl,dt);
-      if(!pl.path.length&&!pl.segment)pl.ritualReady=true;
-      return true;
+  if(r.phase==='fetching'){
+    if(carrier){
+      const l=bannerTorchWorld(site,si,-1),rr=bannerTorchWorld(site,si,1);
+      const tx=(l.x+rr.x)*.5,tz=(l.z+rr.z)*.5;
+      const k=Math.min(1,dt*4.8);
+      pl.x+=(tx-pl.x)*k;pl.z+=(tz-pl.z)*k;pl.h=0;
+      pl.jump=Math.max(0,Math.sin(age*.018))*.08;
+    }else{
+      const a=index*2.1+si*.7,rad=2.7;
+      const tx=site.x+Math.cos(a)*rad,tz=site.z+Math.sin(a)*rad;
+      const k=Math.min(1,dt*2.6);pl.x+=(tx-pl.x)*k;pl.z+=(tz-pl.z)*k;pl.h=0;pl.jump=0;
     }
-    const peers=players.filter(p=>p.siteIndex===pl.siteIndex);
-    const rank=Math.max(0,peers.indexOf(pl));
-    const base=now*.00155+rank*TAU/Math.max(1,peers.length)+pl.siteIndex*.7;
-    const radius=3.05+.22*Math.sin(now*.003+index);
-    const tx=site.x+Math.cos(base)*radius;
-    const tz=site.z+Math.sin(base)*radius;
-    const k=Math.min(1,dt*3.2);
-    pl.x+=(tx-pl.x)*k;pl.z+=(tz-pl.z)*k;pl.h=0;
-    pl.jump=Math.max(0,Math.sin(now*.010+rank*1.7))*.20;
     return true;
   }
 
-  if(ritual.phase==='ashes'){
-    const peers=players.filter(p=>p.siteIndex===pl.siteIndex);
+  if(r.phase==='carrying'){
+    if(carrier){
+      const a=Math.atan2(pl.z-site.z,pl.x-site.x);
+      const tx=site.x+Math.cos(a)*1.9,tz=site.z+Math.sin(a)*1.9;
+      const k=Math.min(1,dt*4.5);
+      pl.x+=(tx-pl.x)*k;pl.z+=(tz-pl.z)*k;pl.h=0;
+      pl.jump=Math.max(0,Math.sin(age*.016))*.10;
+    }else{
+      const peers=players.filter(p=>p.siteIndex===si);
+      const rank=Math.max(0,peers.indexOf(pl));
+      const a=rank*TAU/Math.max(1,peers.length)+si*.55;
+      const rad=2.75;
+      const tx=site.x+Math.cos(a)*rad,tz=site.z+Math.sin(a)*rad;
+      const k=Math.min(1,dt*2.7);pl.x+=(tx-pl.x)*k;pl.z+=(tz-pl.z)*k;pl.h=0;
+      pl.jump=Math.max(0,Math.sin(now*.008+rank))*.05;
+    }
+    return true;
+  }
+
+  if(r.phase==='throwing'){
+    pl.h=0;
+    if(carrier)pl.jump=Math.max(0,Math.sin(clamp(age/820,0,1)*Math.PI))*.24;
+    else pl.jump=Math.max(0,Math.sin(now*.009+index))*.07;
+    return true;
+  }
+
+  if(r.phase==='burning'){
+    const peers=players.filter(p=>p.siteIndex===si);
     const rank=Math.max(0,peers.indexOf(pl));
-    const a=rank*TAU/Math.max(1,peers.length)+pl.siteIndex*.55;
-    const radius=2.85;
-    const tx=site.x+Math.cos(a)*radius;
-    const tz=site.z+Math.sin(a)*radius;
+    const a=now*.00185+rank*TAU/Math.max(1,peers.length)+si*.7;
+    const radius=3.0+.20*Math.sin(now*.003+index);
+    const tx=site.x+Math.cos(a)*radius,tz=site.z+Math.sin(a)*radius;
+    const k=Math.min(1,dt*3.2);
+    pl.x+=(tx-pl.x)*k;pl.z+=(tz-pl.z)*k;pl.h=0;
+    pl.jump=Math.max(0,Math.sin(now*.011+rank*1.7))*.22;
+    return true;
+  }
+
+  if(r.phase==='ashes'){
+    const peers=players.filter(p=>p.siteIndex===si);
+    const rank=Math.max(0,peers.indexOf(pl));
+    const a=rank*TAU/Math.max(1,peers.length)+si*.55,rad=2.85;
+    const tx=site.x+Math.cos(a)*rad,tz=site.z+Math.sin(a)*rad;
     const k=Math.min(1,dt*2.0);
     pl.x+=(tx-pl.x)*k;pl.z+=(tz-pl.z)*k;pl.h=0;pl.jump=0;
     return true;
   }
   return false;
+}
+function drawRitualTorches(c,site,index,now){
+  if(!site.ritual)return;
+  const r=site.ritual,carrier=players[r.carrier];
+  if(!carrier)return;
+
+  if(r.phase==='carrying'){
+    drawTorchStakeWorld(c,carrier.x-.13,carrier.z,carrier.h+.18,index*2,now,true);
+    drawTorchStakeWorld(c,carrier.x+.13,carrier.z,carrier.h+.18,index*2+1,now,true);
+  }else if(r.phase==='throwing'){
+    const t=clamp((now-r.started)/820,0,1);
+    for(let j=0;j<2;j++){
+      const sx=carrier.x+(j?1:-1)*.14,sz=carrier.z;
+      const tx=site.x+(j?1:-1)*.28,tz=site.z;
+      const x=sx+(tx-sx)*t,z=sz+(tz-sz)*t;
+      const h=.20+Math.sin(Math.PI*t)*1.65;
+      drawTorchStakeWorld(c,x,z,h,index*2+j,now,true);
+    }
+  }
 }
 function drawTowerFire(c,site,index,now){
   if(!site.ritual||site.ritual.phase!=='burning')return;
@@ -1273,11 +1378,14 @@ function drawDynamic(now){
     if(it.type==='block')drawBlock(ctx,sites[it.si],sites[it.si].blocks[it.bi],it.bi,now,it.si);
     else if(it.type==='blueprint')drawBlueprint(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
     else if(it.type==='building')drawBuildingBlock(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
-    else if(it.type==='banner')drawTowerBanner(ctx,sites[it.si],it.si);
+    else if(it.type==='banner')drawTowerBanner(ctx,sites[it.si],it.si,now);
     else drawPlayer(ctx,players[it.i],t,it.i);
   }
 
-  for(let i=0;i<sites.length;i++)drawTowerFire(ctx,sites[i],i,now);
+  for(let i=0;i<sites.length;i++){
+    drawRitualTorches(ctx,sites[i],i,now);
+    drawTowerFire(ctx,sites[i],i,now);
+  }
 
   ctx.save();ctx.globalCompositeOperation='screen';
   const flameFrame=Math.floor(now/165)%4;
