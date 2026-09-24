@@ -10,7 +10,8 @@ const E={
   stageCanonical:$('stageCanonical'),stageReader:$('stageReader'),stageTts:$('stageTts'),
   canonicalState:$('canonicalState'),readerState:$('readerState'),ttsState:$('ttsState'),
   sourceReceipt:$('sourceReceipt'),extractionReceipt:$('extractionReceipt'),readerReceipt:$('readerReceipt'),
-  ttsReceipt:$('ttsReceipt'),provenanceReceipt:$('provenanceReceipt'),linkReceipt:$('linkReceipt')
+  ttsReceipt:$('ttsReceipt'),provenanceReceipt:$('provenanceReceipt'),linkReceipt:$('linkReceipt'),
+  payloadPreview:$('payloadPreview'),copyEvidence:$('copyEvidence'),copyEvidenceState:$('copyEvidenceState')
 };
 const state={reader:null,tts:null,index:0,playing:false,intent:false,audio:null,urls:new Map(),clips:new Map()};
 
@@ -58,6 +59,7 @@ function validateContracts(reader,tts){
   const idSet=new Set(ids);
   if(idSet.size!==ids.length||ids.some(x=>!x))failures.push('segment ids');
   const linked=new Set();
+  segments.forEach((segment,i)=>{const span=segment.span||{};if(!Number.isInteger(span.start)||!Number.isInteger(span.end)||span.start<0||span.end<span.start||span.end>Number(reader.readable_text_length))failures.push('segment span bounds '+i)});
   const maxChars=Number(tts.chunker?.max_chars||0);
   chunks.forEach((chunk,i)=>{
     if(Number(chunk.order)!==i)failures.push('chunk order '+i);
@@ -66,6 +68,7 @@ function validateContracts(reader,tts){
     for(const link of chunk.links||[]){
       if(!idSet.has(link.segment_id))failures.push('unknown segment '+link.segment_id);
       else linked.add(link.segment_id);
+      if(link.chunk_span&&(link.chunk_span.start<0||link.chunk_span.end<link.chunk_span.start||link.chunk_span.end>String(chunk.text||'').length))failures.push('chunk link bounds '+i);
     }
   });
   if(ids.some(id=>!linked.has(id)))failures.push('unlinked reader segment');
@@ -89,6 +92,61 @@ function renderEvidence(reader,tts,report){
 }
 function markPipelineError(){
   for(const node of [E.stageCanonical,E.stageReader,E.stageTts])if(node&&node.dataset.state==='checking')node.dataset.state='error';
+}
+function inspectorPayload(kind){
+  const reader=state.reader,tts=state.tts;
+  if(!reader||!tts)return {state:'NOT_READY'};
+  if(kind==='reader')return {
+    source_mode:'DEMO_FIXTURE_NO_LIVE_SOURCE',
+    schema:reader.schema,
+    document_id:reader.document_id,
+    reader_projection_version_id:reader.reader_projection_version_id,
+    language:reader.language,
+    readable_text_length:reader.readable_text_length,
+    sections:reader.sections,
+    segments:reader.segments
+  };
+  if(kind==='tts')return {
+    source_mode:'DEMO_FIXTURE_NO_LIVE_SOURCE',
+    schema:tts.schema,
+    document_id:tts.document_id,
+    reader_projection_version_id:tts.reader_projection_version_id,
+    tts_projection_version_id:tts.tts_projection_version_id,
+    language:tts.language,
+    chunker:tts.chunker,
+    chunks:tts.chunks
+  };
+  return {
+    view:'CANONICAL_EVIDENCE_FROM_FIXTURE',
+    note:'Receipts y metadatos normalizados solamente. La fuente original no está presente en este demo.',
+    document_id:reader.document_id,
+    source_version_id:reader.source_version_id,
+    canonical_extraction_version_id:reader.canonical_extraction_version_id,
+    provenance_ref:reader.provenance_ref,
+    readable_text_length:reader.readable_text_length
+  };
+}
+function renderInspector(kind='canonical'){
+  if(!E.payloadPreview)return;
+  document.querySelectorAll('.inspect-tab').forEach(btn=>btn.setAttribute('aria-selected',btn.dataset.view===kind?'true':'false'));
+  E.payloadPreview.textContent=JSON.stringify(inspectorPayload(kind),null,2);
+}
+async function copyEvidence(){
+  const reader=state.reader,tts=state.tts;
+  if(!reader||!tts){E.copyEvidenceState.textContent='evidencia todavía no disponible';return}
+  const payload={
+    source_mode:'DEMO_FIXTURE_NO_LIVE_SOURCE',
+    document_id:reader.document_id,
+    source_version_id:reader.source_version_id,
+    canonical_extraction_version_id:reader.canonical_extraction_version_id,
+    reader_projection_version_id:reader.reader_projection_version_id,
+    tts_projection_version_id:tts.tts_projection_version_id,
+    provenance_ref:reader.provenance_ref,
+    segment_count:reader.segments?.length||0,
+    chunk_count:tts.chunks?.length||0,
+    link_count:tts.chunks?.reduce((n,c)=>n+(c.links?.length||0),0)||0
+  };
+  try{await navigator.clipboard.writeText(JSON.stringify(payload,null,2));E.copyEvidenceState.textContent='receipts copiados'}catch{E.copyEvidenceState.textContent='clipboard no disponible'}
 }
 
 async function fetchAudio(index){
@@ -151,11 +209,14 @@ async function boot(){
       :`<p class="segment" data-kind="${esc(s.kind)}" data-segment-id="${esc(s.segment_id)}">${esc(s.text)}</p>`
   ).join('');
   renderEvidence(reader,tts,report);
+  renderInspector('canonical');
   E.identity.textContent=`${shortId(reader.document_id)} · ${tts.chunks.length} chunks`;
   E.play.disabled=false;
   setStatus(`CONTRATO OK · ${reader.segments.length} segmentos · ${tts.chunks.length} fragmentos · audio on demand`);
 }
 
 E.play.addEventListener('click',toggle);
+document.querySelectorAll('.inspect-tab').forEach(btn=>btn.addEventListener('click',()=>renderInspector(btn.dataset.view)));
+E.copyEvidence?.addEventListener('click',copyEvidence);
 boot().catch(err=>{markPipelineError();setStatus('contrato inválido o payload no disponible');console.error(err)});
 window.addEventListener('beforeunload',()=>{for(const url of state.urls.values())URL.revokeObjectURL(url)});
