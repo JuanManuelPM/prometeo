@@ -291,7 +291,7 @@ const LAB_FAST=LAB_PARAMS.get('fast')==='1';
 const LAB_BASELINE='8ef25c0a34cc9cd68fa9b35152dec9289d5cb3d8';
 let LAB_SELECTED=-1;
 let LAB_TAP_START=null;
-const LAB_BUILD='2026-09-24T14:03:43.427Z';
+const LAB_BUILD='2026-09-24T14:20:00-03:00';
 const labBadge=document.getElementById('labBadge');
 const wrap=document.getElementById('wrap');
 const mapStage=document.getElementById('mapStage');
@@ -804,98 +804,221 @@ function paintCanonicalColiseoBackdrop(){
   // clean half-section edges
   paintCutEdges(c);
 }
-function paintCamaraFloorPattern(cc,x,y,rx,ry){
-  cc.save();
-  cc.beginPath();cc.ellipse(x,y,rx,ry,0,0,TAU);cc.clip();
 
-  cc.fillStyle='#d8cf82';cc.fillRect(x-rx,y-ry,rx*2,ry*2);
+function camaraMat(id){
+  return MaterialLibrary[id]||MaterialLibrary.wall_green_mildew;
+}
+function camaraWorldPoly(cc,worldPts,fill,alpha=1,stroke=null,width=0,seed=0){
+  const pts=worldPts.map(p=>wp(p.x,p.z,p.h==null?.02:p.h));
+  cc.save();cc.globalAlpha=alpha;
+  fillRagged(cc,pts,fill,stroke,width,seed);
+  cc.restore();
+  return pts;
+}
+function camaraGroundEllipse(cc,x,z,rx,rz,rot,fill,alpha,seed,n=38){
+  const pts=[];
+  const cs=Math.cos(rot||0),sn=Math.sin(rot||0);
+  for(let i=0;i<n;i++){
+    const a=i*TAU/n;
+    const jitter=.94+hash(seed+i,seed*.37)*.12;
+    const lx=Math.cos(a)*rx*jitter,lz=Math.sin(a)*rz*jitter;
+    pts.push({
+      x:x+lx*cs-lz*sn,
+      z:z+lx*sn+lz*cs,
+      h:.018
+    });
+  }
+  return camaraWorldPoly(cc,pts,fill,alpha,null,0,seed);
+}
+function camaraWallBand(cc,r,h0,h1,materialId,seed,alpha=1){
+  const mat=camaraMat(materialId),v=visibleArc(),lower=[],upper=[],n=78;
+  for(let i=0;i<=n;i++){
+    const a=v.start+(v.end-v.start)*(i/n);
+    const rr=r+(hash(seed+i,seed+17)-.5)*.018;
+    lower.push(pr(rr,a,h0));
+    upper.push(pr(rr,a,h1));
+  }
+  const pts=lower.concat(upper.reverse());
+  cc.save();cc.globalAlpha=alpha;fillRagged(cc,pts,mat.base,null,0,seed);cc.restore();
+}
+function camaraWallPatch(cc,angle,r,h0,h1,halfAngle,color,alpha,seed){
+  if(cut(angle))return;
+  const pts=[
+    pr(r,angle-halfAngle,h0+(hash(seed,1)-.5)*.10),
+    pr(r,angle+halfAngle,h0+(hash(seed,2)-.5)*.12),
+    pr(r,angle+halfAngle*.86,h1+(hash(seed,3)-.5)*.14),
+    pr(r,angle-halfAngle*.92,h1+(hash(seed,4)-.5)*.13)
+  ];
+  cc.save();cc.globalAlpha=alpha;fillRagged(cc,pts,color,null,0,seed);cc.restore();
+}
+function camaraWallStroke(cc,angle,r,h0,h1,color,alpha,width,seed){
+  if(cut(angle))return;
+  const pts=[];
+  for(let i=0;i<7;i++){
+    const t=i/6;
+    pts.push(pr(r,angle,h0+(h1-h0)*t));
+  }
+  cc.save();cc.globalAlpha=alpha;roughStroke(cc,pts,color,width,seed,false);cc.restore();
+}
+function paintCamaraWallWorld(cc){
+  const wall=camaraMat('wall_green_mildew');
+  const wainscot=camaraMat('wainscot_pale');
 
-  // Radial optical floor: a single coherent motif, not a field of visible cubes.
-  const rings=7,petals=36;
+  // One continuous rear mass. No repeated wall modules.
+  camaraWallBand(cc,9.04,1.08,3.82,'wall_green_mildew',71200,1);
+  camaraWallBand(cc,8.98,.05,1.10,'wainscot_pale',71210,1);
+
+  // World-space lower paneling: painted divisions, not physical slats.
+  camaraWallBand(cc,8.94,.96,1.12,'wainscot_pale',71220,.98);
+  camaraWallBand(cc,8.94,.13,.23,'wainscot_pale',71221,.86);
+  for(let i=0;i<18;i++){
+    const a=i*TAU/18+.055;
+    camaraWallStroke(cc,a,8.91,.24,.94,wainscot.line,.28,Math.max(.55,scale*.028),71240+i);
+  }
+
+  // Continuous mouldings follow the same world ring and therefore rotate with it.
+  camaraWallBand(cc,8.89,1.02,1.16,'wainscot_pale',71300,.92);
+  camaraWallBand(cc,9.00,3.42,3.56,'old_wood_light',71310,.78);
+
+  // Mildew, damp blooms and vertical humidity tracks anchored to wall coordinates.
+  for(let i=0;i<34;i++){
+    const a=i*TAU/34+.028+(hash(i,71330)-.5)*.085;
+    const h0=1.18+hash(i,71331)*1.84;
+    const hh=.20+hash(i,71332)*.72;
+    const w=.025+hash(i,71333)*.075;
+    const col=i%5===0?wall.highlight:(i%3===0?wall.deep:wall.stain);
+    camaraWallPatch(cc,a,9.01,h0,Math.min(3.50,h0+hh),w,col,.10+hash(i,71334)*.17,71340+i);
+  }
+  for(let i=0;i<16;i++){
+    const a=i*TAU/16+.12;
+    const h0=1.20+hash(i,71360)*1.70;
+    camaraWallStroke(cc,a,9.015,h0,Math.min(3.45,h0+.35+hash(i,71361)*.82),wall.deep,.12,Math.max(.55,scale*.034),71370+i);
+  }
+}
+function paintCamaraFloorPattern(cc){
+  const mat=camaraMat('optical_floor_blackcream');
+  const R=8.55,rings=7,sectors=32;
+
+  camaraGroundEllipse(cc,0,0,R,R,0,mat.cream,1,71400,72);
+
+  // Every tile is defined in X/Z world coordinates, then projected by wp().
+  // The optical burst visibly rotates with yaw instead of remaining glued to the viewport.
   for(let ring=0;ring<rings;ring++){
-    const r0=ring/rings,r1=(ring+1)/rings;
-    for(let i=0;i<petals;i++){
-      const a0=i*TAU/petals,a1=(i+1)*TAU/petals;
-      cc.beginPath();
-      const p0={x:x+Math.cos(a0)*rx*r0,y:y+Math.sin(a0)*ry*r0};
-      const p1={x:x+Math.cos(a0)*rx*r1,y:y+Math.sin(a0)*ry*r1};
-      const p2={x:x+Math.cos(a1)*rx*r1,y:y+Math.sin(a1)*ry*r1};
-      const p3={x:x+Math.cos(a1)*rx*r0,y:y+Math.sin(a1)*ry*r0};
-      cc.moveTo(p0.x,p0.y);cc.lineTo(p1.x,p1.y);cc.lineTo(p2.x,p2.y);cc.lineTo(p3.x,p3.y);cc.closePath();
-      cc.fillStyle=((i+ring)&1)?'#20241f':'#d7cf84';cc.fill();
+    const r0=R*(ring/rings),r1=R*((ring+1)/rings);
+    for(let i=0;i<sectors;i++){
+      const a0=i*TAU/sectors,a1=(i+1)*TAU/sectors;
+      const pts=[
+        {x:Math.cos(a0)*r0,z:Math.sin(a0)*r0,h:.022},
+        {x:Math.cos(a0)*r1,z:Math.sin(a0)*r1,h:.022},
+        {x:Math.cos(a1)*r1,z:Math.sin(a1)*r1,h:.022},
+        {x:Math.cos(a1)*r0,z:Math.sin(a1)*r0,h:.022}
+      ];
+      const dark=((i+ring)&1)===0;
+      camaraWorldPoly(cc,pts,dark?mat.black:mat.cream,.98,dark?null:mat.line,Math.max(.25,scale*.010),71420+ring*50+i);
     }
   }
 
-  // Central floral/star burst.
-  const starR=rx*.22,inner=rx*.08;
-  cc.beginPath();
+  // World-space central star.
+  const star=[];
   for(let i=0;i<32;i++){
     const a=i*TAU/32-Math.PI/2;
-    const rr=i%2?inner:starR;
-    const px=x+Math.cos(a)*rr,py=y+Math.sin(a)*(rr*(ry/rx));
-    if(i===0)cc.moveTo(px,py);else cc.lineTo(px,py);
+    const rr=i%2?.68:1.92;
+    star.push({x:Math.cos(a)*rr,z:Math.sin(a)*rr,h:.028});
   }
-  cc.closePath();cc.fillStyle='#22251f';cc.fill();
+  camaraWorldPoly(cc,star,mat.black,.98,mat.line,Math.max(.35,scale*.018),71520);
 
-  cc.beginPath();cc.ellipse(x,y,rx*.065,ry*.065,0,0,TAU);cc.fillStyle='#d9ce80';cc.fill();
-  cc.restore();
+  // Distressed pigment flecks. Positions are world anchored, not screen noise.
+  for(let i=0;i<86;i++){
+    const a=hash(i,71540)*TAU,rr=Math.sqrt(hash(i,71541))*7.75;
+    const x=Math.cos(a)*rr,z=Math.sin(a)*rr;
+    camaraGroundEllipse(cc,x,z,.045+hash(i,71542)*.11,.022+hash(i,71543)*.055,a, i%4===0?mat.wearDark:mat.wearLight,.07+hash(i,71544)*.11,71550+i,8);
+  }
 }
-
+function paintCamaraAmbientShadows(cc){
+  const shadow='rgba(7,8,5,.58)';
+  // Door-foot shadows.
+  for(const a of [-2.52,-1.32,-.10,1.05,2.12]){
+    const f=mapRingFrame(a,8.18);
+    camaraGroundEllipse(cc,f.x,f.z,.95,.30,f.rot,shadow,.22,71600+Math.round((a+3)*100),28);
+  }
+  // Table shadow.
+  const tf=mapRingFrame(1.38,5.75);
+  camaraGroundEllipse(cc,tf.x,tf.z,.98,.72,tf.rot,shadow,.32,71680,34);
+  // Chandelier pool, soft and warm but still anchored to the floor.
+  camaraGroundEllipse(cc,0,0,2.25,1.38,0,'rgba(104,87,34,.20)',.55,71690,42);
+}
 function paintCamaraHole(cc){
-  // Hole is anchored in world space so it rotates with the room.
-  const hp=wp(-4.65,1.85,.035);
-  const rx=scale*1.42,ry=scale*.60;
-  const pts=[];
-  for(let i=0;i<26;i++){
-    const a=i*TAU/26;
-    const rough=.82+hash(i,71110)*.38;
-    pts.push({x:hp.x+Math.cos(a)*rx*rough,y:hp.y+Math.sin(a)*ry*rough});
+  const mat=camaraMat('hole_edge_broken');
+  const cx0=-3.85,cz0=1.42,rx=1.42,rz=.72,rot=-.34,pts=[],n=30;
+  const cs=Math.cos(rot),sn=Math.sin(rot);
+  for(let i=0;i<n;i++){
+    const a=i*TAU/n;
+    const rough=.82+hash(i,71700)*.34;
+    const lx=Math.cos(a)*rx*rough,lz=Math.sin(a)*rz*rough;
+    pts.push({x:cx0+lx*cs-lz*sn,z:cz0+lx*sn+lz*cs,h:.034});
   }
-  cc.save();
-  fillRagged(cc,pts,'#050504','#c8bf88',Math.max(1.1,scale*.065),71120);
-  // broken floor lips
-  cc.globalAlpha=.7;
-  for(let i=0;i<7;i++){
-    const a=Math.PI*.78+i*.18;
-    const p0={x:hp.x+Math.cos(a)*rx*.76,y:hp.y+Math.sin(a)*ry*.76};
-    const p1={x:hp.x+Math.cos(a)*rx*1.15,y:hp.y+Math.sin(a)*ry*1.15};
-    roughStroke(cc,[p0,p1],'#b8ad78',Math.max(.7,scale*.035),71140+i,false);
-  }
-  cc.restore();
-}
+  camaraWorldPoly(cc,pts,mat.void,1,mat.base,Math.max(1.0,scale*.055),71720);
 
+  // Broken lips and exposed cream edge, all projected from world coordinates.
+  for(let i=0;i<11;i++){
+    const a=.30+i*.43;
+    const rough=.90+hash(i,71730)*.17;
+    const lx0=Math.cos(a)*rx*.78*rough,lz0=Math.sin(a)*rz*.78*rough;
+    const lx1=Math.cos(a)*rx*1.18*rough,lz1=Math.sin(a)*rz*1.18*rough;
+    const p0=wp(cx0+lx0*cs-lz0*sn,cz0+lx0*sn+lz0*cs,.040);
+    const p1=wp(cx0+lx1*cs-lz1*sn,cz0+lx1*sn+lz1*cs,.042);
+    cc.save();cc.globalAlpha=.62;roughStroke(cc,[p0,p1],i%3===0?mat.dark:mat.base,Math.max(.7,scale*.032),71740+i,false);cc.restore();
+  }
+}
+function paintCamaraCutEdges(cc){
+  const A=Math.asin(CUT);
+  for(const base of [A,Math.PI-A]){
+    const ang=base-yaw;
+    const section=[
+      pr(8.50,ang,.02),
+      pr(9.24,ang,.02),
+      pr(9.24,ang,3.84),
+      pr(8.68,ang,3.84)
+    ];
+    cc.save();cc.globalAlpha=.96;fillRagged(cc,section,'#171811','rgba(5,4,3,.98)',Math.max(1.2,scale*.065),71800+base);cc.restore();
+    roughStroke(cc,[section[0],section[3]],'rgba(174,146,86,.32)',Math.max(.75,scale*.035),71810+base,false);
+  }
+}
 function paintCamaraBackdrop(){
   const cc=sctx;
   cc.fillStyle='#070806';cc.fillRect(0,0,IW,IH);
 
-  // Sickly green room atmosphere from the supplied reference.
-  inkWash(cc,cx,cy-scale*1.8,scale*15.2,scale*5.8,'#89994e',.32,71000,4);
-  inkWash(cc,cx-scale*6.4,cy-scale*2.0,scale*5.0,scale*4.2,'#5f7138',.20,71010,3);
-  inkWash(cc,cx+scale*6.2,cy-scale*1.5,scale*4.7,scale*3.7,'#a2a35a',.16,71020,3);
+  // Atmosphere remains global; all architectural surfaces below are world-space.
+  inkWash(cc,cx,cy-scale*1.9,scale*15.0,scale*5.9,'#66713d',.17,71000,3);
+  inkWash(cc,cx-scale*5.7,cy-scale*1.7,scale*5.0,scale*4.0,'#273627',.10,71010,2);
 
-  // Floor reads as one designed object.
-  paintCamaraFloorPattern(cc,cx,cy+scale*.52,scale*8.05,scale*3.05);
+  paintCamaraWallWorld(cc);
+  paintCamaraFloorPattern(cc);
+  paintCamaraAmbientShadows(cc);
   paintCamaraHole(cc);
+  paintCamaraCutEdges(cc);
 
-  // Edge shadow makes the room feel enclosed before physical wall pieces are drawn.
+  // World-anchored lamp spill.
+  const lp=wp(0,0,3.08);
   cc.save();
-  const vg=cc.createRadialGradient(cx,cy,scale*4.5,cx,cy,scale*13.0);
-  vg.addColorStop(0,'rgba(0,0,0,0)');
-  vg.addColorStop(.75,'rgba(13,15,9,.10)');
-  vg.addColorStop(1,'rgba(0,0,0,.72)');
-  cc.fillStyle=vg;cc.fillRect(0,0,IW,IH);
-  cc.restore();
-
-  // Warm chandelier spill.
-  const lp=wp(0,0,3.1);
-  cc.save();
-  const lg=cc.createRadialGradient(lp.x,lp.y,0,lp.x,lp.y,scale*2.7);
-  lg.addColorStop(0,'rgba(230,194,83,.16)');
-  lg.addColorStop(1,'rgba(230,194,83,0)');
+  const lg=cc.createRadialGradient(lp.x,lp.y,0,lp.x,lp.y,scale*2.8);
+  lg.addColorStop(0,'rgba(223,184,76,.13)');
+  lg.addColorStop(1,'rgba(223,184,76,0)');
   cc.fillStyle=lg;cc.fillRect(0,0,IW,IH);cc.restore();
+
+  window.CAMARA_WORLD_LAYER_STATS={
+    wall:'continuous-world-ribbon',
+    wainscot:'continuous-world-ribbon',
+    floor:'world-xz',
+    hole:'world-xz',
+    shadows:'world-xz',
+    cut:CUT,
+    explicitGeometry:['doors','frames','curtain','table','chandelier'],
+    materials:['wall_green_mildew','wainscot_pale','optical_floor_blackcream','old_wood_dark','old_wood_light','curtain_red','metal_warm','hole_edge_broken']
+  };
 }
 
-function paintGenericMapBackdrop(){
+function paintGenericMapBackdropfunction paintGenericMapBackdrop(){
   if(CURRENT_MAP==='camara'){
     paintCamaraBackdrop();
     return;
@@ -2616,7 +2739,7 @@ function renderWorldSolidsGL(targetCtx){
     const faces=solidBoxFaces(box);
     for(let fi=0;fi<faces.length;fi++){
       const face=faces[fi],mat=box.material;
-      const amount=face.nh>0?mat.top:faceTone(face.nx,face.nz);
+      const amount=(face.nh>0?mat.top:faceTone(face.nx,face.nz))+((mat.variance||0)*(hash(box.seed||0,fi+37)-.5));
       const rgba=solidHexRGBA(shade(mat.base,amount),1);
       const p=face.corners;
 
@@ -3160,95 +3283,90 @@ function buildMapLaberinto(){
   // central goal chamber
   for(let y=0;y<4;y++)componentModuleBox(0,0,.02+y*.56,1.75-y*.12,1.75-y*.12,.52,y%2?'#80603a':'#34483d',47700+y,Math.PI/4);
 }
+
 function camaraVisible(angle){
-  return !mapCut(angle,.12);
+  // Exact same front-cut predicate used by the canonical Coliseo.
+  return !cut(angle);
+}
+function camaraFreeBox(x,z,baseH,w,d,h,material,seed,rot=0){
+  const ux=Math.cos(rot),uz=Math.sin(rot),nx=-Math.sin(rot),nz=Math.cos(rot);
+  addWorldBox({
+    kind:'camaraProp',x,z,baseH,width:w,depth:d,height:h,
+    ux,uz,nx,nz,material,seed,stableId:COMPONENT_SERIAL++
+  });
+}
+function camaraSolidBox(frame,lx,lz,baseH,w,d,h,material,seed,localRot=0){
+  const p=slotPoint(frame,lx,lz,baseH);
+  camaraFreeBox(p.x,p.z,baseH,w,d,h,material,seed,frame.rot+localRot);
 }
 function buildCamaraDoorAt(angle,variant,seed){
   if(!camaraVisible(angle))return;
-  const f=mapRingFrame(angle,8.92);
-  const frame='#72664b';
-  const leaf=variant==='main'?'#2a2119':variant==='dark'?'#231f1a':variant==='light'?'#c6bd83':'#52442f';
+  const f=mapRingFrame(angle,8.86);
+  const leaf=variant==='light'?'old_wood_light':'old_wood_dark';
+  const frame=variant==='dark'?'old_wood_dark':'old_wood_light';
 
-  // Deep frame reads as architecture, not as isolated sticks.
-  slotBox(f,0,.02,.02,1.78,.36,.12,'#504936',seed+1);
-  slotBox(f,-.72,0,.12,.22,.30,2.25,frame,seed+2);
-  slotBox(f, .72,0,.12,.22,.30,2.25,frame,seed+3);
-  slotBox(f,0,0,2.18,1.66,.34,.27,shade(frame,12),seed+4);
-  slotBox(f,0,.08,.16,1.18,.12,1.98,leaf,seed+5);
+  camaraSolidBox(f,0,.02,.02,1.82,.34,.12,'old_wood_dark',seed+1);
+  camaraSolidBox(f,-.73,0,.12,.24,.30,2.28,frame,seed+2);
+  camaraSolidBox(f, .73,0,.12,.24,.30,2.28,frame,seed+3);
+  camaraSolidBox(f,0,0,2.19,1.70,.34,.28,frame,seed+4);
+  camaraSolidBox(f,0,.08,.16,1.18,.12,1.99,leaf,seed+5);
 
-  // Decorative header differs by door family.
+  // Material accents, never a bare flat-color prop.
   if(variant==='main'){
-    slotBox(f,0,0,2.47,1.82,.32,.24,'#403529',seed+6);
-    slotBox(f,-.48,-.04,2.40,.28,.22,.28,'#716042',seed+7);
-    slotBox(f, .48,-.04,2.40,.28,.22,.28,'#716042',seed+8);
-  }else if(variant==='light'){
-    slotBox(f,0,0,2.44,1.48,.28,.16,'#ddd59a',seed+9);
+    camaraSolidBox(f,0,0,2.48,1.84,.32,.24,'old_wood_dark',seed+6);
+    camaraSolidBox(f,-.48,-.04,2.40,.28,.22,.28,'metal_warm',seed+7);
+    camaraSolidBox(f, .48,-.04,2.40,.28,.22,.28,'metal_warm',seed+8);
   }else{
-    slotBox(f,0,0,2.42,1.48,.28,.16,shade(frame,-5),seed+10);
+    camaraSolidBox(f,0,0,2.44,1.50,.28,.16,variant==='light'?'old_wood_light':'old_wood_dark',seed+9);
   }
+  camaraSolidBox(f,.40,-.01,1.13,.08,.10,.08,'metal_warm',seed+12);
 }
 function buildCamaraCurtainAt(angle,seed){
   if(!camaraVisible(angle))return;
-  const f=mapRingFrame(angle,8.90);
-  slotBox(f,0,0,2.42,1.58,.12,.10,'#4a4031',seed+1);
-  // Folded curtain as narrow overlapping physical ribbons.
+  const f=mapRingFrame(angle,8.86);
+  camaraSolidBox(f,0,0,2.44,1.62,.11,.10,'metal_warm',seed+1);
   for(let i=0;i<7;i++){
     const x=-.54+i*.18;
-    slotBox(f,x,.08,.28,.17,.10,2.04,i%2?'#4e1318':'#671820',seed+10+i);
+    camaraSolidBox(f,x,.08,.28,.18,.09,2.06,'curtain_red',seed+10+i);
   }
 }
 function buildCamaraRoundTable(angle,seed){
   const f=mapRingFrame(angle,5.75);
-  // Hex/octagonal approximation keeps depth rules while reading as round at map scale.
-  for(let i=0;i<8;i++){
-    const a=i*TAU/8;
-    slotBox(f,Math.cos(a)*.46,Math.sin(a)*.46,1.02,.42,.42,.10,'#2d241f',seed+10+i,a);
+  // Explicit furniture only. The room shell remains pictorial.
+  for(let i=0;i<12;i++){
+    const a=i*TAU/12;
+    camaraSolidBox(f,Math.cos(a)*.46,Math.sin(a)*.46,1.02,.34,.34,.10,i%2?'old_wood_dark':'old_wood_light',seed+10+i,a);
   }
-  slotBox(f,0,0,.08,.28,.28,.94,'#2a211c',seed+30);
-  for(const sx of [-1,1])for(const sz of [-1,1])slotBox(f,sx*.31,sz*.26,.04,.10,.10,.54,'#2a211c',seed+40+(sx>0?2:0)+(sz>0?1:0));
+  camaraSolidBox(f,0,0,.08,.28,.28,.94,'old_wood_dark',seed+30);
+  for(const sx of [-1,1])for(const sz of [-1,1]){
+    camaraSolidBox(f,sx*.31,sz*.26,.04,.10,.10,.54,'old_wood_dark',seed+40+(sx>0?2:0)+(sz>0?1:0));
+  }
 }
 function buildCamaraChandelier(seed){
-  componentModuleBox(0,0,3.15,.12,.12,1.18,'#78673c',seed+1,0);
+  camaraFreeBox(0,0,3.15,.12,.12,1.18,'metal_warm',seed+1,0);
   for(let i=0;i<6;i++){
     const a=i*TAU/6+.18,x=Math.cos(a)*.72,z=Math.sin(a)*.72;
-    componentModuleBox(x*.52,z*.52,2.82,.62,.09,.08,'#826e3d',seed+10+i,a);
-    componentModuleBox(x,z,2.67,.12,.12,.25,'#8c743d',seed+20+i,0);
+    camaraFreeBox(x*.52,z*.52,2.82,.62,.09,.08,'metal_warm',seed+10+i,a);
+    camaraFreeBox(x,z,2.67,.12,.12,.25,'metal_warm',seed+20+i,0);
     addWorldEmissive(x,z,2.92,.40,.13,.26,seed+30+i);
   }
 }
 function buildMapCamara(now){
   resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
 
-  // Continuous circular room envelope. Modules are implementation detail;
-  // repetition + shared color make it read as one wall.
-  const N=42;
-  for(let i=0;i<N;i++){
-    const a=i*TAU/N;
-    if(!camaraVisible(a))continue;
-
-    // pale lower wainscot
-    mapRingSegment(a,8.78,.02,1.42,.34,1.05,i%3===0?'#c6c391':'#b9bc82',50000+i);
-
-    // tall green plaster field
-    mapRingSegment(a,9.12,1.07,1.48,.40,2.28,i%4===0?'#87974d':'#98a459',50100+i);
-
-    // horizontal moulding bands
-    mapRingSegment(a,8.95,1.08,1.48,.42,.11,'#6c7047',50200+i);
-    mapRingSegment(a,9.22,3.34,1.50,.43,.14,'#555a3c',50300+i);
-  }
-
-  // Five intentionally distinct doors, as in the reference.
+  // Deliberately NO wall/floor modules here.
+  // The room envelope, wainscot, mouldings, damp, floor, hole and ambient shadows
+  // are painted by paintCamaraBackdrop() from world coordinates.
   buildCamaraDoorAt(-2.52,'wood',50400);
   buildCamaraCurtainAt(-1.32,50500);
   buildCamaraDoorAt(-.10,'main',50600);
   buildCamaraDoorAt(1.05,'dark',50700);
   buildCamaraDoorAt(2.12,'light',50800);
-
   buildCamaraRoundTable(1.38,50900);
   buildCamaraChandelier(51000);
 }
 
-function buildSelectedMap(now){
+function buildSelectedMap(now){function buildSelectedMap(now){
   if(CURRENT_MAP==='fortaleza')buildMapFortaleza();
   else if(CURRENT_MAP==='archivo')buildMapArchivo();
   else if(CURRENT_MAP==='pozo')buildMapPozo();
@@ -3308,11 +3426,22 @@ function drawComponentLab(now){
    These are world-space prototypes, not UI diagrams.
    ========================================================= */
 
+const MaterialLibrary=Object.freeze({
+  wall_green_mildew:{base:'#87944f',deep:'#34472f',stain:'#566637',highlight:'#b0ad68',line:'#525c37',opaque:true,top:8,variance:12,stroke:'rgba(18,20,12,.82)'},
+  wainscot_pale:{base:'#c7c58f',deep:'#8d8d61',stain:'#a5a574',highlight:'#ded9a1',line:'#777852',opaque:true,top:12,variance:8,stroke:'rgba(37,36,23,.74)'},
+  optical_floor_blackcream:{base:'#d6cd83',cream:'#d6cd83',black:'#20231e',line:'rgba(73,68,43,.32)',wearDark:'#4c4d36',wearLight:'#f0e6a0',opaque:true,top:5,variance:5,stroke:'rgba(20,18,13,.78)'},
+  old_wood_dark:{base:'#382a20',deep:'#1f1712',stain:'#5b3e2a',highlight:'#705039',opaque:true,top:11,variance:14,stroke:'rgba(16,10,7,.96)'},
+  old_wood_light:{base:'#786044',deep:'#493725',stain:'#5e4a34',highlight:'#a18158',opaque:true,top:14,variance:13,stroke:'rgba(20,13,8,.94)'},
+  curtain_red:{base:'#691b24',deep:'#361015',stain:'#8a2b2f',highlight:'#9a4040',opaque:true,top:9,variance:11,stroke:'rgba(28,8,9,.94)'},
+  metal_warm:{base:'#8a743f',deep:'#4f4226',stain:'#6c572f',highlight:'#b89b52',opaque:true,top:20,variance:9,stroke:'rgba(27,20,10,.92)'},
+  hole_edge_broken:{base:'#c9bf86',dark:'#776f4b',void:'#030403',highlight:'#e2d69a',opaque:true,top:4,variance:10,stroke:'rgba(10,9,6,.98)'}
+});
 const WORLD_MATERIALS={
   stone:{base:'#514238',opaque:true,top:18,stroke:'rgba(9,6,5,.96)'},
   road:{base:'#40372f',opaque:true,top:12,stroke:'rgba(9,6,5,.96)'},
   structure:{base:'#4d5147',opaque:true,top:16,stroke:'rgba(9,6,5,.96)'},
-  archive:{base:'#343b35',opaque:true,top:10,stroke:'rgba(9,6,5,.96)'}
+  archive:{base:'#343b35',opaque:true,top:10,stroke:'rgba(9,6,5,.96)'},
+  ...MaterialLibrary
 };
 const WORLD_GEOM={boxes:[],transparent:[],stats:{boxes:0,baseFaces:0,culledInternal:0,culledBack:0,faces:0,transparent:0}};
 const WORLD_FACE_BUDGET=2400;
@@ -3419,7 +3548,7 @@ function makeRenderFace(face,corners,tileIndex){
   if(maxX<-8||minX>IW+8||maxY<-8||minY>IH+8)return null;
 
   const mat=face.box.material;
-  const amount=face.nh>0?mat.top:faceTone(face.nx,face.nz);
+  const amount=(face.nh>0?mat.top:faceTone(face.nx,face.nz))+((mat.variance||0)*(hash(face.box.seed||0,face.seed||0)-.5));
   const depth=ds.reduce((a,b)=>a+b,0)/ds.length;
   const py=ys.reduce((a,b)=>a+b,0)/ys.length;
   return {
