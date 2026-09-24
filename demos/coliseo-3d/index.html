@@ -52,7 +52,7 @@ body{overscroll-behavior:none}
 </div>
 <div class="ui">
   <div class="brand"><div class="mark">III</div><div class="copy"><b>Arena</b><span>collage · campo amplio · construcción</span></div></div>
-  <div class="badge">12 constructores · blueprint → obra · reloj</div>
+  <div class="badge">12 constructores · colisión + escaleras · reloj</div>
   <div class="help">arrastrá para rotar · pellizcá para acercar</div>
 </div>
 <script>
@@ -76,7 +76,7 @@ const C={
 const CUT=.05;
 const torches=Array.from({length:8},(_,i)=>({ang:i*TAU/8+.08,phase:i*1.81}));
 const BLOCK_COLORS=['#a53b24','#c66d31','#a68a43','#506657','#3c5961','#816049','#b89a68','#6f3631','#58604d'];
-const GRID_R=3,BLOCK_STEP=.68,BLOCK_H=.58;
+const GRID_R=3,BLOCK_STEP=.78,BLOCK_H=.62;
 const DIR4=[[1,0],[-1,0],[0,1],[0,-1]];
 function key2(x,z){return x+','+z}
 function makePattern(seed){
@@ -115,7 +115,7 @@ function makePattern(seed){
 }
 function newSite(i){
   const ang=.22+i*TAU/6+(hash(i,301)-.5)*.22;
-  const r=6.0+hash(i,302)*2.7;
+  const r=7.45+hash(i,302)*2.25;
   const targets=makePattern(i+1);
   return {
     x:Math.cos(ang)*r,z:Math.sin(ang)*r,targets,
@@ -124,21 +124,23 @@ function newSite(i){
     lastBuilt:-9999
   };
 }
-const sites=Array.from({length:6},(_,i)=>newSite(i));
+const sites=Array.from({length:5},(_,i)=>newSite(i));
 
 const playerSeed=[
- ['#201c18',.12],['#8a321f',1.1],['#806b31',2.0],
- ['#32423d',3.0],['#6d362c',3.9],['#766958',4.8],
- ['#273028',5.5],['#7d4828',.7],['#4a5647',1.65],
- ['#8a744a',2.6],['#302925',3.7],['#6a2c20',5.1]
+ '#201c18','#8a321f','#806b31','#32423d','#6d362c','#766958',
+ '#273028','#7d4828','#4a5647','#8a744a','#302925','#6a2c20'
 ];
-const players=playerSeed.map((v,i)=>{
-  const site=sites[i%sites.length],a=v[1],r=4.8+hash(i,351)*3.0;
+const players=playerSeed.map((color,i)=>{
+  const siteIndex=i%sites.length,site=sites[siteIndex];
+  const side=i%4,spread=((i*3)%5)-2,R=GRID_R+1;
+  const gx=side===0?R:side===1?-R:spread;
+  const gz=side===2?R:side===3?-R:spread;
+  const spawn=worldCell(site,gx,gz);
   return {
-    color:v[0],x:Math.cos(a)*r,z:Math.sin(a)*r,h:0,jump:0,
-    size:.34+(i%3)*.035,speed:.92+hash(i,355)*.38,
-    siteIndex:i%sites.length,wait:hash(i,356)*.6,
-    task:null,path:[],segment:null,lastX:0,lastZ:0,lastH:0
+    color,x:spawn.x,z:spawn.z,h:0,jump:0,
+    size:.39+(i%3)*.040,speed:.96+hash(i,355)*.38,
+    siteIndex,wait:hash(i,356)*.6,
+    task:null,path:[],segment:null,lastX:spawn.x,lastZ:spawn.z,lastH:0
   };
 });
 
@@ -153,12 +155,13 @@ function resize(){
   if(IW<300){IW=300;IH=Math.round(IW/aspect)}
   canvas.width=staticCanvas.width=IW;canvas.height=staticCanvas.height=IH;
   canvas.style.width=W+'px';canvas.style.height=H+'px';
-  scale=Math.min(IW/41,IH/25)*zoom;cx=IW*.5;cy=IH*(W<620?.61:.60);
+  scale=Math.min(IW/37,IH/22.5)*zoom;cx=IW*.5;cy=IH*(W<620?.63:.61);
   staticDirty=true;
 }
 function pr(r,ang,h){
   const t=ang+yaw;
-  return {x:cx+Math.cos(t)*r*scale,y:cy+Math.sin(t)*r*scale*.35-h*scale*.57,d:Math.sin(t),t};
+  const sx=Math.cos(t)*r,sz=Math.sin(t)*r;
+  return {x:cx+sx*scale,y:cy+sz*scale*.35-h*scale*.57,d:Math.sin(t),zv:sz,t};
 }
 function wp(x,z,h){
   const r=Math.hypot(x,z),ang=Math.atan2(z,x);
@@ -437,6 +440,14 @@ function boundaryGroundCells(site){
   }
   return out;
 }
+
+function buildingObstacle(site,gx,gz){
+  for(const bp of site.blueprints.values()){
+    if(bp.status==='building'&&bp.cand.gx===gx&&bp.cand.gz===gz)return true;
+  }
+  return false;
+}
+
 function bfsReachable(site,override){
   const q=[],seen=new Map();
   const heightAt=(x,z)=>{
@@ -450,6 +461,7 @@ function bfsReachable(site,override){
     const cur=q[qi],ch=heightAt(cur.gx,cur.gz);
     for(const n of neighbours(cur.gx,cur.gz)){
       const nk=key2(n.gx,n.gz);if(seen.has(nk))continue;
+      if(buildingObstacle(site,n.gx,n.gz))continue;
       const nh=heightAt(n.gx,n.gz);
       if(Math.abs(nh-ch)<=1){seen.set(nk,key2(cur.gx,cur.gz));q.push(n)}
     }
@@ -518,6 +530,7 @@ function findPath(site,start,goal){
     const ch=getHeight(site,cur.gx,cur.gz);
     for(const n of neighbours(cur.gx,cur.gz)){
       const nk=key2(n.gx,n.gz);if(prev.has(nk))continue;
+      if(buildingObstacle(site,n.gx,n.gz))continue;
       const nh=getHeight(site,n.gx,n.gz);
       if(Math.abs(nh-ch)<=1){prev.set(nk,ck);q.push(n)}
     }
@@ -532,11 +545,23 @@ function findPath(site,start,goal){
   cells.reverse();
   return cells;
 }
-function pathToWorld(site,cells){
-  return cells.map(cell=>{
-    const w=worldCell(site,cell.gx,cell.gz);
-    return {x:w.x,z:w.z,h:cell.h*BLOCK_H,gx:cell.gx,gz:cell.gz};
-  });
+function cellAnchor(site,cell,prev){
+  const w=worldCell(site,cell.gx,cell.gz);
+  let ox=0,oz=0;
+  if(prev){
+    const dx=cell.gx-prev.gx,dz=cell.gz-prev.gz;
+    ox=dx*BLOCK_STEP*.08;oz=dz*BLOCK_STEP*.08;
+  }
+  return {x:w.x+ox,z:w.z+oz};
+}
+function pathToWorld(site,cells,startCell){
+  const out=[];let prev=startCell;
+  for(const cell of cells){
+    const w=cellAnchor(site,cell,prev);
+    out.push({x:w.x,z:w.z,h:cell.h*BLOCK_H,gx:cell.gx,gz:cell.gz});
+    prev=cell;
+  }
+  return out;
 }
 function reserveCandidate(site,cand,owner){
   site.reservations.set('block:'+cand.key,owner);
@@ -567,7 +592,7 @@ function assignTask(pl,index){
     pl.task={type:'build',bpKey:chosen.key,cand:bp.cand,started:0,duration:1050+hash(index,bp.cand.y+91)*650};
     const start=nearestNavCell(site,pl);
     const route=findPath(site,start,{gx:bp.cand.standGx,gz:bp.cand.standGz});
-    pl.path=pathToWorld(site,route);
+    pl.path=pathToWorld(site,route,start);
     if(!pl.path.length&&(start.gx!==bp.cand.standGx||start.gz!==bp.cand.standGz)){
       bp.builder=null;bp.status='ready';pl.task=null;pl.wait=.28;
     }
@@ -583,7 +608,7 @@ function assignTask(pl,index){
         return Math.hypot(wa.x-pl.x,wa.z-pl.z)-Math.hypot(wb.x-pl.x,wb.z-pl.z);
       });
       const route=findPath(site,start,exits[0]||start);
-      pl.path=pathToWorld(site,route);pl.task={type:'exit'};
+      pl.path=pathToWorld(site,route,start);pl.task={type:'exit'};
     }
     return;
   }
@@ -596,7 +621,7 @@ function assignTask(pl,index){
   pl.task={type:'design',cand,started:0,duration:430+hash(index,cand.y+44)*320};
   const start=nearestNavCell(site,pl);
   const route=findPath(site,start,{gx:cand.standGx,gz:cand.standGz});
-  pl.path=pathToWorld(site,route);
+  pl.path=pathToWorld(site,route,start);
   if(!pl.path.length&&(start.gx!==cand.standGx||start.gz!==cand.standGz)){
     releaseCandidate(site,cand);pl.task=null;pl.wait=.28;
   }
@@ -619,7 +644,8 @@ function updateMovement(pl,dt){
   pl.x=s.sx+(s.ex-s.sx)*smooth;
   pl.z=s.sz+(s.ez-s.sz)*smooth;
   pl.h=s.sh+(s.eh-s.sh)*smooth;
-  const hop=s.climb?.24:.035;
+  const goingUp=s.eh>s.sh+.05,goingDown=s.eh<s.sh-.05;
+  const hop=(goingUp||goingDown)?BLOCK_H*.72:.045;
   pl.jump=Math.sin(Math.PI*s.t)*hop;
   if(s.t>=1){
     pl.x=s.ex;pl.z=s.ez;pl.h=s.eh;pl.jump=0;pl.segment=null;
@@ -718,7 +744,7 @@ function drawBlock(c,site,block,blockIndex,now,siteIndex){
     const neighbourFilled=getHeight(site,block.gx+face.dx,block.gz+face.dz)>block.y;
     return facesCamera&&!neighbourFilled;
   });
-  visible.sort((u,v)=>u.pts.reduce((s,p)=>s+p.d,0)-v.pts.reduce((s,p)=>s+p.d,0));
+  visible.sort((u,v)=>u.pts.reduce((s,p)=>s+p.zv,0)-v.pts.reduce((s,p)=>s+p.zv,0));
   for(const face of visible){
     fillRagged(c,face.pts,shade(block.color,faceTone(face.nx,face.nz)),C.ink,.95,1500+siteIndex*97+blockIndex*7+face.seed);
   }
@@ -810,15 +836,24 @@ function drawBuildingBlock(c,site,bp,now,siteIndex){
 }
 
 function drawPlayer(c,pl,t,index){
-  const p=wp(pl.x,pl.z,pl.h+pl.jump+.42),g=wp(pl.x,pl.z,pl.h+.02);
+  const p=wp(pl.x,pl.z,pl.h+pl.jump+.46),g=wp(pl.x,pl.z,pl.h+.02);
   const depth=(p.d+1)*.5,R=scale*pl.size*(.80+depth*.22);
-  const old=wp(pl.lastX,pl.lastZ,pl.lastH+.42);
-  if(Math.hypot(pl.x-pl.lastX,pl.z-pl.lastZ)>.005){
-    c.save();c.globalAlpha=.07;blob(c,old.x,old.y,R*.90,R*.90,pl.color,null,0,820+index,.07,16);c.restore();
-  }
+  const edgeFrame=Math.floor(t*9+index*.7)%3;
+
   blob(c,g.x,g.y+R*.24,R*.86,R*.23,'rgba(0,0,0,.52)',null,0,800+index,.11,14);
-  const pts=blob(c,p.x,p.y,R,R,pl.color,C.black,Math.max(1,R*.16),830+index,.075,18);
-  c.save();c.translate(1,-.6);c.globalAlpha=.28;roughStroke(c,pts,C.red,Math.max(.7,R*.055),870+index,true);c.restore();
+
+  // Stable fill. Only the outline seed/registration changes frame to frame.
+  const pts=blob(c,p.x,p.y,R,R,pl.color,C.black,Math.max(1,R*.15),830+index,.055,20);
+  c.save();c.translate(1.2+(edgeFrame-1)*.55,-.65);c.globalAlpha=.34;
+  roughStroke(c,pts,C.red,Math.max(.8,R*.065),870+index+edgeFrame*13,true);c.restore();
+
+  c.save();c.translate(-.9,(1-edgeFrame)*.35);c.globalAlpha=.17;
+  roughStroke(c,pts,'#c9a47f',Math.max(.6,R*.045),920+index+edgeFrame*17,true);c.restore();
+
+  // Tiny edge sparks. They move around the silhouette, not the worker itself.
+  c.save();c.globalCompositeOperation='screen';c.globalAlpha=.10+.035*edgeFrame;c.strokeStyle='#df8248';
+  c.lineWidth=Math.max(.6,R*.035);c.beginPath();
+  c.arc(p.x,p.y,R*(1.06+.015*edgeFrame),(.7+edgeFrame*.9),2.15+edgeFrame*.75);c.stroke();c.restore();
 
   if(pl.task&&(pl.task.type==='build'||pl.task.type==='design')){
     const site=sites[pl.siteIndex],cand=pl.task.cand,target=worldCell(site,cand.gx,cand.gz);
@@ -860,27 +895,29 @@ function drawDigit(c,ch,x,y,s,seed){
   for(let i=0;i<7;i++)segPoly(c,segs[i][0],segs[i][1],segs[i][2],segs[i][3],!!on[i],seed*11+i);
 }
 function drawClock(c,now){
-  const ang=-Math.PI/2-yaw; // centered on the rear wall, opposite the open section.
-  const center=pr(17.98,ang,5.42);
-  const pL=pr(17.98,ang-.025,5.42),pR=pr(17.98,ang+.025,5.42);
+  const wallAng=-Math.PI/2;
+  const facing=Math.sin(wallAng+yaw);
+  if(cut(wallAng)||facing>-0.08)return;
+
+  const halfAng=.115;
+  const center=pr(17.98,wallAng,5.20);
+  const pL=pr(17.98,wallAng-halfAng,5.20),pR=pr(17.98,wallAng+halfAng,5.20);
   const rot=Math.atan2(pR.y-pL.y,pR.x-pL.x);
-  const w=scale*5.1,h=scale*1.65;
+  const w=Math.max(scale*1.0,Math.hypot(pR.x-pL.x,pR.y-pL.y));
+  const h=scale*1.62*(.72+.28*clamp(-facing,0,1));
+  if(w<scale*.9)return;
 
   c.save();c.translate(q(center.x),q(center.y));c.rotate(rot);
   const frame=[
-    {x:-w*.52,y:-h*.55},{x:w*.52,y:-h*.55},{x:w*.52,y:h*.55},{x:-w*.52,y:h*.55}
+    {x:-w*.54,y:-h*.56},{x:w*.54,y:-h*.56},{x:w*.54,y:h*.56},{x:-w*.54,y:h*.56}
   ];
   fillRagged(c,frame,'#080705','#1a0d09',Math.max(1.2,scale*.09),2401);
   c.globalAlpha=.72;roughStroke(c,frame,'#6d2a1c',Math.max(.7,scale*.04),2402,true);c.globalAlpha=1;
 
-  const d=new Date();
-  const hh=String(d.getHours()).padStart(2,'0'),mm=String(d.getMinutes()).padStart(2,'0');
-  const str=hh+mm;
+  const d=new Date(),hh=String(d.getHours()).padStart(2,'0'),mm=String(d.getMinutes()).padStart(2,'0'),str=hh+mm;
   const ds=h*.72,dw=ds*.74,gap=ds*.10;
   const total=dw*4+gap*5+ds*.20;
-  let xx=-total*.5+gap;
-  const yy=-ds*.55;
-  c.save();c.translate(0,0);
+  let xx=-total*.5+gap,yy=-ds*.55;
   for(let i=0;i<4;i++){
     if(i===2){
       const cx0=xx-gap*.10;
@@ -889,19 +926,15 @@ function drawClock(c,now){
       c.globalAlpha=(Math.floor(now/1000)%2===0)?.90:.25;
       blob(c,cx0,yy+ds*.43,ds*.055,ds*.055,c.fillStyle,null,0,2500,.08,10);
       blob(c,cx0,yy+ds*.83,ds*.055,ds*.055,c.fillStyle,null,0,2501,.08,10);
-      c.globalAlpha=1;c.globalCompositeOperation='source-over';
-      xx+=ds*.20;
+      c.globalAlpha=1;c.globalCompositeOperation='source-over';xx+=ds*.20;
     }
-    drawDigit(c,str[i],xx,yy,ds*.92,2600+i);
-    xx+=dw+gap;
+    drawDigit(c,str[i],xx,yy,ds*.92,2600+i);xx+=dw+gap;
   }
-  c.restore();
 
-  // tiny warm halo, like old LEDs behind dirty glass.
   c.globalCompositeOperation='screen';c.globalAlpha=.12;
-  const g=c.createRadialGradient(0,0,0,0,0,w*.48);
-  g.addColorStop(0,'rgba(238,77,36,.42)');g.addColorStop(1,'rgba(0,0,0,0)');
-  c.fillStyle=g;c.beginPath();c.ellipse(0,0,w*.48,h*.48,0,0,TAU);c.fill();
+  const glow=c.createRadialGradient(0,0,0,0,0,w*.48);
+  glow.addColorStop(0,'rgba(238,77,36,.42)');glow.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=glow;c.beginPath();c.ellipse(0,0,w*.48,h*.48,0,0,TAU);c.fill();
   c.restore();
 }
 
@@ -921,18 +954,18 @@ function drawDynamic(now){
     const site=sites[si];
     for(let bi=0;bi<site.blocks.length;bi++){
       const b=site.blocks[bi],pos=blockWorld(site,b),p=wp(pos.x,pos.z,(b.y+.5)*BLOCK_H);
-      items.push({type:'block',si,bi,d:p.d,h:b.y});
+      items.push({type:'block',si,bi,depth:p.zv,py:p.y,h:b.y});
     }
     for(const [bpKey,bp] of site.blueprints){
       const pos=worldCell(site,bp.cand.gx,bp.cand.gz),p=wp(pos.x,pos.z,(bp.cand.y+.5)*BLOCK_H);
-      items.push({type:bp.status==='building'?'building':'blueprint',si,bpKey,d:p.d,h:bp.cand.y});
+      items.push({type:bp.status==='building'?'building':'blueprint',si,bpKey,depth:p.zv,py:p.y,h:bp.cand.y});
     }
   }
   for(let i=0;i<players.length;i++){
     const pl=players[i],p=wp(pl.x,pl.z,pl.h+pl.jump+.42);
-    items.push({type:'player',i,d:p.d,h:(pl.h+pl.jump)/BLOCK_H});
+    items.push({type:'player',i,depth:p.zv,py:p.y,h:(pl.h+pl.jump)/BLOCK_H});
   }
-  items.sort((u,v)=>u.d-v.d || u.h-v.h);
+  items.sort((u,v)=>u.depth-v.depth || u.py-v.py || u.h-v.h);
   for(const it of items){
     if(it.type==='block')drawBlock(ctx,sites[it.si],sites[it.si].blocks[it.bi],it.bi,now,it.si);
     else if(it.type==='blueprint')drawBlueprint(ctx,sites[it.si],sites[it.si].blueprints.get(it.bpKey),now,it.si);
@@ -993,13 +1026,13 @@ function pm(e){
   if(pointers.size===1){yaw+=(next.x-old.x)*.008;staticDirty=true}
   else if(pointers.size===2){
     const p=[...pointers.values()],d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);
-    if(pinch){zoom=clamp(zoom*d/pinch,.72,1.58);scale=Math.min(IW/41,IH/25)*zoom;staticDirty=true}
+    if(pinch){zoom=clamp(zoom*d/pinch,.34,3.40);scale=Math.min(IW/37,IH/22.5)*zoom;staticDirty=true}
     pinch=d;
   }
 }
 function pu(e){pointers.delete(e.pointerId);pinch=0}
 canvas.addEventListener('pointerdown',pd);canvas.addEventListener('pointermove',pm);canvas.addEventListener('pointerup',pu);canvas.addEventListener('pointercancel',pu);
-canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=clamp(zoom*Math.exp(-e.deltaY*.0009),.72,1.58);scale=Math.min(IW/41,IH/25)*zoom;staticDirty=true},{passive:false});
+canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=clamp(zoom*Math.exp(-e.deltaY*.0009),.34,3.40);scale=Math.min(IW/37,IH/22.5)*zoom;staticDirty=true},{passive:false});
 addEventListener('resize',resize,{passive:true});
 document.addEventListener('visibilitychange',()=>{visible=!document.hidden;if(visible){last=0;staticDirty=true}});
 resize();requestAnimationFrame(frame);
