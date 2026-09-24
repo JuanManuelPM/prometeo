@@ -2,6 +2,12 @@ plugins {
     id 'com.android.application'
 }
 
+def releaseKeystorePath = System.getenv('PROMETEO_ANDROID_KEYSTORE_PATH')
+def releaseStorePassword = System.getenv('PROMETEO_ANDROID_STORE_PASSWORD')
+def releaseKeyAlias = System.getenv('PROMETEO_ANDROID_KEY_ALIAS')
+def releaseKeyPassword = System.getenv('PROMETEO_ANDROID_KEY_PASSWORD')
+def hasReleaseSigning = releaseKeystorePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+
 android {
     namespace 'com.prometeo.mobile'
     compileSdk 36
@@ -23,11 +29,25 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(releaseKeystorePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         debug {
             minifyEnabled false
         }
         release {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
