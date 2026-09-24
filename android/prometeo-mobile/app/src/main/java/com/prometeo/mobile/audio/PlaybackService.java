@@ -1,6 +1,7 @@
 package com.prometeo.mobile.audio;
 
 import android.app.Notification;
+import android.app.PendingIntent;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Intent;
@@ -19,6 +20,8 @@ import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.session.MediaSession;
 import androidx.media3.session.MediaSessionService;
 
+import com.prometeo.mobile.MainActivity;
+import com.prometeo.mobile.R;
 import com.prometeo.mobile.data.SessionStore;
 import com.prometeo.mobile.net.MobileGatewayClient;
 import com.prometeo.mobile.security.DeviceIdentity;
@@ -45,6 +48,7 @@ public final class PlaybackService extends MediaSessionService {
     private MediaSession mediaSession;
     private VoiceAudioRepository audioRepository;
     private NotificationManager notifications;
+    private PendingIntent sessionActivity;
     private final ExecutorService loader = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final AtomicInteger generation = new AtomicInteger();
@@ -91,7 +95,18 @@ public final class PlaybackService extends MediaSessionService {
             }
         });
 
-        mediaSession = new MediaSession.Builder(this, player).build();
+        Intent openApp = new Intent(this, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        sessionActivity = PendingIntent.getActivity(
+                this,
+                4102,
+                openApp,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        mediaSession = new MediaSession.Builder(this, player)
+                .setSessionActivity(sessionActivity)
+                .build();
 
         try {
             DeviceIdentity identity = new DeviceIdentity(this);
@@ -130,10 +145,12 @@ public final class PlaybackService extends MediaSessionService {
 
     private void startPreparationForeground() {
         Notification notification = new Notification.Builder(this, PREP_CHANNEL)
-                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setSmallIcon(R.drawable.ic_stat_prometeo)
                 .setContentTitle("Prometeo")
                 .setContentText("Preparando voz…")
                 .setCategory(Notification.CATEGORY_TRANSPORT)
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setContentIntent(sessionActivity)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 .build();
@@ -207,8 +224,9 @@ public final class PlaybackService extends MediaSessionService {
 
     private static MediaItem item(Uri uri, String headline, int part) {
         MediaMetadata metadata = new MediaMetadata.Builder()
-                .setTitle("Prometeo · Voz")
-                .setArtist(headline)
+                .setTitle(headline)
+                .setArtist("Prometeo")
+                .setAlbumTitle("Voz")
                 .setSubtitle("Parte " + (part + 1))
                 .build();
 
