@@ -17,9 +17,7 @@ body{overscroll-behavior:none}
 #wrap{position:absolute;inset:0;overflow:hidden;background:#050504}
 #scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;filter:contrast(1.08) saturate(.82) brightness(.89)}
 #postfx{position:absolute;inset:0;width:100%;height:100%;display:none;pointer-events:none;z-index:2}
-#mapStage{position:absolute;inset:0;width:100%;height:100%;border:0;display:none;background:#050504;z-index:2}
-#wrap.maps #scene,#wrap.maps #veil,#wrap.maps #grain,#wrap.maps #grade,#wrap.maps #exposure{display:none}
-#wrap.maps #mapStage{display:block}
+#mapStage{display:none!important}
 #wrap.effects #postfx{display:block}
 
 #veil{position:absolute;inset:-3%;pointer-events:none;background:
@@ -97,7 +95,6 @@ body{overscroll-behavior:none}
 <div id="wrap">
   <canvas id="scene" aria-label="Coliseo nocturno ilustrado con jugadores en movimiento"></canvas>
   <canvas id="postfx" aria-hidden="true"></canvas>
-  <iframe id="mapStage" title="Mapa canónico del Coliseo" src="../coliseo-3d/"></iframe>
   <div id="veil" aria-hidden="true"></div>
   <div id="grain" aria-hidden="true"></div>
   <div id="grade" aria-hidden="true"></div>
@@ -240,7 +237,8 @@ const labHelp=document.getElementById('labHelp');
 const componentPicker=document.getElementById('componentPicker');
 
 function modeDefaultZoom(mode){
-  return mode==='structures'?.78:(mode==='workers'?1.02:(mode==='effects'?.86:.90));
+  // One camera contract for every Component Lab mode.
+  return .72;
 }
 zoom=modeDefaultZoom(COMPONENT_MODE);
 
@@ -258,7 +256,7 @@ function renderPicker(){
     html+='<span class="sep"></span>';
     html+=Object.entries(FX_PRESETS).map(([id,v])=>'<button data-fx="'+id+'" class="sub '+(FX_PRESET===id?'on':'')+'">'+v.label+'</button>').join('');
   }else if(COMPONENT_MODE==='maps'){
-    html+='<span class="sep"></span><button class="sub on" data-map="coliseo">coliseo clásico</button>';
+    html+='<span class="sep"></span><button class="sub on" data-map="coliseo">coliseo canónico</button>';
   }
   componentPicker.innerHTML=html;
   requestAnimationFrame(()=>{
@@ -272,12 +270,11 @@ function applyModeState(resetZoom=true){
     wrap.classList.remove('structures','workers','effects','maps');
     wrap.classList.add(COMPONENT_MODE);
   }
-  if(mapStage&&COMPONENT_MODE==='maps')mapStage.src='../coliseo-3d/?v=8ef25c0a';
   if(labHelp){
-    labHelp.textContent=COMPONENT_MODE==='structures'?'estructuras: rotación automática · arrastrá · zoom':
-      COMPONENT_MODE==='workers'?'workers: estados aislados · sin construcción':
-      COMPONENT_MODE==='effects'?'efectos indie: deslizá la barra inferior · arrastrá · zoom':
-      'mapas: Coliseo canónico · nuevos mapas se agregan acá';
+    labHelp.textContent=COMPONENT_MODE==='structures'?'coliseo circular: rotá para recorrer estructuras · zoom para detalle':
+      COMPONENT_MODE==='workers'?'workers distribuidos en el anillo · rotá para recorrerlos':
+      COMPONENT_MODE==='effects'?'efectos distribuidos en el anillo · mismo mundo/cámara/depth':
+      'mapas: Coliseo canónico · mismo shell para futuros mapas';
   }
   staticDirty=true;
   resize();
@@ -287,7 +284,7 @@ function applyModeState(resetZoom=true){
 function switchMode(mode){
   if(!['structures','workers','effects','maps'].includes(mode))return;
   COMPONENT_MODE=mode;
-  applyModeState(true);
+  applyModeState(false);
 }
 function switchFX(id){
   if(!FX_PRESETS[id])return;
@@ -305,17 +302,6 @@ if(componentPicker){
     const b=e.target.closest('button');if(!b)return;
     if(b.dataset.mode)switchMode(b.dataset.mode);
     else if(b.dataset.fx)switchFX(b.dataset.fx);
-  });
-}
-if(mapStage){
-  mapStage.addEventListener('load',()=>{
-    try{
-      const d=mapStage.contentDocument;
-      if(!d||d.getElementById('component-embed-style'))return;
-      const st=d.createElement('style');st.id='component-embed-style';
-      st.textContent='.ui{display:none!important}html,body{background:#050504!important}';
-      d.head.appendChild(st);
-    }catch(_){}
   });
 }
 renderPicker();
@@ -591,13 +577,66 @@ function paintArenaRelics(c){
 function paintBackdrop(){
   const c=sctx;
   c.fillStyle='#050504';c.fillRect(0,0,IW,IH);
-  inkWash(c,IW*.16,IH*.42,IW*.34,IH*.52,'#2b1712',.11,40,3);
-  inkWash(c,IW*.84,IH*.34,IW*.30,IH*.44,'#18231d',.12,71,3);
 
-  // Neutral physical test floor. No Coliseo, no workers, no ritual.
-  blob(c,cx,cy+scale*2.30,scale*17.3,scale*4.55,'rgba(0,0,0,.62)',null,0,9001,.022,64);
-  blob(c,cx,cy+scale*.20,scale*14.8,scale*3.65,'#31261f','#100b08',1.4,9002,.018,74);
+  inkWash(c,IW*.12,IH*.42,IW*.31,IH*.45,'#2b1712',.12,40,3);
+  inkWash(c,IW*.87,IH*.35,IW*.30,IH*.42,'#18231d',.13,71,3);
 
+  // ground shadow and arena
+  blob(c,cx,cy+scale*4.8,scale*19.8,scale*4.7,'rgba(0,0,0,.63)',null,0,9,.025,58);
+  blob(c,cx,cy,scale*13.05,scale*4.55,C.sand,'#160d09',1.7,18,.018,82);
+  blob(c,cx,cy+scale*.06,scale*11.65,scale*4.03,'rgba(115,66,38,.20)',null,0,29,.025,70);
+
+  // stains in arena, not scratches
+  c.save();
+  for(let i=0;i<120;i++){
+    const u=hash(i,17),v=hash(i,29),rr=Math.sqrt(u)*9.5,ang=v*TAU;
+    const x=Math.cos(ang)*rr,z=Math.sin(ang)*rr;
+    const rad=.08+hash(i,44)*.18;
+    groundPatch(c,x,z,rad*(1.1+hash(i,61)*.7),rad,i%11===0?C.red2:(i%5===0?'#7a4a2f':'#120c09'),.08+hash(i,55)*.10,2100+i,9);
+  }
+  c.restore();
+
+  // terraced stands: broad painted bands
+  band(c,13.18,14.00,.54,.98,C.stone2,C.stone,100);
+  band(c,13.92,14.74,.96,1.38,C.moss2,C.moss,130);
+  band(c,14.66,15.46,1.36,1.80,'#39443a','#202a25',160);
+  band(c,15.38,16.20,1.78,2.24,'#4b4b3f','#292820',190);
+
+  // rear wall as one ragged illustrated mass
+  band(c,16.55,18.20,2.30,7.38,C.stone2,C.stone,260);
+  inkWash(c,cx-IW*.16,cy-scale*4.95,scale*5.6,scale*2.9,'#5d2a22',.13,301,2);
+  inkWash(c,cx+IW*.18,cy-scale*4.75,scale*5.0,scale*2.7,'#26332a',.13,331,2);
+
+  paintArenaRelics(c);
+
+  // arches as imperfect ink voids
+  for(let i=0;i<20;i++){
+    const ang=i*TAU/20+.02;if(cut(ang))continue;
+    drawArch(c,ang,i);
+  }
+
+  // Structural pilasters use the same cuboid grammar as blocks/sign frames.
+  for(let i=0;i<13;i++){
+    const ang=i*TAU/13+.04;if(cut(ang))continue;
+    const base=wallBoardBasis(ang,18.08,4.86);
+    if(base.facing<=.025)continue;
+    drawBoardCuboid(c,base,0,0,.30,4.60,.24,i%3===0?'#5d493d':'#45463d',500+i*9);
+  }
+
+  paintWallDetails(c);
+
+  // crown
+  band(c,17.86,18.62,7.36,7.92,'#715043','#3d2c26',360);
+
+  // Crown intentionally left structural; legacy paper flags were removed.
+
+  // old stand torch stains removed
+
+  // overall darkness: old stand torches are gone, ritual fire now owns the light.
+  c.save();c.fillStyle='rgba(0,0,0,.20)';c.fillRect(0,0,IW,IH);c.restore();
+
+  // clean half-section edges
+  paintCutEdges(c);
 }
 function windowBasis(ang){
   return wallBoardBasis(ang,18.18,4.92);
@@ -1538,7 +1577,7 @@ function drawProgressTube(c,site,index){
 }
 
 const LAST_UPDATE_MS=Date.parse('2026-09-24T12:43:59.511Z');
-const BUILD_VERSION='COMPONENT-LAB-5';
+const BUILD_VERSION='COMPONENT-LAB-6';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -2368,7 +2407,7 @@ function renderWorldSolidsGL(targetCtx){
     edges:lineCount,
     depthFormula:'0.57*forward + 0.35*height',
     mode:COMPONENT_MODE,
-    contract:'prometeo.component_renderer/v1',
+    contract:'prometeo.component_world/v2',
     emissives:WORLD_EMISSIVE.length
   };
   return true;
@@ -2378,9 +2417,57 @@ const COMPONENT_MODULE=.72;
 let COMPONENT_SERIAL=1;
 let COMPONENT_USER_DRAG_UNTIL=0;
 
+/* =========================================================
+   COMPONENT WORLD CONTRACT V2
+   One Coliseo, one camera, one projection, one ring layout,
+   one solid renderer, one emissive depth pass.
+   ========================================================= */
+
+const COMPONENT_WORLD={
+  ringRadius:8.25,
+  structureRadius:8.25,
+  workerRadius:8.45,
+  effectRadius:8.30,
+  slots:[
+    {id:'tower',angle:-2.62,label:'TORRE'},
+    {id:'monument',angle:-1.78,label:'BASE + NÚCLEO'},
+    {id:'gate',angle:-.94,label:'PUERTA'},
+    {id:'bridge',angle:-.10,label:'PUENTE'},
+    {id:'workshop',angle:.74,label:'TALLER'},
+    {id:'archive',angle:1.58,label:'ARCHIVO'},
+    {id:'spire',angle:2.42,label:'TORRE ALTA'}
+  ],
+  workerStates:['IDLE','WALK','DESIGN','BUILD','CARRY','STALE','DONE']
+};
+
+function slotFrame(slot,radius=COMPONENT_WORLD.ringRadius){
+  const angle=slot.angle;
+  // Local X is tangent; local Z points inward toward the arena.
+  const rot=angle+Math.PI/2;
+  const ux=Math.cos(rot),uz=Math.sin(rot),nx=-Math.sin(rot),nz=Math.cos(rot);
+  return {
+    ...slot,angle,rot,ux,uz,nx,nz,
+    x:Math.cos(angle)*radius,
+    z:Math.sin(angle)*radius
+  };
+}
+function slotPoint(frame,lx=0,lz=0,h=0){
+  return {
+    x:frame.x+frame.ux*lx+frame.nx*lz,
+    z:frame.z+frame.uz*lx+frame.nz*lz,
+    h
+  };
+}
+function slotFrontness(frame){
+  // Same front/back convention used by the Coliseo cut.
+  return Math.sin(frame.angle+yaw);
+}
+function slotBox(frame,lx,lz,baseH,w,d,h,color,seed,localRot=0){
+  const p=slotPoint(frame,lx,lz,baseH);
+  componentModuleBox(p.x,p.z,baseH,w,d,h,color,seed,frame.rot+localRot);
+}
 function componentModuleBox(x,z,baseH,w,d,h,color,seed,rot=0){
-  // Physical structures are decomposed before render.
-  // Large monoliths are forbidden in the structure lab.
+  // All physical Component objects decompose into the same bounded module size.
   const nx=Math.max(1,Math.ceil(w/COMPONENT_MODULE));
   const nz=Math.max(1,Math.ceil(d/COMPONENT_MODULE));
   const sx=w/nx,sz=d/nz;
@@ -2397,310 +2484,234 @@ function componentModuleBox(x,z,baseH,w,d,h,color,seed,rot=0){
     });
   }
 }
-
-function componentBlock(x,z,y,color,seed){
-  componentModuleBox(x,z,y*.62,.66,.66,.62,color,seed);
+function slotBlock(frame,lx,lz,y,color,seed){
+  slotBox(frame,lx,lz,y*.62,.66,.66,.62,color,seed);
 }
 
-function buildStructureTower(ox,oz,seed){
-  for(let y=0;y<5;y++){
-    const r=Math.max(0,2-Math.floor(y/2));
-    for(let x=-r;x<=r;x++)for(let z=-r;z<=r;z++){
-      if(Math.abs(x)+Math.abs(z)>r+1)continue;
-      componentBlock(ox+x*.68,oz+z*.68,y,BLOCK_COLORS[(seed+x*3+z*5+y+20)%BLOCK_COLORS.length],seed*100+y*30+x*7+z);
+/* ---------- circular structure builders ---------- */
+
+function buildRingTower(frame,seed,tall=false){
+  const levels=tall?7:5;
+  for(let y=0;y<levels;y++){
+    const r=Math.max(0,(tall?2:2)-Math.floor(y/2));
+    for(let gx=-r;gx<=r;gx++)for(let gz=-r;gz<=r;gz++){
+      if(Math.abs(gx)+Math.abs(gz)>r+1)continue;
+      slotBlock(frame,gx*.68,gz*.68,y,BLOCK_COLORS[(seed+gx*3+gz*5+y+40)%BLOCK_COLORS.length],seed*100+y*30+gx*7+gz);
     }
   }
 }
-
-function buildStructureMonument(ox,oz,seed){
-  // Broad base intentionally decomposed to the same modules as towers.
-  componentModuleBox(ox,oz,.02,4.5,3.0,.22,'#44382f',seed+1);
-  componentModuleBox(ox,oz,.24,3.2,2.1,.22,'#594539',seed+2);
-  componentModuleBox(ox,oz,.46,2.1,1.4,.22,'#6a5040',seed+3);
-  componentModuleBox(ox,oz,.68,.82,.82,3.15,'#62503f',seed+4);
-  const sent=[[-1.42,-.82],[1.42,-.82],[-1.42,.82],[1.42,.82]];
-  sent.forEach(([x,z],i)=>{
-    componentModuleBox(ox+x,oz+z,.68,.48,.48,1.92,i%2?'#48574d':'#604538',seed+20+i);
-    componentModuleBox(ox+x,oz+z,2.60,.62,.62,.20,'#79523a',seed+30+i);
-  });
+function buildRingMonument(frame,seed){
+  slotBox(frame,0,0,.02,4.2,2.7,.22,'#44382f',seed+1);
+  slotBox(frame,0,0,.24,3.1,2.0,.22,'#594539',seed+2);
+  slotBox(frame,0,0,.46,2.0,1.35,.22,'#6a5040',seed+3);
+  slotBox(frame,0,0,.68,.82,.82,3.00,'#62503f',seed+4);
+  for(const [x,z,i] of [[-1.35,-.72,0],[1.35,-.72,1],[-1.35,.72,2],[1.35,.72,3]]){
+    slotBox(frame,x,z,.68,.48,.48,1.82,i%2?'#48574d':'#604538',seed+20+i);
+    slotBox(frame,x,z,2.50,.62,.62,.20,'#79523a',seed+30+i);
+  }
 }
-
-function buildStructureGate(ox,oz,seed){
-  // Every pylon and bar uses the exact same modular box primitive.
+function buildRingGate(frame,seed){
   for(const sx of [-1,1]){
-    for(let y=0;y<4;y++)componentModuleBox(ox+sx*.92,oz,.02+y*.56,.56,.58,.54,y%2?'#4c352d':'#5b4033',seed+sx*10+y);
+    for(let y=0;y<4;y++)slotBox(frame,sx*.92,0,.02+y*.56,.56,.58,.54,y%2?'#4c352d':'#5b4033',seed+sx*10+y);
   }
-  componentModuleBox(ox,oz,2.28,2.42,.58,.42,'#684431',seed+30);
-  for(let k=-3;k<=3;k++)componentModuleBox(ox+k*.30,oz-.03,.04,.085,.18,2.08,'#241714',seed+40+k);
+  slotBox(frame,0,0,2.28,2.42,.58,.42,'#684431',seed+30);
+  for(let k=-3;k<=3;k++)slotBox(frame,k*.30,-.03,.04,.085,.18,2.08,'#241714',seed+40+k);
 }
-
-function buildStructureBridge(ox,oz,seed){
+function buildRingBridge(frame,seed){
   for(const sx of [-1,1]){
-    componentModuleBox(ox+sx*2.30,oz,.02,.72,.72,1.72,'#4a3b31',seed+sx*10);
-    componentModuleBox(ox+sx*1.40,oz,.02,.52,.52,.98,'#3f3630',seed+sx*20);
+    slotBox(frame,sx*2.08,0,.02,.72,.72,1.56,'#4a3b31',seed+sx*10);
+    slotBox(frame,sx*1.32,0,.02,.52,.52,.90,'#3f3630',seed+sx*20);
   }
-  for(let i=-5;i<=5;i++)componentModuleBox(ox+i*.46,oz,1.74,.42,.70,.16,i%2?'#65513f':'#4f4439',seed+50+i);
-  for(const side of [-1,1])for(let i=-5;i<=5;i+=2)componentModuleBox(ox+i*.46,oz+side*.34,1.91,.10,.10,.46,'#6d4d36',seed+80+side*20+i);
+  for(let i=-5;i<=5;i++)slotBox(frame,i*.42,0,1.58,.38,.66,.16,i%2?'#65513f':'#4f4439',seed+50+i);
+  for(const side of [-1,1])for(let i=-5;i<=5;i+=2)slotBox(frame,i*.42,side*.31,1.75,.10,.10,.42,'#6d4d36',seed+80+side*20+i);
 }
-
-function buildStructureWorkshop(ox,oz,seed){
-  componentModuleBox(ox,oz,.02,3.0,2.1,.14,'#414038',seed+1);
-  for(const sx of [-1,1])for(const sz of [-1,1]){
-    componentModuleBox(ox+sx*1.18,oz+sz*.72,.16,.13,.13,1.56,'#765038',seed+10+(sx>0?4:0)+(sz>0?1:0));
-  }
-  for(let i=0;i<6;i++){
-    componentModuleBox(ox-.72+(i%3)*.48,oz-.28+Math.floor(i/3)*.48,.16,.34,.34,.24,BLOCK_COLORS[(seed+i)%BLOCK_COLORS.length],seed+30+i);
-  }
-  componentModuleBox(ox,oz+.60,1.05,1.65,.12,.70,'#4d7770',seed+60);
+function buildRingWorkshop(frame,seed){
+  slotBox(frame,0,0,.02,2.85,1.95,.14,'#414038',seed+1);
+  for(const sx of [-1,1])for(const sz of [-1,1])slotBox(frame,sx*1.10,sz*.66,.16,.13,.13,1.42,'#765038',seed+10+(sx>0?4:0)+(sz>0?1:0));
+  for(let i=0;i<6;i++)slotBox(frame,-.68+(i%3)*.46,-.26+Math.floor(i/3)*.45,.16,.32,.32,.24,BLOCK_COLORS[(seed+i)%BLOCK_COLORS.length],seed+30+i);
+  slotBox(frame,0,.55,1.00,1.55,.12,.65,'#4d7770',seed+60);
 }
-
-function buildStructureArchive(ox,oz,seed){
+function buildRingArchive(frame,seed){
   for(let y=0;y<8;y++){
-    const w=1.70-y*.09;
-    componentModuleBox(ox,oz,.02+y*.58,w,w,.54,y%2?'#34483d':'#4b4034',seed+y*10);
-    if(y===2||y===5){
-      for(const sx of [-1,1])componentModuleBox(ox+sx*(w*.62),oz,.02+y*.58,.24,.24,.54,'#6b4935',seed+80+y*5+(sx>0?1:0));
-    }
+    const w=1.72-y*.09;
+    slotBox(frame,0,0,.02+y*.58,w,w,.54,y%2?'#34483d':'#4b4034',seed+y*10);
+    if(y===2||y===5)for(const sx of [-1,1])slotBox(frame,sx*(w*.62),0,.02+y*.58,.24,.24,.54,'#6b4935',seed+80+y*5+(sx>0?1:0));
   }
 }
-
-function buildStructureGallery(now){
+function buildCircularStructureWorld(){
   resetWorldGeometry();
+  resetWorldEmissive();
   COMPONENT_SERIAL=1;
-  buildStructureTower(-7.8,-1.3,1);
-  buildStructureMonument(-2.6,-.7,2);
-  buildStructureGate(2.4,-.6,3);
-  buildStructureBridge(7.1,-.9,4);
-  buildStructureWorkshop(-5.2,3.1,5);
-  buildStructureArchive(.4,3.2,6);
-  buildStructureTower(6.1,3.1,7);
+  const slots=COMPONENT_WORLD.slots.map(s=>slotFrame(s,COMPONENT_WORLD.structureRadius));
+  buildRingTower(slots[0],1,false);
+  buildRingMonument(slots[1],2);
+  buildRingGate(slots[2],3);
+  buildRingBridge(slots[3],4);
+  buildRingWorkshop(slots[4],5);
+  buildRingArchive(slots[5],6);
+  buildRingTower(slots[6],7,true);
 }
-
-function componentFaceComparator(a,b){
-  // Structures use the same stable rule as the canonical blocks:
-  // camera depth of the small physical module first, then vertical level.
-  // No pair-dependent comparator, no threshold-driven "state swap".
-  const da=a.ownerDepth==null?a.depth:a.ownerDepth;
-  const db=b.ownerDepth==null?b.depth:b.ownerDepth;
-  if(Math.abs(da-db)>.0005)return da-db;
-  const ha=a.ownerBaseH==null?(a.minH||0):a.ownerBaseH;
-  const hb=b.ownerBaseH==null?(b.minH||0):b.ownerBaseH;
-  if(Math.abs(ha-hb)>.0005)return ha-hb;
-  return (a.faceOrder||0)-(b.faceOrder||0)||(a.stableId||0)-(b.stableId||0);
-}
-
-function drawComponentWorldGrid(c){
-  c.save();c.globalAlpha=.15;
-  for(let x=-12;x<=12;x+=2){
-    const a=wp(x,-7,.012),b=wp(x,7,.012);
-    roughStroke(c,[a,b],x===0?'#69402d':'#54443a',Math.max(.45,scale*.018),29100+x+20,false);
-  }
-  for(let z=-6;z<=6;z+=2){
-    const a=wp(-13,z,.012),b=wp(13,z,.012);
-    roughStroke(c,[a,b],z===0?'#69402d':'#54443a',Math.max(.45,scale*.018),29200+z+20,false);
-  }
-  c.restore();
-}
-
-function drawStructureLabels(c){
-  const labels=[
-    [-7.8,-1.3,'TORRE / BLOQUES'],
-    [-2.6,-.7,'BASE + NÚCLEO'],
-    [2.4,-.6,'PUERTA'],
-    [7.1,-.9,'PUENTE'],
-    [-5.2,3.1,'TALLER'],
-    [.4,3.2,'ARCHIVO'],
-    [6.1,3.1,'TORRE ALTA']
-  ];
+function drawRingLabels(c,slots=COMPONENT_WORLD.slots){
   c.save();c.textAlign='center';c.textBaseline='middle';
   c.font='750 '+Math.max(7,scale*.27)+'px system-ui';
-  c.fillStyle='rgba(199,170,137,.70)';
-  for(const [x,z,label] of labels){
-    const p=wp(x,z,-.24);
-    c.fillText(label,p.x,p.y+scale*.70);
+  for(const slot of slots){
+    const f=slotFrame(slot,COMPONENT_WORLD.ringRadius);
+    const front=slotFrontness(f);
+    if(front<-.50)continue;
+    const p=wp(f.x,f.z,-.18);
+    c.globalAlpha=.24+.58*clamp((front+.5)/1.5,0,1);
+    c.fillStyle='#c7aa89';
+    c.fillText(slot.label,p.x,p.y+scale*.72);
   }
   c.restore();
 }
-
 function drawStructureGallery(now){
-  drawComponentWorldGrid(ctx);
-  buildStructureGallery(now);
-
-  // Primary path: per-pixel Z-buffer. Object call order no longer decides occlusion.
+  buildCircularStructureWorld();
   const gpuOK=renderWorldSolidsGL(ctx);
-
-  // Conservative fallback for browsers/devices without WebGL.
   if(!gpuOK){
     const faces=compileWorldFaces();
     faces.sort(componentFaceComparator);
     for(const face of faces)renderGeomFace(ctx,face);
   }
-
-  flushTransparentGeometry(ctx);
-  drawStructureLabels(ctx);
+  drawRingLabels(ctx);
 }
+
+/* ---------- circular workers ---------- */
 
 function workerDemoData(now){
   const t=now/1000;
-  const xs=[-7.5,-5.0,-2.5,0,2.5,5.0,7.5];
-  const states=['IDLE','WALK','DESIGN','BUILD','CARRY','STALE','DONE'];
-  return xs.map((x,i)=>{
-    const walk=i===1?Math.sin(t*1.6)*.45:0;
-    const build=i===3?Math.abs(Math.sin(t*3.1))*.16:0;
+  return COMPONENT_WORLD.workerStates.map((label,i)=>{
+    const slot=COMPONENT_WORLD.slots[i];
+    const f=slotFrame({...slot,angle:slot.angle},COMPONENT_WORLD.workerRadius);
+    let lx=0,lz=.15,jump=0;
+    if(label==='WALK')lx=Math.sin(t*1.6)*.62;
+    if(label==='BUILD')jump=Math.abs(Math.sin(t*3.1))*.16;
+    const p=slotPoint(f,lx,lz,0);
     return {
-      label:states[i],
+      label,slot,f,
       pl:{
-        x:x+walk,z:0,h:0,jump:build,
+        x:p.x,z:p.z,h:0,jump,
         size:.48,color:playerSeed[i%playerSeed.length],
-        energy:i===5?.10:(i===6?.82:1),
-        segment:i===1?{sx:x-.5,sz:0,ex:x+.5,ez:0}:null,
-        task:i===2?{type:'design'}:(i===3?{type:'build'}:(i===4?{type:'carry'}:null))
+        energy:label==='STALE'?.10:(label==='DONE'?.82:1),
+        segment:null,
+        task:label==='DESIGN'?{type:'design'}:(label==='BUILD'?{type:'build'}:(label==='CARRY'?{type:'carry'}:null))
       }
     };
   });
 }
-
 function drawWorkerGallery(now){
   const t=now/1000,data=workerDemoData(now);
+  resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
 
-  resetWorldGeometry();
-  resetWorldEmissive();
-  COMPONENT_SERIAL=1;
-
-  // Every non-agent physical prop uses the same solid renderer.
   for(let i=0;i<data.length;i++){
-    const {pl,label}=data[i];
-    if(label==='DESIGN'){
-      componentModuleBox(pl.x+.36,pl.z,.04,.46,.46,.08,'#4d7770',27100+i);
-    }else if(label==='BUILD'){
+    const {pl,label,f}=data[i];
+    // One physical station platform per worker, same solid grammar as structures.
+    slotBox(f,0,.10,.02,1.35,.82,.10,label==='STALE'?'#2f2724':'#3d352f',27000+i);
+    if(label==='DESIGN')slotBox(f,.38,.10,.14,.46,.46,.08,'#4d7770',27100+i);
+    else if(label==='BUILD'){
       const lift=.42+Math.abs(Math.sin(t*3.1))*.42;
-      componentModuleBox(pl.x+.34,pl.z,lift,.38,.38,.28,'#a68a43',27120+i);
-    }else if(label==='CARRY'){
-      componentModuleBox(pl.x+.02,pl.z,.62,.42,.42,.34,'#b08445',27140+i);
-    }else if(label==='DONE'){
-      componentModuleBox(pl.x+.44,pl.z,.03,.34,.34,.18,'#506657',27160+i);
-    }
+      slotBox(f,.38,.10,lift,.38,.38,.28,'#a68a43',27120+i);
+    }else if(label==='CARRY')slotBox(f,.08,.10,.62,.42,.42,.34,'#b08445',27140+i);
+    else if(label==='DONE')slotBox(f,.42,.10,.14,.34,.34,.18,'#506657',27160+i);
   }
   renderWorldSolidsGL(ctx);
 
   for(let i=0;i<data.length;i++){
-    const {pl,label}=data[i];
-    groundPatch(ctx,pl.x,pl.z,1.05,.50,i===5?'#2b201d':'#25231f',.48,27000+i,14);
+    const {pl,label,f}=data[i];
     drawPlayer(ctx,pl,t,i);
-    const p=wp(pl.x,pl.z,-.18);
-    ctx.save();ctx.globalAlpha=.72;ctx.fillStyle='#b79b7e';ctx.font='700 '+Math.max(7,scale*.30)+'px system-ui';ctx.textAlign='center';
-    ctx.fillText(label,p.x,p.y+scale*.90);ctx.restore();
+    const front=slotFrontness(f);
+    if(front>-.50){
+      const p=wp(pl.x,pl.z,-.18);
+      ctx.save();ctx.globalAlpha=.24+.60*clamp((front+.5)/1.5,0,1);ctx.fillStyle='#b79b7e';ctx.font='700 '+Math.max(7,scale*.28)+'px system-ui';ctx.textAlign='center';
+      ctx.fillText(label,p.x,p.y+scale*.82);ctx.restore();
+    }
   }
 }
 
-function fitEffectsCamera(){
-  const bounds={minX:-7.2,maxX:7.2,minZ:-2.7,maxZ:5.9,minH:0,maxH:3.7};
-  const cs=Math.cos(yaw),sn=Math.sin(yaw),pts=[];
-  for(const x of [bounds.minX,bounds.maxX])for(const z of [bounds.minZ,bounds.maxZ])for(const h of [bounds.minH,bounds.maxH]){
-    const sx=x*cs-z*sn,fw=z*cs+x*sn;
-    pts.push({u:sx,v:fw*.35-h*.57});
-  }
-  const us=pts.map(p=>p.u),vs=pts.map(p=>p.v);
-  const minU=Math.min(...us),maxU=Math.max(...us),minV=Math.min(...vs),maxV=Math.max(...vs);
-  const fitScale=Math.min(IW*.84/Math.max(.01,maxU-minU),IH*.70/Math.max(.01,maxV-minV));
-  scale=fitScale*zoom;
-  cx=IW*.5-((minU+maxU)*.5)*scale;
-  cy=IH*.50-((minV+maxV)*.5)*scale;
-}
-const EFFECT_PANELS=[
-  {x:-5.8,z:-.8,rot:.15,title:'KAIROS',col:'#76503a'},
-  {x:-.5,z:-.8,rot:.72,title:'NYX',col:'#506657'},
-  {x:4.9,z:-.8,rot:1.22,title:'ASTERION',col:'#6f3631'}
+/* ---------- circular effects ---------- */
+
+const EFFECT_STATIONS=[
+  {id:'pixel',angle:-2.50,label:'PIXEL',col:'#76503a'},
+  {id:'psx',angle:-1.50,label:'PSX',col:'#506657'},
+  {id:'dither',angle:-.50,label:'DITHER',col:'#6f3631'},
+  {id:'fire',angle:.50,label:'FUEGO',col:'#8b5734'},
+  {id:'tape',angle:1.50,label:'TAPE',col:'#46584c'},
+  {id:'nightmare',angle:2.50,label:'NIGHTMARE',col:'#6f3c31'}
 ];
-
-function effectPanelBase(x,z,h,rot){
-  return heavyBasis(x,z,h,Math.cos(rot),Math.sin(rot));
-}
-function effectLocalPoint(p,lx){
-  const ux=Math.cos(p.rot),uz=Math.sin(p.rot);
-  return {x:p.x+ux*lx,z:p.z+uz*lx};
+function effectPanelBaseFromFrame(f,h){
+  return heavyBasis(f.x,f.z,h,f.ux,f.uz);
 }
 function buildEffectsWorld(now){
-  resetWorldGeometry();
-  resetWorldEmissive();
-  COMPONENT_SERIAL=1;
+  resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
 
-  // Signs use exactly componentModuleBox, the same primitive as gate/archive/bridge.
-  for(let i=0;i<EFFECT_PANELS.length;i++){
-    const p=EFFECT_PANELS[i],left=effectLocalPoint(p,-1.72),right=effectLocalPoint(p,1.72);
-    componentModuleBox(left.x,left.z,.02,.16,.16,3.05,p.col,30000+i*50,p.rot);
-    componentModuleBox(right.x,right.z,.02,.16,.16,3.05,p.col,30010+i*50,p.rot);
-    componentModuleBox(p.x,p.z,1.25,3.30,.16,1.75,'#c9bda7',30020+i*50,p.rot);
-    const top=effectLocalPoint(p,0),bottom=top;
-    componentModuleBox(top.x,top.z,2.91,3.62,.20,.18,p.col,30030+i*50,p.rot);
-    componentModuleBox(bottom.x,bottom.z,1.18,3.62,.20,.18,p.col,30040+i*50,p.rot);
-  }
+  for(let i=0;i<EFFECT_STATIONS.length;i++){
+    const station=EFFECT_STATIONS[i],f=slotFrame(station,COMPONENT_WORLD.effectRadius);
+    // Panel, posts, pedestal and fuel are all the same shared solid primitive.
+    slotBox(f,-1.18,0,.02,.14,.14,2.55,station.col,30000+i*40);
+    slotBox(f, 1.18,0,.02,.14,.14,2.55,station.col,30010+i*40);
+    slotBox(f,0,0,1.02,2.42,.16,1.20,'#c9bda7',30020+i*40);
+    slotBox(f,0,.72,.02,.62,.62,.52,'#4b3428',30030+i*40);
 
-  // Torch pedestals are also universal solids.
-  const fires=[[-5.6,3.0,.72],[-1.9,3.0,1.0],[1.9,3.0,1.35],[5.6,3.0,1.75]];
-  for(let i=0;i<fires.length;i++){
-    const [x,z,power]=fires[i];
-    componentModuleBox(x,z,.02,.44,.44,.82,'#4b3428',30300+i);
-    addWorldEmissive(x,z,.84,.88+power*.34,.36+power*.08,.72+power*.12,30400+i);
-  }
-
-  // Burning-mass test: physical fuel first, depth-aware flame second.
-  for(let i=0;i<8;i++){
-    const a=i*TAU/8,r=.18+(i%3)*.17,x=Math.cos(a)*r,z=5.15+Math.sin(a)*r;
-    componentModuleBox(x,z,.02,.30,.30,.18,i%2?'#38251d':'#513124',30500+i);
-    addWorldEmissive(x,z,.18,1.05+(i%3)*.22,.34,1.0,30600+i);
+    // Depth-aware world flame. It is occluded by any solid closer to camera.
+    const fp=slotPoint(f,0,.72,.54);
+    addWorldEmissive(fp.x,fp.z,.54,.88+(i%3)*.20,.34+(i%2)*.07,.78+(i%3)*.10,30100+i);
   }
 }
 function drawEffectText(c){
-  // Semantic text stays a surface annotation; its physical panel is depth-rendered.
-  for(let i=0;i<EFFECT_PANELS.length;i++){
-    const p=EFFECT_PANELS[i],base=effectPanelBase(p.x,p.z,2.15,p.rot);
-    drawReadableBoardText(c,base,p.title,0,-.10,2.70,.52,.24,900,'Georgia,serif','#211711',.10);
+  c.save();
+  for(let i=0;i<EFFECT_STATIONS.length;i++){
+    const station=EFFECT_STATIONS[i],f=slotFrame(station,COMPONENT_WORLD.effectRadius);
+    const front=slotFrontness(f);
+    if(front<-.55)continue;
+    const base=effectPanelBaseFromFrame(f,1.62);
+    c.globalAlpha=.28+.70*clamp((front+.55)/1.55,0,1);
+    drawReadableBoardText(c,base,station.label,0,-.08,2.02,.42,.22,900,'Georgia,serif','#211711',.10);
   }
+  c.restore();
 }
 function drawEffectsGallery(now){
-  fitEffectsCamera();
-  drawComponentWorldGrid(ctx);
   buildEffectsWorld(now);
-
   const gpuOK=renderWorldSolidsGL(ctx);
   if(!gpuOK){
     const faces=compileWorldFaces();
     faces.sort(componentFaceComparator);
     for(const face of faces)renderGeomFace(ctx,face);
-    // Fallback fire is intentionally omitted rather than violating depth rules.
   }
   drawEffectText(ctx);
 }
 
-function drawComponentLab(now){
-  if(COMPONENT_MODE==='maps'){
-    if(labBadge)labBadge.textContent='MAPAS · COLISEO CANÓNICO · 8EF25C0A';
-    return;
-  }
+/* ---------- one circular world for every mode ---------- */
 
+function drawMapGallery(now){
+  // Maps mode intentionally shows only the approved canonical Coliseo shell.
+  // Future maps must plug into this same camera/world contract.
+  if(labBadge)labBadge.textContent='MAPAS · COLISEO CANÓNICO · WORLD CONTRACT V2';
+}
+
+function drawComponentLab(now){
   ctx.fillStyle=C.black;ctx.fillRect(0,0,IW,IH);
   ctx.drawImage(staticCanvas,0,0);
 
   if(COMPONENT_MODE==='structures')drawStructureGallery(now);
   else if(COMPONENT_MODE==='workers')drawWorkerGallery(now);
-  else drawEffectsGallery(now);
+  else if(COMPONENT_MODE==='effects')drawEffectsGallery(now);
+  else drawMapGallery(now);
 
   if(labBadge){
     const deg=((yaw*180/Math.PI)%360+360)%360;
     if(COMPONENT_MODE==='structures'){
       const st=window.WORLD_RENDER_STATS||{};
       const metric=st.renderer==='webgl-depth'?((st.triangles||0)+' TRI'):(st.faces||0)+' CARAS';
-      labBadge.textContent='ESTRUCTURAS · '+deg.toFixed(0)+'° · '+metric;
+      labBadge.textContent='ESTRUCTURAS · ANILLO · '+deg.toFixed(0)+'° · '+metric;
     }else if(COMPONENT_MODE==='workers'){
-      labBadge.textContent='WORKERS · 7 ESTADOS · SIN CONSTRUCCIÓN';
-    }else{
+      labBadge.textContent='WORKERS · ANILLO · '+deg.toFixed(0)+'°';
+    }else if(COMPONENT_MODE==='effects'){
       labBadge.textContent='EFECTOS · '+FX_CFG.label.toUpperCase()+' · '+deg.toFixed(0)+'°';
     }
   }
 
   drawAnalogSignal(ctx,now);
-  applyPostFX(now);
+  if(COMPONENT_MODE==='effects')applyPostFX(now);
 }
 
 /* =========================================================
@@ -3546,8 +3557,9 @@ function drawDynamic(now){
 }
 function frame(now){
   if(!visible){requestAnimationFrame(frame);return}
-  if(COMPONENT_SPIN&&COMPONENT_MODE!=='workers'&&COMPONENT_MODE!=='maps'&&now>COMPONENT_USER_DRAG_UNTIL){
+  if(COMPONENT_SPIN&&COMPONENT_MODE!=='workers'&&now>COMPONENT_USER_DRAG_UNTIL){
     yaw+=.0022;
+    staticDirty=true;
   }
   if(now-last>=FRAME){
     if(staticDirty){paintBackdrop();staticDirty=false}
@@ -3565,7 +3577,7 @@ function pd(e){
 function pm(e){
   const old=pointers.get(e.pointerId);if(!old)return;
   const next=pointerPoint(e);pointers.set(e.pointerId,next);
-  if(pointers.size===1){yaw+=(next.x-old.x)*.008;COMPONENT_USER_DRAG_UNTIL=performance.now()+2600}
+  if(pointers.size===1){yaw+=(next.x-old.x)*.008;COMPONENT_USER_DRAG_UNTIL=performance.now()+2600;staticDirty=true}
   else if(pointers.size===2){
     const p=[...pointers.values()],d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);
     if(pinch){zoom=clamp(zoom*d/pinch,.34,3.40);scale=Math.min(IW/37,IH/22.5)*zoom;staticDirty=true}
