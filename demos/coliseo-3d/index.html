@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="theme-color" content="#050504">
-<meta name="prometeo-rev" content="20260924T1945Z-MONITOR-V3">
+<meta name="prometeo-rev" content="20260924T2032Z-MACRO-MONITOR-V4">
 <title>Coliseo · collage nocturno</title>
 <style>
 :root{--ink:#d7b48b;--muted:#806f60}
@@ -228,13 +228,13 @@ body{overscroll-behavior:none}
     <div class="monStats">
       <div class="monStat"><b id="monActiveBig">—</b><span>ACTIVOS</span></div>
       <div class="monStat reserve" id="monReserveBox"><b id="monReserveBig">—</b><span>RESERVA</span></div>
-      <div class="monStat"><b id="monProductPct">—</b><span>PRODUCT-100</span></div>
+      <div class="monStat"><b id="monProductPct">—</b><span id="monThirdLabel">PRODUCT</span></div>
     </div>
 
     <div class="monSimpleTitle"><span>AHORA</span><span id="monWorkerCounts">—</span></div>
     <div class="monWorkers" id="monWorkers"><div class="monEmpty">cargando…</div></div>
 
-    <div class="monSimpleTitle"><span>PRODUCT</span><span id="monP100WorkersCount">—</span></div>
+    <div class="monSimpleTitle"><span id="monLaneTitle">BUILD LANES</span><span id="monP100WorkersCount">—</span></div>
     <div class="monProductWorkers" id="monP100Workers"><div class="monEmpty">sin worker</div></div>
 
     <div class="monFocus" id="monFocus"><b>CUELLO —</b><span>esperando frontier</span></div>
@@ -1540,7 +1540,7 @@ function drawProgressTube(c,site,index){
 }
 
 const LAST_UPDATE_MS=Date.parse('2026-09-24T12:43:59.511Z');
-const BUILD_VERSION='V3.13';
+const BUILD_VERSION='V3.14';
 const DIGITS={
  '0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],
  '3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],
@@ -2511,7 +2511,7 @@ setInterval(refresh,8000);
 <script>
 (function(){
 'use strict';
-const CURRENT_REV='20260924T1945Z-MONITOR-V3';
+const CURRENT_REV='20260924T2032Z-MACRO-MONITOR-V4';
 const panel=document.getElementById('monitorPanel');
 if(!panel)return;
 
@@ -2531,7 +2531,9 @@ const ui={
   reserveBig:$('monReserveBig'),
   reserveBox:$('monReserveBox'),
   productPct:$('monProductPct'),
-  alarm:$('monAlarm')
+  alarm:$('monAlarm'),
+  thirdLabel:$('monThirdLabel'),
+  laneTitle:$('monLaneTitle')
 };
 
 let key=null;
@@ -2580,22 +2582,41 @@ function workerRow(w){
 function renderWorkers(data){
   const workers=Array.isArray(data.workers)?data.workers:[];
   const active=workers.filter(w=>['WORKING','SUSPECT'].includes(w.evidence_state));
-  ui.activeBig.textContent=active.length;
+  const cap=data.capacity||{};
+  const macro=data.macro_build||{};
+  const builders=Array.isArray(macro.builders)?macro.builders:[];
+  const productDone=Number((data.product_jobs||{}).remaining||0)===0;
+
+  ui.activeBig.textContent=Number(cap.active_workers||active.length);
   ui.workers.innerHTML=active.length?active.slice(0,6).map(workerRow).join(''):'<div class="monEmpty">sin activos</div>';
 
   const c=data.worker_counts||{};
   ui.workerCounts.textContent=(Number(c.working||0))+(Number(c.suspect||0)?' +'+Number(c.suspect||0)+'?':'');
 
-  const pw=Array.isArray(data.product_workers)?data.product_workers:[];
-  ui.pcount.textContent=pw.length?pw.length+' activo':'0';
-  ui.pworkers.innerHTML=pw.length?pw.slice(0,3).map(w=>workerRow({
-    worker_code:w.worker_code,
-    evidence_state:w.evidence_state,
-    current_job:{node_key:w.node_key}
-  })).join(''):'<div class="monEmpty">sin worker Product</div>';
-
-  const pct=Number((data.product_percentage||{}).display||0);
-  ui.productPct.textContent=pct+'%';
+  if(productDone && builders.length){
+    const running=builders.filter(b=>b.state==='ACTIVE');
+    ui.pcount.textContent=running.length+' / '+builders.length;
+    ui.laneTitle.textContent='BUILD LANES';
+    ui.pworkers.innerHTML=running.length?running.slice(0,4).map(b=>workerRow({
+      worker_code:String(b.guide_key||'BUILD').slice(0,4),
+      evidence_state:'WORKING',
+      current_job:{node_key:b.node_key}
+    })).join(''):'<div class="monEmpty">sin builders activos</div>';
+    ui.productPct.textContent=running.length+'/'+builders.length;
+    ui.thirdLabel.textContent='BUILD';
+  }else{
+    const pw=Array.isArray(data.product_workers)?data.product_workers:[];
+    ui.pcount.textContent=pw.length?pw.length+' activo':'0';
+    ui.laneTitle.textContent='PRODUCT';
+    ui.pworkers.innerHTML=pw.length?pw.slice(0,3).map(w=>workerRow({
+      worker_code:w.worker_code,
+      evidence_state:w.evidence_state,
+      current_job:{node_key:w.node_key}
+    })).join(''):'<div class="monEmpty">sin worker Product</div>';
+    const pct=Number((data.product_percentage||{}).display||0);
+    ui.productPct.textContent=pct+'%';
+    ui.thirdLabel.textContent='PRODUCT';
+  }
 }
 
 function updateCapacity(data){
@@ -2634,6 +2655,79 @@ function buildDepths(nodes,edges){
 }
 
 function renderGraph(data){
+  const productDone=Number((data.product_jobs||{}).remaining||0)===0;
+  const macro=data.macro_build||{};
+  const builders=Array.isArray(macro.builders)?macro.builders:[];
+  const verifiers=Array.isArray(macro.verifiers)?macro.verifiers:[];
+
+  if(productDone && builders.length){
+    const nodes=[];
+    const edges=[];
+    for(const b of builders){
+      nodes.push({
+        key:b.node_key,
+        title:b.title||b.node_key,
+        state:b.state||'READY',
+        progress_stage:b.stage||'',
+        recovery_count:b.recovery_count||0,
+        branch:b.guide_key||'BUILD'
+      });
+      const v=verifiers.find(x=>x.for===b.node_key);
+      if(v){
+        nodes.push({
+          key:v.node_key,
+          title:v.title||v.node_key,
+          state:v.state||'BLOCKED',
+          progress_stage:v.stage||'',
+          recovery_count:v.recovery_count||0,
+          branch:b.guide_key||'BUILD'
+        });
+        edges.push({from:b.node_key,to:v.node_key});
+      }
+    }
+
+    const fp=JSON.stringify(nodes.map(n=>[n.key,n.state,n.progress_stage,n.recovery_count]));
+    const W=390,nodeW=78,nodeH=27,top=28,rowGap=58;
+    const pairs=builders.length;
+    const H=top+pairs*rowGap+40;
+    let edgeSvg='',nodeSvg='';
+
+    builders.forEach((b,i)=>{
+      const y=top+i*rowGap+18;
+      const bx=108,vx=284;
+      const v=verifiers.find(x=>x.for===b.node_key);
+      if(v){
+        const hot=b.state==='ACTIVE'||v.state==='ACTIVE'||v.state==='READY';
+        edgeSvg+='<path class="gEdge'+(hot?' hot':'')+'" d="M '+(bx+nodeW/2)+' '+y+' C 175 '+y+', 215 '+y+', '+(vx-nodeW/2)+' '+y+'"/>';
+      }
+      const bcls=safe(b.state||'READY');
+      nodeSvg+='<g class="gNodeGroup '+bcls+'" transform="translate('+(bx-nodeW/2)+' '+(y-nodeH/2)+')">'+
+        '<rect class="gBox '+bcls+'" width="'+nodeW+'" height="'+nodeH+'" rx="2"/>'+
+        '<text class="gText" x="'+(nodeW/2)+'" y="'+(nodeH/2+1)+'">'+safe(String(b.node_key).replace('MB-','').replace('-01',''))+'</text>'+
+        '<title>'+safe((b.title||'')+' · '+(b.state||'')+' · '+(b.stage||''))+'</title></g>';
+      if(v){
+        const vcls=safe(v.state||'BLOCKED');
+        nodeSvg+='<g class="gNodeGroup '+vcls+'" transform="translate('+(vx-nodeW/2)+' '+(y-nodeH/2)+')">'+
+          '<rect class="gBox '+vcls+'" width="'+nodeW+'" height="'+nodeH+'" rx="2"/>'+
+          '<text class="gText" x="'+(nodeW/2)+'" y="'+(nodeH/2+1)+'">VERIFY</text>'+
+          '<title>'+safe((v.title||'')+' · '+(v.state||'')+' · '+(v.stage||''))+'</title></g>';
+      }
+    });
+
+    ui.graph.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" aria-label="Macro build lanes">'+edgeSvg+nodeSvg+'</svg>';
+    ui.graph.style.minHeight=H+'px';
+
+    const focus=builders.find(n=>n.state==='ACTIVE')||builders.find(n=>n.state==='READY');
+    const done=builders.filter(n=>n.state==='DONE').length;
+    const active=builders.filter(n=>n.state==='ACTIVE').length;
+    const ready=builders.filter(n=>n.state==='READY').length;
+    ui.focus.innerHTML='<b>BUILD '+done+'/'+builders.length+'</b><span>'+active+' activos · '+ready+' listos</span>';
+
+    if(fp!==lastGraphFingerprint && Date.now()>scrollPauseUntil)ui.viewport.scrollTop=0;
+    lastGraphFingerprint=fp;
+    return;
+  }
+
   const nodes=Array.isArray(data.product_nodes)?data.product_nodes:[];
   const edges=Array.isArray(data.product_edges)?data.product_edges:[];
   if(!nodes.length){ui.graph.innerHTML='';return}
@@ -2687,7 +2781,7 @@ function renderGraph(data){
     const rec=Number(focus.recovery_count||0);
     ui.focus.innerHTML='<b>CUELLO '+safe(focus.key)+'</b><span>'+safe(focus.state)+(rec?' · retry '+rec:'')+'</span>';
   }else{
-    ui.focus.innerHTML='<b>CUELLO —</b><span>sin frontier</span>';
+    ui.focus.innerHTML='<b>PRODUCT COMPLETE</b><span>30 / 30</span>';
   }
 
   if(fp!==lastGraphFingerprint && Date.now()>scrollPauseUntil)ui.viewport.scrollTop=0;
@@ -2732,11 +2826,12 @@ function flashUpdate(label){
 }
 
 function fingerprint(data){
-  const s=data.product_summary||{},cap=data.capacity||{};
+  const s=data.product_summary||{},cap=data.capacity||{},macro=data.macro_build||{};
   const workers=Array.isArray(data.workers)?data.workers:[];
   return JSON.stringify([
     Number(s.done||0),Number(s.ready||0),Number(s.active||0),Number(s.blocked||0),
-    Number(cap.capacity_gap||0),
+    Number(cap.capacity_gap||0),Number(cap.macro_active_jobs||0),Number(cap.macro_ready||0),
+    Array.isArray(macro.builders)?macro.builders.map(b=>[b.node_key,b.state,b.stage]):[],
     workers.filter(w=>w.evidence_state==='WORKING').map(w=>[w.worker_code,w.current_job&&w.current_job.node_key]).sort()
   ]);
 }
