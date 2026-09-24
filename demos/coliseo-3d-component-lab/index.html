@@ -377,7 +377,7 @@ function updateURL(){
 }
 function renderPicker(){
   if(!componentPicker)return;
-  const modes=[['structures','estructuras'],['workers','workers'],['effects','escena fx'],['maps','mapas']];
+  const modes=[['structures','estructuras'],['primitives','primitives'],['workers','workers'],['effects','escena fx'],['maps','mapas']];
   let html=modes.map(([id,label])=>'<button data-mode="'+id+'" class="'+(COMPONENT_MODE===id?'on':'')+'">'+label+'</button>').join('');
   html+='<span class="sep"></span><button data-open-fx="1" class="sub '+(FX_DRAWER_OPEN?'on':'')+'">ajustes fx'+(FX_PRESET!=='off'?' · '+FX_PRESET:'')+'</button>';
   if(COMPONENT_MODE==='maps'){
@@ -440,11 +440,12 @@ function setFxControl(key,value){
 function applyModeState(resetZoom=true){
   if(resetZoom)zoom=modeDefaultZoom(COMPONENT_MODE);
   if(wrap){
-    wrap.classList.remove('structures','workers','effects','maps');
+    wrap.classList.remove('structures','primitives','workers','effects','maps');
     wrap.classList.add(COMPONENT_MODE);
   }
   if(labHelp){
     labHelp.textContent=COMPONENT_MODE==='structures'?'coliseo circular: rotá para recorrer estructuras · zoom para detalle':
+      COMPONENT_MODE==='primitives'?'primitives: bloques · depth · banner world-space/backface · viewport · misma cámara':
       COMPONENT_MODE==='workers'?'workers distribuidos en el anillo · rotá para recorrerlos':
       COMPONENT_MODE==='effects'?'escena de prueba FX · los ajustes FX también funcionan en todos los otros modos':
       'mapas: deslizá para cambiar mundo · misma cámara, depth, rotación y FX';
@@ -457,7 +458,7 @@ function applyModeState(resetZoom=true){
   updateURL();
 }
 function switchMode(mode){
-  if(!['structures','workers','effects','maps'].includes(mode))return;
+  if(!['structures','primitives','workers','effects','maps'].includes(mode))return;
   COMPONENT_MODE=mode;
   applyModeState(false);
 }
@@ -3056,6 +3057,134 @@ function drawStructureGallery(now){
   drawRingLabels(ctx);
 }
 
+
+/* ---------- reusable 3D primitive regression lab ---------- */
+
+const PRIMITIVE_CASES=[
+  {id:'blocks',angle:-2.36,label:'BLOCK KIT'},
+  {id:'depth',angle:-.82,label:'DEPTH CROSS'},
+  {id:'banner',angle:.82,label:'WORLD BANNER'},
+  {id:'viewport',angle:2.36,label:'VIEWPORT'}
+];
+
+function primitiveFrame(def){
+  return slotFrame(def,7.55);
+}
+function worldPanelBasis(frame,h){
+  const cameraX=Math.sin(yaw),cameraZ=Math.cos(yaw);
+  return {
+    a:{x:frame.x,z:frame.z,h,ang:frame.angle},
+    ux:frame.ux,uz:frame.uz,nx:frame.nx,nz:frame.nz,
+    facing:frame.nx*cameraX+frame.nz*cameraZ
+  };
+}
+function worldPanelFrontVisible(base,threshold=.035){
+  // Backface rule for semantic/front-only content.
+  // The physical slab remains world-fixed and is still rendered as geometry.
+  return base.facing>threshold;
+}
+function renderComponentGeometry(targetCtx){
+  const gpuOK=renderWorldSolidsGL(targetCtx);
+  if(gpuOK)return 'webgl-depth';
+  const faces=compileWorldFaces();
+  faces.sort(componentFaceComparator);
+  for(const face of faces)renderGeomFace(targetCtx,face);
+  return 'canvas-depth-sort';
+}
+function buildPrimitiveRegressionWorld(){
+  resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
+
+  // 1 · BLOCK KIT. Same bounded module decomposition used by every structure.
+  {
+    const f=primitiveFrame(PRIMITIVE_CASES[0]);
+    slotBox(f,0,0,.02,3.45,2.10,.12,'#3d352f',52000);
+    for(let y=0;y<4;y++){
+      const count=4-y;
+      for(let x=0;x<count;x++){
+        const lx=(x-(count-1)/2)*.70;
+        slotBlock(f,lx,.05,y,['#76503a','#506657','#6f3c31','#80603a'][y],52020+y*20+x);
+      }
+    }
+    slotBox(f,0,.72,.14,2.55,.12,.46,'#4d7770',52120);
+  }
+
+  // 2 · DEPTH CROSS. Interpenetrating world solids exercise the z-buffer/fallback sorter.
+  {
+    const f=primitiveFrame(PRIMITIVE_CASES[1]);
+    slotBox(f,0,0,.02,3.70,2.60,.12,'#312d29',52200);
+    slotBox(f,0,0,.42,3.40,.42,.42,'#78513a',52210, Math.PI/4);
+    slotBox(f,0,0,.66,3.40,.42,.42,'#42594e',52220,-Math.PI/4);
+    slotBox(f,0,0,.12,.48,.48,2.18,'#59453a',52230);
+    slotBox(f,.72,.18,1.38,.72,.72,.26,'#b08445',52240);
+  }
+
+  // 3 · WORLD BANNER. Fixed orientation, physical frame/slab, semantic front content only.
+  {
+    const f=primitiveFrame(PRIMITIVE_CASES[2]);
+    slotBox(f,-1.72,0,.02,.18,.22,3.18,'#604538',52300);
+    slotBox(f, 1.72,0,.02,.18,.22,3.18,'#604538',52310);
+    slotBox(f,0,0,.58,3.16,.16,1.74,'#c9bda7',52320);
+    slotBox(f,0,0,2.32,3.60,.22,.18,'#6b4935',52330);
+    slotBox(f,0,0,.42,3.60,.22,.18,'#6b4935',52340);
+    slotBox(f,-1.62,0,.50,.18,.22,1.90,'#6b4935',52350);
+    slotBox(f, 1.62,0,.50,.18,.22,1.90,'#6b4935',52360);
+  }
+
+  // 4 · VIEWPORT. Wide world-space frame intentionally approaches the view edges while rotating.
+  {
+    const f=primitiveFrame(PRIMITIVE_CASES[3]);
+    slotBox(f,0,0,.02,5.70,.62,.12,'#2f3430',52400);
+    slotBox(f,-2.58,0,.14,.18,.18,2.72,'#506657',52410);
+    slotBox(f, 2.58,0,.14,.18,.18,2.72,'#506657',52420);
+    slotBox(f,0,0,2.72,5.34,.18,.18,'#80603a',52430);
+    for(let i=-4;i<=4;i++){
+      slotBox(f,i*.58,0,.20,.10,.10,.34,i%2?'#76503a':'#4d7770',52450+i+5);
+    }
+  }
+}
+function drawPrimitiveRegressionLabels(c){
+  c.save();
+  c.textAlign='center';c.textBaseline='middle';
+  c.font='800 '+Math.max(7,scale*.26)+'px system-ui';
+
+  for(const def of PRIMITIVE_CASES){
+    const f=primitiveFrame(def);
+    const front=slotFrontness(f);
+    if(front<-.58)continue;
+    const p=wp(f.x,f.z,-.18);
+    c.globalAlpha=.28+.62*clamp((front+.58)/1.58,0,1);
+    c.fillStyle='#c7aa89';
+    c.fillText(def.label,p.x,p.y+scale*.78);
+
+    if(def.id==='banner'){
+      const base=worldPanelBasis(f,1.46);
+      if(worldPanelFrontVisible(base)){
+        drawReadableBoardText(c,base,'WORLD FIXED',0,-.18,2.58,.34,.17,900,'Georgia,serif','#231711',.095);
+        drawReadableBoardText(c,base,'FRONT / BACKFACE',0,.28,2.62,.22,.12,850,'system-ui','#6b4935',.095);
+      }
+    }
+  }
+  c.restore();
+}
+function drawPrimitiveGallery(now){
+  buildPrimitiveRegressionWorld();
+  const renderer=renderComponentGeometry(ctx);
+  drawPrimitiveRegressionLabels(ctx);
+  window.COMPONENT_PRIMITIVE_STATS={
+    contract:'prometeo.component_primitives/v1',
+    cases:PRIMITIVE_CASES.map(x=>x.id),
+    caseCount:PRIMITIVE_CASES.length,
+    sharedCamera:true,
+    sharedProjection:true,
+    sharedWorldRenderer:true,
+    renderer,
+    worldFixedBanner:true,
+    semanticBackfaceRule:'facing > .035',
+    viewportClip:'canvas/world projection'
+  };
+}
+
+
 /* ---------- circular workers ---------- */
 
 function workerDemoData(now){
@@ -3458,6 +3587,7 @@ function drawComponentLab(now){
   ctx.drawImage(staticCanvas,0,0);
 
   if(COMPONENT_MODE==='structures')drawStructureGallery(now);
+  else if(COMPONENT_MODE==='primitives')drawPrimitiveGallery(now);
   else if(COMPONENT_MODE==='workers')drawWorkerGallery(now);
   else if(COMPONENT_MODE==='effects')drawEffectsGallery(now);
   else drawMapGallery(now);
@@ -3468,6 +3598,9 @@ function drawComponentLab(now){
       const st=window.WORLD_RENDER_STATS||{};
       const metric=st.renderer==='webgl-depth'?((st.triangles||0)+' TRI'):(st.faces||0)+' CARAS';
       labBadge.textContent='ESTRUCTURAS · ANILLO · '+deg.toFixed(0)+'° · '+metric;
+    }else if(COMPONENT_MODE==='primitives'){
+      const ps=window.COMPONENT_PRIMITIVE_STATS||{};
+      labBadge.textContent='PRIMITIVES · '+(ps.caseCount||4)+' REGRESIONES · '+String(ps.renderer||'DEPTH').toUpperCase();
     }else if(COMPONENT_MODE==='workers'){
       labBadge.textContent='WORKERS · ANILLO · '+deg.toFixed(0)+'°';
     }else if(COMPONENT_MODE==='effects'){
