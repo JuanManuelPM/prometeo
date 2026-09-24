@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080808">
+<title>Prometeo · Daily</title>
+<style>
+:root{color-scheme:dark;--bg:#080808;--panel:#111;--fg:#f5f2eb;--dim:#9a978f;--line:#2a2926;--hot:#f5f2eb;--soft:#181816;--warn:#d8b66f}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{min-height:100vh}
+button{font:inherit}.shell{width:min(1120px,100%);margin:auto;padding:14px 14px 54px}.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:4px 0 14px;border-bottom:1px solid var(--line)}
+.brand{font-size:12px;font-weight:950;letter-spacing:.18em}.stamp{text-align:right;font-size:10px;line-height:1.35;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
+.modebar{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:12px 0 14px}.mode{min-height:42px;border:1px solid var(--line);background:transparent;color:var(--dim);font-weight:900;font-size:10px;letter-spacing:.11em;text-transform:uppercase;cursor:pointer}.mode[aria-selected="true"]{background:var(--fg);color:#000;border-color:var(--fg)}
+.hero{border:1px solid var(--line);background:var(--panel);padding:18px}.eyebrow{font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}h1{font-size:clamp(27px,7vw,52px);line-height:.98;letter-spacing:-.045em;margin:9px 0 12px;max-width:880px}.heroMeta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.pill{border:1px solid var(--line);padding:5px 7px;font-size:9px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}.pill.live{color:var(--fg);border-color:#56534d}
+.prompt{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:15px;line-height:1.45;max-width:780px}.grid{display:grid;gap:10px;margin-top:10px}.card{border:1px solid var(--line);background:var(--panel);padding:15px;min-width:0}.card h2{margin:0 0 11px;font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim)}.lead{font-size:20px;line-height:1.18;font-weight:820;letter-spacing:-.025em}.items{display:grid;gap:0}.item{padding:10px 0;border-top:1px solid var(--line);font-size:14px;line-height:1.38}.item:first-child{border-top:0;padding-top:0}.item:last-child{padding-bottom:0}.item .n{display:inline-block;min-width:26px;color:var(--dim);font-size:10px;font-weight:900}.source{margin-top:10px;color:var(--dim);font-size:10px;line-height:1.4}.empty{color:var(--dim);font-size:13px;line-height:1.45}.reviewLine{display:grid;grid-template-columns:16px 1fr;gap:9px;padding:8px 0;border-top:1px solid var(--line);font-size:13px;line-height:1.38}.reviewLine:first-child{border-top:0;padding-top:0}.mark{width:8px;height:8px;margin-top:5px;border:1px solid #77736b}.warning{color:var(--warn)}
+.footer{padding-top:14px;color:var(--dim);font-size:10px;line-height:1.4}.debug{margin-top:10px}.debug summary{cursor:pointer;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}pre{white-space:pre-wrap;word-break:break-word;font-size:10px;color:#aaa;max-height:280px;overflow:auto;border-top:1px solid var(--line);padding-top:10px}
+@media(min-width:760px){.shell{padding:22px 22px 64px}.modebar{width:510px}.grid{grid-template-columns:1.15fr .85fr}.card.span2{grid-column:1/-1}.hero{padding:24px}.lead{font-size:24px}}
+@media(min-width:1100px){.grid{grid-template-columns:1.1fr .9fr .9fr}.card.span2{grid-column:auto}.card.wide{grid-column:span 2}}
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="top">
+    <div class="brand">PROMETEO · DAILY</div>
+    <div class="stamp"><div id="sync">cargando fuentes reales…</div><div id="clock"></div></div>
+  </header>
+
+  <nav class="modebar" aria-label="Modo del día">
+    <button class="mode" data-mode="study" aria-selected="true">Estudio</button>
+    <button class="mode" data-mode="project" aria-selected="false">Proyecto</button>
+    <button class="mode" data-mode="reset" aria-selected="false">Reset</button>
+  </nav>
+
+  <section class="hero" aria-live="polite">
+    <div class="eyebrow" id="heroKicker">Foco ahora</div>
+    <h1 id="focus">Sin foco confirmado todavía.</h1>
+    <div class="heroMeta">
+      <span class="pill" id="modePill">Study day</span>
+      <span class="pill" id="sourcePill">Guide/ROOT</span>
+      <span class="pill" id="freshPill">sin timestamp</span>
+    </div>
+    <div class="prompt" id="prompt">Daily no inventa prioridades: si Guide/ROOT no trae una siguiente acción usable, lo muestra como vacío.</div>
+  </section>
+
+  <section class="grid">
+    <article class="card wide">
+      <h2 id="workTitle">Trabajo útil</h2>
+      <div id="work" class="items"><div class="empty">Esperando open_work / WORK.</div></div>
+      <div class="source" id="workSource"></div>
+    </article>
+
+    <article class="card">
+      <h2>Recursos disponibles</h2>
+      <div id="resources" class="items"><div class="empty">Sin recursos confirmados.</div></div>
+      <div class="source" id="resourceSource"></div>
+    </article>
+
+    <article class="card">
+      <h2>Revisión</h2>
+      <div id="review"><div class="empty">Sin lectura reciente.</div></div>
+      <div class="source" id="reviewSource"></div>
+    </article>
+
+    <article class="card span2">
+      <h2>Open loops</h2>
+      <div id="loops" class="items"><div class="empty">No hay loops visibles en las fuentes cargadas.</div></div>
+      <div class="source" id="loopSource"></div>
+    </article>
+  </section>
+
+  <details class="debug">
+    <summary>Estado de fuentes</summary>
+    <pre id="raw"></pre>
+  </details>
+  <div class="footer">Read-only. Cambiar de modo sólo cambia la lente local; no crea tareas, no promueve candidatos y no muta Guide/ROOT.</div>
+</main>
+<script>
+(()=>{
+'use strict';
+const REST='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const HEAD={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
+const TZ='America/Argentina/Buenos_Aires';
+const state={mode:'study',guide:null,roots:{},errors:[]};
+const $=id=>document.getElementById(id);
+const arr=v=>Array.isArray(v)?v:[];
+const text=v=>typeof v==='string'?v.trim():'';
+const uniq=a=>[...new Set(a.map(x=>text(x)).filter(Boolean))];
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+function clock(){
+  $('clock').textContent=new Intl.DateTimeFormat('es-AR',{timeZone:TZ,weekday:'short',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date()).replace('.','').toUpperCase();
+}
+function ago(iso){
+  const t=Date.parse(iso||''); if(!Number.isFinite(t))return 'sin timestamp';
+  const m=Math.max(0,Math.round((Date.now()-t)/60000));
+  if(m<2)return 'recién actualizado'; if(m<60)return `hace ${m} min`; const h=Math.round(m/60); if(h<48)return `hace ${h} h`; return `hace ${Math.round(h/24)} d`;
+}
+async function getGuide(){
+  const url=REST+'prometeo_domain_guide_capsules_v1?guide_key=eq.STUDY&order=version.desc&limit=1';
+  const r=await fetch(url,{headers:HEAD,cache:'no-store'}); if(!r.ok)throw new Error('STUDY capsule '+r.status); const rows=await r.json(); return rows[0]||null;
+}
+async function root(moduleKey){
+  const r=await fetch(REST+'rpc/prometeo_root_module_v1',{method:'POST',headers:HEAD,body:JSON.stringify({p_module_key:moduleKey}),cache:'no-store'});
+  if(!r.ok)throw new Error('ROOT '+moduleKey+' '+r.status); return await r.json();
+}
+function flattenStrings(v,depth=0){
+  if(depth>3||v==null)return [];
+  if(typeof v==='string')return [v];
+  if(Array.isArray(v))return v.flatMap(x=>flattenStrings(x,depth+1));
+  if(typeof v==='object')return Object.values(v).flatMap(x=>flattenStrings(x,depth+1));
+  return [];
+}
+function byKeys(obj,keys){
+  if(!obj||typeof obj!=='object')return [];
+  const out=[];
+  const walk=(v,d=0)=>{if(d>3||!v||typeof v!=='object')return; if(Array.isArray(v)){v.forEach(x=>walk(x,d+1));return;} for(const [k,val] of Object.entries(v)){if(keys.includes(k)){out.push(...flattenStrings(val));} walk(val,d+1)}};
+  walk(obj); return uniq(out);
+}
+function list(el,items,empty='Sin datos confirmados en esta fuente.'){
+  const a=uniq(items).slice(0,7); el.innerHTML=a.length?a.map((x,i)=>`<div class="item"><span class="n">${String(i+1).padStart(2,'0')}</span>${esc(x)}</div>`).join(''):`<div class="empty">${esc(empty)}</div>`;
+}
+function review(el,items){
+  const a=uniq(items).slice(0,6); el.innerHTML=a.length?a.map(x=>`<div class="reviewLine"><i class="mark"></i><div>${esc(x)}</div></div>`).join(''):'<div class="empty">Sin lectura reciente.</div>';
+}
+function first(...vals){for(const v of vals){const s=text(v);if(s)return s}return ''}
+function rootFocus(){
+  const n=state.roots.NEXT_ACTION||{}; const o=state.roots.OBJECTIVES||{}; const now=state.roots.NOW||{};
+  const candidates=[...byKeys(n,['next_action','action','headline','summary','text']),...byKeys(o,['objective','objectives','headline','summary']),...byKeys(now,['headline','summary','current'])];
+  return candidates[0]||'';
+}
+function modeData(){
+  const g=state.guide||{}; const workRoot=state.roots.WORK||{}; const nowRoot=state.roots.NOW||{}; const objRoot=state.roots.OBJECTIVES||{};
+  const guideWork=arr(g.open_work); const guideRead=arr(g.current_read); const caps=arr(g.capabilities); const decisions=arr(g.decisions); const ideas=arr(g.ideas);
+  const rootWork=byKeys(workRoot,['open_work','work','demands','tasks','pending','frontier']); const rootReview=byKeys(nowRoot,['summary','current','current_read','status','headline']); const objectives=byKeys(objRoot,['objectives','objective','goals','next']);
+  if(state.mode==='study')return {
+    kicker:'Foco de estudio',pill:'Study day',focus:first(g.headline,rootFocus(),'Elegí una unidad concreta de estudio.'),
+    prompt:'Primero una unidad cognitiva manejable; después recursos y pendientes. Nada de cargar un reproductor entero para decidir qué hacer.',
+    work:guideWork.length?guideWork:rootWork,resources:caps,review:guideRead.length?guideRead:rootReview,loops:uniq([...guideWork,...ideas]),
+    workTitle:'Siguiente bloque de estudio'
+  };
+  if(state.mode==='project')return {
+    kicker:'Foco de proyecto',pill:'Project day',focus:first(rootFocus(),objectives[0],g.headline,'No hay objetivo de proyecto confirmado.'),
+    prompt:'La lente Proyecto prioriza objetivos y WORK de ROOT. El Guide STUDY queda como contexto, no como excusa para inventar backlog.',
+    work:rootWork.length?rootWork:objectives,resources:uniq([...byKeys(nowRoot,['capabilities','resources']),...caps]),review:rootReview.length?rootReview:guideRead,loops:uniq([...rootWork,...guideWork]),
+    workTitle:'Trabajo material / siguiente corte'
+  };
+  return {
+    kicker:'Cierre y reinicio',pill:'Reset day',focus:first(rootFocus(),'Cerrar loops antes de abrir trabajo nuevo.'),
+    prompt:'Reset no es una lista nueva. Es revisar qué sigue abierto, qué merece conservarse y qué puede quedar explícitamente sin resolver.',
+    work:uniq([...guideRead,...decisions]),resources:uniq([...caps,...ideas]),review:uniq([...rootReview,...guideRead]),loops:uniq([...guideWork,...rootWork]),
+    workTitle:'Qué conservar antes de cortar'
+  };
+}
+function render(){
+  const d=modeData(); $('heroKicker').textContent=d.kicker; $('modePill').textContent=d.pill; $('focus').textContent=d.focus; $('prompt').textContent=d.prompt; $('workTitle').textContent=d.workTitle;
+  const gen=state.guide?.generated_at||state.roots.NOW?.generated_at||state.roots.NOW?.updated_at||''; $('freshPill').textContent=ago(gen);
+  const okRoots=Object.keys(state.roots).length; $('sourcePill').textContent=(state.guide?'Guide STUDY':'Guide vacío')+' · ROOT '+okRoots+'/5';
+  list($('work'),d.work,'No hay trabajo usable publicado para esta lente.'); list($('resources'),d.resources,'No hay recursos/capacidades confirmados.'); review($('review'),d.review); list($('loops'),d.loops,'No hay open loops visibles en las fuentes cargadas.');
+  $('workSource').textContent=d.work.length?'Fuente: '+(state.mode==='study'&&state.guide?'Guide STUDY':'ROOT/Guide'):'Fuente consultada, sin items usables.';
+  $('resourceSource').textContent='Sólo capacidades/recursos ya presentes en Guide/ROOT.'; $('reviewSource').textContent='Lectura read-only; no marca nada como completado.'; $('loopSource').textContent='No se crean loops localmente.';
+  const loaded=(state.guide?1:0)+okRoots; $('sync').textContent=state.errors.length?`${loaded}/6 fuentes · ${state.errors.length} con error`:`${loaded}/6 fuentes reales`; $('sync').className=state.errors.length?'warning':'';
+  $('raw').textContent=JSON.stringify({mode:state.mode,guide:state.guide,roots:state.roots,errors:state.errors},null,2);
+}
+async function load(){
+  const jobs=[['guide',getGuide()],...['NOW','OBJECTIVES','WORK','NEXT_ACTION','GUIDES'].map(k=>[k,root(k)])];
+  const settled=await Promise.allSettled(jobs.map(x=>x[1])); settled.forEach((r,i)=>{const key=jobs[i][0]; if(r.status==='fulfilled'){if(key==='guide')state.guide=r.value;else state.roots[key]=r.value}else state.errors.push(key+': '+r.reason.message)}); render();
+}
+document.querySelectorAll('.mode').forEach(b=>b.addEventListener('click',()=>{state.mode=b.dataset.mode;document.querySelectorAll('.mode').forEach(x=>x.setAttribute('aria-selected',String(x===b)));render()}));
+clock();setInterval(clock,30000);load();
+})();
+</script>
+</body>
+</html>
