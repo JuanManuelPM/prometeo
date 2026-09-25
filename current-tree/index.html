@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prometeo · Current Tree</title>
+<meta name="color-scheme" content="dark">
+<style>
+:root{
+  --bg:#090a0c;--panel:#101216;--panel2:#15181d;--line:#292d35;--ink:#f1f1ed;--muted:#8f96a3;
+  --current:#7fe39b;--stale:#f1c75b;--pending:#7eb6ff;--legacy:#777e89;--candidate:#c693ff;--bad:#ff7b7b;
+}
+*{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace}
+button,input{font:inherit} button{color:inherit}
+.top{position:sticky;top:0;z-index:20;background:rgba(9,10,12,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+.header{display:flex;gap:20px;align-items:flex-start;justify-content:space-between;padding:18px 22px 12px}
+.kicker{font-size:11px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase}.title{font-size:clamp(24px,3vw,42px);font-weight:900;letter-spacing:-.045em;margin-top:4px}
+.subtitle{color:var(--muted);font-size:12px;margin-top:7px;max-width:780px;line-height:1.45}
+.clock{text-align:right;color:var(--muted);font-size:11px;white-space:nowrap}
+.tabs{display:flex;gap:5px;padding:0 22px 12px}.tab{border:1px solid var(--line);background:transparent;padding:8px 11px;cursor:pointer}.tab.active{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.statusbar{display:flex;gap:7px;flex-wrap:wrap;padding:0 22px 13px}.pill{border:1px solid var(--line);padding:5px 8px;font-size:11px;display:inline-flex;gap:6px;align-items:center}.dot{width:7px;height:7px;border-radius:50%;background:var(--legacy)}
+.current .dot,.dot.current{background:var(--current)}.stale .dot,.dot.stale{background:var(--stale)}.pending .dot,.dot.pending{background:var(--pending)}.legacy .dot,.dot.legacy{background:var(--legacy)}.candidate .dot,.dot.candidate{background:var(--candidate)}.bad .dot,.dot.bad{background:var(--bad)}
+.notice{margin:14px 22px 0;border:1px solid #5e4e22;background:#18150d;padding:11px 13px;font-size:12px;line-height:1.5}.notice strong{color:var(--stale)}
+.workspace{display:grid;grid-template-columns:minmax(290px,370px) minmax(0,1fr);min-height:calc(100vh - 170px);margin-top:14px;border-top:1px solid var(--line)}
+.sidebar{border-right:1px solid var(--line);padding:13px 11px 60px;min-width:0}.main{padding:22px 24px 70px;min-width:0}
+.search{width:100%;background:var(--panel);color:var(--ink);border:1px solid var(--line);padding:10px;margin-bottom:10px;outline:none}.search:focus{border-color:#697180}
+.tree-section{margin:4px 0 11px}.tree-head{width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);padding:9px 7px;color:#cbd0d8;cursor:pointer;font-weight:800;font-size:12px;display:flex;justify-content:space-between}.tree-items{padding:5px 0}
+.node{width:100%;display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:7px;align-items:center;text-align:left;background:transparent;border:0;padding:6px 7px;cursor:pointer;color:#d9dce1;font-size:12px}.node:hover,.node.selected{background:var(--panel2)}.node .icon{color:#666f7c}.node .label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.badge{font-size:9px;padding:2px 5px;border:1px solid var(--line);color:var(--muted)}.badge.CURRENT{color:var(--current);border-color:#315a3b}.badge.STALE{color:var(--stale);border-color:#625327}.badge.PENDING,.badge.PENDING_SYNTHESIS{color:var(--pending);border-color:#324d70}.badge.LEGACY,.badge.SUPERSEDED{color:var(--legacy)}.badge.CANDIDATE{color:var(--candidate);border-color:#50396b}
+.eyebrow{font-size:11px;letter-spacing:.13em;color:var(--muted);text-transform:uppercase}.detail-title{font-size:clamp(25px,3vw,42px);line-height:1.02;letter-spacing:-.045em;margin:6px 0 10px;overflow-wrap:anywhere}.lede{color:#bcc2cb;max-width:900px;line-height:1.55;font-size:14px}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin:20px 0}.meta>div{background:var(--panel);padding:11px}.mk{color:var(--muted);font-size:9px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:5px}.mv{font-size:12px;overflow-wrap:anywhere}
+.section-title{font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin:27px 0 10px;color:#cdd1d8;border-bottom:1px solid var(--line);padding-bottom:8px}
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:7px}.step{border:1px solid var(--line);background:var(--panel);padding:8px 10px;font-size:11px}.arrow{color:#5f6671}
+.list{display:grid;gap:6px}.item{border-left:2px solid var(--line);padding:6px 9px;font-size:12px;color:#c5cad1;line-height:1.45}.item.warn{border-left-color:var(--stale)}.item.legacy{border-left-color:var(--legacy)}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#060708;border:1px solid var(--line);padding:12px;font-size:10px;line-height:1.45;color:#aeb5bf;max-height:520px;overflow:auto}
+details{margin-top:20px} summary{cursor:pointer;color:var(--muted);font-size:11px}
+a{color:#a8c8ff;text-decoration:none} a:hover{text-decoration:underline}
+.repo-legend{font-size:11px;color:var(--muted);line-height:1.5;padding:8px 4px 12px}.repo-row{padding-left:calc(var(--depth,0)*13px)}
+.folder-toggle{width:100%;display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:6px;align-items:center;border:0;background:transparent;color:#d8dce2;text-align:left;padding:5px 6px;cursor:pointer;font-size:11px}.folder-toggle:hover{background:var(--panel2)}
+.file-row{width:100%;display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:6px;align-items:center;border:0;background:transparent;color:#aeb5bf;text-align:left;padding:5px 6px;cursor:pointer;font-size:11px}.file-row:hover{background:var(--panel2)}
+.path-chip{font-size:9px;color:var(--legacy);border:1px solid var(--line);padding:1px 4px}.repo-results{display:grid;gap:2px}.repo-result{border:0;background:transparent;color:#bec4cd;text-align:left;padding:7px;cursor:pointer;font-size:10px;overflow-wrap:anywhere}.repo-result:hover{background:var(--panel2)}
+.empty{color:var(--muted);font-size:12px;padding:18px 7px}
+@media(max-width:800px){
+ .header{padding:15px 14px 10px}.tabs,.statusbar{padding-left:14px;padding-right:14px}.notice{margin-left:14px;margin-right:14px}
+ .workspace{grid-template-columns:1fr}.sidebar{border-right:0;border-bottom:1px solid var(--line);max-height:47vh;overflow:auto;padding-bottom:14px}.main{padding:18px 14px 60px}
+ .clock{display:none}.title{font-size:30px}
+}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="header">
+    <div>
+      <div class="kicker">PROMETEO / SINGLE ORIENTATION SURFACE</div>
+      <div class="title">CURRENT TREE</div>
+      <div class="subtitle">Un mapa de estado, no otro dueño de verdad. PROJECT MODEL muestra qué significa y qué manda. REPOSITORY muestra dónde están los bytes. Un path no concede autoridad.</div>
+    </div>
+    <div class="clock" id="clock">cargando…</div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-tab="model">PROJECT MODEL</button>
+    <button class="tab" data-tab="repo">REPOSITORY</button>
+  </div>
+  <div class="statusbar" id="statusbar"></div>
+</div>
+<div id="notice"></div>
+<div class="workspace">
+  <aside class="sidebar">
+    <input class="search" id="search" placeholder="Buscar en el árbol…">
+    <div id="tree"></div>
+  </aside>
+  <main class="main" id="detail"></main>
+</div>
+<script>
+const SUPABASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const GITHUB_TREE='https://api.github.com/repos/JuanManuelPM/prometeo/git/trees/main?recursive=1';
+let DATA=null, REPO=null, TAB='model', SELECTED='architecture', repoIndex=[];
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const statusClass=s=>String(s||'').toLowerCase().replace('_synthesis','');
+const badge=s=>s?'<span class="badge '+esc(s)+'">'+esc(s)+'</span>':'';
+const fmt=d=>{try{return new Intl.DateTimeFormat('es-AR',{dateStyle:'medium',timeStyle:'short',timeZone:'America/Argentina/Buenos_Aires'}).format(new Date(d))}catch{return d||'—'}};
+async function rpc(name,args={}){
+ const r=await fetch(SUPABASE+name,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(args),cache:'no-store'});
+ if(!r.ok)throw new Error('RPC '+name+' · '+r.status);
+ return await r.json();
+}
+function getReg(key){return (DATA?.semantic_registry||[]).find(x=>x.entity_key===key)}
+function guideEffective(g){
+ if(g.guide_key==='STRATEGY' && DATA?.health?.strategy_architecture_drift?.state==='STALE') return 'STALE';
+ return g.status==='PENDING_SYNTHESIS'?'PENDING':g.status;
+}
+function rootStatus(key){
+ const e=(DATA?.root_index?.read_order||[]).find(x=>x.module_key===key);
+ return e?.freshness==='STALE'?'STALE':'CURRENT';
+}
+function workGraph(){
+ return DATA?.modules?.NOW?.worker_health?.work_graph || DATA?.modules?.WORK?.capacity?.work_graph || {};
+}
+function countStatuses(){
+ const rows=[];
+ (DATA?.semantic_registry||[]).forEach(x=>rows.push(x.effective_status||x.status));
+ (DATA?.guides?.guides||[]).forEach(g=>rows.push(guideEffective(g)));
+ return rows.reduce((a,s)=>(a[s]=(a[s]||0)+1,a),{});
+}
+function renderTop(){
+ const c=countStatuses(), wg=workGraph(), stale=(DATA?.health?.root_stale||[]).length;
+ $('#clock').innerHTML='snapshot<br>'+esc(fmt(DATA?.generated_at));
+ $('#statusbar').innerHTML=[
+  ['current','ARCHITECTURE '+(getReg('PROMETEO_ARCHITECTURE_WORK_GRAPH_V1_1')?.effective_status||'?')],
+  ['stale','STALE '+((c.STALE||0)+stale)],
+  ['pending','PENDING '+(c.PENDING||0)],
+  ['legacy','LEGACY '+(c.LEGACY||0)],
+  ['current','WORK READY '+(wg.graph_ready??wg.ready??'—')],
+  ['current','WORK ACTIVE '+(wg.graph_active??wg.active??'—')]
+ ].map(([cl,t])=>'<span class="pill '+cl+'"><span class="dot"></span>'+esc(t)+'</span>').join('');
+ const drift=DATA?.health?.strategy_architecture_drift;
+ const rootStale=DATA?.health?.root_stale||[];
+ const messages=[];
+ if(drift)messages.push('<strong>STRATEGY está efectivamente STALE.</strong> '+esc(drift.reason));
+ if(rootStale.length)messages.push('<strong>ROOT tiene módulos stale:</strong> '+rootStale.map(x=>esc(x.module_key)).join(', ')+'.');
+ $('#notice').innerHTML=messages.length?'<div class="notice">'+messages.join(' &nbsp;·&nbsp; ')+'</div>':'';
+}
+function node(id,label,status,icon='•'){
+ return '<button class="node '+(SELECTED===id?'selected':'')+'" data-id="'+esc(id)+'"><span class="icon">'+esc(icon)+'</span><span class="label">'+esc(label)+'</span>'+badge(status)+'</button>';
+}
+function modelSections(){
+ const regs=DATA?.semantic_registry||[], guides=DATA?.guides?.guides||[];
+ const arch=regs.filter(x=>['ARCHITECTURE','RUNTIME_ARCHITECTURE','INDEX'].includes(x.kind));
+ const canon=regs.filter(x=>x.status==='CURRENT'&&!['ARCHITECTURE','RUNTIME_ARCHITECTURE','INDEX'].includes(x.kind));
+ const hist=regs.filter(x=>['LEGACY','SUPERSEDED'].includes(x.status));
+ return [
+  ['00_CURRENT',[
+    ['architecture','CURRENT_ARCHITECTURE',getReg('PROMETEO_ARCHITECTURE_WORK_GRAPH_V1_1')?.effective_status,'◆'],
+    ['objectives','OBJECTIVES',rootStatus('OBJECTIVES'),'•'],
+    ['domains','DOMAIN_STATUS',null,'•'],
+    ['work','ACTIVE_WORK',rootStatus('WORK'),'•'],
+    ['drift','DRIFT',rootStatus('DRIFT'),'!'],
+    ['next','NEXT_ACTION',rootStatus('NEXT_ACTION'),'→']
+  ]],
+  ['10_ARCHITECTURE',arch.map(x=>['reg:'+x.entity_key,x.title,x.effective_status||x.status,'◆'])],
+  ['20_DOMAINS',guides.map(g=>['guide:'+g.guide_key,g.guide_key+' · '+g.short_title,guideEffective(g),'◇'])],
+  ['30_WORK',[
+    ['work','WORK GRAPH',rootStatus('WORK'),'•'],
+    ['now','NOW / CAPACITY',rootStatus('NOW'),'•'],
+    ['operating','OPERATING PLAN',rootStatus('OPERATING_PLAN'),'•']
+  ]],
+  ['40_CANON',[
+    ...canon.map(x=>['reg:'+x.entity_key,x.title,x.effective_status||x.status,'■']),
+    ['doctrines','DOCTRINES',rootStatus('DOCTRINES'),'■']
+  ]],
+  ['50_EXPERIMENTS',[[ 'experiments','EXPERIMENTS',rootStatus('EXPERIMENTS'),'△' ]]],
+  ['60_KNOWLEDGE',[[ 'knowledge','KNOWLEDGE',rootStatus('KNOWLEDGE'),'□' ]]],
+  ['70_HISTORY',[
+    ...hist.map(x=>['reg:'+x.entity_key,x.title,x.effective_status||x.status,'×']),
+    ['legacy','LEGACY_STATE',rootStatus('LEGACY_STATE'),'×']
+  ]],
+  ['90_SYSTEM_HEALTH',[
+    ['health','SYSTEM HEALTH',(DATA?.health?.strategy_architecture_drift||((DATA?.health?.root_stale||[]).length))?'STALE':'CURRENT','!'],
+    ['health:orphans','ORPHANS',(DATA?.health?.orphan_candidates||[]).length?'STALE':'CURRENT','!'],
+    ['health:guide','GUIDE STATUS ISSUES',(DATA?.health?.guide_status_issues||[]).length?'STALE':'CURRENT','!']
+  ]]
+ ];
+}
+function renderModelTree(q=''){
+ const query=q.trim().toLowerCase();
+ let out='';
+ for(const [title,items0] of modelSections()){
+  const items=query?items0.filter(x=>(x[1]+' '+(x[2]||'')).toLowerCase().includes(query)):items0;
+  if(query&&!items.length)continue;
+  out+='<section class="tree-section"><button class="tree-head"><span>'+esc(title)+'</span><span>'+items.length+'</span></button><div class="tree-items">';
+  out+=items.map(x=>node(...x)).join('');
+  out+='</div></section>';
+ }
+ $('#tree').innerHTML=out||'<div class="empty">Sin coincidencias.</div>';
+ $('#tree').querySelectorAll('.node').forEach(b=>b.onclick=()=>{SELECTED=b.dataset.id;renderModelTree($('#search').value);renderDetail()});
+}
+function detailHeader(kicker,title,status,lede){
+ return '<div class="eyebrow">'+esc(kicker)+'</div><div class="detail-title">'+esc(title)+'</div><div>'+badge(status)+'</div>'+(lede?'<p class="lede">'+esc(lede)+'</p>':'');
+}
+function meta(obj){
+ return '<div class="meta">'+Object.entries(obj).filter(([,v])=>v!==undefined&&v!==null&&v!=='').map(([k,v])=>'<div><div class="mk">'+esc(k)+'</div><div class="mv">'+esc(Array.isArray(v)?v.join(' · '):v)+'</div></div>').join('')+'</div>';
+}
+function raw(o){return '<details><summary>RAW JSON</summary><pre>'+esc(JSON.stringify(o,null,2))+'</pre></details>'}
+function architectureDetail(r){
+ const p=r?.payload||{};
+ let h=detailHeader('10_ARCHITECTURE',r?.title||'Current Architecture',r?.effective_status||r?.status,'La arquitectura explícita que una reincarnación debe leer antes de inferir el sistema desde historia o nombres de archivos.');
+ h+=meta({owner:r?.owner_key,version:r?.version,authority:r?.authority,source:r?.source_ref,promoted:fmt(r?.promoted_at),consumers:r?.consumers});
+ h+='<div class="section-title">Canonical flow</div><div class="flow">'+(p.flow||[]).map((x,i)=>'<span class="step">'+esc(x)+'</span>'+(i<(p.flow||[]).length-1?'<span class="arrow">→</span>':'')).join('')+'</div>';
+ h+='<div class="section-title">Supporting systems</div><div class="list">'+(p.supporting_systems||[]).map(x=>'<div class="item">'+esc(x)+'</div>').join('')+'</div>';
+ h+='<div class="section-title">Explicitly supersedes these routing ideas</div><div class="list">'+(p.supersedes_concepts||[]).map(x=>'<div class="item legacy">'+esc(x)+'</div>').join('')+'</div>';
+ return h+raw(r);
+}
+function regDetail(r){
+ let h=detailHeader(r?.kind||'REGISTRY',r?.title||r?.entity_key,r?.effective_status||r?.status,r?.payload?.reason||r?.payload?.law||'Entidad semántica registrada.');
+ h+=meta({key:r?.entity_key,owner:r?.owner_key,version:r?.version,authority:r?.authority,importance:r?.importance,source:r?.source_ref,route:r?.public_route,updated:fmt(r?.updated_at),consumers:r?.consumers,depends_on:r?.depends_on});
+ if(r?.public_route)h+='<p><a href="'+esc(r.public_route)+'">Abrir superficie ↗</a></p>';
+ return h+raw(r);
+}
+function guideDetail(g){
+ const eff=guideEffective(g), drift=g.guide_key==='STRATEGY'?DATA?.health?.strategy_architecture_drift:null;
+ let h=detailHeader('20_DOMAINS',g.title,eff,g.mission);
+ if(drift)h+='<div class="notice" style="margin:16px 0"><strong>Declarado '+esc(g.status)+', efectivo STALE.</strong> '+esc(drift.reason)+'</div>';
+ h+=meta({guide_key:g.guide_key,declared_status:g.status,effective_status:eff,version:g.current_version,capsule_generated:fmt(g.capsule_generated_at),last_activity:fmt(g.last_activity_at),page:g.page_route,invoke:g.invoke_route,surfaces:g.surface_count});
+ h+='<div class="section-title">Current headline</div><div class="item">'+esc(g.headline)+'</div>';
+ h+='<p><a href="'+esc(g.page_route)+'">Abrir Guide ↗</a> &nbsp; <a href="'+esc(g.invoke_route)+'">Invocación ↗</a></p>';
+ return h+raw(g);
+}
+function moduleDetail(key,title){
+ const m=DATA?.modules?.[key]||{}, ri=(DATA?.root_index?.read_order||[]).find(x=>x.module_key===key), s=rootStatus(key);
+ let h=detailHeader(key,title||key,s,ri?.purpose||'Módulo ROOT.');
+ h+=meta({source:ri?.source_ref,freshness:ri?.freshness,age_minutes:ri?.age_minutes,freshness_sla_minutes:ri?.freshness_sla_minutes,source_updated:fmt(ri?.source_updated_at)});
+ if(key==='WORK'||key==='NOW'){
+  const wg=workGraph();
+  h+='<div class="section-title">Global Work Graph</div>'+meta({schema:wg.schema,ready:wg.graph_ready??wg.ready,active:wg.graph_active??wg.active,blocked:wg.graph_blocked??wg.blocked,success:wg.success,active_objectives:wg.active_objectives,turn_complete_eligible:wg.turn_complete_eligible});
+ }
+ return h+raw(m);
+}
+function healthDetail(kind='all'){
+ const hth=DATA?.health||{};
+ let h=detailHeader('90_SYSTEM_HEALTH','SYSTEM HEALTH',(hth.strategy_architecture_drift||(hth.root_stale||[]).length)?'STALE':'CURRENT','Anomalías que impiden que una etiqueta vieja de CURRENT pase por verdad actual.');
+ if(kind==='all'||kind==='guide'){
+  h+='<div class="section-title">Guide drift</div>';
+  if(hth.strategy_architecture_drift)h+='<div class="item warn">STRATEGY · '+esc(hth.strategy_architecture_drift.reason)+'</div>';
+  for(const x of hth.guide_status_issues||[])h+='<div class="item warn">'+esc(x.guide_key)+' · '+esc(x.status)+'</div>';
+ }
+ if(kind==='all'){
+  h+='<div class="section-title">Stale ROOT modules</div>';
+  h+=(hth.root_stale||[]).map(x=>'<div class="item warn">'+esc(x.module_key)+' · age '+esc(x.age_minutes)+'m / SLA '+esc(x.freshness_sla_minutes)+'m</div>').join('')||'<div class="item">none</div>';
+ }
+ if(kind==='all'||kind==='orphans'){
+  h+='<div class="section-title">Orphan candidates</div>';
+  h+=(hth.orphan_candidates||[]).map(x=>'<div class="item warn">'+esc(x.entity_key)+'</div>').join('')||'<div class="item">No important registered CURRENT/CANDIDATE entity is consumer-less.</div>';
+ }
+ h+='<div class="section-title">Legacy current-like sources</div>';
+ h+=(hth.legacy_current_sources||[]).map(x=>'<div class="item legacy">'+esc(x.entity_key)+' · '+esc(x.source_ref)+'</div>').join('')||'<div class="item">none</div>';
+ return h+raw(hth);
+}
+function renderDetail(){
+ if(TAB==='repo')return renderRepoDetail();
+ const id=SELECTED;
+ if(id==='architecture')return $('#detail').innerHTML=architectureDetail(getReg('PROMETEO_ARCHITECTURE_WORK_GRAPH_V1_1'));
+ if(id.startsWith('reg:'))return $('#detail').innerHTML=regDetail(getReg(id.slice(4)));
+ if(id.startsWith('guide:')){const g=(DATA.guides.guides||[]).find(x=>x.guide_key===id.slice(6));return $('#detail').innerHTML=guideDetail(g)}
+ if(id==='objectives')return $('#detail').innerHTML=moduleDetail('OBJECTIVES');
+ if(id==='work')return $('#detail').innerHTML=moduleDetail('WORK');
+ if(id==='now')return $('#detail').innerHTML=moduleDetail('NOW');
+ if(id==='operating')return $('#detail').innerHTML=moduleDetail('OPERATING_PLAN');
+ if(id==='doctrines')return $('#detail').innerHTML=moduleDetail('DOCTRINES');
+ if(id==='experiments')return $('#detail').innerHTML=moduleDetail('EXPERIMENTS');
+ if(id==='knowledge')return $('#detail').innerHTML=moduleDetail('KNOWLEDGE');
+ if(id==='legacy')return $('#detail').innerHTML=moduleDetail('LEGACY_STATE');
+ if(id==='drift')return $('#detail').innerHTML=moduleDetail('DRIFT');
+ if(id==='next')return $('#detail').innerHTML=moduleDetail('NEXT_ACTION');
+ if(id==='domains'){
+  const gs=DATA.guides.guides||[];
+  let h=detailHeader('00_CURRENT','DOMAIN STATUS',null,'Estado efectivo de cada Guide. Si la arquitectura cambió después de una síntesis, CURRENT declarado no alcanza.');
+  h+='<div class="list">'+gs.map(g=>'<div class="item">'+badge(guideEffective(g))+' &nbsp; '+esc(g.guide_key)+' · '+esc(g.short_title)+'</div>').join('')+'</div>';
+  return $('#detail').innerHTML=h;
+ }
+ if(id==='health')return $('#detail').innerHTML=healthDetail('all');
+ if(id==='health:orphans')return $('#detail').innerHTML=healthDetail('orphans');
+ if(id==='health:guide')return $('#detail').innerHTML=healthDetail('guide');
+ $('#detail').innerHTML=detailHeader('PROMETEO','CURRENT TREE',null,'Elegí un nodo.');
+}
+function semanticPathMap(){
+ const m=new Map();
+ for(const r of DATA?.semantic_registry||[]){
+  const s=r.source_ref||'';
+  if(s.startsWith('GitHub:/'))m.set(s.slice(8),r);
+ }
+ return m;
+}
+function buildRepoTree(entries){
+ const root={name:'/',path:'',type:'tree',children:new Map()};
+ repoIndex=entries.filter(x=>x.path).map(x=>x.path);
+ for(const e of entries){
+  const parts=e.path.split('/'), last=parts.pop(); let cur=root, acc='';
+  for(const p of parts){
+   acc=acc?acc+'/'+p:p;
+   if(!cur.children.has(p))cur.children.set(p,{name:p,path:acc,type:'tree',children:new Map()});
+   cur=cur.children.get(p);
+  }
+  cur.children.set(last,{name:last,path:e.path,type:e.type,size:e.size||0,children:e.type==='tree'?new Map():null});
+ }
+ return root;
+}
+let repoRoot=null, repoSelected=null;
+function repoTag(path){
+ const sem=semanticPathMap().get(path);
+ if(sem)return sem.effective_status||sem.status;
+ if(path.startsWith('candidate/')||path.includes('/candidates/'))return 'CANDIDATE';
+ if(path.startsWith('legacy/'))return 'LEGACY';
+ return '';
+}
+function renderRepoNode(n,depth=0){
+ const isDir=n.type==='tree';
+ const tag=repoTag(n.path);
+ if(!isDir)return '<button class="file-row repo-row" style="--depth:'+depth+'" data-path="'+esc(n.path)+'"><span>·</span><span>'+esc(n.name)+'</span>'+badge(tag)+'</button>';
+ const id='f'+Math.random().toString(36).slice(2);
+ return '<div class="repo-row" style="--depth:'+depth+'"><button class="folder-toggle" data-folder="'+esc(n.path)+'" data-target="'+id+'"><span>▸</span><span>'+esc(n.name)+'</span>'+badge(tag)+'</button><div id="'+id+'" hidden></div></div>';
+}
+function bindRepoButtons(){
+ $('#tree').querySelectorAll('[data-folder]').forEach(b=>b.onclick=()=>{
+  const box=document.getElementById(b.dataset.target), path=b.dataset.folder;
+  if(box.hidden){
+   if(!box.dataset.built){
+    let n=repoRoot; if(path)for(const p of path.split('/'))n=n.children.get(p);
+    const kids=[...n.children.values()].sort((a,b)=>(a.type===b.type? a.name.localeCompare(b.name):a.type==='tree'?-1:1));
+    box.innerHTML=kids.map(k=>renderRepoNode(k,(path?path.split('/').length:0)+1)).join('');
+    box.dataset.built='1'; bindRepoButtons();
+   }
+   box.hidden=false;b.firstElementChild.textContent='▾';
+  }else{box.hidden=true;b.firstElementChild.textContent='▸'}
+ });
+ $('#tree').querySelectorAll('[data-path]').forEach(b=>b.onclick=()=>{repoSelected=b.dataset.path;renderRepoDetail()});
+}
+function renderRepoTree(q=''){
+ if(!REPO){$('#tree').innerHTML='<div class="empty">Cargando repository…</div>';return}
+ const query=q.trim().toLowerCase();
+ if(query){
+  const hits=repoIndex.filter(p=>p.toLowerCase().includes(query)).slice(0,500);
+  $('#tree').innerHTML='<div class="repo-legend">'+hits.length+(hits.length===500?'+':'')+' coincidencias</div><div class="repo-results">'+hits.map(p=>'<button class="repo-result" data-path="'+esc(p)+'">'+esc(p)+' '+badge(repoTag(p))+'</button>').join('')+'</div>';
+  $('#tree').querySelectorAll('[data-path]').forEach(b=>b.onclick=()=>{repoSelected=b.dataset.path;renderRepoDetail()});
+  return;
+ }
+ const kids=[...repoRoot.children.values()].sort((a,b)=>(a.type===b.type?a.name.localeCompare(b.name):a.type==='tree'?-1:1));
+ $('#tree').innerHTML='<div class="repo-legend"><strong>Bytes, no autoridad.</strong><br>6952-ish entradas pueden existir aquí sin ser parte del proyecto vigente. Las marcas sólo aparecen cuando hay semántica registrada o un namespace explícito.</div>'+kids.map(k=>renderRepoNode(k,0)).join('');
+ bindRepoButtons();
+}
+function renderRepoDetail(){
+ if(!repoSelected){
+  $('#detail').innerHTML=detailHeader('REPOSITORY','PHYSICAL FILESYSTEM',null,'Este árbol responde dónde están los bytes. No responde qué versión manda. Esa autoridad vive en PROJECT MODEL.');
+  return;
+ }
+ const sem=semanticPathMap().get(repoSelected), tag=repoTag(repoSelected), url='https://github.com/JuanManuelPM/prometeo/blob/main/'+repoSelected.split('/').map(encodeURIComponent).join('/');
+ let h=detailHeader('REPOSITORY',repoSelected,tag,sem?'Este archivo está vinculado a una entidad semántica registrada.':'Archivo físico. No se infiere autoridad por su nombre, fecha o ubicación.');
+ if(sem)h+=meta({semantic_key:sem.entity_key,semantic_kind:sem.kind,status:sem.effective_status||sem.status,owner:sem.owner_key,authority:sem.authority});
+ h+='<p><a href="'+esc(url)+'" target="_blank" rel="noopener">Abrir en GitHub ↗</a></p>';
+ if(repoSelected==='state/CURRENT_GRAPH.json')h+='<div class="notice" style="margin:16px 0"><strong>LEGACY CURRENT.</strong> Se conserva como historia. No usar para reconstruir el Prometeo actual.</div>';
+ $('#detail').innerHTML=h;
+}
+function switchTab(t){
+ TAB=t;$('.tab.active')?.classList.remove('active');$('.tab[data-tab="'+t+'"]').classList.add('active');$('#search').value='';
+ if(t==='model'){SELECTED='architecture';renderModelTree();renderDetail()}else{repoSelected=null;renderRepoTree();renderRepoDetail()}
+}
+async function boot(){
+ try{
+  const rows=await rpc('prometeo_current_tree_v1');DATA=Array.isArray(rows)?rows[0]:rows;
+  if(DATA?.prometeo_current_tree_v1)DATA=DATA.prometeo_current_tree_v1;
+  renderTop();renderModelTree();renderDetail();
+ }catch(e){
+  $('#tree').innerHTML='<div class="empty">No se pudo cargar CURRENT TREE.</div>';
+  $('#detail').innerHTML=detailHeader('ERROR','CURRENT TREE UNAVAILABLE','STALE',e.message);
+  throw e;
+ }
+ try{
+  const r=await fetch(GITHUB_TREE,{cache:'no-store'}); if(!r.ok)throw new Error('GitHub '+r.status);
+  REPO=await r.json();repoRoot=buildRepoTree(REPO.tree||[]);
+ }catch(e){REPO={error:e.message};}
+}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+$('#search').addEventListener('input',e=>TAB==='model'?renderModelTree(e.target.value):renderRepoTree(e.target.value));
+boot();
+</script>
+</body>
+</html>
