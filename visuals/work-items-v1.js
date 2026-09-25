@@ -1,44 +1,54 @@
 window.PROMETEO_VISUAL_WORK_ITEMS_V1={
   version:'PROMETEO_VISUAL_WORK_ITEMS_V1',
-  updated_at:'2026-09-25T17:45:00-03:00',
+  updated_at:'2026-09-25T18:59:00-03:00',
   items:[
     {
       id:'visuals-global-shell-v1',
       revision:'1',
       title:'Visor global de visuales',
-      summary:'Navegación horizontal, menú en árbol, pinch zoom y acceso común a las superficies visuales.',
+      summary:'Navegación común, menú en árbol, zoom y acceso a las superficies visuales.',
       status:'done',
       target:'/prometeo/visuals/',
       area:'GLOBAL',
-      updated:'HOY'
+      updated:'ACTUAL'
     },
     {
-      id:'trail-lab-v2',
-      revision:'2',
-      title:'🐉 Motion Trail · image-first',
-      summary:'Rehecho con un asset real y stamps duros. Listo para inspección visual.',
+      id:'trail-lab-v3',
+      revision:'3',
+      title:'🐉 Motion Trail · full-frame redraw',
+      summary:'Asset real con copias completas rápidas y superpuestas; se eliminó el fake-glitch por fragmentos.',
       status:'review',
       target:'/prometeo/visuals/trail-lab/',
       area:'VISUAL',
       updated:'AHORA'
     },
     {
-      id:'spaces-lab-v2',
-      revision:'2',
-      title:'🌀 Pseudo-3D Spaces · image-first',
-      summary:'Renderer reciclado con materiales fotográficos y escenas rehechas. Listo para inspección.',
+      id:'spaces-lab-v3',
+      revision:'3',
+      title:'🌀 Pseudo-3D Spaces · Passage',
+      summary:'Una sola escena image-first: izquierda/derecha hacen yaw, avance sólo en Z y el suelo cercano se recorta para no abrir un hueco.',
       status:'review',
       target:'/prometeo/visuals/spaces-lab/',
       area:'VISUAL',
       updated:'AHORA'
     },
     {
-      id:'player-lab-v2',
-      revision:'2',
-      title:'🖐️ Retro Player · image-first',
-      summary:'Escena persistente rehecha con imágenes/sprites en vez de personajes de primitivas.',
+      id:'player-lab-v3',
+      revision:'3',
+      title:'🖐️ Retro Player · multi-pose',
+      summary:'Escena persistente con cuatro assets de mano realmente distintos, grandes y de alto contraste.',
       status:'review',
       target:'/prometeo/visuals/player-lab/',
+      area:'VISUAL',
+      updated:'AHORA'
+    },
+    {
+      id:'mask-eye-lab-v2',
+      revision:'2',
+      title:'👁️ Mask / Eye · one mask',
+      summary:'Una sola máscara Prometeo con media real alineada dentro de los dos huecos del ojo; radial/shrine retirados.',
+      status:'review',
+      target:'/prometeo/visuals/mask-eye-lab/',
       area:'VISUAL',
       updated:'AHORA'
     },
