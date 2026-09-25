@@ -254,3 +254,12 @@ Replace with:
 All future prompts that produce visible work under `/visuals/` should explicitly require reading this protocol first.
 
 If a worker wants to violate a hard prohibition, it must explain why the alternative is visually stronger before implementation.
+
+
+## Required companion documents
+
+Every visual task must also read:
+- `visuals/VISUAL_FEEDBACK_LOG_V1.md`
+- `visuals/EXECUTION_CHECKLIST_V1.md`
+
+The protocol defines visual law; the feedback log preserves user-reviewed corrections; the execution checklist defines the required working method. These three files together are the current visual operating contract.
