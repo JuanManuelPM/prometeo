@@ -37,11 +37,44 @@ button{font:inherit}
   color:#e3cfb4;display:grid;place-items:center;padding:0;cursor:pointer;
   box-shadow:0 5px 20px rgba(0,0,0,.35);backdrop-filter:blur(5px);
 }
-#menuButton span,#menuButton span:before,#menuButton span:after{
-  content:"";display:block;width:17px;height:1px;background:currentColor;position:relative;
+#menuButton .gridIcon{display:grid;grid-template-columns:repeat(2,5px);grid-auto-rows:5px;gap:3px}
+#menuButton .gridIcon i{display:block;width:5px;height:5px;background:currentColor}
+
+#quickBackdrop{
+  position:absolute;inset:0;z-index:44;background:rgba(0,0,0,.34);opacity:0;pointer-events:none;transition:opacity .14s ease;
 }
-#menuButton span:before{position:absolute;top:-6px;left:0}
-#menuButton span:after{position:absolute;top:6px;left:0}
+#quickSwitcher{
+  position:absolute;z-index:45;left:max(10px,env(safe-area-inset-left));top:max(62px,calc(var(--safeT) + 58px));
+  width:min(430px,calc(100% - 20px));max-height:calc(100% - 76px);overflow:auto;
+  padding:10px;background:rgba(9,8,6,.97);border:1px solid rgba(215,180,139,.20);
+  box-shadow:0 16px 44px rgba(0,0,0,.48);transform:translateY(-8px) scale(.98);opacity:0;pointer-events:none;
+  transition:opacity .14s ease,transform .14s ease;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;
+}
+body.quick-open #quickSwitcher{opacity:1;pointer-events:auto;transform:none}
+body.quick-open #quickBackdrop{opacity:1;pointer-events:auto}
+.quickGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.quickItem{
+  min-height:76px;border:1px solid #342d26;background:#100e0c;color:#d9c8b1;padding:7px 4px;
+  display:grid;place-items:center;align-content:center;gap:5px;cursor:pointer
+}
+.quickItem:active{background:#19150f;transform:scale(.985)}
+.quickItem.on{border-color:#a96e3d;background:#18120d;box-shadow:inset 0 0 0 1px rgba(210,138,75,.22)}
+.quickEmoji{font-size:29px;line-height:1}
+.quickLabel{font:850 8px/1 ui-monospace;letter-spacing:.04em;text-transform:uppercase;color:#92816d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.quickItem.on .quickLabel{color:#d9b588}
+.quickFooter{display:grid;grid-template-columns:1fr auto;gap:7px;margin-top:8px}
+.quickMore,.quickClose{
+  min-height:36px;border:1px solid #342d26;background:#0d0b09;color:#9c8b75;
+  font:850 9px/1 ui-monospace;text-transform:uppercase;letter-spacing:.06em
+}
+.quickMore{background:#17130f;color:#d0b28e}
+.drawerBack{
+  flex:0 0 auto;min-height:32px;border:1px solid #3d342c;background:#14110e;color:#c8ad8b;padding:0 10px;
+  font:850 9px/1 ui-monospace;text-transform:uppercase;letter-spacing:.05em
+}
+.drawerCopy span{display:none}
+.pageText small{display:none}
+
 #notifyBadge{
   position:absolute;right:-5px;top:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:10px;
   display:none;place-items:center;background:#c66f37;color:#160c07;border:2px solid #080706;
@@ -51,8 +84,8 @@ button{font:inherit}
 .folderNews{margin-left:auto;min-width:18px;height:18px;padding:0 5px;border-radius:9px;display:grid;place-items:center;background:#5f3924;color:#e9c59a;font:900 8px/1 ui-monospace}
 #currentChip{
   position:absolute;z-index:25;top:max(12px,var(--safeT));left:50%;transform:translateX(-50%);
-  max-width:58%;padding:6px 10px;background:rgba(6,5,4,.60);border:1px solid rgba(215,180,139,.12);
-  color:#9b8c7a;font:750 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+  max-width:44%;padding:4px 7px;background:rgba(6,5,4,.44);border:1px solid rgba(215,180,139,.08);
+  color:#817567;font:750 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
   text-transform:uppercase;letter-spacing:.07em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   pointer-events:none;
 }
@@ -162,14 +195,23 @@ body.menu-open #drawerBackdrop{opacity:1;pointer-events:auto}
     <div id="loading">cargando visual</div>
   </main>
 
-  <button id="menuButton" aria-label="Abrir menú" aria-expanded="false"><span></span><i id="notifyBadge">0</i></button>
+  <button id="menuButton" aria-label="Cambiar visual" aria-expanded="false"><span class="gridIcon" aria-hidden="true"><i></i><i></i><i></i><i></i></span><i id="notifyBadge">0</i></button>
   <div id="currentChip">Prometeo Visuals</div>
+
+  <div id="quickBackdrop"></div>
+  <section id="quickSwitcher" aria-label="Cambio rápido de visuales">
+    <div class="quickGrid" id="quickGrid"></div>
+    <div class="quickFooter">
+      <button class="quickMore" id="quickMore" type="button">Más visuales</button>
+      <button class="quickClose" id="quickClose" type="button">Cerrar</button>
+    </div>
+  </section>
 
   <div id="drawerBackdrop"></div>
   <aside id="drawer" aria-label="Navegación visual">
     <div class="drawerHead">
-      <div class="drawerMark">P</div>
-      <div class="drawerCopy"><b>Prometeo Visuals</b><span>deslizá para recorrer · tocá para abrir</span></div>
+      <button class="drawerBack" id="drawerBack" type="button">‹ Rápido</button>
+      <div class="drawerCopy"><b>Todo</b><span>navegación completa</span></div>
     </div>
     <nav id="tree"></nav>
     <div class="drawerTools">
@@ -180,7 +222,7 @@ body.menu-open #drawerBackdrop{opacity:1;pointer-events:auto}
       <div class="zoomReadout" id="zoomReadout">ZOOM 100% · PINCH CON 2 DEDOS</div>
     </div>
   </aside>
-  <div id="rotateHint">☰ menú · pinch = zoom</div>
+  <div id="rotateHint">▦ cambiar · pinch = zoom</div>
 </div>
 
 <script src="./registry-v1.js"></script>
@@ -197,6 +239,11 @@ const layer=document.getElementById('frameLayer');
 const loading=document.getElementById('loading');
 const tree=document.getElementById('tree');
 const menuButton=document.getElementById('menuButton');
+const quickGrid=document.getElementById('quickGrid');
+const quickBackdrop=document.getElementById('quickBackdrop');
+const quickMore=document.getElementById('quickMore');
+const quickClose=document.getElementById('quickClose');
+const drawerBack=document.getElementById('drawerBack');
 const backdrop=document.getElementById('drawerBackdrop');
 const chip=document.getElementById('currentChip');
 const zoomReadout=document.getElementById('zoomReadout');
@@ -229,9 +276,24 @@ let cleanupFrameGestures=null;
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
 function openMenu(on){
   document.body.classList.toggle('menu-open',on);
-  menuButton.setAttribute('aria-expanded',on?'true':'false');
+  if(on)document.body.classList.remove('quick-open');
+  menuButton.setAttribute('aria-expanded',on?'true':(document.body.classList.contains('quick-open')?'true':'false'));
 }
-menuButton.addEventListener('click',()=>openMenu(!document.body.classList.contains('menu-open')));
+function openQuick(on){
+  document.body.classList.toggle('quick-open',on);
+  if(on)document.body.classList.remove('menu-open');
+  menuButton.setAttribute('aria-expanded',on?'true':(document.body.classList.contains('menu-open')?'true':'false'));
+  if(on)markQuickActive();
+}
+function closeNavigation(){openQuick(false);openMenu(false)}
+menuButton.addEventListener('click',()=>{
+  if(document.body.classList.contains('menu-open')){openMenu(false);openQuick(true);return}
+  openQuick(!document.body.classList.contains('quick-open'));
+});
+quickBackdrop.addEventListener('click',()=>openQuick(false));
+quickClose.addEventListener('click',()=>openQuick(false));
+quickMore.addEventListener('click',()=>openMenu(true));
+drawerBack.addEventListener('click',()=>{openMenu(false);openQuick(true)});
 backdrop.addEventListener('click',()=>openMenu(false));
 
 (function installTreeTouchScroll(){
@@ -287,6 +349,40 @@ function resetView(){zoom=1;panX=0;panY=0;applyTransform()}
 function currentHash(){return location.hash.replace(/^#/,'').trim()}
 function setHash(id){if(location.hash!=='#'+id)history.pushState(null,'','#'+id)}
 
+function quickItems(){
+  const out=[];
+  for(const folder of REG.folders){
+    for(const item of folder.items){
+      if(item.quick || folder.id==='visual-experiments')out.push({...item,folder:folder.id});
+    }
+  }
+  return out;
+}
+function itemEmoji(item){
+  if(item.emoji)return item.emoji;
+  const m=String(item.label||'').match(/^([^\p{L}\p{N}\s]+)/u);
+  return m&&m[1]?m[1]:'◉';
+}
+function quickShort(item){
+  if(item.short)return item.short;
+  return String(item.label||item.id).replace(/^([^\p{L}\p{N}]+)\s*/u,'').split(/\s+/).slice(0,2).join(' ');
+}
+function renderQuick(){
+  quickGrid.innerHTML='';
+  for(const item of quickItems()){
+    const b=document.createElement('button');b.className='quickItem';b.dataset.page=item.id;
+    const em=document.createElement('span');em.className='quickEmoji';em.textContent=itemEmoji(item);
+    const lab=document.createElement('span');lab.className='quickLabel';lab.textContent=quickShort(item);
+    b.append(em,lab);
+    b.addEventListener('click',()=>selectPage(item.id,true));
+    quickGrid.appendChild(b);
+  }
+  markQuickActive();
+}
+function markQuickActive(){
+  document.querySelectorAll('.quickItem').forEach(b=>b.classList.toggle('on',!!current&&b.dataset.page===current.id));
+}
+
 function renderTree(){
   tree.innerHTML='';
   for(const folder of REG.folders){
@@ -307,6 +403,7 @@ function renderTree(){
 }
 function markActive(){
   document.querySelectorAll('.pageItem').forEach(b=>b.classList.toggle('on',!!current&&b.dataset.page===current.id));
+  markQuickActive();
 }
 
 function selectPage(id,push){
@@ -318,7 +415,7 @@ function selectPage(id,push){
   frame.src=item.src;
   try{localStorage.setItem('prometeo.visuals.current.v1',item.id)}catch(_){}
   if(push)setHash(item.id);
-  openMenu(false);
+  closeNavigation();
 }
 
 function installFrameHooks(){
@@ -402,6 +499,7 @@ window.addEventListener('storage',e=>{if(e.key===seenKey)updateNotifications()})
 window.addEventListener('hashchange',()=>{const id=currentHash();if(byId.has(id)&&(!current||current.id!==id))selectPage(id,false)});
 window.addEventListener('resize',applyTransform);
 
+renderQuick();
 renderTree();
 let start=currentHash();
 if(!byId.has(start)){
