@@ -408,7 +408,7 @@ const LAB_FAST=LAB_PARAMS.get('fast')==='1';
 const LAB_BASELINE='8ef25c0a34cc9cd68fa9b35152dec9289d5cb3d8';
 let LAB_SELECTED=-1;
 let LAB_TAP_START=null;
-const LAB_BUILD='LIVE-WORKERS-V15-TALL-GAUGES-MULTI-PROJECT-20260925';
+const LAB_BUILD='LIVE-WORKERS-V16-FULL-RADIUS-PROJECT-CORRIDORS-20260925';
 const labBadge=document.getElementById('labBadge');
 const wrap=document.getElementById('wrap');
 const mapStage=document.getElementById('mapStage');
@@ -3451,11 +3451,17 @@ function livePaintSectors(layout){
       const i=sector.index,color=liveProjectColor(i);
       const pts=[...layout.nodePos.values()].filter(p=>p.node.project_key===sector.meta?.project_key);
       if(!pts.length)continue;
-      const low=pts.filter(p=>Number(p.h||0)<.3);
-      const src=low.length?low:pts;
-      const cx=src.reduce((a,p)=>a+p.x,0)/src.length,cz=src.reduce((a,p)=>a+p.z,0)/src.length;
-      camaraGroundEllipse(ctx,cx,cz,2.25,1.62,0,color,.12,78000+i,42);
-      livePaintCylinderRing(cx,cz,.055,2.18,color,.38,Math.max(.7,scale*.035),78040+i);
+      const roots=pts.filter(p=>p.node.node_kind==='ROOT');
+      const promo=pts.find(p=>p.node.node_kind==='PROMOTION');
+      const outer=roots.length?roots.reduce((a,p)=>a+Math.hypot(p.x,p.z),0)/roots.length:8.8;
+      const inner=promo?Math.hypot(promo.x,promo.z):1.8;
+      const ang=roots.length?Math.atan2(roots.reduce((a,p)=>a+p.z,0),roots.reduce((a,p)=>a+p.x,0)):sector.mid;
+      const half=.19;
+      camaraWorldPoly(ctx,liveSectorPolygon(ang-half,ang+half,Math.max(.9,inner-.55),Math.min(9.75,outer+.45),18),color,.095,null,0,78000+i);
+      worldFloorLine(ctx,[
+        {x:Math.cos(ang)*Math.max(.9,inner-.35),z:Math.sin(ang)*Math.max(.9,inner-.35),h:.047},
+        {x:Math.cos(ang)*Math.min(9.7,outer+.25),z:Math.sin(ang)*Math.min(9.7,outer+.25),h:.047}
+      ],color,.42,Math.max(.65,scale*.035),78040+i);
     }
     return;
   }
@@ -3528,9 +3534,11 @@ function livePaintProjectBoards(layout){
     let anchor;
     if(snap?.layout_mode==='vertical_projects'){
       const pp=[...layout.nodePos.values()].filter(p=>p.node.project_key===meta.project_key);
-      const cx=pp.length?pp.reduce((v,p)=>v+p.x,0)/pp.length:Math.cos(a)*8.92;
-      const cz=pp.length?pp.reduce((v,p)=>v+p.z,0)/pp.length:Math.sin(a)*8.92;
-      anchor=wp(cx,cz,4.75);
+      const roots=pp.filter(p=>p.node.node_kind==='ROOT');
+      const src=roots.length?roots:pp;
+      const cx=src.length?src.reduce((v,p)=>v+p.x,0)/src.length:Math.cos(a)*8.92;
+      const cz=src.length?src.reduce((v,p)=>v+p.z,0)/src.length:Math.sin(a)*8.92;
+      anchor=wp(cx,cz,4.35);
     }else{
       // The 3D totem sits at the rim; the billboard remains screen-facing and can slide to avoid collisions.
       anchor=wp(Math.cos(a)*8.92,Math.sin(a)*8.92,1.28);
@@ -3916,6 +3924,7 @@ function liveStagePosition(item,t,snap){
     size=.39;
   }
   if(v.liveness==='SUSPECT')size=.40;
+  if(snap.layout_mode==='vertical_projects')size*=1.16;
   return {x,z,jump,size,v};
 }
 function workerDemoData(now){
@@ -5274,13 +5283,13 @@ function verticalProjectsDemoSnapshot(){
     if(phase>completion)return 1;
     return demoClamp(p/.56,0,1);
   }
-  function worldAt(angle,u,v){
-    const baseR=6.2;
-    const cx=Math.cos(angle)*baseR,cz=Math.sin(angle)*baseR;
-    const rot=angle+Math.PI; // flow points inward
+  function worldAt(angle,radius,lateral){
+    // Each project owns a long radial corridor across the arena.
+    // radius = distance from Coliseo center; lateral = spread across the corridor.
+    const tx=-Math.sin(angle),tz=Math.cos(angle);
     return {
-      x:cx+Math.cos(rot)*u-Math.sin(rot)*v,
-      z:cz+Math.sin(rot)*u+Math.cos(rot)*v
+      x:Math.cos(angle)*radius+tx*lateral,
+      z:Math.sin(angle)*radius+tz*lateral
     };
   }
 
@@ -5292,18 +5301,20 @@ function verticalProjectsDemoSnapshot(){
     const rootTitles=pi===0?['World','Composition','Scale']:pi===1?['Ingest','Normalize','Reader']:['Lease','Recovery','Events'];
 
     const local=[
-      {id:'R1',title:rootTitles[0],kind:'ROOT',u:-1.25,v:-.68,depends:[]},
-      {id:'R2',title:rootTitles[1],kind:'ROOT',u:-1.25,v:0,depends:[]},
-      {id:'R3',title:rootTitles[2],kind:'ROOT',u:-1.25,v:.68,depends:[]},
-      {id:'D1',title:'Reducer',kind:'REDUCER',u:-.25,v:0,depends:['R1','R2','R3']},
-      {id:'S1',title:'Synthesis',kind:'SYNTHESIS',u:.72,v:0,depends:['D1']},
-      {id:'V1',title:'Verify',kind:'VERIFY',u:1.48,v:0,depends:['S1']},
-      {id:'P1',title:'Promoted',kind:'PROMOTION',u:2.18,v:0,depends:['V1']}
+      // Wide outer front: roots live close to the Coliseo wall.
+      {id:'R1',title:rootTitles[0],kind:'ROOT',radius:9.25,lateral:-1.18,depends:[]},
+      {id:'R2',title:rootTitles[1],kind:'ROOT',radius:9.45,lateral:0,depends:[]},
+      {id:'R3',title:rootTitles[2],kind:'ROOT',radius:9.25,lateral:1.18,depends:[]},
+      // Successive stages consume the full radial depth of the arena.
+      {id:'D1',title:'Reducer',kind:'REDUCER',radius:7.15,lateral:0,depends:['R1','R2','R3']},
+      {id:'S1',title:'Synthesis',kind:'SYNTHESIS',radius:5.15,lateral:0,depends:['D1']},
+      {id:'V1',title:'Verify',kind:'VERIFY',radius:3.35,lateral:0,depends:['S1']},
+      {id:'P1',title:'Promoted',kind:'PROMOTION',radius:1.75,lateral:0,depends:['V1']}
     ];
 
     const localNodes=[];
     for(let ni=0;ni<local.length;ni++){
-      const d=local[ni],w=worldAt(c.angle,d.u,d.v),state=stateFor(d.kind,phase,p);
+      const d=local[ni],w=worldAt(c.angle,d.radius,d.lateral),state=stateFor(d.kind,phase,p);
       const node={
         project_key:c.key,objective_key:c.key,guide_key:c.guide,
         node_key:c.key+'-'+d.id,title:d.title,node_kind:d.kind,
