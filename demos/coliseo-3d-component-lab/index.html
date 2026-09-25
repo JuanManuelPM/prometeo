@@ -352,7 +352,7 @@ const LAB_FAST=LAB_PARAMS.get('fast')==='1';
 const LAB_BASELINE='8ef25c0a34cc9cd68fa9b35152dec9289d5cb3d8';
 let LAB_SELECTED=-1;
 let LAB_TAP_START=null;
-const LAB_BUILD='2026-09-24T14:20:00-03:00';
+const LAB_BUILD='2026-09-25T09:17:00-03:00';
 const labBadge=document.getElementById('labBadge');
 const wrap=document.getElementById('wrap');
 const mapStage=document.getElementById('mapStage');
@@ -3284,184 +3284,63 @@ function drawEffectsGallery(now){
 
 /* ---------- MAP DEFINITIONS: all reuse Component World v2 ---------- */
 
-function mapRingFrame(angle,radius){
-  return slotFrame({id:'map',angle,label:''},radius);
+
+function mapRingFrame(angle,radius){return slotFrame({id:'map',angle,label:''},radius)}
+function mapRingSegment(angle,radius,baseH,tangentW,radialD,height,color,seed){const f=mapRingFrame(angle,radius);slotBox(f,0,0,baseH,tangentW,radialD,height,color,seed)}
+function mapCut(angle,threshold=.08){return Math.sin(angle+yaw)>threshold}
+function mapSolidBox(x,z,baseH,w,d,h,material,seed,rot=0){
+  const ux=Math.cos(rot),uz=Math.sin(rot),nx=-Math.sin(rot),nz=Math.cos(rot);
+  addWorldBox({kind:'mapLandmark',x,z,baseH,width:w,depth:d,height:h,ux,uz,nx,nz,material,seed,stableId:COMPONENT_SERIAL++});
 }
-function mapRingSegment(angle,radius,baseH,tangentW,radialD,height,color,seed){
+function mapFrameBox(frame,lx,lz,baseH,w,d,h,material,seed,localRot=0){
+  const p=slotPoint(frame,lx,lz,baseH);mapSolidBox(p.x,p.z,baseH,w,d,h,material,seed,frame.rot+localRot);
+}
+function buildMapTowerAt(angle,radius,levels,material,seed,size=.82){
   const f=mapRingFrame(angle,radius);
-  slotBox(f,0,0,baseH,tangentW,radialD,height,color,seed);
-}
-function mapCut(angle,threshold=.08){
-  return Math.sin(angle+yaw)>threshold;
-}
-function buildMapTowerAt(angle,radius,levels,color,seed,size=.82){
-  const f=mapRingFrame(angle,radius);
-  for(let y=0;y<levels;y++){
-    const s=size*(1-y/(levels*14));
-    slotBox(f,0,0,.02+y*.56,s,s,.52,y%2?shade(color,-5):color,seed+y*7);
-  }
-  const top=.02+levels*.56;
-  for(let k=0;k<4;k++){
-    const a=k*TAU/4;
-    slotBox(f,Math.cos(a)*size*.48,Math.sin(a)*size*.48,top,.20,.20,.30,shade(color,12),seed+90+k);
-  }
+  for(let y=0;y<levels;y++){const s=size*(1-y/(levels*12));mapFrameBox(f,0,0,.02+y*.58,s,s,.54,material,seed+y*7)}
+  mapFrameBox(f,0,0,.02+levels*.58,size*1.15,size*1.15,.18,'metal_warm',seed+90);
 }
 function buildMapFortaleza(){
   resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
-  const N=28;
-  for(let i=0;i<N;i++){
-    const a=i*TAU/N+.02;
-    if(!mapCut(a,.18))mapRingSegment(a,10.2,.02,2.36,.72,1.42,i%2?'#514238':'#635044',41000+i);
-    if(!mapCut(a,.28)&&i%2===0)mapRingSegment(a,6.45,.02,2.10,.62,.92,'#37483f',41100+i);
-  }
-  for(let i=0;i<8;i++){
-    const a=i*TAU/8+.02;if(mapCut(a,.20))continue;
-    buildMapTowerAt(a,10.15,7,i%2?'#4c3e34':'#5a4638',41200+i*20,1.02);
-  }
-  // Central keep: persistent landmark.
-  for(let y=0;y<7;y++){
-    const w=4.25-y*.18;
-    componentModuleBox(0,0,.02+y*.62,w,w,.58,y%2?'#45584c':'#635044',41300+y*20,Math.PI/4);
-  }
-  for(const a of [0,Math.PI/2,Math.PI,Math.PI*1.5]){
-    const x=Math.cos(a)*2.25,z=Math.sin(a)*2.25;
-    componentModuleBox(x,z,.02,1.05,1.05,3.10,'#3b493f',41400+Math.round(a*100),0);
-  }
+  for(let i=0;i<8;i++){const a=i*TAU/8+.02;if(!mapCut(a,.20))buildMapTowerAt(a,9.72,5,i%2?'fortress_stone':'fortress_stone_dark',41200+i*20,1.12)}
+  for(let y=0;y<6;y++){const w=4.55-y*.30;mapSolidBox(0,0,.02+y*.64,w,w,.58,y%2?'fortress_stone':'fortress_stone_dark',41300+y*20,Math.PI/4)}
+  for(const a of [0,Math.PI/2,Math.PI,Math.PI*1.5]){const x=Math.cos(a)*2.75,z=Math.sin(a)*2.75;mapSolidBox(x,z,.02,1.20,1.20,3.25,'fortress_stone_dark',41400+Math.round(a*100),0);mapSolidBox(x,z,3.28,1.45,1.45,.20,'metal_warm',41450+Math.round(a*100),0)}
 }
 function buildMapArchivo(){
   resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
-  const rings=[
-    {r:9.8,h:.02,w:2.15,d:.78,col:'#37483f'},
-    {r:8.1,h:.58,w:1.96,d:.72,col:'#4b4034'},
-    {r:6.4,h:1.16,w:1.78,d:.68,col:'#34483d'},
-    {r:4.8,h:1.74,w:1.62,d:.64,col:'#5a4638'}
-  ];
-  for(let ri=0;ri<rings.length;ri++){
-    const rr=rings[ri],N=26-ri*2;
-    for(let i=0;i<N;i++){
-      const a=i*TAU/N+.04;
-      if(mapCut(a,.10+ri*.04))continue;
-      mapRingSegment(a,rr.r,rr.h,rr.w,rr.d,.52,i%4===0?'#80603a':rr.col,42000+ri*100+i);
-    }
-  }
-  // Archive core / beacon.
-  for(let y=0;y<10;y++){
-    const w=2.30-y*.10;
-    componentModuleBox(0,0,2.34+y*.52,w,w,.48,y%2?'#34483d':'#635044',42500+y*9,0);
-  }
+  for(let i=0;i<8;i++){const a=i*TAU/8+.04;if(mapCut(a,.16))continue;const f=mapRingFrame(a,7.35);mapFrameBox(f,0,.25,.02,1.75,1.45,2.55,i%2?'archive_green':'archive_wood',42000+i);mapFrameBox(f,0,.02,2.57,1.95,1.55,.22,'metal_warm',42100+i);mapFrameBox(f,-.46,-.48,.42,.22,.18,1.48,'archive_wood',42200+i);mapFrameBox(f,.46,-.48,.42,.22,.18,1.48,'archive_wood',42300+i)}
+  for(let y=0;y<8;y++){const w=2.45-y*.11;mapSolidBox(0,0,1.10+y*.54,w,w,.50,y%2?'archive_green':'archive_wood',42500+y*9,Math.PI/4)}
+  addWorldEmissive(0,0,5.42,.72,.28,.42,42590);
 }
 function buildMapPozo(){
   resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
-  const N=30,R=9.1;
-  // Hollow shaft wall. Front half is removed by the same camera-facing cut.
-  for(let i=0;i<N;i++){
-    const a=i*TAU/N;
-    if(mapCut(a,.02))continue;
-    for(let y=0;y<7;y++)mapRingSegment(a,R,.02+y*.62,1.95,.54,.58,y%2?'#2f3633':'#4c4037',43000+i*20+y);
-  }
-  // Interior galleries on three heights.
-  for(const [level,r,col] of [[1.35,7.0,'#45584c'],[2.85,6.55,'#514238'],[4.35,7.15,'#3a493f']]){
-    for(let i=0;i<22;i++){
-      const a=i*TAU/22+.04;if(mapCut(a,.15))continue;
-      mapRingSegment(a,r,level,2.10,.45,.16,col,43400+Math.round(level*100)+i);
-    }
-  }
-  // Crossing bridges.
-  for(const rot of [0,Math.PI/2]){
-    componentModuleBox(0,0,2.98,11.8,.55,.18,'#6b4935',43800+Math.round(rot*100),rot);
-  }
-  // Pit marker / bottom core.
-  componentModuleBox(0,0,-.04,2.4,2.4,.10,'#15110f',43900,0);
+  for(const rot of [0,Math.PI/2]){mapSolidBox(0,0,2.98,11.6,.60,.20,'old_wood_dark',43800+Math.round(rot*100),rot);mapSolidBox(0,0,3.20,11.6,.12,.26,'metal_warm',43850+Math.round(rot*100),rot)}
+  for(let i=0;i<6;i++){const a=i*TAU/6+.08;if(mapCut(a,.12))continue;const f=mapRingFrame(a,8.12);mapFrameBox(f,0,0,.02,.72,.82,4.55,'shaft_stone',43920+i);mapFrameBox(f,0,0,4.57,.92,.98,.18,'shaft_ledge',43940+i)}
 }
 function buildMapCiudadela(){
   resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
-  // Central plaza.
-  componentModuleBox(0,0,.02,4.3,4.3,.16,'#46382f',44000,Math.PI/4);
-  const districts=8;
-  for(let i=0;i<districts;i++){
-    const a=i*TAU/districts+.10,f=mapRingFrame(a,7.5);
-    // radial avenue
-    const p=slotPoint(f,0,-3.75,.02);
-    componentModuleBox(p.x,p.z,.02,.52,6.6,.08,i%2?'#4a4037':'#37413a',44100+i,f.rot+Math.PI/2);
-    // district landmark cluster
-    const palette=['#635044','#45584c','#80603a','#34483d'];
-    for(let y=0;y<4+(i%3);y++){
-      const w=1.75-y*.12;
-      slotBox(f,0,.55,.12+y*.52,w,1.55,.48,palette[i%palette.length],44200+i*40+y);
-    }
-    for(const sx of [-1,1])slotBox(f,sx*1.35,.90,.12,.50,.50,1.20,shade(palette[i%palette.length],-8),44300+i*20+(sx>0?1:0));
-  }
-  // outer civic wall, cut at front
-  for(let i=0;i<28;i++){const a=i*TAU/28;if(!mapCut(a,.20))mapRingSegment(a,10.2,.02,2.25,.55,.72,'#403831',44400+i)}
+  for(let i=0;i<8;i++){const a=i*TAU/8+.10;if(mapCut(a,.20))continue;const f=mapRingFrame(a,7.55),mat=i%2?'civic_stone':'civic_green';mapFrameBox(f,0,.35,.10,1.85,1.45,1.75,mat,44200+i);mapFrameBox(f,0,.25,1.87,2.08,1.62,.20,'metal_warm',44240+i);for(const sx of [-1,1])mapFrameBox(f,sx*1.25,.65,.08,.55,.55,1.15,'civic_stone_dark',44300+i*3+(sx>0?1:0))}
+  mapSolidBox(0,0,.04,3.65,3.65,.22,'civic_stone',44400,Math.PI/4);mapSolidBox(0,0,.26,1.05,1.05,2.70,'civic_stone_dark',44410,Math.PI/4);mapSolidBox(0,0,2.96,1.40,1.40,.18,'metal_warm',44420,Math.PI/4);
 }
 function buildMapFundicion(now){
   resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
-  // Central furnace.
-  for(let y=0;y<6;y++){
-    const r=2.25-y*.12;
-    for(let i=0;i<12;i++){
-      const a=i*TAU/12;
-      mapRingSegment(a,r,.02+y*.48,1.20,.48,.44,y%2?'#5b3829':'#3d3028',45000+y*30+i);
-    }
-  }
-  addWorldEmissive(0,0,2.70,2.25,.72,1.0,45100);
-  // Conveyor ring.
-  for(let i=0;i<28;i++){
-    const a=i*TAU/28+.02;
-    mapRingSegment(a,6.0,.24,1.45,.54,.14,i%2?'#5a4638':'#37413a',45200+i);
-  }
-  // Workshops + exhaust towers.
-  for(let i=0;i<8;i++){
-    const a=i*TAU/8,f=mapRingFrame(a,8.8);
-    slotBox(f,0,0,.02,2.2,1.55,.16,'#41362f',45300+i);
-    slotBox(f,-.72,.10,.18,.18,.18,2.15,'#4c4037',45400+i);
-    slotBox(f,.72,.10,.18,.18,.18,1.65,'#635044',45500+i);
-    const flame=slotPoint(f,0,.35,.58);
-    addWorldEmissive(flame.x,flame.z,.58,.82,.30,.72,45600+i);
-  }
+  for(let i=0;i<10;i++){const a=i*TAU/10,x=Math.cos(a)*1.85,z=Math.sin(a)*1.85;mapSolidBox(x,z,.08,1.10,.68,2.10,i%2?'forge_iron':'forge_copper',45000+i,a+Math.PI/2)}
+  mapSolidBox(0,0,.06,2.20,2.20,2.65,'forge_iron',45100,Math.PI/4);addWorldEmissive(0,0,2.72,2.55,.78,1.0,45120);
+  for(let i=0;i<8;i++){const a=i*TAU/8+.02;if(mapCut(a,.20))continue;const f=mapRingFrame(a,8.55);mapFrameBox(f,0,.20,.02,2.20,1.50,.20,'forge_iron',45300+i);mapFrameBox(f,-.72,.10,.22,.22,.22,2.55,'forge_iron',45400+i);mapFrameBox(f,.72,.10,.22,.22,.22,1.95,'forge_copper',45500+i);const flame=slotPoint(f,0,.38,.62);addWorldEmissive(flame.x,flame.z,.62,.92,.30,.70,45600+i)}
 }
 function buildMapObservatorio(now){
   resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
-  // Circular gallery, open at camera-facing half.
-  for(let i=0;i<28;i++){
-    const a=i*TAU/28;
-    if(!mapCut(a,.16))mapRingSegment(a,9.6,.02,2.15,.58,.58,i%2?'#33423f':'#4a4037',46000+i);
-  }
-  // Central orrery.
-  componentModuleBox(0,0,.02,1.15,1.15,3.10,'#4b4035',46100,0);
-  for(const [r,h,col] of [[2.4,1.05,'#80603a'],[3.5,1.70,'#45584c'],[4.55,2.35,'#6b4935']]){
-    for(let i=0;i<18;i++){
-      const a=i*TAU/18+now*.00005*(h+1);
-      mapRingSegment(a,r,h,.74,.14,.12,col,46200+Math.round(r*100)+i);
-    }
-  }
-  addWorldEmissive(0,0,3.18,.75,.34,.65,46600);
-  // Perimeter instruments.
-  for(let i=0;i<8;i++){
-    const a=i*TAU/8+.20,f=mapRingFrame(a,7.2);
-    slotBox(f,0,0,.02,.85,.85,.68,i%2?'#34483d':'#514238',46700+i);
-    slotBox(f,0,0,.70,.18,.18,1.15,'#80603a',46800+i);
-  }
+  mapSolidBox(0,0,.02,1.28,1.28,3.25,'observatory_wood',46100,0);
+  for(const [r,h,mat] of [[2.4,1.05,'metal_warm'],[3.5,1.72,'observatory_blue'],[4.6,2.40,'metal_warm']]){for(let i=0;i<12;i++){const a=i*TAU/12+now*.00005*(h+1),x=Math.cos(a)*r,z=Math.sin(a)*r;mapSolidBox(x,z,h,.62,.16,.12,mat,46200+Math.round(r*100)+i,a+Math.PI/2)}}
+  addWorldEmissive(0,0,3.28,.82,.32,.62,46600);
+  for(let i=0;i<8;i++){const a=i*TAU/8+.20;if(mapCut(a,.18))continue;const f=mapRingFrame(a,7.45);mapFrameBox(f,0,0,.02,.95,.95,.72,i%2?'observatory_blue':'observatory_wood',46700+i);mapFrameBox(f,0,0,.74,.20,.20,1.25,'metal_warm',46800+i);mapFrameBox(f,0,0,1.99,.62,.24,.16,'metal_warm',46900+i)}
 }
 function buildMapLaberinto(){
   resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
-  const rings=[9.6,7.5,5.4,3.3];
-  for(let ri=0;ri<rings.length;ri++){
-    const r=rings[ri],N=28-ri*2;
-    for(let i=0;i<N;i++){
-      const a=i*TAU/N;
-      const gate=(i+ri*3)%(6-ri===0?3:6)===0;
-      if(gate||mapCut(a,.08+ri*.03))continue;
-      mapRingSegment(a,r,.02,2.05,.48,.82,ri%2?'#37483f':'#514238',47000+ri*100+i);
-    }
-  }
-  // radial gates / blockers
-  for(let i=0;i<8;i++){
-    const a=i*TAU/8+.15,f=mapRingFrame(a,6.45);
-    slotBox(f,0,0,.02,.32,2.25,1.10,i%2?'#6b4935':'#40342d',47600+i,Math.PI/2);
-  }
-  // central goal chamber
-  for(let y=0;y<4;y++)componentModuleBox(0,0,.02+y*.56,1.75-y*.12,1.75-y*.12,.52,y%2?'#80603a':'#34483d',47700+y,Math.PI/4);
+  const radii=[8.85,6.95,5.05,3.15];
+  for(let ri=0;ri<radii.length;ri++){const r=radii[ri],N=12-ri;for(let i=0;i<N;i++){const a=i*TAU/N+.04*ri;if(mapCut(a,.10+ri*.02)||(i+ri*2)%4===0)continue;const f=mapRingFrame(a,r);mapFrameBox(f,0,0,.03,2.15,.34,1.18,ri%2?'maze_moss':'maze_stone',47000+ri*100+i)}}
+  for(let i=0;i<8;i++){const a=i*TAU/8+.15,f=mapRingFrame(a,6.20);mapFrameBox(f,0,0,.03,.36,2.50,1.20,i%2?'maze_stone':'maze_moss',47600+i,Math.PI/2)}
+  mapSolidBox(0,0,.03,1.95,1.95,.60,'maze_goal',47700,Math.PI/4);mapSolidBox(0,0,.63,1.40,1.40,.60,'maze_goal',47710,Math.PI/4);addWorldEmissive(0,0,1.30,.62,.22,.34,47720);
 }
 
 function camaraVisible(angle){
@@ -3481,7 +3360,7 @@ function camaraSolidBox(frame,lx,lz,baseH,w,d,h,material,seed,localRot=0){
 }
 function buildCamaraDoorAt(angle,variant,seed){
   if(!camaraVisible(angle))return;
-  const f=mapRingFrame(angle,8.86);
+  const f=mapRingFrame(angle,10.08);
   const leaf=variant==='light'?'old_wood_light':'old_wood_dark';
   const frame=variant==='dark'?'old_wood_dark':'old_wood_light';
 
@@ -3503,7 +3382,7 @@ function buildCamaraDoorAt(angle,variant,seed){
 }
 function buildCamaraCurtainAt(angle,seed){
   if(!camaraVisible(angle))return;
-  const f=mapRingFrame(angle,8.86);
+  const f=mapRingFrame(angle,10.08);
   camaraSolidBox(f,0,0,2.44,1.62,.11,.10,'metal_warm',seed+1);
   for(let i=0;i<7;i++){
     const x=-.54+i*.18;
@@ -3511,7 +3390,7 @@ function buildCamaraCurtainAt(angle,seed){
   }
 }
 function buildCamaraRoundTable(angle,seed){
-  const f=mapRingFrame(angle,5.75);
+  const f=mapRingFrame(angle,6.28);
   // Explicit furniture only. The room shell remains pictorial.
   for(let i=0;i<12;i++){
     const a=i*TAU/12;
@@ -3523,12 +3402,12 @@ function buildCamaraRoundTable(angle,seed){
   }
 }
 function buildCamaraChandelier(seed){
-  camaraFreeBox(0,0,3.15,.12,.12,1.18,'metal_warm',seed+1,0);
+  camaraFreeBox(0,0,3.55,.13,.13,1.58,'metal_warm',seed+1,0);
   for(let i=0;i<6;i++){
     const a=i*TAU/6+.18,x=Math.cos(a)*.72,z=Math.sin(a)*.72;
-    camaraFreeBox(x*.52,z*.52,2.82,.62,.09,.08,'metal_warm',seed+10+i,a);
-    camaraFreeBox(x,z,2.67,.12,.12,.25,'metal_warm',seed+20+i,0);
-    addWorldEmissive(x,z,2.92,.40,.13,.26,seed+30+i);
+    camaraFreeBox(x*.52,z*.52,3.05,.72,.10,.09,'metal_warm',seed+10+i,a);
+    camaraFreeBox(x,z,2.88,.13,.13,.28,'metal_warm',seed+20+i,0);
+    addWorldEmissive(x,z,3.16,.46,.14,.28,seed+30+i);
   }
 }
 function buildMapCamara(now){
@@ -3618,7 +3497,23 @@ const MaterialLibrary=Object.freeze({
   old_wood_light:{base:'#786044',deep:'#493725',stain:'#5e4a34',highlight:'#a18158',opaque:true,top:14,variance:13,stroke:'rgba(20,13,8,.94)'},
   curtain_red:{base:'#691b24',deep:'#361015',stain:'#8a2b2f',highlight:'#9a4040',opaque:true,top:9,variance:11,stroke:'rgba(28,8,9,.94)'},
   metal_warm:{base:'#8a743f',deep:'#4f4226',stain:'#6c572f',highlight:'#b89b52',opaque:true,top:20,variance:9,stroke:'rgba(27,20,10,.92)'},
-  hole_edge_broken:{base:'#c9bf86',dark:'#776f4b',void:'#030403',highlight:'#e2d69a',opaque:true,top:4,variance:10,stroke:'rgba(10,9,6,.98)'}
+  hole_edge_broken:{base:'#c9bf86',dark:'#776f4b',void:'#030403',highlight:'#e2d69a',opaque:true,top:4,variance:10,stroke:'rgba(10,9,6,.98)'},
+  fortress_stone:{base:'#67564a',deep:'#332a24',highlight:'#8f745b',opaque:true,top:16,variance:12,stroke:'rgba(18,13,10,.96)'},
+  fortress_stone_dark:{base:'#4a4038',deep:'#26211d',highlight:'#715e4d',opaque:true,top:13,variance:11,stroke:'rgba(14,10,8,.96)'},
+  archive_green:{base:'#40594d',deep:'#20342c',highlight:'#718474',opaque:true,top:12,variance:10,stroke:'rgba(11,16,13,.95)'},
+  archive_wood:{base:'#6b5038',deep:'#39291d',highlight:'#94704d',opaque:true,top:14,variance:13,stroke:'rgba(16,10,7,.95)'},
+  shaft_stone:{base:'#46534e',deep:'#202723',highlight:'#69776f',opaque:true,top:11,variance:11,stroke:'rgba(10,13,12,.96)'},
+  shaft_ledge:{base:'#75624e',deep:'#3c3228',highlight:'#9a8064',opaque:true,top:15,variance:9,stroke:'rgba(15,11,8,.96)'},
+  civic_stone:{base:'#6f5a49',deep:'#3b3028',highlight:'#97775c',opaque:true,top:15,variance:10,stroke:'rgba(17,12,9,.96)'},
+  civic_stone_dark:{base:'#4d4036',deep:'#28221d',highlight:'#725f4e',opaque:true,top:13,variance:10,stroke:'rgba(14,10,8,.96)'},
+  civic_green:{base:'#465d50',deep:'#25362e',highlight:'#6f8275',opaque:true,top:12,variance:10,stroke:'rgba(11,15,13,.96)'},
+  forge_iron:{base:'#433832',deep:'#211a17',highlight:'#705346',opaque:true,top:10,variance:13,stroke:'rgba(14,8,6,.97)'},
+  forge_copper:{base:'#7a432f',deep:'#3d2119',highlight:'#a66242',opaque:true,top:17,variance:14,stroke:'rgba(19,8,5,.97)'},
+  observatory_blue:{base:'#314a54',deep:'#172830',highlight:'#5f7880',opaque:true,top:13,variance:10,stroke:'rgba(8,12,15,.96)'},
+  observatory_wood:{base:'#5b4b3e',deep:'#31271f',highlight:'#7e6650',opaque:true,top:13,variance:11,stroke:'rgba(15,10,7,.96)'},
+  maze_moss:{base:'#425548',deep:'#223329',highlight:'#69796d',opaque:true,top:11,variance:12,stroke:'rgba(10,14,11,.96)'},
+  maze_stone:{base:'#655849',deep:'#342d26',highlight:'#89755e',opaque:true,top:14,variance:10,stroke:'rgba(15,11,8,.96)'},
+  maze_goal:{base:'#80613f',deep:'#463320',highlight:'#a57c4d',opaque:true,top:17,variance:12,stroke:'rgba(17,10,6,.96)'}
 });
 const WORLD_MATERIALS={
   stone:{base:'#514238',opaque:true,top:18,stroke:'rgba(9,6,5,.96)'},
