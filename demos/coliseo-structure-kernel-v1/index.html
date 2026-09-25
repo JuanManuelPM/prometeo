@@ -66,15 +66,30 @@ button.pill.layer.on{color:#d8e3dc;border-color:rgba(95,136,115,.62);background:
   .contractGrid{grid-template-columns:repeat(2,1fr)}
 }
 @media(max-width:700px){
-  #topbar{top:7px;left:8px;right:8px}.demoBadge{font-size:7px;padding:6px}
-  #side{right:8px;top:52px;bottom:50px;width:36vw}
+  #topbar{top:5px;left:6px;right:6px}
+  .demoBadge{font-size:5.8px;padding:5px 6px;letter-spacing:.055em}
+  .mark{width:24px;height:24px;font-size:10px}
+  .title b{font-size:7.5px;letter-spacing:.08em}.title span{display:none}
+
+  /* Mobile HUD is deliberately secondary to the graph. */
+  #side{right:6px;top:38px;bottom:auto;width:132px;display:block}
   #contract{display:none}
-  #manifest pre{font-size:6px}
-  #controls{left:8px;right:8px;bottom:7px;grid-template-columns:1fr auto}
-  button.pill{font-size:7px;padding:6px 7px}
-  #legend{left:8px;top:48px;font-size:6px;max-width:50vw}
-  #eventLog{left:8px;bottom:49px;font-size:6px;max-width:52vw}
-  .mark{width:28px;height:28px}.title b{font-size:9px}.title span{display:none}
+  #manifest{display:block;min-height:0}
+  .manifestHead{padding:5px 6px}
+  #manifest h3{font-size:6.5px;letter-spacing:.07em}
+  #manifestToggle{font-size:6.5px}
+  #manifest pre{font-size:5.4px;line-height:1.25;max-height:54vh;padding:6px}
+
+  #controls{left:6px;right:6px;bottom:5px;grid-template-columns:1fr auto;gap:5px}
+  #scenarioBar,.layerBar{gap:3px;flex-wrap:nowrap}
+  #scenarioBar{overflow-x:auto;scrollbar-width:none;padding-right:4px}
+  #scenarioBar::-webkit-scrollbar{display:none}
+  button.pill{font-size:5.8px;padding:5px 6px;white-space:nowrap}
+  button.pill.layer{padding:5px 5px}
+
+  #legend{left:6px;top:36px;font-size:5.4px;gap:5px;max-width:58vw}
+  .dot{width:5px;height:5px}
+  #eventLog{display:none}
 }
 @media(orientation:portrait){
   #app{
@@ -135,7 +150,7 @@ const canvas=document.getElementById('arena'),ctx=canvas.getContext('2d');
 const scenarioBar=document.getElementById('scenarioBar'),manifestPre=document.getElementById('manifestPre'),eventLog=document.getElementById('eventLog');
 const manifestToggle=document.getElementById('manifestToggle'),manifestBox=document.getElementById('manifest');
 const TAU=Math.PI*2;
-let W=0,H=0,DPR=1,lastManifest='',scenarioKey='reducer',hiddenManifest=false;
+let W=0,H=0,DPR=1,lastManifest='',scenarioKey='reducer',hiddenManifest=matchMedia('(max-width:700px)').matches;
 const layers={work:true,flow:true,capacity:true,progress:true};
 const colors={ACTIVE:'#d49a52',READY:'#c6b47a',BLOCKED:'#6a302a',SUCCESS:'#5f8873',IDLE:'#54483d'};
 const roleEmoji={SOURCE:'✍️',TRANSFORM:'⚙️',REDUCER:'🧩',SYNTHESIS:'🔗',VERIFY:'🔍',GATE:'🚦',PROMOTION:'✅',TERMINAL:'📦',POOL:'🧰'};
@@ -232,6 +247,11 @@ function resize(){
   canvas.width=Math.round(W*DPR);canvas.height=Math.round(H*DPR);ctx.setTransform(DPR,0,0,DPR,0,0);
 }
 addEventListener('resize',resize,{passive:true});resize();
+function applyManifestVisibility(){
+  manifestPre.style.display=hiddenManifest?'none':'block';
+  manifestToggle.textContent=hiddenManifest?'SHOW':'HIDE';
+}
+applyManifestVisibility();
 
 function stateFor(node,t){
   if(t>=node.end)return 'SUCCESS';
@@ -259,14 +279,16 @@ function inputRatio(node,t){
   return Math.max(0,Math.min(1,sum/node.deps.length));
 }
 function nodeScreen(node){
-  const sidePanel=Math.min(330,W*.31);
-  const left=38,right=W-sidePanel-32,top=82,bottom=H-76;
+  const compact=H<520||W<760;
+  const sidePanel=compact?(hiddenManifest?78:142):Math.min(330,W*.31);
+  const left=compact?22:38,right=W-sidePanel-(compact?16:32),top=compact?54:82,bottom=H-(compact?44:76);
   return {x:left+node.x*(right-left),y:top+node.y*(bottom-top)};
 }
 function arenaBackdrop(){
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle='#070706';ctx.fillRect(0,0,W,H);
-  const sidePanel=Math.min(330,W*.31),cx=(W-sidePanel)*.46,cy=H*.52;
+  const compact=H<520||W<760;
+  const sidePanel=compact?(hiddenManifest?78:142):Math.min(330,W*.31),cx=(W-sidePanel)*.46,cy=H*.52;
   const r=Math.min((W-sidePanel)*.43,H*.43);
   ctx.fillStyle='#18130f';ctx.beginPath();ctx.arc(cx,cy,r,0,TAU);ctx.fill();
   ctx.strokeStyle='rgba(196,156,111,.15)';ctx.lineWidth=1;
@@ -291,29 +313,46 @@ function drawEdge(a,b,state,alpha=1,label=''){
 function drawTransfer(a,b,k,seed){
   const p=nodeScreen(a),q=nodeScreen(b),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
   const x=p.x+(q.x-p.x)*e,y=p.y+(q.y-p.y)*e;
-  const s=5+(seed%3);ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);ctx.fillStyle=seed%2?'#d69a56':'#7ea28f';ctx.fillRect(-s/2,-s/2,s,s);ctx.restore();
+  const compact=H<520||W<760;
+  const s=(compact?3.5:5)+(seed%(compact?2:3));ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);ctx.fillStyle=seed%2?'#d69a56':'#7ea28f';ctx.fillRect(-s/2,-s/2,s,s);ctx.restore();
 }
 function drawNode(node,state,t,index){
-  const p=nodeScreen(node),w=node.role==='POOL'?132:106,h=node.role==='POOL'?52:58;
+  const p=nodeScreen(node);
+  const compact=H<520||W<760;
+  const scaleUI=compact?Math.max(.62,Math.min(.78,H/520)):1;
+  const w=(node.role==='POOL'?132:106)*scaleUI;
+  const h=(node.role==='POOL'?52:58)*scaleUI;
   ctx.save();
-  ctx.fillStyle='rgba(8,7,6,.93)';ctx.strokeStyle=colors[state]||colors.IDLE;ctx.lineWidth=state==='ACTIVE'?2:1;
+  ctx.fillStyle='rgba(8,7,6,.93)';ctx.strokeStyle=colors[state]||colors.IDLE;ctx.lineWidth=state==='ACTIVE'?(compact?1.4:2):1;
   ctx.fillRect(p.x-w/2,p.y-h/2,w,h);ctx.strokeRect(p.x-w/2,p.y-h/2,w,h);
   ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.font='16px system-ui';ctx.fillText(roleEmoji[node.role]||'•',p.x,p.y-h/2+13);
-  ctx.font='900 8px ui-monospace,monospace';ctx.fillStyle='#d8c5ad';ctx.fillText(node.label.toUpperCase(),p.x,p.y+2);
-  ctx.font='750 6.5px ui-monospace,monospace';ctx.fillStyle='#77695c';ctx.fillText(node.role+' · '+state,p.x,p.y+14);
+
+  ctx.font=(compact?11:16)+'px system-ui';
+  ctx.fillText(roleEmoji[node.role]||'•',p.x,p.y-h/2+(compact?9:13));
+
+  ctx.font='900 '+(compact?5.8:8)+'px ui-monospace,monospace';
+  ctx.fillStyle='#d8c5ad';
+  const maxChars=compact?14:22;
+  const lbl=node.label.length>maxChars?node.label.slice(0,maxChars-1)+'…':node.label;
+  ctx.fillText(lbl.toUpperCase(),p.x,p.y+(compact?1:2));
+
+  ctx.font='750 '+(compact?4.8:6.5)+'px ui-monospace,monospace';
+  ctx.fillStyle='#77695c';
+  ctx.fillText(node.role+' · '+state,p.x,p.y+(compact?10:14));
+
   if(layers.progress){
-    const ratio=inputRatio(node,t),barW=w-14,barY=p.y+h/2-7;
-    ctx.fillStyle='#201a15';ctx.fillRect(p.x-barW/2,barY,barW,3);
-    ctx.fillStyle=ratio>=.999?'#5f8873':'#d49a52';ctx.fillRect(p.x-barW/2,barY,barW*ratio,3);
-    ctx.font='800 6px ui-monospace,monospace';ctx.fillStyle='#8b7c6c';
+    const ratio=inputRatio(node,t),barW=w-(compact?9:14),barY=p.y+h/2-(compact?5:7);
+    ctx.fillStyle='#201a15';ctx.fillRect(p.x-barW/2,barY,barW,compact?2:3);
+    ctx.fillStyle=ratio>=.999?'#5f8873':'#d49a52';ctx.fillRect(p.x-barW/2,barY,barW*ratio,compact?2:3);
+    ctx.font='800 '+(compact?4.5:6)+'px ui-monospace,monospace';ctx.fillStyle='#8b7c6c';
     const txt=node.deps.length?Math.round(ratio*node.deps.length)+'/'+node.deps.length:Math.round(ratio*100)+'%';
-    ctx.fillText(txt,p.x+w/2-13,barY-4);
+    ctx.fillText(txt,p.x+w/2-(compact?9:13),barY-(compact?3:4));
   }
   if(layers.capacity&&state==='ACTIVE'){
     const worker='W'+String((index%8)+1).padStart(2,'0'),emoji=workerEmoji[node.action]||'👤';
-    ctx.font='18px system-ui';ctx.fillText(emoji,p.x,p.y-h/2-16);
-    ctx.font='900 7px ui-monospace,monospace';ctx.fillStyle='#f0cf9e';ctx.fillText(worker,p.x+18,p.y-h/2-16);
+    ctx.font=(compact?12:18)+'px system-ui';ctx.fillText(emoji,p.x,p.y-h/2-(compact?10:16));
+    ctx.font='900 '+(compact?5:7)+'px ui-monospace,monospace';ctx.fillStyle='#f0cf9e';
+    ctx.fillText(worker,p.x+(compact?12:18),p.y-h/2-(compact?10:16));
   }
   ctx.restore();
 }
@@ -386,9 +425,7 @@ for(const [key,s] of Object.entries(scenarios)){
 document.querySelectorAll('.layer').forEach(b=>{
   b.onclick=()=>{const k=b.dataset.layer;layers[k]=!layers[k];b.classList.toggle('on',layers[k]);lastManifest=''}
 });
-manifestToggle.onclick=()=>{
-  hiddenManifest=!hiddenManifest;manifestPre.style.display=hiddenManifest?'none':'block';manifestToggle.textContent=hiddenManifest?'SHOW':'HIDE'
-};
+manifestToggle.onclick=()=>{hiddenManifest=!hiddenManifest;applyManifestVisibility()};
 requestAnimationFrame(render);
 })();
 </script>
