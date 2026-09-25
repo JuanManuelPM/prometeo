@@ -10,9 +10,6 @@
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#030403;color:#d9d0b8;font-family:system-ui,-apple-system,sans-serif;overscroll-behavior:none;touch-action:none}
 #app{position:fixed;inset:0;overflow:hidden;background:#030403;isolation:isolate}
 #scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;image-rendering:auto}
-#sceneNav{position:absolute;z-index:9;left:50%;top:max(7px,env(safe-area-inset-top));transform:translateX(-50%);display:flex;gap:2px;padding:3px;background:rgba(5,6,4,.56);border:1px solid rgba(205,190,137,.09);box-shadow:0 5px 20px rgba(0,0,0,.32);opacity:.72}
-#sceneNav button{border:0;background:transparent;color:#7e806d;padding:7px 10px;font:800 8px/1 system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase}
-#sceneNav button.on{color:#e4d8b3;background:rgba(151,138,79,.14)}
 #pad{position:absolute;z-index:11;right:max(10px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom));width:128px;height:86px;pointer-events:none;opacity:.62}
 #pad button{position:absolute;width:42px;height:42px;border:1px solid rgba(221,205,151,.16);background:rgba(5,6,4,.58);color:rgba(229,216,174,.72);font:900 18px/1 system-ui,sans-serif;display:grid;place-items:center;pointer-events:auto;backdrop-filter:blur(2px)}
 #left{left:0;top:22px}#right{right:0;top:22px}#up{left:43px;top:0}#down{left:43px;bottom:0}
@@ -22,25 +19,20 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#030403;col
 #loading.off{opacity:0;pointer-events:none}
 #vignette{position:absolute;z-index:5;inset:-8%;pointer-events:none;background:radial-gradient(ellipse at 50% 48%,transparent 34%,rgba(0,0,0,.18) 57%,rgba(0,0,0,.77) 100%)}
 #scan{position:absolute;z-index:6;inset:0;pointer-events:none;opacity:.20;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.024) 0 1px,transparent 1px 4px);mix-blend-mode:screen}
-@media(max-height:430px){#sceneNav{top:4px}#sceneNav button{padding:6px 8px;font-size:7px}#pad{transform:scale(.9);transform-origin:bottom right}}
+@media(max-height:430px){#pad{transform:scale(.9);transform-origin:bottom right}}
 </style>
 </head>
 <body>
 <div id="app">
   <canvas id="scene" aria-label="Pasillo pseudo-3D de Prometeo"></canvas>
   <div id="vignette"></div><div id="scan"></div>
-  <nav id="sceneNav" aria-label="Escenas">
-    <button class="on" data-scene="passage">PASSAGE</button>
-    <button data-scene="tunnel">TUNNEL</button>
-    <button data-scene="chamber">CHAMBER</button>
-  </nav>
   <div id="pad" aria-label="Controles táctiles">
     <button id="left" aria-label="Mirar izquierda">‹</button>
     <button id="right" aria-label="Mirar derecha">›</button>
     <button id="up" aria-label="Avanzar">↑</button>
     <button id="down" aria-label="Retroceder">↓</button>
   </div>
-  <div id="hint">horizontal = mirar · vertical = avanzar/retroceder · sin strafe</div>
+  <div id="hint">izquierda/derecha = mirar · arriba/abajo = avanzar recto · suelo continuo</div>
   <div id="loading">cargando lugar</div>
 </div>
 <script>
@@ -100,6 +92,12 @@ function cameraPoint(x,y,z){
 }
 function projectWorld(x,y,z){const p=cameraPoint(x,y,z);if(p.z<=.18)return null;const f=(205/p.z)*zoom;return{x:W*.5+p.x*f,y:H*.51-y*f,z:p.z,f}}
 function quadWorld(a,b,c,d,img,alpha){const p=[a,b,c,d].map(q=>projectWorld(q.x,q.y,q.z));if(p.some(q=>!q))return;texQuad(img,p[0],p[1],p[2],p[3],alpha)}
+function continuousFloor(halfW,y,z0,z1,img,alpha){
+  const cs=Math.max(.22,Math.cos(yaw)),sn=Math.abs(Math.sin(yaw));
+  const near=Math.max(z0,camZ+(halfW*sn+.34)/cs);
+  if(z1<=near)return;
+  quadWorld({x:-halfW,y,z:z1},{x:halfW,y,z:z1},{x:halfW,y,z:near},{x:-halfW,y,z:near},img,alpha);
+}
 function spriteWorld(img,x,y,z,w,h,alpha=1){if(!img)return;const p=projectWorld(x,y,z);if(!p)return;const sw=w*p.f,sh=h*p.f;if(sw<2||sh<2)return;ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(img,p.x-sw*.5,p.y-sh*.5,sw,sh);ctx.restore()}
 function baseFill(top,bottom){const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,top);g.addColorStop(.55,'#11120d');g.addColorStop(1,bottom);ctx.fillStyle=g;ctx.fillRect(0,0,W,H)}
 function renderPassage(){
@@ -111,7 +109,7 @@ function renderPassage(){
     quadWorld({x:-halfW,y:halfH,z:z0},{x:-halfW,y:halfH,z:z1},{x:-halfW,y:-halfH,z:z1},{x:-halfW,y:-halfH,z:z0},s.k%3===0?atlas.moss:atlas.wallL,fade);
     quadWorld({x:halfW,y:halfH,z:z1},{x:halfW,y:halfH,z:z0},{x:halfW,y:-halfH,z:z0},{x:halfW,y:-halfH,z:z1},s.k%4===0?atlas.rust:atlas.wallR,fade*.98);
     quadWorld({x:-halfW,y:halfH,z:z0},{x:halfW,y:halfH,z:z0},{x:halfW,y:halfH,z:z1},{x:-halfW,y:halfH,z:z1},atlas.ceiling,fade*.82);
-    quadWorld({x:-halfW,y:-halfH,z:z1},{x:halfW,y:-halfH,z:z1},{x:halfW,y:-halfH,z:z0},{x:-halfW,y:-halfH,z:z0},atlas.floor,fade*.95);
+    continuousFloor(halfW,-halfH,z0,z1,atlas.floor,fade*.95);
     const doorZ=z1-.72;
     if(s.k%3===1){spriteWorld(assets.mask,-2.70,-.10,doorZ,.92,1.42,fade*.80);}
     if(s.k%5===2){spriteWorld(assets.heart,2.66,-.14,doorZ,.66,.66,fade*.55);}
@@ -129,7 +127,7 @@ function renderTunnel(){
     quadWorld({x:-halfW,y:halfH,z:z0},{x:-halfW,y:halfH,z:z1},{x:-halfW,y:-halfH,z:z1},{x:-halfW,y:-halfH,z:z0},atlas.rust,f);
     quadWorld({x:halfW,y:halfH,z:z1},{x:halfW,y:halfH,z:z0},{x:halfW,y:-halfH,z:z0},{x:halfW,y:-halfH,z:z1},atlas.moss,f*.92);
     quadWorld({x:-halfW,y:halfH,z:z0},{x:halfW,y:halfH,z:z0},{x:halfW,y:halfH,z:z1},{x:-halfW,y:halfH,z:z1},atlas.wallR,f*.68);
-    quadWorld({x:-halfW,y:-halfH,z:z1},{x:halfW,y:-halfH,z:z1},{x:halfW,y:-halfH,z:z0},{x:-halfW,y:-halfH,z:z0},atlas.floor,f*.90);
+    continuousFloor(halfW,-halfH,z0,z1,atlas.floor,f*.90);
     if(s.k%4===0)spriteWorld(assets.mask,0,.16,z1-.25,.72,1.08,f*.54);
   }
 }
@@ -144,21 +142,20 @@ function analog(){
   const g=ctx.createRadialGradient(W*.5,H*.48,W*.16,W*.5,H*.48,W*.69);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.44)');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
   ctx.save();ctx.globalAlpha=.035;ctx.globalCompositeOperation='screen';for(let i=0;i<34;i++){const x=(i*83+(last|0)*.013)%W,y=(i*47+(last|0)*.009)%H;ctx.fillStyle=i%3?'#c5ad70':'#84906c';ctx.fillRect(x,y,1,1)}ctx.restore();
 }
-function render(){ctx.setTransform(1,0,0,1,0,0);if(scene==='passage')renderPassage();else if(scene==='tunnel')renderTunnel();else renderChamber();analog()}
+function render(){ctx.setTransform(1,0,0,1,0,0);renderPassage();analog()}
 function update(dt){const k=Math.min(1,dt*.013);yaw=lerp(yaw,targetYaw,k);camZ=lerp(camZ,targetCamZ,k);zoom=lerp(zoom,targetZoom,k)}
 function frame(t){requestAnimationFrame(frame);if(document.hidden||t-last<28)return;const dt=Math.min(50,t-last||16);last=t;update(dt);render()}
-function setScene(s){scene=s;document.querySelectorAll('#sceneNav button').forEach(b=>b.classList.toggle('on',b.dataset.scene===s));hint.style.opacity='1';setTimeout(()=>hint.style.opacity='.24',1700)}
-document.querySelectorAll('#sceneNav button').forEach(b=>b.addEventListener('pointerdown',e=>{e.stopPropagation();setScene(b.dataset.scene)}));
+function setScene(){scene='passage';targetCamZ=0;targetYaw=0;targetZoom=1;hint.style.opacity='1';setTimeout(()=>hint.style.opacity='.24',1700)}
 function point(e){const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}}
 canvas.addEventListener('pointerdown',e=>{const p=point(e);pointers.set(e.pointerId,p);canvas.setPointerCapture(e.pointerId);if(pointers.size===1)drag={id:e.pointerId,x:p.x,y:p.y,yaw:targetYaw,z:targetCamZ,zoom:targetZoom};if(pointers.size===2){const ps=[...pointers.values()];pinch={d:Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y),z:targetZoom};drag=null}e.preventDefault()});
-canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;const p=point(e);pointers.set(e.pointerId,p);if(pinch&&pointers.size>=2){const ps=[...pointers.values()],d=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y);targetZoom=clamp(pinch.z*d/Math.max(1,pinch.d),.78,1.32);return}if(drag&&drag.id===e.pointerId){targetYaw=clamp(drag.yaw+(p.x-drag.x)/W*1.28,-1.10,1.10);if(scene==='chamber')targetZoom=clamp(drag.zoom-(p.y-drag.y)/H*.35,.78,1.32);else targetCamZ=clamp(drag.z-(p.y-drag.y)/H*18,-6,70)}e.preventDefault()});
+canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;const p=point(e);pointers.set(e.pointerId,p);if(pinch&&pointers.size>=2){const ps=[...pointers.values()],d=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y);targetZoom=clamp(pinch.z*d/Math.max(1,pinch.d),.78,1.32);return}if(drag&&drag.id===e.pointerId){targetYaw=clamp(drag.yaw+(p.x-drag.x)/W*1.28,-.82,.82);targetCamZ=clamp(drag.z-(p.y-drag.y)/H*18,-6,70)}e.preventDefault()});
 function end(e){pointers.delete(e.pointerId);if(pointers.size<2)pinch=null;if(pointers.size===1){const z=[...pointers.entries()][0];drag={id:z[0],x:z[1].x,y:z[1].y,yaw:targetYaw,z:targetCamZ,zoom:targetZoom}}else drag=null}
 canvas.addEventListener('pointerup',end);canvas.addEventListener('pointercancel',end);
-const held=new Map();function nudge(kind,amount){if(kind==='left')targetYaw=clamp(targetYaw-amount,-1.10,1.10);if(kind==='right')targetYaw=clamp(targetYaw+amount,-1.10,1.10);if(kind==='up'&&scene!=='chamber')targetCamZ=clamp(targetCamZ+amount*8,-6,70);if(kind==='down'&&scene!=='chamber')targetCamZ=clamp(targetCamZ-amount*8,-6,70)}
+const held=new Map();function nudge(kind,amount){if(kind==='left')targetYaw=clamp(targetYaw-amount,-.82,.82);if(kind==='right')targetYaw=clamp(targetYaw+amount,-.82,.82);if(kind==='up')targetCamZ=clamp(targetCamZ+amount*8,-6,70);if(kind==='down')targetCamZ=clamp(targetCamZ-amount*8,-6,70)}
 ['left','right','up','down'].forEach(id=>{const b=document.getElementById(id);b.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();nudge(id,.13);const timer=setInterval(()=>nudge(id,.055),60);held.set(e.pointerId,timer);b.setPointerCapture(e.pointerId)});const stop=e=>{const t=held.get(e.pointerId);if(t)clearInterval(t);held.delete(e.pointerId)};b.addEventListener('pointerup',stop);b.addEventListener('pointercancel',stop)});
 addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')nudge('left',.10);else if(e.key==='ArrowRight'||e.key==='d')nudge('right',.10);else if(e.key==='ArrowUp'||e.key==='w')nudge('up',.12);else if(e.key==='ArrowDown'||e.key==='s')nudge('down',.12)});
-window.PrometeoSpaces={version:'spaces-passage-v3',setScene,camera:{get yaw(){return targetYaw},get z(){return targetCamZ}},contract:'yaw rotates view; z-only travel; no strafe'};
-setScene('passage');requestAnimationFrame(frame);
+window.PrometeoSpaces={version:'spaces-passage-v4',setScene,camera:{get yaw(){return targetYaw},get z(){return targetCamZ}},contract:'single image-first passage; yaw rotates view; z-only travel; continuous near floor; no strafe'};
+setScene();requestAnimationFrame(frame);
 })();
 </script>
 </body>
