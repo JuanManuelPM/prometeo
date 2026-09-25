@@ -408,7 +408,7 @@ const LAB_FAST=LAB_PARAMS.get('fast')==='1';
 const LAB_BASELINE='8ef25c0a34cc9cd68fa9b35152dec9289d5cb3d8';
 let LAB_SELECTED=-1;
 let LAB_TAP_START=null;
-const LAB_BUILD='LIVE-WORKERS-V11-PRODUCTION-MAP-DEMO-20260925';
+const LAB_BUILD='LIVE-WORKERS-V12-CAUSAL-PRODUCTION-DEMO-20260925';
 const labBadge=document.getElementById('labBadge');
 const wrap=document.getElementById('wrap');
 const mapStage=document.getElementById('mapStage');
@@ -3409,14 +3409,24 @@ function liveLayout(){
     const seed=liveStringHash(w.worker_id);
     if(np){
       taskX=np.x;taskZ=np.z;
-      // Workers orbit their task instead of sitting directly on top of its marker.
-      const oa=((seed%10000)/10000)*TAU;
-      const or=.42+((seed>>>9)%1000)/1000*.46;
-      x=np.x+Math.cos(oa)*or;
-      z=np.z+Math.sin(oa)*or;
-      const rr=Math.hypot(x,z);
-      if(rr>8.55){x*=8.55/rr;z*=8.55/rr}
-      if(rr<1.75&&rr>0){x*=1.75/rr;z*=1.75/rr}
+      if(snap.layout_mode==='production_map'){
+        // Production semantics: an ACTIVE worker visibly belongs to the station it is executing.
+        // Keep a tiny front/side offset so the avatar does not disappear inside the building.
+        const kind=np.node?.node_kind||'ROOT';
+        const side=(seed&1)?1:-1;
+        const ox=kind==='ROOT'?.28:kind==='REDUCER'?.42:kind==='SYNTHESIS'?.52:kind==='VERIFY'?.46:.42;
+        x=np.x-.12;
+        z=np.z+side*ox;
+      }else{
+        // Generic graph view keeps a small orbit for readability.
+        const oa=((seed%10000)/10000)*TAU;
+        const or=.42+((seed>>>9)%1000)/1000*.46;
+        x=np.x+Math.cos(oa)*or;
+        z=np.z+Math.sin(oa)*or;
+        const rr=Math.hypot(x,z);
+        if(rr>8.55){x*=8.55/rr;z*=8.55/rr}
+        if(rr<1.75&&rr>0){x*=1.75/rr;z*=1.75/rr}
+      }
     }else{
       const r=2.6+(seed%540)/100;
       const frac=((seed>>>8)%1000)/1000;
@@ -3483,7 +3493,8 @@ function livePaintDagLevels(layout){
   }
 }
 function livePaintWorkerLinks(layout){
-  if(liveLOD()==='OVERVIEW')return;
+  const snap=liveSnapshot();
+  if(snap?.layout_mode==='production_map'||liveLOD()==='OVERVIEW')return;
   let seed=78180;
   for(const item of layout.workers){
     if(item.taskX==null||item.taskZ==null)continue;
@@ -3572,6 +3583,62 @@ function livePaintDependencies(layout){
     }
   }
 }
+function liveProductionCompletionPhase(node){
+  const kind=node?.node_kind||'ROOT';
+  if(kind==='ROOT')return 1;
+  if(kind==='REDUCER')return 2;
+  if(kind==='SYNTHESIS')return 3;
+  if(kind==='VERIFY')return 4;
+  if(kind==='PROMOTION')return 5;
+  return 99;
+}
+function liveProductionEdgeProgress(fromNode,toNode,snap,now){
+  if(!snap||snap.layout_mode!=='production_map')return 0;
+  const completedAt=liveProductionCompletionPhase(fromNode);
+  const phase=Number(snap.demo_phase||0);
+  if(phase<completedAt)return 0;
+  if(phase>completedAt)return 1;
+  const started=Date.parse(snap.demo_phase_started_at||snap.generated_at||'');
+  const elapsed=Number.isFinite(started)?Math.max(0,now-started):0;
+  const phaseMs=Math.max(1000,Number(snap.demo_phase_duration_ms||9000));
+  const raw=clamp(elapsed/phaseMs,0,1);
+  const delay=((liveStringHash(fromNode.node_key+'>'+toNode.node_key)%1000)/1000)*.16;
+  return clamp((raw-delay)/.44,0,1);
+}
+function liveProductionInputStatus(node,byNode,snap,now){
+  const deps=Array.isArray(node.depends_on)?node.depends_on:[];
+  let received=0;
+  for(const dk of deps){
+    const from=byNode.get(dk);
+    if(from&&liveProductionEdgeProgress(from.node,node,snap,now)>=.999)received++;
+  }
+  return {received,required:deps.length};
+}
+function livePaintProductionWorkingOutputs(layout,now){
+  const snap=liveSnapshot();
+  if(!snap||snap.layout_mode!=='production_map')return;
+  for(const pos of layout.nodePos.values()){
+    const n=pos.node;if(n.state!=='ACTIVE')continue;
+    const p=wp(pos.x+.38,pos.z-.10,.26);
+    const pulse=.72+.18*Math.sin(now/260+(liveStringHash(n.node_key)%100));
+    const r=Math.max(2.5,scale*.15)*pulse;
+    ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.PI/4);
+    ctx.globalAlpha=.92;ctx.fillStyle=n.node_kind==='VERIFY'?'#8cb0a0':'#d1a16a';
+    ctx.fillRect(-r,-r,r*2,r*2);
+    ctx.strokeStyle='#17100c';ctx.lineWidth=Math.max(.8,scale*.035);ctx.strokeRect(-r,-r,r*2,r*2);
+    ctx.restore();
+    const worker=(snap.workers||[]).find(w=>w.node_key===n.node_key);
+    if(worker){
+      const wp0=layout.workers.find(it=>it.worker.worker_id===worker.worker_id);
+      if(wp0){
+        const a=wp(wp0.x,wp0.z,.30);
+        ctx.save();ctx.globalAlpha=.48;ctx.strokeStyle='#d1a16a';ctx.lineWidth=Math.max(.8,scale*.03);
+        ctx.setLineDash([Math.max(2,scale*.10),Math.max(2,scale*.10)]);
+        ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(p.x,p.y);ctx.stroke();ctx.restore();
+      }
+    }
+  }
+}
 function livePaintProductionArtifacts(layout,now){
   const snap=liveSnapshot();
   if(!snap||snap.layout_mode!=='production_map')return;
@@ -3582,16 +3649,40 @@ function livePaintProductionArtifacts(layout,now){
     const to=layout.nodePos.get(n.project_key+'|'+n.node_key);
     if(!to)continue;
     for(const dk of Array.isArray(n.depends_on)?n.depends_on:[]){
-      const from=byNode.get(dk);if(!from||from.node?.state!=='SUCCESS')continue;
-      const phase=((now/1800)+(liveStringHash(dk+'>'+n.node_key)%1000)/1000)%1;
-      const x=from.x+(to.x-from.x)*phase,z=from.z+(to.z-from.z)*phase;
-      const p=wp(x,z,.16),r=Math.max(2.4,scale*.14);
+      const from=byNode.get(dk);if(!from)continue;
+      const progress=liveProductionEdgeProgress(from.node,n,snap,now);
+      if(progress<=0||progress>=1)continue;
+      // Output starts exactly at the producing station and travels only after that job succeeded.
+      const x=from.x+(to.x-from.x)*progress,z=from.z+(to.z-from.z)*progress;
+      const p=wp(x,z,.16),r=Math.max(2.7,scale*.15);
       ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.PI/4);
-      ctx.globalAlpha=.88;ctx.fillStyle=i%2?'#d1a16a':'#8cb0a0';
+      ctx.globalAlpha=.94;ctx.fillStyle=i%2?'#d1a16a':'#8cb0a0';
       ctx.fillRect(-r,-r,r*2,r*2);
       ctx.strokeStyle='#130d09';ctx.lineWidth=Math.max(.8,scale*.03);ctx.strokeRect(-r,-r,r*2,r*2);
       ctx.restore();i++;
     }
+  }
+}
+function livePaintProductionInputs(layout,now){
+  const snap=liveSnapshot();
+  if(!snap||snap.layout_mode!=='production_map')return;
+  const byNode=new Map();
+  for(const pos of layout.nodePos.values())byNode.set(pos.node.node_key,pos);
+  for(const pos of layout.nodePos.values()){
+    const n=pos.node;
+    const deps=Array.isArray(n.depends_on)?n.depends_on:[];
+    if(!deps.length)continue;
+    const {received,required}=liveProductionInputStatus(n,byNode,snap,now);
+    const p=wp(pos.x,pos.z,.72);
+    const state=n.state==='ACTIVE'?'WORKING':n.state==='READY'?'READY':n.state==='SUCCESS'?'DONE':'WAITING';
+    const txt='INPUTS '+received+'/'+required+' · '+state;
+    const fs=clamp(scale*.16,5.5,8);
+    ctx.save();ctx.font='900 '+fs+'px ui-monospace,monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    const w=ctx.measureText(txt).width+Math.max(8,scale*.36),h=fs+Math.max(5,scale*.20);
+    ctx.globalAlpha=.84;ctx.fillStyle='rgba(5,5,4,.84)';ctx.fillRect(p.x-w/2,p.y-h/2,w,h);
+    ctx.globalAlpha=.96;
+    ctx.fillStyle=received===required?'#8cb0a0':n.state==='BLOCKED'?'#a65b4c':'#d1a16a';
+    ctx.fillText(txt,p.x,p.y);ctx.restore();
   }
 }
 function liveBuildNodeGeometry(layout){
@@ -3705,7 +3796,9 @@ function drawWorkerGallery(now){
   livePaintDependencies(layout);
   livePaintWorkerLinks(layout);
   liveBuildNodeGeometry(layout);
+  livePaintProductionWorkingOutputs(layout,now);
   livePaintProductionArtifacts(layout,now);
+  livePaintProductionInputs(layout,now);
   livePaintProjectBoards(layout);
 
   const t=now/1000,data=workerDemoData(now);
@@ -4976,8 +5069,12 @@ const DEMO_EPOCH=Date.now();
 
 function productionDemoSnapshot(){
   const now=Date.now(),hb=120;
-  const phase=Math.floor(((now-DEMO_EPOCH)/9000)%6);
-  const phaseNames=['BUILD PARTS','REDUCE','ASSEMBLE','INSPECT','PROMOTE','COMPLETE'];
+  const phaseDuration=9000;
+  const cycleElapsed=(now-DEMO_EPOCH)%(phaseDuration*6);
+  const phase=Math.floor(cycleElapsed/phaseDuration);
+  const phaseProgress=(cycleElapsed%phaseDuration)/phaseDuration;
+  const phaseStartedAt=now-(cycleElapsed%phaseDuration);
+  const phaseNames=['BUILD PARTS','DELIVER + REDUCE','DELIVER + ASSEMBLE','DELIVER + INSPECT','DELIVER + PROMOTE','COMPLETE'];
   const projectKey='PRODUCTION_MAP_DEMO';
   const projects=[{
     project_key:projectKey,title:'Prometeo Production Map',guide_key:'DEMO',active_objective:true,
@@ -5005,22 +5102,22 @@ function productionDemoSnapshot(){
     }
     if(n.node_kind==='REDUCER'){
       if(phase<1)return 'BLOCKED';
-      if(phase===1)return 'ACTIVE';
+      if(phase===1)return phaseProgress<.62?'BLOCKED':'ACTIVE';
       return 'SUCCESS';
     }
     if(n.node_kind==='SYNTHESIS'){
       if(phase<2)return 'BLOCKED';
-      if(phase===2)return 'ACTIVE';
+      if(phase===2)return phaseProgress<.62?'BLOCKED':'ACTIVE';
       return 'SUCCESS';
     }
     if(n.node_kind==='VERIFY'){
       if(phase<3)return 'BLOCKED';
-      if(phase===3)return 'ACTIVE';
+      if(phase===3)return phaseProgress<.62?'BLOCKED':'ACTIVE';
       return 'SUCCESS';
     }
     if(n.node_kind==='PROMOTION'){
       if(phase<4)return 'BLOCKED';
-      if(phase===4)return 'ACTIVE';
+      if(phase===4)return phaseProgress<.62?'BLOCKED':'ACTIVE';
       return 'SUCCESS';
     }
     return 'BLOCKED';
@@ -5031,7 +5128,7 @@ function productionDemoSnapshot(){
     return {
       ...n,project_key:projectKey,objective_key:projectKey,guide_key:'DEMO',state,priority:1000-i*10,
       job_class:n.node_kind==='VERIFY'?'VERIFY_READONLY':n.node_kind==='SYNTHESIS'||n.node_kind==='PROMOTION'?'SYNTHESIS':n.node_kind==='REDUCER'?'CRITIQUE':'PREPARE_BOUNDED',
-      progress_stage:state==='ACTIVE'?(n.node_kind==='ROOT'?'BUILD':n.node_kind==='REDUCER'?'REDUCE':n.node_kind==='SYNTHESIS'?'ASSEMBLE':n.node_kind==='VERIFY'?'VERIFY':'SUBMIT_START'):null
+      progress_stage:state==='ACTIVE'?(n.node_kind==='ROOT'?'BUILD_OUTPUT':n.node_kind==='REDUCER'?'REDUCE_INPUTS':n.node_kind==='SYNTHESIS'?'ASSEMBLE_OUTPUT':n.node_kind==='VERIFY'?'VERIFY_OUTPUT':'PROMOTE_OUTPUT'):null
     };
   });
 
@@ -5076,6 +5173,9 @@ function productionDemoSnapshot(){
     rule:'SYNTHETIC PRODUCTION DEMO · parts -> workshops -> assembly -> inspection -> canonical',
     layout_mode:'production_map',
     demo_phase:phase,demo_phase_label:phaseNames[phase],
+    demo_phase_progress:phaseProgress,
+    demo_phase_started_at:new Date(phaseStartedAt).toISOString(),
+    demo_phase_duration_ms:phaseDuration,
     counts,projects,nodes,workers,demo:true
   };
 }
@@ -5224,7 +5324,7 @@ function render(snap){
   const counts=snap.counts||{};
   window.PROMETEO_LIVE_WORKERS={...snap,workers,nodes,projects,counts,stale:false};
   count.textContent=String(Number(counts.working??workers.length));
-  label.textContent=DEMO?'WORKING · DEMO':'WORKING';
+  label.textContent=DEMO_MODE==='production'?'WORKING · CAUSAL DEMO':(DEMO?'WORKING · DEMO':'WORKING');
   queue.textContent='READY '+Number(counts.ready||0)+' · BLOCKED '+Number(counts.blocked||0);
   fresh.textContent=DEMO&&snap.demo_phase_label
     ? 'PHASE '+(Number(snap.demo_phase||0)+1)+'/6 · '+snap.demo_phase_label
