@@ -1,0 +1,1 @@
+window.COLISEO_LAB_MODULE={id:'hud',version:'0.0.1',drawHud(ctx,snapshot,layout,selection,env){},hitTestHud(point){return null}};\n
