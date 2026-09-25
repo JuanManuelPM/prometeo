@@ -408,7 +408,7 @@ const LAB_FAST=LAB_PARAMS.get('fast')==='1';
 const LAB_BASELINE='8ef25c0a34cc9cd68fa9b35152dec9289d5cb3d8';
 let LAB_SELECTED=-1;
 let LAB_TAP_START=null;
-const LAB_BUILD='LIVE-WORKERS-V8-PROJECT-CLARITY-20260925';
+const LAB_BUILD='LIVE-WORKERS-V9-SEMANTIC-ZOOM-20260925';
 const labBadge=document.getElementById('labBadge');
 const wrap=document.getElementById('wrap');
 const mapStage=document.getElementById('mapStage');
@@ -3268,6 +3268,32 @@ function liveArcPoints(a0,a1,r,n=16,h=.04){
   }
   return pts;
 }
+let LIVE_RESERVED_RECTS=[];
+function liveLOD(){
+  return zoom<.55?'OVERVIEW':(zoom<1.02?'MID':'DETAIL');
+}
+function liveRectOverlap(a,b,pad=2){
+  return !(a.x+a.w+pad<=b.x||b.x+b.w+pad<=a.x||a.y+a.h+pad<=b.y||b.y+b.h+pad<=a.y);
+}
+function liveClampRect(r){
+  r.x=clamp(r.x,4,Math.max(4,IW-r.w-4));
+  r.y=clamp(r.y,4,Math.max(4,IH-r.h-4));
+  return r;
+}
+function livePlaceLabel(anchorX,anchorY,w,h,reserved,kind='worker'){
+  const gap=Math.max(4,scale*.24);
+  const shifts=kind==='project'
+    ? [[0,-h-gap],[0,h*.12],[w*.58,-h*.45],[-w*.58,-h*.45],[w*.72,h*.12],[-w*.72,h*.12]]
+    : [[0,gap],[0,h+gap],[w*.58,gap],[-w*.58,gap],[w*.72,-h*.45],[-w*.72,-h*.45]];
+  for(const [dx,dy] of shifts){
+    const r=liveClampRect({x:anchorX-w/2+dx,y:anchorY+dy,w,h});
+    if(!reserved.some(o=>liveRectOverlap(r,o,kind==='project'?5:3))){
+      reserved.push(r);
+      return r;
+    }
+  }
+  return null;
+}
 function liveVisualLiveness(w,snap){
   const generated=Date.parse(snap.generated_at||'');
   const drift=Number.isFinite(generated)?Math.max(0,(Date.now()-generated)/1000):0;
@@ -3366,17 +3392,28 @@ function liveLayout(){
   const workerItems=workers.map((w,index)=>{
     const pk=w.project_key||'UNSCOPED',sector=projectPos.get(pk)||projectPos.values().next().value;
     const np=nodePos.get(pk+'|'+w.node_key);
-    let x,z;
-    if(np){x=np.x;z=np.z}else{
-      const seed=liveStringHash(w.worker_id),r=3.0+(seed%470)/100;
+    let x,z,taskX=null,taskZ=null;
+    const seed=liveStringHash(w.worker_id);
+    if(np){
+      taskX=np.x;taskZ=np.z;
+      // Workers orbit their task instead of sitting directly on top of its marker.
+      const oa=((seed%10000)/10000)*TAU;
+      const or=.42+((seed>>>9)%1000)/1000*.46;
+      x=np.x+Math.cos(oa)*or;
+      z=np.z+Math.sin(oa)*or;
+      const rr=Math.hypot(x,z);
+      if(rr>8.55){x*=8.55/rr;z*=8.55/rr}
+      if(rr<1.75&&rr>0){x*=1.75/rr;z*=1.75/rr}
+    }else{
+      const r=2.6+(seed%540)/100;
       const frac=((seed>>>8)%1000)/1000;
-      const ang=sector.start+.10+(sector.end-sector.start-.20)*frac;
+      const ang=sector.start+.12+(sector.end-sector.start-.24)*frac;
       x=Math.cos(ang)*r;z=Math.sin(ang)*r;
     }
     const occKey=pk+'|'+(w.node_key||'fallback');
     const oi=occupancy.get(occKey)||0;occupancy.set(occKey,oi+1);
-    if(oi){const oa=oi*2.399963229728653,or=.18+.06*Math.min(4,oi);x+=Math.cos(oa)*or;z+=Math.sin(oa)*or}
-    return {worker:w,index,x,z,project:{...(sector?.meta||{title:pk}),index:sector?.index??0},sector};
+    if(oi){const oa=oi*2.399963229728653,or=.30+.12*Math.min(4,oi);x+=Math.cos(oa)*or;z+=Math.sin(oa)*or}
+    return {worker:w,index,x,z,taskX,taskZ,project:{...(sector?.meta||{title:pk}),index:sector?.index??0},sector};
   });
 
   const value={projects:projectKeys.map(k=>projectPos.get(k)),nodes,workers:workerItems,nodePos,projectPos};
@@ -3387,53 +3424,72 @@ function livePaintSectors(layout){
   const demo=document.body.classList.contains('demoMode');
   for(const sector of layout.projects){
     const i=sector.index,color=liveProjectColor(i);
-    const meta=sector.meta||{};
-    const working=Number(meta.working||0),ready=Number(meta.ready||0),blocked=Number(meta.blocked||0);
-
-    // Strong territorial wedge: the project must read before any node or worker label.
     camaraWorldPoly(
       ctx,
-      liveSectorPolygon(sector.start+.018,sector.end-.018,1.35,9.35),
+      liveSectorPolygon(sector.start+.025,sector.end-.025,1.15,9.45),
       color,
-      layout.projects.length===1?.075:(demo?.145:.105),
+      layout.projects.length===1?.075:(demo?.135:.095),
       null,0,78000+i
     );
-
-    // Radial walls + outer project rail make the sector visible even on a dim phone.
-    const a0=sector.start+.012,a1=sector.end-.012;
+    const a0=sector.start+.015,a1=sector.end-.015;
     worldFloorLine(ctx,[
-      {x:Math.cos(a0)*1.35,z:Math.sin(a0)*1.35,h:.042},
-      {x:Math.cos(a0)*9.35,z:Math.sin(a0)*9.35,h:.042}
-    ],color,.70,Math.max(.85,scale*.055),78050+i*3);
+      {x:Math.cos(a0)*1.15,z:Math.sin(a0)*1.15,h:.042},
+      {x:Math.cos(a0)*9.45,z:Math.sin(a0)*9.45,h:.042}
+    ],color,.72,Math.max(.85,scale*.052),78050+i*3);
     worldFloorLine(ctx,[
-      {x:Math.cos(a1)*1.35,z:Math.sin(a1)*1.35,h:.042},
-      {x:Math.cos(a1)*9.35,z:Math.sin(a1)*9.35,h:.042}
-    ],color,.70,Math.max(.85,scale*.055),78051+i*3);
-    worldFloorLine(ctx,liveArcPoints(a0,a1,9.05,20,.043),color,.72,Math.max(.9,scale*.062),78052+i*3);
-
-    // Screen-facing project plate, anchored in world space but deliberately readable.
+      {x:Math.cos(a1)*1.15,z:Math.sin(a1)*1.15,h:.042},
+      {x:Math.cos(a1)*9.45,z:Math.sin(a1)*9.45,h:.042}
+    ],color,.72,Math.max(.85,scale*.052),78051+i*3);
+    worldFloorLine(ctx,liveArcPoints(a0,a1,9.18,22,.043),color,.76,Math.max(.9,scale*.058),78052+i*3);
+  }
+}
+function livePaintWorkerLinks(layout){
+  if(liveLOD()==='OVERVIEW')return;
+  let seed=78180;
+  for(const item of layout.workers){
+    if(item.taskX==null||item.taskZ==null)continue;
+    const color=liveProjectColor(item.sector?.index??0);
+    worldFloorLine(ctx,[
+      {x:item.taskX,z:item.taskZ,h:.046},
+      {x:item.x,z:item.z,h:.046}
+    ],color,.25,Math.max(.35,scale*.018),seed++);
+  }
+}
+function livePaintProjectBoards(layout){
+  const lod=liveLOD();
+  for(const sector of layout.projects){
+    const i=sector.index,color=liveProjectColor(i),meta=sector.meta||{};
+    const working=Number(meta.working||0),ready=Number(meta.ready||0),blocked=Number(meta.blocked||0);
     const a=sector.mid;
-    const p=wp(Math.cos(a)*7.75,Math.sin(a)*7.75,.12);
-    const title=liveShort(meta.title||meta.project_key,layout.projects.length>4?16:24).toUpperCase();
-    const titleFont=Math.max(9,scale*.40);
-    const metaFont=Math.max(6.5,scale*.235);
+    // The 3D totem sits at the rim; the billboard remains screen-facing and can slide to avoid collisions.
+    const anchor=wp(Math.cos(a)*8.92,Math.sin(a)*8.92,1.28);
+    const title=liveShort(meta.title||meta.project_key,layout.projects.length>4?15:22).toUpperCase();
+    const titleFont=clamp(scale*.34,8.5,14);
+    const metaFont=clamp(scale*.20,6,8.5);
     ctx.save();
-    ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.font='900 '+titleFont+'px system-ui';
-    const tw=Math.max(ctx.measureText(title).width,scale*3.0);
-    const mw=tw+Math.max(12,scale*.8);
-    const mh=titleFont+metaFont+Math.max(10,scale*.55);
-    ctx.globalAlpha=.90;
-    ctx.fillStyle='rgba(8,7,6,.86)';
-    ctx.fillRect(p.x-mw/2,p.y-mh/2,mw,mh);
-    ctx.globalAlpha=.95;
-    ctx.strokeStyle=color;ctx.lineWidth=Math.max(1,scale*.06);
-    ctx.strokeRect(p.x-mw/2,p.y-mh/2,mw,mh);
-    ctx.fillStyle='#eadcc8';
-    ctx.fillText(title,p.x,p.y-titleFont*.12);
+    const titleW=ctx.measureText(title).width;
+    const metaText=lod==='OVERVIEW'
+      ? working+'W · '+ready+'R · '+blocked+'B'
+      : working+' WORKERS · '+ready+' READY · '+blocked+' BLOCKED';
     ctx.font='850 '+metaFont+'px ui-monospace,monospace';
-    ctx.fillStyle='#cdb99d';
-    ctx.fillText(working+' WORKERS · '+ready+' READY · '+blocked+' BLOCKED',p.x,p.y+titleFont*.62);
+    const metaW=ctx.measureText(metaText).width;
+    const w=Math.max(titleW,metaW)+Math.max(12,scale*.75);
+    const h=titleFont+metaFont+Math.max(9,scale*.42);
+    const rect=livePlaceLabel(anchor.x,anchor.y,w,h,LIVE_RESERVED_RECTS,'project');
+    if(!rect){ctx.restore();continue}
+    const cx=rect.x+rect.w/2,cy=rect.y+rect.h/2;
+    if(Math.hypot(cx-anchor.x,cy-anchor.y)>8){
+      ctx.globalAlpha=.60;ctx.strokeStyle=color;ctx.lineWidth=Math.max(1,scale*.045);
+      ctx.beginPath();ctx.moveTo(anchor.x,anchor.y);ctx.lineTo(cx,cy);ctx.stroke();
+    }
+    ctx.globalAlpha=.94;ctx.fillStyle='rgba(7,6,5,.91)';ctx.fillRect(rect.x,rect.y,rect.w,rect.h);
+    ctx.globalAlpha=.98;ctx.strokeStyle=color;ctx.lineWidth=Math.max(1,scale*.055);ctx.strokeRect(rect.x,rect.y,rect.w,rect.h);
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.font='900 '+titleFont+'px system-ui';ctx.fillStyle='#eadcc8';
+    ctx.fillText(title,cx,cy-titleFont*.15);
+    ctx.font='850 '+metaFont+'px ui-monospace,monospace';ctx.fillStyle='#cdb99d';
+    ctx.fillText(metaText,cx,cy+titleFont*.58);
     ctx.restore();
   }
 }
@@ -3458,6 +3514,11 @@ function livePaintDependencies(layout){
 function liveBuildNodeGeometry(layout){
   resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
   let seed=78400;
+  for(const sector of layout.projects){
+    const a=sector.mid,x=Math.cos(a)*8.92,z=Math.sin(a)*8.92;
+    mapSolidBox(x,z,.03,.48,.30,1.04,'old_wood_dark',seed++,a+Math.PI/2);
+    mapSolidBox(x,z,1.07,.56,.34,.10,'metal_warm',seed++,a+Math.PI/2);
+  }
   for(const n of layout.nodes){
     const pos=layout.nodePos.get(n.project_key+'|'+n.node_key);
     if(!pos)continue;
@@ -3500,7 +3561,7 @@ function workerDemoData(now){
   return layout.workers.map((item,index)=>{
     const sp=liveStagePosition(item,t,snap),w=item.worker;
     return {
-      worker:w,index,project:item.project,
+      worker:w,index,project:item.project,sector:item.sector,taskX:item.taskX,taskZ:item.taskZ,
       pl:{
         x:sp.x,z:sp.z,h:0,jump:sp.jump,size:sp.size,
         color:playerSeed[liveStringHash(w.worker_id)%playerSeed.length],
@@ -3524,59 +3585,76 @@ window.PROMETEO_LIVE_HITTEST=function(clientX,clientY){
 function drawWorkerGallery(now){
   const snap=liveSnapshot(),layout=liveLayout();
   window.PROMETEO_LIVE_WORKER_HITS=[];
+  LIVE_RESERVED_RECTS=[];
   if(!snap)return;
+
+  const lod=liveLOD();
   livePaintSectors(layout);
   livePaintDependencies(layout);
+  livePaintWorkerLinks(layout);
   liveBuildNodeGeometry(layout);
+  livePaintProjectBoards(layout);
 
   const t=now/1000,data=workerDemoData(now);
   data.sort((a,b)=>wp(a.pl.x,a.pl.z,.02).y-wp(b.pl.x,b.pl.z,.02).y);
+  const labelCandidates=[];
+
   for(let i=0;i<data.length;i++){
     const item=data[i],w=item.worker;
     const projectIndex=item.project&&Number.isFinite(item.project.index)?item.project.index:
-      (item.sector&&Number.isFinite(item.sector.index)?item.sector.index:
-      Math.max(0,layout.projects.findIndex(s=>s.meta?.project_key===w.project_key)));
+      Math.max(0,layout.projects.findIndex(s=>s.meta?.project_key===w.project_key));
     const projectColor=liveProjectColor(projectIndex);
 
-    // Project ownership ring. Body color stays worker-specific; battery stays liveness-specific.
     const gp=wp(item.pl.x,item.pl.z,item.pl.h+.025);
     const rr=Math.max(4.2,scale*item.pl.size*1.22);
     ctx.save();
-    ctx.globalAlpha=.72;
-    ctx.strokeStyle=projectColor;ctx.lineWidth=Math.max(1.2,scale*.075);
+    ctx.globalAlpha=.72;ctx.strokeStyle=projectColor;ctx.lineWidth=Math.max(1.15,scale*.065);
     ctx.beginPath();ctx.ellipse(gp.x,gp.y+rr*.22,rr*1.08,rr*.36,0,0,TAU);ctx.stroke();
     ctx.restore();
 
     drawPlayer(ctx,item.pl,t,i);
     const p=wp(item.pl.x,item.pl.z,item.pl.h+item.pl.jump+.46);
-
-    // Always-readable task label. Keep it short enough that 12 demo workers still fit.
-    const showTask=data.length<=24;
-    if(showTask){
-      const stage=liveShort(String(w.progress_stage||'WORK').replaceAll('_',' '),13).toUpperCase();
-      const task=liveShort(w.title||w.node_key||'task',18);
-      const f1=Math.max(6.5,scale*.225),f2=Math.max(6,scale*.195);
-      const y=p.y+rr*1.42;
-      ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.font='900 '+f1+'px ui-monospace,monospace';
-      const line1=(w.display_code||'W')+' · '+stage;
-      ctx.font='900 '+f1+'px ui-monospace,monospace';
-      const width=Math.max(ctx.measureText(line1).width,scale*2.3)+Math.max(8,scale*.45);
-      const h=f1+f2+Math.max(7,scale*.38);
-      ctx.globalAlpha=.82;ctx.fillStyle='rgba(5,5,4,.82)';
-      ctx.fillRect(p.x-width/2,y-h/2,width,h);
-      ctx.globalAlpha=.98;ctx.fillStyle='#eadcc8';
-      ctx.fillText(line1,p.x,y-f2*.46);
-      ctx.font='750 '+f2+'px system-ui';ctx.fillStyle=projectColor;
-      ctx.fillText(task,p.x,y+f1*.48);
-      ctx.restore();
-    }
+    labelCandidates.push({item,w,p,rr,projectColor});
 
     window.PROMETEO_LIVE_WORKER_HITS.push({
       x:p.x,y:p.y,r:Math.max(12,scale*item.pl.size*1.55),worker:w
     });
   }
-  if(labBadge)labBadge.textContent='LIVE WORKERS · '+data.length;
+
+  // Semantic zoom: overview = projects only, mid = code+stage, detail = task too.
+  if(lod!=='OVERVIEW'){
+    for(const c of labelCandidates){
+      const {w,p,rr,projectColor}=c;
+      const stage=liveShort(String(w.progress_stage||'WORK').replaceAll('_',' '),lod==='MID'?10:13).toUpperCase();
+      const line1=(w.display_code||'W')+' · '+stage;
+      const task=liveShort(w.title||w.node_key||'task',lod==='MID'?0:20);
+      const f1=clamp(scale*.205,6.2,10.5),f2=clamp(scale*.175,5.7,8.5);
+      ctx.save();
+      ctx.font='900 '+f1+'px ui-monospace,monospace';
+      const line1W=ctx.measureText(line1).width;
+      ctx.font='750 '+f2+'px system-ui';
+      const taskW=lod==='DETAIL'?ctx.measureText(task).width:0;
+      const wbox=Math.max(line1W,taskW)+Math.max(8,scale*.42);
+      const hbox=lod==='DETAIL'?(f1+f2+Math.max(7,scale*.30)):(f1+Math.max(7,scale*.28));
+      const anchorY=p.y+rr*1.22;
+      const rect=livePlaceLabel(p.x,anchorY,wbox,hbox,LIVE_RESERVED_RECTS,'worker');
+      if(rect){
+        const cx=rect.x+rect.w/2,cy=rect.y+rect.h/2;
+        ctx.globalAlpha=.84;ctx.fillStyle='rgba(5,5,4,.84)';ctx.fillRect(rect.x,rect.y,rect.w,rect.h);
+        ctx.globalAlpha=.96;ctx.strokeStyle=projectColor;ctx.lineWidth=Math.max(.7,scale*.028);ctx.strokeRect(rect.x,rect.y,rect.w,rect.h);
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.font='900 '+f1+'px ui-monospace,monospace';ctx.fillStyle='#eadcc8';
+        ctx.fillText(line1,cx,cy-(lod==='DETAIL'?f2*.45:0));
+        if(lod==='DETAIL'){
+          ctx.font='750 '+f2+'px system-ui';ctx.fillStyle=projectColor;
+          ctx.fillText(task,cx,cy+f1*.47);
+        }
+      }
+      ctx.restore();
+    }
+  }
+
+  if(labBadge)labBadge.textContent='LIVE WORKERS · '+data.length+' · '+lod;
 }
 
 
