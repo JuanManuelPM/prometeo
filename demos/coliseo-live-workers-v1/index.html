@@ -219,7 +219,7 @@ body{overscroll-behavior:none}
   .worldLegend{right:7px;bottom:8px;gap:7px;font-size:6px}
   .workerDetail{bottom:35px;padding:10px 34px 10px 11px}
 }
-</style></style>
+</style>
 </head>
 <body>
 <div id="app">
@@ -397,7 +397,7 @@ const LAB_FAST=LAB_PARAMS.get('fast')==='1';
 const LAB_BASELINE='8ef25c0a34cc9cd68fa9b35152dec9289d5cb3d8';
 let LAB_SELECTED=-1;
 let LAB_TAP_START=null;
-const LAB_BUILD='LIVE-WORKERS-V7-20260925';
+const LAB_BUILD='LIVE-WORKERS-V7-20260925-R2';
 const labBadge=document.getElementById('labBadge');
 const wrap=document.getElementById('wrap');
 const mapStage=document.getElementById('mapStage');
@@ -3233,7 +3233,7 @@ function liveStringHash(s){
 }
 function liveSnapshot(){
   const snap=window.PROMETEO_LIVE_WORKERS;
-  return snap&&snap.schema==='prometeo.public_worker_world/v2'&&!snap.stale?snap:null;
+  return snap&&snap.schema==='prometeo.public_worker_world/v3'&&!snap.stale?snap:null;
 }
 function liveShort(s,n=18){
   s=String(s||'');
@@ -3293,8 +3293,11 @@ function liveLayout(){
     projectPos.set(k,{start,end,mid,index:i,meta:meta.get(k)||{project_key:k,title:k}});
   });
 
-  const globalByNode=new Map();
-  for(const n of nodes)if(n?.node_key&&!globalByNode.has(n.node_key))globalByNode.set(n.node_key,n);
+  const globalByNode=new Map(),projectNodeIndex=new Map();
+  for(const n of nodes){
+    if(n?.node_key&&!globalByNode.has(n.node_key))globalByNode.set(n.node_key,n);
+    if(n?.node_key)projectNodeIndex.set((n.project_key||'')+'|'+n.node_key,n);
+  }
   const depthMemo=new Map(),visiting=new Set();
   function depthFor(n){
     const id=(n.project_key||'')+'|'+n.node_key;
@@ -3304,7 +3307,7 @@ function liveLayout(){
     let d=0;
     const deps=Array.isArray(n.depends_on)?n.depends_on:[];
     for(const depKey of deps){
-      const dep=nodes.find(x=>x.node_key===depKey&&x.project_key===n.project_key)||globalByNode.get(depKey);
+      const dep=projectNodeIndex.get((n.project_key||'')+'|'+depKey)||globalByNode.get(depKey);
       if(dep)d=Math.max(d,1+Math.min(7,depthFor(dep)));
     }
     visiting.delete(id);depthMemo.set(id,d);return d;
@@ -3477,7 +3480,7 @@ function drawWorkerGallery(now){
 }
 
 
-/* ---------- circular effects ---------- *//* ---------- circular effects ---------- */
+/* ---------- circular effects ---------- */
 
 const EFFECT_STATIONS=[
   {id:'pixel',angle:-2.50,label:'PIXEL',col:'#76503a'},
@@ -4673,7 +4676,7 @@ const wdMeta=document.getElementById('wdMeta');
 const close=document.getElementById('workerDetailClose');
 const scene=document.getElementById('scene');
 let lastGood=0,inFlight=false,down=null,selectedId=null;
-window.PROMETEO_LIVE_WORKERS={schema:'prometeo.public_worker_world/v2',workers:[],projects:[],nodes:[],counts:{},stale:true};
+window.PROMETEO_LIVE_WORKERS={schema:'prometeo.public_worker_world/v3',workers:[],projects:[],nodes:[],counts:{},stale:true};
 
 function currentWorker(){
   if(!selectedId)return null;
@@ -4684,11 +4687,18 @@ function showDetail(w){
   selectedId=w.worker_id;
   wdCode.textContent=w.display_code||'WORKER';
   wdTitle.textContent=w.title||w.node_key||w.project_key||'';
+  const snap=window.PROMETEO_LIVE_WORKERS;
+  const generated=Date.parse(snap.generated_at||'');
+  const drift=Number.isFinite(generated)?Math.max(0,(Date.now()-generated)/1000):0;
+  const age=Math.max(0,Number(w.age_seconds||0)+drift);
+  const hb=Math.max(15,Number(w.heartbeat_seconds||120));
+  const ratio=Math.max(0,Math.min(1,age/(hb*4)));
+  const liveState=ratio<=.25?'LIVE':(ratio<=.60?'AGING':'SUSPECT');
   wdMeta.textContent=[
     w.project_key||'UNSCOPED',
     w.progress_stage||'—',
-    w.liveness||'—',
-    'señal '+Math.round(Number(w.age_seconds||0))+'s',
+    liveState,
+    'señal '+Math.round(age)+'s',
     'recovery '+Number(w.recovery_count||0),
     'gen '+Number(w.assignment_generation||0)
   ].join(' · ');
@@ -4710,7 +4720,7 @@ function render(snap){
   if(selectedId)showDetail(selected);
 }
 function markStale(){
-  window.PROMETEO_LIVE_WORKERS={schema:'prometeo.public_worker_world/v2',workers:[],projects:[],nodes:[],counts:{},stale:true};
+  window.PROMETEO_LIVE_WORKERS={schema:'prometeo.public_worker_world/v3',workers:[],projects:[],nodes:[],counts:{},stale:true};
   count.textContent='—';label.textContent='WORKING · DATA STALE';
   queue.textContent='READY — · BLOCKED —';fresh.textContent='LIVE — · AGING — · SUSPECT —';
   hud.classList.add('stale');showDetail(null);
@@ -4723,7 +4733,7 @@ async function refresh(){
     const r=await fetch(ENDPOINT,{cache:'no-store',signal:ctl.signal});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const data=await r.json();
-    if(data.schema!=='prometeo.public_worker_world/v2'||!Array.isArray(data.workers)||!Array.isArray(data.nodes))throw new Error('bad schema');
+    if(data.schema!=='prometeo.public_worker_world/v3'||!Array.isArray(data.workers)||!Array.isArray(data.nodes))throw new Error('bad schema');
     render(data);
   }catch(e){
     if(!lastGood||Date.now()-lastGood>12000)markStale();
@@ -4741,10 +4751,9 @@ scene.addEventListener('pointerup',e=>{
 });
 close.addEventListener('click',()=>showDetail(null));
 refresh();
-setInterval(refresh,4000);
+setInterval(refresh,3000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});
 })();
 </script>
-</body></script>
 </body>
 </html>
