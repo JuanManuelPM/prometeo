@@ -304,3 +304,23 @@ on conflict(entity_key) do update set
  consumers=excluded.consumers,payload=excluded.payload,
  promoted_at=coalesce(public.prometeo_semantic_registry_v1.promoted_at,excluded.promoted_at),
  updated_at=now();
+
+
+insert into public.prometeo_semantic_registry_v1(
+ entity_key,title,kind,owner_key,version,status,source_ref,public_route,importance,
+ authority,supersedes,depends_on,consumers,payload,promoted_at,created_at,updated_at
+) values(
+ 'PROMETEO_ORGANISM_PARALLEL_HANDOFF_V1','Prometeo Organism Parallel Handoff V1','INVOCATION_CONTRACT','ROOT','1','CURRENT',
+ 'GitHub:/current-tree/organism/handoff.txt','/current-tree/organism/handoff.txt',95,'CANDIDATE_INTAKE_CONTRACT',null,
+ '["PROMETEO_ORGANISM_EXTERNAL_INTAKE_V1","PROMETEO_ORGANISM_PROJECTION_V1"]'::jsonb,
+ '["PARALLEL_CHATS","DOMAIN_GUIDES"]'::jsonb,
+ '{"law":"Parallel work may enter the organism only with a real source_ref and enters as CANDIDATE unless already source-owned."}'::jsonb,
+ now(),now(),now()
+)
+on conflict(entity_key) do update set
+ title=excluded.title,kind=excluded.kind,owner_key=excluded.owner_key,version=excluded.version,
+ status=excluded.status,source_ref=excluded.source_ref,public_route=excluded.public_route,
+ importance=excluded.importance,authority=excluded.authority,
+ depends_on=excluded.depends_on,consumers=excluded.consumers,payload=excluded.payload,
+ promoted_at=coalesce(public.prometeo_semantic_registry_v1.promoted_at,excluded.promoted_at),
+ updated_at=now();
