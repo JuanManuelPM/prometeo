@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta name="theme-color" content="#070706">
+<title>Prometeo · Coliseo Structure Kernel V1</title>
+<style>
+:root{
+  --bg:#070706;--arena:#15120f;--arena2:#211a15;--ink:#eadac5;--muted:#8c7b69;
+  --line:#665647;--active:#d49a52;--ready:#c6b47a;--blocked:#6a302a;--success:#5f8873;
+  --panel:rgba(8,7,6,.88);--panel2:rgba(18,15,12,.92);--accent:#d17e43;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button{font:inherit}
+#app{position:fixed;inset:0;overflow:hidden;background:var(--bg)}
+#stage{position:absolute;inset:0;overflow:hidden}
+#arena{position:absolute;inset:0;width:100%;height:100%;display:block}
+#topbar{
+  position:absolute;left:14px;right:14px;top:12px;z-index:10;display:flex;gap:10px;align-items:flex-start;justify-content:space-between;pointer-events:none
+}
+.head{display:flex;gap:9px;align-items:center;pointer-events:auto}
+.mark{width:32px;height:32px;border:1px solid rgba(209,126,67,.45);display:grid;place-items:center;background:#0b0907;font-weight:950}
+.title b{display:block;font-size:11px;letter-spacing:.12em}.title span{display:block;margin-top:2px;font-size:8px;color:var(--muted);letter-spacing:.04em}
+.demoBadge{padding:7px 9px;border:1px solid rgba(209,126,67,.35);background:rgba(9,7,6,.82);font:850 8px/1 ui-monospace,monospace;letter-spacing:.08em;color:#c7976d}
+#controls{
+  position:absolute;left:14px;right:14px;bottom:12px;z-index:12;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end;pointer-events:none
+}
+#scenarioBar,.layerBar{display:flex;gap:6px;flex-wrap:wrap;pointer-events:auto}
+#scenarioBar{align-content:flex-end}
+button.pill{
+  border:1px solid rgba(207,166,120,.18);background:rgba(9,7,6,.88);color:#a99681;padding:7px 9px;
+  font:850 8px/1 ui-monospace,monospace;letter-spacing:.045em;text-transform:uppercase
+}
+button.pill.on{color:#f2d0a3;border-color:rgba(209,126,67,.62);background:#382318}
+button.pill.layer.on{color:#d8e3dc;border-color:rgba(95,136,115,.62);background:#18251f}
+#side{
+  position:absolute;right:14px;top:70px;bottom:62px;z-index:11;width:min(330px,31vw);display:grid;grid-template-rows:auto 1fr;gap:8px;pointer-events:none
+}
+#contract,#manifest{
+  border:1px solid rgba(207,166,120,.16);background:var(--panel);backdrop-filter:blur(3px);pointer-events:auto
+}
+#contract{padding:9px}
+#contract h3,#manifest h3{margin:0;font-size:9px;letter-spacing:.11em;color:#c99d76;text-transform:uppercase}
+.contractGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:7px}
+.contractCell{border:1px solid rgba(207,166,120,.11);padding:5px 4px;text-align:center}
+.contractCell b{display:block;font:900 8px/1 ui-monospace,monospace;color:#d9c4a8}
+.contractCell span{display:block;margin-top:3px;font-size:7px;color:#766858}
+#manifest{min-height:0;display:grid;grid-template-rows:auto 1fr}
+.manifestHead{display:flex;justify-content:space-between;align-items:center;padding:8px 9px;border-bottom:1px solid rgba(207,166,120,.10)}
+#manifest pre{margin:0;padding:8px 9px;overflow:auto;font:650 7px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:#9b8b7a;white-space:pre-wrap;word-break:break-word}
+#manifestToggle{border:0;background:transparent;color:#c99d76;font:900 8px/1 ui-monospace,monospace}
+#legend{
+  position:absolute;left:14px;top:62px;z-index:9;display:flex;gap:8px;flex-wrap:wrap;max-width:45vw;font:750 7px/1 ui-monospace,monospace;color:#887766
+}
+.legendItem{display:flex;align-items:center;gap:4px}.dot{width:7px;height:7px;border:1px solid #111}
+#eventLog{
+  position:absolute;left:14px;bottom:58px;z-index:9;max-width:48vw;padding:6px 8px;border-left:2px solid rgba(209,126,67,.48);
+  background:rgba(7,6,5,.66);font:750 7px/1.35 ui-monospace,monospace;color:#897867;pointer-events:none
+}
+#eventLog b{color:#d6b087}
+@media(max-width:900px){
+  #side{width:min(300px,36vw)}
+  .contractGrid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:700px){
+  #topbar{top:7px;left:8px;right:8px}.demoBadge{font-size:7px;padding:6px}
+  #side{right:8px;top:52px;bottom:50px;width:36vw}
+  #contract{display:none}
+  #manifest pre{font-size:6px}
+  #controls{left:8px;right:8px;bottom:7px;grid-template-columns:1fr auto}
+  button.pill{font-size:7px;padding:6px 7px}
+  #legend{left:8px;top:48px;font-size:6px;max-width:50vw}
+  #eventLog{left:8px;bottom:49px;font-size:6px;max-width:52vw}
+  .mark{width:28px;height:28px}.title b{font-size:9px}.title span{display:none}
+}
+@media(orientation:portrait){
+  #app{
+    inset:auto;left:50%;top:50%;width:100dvh;height:100dvw;
+    transform:translate(-50%,-50%) rotate(90deg);transform-origin:center
+  }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage"><canvas id="arena"></canvas></div>
+  <div id="topbar">
+    <div class="head"><div class="mark">{}</div><div class="title"><b>COLISEO STRUCTURE KERNEL V1</b><span>topology + state + flow + worker attachment · renderer neutral</span></div></div>
+    <div class="demoBadge">DEMO · SYNTHETIC SEMANTIC DATA</div>
+  </div>
+
+  <div id="legend">
+    <span class="legendItem"><i class="dot" style="background:var(--active)"></i>ACTIVE</span>
+    <span class="legendItem"><i class="dot" style="background:var(--ready)"></i>READY</span>
+    <span class="legendItem"><i class="dot" style="background:var(--blocked)"></i>BLOCKED</span>
+    <span class="legendItem"><i class="dot" style="background:var(--success)"></i>SUCCESS</span>
+  </div>
+
+  <div id="side">
+    <div id="contract">
+      <h3>Renderer contract</h3>
+      <div class="contractGrid">
+        <div class="contractCell"><b>WORK</b><span>nodes + role + state</span></div>
+        <div class="contractCell"><b>FLOW</b><span>edges + artifacts</span></div>
+        <div class="contractCell"><b>CAPACITY</b><span>workers attached</span></div>
+        <div class="contractCell"><b>PROGRESS</b><span>ratio + accumulators</span></div>
+      </div>
+    </div>
+    <div id="manifest">
+      <div class="manifestHead"><h3>World Manifest V1</h3><button id="manifestToggle">HIDE</button></div>
+      <pre id="manifestPre"></pre>
+    </div>
+  </div>
+
+  <div id="eventLog"></div>
+
+  <div id="controls">
+    <div id="scenarioBar"></div>
+    <div class="layerBar">
+      <button class="pill layer on" data-layer="work">WORK</button>
+      <button class="pill layer on" data-layer="flow">FLOW</button>
+      <button class="pill layer on" data-layer="capacity">CAPACITY</button>
+      <button class="pill layer on" data-layer="progress">PROGRESS</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(()=>{
+'use strict';
+const canvas=document.getElementById('arena'),ctx=canvas.getContext('2d');
+const scenarioBar=document.getElementById('scenarioBar'),manifestPre=document.getElementById('manifestPre'),eventLog=document.getElementById('eventLog');
+const manifestToggle=document.getElementById('manifestToggle'),manifestBox=document.getElementById('manifest');
+const TAU=Math.PI*2;
+let W=0,H=0,DPR=1,lastManifest='',scenarioKey='reducer',hiddenManifest=false;
+const layers={work:true,flow:true,capacity:true,progress:true};
+const colors={ACTIVE:'#d49a52',READY:'#c6b47a',BLOCKED:'#6a302a',SUCCESS:'#5f8873',IDLE:'#54483d'};
+const roleEmoji={SOURCE:'✍️',TRANSFORM:'⚙️',REDUCER:'🧩',SYNTHESIS:'🔗',VERIFY:'🔍',GATE:'🚦',PROMOTION:'✅',TERMINAL:'📦',POOL:'🧰'};
+const workerEmoji={WRITE:'✍️',BUILD:'🛠️',REDUCE:'🧩',SYNTH:'🔗',VERIFY:'🔍',PROMOTE:'✅',COMPILE:'⚙️',WAIT:'⏳'};
+
+const scenarios={
+  chain:{
+    label:'CHAIN',
+    description:'A → B → C → D',
+    nodes:[
+      n('A','SOURCE','Draft',.16,.52,0,.22,'WRITE'),
+      n('B','TRANSFORM','Compile',.39,.52,.25,.47,'COMPILE',['A']),
+      n('C','VERIFY','Verify',.62,.52,.50,.70,'VERIFY',['B']),
+      n('D','PROMOTION','Promote',.83,.52,.73,.92,'PROMOTE',['C'])
+    ]
+  },
+  fanout:{
+    label:'FAN-OUT',
+    description:'1 source → 3 independent branches',
+    nodes:[
+      n('A','SOURCE','Seed',.17,.50,0,.20,'WRITE'),
+      n('B','TRANSFORM','Branch A',.52,.28,.26,.56,'BUILD',['A']),
+      n('C','TRANSFORM','Branch B',.52,.50,.26,.64,'WRITE',['A']),
+      n('D','TRANSFORM','Branch C',.52,.72,.26,.72,'COMPILE',['A']),
+      n('E','TERMINAL','Outputs',.82,.50,.76,.94,'PROMOTE',['B','C','D'])
+    ]
+  },
+  reducer:{
+    label:'REDUCER',
+    description:'3 inputs → one reducer → synthesis',
+    nodes:[
+      n('A','SOURCE','Research A',.16,.28,0,.28,'WRITE'),
+      n('B','SOURCE','Research B',.16,.50,0,.34,'WRITE'),
+      n('C','SOURCE','Research C',.16,.72,0,.40,'WRITE'),
+      n('R','REDUCER','Reducer',.50,.50,.46,.68,'REDUCE',['A','B','C']),
+      n('S','SYNTHESIS','Synthesis',.76,.50,.72,.90,'SYNTH',['R'])
+    ]
+  },
+  barrier:{
+    label:'BARRIER',
+    description:'parallel work → gate → next stage',
+    nodes:[
+      n('A','SOURCE','Leaf 1',.14,.25,0,.30,'WRITE'),
+      n('B','SOURCE','Leaf 2',.14,.42,0,.38,'BUILD'),
+      n('C','SOURCE','Leaf 3',.14,.59,0,.46,'WRITE'),
+      n('D','SOURCE','Leaf 4',.14,.76,0,.54,'COMPILE'),
+      n('G','GATE','All inputs',.53,.50,.58,.67,'WAIT',['A','B','C','D']),
+      n('N','TRANSFORM','Next stage',.79,.50,.72,.92,'BUILD',['G'])
+    ]
+  },
+  verify:{
+    label:'VERIFY LOOP',
+    description:'build → verify → repair → verify → promote',
+    nodes:[
+      n('A','TRANSFORM','Build',.16,.50,0,.24,'BUILD'),
+      n('V1','VERIFY','Verify #1',.38,.36,.29,.44,'VERIFY',['A']),
+      n('R','TRANSFORM','Revise',.54,.66,.46,.61,'WRITE',['V1']),
+      n('V2','VERIFY','Verify #2',.70,.40,.64,.78,'VERIFY',['R']),
+      n('P','PROMOTION','Promote',.86,.50,.81,.95,'PROMOTE',['V2'])
+    ],
+    extraEdges:[['V1','R','REVISE']]
+  },
+  pool:{
+    label:'POOL',
+    description:'work group + fungible worker pool',
+    pool:true,
+    nodes:[
+      n('P','POOL','READY POOL · 8 JOBS',.25,.50,0,.92,'WAIT'),
+      n('J1','TRANSFORM','Job 1',.55,.25,.10,.38,'WRITE',['P']),
+      n('J2','TRANSFORM','Job 2',.55,.42,.22,.50,'COMPILE',['P']),
+      n('J3','TRANSFORM','Job 3',.55,.59,.34,.64,'BUILD',['P']),
+      n('J4','TRANSFORM','Job 4',.55,.76,.46,.78,'WRITE',['P']),
+      n('O','TERMINAL','4 outputs',.82,.50,.82,.96,'PROMOTE',['J1','J2','J3','J4'])
+    ]
+  },
+  synthesis:{
+    label:'SYNTHESIS TREE',
+    description:'leaves → reducers → synthesis → canonical',
+    nodes:[
+      n('A1','SOURCE','A1',.10,.22,0,.24,'WRITE'),n('A2','SOURCE','A2',.10,.35,0,.30,'WRITE'),
+      n('B1','SOURCE','B1',.10,.61,0,.36,'WRITE'),n('B2','SOURCE','B2',.10,.74,0,.42,'WRITE'),
+      n('R1','REDUCER','Reducer A',.38,.30,.46,.60,'REDUCE',['A1','A2']),
+      n('R2','REDUCER','Reducer B',.38,.67,.50,.64,'REDUCE',['B1','B2']),
+      n('S','SYNTHESIS','Synthesis',.65,.49,.68,.82,'SYNTH',['R1','R2']),
+      n('P','PROMOTION','Canonical',.86,.49,.85,.96,'PROMOTE',['S'])
+    ]
+  }
+};
+function n(id,role,label,x,y,start,end,action,deps=[]){return {id,role,label,x,y,start,end,action,deps}}
+
+function resize(){
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  const r=canvas.getBoundingClientRect();W=Math.max(1,r.width);H=Math.max(1,r.height);
+  canvas.width=Math.round(W*DPR);canvas.height=Math.round(H*DPR);ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener('resize',resize,{passive:true});resize();
+
+function stateFor(node,t){
+  if(t>=node.end)return 'SUCCESS';
+  if(t>=node.start)return 'ACTIVE';
+  if(!node.deps.length)return 'READY';
+  const source=scenarios[scenarioKey].nodes;
+  const deps=node.deps.map(id=>source.find(n=>n.id===id));
+  return deps.every(d=>d&&t>=d.end)?'READY':'BLOCKED';
+}
+function progressFor(node,t){
+  if(t>=node.end)return 1;
+  if(t<node.start)return 0;
+  return Math.max(0,Math.min(1,(t-node.start)/Math.max(.001,node.end-node.start)));
+}
+function inputRatio(node,t){
+  if(!node.deps.length)return progressFor(node,t);
+  const source=scenarios[scenarioKey].nodes;
+  let sum=0;
+  for(const id of node.deps){
+    const d=source.find(n=>n.id===id);
+    if(!d)continue;
+    if(t>=d.end+.045)sum+=1;
+    else if(t>=d.end)sum+=(t-d.end)/.045;
+  }
+  return Math.max(0,Math.min(1,sum/node.deps.length));
+}
+function nodeScreen(node){
+  const sidePanel=Math.min(330,W*.31);
+  const left=38,right=W-sidePanel-32,top=82,bottom=H-76;
+  return {x:left+node.x*(right-left),y:top+node.y*(bottom-top)};
+}
+function arenaBackdrop(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#070706';ctx.fillRect(0,0,W,H);
+  const sidePanel=Math.min(330,W*.31),cx=(W-sidePanel)*.46,cy=H*.52;
+  const r=Math.min((W-sidePanel)*.43,H*.43);
+  ctx.fillStyle='#18130f';ctx.beginPath();ctx.arc(cx,cy,r,0,TAU);ctx.fill();
+  ctx.strokeStyle='rgba(196,156,111,.15)';ctx.lineWidth=1;
+  for(let i=0;i<5;i++){ctx.beginPath();ctx.arc(cx,cy,r*(1-i*.08),0,TAU);ctx.stroke()}
+  ctx.strokeStyle='rgba(196,156,111,.05)';
+  for(let a=0;a<TAU;a+=TAU/12){ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);ctx.stroke()}
+}
+function drawEdge(a,b,state,alpha=1,label=''){
+  const p=nodeScreen(a),q=nodeScreen(b);
+  ctx.save();ctx.globalAlpha=alpha;
+  ctx.strokeStyle=state==='SUCCESS'?'#6c927f':state==='ACTIVE'?'#b77e43':'#51463b';
+  ctx.lineWidth=state==='ACTIVE'?2.4:1.2;ctx.setLineDash(state==='BLOCKED'?[4,5]:[]);
+  ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();
+  const ang=Math.atan2(q.y-p.y,q.x-p.x),x=p.x+(q.x-p.x)*.78,y=p.y+(q.y-p.y)*.78,s=6;
+  ctx.setLineDash([]);ctx.fillStyle=ctx.strokeStyle;ctx.beginPath();
+  ctx.moveTo(x+Math.cos(ang)*s,y+Math.sin(ang)*s);
+  ctx.lineTo(x+Math.cos(ang+2.5)*s,y+Math.sin(ang+2.5)*s);
+  ctx.lineTo(x+Math.cos(ang-2.5)*s,y+Math.sin(ang-2.5)*s);ctx.closePath();ctx.fill();
+  if(label){ctx.font='800 7px ui-monospace,monospace';ctx.fillStyle='#9f745a';ctx.fillText(label,(p.x+q.x)/2,(p.y+q.y)/2-5)}
+  ctx.restore();
+}
+function drawTransfer(a,b,k,seed){
+  const p=nodeScreen(a),q=nodeScreen(b),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+  const x=p.x+(q.x-p.x)*e,y=p.y+(q.y-p.y)*e;
+  const s=5+(seed%3);ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);ctx.fillStyle=seed%2?'#d69a56':'#7ea28f';ctx.fillRect(-s/2,-s/2,s,s);ctx.restore();
+}
+function drawNode(node,state,t,index){
+  const p=nodeScreen(node),w=node.role==='POOL'?132:106,h=node.role==='POOL'?52:58;
+  ctx.save();
+  ctx.fillStyle='rgba(8,7,6,.93)';ctx.strokeStyle=colors[state]||colors.IDLE;ctx.lineWidth=state==='ACTIVE'?2:1;
+  ctx.fillRect(p.x-w/2,p.y-h/2,w,h);ctx.strokeRect(p.x-w/2,p.y-h/2,w,h);
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.font='16px system-ui';ctx.fillText(roleEmoji[node.role]||'•',p.x,p.y-h/2+13);
+  ctx.font='900 8px ui-monospace,monospace';ctx.fillStyle='#d8c5ad';ctx.fillText(node.label.toUpperCase(),p.x,p.y+2);
+  ctx.font='750 6.5px ui-monospace,monospace';ctx.fillStyle='#77695c';ctx.fillText(node.role+' · '+state,p.x,p.y+14);
+  if(layers.progress){
+    const ratio=inputRatio(node,t),barW=w-14,barY=p.y+h/2-7;
+    ctx.fillStyle='#201a15';ctx.fillRect(p.x-barW/2,barY,barW,3);
+    ctx.fillStyle=ratio>=.999?'#5f8873':'#d49a52';ctx.fillRect(p.x-barW/2,barY,barW*ratio,3);
+    ctx.font='800 6px ui-monospace,monospace';ctx.fillStyle='#8b7c6c';
+    const txt=node.deps.length?Math.round(ratio*node.deps.length)+'/'+node.deps.length:Math.round(ratio*100)+'%';
+    ctx.fillText(txt,p.x+w/2-13,barY-4);
+  }
+  if(layers.capacity&&state==='ACTIVE'){
+    const worker='W'+String((index%8)+1).padStart(2,'0'),emoji=workerEmoji[node.action]||'👤';
+    ctx.font='18px system-ui';ctx.fillText(emoji,p.x,p.y-h/2-16);
+    ctx.font='900 7px ui-monospace,monospace';ctx.fillStyle='#f0cf9e';ctx.fillText(worker,p.x+18,p.y-h/2-16);
+  }
+  ctx.restore();
+}
+function buildManifest(scenario,t,states){
+  const nodes=scenario.nodes.map((node,i)=>({
+    node_id:node.id,semantic_role:node.role,state:states.get(node.id),label:node.label,
+    depends_on:node.deps,progress:Number(progressFor(node,t).toFixed(2)),
+    accumulator:{ratio:Number(inputRatio(node,t).toFixed(2)),required:node.deps.length||1},
+    assigned_workers:states.get(node.id)==='ACTIVE'?['W'+String((i%8)+1).padStart(2,'0')]:[]
+  }));
+  const edges=[];
+  for(const node of scenario.nodes)for(const from of node.deps)edges.push({from,to:node.id,type:'DEPENDENCY'});
+  const workers=nodes.flatMap(n=>n.assigned_workers.map(id=>({worker_id:id,node_id:n.node_id,liveness:'LIVE'})));
+  return {
+    schema:'prometeo.world_manifest/v1',
+    demo:true,
+    topology:scenarioKey,
+    layers:{...layers},
+    projects:[{project_key:'DEMO',title:scenario.label}],
+    nodes,edges,workers,
+    artifacts:edges.filter(e=>{
+      const a=scenario.nodes.find(n=>n.id===e.from);return a&&t>=a.end&&t<a.end+.045;
+    }).map((e,i)=>({artifact_id:'A'+(i+1),from:e.from,to:e.to,state:'IN_TRANSIT'})),
+    contract:{work:'nodes',flow:'edges+artifacts',capacity:'workers',progress:'progress+accumulator'}
+  };
+}
+function updateManifest(manifest){
+  const txt=JSON.stringify(manifest,null,2);
+  if(txt!==lastManifest){manifestPre.textContent=txt;lastManifest=txt}
+}
+function render(now){
+  arenaBackdrop();
+  const scenario=scenarios[scenarioKey],cycle=9000,t=(now%cycle)/cycle;
+  const states=new Map(scenario.nodes.map(n=>[n.id,stateFor(n,t)]));
+
+  if(layers.flow){
+    for(const node of scenario.nodes){
+      for(const dep of node.deps){
+        const from=scenario.nodes.find(n=>n.id===dep);if(!from)continue;
+        const edgeState=t>=from.end+.045?'SUCCESS':(t>=from.end?'ACTIVE':'BLOCKED');
+        drawEdge(from,node,edgeState,1);
+        if(t>=from.end&&t<from.end+.045)drawTransfer(from,node,(t-from.end)/.045,dep.charCodeAt(0));
+      }
+    }
+    for(const e of scenario.extraEdges||[]){
+      const a=scenario.nodes.find(n=>n.id===e[0]),b=scenario.nodes.find(n=>n.id===e[1]);if(a&&b)drawEdge(a,b,'ACTIVE',.34,e[2]);
+    }
+  }
+  if(layers.work)scenario.nodes.forEach((n,i)=>drawNode(n,states.get(n.id),t,i));
+
+  const active=scenario.nodes.filter(n=>states.get(n.id)==='ACTIVE');
+  const ready=scenario.nodes.filter(n=>states.get(n.id)==='READY');
+  const completed=scenario.nodes.filter(n=>states.get(n.id)==='SUCCESS');
+  eventLog.innerHTML='<b>'+scenario.label+'</b> · '+scenario.description+'<br>'+
+    active.length+' ACTIVE · '+ready.length+' READY · '+completed.length+' SUCCESS · '+
+    't '+Math.round(t*100)+'%';
+
+  updateManifest(buildManifest(scenario,t,states));
+  requestAnimationFrame(render);
+}
+function setScenario(key){
+  scenarioKey=key;
+  [...scenarioBar.children].forEach(b=>b.classList.toggle('on',b.dataset.key===key));
+  lastManifest='';
+}
+for(const [key,s] of Object.entries(scenarios)){
+  const b=document.createElement('button');b.className='pill'+(key===scenarioKey?' on':'');b.dataset.key=key;b.textContent=s.label;
+  b.onclick=()=>setScenario(key);scenarioBar.appendChild(b);
+}
+document.querySelectorAll('.layer').forEach(b=>{
+  b.onclick=()=>{const k=b.dataset.layer;layers[k]=!layers[k];b.classList.toggle('on',layers[k]);lastManifest=''}
+});
+manifestToggle.onclick=()=>{
+  hiddenManifest=!hiddenManifest;manifestPre.style.display=hiddenManifest?'none':'block';manifestToggle.textContent=hiddenManifest?'SHOW':'HIDE'
+};
+requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>
