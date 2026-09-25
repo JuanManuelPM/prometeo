@@ -1,0 +1,91 @@
+name: Visual QA Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      routes:
+        description: Comma-separated routes relative to the Pages base URL
+        required: false
+        default: demos/coliseo-3d/
+      mode:
+        description: Evidence mode
+        required: true
+        type: choice
+        options:
+          - LIVE_TRUTH
+          - DETERMINISTIC_REGRESSION
+        default: LIVE_TRUTH
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/visual-qa.yml'
+      - 'scripts/visual-qa/**'
+      - 'demos/coliseo-3d/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: visual-qa-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PLAYWRIGHT_VERSION: '1.55.0'
+      VISUAL_QA_BASE_URL: 'https://juanmanuelpm.github.io/prometeo/'
+      VISUAL_QA_SOURCE_COMMIT: '${{ github.sha }}'
+      VISUAL_QA_ROUTES: '${{ inputs.routes || 'demos/coliseo-3d/' }}'
+      VISUAL_QA_MODE: '${{ inputs.mode || 'LIVE_TRUTH' }}'
+      VISUAL_QA_OUT_DIR: 'visual-qa-artifacts'
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pinned Playwright
+        run: npm install --no-save --ignore-scripts "playwright@$PLAYWRIGHT_VERSION"
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Capture 12-view smoke matrix
+        run: node scripts/visual-qa/capture.mjs
+
+      - name: Static evidence checks
+        if: always()
+        shell: bash
+        run: |
+          node --check scripts/visual-qa/capture.mjs
+          test -s visual-qa-artifacts/manifest.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const m = JSON.parse(fs.readFileSync('visual-qa-artifacts/manifest.json','utf8'));
+          const expected = m.routes.length * 12;
+          if (m.frame_count !== expected) throw new Error(`frame_count ${m.frame_count} != ${expected}`);
+          for (const frame of m.frames) {
+            if (!frame.png_sha256 || !frame.served_content_sha256) throw new Error('missing provenance hash');
+            if (!frame.viewport?.width || !frame.viewport?.height) throw new Error('missing viewport');
+            if (frame.camera_requested?.yaw_degrees == null) throw new Error('missing requested yaw');
+            const sidecar = require('path').join('visual-qa-artifacts', String(m.source_commit).replace(/[^a-zA-Z0-9._-]+/g,'_'), String(m.mode).toLowerCase(), frame.png + '.json');
+            if (!fs.existsSync(sidecar)) throw new Error('missing sidecar for ' + frame.png);
+          }
+          console.log(JSON.stringify({state:'STATIC_PASS',frames:m.frame_count,expected}));
+          NODE
+
+      - name: Upload rendered evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-qa-${{ github.sha }}
+          path: visual-qa-artifacts/
+          if-no-files-found: error
+          retention-days: 14
