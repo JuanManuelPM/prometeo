@@ -50,6 +50,8 @@ window.PROMETEO_VISUALS_REGISTRY_V1={
       id:'meta',label:'Índices / referencia',open:false,
       items:[
         {id:'visual-protocol',label:'Visual Protocol V1',description:'Reglas image-first y criterios de rechazo visual.',src:'./VISUAL_PROTOCOL_V1.md'},
+        {id:'visual-feedback-log',label:'Visual Feedback Log V1',description:'Correcciones acumuladas que ningún chat debe olvidar.',src:'./VISUAL_FEEDBACK_LOG_V1.md'},
+        {id:'visual-execution-checklist',label:'Execution Checklist V1',description:'Readback, assets, autocrítica y verificación antes de publicar.',src:'./EXECUTION_CHECKLIST_V1.md'},
         {id:'labs-index',label:'Parallel Labs Index',description:'Índice técnico de labs.',src:'../demos/coliseo-labs/'}
       ]
     }
