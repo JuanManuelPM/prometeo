@@ -408,7 +408,7 @@ const LAB_FAST=LAB_PARAMS.get('fast')==='1';
 const LAB_BASELINE='8ef25c0a34cc9cd68fa9b35152dec9289d5cb3d8';
 let LAB_SELECTED=-1;
 let LAB_TAP_START=null;
-const LAB_BUILD='LIVE-WORKERS-V7-DEMO-20260925';
+const LAB_BUILD='LIVE-WORKERS-V8-PROJECT-CLARITY-20260925';
 const labBadge=document.getElementById('labBadge');
 const wrap=document.getElementById('wrap');
 const mapStage=document.getElementById('mapStage');
@@ -3256,6 +3256,18 @@ function liveStateColor(state){
   if(state==='BLOCKED')return '#691b24';
   return '#40594d';
 }
+const LIVE_PROJECT_COLORS=['#8d5a3f','#46655f','#8a783f','#66507a','#7b493f','#4e6174'];
+function liveProjectColor(index){
+  return LIVE_PROJECT_COLORS[Math.abs(Number(index)||0)%LIVE_PROJECT_COLORS.length];
+}
+function liveArcPoints(a0,a1,r,n=16,h=.04){
+  const pts=[];
+  for(let i=0;i<=n;i++){
+    const a=a0+(a1-a0)*(i/n);
+    pts.push({x:Math.cos(a)*r,z:Math.sin(a)*r,h});
+  }
+  return pts;
+}
 function liveVisualLiveness(w,snap){
   const generated=Date.parse(snap.generated_at||'');
   const drift=Number.isFinite(generated)?Math.max(0,(Date.now()-generated)/1000):0;
@@ -3364,7 +3376,7 @@ function liveLayout(){
     const occKey=pk+'|'+(w.node_key||'fallback');
     const oi=occupancy.get(occKey)||0;occupancy.set(occKey,oi+1);
     if(oi){const oa=oi*2.399963229728653,or=.18+.06*Math.min(4,oi);x+=Math.cos(oa)*or;z+=Math.sin(oa)*or}
-    return {worker:w,index,x,z,project:sector?.meta||{title:pk},sector};
+    return {worker:w,index,x,z,project:{...(sector?.meta||{title:pk}),index:sector?.index??0},sector};
   });
 
   const value={projects:projectKeys.map(k=>projectPos.get(k)),nodes,workers:workerItems,nodePos,projectPos};
@@ -3372,22 +3384,56 @@ function liveLayout(){
   return value;
 }
 function livePaintSectors(layout){
+  const demo=document.body.classList.contains('demoMode');
   for(const sector of layout.projects){
-    const i=sector.index,alpha=layout.projects.length===1?.055:.04;
-    camaraWorldPoly(ctx,liveSectorPolygon(sector.start,sector.end,1.55,9.25),i%2?'#4d5147':'#57463b',alpha,null,0,78000+i);
-    const a=sector.mid;
-    const p=wp(Math.cos(a)*8.85,Math.sin(a)*8.85,.045);
+    const i=sector.index,color=liveProjectColor(i);
     const meta=sector.meta||{};
     const working=Number(meta.working||0),ready=Number(meta.ready||0),blocked=Number(meta.blocked||0);
+
+    // Strong territorial wedge: the project must read before any node or worker label.
+    camaraWorldPoly(
+      ctx,
+      liveSectorPolygon(sector.start+.018,sector.end-.018,1.35,9.35),
+      color,
+      layout.projects.length===1?.075:(demo?.145:.105),
+      null,0,78000+i
+    );
+
+    // Radial walls + outer project rail make the sector visible even on a dim phone.
+    const a0=sector.start+.012,a1=sector.end-.012;
+    worldFloorLine(ctx,[
+      {x:Math.cos(a0)*1.35,z:Math.sin(a0)*1.35,h:.042},
+      {x:Math.cos(a0)*9.35,z:Math.sin(a0)*9.35,h:.042}
+    ],color,.70,Math.max(.85,scale*.055),78050+i*3);
+    worldFloorLine(ctx,[
+      {x:Math.cos(a1)*1.35,z:Math.sin(a1)*1.35,h:.042},
+      {x:Math.cos(a1)*9.35,z:Math.sin(a1)*9.35,h:.042}
+    ],color,.70,Math.max(.85,scale*.055),78051+i*3);
+    worldFloorLine(ctx,liveArcPoints(a0,a1,9.05,20,.043),color,.72,Math.max(.9,scale*.062),78052+i*3);
+
+    // Screen-facing project plate, anchored in world space but deliberately readable.
+    const a=sector.mid;
+    const p=wp(Math.cos(a)*7.75,Math.sin(a)*7.75,.12);
+    const title=liveShort(meta.title||meta.project_key,layout.projects.length>4?16:24).toUpperCase();
+    const titleFont=Math.max(9,scale*.40);
+    const metaFont=Math.max(6.5,scale*.235);
     ctx.save();
-    ctx.globalAlpha=layout.projects.length===1?.54:.42;
-    ctx.fillStyle='#c7aa89';
-    ctx.font='800 '+Math.max(6,scale*.22)+'px system-ui';
-    ctx.textAlign='center';
-    ctx.fillText(liveShort(meta.title||meta.project_key,layout.projects.length>5?12:20),p.x,p.y);
-    ctx.font='700 '+Math.max(5,scale*.17)+'px system-ui';
-    ctx.globalAlpha*=.75;
-    ctx.fillText(working+'W · '+ready+'R · '+blocked+'B',p.x,p.y+Math.max(7,scale*.32));
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.font='900 '+titleFont+'px system-ui';
+    const tw=Math.max(ctx.measureText(title).width,scale*3.0);
+    const mw=tw+Math.max(12,scale*.8);
+    const mh=titleFont+metaFont+Math.max(10,scale*.55);
+    ctx.globalAlpha=.90;
+    ctx.fillStyle='rgba(8,7,6,.86)';
+    ctx.fillRect(p.x-mw/2,p.y-mh/2,mw,mh);
+    ctx.globalAlpha=.95;
+    ctx.strokeStyle=color;ctx.lineWidth=Math.max(1,scale*.06);
+    ctx.strokeRect(p.x-mw/2,p.y-mh/2,mw,mh);
+    ctx.fillStyle='#eadcc8';
+    ctx.fillText(title,p.x,p.y-titleFont*.12);
+    ctx.font='850 '+metaFont+'px ui-monospace,monospace';
+    ctx.fillStyle='#cdb99d';
+    ctx.fillText(working+' WORKERS · '+ready+' READY · '+blocked+' BLOCKED',p.x,p.y+titleFont*.62);
     ctx.restore();
   }
 }
@@ -3486,11 +3532,48 @@ function drawWorkerGallery(now){
   const t=now/1000,data=workerDemoData(now);
   data.sort((a,b)=>wp(a.pl.x,a.pl.z,.02).y-wp(b.pl.x,b.pl.z,.02).y);
   for(let i=0;i<data.length;i++){
-    const item=data[i];
+    const item=data[i],w=item.worker;
+    const projectIndex=item.project&&Number.isFinite(item.project.index)?item.project.index:
+      (item.sector&&Number.isFinite(item.sector.index)?item.sector.index:
+      Math.max(0,layout.projects.findIndex(s=>s.meta?.project_key===w.project_key)));
+    const projectColor=liveProjectColor(projectIndex);
+
+    // Project ownership ring. Body color stays worker-specific; battery stays liveness-specific.
+    const gp=wp(item.pl.x,item.pl.z,item.pl.h+.025);
+    const rr=Math.max(4.2,scale*item.pl.size*1.22);
+    ctx.save();
+    ctx.globalAlpha=.72;
+    ctx.strokeStyle=projectColor;ctx.lineWidth=Math.max(1.2,scale*.075);
+    ctx.beginPath();ctx.ellipse(gp.x,gp.y+rr*.22,rr*1.08,rr*.36,0,0,TAU);ctx.stroke();
+    ctx.restore();
+
     drawPlayer(ctx,item.pl,t,i);
     const p=wp(item.pl.x,item.pl.z,item.pl.h+item.pl.jump+.46);
+
+    // Always-readable task label. Keep it short enough that 12 demo workers still fit.
+    const showTask=data.length<=24;
+    if(showTask){
+      const stage=liveShort(String(w.progress_stage||'WORK').replaceAll('_',' '),13).toUpperCase();
+      const task=liveShort(w.title||w.node_key||'task',18);
+      const f1=Math.max(6.5,scale*.225),f2=Math.max(6,scale*.195);
+      const y=p.y+rr*1.42;
+      ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.font='900 '+f1+'px ui-monospace,monospace';
+      const line1=(w.display_code||'W')+' · '+stage;
+      ctx.font='900 '+f1+'px ui-monospace,monospace';
+      const width=Math.max(ctx.measureText(line1).width,scale*2.3)+Math.max(8,scale*.45);
+      const h=f1+f2+Math.max(7,scale*.38);
+      ctx.globalAlpha=.82;ctx.fillStyle='rgba(5,5,4,.82)';
+      ctx.fillRect(p.x-width/2,y-h/2,width,h);
+      ctx.globalAlpha=.98;ctx.fillStyle='#eadcc8';
+      ctx.fillText(line1,p.x,y-f2*.46);
+      ctx.font='750 '+f2+'px system-ui';ctx.fillStyle=projectColor;
+      ctx.fillText(task,p.x,y+f1*.48);
+      ctx.restore();
+    }
+
     window.PROMETEO_LIVE_WORKER_HITS.push({
-      x:p.x,y:p.y,r:Math.max(9,scale*item.pl.size*1.35),worker:item.worker
+      x:p.x,y:p.y,r:Math.max(12,scale*item.pl.size*1.55),worker:w
     });
   }
   if(labBadge)labBadge.textContent='LIVE WORKERS · '+data.length;
