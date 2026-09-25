@@ -1,1 +1,101 @@
-<!doctype html>\n<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prometeo · Workers / Avatars</title></head>\n<body>\n<script src="../coliseo-shared/contract-v1.js"></script>\n<script src="../coliseo-shared/fixture-v1.js"></script>\n<script src="../coliseo-shared/lab-shell.js"></script>\n<script src="./module.js"></script>\n<script>PROMETEO_COLISEO_LAB_SHELL.mount({"id":"workers","title":"Workers / Avatars","purpose":"Diseñar workers legibles y expresivos usando estados ya definidos. No redefine qué significa ACTIVE, LIVE o READY.","owns":["cuerpo","sprite","pose","dirección","idle/working/stale"],"forbids":["semántica de jobs","layout del mapa","lógica de dependencias","HUD"]});</script>\n</body></html>\n
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Prometeo · Workers / Avatars Lab</title>
+<style>
+:root{color-scheme:dark;--bg:#080806;--panel:#11100d;--line:#2d2923;--ink:#e5d7bf;--muted:#8f8577;--accent:#c76d42}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+body{overflow:hidden}.app{height:100dvh;display:grid;grid-template-rows:auto auto 1fr;background:radial-gradient(circle at 50% 40%,#15120f 0,#080806 62%)}
+header{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;padding:12px 14px 9px;border-bottom:1px solid var(--line);background:#0a0907}
+.title b{display:block;font-size:13px;letter-spacing:.11em;text-transform:uppercase}.title span{display:block;margin-top:4px;color:var(--muted);font:650 10px/1.35 ui-monospace,monospace}.flags{display:flex;gap:7px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.flag{border:1px solid #3a322a;background:#14100d;padding:6px 8px;border-radius:2px;color:#c6b49b;font:800 8px/1 ui-monospace,monospace;letter-spacing:.08em}.flag.synthetic{border-color:#6f3c2d;color:#e0a27d}.flag.ok{border-color:#355545;color:#9fc3a8}
+.controls{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:8px 10px;border-bottom:1px solid var(--line);background:#0d0c09;scrollbar-width:none}.controls::-webkit-scrollbar{display:none}.controls button{flex:0 0 auto;border:1px solid #332e27;background:#15130f;color:#988d7d;border-radius:2px;padding:8px 10px;font:800 9px/1 ui-monospace,monospace;text-transform:uppercase;letter-spacing:.04em}.controls button.on{color:#f0d8b5;background:#39251d;border-color:#815039}.controls .sep{width:1px;height:24px;background:#2d2923;flex:0 0 auto}.controls .hint{font:700 8px/1.3 ui-monospace,monospace;color:#655e54;white-space:nowrap}
+.stage{position:relative;min-height:0;overflow:hidden}.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}.legend{position:absolute;left:10px;bottom:9px;display:flex;gap:7px;align-items:center;padding:6px 8px;border:1px solid #29251f;background:rgba(8,8,6,.88);font:700 8px/1 ui-monospace,monospace;color:#82786b;pointer-events:none}.meterDemo{display:inline-grid;grid-auto-flow:column;gap:1px}.meterDemo i{width:7px;height:4px;background:#4c705d}.meterDemo i:nth-child(4){background:#96713b}.meterDemo i:nth-child(5){background:#8a4335}.detail{position:absolute;right:10px;bottom:9px;width:min(310px,62vw);padding:9px 10px;border:1px solid #332d26;background:rgba(9,8,6,.92);font:650 9px/1.42 ui-monospace,monospace;color:#a99c89;pointer-events:none}.detail b{display:block;color:#e0cdb0;margin-bottom:3px;text-transform:uppercase}.detail .mono{color:#7e9d92}
+@media(max-width:720px){header{padding:8px 9px}.title span{font-size:8px}.flag{font-size:7px;padding:5px 6px}.controls{padding:6px}.controls button{padding:8px 8px;font-size:8px}.detail{width:70vw;font-size:8px}.legend{font-size:7px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="title"><b>Workers / Avatars Lab</b><span>Cuerpos solamente · fixture compartido + copias de stress-test</span></div>
+    <div class="flags"><span class="flag synthetic">SYNTHETIC · NEVER LIVE</span><span class="flag ok" id="moduleFlag">MODULE …</span><span class="flag" id="countFlag">0 WORKERS</span></div>
+  </header>
+  <nav class="controls" id="controls"></nav>
+  <main class="stage"><canvas id="cv"></canvas><div class="legend"><span>LIVENESS SEPARADO</span><span class="meterDemo"><i></i><i></i><i></i><i></i><i></i></span></div><div class="detail" id="detail"></div></main>
+</div>
+<script src="../coliseo-shared/contract-v1.js"></script>
+<script src="../coliseo-shared/fixture-v1.js"></script>
+<script src="./module.js"></script>
+<script>
+(function(){'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),controls=document.getElementById('controls'),detail=document.getElementById('detail');
+const mod=window.COLISEO_LAB_MODULE,contract=window.PROMETEO_COLISEO_CONTRACT_V1,fixture=window.PROMETEO_COLISEO_FIXTURE_V1;
+const moduleOK=!!mod&&typeof mod.measureWorker==='function'&&typeof mod.drawWorker==='function';
+document.getElementById('moduleFlag').textContent=moduleOK?'MODULE OK':'MODULE FAIL';document.getElementById('moduleFlag').classList.toggle('ok',moduleOK);
+const base=fixture.build();
+const stageCycle=['IDLE','WALK','CLAIMED','READ','THINK','WRITE','BUILD','VERIFY','WAIT'];
+const liveCycle=['LIVE','AGING','SUSPECT','RECENT_IDLE','RECOVERING','STALE_MEMBERSHIP'];
+const dirCycle=['down','right','up','left'];
+let family='pixel',mode='stress',zoom=1,selected=-1,last=0,dpr=1,W=1,H=1,walkClock=0;
+function makeWorkers(n){
+  const out=[];for(let i=0;i<n;i++){
+    const src=base.workers[i%base.workers.length];
+    out.push({...src,worker_id:'synthetic-'+String(i+1).padStart(3,'0'),display_code:'S'+String(i+1).padStart(2,'0'),
+      __synthetic:true,__stage:stageCycle[i%stageCycle.length],__live:liveCycle[i%liveCycle.length],__dir:dirCycle[Math.floor(i/stageCycle.length)%dirCycle.length]});
+  }return out;
+}
+let workers=makeWorkers(72);document.getElementById('countFlag').textContent=workers.length+' WORKERS';
+function addButton(label,onClick,isOn){const b=document.createElement('button');b.textContent=label;if(isOn())b.classList.add('on');b.onclick=()=>{onClick();renderControls()};controls.appendChild(b)}
+function renderControls(){controls.innerHTML='';
+  for(const f of mod.families)addButton(f.label,()=>family=f.id,()=>family===f.id);
+  let sep=document.createElement('span');sep.className='sep';controls.appendChild(sep);
+  addButton('STRESS 72',()=>{mode='stress';workers=makeWorkers(72)},()=>mode==='stress');
+  addButton('POSE MATRIX',()=>{mode='matrix';workers=makeWorkers(36)},()=>mode==='matrix');
+  addButton('TINY MASS',()=>{mode='tiny';workers=makeWorkers(120)},()=>mode==='tiny');
+  sep=document.createElement('span');sep.className='sep';controls.appendChild(sep);
+  addButton('−',()=>zoom=Math.max(.55,zoom-.12),()=>false);addButton('+',()=>zoom=Math.min(2.1,zoom+.12),()=>false);
+  const h=document.createElement('span');h.className='hint';h.textContent='tap worker = ampliar';controls.appendChild(h);
+  document.getElementById('countFlag').textContent=workers.length+' WORKERS';
+}
+renderControls();
+function resize(){const r=cv.getBoundingClientRect();dpr=Math.min(devicePixelRatio||1,2);W=Math.max(1,Math.floor(r.width));H=Math.max(1,Math.floor(r.height));cv.width=Math.floor(W*dpr);cv.height=Math.floor(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0)}
+addEventListener('resize',resize,{passive:true});resize();
+function stageFromWorker(w){return w.__stage||String(w.progress_stage||'IDLE').toUpperCase()}
+function livFromWorker(w){return w.__live||String(w.liveness||'LIVE').toUpperCase()}
+function meterColor(l){return l==='LIVE'?'#567763':l==='AGING'?'#9a7741':l==='SUSPECT'||l==='STALE_MEMBERSHIP'?'#904b3e':l==='RECOVERING'?'#668c82':'#66645c'}
+function drawMeter(x,y,w,l,fresh){
+  const segs=5,gap=1,sw=(w-gap*(segs-1))/segs,fill=Math.round(Math.max(0,Math.min(1,fresh==null?1:fresh))*segs),col=meterColor(l);
+  for(let i=0;i<segs;i++){ctx.fillStyle=i<fill?col:'#292821';ctx.fillRect(Math.round(x+i*(sw+gap)),Math.round(y),Math.max(1,Math.floor(sw)),3)}
+}
+function layout(){
+  const tiny=mode==='tiny',matrix=mode==='matrix';const gapX=tiny?34:matrix?74:58,gapY=tiny?43:matrix?78:61;
+  const cols=Math.max(3,Math.floor((W-20)/gapX));const rows=Math.ceil(workers.length/cols);const totalH=rows*gapY;const startY=Math.max(34,(H-totalH)/2+gapY*.55);const startX=(W-(cols-1)*gapX)/2;
+  return workers.map((w,i)=>({w,i,x:startX+(i%cols)*gapX,y:startY+Math.floor(i/cols)*gapY,scale:(tiny?.58:matrix?1.18:.86)*zoom}));
+}
+function drawBackdrop(){ctx.clearRect(0,0,W,H);ctx.fillStyle='#080806';ctx.fillRect(0,0,W,H);ctx.strokeStyle='#171511';ctx.lineWidth=1;
+  for(let x=18;x<W;x+=48){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}for(let y=18;y<H;y+=48){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+}
+function stateLabel(w){return w.display_code+' · '+stageFromWorker(w)+' · '+livFromWorker(w)}
+function render(now){
+  walkClock=now/1000;drawBackdrop();const items=layout();window.__workerHit=items;
+  for(const it of items){const w=it.w,stage=stageFromWorker(w),liv=livFromWorker(w),sel=it.i===selected;let x=it.x,y=it.y,s=it.scale;
+    if(stage==='WALK'){const track=mode==='tiny'?10:18;const t=(walkClock*.23+(it.i%11)*.087)%1;x+=(t-.5)*track;}
+    if(sel)s*=1.75;
+    const phase=(walkClock*.85+(it.i%13)*.071)%1;
+    mod.drawWorker(ctx,w,{state:stage,direction:w.__dir,liveness:liv,phase,selected:sel,family},{x,y,scale:s,family});
+    const fresh=liv==='LIVE'?.95:liv==='AGING'?.62:liv==='SUSPECT'?.28:liv==='RECOVERING'?.48:liv==='RECENT_IDLE'?.74:.12;
+    drawMeter(x-11*s,y+9*s,22*s,liv,fresh);
+    if(mode!=='tiny'||sel){ctx.save();ctx.font='800 '+Math.max(6,7.5*s)+'px ui-monospace,monospace';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillStyle=sel?'#ead2ad':'#766d60';ctx.fillText(w.display_code,x,y+15*s);ctx.restore()}
+    if(mode==='matrix'&&!sel){ctx.save();ctx.font='700 7px ui-monospace,monospace';ctx.textAlign='center';ctx.fillStyle='#5e584f';ctx.fillText(stage,x,y+24*s);ctx.restore()}
+  }
+  const f=mod.families.find(f=>f.id===family);detail.innerHTML='<b>'+f.label+'</b>'+f.description+'<br><span class="mono">'+mode.toUpperCase()+'</span> · '+workers.length+' synthetic workers · direcciones 4 · estados '+stageCycle.length+'<br>La barra de liveness se dibuja fuera del cuerpo.';
+  last=now;requestAnimationFrame(render);
+}
+cv.addEventListener('pointerup',e=>{const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;let best=-1,bd=Infinity;for(const it of (window.__workerHit||[])){const d=Math.hypot(it.x-x,it.y-y);if(d<bd&&d<30){best=it.i;bd=d}}selected=selected===best?-1:best});
+requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>
