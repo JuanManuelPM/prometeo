@@ -1,1 +1,298 @@
-<!doctype html>\n<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prometeo · HUD / Information</title></head>\n<body>\n<script src="../coliseo-shared/contract-v1.js"></script>\n<script src="../coliseo-shared/fixture-v1.js"></script>\n<script src="../coliseo-shared/lab-shell.js"></script>\n<script src="./module.js"></script>\n<script>PROMETEO_COLISEO_LAB_SHELL.mount({"id":"hud","title":"HUD / Information","purpose":"Hacer entendible el sistema a distintas escalas sin convertir el Coliseo en un dashboard pegado encima.","owns":["labels","semantic zoom","selection","detail","collision avoidance"],"forbids":["estado causal","geometría del mapa","sprites","material engine"]});</script>\n</body></html>\n
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070706">
+<title>Prometeo · HUD / Information Lab</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070706;color:#ece5d9;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{overscroll-behavior:none}
+#app{position:fixed;inset:0;display:grid;grid-template-rows:auto 1fr;background:#070706}
+.labbar{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #292621;background:#0c0c0a;overflow-x:auto;scrollbar-width:none;white-space:nowrap;z-index:4}
+.labbar::-webkit-scrollbar{display:none}
+.brand{display:flex;align-items:center;gap:8px;margin-right:4px}
+.brand b{font:850 11px/1 ui-monospace,monospace;letter-spacing:.1em}
+.brand span{font:700 9px/1 ui-monospace,monospace;color:#8d8579}
+.status{padding:5px 7px;border:1px solid #3b3731;border-radius:999px;font:800 9px/1 ui-monospace,monospace;color:#b6ad9f}
+.status.ok{color:#b9d99d;border-color:#48603d}
+.group{display:flex;align-items:center;gap:4px;padding-left:7px;border-left:1px solid #2d2a25}
+.group label{font:800 8px/1 ui-monospace,monospace;color:#756f66;text-transform:uppercase;letter-spacing:.08em}
+button{appearance:none;border:1px solid #39352f;background:#12110f;color:#aea69a;border-radius:999px;padding:6px 8px;font:800 9px/1 ui-monospace,monospace;cursor:pointer}
+button[aria-pressed="true"]{background:#e7b276;color:#15110d;border-color:#e7b276}
+button:focus-visible{outline:2px solid #e7b276;outline-offset:2px}
+#bench{position:relative;min-height:0;display:grid;place-items:center;overflow:hidden;background:#050504}
+#viewport{position:relative;width:100%;height:100%;max-width:100%;max-height:100%;overflow:hidden;background:#090908;box-shadow:0 0 0 1px #211f1b}
+#viewport.mobile{width:min(390px,100%);height:min(780px,100%);border-radius:16px}
+#viewport.tv{width:min(1280px,100%);height:auto;aspect-ratio:16/9}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.stageNote{position:absolute;left:10px;bottom:9px;pointer-events:none;padding:5px 7px;background:rgba(5,5,4,.72);border:1px solid rgba(236,226,211,.12);border-radius:999px;color:#7d756a;font:750 8px/1 ui-monospace,monospace;letter-spacing:.06em}
+.legend{position:absolute;right:10px;bottom:9px;pointer-events:none;color:#777065;font:700 8px/1 ui-monospace,monospace;background:rgba(5,5,4,.66);padding:5px 7px;border-radius:999px;border:1px solid rgba(236,226,211,.10)}
+@media(max-width:650px){
+  .labbar{padding:7px 7px;gap:6px}
+  .brand span{display:none}
+  button{padding:6px 7px;font-size:8px}
+  .group label{display:none}
+  #viewport.mobile{width:100%;height:100%;border-radius:0}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="labbar" aria-label="Controles de stress test">
+    <div class="brand"><b>HUD LAB</b><span>SYNTHETIC STRESS</span></div>
+    <span class="status" id="contractStatus">CONTRACT …</span>
+    <span class="status" id="moduleStatus">MODULE …</span>
+    <div class="group" id="stressGroup"><label>stress</label>
+      <button data-stress="few" aria-pressed="true">POCOS</button>
+      <button data-stress="many" aria-pressed="false">48 WORKERS</button>
+      <button data-stress="projects" aria-pressed="false">9 PROYECTOS</button>
+      <button data-stress="collision" aria-pressed="false">COLISIÓN</button>
+      <button data-stress="selection" aria-pressed="false">SELECCIÓN</button>
+    </div>
+    <div class="group" id="levelGroup"><label>distancia</label>
+      <button data-level="overview" aria-pressed="true">OVERVIEW</button>
+      <button data-level="mid" aria-pressed="false">MID</button>
+      <button data-level="detail" aria-pressed="false">DETAIL</button>
+    </div>
+    <div class="group" id="viewGroup"><label>pantalla</label>
+      <button data-view="auto" aria-pressed="true">AUTO</button>
+      <button data-view="mobile" aria-pressed="false">MÓVIL</button>
+      <button data-view="tv" aria-pressed="false">TV</button>
+    </div>
+  </div>
+  <div id="bench">
+    <div id="viewport">
+      <canvas id="scene" aria-label="Stress test sintético del HUD de Prometeo"></canvas>
+      <div class="stageNote" id="stageNote">HOST GEOMETRY · NO MAP DESIGN</div>
+      <div class="legend" id="legend">wheel = semantic zoom · tap = select</div>
+    </div>
+  </div>
+</div>
+<script src="../coliseo-shared/contract-v1.js"></script>
+<script src="../coliseo-shared/fixture-v1.js"></script>
+<script src="./module.js"></script>
+<script>
+(function(){
+'use strict';
+const C=window.PROMETEO_COLISEO_CONTRACT_V1;
+const F=window.PROMETEO_COLISEO_FIXTURE_V1;
+const M=window.COLISEO_LAB_MODULE;
+const canvas=document.getElementById('scene');
+const ctx=canvas.getContext('2d');
+const viewport=document.getElementById('viewport');
+const contractStatus=document.getElementById('contractStatus');
+const moduleStatus=document.getElementById('moduleStatus');
+const stageNote=document.getElementById('stageNote');
+const expected=['drawHud','hitTestHud'];
+const base=C.normalizeSnapshot(F.build());
+const report=C.validateSnapshot(base);
+const moduleOk=!!M&&M.id==='hud'&&expected.every(k=>typeof M[k]==='function');
+contractStatus.textContent=report.ok?'CONTRACT OK':'CONTRACT ERROR';
+contractStatus.classList.toggle('ok',report.ok);
+moduleStatus.textContent=moduleOk?'MODULE OK':'MODULE ERROR';
+moduleStatus.classList.toggle('ok',moduleOk);
+window.__COLISEO_LAB__={config:{id:'hud'},snapshot:base,report,moduleReport:{ok:moduleOk,expected,module:M}};
+
+let stress='few',level='overview',view='auto',selection=null,layout=null,snapshot=base,zoomValue=.68,dpr=1;
+let pointerDown=null;
+
+function clone(x){return JSON.parse(JSON.stringify(x))}
+function recalc(s){
+  const nodes=s.nodes||[],workers=s.workers||[];
+  s.counts={
+    working:workers.filter(w=>['LIVE','AGING'].includes(w.liveness)&&nodes.some(n=>n.node_key===w.node_key&&n.state==='ACTIVE')).length,
+    live:workers.filter(w=>w.liveness==='LIVE').length,
+    aging:workers.filter(w=>w.liveness==='AGING').length,
+    suspect:workers.filter(w=>w.liveness==='SUSPECT').length,
+    ready:nodes.filter(n=>n.state==='READY').length,
+    blocked:nodes.filter(n=>n.state==='BLOCKED').length,
+    active_jobs:nodes.filter(n=>n.state==='ACTIVE').length
+  };
+  s.demo=true;s.rule='SYNTHETIC HUD STRESS TEST — never live';return s;
+}
+function manyWorkers(count,collision){
+  const s=clone(base),active=s.nodes.filter(n=>n.state==='ACTIVE');
+  const stages=['READ','THINK','PLAN','WRITE','BUILD','VERIFY','REVIEW','SUBMIT'];
+  const lives=['LIVE','LIVE','LIVE','AGING','LIVE','AGING','SUSPECT','RECOVERING'];
+  const workers=[];
+  for(let i=0;i<count;i++){
+    const n=active[i%active.length];
+    workers.push({
+      worker_id:'hud-stress-'+String(i+1).padStart(2,'0'),
+      display_code:'W'+String(i+1).padStart(2,'0'),
+      project_key:n.project_key,node_key:n.node_key,title:n.title+' / visual stress '+(i+1),
+      progress_stage:stages[i%stages.length],liveness:lives[i%lives.length],
+      age_seconds:7+i*5,last_signal_at:new Date(Date.now()-(7+i*5)*1000).toISOString(),
+      seconds_since_progress:i%5===0?i*4+3:undefined,
+      recovery_count:i%11===0?1:0,assignment_generation:1+(i%6),job_ref:'HUD-STRESS-JOB-'+(i+1),
+      __collision:!!collision
+    });
+  }
+  s.workers=workers;s.revision='HUD_STRESS_'+(collision?'COLLISION':'MANY')+'_'+count;
+  return recalc(s);
+}
+function manyProjects(){
+  const s={schema:base.schema,generated_at:new Date().toISOString(),revision:'HUD_STRESS_9_PROJECTS',rule:'SYNTHETIC HUD STRESS TEST — never live',demo:true,projects:[],nodes:[],workers:[],counts:{}};
+  const names=['Visual Runtime','Study Pipeline','Worker Kernel','Reader Forge','Audio Runtime','Control Plane','Observatory','Strategy Mesh','Public State'];
+  const stages=['BUILD','WRITE','VERIFY','THINK','REVIEW','SUBMIT','PLAN','READ','IMPLEMENT'];
+  const lives=['LIVE','AGING','LIVE','SUSPECT','LIVE','RECOVERING','AGING','LIVE','LIVE'];
+  names.forEach((name,i)=>{
+    const pk='HUD_P'+(i+1),nk=pk+'-ACTIVE';
+    s.projects.push({project_key:pk,title:name,guide_key:'HUD_STRESS'});
+    s.nodes.push({project_key:pk,objective_key:pk,node_key:nk,title:name+' active task',node_kind:i%4===2?'VERIFY':'ROOT',state:'ACTIVE',depends_on:[],progress_stage:stages[i]});
+    if(i%3===0)s.nodes.push({project_key:pk,objective_key:pk,node_key:pk+'-NEXT',title:name+' next',node_kind:'REDUCER',state:'READY',depends_on:[nk]});
+    s.workers.push({
+      worker_id:'hud-project-worker-'+(i+1),display_code:'P'+String(i+1).padStart(2,'0'),project_key:pk,node_key:nk,
+      title:name+' active task',progress_stage:stages[i],liveness:lives[i],age_seconds:11+i*19,
+      seconds_since_progress:4+i*13,recovery_count:lives[i]==='RECOVERING'?2:0,assignment_generation:2+i,job_ref:'HUD-PROJECT-JOB-'+(i+1)
+    });
+  });
+  return recalc(s);
+}
+function snapshotFor(mode){
+  if(mode==='many')return manyWorkers(48,false);
+  if(mode==='collision')return manyWorkers(30,true);
+  if(mode==='projects')return manyProjects();
+  const s=clone(base);
+  s.demo=true;s.rule='SYNTHETIC SHARED FIXTURE — never live';
+  if(mode==='selection'){
+    s.workers=s.workers.map((w,i)=>Object.assign(w,{seconds_since_progress:i===1?73:9+i*40,job_ref:'FIXTURE-JOB-'+(i+1)}));
+  }
+  return recalc(s);
+}
+function setPressed(group,attr,value){
+  document.querySelectorAll('#'+group+' button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset[attr]===value)));
+}
+function applyView(){
+  viewport.classList.toggle('mobile',view==='mobile');
+  viewport.classList.toggle('tv',view==='tv');
+  requestAnimationFrame(resize);
+}
+function setStress(v){
+  stress=v;snapshot=snapshotFor(v);selection=v==='selection'?{type:'worker',id:snapshot.workers[1].worker_id}:null;
+  setPressed('stressGroup','stress',v);render();
+}
+function setLevel(v){
+  level=v;zoomValue=v==='overview'?.68:(v==='mid'?1.08:1.8);
+  setPressed('levelGroup','level',v);render();
+}
+function setView(v){view=v;setPressed('viewGroup','view',v);applyView()}
+function resize(){
+  const r=viewport.getBoundingClientRect();dpr=Math.min(2,window.devicePixelRatio||1);
+  canvas.width=Math.max(1,Math.round(r.width*dpr));canvas.height=Math.max(1,Math.round(r.height*dpr));
+  render();
+}
+function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+function buildLayout(s,w,h){
+  const projects={},workers={},nodes={};
+  const ps=s.projects||[];
+  const margin=Math.max(70,Math.min(w,h)*.12);
+  const cols=Math.max(1,Math.ceil(Math.sqrt(ps.length*(w/Math.max(1,h)))));
+  const rows=Math.max(1,Math.ceil(ps.length/cols));
+  ps.forEach((p,i)=>{
+    let x,y;
+    if(ps.length<=3){
+      const a=(-Math.PI*.82)+(i/Math.max(1,ps.length-1))*Math.PI*1.64;
+      x=w*.5+Math.cos(a)*Math.min(w*.28,h*.31);y=h*.53+Math.sin(a)*Math.min(h*.24,w*.18);
+    }else{
+      const col=i%cols,row=Math.floor(i/cols);
+      x=margin+(col+.5)*(w-margin*2)/cols;y=margin+22+(row+.5)*(h-margin*2-22)/rows;
+    }
+    projects[p.project_key]={x,y};
+  });
+  const perProject={};
+  (s.workers||[]).forEach((worker,i)=>{
+    const c=projects[worker.project_key]||{x:w*.5,y:h*.5};
+    const list=perProject[worker.project_key]||(perProject[worker.project_key]=[]);
+    const local=list.length;list.push(worker.worker_id);
+    if(stress==='collision'){
+      const dx=((i%5)-2)*5,dy=((Math.floor(i/5)%5)-2)*5;
+      workers[worker.worker_id]={x:w*.51+dx,y:h*.52+dy};
+    }else{
+      const seed=hash(worker.worker_id),a=(seed%628)/100;
+      const ring=24+(local%5)*9+Math.floor(local/5)*12;
+      workers[worker.worker_id]={x:c.x+Math.cos(a)*ring,y:c.y+Math.sin(a)*ring};
+    }
+  });
+  (s.nodes||[]).forEach(n=>{
+    const c=projects[n.project_key]||{x:w*.5,y:h*.5};
+    const seed=hash(n.node_key||'node'),a=(seed%628)/100,r=52+(seed%32);
+    nodes[n.node_key]={x:c.x+Math.cos(a)*r,y:c.y+Math.sin(a)*r};
+  });
+  return {projects,workers,nodes};
+}
+function drawHost(s,l,w,h){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle='#080807';ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle='rgba(230,220,205,.035)';ctx.lineWidth=1;
+  const grid=Math.max(44,Math.min(w,h)/10);
+  for(let x=0;x<w;x+=grid){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}
+  for(let y=0;y<h;y+=grid){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
+  for(const p of s.projects||[]){
+    const c=l.projects[p.project_key];if(!c)continue;
+    ctx.beginPath();ctx.arc(c.x,c.y,Math.max(38,Math.min(w,h)*.075),0,Math.PI*2);
+    ctx.strokeStyle='rgba(231,178,118,.11)';ctx.lineWidth=1;ctx.stroke();
+    ctx.beginPath();ctx.arc(c.x,c.y,3,0,Math.PI*2);ctx.fillStyle='rgba(231,178,118,.42)';ctx.fill();
+  }
+  const nodeBy=new Map((s.nodes||[]).map(n=>[n.node_key,n]));
+  for(const worker of s.workers||[]){
+    const p=l.workers[worker.worker_id];if(!p)continue;
+    const node=nodeBy.get(worker.node_key);
+    const active=!!(node&&node.state==='ACTIVE');
+    const good=active&&['LIVE','AGING'].includes(worker.liveness);
+    ctx.beginPath();ctx.arc(p.x,p.y,good?4:3,0,Math.PI*2);
+    ctx.fillStyle=worker.liveness==='SUSPECT'?'#b96150':worker.liveness==='RECOVERING'?'#5792a1':good?'#789b69':'#5b554d';ctx.fill();
+  }
+}
+function nearestWorker(x,y){
+  let best=null,dist=16;
+  for(const w of snapshot.workers||[]){
+    const p=layout.workers[w.worker_id];if(!p)continue;
+    const d=Math.hypot(x-p.x,y-p.y);if(d<dist){dist=d;best=w}
+  }
+  return best;
+}
+function render(){
+  if(!moduleOk)return;
+  const r=viewport.getBoundingClientRect(),w=r.width,h=r.height;if(!w||!h)return;
+  layout=buildLayout(snapshot,w,h);drawHost(snapshot,layout,w,h);
+  const sel=selection;
+  M.drawHud(ctx,snapshot,layout,sel,{
+    width:w,height:h,dpr,contextScaled:true,semanticLevel:level,zoom:zoomValue,
+    forceDetail:!!sel,device:view,tv:view==='tv'||w>=1200
+  });
+  stageNote.textContent='HOST GEOMETRY · '+level.toUpperCase()+' · '+stress.toUpperCase()+' · SYNTHETIC';
+}
+document.getElementById('stressGroup').addEventListener('click',e=>{const b=e.target.closest('button[data-stress]');if(b)setStress(b.dataset.stress)});
+document.getElementById('levelGroup').addEventListener('click',e=>{const b=e.target.closest('button[data-level]');if(b)setLevel(b.dataset.level)});
+document.getElementById('viewGroup').addEventListener('click',e=>{const b=e.target.closest('button[data-view]');if(b)setView(b.dataset.view)});
+canvas.addEventListener('pointerdown',e=>{pointerDown={x:e.clientX,y:e.clientY}});
+canvas.addEventListener('pointerup',e=>{
+  if(!pointerDown)return;
+  const moved=Math.hypot(e.clientX-pointerDown.x,e.clientY-pointerDown.y);pointerDown=null;if(moved>8)return;
+  const r=canvas.getBoundingClientRect(),p={x:e.clientX-r.left,y:e.clientY-r.top};
+  const hud=M.hitTestHud(p);
+  if(hud&&hud.type==='close'){selection=null;render();return}
+  if(hud&&(hud.type==='worker'||hud.type==='node'||hud.type==='project')){selection={type:hud.type,id:hud.id};render();return}
+  const w=nearestWorker(p.x,p.y);
+  selection=w?{type:'worker',id:w.worker_id}:null;render();
+});
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();zoomValue=Math.max(.55,Math.min(2.2,zoomValue+(e.deltaY<0?.14:-.14)));
+  const next=zoomValue<.82?'overview':zoomValue<1.5?'mid':'detail';
+  if(next!==level){level=next;setPressed('levelGroup','level',level)}
+  render();
+},{passive:false});
+let lastTap=0;
+canvas.addEventListener('touchend',()=>{
+  const now=Date.now();if(now-lastTap<320){setLevel(level==='overview'?'mid':level==='mid'?'detail':'overview')}lastTap=now;
+},{passive:true});
+new ResizeObserver(resize).observe(viewport);
+window.addEventListener('resize',resize);
+setStress('few');setView('auto');requestAnimationFrame(resize);
+})();
+</script>
+</body>
+</html>
