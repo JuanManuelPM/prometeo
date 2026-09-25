@@ -60,7 +60,7 @@ button{font:inherit}
   position:absolute;inset:0;z-index:49;background:rgba(0,0,0,.42);opacity:0;pointer-events:none;transition:opacity .18s ease;
 }
 #drawer{
-  position:absolute;z-index:50;left:0;top:0;bottom:0;width:min(360px,74%);
+  position:absolute;z-index:50;left:0;top:0;bottom:0;width:min(410px,86%);
   background:rgba(10,9,7,.985);border-right:1px solid rgba(215,180,139,.18);
   transform:translateX(-102%);transition:transform .20s ease;
   display:flex;flex-direction:column;box-shadow:18px 0 52px rgba(0,0,0,.50);
@@ -74,9 +74,10 @@ body.menu-open #drawerBackdrop{opacity:1;pointer-events:auto}
 .drawerMark{width:30px;height:30px;border:1px solid #554738;display:grid;place-items:center;color:var(--accent);font:950 10px ui-monospace}
 .drawerCopy{min-width:0}.drawerCopy b{display:block;font-size:13px;letter-spacing:.04em}.drawerCopy span{display:block;margin-top:2px;color:#756a5e;font:700 8px ui-monospace;letter-spacing:.08em;text-transform:uppercase}
 #tree{
-  flex:1 1 auto;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;
-  -webkit-overflow-scrolling:touch;touch-action:pan-y;padding:8px 8px 16px;
+  flex:1 1 0;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;touch-action:none;padding:8px 8px 22px;
   scrollbar-width:thin;scrollbar-color:#4e4337 transparent;
+  scroll-behavior:auto;
 }
 .folder{border-bottom:1px solid #201d19}
 .folder summary{
@@ -119,14 +120,38 @@ body.menu-open #drawerBackdrop{opacity:1;pointer-events:auto}
     width:100dvh;height:100dvw;
     transform:translate(-50%,-50%) rotate(90deg);
   }
-  #drawer{width:min(350px,72%)}
+  #drawer{width:min(520px,92%)}
+  .drawerHead{padding:8px 10px 7px}
+  .drawerMark{width:26px;height:26px}
+  .drawerCopy b{font-size:11px}
+  .drawerCopy span{font-size:7px}
+  .drawerTools{
+    display:flex;gap:6px;overflow-x:auto;overflow-y:hidden;
+    padding:6px;scrollbar-width:none;touch-action:pan-x;
+  }
+  .drawerTools::-webkit-scrollbar{display:none}
+  .tool{flex:0 0 auto;min-height:32px;padding:0 10px;font-size:8px}
+  .zoomReadout{display:none}
+  .folder summary{min-height:36px}
+  .pageItem{padding:8px 8px}
+  .pageText b{font-size:11px}
+  .pageText small{font-size:8px}
   #rotateHint{display:none}
 }
-@media(max-height:420px){
+@media(max-height:520px){
   #menuButton{width:40px;height:40px}
-  .drawerHead{padding-top:8px;padding-bottom:8px}
-  .folder summary{min-height:36px}
-  .pageItem{padding-top:8px;padding-bottom:8px}
+  #drawer{width:min(520px,92%)}
+  .drawerHead{padding:7px 10px}
+  .drawerTools{
+    display:flex;gap:6px;overflow-x:auto;overflow-y:hidden;
+    padding:6px;scrollbar-width:none;touch-action:pan-x;
+  }
+  .drawerTools::-webkit-scrollbar{display:none}
+  .tool{flex:0 0 auto;min-height:32px;padding:0 10px;font-size:8px}
+  .zoomReadout{display:none}
+  .folder summary{min-height:34px}
+  .pageItem{padding:7px 8px}
+  .pageText small{font-size:8px}
 }
 </style>
 </head>
@@ -144,7 +169,7 @@ body.menu-open #drawerBackdrop{opacity:1;pointer-events:auto}
   <aside id="drawer" aria-label="Navegación visual">
     <div class="drawerHead">
       <div class="drawerMark">P</div>
-      <div class="drawerCopy"><b>Prometeo Visuals</b><span>visor global · landscape</span></div>
+      <div class="drawerCopy"><b>Prometeo Visuals</b><span>deslizá para recorrer · tocá para abrir</span></div>
     </div>
     <nav id="tree"></nav>
     <div class="drawerTools">
@@ -208,6 +233,48 @@ function openMenu(on){
 }
 menuButton.addEventListener('click',()=>openMenu(!document.body.classList.contains('menu-open')));
 backdrop.addEventListener('click',()=>openMenu(false));
+
+(function installTreeTouchScroll(){
+  let g=null,dragged=false,suppressClick=false;
+  function isPortrait(){return matchMedia('(orientation: portrait)').matches}
+  tree.addEventListener('touchstart',e=>{
+    if(!e.touches||e.touches.length!==1)return;
+    const t=e.touches[0];
+    g={x:t.clientX,y:t.clientY,scroll:tree.scrollTop};
+    dragged=false;
+  },{passive:true});
+  tree.addEventListener('touchmove',e=>{
+    if(!g||!e.touches||e.touches.length!==1)return;
+    const t=e.touches[0],dx=t.clientX-g.x,dy=t.clientY-g.y;
+    if(Math.abs(dx)+Math.abs(dy)<4)return;
+    dragged=true;
+    // In forced portrait→landscape rotation, visual vertical maps to physical X.
+    // Also accept the other axis so the gesture remains forgiving on odd browsers.
+    let delta;
+    if(isPortrait()){
+      delta=Math.abs(dx)>=Math.abs(dy)?dx:-dy;
+    }else{
+      delta=Math.abs(dy)>=Math.abs(dx)?-dy:-dx;
+    }
+    tree.scrollTop=g.scroll+delta;
+    e.preventDefault();
+  },{passive:false});
+  tree.addEventListener('touchend',()=>{
+    if(dragged){
+      suppressClick=true;
+      setTimeout(()=>{suppressClick=false},80);
+    }
+    g=null;dragged=false;
+  },{passive:true});
+  tree.addEventListener('touchcancel',()=>{g=null;dragged=false},{passive:true});
+  tree.addEventListener('click',e=>{
+    if(!suppressClick)return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    suppressClick=false;
+  },true);
+})();
 
 function applyTransform(){
   const w=layer.parentElement.clientWidth||1,h=layer.parentElement.clientHeight||1;
