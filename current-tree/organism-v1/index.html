@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Prometeo · Organism V1</title>
+<style>
+:root{
+  --bg:#07080a;--ink:#f1f0e9;--muted:#7f8792;--line:#343a43;
+  --fresh:#eef1ed;--aging:#aeb5bd;--stale:#c9a55a;--legacy:#646a73;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}
+button{font:inherit;color:inherit}
+.app{height:100%;display:grid;grid-template-rows:auto 1fr}
+.top{z-index:20;border-bottom:1px solid #1d2127;background:rgba(7,8,10,.96);backdrop-filter:blur(8px);padding:11px 13px 9px}
+.topline{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.brand{font-size:12px;font-weight:800;letter-spacing:.08em}
+.stamp{font-size:8px;color:var(--muted);white-space:nowrap}
+.modes{display:flex;gap:4px;margin-top:8px;overflow-x:auto;scrollbar-width:none}.modes::-webkit-scrollbar{display:none}
+.mode{border:0;background:transparent;color:var(--muted);padding:6px 8px;border-radius:7px;font-size:9px;white-space:nowrap;cursor:pointer}
+.mode.on{background:#14171c;color:var(--ink)}
+.stage{position:relative;min-height:0;overflow:hidden}
+svg{width:100%;height:100%;display:block;touch-action:none}
+.edge{fill:none;stroke:#30353d;stroke-width:1.3;opacity:.8;vector-effect:non-scaling-stroke}
+.edge.live{stroke:#68717d;opacity:.95}
+.edge.stale{stroke:#6a5a37;stroke-dasharray:4 6}
+.node{cursor:pointer}
+.node .halo{fill:none;stroke:#2b3037;stroke-width:1;opacity:.65}
+.node .core{fill:#0b0d10;stroke:#8e969f;stroke-width:1.3}
+.node.fresh .core{stroke:#d9ddd8}
+.node.aging .core{stroke:#7d858f}
+.node.stale .core{stroke:var(--stale);stroke-dasharray:3 4}
+.node.legacy .core{stroke:var(--legacy);stroke-dasharray:2 5;opacity:.7}
+.node.activity .halo{stroke:#c8cdd2;opacity:.45;animation:pulse 2.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{r:29;opacity:.18}50%{r:35;opacity:.5}}
+.node text{pointer-events:none;text-anchor:middle}
+.node .name{font-size:13px;font-weight:720;fill:#e8e8e2;letter-spacing:-.02em}
+.node .age{font-size:9px;fill:#737c87}
+.node.stale .age{fill:#b79b5f}
+.node.legacy .name,.node.legacy .age{fill:#6f7680}
+.node.child .name{font-size:10px}.node.child .age{font-size:8px}
+.node .hint{opacity:0;transition:opacity .15s}
+.node.expandable .hint{opacity:.65}
+.hint circle{fill:#11141a;stroke:#575f69;stroke-width:1}
+.hint text{fill:#a1a8b1;font-size:11px;font-weight:700}
+.node.selected .core{stroke-width:2.2}
+.node.selected .name{fill:#fff}
+
+.panel{position:absolute;left:10px;right:10px;bottom:10px;z-index:10;background:rgba(13,15,18,.96);border:1px solid #30353d;border-radius:12px;padding:11px 12px;transform:translateY(calc(100% + 20px));transition:transform .18s ease;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.panel.on{transform:translateY(0)}
+.phead{display:flex;justify-content:space-between;gap:12px;align-items:start}
+.pname{font-size:15px;font-weight:760;letter-spacing:-.025em}
+.close{border:0;background:transparent;color:#7e8792;font-size:18px;line-height:1;cursor:pointer;padding:0}
+.prole{font-size:9px;color:#858d98;margin-top:2px}
+.pstats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#282d34;border:1px solid #282d34;border-radius:8px;overflow:hidden;margin-top:10px}
+.pstat{background:#0b0d10;padding:7px 8px}
+.pk{font-size:7px;color:#707884;text-transform:uppercase;letter-spacing:.1em}
+.pv{font-size:10px;margin-top:3px;overflow-wrap:anywhere}
+.pdesc{font-size:10px;line-height:1.45;color:#b1b7bf;margin-top:9px}
+.pactions{display:flex;gap:6px;margin-top:9px}
+.pbtn{border:1px solid #323841;background:#111419;border-radius:7px;padding:6px 8px;font-size:8px;color:#aeb4bc;cursor:pointer}
+.pbtn[hidden]{display:none}
+
+.legend{position:absolute;right:9px;top:9px;font-size:7px;color:#5f6772;text-align:right;line-height:1.6;pointer-events:none}
+.agebar{display:inline-flex;gap:2px;vertical-align:middle;margin-left:4px}
+.agebar i{display:block;width:8px;height:2px;background:#30353d}.agebar i:nth-child(1){background:#cfd3cf}.agebar i:nth-child(2){background:#8f969f}.agebar i:nth-child(3){background:#705e38}
+
+@media(min-width:760px){
+ .top{padding:12px 20px 9px}.panel{left:auto;right:18px;bottom:18px;width:340px}
+ .node .name{font-size:12px}.node .age{font-size:8px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top">
+  <div class="topline"><div class="brand">PROMETEO · ORGANISM V1</div><div class="stamp" id="stamp">cargando</div></div>
+  <div class="modes">
+    <button class="mode on" data-mode="organism">Organismo</button>
+    <button class="mode" data-mode="age">Edad</button>
+    <button class="mode" data-mode="activity">Actividad</button>
+  </div>
+</header>
+<section class="stage">
+  <svg id="scene" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" aria-label="Prometeo organism"></svg>
+  <div class="legend" id="legend"></div>
+  <div class="panel" id="panel">
+    <div class="phead"><div><div class="pname" id="pname"></div><div class="prole" id="prole"></div></div><button class="close" id="close">×</button></div>
+    <div class="pstats">
+      <div class="pstat"><div class="pk">Edad</div><div class="pv" id="page"></div></div>
+      <div class="pstat"><div class="pk">Estado</div><div class="pv" id="pstatus"></div></div>
+      <div class="pstat"><div class="pk">Último cambio</div><div class="pv" id="pupdated"></div></div>
+    </div>
+    <div class="pdesc" id="pdesc"></div>
+    <div class="pactions"><button class="pbtn" id="pexpand" hidden>abrir rama</button></div>
+  </div>
+</section>
+</div>
+<script>
+const SB='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+const scene=document.getElementById('scene');
+let D=null,MODE='organism',SELECTED=null,EXPANDED=new Set(),NODES=[],EDGES=[],RAF=0;
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'');
+async function load(){
+ const r=await fetch(SB+'prometeo_current_tree_v2',{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:'{}',cache:'no-store'});
+ if(!r.ok)throw new Error('RPC '+r.status);
+ return r.json();
+}
+function fmt(d){try{return new Intl.DateTimeFormat('es-AR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'America/Argentina/Buenos_Aires'}).format(new Date(d))}catch{return '—'}}
+function ageMinutes(d){return d?Math.max(0,(Date.now()-new Date(d).getTime())/60000):null}
+function ageLabel(m){
+ if(m==null)return 'sin señal';
+ if(m<1)return '<1m';
+ if(m<60)return Math.round(m)+'m';
+ if(m<1440)return Math.round(m/60)+'h';
+ return Math.round(m/1440)+'d';
+}
+function rootModule(k){return (D.root_index?.read_order||[]).find(x=>x.module_key===k)||{}}
+function reg(k){return (D.semantic_registry||[]).find(x=>x.entity_key===k)||{}}
+function guide(k){return (D.guides||[]).find(x=>x.guide_key===k)||{}}
+function nodeClass(n){
+ if(n.status==='LEGACY'||n.status==='SUPERSEDED')return 'legacy';
+ if(n.status==='STALE'||n.freshness==='STALE')return 'stale';
+ const m=ageMinutes(n.updated);
+ if(m!=null&&m<15)return 'fresh';
+ if(m!=null&&m>1440)return 'aging';
+ return 'aging';
+}
+function activitySignal(n){
+ if(n.id==='work') return (D.work?.active_jobs||[]).length>0;
+ if(n.id==='objectives') return (D.work?.active_objectives||[]).some(o=>ageMinutes(o.updated_at)<30);
+ if(n.kind==='guide') return ageMinutes(n.updated)<30;
+ return false;
+}
+function baseNodes(){
+ const ct=reg('PROMETEO_CURRENT_TREE_V2'),root=reg('PROMETEO_ROOT_INDEX_V1');
+ const mod=(id,k,x,y,role,desc,r=25)=>{const m=rootModule(k);return {id,label:m.title||k,x,y,r,role,desc,updated:m.source_updated_at,freshness:m.freshness,status:m.freshness==='STALE'?'STALE':'CURRENT',source:m.source_ref,kind:'root'}};
+ return [
+  {id:'current',label:'CURRENT TREE',x:500,y:90,r:34,role:'cabeza',desc:'Orientación actual de Prometeo.',updated:ct.updated_at,status:ct.effective_status||ct.status,source:ct.source_ref,kind:'registry'},
+  {id:'root',label:'ROOT',x:500,y:205,r:31,role:'cuello',desc:'Índice de las fuentes actuales. No es dueño de verdad.',updated:root.updated_at,status:root.effective_status||root.status,source:root.source_ref,kind:'registry'},
+  mod('now','NOW',500,320,'torso','Estado operacional real.',30),
+  mod('objectives','OBJECTIVES',375,400,'hombro','Objetivos vigentes y dirección.',25),
+  mod('guides','GUIDES',625,400,'hombro','Continuidad por dominio.',28),
+  mod('work','WORK',500,485,'corazón','Trabajo real, frontier y demandas.',35),
+  mod('doctrines','DOCTRINES',265,505,'brazo','Reglas reusables extraídas de experiencia.',23),
+  mod('knowledge','KNOWLEDGE',735,505,'brazo','Memoria organizacional versionada.',23),
+  mod('experiments','EXPERIMENTS',365,610,'cadera','Canaries, waves y resultados recientes.',24),
+  mod('drift','DRIFT',635,610,'cadera','Contradicciones y fuentes stale.',24),
+  mod('plan','OPERATING_PLAN',355,730,'pierna','Plan durable y gates.',25),
+  mod('legacy','LEGACY_STATE',645,730,'pierna','Estado antiguo que todavía existe.',25),
+  mod('next','NEXT_ACTION',500,850,'dirección','Qué debería pasar después según el estado actual.',28)
+ ];
+}
+const BASE_EDGES=[
+ ['current','root'],['root','now'],['now','objectives'],['now','guides'],['now','work'],
+ ['objectives','doctrines'],['guides','knowledge'],['work','experiments'],['work','drift'],
+ ['experiments','plan'],['drift','legacy'],['plan','next'],['legacy','next']
+];
+function guideChildren(){
+ const parent=NODES.find(n=>n.id==='guides'); if(!parent)return [];
+ const gs=D.guides||[], out=[];
+ const angles=[-150,-115,-75,-30,25,60];
+ gs.forEach((g,i)=>{
+   const a=angles[i]*Math.PI/180,dist=145+(i%2)*15;
+   out.push({
+    id:'guide:'+g.guide_key,label:g.guide_key,x:parent.x+Math.cos(a)*dist,y:parent.y+Math.sin(a)*dist,
+    r:17,role:'guide',desc:g.mission,updated:g.capsule_generated_at||g.updated_at,
+    status:g.effective_status||g.capsule_status||g.declared_status,source:g.invoke_route,kind:'guide',parent:'guides'
+   });
+ });
+ return out;
+}
+function workChildren(){
+ const p=NODES.find(n=>n.id==='work');if(!p)return [];
+ const out=[];
+ const wg=reg('WORK_GRAPH_CURRENT_V1_1');
+ out.push({id:'workgraph',label:'WORK GRAPH',x:p.x-125,y:p.y+95,r:19,role:'runtime',desc:'Global Work Graph V1.1',updated:wg.updated_at,status:wg.effective_status||wg.status,source:wg.source_ref,kind:'registry',parent:'work'});
+ const obj=(D.work?.active_objectives||[])[0];
+ if(obj)out.push({id:'objective:'+obj.objective_key,label:'ACTIVE OBJECTIVE',x:p.x+125,y:p.y+95,r:19,role:'objetivo',desc:obj.title,updated:obj.updated_at,status:obj.status,source:obj.source_ref,kind:'objective',parent:'work'});
+ return out;
+}
+function childrenFor(id){if(id==='guides')return guideChildren();if(id==='work')return workChildren();return []}
+function buildGraph(){
+ NODES=baseNodes();
+ EDGES=BASE_EDGES.map(([a,b])=>({a,b}));
+ for(const id of EXPANDED){
+   const ch=childrenFor(id);NODES.push(...ch);ch.forEach(c=>EDGES.push({a:id,b:c.id}));
+ }
+}
+function svgEl(tag,attrs={}){
+ const e=document.createElementNS('http://www.w3.org/2000/svg',tag);
+ for(const [k,v] of Object.entries(attrs))e.setAttribute(k,v);
+ return e;
+}
+function render(){
+ scene.innerHTML='';
+ const edgeLayer=svgEl('g',{id:'edges'}),nodeLayer=svgEl('g',{id:'nodes'});
+ scene.append(edgeLayer,nodeLayer);
+ for(const e of EDGES){
+   const a=NODES.find(n=>n.id===e.a),b=NODES.find(n=>n.id===e.b); if(!a||!b)continue;
+   const p=svgEl('path',{class:'edge',id:'edge:'+e.a+':'+e.b});
+   e.el=p;edgeLayer.appendChild(p);
+ }
+ for(const n of NODES){
+   const cls=['node',nodeClass(n),n.parent?'child':'',childrenFor(n.id).length?'expandable':'',activitySignal(n)?'activity':'',SELECTED===n.id?'selected':''].filter(Boolean).join(' ');
+   const g=svgEl('g',{class:cls,'data-id':n.id,tabindex:'0'});
+   const halo=svgEl('circle',{class:'halo',cx:0,cy:0,r:n.r+7});
+   const core=svgEl('circle',{class:'core',cx:0,cy:0,r:n.r});
+   const name=svgEl('text',{class:'name',x:0,y:n.r+18});name.textContent=n.label;
+   const age=svgEl('text',{class:'age',x:0,y:n.r+31});age.textContent=ageLabel(ageMinutes(n.updated));
+   g.append(halo,core,name,age);
+   if(childrenFor(n.id).length){
+     const hint=svgEl('g',{class:'hint',transform:'translate('+(n.r-2)+','+(-n.r+2)+')'});
+     const hc=svgEl('circle',{cx:0,cy:0,r:8});const ht=svgEl('text',{x:0,y:4});ht.textContent=EXPANDED.has(n.id)?'−':'+';
+     hint.append(hc,ht);g.appendChild(hint);
+   }
+   g.addEventListener('click',()=>selectNode(n.id));
+   g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectNode(n.id)}});
+   n.el=g;nodeLayer.appendChild(g);
+ }
+ updateLegend();
+}
+function updateLegend(){
+ const el=$('#legend');
+ if(MODE==='age')el.innerHTML='edad desde último update <span class="agebar"><i></i><i></i><i></i></span>';
+ else if(MODE==='activity')el.textContent='pulso = actividad real reciente';
+ else el.textContent='';
+}
+function positionAt(n,t){
+ const seed=[...n.id].reduce((a,c)=>a+c.charCodeAt(0),0);
+ const amp=n.parent?2.5:4;
+ return {x:n.x+Math.sin(t*.00045+seed)*amp,y:n.y+Math.cos(t*.00038+seed*.7)*amp};
+}
+function loop(t){
+ const pos=new Map();
+ for(const n of NODES){const p=positionAt(n,t);pos.set(n.id,p);n.el?.setAttribute('transform','translate('+p.x+','+p.y+')')}
+ for(const e of EDGES){
+   const a=pos.get(e.a),b=pos.get(e.b);if(!a||!b||!e.el)continue;
+   const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+   const bend=(b.x-a.x)*.05;
+   e.el.setAttribute('d','M '+a.x+' '+a.y+' Q '+(mx-bend)+' '+my+' '+b.x+' '+b.y);
+   const bn=NODES.find(n=>n.id===e.b);
+   e.el.setAttribute('class','edge '+(activitySignal(bn)?'live':'')+' '+((bn.status==='STALE'||bn.freshness==='STALE')?'stale':''));
+ }
+ RAF=requestAnimationFrame(loop);
+}
+function selectNode(id){
+ SELECTED=id;const n=NODES.find(x=>x.id===id);if(!n)return;
+ document.querySelectorAll('.node').forEach(x=>x.classList.toggle('selected',x.dataset.id===id));
+ $('#pname').textContent=n.label;$('#prole').textContent=n.role;
+ $('#page').textContent=ageLabel(ageMinutes(n.updated));$('#pstatus').textContent=n.status||n.freshness||'—';$('#pupdated').textContent=fmt(n.updated);
+ $('#pdesc').textContent=n.desc||'';
+ const btn=$('#pexpand'),has=childrenFor(id).length>0;btn.hidden=!has;
+ if(has)btn.textContent=EXPANDED.has(id)?'cerrar rama':'abrir rama';
+ $('#panel').classList.add('on');
+}
+$('#pexpand').onclick=()=>{
+ if(!SELECTED)return;
+ if(EXPANDED.has(SELECTED))EXPANDED.delete(SELECTED);else EXPANDED.add(SELECTED);
+ buildGraph();render();selectNode(SELECTED);
+};
+$('#close').onclick=()=>{$('#panel').classList.remove('on');SELECTED=null;document.querySelectorAll('.node').forEach(x=>x.classList.remove('selected'))};
+document.querySelectorAll('.mode').forEach(b=>b.onclick=()=>{
+ MODE=b.dataset.mode;document.querySelectorAll('.mode').forEach(x=>x.classList.toggle('on',x===b));
+ scene.classList.toggle('mode-age',MODE==='age');scene.classList.toggle('mode-activity',MODE==='activity');updateLegend();
+});
+(async()=>{
+ try{
+  D=await load();$('#stamp').textContent='snapshot '+fmt(D.generated_at);
+  buildGraph();render();
+  cancelAnimationFrame(RAF);RAF=requestAnimationFrame(loop);
+ }catch(e){
+  scene.outerHTML='<div style="padding:20px;color:#c99;font-size:11px">No pude cargar Current Tree V2: '+esc(e.message)+'</div>';
+ }
+})();
+</script>
+</body>
+</html>
