@@ -3,498 +3,282 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#070706">
+<meta name="prometeo-rev" content="VR-MAT-TASK-LAB-01">
 <title>Prometeo · Task Runtime Lab</title>
 <style>
 :root{
-  --bg:#0b0c0d;--panel:#111315;--panel2:#171a1d;--line:#34393e;--muted:#90989f;--text:#f2f4f5;
-  --ready:#c7a45d;--active:#d36e48;--blocked:#81504a;--done:#78917f;--unknown:#687079;
-  --safe:env(safe-area-inset-bottom,0px);
+  --bg:#070706;--panel:#0b0a08;--ink:#d6c0a1;--muted:#766d62;--line:#302b25;
+  --ready:#a88750;--active:#bd673e;--blocked:#8d4138;--done:#526a58;--unknown:#706b65;
+  --fixture:#8a6638;--live:#789078;
 }
 *{box-sizing:border-box}
-html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-button,input{font:inherit}
-button{color:inherit}
-body{min-height:100vh;overflow-x:hidden}
-.shell{min-height:100vh;display:grid;grid-template-rows:auto auto 1fr auto}
-.top{
-  position:sticky;top:0;z-index:10;background:#0b0c0df2;border-bottom:1px solid var(--line);
-  padding:12px clamp(12px,2vw,24px);backdrop-filter:blur(8px)
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+body{overscroll-behavior:none}
+button,select{font:inherit}
+#shell{position:fixed;inset:0;background:radial-gradient(circle at 42% 48%,rgba(91,63,39,.13),transparent 44%),linear-gradient(180deg,#080807,#050504)}
+#world{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+#world:active{cursor:grabbing}
+#top{position:fixed;left:12px;right:12px;top:10px;z-index:6;display:flex;justify-content:space-between;gap:10px;pointer-events:none}
+.brand{display:flex;align-items:center;gap:9px;text-shadow:0 1px #000}
+.sig{width:34px;height:34px;border:1px solid #4a392a;background:rgba(8,7,6,.9);display:grid;place-items:center;color:#cf7b47;font-weight:950}
+.brand b{display:block;font:950 12px/1.1 system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase}.brand span{display:block;margin-top:4px;color:#817568;font-size:8px;letter-spacing:.05em}
+#truth{min-width:238px;border:1px solid #39332c;background:rgba(7,6,5,.91);padding:7px 9px;text-align:right;font-size:8px;line-height:1.4;letter-spacing:.045em}
+#truth[data-mode="LIVE"]{border-color:#405043;color:#8ea58e}#truth[data-mode="FIXTURE"]{border-color:#684d2c;color:#d0a15d}#truth[data-mode="ERROR"]{border-color:#713a31;color:#d06c5e}
+#toolbar{position:fixed;left:12px;top:57px;z-index:7;display:flex;gap:5px;flex-wrap:wrap;max-width:calc(100vw - 388px)}
+.ctrl{border:1px solid #332e28;background:#0b0a08;color:#8d8174;padding:6px 8px;cursor:pointer;font-size:8px;letter-spacing:.06em}.ctrl[aria-pressed="true"]{color:#d8b987;border-color:#765033;background:#15110d}.ctrl:hover{border-color:#60482f}
+#metrics{position:fixed;left:12px;bottom:12px;z-index:6;width:min(610px,calc(100vw - 390px));border:1px solid #2c2822;background:rgba(7,6,5,.91);padding:8px 9px;pointer-events:none}
+.metricsGrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}.metric{border-left:2px solid #3a342d;padding:2px 6px;min-width:0}.metric b{display:block;font:900 13px/1 system-ui,sans-serif;color:#cbb18e}.metric span{display:block;margin-top:4px;color:#6e675f;font-size:6px;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#legend{margin-top:7px;display:flex;gap:10px;flex-wrap:wrap;color:#766f67;font-size:7px}.leg{display:flex;align-items:center;gap:4px}.sw{width:10px;height:7px;border:1px solid currentColor}.sw.ready{color:var(--ready)}.sw.active{color:var(--active)}.sw.blocked{color:var(--blocked)}.sw.done{color:var(--done)}.sw.unknown{color:var(--unknown)}
+#legendNote{margin-top:6px;color:#5f5952;font-size:7px;line-height:1.35}
+#detail{position:fixed;right:12px;top:57px;bottom:12px;z-index:8;width:356px;border:1px solid #342e27;background:rgba(7,6,5,.96);display:flex;flex-direction:column;overflow:hidden}
+#detailHead{padding:9px 10px;border-bottom:1px solid #2f2a24;display:flex;justify-content:space-between;gap:8px;align-items:flex-start}#detailHead b{font:950 10px/1.15 system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase}#detailHead span{color:#6e655b;font-size:7px;text-align:right}
+#list{padding:5px;overflow:auto;scrollbar-width:none;max-height:42%}#list::-webkit-scrollbar,#raw::-webkit-scrollbar{display:none}
+.row{width:100%;border:0;border-left:3px solid #55504a;background:rgba(255,255,255,.018);color:#a89a88;padding:6px 7px;margin:0 0 3px;display:grid;grid-template-columns:65px 1fr 52px;gap:6px;text-align:left;cursor:pointer;font:800 7px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace}.row strong{color:#d2b28a;font-size:9px}.row .k{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .s{text-align:right}.row[data-state="READY"]{border-left-color:var(--ready)}.row[data-state="ACTIVE"]{border-left-color:var(--active)}.row[data-state="BLOCKED"]{border-left-color:var(--blocked)}.row[data-state="DONE"]{border-left-color:var(--done)}.row.selected{outline:1px solid rgba(211,164,102,.26);background:rgba(203,137,67,.07)}
+#facts{border-top:1px solid #2e2923;padding:8px 10px;overflow:auto;max-height:26%;margin:0}.fact{display:grid;grid-template-columns:92px 1fr;gap:7px;padding:2px 0;font-size:7px;line-height:1.4}.fact dt{color:#666058}.fact dd{margin:0;color:#b4a491;overflow-wrap:anywhere}
+#rawWrap{flex:1;min-height:0;border-top:1px solid #2e2923;display:flex;flex-direction:column}#rawTitle{padding:6px 9px;color:#6d655c;font-size:7px;letter-spacing:.08em;text-transform:uppercase}#raw{margin:0;padding:0 9px 9px;overflow:auto;white-space:pre-wrap;word-break:break-word;color:#837a70;font:6.5px/1.4 ui-monospace,monospace}
+#empty{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:5;max-width:440px;padding:15px 18px;border:1px solid #45352a;background:rgba(8,7,6,.92);text-align:center;display:none}#empty b{display:block;font:900 11px system-ui,sans-serif;letter-spacing:.08em}#empty span{display:block;margin-top:8px;color:#776d62;font-size:8px;line-height:1.5}
+#hint{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:4;color:#5e5851;font-size:7px;letter-spacing:.07em;text-transform:uppercase;pointer-events:none}
+@media(max-width:760px){
+  #top{left:7px;right:7px;top:7px}.brand span{display:none}.sig{width:30px;height:30px}#truth{min-width:152px;font-size:6.5px;padding:5px 6px}
+  #toolbar{left:7px;right:7px;top:46px;max-width:none}.ctrl{padding:5px 6px;font-size:7px}
+  #detail{left:5px;right:5px;top:auto;bottom:5px;width:auto;height:39vh}#list{max-height:45%;display:grid;grid-template-columns:1fr 1fr;gap:3px}.row{margin:0;grid-template-columns:51px 1fr;font-size:6.5px;padding:5px}.row .s{display:none}.row strong{font-size:8px}
+  #facts{display:none}#rawWrap{display:none}#detailHead{padding:6px 8px}#detailHead span{display:none}
+  #metrics{left:5px;bottom:calc(39vh + 11px);width:calc(100vw - 10px);padding:6px}.metricsGrid{grid-template-columns:repeat(6,1fr);gap:2px}.metric{padding:1px 3px}.metric b{font-size:10px}.metric span{font-size:5px}#legend{gap:5px;font-size:5.5px}#legendNote{display:none}
+  #hint{display:none}
 }
-.titleline{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
-h1{font-size:clamp(16px,2vw,24px);margin:0;letter-spacing:.02em}
-.sub{font-size:11px;color:var(--muted);margin-top:5px;max-width:75ch;line-height:1.45}
-.badge{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);padding:6px 8px;font-size:10px;white-space:nowrap;background:var(--panel)}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--unknown)}
-.badge[data-fresh="FRESH"] .dot{background:var(--done)}
-.badge[data-fresh="STALE"] .dot{background:var(--ready)}
-.badge[data-fresh="ERROR"] .dot{background:var(--blocked)}
-.controls{
-  display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px clamp(12px,2vw,24px);
-  border-bottom:1px solid #24282c;background:#0d0f10
-}
-.group{display:flex;border:1px solid var(--line);background:var(--panel)}
-.group button,.modeBtn,.refreshBtn{
-  border:0;background:transparent;padding:8px 10px;min-height:36px;cursor:pointer
-}
-.group button+button{border-left:1px solid var(--line)}
-.group button[aria-pressed="true"],.modeBtn[aria-pressed="true"]{background:#252a2e}
-.modeBtn,.refreshBtn{border:1px solid var(--line);background:var(--panel)}
-.search{margin-left:auto;min-width:min(280px,100%);flex:0 1 320px;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:8px 10px;min-height:36px}
-.meta{font-size:10px;color:var(--muted)}
-.main{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,360px);min-height:0}
-.stage{padding:18px clamp(12px,2vw,24px);min-width:0}
-.truthbar{
-  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border:1px solid var(--line);margin-bottom:14px;background:var(--panel)
-}
-.metric{padding:10px;border-right:1px solid var(--line);min-width:0}
-.metric:last-child{border-right:0}
-.metric b{display:block;font-size:clamp(18px,3vw,30px);line-height:1}
-.metric span{display:block;font-size:9px;color:var(--muted);margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;align-items:stretch}
-.site{
-  position:relative;min-height:162px;border:1px solid var(--line);background:var(--panel);
-  padding:12px;text-align:left;cursor:pointer;overflow:hidden
-}
-.site:focus-visible{outline:2px solid #fff;outline-offset:2px}
-.site:hover{border-color:#596169}
-.site[data-state="READY"]{--s:var(--ready)}
-.site[data-state="ACTIVE"]{--s:var(--active)}
-.site[data-state="BLOCKED"]{--s:var(--blocked)}
-.site[data-state="DONE"]{--s:var(--done)}
-.site[data-state="MIXED"],.site[data-state="UNKNOWN"]{--s:var(--unknown)}
-.statehead{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:10px}
-.state{font-size:10px;color:var(--s);font-weight:900;letter-spacing:.12em}
-.kind{font-size:9px;color:var(--muted);border:1px solid #34393e;padding:3px 5px}
-.site h2{font-size:12px;line-height:1.35;margin:0 0 4px;word-break:break-word}
-.node{font-size:10px;color:#aeb5ba;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.plot{
-  height:57px;margin:11px 0 8px;border:1px solid color-mix(in srgb,var(--s) 65%,#2b2f32);
-  position:relative;background:#0b0c0d;overflow:hidden
-}
-.plot::before,.plot::after{content:"";position:absolute;inset:auto}
-.site[data-state="READY"] .plot{
-  background:repeating-linear-gradient(135deg,transparent 0 8px,#211e17 8px 9px);
-  border-style:dashed
-}
-.site[data-state="ACTIVE"] .plot{
-  background:
-    linear-gradient(90deg,transparent 0 19%,#3c2a23 19% 21%,transparent 21% 49%,#3c2a23 49% 51%,transparent 51% 79%,#3c2a23 79% 81%,transparent 81%),
-    linear-gradient(#121416,#121416)
-}
-.site[data-state="ACTIVE"] .plot::before{
-  left:10%;right:10%;bottom:10px;height:14px;border:1px solid var(--s);background:#271b17
-}
-.site[data-state="BLOCKED"] .plot{
-  background:repeating-linear-gradient(45deg,#111315 0 8px,#241715 8px 11px)
-}
-.site[data-state="BLOCKED"] .plot::after{
-  left:8%;right:8%;top:50%;height:3px;background:var(--s);box-shadow:0 -10px 0 #32201d,0 10px 0 #32201d
-}
-.site[data-state="DONE"] .plot{
-  background:linear-gradient(to top,#263229 0 62%,#111315 62%)
-}
-.site[data-state="DONE"] .plot::before{
-  left:12%;right:12%;bottom:9px;height:28px;background:var(--s);
-  box-shadow:0 -6px 0 #526357 inset,0 -12px 0 #65796b inset
-}
-.site[data-state="MIXED"] .plot{
-  background:linear-gradient(90deg,var(--done) 0 var(--d,25%),var(--active) var(--d,25%) var(--a,50%),var(--ready) var(--a,50%) var(--r,75%),var(--blocked) var(--r,75%) 100%);
-  opacity:.72
-}
-.footline{display:flex;justify-content:space-between;gap:8px;font-size:9px;color:var(--muted)}
-.footline span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.workerref{color:#c4ccd1}
-.empty{border:1px dashed var(--line);padding:30px;text-align:center;color:var(--muted)}
-.inspector{
-  border-left:1px solid var(--line);background:#0e1011;padding:16px;min-width:0;overflow:auto;max-height:calc(100vh - 112px);
-  position:sticky;top:112px;align-self:start
-}
-.inspector h3{font-size:12px;margin:0 0 12px}
-.kv{display:grid;grid-template-columns:105px 1fr;gap:5px 8px;font-size:10px;margin-bottom:12px}
-.kv dt{color:var(--muted)} .kv dd{margin:0;word-break:break-word}
-.members{font-size:9px;line-height:1.5;color:#b4bbc0;max-height:130px;overflow:auto;border:1px solid #282c2f;padding:8px;margin:8px 0 12px}
-pre{font-size:9px;line-height:1.45;white-space:pre-wrap;word-break:break-word;color:#aeb6bc;background:#090a0b;border:1px solid #24282b;padding:10px;max-height:280px;overflow:auto}
-.legend{
-  border-top:1px solid var(--line);padding:10px clamp(12px,2vw,24px) calc(10px + var(--safe));
-  display:flex;gap:12px;flex-wrap:wrap;font-size:9px;color:var(--muted)
-}
-.legend b{color:var(--text)}
-.legend .sw{width:8px;height:8px;display:inline-block;margin-right:4px;vertical-align:-1px}
-.testok{color:#9eb6a3}.testfail{color:#d8856d}
-@media(max-width:840px){
-  .titleline{display:block}.badge{margin-top:9px}
-  .controls{position:sticky;top:83px;z-index:9}
-  .search{order:10;flex-basis:100%;margin-left:0}
-  .main{display:block}
-  .inspector{position:static;max-height:none;border-left:0;border-top:1px solid var(--line)}
-  .truthbar{grid-template-columns:repeat(2,1fr)}
-  .metric{border-bottom:1px solid var(--line)}
-  .metric:nth-child(2n){border-right:0}.metric:last-child{grid-column:1/-1}
-  .grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
-  .site{min-height:150px}
-}
-@media(max-width:480px){
-  .top{padding:10px 12px}.sub{font-size:10px}
-  .controls{top:88px;padding:8px 12px}
-  .group{width:100%}.group button{flex:1}
-  .modeBtn,.refreshBtn{flex:1}
-  .grid{grid-template-columns:1fr 1fr;gap:7px}
-  .site{padding:9px;min-height:142px}
-  .site h2{font-size:11px}.plot{height:48px}
-}
-@media(max-width:360px){.grid{grid-template-columns:1fr}}
-@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>
 </head>
 <body>
-<div class="shell">
-<header class="top">
-  <div class="titleline">
-    <div>
-      <h1>TASK RUNTIME LAB · bloques = trabajo real</h1>
-      <div class="sub">Cada parcela resuelve a un <b>node_key real</b> de Macro Build o a un agregado explícito y reversible. Estado de tarea ≠ liveness de worker. Heartbeats, retries y recovery no agregan masa.</div>
-    </div>
-    <div class="badge" id="freshBadge" data-fresh="ERROR"><span class="dot"></span><span id="freshText">SIN SNAPSHOT</span></div>
-  </div>
-</header>
-
-<nav class="controls" aria-label="Controles del lab">
-  <div class="group" aria-label="Nivel de detalle">
-    <button data-lod="3" aria-pressed="false" title="Nodo individual">LOD 3</button>
-    <button data-lod="2" aria-pressed="true" title="Guide + estado">LOD 2</button>
-    <button data-lod="1" aria-pressed="false" title="Estado">LOD 1</button>
-    <button data-lod="0" aria-pressed="false" title="Todo el set">LOD 0</button>
-  </div>
-  <button class="modeBtn" id="modeBtn" aria-pressed="false">LIVE_TRUTH</button>
-  <button class="refreshBtn" id="refreshBtn">REFRESH</button>
-  <span class="meta" id="modeMeta">fuente: prometeo_coliseo_monitor_v1</span>
-  <input class="search" id="search" type="search" placeholder="Filtrar node_key, título o guide…" autocomplete="off">
-</nav>
-
-<main class="main">
-<section class="stage">
-  <div class="truthbar" aria-label="Resumen de tareas">
-    <div class="metric"><b id="mTotal">—</b><span>NODOS FUENTE</span></div>
-    <div class="metric"><b id="mActive">—</b><span>ACTIVE · tarea</span></div>
-    <div class="metric"><b id="mReady">—</b><span>READY · blueprint</span></div>
-    <div class="metric"><b id="mBlocked">—</b><span>BLOCKED · gate</span></div>
-    <div class="metric"><b id="mDone">—</b><span>DONE · builder state</span></div>
-  </div>
-  <div id="grid" class="grid" aria-live="polite"></div>
-</section>
-
-<aside class="inspector" id="inspector" aria-label="Provenance y debug">
-  <h3>PROVENANCE / DEBUG</h3>
-  <div id="inspectBody" class="meta">Seleccioná una parcela. El inspector muestra identidad, miembros, evidencia y el payload normalizado.</div>
-</aside>
-</main>
-
-<footer class="legend">
-  <span><i class="sw" style="background:var(--ready)"></i><b>READY</b> blueprint, cero masa final</span>
-  <span><i class="sw" style="background:var(--active)"></i><b>ACTIVE</b> scaffold, no implica worker WORKING</span>
-  <span><i class="sw" style="background:var(--blocked)"></i><b>BLOCKED</b> gate causal, quieto</span>
-  <span><i class="sw" style="background:var(--done)"></i><b>DONE</b> sólido fijo; no infiere verifier/current</span>
-  <span id="selfTest">SELF-CHECK —</span>
-</footer>
+<div id="shell"><canvas id="world" aria-label="Task Runtime Lab de Prometeo"></canvas></div>
+<div id="top">
+  <div class="brand"><div class="sig">T</div><div><b>Task Runtime Lab</b><span>bloques = node/task real · agregación explícita · sin liveness inventada</span></div></div>
+  <div id="truth" data-mode="ERROR">FEED · INICIANDO<br>sin snapshot</div>
 </div>
-
+<div id="toolbar">
+  <button class="ctrl" id="liveBtn" aria-pressed="true">LIVE</button>
+  <button class="ctrl" id="fixtureBtn" aria-pressed="false">FIXTURE EXPLÍCITA</button>
+  <button class="ctrl" id="lodBtn" aria-pressed="true">LOD AUTO</button>
+  <button class="ctrl" id="resetBtn">RESET VIEW</button>
+</div>
+<div id="metrics"><div class="metricsGrid">
+  <div class="metric"><b id="mNodes">—</b><span>sites / nodes</span></div>
+  <div class="metric"><b id="mReady">—</b><span>ready</span></div>
+  <div class="metric"><b id="mActive">—</b><span>active</span></div>
+  <div class="metric"><b id="mBlocked">—</b><span>blocked</span></div>
+  <div class="metric"><b id="mDone">—</b><span>done</span></div>
+  <div class="metric"><b id="mAttempts">—</b><span>working jobs</span></div>
+</div><div id="legend">
+  <span class="leg"><i class="sw ready"></i>READY elegible</span><span class="leg"><i class="sw active"></i>ACTIVE ejecución</span><span class="leg"><i class="sw blocked"></i>BLOCKED gate</span><span class="leg"><i class="sw done"></i>DONE resultado</span><span class="leg"><i class="sw unknown"></i>UNKNOWN</span>
+</div><div id="legendNote">ACTIVE y WORKING son actividad, no porcentaje. DONE requiere estado/completion durable. En LOD agregado cada bloque contiene <code>member_keys</code> inspeccionables; el fixture nunca se presenta como live.</div></div>
+<aside id="detail"><div id="detailHead"><b>Provenance / debug</b><span id="detailStamp">sin selección</span></div><div id="list"></div><dl id="facts"></dl><div id="rawWrap"><div id="rawTitle">raw / derived record</div><pre id="raw">—</pre></div></aside>
+<div id="empty"><b id="emptyTitle">SIN DATOS</b><span id="emptyText">El lab no inventa un mundo cuando el feed falla.</span></div>
+<div id="hint">arrastrá para rotar · rueda/pellizco para zoom · tocá un sitio para provenance</div>
 <script>
-(()=>{
+(function(){
 'use strict';
-
-const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
-const SOURCE_RPC='prometeo_coliseo_monitor_v1';
-const STALE_MS=30000;
 const $=id=>document.getElementById(id);
-const ui={
-  grid:$('grid'), inspector:$('inspectBody'), search:$('search'), mode:$('modeBtn'),
-  refresh:$('refreshBtn'), freshBadge:$('freshBadge'), freshText:$('freshText'),
-  modeMeta:$('modeMeta'), selfTest:$('selfTest'),
-  total:$('mTotal'), active:$('mActive'), ready:$('mReady'), blocked:$('mBlocked'), done:$('mDone')
-};
+const canvas=$('world'),ctx=canvas.getContext('2d',{alpha:false});
+const truth=$('truth'),list=$('list'),facts=$('facts'),raw=$('raw'),detailStamp=$('detailStamp');
+const liveBtn=$('liveBtn'),fixtureBtn=$('fixtureBtn'),lodBtn=$('lodBtn'),resetBtn=$('resetBtn');
+const empty=$('empty'),emptyTitle=$('emptyTitle'),emptyText=$('emptyText');
+const RPC_BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+const COLORS={READY:'#a88750',ACTIVE:'#bd673e',BLOCKED:'#8d4138',DONE:'#526a58',UNKNOWN:'#706b65'};
+let apiKey=null,mode='LIVE',snapshot=null,records=[],selectedId=null,lastGoodAt=0,pollError=null;
+let yaw=-0.58,zoom=1,lodAuto=true,W=0,H=0,DPR=1,hit=[],pointer=null,pinchStart=0,zoomStart=1;
 
-let apiKey=null, mode=new URLSearchParams(location.search).get('fixture')==='1'?'FIXTURE':'LIVE';
-let lod=2, sourceTasks=[], workers=[], snapshotMeta=null, selectedRef=null, refreshTimer=null;
-
-const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-const normState=s=>{
-  const x=String(s||'UNKNOWN').toUpperCase();
-  if(x==='SUCCESS'||x==='ACCEPTED'||x==='COMPLETE'||x==='COMPLETED')return 'DONE';
-  if(['READY','ACTIVE','BLOCKED','DONE'].includes(x))return x;
-  return 'UNKNOWN';
-};
-const countStates=items=>{
-  const out={READY:0,ACTIVE:0,BLOCKED:0,DONE:0,UNKNOWN:0};
-  for(const x of items)out[normState(x.state)]=(out[normState(x.state)]||0)+1;
-  return out;
-};
-const fnv=str=>{
-  let h=2166136261;
-  for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)}
-  return ('00000000'+(h>>>0).toString(16)).slice(-8);
-};
-const membersDigest=items=>fnv(items.map(x=>x.node_key).sort().join('|'));
-const fmtAge=iso=>{
-  if(!iso)return '—';
-  const ms=Date.now()-Date.parse(iso);
-  if(!Number.isFinite(ms))return '—';
-  const s=Math.max(0,Math.floor(ms/1000));
-  if(s<60)return s+'s';
-  const m=Math.floor(s/60); if(m<60)return m+'m';
-  const h=Math.floor(m/60); return h+'h';
-};
-
+function safe(v){return String(v==null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
+function n(v){const x=Number(v);return Number.isFinite(x)?x:0}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function stateOf(x,workers){
+  const rawState=String(x.state||'').toUpperCase();
+  const completion=String(x.completion||x.completion_class||'').toUpperCase();
+  const unresolved=n(x.unresolved_dependencies||x.unresolved||0);
+  if(['DONE','ACCEPTED','SUCCESS','SATISFIED'].includes(rawState)||completion==='SUCCESS')return {state:'DONE',source:completion==='SUCCESS'?'completion=SUCCESS':'state='+rawState};
+  if(rawState==='BLOCKED'||unresolved>0)return {state:'BLOCKED',source:rawState==='BLOCKED'?'state=BLOCKED':'unresolved_dependencies='+unresolved};
+  if(['ACTIVE','CLAIMED','IN_PROGRESS','WORKING'].includes(rawState))return {state:'ACTIVE',source:'state='+rawState};
+  if(rawState==='READY')return {state:'READY',source:'state=READY'};
+  const working=(workers||[]).filter(w=>String(w.evidence_state||'')==='WORKING');
+  if(working.length)return {state:'ACTIVE',source:'DERIVED:WORKING_JOB_MATCH'};
+  return {state:'UNKNOWN',source:rawState?'unmapped state='+rawState:'insufficient state evidence'};
+}
+function workerMatches(data,key){
+  const ws=Array.isArray(data&&data.workers)?data.workers:[];
+  return ws.filter(w=>w&&w.current_job&&String(w.current_job.node_key||'')===String(key));
+}
+function makeRecord(x,kind,source,data,index){
+  const key=String(x.key||x.node_key||x.id||('UNKEYED-'+index));
+  const ws=workerMatches(data,key),st=stateOf(x,ws);
+  return {
+    id:key,key:key,title:String(x.title||x.name||key),kind:kind,state:st.state,state_source:st.source,
+    branch:String(x.branch||x.guide_key||x.family||kind||'UNSCOPED'),stage:String(x.progress_stage||x.stage||''),
+    unresolved:n(x.unresolved_dependencies||x.unresolved||0),recovery:n(x.recovery_count||0),
+    completion:String(x.completion||x.completion_class||''),workers:ws.map(w=>({worker_code:w.worker_code||null,agent_id:w.agent_id||null,evidence_state:w.evidence_state||null,last_evidence_at:w.last_evidence_at||null})),
+    provenance:{truth_class:mode==='FIXTURE'?'FIXTURE':'LIVE_SNAPSHOT',source:source,node_key:key,observed_at:(data&&data.capacity&&data.capacity.generated_at)||(data&&data.generated_at)||new Date().toISOString()},
+    raw:x
+  };
+}
+function liveRecords(data){
+  const out=[];let i=0;
+  const pn=Array.isArray(data.product_nodes)?data.product_nodes:[];
+  pn.forEach(x=>out.push(makeRecord(x,'PRODUCT_NODE','prometeo_coliseo_monitor_v1.product_nodes',data,i++)));
+  const macro=data.macro_build||{};
+  const builders=Array.isArray(macro.builders)?macro.builders:[];
+  const verifiers=Array.isArray(macro.verifiers)?macro.verifiers:[];
+  builders.forEach(x=>out.push(makeRecord(x,'MACRO_BUILDER','prometeo_coliseo_monitor_v1.macro_build.builders',data,i++)));
+  verifiers.forEach(x=>out.push(makeRecord(x,'MACRO_VERIFIER','prometeo_coliseo_monitor_v1.macro_build.verifiers',data,i++)));
+  const uniq=new Map();
+  out.forEach(r=>{if(!uniq.has(r.key))uniq.set(r.key,r);else{const old=uniq.get(r.key);old.provenance.also_seen_in=(old.provenance.also_seen_in||[]).concat(r.provenance.source);old.workers=[...old.workers,...r.workers];}});
+  return [...uniq.values()];
+}
+function fixtureRecords(){
+  const base=[
+    {key:'FX-READY-01',title:'Fixture ready leaf',state:'READY',branch:'A',progress_stage:'WAITING'},
+    {key:'FX-ACTIVE-01',title:'Fixture active executor',state:'ACTIVE',branch:'A',progress_stage:'WRITE'},
+    {key:'FX-BLOCKED-01',title:'Fixture blocked dependency',state:'BLOCKED',branch:'B',unresolved_dependencies:2},
+    {key:'FX-DONE-01',title:'Fixture accepted result',state:'DONE',branch:'B',completion:'SUCCESS'},
+    {key:'FX-READY-02',title:'Fixture second ready',state:'READY',branch:'C'},
+    {key:'FX-DONE-02',title:'Fixture second done',state:'DONE',branch:'C',completion:'SUCCESS'},
+    {key:'FX-BLOCKED-02',title:'Fixture gate',state:'BLOCKED',branch:'C',unresolved_dependencies:1},
+    {key:'FX-ACTIVE-02',title:'Fixture verifier activity',state:'ACTIVE',branch:'VERIFY',progress_stage:'READ'}
+  ];
+  const data={capacity:{generated_at:new Date().toISOString()},workers:[]};
+  return base.map((x,i)=>makeRecord(x,'EXPLICIT_FIXTURE','fixture:task-runtime-lab',data,i));
+}
 async function publicKey(){
   if(apiKey)return apiKey;
   const r=await fetch('/prometeo/guides/prometeo/',{cache:'no-store'});
-  if(!r.ok)throw new Error('public-key page '+r.status);
-  const t=await r.text();
-  const m=t.match(/sb_publishable_[A-Za-z0-9_-]+/);
+  if(!r.ok)throw new Error('publishable key '+r.status);
+  const t=await r.text(),m=t.match(/sb_publishable_[A-Za-z0-9_-]+/);
   if(!m)throw new Error('publishable key unavailable');
-  apiKey=m[0]; return apiKey;
+  apiKey=m[0];return apiKey;
 }
 async function monitorRpc(){
   const k=await publicKey();
-  const r=await fetch(BASE+SOURCE_RPC,{
-    method:'POST',
-    headers:{apikey:k,Authorization:'Bearer '+k,'Content-Type':'application/json'},
-    body:'{}',cache:'no-store'
-  });
+  const r=await fetch(RPC_BASE+'prometeo_coliseo_monitor_v1',{method:'POST',headers:{apikey:k,Authorization:'Bearer '+k,'Content-Type':'application/json'},body:'{}',cache:'no-store'});
   if(!r.ok)throw new Error('monitor '+r.status);
   return r.json();
 }
-
-function normalizeMonitor(d){
-  const macro=d&&d.macro_build||{};
-  const bs=Array.isArray(macro.builders)?macro.builders:[];
-  workers=Array.isArray(d&&d.workers)?d.workers:[];
-  const workerByNode=new Map();
-  for(const w of workers){
-    const nk=w&&w.current_job&&w.current_job.node_key;
-    if(!nk)continue;
-    if(!workerByNode.has(nk))workerByNode.set(nk,[]);
-    workerByNode.get(nk).push({
-      worker_code:w.worker_code||null,
-      evidence_state:w.evidence_state||'UNKNOWN',
-      last_evidence_at:w.last_evidence_at||null
-    });
+function freshnessMs(){
+  const t=snapshot&&snapshot.capacity&&Date.parse(snapshot.capacity.generated_at||'');
+  return Number.isFinite(t)?Date.now()-t:(lastGoodAt?Date.now()-lastGoodAt:Infinity);
+}
+function updateTruth(){
+  if(mode==='FIXTURE'){
+    truth.dataset.mode='FIXTURE';truth.innerHTML='FIXTURE · EXPLÍCITA<br>NON-OPERATIONAL · '+records.length+' sites';return;
   }
-  return bs.filter(b=>b&&b.node_key).map((b,i)=>({
-    entity_ref:'node:'+String(b.node_key),
-    identity_class:'NODE',
-    node_key:String(b.node_key),
-    title:String(b.title||b.node_key),
-    guide_key:String(b.guide_key||'UNASSIGNED'),
-    state:normState(b.state),
-    source_state:String(b.state||'UNKNOWN'),
-    stage:b.stage==null?null:String(b.stage),
-    claimed_at:b.claimed_at||null,
-    completed_at:b.completed_at||null,
-    last_progress_at:b.last_progress_at||null,
-    recovery_count:Number.isFinite(Number(b.recovery_count))?Number(b.recovery_count):null,
-    assignment_evidence:workerByNode.get(String(b.node_key))||[],
-    source_ref:SOURCE_RPC+'.macro_build.builders['+i+']',
-    authority_class:'MATERIAL_NODE',
-    truth_note:'Macro Build node state. DONE does not independently assert verifier PASS, CURRENT or Served.'
-  }));
+  if(pollError){truth.dataset.mode='ERROR';truth.innerHTML='FEED · ERROR<br>'+safe(pollError);return;}
+  const stale=freshnessMs()>20000;
+  truth.dataset.mode=stale?'ERROR':'LIVE';
+  truth.innerHTML=(stale?'FEED · STALE':'FEED · LIVE')+'<br>'+safe(snapshot&&snapshot.schema||'schema —')+' · '+records.length+' sites';
 }
-
-function fixtureTasks(){
-  const rows=[
-    ['FX-READY-01','VISUAL','READY','COGNITIVE_SPEC_READY'],['FX-READY-02','STUDY','READY','SPEC_READY'],
-    ['FX-ACTIVE-01','VISUAL','ACTIVE','WRITE'],['FX-ACTIVE-02','STUDENTS','ACTIVE','TEST'],
-    ['FX-BLOCKED-01','VISUAL','BLOCKED','WAITING_DEP'],['FX-BLOCKED-02','AUDIO','BLOCKED','WAITING_VERIFY'],
-    ['FX-DONE-01','VISUAL','DONE','DONE'],['FX-DONE-02','STUDY','DONE','DONE'],
-    ['FX-DONE-03','STUDENTS','DONE','DONE'],['FX-READY-03','AUDIO','READY','READY'],
-    ['FX-ACTIVE-03','STRATEGY','ACTIVE','READ'],['FX-BLOCKED-03','STRATEGY','BLOCKED','WAITING_DEP']
-  ];
-  return rows.map((r,i)=>({
-    entity_ref:'fixture:'+r[0],identity_class:'EXPLICIT_DEBUG_FIXTURE',node_key:r[0],
-    title:'Fixture determinista '+(i+1),guide_key:r[1],state:r[2],source_state:r[2],stage:r[3],
-    claimed_at:null,completed_at:r[2]==='DONE'?'2026-09-25T00:00:00Z':null,last_progress_at:null,
-    recovery_count:i%3,assignment_evidence:[],source_ref:'inline:EXPLICIT_DEBUG_FIXTURE_V1['+i+']',
-    authority_class:'DEBUG_ONLY',truth_note:'Fixture explícito. No representa estado live ni workers reales.'
-  }));
-}
-
-function group(items,keyFn,labelFn){
-  const map=new Map();
-  for(const item of items){
-    const k=keyFn(item);
-    if(!map.has(k))map.set(k,[]);
-    map.get(k).push(item);
-  }
-  return [...map.entries()].map(([k,members])=>{
-    const states=countStates(members);
-    const nonzero=Object.entries(states).filter(([,n])=>n>0);
-    const homogeneous=nonzero.length===1?nonzero[0][0]:'MIXED';
-    return {
-      entity_ref:'aggregate:'+lod+':'+fnv(k+'|'+membersDigest(members)),
-      identity_class:'EXPLICIT_AGGREGATE',
-      aggregate_key:k,
-      title:labelFn(k,members),
-      node_key:null,guide_key:members.length&&members.every(x=>x.guide_key===members[0].guide_key)?members[0].guide_key:null,
-      state:homogeneous,stage:null,member_count:members.length,state_counts:states,
-      members:members.map(x=>x.node_key).sort(),members_digest:membersDigest(members),
-      source_ref:'derived:TaskRuntimeLab.LOD'+lod,
-      authority_class:'DERIVED_AGGREGATE',
-      assignment_evidence:members.flatMap(x=>x.assignment_evidence||[]),
-      truth_note:'Explicit reversible aggregate. No liveness or completion is inferred from majority.'
-    };
-  }).sort((a,b)=>a.title.localeCompare(b.title));
-}
-
-function projected(items){
-  if(lod===3)return items.map(x=>({...x,member_count:1,members:[x.node_key],members_digest:membersDigest([x]),state_counts:countStates([x])}));
-  if(lod===2)return group(items,x=>x.guide_key+'|'+x.state,(k,m)=>m[0].guide_key+' · '+m[0].state);
-  if(lod===1)return group(items,x=>x.state,(k)=>'STATE · '+k);
-  return group(items,()=> 'ALL',()=> 'ALL TASK NODES');
-}
-
-function pctStops(c){
-  const t=Math.max(1,Object.values(c).reduce((a,b)=>a+b,0));
-  const d=c.DONE/t*100,a=(c.DONE+c.ACTIVE)/t*100,r=(c.DONE+c.ACTIVE+c.READY)/t*100;
-  return {'--d':d+'%','--a':a+'%','--r':r+'%'};
-}
-function styleVars(obj){
-  if(obj.state!=='MIXED')return '';
-  const p=pctStops(obj.state_counts||{});
-  return Object.entries(p).map(([k,v])=>k+':'+v).join(';');
-}
-
-function render(){
-  const q=ui.search.value.trim().toLowerCase();
-  const filtered=sourceTasks.filter(x=>!q||[x.node_key,x.title,x.guide_key,x.state,x.stage].some(v=>String(v||'').toLowerCase().includes(q)));
-  const counts=countStates(filtered);
-  ui.total.textContent=filtered.length;
-  ui.active.textContent=counts.ACTIVE||0;ui.ready.textContent=counts.READY||0;ui.blocked.textContent=counts.BLOCKED||0;ui.done.textContent=counts.DONE||0;
-
-  const view=projected(filtered);
-  if(!view.length){ui.grid.innerHTML='<div class="empty">Sin nodos para este filtro.</div>';inspect(null);runSelfCheck(filtered,view);return}
-
-  ui.grid.innerHTML=view.map(x=>{
-    const assignment=x.assignment_evidence&&x.assignment_evidence.length
-      ? x.assignment_evidence.map(w=>w.worker_code+' '+w.evidence_state).join(', ')
-      : 'sin assignment visible';
-    const subtitle=x.identity_class==='EXPLICIT_AGGREGATE'
-      ? x.member_count+' members · '+x.members_digest
-      : x.node_key;
-    return `<button class="site" data-ref="${esc(x.entity_ref)}" data-state="${esc(x.state)}" style="${esc(styleVars(x))}" aria-label="${esc(x.title+' '+x.state)}">
-      <div class="statehead"><span class="state">${esc(x.state)}</span><span class="kind">${esc(x.identity_class==='EXPLICIT_AGGREGATE'?'AGGREGATE':x.guide_key)}</span></div>
-      <h2>${esc(x.title)}</h2><div class="node">${esc(subtitle)}</div>
-      <div class="plot" aria-hidden="true"></div>
-      <div class="footline"><span>${esc(x.stage||('members '+(x.member_count||1)))}</span><span class="workerref">${esc(assignment)}</span></div>
-    </button>`;
-  }).join('');
-
-  for(const el of ui.grid.querySelectorAll('.site')){
-    el.addEventListener('click',()=>{selectedRef=el.dataset.ref;inspect(view.find(x=>x.entity_ref===selectedRef));});
-  }
-  const selected=view.find(x=>x.entity_ref===selectedRef);
-  if(selected)inspect(selected);
-  runSelfCheck(filtered,view);
-}
-
-function inspect(x){
-  if(!x){
-    ui.inspector.innerHTML='Seleccioná una parcela. El inspector muestra identidad, miembros, evidencia y el payload normalizado.';
-    return;
-  }
-  const assignment=(x.assignment_evidence||[]).map(w=>`${esc(w.worker_code||'—')} · ${esc(w.evidence_state||'UNKNOWN')} · evidence ${esc(fmtAge(w.last_evidence_at))}`).join('<br>')||'—';
-  const members=(x.members||[x.node_key]).map(esc).join('<br>');
-  const raw={...x};
-  ui.inspector.innerHTML=`
-    <dl class="kv">
-      <dt>entity_ref</dt><dd>${esc(x.entity_ref)}</dd>
-      <dt>identity</dt><dd>${esc(x.identity_class)}</dd>
-      <dt>state</dt><dd>${esc(x.state)}</dd>
-      <dt>stage</dt><dd>${esc(x.stage||'—')}</dd>
-      <dt>guide</dt><dd>${esc(x.guide_key||'—')}</dd>
-      <dt>members</dt><dd>${esc(x.member_count||1)}</dd>
-      <dt>digest</dt><dd>${esc(x.members_digest||'—')}</dd>
-      <dt>source</dt><dd>${esc(x.source_ref)}</dd>
-      <dt>workers</dt><dd>${assignment}</dd>
-      <dt>truth ceiling</dt><dd>${esc(x.truth_note||'—')}</dd>
-    </dl>
-    <div class="meta">MEMBERS</div><div class="members">${members}</div>
-    <div class="meta">NORMALIZED PAYLOAD</div><pre>${esc(JSON.stringify(raw,null,2))}</pre>`;
-}
-
-function setFresh(kind,text){
-  ui.freshBadge.dataset.fresh=kind;ui.freshText.textContent=text;
-}
-function refreshFreshness(){
-  if(mode==='FIXTURE'){setFresh('FRESH','FIXTURE · EXPLÍCITO');return}
-  if(!snapshotMeta){setFresh('ERROR','SIN SNAPSHOT');return}
-  const age=Date.now()-snapshotMeta.received_at_ms;
-  setFresh(age<=STALE_MS?'FRESH':'STALE',(age<=STALE_MS?'FRESH · ':'STALE · ')+Math.max(0,Math.floor(age/1000))+'s');
-}
-
-async function loadLive(){
-  ui.refresh.disabled=true;setFresh(snapshotMeta?'STALE':'ERROR','CARGANDO…');
+async function refresh(){
+  if(mode!=='LIVE')return;
   try{
-    const data=await monitorRpc();
-    sourceTasks=normalizeMonitor(data);
-    snapshotMeta={
-      mode:'LIVE_TRUTH',schema:data&&data.schema||'UNKNOWN',
-      source:SOURCE_RPC,received_at:new Date().toISOString(),received_at_ms:Date.now(),
-      macro_schema:data&&data.macro_build&&data.macro_build.schema||'UNKNOWN',
-      source_counts:data&&data.macro_build&&data.macro_build.jobs||null
-    };
-    render();refreshFreshness();
-  }catch(err){
-    if(snapshotMeta){
-      snapshotMeta.last_error=String(err&&err.message||err);
-      setFresh('STALE','STALE · fetch error');
-    }else{
-      sourceTasks=[];render();setFresh('ERROR','LIVE ERROR');
-      ui.inspector.innerHTML='<b>LIVE fetch failed.</b><pre>'+esc(String(err&&err.stack||err))+'</pre>';
-    }
-  }finally{ui.refresh.disabled=false}
+    const d=await monitorRpc();snapshot=d;records=liveRecords(d);lastGoodAt=Date.now();pollError=null;
+    if(selectedId&&!records.some(r=>r.id===selectedId))selectedId=null;
+    renderList();renderMetrics();updateTruth();showEmpty();draw();
+  }catch(err){pollError=String(err&&err.message||err);records=[];snapshot=null;selectedId=null;renderList();renderMetrics();updateTruth();showEmpty();draw();}
 }
-function loadFixture(){
-  sourceTasks=fixtureTasks();workers=[];
-  snapshotMeta={mode:'EXPLICIT_DEBUG_FIXTURE',schema:'prometeo.task-runtime.fixture/v1',source:'inline fixture',received_at:new Date().toISOString(),received_at_ms:Date.now()};
-  render();refreshFreshness();
+function setMode(next){
+  mode=next;liveBtn.setAttribute('aria-pressed',String(mode==='LIVE'));fixtureBtn.setAttribute('aria-pressed',String(mode==='FIXTURE'));
+  selectedId=null;pollError=null;
+  if(mode==='FIXTURE'){snapshot=null;records=fixtureRecords();renderList();renderMetrics();updateTruth();showEmpty();draw();}
+  else refresh();
 }
-function applyMode(){
-  const fixture=mode==='FIXTURE';
-  ui.mode.textContent=fixture?'EXPLICIT_FIXTURE':'LIVE_TRUTH';
-  ui.mode.setAttribute('aria-pressed',fixture?'true':'false');
-  ui.modeMeta.textContent=fixture?'fuente: fixture explícito · NO LIVE':'fuente: prometeo_coliseo_monitor_v1';
-  if(refreshTimer){clearInterval(refreshTimer);refreshTimer=null}
-  if(fixture)loadFixture();
-  else{loadLive();refreshTimer=setInterval(loadLive,10000)}
+function showEmpty(){
+  if(records.length){empty.style.display='none';return;}
+  empty.style.display='block';
+  if(mode==='FIXTURE'){emptyTitle.textContent='FIXTURE VACÍA';emptyText.textContent='No hay fixture cargada.';}
+  else if(pollError){emptyTitle.textContent='SIN SNAPSHOT LIVE';emptyText.textContent='El feed falló: '+pollError+'. El lab no sustituye datos reales por actividad sintética.';}
+  else{emptyTitle.textContent='SIN NODES';emptyText.textContent='El snapshot válido no expone Product nodes ni Macro jobs en este momento.';}
 }
-
-function runSelfCheck(source,view){
-  const keys=source.map(x=>x.node_key);
-  const uniqueSource=new Set(keys).size===keys.length;
-  let membership=true;
-  if(lod<3){
-    const all=view.flatMap(x=>x.members||[]);
-    membership=all.length===keys.length && new Set(all).size===all.length && [...new Set(all)].every(k=>keys.includes(k));
-  }
-  const noSyntheticMass=source.every(x=>['READY','ACTIVE','BLOCKED','DONE','UNKNOWN'].includes(x.state));
-  const pass=uniqueSource&&membership&&noSyntheticMass;
-  ui.selfTest.className=pass?'testok':'testfail';
-  ui.selfTest.textContent=pass?'SELF-CHECK PASS · membership exacto':'SELF-CHECK FAIL · revisar proyección';
+function counts(){const c={READY:0,ACTIVE:0,BLOCKED:0,DONE:0,UNKNOWN:0};records.forEach(r=>c[r.state]=(c[r.state]||0)+1);return c}
+function renderMetrics(){
+  const c=counts(),working=mode==='LIVE'&&snapshot&&Array.isArray(snapshot.workers)?snapshot.workers.filter(w=>w.evidence_state==='WORKING').length:0;
+  $('mNodes').textContent=records.length;$('mReady').textContent=c.READY||0;$('mActive').textContent=c.ACTIVE||0;$('mBlocked').textContent=c.BLOCKED||0;$('mDone').textContent=c.DONE||0;$('mAttempts').textContent=working;
 }
-
-for(const b of document.querySelectorAll('[data-lod]')){
-  b.addEventListener('click',()=>{
-    lod=Number(b.dataset.lod);
-    for(const x of document.querySelectorAll('[data-lod]'))x.setAttribute('aria-pressed',String(Number(x.dataset.lod)===lod));
-    selectedRef=null;render();
+function renderList(){
+  list.textContent='';const sorted=[...records].sort((a,b)=>a.state.localeCompare(b.state)||a.key.localeCompare(b.key));
+  sorted.slice(0,100).forEach(r=>{
+    const b=document.createElement('button');b.className='row'+(selectedId===r.id?' selected':'');b.dataset.state=r.state;
+    const s1=document.createElement('strong');s1.textContent=r.state;
+    const s2=document.createElement('span');s2.className='k';s2.textContent=r.key;
+    const s3=document.createElement('span');s3.className='s';s3.textContent=r.kind.replace('MACRO_','M·').replace('PRODUCT_','P·');
+    b.append(s1,s2,s3);b.onclick=()=>{selectedId=r.id;renderList();renderDetail(r);draw();};list.appendChild(b);
   });
+  const r=records.find(x=>x.id===selectedId)||records[0];if(r&&!selectedId)selectedId=r.id;renderDetail(r||null);
 }
-ui.search.addEventListener('input',render);
-ui.refresh.addEventListener('click',()=>mode==='FIXTURE'?loadFixture():loadLive());
-ui.mode.addEventListener('click',()=>{mode=mode==='LIVE'?'FIXTURE':'LIVE';selectedRef=null;applyMode()});
-
-applyMode();
-setInterval(refreshFreshness,1000);
+function renderDetail(r){
+  facts.textContent='';if(!r){detailStamp.textContent='sin selección';raw.textContent='—';return;}
+  detailStamp.textContent=r.provenance.truth_class+' · '+r.state;
+  const pairs=[['node/site',r.key],['kind',r.kind],['state',r.state],['state source',r.state_source],['branch',r.branch],['stage',r.stage||'—'],['unresolved',r.unresolved],['completion',r.completion||'—'],['workers',r.workers.length],['source',r.provenance.source],['observed_at',r.provenance.observed_at]];
+  pairs.forEach(p=>{const d=document.createElement('div');d.className='fact';const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=p[0];dd.textContent=String(p[1]);d.append(dt,dd);facts.appendChild(d)});
+  raw.textContent=JSON.stringify(r,null,2);
+}
+function aggregate(rs){
+  const m=new Map();
+  rs.forEach(r=>{const k=r.state+'|'+r.branch;if(!m.has(k))m.set(k,{id:'AGG:'+k,key:r.branch,state:r.state,branch:r.branch,kind:'AGGREGATION',members:[],provenance:{truth_class:mode==='FIXTURE'?'FIXTURE_AGGREGATE':'DERIVED_AGGREGATE',source:'client aggregation over visible records',observed_at:r.provenance.observed_at}});m.get(k).members.push(r)});
+  return [...m.values()].map(a=>({
+    id:a.id,key:a.key,title:a.branch+' · '+a.state,state:a.state,branch:a.branch,kind:a.kind,state_source:'DERIVED:'+a.members.length+' members',stage:'',unresolved:a.members.reduce((s,r)=>s+r.unresolved,0),completion:'',workers:a.members.flatMap(r=>r.workers),
+    provenance:Object.assign({},a.provenance,{member_keys:a.members.map(r=>r.key)}),raw:{member_keys:a.members.map(r=>r.key),member_count:a.members.length},members:a.members
+  }));
+}
+function visualRecords(){
+  if(!lodAuto)return records;
+  if(zoom<.72||records.length>70&&zoom<1.05)return aggregate(records);
+  return records;
+}
+function hash(s){let h=2166136261;for(const ch of String(s)){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+function stateLane(s){return {DONE:-3.0,ACTIVE:-1.0,READY:1.0,BLOCKED:3.0,UNKNOWN:4.55}[s]??4.55}
+function sitePos(r,i,total){
+  const lane=stateLane(r.state),h=hash(r.id),col=i%7,row=Math.floor(i/7);const spread=Math.max(1,Math.min(7,total));
+  return {x:(col-(spread-1)/2)*1.75+((h%17)-8)*.015,z:lane+row*1.55+((h%13)-6)*.012};
+}
+function resize(){DPR=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;canvas.width=Math.max(1,Math.round(W*DPR));canvas.height=Math.max(1,Math.round(H*DPR));ctx.setTransform(DPR,0,0,DPR,0,0);draw()}
+function project(x,z,y){const ca=Math.cos(yaw),sa=Math.sin(yaw),rx=x*ca-z*sa,rz=x*sa+z*ca;const usable=W-(W>760?370:0),base=Math.min(usable/26,H/18)*zoom,cx=usable*.5,cy=H*(W>760?.54:.38);return{x:cx+rx*base,y:cy+rz*base*.34-y*base*.74,depth:rz,scale:base}}
+function poly(pts,fill,stroke){ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke()}}
+function cuboid(x,z,w,d,h,color,selected){
+  const p0=project(x-w/2,z-d/2,0),p1=project(x+w/2,z-d/2,0),p2=project(x+w/2,z+d/2,0),p3=project(x-w/2,z+d/2,0);
+  const q0=project(x-w/2,z-d/2,h),q1=project(x+w/2,z-d/2,h),q2=project(x+w/2,z+d/2,h),q3=project(x-w/2,z+d/2,h);
+  const edge=selected?'#dfb27c':'#211b17';
+  poly([p0,p1,q1,q0],shade(color,-.22),edge);poly([p1,p2,q2,q1],shade(color,-.34),edge);poly([q0,q1,q2,q3],shade(color,.10),edge);poly([p3,p0,q0,q3],shade(color,-.12),edge);
+  return {center:project(x,z,h),base:project(x,z,0)};
+}
+function shade(hex,amt){const n=parseInt(hex.slice(1),16),r=clamp((n>>16)+Math.round(255*amt),0,255),g=clamp(((n>>8)&255)+Math.round(255*amt),0,255),b=clamp((n&255)+Math.round(255*amt),0,255);return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('')}
+function ground(){
+  ctx.fillStyle='#070706';ctx.fillRect(0,0,W,H);
+  ['DONE','ACTIVE','READY','BLOCKED','UNKNOWN'].forEach(s=>{const z=stateLane(s),a=project(-7.2,z,0),b=project(7.2,z,0);ctx.strokeStyle=COLORS[s];ctx.globalAlpha=.18;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.globalAlpha=.62;const l=project(-7.6,z,.05);ctx.fillStyle=COLORS[s];ctx.font='800 8px ui-monospace,monospace';ctx.textAlign='right';ctx.fillText(s,l.x,l.y);ctx.globalAlpha=1;});
+}
+function drawGate(x,z,h,color){const a=cuboid(x-.38,z,.12,.18,h,color,false),b=cuboid(x+.38,z,.12,.18,h,color,false);cuboid(x,z,.9,.15,.18,color,false);return {center:project(x,z,h)}}
+function draw(){
+  ground();hit=[];const rs=visualRecords();const placed=rs.map((r,i)=>({r,p:sitePos(r,i,rs.length)}));
+  placed.sort((a,b)=>project(a.p.x,a.p.z,0).depth-project(b.p.x,b.p.z,0).depth).forEach(({r,p})=>{
+    const col=COLORS[r.state]||COLORS.UNKNOWN,agg=r.kind==='AGGREGATION',count=agg?r.members.length:1;let geom;
+    if(r.state==='BLOCKED')geom=drawGate(p.x,p.z,.7,col);else{
+      const h=r.state==='ACTIVE'?1.0:r.state==='READY'?.58:r.state==='DONE'?.32:.46;
+      geom=cuboid(p.x,p.z,agg?1.35:.92,agg?1.02:.72,h,col,selectedId===r.id);
+      if(agg){const cap=Math.min(5,count);for(let k=1;k<cap;k++)cuboid(p.x+(k%2?.18:-.18),p.z+(k%3-.8)*.08,.55,.42,.12+k*.10,col,false)}
+    }
+    const c=geom.center||project(p.x,p.z,.6),size=agg?16:12;
+    hit.push({id:r.id,x:c.x,y:c.y,r:Math.max(11,size+4),record:r});
+    if(zoom>.72||agg){ctx.fillStyle=selectedId===r.id?'#e1c29c':'#a99985';ctx.globalAlpha=.82;ctx.font=(agg?'850 8px':'800 7px')+' ui-monospace,monospace';ctx.textAlign='center';const label=agg?(r.branch+' · '+r.state+' ×'+count):r.key;ctx.fillText(label.slice(0,30),c.x,c.y-(agg?13:9));ctx.globalAlpha=1}
+    if(!agg&&r.workers.some(w=>w.evidence_state==='WORKING')){const a=project(p.x+.42,p.z-.24,.13);ctx.strokeStyle='#c99362';ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(a.x,a.y,3,0,Math.PI*2);ctx.stroke()}
+  });
+  if(mode==='FIXTURE'){ctx.fillStyle='#b07b42';ctx.globalAlpha=.20;ctx.font='950 42px system-ui,sans-serif';ctx.textAlign='center';ctx.fillText('FIXTURE',Math.min(W-380,W)*.45,H*.54);ctx.globalAlpha=1}
+}
+function pick(x,y){let best=null,bd=1e9;for(const h of hit){const d=Math.hypot(x-h.x,y-h.y);if(d<h.r&&d<bd){best=h;bd=d}}if(best){selectedId=best.id;renderList();renderDetail(best.record);draw()}}
+canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);pointer={id:e.pointerId,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,startYaw:yaw,moved:false}});
+canvas.addEventListener('pointermove',e=>{if(!pointer||pointer.id!==e.pointerId)return;const dx=e.clientX-pointer.x;if(Math.abs(e.clientX-pointer.startX)>3||Math.abs(e.clientY-pointer.startY)>3)pointer.moved=true;yaw=pointer.startYaw+dx*.008;draw()});
+canvas.addEventListener('pointerup',e=>{if(pointer&&pointer.id===e.pointerId){if(!pointer.moved)pick(e.clientX,e.clientY);pointer=null}});
+canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=clamp(zoom*Math.exp(-e.deltaY*.001),.48,2.2);draw()},{passive:false});
+canvas.addEventListener('touchstart',e=>{if(e.touches.length===2){pinchStart=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);zoomStart=zoom}},{passive:true});
+canvas.addEventListener('touchmove',e=>{if(e.touches.length===2&&pinchStart){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);zoom=clamp(zoomStart*d/pinchStart,.48,2.2);draw()}},{passive:true});
+function resetView(){yaw=-.58;zoom=1;draw()}
+liveBtn.onclick=()=>setMode('LIVE');fixtureBtn.onclick=()=>setMode('FIXTURE');lodBtn.onclick=()=>{lodAuto=!lodAuto;lodBtn.setAttribute('aria-pressed',String(lodAuto));draw()};resetBtn.onclick=resetView;
+window.addEventListener('resize',resize);
+window.PROMETEO_TASK_RUNTIME_LAB={schema:'prometeo.visual.task_runtime_lab/v1',get mode(){return mode},get snapshot(){return snapshot},get records(){return records},deriveState:stateOf,aggregate:aggregate,setFixture:()=>setMode('FIXTURE'),setLive:()=>setMode('LIVE')};
+resize();setMode(location.search.includes('fixture=1')?'FIXTURE':'LIVE');setInterval(()=>{if(mode==='LIVE')refresh()},8000);
 })();
 </script>
 </body>
