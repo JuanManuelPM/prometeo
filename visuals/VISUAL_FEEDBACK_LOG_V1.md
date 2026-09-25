@@ -159,22 +159,95 @@ No mask drawn from circles/polygons/wireframes.
 
 ## Reference Curator direction
 
-Build a reusable visual curation layer on top of the existing Pinterest image search.
+This is a HIGH-PRIORITY visual infrastructure tool, not a side gallery.
 
-Desired loop:
-`search -> browse -> compare -> like/dislike -> tag/use-case -> save -> refine query`
+The Curator should become a reusable image-search engine for any Prometeo visual task.
 
-Useful features:
+Core loop:
+`search -> browse -> compare -> like/dislike -> tag/use-case -> save -> learn preference -> refine query -> search again`
+
+The important part is LEARNING FROM CHOICES.
+
+Do not store only generic `like/dislike`. Persist WHY / FOR WHAT the user preferred an item.
+
+Examples:
+- "better tunnel for Spaces"
+- "good wall pattern"
+- "good floor texture"
+- "good hand pose"
+- "good avatar face"
+- "good creepy body part"
+- "strong silhouette for Trail"
+- "interesting reference only, not suitable as production asset"
+- "too clean"
+- "too generic"
+- "too dark"
+- "good brutalist scale"
+- "good collage material"
+
+Store each reaction with:
+- source item / pin id / URL;
+- original query;
+- expanded query variant that produced it;
+- media type;
+- reaction;
+- use-case tags;
+- comparison wins/losses;
+- short reason / preference attributes where possible;
+- timestamp.
+
+Desired views:
 - museum/fullscreen browsing;
-- next/previous;
+- fast next/previous;
 - like/dislike/save;
-- category/use-case tags;
+- use-case/category tags;
 - A/B comparison;
-- query variants;
-- persistent collections;
-- GIF/video discovery if technically feasible.
+- favorites/collections;
+- rejected references;
+- query provenance;
+- search history;
+- reusable preference profile.
 
-The goal is to reduce dependence on manual Pinterest reference gathering by building a reusable preference and reference workflow.
+A/B comparison is especially valuable because relative preference is often clearer than absolute ratings:
+`Which is better for X?`
+
+Search improvement must be evidence-driven:
+- generate multiple query variants;
+- preserve which query returned which item;
+- measure which query families generate more saved/preferred items;
+- reuse successful terms/compositions/material descriptors in later searches;
+- reduce/reject terms associated with consistently disliked results.
+
+Do not pretend to have magical ML if the implementation is only rules/history. A transparent preference model is acceptable and preferable at first.
+
+Useful preference dimensions can include:
+- subject;
+- composition;
+- scale;
+- darkness/brightness;
+- color;
+- material;
+- era/look;
+- medium;
+- brutalist vs decorative;
+- creepy vs clean;
+- collage vs illustration vs photo;
+- silhouette strength;
+- texture richness;
+- production-useful vs reference-only.
+
+The long-term goal:
+When another visual lab needs an image, it should be able to ask the Curator for something like:
+`find references/assets for a monumental brutalist corridor with repeating arches, patterned floor, dark retro game mood`
+and receive results informed by previous user choices rather than starting from zero.
+
+Pinterest search is the current discovery backend/baseline, not the product itself.
+
+Important:
+Pinterest results are references/discovery. Do not assume the user has rights to reuse arbitrary Pin media as final production assets. Final asset use still follows the Visual Protocol licensing/source rules.
+
+GIF/video support:
+Inspect actual Pinterest response/media metadata before assuming field names. If robust media extraction is feasible, support GIF/video preview and tagging. Otherwise expose the limitation honestly and keep the architecture ready for it.
 
 ## Creative-progress rule
 
