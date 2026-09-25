@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#070706">
+<title>Prometeo · Trail Lab</title>
+<style>
+:root{--bg:#070706;--ink:#eee6d8;--muted:#8d8275;--line:#39332d;--hot:#e85d3f;--acid:#d9e46b}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+body{overscroll-behavior:none;touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;background:#070706}
+.ui{position:fixed;z-index:3;left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));top:max(10px,env(safe-area-inset-top));display:flex;align-items:flex-start;justify-content:space-between;gap:10px;pointer-events:none}
+.brand{pointer-events:none;padding:9px 10px;border:1px solid rgba(238,230,216,.16);background:rgba(7,7,6,.78);max-width:min(420px,62vw)}
+.brand b{display:block;font:900 10px/1 ui-monospace;letter-spacing:.16em;text-transform:uppercase}
+.brand span{display:block;margin-top:6px;color:var(--muted);font:700 8px/1.35 ui-monospace;letter-spacing:.05em;text-transform:uppercase}
+.controls{pointer-events:auto;display:flex;gap:5px;padding:5px;border:1px solid rgba(238,230,216,.14);background:rgba(7,7,6,.82)}
+button{min-height:34px;border:1px solid #3b342e;background:#100e0c;color:#9f9385;padding:0 10px;font:850 8px/1 ui-monospace;letter-spacing:.09em;text-transform:uppercase;cursor:pointer}
+button[aria-pressed="true"]{background:#ede3d2;color:#0b0908;border-color:#ede3d2}
+button:focus-visible{outline:2px solid var(--acid);outline-offset:2px}
+#pause{width:34px;padding:0;font-size:12px}
+.legend{position:fixed;z-index:3;left:max(10px,env(safe-area-inset-left));bottom:max(10px,env(safe-area-inset-bottom));display:flex;gap:8px;align-items:center;padding:7px 9px;border:1px solid rgba(238,230,216,.12);background:rgba(7,7,6,.72);color:#8d8275;font:750 8px/1.2 ui-monospace;text-transform:uppercase;letter-spacing:.06em;pointer-events:none}
+.legend i{width:18px;height:1px;background:var(--hot);box-shadow:8px 0 0 var(--acid)}
+@media(max-width:720px){
+ .ui{align-items:stretch;gap:6px}.brand{max-width:38vw;padding:7px 8px}.brand span{display:none}.controls{overflow-x:auto;max-width:62vw;scrollbar-width:none}.controls::-webkit-scrollbar{display:none}button{min-height:32px;padding:0 8px;font-size:7px;white-space:nowrap}.legend{font-size:7px}
+}
+@media(prefers-reduced-motion:reduce){.brand span:after{content:' · movimiento reducido'}}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Criatura mecánica original moviéndose y dejando una estela gráfica"></canvas>
+<div class="ui">
+  <div class="brand"><b>TRAIL LAB // 01</b><span>una imagen · rebote · copias persistentes · tocá el campo para perturbar la trayectoria</span></div>
+  <div class="controls" role="group" aria-label="Variantes de estela">
+    <button data-mode="clean" aria-pressed="true">Clean trail</button>
+    <button data-mode="glitch" aria-pressed="false">Glitch trail</button>
+    <button data-mode="segmented" aria-pressed="false">Segmented creature</button>
+    <button id="pause" aria-label="Pausar animación" aria-pressed="false">Ⅱ</button>
+  </div>
+</div>
+<div class="legend"><i></i><span id="readout" aria-live="polite">CLEAN · 20 COPIAS · PERSISTENCIA BAJA</span></div>
+<script>
+(()=>{
+'use strict';
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d',{alpha:false,desynchronized:true});
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const modes={
+  clean:{copies:20,gap:1,fade:1,scale:.88,alpha:.72,jitter:0,rot:.012,label:'CLEAN · 20 COPIAS · PERSISTENCIA BAJA'},
+  glitch:{copies:26,gap:1,fade:.16,scale:.84,alpha:.46,jitter:18,rot:.026,label:'GLITCH · 26 COPIAS · SALTOS Y CORTES'},
+  segmented:{copies:32,gap:2,fade:1,scale:.80,alpha:.84,jitter:2,rot:.042,label:'SEGMENTED · 32 COPIAS · CUERPO ARTICULADO'}
+};
+let mode='clean',paused=false,W=0,H=0,dpr=1,last=0,acc=0,frame=0;
+let x=0,y=0,vx=reduced?1.1:2.1,vy=reduced?.72:1.35,angle=0,spin=.004;
+let sprite=null,sw=280,sh=160,history=[];
+
+function creatureSprite(){
+  const s=document.createElement('canvas');s.width=sw;s.height=sh;
+  const g=s.getContext('2d');g.translate(sw/2,sh/2);
+  g.lineJoin='miter';g.lineCap='square';
+  g.fillStyle='#efe6d8';g.strokeStyle='#171411';g.lineWidth=5;
+  g.beginPath();
+  g.moveTo(-126,-4);g.lineTo(-104,-14);g.lineTo(-88,-36);g.lineTo(-76,-21);
+  g.lineTo(-48,-32);g.lineTo(-24,-64);g.lineTo(-18,-31);g.lineTo(10,-39);
+  g.lineTo(29,-72);g.lineTo(38,-35);g.lineTo(72,-27);g.lineTo(110,-48);
+  g.lineTo(101,-19);g.lineTo(128,-7);g.lineTo(105,5);g.lineTo(119,30);
+  g.lineTo(82,21);g.lineTo(57,47);g.lineTo(49,20);g.lineTo(17,32);
+  g.lineTo(2,68);g.lineTo(-10,34);g.lineTo(-45,25);g.lineTo(-67,52);
+  g.lineTo(-68,22);g.lineTo(-100,14);g.closePath();g.fill();g.stroke();
+  g.globalCompositeOperation='destination-out';
+  [[-55,-7,17,9],[-18,-7,13,8],[22,-10,18,8],[62,-5,16,7]].forEach(r=>g.fillRect(...r));
+  g.beginPath();g.arc(91,-14,7,0,Math.PI*2);g.fill();
+  g.globalCompositeOperation='source-over';
+  g.fillStyle='#15120f';g.fillRect(-4,-17,34,8);g.fillRect(-35,8,46,6);
+  g.fillStyle='#e85d3f';g.fillRect(82,-18,8,8);g.fillRect(-96,-3,10,5);
+  g.strokeStyle='#d9e46b';g.lineWidth=3;
+  g.beginPath();g.moveTo(-72,-2);g.lineTo(65,-2);g.stroke();
+  return s;
+}
+
+function resize(){
+  dpr=Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.6);
+  W=Math.max(1,innerWidth);H=Math.max(1,innerHeight);
+  canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.imageSmoothingEnabled=false;
+  if(!history.length){x=W*.27;y=H*.42;}
+}
+
+function bounds(scale){return {rx:sw*scale*.5,ry:sh*scale*.5}}
+function update(){
+  const m=modes[mode],b=bounds(m.scale);
+  x+=vx;y+=vy;angle+=spin;
+  let hit=false;
+  if(x<b.rx){x=b.rx;vx=Math.abs(vx);hit=true}
+  else if(x>W-b.rx){x=W-b.rx;vx=-Math.abs(vx);hit=true}
+  if(y<b.ry){y=b.ry;vy=Math.abs(vy);hit=true}
+  else if(y>H-b.ry){y=H-b.ry;vy=-Math.abs(vy);hit=true}
+  if(hit){spin*=-1.04;vx*=.996;vy*=1.004}
+  const max=Math.max(1.35,Math.min(3.1,Math.hypot(vx,vy)));
+  const speed=Math.hypot(vx,vy)||1;vx=vx/speed*max;vy=vy/speed*max;
+  if(frame++%m.gap===0){
+    history.unshift({x,y,a:angle,t:frame});
+    if(history.length>m.copies*2)history.length=m.copies*2;
+  }
+}
+
+function backdrop(persist){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  if(persist>=1){ctx.fillStyle='#070706';ctx.fillRect(0,0,W,H)}
+  else{ctx.fillStyle='rgba(7,7,6,'+persist+')';ctx.fillRect(0,0,W,H)}
+  ctx.globalAlpha=.11;ctx.fillStyle='#d7cbbb';
+  for(let yy=(frame%9)-9;yy<H;yy+=9)ctx.fillRect(0,yy,W,1);
+  ctx.globalAlpha=1;
+}
+
+function drawImageCopy(p,i,total,m){
+  const k=i/Math.max(1,total-1);
+  let alpha=m.alpha*(1-k*.82),sc=m.scale*(1-k*.10),ox=0,oy=0,rot=p.a;
+  if(mode==='clean'){
+    alpha*=1-k*.25;
+  }else if(mode==='glitch'){
+    const snap=(i%5===0||i%7===0);
+    ox=snap?((i%2?1:-1)*m.jitter*(.35+k)):0;
+    oy=i%6===0?((i%3)-1)*7:0;
+    rot+=(i%4-1.5)*m.rot;
+    if(i%3===0)alpha*=.55;
+  }else{
+    sc*=1+Math.sin(i*.9)*.075;
+    rot+=(i%2?1:-1)*m.rot*(.3+k);
+    ox=Math.cos(i*.82)*m.jitter;
+    alpha*=.95-k*.42;
+  }
+  ctx.save();ctx.translate(p.x+ox,p.y+oy);ctx.rotate(rot);ctx.scale(sc,sc);
+  ctx.globalAlpha=alpha;
+  if(mode==='glitch'){
+    ctx.globalCompositeOperation=i%4===0?'screen':'source-over';
+    if(i%6===0){ctx.drawImage(sprite,-sw/2-8,-sh/2,sw,sh);ctx.globalAlpha*=.45;ctx.drawImage(sprite,-sw/2+9,-sh/2+2,sw,sh)}
+    else ctx.drawImage(sprite,-sw/2,-sh/2,sw,sh);
+  }else if(mode==='segmented'){
+    ctx.globalCompositeOperation='source-over';
+    ctx.drawImage(sprite,-sw/2,-sh/2,sw,sh);
+    if(i>0&&i%4===0){ctx.globalAlpha*=.35;ctx.fillStyle='#e85d3f';ctx.fillRect(-sw*.34,-3,sw*.68,6)}
+  }else ctx.drawImage(sprite,-sw/2,-sh/2,sw,sh);
+  ctx.restore();
+}
+
+function render(){
+  const m=modes[mode];backdrop(m.fade);
+  const total=Math.min(m.copies,history.length);
+  for(let i=total-1;i>=0;i--)drawImageCopy(history[i],i,total,m);
+  if(history[0]){ctx.save();ctx.translate(history[0].x,history[0].y);ctx.rotate(history[0].a);ctx.scale(m.scale,m.scale);ctx.globalAlpha=1;ctx.drawImage(sprite,-sw/2,-sh/2);ctx.restore()}
+  if(mode==='glitch'&&frame%17<2){
+    ctx.globalAlpha=.16;ctx.fillStyle='#e85d3f';ctx.fillRect(0,(frame*23)%H,W,2);ctx.globalAlpha=1;
+  }
+}
+
+function tick(t){
+  requestAnimationFrame(tick);
+  if(paused)return;
+  const dt=Math.min(40,t-last||16);last=t;acc+=dt;
+  const step=reduced?28:16;
+  while(acc>=step){update();acc-=step}
+  render();
+}
+
+function setMode(next){
+  mode=next;history.length=0;frame=0;
+  const m=modes[mode];
+  if(mode==='clean'){vx=Math.sign(vx||1)*(reduced?1.1:2.1);vy=Math.sign(vy||1)*(reduced?.72:1.35)}
+  if(mode==='glitch'){vx=Math.sign(vx||1)*(reduced?1.45:2.8);vy=Math.sign(vy||1)*(reduced?.9:1.75)}
+  if(mode==='segmented'){vx=Math.sign(vx||1)*(reduced?.9:1.7);vy=Math.sign(vy||1)*(reduced?.65:1.18)}
+  document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===mode?'true':'false'));
+  document.getElementById('readout').textContent=m.label;
+}
+
+document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+document.getElementById('pause').addEventListener('click',e=>{
+  paused=!paused;e.currentTarget.setAttribute('aria-pressed',paused?'true':'false');e.currentTarget.textContent=paused?'▶':'Ⅱ';e.currentTarget.setAttribute('aria-label',paused?'Reanudar animación':'Pausar animación');
+});
+canvas.addEventListener('pointerdown',e=>{
+  const dx=e.clientX-x,dy=e.clientY-y,len=Math.hypot(dx,dy)||1;
+  const s=mode==='glitch'?3.25:2.45;vx=dx/len*s;vy=dy/len*s;spin+=(Math.random()-.5)*.035;
+  if(mode==='glitch'){history.splice(2,0,...history.slice(4,9).map((p,i)=>({...p,x:p.x+(i%2?24:-18),y:p.y+(i-2)*5})))}
+});
+addEventListener('resize',resize,{passive:true});
+sprite=creatureSprite();resize();setMode('clean');requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
