@@ -3,6 +3,12 @@ window.PROMETEO_VISUALS_REGISTRY_V1={
   defaultPage:'production',
   folders:[
     {
+      id:'work-current',label:'Trabajo actual',open:true,
+      items:[
+        {id:'workbench',label:'📌 Trabajo actual',description:'Nuevos, en trabajo y listos para revisar.',src:'./workbench/'}
+      ]
+    },
+    {
       id:'coliseo-current',label:'Coliseo · actual',open:true,
       items:[
         {id:'live',label:'Live Workers',description:'Estado público real de workers.',src:'../demos/coliseo-live-workers-v1/'},
