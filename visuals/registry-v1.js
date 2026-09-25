@@ -21,10 +21,10 @@ window.PROMETEO_VISUALS_REGISTRY_V1={
     {
       id:'visual-experiments',label:'Experimentos visuales',open:true,
       items:[
-        {id:'trail-lab',label:'🐉 Motion Trail',short:'Trail',emoji:'🐉',quick:true,description:'Imagen repetida, rebote y redraw/ghosting duro.',src:'./trail-lab/'},
-        {id:'spaces-lab',label:'🌀 Pseudo-3D Spaces',short:'Spaces',emoji:'🌀',quick:true,description:'Pasillos, túneles y cámaras image-first.',src:'./spaces-lab/'},
-        {id:'player-lab',label:'🖐️ Retro Player',short:'Player',emoji:'🖐️',quick:true,description:'Escena first-person con sprites e interacción persistente.',src:'./player-lab/'},
-        {id:'mask-eye-lab',label:'👁️ Mask / Eye',short:'Mask',emoji:'👁️',quick:true,description:'Máscara real con ojos visuales intercambiables y composición radial.',src:'./mask-eye-lab/'}
+        {id:'trail-lab',label:'🐉 Motion Trail',short:'Trail',emoji:'🐉',quick:true,description:'Copias completas superpuestas: redraw roto sin fragmentar el asset.',src:'./trail-lab/'},
+        {id:'spaces-lab',label:'🌀 Pseudo-3D Spaces',short:'Spaces',emoji:'🌀',quick:true,description:'Un passage image-first con yaw, avance recto y suelo continuo.',src:'./spaces-lab/'},
+        {id:'player-lab',label:'🖐️ Retro Player',short:'Player',emoji:'🖐️',quick:true,description:'Escena persistente con cuatro poses/hand assets fuertes e interacción.',src:'./player-lab/'},
+        {id:'mask-eye-lab',label:'👁️ Mask / Eye',short:'Mask',emoji:'👁️',quick:true,description:'Una sola máscara real; media visual intercambiable dentro de cada ojo.',src:'./mask-eye-lab/'}
       ]
     },
     {
