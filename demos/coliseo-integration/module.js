@@ -1,0 +1,1 @@
+window.COLISEO_LAB_MODULE={id:'integration',version:'0.0.1',compose(modules,source,env){return {modules,source,env}},verifyIntegration(report){return report}};\n
