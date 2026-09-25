@@ -1,0 +1,60 @@
+name: Control Room Static Previews
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/control-room-static-previews.yml'
+      - 'current-tree/control-v10/preview-targets.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - id: chrome
+        uses: browser-actions/setup-chrome@v1
+      - name: Capture static previews
+        env:
+          CHROME: ${{ steps.chrome.outputs.chrome-path }}
+        run: |
+          set -euo pipefail
+          mkdir -p current-tree/control-v10/previews
+          python3 - <<'PY'
+          import json, subprocess, os, pathlib
+          data=json.load(open('current-tree/control-v10/preview-targets.json'))
+          chrome=os.environ['CHROME']
+          out=pathlib.Path('current-tree/control-v10/previews')
+          for item in data['surfaces']:
+              dest=out/(item['id']+'.png')
+              cmd=[
+                chrome,'--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
+                '--hide-scrollbars','--window-size=900,600','--force-device-scale-factor=1',
+                '--virtual-time-budget=7000',f'--screenshot={dest}',item['url']
+              ]
+              print('CAPTURE',item['id'],item['url'])
+              try:
+                  subprocess.run(cmd,check=True,timeout=35)
+              except Exception as e:
+                  print('FAILED',item['id'],repr(e))
+          PY
+          ls -lh current-tree/control-v10/previews || true
+      - name: Commit changed previews
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add current-tree/control-v10/previews
+          if git diff --cached --quiet; then
+            echo "No preview changes."
+            exit 0
+          fi
+          git commit -m "Refresh Control Room static previews"
+          git push origin HEAD:main
