@@ -2,7 +2,8 @@
 'use strict';
 
 const TAU=Math.PI*2;
-const STAGES=['IDLE','WALK','CLAIMED','READ','THINK','WRITE','BUILD','VERIFY','WAIT'];
+const CONTRACT_STAGES=['CLAIMED','READ','THINK','PLAN','WRITE','BUILD','IMPLEMENT','VERIFY','REVIEW','SUBMIT','WAIT'];
+const STAGES=['IDLE','WALK',...CONTRACT_STAGES];
 const LIVENESS=['LIVE','AGING','SUSPECT','RECENT_IDLE','RECOVERING','STALE_MEMBERSHIP'];
 const DIRS=['down','left','right','up'];
 
@@ -63,11 +64,12 @@ function bobFor(p){
 function activityGesture(p){
   const q=(Math.sin(p.phase*TAU)+1)*.5;
   if(p.state==='READ')return {armL:-.55,armR:.45,tool:'book',q};
-  if(p.state==='THINK')return {armL:-1.15,armR:.25,tool:'think',q};
+  if(p.state==='THINK'||p.state==='PLAN')return {armL:-1.15,armR:.25,tool:'think',q};
   if(p.state==='WRITE')return {armL:-.45,armR:-1.05,tool:'pen',q};
-  if(p.state==='BUILD')return {armL:.35,armR:-1.15+q*.65,tool:'hammer',q};
-  if(p.state==='VERIFY')return {armL:-.65,armR:-.35,tool:'lens',q};
+  if(p.state==='BUILD'||p.state==='IMPLEMENT')return {armL:.35,armR:-1.15+q*.65,tool:'hammer',q};
+  if(p.state==='VERIFY'||p.state==='REVIEW')return {armL:-.65,armR:-.35,tool:'lens',q};
   if(p.state==='CLAIMED')return {armL:.2,armR:-1.45,tool:'claim',q};
+  if(p.state==='SUBMIT')return {armL:-.2,armR:-.9,tool:'submit',q};
   if(p.state==='WAIT')return {armL:.15,armR:-.15,tool:'wait',q};
   return {armL:.18,armR:-.18,tool:null,q};
 }
@@ -119,6 +121,7 @@ function drawPixel(c,worker,p,env){
   if(g.tool==='lens'){circle(c,4*unit,-8*unit,1.6*unit,null,pal.cold,unit);line(c,5*unit,-6.8*unit,6.4*unit,-4.8*unit,unit,pal.cold)}
   if(g.tool==='think'){pxRect(c,4*unit,-15*unit,unit,unit,pal.light);pxRect(c,6*unit,-17*unit,unit,unit,pal.light)}
   if(g.tool==='claim'){pxRect(c,5*unit,-11*unit,2*unit,2*unit,pal.accent)}
+  if(g.tool==='submit'){pxRect(c,4*unit,-8*unit,3*unit,3*unit,pal.cold);pxRect(c,5*unit,-9*unit,unit,2*unit,pal.light)}
   if(p.liveness==='SUSPECT'||p.liveness==='STALE_MEMBERSHIP'){c.globalAlpha=.65;pxRect(c,-7*unit,-13*unit,2*unit,2*unit,pal.accent);c.globalAlpha=1}
   if(p.liveness==='RECOVERING'){pxRect(c,-7*unit,-12*unit,2*unit,5*unit,pal.cold)}
   c.restore();
@@ -213,10 +216,11 @@ function drawSilhouette(c,worker,p,env){
     line(c,-1.6*s+eyeX,-17.2*s,1.5*s+eyeX,-17.2*s,1.1*s,pal.light);
   }
   if(p.state==='READ')pxRect(c,-1.5*s,-12*s,3*s,1*s,pal.cold);
-  if(p.state==='THINK')circle(c,0,-24*s,.9*s,pal.light);
+  if(p.state==='THINK'||p.state==='PLAN')circle(c,0,-24*s,.9*s,pal.light);
   if(p.state==='WRITE')pxRect(c,4*s,-10*s,1.2*s,5*s,pal.light);
-  if(p.state==='BUILD')poly(c,[[3.6*s,-9*s],[6*s,-10*s],[6.4*s,-8*s],[4*s,-7*s]],pal.accent);
-  if(p.state==='VERIFY')circle(c,4.2*s,-12*s,1.7*s,null,pal.cold,1*s);
+  if(p.state==='BUILD'||p.state==='IMPLEMENT')poly(c,[[3.6*s,-9*s],[6*s,-10*s],[6.4*s,-8*s],[4*s,-7*s]],pal.accent);
+  if(p.state==='VERIFY'||p.state==='REVIEW')circle(c,4.2*s,-12*s,1.7*s,null,pal.cold,1*s);
+  if(p.state==='SUBMIT')pxRect(c,3.6*s,-11*s,2.8*s,3.2*s,pal.cold);
   if(p.state==='CLAIMED')pxRect(c,-1.2*s,-24*s,2.4*s,2.4*s,pal.accent);
   if(p.state==='WALK'){
     line(c,-1.5*s,0,-2.8*s-walk*1.2*s,4*s,2.5*s,pal.body2);line(c,1.5*s,0,2.8*s+walk*1.2*s,4*s,2.5*s,pal.body2);
@@ -239,6 +243,8 @@ function drawToolVector(c,g,x,y,s,pal,industrial){
     circle(c,x-1*s,y-8*s,.8*s,pal.light);circle(c,x+1*s,y-10*s,.55*s,pal.light);
   }else if(g.tool==='claim'){
     poly(c,[[x-1.5*s,y-3*s],[x+2*s,y-3*s],[x+2*s,y+.5*s],[x-1.5*s,y+.5*s]],pal.accent,pal.ink,.7*s);
+  }else if(g.tool==='submit'){
+    poly(c,[[x-2*s,y-3*s],[x+2*s,y-3*s],[x+2*s,y+1*s],[x-2*s,y+1*s]],pal.cold,pal.ink,.7*s);line(c,x,y-5*s,x,y-1*s,1*s,pal.light);
   }else if(g.tool==='wait'){
     line(c,x-2*s,y-3*s,x+2*s,y+1*s,.9*s,pal.body2);line(c,x+2*s,y-3*s,x-2*s,y+1*s,.9*s,pal.body2);
   }
@@ -273,7 +279,7 @@ const API={
   id:'workers',version:'1.0.0',
   measureWorker,drawWorker,
   families:Object.values(FAMILY_DEFS).map(({id,label,description,minScale})=>({id,label,description,minScale})),
-  stages:STAGES.slice(),directions:DIRS.slice(),liveness:LIVENESS.slice()
+  stages:STAGES.slice(),contractStages:CONTRACT_STAGES.slice(),directions:DIRS.slice(),liveness:LIVENESS.slice()
 };
 g.COLISEO_LAB_MODULE=API;
 })(window);
