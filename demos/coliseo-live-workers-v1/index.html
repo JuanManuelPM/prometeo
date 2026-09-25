@@ -408,7 +408,7 @@ const LAB_FAST=LAB_PARAMS.get('fast')==='1';
 const LAB_BASELINE='8ef25c0a34cc9cd68fa9b35152dec9289d5cb3d8';
 let LAB_SELECTED=-1;
 let LAB_TAP_START=null;
-const LAB_BUILD='LIVE-WORKERS-V10-INWARD-DAG-DEMO-20260925';
+const LAB_BUILD='LIVE-WORKERS-V11-PRODUCTION-MAP-DEMO-20260925';
 const labBadge=document.getElementById('labBadge');
 const wrap=document.getElementById('wrap');
 const mapStage=document.getElementById('mapStage');
@@ -3363,6 +3363,16 @@ function liveLayout(){
   }
 
   const nodePos=new Map();
+  if(snap.layout_mode==='production_map'){
+    for(const n of nodes){
+      if(Number.isFinite(n.world_x)&&Number.isFinite(n.world_z)){
+        const r=Math.hypot(n.world_x,n.world_z),ang=Math.atan2(n.world_z,n.world_x);
+        nodePos.set((n.project_key||'UNSCOPED')+'|'+n.node_key,{
+          x:n.world_x,z:n.world_z,r,ang,depth:0,maxDepth:0,node:n
+        });
+      }
+    }
+  }
   for(const pk of projectKeys){
     const sector=projectPos.get(pk);
     const subset=nodes.filter(n=>n.project_key===pk).slice().sort((a,b)=>{
@@ -3378,6 +3388,7 @@ function liveLayout(){
     const maxDepth=Math.max(0,...byDepth.keys());
     const inward=snap.layout_mode==='inward_dag';
     for(const [d,arr] of byDepth){
+      if(snap.layout_mode==='production_map'&&arr.every(n=>nodePos.has(pk+'|'+n.node_key)))continue;
       const frac=maxDepth?d/maxDepth:0;
       const radius=inward?(8.45-frac*7.20):(2.15+frac*6.25);
       arr.forEach((n,i)=>{
@@ -3484,14 +3495,14 @@ function livePaintWorkerLinks(layout){
   }
 }
 function livePaintProjectBoards(layout){
-  const lod=liveLOD();
+  const lod=liveLOD(),snap=liveSnapshot();
   for(const sector of layout.projects){
     const i=sector.index,color=liveProjectColor(i),meta=sector.meta||{};
     const working=Number(meta.working||0),ready=Number(meta.ready||0),blocked=Number(meta.blocked||0);
     const a=sector.mid;
     // The 3D totem sits at the rim; the billboard remains screen-facing and can slide to avoid collisions.
     const anchor=wp(Math.cos(a)*8.92,Math.sin(a)*8.92,1.28);
-    const title=liveShort(meta.title||meta.project_key,layout.projects.length>4?15:22).toUpperCase();
+    const title=liveShort(meta.title||meta.project_key,snap?.layout_mode==='production_map'?28:(layout.projects.length>4?15:22)).toUpperCase();
     const titleFont=clamp(scale*.34,8.5,14);
     const metaFont=clamp(scale*.20,6,8.5);
     ctx.save();
@@ -3521,7 +3532,24 @@ function livePaintProjectBoards(layout){
     ctx.restore();
   }
 }
+function liveDrawArrow(from,to,color,alpha,seed){
+  worldFloorLine(ctx,[
+    {x:from.x,z:from.z,h:.055},
+    {x:to.x,z:to.z,h:.055}
+  ],color,alpha,Math.max(.55,scale*.032),seed);
+  const t=.72;
+  const x=from.x+(to.x-from.x)*t,z=from.z+(to.z-from.z)*t;
+  const p=wp(x,z,.08),p2=wp(x+(to.x-from.x)*.06,z+(to.z-from.z)*.06,.08);
+  const ang=Math.atan2(p2.y-p.y,p2.x-p.x),sz=Math.max(3.5,scale*.20);
+  ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.moveTo(p.x+Math.cos(ang)*sz,p.y+Math.sin(ang)*sz);
+  ctx.lineTo(p.x+Math.cos(ang+2.5)*sz,p.y+Math.sin(ang+2.5)*sz);
+  ctx.lineTo(p.x+Math.cos(ang-2.5)*sz,p.y+Math.sin(ang-2.5)*sz);
+  ctx.closePath();ctx.fill();ctx.restore();
+}
 function livePaintDependencies(layout){
+  const snap=liveSnapshot();
   const posByNode=new Map();
   for(const [key,pos] of layout.nodePos)posByNode.set(pos.node.node_key,pos);
   let edge=0;
@@ -3532,10 +3560,37 @@ function livePaintDependencies(layout){
     for(const dk of deps){
       const from=layout.nodePos.get(n.project_key+'|'+dk)||posByNode.get(dk);
       if(!from)continue;
-      worldFloorLine(ctx,[{x:from.x,z:from.z,h:.034},{x:to.x,z:to.z,h:.034}],
-        n.state==='BLOCKED'?'#6f3631':'#6a5b47',
-        n.state==='SUCCESS'?.09:.18,Math.max(.35,scale*.015),78200+edge++);
+      const parent=from.node;
+      const satisfied=parent?.state==='SUCCESS';
+      const color=snap?.layout_mode==='production_map'
+        ? (satisfied?'#c59a5f':n.state==='BLOCKED'?'#4e3430':'#72563f')
+        : (n.state==='BLOCKED'?'#6f3631':'#6a5b47');
+      const alpha=snap?.layout_mode==='production_map'?(satisfied?.72:.22):(n.state==='SUCCESS'?.09:.18);
+      if(snap?.layout_mode==='production_map')liveDrawArrow(from,to,color,alpha,78200+edge++);
+      else worldFloorLine(ctx,[{x:from.x,z:from.z,h:.034},{x:to.x,z:to.z,h:.034}],color,alpha,Math.max(.35,scale*.015),78200+edge++);
       if(edge>420)return;
+    }
+  }
+}
+function livePaintProductionArtifacts(layout,now){
+  const snap=liveSnapshot();
+  if(!snap||snap.layout_mode!=='production_map')return;
+  const byNode=new Map();
+  for(const pos of layout.nodePos.values())byNode.set(pos.node.node_key,pos);
+  let i=0;
+  for(const n of layout.nodes){
+    const to=layout.nodePos.get(n.project_key+'|'+n.node_key);
+    if(!to)continue;
+    for(const dk of Array.isArray(n.depends_on)?n.depends_on:[]){
+      const from=byNode.get(dk);if(!from||from.node?.state!=='SUCCESS')continue;
+      const phase=((now/1800)+(liveStringHash(dk+'>'+n.node_key)%1000)/1000)%1;
+      const x=from.x+(to.x-from.x)*phase,z=from.z+(to.z-from.z)*phase;
+      const p=wp(x,z,.16),r=Math.max(2.4,scale*.14);
+      ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.PI/4);
+      ctx.globalAlpha=.88;ctx.fillStyle=i%2?'#d1a16a':'#8cb0a0';
+      ctx.fillRect(-r,-r,r*2,r*2);
+      ctx.strokeStyle='#130d09';ctx.lineWidth=Math.max(.8,scale*.03);ctx.strokeRect(-r,-r,r*2,r*2);
+      ctx.restore();i++;
     }
   }
 }
@@ -3551,6 +3606,30 @@ function liveBuildNodeGeometry(layout){
     const pos=layout.nodePos.get(n.project_key+'|'+n.node_key);
     if(!pos)continue;
     const kind=n.node_kind||'ROOT';
+    if(liveSnapshot()?.layout_mode==='production_map'){
+      const active=n.state==='ACTIVE',blocked=n.state==='BLOCKED',success=n.state==='SUCCESS';
+      const mat=blocked?'curtain_red':active?'metal_warm':success?'civic_green':'wainscot_pale';
+      if(kind==='ROOT'){
+        mapSolidBox(pos.x,pos.z,.02,.70,.58,.18,mat,seed++,0);
+        mapSolidBox(pos.x,pos.z,.20,.36,.34,.28,'old_wood_dark',seed++,0);
+      }else if(kind==='REDUCER'){
+        mapSolidBox(pos.x,pos.z,.02,1.05,.86,.30,mat,seed++,0);
+        mapSolidBox(pos.x,pos.z,.32,.62,.52,.42,'old_wood_dark',seed++,0);
+      }else if(kind==='SYNTHESIS'){
+        mapSolidBox(pos.x,pos.z,.02,1.35,1.12,.38,mat,seed++,0);
+        mapSolidBox(pos.x,pos.z,.42,.82,.76,.62,'metal_warm',seed++,Math.PI/4);
+      }else if(kind==='VERIFY'){
+        mapSolidBox(pos.x,pos.z,.02,1.20,.42,.12,mat,seed++,0);
+        mapSolidBox(pos.x-.48,pos.z,.14,.20,.45,1.00,'old_wood_dark',seed++,0);
+        mapSolidBox(pos.x+.48,pos.z,.14,.20,.45,1.00,'old_wood_dark',seed++,0);
+        mapSolidBox(pos.x,pos.z,.98,1.15,.26,.16,'metal_warm',seed++,0);
+      }else{
+        mapSolidBox(pos.x,pos.z,.02,1.05,1.05,.24,mat,seed++,Math.PI/4);
+        mapSolidBox(pos.x,pos.z,.28,.42,.42,1.22,'maze_goal',seed++,0);
+        if(success)addWorldEmissive(pos.x,pos.z,.65,.72,.22,.48,seed++);
+      }
+      continue;
+    }
     const kindScale=kind==='PROMOTION'?2.20:kind==='VERIFY'?1.80:kind==='SYNTHESIS'?1.55:kind==='REDUCER'?1.28:1;
     const mat=n.state==='ACTIVE'?'metal_warm':n.state==='READY'?'wainscot_pale':n.state==='BLOCKED'?'curtain_red':(kind==='PROMOTION'?'maze_goal':'civic_green');
     const baseSize=n.state==='ACTIVE'?.34:n.state==='BLOCKED'?.29:n.state==='READY'?.24:.16;
@@ -3626,6 +3705,7 @@ function drawWorkerGallery(now){
   livePaintDependencies(layout);
   livePaintWorkerLinks(layout);
   liveBuildNodeGeometry(layout);
+  livePaintProductionArtifacts(layout,now);
   livePaintProjectBoards(layout);
 
   const t=now/1000,data=workerDemoData(now);
@@ -4875,7 +4955,8 @@ resize();requestAnimationFrame(frame);
 (function(){
 'use strict';
 const ENDPOINT='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-live-workers-v1';
-const DEMO=new URLSearchParams(location.search).get('demo')==='1';
+const DEMO_MODE=new URLSearchParams(location.search).get('demo')||'';
+const DEMO=DEMO_MODE==='1'||DEMO_MODE==='production';
 if(DEMO)document.body.classList.add('demoMode');
 const hud=document.getElementById('liveHud');
 const count=document.getElementById('liveCount');
@@ -4892,6 +4973,113 @@ let lastGood=0,inFlight=false,down=null,selectedId=null;
 window.PROMETEO_LIVE_WORKERS={schema:'prometeo.public_worker_world/v3',workers:[],projects:[],nodes:[],counts:{},stale:true};
 
 const DEMO_EPOCH=Date.now();
+
+function productionDemoSnapshot(){
+  const now=Date.now(),hb=120;
+  const phase=Math.floor(((now-DEMO_EPOCH)/9000)%6);
+  const phaseNames=['BUILD PARTS','REDUCE','ASSEMBLE','INSPECT','PROMOTE','COMPLETE'];
+  const projectKey='PRODUCTION_MAP_DEMO';
+  const projects=[{
+    project_key:projectKey,title:'Prometeo Production Map',guide_key:'DEMO',active_objective:true,
+    demo_phase:phase,demo_phase_label:phaseNames[phase]
+  }];
+
+  const defs=[
+    {node_key:'A1',title:'World research',node_kind:'ROOT',world_x:-7.1,world_z:-5.0,depends_on:[]},
+    {node_key:'A2',title:'Composition rules',node_kind:'ROOT',world_x:-7.4,world_z:-2.4,depends_on:[]},
+    {node_key:'A3',title:'Scale tests',node_kind:'ROOT',world_x:-6.8,world_z:.2,depends_on:[]},
+    {node_key:'B1',title:'Runtime research',node_kind:'ROOT',world_x:-7.0,world_z:3.0,depends_on:[]},
+    {node_key:'B2',title:'Semantic truth',node_kind:'ROOT',world_x:-6.4,world_z:5.3,depends_on:[]},
+    {node_key:'B3',title:'QA evidence',node_kind:'ROOT',world_x:-4.7,world_z:6.6,depends_on:[]},
+    {node_key:'D1',title:'World workshop',node_kind:'REDUCER',world_x:-3.5,world_z:-2.8,depends_on:['A1','A2','A3']},
+    {node_key:'D2',title:'Runtime workshop',node_kind:'REDUCER',world_x:-2.9,world_z:3.7,depends_on:['B1','B2','B3']},
+    {node_key:'S1',title:'Assembly forge',node_kind:'SYNTHESIS',world_x:.3,world_z:.3,depends_on:['D1','D2']},
+    {node_key:'V1',title:'Inspection gate',node_kind:'VERIFY',world_x:3.8,world_z:.2,depends_on:['S1']},
+    {node_key:'P1',title:'Canonical result',node_kind:'PROMOTION',world_x:7.0,world_z:.1,depends_on:['V1']}
+  ];
+
+  function stateFor(n,index){
+    if(n.node_kind==='ROOT'){
+      if(phase===0)return index<4?'ACTIVE':'READY';
+      return 'SUCCESS';
+    }
+    if(n.node_kind==='REDUCER'){
+      if(phase<1)return 'BLOCKED';
+      if(phase===1)return 'ACTIVE';
+      return 'SUCCESS';
+    }
+    if(n.node_kind==='SYNTHESIS'){
+      if(phase<2)return 'BLOCKED';
+      if(phase===2)return 'ACTIVE';
+      return 'SUCCESS';
+    }
+    if(n.node_kind==='VERIFY'){
+      if(phase<3)return 'BLOCKED';
+      if(phase===3)return 'ACTIVE';
+      return 'SUCCESS';
+    }
+    if(n.node_kind==='PROMOTION'){
+      if(phase<4)return 'BLOCKED';
+      if(phase===4)return 'ACTIVE';
+      return 'SUCCESS';
+    }
+    return 'BLOCKED';
+  }
+
+  const nodes=defs.map((n,i)=>{
+    const state=stateFor(n,i);
+    return {
+      ...n,project_key:projectKey,objective_key:projectKey,guide_key:'DEMO',state,priority:1000-i*10,
+      job_class:n.node_kind==='VERIFY'?'VERIFY_READONLY':n.node_kind==='SYNTHESIS'||n.node_kind==='PROMOTION'?'SYNTHESIS':n.node_kind==='REDUCER'?'CRITIQUE':'PREPARE_BOUNDED',
+      progress_stage:state==='ACTIVE'?(n.node_kind==='ROOT'?'BUILD':n.node_kind==='REDUCER'?'REDUCE':n.node_kind==='SYNTHESIS'?'ASSEMBLE':n.node_kind==='VERIFY'?'VERIFY':'SUBMIT_START'):null
+    };
+  });
+
+  const activeNodes=nodes.filter(n=>n.state==='ACTIVE');
+  const workers=activeNodes.map((node,i)=>{
+    const ages=[7,18,42,80,145],age=ages[i%ages.length];
+    const ratio=Math.max(0,Math.min(1,age/(hb*4)));
+    return {
+      worker_id:'production-worker-'+node.node_key,
+      display_code:'W'+String(i+1).padStart(2,'0'),
+      liveness:ratio<=.25?'LIVE':ratio<=.60?'AGING':'SUSPECT',
+      freshness:Number((1-ratio).toFixed(4)),age_seconds:age,heartbeat_seconds:hb,
+      last_signal_at:new Date(now-age*1000).toISOString(),
+      job_ref:'production-job-'+node.node_key,
+      project_key:projectKey,objective_key:projectKey,guide_key:'DEMO',node_key:node.node_key,
+      title:node.title,job_class:node.job_class,progress_stage:node.progress_stage,
+      progress_seq:i+1,recovery_count:0,assignment_generation:1,attempt_count:1
+    };
+  });
+
+  const p=projects[0];
+  p.working=workers.length;
+  p.active=nodes.filter(n=>n.state==='ACTIVE').length;
+  p.ready=nodes.filter(n=>n.state==='READY').length;
+  p.blocked=nodes.filter(n=>n.state==='BLOCKED').length;
+  p.success=nodes.filter(n=>n.state==='SUCCESS').length;
+
+  const counts={
+    working:workers.length,
+    live:workers.filter(w=>w.liveness==='LIVE').length,
+    aging:workers.filter(w=>w.liveness==='AGING').length,
+    suspect:workers.filter(w=>w.liveness==='SUSPECT').length,
+    ready:nodes.filter(n=>n.state==='READY').length,
+    blocked:nodes.filter(n=>n.state==='BLOCKED').length,
+    active_jobs:nodes.filter(n=>n.state==='ACTIVE').length,
+    stale_active_jobs:0
+  };
+  return {
+    schema:'prometeo.public_worker_world/v3',
+    generated_at:new Date(now).toISOString(),
+    revision:'production-demo-phase-'+phase,
+    rule:'SYNTHETIC PRODUCTION DEMO · parts -> workshops -> assembly -> inspection -> canonical',
+    layout_mode:'production_map',
+    demo_phase:phase,demo_phase_label:phaseNames[phase],
+    counts,projects,nodes,workers,demo:true
+  };
+}
+
 function demoSnapshot(){
   const now=Date.now(),hb=120;
   const phase=Math.floor(((now-DEMO_EPOCH)/10000)%6);
@@ -5053,7 +5241,10 @@ function markStale(){
   hud.classList.add('stale');showDetail(null);
 }
 async function refresh(){
-  if(DEMO){render(demoSnapshot());return}
+  if(DEMO){
+    render(DEMO_MODE==='production'?productionDemoSnapshot():demoSnapshot());
+    return
+  }
   if(inFlight)return;
   inFlight=true;
   const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),4500);
