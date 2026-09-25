@@ -408,7 +408,7 @@ const LAB_FAST=LAB_PARAMS.get('fast')==='1';
 const LAB_BASELINE='8ef25c0a34cc9cd68fa9b35152dec9289d5cb3d8';
 let LAB_SELECTED=-1;
 let LAB_TAP_START=null;
-const LAB_BUILD='LIVE-WORKERS-V14-VERTICAL-PROJECTS-DEMO-20260925';
+const LAB_BUILD='LIVE-WORKERS-V14B-VERTICAL-RUNTIME-FIX-20260925';
 const labBadge=document.getElementById('labBadge');
 const wrap=document.getElementById('wrap');
 const mapStage=document.getElementById('mapStage');
@@ -3667,7 +3667,7 @@ function livePaintProductionWorkingOutputs(layout,now){
 }
 function livePaintProductionArtifacts(layout,now){
   const snap=liveSnapshot();
-  if(!snap||snap.layout_mode!=='production_map')return;
+  if(!snap||(snap.layout_mode!=='production_map'&&snap.layout_mode!=='vertical_projects'))return;
   const byNode=new Map();
   for(const pos of layout.nodePos.values())byNode.set(pos.node.node_key,pos);
   let i=0;
@@ -5242,6 +5242,11 @@ const scene=document.getElementById('scene');
 let lastGood=0,inFlight=false,down=null,selectedId=null;
 window.PROMETEO_LIVE_WORKERS={schema:'prometeo.public_worker_world/v3',workers:[],projects:[],nodes:[],counts:{},stale:true};
 
+const demoClamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const demoShort=(v,n=10)=>{
+  const x=String(v||'');
+  return x.length>n?x.slice(0,Math.max(0,n-1))+'…':x;
+};
 const DEMO_EPOCH=Date.now();
 
 function verticalProjectsDemoSnapshot(){
@@ -5283,7 +5288,7 @@ function verticalProjectsDemoSnapshot(){
     const completion={ROOT:1,REDUCER:2,SYNTHESIS:3,VERIFY:4,PROMOTION:5}[kind]??99;
     if(phase<completion)return 0;
     if(phase>completion)return 1;
-    return clamp(p/.56,0,1);
+    return demoClamp(p/.56,0,1);
   }
 
   for(let pi=0;pi<configs.length;pi++){
@@ -5313,7 +5318,7 @@ function verticalProjectsDemoSnapshot(){
         job_class:d.kind==='VERIFY'?'VERIFY_READONLY':d.kind==='SYNTHESIS'||d.kind==='PROMOTION'?'SYNTHESIS':d.kind==='REDUCER'?'CRITIQUE':'PREPARE_BOUNDED',
         progress_stage:state==='ACTIVE'?(d.kind==='ROOT'?'BUILD_OUTPUT':d.kind==='REDUCER'?'REDUCE_INPUTS':d.kind==='SYNTHESIS'?'ASSEMBLE_OUTPUT':d.kind==='VERIFY'?'VERIFY_OUTPUT':'PROMOTE_OUTPUT'):null,
         demo_handoff_progress:handoffFor(d.kind,phase,p),
-        demo_work_progress:d.kind==='ROOT'&&phase===0?clamp(p/.56,0,1):undefined,
+        demo_work_progress:d.kind==='ROOT'&&phase===0?demoClamp(p/.56,0,1):undefined,
         demo_project_phase:phase,
         demo_project_progress:p
       };
@@ -5322,7 +5327,7 @@ function verticalProjectsDemoSnapshot(){
     const active=localNodes.filter(n=>n.state==='ACTIVE');
     for(const n of active){
       const age=[9,28,66,132][(workerSeq-1)%4];
-      const ratio=clamp(age/(hb*4),0,1);
+      const ratio=demoClamp(age/(hb*4),0,1);
       workers.push({
         worker_id:'vertical-worker-'+workerSeq,
         display_code:'W'+String(workerSeq).padStart(2,'0'),
@@ -5630,7 +5635,7 @@ function render(snap){
   label.textContent=DEMO_MODE==='vertical'?'WORKING · 3 PROJECTS':(DEMO_MODE==='production'?'WORKING · CAUSAL DEMO':(DEMO?'WORKING · DEMO':'WORKING'));
   queue.textContent='READY '+Number(counts.ready||0)+' · BLOCKED '+Number(counts.blocked||0);
   fresh.textContent=DEMO_MODE==='vertical'
-    ? projects.map(p=>liveShort(p.title,10)+': '+(p.demo_phase_label||'—')).join(' · ')
+    ? projects.map(p=>demoShort(p.title,10)+': '+(p.demo_phase_label||'—')).join(' · ')
     : (DEMO&&snap.demo_phase_label
       ? 'PHASE '+(Number(snap.demo_phase||0)+1)+'/6 · '+snap.demo_phase_label
       : 'LIVE '+Number(counts.live||0)+' · AGING '+Number(counts.aging||0)+' · SUSPECT '+Number(counts.suspect||0));
@@ -5647,7 +5652,16 @@ function markStale(){
 }
 async function refresh(){
   if(DEMO){
-    render(DEMO_MODE==='vertical'?verticalProjectsDemoSnapshot():(DEMO_MODE==='production'?productionDemoSnapshot():demoSnapshot()));
+    try{
+      render(DEMO_MODE==='vertical'?verticalProjectsDemoSnapshot():(DEMO_MODE==='production'?productionDemoSnapshot():demoSnapshot()));
+    }catch(e){
+      console.error('PROMETEO DEMO RUNTIME',e);
+      count.textContent='!';
+      label.textContent='DEMO RUNTIME ERROR';
+      queue.textContent=String(e&&e.message||e).slice(0,72);
+      fresh.textContent='RENDER STOPPED';
+      hud.classList.add('stale');
+    }
     return
   }
   if(inFlight)return;
