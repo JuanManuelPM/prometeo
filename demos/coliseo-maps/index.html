@@ -1,1 +1,257 @@
-<!doctype html>\n<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prometeo · Maps / World</title></head>\n<body>\n<script src="../coliseo-shared/contract-v1.js"></script>\n<script src="../coliseo-shared/fixture-v1.js"></script>\n<script src="../coliseo-shared/lab-shell.js"></script>\n<script src="./module.js"></script>\n<script>PROMETEO_COLISEO_LAB_SHELL.mount({"id":"maps","title":"Maps / World","purpose":"Explorar mundos y cámaras donde muchos proyectos puedan coexistir sin destruir la lectura causal.","owns":["mapa","cámara","geometría","paths","territorios","estaciones"],"forbids":["liveness","sprites definitivos","eventos causales","HUD"]});</script>\n</body></html>\n
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta name="theme-color" content="#070806">
+<title>Prometeo · Maps / World Lab</title>
+<style>
+:root{
+  --bg:#070806;--panel:rgba(10,11,9,.88);--line:#34322d;--ink:#eadfc9;--muted:#9a9387;--warm:#c99b63;
+  --safeL:max(12px,env(safe-area-inset-left));--safeR:max(12px,env(safe-area-inset-right));
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button{font:inherit}
+#app{position:fixed;inset:0;overflow:hidden;background:#070806}
+header{
+  position:absolute;z-index:10;left:var(--safeL);right:var(--safeR);top:max(10px,env(safe-area-inset-top));
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;pointer-events:none
+}
+.brand{min-width:0;text-shadow:0 1px 1px #000}
+.kicker{font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.18em;color:#a39a8d}
+h1{margin:5px 0 0;font-size:clamp(19px,2.4vw,34px);line-height:.95;letter-spacing:-.04em}
+.status{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:52vw}
+.pill{padding:5px 7px;border:1px solid #3b3730;background:rgba(8,8,7,.76);font:800 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.05em;color:#a99f91}
+.pill.ok{color:#b7c7a3;border-color:#48523d}.pill.warn{color:#d6a46c;border-color:#674830}
+#stage{position:absolute;inset:0}
+#world{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#world.drag{cursor:grabbing}
+.controls{
+  position:absolute;z-index:12;left:var(--safeL);top:78px;display:flex;gap:5px;pointer-events:auto
+}
+.controls button{
+  min-width:32px;height:30px;border:1px solid #37342e;background:rgba(9,10,8,.82);color:#c8b89e;
+  font:850 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace
+}
+.controls button:active{transform:translateY(1px)}
+.info{
+  position:absolute;z-index:11;right:var(--safeR);top:82px;width:min(304px,34vw);padding:11px 12px;
+  border:1px solid rgba(112,100,81,.34);background:linear-gradient(180deg,rgba(11,12,10,.91),rgba(8,9,8,.78));
+  box-shadow:0 14px 34px rgba(0,0,0,.24);backdrop-filter:blur(4px)
+}
+.info h2{margin:0;font:900 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;color:#e4c18f}
+.info .strap{margin:6px 0 10px;font-size:10px;line-height:1.3;color:#a69e92}
+.answers{display:grid;gap:6px}
+.answer{display:grid;grid-template-columns:58px 1fr;gap:7px;border-top:1px solid rgba(103,96,84,.22);padding-top:6px}
+.answer b{font:800 7px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.07em;color:#746d62}
+.answer span{font-size:9px;line-height:1.25;color:#beb4a4}
+.legend{
+  position:absolute;z-index:9;left:var(--safeL);bottom:154px;display:flex;gap:9px;align-items:center;
+  padding:6px 8px;border:1px solid rgba(70,66,58,.3);background:rgba(7,8,6,.58);font:750 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#8f877a
+}
+.legend i{display:inline-grid;place-items:center;width:16px;height:16px;border:1px solid #71685b;font-style:normal;color:#ddc8a8}
+#compare{
+  position:absolute;z-index:13;left:0;right:0;bottom:0;height:145px;padding:10px var(--safeR) max(10px,env(safe-area-inset-bottom)) var(--safeL);
+  display:grid;grid-template-columns:repeat(4,minmax(155px,1fr));gap:7px;background:linear-gradient(180deg,rgba(7,8,6,0),rgba(7,8,6,.92) 17%,#070806 100%);
+  pointer-events:auto
+}
+.mapCard{position:relative;min-width:0;border:1px solid #302e29;background:#090a08;overflow:hidden;padding:0;cursor:pointer;text-align:left;color:inherit}
+.mapCard.on{border-color:#b38654;box-shadow:inset 0 0 0 1px rgba(179,134,84,.24)}
+.mapCard canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.mapCard .cap{position:absolute;left:7px;right:7px;bottom:6px;display:flex;align-items:end;justify-content:space-between;gap:6px;text-shadow:0 1px 2px #000}
+.mapCard strong{font:900 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em}
+.mapCard small{font:700 7px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#8f877c}
+.mapCard.on strong{color:#e2bd8a}
+.mobileInfo{display:none}
+@media(max-width:760px){
+  header{top:8px}
+  h1{font-size:18px}.kicker{font-size:7px}
+  .status{max-width:62vw;gap:3px}.pill{font-size:6px;padding:4px 5px}
+  .controls{top:58px}.controls button{height:28px;min-width:29px;font-size:10px}
+  .info{display:none}
+  .legend{display:none}
+  #compare{height:102px;grid-template-columns:repeat(4,132px);overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding-top:8px}
+  #compare::-webkit-scrollbar{display:none}
+  .mobileInfo{
+    display:block;position:absolute;z-index:11;left:var(--safeL);right:var(--safeR);bottom:105px;
+    padding:6px 8px;border:1px solid rgba(76,70,60,.28);background:rgba(8,9,7,.72);pointer-events:none
+  }
+  .mobileInfo b{font:900 8px ui-monospace,SFMono-Regular,Menlo,monospace;color:#dfb87f}.mobileInfo span{margin-left:7px;font-size:8px;color:#9a9184}
+}
+@media(max-height:500px){
+  #compare{height:94px}.legend{bottom:101px}.info{top:61px;padding:8px 9px}.answers{gap:3px}.answer{padding-top:4px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage"><canvas id="world"></canvas></div>
+  <header>
+    <div class="brand"><div class="kicker">PROMETEO · COLISEO · MAPS/WORLD LAB</div><h1>Cuatro mundos, una fixture</h1></div>
+    <div class="status">
+      <span class="pill warn">SYNTHETIC FIXTURE</span>
+      <span class="pill" id="contractPill">CONTRACT …</span>
+      <span class="pill" id="modulePill">MODULE …</span>
+      <span class="pill" id="fixturePill">3 PROJECTS · 19 JOBS</span>
+    </div>
+  </header>
+
+  <div class="controls" aria-label="Cámara">
+    <button id="turnL" title="Rotar cámara">↺</button>
+    <button id="turnR" title="Rotar cámara">↻</button>
+    <button id="zoomOut" title="Alejar">−</button>
+    <button id="zoomIn" title="Acercar">+</button>
+    <button id="reset" title="Restablecer cámara">1:1</button>
+  </div>
+
+  <aside class="info" id="info">
+    <h2 id="infoTitle"></h2><div class="strap" id="infoStrap"></div>
+    <div class="answers">
+      <div class="answer"><b>NACE</b><span id="aBirth"></span></div>
+      <div class="answer"><b>CONVERGE</b><span id="aMerge"></span></div>
+      <div class="answer"><b>CAMINA</b><span id="aWalk"></span></div>
+      <div class="answer"><b>CRECE</b><span id="aGrowth"></span></div>
+      <div class="answer"><b>ZOOM</b><span id="aDensity"></span></div>
+    </div>
+  </aside>
+
+  <div class="mobileInfo"><b id="mobileTitle"></b><span id="mobileStrap"></span></div>
+  <div class="legend"><i>R</i> ROOT <i>D</i> REDUCER <i>S</i> SYNTHESIS <i>V</i> VERIFY <i>P</i> PROMOTION · caminos = dependencias transitables · torres = hito/progreso de proyecto</div>
+
+  <section id="compare" aria-label="Comparar arquitecturas"></section>
+</div>
+
+<script src="../coliseo-shared/contract-v1.js"></script>
+<script src="../coliseo-shared/fixture-v1.js"></script>
+<script src="./module.js"></script>
+<script>
+(function(){
+'use strict';
+const C=window.PROMETEO_COLISEO_CONTRACT_V1;
+const F=window.PROMETEO_COLISEO_FIXTURE_V1;
+const M=window.COLISEO_LAB_MODULE;
+const contractPill=document.getElementById('contractPill');
+const modulePill=document.getElementById('modulePill');
+const fixturePill=document.getElementById('fixturePill');
+const world=document.getElementById('world'),ctx=world.getContext('2d',{alpha:false});
+const report=C&&F?C.validateSnapshot(F.build()):{ok:false,snapshot:null};
+const snap=report.snapshot;
+const moduleOK=!!(M&&M.id==='maps'&&typeof M.layoutWorld==='function'&&typeof M.drawWorld==='function');
+contractPill.textContent=report.ok?'CONTRACT OK':'CONTRACT ERROR';contractPill.className='pill '+(report.ok?'ok':'warn');
+modulePill.textContent=moduleOK?'MODULE OK':'MODULE ERROR';modulePill.className='pill '+(moduleOK?'ok':'warn');
+if(snap)fixturePill.textContent=snap.projects.length+' PROJECTS · '+snap.nodes.length+' JOBS';
+window.__COLISEO_LAB__={config:{id:'maps'},snapshot:snap,report,moduleReport:{ok:moduleOK,module:M}};
+
+if(!report.ok||!moduleOK){
+  ctx.fillStyle='#070806';ctx.fillRect(0,0,world.width,world.height);
+  document.getElementById('infoTitle').textContent='LAB ERROR';
+  document.getElementById('infoStrap').textContent=(report.errors||[]).join(' · ')||'module.js no cumple el contrato';
+  return;
+}
+
+const keys=['arena','foundry','campus','archipelago'];
+let variant='arena';
+const camera={zoom:1,panX:0,panY:0,yaw:-.56,pitch:.42};
+const layouts=new Map();
+const cards=new Map();
+const compare=document.getElementById('compare');
+let dirty=true;
+
+function layoutFor(key){
+  const cacheKey=key;
+  if(!layouts.has(cacheKey))layouts.set(cacheKey,M.layoutWorld(snap,{variant:key}));
+  return layouts.get(cacheKey);
+}
+function buildCards(){
+  for(const key of keys){
+    const meta=M.variants[key];
+    const b=document.createElement('button');b.className='mapCard';b.type='button';b.dataset.key=key;
+    const c=document.createElement('canvas');
+    const cap=document.createElement('div');cap.className='cap';
+    cap.innerHTML='<strong>'+meta.label+'</strong><small>MISMA FIXTURE</small>';
+    b.append(c,cap);b.addEventListener('click',()=>select(key));compare.appendChild(b);
+    cards.set(key,{button:b,canvas:c,ctx:c.getContext('2d',{alpha:false})});
+  }
+}
+function sizeCanvas(canvas){
+  const r=canvas.getBoundingClientRect(),dpr=Math.min(2,window.devicePixelRatio||1);
+  const w=Math.max(2,Math.round(r.width)),h=Math.max(2,Math.round(r.height));
+  const pw=Math.round(w*dpr),ph=Math.round(h*dpr);
+  if(canvas.width!==pw||canvas.height!==ph){canvas.width=pw;canvas.height=ph}
+  const c=canvas.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);
+  return {w,h};
+}
+function drawPreviews(){
+  for(const key of keys){
+    const o=cards.get(key),sz=sizeCanvas(o.canvas);
+    M.drawWorld(o.ctx,layoutFor(key),{variant:key,width:sz.w,height:sz.h,preview:true,zoom:.86,yaw:-.56,pitch:.42,detail:.2});
+  }
+}
+function updateInfo(){
+  const meta=M.variants[variant],a=meta.answer;
+  document.getElementById('infoTitle').textContent=meta.label;
+  document.getElementById('infoStrap').textContent=meta.strap;
+  document.getElementById('aBirth').textContent=a.birth;
+  document.getElementById('aMerge').textContent=a.merge;
+  document.getElementById('aWalk').textContent=a.walk;
+  document.getElementById('aGrowth').textContent=a.growth;
+  document.getElementById('aDensity').textContent=a.density;
+  document.getElementById('mobileTitle').textContent=meta.label;
+  document.getElementById('mobileStrap').textContent=meta.strap;
+  for(const [k,o] of cards)o.button.classList.toggle('on',k===variant);
+}
+function select(key){
+  if(!M.variants[key])return;variant=key;
+  camera.zoom=1;camera.panX=0;camera.panY=0;camera.yaw=-.56;
+  updateInfo();dirty=true;
+  const u=new URL(location.href);u.searchParams.set('map',key);history.replaceState(null,'',u.pathname+u.search);
+}
+function render(){
+  if(dirty){
+    const sz=sizeCanvas(world);
+    M.drawWorld(ctx,layoutFor(variant),{variant,width:sz.w,height:sz.h,zoom:camera.zoom,panX:camera.panX,panY:camera.panY,yaw:camera.yaw,pitch:camera.pitch,detail:camera.zoom});
+    drawPreviews();dirty=false;
+  }
+  requestAnimationFrame(render);
+}
+buildCards();
+const requested=new URL(location.href).searchParams.get('map');
+if(requested&&M.variants[requested])variant=requested;
+updateInfo();
+
+const ro=new ResizeObserver(()=>{dirty=true});ro.observe(document.getElementById('app'));
+window.addEventListener('orientationchange',()=>{setTimeout(()=>dirty=true,80)});
+
+document.getElementById('turnL').onclick=()=>{camera.yaw-=.16;dirty=true};
+document.getElementById('turnR').onclick=()=>{camera.yaw+=.16;dirty=true};
+document.getElementById('zoomOut').onclick=()=>{camera.zoom=Math.max(.5,camera.zoom/.86);dirty=true};
+document.getElementById('zoomIn').onclick=()=>{camera.zoom=Math.min(3.2,camera.zoom*1.16);dirty=true};
+document.getElementById('reset').onclick=()=>{camera.zoom=1;camera.panX=0;camera.panY=0;camera.yaw=-.56;dirty=true};
+
+world.addEventListener('wheel',e=>{e.preventDefault();camera.zoom=Math.max(.5,Math.min(3.2,camera.zoom*Math.exp(-e.deltaY*.001)));dirty=true},{passive:false});
+const pointers=new Map();let drag=null,pinch=null;
+world.addEventListener('pointerdown',e=>{
+  world.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===1){drag={x:e.clientX,y:e.clientY,px:camera.panX,py:camera.panY};world.classList.add('drag')}
+  if(pointers.size===2){const ps=[...pointers.values()];pinch={dist:Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y),zoom:camera.zoom};drag=null}
+});
+world.addEventListener('pointermove',e=>{
+  if(!pointers.has(e.pointerId))return;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===2&&pinch){
+    const ps=[...pointers.values()],dist=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y);
+    camera.zoom=Math.max(.5,Math.min(3.2,pinch.zoom*(dist/Math.max(20,pinch.dist))));dirty=true;
+  }else if(drag&&pointers.size===1){
+    camera.panX=drag.px+(e.clientX-drag.x);camera.panY=drag.py+(e.clientY-drag.y);dirty=true;
+  }
+});
+function endPointer(e){pointers.delete(e.pointerId);if(pointers.size<2)pinch=null;if(!pointers.size){drag=null;world.classList.remove('drag')}}
+world.addEventListener('pointerup',endPointer);world.addEventListener('pointercancel',endPointer);
+world.addEventListener('dblclick',()=>{camera.zoom=1;camera.panX=0;camera.panY=0;dirty=true});
+
+dirty=true;render();
+})();
+</script>
+</body>
+</html>
