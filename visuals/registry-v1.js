@@ -18,6 +18,14 @@ window.PROMETEO_VISUALS_REGISTRY_V1={
       ]
     },
     {
+      id:'visual-experiments',label:'Experimentos visuales',open:true,
+      items:[
+        {id:'trail-lab',label:'🐉 Motion Trail',description:'Imagen repetida, rebote y redraw/ghosting duro.',src:'./trail-lab/'},
+        {id:'spaces-lab',label:'🌀 Pseudo-3D Spaces',description:'Pasillos, túneles y cámaras image-first.',src:'./spaces-lab/'},
+        {id:'player-lab',label:'🖐️ Retro Player',description:'Escena first-person con sprites e interacción persistente.',src:'./player-lab/'}
+      ]
+    },
+    {
       id:'labs',label:'Laboratorios',open:false,
       items:[
         {id:'lab-live',label:'Live Dynamics',description:'Semántica causal.',src:'../demos/coliseo-live/'},
