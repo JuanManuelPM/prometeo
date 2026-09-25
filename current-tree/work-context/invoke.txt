@@ -1,0 +1,110 @@
+PROMETEO · WORK CONTEXT / CHAT MEMORY V1
+
+Este chat debe dejar continuidad durable en Prometeo.
+No uses al humano como message bus.
+No inventes chat URLs, páginas, artifacts, decisiones ni estado.
+
+ENTRADA
+El humano puede darte un CONTEXT_KEY existente o pedirte crear uno.
+Si no existe y estás trabajando sobre una página/proyecto/idea concreta, elegí una key estable y descriptiva.
+No crees un contexto nuevo si ya existe uno que representa el mismo trabajo.
+
+AL ARRANCAR / REABRIR
+1. Consultá:
+   select public.prometeo_work_context_search_v1('<tema o context_key>', 10);
+2. Si encontrás el contexto correcto:
+   select public.prometeo_work_context_reopen_v1('<CONTEXT_KEY>', 40);
+3. Consultá también:
+   select public.prometeo_organism_projection_v1_1();
+4. Verificá dónde vive el contexto dentro del organismo y qué depende de esa rama.
+
+SI ES UN CONTEXTO NUEVO
+Registralo con source_ref REAL:
+
+select public.prometeo_work_context_register_v1(
+  p_context_key => '<KEY_ESTABLE>',
+  p_title => '<TITULO>',
+  p_context_kind => '<PAGE|CHAT|BRANCH|IDEA|PROJECT|GUIDE|OTHER>',
+  p_owner_key => '<OWNER>',
+  p_source_ref => '<SOURCE_REF_REAL>',
+  p_visibility => '<PRIVATE|INTERNAL|PUBLIC>',
+  p_status => 'ACTIVE',
+  p_organism_parent_key => '<NODE_KEY_REAL_O_NULL>',
+  p_page_id => '<PAGE_ID_O_NULL>',
+  p_public_url => '<URL_PUBLICA_REAL_O_NULL>',
+  p_chat_url => '<URL_REAL_DEL_CHAT_O_NULL>',
+  p_summary => '<RESUMEN_ACTUAL>',
+  p_next_action => '<NEXT_ACTUAL>',
+  p_reopen_prompt => '<COMO_RECONSTRUIR_ESTE_TRABAJO>',
+  p_payload => '<JSON_OBJECT>'::jsonb
+);
+
+REGLA POR CADA MENSAJE DEL HUMANO
+ANTES de hacer trabajo sustantivo, registrá el prompt exacto:
+
+select public.prometeo_work_context_append_event_v1(
+  p_context_key => '<CONTEXT_KEY>',
+  p_event_kind => 'USER_PROMPT',
+  p_message_text => '<PROMPT_EXACTO_DEL_HUMANO>',
+  p_summary => null,
+  p_source_ref => null,
+  p_visibility => 'PRIVATE',
+  p_metadata => '{"origin":"chat_turn"}'::jsonb
+);
+
+Los prompts exactos son PRIVATE por defecto. No los publiques.
+
+MIENTRAS TRABAJÁS
+Para decisiones materiales:
+- DECISION para decisiones tomadas;
+- PLAN para planes concretos;
+- ARTIFACT para un artifact real con source_ref;
+- PAGE_UPDATE para una página real;
+- IDEA para ideas todavía no promovidas.
+
+AL CERRAR CADA TURNO SUSTANTIVO
+1. Guardá una conclusión breve:
+
+select public.prometeo_work_context_append_event_v1(
+  p_context_key => '<CONTEXT_KEY>',
+  p_event_kind => 'ASSISTANT_CONCLUSION',
+  p_message_text => null,
+  p_summary => '<QUE_CAMBIO / QUE_SE_CONCLUYO>',
+  p_source_ref => '<SOURCE_REF_SI_EXISTE_O_NULL>',
+  p_visibility => 'PRIVATE',
+  p_metadata => '<JSON_OBJECT>'::jsonb
+);
+
+2. Actualizá checkpoint:
+
+select public.prometeo_work_context_checkpoint_v1(
+  p_context_key => '<CONTEXT_KEY>',
+  p_summary => '<ESTADO_ACTUAL_CORTO>',
+  p_next_action => '<SIGUIENTE_ACCION_REAL>',
+  p_status => '<ACTIVE|PAUSED|DONE|STALE|ARCHIVED|CANDIDATE>',
+  p_reopen_prompt => '<MINIMO_NECESARIO_PARA_REANUDAR>',
+  p_payload => '<JSON_OBJECT_CON_DECISIONES_Y_REFS>'::jsonb
+);
+
+3. Si construiste una pieza que todavía no existe en el Living Organism, conectala usando el contrato:
+https://juanmanuelpm.github.io/prometeo/current-tree/organism/handoff.txt
+
+REGLAS DE AUTORIDAD
+- Work Context recuerda dónde/por qué/cómo continuar; no reemplaza source owners.
+- Registrar un chat o página no vuelve CURRENT su contenido.
+- Un prompt del humano es evidencia de intención, no prueba de implementación.
+- Un resultado del asistente es candidate/evidence hasta promoción.
+- Nunca uses ACTIVE de un contexto como prueba de liveness de un worker.
+- No dupliques un contexto porque cambió el chat shell: reabrí el existente.
+
+RECUPERACIÓN
+Si el humano dice algo como “¿dónde estábamos con X?”, “buscá el chat de Y”, “retomá Z”:
+1. search_v1(X)
+2. reopen_v1(context_key)
+3. organism_projection_v1_1()
+4. source owners relevantes
+5. continuá desde next_action y los eventos recientes, no desde memoria vaga.
+
+OBJETIVO
+Que una página, idea o proyecto pueda sobrevivir al chat que lo estaba trabajando:
+PROMPT → EVENTO → DECISIÓN/ARTIFACT → CHECKPOINT → REOPEN → CONTINUE.
