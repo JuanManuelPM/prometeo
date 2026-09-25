@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Prometeo · Árbol V3</title>
+<style>
+:root{
+  --bg:#090a0c;--panel:#101216;--panel2:#15181d;--line:#343943;--line2:#242830;
+  --ink:#f0efe9;--soft:#c2c7ce;--muted:#868e99;
+  --green:#78dc94;--yellow:#e4bb57;--blue:#7cb5ff;--gray:#8a919b;--red:#ee7b7b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button{font:inherit;color:inherit}
+.wrap{max-width:980px;margin:auto;padding:0 14px 80px}
+.top{position:sticky;top:0;z-index:30;background:rgba(9,10,12,.97);border-bottom:1px solid var(--line2);backdrop-filter:blur(10px)}
+.topin{max-width:980px;margin:auto;padding:11px 14px 9px}
+.brand{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand strong{font-size:13px;letter-spacing:.08em}.brand span{font-size:10px;color:var(--muted)}
+.tabs{display:flex;gap:5px;margin-top:10px}
+.tab{border:0;background:transparent;color:var(--muted);border-radius:8px;padding:7px 10px;font-size:11px;cursor:pointer}
+.tab.on{background:var(--panel2);color:var(--ink)}
+.statusbar{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-top:8px}.statusbar::-webkit-scrollbar{display:none}
+.chip{display:flex;align-items:center;gap:5px;border:1px solid var(--line2);border-radius:999px;padding:4px 7px;font-size:9px;white-space:nowrap;color:#bdc3ca}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--gray)}
+.chip.current .dot{background:var(--green)}.chip.stale .dot{background:var(--yellow)}.chip.problem .dot{background:var(--red)}
+.view{display:none;padding-top:15px}.view.on{display:block}
+.eyebrow{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:clamp(25px,6vw,42px);letter-spacing:-.05em;line-height:1;margin:5px 0 7px}
+.lede{font-size:11px;color:var(--muted);line-height:1.5;margin:0 0 15px;max-width:680px}
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:13px;color:var(--muted);font-size:9px}
+.legend span{display:flex;gap:5px;align-items:center}
+
+/* Tree */
+.treebox{border-top:1px solid var(--line2);padding-top:4px}
+.tree,.tree ul{list-style:none;margin:0;padding:0}
+.tree ul{margin-left:20px}
+.tree li{position:relative;padding-left:20px}
+.tree li::before{content:"";position:absolute;left:0;top:-9px;bottom:-9px;border-left:1px solid var(--line)}
+.tree li:last-child::before{bottom:auto;height:31px}
+.tree li::after{content:"";position:absolute;left:0;top:30px;width:16px;border-top:1px solid var(--line)}
+.tree>li{padding-left:0}
+.tree>li::before,.tree>li::after{display:none}
+
+.row{min-height:58px;display:grid;grid-template-columns:18px 18px minmax(0,1fr) auto;gap:8px;align-items:center;border-bottom:1px solid var(--line2);padding:7px 3px}
+.row.leaf{grid-template-columns:18px 18px minmax(0,1fr) auto}
+.row:hover{background:rgba(255,255,255,.018)}
+summary{list-style:none;cursor:pointer}
+summary::-webkit-details-marker{display:none}
+.chev{width:18px;height:18px;display:grid;place-items:center;color:#8e96a1;transition:transform .14s ease;font-size:16px}
+details[open]>.row .chev{transform:rotate(90deg)}
+.chev.blank{opacity:0}
+
+/* icons */
+.icon{width:15px;height:13px;position:relative;display:inline-block}
+.icon.folder{border:1px solid #78818d;border-radius:2px;height:11px;margin-top:2px}
+.icon.folder::before{content:"";position:absolute;left:1px;top:-4px;width:7px;height:4px;border:1px solid #78818d;border-bottom:0;border-radius:2px 2px 0 0;background:var(--bg)}
+details[open]>.row .icon.folder{border-color:#b7bec7}
+.icon.file{border:1px solid #6e7681;border-radius:2px;width:12px;height:15px;margin-left:1px}
+.icon.cap{border:1px solid #6e7681;border-radius:50%;width:13px;height:13px;margin-left:1px}
+.icon.target{width:13px;height:13px;border:1px solid var(--yellow);border-radius:50%;margin-left:1px}
+.icon.target::after{content:"";position:absolute;width:3px;height:3px;border-radius:50%;background:var(--yellow);left:4px;top:4px}
+.icon.issue{width:13px;height:13px;border:1px solid var(--red);transform:rotate(45deg);margin-left:1px}
+
+.title{font-size:12px;font-weight:680;line-height:1.2}
+.meta{font-size:9px;color:var(--muted);line-height:1.35;margin-top:3px}
+.type{font-size:8px;text-transform:uppercase;letter-spacing:.1em;color:#67707b;margin-right:5px}
+.badge{font-size:8px;letter-spacing:.04em;border:1px solid var(--line);border-radius:999px;padding:3px 5px;color:var(--muted);white-space:nowrap}
+.badge.CURRENT,.badge.LOGRADO{color:var(--green);border-color:#31583b}
+.badge.STALE,.badge.ABIERTO{color:var(--yellow);border-color:#604f26}
+.badge.PENDING{color:var(--blue);border-color:#324d6d}
+.badge.SUPERSEDED,.badge.REEMPLAZADO,.badge.LEGACY{color:#999fa8}
+.inside{padding:8px 7px 10px 44px;color:#abb2bc;font-size:10px;line-height:1.5;border-bottom:1px solid var(--line2)}
+.inside strong{color:#d5d9df;font-weight:650}
+
+/* Current objective band */
+.next{margin:16px 0 6px;border:1px solid #5a4a23;background:#16130c;border-radius:10px;padding:11px}
+.next-k{font-size:8px;letter-spacing:.13em;text-transform:uppercase;color:#a99055}
+.next-v{font-size:15px;font-weight:750;letter-spacing:-.02em;margin-top:4px}
+.next-p{font-size:9px;line-height:1.45;color:#b8aa87;margin-top:4px}
+
+/* Timeline */
+.nowbox{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:11px;margin-bottom:15px}
+.nowbox .big{font-size:16px;font-weight:760;letter-spacing:-.025em;margin-top:3px}
+.nowbox p{font-size:9px;color:var(--muted);line-height:1.45;margin:5px 0 0}
+.timeline{position:relative;margin-left:7px;padding-left:22px}
+.timeline::before{content:"";position:absolute;left:6px;top:5px;bottom:10px;border-left:1px solid var(--line)}
+.event{position:relative;padding:0 0 16px 0}
+.event::before{content:"";position:absolute;left:-20px;top:5px;width:9px;height:9px;border-radius:50%;background:var(--bg);border:1px solid #69717d}
+.event.current::before{border-color:var(--green);background:var(--green)}
+.event.open::before{border-color:var(--yellow)}
+.event.replaced::before{border-color:var(--gray)}
+.date{font-size:8px;color:#6f7782;letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px}
+.event-head{display:flex;justify-content:space-between;align-items:start;gap:10px}
+.event-title{font-size:12px;font-weight:700;line-height:1.25}
+.event-desc{font-size:9px;color:var(--muted);line-height:1.45;margin-top:4px}
+.event details{margin-top:6px}
+.event summary{font-size:9px;color:#9fa6b0;display:inline-flex;gap:5px;align-items:center}
+.event summary::before{content:"›";display:inline-block;transition:transform .12s ease}
+.event details[open] summary::before{transform:rotate(90deg)}
+.event-detail{margin-top:6px;border-left:1px solid var(--line2);padding-left:9px;font-size:9px;color:#989fa9;line-height:1.5;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.daysep{font-size:9px;color:#7c8490;text-transform:uppercase;letter-spacing:.12em;margin:3px 0 12px -2px}
+
+.loading{padding:30px 3px;color:var(--muted);font-size:10px}
+.err{border:1px solid #62383a;background:#170e0e;border-radius:10px;padding:12px;color:#d1a7a7;font-size:10px}
+@media(min-width:760px){
+  .wrap{padding-left:22px;padding-right:22px}.topin{padding-left:22px;padding-right:22px}
+  .tree ul{margin-left:27px}.tree li{padding-left:24px}.tree li::after{width:20px}
+  .row{min-height:62px;padding:8px 6px}.title{font-size:13px}.meta{font-size:10px}
+  .timeline{margin-left:10px;padding-left:28px}.timeline::before{left:7px}.event::before{left:-25px}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="topin">
+    <div class="brand"><strong>PROMETEO · TREE V3</strong><span id="stamp">cargando</span></div>
+    <div class="tabs">
+      <button class="tab on" data-view="tree">Árbol</button>
+      <button class="tab" data-view="history">Historial</button>
+    </div>
+    <div class="statusbar" id="statusbar"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="tree" class="view on"><div class="loading">Cargando estado real…</div></section>
+  <section id="history" class="view"></section>
+</main>
+
+<script>
+const SB='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
+let D=null;
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=d=>{try{return new Intl.DateTimeFormat('es-AR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'America/Argentina/Buenos_Aires'}).format(new Date(d))}catch{return '—'}};
+const badge=s=>'<span class="badge '+esc(s)+'">'+esc(s)+'</span>';
+async function load(){const r=await fetch(SB+'prometeo_current_tree_v2',{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:'{}',cache:'no-store'});if(!r.ok)throw new Error('RPC '+r.status);return r.json()}
+const guides=()=>D?.guides||[];
+const gs=k=>guides().find(g=>g.guide_key===k)?.effective_status||'PENDING';
+const arch=()=>D?.architecture||{};
+const wc=k=>Number(D?.work?.counts?.[k]||0);
+const issues=()=>D?.health?.issues||[];
+
+function icon(t){return '<span class="icon '+t+'"></span>'}
+function row(o,folder){
+ const st=o.status||'CURRENT', typ=o.type||'sistema';
+ return '<span class="row">'+
+   '<span class="chev '+(folder?'':'blank')+'">›</span>'+
+   icon(folder?'folder':(o.icon||'file'))+
+   '<span><span class="title">'+esc(o.title)+'</span><span class="meta"><span class="type">'+esc(typ)+'</span>'+esc(o.desc||'')+'</span></span>'+
+   badge(st)+'</span>';
+}
+function leaf(o){return '<li><div class="row leaf"><span class="chev blank">›</span>'+icon(o.icon||'file')+'<span><span class="title">'+esc(o.title)+'</span><span class="meta"><span class="type">'+esc(o.type||'sistema')+'</span>'+esc(o.desc||'')+'</span></span>'+badge(o.status||'CURRENT')+'</div>'+(o.detail?'<div class="inside">'+o.detail+'</div>':'')+'</li>'}
+function folder(o,children,open){
+ return '<li><details '+(open?'open':'')+'><summary>'+row(o,true)+'</summary><ul>'+children+'</ul></details></li>';
+}
+function rootStatus(k){
+ const x=(D?.root_index?.read_order||[]).find(x=>x.module_key===k);
+ return x?.freshness==='STALE'?'STALE':'CURRENT';
+}
+function renderStatus(){
+ document.getElementById('stamp').textContent='snapshot '+fmt(D.generated_at);
+ document.getElementById('statusbar').innerHTML=
+  '<span class="chip current"><span class="dot"></span>ARCH '+esc(arch().effective_status||arch().status)+'</span>'+
+  '<span class="chip '+(gs('STRATEGY')==='STALE'?'stale':'current')+'"><span class="dot"></span>STRATEGY '+esc(gs('STRATEGY'))+'</span>'+
+  '<span class="chip current"><span class="dot"></span>'+wc('ACTIVE')+' active · '+wc('READY')+' ready</span>'+
+  '<span class="chip '+(issues().length?'problem':'current')+'"><span class="dot"></span>'+issues().length+' issues</span>';
+}
+function renderTree(){
+ const a=arch().effective_status||arch().status||'CURRENT';
+ const workChildren=
+   leaf({title:'Objetivos',type:'sistema',desc:'registran qué queremos conseguir',status:a,icon:'file'})+
+   leaf({title:'Frontier Compiler',type:'sistema',desc:'convierte intención en trabajo reclamable',status:a,icon:'file'})+
+   leaf({title:'Global Work Graph V1.1',type:'sistema',desc:'mantiene el trabajo real en un único lugar',status:'CURRENT',icon:'file'})+
+   leaf({title:'Workers universales',type:'capacidad',desc:'toman trabajo sin conocer la topología histórica',status:'CURRENT',icon:'cap'})+
+   leaf({title:'Verificación independiente',type:'capacidad',desc:'separa producir de aceptar',status:'CURRENT',icon:'cap'});
+
+ const memoryChildren=
+   leaf({title:'ROOT Index V1',type:'índice',desc:'dice dónde vive cada fuente sin duplicarla',status:'CURRENT',icon:'file'})+
+   leaf({title:'Current Tree V2',type:'orientación',desc:'muestra qué es vigente, viejo o contradictorio',status:'CURRENT',icon:'file'})+
+   folder({title:'Domain Guides',type:'sistema',desc:'conservan criterio y continuidad por dominio',status:gs('STRATEGY')==='STALE'?'STALE':'CURRENT'},
+     guides().map(g=>leaf({title:g.guide_key+' · '+(g.short_title||g.title),type:'guide',desc:g.headline||g.mission,status:g.effective_status||'PENDING',icon:'file'})).join(''),false);
+
+ const capChildren=
+   folder({title:'Ejecución',type:'capacidad',desc:'Prometeo puede hacer trabajo real',status:'CURRENT'},leaf({title:'Workers universales',type:'mecanismo',desc:'claim → progress → submit',status:'CURRENT',icon:'cap'}),false)+
+   folder({title:'Coordinación',type:'capacidad',desc:'el trabajo tiene un frente global común',status:'CURRENT'},workChildren,false)+
+   folder({title:'Autonomía',type:'capacidad',desc:'el sistema puede generar siguiente trabajo',status:'CURRENT'},leaf({title:'Frontier Compiler',type:'mecanismo',desc:'mantiene una frontera claimable',status:'CURRENT',icon:'cap'}),false)+
+   folder({title:'Memoria',type:'capacidad',desc:'podemos reconstruir qué manda ahora',status:'CURRENT'},memoryChildren,false);
+
+ const openObj=(D?.work?.active_objectives||[]).map(o=>leaf({title:o.title||o.objective_key,type:'objetivo activo',desc:o.guide_key+' · '+(o.compiler_key||'compiler'),status:o.status||'ACTIVE',icon:'target'})).join('')||
+   leaf({title:'Sin objetivo activo visible',type:'runtime',desc:'este snapshot no expone un objetivo ACTIVE',status:'PENDING',icon:'target'});
+ const problemChildren=issues().slice(0,8).map(x=>leaf({title:x.title||x.guide_key||x.module_key||x.kind,type:'problema',desc:x.reason||x.kind,status:x.severity==='HIGH'?'STALE':'PENDING',icon:'issue'})).join('');
+
+ const nextChildren=
+   leaf({title:'Invalidación automática',type:'pendiente',desc:'si cambia una dependencia, lo viejo deja de fingir CURRENT',status:'PENDING',icon:'target'})+
+   leaf({title:'Re-síntesis automática',type:'pendiente',desc:'reconstruir CURRENT sin esperar un recordatorio humano',status:'PENDING',icon:'target'})+
+   leaf({title:'Consumo de conocimiento previo',type:'pendiente',desc:'usar artifacts anteriores antes de volver a producirlos',status:'PENDING',icon:'target'});
+
+ document.getElementById('tree').innerHTML=
+  '<div class="eyebrow">ESTADO DEL PROYECTO</div><h1>Prometeo</h1><p class="lede">Abrí sólo lo que necesites. Las carpetas tienen chevron; las hojas no. Cada fila dice qué tipo de cosa es y para qué sirve.</p>'+
+  '<div class="legend"><span>'+icon('folder')+' carpeta</span><span>'+icon('cap')+' capacidad</span><span>'+icon('file')+' sistema</span><span>'+icon('target')+' objetivo</span></div>'+
+  '<div class="treebox"><ul class="tree">'+
+   folder({title:'Capacidades',type:'carpeta',desc:'lo que Prometeo ya sabe hacer',status:'CURRENT'},capChildren,true)+
+   folder({title:'Sistemas',type:'carpeta',desc:'las piezas técnicas que sostienen esas capacidades',status:'CURRENT'},
+      folder({title:'Trabajo',type:'grupo',desc:'objetivos, compiler, graph, workers y verificación',status:'CURRENT'},workChildren,false)+
+      folder({title:'Memoria',type:'grupo',desc:'ROOT, Current Tree y Guides',status:gs('STRATEGY')==='STALE'?'STALE':'CURRENT'},memoryChildren,false),false)+
+   folder({title:'Abierto ahora',type:'carpeta',desc:'objetivos y problemas del snapshot actual',status:issues().length?'STALE':'CURRENT'},
+      folder({title:'Objetivos activos',type:'grupo',desc:wc('ACTIVE')+' jobs activos · '+wc('READY')+' ready',status:'CURRENT'},openObj,false)+
+      folder({title:'Problemas detectados',type:'grupo',desc:issues().length+' issues visibles',status:issues().length?'STALE':'CURRENT'},problemChildren||leaf({title:'Sin problemas detectados',type:'health',desc:'ninguna anomalía en este snapshot',status:'CURRENT',icon:'cap'}),false),true)+
+   folder({title:'Siguiente frontera',type:'carpeta',desc:'la capacidad que todavía no está cerrada',status:'PENDING'},nextChildren,true)+
+  '</ul></div>'+
+  '<div class="next"><div class="next-k">SIGUIENTE OBJETIVO</div><div class="next-v">Memoria operativa autosostenida</div><div class="next-p">Que Prometeo detecte cambios, invalide lo viejo, recomponga CURRENT y reutilice conocimiento previo sin que vos tengas que decir “che, te olvidaste”.</div></div>';
+}
+const timeline=[
+ {date:'25 SEP · 13:25',title:'Current Tree V2 reemplaza V1',desc:'La orientación pasa a bootstrap liviano + detalle lazy.',status:'CURRENT',cls:'current',detail:'migration 20260925132506 · prometeo_current_tree_v2_light_bootstrap'},
+ {date:'25 SEP · 12:55',title:'Current Tree V1 entra en operación',desc:'Primer árbol semántico único. Luego se detectó que el bootstrap público era demasiado pesado.',status:'REEMPLAZADO',cls:'replaced',detail:'migration 20260925125544 · prometeo_current_tree_v1'},
+ {date:'25 SEP · 11:35',title:'Prompt universal queda ligado al Work Graph',desc:'Fresh shells dejan de necesitar conocer una family para encontrar trabajo.',status:'LOGRADO',cls:'current',detail:'migration 20260925113534 · work_graph_canonical_worker_prompt_v1_1'},
+ {date:'25 SEP · 11:28',title:'Work Graph converge a V1.1',desc:'La frontera global pasa a ser la base operacional vigente.',status:'CURRENT',cls:'current',detail:'migration 20260925112823 · work_graph_kernel_v1_1_converge'},
+ {date:'25 SEP · 03:17',title:'Universal Work Graph se vuelve registry global',desc:'El trabajo empieza a existir una sola vez en el graph, no como varias colas humanas.',status:'LOGRADO',cls:'current',detail:'migration 20260925031713 · universal_work_graph_v1_registry'},
+ {date:'25 SEP · 02:23',title:'Visual Runtime se conecta al ciclo actual',desc:'La pirámide visual deja de ser sólo concepto y entra en el worker cycle.',status:'ABIERTO',cls:'open',detail:'migration 20260925022300 · wire_visual_runtime_compiler_into_current_cycle_v1'},
+ {date:'24 SEP · 20:49',title:'Aparece un worker cycle estable',desc:'Se consolida una entrada estable para workers antes del Work Graph universal.',status:'LOGRADO',cls:'current',detail:'migration 20260924204932 · add_stable_current_worker_cycle_v1'},
+ {date:'24 SEP · 17:58',title:'ROOT Index V1',desc:'Prometeo gana un índice modular para orientarse sin crear otro dueño de verdad.',status:'CURRENT',cls:'current',detail:'migration 20260924175836 · add_prometeo_root_index_v1'},
+ {date:'24 SEP · 16:23',title:'Cognitive Frontier Breaker',desc:'Se formaliza que bloqueo material no significa bloqueo cognitivo.',status:'CURRENT',cls:'current',detail:'migration 20260924162334 · add_cognitive_frontier_breaker_plan_v1'}
+];
+function renderHistory(){
+ document.getElementById('history').innerHTML=
+  '<div class="eyebrow">HISTORIAL / LÍNEA DE TIEMPO</div><h1>Cómo llegamos hasta acá</h1><p class="lede">Hitos del sistema, no un git log crudo. Los detalles técnicos están plegados para no ensuciar la lectura.</p>'+
+  '<div class="nowbox"><div class="eyebrow">AHORA</div><div class="big">Work Graph V1.1 + ROOT + Current Tree V2</div><p>La próxima frontera es convertir esta memoria en algo que invalide, re-sintetice y conecte conocimiento automáticamente.</p></div>'+
+  '<div class="timeline">'+timeline.map(e=>
+    '<article class="event '+e.cls+'"><div class="date">'+esc(e.date)+'</div><div class="event-head"><div><div class="event-title">'+esc(e.title)+'</div><div class="event-desc">'+esc(e.desc)+'</div></div>'+badge(e.status)+'</div><details><summary>detalle</summary><div class="event-detail">'+esc(e.detail)+'</div></details></article>'
+  ).join('')+'</div>';
+}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));
+ document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===b.dataset.view));
+});
+(async()=>{try{D=await load();renderStatus();renderTree();renderHistory()}catch(e){document.getElementById('tree').innerHTML='<div class="err">No pude cargar Current Tree V2: '+esc(e.message)+'</div>'}})();
+</script>
+</body>
+</html>
