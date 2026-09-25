@@ -55,16 +55,15 @@ const assets={};
 const atlas={};
 const SOURCE_PAGES={
   wall:'https://commons.wikimedia.org/wiki/File:Dark_green_grey_flecked_speckled_spotted_clean_marble_cemented_building_wall_square_checkered_tile_texture.jpg',
-  floor:'https://commons.wikimedia.org/wiki/File:Black_white_checkered_grubby_dusty_square_tile_pattern_floor_texture.jpg',
+  floor:'https://commons.wikimedia.org/wiki/File:Green_mosaic_square_seamless_tiled_floor_texture.jpg',
   ceiling:'https://commons.wikimedia.org/wiki/File:Ceiling_Pattern,_Tomb_of_Qenamun_MET_DT10887.jpg',
   stone:'https://commons.wikimedia.org/wiki/File:Stone_Wall_Texture.jpg'
 };
 const SOURCES={
   wall:'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Dark_green_grey_flecked_speckled_spotted_clean_marble_cemented_building_wall_square_checkered_tile_texture.jpg/1024px-Dark_green_grey_flecked_speckled_spotted_clean_marble_cemented_building_wall_square_checkered_tile_texture.jpg',
-  floor:'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Black_white_checkered_grubby_dusty_square_tile_pattern_floor_texture.jpg/1280px-Black_white_checkered_grubby_dusty_square_tile_pattern_floor_texture.jpg',
+  floor:'https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/Green_mosaic_square_seamless_tiled_floor_texture.jpg/1280px-Green_mosaic_square_seamless_tiled_floor_texture.jpg',
   ceiling:'https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Ceiling_Pattern%2C_Tomb_of_Qenamun_MET_DT10887.jpg/960px-Ceiling_Pattern%2C_Tomb_of_Qenamun_MET_DT10887.jpg',
-  stone:'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Stone_Wall_Texture.jpg/1280px-Stone_Wall_Texture.jpg',
-  mask:'../../strategy/mask-mouth/assets/mask-transparent.webp'
+  stone:'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Stone_Wall_Texture.jpg/1280px-Stone_Wall_Texture.jpg'
 };
 function load(name,url){
   return new Promise(resolve=>{
@@ -93,21 +92,24 @@ function grade(name,img,tint,screen){
   g.globalCompositeOperation='screen';g.globalAlpha=.10;g.fillStyle=screen;g.fillRect(0,0,c.width,c.height);
   g.globalAlpha=1;g.globalCompositeOperation='source-over';atlas[name]=c;return c;
 }
+function archPath(g,w,h,x0,x1,shoulder,top){
+  const mid=w*.5;g.beginPath();g.moveTo(x0,h);g.lineTo(x0,shoulder);
+  g.bezierCurveTo(x0,top,mid-w*.19,top,mid,top);
+  g.bezierCurveTo(mid+w*.19,top,x1,top,x1,shoulder);
+  g.lineTo(x1,h);g.closePath();
+}
 function buildArch(img){
   if(!img)return null;const c=document.createElement('canvas');c.width=512;c.height=384;const g=c.getContext('2d');cover(g,img,c.width,c.height);
-  g.globalCompositeOperation='multiply';g.fillStyle='rgba(45,67,38,.92)';g.fillRect(0,0,c.width,c.height);
-  g.globalCompositeOperation='screen';g.globalAlpha=.10;g.fillStyle='#b7a46c';g.fillRect(0,0,c.width,c.height);
-  g.globalAlpha=1;g.globalCompositeOperation='destination-out';
-  const x0=c.width*.27,x1=c.width*.73,base=c.height,shoulder=c.height*.42,top=c.height*.18,mid=c.width*.5;
-  g.beginPath();g.moveTo(x0,base);g.lineTo(x0,shoulder);
-  g.bezierCurveTo(x0,top,mid-c.width*.16,top,mid,top);
-  g.bezierCurveTo(mid+c.width*.16,top,x1,top,x1,shoulder);
-  g.lineTo(x1,base);g.closePath();g.fill();
+  g.globalCompositeOperation='multiply';g.fillStyle='rgba(68,76,43,.78)';g.fillRect(0,0,c.width,c.height);
+  g.globalCompositeOperation='screen';g.globalAlpha=.22;g.fillStyle='#d2bc73';g.fillRect(0,0,c.width,c.height);g.globalAlpha=1;
+  // Keep only an outer arch silhouette, then punch the inner opening out of the photographed stone.
+  g.globalCompositeOperation='destination-in';archPath(g,c.width,c.height,c.width*.025,c.width*.975,c.height*.67,c.height*.02);g.fill();
+  g.globalCompositeOperation='destination-out';archPath(g,c.width,c.height,c.width*.31,c.width*.69,c.height*.51,c.height*.21);g.fill();
   g.globalCompositeOperation='source-over';atlas.arch=c;return c;
 }
 function buildAtlas(){
   grade('wall',assets.wall,'rgba(44,64,38,.96)','#aa9c61');
-  grade('floor',assets.floor,'rgba(77,84,54,.88)','#beb373');
+  grade('floor',assets.floor,'rgba(83,78,45,.86)','#d0c37a');
   grade('ceiling',assets.ceiling,'rgba(50,62,40,.91)','#9c8b57');
   grade('stone',assets.stone,'rgba(47,65,39,.94)','#baa66a');
   buildArch(assets.stone||assets.wall);
@@ -142,11 +144,6 @@ function worldQuad(img,pts,alpha){
   poly=clipNear(poly);if(poly.length<3)return;const pp=poly.map(projectCam);
   for(let i=1;i<poly.length-1;i++)texTri(img,pp[0],pp[i],pp[i+1],{x:poly[0].u,y:poly[0].v},{x:poly[i].u,y:poly[i].v},{x:poly[i+1].u,y:poly[i+1].v},alpha);
 }
-function worldSpriteOnWall(img,side,z0,z1,y0,y1,alpha){
-  if(!img)return;const x=side*3.28;
-  const pts=side>0?[{x,y:y1,z:z1},{x,y:y1,z:z0},{x,y:y0,z:z0},{x,y:y0,z:z1}]:[{x,y:y1,z:z0},{x,y:y1,z:z1},{x,y:y0,z:z1},{x,y:y0,z:z0}];
-  worldQuad(img,pts,alpha);
-}
 function fog(depth){return clamp(1-depth/70,.17,.98)}
 function baseFill(){
   const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#070a06');g.addColorStop(.50,'#11150e');g.addColorStop(1,'#020302');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
@@ -154,9 +151,10 @@ function baseFill(){
 function renderPassage(){
   baseFill();
   const halfW=3.35,floorY=-1.72,ceilY=1.86,seg=2.65;
-  const first=Math.floor((camZ-5)/seg)*seg;
+  const first=Math.floor((camZ-12)/seg)*seg;
   const list=[];
-  for(let i=0;i<28;i++){const z0=first+i*seg,z1=z0+seg,mid=(z0+z1)*.5-camZ;if(mid<-5||mid>68)continue;list.push({z0,z1,mid,index:Math.floor(z0/seg)});}
+  // Start well behind the camera. Yaw can rotate lateral parts of a nominally-behind tile into view; clipping decides visibility.
+  for(let i=0;i<34;i++){const z0=first+i*seg,z1=z0+seg,mid=(z0+z1)*.5-camZ;if(mid>72)continue;list.push({z0,z1,mid,index:Math.floor(z0/seg)});}
   list.sort((a,b)=>b.mid-a.mid);
 
   // The end wall is genuinely far-away geometry, so paint it before nearer layers.
@@ -176,13 +174,9 @@ function renderPassage(){
     worldQuad(atlas.ceiling,[{x:-halfW+.03,y:ceilY,z:z0},{x:-halfW+.03,y:ceilY,z:z1},{x:-halfW+.03,y:ceilY-.25,z:z1},{x:-halfW+.03,y:ceilY-.25,z:z0}],a*.54);
     worldQuad(atlas.ceiling,[{x:halfW-.03,y:ceilY,z:z1},{x:halfW-.03,y:ceilY,z:z0},{x:halfW-.03,y:ceilY-.25,z:z0},{x:halfW-.03,y:ceilY-.25,z:z1}],a*.52);
 
-    if(s.index%2===0 && atlas.arch){
+    if(atlas.arch){
       const az=z0+.08;
-      worldQuad(atlas.arch,[{x:-halfW,y:ceilY,z:az},{x:halfW,y:ceilY,z:az},{x:halfW,y:floorY,z:az},{x:-halfW,y:floorY,z:az}],clamp(a*1.05,.2,1));
-    }
-    if(s.index%9===4){
-      const panelZ=z0+.55;
-      worldSpriteOnWall(assets.mask,1,panelZ,panelZ+1.10,-.82,.72,a*.84);
+      worldQuad(atlas.arch,[{x:-halfW,y:ceilY,z:az},{x:halfW,y:ceilY,z:az},{x:halfW,y:floorY,z:az},{x:-halfW,y:floorY,z:az}],clamp(a*.98,.22,.96));
     }
   }
   const center=projectCam({x:0,y:.10,z:58});
@@ -223,7 +217,7 @@ addEventListener('keydown',e=>{
 });
 setTimeout(()=>hint.style.opacity='.24',1800);
 window.PrometeoSpaces={
-  version:'spaces-green-arch-v4',
+  version:'spaces-green-arch-v5',
   contract:'left/right = yaw; up/down = z-only travel; floor uses near-plane clipping; no strafe; no fisheye',
   references:['retro corridor pattern','dark arch passage','vintage game tunnel','occult hallway texture','surreal corridor object'],
   sourcePages:SOURCE_PAGES,
