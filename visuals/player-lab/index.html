@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#08080a">
+<title>Prometeo · Player Lab</title>
+<style>
+:root{
+  --ink:#d8d6b8;--dim:#77755d;--acid:#b8c96a;--rust:#a75437;--cyan:#72a6a2;
+  --black:#070709;--panel:#111114;--line:#454437;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:var(--ink);
+  font-family:"Courier New",ui-monospace,monospace;overscroll-behavior:none;touch-action:none}
+button{font:inherit}
+#shell{position:fixed;inset:0;overflow:hidden;background:#050506}
+#game{position:absolute;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated;touch-action:none}
+#screenfx{position:absolute;inset:0;pointer-events:none;z-index:4;
+  background:
+    radial-gradient(ellipse at 50% 52%,transparent 44%,rgba(0,0,0,.62) 100%),
+    repeating-linear-gradient(180deg,rgba(255,255,255,.025) 0 1px,transparent 1px 4px);
+  mix-blend-mode:normal}
+#screenfx:after{content:"";position:absolute;inset:-12%;opacity:.22;
+  background:
+    radial-gradient(circle at 18% 23%,#c5bf8a 0 1px,transparent 1.4px),
+    radial-gradient(circle at 62% 71%,#74806a 0 1px,transparent 1.5px),
+    radial-gradient(circle at 81% 39%,#91604b 0 1px,transparent 1.5px);
+  background-size:23px 29px,31px 37px,17px 19px;animation:grain .45s steps(2,end) infinite}
+@keyframes grain{0%{transform:translate(0,0)}50%{transform:translate(3px,-2px)}100%{transform:translate(-2px,3px)}}
+#flash{position:absolute;inset:0;z-index:5;pointer-events:none;background:#d7d19d;opacity:0}
+#flash.on{animation:flash .16s steps(2,end)}
+@keyframes flash{0%{opacity:.25}100%{opacity:0}}
+.hud{position:absolute;inset:0;z-index:6;pointer-events:none;text-shadow:0 1px 0 #000}
+.topbar{position:absolute;left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));
+  top:max(8px,env(safe-area-inset-top));display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.brand{display:grid;grid-template-columns:34px 1fr;gap:8px;align-items:center}
+.sig{width:34px;height:34px;border:2px solid #77765b;background:#11110f;display:grid;place-items:center;
+  color:var(--acid);font-weight:900;font-size:12px;box-shadow:inset 0 0 0 2px #050505}
+.brandCopy b{display:block;font-size:11px;letter-spacing:.12em}.brandCopy span{display:block;font-size:7px;color:#8e8b70;margin-top:3px;letter-spacing:.08em}
+.readout{min-width:126px;border:2px solid #555445;background:#0d0d0c;padding:5px 7px;text-align:right}
+.readout .line1{font-size:8px;color:#a6a383}.readout .line2{font-size:12px;color:var(--acid);font-weight:900;letter-spacing:.06em}
+.sidebits{position:absolute;left:max(9px,env(safe-area-inset-left));top:58px;display:grid;gap:4px}
+.bit{display:flex;gap:4px;align-items:center;font-size:7px;color:#85836b}
+.bit i{width:7px;height:7px;background:#35352e;border:1px solid #5b5a4a}
+.bit i.on{background:var(--acid);box-shadow:0 0 7px rgba(184,201,106,.45)}
+.prompt{position:absolute;left:50%;bottom:46px;transform:translateX(-50%);text-align:center;
+  font-size:8px;color:#d3ceb0;letter-spacing:.09em;white-space:nowrap}
+.prompt strong{display:block;font-size:10px;color:#e3ddba;margin-bottom:3px}
+.modebar{position:absolute;left:50%;bottom:max(8px,env(safe-area-inset-bottom));transform:translateX(-50%);
+  display:flex;gap:6px;pointer-events:auto}
+.modebar button{min-width:86px;height:30px;border:2px solid #4e4d40;background:#101012;color:#77745f;
+  text-transform:uppercase;font-size:8px;font-weight:900;letter-spacing:.08em;padding:0 9px}
+.modebar button.on{color:#17180f;background:var(--acid);border-color:#d4dfa0;box-shadow:inset 0 0 0 2px #6b713a}
+.modebar button:active{transform:translateY(1px)}
+.corner{position:absolute;right:max(9px,env(safe-area-inset-right));bottom:46px;width:106px;text-align:right;
+  color:#686754;font-size:7px;line-height:1.4}
+.corner b{color:#9e9a77}
+#touchHint{display:none}
+@media(max-width:720px),(max-height:420px){
+  .brandCopy span{display:none}.readout{min-width:108px}.readout .line1{font-size:7px}.readout .line2{font-size:10px}
+  .modebar button{min-width:72px;height:28px;font-size:7px}.prompt{bottom:42px}
+  .corner{font-size:6px;width:92px}
+}
+@media(orientation:portrait){
+  #shell{inset:auto;left:50%;top:50%;width:100dvh;height:100dvw;transform:translate(-50%,-50%) rotate(90deg);transform-origin:center}
+  #touchHint{display:block}
+}
+</style>
+</head>
+<body>
+<div id="shell">
+  <canvas id="game" width="320" height="180" aria-label="Laboratorio de juego retro en primera persona"></canvas>
+  <div id="screenfx"></div><div id="flash"></div>
+  <div class="hud">
+    <div class="topbar">
+      <div class="brand"><div class="sig">P//3</div><div class="brandCopy"><b>PLAYER LAB</b><span>ANOMALOUS HANDHELD INTERFACE</span></div></div>
+      <div class="readout"><div class="line1" id="sceneCode">SECTOR 03 / INPUT READY</div><div class="line2" id="sceneName">CONTACT RITE</div></div>
+    </div>
+    <div class="sidebits"><span class="bit"><i class="on" id="b1"></i>LINK</span><span class="bit"><i class="on" id="b2"></i>MOTOR</span><span class="bit"><i id="b3"></i>OMEN</span></div>
+    <div class="prompt" id="prompt"><strong>TOCÁ PARA ACTIVAR</strong>acción simple · reacción visible</div>
+    <div class="corner"><b id="ammo">HAND 01</b><br><span id="subread">pressure 44%<br>signal crooked</span></div>
+    <div class="modebar">
+      <button class="on" data-mode="0">CONTACT</button>
+      <button data-mode="1">STRIKE</button>
+      <button data-mode="2">INSPECT</button>
+    </div>
+    <div id="touchHint"></div>
+  </div>
+</div>
+<script>
+(()=>{'use strict';
+const c=document.getElementById('game'),x=c.getContext('2d',{alpha:false});
+x.imageSmoothingEnabled=false;
+const flash=document.getElementById('flash');
+const sceneName=document.getElementById('sceneName'),sceneCode=document.getElementById('sceneCode');
+const prompt=document.getElementById('prompt'),ammo=document.getElementById('ammo'),subread=document.getElementById('subread');
+const bits=[document.getElementById('b1'),document.getElementById('b2'),document.getElementById('b3')];
+const buttons=[...document.querySelectorAll('.modebar button')];
+
+const W=320,H=180;
+let mode=0,actionT=0,actionStart=-9,shake=0,hits=0,inspectHold=false,last=0,audio=null;
+let dust=Array.from({length:46},(_,i)=>({x:(i*73)%W,y:(i*47)%H,s:1+(i%2),p:i*.37}));
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function ease(t){t=clamp(t,0,1);return 1-Math.pow(1-t,3)}
+function pulse(t,s=1){return .5+.5*Math.sin(t*s)}
+function rect(px,py,pw,ph,col){x.fillStyle=col;x.fillRect(Math.round(px),Math.round(py),Math.round(pw),Math.round(ph))}
+function line(x1,y1,x2,y2,col,w=1){x.strokeStyle=col;x.lineWidth=w;x.beginPath();x.moveTo(Math.round(x1)+.5,Math.round(y1)+.5);x.lineTo(Math.round(x2)+.5,Math.round(y2)+.5);x.stroke()}
+function poly(points,col){x.fillStyle=col;x.beginPath();points.forEach((p,i)=>i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]));x.closePath();x.fill()}
+function pxText(txt,px,py,col='#cfcaa5',size=6,align='left'){x.fillStyle=col;x.font=`${size}px "Courier New",monospace`;x.textAlign=align;x.textBaseline='top';x.fillText(txt,px,py)}
+function bgGradient(top,bottom){
+  const g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,top);g.addColorStop(1,bottom);x.fillStyle=g;x.fillRect(0,0,W,H)
+}
+function floorGrid(horizon,col='#2c2b26'){
+  for(let yy=horizon;yy<H;yy+=8){let k=(yy-horizon)/(H-horizon);line(0,yy,W,yy,col,k>0.55?2:1)}
+  for(let i=-8;i<=8;i++){let bx=W/2+i*22;line(W/2,horizon,bx,H,col,1)}
+}
+function noiseDust(t){
+  x.globalAlpha=.20;
+  for(const d of dust){let yy=(d.y+t*3+d.p*19)%H;rect(d.x,yy,d.s,d.s,'#c7c09b')}
+  x.globalAlpha=1
+}
+function drawWallFaces(t){
+  for(let i=0;i<9;i++){let xx=i*41-12;let top=28+((i*17)%11);
+    poly([[xx,top],[xx+32,top+4],[xx+35,89],[xx-2,88]],i%2?'#20211f':'#191b1b');
+    line(xx+4,top+9,xx+27,top+12,'#44453b'); if(i%3===0) rect(xx+11,top+25,7,10,'#4b2e27');
+  }
+}
+function drawContact(t,a){
+  bgGradient('#0c1414','#18110f');drawWallFaces(t);floorGrid(88,'#3b342d');
+  // altar
+  poly([[106,92],[214,92],[235,141],[87,141]],'#312b28');
+  poly([[111,86],[210,86],[214,94],[106,94]],'#59503f');
+  rect(124,99,72,28,'#141612');rect(128,103,64,20,'#2d3126');
+  // central organic key
+  const dep=a>0?Math.sin(Math.min(1,a)*Math.PI)*4:0;
+  const beat=2+pulse(t,3)*2;
+  rect(151,105+dep,18,12,'#6e3329');rect(155,101+dep,10,4,'#a55a43');
+  rect(158,105+dep,4,12,'#cf8f64');
+  // cables/veins
+  line(151,111,135,117,'#6b3b32',2);line(169,111,187,117,'#6b3b32',2);
+  line(160,101,160,93-beat,'#584d37',1);
+  // weird object behind
+  const bob=Math.round(Math.sin(t*1.4)*2);
+  poly([[145,72+bob],[153,58+bob],[168,57+bob],[178,73+bob],[170,86+bob],[150,85+bob]],'#6d6c4c');
+  rect(155,63+bob,11,6,'#c0c06f');rect(157,65+bob,3,2,'#11120d');rect(163,65+bob,3,2,'#11120d');
+  line(150,76+bob,142,81+bob,'#9c4e39',2);line(173,76+bob,181,83+bob,'#9c4e39',2);
+  // hand reaches from right
+  const reach=ease(Math.sin(Math.min(1,a)*Math.PI))*54;
+  const hx=318-reach,hy=125-reach*.28;
+  poly([[hx,146],[hx-38,144],[hx-58,134],[hx-68,126],[hx-63,119],[hx-48,122],[hx-36,128],[hx-24,125],[hx-13,115],[hx+4,116]],'#8f6b53');
+  poly([[hx-59,128],[hx-76,116],[hx-75,111],[hx-69,109],[hx-55,120]],'#aa7a5a');
+  poly([[hx-50,126],[hx-70,109],[hx-68,104],[hx-62,103],[hx-42,121]],'#9a6e52');
+  line(hx-43,133,hx-25,135,'#4a342c',2);line(hx-16,122,hx-2,123,'#4a342c',2);
+  if(a>.45&&a<.78){rect(155,99,10,3,'#d9d07f');}
+  pxText(a>.68?'INPUT ACCEPTED':'PRESS THE WRONG KEY',160,149,a>.68?'#c8d876':'#8c8068',7,'center');
+}
+function drawClaw(t,a){
+  bgGradient('#131013','#0a0b0d');
+  // corridor ribs
+  for(let i=0;i<8;i++){let y=22+i*10;line(0,y,105,82,'#342b32');line(W,y,215,82,'#342b32')}
+  floorGrid(86,'#2b2f30');
+  // target creature/device
+  const hit=a>.30&&a<.75; const wob=hit?Math.sin(a*44)*5:Math.sin(t*1.8)*1.2;
+  x.save();x.translate(wob,0);
+  rect(132,61,58,44,'#292a23');rect(138,66,46,34,'#55533b');
+  rect(143,72,12,10,'#a3a05d');rect(168,72,12,10,'#a3a05d');
+  rect(147,75,4,3,'#090a08');rect(172,75,4,3,'#090a08');
+  rect(151,89,21,4,'#1a1513');rect(158,93,7,4,'#763828');
+  line(132,81,119,77,'#665b40',3);line(190,81,203,76,'#665b40',3);
+  x.restore();
+  // impact fragments
+  if(hit){for(let i=0;i<9;i++){let ang=i*.72+a*3;let rr=(a-.3)*60;rect(160+Math.cos(ang)*rr,82+Math.sin(ang)*rr*.55,2,2,i%2?'#b9b06a':'#794331')}}
+  // mechanical forearm, thrusting from bottom
+  const thrust=ease(Math.sin(Math.min(1,a)*Math.PI))*50;
+  const cy=174-thrust;
+  poly([[122,180],[198,180],[188,143-thrust*.20],[172,128-thrust*.50],[148,128-thrust*.50],[132,143-thrust*.20]],'#292d2e');
+  poly([[140,142-thrust*.55],[150,119-thrust*.45],[170,119-thrust*.45],[181,142-thrust*.55]],'#595b52');
+  rect(148,128-thrust*.55,24,14,'#8d6c42');
+  // pincer
+  const open=hit?5:12;
+  poly([[151,124-thrust*.55],[137-open,111-thrust*.55],[139-open,103-thrust*.55],[148,111-thrust*.55]],'#77786c');
+  poly([[169,124-thrust*.55],[183+open,111-thrust*.55],[181+open,103-thrust*.55],[172,111-thrust*.55]],'#77786c');
+  rect(155,106-thrust*.55,10,13,'#404545');
+  if(hit) pxText('CLANG',160,50,'#d6c873',9,'center');
+  pxText(`IMPACT COUNT ${String(hits).padStart(2,'0')}`,160,149,'#8f8e77',7,'center');
+}
+function drawInspect(t,a){
+  bgGradient('#091014','#15110d');
+  // chamber
+  rect(0,37,320,3,'#30383a');rect(0,86,320,2,'#263032');
+  for(let i=0;i<7;i++){rect(i*52+8,47,28,25,i%2?'#151c1e':'#111719');rect(i*52+13,51,18,3,'#415052')}
+  floorGrid(91,'#30302b');
+  const lift=ease(Math.sin(Math.min(1,a)*Math.PI));
+  const zoom=1+lift*.55, ox=160+(1-lift)*35, oy=92-lift*13;
+  x.save();x.translate(ox,oy);x.scale(zoom,zoom);x.rotate(Math.sin(t*.7)*.05+lift*.05);
+  // glove from lower-left holding relic
+  poly([[-104,70],[-68,49],[-39,39],[-22,43],[-12,58],[-23,73],[-57,80]],'#50584f');
+  rect(-49,39,29,12,'#6f7867');line(-43,43,-23,43,'#252b25',2);
+  // relic
+  rect(-24,-27,48,54,'#45453b');rect(-20,-23,40,46,'#181b18');
+  rect(-15,-18,30,13,'#6e6c49');rect(-12,-15,8,7,'#b5b06a');rect(4,-15,8,7,'#8d4b3d');
+  for(let i=0;i<5;i++)rect(-14+i*7,2,4,12,i%2?'#4f665f':'#845244');
+  line(-16,18,15,18,'#9d9768',1);
+  x.restore();
+  // scan overlay
+  if(a>.25&&a<.85){
+    const yy=48+((a*120)%60);rect(91,yy,138,2,'rgba(127,198,187,.72)');
+    line(91,44,91,130,'#4e7773');line(229,44,229,130,'#4e7773');
+    pxText('OBJECT MEMORY: UNRELIABLE',160,136,'#7eaaa3',6,'center');
+  }else pxText('RELIC SLOT / HOLD NEAR FACE',160,145,'#8c806f',7,'center');
+}
+function draw(t){
+  x.setTransform(1,0,0,1,0,0);
+  const sx=shake?Math.round((Math.random()-.5)*shake):0,sy=shake?Math.round((Math.random()-.5)*shake):0;
+  x.save();x.translate(sx,sy);
+  if(mode===0)drawContact(t,actionT);else if(mode===1)drawClaw(t,actionT);else drawInspect(t,actionT);
+  noiseDust(t);
+  x.restore();
+  // outer frame
+  rect(0,0,W,4,'#050505');rect(0,H-4,W,4,'#050505');rect(0,0,4,H,'#050505');rect(W-4,0,4,H,'#050505');
+  // tiny registration marks
+  rect(7,7,8,1,'#676653');rect(7,7,1,8,'#676653');rect(W-15,7,8,1,'#676653');rect(W-8,7,1,8,'#676653');
+}
+function setMode(n){
+  mode=n;actionT=0;actionStart=-9;shake=0;
+  buttons.forEach((b,i)=>b.classList.toggle('on',i===n));
+  const meta=[
+    ['CONTACT RITE','SECTOR 03 / INPUT READY','HAND 01','pressure 44%<br>signal crooked','TOCÁ PARA PRESIONAR'],
+    ['CLAW STRIKE','SERVICE TUNNEL / TARGET LIVE','CLAW 06','torque 81%<br>ethics missing','TOCÁ PARA GOLPEAR'],
+    ['RELIC INSPECT','ARCHIVE VAULT / OBJECT FOUND','GLOVE 12','scan 37%<br>memory damp','TOCÁ PARA EXAMINAR']
+  ][n];
+  sceneName.textContent=meta[0];sceneCode.textContent=meta[1];ammo.textContent=meta[2];subread.innerHTML=meta[3];prompt.innerHTML='<strong>'+meta[4]+'</strong>acción simple · reacción visible';
+  bits.forEach((b,i)=>b.classList.toggle('on',i<=n));
+}
+function beep(freq=120,dur=.055,type='square'){
+  try{
+    audio=audio||new (window.AudioContext||window.webkitAudioContext)();
+    const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.value=freq;
+    g.gain.setValueAtTime(.035,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+dur);
+    o.connect(g).connect(audio.destination);o.start();o.stop(audio.currentTime+dur);
+  }catch(_){}
+}
+function activate(){
+  const now=performance.now()/1000;
+  if(now-actionStart<.42)return;
+  actionStart=now;actionT=.001;
+  if(mode===1){hits++;shake=5;beep(74,.08,'sawtooth');setTimeout(()=>{shake=0},130)}
+  else if(mode===0){beep(155,.06);setTimeout(()=>beep(205,.08),85)}
+  else{beep(320,.05,'sine');setTimeout(()=>beep(470,.07,'sine'),70)}
+  flash.classList.remove('on');void flash.offsetWidth;flash.classList.add('on');
+  if(navigator.vibrate)navigator.vibrate(mode===1?[18,22,28]:12);
+}
+function tick(ms){
+  const t=ms/1000;
+  if(actionT>0){const d=t-actionStart;actionT=d<.72?d/.72:0}
+  if(!last||ms-last>33){draw(t);last=ms}
+  requestAnimationFrame(tick);
+}
+buttons.forEach((b,i)=>b.addEventListener('pointerdown',e=>{e.stopPropagation();setMode(i)}));
+c.addEventListener('pointerdown',activate);
+document.getElementById('shell').addEventListener('pointerdown',e=>{if(e.target.tagName!=='BUTTON'&&e.target!==c)activate()});
+addEventListener('keydown',e=>{
+  if(e.key==='1')setMode(0);else if(e.key==='2')setMode(1);else if(e.key==='3')setMode(2);
+  else if(e.code==='Space'||e.code==='Enter')activate();
+});
+setMode(0);requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
