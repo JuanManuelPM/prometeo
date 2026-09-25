@@ -44,6 +44,14 @@ create table if not exists public.prometeo_work_context_events_v1(
   created_at timestamptz not null default now()
 );
 
+create index if not exists prometeo_work_context_events_context_time_idx
+  on public.prometeo_work_context_events_v1(context_key,occurred_at desc);
+create index if not exists prometeo_work_contexts_activity_idx
+  on public.prometeo_work_contexts_v1(last_activity_at desc);
+create index if not exists prometeo_work_contexts_parent_idx
+  on public.prometeo_work_contexts_v1(organism_parent_key)
+  where organism_parent_key is not null;
+
 alter table public.prometeo_work_contexts_v1 enable row level security;
 alter table public.prometeo_work_context_events_v1 enable row level security;
 
