@@ -172,21 +172,54 @@ body{overscroll-behavior:none}
 }
 
 
-/* LIVE WORKERS V1: deliberately minimal surface. */
+/* LIVE WORKERS V7: one public projection, layered semantics. */
 .picker,.fxDrawer,.brand,.badge,.help,.capacityHud{display:none!important}
 .liveHud{
-  position:absolute;left:50%;top:16px;transform:translateX(-50%);
-  z-index:30;display:flex;align-items:baseline;gap:8px;
+  position:absolute;left:50%;top:14px;transform:translateX(-50%);
+  z-index:30;display:grid;justify-items:center;gap:2px;
   font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   color:#eadcc8;text-shadow:0 2px 8px rgba(0,0,0,.9);
   pointer-events:none;white-space:nowrap
 }
+.liveMain{display:flex;align-items:baseline;gap:8px}
 .liveHud strong{font-size:clamp(26px,5vw,54px);line-height:1;font-weight:900;letter-spacing:-.04em}
-.liveHud span{font-size:clamp(9px,1.4vw,14px);font-weight:800;letter-spacing:.12em;opacity:.72}
-.liveHud.stale strong{opacity:.45}
-.liveHud.stale span{color:#b56a54;opacity:.95}
-@media(max-width:700px){.liveHud{top:9px}.liveHud strong{font-size:28px}.liveHud span{font-size:9px}}
-</style>
+.liveHud .liveWord{font-size:clamp(9px,1.4vw,14px);font-weight:850;letter-spacing:.12em;opacity:.78}
+.liveHud .queueLine,.liveHud .freshLine{font-size:clamp(7px,.92vw,10px);font-weight:750;letter-spacing:.08em;opacity:.68}
+.liveHud.stale strong{opacity:.40}
+.liveHud.stale .liveWord{color:#b56a54;opacity:.98}
+.liveHud.stale .queueLine,.liveHud.stale .freshLine{opacity:.28}
+.worldLegend{
+  position:absolute;right:14px;bottom:14px;z-index:31;
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;
+  color:rgba(234,220,200,.72);font:700 8px/1.2 system-ui,sans-serif;
+  letter-spacing:.07em;text-transform:uppercase;pointer-events:none
+}
+.worldLegend span{display:flex;gap:4px;align-items:center}
+.worldLegend i{width:7px;height:7px;border-radius:2px;display:inline-block;border:1px solid rgba(0,0,0,.7)}
+.worldLegend .ready i{background:#c7c58f}.worldLegend .blocked i{background:#691b24}.worldLegend .active i{background:#8a743f}.worldLegend .success i{background:#40594d;opacity:.55}
+.workerDetail{
+  position:absolute;left:50%;bottom:48px;transform:translateX(-50%);
+  z-index:40;width:min(360px,calc(100% - 28px));box-sizing:border-box;
+  background:rgba(13,11,9,.94);border:1px solid rgba(202,174,128,.28);
+  color:#eadcc8;padding:12px 38px 12px 13px;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  box-shadow:0 12px 32px rgba(0,0,0,.38)
+}
+.workerDetail[hidden]{display:none}
+.workerDetail b{display:block;font-size:17px;letter-spacing:.02em;margin-bottom:2px}
+.workerDetail .wdTitle{font-size:11px;line-height:1.3;color:#cdb99d;margin:4px 0 7px}
+.workerDetail .wdMeta{font-size:9px;line-height:1.45;letter-spacing:.04em;color:#9f927f}
+.workerDetail button{
+  position:absolute;right:6px;top:6px;width:28px;height:28px;border:0;background:transparent;
+  color:#b9a78d;font-size:20px;line-height:28px;cursor:pointer
+}
+@media(max-width:700px){
+  .liveHud{top:8px}.liveHud strong{font-size:27px}.liveHud .liveWord{font-size:9px}
+  .liveHud .queueLine,.liveHud .freshLine{font-size:7px}
+  .worldLegend{right:7px;bottom:8px;gap:7px;font-size:6px}
+  .workerDetail{bottom:35px;padding:10px 34px 10px 11px}
+}
+</style></style>
 </head>
 <body>
 <div id="app">
@@ -206,10 +239,21 @@ body{overscroll-behavior:none}
 <div class="picker"><div class="pickerScroll" id="componentPicker"></div></div>
 <div class="ui">
   <div class="liveHud stale" id="liveHud" aria-live="polite">
-    <strong id="liveCount">—</strong><span id="liveLabel">WORKING · DATA STALE</span>
+    <div class="liveMain"><strong id="liveCount">—</strong><span class="liveWord" id="liveLabel">WORKING · DATA STALE</span></div>
+    <div class="queueLine" id="queueLine">READY — · BLOCKED —</div>
+    <div class="freshLine" id="freshLine">LIVE — · AGING — · SUSPECT —</div>
   </div>
-  <div class="badge" id="labBadge">LAB · SYNTHETIC</div>
-  <div class="help" id="labHelp">estructuras: rotación automática · arrastrá para inspeccionar · pinch/rueda para zoom</div>
+  <div class="worldLegend" id="worldLegend" aria-hidden="true">
+    <span class="active"><i></i>active</span><span class="ready"><i></i>ready</span><span class="blocked"><i></i>blocked</span><span class="success"><i></i>success</span>
+  </div>
+  <div class="workerDetail" id="workerDetail" hidden>
+    <button type="button" id="workerDetailClose" aria-label="Cerrar">×</button>
+    <b id="wdCode">WORKER</b>
+    <div class="wdTitle" id="wdTitle"></div>
+    <div class="wdMeta" id="wdMeta"></div>
+  </div>
+  <div class="badge" id="labBadge">LIVE WORKERS</div>
+  <div class="help" id="labHelp">rotá para inspeccionar · tap en un worker para detalle</div>
 </div>
 </div>
 <script>
@@ -353,7 +397,7 @@ const LAB_FAST=LAB_PARAMS.get('fast')==='1';
 const LAB_BASELINE='8ef25c0a34cc9cd68fa9b35152dec9289d5cb3d8';
 let LAB_SELECTED=-1;
 let LAB_TAP_START=null;
-const LAB_BUILD='LIVE-WORKERS-V1-20260925';
+const LAB_BUILD='LIVE-WORKERS-V7-20260925';
 const labBadge=document.getElementById('labBadge');
 const wrap=document.getElementById('wrap');
 const mapStage=document.getElementById('mapStage');
@@ -1632,7 +1676,7 @@ function drawPlayer(c,pl,t,index){
     fillRagged(c,framePts,'#090705',C.ink,Math.max(.65,R*.055),1080+index);
     const ix=p.x-bw*.46,iw=bw*.92,iy=by-bh*.31,ih=bh*.62;
     c.save();c.beginPath();c.rect(ix,iy,iw*e,ih);c.clip();
-    const ec=e>.58?shade('#506657',10):(e>.28?C.ochre:C.red);
+    const ec=pl.liveness==='LIVE'?shade('#506657',10):(pl.liveness==='AGING'?C.ochre:(pl.liveness==='SUSPECT'?C.red:(e>.58?shade('#506657',10):(e>.28?C.ochre:C.red))));
     c.fillStyle=ec;c.fillRect(ix,iy,iw,ih);
     c.globalAlpha=.25;c.fillStyle='#d8b27a';c.fillRect(ix,iy,iw,Math.max(.7,ih*.22));
     c.restore();
@@ -3179,66 +3223,261 @@ function drawPrimitiveGallery(now){
 /* ---------- circular workers ---------- */
 
 
-const LIVE_SLOT_RADII=[2.1,4.15,6.25,8.15];
-const LIVE_SLOT_COUNTS=[6,10,14,18];
-const LIVE_SLOTS=[];
-for(let ri=0;ri<LIVE_SLOT_RADII.length;ri++){
-  const r=LIVE_SLOT_RADII[ri],n=LIVE_SLOT_COUNTS[ri];
-  for(let i=0;i<n;i++){
-    const a=i*TAU/n+(ri%2?Math.PI/n:0);
-    LIVE_SLOTS.push({x:Math.cos(a)*r,z:Math.sin(a)*r});
-  }
-}
+
+let LIVE_LAYOUT_CACHE={key:null,value:null};
 function liveStringHash(s){
   s=String(s||'');
   let h=2166136261>>>0;
   for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)>>>0}
   return h>>>0;
 }
-function liveWorkerSnapshot(){
+function liveSnapshot(){
   const snap=window.PROMETEO_LIVE_WORKERS;
-  return snap&&Array.isArray(snap.workers)&&!snap.stale?snap.workers:[];
+  return snap&&snap.schema==='prometeo.public_worker_world/v2'&&!snap.stale?snap:null;
 }
-function liveAssignedWorkers(){
-  const workers=liveWorkerSnapshot().slice().sort((a,b)=>String(a.worker_id).localeCompare(String(b.worker_id)));
-  const used=new Set();
-  return workers.map((w,i)=>{
-    const base=liveStringHash(w.worker_id)%LIVE_SLOTS.length;
-    let idx=base;
-    for(let step=0;step<LIVE_SLOTS.length;step++){
-      const cand=(base+step*7)%LIVE_SLOTS.length;
-      if(!used.has(cand)){idx=cand;break}
-    }
-    used.add(idx);
-    const slot=LIVE_SLOTS[idx];
-    return {worker:w,slot,index:i,slotIndex:idx};
+function liveShort(s,n=18){
+  s=String(s||'');
+  return s.length>n?s.slice(0,n-1)+'…':s;
+}
+function liveStateColor(state){
+  if(state==='ACTIVE')return '#8a743f';
+  if(state==='READY')return '#c7c58f';
+  if(state==='BLOCKED')return '#691b24';
+  return '#40594d';
+}
+function liveVisualLiveness(w,snap){
+  const generated=Date.parse(snap.generated_at||'');
+  const drift=Number.isFinite(generated)?Math.max(0,(Date.now()-generated)/1000):0;
+  const age=Math.max(0,Number(w.age_seconds||0)+drift);
+  const hb=Math.max(15,Number(w.heartbeat_seconds||120));
+  const ratio=clamp(age/(hb*4),0,1);
+  return {
+    age,ratio,freshness:1-ratio,
+    liveness:ratio<=.25?'LIVE':(ratio<=.60?'AGING':'SUSPECT')
+  };
+}
+function liveSectorPolygon(start,end,r0,r1,n=18){
+  const pts=[];
+  for(let i=0;i<=n;i++){const a=start+(end-start)*(i/n);pts.push({x:Math.cos(a)*r0,z:Math.sin(a)*r0,h:.026})}
+  for(let i=n;i>=0;i--){const a=start+(end-start)*(i/n);pts.push({x:Math.cos(a)*r1,z:Math.sin(a)*r1,h:.026})}
+  return pts;
+}
+function liveLayout(){
+  const snap=liveSnapshot();
+  if(!snap)return {projects:[],nodes:[],workers:[],nodePos:new Map(),projectPos:new Map()};
+  const nodes=Array.isArray(snap.nodes)?snap.nodes:[];
+  const projects=Array.isArray(snap.projects)?snap.projects:[];
+  const workers=Array.isArray(snap.workers)?snap.workers:[];
+  const key=[snap.revision,projects.map(p=>p.project_key).join(',')].join('::');
+  if(LIVE_LAYOUT_CACHE.key===key&&LIVE_LAYOUT_CACHE.value)return LIVE_LAYOUT_CACHE.value;
+
+  const projectKeys=[];
+  for(const p of projects)if(p&&p.project_key&&!projectKeys.includes(p.project_key))projectKeys.push(p.project_key);
+  for(const n of nodes)if(n&&n.project_key&&!projectKeys.includes(n.project_key))projectKeys.push(n.project_key);
+  for(const w of workers)if(w&&w.project_key&&!projectKeys.includes(w.project_key))projectKeys.push(w.project_key);
+  if(!projectKeys.length)projectKeys.push('UNSCOPED');
+
+  const meta=new Map(projects.map(p=>[p.project_key,p]));
+  projectKeys.sort((a,b)=>{
+    const aa=meta.get(a)?.active_objective?0:1,bb=meta.get(b)?.active_objective?0:1;
+    return aa-bb||String(meta.get(a)?.title||a).localeCompare(String(meta.get(b)?.title||b));
   });
+
+  const projectPos=new Map();
+  const gap=Math.min(.11,.52/projectKeys.length);
+  const usable=TAU-gap*projectKeys.length;
+  const span=usable/projectKeys.length;
+  const startBase=-Math.PI/2;
+  projectKeys.forEach((k,i)=>{
+    const start=startBase+i*(span+gap),end=start+span,mid=(start+end)/2;
+    projectPos.set(k,{start,end,mid,index:i,meta:meta.get(k)||{project_key:k,title:k}});
+  });
+
+  const globalByNode=new Map();
+  for(const n of nodes)if(n?.node_key&&!globalByNode.has(n.node_key))globalByNode.set(n.node_key,n);
+  const depthMemo=new Map(),visiting=new Set();
+  function depthFor(n){
+    const id=(n.project_key||'')+'|'+n.node_key;
+    if(depthMemo.has(id))return depthMemo.get(id);
+    if(visiting.has(id))return 0;
+    visiting.add(id);
+    let d=0;
+    const deps=Array.isArray(n.depends_on)?n.depends_on:[];
+    for(const depKey of deps){
+      const dep=nodes.find(x=>x.node_key===depKey&&x.project_key===n.project_key)||globalByNode.get(depKey);
+      if(dep)d=Math.max(d,1+Math.min(7,depthFor(dep)));
+    }
+    visiting.delete(id);depthMemo.set(id,d);return d;
+  }
+
+  const nodePos=new Map();
+  for(const pk of projectKeys){
+    const sector=projectPos.get(pk);
+    const subset=nodes.filter(n=>n.project_key===pk).slice().sort((a,b)=>{
+      const da=depthFor(a),db=depthFor(b);
+      return da-db||String(a.node_key).localeCompare(String(b.node_key));
+    });
+    const byDepth=new Map();
+    for(const n of subset){
+      const d=depthFor(n);
+      if(!byDepth.has(d))byDepth.set(d,[]);
+      byDepth.get(d).push(n);
+    }
+    const maxDepth=Math.max(0,...byDepth.keys());
+    for(const [d,arr] of byDepth){
+      const radius=2.15+(maxDepth?d/maxDepth:0)*6.25;
+      arr.forEach((n,i)=>{
+        const t=(i+1)/(arr.length+1);
+        const ang=sector.start+.08+(sector.end-sector.start-.16)*t;
+        const jitter=((liveStringHash(n.node_key)%1000)/1000-.5)*.20;
+        const r=clamp(radius+jitter,2.0,8.55);
+        nodePos.set(pk+'|'+n.node_key,{x:Math.cos(ang)*r,z:Math.sin(ang)*r,r,ang,depth:d,node:n});
+      });
+    }
+  }
+
+  const occupancy=new Map();
+  const workerItems=workers.map((w,index)=>{
+    const pk=w.project_key||'UNSCOPED',sector=projectPos.get(pk)||projectPos.values().next().value;
+    const np=nodePos.get(pk+'|'+w.node_key);
+    let x,z;
+    if(np){x=np.x;z=np.z}else{
+      const seed=liveStringHash(w.worker_id),r=3.0+(seed%470)/100;
+      const frac=((seed>>>8)%1000)/1000;
+      const ang=sector.start+.10+(sector.end-sector.start-.20)*frac;
+      x=Math.cos(ang)*r;z=Math.sin(ang)*r;
+    }
+    const occKey=pk+'|'+(w.node_key||'fallback');
+    const oi=occupancy.get(occKey)||0;occupancy.set(occKey,oi+1);
+    if(oi){const oa=oi*2.399963229728653,or=.18+.06*Math.min(4,oi);x+=Math.cos(oa)*or;z+=Math.sin(oa)*or}
+    return {worker:w,index,x,z,project:sector?.meta||{title:pk},sector};
+  });
+
+  const value={projects:projectKeys.map(k=>projectPos.get(k)),nodes,workers:workerItems,nodePos,projectPos};
+  LIVE_LAYOUT_CACHE={key,value};
+  return value;
+}
+function livePaintSectors(layout){
+  for(const sector of layout.projects){
+    const i=sector.index,alpha=layout.projects.length===1?.055:.04;
+    camaraWorldPoly(ctx,liveSectorPolygon(sector.start,sector.end,1.55,9.25),i%2?'#4d5147':'#57463b',alpha,null,0,78000+i);
+    const a=sector.mid;
+    const p=wp(Math.cos(a)*8.85,Math.sin(a)*8.85,.045);
+    const meta=sector.meta||{};
+    const working=Number(meta.working||0),ready=Number(meta.ready||0),blocked=Number(meta.blocked||0);
+    ctx.save();
+    ctx.globalAlpha=layout.projects.length===1?.54:.42;
+    ctx.fillStyle='#c7aa89';
+    ctx.font='800 '+Math.max(6,scale*.22)+'px system-ui';
+    ctx.textAlign='center';
+    ctx.fillText(liveShort(meta.title||meta.project_key,layout.projects.length>5?12:20),p.x,p.y);
+    ctx.font='700 '+Math.max(5,scale*.17)+'px system-ui';
+    ctx.globalAlpha*=.75;
+    ctx.fillText(working+'W · '+ready+'R · '+blocked+'B',p.x,p.y+Math.max(7,scale*.32));
+    ctx.restore();
+  }
+}
+function livePaintDependencies(layout){
+  const posByNode=new Map();
+  for(const [key,pos] of layout.nodePos)posByNode.set(pos.node.node_key,pos);
+  let edge=0;
+  for(const n of layout.nodes){
+    const to=layout.nodePos.get(n.project_key+'|'+n.node_key);
+    if(!to)continue;
+    const deps=Array.isArray(n.depends_on)?n.depends_on:[];
+    for(const dk of deps){
+      const from=layout.nodePos.get(n.project_key+'|'+dk)||posByNode.get(dk);
+      if(!from)continue;
+      worldFloorLine(ctx,[{x:from.x,z:from.z,h:.034},{x:to.x,z:to.z,h:.034}],
+        n.state==='BLOCKED'?'#6f3631':'#6a5b47',
+        n.state==='SUCCESS'?.09:.18,Math.max(.35,scale*.015),78200+edge++);
+      if(edge>420)return;
+    }
+  }
+}
+function liveBuildNodeGeometry(layout){
+  resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
+  let seed=78400;
+  for(const n of layout.nodes){
+    const pos=layout.nodePos.get(n.project_key+'|'+n.node_key);
+    if(!pos)continue;
+    const mat=n.state==='ACTIVE'?'metal_warm':n.state==='READY'?'wainscot_pale':n.state==='BLOCKED'?'curtain_red':'civic_green';
+    const size=n.state==='ACTIVE'?.34:n.state==='BLOCKED'?.29:n.state==='READY'?.24:.14;
+    const h=n.state==='ACTIVE'?.12:n.state==='BLOCKED'?.10:n.state==='READY'?.075:.035;
+    mapSolidBox(pos.x,pos.z,.024,size,size,h,mat,seed++,Math.PI/4);
+  }
+  renderWorldSolidsGL(ctx);
+}
+function liveStagePosition(item,t,snap){
+  const w=item.worker,v=liveVisualLiveness(w,snap);
+  let x=item.x,z=item.z,jump=0,size=.42;
+  const phase=(liveStringHash(w.worker_id)%1000)/1000*TAU;
+  const stage=String(w.progress_stage||'').toUpperCase();
+  if(stage==='READ'){
+    const a=Math.atan2(z,x)+Math.PI/2,off=Math.sin(t*1.35+phase)*.055;
+    x+=Math.cos(a)*off;z+=Math.sin(a)*off;
+  }else if(stage==='THINK'){
+    jump=.018+.012*Math.sin(t*1.1+phase);
+  }else if(stage==='FIRST_SIGNAL'||stage==='CLAIMED'){
+    const k=clamp(v.age/8,0,1),r=Math.hypot(x,z)||1,ux=x/r,uz=z/r;
+    x+=ux*(1-k)*.58;z+=uz*(1-k)*.58;jump=(1-k)*.06;
+  }else if(stage==='SUBMIT_START'){
+    const k=clamp(v.age/6,0,1),pulse=Math.sin(k*Math.PI)*.36,r=Math.hypot(x,z)||1;
+    x-=x/r*pulse;z-=z/r*pulse;jump=Math.sin(k*Math.PI)*.05;
+  }
+  if(v.liveness==='SUSPECT')size=.40;
+  return {x,z,jump,size,v};
 }
 function workerDemoData(now){
-  return liveAssignedWorkers().map(({worker,slot,index})=>({
-    label:worker.display_code||'WORKER',
-    pl:{
-      x:slot.x,z:slot.z,h:0,jump:0,
-      size:.44,
-      color:playerSeed[liveStringHash(worker.worker_id)%playerSeed.length],
-      energy:1,
-      hideEnergy:true,
-      segment:null,
-      task:null
-    },
-    worker,
-    index
-  }));
+  const snap=liveSnapshot();if(!snap)return [];
+  const layout=liveLayout(),t=now/1000;
+  return layout.workers.map((item,index)=>{
+    const sp=liveStagePosition(item,t,snap),w=item.worker;
+    return {
+      worker:w,index,project:item.project,
+      pl:{
+        x:sp.x,z:sp.z,h:0,jump:sp.jump,size:sp.size,
+        color:playerSeed[liveStringHash(w.worker_id)%playerSeed.length],
+        energy:sp.v.freshness,liveness:sp.v.liveness,
+        hideEnergy:false,segment:null,task:null
+      }
+    };
+  });
 }
+window.PROMETEO_LIVE_HITTEST=function(clientX,clientY){
+  const hits=window.PROMETEO_LIVE_WORKER_HITS||[];
+  const pt=pointerPoint({clientX,clientY});
+  const sx=pt.x*(IW/Math.max(1,W)),sy=pt.y*(IH/Math.max(1,H));
+  let best=null,bestD=Infinity;
+  for(const h of hits){
+    const d=Math.hypot(h.x-sx,h.y-sy);
+    if(d<h.r&&d<bestD){best=h;bestD=d}
+  }
+  return best?best.worker:null;
+};
 function drawWorkerGallery(now){
+  const snap=liveSnapshot(),layout=liveLayout();
+  window.PROMETEO_LIVE_WORKER_HITS=[];
+  if(!snap)return;
+  livePaintSectors(layout);
+  livePaintDependencies(layout);
+  liveBuildNodeGeometry(layout);
+
   const t=now/1000,data=workerDemoData(now);
-  resetWorldGeometry();resetWorldEmissive();COMPONENT_SERIAL=1;
   data.sort((a,b)=>wp(a.pl.x,a.pl.z,.02).y-wp(b.pl.x,b.pl.z,.02).y);
-  for(let i=0;i<data.length;i++)drawPlayer(ctx,data[i].pl,t,i);
+  for(let i=0;i<data.length;i++){
+    const item=data[i];
+    drawPlayer(ctx,item.pl,t,i);
+    const p=wp(item.pl.x,item.pl.z,item.pl.h+item.pl.jump+.46);
+    window.PROMETEO_LIVE_WORKER_HITS.push({
+      x:p.x,y:p.y,r:Math.max(9,scale*item.pl.size*1.35),worker:item.worker
+    });
+  }
   if(labBadge)labBadge.textContent='LIVE WORKERS · '+data.length;
 }
 
-/* ---------- circular effects ---------- */
+
+/* ---------- circular effects ---------- *//* ---------- circular effects ---------- */
 
 const EFFECT_STATIONS=[
   {id:'pixel',angle:-2.50,label:'PIXEL',col:'#76503a'},
@@ -4425,34 +4664,66 @@ const ENDPOINT='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-l
 const hud=document.getElementById('liveHud');
 const count=document.getElementById('liveCount');
 const label=document.getElementById('liveLabel');
-let lastGood=0;
-let inFlight=false;
-window.PROMETEO_LIVE_WORKERS={schema:'prometeo.public_worker_liveness/v1',workers:[],stale:true};
+const queue=document.getElementById('queueLine');
+const fresh=document.getElementById('freshLine');
+const detail=document.getElementById('workerDetail');
+const wdCode=document.getElementById('wdCode');
+const wdTitle=document.getElementById('wdTitle');
+const wdMeta=document.getElementById('wdMeta');
+const close=document.getElementById('workerDetailClose');
+const scene=document.getElementById('scene');
+let lastGood=0,inFlight=false,down=null,selectedId=null;
+window.PROMETEO_LIVE_WORKERS={schema:'prometeo.public_worker_world/v2',workers:[],projects:[],nodes:[],counts:{},stale:true};
 
+function currentWorker(){
+  if(!selectedId)return null;
+  return (window.PROMETEO_LIVE_WORKERS.workers||[]).find(w=>w.worker_id===selectedId)||null;
+}
+function showDetail(w){
+  if(!w){selectedId=null;detail.hidden=true;return}
+  selectedId=w.worker_id;
+  wdCode.textContent=w.display_code||'WORKER';
+  wdTitle.textContent=w.title||w.node_key||w.project_key||'';
+  wdMeta.textContent=[
+    w.project_key||'UNSCOPED',
+    w.progress_stage||'—',
+    w.liveness||'—',
+    'señal '+Math.round(Number(w.age_seconds||0))+'s',
+    'recovery '+Number(w.recovery_count||0),
+    'gen '+Number(w.assignment_generation||0)
+  ].join(' · ');
+  detail.hidden=false;
+}
 function render(snap){
   const workers=Array.isArray(snap.workers)?snap.workers:[];
-  window.PROMETEO_LIVE_WORKERS={...snap,workers,stale:false};
-  count.textContent=String(workers.length);
+  const nodes=Array.isArray(snap.nodes)?snap.nodes:[];
+  const projects=Array.isArray(snap.projects)?snap.projects:[];
+  const counts=snap.counts||{};
+  window.PROMETEO_LIVE_WORKERS={...snap,workers,nodes,projects,counts,stale:false};
+  count.textContent=String(Number(counts.working??workers.length));
   label.textContent='WORKING';
+  queue.textContent='READY '+Number(counts.ready||0)+' · BLOCKED '+Number(counts.blocked||0);
+  fresh.textContent='LIVE '+Number(counts.live||0)+' · AGING '+Number(counts.aging||0)+' · SUSPECT '+Number(counts.suspect||0);
   hud.classList.remove('stale');
   lastGood=Date.now();
+  const selected=currentWorker();
+  if(selectedId)showDetail(selected);
 }
 function markStale(){
-  window.PROMETEO_LIVE_WORKERS={schema:'prometeo.public_worker_liveness/v1',workers:[],stale:true};
-  count.textContent='—';
-  label.textContent='WORKING · DATA STALE';
-  hud.classList.add('stale');
+  window.PROMETEO_LIVE_WORKERS={schema:'prometeo.public_worker_world/v2',workers:[],projects:[],nodes:[],counts:{},stale:true};
+  count.textContent='—';label.textContent='WORKING · DATA STALE';
+  queue.textContent='READY — · BLOCKED —';fresh.textContent='LIVE — · AGING — · SUSPECT —';
+  hud.classList.add('stale');showDetail(null);
 }
 async function refresh(){
   if(inFlight)return;
   inFlight=true;
-  const ctl=new AbortController();
-  const timer=setTimeout(()=>ctl.abort(),4500);
+  const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),4500);
   try{
     const r=await fetch(ENDPOINT,{cache:'no-store',signal:ctl.signal});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const data=await r.json();
-    if(data.schema!=='prometeo.public_worker_liveness/v1'||!Array.isArray(data.workers))throw new Error('bad schema');
+    if(data.schema!=='prometeo.public_worker_world/v2'||!Array.isArray(data.workers)||!Array.isArray(data.nodes))throw new Error('bad schema');
     render(data);
   }catch(e){
     if(!lastGood||Date.now()-lastGood>12000)markStale();
@@ -4460,10 +4731,20 @@ async function refresh(){
     clearTimeout(timer);inFlight=false;
   }
 }
+scene.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY}});
+scene.addEventListener('pointerup',e=>{
+  if(!down)return;
+  const d=Math.hypot(e.clientX-down.x,e.clientY-down.y);down=null;
+  if(d>9)return;
+  const w=window.PROMETEO_LIVE_HITTEST?window.PROMETEO_LIVE_HITTEST(e.clientX,e.clientY):null;
+  if(w)showDetail(w);else showDetail(null);
+});
+close.addEventListener('click',()=>showDetail(null));
 refresh();
 setInterval(refresh,4000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});
 })();
 </script>
+</body></script>
 </body>
 </html>
