@@ -3,223 +3,398 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#0b0706">
+<meta name="theme-color" content="#cbc1b1">
 <title>Prometeo · Mask Eye Lab</title>
 <style>
 :root{
-  --ink:#f0e6d5;
-  --dim:rgba(240,230,213,.56);
-  --line:rgba(240,230,213,.18);
-  --plate:rgba(14,10,8,.72);
+  --paper:#cbc1b1;
+  --ink:#090807;
+  --red:#2a0808;
+  --bone:#e8ddc8;
+  --dim:rgba(9,8,7,.42);
+  --safe-t:max(12px,env(safe-area-inset-top));
+  --safe-b:max(12px,env(safe-area-inset-bottom));
+  --safe-l:max(14px,env(safe-area-inset-left));
+  --safe-r:max(14px,env(safe-area-inset-right));
 }
 *{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0b0706;color:var(--ink);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-body{touch-action:manipulation;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
-#stage{position:fixed;inset:0;display:block;width:100%;height:100%;background:#0b0706}
-#topline{position:fixed;z-index:8;left:max(14px,env(safe-area-inset-left));top:max(12px,env(safe-area-inset-top));display:flex;align-items:center;gap:9px;pointer-events:none}
-#sigil{width:23px;height:23px;display:grid;place-items:center;border:1px solid var(--line);background:rgba(0,0,0,.26);font-size:11px;font-weight:950}
-#titlebox{min-width:0}
-#modeLabel{font-size:10px;line-height:1;font-weight:950;letter-spacing:.16em;text-transform:uppercase;text-shadow:0 1px 3px #000}
-#loopLabel{margin-top:4px;font:750 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;color:var(--dim);text-transform:uppercase;text-shadow:0 1px 3px #000}
-#hint{position:fixed;z-index:8;right:max(14px,env(safe-area-inset-right));top:max(14px,env(safe-area-inset-top));font:800 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.09em;text-transform:uppercase;color:rgba(240,230,213,.34);pointer-events:none}
-#controls{position:fixed;z-index:10;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:7px;background:rgba(8,6,5,.74);border:1px solid rgba(240,230,213,.12);backdrop-filter:blur(5px);box-shadow:0 8px 26px rgba(0,0,0,.22)}
-button{min-height:42px;border:1px solid rgba(240,230,213,.16);background:rgba(24,17,14,.86);color:#d7c6ae;padding:0 13px;font:900 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.07em;text-transform:uppercase;cursor:pointer}
-button:active{transform:translateY(1px);background:#241712}
-button.on{background:#d9c8ad;color:#160f0c;border-color:#d9c8ad}
-#eyeButton{min-width:118px}
-#credit{position:fixed;z-index:7;right:max(10px,env(safe-area-inset-right));bottom:max(9px,env(safe-area-inset-bottom));max-width:30vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(240,230,213,.25);font:650 7px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;text-decoration:none}
-#credit:empty{display:none}
-#boot{position:fixed;z-index:20;inset:0;display:grid;place-items:center;background:#0b0706;color:#7e6d5b;font:900 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;transition:opacity .25s ease;pointer-events:none}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--paper);color:var(--ink);font-family:Arial,Helvetica,sans-serif}
+body{overscroll-behavior:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+button{font:inherit}
+#stage{position:fixed;inset:0;overflow:hidden;background:var(--paper);isolation:isolate}
+#stage:before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:1;opacity:.16;
+  background-image:url("../../strategy/mask-mouth/assets/mask.webp");
+  background-size:14px 17px;background-repeat:repeat;
+  filter:contrast(2) grayscale(1);
+  mix-blend-mode:multiply;
+}
+body.mode-radial #stage{background:#080605}
+body.mode-radial #stage:before{opacity:.05;filter:invert(1) contrast(2) grayscale(1);mix-blend-mode:screen}
+
+#singleHost,#radialStage{position:absolute;inset:0;z-index:2}
+#singleHost{display:grid;place-items:center;padding:2vh 12vw 4vh}
+#radialStage{display:none}
+body.mode-radial #singleHost{display:none}
+body.mode-radial #radialStage{display:block}
+
+.mask-unit{
+  position:relative;
+  width:auto;
+  height:min(93vh,72vw);
+  aspect-ratio:321/387;
+  cursor:pointer;
+  user-select:none;
+  -webkit-user-drag:none;
+  transform:translateZ(0);
+}
+.mask-unit:after{
+  content:"";position:absolute;left:17%;right:17%;bottom:2.5%;height:7%;
+  background:#000;filter:blur(18px);opacity:.18;z-index:-1;border-radius:50%;
+}
+.mask-art{
+  position:absolute;inset:0;z-index:5;width:100%;height:100%;object-fit:contain;pointer-events:none;
+  filter:drop-shadow(0 18px 18px rgba(0,0,0,.18)) contrast(1.08);
+}
+.eye{
+  position:absolute;z-index:2;width:18.2%;aspect-ratio:1.04;overflow:hidden;background:#0a0908;
+  transform:translate(-50%,-50%);border-radius:47% 53% 49% 51% / 52% 48% 52% 48%;
+  isolation:isolate;
+}
+.eye.left{left:33.85%;top:52.36%;transform:translate(-50%,-50%) rotate(-2deg)}
+.eye.right{left:68.81%;top:50.72%;transform:translate(-50%,-50%) rotate(2deg)}
+.eye img,.eye video{
+  position:absolute;left:50%;top:50%;width:100%;height:100%;object-fit:cover;
+  transform-origin:center center;will-change:transform,filter,opacity;
+}
+.eye .fallback{z-index:0;opacity:1;transform:translate(-50%,-50%) scale(1.2);filter:saturate(.9) contrast(1.25) brightness(.82)}
+.eye .loop-image,.eye video{z-index:1;opacity:0}
+.eye .loop-image.on,.eye video.on{opacity:1}
+.eye-shade{
+  position:absolute;inset:0;z-index:3;pointer-events:none;
+  box-shadow:inset 0 0 12px 4px rgba(0,0,0,.7),inset 0 0 2px 1px rgba(0,0,0,.9);
+}
+.eye:after{
+  content:"";position:absolute;z-index:4;inset:0;pointer-events:none;
+  box-shadow:inset 0 0 0 1px rgba(235,226,208,.11);
+  border-radius:inherit;
+}
+
+#radialRing{position:absolute;left:50%;top:50%;width:min(92vh,82vw);aspect-ratio:1;transform:translate(-50%,-50%)}
+.satellite{
+  position:absolute;left:50%;top:50%;height:42%;aspect-ratio:321/387;transform-origin:50% 50%;
+  transform:translate(-50%,-50%) rotate(calc(var(--a) * 1deg)) translateY(-68%) rotate(180deg) scale(var(--s));
+  opacity:var(--o);filter:invert(1) grayscale(1) contrast(1.35) brightness(.9);
+  mix-blend-mode:screen;
+}
+.satellite:nth-child(2n){filter:grayscale(1) contrast(1.45) brightness(.42);mix-blend-mode:normal}
+.satellite:nth-child(3n){opacity:.48}
+#radialHalo{
+  position:absolute;left:50%;top:50%;width:min(60vh,48vw);aspect-ratio:1;
+  transform:translate(-50%,-50%);border-radius:50%;
+  box-shadow:0 0 0 1px rgba(232,221,200,.11),0 0 80px 18px rgba(96,24,19,.22);
+  pointer-events:none;
+}
+#radialCenter{position:absolute;left:50%;top:50%;width:min(43vh,34vw);aspect-ratio:321/387;transform:translate(-50%,-50%);z-index:4}
+#radialCenter .mask-unit{width:100%;height:100%}
+body.mode-radial .mask-art{filter:drop-shadow(0 12px 16px rgba(0,0,0,.7)) contrast(1.18)}
+body.mode-radial .mask-unit:after{opacity:.42}
+
+#brand{
+  position:fixed;z-index:10;left:var(--safe-l);top:var(--safe-t);pointer-events:none;
+  font:900 9px/1 Arial,Helvetica,sans-serif;letter-spacing:.2em;text-transform:uppercase;
+  color:rgba(9,8,7,.52);mix-blend-mode:multiply;
+}
+body.mode-radial #brand{color:rgba(232,221,200,.58);mix-blend-mode:normal}
+#mediaName{
+  position:fixed;z-index:10;left:var(--safe-l);bottom:var(--safe-b);max-width:42vw;
+  font:900 10px/1.1 Arial,Helvetica,sans-serif;letter-spacing:.11em;text-transform:uppercase;
+  color:rgba(9,8,7,.76);pointer-events:none;
+}
+#mediaHint{display:block;margin-top:5px;font-size:7px;font-weight:700;letter-spacing:.13em;color:var(--dim)}
+body.mode-radial #mediaName{color:rgba(232,221,200,.78)}
+body.mode-radial #mediaHint{color:rgba(232,221,200,.34)}
+
+#modeNav{
+  position:fixed;z-index:12;right:var(--safe-r);bottom:var(--safe-b);display:flex;align-items:center;gap:10px;
+}
+#modeNav button{
+  min-height:34px;padding:0;border:0;background:transparent;color:rgba(9,8,7,.35);cursor:pointer;
+  font:900 9px/1 Arial,Helvetica,sans-serif;letter-spacing:.14em;text-transform:uppercase;
+}
+#modeNav button.on{color:#090807;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:5px}
+body.mode-radial #modeNav button{color:rgba(232,221,200,.3)}
+body.mode-radial #modeNav button.on{color:var(--bone)}
+#credit{
+  position:fixed;z-index:10;right:var(--safe-r);top:var(--safe-t);max-width:42vw;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;
+  color:rgba(9,8,7,.25);font:700 7px/1.2 Arial,Helvetica,sans-serif;
+}
+body.mode-radial #credit{color:rgba(232,221,200,.22)}
+
+#boot{
+  position:fixed;z-index:30;inset:0;display:grid;place-items:center;background:#cbc1b1;
+  color:#2b251f;font:900 9px/1 Arial,Helvetica,sans-serif;letter-spacing:.16em;text-transform:uppercase;
+  transition:opacity .22s ease;pointer-events:none;
+}
 body.ready #boot{opacity:0}
-#tapWake{position:fixed;z-index:9;left:50%;top:50%;transform:translate(-50%,-50%);padding:8px 10px;background:rgba(0,0,0,.54);border:1px solid rgba(240,230,213,.16);color:rgba(240,230,213,.58);font:900 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;opacity:0;pointer-events:none;transition:opacity .2s}
-body.needs-wake #tapWake{opacity:1}
-video{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-10px;top:-10px}
-@media(max-height:520px){
-  #controls{bottom:6px;padding:5px;gap:5px}
-  button{min-height:36px;padding:0 10px;font-size:8px}
-  #eyeButton{min-width:102px}
-  #credit{bottom:5px;font-size:6px;max-width:24vw}
+#wake{
+  position:fixed;z-index:11;left:50%;top:50%;transform:translate(-50%,-50%);
+  color:rgba(232,221,200,.7);font:900 8px/1 Arial,Helvetica,sans-serif;letter-spacing:.14em;text-transform:uppercase;
+  opacity:0;pointer-events:none;text-shadow:0 1px 5px #000;
 }
-@media(max-width:700px){
-  #hint{display:none}
-  #topline{left:9px;top:9px}
-  #controls{max-width:94vw;overflow-x:auto;scrollbar-width:none}
-  #controls::-webkit-scrollbar{display:none}
-  button{flex:0 0 auto}
+body.needs-wake #wake{opacity:1}
+
+@media(max-height:560px){
+  #singleHost{padding:1vh 8vw 2vh}
+  .mask-unit{height:96vh}
+  #radialRing{width:min(104vh,84vw)}
+  #radialCenter{width:min(50vh,33vw)}
+  #brand,#mediaName,#modeNav,#credit{transform:scale(.92);transform-origin:bottom right}
+  #brand{transform-origin:top left}
+  #credit{transform-origin:top right}
+  #mediaName{transform-origin:bottom left}
 }
-@media(prefers-reduced-motion:reduce){#stage{image-rendering:auto}}
+@media(max-width:720px){
+  #singleHost{padding:0 5vw}
+  .mask-unit{height:min(94vh,82vw)}
+  #radialRing{width:min(92vh,96vw)}
+  #radialCenter{width:min(42vh,45vw)}
+  #credit{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  .eye img,.eye video{will-change:auto}
+}
 </style>
 </head>
-<body>
-<canvas id="stage" aria-label="Laboratorio de máscaras con ojos animados"></canvas>
-<div id="topline"><div id="sigil">◉</div><div id="titlebox"><div id="modeLabel">SINGLE MASK</div><div id="loopLabel">cargando ojos</div></div></div>
-<div id="hint">1 / 2 / 3 · espacio = ojo</div>
-<div id="controls" aria-label="Modos de composición">
-  <button class="on" data-mode="single">Single Mask</button>
-  <button data-mode="radial">Radial Masks</button>
-  <button data-mode="shrine">Shrine / Wall</button>
-  <button id="eyeButton">Ojo siguiente</button>
-</div>
+<body class="mode-single">
+<main id="stage" aria-label="Máscara de Prometeo con ojos visuales intercambiables">
+  <section id="singleHost"></section>
+  <section id="radialStage" aria-hidden="true">
+    <div id="radialRing" aria-hidden="true"></div>
+    <div id="radialHalo"></div>
+    <div id="radialCenter"></div>
+  </section>
+</main>
+
+<div id="brand">PROMETEO · MASK/EYE</div>
+<div id="mediaName">CARGANDO OJO<span id="mediaHint">TOCÁ LA MÁSCARA · CAMBIA EL LOOP</span></div>
+<nav id="modeNav" aria-label="Composición">
+  <button type="button" data-mode="single" class="on">Single</button>
+  <button type="button" data-mode="radial">Radial</button>
+</nav>
 <a id="credit" target="_blank" rel="noreferrer"></a>
-<div id="tapWake">tocá para despertar el ojo</div>
-<div id="boot">preparando máscara</div>
-<video id="eyeL" muted playsinline loop preload="metadata"></video>
-<video id="eyeR" muted playsinline loop preload="metadata"></video>
+<div id="wake">tocá para activar video</div>
+<div id="boot">recuperando máscara</div>
+
+<template id="maskTemplate">
+  <div class="mask-unit" role="button" tabindex="0" aria-label="Cambiar contenido de los ojos">
+    <div class="eye left">
+      <img class="fallback" alt="" draggable="false">
+      <img class="loop-image" alt="" draggable="false">
+      <video muted playsinline loop preload="metadata"></video>
+      <i class="eye-shade"></i>
+    </div>
+    <div class="eye right">
+      <img class="fallback" alt="" draggable="false">
+      <img class="loop-image" alt="" draggable="false">
+      <video muted playsinline loop preload="metadata"></video>
+      <i class="eye-shade"></i>
+    </div>
+    <img class="mask-art" src="../../strategy/mask-mouth/assets/mask-transparent.webp" alt="Máscara negra de Prometeo con cavidades transparentes para los ojos" draggable="false">
+  </div>
+</template>
+
 <script>
 (() => {
 'use strict';
+
+const MASK='../../strategy/mask-mouth/assets/mask-transparent.webp';
+const FALLBACK='https://upload.wikimedia.org/wikipedia/commons/1/18/Blue_cat_eye_close_up.jpg';
 const $=s=>document.querySelector(s);
-const canvas=$('#stage'),ctx=canvas.getContext('2d',{alpha:false,desynchronized:true});
-const eyeL=$('#eyeL'),eyeR=$('#eyeR'),modeLabel=$('#modeLabel'),loopLabel=$('#loopLabel'),credit=$('#credit');
-const MASK_URL='../../strategy/mask-mouth/assets/mask-transparent.webp';
-const MASK_RATIO=321/387;
-const modes=['single','radial','shrine'];
-let mode='single',loopIndex=0,maskReady=false,videoReady=false,needsWake=false,raf=0,cssW=0,cssH=0,dpr=1,last=0;
 
 const U={
+  cat:'https://upload.wikimedia.org/wikipedia/commons/0/0e/Cat_Eye_%28Free_to_Use_Stock_Video_Footage%29.webm',
   free:'https://upload.wikimedia.org/wikipedia/commons/e/e9/This_shows_a_recording_of_the_eye_movements_of_a_participant_looking_freely_at_a_picture.webm',
   sacc:'https://upload.wikimedia.org/wikipedia/commons/e/ef/Horizontal_saccades.webm',
   pursuit:'https://upload.wikimedia.org/wikipedia/commons/f/f7/Smooth_pursuit_eye_movements.webm',
-  cat:'https://upload.wikimedia.org/wikipedia/commons/0/0e/Cat_Eye_%28Free_to_Use_Stock_Video_Footage%29.webm',
   chameleon:'https://upload.wikimedia.org/wikipedia/commons/e/ee/Chameleon_eyes.webm',
   owl:'https://upload.wikimedia.org/wikipedia/commons/2/23/Great_grey_owl_%28Strix_nebulosa%29.webm',
   gecko:'https://upload.wikimedia.org/wikipedia/commons/5/5c/Japanese_gecko_%28Gekko_japonicus%29.webm'
 };
 const C={
-  human:'https://commons.wikimedia.org/wiki/Category:Eye_movement_in_humans',
   cat:'https://commons.wikimedia.org/wiki/File:Cat_Eye_(Free_to_Use_Stock_Video_Footage).webm',
+  human:'https://commons.wikimedia.org/wiki/Category:Eye_movement_in_humans',
   chameleon:'https://commons.wikimedia.org/wiki/File:Chameleon_eyes.webm',
   owl:'https://commons.wikimedia.org/wiki/File:Great_grey_owl_(Strix_nebulosa).webm',
-  gecko:'https://commons.wikimedia.org/wiki/File:Japanese_gecko_(Gekko_japonicus).webm'
+  gecko:'https://commons.wikimedia.org/wiki/File:Japanese_gecko_(Gekko_japonicus).webm',
+  fallback:'https://commons.wikimedia.org/wiki/File:Blue_cat_eye_close_up.jpg'
 };
-const LOOPS=[
-  {id:'human-free',label:'HUMANO · DERIVA',src:U.free,offsetL:.2,offsetR:2.1,filter:'grayscale(1) contrast(1.8) brightness(.56)',credit:'eye movement footage · Wikimedia Commons',href:C.human},
-  {id:'human-saccade',label:'HUMANO · SACADAS',src:U.sacc,offsetL:.1,offsetR:.9,filter:'invert(1) grayscale(1) contrast(1.7) brightness(.72)',credit:'horizontal saccades · Wikimedia Commons',href:C.human},
-  {id:'human-pursuit',label:'HUMANO · SEGUIMIENTO',src:U.pursuit,offsetL:.15,offsetR:1.0,filter:'grayscale(1) contrast(1.5) brightness(.7)',credit:'smooth pursuit · Wikimedia Commons',href:C.human},
-  {id:'cat',label:'GATO · ESMERALDA',src:U.cat,offsetL:2.3,offsetR:7.1,filter:'contrast(1.35) saturate(1.18) brightness(.78)',credit:'Cat Eye · Jeffrey Beach · CC BY 3.0',href:C.cat},
-  {id:'chameleon',label:'CAMALEÓN · BRONCE',src:U.chameleon,offsetL:2,offsetR:7,filter:'contrast(1.5) saturate(.8) brightness(.7) sepia(.18)',credit:'Chameleon eyes · James Wasswa · CC BY 4.0',href:C.chameleon},
-  {id:'owl',label:'BÚHO · ORO',src:U.owl,offsetL:5,offsetR:8.4,filter:'contrast(1.45) saturate(.8) brightness(.64) sepia(.18)',credit:'Great grey owl · The Nature Box · CC BY-SA 3.0',href:C.owl},
-  {id:'gecko',label:'GECKO · PIEDRA',src:U.gecko,offsetL:9,offsetR:15,filter:'grayscale(.35) contrast(1.5) brightness(.66)',credit:'Japanese gecko · The Nature Box · CC BY-SA 3.0',href:C.gecko}
+const eye=(src,opt={})=>({src,offset:0,scale:1.3,x:50,y:50,mirror:false,filter:'none',kind:'video',...opt});
+const MEDIA=[
+  {id:'cat-emerald',label:'GATO · ESMERALDA',credit:'Cat Eye · Jeffrey Beach · CC BY 3.0',href:C.cat,
+    L:eye(U.cat,{offset:2.3,scale:1.20,x:63,y:52,filter:'contrast(1.36) saturate(1.25) brightness(.86)'}),
+    R:eye(U.cat,{offset:7.1,scale:1.20,x:63,y:52,mirror:true,filter:'contrast(1.36) saturate(1.25) brightness(.86)'})},
+  {id:'human-inverse',label:'HUMANO · INVERSO',credit:'Eye movement footage · Wikimedia Commons',href:C.human,
+    L:eye(U.sacc,{offset:.35,scale:1.38,x:50,y:50,filter:'invert(1) grayscale(1) contrast(1.8) brightness(.76)'}),
+    R:eye(U.sacc,{offset:1.3,scale:1.38,x:50,y:50,mirror:true,filter:'invert(1) grayscale(1) contrast(1.8) brightness(.76)'})},
+  {id:'human-pursuit',label:'HUMANO · SEGUIMIENTO',credit:'Eye movement footage · Wikimedia Commons',href:C.human,
+    L:eye(U.pursuit,{offset:.15,scale:1.34,x:50,y:50,filter:'grayscale(1) contrast(1.55) brightness(.78)'}),
+    R:eye(U.pursuit,{offset:1.0,scale:1.34,x:50,y:50,mirror:true,filter:'grayscale(1) contrast(1.55) brightness(.78)'})},
+  {id:'chameleon',label:'CAMALEÓN · BRONCE',credit:'Chameleon eyes · James Wasswa · CC BY 4.0',href:C.chameleon,
+    L:eye(U.chameleon,{offset:2.0,scale:1.72,x:70,y:48,filter:'contrast(1.5) saturate(.9) brightness(.76) sepia(.14)'}),
+    R:eye(U.chameleon,{offset:7.0,scale:1.72,x:70,y:48,mirror:true,filter:'contrast(1.5) saturate(.9) brightness(.76) sepia(.14)'})},
+  {id:'owl',label:'BÚHO · ORO',credit:'Great grey owl · The Nature Box · CC BY-SA 3.0',href:C.owl,
+    L:eye(U.owl,{offset:5.0,scale:2.75,x:43,y:42,filter:'contrast(1.5) saturate(.84) brightness(.72) sepia(.16)'}),
+    R:eye(U.owl,{offset:8.4,scale:2.75,x:57,y:42,mirror:true,filter:'contrast(1.5) saturate(.84) brightness(.72) sepia(.16)'})},
+  {id:'gecko',label:'GECKO · PIEDRA',credit:'Japanese gecko · The Nature Box · CC BY-SA 3.0',href:C.gecko,
+    L:eye(U.gecko,{offset:9.0,scale:2.9,x:54,y:43,filter:'grayscale(.25) contrast(1.56) brightness(.76)'}),
+    R:eye(U.gecko,{offset:15.0,scale:2.9,x:54,y:43,mirror:true,filter:'grayscale(.25) contrast(1.56) brightness(.76)'})},
+  {id:'human-void',label:'HUMANO · NEGRO',credit:'Eye movement footage · Wikimedia Commons',href:C.human,
+    L:eye(U.free,{offset:.2,scale:1.34,x:50,y:50,filter:'grayscale(1) contrast(1.7) brightness(.68)'}),
+    R:eye(U.free,{offset:2.1,scale:1.34,x:50,y:50,mirror:true,filter:'grayscale(1) contrast(1.7) brightness(.68)'})}
 ];
 
-const mask=new Image();
-mask.decoding='async';
-mask.src=MASK_URL;
-mask.onload=()=>{maskReady=true;document.body.classList.add('ready')};
-mask.onerror=()=>{document.body.classList.add('ready');modeLabel.textContent='MASK ASSET ERROR'};
+const unit=$('#maskTemplate').content.firstElementChild.cloneNode(true);
+const eyes={L:unit.querySelector('.eye.left'),R:unit.querySelector('.eye.right')};
+for(const el of Object.values(eyes)){el.querySelector('.fallback').src=FALLBACK}
+$('#singleHost').appendChild(unit);
 
-function resize(){
-  cssW=Math.max(1,innerWidth);cssH=Math.max(1,innerHeight);dpr=Math.min(devicePixelRatio||1,1.5);
-  canvas.width=Math.round(cssW*dpr);canvas.height=Math.round(cssH*dpr);canvas.style.width=cssW+'px';canvas.style.height=cssH+'px';
-  ctx.setTransform(dpr,0,0,dpr,0,0);
+const ring=$('#radialRing');
+const ringSpec=[
+  [0,1.10,.82],[30,.92,.66],[60,1.03,.70],[90,.90,.64],[120,1.08,.78],[150,.92,.64],
+  [180,1.10,.82],[210,.92,.66],[240,1.03,.70],[270,.90,.64],[300,1.08,.78],[330,.92,.64]
+];
+for(const [a,s,o] of ringSpec){
+  const img=new Image();img.src=MASK;img.alt='';img.className='satellite';img.draggable=false;
+  img.style.setProperty('--a',a);img.style.setProperty('--s',s);img.style.setProperty('--o',o);ring.appendChild(img);
 }
-addEventListener('resize',resize,{passive:true});resize();
 
-function once(el,name,timeout=2600){return new Promise(resolve=>{let done=false;const fin=()=>{if(done)return;done=true;el.removeEventListener(name,fin);resolve()};el.addEventListener(name,fin,{once:true});setTimeout(fin,timeout)});}
-async function seekAndPlay(v,offset){
-  if(v.readyState<1)await once(v,'loadedmetadata');
-  try{if(Number.isFinite(v.duration)&&v.duration>.4)v.currentTime=Math.min(Math.max(0,offset),Math.max(0,v.duration-.25))}catch(_){}
-  try{await v.play();return true}catch(_){return false}
+let index=0,current=MEDIA[0],mode='single',generation=0,needsWake=false;
+const params=new URLSearchParams(location.search);
+
+function mediaTransform(cfg){
+  const mx=cfg.mirror?-1:1;
+  return 'translate(-50%,-50%) translate('+(cfg.x-50)+'%,'+(cfg.y-50)+'%) scale('+(cfg.scale*mx)+','+cfg.scale+')';
 }
-async function loadLoop(index){
-  loopIndex=(index+LOOPS.length)%LOOPS.length;
-  const L=LOOPS[loopIndex];videoReady=false;loopLabel.textContent='cargando · '+L.label;credit.textContent=L.credit;credit.href=L.href;
-  for(const v of [eyeL,eyeR]){try{v.pause()}catch(_){}v.src=L.src;v.load()}
-  const ok=await Promise.all([seekAndPlay(eyeL,L.offsetL),seekAndPlay(eyeR,L.offsetR)]);
-  videoReady=true;needsWake=!ok.every(Boolean);document.body.classList.toggle('needs-wake',needsWake);loopLabel.textContent=L.label;
+function kindOf(cfg){
+  if(cfg.kind)return cfg.kind;
+  return /\.(gif|png|jpe?g|webp|avif)(?:$|\?)/i.test(cfg.src||'')?'image':'video';
+}
+function once(el,event,timeout=3200){
+  return new Promise(resolve=>{
+    let done=false;
+    const finish=()=>{if(done)return;done=true;el.removeEventListener(event,finish);resolve()};
+    el.addEventListener(event,finish,{once:true});setTimeout(finish,timeout);
+  });
+}
+async function applyEye(side,cfg,myGen){
+  const host=eyes[side],video=host.querySelector('video'),img=host.querySelector('.loop-image');
+  video.classList.remove('on');img.classList.remove('on');
+  try{video.pause()}catch(_){}
+  const kind=kindOf(cfg);
+  const target=kind==='image'?img:video;
+  target.style.transform=mediaTransform(cfg);
+  target.style.filter=cfg.filter||'none';
+  if(kind==='image'){
+    img.src=cfg.src;
+    await once(img,'load',2200);
+    if(myGen===generation)img.classList.add('on');
+    return true;
+  }
+  video.src=cfg.src;video.load();
+  if(video.readyState<1)await once(video,'loadedmetadata');
+  if(myGen!==generation)return false;
+  try{
+    if(Number.isFinite(video.duration)&&video.duration>.4)video.currentTime=Math.min(Math.max(0,cfg.offset||0),Math.max(0,video.duration-.2));
+  }catch(_){}
+  if(video.readyState<2)await once(video,'loadeddata');
+  if(myGen!==generation)return false;
+  let ok=true;
+  try{await video.play()}catch(_){ok=false}
+  if(myGen===generation)video.classList.add('on');
+  return ok;
+}
+function setMeta(pair){
+  $('#mediaName').childNodes[0].nodeValue=pair.label+' ';
+  $('#credit').textContent=pair.credit||'';
+  $('#credit').href=pair.href||C.fallback;
+}
+async function setPair(pair){
+  current=pair;generation++;const g=generation;setMeta(pair);
+  const ok=await Promise.all([applyEye('L',pair.L,g),applyEye('R',pair.R,g)]);
+  if(g!==generation)return;
+  needsWake=!ok.every(Boolean);document.body.classList.toggle('needs-wake',needsWake);
+}
+function next(){
+  index=(index+1)%MEDIA.length;
+  setPair(MEDIA[index]);
+}
+function setMode(next){
+  if(next!=='single'&&next!=='radial')return;
+  mode=next;document.body.classList.toggle('mode-single',mode==='single');document.body.classList.toggle('mode-radial',mode==='radial');
+  document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
+  $('#radialStage').setAttribute('aria-hidden',mode==='radial'?'false':'true');
+  const host=mode==='single'?$('#singleHost'):$('#radialCenter');
+  if(unit.parentNode!==host)host.appendChild(unit);
+  try{history.replaceState(null,'','?mode='+mode+'&eye='+encodeURIComponent(current.id))}catch(_){}
 }
 function wake(){
-  Promise.all([eyeL.play().catch(()=>null),eyeR.play().catch(()=>null)]).then(()=>{needsWake=false;document.body.classList.remove('needs-wake')});
+  const vids=[...unit.querySelectorAll('video')].filter(v=>v.classList.contains('on'));
+  Promise.all(vids.map(v=>v.play().catch(()=>null))).then(()=>{
+    needsWake=false;document.body.classList.remove('needs-wake');
+  });
 }
-document.addEventListener('pointerdown',wake,{passive:true});
-
-function setMode(next){
-  if(!modes.includes(next))return;mode=next;
-  document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
-  modeLabel.textContent=mode==='single'?'SINGLE MASK':mode==='radial'?'RADIAL MASKS':'SHRINE / WALL';
-}
+unit.addEventListener('click',e=>{e.preventDefault();next()});
+unit.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();next()}});
 document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
-$('#eyeButton').addEventListener('click',()=>loadLoop(loopIndex+1));
+document.addEventListener('pointerdown',wake,{passive:true});
 addEventListener('keydown',e=>{
   if(e.key==='1')setMode('single');
   if(e.key==='2')setMode('radial');
-  if(e.key==='3')setMode('shrine');
-  if(e.key===' '){e.preventDefault();loadLoop(loopIndex+1)}
+  if(e.key==='ArrowRight'||e.key===' '){e.preventDefault();next()}
 });
 
-function drawVideoCrop(v,x,y,w,h,mirror=false,filter='none'){
-  if(!videoReady||v.readyState<2)return false;
-  const vw=v.videoWidth||640,vh=v.videoHeight||360;
-  const target=w/h,source=vw/vh;let sx=0,sy=0,sw=vw,sh=vh;
-  if(source>target){sw=vh*target;sx=(vw-sw)/2}else{sh=vw/target;sy=(vh-sh)/2}
-  ctx.save();ctx.filter=filter;
-  if(mirror){ctx.translate(x+w,y);ctx.scale(-1,1);ctx.drawImage(v,sx,sy,sw,sh,0,0,w,h)}
-  else ctx.drawImage(v,sx,sy,sw,sh,x,y,w,h);
-  ctx.restore();return true;
+const custom=params.get('media');
+if(custom){
+  const pair={id:'custom',label:'CUSTOM LOOP',credit:'Contenido cargado por URL',href:'#',
+    L:eye(custom,{offset:+(params.get('offsetL')||0),scale:+(params.get('scale')||1.35),x:+(params.get('x')||50),y:+(params.get('y')||50)}),
+    R:eye(custom,{offset:+(params.get('offsetR')||1.2),scale:+(params.get('scale')||1.35),x:+(params.get('x')||50),y:+(params.get('y')||50),mirror:true})};
+  setPair(pair);
+}else{
+  const wanted=params.get('eye');
+  const at=MEDIA.findIndex(x=>x.id===wanted);
+  if(at>=0)index=at;
+  setPair(MEDIA[index]);
 }
+setMode(params.get('mode')==='radial'?'radial':'single');
 
-function drawEye(v,cx,cy,r,mirror,filter,phase){
-  ctx.save();ctx.beginPath();ctx.ellipse(cx,cy,r*1.03,r*.94,0,0,Math.PI*2);ctx.clip();
-  ctx.fillStyle='#080403';ctx.fillRect(cx-r,cy-r,cx+r,cy+r);
-  const wobble=Math.sin(phase)*r*.05;
-  drawVideoCrop(v,cx-r*1.34+wobble,cy-r*1.18,r*2.68,r*2.36,mirror,filter);
-  ctx.restore();
-}
-
-function drawMaskInstance(cx,cy,h,rot=0,alpha=1,invert=false,phase=0){
-  if(!maskReady)return;
-  const w=h*MASK_RATIO,x=-w/2,y=-h/2,L=LOOPS[loopIndex];
-  ctx.save();ctx.translate(cx,cy);ctx.rotate(rot);ctx.globalAlpha=alpha;
-  const r=w*.095;
-  drawEye(eyeL,x+w*.315,y+h*.495,r,false,L.filter,phase);
-  drawEye(eyeR,x+w*.685,y+h*.49,r,true,L.filter,phase+1.8);
-  ctx.save();ctx.shadowColor=invert?'rgba(246,230,205,.20)':'rgba(0,0,0,.28)';ctx.shadowBlur=Math.max(3,h*.025);ctx.filter=invert?'invert(1) grayscale(1) contrast(1.2)':'contrast(1.05)';ctx.drawImage(mask,x,y,w,h);ctx.restore();
-  ctx.restore();
-}
-
-function background(fill){ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle=fill;ctx.fillRect(0,0,cssW,cssH);ctx.restore()}
-function single(t){
-  background('#b7ad9b');
-  const breath=1+Math.sin(t*.00125)*.018;
-  const h=Math.min(cssH*.88,cssW*.56)*breath;
-  ctx.save();ctx.globalAlpha=.1;ctx.filter='blur(8px) invert(1)';drawMaskInstance(cssW*.5,cssH*.52,h*1.09,0,.12,true,t*.002);ctx.restore();
-  drawMaskInstance(cssW*.5,cssH*.5,h,Math.sin(t*.0005)*.012,1,false,t*.0022);
-}
-function radial(t){
-  background('#120a08');
-  const count=12,R=Math.min(cssW,cssH)*.315,base=Math.min(cssW,cssH)*.34;
-  for(let i=0;i<count;i++){
-    const a=(i/count)*Math.PI*2+t*.00006;
-    const pulse=1+Math.sin(t*.0015+i*.72)*.035;
-    const x=cssW*.5+Math.cos(a)*R,y=cssH*.5+Math.sin(a)*R;
-    drawMaskInstance(x,y,base*pulse,a+Math.PI/2,.82,true,t*.002+i);
-  }
-  drawMaskInstance(cssW*.5,cssH*.5,Math.min(cssW,cssH)*.53,Math.sin(t*.0004)*.008,1,false,t*.0025);
-}
-function shrine(t){
-  background('#9d9484');
-  const cols=7,rows=3,cellW=cssW/(cols+1),cellH=cssH/(rows+1),h=Math.min(cellH*1.65,cellW*1.55/MASK_RATIO);
-  for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
-    const cx=cellW*(col+1),cy=cellH*(row+1);
-    const center=Math.abs(col-(cols-1)/2)+Math.abs(row-(rows-1)/2)*1.25;
-    const scale=center<.6?1.35:center<1.8?1.03:.83;
-    const sway=Math.sin(t*.0007+col*.8+row*.4)*.018;
-    drawMaskInstance(cx,cy,h*scale,sway,.46+Math.max(0,.42-center*.05),(col+row)%2===1,t*.0018+col+row);
-  }
-  ctx.save();ctx.fillStyle='rgba(25,15,10,.22)';ctx.fillRect(0,0,cssW,cssH*.08);ctx.fillRect(0,cssH*.92,cssW,cssH*.08);ctx.restore();
-}
-function frame(t){
-  if(!last)last=t;
-  if(mode==='single')single(t);else if(mode==='radial')radial(t);else shrine(t);
-  last=t;raf=requestAnimationFrame(frame);
-}
-requestAnimationFrame(frame);
-loadLoop(0);
+Promise.all([
+  unit.querySelector('.mask-art').decode?.().catch(()=>null),
+  ...[...unit.querySelectorAll('.fallback')].map(i=>i.decode?.().catch(()=>null))
+]).finally(()=>document.body.classList.add('ready'));
+setTimeout(()=>document.body.classList.add('ready'),1500);
 
 document.addEventListener('visibilitychange',()=>{
-  if(document.hidden){try{eyeL.pause();eyeR.pause()}catch(_){}}
+  const vids=[...unit.querySelectorAll('video')];
+  if(document.hidden)vids.forEach(v=>{try{v.pause()}catch(_){}});
   else wake();
 });
+
+window.maskEyeLab={
+  version:2,
+  media:MEDIA,
+  next,
+  setMode,
+  setMedia(input){
+    if(typeof input==='string'){
+      return setPair({id:'external',label:'EXTERNAL LOOP',credit:'Contenido externo',href:'#',
+        L:eye(input,{scale:1.35}),R:eye(input,{scale:1.35,mirror:true,offset:1.2})});
+    }
+    if(input&&input.L&&input.R)return setPair(input);
+  },
+  state:()=>({mode,media:current.id,needsWake})
+};
 })();
 </script>
 </body>
