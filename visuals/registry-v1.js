@@ -5,15 +5,15 @@ window.PROMETEO_VISUALS_REGISTRY_V1={
     {
       id:'work-current',label:'Trabajo actual',open:true,
       items:[
-        {id:'workbench',label:'📌 Trabajo actual',description:'Nuevos, en trabajo y listos para revisar.',src:'./workbench/'},
-        {id:'prompt-launcher',label:'📋 Copiar prompts',description:'Copiar los 4 prompts nuevos desde un solo lugar.',src:'./prompts/'}
+        {id:'workbench',label:'📌 Trabajo actual',short:'Actual',emoji:'📌',quick:true,description:'Nuevos, en trabajo y listos para revisar.',src:'./workbench/'},
+        {id:'prompt-launcher',label:'📋 Copiar prompts',short:'Prompts',emoji:'📋',quick:true,description:'Copiar prompts nuevos desde un solo lugar.',src:'./prompts/'}
       ]
     },
     {
       id:'coliseo-current',label:'Coliseo · actual',open:true,
       items:[
         {id:'live',label:'Live Workers',description:'Estado público real de workers.',src:'../demos/coliseo-live-workers-v1/'},
-        {id:'production',label:'Producción causal',description:'Worker → output → dependencia → READY.',src:'../demos/coliseo-production-demo/'},
+        {id:'production',label:'Producción causal',short:'Coliseo',emoji:'🏟️',quick:true,description:'Worker → output → dependencia → READY.',src:'../demos/coliseo-production-demo/'},
         {id:'multi',label:'3 proyectos · gauges',description:'Varios proyectos con cilindros altos.',src:'../demos/coliseo-vertical-projects-demo/'},
         {id:'components',label:'Component Lab',description:'Renderer, mapas y componentes históricos.',src:'../demos/coliseo-3d-component-lab/',hideSelectors:['.picker','.fxDrawer']}
       ]
@@ -21,9 +21,9 @@ window.PROMETEO_VISUALS_REGISTRY_V1={
     {
       id:'visual-experiments',label:'Experimentos visuales',open:true,
       items:[
-        {id:'trail-lab',label:'🐉 Motion Trail',description:'Imagen repetida, rebote y redraw/ghosting duro.',src:'./trail-lab/'},
-        {id:'spaces-lab',label:'🌀 Pseudo-3D Spaces',description:'Pasillos, túneles y cámaras image-first.',src:'./spaces-lab/'},
-        {id:'player-lab',label:'🖐️ Retro Player',description:'Escena first-person con sprites e interacción persistente.',src:'./player-lab/'}
+        {id:'trail-lab',label:'🐉 Motion Trail',short:'Trail',emoji:'🐉',quick:true,description:'Imagen repetida, rebote y redraw/ghosting duro.',src:'./trail-lab/'},
+        {id:'spaces-lab',label:'🌀 Pseudo-3D Spaces',short:'Spaces',emoji:'🌀',quick:true,description:'Pasillos, túneles y cámaras image-first.',src:'./spaces-lab/'},
+        {id:'player-lab',label:'🖐️ Retro Player',short:'Player',emoji:'🖐️',quick:true,description:'Escena first-person con sprites e interacción persistente.',src:'./player-lab/'}
       ]
     },
     {
