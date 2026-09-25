@@ -408,7 +408,7 @@ const LAB_FAST=LAB_PARAMS.get('fast')==='1';
 const LAB_BASELINE='8ef25c0a34cc9cd68fa9b35152dec9289d5cb3d8';
 let LAB_SELECTED=-1;
 let LAB_TAP_START=null;
-const LAB_BUILD='LIVE-WORKERS-V12-CAUSAL-PRODUCTION-DEMO-20260925';
+const LAB_BUILD='LIVE-WORKERS-V13-CYLINDER-BUFFER-DEMO-20260925';
 const labBadge=document.getElementById('labBadge');
 const wrap=document.getElementById('wrap');
 const mapStage=document.getElementById('mapStage');
@@ -3652,15 +3652,147 @@ function livePaintProductionArtifacts(layout,now){
       const from=byNode.get(dk);if(!from)continue;
       const progress=liveProductionEdgeProgress(from.node,n,snap,now);
       if(progress<=0||progress>=1)continue;
-      // Output starts exactly at the producing station and travels only after that job succeeded.
-      const x=from.x+(to.x-from.x)*progress,z=from.z+(to.z-from.z)*progress;
-      const p=wp(x,z,.16),r=Math.max(2.7,scale*.15);
+      // Exactly one output token exists on this edge during this completion handoff.
+      const eased=progress<.5?2*progress*progress:1-Math.pow(-2*progress+2,2)/2;
+      const x=from.x+(to.x-from.x)*eased,z=from.z+(to.z-from.z)*eased;
+      const p=wp(x,z,.16),r=Math.max(2.7,scale*.15)*(progress>.88?(1-(progress-.88)/.12*.28):1);
       ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.PI/4);
       ctx.globalAlpha=.94;ctx.fillStyle=i%2?'#d1a16a':'#8cb0a0';
       ctx.fillRect(-r,-r,r*2,r*2);
       ctx.strokeStyle='#130d09';ctx.lineWidth=Math.max(.8,scale*.03);ctx.strokeRect(-r,-r,r*2,r*2);
-      ctx.restore();i++;
+      ctx.restore();
+      if(progress>.86){
+        // As the token enters its destination, the cylinder's next segment visibly wakes up.
+        const sink=wp(to.x+.18,to.z+.76,.34);
+        ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=(progress-.86)/.14*.22;
+        ctx.fillStyle='#d7a66f';ctx.beginPath();ctx.arc(sink.x,sink.y,Math.max(4,scale*.26),0,TAU);ctx.fill();ctx.restore();
+      }
+      i++;
     }
+  }
+}
+function liveCylinderWorldRing(x,z,h,r,n=28){
+  const pts=[];
+  for(let i=0;i<n;i++){
+    const a=(i/n)*TAU;
+    pts.push({x:x+Math.cos(a)*r,z:z+Math.sin(a)*r,h});
+  }
+  return pts;
+}
+function livePaintCylinderRing(x,z,h,r,color,alpha,width,seed){
+  const pts=liveCylinderWorldRing(x,z,h,r,30).map(p=>wp(p.x,p.z,p.h));
+  ctx.save();ctx.globalAlpha=alpha;roughStroke(ctx,pts,color,width,seed,true);ctx.restore();
+}
+function liveProductionCylinderRatio(node,byNode,snap,now){
+  const deps=Array.isArray(node.depends_on)?node.depends_on:[];
+  if(!deps.length){
+    if(node.state==='SUCCESS')return 1;
+    if(node.state==='ACTIVE'){
+      const started=Date.parse(snap.demo_phase_started_at||snap.generated_at||'');
+      const elapsed=Number.isFinite(started)?Math.max(0,now-started):0;
+      const phaseMs=Math.max(1000,Number(snap.demo_phase_duration_ms||9000));
+      return clamp(elapsed/(phaseMs*.56),0,1);
+    }
+    return 0;
+  }
+  let sum=0;
+  for(const dk of deps){
+    const from=byNode.get(dk);
+    if(!from)continue;
+    const p=liveProductionEdgeProgress(from.node,node,snap,now);
+    // Each input fills its own fraction only while entering the receiving buffer.
+    sum+=clamp((p-.72)/.28,0,1);
+  }
+  return clamp(sum/Math.max(1,deps.length),0,1);
+}
+function liveProductionCylinderState(node,ratio){
+  if(node.state==='SUCCESS')return 'COMPLETE';
+  if(node.state==='ACTIVE')return 'WORKING';
+  if(ratio>=.999)return 'READY';
+  if(node.state==='BLOCKED')return 'FILLING';
+  return node.state||'WAITING';
+}
+function liveDrawTransparentProgressCylinder(node,pos,ratio,inputStatus,seed){
+  const kind=node.node_kind||'ROOT';
+  const radius=kind==='ROOT'?.24:kind==='REDUCER'?.30:kind==='SYNTHESIS'?.34:kind==='VERIFY'?.31:.33;
+  const height=kind==='ROOT'?.92:kind==='REDUCER'?1.16:kind==='SYNTHESIS'?1.42:kind==='VERIFY'?1.24:1.30;
+  const side=kind==='ROOT'?.72:kind==='REDUCER'?.82:kind==='SYNTHESIS'?.96:kind==='VERIFY'?.82:.88;
+  // Put the gauge just behind/right of the workstation, like an attached transparent tank.
+  const x=pos.x+.18,z=pos.z+side,baseH=.10;
+  const topH=baseH+height;
+  const fillH=baseH+height*clamp(ratio,0,1);
+  const ready=ratio>=.999;
+  const state=liveProductionCylinderState(node,ratio);
+  const glass=ready?'#8cb0a0':'#7c9c96';
+  const liquid=ready?'#5f8e79':'#b47746';
+
+  // Very light translucent shell, built from narrow side strips so it still feels cylindrical in perspective.
+  const seg=20;
+  for(let i=0;i<seg;i++){
+    const a0=i/seg*TAU,a1=(i+1)/seg*TAU;
+    const quad=[
+      {x:x+Math.cos(a0)*radius,z:z+Math.sin(a0)*radius,h:baseH},
+      {x:x+Math.cos(a1)*radius,z:z+Math.sin(a1)*radius,h:baseH},
+      {x:x+Math.cos(a1)*radius,z:z+Math.sin(a1)*radius,h:topH},
+      {x:x+Math.cos(a0)*radius,z:z+Math.sin(a0)*radius,h:topH}
+    ];
+    const facing=.5+.5*Math.cos((a0+a1)*.5-yaw);
+    camaraWorldPoly(ctx,quad,glass,.018+.026*facing,null,0,seed+i);
+  }
+
+  // Liquid/content level. It is also translucent so the percentage marks remain visible.
+  if(ratio>.003){
+    for(let i=0;i<seg;i++){
+      const a0=i/seg*TAU,a1=(i+1)/seg*TAU;
+      const quad=[
+        {x:x+Math.cos(a0)*radius*.88,z:z+Math.sin(a0)*radius*.88,h:baseH+.015},
+        {x:x+Math.cos(a1)*radius*.88,z:z+Math.sin(a1)*radius*.88,h:baseH+.015},
+        {x:x+Math.cos(a1)*radius*.88,z:z+Math.sin(a1)*radius*.88,h:fillH},
+        {x:x+Math.cos(a0)*radius*.88,z:z+Math.sin(a0)*radius*.88,h:fillH}
+      ];
+      const facing=.5+.5*Math.cos((a0+a1)*.5-yaw);
+      camaraWorldPoly(ctx,quad,liquid,.09+.08*facing,null,0,seed+70+i);
+    }
+    camaraWorldPoly(ctx,liveCylinderWorldRing(x,z,fillH,radius*.88,30),liquid,ready?.42:.30,'rgba(8,6,5,.72)',Math.max(.45,scale*.024),seed+130);
+  }
+
+  // Glass silhouette.
+  livePaintCylinderRing(x,z,baseH,radius,glass,.52,Math.max(.55,scale*.030),seed+150);
+  livePaintCylinderRing(x,z,topH,radius,glass,ready?.92:.68,Math.max(.65,scale*.034),seed+180);
+  const sideAngles=[0,Math.PI/2,Math.PI,Math.PI*1.5];
+  for(let i=0;i<sideAngles.length;i++){
+    const a=sideAngles[i],p0=wp(x+Math.cos(a)*radius,z+Math.sin(a)*radius,baseH),p1=wp(x+Math.cos(a)*radius,z+Math.sin(a)*radius,topH);
+    ctx.save();ctx.globalAlpha=i%2?.24:.36;roughStroke(ctx,[p0,p1],glass,Math.max(.5,scale*.025),seed+200+i,false);ctx.restore();
+  }
+
+  // Percentage rings: 25 / 50 / 75 / 100.
+  for(let i=1;i<=4;i++){
+    const q=i/4,hh=baseH+height*q;
+    livePaintCylinderRing(x,z,hh,radius*1.02,glass,i===4?.56:.30,Math.max(.45,scale*.021),seed+220+i);
+  }
+
+  // Tiny gauge readout. Dependencies show inputs; roots show percentage.
+  const labelP=wp(x,z,topH+.18);
+  const deps=Array.isArray(node.depends_on)?node.depends_on:[];
+  const mainText=deps.length
+    ? (inputStatus.received+'/'+inputStatus.required+' INPUTS')
+    : Math.round(ratio*100)+'%';
+  const subText=state;
+  const fs=clamp(scale*.16,5.8,8.3),fs2=clamp(scale*.135,5.1,7);
+  ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.font='900 '+fs+'px ui-monospace,monospace';
+  const tw=Math.max(ctx.measureText(mainText).width,ctx.measureText(subText).width)+Math.max(8,scale*.34);
+  const th=fs+fs2+Math.max(6,scale*.20);
+  ctx.globalAlpha=.84;ctx.fillStyle='rgba(5,5,4,.80)';ctx.fillRect(labelP.x-tw/2,labelP.y-th/2,tw,th);
+  ctx.globalAlpha=.98;ctx.fillStyle=ready?'#9bc1aa':'#d2ad7a';ctx.fillText(mainText,labelP.x,labelP.y-fs2*.36);
+  ctx.font='850 '+fs2+'px ui-monospace,monospace';ctx.fillStyle=state==='COMPLETE'?'#8cb0a0':state==='WORKING'?'#d1a16a':'#9c8f7d';
+  ctx.fillText(subText,labelP.x,labelP.y+fs*.45);
+  ctx.restore();
+
+  if(ready){
+    const glow=wp(x,z,topH*.72);
+    ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=.08+.04*Math.sin(performance.now()/280+seed);
+    ctx.fillStyle='#87b49a';ctx.beginPath();ctx.arc(glow.x,glow.y,Math.max(5,scale*.38),0,TAU);ctx.fill();ctx.restore();
   }
 }
 function livePaintProductionInputs(layout,now){
@@ -3670,19 +3802,9 @@ function livePaintProductionInputs(layout,now){
   for(const pos of layout.nodePos.values())byNode.set(pos.node.node_key,pos);
   for(const pos of layout.nodePos.values()){
     const n=pos.node;
-    const deps=Array.isArray(n.depends_on)?n.depends_on:[];
-    if(!deps.length)continue;
-    const {received,required}=liveProductionInputStatus(n,byNode,snap,now);
-    const p=wp(pos.x,pos.z,.72);
-    const state=n.state==='ACTIVE'?'WORKING':n.state==='READY'?'READY':n.state==='SUCCESS'?'DONE':'WAITING';
-    const txt='INPUTS '+received+'/'+required+' · '+state;
-    const fs=clamp(scale*.16,5.5,8);
-    ctx.save();ctx.font='900 '+fs+'px ui-monospace,monospace';ctx.textAlign='center';ctx.textBaseline='middle';
-    const w=ctx.measureText(txt).width+Math.max(8,scale*.36),h=fs+Math.max(5,scale*.20);
-    ctx.globalAlpha=.84;ctx.fillStyle='rgba(5,5,4,.84)';ctx.fillRect(p.x-w/2,p.y-h/2,w,h);
-    ctx.globalAlpha=.96;
-    ctx.fillStyle=received===required?'#8cb0a0':n.state==='BLOCKED'?'#a65b4c':'#d1a16a';
-    ctx.fillText(txt,p.x,p.y);ctx.restore();
+    const status=liveProductionInputStatus(n,byNode,snap,now);
+    const ratio=liveProductionCylinderRatio(n,byNode,snap,now);
+    liveDrawTransparentProgressCylinder(n,pos,ratio,status,79000+(liveStringHash(n.node_key)%700));
   }
 }
 function liveBuildNodeGeometry(layout){
@@ -5102,22 +5224,22 @@ function productionDemoSnapshot(){
     }
     if(n.node_kind==='REDUCER'){
       if(phase<1)return 'BLOCKED';
-      if(phase===1)return phaseProgress<.62?'BLOCKED':'ACTIVE';
+      if(phase===1)return phaseProgress<.56?'BLOCKED':(phaseProgress<.68?'READY':'ACTIVE');
       return 'SUCCESS';
     }
     if(n.node_kind==='SYNTHESIS'){
       if(phase<2)return 'BLOCKED';
-      if(phase===2)return phaseProgress<.62?'BLOCKED':'ACTIVE';
+      if(phase===2)return phaseProgress<.56?'BLOCKED':(phaseProgress<.68?'READY':'ACTIVE');
       return 'SUCCESS';
     }
     if(n.node_kind==='VERIFY'){
       if(phase<3)return 'BLOCKED';
-      if(phase===3)return phaseProgress<.62?'BLOCKED':'ACTIVE';
+      if(phase===3)return phaseProgress<.56?'BLOCKED':(phaseProgress<.68?'READY':'ACTIVE');
       return 'SUCCESS';
     }
     if(n.node_kind==='PROMOTION'){
       if(phase<4)return 'BLOCKED';
-      if(phase===4)return phaseProgress<.62?'BLOCKED':'ACTIVE';
+      if(phase===4)return phaseProgress<.56?'BLOCKED':(phaseProgress<.68?'READY':'ACTIVE');
       return 'SUCCESS';
     }
     return 'BLOCKED';
