@@ -5,7 +5,8 @@ window.PROMETEO_VISUALS_REGISTRY_V1={
     {
       id:'work-current',label:'Trabajo actual',open:true,
       items:[
-        {id:'workbench',label:'📌 Trabajo actual',description:'Nuevos, en trabajo y listos para revisar.',src:'./workbench/'}
+        {id:'workbench',label:'📌 Trabajo actual',description:'Nuevos, en trabajo y listos para revisar.',src:'./workbench/'},
+        {id:'prompt-launcher',label:'📋 Copiar prompts',description:'Copiar los 4 prompts nuevos desde un solo lugar.',src:'./prompts/'}
       ]
     },
     {
