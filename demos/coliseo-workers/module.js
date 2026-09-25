@@ -57,7 +57,7 @@ function transformForDirection(c,d){
 function bobFor(p){
   if(p.state==='WALK')return Math.sin(p.phase*TAU*2)*.65;
   if(p.state==='THINK')return Math.sin(p.phase*TAU)*.35;
-  if(p.state==='RECOVERING')return Math.sin(p.phase*TAU*1.5)*.4;
+  if(p.liveness==='RECOVERING')return Math.sin(p.phase*TAU*1.5)*.4;
   return 0;
 }
 function activityGesture(p){
@@ -86,9 +86,14 @@ const PIXEL_FRAMES={
       '....kkkk....','...kllllk...','..kllllllk..','..klkllklk..','..kllllllk..','...kllllk...','....kkkk....','...kbbbbk...','..kbbbbbbk..','..kbabbabk..','..kbbbbbbk..','...kbBBbk...','..kB....Bk..','...kB..Bk...','....kBBk....','............'
     ]
   ],
-  up:[[
+  up:[
+    [
       '....kkkk....','...kbbbbk...','..kbbbbbbk..','..kbbbbbbk..','..kbbbbbbk..','...kbbbbk...','....kkkk....','...kbbbbk...','..kbbbbbbk..','..kbaaaabk..','..kbbbbbbk..','...kbBBbk...','...kB..Bk...','..kB....Bk..','.kB......Bk.','............'
-  ]],
+    ],
+    [
+      '....kkkk....','...kbbbbk...','..kbbbbbbk..','..kbbbbbbk..','..kbbbbbbk..','...kbbbbk...','....kkkk....','...kbbbbk...','..kbbbbbbk..','..kbaaaabk..','..kbbbbbbk..','...kbBBbk...','..kB....Bk..','...kB..Bk...','....kBBk....','............'
+    ]
+  ],
   side:[
     ['.....kk.....','....kllk....','...kllllk...','...kllklk...','...kllllk...','....kkkk....','...kbbbk....','..kbbbbbk...','..kbabbk....','..kbbbbbk...','...kbBBk....','...kB.Bk....','..kB..Bk....','..kB...Bk...','.kB.....Bk..','............'],
     ['.....kk.....','....kllk....','...kllllk...','...kllklk...','...kllllk...','....kkkk....','...kbbbk....','..kbbbbbk...','..kbabbk....','..kbbbbbk...','...kbBBk....','..kB...Bk...','...kB.Bk....','....kBBk....','...kB..Bk...','............']
