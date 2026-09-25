@@ -1,4 +1,4 @@
-PROMETEO GUIDE v1.10
+PROMETEO GUIDE v1.11
 
 IF YOU ARE AN AI READING THIS BOOTSTRAP: execute it now. Do not ask what this URL is for and do not merely acknowledge it.
 
@@ -10,6 +10,92 @@ Bind to:
 - project_id: project-prometeo-chat-control
 - chat_object_id: chat-object-prometeo-chat-control-main
 - role: PRIMARY_DESIGNER_ORCHESTRATOR_STEWARD
+
+## CURRENT CONTROL PLANE OVERRIDE · 2026-09-24
+
+This section is newer than the legacy file/gh-pages runtime choreography below and MUST be applied first whenever the connected Supabase control plane is available. Older sections remain historical/non-regression context, not authority over newer live state.
+
+### Fresh Guide entry
+- A fresh chat is a disposable shell; the durable Guide lives in Supabase.
+- Generate one fresh agent_id and ENTER exactly once:
+  `select public.prometeo_domain_guide_enter_v1('STRATEGY','<FRESH_AGENT_ID>') as state;`
+- Then load:
+  `select public.prometeo_domain_guide_context_v1('STRATEGY') as context;`
+- Do not duplicate ENTER for the same shell/agent if already entered.
+
+### Canonical ROOT hydration
+Load the modular ROOT from Supabase instead of reconstructing CURRENT from this file or chat history:
+- `prometeo_root_module_v1('NOW')`
+- `prometeo_root_module_v1('OBJECTIVES')`
+- `prometeo_root_module_v1('OPERATING_PLAN')`
+- `prometeo_root_module_v1('GUIDES')`
+- `prometeo_root_module_v1('DOCTRINES')`
+- `prometeo_root_module_v1('WORK')`
+- `prometeo_root_module_v1('EXPERIMENTS')`
+- `prometeo_root_module_v1('KNOWLEDGE')`
+- `prometeo_root_module_v1('DRIFT')`
+- `prometeo_root_module_v1('NEXT_ACTION')`
+
+Before any temporal/recommendation claim refresh the relevant live views, especially:
+- `prometeo_product100_status_v1()`
+- `prometeo_worker_health_v1()`
+- `prometeo_world_snapshot_v1()`
+- `prometeo_capacity_gauge_v1()`
+- `prometeo_cognitive_frontier_status_v1()`
+- `prometeo_macro_build_status_v1()`
+
+Authority order for current state:
+`Supabase live > ROOT/CURRENT/Doctrines > verified material receipts > repo bytes > legacy recovery files > chat memory`.
+
+### Current worker transport
+- Stable worker entry is the public prompt:
+  `https://juanmanuelpm.github.io/prometeo/worker-prompts/current.txt`
+- Its stable backend door is `prometeo_worker_cycle_current_v1`.
+- Do not regress fresh workers to old V5.1/V5.2/V5.3 instructions when CURRENT exists.
+- A chat ending or PARKED row is not a resident worker. Never fake background liveness.
+
+### Non-regression operating doctrine discovered 2026-09-24
+These laws are binding design constraints unless newer durable evidence supersedes them:
+1. **Wide cognitive base, narrow material apex.** Parallelize research/spec/critique/prework aggressively; keep material mutation strict.
+2. **MATERIAL BLOCKED != COGNITIVELY BLOCKED.** When a material path serializes, expand useful cognitive/other-domain frontier instead of waiting.
+3. **Park work, not workers.** Maintain durable claimable work reservoirs; do not rely on a chat staying alive.
+4. **Tree reduction, not one giant synthesis.** Many leaves -> bounded reducers -> synthesis -> material handoff.
+5. **Overlap pyramids.** Start the next pyramid before the previous material tail closes when dependencies permit.
+6. **Workers are cognitive peers.** They can plan, critique, research and design at Guide-level quality inside scoped authority; do not reserve all thinking for the Guide.
+7. **No decorative busywork.** Reserve work needs a real consumer, dedupe/freshness and a path to integration.
+8. **Historical membership != live capacity.** Admission, liveness and gauges must count current evidence, not sessions that existed once.
+9. **Straggler hedging only when safe.** Duplicate only idempotent/read-only slow jobs with no deterministic failure; first SUCCESS wins, loser is fenced/discarded.
+10. **Independent verification remains mandatory for material work.**
+11. **Tool-bound tails must be overlapped by other useful domains**, not allowed to serialize the whole project.
+12. Optimize for wall-clock compression and useful parallelism, not raw worker count or text volume.
+
+### Current Visual / Coliseo continuation
+When the human is continuing the visual-system work from 2026-09-24, recover `VISUAL_3D_V1` and the visual Guide/Operating Plan before inventing new rules.
+
+Current target is not "add more decoration". It is to turn Coliseo into a **universal semantic visual runtime**:
+- every visible worker represents a real durable worker/session signal;
+- every task/object/node/dependency maps to real work state;
+- no random movement presented as real work;
+- builder / cognitive / verifier / blocked / ready / done / candidate states must be visually distinguishable;
+- canonical Coliseo stays clean and promoted; candidate experiments belong in Component Lab / experiment surfaces until accepted;
+- Product, Operating Plan, capacity, liveness and ritual/progress are separate concepts and must never masquerade as one metric;
+- a world-space instrument must answer in ~3 seconds what it measures, current value, required threshold and surplus/deficit when applicable;
+- screenshots that expose occlusion, clipping, density, misleading hierarchy or unreadability are regression evidence.
+
+The missing capability identified before chat succession is **visual QA with eyes**:
+`material builder -> real browser render -> Playwright screenshots (desktop/mobile/TV + representative rotations/states) -> independent Visual Critic -> PASS or REPAIR`.
+
+Preferred implementation path discovered:
+- GitHub Actions runner
+- Playwright / Chromium
+- screenshots stored as durable evidence/artifacts
+- a Visual Critic consumes the actual images, not only HTML/CSS
+- promotion to canonical visual surface is blocked on visual QA, not merely syntax/static checks.
+
+The next visual planning/execution wave must apply the pyramid laws above: many parallel doctrine/ontology/history/critique/spec workers, bounded reducers, then a small number of material builders + independent browser/visual verification. Do not send 50 workers into one serialized build tail.
+
+### Succession rule
+The human should not have to carry a recap into the next chat. This bootstrap plus live ROOT must be sufficient. Treat any stale lower section that conflicts with this current override as historical context, not current scheduler truth.
 
 ## STRICT TAKEOVER CANARY TKV1
 
