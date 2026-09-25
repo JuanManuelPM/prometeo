@@ -408,7 +408,7 @@ const LAB_FAST=LAB_PARAMS.get('fast')==='1';
 const LAB_BASELINE='8ef25c0a34cc9cd68fa9b35152dec9289d5cb3d8';
 let LAB_SELECTED=-1;
 let LAB_TAP_START=null;
-const LAB_BUILD='LIVE-WORKERS-V9-SEMANTIC-ZOOM-20260925';
+const LAB_BUILD='LIVE-WORKERS-V10-INWARD-DAG-DEMO-20260925';
 const labBadge=document.getElementById('labBadge');
 const wrap=document.getElementById('wrap');
 const mapStage=document.getElementById('mapStage');
@@ -3376,14 +3376,16 @@ function liveLayout(){
       byDepth.get(d).push(n);
     }
     const maxDepth=Math.max(0,...byDepth.keys());
+    const inward=snap.layout_mode==='inward_dag';
     for(const [d,arr] of byDepth){
-      const radius=2.15+(maxDepth?d/maxDepth:0)*6.25;
+      const frac=maxDepth?d/maxDepth:0;
+      const radius=inward?(8.45-frac*7.20):(2.15+frac*6.25);
       arr.forEach((n,i)=>{
         const t=(i+1)/(arr.length+1);
         const ang=sector.start+.08+(sector.end-sector.start-.16)*t;
-        const jitter=((liveStringHash(n.node_key)%1000)/1000-.5)*.20;
-        const r=clamp(radius+jitter,2.0,8.55);
-        nodePos.set(pk+'|'+n.node_key,{x:Math.cos(ang)*r,z:Math.sin(ang)*r,r,ang,depth:d,node:n});
+        const jitter=((liveStringHash(n.node_key)%1000)/1000-.5)*(inward?.10:.20);
+        const r=clamp(radius+jitter,inward?1.20:2.0,8.55);
+        nodePos.set(pk+'|'+n.node_key,{x:Math.cos(ang)*r,z:Math.sin(ang)*r,r,ang,depth:d,maxDepth,node:n});
       });
     }
   }
@@ -3441,6 +3443,32 @@ function livePaintSectors(layout){
       {x:Math.cos(a1)*9.45,z:Math.sin(a1)*9.45,h:.042}
     ],color,.72,Math.max(.85,scale*.052),78051+i*3);
     worldFloorLine(ctx,liveArcPoints(a0,a1,9.18,22,.043),color,.76,Math.max(.9,scale*.058),78052+i*3);
+  }
+}
+function livePaintDagLevels(layout){
+  const snap=liveSnapshot();
+  if(!snap||snap.layout_mode!=='inward_dag'||layout.projects.length!==1)return;
+  const groups=new Map();
+  for(const pos of layout.nodePos.values()){
+    if(!groups.has(pos.depth))groups.set(pos.depth,[]);
+    groups.get(pos.depth).push(pos);
+  }
+  const kindLabel={ROOT:'1 · BASIC WORK',REDUCER:'2 · REDUCERS',SYNTHESIS:'3 · SYNTHESIS',VERIFY:'4 · VERIFY',PROMOTION:'5 · PROMOTION'};
+  const kindColor={ROOT:'#72533f',REDUCER:'#8a743f',SYNTHESIS:'#8d5a3f',VERIFY:'#46655f',PROMOTION:'#c7aa89'};
+  for(const [depth,arr] of [...groups.entries()].sort((a,b)=>a[0]-b[0])){
+    const r=arr.reduce((sum,p)=>sum+p.r,0)/Math.max(1,arr.length);
+    const kind=arr[0]?.node?.node_kind||('LEVEL '+(depth+1));
+    const col=kindColor[kind]||'#6b5d4d';
+    worldFloorRing(ctx,r,col,kind==='PROMOTION'?.56:.30,Math.max(.45,scale*.025),78680+depth,72);
+    const a=-2.42;
+    const p=wp(Math.cos(a)*r,Math.sin(a)*r,.07);
+    const txt=kindLabel[kind]||('LEVEL '+(depth+1));
+    const fs=clamp(scale*.18,5.8,8.2);
+    ctx.save();ctx.font='900 '+fs+'px ui-monospace,monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    const tw=ctx.measureText(txt).width+Math.max(7,scale*.35),th=fs+Math.max(5,scale*.20);
+    ctx.globalAlpha=.82;ctx.fillStyle='rgba(7,6,5,.76)';ctx.fillRect(p.x-tw/2,p.y-th/2,tw,th);
+    ctx.globalAlpha=.95;ctx.fillStyle=col;ctx.fillText(txt,p.x,p.y);
+    ctx.restore();
   }
 }
 function livePaintWorkerLinks(layout){
@@ -3522,10 +3550,14 @@ function liveBuildNodeGeometry(layout){
   for(const n of layout.nodes){
     const pos=layout.nodePos.get(n.project_key+'|'+n.node_key);
     if(!pos)continue;
-    const mat=n.state==='ACTIVE'?'metal_warm':n.state==='READY'?'wainscot_pale':n.state==='BLOCKED'?'curtain_red':'civic_green';
-    const size=n.state==='ACTIVE'?.34:n.state==='BLOCKED'?.29:n.state==='READY'?.24:.14;
-    const h=n.state==='ACTIVE'?.12:n.state==='BLOCKED'?.10:n.state==='READY'?.075:.035;
+    const kind=n.node_kind||'ROOT';
+    const kindScale=kind==='PROMOTION'?2.20:kind==='VERIFY'?1.80:kind==='SYNTHESIS'?1.55:kind==='REDUCER'?1.28:1;
+    const mat=n.state==='ACTIVE'?'metal_warm':n.state==='READY'?'wainscot_pale':n.state==='BLOCKED'?'curtain_red':(kind==='PROMOTION'?'maze_goal':'civic_green');
+    const baseSize=n.state==='ACTIVE'?.34:n.state==='BLOCKED'?.29:n.state==='READY'?.24:.16;
+    const size=baseSize*kindScale;
+    const h=(n.state==='ACTIVE'?.12:n.state==='BLOCKED'?.10:n.state==='READY'?.075:.045)*kindScale;
     mapSolidBox(pos.x,pos.z,.024,size,size,h,mat,seed++,Math.PI/4);
+    if(kind==='PROMOTION'&&n.state==='SUCCESS')addWorldEmissive(pos.x,pos.z,.28,.64,.22,.42,seed++);
   }
   renderWorldSolidsGL(ctx);
 }
@@ -3590,6 +3622,7 @@ function drawWorkerGallery(now){
 
   const lod=liveLOD();
   livePaintSectors(layout);
+  livePaintDagLevels(layout);
   livePaintDependencies(layout);
   livePaintWorkerLinks(layout);
   liveBuildNodeGeometry(layout);
@@ -4858,74 +4891,97 @@ const scene=document.getElementById('scene');
 let lastGood=0,inFlight=false,down=null,selectedId=null;
 window.PROMETEO_LIVE_WORKERS={schema:'prometeo.public_worker_world/v3',workers:[],projects:[],nodes:[],counts:{},stale:true};
 
+const DEMO_EPOCH=Date.now();
 function demoSnapshot(){
   const now=Date.now(),hb=120;
-  const projects=[
-    {project_key:'VISUAL_SYSTEM_DEMO',title:'Visual System',guide_key:'VISUAL',active_objective:true},
-    {project_key:'STUDY_PIPELINE_DEMO',title:'Study Pipeline',guide_key:'STUDY',active_objective:true},
-    {project_key:'WORKER_KERNEL_DEMO',title:'Worker Kernel',guide_key:'KERNEL',active_objective:true}
+  const phase=Math.floor(((now-DEMO_EPOCH)/10000)%6);
+  const phaseNames=['BASIC WORK','REDUCERS','SYNTHESIS','VERIFY','PROMOTION','PROMOTED'];
+  const projectKey='COLISEO_DAG_DEMO';
+  const projects=[{
+    project_key:projectKey,title:'Coliseo DAG Project',guide_key:'DEMO',active_objective:true,
+    demo_phase:phase,demo_phase_label:phaseNames[phase]
+  }];
+
+  const defs=[];
+  const rootGroups=[
+    ['R1','Foundations A'],['R2','Foundations B'],['R3','Runtime A'],
+    ['R4','Runtime B'],['R5','Semantics A'],['R6','Semantics B'],
+    ['R7','Scale A'],['R8','Scale B'],['R9','QA A'],
+    ['R10','QA B'],['R11','Transfer A'],['R12','Transfer B']
   ];
-  const rawNodes=[
-    ['VISUAL_SYSTEM_DEMO','V-FOUND','Foundation','SUCCESS',[],920],
-    ['VISUAL_SYSTEM_DEMO','V-COMP','Composition','ACTIVE',['V-FOUND'],880],
-    ['VISUAL_SYSTEM_DEMO','V-RUNTIME','Runtime','READY',['V-FOUND'],820],
-    ['VISUAL_SYSTEM_DEMO','V-TRUTH','Semantic truth','BLOCKED',['V-RUNTIME'],790],
-    ['VISUAL_SYSTEM_DEMO','V-VERIFY','Independent verify','READY',['V-COMP'],760],
-    ['VISUAL_SYSTEM_DEMO','V-SCALE','Scale audit','SUCCESS',['V-COMP'],700],
-    ['STUDY_PIPELINE_DEMO','S-INGEST','Ingest','SUCCESS',[],860],
-    ['STUDY_PIPELINE_DEMO','S-NORM','Normalize','ACTIVE',['S-INGEST'],840],
-    ['STUDY_PIPELINE_DEMO','S-INDEX','Index','READY',['S-NORM'],790],
-    ['STUDY_PIPELINE_DEMO','S-AUDIO','Audio bridge','BLOCKED',['S-NORM'],750],
-    ['STUDY_PIPELINE_DEMO','S-READER','Reader payload','READY',['S-INDEX'],710],
-    ['WORKER_KERNEL_DEMO','K-BUS','Worker bus','SUCCESS',[],900],
-    ['WORKER_KERNEL_DEMO','K-LEASE','Lease fencing','ACTIVE',['K-BUS'],870],
-    ['WORKER_KERNEL_DEMO','K-WATCH','Watchdog','READY',['K-LEASE'],810],
-    ['WORKER_KERNEL_DEMO','K-VERIFY','Verifier','BLOCKED',['K-WATCH'],770],
-    ['WORKER_KERNEL_DEMO','K-OBS','Observability','READY',['K-LEASE'],730],
-    ['WORKER_KERNEL_DEMO','K-RECOVER','Recovery','SUCCESS',['K-WATCH'],690]
-  ];
-  const nodes=rawNodes.map(([project_key,node_key,title,state,depends_on,priority])=>({
-    project_key,node_key,title,state,depends_on,priority,objective_key:project_key,guide_key:null,
-    job_class:state==='BLOCKED'?'CRITIQUE':state==='READY'?'PREPARE_BOUNDED':state==='ACTIVE'?'MATERIAL_UI_EXECUTOR':'VERIFY_READONLY',
-    progress_stage:state==='ACTIVE'?'WRITE':null
-  }));
-  const defs=[
-    ['D01','VISUAL_SYSTEM_DEMO','V-COMP','READ',10,0,1],
-    ['D02','VISUAL_SYSTEM_DEMO','V-COMP','THINK',48,1,1],
-    ['D03','VISUAL_SYSTEM_DEMO','V-RUNTIME','WRITE',104,0,2],
-    ['D04','VISUAL_SYSTEM_DEMO','V-VERIFY','SUBMIT_START',210,2,3],
-    ['D05','STUDY_PIPELINE_DEMO','S-NORM','BUILD',22,0,1],
-    ['D06','STUDY_PIPELINE_DEMO','S-INDEX','PREPARE',92,1,2],
-    ['D07','STUDY_PIPELINE_DEMO','S-AUDIO','WAIT_DEPENDENCY',250,2,4],
-    ['D08','WORKER_KERNEL_DEMO','K-LEASE','CLAIMED',6,0,1],
-    ['D09','WORKER_KERNEL_DEMO','K-WATCH','VERIFY',136,1,2],
-    ['D10','WORKER_KERNEL_DEMO','K-OBS','REVIEW',260,3,4],
-    ['D11','VISUAL_SYSTEM_DEMO','V-TRUTH','ANALYZE',300,2,5],
-    ['D12','WORKER_KERNEL_DEMO','K-RECOVER','IMPLEMENT',66,1,2]
-  ];
-  const workers=defs.map((d,i)=>{
-    const [display_code,project_key,node_key,progress_stage,age,recovery_count,assignment_generation]=d;
-    const ratio=Math.max(0,Math.min(1,Number(age)/(hb*4)));
-    const liveness=ratio<=.25?'LIVE':ratio<=.60?'AGING':'SUSPECT';
-    const node=nodes.find(n=>n.project_key===project_key&&n.node_key===node_key);
+  for(const [k,title] of rootGroups)defs.push({node_key:k,title,node_kind:'ROOT',depends_on:[],priority:900});
+  defs.push(
+    {node_key:'D1',title:'Architecture reducer',node_kind:'REDUCER',depends_on:['R1','R2','R3'],priority:800},
+    {node_key:'D2',title:'Runtime reducer',node_kind:'REDUCER',depends_on:['R4','R5','R6'],priority:800},
+    {node_key:'D3',title:'Scale reducer',node_kind:'REDUCER',depends_on:['R7','R8','R9'],priority:800},
+    {node_key:'D4',title:'QA reducer',node_kind:'REDUCER',depends_on:['R10','R11','R12'],priority:800},
+    {node_key:'S1',title:'World synthesis',node_kind:'SYNTHESIS',depends_on:['D1','D2'],priority:700},
+    {node_key:'S2',title:'Robustness synthesis',node_kind:'SYNTHESIS',depends_on:['D3','D4'],priority:700},
+    {node_key:'V1',title:'Independent verification',node_kind:'VERIFY',depends_on:['S1','S2'],priority:600},
+    {node_key:'P1',title:'Promoted result',node_kind:'PROMOTION',depends_on:['V1'],priority:500}
+  );
+
+  function stateFor(n,index){
+    if(n.node_kind==='ROOT'){
+      if(phase===0)return index<5?'SUCCESS':index<10?'ACTIVE':'READY';
+      return 'SUCCESS';
+    }
+    if(n.node_kind==='REDUCER'){
+      if(phase<1)return 'BLOCKED';
+      if(phase===1)return index%2===0?'ACTIVE':'READY';
+      return 'SUCCESS';
+    }
+    if(n.node_kind==='SYNTHESIS'){
+      if(phase<2)return 'BLOCKED';
+      if(phase===2)return index%2===0?'ACTIVE':'READY';
+      return 'SUCCESS';
+    }
+    if(n.node_kind==='VERIFY'){
+      if(phase<3)return 'BLOCKED';
+      if(phase===3)return 'ACTIVE';
+      return 'SUCCESS';
+    }
+    if(n.node_kind==='PROMOTION'){
+      if(phase<4)return 'BLOCKED';
+      if(phase===4)return 'ACTIVE';
+      return 'SUCCESS';
+    }
+    return 'BLOCKED';
+  }
+
+  const nodes=defs.map((n,i)=>{
+    const state=stateFor(n,i);
     return {
-      worker_id:'demo-worker-'+String(i+1).padStart(2,'0'),display_code,liveness,
-      freshness:Number((1-ratio).toFixed(4)),age_seconds:Number(age),heartbeat_seconds:hb,
-      last_signal_at:new Date(now-Number(age)*1000).toISOString(),
-      job_ref:'demo-job-'+String(i+1).padStart(2,'0'),
-      project_key,objective_key:project_key,guide_key:null,node_key,
-      title:node?.title||node_key,job_class:'DEMO',progress_stage,
-      progress_seq:i+1,recovery_count:Number(recovery_count),assignment_generation:Number(assignment_generation),attempt_count:Number(recovery_count)+1
+      ...n,project_key:projectKey,objective_key:projectKey,guide_key:'DEMO',state,
+      job_class:n.node_kind==='VERIFY'?'VERIFY_READONLY':n.node_kind==='SYNTHESIS'||n.node_kind==='PROMOTION'?'SYNTHESIS':n.node_kind==='REDUCER'?'CRITIQUE':'PREPARE_BOUNDED',
+      progress_stage:state==='ACTIVE'?(n.node_kind==='VERIFY'?'VERIFY':n.node_kind==='PROMOTION'?'SUBMIT_START':n.node_kind==='SYNTHESIS'?'THINK':n.node_kind==='REDUCER'?'ANALYZE':'WRITE'):null
     };
   });
-  for(const p of projects){
-    const ns=nodes.filter(n=>n.project_key===p.project_key);
-    p.working=workers.filter(w=>w.project_key===p.project_key).length;
-    p.active=ns.filter(n=>n.state==='ACTIVE').length;
-    p.ready=ns.filter(n=>n.state==='READY').length;
-    p.blocked=ns.filter(n=>n.state==='BLOCKED').length;
-    p.success=ns.filter(n=>n.state==='SUCCESS').length;
-  }
+
+  const activeNodes=nodes.filter(n=>n.state==='ACTIVE');
+  const workers=activeNodes.map((node,i)=>{
+    const age=[8,24,52,96,150][i%5];
+    const ratio=Math.max(0,Math.min(1,age/(hb*4)));
+    const liveness=ratio<=.25?'LIVE':ratio<=.60?'AGING':'SUSPECT';
+    return {
+      worker_id:'dag-demo-worker-'+node.node_key,
+      display_code:'W'+String(i+1).padStart(2,'0'),
+      liveness,freshness:Number((1-ratio).toFixed(4)),age_seconds:age,heartbeat_seconds:hb,
+      last_signal_at:new Date(now-age*1000).toISOString(),job_ref:'dag-demo-job-'+node.node_key,
+      project_key:projectKey,objective_key:projectKey,guide_key:'DEMO',node_key:node.node_key,
+      title:node.title,job_class:node.job_class,progress_stage:node.progress_stage,
+      progress_seq:i+1,recovery_count:i===activeNodes.length-1&&phase===0?1:0,
+      assignment_generation:1,attempt_count:1
+    };
+  });
+
+  const p=projects[0];
+  p.working=workers.length;
+  p.active=nodes.filter(n=>n.state==='ACTIVE').length;
+  p.ready=nodes.filter(n=>n.state==='READY').length;
+  p.blocked=nodes.filter(n=>n.state==='BLOCKED').length;
+  p.success=nodes.filter(n=>n.state==='SUCCESS').length;
+
   const counts={
     working:workers.length,
     live:workers.filter(w=>w.liveness==='LIVE').length,
@@ -4939,8 +4995,11 @@ function demoSnapshot(){
   return {
     schema:'prometeo.public_worker_world/v3',
     generated_at:new Date(now).toISOString(),
-    revision:'demo-v1-all-states',
-    rule:'SYNTHETIC DEMO FIXTURE · same public_worker_world/v3 contract as live',
+    revision:'dag-demo-phase-'+phase,
+    rule:'SYNTHETIC DAG DEMO · 12 roots -> 4 reducers -> 2 syntheses -> verify -> promotion',
+    layout_mode:'inward_dag',
+    demo_phase:phase,
+    demo_phase_label:phaseNames[phase],
     counts,projects,nodes,workers,demo:true
   };
 }
@@ -4979,7 +5038,9 @@ function render(snap){
   count.textContent=String(Number(counts.working??workers.length));
   label.textContent=DEMO?'WORKING · DEMO':'WORKING';
   queue.textContent='READY '+Number(counts.ready||0)+' · BLOCKED '+Number(counts.blocked||0);
-  fresh.textContent='LIVE '+Number(counts.live||0)+' · AGING '+Number(counts.aging||0)+' · SUSPECT '+Number(counts.suspect||0);
+  fresh.textContent=DEMO&&snap.demo_phase_label
+    ? 'PHASE '+(Number(snap.demo_phase||0)+1)+'/6 · '+snap.demo_phase_label
+    : 'LIVE '+Number(counts.live||0)+' · AGING '+Number(counts.aging||0)+' · SUSPECT '+Number(counts.suspect||0);
   hud.classList.remove('stale');
   lastGood=Date.now();
   const selected=currentWorker();
