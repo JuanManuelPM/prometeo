@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Prometeo · Task Runtime Lab</title>
+<style>
+:root{
+  --bg:#0b0c0d;--panel:#111315;--panel2:#171a1d;--line:#34393e;--muted:#90989f;--text:#f2f4f5;
+  --ready:#c7a45d;--active:#d36e48;--blocked:#81504a;--done:#78917f;--unknown:#687079;
+  --safe:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+button,input{font:inherit}
+button{color:inherit}
+body{min-height:100vh;overflow-x:hidden}
+.shell{min-height:100vh;display:grid;grid-template-rows:auto auto 1fr auto}
+.top{
+  position:sticky;top:0;z-index:10;background:#0b0c0df2;border-bottom:1px solid var(--line);
+  padding:12px clamp(12px,2vw,24px);backdrop-filter:blur(8px)
+}
+.titleline{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+h1{font-size:clamp(16px,2vw,24px);margin:0;letter-spacing:.02em}
+.sub{font-size:11px;color:var(--muted);margin-top:5px;max-width:75ch;line-height:1.45}
+.badge{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);padding:6px 8px;font-size:10px;white-space:nowrap;background:var(--panel)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--unknown)}
+.badge[data-fresh="FRESH"] .dot{background:var(--done)}
+.badge[data-fresh="STALE"] .dot{background:var(--ready)}
+.badge[data-fresh="ERROR"] .dot{background:var(--blocked)}
+.controls{
+  display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px clamp(12px,2vw,24px);
+  border-bottom:1px solid #24282c;background:#0d0f10
+}
+.group{display:flex;border:1px solid var(--line);background:var(--panel)}
+.group button,.modeBtn,.refreshBtn{
+  border:0;background:transparent;padding:8px 10px;min-height:36px;cursor:pointer
+}
+.group button+button{border-left:1px solid var(--line)}
+.group button[aria-pressed="true"],.modeBtn[aria-pressed="true"]{background:#252a2e}
+.modeBtn,.refreshBtn{border:1px solid var(--line);background:var(--panel)}
+.search{margin-left:auto;min-width:min(280px,100%);flex:0 1 320px;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:8px 10px;min-height:36px}
+.meta{font-size:10px;color:var(--muted)}
+.main{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,360px);min-height:0}
+.stage{padding:18px clamp(12px,2vw,24px);min-width:0}
+.truthbar{
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border:1px solid var(--line);margin-bottom:14px;background:var(--panel)
+}
+.metric{padding:10px;border-right:1px solid var(--line);min-width:0}
+.metric:last-child{border-right:0}
+.metric b{display:block;font-size:clamp(18px,3vw,30px);line-height:1}
+.metric span{display:block;font-size:9px;color:var(--muted);margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;align-items:stretch}
+.site{
+  position:relative;min-height:162px;border:1px solid var(--line);background:var(--panel);
+  padding:12px;text-align:left;cursor:pointer;overflow:hidden
+}
+.site:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.site:hover{border-color:#596169}
+.site[data-state="READY"]{--s:var(--ready)}
+.site[data-state="ACTIVE"]{--s:var(--active)}
+.site[data-state="BLOCKED"]{--s:var(--blocked)}
+.site[data-state="DONE"]{--s:var(--done)}
+.site[data-state="MIXED"],.site[data-state="UNKNOWN"]{--s:var(--unknown)}
+.statehead{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:10px}
+.state{font-size:10px;color:var(--s);font-weight:900;letter-spacing:.12em}
+.kind{font-size:9px;color:var(--muted);border:1px solid #34393e;padding:3px 5px}
+.site h2{font-size:12px;line-height:1.35;margin:0 0 4px;word-break:break-word}
+.node{font-size:10px;color:#aeb5ba;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plot{
+  height:57px;margin:11px 0 8px;border:1px solid color-mix(in srgb,var(--s) 65%,#2b2f32);
+  position:relative;background:#0b0c0d;overflow:hidden
+}
+.plot::before,.plot::after{content:"";position:absolute;inset:auto}
+.site[data-state="READY"] .plot{
+  background:repeating-linear-gradient(135deg,transparent 0 8px,#211e17 8px 9px);
+  border-style:dashed
+}
+.site[data-state="ACTIVE"] .plot{
+  background:
+    linear-gradient(90deg,transparent 0 19%,#3c2a23 19% 21%,transparent 21% 49%,#3c2a23 49% 51%,transparent 51% 79%,#3c2a23 79% 81%,transparent 81%),
+    linear-gradient(#121416,#121416)
+}
+.site[data-state="ACTIVE"] .plot::before{
+  left:10%;right:10%;bottom:10px;height:14px;border:1px solid var(--s);background:#271b17
+}
+.site[data-state="BLOCKED"] .plot{
+  background:repeating-linear-gradient(45deg,#111315 0 8px,#241715 8px 11px)
+}
+.site[data-state="BLOCKED"] .plot::after{
+  left:8%;right:8%;top:50%;height:3px;background:var(--s);box-shadow:0 -10px 0 #32201d,0 10px 0 #32201d
+}
+.site[data-state="DONE"] .plot{
+  background:linear-gradient(to top,#263229 0 62%,#111315 62%)
+}
+.site[data-state="DONE"] .plot::before{
+  left:12%;right:12%;bottom:9px;height:28px;background:var(--s);
+  box-shadow:0 -6px 0 #526357 inset,0 -12px 0 #65796b inset
+}
+.site[data-state="MIXED"] .plot{
+  background:linear-gradient(90deg,var(--done) 0 var(--d,25%),var(--active) var(--d,25%) var(--a,50%),var(--ready) var(--a,50%) var(--r,75%),var(--blocked) var(--r,75%) 100%);
+  opacity:.72
+}
+.footline{display:flex;justify-content:space-between;gap:8px;font-size:9px;color:var(--muted)}
+.footline span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.workerref{color:#c4ccd1}
+.empty{border:1px dashed var(--line);padding:30px;text-align:center;color:var(--muted)}
+.inspector{
+  border-left:1px solid var(--line);background:#0e1011;padding:16px;min-width:0;overflow:auto;max-height:calc(100vh - 112px);
+  position:sticky;top:112px;align-self:start
+}
+.inspector h3{font-size:12px;margin:0 0 12px}
+.kv{display:grid;grid-template-columns:105px 1fr;gap:5px 8px;font-size:10px;margin-bottom:12px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;word-break:break-word}
+.members{font-size:9px;line-height:1.5;color:#b4bbc0;max-height:130px;overflow:auto;border:1px solid #282c2f;padding:8px;margin:8px 0 12px}
+pre{font-size:9px;line-height:1.45;white-space:pre-wrap;word-break:break-word;color:#aeb6bc;background:#090a0b;border:1px solid #24282b;padding:10px;max-height:280px;overflow:auto}
+.legend{
+  border-top:1px solid var(--line);padding:10px clamp(12px,2vw,24px) calc(10px + var(--safe));
+  display:flex;gap:12px;flex-wrap:wrap;font-size:9px;color:var(--muted)
+}
+.legend b{color:var(--text)}
+.legend .sw{width:8px;height:8px;display:inline-block;margin-right:4px;vertical-align:-1px}
+.testok{color:#9eb6a3}.testfail{color:#d8856d}
+@media(max-width:840px){
+  .titleline{display:block}.badge{margin-top:9px}
+  .controls{position:sticky;top:83px;z-index:9}
+  .search{order:10;flex-basis:100%;margin-left:0}
+  .main{display:block}
+  .inspector{position:static;max-height:none;border-left:0;border-top:1px solid var(--line)}
+  .truthbar{grid-template-columns:repeat(2,1fr)}
+  .metric{border-bottom:1px solid var(--line)}
+  .metric:nth-child(2n){border-right:0}.metric:last-child{grid-column:1/-1}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .site{min-height:150px}
+}
+@media(max-width:480px){
+  .top{padding:10px 12px}.sub{font-size:10px}
+  .controls{top:88px;padding:8px 12px}
+  .group{width:100%}.group button{flex:1}
+  .modeBtn,.refreshBtn{flex:1}
+  .grid{grid-template-columns:1fr 1fr;gap:7px}
+  .site{padding:9px;min-height:142px}
+  .site h2{font-size:11px}.plot{height:48px}
+}
+@media(max-width:360px){.grid{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+<header class="top">
+  <div class="titleline">
+    <div>
+      <h1>TASK RUNTIME LAB · bloques = trabajo real</h1>
+      <div class="sub">Cada parcela resuelve a un <b>node_key real</b> de Macro Build o a un agregado explícito y reversible. Estado de tarea ≠ liveness de worker. Heartbeats, retries y recovery no agregan masa.</div>
+    </div>
+    <div class="badge" id="freshBadge" data-fresh="ERROR"><span class="dot"></span><span id="freshText">SIN SNAPSHOT</span></div>
+  </div>
+</header>
+
+<nav class="controls" aria-label="Controles del lab">
+  <div class="group" aria-label="Nivel de detalle">
+    <button data-lod="3" aria-pressed="false" title="Nodo individual">LOD 3</button>
+    <button data-lod="2" aria-pressed="true" title="Guide + estado">LOD 2</button>
+    <button data-lod="1" aria-pressed="false" title="Estado">LOD 1</button>
+    <button data-lod="0" aria-pressed="false" title="Todo el set">LOD 0</button>
+  </div>
+  <button class="modeBtn" id="modeBtn" aria-pressed="false">LIVE_TRUTH</button>
+  <button class="refreshBtn" id="refreshBtn">REFRESH</button>
+  <span class="meta" id="modeMeta">fuente: prometeo_coliseo_monitor_v1</span>
+  <input class="search" id="search" type="search" placeholder="Filtrar node_key, título o guide…" autocomplete="off">
+</nav>
+
+<main class="main">
+<section class="stage">
+  <div class="truthbar" aria-label="Resumen de tareas">
+    <div class="metric"><b id="mTotal">—</b><span>NODOS FUENTE</span></div>
+    <div class="metric"><b id="mActive">—</b><span>ACTIVE · tarea</span></div>
+    <div class="metric"><b id="mReady">—</b><span>READY · blueprint</span></div>
+    <div class="metric"><b id="mBlocked">—</b><span>BLOCKED · gate</span></div>
+    <div class="metric"><b id="mDone">—</b><span>DONE · builder state</span></div>
+  </div>
+  <div id="grid" class="grid" aria-live="polite"></div>
+</section>
+
+<aside class="inspector" id="inspector" aria-label="Provenance y debug">
+  <h3>PROVENANCE / DEBUG</h3>
+  <div id="inspectBody" class="meta">Seleccioná una parcela. El inspector muestra identidad, miembros, evidencia y el payload normalizado.</div>
+</aside>
+</main>
+
+<footer class="legend">
+  <span><i class="sw" style="background:var(--ready)"></i><b>READY</b> blueprint, cero masa final</span>
+  <span><i class="sw" style="background:var(--active)"></i><b>ACTIVE</b> scaffold, no implica worker WORKING</span>
+  <span><i class="sw" style="background:var(--blocked)"></i><b>BLOCKED</b> gate causal, quieto</span>
+  <span><i class="sw" style="background:var(--done)"></i><b>DONE</b> sólido fijo; no infiere verifier/current</span>
+  <span id="selfTest">SELF-CHECK —</span>
+</footer>
+</div>
+
+<script>
+(()=>{
+'use strict';
+
+const BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+const SOURCE_RPC='prometeo_coliseo_monitor_v1';
+const STALE_MS=30000;
+const $=id=>document.getElementById(id);
+const ui={
+  grid:$('grid'), inspector:$('inspectBody'), search:$('search'), mode:$('modeBtn'),
+  refresh:$('refreshBtn'), freshBadge:$('freshBadge'), freshText:$('freshText'),
+  modeMeta:$('modeMeta'), selfTest:$('selfTest'),
+  total:$('mTotal'), active:$('mActive'), ready:$('mReady'), blocked:$('mBlocked'), done:$('mDone')
+};
+
+let apiKey=null, mode=new URLSearchParams(location.search).get('fixture')==='1'?'FIXTURE':'LIVE';
+let lod=2, sourceTasks=[], workers=[], snapshotMeta=null, selectedRef=null, refreshTimer=null;
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const normState=s=>{
+  const x=String(s||'UNKNOWN').toUpperCase();
+  if(x==='SUCCESS'||x==='ACCEPTED'||x==='COMPLETE'||x==='COMPLETED')return 'DONE';
+  if(['READY','ACTIVE','BLOCKED','DONE'].includes(x))return x;
+  return 'UNKNOWN';
+};
+const countStates=items=>{
+  const out={READY:0,ACTIVE:0,BLOCKED:0,DONE:0,UNKNOWN:0};
+  for(const x of items)out[normState(x.state)]=(out[normState(x.state)]||0)+1;
+  return out;
+};
+const fnv=str=>{
+  let h=2166136261;
+  for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)}
+  return ('00000000'+(h>>>0).toString(16)).slice(-8);
+};
+const membersDigest=items=>fnv(items.map(x=>x.node_key).sort().join('|'));
+const fmtAge=iso=>{
+  if(!iso)return '—';
+  const ms=Date.now()-Date.parse(iso);
+  if(!Number.isFinite(ms))return '—';
+  const s=Math.max(0,Math.floor(ms/1000));
+  if(s<60)return s+'s';
+  const m=Math.floor(s/60); if(m<60)return m+'m';
+  const h=Math.floor(m/60); return h+'h';
+};
+
+async function publicKey(){
+  if(apiKey)return apiKey;
+  const r=await fetch('/prometeo/guides/prometeo/',{cache:'no-store'});
+  if(!r.ok)throw new Error('public-key page '+r.status);
+  const t=await r.text();
+  const m=t.match(/sb_publishable_[A-Za-z0-9_-]+/);
+  if(!m)throw new Error('publishable key unavailable');
+  apiKey=m[0]; return apiKey;
+}
+async function monitorRpc(){
+  const k=await publicKey();
+  const r=await fetch(BASE+SOURCE_RPC,{
+    method:'POST',
+    headers:{apikey:k,Authorization:'Bearer '+k,'Content-Type':'application/json'},
+    body:'{}',cache:'no-store'
+  });
+  if(!r.ok)throw new Error('monitor '+r.status);
+  return r.json();
+}
+
+function normalizeMonitor(d){
+  const macro=d&&d.macro_build||{};
+  const bs=Array.isArray(macro.builders)?macro.builders:[];
+  workers=Array.isArray(d&&d.workers)?d.workers:[];
+  const workerByNode=new Map();
+  for(const w of workers){
+    const nk=w&&w.current_job&&w.current_job.node_key;
+    if(!nk)continue;
+    if(!workerByNode.has(nk))workerByNode.set(nk,[]);
+    workerByNode.get(nk).push({
+      worker_code:w.worker_code||null,
+      evidence_state:w.evidence_state||'UNKNOWN',
+      last_evidence_at:w.last_evidence_at||null
+    });
+  }
+  return bs.filter(b=>b&&b.node_key).map((b,i)=>({
+    entity_ref:'node:'+String(b.node_key),
+    identity_class:'NODE',
+    node_key:String(b.node_key),
+    title:String(b.title||b.node_key),
+    guide_key:String(b.guide_key||'UNASSIGNED'),
+    state:normState(b.state),
+    source_state:String(b.state||'UNKNOWN'),
+    stage:b.stage==null?null:String(b.stage),
+    claimed_at:b.claimed_at||null,
+    completed_at:b.completed_at||null,
+    last_progress_at:b.last_progress_at||null,
+    recovery_count:Number.isFinite(Number(b.recovery_count))?Number(b.recovery_count):null,
+    assignment_evidence:workerByNode.get(String(b.node_key))||[],
+    source_ref:SOURCE_RPC+'.macro_build.builders['+i+']',
+    authority_class:'MATERIAL_NODE',
+    truth_note:'Macro Build node state. DONE does not independently assert verifier PASS, CURRENT or Served.'
+  }));
+}
+
+function fixtureTasks(){
+  const rows=[
+    ['FX-READY-01','VISUAL','READY','COGNITIVE_SPEC_READY'],['FX-READY-02','STUDY','READY','SPEC_READY'],
+    ['FX-ACTIVE-01','VISUAL','ACTIVE','WRITE'],['FX-ACTIVE-02','STUDENTS','ACTIVE','TEST'],
+    ['FX-BLOCKED-01','VISUAL','BLOCKED','WAITING_DEP'],['FX-BLOCKED-02','AUDIO','BLOCKED','WAITING_VERIFY'],
+    ['FX-DONE-01','VISUAL','DONE','DONE'],['FX-DONE-02','STUDY','DONE','DONE'],
+    ['FX-DONE-03','STUDENTS','DONE','DONE'],['FX-READY-03','AUDIO','READY','READY'],
+    ['FX-ACTIVE-03','STRATEGY','ACTIVE','READ'],['FX-BLOCKED-03','STRATEGY','BLOCKED','WAITING_DEP']
+  ];
+  return rows.map((r,i)=>({
+    entity_ref:'fixture:'+r[0],identity_class:'EXPLICIT_DEBUG_FIXTURE',node_key:r[0],
+    title:'Fixture determinista '+(i+1),guide_key:r[1],state:r[2],source_state:r[2],stage:r[3],
+    claimed_at:null,completed_at:r[2]==='DONE'?'2026-09-25T00:00:00Z':null,last_progress_at:null,
+    recovery_count:i%3,assignment_evidence:[],source_ref:'inline:EXPLICIT_DEBUG_FIXTURE_V1['+i+']',
+    authority_class:'DEBUG_ONLY',truth_note:'Fixture explícito. No representa estado live ni workers reales.'
+  }));
+}
+
+function group(items,keyFn,labelFn){
+  const map=new Map();
+  for(const item of items){
+    const k=keyFn(item);
+    if(!map.has(k))map.set(k,[]);
+    map.get(k).push(item);
+  }
+  return [...map.entries()].map(([k,members])=>{
+    const states=countStates(members);
+    const nonzero=Object.entries(states).filter(([,n])=>n>0);
+    const homogeneous=nonzero.length===1?nonzero[0][0]:'MIXED';
+    return {
+      entity_ref:'aggregate:'+lod+':'+fnv(k+'|'+membersDigest(members)),
+      identity_class:'EXPLICIT_AGGREGATE',
+      aggregate_key:k,
+      title:labelFn(k,members),
+      node_key:null,guide_key:members.length&&members.every(x=>x.guide_key===members[0].guide_key)?members[0].guide_key:null,
+      state:homogeneous,stage:null,member_count:members.length,state_counts:states,
+      members:members.map(x=>x.node_key).sort(),members_digest:membersDigest(members),
+      source_ref:'derived:TaskRuntimeLab.LOD'+lod,
+      authority_class:'DERIVED_AGGREGATE',
+      assignment_evidence:members.flatMap(x=>x.assignment_evidence||[]),
+      truth_note:'Explicit reversible aggregate. No liveness or completion is inferred from majority.'
+    };
+  }).sort((a,b)=>a.title.localeCompare(b.title));
+}
+
+function projected(items){
+  if(lod===3)return items.map(x=>({...x,member_count:1,members:[x.node_key],members_digest:membersDigest([x]),state_counts:countStates([x])}));
+  if(lod===2)return group(items,x=>x.guide_key+'|'+x.state,(k,m)=>m[0].guide_key+' · '+m[0].state);
+  if(lod===1)return group(items,x=>x.state,(k)=>'STATE · '+k);
+  return group(items,()=> 'ALL',()=> 'ALL TASK NODES');
+}
+
+function pctStops(c){
+  const t=Math.max(1,Object.values(c).reduce((a,b)=>a+b,0));
+  const d=c.DONE/t*100,a=(c.DONE+c.ACTIVE)/t*100,r=(c.DONE+c.ACTIVE+c.READY)/t*100;
+  return {'--d':d+'%','--a':a+'%','--r':r+'%'};
+}
+function styleVars(obj){
+  if(obj.state!=='MIXED')return '';
+  const p=pctStops(obj.state_counts||{});
+  return Object.entries(p).map(([k,v])=>k+':'+v).join(';');
+}
+
+function render(){
+  const q=ui.search.value.trim().toLowerCase();
+  const filtered=sourceTasks.filter(x=>!q||[x.node_key,x.title,x.guide_key,x.state,x.stage].some(v=>String(v||'').toLowerCase().includes(q)));
+  const counts=countStates(filtered);
+  ui.total.textContent=filtered.length;
+  ui.active.textContent=counts.ACTIVE||0;ui.ready.textContent=counts.READY||0;ui.blocked.textContent=counts.BLOCKED||0;ui.done.textContent=counts.DONE||0;
+
+  const view=projected(filtered);
+  if(!view.length){ui.grid.innerHTML='<div class="empty">Sin nodos para este filtro.</div>';inspect(null);runSelfCheck(filtered,view);return}
+
+  ui.grid.innerHTML=view.map(x=>{
+    const assignment=x.assignment_evidence&&x.assignment_evidence.length
+      ? x.assignment_evidence.map(w=>w.worker_code+' '+w.evidence_state).join(', ')
+      : 'sin assignment visible';
+    const subtitle=x.identity_class==='EXPLICIT_AGGREGATE'
+      ? x.member_count+' members · '+x.members_digest
+      : x.node_key;
+    return `<button class="site" data-ref="${esc(x.entity_ref)}" data-state="${esc(x.state)}" style="${esc(styleVars(x))}" aria-label="${esc(x.title+' '+x.state)}">
+      <div class="statehead"><span class="state">${esc(x.state)}</span><span class="kind">${esc(x.identity_class==='EXPLICIT_AGGREGATE'?'AGGREGATE':x.guide_key)}</span></div>
+      <h2>${esc(x.title)}</h2><div class="node">${esc(subtitle)}</div>
+      <div class="plot" aria-hidden="true"></div>
+      <div class="footline"><span>${esc(x.stage||('members '+(x.member_count||1)))}</span><span class="workerref">${esc(assignment)}</span></div>
+    </button>`;
+  }).join('');
+
+  for(const el of ui.grid.querySelectorAll('.site')){
+    el.addEventListener('click',()=>{selectedRef=el.dataset.ref;inspect(view.find(x=>x.entity_ref===selectedRef));});
+  }
+  const selected=view.find(x=>x.entity_ref===selectedRef);
+  if(selected)inspect(selected);
+  runSelfCheck(filtered,view);
+}
+
+function inspect(x){
+  if(!x){
+    ui.inspector.innerHTML='Seleccioná una parcela. El inspector muestra identidad, miembros, evidencia y el payload normalizado.';
+    return;
+  }
+  const assignment=(x.assignment_evidence||[]).map(w=>`${esc(w.worker_code||'—')} · ${esc(w.evidence_state||'UNKNOWN')} · evidence ${esc(fmtAge(w.last_evidence_at))}`).join('<br>')||'—';
+  const members=(x.members||[x.node_key]).map(esc).join('<br>');
+  const raw={...x};
+  ui.inspector.innerHTML=`
+    <dl class="kv">
+      <dt>entity_ref</dt><dd>${esc(x.entity_ref)}</dd>
+      <dt>identity</dt><dd>${esc(x.identity_class)}</dd>
+      <dt>state</dt><dd>${esc(x.state)}</dd>
+      <dt>stage</dt><dd>${esc(x.stage||'—')}</dd>
+      <dt>guide</dt><dd>${esc(x.guide_key||'—')}</dd>
+      <dt>members</dt><dd>${esc(x.member_count||1)}</dd>
+      <dt>digest</dt><dd>${esc(x.members_digest||'—')}</dd>
+      <dt>source</dt><dd>${esc(x.source_ref)}</dd>
+      <dt>workers</dt><dd>${assignment}</dd>
+      <dt>truth ceiling</dt><dd>${esc(x.truth_note||'—')}</dd>
+    </dl>
+    <div class="meta">MEMBERS</div><div class="members">${members}</div>
+    <div class="meta">NORMALIZED PAYLOAD</div><pre>${esc(JSON.stringify(raw,null,2))}</pre>`;
+}
+
+function setFresh(kind,text){
+  ui.freshBadge.dataset.fresh=kind;ui.freshText.textContent=text;
+}
+function refreshFreshness(){
+  if(mode==='FIXTURE'){setFresh('FRESH','FIXTURE · EXPLÍCITO');return}
+  if(!snapshotMeta){setFresh('ERROR','SIN SNAPSHOT');return}
+  const age=Date.now()-snapshotMeta.received_at_ms;
+  setFresh(age<=STALE_MS?'FRESH':'STALE',(age<=STALE_MS?'FRESH · ':'STALE · ')+Math.max(0,Math.floor(age/1000))+'s');
+}
+
+async function loadLive(){
+  ui.refresh.disabled=true;setFresh(snapshotMeta?'STALE':'ERROR','CARGANDO…');
+  try{
+    const data=await monitorRpc();
+    sourceTasks=normalizeMonitor(data);
+    snapshotMeta={
+      mode:'LIVE_TRUTH',schema:data&&data.schema||'UNKNOWN',
+      source:SOURCE_RPC,received_at:new Date().toISOString(),received_at_ms:Date.now(),
+      macro_schema:data&&data.macro_build&&data.macro_build.schema||'UNKNOWN',
+      source_counts:data&&data.macro_build&&data.macro_build.jobs||null
+    };
+    render();refreshFreshness();
+  }catch(err){
+    if(snapshotMeta){
+      snapshotMeta.last_error=String(err&&err.message||err);
+      setFresh('STALE','STALE · fetch error');
+    }else{
+      sourceTasks=[];render();setFresh('ERROR','LIVE ERROR');
+      ui.inspector.innerHTML='<b>LIVE fetch failed.</b><pre>'+esc(String(err&&err.stack||err))+'</pre>';
+    }
+  }finally{ui.refresh.disabled=false}
+}
+function loadFixture(){
+  sourceTasks=fixtureTasks();workers=[];
+  snapshotMeta={mode:'EXPLICIT_DEBUG_FIXTURE',schema:'prometeo.task-runtime.fixture/v1',source:'inline fixture',received_at:new Date().toISOString(),received_at_ms:Date.now()};
+  render();refreshFreshness();
+}
+function applyMode(){
+  const fixture=mode==='FIXTURE';
+  ui.mode.textContent=fixture?'EXPLICIT_FIXTURE':'LIVE_TRUTH';
+  ui.mode.setAttribute('aria-pressed',fixture?'true':'false');
+  ui.modeMeta.textContent=fixture?'fuente: fixture explícito · NO LIVE':'fuente: prometeo_coliseo_monitor_v1';
+  if(refreshTimer){clearInterval(refreshTimer);refreshTimer=null}
+  if(fixture)loadFixture();
+  else{loadLive();refreshTimer=setInterval(loadLive,10000)}
+}
+
+function runSelfCheck(source,view){
+  const keys=source.map(x=>x.node_key);
+  const uniqueSource=new Set(keys).size===keys.length;
+  let membership=true;
+  if(lod<3){
+    const all=view.flatMap(x=>x.members||[]);
+    membership=all.length===keys.length && new Set(all).size===all.length && [...new Set(all)].every(k=>keys.includes(k));
+  }
+  const noSyntheticMass=source.every(x=>['READY','ACTIVE','BLOCKED','DONE','UNKNOWN'].includes(x.state));
+  const pass=uniqueSource&&membership&&noSyntheticMass;
+  ui.selfTest.className=pass?'testok':'testfail';
+  ui.selfTest.textContent=pass?'SELF-CHECK PASS · membership exacto':'SELF-CHECK FAIL · revisar proyección';
+}
+
+for(const b of document.querySelectorAll('[data-lod]')){
+  b.addEventListener('click',()=>{
+    lod=Number(b.dataset.lod);
+    for(const x of document.querySelectorAll('[data-lod]'))x.setAttribute('aria-pressed',String(Number(x.dataset.lod)===lod));
+    selectedRef=null;render();
+  });
+}
+ui.search.addEventListener('input',render);
+ui.refresh.addEventListener('click',()=>mode==='FIXTURE'?loadFixture():loadLive());
+ui.mode.addEventListener('click',()=>{mode=mode==='LIVE'?'FIXTURE':'LIVE';selectedRef=null;applyMode()});
+
+applyMode();
+setInterval(refreshFreshness,1000);
+})();
+</script>
+</body>
+</html>
