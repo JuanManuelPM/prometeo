@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#050706">
+<title>Prometeo · Spaces Lab</title>
+<style>
+:root{
+  --ink:#d8d1bd;--muted:#77796f;--line:rgba(202,198,166,.18);
+  --panel:rgba(6,8,7,.72);--accent:#c0b171;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#030504;color:var(--ink);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;touch-action:none;overscroll-behavior:none}
+button{font:inherit}
+#app{position:fixed;inset:0;overflow:hidden;background:#030504;isolation:isolate}
+#scene{position:absolute;inset:0;width:100%;height:100%;display:block;image-rendering:auto;touch-action:none}
+#scan{
+  position:absolute;inset:0;pointer-events:none;z-index:4;opacity:.17;
+  background:repeating-linear-gradient(to bottom,rgba(255,255,255,.025) 0,rgba(255,255,255,.025) 1px,transparent 1px,transparent 4px);
+  mix-blend-mode:screen;
+}
+#vignette{
+  position:absolute;inset:-8%;pointer-events:none;z-index:5;
+  background:radial-gradient(ellipse at center,transparent 42%,rgba(0,0,0,.18) 67%,rgba(0,0,0,.76) 100%);
+}
+#topbar{
+  position:absolute;z-index:12;left:50%;top:max(8px,env(safe-area-inset-top));transform:translateX(-50%);
+  display:flex;gap:5px;padding:4px;border:1px solid var(--line);background:var(--panel);
+  backdrop-filter:blur(3px);white-space:nowrap
+}
+.sceneBtn{
+  min-width:76px;height:30px;padding:0 9px;border:0;border-right:1px solid rgba(255,255,255,.06);
+  background:transparent;color:#74766d;text-transform:uppercase;font-size:9px;font-weight:800;letter-spacing:.12em
+}
+.sceneBtn:last-child{border-right:0}
+.sceneBtn.on{color:#ece3c8;background:rgba(193,177,113,.11);box-shadow:inset 0 -1px #b8a669}
+#readout{
+  position:absolute;z-index:11;left:max(9px,env(safe-area-inset-left));bottom:max(8px,env(safe-area-inset-bottom));
+  max-width:45%;color:#86877b;font-size:8px;line-height:1.35;letter-spacing:.08em;text-transform:uppercase;
+  text-shadow:0 1px 2px #000;pointer-events:none
+}
+#readout b{display:block;color:#c9c1a8;font-size:9px;margin-bottom:2px}
+.edge{
+  position:absolute;z-index:10;border:0;background:transparent;color:rgba(227,220,194,.28);
+  display:grid;place-items:center;padding:0;user-select:none;-webkit-user-select:none;touch-action:none
+}
+.edge span{
+  width:28px;height:28px;display:grid;place-items:center;border:1px solid rgba(218,211,183,.10);
+  background:rgba(0,0,0,.08);font-size:16px;line-height:1
+}
+.edge.active span{color:rgba(246,235,196,.78);border-color:rgba(220,200,130,.34);background:rgba(25,24,18,.34)}
+#left{left:0;top:22%;bottom:22%;width:18%}
+#right{right:0;top:22%;bottom:22%;width:18%}
+#forward{top:0;left:22%;right:22%;height:22%;padding-top:50px}
+#back{bottom:0;left:22%;right:22%;height:22%;padding-bottom:34px}
+#gestureHint{
+  position:absolute;z-index:9;left:50%;bottom:11px;transform:translateX(-50%);
+  color:rgba(198,195,176,.34);font-size:7px;letter-spacing:.10em;text-transform:uppercase;pointer-events:none;white-space:nowrap
+}
+#portrait{
+  display:none;position:absolute;z-index:30;inset:0;place-items:center;pointer-events:none;
+  background:rgba(3,5,4,.46);color:#aaa38c;font-size:9px;letter-spacing:.12em;text-transform:uppercase
+}
+@media(orientation:portrait) and (max-width:800px){
+  #portrait{display:grid}
+  #topbar{top:max(6px,env(safe-area-inset-top))}
+  .sceneBtn{min-width:67px}
+  #gestureHint{display:none}
+}
+@media(max-height:430px){
+  #topbar{top:5px}.sceneBtn{height:27px;min-width:70px;font-size:8px}
+  #forward{padding-top:38px}.edge span{width:24px;height:24px;font-size:14px}
+  #readout{font-size:7px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="scene" aria-label="Laboratorio de espacios pseudo-3D de Prometeo"></canvas>
+  <div id="scan"></div><div id="vignette"></div>
+  <div id="topbar" role="tablist" aria-label="Escenas">
+    <button class="sceneBtn on" data-scene="passage">PASSAGE</button>
+    <button class="sceneBtn" data-scene="tunnel">TUNNEL</button>
+    <button class="sceneBtn" data-scene="chamber">CHAMBER</button>
+  </div>
+  <button class="edge" id="left" data-hold="left" aria-label="Mirar a la izquierda"><span>‹</span></button>
+  <button class="edge" id="right" data-hold="right" aria-label="Mirar a la derecha"><span>›</span></button>
+  <button class="edge" id="forward" data-hold="forward" aria-label="Avanzar"><span>⌃</span></button>
+  <button class="edge" id="back" data-hold="back" aria-label="Retroceder"><span>⌄</span></button>
+  <div id="readout"><b>PASSAGE / 01</b><span>arrastrá para mirar y avanzar</span></div>
+  <div id="gestureHint">arrastre horizontal = mirar · vertical = avanzar · pinch = zoom</div>
+  <div id="portrait">mejor en horizontal</div>
+</div>
+<script>
+(()=>{
+'use strict';
+const TAU=Math.PI*2;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const wrap=a=>{while(a>Math.PI)a-=TAU;while(a<-Math.PI)a+=TAU;return a};
+const canvas=document.getElementById('scene');
+const ctx=canvas.getContext('2d',{alpha:false,desynchronized:true});
+const app=document.getElementById('app');
+const readout=document.getElementById('readout');
+let W=640,H=360,cssW=innerWidth,cssH=innerHeight,last=0,noiseFrame=0;
+
+class TextureBank{
+  constructor(){this.items=new Map()}
+  set(name,source){this.items.set(name,source);return source}
+  get(name){return this.items.get(name)}
+  pattern(name,a,b,line,seed=1){
+    const c=document.createElement('canvas');c.width=c.height=96;
+    const g=c.getContext('2d');g.fillStyle=a;g.fillRect(0,0,96,96);
+    let s=seed|0;const rnd=()=>{s=(s*1664525+1013904223)|0;return ((s>>>0)%10000)/10000};
+    for(let i=0;i<90;i++){
+      const x=rnd()*96,y=rnd()*96,r=1+rnd()*8;
+      g.globalAlpha=.05+rnd()*.15;g.fillStyle=i%4?b:line;g.fillRect(x,y,r,1+rnd()*3);
+    }
+    g.globalAlpha=.22;g.strokeStyle=line;g.lineWidth=1;
+    for(let y=12;y<96;y+=24){g.beginPath();g.moveTo(0,y+.5);g.lineTo(96,y+.5);g.stroke()}
+    for(let x=12;x<96;x+=24){g.beginPath();g.moveTo(x+.5,0);g.lineTo(x+.5,96);g.stroke()}
+    g.globalAlpha=1;return this.set(name,c);
+  }
+  glyph(name,bg,fg,kind){
+    const c=document.createElement('canvas');c.width=128;c.height=192;const g=c.getContext('2d');
+    g.fillStyle=bg;g.fillRect(0,0,c.width,c.height);
+    g.strokeStyle=fg;g.lineWidth=5;g.strokeRect(9,9,110,174);
+    g.globalAlpha=.32;for(let i=0;i<18;i++){g.fillStyle=i%2?fg:'#000';g.fillRect(14,(i*23)%175,99,2)}
+    g.globalAlpha=1;g.strokeStyle=fg;g.lineWidth=7;
+    if(kind==='eye'){
+      g.beginPath();g.ellipse(64,91,39,20,0,0,TAU);g.stroke();
+      g.beginPath();g.arc(64,91,11,0,TAU);g.fillStyle=fg;g.fill();
+      g.fillStyle='#080907';g.beginPath();g.arc(64,91,4,0,TAU);g.fill();
+    }else{
+      g.beginPath();g.moveTo(30,150);g.lineTo(30,70);g.quadraticCurveTo(64,26,98,70);g.lineTo(98,150);g.stroke();
+      g.fillStyle=fg;g.fillRect(58,102,12,12);
+    }
+    return this.set(name,c);
+  }
+  async load(name,url){
+    const img=new Image();img.decoding='async';img.src=url;await img.decode();this.set(name,img);return img;
+  }
+}
+const textures=new TextureBank();
+textures.pattern('passageWall','#262621','#454033','#85724e',11);
+textures.pattern('passageFloor','#161816','#2a302b','#596051',18);
+textures.pattern('passageCeil','#111311','#232720','#67604c',27);
+textures.pattern('tunnelStone','#101513','#29342e','#60705d',43);
+textures.pattern('tunnelFloor','#090d0d','#18201f','#5b4841',55);
+textures.pattern('chamberWall','#2b2721','#514636','#8e7653',71);
+textures.pattern('chamberFloor','#111717','#22302d','#807052',88);
+textures.glyph('door','#090b09','#b8a46b','door');
+textures.glyph('eye','#0c0d0b','#b55d43','eye');
+textures.glyph('portal','#080b0c','#6e9d93','door');
+
+function drawTexturedTriangle(img,p0,p1,p2,uv0,uv1,uv2,alpha=1){
+  if(!img)return;
+  const u0=uv0.x,v0=uv0.y,u1=uv1.x,v1=uv1.y,u2=uv2.x,v2=uv2.y;
+  const den=u0*(v1-v2)+u1*(v2-v0)+u2*(v0-v1);
+  if(Math.abs(den)<.0001)return;
+  const a=(p0.x*(v1-v2)+p1.x*(v2-v0)+p2.x*(v0-v1))/den;
+  const c=(p0.x*(u2-u1)+p1.x*(u0-u2)+p2.x*(u1-u0))/den;
+  const e=(p0.x*(u1*v2-u2*v1)+p1.x*(u2*v0-u0*v2)+p2.x*(u0*v1-u1*v0))/den;
+  const b=(p0.y*(v1-v2)+p1.y*(v2-v0)+p2.y*(v0-v1))/den;
+  const d=(p0.y*(u2-u1)+p1.y*(u0-u2)+p2.y*(u1-u0))/den;
+  const f=(p0.y*(u1*v2-u2*v1)+p1.y*(u2*v0-u0*v2)+p2.y*(u0*v1-u1*v0))/den;
+  ctx.save();ctx.globalAlpha=alpha;ctx.beginPath();ctx.moveTo(p0.x,p0.y);ctx.lineTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.closePath();ctx.clip();
+  ctx.setTransform(a,b,c,d,e,f);ctx.drawImage(img,0,0);ctx.restore();
+}
+function drawTexturedQuad(img,p0,p1,p2,p3,alpha=1){
+  const w=img.width||96,h=img.height||96;
+  drawTexturedTriangle(img,p0,p1,p2,{x:0,y:0},{x:w,y:0},{x:w,y:h},alpha);
+  drawTexturedTriangle(img,p0,p2,p3,{x:0,y:0},{x:w,y:h},{x:0,y:h},alpha);
+}
+function quadFill(points,fill,alpha=1){
+  ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=fill;ctx.beginPath();ctx.moveTo(points[0].x,points[0].y);
+  for(let i=1;i<points.length;i++)ctx.lineTo(points[i].x,points[i].y);ctx.closePath();ctx.fill();ctx.restore();
+}
+function shadeOverlay(points,fill,alpha){quadFill(points,fill,alpha)}
+function glow(x,y,r,color,alpha){
+  ctx.save();ctx.globalAlpha=alpha;const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,color);g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2);ctx.restore();
+}
+function fog(alpha=.30){
+  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'rgba(4,7,6,'+(alpha*.55)+')');g.addColorStop(.55,'rgba(17,20,17,'+(alpha*.15)+')');g.addColorStop(1,'rgba(0,0,0,'+alpha+')');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+}
+const cam={
+  scene:'passage',yaw:0,targetYaw:0,depth:0,targetDepth:0,zoom:1,targetZoom:1,
+  chamberX:0,chamberZ:0,targetCX:0,targetCZ:0,bob:0
+};
+const SCENES={
+  passage:{label:'PASSAGE / 01',desc:'capas perspectivadas · planos texturizados'},
+  tunnel:{label:'TUNNEL / 02',desc:'repetición modular · profundidad atmosférica'},
+  chamber:{label:'CHAMBER / 03',desc:'cámara cerrada · panorama pseudo-3D'}
+};
+function setScene(name){
+  if(!SCENES[name])return;cam.scene=name;
+  if(name==='chamber'){cam.targetDepth=0}else{cam.targetCX=cam.chamberX=0;cam.targetCZ=cam.chamberZ=0}
+  document.querySelectorAll('.sceneBtn').forEach(b=>b.classList.toggle('on',b.dataset.scene===name));
+  readout.innerHTML='<b>'+SCENES[name].label+'</b><span>'+SCENES[name].desc+'</span>';
+}
+
+function passageRect(z){
+  const horizon=H*.455+Math.sin(cam.bob)*1.4;
+  const s=clamp(1/(z*.075+.16),.10,4.8)*cam.zoom;
+  const bend=Math.sin((cam.depth+z)*.095)*7;
+  const vx=W*.5+cam.yaw*W*.29+bend;
+  const hw=94*s,hh=55*s;
+  return {tl:{x:vx-hw,y:horizon-hh},tr:{x:vx+hw,y:horizon-hh},br:{x:vx+hw,y:horizon+hh},bl:{x:vx-hw,y:horizon+hh},s,vx,horizon};
+}
+function projectPassage(x,y,z){
+  const r=passageRect(z),unit=68*r.s;
+  return {x:r.vx+x*unit,y:r.horizon-y*unit,s:r.s};
+}
+function drawBillboard(texture,x,y,z,w,h,alpha=1){
+  const p=projectPassage(x,y,z),sw=w*55*p.s,sh=h*55*p.s;
+  if(sw<2||sh<2)return;
+  ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(texture,p.x-sw*.5,p.y-sh,sw,sh);ctx.restore();
+}
+function renderPassage(t){
+  ctx.fillStyle='#050706';ctx.fillRect(0,0,W,H);
+  const gap=3.7,phase=((cam.depth%gap)+gap)%gap;
+  const seg=[];
+  for(let i=0;i<14;i++){const zn=1.5+i*gap-phase,zf=zn+gap;if(zf>.35)seg.push({zn:Math.max(.36,zn),zf})}
+  for(let i=seg.length-1;i>=0;i--){
+    const {zn,zf}=seg[i],n=passageRect(zn),f=passageRect(zf);
+    const fade=clamp(1-zf/58,.17,.98);
+    drawTexturedQuad(textures.get('passageWall'),n.tl,f.tl,f.bl,n.bl,fade);
+    drawTexturedQuad(textures.get('passageWall'),f.tr,n.tr,n.br,f.br,fade*.92);
+    drawTexturedQuad(textures.get('passageCeil'),n.tl,n.tr,f.tr,f.tl,fade*.82);
+    drawTexturedQuad(textures.get('passageFloor'),f.bl,f.br,n.br,n.bl,fade);
+    shadeOverlay([n.tl,f.tl,f.bl,n.bl],'#080b09',.20);
+    shadeOverlay([f.tr,n.tr,n.br,f.br],'#010202',.28);
+    if(i%3===0){
+      const rr=f, a=.10+.18*(i%4);
+      glow(rr.vx,rr.horizon,80*rr.s,'rgba(191,157,82,.55)',a);
+    }
+  }
+  for(let i=11;i>=0;i--){
+    const z=3.7+i*5.2-(((cam.depth*1.03)%5.2)+5.2)%5.2+1.5;
+    if(z<.7)continue;
+    if(i%4===1)drawBillboard(textures.get('door'),-1.55,1.05,z,1.05,2.1,clamp(1-z/60,.25,.9));
+    if(i%5===2)drawBillboard(textures.get('eye'),1.46,1.22,z,.72,1.15,clamp(1-z/60,.18,.8));
+  }
+  const far=passageRect(52);glow(far.vx,far.horizon,55,'rgba(121,154,121,.45)',.24);
+  fog(.22);
+}
+function tunnelPoint(z,x=0,y=0){
+  const horizon=H*.48+Math.sin(cam.bob*.7)*1.2;
+  const s=clamp(1/(z*.07+.20),.12,4)*cam.zoom;
+  const cx=W*.5+cam.yaw*W*.31+Math.sin((z+cam.depth)*.18)*12;
+  return {x:cx+x*70*s,y:horizon-y*70*s,s,cx,horizon};
+}
+function renderTunnel(t){
+  ctx.fillStyle='#020504';ctx.fillRect(0,0,W,H);
+  const step=4.1,phase=((cam.depth%step)+step)%step;
+  for(let i=17;i>=0;i--){
+    const z=1.6+i*step-phase;if(z<.7)continue;
+    const p=tunnelPoint(z),s=p.s,rx=98*s,ry=66*s;
+    const fade=clamp(1-z/75,.12,.9);
+    ctx.save();ctx.globalAlpha=fade;
+    ctx.strokeStyle=i%3===0?'#506054':'#29352f';ctx.lineWidth=clamp(7*s,1,12);
+    ctx.beginPath();ctx.ellipse(p.cx,p.horizon+12*s,rx,ry,0,Math.PI,TAU);ctx.stroke();
+    ctx.strokeStyle='#151d1a';ctx.lineWidth=clamp(13*s,2,20);
+    ctx.beginPath();ctx.moveTo(p.cx-rx,p.horizon+12*s);ctx.lineTo(p.cx-rx,p.horizon+67*s);
+    ctx.moveTo(p.cx+rx,p.horizon+12*s);ctx.lineTo(p.cx+rx,p.horizon+67*s);ctx.stroke();
+    ctx.restore();
+    if(i<13){
+      const y=p.horizon+67*s;
+      ctx.save();ctx.globalAlpha=fade*.7;ctx.fillStyle=i%2?'#151816':'#231814';
+      ctx.fillRect(p.cx-rx,y,rx*2,Math.max(1,5*s));ctx.restore();
+    }
+    if(i%5===0)glow(p.cx,p.horizon+18*s,55*s,'rgba(128,73,54,.55)',fade*.26);
+  }
+  const floorTop=H*.5;
+  const floorPts=[{x:0,y:H},{x:W,y:H},{x:W*.58,y:floorTop},{x:W*.42,y:floorTop}];
+  drawTexturedQuad(textures.get('tunnelFloor'),floorPts[0],floorPts[1],floorPts[2],floorPts[3],.46);
+  for(let i=0;i<14;i++){
+    const y=lerp(H*.53,H,Math.pow(i/13,1.8));ctx.strokeStyle='rgba(112,90,72,'+(.05+i*.012)+')';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+  }
+  const p=tunnelPoint(13);drawBillboardTunnel(textures.get('portal'),p,.7,1.2,.64);
+  fog(.34);
+}
+function drawBillboardTunnel(texture,p,w,h,alpha){
+  const sw=w*55*p.s,sh=h*55*p.s;ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(texture,p.x-sw*.5,p.y-sh*.70,sw,sh);ctx.restore();
+}
+function chamberProject(x,y,z){
+  const dx=x-cam.chamberX,dz=z-cam.chamberZ,cs=Math.cos(cam.yaw),sn=Math.sin(cam.yaw);
+  const rx=dx*cs-dz*sn,rz=dx*sn+dz*cs;
+  if(rz<.25)return null;
+  const ang=Math.atan2(rx,rz),fish=Math.sin(ang)*1.08;
+  const f=W*.58*cam.zoom;
+  return {x:W*.5+fish*f,y:H*.49-y*(f/rz),depth:rz,ang};
+}
+function renderChamber(t){
+  ctx.fillStyle='#050504';ctx.fillRect(0,0,W,H);
+  const R=7.2,segments=28,h=3.2,items=[];
+  for(let i=0;i<segments;i++){
+    const a0=i*TAU/segments,a1=(i+1)*TAU/segments;
+    const x0=Math.sin(a0)*R,z0=Math.cos(a0)*R,x1=Math.sin(a1)*R,z1=Math.cos(a1)*R;
+    const b0=chamberProject(x0,0,z0),b1=chamberProject(x1,0,z1),t0=chamberProject(x0,h,z0),t1=chamberProject(x1,h,z1);
+    if(!b0||!b1||!t0||!t1)continue;
+    const avg=(b0.depth+b1.depth)*.5;
+    if(Math.max(Math.abs(b0.ang),Math.abs(b1.ang))>1.46)continue;
+    items.push({i,a0,a1,b0,b1,t0,t1,avg});
+  }
+  items.sort((a,b)=>b.avg-a.avg);
+  for(const s of items){
+    const fade=clamp(1-s.avg/13,.28,.95);
+    const bottom0={x:W*.5+(s.b0.x-W*.5)*2.65,y:H+28};
+    const bottom1={x:W*.5+(s.b1.x-W*.5)*2.65,y:H+28};
+    drawTexturedQuad(textures.get('chamberFloor'),s.b0,s.b1,bottom1,bottom0,fade*.44);
+    const ceiling0={x:W*.5+(s.t0.x-W*.5)*2.25,y:-25};
+    const ceiling1={x:W*.5+(s.t1.x-W*.5)*2.25,y:-25};
+    quadFill([ceiling0,ceiling1,s.t1,s.t0],s.i%2?'#15140f':'#10130f',fade*.6);
+    drawTexturedQuad(textures.get('chamberWall'),s.t0,s.t1,s.b1,s.b0,fade);
+    if(s.i%7===1){
+      const cx=(s.b0.x+s.b1.x+s.t0.x+s.t1.x)/4,cy=lerp((s.b0.y+s.b1.y)/2,(s.t0.y+s.t1.y)/2,.52);
+      glow(cx,cy,90/(s.avg*.32),'rgba(169,105,62,.55)',.15);
+    }
+    if(s.i===3||s.i===11||s.i===20){
+      const tex=s.i===11?textures.get('eye'):textures.get('portal');
+      const top={x:lerp(s.t0.x,s.t1.x,.22),y:lerp(s.t0.y,s.t1.y,.22)};
+      const topR={x:lerp(s.t0.x,s.t1.x,.78),y:lerp(s.t0.y,s.t1.y,.78)};
+      const botR={x:lerp(s.b0.x,s.b1.x,.78),y:lerp(s.b0.y,s.b1.y,.78)};
+      const bot={x:lerp(s.b0.x,s.b1.x,.22),y:lerp(s.b0.y,s.b1.y,.22)};
+      drawTexturedQuad(tex,top,topR,botR,bot,clamp(1-s.avg/11,.2,.9));
+    }
+  }
+  const center=chamberProject(0,.15,0);
+  if(center)glow(center.x,center.y,120,'rgba(104,122,93,.40)',.09);
+  fog(.19);
+}
+const holds={left:false,right:false,forward:false,back:false};
+function update(dt){
+  const look=(holds.right?1:0)-(holds.left?1:0);
+  const move=(holds.forward?1:0)-(holds.back?1:0);
+  cam.targetYaw+=look*dt*.00085;
+  if(cam.scene==='chamber'){
+    const speed=move*dt*.00145;cam.targetCX+=Math.sin(cam.targetYaw)*speed;cam.targetCZ+=Math.cos(cam.targetYaw)*speed;
+    const rr=Math.hypot(cam.targetCX,cam.targetCZ);if(rr>3.4){cam.targetCX*=3.4/rr;cam.targetCZ*=3.4/rr}
+  }else cam.targetDepth+=move*dt*.0045;
+  cam.yaw=lerp(cam.yaw,cam.targetYaw,Math.min(1,dt*.012));
+  cam.depth=lerp(cam.depth,cam.targetDepth,Math.min(1,dt*.012));
+  cam.chamberX=lerp(cam.chamberX,cam.targetCX,Math.min(1,dt*.009));
+  cam.chamberZ=lerp(cam.chamberZ,cam.targetCZ,Math.min(1,dt*.009));
+  cam.zoom=lerp(cam.zoom,cam.targetZoom,Math.min(1,dt*.012));
+  cam.bob+=dt*.0018*(Math.abs(move)>.01?2.0:.42);
+}
+function render(t){
+  ctx.setTransform(1,0,0,1,0,0);
+  if(cam.scene==='passage')renderPassage(t);
+  else if(cam.scene==='tunnel')renderTunnel(t);
+  else renderChamber(t);
+  if((noiseFrame++%5)===0){
+    ctx.save();ctx.globalAlpha=.035;for(let i=0;i<85;i++){const x=Math.random()*W,y=Math.random()*H;ctx.fillStyle=i%4?'#d6d0b9':'#705949';ctx.fillRect(x,y,1,1)}ctx.restore();
+  }
+}
+function frame(t){
+  requestAnimationFrame(frame);
+  if(document.hidden||t-last<30)return;
+  const dt=Math.min(50,t-last||16);last=t;update(dt);render(t);
+}
+function resize(){
+  cssW=innerWidth;cssH=innerHeight;
+  const aspect=cssW/Math.max(1,cssH);H=360;W=Math.round(H*aspect);
+  if(W>720){W=720;H=Math.round(W/aspect)}
+  if(W<280){W=280;H=Math.round(W/aspect)}
+  canvas.width=W;canvas.height=H;
+}
+addEventListener('resize',resize,{passive:true});resize();
+
+document.querySelectorAll('.sceneBtn').forEach(b=>b.addEventListener('click',()=>setScene(b.dataset.scene)));
+document.querySelectorAll('.edge').forEach(b=>{
+  const k=b.dataset.hold;
+  const on=e=>{e.preventDefault();holds[k]=true;b.classList.add('active');try{b.setPointerCapture(e.pointerId)}catch(_){}};
+  const off=e=>{holds[k]=false;b.classList.remove('active')};
+  b.addEventListener('pointerdown',on);b.addEventListener('pointerup',off);b.addEventListener('pointercancel',off);b.addEventListener('pointerleave',e=>{if(e.buttons===0)off(e)});
+});
+const keyMap={ArrowLeft:'left',a:'left',A:'left',ArrowRight:'right',d:'right',D:'right',ArrowUp:'forward',w:'forward',W:'forward',ArrowDown:'back',s:'back',S:'back'};
+addEventListener('keydown',e=>{const k=keyMap[e.key];if(k){holds[k]=true;e.preventDefault()}});
+addEventListener('keyup',e=>{const k=keyMap[e.key];if(k){holds[k]=false;e.preventDefault()}});
+
+let pointers=new Map(),drag=null,pinch=null;
+function logicalPoint(e){
+  const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height};
+}
+canvas.addEventListener('pointerdown',e=>{
+  const p=logicalPoint(e);pointers.set(e.pointerId,p);canvas.setPointerCapture(e.pointerId);
+  if(pointers.size===1)drag={id:e.pointerId,x:p.x,y:p.y,yaw:cam.targetYaw,depth:cam.targetDepth,cx:cam.targetCX,cz:cam.targetCZ};
+  if(pointers.size===2){const a=[...pointers.values()];pinch={d:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),z:cam.targetZoom};drag=null}
+  e.preventDefault();
+});
+canvas.addEventListener('pointermove',e=>{
+  if(!pointers.has(e.pointerId))return;const p=logicalPoint(e);pointers.set(e.pointerId,p);
+  if(pinch&&pointers.size>=2){const a=[...pointers.values()];const d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);cam.targetZoom=clamp(pinch.z*d/Math.max(1,pinch.d),.72,1.55);e.preventDefault();return}
+  if(drag&&drag.id===e.pointerId){
+    const dx=p.x-drag.x,dy=p.y-drag.y;cam.targetYaw=drag.yaw+dx/W*1.75;
+    if(cam.scene==='chamber'){
+      const amount=-dy/H*2.8;cam.targetCX=drag.cx+Math.sin(cam.targetYaw)*amount;cam.targetCZ=drag.cz+Math.cos(cam.targetYaw)*amount;
+      const rr=Math.hypot(cam.targetCX,cam.targetCZ);if(rr>3.4){cam.targetCX*=3.4/rr;cam.targetCZ*=3.4/rr}
+    }else cam.targetDepth=drag.depth-dy/H*18;
+    e.preventDefault();
+  }
+});
+function endPointer(e){
+  pointers.delete(e.pointerId);if(pointers.size<2)pinch=null;
+  if(pointers.size===1){const [id,p]=[...pointers.entries()][0];drag={id,x:p.x,y:p.y,yaw:cam.targetYaw,depth:cam.targetDepth,cx:cam.targetCX,cz:cam.targetCZ}}
+  else if(!pointers.size)drag=null;
+}
+canvas.addEventListener('pointerup',endPointer);canvas.addEventListener('pointercancel',endPointer);
+canvas.addEventListener('dblclick',()=>{cam.targetZoom=1});
+
+window.PrometeoPseudo3D={
+  version:'spaces-lab-v1',
+  setScene,
+  textures,
+  setTexture:(name,source)=>textures.set(name,source),
+  loadTexture:(name,url)=>textures.load(name,url),
+  camera:cam,
+  scenes:SCENES
+};
+setScene('passage');requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
