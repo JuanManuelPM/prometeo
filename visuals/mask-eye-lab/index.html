@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0b0706">
+<title>Prometeo · Mask Eye Lab</title>
+<style>
+:root{
+  --ink:#f0e6d5;
+  --dim:rgba(240,230,213,.56);
+  --line:rgba(240,230,213,.18);
+  --plate:rgba(14,10,8,.72);
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0b0706;color:var(--ink);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{touch-action:manipulation;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+#stage{position:fixed;inset:0;display:block;width:100%;height:100%;background:#0b0706}
+#topline{position:fixed;z-index:8;left:max(14px,env(safe-area-inset-left));top:max(12px,env(safe-area-inset-top));display:flex;align-items:center;gap:9px;pointer-events:none}
+#sigil{width:23px;height:23px;display:grid;place-items:center;border:1px solid var(--line);background:rgba(0,0,0,.26);font-size:11px;font-weight:950}
+#titlebox{min-width:0}
+#modeLabel{font-size:10px;line-height:1;font-weight:950;letter-spacing:.16em;text-transform:uppercase;text-shadow:0 1px 3px #000}
+#loopLabel{margin-top:4px;font:750 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;color:var(--dim);text-transform:uppercase;text-shadow:0 1px 3px #000}
+#hint{position:fixed;z-index:8;right:max(14px,env(safe-area-inset-right));top:max(14px,env(safe-area-inset-top));font:800 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.09em;text-transform:uppercase;color:rgba(240,230,213,.34);pointer-events:none}
+#controls{position:fixed;z-index:10;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:7px;background:rgba(8,6,5,.74);border:1px solid rgba(240,230,213,.12);backdrop-filter:blur(5px);box-shadow:0 8px 26px rgba(0,0,0,.22)}
+button{min-height:42px;border:1px solid rgba(240,230,213,.16);background:rgba(24,17,14,.86);color:#d7c6ae;padding:0 13px;font:900 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.07em;text-transform:uppercase;cursor:pointer}
+button:active{transform:translateY(1px);background:#241712}
+button.on{background:#d9c8ad;color:#160f0c;border-color:#d9c8ad}
+#eyeButton{min-width:118px}
+#credit{position:fixed;z-index:7;right:max(10px,env(safe-area-inset-right));bottom:max(9px,env(safe-area-inset-bottom));max-width:30vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(240,230,213,.25);font:650 7px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;text-decoration:none}
+#credit:empty{display:none}
+#boot{position:fixed;z-index:20;inset:0;display:grid;place-items:center;background:#0b0706;color:#7e6d5b;font:900 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;transition:opacity .25s ease;pointer-events:none}
+body.ready #boot{opacity:0}
+#tapWake{position:fixed;z-index:9;left:50%;top:50%;transform:translate(-50%,-50%);padding:8px 10px;background:rgba(0,0,0,.54);border:1px solid rgba(240,230,213,.16);color:rgba(240,230,213,.58);font:900 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;opacity:0;pointer-events:none;transition:opacity .2s}
+body.needs-wake #tapWake{opacity:1}
+video{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-10px;top:-10px}
+@media(max-height:520px){
+  #controls{bottom:6px;padding:5px;gap:5px}
+  button{min-height:36px;padding:0 10px;font-size:8px}
+  #eyeButton{min-width:102px}
+  #credit{bottom:5px;font-size:6px;max-width:24vw}
+}
+@media(max-width:700px){
+  #hint{display:none}
+  #topline{left:9px;top:9px}
+  #controls{max-width:94vw;overflow-x:auto;scrollbar-width:none}
+  #controls::-webkit-scrollbar{display:none}
+  button{flex:0 0 auto}
+}
+@media(prefers-reduced-motion:reduce){#stage{image-rendering:auto}}
+</style>
+</head>
+<body>
+<canvas id="stage" aria-label="Laboratorio de máscaras con ojos animados"></canvas>
+<div id="topline"><div id="sigil">◉</div><div id="titlebox"><div id="modeLabel">SINGLE MASK</div><div id="loopLabel">cargando ojos</div></div></div>
+<div id="hint">1 / 2 / 3 · espacio = ojo</div>
+<div id="controls" aria-label="Modos de composición">
+  <button class="on" data-mode="single">Single Mask</button>
+  <button data-mode="radial">Radial Masks</button>
+  <button data-mode="shrine">Shrine / Wall</button>
+  <button id="eyeButton">Ojo siguiente</button>
+</div>
+<a id="credit" target="_blank" rel="noreferrer"></a>
+<div id="tapWake">tocá para despertar el ojo</div>
+<div id="boot">preparando máscara</div>
+<video id="eyeL" muted playsinline loop preload="metadata"></video>
+<video id="eyeR" muted playsinline loop preload="metadata"></video>
+<script>
+(() => {
+'use strict';
+const $=s=>document.querySelector(s);
+const canvas=$('#stage'),ctx=canvas.getContext('2d',{alpha:false,desynchronized:true});
+const eyeL=$('#eyeL'),eyeR=$('#eyeR'),modeLabel=$('#modeLabel'),loopLabel=$('#loopLabel'),credit=$('#credit');
+const MASK_URL='../../strategy/mask-mouth/assets/mask-transparent.webp';
+const MASK_RATIO=321/387;
+const modes=['single','radial','shrine'];
+let mode='single',loopIndex=0,maskReady=false,videoReady=false,needsWake=false,raf=0,cssW=0,cssH=0,dpr=1,last=0;
+
+const U={
+  free:'https://upload.wikimedia.org/wikipedia/commons/e/e9/This_shows_a_recording_of_the_eye_movements_of_a_participant_looking_freely_at_a_picture.webm',
+  sacc:'https://upload.wikimedia.org/wikipedia/commons/e/ef/Horizontal_saccades.webm',
+  pursuit:'https://upload.wikimedia.org/wikipedia/commons/f/f7/Smooth_pursuit_eye_movements.webm',
+  cat:'https://upload.wikimedia.org/wikipedia/commons/0/0e/Cat_Eye_%28Free_to_Use_Stock_Video_Footage%29.webm',
+  chameleon:'https://upload.wikimedia.org/wikipedia/commons/e/ee/Chameleon_eyes.webm',
+  owl:'https://upload.wikimedia.org/wikipedia/commons/2/23/Great_grey_owl_%28Strix_nebulosa%29.webm',
+  gecko:'https://upload.wikimedia.org/wikipedia/commons/5/5c/Japanese_gecko_%28Gekko_japonicus%29.webm'
+};
+const C={
+  human:'https://commons.wikimedia.org/wiki/Category:Eye_movement_in_humans',
+  cat:'https://commons.wikimedia.org/wiki/File:Cat_Eye_(Free_to_Use_Stock_Video_Footage).webm',
+  chameleon:'https://commons.wikimedia.org/wiki/File:Chameleon_eyes.webm',
+  owl:'https://commons.wikimedia.org/wiki/File:Great_grey_owl_(Strix_nebulosa).webm',
+  gecko:'https://commons.wikimedia.org/wiki/File:Japanese_gecko_(Gekko_japonicus).webm'
+};
+const LOOPS=[
+  {id:'human-free',label:'HUMANO · DERIVA',src:U.free,offsetL:.2,offsetR:2.1,filter:'grayscale(1) contrast(1.8) brightness(.56)',credit:'eye movement footage · Wikimedia Commons',href:C.human},
+  {id:'human-saccade',label:'HUMANO · SACADAS',src:U.sacc,offsetL:.1,offsetR:.9,filter:'invert(1) grayscale(1) contrast(1.7) brightness(.72)',credit:'horizontal saccades · Wikimedia Commons',href:C.human},
+  {id:'human-pursuit',label:'HUMANO · SEGUIMIENTO',src:U.pursuit,offsetL:.15,offsetR:1.0,filter:'grayscale(1) contrast(1.5) brightness(.7)',credit:'smooth pursuit · Wikimedia Commons',href:C.human},
+  {id:'cat',label:'GATO · ESMERALDA',src:U.cat,offsetL:2.3,offsetR:7.1,filter:'contrast(1.35) saturate(1.18) brightness(.78)',credit:'Cat Eye · Jeffrey Beach · CC BY 3.0',href:C.cat},
+  {id:'chameleon',label:'CAMALEÓN · BRONCE',src:U.chameleon,offsetL:2,offsetR:7,filter:'contrast(1.5) saturate(.8) brightness(.7) sepia(.18)',credit:'Chameleon eyes · James Wasswa · CC BY 4.0',href:C.chameleon},
+  {id:'owl',label:'BÚHO · ORO',src:U.owl,offsetL:5,offsetR:8.4,filter:'contrast(1.45) saturate(.8) brightness(.64) sepia(.18)',credit:'Great grey owl · The Nature Box · CC BY-SA 3.0',href:C.owl},
+  {id:'gecko',label:'GECKO · PIEDRA',src:U.gecko,offsetL:9,offsetR:15,filter:'grayscale(.35) contrast(1.5) brightness(.66)',credit:'Japanese gecko · The Nature Box · CC BY-SA 3.0',href:C.gecko}
+];
+
+const mask=new Image();
+mask.decoding='async';
+mask.src=MASK_URL;
+mask.onload=()=>{maskReady=true;document.body.classList.add('ready')};
+mask.onerror=()=>{document.body.classList.add('ready');modeLabel.textContent='MASK ASSET ERROR'};
+
+function resize(){
+  cssW=Math.max(1,innerWidth);cssH=Math.max(1,innerHeight);dpr=Math.min(devicePixelRatio||1,1.5);
+  canvas.width=Math.round(cssW*dpr);canvas.height=Math.round(cssH*dpr);canvas.style.width=cssW+'px';canvas.style.height=cssH+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+addEventListener('resize',resize,{passive:true});resize();
+
+function once(el,name,timeout=2600){return new Promise(resolve=>{let done=false;const fin=()=>{if(done)return;done=true;el.removeEventListener(name,fin);resolve()};el.addEventListener(name,fin,{once:true});setTimeout(fin,timeout)});}
+async function seekAndPlay(v,offset){
+  if(v.readyState<1)await once(v,'loadedmetadata');
+  try{if(Number.isFinite(v.duration)&&v.duration>.4)v.currentTime=Math.min(Math.max(0,offset),Math.max(0,v.duration-.25))}catch(_){}
+  try{await v.play();return true}catch(_){return false}
+}
+async function loadLoop(index){
+  loopIndex=(index+LOOPS.length)%LOOPS.length;
+  const L=LOOPS[loopIndex];videoReady=false;loopLabel.textContent='cargando · '+L.label;credit.textContent=L.credit;credit.href=L.href;
+  for(const v of [eyeL,eyeR]){try{v.pause()}catch(_){}v.src=L.src;v.load()}
+  const ok=await Promise.all([seekAndPlay(eyeL,L.offsetL),seekAndPlay(eyeR,L.offsetR)]);
+  videoReady=true;needsWake=!ok.every(Boolean);document.body.classList.toggle('needs-wake',needsWake);loopLabel.textContent=L.label;
+}
+function wake(){
+  Promise.all([eyeL.play().catch(()=>null),eyeR.play().catch(()=>null)]).then(()=>{needsWake=false;document.body.classList.remove('needs-wake')});
+}
+document.addEventListener('pointerdown',wake,{passive:true});
+
+function setMode(next){
+  if(!modes.includes(next))return;mode=next;
+  document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
+  modeLabel.textContent=mode==='single'?'SINGLE MASK':mode==='radial'?'RADIAL MASKS':'SHRINE / WALL';
+}
+document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+$('#eyeButton').addEventListener('click',()=>loadLoop(loopIndex+1));
+addEventListener('keydown',e=>{
+  if(e.key==='1')setMode('single');
+  if(e.key==='2')setMode('radial');
+  if(e.key==='3')setMode('shrine');
+  if(e.key===' '){e.preventDefault();loadLoop(loopIndex+1)}
+});
+
+function drawVideoCrop(v,x,y,w,h,mirror=false,filter='none'){
+  if(!videoReady||v.readyState<2)return false;
+  const vw=v.videoWidth||640,vh=v.videoHeight||360;
+  const target=w/h,source=vw/vh;let sx=0,sy=0,sw=vw,sh=vh;
+  if(source>target){sw=vh*target;sx=(vw-sw)/2}else{sh=vw/target;sy=(vh-sh)/2}
+  ctx.save();ctx.filter=filter;
+  if(mirror){ctx.translate(x+w,y);ctx.scale(-1,1);ctx.drawImage(v,sx,sy,sw,sh,0,0,w,h)}
+  else ctx.drawImage(v,sx,sy,sw,sh,x,y,w,h);
+  ctx.restore();return true;
+}
+
+function drawEye(v,cx,cy,r,mirror,filter,phase){
+  ctx.save();ctx.beginPath();ctx.ellipse(cx,cy,r*1.03,r*.94,0,0,Math.PI*2);ctx.clip();
+  ctx.fillStyle='#080403';ctx.fillRect(cx-r,cy-r,cx+r,cy+r);
+  const wobble=Math.sin(phase)*r*.05;
+  drawVideoCrop(v,cx-r*1.34+wobble,cy-r*1.18,r*2.68,r*2.36,mirror,filter);
+  ctx.restore();
+}
+
+function drawMaskInstance(cx,cy,h,rot=0,alpha=1,invert=false,phase=0){
+  if(!maskReady)return;
+  const w=h*MASK_RATIO,x=-w/2,y=-h/2,L=LOOPS[loopIndex];
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(rot);ctx.globalAlpha=alpha;
+  const r=w*.095;
+  drawEye(eyeL,x+w*.315,y+h*.495,r,false,L.filter,phase);
+  drawEye(eyeR,x+w*.685,y+h*.49,r,true,L.filter,phase+1.8);
+  ctx.save();ctx.shadowColor=invert?'rgba(246,230,205,.20)':'rgba(0,0,0,.28)';ctx.shadowBlur=Math.max(3,h*.025);ctx.filter=invert?'invert(1) grayscale(1) contrast(1.2)':'contrast(1.05)';ctx.drawImage(mask,x,y,w,h);ctx.restore();
+  ctx.restore();
+}
+
+function background(fill){ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle=fill;ctx.fillRect(0,0,cssW,cssH);ctx.restore()}
+function single(t){
+  background('#b7ad9b');
+  const breath=1+Math.sin(t*.00125)*.018;
+  const h=Math.min(cssH*.88,cssW*.56)*breath;
+  ctx.save();ctx.globalAlpha=.1;ctx.filter='blur(8px) invert(1)';drawMaskInstance(cssW*.5,cssH*.52,h*1.09,0,.12,true,t*.002);ctx.restore();
+  drawMaskInstance(cssW*.5,cssH*.5,h,Math.sin(t*.0005)*.012,1,false,t*.0022);
+}
+function radial(t){
+  background('#120a08');
+  const count=12,R=Math.min(cssW,cssH)*.315,base=Math.min(cssW,cssH)*.34;
+  for(let i=0;i<count;i++){
+    const a=(i/count)*Math.PI*2+t*.00006;
+    const pulse=1+Math.sin(t*.0015+i*.72)*.035;
+    const x=cssW*.5+Math.cos(a)*R,y=cssH*.5+Math.sin(a)*R;
+    drawMaskInstance(x,y,base*pulse,a+Math.PI/2,.82,true,t*.002+i);
+  }
+  drawMaskInstance(cssW*.5,cssH*.5,Math.min(cssW,cssH)*.53,Math.sin(t*.0004)*.008,1,false,t*.0025);
+}
+function shrine(t){
+  background('#9d9484');
+  const cols=7,rows=3,cellW=cssW/(cols+1),cellH=cssH/(rows+1),h=Math.min(cellH*1.65,cellW*1.55/MASK_RATIO);
+  for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
+    const cx=cellW*(col+1),cy=cellH*(row+1);
+    const center=Math.abs(col-(cols-1)/2)+Math.abs(row-(rows-1)/2)*1.25;
+    const scale=center<.6?1.35:center<1.8?1.03:.83;
+    const sway=Math.sin(t*.0007+col*.8+row*.4)*.018;
+    drawMaskInstance(cx,cy,h*scale,sway,.46+Math.max(0,.42-center*.05),(col+row)%2===1,t*.0018+col+row);
+  }
+  ctx.save();ctx.fillStyle='rgba(25,15,10,.22)';ctx.fillRect(0,0,cssW,cssH*.08);ctx.fillRect(0,cssH*.92,cssW,cssH*.08);ctx.restore();
+}
+function frame(t){
+  if(!last)last=t;
+  if(mode==='single')single(t);else if(mode==='radial')radial(t);else shrine(t);
+  last=t;raf=requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+loadLoop(0);
+
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){try{eyeL.pause();eyeR.pause()}catch(_){}}
+  else wake();
+});
+})();
+</script>
+</body>
+</html>
