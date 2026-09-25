@@ -4,14 +4,20 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function mount(cfg){
   const C=g.PROMETEO_COLISEO_CONTRACT_V1,F=g.PROMETEO_COLISEO_FIXTURE_V1;
   const snap=C.normalizeSnapshot(F.build()),report=C.validateSnapshot(snap);
+  const mod=g.COLISEO_LAB_MODULE||null;
+  const spec=C.modules[cfg.id]||{export:[]};
+  const expected=spec.export.map(x=>String(x).split('(')[0]);
+  const missing=expected.filter(name=>!(mod&&name in mod));
+  const moduleOk=!!mod&&mod.id===cfg.id&&missing.length===0;
   document.body.innerHTML='';
   const root=document.createElement('main');
   root.innerHTML=
     '<section class="hero"><div class="kicker">PROMETEO · COLISEO LAB</div><h1>'+esc(cfg.title)+'</h1><p>'+esc(cfg.purpose)+'</p>'+
-    '<div class="badges"><span>SYNTHETIC FIXTURE</span><span>'+esc(C.id)+'</span><span>'+(report.ok?'CONTRACT OK':'CONTRACT ERROR')+'</span></div></section>'+
+    '<div class="badges"><span>SYNTHETIC FIXTURE</span><span>'+esc(C.id)+'</span><span>'+(report.ok?'CONTRACT OK':'CONTRACT ERROR')+'</span><span>'+(moduleOk?'MODULE OK':'MODULE ERROR')+'</span></div></section>'+
     '<section class="grid"><article><h2>Esta rama posee</h2><p>'+esc(cfg.owns.join(' · '))+'</p></article>'+
     '<article><h2>No toca</h2><p>'+esc(cfg.forbids.join(' · '))+'</p></article>'+
     '<article><h2>Fixture común</h2><p>'+snap.projects.length+' proyectos · '+snap.workers.length+' workers · '+snap.nodes.length+' nodos</p></article>'+
+    '<article><h2>Interfaz</h2><p>'+esc(expected.join(' · '))+'</p></article>'+
     '<article><h2>Entrega</h2><p>Editar sólo este lab y exportar el módulo acordado. Integration decide promoción.</p></article></section>'+
     '<section class="state"><h2>Estado de prueba compartido</h2><div class="projects"></div></section>'+
     '<footer>Scaffold neutral. No es una propuesta visual.</footer>';
@@ -26,7 +32,7 @@ function mount(cfg){
     }
     box.appendChild(d);
   }
-  g.__COLISEO_LAB__={config:cfg,snapshot:snap,report};
+  g.__COLISEO_LAB__={config:cfg,snapshot:snap,report,moduleReport:{ok:moduleOk,expected,missing,module:mod}};
 }
 g.PROMETEO_COLISEO_LAB_SHELL={mount};
 })(window);
