@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#050504">
+<title>Prometeo · Visuals</title>
+<style>
+:root{
+  --bg:#050504;--panel:#0d0c0a;--panel2:#12100d;--line:#332d27;
+  --ink:#e9ddca;--muted:#8e806f;--accent:#d28a4b;--safeT:env(safe-area-inset-top);
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{overscroll-behavior:none;touch-action:none}
+button{font:inherit}
+#landscape{
+  position:fixed;inset:0;width:100dvw;height:100dvh;overflow:hidden;background:var(--bg);
+  transform-origin:center center;
+}
+#viewport{position:absolute;inset:0;overflow:hidden;background:#000;isolation:isolate}
+#frameLayer{
+  position:absolute;left:50%;top:50%;width:100%;height:100%;
+  transform:translate3d(-50%,-50%,0) scale(1);transform-origin:center center;
+  will-change:transform;background:#050504;
+}
+#visualFrame{display:block;width:100%;height:100%;border:0;background:#050504}
+#loading{
+  position:absolute;inset:0;display:grid;place-items:center;z-index:3;pointer-events:none;
+  background:#050504;color:#817363;font:800 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+  letter-spacing:.12em;text-transform:uppercase;transition:opacity .18s ease;
+}
+#loading.off{opacity:0}
+#menuButton{
+  position:absolute;z-index:40;left:max(10px,env(safe-area-inset-left));top:max(10px,var(--safeT));
+  width:44px;height:44px;border:1px solid rgba(218,180,132,.28);background:rgba(7,6,5,.88);
+  color:#e3cfb4;display:grid;place-items:center;padding:0;cursor:pointer;
+  box-shadow:0 5px 20px rgba(0,0,0,.35);backdrop-filter:blur(5px);
+}
+#menuButton span,#menuButton span:before,#menuButton span:after{
+  content:"";display:block;width:17px;height:1px;background:currentColor;position:relative;
+}
+#menuButton span:before{position:absolute;top:-6px;left:0}
+#menuButton span:after{position:absolute;top:6px;left:0}
+#currentChip{
+  position:absolute;z-index:25;top:max(12px,var(--safeT));left:50%;transform:translateX(-50%);
+  max-width:58%;padding:6px 10px;background:rgba(6,5,4,.60);border:1px solid rgba(215,180,139,.12);
+  color:#9b8c7a;font:750 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+  text-transform:uppercase;letter-spacing:.07em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  pointer-events:none;
+}
+#drawerBackdrop{
+  position:absolute;inset:0;z-index:49;background:rgba(0,0,0,.42);opacity:0;pointer-events:none;transition:opacity .18s ease;
+}
+#drawer{
+  position:absolute;z-index:50;left:0;top:0;bottom:0;width:min(360px,74%);
+  background:rgba(10,9,7,.985);border-right:1px solid rgba(215,180,139,.18);
+  transform:translateX(-102%);transition:transform .20s ease;
+  display:flex;flex-direction:column;box-shadow:18px 0 52px rgba(0,0,0,.50);
+}
+body.menu-open #drawer{transform:translateX(0)}
+body.menu-open #drawerBackdrop{opacity:1;pointer-events:auto}
+.drawerHead{
+  flex:0 0 auto;display:flex;align-items:center;gap:11px;padding:14px 14px 12px;
+  border-bottom:1px solid var(--line);
+}
+.drawerMark{width:30px;height:30px;border:1px solid #554738;display:grid;place-items:center;color:var(--accent);font:950 10px ui-monospace}
+.drawerCopy{min-width:0}.drawerCopy b{display:block;font-size:13px;letter-spacing:.04em}.drawerCopy span{display:block;margin-top:2px;color:#756a5e;font:700 8px ui-monospace;letter-spacing:.08em;text-transform:uppercase}
+#tree{
+  flex:1 1 auto;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;touch-action:pan-y;padding:8px 8px 16px;
+  scrollbar-width:thin;scrollbar-color:#4e4337 transparent;
+}
+.folder{border-bottom:1px solid #201d19}
+.folder summary{
+  list-style:none;display:flex;align-items:center;min-height:42px;padding:0 8px;color:#a99a87;
+  font:850 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;
+  letter-spacing:.08em;cursor:pointer;user-select:none;
+}
+.folder summary::-webkit-details-marker{display:none}
+.folder summary:before{content:"›";display:inline-block;margin-right:8px;color:#74675a;font-size:16px;transform:rotate(0);transition:transform .15s}
+.folder[open] summary:before{transform:rotate(90deg)}
+.folderItems{padding:0 0 8px 13px}
+.pageItem{
+  width:100%;display:grid;grid-template-columns:1fr auto;gap:10px;text-align:left;
+  padding:10px 9px;margin:2px 0;border:0;border-left:2px solid transparent;background:transparent;
+  color:#d3c3ae;cursor:pointer;
+}
+.pageItem:active{background:#18140f}
+.pageItem.on{background:#17130f;border-left-color:var(--accent)}
+.pageText b{display:block;font-size:12px;font-weight:800}
+.pageText small{display:block;margin-top:3px;color:#71675b;font-size:9px;line-height:1.25}
+.pageItem .dot{width:6px;height:6px;border-radius:50%;background:#342d26;margin-top:4px}
+.pageItem.on .dot{background:var(--accent);box-shadow:0 0 9px rgba(210,138,75,.45)}
+.drawerTools{
+  flex:0 0 auto;border-top:1px solid var(--line);padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px;
+  background:#090806;
+}
+.tool{
+  min-height:38px;border:1px solid #312b25;background:#100e0c;color:#9b8c79;
+  font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.05em;
+}
+.tool:active{background:#1a1612;color:#e4cfb2}
+.zoomReadout{grid-column:1/-1;color:#6e6459;text-align:center;font:750 8px/1 ui-monospace;padding:2px}
+#rotateHint{
+  position:absolute;z-index:60;right:10px;bottom:10px;padding:5px 7px;border:1px solid rgba(215,180,139,.12);
+  background:rgba(6,5,4,.58);color:#71665b;font:750 8px/1 ui-monospace;letter-spacing:.04em;pointer-events:none;
+}
+@media(orientation:portrait){
+  #landscape{
+    inset:auto;left:50%;top:50%;
+    width:100dvh;height:100dvw;
+    transform:translate(-50%,-50%) rotate(90deg);
+  }
+  #drawer{width:min(350px,72%)}
+  #rotateHint{display:none}
+}
+@media(max-height:420px){
+  #menuButton{width:40px;height:40px}
+  .drawerHead{padding-top:8px;padding-bottom:8px}
+  .folder summary{min-height:36px}
+  .pageItem{padding-top:8px;padding-bottom:8px}
+}
+</style>
+</head>
+<body>
+<div id="landscape">
+  <main id="viewport" aria-label="Visor global de visuales de Prometeo">
+    <div id="frameLayer"><iframe id="visualFrame" title="Visual de Prometeo" allow="fullscreen"></iframe></div>
+    <div id="loading">cargando visual</div>
+  </main>
+
+  <button id="menuButton" aria-label="Abrir menú" aria-expanded="false"><span></span></button>
+  <div id="currentChip">Prometeo Visuals</div>
+
+  <div id="drawerBackdrop"></div>
+  <aside id="drawer" aria-label="Navegación visual">
+    <div class="drawerHead">
+      <div class="drawerMark">P</div>
+      <div class="drawerCopy"><b>Prometeo Visuals</b><span>visor global · landscape</span></div>
+    </div>
+    <nav id="tree"></nav>
+    <div class="drawerTools">
+      <button class="tool" id="resetView">Reset zoom</button>
+      <button class="tool" id="fullScreen">Pantalla completa</button>
+      <button class="tool" id="reloadPage">Recargar visual</button>
+      <button class="tool" id="openPage">Abrir aparte</button>
+      <div class="zoomReadout" id="zoomReadout">ZOOM 100% · PINCH CON 2 DEDOS</div>
+    </div>
+  </aside>
+  <div id="rotateHint">☰ menú · pinch = zoom</div>
+</div>
+
+<script src="./registry-v1.js"></script>
+<script>
+(function(){
+'use strict';
+const REG=window.PROMETEO_VISUALS_REGISTRY_V1;
+const byId=new Map();
+for(const folder of REG.folders)for(const item of folder.items)byId.set(item.id,{...item,folder:folder.id});
+
+const frame=document.getElementById('visualFrame');
+const layer=document.getElementById('frameLayer');
+const loading=document.getElementById('loading');
+const tree=document.getElementById('tree');
+const menuButton=document.getElementById('menuButton');
+const backdrop=document.getElementById('drawerBackdrop');
+const chip=document.getElementById('currentChip');
+const zoomReadout=document.getElementById('zoomReadout');
+
+let current=null;
+let zoom=1,panX=0,panY=0;
+let cleanupFrameGestures=null;
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function openMenu(on){
+  document.body.classList.toggle('menu-open',on);
+  menuButton.setAttribute('aria-expanded',on?'true':'false');
+}
+menuButton.addEventListener('click',()=>openMenu(!document.body.classList.contains('menu-open')));
+backdrop.addEventListener('click',()=>openMenu(false));
+
+function applyTransform(){
+  const w=layer.parentElement.clientWidth||1,h=layer.parentElement.clientHeight||1;
+  const mx=Math.max(0,(zoom-1)*w*.5),my=Math.max(0,(zoom-1)*h*.5);
+  panX=clamp(panX,-mx,mx);panY=clamp(panY,-my,my);
+  layer.style.transform='translate3d(calc(-50% + '+panX+'px),calc(-50% + '+panY+'px),0) scale('+zoom+')';
+  zoomReadout.textContent='ZOOM '+Math.round(zoom*100)+'% · PINCH CON 2 DEDOS';
+}
+function resetView(){zoom=1;panX=0;panY=0;applyTransform()}
+function currentHash(){return location.hash.replace(/^#/,'').trim()}
+function setHash(id){if(location.hash!=='#'+id)history.pushState(null,'','#'+id)}
+
+function renderTree(){
+  tree.innerHTML='';
+  for(const folder of REG.folders){
+    const d=document.createElement('details');d.className='folder';d.open=!!folder.open;
+    const s=document.createElement('summary');s.textContent=folder.label;d.appendChild(s);
+    const items=document.createElement('div');items.className='folderItems';
+    for(const item of folder.items){
+      const b=document.createElement('button');b.className='pageItem';b.dataset.page=item.id;
+      b.innerHTML='<span class="pageText"><b></b><small></small></span><span class="dot"></span>';
+      b.querySelector('b').textContent=item.label;
+      b.querySelector('small').textContent=item.description||'';
+      b.addEventListener('click',()=>selectPage(item.id,true));
+      items.appendChild(b);
+    }
+    d.appendChild(items);tree.appendChild(d);
+  }
+}
+function markActive(){
+  document.querySelectorAll('.pageItem').forEach(b=>b.classList.toggle('on',!!current&&b.dataset.page===current.id));
+}
+
+function selectPage(id,push){
+  const item=byId.get(id)||byId.get(REG.defaultPage);
+  if(!item)return;
+  current=item;markActive();chip.textContent=item.label;
+  loading.classList.remove('off');
+  resetView();
+  frame.src=item.src;
+  try{localStorage.setItem('prometeo.visuals.current.v1',item.id)}catch(_){}
+  if(push)setHash(item.id);
+  openMenu(false);
+}
+
+function installFrameHooks(){
+  if(cleanupFrameGestures){cleanupFrameGestures();cleanupFrameGestures=null}
+  let doc;
+  try{doc=frame.contentDocument;if(!doc)return}catch(_){return}
+
+  if(current&&Array.isArray(current.hideSelectors)&&current.hideSelectors.length){
+    const st=doc.createElement('style');
+    st.setAttribute('data-prometeo-visuals-shell','');
+    st.textContent=current.hideSelectors.join(',')+'{display:none!important}';
+    doc.head&&doc.head.appendChild(st);
+  }
+
+  try{
+    doc.documentElement.style.overscrollBehavior='none';
+    doc.body&&doc.body.style.setProperty('overscroll-behavior','none');
+  }catch(_){}
+
+  let gesture=null;
+  const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+  const mid=t=>({x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2});
+
+  function onStart(e){
+    if(e.touches&&e.touches.length===2){
+      const m=mid(e.touches);
+      gesture={dist:Math.max(1,dist(e.touches)),zoom,panX,panY,mid:m};
+      e.preventDefault();
+    }
+  }
+  function onMove(e){
+    if(!gesture||!e.touches||e.touches.length!==2)return;
+    const m=mid(e.touches);
+    const next=clamp(gesture.zoom*(dist(e.touches)/gesture.dist),1,4);
+    const w=layer.parentElement.clientWidth||1,h=layer.parentElement.clientHeight||1;
+    const cx=w/2,cy=h/2,ratio=next/gesture.zoom;
+    panX=m.x-cx-ratio*(gesture.mid.x-cx-gesture.panX);
+    panY=m.y-cy-ratio*(gesture.mid.y-cy-gesture.panY);
+    zoom=next;applyTransform();e.preventDefault();
+  }
+  function onEnd(e){if(!e.touches||e.touches.length<2)gesture=null}
+  doc.addEventListener('touchstart',onStart,{capture:true,passive:false});
+  doc.addEventListener('touchmove',onMove,{capture:true,passive:false});
+  doc.addEventListener('touchend',onEnd,{capture:true,passive:false});
+  doc.addEventListener('touchcancel',onEnd,{capture:true,passive:false});
+
+  cleanupFrameGestures=()=>{
+    doc.removeEventListener('touchstart',onStart,true);
+    doc.removeEventListener('touchmove',onMove,true);
+    doc.removeEventListener('touchend',onEnd,true);
+    doc.removeEventListener('touchcancel',onEnd,true);
+  };
+}
+
+frame.addEventListener('load',()=>{
+  loading.classList.add('off');
+  installFrameHooks();
+});
+
+document.getElementById('resetView').addEventListener('click',resetView);
+document.getElementById('reloadPage').addEventListener('click',()=>{loading.classList.remove('off');try{frame.contentWindow.location.reload()}catch(_){frame.src=current?current.src:frame.src}});
+document.getElementById('openPage').addEventListener('click',()=>{if(current)window.open(new URL(current.src,location.href).href,'_blank','noopener')});
+document.getElementById('fullScreen').addEventListener('click',async()=>{
+  try{
+    if(!document.fullscreenElement)await document.documentElement.requestFullscreen();
+    else await document.exitFullscreen();
+    if(screen.orientation&&screen.orientation.lock)try{await screen.orientation.lock('landscape')}catch(_){}
+  }catch(_){}
+});
+
+window.addEventListener('hashchange',()=>{const id=currentHash();if(byId.has(id)&&(!current||current.id!==id))selectPage(id,false)});
+window.addEventListener('resize',applyTransform);
+
+renderTree();
+let start=currentHash();
+if(!byId.has(start)){
+  try{start=localStorage.getItem('prometeo.visuals.current.v1')||''}catch(_){}
+}
+if(!byId.has(start))start=REG.defaultPage;
+selectPage(start,false);
+})();
+</script>
+</body>
+</html>
