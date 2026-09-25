@@ -2,369 +2,604 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Prometeo · Current Tree</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="dark">
+<title>Prometeo · Estado actual</title>
 <style>
 :root{
-  --bg:#090a0c;--panel:#101216;--panel2:#15181d;--line:#292d35;--ink:#f1f1ed;--muted:#8f96a3;
-  --current:#7fe39b;--stale:#f1c75b;--pending:#7eb6ff;--legacy:#777e89;--candidate:#c693ff;--bad:#ff7b7b;
+  --bg:#090a0c;--surface:#111318;--surface2:#171a20;--line:#292d35;
+  --ink:#f2f1eb;--muted:#9299a5;--soft:#c5cad2;
+  --green:#77db93;--yellow:#e4bb55;--red:#ef7777;--blue:#7bb4ff;--purple:#bd8cf4;
+  --radius:12px;--pad:14px;--max:1400px;
 }
-*{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace}
-button,input{font:inherit} button{color:inherit}
-.top{position:sticky;top:0;z-index:20;background:rgba(9,10,12,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
-.header{display:flex;gap:20px;align-items:flex-start;justify-content:space-between;padding:18px 22px 12px}
-.kicker{font-size:11px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase}.title{font-size:clamp(24px,3vw,42px);font-weight:900;letter-spacing:-.045em;margin-top:4px}
-.subtitle{color:var(--muted);font-size:12px;margin-top:7px;max-width:780px;line-height:1.45}
-.clock{text-align:right;color:var(--muted);font-size:11px;white-space:nowrap}
-.tabs{display:flex;gap:5px;padding:0 22px 12px}.tab{border:1px solid var(--line);background:transparent;padding:8px 11px;cursor:pointer}.tab.active{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.statusbar{display:flex;gap:7px;flex-wrap:wrap;padding:0 22px 13px}.pill{border:1px solid var(--line);padding:5px 8px;font-size:11px;display:inline-flex;gap:6px;align-items:center}.dot{width:7px;height:7px;border-radius:50%;background:var(--legacy)}
-.current .dot,.dot.current{background:var(--current)}.stale .dot,.dot.stale{background:var(--stale)}.pending .dot,.dot.pending{background:var(--pending)}.legacy .dot,.dot.legacy{background:var(--legacy)}.candidate .dot,.dot.candidate{background:var(--candidate)}.bad .dot,.dot.bad{background:var(--bad)}
-.notice{margin:14px 22px 0;border:1px solid #5e4e22;background:#18150d;padding:11px 13px;font-size:12px;line-height:1.5}.notice strong{color:var(--stale)}
-.workspace{display:grid;grid-template-columns:minmax(290px,370px) minmax(0,1fr);min-height:calc(100vh - 170px);margin-top:14px;border-top:1px solid var(--line)}
-.sidebar{border-right:1px solid var(--line);padding:13px 11px 60px;min-width:0}.main{padding:22px 24px 70px;min-width:0}
-.search{width:100%;background:var(--panel);color:var(--ink);border:1px solid var(--line);padding:10px;margin-bottom:10px;outline:none}.search:focus{border-color:#697180}
-.tree-section{margin:4px 0 11px}.tree-head{width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);padding:9px 7px;color:#cbd0d8;cursor:pointer;font-weight:800;font-size:12px;display:flex;justify-content:space-between}.tree-items{padding:5px 0}
-.node{width:100%;display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:7px;align-items:center;text-align:left;background:transparent;border:0;padding:6px 7px;cursor:pointer;color:#d9dce1;font-size:12px}.node:hover,.node.selected{background:var(--panel2)}.node .icon{color:#666f7c}.node .label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.badge{font-size:9px;padding:2px 5px;border:1px solid var(--line);color:var(--muted)}.badge.CURRENT{color:var(--current);border-color:#315a3b}.badge.STALE{color:var(--stale);border-color:#625327}.badge.PENDING,.badge.PENDING_SYNTHESIS{color:var(--pending);border-color:#324d70}.badge.LEGACY,.badge.SUPERSEDED{color:var(--legacy)}.badge.CANDIDATE{color:var(--candidate);border-color:#50396b}
-.eyebrow{font-size:11px;letter-spacing:.13em;color:var(--muted);text-transform:uppercase}.detail-title{font-size:clamp(25px,3vw,42px);line-height:1.02;letter-spacing:-.045em;margin:6px 0 10px;overflow-wrap:anywhere}.lede{color:#bcc2cb;max-width:900px;line-height:1.55;font-size:14px}
-.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin:20px 0}.meta>div{background:var(--panel);padding:11px}.mk{color:var(--muted);font-size:9px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:5px}.mv{font-size:12px;overflow-wrap:anywhere}
-.section-title{font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin:27px 0 10px;color:#cdd1d8;border-bottom:1px solid var(--line);padding-bottom:8px}
-.flow{display:flex;flex-wrap:wrap;align-items:center;gap:7px}.step{border:1px solid var(--line);background:var(--panel);padding:8px 10px;font-size:11px}.arrow{color:#5f6671}
-.list{display:grid;gap:6px}.item{border-left:2px solid var(--line);padding:6px 9px;font-size:12px;color:#c5cad1;line-height:1.45}.item.warn{border-left-color:var(--stale)}.item.legacy{border-left-color:var(--legacy)}
-pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#060708;border:1px solid var(--line);padding:12px;font-size:10px;line-height:1.45;color:#aeb5bf;max-height:520px;overflow:auto}
-details{margin-top:20px} summary{cursor:pointer;color:var(--muted);font-size:11px}
-a{color:#a8c8ff;text-decoration:none} a:hover{text-decoration:underline}
-.repo-legend{font-size:11px;color:var(--muted);line-height:1.5;padding:8px 4px 12px}.repo-row{padding-left:calc(var(--depth,0)*13px)}
-.folder-toggle{width:100%;display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:6px;align-items:center;border:0;background:transparent;color:#d8dce2;text-align:left;padding:5px 6px;cursor:pointer;font-size:11px}.folder-toggle:hover{background:var(--panel2)}
-.file-row{width:100%;display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:6px;align-items:center;border:0;background:transparent;color:#aeb5bf;text-align:left;padding:5px 6px;cursor:pointer;font-size:11px}.file-row:hover{background:var(--panel2)}
-.path-chip{font-size:9px;color:var(--legacy);border:1px solid var(--line);padding:1px 4px}.repo-results{display:grid;gap:2px}.repo-result{border:0;background:transparent;color:#bec4cd;text-align:left;padding:7px;cursor:pointer;font-size:10px;overflow-wrap:anywhere}.repo-result:hover{background:var(--panel2)}
-.empty{color:var(--muted);font-size:12px;padding:18px 7px}
-@media(max-width:800px){
- .header{padding:15px 14px 10px}.tabs,.statusbar{padding-left:14px;padding-right:14px}.notice{margin-left:14px;margin-right:14px}
- .workspace{grid-template-columns:1fr}.sidebar{border-right:0;border-bottom:1px solid var(--line);max-height:47vh;overflow:auto;padding-bottom:14px}.main{padding:18px 14px 60px}
- .clock{display:none}.title{font-size:30px}
+*{box-sizing:border-box}
+html{background:var(--bg);color:var(--ink)}
+body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+button,input{font:inherit}
+button{color:inherit}
+a{color:inherit;text-decoration:none}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.shell{max-width:var(--max);margin:auto;min-height:100vh}
+.top{position:sticky;top:0;z-index:30;background:rgba(9,10,12,.97);border-bottom:1px solid var(--line);backdrop-filter:blur(10px)}
+.head{height:58px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px}
+.brand{min-width:0}
+.brandline{display:flex;gap:8px;align-items:baseline;min-width:0}
+.brand strong{font-size:15px;letter-spacing:.04em;white-space:nowrap}
+.brand span{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.snap{font-size:10px;color:var(--muted);text-align:right;white-space:nowrap}
+.tabs{display:flex;overflow-x:auto;scrollbar-width:none;padding:0 10px 9px;gap:4px}
+.tabs::-webkit-scrollbar{display:none}
+.tab{border:0;background:transparent;padding:8px 10px;border-radius:8px;color:var(--muted);font-size:12px;white-space:nowrap;cursor:pointer}
+.tab.active{background:var(--surface2);color:var(--ink)}
+.status-strip{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:0 14px 10px}
+.status-strip::-webkit-scrollbar{display:none}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:5px 8px;font-size:10px;white-space:nowrap;color:var(--soft)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:0 0 auto}
+.current .dot,.dot.current{background:var(--green)}
+.stale .dot,.dot.stale{background:var(--yellow)}
+.pending .dot,.dot.pending{background:var(--blue)}
+.legacy .dot,.dot.legacy{background:var(--muted)}
+.candidate .dot,.dot.candidate{background:var(--purple)}
+.error .dot,.dot.error{background:var(--red)}
+.main{padding:14px 14px 70px}
+.view{display:none}
+.view.active{display:block}
+.section-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:2px 0 10px}
+.section-head h1,.section-head h2{margin:0;letter-spacing:-.025em}
+.section-head h1{font-size:21px}
+.section-head h2{font-size:16px}
+.section-head p{margin:4px 0 0;color:var(--muted);font-size:11px;line-height:1.4}
+.linkish{border:0;background:transparent;color:var(--blue);font-size:11px;padding:5px;cursor:pointer}
+.hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.card{border:1px solid var(--line);background:var(--surface);border-radius:var(--radius);padding:12px;min-width:0}
+.card.primary{grid-column:1/-1;padding:14px}
+.card-k{font-size:9px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-bottom:7px}
+.card-v{font-size:18px;font-weight:750;letter-spacing:-.025em;line-height:1.05;overflow-wrap:anywhere}
+.card-v.small{font-size:15px}
+.card-sub{margin-top:6px;color:var(--muted);font-size:10px;line-height:1.35}
+.rowstat{display:flex;align-items:center;gap:7px}
+.badge{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:3px 6px;font-size:9px;letter-spacing:.04em;white-space:nowrap}
+.badge.CURRENT{color:var(--green);border-color:#31593a}
+.badge.STALE{color:var(--yellow);border-color:#5c4d25}
+.badge.PENDING,.badge.PENDING_SYNTHESIS{color:var(--blue);border-color:#304b6c}
+.badge.LEGACY,.badge.SUPERSEDED{color:#9ca2ac}
+.badge.CANDIDATE{color:var(--purple);border-color:#543d70}
+.badge.ERROR{color:var(--red);border-color:#693535}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
+.metric{background:#0d0f12;border:1px solid var(--line);border-radius:8px;padding:8px}
+.metric strong{display:block;font-size:16px}
+.metric span{display:block;color:var(--muted);font-size:9px;margin-top:2px;text-transform:uppercase;letter-spacing:.07em}
+.attention{border:1px solid #564721;background:#16130c;border-radius:var(--radius);padding:11px 12px;margin:8px 0 14px}
+.attention-title{font-size:11px;font-weight:700;color:var(--yellow);margin-bottom:5px}
+.attention-text{font-size:11px;color:#d2c8aa;line-height:1.45}
+.list{display:grid;gap:6px}
+.list-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 11px;min-width:0}
+.list-row.click{cursor:pointer}
+.list-row.click:active{background:var(--surface2)}
+.row-title{font-size:12px;font-weight:650;overflow-wrap:anywhere}
+.row-sub{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.35;overflow-wrap:anywhere}
+.arrow{color:#69717d;font-size:16px}
+.subhead{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:17px 2px 7px}
+.project-layout{display:grid;grid-template-columns:minmax(270px,360px) minmax(0,1fr);gap:12px;align-items:start}
+.project-nav{display:grid;gap:10px}
+.group{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+.group-title{padding:8px 10px;background:#0d0f12;color:var(--muted);font-size:9px;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--line)}
+.navrow{width:100%;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:8px;align-items:center;padding:9px 10px;cursor:pointer}
+.navrow:last-child{border-bottom:0}
+.navrow:hover,.navrow.selected{background:var(--surface2)}
+.navrow .nlabel{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.project-detail{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:14px;min-height:320px;position:sticky;top:144px}
+.detail-k{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+.detail-title{font-size:22px;font-weight:760;letter-spacing:-.035em;line-height:1.08;margin:5px 0 8px;overflow-wrap:anywhere}
+.detail-lede{font-size:12px;color:var(--soft);line-height:1.5;max-width:850px}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:9px;overflow:hidden;margin:14px 0}
+.meta-cell{background:#0e1014;padding:9px}
+.meta-k{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.meta-v{font-size:10px;overflow-wrap:anywhere}
+.flow{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.flowstep{border:1px solid var(--line);border-radius:7px;background:#0e1014;padding:6px 8px;font-size:10px}
+.flowarrow{color:#5e6672;font-size:11px}
+.searchbar{display:flex;gap:7px;margin:8px 0 10px}
+.search{flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:9px;padding:10px 11px;outline:none;font-size:12px}
+.search:focus{border-color:#5b6573}
+.smallbtn{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:8px 10px;font-size:10px;cursor:pointer}
+.breadcrumb{display:flex;gap:5px;align-items:center;overflow-x:auto;white-space:nowrap;margin-bottom:8px;padding:3px 1px;scrollbar-width:none}
+.breadcrumb::-webkit-scrollbar{display:none}
+.crumb{border:0;background:transparent;color:var(--blue);padding:3px;font-size:10px;cursor:pointer}
+.folder-row,.file-row,.search-result{width:100%;border:0;border-bottom:1px solid var(--line);background:transparent;display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:center;text-align:left;padding:9px 4px;cursor:pointer}
+.folder-row:last-child,.file-row:last-child,.search-result:last-child{border-bottom:0}
+.filebox{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:0 10px;overflow:hidden}
+.ico{color:#89919c;font-size:13px}
+.fname{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fmeta{font-size:9px;color:var(--muted)}
+.problem{border:1px solid var(--line);border-left-width:3px;border-radius:10px;background:var(--surface);padding:11px;margin-bottom:7px}
+.problem.HIGH{border-left-color:var(--red)}
+.problem.MEDIUM{border-left-color:var(--yellow)}
+.problem.LOW{border-left-color:var(--blue)}
+.problem-top{display:flex;justify-content:space-between;gap:8px;align-items:start}
+.problem-kind{font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+.problem-title{font-size:12px;font-weight:700;margin-top:3px;overflow-wrap:anywhere}
+.problem p{font-size:10px;color:var(--soft);line-height:1.45;margin:7px 0 0}
+.filterbar{display:flex;gap:5px;overflow-x:auto;margin-bottom:10px}
+.filter{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:6px 9px;font-size:9px;cursor:pointer}
+.filter.active{color:var(--ink);background:var(--surface2)}
+.endpoint{border:1px solid var(--line);border-radius:9px;background:var(--surface);padding:10px;margin-bottom:7px}
+.endpoint .mono{font-size:10px;overflow-wrap:anywhere}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#060709;border:1px solid var(--line);border-radius:9px;padding:10px;font-size:9px;line-height:1.45;color:#aeb5bf;max-height:55vh;overflow:auto}
+.empty{padding:24px 8px;color:var(--muted);font-size:11px;text-align:center}
+.loading{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:11px;padding:18px 4px}
+.spinner{width:12px;height:12px;border:2px solid #333942;border-top-color:#89919c;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.errorbox{border:1px solid #633838;background:#170e0e;border-radius:var(--radius);padding:12px}
+.errorbox strong{color:var(--red);font-size:12px}
+.errorbox p{font-size:10px;color:#d3aaaa;line-height:1.45}
+@media(max-width:760px){
+  .head{height:52px}
+  .brand strong{font-size:14px}
+  .snap{font-size:9px}
+  .main{padding:10px 10px 64px}
+  .hero-grid{gap:6px}
+  .card{padding:10px}
+  .card.primary{padding:11px}
+  .card-v{font-size:16px}
+  .metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+  .metric{padding:7px 5px}
+  .metric strong{font-size:14px}
+  .metric span{font-size:8px}
+  .project-layout{grid-template-columns:1fr}
+  .project-detail{position:static;min-height:0}
+}
+@media(min-width:900px){
+  .main{padding:18px 22px 80px}
+  .head{padding:0 22px}
+  .tabs,.status-strip{padding-left:18px;padding-right:18px}
+  .hero-grid{grid-template-columns:2fr repeat(3,1fr)}
+  .card.primary{grid-column:auto}
 }
 </style>
 </head>
 <body>
-<div class="top">
-  <div class="header">
-    <div>
-      <div class="kicker">PROMETEO / SINGLE ORIENTATION SURFACE</div>
-      <div class="title">CURRENT TREE</div>
-      <div class="subtitle">Un mapa de estado, no otro dueño de verdad. PROJECT MODEL muestra qué significa y qué manda. REPOSITORY muestra dónde están los bytes. Un path no concede autoridad.</div>
+<div class="shell">
+  <header class="top">
+    <div class="head">
+      <div class="brand">
+        <div class="brandline"><strong>PROMETEO</strong><span>/ CURRENT TREE V2</span></div>
+      </div>
+      <div class="snap" id="snapshot">cargando…</div>
     </div>
-    <div class="clock" id="clock">cargando…</div>
-  </div>
-  <div class="tabs">
-    <button class="tab active" data-tab="model">PROJECT MODEL</button>
-    <button class="tab" data-tab="repo">REPOSITORY</button>
-  </div>
-  <div class="statusbar" id="statusbar"></div>
+    <nav class="tabs">
+      <button class="tab active" data-view="summary">Resumen</button>
+      <button class="tab" data-view="project">Proyecto</button>
+      <button class="tab" data-view="files">Archivos</button>
+      <button class="tab" data-view="problems">Problemas</button>
+      <button class="tab" data-view="inspect">Inspeccionar</button>
+    </nav>
+    <div class="status-strip" id="statusStrip"></div>
+  </header>
+
+  <main class="main">
+    <section class="view active" id="view-summary">
+      <div class="section-head">
+        <div><h1>Estado actual</h1><p>Lo mínimo que hay que saber antes de tocar el proyecto.</p></div>
+        <button class="linkish" id="refreshSummary">Actualizar</button>
+      </div>
+      <div id="summaryBody" class="loading"><span class="spinner"></span>Cargando estado real…</div>
+    </section>
+
+    <section class="view" id="view-project">
+      <div class="section-head">
+        <div><h1>Proyecto</h1><p>Qué existe, qué manda y qué quedó viejo.</p></div>
+      </div>
+      <div class="project-layout">
+        <div class="project-nav" id="projectNav"></div>
+        <div class="project-detail" id="projectDetail"><div class="empty">Elegí una pieza del proyecto.</div></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-files">
+      <div class="section-head">
+        <div><h1>Archivos</h1><p>Filesystem físico. Un path no concede autoridad.</p></div>
+      </div>
+      <div class="searchbar">
+        <input id="fileSearch" class="search" placeholder="Buscar path, archivo o carpeta…">
+        <button class="smallbtn" id="reloadRepo">↻</button>
+      </div>
+      <div id="repoBody" class="loading"><span class="spinner"></span>El árbol físico se carga sólo al abrir esta vista.</div>
+    </section>
+
+    <section class="view" id="view-problems">
+      <div class="section-head">
+        <div><h1>Problemas</h1><p>Drift, stale, legacy y cosas que pueden hacernos repetir trabajo.</p></div>
+      </div>
+      <div class="filterbar" id="problemFilters">
+        <button class="filter active" data-filter="ALL">Todos</button>
+        <button class="filter" data-filter="HIGH">Alta</button>
+        <button class="filter" data-filter="MEDIUM">Media</button>
+        <button class="filter" data-filter="LOW">Baja</button>
+      </div>
+      <div id="problemsBody"></div>
+    </section>
+
+    <section class="view" id="view-inspect">
+      <div class="section-head">
+        <div><h1>Inspeccionar</h1><p>Fuentes, contratos y JSON. Acá vive la parte que nadie debería tener que memorizar.</p></div>
+      </div>
+      <div id="inspectBody"></div>
+    </section>
+  </main>
 </div>
-<div id="notice"></div>
-<div class="workspace">
-  <aside class="sidebar">
-    <input class="search" id="search" placeholder="Buscar en el árbol…">
-    <div id="tree"></div>
-  </aside>
-  <main class="main" id="detail"></main>
-</div>
+
 <script>
-const SUPABASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+const SB='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
 const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
-const GITHUB_TREE='https://api.github.com/repos/JuanManuelPM/prometeo/git/trees/main?recursive=1';
-const PAGE_BASE='/prometeo';
-const routeUrl=r=>!r?'#':(r.startsWith('/')?PAGE_BASE+r:r);
-let DATA=null, REPO=null, TAB='model', SELECTED='architecture', repoIndex=[];
+const GH='https://api.github.com/repos/JuanManuelPM/prometeo/git/trees/main?recursive=1';
+const BASE='/prometeo';
+let DATA=null;
+let ROOT_CACHE={};
+let ACTIVE_VIEW='summary';
+let ACTIVE_NODE=null;
+let REPO=null;
+let REPO_INDEX=null;
+let REPO_PATH='';
+let PROBLEM_FILTER='ALL';
+
 const $=s=>document.querySelector(s);
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const statusClass=s=>String(s||'').toLowerCase().replace('_synthesis','');
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=d=>{try{return new Intl.DateTimeFormat('es-AR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'America/Argentina/Buenos_Aires'}).format(new Date(d))}catch(e){return d||'—'}};
+const age=d=>{if(!d)return '—';const s=Math.max(0,(Date.now()-new Date(d).getTime())/1000);if(s<60)return Math.round(s)+'s';if(s<3600)return Math.round(s/60)+'m';if(s<86400)return Math.round(s/3600)+'h';return Math.round(s/86400)+'d'};
+const route=r=>r&&r.startsWith('/')?BASE+r:r||'#';
 const badge=s=>s?'<span class="badge '+esc(s)+'">'+esc(s)+'</span>':'';
-const fmt=d=>{try{return new Intl.DateTimeFormat('es-AR',{dateStyle:'medium',timeStyle:'short',timeZone:'America/Argentina/Buenos_Aires'}).format(new Date(d))}catch{return d||'—'}};
-async function rpc(name,args={}){
- const r=await fetch(SUPABASE+name,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(args),cache:'no-store'});
- if(!r.ok)throw new Error('RPC '+name+' · '+r.status);
- return await r.json();
+const chip=(cl,text)=>'<span class="chip '+cl+'"><span class="dot"></span>'+esc(text)+'</span>';
+
+async function rpc(name,args){
+  const r=await fetch(SB+name,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(args||{}),cache:'no-store'});
+  const body=await r.text();
+  if(!r.ok)throw new Error('RPC '+name+' · '+r.status+' · '+body.slice(0,160));
+  return body?JSON.parse(body):null;
 }
-function getReg(key){return (DATA?.semantic_registry||[]).find(x=>x.entity_key===key)}
-function guideEffective(g){
- if(g.guide_key==='STRATEGY' && DATA?.health?.strategy_architecture_drift?.state==='STALE') return 'STALE';
- return g.status==='PENDING_SYNTHESIS'?'PENDING':g.status;
-}
-function rootStatus(key){
- const e=(DATA?.root_index?.read_order||[]).find(x=>x.module_key===key);
- return e?.freshness==='STALE'?'STALE':'CURRENT';
-}
-function workGraph(){
- return DATA?.modules?.NOW?.worker_health?.work_graph || DATA?.modules?.WORK?.capacity?.work_graph || {};
-}
-function countStatuses(){
- const rows=[];
- (DATA?.semantic_registry||[]).forEach(x=>rows.push(x.effective_status||x.status));
- (DATA?.guides?.guides||[]).forEach(g=>rows.push(guideEffective(g)));
- return rows.reduce((a,s)=>(a[s]=(a[s]||0)+1,a),{});
-}
+
+function effectiveGuideStatus(g){return g.effective_status||g.capsule_status||g.declared_status||'PENDING'}
+function workCount(k){return Number((DATA&&DATA.work&&DATA.work.counts&&DATA.work.counts[k])||0)}
+function architecture(){return DATA&&DATA.architecture}
+function issues(){return (DATA&&DATA.health&&DATA.health.issues)||[]}
+function staleRoot(){return (DATA&&DATA.health&&DATA.health.root_stale)||[]}
+
 function renderTop(){
- const c=countStatuses(), wg=workGraph(), stale=(DATA?.health?.root_stale||[]).length;
- $('#clock').innerHTML='snapshot<br>'+esc(fmt(DATA?.generated_at));
- $('#statusbar').innerHTML=[
-  ['current','ARCHITECTURE '+(getReg('PROMETEO_ARCHITECTURE_WORK_GRAPH_V1_1')?.effective_status||'?')],
-  ['stale','STALE '+((c.STALE||0)+stale)],
-  ['pending','PENDING '+(c.PENDING||0)],
-  ['legacy','LEGACY '+(c.LEGACY||0)],
-  ['current','WORK READY '+(wg.graph_ready??wg.ready??'—')],
-  ['current','WORK ACTIVE '+(wg.graph_active??wg.active??'—')]
- ].map(([cl,t])=>'<span class="pill '+cl+'"><span class="dot"></span>'+esc(t)+'</span>').join('');
- const drift=DATA?.health?.strategy_architecture_drift;
- const rootStale=DATA?.health?.root_stale||[];
- const messages=[];
- if(drift)messages.push('<strong>STRATEGY está efectivamente STALE.</strong> '+esc(drift.reason));
- if(rootStale.length)messages.push('<strong>ROOT tiene módulos stale:</strong> '+rootStale.map(x=>esc(x.module_key)).join(', ')+'.');
- $('#notice').innerHTML=messages.length?'<div class="notice">'+messages.join(' &nbsp;·&nbsp; ')+'</div>':'';
-}
-function node(id,label,status,icon='•'){
- return '<button class="node '+(SELECTED===id?'selected':'')+'" data-id="'+esc(id)+'"><span class="icon">'+esc(icon)+'</span><span class="label">'+esc(label)+'</span>'+badge(status)+'</button>';
-}
-function modelSections(){
- const regs=DATA?.semantic_registry||[], guides=DATA?.guides?.guides||[];
- const arch=regs.filter(x=>['ARCHITECTURE','RUNTIME_ARCHITECTURE','INDEX'].includes(x.kind));
- const canon=regs.filter(x=>x.status==='CURRENT'&&!['ARCHITECTURE','RUNTIME_ARCHITECTURE','INDEX'].includes(x.kind));
- const hist=regs.filter(x=>['LEGACY','SUPERSEDED'].includes(x.status));
- return [
-  ['00_CURRENT',[
-    ['architecture','CURRENT_ARCHITECTURE',getReg('PROMETEO_ARCHITECTURE_WORK_GRAPH_V1_1')?.effective_status,'◆'],
-    ['objectives','OBJECTIVES',rootStatus('OBJECTIVES'),'•'],
-    ['domains','DOMAIN_STATUS',null,'•'],
-    ['work','ACTIVE_WORK',rootStatus('WORK'),'•'],
-    ['drift','DRIFT',rootStatus('DRIFT'),'!'],
-    ['next','NEXT_ACTION',rootStatus('NEXT_ACTION'),'→']
-  ]],
-  ['10_ARCHITECTURE',arch.map(x=>['reg:'+x.entity_key,x.title,x.effective_status||x.status,'◆'])],
-  ['20_DOMAINS',guides.map(g=>['guide:'+g.guide_key,g.guide_key+' · '+g.short_title,guideEffective(g),'◇'])],
-  ['30_WORK',[
-    ['work','WORK GRAPH',rootStatus('WORK'),'•'],
-    ['now','NOW / CAPACITY',rootStatus('NOW'),'•'],
-    ['operating','OPERATING PLAN',rootStatus('OPERATING_PLAN'),'•']
-  ]],
-  ['40_CANON',[
-    ...canon.map(x=>['reg:'+x.entity_key,x.title,x.effective_status||x.status,'■']),
-    ['doctrines','DOCTRINES',rootStatus('DOCTRINES'),'■']
-  ]],
-  ['50_EXPERIMENTS',[[ 'experiments','EXPERIMENTS',rootStatus('EXPERIMENTS'),'△' ]]],
-  ['60_KNOWLEDGE',[[ 'knowledge','KNOWLEDGE',rootStatus('KNOWLEDGE'),'□' ]]],
-  ['70_HISTORY',[
-    ...hist.map(x=>['reg:'+x.entity_key,x.title,x.effective_status||x.status,'×']),
-    ['legacy','LEGACY_STATE',rootStatus('LEGACY_STATE'),'×']
-  ]],
-  ['90_SYSTEM_HEALTH',[
-    ['health','SYSTEM HEALTH',(DATA?.health?.strategy_architecture_drift||((DATA?.health?.root_stale||[]).length))?'STALE':'CURRENT','!'],
-    ['health:orphans','ORPHANS',(DATA?.health?.orphan_candidates||[]).length?'STALE':'CURRENT','!'],
-    ['health:guide','GUIDE STATUS ISSUES',(DATA?.health?.guide_status_issues||[]).length?'STALE':'CURRENT','!']
-  ]]
- ];
-}
-function renderModelTree(q=''){
- const query=q.trim().toLowerCase();
- let out='';
- for(const [title,items0] of modelSections()){
-  const items=query?items0.filter(x=>(x[1]+' '+(x[2]||'')).toLowerCase().includes(query)):items0;
-  if(query&&!items.length)continue;
-  out+='<section class="tree-section"><button class="tree-head"><span>'+esc(title)+'</span><span>'+items.length+'</span></button><div class="tree-items">';
-  out+=items.map(x=>node(...x)).join('');
-  out+='</div></section>';
- }
- $('#tree').innerHTML=out||'<div class="empty">Sin coincidencias.</div>';
- $('#tree').querySelectorAll('.node').forEach(b=>b.onclick=()=>{SELECTED=b.dataset.id;renderModelTree($('#search').value);renderDetail()});
-}
-function detailHeader(kicker,title,status,lede){
- return '<div class="eyebrow">'+esc(kicker)+'</div><div class="detail-title">'+esc(title)+'</div><div>'+badge(status)+'</div>'+(lede?'<p class="lede">'+esc(lede)+'</p>':'');
-}
-function meta(obj){
- return '<div class="meta">'+Object.entries(obj).filter(([,v])=>v!==undefined&&v!==null&&v!=='').map(([k,v])=>'<div><div class="mk">'+esc(k)+'</div><div class="mv">'+esc(Array.isArray(v)?v.join(' · '):v)+'</div></div>').join('')+'</div>';
-}
-function raw(o){return '<details><summary>RAW JSON</summary><pre>'+esc(JSON.stringify(o,null,2))+'</pre></details>'}
-function architectureDetail(r){
- const p=r?.payload||{};
- let h=detailHeader('10_ARCHITECTURE',r?.title||'Current Architecture',r?.effective_status||r?.status,'La arquitectura explícita que una reincarnación debe leer antes de inferir el sistema desde historia o nombres de archivos.');
- h+=meta({owner:r?.owner_key,version:r?.version,authority:r?.authority,source:r?.source_ref,promoted:fmt(r?.promoted_at),consumers:r?.consumers});
- h+='<div class="section-title">Canonical flow</div><div class="flow">'+(p.flow||[]).map((x,i)=>'<span class="step">'+esc(x)+'</span>'+(i<(p.flow||[]).length-1?'<span class="arrow">→</span>':'')).join('')+'</div>';
- h+='<div class="section-title">Supporting systems</div><div class="list">'+(p.supporting_systems||[]).map(x=>'<div class="item">'+esc(x)+'</div>').join('')+'</div>';
- h+='<div class="section-title">Explicitly supersedes these routing ideas</div><div class="list">'+(p.supersedes_concepts||[]).map(x=>'<div class="item legacy">'+esc(x)+'</div>').join('')+'</div>';
- return h+raw(r);
-}
-function regDetail(r){
- let h=detailHeader(r?.kind||'REGISTRY',r?.title||r?.entity_key,r?.effective_status||r?.status,r?.payload?.reason||r?.payload?.law||'Entidad semántica registrada.');
- h+=meta({key:r?.entity_key,owner:r?.owner_key,version:r?.version,authority:r?.authority,importance:r?.importance,source:r?.source_ref,route:r?.public_route,updated:fmt(r?.updated_at),consumers:r?.consumers,depends_on:r?.depends_on});
- if(r?.public_route)h+='<p><a href="'+esc(routeUrl(r.public_route))+'">Abrir superficie ↗</a></p>';
- return h+raw(r);
-}
-function guideDetail(g){
- const eff=guideEffective(g), drift=g.guide_key==='STRATEGY'?DATA?.health?.strategy_architecture_drift:null;
- let h=detailHeader('20_DOMAINS',g.title,eff,g.mission);
- if(drift)h+='<div class="notice" style="margin:16px 0"><strong>Declarado '+esc(g.status)+', efectivo STALE.</strong> '+esc(drift.reason)+'</div>';
- h+=meta({guide_key:g.guide_key,declared_status:g.status,effective_status:eff,version:g.current_version,capsule_generated:fmt(g.capsule_generated_at),last_activity:fmt(g.last_activity_at),page:g.page_route,invoke:g.invoke_route,surfaces:g.surface_count});
- h+='<div class="section-title">Current headline</div><div class="item">'+esc(g.headline)+'</div>';
- h+='<p><a href="'+esc(routeUrl(g.page_route))+'">Abrir Guide ↗</a> &nbsp; <a href="'+esc(routeUrl(g.invoke_route))+'">Invocación ↗</a></p>';
- return h+raw(g);
-}
-function moduleDetail(key,title){
- const m=DATA?.modules?.[key]||{}, ri=(DATA?.root_index?.read_order||[]).find(x=>x.module_key===key), s=rootStatus(key);
- let h=detailHeader(key,title||key,s,ri?.purpose||'Módulo ROOT.');
- h+=meta({source:ri?.source_ref,freshness:ri?.freshness,age_minutes:ri?.age_minutes,freshness_sla_minutes:ri?.freshness_sla_minutes,source_updated:fmt(ri?.source_updated_at)});
- if(key==='WORK'||key==='NOW'){
-  const wg=workGraph();
-  h+='<div class="section-title">Global Work Graph</div>'+meta({schema:wg.schema,ready:wg.graph_ready??wg.ready,active:wg.graph_active??wg.active,blocked:wg.graph_blocked??wg.blocked,success:wg.success,active_objectives:wg.active_objectives,turn_complete_eligible:wg.turn_complete_eligible});
- }
- return h+raw(m);
-}
-function healthDetail(kind='all'){
- const hth=DATA?.health||{};
- let h=detailHeader('90_SYSTEM_HEALTH','SYSTEM HEALTH',(hth.strategy_architecture_drift||(hth.root_stale||[]).length)?'STALE':'CURRENT','Anomalías que impiden que una etiqueta vieja de CURRENT pase por verdad actual.');
- if(kind==='all'||kind==='guide'){
-  h+='<div class="section-title">Guide drift</div>';
-  if(hth.strategy_architecture_drift)h+='<div class="item warn">STRATEGY · '+esc(hth.strategy_architecture_drift.reason)+'</div>';
-  for(const x of hth.guide_status_issues||[])h+='<div class="item warn">'+esc(x.guide_key)+' · '+esc(x.status)+'</div>';
- }
- if(kind==='all'){
-  h+='<div class="section-title">Stale ROOT modules</div>';
-  h+=(hth.root_stale||[]).map(x=>'<div class="item warn">'+esc(x.module_key)+' · age '+esc(x.age_minutes)+'m / SLA '+esc(x.freshness_sla_minutes)+'m</div>').join('')||'<div class="item">none</div>';
- }
- if(kind==='all'||kind==='orphans'){
-  h+='<div class="section-title">Orphan candidates</div>';
-  h+=(hth.orphan_candidates||[]).map(x=>'<div class="item warn">'+esc(x.entity_key)+'</div>').join('')||'<div class="item">No important registered CURRENT/CANDIDATE entity is consumer-less.</div>';
- }
- h+='<div class="section-title">Legacy current-like sources</div>';
- h+=(hth.legacy_current_sources||[]).map(x=>'<div class="item legacy">'+esc(x.entity_key)+' · '+esc(x.source_ref)+'</div>').join('')||'<div class="item">none</div>';
- return h+raw(hth);
-}
-function renderDetail(){
- if(TAB==='repo')return renderRepoDetail();
- const id=SELECTED;
- if(id==='architecture')return $('#detail').innerHTML=architectureDetail(getReg('PROMETEO_ARCHITECTURE_WORK_GRAPH_V1_1'));
- if(id.startsWith('reg:'))return $('#detail').innerHTML=regDetail(getReg(id.slice(4)));
- if(id.startsWith('guide:')){const g=(DATA.guides.guides||[]).find(x=>x.guide_key===id.slice(6));return $('#detail').innerHTML=guideDetail(g)}
- if(id==='objectives')return $('#detail').innerHTML=moduleDetail('OBJECTIVES');
- if(id==='work')return $('#detail').innerHTML=moduleDetail('WORK');
- if(id==='now')return $('#detail').innerHTML=moduleDetail('NOW');
- if(id==='operating')return $('#detail').innerHTML=moduleDetail('OPERATING_PLAN');
- if(id==='doctrines')return $('#detail').innerHTML=moduleDetail('DOCTRINES');
- if(id==='experiments')return $('#detail').innerHTML=moduleDetail('EXPERIMENTS');
- if(id==='knowledge')return $('#detail').innerHTML=moduleDetail('KNOWLEDGE');
- if(id==='legacy')return $('#detail').innerHTML=moduleDetail('LEGACY_STATE');
- if(id==='drift')return $('#detail').innerHTML=moduleDetail('DRIFT');
- if(id==='next')return $('#detail').innerHTML=moduleDetail('NEXT_ACTION');
- if(id==='domains'){
-  const gs=DATA.guides.guides||[];
-  let h=detailHeader('00_CURRENT','DOMAIN STATUS',null,'Estado efectivo de cada Guide. Si la arquitectura cambió después de una síntesis, CURRENT declarado no alcanza.');
-  h+='<div class="list">'+gs.map(g=>'<div class="item">'+badge(guideEffective(g))+' &nbsp; '+esc(g.guide_key)+' · '+esc(g.short_title)+'</div>').join('')+'</div>';
-  return $('#detail').innerHTML=h;
- }
- if(id==='health')return $('#detail').innerHTML=healthDetail('all');
- if(id==='health:orphans')return $('#detail').innerHTML=healthDetail('orphans');
- if(id==='health:guide')return $('#detail').innerHTML=healthDetail('guide');
- $('#detail').innerHTML=detailHeader('PROMETEO','CURRENT TREE',null,'Elegí un nodo.');
-}
-function semanticPathMap(){
- const m=new Map();
- for(const r of DATA?.semantic_registry||[]){
-  const s=r.source_ref||'';
-  if(s.startsWith('GitHub:/'))m.set(s.slice(8),r);
- }
- return m;
-}
-function buildRepoTree(entries){
- const root={name:'/',path:'',type:'tree',children:new Map()};
- repoIndex=entries.filter(x=>x.path).map(x=>x.path);
- for(const e of entries){
-  const parts=e.path.split('/'), last=parts.pop(); let cur=root, acc='';
-  for(const p of parts){
-   acc=acc?acc+'/'+p:p;
-   if(!cur.children.has(p))cur.children.set(p,{name:p,path:acc,type:'tree',children:new Map()});
-   cur=cur.children.get(p);
+  if(!DATA){
+    $('#snapshot').textContent='sin snapshot';
+    $('#statusStrip').innerHTML=chip('error','estado no disponible');
+    return;
   }
-  cur.children.set(last,{name:last,path:e.path,type:e.type,size:e.size||0,children:e.type==='tree'?new Map():null});
- }
- return root;
+  $('#snapshot').innerHTML='snapshot '+esc(fmt(DATA.generated_at))+'<br>'+esc(age(DATA.generated_at))+' ago';
+  const a=architecture();
+  const staleGuides=(DATA.guides||[]).filter(g=>effectiveGuideStatus(g)==='STALE').length;
+  $('#statusStrip').innerHTML=[
+    chip(String((a&&a.effective_status)||'').toLowerCase(),'ARCH '+((a&&a.effective_status)||'—')),
+    chip(staleGuides?'stale':'current','GUIDES '+staleGuides+' stale'),
+    chip(staleRoot().length?'stale':'current','ROOT '+staleRoot().length+' stale'),
+    chip(workCount('ACTIVE')?'current':'pending','WORK '+workCount('ACTIVE')+' active'),
+    chip(issues().length?'stale':'current','ISSUES '+issues().length)
+  ].join('');
 }
-let repoRoot=null, repoSelected=null;
-function repoTag(path){
- const sem=semanticPathMap().get(path);
- if(sem)return sem.effective_status||sem.status;
- if(path.startsWith('candidate/')||path.includes('/candidates/'))return 'CANDIDATE';
- if(path.startsWith('legacy/'))return 'LEGACY';
- return '';
+
+function renderSummary(){
+  if(!DATA)return;
+  const a=architecture()||{};
+  const p=a.payload||{};
+  const guideStale=(DATA.guides||[]).filter(g=>effectiveGuideStatus(g)==='STALE');
+  const activeObj=(DATA.work&&DATA.work.active_objectives)||[];
+  const topIssues=issues().slice(0,3);
+  let html='';
+  html+='<div class="hero-grid">';
+  html+='<div class="card primary"><div class="card-k">Arquitectura actual</div><div class="rowstat"><div class="card-v">'+esc(a.title||'Sin arquitectura registrada')+'</div>'+badge(a.effective_status||a.status)+'</div><div class="card-sub">'+esc((p.flow||[]).slice(0,5).join(' → '))+(p.flow&&p.flow.length>5?' → …':'')+'</div></div>';
+  html+='<div class="card"><div class="card-k">Problemas</div><div class="card-v">'+esc(issues().length)+'</div><div class="card-sub">'+esc(guideStale.length)+' Guide stale · '+esc(staleRoot().length)+' ROOT stale</div></div>';
+  html+='<div class="card"><div class="card-k">Trabajo</div><div class="card-v">'+esc(workCount('ACTIVE'))+' activo</div><div class="card-sub">'+esc(workCount('READY'))+' ready · '+esc(workCount('BLOCKED'))+' blocked</div></div>';
+  html+='<div class="card"><div class="card-k">Dominios</div><div class="card-v">'+esc((DATA.guides||[]).length)+'</div><div class="card-sub">'+esc(guideStale.length)+' stale · '+esc((DATA.guides||[]).filter(g=>effectiveGuideStatus(g)==='PENDING').length)+' pending</div></div>';
+  html+='</div>';
+
+  if(topIssues.length){
+    const first=topIssues[0];
+    html+='<div class="attention"><div class="attention-title">ATENCIÓN · '+esc(first.kind)+'</div><div class="attention-text">'+esc(first.title||first.guide_key||first.module_key||'Problema detectado')+(first.reason?' · '+esc(first.reason):'')+'</div></div>';
+  }
+
+  html+='<div class="section-head"><div><h2>Qué importa ahora</h2><p>No es un changelog: son las piezas que cambian cómo orientarse.</p></div></div>';
+  html+='<div class="list">';
+  if(guideStale.length)html+='<div class="list-row click" data-jump="problems"><div><div class="row-title">Re-sintetizar '+esc(guideStale.map(g=>g.guide_key).join(', '))+'</div><div class="row-sub">La etiqueta histórica no coincide con el estado efectivo.</div></div><div class="arrow">›</div></div>';
+  for(const o of activeObj.slice(0,3)){
+    html+='<div class="list-row click" data-node="objective:'+esc(o.objective_key)+'"><div><div class="row-title">'+esc(o.title||o.objective_key)+'</div><div class="row-sub">Objetivo activo · '+esc(o.guide_key||'sin Guide')+'</div></div><div class="arrow">›</div></div>';
+  }
+  if(!guideStale.length&&!activeObj.length)html+='<div class="list-row"><div><div class="row-title">Sin urgencias semánticas registradas</div><div class="row-sub">El mapa no detectó drift prioritario en este snapshot.</div></div></div>';
+  html+='</div>';
+
+  html+='<div class="subhead">Estado de Guides</div><div class="list">';
+  for(const g of DATA.guides||[]){
+    html+='<div class="list-row click" data-node="guide:'+esc(g.guide_key)+'"><div><div class="row-title">'+esc(g.guide_key)+' · '+esc(g.short_title||g.title)+'</div><div class="row-sub">'+esc(g.headline||g.mission||'')+'</div></div>'+badge(effectiveGuideStatus(g))+'</div>';
+  }
+  html+='</div>';
+  $('#summaryBody').className='';
+  $('#summaryBody').innerHTML=html;
+  bindJumps($('#summaryBody'));
 }
-function renderRepoNode(n,depth=0){
- const isDir=n.type==='tree';
- const tag=repoTag(n.path);
- if(!isDir)return '<button class="file-row repo-row" style="--depth:'+depth+'" data-path="'+esc(n.path)+'"><span>·</span><span>'+esc(n.name)+'</span>'+badge(tag)+'</button>';
- const id='f'+Math.random().toString(36).slice(2);
- return '<div class="repo-row" style="--depth:'+depth+'"><button class="folder-toggle" data-folder="'+esc(n.path)+'" data-target="'+id+'"><span>▸</span><span>'+esc(n.name)+'</span>'+badge(tag)+'</button><div id="'+id+'" hidden></div></div>';
+
+function makeNode(id,label,status,sub){
+  return '<button class="navrow '+(ACTIVE_NODE===id?'selected':'')+'" data-node="'+esc(id)+'"><span class="dot '+String(status||'').toLowerCase()+'"></span><span><span class="nlabel">'+esc(label)+'</span>'+(sub?'<span class="row-sub">'+esc(sub)+'</span>':'')+'</span>'+badge(status)+'</button>';
 }
-function bindRepoButtons(){
- $('#tree').querySelectorAll('[data-folder]').forEach(b=>b.onclick=()=>{
-  const box=document.getElementById(b.dataset.target), path=b.dataset.folder;
-  if(box.hidden){
-   if(!box.dataset.built){
-    let n=repoRoot; if(path)for(const p of path.split('/'))n=n.children.get(p);
-    const kids=[...n.children.values()].sort((a,b)=>(a.type===b.type? a.name.localeCompare(b.name):a.type==='tree'?-1:1));
-    box.innerHTML=kids.map(k=>renderRepoNode(k,(path?path.split('/').length:0)+1)).join('');
-    box.dataset.built='1'; bindRepoButtons();
-   }
-   box.hidden=false;b.firstElementChild.textContent='▾';
-  }else{box.hidden=true;b.firstElementChild.textContent='▸'}
- });
- $('#tree').querySelectorAll('[data-path]').forEach(b=>b.onclick=()=>{repoSelected=b.dataset.path;renderRepoDetail()});
+
+function buildProjectNav(){
+  if(!DATA)return;
+  const a=architecture()||{};
+  const reg=DATA.semantic_registry||[];
+  const currentReg=reg.filter(r=>['CURRENT','CANDIDATE'].includes(r.effective_status||r.status) && !['ARCHITECTURE','RUNTIME_ARCHITECTURE','INDEX','ORIENTATION_PROJECTION'].includes(r.kind));
+  const history=reg.filter(r=>['LEGACY','SUPERSEDED'].includes(r.effective_status||r.status));
+  let h='';
+  h+='<div class="group"><div class="group-title">00 · Current</div>';
+  h+=makeNode('architecture','Arquitectura actual',a.effective_status||a.status,'lo que manda');
+  h+=makeNode('root:OBJECTIVES','Objetivos',rootStatus('OBJECTIVES'),'ROOT');
+  h+=makeNode('work','Work Graph',workCount('BLOCKED')?'STALE':'CURRENT',workCount('READY')+' ready · '+workCount('ACTIVE')+' active');
+  h+=makeNode('root:DRIFT','Drift',rootStatus('DRIFT'),'contradicciones');
+  h+=makeNode('root:NEXT_ACTION','Next action',rootStatus('NEXT_ACTION'),'orientación');
+  h+='</div>';
+
+  h+='<div class="group"><div class="group-title">20 · Domains</div>';
+  for(const g of DATA.guides||[])h+=makeNode('guide:'+g.guide_key,g.guide_key+' · '+(g.short_title||g.title),effectiveGuideStatus(g),fmt(g.capsule_generated_at));
+  h+='</div>';
+
+  h+='<div class="group"><div class="group-title">40 · Canon</div>';
+  h+=makeNode('root:DOCTRINES','Doctrines',rootStatus('DOCTRINES'),'ROOT');
+  h+=makeNode('root:OPERATING_PLAN','Operating plan',rootStatus('OPERATING_PLAN'),'ROOT');
+  for(const r of currentReg)h+=makeNode('reg:'+r.entity_key,r.title,r.effective_status||r.status,r.kind);
+  h+='</div>';
+
+  h+='<div class="group"><div class="group-title">50–60 · Evidence</div>';
+  h+=makeNode('root:EXPERIMENTS','Experiments',rootStatus('EXPERIMENTS'),'ROOT');
+  h+=makeNode('root:KNOWLEDGE','Knowledge',rootStatus('KNOWLEDGE'),'ROOT');
+  h+='</div>';
+
+  h+='<div class="group"><div class="group-title">70 · History</div>';
+  for(const r of history)h+=makeNode('reg:'+r.entity_key,r.title,r.effective_status||r.status,r.kind);
+  h+=makeNode('root:LEGACY_STATE','Legacy state',rootStatus('LEGACY_STATE'),'ROOT');
+  h+='</div>';
+  $('#projectNav').innerHTML=h;
+  $('#projectNav').querySelectorAll('[data-node]').forEach(b=>b.onclick=()=>selectNode(b.dataset.node,true));
 }
-function renderRepoTree(q=''){
- if(!REPO){$('#tree').innerHTML='<div class="empty">Cargando repository…</div>';return}
- if(REPO.error||!repoRoot){$('#tree').innerHTML='<div class="empty">Repository no disponible: '+esc(REPO.error||'sin árbol')+'</div>';return}
- const query=q.trim().toLowerCase();
- if(query){
-  const hits=repoIndex.filter(p=>p.toLowerCase().includes(query)).slice(0,500);
-  $('#tree').innerHTML='<div class="repo-legend">'+hits.length+(hits.length===500?'+':'')+' coincidencias</div><div class="repo-results">'+hits.map(p=>'<button class="repo-result" data-path="'+esc(p)+'">'+esc(p)+' '+badge(repoTag(p))+'</button>').join('')+'</div>';
-  $('#tree').querySelectorAll('[data-path]').forEach(b=>b.onclick=()=>{repoSelected=b.dataset.path;renderRepoDetail()});
-  return;
- }
- const kids=[...repoRoot.children.values()].sort((a,b)=>(a.type===b.type?a.name.localeCompare(b.name):a.type==='tree'?-1:1));
- $('#tree').innerHTML='<div class="repo-legend"><strong>Bytes, no autoridad.</strong><br>'+esc((REPO.tree||[]).length)+' entradas físicas en este snapshot. Pueden existir aquí sin ser parte del proyecto vigente. Las marcas sólo aparecen cuando hay semántica registrada o un namespace explícito.</div>'+kids.map(k=>renderRepoNode(k,0)).join('');
- bindRepoButtons();
+
+function rootStatus(key){
+  const r=((DATA&&DATA.root_index&&DATA.root_index.read_order)||[]).find(x=>x.module_key===key);
+  return r&&r.freshness==='STALE'?'STALE':'CURRENT';
 }
-function renderRepoDetail(){
- if(!repoSelected){
-  $('#detail').innerHTML=detailHeader('REPOSITORY','PHYSICAL FILESYSTEM',null,'Este árbol responde dónde están los bytes. No responde qué versión manda. Esa autoridad vive en PROJECT MODEL.');
-  return;
- }
- const sem=semanticPathMap().get(repoSelected), tag=repoTag(repoSelected), url='https://github.com/JuanManuelPM/prometeo/blob/main/'+repoSelected.split('/').map(encodeURIComponent).join('/');
- let h=detailHeader('REPOSITORY',repoSelected,tag,sem?'Este archivo está vinculado a una entidad semántica registrada.':'Archivo físico. No se infiere autoridad por su nombre, fecha o ubicación.');
- if(sem)h+=meta({semantic_key:sem.entity_key,semantic_kind:sem.kind,status:sem.effective_status||sem.status,owner:sem.owner_key,authority:sem.authority});
- h+='<p><a href="'+esc(url)+'" target="_blank" rel="noopener">Abrir en GitHub ↗</a></p>';
- if(repoSelected==='state/CURRENT_GRAPH.json')h+='<div class="notice" style="margin:16px 0"><strong>LEGACY CURRENT.</strong> Se conserva como historia. No usar para reconstruir el Prometeo actual.</div>';
- $('#detail').innerHTML=h;
+function rootMeta(key){
+  return ((DATA&&DATA.root_index&&DATA.root_index.read_order)||[]).find(x=>x.module_key===key)||{};
 }
-function switchTab(t){
- TAB=t;$('.tab.active')?.classList.remove('active');$('.tab[data-tab="'+t+'"]').classList.add('active');$('#search').value='';
- if(t==='model'){SELECTED='architecture';renderModelTree();renderDetail()}else{repoSelected=null;renderRepoTree();renderRepoDetail()}
+function metaHTML(obj){
+  let h='<div class="meta">';
+  for(const k of Object.keys(obj)){
+    const v=obj[k];
+    if(v===null||v===undefined||v==='')continue;
+    h+='<div class="meta-cell"><div class="meta-k">'+esc(k)+'</div><div class="meta-v">'+esc(Array.isArray(v)?v.join(' · '):v)+'</div></div>';
+  }
+  return h+'</div>';
 }
-async function boot(){
- try{
-  const rows=await rpc('prometeo_current_tree_v1');DATA=Array.isArray(rows)?rows[0]:rows;
-  if(DATA?.prometeo_current_tree_v1)DATA=DATA.prometeo_current_tree_v1;
-  renderTop();renderModelTree();renderDetail();
- }catch(e){
-  $('#tree').innerHTML='<div class="empty">No se pudo cargar CURRENT TREE.</div>';
-  $('#detail').innerHTML=detailHeader('ERROR','CURRENT TREE UNAVAILABLE','STALE',e.message);
-  throw e;
- }
- try{
-  const r=await fetch(GITHUB_TREE,{cache:'no-store'}); if(!r.ok)throw new Error('GitHub '+r.status);
-  REPO=await r.json();repoRoot=buildRepoTree(REPO.tree||[]);
- }catch(e){REPO={error:e.message};}
+function detailHeader(k,title,status,lede){
+  return '<div class="detail-k">'+esc(k)+'</div><div class="rowstat"><div class="detail-title">'+esc(title)+'</div>'+badge(status)+'</div>'+(lede?'<div class="detail-lede">'+esc(lede)+'</div>':'');
 }
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
-$('#search').addEventListener('input',e=>TAB==='model'?renderModelTree(e.target.value):renderRepoTree(e.target.value));
-boot();
+async function loadRoot(key){
+  if(ROOT_CACHE[key])return ROOT_CACHE[key];
+  const d=await rpc('prometeo_root_module_v1',{p_module_key:key});
+  ROOT_CACHE[key]=d;
+  return d;
+}
+
+async function selectNode(id,scroll){
+  ACTIVE_NODE=id;
+  buildProjectNav();
+  const box=$('#projectDetail');
+  box.innerHTML='<div class="loading"><span class="spinner"></span>Cargando detalle…</div>';
+  try{
+    let h='';
+    if(id==='architecture'){
+      const a=architecture()||{},p=a.payload||{};
+      h=detailHeader('ARCHITECTURE',a.title||a.entity_key,a.effective_status||a.status,'La versión que debe orientar una shell nueva antes de interpretar historia o nombres de archivos.');
+      h+=metaHTML({owner:a.owner_key,version:a.version,authority:a.authority,source:a.source_ref,promoted:fmt(a.promoted_at)});
+      h+='<div class="subhead">Flujo canónico</div><div class="flow">';
+      (p.flow||[]).forEach((x,i)=>{h+='<span class="flowstep">'+esc(x)+'</span>';if(i<(p.flow||[]).length-1)h+='<span class="flowarrow">→</span>'});
+      h+='</div><div class="subhead">Reemplaza explícitamente</div><div class="list">';
+      (p.supersedes_concepts||[]).forEach(x=>h+='<div class="list-row"><div class="row-title">'+esc(x)+'</div>'+badge('SUPERSEDED')+'</div>');
+      h+='</div>';
+    }else if(id==='work'){
+      const w=DATA.work||{};
+      h=detailHeader('WORK','Global Work Graph','CURRENT','Trabajo real global. Los workers frescos no deberían rutear por una family histórica.');
+      h+=metaHTML({ready:workCount('READY'),active:workCount('ACTIVE'),blocked:workCount('BLOCKED'),done:workCount('DONE'),superseded:workCount('SUPERSEDED')});
+      h+='<div class="subhead">Objetivos activos</div><div class="list">';
+      for(const o of w.active_objectives||[])h+='<div class="list-row"><div><div class="row-title">'+esc(o.title||o.objective_key)+'</div><div class="row-sub">'+esc(o.guide_key||'')+' · '+esc(o.compiler_key||'')+'</div></div>'+badge(o.status)+'</div>';
+      h+='</div><div class="subhead">Jobs activos</div><div class="list">';
+      for(const j of w.active_jobs||[])h+='<div class="list-row"><div><div class="row-title">'+esc(j.title||j.node_key)+'</div><div class="row-sub">'+esc(j.objective_key)+' · '+esc(j.frontier_stage||j.job_class||'')+'</div></div>'+badge(j.state)+'</div>';
+      if(!(w.active_jobs||[]).length)h+='<div class="empty">No hay jobs ACTIVE en este snapshot.</div>';
+      h+='</div>';
+    }else if(id.startsWith('guide:')){
+      const key=id.slice(6),g=(DATA.guides||[]).find(x=>x.guide_key===key)||{};
+      h=detailHeader('DOMAIN GUIDE',g.title||key,effectiveGuideStatus(g),g.mission);
+      h+=metaHTML({guide_key:g.guide_key,declared:g.declared_status,effective:effectiveGuideStatus(g),version:g.current_version,capsule:fmt(g.capsule_generated_at),updated:fmt(g.updated_at)});
+      if(g.headline)h+='<div class="subhead">Headline durable</div><div class="list-row"><div class="row-title">'+esc(g.headline)+'</div></div>';
+      h+='<div class="subhead">Entradas</div><div class="list">';
+      h+='<a class="list-row" href="'+esc(route(g.page_route))+'"><div><div class="row-title">Abrir Guide</div><div class="row-sub">'+esc(g.page_route)+'</div></div><div class="arrow">↗</div></a>';
+      h+='<a class="list-row" href="'+esc(route(g.invoke_route))+'"><div><div class="row-title">Prompt de invocación</div><div class="row-sub">'+esc(g.invoke_route)+'</div></div><div class="arrow">↗</div></a></div>';
+    }else if(id.startsWith('reg:')){
+      const key=id.slice(4),r=(DATA.semantic_registry||[]).find(x=>x.entity_key===key)||{};
+      h=detailHeader(r.kind||'REGISTRY',r.title||key,r.effective_status||r.status,(r.payload&&r.payload.reason)||(r.payload&&r.payload.law)||'Entidad semántica registrada.');
+      h+=metaHTML({key:r.entity_key,owner:r.owner_key,version:r.version,authority:r.authority,importance:r.importance,source:r.source_ref,supersedes:r.supersedes,consumers:r.consumers});
+      if(r.public_route)h+='<a class="list-row" href="'+esc(route(r.public_route))+'"><div><div class="row-title">Abrir superficie</div><div class="row-sub">'+esc(r.public_route)+'</div></div><div class="arrow">↗</div></a>';
+    }else if(id.startsWith('root:')){
+      const key=id.slice(5),m=rootMeta(key),d=await loadRoot(key);
+      h=detailHeader('ROOT · '+key,m.title||key,rootStatus(key),m.purpose);
+      h+=metaHTML({source:m.source_ref,freshness:m.freshness,age_minutes:m.age_minutes,SLA_minutes:m.freshness_sla_minutes,updated:fmt(m.source_updated_at)});
+      h+='<div class="subhead">Contenido</div><pre>'+esc(JSON.stringify(d,null,2))+'</pre>';
+    }else if(id.startsWith('objective:')){
+      switchView('project');
+      ACTIVE_NODE='work';
+      buildProjectNav();
+      return selectNode('work',scroll);
+    }
+    box.innerHTML=h||'<div class="empty">Sin detalle.</div>';
+  }catch(e){
+    box.innerHTML='<div class="errorbox"><strong>No se pudo cargar este detalle.</strong><p>'+esc(e.message)+'</p><p>El bootstrap general sigue disponible; este owner profundo falló de forma aislada.</p></div>';
+  }
+  if(scroll&&window.innerWidth<761)box.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function bindJumps(scope){
+  scope.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>switchView(b.dataset.jump));
+  scope.querySelectorAll('[data-node]').forEach(b=>b.onclick=()=>{switchView('project');selectNode(b.dataset.node,true)});
+}
+
+function renderProblems(){
+  const all=issues();
+  const rows=PROBLEM_FILTER==='ALL'?all:all.filter(x=>x.severity===PROBLEM_FILTER);
+  let h='';
+  for(const x of rows){
+    const title=x.title||x.guide_key||x.module_key||x.entity_key||x.kind;
+    h+='<div class="problem '+esc(x.severity||'LOW')+'"><div class="problem-top"><div><div class="problem-kind">'+esc(x.kind)+'</div><div class="problem-title">'+esc(title)+'</div></div><span class="badge '+(x.severity==='HIGH'?'ERROR':x.severity==='MEDIUM'?'STALE':'PENDING')+'">'+esc(x.severity||'LOW')+'</span></div>';
+    if(x.reason)h+='<p>'+esc(x.reason)+'</p>';
+    if(x.source_ref)h+='<p class="mono">'+esc(x.source_ref)+'</p>';
+    h+='</div>';
+  }
+  $('#problemsBody').innerHTML=h||'<div class="empty">No hay problemas con este filtro.</div>';
+}
+
+function renderInspect(){
+  if(!DATA)return;
+  let h='';
+  h+='<div class="endpoint"><div class="card-k">Bootstrap público actual</div><div class="mono">prometeo_current_tree_v2()</div><div class="card-sub">Carga liviana. Estado, arquitectura, Guides, work summary y health.</div></div>';
+  h+='<div class="endpoint"><div class="card-k">Detalle ROOT lazy</div><div class="mono">prometeo_root_module_v1(module_key)</div><div class="card-sub">Se consulta sólo cuando abrís un módulo.</div></div>';
+  h+='<div class="endpoint"><div class="card-k">Modelo de carga</div><div class="mono">'+esc(DATA.contract&&DATA.contract.load_model)+'</div><div class="card-sub">La V1 quedó SUPERSEDED por timeout del dashboard completo.</div></div>';
+  h+='<div class="subhead">Raw bootstrap</div><pre>'+esc(JSON.stringify(DATA,null,2))+'</pre>';
+  $('#inspectBody').innerHTML=h;
+}
+
+function switchView(v){
+  ACTIVE_VIEW=v;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  $('#view-'+v).classList.add('active');
+  if(v==='project'&&!ACTIVE_NODE){ACTIVE_NODE='architecture';buildProjectNav();selectNode('architecture',false)}
+  if(v==='files')ensureRepo();
+  if(v==='problems')renderProblems();
+  if(v==='inspect')renderInspect();
+  window.scrollTo({top:0,behavior:'instant'});
+}
+
+function buildRepoIndex(tree){
+  const map=new Map();
+  map.set('',[]);
+  for(const e of tree){
+    const parts=e.path.split('/');
+    const name=parts.pop();
+    const parent=parts.join('/');
+    if(!map.has(parent))map.set(parent,[]);
+    map.get(parent).push({name:name,path:e.path,type:e.type,size:e.size||0});
+    if(e.type==='tree'&&!map.has(e.path))map.set(e.path,[]);
+  }
+  for(const arr of map.values())arr.sort((a,b)=>a.type===b.type?a.name.localeCompare(b.name):a.type==='tree'?-1:1);
+  return map;
+}
+function semanticForPath(path){
+  return (DATA.semantic_registry||[]).find(r=>{
+    const s=r.source_ref||'';
+    return s.startsWith('GitHub:/')&&s.slice(8).replace(/\/$/,'')===path.replace(/\/$/,'');
+  });
+}
+function childCount(path){return REPO_INDEX&&REPO_INDEX.has(path)?REPO_INDEX.get(path).length:0}
+function renderRepo(){
+  if(!REPO_INDEX)return;
+  const q=$('#fileSearch').value.trim().toLowerCase();
+  if(q){
+    const hits=(REPO.tree||[]).filter(e=>e.path.toLowerCase().includes(q)).slice(0,250);
+    let h='<div class="filebox">';
+    for(const e of hits){
+      const sem=semanticForPath(e.path);
+      h+='<button class="search-result" data-repopath="'+esc(e.path)+'" data-type="'+esc(e.type)+'"><span class="ico">'+(e.type==='tree'?'▸':'·')+'</span><span><span class="fname">'+esc(e.path)+'</span></span>'+(sem?badge(sem.effective_status||sem.status):'<span class="fmeta">'+(e.type==='tree'?'folder':'file')+'</span>')+'</button>';
+    }
+    h+='</div>';
+    $('#repoBody').className='';
+    $('#repoBody').innerHTML=h||'<div class="empty">Sin coincidencias.</div>';
+    bindRepoRows();
+    return;
+  }
+  const parts=REPO_PATH?REPO_PATH.split('/'):[];
+  let bread='<div class="breadcrumb"><button class="crumb" data-dir="">prometeo</button>';
+  let acc='';
+  for(const p of parts){acc=acc?acc+'/'+p:p;bread+='<span>/</span><button class="crumb" data-dir="'+esc(acc)+'">'+esc(p)+'</button>'}
+  bread+='</div>';
+  const children=REPO_INDEX.get(REPO_PATH)||[];
+  let h=bread+'<div class="filebox">';
+  for(const e of children){
+    const sem=semanticForPath(e.path);
+    h+='<button class="'+(e.type==='tree'?'folder-row':'file-row')+'" data-repopath="'+esc(e.path)+'" data-type="'+esc(e.type)+'"><span class="ico">'+(e.type==='tree'?'▸':'·')+'</span><span><span class="fname">'+esc(e.name)+'</span><span class="row-sub">'+(e.type==='tree'?esc(childCount(e.path))+' items':esc(e.path))+'</span></span>'+(sem?badge(sem.effective_status||sem.status):'<span class="fmeta">'+(e.type==='tree'?'folder':'file')+'</span>')+'</button>';
+  }
+  h+='</div>';
+  $('#repoBody').className='';
+  $('#repoBody').innerHTML=h||'<div class="empty">Carpeta vacía.</div>';
+  $('#repoBody').querySelectorAll('[data-dir]').forEach(b=>b.onclick=()=>{REPO_PATH=b.dataset.dir;renderRepo()});
+  bindRepoRows();
+}
+function bindRepoRows(){
+  $('#repoBody').querySelectorAll('[data-repopath]').forEach(b=>b.onclick=()=>{
+    const p=b.dataset.repopath,t=b.dataset.type;
+    if(t==='tree'){REPO_PATH=p;$('#fileSearch').value='';renderRepo();return}
+    const sem=semanticForPath(p);
+    const url='https://github.com/JuanManuelPM/prometeo/blob/main/'+p.split('/').map(encodeURIComponent).join('/');
+    const old=$('#repoBody').innerHTML;
+    $('#repoBody').innerHTML='<div class="card"><div class="card-k">Archivo físico</div><div class="card-v small">'+esc(p)+'</div>'+metaHTML({semantic_key:sem&&sem.entity_key,status:sem&&(sem.effective_status||sem.status),owner:sem&&sem.owner_key,authority:sem&&sem.authority})+'<a class="list-row" href="'+esc(url)+'" target="_blank" rel="noopener"><div class="row-title">Abrir en GitHub</div><div class="arrow">↗</div></a><button class="smallbtn" id="backRepo" style="margin-top:10px">← volver</button></div>';
+    $('#backRepo').onclick=()=>{$('#repoBody').innerHTML=old;renderRepo()};
+  });
+}
+async function ensureRepo(force){
+  if(REPO&&!force){renderRepo();return}
+  $('#repoBody').className='loading';
+  $('#repoBody').innerHTML='<span class="spinner"></span>Cargando filesystem…';
+  try{
+    const r=await fetch(GH,{cache:'no-store'});
+    if(!r.ok)throw new Error('GitHub tree · '+r.status);
+    REPO=await r.json();
+    REPO_INDEX=buildRepoIndex(REPO.tree||[]);
+    REPO_PATH='';
+    renderRepo();
+  }catch(e){
+    $('#repoBody').className='';
+    $('#repoBody').innerHTML='<div class="errorbox"><strong>No pude cargar el filesystem.</strong><p>'+esc(e.message)+'</p><p>El PROJECT MODEL sigue funcionando porque no depende del API de GitHub.</p></div>';
+  }
+}
+
+async function load(){
+  $('#summaryBody').className='loading';
+  $('#summaryBody').innerHTML='<span class="spinner"></span>Cargando estado real…';
+  try{
+    let d=await rpc('prometeo_current_tree_v2',{});
+    if(Array.isArray(d))d=d[0];
+    DATA=d;
+    renderTop();
+    renderSummary();
+    buildProjectNav();
+    renderProblems();
+    renderInspect();
+  }catch(e){
+    DATA=null;
+    renderTop();
+    $('#summaryBody').className='';
+    $('#summaryBody').innerHTML='<div class="errorbox"><strong>Estado actual no disponible.</strong><p>'+esc(e.message)+'</p><button class="smallbtn" id="retryLoad">Reintentar</button></div>';
+    $('#retryLoad').onclick=load;
+  }
+}
+
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
+$('#refreshSummary').onclick=load;
+$('#reloadRepo').onclick=()=>ensureRepo(true);
+$('#fileSearch').addEventListener('input',()=>{if(REPO_INDEX)renderRepo()});
+$('#problemFilters').querySelectorAll('.filter').forEach(b=>b.onclick=()=>{
+  PROBLEM_FILTER=b.dataset.filter;
+  $('#problemFilters').querySelectorAll('.filter').forEach(x=>x.classList.toggle('active',x===b));
+  renderProblems();
+});
+load();
 </script>
 </body>
 </html>
