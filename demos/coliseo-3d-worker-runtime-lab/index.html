@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070706">
+<meta name="prometeo-rev" content="VR-MAT-WORKER-LAB-01">
+<title>Prometeo · Worker Runtime Lab</title>
+<style>
+:root{
+  --bg:#070706;--panel:#0c0b09;--ink:#d9c3a4;--muted:#756b5f;--line:#302b25;
+  --material:#c56d38;--cognitive:#7b8f79;--verify:#b7a765;--recovery:#a75646;--unknown:#77716a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+body{overscroll-behavior:none}
+#stage{position:fixed;inset:0;background:
+  radial-gradient(circle at 50% 52%,rgba(84,60,39,.16),transparent 42%),
+  linear-gradient(180deg,#080807,#050504)}
+#world{display:block;width:100%;height:100%;touch-action:none}
+#top{
+  position:fixed;left:14px;right:14px;top:12px;z-index:4;pointer-events:none;
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px
+}
+.title{display:flex;gap:10px;align-items:center;text-shadow:0 1px #000}
+.sig{
+  width:34px;height:34px;border:1px solid #44382c;display:grid;place-items:center;
+  font-weight:950;color:#d07b42;background:rgba(8,7,6,.86)
+}
+.title b{display:block;font:950 12px/1.1 system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase}
+.title span{display:block;margin-top:4px;color:#7f7467;font-size:8px;letter-spacing:.06em}
+#feedBadge{
+  min-width:170px;padding:7px 9px;border:1px solid #3b342d;background:rgba(8,7,6,.86);
+  text-align:right;font-size:8px;line-height:1.35;letter-spacing:.06em
+}
+#feedBadge[data-state="LIVE"]{color:#8da188;border-color:#405142}
+#feedBadge[data-state="STALE"]{color:#d18458;border-color:#70402d}
+#feedBadge[data-state="ERROR"]{color:#d16b58;border-color:#74372e}
+#legend{
+  position:fixed;left:14px;bottom:14px;z-index:4;width:min(520px,calc(100vw - 390px));
+  padding:9px 10px;border:1px solid #29251f;background:rgba(7,6,5,.86);pointer-events:none
+}
+.legendGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.leg{display:flex;align-items:center;gap:5px;color:#8b8175;font-size:7px;min-width:0}
+.sw{width:12px;height:8px;border:1px solid currentColor;flex:0 0 auto}
+.sw.material{color:var(--material)}.sw.cognitive{color:var(--cognitive)}
+.sw.verify{color:var(--verify)}.sw.recovery{color:var(--recovery)}.sw.unknown{color:var(--unknown)}
+.legendNote{margin-top:7px;color:#625c54;font-size:7px;line-height:1.35}
+#detail{
+  position:fixed;right:14px;top:64px;bottom:14px;z-index:5;width:344px;
+  border:1px solid #342d26;background:rgba(7,6,5,.94);overflow:hidden;display:flex;flex-direction:column
+}
+#detailHead{padding:11px 12px;border-bottom:1px solid #302a24}
+#detailHead b{display:block;font:950 11px/1.1 system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase}
+#detailHead span{display:block;margin-top:5px;color:#6f655a;font-size:8px}
+#workerList{flex:1;overflow:auto;scrollbar-width:none;padding:6px}
+#workerList::-webkit-scrollbar{display:none}
+.workerRow{
+  appearance:none;width:100%;border:0;border-left:3px solid #5e5952;background:rgba(255,255,255,.018);
+  color:#a99b89;text-align:left;padding:7px 8px;margin:0 0 4px;display:grid;grid-template-columns:52px 1fr 58px;gap:7px;
+  font:800 8px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer
+}
+.workerRow strong{color:#d7b890;font-size:10px}
+.workerRow .job{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.workerRow .state{text-align:right;color:#7c746b}
+.workerRow[data-evidence="WORKING"]{border-left-color:#6f8d73}
+.workerRow[data-evidence="SUSPECT"]{border-left-color:#b46b3d}
+.workerRow[data-evidence="WAITING"]{border-left-color:#77716a}
+.workerRow[data-evidence="RECENT_IDLE"]{border-left-color:#4b4946;opacity:.72}
+.workerRow.selected{background:rgba(202,141,78,.09);outline:1px solid rgba(202,141,78,.22)}
+#facts{border-top:1px solid #302a24;padding:10px 11px;min-height:182px;overflow:auto}
+.fact{display:grid;grid-template-columns:88px 1fr;gap:8px;padding:3px 0;font-size:8px;line-height:1.35}
+.fact dt{color:#665f57}.fact dd{margin:0;color:#b3a594;overflow-wrap:anywhere}
+#statusLine{
+  position:fixed;left:50%;bottom:15px;transform:translateX(-50%);z-index:4;
+  color:#655d55;font-size:7px;letter-spacing:.08em;text-transform:uppercase;pointer-events:none
+}
+@media(max-width:760px){
+  #top{left:8px;right:8px;top:8px}.title span{display:none}.sig{width:30px;height:30px}
+  #feedBadge{min-width:136px;font-size:7px;padding:6px}
+  #detail{left:6px;right:6px;top:auto;bottom:6px;width:auto;height:37vh}
+  #workerList{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:5px}
+  .workerRow{margin:0;grid-template-columns:42px 1fr;font-size:7px;padding:5px 6px}
+  .workerRow .state{display:none}.workerRow strong{font-size:9px}
+  #facts{display:none}
+  #detailHead{padding:7px 8px}#detailHead span{display:none}
+  #legend{left:6px;bottom:calc(37vh + 12px);width:calc(100vw - 12px);padding:6px}
+  .legendGrid{grid-template-columns:repeat(5,1fr)}.leg{font-size:6px}.legendNote{display:none}
+  #statusLine{display:none}
+}
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="world" aria-label="Lab de workers reales de Prometeo"></canvas></div>
+<div id="top">
+  <div class="title">
+    <div class="sig">W</div>
+    <div><b>Worker Runtime Lab</b><span>actores reales · snapshot durable · sin pseudo-workers</span></div>
+  </div>
+  <div id="feedBadge" data-state="STALE">FEED · iniciando<br>schema —</div>
+</div>
+
+<div id="legend">
+  <div class="legendGrid">
+    <div class="leg"><i class="sw material"></i>MATERIAL</div>
+    <div class="leg"><i class="sw cognitive"></i>COGNITIVE</div>
+    <div class="leg"><i class="sw verify"></i>VERIFY</div>
+    <div class="leg"><i class="sw recovery"></i>RECOVERY</div>
+    <div class="leg"><i class="sw unknown"></i>UNKNOWN / IDLE</div>
+  </div>
+  <div class="legendNote">work_kind y family se muestran como DERIVED cuando el feed no los expone. WORKING no genera loops: sólo hay gesto finito ante cambio durable de job/stage. SUSPECT, WAITING, RECENT_IDLE y feed stale quedan quietos.</div>
+</div>
+
+<aside id="detail">
+  <div id="detailHead"><b>Workers del monitor</b><span id="countLine">esperando snapshot</span></div>
+  <div id="workerList"></div>
+  <dl id="facts"></dl>
+</aside>
+<div id="statusLine">arrastrá · rotar · rueda/pellizco · zoom</div>
+
+<script>
+(function(){
+'use strict';
+
+const canvas=document.getElementById('world');
+const ctx=canvas.getContext('2d',{alpha:false});
+const feedBadge=document.getElementById('feedBadge');
+const listEl=document.getElementById('workerList');
+const factsEl=document.getElementById('facts');
+const countLine=document.getElementById('countLine');
+
+const RPC_BASE='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
+let apiKey=null;
+let snapshot=null;
+let lastGoodAt=0;
+let pollError=null;
+let selectedKey=null;
+let previousSemantic=new Map();
+let cues=new Map();
+let actorHitboxes=[];
+let yaw=-0.46;
+let zoom=1;
+let W=0,H=0,DPR=1;
+const pointers=new Map();
+let pinchStart=0;
+let zoomStart=1;
+
+const palette={
+  MATERIAL:'#c56d38',COGNITIVE:'#7b8f79',VERIFY:'#b7a765',RECOVERY:'#a75646',UNKNOWN:'#77716a'
+};
+
+function hash01(text){
+  let h=2166136261;
+  const s=String(text||'');
+  for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}
+  return ((h>>>0)%100000)/100000;
+}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function recordKey(w,index){
+  if(!w)return 'missing:'+index;
+  const parts=[w.agent_id||'',w.worker_code||'',w.launch_batch||''];
+  if(parts.some(Boolean))return parts.join('|');
+  return 'unkeyed:'+index;
+}
+function currentJob(w){return w&&w.current_job&&typeof w.current_job==='object'?w.current_job:null}
+function deriveWorkKind(w){
+  const j=currentJob(w);
+  if(!j)return {value:'UNKNOWN',source:'DERIVED:NO_CURRENT_JOB'};
+  const jc=String(j.job_class||'').toUpperCase();
+  const batch=String(w.launch_batch||'').toUpperCase();
+  if(jc.includes('VERIFY')||jc.includes('CRITIQUE'))return {value:'VERIFY',source:'DERIVED:JOB_CLASS'};
+  if(batch.includes('RECOVERY')||jc.includes('RECOVERY'))return {value:'RECOVERY',source:'DERIVED:BATCH_OR_JOB_CLASS'};
+  if(jc.includes('MATERIAL'))return {value:'MATERIAL',source:'DERIVED:JOB_CLASS'};
+  if(batch.includes('COGNITIVE')||['RESEARCH','SYNTHESIS','REDUCTION','PACKAGE','SPEC','TEST'].includes(jc)){
+    return {value:'COGNITIVE',source:'DERIVED:BATCH_OR_JOB_CLASS'};
+  }
+  return {value:'UNKNOWN',source:'DERIVED:INSUFFICIENT_FIELDS'};
+}
+function deriveFamily(w){
+  const b=String(w&&w.launch_batch||'');
+  if(!b)return {value:'UNKNOWN',source:'DERIVED:NO_BATCH'};
+  const u=b.toUpperCase();
+  if(u.includes('MACRO-BUILD'))return {value:'MACRO_BUILD',source:'DERIVED:LAUNCH_BATCH'};
+  if(u.includes('COGNITIVE-FRONTIER'))return {value:'COGNITIVE_FRONTIER',source:'DERIVED:LAUNCH_BATCH'};
+  if(u.includes('RUNTIME-RECOVERY'))return {value:'RUNTIME_RECOVERY',source:'DERIVED:LAUNCH_BATCH'};
+  if(u.includes('PRODUCT'))return {value:'PRODUCT',source:'DERIVED:LAUNCH_BATCH'};
+  return {value:b,source:'DERIVED:LAUNCH_BATCH'};
+}
+function semanticFingerprint(w){
+  const j=currentJob(w);
+  if(!j)return 'NO_JOB';
+  return [j.node_key||'',j.job_class||'',j.progress_stage||''].join('|');
+}
+function evidenceAge(w){
+  const t=Date.parse(w&&w.last_evidence_at||'');
+  return Number.isFinite(t)?Math.max(0,(Date.now()-t)/1000):null;
+}
+function feedIsStale(){
+  return !!pollError || !lastGoodAt || Date.now()-lastGoodAt>15000;
+}
+
+async function getPublicKey(){
+  if(apiKey)return apiKey;
+  const r=await fetch('/prometeo/guides/prometeo/',{cache:'no-store'});
+  if(!r.ok)throw new Error('publishable key '+r.status);
+  const text=await r.text();
+  const m=text.match(/sb_publishable_[A-Za-z0-9_-]+/);
+  if(!m)throw new Error('publishable key unavailable');
+  apiKey=m[0];
+  return apiKey;
+}
+async function monitorRpc(){
+  const k=await getPublicKey();
+  const r=await fetch(RPC_BASE+'prometeo_coliseo_monitor_v1',{
+    method:'POST',
+    headers:{apikey:k,Authorization:'Bearer '+k,'Content-Type':'application/json'},
+    body:'{}',cache:'no-store'
+  });
+  if(!r.ok)throw new Error('monitor '+r.status);
+  return r.json();
+}
+
+function ingest(data){
+  const now=Date.now();
+  const workers=Array.isArray(data&&data.workers)?data.workers:[];
+  const nextSemantic=new Map();
+  const nextKeys=new Set();
+
+  workers.forEach(function(w,i){
+    const key=recordKey(w,i);
+    nextKeys.add(key);
+    const sem=semanticFingerprint(w);
+    nextSemantic.set(key,sem);
+    const prev=previousSemantic.get(key);
+    const job=currentJob(w);
+    if(prev!==undefined && prev!==sem && job && String(w.evidence_state||'')==='WORKING' && !feedIsStale()){
+      cues.set(key,{until:now+1050,kind:prev==='NO_JOB'?'ASSIGNMENT_OR_STAGE':'JOB_OR_STAGE_CHANGE'});
+    }
+  });
+
+  for(const key of cues.keys())if(!nextKeys.has(key))cues.delete(key);
+  previousSemantic=nextSemantic;
+  snapshot=data;
+  lastGoodAt=now;
+  pollError=null;
+
+  if(selectedKey && !nextKeys.has(selectedKey))selectedKey=null;
+  renderList();
+}
+async function poll(){
+  try{
+    const data=await monitorRpc();
+    ingest(data);
+  }catch(err){
+    pollError=String(err&&err.message||err);
+    cues.clear();
+  }
+  updateFeedBadge();
+}
+function updateFeedBadge(){
+  const stale=feedIsStale();
+  if(pollError){
+    feedBadge.dataset.state='ERROR';
+    feedBadge.innerHTML='FEED · ERROR<br>'+escapeHtml(pollError);
+    return;
+  }
+  const schema=snapshot&&snapshot.schema?String(snapshot.schema):'—';
+  feedBadge.dataset.state=stale?'STALE':'LIVE';
+  feedBadge.innerHTML=(stale?'FEED · STALE':'FEED · LIVE')+'<br>'+escapeHtml(schema);
+}
+function escapeHtml(v){
+  return String(v==null?'':v).replace(/[&<>"']/g,function(ch){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+  });
+}
+function workers(){
+  return snapshot&&Array.isArray(snapshot.workers)?snapshot.workers:[];
+}
+function sortedWorkers(){
+  return workers().map(function(w,i){return {w:w,key:recordKey(w,i),i:i};}).sort(function(a,b){
+    const aa=String(a.w.worker_code||a.key),bb=String(b.w.worker_code||b.key);
+    return aa.localeCompare(bb);
+  });
+}
+function renderList(){
+  const rows=sortedWorkers();
+  countLine.textContent=rows.length+' registros reales · '+(snapshot&&snapshot.schema||'schema —');
+  listEl.textContent='';
+  rows.forEach(function(item){
+    const w=item.w;
+    const btn=document.createElement('button');
+    btn.className='workerRow'+(selectedKey===item.key?' selected':'');
+    btn.dataset.evidence=String(w.evidence_state||'UNKNOWN');
+    const code=document.createElement('strong');
+    code.textContent=w.worker_code||'—';
+    const job=document.createElement('span');
+    job.className='job';
+    job.textContent=currentJob(w)?.node_key||'sin job';
+    const state=document.createElement('span');
+    state.className='state';
+    state.textContent=w.evidence_state||'UNKNOWN';
+    btn.append(code,job,state);
+    btn.addEventListener('click',function(){selectedKey=item.key;renderList();renderFacts(item.key)});
+    listEl.appendChild(btn);
+  });
+  renderFacts(selectedKey);
+}
+function renderFacts(key){
+  factsEl.textContent='';
+  const item=sortedWorkers().find(function(x){return x.key===key})||sortedWorkers()[0];
+  if(!item)return;
+  if(!selectedKey)selectedKey=item.key;
+  const w=item.w,j=currentJob(w),wk=deriveWorkKind(w),fam=deriveFamily(w);
+  const age=evidenceAge(w);
+  const facts=[
+    ['worker_code',w.worker_code||'—'],
+    ['agent_id',w.agent_id||'—'],
+    ['evidence',w.evidence_state||'UNKNOWN'],
+    ['evidence_age',age==null?'UNKNOWN':Math.round(age)+' s'],
+    ['work_kind',wk.value+' · '+wk.source],
+    ['family',fam.value+' · '+fam.source],
+    ['node_key',j&&j.node_key||'—'],
+    ['job_class',j&&j.job_class||'—'],
+    ['stage',j&&j.progress_stage||'—'],
+    ['last_evidence',w.last_evidence_at||'—']
+  ];
+  facts.forEach(function(pair){
+    const wrap=document.createElement('div');wrap.className='fact';
+    const dt=document.createElement('dt');dt.textContent=pair[0];
+    const dd=document.createElement('dd');dd.textContent=String(pair[1]);
+    wrap.append(dt,dd);factsEl.appendChild(wrap);
+  });
+}
+
+function resize(){
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  W=innerWidth;H=innerHeight;
+  canvas.width=Math.max(1,Math.round(W*DPR));
+  canvas.height=Math.max(1,Math.round(H*DPR));
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+function project(x,z,y){
+  const ca=Math.cos(yaw),sa=Math.sin(yaw);
+  const rx=x*ca-z*sa;
+  const rz=x*sa+z*ca;
+  const usableW=W-(W>760?360:0);
+  const base=Math.min(usableW/25,H/15)*zoom;
+  const cx=usableW*.5;
+  const cy=H*(W>760?.57:.42);
+  return {x:cx+rx*base,y:cy+rz*base*.33-y*base*.72,depth:rz,scale:base};
+}
+function laneAngle(kind){
+  return {MATERIAL:-2.25,COGNITIVE:-1.12,VERIFY:0,RECOVERY:1.12,UNKNOWN:2.25}[kind]||2.25;
+}
+function siteFor(w){
+  const wk=deriveWorkKind(w).value;
+  const j=currentJob(w);
+  if(!j){
+    const a=2.62+hash01(recordKey(w,0))*1.02;
+    return {x:Math.cos(a)*9.2,z:Math.sin(a)*9.2,kind:'UNKNOWN',label:'IDLE'};
+  }
+  const base=laneAngle(wk);
+  const h=hash01(j.node_key||j.title||recordKey(w,0));
+  const a=base+(h-.5)*.66;
+  const r=5.0+h*2.8;
+  return {x:Math.cos(a)*r,z:Math.sin(a)*r,kind:wk,label:j.node_key||'JOB'};
+}
+function actorOffset(key){
+  const a=hash01(key+'a')*Math.PI*2;
+  const r=.42+hash01(key+'r')*.50;
+  return {x:Math.cos(a)*r,z:Math.sin(a)*r};
+}
+function line(x1,y1,x2,y2,color,width,alpha){
+  ctx.globalAlpha=alpha==null?1:alpha;ctx.strokeStyle=color;ctx.lineWidth=width;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.globalAlpha=1;
+}
+function poly(points,fill,stroke){
+  ctx.beginPath();points.forEach(function(p,i){if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y)});ctx.closePath();
+  if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke()}
+}
+function drawGround(){
+  ctx.fillStyle='#070706';ctx.fillRect(0,0,W,H);
+  const rings=[3.3,6.5,9.6];
+  rings.forEach(function(r){
+    const pts=[];for(let i=0;i<72;i++){const a=i/72*Math.PI*2;pts.push(project(Math.cos(a)*r,Math.sin(a)*r,0))}
+    ctx.strokeStyle='#211e1a';ctx.lineWidth=1;ctx.beginPath();
+    pts.forEach(function(p,i){if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y)});ctx.closePath();ctx.stroke();
+  });
+  ['MATERIAL','COGNITIVE','VERIFY','RECOVERY','UNKNOWN'].forEach(function(kind){
+    const a=laneAngle(kind),p0=project(Math.cos(a)*3.2,Math.sin(a)*3.2,0),p1=project(Math.cos(a)*9.5,Math.sin(a)*9.5,0);
+    line(p0.x,p0.y,p1.x,p1.y,palette[kind],1,.22);
+    const label=project(Math.cos(a)*9.9,Math.sin(a)*9.9,.06);
+    ctx.fillStyle=palette[kind];ctx.globalAlpha=.55;ctx.font='800 8px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText(kind,label.x,label.y);ctx.globalAlpha=1;
+  });
+}
+function drawSite(site){
+  const p=project(site.x,site.z,0);
+  const sx=p.scale*.50,sy=p.scale*.18;
+  const col=palette[site.kind]||palette.UNKNOWN;
+  poly([{x:p.x-sx,y:p.y},{x:p.x,y:p.y-sy},{x:p.x+sx,y:p.y},{x:p.x,y:p.y+sy}], '#171411',col);
+  ctx.fillStyle=col;ctx.globalAlpha=.66;ctx.font='850 7px ui-monospace,monospace';ctx.textAlign='center';
+  ctx.fillText(String(site.label).slice(0,20),p.x,p.y+sy+10);ctx.globalAlpha=1;
+}
+function evidenceStyle(state){
+  const s=String(state||'UNKNOWN').toUpperCase();
+  if(s==='WORKING')return {alpha:1,stroke:'#aac0a6'};
+  if(s==='SUSPECT')return {alpha:.78,stroke:'#c87b48'};
+  if(s==='WAITING')return {alpha:.66,stroke:'#817a72'};
+  if(s==='RECENT_IDLE')return {alpha:.42,stroke:'#5e5a55'};
+  return {alpha:.48,stroke:'#68625c'};
+}
+function drawActor(item,now,feedStale){
+  const w=item.w,key=item.key,site=siteFor(w),off=actorOffset(key);
+  const cue=cues.get(key);
+  const activeCue=!feedStale && cue && cue.until>now && String(w.evidence_state||'')==='WORKING' && !!currentJob(w);
+  let lift=0,nudge=0;
+  if(activeCue){
+    const t=1-(cue.until-now)/1050;
+    lift=Math.sin(clamp(t,0,1)*Math.PI)*.22;
+    nudge=Math.sin(clamp(t,0,1)*Math.PI*2)*.12;
+  }
+  const p=project(site.x+off.x+nudge,site.z+off.z,lift);
+  const wk=deriveWorkKind(w).value;
+  const col=palette[wk]||palette.UNKNOWN;
+  const es=evidenceStyle(w.evidence_state);
+  const size=clamp(p.scale*.17,6,16);
+  ctx.globalAlpha=es.alpha;
+  ctx.fillStyle=col;ctx.strokeStyle=es.stroke;ctx.lineWidth=1.4;
+
+  if(wk==='COGNITIVE'){
+    ctx.beginPath();ctx.moveTo(p.x,p.y-size);ctx.lineTo(p.x+size*.85,p.y+size*.65);ctx.lineTo(p.x-size*.85,p.y+size*.65);ctx.closePath();ctx.fill();ctx.stroke();
+  }else if(wk==='VERIFY'){
+    ctx.beginPath();ctx.arc(p.x,p.y,size*.75,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(p.x,p.y,size*.28,0,Math.PI*2);ctx.fill();
+  }else if(wk==='RECOVERY'){
+    ctx.fillRect(p.x-size*.7,p.y-size*.18,size*1.4,size*.36);ctx.fillRect(p.x-size*.18,p.y-size*.7,size*.36,size*1.4);ctx.strokeRect(p.x-size*.7,p.y-size*.7,size*1.4,size*1.4);
+  }else if(wk==='MATERIAL'){
+    ctx.fillRect(p.x-size*.72,p.y-size*.72,size*1.44,size*1.44);ctx.strokeRect(p.x-size*.72,p.y-size*.72,size*1.44,size*1.44);
+    if(activeCue)line(p.x+size*.65,p.y-size*.45,p.x+size*1.15,p.y-size*.9,col,2,1);
+  }else{
+    ctx.beginPath();ctx.moveTo(p.x,p.y-size*.75);ctx.lineTo(p.x+size*.75,p.y);ctx.lineTo(p.x,p.y+size*.75);ctx.lineTo(p.x-size*.75,p.y);ctx.closePath();ctx.fill();ctx.stroke();
+  }
+
+  if(String(w.evidence_state||'')==='SUSPECT'){
+    line(p.x-size,p.y-size*.95,p.x+size,p.y+size*.95,'#c87b48',1,.8);
+    line(p.x+size,p.y-size*.95,p.x-size,p.y+size*.95,'#c87b48',1,.8);
+  }
+  if(String(w.evidence_state||'')==='WAITING'){
+    ctx.setLineDash([2,2]);ctx.strokeStyle='#8b847b';ctx.strokeRect(p.x-size,p.y-size,size*2,size*2);ctx.setLineDash([]);
+  }
+  ctx.globalAlpha=1;
+
+  ctx.font='900 '+clamp(size*.66,7,10)+'px ui-monospace,monospace';ctx.textAlign='center';
+  ctx.fillStyle=item.key===selectedKey?'#f0c894':'#b9a58e';
+  ctx.fillText(String(w.worker_code||'—').slice(0,8),p.x,p.y-size-5);
+  actorHitboxes.push({key:key,x:p.x,y:p.y,r:size+8});
+}
+function draw(){
+  updateFeedBadge();
+  const now=Date.now(),stale=feedIsStale();
+  drawGround();
+  actorHitboxes=[];
+
+  const rows=sortedWorkers();
+  const sites=new Map();
+  rows.forEach(function(item){
+    const site=siteFor(item.w);
+    const id=(currentJob(item.w)?.node_key||'IDLE:'+item.key)+'|'+site.kind;
+    if(!sites.has(id))sites.set(id,site);
+  });
+  Array.from(sites.values()).sort(function(a,b){return project(a.x,a.z,0).depth-project(b.x,b.z,0).depth}).forEach(drawSite);
+  rows.sort(function(a,b){const sa=siteFor(a.w),sb=siteFor(b.w);return project(sa.x,sa.z,0).depth-project(sb.x,sb.z,0).depth}).forEach(function(item){
+    drawActor(item,now,stale);
+  });
+
+  if(stale){
+    ctx.fillStyle='rgba(7,6,5,.38)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#c3774c';ctx.font='950 13px ui-monospace,monospace';ctx.textAlign='center';
+    ctx.fillText('TELEMETRÍA SIN CONFIRMACIÓN FRESCA · MOVIMIENTO CONGELADO', (W-(W>760?360:0))*.5, H*.18);
+  }
+  requestAnimationFrame(draw);
+}
+
+canvas.addEventListener('pointerdown',function(e){
+  canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY,px:e.clientX,py:e.clientY});
+  if(pointers.size===2){
+    const pts=Array.from(pointers.values());pinchStart=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);zoomStart=zoom;
+  }
+});
+canvas.addEventListener('pointermove',function(e){
+  const p=pointers.get(e.pointerId);if(!p)return;
+  p.px=p.x;p.py=p.y;p.x=e.clientX;p.y=e.clientY;
+  if(pointers.size===1){yaw+=(p.x-p.px)*.006}
+  else if(pointers.size===2){
+    const pts=Array.from(pointers.values());const d=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);
+    if(pinchStart>0)zoom=clamp(zoomStart*d/pinchStart,.55,1.8);
+  }
+});
+function pointerEnd(e){pointers.delete(e.pointerId);if(pointers.size<2)pinchStart=0}
+canvas.addEventListener('pointerup',pointerEnd);canvas.addEventListener('pointercancel',pointerEnd);
+canvas.addEventListener('wheel',function(e){e.preventDefault();zoom=clamp(zoom*Math.exp(-e.deltaY*.001),.55,1.8)},{passive:false});
+canvas.addEventListener('click',function(e){
+  if(Math.abs(e.movementX||0)+Math.abs(e.movementY||0)>5)return;
+  let best=null,bd=Infinity;
+  actorHitboxes.forEach(function(h){const d=Math.hypot(e.clientX-h.x,e.clientY-h.y);if(d<h.r&&d<bd){bd=d;best=h}});
+  if(best){selectedKey=best.key;renderList();renderFacts(best.key)}
+});
+
+globalThis.__PROMETEO_VISUAL_QA__={
+  async setYaw(radians){yaw=Number(radians)||0},
+  getCamera(){return {yaw:yaw,zoom:zoom}}
+};
+
+addEventListener('resize',resize,{passive:true});
+resize();
+renderList();
+poll();
+setInterval(poll,6000);
+setInterval(updateFeedBadge,1000);
+requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
