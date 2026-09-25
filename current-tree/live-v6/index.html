@@ -97,12 +97,15 @@ h1{font-size:clamp(28px,7vw,46px);line-height:.98;letter-spacing:-.055em;margin:
 .node .nemoji{font-size:27px;dominant-baseline:middle;text-anchor:middle}
 .node .nname{font-size:12px;font-weight:720;fill:#e3e4df}
 .node .nage{font-size:8px;fill:#727b86}
+.node .expanddot circle{fill:#11141a;stroke:#69727c;stroke-width:1}
+.node .expanddot text{font-size:12px;font-weight:800;fill:#c5cad0;dominant-baseline:middle;text-anchor:middle}
 .node.stale .nage{fill:#ad945b}
 .node.legacy .nname,.node.legacy .nage{fill:#6e7680}
 .orgtools{position:absolute;left:10px;top:10px;display:flex;gap:4px;z-index:4}
 .orgbtn{border:1px solid #2e343c;background:rgba(12,14,17,.9);border-radius:7px;padding:6px 8px;font-size:8px;color:#929aa4}
 .orgbtn.on{color:#eee;background:#171a20}
 .zoom{position:absolute;right:10px;top:10px;display:flex;gap:4px;z-index:4}
+.orgcoverage{position:absolute;left:10px;bottom:10px;z-index:3;font-size:8px;color:#7d8590;background:rgba(8,9,11,.78);padding:5px 7px;border-radius:7px;pointer-events:none}
 .infopanel{position:absolute;left:10px;right:10px;bottom:10px;background:rgba(13,15,18,.97);border:1px solid #30353d;border-radius:12px;padding:11px;transform:translateY(calc(100% + 20px));transition:transform .16s ease;z-index:5}
 .infopanel.on{transform:translateY(0)}
 .iphead{display:flex;justify-content:space-between;gap:10px}.ipname{font-size:15px;font-weight:760}.ipclose{border:0;background:transparent;color:#7e8792;font-size:18px}
@@ -144,7 +147,8 @@ h1{font-size:clamp(28px,7vw,46px);line-height:.98;letter-spacing:-.055em;margin:
     <button class="orgbtn" data-orgmode="impact">impacto</button>
    </div>
    <div class="zoom"><button class="orgbtn" id="zin">＋</button><button class="orgbtn" id="zout">−</button><button class="orgbtn" id="zreset">↺</button></div>
-   <svg id="orgsvg" viewBox="20 20 960 900" preserveAspectRatio="xMidYMid meet"></svg>
+   <div class="orgcoverage" id="orgcoverage"></div>
+   <svg id="orgsvg" viewBox="0 0 1200 1400" preserveAspectRatio="xMidYMid meet"></svg>
    <div class="infopanel" id="infopanel">
     <div class="iphead"><div><div class="ipname" id="ipname"></div><div class="ipmeta" id="ipmeta"></div></div><button class="ipclose" id="ipclose">×</button></div>
     <div class="ipdesc" id="ipdesc"></div>
@@ -158,13 +162,15 @@ h1{font-size:clamp(28px,7vw,46px);line-height:.98;letter-spacing:-.055em;margin:
 <script>
 const SB='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
 const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
-let D=null,ORG_MODE='organism',SELECTED=null,NODES=[],EDGES=[],RAF=0;
-let vb={x:20,y:20,w:960,h:900};
+let D=null,O=null,ORG_MODE='organism',SELECTED=null,NODES=[],EDGES=[],RAF=0;
+let vb={x:0,y:0,w:1200,h:1400};
+const EXPANDED=new Set(['PROJECT:PROMETEO']);
 const POINTERS=new Map();
 let GESTURE=null,DRAGGED=false,SUPPRESS_CLICK_UNTIL=0;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-async function load(){const r=await fetch(SB+'prometeo_current_tree_v2',{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:'{}',cache:'no-store'});if(!r.ok)throw new Error('RPC '+r.status);return r.json()}
+async function rpc(name){const r=await fetch(SB+name,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:'{}',cache:'no-store'});if(!r.ok)throw new Error(name+' · RPC '+r.status);return r.json()}
+async function load(){const [tree,organism]=await Promise.all([rpc('prometeo_current_tree_v2'),rpc('prometeo_organism_projection_v1')]);return {tree,organism}}
 function fmt(d){try{return new Intl.DateTimeFormat('es-AR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'America/Argentina/Buenos_Aires'}).format(new Date(d))}catch{return '—'}}
 function mins(d){return d?Math.max(0,(Date.now()-new Date(d).getTime())/60000):null}
 function age(m){if(m==null)return '—';if(m<1)return '<1m';if(m<60)return Math.round(m)+'m';if(m<1440)return Math.round(m/60)+'h';return Math.round(m/1440)+'d'}
@@ -269,72 +275,153 @@ function renderHistory(){
 }
 
 /* ORGANISM */
-function emojiFor(id){
- const map={
-  current:'🌳',arch:'🧬',root:'🧠',workgraph:'⚙️',
-  objectives:'🎯',guides:'🧭',work:'🛠️',doctrines:'📜',
-  experiments:'🧪',knowledge:'📚',drift:'⚠️',plan:'🗺️',
-  legacy:'🪦',next:'➡️',strategy:'♟️'
- };
- return map[id]||'•';
+function emojiForNode(n){
+ const key=n.node_key||'';
+ if(key==='PROJECT:PROMETEO')return '🔥';
+ if(key.includes('CURRENT_TREE'))return '🌳';
+ if(key.includes('ARCHITECTURE'))return '🧬';
+ if(key.includes('ROOT_INDEX'))return '🧠';
+ if(key.includes('WORK_GRAPH'))return '⚙️';
+ if(key.startsWith('GUIDE:'))return '🧭';
+ if(key.startsWith('OBJECTIVE:'))return '🎯';
+ if(key.startsWith('EXT:'))return '🌱';
+ if(key==='ROOT:OBJECTIVES')return '🎯';
+ if(key==='ROOT:WORK')return '🛠️';
+ if(key==='ROOT:GUIDES')return '🧭';
+ if(key==='ROOT:DOCTRINES')return '📜';
+ if(key==='ROOT:EXPERIMENTS')return '🧪';
+ if(key==='ROOT:KNOWLEDGE')return '📚';
+ if(key==='ROOT:DRIFT')return '⚠️';
+ if(key==='ROOT:OPERATING_PLAN')return '🗺️';
+ if(key==='ROOT:LEGACY_STATE')return '🪦';
+ if(key==='ROOT:NEXT_ACTION')return '➡️';
+ if(n.kind==='AUDIT')return '🔎';
+ if(n.kind==='INTAKE')return '📥';
+ return '•';
+}
+function structuralParentMap(){
+ const p=new Map();
+ (O?.nodes||[]).forEach(n=>{
+  const k=n.node_key;
+  if(k==='PROJECT:PROMETEO')return;
+  if(k.startsWith('SEM:'))p.set(k,'PROJECT:PROMETEO');
+  else if(k.startsWith('ROOT:'))p.set(k,'SEM:PROMETEO_ROOT_INDEX_V1');
+  else if(k.startsWith('GUIDE:'))p.set(k,'ROOT:GUIDES');
+  else if(k.startsWith('OBJECTIVE:'))p.set(k,'ROOT:OBJECTIVES');
+ });
+ (O?.edges||[]).filter(e=>e.kind==='CONTAINS'&&String(e.to||'').startsWith('EXT:')).forEach(e=>p.set(e.to,e.from));
+ (O?.nodes||[]).filter(n=>n.node_key.startsWith('EXT:')&&!p.has(n.node_key)).forEach(n=>p.set(n.node_key,'PROJECT:PROMETEO'));
+ return p;
+}
+function childMap(){
+ const p=structuralParentMap(),c=new Map();
+ for(const [child,parent] of p.entries()){
+  if(!c.has(parent))c.set(parent,[]);
+  c.get(parent).push(child);
+ }
+ for(const arr of c.values())arr.sort();
+ return c;
+}
+function visibleKeys(){
+ const cm=childMap(),visible=new Set(['PROJECT:PROMETEO']),q=['PROJECT:PROMETEO'];
+ while(q.length){
+  const parent=q.shift();
+  if(!EXPANDED.has(parent))continue;
+  for(const child of cm.get(parent)||[]){
+   visible.add(child);
+   if(EXPANDED.has(child))q.push(child);
+  }
+ }
+ return visible;
+}
+function rawNode(key){return (O?.nodes||[]).find(n=>n.node_key===key)||null}
+function placeLayout(keys){
+ const cm=childMap(),placed=new Map();
+ const center={x:600,y:700};placed.set('PROJECT:PROMETEO',center);
+
+ const top=cm.get('PROJECT:PROMETEO')||[];
+ const rx=300,ry=330,start=-Math.PI/2;
+ top.forEach((k,i)=>{
+   const a=start+(i/Math.max(1,top.length))*Math.PI*2;
+   placed.set(k,{x:center.x+Math.cos(a)*rx,y:center.y+Math.sin(a)*ry,angle:a,depth:1});
+ });
+
+ function placeDesc(parent,depth){
+   const kids=(cm.get(parent)||[]).filter(k=>keys.has(k));
+   if(!kids.length)return;
+   const pp=placed.get(parent)||center;
+   const base=pp.angle!=null?pp.angle:Math.atan2(pp.y-center.y,pp.x-center.x);
+   const spread=Math.min(Math.PI*.72,Math.PI*.24*Math.max(1,kids.length-1));
+   const dist=depth===2?235:175;
+   kids.forEach((k,i)=>{
+     const frac=kids.length===1?.5:i/(kids.length-1);
+     const a=base-spread/2+spread*frac;
+     const x=pp.x+Math.cos(a)*dist;
+     const y=pp.y+Math.sin(a)*dist;
+     placed.set(k,{x,y,angle:a,depth});
+     placeDesc(k,depth+1);
+   });
+ }
+ top.forEach(k=>placeDesc(k,2));
+ return placed;
 }
 function orgNodes(){
- const ct=reg('PROMETEO_CURRENT_TREE_V2'),arch=reg('PROMETEO_ARCHITECTURE_WORK_GRAPH_V1_1'),root=reg('PROMETEO_ROOT_INDEX_V1'),wg=reg('WORK_GRAPH_CURRENT_V1_1');
- const m=(id,k,x,y,label,r=31)=>{const a=mod(k);return{id,label:label||a.title||k,emoji:emojiFor(id),x,y,r,updated:a.source_updated_at,status:a.freshness==='STALE'?'STALE':'CURRENT',desc:a.purpose||'',kind:'module',key:k,consumers:[]}};
- const nodes=[
-  {id:'root',label:'ROOT',emoji:emojiFor('root'),x:500,y:470,r:42,updated:root.updated_at,status:root.effective_status,desc:'Centro de orientación: apunta a las fuentes actuales sin reemplazarlas.',kind:'registry',key:root.entity_key,consumers:root.consumers||[]},
-
-  {id:'current',label:'CURRENT TREE',emoji:emojiFor('current'),x:500,y:270,r:35,updated:ct.updated_at,status:ct.effective_status,desc:'Orientación vigente del proyecto.',kind:'registry',key:ct.entity_key,consumers:ct.consumers||[]},
-  {id:'arch',label:'ARCHITECTURE',emoji:emojiFor('arch'),x:500,y:105,r:33,updated:arch.updated_at,status:arch.effective_status,desc:'Arquitectura promovida actual.',kind:'registry',key:arch.entity_key,consumers:arch.consumers||[]},
-
-  {id:'workgraph',label:'WORK GRAPH',emoji:emojiFor('workgraph'),x:715,y:335,r:36,updated:wg.updated_at,status:wg.effective_status,desc:'Trabajo global claimable.',kind:'registry',key:wg.entity_key,consumers:wg.consumers||[]},
-  m('work','WORK',875,230,'WORK',30),
-  m('objectives','OBJECTIVES',885,420,'OBJECTIVES',30),
-
-  m('guides','GUIDES',285,335,'GUIDES',34),
-  {id:'strategy',label:'STRATEGY',emoji:emojiFor('strategy'),x:125,y:225,r:29,updated:guide('STRATEGY').capsule_generated_at,status:guide('STRATEGY').effective_status,desc:guide('STRATEGY').headline,kind:'guide',key:'STRATEGY',consumers:[]},
-
-  m('knowledge','KNOWLEDGE',250,535,'KNOWLEDGE',31),
-  m('doctrines','DOCTRINES',90,535,'DOCTRINES',29),
-
-  m('experiments','EXPERIMENTS',330,690,'EXPERIMENTS',31),
-  m('plan','OPERATING_PLAN',185,830,'OPERATING PLAN',29),
-
-  m('drift','DRIFT',670,690,'DRIFT',31),
-  m('legacy','LEGACY_STATE',815,830,'LEGACY',29),
-
-  m('next','NEXT_ACTION',500,860,'NEXT ACTION',32)
- ];
- return nodes;
+ const keys=visibleKeys(),layout=placeLayout(keys);
+ return (O?.nodes||[]).filter(n=>keys.has(n.node_key)).map(raw=>{
+   const p=layout.get(raw.node_key)||{x:600,y:700,depth:0};
+   const payload=raw.payload||{};
+   const desc=payload.purpose||payload.headline||payload.mission||payload.reason||payload.law||
+     (raw.kind==='PROJECT'?'Proyección viva de Prometeo.':'');
+   const updated=raw.updated_at||payload.observed_at||O.generated_at;
+   return {
+    id:raw.node_key,label:raw.title||raw.node_key,emoji:emojiForNode(raw),
+    x:p.x,y:p.y,r:raw.node_key==='PROJECT:PROMETEO'?44:(p.depth===1?32:27),
+    updated,status:raw.status,desc,kind:raw.kind,key:raw.node_key,
+    consumers:raw.consumers||[],raw
+   };
+ });
 }
 function orgEdges(){
- const e=[
-  ['root','current'],['current','arch'],
-  ['root','workgraph'],['workgraph','work'],['workgraph','objectives'],
-  ['root','guides'],['guides','strategy'],
-  ['root','knowledge'],['knowledge','doctrines'],
-  ['root','experiments'],['experiments','plan'],
-  ['root','drift'],['drift','legacy'],
-  ['root','next']
- ];
- return e.map(([a,b])=>({a,b}));
+ const visible=new Set(NODES.map(n=>n.id));
+ const pm=structuralParentMap();
+ const structural=[];
+ for(const [child,parent] of pm.entries()){
+   if(visible.has(child)&&visible.has(parent))structural.push({a:parent,b:child,kind:'STRUCTURAL'});
+ }
+ const impact=(O?.edges||[])
+   .filter(e=>visible.has(e.from)&&visible.has(e.to)&&!structural.some(x=>x.a===e.from&&x.b===e.to))
+   .map(e=>({a:e.from,b:e.to,kind:e.kind||'RELATION'}));
+ return [...structural,...impact];
 }
 function nclass(n){if(n.status==='LEGACY'||n.status==='SUPERSEDED')return'legacy';if(n.status==='STALE')return'stale';const m=mins(n.updated);return m!=null&&m<15?'fresh':''}
 function svgEl(tag,a={}){const e=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const[k,v]of Object.entries(a))e.setAttribute(k,v);return e}
 function drawOrg(){
  NODES=orgNodes();EDGES=orgEdges();const s=$('#orgsvg');s.innerHTML='';
+ const cov=O?.coverage||{};
+ $('#orgcoverage').textContent=(cov.coverage_percent??'—')+'% cubierto · '+(O?.nodes?.length||0)+' nodos · '+(cov.external_bindings||0)+' externos';
  const eg=svgEl('g'),ng=svgEl('g');s.append(eg,ng);
- EDGES.forEach(e=>{const p=svgEl('path',{class:'edge',id:'edge-'+e.a+'-'+e.b});e.el=p;eg.appendChild(p)});
+ EDGES.forEach(e=>{const p=svgEl('path',{class:'edge '+(e.kind==='STRUCTURAL'?'':'stale'),id:'edge-'+e.a+'-'+e.b});e.el=p;eg.appendChild(p)});
  NODES.forEach(n=>{
   const g=svgEl('g',{class:'node '+nclass(n),'data-id':n.id,tabindex:'0'});
   const h=svgEl('circle',{class:'halo',r:n.r+8}),c=svgEl('circle',{class:'core',r:n.r});
   const em=svgEl('text',{class:'nemoji',x:0,y:2});em.textContent=n.emoji||emojiFor(n.id);
   const t=svgEl('text',{class:'nname',y:n.r+20});t.textContent=n.label;
   const a=svgEl('text',{class:'nage',y:n.r+34});a.textContent=age(mins(n.updated));
-  g.append(h,c,em,t,a);g.onclick=()=>{if(Date.now()>SUPPRESS_CLICK_UNTIL)selectOrg(n.id)};g.onkeydown=ev=>{if(ev.key==='Enter'){selectOrg(n.id)}};
+  g.append(h,c,em,t,a);
+  const kids=(childMap().get(n.id)||[]);
+  if(kids.length){
+    const ex=svgEl('g',{class:'expanddot',transform:'translate('+(n.r-2)+','+(-n.r+2)+')'});
+    const xc=svgEl('circle',{r:9}),xt=svgEl('text',{y:1});xt.textContent=EXPANDED.has(n.id)?'−':'+';
+    ex.append(xc,xt);g.appendChild(ex);
+  }
+  g.onclick=()=>{if(Date.now()>SUPPRESS_CLICK_UNTIL){if(kids.length)toggleBranch(n.id);selectOrg(n.id)}};g.onkeydown=ev=>{if(ev.key==='Enter'){selectOrg(n.id)}};
   n.el=g;ng.appendChild(g)
  });
  cancelAnimationFrame(RAF);RAF=requestAnimationFrame(animateOrg);
+}
+function toggleBranch(id){
+ if(EXPANDED.has(id))EXPANDED.delete(id);else EXPANDED.add(id);
+ drawOrg();
 }
 function pos(n,t){const seed=[...n.id].reduce((a,c)=>a+c.charCodeAt(0),0);const amp=3;return{x:n.x+Math.sin(t*.00035+seed)*amp,y:n.y+Math.cos(t*.0003+seed*.5)*amp}}
 function animateOrg(t){
@@ -343,7 +430,13 @@ function animateOrg(t){
  RAF=requestAnimationFrame(animateOrg);
 }
 function downstream(id){
- const out=new Set(),q=[id];while(q.length){const x=q.shift();EDGES.filter(e=>e.a===x).forEach(e=>{if(!out.has(e.b)){out.add(e.b);q.push(e.b)}})}return [...out]
+ const all=(O?.edges||[]).map(e=>({a:e.from,b:e.to}));
+ const out=new Set(),q=[id];
+ while(q.length){
+  const x=q.shift();
+  all.filter(e=>e.a===x).forEach(e=>{if(!out.has(e.b)){out.add(e.b);q.push(e.b)}});
+ }
+ return [...out]
 }
 function selectOrg(id){
  SELECTED=id;const n=NODES.find(x=>x.id===id);if(!n)return;
@@ -354,7 +447,7 @@ function selectOrg(id){
  EDGES.forEach(e=>{if(e.a===id||impacts.includes(e.a)&&impacts.includes(e.b))e.el.classList.add('impact')});
  $('#ipname').textContent=n.label;$('#ipmeta').textContent=(n.status||'—')+' · '+age(mins(n.updated))+' · '+fmt(n.updated);$('#ipdesc').textContent=n.desc||'';
  const semantic=(n.consumers||[]).map(x=>x.replaceAll('_',' '));
- const visual=impacts.map(k=>NODES.find(x=>x.id===k)?.label).filter(Boolean);
+ const visual=impacts.map(k=>rawNode(k)?.title||NODES.find(x=>x.id===k)?.label).filter(Boolean);
  const merged=[...new Set([...semantic,...visual])];
  $('#impactlist').innerHTML=merged.length?merged.slice(0,12).map(x=>'<span class="impactpill">'+esc(x)+'</span>').join(''):'<div class="empty">sin consumidores visibles en esta proyección</div>';
  $('#infopanel').classList.add('on');
@@ -369,7 +462,7 @@ function zoomAt(factor,cx=.5,cy=.5){
 }
 $('#zin').onclick=()=>zoomAt(.8);
 $('#zout').onclick=()=>zoomAt(1.25);
-$('#zreset').onclick=()=>{vb={x:20,y:20,w:960,h:900};setVB()};
+$('#zreset').onclick=()=>{vb={x:0,y:0,w:1200,h:1400};setVB()};
 
 function pointDistance(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 function screenToVB(clientX,clientY,base=vb){
@@ -426,7 +519,7 @@ org.addEventListener('pointerup',endPointer);
 org.addEventListener('pointercancel',endPointer);
 document.querySelectorAll('[data-orgmode]').forEach(b=>b.onclick=()=>{ORG_MODE=b.dataset.orgmode;document.querySelectorAll('[data-orgmode]').forEach(x=>x.classList.toggle('on',x===b));if(ORG_MODE!=='impact'){$('#infopanel').classList.remove('on');document.querySelectorAll('#orgsvg .node,#orgsvg .edge').forEach(x=>x.classList.remove('impact'))}});
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===b.dataset.view));if(b.dataset.view==='organismo'&&!NODES.length)drawOrg()});
-(async()=>{try{D=await load();$('#stamp').textContent='snapshot '+fmt(D.generated_at);renderState();renderHistory()}catch(e){$('#statecontent').innerHTML='<div class="rdesc">No pude cargar Current Tree V2: '+esc(e.message)+'</div>'}})();
+(async()=>{try{const loaded=await load();D=loaded.tree;O=loaded.organism;$('#stamp').textContent='snapshot '+fmt(D.generated_at);renderState();renderHistory()}catch(e){$('#statecontent').innerHTML='<div class="rdesc">No pude cargar Prometeo: '+esc(e.message)+'</div>'}})();
 </script>
 </body>
 </html>
