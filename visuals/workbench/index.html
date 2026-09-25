@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#080706">
+<title>Prometeo · Trabajo actual</title>
+<style>
+:root{--bg:#080706;--panel:#100e0c;--line:#312b25;--ink:#eadfce;--muted:#8c7e6d;--accent:#d28a4b;--green:#7f9a82;--red:#b75c49}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif}
+body{overflow:auto;overscroll-behavior:contain}
+main{min-height:100%;padding:clamp(22px,4vw,48px);max-width:1500px;margin:auto}
+header{display:flex;align-items:end;justify-content:space-between;gap:22px;margin-bottom:28px}
+.k{font:850 10px/1 ui-monospace;letter-spacing:.14em;color:#897b6b;text-transform:uppercase}
+h1{font-size:clamp(38px,7vw,82px);line-height:.9;letter-spacing:-.045em;margin:.16em 0 0}
+.lead{max-width:720px;color:#9e8f7d;font-size:13px;line-height:1.45}
+.count{font:900 clamp(34px,6vw,72px)/.85 ui-monospace;color:#c9a477;text-align:right}.count small{display:block;margin-top:8px;font-size:9px;letter-spacing:.12em;color:#74685d}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.card{position:relative;display:block;min-height:190px;padding:18px 18px 17px;border:1px solid var(--line);background:var(--panel);color:inherit;text-decoration:none;overflow:hidden}
+.card:active{transform:scale(.992)}
+.card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:#4b433a}
+.card[data-status="new"]:before{background:var(--accent);box-shadow:0 0 16px rgba(210,138,75,.35)}
+.card[data-status="review"]:before{background:#d0b071}
+.card[data-status="active"]:before{background:#657f6b}
+.card[data-status="done"]:before{background:#3f4b42}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.area{font:850 9px/1 ui-monospace;letter-spacing:.12em;color:#74695d}
+.status{padding:5px 7px;border:1px solid #40372f;font:900 8px/1 ui-monospace;letter-spacing:.08em;text-transform:uppercase;color:#9a8b78}
+.card[data-status="new"] .status{color:#efbb7d;border-color:#7e5435}
+.card[data-status="review"] .status{color:#e0c78e;border-color:#746443}
+.card[data-status="active"] .status{color:#9ab39d;border-color:#405344}
+.card h2{font-size:clamp(21px,3vw,32px);line-height:1.02;margin:26px 0 9px;letter-spacing:-.025em}
+.card p{margin:0;color:#9a8c7b;font-size:12px;line-height:1.45;max-width:46ch}
+.bottom{position:absolute;left:18px;right:18px;bottom:14px;display:flex;justify-content:space-between;color:#695f54;font:750 8px/1 ui-monospace;letter-spacing:.08em;text-transform:uppercase}
+.empty{border:1px dashed #302a24;color:#766a5d;padding:30px;display:none}
+footer{margin-top:22px;border-top:1px solid #211e1a;padding-top:14px;color:#665d53;font:10px ui-monospace}
+@media(orientation:portrait){main{padding:18px}.grid{grid-template-columns:1fr 1fr}.card{min-height:170px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div>
+    <div class="k">Prometeo · Visual workbench</div>
+    <h1>Trabajo actual</h1>
+    <p class="lead">Acá van cayendo las cosas que estamos haciendo ahora. Las entradas nuevas y las que necesitan revisión quedan marcadas; cada una lleva directo a su superficie visual.</p>
+  </div>
+  <div class="count" id="attentionCount">0<small>PARA MIRAR</small></div>
+</header>
+<section class="grid" id="grid"></section>
+<div class="empty" id="empty">Todavía no hay entradas.</div>
+<footer>Este tablero es índice de trabajo, no source of truth. Cada item apunta a la superficie donde vive el resultado.</footer>
+</main>
+<script src="../work-items-v1.js"></script>
+<script>
+(function(){
+'use strict';
+const DATA=window.PROMETEO_VISUAL_WORK_ITEMS_V1||{items:[]};
+const labels={new:'NUEVO',active:'EN TRABAJO',review:'LISTO PARA VER',done:'HECHO'};
+const grid=document.getElementById('grid');
+const seenKey='prometeo.visuals.work.seen.v1';
+let seen={};try{seen=JSON.parse(localStorage.getItem(seenKey)||'{}')||{}}catch(_){}
+const attention=DATA.items.filter(x=>(x.status==='new'||x.status==='review')&&seen[x.id]!==x.revision);
+document.getElementById('attentionCount').firstChild.nodeValue=String(attention.length);
+if(!DATA.items.length)document.getElementById('empty').style.display='block';
+
+for(const item of DATA.items){
+  const a=document.createElement('a');a.className='card';a.dataset.status=item.status||'active';a.href=item.target||'#';
+  a.innerHTML='<div class="top"><span class="area"></span><span class="status"></span></div><h2></h2><p></p><div class="bottom"><span class="updated"></span><span>ABRIR →</span></div>';
+  a.querySelector('.area').textContent=item.area||'VISUAL';
+  a.querySelector('.status').textContent=labels[item.status]||String(item.status||'');
+  a.querySelector('h2').textContent=item.title||item.id;
+  a.querySelector('p').textContent=item.summary||'';
+  a.querySelector('.updated').textContent=item.updated||'';
+  a.addEventListener('click',()=>{
+    seen[item.id]=item.revision;
+    try{localStorage.setItem(seenKey,JSON.stringify(seen))}catch(_){}
+    try{parent.postMessage({type:'PROMETEO_VISUAL_ITEM_SEEN',id:item.id,revision:item.revision},location.origin)}catch(_){}
+  });
+  grid.appendChild(a);
+}
+try{parent.postMessage({type:'PROMETEO_WORKBENCH_READY',attention:attention.length},location.origin)}catch(_){}
+})();
+</script>
+</body>
+</html>
