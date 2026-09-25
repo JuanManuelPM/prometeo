@@ -867,236 +867,226 @@ function paintCanonicalColiseoBackdrop(){
   paintCutEdges(c);
 }
 
+
 function camaraMat(id){
   return MaterialLibrary[id]||MaterialLibrary.wall_green_mildew;
 }
 function camaraWorldPoly(cc,worldPts,fill,alpha=1,stroke=null,width=0,seed=0){
   const pts=worldPts.map(p=>wp(p.x,p.z,p.h==null ? .02 : p.h));
-  cc.save();cc.globalAlpha=alpha;
-  fillRagged(cc,pts,fill,stroke,width,seed);
-  cc.restore();
+  cc.save();cc.globalAlpha=alpha;fillRagged(cc,pts,fill,stroke,width,seed);cc.restore();
   return pts;
 }
 function camaraGroundEllipse(cc,x,z,rx,rz,rot,fill,alpha,seed,n=38){
-  const pts=[];
-  const cs=Math.cos(rot||0),sn=Math.sin(rot||0);
+  const pts=[],cs=Math.cos(rot||0),sn=Math.sin(rot||0);
   for(let i=0;i<n;i++){
-    const a=i*TAU/n;
-    const jitter=.94+hash(seed+i,seed*.37)*.12;
-    const lx=Math.cos(a)*rx*jitter,lz=Math.sin(a)*rz*jitter;
-    pts.push({
-      x:x+lx*cs-lz*sn,
-      z:z+lx*sn+lz*cs,
-      h:.018
-    });
+    const a=i*TAU/n,j=.94+hash(seed+i,seed*.37)*.12;
+    const lx=Math.cos(a)*rx*j,lz=Math.sin(a)*rz*j;
+    pts.push({x:x+lx*cs-lz*sn,z:z+lx*sn+lz*cs,h:.018});
   }
   return camaraWorldPoly(cc,pts,fill,alpha,null,0,seed);
 }
 function camaraWallBand(cc,r,h0,h1,materialId,seed,alpha=1){
-  const mat=camaraMat(materialId),v=visibleArc(),lower=[],upper=[],n=78;
+  const mat=camaraMat(materialId),v=visibleArc(),lo=[],hi=[],n=84;
   for(let i=0;i<=n;i++){
-    const a=v.start+(v.end-v.start)*(i/n);
-    const rr=r+(hash(seed+i,seed+17)-.5)*.018;
-    lower.push(pr(rr,a,h0));
-    upper.push(pr(rr,a,h1));
+    const a=v.start+(v.end-v.start)*(i/n),rr=r+(hash(seed+i,seed+17)-.5)*.018;
+    lo.push(pr(rr,a,h0));hi.push(pr(rr,a,h1));
   }
-  const pts=lower.concat(upper.reverse());
-  cc.save();cc.globalAlpha=alpha;fillRagged(cc,pts,mat.base,null,0,seed);cc.restore();
+  cc.save();cc.globalAlpha=alpha;fillRagged(cc,lo.concat(hi.reverse()),mat.base,null,0,seed);cc.restore();
 }
 function camaraWallPatch(cc,angle,r,h0,h1,halfAngle,color,alpha,seed){
   if(cut(angle))return;
-  const pts=[
-    pr(r,angle-halfAngle,h0+(hash(seed,1)-.5)*.10),
-    pr(r,angle+halfAngle,h0+(hash(seed,2)-.5)*.12),
-    pr(r,angle+halfAngle*.86,h1+(hash(seed,3)-.5)*.14),
-    pr(r,angle-halfAngle*.92,h1+(hash(seed,4)-.5)*.13)
-  ];
+  const pts=[pr(r,angle-halfAngle,h0),pr(r,angle+halfAngle,h0),pr(r,angle+halfAngle*.88,h1),pr(r,angle-halfAngle*.92,h1)];
   cc.save();cc.globalAlpha=alpha;fillRagged(cc,pts,color,null,0,seed);cc.restore();
 }
 function camaraWallStroke(cc,angle,r,h0,h1,color,alpha,width,seed){
   if(cut(angle))return;
-  const pts=[];
-  for(let i=0;i<7;i++){
-    const t=i/6;
-    pts.push(pr(r,angle,h0+(h1-h0)*t));
-  }
+  const pts=[];for(let i=0;i<7;i++){const t=i/6;pts.push(pr(r,angle,h0+(h1-h0)*t))}
   cc.save();cc.globalAlpha=alpha;roughStroke(cc,pts,color,width,seed,false);cc.restore();
 }
+function wallMedallion(cc,angle,r,h,halfAngle,halfH,fill,stroke,alpha,seed){
+  if(cut(angle))return;
+  const pts=[];for(let i=0;i<24;i++){const a=i*TAU/24;pts.push(pr(r,angle+Math.cos(a)*halfAngle,h+Math.sin(a)*halfH))}
+  cc.save();cc.globalAlpha=alpha;fillRagged(cc,pts,fill,stroke,Math.max(.55,scale*.028),seed);cc.restore();
+}
+function worldRegularPolygon(radius,sides,rot=0,h=.02){
+  const pts=[];for(let i=0;i<sides;i++){const a=rot+i*TAU/sides;pts.push({x:Math.cos(a)*radius,z:Math.sin(a)*radius,h})}
+  return pts;
+}
+function worldFloorPolygon(cc,radius,sides,rot,fill,stroke,seed,alpha=1){
+  return camaraWorldPoly(cc,worldRegularPolygon(radius,sides,rot,.018),fill,alpha,stroke,Math.max(.45,scale*.025),seed);
+}
+function worldFloorLine(cc,pts,color,alpha,width,seed){
+  const pp=pts.map(p=>wp(p.x,p.z,p.h==null ? .028 : p.h));
+  cc.save();cc.globalAlpha=alpha;roughStroke(cc,pp,color,width,seed,false);cc.restore();
+}
+function worldFloorRing(cc,r,color,alpha,width,seed,n=64){
+  const pts=[];for(let i=0;i<=n;i++){const a=i*TAU/n;pts.push({x:Math.cos(a)*r,z:Math.sin(a)*r,h:.03})}
+  worldFloorLine(cc,pts,color,alpha,width,seed);
+}
+function paintWorldCutMass(cc,r0,r1,hTop,fill,accent,seed){
+  const A=Math.asin(CUT);
+  for(const base of [A,Math.PI-A]){
+    const ang=base-yaw,pts=[pr(r0,ang,.02),pr(r1,ang,.02),pr(r1,ang,hTop),pr(r0,ang,hTop)];
+    cc.save();cc.globalAlpha=.98;fillRagged(cc,pts,fill,'rgba(4,3,2,.98)',Math.max(1.3,scale*.075),seed+base);cc.restore();
+    roughStroke(cc,[pts[0],pts[3]],accent,Math.max(.75,scale*.038),seed+20+base,false);
+  }
+}
 function paintCamaraWallWorld(cc){
-  const wall=camaraMat('wall_green_mildew');
-  const wainscot=camaraMat('wainscot_pale');
+  const wall=camaraMat('wall_green_mildew'),wainscot=camaraMat('wainscot_pale'),R=10.42;
+  camaraWallBand(cc,R,1.18,5.55,'wall_green_mildew',71200,1);
+  camaraWallBand(cc,R-.08,.05,1.22,'wainscot_pale',71210,1);
+  camaraWallBand(cc,R-.12,1.06,1.24,'wainscot_pale',71220,.98);
+  camaraWallBand(cc,R-.12,.14,.26,'wainscot_pale',71221,.86);
+  for(let i=0;i<20;i++){const a=i*TAU/20+.055;camaraWallStroke(cc,a,R-.15,.27,1.03,wainscot.line,.31,Math.max(.55,scale*.030),71240+i)}
+  camaraWallBand(cc,R-.10,4.42,4.58,'old_wood_light',71300,.78);
+  camaraWallBand(cc,R+.02,5.18,5.42,'old_wood_dark',71310,.94);
 
-  // One continuous rear mass. No repeated wall modules.
-  camaraWallBand(cc,9.04,1.08,3.82,'wall_green_mildew',71200,1);
-  camaraWallBand(cc,8.98,.05,1.10,'wainscot_pale',71210,1);
-
-  // World-space lower paneling: painted divisions, not physical slats.
-  camaraWallBand(cc,8.94,.96,1.12,'wainscot_pale',71220,.98);
-  camaraWallBand(cc,8.94,.13,.23,'wainscot_pale',71221,.86);
-  for(let i=0;i<18;i++){
-    const a=i*TAU/18+.055;
-    camaraWallStroke(cc,a,8.91,.24,.94,wainscot.line,.28,Math.max(.55,scale*.028),71240+i);
+  const apertures=[-2.52,-1.32,-.10,1.05,2.12];
+  for(let i=0;i<apertures.length;i++){
+    const a=apertures[i];
+    camaraWallPatch(cc,a,R-.16,.42,3.18,.12,'#29311f',.46,71330+i);
+    camaraWallPatch(cc,a,R-.18,.58,2.96,.086,'#10140e',.68,71350+i);
   }
-
-  // Continuous mouldings follow the same world ring and therefore rotate with it.
-  camaraWallBand(cc,8.89,1.02,1.16,'wainscot_pale',71300,.92);
-  camaraWallBand(cc,9.00,3.42,3.56,'old_wood_light',71310,.78);
-
-  // Mildew, damp blooms and vertical humidity tracks anchored to wall coordinates.
-  for(let i=0;i<34;i++){
-    const a=i*TAU/34+.028+(hash(i,71330)-.5)*.085;
-    const h0=1.18+hash(i,71331)*1.84;
-    const hh=.20+hash(i,71332)*.72;
-    const w=.025+hash(i,71333)*.075;
+  for(let i=0;i<12;i++){
+    const a=i*TAU/12+.08;
+    wallMedallion(cc,a,R-.06,4.86,.070,.34,i%3===0?wall.deep:'#6d7545','rgba(25,28,17,.72)',.54,71380+i);
+    wallMedallion(cc,a,R-.05,4.86,.030,.15,'#b7ad70',null,.24,71410+i);
+  }
+  for(let i=0;i<42;i++){
+    const a=i*TAU/42+.028+(hash(i,71430)-.5)*.085,h0=1.28+hash(i,71431)*2.74,hh=.22+hash(i,71432)*1.12,w=.025+hash(i,71433)*.075;
     const col=i%5===0?wall.highlight:(i%3===0?wall.deep:wall.stain);
-    camaraWallPatch(cc,a,9.01,h0,Math.min(3.50,h0+hh),w,col,.10+hash(i,71334)*.17,71340+i);
-  }
-  for(let i=0;i<16;i++){
-    const a=i*TAU/16+.12;
-    const h0=1.20+hash(i,71360)*1.70;
-    camaraWallStroke(cc,a,9.015,h0,Math.min(3.45,h0+.35+hash(i,71361)*.82),wall.deep,.12,Math.max(.55,scale*.034),71370+i);
+    camaraWallPatch(cc,a,R-.02,h0,Math.min(4.36,h0+hh),w,col,.09+hash(i,71434)*.18,71440+i);
   }
 }
 function paintCamaraFloorPattern(cc){
-  const mat=camaraMat('optical_floor_blackcream');
-  const R=8.55,rings=7,sectors=32;
-
-  camaraGroundEllipse(cc,0,0,R,R,0,mat.cream,1,71400,72);
-
-  // Every tile is defined in X/Z world coordinates, then projected by wp().
-  // The optical burst visibly rotates with yaw instead of remaining glued to the viewport.
+  const mat=camaraMat('optical_floor_blackcream'),R=9.48,rot=Math.PI/8;
+  const boundary=worldRegularPolygon(R,8,rot,.018).map(p=>wp(p.x,p.z,p.h));
+  cc.save();path(cc,boundary,true);cc.clip();cc.fillStyle=mat.cream;cc.fillRect(0,0,IW,IH);
+  const rings=8,sectors=32;
   for(let ring=0;ring<rings;ring++){
     const r0=R*(ring/rings),r1=R*((ring+1)/rings);
     for(let i=0;i<sectors;i++){
-      const a0=i*TAU/sectors,a1=(i+1)*TAU/sectors;
-      const pts=[
-        {x:Math.cos(a0)*r0,z:Math.sin(a0)*r0,h:.022},
-        {x:Math.cos(a0)*r1,z:Math.sin(a0)*r1,h:.022},
-        {x:Math.cos(a1)*r1,z:Math.sin(a1)*r1,h:.022},
-        {x:Math.cos(a1)*r0,z:Math.sin(a1)*r0,h:.022}
-      ];
+      const a0=i*TAU/sectors+rot,a1=(i+1)*TAU/sectors+rot;
+      const pts=[{x:Math.cos(a0)*r0,z:Math.sin(a0)*r0},{x:Math.cos(a0)*r1,z:Math.sin(a0)*r1},{x:Math.cos(a1)*r1,z:Math.sin(a1)*r1},{x:Math.cos(a1)*r0,z:Math.sin(a1)*r0}];
       const dark=((i+ring)&1)===0;
-      camaraWorldPoly(cc,pts,dark?mat.black:mat.cream,.98,dark?null:mat.line,Math.max(.25,scale*.010),71420+ring*50+i);
+      camaraWorldPoly(cc,pts,dark?mat.black:mat.cream,.98,dark?null:mat.line,Math.max(.25,scale*.010),71520+ring*50+i);
     }
   }
-
-  // World-space central star.
-  const star=[];
-  for(let i=0;i<32;i++){
-    const a=i*TAU/32-Math.PI/2;
-    const rr=i%2?.68:1.92;
-    star.push({x:Math.cos(a)*rr,z:Math.sin(a)*rr,h:.028});
-  }
-  camaraWorldPoly(cc,star,mat.black,.98,mat.line,Math.max(.35,scale*.018),71520);
-
-  // Distressed pigment flecks. Positions are world anchored, not screen noise.
-  for(let i=0;i<86;i++){
-    const a=hash(i,71540)*TAU,rr=Math.sqrt(hash(i,71541))*7.75;
-    const x=Math.cos(a)*rr,z=Math.sin(a)*rr;
-    camaraGroundEllipse(cc,x,z,.045+hash(i,71542)*.11,.022+hash(i,71543)*.055,a, i%4===0?mat.wearDark:mat.wearLight,.07+hash(i,71544)*.11,71550+i,8);
-  }
+  worldFloorPolygon(cc,2.20,8,rot,mat.black,mat.line,71610,.98);
+  const star=[];for(let i=0;i<32;i++){const a=i*TAU/32-Math.PI/2,rr=i%2?.62:1.72;star.push({x:Math.cos(a)*rr,z:Math.sin(a)*rr,h:.030})}
+  camaraWorldPoly(cc,star,mat.cream,.98,mat.line,Math.max(.35,scale*.018),71620);
+  for(let i=0;i<98;i++){const a=hash(i,71640)*TAU,rr=Math.sqrt(hash(i,71641))*8.8,x=Math.cos(a)*rr,z=Math.sin(a)*rr;camaraGroundEllipse(cc,x,z,.045+hash(i,71642)*.12,.022+hash(i,71643)*.06,a,i%4===0?mat.wearDark:mat.wearLight,.06+hash(i,71644)*.11,71650+i,8)}
+  cc.restore();
+  worldFloorPolygon(cc,R,8,rot,'rgba(0,0,0,0)',mat.black,71780,0);
+  worldFloorPolygon(cc,R-.28,8,rot,'rgba(0,0,0,0)',mat.line,71790,0);
 }
 function paintCamaraAmbientShadows(cc){
-  const shadow='rgba(7,8,5,.58)';
-  // Door-foot shadows.
-  for(const a of [-2.52,-1.32,-.10,1.05,2.12]){
-    const f=mapRingFrame(a,8.18);
-    camaraGroundEllipse(cc,f.x,f.z,.95,.30,f.rot,shadow,.22,71600+Math.round((a+3)*100),28);
-  }
-  // Table shadow.
-  const tf=mapRingFrame(1.38,5.75);
-  camaraGroundEllipse(cc,tf.x,tf.z,.98,.72,tf.rot,shadow,.32,71680,34);
-  // Chandelier pool, soft and warm but still anchored to the floor.
-  camaraGroundEllipse(cc,0,0,2.25,1.38,0,'rgba(104,87,34,.20)',.55,71690,42);
+  const shadow='rgba(7,8,5,.62)';
+  for(const a of [-2.52,-1.32,-.10,1.05,2.12]){const f=mapRingFrame(a,9.38);camaraGroundEllipse(cc,f.x,f.z,1.20,.38,f.rot,shadow,.27,71800+Math.round((a+3)*100),30)}
+  const tf=mapRingFrame(1.38,6.28);camaraGroundEllipse(cc,tf.x,tf.z,1.05,.78,tf.rot,shadow,.36,71880,34);
+  camaraGroundEllipse(cc,0,0,2.55,1.62,0,'rgba(104,87,34,.20)',.58,71890,42);
 }
 function paintCamaraHole(cc){
-  const mat=camaraMat('hole_edge_broken');
-  const cx0=-3.85,cz0=1.42,rx=1.42,rz=.72,rot=-.34,pts=[],n=30;
-  const cs=Math.cos(rot),sn=Math.sin(rot);
-  for(let i=0;i<n;i++){
-    const a=i*TAU/n;
-    const rough=.82+hash(i,71700)*.34;
-    const lx=Math.cos(a)*rx*rough,lz=Math.sin(a)*rz*rough;
-    pts.push({x:cx0+lx*cs-lz*sn,z:cz0+lx*sn+lz*cs,h:.034});
-  }
-  camaraWorldPoly(cc,pts,mat.void,1,mat.base,Math.max(1.0,scale*.055),71720);
-
-  // Broken lips and exposed cream edge, all projected from world coordinates.
-  for(let i=0;i<11;i++){
-    const a=.30+i*.43;
-    const rough=.90+hash(i,71730)*.17;
-    const lx0=Math.cos(a)*rx*.78*rough,lz0=Math.sin(a)*rz*.78*rough;
-    const lx1=Math.cos(a)*rx*1.18*rough,lz1=Math.sin(a)*rz*1.18*rough;
-    const p0=wp(cx0+lx0*cs-lz0*sn,cz0+lx0*sn+lz0*cs,.040);
-    const p1=wp(cx0+lx1*cs-lz1*sn,cz0+lx1*sn+lz1*cs,.042);
-    cc.save();cc.globalAlpha=.62;roughStroke(cc,[p0,p1],i%3===0?mat.dark:mat.base,Math.max(.7,scale*.032),71740+i,false);cc.restore();
+  const mat=camaraMat('hole_edge_broken'),cx0=-4.15,cz0=1.54,rx=1.58,rz=.82,rot=-.34,pts=[],n=32,cs=Math.cos(rot),sn=Math.sin(rot);
+  for(let i=0;i<n;i++){const a=i*TAU/n,rough=.82+hash(i,71900)*.34,lx=Math.cos(a)*rx*rough,lz=Math.sin(a)*rz*rough;pts.push({x:cx0+lx*cs-lz*sn,z:cz0+lx*sn+lz*cs,h:.034})}
+  camaraWorldPoly(cc,pts,mat.void,1,mat.base,Math.max(1.0,scale*.055),71920);
+  for(let i=0;i<12;i++){
+    const a=.20+i*.40,rough=.90+hash(i,71930)*.17,lx0=Math.cos(a)*rx*.78*rough,lz0=Math.sin(a)*rz*.78*rough,lx1=Math.cos(a)*rx*1.20*rough,lz1=Math.sin(a)*rz*1.20*rough;
+    const p0=wp(cx0+lx0*cs-lz0*sn,cz0+lx0*sn+lz0*cs,.040),p1=wp(cx0+lx1*cs-lz1*sn,cz0+lx1*sn+lz1*cs,.042);
+    cc.save();cc.globalAlpha=.64;roughStroke(cc,[p0,p1],i%3===0?mat.dark:mat.base,Math.max(.7,scale*.032),71940+i,false);cc.restore();
   }
 }
-function paintCamaraCutEdges(cc){
-  const A=Math.asin(CUT);
-  for(const base of [A,Math.PI-A]){
-    const ang=base-yaw;
-    const section=[
-      pr(8.50,ang,.02),
-      pr(9.24,ang,.02),
-      pr(9.24,ang,3.84),
-      pr(8.68,ang,3.84)
-    ];
-    cc.save();cc.globalAlpha=.96;fillRagged(cc,section,'#171811','rgba(5,4,3,.98)',Math.max(1.2,scale*.065),71800+base);cc.restore();
-    roughStroke(cc,[section[0],section[3]],'rgba(174,146,86,.32)',Math.max(.75,scale*.035),71810+base,false);
-  }
-}
+function paintCamaraCutEdges(cc){paintWorldCutMass(cc,9.28,10.64,5.58,'#171811','rgba(174,146,86,.34)',72000)}
 function paintCamaraBackdrop(){
-  const cc=sctx;
-  cc.fillStyle='#070806';cc.fillRect(0,0,IW,IH);
-
-  // Atmosphere remains global; all architectural surfaces below are world-space.
-  inkWash(cc,cx,cy-scale*1.9,scale*15.0,scale*5.9,'#66713d',.17,71000,3);
-  inkWash(cc,cx-scale*5.7,cy-scale*1.7,scale*5.0,scale*4.0,'#273627',.10,71010,2);
-
-  paintCamaraWallWorld(cc);
-  paintCamaraFloorPattern(cc);
-  paintCamaraAmbientShadows(cc);
-  paintCamaraHole(cc);
-  paintCamaraCutEdges(cc);
-
-  // World-anchored lamp spill.
-  const lp=wp(0,0,3.08);
-  cc.save();
-  const lg=cc.createRadialGradient(lp.x,lp.y,0,lp.x,lp.y,scale*2.8);
-  lg.addColorStop(0,'rgba(223,184,76,.13)');
-  lg.addColorStop(1,'rgba(223,184,76,0)');
-  cc.fillStyle=lg;cc.fillRect(0,0,IW,IH);cc.restore();
-
-  window.CAMARA_WORLD_LAYER_STATS={
-    wall:'continuous-world-ribbon',
-    wainscot:'continuous-world-ribbon',
-    floor:'world-xz',
-    hole:'world-xz',
-    shadows:'world-xz',
-    cut:CUT,
-    explicitGeometry:['doors','frames','curtain','table','chandelier'],
-    materials:['wall_green_mildew','wainscot_pale','optical_floor_blackcream','old_wood_dark','old_wood_light','curtain_red','metal_warm','hole_edge_broken']
-  };
+  const cc=sctx;cc.fillStyle='#070806';cc.fillRect(0,0,IW,IH);
+  inkWash(cc,cx,cy-scale*2.3,scale*16.0,scale*6.8,'#66713d',.18,71000,3);
+  inkWash(cc,cx-scale*6.2,cy-scale*2.0,scale*5.5,scale*4.8,'#273627',.11,71010,2);
+  paintCamaraWallWorld(cc);paintCamaraFloorPattern(cc);paintCamaraAmbientShadows(cc);paintCamaraHole(cc);paintCamaraCutEdges(cc);
+  const lp=wp(0,0,3.4);cc.save();const lg=cc.createRadialGradient(lp.x,lp.y,0,lp.x,lp.y,scale*3.25);lg.addColorStop(0,'rgba(223,184,76,.15)');lg.addColorStop(1,'rgba(223,184,76,0)');cc.fillStyle=lg;cc.fillRect(0,0,IW,IH);cc.restore();
+  window.CAMARA_WORLD_LAYER_STATS={wall:'tall-continuous-world-ribbon',wainscot:'continuous-world-ribbon',upperFrieze:true,medallions:12,floor:'world-xz-octagon',hole:'world-xz',shadows:'world-xz',cut:CUT,explicitGeometry:['doors','frames','curtain','table','chandelier']};
 }
-
-function paintGenericMapBackdrop(){
-  if(CURRENT_MAP==='camara'){
-    paintCamaraBackdrop();
-    return;
-  }
-  const cc=sctx;
-  cc.fillStyle='#050504';cc.fillRect(0,0,IW,IH);
-  const tint=CURRENT_MAP==='archivo'?'#18231d':CURRENT_MAP==='fundicion'?'#34160e':CURRENT_MAP==='observatorio'?'#152027':'#23160f';
-  inkWash(cc,IW*.18,IH*.42,IW*.34,IH*.52,tint,.13,6100,3);
-  inkWash(cc,IW*.82,IH*.34,IW*.30,IH*.44,'#18231d',.09,6140,2);
-  blob(cc,cx,cy+scale*4.2,scale*19.0,scale*4.8,'rgba(0,0,0,.66)',null,0,6200,.025,58);
-  blob(cc,cx,cy+scale*.20,scale*12.6,scale*4.15,CURRENT_MAP==='observatorio'?'#27302f':'#33261f','#130c08',1.5,6210,.018,76);
-  cc.save();cc.globalAlpha=.16;
-  const a=arc(11.8,.03,52,.02,6230);
-  roughStroke(cc,a,CURRENT_MAP==='fundicion'?'#8f4328':'#665244',Math.max(.7,scale*.045),6240,false);
-  cc.restore();
+const MAP_ART={
+  fortaleza:{bg:'#070605',ground:'#342b24',wall:'fortress_stone',accent:'#8d6746'},
+  archivo:{bg:'#050706',ground:'#27332c',wall:'archive_green',accent:'#9a7448'},
+  pozo:{bg:'#040505',ground:'#202723',wall:'shaft_stone',accent:'#78634a'},
+  ciudadela:{bg:'#070605',ground:'#44372e',wall:'civic_stone',accent:'#8d693f'},
+  fundicion:{bg:'#080403',ground:'#2c211c',wall:'forge_iron',accent:'#a44c2b'},
+  observatorio:{bg:'#040608',ground:'#17242a',wall:'observatory_blue',accent:'#b18b4c'},
+  laberinto:{bg:'#050605',ground:'#29332b',wall:'maze_moss',accent:'#9a8656'}
+};
+function mapMat(id){return MaterialLibrary[id]||WORLD_MATERIALS.stone}
+function paintMapGroundBase(cc,cfg,seed){camaraGroundEllipse(cc,0,0,11.45,11.45,0,cfg.ground,.98,seed,86);camaraGroundEllipse(cc,0,0,10.25,10.25,0,'rgba(0,0,0,.18)',.24,seed+1,72)}
+function paintMapWallEnvelope(cc,cfg,r,hTop,seed){
+  camaraWallBand(cc,r,.06,hTop,cfg.wall,seed,.98);camaraWallBand(cc,r-.10,.08,.30,cfg.wall,seed+1,.72);camaraWallBand(cc,r-.02,hTop-.34,hTop-.12,cfg.wall,seed+2,.92);
+  const mat=mapMat(cfg.wall);for(let i=0;i<16;i++){const a=i*TAU/16+.05;camaraWallStroke(cc,a,r-.02,.40,hTop-.48,mat.deep||shade(mat.base,-32),.14,Math.max(.55,scale*.030),seed+20+i)}
 }
+function paintMapGroundShadow(cc,x,z,rx,rz,rot,seed,alpha=.26){camaraGroundEllipse(cc,x,z,rx,rz,rot,'rgba(0,0,0,.62)',alpha,seed,28)}
+function paintMapCut(cc,r0,r1,hTop,cfg,seed){paintWorldCutMass(cc,r0,r1,hTop,shade(mapMat(cfg.wall).base,-38),'rgba(186,116,65,.22)',seed)}
+function paintMapFortaleza(cc,cfg){
+  paintMapGroundBase(cc,cfg,73000);worldFloorPolygon(cc,9.55,8,Math.PI/8,'#3b3028','#17110d',73010,.96);
+  for(let r=2.2;r<=8.6;r+=1.55)worldFloorRing(cc,r,'#74604a',.20,Math.max(.5,scale*.026),73020+Math.round(r*10));
+  for(let i=0;i<8;i++){const a=i*TAU/8+Math.PI/8;worldFloorLine(cc,[{x:Math.cos(a)*2,z:Math.sin(a)*2},{x:Math.cos(a)*9.2,z:Math.sin(a)*9.2}],'#8b7154',.18,Math.max(.55,scale*.028),73080+i)}
+  paintMapWallEnvelope(cc,cfg,10.65,4.55,73100);
+  for(let i=0;i<8;i++){const a=i*TAU/8+.02;wallMedallion(cc,a,10.60,3.55,.075,.42,'#2f2923','#80644b',.52,73150+i);const f=mapRingFrame(a,9.70);paintMapGroundShadow(cc,f.x,f.z,1.15,.68,f.rot,73170+i,.28)}
+  paintMapCut(cc,9.48,10.92,4.58,cfg,73190);
+}
+function paintMapArchivo(cc,cfg){
+  paintMapGroundBase(cc,cfg,73300);
+  for(const [r,col,a] of [[9.2,'#33483e',.74],[7.35,'#493d31',.82],[5.55,'#2e4038',.78],[3.75,'#5d4934',.72]]){camaraGroundEllipse(cc,0,0,r,r,0,col,a,73310+Math.round(r*10),72);worldFloorRing(cc,r,'#b28754',.17,Math.max(.45,scale*.023),73320+Math.round(r*10))}
+  for(let i=0;i<12;i++){const a=i*TAU/12+.04;worldFloorLine(cc,[{x:Math.cos(a)*1.4,z:Math.sin(a)*1.4},{x:Math.cos(a)*9.1,z:Math.sin(a)*9.1}],'#ae8b59',.13,Math.max(.45,scale*.022),73370+i)}
+  paintMapWallEnvelope(cc,cfg,10.30,4.35,73400);
+  for(let i=0;i<12;i++){const a=i*TAU/12+.04;camaraWallPatch(cc,a,10.24,.62,3.62,.085,'#17221d',.62,73430+i);wallMedallion(cc,a,10.20,3.82,.045,.22,'#8a6a42',null,.28,73450+i)}
+  paintMapCut(cc,9.55,10.56,4.38,cfg,73480);
+}
+function paintMapPozo(cc,cfg){
+  paintMapGroundBase(cc,cfg,73600);camaraGroundEllipse(cc,0,0,7.15,7.15,0,'#030404',1,73610,78);
+  for(const r of [7.15,7.65,8.55,9.55])worldFloorRing(cc,r,r===7.15?'#988369':'#4c5d54',r===7.15?.48:.19,Math.max(.65,scale*.035),73620+Math.round(r*10));
+  paintMapWallEnvelope(cc,cfg,9.55,5.15,73680);
+  for(const h of [1.42,2.90,4.36])camaraWallBand(cc,8.90,h,h+.17,'shaft_ledge',73720+Math.round(h*100),.92);
+  paintMapCut(cc,7.02,9.80,5.18,cfg,73790);
+}
+function paintMapCiudadela(cc,cfg){
+  paintMapGroundBase(cc,cfg,73900);worldFloorPolygon(cc,8.75,8,Math.PI/8,'#5a4638','#231a14',73910,.96);worldFloorPolygon(cc,4.15,8,Math.PI/8,'#3b3029','#8a6c49',73920,.78);
+  for(let i=0;i<8;i++){const a=i*TAU/8+.10,nx=-Math.sin(a),nz=Math.cos(a),r0=2,r1=9.2,w=.38;camaraWorldPoly(cc,[{x:Math.cos(a)*r0+nx*w,z:Math.sin(a)*r0+nz*w},{x:Math.cos(a)*r1+nx*w,z:Math.sin(a)*r1+nz*w},{x:Math.cos(a)*r1-nx*w,z:Math.sin(a)*r1-nz*w},{x:Math.cos(a)*r0-nx*w,z:Math.sin(a)*r0-nz*w}],i%2?'#63705d':'#71604b',.40,null,0,73940+i)}
+  paintMapWallEnvelope(cc,cfg,10.55,4.20,73980);
+  for(let i=0;i<8;i++){const a=i*TAU/8+.10;wallMedallion(cc,a,10.50,3.42,.075,.35,'#3f372f','#95714c',.46,74020+i)}
+  paintMapCut(cc,9.40,10.82,4.23,cfg,74070);
+}
+function paintMapFundicion(cc,cfg){
+  paintMapGroundBase(cc,cfg,74200);camaraGroundEllipse(cc,0,0,9.4,9.4,0,'#2b2522',.96,74210,74);
+  for(const r of [2.65,5.75,8.65])worldFloorRing(cc,r,'#6b4a36',.26,Math.max(.55,scale*.030),74220+Math.round(r*10));
+  for(let i=0;i<8;i++){const a=i*TAU/8+.02,nx=-Math.sin(a),nz=Math.cos(a),w=.18;camaraWorldPoly(cc,[{x:Math.cos(a)*2.3+nx*w,z:Math.sin(a)*2.3+nz*w},{x:Math.cos(a)*8.9+nx*w,z:Math.sin(a)*8.9+nz*w},{x:Math.cos(a)*8.9-nx*w,z:Math.sin(a)*8.9-nz*w},{x:Math.cos(a)*2.3-nx*w,z:Math.sin(a)*2.3-nz*w}],i%2?'#8f3e25':'#5d2c20',.48,null,0,74260+i)}
+  paintMapWallEnvelope(cc,cfg,10.45,4.05,74300);camaraGroundEllipse(cc,0,0,3.1,1.8,0,'rgba(184,60,29,.20)',.52,74380,44);paintMapCut(cc,9.28,10.72,4.08,cfg,74400);
+}
+function paintMapObservatorio(cc,cfg){
+  paintMapGroundBase(cc,cfg,74600);camaraGroundEllipse(cc,0,0,9.45,9.45,0,'#17272e',.96,74610,78);
+  for(const r of [1.7,2.9,4.4,6.2,8.25])worldFloorRing(cc,r,r<4?'#b49157':'#536f79',.28,Math.max(.45,scale*.026),74620+Math.round(r*10));
+  for(let i=0;i<54;i++){const a=hash(i,74650)*TAU,r=1.2+Math.sqrt(hash(i,74651))*7.6;camaraGroundEllipse(cc,Math.cos(a)*r,Math.sin(a)*r,.035+.035*hash(i,74652),.018+.018*hash(i,74653),a,'#d6bc77',.34,74660+i,8)}
+  paintMapWallEnvelope(cc,cfg,10.45,5.05,74740);camaraWallBand(cc,10.42,4.18,4.38,'metal_warm',74750,.68);
+  for(let i=0;i<12;i++){const a=i*TAU/12+.20;wallMedallion(cc,a,10.39,4.62,.078,.36,'#0b171d','#9e8250',.58,74770+i)}
+  paintMapCut(cc,9.35,10.72,5.08,cfg,74810);
+}
+function paintMapLaberinto(cc,cfg){
+  paintMapGroundBase(cc,cfg,75000);camaraGroundEllipse(cc,0,0,9.65,9.65,0,'#c2b98a',.82,75010,80);
+  for(const r of [9.1,7.2,5.3,3.4,1.7])worldFloorRing(cc,r,r===1.7?'#7f6847':'#27312a',.46,Math.max(.70,scale*.042),75020+Math.round(r*10));
+  for(let i=0;i<12;i++){const a=i*TAU/12+.12;worldFloorLine(cc,[{x:Math.cos(a)*1.7,z:Math.sin(a)*1.7},{x:Math.cos(a)*9.1,z:Math.sin(a)*9.1}],'#3e493c',.18,Math.max(.50,scale*.027),75070+i)}
+  paintMapWallEnvelope(cc,cfg,10.42,4.10,75100);paintMapCut(cc,9.30,10.70,4.13,cfg,75180);
+}
+function paintDesignedMapBackdrop(){
+  if(CURRENT_MAP==='camara'){paintCamaraBackdrop();return}
+  const cfg=MAP_ART[CURRENT_MAP]||MAP_ART.fortaleza,cc=sctx;cc.fillStyle=cfg.bg;cc.fillRect(0,0,IW,IH);
+  inkWash(cc,IW*.18,IH*.38,IW*.34,IH*.48,cfg.ground,.13,72500,3);inkWash(cc,IW*.84,IH*.32,IW*.28,IH*.42,cfg.accent,.07,72520,2);
+  if(CURRENT_MAP==='fortaleza')paintMapFortaleza(cc,cfg);
+  else if(CURRENT_MAP==='archivo')paintMapArchivo(cc,cfg);
+  else if(CURRENT_MAP==='pozo')paintMapPozo(cc,cfg);
+  else if(CURRENT_MAP==='ciudadela')paintMapCiudadela(cc,cfg);
+  else if(CURRENT_MAP==='fundicion')paintMapFundicion(cc,cfg);
+  else if(CURRENT_MAP==='observatorio')paintMapObservatorio(cc,cfg);
+  else if(CURRENT_MAP==='laberinto')paintMapLaberinto(cc,cfg);
+  cc.save();const vg=cc.createRadialGradient(cx,cy,scale*5,cx,cy,scale*14.2);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(.74,'rgba(0,0,0,.08)');vg.addColorStop(1,'rgba(0,0,0,.72)');cc.fillStyle=vg;cc.fillRect(0,0,IW,IH);cc.restore();
+  window.MAP_WORLD_LAYER_STATS={map:CURRENT_MAP,floor:'world-xz',envelope:'continuous-world-ribbon',cut:CUT,design:'coliseo-derived-circular-language',explicitGeometry:'landmarks-only'};
+}
+function paintGenericMapBackdrop(){paintDesignedMapBackdrop()}
 function paintBackdrop(){
   if(COMPONENT_MODE==='maps'&&CURRENT_MAP!=='coliseo')paintGenericMapBackdrop();
   else paintCanonicalColiseoBackdrop();
