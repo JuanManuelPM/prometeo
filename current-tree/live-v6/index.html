@@ -80,6 +80,48 @@ h1{font-size:clamp(28px,7vw,46px);line-height:.98;letter-spacing:-.055em;margin:
 .event .rtitle{font-size:12px}
 .past-marker{margin-left:-24px;padding:10px 0 0 24px;border-top:1px solid var(--line);font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#666e78}
 
+
+/* HISTORY DATA */
+.history-controls{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;margin:0 0 10px}
+.history-controls::-webkit-scrollbar{display:none}
+.hmetric{border:1px solid var(--line);background:transparent;color:#7f8792;border-radius:999px;padding:6px 9px;font-size:8px;white-space:nowrap;cursor:pointer}
+.hmetric.on{background:#171a20;color:#ecece7;border-color:#3b424b}
+.history-layout{display:grid;gap:16px}
+.history-chartbox{border:1px solid var(--line);border-radius:12px;background:#0b0d10;padding:10px;overflow:hidden}
+.history-charthead{display:flex;justify-content:space-between;align-items:end;gap:10px;margin-bottom:6px}
+.history-charttitle{font-size:12px;font-weight:720}.history-chartsub{font-size:8px;color:#737b85}
+#historychart{width:100%;height:auto;display:block;overflow:visible}
+.chart-grid{stroke:#232831;stroke-width:1;vector-effect:non-scaling-stroke}
+.chart-line{fill:none;stroke:#d7d9d4;stroke-width:2;vector-effect:non-scaling-stroke}
+.chart-line.alt{stroke:#777f89;stroke-width:1.5}
+.chart-dot{fill:#090a0c;stroke:#d7d9d4;stroke-width:1.5;vector-effect:non-scaling-stroke}
+.chart-dot.alt{stroke:#777f89}
+.chart-label{font-size:9px;fill:#737b85}.chart-value{font-size:8px;fill:#9ea5ae}
+.chart-legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;font-size:8px;color:#828a94}
+.chart-legend span:before{content:"";display:inline-block;width:10px;border-top:2px solid #d7d9d4;margin-right:5px;vertical-align:middle}
+.chart-legend span.alt:before{border-color:#777f89}
+.daystats{display:flex;gap:8px;flex-wrap:wrap;font-size:8px;color:#79818c;margin:-3px 0 8px}
+.partial{color:var(--warn)}
+.history-empty{font-size:9px;color:#6d7580;padding:12px 0}
+@media(min-width:760px){
+ .history-layout{grid-template-columns:minmax(0,1fr) 330px;grid-template-areas:"timeline chart";align-items:start}
+ .history-timeline-pane{grid-area:timeline}
+ .history-stats-pane{grid-area:chart;position:sticky;top:115px}
+}
+
+/* WORK CONTEXTS */
+.context-summary{display:flex;gap:10px;flex-wrap:wrap;margin:-5px 0 14px;font-size:8px;color:#7d8590}
+.context-list{border-top:1px solid var(--line)}
+.context{padding:12px 0;border-bottom:1px solid var(--line)}
+.context-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}
+.context-title{font-size:13px;font-weight:720}.context-kind{font-size:8px;color:#727a85;text-transform:uppercase;letter-spacing:.08em;margin-top:3px}
+.context-status{font-size:8px;color:#838b95}.context-status.active{color:var(--good)}.context-status.stale{color:var(--warn)}
+.context-desc{font-size:9px;color:#9ba2ab;line-height:1.45;margin-top:6px}
+.context-next{font-size:9px;color:#7f8792;line-height:1.45;margin-top:5px}
+.context-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:7px;font-size:8px;color:#69727d}
+.context a{color:#b8bec6;text-decoration:none;border-bottom:1px solid #434a53}
+.context-empty{border:1px dashed var(--line);border-radius:10px;padding:12px;font-size:9px;color:#727a85}
+
 /* ORGANISM */
 .orgwrap{position:relative;height:calc(100vh - 145px);min-height:560px;border-top:1px solid var(--line2);margin:0 -14px -72px;overflow:hidden}
 #orgsvg{width:100%;height:100%;display:block;touch-action:none}
@@ -131,6 +173,7 @@ h1{font-size:clamp(28px,7vw,46px);line-height:.98;letter-spacing:-.055em;margin:
   <div class="tabs">
    <button class="tab on" data-view="estado">Estado</button>
    <button class="tab" data-view="historial">Historial</button>
+   <button class="tab" data-view="trabajo">Trabajo</button>
    <button class="tab" data-view="organismo">Organismo</button>
   </div>
  </div>
@@ -139,6 +182,7 @@ h1{font-size:clamp(28px,7vw,46px);line-height:.98;letter-spacing:-.055em;margin:
 <main class="main">
  <section class="view on" id="estado"><div class="kicker">HOY</div><h1>Prometeo</h1><div id="statecontent"></div></section>
  <section class="view" id="historial"><div class="kicker">LÍNEA DE TIEMPO</div><h1>Historial</h1><div id="historycontent"></div></section>
+ <section class="view" id="trabajo"><div class="kicker">CONTEXTOS VIVOS</div><h1>Trabajo</h1><div id="workcontent"></div></section>
  <section class="view" id="organismo">
   <div class="orgwrap">
    <div class="orgtools">
@@ -162,7 +206,7 @@ h1{font-size:clamp(28px,7vw,46px);line-height:.98;letter-spacing:-.055em;margin:
 <script>
 const SB='https://catnohyouxqjjtseaueb.supabase.co/rest/v1/rpc/';
 const KEY='sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-';
-let D=null,O=null,ORG_MODE='organism',SELECTED=null,NODES=[],EDGES=[],RAF=0;
+let D=null,O=null,H=null,C=null,HISTORY_MODE='work',ORG_MODE='organism',SELECTED=null,NODES=[],EDGES=[],RAF=0;
 let vb={x:0,y:0,w:1200,h:1400};
 const EXPANDED=new Set(['PROJECT:PROMETEO']);
 const POINTERS=new Map();
@@ -170,7 +214,12 @@ let GESTURE=null,DRAGGED=false,SUPPRESS_CLICK_UNTIL=0;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 async function rpc(name){const r=await fetch(SB+name,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:'{}',cache:'no-store'});if(!r.ok)throw new Error(name+' · RPC '+r.status);return r.json()}
-async function load(){const [tree,organism]=await Promise.all([rpc('prometeo_current_tree_v2'),rpc('prometeo_organism_projection_v1')]);return {tree,organism}}
+async function load(){const [tree,organism,historyMetrics,contexts]=await Promise.all([
+ rpc('prometeo_current_tree_v2'),
+ rpc('prometeo_organism_projection_v1_1'),
+ rpc('prometeo_history_metrics_v1'),
+ rpc('prometeo_work_contexts_projection_v1')
+]);return {tree,organism,historyMetrics,contexts}}
 function fmt(d){try{return new Intl.DateTimeFormat('es-AR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'America/Argentina/Buenos_Aires'}).format(new Date(d))}catch{return '—'}}
 function mins(d){return d?Math.max(0,(Date.now()-new Date(d).getTime())/60000):null}
 function age(m){if(m==null)return '—';if(m<1)return '<1m';if(m<60)return Math.round(m)+'m';if(m<1440)return Math.round(m/60)+'h';return Math.round(m/1440)+'d'}
@@ -261,21 +310,103 @@ function fullDay(iso){
 function clock(iso){
  return new Intl.DateTimeFormat('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Argentina/Buenos_Aires'}).format(new Date(iso));
 }
+function historyDayMap(){
+ const map=new Map();
+ (H?.daily||[]).forEach(d=>map.set(String(d.date),d));
+ return map;
+}
+function shortDate(iso){
+ try{return new Intl.DateTimeFormat('es-AR',{day:'numeric',month:'short',timeZone:'America/Argentina/Buenos_Aires'}).format(new Date(iso+'T12:00:00-03:00'))}catch{return iso}
+}
+function metricSpec(mode){
+ const specs={
+  work:{title:'Trabajo por día',sub:'creado vs completado',series:[['jobs_created','creado'],['jobs_completed','completado']]},
+  workers:{title:'Workers por día',sub:'detectados vs nuevos',series:[['agents_seen','detectados'],['new_agents','nuevos']]},
+  artifacts:{title:'Artifacts por día',sub:'artifacts cognitivos registrados',series:[['artifacts','artifacts']]},
+  health:{title:'Salud operativa',sub:'requeues vs fallos de verificación',series:[['watchdog_requeues','requeues'],['verify_failed','verify failed']]},
+  cumulative:{title:'Crecimiento acumulado',sub:'jobs completados vs workers únicos acumulados',series:[['cumulative_jobs_completed','jobs'],['cumulative_agents','workers']]},
+  domains:{title:'Trabajo por dominio',sub:'top dominios por completados',series:[]}
+ };
+ const sp=specs[mode]||specs.work;
+ if(mode==='domains'){
+  const totals={};
+  (H?.daily||[]).forEach(d=>Object.entries(d.domain_completed||{}).forEach(([k,v])=>totals[k]=(totals[k]||0)+Number(v||0)));
+  const keys=Object.entries(totals).sort((a,b)=>b[1]-a[1]).slice(0,4).map(x=>x[0]);
+  sp.series=keys.map(k=>['domain:'+k,k]);
+ }
+ return sp;
+}
+function metricValue(day,key){
+ if(key.startsWith('domain:'))return Number(day.domain_completed?.[key.slice(7)]||0);
+ const v=day[key];return v==null?null:Number(v);
+}
+function chartSVG(mode){
+ const daily=H?.daily||[];if(!daily.length)return '<div class="history-empty">sin datos históricos todavía</div>';
+ const spec=metricSpec(mode),series=spec.series,w=620,h=230,pad={l:38,r:18,t:20,b:34};
+ const vals=[];daily.forEach(d=>series.forEach(([k])=>{const v=metricValue(d,k);if(v!=null&&Number.isFinite(v))vals.push(v)}));
+ const max=Math.max(1,...vals),plotW=w-pad.l-pad.r,plotH=h-pad.t-pad.b;
+ const x=i=>pad.l+(daily.length===1?plotW/2:(i/(daily.length-1))*plotW);
+ const y=v=>pad.t+plotH-(v/max)*plotH;
+ let svg='<svg id="historychart" viewBox="0 0 '+w+' '+h+'" aria-label="'+esc(spec.title)+'">';
+ for(let i=0;i<=4;i++){const yy=pad.t+(plotH*i/4),val=Math.round(max*(1-i/4));svg+='<line class="chart-grid" x1="'+pad.l+'" x2="'+(w-pad.r)+'" y1="'+yy+'" y2="'+yy+'"/><text class="chart-label" x="2" y="'+(yy+3)+'">'+val+'</text>'}
+ daily.forEach((d,i)=>{svg+='<text class="chart-label" text-anchor="middle" x="'+x(i)+'" y="'+(h-8)+'">'+esc(shortDate(d.date))+(d.partial?'*':'')+'</text>'});
+ series.forEach((ser,si)=>{
+  const k=ser[0],cls=si?' alt':'',pts=[];
+  daily.forEach((d,i)=>{const v=metricValue(d,k);if(v!=null)pts.push([x(i),y(v),v])});
+  if(pts.length){svg+='<path class="chart-line'+cls+'" d="'+pts.map((p,i)=>(i?'L ':'M ')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ')+'"/>';
+   pts.forEach(p=>svg+='<circle class="chart-dot'+cls+'" cx="'+p[0]+'" cy="'+p[1]+'" r="3"/><text class="chart-value" text-anchor="middle" x="'+p[0]+'" y="'+(p[1]-7)+'">'+p[2]+'</text>');
+  }
+ });
+ svg+='</svg><div class="chart-legend">'+series.map((x,i)=>'<span class="'+(i?'alt':'')+'">'+esc(x[1])+'</span>').join('')+'</div>';
+ return '<div class="history-charthead"><div><div class="history-charttitle">'+esc(spec.title)+'</div><div class="history-chartsub">'+esc(spec.sub)+'</div></div><div class="history-chartsub">* día parcial</div></div>'+svg;
+}
+function historyStatsForDate(dateKey){
+ const d=historyDayMap().get(dateKey);if(!d)return '';
+ return '<div class="daystats">'+
+  '<span>'+d.jobs_completed+' completados</span>'+
+  '<span>'+d.agents_seen+' workers</span>'+
+  '<span>'+d.artifacts+' artifacts</span>'+
+  '<span>'+d.watchdog_requeues+' requeues</span>'+
+  (d.partial?'<span class="partial">día parcial</span>':'')+
+ '</div>';
+}
 function renderHistory(){
  const sorted=[...history].sort((a,b)=>new Date(b[0])-new Date(a[0]));
  const groups={};
  sorted.forEach(e=>{const k=fullDay(e[0]);(groups[k]??=[]).push(e)});
- let h='<div class="time-direction"><b>PRESENTE</b><span>↓ hacia el pasado</span></div><div class="timeline">';
+ const byDate={};
+ sorted.forEach(e=>{const dk=e[0].slice(0,10);byDate[fullDay(e[0])]=dk});
+ const controls=[
+  ['work','Trabajo'],['workers','Workers'],['artifacts','Artifacts'],['health','Salud'],['cumulative','Acumulado'],['domains','Dominios']
+ ];
+ let timeline='<div class="time-direction"><b>PRESENTE</b><span>↓ hacia el pasado</span></div><div class="timeline">';
  for(const d of Object.keys(groups)){
-   h+='<section class="day"><div class="dayhead">'+esc(d)+'</div>';
+   const dk=byDate[d];
+   timeline+='<section class="day"><div class="dayhead">'+esc(d)+'</div>'+historyStatsForDate(dk);
    groups[d].forEach(e=>{
-     h+='<div class="event"><div class="eventline"><div class="eventtime">'+esc(clock(e[0]))+'</div><div><div class="rtitle">'+esc(e[1])+'</div><div class="rdesc">'+esc(e[2])+'</div></div><div class="rmeta '+(e[3]==='ABIERTO'?'warn':'')+'">'+esc(e[3])+'</div></div></div>';
+     timeline+='<div class="event"><div class="eventline"><div class="eventtime">'+esc(clock(e[0]))+'</div><div><div class="rtitle">'+esc(e[1])+'</div><div class="rdesc">'+esc(e[2])+'</div></div><div class="rmeta '+(e[3]==='ABIERTO'?'warn':'')+'">'+esc(e[3])+'</div></div></div>';
    });
-   h+='</section>';
+   timeline+='</section>';
  }
- h+='<div class="past-marker">↓ pasado</div></div>';
- $('#historycontent').innerHTML=h;
+ timeline+='<div class="past-marker">↓ pasado</div></div>';
+ const html='<div class="history-controls">'+controls.map(x=>'<button class="hmetric '+(HISTORY_MODE===x[0]?'on':'')+'" data-hmode="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'+
+  '<div class="history-layout"><div class="history-timeline-pane">'+timeline+'</div><div class="history-stats-pane"><div class="history-chartbox">'+chartSVG(HISTORY_MODE)+'</div></div></div>';
+ $('#historycontent').innerHTML=html;
+ document.querySelectorAll('[data-hmode]').forEach(b=>b.onclick=()=>{HISTORY_MODE=b.dataset.hmode;renderHistory()});
 }
+function renderWork(){
+ const arr=C?.contexts||[];
+ const active=arr.filter(x=>x.status==='ACTIVE'),other=arr.filter(x=>x.status!=='ACTIVE');
+ let h='<div class="context-summary"><span>'+arr.length+' contextos visibles</span><span>'+active.length+' activos</span><span>'+arr.reduce((a,x)=>a+Number(x.prompt_count||0),0)+' prompts registrados</span></div>';
+ const card=x=>'<article class="context"><div class="context-head"><div><div class="context-title">'+esc(x.title)+'</div><div class="context-kind">'+esc(x.context_kind)+(x.page_id?' · '+esc(x.page_id):'')+'</div></div><div class="context-status '+String(x.status).toLowerCase()+'">'+esc(x.status)+'</div></div>'+
+  (x.summary?'<div class="context-desc">'+esc(x.summary)+'</div>':'')+
+  (x.next_action?'<div class="context-next">→ '+esc(x.next_action)+'</div>':'')+
+  '<div class="context-meta"><span>'+Number(x.event_count||0)+' eventos</span><span>'+Number(x.prompt_count||0)+' prompts</span><span>'+esc(fmt(x.last_activity_at))+'</span>'+(x.public_url?'<a href="'+esc(x.public_url)+'" target="_blank" rel="noopener">abrir página</a>':'')+'</div></article>';
+ h+='<div class="context-list">'+(active.length?active.map(card).join(''):'<div class="context-empty">todavía no hay contextos activos visibles</div>')+'</div>';
+ if(other.length)h+='<details class="moreblock"><summary>ver '+other.length+' pausados / anteriores</summary><div class="context-list">'+other.map(card).join('')+'</div></details>';
+ $('#workcontent').innerHTML=h;
+}
+
 
 /* ORGANISM */
 function emojiForNode(n){
@@ -288,6 +419,7 @@ function emojiForNode(n){
  if(key.startsWith('GUIDE:'))return '🧭';
  if(key.startsWith('OBJECTIVE:'))return '🎯';
  if(key.startsWith('EXT:'))return '🌱';
+ if(key.startsWith('CTX:'))return n.payload?.context_kind==='CHAT'?'💬':'🗂️';
  if(key==='ROOT:OBJECTIVES')return '🎯';
  if(key==='ROOT:WORK')return '🛠️';
  if(key==='ROOT:GUIDES')return '🧭';
@@ -313,7 +445,9 @@ function structuralParentMap(){
   else if(k.startsWith('OBJECTIVE:'))p.set(k,'ROOT:OBJECTIVES');
  });
  (O?.edges||[]).filter(e=>e.kind==='CONTAINS'&&String(e.to||'').startsWith('EXT:')).forEach(e=>p.set(e.to,e.from));
+ (O?.edges||[]).filter(e=>e.kind==='WORK_CONTEXT'&&String(e.to||'').startsWith('CTX:')).forEach(e=>p.set(e.to,e.from));
  (O?.nodes||[]).filter(n=>n.node_key.startsWith('EXT:')&&!p.has(n.node_key)).forEach(n=>p.set(n.node_key,'PROJECT:PROMETEO'));
+ (O?.nodes||[]).filter(n=>n.node_key.startsWith('CTX:')&&!p.has(n.node_key)).forEach(n=>p.set(n.node_key,'PROJECT:PROMETEO'));
  return p;
 }
 function childMap(){
@@ -522,7 +656,7 @@ org.addEventListener('pointerup',endPointer);
 org.addEventListener('pointercancel',endPointer);
 document.querySelectorAll('[data-orgmode]').forEach(b=>b.onclick=()=>{ORG_MODE=b.dataset.orgmode;document.querySelectorAll('[data-orgmode]').forEach(x=>x.classList.toggle('on',x===b));if(ORG_MODE!=='impact'){$('#infopanel').classList.remove('on');document.querySelectorAll('#orgsvg .node,#orgsvg .edge').forEach(x=>x.classList.remove('impact'))}});
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===b.dataset.view));if(b.dataset.view==='organismo'&&!NODES.length)drawOrg()});
-(async()=>{try{const loaded=await load();D=loaded.tree;O=loaded.organism;$('#stamp').textContent='snapshot '+fmt(D.generated_at);renderState();renderHistory()}catch(e){$('#statecontent').innerHTML='<div class="rdesc">No pude cargar Prometeo: '+esc(e.message)+'</div>'}})();
+(async()=>{try{const loaded=await load();D=loaded.tree;O=loaded.organism;H=loaded.historyMetrics;C=loaded.contexts;$('#stamp').textContent='snapshot '+fmt(D.generated_at);renderState();renderHistory();renderWork()}catch(e){$('#statecontent').innerHTML='<div class="rdesc">No pude cargar Prometeo: '+esc(e.message)+'</div>'}})();
 </script>
 </body>
 </html>
