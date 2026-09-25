@@ -3,164 +3,153 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#070604">
-<title>Prometeo · Player Lab · Image First</title>
+<meta name="theme-color" content="#020202">
+<title>Prometeo · Player Lab · The Mask Room</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#e7dfc5;font-family:system-ui,-apple-system,sans-serif;overscroll-behavior:none;touch-action:none}
-#shell{position:fixed;inset:0;overflow:hidden;background:#030303}
+#shell{position:fixed;inset:0;overflow:hidden;background:#020202}
 #game{position:absolute;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated;touch-action:none}
-#fx{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 42%,rgba(0,0,0,.72) 100%),repeating-linear-gradient(to bottom,rgba(255,255,255,.022) 0 1px,transparent 1px 4px);opacity:.74}
-#prompt{position:absolute;z-index:4;left:50%;bottom:max(9px,env(safe-area-inset-bottom));transform:translateX(-50%);font:650 9px/1 system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:rgba(236,225,195,.62);text-shadow:0 2px 3px #000;white-space:nowrap;pointer-events:none;transition:opacity .35s}
-#prompt.quiet{opacity:.20}
-#flash{position:absolute;z-index:3;inset:0;background:#d3c28f;opacity:0;pointer-events:none}
-#flash.on{animation:flash .18s steps(2,end)}
+#veil{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 48%,rgba(0,0,0,0) 35%,rgba(0,0,0,.42) 70%,rgba(0,0,0,.82) 100%);z-index:2}
+#scan{position:absolute;inset:0;pointer-events:none;z-index:3;opacity:.16;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.045) 0 1px,transparent 1px 4px)}
+#prompt{position:absolute;z-index:4;left:50%;bottom:max(8px,env(safe-area-inset-bottom));transform:translateX(-50%);font:650 9px/1 system-ui,-apple-system,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:rgba(235,222,185,.7);text-shadow:0 2px 4px #000;white-space:nowrap;pointer-events:none;transition:opacity .45s}
+#prompt.quiet{opacity:.12}
+#flash{position:absolute;z-index:5;inset:0;background:#cfc091;opacity:0;pointer-events:none}
+#flash.on{animation:flash .15s steps(2,end)}
 @keyframes flash{0%{opacity:.18}100%{opacity:0}}
 @media(orientation:portrait){#shell{inset:auto;left:50%;top:50%;width:100dvh;height:100dvw;transform:translate(-50%,-50%) rotate(90deg);transform-origin:center}}
 </style>
 </head>
 <body>
 <div id="shell">
-  <canvas id="game" width="320" height="180" aria-label="Escena interactiva retro de Prometeo"></canvas>
-  <div id="fx"></div><div id="flash"></div><div id="prompt">tocá la máscara</div>
+  <canvas id="game" width="320" height="180" aria-label="Una habitación abandonada con una máscara suspendida y una mano que interactúa con ella"></canvas>
+  <div id="veil"></div><div id="scan"></div><div id="flash"></div><div id="prompt">tocá la máscara</div>
 </div>
 
 <!--
-IMAGE-FIRST ASSETS
-- Prometeo internal mask: ../../strategy/mask-mouth/assets/mask-transparent.webp
-- Prometeo internal heart: ../../arte/assets/footer/heart-mask-final-alpha.png
-- Abandoned tiled room panorama, Sergej Majboroda via Poly Haven, CC0:
-  https://commons.wikimedia.org/wiki/File:Abandoned_tiled_room_-_Panorama_(Poly_Haven).jpg
-- Hand external anatomy, Darryl Leja / NHGRI, public domain:
-  https://commons.wikimedia.org/wiki/File:Hand_external_anatomy,_dorsum.svg
+IMAGE-FIRST / LICENSING
+- Prometeo mask: ../../strategy/mask-mouth/assets/mask-transparent.webp
+- Prometeo heart: ../../arte/assets/footer/heart-mask-final-alpha.png
+- Room: Sergej Majboroda / Poly Haven, CC0, via Wikimedia Commons.
+- Hand: Darryl Leja / NHGRI, US Federal Government work, public domain, via Wikimedia Commons.
+The canvas only composes, crops and moves image assets. Primitive geometry is not used for visible characters/entities.
 -->
 <script>
 (function(){
 'use strict';
 var c=document.getElementById('game'),x=c.getContext('2d',{alpha:false}),flash=document.getElementById('flash'),prompt=document.getElementById('prompt');
 x.imageSmoothingEnabled=false;
-var W=320,H=180,last=0,audio=null,actionStart=-10,action=0,committed=false,shake=0,pulseUntil=0;
-var KEY='prometeo.playerLab.imageFirst.stage.v2';
+var W=320,H=180,last=0,audio=null,actionStart=-10,action=0,commitDone=false,shake=0,pulseUntil=0;
+var KEY='prometeo.playerLab.maskRoom.stage.v3';
 var stage=0;try{stage=Math.max(0,Math.min(3,parseInt(localStorage.getItem(KEY)||'0',10)||0))}catch(_){}
-var assets={},loaded=0;
+var assets={};
 var URLS={
  room:'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/Abandoned_tiled_room_-_Panorama_%28Poly_Haven%29.jpg/1280px-Abandoned_tiled_room_-_Panorama_%28Poly_Haven%29.jpg',
  hand:'https://upload.wikimedia.org/wikipedia/commons/a/ab/Hand_external_anatomy%2C_dorsum.svg',
  mask:'../../strategy/mask-mouth/assets/mask-transparent.webp',
+ maskSolid:'../../strategy/mask-mouth/assets/mask.webp',
  heart:'../../arte/assets/footer/heart-mask-final-alpha.png'
 };
-function load(name,url){
-  var im=new Image();im.decoding='async';im.crossOrigin='anonymous';
-  im.onload=function(){assets[name]=im;loaded++};
-  im.onerror=function(){assets[name]=null};
-  im.src=url;
-}
+function load(name,url){var im=new Image();im.decoding='async';im.crossOrigin='anonymous';im.onload=function(){assets[name]=im};im.onerror=function(){assets[name]=null};im.src=url}
 Object.keys(URLS).forEach(function(k){load(k,URLS[k])});
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
-function ease(t){t=clamp(t,0,1);return 1-Math.pow(1-t,3)}
 function smooth(t){t=clamp(t,0,1);return t*t*(3-2*t)}
-function cover(img,ox,oy,scale,alpha,filter){
+function arcPulse(t){return Math.sin(clamp(t,0,1)*Math.PI)}
+function drawImageFitted(img,cx,cy,h,rot,alpha,filter,flip){
   if(!img)return;
-  var iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;
-  var s=Math.max(W/iw,H/ih)*(scale||1),dw=iw*s,dh=ih*s;
-  x.save();x.globalAlpha=alpha==null?1:alpha;if(filter)x.filter=filter;
-  x.drawImage(img,(W-dw)*.5+(ox||0),(H-dh)*.5+(oy||0),dw,dh);x.restore();
+  var iw=img.naturalWidth||img.width||1,ih=img.naturalHeight||img.height||1,w=h*(iw/ih);
+  x.save();x.translate(Math.round(cx),Math.round(cy));if(rot)x.rotate(rot);if(flip)x.scale(-1,1);x.globalAlpha=alpha==null?1:alpha;if(filter)x.filter=filter;x.drawImage(img,-w*.5,-h*.5,w,h);x.restore();
 }
 function drawRoom(t){
-  x.fillStyle='#060504';x.fillRect(0,0,W,H);
-  var img=assets.room;
-  if(img){
-    var iw=img.naturalWidth,ih=img.naturalHeight;
-    var cropW=iw*.47,cropH=ih*.92,sx=iw*.26+Math.sin(t*.12)*iw*.012,sy=ih*.03;
-    x.save();x.filter='brightness(.40) saturate(.68) sepia(.22) contrast(1.18)';
-    x.drawImage(img,sx,sy,cropW,cropH,0,0,W,H);x.restore();
-  }
-  x.save();x.globalAlpha=.28;var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#0f1410');g.addColorStop(.65,'rgba(32,23,18,.14)');g.addColorStop(1,'#080503');x.fillStyle=g;x.fillRect(0,0,W,H);x.restore();
+  x.fillStyle='#050403';x.fillRect(0,0,W,H);
+  var img=assets.room;if(!img)return;
+  var iw=img.naturalWidth||1280,ih=img.naturalHeight||640;
+  var cropW=iw*.46,cropH=ih*.94;
+  var reveal=stage>=3?1:0;
+  var sx=iw*.27+reveal*iw*.08+Math.sin(t*.10)*iw*.004;
+  var sy=ih*.02;
+  x.save();x.filter=stage>=3?'brightness(.46) saturate(.74) sepia(.22) contrast(1.22)':'brightness(.34) saturate(.55) sepia(.28) contrast(1.25)';
+  x.drawImage(img,sx,sy,cropW,cropH,0,0,W,H);x.restore();
 }
-function drawHeart(cx,cy,size,alpha){
-  if(!assets.heart)return;
-  x.save();x.globalAlpha=alpha;x.filter='sepia(1) saturate(1.3) hue-rotate(-18deg) contrast(1.2)';
-  x.drawImage(assets.heart,cx-size*.5,cy-size*.5,size,size);x.restore();
+function drawShadow(img,cx,cy,h,rot,alpha){
+  if(!img)return;drawImageFitted(img,cx+4,cy+5,h,rot,alpha,'brightness(0) blur(2px)',false)
 }
-function drawMask(t){
-  var img=assets.mask;if(!img)return;
-  var breathe=Math.sin(t*1.7)*1.2,pulse=performance.now()<pulseUntil?Math.sin((pulseUntil-performance.now())*.04)*3:0;
-  var base=stage===0?54:stage===1?59:stage===2?65:70;
-  var s=base+breathe+pulse;
-  var cx=160,cy=83-(stage===3?9:0);
-  if(stage>=2)drawHeart(cx,cy+5,s*1.72,stage===2?.16:.28);
-  x.save();
-  x.translate(Math.round(cx),Math.round(cy));
-  x.rotate(Math.sin(t*.52)*(stage>=2?.035:.012));
-  x.globalAlpha=stage===0?.78:.96;
-  x.filter=stage===0?'grayscale(.55) brightness(.72) contrast(1.22)':'sepia(.18) saturate(1.08) contrast(1.18)';
-  var ar=(img.naturalWidth||1)/(img.naturalHeight||1),h=s,w=s*ar;
-  x.drawImage(img,-w*.5,-h*.5,w,h);
-  x.restore();
-  if(stage>=1)drawHeart(cx,cy+4,s*.42,stage===1?.42:stage===2?.62:.84);
-  if(stage===3){
-    x.save();x.globalAlpha=.13+.06*Math.sin(t*4);x.filter='blur(1px)';x.drawImage(img,cx-s*.64,cy-s*.64,s*1.28,s*1.28);x.restore();
-  }
+function drawHeart(cx,cy,h,alpha,rot){
+  var img=assets.heart;if(!img)return;
+  drawImageFitted(img,cx,cy,h,rot||0,alpha,'sepia(.8) saturate(1.35) hue-rotate(-18deg) contrast(1.18)',false)
+}
+function stagePose(t){
+  var breathe=Math.sin(t*1.5)*1.3;
+  if(stage===0)return {mx:160,my:78+breathe,mh:67,mr:Math.sin(t*.4)*.012,hx:160,hy:86,hh:20,ha:0};
+  if(stage===1)return {mx:160,my:77+breathe,mh:69,mr:Math.sin(t*.5)*.018,hx:160,hy:87,hh:26,ha:.42};
+  if(stage===2)return {mx:190,my:76+breathe,mh:67,mr:.12+Math.sin(t*.5)*.015,hx:157,hy:85,hh:49,ha:.82};
+  return {mx:226,my:88+breathe*.5,mh:58,mr:.23,hx:151,hy:78,hh:78,ha:1};
+}
+function drawRelic(t){
+  var p=stagePose(t),pulse=performance.now()<pulseUntil?1+Math.sin((pulseUntil-performance.now())*.04)*.09:1;
+  if(stage>=1)drawHeart(p.hx,p.hy,p.hh*pulse,p.ha,Math.sin(t*.8)*.02);
+  var m=assets.mask;
+  if(m){drawShadow(m,p.mx,p.my,p.mh,p.mr,.52);drawImageFitted(m,p.mx,p.my,p.mh,p.mr,stage===0?.82:.96,stage===0?'grayscale(.35) brightness(.72) contrast(1.28)':'sepia(.14) saturate(1.08) contrast(1.18)',false)}
+  if(stage===1)drawHeart(p.mx-5,p.my+7,18,.72,-.08);
+  if(stage===2)drawHeart(p.mx-10,p.my+4,20,.72,-.10);
+  if(stage===3&&assets.maskSolid)drawImageFitted(assets.maskSolid,226,88,56,.23,.20,'brightness(.5) contrast(1.4)',false);
+}
+function handPose(t){
+  var phase=arcPulse(action);
+  if(!assets.hand)return null;
+  if(stage===0){return action>0?{cx:296-phase*118,cy:188-phase*88,h:146,rot:-.52+phase*.26,alpha:.98}:null}
+  if(stage===1){return action>0?{cx:300-phase*104,cy:190-phase*98,h:151,rot:-.48+phase*.22,alpha:.98}:null}
+  if(stage===2){return action>0?{cx:302-phase*100,cy:194-phase*104,h:156,rot:-.46+phase*.20,alpha:.98}:{cx:278,cy:146+Math.sin(t*1.2)*1.2,h:120,rot:-.28,alpha:.88}}
+  if(stage===3){return {cx:286,cy:146+Math.sin(t*.9)*1.1,h:118,rot:-.25,alpha:.86}}
+  return null;
 }
 function drawHand(t){
-  var img=assets.hand;if(!img||action<=0)return;
-  var travel=smooth(Math.sin(Math.min(1,action)*Math.PI));
-  var iw=img.naturalWidth||257,ih=img.naturalHeight||349;
-  var h=145,w=h*(iw/ih);
-  var cx=300-travel*108,cy=190-travel*73;
-  x.save();x.translate(Math.round(cx),Math.round(cy));x.rotate(-.45+travel*.23);
-  x.globalAlpha=.96;x.filter='sepia(1) saturate(.85) brightness(.72) contrast(1.55)';
-  x.drawImage(img,-w*.5,-h*.1,w,h);x.restore();
+  var p=handPose(t);if(!p)return;
+  drawImageFitted(assets.hand,p.cx+3,p.cy+4,p.h,p.rot,.48,'brightness(0) blur(2px)',true);
+  drawImageFitted(assets.hand,p.cx,p.cy,p.h,p.rot,p.alpha,'sepia(1) saturate(.78) brightness(.64) contrast(1.7)',true);
 }
-function drawForeground(t){
-  x.save();x.globalAlpha=.12;for(var i=0;i<34;i++){var xx=(i*83+Math.floor(t*7))%W,yy=(i*47+Math.floor(t*3))%H;x.fillStyle=i%5?'#d8cfac':'#8f634a';x.fillRect(xx,yy,1,1)}x.restore();
-  var g=x.createRadialGradient(W*.5,H*.48,20,W*.5,H*.48,170);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.58)');x.fillStyle=g;x.fillRect(0,0,W,H);
-}
-function setPrompt(){
-  var txt=stage===0?'tocá la máscara':stage===1?'la marca quedó · tocá otra vez':stage===2?'algo respondió · tocá otra vez':'la habitación quedó abierta';
-  prompt.textContent=txt;prompt.classList.remove('quiet');setTimeout(function(){prompt.classList.add('quiet')},1800);
-}
-function beep(freq,dur,type){
-  try{
-    audio=audio||new (window.AudioContext||window.webkitAudioContext)();
-    var o=audio.createOscillator(),g=audio.createGain();o.type=type||'sine';o.frequency.value=freq;
-    g.gain.setValueAtTime(.028,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+dur);
-    o.connect(g).connect(audio.destination);o.start();o.stop(audio.currentTime+dur);
-  }catch(_){}
-}
-function activate(){
-  var now=performance.now()/1000;if(now-actionStart<1.05)return;
-  actionStart=now;action=.001;committed=false;shake=stage===3?2:1;
-  beep(stage===0?118:stage===1?147:stage===2?186:96,.09,stage===3?'sawtooth':'triangle');
-  if(navigator.vibrate)navigator.vibrate(stage===2?[18,24,28]:14);
-  flash.classList.remove('on');void flash.offsetWidth;flash.classList.add('on');
-}
-function commit(){
-  if(committed)return;committed=true;
-  if(stage<3){stage++;try{localStorage.setItem(KEY,String(stage))}catch(_){}}
-  else pulseUntil=performance.now()+900;
-  shake=stage>=2?3:1;setTimeout(function(){shake=0},150);
-  setPrompt();
+function drawEcho(t){
+  if(stage<3||!assets.heart)return;
+  var beat=(Math.sin(t*3.1)+1)*.5;
+  drawHeart(151,78,86+beat*7,.08+beat*.07,0);
+  drawHeart(151,78,118+beat*9,.025+beat*.025,0);
 }
 function draw(t){
   var sx=shake?Math.round((Math.random()-.5)*shake):0,sy=shake?Math.round((Math.random()-.5)*shake):0;
-  x.save();x.translate(sx,sy);drawRoom(t);
-  if(stage===3&&assets.heart){x.save();x.globalAlpha=.16+.05*Math.sin(t*2.2);x.filter='blur(1px)';x.drawImage(assets.heart,98,22,124,124);x.restore()}
-  drawMask(t);drawHand(t);drawForeground(t);x.restore();
+  x.save();x.translate(sx,sy);drawRoom(t);drawEcho(t);drawRelic(t);drawHand(t);x.restore();
+}
+function setPrompt(){
+  var txt=stage===0?'tocá la máscara':stage===1?'la marca quedó · tocá otra vez':stage===2?'ahora podés apartarla':'quedó abierta · tocá para escuchar';
+  prompt.textContent=txt;prompt.classList.remove('quiet');setTimeout(function(){prompt.classList.add('quiet')},1700)
+}
+function beep(freq,dur,type){
+  try{audio=audio||new (window.AudioContext||window.webkitAudioContext)();var o=audio.createOscillator(),g=audio.createGain();o.type=type||'triangle';o.frequency.value=freq;g.gain.setValueAtTime(.025,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+dur);o.connect(g).connect(audio.destination);o.start();o.stop(audio.currentTime+dur)}catch(_){}
+}
+function activate(){
+  var now=performance.now()/1000;if(now-actionStart<1.12)return;
+  actionStart=now;action=.001;commitDone=false;shake=1;
+  if(stage===0){beep(108,.08,'triangle');setTimeout(function(){beep(146,.08,'sine')},85)}
+  else if(stage===1){beep(142,.08,'triangle');setTimeout(function(){beep(96,.12,'sine')},90)}
+  else if(stage===2){beep(86,.12,'sawtooth');setTimeout(function(){beep(172,.12,'triangle')},105)}
+  else{beep(72,.16,'sine');setTimeout(function(){beep(144,.16,'sine')},120)}
+  if(navigator.vibrate)navigator.vibrate(stage===2?[18,24,30]:stage===3?[22,45,22]:14);
+  flash.classList.remove('on');void flash.offsetWidth;flash.classList.add('on')
+}
+function commit(){
+  if(commitDone)return;commitDone=true;
+  if(stage<3){stage++;try{localStorage.setItem(KEY,String(stage))}catch(_){}}
+  else pulseUntil=performance.now()+1100;
+  shake=stage>=2?3:1;setTimeout(function(){shake=0},150);setPrompt()
 }
 function tick(ms){
   var t=ms/1000;
-  if(action>0){
-    var d=t-actionStart;action=d<1.05?d/1.05:0;
-    if(action>.48&&!committed)commit();
-  }
+  if(action>0){var d=t-actionStart;action=d<1.12?d/1.12:0;if(action>.46&&!commitDone)commit()}
   if(!last||ms-last>33){draw(t);last=ms}
-  requestAnimationFrame(tick);
+  requestAnimationFrame(tick)
 }
-c.addEventListener('pointerdown',function(e){e.preventDefault();activate()});
-document.getElementById('shell').addEventListener('pointerdown',function(e){if(e.target!==c)activate()});
+c.addEventListener('pointerdown',function(e){e.preventDefault();activate()},{passive:false});
 addEventListener('keydown',function(e){if(e.code==='Space'||e.code==='Enter')activate()});
-setPrompt();requestAnimationFrame(tick);
+setPrompt();requestAnimationFrame(tick)
 })();
 </script>
 </body>
