@@ -1,1 +1,65 @@
-<!doctype html>\n<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prometeo · Materials / Renderer / FX</title></head>\n<body>\n<script src="../coliseo-shared/contract-v1.js"></script>\n<script src="../coliseo-shared/fixture-v1.js"></script>\n<script src="../coliseo-shared/lab-shell.js"></script>\n<script src="./module.js"></script>\n<script>PROMETEO_COLISEO_LAB_SHELL.mount({"id":"materials","title":"Materials / Renderer / FX","purpose":"Construir primitivas visuales reutilizables: transparencia, vidrio, volumen, iluminación, outlines y FX.","owns":["material library","transparent primitives","lighting","shadows","particles","FX"],"forbids":["semántica","layout de proyectos","worker behavior","HUD"]});</script>\n</body></html>\n
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#050605">
+<title>Prometeo · Materials / Primitive Lab</title>
+<style>
+:root{--bg:#050605;--ink:#d9c7aa;--muted:#756b5e;--line:#292b28;--ember:#d46f32;--cyan:#65b9b0}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{overflow:auto}.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-bottom:1px solid #20221f;background:rgba(5,6,5,.95);backdrop-filter:blur(5px)}
+.brand{display:flex;align-items:baseline;gap:9px;min-width:0}.brand b{font-size:12px;letter-spacing:.15em;text-transform:uppercase}.brand span{font:700 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);white-space:nowrap}.status{font:850 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;color:#9ba58f}.status.bad{color:#d46f59}
+main{width:min(1500px,100%);margin:auto;padding:14px}.intro{display:flex;justify-content:space-between;align-items:end;gap:20px;margin:4px 2px 13px}.intro h1{font-size:clamp(21px,3vw,36px);line-height:.95;margin:0;letter-spacing:-.04em}.intro p{margin:0;max-width:660px;color:#8d8171;font-size:11px;line-height:1.45}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.card{position:relative;min-height:220px;border:1px solid #252724;background:#090a09;overflow:hidden}.card canvas{display:block;width:100%;height:220px}.label{position:absolute;left:9px;top:8px;z-index:2;padding:4px 6px;background:rgba(5,6,5,.78);border:1px solid #272a26;color:#a89a86;font:800 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase}.note{position:absolute;left:9px;right:9px;bottom:8px;color:#665f55;font:700 7px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em;text-transform:uppercase;pointer-events:none}.wide{grid-column:span 2}.hero{grid-column:span 2;min-height:290px}.hero canvas{height:290px}.density{grid-column:1/-1;min-height:280px}.density canvas{height:280px}.foot{padding:14px 2px 5px;color:#625b52;font:700 8px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.05em}
+@media(max-width:980px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.intro{align-items:start;flex-direction:column}.wide,.hero{grid-column:span 2}}
+@media(max-width:560px){main{padding:8px}.top{padding:9px 10px}.brand span{display:none}.grid{grid-template-columns:1fr;gap:7px}.wide,.hero,.density{grid-column:span 1}.card,.card canvas{min-height:210px;height:210px}.hero,.hero canvas{min-height:260px;height:260px}.density,.density canvas{min-height:300px;height:300px}.intro{margin:6px 2px 10px}.intro p{font-size:10px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="brand"><b>Materials / Renderer / FX</b><span>primitive lab · synthetic visual test</span></div><div id="status" class="status">MODULE …</div></header>
+<main>
+<section class="intro"><h1>Los ladrillos visuales.</h1><p>Canvas 2D reusable primitives. Sin worker logic, sin job semantics, sin layout authority. Esta página prueba volumen, transparencia, lectura a distancia, FX y densidad.</p></section>
+<section class="grid" id="grid"></section>
+<div class="foot">COLISEO MATERIALS V1 · drawPrimitive(ctx, primitive, env) · 0 semantic state assumptions</div>
+</main>
+<script src="./module.js"></script>
+<script>
+(function(){
+'use strict';
+const M=window.COLISEO_LAB_MODULE,status=document.getElementById('status'),grid=document.getElementById('grid');
+status.textContent=M&&M.tokens&&typeof M.drawPrimitive==='function'?'MODULE OK · v'+M.version:'MODULE FAIL';status.classList.toggle('bad',!M||typeof M.drawPrimitive!=='function');
+if(!M)return;
+const defs=[
+ {id:'cylinders',label:'progress cylinders · variants',class:'hero',note:'0 / 38 / 72 / 100% · ribs + meniscus + far keyline',draw(c,w,h,t){
+   const xs=[w*.14,w*.38,w*.62,w*.86],fills=[0,.38,.72,1],vars=['clean','ribbed','technical','technical'];
+   xs.forEach((x,i)=>{M.drawPrimitive(c,{type:'cylinder',x,y:55,w:34,h:145,fill:fills[i],segments:10,variant:vars[i],fillColor:i===3?'cyan':'ember',completeColor:'cyanHi',inputs:i===2?7:0,emissive:i>1?1:0},{now:t,scale:1}); label(c,Math.round(fills[i]*100)+'%',x,220)});
+ }},
+ {id:'far',label:'cylinder · far zoom survival',class:'hero',note:'same primitive at shrinking scales · silhouette must remain readable',draw(c,w,h,t){
+   const scales=[1,.72,.48,.30,.20];let x=w*.10;
+   scales.forEach((s,i)=>{c.save();c.translate(x,0);c.scale(s,s);M.drawPrimitive(c,{type:'cylinder',x:0,y:74/s,w:38,h:130,fill:.64,segments:8,variant:'technical',fillColor:'cyan',emissive:.7},{now:t,scale:s});c.restore();label(c,'×'+s.toFixed(2),x,235);x+=w*(.15+i*.025)});
+ }},
+ {id:'solids',label:'blocks / solids',note:'stone · wood · metal · dark',draw(c,w,h,t){['stone','wood','metal','dark'].forEach((m,i)=>M.drawPrimitive(c,{type:'block',x:26+(i%2)*w*.47,y:52+Math.floor(i/2)*82,w:w*.34,h:48,depth:10,material:m,seed:i+3},{detail:1,scale:1,now:t}))}},
+ {id:'glass',label:'glass / visible internals',note:'transparent shell must not erase contents',draw(c,w,h,t){M.drawPrimitive(c,{type:'glass-box',x:w*.16,y:48,w:w*.30,h:108,fill:.58,fillColor:'cyan'},{now:t});M.drawPrimitive(c,{type:'glass-box',x:w*.56,y:63,w:w*.26,h:92,fill:.82,fillColor:'ember'},{now:t})}},
+ {id:'platforms',label:'node platforms',note:'physical top ring + depth + shadow',draw(c,w,h,t){M.drawPrimitive(c,{type:'platform',x:w*.29,y:105,rx:55,ry:16,h:9,material:'stone',ring:'ember'},{now:t});M.drawPrimitive(c,{type:'platform',x:w*.70,y:130,rx:48,ry:14,h:8,material:'metal',ring:'cyan'},{now:t})}},
+ {id:'paths',label:'paths / arrows',note:'heavy readable routes, not hairline UI connectors',draw(c,w,h,t){M.drawPrimitive(c,{type:'path',points:[{x:20,y:155},{x:w*.33,y:108},{x:w*.62,y:142},{x:w-28,y:72}],width:9,color:'sand'},{now:t});M.drawPrimitive(c,{type:'arrow',from:{x:w*.23,y:72},to:{x:w*.74,y:72},width:3,color:'emberHi'},{now:t})}},
+ {id:'outputs',label:'output tokens / impact',note:'small physical emissions · bounded visual events',draw(c,w,h,t){for(let i=0;i<8;i++)M.drawPrimitive(c,{type:'output-token',x:35+i*24,y:115+(i%2)*9,r:6+(i%3),color:i%3===0?'cyanHi':'emberHi',emissive:i%2===0},{now:t});M.drawPrimitive(c,{type:'impact',x:w*.77,y:112,r:32,phase:.58,color:'emberHi'},{now:t})}},
+ {id:'light',label:'glow / emissive / particles',note:'sparingly: one glow is a signal; fifty is soup',draw(c,w,h,t){M.drawPrimitive(c,{type:'glow',x:w*.30,y:112,r:52,color:'cyan',alpha:.58},{now:t});M.drawPrimitive(c,{type:'output-token',x:w*.30,y:112,r:9,color:'cyanHi',emissive:true},{now:t});M.drawPrimitive(c,{type:'particles',x:w*.69,y:150,count:22,spread:34,rise:62,color:'emberHi',seed:9,speed:.5},{now:t})}},
+ {id:'walls',label:'wall material set',note:'physical mass / bolts / top edge',draw(c,w,h,t){M.drawPrimitive(c,{type:'wall',x:22,y:76,w:w*.38,h:76,material:'stone',bolts:true},{now:t});M.drawPrimitive(c,{type:'wall',x:w*.55,y:90,w:w*.34,h:62,material:'metal',bolts:true},{now:t})}},
+ {id:'station',label:'station primitives',note:'platform + solid + glass slot; composition remains external',draw(c,w,h,t){M.drawPrimitive(c,{type:'station',x:w*.18,y:78,w:w*.64,h:62,bodyMaterial:'dark',material:'metal',ring:'ember',fill:.52,fillColor:'cyan'},{now:t})}},
+ {id:'holo',label:'holographic test',note:'kept geometric; no SaaS glass card cosplay',draw(c,w,h,t){M.drawPrimitive(c,{type:'hologram',x:w*.21,y:52,w:w*.26,h:104,color:'cyanHi',alpha:.62},{now:t});M.drawPrimitive(c,{type:'hologram',x:w*.58,y:72,w:w*.20,h:78,color:'emberHi',alpha:.46},{now:t})}},
+ {id:'shadows',label:'shadows / depth',note:'cheap ellipse shadows scale to hundreds',draw(c,w,h,t){[.18,.34,.56].forEach((a,i)=>{M.drawPrimitive(c,{type:'shadow',x:w*(.22+i*.28),y:150,rx:42-i*5,ry:10-i,alpha:a},{now:t});M.drawPrimitive(c,{type:'block',x:w*(.22+i*.28)-24,y:95-i*12,w:48,h:42,depth:8,material:i===0?'wood':i===1?'stone':'metal',shadow:false},{now:t})})}},
+ {id:'density',label:'density / performance sanity check',class:'density',note:'120 mixed primitives in one canvas · animation limited to particles',draw(c,w,h,t){
+   const cols=Math.max(10,Math.floor(w/70)),rows=6;let n=0;
+   for(let r=0;r<rows;r++)for(let q=0;q<cols&&n<120;q++,n++){const x=24+q*(w-48)/(cols-1),y=52+r*34,kind=n%5;if(kind===0)M.drawPrimitive(c,{type:'output-token',x,y,r:4+(n%3),color:n%2?'emberHi':'cyanHi'}, {now:t,scale:.45});else if(kind===1)M.drawPrimitive(c,{type:'platform',x,y,rx:14,ry:5,h:3,material:'metal',shadow:false},{now:t,scale:.45,detail:.3});else if(kind===2)M.drawPrimitive(c,{type:'cylinder',x,y:y-12,w:11,h:24,fill:(n%10)/10,segments:4,variant:'technical',shadow:false,fillColor:n%2?'ember':'cyan'},{now:t,scale:.3,detail:.2});else if(kind===3)M.drawPrimitive(c,{type:'block',x:x-8,y:y-8,w:16,h:14,depth:3,material:'dark',shadow:false},{now:t,scale:.35,detail:.1});else M.drawPrimitive(c,{type:'particles',x,y,count:3,spread:8,rise:14,color:'emberHi',seed:n},{now:t,scale:.4})}
+ }}
+];
+function label(c,s,x,y){c.save();c.textAlign='center';c.fillStyle='#6f675d';c.font='700 8px ui-monospace,monospace';c.fillText(s,x,y);c.restore()}
+function mount(){defs.forEach(d=>{const el=document.createElement('article');el.className='card '+(d.class||'');el.innerHTML='<div class="label">'+d.label+'</div><canvas></canvas><div class="note">'+d.note+'</div>';grid.appendChild(el);d.canvas=el.querySelector('canvas');d.ctx=d.canvas.getContext('2d',{alpha:false})});resize()}
+function resize(){defs.forEach(d=>{const r=d.canvas.getBoundingClientRect(),ds=Math.min(2,devicePixelRatio||1);d.canvas.width=Math.max(1,Math.round(r.width*ds));d.canvas.height=Math.max(1,Math.round(r.height*ds));d.ctx.setTransform(ds,0,0,ds,0,0)});draw(performance.now())}
+let raf=0;
+function draw(t){defs.forEach(d=>{const c=d.ctx,cv=d.canvas,ds=Math.min(2,devicePixelRatio||1),w=cv.width/ds,h=cv.height/ds;c.setTransform(ds,0,0,ds,0,0);c.fillStyle='#090a09';c.fillRect(0,0,w,h);const g=c.createRadialGradient(w*.5,h*.45,4,w*.5,h*.45,Math.max(w,h)*.65);g.addColorStop(0,'rgba(64,53,39,.16)');g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.fillRect(0,0,w,h);d.draw(c,w,h,t)});raf=requestAnimationFrame(draw)}
+addEventListener('resize',()=>requestAnimationFrame(resize));document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(raf)}else{resize();draw(performance.now())}});mount();
+})();
+</script>
+</body>
+</html>
