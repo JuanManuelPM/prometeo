@@ -397,7 +397,7 @@ const LAB_FAST=LAB_PARAMS.get('fast')==='1';
 const LAB_BASELINE='8ef25c0a34cc9cd68fa9b35152dec9289d5cb3d8';
 let LAB_SELECTED=-1;
 let LAB_TAP_START=null;
-const LAB_BUILD='LIVE-WORKERS-V7-20260925-R2';
+const LAB_BUILD='LIVE-WORKERS-V7-20260925-R3';
 const labBadge=document.getElementById('labBadge');
 const wrap=document.getElementById('wrap');
 const mapStage=document.getElementById('mapStage');
@@ -3416,17 +3416,23 @@ function liveStagePosition(item,t,snap){
   let x=item.x,z=item.z,jump=0,size=.42;
   const phase=(liveStringHash(w.worker_id)%1000)/1000*TAU;
   const stage=String(w.progress_stage||'').toUpperCase();
-  if(stage==='READ'){
+  if(stage.includes('READ')){
     const a=Math.atan2(z,x)+Math.PI/2,off=Math.sin(t*1.35+phase)*.055;
     x+=Math.cos(a)*off;z+=Math.sin(a)*off;
-  }else if(stage==='THINK'){
+  }else if(/THINK|ANALY|REASON|PLAN/.test(stage)){
     jump=.018+.012*Math.sin(t*1.1+phase);
-  }else if(stage==='FIRST_SIGNAL'||stage==='CLAIMED'){
+  }else if(/WRITE|BUILD|IMPLEMENT|EDIT|PREPARE/.test(stage)){
+    const a=Math.atan2(z,x)+Math.PI/2,off=Math.sin(t*2.15+phase)*.075;
+    x+=Math.cos(a)*off;z+=Math.sin(a)*off;
+    jump=.018+Math.abs(Math.sin(t*2.15+phase))*.026;
+  }else if(/FIRST_SIGNAL|CLAIMED|START/.test(stage)&&!stage.includes('SUBMIT')){
     const k=clamp(v.age/8,0,1),r=Math.hypot(x,z)||1,ux=x/r,uz=z/r;
     x+=ux*(1-k)*.58;z+=uz*(1-k)*.58;jump=(1-k)*.06;
-  }else if(stage==='SUBMIT_START'){
+  }else if(/SUBMIT|VERIFY|REVIEW/.test(stage)){
     const k=clamp(v.age/6,0,1),pulse=Math.sin(k*Math.PI)*.36,r=Math.hypot(x,z)||1;
     x-=x/r*pulse;z-=z/r*pulse;jump=Math.sin(k*Math.PI)*.05;
+  }else if(/WAIT|BLOCK|DEPENDENC/.test(stage)){
+    size=.39;
   }
   if(v.liveness==='SUSPECT')size=.40;
   return {x,z,jump,size,v};
