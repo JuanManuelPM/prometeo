@@ -164,21 +164,12 @@ body.needs-wake #wake{opacity:1}
 </style>
 </head>
 <body class="mode-single">
-<main id="stage" aria-label="Máscara de Prometeo con ojos visuales intercambiables">
+<main id="stage" aria-label="Una sola máscara de Prometeo con media real intercambiable en los dos huecos del ojo">
   <section id="singleHost"></section>
-  <section id="radialStage" aria-hidden="true">
-    <div id="radialRing" aria-hidden="true"></div>
-    <div id="radialHalo"></div>
-    <div id="radialCenter"></div>
-  </section>
 </main>
 
-<div id="brand">PROMETEO · MASK/EYE</div>
-<div id="mediaName">CARGANDO OJO<span id="mediaHint">TOCÁ LA MÁSCARA · CAMBIA EL LOOP</span></div>
-<nav id="modeNav" aria-label="Composición">
-  <button type="button" data-mode="single" class="on">Single</button>
-  <button type="button" data-mode="radial">Radial</button>
-</nav>
+<div id="brand">PROMETEO · MASK/EYE · ONE MASK</div>
+<div id="mediaName">CARGANDO OJO<span id="mediaHint">TOCÁ LA MÁSCARA · CAMBIA LO QUE SE VE EN LOS OJOS</span></div>
 <a id="credit" target="_blank" rel="noreferrer"></a>
 <div id="wake">tocá para activar video</div>
 <div id="boot">recuperando máscara</div>
@@ -256,22 +247,8 @@ const eyes={L:unit.querySelector('.eye.left'),R:unit.querySelector('.eye.right')
 for(const el of Object.values(eyes)){el.querySelector('.fallback').src=FALLBACK}
 $('#singleHost').appendChild(unit);
 
-const ring=$('#radialRing');
-const ringSpec=[
-  [0,1.10,.82],[30,.92,.66],[60,1.03,.70],[90,.90,.64],[120,1.08,.78],[150,.92,.64],
-  [180,1.10,.82],[210,.92,.66],[240,1.03,.70],[270,.90,.64],[300,1.08,.78],[330,.92,.64]
-];
-for(const [a,s,o] of ringSpec){
-  const node=document.createElement('div');node.className='satellite';
-  node.style.setProperty('--a',a);node.style.setProperty('--s',s);node.style.setProperty('--o',o);
-  const l=new Image(),rr=new Image(),m=new Image();
-  l.src=FALLBACK;rr.src=FALLBACK;m.src=MASK;
-  l.alt=rr.alt=m.alt='';l.draggable=rr.draggable=m.draggable=false;
-  l.className='sat-eye left';rr.className='sat-eye right';m.className='sat-mask';
-  node.append(l,rr,m);ring.appendChild(node);
-}
+let index=0,current=MEDIA[0],generation=0,needsWake=false;
 
-let index=0,current=MEDIA[0],mode='single',generation=0,needsWake=false;
 const params=new URLSearchParams(location.search);
 
 function mediaTransform(cfg){
@@ -326,19 +303,11 @@ async function setPair(pair){
   const ok=await Promise.all([applyEye('L',pair.L,g),applyEye('R',pair.R,g)]);
   if(g!==generation)return;
   needsWake=!ok.every(Boolean);document.body.classList.toggle('needs-wake',needsWake);
+  try{history.replaceState(null,'','?eye='+encodeURIComponent(pair.id))}catch(_){}
 }
 function next(){
   index=(index+1)%MEDIA.length;
   setPair(MEDIA[index]);
-}
-function setMode(next){
-  if(next!=='single'&&next!=='radial')return;
-  mode=next;document.body.classList.toggle('mode-single',mode==='single');document.body.classList.toggle('mode-radial',mode==='radial');
-  document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
-  $('#radialStage').setAttribute('aria-hidden',mode==='radial'?'false':'true');
-  const host=mode==='single'?$('#singleHost'):$('#radialCenter');
-  if(unit.parentNode!==host)host.appendChild(unit);
-  try{history.replaceState(null,'','?mode='+mode+'&eye='+encodeURIComponent(current.id))}catch(_){}
 }
 function wake(){
   const vids=[...unit.querySelectorAll('video')].filter(v=>v.classList.contains('on'));
@@ -348,11 +317,8 @@ function wake(){
 }
 unit.addEventListener('click',e=>{e.preventDefault();next()});
 unit.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();next()}});
-document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
 document.addEventListener('pointerdown',wake,{passive:true});
 addEventListener('keydown',e=>{
-  if(e.key==='1')setMode('single');
-  if(e.key==='2')setMode('radial');
   if(e.key==='ArrowRight'||e.key===' '){e.preventDefault();next()}
 });
 
@@ -368,7 +334,6 @@ if(custom){
   if(at>=0)index=at;
   setPair(MEDIA[index]);
 }
-setMode(params.get('mode')==='radial'?'radial':'single');
 
 Promise.all([
   unit.querySelector('.mask-art').decode?.().catch(()=>null),
@@ -383,10 +348,9 @@ document.addEventListener('visibilitychange',()=>{
 });
 
 window.maskEyeLab={
-  version:2,
+  version:'single-mask-v3',
   media:MEDIA,
   next,
-  setMode,
   setMedia(input){
     if(typeof input==='string'){
       return setPair({id:'external',label:'EXTERNAL LOOP',credit:'Contenido externo',href:'#',
@@ -394,7 +358,7 @@ window.maskEyeLab={
     }
     if(input&&input.L&&input.R)return setPair(input);
   },
-  state:()=>({mode,media:current.id,needsWake})
+  state:()=>({mode:'single',media:current.id,needsWake})
 };
 })();
 </script>
