@@ -144,9 +144,16 @@ Core:
 - strong image-first mask;
 - cavity/eye containing video/GIF/loop;
 - support interchangeable eye media;
-- explore single mask, radial mask mandala, shrine/wall compositions;
-- radial repetition inspired by circular face/mask references;
 - animation should come mainly from image/video content and composition, not procedural geometry.
+
+### Current correction
+
+The current accepted direction is **ONE MASK ONLY**.
+- Do not combine multiple masks.
+- Do not use radial mask mandalas, shrine grids or walls of repeated masks in the current lab.
+- Recover the real transparent-eye Prometeo mask and concentrate variation inside each eye cavity.
+- Each cavity may show a different real video/GIF/image loop; alignment/crop should make the eyes clearly readable.
+- Multiple-mask compositions remain parked unless the user explicitly reopens them later.
 
 No mask drawn from circles/polygons/wireframes.
 
