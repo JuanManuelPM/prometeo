@@ -3,22 +3,25 @@
 Status: CURRENT
 
 - Baseline is an accepted visual mechanism, not disposable scaffolding.
-- BASE must remain available even when newer asset directions are explored.
-- Complete stamps are the identity of this lab.
-- Variants are controlled comparisons, not rewrites of the redraw mechanism.
-- Preferred asset language is a genuinely cut-out / isolated silhouette. Visible white or rectangular image backgrounds are rejected.
-- The front is not limited to insects. Masks, wings, skeletons, creatures, objects and other irregular forms are valid if the outer contour is isolated and visually useful when repeated.
+- **1 BASE must remain available and visually intact.**
+- **2 WINGS is the current user favorite and the primary visual benchmark.**
+- WINGS is favored because it has color, reads as a real image, has an open/winged shape and leaves a visually strong repeated trail.
+- Complete image stamps are the identity of this lab: fast cadence, overlap, oldest-copy removal and rebound accumulation stay.
+- New candidates should prioritize **color + strong cutout silhouette + creepy/iconic presence**, especially masks, faces, creatures, strange objects, eyes, horns, ritual forms and winged/open shapes.
+- Black-line / white-sheet art is no longer the main candidate direction even if technically cut out.
+- Visible white rectangles, square photo backgrounds and plate-like mattes are rejected.
+- Production Trail assets must live in the repository under `visuals/trail-lab/assets/`; runtime external image hotlinks are prohibited.
+- External sources may be used only during controlled build/localization with recorded provenance and license.
 - Never abruptly mirror the sprite when motion direction changes.
-- Orientation may either remain fixed or rotate continuously/smoothly. It must not snap-flip.
-- Performance degradation must preserve the identity in this order: reduce internal render scale / stamp budget / stamp cadence before changing the complete-image-stamp mechanism.
-- Mobile rendering intentionally uses a low internal canvas resolution and adaptive quality instead of device-pixel-ratio oversampling.
-- Stamp storage should remain bounded; current candidate uses a preallocated pool.
-- Production runtime assets must use direct stable file URLs or repo-local copies; do not use Wikimedia `Special:Redirect` endpoints in Trail because they produced `ASSET NO DISPONIBLE` on the user's mobile browser.
-- PSF line-art PNGs may carry an opaque white matte. Never render them raw/native in Trail; remove white to alpha at load time, with multiply fallback if pixel reads fail.
-- On portrait mobile, approved variants must remain visibly discoverable; current UI uses a two-row grid rather than hiding later candidates in horizontal overflow.
+- Orientation may be fixed or rotate continuously/smoothly. It must not snap-flip. The current six promoted variants use fixed orientation because WINGS and face/mask assets read more iconically that way.
+- Performance degradation must preserve identity in this order: reduce internal render scale / stamp budget / cadence before changing the complete-image-stamp mechanism.
+- Mobile rendering intentionally uses controlled internal resolution and adaptive quality instead of device-pixel-ratio oversampling.
+- Stamp storage remains bounded through the preallocated pool.
+- On portrait mobile, all promoted variants must remain visibly discoverable. The current six use a 3×2 grid.
+- Variants are controlled comparisons. Do not add a weaker candidate merely to increase count.
 
 ## Session lifecycle
-- Reincarnation session reads handoff + repo and WAITs for feedback.
+- Reincarnation session reads handoff + repo and WAITS for feedback.
 - No implementation until user says ACTUALIZÁ or an unambiguous equivalent.
-- Update session must persist all meaningful new decisions before final delivery.
-- Accepted baseline may not be silently overwritten by an unreviewed candidate.
+- Update session persists all meaningful new decisions before final delivery.
+- Accepted baseline/favorite may not be silently overwritten by an unreviewed candidate.
