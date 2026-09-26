@@ -21,23 +21,23 @@ window.PROMETEO_VISUALS_REGISTRY_V1={
     {
       id:'visual-experiments',label:'Experimentos visuales',open:true,
       items:[
-        {id:'trail-lab',label:'🐉 Motion Trail',short:'Trail',emoji:'🐉',quick:true,description:'Copias completas superpuestas: redraw roto sin fragmentar el asset.',src:'./trail-lab/'},
-        {id:'spaces-lab',label:'🌀 Pseudo-3D Spaces',short:'Spaces',emoji:'🌀',quick:true,description:'Un passage image-first con yaw, avance recto y suelo continuo.',src:'./spaces-lab/'},
-        {id:'player-lab',label:'🖐️ Retro Player',short:'Player',emoji:'🖐️',quick:true,description:'Escena persistente con cuatro poses/hand assets fuertes e interacción.',src:'./player-lab/'},
-        {id:'mask-eye-lab',label:'👁️ Mask / Eye',short:'Mask',emoji:'👁️',quick:true,description:'Una sola máscara real; media visual intercambiable dentro de cada ojo.',src:'./mask-eye-lab/'},
-        {id:'reference-curator',label:'🖼️ Reference Curator',short:'Curator',emoji:'🖼️',quick:true,description:'Búsqueda visual con memoria local, contexto, A/B, colecciones y provenance.',src:'./reference-curator/'},
+        {id:'trail-lab',label:'🐉 Motion Trail',short:'Trail',emoji:'🐉',quick:true,description:'Copias completas superpuestas: redraw roto sin fragmentar el asset.',src:'./trail-lab/',front:'trail',handoff:'./handoff/trail.txt',reviewState:'review'},
+        {id:'spaces-lab',label:'🌀 Pseudo-3D Spaces',short:'Spaces',emoji:'🌀',quick:true,description:'Un passage image-first con yaw, avance recto y suelo continuo.',src:'./spaces-lab/',front:'spaces',handoff:'./handoff/spaces.txt',reviewState:'review'},
+        {id:'player-lab',label:'🖐️ Retro Player',short:'Player',emoji:'🖐️',quick:true,description:'Escena persistente con cuatro poses/hand assets fuertes e interacción.',src:'./player-lab/',front:'player',handoff:'./handoff/player.txt',reviewState:'review'},
+        {id:'mask-eye-lab',label:'👁️ Mask / Eye',short:'Mask',emoji:'👁️',quick:true,description:'Una sola máscara real; media visual intercambiable dentro de cada ojo.',src:'./mask-eye-lab/',front:'mask-eye',handoff:'./handoff/mask-eye.txt',reviewState:'review'},
+        {id:'reference-curator',label:'🖼️ Reference Curator',short:'Curator',emoji:'🖼️',quick:true,description:'Búsqueda visual con memoria local, contexto, A/B, colecciones y provenance.',src:'./reference-curator/',front:'reference-curator',handoff:'./handoff/reference-curator.txt',reviewState:'review'},
         {id:'reference-search',label:'Referencia · baseline',short:'Referencias',emoji:'🖼️',quick:false,description:'Baseline limpio de búsqueda Pinterest.',src:'../demos/pinterest-image-query-lab-v1/'}
       ]
     },
     {
       id:'labs',label:'Laboratorios',open:false,
       items:[
-        {id:'lab-live',label:'⚡ Live Dynamics',short:'Live',emoji:'⚡',quick:true,description:'Semántica causal.',src:'../demos/coliseo-live/'},
-        {id:'lab-workers',label:'👾 Workers / Avatars',short:'Avatares',emoji:'👾',quick:true,description:'Cuerpos y poses.',src:'../demos/coliseo-workers/'},
-        {id:'lab-animation',label:'🎞️ Animation',short:'Animation',emoji:'🎞️',quick:true,description:'Motion language.',src:'../demos/coliseo-animation/'},
-        {id:'lab-maps',label:'🗺️ Maps / World',short:'World',emoji:'🗺️',quick:true,description:'Mundo y cámara.',src:'../demos/coliseo-maps/'},
-        {id:'lab-materials',label:'🧪 Materials / FX',short:'FX',emoji:'🧪',quick:true,description:'Primitivas y materiales.',src:'../demos/coliseo-materials/'},
-        {id:'lab-hud',label:'📟 HUD',short:'HUD',emoji:'📟',quick:true,description:'Información y semantic zoom.',src:'../demos/coliseo-hud/'},
+        {id:'lab-live',label:'⚡ Live Dynamics',short:'Live',emoji:'⚡',quick:true,description:'Semántica causal.',src:'../demos/coliseo-live/',front:'live-dynamics',handoff:'./handoff/live-dynamics.txt',reviewState:'review'},
+        {id:'lab-workers',label:'👾 Workers / Avatars',short:'Avatares',emoji:'👾',quick:true,description:'Cuerpos y poses.',src:'../demos/coliseo-workers/',front:'avatars',handoff:'./handoff/avatars.txt',reviewState:'review'},
+        {id:'lab-animation',label:'🎞️ Animation',short:'Animation',emoji:'🎞️',quick:true,description:'Motion language.',src:'../demos/coliseo-animation/',front:'animation',handoff:'./handoff/animation.txt',reviewState:'review'},
+        {id:'lab-maps',label:'🗺️ Maps / World',short:'World',emoji:'🗺️',quick:true,description:'Mundo y cámara.',src:'../demos/coliseo-maps/',front:'maps-world',handoff:'./handoff/maps-world.txt',reviewState:'review'},
+        {id:'lab-materials',label:'🧪 Materials / FX',short:'FX',emoji:'🧪',quick:true,description:'Primitivas y materiales.',src:'../demos/coliseo-materials/',front:'materials-fx',handoff:'./handoff/materials-fx.txt',reviewState:'review'},
+        {id:'lab-hud',label:'📟 HUD',short:'HUD',emoji:'📟',quick:true,description:'Información y semantic zoom.',src:'../demos/coliseo-hud/',front:'hud',handoff:'./handoff/hud.txt',reviewState:'review'},
         {id:'lab-integration',label:'Integration',description:'Composición y candidate.',src:'../demos/coliseo-integration/'}
       ]
     },
