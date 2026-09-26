@@ -1,0 +1,52 @@
+name: trail-3d-validate-once
+
+on:
+  push:
+    paths:
+      - ".github/workflows/trail-3d-validate-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Trail pseudo-3D build
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path("visuals/trail-lab/index.html")
+          s=p.read_text()
+          m=re.search(r"<script>([\s\S]*?)</script>",s)
+          assert m, "inline script missing"
+          script=m.group(1)
+          Path("/tmp/trail.js").write_text(script)
+          for token in [
+              "function project3D",
+              "function update3D",
+              "function setWorldMode",
+              "data-mode=\"approach\"",
+              "data-mode=\"retreat\"",
+              "data-mode=\"orbit\"",
+              "data-mode=\"loop\"",
+              "Qué estamos construyendo",
+              "visuals/fronts/trail/architecture.md",
+          ]:
+              target=s if token.startswith("data-") or token.startswith("Qué") else (script if token.startswith("function") else Path("visuals/fronts/trail/architecture.md").read_text())
+              assert token in target, f"missing {token}"
+          assert "http://" not in script and "https://" not in script, "external runtime URL found"
+          for rel in [
+              "assets/01-base.png","assets/02-wings.png","assets/03-oni.png",
+              "assets/04-hannya.png","assets/05-shishi.png","assets/06-shikami.png"
+          ]:
+              assert (p.parent/rel).is_file(), f"missing {rel}"
+          print("static Trail3D checks OK")
+          PY
+          node --check /tmp/trail.js
+          echo "node syntax OK"
