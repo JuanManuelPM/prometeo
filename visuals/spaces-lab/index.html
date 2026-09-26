@@ -27,7 +27,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020302;col
 <div id="app">
   <canvas id="scene" aria-label="Pasillo oscuro de arcos superpuestos"></canvas>
   <div id="veil"></div><div id="scan"></div>
-  <div id="tag">PASO VERDE · 04</div>
+  <div id="tag">PASO VERDE · MONUMENTAL</div>
   <div id="pad" aria-label="Controles táctiles">
     <button id="left" aria-label="Mirar izquierda">‹</button>
     <button id="right" aria-label="Mirar derecha">›</button>
@@ -107,11 +107,28 @@ function buildArch(img){
   g.globalCompositeOperation='destination-out';archPath(g,c.width,c.height,c.width*.31,c.width*.69,c.height*.51,c.height*.21);g.fill();
   g.globalCompositeOperation='source-over';atlas.arch=c;return c;
 }
+function tileMaterial(name,src){
+  if(!src)return null;
+  const c=document.createElement('canvas');c.width=768;c.height=768;const g=c.getContext('2d');
+  const step=192;
+  for(let y=0;y<4;y++)for(let x=0;x<4;x++){
+    g.save();
+    g.translate(x*step,y*step);
+    if((x+y)&1){g.translate(step,0);g.scale(-1,1)}
+    g.drawImage(src,0,0,step,step);
+    g.restore();
+  }
+  atlas[name]=c;return c;
+}
 function buildAtlas(){
   grade('wall',assets.wall,'rgba(44,64,38,.96)','#aa9c61');
   grade('floor',assets.floor,'rgba(83,78,45,.86)','#d0c37a');
   grade('ceiling',assets.ceiling,'rgba(50,62,40,.91)','#9c8b57');
   grade('stone',assets.stone,'rgba(47,65,39,.94)','#baa66a');
+  tileMaterial('wallField',atlas.wall);
+  tileMaterial('floorField',atlas.floor);
+  tileMaterial('ceilingField',atlas.ceiling);
+  tileMaterial('stoneField',atlas.stone);
   buildArch(assets.stone||assets.wall);
   loading.classList.add('off');
 }
@@ -144,43 +161,132 @@ function worldQuad(img,pts,alpha){
   poly=clipNear(poly);if(poly.length<3)return;const pp=poly.map(projectCam);
   for(let i=1;i<poly.length-1;i++)texTri(img,pp[0],pp[i],pp[i+1],{x:poly[0].u,y:poly[0].v},{x:poly[i].u,y:poly[i].v},{x:poly[i+1].u,y:poly[i+1].v},alpha);
 }
+function worldBox(img,x0,x1,y0,y1,z0,z1,alpha){
+  if(!img)return;
+  const faces=[
+    [{x:x0,y:y1,z:z1},{x:x1,y:y1,z:z1},{x:x1,y:y0,z:z1},{x:x0,y:y0,z:z1}],
+    [{x:x1,y:y1,z:z0},{x:x0,y:y1,z:z0},{x:x0,y:y0,z:z0},{x:x1,y:y0,z:z0}],
+    [{x:x0,y:y1,z:z0},{x:x0,y:y1,z:z1},{x:x0,y:y0,z:z1},{x:x0,y:y0,z:z0}],
+    [{x:x1,y:y1,z:z1},{x:x1,y:y1,z:z0},{x:x1,y:y0,z:z0},{x:x1,y:y0,z:z1}],
+    [{x:x0,y:y1,z:z0},{x:x1,y:y1,z:z0},{x:x1,y:y1,z:z1},{x:x0,y:y1,z:z1}]
+  ];
+  for(const face of faces)worldQuad(img,face,alpha);
+}
 function fog(depth){return clamp(1-depth/70,.17,.98)}
 function baseFill(){
   const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#070a06');g.addColorStop(.50,'#11150e');g.addColorStop(1,'#020302');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
 }
 function renderPassage(){
   baseFill();
-  const halfW=3.35,floorY=-1.72,ceilY=1.86,seg=2.65;
-  const first=Math.floor((camZ-12)/seg)*seg;
-  const list=[];
-  // Start well behind the camera. Yaw can rotate lateral parts of a nominally-behind tile into view; clipping decides visibility.
-  for(let i=0;i<34;i++){const z0=first+i*seg,z1=z0+seg,mid=(z0+z1)*.5-camZ;if(mid>72)continue;list.push({z0,z1,mid,index:Math.floor(z0/seg)});}
-  list.sort((a,b)=>b.mid-a.mid);
 
-  // The end wall is genuinely far-away geometry, so paint it before nearer layers.
-  const farZ=camZ+58;
-  worldQuad(atlas.stone||atlas.wall,[{x:-halfW,y:ceilY,z:farZ},{x:halfW,y:ceilY,z:farZ},{x:halfW,y:floorY,z:farZ},{x:-halfW,y:floorY,z:farZ}],.48);
+  // Monumental proportions: a believable eye height, but a ceiling several human heights above it.
+  const halfW=4.55,floorY=-1.62,ceilY=5.22;
+  const zNear=camZ-18,zFar=camZ+78;
+  const wallTex=atlas.wallField||atlas.wall;
+  const floorTex=atlas.floorField||atlas.floor;
+  const ceilTex=atlas.ceilingField||atlas.ceiling;
+  const stoneTex=atlas.stoneField||atlas.stone;
 
-  for(const s of list){
-    const a=fog(s.mid),z0=s.z0,z1=s.z1;
-    worldQuad(atlas.ceiling,[{x:-halfW,y:ceilY,z:z0},{x:halfW,y:ceilY,z:z0},{x:halfW,y:ceilY,z:z1},{x:-halfW,y:ceilY,z:z1}],a*.78);
-    worldQuad(atlas.floor,[{x:-halfW,y:floorY,z:z1},{x:halfW,y:floorY,z:z1},{x:halfW,y:floorY,z:z0},{x:-halfW,y:floorY,z:z0}],a*.96);
-    worldQuad(atlas.wall,[{x:-halfW,y:ceilY,z:z0},{x:-halfW,y:ceilY,z:z1},{x:-halfW,y:floorY,z:z1},{x:-halfW,y:floorY,z:z0}],a*.96);
-    worldQuad(atlas.wall,[{x:halfW,y:ceilY,z:z1},{x:halfW,y:ceilY,z:z0},{x:halfW,y:floorY,z:z0},{x:halfW,y:floorY,z:z1}],a*.96);
+  // Far mass first. The shell itself is continuous, not one panel per bay.
+  worldQuad(stoneTex||wallTex,[
+    {x:-halfW,y:ceilY,z:zFar},{x:halfW,y:ceilY,z:zFar},
+    {x:halfW,y:floorY,z:zFar},{x:-halfW,y:floorY,z:zFar}
+  ],.46);
 
-    // Coliseo-derived material grammar: continuous lower stone band + distinct upper frieze.
-    worldQuad(atlas.stone,[{x:-halfW+.035,y:floorY+.54,z:z0},{x:-halfW+.035,y:floorY+.54,z:z1},{x:-halfW+.035,y:floorY,z:z1},{x:-halfW+.035,y:floorY,z:z0}],a*.84);
-    worldQuad(atlas.stone,[{x:halfW-.035,y:floorY+.54,z:z1},{x:halfW-.035,y:floorY+.54,z:z0},{x:halfW-.035,y:floorY,z:z0},{x:halfW-.035,y:floorY,z:z1}],a*.82);
-    worldQuad(atlas.ceiling,[{x:-halfW+.03,y:ceilY,z:z0},{x:-halfW+.03,y:ceilY,z:z1},{x:-halfW+.03,y:ceilY-.25,z:z1},{x:-halfW+.03,y:ceilY-.25,z:z0}],a*.54);
-    worldQuad(atlas.ceiling,[{x:halfW-.03,y:ceilY,z:z1},{x:halfW-.03,y:ceilY,z:z0},{x:halfW-.03,y:ceilY-.25,z:z0},{x:halfW-.03,y:ceilY-.25,z:z1}],a*.52);
+  // One uninterrupted architectural envelope. Near-plane clipping keeps ground under the camera.
+  worldQuad(ceilTex,[
+    {x:-halfW,y:ceilY,z:zNear},{x:halfW,y:ceilY,z:zNear},
+    {x:halfW,y:ceilY,z:zFar},{x:-halfW,y:ceilY,z:zFar}
+  ],.83);
+  worldQuad(floorTex,[
+    {x:-halfW,y:floorY,z:zFar},{x:halfW,y:floorY,z:zFar},
+    {x:halfW,y:floorY,z:zNear},{x:-halfW,y:floorY,z:zNear}
+  ],.98);
+  worldQuad(wallTex,[
+    {x:-halfW,y:ceilY,z:zNear},{x:-halfW,y:ceilY,z:zFar},
+    {x:-halfW,y:floorY,z:zFar},{x:-halfW,y:floorY,z:zNear}
+  ],.98);
+  worldQuad(wallTex,[
+    {x:halfW,y:ceilY,z:zFar},{x:halfW,y:ceilY,z:zNear},
+    {x:halfW,y:floorY,z:zNear},{x:halfW,y:floorY,z:zFar}
+  ],.98);
 
-    if(atlas.arch){
-      const az=z0+.08;
-      worldQuad(atlas.arch,[{x:-halfW,y:ceilY,z:az},{x:halfW,y:ceilY,z:az},{x:halfW,y:floorY,z:az},{x:-halfW,y:floorY,z:az}],clamp(a*.98,.22,.96));
-    }
+  // Continuous longitudinal bands hide module joints and keep each surface materially distinct.
+  worldQuad(stoneTex,[
+    {x:-halfW+.045,y:floorY+.72,z:zNear},{x:-halfW+.045,y:floorY+.72,z:zFar},
+    {x:-halfW+.045,y:floorY,z:zFar},{x:-halfW+.045,y:floorY,z:zNear}
+  ],.88);
+  worldQuad(stoneTex,[
+    {x:halfW-.045,y:floorY+.72,z:zFar},{x:halfW-.045,y:floorY+.72,z:zNear},
+    {x:halfW-.045,y:floorY,z:zNear},{x:halfW-.045,y:floorY,z:zFar}
+  ],.88);
+  worldQuad(ceilTex,[
+    {x:-halfW+.04,y:ceilY,z:zNear},{x:-halfW+.04,y:ceilY,z:zFar},
+    {x:-halfW+.04,y:ceilY-.44,z:zFar},{x:-halfW+.04,y:ceilY-.44,z:zNear}
+  ],.66);
+  worldQuad(ceilTex,[
+    {x:halfW-.04,y:ceilY,z:zFar},{x:halfW-.04,y:ceilY,z:zNear},
+    {x:halfW-.04,y:ceilY-.44,z:zNear},{x:halfW-.04,y:ceilY-.44,z:zFar}
+  ],.66);
+
+  // A long central floor strip exaggerates distance without becoming a wireframe.
+  worldQuad(stoneTex,[
+    {x:-1.03,y:floorY+.012,z:zFar},{x:1.03,y:floorY+.012,z:zFar},
+    {x:1.03,y:floorY+.012,z:zNear},{x:-1.03,y:floorY+.012,z:zNear}
+  ],.42);
+
+  // Sparse giant bays. Arch images are oversized so their canvas boundaries live behind the shell;
+  // the projecting piers then occlude the legs, killing the old "stacked picture frame" read.
+  const bay=7.15;
+  const first=Math.floor((camZ-10)/bay)*bay;
+  const bays=[];
+  for(let i=0;i<14;i++){
+    const z=first+i*bay;
+    if(z<camZ-10||z>zFar-2)continue;
+    bays.push({z,index:Math.floor(z/bay),depth:z-camZ});
   }
-  const center=projectCam({x:0,y:.10,z:58});
-  const glow=ctx.createRadialGradient(center.x,center.y,0,center.x,center.y,Math.max(18,W*.12));glow.addColorStop(0,'rgba(183,163,82,.10)');glow.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=glow;ctx.fillRect(0,0,W,H);
+  bays.sort((a,b)=>b.depth-a.depth);
+
+  for(const b of bays){
+    const a=fog(b.depth);
+    if(atlas.arch){
+      worldQuad(atlas.arch,[
+        {x:-5.72,y:6.14,z:b.z-.10},{x:5.72,y:6.14,z:b.z-.10},
+        {x:5.72,y:floorY-.28,z:b.z-.10},{x:-5.72,y:floorY-.28,z:b.z-.10}
+      ],clamp(a*.79,.18,.82));
+    }
+
+    const pierZ0=b.z-.62,pierZ1=b.z+.56;
+    worldBox(stoneTex,-halfW+.02,-halfW+1.24,floorY,ceilY+.18,pierZ0,pierZ1,a*.96);
+    worldBox(stoneTex,halfW-1.24,halfW-.02,floorY,ceilY+.18,pierZ0,pierZ1,a*.96);
+
+    // Not every bay gets a lintel: irregular overlap avoids a parade of identical portal frames.
+    if(Math.abs(b.index)%3===0){
+      worldBox(ceilTex,-halfW+.72,halfW-.72,4.34,ceilY+.22,b.z-.45,b.z+.38,a*.78);
+    }
+
+    // Alternating side masses make one bay already occupy the edge before the previous one leaves view.
+    const leftHeavy=Math.abs(b.index)%2===0;
+    const x0=leftHeavy?-halfW+.58:halfW-1.58;
+    const x1=leftHeavy?-halfW+1.58:halfW-.58;
+    worldBox(wallTex,x0,x1,floorY+.03,3.08,b.z+1.20,b.z+2.52,a*.68);
+  }
+
+  // A few encountered stone markers, kept off the centerline so they add scale without blocking travel.
+  const markerBay=Math.floor(camZ/21);
+  for(let j=0;j<4;j++){
+    const mz=(markerBay+j)*21+10.8,side=((markerBay+j)&1)?1:-1;
+    if(mz<camZ+5||mz>zFar-4)continue;
+    const a=fog(mz-camZ);
+    const x=side*(halfW-1.58);
+    worldBox(stoneTex,x-.34,x+.34,floorY,floorY+1.86,mz-.34,mz+.34,a*.72);
+  }
+
+  const center=projectCam({x:0,y:1.06,z:76});
+  const glow=ctx.createRadialGradient(center.x,center.y,0,center.x,center.y,Math.max(22,W*.11));
+  glow.addColorStop(0,'rgba(183,163,82,.085)');
+  glow.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=glow;ctx.fillRect(0,0,W,H);
 }
 function analog(){
   ctx.save();ctx.globalAlpha=.035;ctx.globalCompositeOperation='screen';
@@ -217,8 +323,8 @@ addEventListener('keydown',e=>{
 });
 setTimeout(()=>hint.style.opacity='.24',1800);
 window.PrometeoSpaces={
-  version:'spaces-green-arch-v5',
-  contract:'left/right = yaw; up/down = z-only travel; floor uses near-plane clipping; no strafe; no fisheye',
+  version:'spaces-monumental-continuity-v6',
+  contract:'left/right = yaw; up/down = z-only travel; continuous shell + near-plane floor; monumental overlapping bays; no strafe; no fisheye',
   references:['retro corridor pattern','dark arch passage','vintage game tunnel','occult hallway texture','surreal corridor object'],
   sourcePages:SOURCE_PAGES,
   camera:{get yaw(){return targetYaw},get z(){return targetCamZ}}
