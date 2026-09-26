@@ -13,6 +13,7 @@ Status: CURRENT
 - Performance degradation must preserve the identity in this order: reduce internal render scale / stamp budget / stamp cadence before changing the complete-image-stamp mechanism.
 - Mobile rendering intentionally uses a low internal canvas resolution and adaptive quality instead of device-pixel-ratio oversampling.
 - Stamp storage should remain bounded; current candidate uses a preallocated pool.
+- Production runtime assets must use direct stable file URLs or repo-local copies; do not use Wikimedia `Special:Redirect` endpoints in Trail because they produced `ASSET NO DISPONIBLE` on the user's mobile browser.
 
 ## Session lifecycle
 - Reincarnation session reads handoff + repo and WAITs for feedback.
