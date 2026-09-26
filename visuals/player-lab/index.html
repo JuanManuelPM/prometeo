@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#020202">
-<title>Prometeo · Player Lab · Hand Atlas</title>
+<title>Prometeo · Player Lab · Hand Atlas V8</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#eee8d7;font-family:system-ui,-apple-system,sans-serif;overscroll-behavior:none;touch-action:none}
@@ -13,7 +13,8 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 #veil{position:absolute;inset:0;pointer-events:none;z-index:2;background:radial-gradient(ellipse at 46% 42%,rgba(0,0,0,0) 24%,rgba(0,0,0,.16) 55%,rgba(0,0,0,.84) 100%)}
 #scan{position:absolute;inset:0;pointer-events:none;z-index:3;opacity:.10;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.045) 0 1px,transparent 1px 4px);mix-blend-mode:screen}
 #prompt{position:absolute;z-index:4;left:50%;bottom:max(8px,env(safe-area-inset-bottom));transform:translateX(-50%);font:900 8px/1 system-ui,-apple-system,sans-serif;letter-spacing:.22em;text-transform:uppercase;color:rgba(249,242,218,.74);text-shadow:0 1px 0 #000,0 2px 7px #000;white-space:nowrap;pointer-events:none;transition:opacity .25s,transform .1s}
-#prompt.quiet{opacity:.11} #prompt.hit{transform:translateX(-50%) translateY(-3px);opacity:1}
+#prompt.quiet{opacity:.11}
+#prompt.hit{transform:translateX(-50%) translateY(-3px);opacity:1}
 #flash{position:absolute;z-index:5;inset:0;background:#fbf6db;opacity:0;pointer-events:none;mix-blend-mode:screen}
 #flash.on{animation:flash .11s steps(2,end)}
 @keyframes flash{0%{opacity:.24}38%{opacity:.06}100%{opacity:0}}
@@ -22,54 +23,312 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 </head>
 <body>
 <div id="shell">
-  <canvas id="game" width="320" height="180" aria-label="Habitación retro de terror con una mano fotográfica animada por un atlas de cien poses"></canvas>
+  <canvas id="game" width="320" height="180" aria-label="Habitación retro de terror con una mano fotográfica animada por un atlas coherente"></canvas>
   <div id="veil"></div><div id="scan"></div><div id="flash"></div><div id="prompt">tocá</div>
 </div>
-<script src="./hand-atlas-v2.js"></script>
+<script src="./hand-atlas-v3.js?v=8"></script>
 <script>
 (function(){
 'use strict';
-var c=document.getElementById('game'),x=c.getContext('2d',{alpha:false});
-var flash=document.getElementById('flash'),prompt=document.getElementById('prompt');
+
+var c=document.getElementById('game');
+var x=c.getContext('2d',{alpha:false});
+var flash=document.getElementById('flash');
+var prompt=document.getElementById('prompt');
 var W=320,H=180,audio=null,pulseUntil=0,shake=0;
-var KEY='prometeo.playerLab.maskRoom.stage.v7';
-var OLD=['prometeo.playerLab.maskRoom.stage.v6','prometeo.playerLab.maskRoom.stage.v5','prometeo.playerLab.maskRoom.stage.v4','prometeo.playerLab.maskRoom.stage.v3'];
+var KEY='prometeo.playerLab.maskRoom.stage.v8';
+var OLD=[
+  'prometeo.playerLab.maskRoom.stage.v7',
+  'prometeo.playerLab.maskRoom.stage.v6',
+  'prometeo.playerLab.maskRoom.stage.v5',
+  'prometeo.playerLab.maskRoom.stage.v4',
+  'prometeo.playerLab.maskRoom.stage.v3'
+];
 var stage=0;
-try{var saved=localStorage.getItem(KEY);for(var oi=0;oi<OLD.length&&saved==null;oi++)saved=localStorage.getItem(OLD[oi]);stage=Math.max(0,Math.min(3,parseInt(saved||'0',10)||0));}catch(_){}
+try{
+  var saved=localStorage.getItem(KEY);
+  for(var oi=0;oi<OLD.length&&saved==null;oi++)saved=localStorage.getItem(OLD[oi]);
+  stage=Math.max(0,Math.min(3,parseInt(saved||'0',10)||0));
+}catch(_){}
+
 x.imageSmoothingEnabled=false;
+
 var assets={};
 var URLS={
- room:'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/Abandoned_tiled_room_-_Panorama_%28Poly_Haven%29.jpg/1280px-Abandoned_tiled_room_-_Panorama_%28Poly_Haven%29.jpg',
- mask:'../../strategy/mask-mouth/assets/mask-transparent.webp',
- maskSolid:'../../strategy/mask-mouth/assets/mask.webp',
- heart:'../../arte/assets/footer/heart-mask-final-alpha.png',
- atlas:'./hand-atlas-player-v2.webp'
+  room:'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/Abandoned_tiled_room_-_Panorama_%28Poly_Haven%29.jpg/1280px-Abandoned_tiled_room_-_Panorama_%28Poly_Haven%29.jpg',
+  mask:'../../strategy/mask-mouth/assets/mask-transparent.webp',
+  maskSolid:'../../strategy/mask-mouth/assets/mask.webp',
+  heart:'../../arte/assets/footer/heart-mask-final-alpha.png'
 };
-function load(k,url){var im=new Image();im.decoding='async';im.onload=function(){assets[k]=im};im.src=url;}
-Object.keys(URLS).forEach(function(k){load(k,URLS[k])});
-var LIB=window.PROMETEO_HAND_ATLAS_V2||{cell:96,actions:{IDLE:0,GRAB:2,POINT:3,PUSH:4,ATTACK:5,OFFER:6,INSPECT:7,PANIC:8,WEIRD:9}};
-function drawFit(img,cx,cy,h,rot,alpha,filter,flip){if(!img)return;var iw=img.naturalWidth||1,ih=img.naturalHeight||1,w=h*(iw/ih);x.save();x.translate(Math.round(cx),Math.round(cy));if(rot)x.rotate(rot);if(flip)x.scale(-1,1);x.globalAlpha=alpha==null?1:alpha;if(filter)x.filter=filter;x.drawImage(img,-w*.5,-h*.5,w,h);x.restore();}
-function drawRoom(t){x.fillStyle='#050403';x.fillRect(0,0,W,H);var im=assets.room;if(!im)return;var iw=im.naturalWidth||1280,ih=im.naturalHeight||640,cw=iw*.46,ch=ih*.94;var sx=iw*.27+(stage>=3?iw*.075:0)+Math.sin(t*.08)*iw*.0035;x.save();x.filter=stage>=3?'brightness(.46) saturate(.58) sepia(.12) contrast(1.38)':'brightness(.30) saturate(.43) sepia(.22) contrast(1.38)';x.drawImage(im,sx,ih*.02,cw,ch,0,0,W,H);x.restore();}
-function heart(cx,cy,h,a,r){drawFit(assets.heart,cx,cy,h,r||0,a,'sepia(.7) saturate(1.5) hue-rotate(-22deg) contrast(1.28)',false)}
-function relicPose(st,t){var b=Math.sin(t*1.4)*1.1;if(st===0)return{mx:160,my:79+b,mh:68,mr:Math.sin(t*.35)*.012,ma:.86,hx:160,hy:86,hh:0,ha:0};if(st===1)return{mx:160,my:78+b,mh:69,mr:Math.sin(t*.42)*.016,ma:.98,hx:160,hy:87,hh:31,ha:.88};if(st===2)return{mx:205,my:83+b*.7,mh:65,mr:.18+Math.sin(t*.4)*.013,ma:.96,hx:155,hy:83,hh:58,ha:.96};return{mx:253,my:102+b*.4,mh:52,mr:.31,ma:.68,hx:151,hy:79,hh:78,ha:1};}
-function drawRelic(t){var p=relicPose(stage,t),beat=performance.now()<pulseUntil?1+Math.sin((pulseUntil-performance.now())*.044)*.10:1;if(stage>=1)heart(p.hx,p.hy,p.hh*beat,p.ha,Math.sin(t*.75)*.018);if(assets.mask){drawFit(assets.mask,p.mx+4,p.my+5,p.mh,p.mr,.48,'brightness(0) blur(2px)',false);drawFit(assets.mask,p.mx,p.my,p.mh,p.mr,p.ma,stage===0?'grayscale(.34) brightness(.72) contrast(1.44)':'sepia(.07) saturate(.96) contrast(1.34)',false);}if(stage===1)heart(p.mx-2,p.my+6,18,.68,-.05);if(stage===3&&assets.maskSolid)drawFit(assets.maskSolid,p.mx,p.my,p.mh*.95,p.mr,.22,'brightness(.42) contrast(1.6)',false);}
-function drawEcho(t){if(stage<3||!assets.heart)return;var beat=(Math.sin(t*3.2)+1)*.5;heart(151,79,98+beat*8,.055+beat*.045,0);heart(151,79,128+beat*10,.018+beat*.018,0);}
-var mode='IDLE',actionStart=0,actionRow=LIB.actions.IDLE,committed=false,idleEpoch=performance.now();
-var stageAction=['GRAB','INSPECT','PUSH','WEIRD'];
-function frameAt(ms){if(mode==='IDLE')return Math.floor(((ms-idleEpoch)/135)%10+10)%10;var elapsed=ms-actionStart;var idx=Math.min(9,Math.floor(elapsed/82));if(!committed&&idx>=5){committed=true;commit();}if(elapsed>=820){mode='IDLE';idleEpoch=ms;return 0;}return idx;}
-function drawAtlasHand(ms){var im=assets.atlas;if(!im)return;var row=mode==='IDLE'?LIB.actions.IDLE:actionRow,fr=frameAt(ms),S=LIB.cell||96;var sx=fr*S,sy=row*S;var idle=mode==='IDLE';var bob=idle?Math.sin(ms*.0045)*1.5:0;var scale=idle?1.68:1.82;var dw=S*scale,dh=S*scale;var dx=185+(idle?Math.sin(ms*.0021)*2:0),dy=27+bob;
- x.save();x.translate(Math.round(dx+dw*.5),Math.round(dy+dh*.5));if(idle)x.rotate(Math.sin(ms*.0016)*.008);x.globalCompositeOperation='screen';x.globalAlpha=.94;x.drawImage(im,sx,sy,S,S,-dw*.5,-dh*.5,dw,dh);x.globalAlpha=.18;x.translate(-3,4);x.drawImage(im,sx,sy,S,S,-dw*.5,-dh*.5,dw,dh);x.restore();
+function loadImage(url,onload){
+  var im=new Image();
+  im.decoding='async';
+  im.onload=function(){onload(im)};
+  im.onerror=function(){onload(null)};
+  im.src=url;
 }
-function save(){try{localStorage.setItem(KEY,String(stage))}catch(_){}}
-function commit(){if(stage<3){stage++;save();pulseUntil=performance.now()+680;}else pulseUntil=performance.now()+900;shake=5;try{navigator.vibrate&&navigator.vibrate(stage>=3?[18,28,32]:24)}catch(_){};beep(stage>=3?74:110-stage*8,.09,'triangle',.028);flash.classList.remove('on');void flash.offsetWidth;flash.classList.add('on');}
-function beep(freq,dur,type,gain){try{audio=audio||new(window.AudioContext||window.webkitAudioContext)();var o=audio.createOscillator(),g=audio.createGain();o.type=type||'triangle';o.frequency.value=freq;g.gain.setValueAtTime(gain||.02,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+dur);o.connect(g).connect(audio.destination);o.start();o.stop(audio.currentTime+dur);}catch(_){}}
-function trigger(){if(mode!=='IDLE')return;var name=stageAction[stage]||'WEIRD';actionRow=LIB.actions[name];mode=name;actionStart=performance.now();committed=false;prompt.textContent=name.toLowerCase();prompt.classList.remove('quiet');prompt.classList.add('hit');setTimeout(function(){prompt.classList.remove('hit')},140);setTimeout(function(){prompt.classList.add('quiet');prompt.textContent='tocá'},900);beep(155,.05,'square',.012);}
-function input(e){if(e&&e.cancelable)e.preventDefault();trigger()}
-c.addEventListener('pointerdown',input,{passive:false});c.addEventListener('touchstart',input,{passive:false});
-window.addEventListener('keydown',function(e){if(e.code==='Space'||e.code==='Enter')trigger()});
-function draw(ms){var t=ms/1000;x.save();if(shake>0){x.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=.78;}drawRoom(t);drawEcho(t);drawRelic(t);drawAtlasHand(ms);x.restore();requestAnimationFrame(draw)}
+Object.keys(URLS).forEach(function(k){
+  loadImage(URLS[k],function(im){assets[k]=im});
+});
+
+var LIB=window.PROMETEO_HAND_ATLAS_V3||{
+  cell:128,
+  frameCount:10,
+  strips:{
+    IDLE:'./hand-atlas-v3-idle.webp',
+    GRAB:'./hand-atlas-v3-grab.webp',
+    PUSH:'./hand-atlas-v3-push.webp',
+    INSPECT:'./hand-atlas-v3-inspect.webp',
+    WEIRD:'./hand-atlas-v3-weird.webp'
+  }
+};
+var handStrips={};
+var handLoadFailures={};
+
+function alphaKeyStrip(img){
+  var oc=document.createElement('canvas');
+  oc.width=img.naturalWidth||img.width||1280;
+  oc.height=img.naturalHeight||img.height||128;
+  var ox=oc.getContext('2d',{alpha:true,willReadFrequently:true});
+  ox.clearRect(0,0,oc.width,oc.height);
+  ox.drawImage(img,0,0);
+  try{
+    var data=ox.getImageData(0,0,oc.width,oc.height);
+    var p=data.data;
+    for(var i=0;i<p.length;i+=4){
+      var r=p[i],g=p[i+1],b=p[i+2];
+      var hi=Math.max(r,g,b),lo=Math.min(r,g,b);
+      var lum=.299*r+.587*g+.114*b;
+      var chroma=hi-lo;
+      var a=Math.max((lum-24)*7,(chroma-7)*10);
+      if(lum<28&&chroma<11)a=0;
+      p[i+3]=Math.max(0,Math.min(255,a));
+    }
+    ox.putImageData(data,0,0);
+  }catch(_){
+    return img;
+  }
+  return oc;
+}
+
+Object.keys(LIB.strips||{}).forEach(function(name){
+  var url=LIB.strips[name]+'?v=8';
+  loadImage(url,function(im){
+    if(im){
+      handStrips[name]=alphaKeyStrip(im);
+    }else{
+      handLoadFailures[name]=true;
+      if(name==='IDLE'){
+        prompt.textContent='mano no cargó';
+        prompt.classList.remove('quiet');
+      }
+    }
+  });
+});
+
+function drawFit(img,cx,cy,h,rot,alpha,filter,flip){
+  if(!img)return;
+  var iw=img.naturalWidth||img.width||1;
+  var ih=img.naturalHeight||img.height||1;
+  var w=h*(iw/ih);
+  x.save();
+  x.translate(Math.round(cx),Math.round(cy));
+  if(rot)x.rotate(rot);
+  if(flip)x.scale(-1,1);
+  x.globalAlpha=alpha==null?1:alpha;
+  if(filter)x.filter=filter;
+  x.drawImage(img,-w*.5,-h*.5,w,h);
+  x.restore();
+}
+
+function drawRoom(t){
+  x.fillStyle='#050403';
+  x.fillRect(0,0,W,H);
+  var im=assets.room;
+  if(!im)return;
+  var iw=im.naturalWidth||1280,ih=im.naturalHeight||640;
+  var cropW=iw*.46,cropH=ih*.94;
+  var sx=iw*.27+(stage>=3?iw*.075:0)+Math.sin(t*.08)*iw*.0035;
+  x.save();
+  x.filter=stage>=3
+    ?'brightness(.46) saturate(.58) sepia(.12) contrast(1.38)'
+    :'brightness(.30) saturate(.43) sepia(.22) contrast(1.38)';
+  x.drawImage(im,sx,ih*.02,cropW,cropH,0,0,W,H);
+  x.restore();
+}
+
+function heart(cx,cy,h,a,r){
+  drawFit(assets.heart,cx,cy,h,r||0,a,'sepia(.7) saturate(1.5) hue-rotate(-22deg) contrast(1.28)',false);
+}
+
+function relicPose(st,t){
+  var b=Math.sin(t*1.4)*1.1;
+  if(st===0)return{mx:160,my:79+b,mh:68,mr:Math.sin(t*.35)*.012,ma:.86,hx:160,hy:86,hh:0,ha:0};
+  if(st===1)return{mx:160,my:78+b,mh:69,mr:Math.sin(t*.42)*.016,ma:.98,hx:160,hy:87,hh:31,ha:.88};
+  if(st===2)return{mx:205,my:83+b*.7,mh:65,mr:.18+Math.sin(t*.4)*.013,ma:.96,hx:155,hy:83,hh:58,ha:.96};
+  return{mx:253,my:102+b*.4,mh:52,mr:.31,ma:.68,hx:151,hy:79,hh:78,ha:1};
+}
+
+function drawRelic(t){
+  var p=relicPose(stage,t);
+  var beat=performance.now()<pulseUntil?1+Math.sin((pulseUntil-performance.now())*.044)*.10:1;
+  if(stage>=1)heart(p.hx,p.hy,p.hh*beat,p.ha,Math.sin(t*.75)*.018);
+  if(assets.mask){
+    drawFit(assets.mask,p.mx+4,p.my+5,p.mh,p.mr,.48,'brightness(0) blur(2px)',false);
+    drawFit(assets.mask,p.mx,p.my,p.mh,p.mr,p.ma,stage===0
+      ?'grayscale(.34) brightness(.72) contrast(1.44)'
+      :'sepia(.07) saturate(.96) contrast(1.34)',false);
+  }
+  if(stage===1)heart(p.mx-2,p.my+6,18,.68,-.05);
+  if(stage===3&&assets.maskSolid){
+    drawFit(assets.maskSolid,p.mx,p.my,p.mh*.95,p.mr,.22,'brightness(.42) contrast(1.6)',false);
+  }
+}
+
+function drawEcho(t){
+  if(stage<3||!assets.heart)return;
+  var beat=(Math.sin(t*3.2)+1)*.5;
+  heart(151,79,98+beat*8,.055+beat*.045,0);
+  heart(151,79,128+beat*10,.018+beat*.018,0);
+}
+
+var mode='IDLE';
+var actionStart=0;
+var committed=false;
+var idleEpoch=performance.now();
+var stageAction=['GRAB','INSPECT','PUSH','WEIRD'];
+
+function frameAt(ms){
+  if(mode==='IDLE'){
+    return Math.floor(((ms-idleEpoch)/125)%10+10)%10;
+  }
+  var elapsed=ms-actionStart;
+  var idx=Math.min(9,Math.floor(elapsed/90));
+  if(!committed&&idx>=5){
+    committed=true;
+    commit();
+  }
+  if(elapsed>=900){
+    mode='IDLE';
+    idleEpoch=ms;
+    return 0;
+  }
+  return idx;
+}
+
+function drawHandFrame(strip,frame,cx,cy,size,rot,alpha,filter){
+  if(!strip)return;
+  var S=LIB.cell||128;
+  x.save();
+  x.translate(Math.round(cx),Math.round(cy));
+  if(rot)x.rotate(rot);
+  x.globalAlpha=alpha==null?1:alpha;
+  if(filter)x.filter=filter;
+  x.drawImage(strip,frame*S,0,S,S,-size*.5,-size*.5,size,size);
+  x.restore();
+}
+
+function drawAtlasHand(ms){
+  var name=mode==='IDLE'?'IDLE':mode;
+  var strip=handStrips[name]||handStrips.IDLE;
+  if(!strip)return;
+  var fr=frameAt(ms);
+  var idle=mode==='IDLE';
+  var cx=244+(idle?Math.sin(ms*.0020)*2:0);
+  var cy=100+(idle?Math.sin(ms*.0045)*1.5:0);
+  var size=idle?148:156;
+  var rot=idle?Math.sin(ms*.0016)*.008:0;
+
+  x.save();
+  x.globalCompositeOperation='source-over';
+  drawHandFrame(strip,fr,cx+3,cy+4,size,rot,.42,'brightness(0) blur(2px)');
+  drawHandFrame(strip,fr,cx,cy,size,rot,1,'none');
+  x.restore();
+}
+
+function save(){
+  try{localStorage.setItem(KEY,String(stage))}catch(_){}
+}
+
+function commit(){
+  if(stage<3){
+    stage++;
+    save();
+    pulseUntil=performance.now()+680;
+  }else{
+    pulseUntil=performance.now()+900;
+  }
+  shake=5;
+  try{navigator.vibrate&&navigator.vibrate(stage>=3?[18,28,32]:24)}catch(_){}
+  beep(stage>=3?74:110-stage*8,.09,'triangle',.028);
+  flash.classList.remove('on');
+  void flash.offsetWidth;
+  flash.classList.add('on');
+}
+
+function beep(freq,dur,type,gain){
+  try{
+    audio=audio||new(window.AudioContext||window.webkitAudioContext)();
+    var o=audio.createOscillator(),g=audio.createGain();
+    o.type=type||'triangle';
+    o.frequency.value=freq;
+    g.gain.setValueAtTime(gain||.02,audio.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+dur);
+    o.connect(g).connect(audio.destination);
+    o.start();
+    o.stop(audio.currentTime+dur);
+  }catch(_){}
+}
+
+function trigger(){
+  if(mode!=='IDLE')return;
+  mode=stageAction[stage]||'WEIRD';
+  actionStart=performance.now();
+  committed=false;
+  prompt.textContent=mode.toLowerCase();
+  prompt.classList.remove('quiet');
+  prompt.classList.add('hit');
+  setTimeout(function(){prompt.classList.remove('hit')},140);
+  setTimeout(function(){
+    if(!handLoadFailures.IDLE){
+      prompt.classList.add('quiet');
+      prompt.textContent='tocá';
+    }
+  },980);
+  beep(155,.05,'square',.012);
+}
+
+function input(e){
+  if(e&&e.cancelable)e.preventDefault();
+  trigger();
+}
+
+c.addEventListener('pointerdown',input,{passive:false});
+c.addEventListener('touchstart',input,{passive:false});
+window.addEventListener('keydown',function(e){
+  if(e.code==='Space'||e.code==='Enter')trigger();
+});
+
+function draw(ms){
+  var t=ms/1000;
+  x.save();
+  if(shake>0){
+    x.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
+    shake*=.78;
+  }
+  drawRoom(t);
+  drawEcho(t);
+  drawRelic(t);
+  drawAtlasHand(ms);
+  x.restore();
+  requestAnimationFrame(draw);
+}
+
 requestAnimationFrame(draw);
-setTimeout(function(){prompt.classList.add('quiet')},1300);
+setTimeout(function(){
+  if(!handLoadFailures.IDLE)prompt.classList.add('quiet');
+},1300);
+
 })();
 </script>
 </body>
