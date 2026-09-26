@@ -1,0 +1,43 @@
+name: trail-validate-once
+
+on:
+  push:
+    paths:
+      - ".github/workflows/trail-validate-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Trail HTML and runtime asset references
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path("visuals/trail-lab/index.html")
+          s=p.read_text()
+          m=re.search(r"<script>([\s\S]*?)</script>",s)
+          assert m, "inline script missing"
+          script=m.group(1)
+          Path("/tmp/trail.js").write_text(script)
+          assert "http://" not in script and "https://" not in script, "external runtime URL found"
+          expected=[
+            "assets/01-base.png","assets/02-wings.png","assets/03-oni.png",
+            "assets/04-hannya.png","assets/05-shishi.png","assets/06-shikami.png"
+          ]
+          for rel in expected:
+            assert rel in s, f"HTML missing {rel}"
+            assert (p.parent/rel).is_file(), f"repo asset missing {rel}"
+          assert "loadVariant('wings',true)" in script, "WINGS not default"
+          assert "grid-template-columns:repeat(3,minmax(0,1fr))" in s, "portrait grid not 3 columns"
+          print("HTML/reference checks OK")
+          PY
+          node --check /tmp/trail.js
+          echo "node --check OK"
