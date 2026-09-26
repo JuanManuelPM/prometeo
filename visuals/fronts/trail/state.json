@@ -14,7 +14,7 @@
     "visuals/fronts/trail/architecture.md"
   ],
   "review_state": "REVIEW",
-  "current_blob_sha": "f4951af494285274ed290089af0e0a1de0f7cb40",
+  "current_blob_sha": "d3891dc6059ee1e54544f374503de204c9d6a243",
   "accepted_baseline": {
     "label": "Full-stamp old-redraw",
     "commit": "26ff0e808fe0cf732af8c45f0eef9f13f99853e7",
@@ -39,8 +39,8 @@
     ]
   },
   "current_candidate": {
-    "commit": "b4824e4f9b50715c34454c500a45c16cda7b1956",
-    "summary": "Pseudo-3D Trail with temporal/depth visual hierarchy: old/rear stamps are strongly darkened and become progressively clearer toward the current head, reducing the double-face effect when orbit/loop trajectories turn back. Darkness uses precomputed shaded sprite canvases, so no per-stamp runtime filter is needed.",
+    "commit": "6af2d75f2b53787e6e8fc01682d4c9a005bc3cd7",
+    "summary": "Pseudo-3D Trail with smooth vertical-axis yaw/backface hiding. When z velocity turns away from camera, the sprite smoothly rotates toward 180°, compresses horizontally toward profile, and its front face fades out; when motion returns toward camera it reopens smoothly. Existing old-to-new darkness and depth shading remain.",
     "user_reviewed": false
   },
   "accepted_asset_direction": [
@@ -59,10 +59,11 @@
     "6 SHIKAMI"
   ],
   "open_feedback": [
-    "Review the new dark-to-bright trail hierarchy specifically on ÓRBITA and LOOP: the old/rear face should read as shadow/residue, not as a second protagonist.",
+    "Review ÓRBITA/LOOP with the new yaw/backface behavior: when the figure goes behind, the face should compress to profile and disappear rather than remain front-facing.",
+    "Review LEJOS specifically: the figure now turns away as it retreats, so decide whether that is visually useful or too hidden for that dedicated mode.",
     "Some current masks still need cleaner segmentation: remove gray base/residue/halo before promoting them as final assets.",
     "Generalize asset preparation into a reliable compileTrailAsset(image) pipeline so supplied images can enter Trail without per-image animation code.",
-    "Future candidate search may expand to ~20 clean color creepy/mask/creature/object cutouts, but only after the crop-quality gate is reliable.",
+    "Future candidate search may expand to ~20 clean color creepy/mask/creature/object cutouts after the crop-quality gate is reliable.",
     "Verify adaptive performance and all controls on the target phone."
   ],
   "resolved_feedback_in_current_candidate": [
@@ -83,7 +84,12 @@
     "No WebGL, mesh or per-image 3D implementation was introduced.",
     "Old/rear copies now render much darker and brighten progressively toward the current head, addressing the double-face effect when a 3D trajectory turns.",
     "3D distance adds extra darkening to far stamps while the current head remains full-strength.",
-    "Darkness is precomputed into seven shaded sprite canvases once per asset load; runtime does not apply expensive per-stamp CSS/canvas filters."
+    "Darkness is precomputed into seven shaded sprite canvases once per asset load; runtime does not apply expensive per-stamp CSS/canvas filters.",
+    "Added smooth 2.5D vertical-axis yaw driven by z velocity.",
+    "When moving away from camera, the sprite rotates toward its back side, compresses horizontally to profile, and the frontal texture fades out.",
+    "When returning toward camera, the sprite reopens smoothly; no abrupt horizontal mirror/flip is introduced.",
+    "Each historical stamp captures its own yaw so trail copies preserve the orientation they had when created.",
+    "2D mode remains visually unchanged with yaw fixed at 0."
   ],
   "asset_localization_evidence": {
     "workflow_run": "https://github.com/JuanManuelPM/prometeo/actions/runs/36272461620",
@@ -104,6 +110,7 @@
       "y",
       "z",
       "angle",
+      "yaw",
       "scale",
       "born"
     ],
@@ -128,11 +135,21 @@
       "trail stamps brighten progressively toward the newest stamp",
       "farther 3D stamps receive an additional depth darkening factor",
       "seven shaded sprite canvases are precomputed once per asset load to avoid per-stamp filter work"
-    ]
+    ],
+    "yaw": {
+      "driver": "sign of z velocity (vz)",
+      "behavior": [
+        "moving toward camera -> yaw target 0°",
+        "moving away -> yaw target 180°",
+        "smooth interpolation, never snap-flip",
+        "horizontal width uses abs(cos(yaw)) with a small profile floor",
+        "front-face alpha fades to zero past profile/back hemisphere"
+      ]
+    }
   },
   "pseudo3d_review": {
     "user_reviewed": true,
-    "result": "POSITIVE_WITH_TRAIL_HIERARCHY_FIX",
-    "note": "User said the pseudo-3D result is very good, but when the trajectory turns the last old face remains too visible and competes with the current face. Requested old/rear copies much darker, progressively brighter toward the front."
+    "result": "POSITIVE_WITH_YAW_FIX",
+    "note": "User liked the pseudo-3D but noted the face itself never turned; requested smooth rotation so the frontal face is not visible while the object travels backward."
   }
 }

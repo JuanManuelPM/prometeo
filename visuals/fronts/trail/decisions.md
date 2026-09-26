@@ -39,6 +39,17 @@ Durable architecture detail:
 - Supported experimental trajectories: 2D, approach/CERCA, retreat/LEJOS, ÓRBITA, LOOP.
 - 2D remains the accepted bounce baseline and must not be silently replaced by a 3D mode.
 
+## 2.5D facing / yaw
+- A front-facing 2D image must not remain visibly frontal while its pseudo-3D trajectory moves behind the camera plane.
+- In 3D modes, z velocity controls a smooth vertical-axis yaw target:
+  - approaching camera -> yaw 0°;
+  - moving away -> yaw 180°.
+- Rotation is continuous. Never use an instantaneous horizontal mirror.
+- Sprite width compresses toward profile with `abs(cos(yaw))`; a small nonzero floor avoids numerical collapse.
+- Because there is only a front image, the front texture fades to zero after profile rather than pretending to show a fake backside.
+- Every stamp stores the yaw it had when created, preserving orientation history in the trail.
+- 2D mode keeps yaw = 0 and remains unchanged.
+
 ## Trail visibility hierarchy
 - The current/head sprite is the visual authority and remains full brightness.
 - Trail copies are not equal-strength duplicates: the oldest copy is deliberately much darker, and brightness rises progressively toward the newest copy.

@@ -33,12 +33,18 @@ ACTUAL REPO TARGETS
 
 CURRENT STATE
 Review state: REVIEW
-Current implementation commit: b4824e4f9b50715c34454c500a45c16cda7b1956
-Current HTML blob evidence: f4951af494285274ed290089af0e0a1de0f7cb40
-Current candidate: pseudo-3D Trail with progressive old-to-new darkness. Old/rear stamps are strongly darkened and become clearer toward the current head; far depth darkens them further. Shade sprites are precomputed once per asset load.
-User reviewed the pseudo-3D direction before this shading patch: YES · positive, with double-face trail visibility issue identified
+Current implementation commit: 6af2d75f2b53787e6e8fc01682d4c9a005bc3cd7
+Current HTML blob evidence: d3891dc6059ee1e54544f374503de204c9d6a243
+Current candidate: pseudo-3D Trail with progressive darkness plus smooth 2.5D yaw/backface hiding. Away-moving figures rotate toward 180°, compress to profile and stop showing the frontal texture; returning figures reopen smoothly.
+User reviewed the prior pseudo-3D/shading direction: YES · positive, then requested face rotation/backface hiding
 
 LATEST USER FEEDBACK
+- face must actually turn; front-facing mask cannot remain visible while it travels behind
+- requested smooth rotation so rearward motion hides the face
+- current patch uses z-velocity-driven yaw, profile compression and front-face fadeout
+- no mirror flip
+
+PREVIOUS LATEST USER FEEDBACK
 - pseudo-3D was reviewed as very good
 - when the trajectory turns, an old/last face remains too visible and two faces compete
 - requested old/rear copy much darker, progressively brighter toward the current/front copy
@@ -84,10 +90,20 @@ compileTrailAsset(image)
 
 TrailEngine(asset, trajectory)
 → same single sprite reused
-→ bounded stamps {x,y,z,angle,scale,born}
+→ bounded stamps {x,y,z,angle,yaw,scale,born}
 → projection / full-image redraw
 
 See architecture.md for the durable technical model.
+
+CURRENT 2.5D FACING
+- stamp state now includes yaw
+- approaching camera -> yaw target 0°
+- moving away -> yaw target 180°
+- smooth interpolation only
+- horizontal width compresses toward profile
+- frontal texture fades out after profile/back hemisphere
+- each stamp preserves its own yaw
+- 2D yaw stays 0
 
 CURRENT TRAIL VISIBILITY HIERARCHY
 - current head = full brightness
@@ -116,7 +132,7 @@ CURRENT PERFORMANCE
 - no external runtime image fetch
 
 OPEN USER FEEDBACK
-- review the new dark-to-bright hierarchy on ÓRBITA/LOOP; old rear faces should read as residue, not a second protagonist
+- review ÓRBITA/LOOP with yaw/backface hiding: rearward travel should stop showing the frontal face
 - clean current mask crop/base-gray defects
 - turn asset preparation into a robust compileTrailAsset(image) pipeline
 - later curate a larger ~20 candidate set only after the crop gate is trustworthy
@@ -141,6 +157,8 @@ RECENT MEANINGFUL VERSIONS
 - 53da135c5295b742d64efa09a2d6541c7ee77bd6 · REVIEW_PATCH · stabilize resize + smooth-orientation trajectory velocity
 
 - b4824e4f9b50715c34454c500a45c16cda7b1956 · REVIEW_PATCH · progressive trail darkness + rear-depth darkening
+
+- 6af2d75f2b53787e6e8fc01682d4c9a005bc3cd7 · REVIEW_PATCH · smooth yaw + profile compression + backface hiding
 
 INCARNATION CONTRACT
 1. Read this handoff COMPLETELY.

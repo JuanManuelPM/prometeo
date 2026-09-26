@@ -21,7 +21,7 @@ It is two reusable layers:
 2. `TrailEngine(asset, trajectory)`
    - load that image once
    - reuse the same sprite for every visible copy
-   - store only small stamp records: x, y, z, angle, scale, born
+   - store only small stamp records: x, y, z, angle, yaw, scale, born
    - maintain a bounded preallocated stamp pool
    - expire the oldest stamp
    - keep fast cadence and rebound accumulation
@@ -36,7 +36,7 @@ The engine does NOT create a new image for each trail copy.
 One bitmap is loaded. Each stamp is only state:
 
 ```js
-{x, y, z, angle, scale, born}
+{x, y, z, angle, yaw, scale, born}
 ```
 
 The pool is fixed-size, so old slots are reused instead of growing memory and triggering unnecessary garbage collection.
@@ -67,6 +67,36 @@ Depth modes are trajectories that produce `{x,y,z}` over time:
 - `loop`: figure-eight style trajectory with depth variation.
 
 For 3D modes, stamps are depth-sorted far-to-near before drawing. With a bounded pool of roughly a few dozen stamps, insertion sorting is intentionally cheap and allocation-free.
+
+## 2.5D yaw / backface hiding
+
+A single front-facing cutout has no real backside texture. When pseudo-3D motion goes away from the camera, Trail therefore simulates a vertical-axis turn rather than leaving the face painted toward the viewer.
+
+```js
+if (vz >  threshold) yawTarget = Math.PI; // moving away
+if (vz < -threshold) yawTarget = 0;       // approaching
+yaw = smoothAngle(yaw, yawTarget)
+```
+
+Rendering uses:
+
+```js
+scaleX = max(profileFloor, abs(cos(yaw)))
+frontAlpha = smoothFrontHemisphere(cos(yaw))
+```
+
+Consequences:
+- front view: normal width, full front texture;
+- turning: width compresses smoothly;
+- profile: nearly edge-on;
+- back hemisphere: front texture becomes invisible;
+- returning: texture reappears while the sprite reopens.
+
+There is no negative x scale and therefore no abrupt mirror/flip.
+
+Each stamp captures yaw when created, so trail history preserves the orientation of that moment.
+
+2D mode fixes yaw at zero.
 
 ## Trail brightness hierarchy
 
