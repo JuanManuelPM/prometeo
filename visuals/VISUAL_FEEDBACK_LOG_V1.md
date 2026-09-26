@@ -52,6 +52,22 @@ At turns/rebounds, overlap may create dense fan/curve shapes. Do not create whit
 
 The effect should look closer to old GUI redraw residue than generic ghosting.
 
+## Latest review · Trail baseline accepted
+
+The current full-stamp Trail is strongly preferred and becomes the baseline to preserve.
+
+Do NOT rewrite the effect from scratch.
+
+Next experiments must be controlled variants:
+- try additional insects/creatures/images with lighter internal detail, not only nearly-black silhouettes;
+- preserve the exact full-image stamp / cadence / overlap mechanism;
+- explore eye-light/glow on the creature;
+- test color/material variation without damaging the redraw effect;
+- optional finishing effects only after the baseline is preserved.
+
+If a variant is worse, the accepted baseline must remain available unchanged.
+
+
 ## Spaces Lab feedback
 
 ### What worked
@@ -95,6 +111,20 @@ Priority:
 3. one excellent creepy retro passage;
 4. only then derive tunnel/chamber variants.
 
+## Latest review · Spaces monumental continuity
+
+The current Spaces passage is much better and should be preserved as baseline, but it still exposes the construction trick: the edges of individual frames/panels are visible.
+
+Next direction:
+- more brutalist / monumental scale;
+- make the viewer feel small;
+- hide or visually integrate frame/panel boundaries;
+- when one arch/layer leaves view, another should already continue behind it;
+- overlap/fade/occlude modules so the corridor reads as continuous architecture, not stacked picture frames;
+- preserve floor/ceiling identity and continuous ground;
+- keep yaw movement and straight forward/back motion.
+
+
 ## Player Lab feedback
 
 ### What worked
@@ -133,6 +163,55 @@ Do not solve the scene with one nearly invisible transparent hand.
 Interaction should leave persistent state changes where useful:
 `object present -> hand pose/action -> object changes -> new state remains`
 
+## Avatars / Workers collage direction
+
+Workers / Avatars is a high-priority visual rewrite.
+
+Preserve useful mass/layout/state logic, but stop rendering avatar identity from circles, rectangles, polygons or stick-like primitive bodies.
+
+New visual strategy: modular image collage.
+
+Build a reusable parts kit from real/cutout visual assets:
+- heads / faces / masks;
+- torsos / clothing / bodies;
+- left/right arms;
+- legs / feet / non-leg bases;
+- optional props.
+
+Intentional anatomical mismatch is allowed and desirable:
+- one avatar may have no legs;
+- another may have asymmetrical arms;
+- creepy photographic parts are acceptable;
+- another may be mostly mask + torso;
+- different scales/styles may collide.
+
+The goal is not perfect anatomy. The goal is a strange, readable population with strong collective personality.
+
+Test in MASS, not only one avatar at a time. Preserve readability at distance.
+
+
+## Player + Curator hand-loop direction
+
+Player and Reference Curator should cooperate around reusable hand-motion libraries.
+
+The Player must move beyond one or two hand images.
+
+Target:
+- IDLE loop: roughly 8–12 hand images/frames;
+- GRAB sequence: multiple hand frames;
+- POINT sequence;
+- ATTACK/PUSH sequence;
+- OFFER/SHOW sequence;
+- optional WEIRD loop.
+
+Frames do not need smooth continuity. Abrupt collage-like cuts are acceptable and may improve the style.
+
+The Curator should support searching, tagging and saving hand images by action/state so Player can consume collections instead of manually hardcoding one or two assets.
+
+Think:
+`reference collection -> tagged hand sequence -> Player loop/action`
+
+
 ## Mask / Eye Lab direction
 
 Separate lab:
@@ -156,6 +235,18 @@ The current accepted direction is **ONE MASK ONLY**.
 - Multiple-mask compositions remain parked unless the user explicitly reopens them later.
 
 No mask drawn from circles/polygons/wireframes.
+
+## Latest review · Mask white-eye regression
+
+The current Mask / Eye build is rejected because the eye cavities read as two white dots/holes.
+
+Required:
+- restore the earlier working idea where the eye holes reveal real image/video/GIF pixels;
+- use the user-provided eye GIFs when available in the actual conversation/repo;
+- never leave the eye openings as blank white ellipses;
+- solve ONE mask with convincing media-filled eye cavities before adding radial/shrine modes;
+- treat each eye as a proper clipping/masking window, not a painted white shape.
+
 
 ## Reference Curator direction
 
