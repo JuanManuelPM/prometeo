@@ -40,7 +40,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020403;col
     <button id="up" aria-label="Avanzar">↑</button>
     <button id="down" aria-label="Retroceder">↓</button>
   </div>
-  <div id="hint">arriba/abajo = avanzar/retroceder · vista frontal fija</div>
+  <div id="hint">W/S o scroll = avanzar/retroceder · A/D = moverse lateral · vista frontal fija</div>
   <div id="loading">cargando materiales</div>
 </div>
 <script>
@@ -56,7 +56,7 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
 const NEAR=.14;
 let W=640,H=360,last=0;
-let camZ=1.4,targetCamZ=1.4,currentMap=1;
+let camX=0,targetCamX=0,camZ=1.4,targetCamZ=1.4,currentMap=1;
 const assets={};
 const atlas={};
 const SOURCE_PAGES={
@@ -180,7 +180,7 @@ function texTri(img,p0,p1,p2,uv0,uv1,uv2,alpha){
   ctx.save();ctx.globalAlpha=alpha;ctx.beginPath();ctx.moveTo(p0.x,p0.y);ctx.lineTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.closePath();ctx.clip();
   ctx.setTransform(a,b,c,d,e,f);ctx.drawImage(img,0,0);ctx.restore();
 }
-function cameraVertex(v){return{x:v.x,y:v.y,z:v.z-camZ,u:v.u,v:v.v};}
+function cameraVertex(v){return{x:v.x-camX,y:v.y,z:v.z-camZ,u:v.u,v:v.v};}
 function clipNear(poly){
   const out=[];
   for(let i=0;i<poly.length;i++){
@@ -234,12 +234,14 @@ function renderCylinderSolid(cx,cz,r,y0,y1,depthFade){
   }
   faces.sort((a,b)=>b.z-a.z);
   for(const f of faces){
-    const light=.26+.74*Math.max(0,Math.cos(f.mid+.72));
-    const d=clamp(depthFade,0,1);
-    const rr=Math.round(18+92*light*d);
-    const gg=Math.round(12+58*light*d);
-    const bb=Math.round(28+122*light*d);
-    worldSolidQuad('rgb('+rr+','+gg+','+bb+')',f.pts,.98);
+    const light=.24+.76*Math.max(0,Math.cos(f.mid+.72));
+    // Distance darkening is deliberately monotonic: farther world-Z can never become brighter
+    // than an equivalent nearer face unless lighting itself changes.
+    const d=Math.pow(clamp(depthFade,0,1),1.55);
+    const rr=Math.round(7+101*light*d);
+    const gg=Math.round(5+64*light*d);
+    const bb=Math.round(13+132*light*d);
+    worldSolidQuad('rgb('+rr+','+gg+','+bb+')',f.pts,.99);
   }
 }
 function depthAlpha(d,max){return clamp(1-d/(max||112),.16,.98)}
@@ -277,8 +279,8 @@ function renderFrustumFloorSolid(floorY,zNear,zFar){
     const gg=Math.round(13+33*fog);
     const bb=Math.round(29+65*fog);
     worldSolidQuad('rgb('+rr+','+gg+','+bb+')',[
-      {x:-w1,y:floorY,z:z1},{x:w1,y:floorY,z:z1},
-      {x:w0,y:floorY,z:z0},{x:-w0,y:floorY,z:z0}
+      {x:camX-w1,y:floorY,z:z1},{x:camX+w1,y:floorY,z:z1},
+      {x:camX+w0,y:floorY,z:z0},{x:camX-w0,y:floorY,z:z0}
     ],1);
   }
 }
@@ -362,21 +364,24 @@ function renderMap2(){
   // A single violet material replaces the oversized/stretched floor image.
   renderFrustumFloorSolid(floorY,zNear,zFar);
 
-  // Sparser, staggered rows create readable near/mid/far layers instead of one dense cylinder wall.
+  // Broad world-space lanes fill the left/right architecture as well as the center.
+  // Outer columns often enter only partially at the screen edges, implying that the hall
+  // continues beyond the frame instead of collapsing into one central corridor.
   const rowStep=17.4;
   const firstRow=Math.floor((camZ-rowStep*1.55)/rowStep);
   const layouts=[
-    [-7.2,-1.8,4.9],
-    [-5.1,2.3,7.4],
-    [-7.7,-2.9,3.7],
-    [-4.2,1.0,6.2]
+    [-36,-20,-4,13,31],
+    [-31,-15,3,20,38],
+    [-39,-23,-7,10,27],
+    [-34,-17,0,18,35],
+    [-41,-25,-9,8,24,40]
   ];
   const pillars=[];
   for(let ri=firstRow;ri<firstRow+11;ri++){
     const z=ri*rowStep+8.6;
     const layout=layouts[((ri%layouts.length)+layouts.length)%layouts.length];
     for(let xi=0;xi<layout.length;xi++){
-      const radius=1.16+(((ri+xi)&1)?0.18:0);
+      const radius=1.14+(((ri+xi)&1)?0.20:0);
       pillars.push({x:layout[xi],z,r:radius,depth:z-camZ});
     }
   }
@@ -384,7 +389,7 @@ function renderMap2(){
   for(const p of pillars){
     if(p.z+p.r-camZ<NEAR-.02)continue;
     // Far rows are deliberately darker, so depth is readable even when apparent sizes overlap.
-    const depthFade=fogAlphaByWorldZ(p.z,24,144,.12);
+    const depthFade=fogAlphaByWorldZ(p.z,16,116,.035);
     renderCylinderSolid(p.x,p.z,p.r,floorY,160,depthFade);
   }
 
@@ -411,9 +416,21 @@ function render(){
   if(currentMap===1)renderMap1();else renderMap2();
   analog();
 }
+const keys=new Set();
+function lateralLimit(){ return currentMap===1?1.35:22; }
 function update(dt){
+  const forwardSpeed=dt*.020;
+  const lateralSpeed=dt*.017;
+  if(keys.has('w')||keys.has('arrowup')) targetCamZ+=forwardSpeed;
+  if(keys.has('s')||keys.has('arrowdown')) targetCamZ-=forwardSpeed;
+  if(keys.has('a')) targetCamX-=lateralSpeed;
+  if(keys.has('d')) targetCamX+=lateralSpeed;
+  targetCamZ=clamp(targetCamZ,-5,currentMap===1?132:145);
+  targetCamX=clamp(targetCamX,-lateralLimit(),lateralLimit());
+
   const k=Math.min(1,dt*.014);
   camZ=lerp(camZ,targetCamZ,k);
+  camX=lerp(camX,targetCamX,k);
 }
 function frame(t){
   requestAnimationFrame(frame);
@@ -421,7 +438,7 @@ function frame(t){
   const dt=Math.min(50,t-last||16);last=t;update(dt);render();
 }
 function setMap(n){
-  currentMap=n;camZ=1.4;targetCamZ=1.4;
+  currentMap=n;camX=0;targetCamX=0;camZ=1.4;targetCamZ=1.4;
   mapButtons.forEach((b,i)=>b.classList.toggle('active',i===n-1));
   tag.textContent=n===1?'MAPA 1 · NAVE ALTA':'MAPA 2 · CILINDROS';
 }
@@ -432,6 +449,8 @@ function nudge(kind,amount){
   const max=currentMap===1?132:145;
   if(kind==='up')targetCamZ=clamp(targetCamZ+amount*9,-5,max);
   if(kind==='down')targetCamZ=clamp(targetCamZ-amount*9,-5,max);
+  if(kind==='left')targetCamX=clamp(targetCamX-amount*7,-lateralLimit(),lateralLimit());
+  if(kind==='right')targetCamX=clamp(targetCamX+amount*7,-lateralLimit(),lateralLimit());
   hint.style.opacity='.18';
 }
 ['up','down'].forEach(id=>{
@@ -444,18 +463,27 @@ function nudge(kind,amount){
   b.addEventListener('pointerup',stop);b.addEventListener('pointercancel',stop);
 });
 addEventListener('keydown',e=>{
-  if(e.key==='ArrowUp'||e.key==='w')nudge('up',.12);
-  else if(e.key==='ArrowDown'||e.key==='s')nudge('down',.12);
-  else if(e.key==='1')setMap(1);
-  else if(e.key==='2')setMap(2);
+  const k=e.key.toLowerCase();
+  if(['w','a','s','d','arrowup','arrowdown'].includes(k)){
+    keys.add(k);e.preventDefault();
+  }else if(k==='1')setMap(1);
+  else if(k==='2')setMap(2);
 });
+addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
+addEventListener('blur',()=>keys.clear());
+addEventListener('wheel',e=>{
+  e.preventDefault();
+  const amount=clamp(Math.abs(e.deltaY)/140,.08,.72);
+  if(e.deltaY<0)nudge('up',amount);
+  else if(e.deltaY>0)nudge('down',amount);
+},{passive:false});
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v11',
+  version:'spaces-maps-v12',
   maps:['1 green arch nave','2 brutalist cylinder hall'],
-  contract:'fixed frontal view; forward/back only; map2 floor coverage follows the actual frustum; map2 uses solid violet world materials, sparse staggered cylinders, stronger depth darkening, and no stretched column texture',
+  contract:'fixed frontal view; WASD movement with A/D strafe; wheel moves forward/back; map2 architecture occupies lateral frame edges; farther cylinders darken monotonically by world Z; floor follows the moving camera frustum',
   sourcePages:SOURCE_PAGES,
-  camera:{get z(){return targetCamZ}},
+  camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
 };
 requestAnimationFrame(frame);
