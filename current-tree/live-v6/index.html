@@ -18,6 +18,9 @@ body{min-height:100vh}button{font:inherit;color:inherit}
 .topin{padding:11px 14px 9px}
 .head{display:flex;justify-content:space-between;gap:12px;align-items:center}
 .head b{font-size:13px;letter-spacing:.08em}.head span{font-size:9px;color:var(--muted);white-space:nowrap}
+.freshness{display:none;margin-top:7px;padding:7px 9px;border:1px solid #463c28;border-radius:8px;background:#15120c;color:#c9ad70;font-size:8px;line-height:1.4}
+.freshness.on{display:flex;align-items:center;justify-content:space-between;gap:9px}.freshness.live{border-color:#294333;background:#0d1510;color:#91d39f}
+.freshness button{border:1px solid currentColor;background:transparent;border-radius:6px;padding:4px 7px;font-size:8px;cursor:pointer;white-space:nowrap}
 .tabs{display:flex;gap:4px;margin-top:9px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
 .tab{border:0;background:transparent;color:var(--muted);padding:7px 10px;border-radius:8px;font-size:10px;white-space:nowrap;cursor:pointer}
 .tab.on{background:#15181d;color:var(--ink)}
@@ -170,6 +173,7 @@ h1{font-size:clamp(28px,7vw,46px);line-height:.98;letter-spacing:-.055em;margin:
 <header class="top">
  <div class="topin">
   <div class="head"><b>PROMETEO</b><span id="stamp">cargando</span></div>
+  <div class="freshness" id="freshness"><span id="freshnessText"></span><button id="freshnessRetry">actualizar</button></div>
   <div class="tabs">
    <button class="tab on" data-view="estado">Estado</button>
    <button class="tab" data-view="historial">Historial</button>
@@ -213,13 +217,93 @@ const POINTERS=new Map();
 let GESTURE=null,DRAGGED=false,SUPPRESS_CLICK_UNTIL=0;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-async function rpc(name){const r=await fetch(SB+name,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:'{}',cache:'no-store'});if(!r.ok)throw new Error(name+' · RPC '+r.status);return r.json()}
-async function load(){const [tree,organism,historyMetrics,contexts]=await Promise.all([
- rpc('prometeo_current_tree_v2'),
- rpc('prometeo_organism_projection_v1_1'),
- rpc('prometeo_history_metrics_v1'),
- rpc('prometeo_work_contexts_projection_v1')
-]);return {tree,organism,historyMetrics,contexts}}
+const CACHE_KEY='prometeo_live_v6_bundle_v2';
+const FALLBACK_URL='./fallback.json';
+const RPC_TIMEOUT_MS=6500;
+const RPC_MAP={
+ tree:'prometeo_current_tree_v2',
+ organism:'prometeo_organism_projection_v1_1',
+ historyMetrics:'prometeo_history_metrics_v1',
+ contexts:'prometeo_work_contexts_projection_v1'
+};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function one(x){return Array.isArray(x)&&x.length===1?x[0]:x}
+async function rpc(name){
+ let last=null;
+ for(let attempt=0;attempt<2;attempt++){
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),RPC_TIMEOUT_MS);
+  try{
+   const r=await fetch(SB+name,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:'{}',cache:'no-store',signal:ctrl.signal});
+   if(!r.ok)throw new Error(name+' · RPC '+r.status);
+   return one(await r.json());
+  }catch(e){
+   last=e;
+   if(attempt===0)await sleep(650);
+  }finally{clearTimeout(timer)}
+ }
+ throw last||new Error(name+' · sin respuesta');
+}
+function cacheRead(){
+ try{const x=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');return x?.tree?x:null}catch{return null}
+}
+function cacheWrite(bundle){
+ try{localStorage.setItem(CACHE_KEY,JSON.stringify({...bundle,cached_at:new Date().toISOString()}))}catch{}
+}
+async function fallbackRead(){
+ try{const r=await fetch(FALLBACK_URL+'?v=2',{cache:'no-store'});if(!r.ok)return null;const x=await r.json();return x?.tree?x:null}catch{return null}
+}
+async function load(base={}){
+ const entries=Object.entries(RPC_MAP);
+ const settled=await Promise.allSettled(entries.map(([,name])=>rpc(name)));
+ const bundle={...base};
+ const failures=[];
+ settled.forEach((res,i)=>{
+  const [key,name]=entries[i];
+  if(res.status==='fulfilled')bundle[key]=res.value;
+  else failures.push(name+' · '+(res.reason?.message||res.reason||'error'));
+ });
+ if(!bundle.tree)throw new Error(failures[0]||'prometeo_current_tree_v2 · sin snapshot');
+ return {bundle:{...bundle,cached_at:new Date().toISOString()},failures,fresh:entries.length-failures.length};
+}
+function snapshotAt(bundle){return bundle?.tree?.generated_at||bundle?.organism?.generated_at||bundle?.cached_at||null}
+function freshness(mode,bundle,failures=[]){
+ const box=$('#freshness'),txt=$('#freshnessText'),when=snapshotAt(bundle);
+ if(mode==='live'&&!failures.length){box.className='freshness live on';txt.textContent='actualizado · '+fmt(when);setTimeout(()=>{if(box.classList.contains('live'))box.classList.remove('on')},2600);return}
+ box.className='freshness on';
+ const suffix=failures.length?' · actualización incompleta':' · actualizando…';
+ txt.textContent='mostrando última copia · '+fmt(when)+suffix;
+}
+function applyBundle(bundle,mode='stale',failures=[]){
+ D=bundle.tree;
+ O=bundle.organism||{nodes:[],edges:[],coverage:{}};
+ H=bundle.historyMetrics||{daily:[]};
+ C=bundle.contexts||{contexts:[]};
+ $('#stamp').textContent=(mode==='live'?'actualizado ':'copia ')+fmt(snapshotAt(bundle));
+ renderState();renderHistory();renderWork();
+ if(NODES.length){NODES=[];EDGES=[]}
+ if($('#organismo').classList.contains('on'))drawOrg();
+ freshness(mode,bundle,failures);
+}
+let REFRESHING=false,LAST_BUNDLE=null;
+async function refreshNow(){
+ if(REFRESHING)return;
+ REFRESHING=true;
+ try{
+  const out=await load(LAST_BUNDLE||{});
+  LAST_BUNDLE=out.bundle;
+  cacheWrite(out.bundle);
+  applyBundle(out.bundle,out.failures.length?'stale':'live',out.failures);
+ }catch(e){
+  if(LAST_BUNDLE){
+   freshness('stale',LAST_BUNDLE,[e.message]);
+   $('#stamp').textContent='copia '+fmt(snapshotAt(LAST_BUNDLE));
+  }else{
+   $('#stamp').textContent='sin snapshot';
+   $('#statecontent').innerHTML='<div class="rdesc">No hay una copia previa todavía. Reintentando en segundo plano: '+esc(e.message)+'</div>';
+   $('#freshness').className='freshness on';$('#freshnessText').textContent='sin copia local · esperando estado actual';
+  }
+ }finally{REFRESHING=false}
+}
 function fmt(d){try{return new Intl.DateTimeFormat('es-AR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'America/Argentina/Buenos_Aires'}).format(new Date(d))}catch{return '—'}}
 function mins(d){return d?Math.max(0,(Date.now()-new Date(d).getTime())/60000):null}
 function age(m){if(m==null)return '—';if(m<1)return '<1m';if(m<60)return Math.round(m)+'m';if(m<1440)return Math.round(m/60)+'h';return Math.round(m/1440)+'d'}
@@ -656,7 +740,17 @@ org.addEventListener('pointerup',endPointer);
 org.addEventListener('pointercancel',endPointer);
 document.querySelectorAll('[data-orgmode]').forEach(b=>b.onclick=()=>{ORG_MODE=b.dataset.orgmode;document.querySelectorAll('[data-orgmode]').forEach(x=>x.classList.toggle('on',x===b));if(ORG_MODE!=='impact'){$('#infopanel').classList.remove('on');document.querySelectorAll('#orgsvg .node,#orgsvg .edge').forEach(x=>x.classList.remove('impact'))}});
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===b.dataset.view));if(b.dataset.view==='organismo'&&!NODES.length)drawOrg()});
-(async()=>{try{const loaded=await load();D=loaded.tree;O=loaded.organism;H=loaded.historyMetrics;C=loaded.contexts;$('#stamp').textContent='snapshot '+fmt(D.generated_at);renderState();renderHistory();renderWork()}catch(e){$('#statecontent').innerHTML='<div class="rdesc">No pude cargar Prometeo: '+esc(e.message)+'</div>'}})();
+$('#freshnessRetry').onclick=refreshNow;
+(async()=>{
+ const local=cacheRead();
+ if(local){LAST_BUNDLE=local;applyBundle(local,'stale')}
+ else{
+  const fallback=await fallbackRead();
+  if(fallback){LAST_BUNDLE=fallback;applyBundle(fallback,'stale')}
+ }
+ await refreshNow();
+ setInterval(refreshNow,60000);
+})();
 </script>
 </body>
 </html>
