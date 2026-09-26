@@ -2,56 +2,44 @@
 
 Status: CURRENT
 
-## UNIVERSAL RULES · CURRENT
-These rules now apply to **both maps**, not only the violet hall.
+## UNIVERSAL VISUAL RULES
+- Camera/player is the dominant light source.
+- Near surfaces are readable; far/off-axis surfaces fall nonlinearly toward black.
+- Large almost-black areas are intentional when they improve depth/scale.
+- Floor and architecture share the same world-space lighting.
+- Monumentality comes from mass, occlusion, cropping, darkness and scale.
+- No horizontal-row look for the brutalist palace.
 
-- The dominant light behaves as if it comes from the camera/player.
-- Near surfaces are readable; far/off-axis surfaces fall strongly and nonlinearly toward black.
-- Large areas may be almost 100% dark when that strengthens scale and atmosphere.
-- Floor and architecture share the same world-space lighting logic.
-- Distance/lighting that interacts with geometry is computed from world position/depth, never as a hard screen-space band.
-- Monumentality comes from mass, occlusion, cropping, darkness and scale, not from showing every surface.
-- Repetition must create architecture, not expose horizontal rows or a recycler.
+## MOBILE INTERACTION · v14
+Latest user-reported bugs:
+1. Vertical finger swipes on the scene did not move forward/back.
+2. Accidental presses/long-presses on the arrow buttons could select the arrow character and open browser copy/paste UI over the visual.
 
-## MAP 1 · GREEN NAVE
-v13 updates the previously flatter/older tunnel so it shares the current visual language:
-- camera-source light on floor, walls and arch sequence;
-- far arches/walls become much darker;
-- floor falls into darkness by world distance and lateral angle;
-- upper vault remains unresolved in near-black darkness;
-- arches remain the dominant rhythm, with no fake roof and no premature popping.
+Current rule:
+- vertical touch swipe on the canvas is a first-class locomotion input;
+- finger up = advance;
+- finger down = retreat;
+- movement is proportional to actual drag distance and feeds the same camera target as other controls;
+- the visual surface and controls are non-selectable;
+- browser touch callout, text selection, context menu and drag-selection must not steal interaction.
 
-## MAP 2 · BRUTALIST PALACE
-Latest user direction consumed in v13:
-- columns must be **wider / more massive** to read as brutalism;
-- columns must not form obvious horizontal rows;
-- layout should feel like a palace / ordered diagonal colonnade;
-- far columns must be clearly darker than near ones;
-- there should be genuinely almost-black regions;
-- floor must share the same light falloff.
+Implementation v14:
+- Pointer Events track touch/pen drag on the canvas;
+- pointer capture preserves the swipe even if the finger leaves the initial point;
+- CSS applies user-select:none and -webkit-touch-callout:none;
+- contextmenu/selectstart/dragstart are prevented globally for this visual.
 
-Implementation:
-- cylinder radius increased to roughly 2.2–2.5 world units;
-- 28-sided shading for roundness;
-- row positions are staggered diagonally in Z across X;
-- alternating slant produces ordered palace-like diagonals rather than horizontal lines;
-- camera-light falloff is nonlinear and includes lateral/off-axis falloff;
-- floor is subdivided in world space and lit with the same camera-source model.
-
-## CONTROLS
+## OTHER CONTROLS
 - W/S = forward/back
 - A/D = lateral strafe
 - wheel/trackpad = forward/back
-- touch ↑/↓ remains
-- camera orientation stays fixed; A/D does not yaw.
+- touch ↑/↓ buttons remain
+- fixed camera direction, no yaw
 
-## REJECTED / DO NOT REVIVE
-- uniform/flat lighting
-- horizontal pillar rows
-- thin tube-like brutalist columns
-- equal visibility at all depths
-- bright distant floor/columns
-- screen-space black depth bands
-- stretched tall textures
-- fake ceiling / flat background wall
-- premature culling
+## PRESERVE
+- v13 camera-source lighting on both maps
+- green monumental nave
+- massive diagonal brutalist palace
+- near-black distance
+- no stretched cylinder textures
+- no screen-space depth seam
