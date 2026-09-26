@@ -22,6 +22,7 @@ Status: CURRENT
 - Verify on target mobile that adaptive quality reduction is not visually obvious.
 
 ## RESOLVED IN CURRENT CANDIDATE
+- Mobile `ASSET NO DISPONIBLE` regression traced to Wikimedia `Special:Redirect` runtime URLs; replaced with direct original-file URLs for the promoted cutout assets.
 - BASE preserved as variant 1.
 - Approved cutout direction promoted into the real Trail lab.
 - Square/white-background candidates not promoted.
