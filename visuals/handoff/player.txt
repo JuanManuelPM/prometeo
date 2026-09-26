@@ -22,13 +22,17 @@ EXECUTION CHECKLIST: https://juanmanuelpm.github.io/prometeo/visuals/EXECUTION_C
 
 ACTUAL REPO TARGETS
 - visuals/player-lab/index.html
-- visuals/player-lab/hand-atlas-v2.js
-- visuals/player-lab/hand-atlas-player-v2.webp
+- visuals/player-lab/hand-atlas-v3.js
+- visuals/player-lab/hand-atlas-v3-idle.webp
+- visuals/player-lab/hand-atlas-v3-grab.webp
+- visuals/player-lab/hand-atlas-v3-push.webp
+- visuals/player-lab/hand-atlas-v3-inspect.webp
+- visuals/player-lab/hand-atlas-v3-weird.webp
 
 CURRENT STATE
 Review state: REVIEW
-Current index blob evidence: b69f90dbacdcb0270f5ecab552023c304f1c69db
-Current candidate implementation: f3d69282e828f5e08590f58d62a5e64e9160f03c · Player V7 using a generated 10x10 photographic hand atlas.
+Current index blob evidence: 86ac513830390a29ac39eddd91b1db9375c5c66d
+Current candidate implementation: d616c9a51803280e354fa13632780b4e1615932d · Player V8 corrects the no-hand V7 regression with real 128px generated row strips and alpha-keyed source-over rendering.
 User reviewed current published candidate: NO
 
 ACCEPTED BASELINE
@@ -41,45 +45,45 @@ Preserve:
 - cheap audio/vibration
 - image-first foreground
 - one coherent scene
+- one coherent generated hand identity
 
-LATEST USER DIRECTION
-- V6 was visually rejected as horrible compared with the intended result.
-- Do not animate unrelated Wikimedia SVGs/cursors/ornaments.
-- Generate/design one coherent hand identity ourselves.
-- Use a 10x10 hand atlas: each row is an action; each column advances that action.
-- First generated atlas attempt revealed hands touching/crossing cell frames.
-- Corrected invariant: each full hand silhouette must fit inside its source cell with internal padding.
-- The corrected generated atlas is the requested basis for the current implementation.
+LATEST USER REVIEW
+- V7 published with no visible hands; user supplied a screenshot and said "no veo las manos".
+- Diagnosis: V7 shipped the wrong atlas binary and used 96px cell geometry against the intended corrected 1280x1280 / 10x10 source.
+- V7 is rejected as broken, not merely aesthetically weak.
 
 CURRENT IMPLEMENTATION
-- Player V7 loads hand-atlas-player-v2.webp, a normalized 10x10 derivative of the corrected generated grid.
-- hand-atlas-v2.js maps the 10 rows: IDLE, REACH, GRAB, POINT, PUSH, ATTACK, OFFER, INSPECT, PANIC, WEIRD.
-- IDLE runs continuously.
+- V8 uses the correct generated source material split into five 1280x128 row strips.
+- Every frame crop is 128x128.
+- Loaded strips are converted to an offscreen transparent canvas once using luminance/chroma dark-background keying.
+- Hand frames render with normal source-over compositing. Screen compositing is retired.
+- IDLE is always active and should be visible before interaction once its strip loads.
 - Scene stages trigger GRAB -> INSPECT -> PUSH -> WEIRD.
-- Stage consequences remain persistent through localStorage migration from previous versions.
-- 320x180, touch, keyboard, vibration/audio hooks, mask/heart scene and cheap rendering remain.
-- The atlas uses a dark source background and screen compositing. This is a deliberate current implementation detail, not verified acceptance.
+- Stage consequences migrate from V7/V6/V5/V4/V3 localStorage keys and remain persistent.
+- 320x180, touch, keyboard, vibration/audio hooks and mask/heart scene remain.
 
 OPEN USER FEEDBACK / NEXT VISUAL PROBLEMS
-- Inspect the real published V7 in motion.
-- Judge whether the hand now reads as one recurring actor rather than a pose catalog.
-- Tune cadence/scale/composition if necessary.
-- Watch for any visible rectangular source-cell background; if present, build a real alpha derivative.
-- Remaining atlas rows can be activated only after the core motion is visually convincing.
+- Verify the real published V8 shows the hand during IDLE.
+- Judge stop-motion cadence and whether motion reads coherently.
+- Tune hand position/scale only after visibility is confirmed.
+- If alpha keying erodes dark hand detail, replace it with authored alpha row assets.
+- Activate additional atlas actions only after the core hand is convincing.
 
 RECENT MEANINGFUL VERSIONS
 - 091bd0266210635666a841f3f85f21f3edd75d33 · INSUFFICIENT · four static poses
 - 5efc8a099f534ad10e2b6191a3c744e9d6a49e0c · CANDIDATE · reusable SVG sequence manifest
-- 25b25f3456dd68d010dd2b40423c3e9272f6c499 · REJECTED · 12-frame idle + 7-frame grab from inconsistent SVG/icon assets
-- f3d69282e828f5e08590f58d62a5e64e9160f03c · REVIEW · generated 10x10 photographic hand atlas wired into Player V7
+- 25b25f3456dd68d010dd2b40423c3e9272f6c499 · REJECTED · inconsistent SVG/icon animation actor
+- f3d69282e828f5e08590f58d62a5e64e9160f03c · REJECTED_BROKEN · V7 wrong binary + 96px crop, no visible hand
+- d616c9a51803280e354fa13632780b4e1615932d · REVIEW · V8 correct 128px row strips + alpha key + source-over
 
 DURABLE DECISIONS
-- One coherent hand actor, not unrelated symbols.
-- Generated/designed photographic family is preferred.
+- One coherent generated hand actor.
 - Row = action; column = temporal frame.
+- Current source cell size is 128px.
 - Complete source silhouettes with safe margins are mandatory.
-- Abrupt cuts are allowed only when they still describe coherent movement.
-- hand-sequences-v1.js is legacy and unused by V7.
+- V7 v2 atlas path is broken legacy.
+- V8 active strips: IDLE, GRAB, PUSH, INSPECT, WEIRD.
+- Do not return to screen compositing to hide source defects.
 
 INCARNATION CONTRACT
 1. Read this handoff COMPLETELY.

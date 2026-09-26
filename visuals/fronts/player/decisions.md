@@ -5,13 +5,17 @@ Status: CURRENT
 - The Player hand is one visual actor, not a bag of unrelated hand symbols.
 - Prefer a designed/generated photographic hand family over scraped icon/SVG mixtures.
 - Use an atlas vocabulary: one row = one action, left-to-right columns = temporal progression.
-- Current atlas actions: IDLE, REACH, GRAB, POINT, PUSH, ATTACK, OFFER, INSPECT, PANIC, WEIRD.
+- Planned atlas actions remain: IDLE, REACH, GRAB, POINT, PUSH, ATTACK, OFFER, INSPECT, PANIC, WEIRD.
+- The corrected generated source atlas is 1280x1280: every source cell is **128x128**, not 96x96.
 - Every source frame must preserve the complete hand silhouette with safe internal padding. Grid-edge cropping is a production failure, not a stylistic choice.
+- V7 is a broken/rejected implementation: wrong production atlas binary + wrong 96px crop math produced no visible hand in the user's published-page screenshot.
+- V8 production uses 1280x128 row strips for currently active actions: IDLE, GRAB, PUSH, INSPECT, WEIRD.
+- V8 converts the dark neutral strip background to alpha once at load time, using luminance/chroma keying, then renders with normal `source-over`.
+- Do not restore `screen` compositing as a way to hide bad source backgrounds.
+- If runtime keying destroys important dark hand detail, produce authored alpha assets instead.
 - Abrupt collage-like cuts remain allowed, but they must describe coherent physical progression.
 - Persistent scene consequences remain part of the Player baseline.
-- The current renderer keeps the low-resolution 320x180 scene and uses screen compositing for the dark-background photographic atlas.
-- If the source-cell background becomes visibly rectangular in the published scene, replace the production derivative with a real alpha extraction rather than masking the issue with extra effects.
-- `hand-sequences-v1.js` is legacy and unused by V7; do not use it as the primary foreground source.
+- `hand-sequences-v1.js` and the V7 v2 atlas path are legacy; neither is the primary foreground source.
 
 ## Session lifecycle
 - Reincarnation session reads handoff + repo and WAITs for feedback.
