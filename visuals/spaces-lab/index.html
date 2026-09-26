@@ -4,30 +4,38 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#030604">
-<title>Prometeo · Spaces Lab · Green Nave</title>
+<title>Prometeo · Spaces Lab</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020403;color:#d8d0af;font-family:system-ui,-apple-system,sans-serif;overscroll-behavior:none;touch-action:none}
 #app{position:fixed;inset:0;overflow:hidden;background:#020403;isolation:isolate}
 #scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;image-rendering:auto}
-#veil{position:absolute;z-index:4;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 48%,transparent 22%,rgba(0,0,0,.06) 62%,rgba(0,0,0,.38) 100%);box-shadow:inset 0 0 7vw rgba(0,0,0,.38)}
-#scan{position:absolute;z-index:5;inset:0;pointer-events:none;opacity:.075;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.022) 0 1px,transparent 1px 4px);mix-blend-mode:screen}
-#tag{position:absolute;z-index:8;left:max(10px,env(safe-area-inset-left));top:max(9px,env(safe-area-inset-top));padding:6px 8px;background:rgba(3,5,3,.42);border:1px solid rgba(197,189,130,.08);color:rgba(221,213,173,.52);font:800 7px/1 system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase;pointer-events:none}
+#veil{position:absolute;z-index:4;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 48%,transparent 22%,rgba(0,0,0,.05) 64%,rgba(0,0,0,.34) 100%);box-shadow:inset 0 0 7vw rgba(0,0,0,.34)}
+#scan{position:absolute;z-index:5;inset:0;pointer-events:none;opacity:.07;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.02) 0 1px,transparent 1px 4px);mix-blend-mode:screen}
+#tag{position:absolute;z-index:8;left:max(10px,env(safe-area-inset-left));top:max(9px,env(safe-area-inset-top));padding:6px 8px;background:rgba(3,5,3,.42);border:1px solid rgba(197,189,130,.08);color:rgba(221,213,173,.54);font:800 7px/1 system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase;pointer-events:none}
+#maps{position:absolute;z-index:11;top:max(9px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;gap:5px}
+#maps button{height:29px;padding:0 9px;border:1px solid rgba(235,226,181,.13);background:rgba(4,5,6,.58);color:rgba(235,226,181,.56);font:900 8px/1 system-ui;letter-spacing:.11em;text-transform:uppercase;backdrop-filter:blur(3px)}
+#maps button.active{color:#f0e5bc;border-color:rgba(231,215,151,.35);background:rgba(55,68,37,.52)}
 #pad{position:absolute;z-index:10;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));width:58px;height:106px;pointer-events:none;opacity:.76}
 #pad button{position:absolute;left:0;width:58px;height:50px;border:1px solid rgba(229,220,171,.14);background:rgba(3,5,3,.58);color:rgba(231,221,177,.80);font:900 20px/1 system-ui,sans-serif;display:grid;place-items:center;pointer-events:auto;backdrop-filter:blur(2px)}
 #up{top:0}#down{bottom:0}
 #pad button:active{background:rgba(102,116,64,.34);color:#f1e7bf}
-#hint{position:absolute;z-index:8;left:max(10px,env(safe-area-inset-left));bottom:max(10px,env(safe-area-inset-bottom));max-width:58%;color:rgba(224,215,190,.36);font:800 7px/1.3 system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;pointer-events:none;transition:opacity 1s}
+#hint{position:absolute;z-index:8;left:max(10px,env(safe-area-inset-left));bottom:max(10px,env(safe-area-inset-bottom));max-width:62%;color:rgba(224,215,190,.34);font:800 7px/1.3 system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;pointer-events:none;transition:opacity 1s}
 #loading{position:absolute;z-index:20;inset:0;display:grid;place-items:center;background:#020403;color:#777861;font:800 9px/1 system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;transition:opacity .34s}
 #loading.off{opacity:0;pointer-events:none}
-@media(max-height:430px){#tag{top:5px}#pad{transform:scale(.92);transform-origin:bottom right}#hint{font-size:6px}}
+@media(max-width:520px){#maps{top:44px}#maps button{height:27px;padding:0 8px;font-size:7px}}
+@media(max-height:430px){#tag{top:5px}#maps{top:5px}#pad{transform:scale(.92);transform-origin:bottom right}#hint{font-size:6px}}
 </style>
 </head>
 <body>
 <div id="app">
-  <canvas id="scene" aria-label="Nave verde alta de arcos continuos"></canvas>
+  <canvas id="scene" aria-label="Espacios pseudo-3D monumentales"></canvas>
   <div id="veil"></div><div id="scan"></div>
-  <div id="tag">PASO VERDE · NAVE ALTA</div>
+  <div id="tag">MAPA 1 · NAVE ALTA</div>
+  <div id="maps" aria-label="Mapas">
+    <button id="map1" class="active">1 ARCOS</button>
+    <button id="map2">2 CILINDROS</button>
+  </div>
   <div id="pad" aria-label="Caminar">
     <button id="up" aria-label="Avanzar">↑</button>
     <button id="down" aria-label="Retroceder">↓</button>
@@ -42,24 +50,28 @@ const canvas=document.getElementById('scene');
 const ctx=canvas.getContext('2d',{alpha:false,desynchronized:true});
 const loading=document.getElementById('loading');
 const hint=document.getElementById('hint');
+const tag=document.getElementById('tag');
+const mapButtons=[document.getElementById('map1'),document.getElementById('map2')];
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
 const NEAR=.14;
 let W=640,H=360,last=0;
-let camZ=1.4,targetCamZ=1.4;
+let camZ=1.4,targetCamZ=1.4,currentMap=1;
 const assets={};
 const atlas={};
 const SOURCE_PAGES={
   wall:'https://commons.wikimedia.org/wiki/File:Dark_green_grey_flecked_speckled_spotted_clean_marble_cemented_building_wall_square_checkered_tile_texture.jpg',
   floor:'https://commons.wikimedia.org/wiki/File:Green_mosaic_square_seamless_tiled_floor_texture.jpg',
   ceiling:'https://commons.wikimedia.org/wiki/File:Ceiling_Pattern,_Tomb_of_Qenamun_MET_DT10887.jpg',
-  stone:'https://commons.wikimedia.org/wiki/File:Stone_Wall_Texture.jpg'
+  stone:'https://commons.wikimedia.org/wiki/File:Stone_Wall_Texture.jpg',
+  checker:'repo-local visuals/spaces-lab/assets/checker-grid.svg'
 };
 const SOURCES={
   wall:'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Dark_green_grey_flecked_speckled_spotted_clean_marble_cemented_building_wall_square_checkered_tile_texture.jpg/1024px-Dark_green_grey_flecked_speckled_spotted_clean_marble_cemented_building_wall_square_checkered_tile_texture.jpg',
   floor:'https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/Green_mosaic_square_seamless_tiled_floor_texture.jpg/1280px-Green_mosaic_square_seamless_tiled_floor_texture.jpg',
   ceiling:'https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Ceiling_Pattern%2C_Tomb_of_Qenamun_MET_DT10887.jpg/960px-Ceiling_Pattern%2C_Tomb_of_Qenamun_MET_DT10887.jpg',
-  stone:'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Stone_Wall_Texture.jpg/1280px-Stone_Wall_Texture.jpg'
+  stone:'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Stone_Wall_Texture.jpg/1280px-Stone_Wall_Texture.jpg',
+  checker:'assets/checker-grid.svg'
 };
 function load(name,url){
   return new Promise(resolve=>{
@@ -146,10 +158,11 @@ function buildAtlas(){
   grade('floor',assets.floor,'rgba(32,64,30,.90)','#d0b65b');
   grade('ceiling',assets.ceiling,'rgba(29,55,27,.94)','#8e7c42');
   grade('stone',assets.stone,'rgba(39,76,33,.96)','#c2a44f');
+  grade('checker',assets.checker,'rgba(92,71,128,.98)','#ff6a52');
   tileMaterial('wallField',atlas.wall,160);
   tileMaterial('floorTile',atlas.floor,118);
   tileMaterial('stoneTile',atlas.stone,138);
-  tileMaterial('ceilingField',atlas.ceiling,176);
+  tileMaterial('checkerField',atlas.checker,128);
   mixMaterial('floorField',atlas.floorTile,atlas.stoneTile,.48);
   mixMaterial('wallMass',atlas.wallField,atlas.stoneTile,.30);
   buildCrown(assets.wall||assets.stone);
@@ -171,9 +184,7 @@ function texTri(img,p0,p1,p2,uv0,uv1,uv2,alpha){
   ctx.save();ctx.globalAlpha=alpha;ctx.beginPath();ctx.moveTo(p0.x,p0.y);ctx.lineTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.closePath();ctx.clip();
   ctx.setTransform(a,b,c,d,e,f);ctx.drawImage(img,0,0);ctx.restore();
 }
-function cameraVertex(v){
-  return{x:v.x,y:v.y,z:v.z-camZ,u:v.u,v:v.v};
-}
+function cameraVertex(v){return{x:v.x,y:v.y,z:v.z-camZ,u:v.u,v:v.v};}
 function clipNear(poly){
   const out=[];
   for(let i=0;i<poly.length;i++){
@@ -196,59 +207,64 @@ function worldQuad(img,pts,alpha){
   for(let i=1;i<poly.length-1;i++)texTri(img,pp[0],pp[i],pp[i+1],{x:poly[0].u,y:poly[0].v},{x:poly[i].u,y:poly[i].v},{x:poly[i+1].u,y:poly[i+1].v},alpha);
 }
 function chamferPier(img,side,outerX,innerFloor,innerTop,y0,y1,z0,z1,alpha){
-  const s=side<0?-1:1;
-  const outer=s*outerX,foot=s*innerFloor,top=s*innerTop;
-  const front=[
-    {x:outer,y:y1,z:z0},{x:top,y:y1,z:z0},
-    {x:foot,y:y0,z:z0},{x:outer,y:y0,z:z0}
-  ];
-  const back=[
-    {x:top,y:y1,z:z1},{x:outer,y:y1,z:z1},
-    {x:outer,y:y0,z:z1},{x:foot,y:y0,z:z1}
-  ];
-  const bevel=[
-    {x:top,y:y1,z:z1},{x:top,y:y1,z:z0},
-    {x:foot,y:y0,z:z0},{x:foot,y:y0,z:z1}
-  ];
-  const cap=[
-    {x:outer,y:y1,z:z0},{x:outer,y:y1,z:z1},
-    {x:top,y:y1,z:z1},{x:top,y:y1,z:z0}
-  ];
-  worldQuad(img,front,alpha);
-  worldQuad(img,back,alpha*.72);
-  worldQuad(img,bevel,alpha*.88);
-  worldQuad(img,cap,alpha*.68);
+  const s=side<0?-1:1,outer=s*outerX,foot=s*innerFloor,top=s*innerTop;
+  worldQuad(img,[{x:outer,y:y1,z:z0},{x:top,y:y1,z:z0},{x:foot,y:y0,z:z0},{x:outer,y:y0,z:z0}],alpha);
+  worldQuad(img,[{x:top,y:y1,z:z1},{x:outer,y:y1,z:z1},{x:outer,y:y0,z:z1},{x:foot,y:y0,z:z1}],alpha*.72);
+  worldQuad(img,[{x:top,y:y1,z:z1},{x:top,y:y1,z:z0},{x:foot,y:y0,z:z0},{x:foot,y:y0,z:z1}],alpha*.88);
+  worldQuad(img,[{x:outer,y:y1,z:z0},{x:outer,y:y1,z:z1},{x:top,y:y1,z:z1},{x:top,y:y1,z:z0}],alpha*.68);
 }
-function depthAlpha(d){return clamp(1-d/112,.18,.98)}
-function baseFill(){
+function renderCylinder(img,cx,cz,r,y0,y1,alpha){
+  if(!img)return;
+  const faces=[],n=12;
+  for(let i=0;i<n;i++){
+    const a0=(i/n)*Math.PI*2,a1=((i+1)/n)*Math.PI*2;
+    const x0=cx+Math.cos(a0)*r,z0=cz+Math.sin(a0)*r;
+    const x1=cx+Math.cos(a1)*r,z1=cz+Math.sin(a1)*r;
+    faces.push({z:(z0+z1)*.5,mid:(a0+a1)*.5,pts:[
+      {x:x0,y:y1,z:z0},{x:x1,y:y1,z:z1},{x:x1,y:y0,z:z1},{x:x0,y:y0,z:z0}
+    ]});
+  }
+  faces.sort((a,b)=>b.z-a.z);
+  for(const f of faces){
+    const shade=.50+.50*Math.max(0,Math.cos(f.mid+.65));
+    worldQuad(img,f.pts,alpha*(.48+.52*shade));
+  }
+}
+function depthAlpha(d,max){return clamp(1-d/(max||112),.16,.98)}
+function baseFill(a,b,c){
   const g=ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,'#061007');g.addColorStop(.55,'#091309');g.addColorStop(1,'#020403');
+  g.addColorStop(0,a);g.addColorStop(.55,b);g.addColorStop(1,c);
   ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
 }
-function renderPassage(){
-  baseFill();
-
-  // Much taller cavity. The first visible arch starts ahead of the player,
-  // so the camera no longer sits under a giant nearby ceiling slab.
-  const halfW=5.75,floorY=-1.56,ceilY=9.55,shoulderY=3.72;
+function topDarkness(strength){
+  const g=ctx.createLinearGradient(0,0,0,H*.58);
+  g.addColorStop(0,'rgba(0,0,0,'+strength+')');
+  g.addColorStop(.48,'rgba(0,0,0,'+(strength*.48)+')');
+  g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H*.62);
+}
+function distanceFloorFade(strength){
+  const y0=H*.46,y1=H*.92;
+  const g=ctx.createLinearGradient(0,y0,0,y1);
+  g.addColorStop(0,'rgba(2,1,8,'+strength+')');
+  g.addColorStop(.34,'rgba(2,1,8,'+(strength*.55)+')');
+  g.addColorStop(1,'rgba(2,1,8,0)');
+  ctx.fillStyle=g;ctx.fillRect(0,y0,W,y1-y0);
+}
+function renderMap1(){
+  baseFill('#030806','#081109','#020403');
+  const halfW=5.75,floorY=-1.56,ceilY=10.6,shoulderY=3.72;
   const innerFloor=2.55,innerTop=3.34;
-  const zNear=camZ-22,zFar=camZ+112;
-  const ceilingStart=camZ+12;
-
+  const zNear=camZ-22,zFar=camZ+118;
   const wallTex=atlas.wallMass||atlas.wallField||atlas.wall;
   const floorTex=atlas.floorField||atlas.floorTile||atlas.floor;
-  const ceilTex=atlas.ceilingField||atlas.ceiling;
   const ribTex=atlas.stoneTile||atlas.stone||wallTex;
   const shadowTex=atlas.shadow||wallTex;
-  const farTex=atlas.far||shadowTex;
 
-  // Continuous floor remains under the player.
   worldQuad(floorTex,[
     {x:-halfW,y:floorY,z:zFar},{x:halfW,y:floorY,z:zFar},
     {x:halfW,y:floorY,z:zNear},{x:-halfW,y:floorY,z:zNear}
   ],1);
-
-  // Side envelope stays present so gaps never become empty black holes.
   worldQuad(wallTex,[
     {x:-halfW,y:ceilY,z:zNear},{x:-halfW,y:ceilY,z:zFar},
     {x:-halfW,y:floorY,z:zFar},{x:-halfW,y:floorY,z:zNear}
@@ -257,15 +273,6 @@ function renderPassage(){
     {x:halfW,y:ceilY,z:zFar},{x:halfW,y:ceilY,z:zNear},
     {x:halfW,y:floorY,z:zNear},{x:halfW,y:floorY,z:zFar}
   ],1);
-
-  // Ceiling begins well ahead. This keeps the immediate overhead area open and
-  // makes the nave feel much taller rather than like a low lid over the camera.
-  worldQuad(ceilTex,[
-    {x:-halfW,y:ceilY,z:ceilingStart},{x:halfW,y:ceilY,z:ceilingStart},
-    {x:halfW,y:ceilY,z:zFar},{x:-halfW,y:ceilY,z:zFar}
-  ],.88);
-
-  // Low side skirts visually bind floor and walls without adding square posts.
   worldQuad(ribTex,[
     {x:-halfW+.04,y:floorY+.78,z:zNear},{x:-halfW+.04,y:floorY+.78,z:zFar},
     {x:-halfW+.04,y:floorY,z:zFar},{x:-halfW+.04,y:floorY,z:zNear}
@@ -275,76 +282,97 @@ function renderPassage(){
     {x:halfW-.04,y:floorY,z:zNear},{x:halfW-.04,y:floorY,z:zFar}
   ],.84);
 
-  worldQuad(farTex,[
-    {x:-halfW,y:ceilY,z:zFar},{x:halfW,y:ceilY,z:zFar},
-    {x:halfW,y:floorY,z:zFar},{x:-halfW,y:floorY,z:zFar}
-  ],.90);
-
   const bay=6.15,thick=.68;
-  const first=Math.ceil((camZ+4.8)/bay)*bay;
+  const start=Math.floor((camZ-bay*2.1)/bay)*bay;
   const ribs=[];
-  for(let i=0;i<22;i++){
-    const z=first+i*bay;
-    if(z>zFar-2)continue;
-    ribs.push({z,depth:z-camZ});
-  }
+  for(let z=start;z<zFar-1;z+=bay)ribs.push({z,depth:z-camZ});
   ribs.sort((a,b)=>b.depth-a.depth);
 
   for(const r of ribs){
-    const a=depthAlpha(r.depth);
     const z0=r.z-thick*.5,z1=r.z+thick*.5;
-
-    // Dark rear wedges add depth, but remain part of the material mass.
+    if(z1-camZ<NEAR-.02)continue;
+    const a=depthAlpha(Math.max(0,r.depth),118);
     chamferPier(shadowTex,-1,halfW-.10,innerFloor-.03,innerTop-.06,floorY,shoulderY,z0+.20,z1+.26,a*.34);
     chamferPier(shadowTex, 1,halfW-.10,innerFloor-.03,innerTop-.06,floorY,shoulderY,z0+.20,z1+.26,a*.34);
-
-    // Main supports are trapezoidal: the inner edge leans outward as it rises.
-    // That replaces the old parade of rectangular columns with smoother diagonal thresholds.
     chamferPier(ribTex,-1,halfW-.08,innerFloor,innerTop,floorY,shoulderY,z0,z1,a*.98);
     chamferPier(ribTex, 1,halfW-.08,innerFloor,innerTop,floorY,shoulderY,z0,z1,a*.98);
-
-    // Curved crown is wide/open and visually connects both diagonal supports.
     if(atlas.crown){
       worldQuad(atlas.crown,[
         {x:-halfW+.02,y:ceilY+.05,z:z1+.10},{x:halfW-.02,y:ceilY+.05,z:z1+.10},
         {x:halfW-.02,y:shoulderY-.06,z:z1+.10},{x:-halfW+.02,y:shoulderY-.06,z:z1+.10}
-      ],a*.30);
+      ],a*.26);
       worldQuad(atlas.crown,[
         {x:-halfW+.02,y:ceilY+.05,z:z0},{x:halfW-.02,y:ceilY+.05,z:z0},
         {x:halfW-.02,y:shoulderY-.06,z:z0},{x:-halfW+.02,y:shoulderY-.06,z:z0}
-      ],a*.92);
+      ],a*.91);
     }
-
-    // Thin top bridge gives the arch perceptual depth without becoming a low ceiling slab.
-    worldQuad(ribTex,[
-      {x:-halfW+.15,y:ceilY-.22,z:z0},{x:halfW-.15,y:ceilY-.22,z:z0},
-      {x:halfW-.15,y:ceilY-.22,z:z1},{x:-halfW+.15,y:ceilY-.22,z:z1}
-    ],a*.42);
   }
 
-  // Subtle central wear strip: depth cue, not a detached geometric carpet.
   worldQuad(ribTex,[
     {x:-1.05,y:floorY+.014,z:zFar},{x:1.05,y:floorY+.014,z:zFar},
     {x:1.05,y:floorY+.014,z:zNear},{x:-1.05,y:floorY+.014,z:zNear}
-  ],.14);
+  ],.13);
 
-  // Darkness lives at the distant central throat, not in the side gaps.
-  const p=projectCam({x:0,y:2.35,z:camZ+90});
-  const throat=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,Math.max(38,W*.13));
-  throat.addColorStop(0,'rgba(0,0,0,.43)');
-  throat.addColorStop(.45,'rgba(0,0,0,.18)');
+  topDarkness(.82);
+
+  const p=projectCam({x:0,y:2.5,z:camZ+94});
+  const throat=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,Math.max(42,W*.14));
+  throat.addColorStop(0,'rgba(0,0,0,.50)');
+  throat.addColorStop(.48,'rgba(0,0,0,.20)');
   throat.addColorStop(1,'rgba(0,0,0,0)');
   ctx.fillStyle=throat;ctx.fillRect(0,0,W,H);
 }
+function renderMap2(){
+  baseFill('#090514','#100a1c','#030207');
+  const floorY=-1.45,zNear=camZ-20,zFar=camZ+124,halfW=8.2;
+  const checker=atlas.checkerField||atlas.checker;
+  worldQuad(checker,[
+    {x:-halfW,y:floorY,z:zFar},{x:halfW,y:floorY,z:zFar},
+    {x:halfW,y:floorY,z:zNear},{x:-halfW,y:floorY,z:zNear}
+  ],.98);
+
+  const rowStep=10.8;
+  const firstRow=Math.floor((camZ-rowStep*1.8)/rowStep);
+  const pillars=[];
+  for(let ri=firstRow;ri<firstRow+15;ri++){
+    const z=ri*rowStep+6.5;
+    const sway=((ri%3)-1)*.35;
+    const xs=[-6.1+sway,-3.0-sway,3.0+sway,6.1-sway];
+    for(let xi=0;xi<xs.length;xi++){
+      const r=xi===0||xi===3?1.30:1.05;
+      pillars.push({x:xs[xi],z,r,depth:z-camZ});
+    }
+  }
+  pillars.sort((a,b)=>b.depth-a.depth);
+  for(const p of pillars){
+    if(p.z+p.r-camZ<NEAR-.02)continue;
+    const a=depthAlpha(Math.max(0,p.depth),124);
+    renderCylinder(checker,p.x,p.z,p.r,floorY,12.8,a);
+  }
+
+  distanceFloorFade(.82);
+  topDarkness(.90);
+
+  const glow=ctx.createRadialGradient(W*.18,H*.46,0,W*.18,H*.46,W*.22);
+  glow.addColorStop(0,'rgba(226,58,45,.13)');
+  glow.addColorStop(.28,'rgba(142,38,116,.10)');
+  glow.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=glow;ctx.fillRect(0,0,W,H);
+}
 function analog(){
-  ctx.save();ctx.globalAlpha=.026;ctx.globalCompositeOperation='screen';
+  ctx.save();ctx.globalAlpha=currentMap===1?.024:.030;ctx.globalCompositeOperation='screen';
   for(let i=0;i<20;i++){
     const x=(i*97+(last|0)*.010)%W,y=(i*47+(last|0)*.006)%H;
-    ctx.fillStyle=i%3?'#b39d56':'#5f774e';ctx.fillRect(x,y,1,1);
+    ctx.fillStyle=currentMap===1?(i%3?'#b39d56':'#5f774e'):(i%3?'#c496b4':'#79658d');
+    ctx.fillRect(x,y,1,1);
   }
   ctx.restore();
 }
-function render(){ctx.setTransform(1,0,0,1,0,0);renderPassage();analog();}
+function render(){
+  ctx.setTransform(1,0,0,1,0,0);
+  if(currentMap===1)renderMap1();else renderMap2();
+  analog();
+}
 function update(dt){
   const k=Math.min(1,dt*.014);
   camZ=lerp(camZ,targetCamZ,k);
@@ -354,10 +382,18 @@ function frame(t){
   if(document.hidden||t-last<28)return;
   const dt=Math.min(50,t-last||16);last=t;update(dt);render();
 }
+function setMap(n){
+  currentMap=n;camZ=1.4;targetCamZ=1.4;
+  mapButtons.forEach((b,i)=>b.classList.toggle('active',i===n-1));
+  tag.textContent=n===1?'MAPA 1 · NAVE ALTA':'MAPA 2 · CILINDROS';
+}
+mapButtons[0].addEventListener('click',()=>setMap(1));
+mapButtons[1].addEventListener('click',()=>setMap(2));
 const held=new Map();
 function nudge(kind,amount){
-  if(kind==='up')targetCamZ=clamp(targetCamZ+amount*9,-5,126);
-  if(kind==='down')targetCamZ=clamp(targetCamZ-amount*9,-5,126);
+  const max=currentMap===1?132:145;
+  if(kind==='up')targetCamZ=clamp(targetCamZ+amount*9,-5,max);
+  if(kind==='down')targetCamZ=clamp(targetCamZ-amount*9,-5,max);
   hint.style.opacity='.18';
 }
 ['up','down'].forEach(id=>{
@@ -372,14 +408,17 @@ function nudge(kind,amount){
 addEventListener('keydown',e=>{
   if(e.key==='ArrowUp'||e.key==='w')nudge('up',.12);
   else if(e.key==='ArrowDown'||e.key==='s')nudge('down',.12);
+  else if(e.key==='1')setMap(1);
+  else if(e.key==='2')setMap(2);
 });
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-green-nave-v8',
-  contract:'fixed frontal view; forward/back only; continuous floor; tall open immediate camera space; diagonal chamfered supports; central darkness; no yaw; no strafe; no fisheye',
-  referenceMechanism:'very tall green nave + repeated open arches + diagonal side transitions + textured envelope + floor-led depth + central dark throat',
+  version:'spaces-maps-v9',
+  maps:['1 green arch nave','2 brutalist cylinder hall'],
+  contract:'fixed frontal view; forward/back only; no premature popping; map1 roof dissolves into darkness; map2 giant cylinders extend beyond frame with checker floor fading into dark',
   sourcePages:SOURCE_PAGES,
-  camera:{get z(){return targetCamZ}}
+  camera:{get z(){return targetCamZ}},
+  get map(){return currentMap}
 };
 requestAnimationFrame(frame);
 })();
