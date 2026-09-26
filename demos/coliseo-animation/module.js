@@ -1,7 +1,7 @@
 (function(g){
 'use strict';
 
-const VERSION='1.0.0';
+const VERSION='2.0.0';
 const FACT='FACT';
 const AMBIENT='AMBIENT';
 const EVENT_TYPES=new Set([
@@ -183,11 +183,18 @@ function deriveMotion(events,layout,env){
     else if(type==='WORKER_PROGRESS'&&wid){
       const anchor=nodePoint(L,nk,workerPos.get(wid)||workerPoint(L,wid));
       workerPos.set(wid,anchor);
-      addTrack(model,{id:eventKey+'-progress',kind:'worker_progress',subject:wid,eventType:type,start,duration:profile.progress/profile.motionScale,from:anchor,to:anchor,amplitude:profile.localAmp*zoomAmp,meta:{node_key:nk,stage:e.progress_stage||e.stage||null}});
+      const stage=String(e.progress_stage||e.stage||'WORK').toUpperCase();
+      const kind=stage==='CARRY'?'worker_carry':((stage==='CLIMB'||stage==='JUMP')?'worker_climb':'worker_progress');
+      const duration=(kind==='worker_carry'?profile.progress*1.25:kind==='worker_climb'?profile.progress*1.35:profile.progress)/profile.motionScale;
+      addTrack(model,{id:eventKey+'-'+stage.toLowerCase(),kind,subject:wid,eventType:type,start,duration,from:anchor,to:anchor,meta:{node_key:nk,stage}});
     }
     else if(type==='JOB_COMPLETED'){
       const node=nk||sourceNode(e),pos=nodePoint(L,node);
       addTrack(model,{id:eventKey+'-complete',kind:'job_complete',subject:node,eventType:type,start,duration:profile.complete/profile.motionScale,from:pos,to:pos,amplitude:.16*zoomAmp,meta:{node_key:node}});
+      if(wid){
+        const wp=workerPos.get(wid)||nodePoint(L,node,workerPoint(L,wid));
+        addTrack(model,{id:eventKey+'-celebrate',kind:'worker_celebrate',subject:wid,eventType:type,start:start+.04,duration:.78/profile.motionScale,from:wp,to:wp,meta:{node_key:node,stage:'CELEBRATE'}});
+      }
     }
     else if(type==='OUTPUT_EMITTED'){
       const node=sourceNode(e)||nk,oid=outputId(e,index),pos=nodePoint(L,node);
@@ -248,33 +255,61 @@ function latestTrack(tracks,subject,kinds,time){
 }
 function activeTracks(model,kind,time){return model.tracks.filter(t=>t.kind===kind&&time>=t.start&&time<=t.start+t.duration)}
 function progressOf(track,time){return Number.isFinite(track.duration)&&track.duration>0?clamp((time-track.start)/track.duration):0}
+function actionFromStage(stage){
+  const s=String(stage||'WORK').toUpperCase();
+  if(s==='READ'||s==='READING')return 'READ';
+  if(s==='THINK'||s==='PLAN'||s==='THINKING')return 'THINK';
+  if(s==='BUILD'||s==='IMPLEMENT'||s==='WRITE')return s==='WRITE'?'READ':'BUILD';
+  if(s==='VERIFY'||s==='REVIEW')return 'VERIFY';
+  if(s==='CARRY'||s==='OUTPUT')return 'CARRY';
+  if(s==='CLIMB'||s==='JUMP')return 'CLIMB';
+  if(s==='CELEBRATE'||s==='COMPLETE')return 'CELEBRATE';
+  if(s==='WAIT')return 'IDLE';
+  return 'BUILD';
+}
+function discreteFrame(track,time,count){
+  if(!track||!Number.isFinite(track.duration)||track.duration<=0)return 0;
+  const p=progressOf(track,time);
+  return Math.max(0,Math.min(count-1,Math.floor(p*count)));
+}
 function workerFrame(model,id,time){
   const base=copyPoint(model.base.workers.get(id)||{x:0,y:0,z:0});
   const moveKinds=new Set(['worker_walk','worker_release','worker_recovery']);
   const move=latestTrack(model.tracks,id,moveKinds,time);
-  let position=base,phase='idle',truth=null,eventType=null,opacity=1,scale=1,accent=0;
+  let position=base,phase='idle',truth=null,eventType=null,opacity=1,scale=1,accent=0,action='IDLE',frameIndex=0,stage=null;
   if(move){
     const p=progressOf(move,time);position=samplePath(move.path,eased(p,move.ease));
     if(time>move.start+move.duration)position=copyPoint(move.to);
-    else {phase=move.kind;truth=move.truth;eventType=move.eventType;accent=Math.sin(clamp(p)*Math.PI)}
+    else {
+      phase=move.kind;truth=move.truth;eventType=move.eventType;accent=Math.sin(clamp(p)*Math.PI);
+      action='WALK';frameIndex=Math.floor(clamp(p)*8)%4;
+    }
   }
-  const locals=model.tracks.filter(t=>t.subject===id&&time>=t.start&&time<=t.start+t.duration&&['worker_settle','worker_progress','worker_stale'].includes(t.kind)).sort((a,b)=>a.start-b.start);
+  const localKinds=['worker_settle','worker_progress','worker_carry','worker_climb','worker_stale','worker_celebrate'];
+  const locals=model.tracks.filter(t=>t.subject===id&&time>=t.start&&time<=t.start+t.duration&&localKinds.includes(t.kind)).sort((x,y)=>x.start-y.start);
   const local=locals[locals.length-1];
   if(local){
-    const p=progressOf(local,time),seed=hashString(local.id),a=(rand(seed,1)*Math.PI*2),amp=num(local.amplitude);
-    truth=local.truth;eventType=local.eventType;phase=local.kind;
-    if(local.kind==='worker_settle'){
-      const q=Math.sin(p*Math.PI)*amp;position={...position,x:position.x+Math.cos(a)*q,z:position.z+Math.sin(a)*q};scale=1+.07*Math.sin(p*Math.PI);
-    } else if(local.kind==='worker_progress'){
-      const q=Math.sin(p*Math.PI*2)*amp*Math.sin(p*Math.PI);position={...position,x:position.x+Math.cos(a)*q,z:position.z+Math.sin(a)*q};scale=1+.045*Math.sin(p*Math.PI);
-    } else if(local.kind==='worker_stale'){
-      const q=easeOut(p);opacity=1-.52*q;scale=1-.08*q;accent=1-q;
+    truth=local.truth;eventType=local.eventType;phase=local.kind;stage=local.meta?.stage||null;
+    if(local.kind==='worker_stale'){
+      const p=progressOf(local,time);opacity=1-.58*easeOut(p);scale=.96;accent=1-p;action='STALE';frameIndex=0;
+    } else if(local.kind==='worker_settle'){
+      action='IDLE';frameIndex=discreteFrame(local,time,2);
+    } else if(local.kind==='worker_carry'){
+      action='CARRY';frameIndex=discreteFrame(local,time,4);
+    } else if(local.kind==='worker_climb'){
+      action='CLIMB';frameIndex=discreteFrame(local,time,4);
+    } else if(local.kind==='worker_celebrate'){
+      action='CELEBRATE';frameIndex=discreteFrame(local,time,6);
+    } else {
+      action=actionFromStage(stage);frameIndex=discreteFrame(local,time,4);
     }
   }
   const stalePast=latestTrack(model.tracks,id,new Set(['worker_stale']),time);
   const recoveryPast=latestTrack(model.tracks,id,new Set(['worker_recovery']),time);
-  if(stalePast&&time>stalePast.start+stalePast.duration&&(!recoveryPast||recoveryPast.start<stalePast.start)){opacity=.42;scale=.92;phase='stale_hold'}
-  return {id,position,phase,truth,eventType,opacity,scale,accent};
+  if(stalePast&&time>stalePast.start+stalePast.duration&&(!recoveryPast||recoveryPast.start<stalePast.start)){
+    opacity=.38;scale=.94;phase='stale_hold';action='STALE';frameIndex=0;
+  }
+  return {id,position,phase,truth,eventType,opacity,scale,accent,action,frameIndex,stage};
 }
 function outputFrame(model,id,time){
   const base=model.base.outputs.get(id)||{},pos=copyPoint(base.position||{x:0,y:0,z:0});
@@ -341,7 +376,7 @@ function stepMotion(model,dt){
 const api={
   id:'animation',version:VERSION,deriveMotion,stepMotion,
   profiles:Object.freeze(Object.fromEntries(Object.entries(PROFILES).map(([k,v])=>[k,Object.freeze({...v})]))),
-  truth:{FACT,AMBIENT},eventTypes:Object.freeze([...EVENT_TYPES])
+  truth:{FACT,AMBIENT},eventTypes:Object.freeze([...EVENT_TYPES]),actions:Object.freeze(['IDLE','WALK','READ','THINK','BUILD','VERIFY','CARRY','CLIMB','CELEBRATE','STALE'])
 };
 g.COLISEO_LAB_MODULE=api;
 g.PROMETEO_COLISEO_ANIMATION=api;
