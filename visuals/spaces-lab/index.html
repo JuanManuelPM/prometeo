@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#030604">
 <title>Prometeo · Spaces Lab</title>
 <style>
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020403;color:#d8d0af;font-family:system-ui,-apple-system,sans-serif;overscroll-behavior:none;touch-action:none}
 #app{position:fixed;inset:0;overflow:hidden;background:#020403;isolation:isolate}
 #scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;image-rendering:auto}
@@ -14,10 +14,10 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020403;col
 #scan{position:absolute;z-index:5;inset:0;pointer-events:none;opacity:.07;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.02) 0 1px,transparent 1px 4px);mix-blend-mode:screen}
 #tag{position:absolute;z-index:8;left:max(10px,env(safe-area-inset-left));top:max(9px,env(safe-area-inset-top));padding:6px 8px;background:rgba(3,5,3,.42);border:1px solid rgba(197,189,130,.08);color:rgba(221,213,173,.54);font:800 7px/1 system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase;pointer-events:none}
 #maps{position:absolute;z-index:11;top:max(9px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;gap:5px}
-#maps button{height:29px;padding:0 9px;border:1px solid rgba(235,226,181,.13);background:rgba(4,5,6,.58);color:rgba(235,226,181,.56);font:900 8px/1 system-ui;letter-spacing:.11em;text-transform:uppercase;backdrop-filter:blur(3px)}
+#maps button{height:29px;padding:0 9px;border:1px solid rgba(235,226,181,.13);background:rgba(4,5,6,.58);color:rgba(235,226,181,.56);font:900 8px/1 system-ui;letter-spacing:.11em;text-transform:uppercase;backdrop-filter:blur(3px);touch-action:none;-webkit-user-select:none;user-select:none}
 #maps button.active{color:#f0e5bc;border-color:rgba(231,215,151,.35);background:rgba(55,68,37,.52)}
 #pad{position:absolute;z-index:10;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));width:58px;height:106px;pointer-events:none;opacity:.76}
-#pad button{position:absolute;left:0;width:58px;height:50px;border:1px solid rgba(229,220,171,.14);background:rgba(3,5,3,.58);color:rgba(231,221,177,.80);font:900 20px/1 system-ui,sans-serif;display:grid;place-items:center;pointer-events:auto;backdrop-filter:blur(2px)}
+#pad button{position:absolute;left:0;width:58px;height:50px;border:1px solid rgba(229,220,171,.14);background:rgba(3,5,3,.58);color:rgba(231,221,177,.80);font:900 20px/1 system-ui,sans-serif;display:grid;place-items:center;pointer-events:auto;backdrop-filter:blur(2px);touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #up{top:0}#down{bottom:0}
 #pad button:active{background:rgba(102,116,64,.34);color:#f1e7bf}
 #hint{position:absolute;z-index:8;left:max(10px,env(safe-area-inset-left));bottom:max(10px,env(safe-area-inset-bottom));max-width:62%;color:rgba(224,215,190,.34);font:800 7px/1.3 system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;pointer-events:none;transition:opacity 1s}
@@ -40,7 +40,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020403;col
     <button id="up" aria-label="Avanzar">↑</button>
     <button id="down" aria-label="Retroceder">↓</button>
   </div>
-  <div id="hint">W/S o scroll = avanzar/retroceder · A/D = moverse lateral · vista frontal fija</div>
+  <div id="hint">deslizá ↑/↓, W/S o scroll = avanzar/retroceder · A/D = lateral · vista frontal fija</div>
   <div id="loading">cargando materiales</div>
 </div>
 <script>
@@ -478,6 +478,35 @@ function nudge(kind,amount){
   if(kind==='right')targetCamX=clamp(targetCamX+amount*7,-lateralLimit(),lateralLimit());
   hint.style.opacity='.18';
 }
+
+let swipePointer=null,swipeLastY=0;
+canvas.addEventListener('pointerdown',e=>{
+  if(e.pointerType!=='touch'&&e.pointerType!=='pen')return;
+  e.preventDefault();
+  swipePointer=e.pointerId;
+  swipeLastY=e.clientY;
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove',e=>{
+  if(e.pointerId!==swipePointer)return;
+  e.preventDefault();
+  const dy=e.clientY-swipeLastY;
+  swipeLastY=e.clientY;
+  if(Math.abs(dy)<.35)return;
+  const max=currentMap===1?132:145;
+  // Finger up = walk forward. Finger down = walk backward.
+  // Movement is proportional to actual drag distance so it feels like direct touch locomotion.
+  targetCamZ=clamp(targetCamZ-dy*.045,-5,max);
+  hint.style.opacity='.18';
+});
+function endSwipe(e){
+  if(e.pointerId!==swipePointer)return;
+  e.preventDefault();
+  swipePointer=null;
+  try{canvas.releasePointerCapture(e.pointerId)}catch(_){}
+}
+canvas.addEventListener('pointerup',endSwipe);
+canvas.addEventListener('pointercancel',endSwipe);
 ['up','down'].forEach(id=>{
   const b=document.getElementById(id);
   b.addEventListener('pointerdown',e=>{
@@ -502,11 +531,14 @@ addEventListener('wheel',e=>{
   if(e.deltaY<0)nudge('up',amount);
   else if(e.deltaY>0)nudge('down',amount);
 },{passive:false});
+addEventListener('contextmenu',e=>e.preventDefault());
+addEventListener('selectstart',e=>e.preventDefault());
+addEventListener('dragstart',e=>e.preventDefault());
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v13',
+  version:'spaces-maps-v14',
   maps:['1 green arch nave','2 brutalist cylinder hall'],
-  contract:'fixed frontal view; WASD + wheel movement; both maps use camera-source nonlinear world lighting with near-black distance; map2 uses massive diagonal palace colonnades instead of horizontal rows; floors share the same light falloff',
+  contract:'fixed frontal view; touch vertical swipe + WASD + wheel movement; browser selection/callout disabled on controls; both maps keep camera-source nonlinear lighting and monumental composition',
   sourcePages:SOURCE_PAGES,
   camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
