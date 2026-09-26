@@ -68,6 +68,25 @@ Depth modes are trajectories that produce `{x,y,z}` over time:
 
 For 3D modes, stamps are depth-sorted far-to-near before drawing. With a bounded pool of roughly a few dozen stamps, insertion sorting is intentionally cheap and allocation-free.
 
+## Trail brightness hierarchy
+
+The trail has a temporal visual hierarchy, not equal-strength duplicates.
+
+- Current head: full brightness.
+- Oldest stamp: approximately 22% brightness.
+- Newer stamps: progressively brighter up to roughly 90% before the head.
+- In pseudo-3D, larger/farther `z` multiplies in additional darkening.
+
+To keep this cheap, Trail precomputes a small bank of seven shaded sprite canvases once when an asset loads:
+
+```js
+SHADE_BRIGHTNESS = [.22,.34,.46,.58,.70,.82,.90]
+```
+
+Each stamp selects the closest precomputed shade using its chronological trail position plus depth. No per-stamp blur and no per-stamp canvas filter are required.
+
+This specifically prevents an old/rear face from competing with the current face when ÓRBITA or LOOP turns back toward the viewer.
+
 ## Visual rules that remain non-negotiable
 
 - complete-image stamps

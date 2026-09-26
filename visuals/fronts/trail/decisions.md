@@ -39,11 +39,20 @@ Durable architecture detail:
 - Supported experimental trajectories: 2D, approach/CERCA, retreat/LEJOS, ÓRBITA, LOOP.
 - 2D remains the accepted bounce baseline and must not be silently replaced by a 3D mode.
 
+## Trail visibility hierarchy
+- The current/head sprite is the visual authority and remains full brightness.
+- Trail copies are not equal-strength duplicates: the oldest copy is deliberately much darker, and brightness rises progressively toward the newest copy.
+- In pseudo-3D, far/rear depth darkens stamps further.
+- This hierarchy exists specifically to prevent the returning/back section of an orbit from reading as a second active face.
+- Prefer darkness hierarchy over simply deleting the rear trail, because the residue should remain visible as depth/history.
+- Do not use a runtime blur to solve this.
+
 ## Performance decision
 - Performance degradation must preserve identity in this order: reduce internal render scale / stamp budget / cadence before changing the complete-image-stamp mechanism.
 - Mobile rendering intentionally uses controlled internal resolution and adaptive quality instead of device-pixel-ratio oversampling.
 - Stamp storage remains bounded through the preallocated pool.
 - Depth sorting for the small pool should remain bounded/allocation-light rather than introducing a scene graph.
+- Shade variants are precomputed once when the sprite loads; avoid per-stamp filter effects that would repeat work every frame.
 - On portrait mobile, promoted variants and motion modes must remain visibly discoverable.
 
 ## Session lifecycle
