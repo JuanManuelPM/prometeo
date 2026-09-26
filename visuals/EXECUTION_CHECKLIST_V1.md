@@ -102,3 +102,19 @@ Do NOT mark ready for review if:
 - the main image/scene is weak before animation;
 - it repeats a documented rejected behavior;
 - a stronger existing Prometeo technique was ignored without reason.
+
+
+## 10. Durable reincarnation handoff
+
+For fronts that have a `visuals/fronts/<front>/` package, follow `visuals/REINCARNATION_PROTOCOL_V1.md`.
+
+A completed update must persist:
+- state;
+- accepted baseline vs current candidate;
+- accumulated feedback;
+- meaningful version history;
+- asset/provenance changes;
+- durable decisions;
+- regenerated handoff.
+
+Assume the chat will be abandoned immediately after delivery. If a fresh chat cannot continue from the handoff + repo alone, the task is incomplete.
