@@ -3,53 +3,69 @@
 Status: CURRENT
 
 ## KEEP / ACCEPTED
-- forward/backward only
-- fixed frontal view
+- fixed frontal camera orientation
 - continuous ground
 - Map 1 = green monumental arch nave
-- Map 2 = brutalist cylinder hall
+- Map 2 = brutalist giant-cylinder hall
 - visible near structures persist until naturally behind/out of view
-- monumental scale comes from architecture, distance, cropping and occlusion
+- monumental scale comes from distance, cropping, occlusion and out-of-frame height
 
-## MAP 2 · LATEST CORRECTIONS
-The user reviewed v10 and identified three concrete problems:
+## LATEST MAP 2 CORRECTIONS CONSUMED IN v12
 
-1. **Floor coverage did not match the user's visible field.**
-   - Error: floor width was based on a fixed world-space half-width.
-   - Rule: floor coverage must be derived from the actual camera frustum / viewport at each depth.
-   - v11: floor width is now calculated from focal projection and viewport width for every depth band, with margin.
+### Lateral occupancy
+The user reviewed v11 on wide desktop and found the architecture compressed into the center while the left/right sides were mostly empty.
 
-2. **Cylinder density was too high.**
-   - Error: rows were too close and too many cylinders overlapped perceptually, flattening near/mid/far layers.
-   - Rule: monumental spaces need breathing room; spacing and darkness must separate depth groups.
-   - v11: row spacing increased substantially, layouts are staggered, and each row uses fewer cylinders.
+Exact rule:
+- Pillar placement must occupy the visible **hall volume**, not just a central corridor.
+- Important depth rows need architectural presence at left, center and right.
+- Some outer cylinders should enter partially from frame edges so the hall feels wider than the viewport.
+- Large empty side regions are only valid when clearly intentional.
 
-3. **Cylinder texture was visibly stretched.**
-   - Error: a single checker image was projected over extremely tall cylinder faces, so UV scaling produced ugly vertical stretching.
-   - Rule: never stretch a finite texture to communicate infinite height.
-   - v11: columns now use solid violet world-space shading instead of the checker texture.
-   - Far cylinders darken by world Z, strengthening depth.
+Implementation in v12:
+- broader world-space cylinder lanes reaching roughly ±40 world units;
+- staggered layouts across rows;
+- outer pillars create partial edge occupancy rather than a central-only cluster.
 
-## MAP 1 · PRESERVE
-- tall cavity / nave
-- arches dominate
-- diagonal/chamfered side supports
-- upper darkness instead of fake roof
-- no premature popping
+### Distance hierarchy
+The user reiterated that cylinders farther away must be darker.
+
+Exact rule:
+- equivalent farther cylinders must not read brighter than nearer ones unless there is an explicit local light source;
+- depth tone must be monotonic with world Z;
+- spacing + perspective + Z-darkening work together to separate near/mid/far layers.
+
+Implementation in v12:
+- earlier fog onset;
+- lower far-depth minimum;
+- nonlinear darkening inside the cylinder material.
+
+## CONTROLS · LATEST OVERRIDE
+The earlier "forward/back only" movement rule is superseded.
+
+Current controls:
+- W = forward
+- S = backward
+- A = strafe left
+- D = strafe right
+- mouse wheel / trackpad scroll = forward/back
+- touch ↑/↓ remains forward/back
+- camera **orientation remains fixed**; A/D moves the player laterally, it does not yaw/look sideways.
+
+Map 1 lateral range is intentionally small to preserve the nave.
+Map 2 allows substantially wider lateral movement.
+
+## PRESERVE FROM PRIOR ITERATIONS
+- Map 2 floor covers the camera frustum rather than a fixed world width.
+- No screen-space black distance band.
+- No stretched checker texture on tall cylinders.
+- Cylinder tops remain outside normal framing.
+- Map 1 keeps its tall arches, diagonal supports and upper darkness.
 
 ## REJECTED / DO NOT REVIVE
-- fixed-width floor that exposes viewport side gaps
-- stretched checker texture on very tall cylinders
-- dense cylinder rows that collapse depth
-- screen-space distance bands
-- visible cylinder tops
-- left/right controls
+- central-only cylinder distribution on wide screens
+- equal brightness for near/far cylinders
+- stretched tall-cylinder image textures
+- fixed-width floor exposing side gaps
+- screen-space distance seam
+- yaw/look controls unless explicitly requested again
 - premature culling
-- fake ceiling / flat background wall
-
-## DESIGN GUARDRAILS
-- Geometry that must cover the viewport should be sized from the camera/frustum, not an arbitrary world constant.
-- World depth must remain readable through spacing, scale, contrast and Z-based darkening.
-- Very tall/infinite-feeling objects should use materials that do not reveal texture stretching.
-- Simpler solid materials are preferable to distorted imagery.
-- Do not trade a coverage fix for texture distortion or a depth fix for visual clutter.
