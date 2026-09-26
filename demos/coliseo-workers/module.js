@@ -8,32 +8,38 @@ const DIRS=['down','left','right','up'];
 const TAU=Math.PI*2;
 
 const ASSET_DEFS=[
-  {id:'sanmartin',kind:'portrait',src:'https://upload.wikimedia.org/wikipedia/commons/f/f9/Jose_de_San_Martin-retouch-transparent_background.png',credit:'José de San Martín daguerreotype · public domain · Wikimedia Commons',head:[.31,.14,.38,.38],torso:[.13,.35,.74,.61]},
-  {id:'russell',kind:'portrait',src:'https://upload.wikimedia.org/wikipedia/commons/a/a6/Bertrand_Russell_transparent_bg.png',credit:'Bertrand Russell portrait · public domain · Wikimedia Commons',head:[.14,.04,.72,.50],torso:[.08,.42,.84,.57]},
-  {id:'washington',kind:'portrait',src:'https://upload.wikimedia.org/wikipedia/commons/f/f2/Portrait_of_George_Washington-transparent.png',credit:'George Washington portrait · public domain · Wikimedia Commons',head:[.16,.06,.68,.49],torso:[.06,.43,.88,.56]},
-  {id:'handbone',kind:'limb',src:'https://upload.wikimedia.org/wikipedia/commons/6/6d/Hand_bone.png',credit:"Gray's Anatomy hand plate · public domain · Wikimedia Commons",crop:[.11,.08,.71,.84]},
-  {id:'morrishand',kind:'limb',src:"https://thumb.wikimedia.org/wikipedia/commons/thumb/4/48/Morris%27_human_anatomy_%281898%29_-_Fig_134.png/960px-Morris%27_human_anatomy_%281898%29_-_Fig_134.png",credit:"Morris' Anatomy hand plate · public domain · Wikimedia Commons",crop:[.23,.02,.68,.94]},
-  {id:'repoMask',kind:'mask',src:'../../strategy/mask-mouth/assets/mask-transparent.webp',credit:'Prometeo transparent mask · existing repo asset',crop:[0,0,1,1]}
+  {
+    id:'agamemnonMask',kind:'mask',
+    src:'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/Masque_d%27Agamemnon.png/500px-Masque_d%27Agamemnon.png',
+    credit:'Mask of Agamemnon cutout · transparent PNG · CC BY-SA 3.0 / GFDL · Wikimedia Commons'
+  },
+  {
+    id:'cutHand',kind:'hand',
+    src:'https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/Leonard_Nimoys_hand_demonstrating_the_Vulcan_salutation_%28transparent_background%29.png/960px-Leonard_Nimoys_hand_demonstrating_the_Vulcan_salutation_%28transparent_background%29.png',
+    credit:'Transparent hand cutout · Gage Skidmore · CC BY-SA 3.0 · Wikimedia Commons'
+  },
+  {
+    id:'repoMask',kind:'mask',
+    src:'../../strategy/mask-mouth/assets/mask-transparent.webp',
+    credit:'Prometeo transparent mask · existing repo asset'
+  }
 ];
 
 const CURATED={
   full:{
-    id:'full',label:'CUERPO ENTERO',note:'cabeza + torso + brazos + piernas raras',
-    head:'sanmartin',torso:'russell',left:'handbone',right:'morrishand',
-    filter:'sepia(.42) contrast(1.35)',headScale:1.12,torsoScale:1.08,armScale:.86,
-    headX:-1,headY:-31,armSpread:12,angle:-.04,hasTorso:true,hasLegs:true,maskFace:false
+    id:'full',label:'MÁSCARA + CUERPO',note:'cutouts limpios · manos como brazos y piernas',
+    head:'agamemnonMask',torso:'repoMask',hasTorso:true,hasLegs:true,
+    headScale:1.08,torsoScale:1.0,armScale:.72,legScale:.56,armSpread:15,headY:-31,torsoY:-8
   },
   legless:{
-    id:'legless',label:'SIN PIERNAS',note:'busto flotante + manos asimétricas',
-    head:'washington',torso:'sanmartin',left:'morrishand',right:'handbone',
-    filter:'grayscale(.75) contrast(1.48)',headScale:1.18,torsoScale:1.05,armScale:.96,
-    headX:1,headY:-29,armSpread:13,angle:.035,hasTorso:true,hasLegs:false,maskFace:true
+    id:'legless',label:'SIN PIERNAS',note:'máscara + torso + dos manos flotantes',
+    head:'agamemnonMask',torso:'repoMask',hasTorso:true,hasLegs:false,
+    headScale:1.18,torsoScale:.92,armScale:.92,legScale:0,armSpread:18,headY:-29,torsoY:-5
   },
   headhands:{
-    id:'headhands',label:'CABEZA + MANOS',note:'sin torso, sin piernas',
-    head:'repoMask',torso:null,left:'handbone',right:'morrishand',
-    filter:'grayscale(.85) contrast(1.55)',headScale:1.55,torsoScale:1,armScale:1.2,
-    headX:0,headY:-18,armSpread:18,angle:0,hasTorso:false,hasLegs:false,maskFace:false,maskHead:true
+    id:'headhands',label:'CABEZA + MANOS',note:'sin torso · sin piernas · una sola mano espejada',
+    head:'repoMask',torso:null,hasTorso:false,hasLegs:false,
+    headScale:1.6,torsoScale:0,armScale:1.18,legScale:0,armSpread:22,headY:-17,torsoY:0
   }
 };
 
@@ -44,10 +50,12 @@ const readyListeners=[];
 function loadAssets(){
   for(const def of ASSET_DEFS){
     const img=new Image();
-    assets.set(def.id,{def,img,ready:false,error:false});
-    img.onload=()=>{const item=assets.get(def.id);item.ready=true;readyCount++;notifyReady();};
-    img.onerror=()=>{const item=assets.get(def.id);item.error=true;readyCount++;notifyReady();};
     img.decoding='async';
+    if(/^https?:/.test(def.src))img.crossOrigin='anonymous';
+    const item={def,img,ready:false,error:false};
+    assets.set(def.id,item);
+    img.onload=()=>{item.ready=true;readyCount++;notifyReady();};
+    img.onerror=()=>{item.error=true;readyCount++;notifyReady();};
     img.src=def.src;
   }
 }
@@ -63,9 +71,6 @@ function whenAssetsReady(){
 loadAssets();
 
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
-function hashString(s){let h=2166136261>>>0;for(const ch of String(s||'')){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
-function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
-function choice(arr,r){return arr[Math.floor(r()*arr.length)%arr.length]}
 function normPose(pose){
   pose=pose||{};
   let state=String(pose.state||pose.stage||'IDLE').toUpperCase();
@@ -75,132 +80,93 @@ function normPose(pose){
   return {state,direction,phase:Number.isFinite(pose.phase)?pose.phase:0,selected:!!pose.selected,liveness:String(pose.liveness||'LIVE').toUpperCase(),scale:Number.isFinite(pose.scale)?pose.scale:1};
 }
 function source(id){const x=assets.get(id);return x&&x.ready?x:null}
-function defById(id){return ASSET_DEFS.find(x=>x.id===id)||null}
-function portraitDefs(){return ASSET_DEFS.filter(x=>x.kind==='portrait')}
-function limbDefs(){return ASSET_DEFS.filter(x=>x.kind==='limb')}
-
-function curatedIdentity(name){
-  const p=CURATED[name]||CURATED.full;
-  return {
-    preset:p.id,label:p.label,note:p.note,
-    head:defById(p.head),torso:defById(p.torso),left:defById(p.left),right:defById(p.right),
-    filter:p.filter,headScale:p.headScale,torsoScale:p.torsoScale,armScale:p.armScale,
-    headX:p.headX,headY:p.headY,armSpread:p.armSpread,angle:p.angle,
-    hasTorso:p.hasTorso,hasLegs:p.hasLegs,maskFace:p.maskFace,maskHead:!!p.maskHead,
-    asym:true,noRight:false
-  };
-}
+function safeSource(id){return source(id)||source('repoMask')}
 function identityFor(worker){
-  const preset=String(worker&&worker.avatarPreset||'').toLowerCase();
-  if(CURATED[preset])return curatedIdentity(preset);
-  const seed=hashString(worker&&worker.worker_id||worker&&worker.display_code||'worker');
-  const r=mulberry32(seed),portraits=portraitDefs(),limbs=limbDefs();
-  const head=choice(portraits,r);
-  let torso=choice(portraits,r);if(torso.id===head.id)torso=portraits[(portraits.indexOf(torso)+1)%portraits.length];
-  return {
-    preset:'generated',label:'GENERATED',note:'stable worker collage',head,torso,
-    left:choice(limbs,r),right:choice(limbs,r),
-    filter:choice(['grayscale(1) contrast(1.25)','sepia(.35) contrast(1.32)','grayscale(.65) contrast(1.45)'],r),
-    headScale:.82+r()*.46,torsoScale:.82+r()*.42,armScale:.48+r()*.30,
-    headX:(r()-.5)*5,headY:-31+(r()-.5)*3,armSpread:8+r()*7,angle:(r()-.5)*.12,
-    hasTorso:true,hasLegs:r()>.28,maskFace:r()>.64,maskHead:false,asym:r()>.38,noRight:r()>.84
-  };
+  const requested=String(worker&&worker.avatarPreset||'full').toLowerCase();
+  const p=CURATED[requested]||CURATED.full;
+  return {...p,preset:p.id};
 }
-const identityCache=new Map();
-function getIdentity(worker){
-  const k=String(worker&&worker.worker_id||worker&&worker.display_code||'worker')+'|'+String(worker&&worker.avatarPreset||'');
-  if(!identityCache.has(k))identityCache.set(k,identityFor(worker));
-  return identityCache.get(k);
-}
+function getIdentity(worker){return identityFor(worker)}
 
-function drawCrop(c,item,crop,dx,dy,dw,dh,opt={}){
+function drawImage(c,item,dx,dy,dw,dh,opt={}){
   if(!item||!item.ready)return false;
-  const img=item.img,[nx,ny,nw,nh]=crop||[0,0,1,1];
-  const sx=nx*img.naturalWidth,sy=ny*img.naturalHeight,sw=nw*img.naturalWidth,sh=nh*img.naturalHeight;
-  c.save();c.translate(dx,dy);
+  c.save();
+  c.translate(dx,dy);
   if(opt.rot)c.rotate(opt.rot);
   if(opt.flip)c.scale(-1,1);
   c.globalAlpha=opt.alpha==null?1:opt.alpha;
   c.filter=opt.filter||'none';
-  if(opt.shadow){c.shadowColor='rgba(0,0,0,.78)';c.shadowBlur=opt.shadow;c.shadowOffsetY=opt.shadow*.25;}
-  c.drawImage(img,sx,sy,sw,sh,-dw/2,-dh/2,dw,dh);
-  c.restore();return true;
+  if(opt.shadow){
+    c.shadowColor='rgba(0,0,0,.82)';
+    c.shadowBlur=opt.shadow;
+    c.shadowOffsetY=opt.shadow*.28;
+  }
+  c.drawImage(item.img,-dw/2,-dh/2,dw,dh);
+  c.restore();
+  return true;
 }
-function gestureFor(state,phase){
-  const q=Math.sin(phase*TAU),base={l:-.32,r:.32,y:0};
-  if(state==='READ')return {l:-.78,r:.78,y:-1};
-  if(state==='THINK'||state==='PLAN')return {l:-1.18,r:.18,y:-3};
-  if(state==='WRITE')return {l:-.46,r:1.12,y:-1};
-  if(state==='BUILD'||state==='IMPLEMENT')return {l:-.25,r:-1.0+q*.22,y:-4};
-  if(state==='VERIFY'||state==='REVIEW')return {l:-.88,r:.34,y:-2};
-  if(state==='CLAIMED'||state==='SUBMIT')return {l:-.16,r:-1.25,y:-4};
-  if(state==='WAIT')return {l:-.12,r:.12,y:1};
-  if(state==='WALK')return {l:-.32-q*.18,r:.32+q*.18,y:0};
-  return base;
+function drawShadow(c,x,y,rx,ry,a){
+  c.save();c.globalAlpha=a;c.filter='blur(4px)';c.beginPath();c.ellipse(x,y,rx,ry,0,0,TAU);c.fillStyle='#000';c.fill();c.restore();
 }
-function drawImageShadow(c,x,y,rx,ry,a){c.save();c.globalAlpha=a;c.filter='blur(3px)';c.beginPath();c.ellipse(x,y,rx,ry,0,0,TAU);c.fillStyle='#000';c.fill();c.restore()}
+function gesture(state,phase){
+  const q=Math.sin(phase*TAU);
+  if(state==='THINK'||state==='PLAN')return {l:-1.06,r:.12,y:-3};
+  if(state==='VERIFY'||state==='REVIEW')return {l:-.92,r:.36,y:-2};
+  if(state==='BUILD'||state==='IMPLEMENT')return {l:-.34,r:-.88+q*.16,y:-3};
+  return {l:-.46,r:.46,y:0};
+}
 
 function drawWorker(c,worker,pose,env){
   if(!c)return;
   env=env||{};
   const p=normPose(pose),id=getIdentity(worker),s=clamp((Number(env.scale)||1)*p.scale,.16,7);
-  const bob=(p.state==='WALK'?Math.sin(p.phase*TAU*2)*1.25:Math.sin(p.phase*TAU)*.22)*s;
-  const gest=gestureFor(p.state,p.phase);
+  const bob=(p.state==='WALK'?Math.sin(p.phase*TAU*2)*1.2:Math.sin(p.phase*TAU)*.18)*s;
+  const g=gesture(p.state,p.phase);
+  const head=safeSource(id.head),torso=id.torso?safeSource(id.torso):null,hand=safeSource('cutHand');
+
   c.save();
   c.translate(Number(env.x)||0,(Number(env.y)||0)+bob);
   if(p.direction==='left')c.scale(-1,1);
-  if(p.direction==='up')c.globalAlpha=.88;
+  if(p.direction==='up')c.globalAlpha=.9;
 
-  const mask=source('repoMask');
-  const torso=id.torso?source(id.torso.id):null;
-  const head=id.head?source(id.head.id):null;
-  const left=id.left?source(id.left.id):null;
-  const right=id.right?source(id.right.id):null;
-
-  drawImageShadow(c,0,(id.hasLegs?8:3)*s,(id.preset==='headhands'?17:13)*s,3.3*s,.34);
+  drawShadow(c,0,(id.hasLegs?8:3)*s,(id.preset==='headhands'?19:14)*s,3.4*s,.34);
 
   if(id.hasLegs){
-    const legH=23*s,legW=10*s;
-    drawCrop(c,left,id.left.crop,-4.5*s,5*s,legW,legH,{rot:2.78,filter:'grayscale(.9) contrast(1.45)',shadow:1.2*s,alpha:.88});
-    drawCrop(c,right,id.right.crop,4.5*s,5*s,legW*.95,legH*1.04,{rot:-2.78,filter:'sepia(.18) grayscale(.75) contrast(1.5)',shadow:1.2*s,alpha:.88,flip:true});
+    drawImage(c,hand,-5.5*s,8*s,14*s*id.legScale,24*s*id.legScale,{rot:2.72,flip:true,shadow:1.5*s,filter:'grayscale(.28) contrast(1.15)',alpha:.96});
+    drawImage(c,hand,5.5*s,8*s,14*s*id.legScale,24*s*id.legScale,{rot:-2.72,shadow:1.5*s,filter:'sepia(.12) contrast(1.12)',alpha:.96});
   }
 
   if(id.hasTorso&&torso){
-    const tW=25*s*id.torsoScale,tH=32*s*id.torsoScale;
-    drawCrop(c,torso,id.torso.torso,0,-10*s,tW,tH,{rot:id.angle,filter:id.filter,shadow:2*s});
+    drawImage(c,torso,0,id.torsoY*s,27*s*id.torsoScale,16*s*id.torsoScale,{rot:.03,shadow:2*s,filter:'grayscale(.35) contrast(1.25)',alpha:.94});
   }
 
-  const armH=(id.preset==='headhands'?31:26)*s*id.armScale,armW=(id.preset==='headhands'?17:13)*s*id.armScale;
-  drawCrop(c,left,id.left.crop,-id.armSpread*s,(-9+gest.y)*s,armW,armH,{rot:gest.l-(id.preset==='headhands'?.22:0),filter:'grayscale(.8) contrast(1.55)',shadow:1.5*s,flip:true,alpha:.98});
-  if(!id.noRight)drawCrop(c,right,id.right.crop,id.armSpread*s,(-9+gest.y)*s,armW*(id.asym?1.12:.96),armH*(id.asym?.9:1.04),{rot:gest.r+(id.preset==='headhands'?.2:0),filter:'sepia(.18) grayscale(.62) contrast(1.55)',shadow:1.5*s,alpha:.97});
+  const armW=(id.preset==='headhands'?24:18)*s*id.armScale;
+  const armH=(id.preset==='headhands'?31:25)*s*id.armScale;
+  drawImage(c,hand,-id.armSpread*s,(-8+g.y)*s,armW,armH,{rot:g.l,flip:true,shadow:1.8*s,filter:'grayscale(.18) contrast(1.08)',alpha:.99});
+  drawImage(c,hand,id.armSpread*s,(-8+g.y)*s,armW,armH,{rot:g.r,shadow:1.8*s,filter:'sepia(.08) contrast(1.08)',alpha:.99});
 
-  if(id.maskHead&&mask){
-    drawCrop(c,mask,[0,0,1,1],id.headX*s,id.headY*s,28*s*id.headScale,15*s*id.headScale,{filter:'grayscale(.72) contrast(1.6)',shadow:2.4*s});
-  }else if(head){
-    drawCrop(c,head,id.head.head,id.headX*s,id.headY*s,20*s*id.headScale,21*s*id.headScale,{rot:-id.angle*.55,filter:id.filter,shadow:2.3*s});
-  }
-
-  if(id.maskFace&&mask){
-    drawCrop(c,mask,[0,0,1,1],id.headX*s,(id.headY+1)*s,18*s,9.5*s,{rot:id.angle*.9,filter:'grayscale(.85) contrast(1.6)',alpha:.78,shadow:1*s});
-  }
+  const headW=(id.head==='repoMask'?31:24)*s*id.headScale;
+  const headH=(id.head==='repoMask'?17:24)*s*id.headScale;
+  drawImage(c,head,0,id.headY*s,headW,headH,{rot:-.02,shadow:2.5*s,filter:id.head==='repoMask'?'grayscale(.18) contrast(1.35)':'contrast(1.12) saturate(.88)'});
 
   if(p.selected){
-    c.save();c.globalCompositeOperation='screen';c.globalAlpha=.58;c.strokeStyle='#e3c39a';c.lineWidth=Math.max(1,1.05*s);c.setLineDash([3*s,3*s]);c.strokeRect(-24*s,-48*s,48*s,62*s);c.restore();
+    c.save();c.globalCompositeOperation='screen';c.globalAlpha=.55;c.strokeStyle='#e3c39a';c.lineWidth=Math.max(1,1.05*s);c.setLineDash([3*s,3*s]);c.strokeRect(-28*s,-49*s,56*s,66*s);c.restore();
   }
   c.restore();
 }
 
 function measureWorker(worker,env){
   const s=clamp(Number(env&&env.scale)||1,.16,7),id=getIdentity(worker);
-  const width=(id.preset==='headhands'?54:42)*s,height=(id.hasLegs?66:id.preset==='headhands'?45:55)*s;
+  const width=(id.preset==='headhands'?64:50)*s;
+  const height=(id.hasLegs?72:id.preset==='headhands'?48:58)*s;
   return {width,height,anchorX:width/2,anchorY:height*.84};
 }
 
 const API={
-  id:'workers',version:'3.0.0-curated-swipe',
+  id:'workers',version:'3.1.0-clean-cutouts',
   measureWorker,drawWorker,whenAssetsReady,getIdentity,
   curatedPresets:Object.values(CURATED).map(({id,label,note})=>({id,label,note})),
-  families:[{id:'collage',label:'Modular image collage',description:'Stable worker identity assembled from photographic/public-domain cutouts and existing Prometeo imagery.',minScale:.3}],
+  families:[{id:'collage',label:'Clean cutout collage',description:'Stable worker identity assembled only from alpha cutouts; no visible rectangular source plates.',minScale:.3}],
   stages:STAGES.slice(),contractStages:CONTRACT_STAGES.slice(),directions:DIRS.slice(),liveness:LIVENESS.slice(),
   assetSources:ASSET_DEFS.map(({id,credit,src})=>({id,credit,src}))
 };
