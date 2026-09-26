@@ -2,9 +2,16 @@
 
 Status: CURRENT
 
-- Architecture must read as continuous mass, not stacked picture frames.
+- Architecture must read as one continuous interior mass, not stacked picture frames.
 - Yaw is not strafe.
-- Pared ≠ piso ≠ techo.
+- Pared ≠ piso ≠ techo, but all three must still feel like the same physical world.
+- The green-arch reference mechanism is now explicit: **tall nave + repeated structural ribs/thresholds + textured side envelope + floor-led depth + central dark throat**.
+- Arches should have perceptual thickness: side piers are volumetric and crowns are layered/connected, rather than one giant flat arch plate.
+- Side walls may be dark but must not disappear into large black lateral voids.
+- Strong black depth belongs mainly in the distant central opening.
+- Height is part of the effect, not a label: the ceiling/arches must visually overpower the viewer.
+- Continuous ground under/around the camera is invariant.
+- No fake/inverted fisheye.
 
 ## Session lifecycle
 - Reincarnation session reads handoff + repo and WAITs for feedback.
