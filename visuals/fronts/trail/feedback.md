@@ -22,6 +22,8 @@ Status: CURRENT
 - Verify on target mobile that adaptive quality reduction is not visually obvious.
 
 ## RESOLVED IN CURRENT CANDIDATE
+- White-rectangle regression on PSF Mantis/Dragon/Moth/Octo/Skeleton fixed by converting the opaque white matte into alpha; multiply fallback prevents the rectangle if pixel extraction fails.
+- Portrait UI now exposes all 7 variants at once in a two-row grid; Moth/Octo/Skeleton are no longer hidden off-screen.
 - Mobile `ASSET NO DISPONIBLE` regression traced to Wikimedia `Special:Redirect` runtime URLs; replaced with direct original-file URLs for the promoted cutout assets.
 - BASE preserved as variant 1.
 - Approved cutout direction promoted into the real Trail lab.
@@ -31,6 +33,8 @@ Status: CURRENT
 - Adaptive render quality added while preserving full-image stamps.
 
 ## REJECTED / DO NOT REVIVE
+- Drawing PSF source PNGs in raw/native mode when their white matte is opaque.
+- Hiding approved variants off-screen in an ambiguous horizontal mobile strip.
 - Fragmented rectangular glitch / missing chunks.
 - Soft blur replacing complete redraw stamps.
 - Square or white-backed images that visibly repeat as rectangles.
