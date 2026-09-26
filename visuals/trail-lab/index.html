@@ -13,37 +13,74 @@ body{overscroll-behavior:none;touch-action:none}
 canvas{position:fixed;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated;image-rendering:crisp-edges}
 .label{position:fixed;z-index:3;left:max(12px,env(safe-area-inset-left));top:max(10px,env(safe-area-inset-top));pointer-events:none;font:900 10px/1 Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;mix-blend-mode:multiply}
 .label small{display:block;margin-top:5px;font:700 8px/1.25 Arial,sans-serif;letter-spacing:.03em;opacity:.64}
-.credit{position:fixed;z-index:3;left:max(12px,env(safe-area-inset-left));bottom:max(10px,env(safe-area-inset-bottom));font:700 8px/1.2 Arial,sans-serif;letter-spacing:.03em;opacity:.58;mix-blend-mode:multiply;pointer-events:none}
+.credit{position:fixed;z-index:3;left:max(12px,env(safe-area-inset-left));bottom:max(10px,env(safe-area-inset-bottom));max-width:min(46vw,420px);font:700 8px/1.25 Arial,sans-serif;letter-spacing:.03em;opacity:.62;mix-blend-mode:multiply;pointer-events:none}
 .readout{position:fixed;z-index:3;right:max(12px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom));font:900 8px/1 Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;mix-blend-mode:multiply;pointer-events:none}
-button{position:fixed;z-index:4;right:max(9px,env(safe-area-inset-right));top:max(7px,env(safe-area-inset-top));width:48px;height:44px;padding:0;border:0;background:transparent;color:var(--ink);font:900 17px/1 Arial,sans-serif;cursor:pointer}
-button:focus-visible{outline:3px solid var(--ink);outline-offset:-4px}
+.pause{position:fixed;z-index:5;right:max(9px,env(safe-area-inset-right));top:max(7px,env(safe-area-inset-top));width:48px;height:44px;padding:0;border:0;background:transparent;color:var(--ink);font:900 17px/1 Arial,sans-serif;cursor:pointer}
+.pause:focus-visible,.variant:focus-visible{outline:3px solid currentColor;outline-offset:-4px}
+.variants{position:fixed;z-index:5;left:50%;top:max(7px,env(safe-area-inset-top));transform:translateX(-50%);display:flex;gap:4px;max-width:calc(100vw - 118px);overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:0 2px}.variants::-webkit-scrollbar{display:none}
+.variant{flex:0 0 auto;min-width:54px;height:44px;padding:0 10px;border:2px solid currentColor;background:rgba(255,255,255,.14);color:var(--ink);font:900 8px/1 Arial,sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;mix-blend-mode:multiply}
+.variant[aria-pressed="true"]{background:var(--ink);color:var(--bg);mix-blend-mode:normal}
 .loading{position:fixed;inset:0;z-index:7;display:grid;place-items:center;background:var(--bg);font:900 11px/1 Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;transition:opacity .12s linear;pointer-events:none}.loading.off{opacity:0}
-@media(max-height:500px){.label{font-size:9px}.label small{display:none}.credit,.readout{font-size:7px}}
+@media(max-width:720px){.variant{min-width:50px;padding:0 7px}.credit{max-width:40vw}.variants{max-width:calc(100vw - 108px)}}
+@media(max-height:500px){.label{font-size:9px;top:8px}.label small{display:none}.credit,.readout{font-size:7px}.variants{top:7px}.variant{height:44px}}
 @media(prefers-reduced-motion:reduce){.label small{display:none}}
 </style>
 </head>
 <body>
-<canvas id="stage" aria-label="Pulga de Micrographia repetida en copias completas que persisten brevemente durante el movimiento"></canvas>
-<div class="label">TRAIL LAB / OLD REDRAW<small>copias completas · tocá o arrastrá para cambiar la trayectoria</small></div>
-<button id="pause" aria-label="Pausar" aria-pressed="false">Ⅱ</button>
-<div class="credit">Robert Hooke · Micrographia · 1665 · dominio público · Wikimedia Commons</div>
+<canvas id="stage" aria-label="Insecto repetido en copias completas que persisten brevemente durante el movimiento"></canvas>
+<div class="label">TRAIL LAB / OLD REDRAW<small>copias completas · variantes controladas · tocá o arrastrá para cambiar la trayectoria</small></div>
+<div class="variants" id="variants" aria-label="Variantes de criatura"></div>
+<button class="pause" id="pause" aria-label="Pausar" aria-pressed="false">Ⅱ</button>
+<div class="credit" id="credit"></div>
 <div class="readout" id="readout">0 COPIAS COMPLETAS</div>
 <div class="loading" id="loading">aislando espécimen</div>
-
 <script>
 (()=>{
 'use strict';
 
-const ASSET='https://thumb.wikimedia.org/wikipedia/commons/thumb/9/96/Flea_Micrographia_Hooke.png/960px-Flea_Micrographia_Hooke.png';
-const SOURCE_CROP={sx:0,sy:18,sw:960,sh:724};
-const BG='#3155ff';
-const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const VARIANTS=[
+  {
+    id:'baseline',label:'BASE',name:'Pulga · Micrographia',
+    src:'https://thumb.wikimedia.org/wikipedia/commons/thumb/9/96/Flea_Micrographia_Hooke.png/960px-Flea_Micrographia_Hooke.png',
+    crop:{sx:0,sy:18,sw:960,sh:724},mode:'baseline',bg:'#3155ff',angleFactor:.16,size:1,
+    credit:'BASELINE · Robert Hooke · Micrographia · 1665 · dominio público · Wikimedia Commons'
+  },
+  {
+    id:'mantis',label:'MANTIS',name:'Mantis · line art',
+    src:'https://upload.wikimedia.org/wikipedia/commons/8/8f/Mantis_%28PSF%29.png',
+    crop:null,mode:'ink',ink:[22,11,5],bg:'#e7c73d',angleFactor:.08,size:.92,
+    credit:'Pearson Scott Foresman · mantis line art · dominio público · Wikimedia Commons'
+  },
+  {
+    id:'beetle',label:'BEETLE',name:'Escarabajo · detalle',
+    src:'https://upload.wikimedia.org/wikipedia/commons/8/87/Beetle_%28PSF%29.png',
+    crop:{sx:1780,sy:20,sw:1496,sh:1946},mode:'ink',ink:[16,8,4],bg:'#e55a43',angleFactor:.11,size:.83,
+    credit:'Pearson Scott Foresman · escarabajo · dominio público · Wikimedia Commons'
+  },
+  {
+    id:'plate',label:'PLATE',name:'Mantis ocelada · placa 1782',
+    src:'https://upload.wikimedia.org/wikipedia/commons/8/8a/Pseudocreobotra_ocellata.png',
+    crop:null,mode:'color',bg:'#90c879',angleFactor:.09,size:.92,
+    credit:'Dru Drury · Pseudocreobotra ocellata · placa 1782 · dominio público · Wikimedia Commons'
+  },
+  {
+    id:'eye',label:'EYE',name:'Mantis · ojo viajero',
+    src:'https://upload.wikimedia.org/wikipedia/commons/2/27/European_mantis.png',
+    crop:null,mode:'color',bg:'#1b1232',angleFactor:.05,size:.82,
+    eye:{x:.10,y:-.31,r:.031,color:'#ffe75f'},
+    credit:'European mantis · Colin Faulkingham · dominio público · Wikimedia Commons · glow añadido'
+  }
+];
 
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const canvas=document.getElementById('stage');
 const ctx=canvas.getContext('2d',{alpha:false,desynchronized:true});
 const loading=document.getElementById('loading');
 const readout=document.getElementById('readout');
 const pauseButton=document.getElementById('pause');
+const variantsEl=document.getElementById('variants');
+const credit=document.getElementById('credit');
+const themeMeta=document.querySelector('meta[name="theme-color"]');
 
 const img=new Image();
 img.decoding='async';
@@ -53,6 +90,10 @@ img.referrerPolicy='no-referrer';
 const sprite=document.createElement('canvas');
 const spriteCtx=sprite.getContext('2d',{willReadFrequently:true});
 let spriteReady=false;
+let assetReady=false;
+let spriteRatio=724/960;
+let active=VARIANTS[0];
+let loadToken=0;
 
 let W=1,H=1;
 let x=0,y=0;
@@ -73,244 +114,136 @@ const FAN_STAMPS=reduced?3:7;
 
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
 function lerp(a,b,t){return a+(b-a)*t}
-function wrapAngle(a){
-  while(a>Math.PI)a-=Math.PI*2;
-  while(a<-Math.PI)a+=Math.PI*2;
-  return a;
-}
+function wrapAngle(a){while(a>Math.PI)a-=Math.PI*2;while(a<-Math.PI)a+=Math.PI*2;return a}
 function lerpAngle(a,b,t){return a+wrapAngle(b-a)*t}
-function setSpeed(angle){
-  vx=Math.cos(angle)*SPEED;
-  vy=Math.sin(angle)*SPEED;
-}
+function setSpeed(angle){vx=Math.cos(angle)*SPEED;vy=Math.sin(angle)*SPEED}
 function spriteSize(){
-  const w=Math.round(clamp(Math.min(W*.265,H*.46),155,310));
-  return {w,h:Math.round(w*(SOURCE_CROP.sh/SOURCE_CROP.sw))};
+  const w=Math.round(clamp(Math.min(W*.265,H*.46),155,310)*(active.size||1));
+  return {w,h:Math.round(w*spriteRatio)};
 }
-function configure(c){
-  c.imageSmoothingEnabled=false;
-  c.globalAlpha=1;
-  c.globalCompositeOperation='source-over';
-  c.filter='none';
-}
+function configure(c){c.imageSmoothingEnabled=false;c.globalAlpha=1;c.globalCompositeOperation='source-over';c.filter='none'}
+function getCrop(){return active.crop||{sx:0,sy:0,sw:img.naturalWidth,sh:img.naturalHeight}}
 function isolateSprite(){
-  const sw=480,sh=Math.round(sw*(SOURCE_CROP.sh/SOURCE_CROP.sw));
-  sprite.width=sw;
-  sprite.height=sh;
+  const c=getCrop();
+  const sw=480,sh=Math.max(1,Math.round(sw*(c.sh/c.sw)));
+  sprite.width=sw;sprite.height=sh;spriteRatio=sh/sw;
   spriteCtx.clearRect(0,0,sw,sh);
   spriteCtx.imageSmoothingEnabled=true;
-  spriteCtx.drawImage(
-    img,
-    SOURCE_CROP.sx,SOURCE_CROP.sy,SOURCE_CROP.sw,SOURCE_CROP.sh,
-    0,0,sw,sh
-  );
+  spriteCtx.drawImage(img,c.sx,c.sy,c.sw,c.sh,0,0,sw,sh);
   try{
     const data=spriteCtx.getImageData(0,0,sw,sh);
     const p=data.data;
     for(let i=0;i<p.length;i+=4){
-      const lum=p[i]*.299+p[i+1]*.587+p[i+2]*.114;
-      const alpha=clamp((247-lum)*5.25,0,255);
-      p[i]=5;p[i+1]=5;p[i+2]=5;p[i+3]=alpha;
+      const r=p[i],g=p[i+1],b=p[i+2],srcA=p[i+3];
+      const lum=r*.299+g*.587+b*.114;
+      if(active.mode==='baseline'){
+        const alpha=clamp((247-lum)*5.25,0,255);
+        p[i]=5;p[i+1]=5;p[i+2]=5;p[i+3]=Math.round(alpha*(srcA/255));
+      }else if(active.mode==='ink'){
+        const alpha=clamp((250-lum)*4.35,0,255)*(srcA/255);
+        const depth=clamp((205-lum)/205,0,1);
+        p[i]=Math.round(lerp(active.ink[0]+34,active.ink[0],depth));
+        p[i+1]=Math.round(lerp(active.ink[1]+25,active.ink[1],depth));
+        p[i+2]=Math.round(lerp(active.ink[2]+16,active.ink[2],depth));
+        p[i+3]=Math.round(alpha);
+      }else{
+        const nearWhite=Math.min(r,g,b)>239 && Math.max(r,g,b)-Math.min(r,g,b)<24;
+        const edgeAlpha=nearWhite?clamp((253-lum)*12,0,255):255;
+        p[i]=Math.round(clamp((r-128)*1.08+128,0,255));
+        p[i+1]=Math.round(clamp((g-128)*1.08+128,0,255));
+        p[i+2]=Math.round(clamp((b-128)*1.08+128,0,255));
+        p[i+3]=Math.round(srcA*(edgeAlpha/255));
+      }
     }
     spriteCtx.clearRect(0,0,sw,sh);
     spriteCtx.putImageData(data,0,0);
     spriteReady=true;
-  }catch(_){
-    spriteReady=false;
-  }
+  }catch(_){spriteReady=false}
+}
+function drawEye(w,h){
+  if(!active.eye)return;
+  const ex=active.eye.x*w,ey=active.eye.y*h;
+  const r=Math.max(3,w*active.eye.r);
+  const g=ctx.createRadialGradient(ex,ey,0,ex,ey,r*3.4);
+  g.addColorStop(0,active.eye.color);
+  g.addColorStop(.26,active.eye.color);
+  g.addColorStop(1,'rgba(255,231,95,0)');
+  ctx.globalCompositeOperation='screen';
+  ctx.globalAlpha=.9;
+  ctx.fillStyle=g;
+  ctx.beginPath();ctx.arc(ex,ey,r*3.4,0,Math.PI*2);ctx.fill();
+  ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;
+  ctx.fillStyle='#fffbd0';ctx.beginPath();ctx.arc(ex,ey,r*.7,0,Math.PI*2);ctx.fill();
 }
 function drawWhole(px,py,angle,flip,scale=1){
-  const s=spriteSize();
-  const w=s.w*scale,h=s.h*scale;
-  ctx.save();
-  ctx.translate(Math.round(px),Math.round(py));
-  ctx.rotate(angle);
-  ctx.scale(flip,1);
-  ctx.globalAlpha=1;
-  ctx.globalCompositeOperation='source-over';
-  ctx.imageSmoothingEnabled=false;
-  if(spriteReady){
-    ctx.drawImage(sprite,-w*.5,-h*.5,w,h);
-  }else{
-    ctx.globalCompositeOperation='multiply';
-    ctx.filter='grayscale(1) contrast(1.7)';
-    ctx.drawImage(
-      img,
-      SOURCE_CROP.sx,SOURCE_CROP.sy,SOURCE_CROP.sw,SOURCE_CROP.sh,
-      -w*.5,-h*.5,w,h
-    );
+  if(!assetReady)return;
+  const s=spriteSize();const w=s.w*scale,h=s.h*scale;
+  ctx.save();ctx.translate(Math.round(px),Math.round(py));ctx.rotate(angle);ctx.scale(flip,1);
+  ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';ctx.imageSmoothingEnabled=false;
+  if(spriteReady){ctx.drawImage(sprite,-w*.5,-h*.5,w,h)}
+  else{
+    const c=getCrop();ctx.globalCompositeOperation='multiply';ctx.filter='grayscale(1) contrast(1.7)';
+    ctx.drawImage(img,c.sx,c.sy,c.sw,c.sh,-w*.5,-h*.5,w,h);
   }
-  ctx.restore();
-  configure(ctx);
+  drawEye(w,h);
+  ctx.restore();configure(ctx);
 }
 function makeStamp(px,py,angle,scale=1,born=performance.now()){
-  stamps.push({
-    x:px,y:py,
-    angle:angle*.16,
-    flip:Math.cos(angle)>=0?1:-1,
-    scale,
-    born
-  });
+  stamps.push({x:px,y:py,angle:angle*(active.angleFactor??.16),flip:Math.cos(angle)>=0?1:-1,scale,born});
   if(stamps.length>MAX_STAMPS)stamps.splice(0,stamps.length-MAX_STAMPS);
 }
 function seedComposition(now){
-  stamps.length=0;
-  const angle=Math.atan2(vy,vx);
-  const s=spriteSize();
-  const step=Math.max(12,s.w*.055);
-  for(let i=16;i>=1;i--){
-    const t=i/16;
-    const px=x-Math.cos(angle)*step*i;
-    const py=y-Math.sin(angle)*step*i+Math.sin(t*Math.PI)*H*.08;
-    makeStamp(px,py,angle-.28*Math.sin(t*Math.PI),1,now-i*STAMP_MS);
-  }
+  stamps.length=0;const angle=Math.atan2(vy,vx);const s=spriteSize();const step=Math.max(12,s.w*.055);
+  for(let i=16;i>=1;i--){const t=i/16;makeStamp(x-Math.cos(angle)*step*i,y-Math.sin(angle)*step*i+Math.sin(t*Math.PI)*H*.08,angle-.28*Math.sin(t*Math.PI),1,now-i*STAMP_MS)}
 }
-function stampCurrent(now){
-  makeStamp(x,y,Math.atan2(vy,vx),1,now);
-}
+function stampCurrent(now){makeStamp(x,y,Math.atan2(vy,vx),1,now)}
 function bounceFan(now,oldAngle,newAngle){
-  for(let i=1;i<=FAN_STAMPS;i++){
-    const t=i/(FAN_STAMPS+1);
-    const a=lerpAngle(oldAngle,newAngle,t);
-    makeStamp(
-      x-Math.cos(a)*(FAN_STAMPS-i)*2.2,
-      y-Math.sin(a)*(FAN_STAMPS-i)*2.2,
-      a,
-      lerp(.99,1.035,t),
-      now
-    );
-  }
+  for(let i=1;i<=FAN_STAMPS;i++){const t=i/(FAN_STAMPS+1);const a=lerpAngle(oldAngle,newAngle,t);makeStamp(x-Math.cos(a)*(FAN_STAMPS-i)*2.2,y-Math.sin(a)*(FAN_STAMPS-i)*2.2,a,lerp(.99,1.035,t),now)}
 }
-function age(now){
-  while(stamps.length && now-stamps[0].born>LIFE_MS)stamps.shift();
-  if(stamps.length>MAX_STAMPS)stamps.splice(0,stamps.length-MAX_STAMPS);
-}
+function age(now){while(stamps.length&&now-stamps[0].born>LIFE_MS)stamps.shift();if(stamps.length>MAX_STAMPS)stamps.splice(0,stamps.length-MAX_STAMPS)}
 function update(dt,now){
-  const s=spriteSize();
-  const rx=s.w*.43,ry=s.h*.42;
-  const oldAngle=Math.atan2(vy,vx);
-  let hit=false;
-
-  x+=vx*dt;
-  y+=vy*dt;
-
-  if(x<rx){x=rx;vx=Math.abs(vx);hit=true}
-  else if(x>W-rx){x=W-rx;vx=-Math.abs(vx);hit=true}
-
-  if(y<ry){y=ry;vy=Math.abs(vy);hit=true}
-  else if(y>H-ry){y=H-ry;vy=-Math.abs(vy);hit=true}
-
-  const speed=Math.hypot(vx,vy)||1;
-  vx=vx/speed*SPEED;
-  vy=vy/speed*SPEED;
-
-  stampClock+=dt*1000;
-  while(stampClock>=STAMP_MS){
-    stampClock-=STAMP_MS;
-    stampCurrent(now-stampClock);
-  }
-
-  if(hit){
-    const newAngle=Math.atan2(vy,vx);
-    bounceFan(now,oldAngle,newAngle);
-    stampClock=0;
-  }
-  age(now);
+  const s=spriteSize(),rx=s.w*.43,ry=s.h*.42,oldAngle=Math.atan2(vy,vx);let hit=false;
+  x+=vx*dt;y+=vy*dt;
+  if(x<rx){x=rx;vx=Math.abs(vx);hit=true}else if(x>W-rx){x=W-rx;vx=-Math.abs(vx);hit=true}
+  if(y<ry){y=ry;vy=Math.abs(vy);hit=true}else if(y>H-ry){y=H-ry;vy=-Math.abs(vy);hit=true}
+  const speed=Math.hypot(vx,vy)||1;vx=vx/speed*SPEED;vy=vy/speed*SPEED;
+  stampClock+=dt*1000;while(stampClock>=STAMP_MS){stampClock-=STAMP_MS;stampCurrent(now-stampClock)}
+  if(hit){bounceFan(now,oldAngle,Math.atan2(vy,vx));stampClock=0}age(now);
 }
 function render(now){
-  ctx.fillStyle=BG;
-  ctx.fillRect(0,0,W,H);
-
-  for(let i=0;i<stamps.length;i++){
-    const s=stamps[i];
-    drawWhole(s.x,s.y,s.angle,s.flip,s.scale);
-  }
-
-  const angle=Math.atan2(vy,vx);
-  drawWhole(x,y,angle*.16,Math.cos(angle)>=0?1:-1,1.045);
-
-  if(stamps.length!==lastCount){
-    lastCount=stamps.length;
-    readout.textContent=stamps.length+' COPIAS COMPLETAS';
-  }
+  ctx.fillStyle=active.bg;ctx.fillRect(0,0,W,H);
+  for(const s of stamps)drawWhole(s.x,s.y,s.angle,s.flip,s.scale);
+  const angle=Math.atan2(vy,vx);drawWhole(x,y,angle*(active.angleFactor??.16),Math.cos(angle)>=0?1:-1,1.045);
+  if(stamps.length!==lastCount){lastCount=stamps.length;readout.textContent=stamps.length+' COPIAS · '+active.label}
 }
 function resize(){
-  W=Math.max(1,Math.floor(innerWidth));
-  H=Math.max(1,Math.floor(innerHeight));
-  canvas.width=W;
-  canvas.height=H;
-  canvas.style.width=W+'px';
-  canvas.style.height=H+'px';
-  configure(ctx);
-
-  if(!x&&!y){
-    x=W*.28;
-    y=H*.46;
-  }else{
-    const s=spriteSize();
-    x=clamp(x,s.w*.43,W-s.w*.43);
-    y=clamp(y,s.h*.42,H-s.h*.42);
-  }
-  seedComposition(performance.now());
-  render(performance.now());
+  W=Math.max(1,Math.floor(innerWidth));H=Math.max(1,Math.floor(innerHeight));canvas.width=W;canvas.height=H;canvas.style.width=W+'px';canvas.style.height=H+'px';configure(ctx);
+  if(!x&&!y){x=W*.28;y=H*.46}else{const s=spriteSize();x=clamp(x,s.w*.43,W-s.w*.43);y=clamp(y,s.h*.42,H-s.h*.42)}
+  seedComposition(performance.now());render(performance.now());
 }
-function steer(cx,cy){
-  const dx=cx-x,dy=cy-y;
-  if(Math.hypot(dx,dy)<8)return;
-  setSpeed(Math.atan2(dy,dx));
-  const now=performance.now();
-  stampCurrent(now);
+function steer(cx,cy){const dx=cx-x,dy=cy-y;if(Math.hypot(dx,dy)<8)return;setSpeed(Math.atan2(dy,dx));stampCurrent(performance.now())}
+function tick(now){requestAnimationFrame(tick);if(paused){last=now;render(now);return}const dt=Math.min(.034,Math.max(.001,(now-(last||now-16))/1000));last=now;update(dt,now);render(now)}
+function syncButtons(){
+  for(const b of variantsEl.querySelectorAll('button'))b.setAttribute('aria-pressed',b.dataset.variant===active.id?'true':'false');
 }
-function tick(now){
-  requestAnimationFrame(tick);
-  if(paused){last=now;render(now);return}
-  const dt=Math.min(.034,Math.max(.001,(now-(last||now-16))/1000));
-  last=now;
-  update(dt,now);
-  render(now);
+function loadVariant(id,initial=false){
+  const next=VARIANTS.find(v=>v.id===id);if(!next||(!initial&&next.id===active.id))return;
+  active=next;spriteReady=false;assetReady=false;lastCount=-1;const token=++loadToken;
+  document.documentElement.style.setProperty('--bg',active.bg);themeMeta.setAttribute('content',active.bg);credit.textContent=active.credit;loading.textContent='aislando '+active.name;loading.style.opacity='';loading.classList.remove('off');syncButtons();
+  img.onload=()=>{if(token!==loadToken)return;assetReady=true;isolateSprite();loading.classList.add('off');if(!x&&!y){x=innerWidth*.28;y=innerHeight*.46}resize();seedComposition(performance.now());render(performance.now())};
+  img.onerror=()=>{if(token!==loadToken)return;loading.textContent='asset no disponible · '+active.label;loading.style.opacity='1'};
+  img.src=active.src;
 }
 
-canvas.addEventListener('pointerdown',e=>{
-  pointerDown=true;
-  pointerLast={x:e.clientX,y:e.clientY};
-  steer(e.clientX,e.clientY);
-  canvas.setPointerCapture?.(e.pointerId);
-});
-canvas.addEventListener('pointermove',e=>{
-  if(!pointerDown)return;
-  if(!pointerLast||Math.hypot(e.clientX-pointerLast.x,e.clientY-pointerLast.y)>22){
-    steer(e.clientX,e.clientY);
-    pointerLast={x:e.clientX,y:e.clientY};
-  }
-});
-canvas.addEventListener('pointerup',()=>{pointerDown=false;pointerLast=null});
-canvas.addEventListener('pointercancel',()=>{pointerDown=false;pointerLast=null});
-
-pauseButton.addEventListener('click',e=>{
-  paused=!paused;
-  e.currentTarget.textContent=paused?'▶':'Ⅱ';
-  e.currentTarget.setAttribute('aria-pressed',paused?'true':'false');
-  e.currentTarget.setAttribute('aria-label',paused?'Reanudar':'Pausar');
-});
-
+for(const v of VARIANTS){
+  const b=document.createElement('button');b.type='button';b.className='variant';b.dataset.variant=v.id;b.textContent=v.label;b.setAttribute('aria-label','Mostrar '+v.name);b.setAttribute('aria-pressed',v.id===active.id?'true':'false');b.addEventListener('click',()=>loadVariant(v.id));variantsEl.appendChild(b);
+}
+canvas.addEventListener('pointerdown',e=>{pointerDown=true;pointerLast={x:e.clientX,y:e.clientY};steer(e.clientX,e.clientY);canvas.setPointerCapture?.(e.pointerId)});
+canvas.addEventListener('pointermove',e=>{if(!pointerDown)return;if(!pointerLast||Math.hypot(e.clientX-pointerLast.x,e.clientY-pointerLast.y)>22){steer(e.clientX,e.clientY);pointerLast={x:e.clientX,y:e.clientY}}});
+canvas.addEventListener('pointerup',()=>{pointerDown=false;pointerLast=null});canvas.addEventListener('pointercancel',()=>{pointerDown=false;pointerLast=null});
+pauseButton.addEventListener('click',e=>{paused=!paused;e.currentTarget.textContent=paused?'▶':'Ⅱ';e.currentTarget.setAttribute('aria-pressed',paused?'true':'false');e.currentTarget.setAttribute('aria-label',paused?'Reanudar':'Pausar')});
 addEventListener('resize',resize,{passive:true});
-
-img.onload=()=>{
-  isolateSprite();
-  loading.classList.add('off');
-  x=innerWidth*.28;
-  y=innerHeight*.46;
-  const startAngle=.56;
-  setSpeed(startAngle);
-  resize();
-  requestAnimationFrame(tick);
-};
-img.onerror=()=>{
-  loading.textContent='asset no disponible';
-  loading.style.opacity='1';
-};
-img.src=ASSET;
-
+const startAngle=.56;setSpeed(startAngle);loadVariant('baseline',true);requestAnimationFrame(tick);
 })();
 </script>
 </body>
