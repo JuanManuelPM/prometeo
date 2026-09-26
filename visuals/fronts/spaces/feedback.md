@@ -3,55 +3,50 @@
 Status: CURRENT
 
 ## KEEP / ACCEPTED
-- walkable spaces
-- **forward/backward only**
-- fixed frontal view; do not reintroduce left/right look
-- continuous floor under/around the player
-- image/material-first surfaces
-- monumental scale should come from architecture, distance, occlusion and elements leaving the frame
-- black/dark areas must read as depth or shadow, not unfinished holes
+- forward/backward only
+- fixed frontal view
+- continuous ground
+- Map 1 = green monumental arch nave
+- Map 2 = brutalist checker-cylinder hall
+- visible near structures persist until naturally behind/out of view
+- monumental scale comes from architecture, distance, cropping and occlusion
 
 ## MAP 1 · GREEN NAVE
-- Very tall cavity / nave.
-- Repeated arches should dominate more than square posts.
-- Side supports use diagonal/chamfered transitions.
-- The near camera zone should feel open vertically.
-- The upper volume may have no visible literal roof if it convincingly dissolves into darkness.
-- Do not show an ambiguous far wall / fake ceiling.
-- Near ribs must **not pop out early**. They must remain until naturally behind the near plane / outside the visible field.
-- Side walls remain materially present; lateral black voids are rejected.
-- Darkness should gather mainly toward the distant center and upper void.
+- Preserve current tall-cavity direction.
+- Arches dominate more than square posts.
+- Diagonal/chamfered side supports.
+- Upper volume may dissolve into darkness rather than show a literal roof.
+- No premature popping.
 
 ## MAP 2 · BRUTALIST CYLINDERS
-- A second map is required, inspired by the supplied checker-cylinder reference.
-- Huge **cylindrical** pillars, not disguised square prisms.
-- Tops should be cropped / lost above the frame so the columns feel enormous.
-- Large dark spaces between columns are desirable if they read as scale/depth.
-- Checker floor should be strongest in the foreground and become dark/ambiguous in the distance.
-- Map 2 should read as a monumental hall / forest of giant columns, not another corridor of frames.
+- User explicitly liked v9 much more, but identified a major depth-compositing error:
+  - a horizontal black band/line crossed the middle of the scene **in front of distant cylinders**.
+- Exact cause/rule:
+  - distance fog must NOT be simulated with a screen-space horizontal rectangle/gradient drawn over world geometry;
+  - floor fade must be calculated from world depth (Z), so distant floor segments lose contrast progressively without masking cylinders;
+  - background/atmospheric darkness must never create a hard seam that crosses visible geometry.
+- Cylinders must feel enormous:
+  - tops/end caps should not be visible in normal framing;
+  - geometry should extend far beyond the upper viewport;
+  - upper disappearance should come from crop/height and smooth darkness, not from showing a clear endpoint.
+- Cylinder roundness should remain legible; avoid square-prism read.
+- Floor checker is strongest in foreground and progressively disappears with distance.
 
 ## REJECTED / DO NOT REVIVE
-- Black hole under camera.
-- Left/right strafe.
-- Left/right yaw / look controls.
-- Visible parade of isolated frame edges.
-- Inside-out/fake fisheye.
-- Giant flat arch plate / translucent overlay.
-- "Tunnel inside a picture inside another picture".
-- Black lateral gaps that read as unfinished voids.
-- Square-post corridor look dominating the arches.
-- Nearby ceiling slab directly over the player.
-- Premature culling / popping of visible near structures.
-- Background wall that ambiguously reads as a broken ceiling.
+- screen-space black band used as distance fog
+- horizontal seam crossing in front of world geometry
+- visible cylinder tops/endings that make the columns feel finite/small
+- black hole under camera
+- left/right controls
+- premature culling/popping
+- square-post corridor dominating Map 1
+- fake ceiling / flat background wall
+- fisheye tricks
 
 ## DESIGN GUARDRAILS
-- The place must read before the technique.
-- Silhouette / mass / height before texture detail.
-- One dominant spatial idea per map.
-- Monumental objects may extend beyond the frame; do not insist on showing their full height.
-- Repetition must create rhythm and depth, not expose a module recycler.
-- If a visible near object still contributes to the frame, it still exists.
-- Culling happens only after the object is safely behind/out of view.
-- Empty/dark zones are designed compositionally, not left as accidental gaps.
-- Floor, walls and upper volume may differ materially but must belong to one world.
-- A new iteration is not an improvement if it merely trades one dominant visual defect for another.
+- Depth effects belong to world depth whenever they interact with world geometry.
+- Do not use a 2D overlay to fake Z-distance if that overlay can cut across objects.
+- If an object is still visible, atmosphere should attenuate it gradually, not mask it with a hard screen-space boundary.
+- Monumental columns may extend absurdly high in world coordinates if that keeps their tops outside the frame.
+- If showing the full object makes it feel smaller, do not show the full object.
+- A visual fix is invalid if it trades one dominant compositing error for another.
