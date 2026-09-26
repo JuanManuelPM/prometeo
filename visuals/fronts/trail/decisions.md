@@ -40,13 +40,18 @@ Durable architecture detail:
 - 2D remains the accepted bounce baseline and must not be silently replaced by a 3D mode.
 
 ## 2.5D facing / yaw
+- Rear disappearance is rejected.
+- The preferred illusion is continuous rotation: front → profile → mirrored/darker rear → profile → front.
+- A single front image is reused as the rear proxy by horizontal mirroring only after profile.
+- The side switch must occur when the projected width is near zero, so the mirror is not perceived as a snap.
+- Rear representation stays darker and slightly more transparent than the front to distinguish it from a second active face.
 - A front-facing 2D image must not remain visibly frontal while its pseudo-3D trajectory moves behind the camera plane.
 - In 3D modes, z velocity controls a smooth vertical-axis yaw target:
   - approaching camera -> yaw 0°;
   - moving away -> yaw 180°.
 - Rotation is continuous. Never use an instantaneous horizontal mirror.
 - Sprite width compresses toward profile with `abs(cos(yaw))`; a small nonzero floor avoids numerical collapse.
-- Because there is only a front image, the front texture fades to zero after profile rather than pretending to show a fake backside.
+- Because there is only a front image, the rear hemisphere uses a mirrored and darkened proxy rather than disappearing.
 - Every stamp stores the yaw it had when created, preserving orientation history in the trail.
 - 2D mode keeps yaw = 0 and remains unchanged.
 

@@ -56,6 +56,12 @@ In-page movement modes:
 For 3D modes, z changes projected scale/position and distant stamps are slightly less opaque. Stamps are drawn far-to-near. There is still only one 2D sprite; no WebGL/mesh is required.
 
 ## LATEST USER FEEDBACK
+- User rejected the previous rear-hemisphere disappearance.
+- Preferred behavior: simply continue the turn into an inverse/mirrored version.
+- Current candidate now keeps the object present through the entire turn: front → profile → mirrored dark rear → profile → front.
+- The mirror switch occurs at near-zero width, so it should read as continuous rotation rather than an abrupt flip.
+
+## PREVIOUS USER FEEDBACK
 - After the darkness hierarchy, user identified the next 3D illusion break: the face itself did not turn.
 - Requested behavior: rotate smoothly so that when the object goes backward the frontal face is not visible.
 - Current candidate implements smooth yaw, profile compression and backface hiding without a mirror flip.
@@ -74,6 +80,11 @@ For 3D modes, z changes projected scale/position and distant stamps are slightly
 - Verify the new mode controls and adaptive quality on target mobile.
 
 ## RESOLVED IN CURRENT CANDIDATE
+- Replaced rear disappearance with a mirrored rear representation.
+- Yaw still compresses width smoothly toward profile.
+- Once the yaw passes profile, the canvas flips the sprite horizontally while keeping positive draw dimensions.
+- Rear side is darker and slightly more transparent than the front.
+- Existing temporal/depth darkness hierarchy remains active.
 - Added smooth vertical-axis yaw driven by z velocity: toward camera = front-facing target, away from camera = back-facing target.
 - Yaw compresses sprite width toward profile using |cos(yaw)| and fades the frontal texture out past profile/back hemisphere.
 - Historical stamps store yaw, so the trail preserves actual orientation history instead of redrawing all copies front-facing.

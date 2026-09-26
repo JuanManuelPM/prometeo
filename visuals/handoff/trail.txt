@@ -33,12 +33,18 @@ ACTUAL REPO TARGETS
 
 CURRENT STATE
 Review state: REVIEW
-Current implementation commit: 6af2d75f2b53787e6e8fc01682d4c9a005bc3cd7
-Current HTML blob evidence: d3891dc6059ee1e54544f374503de204c9d6a243
-Current candidate: pseudo-3D Trail with progressive darkness plus smooth 2.5D yaw/backface hiding. Away-moving figures rotate toward 180°, compress to profile and stop showing the frontal texture; returning figures reopen smoothly.
-User reviewed the prior pseudo-3D/shading direction: YES · positive, then requested face rotation/backface hiding
+Current implementation commit: 9c5aa94159c3c645c83cf684c47e35df9b636db5
+Current HTML blob evidence: 9648379f8633883b914eb60cda445dd91030e0bc
+Current candidate: pseudo-3D Trail with continuous front/profile/rear rotation. The rear hemisphere no longer disappears; it becomes a mirrored, darker proxy and then reopens smoothly when returning.
+User reviewed the prior yaw/backface-hiding direction: YES · rejected disappearance, requested mirrored/inverse rear instead
 
 LATEST USER FEEDBACK
+- rear hemisphere must not disappear
+- preferred solution: continue the turn into an inverse/mirrored version
+- current patch keeps continuous presence: front → profile → mirrored dark rear → profile → front
+- mirror switch happens at near-zero width, avoiding a snap
+
+PREVIOUS LATEST USER FEEDBACK
 - face must actually turn; front-facing mask cannot remain visible while it travels behind
 - requested smooth rotation so rearward motion hides the face
 - current patch uses z-velocity-driven yaw, profile compression and front-face fadeout
@@ -96,6 +102,14 @@ TrailEngine(asset, trajectory)
 See architecture.md for the durable technical model.
 
 CURRENT 2.5D FACING
+- approaching camera -> yaw target 0°
+- moving away -> yaw target 180°
+- smooth interpolation
+- profile compresses width almost to zero
+- after profile, sprite is mirrored horizontally and remains visible
+- rear proxy is darker / slightly more transparent
+- each stamp stores yaw
+- 2D yaw stays 0
 - stamp state now includes yaw
 - approaching camera -> yaw target 0°
 - moving away -> yaw target 180°
@@ -132,7 +146,7 @@ CURRENT PERFORMANCE
 - no external runtime image fetch
 
 OPEN USER FEEDBACK
-- review ÓRBITA/LOOP with yaw/backface hiding: rearward travel should stop showing the frontal face
+- review ÓRBITA/LOOP with mirrored rear proxy: object should remain present through the turn without disappearance or snap
 - clean current mask crop/base-gray defects
 - turn asset preparation into a robust compileTrailAsset(image) pipeline
 - later curate a larger ~20 candidate set only after the crop gate is trustworthy
@@ -159,6 +173,8 @@ RECENT MEANINGFUL VERSIONS
 - b4824e4f9b50715c34454c500a45c16cda7b1956 · REVIEW_PATCH · progressive trail darkness + rear-depth darkening
 
 - 6af2d75f2b53787e6e8fc01682d4c9a005bc3cd7 · REVIEW_PATCH · smooth yaw + profile compression + backface hiding
+
+- 9c5aa94159c3c645c83cf684c47e35df9b636db5 · REVIEW_PATCH · mirrored/darker rear proxy replaces disappearance
 
 INCARNATION CONTRACT
 1. Read this handoff COMPLETELY.

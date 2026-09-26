@@ -14,7 +14,7 @@
     "visuals/fronts/trail/architecture.md"
   ],
   "review_state": "REVIEW",
-  "current_blob_sha": "d3891dc6059ee1e54544f374503de204c9d6a243",
+  "current_blob_sha": "9648379f8633883b914eb60cda445dd91030e0bc",
   "accepted_baseline": {
     "label": "Full-stamp old-redraw",
     "commit": "26ff0e808fe0cf732af8c45f0eef9f13f99853e7",
@@ -39,8 +39,8 @@
     ]
   },
   "current_candidate": {
-    "commit": "6af2d75f2b53787e6e8fc01682d4c9a005bc3cd7",
-    "summary": "Pseudo-3D Trail with smooth vertical-axis yaw/backface hiding. When z velocity turns away from camera, the sprite smoothly rotates toward 180°, compresses horizontally toward profile, and its front face fades out; when motion returns toward camera it reopens smoothly. Existing old-to-new darkness and depth shading remain.",
+    "commit": "9c5aa94159c3c645c83cf684c47e35df9b636db5",
+    "summary": "Pseudo-3D Trail with smooth mirrored rear face: yaw still compresses the sprite toward profile, but the rear hemisphere now continues as a horizontally mirrored, darker version instead of disappearing. The side switch happens at near-zero width, so there is no visible snap flip.",
     "user_reviewed": false
   },
   "accepted_asset_direction": [
@@ -59,8 +59,8 @@
     "6 SHIKAMI"
   ],
   "open_feedback": [
-    "Review ÓRBITA/LOOP with the new yaw/backface behavior: when the figure goes behind, the face should compress to profile and disappear rather than remain front-facing.",
-    "Review LEJOS specifically: the figure now turns away as it retreats, so decide whether that is visually useful or too hidden for that dedicated mode.",
+    "Review ÓRBITA/LOOP with the new mirrored rear face: the object should remain continuously present through the turn, without a disappearance or abrupt flip.",
+    "Check whether rear-side darkness (~46% source brightness on the head, plus 68% alpha at full rear) is enough to read as backside rather than a second identical front.",
     "Some current masks still need cleaner segmentation: remove gray base/residue/halo before promoting them as final assets.",
     "Generalize asset preparation into a reliable compileTrailAsset(image) pipeline so supplied images can enter Trail without per-image animation code.",
     "Future candidate search may expand to ~20 clean color creepy/mask/creature/object cutouts after the crop-quality gate is reliable.",
@@ -86,10 +86,14 @@
     "3D distance adds extra darkening to far stamps while the current head remains full-strength.",
     "Darkness is precomputed into seven shaded sprite canvases once per asset load; runtime does not apply expensive per-stamp CSS/canvas filters.",
     "Added smooth 2.5D vertical-axis yaw driven by z velocity.",
-    "When moving away from camera, the sprite rotates toward its back side, compresses horizontally to profile, and the frontal texture fades out.",
     "When returning toward camera, the sprite reopens smoothly; no abrupt horizontal mirror/flip is introduced.",
     "Each historical stamp captures its own yaw so trail copies preserve the orientation they had when created.",
-    "2D mode remains visually unchanged with yaw fixed at 0."
+    "2D mode remains visually unchanged with yaw fixed at 0.",
+    "Rearward motion no longer makes the sprite disappear.",
+    "At profile, the sprite crosses into a horizontally mirrored rear representation while width is near zero, avoiding a visible snap.",
+    "The mirrored rear side stays darker and slightly more transparent than the front.",
+    "Historical stamps preserve their captured yaw and therefore preserve front/profile/rear orientation history.",
+    "2D remains unchanged."
   ],
   "asset_localization_evidence": {
     "workflow_run": "https://github.com/JuanManuelPM/prometeo/actions/runs/36272461620",
@@ -141,15 +145,16 @@
       "behavior": [
         "moving toward camera -> yaw target 0°",
         "moving away -> yaw target 180°",
-        "smooth interpolation, never snap-flip",
+        "smooth interpolation, never instant flip",
         "horizontal width uses abs(cos(yaw)) with a small profile floor",
-        "front-face alpha fades to zero past profile/back hemisphere"
+        "after profile, the sprite is mirrored horizontally and kept visible",
+        "rear hemisphere uses lower brightness/alpha so it reads as a reverse side rather than a second front"
       ]
     }
   },
   "pseudo3d_review": {
     "user_reviewed": true,
-    "result": "POSITIVE_WITH_YAW_FIX",
-    "note": "User liked the pseudo-3D but noted the face itself never turned; requested smooth rotation so the frontal face is not visible while the object travels backward."
+    "result": "POSITIVE_WITH_REAR_MIRROR_FIX",
+    "note": "User rejected full disappearance on the rear hemisphere and preferred the figure to keep rotating into a reversed/mirrored version."
   }
 }

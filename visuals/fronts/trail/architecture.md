@@ -68,9 +68,9 @@ Depth modes are trajectories that produce `{x,y,z}` over time:
 
 For 3D modes, stamps are depth-sorted far-to-near before drawing. With a bounded pool of roughly a few dozen stamps, insertion sorting is intentionally cheap and allocation-free.
 
-## 2.5D yaw / backface hiding
+## 2.5D yaw / mirrored rear proxy
 
-A single front-facing cutout has no real backside texture. When pseudo-3D motion goes away from the camera, Trail therefore simulates a vertical-axis turn rather than leaving the face painted toward the viewer.
+A single front-facing cutout has no real backside texture. When pseudo-3D motion goes away from the camera, Trail simulates a vertical-axis turn and then reuses a mirrored, darkened version as the rear proxy instead of making the object disappear.
 
 ```js
 if (vz >  threshold) yawTarget = Math.PI; // moving away
@@ -82,17 +82,20 @@ Rendering uses:
 
 ```js
 scaleX = max(profileFloor, abs(cos(yaw)))
-frontAlpha = smoothFrontHemisphere(cos(yaw))
+mirror = cos(yaw) < 0
+rear = clamp(-cos(yaw), 0, 1)
+rearAlpha = lerp(1.0, 0.68, rear)
+rearBrightness = lerp(0.90, 0.46, rear)
 ```
 
 Consequences:
 - front view: normal width, full front texture;
 - turning: width compresses smoothly;
 - profile: nearly edge-on;
-- back hemisphere: front texture becomes invisible;
+- back hemisphere: mirrored/darkened rear proxy remains visible;
 - returning: texture reappears while the sprite reopens.
 
-There is no negative x scale and therefore no abrupt mirror/flip.
+The canvas applies the mirror only after profile, when projected width is already near zero; this avoids an abrupt visible flip.
 
 Each stamp captures yaw when created, so trail history preserves the orientation of that moment.
 
