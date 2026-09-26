@@ -219,6 +219,7 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const CACHE_KEY='prometeo_live_v6_bundle_v2';
 const FALLBACK_URL='./fallback.json';
+const STATIC_CATALOG_URL='../control-v8/catalog.json';
 const RPC_TIMEOUT_MS=6500;
 const RPC_MAP={
  tree:'prometeo_current_tree_v2',
@@ -252,6 +253,26 @@ function cacheWrite(bundle){
 async function fallbackRead(){
  try{const r=await fetch(FALLBACK_URL+'?v=2',{cache:'no-store'});if(!r.ok)return null;const x=await r.json();return x?.tree?x:null}catch{return null}
 }
+async function staticCatalogRead(){
+ try{const r=await fetch(STATIC_CATALOG_URL,{cache:'no-store'});if(!r.ok)return null;return await r.json()}catch{return null}
+}
+function renderStaticCatalog(cat){
+ STATIC_FALLBACK=true;
+ const projects=cat?.projects||[],surfaces=cat?.surfaces||[],tools=cat?.tools||[];
+ $('#stamp').textContent='respaldo '+fmt(cat?.generated_at);
+ $('#freshness').className='freshness on';
+ $('#freshnessText').textContent='estado live temporalmente no disponible · respaldo publicado '+fmt(cat?.generated_at)+' · actualizando…';
+ let h='<section class="statecard"><div class="statecard-title">Última proyección publicada</div>'+
+   '<div class="primary"><div class="rtitle">Prometeo sigue visible mientras vuelve el estado live</div>'+
+   '<div class="rdesc">Esta copia es una proyección estática publicada, no estado actual. Se reemplaza sola apenas responda Current Tree.</div>'+
+   '<div class="nextline"><span>'+projects.length+' proyectos</span><span>'+surfaces.length+' superficies</span><span>'+tools.length+' herramientas</span></div></div>';
+ projects.slice(0,4).forEach(p=>h+='<div class="row"><div><div class="rtitle">'+esc(p.title)+'</div><div class="rdesc">'+esc(p.subtitle||p.source_ref||'')+'</div></div><div class="rmeta">'+esc(p.status||'')+'</div></div>');
+ h+='</section><section class="statecard"><div class="statecard-title">Superficies disponibles</div>';
+ surfaces.slice(0,8).forEach(s=>h+='<div class="row"><div><div class="rtitle">'+esc(s.title)+'</div><div class="rdesc">'+esc(s.public_url||'')+'</div></div><div class="rmeta">'+esc(s.status||'')+'</div></div>');
+ h+='</section>';
+ $('#statecontent').innerHTML=h;
+ H={daily:[]};C={contexts:[]};renderHistory();renderWork();
+}
 async function load(base={}){
  const bundle={...base},failures=[];
  try{
@@ -279,6 +300,7 @@ function freshness(mode,bundle,failures=[]){
  txt.textContent='mostrando última copia · '+fmt(when)+suffix;
 }
 function applyBundle(bundle,mode='stale',failures=[]){
+ STATIC_FALLBACK=false;
  D=bundle.tree;
  O=bundle.organism||{nodes:[],edges:[],coverage:{}};
  H=bundle.historyMetrics||{daily:[]};
@@ -289,7 +311,7 @@ function applyBundle(bundle,mode='stale',failures=[]){
  if($('#organismo').classList.contains('on'))drawOrg();
  freshness(mode,bundle,failures);
 }
-let REFRESHING=false,LAST_BUNDLE=null;
+let REFRESHING=false,LAST_BUNDLE=null,STATIC_FALLBACK=false;
 async function refreshNow(){
  if(REFRESHING)return;
  REFRESHING=true;
@@ -302,6 +324,9 @@ async function refreshNow(){
   if(LAST_BUNDLE){
    freshness('stale',LAST_BUNDLE,[e.message]);
    $('#stamp').textContent='copia '+fmt(snapshotAt(LAST_BUNDLE));
+  }else if(STATIC_FALLBACK){
+   $('#freshness').className='freshness on';
+   $('#freshnessText').textContent='mostrando respaldo publicado · estado live todavía no responde · reintentando…';
   }else{
    $('#stamp').textContent='sin snapshot';
    $('#statecontent').innerHTML='<div class="rdesc">No hay una copia previa todavía. Reintentando en segundo plano: '+esc(e.message)+'</div>';
@@ -752,6 +777,10 @@ $('#freshnessRetry').onclick=refreshNow;
  else{
   const fallback=await fallbackRead();
   if(fallback){LAST_BUNDLE=fallback;applyBundle(fallback,'stale')}
+  else{
+   const cat=await staticCatalogRead();
+   if(cat)renderStaticCatalog(cat);
+  }
  }
  await refreshNow();
  setInterval(refreshNow,60000);
