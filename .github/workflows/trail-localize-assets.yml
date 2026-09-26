@@ -50,7 +50,7 @@ jobs:
               return img
 
           def save_baseline(src, out):
-              im=fit(Image.open(src), 960)
+              im=fit(Image.open(src), 720)
               px=im.load()
               for y in range(im.height):
                   for x in range(im.width):
@@ -76,7 +76,7 @@ jobs:
               return tuple(round(sum(p[i] for p in mid)/len(mid)) for i in range(3))
 
           def cutout(src,out,lo=24,hi=76,contrast=1.04):
-              im=fit(Image.open(src), 900)
+              im=fit(Image.open(src), 640)
               bg=border_color(im)
               rgba=im.convert("RGBA")
               pix=rgba.load()
@@ -125,4 +125,13 @@ jobs:
             exit 0
           fi
           git commit -m "trail: localize color cutout assets"
-          git push origin HEAD:main
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Could not push localized assets after retries" >&2
+          exit 1
