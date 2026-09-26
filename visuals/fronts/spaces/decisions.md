@@ -2,35 +2,38 @@
 
 Status: CURRENT
 
-## Universal lighting / composition rules
-- Treat the camera/player as the dominant light source.
-- Light falloff is nonlinear in world space: near = readable, far/off-axis = strongly dark.
-- Almost-black regions are intentional and desirable when they reinforce scale/depth.
+## Universal lighting / composition
+- Camera/player is the dominant light source.
+- Light falloff is nonlinear in world space.
+- Near = readable; far/off-axis = strongly dark.
 - Floors use the same light model as architecture.
-- Never fake depth with a hard screen-space band crossing geometry.
-- The image should feel sculpted by light and darkness, not uniformly exposed.
-- Monumental architecture does not need to be fully visible; partial occlusion and lost detail increase scale.
+- Almost-black regions are intentional.
+- Never fake depth with a hard screen-space band.
+- Monumental architecture may disappear partly into darkness/cropping.
 
-## Map 1 · Green Nave
-- The tunnel/nave must follow the same current rules as Map 2.
-- Floor, walls and arches darken with camera distance/off-axis angle.
-- Distant arches can approach black.
-- Upper vault stays unresolved/dark instead of becoming a visible flat ceiling.
-- Keep the tall green nave, diagonal supports and natural culling.
+## Map 1
+- Tall green nave, repeated arches, diagonal/chamfered supports.
+- Floor, walls and arches follow camera-source lighting.
+- Upper vault stays unresolved in darkness.
+- No premature culling.
 
-## Map 2 · Brutalist Palace
-- Columns are wide/heavy; thin tubes are rejected.
-- Approximate radius target is now roughly 2.2–2.5 world units unless later feedback overrides it.
-- Columns must not align as obvious horizontal rows.
-- Use ordered diagonal placement in Z across X to suggest a palace/colonnade.
-- Alternating diagonal slant is allowed; random scatter is not the goal.
-- Farther equivalent columns are always darker without an explicit local light.
+## Map 2
+- Wide/heavy columns, not thin tubes.
+- Ordered diagonal placement in Z across X, not obvious horizontal rows.
+- Far equivalent columns remain darker than near ones.
 - Large zones between colonnades may fall almost fully black.
-- Floor light/darkness must match the columns' camera-source falloff.
+- Floor shares camera-source falloff.
 
 ## Interaction
 - W/S forward/back.
 - A/D lateral strafe.
 - Wheel/trackpad forward/back.
-- Touch ↑/↓ remains.
-- View direction remains fixed; no yaw unless explicitly requested.
+- Touch ↑/↓ buttons forward/back.
+- **Vertical swipe on the scene is first-class movement:** swipe up advances, swipe down retreats.
+- Camera direction remains fixed.
+
+## Mobile/browser interaction rule
+- The visual surface is an interaction canvas, not selectable document text.
+- Disable user text selection and mobile touch callouts on the visual and its controls.
+- Prevent context-menu/selectstart/dragstart from interrupting gameplay.
+- Button glyphs such as ↑/↓ must never trigger copy/paste selection UI.
