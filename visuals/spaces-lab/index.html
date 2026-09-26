@@ -222,8 +222,8 @@ function chamferPier(img,side,outerX,innerFloor,innerTop,y0,y1,z0,z1,alpha){
   worldQuad(img,[{x:top,y:y1,z:z1},{x:top,y:y1,z:z0},{x:foot,y:y0,z:z0},{x:foot,y:y0,z:z1}],alpha*.88);
   worldQuad(img,[{x:outer,y:y1,z:z0},{x:outer,y:y1,z:z1},{x:top,y:y1,z:z1},{x:top,y:y1,z:z0}],alpha*.68);
 }
-function renderCylinderSolid(cx,cz,r,y0,y1,depthFade){
-  const faces=[],n=24;
+function renderCylinderSolid(cx,cz,r,y0,y1,cameraLight){
+  const faces=[],n=28;
   for(let i=0;i<n;i++){
     const a0=(i/n)*Math.PI*2,a1=((i+1)/n)*Math.PI*2;
     const x0=cx+Math.cos(a0)*r,z0=cz+Math.sin(a0)*r;
@@ -233,15 +233,15 @@ function renderCylinderSolid(cx,cz,r,y0,y1,depthFade){
     ]});
   }
   faces.sort((a,b)=>b.z-a.z);
+  const d=Math.pow(clamp(cameraLight,0,1),1.18);
   for(const f of faces){
-    const light=.24+.76*Math.max(0,Math.cos(f.mid+.72));
-    // Distance darkening is deliberately monotonic: farther world-Z can never become brighter
-    // than an equivalent nearer face unless lighting itself changes.
-    const d=Math.pow(clamp(depthFade,0,1),1.55);
-    const rr=Math.round(7+101*light*d);
-    const gg=Math.round(5+64*light*d);
-    const bb=Math.round(13+132*light*d);
-    worldSolidQuad('rgb('+rr+','+gg+','+bb+')',f.pts,.99);
+    // Camera is the dominant light source. Front-facing curvature catches the beam;
+    // side/back faces fall almost completely into black.
+    const face=.08+.92*Math.max(0,Math.cos(f.mid+.72));
+    const rr=Math.round(2+126*face*d);
+    const gg=Math.round(1+61*face*d);
+    const bb=Math.round(5+166*face*d);
+    worldSolidQuad('rgb('+rr+','+gg+','+bb+')',f.pts,.995);
   }
 }
 function depthAlpha(d,max){return clamp(1-d/(max||112),.16,.98)}
@@ -250,6 +250,68 @@ function fogAlphaByWorldZ(worldZ,start,end,min){
   if(d<=start)return .98;
   if(d>=end)return min;
   return lerp(.98,min,(d-start)/(end-start));
+}
+function cameraLightAt(worldX,worldZ,reach,cone,ambient){
+  const dz=Math.max(0,worldZ-camZ);
+  const dx=Math.abs(worldX-camX);
+  const radial=Math.hypot(dz,dx*.72);
+  const falloff=1/(1+Math.pow(radial/(reach||48),2.45));
+  const coneWidth=3.0+dz*(cone||.52);
+  const beam=Math.exp(-Math.pow(dx/Math.max(2.2,coneWidth),2.15));
+  return clamp((ambient||.006)+falloff*(.18+.82*beam),(ambient||.006),1);
+}
+function renderCameraLitSolidFloor(floorY,zNear,zFar,color){
+  const bands=28,cells=12;
+  for(let zi=bands-1;zi>=0;zi--){
+    const t0=zi/bands,t1=(zi+1)/bands;
+    const z0=lerp(zNear,zFar,t0),z1=lerp(zNear,zFar,t1);
+    const d0=Math.max(NEAR,z0-camZ),d1=Math.max(NEAR,z1-camZ);
+    const w0=visibleHalfWidthAtDepth(d0,1.18),w1=visibleHalfWidthAtDepth(d1,1.18);
+    for(let xi=0;xi<cells;xi++){
+      const q0=xi/cells,q1=(xi+1)/cells;
+      const x00=camX-w0+2*w0*q0,x01=camX-w0+2*w0*q1;
+      const x10=camX-w1+2*w1*q0,x11=camX-w1+2*w1*q1;
+      const midX=(x00+x01+x10+x11)*.25,midZ=(z0+z1)*.5;
+      const L=Math.pow(cameraLightAt(midX,midZ,60,.46,.004),1.28);
+      let rr,gg,bb;
+      if(color==='green'){
+        rr=Math.round(1+34*L);gg=Math.round(3+65*L);bb=Math.round(2+28*L);
+      }else{
+        rr=Math.round(1+70*L);gg=Math.round(1+38*L);bb=Math.round(3+95*L);
+      }
+      worldSolidQuad('rgb('+rr+','+gg+','+bb+')',[
+        {x:x10,y:floorY,z:z1},{x:x11,y:floorY,z:z1},
+        {x:x01,y:floorY,z:z0},{x:x00,y:floorY,z:z0}
+      ],1);
+    }
+  }
+}
+function renderCameraLitTexturedFloor(img,floorY,zNear,zFar,halfW){
+  const bands=26,cells=8;
+  for(let zi=bands-1;zi>=0;zi--){
+    const z0=lerp(zNear,zFar,zi/bands),z1=lerp(zNear,zFar,(zi+1)/bands);
+    for(let xi=0;xi<cells;xi++){
+      const x0=-halfW+(2*halfW)*(xi/cells);
+      const x1=-halfW+(2*halfW)*((xi+1)/cells);
+      const midX=(x0+x1)*.5,midZ=(z0+z1)*.5;
+      const L=Math.pow(cameraLightAt(midX,midZ,48,.60,.008),1.18);
+      worldQuad(img,[
+        {x:x0,y:floorY,z:z1},{x:x1,y:floorY,z:z1},
+        {x:x1,y:floorY,z:z0},{x:x0,y:floorY,z:z0}
+      ],.025+.975*L);
+    }
+  }
+}
+function renderCameraLitWall(img,x,y0,y1,zNear,zFar){
+  const bands=24;
+  for(let i=bands-1;i>=0;i--){
+    const z0=lerp(zNear,zFar,i/bands),z1=lerp(zNear,zFar,(i+1)/bands);
+    const L=Math.pow(cameraLightAt(x,(z0+z1)*.5,45,.68,.006),1.20);
+    worldQuad(img,[
+      {x,y:y1,z:z0},{x,y:y1,z:z1},
+      {x,y:y0,z:z1},{x,y:y0,z:z0}
+    ],.02+.78*L);
+  }
 }
 function baseFill(a,b,c){
   const g=ctx.createLinearGradient(0,0,0,H);
@@ -266,54 +328,21 @@ function topDarkness(strength){
 function visibleHalfWidthAtDepth(cameraDepth,margin){
   return (W*.5/220)*Math.max(cameraDepth,NEAR)*(margin||1.08);
 }
-function renderFrustumFloorSolid(floorY,zNear,zFar){
-  const bands=30;
-  for(let i=bands-1;i>=0;i--){
-    const t0=i/bands,t1=(i+1)/bands;
-    const z0=lerp(zNear,zFar,t0),z1=lerp(zNear,zFar,t1);
-    const d0=Math.max(NEAR,z0-camZ),d1=Math.max(NEAR,z1-camZ);
-    const w0=visibleHalfWidthAtDepth(d0,1.16);
-    const w1=visibleHalfWidthAtDepth(d1,1.16);
-    const fog=fogAlphaByWorldZ((z0+z1)*.5,28,132,.08);
-    const rr=Math.round(20+48*fog);
-    const gg=Math.round(13+33*fog);
-    const bb=Math.round(29+65*fog);
-    worldSolidQuad('rgb('+rr+','+gg+','+bb+')',[
-      {x:camX-w1,y:floorY,z:z1},{x:camX+w1,y:floorY,z:z1},
-      {x:camX+w0,y:floorY,z:z0},{x:camX-w0,y:floorY,z:z0}
-    ],1);
-  }
-}
+
 function renderMap1(){
-  baseFill('#030806','#081109','#020403');
+  baseFill('#010302','#030704','#000100');
   const halfW=5.75,floorY=-1.56,ceilY=10.6,shoulderY=3.72;
   const innerFloor=2.55,innerTop=3.34;
-  const zNear=camZ-22,zFar=camZ+118;
+  const zNear=camZ+NEAR+.02,zFar=camZ+118;
   const wallTex=atlas.wallMass||atlas.wallField||atlas.wall;
   const floorTex=atlas.floorField||atlas.floorTile||atlas.floor;
   const ribTex=atlas.stoneTile||atlas.stone||wallTex;
   const shadowTex=atlas.shadow||wallTex;
 
-  worldQuad(floorTex,[
-    {x:-halfW,y:floorY,z:zFar},{x:halfW,y:floorY,z:zFar},
-    {x:halfW,y:floorY,z:zNear},{x:-halfW,y:floorY,z:zNear}
-  ],1);
-  worldQuad(wallTex,[
-    {x:-halfW,y:ceilY,z:zNear},{x:-halfW,y:ceilY,z:zFar},
-    {x:-halfW,y:floorY,z:zFar},{x:-halfW,y:floorY,z:zNear}
-  ],1);
-  worldQuad(wallTex,[
-    {x:halfW,y:ceilY,z:zFar},{x:halfW,y:ceilY,z:zNear},
-    {x:halfW,y:floorY,z:zNear},{x:halfW,y:floorY,z:zFar}
-  ],1);
-  worldQuad(ribTex,[
-    {x:-halfW+.04,y:floorY+.78,z:zNear},{x:-halfW+.04,y:floorY+.78,z:zFar},
-    {x:-halfW+.04,y:floorY,z:zFar},{x:-halfW+.04,y:floorY,z:zNear}
-  ],.84);
-  worldQuad(ribTex,[
-    {x:halfW-.04,y:floorY+.78,z:zFar},{x:halfW-.04,y:floorY+.78,z:zNear},
-    {x:halfW-.04,y:floorY,z:zNear},{x:halfW-.04,y:floorY,z:zFar}
-  ],.84);
+  // Universal rule: the camera carries the light. Floor and walls die into black by world distance.
+  renderCameraLitTexturedFloor(floorTex,floorY,zNear,zFar,halfW);
+  renderCameraLitWall(wallTex,-halfW, floorY,ceilY,zNear,zFar);
+  renderCameraLitWall(wallTex, halfW, floorY,ceilY,zNear,zFar);
 
   const bay=6.15,thick=.68;
   const start=Math.floor((camZ-bay*2.1)/bay)*bay;
@@ -324,81 +353,77 @@ function renderMap1(){
   for(const r of ribs){
     const z0=r.z-thick*.5,z1=r.z+thick*.5;
     if(z1-camZ<NEAR-.02)continue;
-    const a=depthAlpha(Math.max(0,r.depth),118);
-    chamferPier(shadowTex,-1,halfW-.10,innerFloor-.03,innerTop-.06,floorY,shoulderY,z0+.20,z1+.26,a*.34);
-    chamferPier(shadowTex, 1,halfW-.10,innerFloor-.03,innerTop-.06,floorY,shoulderY,z0+.20,z1+.26,a*.34);
-    chamferPier(ribTex,-1,halfW-.08,innerFloor,innerTop,floorY,shoulderY,z0,z1,a*.98);
-    chamferPier(ribTex, 1,halfW-.08,innerFloor,innerTop,floorY,shoulderY,z0,z1,a*.98);
+
+    const leftL =Math.pow(cameraLightAt(-innerFloor,r.z,46,.62,.005),1.20);
+    const rightL=Math.pow(cameraLightAt( innerFloor,r.z,46,.62,.005),1.20);
+    const crownL=Math.pow(cameraLightAt(0,r.z,52,.54,.004),1.34);
+
+    chamferPier(shadowTex,-1,halfW-.10,innerFloor-.03,innerTop-.06,floorY,shoulderY,z0+.20,z1+.26,.05+.28*leftL);
+    chamferPier(shadowTex, 1,halfW-.10,innerFloor-.03,innerTop-.06,floorY,shoulderY,z0+.20,z1+.26,.05+.28*rightL);
+    chamferPier(ribTex,-1,halfW-.08,innerFloor,innerTop,floorY,shoulderY,z0,z1,.02+.98*leftL);
+    chamferPier(ribTex, 1,halfW-.08,innerFloor,innerTop,floorY,shoulderY,z0,z1,.02+.98*rightL);
+
     if(atlas.crown){
       worldQuad(atlas.crown,[
         {x:-halfW+.02,y:ceilY+.05,z:z1+.10},{x:halfW-.02,y:ceilY+.05,z:z1+.10},
         {x:halfW-.02,y:shoulderY-.06,z:z1+.10},{x:-halfW+.02,y:shoulderY-.06,z:z1+.10}
-      ],a*.26);
+      ],.015+.19*crownL);
       worldQuad(atlas.crown,[
         {x:-halfW+.02,y:ceilY+.05,z:z0},{x:halfW-.02,y:ceilY+.05,z:z0},
         {x:halfW-.02,y:shoulderY-.06,z:z0},{x:-halfW+.02,y:shoulderY-.06,z:z0}
-      ],a*.91);
+      ],.018+.82*crownL);
     }
   }
 
-  worldQuad(ribTex,[
-    {x:-1.05,y:floorY+.014,z:zFar},{x:1.05,y:floorY+.014,z:zFar},
-    {x:1.05,y:floorY+.014,z:zNear},{x:-1.05,y:floorY+.014,z:zNear}
-  ],.13);
+  // Keep the upper vault unresolved: almost-black architecture, not an exposed roof.
+  topDarkness(.91);
 
-  topDarkness(.82);
-
-  const p=projectCam({x:0,y:2.5,z:camZ+94});
-  const throat=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,Math.max(42,W*.14));
-  throat.addColorStop(0,'rgba(0,0,0,.50)');
-  throat.addColorStop(.48,'rgba(0,0,0,.20)');
+  const throat=ctx.createRadialGradient(W*.5,H*.49,0,W*.5,H*.49,Math.max(50,W*.16));
+  throat.addColorStop(0,'rgba(0,0,0,.62)');
+  throat.addColorStop(.48,'rgba(0,0,0,.28)');
   throat.addColorStop(1,'rgba(0,0,0,0)');
   ctx.fillStyle=throat;ctx.fillRect(0,0,W,H);
 }
 function renderMap2(){
-  baseFill('#080411','#0e0918','#020205');
-  const floorY=-1.45,zNear=camZ+NEAR+.025,zFar=camZ+142;
+  baseFill('#020104','#050209','#000001');
+  const floorY=-1.45,zNear=camZ+NEAR+.025,zFar=camZ+148;
 
-  // Floor width is derived from the actual visible frustum at each depth.
-  // It therefore covers portrait, landscape and wide desktop viewports without exposing side gaps.
-  // A single violet material replaces the oversized/stretched floor image.
-  renderFrustumFloorSolid(floorY,zNear,zFar);
+  // Same universal light model as Map 1: camera beam, nonlinear falloff, almost-black distance.
+  renderCameraLitSolidFloor(floorY,zNear,zFar,'violet');
 
-  // Broad world-space lanes fill the left/right architecture as well as the center.
-  // Outer columns often enter only partially at the screen edges, implying that the hall
-  // continues beyond the frame instead of collapsing into one central corridor.
-  const rowStep=17.4;
-  const firstRow=Math.floor((camZ-rowStep*1.55)/rowStep);
-  const layouts=[
-    [-36,-20,-4,13,31],
-    [-31,-15,3,20,38],
-    [-39,-23,-7,10,27],
-    [-34,-17,0,18,35],
-    [-41,-25,-9,8,24,40]
-  ];
+  // Palace logic: each row is diagonal in Z, not a horizontal line.
+  // Alternating slant creates ordered colonnades without looking like a spreadsheet.
+  const rowStep=21.5;
+  const firstRow=Math.floor((camZ-rowStep*1.45)/rowStep);
+  const baseXs=[-39,-20,0,20,39];
   const pillars=[];
-  for(let ri=firstRow;ri<firstRow+11;ri++){
-    const z=ri*rowStep+8.6;
-    const layout=layouts[((ri%layouts.length)+layouts.length)%layouts.length];
-    for(let xi=0;xi<layout.length;xi++){
-      const radius=1.14+(((ri+xi)&1)?0.20:0);
-      pillars.push({x:layout[xi],z,r:radius,depth:z-camZ});
+  for(let ri=firstRow;ri<firstRow+10;ri++){
+    const baseZ=ri*rowStep+10.5;
+    const slant=((ri&1)?1:-1);
+    const rowShift=((ri%3)-1)*4.0;
+    for(let xi=0;xi<baseXs.length;xi++){
+      const centered=xi-(baseXs.length-1)*.5;
+      const x=baseXs[xi]+rowShift;
+      const z=baseZ + centered*3.8*slant;
+      const radius=2.20+(((ri+xi)&1)?.34:.08);
+      pillars.push({x,z,r:radius,depth:z-camZ});
     }
   }
+
   pillars.sort((a,b)=>b.depth-a.depth);
   for(const p of pillars){
     if(p.z+p.r-camZ<NEAR-.02)continue;
-    // Far rows are deliberately darker, so depth is readable even when apparent sizes overlap.
-    const depthFade=fogAlphaByWorldZ(p.z,16,116,.035);
-    renderCylinderSolid(p.x,p.z,p.r,floorY,160,depthFade);
+    const L=cameraLightAt(p.x,p.z,54,.47,.0035);
+    renderCylinderSolid(p.x,p.z,p.r,floorY,175,L);
   }
 
-  // Smooth upper void only. No screen-space distance band crosses the world.
-  topDarkness(.72);
+  // Large unlit zones are intentional. The hall is partly swallowed by black.
+  topDarkness(.86);
 
-  const glow=ctx.createRadialGradient(W*.16,H*.48,0,W*.16,H*.48,W*.24);
-  glow.addColorStop(0,'rgba(210,52,112,.10)');
-  glow.addColorStop(.32,'rgba(114,50,150,.07)');
+  // Very restrained camera-side bloom, only enough to suggest the source is at the viewer.
+  const glow=ctx.createRadialGradient(W*.5,H*.58,0,W*.5,H*.58,W*.38);
+  glow.addColorStop(0,'rgba(136,55,182,.055)');
+  glow.addColorStop(.35,'rgba(88,30,132,.025)');
   glow.addColorStop(1,'rgba(0,0,0,0)');
   ctx.fillStyle=glow;ctx.fillRect(0,0,W,H);
 }
@@ -479,9 +504,9 @@ addEventListener('wheel',e=>{
 },{passive:false});
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v12',
+  version:'spaces-maps-v13',
   maps:['1 green arch nave','2 brutalist cylinder hall'],
-  contract:'fixed frontal view; WASD movement with A/D strafe; wheel moves forward/back; map2 architecture occupies lateral frame edges; farther cylinders darken monotonically by world Z; floor follows the moving camera frustum',
+  contract:'fixed frontal view; WASD + wheel movement; both maps use camera-source nonlinear world lighting with near-black distance; map2 uses massive diagonal palace colonnades instead of horizontal rows; floors share the same light falloff',
   sourcePages:SOURCE_PAGES,
   camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
