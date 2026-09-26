@@ -14,6 +14,8 @@ Status: CURRENT
 - Mobile rendering intentionally uses a low internal canvas resolution and adaptive quality instead of device-pixel-ratio oversampling.
 - Stamp storage should remain bounded; current candidate uses a preallocated pool.
 - Production runtime assets must use direct stable file URLs or repo-local copies; do not use Wikimedia `Special:Redirect` endpoints in Trail because they produced `ASSET NO DISPONIBLE` on the user's mobile browser.
+- PSF line-art PNGs may carry an opaque white matte. Never render them raw/native in Trail; remove white to alpha at load time, with multiply fallback if pixel reads fail.
+- On portrait mobile, approved variants must remain visibly discoverable; current UI uses a two-row grid rather than hiding later candidates in horizontal overflow.
 
 ## Session lifecycle
 - Reincarnation session reads handoff + repo and WAITs for feedback.
