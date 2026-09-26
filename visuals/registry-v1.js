@@ -25,7 +25,8 @@ window.PROMETEO_VISUALS_REGISTRY_V1={
         {id:'spaces-lab',label:'🌀 Pseudo-3D Spaces',short:'Spaces',emoji:'🌀',quick:true,description:'Un passage image-first con yaw, avance recto y suelo continuo.',src:'./spaces-lab/'},
         {id:'player-lab',label:'🖐️ Retro Player',short:'Player',emoji:'🖐️',quick:true,description:'Escena persistente con cuatro poses/hand assets fuertes e interacción.',src:'./player-lab/'},
         {id:'mask-eye-lab',label:'👁️ Mask / Eye',short:'Mask',emoji:'👁️',quick:true,description:'Una sola máscara real; media visual intercambiable dentro de cada ojo.',src:'./mask-eye-lab/'},
-        {id:'reference-search',label:'🖼️ Referencias',short:'Referencias',emoji:'🖼️',quick:true,description:'Baseline actual de búsqueda visual limpia; base del futuro Curator.',src:'../demos/pinterest-image-query-lab-v1/'}
+        {id:'reference-curator',label:'🖼️ Reference Curator',short:'Curator',emoji:'🖼️',quick:true,description:'Búsqueda visual con memoria local, contexto, A/B, colecciones y provenance.',src:'./reference-curator/'},
+        {id:'reference-search',label:'Referencia · baseline',short:'Referencias',emoji:'🖼️',quick:false,description:'Baseline limpio de búsqueda Pinterest.',src:'../demos/pinterest-image-query-lab-v1/'}
       ]
     },
     {
