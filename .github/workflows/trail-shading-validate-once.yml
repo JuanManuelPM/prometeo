@@ -1,0 +1,48 @@
+name: trail-shading-validate-once
+
+on:
+  push:
+    paths:
+      - ".github/workflows/trail-shading-validate-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Trail shading patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path("visuals/trail-lab/index.html").read_text()
+          m=re.search(r"<script>([\s\S]*?)</script>",s)
+          assert m, "inline script missing"
+          script=m.group(1)
+          Path("/tmp/trail.js").write_text(script)
+          required=[
+            "SHADE_BRIGHTNESS=[.22,.34,.46,.58,.70,.82,.90]",
+            "function stampBrightness",
+            "function shadeIndexFor",
+            "s.trailT=",
+            "drawWhole(x,y,z,visualAngle,1.045,1,true)",
+            "function project3D",
+            "function update3D",
+          ]
+          for token in required:
+            assert token in script, f"missing {token}"
+          assert "http://" not in script and "https://" not in script, "external runtime image URL found"
+          state=Path("visuals/fronts/trail/state.json").read_text()
+          assert '"current_blob_sha": "f4951af494285274ed290089af0e0a1de0f7cb40"' in state
+          assert "Trail visibility hierarchy" in Path("visuals/fronts/trail/decisions.md").read_text()
+          assert "SHADE_BRIGHTNESS" in Path("visuals/fronts/trail/architecture.md").read_text()
+          print("Trail shading static checks OK")
+          PY
+          node --check /tmp/trail.js
+          echo "node syntax OK"
