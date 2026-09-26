@@ -2,70 +2,56 @@
 
 Status: CURRENT
 
-## KEEP / ACCEPTED
-- fixed frontal camera orientation
-- continuous ground
-- Map 1 = green monumental arch nave
-- Map 2 = brutalist giant-cylinder hall
-- visible near structures persist until naturally behind/out of view
-- monumental scale comes from distance, cropping, occlusion and out-of-frame height
+## UNIVERSAL RULES · CURRENT
+These rules now apply to **both maps**, not only the violet hall.
 
-## LATEST MAP 2 CORRECTIONS CONSUMED IN v12
+- The dominant light behaves as if it comes from the camera/player.
+- Near surfaces are readable; far/off-axis surfaces fall strongly and nonlinearly toward black.
+- Large areas may be almost 100% dark when that strengthens scale and atmosphere.
+- Floor and architecture share the same world-space lighting logic.
+- Distance/lighting that interacts with geometry is computed from world position/depth, never as a hard screen-space band.
+- Monumentality comes from mass, occlusion, cropping, darkness and scale, not from showing every surface.
+- Repetition must create architecture, not expose horizontal rows or a recycler.
 
-### Lateral occupancy
-The user reviewed v11 on wide desktop and found the architecture compressed into the center while the left/right sides were mostly empty.
+## MAP 1 · GREEN NAVE
+v13 updates the previously flatter/older tunnel so it shares the current visual language:
+- camera-source light on floor, walls and arch sequence;
+- far arches/walls become much darker;
+- floor falls into darkness by world distance and lateral angle;
+- upper vault remains unresolved in near-black darkness;
+- arches remain the dominant rhythm, with no fake roof and no premature popping.
 
-Exact rule:
-- Pillar placement must occupy the visible **hall volume**, not just a central corridor.
-- Important depth rows need architectural presence at left, center and right.
-- Some outer cylinders should enter partially from frame edges so the hall feels wider than the viewport.
-- Large empty side regions are only valid when clearly intentional.
+## MAP 2 · BRUTALIST PALACE
+Latest user direction consumed in v13:
+- columns must be **wider / more massive** to read as brutalism;
+- columns must not form obvious horizontal rows;
+- layout should feel like a palace / ordered diagonal colonnade;
+- far columns must be clearly darker than near ones;
+- there should be genuinely almost-black regions;
+- floor must share the same light falloff.
 
-Implementation in v12:
-- broader world-space cylinder lanes reaching roughly ±40 world units;
-- staggered layouts across rows;
-- outer pillars create partial edge occupancy rather than a central-only cluster.
+Implementation:
+- cylinder radius increased to roughly 2.2–2.5 world units;
+- 28-sided shading for roundness;
+- row positions are staggered diagonally in Z across X;
+- alternating slant produces ordered palace-like diagonals rather than horizontal lines;
+- camera-light falloff is nonlinear and includes lateral/off-axis falloff;
+- floor is subdivided in world space and lit with the same camera-source model.
 
-### Distance hierarchy
-The user reiterated that cylinders farther away must be darker.
-
-Exact rule:
-- equivalent farther cylinders must not read brighter than nearer ones unless there is an explicit local light source;
-- depth tone must be monotonic with world Z;
-- spacing + perspective + Z-darkening work together to separate near/mid/far layers.
-
-Implementation in v12:
-- earlier fog onset;
-- lower far-depth minimum;
-- nonlinear darkening inside the cylinder material.
-
-## CONTROLS · LATEST OVERRIDE
-The earlier "forward/back only" movement rule is superseded.
-
-Current controls:
-- W = forward
-- S = backward
-- A = strafe left
-- D = strafe right
-- mouse wheel / trackpad scroll = forward/back
-- touch ↑/↓ remains forward/back
-- camera **orientation remains fixed**; A/D moves the player laterally, it does not yaw/look sideways.
-
-Map 1 lateral range is intentionally small to preserve the nave.
-Map 2 allows substantially wider lateral movement.
-
-## PRESERVE FROM PRIOR ITERATIONS
-- Map 2 floor covers the camera frustum rather than a fixed world width.
-- No screen-space black distance band.
-- No stretched checker texture on tall cylinders.
-- Cylinder tops remain outside normal framing.
-- Map 1 keeps its tall arches, diagonal supports and upper darkness.
+## CONTROLS
+- W/S = forward/back
+- A/D = lateral strafe
+- wheel/trackpad = forward/back
+- touch ↑/↓ remains
+- camera orientation stays fixed; A/D does not yaw.
 
 ## REJECTED / DO NOT REVIVE
-- central-only cylinder distribution on wide screens
-- equal brightness for near/far cylinders
-- stretched tall-cylinder image textures
-- fixed-width floor exposing side gaps
-- screen-space distance seam
-- yaw/look controls unless explicitly requested again
+- uniform/flat lighting
+- horizontal pillar rows
+- thin tube-like brutalist columns
+- equal visibility at all depths
+- bright distant floor/columns
+- screen-space black depth bands
+- stretched tall textures
+- fake ceiling / flat background wall
 - premature culling
