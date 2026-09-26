@@ -1,0 +1,48 @@
+name: trail-rear-mirror-validate-once
+
+on:
+  push:
+    paths:
+      - ".github/workflows/trail-rear-mirror-validate-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Trail mirrored rear patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path("visuals/trail-lab/index.html").read_text()
+          m=re.search(r"<script>([\s\S]*?)</script>",s)
+          assert m, "inline script missing"
+          script=m.group(1)
+          Path("/tmp/trail.js").write_text(script)
+          required=[
+            "const mirror=c<0;",
+            "if(yawLook.mirror)ctx.scale(-1,1)",
+            "lerp(.90,.46,yawLook.rear)",
+            "baseBrightness*lerp(1,.62,yawLook.rear)",
+            "function updateVisualYaw",
+            "SHADE_BRIGHTNESS=[.22,.34,.46,.58,.70,.82,.90]"
+          ]
+          for token in required:
+              assert token in script, f"missing {token}"
+          assert "if(yawLook.alpha<.006)return" not in script, "rear disappearance guard still present"
+          assert "http://" not in script and "https://" not in script, "external runtime URL found"
+          state=Path("visuals/fronts/trail/state.json").read_text()
+          assert '"current_blob_sha": "9648379f8633883b914eb60cda445dd91030e0bc"' in state
+          assert "mirrored and darkened proxy" in Path("visuals/fronts/trail/decisions.md").read_text()
+          assert "2.5D yaw / mirrored rear proxy" in Path("visuals/fronts/trail/architecture.md").read_text()
+          print("Trail mirrored rear static checks OK")
+          PY
+          node --check /tmp/trail.js
+          echo "node syntax OK"
