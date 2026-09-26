@@ -215,7 +215,7 @@ function chamferPier(img,side,outerX,innerFloor,innerTop,y0,y1,z0,z1,alpha){
 }
 function renderCylinder(img,cx,cz,r,y0,y1,alpha){
   if(!img)return;
-  const faces=[],n=12;
+  const faces=[],n=20;
   for(let i=0;i<n;i++){
     const a0=(i/n)*Math.PI*2,a1=((i+1)/n)*Math.PI*2;
     const x0=cx+Math.cos(a0)*r,z0=cz+Math.sin(a0)*r;
@@ -231,6 +231,12 @@ function renderCylinder(img,cx,cz,r,y0,y1,alpha){
   }
 }
 function depthAlpha(d,max){return clamp(1-d/(max||112),.16,.98)}
+function fogAlphaByWorldZ(worldZ,start,end,min){
+  const d=worldZ-camZ;
+  if(d<=start)return .98;
+  if(d>=end)return min;
+  return lerp(.98,min,(d-start)/(end-start));
+}
 function baseFill(a,b,c){
   const g=ctx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,a);g.addColorStop(.55,b);g.addColorStop(1,c);
@@ -243,13 +249,18 @@ function topDarkness(strength){
   g.addColorStop(1,'rgba(0,0,0,0)');
   ctx.fillStyle=g;ctx.fillRect(0,0,W,H*.62);
 }
-function distanceFloorFade(strength){
-  const y0=H*.46,y1=H*.92;
-  const g=ctx.createLinearGradient(0,y0,0,y1);
-  g.addColorStop(0,'rgba(2,1,8,'+strength+')');
-  g.addColorStop(.34,'rgba(2,1,8,'+(strength*.55)+')');
-  g.addColorStop(1,'rgba(2,1,8,0)');
-  ctx.fillStyle=g;ctx.fillRect(0,y0,W,y1-y0);
+function renderDepthFoggedFloor(img,floorY,zNear,zFar,halfW){
+  const bands=24;
+  for(let i=bands-1;i>=0;i--){
+    const t0=i/bands,t1=(i+1)/bands;
+    const z0=lerp(zNear,zFar,t0),z1=lerp(zNear,zFar,t1);
+    const mid=(z0+z1)*.5;
+    const a=fogAlphaByWorldZ(mid,22,118,.025);
+    worldQuad(img,[
+      {x:-halfW,y:floorY,z:z1},{x:halfW,y:floorY,z:z1},
+      {x:halfW,y:floorY,z:z0},{x:-halfW,y:floorY,z:z0}
+    ],a);
+  }
 }
 function renderMap1(){
   baseFill('#030806','#081109','#020403');
@@ -326,10 +337,9 @@ function renderMap2(){
   baseFill('#090514','#100a1c','#030207');
   const floorY=-1.45,zNear=camZ-20,zFar=camZ+124,halfW=8.2;
   const checker=atlas.checkerField||atlas.checker;
-  worldQuad(checker,[
-    {x:-halfW,y:floorY,z:zFar},{x:halfW,y:floorY,z:zFar},
-    {x:halfW,y:floorY,z:zNear},{x:-halfW,y:floorY,z:zNear}
-  ],.98);
+  // Distance fade belongs to world depth, not a screen-space black rectangle.
+  // Each floor band is attenuated by its Z distance, so no horizontal seam can cross the cylinders.
+  renderDepthFoggedFloor(checker,floorY,zNear,zFar,halfW);
 
   const rowStep=10.8;
   const firstRow=Math.floor((camZ-rowStep*1.8)/rowStep);
@@ -346,12 +356,14 @@ function renderMap2(){
   pillars.sort((a,b)=>b.depth-a.depth);
   for(const p of pillars){
     if(p.z+p.r-camZ<NEAR-.02)continue;
-    const a=depthAlpha(Math.max(0,p.depth),124);
-    renderCylinder(checker,p.x,p.z,p.r,floorY,12.8,a);
+    const a=fogAlphaByWorldZ(p.z,34,128,.10);
+    // Deliberately enormous height: no cylinder cap/end should enter the normal frame.
+    // Monumentality comes from the column continuing above the viewport, not from showing its top.
+    renderCylinder(checker,p.x,p.z,p.r,floorY,140,a);
   }
 
-  distanceFloorFade(.82);
-  topDarkness(.90);
+  // This is only an upper atmospheric void, not distance fog. It is smooth and has no hard seam.
+  topDarkness(.76);
 
   const glow=ctx.createRadialGradient(W*.18,H*.46,0,W*.18,H*.46,W*.22);
   glow.addColorStop(0,'rgba(226,58,45,.13)');
@@ -413,9 +425,9 @@ addEventListener('keydown',e=>{
 });
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v9',
+  version:'spaces-maps-v10',
   maps:['1 green arch nave','2 brutalist cylinder hall'],
-  contract:'fixed frontal view; forward/back only; no premature popping; map1 roof dissolves into darkness; map2 giant cylinders extend beyond frame with checker floor fading into dark',
+  contract:'fixed frontal view; forward/back only; no premature popping; map1 roof dissolves into darkness; map2 floor fog is world-Z based with no screen seam; cylinders extend far beyond frame so tops never resolve',
   sourcePages:SOURCE_PAGES,
   camera:{get z(){return targetCamZ}},
   get map(){return currentMap}
