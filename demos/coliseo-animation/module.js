@@ -185,7 +185,8 @@ function deriveMotion(events,layout,env){
       workerPos.set(wid,anchor);
       const stage=String(e.progress_stage||e.stage||'WORK').toUpperCase();
       const kind=stage==='CARRY'?'worker_carry':((stage==='CLIMB'||stage==='JUMP')?'worker_climb':'worker_progress');
-      const duration=(kind==='worker_carry'?profile.progress*1.25:kind==='worker_climb'?profile.progress*1.35:profile.progress)/profile.motionScale;
+      const baseDuration=kind==='worker_carry'?1.05:kind==='worker_climb'?1.12:.88;
+      const duration=Math.max(baseDuration,profile.progress)/profile.motionScale;
       addTrack(model,{id:eventKey+'-'+stage.toLowerCase(),kind,subject:wid,eventType:type,start,duration,from:anchor,to:anchor,meta:{node_key:nk,stage}});
     }
     else if(type==='JOB_COMPLETED'){
@@ -264,7 +265,7 @@ function actionFromStage(stage){
   if(s==='CARRY'||s==='OUTPUT')return 'CARRY';
   if(s==='CLIMB'||s==='JUMP')return 'CLIMB';
   if(s==='CELEBRATE'||s==='COMPLETE')return 'CELEBRATE';
-  if(s==='WAIT')return 'IDLE';
+  if(s==='WAIT'||s==='IDLE')return 'IDLE';
   return 'BUILD';
 }
 function discreteFrame(track,time,count){
