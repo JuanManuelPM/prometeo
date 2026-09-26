@@ -49,19 +49,39 @@ body.mode-radial #radialStage{display:block}
 .mask-art{
   position:absolute;inset:0;z-index:5;width:100%;height:100%;object-fit:contain;pointer-events:none;
   filter:drop-shadow(0 18px 18px rgba(0,0,0,.18)) contrast(1.08);
+  mix-blend-mode:multiply;
 }
 .eye{
   position:absolute;z-index:2;width:31%;height:25%;overflow:hidden;background:#0a0908;
   transform:translate(-50%,-50%);border-radius:0;
   isolation:isolate;
 }
-.eye.left{left:31.3%;top:51.8%;transform:translate(-50%,-50%)}
-.eye.right{left:69.3%;top:51.8%;transform:translate(-50%,-50%)}
+.eye.left{
+  left:31.3%;top:51.8%;transform:translate(-50%,-50%);
+  clip-path:polygon(4% 35%,18% 14%,45% 4%,75% 9%,96% 34%,89% 66%,67% 90%,35% 92%,11% 72%);
+}
+.eye.right{
+  left:69.3%;top:51.8%;transform:translate(-50%,-50%);
+  clip-path:polygon(4% 34%,25% 9%,55% 4%,82% 14%,96% 35%,89% 72%,65% 92%,33% 90%,11% 66%);
+}
 .eye img,.eye video{
   position:absolute;left:50%;top:50%;width:100%;height:100%;object-fit:cover;
   transform-origin:center center;will-change:transform,filter,opacity;
 }
-.eye .fallback{z-index:0;opacity:1;transform:translate(-50%,-50%) scale(1.2);filter:saturate(.9) contrast(1.25) brightness(.82)}
+.eye .fallback{
+  z-index:0;opacity:1;transform:translate(-50%,-50%) scale(1.36);
+  filter:saturate(1.05) contrast(1.34) brightness(.76);
+  animation:fallbackEyeL 2.8s steps(18,end) infinite alternate;
+}
+.eye.right .fallback{animation-name:fallbackEyeR}
+@keyframes fallbackEyeL{
+  from{transform:translate(-54%,-50%) scale(1.36)}
+  to{transform:translate(-45%,-48%) scale(1.48)}
+}
+@keyframes fallbackEyeR{
+  from{transform:translate(-46%,-50%) scale(-1.36,1.36)}
+  to{transform:translate(-55%,-52%) scale(-1.48,1.48)}
+}
 .eye .loop-image,.eye video{z-index:1;opacity:0}
 .eye .loop-image.on,.eye video.on{opacity:1}
 .eye-shade{
@@ -160,6 +180,7 @@ body.needs-wake #wake{opacity:1}
 }
 @media(prefers-reduced-motion:reduce){
   .eye img,.eye video{will-change:auto}
+  .eye .fallback{animation:none}
 }
 </style>
 </head>
@@ -219,6 +240,9 @@ const C={
 };
 const eye=(src,opt={})=>({src,offset:0,scale:1.3,x:50,y:50,mirror:false,filter:'none',kind:'video',...opt});
 const MEDIA=[
+  {id:'split-signal',label:'DOS OJOS · DOS FUENTES',credit:'Cat eye + human pursuit · Wikimedia Commons',href:C.human,
+    L:eye(U.cat,{offset:2.3,scale:1.28,x:63,y:52,filter:'contrast(1.42) saturate(1.28) brightness(.84)'}),
+    R:eye(U.pursuit,{offset:.7,scale:1.48,x:52,y:50,mirror:true,filter:'grayscale(.82) contrast(1.7) brightness(.76)'})},
   {id:'cat-emerald',label:'GATO · ESMERALDA',credit:'Cat Eye · Jeffrey Beach · CC BY 3.0',href:C.cat,
     L:eye(U.cat,{offset:2.3,scale:1.20,x:63,y:52,filter:'contrast(1.36) saturate(1.25) brightness(.86)'}),
     R:eye(U.cat,{offset:7.1,scale:1.20,x:63,y:52,mirror:true,filter:'contrast(1.36) saturate(1.25) brightness(.86)'})},
@@ -262,8 +286,10 @@ function kindOf(cfg){
 function once(el,event,timeout=3200){
   return new Promise(resolve=>{
     let done=false;
-    const finish=()=>{if(done)return;done=true;el.removeEventListener(event,finish);resolve()};
-    el.addEventListener(event,finish,{once:true});setTimeout(finish,timeout);
+    const finish=ok=>{if(done)return;done=true;el.removeEventListener(event,on);el.removeEventListener('error',fail);resolve(ok)};
+    const on=()=>finish(true),fail=()=>finish(false);
+    el.addEventListener(event,on,{once:true});el.addEventListener('error',fail,{once:true});
+    setTimeout(()=>finish(false),timeout);
   });
 }
 async function applyEye(side,cfg,myGen){
@@ -276,22 +302,23 @@ async function applyEye(side,cfg,myGen){
   target.style.filter=cfg.filter||'none';
   if(kind==='image'){
     img.src=cfg.src;
-    await once(img,'load',2200);
-    if(myGen===generation)img.classList.add('on');
-    return true;
+    const loaded=img.complete&&img.naturalWidth>0 ? true : await once(img,'load',2600);
+    if(myGen===generation&&loaded&&img.naturalWidth>0)img.classList.add('on');
+    return !!(loaded&&img.naturalWidth>0);
   }
+  video.poster=FALLBACK;
   video.src=cfg.src;video.load();
-  if(video.readyState<1)await once(video,'loadedmetadata');
-  if(myGen!==generation)return false;
+  if(video.readyState<1)await once(video,'loadedmetadata',3600);
+  if(myGen!==generation||video.readyState<1)return false;
   try{
     if(Number.isFinite(video.duration)&&video.duration>.4)video.currentTime=Math.min(Math.max(0,cfg.offset||0),Math.max(0,video.duration-.2));
   }catch(_){}
-  if(video.readyState<2)await once(video,'loadeddata');
-  if(myGen!==generation)return false;
+  if(video.readyState<2)await once(video,'loadeddata',4200);
+  if(myGen!==generation||video.readyState<2)return false;
   let ok=true;
   try{await video.play()}catch(_){ok=false}
-  if(myGen===generation)video.classList.add('on');
-  return ok;
+  if(myGen===generation&&video.readyState>=2)video.classList.add('on');
+  return ok||video.readyState>=2;
 }
 function setMeta(pair){
   $('#mediaName').childNodes[0].nodeValue=pair.label+' ';
@@ -322,11 +349,12 @@ addEventListener('keydown',e=>{
   if(e.key==='ArrowRight'||e.key===' '){e.preventDefault();next()}
 });
 
-const custom=params.get('media');
-if(custom){
-  const pair={id:'custom',label:'CUSTOM LOOP',credit:'Contenido cargado por URL',href:'#',
-    L:eye(custom,{offset:+(params.get('offsetL')||0),scale:+(params.get('scale')||1.35),x:+(params.get('x')||50),y:+(params.get('y')||50)}),
-    R:eye(custom,{offset:+(params.get('offsetR')||1.2),scale:+(params.get('scale')||1.35),x:+(params.get('x')||50),y:+(params.get('y')||50),mirror:true})};
+const custom=params.get('media'),left=params.get('left'),right=params.get('right');
+if(left||right||custom){
+  const l=left||custom||right,r=right||custom||left;
+  const pair={id:'custom',label:'CUSTOM · IZQ/DER',credit:'Contenido cargado por URL',href:'#',
+    L:eye(l,{offset:+(params.get('offsetL')||0),scale:+(params.get('scaleL')||params.get('scale')||1.35),x:+(params.get('xL')||params.get('x')||50),y:+(params.get('yL')||params.get('y')||50)}),
+    R:eye(r,{offset:+(params.get('offsetR')||1.2),scale:+(params.get('scaleR')||params.get('scale')||1.35),x:+(params.get('xR')||params.get('x')||50),y:+(params.get('yR')||params.get('y')||50),mirror:params.get('mirrorR')!=='0'})};
   setPair(pair);
 }else{
   const wanted=params.get('eye');
@@ -348,7 +376,7 @@ document.addEventListener('visibilitychange',()=>{
 });
 
 window.maskEyeLab={
-  version:'single-mask-v5-hole-fix',
+  version:'single-mask-v6-real-eye-windows',
   media:MEDIA,
   next,
   setMedia(input){
@@ -358,7 +386,12 @@ window.maskEyeLab={
     }
     if(input&&input.L&&input.R)return setPair(input);
   },
-  state:()=>({mode:'single',media:current.id,needsWake,maskBlend:'multiply'})
+  state:()=>({
+    mode:'single',media:current.id,needsWake,maskBlend:getComputedStyle(unit.querySelector('.mask-art')).mixBlendMode,
+    left:{videoReady:eyes.L.querySelector('video').readyState,imageReady:eyes.L.querySelector('.fallback').naturalWidth>0},
+    right:{videoReady:eyes.R.querySelector('video').readyState,imageReady:eyes.R.querySelector('.fallback').naturalWidth>0},
+    apertures:'independent-clipped-media-windows'
+  })
 };
 })();
 </script>
