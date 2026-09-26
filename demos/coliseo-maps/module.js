@@ -290,14 +290,14 @@ function camera(layout,env){
   const w=Math.max(1,Number(env&&env.width)||800),h=Math.max(1,Number(env&&env.height)||500);
   const b=layout.bounds,spanX=Math.max(1,b.maxX-b.minX),spanZ=Math.max(1,b.maxZ-b.minZ);
   const yaw=Number.isFinite(env&&env.yaw)?env.yaw:-.56,pitch=Number.isFinite(env&&env.pitch)?env.pitch:.42;
-  const zoom=clamp(Number(env&&env.zoom)||1,.45,3.2);
-  const fit=Math.min((w*0.84)/spanX,(h*0.72)/(spanZ*pitch+4.8));
-  return {w,h,yaw,pitch,scale:fit*zoom,cx:w*.5+(Number(env&&env.panX)||0),cy:h*.53+(Number(env&&env.panY)||0)};
+  const zoom=clamp(Number(env&&env.zoom)||1,.48,3.15);
+  const fit=Math.min((w*.91)/spanX,(h*.80)/(spanZ*pitch+6.3));
+  return {w,h,yaw,pitch,scale:fit*zoom,cx:w*.50+(Number(env&&env.panX)||0),cy:h*.57+(Number(env&&env.panY)||0)};
 }
 function project(cam,x,z,h){
   const c=Math.cos(cam.yaw),s=Math.sin(cam.yaw);
   const rx=x*c-z*s,rz=x*s+z*c;
-  return {x:cam.cx+rx*cam.scale,y:cam.cy+rz*cam.scale*cam.pitch-(h||0)*cam.scale*.74,depth:rz};
+  return {x:cam.cx+rx*cam.scale,y:cam.cy+rz*cam.scale*cam.pitch-(h||0)*cam.scale*.78,depth:rz+(h||0)*.14};
 }
 function trace(ctx,pts,cam,h){
   if(!pts.length)return;
@@ -309,137 +309,166 @@ function alpha(hex,a){
   if(/^#[0-9a-f]{6}$/i.test(hex)){const n=parseInt(hex.slice(1),16);return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')'}
   return hex;
 }
-function drawGroundPoly(ctx,poly,cam,fill,stroke,width){
-  trace(ctx,poly,cam,.02);ctx.closePath();ctx.fillStyle=fill;ctx.fill();
-  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=width||1;ctx.stroke()}
+function noise(a,b){const n=Math.sin(a*12.9898+b*78.233)*43758.5453;return n-Math.floor(n)}
+function shade(hex,amt){
+  if(!/^#[0-9a-f]{6}$/i.test(hex))return hex;
+  const n=parseInt(hex.slice(1),16),r=clamp((n>>16)+amt,0,255),g=clamp(((n>>8)&255)+amt,0,255),b=clamp((n&255)+amt,0,255);
+  return '#'+[r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
 }
-function drawPlatform(ctx,cx,cz,r,height,cam,fill,stroke,sides){
-  const poly=regularPoly(cx,cz,r,sides||8,.22),top=poly.map(p=>project(cam,p.x,p.z,height)),bot=poly.map(p=>project(cam,p.x,p.z,0));
-  for(let i=0;i<poly.length;i++){
-    const j=(i+1)%poly.length;
-    ctx.beginPath();ctx.moveTo(bot[i].x,bot[i].y);ctx.lineTo(bot[j].x,bot[j].y);ctx.lineTo(top[j].x,top[j].y);ctx.lineTo(top[i].x,top[i].y);ctx.closePath();
-    ctx.fillStyle=alpha(fill,.48);ctx.fill();
+const MATERIALS=[
+  {id:'FORTRESS',base:'#665448',deep:'#302821',light:'#8c7259',line:'#221914',dust:'#a08460'},
+  {id:'ARCHIVE',base:'#3d5549',deep:'#1f3129',light:'#718174',line:'#101813',dust:'#8f825b'},
+  {id:'CIVIC',base:'#705a48',deep:'#382e26',light:'#96765b',line:'#1b130f',dust:'#b18a5e'}
+];
+const ROAD={base:'#2d2924',deep:'#171512',line:'#8d7657',edge:'#4c4337'};
+function projectedPoly(poly,cam,h){
+  return poly.map(p=>project(cam,p.x,p.z,h||0));
+}
+function pathProjected(ctx,pts){
+  if(!pts.length)return;ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);ctx.closePath();
+}
+function drawMaterialPoly(ctx,poly,cam,mat,seed,opacity){
+  const pp=projectedPoly(poly,cam,.015);pathProjected(ctx,pp);ctx.fillStyle=alpha(mat.base,opacity==null?.96:opacity);ctx.fill();
+  ctx.save();pathProjected(ctx,pp);ctx.clip();
+  const xs=poly.map(p=>p.x),zs=poly.map(p=>p.z),minX=Math.min(...xs),maxX=Math.max(...xs),minZ=Math.min(...zs),maxZ=Math.max(...zs);
+  ctx.lineCap='round';
+  for(let i=0;i<34;i++){
+    const x=minX+(maxX-minX)*noise(seed+i,11),z=minZ+(maxZ-minZ)*noise(seed+i,29);
+    const len=.25+.75*noise(seed+i,47),ang=noise(seed+i,63)*TAU;
+    const a=project(cam,x,z,.025),b=project(cam,x+Math.cos(ang)*len,z+Math.sin(ang)*len,.025);
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.strokeStyle=alpha(i%5?mat.deep:mat.light,.18+i%3*.035);ctx.lineWidth=Math.max(.45,cam.scale*.018);ctx.stroke();
   }
-  ctx.beginPath();ctx.moveTo(top[0].x,top[0].y);for(let i=1;i<top.length;i++)ctx.lineTo(top[i].x,top[i].y);ctx.closePath();
-  ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=stroke;ctx.lineWidth=Math.max(1,cam.scale*.035);ctx.stroke();
+  for(let i=0;i<18;i++){
+    const x=minX+(maxX-minX)*noise(seed+i,101),z=minZ+(maxZ-minZ)*noise(seed+i,131),q=project(cam,x,z,.028);
+    ctx.beginPath();ctx.arc(q.x,q.y,Math.max(.35,cam.scale*(.018+.025*noise(seed+i,151))),0,TAU);ctx.fillStyle=alpha(mat.dust,.10);ctx.fill();
+  }
+  ctx.restore();
+  pathProjected(ctx,pp);ctx.strokeStyle=alpha(mat.line,.88);ctx.lineWidth=Math.max(.8,cam.scale*.030);ctx.stroke();
 }
-function drawBox(ctx,x,z,w,d,height,cam,fill,stroke){
-  const poly=[{x:x-w/2,z:z-d/2},{x:x+w/2,z:z-d/2},{x:x+w/2,z:z+d/2},{x:x-w/2,z:z+d/2}];
-  const top=poly.map(p=>project(cam,p.x,p.z,height)),bot=poly.map(p=>project(cam,p.x,p.z,0));
-  const faces=[];
-  for(let i=0;i<4;i++){const j=(i+1)%4;faces.push({d:(poly[i].z+poly[j].z)/2,pts:[bot[i],bot[j],top[j],top[i]]})}
+function segmentQuad(a,b,half){
+  const dx=b.x-a.x,dz=b.z-a.z,l=Math.hypot(dx,dz)||1,nx=-dz/l*half,nz=dx/l*half;
+  return [{x:a.x+nx,z:a.z+nz},{x:b.x+nx,z:b.z+nz},{x:b.x-nx,z:b.z-nz},{x:a.x-nx,z:a.z-nz}];
+}
+function drawRoadSegment(ctx,a,b,cam,major,seed){
+  const outer=segmentQuad(a,b,major?.32:.24),inner=segmentQuad(a,b,major?.23:.17);
+  drawMaterialPoly(ctx,outer,cam,{base:ROAD.edge,deep:ROAD.deep,light:ROAD.line,line:ROAD.deep,dust:ROAD.line},seed,.96);
+  drawMaterialPoly(ctx,inner,cam,{base:ROAD.base,deep:ROAD.deep,light:'#6d604f',line:ROAD.deep,dust:'#a28760'},seed+100,.98);
+  const p1=project(cam,a.x,a.z,.04),p2=project(cam,b.x,b.z,.04);ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);
+  ctx.strokeStyle=alpha(major?'#d2b882':'#a28b68',major?.30:.20);ctx.lineWidth=Math.max(.55,cam.scale*.022);ctx.setLineDash([Math.max(2,cam.scale*.18),Math.max(2,cam.scale*.22)]);ctx.stroke();ctx.setLineDash([]);
+}
+function drawRoadPolyline(ctx,points,cam,major,seed){
+  for(let i=0;i<points.length-1;i++)drawRoadSegment(ctx,points[i],points[i+1],cam,major,(seed||0)+i*17);
+}
+function ringPoints(r,n){const pts=[];for(let i=0;i<=n;i++){const a=i*TAU/n;pts.push({x:Math.cos(a)*r,z:Math.sin(a)*r})}return pts}
+function drawRingRoad(ctx,r,cam,major,seed){drawRoadPolyline(ctx,ringPoints(r,64),cam,major,seed)}
+function drawPrism(ctx,poly,height,baseH,cam,mat,seed){
+  const bot=projectedPoly(poly,cam,baseH||0),top=projectedPoly(poly,cam,(baseH||0)+height),faces=[];
+  for(let i=0;i<poly.length;i++){const j=(i+1)%poly.length;faces.push({d:(project(cam,poly[i].x,poly[i].z,baseH).depth+project(cam,poly[j].x,poly[j].z,baseH).depth)/2,pts:[bot[i],bot[j],top[j],top[i]],i})}
   faces.sort((a,b)=>a.d-b.d);
-  for(const f of faces){ctx.beginPath();ctx.moveTo(f.pts[0].x,f.pts[0].y);for(let i=1;i<f.pts.length;i++)ctx.lineTo(f.pts[i].x,f.pts[i].y);ctx.closePath();ctx.fillStyle=alpha(fill,.55);ctx.fill()}
-  ctx.beginPath();ctx.moveTo(top[0].x,top[0].y);for(let i=1;i<4;i++)ctx.lineTo(top[i].x,top[i].y);ctx.closePath();ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=stroke;ctx.lineWidth=Math.max(.8,cam.scale*.028);ctx.stroke();
+  for(const f of faces){pathProjected(ctx,f.pts);ctx.fillStyle=shade(mat.base,-18-(f.i%2)*10);ctx.fill();ctx.strokeStyle=alpha(mat.line,.84);ctx.lineWidth=Math.max(.7,cam.scale*.025);ctx.stroke()}
+  pathProjected(ctx,top);ctx.fillStyle=shade(mat.base,14);ctx.fill();ctx.strokeStyle=alpha(mat.line,.9);ctx.lineWidth=Math.max(.8,cam.scale*.028);ctx.stroke();
+  const center=poly.reduce((a,p)=>({x:a.x+p.x/poly.length,z:a.z+p.z/poly.length}),{x:0,z:0});
+  for(let i=0;i<4;i++){const q=project(cam,center.x+(noise(seed,i)-.5)*.35,center.z+(noise(seed,i+9)-.5)*.35,(baseH||0)+height+.02);ctx.fillStyle=alpha(mat.light,.16);ctx.fillRect(q.x,q.y,Math.max(1,cam.scale*.035),Math.max(1,cam.scale*.02))}
 }
-function drawRoadPolyline(ctx,points,cam,major){
-  trace(ctx,points,cam,.035);ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle='rgba(6,7,6,.92)';ctx.lineWidth=Math.max(3,cam.scale*(major?.34:.24));ctx.stroke();
-  trace(ctx,points,cam,.042);ctx.strokeStyle=major?'rgba(210,186,139,.34)':'rgba(169,150,119,.25)';ctx.lineWidth=Math.max(1,cam.scale*.055);ctx.stroke();
+function boxPoly(x,z,w,d,rot){
+  const c=Math.cos(rot||0),s=Math.sin(rot||0),pts=[[-w/2,-d/2],[w/2,-d/2],[w/2,d/2],[-w/2,d/2]];
+  return pts.map(([lx,lz])=>({x:x+lx*c-lz*s,z:z+lx*s+lz*c}));
 }
-function drawRingRoad(ctx,r,cam,alphaV){
-  const pts=[];for(let i=0;i<=72;i++){const a=i*TAU/72;pts.push({x:Math.cos(a)*r,z:Math.sin(a)*r})}
-  trace(ctx,pts,cam,.035);ctx.strokeStyle='rgba(9,10,9,.88)';ctx.lineWidth=Math.max(3,cam.scale*.22);ctx.stroke();
-  trace(ctx,pts,cam,.04);ctx.strokeStyle='rgba(188,164,126,'+(alphaV||.22)+')';ctx.lineWidth=Math.max(1,cam.scale*.045);ctx.stroke();
+function drawBox(ctx,x,z,w,d,height,cam,mat,seed,rot,baseH){drawPrism(ctx,boxPoly(x,z,w,d,rot||0),height,baseH||0,cam,mat,seed||0)}
+function drawWallSegment(ctx,a,b,height,cam,mat,seed,thickness){
+  const dx=b.x-a.x,dz=b.z-a.z,len=Math.hypot(dx,dz),mx=(a.x+b.x)/2,mz=(a.z+b.z)/2,rot=Math.atan2(dz,dx);
+  drawBox(ctx,mx,mz,len,thickness||.22,height,cam,mat,seed,rot,0);
+}
+function drawGatewayWalls(ctx,angle,radius,cam,mat,seed){
+  const cx=Math.cos(angle)*radius,cz=Math.sin(angle)*radius,tx=-Math.sin(angle),tz=Math.cos(angle);
+  const pt=t=>({x:cx+tx*t,z:cz+tz*t});
+  drawWallSegment(ctx,pt(-3.0),pt(-1.12),.72,cam,mat,seed,.30);
+  drawWallSegment(ctx,pt(1.12),pt(3.0),.72,cam,mat,seed+1,.30);
+  drawBox(ctx,pt(-1.12).x,pt(-1.12).z,.42,.42,1.32,cam,mat,seed+2,angle,0);
+  drawBox(ctx,pt(1.12).x,pt(1.12).z,.42,.42,1.32,cam,mat,seed+3,angle,0);
+}
+function drawNode(ctx,s,cam,mat,detail){
+  const n=s.node,sty=STATE[n.state]||STATE.BLOCKED,rot=(s.angle||0)+Math.PI/4;
+  const baseMat={base:sty.fill,deep:shade(sty.fill,-22),light:sty.rim,line:'#171310',dust:mat.dust};
+  const rad=s.radius*(n.node_kind==='SYNTHESIS'?1.16:1);
+  drawBox(ctx,s.x,s.z,rad*1.32,rad*1.32,.18,cam,baseMat,210+n.node_key.length,rot,0);
+  const levels=n.node_kind==='SYNTHESIS'?3:n.node_kind==='PROMOTION'?2:1;
+  for(let y=0;y<levels;y++)drawBox(ctx,s.x,s.z,rad*.78-y*.05,rad*.78-y*.05,.16,cam,baseMat,230+y,rot,.18+y*.16);
+  const q=project(cam,s.x,s.z,.23+levels*.16);
+  ctx.fillStyle='#f0dcc0';ctx.font='900 '+clamp(cam.scale*.24,8,14)+'px ui-monospace,monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(KIND_LETTER[n.node_kind]||'•',q.x,q.y);
+  if(detail>1.2){const label=String(n.title||n.node_key||'').slice(0,17);ctx.font='700 '+clamp(cam.scale*.15,7,9)+'px ui-monospace,monospace';ctx.fillStyle='rgba(239,225,197,.62)';ctx.textBaseline='top';ctx.fillText(label,q.x,q.y+6)}
+}
+function drawLandmark(ctx,l,cam,mat,seed){
+  const h=Math.max(1.25,l.height),steps=Math.max(3,Math.min(7,Math.round(h/.65)));
+  for(let y=0;y<steps;y++){const s=.86-y*.045;drawBox(ctx,l.x,l.z,s,s,h/steps*.92,cam,mat,seed+y*7,Math.PI/4,y*h/steps)}
+  drawBox(ctx,l.x,l.z,1.08,1.08,.18,cam,{...mat,base:'#8b7048',light:'#d2ad69'},seed+90,Math.PI/4,h+.03);
+  const q=project(cam,l.x,l.z,h+.34),rr=Math.max(1.5,cam.scale*.10);ctx.beginPath();ctx.arc(q.x,q.y,rr,0,TAU);ctx.fillStyle='#e4c27c';ctx.shadowBlur=rr*3;ctx.shadowColor='rgba(228,194,124,.45)';ctx.fill();ctx.shadowBlur=0;
+}
+function drawWorkerMarker(ctx,w,cam,seed){
+  const s=w.station,a=(seed*.73)%TAU,x=s.x+Math.cos(a)*.46,z=s.z+Math.sin(a)*.46,q=project(cam,x,z,.42),g=project(cam,x,z,.02);
+  ctx.beginPath();ctx.ellipse(g.x,g.y,Math.max(2,cam.scale*.15),Math.max(1,cam.scale*.055),0,0,TAU);ctx.fillStyle='rgba(0,0,0,.42)';ctx.fill();
+  ctx.beginPath();ctx.arc(q.x,q.y,Math.max(1.8,cam.scale*.09),0,TAU);ctx.fillStyle='#d9ccb0';ctx.fill();ctx.strokeStyle='#332b23';ctx.lineWidth=1;ctx.stroke();
+  const stem=project(cam,x,z,.28);ctx.beginPath();ctx.moveTo(stem.x,stem.y);ctx.lineTo(q.x,q.y+1);ctx.strokeStyle='#8f7250';ctx.lineWidth=Math.max(1,cam.scale*.055);ctx.stroke();
+}
+function worldFurniture(layout,cam){
+  const arr=[];
+  if(layout.variant==='arena'){
+    let i=0;
+    for(const c of layout.projectCenters.values()){
+      const mat=MATERIALS[i%MATERIALS.length],angle=c.angle;
+      arr.push({depth:project(cam,Math.cos(angle)*8.85,Math.sin(angle)*8.85,.3).depth,fn:(ctx)=>drawGatewayWalls(ctx,angle,8.85,cam,mat,600+i*20)});
+      arr.push({depth:project(cam,Math.cos(angle)*6.15,Math.sin(angle)*6.15,.3).depth,fn:(ctx)=>drawGatewayWalls(ctx,angle,6.15,cam,mat,700+i*20)});
+      const ox=Math.cos(angle+.42)*4.5,oz=Math.sin(angle+.42)*4.5;
+      arr.push({depth:project(cam,ox,oz,.7).depth,fn:(ctx)=>drawBox(ctx,ox,oz,.66,.66,1.45,cam,mat,760+i,angle+.2,0)});
+      i++;
+    }
+  }
+  return arr;
 }
 function drawWorld(ctx,layout,env){
-  const cam=camera(layout,env||{}),preview=!!(env&&env.preview),detail=Number(env&&env.detail)||cam.scale/18;
+  const cam=camera(layout,env||{}),detail=Number(env&&env.detail)||cam.scale/18;
   ctx.save();ctx.clearRect(0,0,cam.w,cam.h);
-  ctx.fillStyle='#070806';ctx.fillRect(0,0,cam.w,cam.h);
+  const bg=ctx.createLinearGradient(0,0,0,cam.h);bg.addColorStop(0,'#0c0d0b');bg.addColorStop(.58,'#080907');bg.addColorStop(1,'#030403');ctx.fillStyle=bg;ctx.fillRect(0,0,cam.w,cam.h);
 
-  const glow=ctx.createRadialGradient(cam.w*.52,cam.h*.54,0,cam.w*.52,cam.h*.54,Math.max(cam.w,cam.h)*.7);
-  glow.addColorStop(0,'rgba(54,46,35,.30)');glow.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=glow;ctx.fillRect(0,0,cam.w,cam.h);
+  for(let i=0;i<90;i++){const x=noise(i,801)*cam.w,y=noise(i,809)*cam.h,r=.3+noise(i,821)*1.2;ctx.fillStyle='rgba(187,157,112,'+(.012+noise(i,823)*.028)+')';ctx.fillRect(x,y,r,r)}
+  const halo=ctx.createRadialGradient(cam.w*.50,cam.h*.55,0,cam.w*.50,cam.h*.55,Math.max(cam.w,cam.h)*.66);halo.addColorStop(0,'rgba(89,69,44,.26)');halo.addColorStop(.55,'rgba(35,31,24,.09)');halo.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=halo;ctx.fillRect(0,0,cam.w,cam.h);
 
-  if(layout.variant==='archipelago'){
-    const sea=ctx.createLinearGradient(0,0,0,cam.h);sea.addColorStop(0,'rgba(18,29,30,.52)');sea.addColorStop(1,'rgba(8,14,14,.18)');ctx.fillStyle=sea;ctx.fillRect(0,0,cam.w,cam.h);
-  }
+  layout.territories.forEach((t,i)=>drawMaterialPoly(ctx,t.poly,cam,MATERIALS[i%MATERIALS.length],100+i*37,t.ghost?.22:.82));
 
-  for(const t of layout.territories){
-    if(t.ghost){
-      trace(ctx,t.poly,cam,.01);ctx.closePath();ctx.fillStyle=alpha(t.color,.035);ctx.fill();ctx.strokeStyle=alpha(t.color,.18);ctx.lineWidth=1;ctx.setLineDash([5,7]);ctx.stroke();ctx.setLineDash([]);
-    }else{
-      drawGroundPoly(ctx,t.poly,cam,alpha(t.color,.11),alpha(t.color,.42),Math.max(1,cam.scale*.035));
-    }
-  }
-
-  for(const p of layout.platforms)drawPlatform(ctx,p.x,p.z,p.r,.12,cam,alpha(p.color,.23),alpha(p.color,.66),10);
-
+  let roadSeed=1000;
   for(const r of layout.roads){
-    if(r.kind==='ring')drawRingRoad(ctx,r.r,cam,r.r<5?.28:.17);
-    else if(r.kind==='localRing')drawRingRoadLocal(ctx,r,cam);
+    if(r.kind==='ring')drawRingRoad(ctx,r.r,cam,r.r<5,roadSeed++);
+    else if(r.kind==='localRing')drawRoadPolyline(ctx,ringPoints(r.r,42).map(p=>({x:p.x+r.x,z:p.z+r.z})),cam,false,roadSeed++);
     else if(r.kind==='radial'){
-      const pts=[{x:Math.cos(r.angle)*r.r0,z:Math.sin(r.angle)*r.r0},{x:Math.cos(r.angle)*r.r1,z:Math.sin(r.angle)*r.r1}];
-      drawRoadPolyline(ctx,pts,cam,false);
-    }else if(r.points)drawRoadPolyline(ctx,r.points,cam,!!r.major);
+      drawRoadPolyline(ctx,[{x:Math.cos(r.angle)*r.r0,z:Math.sin(r.angle)*r.r0},{x:Math.cos(r.angle)*r.r1,z:Math.sin(r.angle)*r.r1}],cam,true,roadSeed++);
+    }else if(r.points)drawRoadPolyline(ctx,r.points,cam,!!r.major,roadSeed++);
   }
-
-  for(const h of layout.hubs){
-    drawPlatform(ctx,h.x,h.z,h.r,.08,cam,'#24231e','#726754',12);
-    if(!preview&&detail>.55){const q=project(cam,h.x,h.z,.12);ctx.fillStyle='rgba(214,198,165,.55)';ctx.font='700 '+clamp(cam.scale*.20,7,11)+'px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText(h.label,q.x,q.y)}
-  }
-
-  for(const p of layout.paths){
-    drawRoadPolyline(ctx,p.points,cam,false);
-  }
+  for(const p of layout.paths)drawRoadPolyline(ctx,p.points,cam,false,roadSeed++);
 
   for(const m of layout.merges){
-    const q=project(cam,m.x,m.z,.065),rr=Math.max(2.5,cam.scale*.14);
-    ctx.beginPath();ctx.ellipse(q.x,q.y,rr,rr*.44,0,0,TAU);ctx.fillStyle='rgba(218,184,124,.16)';ctx.fill();ctx.strokeStyle='rgba(218,184,124,.42)';ctx.lineWidth=1;ctx.stroke();
+    const poly=regularPoly(m.x,m.z,.32,8,.1);drawMaterialPoly(ctx,poly,cam,{base:'#8a704b',deep:'#3f3427',light:'#d4ad6a',line:'#241a12',dust:'#dec085'},3100+roadSeed++,.9);
   }
 
-  for(const o of layout.origins){
-    const dx=Math.cos(o.angle||0),dz=Math.sin(o.angle||0),tx=-dz,tz=dx;
-    const a={x:o.x+tx*.46,z:o.z+tz*.46},b={x:o.x-tx*.46,z:o.z-tz*.46};
-    drawBox(ctx,a.x,a.z,.20,.20,.78,cam,'#65513b','#aa8458');
-    drawBox(ctx,b.x,b.z,.20,.20,.78,cam,'#65513b','#aa8458');
-    const mid=project(cam,o.x,o.z,.86),p1=project(cam,a.x,a.z,.86),p2=project(cam,b.x,b.z,.86);
-    ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.strokeStyle='rgba(190,151,96,.8)';ctx.lineWidth=Math.max(1,cam.scale*.08);ctx.stroke();
-    if(!preview&&detail>.75){ctx.fillStyle='rgba(218,197,157,.78)';ctx.font='800 '+clamp(cam.scale*.22,8,12)+'px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText('ORIGEN',mid.x,mid.y-5)}
-  }
+  const drawables=worldFurniture(layout,cam);
+  layout.landmarks.forEach((l,i)=>drawables.push({depth:project(cam,l.x,l.z,l.height*.5).depth,fn:(cc)=>drawLandmark(cc,l,cam,MATERIALS[i%MATERIALS.length],4000+i*31)}));
+  layout.nodeList.forEach((s,i)=>drawables.push({depth:project(cam,s.x,s.z,.28).depth,fn:(cc)=>drawNode(cc,s,cam,MATERIALS[i%MATERIALS.length],detail)}));
+  let wi=0;for(const w of layout.workers.values()){drawables.push({depth:project(cam,w.station.x,w.station.z,.4).depth+.08,fn:(cc)=>drawWorkerMarker(cc,w,cam,wi++)})}
+  drawables.sort((a,b)=>a.depth-b.depth);for(const d of drawables)d.fn(ctx);
 
-  const drawables=[];
-  for(const s of layout.nodeList){const p=project(cam,s.x,s.z,s.h);drawables.push({depth:p.depth,type:'node',v:s})}
-  for(const l of layout.landmarks){const p=project(cam,l.x,l.z,0);drawables.push({depth:p.depth+.05,type:'tower',v:l})}
-  drawables.sort((a,b)=>a.depth-b.depth);
+  layout.origins.forEach((o,i)=>{
+    const mat=MATERIALS[i%MATERIALS.length],a=o.angle||0,tx=-Math.sin(a),tz=Math.cos(a),p1={x:o.x+tx*.72,z:o.z+tz*.72},p2={x:o.x-tx*.72,z:o.z-tz*.72};
+    drawBox(ctx,p1.x,p1.z,.34,.34,1.05,cam,mat,5200+i*3,a,0);drawBox(ctx,p2.x,p2.z,.34,.34,1.05,cam,mat,5201+i*3,a,0);
+    drawWallSegment(ctx,{x:p1.x,z:p1.z},{x:p2.x,z:p2.z},.20,cam,{...mat,base:'#8d7048'},5202+i*3,.20);
+  });
 
-  for(const d of drawables){
-    if(d.type==='tower'){
-      const l=d.v;drawBox(ctx,l.x,l.z,.62,.62,l.height,cam,alpha(l.color,.82),'#211914');
-      const cap=project(cam,l.x,l.z,l.height+.10);
-      ctx.beginPath();ctx.arc(cap.x,cap.y,Math.max(1.5,cam.scale*.10),0,TAU);ctx.fillStyle='#e2c690';ctx.fill();
-      continue;
-    }
-    const s=d.v,n=s.node,sty=STATE[n.state]||STATE.BLOCKED;
-    const rad=s.radius*(n.node_kind==='SYNTHESIS'?1.18:1);
-    drawPlatform(ctx,s.x,s.z,rad,s.h,cam,sty.fill,sty.rim,n.node_kind==='ROOT'?4:n.node_kind==='VERIFY'?6:8);
-    const q=project(cam,s.x,s.z,s.h+.06);
-    ctx.fillStyle='#f0dcc0';ctx.font='900 '+clamp(cam.scale*.28,8,15)+'px ui-monospace,monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(KIND_LETTER[n.node_kind]||'•',q.x,q.y);
-    if(!preview&&detail>1.05){
-      const label=String(n.title||n.node_key||'').slice(0,24);
-      ctx.font='700 '+clamp(cam.scale*.18,7,10)+'px system-ui,sans-serif';ctx.fillStyle='rgba(231,220,198,.78)';ctx.textBaseline='top';ctx.fillText(label,q.x,q.y+Math.max(7,cam.scale*.32));
-    }
-  }
-
-  if(!preview){
-    for(const t of layout.territories){
-      const q=project(cam,t.center.x,t.center.z,.03);
-      ctx.save();ctx.translate(q.x,q.y);ctx.rotate(-.10);
-      ctx.font='900 '+clamp(cam.scale*.27,9,16)+'px ui-monospace,monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=alpha(t.color,.88);
-      ctx.fillText(String(t.title||t.project_key).toUpperCase().slice(0,22),0,0);ctx.restore();
-    }
-  }
-
-  const vignette=ctx.createRadialGradient(cam.w*.5,cam.h*.52,Math.min(cam.w,cam.h)*.25,cam.w*.5,cam.h*.52,Math.max(cam.w,cam.h)*.72);
-  vignette.addColorStop(0,'rgba(0,0,0,0)');vignette.addColorStop(1,'rgba(0,0,0,.62)');ctx.fillStyle=vignette;ctx.fillRect(0,0,cam.w,cam.h);
+  const vignette=ctx.createRadialGradient(cam.w*.5,cam.h*.55,Math.min(cam.w,cam.h)*.25,cam.w*.5,cam.h*.55,Math.max(cam.w,cam.h)*.73);
+  vignette.addColorStop(0,'rgba(0,0,0,0)');vignette.addColorStop(.72,'rgba(0,0,0,.06)');vignette.addColorStop(1,'rgba(0,0,0,.72)');ctx.fillStyle=vignette;ctx.fillRect(0,0,cam.w,cam.h);
   ctx.restore();
-}
-function drawRingRoadLocal(ctx,r,cam){
-  const pts=[];for(let i=0;i<=52;i++){const a=i*TAU/52;pts.push({x:r.x+Math.cos(a)*r.r,z:r.z+Math.sin(a)*r.r})}
-  drawRoadPolyline(ctx,pts,cam,false);
 }
 
 g.COLISEO_LAB_MODULE={
   id:'maps',
-  version:'1.0.0',
+  version:'2.0.0',
   variants:VARIANTS,
   layoutWorld,
   drawWorld
