@@ -63,7 +63,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;image-renderi
     <li>Próxima abstracción: <b>compileTrailAsset(image)</b> + <b>TrailEngine(asset, trajectory)</b>.</li>
     <li>La capa pseudo-3D agrega z y proyección; no requiere WebGL ni un efecto distinto por imagen.</li>
     <li>Jerarquía del trail: las copias viejas/traseras se renderizan mucho más oscuras y recuperan claridad progresivamente hasta la figura actual, evitando dos caras protagonistas al cerrar una órbita.</li>
-    <li>Giro 2.5D: cuando la trayectoria empieza a alejarse, el sprite rota suavemente sobre un eje vertical, se comprime hasta quedar de canto y la cara frontal se oculta al pasar por atrás; reaparece gradualmente al volver.</li>
+    <li>Giro 2.5D: el sprite se comprime hasta perfil y continúa como reverso espejado, más oscuro, en vez de desaparecer. El cambio de lado ocurre con el ancho casi en cero para evitar un flip visible.</li>
   </ul>
 </aside>
 <div class="modes" id="modes" aria-label="Modo de movimiento">
@@ -184,12 +184,17 @@ function updateVisualYaw(dt){
   visualYaw=lerpAngle(visualYaw,target,1-Math.exp(-rate*dt));
 }
 function yawAppearance(yawAngle){
-  if(worldMode==='2d')return {scaleX:1,alpha:1};
+  if(worldMode==='2d')return {scaleX:1,mirror:false,rear:0,alpha:1};
   const c=Math.cos(yawAngle);
   const scaleX=Math.max(.045,Math.abs(c));
-  const t=clamp((c+.04)/.34,0,1);
-  const alpha=t*t*(3-2*t);
-  return {scaleX,alpha};
+  const mirror=c<0;
+  const rear=clamp(-c,0,1);
+  return {
+    scaleX,
+    mirror,
+    rear,
+    alpha:lerp(1,.68,rear)
+  };
 }
 function spriteSize(){
   let w=clamp(Math.min(W*.27,H*.47),150,320)*(active.size||1);
@@ -259,16 +264,22 @@ function drawWhole(px,py,pz,angle,scale=1,trailT=1,isHead=false,yawAngle=0){
   if(!assetReady)return;
   const p=project3D(px,py,pz);
   const yawLook=yawAppearance(yawAngle);
-  if(yawLook.alpha<.006)return;
   const s=spriteSize(),w=s.w*scale*p.scale*yawLook.scaleX,h=s.h*scale*p.scale;
   ctx.save();
   ctx.translate(Math.round(p.x),Math.round(p.y));
   ctx.rotate(angle);
+  if(yawLook.mirror)ctx.scale(-1,1);
   ctx.globalAlpha=(isHead?1:p.alpha)*yawLook.alpha;
   ctx.globalCompositeOperation='source-over';
   ctx.imageSmoothingEnabled=false;
   if(spriteReady){
-    const source=isHead?sprite:shadeSprites[shadeIndexFor(stampBrightness(trailT,pz))];
+    let source;
+    if(isHead){
+      source=yawLook.rear<.04?sprite:shadeSprites[shadeIndexFor(lerp(.90,.46,yawLook.rear))];
+    }else{
+      const baseBrightness=stampBrightness(trailT,pz);
+      source=shadeSprites[shadeIndexFor(baseBrightness*lerp(1,.62,yawLook.rear))];
+    }
     ctx.drawImage(source,-w*.5,-h*.5,w,h);
   }else ctx.drawImage(img,-w*.5,-h*.5,w,h);
   ctx.restore();
