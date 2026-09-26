@@ -62,6 +62,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;image-renderi
     <li>El recortador es la pieza a mejorar: alpha limpio, sin base gris, halo ni fondo rectangular.</li>
     <li>Próxima abstracción: <b>compileTrailAsset(image)</b> + <b>TrailEngine(asset, trajectory)</b>.</li>
     <li>La capa pseudo-3D agrega z y proyección; no requiere WebGL ni un efecto distinto por imagen.</li>
+    <li>Jerarquía del trail: las copias viejas/traseras se renderizan mucho más oscuras y recuperan claridad progresivamente hasta la figura actual, evitando dos caras protagonistas al cerrar una órbita.</li>
   </ul>
 </aside>
 <div class="modes" id="modes" aria-label="Modo de movimiento">
@@ -129,6 +130,8 @@ img.decoding='async';
 
 const sprite=document.createElement('canvas');
 const spriteCtx=sprite.getContext('2d',{willReadFrequently:true});
+const SHADE_BRIGHTNESS=[.22,.34,.46,.58,.70,.82,.90];
+const shadeSprites=SHADE_BRIGHTNESS.map(()=>document.createElement('canvas'));
 let spriteReady=false;
 let assetReady=false;
 let spriteRatio=.75;
@@ -195,6 +198,16 @@ function isolateSprite(){
   spriteCtx.clearRect(0,0,sw,sh);
   spriteCtx.imageSmoothingEnabled=true;
   spriteCtx.drawImage(img,0,0,sw,sh);
+  for(let i=0;i<shadeSprites.length;i++){
+    const shade=shadeSprites[i],sc=shade.getContext('2d');
+    shade.width=sw;shade.height=sh;
+    sc.clearRect(0,0,sw,sh);
+    sc.drawImage(sprite,0,0);
+    sc.globalCompositeOperation='source-atop';
+    sc.fillStyle='rgba(0,0,0,'+(1-SHADE_BRIGHTNESS[i])+')';
+    sc.fillRect(0,0,sw,sh);
+    sc.globalCompositeOperation='source-over';
+  }
   spriteReady=true;
 }
 function project3D(px,py,pz){
@@ -209,18 +222,36 @@ function project3D(px,py,pz){
     alpha:lerp(1,.72,depthNorm)
   };
 }
-function drawWhole(px,py,pz,angle,scale=1){
+function shadeIndexFor(brightness){
+  let best=0,bestD=Infinity;
+  for(let i=0;i<SHADE_BRIGHTNESS.length;i++){
+    const d=Math.abs(SHADE_BRIGHTNESS[i]-brightness);
+    if(d<bestD){bestD=d;best=i}
+  }
+  return best;
+}
+function stampBrightness(trailT,pz){
+  const ageT=clamp(trailT,0,1);
+  const ageBrightness=lerp(.22,.90,Math.pow(ageT,.72));
+  if(worldMode==='2d')return ageBrightness;
+  const depthNorm=clamp((pz+.35)/4.7,0,1);
+  const depthFactor=lerp(1,.66,depthNorm);
+  return clamp(ageBrightness*depthFactor,.18,.90);
+}
+function drawWhole(px,py,pz,angle,scale=1,trailT=1,isHead=false){
   if(!assetReady)return;
   const p=project3D(px,py,pz);
   const s=spriteSize(),w=s.w*scale*p.scale,h=s.h*scale*p.scale;
   ctx.save();
   ctx.translate(Math.round(p.x),Math.round(p.y));
   ctx.rotate(angle);
-  ctx.globalAlpha=p.alpha;
+  ctx.globalAlpha=isHead?1:p.alpha;
   ctx.globalCompositeOperation='source-over';
   ctx.imageSmoothingEnabled=false;
-  if(spriteReady)ctx.drawImage(sprite,-w*.5,-h*.5,w,h);
-  else ctx.drawImage(img,-w*.5,-h*.5,w,h);
+  if(spriteReady){
+    const source=isHead?sprite:shadeSprites[shadeIndexFor(stampBrightness(trailT,pz))];
+    ctx.drawImage(source,-w*.5,-h*.5,w,h);
+  }else ctx.drawImage(img,-w*.5,-h*.5,w,h);
   ctx.restore();
   configure(ctx);
 }
@@ -321,11 +352,21 @@ function update(dt,now){
   age(now);
 }
 function forEachStamp(fn){
-  for(let i=0;i<stampCount;i++)fn(stampPool[(stampStart+i)%POOL_SIZE],i);
+  const denom=Math.max(1,stampCount-1);
+  for(let i=0;i<stampCount;i++){
+    const s=stampPool[(stampStart+i)%POOL_SIZE];
+    s.trailT=stampCount<=1?1:i/denom;
+    fn(s,i);
+  }
 }
 const depthOrder=new Array(POOL_SIZE);
 function forEachDepthSorted(fn){
-  for(let i=0;i<stampCount;i++)depthOrder[i]=stampPool[(stampStart+i)%POOL_SIZE];
+  const denom=Math.max(1,stampCount-1);
+  for(let i=0;i<stampCount;i++){
+    const s=stampPool[(stampStart+i)%POOL_SIZE];
+    s.trailT=stampCount<=1?1:i/denom;
+    depthOrder[i]=s;
+  }
   for(let i=1;i<stampCount;i++){
     const v=depthOrder[i];let j=i-1;
     while(j>=0&&depthOrder[j].z<v.z){depthOrder[j+1]=depthOrder[j];j--}
@@ -335,9 +376,9 @@ function forEachDepthSorted(fn){
 }
 function render(){
   ctx.fillStyle=active.bg;ctx.fillRect(0,0,W,H);
-  if(worldMode==='2d')forEachStamp(s=>drawWhole(s.x,s.y,s.z,s.angle,s.scale));
-  else forEachDepthSorted(s=>drawWhole(s.x,s.y,s.z,s.angle,s.scale));
-  drawWhole(x,y,z,visualAngle,1.045);
+  if(worldMode==='2d')forEachStamp(s=>drawWhole(s.x,s.y,s.z,s.angle,s.scale,s.trailT,false));
+  else forEachDepthSorted(s=>drawWhole(s.x,s.y,s.z,s.angle,s.scale,s.trailT,false));
+  drawWhole(x,y,z,visualAngle,1.045,1,true);
   const modeLabel=worldMode==='2d'?'2D':worldMode.toUpperCase();
   const nextReadout=stampCount+' COPIAS · '+active.label+' · '+modeLabel;
   if(nextReadout!==readout.textContent)readout.textContent=nextReadout;
