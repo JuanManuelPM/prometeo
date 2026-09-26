@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<title>Trail · candidatos temporales</title>
+<style>
+:root{--bg:#3155ff;--ink:#0b0b0b}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:Arial,Helvetica,sans-serif;color:var(--ink)}
+body{touch-action:manipulation}
+.stage{position:fixed;inset:0;overflow:hidden;background:var(--bg);transition:background .18s linear}
+.copy{position:absolute;left:0;top:0;pointer-events:none;user-select:none;transform-origin:50% 50%;image-rendering:auto;filter:drop-shadow(0 2px 0 rgba(0,0,0,.1))}
+.head{z-index:3}
+.ui{position:fixed;z-index:20;inset:0;pointer-events:none}
+.top{pointer-events:auto;position:absolute;left:10px;right:10px;top:max(8px,env(safe-area-inset-top));display:flex;gap:6px;overflow-x:auto;padding:0 0 6px;scrollbar-width:none}
+.top::-webkit-scrollbar{display:none}
+button{flex:0 0 auto;border:2px solid #111;background:rgba(255,255,255,.82);color:#111;font:900 10px/1 Arial,sans-serif;letter-spacing:.08em;padding:11px 12px;min-height:42px;cursor:pointer}
+button[aria-pressed="true"]{background:#111;color:#fff}
+.info{position:absolute;left:12px;bottom:max(12px,env(safe-area-inset-bottom));max-width:min(70vw,620px);background:rgba(255,255,255,.84);border:2px solid #111;padding:8px 10px;pointer-events:auto}
+.info b{display:block;font-size:12px;letter-spacing:.08em}
+.info span{display:block;margin-top:3px;font-size:10px;line-height:1.25}
+.info a{color:inherit}
+.badge{position:absolute;right:12px;bottom:max(12px,env(safe-area-inset-bottom));font:900 9px/1 Arial,sans-serif;background:#111;color:#fff;padding:8px 10px}
+@media(max-width:720px){
+  .info{max-width:76vw}
+  button{padding:10px 9px;min-height:40px;font-size:9px}
+}
+</style>
+</head>
+<body>
+<div class="stage" id="stage"></div>
+<div class="ui">
+  <div class="top" id="tabs"></div>
+  <div class="info" id="info"></div>
+  <div class="badge">TEMP · NO TOCA TRAIL-LAB</div>
+</div>
+<script>
+const CANDIDATES=[
+ {id:'mantis',label:'MANTIS',name:'Mantis recortada',src:'https://commons.wikimedia.org/wiki/Special:Redirect/file/Mantis%20(PSF).png',page:'https://commons.wikimedia.org/wiki/File:Mantis_(PSF).png',bg:'#e7c73d',size:.92,kind:'insecto / referencia'},
+ {id:'dragonfly',label:'DRAGONFLY',name:'Libélula',src:'https://commons.wikimedia.org/wiki/Special:Redirect/file/Dragonfly%20(PSF).png',page:'https://commons.wikimedia.org/wiki/File:Dragonfly_(PSF).png',bg:'#64b6ff',size:1.02,kind:'alas largas'},
+ {id:'moth',label:'MOTH',name:'Polilla regal',src:'https://commons.wikimedia.org/wiki/Special:Redirect/file/Regal%20Moth%20(PSF).png',page:'https://commons.wikimedia.org/wiki/File:Regal_Moth_(PSF).png',bg:'#f178b6',size:1.0,kind:'alas anchas'},
+ {id:'noh',label:'NOH',name:'Máscara Noh',src:'https://commons.wikimedia.org/wiki/Special:Redirect/file/Noh%20Mask%20(PSF).png',page:'https://commons.wikimedia.org/wiki/File:Noh_Mask_(PSF).png',bg:'#e9e3d1',size:.73,kind:'máscara japonesa'},
+ {id:'tengu',label:'TENGU',name:'Tengu',src:'https://commons.wikimedia.org/wiki/Special:Redirect/file/Tengu.png',page:'https://commons.wikimedia.org/wiki/File:Tengu.png',bg:'#df503b',size:.72,kind:'máscara / figura japonesa'},
+ {id:'octopus',label:'OCTOPUS',name:'Pulpo',src:'https://commons.wikimedia.org/wiki/Special:Redirect/file/Octopus%20(PSF).png',page:'https://commons.wikimedia.org/wiki/File:Octopus_(PSF).png',bg:'#7fcf8b',size:.78,kind:'tentáculos'},
+ {id:'skeleton',label:'SKELETON',name:'Esqueleto',src:'https://commons.wikimedia.org/wiki/Special:Redirect/file/Skeleton%20Human%20(PSF).png',page:'https://commons.wikimedia.org/wiki/File:Skeleton_Human_(PSF).png',bg:'#9b87ff',size:.60,kind:'figura humana'},
+ {id:'sword',label:'SWORD',name:'Espada',src:'https://commons.wikimedia.org/wiki/Special:Redirect/file/Sword%20(PSF).png',page:'https://commons.wikimedia.org/wiki/File:Sword_(PSF).png',bg:'#efc85d',size:1.08,kind:'objeto largo'},
+ {id:'secretary',label:'BIRD',name:'Secretary bird',src:'https://commons.wikimedia.org/wiki/Special:Redirect/file/Secretary%20bird%20(PSF).png',page:'https://commons.wikimedia.org/wiki/File:Secretary_bird_(PSF).png',bg:'#7fd6ca',size:.88,kind:'ave / patas'},
+ {id:'whidah',label:'TAIL',name:'Whidah-bird',src:'https://commons.wikimedia.org/wiki/Special:Redirect/file/Whidah-bird%20(PSF).png',page:'https://commons.wikimedia.org/wiki/File:Whidah-bird_(PSF).png',bg:'#f38a54',size:.62,kind:'ave / cola extrema'}
+];
+const stage=document.getElementById('stage');
+const tabs=document.getElementById('tabs');
+const info=document.getElementById('info');
+const COPIES=15;
+const imgs=[];
+let active=CANDIDATES[0];
+let history=[];
+let lastStamp=0;
+let W=innerWidth,H=innerHeight;
+for(let i=0;i<COPIES;i++){
+  const im=new Image();
+  im.className='copy'+(i===COPIES-1?' head':'');
+  im.alt='';
+  stage.appendChild(im);
+  imgs.push(im);
+}
+for(const c of CANDIDATES){
+  const b=document.createElement('button');
+  b.textContent=c.label;
+  b.dataset.id=c.id;
+  b.onclick=()=>select(c.id);
+  tabs.appendChild(b);
+}
+function select(id){
+  active=CANDIDATES.find(c=>c.id===id)||CANDIDATES[0];
+  document.documentElement.style.setProperty('--bg',active.bg);
+  stage.style.background=active.bg;
+  for(const im of imgs) im.src=active.src;
+  history=[];
+  sync();
+  info.innerHTML='<b>'+active.name+'</b><span>'+active.kind+' · fuente/licencia en <a href="'+active.page+'" target="_blank" rel="noreferrer">Wikimedia Commons</a></span>';
+}
+function sync(){
+  for(const b of tabs.children)b.setAttribute('aria-pressed',b.dataset.id===active.id?'true':'false');
+}
+function dimensions(){
+  const base=Math.max(120,Math.min(260,Math.min(W*.28,H*.48)))*active.size;
+  return {w:base,h:base};
+}
+function pos(t){
+  const pad=Math.min(W,H)*.10;
+  const usableW=Math.max(20,W-pad*2), usableH=Math.max(20,H-pad*2);
+  const x=pad+usableW*(.5+.38*Math.sin(t*.00135));
+  const y=pad+usableH*(.5+.29*Math.sin(t*.00195+1.2));
+  const dx=.38*usableW*.00135*Math.cos(t*.00135);
+  const dy=.29*usableH*.00195*Math.cos(t*.00195+1.2);
+  return {x,y,a:Math.atan2(dy,dx)*.12};
+}
+function frame(t){
+  requestAnimationFrame(frame);
+  if(!lastStamp||t-lastStamp>34){
+    lastStamp=t;
+    history.push(pos(t));
+    if(history.length>COPIES)history.shift();
+  }
+  const d=dimensions();
+  for(let i=0;i<imgs.length;i++){
+    const p=history[Math.max(0,history.length-imgs.length+i)]||pos(t);
+    const im=imgs[i];
+    im.style.width=d.w+'px';
+    im.style.height=d.h+'px';
+    im.style.objectFit='contain';
+    im.style.opacity= i<history.length ? '1':'0';
+    im.style.transform='translate('+(p.x-d.w/2)+'px,'+(p.y-d.h/2)+'px) rotate('+p.a+'rad)';
+  }
+}
+addEventListener('resize',()=>{W=innerWidth;H=innerHeight});
+select('mantis');
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
