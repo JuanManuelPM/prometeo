@@ -1,0 +1,67 @@
+name: Live V6 resilient snapshot
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "current-tree/live-v6/index.html"
+      - "scripts/live-v6-snapshot.mjs"
+      - ".github/workflows/current-tree-live-v6-snapshot.yml"
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: live-v6-snapshot
+  cancel-in-progress: true
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build fresh snapshot if RPCs are healthy
+        id: build
+        shell: bash
+        run: |
+          set +e
+          node scripts/live-v6-snapshot.mjs /tmp/live-v6-fallback.json
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Preserve previous snapshot when RPCs fail
+        if: steps.build.outputs.code != '0'
+        run: echo "RPC snapshot unavailable; keeping the previously published fallback untouched."
+
+      - name: Publish fresh fallback without replacing a good one on failure
+        if: steps.build.outputs.code == '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin gh-pages
+          git worktree add /tmp/live-v6-pages origin/gh-pages
+          mkdir -p /tmp/live-v6-pages/current-tree/live-v6
+
+          if [ -f /tmp/live-v6-pages/current-tree/live-v6/fallback.json ]; then
+            old_hash=$(jq -S 'del(.cached_at)' /tmp/live-v6-pages/current-tree/live-v6/fallback.json | sha256sum | cut -d' ' -f1)
+            new_hash=$(jq -S 'del(.cached_at)' /tmp/live-v6-fallback.json | sha256sum | cut -d' ' -f1)
+            if [ "$old_hash" = "$new_hash" ]; then
+              echo "Snapshot data unchanged; no publish needed."
+              exit 0
+            fi
+          fi
+
+          cp /tmp/live-v6-fallback.json /tmp/live-v6-pages/current-tree/live-v6/fallback.json
+          cd /tmp/live-v6-pages
+          git config user.name "prometeo-snapshot-bot"
+          git config user.email "prometeo-snapshot-bot@users.noreply.github.com"
+          git add current-tree/live-v6/fallback.json
+          git commit -m "current-tree: refresh Live V6 fallback snapshot"
+          git pull --rebase origin gh-pages
+          git push origin HEAD:gh-pages
