@@ -63,6 +63,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;image-renderi
     <li>Próxima abstracción: <b>compileTrailAsset(image)</b> + <b>TrailEngine(asset, trajectory)</b>.</li>
     <li>La capa pseudo-3D agrega z y proyección; no requiere WebGL ni un efecto distinto por imagen.</li>
     <li>Jerarquía del trail: las copias viejas/traseras se renderizan mucho más oscuras y recuperan claridad progresivamente hasta la figura actual, evitando dos caras protagonistas al cerrar una órbita.</li>
+    <li>Giro 2.5D: cuando la trayectoria empieza a alejarse, el sprite rota suavemente sobre un eje vertical, se comprime hasta quedar de canto y la cara frontal se oculta al pasar por atrás; reaparece gradualmente al volver.</li>
   </ul>
 </aside>
 <div class="modes" id="modes" aria-label="Modo de movimiento">
@@ -138,15 +139,15 @@ let spriteRatio=.75;
 let active=VARIANTS[1];
 let loadToken=0;
 
-let W=1,H=1,x=0,y=0,z=0,vx=460,vy=285;
-let worldMode='2d',modeTime=0;
+let W=1,H=1,x=0,y=0,z=0,vx=460,vy=285,vz=0;
+let worldMode='2d',modeTime=0,visualYaw=0;
 let paused=false,last=0,stampClock=0,pointerDown=false,pointerLast=null,lastCount=-1;
 let visualAngle=active.baseAngle||0;
 
 const SPEED=reduced?250:520;
 const LIFE_MS=reduced?880:720;
 const POOL_SIZE=40;
-const stampPool=Array.from({length:POOL_SIZE},()=>({x:0,y:0,z:0,angle:0,scale:1,born:0}));
+const stampPool=Array.from({length:POOL_SIZE},()=>({x:0,y:0,z:0,angle:0,yaw:0,scale:1,born:0}));
 let stampStart=0,stampCount=0;
 
 const QUALITY=[
@@ -173,6 +174,22 @@ function updateVisualAngle(dt){
   if(active.orientation==='fixed'){visualAngle=active.baseAngle||0;return}
   const rate=active.turnRate||4.5;
   visualAngle=lerpAngle(visualAngle,desiredAngle(),1-Math.exp(-rate*dt));
+}
+function updateVisualYaw(dt){
+  if(worldMode==='2d'){visualYaw=0;return}
+  let target=visualYaw;
+  if(vz>.045)target=Math.PI;
+  else if(vz<-.045)target=0;
+  const rate=3.7;
+  visualYaw=lerpAngle(visualYaw,target,1-Math.exp(-rate*dt));
+}
+function yawAppearance(yawAngle){
+  if(worldMode==='2d')return {scaleX:1,alpha:1};
+  const c=Math.cos(yawAngle);
+  const scaleX=Math.max(.045,Math.abs(c));
+  const t=clamp((c+.04)/.34,0,1);
+  const alpha=t*t*(3-2*t);
+  return {scaleX,alpha};
 }
 function spriteSize(){
   let w=clamp(Math.min(W*.27,H*.47),150,320)*(active.size||1);
@@ -238,14 +255,16 @@ function stampBrightness(trailT,pz){
   const depthFactor=lerp(1,.66,depthNorm);
   return clamp(ageBrightness*depthFactor,.18,.90);
 }
-function drawWhole(px,py,pz,angle,scale=1,trailT=1,isHead=false){
+function drawWhole(px,py,pz,angle,scale=1,trailT=1,isHead=false,yawAngle=0){
   if(!assetReady)return;
   const p=project3D(px,py,pz);
-  const s=spriteSize(),w=s.w*scale*p.scale,h=s.h*scale*p.scale;
+  const yawLook=yawAppearance(yawAngle);
+  if(yawLook.alpha<.006)return;
+  const s=spriteSize(),w=s.w*scale*p.scale*yawLook.scaleX,h=s.h*scale*p.scale;
   ctx.save();
   ctx.translate(Math.round(p.x),Math.round(p.y));
   ctx.rotate(angle);
-  ctx.globalAlpha=isHead?1:p.alpha;
+  ctx.globalAlpha=(isHead?1:p.alpha)*yawLook.alpha;
   ctx.globalCompositeOperation='source-over';
   ctx.imageSmoothingEnabled=false;
   if(spriteReady){
@@ -260,7 +279,7 @@ function firstStamp(){return stampCount?stampPool[stampStart]:null}
 function trimToBudget(){
   while(stampCount>q().max){stampStart=(stampStart+1)%POOL_SIZE;stampCount--}
 }
-function makeStamp(px,py,pz,angle,scale=1,born=performance.now()){
+function makeStamp(px,py,pz,angle,scale=1,born=performance.now(),yawValue=visualYaw){
   let idx;
   if(stampCount>=Math.min(q().max,POOL_SIZE)){
     stampStart=(stampStart+1)%POOL_SIZE;
@@ -270,7 +289,7 @@ function makeStamp(px,py,pz,angle,scale=1,born=performance.now()){
     stampCount++;
   }
   const s=stampPool[idx];
-  s.x=px;s.y=py;s.z=pz;s.angle=angle;s.scale=scale;s.born=born;
+  s.x=px;s.y=py;s.z=pz;s.angle=angle;s.yaw=yawValue;s.scale=scale;s.born=born;
 }
 function seedComposition(now){
   clearStamps();
@@ -313,7 +332,7 @@ function age(now){
 }
 function update3D(dt){
   modeTime+=dt;
-  const t=modeTime,px=x,py=y;
+  const t=modeTime,px=x,py=y,pz=z;
   if(worldMode==='approach'||worldMode==='retreat'){
     const cycle=(t%4.6)/4.6;
     const p=worldMode==='approach'?cycle:1-cycle;
@@ -331,14 +350,15 @@ function update3D(dt){
     y=H*.5+Math.sin(a*2)*H*.16;
     z=1.62+Math.cos(a*1.35)*1.55;
   }
-  if(dt>0){vx=(x-px)/dt;vy=(y-py)/dt}
+  if(dt>0){vx=(x-px)/dt;vy=(y-py)/dt;vz=(z-pz)/dt}
+  updateVisualYaw(dt);
   updateVisualAngle(dt);
 }
 function update(dt,now){
   let hit=false,oldMotion=motionAngle();
   if(worldMode==='2d'){
     const s=spriteSize(),rx=s.w*.43,ry=s.h*.42;
-    x+=vx*dt;y+=vy*dt;z=0;
+    x+=vx*dt;y+=vy*dt;z=0;vz=0;visualYaw=0;
     if(x<rx){x=rx;vx=Math.abs(vx);hit=true}else if(x>W-rx){x=W-rx;vx=-Math.abs(vx);hit=true}
     if(y<ry){y=ry;vy=Math.abs(vy);hit=true}else if(y>H-ry){y=H-ry;vy=-Math.abs(vy);hit=true}
     const speed=Math.hypot(vx,vy)||1;vx=vx/speed*SPEED;vy=vy/speed*SPEED;
@@ -376,9 +396,9 @@ function forEachDepthSorted(fn){
 }
 function render(){
   ctx.fillStyle=active.bg;ctx.fillRect(0,0,W,H);
-  if(worldMode==='2d')forEachStamp(s=>drawWhole(s.x,s.y,s.z,s.angle,s.scale,s.trailT,false));
-  else forEachDepthSorted(s=>drawWhole(s.x,s.y,s.z,s.angle,s.scale,s.trailT,false));
-  drawWhole(x,y,z,visualAngle,1.045,1,true);
+  if(worldMode==='2d')forEachStamp(s=>drawWhole(s.x,s.y,s.z,s.angle,s.scale,s.trailT,false,s.yaw));
+  else forEachDepthSorted(s=>drawWhole(s.x,s.y,s.z,s.angle,s.scale,s.trailT,false,s.yaw));
+  drawWhole(x,y,z,visualAngle,1.045,1,true,visualYaw);
   const modeLabel=worldMode==='2d'?'2D':worldMode.toUpperCase();
   const nextReadout=stampCount+' COPIAS · '+active.label+' · '+modeLabel;
   if(nextReadout!==readout.textContent)readout.textContent=nextReadout;
@@ -405,7 +425,7 @@ function syncModes(){
 }
 function setWorldMode(mode){
   if(!['2d','approach','retreat','orbit','loop'].includes(mode)||mode===worldMode)return;
-  worldMode=mode;modeTime=0;stampClock=0;clearStamps();
+  worldMode=mode;modeTime=0;stampClock=0;clearStamps();visualYaw=0;vz=0;
   if(worldMode==='2d'){
     z=0;x=W*.28;y=H*.46;
     const startAngle=.56;setSpeed(startAngle);visualAngle=desiredAngle();
