@@ -253,17 +253,22 @@ async function fallbackRead(){
  try{const r=await fetch(FALLBACK_URL+'?v=2',{cache:'no-store'});if(!r.ok)return null;const x=await r.json();return x?.tree?x:null}catch{return null}
 }
 async function load(base={}){
- const entries=Object.entries(RPC_MAP);
- const settled=await Promise.allSettled(entries.map(([,name])=>rpc(name)));
- const bundle={...base};
- const failures=[];
+ const bundle={...base},failures=[];
+ try{
+  bundle.tree=await rpc(RPC_MAP.tree);
+ }catch(e){
+  failures.push(RPC_MAP.tree+' · '+(e?.message||e||'error'));
+  if(!bundle.tree)throw e;
+ }
+ await sleep(120);
+ const optional=Object.entries(RPC_MAP).filter(([key])=>key!=='tree');
+ const settled=await Promise.allSettled(optional.map(([,name])=>rpc(name)));
  settled.forEach((res,i)=>{
-  const [key,name]=entries[i];
+  const [key,name]=optional[i];
   if(res.status==='fulfilled')bundle[key]=res.value;
   else failures.push(name+' · '+(res.reason?.message||res.reason||'error'));
  });
- if(!bundle.tree)throw new Error(failures[0]||'prometeo_current_tree_v2 · sin snapshot');
- return {bundle:{...bundle,cached_at:new Date().toISOString()},failures,fresh:entries.length-failures.length};
+ return {bundle:{...bundle,cached_at:new Date().toISOString()},failures,fresh:Object.keys(RPC_MAP).length-failures.length};
 }
 function snapshotAt(bundle){return bundle?.tree?.generated_at||bundle?.organism?.generated_at||bundle?.cached_at||null}
 function freshness(mode,bundle,failures=[]){
