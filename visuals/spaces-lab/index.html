@@ -246,7 +246,7 @@ function chamferPier(img,side,outerX,innerFloor,innerTop,y0,y1,z0,z1,alpha){
   worldQuad(img,[{x:outer,y:y1,z:z0},{x:outer,y:y1,z:z1},{x:top,y:y1,z:z1},{x:top,y:y1,z:z0}],alpha*.68);
 }
 function renderCylinderSolid(cx,cz,r,y0,y1){
-  const faces=[],n=28,slices=7;
+  const faces=[],n=28,slices=9;
   for(let i=0;i<n;i++){
     const a0=(i/n)*Math.PI*2,a1=((i+1)/n)*Math.PI*2;
     const x0=cx+Math.cos(a0)*r,z0=cz+Math.sin(a0)*r;
@@ -270,12 +270,13 @@ function renderCylinderSolid(cx,cz,r,y0,y1){
   for(const f of faces){
     const midX=(f.pts[0].x+f.pts[1].x)*.5;
     const midZ=(f.pts[0].z+f.pts[1].z)*.5;
-    const L=Math.pow(cameraLight3DAt(midX,f.y,midZ,52,.48,.0015),1.16);
-    const face=.07+.93*Math.max(0,Math.cos(f.mid+.72));
+    const L=Math.pow(cameraLight3DAt(midX,f.y,midZ,40,.48,.0008),1.08);
+    // Curvature remains visible, but cannot make a genuinely nearby surface almost black.
+    const face=.30+.70*Math.max(0,Math.cos(f.mid+.72));
     const shade=face*L;
-    const rr=Math.round(1+132*shade);
-    const gg=Math.round(1+62*shade);
-    const bb=Math.round(3+174*shade);
+    const rr=Math.round(1+144*shade);
+    const gg=Math.round(1+70*shade);
+    const bb=Math.round(2+188*shade);
     worldSolidQuad('rgb('+rr+','+gg+','+bb+')',f.pts,.997);
   }
 }
@@ -296,15 +297,22 @@ function cameraLightAt(worldX,worldZ,reach,cone,ambient){
   return clamp((ambient||.006)+falloff*(.18+.82*beam),(ambient||.006),1);
 }
 function cameraLight3DAt(worldX,worldY,worldZ,reach,cone,ambient){
-  const dz=Math.max(0,worldZ-camZ);
   const dx=worldX-camX;
-  const dy=worldY; // camera eye is the world Y origin in this projection
-  const radial=Math.hypot(dz,dx*.72,dy*.58);
-  const falloff=1/(1+Math.pow(radial/(reach||48),2.35));
-  const coneRadius=3.0+dz*(cone||.52);
-  const offAxis=Math.hypot(dx,dy*.68);
-  const beam=Math.exp(-Math.pow(offAxis/Math.max(2.2,coneRadius),2.05));
-  return clamp((ambient||.003)+falloff*(.14+.86*beam),(ambient||.003),1);
+  const dy=worldY; // camera eye sits at world Y=0
+  const dz=Math.max(0,worldZ-camZ);
+
+  // Illumination is anchored to the actual camera center, not to independent X/Z hacks.
+  // Physical 3D distance is the primary term: the nearer the point, the brighter it is.
+  const dist=Math.max(.001,Math.hypot(dx,dy,dz));
+  const distanceFalloff=1/(1+Math.pow(dist/(reach||42),2.30));
+
+  // Secondary term: how close the point is to the camera's optical axis.
+  // This never overwhelms near-field distance, so a nearby pillar cannot become inexplicably dark.
+  const axisCos=clamp(dz/dist,0,1);
+  const axisWeight=.42+.58*Math.pow(axisCos,1.35);
+
+  const a=(ambient==null?.0015:ambient);
+  return clamp(a+(1-a)*distanceFalloff*axisWeight,a,1);
 }
 function renderCameraLitSolidFloor(floorY,zNear,zFar,color){
   const bands=28,cells=12;
@@ -318,7 +326,7 @@ function renderCameraLitSolidFloor(floorY,zNear,zFar,color){
       const x00=camX-w0+2*w0*q0,x01=camX-w0+2*w0*q1;
       const x10=camX-w1+2*w1*q0,x11=camX-w1+2*w1*q1;
       const midX=(x00+x01+x10+x11)*.25,midZ=(z0+z1)*.5;
-      const L=Math.pow(cameraLightAt(midX,midZ,60,.46,.004),1.28);
+      const L=Math.pow(cameraLight3DAt(midX,floorY,midZ,50,.46,.0015),1.16);
       let rr,gg,bb;
       if(color==='green'){
         rr=Math.round(1+34*L);gg=Math.round(3+65*L);bb=Math.round(2+28*L);
@@ -340,7 +348,7 @@ function renderCameraLitTexturedFloor(img,floorY,zNear,zFar,halfW){
       const x0=-halfW+(2*halfW)*(xi/cells);
       const x1=-halfW+(2*halfW)*((xi+1)/cells);
       const midX=(x0+x1)*.5,midZ=(z0+z1)*.5;
-      const L=Math.pow(cameraLightAt(midX,midZ,48,.60,.008),1.18);
+      const L=Math.pow(cameraLight3DAt(midX,floorY,midZ,46,.60,.002),1.12);
       worldQuad(img,[
         {x:x0,y:floorY,z:z1},{x:x1,y:floorY,z:z1},
         {x:x1,y:floorY,z:z0},{x:x0,y:floorY,z:z0}
@@ -352,7 +360,7 @@ function renderCameraLitWall(img,x,y0,y1,zNear,zFar){
   const bands=24;
   for(let i=bands-1;i>=0;i--){
     const z0=lerp(zNear,zFar,i/bands),z1=lerp(zNear,zFar,(i+1)/bands);
-    const L=Math.pow(cameraLightAt(x,(z0+z1)*.5,45,.68,.006),1.20);
+    const L=Math.pow(cameraLight3DAt(x,(y0+y1)*.5,(z0+z1)*.5,43,.68,.0018),1.14);
     worldQuad(img,[
       {x,y:y1,z:z0},{x,y:y1,z:z1},
       {x,y:y0,z:z1},{x,y:y0,z:z0}
@@ -404,10 +412,10 @@ function renderMap1(){
     const z0=r.z-thick*.5,z1=r.z+thick*.5;
     if(z1-camZ<NEAR-.02)continue;
 
-    const leftL =Math.pow(cameraLight3DAt(-innerFloor,(floorY+springY)*.5,r.z,46,.62,.003),1.18);
-    const rightL=Math.pow(cameraLight3DAt( innerFloor,(floorY+springY)*.5,r.z,46,.62,.003),1.18);
-    const crownL=Math.pow(cameraLight3DAt(0,(springY+ceilY)*.5,r.z,52,.54,.002),1.30);
-    const wallL=Math.pow(cameraLight3DAt(0,(shoulderY+ceilY)*.5,r.z+.18,46,.58,.002),1.22);
+    const leftL =Math.pow(cameraLight3DAt(-innerFloor,(floorY+springY)*.5,r.z,42,.62,.0015),1.10);
+    const rightL=Math.pow(cameraLight3DAt( innerFloor,(floorY+springY)*.5,r.z,42,.62,.0015),1.10);
+    const crownL=Math.pow(cameraLight3DAt(0,(springY+ceilY)*.5,r.z,38,.54,.0008),1.18);
+    const wallL=Math.pow(cameraLight3DAt(0,(shoulderY+ceilY)*.5,r.z+.18,41,.58,.0012),1.14);
 
     // Wall plane first: it belongs behind the arch and supports, with the doorway cut out.
     worldQuad(backingTex,[
@@ -593,9 +601,9 @@ addEventListener('selectstart',e=>e.preventDefault());
 addEventListener('dragstart',e=>e.preventDefault());
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v15',
+  version:'spaces-maps-v16',
   maps:['1 green arch nave','2 brutalist cylinder hall'],
-  contract:'fixed frontal view; touch swipe + WASD + wheel; Map 1 supports meet the visible arch springline with masked wall planes behind the structure; pillar/tower lighting uses full 3D distance including height',
+  contract:'fixed frontal view; touch swipe + WASD + wheel; all lighting is anchored to 3D distance from the camera center with optical-axis weighting; nearby bases stay bright while high/far tower tips fade almost to black',
   sourcePages:SOURCE_PAGES,
   camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
