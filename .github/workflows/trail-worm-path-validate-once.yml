@@ -1,0 +1,63 @@
+name: trail-worm-path-validate-once
+
+on:
+  push:
+    paths:
+      - ".github/workflows/trail-worm-path-validate-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate exact-path worm body
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path("visuals/trail-lab/index.html").read_text()
+          m=re.search(r"<script>([\s\S]*?)</script>",s)
+          assert m, "inline script missing"
+          script=m.group(1)
+          Path("/tmp/trail.js").write_text(script)
+
+          required=[
+            "const DRAGON_SPACING=reduced?20:18",
+            "return quality===0?26:(quality===1?32:38)",
+            "const pose=hairpinPose(pathDistance-offset,worldMode==='loop')",
+            "seg.trailT=1-i/count",
+            "forEachDragonSegment(s=>drawWhole",
+            "const scale=lerp(.16,.98,scaleCurve)",
+            "if(worldMode==='approach'||worldMode==='retreat')stampByDistance"
+          ]
+          for token in required:
+              assert token in script, f"missing {token}"
+
+          forbidden=[
+            "function tailWaveOffset",
+            "Math.sin(pathD*.045)*amp",
+            "const wave=isHead?0:tailWaveOffset"
+          ]
+          for token in forbidden:
+              assert token not in script, f"old independent tail path remains: {token}"
+
+          assert "http://" not in script and "https://" not in script, "external runtime URL found"
+
+          state=Path("visuals/fronts/trail/state.json").read_text()
+          assert '"current_blob_sha": "29fd29be3ea6c07edba1b32e60889365fe32c4a1"' in state
+          assert '"oldest_scale_3d": 0.16' in state
+          decisions=Path("visuals/fronts/trail/decisions.md").read_text()
+          assert "## Worm body follows the head path" in decisions
+          arch=Path("visuals/fronts/trail/architecture.md").read_text()
+          assert "segment i = hairpinPose(pathDistance - i * spacing)" in arch
+          assert "684 px" in arch
+          print("Trail exact-path worm checks OK")
+          PY
+          node --check /tmp/trail.js
+          echo "node syntax OK"
