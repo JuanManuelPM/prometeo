@@ -2,29 +2,30 @@
 
 Status: CURRENT
 
-## v19 · MAP 5 PROXIMITY SIGNS
-Latest user direction:
-- the violet triangular spires beside the ritual road need a sign;
-- the sign must remain hidden by default;
-- it should rise only when the player is **fairly close**.
+## v20 · MOBILE MAP SELECTOR FIX
+Latest user-reported problem:
+- the last scene options were not reachable on mobile;
+- the selector looked horizontally scrollable but finger dragging on the buttons did not actually let the user reach the end.
+
+## ROOT CAUSE
+- `#maps` had overflow-x enabled, but its buttons explicitly used `touch-action:none`.
+- That disabled the horizontal gesture exactly where users naturally start dragging.
+- The fullscreen visual also uses aggressive touch handling, so relying only on browser-native gesture arbitration was fragile.
 
 ## IMPLEMENTATION
-- Every Map 5 spire has its own animated sign state.
-- Proximity is measured from player/camera XZ position to that spire base.
-- Open threshold: distance < 11.2 world units.
-- Close threshold: distance > 13.4 world units.
-- The two thresholds create hysteresis so signs do not chatter at the edge.
-- Rise is faster than retract.
-- Animation uses time-based exponential interpolation, not frame-count popping.
-- Signs start below the floor and telescope upward.
-- Each panel is placed toward the **inner / road-facing side** of its spire.
-- Panels use gold + violet ritual materials and a minimal geometric glyph, not UI text.
-- Left and right spires trigger independently, so strafing closer to one side can wake that side first.
+- map strip now has an explicit width suitable for narrow screens;
+- `#maps` uses `touch-action:pan-x`;
+- map buttons also allow `pan-x`;
+- native momentum scrolling remains enabled;
+- explicit Pointer Events drag fallback directly updates `scrollLeft`;
+- dragging more than 4px is treated as a scroll gesture;
+- the following click is suppressed so dragging does not accidentally switch scenes;
+- selecting a map automatically scrolls its button into the center of the visible strip;
+- five scene buttons remain non-selectable and do not summon copy/paste UI.
 
 ## PRESERVE
-- Map 5 orange/red sky.
-- Purple striped central road.
-- Paired pointed spires.
-- Stepped temple destination.
-- True 3D camera-center lighting.
-- Existing movement / touch controls and non-selectable UI.
+- all five scenes;
+- Map 5 proximity signs;
+- scene canvas vertical swipe locomotion;
+- WASD / wheel movement;
+- no text-selection/callout UI.
