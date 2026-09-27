@@ -63,6 +63,7 @@ const NEAR=.14;
 let W=640,H=360,last=0;
 let camX=0,targetCamX=0,camZ=1.4,targetCamZ=1.4,currentMap=1;
 const ritualSigns=new Map();
+const ritualVisibleSlots=new Set();
 const assets={};
 const atlas={};
 const SOURCE_PAGES={
@@ -707,41 +708,59 @@ function renderMap4(){
 
   topDarkness(.32);
 }
-function renderObelisk(cx,cz,baseW,bodyTop,tipTop,rgb){
-  const floorY=-1.5,depth=1.75;
-  const half=baseW*.5,topHalf=half*.58,frontZ=cz-depth*.5,backZ=cz+depth*.5;
-  const bodyL=cameraLight3DAt(cx,(floorY+bodyTop)*.5,frontZ,42,0,.0005);
-  const tipL=cameraLight3DAt(cx,(bodyTop+tipTop)*.5,cz,36,0,.00025);
+function renderAbyssColumn(cx,cz,r,yBottom,yTop){
+  const faces=[],n=24,slices=12;
+  const baseRgb=[116,68,154];
 
-  worldSolidQuad(litColor(rgb,bodyL,1),[
-    {x:cx-topHalf,y:bodyTop,z:frontZ},{x:cx+topHalf,y:bodyTop,z:frontZ},
-    {x:cx+half,y:floorY,z:frontZ},{x:cx-half,y:floorY,z:frontZ}
-  ],1);
-  worldSolidQuad(litColor(rgb,bodyL,.58),[
-    {x:cx-half,y:floorY,z:frontZ},{x:cx-topHalf,y:bodyTop,z:frontZ},
-    {x:cx-topHalf,y:bodyTop,z:backZ},{x:cx-half,y:floorY,z:backZ}
-  ],1);
-  worldSolidQuad(litColor(rgb,bodyL,.43),[
-    {x:cx+topHalf,y:bodyTop,z:backZ},{x:cx+topHalf,y:bodyTop,z:frontZ},
-    {x:cx+half,y:floorY,z:frontZ},{x:cx+half,y:floorY,z:backZ}
-  ],1);
+  for(let i=0;i<n;i++){
+    const a0=(i/n)*Math.PI*2,a1=((i+1)/n)*Math.PI*2;
+    const x0=cx+Math.cos(a0)*r,z0=cz+Math.sin(a0)*r;
+    const x1=cx+Math.cos(a1)*r,z1=cz+Math.sin(a1)*r;
+    const midA=(a0+a1)*.5;
 
-  const apex={x:cx,y:tipTop,z:cz};
-  worldSolidPoly(litColor(rgb,tipL,.88),[
-    apex,{x:cx-topHalf,y:bodyTop,z:frontZ},{x:cx+topHalf,y:bodyTop,z:frontZ}
-  ],1);
-  worldSolidPoly(litColor(rgb,tipL,.44),[
-    apex,{x:cx+topHalf,y:bodyTop,z:frontZ},{x:cx+topHalf,y:bodyTop,z:backZ}
-  ],1);
-  worldSolidPoly(litColor(rgb,tipL,.56),[
-    apex,{x:cx-topHalf,y:bodyTop,z:backZ},{x:cx-topHalf,y:bodyTop,z:frontZ}
-  ],1);
+    for(let s=0;s<slices;s++){
+      const t0=s/slices,t1=(s+1)/slices;
+      const yy0=lerp(yBottom,yTop,t0),yy1=lerp(yBottom,yTop,t1);
+      faces.push({
+        z:(z0+z1)*.5,
+        t:(t0+t1)*.5,
+        midA,
+        y:(yy0+yy1)*.5,
+        pts:[
+          {x:x0,y:yy1,z:z0},{x:x1,y:yy1,z:z1},
+          {x:x1,y:yy0,z:z1},{x:x0,y:yy0,z:z0}
+        ]
+      });
+    }
+  }
+
+  faces.sort((a,b)=>b.z-a.z || a.y-b.y);
+  for(const f of faces){
+    const mx=(f.pts[0].x+f.pts[1].x)*.5;
+    const mz=(f.pts[0].z+f.pts[1].z)*.5;
+    const distL=cameraLight3DAt(mx,f.y,mz,48,0,.001);
+    const heightL=.035+.965*Math.pow(f.t,1.18); // abyss-dark bottom -> readable violet top
+    const curve=.46+.54*Math.max(0,Math.cos(f.midA+.72));
+    const shade=heightL*(.30+.70*distL)*curve;
+    worldSolidQuad(litColor(baseRgb,shade,1),f.pts,1);
+  }
+
+  // Simple capital/top disk. The player should read a column, not another pointed spire.
+  const topPts=[];
+  for(let i=0;i<n;i++){
+    const a=(i/n)*Math.PI*2;
+    topPts.push({x:cx+Math.cos(a)*r,y:yTop,z:cz+Math.sin(a)*r});
+  }
+  const topL=cameraLight3DAt(cx,yTop,cz,52,0,.002);
+  worldSolidPoly(litColor([146,91,183],topL,.92),topPts,1);
 }
 const RITUAL_STEP=7.4;
 function ritualSideForRow(ri){return (ri&1)?-1:1}
 function ritualSignKey(ri,side){return ri+':'+side}
 function ritualSignOpen(ri,side){
-  const st=ritualSigns.get(ritualSignKey(ri,side));
+  const key=ritualSignKey(ri,side);
+  if(!ritualVisibleSlots.has(key))return 0;
+  const st=ritualSigns.get(key);
   return st?st.open:0;
 }
 function updateRitualSigns(dt){
@@ -749,39 +768,53 @@ function updateRitualSigns(dt){
   const step=RITUAL_STEP;
   const first=Math.floor((camZ-step*1.1)/step);
   const active=new Set();
+  const candidates=[];
+  const SHOW_FROM=28.0;
+  const RAISE_BEFORE=9.0;
 
-  // The sign is a hinged barrier-like stick. It only drops while the spire is
-  // IN FRONT of the player and inside a middle-distance display band.
-  // Far away: upright/hidden. Medium distance: drops and shows cardboard sign.
-  // Very close: raises again quickly so the player passes without "hitting" it.
-  const SHOW_FROM=24.0;
-  const RAISE_BEFORE=8.0;
-
-  for(let ri=first-3;ri<=first+6;ri++){
+  for(let ri=first-4;ri<=first+8;ri++){
     const z=ri*step+7;
     const dz=z-camZ;
     const side=ritualSideForRow(ri);
     const key=ritualSignKey(ri,side);
     let st=ritualSigns.get(key);
-    if(!st){st={open:0,target:0};ritualSigns.set(key,st)}
-
-    const inFront=dz>0;
-    const inDisplayBand=inFront && dz<SHOW_FROM && dz>RAISE_BEFORE;
-    st.target=inDisplayBand?1:0;
-
-    // Drop deliberately; emergency raise near the player is faster.
-    const raisingNear=inFront && dz<=RAISE_BEFORE;
-    const rate=st.target?.0105:(raisingNear?.023:.0070);
-    st.open+=(st.target-st.open)*(1-Math.exp(-dt*rate));
-    if(Math.abs(st.open-st.target)<.001)st.open=st.target;
+    if(!st){st={open:0,target:0,dz};ritualSigns.set(key,st)}
+    st.dz=dz;
+    const eligible=dz>RAISE_BEFORE && dz<SHOW_FROM;
+    st.eligible=eligible;
+    if(eligible)candidates.push({key,dz});
     active.add(key);
   }
 
+  // Existing slots close first. They keep occupying their slot until they are
+  // visually tucked behind the column, preventing a third screen from appearing.
+  for(const key of [...ritualVisibleSlots]){
+    const st=ritualSigns.get(key);
+    if(!st){ritualVisibleSlots.delete(key);continue}
+    st.target=st.eligible?1:0;
+    if(!st.eligible && st.open<.24)ritualVisibleSlots.delete(key);
+  }
+
+  // Fill at most two slots with the nearest eligible signs in front of the player.
+  candidates.sort((a,b)=>a.dz-b.dz);
+  for(const cand of candidates){
+    if(ritualVisibleSlots.size>=2)break;
+    if(ritualVisibleSlots.has(cand.key))continue;
+    ritualVisibleSlots.add(cand.key);
+    ritualSigns.get(cand.key).target=1;
+  }
+
   for(const [key,st] of ritualSigns){
-    if(active.has(key))continue;
-    st.target=0;
-    st.open+=(0-st.open)*(1-Math.exp(-dt*.008));
-    if(st.open<.001)ritualSigns.delete(key);
+    if(!ritualVisibleSlots.has(key))st.target=0;
+    const raisingNear=st.dz!=null && st.dz<=RAISE_BEFORE && st.dz>0;
+    const rate=st.target?.010:(raisingNear?.026:.009);
+    st.open+=(st.target-st.open)*(1-Math.exp(-dt*rate));
+    if(Math.abs(st.open-st.target)<.001)st.open=st.target;
+
+    if(!active.has(key) && st.open<.01){
+      ritualVisibleSlots.delete(key);
+      ritualSigns.delete(key);
+    }
   }
 }
 function ritualRect(cx,cy,ux,uy,px,py,halfAlong,halfAcross,z){
@@ -793,51 +826,51 @@ function ritualRect(cx,cy,ux,uy,px,py,halfAlong,halfAcross,z){
   ];
 }
 function renderRitualSign(cx,cz,side,open){
-  if(open<=.003)return;
+  // Below this point the whole mechanism is considered physically hidden behind
+  // the column. This avoids seeing the cardboard "spawn" or vanish in mid-air.
+  if(open<=.24)return;
 
   const floorY=-1.5;
-  const t=open*open*(3-2*open);
+  const reveal=clamp((open-.24)/.76,0,1);
+  const t=reveal*reveal*(3-2*reveal);
 
-  // Hinge sits on the road-facing side of each violet spire.
-  const hingeX=cx-side*.98;
-  const hingeY=floorY+2.38;
-  const frontZ=cz-1.03;
+  // Hinge lives inside/behind the column silhouette. The sign is rendered first;
+  // the column is rendered afterward and therefore masks the stored mechanism.
+  const hingeX=cx-side*.18;
+  const hingeY=floorY+2.65;
+  const signZ=cz+.26;
 
-  // 0° = upright against the spire. ~82° = fallen inward toward the road.
-  const angle=t*(Math.PI*.455);
+  const angle=t*(Math.PI*.46);
   const ux=-side*Math.sin(angle);
   const uy=Math.cos(angle);
   const px=-uy;
   const py=ux;
 
-  const poleLen=7.15;
+  const poleLen=8.55;
   const poleCenterX=hingeX+ux*poleLen*.5;
   const poleCenterY=hingeY+uy*poleLen*.5;
-  const poleL=cameraLight3DAt(poleCenterX,poleCenterY,frontZ,48,0,.0012);
+  const poleL=cameraLight3DAt(poleCenterX,poleCenterY,signZ,54,0,.0015);
 
-  // A plain wooden/cardboard stick, not a sci-fi telescoping panel.
-  worldSolidPoly(litColor([111,71,31],poleL,.92),
-    ritualRect(poleCenterX,poleCenterY,ux,uy,px,py,poleLen*.5,.105,frontZ),1);
+  worldSolidPoly(litColor([103,66,30],poleL,.92),
+    ritualRect(poleCenterX,poleCenterY,ux,uy,px,py,poleLen*.5,.13,signZ),1);
 
-  // Cardboard sign fixed near the free end of the falling stick.
-  const cardCenterX=hingeX+ux*5.18;
-  const cardCenterY=hingeY+uy*5.18;
-  const cardL=cameraLight3DAt(cardCenterX,cardCenterY,frontZ-.02,50,0,.0015);
+  // Big, screen-like cardboard surface aimed at the user when deployed.
+  const cardCenterX=hingeX+ux*6.05;
+  const cardCenterY=hingeY+uy*6.05;
+  const cardL=cameraLight3DAt(cardCenterX,cardCenterY,signZ-.03,58,0,.002);
 
-  // Dark backing gives the cardboard a visible edge against the orange sky.
-  worldSolidPoly(litColor([74,45,25],cardL,.90),
-    ritualRect(cardCenterX,cardCenterY,ux,uy,px,py,2.82,1.72,frontZ-.015),1);
+  worldSolidPoly(litColor([64,39,23],cardL,.95),
+    ritualRect(cardCenterX,cardCenterY,ux,uy,px,py,3.58,2.18,signZ-.015),1);
 
-  worldSolidPoly(litColor([183,132,72],cardL,1),
-    ritualRect(cardCenterX,cardCenterY,ux,uy,px,py,2.66,1.56,frontZ-.030),1);
+  worldSolidPoly(litColor([190,140,80],cardL,1),
+    ritualRect(cardCenterX,cardCenterY,ux,uy,px,py,3.38,1.98,signZ-.032),1);
 
-  // Crude painted mark so it reads as a physical sign, not a flat blank rectangle.
-  const markCenterX=cardCenterX+uy*.02;
-  const markCenterY=cardCenterY-ux*.02;
-  worldSolidPoly(litColor([73,40,91],cardL,.96),
-    ritualRect(markCenterX,markCenterY,ux,uy,px,py,1.48,.16,frontZ-.044),1);
-  worldSolidPoly(litColor([73,40,91],cardL,.78),
-    ritualRect(cardCenterX+px*.64,cardCenterY+py*.64,ux,uy,px,py,.42,.14,frontZ-.045),1);
+  const markCenterX=cardCenterX+uy*.03;
+  const markCenterY=cardCenterY-ux*.03;
+  worldSolidPoly(litColor([69,36,91],cardL,.98),
+    ritualRect(markCenterX,markCenterY,ux,uy,px,py,1.86,.19,signZ-.047),1);
+  worldSolidPoly(litColor([69,36,91],cardL,.80),
+    ritualRect(cardCenterX+px*.78,cardCenterY+py*.78,ux,uy,px,py,.54,.16,signZ-.048),1);
 }
 function renderTempleBlock(cx,cz,w,d,y0,y1,rgb,reach){
   const front=cz-d*.5,back=cz+d*.5,my=(y0+y1)*.5;
@@ -862,26 +895,23 @@ function renderTempleBlock(cx,cz,w,d,y0,y1,rgb,reach){
 function renderMap5(){
   const sky=ctx.createLinearGradient(0,0,0,H);
   sky.addColorStop(0,'#f13706');
-  sky.addColorStop(.50,'#f27b05');
-  sky.addColorStop(.72,'#cf7110');
-  sky.addColorStop(1,'#1d1028');
+  sky.addColorStop(.48,'#f27b05');
+  sky.addColorStop(.70,'#8a344b');
+  sky.addColorStop(1,'#020104');
   ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
 
   const floorY=-1.5,zNear=camZ+NEAR+.03,zFar=camZ+166;
   const roadHalf=6.2,stripes=14;
-  const d0=Math.max(NEAR,zNear-camZ),d1=Math.max(NEAR,zFar-camZ);
-  const w0=visibleHalfWidthAtDepth(d0,1.18),w1=visibleHalfWidthAtDepth(d1,1.18);
 
-  // Continuous lateral ground. The old band loop exposed horizontal seams that
-  // stayed visually detached from the moving obelisks.
-  const groundL=cameraLight3DAt(camX,floorY,camZ+11,54,0,.003);
-  worldSolidQuad(litColor([82,42,72],groundL,.66),[
-    {x:camX-w1,y:floorY,z:zFar},{x:camX+w1,y:floorY,z:zFar},
-    {x:camX+w0,y:floorY,z:zNear},{x:camX-w0,y:floorY,z:zNear}
-  ],1);
+  // No lateral floor here anymore: the striped avenue is a bridge over a dark
+  // precipice, so the columns can genuinely rise from below instead of sitting on tiles.
+  const voidShade=ctx.createLinearGradient(0,H*.50,0,H);
+  voidShade.addColorStop(0,'rgba(35,10,35,0)');
+  voidShade.addColorStop(.45,'rgba(10,3,14,.45)');
+  voidShade.addColorStop(1,'rgba(0,0,0,.94)');
+  ctx.fillStyle=voidShade;ctx.fillRect(0,H*.50,W,H*.50);
 
-  // Keep the successful part: strict straight longitudinal road lines. Each stripe
-  // is now one continuous world quad, so there are no horizontal subdivision cuts.
+  // Keep the successful straight world-space road lines.
   for(let si=0;si<stripes;si++){
     const x0=-roadHalf+(2*roadHalf)*(si/stripes);
     const x1=-roadHalf+(2*roadHalf)*((si+1)/stripes);
@@ -893,27 +923,40 @@ function renderMap5(){
     ],1);
   }
 
-  // Monumental stepped destination, fixed in world space so it approaches as the player walks.
+  // Thin bridge edges make the drop readable without adding horizontal floor seams.
+  for(const x of [-roadHalf,roadHalf]){
+    const L=cameraLight3DAt(x,floorY+.03,camZ+11,58,0,.004);
+    worldSolidQuad(litColor([194,124,58],L,.62),[
+      {x:x-.06,y:floorY+.025,z:zFar},{x:x+.06,y:floorY+.025,z:zFar},
+      {x:x+.06,y:floorY+.025,z:zNear},{x:x-.06,y:floorY+.025,z:zNear}
+    ],.88);
+  }
+
   const tz=154;
   renderTempleBlock(0,tz,27,9,-1.48,2.8,[188,120,24],145);
   renderTempleBlock(0,tz-1.0,20,7,3.0,6.4,[205,139,31],145);
   renderTempleBlock(0,tz-1.8,12,5,6.8,9.8,[221,158,43],145);
   renderTempleBlock(0,tz-2.5,5.2,3.2,12.0,14.1,[219,153,35],145);
 
-  // One-and-one rhythm: left, right, left, right. No opposing pairs.
+  // One-and-one rhythm remains, but pointed spires are gone. Deep violet columns
+  // rise from well below the road: near-black at the abyss, lighter near the top.
   const step=RITUAL_STEP,first=Math.floor((camZ-step*1.0)/step);
-  const spires=[];
+  const columns=[];
   for(let ri=first;ri<first+24;ri++){
     const side=ritualSideForRow(ri);
-    spires.push({ri,side,z:ri*step+7});
+    columns.push({ri,side,z:ri*step+7});
   }
-  spires.sort((a,b)=>b.z-a.z);
-  for(const p of spires){
+  columns.sort((a,b)=>b.z-a.z);
+
+  for(const p of columns){
     if(p.z-camZ<NEAR-2)continue;
-    const h=10.8+((p.ri&3)===0?3.4:0);
-    const x=p.side*9.35;
+    const x=p.side*9.55;
+    const topY=7.4+((p.ri&3)===0?1.3:0);
+    const bottomY=-16.5;
+
+    // Sign first, column second: storage/transition is physically occluded.
     renderRitualSign(x,p.z,p.side,ritualSignOpen(p.ri,p.side));
-    renderObelisk(x,p.z,2.15,5.2,h,[116,63,83]);
+    renderAbyssColumn(x,p.z,1.72,bottomY,topY);
   }
 
   const sunGlow=ctx.createRadialGradient(W*.5,H*.39,0,W*.5,H*.39,W*.30);
@@ -984,7 +1027,7 @@ function frame(t){
 }
 function setMap(n){
   currentMap=n;camX=0;targetCamX=0;camZ=1.4;targetCamZ=1.4;
-  if(n===5)ritualSigns.clear();
+  if(n===5){ritualSigns.clear();ritualVisibleSlots.clear();}
   mapButtons.forEach((b,i)=>b.classList.toggle('active',i===n-1));
   const activeButton=mapButtons[n-1];
   if(activeButton)activeButton.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
@@ -1102,15 +1145,15 @@ addEventListener('selectstart',e=>e.preventDefault());
 addEventListener('dragstart',e=>e.preventDefault());
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v22',
+  version:'spaces-maps-v23',
   maps:[
     '1 green arch nave',
     '2 brutalist cylinder hall',
     '3 straight paired-column road',
     '4 world-anchored barrel tunnel with moving ribs',
-    '5 ritual striped avenue with giant hinged screens, alternating spires and stepped temple'
+    '5 ritual bridge over abyss with alternating rising violet columns and giant hidden-hinge screens'
   ],
-  contract:'fixed frontal view; touch swipe + WASD + wheel; floors must not expose renderer Z bands. Map 1 and Map 5 use continuous floor planes, Map 4 is world-anchored with fixed ribs/end wall for real optical flow, and Map 5 alternates left/right spires with much larger hinged screen-like cardboard signs',
+  contract:'fixed frontal view; touch swipe + WASD + wheel; Map 5 is now a striped bridge over a dark precipice with alternating violet columns rising from below, dark at the bottom and lighter at the top. Giant cardboard screens hinge from behind the columns, are hidden during storage/transition, and a hard two-slot scheduler prevents more than two signs from being visible at once',
   sourcePages:SOURCE_PAGES,
   camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
