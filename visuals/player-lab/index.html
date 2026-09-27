@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#020202">
-<title>Prometeo · Player Lab · Eye Pet V11</title>
+<title>Prometeo · Player Lab · Eye Pet V12</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#eee8d7;font-family:system-ui,-apple-system,sans-serif;overscroll-behavior:none;touch-action:none}
@@ -26,7 +26,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
   <canvas id="game" width="320" height="180" aria-label="Escena retro en primera persona con una sola mano y una mascota de un ojo animado"></canvas>
   <div id="veil"></div><div id="scan"></div><div id="flash"></div><div id="prompt">acariciá</div>
 </div>
-<script src="./player-actors-v6.js?v=11"></script>
+<script src="./player-actors-v7.js?v=12"></script>
 <script>
 (function(){
 'use strict';
@@ -36,11 +36,11 @@ var x=c.getContext('2d',{alpha:false});
 var flash=document.getElementById('flash');
 var prompt=document.getElementById('prompt');
 var W=320,H=180,audio=null,shake=0;
-var KEY='prometeo.playerLab.pet.touches.v11';
+var KEY='prometeo.playerLab.pet.touches.v12';
 var OLD=[
+  'prometeo.playerLab.pet.touches.v11',
   'prometeo.playerLab.pet.touches.v10',
-  'prometeo.playerLab.pet.stage.v9',
-  'prometeo.playerLab.maskRoom.stage.v8'
+  'prometeo.playerLab.pet.stage.v9'
 ];
 var touches=0;
 try{
@@ -51,7 +51,7 @@ try{
 
 x.imageSmoothingEnabled=false;
 
-var ACT=window.PROMETEO_PLAYER_ACTORS_V6||{
+var ACT=window.PROMETEO_PLAYER_ACTORS_V7||{
   cell:128,
   self:{
     source:'./hand-atlas-v3-inspect.webp',
@@ -60,11 +60,11 @@ var ACT=window.PROMETEO_PLAYER_ACTORS_V6||{
   },
   pet:{
     eye:{
-      frameSource:'./player-eye-blink-v1.webp',
-      frameCell:96,
+      frameSource:'./player-eye-blink-v2.webp',
+      frameCell:64,
       frameCount:10,
       blinkFrames:[0,1,2,3,4,5,6,7,8,9],
-      openness:[1,1,.9,.58,.2,.05,.22,.6,.9,1]
+      openness:[1,1,.90,.58,.20,.05,.22,.60,.90,1]
     }
   }
 };
@@ -84,11 +84,11 @@ function loadImage(url,onload){
   im.src=url;
 }
 Object.keys(URLS).forEach(function(k){
-  loadImage(URLS[k]+'?v=11',function(im){assets[k]=im});
+  loadImage(URLS[k]+'?v=12',function(im){assets[k]=im});
 });
 
 var handStrip=null;
-loadImage(ACT.self.source+'?v=11',function(im){
+loadImage(ACT.self.source+'?v=12',function(im){
   if(im){
     handStrip=alphaKeyStrip(im);
   }else{
@@ -162,9 +162,7 @@ function reaction(ms){
 
 function blinkState(ms){
   var eye=ACT.pet.eye;
-  if(blinkStart<0 && ms>=nextBlink){
-    blinkStart=ms;
-  }
+  if(blinkStart<0 && ms>=nextBlink)blinkStart=ms;
   if(blinkStart>=0){
     var idx=Math.floor((ms-blinkStart)/58);
     if(idx>=eye.frameCount){
@@ -181,7 +179,7 @@ function blinkState(ms){
 function drawEyeFrame(frame,cx,cy,size,rot){
   var im=assets.eyeFrame;
   if(!im)return;
-  var S=ACT.pet.eye.frameCell||96;
+  var S=ACT.pet.eye.frameCell||64;
   x.save();
   x.translate(Math.round(cx),Math.round(cy));
   if(rot)x.rotate(rot);
@@ -191,33 +189,37 @@ function drawEyeFrame(frame,cx,cy,size,rot){
 }
 
 function drawEyeContents(cx,cy,size,rot,open){
-  if(open<=.02)return;
+  if(open<=.015)return;
+
   x.save();
   x.translate(Math.round(cx),Math.round(cy));
   if(rot)x.rotate(rot);
-  x.globalAlpha=open;
 
-  var ew=size*.62;
-  var eh=size*.36;
+  var apertureW=size*.64;
+  var apertureH=Math.max(1,size*.34*open);
 
   x.beginPath();
-  x.ellipse(0,2,ew*.50,eh*.50,0,0,Math.PI*2);
-  x.fillStyle='rgba(208,208,198,.94)';
+  x.ellipse(0,2,apertureW*.50,apertureH*.50,0,0,Math.PI*2);
+  x.clip();
+
+  x.beginPath();
+  x.ellipse(0,2,size*.31,size*.18,0,0,Math.PI*2);
+  x.fillStyle='#d8d8ce';
   x.fill();
 
   x.beginPath();
-  x.ellipse(0,2,ew*.20,eh*.40,0,0,Math.PI*2);
-  x.fillStyle='#242424';
+  x.ellipse(0,2,size*.115,size*.155,0,0,Math.PI*2);
+  x.fillStyle='#303030';
   x.fill();
 
   x.beginPath();
-  x.arc(0,2,Math.max(3,size*.065),0,Math.PI*2);
+  x.arc(0,2,Math.max(3,size*.067),0,Math.PI*2);
   x.fillStyle='#050505';
   x.fill();
 
   x.beginPath();
   x.arc(-3,-2,Math.max(1,size*.012),0,Math.PI*2);
-  x.fillStyle='rgba(245,245,235,.88)';
+  x.fillStyle='rgba(248,248,238,.9)';
   x.fill();
 
   x.restore();
@@ -239,7 +241,7 @@ function drawPet(t,ms){
   }
 
   var bs=blinkState(ms);
-  var eyeSize=91*(1+breath*.010);
+  var eyeSize=92*(1+breath*.010);
   var eyeY=76+bob;
 
   drawEyeContents(cx,eyeY,eyeSize,rot,bs.open);
