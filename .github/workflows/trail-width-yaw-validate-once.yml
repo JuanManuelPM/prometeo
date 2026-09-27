@@ -1,0 +1,50 @@
+name: trail-width-yaw-validate-once
+
+on:
+  push:
+    paths:
+      - ".github/workflows/trail-width-yaw-validate-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate width-gated yaw and longer tail
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path("visuals/trail-lab/index.html").read_text()
+          m=re.search(r"<script>([\s\S]*?)</script>",s)
+          assert m, "inline script missing"
+          script=m.group(1)
+          Path("/tmp/trail.js").write_text(script)
+          required=[
+            "const LIFE_MS=reduced?1040:860",
+            "{scale:.72,max:22,stamp:42,fan:4}",
+            "{scale:.86,max:28,stamp:35,fan:5}",
+            "{scale:1,max:34,stamp:30,fan:7}",
+            "const required=Math.max(72,spriteSize().w*1.05)",
+            "const hold=required*.16",
+            "yawTravel+=Math.hypot(dx,dy)+depthTravel",
+            "visualYaw=lerpAngle(yawFrom,target,eased)",
+            "if(yawLook.mirror)ctx.scale(-1,1)"
+          ]
+          for token in required:
+              assert token in script, f"missing {token}"
+          assert "http://" not in script and "https://" not in script, "external runtime URL found"
+          state=Path("visuals/fronts/trail/state.json").read_text()
+          assert '"current_blob_sha": "676724373619ccb702739f52d809dfecd7e6c51e"' in state
+          assert "Turn inertia / width gate" in Path("visuals/fronts/trail/decisions.md").read_text()
+          assert "Trail spacing / duration" in Path("visuals/fronts/trail/architecture.md").read_text()
+          print("Trail width-gated yaw static checks OK")
+          PY
+          node --check /tmp/trail.js
+          echo "node syntax OK"
