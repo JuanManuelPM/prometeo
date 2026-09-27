@@ -4,29 +4,29 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#020202">
-<title>Prometeo · Player Lab · Pet V9</title>
+<title>Prometeo · Player Lab · Pet V10</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#eee8d7;font-family:system-ui,-apple-system,sans-serif;overscroll-behavior:none;touch-action:none}
 #shell{position:fixed;inset:0;overflow:hidden;background:#020202}
 #game{position:absolute;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated;touch-action:none}
-#veil{position:absolute;inset:0;pointer-events:none;z-index:2;background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 23%,rgba(0,0,0,.14) 58%,rgba(0,0,0,.83) 100%)}
-#scan{position:absolute;inset:0;pointer-events:none;z-index:3;opacity:.09;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.045) 0 1px,transparent 1px 4px);mix-blend-mode:screen}
-#prompt{position:absolute;z-index:4;left:50%;bottom:max(8px,env(safe-area-inset-bottom));transform:translateX(-50%);font:900 8px/1 system-ui,-apple-system,sans-serif;letter-spacing:.22em;text-transform:uppercase;color:rgba(249,242,218,.72);text-shadow:0 1px 0 #000,0 2px 7px #000;white-space:nowrap;pointer-events:none;transition:opacity .25s,transform .1s}
-#prompt.quiet{opacity:.10}
+#veil{position:absolute;inset:0;pointer-events:none;z-index:2;background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 24%,rgba(0,0,0,.14) 58%,rgba(0,0,0,.83) 100%)}
+#scan{position:absolute;inset:0;pointer-events:none;z-index:3;opacity:.08;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.04) 0 1px,transparent 1px 4px);mix-blend-mode:screen}
+#prompt{position:absolute;z-index:4;left:50%;bottom:max(8px,env(safe-area-inset-bottom));transform:translateX(-50%);font:900 8px/1 system-ui,-apple-system,sans-serif;letter-spacing:.22em;text-transform:uppercase;color:rgba(249,242,218,.66);text-shadow:0 1px 0 #000,0 2px 7px #000;white-space:nowrap;pointer-events:none;transition:opacity .25s,transform .1s}
+#prompt.quiet{opacity:.08}
 #prompt.hit{transform:translateX(-50%) translateY(-3px);opacity:1}
 #flash{position:absolute;z-index:5;inset:0;background:#fbf6db;opacity:0;pointer-events:none;mix-blend-mode:screen}
-#flash.on{animation:flash .11s steps(2,end)}
-@keyframes flash{0%{opacity:.18}38%{opacity:.04}100%{opacity:0}}
+#flash.on{animation:flash .10s steps(2,end)}
+@keyframes flash{0%{opacity:.13}40%{opacity:.03}100%{opacity:0}}
 @media(orientation:portrait){#shell{inset:auto;left:50%;top:50%;width:100dvh;height:100dvw;transform:translate(-50%,-50%) rotate(90deg);transform-origin:center}}
 </style>
 </head>
 <body>
 <div id="shell">
-  <canvas id="game" width="320" height="180" aria-label="Escena retro en primera persona con la mano del jugador y una mascota-reliquia viva enfrente"></canvas>
+  <canvas id="game" width="320" height="180" aria-label="Escena retro en primera persona con una sola mano del jugador y una mascota llevada enfrente"></canvas>
   <div id="veil"></div><div id="scan"></div><div id="flash"></div><div id="prompt">acariciá</div>
 </div>
-<script src="./hand-atlas-v4.js?v=9"></script>
+<script src="./player-actors-v5.js?v=10"></script>
 <script>
 (function(){
 'use strict';
@@ -36,31 +36,27 @@ var x=c.getContext('2d',{alpha:false});
 var flash=document.getElementById('flash');
 var prompt=document.getElementById('prompt');
 var W=320,H=180,audio=null,shake=0;
-var KEY='prometeo.playerLab.pet.stage.v9';
+var KEY='prometeo.playerLab.pet.touches.v10';
 var OLD=[
+  'prometeo.playerLab.pet.stage.v9',
   'prometeo.playerLab.maskRoom.stage.v8',
-  'prometeo.playerLab.maskRoom.stage.v7',
-  'prometeo.playerLab.maskRoom.stage.v6',
-  'prometeo.playerLab.maskRoom.stage.v5',
-  'prometeo.playerLab.maskRoom.stage.v4',
-  'prometeo.playerLab.maskRoom.stage.v3'
+  'prometeo.playerLab.maskRoom.stage.v7'
 ];
-
-var bond=0;
+var touches=0;
 try{
   var saved=localStorage.getItem(KEY);
   for(var oi=0;oi<OLD.length&&saved==null;oi++)saved=localStorage.getItem(OLD[oi]);
-  bond=Math.max(0,Math.min(3,parseInt(saved||'0',10)||0));
+  touches=Math.max(0,parseInt(saved||'0',10)||0);
 }catch(_){}
 
 x.imageSmoothingEnabled=false;
 
-var ACT=window.PROMETEO_PLAYER_ACTORS_V4||{
+var ACT=window.PROMETEO_PLAYER_ACTORS_V5||{
   cell:128,
   self:{
     source:'./hand-atlas-v3-inspect.webp',
-    idleFrames:[1,2,3,4,3,2],
-    petFrames:[1,2,3,4,5,6,7,8,7,6]
+    idleFrame:8,
+    petFrames:[8,7,6,5,6,7,8]
   }
 };
 
@@ -68,7 +64,6 @@ var assets={};
 var URLS={
   room:'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/Abandoned_tiled_room_-_Panorama_%28Poly_Haven%29.jpg/1280px-Abandoned_tiled_room_-_Panorama_%28Poly_Haven%29.jpg',
   mask:'../../strategy/mask-mouth/assets/mask-transparent.webp',
-  maskSolid:'../../strategy/mask-mouth/assets/mask.webp',
   heart:'../../arte/assets/footer/heart-mask-final-alpha.png'
 };
 
@@ -79,15 +74,14 @@ function loadImage(url,onload){
   im.onerror=function(){onload(null)};
   im.src=url;
 }
-
 Object.keys(URLS).forEach(function(k){
   loadImage(URLS[k],function(im){assets[k]=im});
 });
 
-var selfStrip=null;
-loadImage(ACT.self.source+'?v=9',function(im){
+var handStrip=null;
+loadImage(ACT.self.source+'?v=10',function(im){
   if(im){
-    selfStrip=alphaKeyStrip(im);
+    handStrip=alphaKeyStrip(im);
   }else{
     prompt.textContent='mano no cargó';
     prompt.classList.remove('quiet');
@@ -99,7 +93,6 @@ function alphaKeyStrip(img){
   oc.width=img.naturalWidth||img.width||1280;
   oc.height=img.naturalHeight||img.height||128;
   var ox=oc.getContext('2d',{alpha:true,willReadFrequently:true});
-  ox.clearRect(0,0,oc.width,oc.height);
   ox.drawImage(img,0,0);
   try{
     var d=ox.getImageData(0,0,oc.width,oc.height);
@@ -120,7 +113,7 @@ function alphaKeyStrip(img){
   return oc;
 }
 
-function drawFit(img,cx,cy,h,rot,alpha,filter,flip){
+function drawFit(img,cx,cy,h,rot,alpha,filter){
   if(!img)return;
   var iw=img.naturalWidth||img.width||1;
   var ih=img.naturalHeight||img.height||1;
@@ -128,7 +121,6 @@ function drawFit(img,cx,cy,h,rot,alpha,filter,flip){
   x.save();
   x.translate(Math.round(cx),Math.round(cy));
   if(rot)x.rotate(rot);
-  if(flip)x.scale(-1,1);
   x.globalAlpha=alpha==null?1:alpha;
   if(filter)x.filter=filter;
   x.drawImage(img,-w*.5,-h*.5,w,h);
@@ -142,7 +134,7 @@ function drawRoom(t){
   if(!im)return;
   var iw=im.naturalWidth||1280,ih=im.naturalHeight||640;
   var cropW=iw*.46,cropH=ih*.94;
-  var sx=iw*.27+Math.sin(t*.07)*iw*.003;
+  var sx=iw*.27+Math.sin(t*.06)*iw*.0024;
   x.save();
   x.filter='brightness(.30) saturate(.43) sepia(.22) contrast(1.38)';
   x.drawImage(im,sx,ih*.02,cropW,cropH,0,0,W,H);
@@ -150,122 +142,101 @@ function drawRoom(t){
 }
 
 var petReactUntil=0;
-var petTapSide=1;
+var petReactDir=1;
 
-function petReaction(ms){
+function reaction(ms){
   if(ms>=petReactUntil)return 0;
   return Math.max(0,Math.min(1,(petReactUntil-ms)/520));
 }
 
 function drawPet(t,ms){
   if(!assets.mask&&!assets.heart)return;
-  var react=petReaction(ms);
-  var breath=(Math.sin(t*2.15)+1)*.5;
-  var bob=Math.sin(t*1.55)*2.0-react*4;
-  var sway=Math.sin(t*.78)*.035+react*.10*petTapSide;
-  var cx=159+Math.sin(t*.42)*1.5+react*5*petTapSide;
-  var headY=76+bob;
-  var bodyY=118+bob*.55;
-  var pulse=1+breath*.035+react*.12+(bond*.012);
-  var heartH=(46+bond*4)*pulse;
-  var headH=58+bond*2;
+  var r=reaction(ms);
+  var breath=Math.sin(t*1.65);
+  var cx=160+r*4*petReactDir;
+  var bob=breath*1.35-r*3;
+  var rot=breath*.012+r*.07*petReactDir;
 
   if(assets.heart){
-    drawFit(assets.heart,cx+2,bodyY+3,heartH*1.12,sway,.24,'brightness(0) blur(3px)',false);
-    drawFit(assets.heart,cx,bodyY,heartH,sway,.88,'sepia(.72) saturate(1.45) hue-rotate(-24deg) contrast(1.32)',false);
-    if(bond>=2){
-      drawFit(assets.heart,cx,bodyY,heartH*(1.14+breath*.04),-sway*.5,.10,'brightness(1.6) blur(1px)',false);
-    }
+    var heartH=48*(1+breath*.018+r*.08);
+    drawFit(assets.heart,cx+2,119+bob,heartH*1.10,rot,.22,'brightness(0) blur(3px)');
+    drawFit(assets.heart,cx,117+bob,heartH,rot,.90,'sepia(.72) saturate(1.42) hue-rotate(-24deg) contrast(1.30)');
   }
 
   if(assets.mask){
-    drawFit(assets.mask,cx+3,headY+4,headH,sway,.50,'brightness(0) blur(2px)',false);
-    drawFit(assets.mask,cx,headY,headH,sway,.98,bond===0
-      ?'grayscale(.22) brightness(.78) contrast(1.38)'
-      :'sepia(.08) saturate(.98) contrast(1.35)',false);
-  }
-
-  if(bond>=3&&assets.maskSolid){
-    drawFit(assets.maskSolid,cx,headY,headH*.96,-sway*.3,.13,'brightness(.55) contrast(1.5)',false);
+    var headH=59*(1+breath*.010);
+    drawFit(assets.mask,cx+3,78+bob,headH,rot,.46,'brightness(0) blur(2px)');
+    drawFit(assets.mask,cx,76+bob,headH,rot,.98,'grayscale(.15) brightness(.82) contrast(1.36)');
   }
 }
 
-var handMode='IDLE';
-var handStart=0;
-var handCommitted=false;
-var idleEpoch=performance.now();
+var mode='IDLE';
+var actionStart=0;
+var committed=false;
 
-function idleFrame(ms){
-  var seq=ACT.self.idleFrames;
-  return seq[Math.floor(((ms-idleEpoch)/185)%seq.length+seq.length)%seq.length];
-}
-
-function petFrame(ms){
+function actionFrame(ms){
+  if(mode==='IDLE')return ACT.self.idleFrame;
   var seq=ACT.self.petFrames;
-  var elapsed=ms-handStart;
-  var idx=Math.min(seq.length-1,Math.floor(elapsed/88));
-  if(!handCommitted&&idx>=5){
-    handCommitted=true;
+  var elapsed=ms-actionStart;
+  var idx=Math.min(seq.length-1,Math.floor(elapsed/105));
+  if(!committed&&idx>=3){
+    committed=true;
     commitPet(ms);
   }
-  if(elapsed>=seq.length*88){
-    handMode='IDLE';
-    idleEpoch=ms;
-    return seq[0];
+  if(elapsed>=seq.length*105){
+    mode='IDLE';
+    return ACT.self.idleFrame;
   }
   return seq[idx];
 }
 
-function drawSelfHandFrame(frame,cx,cy,size,rot,alpha,filter){
-  if(!selfStrip)return;
+function drawHandFrame(frame,cx,cy,size,rot,alpha,filter){
+  if(!handStrip)return;
   var S=ACT.cell||128;
   x.save();
   x.translate(Math.round(cx),Math.round(cy));
   if(rot)x.rotate(rot);
   x.globalAlpha=alpha==null?1:alpha;
   if(filter)x.filter=filter;
-  x.drawImage(selfStrip,frame*S,0,S,S,-size*.5,-size*.5,size,size);
+  x.drawImage(handStrip,frame*S,0,S,S,-size*.5,-size*.5,size,size);
   x.restore();
 }
 
-function drawSelfHand(ms){
-  if(!selfStrip)return;
-  var idle=handMode==='IDLE';
-  var fr=idle?idleFrame(ms):petFrame(ms);
-  var approach=0;
+function drawPlayerHand(ms){
+  if(!handStrip)return;
 
-  if(!idle){
-    var dur=(ACT.self.petFrames.length-1)*88;
-    var p=Math.max(0,Math.min(1,(ms-handStart)/dur));
-    approach=1-Math.abs(p*2-1);
+  var p=0;
+  if(mode!=='IDLE'){
+    var dur=(ACT.self.petFrames.length-1)*105;
+    var q=Math.max(0,Math.min(1,(ms-actionStart)/dur));
+    p=1-Math.abs(q*2-1);
   }
 
-  var cx=287-approach*60+(idle?Math.sin(ms*.0018)*1.2:0);
-  var cy=171-approach*42+(idle?Math.sin(ms*.0032)*1.0:0);
-  var size=132+approach*10;
-  var rot=-.34+approach*.16+(idle?Math.sin(ms*.0013)*.012:0);
+  var frame=actionFrame(ms);
+  var cx=303-p*70;
+  var cy=174-p*45;
+  var size=132+p*10;
+  var rot=-.30+p*.11;
 
   x.save();
   x.globalCompositeOperation='source-over';
-  drawSelfHandFrame(fr,cx+3,cy+5,size,rot,.36,'brightness(0) blur(2px)');
-  drawSelfHandFrame(fr,cx,cy,size,rot,1,'none');
+  drawHandFrame(frame,cx+3,cy+5,size,rot,.34,'brightness(0) blur(2px)');
+  drawHandFrame(frame,cx,cy,size,rot,1,'none');
   x.restore();
 }
 
 function save(){
-  try{localStorage.setItem(KEY,String(bond))}catch(_){}
+  try{localStorage.setItem(KEY,String(touches))}catch(_){}
 }
 
 function commitPet(ms){
-  if(bond<3){
-    bond++;
-    save();
-  }
+  touches++;
+  save();
   petReactUntil=ms+620;
-  petTapSide*=-1;
-  shake=2.8;
-  try{navigator.vibrate&&navigator.vibrate([16,26,22])}catch(_){}
-  beep(118+bond*9,.08,'triangle',.024);
+  petReactDir*=-1;
+  shake=2.2;
+  try{navigator.vibrate&&navigator.vibrate([14,22,18])}catch(_){}
+  beep(126,.075,'triangle',.021);
   flash.classList.remove('on');
   void flash.offsetWidth;
   flash.classList.add('on');
@@ -286,10 +257,10 @@ function beep(freq,dur,type,gain){
 }
 
 function triggerPet(){
-  if(handMode!=='IDLE')return;
-  handMode='PET';
-  handStart=performance.now();
-  handCommitted=false;
+  if(mode!=='IDLE')return;
+  mode='PET';
+  actionStart=performance.now();
+  committed=false;
   prompt.textContent='mascota';
   prompt.classList.remove('quiet');
   prompt.classList.add('hit');
@@ -297,8 +268,8 @@ function triggerPet(){
   setTimeout(function(){
     prompt.textContent='acariciá';
     prompt.classList.add('quiet');
-  },1050);
-  beep(150,.045,'square',.010);
+  },900);
+  beep(148,.04,'square',.009);
 }
 
 function input(e){
@@ -321,13 +292,13 @@ function draw(ms){
   }
   drawRoom(t);
   drawPet(t,ms);
-  drawSelfHand(ms);
+  drawPlayerHand(ms);
   x.restore();
   requestAnimationFrame(draw);
 }
 
 requestAnimationFrame(draw);
-setTimeout(function(){prompt.classList.add('quiet')},1450);
+setTimeout(function(){prompt.classList.add('quiet')},1400);
 
 })();
 </script>
