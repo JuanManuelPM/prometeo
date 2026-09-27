@@ -4,42 +4,45 @@ Status: CURRENT
 
 ## UNIVERSAL VISUAL RULES
 - Camera/player is the dominant light source.
-- Near surfaces are readable; far/off-axis surfaces fall nonlinearly toward black.
-- Large almost-black areas are intentional when they improve depth/scale.
-- Floor and architecture share the same world-space lighting.
+- Lighting/darkness must respond to **full 3D distance**, including vertical distance, when rendering tall structures.
+- Near surfaces are readable; far, high and off-axis surfaces can approach black.
+- Floor and architecture share the same world-space lighting language.
 - Monumentality comes from mass, occlusion, cropping, darkness and scale.
-- No horizontal-row look for the brutalist palace.
+- No screen-space depth seams.
 
-## MOBILE INTERACTION · v14
-Latest user-reported bugs:
-1. Vertical finger swipes on the scene did not move forward/back.
-2. Accidental presses/long-presses on the arrow buttons could select the arrow character and open browser copy/paste UI over the visual.
+## MAP 1 · v15 STRUCTURAL FIX
+Latest user correction:
+- the columns/supports did not visually reach the upper arch;
+- wall mass was missing behind the arch/figure.
 
-Current rule:
-- vertical touch swipe on the canvas is a first-class locomotion input;
-- finger up = advance;
-- finger down = retreat;
-- movement is proportional to actual drag distance and feeds the same camera target as other controls;
-- the visual surface and controls are non-selectable;
-- browser touch callout, text selection, context menu and drag-selection must not steal interaction.
+Root cause of the floating arch:
+- the crown sprite intentionally clears its bottom 20%;
+- supports ended at `shoulderY`, while the first visible crown pixels start higher;
+- therefore there was a real world-space gap even though the nominal values looked adjacent.
 
-Implementation v14:
-- Pointer Events track touch/pen drag on the canvas;
-- pointer capture preserves the swipe even if the finger leaves the initial point;
-- CSS applies user-select:none and -webkit-touch-callout:none;
-- contextmenu/selectstart/dragstart are prevented globally for this visual.
+Current rule/implementation:
+- compute `springY = shoulderY + (ceilY - shoulderY) * .20`;
+- supports rise to `springY`, the **actual visible springline** of the crown;
+- the support top remains aligned with the inner arch width;
+- every rib gets a wall plane rendered **behind** the support + crown;
+- the backing wall has an arch-shaped opening cut out, so it creates architectural mass without blocking the passage;
+- render order is backing wall first, then supports, then arch crown.
 
-## OTHER CONTROLS
-- W/S = forward/back
-- A/D = lateral strafe
-- wheel/trackpad = forward/back
-- touch ↑/↓ buttons remain
-- fixed camera direction, no yaw
+## TALL PILLARS / TOWERS · 3D LIGHT RULE
+Latest user correction:
+- towers must get darker not only as they move away in the horizontal plane, but also as their parts get vertically farther from the player.
 
-## PRESERVE
-- v13 camera-source lighting on both maps
-- green monumental nave
-- massive diagonal brutalist palace
-- near-black distance
-- no stretched cylinder textures
-- no screen-space depth seam
+Current implementation:
+- tower faces are divided into vertical slices;
+- each slice computes camera light from X + Y + Z distance;
+- high/far slices receive less light than low/near slices;
+- side/back curvature still reduces light further;
+- the result is a tower that can disappear upward into darkness instead of carrying one uniform brightness for its full height.
+
+## MOBILE INTERACTION · PRESERVE
+- swipe up/down on canvas = forward/back;
+- W/S = forward/back;
+- A/D = strafe;
+- wheel/trackpad = forward/back;
+- touch ↑/↓ buttons remain;
+- selection/callout/context-menu UI stays disabled on the visual surface.
