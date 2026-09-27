@@ -101,11 +101,21 @@ Durable architecture detail:
 - Current lifetime: **860 ms** normal, **1040 ms** reduced motion.
 - Do not achieve length by increasing pool without bound. Tail length must remain compatible with the fixed pool and adaptive quality.
 
+## Dragon-tail hierarchy / optimization
+- Pseudo-3D trail pieces must not use yaw/depth transparency. The cutout may retain its source alpha edge/background transparency, but the rendered body itself stays opaque.
+- Oldest pseudo-3D stamp = exact black + approximately **22%** temporal scale.
+- Size and darkness remain coupled, but brightness recovers somewhat faster than scale so the black tip is concentrated at the end of the tail.
+- Pseudo-3D stamps are created by **distance travelled**, not elapsed milliseconds: **12 px** normal / **14 px** reduced motion.
+- Tail wave is a cheap spatial sine offset weighted by `(1-trailT)^1.35`; head/new body stays stable.
+- Curved 7–11-slice projection is reserved for the head and newest ~18% of trail.
+- Old small/dark stamps use one `drawImage` with a side-profile width floor around 30%, preserving volume while removing most slice draws.
+- 2D baseline keeps its existing time-based stamp cadence and prior hierarchy.
+
 ## Coupled darkness / size hierarchy
 - The oldest/rearmost trail copy must be **black**.
 - The same copy must also be the **smallest**.
 - Darkness and scale are coupled progressively: farther/older copies are darker + smaller; newer/front copies are brighter + larger.
-- Current temporal scale ramp starts around **56%** on the oldest stamp and reaches roughly **97%** on the newest trail stamp before the full-size head.
+- In pseudo-3D the temporal scale ramp now starts around **22%** on the oldest stamp and reaches roughly **98%** on the newest trail stamp before the full-size head. 2D keeps the prior hierarchy.
 - 3D projection/depth may make far copies smaller still.
 - The black endpoint is produced from a precomputed brightness-0 sprite, not a runtime filter.
 

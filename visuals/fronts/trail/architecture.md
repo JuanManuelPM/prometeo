@@ -129,6 +129,60 @@ Important consequences:
 
 This is deliberately a cheap 2.5D cylinder/sphere-like illusion, not WebGL or a mesh asset pipeline.
 
+## Dragon-tail optimization
+
+Pseudo-3D no longer uses opacity as a depth/yaw cue. The body stays solid:
+
+```js
+yawAlpha = 1
+depthAlpha = 1
+```
+
+Only the source cutout alpha remains, so transparent asset backgrounds still work.
+
+The pseudo-3D temporal hierarchy is intentionally more tail-like:
+
+```js
+brightnessCurve = pow(trailT, .48)
+scaleCurve = pow(trailT, .62)
+brightness = oldest ? 0 : .92 * brightnessCurve * depthDarkening
+scale = lerp(.22, .98, scaleCurve) * depthScale
+```
+
+Therefore the endpoint is both **black and tiny (~22%)**, while the body regains color/size toward the head.
+
+### Distance-based stamping
+
+Pseudo-3D stamps are emitted from spatial travel instead of a timer:
+
+```js
+stampTravel += travelledDistance
+if (stampTravel >= TRAIL_SPACING) makeStamp()
+TRAIL_SPACING = 12px // 14px reduced motion
+```
+
+This keeps spacing stable even when frame time changes. The accepted 2D path retains its existing time cadence.
+
+### Cheap serpentine tail
+
+Each stamp stores the cumulative path distance at birth. Rendering adds a small sine offset only to older tail sections:
+
+```js
+tail = pow(1 - trailT, 1.35)
+wave = sin(pathDistance * .045) * amplitude * tail
+```
+
+The head remains stable while the old tail bends more, producing a dragon/serpent read without particles, blur, or extra state machines.
+
+### Curvature cost reduction
+
+The expensive curved-surface renderer is no longer used for every stamp.
+
+- head + newest ~18% trail: 7/9/11 slice curved renderer;
+- older small/dark tail: one `drawImage` with a side-profile width floor around 30%.
+
+This intentionally spends geometry where the eye can inspect it and removes most strip draws from the tiny black tail.
+
 ## Trail spacing / duration
 
 The current tail tuning intentionally separates stamps a little more while keeping them alive longer:
@@ -151,7 +205,7 @@ The tail hierarchy is now two-dimensional: brightness and size move together.
 ```js
 ageCurve = pow(trailT, 0.72)
 brightness = oldest ? 0 : lerp(0, 0.92, ageCurve) * depthDarkening
-scale = lerp(0.56, 0.97, ageCurve) * depthScale
+scale = pseudo3D ? lerp(0.22, 0.98, pow(ageT,.62)) * depthScale : lerp(0.56,0.97,ageCurve)
 ```
 
 Therefore:

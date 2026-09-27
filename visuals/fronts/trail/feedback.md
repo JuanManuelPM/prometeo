@@ -56,6 +56,13 @@ In-page movement modes:
 For 3D modes, z changes projected scale/position and distant stamps are slightly less opaque. Stamps are drawn far-to-near. There is still only one 2D sprite; no WebGL/mesh is required.
 
 ## LATEST USER FEEDBACK
+- User wants **no transparency** during yaw/depth because the frontal face remains visible through the turn.
+- The final/oldest black face must become **much smaller**, reading as the actual endpoint of the dragon tail.
+- User asked for additional dragon-effect improvements that do not increase runtime cost and preferably optimize it.
+- Current candidate makes pseudo-3D solid, tapers the oldest stamp to ~22%, emits pseudo-3D stamps by travelled distance, adds a cheap tail-only wave, and restricts expensive curved-strip rendering to the head/newest ~18% of trail.
+- Older dark/small tail stamps now use one cheap draw with a side-profile width floor instead of 7–11 slices.
+
+## PREVIOUS USER FEEDBACK
 - User says the turn is still too tight: the path must use a much wider turning radius.
 - User also wants the image itself to curve, as if wrapped around a sphere/cylinder, so the side view does not collapse into a paper-thin line.
 - Current candidate replaces the flattened hairpin with a broad **true semicircle in X/Z**, responsive radius **130–230 px**, while preserving constant path speed.
@@ -108,6 +115,13 @@ For 3D modes, z changes projected scale/position and distant stamps are slightly
 - Verify the new mode controls and adaptive quality on target mobile.
 
 ## RESOLVED IN CURRENT CANDIDATE
+- Removed yaw/depth alpha fading in pseudo-3D; pieces remain solid.
+- Stronger tail taper: oldest pseudo-3D stamp ≈22% scale and exact black.
+- Pseudo-3D stamp creation now uses travelled distance rather than milliseconds: 12px normal / 14px reduced-motion.
+- Added low-cost spatial wave weighted toward the old tail; the head remains stable.
+- Detailed curved-surface rendering now applies only to head/newest ~18% of the trail.
+- Old dark/small tail stamps use a single `drawImage` thick-profile approximation with ~30% side-width floor.
+- 2D keeps its existing time-cadence behavior and previous hierarchy.
 - Removed smoothstep/easing from ORBIT/LOOP movement.
 - Added constant path-distance progression: `pathDistance += PATH_SPEED * dt`.
 - Added 64-sample ellipse arc-length lookup for the hairpin so equal travelled distances produce uniform motion through the curve.

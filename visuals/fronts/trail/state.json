@@ -14,7 +14,7 @@
     "visuals/fronts/trail/architecture.md"
   ],
   "review_state": "REVIEW",
-  "current_blob_sha": "33f55a2c9318b4210d1b3c26b4b8695d44ec4c3f",
+  "current_blob_sha": "780146353aaa62558dfb32fb19bbc25f03e494bc",
   "accepted_baseline": {
     "label": "Full-stamp old-redraw",
     "commit": "26ff0e808fe0cf732af8c45f0eef9f13f99853e7",
@@ -39,8 +39,8 @@
     ]
   },
   "current_candidate": {
-    "commit": "af05464bc78f7fce7273d1ab60c28f9399027e0e",
-    "summary": "Wide constant-speed X/Z racetrack turns plus curved-surface sprite projection. Hairpins are true broad semicircles with radius 130–230 px (responsive), and yaw is rendered through 7–11 vertical strips over a curved surface so side views retain visible thickness instead of collapsing like paper.",
+    "commit": "2936a0ebe478a41cbcb28e44de0858416e409225",
+    "summary": "Dragon-tail optimization pass: pseudo-3D yaw/depth is fully opaque; trail endpoint tapers to ~22% scale and black; pseudo-3D stamps are emitted by travelled distance; tail gets a cheap spatial wave; only the head/newest ~18% of trail uses curved 7–11-slice rendering while older small/dark stamps use a single-draw thick-profile approximation.",
     "user_reviewed": false
   },
   "accepted_asset_direction": [
@@ -59,12 +59,12 @@
     "6 SHIKAMI"
   ],
   "open_feedback": [
-    "Review whether the new 130–230 px responsive semicircle finally feels open enough on the target phone.",
-    "Review side-profile volume: the sprite should read curved/rounded rather than paper-thin, without looking like a Venetian blind.",
-    "Check performance during turns where 7–11 strip draws per visible stamp are active; adaptive quality should lower slice count with quality.",
-    "Review constant speed through straight↔semicircle transitions.",
-    "Review black/small oldest tail endpoint and progressive brightness/size ramp.",
-    "Some masks still need cleaner segmentation: remove gray base/residue/halo before promoting them as final assets."
+    "Review whether the final 22% black stamp now reads as an actual tail tip rather than another face.",
+    "Review the cheap old-tail profile at side yaw: it should keep thickness without revealing a paper edge or obvious renderer switch.",
+    "Review whether the tail-only sine offset improves dragon/serpent flow without looking like a decorative wobble.",
+    "Review pseudo-3D stamp spacing from distance-based emission (12px normal / 14px reduced-motion).",
+    "Review performance on target phone; the curved renderer should now be restricted to head/newest ~18% of stamps.",
+    "Some masks still need cleaner segmentation: remove gray base/residue/halo before promotion."
   ],
   "resolved_feedback_in_current_candidate": [
     "2 WINGS remains available and is now the default displayed variant.",
@@ -104,7 +104,6 @@
     "A single pathDistance advances by PATH_SPEED × dt (230 px/s normal, 150 px/s reduced-motion).",
     "Hairpin turns use a 64-sample ellipse arc-length table so distance, not phase percentage, controls turn progress.",
     "The oldest trail stamp now maps to brightness 0 and therefore uses a literal black precomputed silhouette.",
-    "Trail scale is coupled to the same temporal/depth hierarchy: oldest starts near 56% scale, then grows continuously toward the newest copy.",
     "Existing depth projection still compounds the far/rear size reduction naturally.",
     "Replaced the flattened screen-space hairpin with a broad semicircle in the X/Z plane.",
     "Turn radius is responsive and substantially larger: 130–230 px, based on viewport width/height.",
@@ -112,7 +111,15 @@
     "Removed whole-sprite abs(cos(yaw)) width collapse from 3D rendering.",
     "Added curved-surface strip projection using 7/9/11 slices by quality level.",
     "At side yaw the curved surface retains visible thickness instead of collapsing to a near-zero-width sheet.",
-    "Near face-on views still use a single image draw for performance; strip rendering activates mainly while turning."
+    "Near face-on views still use a single image draw for performance; strip rendering activates mainly while turning.",
+    "Removed pseudo-3D yaw/depth transparency: trail pieces remain solid; only source-image alpha defines cutout edges.",
+    "Pseudo-3D oldest stamp now starts at ~22% temporal scale instead of ~56%, while staying exact black.",
+    "Pseudo-3D brightness recovers faster than scale so the dark tail is concentrated near the true endpoint rather than making the whole body muddy.",
+    "Pseudo-3D stamps are emitted by travelled distance (12px normal / 14px reduced-motion), keeping spacing stable across frame-time variation.",
+    "Added a cheap tail-weighted sine offset so the old tail bends more than the head without adding particle/filter cost.",
+    "Curved strip rendering is limited to the head and newest ~18% of the trail.",
+    "Older small/dark stamps use one drawImage with a 30% side-profile width floor, reducing draw calls substantially.",
+    "2D accepted cadence/hierarchy remains on its prior time-based path."
   ],
   "asset_localization_evidence": {
     "workflow_run": "https://github.com/JuanManuelPM/prometeo/actions/runs/36272461620",
@@ -150,7 +157,11 @@
       "bounded preallocated stamp pool",
       "controlled internal render resolution",
       "adaptive stamp budget/cadence/internal scale",
-      "allocation-free insertion depth ordering for the bounded pool"
+      "allocation-free insertion depth ordering for the bounded pool",
+      "3D stamps emitted by travelled distance instead of frame/time cadence",
+      "curved 7–11 slice renderer limited to head/newest body only",
+      "old dark/small tail uses one drawImage per stamp",
+      "no yaw/depth alpha blending"
     ],
     "visual_hierarchy": [
       "current head remains full-size/full-authority",
@@ -211,11 +222,26 @@
       "side_profile": "retains curved-surface thickness at 90° yaw instead of collapsing to near-zero scaleX",
       "rear": "source strip order reverses on rear hemisphere; rear brightness hierarchy remains",
       "optimization": "straight/front/rear views use one draw call when near face-on; strip rendering is used mainly during turn"
+    },
+    "dragon_tail": {
+      "transparency": "none from yaw/depth; sprite alpha only",
+      "oldest_scale_3d": 0.22,
+      "newest_trail_scale_3d": 0.98,
+      "brightness_curve": "pow(trailT,0.48), oldest exact black",
+      "scale_curve": "pow(trailT,0.62), oldest ~22%",
+      "stamp_spacing_3d_px": {
+        "normal": 12,
+        "reduced_motion": 14
+      },
+      "wave": "cheap render-time sine offset weighted strongly to old tail",
+      "detailed_curvature": "head + trailT >= 0.82",
+      "cheap_tail_renderer": "single drawImage with profile width floor ~30% at side view",
+      "baseline_2d": "keeps prior time-cadence and previous hierarchy"
     }
   },
   "pseudo3d_review": {
     "user_reviewed": true,
-    "result": "WIDER_TURN_RADIUS_PLUS_CURVED_SURFACE",
-    "note": "User said the turn angle was still too tight and requested a much wider curve. User also requested the image itself to bend like it is wrapped around a sphere so the side view keeps volume instead of becoming paper-thin."
+    "result": "DRAGON_TAIL_SOLID_TAPERED_DISTANCE_STAMPED_OPTIMIZED",
+    "note": "User asked to remove transparency because the front face remained readable through the turn, make the final black face much smaller as a true tail endpoint, and apply further dragon-effect improvements without increasing runtime cost."
   }
 }
