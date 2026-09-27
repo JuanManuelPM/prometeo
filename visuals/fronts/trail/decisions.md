@@ -101,12 +101,23 @@ Durable architecture detail:
 - Current lifetime: **860 ms** normal, **1040 ms** reduced motion.
 - Do not achieve length by increasing pool without bound. Tail length must remain compatible with the fixed pool and adaptive quality.
 
+## Worm body follows the head path
+- ORBIT/LOOP body is **not** a free trail and must not have an independent wobble.
+- Every body segment uses the exact same trajectory function as the head.
+- Durable rule: `segment(i) = hairpinPose(pathDistance - i * DRAGON_SPACING)`.
+- Current adaptive counts: **26 / 32 / 38** segments for low/medium/high quality.
+- Current spacing: **18 px** normal, **20 px** reduced-motion.
+- High quality therefore spans roughly **684 px** of path behind the head.
+- The oldest segment is exact black and approximately **16%** temporal scale.
+- ORBIT/LOOP do not need historical stamp creation or aging for their body; recomputing delayed trajectory samples is cheaper and guarantees path fidelity.
+- 2D keeps the accepted old-redraw stamp mechanism. CERCA/LEJOS may keep historical distance stamps.
+
 ## Dragon-tail hierarchy / optimization
 - Pseudo-3D trail pieces must not use yaw/depth transparency. The cutout may retain its source alpha edge/background transparency, but the rendered body itself stays opaque.
-- Oldest pseudo-3D stamp = exact black + approximately **22%** temporal scale.
+- Oldest ORBIT/LOOP body segment = exact black + approximately **16%** temporal scale.
 - Size and darkness remain coupled, but brightness recovers somewhat faster than scale so the black tip is concentrated at the end of the tail.
 - Pseudo-3D stamps are created by **distance travelled**, not elapsed milliseconds: **12 px** normal / **14 px** reduced motion.
-- Tail wave is a cheap spatial sine offset weighted by `(1-trailT)^1.35`; head/new body stays stable.
+- SUPERSEDED: independent tail sine/wobble is rejected for ORBIT/LOOP because every segment must follow the exact head trajectory.
 - Curved 7–11-slice projection is reserved for the head and newest ~18% of trail.
 - Old small/dark stamps use one `drawImage` with a side-profile width floor around 30%, preserving volume while removing most slice draws.
 - 2D baseline keeps its existing time-based stamp cadence and prior hierarchy.

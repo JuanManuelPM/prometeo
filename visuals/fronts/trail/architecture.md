@@ -129,59 +129,52 @@ Important consequences:
 
 This is deliberately a cheap 2.5D cylinder/sphere-like illusion, not WebGL or a mesh asset pipeline.
 
-## Dragon-tail optimization
+## Dragon / worm body
 
-Pseudo-3D no longer uses opacity as a depth/yaw cue. The body stays solid:
+ORBIT/LOOP no longer treat the body as a historical trail.
 
-```js
-yawAlpha = 1
-depthAlpha = 1
-```
-
-Only the source cutout alpha remains, so transparent asset backgrounds still work.
-
-The pseudo-3D temporal hierarchy is intentionally more tail-like:
+The body is a deterministic set of delayed samples from the **same trajectory function as the head**:
 
 ```js
-brightnessCurve = pow(trailT, .48)
-scaleCurve = pow(trailT, .62)
-brightness = oldest ? 0 : .92 * brightnessCurve * depthDarkening
-scale = lerp(.22, .98, scaleCurve) * depthScale
+head = hairpinPose(pathDistance)
+
+for (i = 1; i <= bodyCount; i++) {
+  body[i] = hairpinPose(pathDistance - i * DRAGON_SPACING)
+}
 ```
 
-Therefore the endpoint is both **black and tiny (~22%)**, while the body regains color/size toward the head.
+This means every segment enters the straight, semicircle, depth reversal and return at exactly the same spatial points as the head. There is no independent sine offset, no shortcut path, and no tail drift.
 
-### Distance-based stamping
-
-Pseudo-3D stamps are emitted from spatial travel instead of a timer:
+Current adaptive body:
 
 ```js
-stampTravel += travelledDistance
-if (stampTravel >= TRAIL_SPACING) makeStamp()
-TRAIL_SPACING = 12px // 14px reduced motion
+DRAGON_SPACING = 18px       // 20px reduced-motion
+bodyCount = 26 / 32 / 38    // low / medium / high quality
 ```
 
-This keeps spacing stable even when frame time changes. The accepted 2D path retains its existing time cadence.
+At high quality the body spans roughly **684 px of trajectory** behind the head. Reduced-motion low quality spans ~520 px.
 
-### Cheap serpentine tail
-
-Each stamp stores the cumulative path distance at birth. Rendering adds a small sine offset only to older tail sections:
+The ORBIT/LOOP endpoint hierarchy is:
 
 ```js
-tail = pow(1 - trailT, 1.35)
-wave = sin(pathDistance * .045) * amplitude * tail
+brightness = oldest ? 0 : ...
+scale = lerp(.16, .98, pow(trailT,.62)) * depthScale
 ```
 
-The head remains stable while the old tail bends more, producing a dragon/serpent read without particles, blur, or extra state machines.
+So the tail terminates in a tiny black segment rather than another competing face.
 
-### Curvature cost reduction
+### Rendering / performance
 
-The expensive curved-surface renderer is no longer used for every stamp.
+ORBIT/LOOP use a preallocated 40-slot body buffer. They do **not** create historical stamps and do not run stamp aging for the worm body.
 
-- head + newest ~18% trail: 7/9/11 slice curved renderer;
-- older small/dark tail: one `drawImage` with a side-profile width floor around 30%.
+Each frame:
+1. advance one `pathDistance`;
+2. sample 26–38 delayed positions from cached `hairpinPose()`;
+3. depth-sort the preallocated references;
+4. draw the newest ~16% with curved strips;
+5. draw the older small/dark majority with one `drawImage` each.
 
-This intentionally spends geometry where the eye can inspect it and removes most strip draws from the tiny black tail.
+This is both more faithful and cheaper than maintaining a separate animated tail. The accepted 2D mechanism remains unchanged; CERCA/LEJOS keep their historical distance-stamp trail.
 
 ## Trail spacing / duration
 
@@ -205,7 +198,7 @@ The tail hierarchy is now two-dimensional: brightness and size move together.
 ```js
 ageCurve = pow(trailT, 0.72)
 brightness = oldest ? 0 : lerp(0, 0.92, ageCurve) * depthDarkening
-scale = pseudo3D ? lerp(0.22, 0.98, pow(ageT,.62)) * depthScale : lerp(0.56,0.97,ageCurve)
+scale = orbitOrLoop ? lerp(0.16, 0.98, pow(ageT,.62)) * depthScale : pseudo3D ? lerp(0.22,0.98,pow(ageT,.62))*depthScale : lerp(0.56,0.97,ageCurve)
 ```
 
 Therefore:

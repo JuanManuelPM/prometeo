@@ -56,6 +56,14 @@ In-page movement modes:
 For 3D modes, z changes projected scale/position and distant stamps are slightly less opaque. Stamps are drawn far-to-near. There is still only one 2D sprite; no WebGL/mesh is required.
 
 ## LATEST USER FEEDBACK
+- User says the tail is still too short and does not yet read as a worm.
+- Required behavior: the body must follow **exactly the same path as the main face**, with each segment simply delayed along that path.
+- The previous tail-only sine/wobble is rejected because it creates a different path.
+- Current candidate changes ORBIT/LOOP from historical trail stamps to a deterministic worm body: `segment i = hairpinPose(pathDistance - i * spacing)`.
+- Body length is adaptive: **26 / 32 / 38 segments**, ~18 px spacing normal (~684 px at high quality), 20 px reduced-motion.
+- The final endpoint remains exact black and now tapers to ~16% scale.
+
+## PREVIOUS USER FEEDBACK
 - User wants **no transparency** during yaw/depth because the frontal face remains visible through the turn.
 - The final/oldest black face must become **much smaller**, reading as the actual endpoint of the dragon tail.
 - User asked for additional dragon-effect improvements that do not increase runtime cost and preferably optimize it.
@@ -115,6 +123,14 @@ For 3D modes, z changes projected scale/position and distant stamps are slightly
 - Verify the new mode controls and adaptive quality on target mobile.
 
 ## RESOLVED IN CURRENT CANDIDATE
+- Removed the artificial sine offset from the pseudo-3D tail.
+- ORBIT/LOOP no longer use old historical stamps for the body.
+- Added a preallocated deterministic body whose segments all sample the same `hairpinPose()` trajectory as the head at delayed path distances.
+- Adaptive body count: 26 low / 32 medium / 38 high quality.
+- Spacing: 18 px normal / 20 px reduced-motion, giving ~684 px body length at high quality.
+- Oldest endpoint remains black and now starts at ~16% temporal scale.
+- ORBIT/LOOP no longer create or age stamp history, reducing bookkeeping cost.
+- 2D baseline remains historical-stamp based; CERCA/LEJOS keep their existing distance-stamp trail.
 - Removed yaw/depth alpha fading in pseudo-3D; pieces remain solid.
 - Stronger tail taper: oldest pseudo-3D stamp ≈22% scale and exact black.
 - Pseudo-3D stamp creation now uses travelled distance rather than milliseconds: 12px normal / 14px reduced-motion.

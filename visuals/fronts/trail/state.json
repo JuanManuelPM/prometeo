@@ -14,7 +14,7 @@
     "visuals/fronts/trail/architecture.md"
   ],
   "review_state": "REVIEW",
-  "current_blob_sha": "780146353aaa62558dfb32fb19bbc25f03e494bc",
+  "current_blob_sha": "29fd29be3ea6c07edba1b32e60889365fe32c4a1",
   "accepted_baseline": {
     "label": "Full-stamp old-redraw",
     "commit": "26ff0e808fe0cf732af8c45f0eef9f13f99853e7",
@@ -39,8 +39,8 @@
     ]
   },
   "current_candidate": {
-    "commit": "2936a0ebe478a41cbcb28e44de0858416e409225",
-    "summary": "Dragon-tail optimization pass: pseudo-3D yaw/depth is fully opaque; trail endpoint tapers to ~22% scale and black; pseudo-3D stamps are emitted by travelled distance; tail gets a cheap spatial wave; only the head/newest ~18% of trail uses curved 7–11-slice rendering while older small/dark stamps use a single-draw thick-profile approximation.",
+    "commit": "1fa839f61d95cb6e265c0b03cb97778f25022bfe",
+    "summary": "ORBIT/LOOP now render a deterministic worm/dragon body instead of a historical trail. Each body segment samples the exact same hairpinPose() path as the head at pathDistance - offset. Body length is 26/32/38 segments by quality with 20/18 px spacing (~520–684 px), the artificial sine wave is removed, and the black endpoint tapers to ~16% temporal scale.",
     "user_reviewed": false
   },
   "accepted_asset_direction": [
@@ -59,11 +59,11 @@
     "6 SHIKAMI"
   ],
   "open_feedback": [
-    "Review whether the final 22% black stamp now reads as an actual tail tip rather than another face.",
-    "Review the cheap old-tail profile at side yaw: it should keep thickness without revealing a paper edge or obvious renderer switch.",
-    "Review whether the tail-only sine offset improves dragon/serpent flow without looking like a decorative wobble.",
-    "Review pseudo-3D stamp spacing from distance-based emission (12px normal / 14px reduced-motion).",
-    "Review performance on target phone; the curved renderer should now be restricted to head/newest ~18% of stamps.",
+    "Review whether ORBIT/LOOP now reads as one long worm/dragon body rather than a short trail.",
+    "Confirm every body segment visibly takes the same turns as the head, with no independent wobble or shortcut.",
+    "Review whether ~684 px body length at high quality is enough or should extend farther around the racetrack.",
+    "Review the 16% black endpoint taper and body spacing (18 px normal / 20 px reduced-motion).",
+    "Review performance on target phone; ORBIT/LOOP now avoid historical stamp creation/aging and use mostly one draw per old segment.",
     "Some masks still need cleaner segmentation: remove gray base/residue/halo before promotion."
   ],
   "resolved_feedback_in_current_candidate": [
@@ -113,13 +113,18 @@
     "At side yaw the curved surface retains visible thickness instead of collapsing to a near-zero-width sheet.",
     "Near face-on views still use a single image draw for performance; strip rendering activates mainly while turning.",
     "Removed pseudo-3D yaw/depth transparency: trail pieces remain solid; only source-image alpha defines cutout edges.",
-    "Pseudo-3D oldest stamp now starts at ~22% temporal scale instead of ~56%, while staying exact black.",
     "Pseudo-3D brightness recovers faster than scale so the dark tail is concentrated near the true endpoint rather than making the whole body muddy.",
     "Pseudo-3D stamps are emitted by travelled distance (12px normal / 14px reduced-motion), keeping spacing stable across frame-time variation.",
-    "Added a cheap tail-weighted sine offset so the old tail bends more than the head without adding particle/filter cost.",
     "Curved strip rendering is limited to the head and newest ~18% of the trail.",
     "Older small/dark stamps use one drawImage with a 30% side-profile width floor, reducing draw calls substantially.",
-    "2D accepted cadence/hierarchy remains on its prior time-based path."
+    "2D accepted cadence/hierarchy remains on its prior time-based path.",
+    "Removed the artificial tail sine offset from ORBIT/LOOP.",
+    "ORBIT/LOOP no longer render historical stamps as the body.",
+    "Each body segment is a delayed sample of the exact same hairpinPose() trajectory used by the head.",
+    "Adaptive body length is 26 / 32 / 38 segments with 18px normal spacing (20px reduced-motion), reaching ~684px at high quality.",
+    "The final black tail endpoint now tapers to ~16% temporal scale.",
+    "ORBIT/LOOP avoid stamp creation and stamp aging entirely; body state is preallocated and recomputed from path distance.",
+    "2D remains the accepted historical-stamp baseline; CERCA/LEJOS retain their distance-stamp history."
   ],
   "asset_localization_evidence": {
     "workflow_run": "https://github.com/JuanManuelPM/prometeo/actions/runs/36272461620",
@@ -154,13 +159,14 @@
     "projection": "pseudo-3D focal projection; no WebGL required",
     "optimization": [
       "single loaded sprite reused for all copies",
-      "bounded preallocated stamp pool",
+      "bounded preallocated stamp pool for 2D/CERCA/LEJOS",
+      "preallocated 40-slot deterministic dragon body for ORBIT/LOOP",
+      "ORBIT/LOOP do not create/age historical stamps",
+      "body segments are recomputed directly from the cached trajectory function",
       "controlled internal render resolution",
-      "adaptive stamp budget/cadence/internal scale",
-      "allocation-free insertion depth ordering for the bounded pool",
-      "3D stamps emitted by travelled distance instead of frame/time cadence",
+      "adaptive body count: 26 / 32 / 38 segments",
       "curved 7–11 slice renderer limited to head/newest body only",
-      "old dark/small tail uses one drawImage per stamp",
+      "old dark/small body segments use one drawImage each",
       "no yaw/depth alpha blending"
     ],
     "visual_hierarchy": [
@@ -224,24 +230,36 @@
       "optimization": "straight/front/rear views use one draw call when near face-on; strip rendering is used mainly during turn"
     },
     "dragon_tail": {
-      "transparency": "none from yaw/depth; sprite alpha only",
-      "oldest_scale_3d": 0.22,
-      "newest_trail_scale_3d": 0.98,
-      "brightness_curve": "pow(trailT,0.48), oldest exact black",
-      "scale_curve": "pow(trailT,0.62), oldest ~22%",
-      "stamp_spacing_3d_px": {
-        "normal": 12,
-        "reduced_motion": 14
+      "model": "deterministic delayed samples of the same head trajectory",
+      "modes": "ORBIT/LOOP",
+      "segment_count": {
+        "low": 26,
+        "medium": 32,
+        "high": 38
       },
-      "wave": "cheap render-time sine offset weighted strongly to old tail",
-      "detailed_curvature": "head + trailT >= 0.82",
-      "cheap_tail_renderer": "single drawImage with profile width floor ~30% at side view",
-      "baseline_2d": "keeps prior time-cadence and previous hierarchy"
+      "spacing_px": {
+        "normal": 18,
+        "reduced_motion": 20
+      },
+      "approximate_body_length_px": {
+        "low_normal": 468,
+        "medium_normal": 576,
+        "high_normal": 684,
+        "reduced_low": 520
+      },
+      "pose_rule": "segment i = hairpinPose(pathDistance - i*spacing)",
+      "artificial_wave": false,
+      "oldest_scale_3d": 0.16,
+      "newest_trail_scale_3d": 0.98,
+      "oldest_brightness": 0,
+      "detailed_curvature": "head + newest ~16% of body",
+      "cheap_tail_renderer": "older small/dark segments use one drawImage with thick side-profile floor",
+      "baseline_2d": "unchanged historical stamp trail"
     }
   },
   "pseudo3d_review": {
     "user_reviewed": true,
-    "result": "DRAGON_TAIL_SOLID_TAPERED_DISTANCE_STAMPED_OPTIMIZED",
-    "note": "User asked to remove transparency because the front face remained readable through the turn, make the final black face much smaller as a true tail endpoint, and apply further dragon-effect improvements without increasing runtime cost."
+    "result": "EXACT_PATH_WORM_BODY_LONGER",
+    "note": "User said the previous tail was too short and still read as a trail. Required worm behavior: every tail segment must follow exactly the same path as the main face, only delayed along that path."
   }
 }
