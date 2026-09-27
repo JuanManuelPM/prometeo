@@ -2,69 +2,60 @@
 
 Status: CURRENT
 
-## v22 · FLOOR CONTINUITY + TUNNEL FLOW + MAP 5 STAGING
+## v23 · MAP 5 ABYSS COLUMNS + HIDDEN GIANT SCREENS
 
-### Learned floor rule
-A floor may be internally segmented for rendering, but the user must never see those subdivisions as accidental horizontal lines.
+Latest user direction:
+- replace the violet pointed triangles/spires;
+- use monumental violet columns like the other violet-column language in Spaces;
+- columns should come up from below, as if the avenue crossed a precipice;
+- lower parts must be darker and upper parts lighter;
+- the sign must be hidden behind the column while appearing/disappearing;
+- make the sign larger again;
+- never show more than two signs at once.
 
-The visible language that works:
-- continuous surfaces;
-- straight longitudinal perspective cues;
-- world-anchored geometry;
-- no transverse renderer seams that stay visually detached from moving architecture.
+## MAP 5 STRUCTURE
 
-## MAP 1 · GREEN ARCH NAVE
-Problem:
-- the textured floor was rebuilt in repeated Z bands;
-- those subdivisions read as horizontal lines that did not move coherently with the arches.
+### Precipice
+- v22 lateral floor is removed from Map 5.
+- The central striped avenue remains as a bridge-like surface.
+- The lower half of the scene falls to near-black/purple so the columns can emerge from a void.
+- Thin longitudinal bridge edges reinforce the drop without reintroducing horizontal floor seams.
 
-v22:
-- replaces the banded floor renderer with one continuous corridor plane;
-- keeps only a restrained single-pass material overlay;
-- walls / arches / structural continuity stay intact.
+### Columns
+- Pointed obelisks are no longer rendered in Map 5.
+- New renderer: `renderAbyssColumn()`.
+- Columns are cylindrical / faceted, not pointed.
+- Current radius: 1.72.
+- Current bottom Y: -16.5.
+- Current top Y: ~7.4, with occasional slightly taller columns.
+- Vertical brightness factor runs from near-black at the bottom to readable violet at the top.
+- Camera-distance light and cylinder curvature still modulate the result.
+- Alternating one-by-one placement remains: left, right, left, right.
 
-Review:
-- make sure the single-pass material does not read as an over-stretched carpet.
+### Giant signs
+- Pole length increased to 8.55.
+- Cardboard outer local half-size increased to 3.58 x 2.18.
+- The hinge sits inside the column silhouette rather than outside it.
+- Sign geometry is rendered first and the column afterward, so the column masks stored/retracting parts.
+- No sign geometry is rendered at all while `open <= .24`, so the beginning/end of the animation happens invisibly behind the column.
+- Deployment now starts farther ahead (<28 Z units) and raises again at <=9 Z units.
 
-## MAP 4 · TUNNEL
-Problem:
-- tunnel surfaces were rebuilt from camera-relative bands;
-- the dark throat was screen-space;
-- advancing/backing therefore had too little optical flow and felt almost static.
-
-v22:
-- tunnel now ends at a fixed world-space end wall at Z=170;
-- tunnel segment joints are anchored to absolute world Z at 5.6-unit spacing;
-- repeated structural ribs are real world geometry and move past the camera;
-- ribs move toward the player when advancing and recede when backing up;
-- old static screen-space black throat is removed;
-- floor is one continuous plane with longitudinal guide lines;
-- wall/vault seams now correspond to intentional tunnel structure rather than accidental floor artifacts.
-
-Review:
-- ribs should read as architecture / optical flow, not as the same unwanted horizontal-floor bug.
-
-## MAP 5 · RITUAL AVENUE
-Accumulated user direction:
-- signs must be much bigger, like screens for the user;
-- because they are bigger, they must not appear side-by-side;
-- side spires should alternate left/right, one-and-one;
-- preserve the straight longitudinal road lines because they protect the feeling of forward motion;
-- lateral floor must lose the ugly horizontal seams.
-
-v22:
-- ritual spacing is now 7.4 world units;
-- each row contains only one spire, alternating left/right;
-- no opposing spire pair at the same Z;
-- hinged pole length increased to 7.15;
-- cardboard panel is now roughly screen-scale: outer half-size 2.82 x 1.72 in its local axes;
-- deployment begins farther away (<24 Z units ahead);
-- sign raises again at <=8 Z units so the larger panel clears the player earlier;
-- lateral ground is one continuous frustum plane;
-- central road keeps 14 strict longitudinal stripes, each rendered as one full-depth quad;
-- horizontal road/floor subdivision lines are removed.
+### Hard maximum of two visible signs
+- Added `ritualVisibleSlots`.
+- At most two sign keys can occupy visible slots.
+- The nearest eligible signs get the slots.
+- A retracting sign keeps its slot until it is visually tucked behind the column.
+- A replacement sign cannot open until a slot is actually freed.
+- This prevents three overlapping giant screens during transitions.
 
 ## PRESERVE
-- v20 mobile horizontal scene selector;
-- v21 hinged physical sign concept: far up, medium-distance down, very-close up;
-- orange sky, stepped temple, fixed frontal camera and movement controls.
+- Map 5 straight longitudinal road stripes.
+- v20 finger-scrollable map selector.
+- Map 4 world-anchored tunnel flow.
+- Map 1 continuous floor.
+- fixed frontal movement and existing controls.
+
+## SELF-CRITIQUE / REVIEW RISKS
+- The abyss is intentionally much darker than v22; verify the bridge still reads clearly on small screens.
+- The columns are tall and wide enough to hide the sign mechanism, but final visual review should confirm they do not crowd the road.
+- The two-slot scheduler is verified in code, but visual timing still needs user review for whether the second sign appears at the right moment.
