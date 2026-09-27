@@ -13,8 +13,8 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020403;col
 #veil{position:absolute;z-index:4;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 48%,transparent 22%,rgba(0,0,0,.05) 64%,rgba(0,0,0,.34) 100%);box-shadow:inset 0 0 7vw rgba(0,0,0,.34)}
 #scan{position:absolute;z-index:5;inset:0;pointer-events:none;opacity:.07;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.02) 0 1px,transparent 1px 4px);mix-blend-mode:screen}
 #tag{position:absolute;z-index:8;left:max(10px,env(safe-area-inset-left));top:max(9px,env(safe-area-inset-top));padding:6px 8px;background:rgba(3,5,3,.42);border:1px solid rgba(197,189,130,.08);color:rgba(221,213,173,.54);font:800 7px/1 system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase;pointer-events:none}
-#maps{position:absolute;z-index:11;top:max(9px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;gap:5px}
-#maps button{height:29px;padding:0 9px;border:1px solid rgba(235,226,181,.13);background:rgba(4,5,6,.58);color:rgba(235,226,181,.56);font:900 8px/1 system-ui;letter-spacing:.11em;text-transform:uppercase;backdrop-filter:blur(3px);touch-action:none;-webkit-user-select:none;user-select:none}
+#maps{position:absolute;z-index:11;top:max(9px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;gap:5px;max-width:90vw;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:0 2px}#maps::-webkit-scrollbar{display:none}
+#maps button{height:29px;padding:0 9px;border:1px solid rgba(235,226,181,.13);background:rgba(4,5,6,.58);color:rgba(235,226,181,.56);font:900 8px/1 system-ui;letter-spacing:.11em;text-transform:uppercase;backdrop-filter:blur(3px);touch-action:none;-webkit-user-select:none;user-select:none;flex:0 0 auto}
 #maps button.active{color:#f0e5bc;border-color:rgba(231,215,151,.35);background:rgba(55,68,37,.52)}
 #pad{position:absolute;z-index:10;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));width:58px;height:106px;pointer-events:none;opacity:.76}
 #pad button{position:absolute;left:0;width:58px;height:50px;border:1px solid rgba(229,220,171,.14);background:rgba(3,5,3,.58);color:rgba(231,221,177,.80);font:900 20px/1 system-ui,sans-serif;display:grid;place-items:center;pointer-events:auto;backdrop-filter:blur(2px);touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
@@ -35,6 +35,9 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020403;col
   <div id="maps" aria-label="Mapas">
     <button id="map1" class="active">1 ARCOS</button>
     <button id="map2">2 CILINDROS</button>
+    <button id="map3">3 CALZADA</button>
+    <button id="map4">4 TÚNEL</button>
+    <button id="map5">5 TEMPLO</button>
   </div>
   <div id="pad" aria-label="Caminar">
     <button id="up" aria-label="Avanzar">↑</button>
@@ -51,7 +54,7 @@ const ctx=canvas.getContext('2d',{alpha:false,desynchronized:true});
 const loading=document.getElementById('loading');
 const hint=document.getElementById('hint');
 const tag=document.getElementById('tag');
-const mapButtons=[document.getElementById('map1'),document.getElementById('map2')];
+const mapButtons=Array.from(document.querySelectorAll('#maps button'));
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
 const NEAR=.14;
@@ -178,9 +181,11 @@ function buildAtlas(){
   grade('floor',assets.floor,'rgba(32,64,30,.90)','#d0b65b');
   grade('ceiling',assets.ceiling,'rgba(29,55,27,.94)','#8e7c42');
   grade('stone',assets.stone,'rgba(39,76,33,.96)','#c2a44f');
+  grade('tunnel',assets.stone,'rgba(111,79,43,.96)','#d1b17d');
   tileMaterial('wallField',atlas.wall,160);
   tileMaterial('floorTile',atlas.floor,118);
   tileMaterial('stoneTile',atlas.stone,138);
+  tileMaterial('tunnelTile',atlas.tunnel,132);
   mixMaterial('floorField',atlas.floorTile,atlas.stoneTile,.48);
   mixMaterial('wallMass',atlas.wallField,atlas.stoneTile,.30);
   buildCrown(assets.wall||assets.stone);
@@ -237,6 +242,15 @@ function worldSolidQuad(color,pts,alpha){
   for(let i=1;i<pp.length;i++)ctx.lineTo(pp[i].x,pp[i].y);
   ctx.closePath();ctx.fill();
   ctx.restore();
+}
+function worldSolidPoly(color,pts,alpha){
+  let poly=pts.map(p=>cameraVertex({x:p.x,y:p.y,z:p.z,u:0,v:0}));
+  poly=clipNear(poly);if(poly.length<3)return;
+  const pp=poly.map(projectCam);
+  ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=color;
+  ctx.beginPath();ctx.moveTo(pp[0].x,pp[0].y);
+  for(let i=1;i<pp.length;i++)ctx.lineTo(pp[i].x,pp[i].y);
+  ctx.closePath();ctx.fill();ctx.restore();
 }
 function chamferPier(img,side,outerX,innerFloor,innerTop,y0,y1,z0,z1,alpha){
   const s=side<0?-1:1,outer=s*outerX,foot=s*innerFloor,top=s*innerTop;
@@ -497,22 +511,281 @@ function renderMap2(){
   glow.addColorStop(1,'rgba(0,0,0,0)');
   ctx.fillStyle=glow;ctx.fillRect(0,0,W,H);
 }
+
+function litColor(rgb,L,shade){
+  const s=clamp(L*(shade==null?1:shade),0,1);
+  return 'rgb('+
+    Math.round(1+rgb[0]*s)+','+
+    Math.round(1+rgb[1]*s)+','+
+    Math.round(2+rgb[2]*s)+')';
+}
+function renderBoxTower(cx,cz,w,d,y0,y1,rgb,reach){
+  const slices=8;
+  for(let s=slices-1;s>=0;s--){
+    const t0=Math.pow(s/slices,1.55),t1=Math.pow((s+1)/slices,1.55);
+    const yy0=lerp(y0,y1,t0),yy1=lerp(y0,y1,t1),my=(yy0+yy1)*.5;
+    const frontZ=cz-d*.5;
+    const L=cameraLight3DAt(cx,my,frontZ,reach||34,0,.0005);
+    worldSolidQuad(litColor(rgb,L,.60),[
+      {x:cx-w*.5,y:yy1,z:cz+d*.5},{x:cx+w*.5,y:yy1,z:cz+d*.5},
+      {x:cx+w*.5,y:yy0,z:cz+d*.5},{x:cx-w*.5,y:yy0,z:cz+d*.5}
+    ],1);
+    worldSolidQuad(litColor(rgb,L,.72),[
+      {x:cx-w*.5,y:yy1,z:cz-d*.5},{x:cx-w*.5,y:yy1,z:cz+d*.5},
+      {x:cx-w*.5,y:yy0,z:cz+d*.5},{x:cx-w*.5,y:yy0,z:cz-d*.5}
+    ],1);
+    worldSolidQuad(litColor(rgb,L,.52),[
+      {x:cx+w*.5,y:yy1,z:cz+d*.5},{x:cx+w*.5,y:yy1,z:cz-d*.5},
+      {x:cx+w*.5,y:yy0,z:cz-d*.5},{x:cx+w*.5,y:yy0,z:cz+d*.5}
+    ],1);
+    worldSolidQuad(litColor(rgb,L,1),[
+      {x:cx-w*.5,y:yy1,z:frontZ},{x:cx+w*.5,y:yy1,z:frontZ},
+      {x:cx+w*.5,y:yy0,z:frontZ},{x:cx-w*.5,y:yy0,z:frontZ}
+    ],1);
+  }
+}
+function renderMap3(){
+  baseFill('#020609','#071016','#010203');
+  const floorY=-1.52,zNear=camZ+NEAR+.03,zFar=camZ+150;
+  const roadHalf=3.9;
+
+  // Broad dark ground, then a strict straight road in the middle.
+  const bands=28;
+  for(let i=bands-1;i>=0;i--){
+    const z0=lerp(zNear,zFar,i/bands),z1=lerp(zNear,zFar,(i+1)/bands);
+    const d0=Math.max(NEAR,z0-camZ),d1=Math.max(NEAR,z1-camZ);
+    const w0=visibleHalfWidthAtDepth(d0,1.18),w1=visibleHalfWidthAtDepth(d1,1.18);
+    const midZ=(z0+z1)*.5;
+    const groundL=cameraLight3DAt(camX,floorY,midZ,42,0,.0005);
+    worldSolidQuad(litColor([20,34,42],groundL,.55),[
+      {x:camX-w1,y:floorY,z:z1},{x:camX+w1,y:floorY,z:z1},
+      {x:camX+w0,y:floorY,z:z0},{x:camX-w0,y:floorY,z:z0}
+    ],1);
+
+    const roadL=cameraLight3DAt(0,floorY,midZ,46,0,.001);
+    worldSolidQuad(litColor([72,83,91],roadL,1),[
+      {x:-roadHalf,y:floorY+.012,z:z1},{x:roadHalf,y:floorY+.012,z:z1},
+      {x:roadHalf,y:floorY+.012,z:z0},{x:-roadHalf,y:floorY+.012,z:z0}
+    ],1);
+
+    // Two restrained edge lines keep the road axial without turning it into a HUD.
+    for(const x of [-roadHalf,roadHalf]){
+      worldSolidQuad(litColor([118,126,119],roadL,.55),[
+        {x:x-.055,y:floorY+.018,z:z1},{x:x+.055,y:floorY+.018,z:z1},
+        {x:x+.055,y:floorY+.018,z:z0},{x:x-.055,y:floorY+.018,z:z0}
+      ],1);
+    }
+  }
+
+  // Exact opposing pairs. Every left column has its right counterpart at the same Z.
+  const step=11.2,first=Math.floor((camZ-step*1.2)/step);
+  const pairs=[];
+  for(let ri=first;ri<first+16;ri++){
+    const z=ri*step+7.5;
+    pairs.push({z});
+  }
+  pairs.sort((a,b)=>b.z-a.z);
+  for(const p of pairs){
+    if(p.z-camZ<NEAR-2.2)continue;
+    renderBoxTower(-6.4,p.z,2.35,2.5,floorY,24,[92,112,122],34);
+    renderBoxTower( 6.4,p.z,2.35,2.5,floorY,24,[92,112,122],34);
+  }
+
+  topDarkness(.78);
+}
+function renderMap4(){
+  baseFill('#080604','#151008','#010101');
+  const floorY=-1.55,zNear=camZ+NEAR+.03,zFar=camZ+122;
+  const radius=5.25,springY=2.0,arcN=12,bands=17;
+  const tunnelTex=atlas.tunnelTile||atlas.stoneTile||atlas.stone;
+
+  renderCameraLitTexturedFloor(tunnelTex,floorY,zNear,zFar,radius);
+
+  // Barrel tunnel: vertical walls + semicircular vault, sampled in world-space bands.
+  for(let zi=bands-1;zi>=0;zi--){
+    const z0=lerp(zNear,zFar,zi/bands),z1=lerp(zNear,zFar,(zi+1)/bands);
+    const midZ=(z0+z1)*.5;
+    const bandPulse=(zi%2===0)?1:.78;
+
+    for(const side of [-1,1]){
+      const x=side*radius;
+      const L=cameraLight3DAt(x,(floorY+springY)*.5,midZ,34,0,.0005);
+      worldQuad(tunnelTex,[
+        {x,y:springY,z:z1},{x,y:springY,z:z0},
+        {x,y:floorY,z:z0},{x,y:floorY,z:z1}
+      ],clamp(.025+.96*L*bandPulse,.02,1));
+    }
+
+    for(let j=0;j<arcN;j++){
+      const a0=(j/arcN)*Math.PI,a1=((j+1)/arcN)*Math.PI;
+      const x0=Math.cos(a0)*radius,x1=Math.cos(a1)*radius;
+      const y0=springY+Math.sin(a0)*radius,y1=springY+Math.sin(a1)*radius;
+      const mx=(x0+x1)*.5,my=(y0+y1)*.5;
+      const L=cameraLight3DAt(mx,my,midZ,32,0,.00035);
+      worldQuad(tunnelTex,[
+        {x:x0,y:y0,z:z1},{x:x1,y:y1,z:z1},
+        {x:x1,y:y1,z:z0},{x:x0,y:y0,z:z0}
+      ],clamp(.018+.98*L*bandPulse,.018,1));
+    }
+  }
+
+  // Deep black throat at the vanishing point, matching the reference's absorbing center.
+  const p=projectCam({x:0,y:1.7,z:112});
+  const throat=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,Math.max(34,W*.11));
+  throat.addColorStop(0,'rgba(0,0,0,.92)');
+  throat.addColorStop(.58,'rgba(0,0,0,.46)');
+  throat.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=throat;ctx.fillRect(0,0,W,H);
+  topDarkness(.42);
+}
+function renderObelisk(cx,cz,baseW,bodyTop,tipTop,rgb){
+  const floorY=-1.5,depth=1.75;
+  const half=baseW*.5,topHalf=half*.58,frontZ=cz-depth*.5,backZ=cz+depth*.5;
+  const bodyL=cameraLight3DAt(cx,(floorY+bodyTop)*.5,frontZ,42,0,.0005);
+  const tipL=cameraLight3DAt(cx,(bodyTop+tipTop)*.5,cz,36,0,.00025);
+
+  worldSolidQuad(litColor(rgb,bodyL,1),[
+    {x:cx-topHalf,y:bodyTop,z:frontZ},{x:cx+topHalf,y:bodyTop,z:frontZ},
+    {x:cx+half,y:floorY,z:frontZ},{x:cx-half,y:floorY,z:frontZ}
+  ],1);
+  worldSolidQuad(litColor(rgb,bodyL,.58),[
+    {x:cx-half,y:floorY,z:frontZ},{x:cx-topHalf,y:bodyTop,z:frontZ},
+    {x:cx-topHalf,y:bodyTop,z:backZ},{x:cx-half,y:floorY,z:backZ}
+  ],1);
+  worldSolidQuad(litColor(rgb,bodyL,.43),[
+    {x:cx+topHalf,y:bodyTop,z:backZ},{x:cx+topHalf,y:bodyTop,z:frontZ},
+    {x:cx+half,y:floorY,z:frontZ},{x:cx+half,y:floorY,z:backZ}
+  ],1);
+
+  const apex={x:cx,y:tipTop,z:cz};
+  worldSolidPoly(litColor(rgb,tipL,.88),[
+    apex,{x:cx-topHalf,y:bodyTop,z:frontZ},{x:cx+topHalf,y:bodyTop,z:frontZ}
+  ],1);
+  worldSolidPoly(litColor(rgb,tipL,.44),[
+    apex,{x:cx+topHalf,y:bodyTop,z:frontZ},{x:cx+topHalf,y:bodyTop,z:backZ}
+  ],1);
+  worldSolidPoly(litColor(rgb,tipL,.56),[
+    apex,{x:cx-topHalf,y:bodyTop,z:backZ},{x:cx-topHalf,y:bodyTop,z:frontZ}
+  ],1);
+}
+function renderTempleBlock(cx,cz,w,d,y0,y1,rgb,reach){
+  const front=cz-d*.5,back=cz+d*.5,my=(y0+y1)*.5;
+  const L=cameraLight3DAt(cx,my,front,reach||90,0,.008);
+  worldSolidQuad(litColor(rgb,L,1),[
+    {x:cx-w*.5,y:y1,z:front},{x:cx+w*.5,y:y1,z:front},
+    {x:cx+w*.5,y:y0,z:front},{x:cx-w*.5,y:y0,z:front}
+  ],1);
+  worldSolidQuad(litColor(rgb,L,.62),[
+    {x:cx-w*.5,y:y1,z:back},{x:cx-w*.5,y:y1,z:front},
+    {x:cx-w*.5,y:y0,z:front},{x:cx-w*.5,y:y0,z:back}
+  ],1);
+  worldSolidQuad(litColor(rgb,L,.50),[
+    {x:cx+w*.5,y:y1,z:front},{x:cx+w*.5,y:y1,z:back},
+    {x:cx+w*.5,y:y0,z:back},{x:cx+w*.5,y:y0,z:front}
+  ],1);
+  worldSolidQuad(litColor(rgb,L,.78),[
+    {x:cx-w*.5,y:y1,z:back},{x:cx+w*.5,y:y1,z:back},
+    {x:cx+w*.5,y:y1,z:front},{x:cx-w*.5,y:y1,z:front}
+  ],1);
+}
+function renderMap5(){
+  const sky=ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#f13706');
+  sky.addColorStop(.50,'#f27b05');
+  sky.addColorStop(.72,'#cf7110');
+  sky.addColorStop(1,'#1d1028');
+  ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+
+  const floorY=-1.5,zNear=camZ+NEAR+.03,zFar=camZ+166;
+  const roadHalf=6.2,bands=28,stripes=14;
+
+  for(let zi=bands-1;zi>=0;zi--){
+    const z0=lerp(zNear,zFar,zi/bands),z1=lerp(zNear,zFar,(zi+1)/bands);
+    const d0=Math.max(NEAR,z0-camZ),d1=Math.max(NEAR,z1-camZ);
+    const w0=visibleHalfWidthAtDepth(d0,1.18),w1=visibleHalfWidthAtDepth(d1,1.18);
+    const midZ=(z0+z1)*.5;
+    const groundL=cameraLight3DAt(0,floorY,midZ,54,0,.003);
+    worldSolidQuad(litColor([82,42,72],groundL,.72),[
+      {x:camX-w1,y:floorY,z:z1},{x:camX+w1,y:floorY,z:z1},
+      {x:camX+w0,y:floorY,z:z0},{x:camX-w0,y:floorY,z:z0}
+    ],1);
+
+    for(let si=0;si<stripes;si++){
+      const x0=-roadHalf+(2*roadHalf)*(si/stripes);
+      const x1=-roadHalf+(2*roadHalf)*((si+1)/stripes);
+      const L=cameraLight3DAt((x0+x1)*.5,floorY,midZ,58,0,.004);
+      const rgb=(si&1)?[56,38,104]:[127,87,145];
+      worldSolidQuad(litColor(rgb,L,1),[
+        {x:x0,y:floorY+.014,z:z1},{x:x1,y:floorY+.014,z:z1},
+        {x:x1,y:floorY+.014,z:z0},{x:x0,y:floorY+.014,z:z0}
+      ],1);
+    }
+  }
+
+  const step=8.7,first=Math.floor((camZ-step*1.0)/step);
+  const spires=[];
+  for(let ri=first;ri<first+20;ri++)spires.push({ri,z:ri*step+7});
+  spires.sort((a,b)=>b.z-a.z);
+  for(const p of spires){
+    if(p.z-camZ<NEAR-2)continue;
+    const h=10.5+((p.ri&3)===0?3.2:0);
+    renderObelisk(-9.2,p.z,2.0,5.1,h,[116,63,83]);
+    renderObelisk( 9.2,p.z,2.0,5.1,h,[116,63,83]);
+  }
+
+  // Monumental stepped destination, fixed in world space so it approaches as the player walks.
+  const tz=154;
+  renderTempleBlock(0,tz,27,9,-1.48,2.8,[188,120,24],145);
+  renderTempleBlock(0,tz-1.0,20,7,3.0,6.4,[205,139,31],145);
+  renderTempleBlock(0,tz-1.8,12,5,6.8,9.8,[221,158,43],145);
+  renderTempleBlock(0,tz-2.5,5.2,3.2,12.0,14.1,[219,153,35],145);
+
+  const sunGlow=ctx.createRadialGradient(W*.5,H*.39,0,W*.5,H*.39,W*.30);
+  sunGlow.addColorStop(0,'rgba(255,197,57,.10)');
+  sunGlow.addColorStop(1,'rgba(255,99,0,0)');
+  ctx.fillStyle=sunGlow;ctx.fillRect(0,0,W,H);
+}
 function analog(){
-  ctx.save();ctx.globalAlpha=currentMap===1?.024:.030;ctx.globalCompositeOperation='screen';
+  const palettes={
+    1:['#b39d56','#5f774e'],
+    2:['#c496b4','#79658d'],
+    3:['#8ea8ad','#4a6670'],
+    4:['#c5aa77','#745b38'],
+    5:['#f0a04b','#72518c']
+  };
+  const p=palettes[currentMap]||palettes[1];
+  ctx.save();ctx.globalAlpha=.028;ctx.globalCompositeOperation='screen';
   for(let i=0;i<20;i++){
     const x=(i*97+(last|0)*.010)%W,y=(i*47+(last|0)*.006)%H;
-    ctx.fillStyle=currentMap===1?(i%3?'#b39d56':'#5f774e'):(i%3?'#c496b4':'#79658d');
+    ctx.fillStyle=i%3?p[0]:p[1];
     ctx.fillRect(x,y,1,1);
   }
   ctx.restore();
 }
 function render(){
   ctx.setTransform(1,0,0,1,0,0);
-  if(currentMap===1)renderMap1();else renderMap2();
+  if(currentMap===1)renderMap1();
+  else if(currentMap===2)renderMap2();
+  else if(currentMap===3)renderMap3();
+  else if(currentMap===4)renderMap4();
+  else renderMap5();
   analog();
 }
 const keys=new Set();
-function lateralLimit(){ return currentMap===1?1.35:22; }
+function lateralLimit(){
+  if(currentMap===1)return 1.35;
+  if(currentMap===2)return 22;
+  if(currentMap===3)return 4.7;
+  if(currentMap===4)return 1.55;
+  return 5.8;
+}
+function mapMaxZ(){
+  if(currentMap===1)return 132;
+  if(currentMap===2)return 145;
+  if(currentMap===3)return 165;
+  if(currentMap===4)return 150;
+  return 118;
+}
 function update(dt){
   const forwardSpeed=dt*.020;
   const lateralSpeed=dt*.017;
@@ -520,7 +793,7 @@ function update(dt){
   if(keys.has('s')||keys.has('arrowdown')) targetCamZ-=forwardSpeed;
   if(keys.has('a')) targetCamX-=lateralSpeed;
   if(keys.has('d')) targetCamX+=lateralSpeed;
-  targetCamZ=clamp(targetCamZ,-5,currentMap===1?132:145);
+  targetCamZ=clamp(targetCamZ,-5,mapMaxZ());
   targetCamX=clamp(targetCamX,-lateralLimit(),lateralLimit());
 
   const k=Math.min(1,dt*.014);
@@ -535,13 +808,19 @@ function frame(t){
 function setMap(n){
   currentMap=n;camX=0;targetCamX=0;camZ=1.4;targetCamZ=1.4;
   mapButtons.forEach((b,i)=>b.classList.toggle('active',i===n-1));
-  tag.textContent=n===1?'MAPA 1 · NAVE ALTA':'MAPA 2 · CILINDROS';
+  const names=[
+    'MAPA 1 · NAVE ALTA',
+    'MAPA 2 · CILINDROS',
+    'MAPA 3 · CALZADA PAREADA',
+    'MAPA 4 · TÚNEL',
+    'MAPA 5 · AVENIDA RITUAL'
+  ];
+  tag.textContent=names[n-1]||names[0];
 }
-mapButtons[0].addEventListener('click',()=>setMap(1));
-mapButtons[1].addEventListener('click',()=>setMap(2));
+mapButtons.forEach((b,i)=>b.addEventListener('click',()=>setMap(i+1)));
 const held=new Map();
 function nudge(kind,amount){
-  const max=currentMap===1?132:145;
+  const max=mapMaxZ();
   if(kind==='up')targetCamZ=clamp(targetCamZ+amount*9,-5,max);
   if(kind==='down')targetCamZ=clamp(targetCamZ-amount*9,-5,max);
   if(kind==='left')targetCamX=clamp(targetCamX-amount*7,-lateralLimit(),lateralLimit());
@@ -563,7 +842,7 @@ canvas.addEventListener('pointermove',e=>{
   const dy=e.clientY-swipeLastY;
   swipeLastY=e.clientY;
   if(Math.abs(dy)<.35)return;
-  const max=currentMap===1?132:145;
+  const max=mapMaxZ();
   // Finger up = walk forward. Finger down = walk backward.
   // Movement is proportional to actual drag distance so it feels like direct touch locomotion.
   targetCamZ=clamp(targetCamZ-dy*.045,-5,max);
@@ -590,8 +869,7 @@ addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();
   if(['w','a','s','d','arrowup','arrowdown'].includes(k)){
     keys.add(k);e.preventDefault();
-  }else if(k==='1')setMap(1);
-  else if(k==='2')setMap(2);
+  }else if(['1','2','3','4','5'].includes(k))setMap(Number(k));
 });
 addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 addEventListener('blur',()=>keys.clear());
@@ -606,9 +884,15 @@ addEventListener('selectstart',e=>e.preventDefault());
 addEventListener('dragstart',e=>e.preventDefault());
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v17',
-  maps:['1 green arch nave','2 brutalist cylinder hall'],
-  contract:'fixed frontal view; touch swipe + WASD + wheel; light intensity is driven only by true 3D distance from each world point to the camera center; near pillar bases brighten, while high and far tower tips fade almost completely into black',
+  version:'spaces-maps-v18',
+  maps:[
+    '1 green arch nave',
+    '2 brutalist cylinder hall',
+    '3 straight paired-column road',
+    '4 enclosing barrel tunnel',
+    '5 ritual striped avenue with paired spires and stepped temple'
+  ],
+  contract:'fixed frontal view; touch swipe + WASD + wheel; all scenes preserve true 3D camera-distance lighting. Map 3 is a straight central road with exact opposing column pairs; Map 4 is a stone barrel tunnel with a black throat; Map 5 is an axial striped ritual avenue with paired spires and a stepped temple destination',
   sourcePages:SOURCE_PAGES,
   camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
