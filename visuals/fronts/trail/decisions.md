@@ -55,6 +55,14 @@ Durable architecture detail:
 - Every stamp stores the yaw it had when created, preserving orientation history in the trail.
 - 2D mode keeps yaw = 0 and remains unchanged.
 
+## Constant-speed trajectory
+- ORBIT/LOOP must not use easing that slows at segment endpoints and accelerates again.
+- One scalar `pathDistance` advances at a fixed rate: **230 px/s** normal, **150 px/s** reduced-motion.
+- Straight and hairpin phases are selected by cumulative path length, not equal time slices.
+- The elliptical hairpin uses a small arc-length lookup table so progress through the curve is based on travelled distance rather than raw angle percentage.
+- No `smoothstep`/ease-in/ease-out is allowed in the current ORBIT/LOOP path.
+- Constant speed is a durable visual rule, not a tuning preference.
+
 ## Trajectory-coupled turning
 - Turning is a **movement geometry problem**, not an independent sprite-rotation problem.
 - ORBIT/LOOP use a four-phase racetrack/hairpin path: approach straight → near lateral hairpin → retreat straight → far lateral hairpin.
@@ -77,9 +85,17 @@ Durable architecture detail:
 - Current lifetime: **860 ms** normal, **1040 ms** reduced motion.
 - Do not achieve length by increasing pool without bound. Tail length must remain compatible with the fixed pool and adaptive quality.
 
+## Coupled darkness / size hierarchy
+- The oldest/rearmost trail copy must be **black**.
+- The same copy must also be the **smallest**.
+- Darkness and scale are coupled progressively: farther/older copies are darker + smaller; newer/front copies are brighter + larger.
+- Current temporal scale ramp starts around **56%** on the oldest stamp and reaches roughly **97%** on the newest trail stamp before the full-size head.
+- 3D projection/depth may make far copies smaller still.
+- The black endpoint is produced from a precomputed brightness-0 sprite, not a runtime filter.
+
 ## Trail visibility hierarchy
-- The current/head sprite is the visual authority and remains full brightness.
-- Trail copies are not equal-strength duplicates: the oldest copy is deliberately much darker, and brightness rises progressively toward the newest copy.
+- The current/head sprite is the visual authority and remains full brightness/full size.
+- Trail copies are not equal-strength duplicates: the oldest copy is black and smallest; brightness and scale rise progressively toward the newest copy.
 - In pseudo-3D, far/rear depth darkens stamps further.
 - This hierarchy exists specifically to prevent the returning/back section of an orbit from reading as a second active face.
 - Prefer darkness hierarchy over simply deleting the rear trail, because the residue should remain visible as depth/history.

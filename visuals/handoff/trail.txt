@@ -33,12 +33,20 @@ ACTUAL REPO TARGETS
 
 CURRENT STATE
 Review state: REVIEW
-Current implementation commit: bc35c58b87aa26765b6413bc200c1974de1f38f8
-Current HTML blob evidence: c99d7b24f938721b9a4dd6824682c2b6dd53014b
-Current candidate: pseudo-3D Trail with trajectory-coupled hairpin turns. ORBIT/LOOP physically move laterally through a U-turn at fixed near/far depth; the backward straight begins only after yaw is fully 180°. Longer/spacier tail remains.
-User reviewed the prior width-gated yaw: YES · clarified that turning must be part of the path, not an independent rotation
+Current implementation commit: 67846ac70d483e90249ca50858c96bb95184882c
+Current HTML blob evidence: 17c9d32cfaf54b74a7a576470ef8c27699e2ff45
+Current candidate: constant-speed ORBIT/LOOP traversal by travelled path distance, arc-length hairpin lookup, and coupled tail hierarchy where the oldest/rearmost copy is black and smallest, growing/brighting progressively toward the head.
+User reviewed prior hairpin candidate: YES · rejected pause/accelerate feel; required constant speed plus black/smaller rear tail endpoint
 
 LATEST USER FEEDBACK
+- motion must always keep constant speed; no pause/count/accelerate feel
+- oldest/rearmost trail copy must be black
+- the black/rear copy must also be smaller
+- as trail copies get darker farther back, they must progressively get smaller too
+- current patch: pathDistance += PATH_SPEED * dt; curve uses arc-length LUT
+- current patch: oldest brightness = 0, oldest temporal scale ≈ 0.56
+
+PREVIOUS LATEST USER FEEDBACK
 - rotation must be tied to the path itself
 - the figure cannot rotate on the spot
 - it must travel horizontally through a curved/U-turn path
@@ -114,6 +122,22 @@ TrailEngine(asset, trajectory)
 
 See architecture.md for the durable technical model.
 
+CURRENT CONSTANT SPEED
+- ORBIT/LOOP advance by one pathDistance scalar
+- PATH_SPEED = 230 px/s normal / 150 reduced motion
+- straight and hairpin phases are chosen by cumulative length
+- elliptical hairpin uses a 64-sample cumulative arc-length LUT
+- no smoothstep/ease-in/ease-out in current ORBIT/LOOP progression
+- larger curves take longer because they are longer, not because speed changes
+
+CURRENT TAIL HIERARCHY
+- oldest/rearmost stamp = brightness 0 = black
+- oldest temporal scale ≈ 56%
+- newest trail stamp approaches ≈ 92% brightness / 97% temporal scale
+- far depth further reduces dominance/size
+- shade bank includes [0,.12,.24,.38,.52,.68,.82,.92]
+- current head remains full authority/full size
+
 CURRENT TURN GEOMETRY
 - ORBIT/LOOP: approach straight → near lateral hairpin → retreat straight → far lateral hairpin
 - near hairpin holds z at near depth while x moves across the lane and yaw goes 0→180°
@@ -183,7 +207,7 @@ CURRENT PERFORMANCE
 - no external runtime image fetch
 
 OPEN USER FEEDBACK
-- review ORBIT/LOOP hairpin geometry: turn must consume lateral space; retreat must begin only after full reversal; longer/spacier tail remains
+- review constant speed through straight↔hairpin joins; review black/small oldest tail endpoint and progressive brightness/size ramp
 - clean current mask crop/base-gray defects
 - turn asset preparation into a robust compileTrailAsset(image) pipeline
 - later curate a larger ~20 candidate set only after the crop gate is trustworthy
@@ -216,6 +240,8 @@ RECENT MEANINGFUL VERSIONS
 - 84f6800d262df1660d42b678b5ebbfa06cc7bddf · REVIEW_PATCH · width-gated slower yaw + longer/spacier tail
 
 - bc35c58b87aa26765b6413bc200c1974de1f38f8 · REVIEW_PATCH · trajectory-coupled lateral hairpins; retreat begins after full turn
+
+- 67846ac70d483e90249ca50858c96bb95184882c · REVIEW_PATCH · constant path speed + arc-length turn + black/smaller rear tail endpoint
 
 INCARNATION CONTRACT
 1. Read this handoff COMPLETELY.

@@ -14,7 +14,7 @@
     "visuals/fronts/trail/architecture.md"
   ],
   "review_state": "REVIEW",
-  "current_blob_sha": "c99d7b24f938721b9a4dd6824682c2b6dd53014b",
+  "current_blob_sha": "17c9d32cfaf54b74a7a576470ef8c27699e2ff45",
   "accepted_baseline": {
     "label": "Full-stamp old-redraw",
     "commit": "26ff0e808fe0cf732af8c45f0eef9f13f99853e7",
@@ -39,8 +39,8 @@
     ]
   },
   "current_candidate": {
-    "commit": "bc35c58b87aa26765b6413bc200c1974de1f38f8",
-    "summary": "Trajectory-coupled hairpin turning: ORBIT/LOOP no longer rotate independently of movement. The figure approaches on one lane, performs a lateral curved hairpin at nearly fixed depth while yaw turns 0→180°, and only then begins the backward leg already fully reversed. The far hairpin performs the inverse. Longer/spacier trail tuning remains.",
+    "commit": "67846ac70d483e90249ca50858c96bb95184882c",
+    "summary": "ORBIT/LOOP now advance by constant path distance (PATH_SPEED × dt) instead of eased phase time. Hairpin arcs use an arc-length lookup table so equal distance increments stay visually uniform through the curve. Trail hierarchy is strengthened: the oldest/rearmost stamp is literal black and the smallest; brightness and scale increase together toward the current head.",
     "user_reviewed": false
   },
   "accepted_asset_direction": [
@@ -59,12 +59,12 @@
     "6 SHIKAMI"
   ],
   "open_feedback": [
-    "Review ORBIT/LOOP hairpin geometry: the turn should visibly consume lateral space and feel like a tail making a U-turn, not a sprite rotating in place.",
-    "Confirm that the retreat/backward straight begins only after the figure is fully reversed.",
-    "Review whether the current lateral turn radius/width is large enough on the target phone.",
+    "Review ORBIT/LOOP for genuinely constant perceived motion through straight-to-hairpin transitions; there should be no pause/count/accelerate easing.",
+    "Review the black/smaller tail endpoint: oldest/rearmost copy should read as a small black residue, with a continuous size/brightness ramp toward the head.",
+    "Check whether PATH_SPEED 230 px/s and the current lane radius feel right on the target phone.",
     "Review the longer/spacier trail: copies should breathe more without becoming a sparse dotted chain.",
     "Some masks still need cleaner segmentation: remove gray base/residue/halo before promoting them as final assets.",
-    "Generalize asset preparation into a reliable compileTrailAsset(image) pipeline so supplied images can enter Trail without per-image animation code."
+    "Generalize asset preparation into a reliable compileTrailAsset(image) pipeline."
   ],
   "resolved_feedback_in_current_candidate": [
     "2 WINGS remains available and is now the default displayed variant.",
@@ -101,7 +101,13 @@
     "During each hairpin, depth is held at the near/far extreme while lateral motion and yaw progress together.",
     "The retreat straight starts only after yaw reaches 180°; the next approach straight starts only after yaw returns to 0°.",
     "Approach mode starts at yaw 0° and Retreat mode starts at yaw 180°, so neither begins with a late orientation correction.",
-    "The previously approved longer/spacier trail cadence and lifetime remain unchanged."
+    "The previously approved longer/spacier trail cadence and lifetime remain unchanged.",
+    "ORBIT/LOOP no longer use smoothstep/time easing for path progression.",
+    "A single pathDistance advances by PATH_SPEED × dt (230 px/s normal, 150 px/s reduced-motion).",
+    "Hairpin turns use a 64-sample ellipse arc-length table so distance, not phase percentage, controls turn progress.",
+    "The oldest trail stamp now maps to brightness 0 and therefore uses a literal black precomputed silhouette.",
+    "Trail scale is coupled to the same temporal/depth hierarchy: oldest starts near 56% scale, then grows continuously toward the newest copy.",
+    "Existing depth projection still compounds the far/rear size reduction naturally."
   ],
   "asset_localization_evidence": {
     "workflow_run": "https://github.com/JuanManuelPM/prometeo/actions/runs/36272461620",
@@ -142,11 +148,12 @@
       "allocation-free insertion depth ordering for the bounded pool"
     ],
     "visual_hierarchy": [
-      "current head always renders at full brightness",
-      "oldest trail stamp starts near 22% brightness",
-      "trail stamps brighten progressively toward the newest stamp",
-      "farther 3D stamps receive an additional depth darkening factor",
-      "seven shaded sprite canvases are precomputed once per asset load to avoid per-stamp filter work"
+      "current head remains full-size/full-authority",
+      "oldest trail stamp brightness is exactly 0 (black silhouette)",
+      "oldest trail stamp scale starts at 56% before additional far-depth scaling",
+      "brightness and scale rise together toward newest trail stamp",
+      "farther 3D depth additionally reduces both visual dominance and projected size",
+      "shade bank is precomputed once per asset load; no per-stamp runtime filter"
     ],
     "yaw": {
       "driver": "trajectory phase; no independent yaw accumulator",
@@ -172,7 +179,7 @@
       "intent": "slightly wider spacing plus longer lifetime to make the trail visibly longer without losing complete-stamp identity"
     },
     "trajectory_turn": {
-      "model": "four-phase hairpin/racetrack path",
+      "model": "arc-length racetrack/hairpin path",
       "phases": [
         "approach straight",
         "near lateral hairpin",
@@ -180,13 +187,17 @@
         "far lateral hairpin"
       ],
       "lane_half_width": "clamp(22% viewport width, 72px, 220px)",
-      "turn_duration": "derived from lateral width at ~250 px/s, clamped to 0.90–1.80 s",
-      "key_rule": "depth reversal belongs to the straight segment after the turn; yaw is already complete before that segment begins"
+      "speed_px_per_second": {
+        "normal": 230,
+        "reduced_motion": 150
+      },
+      "turn_parameterization": "64-sample ellipse arc-length LUT; angle is looked up from travelled distance",
+      "key_rule": "one scalar pathDistance advances at constant PATH_SPEED; no smoothstep/easing in ORBIT/LOOP"
     }
   },
   "pseudo3d_review": {
     "user_reviewed": true,
-    "result": "CORRECTED_TO_TRAJECTORY_COUPLED_HAIRPIN",
-    "note": "User clarified that rotation must be part of the path itself: the figure cannot turn on the spot. It must travel laterally through a circular/hairpin turn, and the backward leg may only begin once the figure is fully reversed."
+    "result": "CONSTANT_SPEED_PLUS_BLACK_SMALL_REAR_TAIL",
+    "note": "User rejected the stop/count/accelerate feel and required constant speed. User also required the last/rearmost trail copy to be black and smaller, with size decreasing progressively as copies become darker farther back."
   }
 }

@@ -56,6 +56,14 @@ In-page movement modes:
 For 3D modes, z changes projected scale/position and distant stamps are slightly less opaque. Stamps are drawn far-to-near. There is still only one 2D sprite; no WebGL/mesh is required.
 
 ## LATEST USER FEEDBACK
+- User says the current turn still looks like it pauses/counts and then accelerates.
+- Required behavior: **constant speed at all times**, including while entering/exiting the hairpin.
+- User also requires the last/oldest rear trail copy to be **black** and **smaller**.
+- As copies get darker farther back, they must also get progressively smaller.
+- Current candidate advances ORBIT/LOOP by constant travelled distance (`PATH_SPEED * dt`) and uses an arc-length LUT for the curved turn.
+- Current candidate couples trail darkness and size: oldest = black + smallest, then both recover progressively toward the current head.
+
+## PREVIOUS USER FEEDBACK
 - User corrected the previous interpretation: the sprite must **not** rotate independently while already beginning to travel backward.
 - The turn itself must consume horizontal space, like a tail making a circular U-turn.
 - By the time the backward straight starts, the sprite must already be fully reversed.
@@ -93,6 +101,13 @@ For 3D modes, z changes projected scale/position and distant stamps are slightly
 - Verify the new mode controls and adaptive quality on target mobile.
 
 ## RESOLVED IN CURRENT CANDIDATE
+- Removed smoothstep/easing from ORBIT/LOOP movement.
+- Added constant path-distance progression: `pathDistance += PATH_SPEED * dt`.
+- Added 64-sample ellipse arc-length lookup for the hairpin so equal travelled distances produce uniform motion through the curve.
+- PATH_SPEED is 230 px/s normal and 150 px/s under reduced-motion.
+- Expanded precomputed shade bank to include brightness 0, so the oldest trail stamp is a literal black silhouette.
+- Added a coupled scale hierarchy: oldest stamp starts at 56% scale and grows toward ~97% before the current head.
+- Far depth still reduces projection/visual dominance on top of that hierarchy.
 - Removed independent width/distance-gated yaw from the 3D turn.
 - Added `hairpinPose()`: ORBIT/LOOP now have explicit straight and turn phases.
 - Near turn keeps z at the near extreme while the figure moves laterally and yaw advances 0→180°.

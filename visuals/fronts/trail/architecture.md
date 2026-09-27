@@ -82,13 +82,24 @@ approach straight (yaw 0°)
 → approach straight
 ```
 
-The hairpin consumes real lateral screen distance. Its half-lane width is:
+The hairpin consumes real lateral screen distance. ORBIT/LOOP progression is based on **arc length**, not eased phase time.
+
+A single scalar advances every frame:
+
+```js
+pathDistance += PATH_SPEED * dt
+// PATH_SPEED = 230 px/s normal, 150 px/s reduced motion
+```
+
+Straight lengths are represented in pixel-equivalent path distance. The elliptical hairpin is sampled into a 64-entry cumulative-distance table; travelled distance is binary-searched into that table to recover the corresponding curve angle. That keeps the curve at the same path speed as the straight instead of slowing/accelerating at the join.
+
+Its half-lane width is:
 
 ```js
 lane = clamp(W * 0.22, 72, 220)
 ```
 
-Turn duration is derived from that lateral width at roughly 250 px/s and clamped to 0.90–1.80 seconds.
+Turn duration is no longer authored directly. It emerges from `turnArcLength / PATH_SPEED`, so a larger turn naturally takes longer without changing speed.
 
 The key invariant is:
 
@@ -129,19 +140,43 @@ Previous values were 720ms lifetime and 24/28/34ms cadence.
 
 The goal is a visibly longer trail with more air between copies, without converting the effect into a sparse chain. Pool size and adaptive stamp limits remain bounded.
 
+## Coupled trail darkness + size
+
+The tail hierarchy is now two-dimensional: brightness and size move together.
+
+```js
+ageCurve = pow(trailT, 0.72)
+brightness = oldest ? 0 : lerp(0, 0.92, ageCurve) * depthDarkening
+scale = lerp(0.56, 0.97, ageCurve) * depthScale
+```
+
+Therefore:
+- oldest/rearmost stamp = literal black silhouette;
+- oldest/rearmost stamp = smallest temporal stamp;
+- newer stamps get both brighter and larger;
+- far 3D depth can reduce size further through projection.
+
+The precomputed shade bank now includes a true black endpoint:
+
+```js
+SHADE_BRIGHTNESS = [0, .12, .24, .38, .52, .68, .82, .92]
+```
+
+This avoids per-stamp filter work while making the visual hierarchy unambiguous.
+
 ## Trail brightness hierarchy
 
 The trail has a temporal visual hierarchy, not equal-strength duplicates.
 
 - Current head: full brightness.
-- Oldest stamp: approximately 22% brightness.
-- Newer stamps: progressively brighter up to roughly 90% before the head.
+- Oldest stamp: 0% brightness (black).
+- Newer stamps: progressively brighter and larger up to roughly 92% brightness / 97% temporal scale before the head.
 - In pseudo-3D, larger/farther `z` multiplies in additional darkening.
 
 To keep this cheap, Trail precomputes a small bank of seven shaded sprite canvases once when an asset loads:
 
 ```js
-SHADE_BRIGHTNESS = [.22,.34,.46,.58,.70,.82,.90]
+SHADE_BRIGHTNESS = [0,.12,.24,.38,.52,.68,.82,.92]
 ```
 
 Each stamp selects the closest precomputed shade using its chronological trail position plus depth. No per-stamp blur and no per-stamp canvas filter are required.
