@@ -2,36 +2,42 @@
 
 Status: CURRENT
 
-## Universal lighting rule · v17
-- Brightness is governed by **true Euclidean 3D distance from the camera center**.
-- Use `hypot(dx, dy, dz)` as the single distance source of truth.
-- No optical-axis/cone multiplier is allowed to make a physically near point darker than a farther equivalent point.
-- Nearer equivalent points are always brighter; farther equivalent points are always darker.
-- Tall structures are evaluated by vertical slices.
-- Vertical slice spacing is nonlinear and denser near the base, because that is where close-range interaction occurs.
-- Tower tips may become almost invisible because their Y distance alone can be enormous.
-- Curvature shading is secondary to distance and has a strong minimum response.
-- Floors and walls follow the same camera-center distance model.
+## Universal engine rules
+- Fixed frontal camera.
+- W/S, wheel and vertical touch swipe move forward/back.
+- A/D strafes within scene-specific bounds.
+- Light intensity is governed by true Euclidean 3D distance from each world point to camera center.
+- Browser text selection / touch callout remains disabled on the visual controls.
 
 ## Map 1 · Green Nave
-- Supports meet the actual visible arch springline.
-- Wall mass exists behind the support/crown silhouette with an arch opening cut out.
-- Render order stays wall -> supports -> crown.
-- Camera-center lighting applies to floor, walls and structure.
+- Preserve v15 structural continuity and backing wall behind arches.
 
 ## Map 2 · Brutalist Palace
-- Columns remain wide/heavy and diagonally organized.
-- Each cylinder uses 12 nonlinear vertical light slices.
-- Lower nearby sections must brighten strongly as the player approaches.
-- Upper/far sections fall aggressively toward black.
-- The highest tips should be almost invisible.
-- No stretched textures and no horizontal-row composition.
+- Preserve massive diagonal columns and v17 camera-distance lighting.
 
-## Interaction
-- W/S forward/back.
-- A/D lateral strafe.
-- Wheel/trackpad forward/back.
-- Touch ↑/↓ buttons forward/back.
-- Vertical swipe on scene: up advances, down retreats.
-- Camera direction remains fixed.
-- Browser selection/callout UI stays disabled.
+## Map 3 · Straight paired-column road
+- Central road is straight and axial.
+- Column rows are parallel.
+- Every left column has an exact right partner at the same world Z.
+- Do not turn this scene into diagonal/random placement.
+- Rectangular monumental columns are intentionally distinct from Map 2 cylinders.
+
+## Map 4 · Tunnel
+- Must read as an enclosing barrel tunnel, not a flat corridor.
+- Use side walls + semicircular vault.
+- Warm stone texture is generated from the existing stone asset.
+- The center ends in a strong dark throat.
+- Keep strafe tightly limited so the player remains inside the tunnel envelope.
+
+## Map 5 · Ritual Avenue
+- Strong central vanishing road.
+- Alternating longitudinal floor stripes.
+- Paired pointed spires on both sides.
+- Orange/red sky.
+- Stepped temple/monument is a fixed world destination.
+- Render far temple before nearer repeated spires for correct occlusion.
+- Composition is axial and ceremonial, not random.
+
+## Navigation
+- Five map buttons are horizontally scrollable on narrow screens.
+- Keyboard keys 1–5 switch scenes.
