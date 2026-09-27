@@ -2,36 +2,38 @@
 
 Status: CURRENT
 
-## Universal floor rule · v22
-- Renderer segmentation is implementation detail and must not be visible.
-- Accidental horizontal floor seams are forbidden.
-- Longitudinal lines are allowed and encouraged when they strengthen forward-motion perspective.
-- Prefer continuous world surfaces; if repeated structure is visible, it must be intentional architecture anchored to world coordinates.
+## Universal floor rule
+- Never expose renderer Z subdivisions as accidental horizontal floor bands.
+- Preserve longitudinal perspective cues where they strengthen forward motion.
 
 ## Map 1
-- Floor is one continuous corridor plane.
-- Do not return to repeated full-texture Z bands.
+- Continuous floor from v22 remains.
 - Preserve v15 arch/support/backing-wall structure.
 
 ## Map 4
-- Tunnel must produce strong optical flow.
-- Camera-relative repeated bands are not sufficient.
-- Structural ribs are fixed in world Z and pass the camera during movement.
-- Tunnel end is a real world-space wall at Z=170, not a screen-space throat overlay.
-- Floor remains continuous and may use longitudinal guide lines.
-- Intentional tunnel ribs may cross the view transversely because they physically move with the world; accidental static floor lines may not.
+- Keep v22 world-anchored tunnel segments, fixed ribs and world-space end wall.
+- Optical flow must remain obvious during forward/back movement.
 
-## Map 5
-- Keep strict straight longitudinal road stripes.
-- Lateral floor is continuous with no horizontal band seams.
-- Spires are no longer paired opposite each other.
-- Use one-and-one alternating rhythm: left, right, left, right.
-- Current spacing: RITUAL_STEP = 7.4.
-- Signs are deliberately large, screen-like cardboard panels.
-- Current pole length: 7.15.
-- Current deployment band: ahead and within 24 Z units, raised again at <=8 Z units.
-- Physical hinge behavior from v21 remains: far up, medium-distance down, very-close up.
+## Map 5 · v23
+- Pointed violet obelisks/spires are superseded.
+- Use alternating monumental violet columns.
+- Columns rise from below the avenue as if from a precipice.
+- There is no ordinary lateral floor under the columns.
+- Current column bottom: Y=-16.5.
+- Current column top: around Y=7.4.
+- Bottom must be much darker than top.
+- Keep one-and-one left/right alternation.
+- Keep straight longitudinal central road stripes.
+- Signs are even larger than v22, intentionally screen-like.
+- Current pole length: 8.55.
+- Current outer cardboard half-size: 3.58 x 2.18.
+- Sign hinge lives inside/behind the column silhouette.
+- Render sign before column so the column occludes its stored mechanism.
+- Do not render sign geometry while open <= .24.
+- Deployment window: ahead, below 28 Z units, and above 9 Z units.
+- Hard rule: no more than two signs may be visible/opening at once.
+- Slot must remain occupied while a sign retracts until it is hidden behind the column.
 
 ## Preserve
-- v20 horizontal finger-scroll scene selector.
-- fixed frontal camera, mobile movement, WASD/wheel and camera-distance lighting.
+- v20 horizontal finger-scroll map selector.
+- fixed frontal camera, touch/WASD/wheel movement.
