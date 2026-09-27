@@ -60,6 +60,7 @@ const lerp=(a,b,t)=>a+(b-a)*t;
 const NEAR=.14;
 let W=640,H=360,last=0;
 let camX=0,targetCamX=0,camZ=1.4,targetCamZ=1.4,currentMap=1;
+const ritualSigns=new Map();
 const assets={};
 const atlas={};
 const SOURCE_PAGES={
@@ -668,6 +669,91 @@ function renderObelisk(cx,cz,baseW,bodyTop,tipTop,rgb){
     apex,{x:cx-topHalf,y:bodyTop,z:backZ},{x:cx-topHalf,y:bodyTop,z:frontZ}
   ],1);
 }
+function ritualSignKey(ri,side){return ri+':'+side}
+function ritualSignOpen(ri,side){
+  const st=ritualSigns.get(ritualSignKey(ri,side));
+  return st?st.open:0;
+}
+function updateRitualSigns(dt){
+  if(currentMap!==5)return;
+  const step=8.7;
+  const first=Math.floor((camZ-step*1.3)/step);
+  const active=new Set();
+
+  // Only signs physically near the player are allowed to wake up.
+  // Two thresholds provide hysteresis so they do not chatter at the boundary.
+  for(let ri=first-3;ri<=first+4;ri++){
+    const z=ri*step+7;
+    for(const side of [-1,1]){
+      const x=side*9.2;
+      const key=ritualSignKey(ri,side);
+      let st=ritualSigns.get(key);
+      if(!st){st={open:0,target:0};ritualSigns.set(key,st)}
+      const dist=Math.hypot(x-camX,z-camZ);
+
+      if(dist<11.2)st.target=1;
+      else if(dist>13.4)st.target=0;
+
+      const rate=st.target?0.0125:0.0065;
+      st.open+=(st.target-st.open)*(1-Math.exp(-dt*rate));
+      if(Math.abs(st.open-st.target)<.001)st.open=st.target;
+      active.add(key);
+    }
+  }
+
+  // Anything left behind closes quietly instead of remaining frozen in an open state.
+  for(const [key,st] of ritualSigns){
+    if(active.has(key))continue;
+    st.target=0;
+    st.open+=(0-st.open)*(1-Math.exp(-dt*.0065));
+    if(st.open<.001)ritualSigns.delete(key);
+  }
+}
+function renderRitualSign(cx,cz,side,open){
+  if(open<=.002)return;
+  const floorY=-1.5;
+  const t=open*open*(3-2*open);
+  const signX=cx-side*1.58; // always moves toward the road / inner face
+  const frontZ=cz-.98;
+  const panelW=2.55,panelH=1.42;
+  const y0=lerp(floorY-2.05,floorY+.70,t);
+  const y1=y0+panelH;
+  const L=cameraLight3DAt(signX,(y0+y1)*.5,frontZ,46,0,.0012);
+
+  // Thin telescoping post: hidden below the floor while closed.
+  const postTop=y0+.10;
+  if(postTop>floorY){
+    worldSolidQuad(litColor([119,83,36],L,.68),[
+      {x:signX-.10,y:postTop,z:frontZ+.05},{x:signX+.10,y:postTop,z:frontZ+.05},
+      {x:signX+.10,y:floorY,z:frontZ+.05},{x:signX-.10,y:floorY,z:frontZ+.05}
+    ],1);
+  }
+
+  // Outer frame and inset face, both front-facing so the sign reads clearly on the axial road.
+  worldSolidQuad(litColor([205,142,42],L,.92),[
+    {x:signX-panelW*.5,y:y1,z:frontZ},{x:signX+panelW*.5,y:y1,z:frontZ},
+    {x:signX+panelW*.5,y:y0,z:frontZ},{x:signX-panelW*.5,y:y0,z:frontZ}
+  ],1);
+
+  const inset=.14;
+  worldSolidQuad(litColor([70,38,94],L,.92),[
+    {x:signX-panelW*.5+inset,y:y1-inset,z:frontZ-.018},
+    {x:signX+panelW*.5-inset,y:y1-inset,z:frontZ-.018},
+    {x:signX+panelW*.5-inset,y:y0+inset,z:frontZ-.018},
+    {x:signX-panelW*.5+inset,y:y0+inset,z:frontZ-.018}
+  ],1);
+
+  // Minimal ritual glyph: two bars, no text. The panel remains image-like rather than UI-like.
+  const gy0=lerp(y0,y1,.36),gy1=lerp(y0,y1,.64);
+  worldSolidQuad(litColor([238,169,59],L,1),[
+    {x:signX-.66,y:gy1,z:frontZ-.028},{x:signX+.66,y:gy1,z:frontZ-.028},
+    {x:signX+.66,y:gy1-.08,z:frontZ-.028},{x:signX-.66,y:gy1-.08,z:frontZ-.028}
+  ],1);
+  worldSolidQuad(litColor([238,169,59],L,.78),[
+    {x:signX-.42,y:gy0+.08,z:frontZ-.028},{x:signX+.42,y:gy0+.08,z:frontZ-.028},
+    {x:signX+.42,y:gy0,z:frontZ-.028},{x:signX-.42,y:gy0,z:frontZ-.028}
+  ],1);
+}
 function renderTempleBlock(cx,cz,w,d,y0,y1,rgb,reach){
   const front=cz-d*.5,back=cz+d*.5,my=(y0+y1)*.5;
   const L=cameraLight3DAt(cx,my,front,reach||90,0,.008);
@@ -738,7 +824,9 @@ function renderMap5(){
     if(p.z-camZ<NEAR-2)continue;
     const h=10.5+((p.ri&3)===0?3.2:0);
     renderObelisk(-9.2,p.z,2.0,5.1,h,[116,63,83]);
+    renderRitualSign(-9.2,p.z,-1,ritualSignOpen(p.ri,-1));
     renderObelisk( 9.2,p.z,2.0,5.1,h,[116,63,83]);
+    renderRitualSign( 9.2,p.z, 1,ritualSignOpen(p.ri, 1));
   }
 
   const sunGlow=ctx.createRadialGradient(W*.5,H*.39,0,W*.5,H*.39,W*.30);
@@ -800,6 +888,7 @@ function update(dt){
   const k=Math.min(1,dt*.014);
   camZ=lerp(camZ,targetCamZ,k);
   camX=lerp(camX,targetCamX,k);
+  updateRitualSigns(dt);
 }
 function frame(t){
   requestAnimationFrame(frame);
@@ -808,6 +897,7 @@ function frame(t){
 }
 function setMap(n){
   currentMap=n;camX=0;targetCamX=0;camZ=1.4;targetCamZ=1.4;
+  if(n===5)ritualSigns.clear();
   mapButtons.forEach((b,i)=>b.classList.toggle('active',i===n-1));
   const names=[
     'MAPA 1 · NAVE ALTA',
@@ -885,15 +975,15 @@ addEventListener('selectstart',e=>e.preventDefault());
 addEventListener('dragstart',e=>e.preventDefault());
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v18',
+  version:'spaces-maps-v19',
   maps:[
     '1 green arch nave',
     '2 brutalist cylinder hall',
     '3 straight paired-column road',
     '4 enclosing barrel tunnel',
-    '5 ritual striped avenue with paired spires and stepped temple'
+    '5 ritual striped avenue with proximity-raised signs, paired spires and stepped temple'
   ],
-  contract:'fixed frontal view; touch swipe + WASD + wheel; all scenes preserve true 3D camera-distance lighting. Map 3 is a straight central road with exact opposing column pairs; Map 4 is a stone barrel tunnel with a black throat; Map 5 is an axial striped ritual avenue with paired spires and a stepped temple destination',
+  contract:'fixed frontal view; touch swipe + WASD + wheel; all scenes preserve true 3D camera-distance lighting. Map 5 adds per-spire ritual signs that remain hidden until real player proximity triggers a smooth rise, with hysteresis and a slower retract when the player leaves',
   sourcePages:SOURCE_PAGES,
   camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
