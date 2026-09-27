@@ -64,8 +64,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;image-renderi
     <li>La capa pseudo-3D agrega z y proyección; no requiere WebGL ni un efecto distinto por imagen.</li>
     <li>Jerarquía del trail: las copias viejas/traseras se renderizan mucho más oscuras y recuperan claridad progresivamente hasta la figura actual, evitando dos caras protagonistas al cerrar una órbita.</li>
     <li>Giro 2.5D: ÓRBITA/LOOP usan una pista amplia con semicírculos reales en X/Z. La velocidad sigue constante y el radio de giro es mucho mayor, sin volantazo cerrado.</li>
-    <li>Volumen: durante el yaw la imagen se proyecta en 7–11 tiras sobre una superficie curva; de costado conserva espesor visual en vez de colapsar como una hoja de papel.</li>
-    <li>Cola: stamps ~25% más separados y vida algo mayor. La copia más vieja queda negra y más chica; oscuridad y escala progresan juntas hacia la figura actual.</li>
+    <li>Volumen: cabeza y cuerpo cercano usan la superficie curva; la cola oscura/chica usa una proyección barata de una sola imagen con ancho mínimo, reduciendo muchísimo los draw calls.</li>
+    <li>Cola dragón: en pseudo-3D los stamps nacen por distancia recorrida, no por reloj. El extremo termina negro en ~22% de escala, se ondula más que la cabeza y recupera tamaño/color hacia adelante. Sin transparencia por yaw o profundidad.</li>
   </ul>
 </aside>
 <div class="modes" id="modes" aria-label="Modo de movimiento">
@@ -143,14 +143,16 @@ let loadToken=0;
 
 let W=1,H=1,x=0,y=0,z=0,vx=460,vy=285,vz=0;
 let worldMode='2d',modeTime=0,pathDistance=0,visualYaw=0;
-let paused=false,last=0,stampClock=0,pointerDown=false,pointerLast=null,lastCount=-1;
+let paused=false,last=0,stampClock=0,stampTravel=0,trailDistance=0,pointerDown=false,pointerLast=null,lastCount=-1;
 let visualAngle=active.baseAngle||0;
 
 const SPEED=reduced?250:520;
 const PATH_SPEED=reduced?150:230;
 const LIFE_MS=reduced?1040:860;
+const TRAIL_SPACING=reduced?14:12;
+const CURVED_DETAIL_T=.82;
 const POOL_SIZE=40;
-const stampPool=Array.from({length:POOL_SIZE},()=>({x:0,y:0,z:0,angle:0,yaw:0,scale:1,born:0}));
+const stampPool=Array.from({length:POOL_SIZE},()=>({x:0,y:0,z:0,angle:0,yaw:0,scale:1,born:0,pathD:0}));
 let stampStart=0,stampCount=0;
 
 const QUALITY=[
@@ -239,7 +241,7 @@ function yawAppearance(yawAngle){
   const rear=c<0;
   const rearAmount=clamp(-c,0,1);
   const sideAngle=Math.acos(clamp(Math.abs(c),0,1));
-  return {rear,rearAmount,sideAngle,alpha:lerp(1,.68,rearAmount)};
+  return {rear,rearAmount,sideAngle,alpha:1};
 }
 function spriteSize(){
   let w=clamp(Math.min(W*.27,H*.47),150,320)*(active.size||1);
@@ -286,7 +288,7 @@ function project3D(px,py,pz){
     x:W*.5+(px-W*.5)*perspective,
     y:H*.5+(py-H*.5)*perspective,
     scale:perspective,
-    alpha:lerp(1,.72,depthNorm)
+    alpha:1
   };
 }
 function shadeIndexFor(brightness){
@@ -299,10 +301,17 @@ function shadeIndexFor(brightness){
 }
 function stampHierarchy(trailT,pz){
   const ageT=clamp(trailT,0,1);
-  const ageCurve=Math.pow(ageT,.72);
   const depthNorm=worldMode==='2d'?0:clamp((pz+.35)/4.7,0,1);
-  const brightness=ageT<=.0001?0:clamp(lerp(0,.92,ageCurve)*lerp(1,.64,depthNorm),0,.92);
-  const scale=lerp(.56,.97,ageCurve)*lerp(1,.88,depthNorm);
+  if(worldMode==='2d'){
+    const ageCurve=Math.pow(ageT,.72);
+    const brightness=ageT<=.0001?0:clamp(lerp(0,.92,ageCurve),0,.92);
+    const scale=lerp(.56,.97,ageCurve);
+    return {brightness,scale};
+  }
+  const brightnessCurve=Math.pow(ageT,.48);
+  const scaleCurve=Math.pow(ageT,.62);
+  const brightness=ageT<=.0001?0:clamp(.92*brightnessCurve*lerp(1,.64,depthNorm),0,.92);
+  const scale=lerp(.22,.98,scaleCurve)*lerp(1,.86,depthNorm);
   return {brightness,scale};
 }
 function stampBrightness(trailT,pz){return stampHierarchy(trailT,pz).brightness}
@@ -312,7 +321,7 @@ function curvedSliceCount(){
 }
 function drawCurvedSurface(source,w,h,yawAngle,alpha){
   if(worldMode==='2d'){
-    ctx.globalAlpha=alpha;
+    ctx.globalAlpha=1;
     ctx.drawImage(source,-w*.5,-h*.5,w,h);
     return;
   }
@@ -360,24 +369,41 @@ function drawCurvedSurface(source,w,h,yawAngle,alpha){
       const sx=sourceIndex*baseSlice;
       const sw=Math.min(srcW-sx,baseSlice+1);
 
-      ctx.globalAlpha=alpha*lerp(.72,1,face);
+      ctx.globalAlpha=1;
       ctx.drawImage(source,sx,0,sw,srcH,dx,dy,dw,dh);
     }
   }
 }
-function drawWhole(px,py,pz,angle,scale=1,trailT=1,isHead=false,yawAngle=0){
+function drawCheapSurface(source,w,h,yawAngle){
+  const look=yawAppearance(yawAngle);
+  const side=Math.sin(look.sideAngle);
+  const widthScale=lerp(1,.30,Math.pow(side,.82));
+  ctx.save();
+  if(look.rear)ctx.scale(-1,1);
+  ctx.globalAlpha=1;
+  ctx.drawImage(source,-w*widthScale*.5,-h*.5,w*widthScale,h);
+  ctx.restore();
+}
+function tailWaveOffset(trailT,pathD){
+  if(worldMode==='2d')return 0;
+  const tail=Math.pow(1-clamp(trailT,0,1),1.35);
+  const amp=Math.min(18,H*.035)*tail;
+  return Math.sin(pathD*.045)*amp;
+}
+function drawWhole(px,py,pz,angle,scale=1,trailT=1,isHead=false,yawAngle=0,pathD=trailDistance){
   if(!assetReady)return;
   const p=project3D(px,py,pz);
   const yawLook=yawAppearance(yawAngle);
   const hierarchy=isHead?{brightness:1,scale:1}:stampHierarchy(trailT,pz);
   const effectiveScale=scale*hierarchy.scale;
   const s=spriteSize(),w=s.w*effectiveScale*p.scale,h=s.h*effectiveScale*p.scale;
+  const wave=isHead?0:tailWaveOffset(trailT,pathD);
   ctx.save();
-  ctx.translate(Math.round(p.x),Math.round(p.y));
+  ctx.translate(Math.round(p.x),Math.round(p.y+wave));
   ctx.rotate(angle);
   ctx.globalCompositeOperation='source-over';
   ctx.imageSmoothingEnabled=false;
-  const alpha=(isHead?1:p.alpha)*yawLook.alpha;
+  ctx.globalAlpha=1;
   if(spriteReady){
     let source;
     if(isHead){
@@ -386,9 +412,9 @@ function drawWhole(px,py,pz,angle,scale=1,trailT=1,isHead=false,yawAngle=0){
       const baseBrightness=hierarchy.brightness;
       source=shadeSprites[shadeIndexFor(baseBrightness*lerp(1,.62,yawLook.rearAmount))];
     }
-    drawCurvedSurface(source,w,h,yawAngle,alpha);
+    if(isHead||trailT>=CURVED_DETAIL_T)drawCurvedSurface(source,w,h,yawAngle,1);
+    else drawCheapSurface(source,w,h,yawAngle);
   }else{
-    ctx.globalAlpha=alpha;
     ctx.drawImage(img,-w*.5,-h*.5,w,h);
   }
   ctx.restore();
@@ -409,7 +435,7 @@ function makeStamp(px,py,pz,angle,scale=1,born=performance.now(),yawValue=visual
     stampCount++;
   }
   const s=stampPool[idx];
-  s.x=px;s.y=py;s.z=pz;s.angle=angle;s.yaw=yawValue;s.scale=scale;s.born=born;
+  s.x=px;s.y=py;s.z=pz;s.angle=angle;s.yaw=yawValue;s.scale=scale;s.born=born;s.pathD=trailDistance;
 }
 function seedComposition(now){
   clearStamps();
@@ -427,6 +453,12 @@ function seedComposition(now){
   }
 }
 function stampCurrent(now){makeStamp(x,y,z,visualAngle,1,now)}
+function stampByDistance(now,travel){
+  stampTravel+=travel;
+  if(stampTravel<TRAIL_SPACING)return;
+  stampTravel%=TRAIL_SPACING;
+  stampCurrent(now);
+}
 function bounceFan(now,oldMotion,newMotion){
   const count=q().fan;
   for(let i=1;i<=count;i++){
@@ -453,6 +485,7 @@ function age(now){
 function update3D(dt){
   modeTime+=dt;
   const t=modeTime,px=x,py=y,pz=z;
+  let travel=0;
   if(worldMode==='approach'||worldMode==='retreat'){
     const cycle=(t%4.6)/4.6;
     const p=worldMode==='approach'?cycle:1-cycle;
@@ -461,13 +494,17 @@ function update3D(dt){
     z=lerp(4.0,-.28,p);
     visualYaw=worldMode==='approach'?0:Math.PI;
   }else if(worldMode==='orbit'||worldMode==='loop'){
-    pathDistance+=PATH_SPEED*dt;
+    travel=PATH_SPEED*dt;
+    pathDistance+=travel;
     const pose=hairpinPose(pathDistance,worldMode==='loop');
     x=pose.x;y=pose.y;z=pose.z;visualYaw=pose.yaw;
   }
   const dx=x-px,dy=y-py,dz=z-pz;
+  if(!travel)travel=Math.hypot(dx,dy,dz*clamp(Math.min(W,H)*.26,80,130));
+  trailDistance+=travel;
   if(dt>0){vx=dx/dt;vy=dy/dt;vz=dz/dt}
   updateVisualAngle(dt);
+  return travel;
 }
 function update(dt,now){
   let hit=false,oldMotion=motionAngle();
@@ -478,11 +515,12 @@ function update(dt,now){
     if(y<ry){y=ry;vy=Math.abs(vy);hit=true}else if(y>H-ry){y=H-ry;vy=-Math.abs(vy);hit=true}
     const speed=Math.hypot(vx,vy)||1;vx=vx/speed*SPEED;vy=vy/speed*SPEED;
     updateVisualAngle(dt);
+    stampClock+=dt*1000;
+    while(stampClock>=q().stamp){stampClock-=q().stamp;stampCurrent(now-stampClock)}
   }else{
-    update3D(dt);
+    const travel=update3D(dt);
+    stampByDistance(now,travel);
   }
-  stampClock+=dt*1000;
-  while(stampClock>=q().stamp){stampClock-=q().stamp;stampCurrent(now-stampClock)}
   if(hit){bounceFan(now,oldMotion,motionAngle());stampClock=0}
   age(now);
 }
@@ -511,9 +549,9 @@ function forEachDepthSorted(fn){
 }
 function render(){
   ctx.fillStyle=active.bg;ctx.fillRect(0,0,W,H);
-  if(worldMode==='2d')forEachStamp(s=>drawWhole(s.x,s.y,s.z,s.angle,s.scale,s.trailT,false,s.yaw));
-  else forEachDepthSorted(s=>drawWhole(s.x,s.y,s.z,s.angle,s.scale,s.trailT,false,s.yaw));
-  drawWhole(x,y,z,visualAngle,1.045,1,true,visualYaw);
+  if(worldMode==='2d')forEachStamp(s=>drawWhole(s.x,s.y,s.z,s.angle,s.scale,s.trailT,false,s.yaw,s.pathD));
+  else forEachDepthSorted(s=>drawWhole(s.x,s.y,s.z,s.angle,s.scale,s.trailT,false,s.yaw,s.pathD));
+  drawWhole(x,y,z,visualAngle,1.045,1,true,visualYaw,trailDistance);
   const modeLabel=worldMode==='2d'?'2D':worldMode.toUpperCase();
   const nextReadout=stampCount+' COPIAS · '+active.label+' · '+modeLabel;
   if(nextReadout!==readout.textContent)readout.textContent=nextReadout;
@@ -526,7 +564,7 @@ function resize(){
     const s=spriteSize();
     x=clamp(x,s.w*.43,W-s.w*.43);y=clamp(y,s.h*.42,H-s.h*.42);
   }
-  if(worldMode==='2d')seedComposition(performance.now());else{pathDistance=0;clearStamps();}
+  if(worldMode==='2d')seedComposition(performance.now());else{pathDistance=0;stampTravel=0;trailDistance=0;clearStamps();}
   render();
 }
 function steer(cx,cy){
@@ -540,7 +578,7 @@ function syncModes(){
 }
 function setWorldMode(mode){
   if(!['2d','approach','retreat','orbit','loop'].includes(mode)||mode===worldMode)return;
-  worldMode=mode;modeTime=0;pathDistance=0;stampClock=0;clearStamps();visualYaw=0;vz=0;
+  worldMode=mode;modeTime=0;pathDistance=0;stampClock=0;stampTravel=0;trailDistance=0;clearStamps();visualYaw=0;vz=0;
   if(worldMode==='2d'){
     z=0;x=W*.28;y=H*.46;
     const startAngle=.56;setSpeed(startAngle);visualAngle=desiredAngle();
