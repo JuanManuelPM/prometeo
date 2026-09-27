@@ -2,36 +2,34 @@
 
 Status: CURRENT
 
-## Universal lighting / composition
-- Camera/player is the dominant light source.
-- Tall geometry uses **3D distance**, not only planar X/Z distance.
-- A higher point on the same distant tower may be substantially darker because it is farther from the player.
-- Near = readable; far/high/off-axis = strongly dark.
-- Floors use the same overall light language.
-- Almost-black regions are intentional.
-- Never fake world depth with a hard screen-space band.
+## Universal lighting rule · v16
+- The dominant brightness rule is **true 3D distance from the camera center**.
+- For a point P, illumination primarily follows `hypot(dx, dy, dz)`.
+- Nearer points are brighter; farther points are darker.
+- Optical-axis alignment is secondary and may shape the beam, but it must never make a physically near pillar inexplicably dark.
+- A nonzero axis-weight floor is required.
+- Tall objects are evaluated by vertical slices, not one brightness per object.
+- Tower tips should be much darker than their bases and may nearly disappear if sufficiently high/far.
+- The same camera-center metric applies to floors and walls.
 
 ## Map 1 · Green Nave
-- The visible arch must be structurally supported. No gap is allowed between support and visible crown.
-- Crown art clears its bottom 20%, so the structural support target is the derived `springY`, not raw `shoulderY`.
-- Wall mass exists behind the arch/support silhouette.
-- Backing wall is rendered first and has an arch-shaped doorway cut out.
-- Supports render in front of that wall; crown renders in front of both.
-- Preserve tall nave, green material, diagonal/chamfered supports, camera light and upper darkness.
-- No premature culling.
+- Supports meet the actual visible arch springline.
+- Wall mass exists behind the support/crown silhouette with an arch opening cut out.
+- Render order remains wall -> supports -> crown.
+- Camera-center lighting applies to floor, walls and structure.
 
 ## Map 2 · Brutalist Palace
-- Columns stay wide/heavy and diagonally organized.
-- Tall columns are vertically segmented for lighting.
-- Each segment derives illumination from X/Y/Z distance to the player.
-- Upper/far sections can become almost black while lower/near sections remain legible.
-- No stretched textures and no obvious horizontal-row composition.
+- Columns remain wide/heavy and diagonally organized.
+- Each cylinder uses vertically segmented lighting.
+- Near lower sections must remain readable.
+- Upper/far sections fall strongly toward black.
+- Curvature shading may sculpt the surface but cannot override proximity.
 
 ## Interaction
 - W/S forward/back.
 - A/D lateral strafe.
 - Wheel/trackpad forward/back.
 - Touch ↑/↓ buttons forward/back.
-- Vertical swipe on the scene: up advances, down retreats.
+- Vertical swipe on scene: up advances, down retreats.
 - Camera direction remains fixed.
-- Browser selection/callout UI stays disabled on the visual controls.
+- Browser selection/callout UI stays disabled.
