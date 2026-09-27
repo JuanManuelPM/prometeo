@@ -14,7 +14,7 @@
     "visuals/fronts/trail/architecture.md"
   ],
   "review_state": "REVIEW",
-  "current_blob_sha": "676724373619ccb702739f52d809dfecd7e6c51e",
+  "current_blob_sha": "c99d7b24f938721b9a4dd6824682c2b6dd53014b",
   "accepted_baseline": {
     "label": "Full-stamp old-redraw",
     "commit": "26ff0e808fe0cf732af8c45f0eef9f13f99853e7",
@@ -39,8 +39,8 @@
     ]
   },
   "current_candidate": {
-    "commit": "84f6800d262df1660d42b678b5ebbfa06cc7bddf",
-    "summary": "Trail pseudo-3D tuning: yaw is now distance-gated instead of time-rate driven. A turn holds briefly, then needs roughly one sprite width of travelled screen/depth distance to complete. Stamp cadence is ~25% wider and lifetime is longer, producing a longer, more legible tail while keeping bounded pools and full-image stamps.",
+    "commit": "bc35c58b87aa26765b6413bc200c1974de1f38f8",
+    "summary": "Trajectory-coupled hairpin turning: ORBIT/LOOP no longer rotate independently of movement. The figure approaches on one lane, performs a lateral curved hairpin at nearly fixed depth while yaw turns 0→180°, and only then begins the backward leg already fully reversed. The far hairpin performs the inverse. Longer/spacier trail tuning remains.",
     "user_reviewed": false
   },
   "accepted_asset_direction": [
@@ -59,12 +59,12 @@
     "6 SHIKAMI"
   ],
   "open_feedback": [
-    "Review whether the new width-gated turn feels physically slower enough on ÓRBITA/LOOP; it should hold facing briefly and need about one sprite width to complete.",
-    "Review the longer trail: copies should breathe more without becoming a sparse dotted chain.",
-    "Check whether mirrored rear darkness still reads as backside rather than a second identical front.",
+    "Review ORBIT/LOOP hairpin geometry: the turn should visibly consume lateral space and feel like a tail making a U-turn, not a sprite rotating in place.",
+    "Confirm that the retreat/backward straight begins only after the figure is fully reversed.",
+    "Review whether the current lateral turn radius/width is large enough on the target phone.",
+    "Review the longer/spacier trail: copies should breathe more without becoming a sparse dotted chain.",
     "Some masks still need cleaner segmentation: remove gray base/residue/halo before promoting them as final assets.",
-    "Generalize asset preparation into a reliable compileTrailAsset(image) pipeline so supplied images can enter Trail without per-image animation code.",
-    "Future candidate search may expand to ~20 clean color creepy/mask/creature/object cutouts after the crop-quality gate is reliable."
+    "Generalize asset preparation into a reliable compileTrailAsset(image) pipeline so supplied images can enter Trail without per-image animation code."
   ],
   "resolved_feedback_in_current_candidate": [
     "2 WINGS remains available and is now the default displayed variant.",
@@ -94,10 +94,14 @@
     "The mirrored rear side stays darker and slightly more transparent than the front.",
     "Historical stamps preserve their captured yaw and therefore preserve front/profile/rear orientation history.",
     "2D remains unchanged.",
-    "Yaw no longer rotates immediately from a time constant; each direction change starts a distance-gated turn.",
-    "The turn holds for the first ~16% of required travel, then eases across roughly 1.05 sprite widths before reaching the opposite facing.",
     "Stamp intervals increased from 24/28/34 ms to 30/35/42 ms across high/medium/low quality.",
-    "Trail lifetime increased from 720 ms to 860 ms (reduced-motion 880→1040 ms), making the visible tail longer while keeping the pool bounded."
+    "Trail lifetime increased from 720 ms to 860 ms (reduced-motion 880→1040 ms), making the visible tail longer while keeping the pool bounded.",
+    "Removed the independent distance-gated yaw accumulator from 3D turning.",
+    "ORBIT/LOOP now use a four-phase hairpin path: approach straight → lateral near turn → retreat straight → lateral far turn.",
+    "During each hairpin, depth is held at the near/far extreme while lateral motion and yaw progress together.",
+    "The retreat straight starts only after yaw reaches 180°; the next approach straight starts only after yaw returns to 0°.",
+    "Approach mode starts at yaw 0° and Retreat mode starts at yaw 180°, so neither begins with a late orientation correction.",
+    "The previously approved longer/spacier trail cadence and lifetime remain unchanged."
   ],
   "asset_localization_evidence": {
     "workflow_run": "https://github.com/JuanManuelPM/prometeo/actions/runs/36272461620",
@@ -145,14 +149,14 @@
       "seven shaded sprite canvases are precomputed once per asset load to avoid per-stamp filter work"
     ],
     "yaw": {
-      "driver": "z-direction change starts a distance-gated turn",
+      "driver": "trajectory phase; no independent yaw accumulator",
       "behavior": [
-        "direction change captures current yaw as yawFrom",
-        "first ~16% of required travel holds the current facing",
-        "full turn requires roughly 1.05 sprite widths of combined planar/depth travel",
-        "smoothstep easing drives yaw from front to mirrored rear or back",
-        "profile still occurs near zero projected width",
-        "rear remains mirrored/darker, never disappears"
+        "approach mode is front-facing from the start (yaw 0°)",
+        "retreat mode is rear-facing from the start (yaw 180°)",
+        "ORBIT/LOOP near hairpin holds z at near depth while x crosses laterally and yaw advances 0→180°",
+        "the backward straight begins only after the hairpin completes, with yaw already 180°",
+        "far hairpin holds z at far depth while x returns laterally and yaw advances 180→0°",
+        "rear proxy remains mirrored/darker and never disappears"
       ]
     },
     "trail_spacing": {
@@ -166,11 +170,23 @@
         "low": 42
       },
       "intent": "slightly wider spacing plus longer lifetime to make the trail visibly longer without losing complete-stamp identity"
+    },
+    "trajectory_turn": {
+      "model": "four-phase hairpin/racetrack path",
+      "phases": [
+        "approach straight",
+        "near lateral hairpin",
+        "retreat straight",
+        "far lateral hairpin"
+      ],
+      "lane_half_width": "clamp(22% viewport width, 72px, 220px)",
+      "turn_duration": "derived from lateral width at ~250 px/s, clamped to 0.90–1.80 s",
+      "key_rule": "depth reversal belongs to the straight segment after the turn; yaw is already complete before that segment begins"
     }
   },
   "pseudo3d_review": {
     "user_reviewed": true,
-    "result": "POSITIVE_WITH_SLOWER_WIDTH_GATED_YAW_AND_LONGER_TAIL",
-    "note": "User requested slower rotation that feels like it needs physical width to turn, plus a little more spacing between copies so the tail reads longer."
+    "result": "CORRECTED_TO_TRAJECTORY_COUPLED_HAIRPIN",
+    "note": "User clarified that rotation must be part of the path itself: the figure cannot turn on the spot. It must travel laterally through a circular/hairpin turn, and the backward leg may only begin once the figure is fully reversed."
   }
 }

@@ -33,12 +33,19 @@ ACTUAL REPO TARGETS
 
 CURRENT STATE
 Review state: REVIEW
-Current implementation commit: 84f6800d262df1660d42b678b5ebbfa06cc7bddf
-Current HTML blob evidence: 676724373619ccb702739f52d809dfecd7e6c51e
-Current candidate: pseudo-3D Trail with distance-gated slower yaw and a longer/spacier tail. A turn needs about one sprite width of travel to complete; stamps are ~25% farther apart and live longer.
-User reviewed prior mirrored-rear direction: YES · requested slower width-weighted rotation and a longer/spacier tail
+Current implementation commit: bc35c58b87aa26765b6413bc200c1974de1f38f8
+Current HTML blob evidence: c99d7b24f938721b9a4dd6824682c2b6dd53014b
+Current candidate: pseudo-3D Trail with trajectory-coupled hairpin turns. ORBIT/LOOP physically move laterally through a U-turn at fixed near/far depth; the backward straight begins only after yaw is fully 180°. Longer/spacier tail remains.
+User reviewed the prior width-gated yaw: YES · clarified that turning must be part of the path, not an independent rotation
 
 LATEST USER FEEDBACK
+- rotation must be tied to the path itself
+- the figure cannot rotate on the spot
+- it must travel horizontally through a curved/U-turn path
+- when the backward straight begins, the figure must already be fully reversed
+- current patch implements four-phase hairpins in ORBIT/LOOP and removes the independent yaw accumulator
+
+PREVIOUS LATEST USER FEEDBACK
 - rotation should be slower and feel as if the sprite needs physical width to turn
 - copies should have a little more spacing so the tail reads longer
 - current patch: ~16% facing hold + full yaw over ~1.05 sprite widths of travel
@@ -107,7 +114,17 @@ TrailEngine(asset, trajectory)
 
 See architecture.md for the durable technical model.
 
-CURRENT TURN INERTIA
+CURRENT TURN GEOMETRY
+- ORBIT/LOOP: approach straight → near lateral hairpin → retreat straight → far lateral hairpin
+- near hairpin holds z at near depth while x moves across the lane and yaw goes 0→180°
+- retreat straight starts only at yaw 180°
+- far hairpin holds z at far depth while x returns and yaw goes 180→0°
+- approach straight starts only at yaw 0°
+- lane half-width = clamp(22% viewport width, 72px, 220px)
+- turn duration derives from lateral width (~250 px/s, clamp .90–1.80 s)
+- previous independent ~1.05 sprite-width yaw accumulator is superseded
+
+SUPERSEDED TURN INERTIA
 - depth direction change starts a turn
 - current yaw is captured as yawFrom
 - first ~16% of required travel holds facing
@@ -166,7 +183,7 @@ CURRENT PERFORMANCE
 - no external runtime image fetch
 
 OPEN USER FEEDBACK
-- review ÓRBITA/LOOP width-gated yaw: turn should feel slower/heavier and need about one sprite width; review longer/spacier tail
+- review ORBIT/LOOP hairpin geometry: turn must consume lateral space; retreat must begin only after full reversal; longer/spacier tail remains
 - clean current mask crop/base-gray defects
 - turn asset preparation into a robust compileTrailAsset(image) pipeline
 - later curate a larger ~20 candidate set only after the crop gate is trustworthy
@@ -197,6 +214,8 @@ RECENT MEANINGFUL VERSIONS
 - 9c5aa94159c3c645c83cf684c47e35df9b636db5 · REVIEW_PATCH · mirrored/darker rear proxy replaces disappearance
 
 - 84f6800d262df1660d42b678b5ebbfa06cc7bddf · REVIEW_PATCH · width-gated slower yaw + longer/spacier tail
+
+- bc35c58b87aa26765b6413bc200c1974de1f38f8 · REVIEW_PATCH · trajectory-coupled lateral hairpins; retreat begins after full turn
 
 INCARNATION CONTRACT
 1. Read this handoff COMPLETELY.

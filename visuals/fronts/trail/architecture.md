@@ -63,29 +63,44 @@ Depth modes are trajectories that produce `{x,y,z}` over time:
 - `2d`: accepted rectangular rebound behavior.
 - `approach`: far → near.
 - `retreat`: near → far.
-- `orbit`: elliptical x/z circulation, passing behind and in front.
-- `loop`: figure-eight style trajectory with depth variation.
+- `orbit`: racetrack/hairpin circulation with explicit approach, turn, retreat and return phases.
+- `loop`: hairpin circulation with additional vertical weaving while preserving the same turn/retreat invariants.
 
 For 3D modes, stamps are depth-sorted far-to-near before drawing. With a bounded pool of roughly a few dozen stamps, insertion sorting is intentionally cheap and allocation-free.
 
-## 2.5D yaw / mirrored rear proxy
+## 2.5D turning is trajectory geometry
 
-A single front-facing cutout has no real backside texture. When pseudo-3D motion goes away from the camera, Trail simulates a vertical-axis turn and then reuses a mirrored, darkened version as the rear proxy instead of making the object disappear.
+Yaw is no longer an independent controller that reacts after depth velocity changes.
 
-```js
-if (depthDirectionChanged) {
-  yawFrom = yaw
-  yawTravel = 0
-}
+For ORBIT/LOOP the path itself contains the turn:
 
-yawTravel += planarDistance + depthDistanceEquivalent
-required = max(72px, spriteWidth * 1.05)
-hold = required * 0.16
-progress = smoothstep((yawTravel - hold) / (required - hold))
-yaw = lerpAngle(yawFrom, yawTarget, progress)
+```text
+approach straight (yaw 0°)
+→ near lateral hairpin (z fixed near, yaw 0→180°)
+→ retreat straight (yaw already 180°)
+→ far lateral hairpin (z fixed far, yaw 180→0°)
+→ approach straight
 ```
 
-Rendering uses:
+The hairpin consumes real lateral screen distance. Its half-lane width is:
+
+```js
+lane = clamp(W * 0.22, 72, 220)
+```
+
+Turn duration is derived from that lateral width at roughly 250 px/s and clamped to 0.90–1.80 seconds.
+
+The key invariant is:
+
+> **The retreat/backward straight never begins until the near hairpin is complete and yaw is already 180°.**
+
+Likewise the next approach straight does not begin until the far hairpin completes and yaw has returned to 0°.
+
+Dedicated modes are explicit:
+- `approach`: yaw 0° from the start.
+- `retreat`: yaw 180° from the start.
+
+Rendering still uses the mirrored/darkened rear proxy:
 
 ```js
 scaleX = max(profileFloor, abs(cos(yaw)))
@@ -95,20 +110,9 @@ rearAlpha = lerp(1.0, 0.68, rear)
 rearBrightness = lerp(0.90, 0.46, rear)
 ```
 
-This makes rotation **distance-gated rather than time-rate driven**: the sprite must physically travel about one own-width to finish turning, with a short facing hold before the turn begins.
+Every stamp captures yaw when created, so the trail records the actual front/profile/rear orientation along the curve.
 
-Consequences:
-- front view: normal width, full front texture;
-- turning: width compresses smoothly;
-- profile: nearly edge-on;
-- back hemisphere: mirrored/darkened rear proxy remains visible;
-- returning: texture reappears while the sprite reopens.
-
-The canvas applies the mirror only after profile, when projected width is already near zero; this avoids an abrupt visible flip.
-
-Each stamp captures yaw when created, so trail history preserves the orientation of that moment.
-
-2D mode fixes yaw at zero.
+This supersedes the previous independent “travel ~1.05 sprite widths, then rotate” accumulator. The width is now expressed as **path curvature / lateral travel**, not as a delayed orientation patch.
 
 ## Trail spacing / duration
 

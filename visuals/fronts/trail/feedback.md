@@ -56,6 +56,13 @@ In-page movement modes:
 For 3D modes, z changes projected scale/position and distant stamps are slightly less opaque. Stamps are drawn far-to-near. There is still only one 2D sprite; no WebGL/mesh is required.
 
 ## LATEST USER FEEDBACK
+- User corrected the previous interpretation: the sprite must **not** rotate independently while already beginning to travel backward.
+- The turn itself must consume horizontal space, like a tail making a circular U-turn.
+- By the time the backward straight starts, the sprite must already be fully reversed.
+- Current candidate replaces the independent yaw accumulator with trajectory-coupled hairpins in ORBIT/LOOP: approach straight → lateral turn at fixed near depth → retreat straight already at 180° → lateral far turn → approach.
+- The longer/spacier tail from the previous patch is preserved.
+
+## PREVIOUS USER FEEDBACK
 - User wants the rotation slower and physically weighted, "as if it needed a certain width to rotate."
 - User also wants a little more spacing between image copies so the tail reads longer.
 - Current candidate implements distance-gated yaw: after a direction change it holds briefly and needs about one sprite width of travel to complete the turn.
@@ -86,6 +93,13 @@ For 3D modes, z changes projected scale/position and distant stamps are slightly
 - Verify the new mode controls and adaptive quality on target mobile.
 
 ## RESOLVED IN CURRENT CANDIDATE
+- Removed independent width/distance-gated yaw from the 3D turn.
+- Added `hairpinPose()`: ORBIT/LOOP now have explicit straight and turn phases.
+- Near turn keeps z at the near extreme while the figure moves laterally and yaw advances 0→180°.
+- Retreat/backward straight begins only after the turn phase ends and yaw is already 180°.
+- Far turn keeps z at the far extreme while the figure moves laterally back and yaw advances 180→0°.
+- Approach and Retreat dedicated modes start already at the correct facing.
+- Existing mirrored/dark rear proxy, brightness hierarchy, wider stamp spacing and longer lifetime remain.
 - Replaced time-rate yaw with travel-distance yaw.
 - A facing change captures the current yaw, holds for ~16% of required travel, then smoothsteps across ~1.05 sprite widths.
 - Combined planar movement plus a small depth-distance equivalent drives turn progress, so CERCA/LEJOS still rotate even with little lateral travel.

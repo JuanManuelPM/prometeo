@@ -55,10 +55,19 @@ Durable architecture detail:
 - Every stamp stores the yaw it had when created, preserving orientation history in the trail.
 - 2D mode keeps yaw = 0 and remains unchanged.
 
-## Turn inertia / width gate
-- Yaw should not begin and finish merely because `vz` changed sign.
+## Trajectory-coupled turning
+- Turning is a **movement geometry problem**, not an independent sprite-rotation problem.
+- ORBIT/LOOP use a four-phase racetrack/hairpin path: approach straight → near lateral hairpin → retreat straight → far lateral hairpin.
+- During the near hairpin, z is held at the near extreme while the figure crosses laterally and yaw progresses 0→180°.
+- The backward/retreat straight may begin **only after** yaw has reached 180°.
+- During the far hairpin, z is held at the far extreme while the figure crosses back laterally and yaw progresses 180→0°.
+- The next approach straight may begin only after yaw is back at 0°.
+- This is the durable interpretation of “it needs width to turn”: the object must physically travel through a curve; it must not rotate on itself.
+
+## SUPERSEDED · independent turn inertia / width gate
+- SUPERSEDED: yaw must not be driven as an independent response to a `vz` sign change.
 - A change in depth direction starts a turn but the figure must travel spatially before completing it.
-- Current rule: hold facing for ~16% of the turn distance, then complete the rotation over roughly **1.05 sprite widths** of combined planar/depth-equivalent travel.
+- SUPERSEDED: the prior ~1.05 sprite-width yaw accumulator is replaced by explicit lateral hairpin geometry.
 - This makes the turn feel like the image has physical width/inertia rather than snapping to a target orientation.
 - The mirrored rear representation remains the endpoint; disappearance remains rejected.
 
