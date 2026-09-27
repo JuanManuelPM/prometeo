@@ -63,7 +63,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;image-renderi
     <li>Próxima abstracción: <b>compileTrailAsset(image)</b> + <b>TrailEngine(asset, trajectory)</b>.</li>
     <li>La capa pseudo-3D agrega z y proyección; no requiere WebGL ni un efecto distinto por imagen.</li>
     <li>Jerarquía del trail: las copias viejas/traseras se renderizan mucho más oscuras y recuperan claridad progresivamente hasta la figura actual, evitando dos caras protagonistas al cerrar una órbita.</li>
-    <li>Giro 2.5D: el sprite se comprime hasta perfil y continúa como reverso espejado, más oscuro, en vez de desaparecer. El cambio de lado ocurre con el ancho casi en cero para evitar un flip visible.</li>
+    <li>Giro 2.5D: el sprite necesita recorrer aproximadamente un ancho propio para completar la vuelta. Mantiene el frente un poco más, gira con inercia, pasa por perfil y continúa como reverso espejado oscuro.</li>
+    <li>Cola: stamps ~25% más separados y vida algo mayor, para que el recorrido se lea más largo sin perder la identidad de copias completas.</li>
   </ul>
 </aside>
 <div class="modes" id="modes" aria-label="Modo de movimiento">
@@ -140,20 +141,20 @@ let active=VARIANTS[1];
 let loadToken=0;
 
 let W=1,H=1,x=0,y=0,z=0,vx=460,vy=285,vz=0;
-let worldMode='2d',modeTime=0,visualYaw=0;
+let worldMode='2d',modeTime=0,visualYaw=0,yawTravel=0,yawFrom=0,yawDirection=0;
 let paused=false,last=0,stampClock=0,pointerDown=false,pointerLast=null,lastCount=-1;
 let visualAngle=active.baseAngle||0;
 
 const SPEED=reduced?250:520;
-const LIFE_MS=reduced?880:720;
+const LIFE_MS=reduced?1040:860;
 const POOL_SIZE=40;
 const stampPool=Array.from({length:POOL_SIZE},()=>({x:0,y:0,z:0,angle:0,yaw:0,scale:1,born:0}));
 let stampStart=0,stampCount=0;
 
 const QUALITY=[
-  {scale:.72,max:22,stamp:34,fan:4},
-  {scale:.86,max:28,stamp:28,fan:5},
-  {scale:1,max:34,stamp:24,fan:7}
+  {scale:.72,max:22,stamp:42,fan:4},
+  {scale:.86,max:28,stamp:35,fan:5},
+  {scale:1,max:34,stamp:30,fan:7}
 ];
 let quality=reduced?0:2;
 let frameEMA=16.7;
@@ -175,13 +176,28 @@ function updateVisualAngle(dt){
   const rate=active.turnRate||4.5;
   visualAngle=lerpAngle(visualAngle,desiredAngle(),1-Math.exp(-rate*dt));
 }
-function updateVisualYaw(dt){
-  if(worldMode==='2d'){visualYaw=0;return}
-  let target=visualYaw;
-  if(vz>.045)target=Math.PI;
-  else if(vz<-.045)target=0;
-  const rate=3.7;
-  visualYaw=lerpAngle(visualYaw,target,1-Math.exp(-rate*dt));
+function updateVisualYaw(dx,dy,dz){
+  if(worldMode==='2d'){
+    visualYaw=0;yawTravel=0;yawFrom=0;yawDirection=0;
+    return;
+  }
+  let direction=yawDirection;
+  if(vz>.045)direction=1;
+  else if(vz<-.045)direction=-1;
+  if(direction!==yawDirection){
+    yawDirection=direction;
+    yawTravel=0;
+    yawFrom=visualYaw;
+  }
+  if(!yawDirection)return;
+  const depthTravel=Math.abs(dz)*Math.min(W,H)*.065;
+  yawTravel+=Math.hypot(dx,dy)+depthTravel;
+  const required=Math.max(72,spriteSize().w*1.05);
+  const hold=required*.16;
+  const progress=clamp((yawTravel-hold)/(required-hold),0,1);
+  const eased=progress*progress*(3-2*progress);
+  const target=yawDirection>0?Math.PI:0;
+  visualYaw=lerpAngle(yawFrom,target,eased);
 }
 function yawAppearance(yawAngle){
   if(worldMode==='2d')return {scaleX:1,mirror:false,rear:0,alpha:1};
@@ -361,15 +377,16 @@ function update3D(dt){
     y=H*.5+Math.sin(a*2)*H*.16;
     z=1.62+Math.cos(a*1.35)*1.55;
   }
-  if(dt>0){vx=(x-px)/dt;vy=(y-py)/dt;vz=(z-pz)/dt}
-  updateVisualYaw(dt);
+  const dx=x-px,dy=y-py,dz=z-pz;
+  if(dt>0){vx=dx/dt;vy=dy/dt;vz=dz/dt}
+  updateVisualYaw(dx,dy,dz);
   updateVisualAngle(dt);
 }
 function update(dt,now){
   let hit=false,oldMotion=motionAngle();
   if(worldMode==='2d'){
     const s=spriteSize(),rx=s.w*.43,ry=s.h*.42;
-    x+=vx*dt;y+=vy*dt;z=0;vz=0;visualYaw=0;
+    x+=vx*dt;y+=vy*dt;z=0;vz=0;visualYaw=0;yawTravel=0;yawFrom=0;yawDirection=0;
     if(x<rx){x=rx;vx=Math.abs(vx);hit=true}else if(x>W-rx){x=W-rx;vx=-Math.abs(vx);hit=true}
     if(y<ry){y=ry;vy=Math.abs(vy);hit=true}else if(y>H-ry){y=H-ry;vy=-Math.abs(vy);hit=true}
     const speed=Math.hypot(vx,vy)||1;vx=vx/speed*SPEED;vy=vy/speed*SPEED;
@@ -436,7 +453,7 @@ function syncModes(){
 }
 function setWorldMode(mode){
   if(!['2d','approach','retreat','orbit','loop'].includes(mode)||mode===worldMode)return;
-  worldMode=mode;modeTime=0;stampClock=0;clearStamps();visualYaw=0;vz=0;
+  worldMode=mode;modeTime=0;stampClock=0;clearStamps();visualYaw=0;vz=0;yawTravel=0;yawFrom=0;yawDirection=0;
   if(worldMode==='2d'){
     z=0;x=W*.28;y=H*.46;
     const startAngle=.56;setSpeed(startAngle);visualAngle=desiredAngle();
