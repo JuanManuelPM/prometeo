@@ -63,7 +63,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;image-renderi
     <li>Próxima abstracción: <b>compileTrailAsset(image)</b> + <b>TrailEngine(asset, trajectory)</b>.</li>
     <li>La capa pseudo-3D agrega z y proyección; no requiere WebGL ni un efecto distinto por imagen.</li>
     <li>Jerarquía del trail: las copias viejas/traseras se renderizan mucho más oscuras y recuperan claridad progresivamente hasta la figura actual, evitando dos caras protagonistas al cerrar una órbita.</li>
-    <li>Giro 2.5D: el sprite necesita recorrer aproximadamente un ancho propio para completar la vuelta. Mantiene el frente un poco más, gira con inercia, pasa por perfil y continúa como reverso espejado oscuro.</li>
+    <li>Giro 2.5D: ya no rota sobre sí mismo. En ÓRBITA/LOOP llega al extremo, recorre una horquilla lateral curva mientras gira y recién sale hacia atrás cuando ya está completamente dado vuelta.</li>
     <li>Cola: stamps ~25% más separados y vida algo mayor, para que el recorrido se lea más largo sin perder la identidad de copias completas.</li>
   </ul>
 </aside>
@@ -141,7 +141,7 @@ let active=VARIANTS[1];
 let loadToken=0;
 
 let W=1,H=1,x=0,y=0,z=0,vx=460,vy=285,vz=0;
-let worldMode='2d',modeTime=0,visualYaw=0,yawTravel=0,yawFrom=0,yawDirection=0;
+let worldMode='2d',modeTime=0,visualYaw=0;
 let paused=false,last=0,stampClock=0,pointerDown=false,pointerLast=null,lastCount=-1;
 let visualAngle=active.baseAngle||0;
 
@@ -176,28 +176,48 @@ function updateVisualAngle(dt){
   const rate=active.turnRate||4.5;
   visualAngle=lerpAngle(visualAngle,desiredAngle(),1-Math.exp(-rate*dt));
 }
-function updateVisualYaw(dx,dy,dz){
-  if(worldMode==='2d'){
-    visualYaw=0;yawTravel=0;yawFrom=0;yawDirection=0;
-    return;
+function smooth01(t){
+  t=clamp(t,0,1);
+  return t*t*(3-2*t);
+}
+function hairpinPose(t,loopMode=false){
+  const cx=W*.5,cy=H*.5;
+  const lane=clamp(W*.22,72,220);
+  const bulge=Math.min(H*.12,lane*.58);
+  const zNear=-.18,zFar=3.72;
+  const straight=2.35;
+  const turn=clamp((lane*2)/250,.90,1.80);
+  const cycle=2*(straight+turn);
+  let p=((t%cycle)+cycle)%cycle;
+  let px,py,pz,yaw;
+
+  if(p<straight){
+    const u=smooth01(p/straight);
+    px=cx-lane;
+    py=cy+(loopMode?Math.sin(u*Math.PI*2)*H*.055:0);
+    pz=lerp(zFar,zNear,u);
+    yaw=0;
+  }else if((p-=straight)<turn){
+    const raw=p/turn,u=smooth01(raw);
+    px=lerp(cx-lane,cx+lane,u);
+    py=cy+Math.sin(raw*Math.PI)*bulge;
+    pz=zNear;
+    yaw=Math.PI*u;
+  }else if((p-=turn)<straight){
+    const u=smooth01(p/straight);
+    px=cx+lane;
+    py=cy+(loopMode?Math.sin((u+1)*Math.PI*2)*H*.055:0);
+    pz=lerp(zNear,zFar,u);
+    yaw=Math.PI;
+  }else{
+    p-=straight;
+    const raw=p/turn,u=smooth01(raw);
+    px=lerp(cx+lane,cx-lane,u);
+    py=cy-Math.sin(raw*Math.PI)*bulge;
+    pz=zFar;
+    yaw=Math.PI*(1-u);
   }
-  let direction=yawDirection;
-  if(vz>.045)direction=1;
-  else if(vz<-.045)direction=-1;
-  if(direction!==yawDirection){
-    yawDirection=direction;
-    yawTravel=0;
-    yawFrom=visualYaw;
-  }
-  if(!yawDirection)return;
-  const depthTravel=Math.abs(dz)*Math.min(W,H)*.065;
-  yawTravel+=Math.hypot(dx,dy)+depthTravel;
-  const required=Math.max(72,spriteSize().w*1.05);
-  const hold=required*.16;
-  const progress=clamp((yawTravel-hold)/(required-hold),0,1);
-  const eased=progress*progress*(3-2*progress);
-  const target=yawDirection>0?Math.PI:0;
-  visualYaw=lerpAngle(yawFrom,target,eased);
+  return {x:px,y:py,z:pz,yaw};
 }
 function yawAppearance(yawAngle){
   if(worldMode==='2d')return {scaleX:1,mirror:false,rear:0,alpha:1};
@@ -366,27 +386,20 @@ function update3D(dt){
     x=W*.5+Math.sin(t*1.25)*W*.12;
     y=H*.5+Math.cos(t*.82)*H*.10;
     z=lerp(4.0,-.28,p);
-  }else if(worldMode==='orbit'){
-    const a=t*1.18;
-    x=W*.5+Math.cos(a)*W*.30;
-    y=H*.5+Math.sin(a*.55)*H*.12;
-    z=1.55+Math.sin(a)*1.82;
-  }else if(worldMode==='loop'){
-    const a=t*1.08;
-    x=W*.5+Math.sin(a)*W*.29;
-    y=H*.5+Math.sin(a*2)*H*.16;
-    z=1.62+Math.cos(a*1.35)*1.55;
+    visualYaw=worldMode==='approach'?0:Math.PI;
+  }else if(worldMode==='orbit'||worldMode==='loop'){
+    const pose=hairpinPose(t,worldMode==='loop');
+    x=pose.x;y=pose.y;z=pose.z;visualYaw=pose.yaw;
   }
   const dx=x-px,dy=y-py,dz=z-pz;
   if(dt>0){vx=dx/dt;vy=dy/dt;vz=dz/dt}
-  updateVisualYaw(dx,dy,dz);
   updateVisualAngle(dt);
 }
 function update(dt,now){
   let hit=false,oldMotion=motionAngle();
   if(worldMode==='2d'){
     const s=spriteSize(),rx=s.w*.43,ry=s.h*.42;
-    x+=vx*dt;y+=vy*dt;z=0;vz=0;visualYaw=0;yawTravel=0;yawFrom=0;yawDirection=0;
+    x+=vx*dt;y+=vy*dt;z=0;vz=0;visualYaw=0;
     if(x<rx){x=rx;vx=Math.abs(vx);hit=true}else if(x>W-rx){x=W-rx;vx=-Math.abs(vx);hit=true}
     if(y<ry){y=ry;vy=Math.abs(vy);hit=true}else if(y>H-ry){y=H-ry;vy=-Math.abs(vy);hit=true}
     const speed=Math.hypot(vx,vy)||1;vx=vx/speed*SPEED;vy=vy/speed*SPEED;
@@ -453,13 +466,15 @@ function syncModes(){
 }
 function setWorldMode(mode){
   if(!['2d','approach','retreat','orbit','loop'].includes(mode)||mode===worldMode)return;
-  worldMode=mode;modeTime=0;stampClock=0;clearStamps();visualYaw=0;vz=0;yawTravel=0;yawFrom=0;yawDirection=0;
+  worldMode=mode;modeTime=0;stampClock=0;clearStamps();visualYaw=0;vz=0;
   if(worldMode==='2d'){
     z=0;x=W*.28;y=H*.46;
     const startAngle=.56;setSpeed(startAngle);visualAngle=desiredAngle();
     seedComposition(performance.now());
   }else{
-    x=W*.5;y=H*.5;z=2.4;visualAngle=desiredAngle();
+    x=W*.5;y=H*.5;z=2.4;
+    visualYaw=worldMode==='retreat'?Math.PI:0;
+    visualAngle=desiredAngle();
   }
   syncModes();render();
 }
