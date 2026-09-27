@@ -2,28 +2,30 @@
 
 Status: CURRENT
 
-## Universal lighting rule · v16
-- The dominant brightness rule is **true 3D distance from the camera center**.
-- For a point P, illumination primarily follows `hypot(dx, dy, dz)`.
-- Nearer points are brighter; farther points are darker.
-- Optical-axis alignment is secondary and may shape the beam, but it must never make a physically near pillar inexplicably dark.
-- A nonzero axis-weight floor is required.
-- Tall objects are evaluated by vertical slices, not one brightness per object.
-- Tower tips should be much darker than their bases and may nearly disappear if sufficiently high/far.
-- The same camera-center metric applies to floors and walls.
+## Universal lighting rule · v17
+- Brightness is governed by **true Euclidean 3D distance from the camera center**.
+- Use `hypot(dx, dy, dz)` as the single distance source of truth.
+- No optical-axis/cone multiplier is allowed to make a physically near point darker than a farther equivalent point.
+- Nearer equivalent points are always brighter; farther equivalent points are always darker.
+- Tall structures are evaluated by vertical slices.
+- Vertical slice spacing is nonlinear and denser near the base, because that is where close-range interaction occurs.
+- Tower tips may become almost invisible because their Y distance alone can be enormous.
+- Curvature shading is secondary to distance and has a strong minimum response.
+- Floors and walls follow the same camera-center distance model.
 
 ## Map 1 · Green Nave
 - Supports meet the actual visible arch springline.
 - Wall mass exists behind the support/crown silhouette with an arch opening cut out.
-- Render order remains wall -> supports -> crown.
+- Render order stays wall -> supports -> crown.
 - Camera-center lighting applies to floor, walls and structure.
 
 ## Map 2 · Brutalist Palace
 - Columns remain wide/heavy and diagonally organized.
-- Each cylinder uses vertically segmented lighting.
-- Near lower sections must remain readable.
-- Upper/far sections fall strongly toward black.
-- Curvature shading may sculpt the surface but cannot override proximity.
+- Each cylinder uses 12 nonlinear vertical light slices.
+- Lower nearby sections must brighten strongly as the player approaches.
+- Upper/far sections fall aggressively toward black.
+- The highest tips should be almost invisible.
+- No stretched textures and no horizontal-row composition.
 
 ## Interaction
 - W/S forward/back.
