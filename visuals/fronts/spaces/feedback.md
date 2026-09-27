@@ -2,39 +2,55 @@
 
 Status: CURRENT
 
-## LATEST LIGHTING CORRECTION · v17
-User clarified the intended invariant:
-- everything should be lit according to **how far that exact point is from the center of the camera**;
-- closer = brighter;
-- farther = darker;
-- tower tips are much farther from the camera than their bases and should almost disappear;
-- approaching a pillar must make its nearby lower surfaces brighter, never paradoxically darker.
+## v18 · THREE NEW SCENES
+The user asked to reuse the current locomotion / pseudo-3D / camera-distance-lighting effects in three additional compositions.
 
-## ROOT CAUSES FOUND
-v16 was closer, but still had two competing effects:
-1. optical-axis weighting could still reduce a nearby surface more than desired;
-2. equal-height vertical slices were too coarse, so the lowest tower band sampled a midpoint much higher than the player's eye and could inherit excessive darkness.
+### Map 3 · Straight paired-column road
+Required:
+- one strict straight road through the center;
+- two parallel rows of columns;
+- each left column sits exactly opposite a right column at the same world Z;
+- strong axial perspective and no diagonal scatter.
 
-## CURRENT UNIVERSAL LIGHT RULE
-- Use only true Euclidean world-space distance:
-  `dist = hypot(worldX-camX, worldY-cameraY, worldZ-camZ)`.
-- No secondary cone or optical-axis multiplier may override that distance.
-- Near points must monotonically receive more light than farther equivalent points.
-- Curvature may sculpt roundness, but it is secondary and has a high enough floor that a near face cannot collapse to black.
-- Tall towers are sampled with **nonlinear vertical slices concentrated near the base**.
-- High/far points naturally become almost black because their actual 3D distance is large.
+Implementation:
+- centered road with subtle edge lines;
+- exact opposing column pairs at ±X;
+- tall rectangular monumental columns;
+- same Euclidean camera-center lighting as the existing scenes.
 
-## IMPLEMENTATION v17
-- removed optical-axis weighting from `cameraLight3DAt`;
-- `cameraLightAt` is now only a thin wrapper around the same 3D rule;
-- brutalist columns use 12 vertical slices;
-- slice spacing uses a power curve, giving much finer resolution near the base;
-- cylinder curvature minimum increased so proximity dominates;
-- floors and Map 1 structure use the same camera-center distance metric.
+### Map 4 · Enclosing tunnel
+Reference direction:
+- long barrel/tube feeling;
+- walls and vault wrap around the view;
+- strong black depth at the center;
+- textured, claustrophobic, retro-surreal atmosphere.
 
-## PRESERVE
-- Map 1 supports meet the real visible arch springline.
-- Backing walls remain behind the arch/support silhouette.
-- Map 2 remains massive, diagonal and brutalist.
-- Touch swipe, WASD, wheel and touch buttons remain.
-- Browser selection/callout UI remains disabled.
+Implementation:
+- vertical side walls plus semicircular vault;
+- existing repo stone photo is re-graded warm/brown and tiled into `atlas.tunnelTile`;
+- tunnel is drawn as repeated world-space depth bands;
+- dark throat is anchored to the optical center;
+- no flat ceiling.
+
+### Map 5 · Ritual avenue / temple
+Reference direction:
+- straight central avenue;
+- repeated pointed forms on both sides;
+- strong striped floor perspective;
+- orange/red sky;
+- monumental stepped structure at the end.
+
+Implementation:
+- alternating purple world-space road stripes;
+- exact paired pointed obelisks/spires;
+- stepped temple fixed in world space as a destination;
+- temple renders behind nearer spires;
+- warm sky remains graphic while world geometry still follows camera-distance lighting.
+
+## UNIVERSAL RULES PRESERVED
+- fixed frontal camera;
+- W/S + wheel + touch swipe forward/back;
+- A/D strafe within scene-specific limits;
+- true Euclidean 3D distance from camera center drives world light;
+- nearby points brighter, far/high points darker;
+- no browser copy/select callout over controls.
