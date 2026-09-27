@@ -56,6 +56,13 @@ In-page movement modes:
 For 3D modes, z changes projected scale/position and distant stamps are slightly less opaque. Stamps are drawn far-to-near. There is still only one 2D sprite; no WebGL/mesh is required.
 
 ## LATEST USER FEEDBACK
+- User says the turn is still too tight: the path must use a much wider turning radius.
+- User also wants the image itself to curve, as if wrapped around a sphere/cylinder, so the side view does not collapse into a paper-thin line.
+- Current candidate replaces the flattened hairpin with a broad **true semicircle in X/Z**, responsive radius **130–230 px**, while preserving constant path speed.
+- Current candidate removes whole-sprite `scaleX = cos(yaw)` collapse and renders the image through **7–11 vertical curved-surface strips** during the turn.
+- Near face-on views still use one draw call; the more expensive strip projection is mainly active during yaw.
+
+## PREVIOUS USER FEEDBACK
 - User says the current turn still looks like it pauses/counts and then accelerates.
 - Required behavior: **constant speed at all times**, including while entering/exiting the hairpin.
 - User also requires the last/oldest rear trail copy to be **black** and **smaller**.

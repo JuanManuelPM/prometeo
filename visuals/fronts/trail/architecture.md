@@ -1,7 +1,7 @@
 # Trail Engine · Architecture Notes
 
 Status: CURRENT
-Updated: 2026-09-26
+Updated: 2026-09-27
 
 ## Core model
 
@@ -70,60 +70,64 @@ For 3D modes, stamps are depth-sorted far-to-near before drawing. With a bounded
 
 ## 2.5D turning is trajectory geometry
 
-Yaw is no longer an independent controller that reacts after depth velocity changes.
+Yaw remains part of the trajectory, but the turn geometry is now a **broad racetrack in X/Z** instead of a flattened screen-space hairpin.
 
-For ORBIT/LOOP the path itself contains the turn:
+For ORBIT/LOOP:
 
 ```text
-approach straight (yaw 0°)
-→ near lateral hairpin (z fixed near, yaw 0→180°)
-→ retreat straight (yaw already 180°)
-→ far lateral hairpin (z fixed far, yaw 180→0°)
-→ approach straight
+left straight toward camera, yaw 0°
+→ broad near semicircle in X/Z, yaw 0→180°
+→ right straight away from camera, yaw 180°
+→ broad far semicircle in X/Z, yaw 180→0°
+→ left straight again
 ```
 
-The hairpin consumes real lateral screen distance. ORBIT/LOOP progression is based on **arc length**, not eased phase time.
+Turn radius is responsive:
 
-A single scalar advances every frame:
+```js
+radiusPx = clamp(min(W * 0.30, H * 0.46), 130, 230)
+depthScale = clamp(min(W, H) * 0.30, 92, 140)
+radiusZ = radiusPx / depthScale
+```
+
+That means the curve consumes real horizontal space and real depth-equivalent distance. It is not allowed to rotate in place or make a tight screen-space U.
+
+Constant speed is preserved:
 
 ```js
 pathDistance += PATH_SPEED * dt
-// PATH_SPEED = 230 px/s normal, 150 px/s reduced motion
+angleOnTurn = distanceIntoTurn / turnMetricRadius
 ```
 
-Straight lengths are represented in pixel-equivalent path distance. The elliptical hairpin is sampled into a 64-entry cumulative-distance table; travelled distance is binary-searched into that table to recover the corresponding curve angle. That keeps the curve at the same path speed as the straight instead of slowing/accelerating at the join.
+A larger radius therefore takes longer solely because the semicircle is longer. There is no easing, pause, or acceleration at the straight↔turn joins.
 
-Its half-lane width is:
+LOOP may add a vertical lane transition during the semicircle, but `turnMetricRadius` includes that vertical component so the same constant-distance rule still applies.
+
+The key invariant remains:
+
+> **The retreat/backward straight starts only after the near semicircle is complete and yaw is already 180°.**
+
+### Curved sprite surface
+
+Whole-sprite horizontal compression is no longer used for 3D yaw. That paper-thin model is superseded.
+
+During a visible turn, the sprite is split into vertical source strips and projected over a curved 2.5D surface:
 
 ```js
-lane = clamp(W * 0.22, 72, 220)
+SURFACE_CURVE = 1.05
+sliceCount = qualityLow ? 7 : qualityMedium ? 9 : 11
+x = radius * (sin(sideAngle + localPhi) - sin(sideAngle))
 ```
 
-Turn duration is no longer authored directly. It emerges from `turnArcLength / PATH_SPEED`, so a larger turn naturally takes longer without changing speed.
+Important consequences:
+- front/rear face-on states still use one whole-image draw call;
+- during yaw, strips wrap around a curved surface rather than globally collapsing width;
+- at ~90° yaw, the projected surface keeps visible profile thickness;
+- strip height and alpha vary slightly by local facing to reinforce volume;
+- rear hemisphere reverses source-strip order and keeps the existing darker rear treatment;
+- adaptive quality lowers strip count to contain mobile cost.
 
-The key invariant is:
-
-> **The retreat/backward straight never begins until the near hairpin is complete and yaw is already 180°.**
-
-Likewise the next approach straight does not begin until the far hairpin completes and yaw has returned to 0°.
-
-Dedicated modes are explicit:
-- `approach`: yaw 0° from the start.
-- `retreat`: yaw 180° from the start.
-
-Rendering still uses the mirrored/darkened rear proxy:
-
-```js
-scaleX = max(profileFloor, abs(cos(yaw)))
-mirror = cos(yaw) < 0
-rear = clamp(-cos(yaw), 0, 1)
-rearAlpha = lerp(1.0, 0.68, rear)
-rearBrightness = lerp(0.90, 0.46, rear)
-```
-
-Every stamp captures yaw when created, so the trail records the actual front/profile/rear orientation along the curve.
-
-This supersedes the previous independent “travel ~1.05 sprite widths, then rotate” accumulator. The width is now expressed as **path curvature / lateral travel**, not as a delayed orientation patch.
+This is deliberately a cheap 2.5D cylinder/sphere-like illusion, not WebGL or a mesh asset pipeline.
 
 ## Trail spacing / duration
 

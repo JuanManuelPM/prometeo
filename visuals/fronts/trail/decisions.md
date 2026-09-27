@@ -55,6 +55,22 @@ Durable architecture detail:
 - Every stamp stores the yaw it had when created, preserving orientation history in the trail.
 - 2D mode keeps yaw = 0 and remains unchanged.
 
+## Wide-radius turn geometry
+- A turn may not read as a tight screen-space U or abrupt steering correction.
+- ORBIT/LOOP now turn through **true semicircles in X/Z**, not flattened X/Y ellipses at fixed depth.
+- Responsive turn radius: `clamp(min(W*0.30, H*0.46), 130px, 230px)`.
+- The turn therefore consumes substantially more horizontal/depth-equivalent distance.
+- Constant path speed remains non-negotiable. A larger turn takes longer only because its arc is longer.
+- Retreat still begins only after the near semicircle finishes and yaw reaches 180°.
+
+## Curved sprite surface
+- Do not simulate yaw by collapsing the entire sprite width with `abs(cos(yaw))`; that makes the image look like paper.
+- During 3D turns, project the sprite as a curved surface split into vertical strips.
+- Current surface curvature = **1.05 rad** from center to edge mapping, rendered with **7 / 9 / 11 strips** at low/medium/high quality.
+- The curved projection must retain visible side-profile thickness at ~90° yaw.
+- Rear hemisphere still uses the inverse/reversed image direction and the existing darker rear hierarchy.
+- Near face-on front/rear states should fall back to one whole-image draw to avoid wasting mobile GPU/CPU time.
+
 ## Constant-speed trajectory
 - ORBIT/LOOP must not use easing that slows at segment endpoints and accelerates again.
 - One scalar `pathDistance` advances at a fixed rate: **230 px/s** normal, **150 px/s** reduced-motion.
