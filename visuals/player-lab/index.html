@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#020202">
-<title>Prometeo · Player Lab · Pet V10</title>
+<title>Prometeo · Player Lab · Eye Pet V11</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#eee8d7;font-family:system-ui,-apple-system,sans-serif;overscroll-behavior:none;touch-action:none}
@@ -23,10 +23,10 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:
 </head>
 <body>
 <div id="shell">
-  <canvas id="game" width="320" height="180" aria-label="Escena retro en primera persona con una sola mano del jugador y una mascota llevada enfrente"></canvas>
+  <canvas id="game" width="320" height="180" aria-label="Escena retro en primera persona con una sola mano y una mascota de un ojo animado"></canvas>
   <div id="veil"></div><div id="scan"></div><div id="flash"></div><div id="prompt">acariciá</div>
 </div>
-<script src="./player-actors-v5.js?v=10"></script>
+<script src="./player-actors-v6.js?v=11"></script>
 <script>
 (function(){
 'use strict';
@@ -36,11 +36,11 @@ var x=c.getContext('2d',{alpha:false});
 var flash=document.getElementById('flash');
 var prompt=document.getElementById('prompt');
 var W=320,H=180,audio=null,shake=0;
-var KEY='prometeo.playerLab.pet.touches.v10';
+var KEY='prometeo.playerLab.pet.touches.v11';
 var OLD=[
+  'prometeo.playerLab.pet.touches.v10',
   'prometeo.playerLab.pet.stage.v9',
-  'prometeo.playerLab.maskRoom.stage.v8',
-  'prometeo.playerLab.maskRoom.stage.v7'
+  'prometeo.playerLab.maskRoom.stage.v8'
 ];
 var touches=0;
 try{
@@ -51,20 +51,29 @@ try{
 
 x.imageSmoothingEnabled=false;
 
-var ACT=window.PROMETEO_PLAYER_ACTORS_V5||{
+var ACT=window.PROMETEO_PLAYER_ACTORS_V6||{
   cell:128,
   self:{
     source:'./hand-atlas-v3-inspect.webp',
     idleFrame:8,
     petFrames:[8,7,6,5,6,7,8]
+  },
+  pet:{
+    eye:{
+      frameSource:'./player-eye-blink-v1.webp',
+      frameCell:96,
+      frameCount:10,
+      blinkFrames:[0,1,2,3,4,5,6,7,8,9],
+      openness:[1,1,.9,.58,.2,.05,.22,.6,.9,1]
+    }
   }
 };
 
 var assets={};
 var URLS={
   room:'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/Abandoned_tiled_room_-_Panorama_%28Poly_Haven%29.jpg/1280px-Abandoned_tiled_room_-_Panorama_%28Poly_Haven%29.jpg',
-  mask:'../../strategy/mask-mouth/assets/mask-transparent.webp',
-  heart:'../../arte/assets/footer/heart-mask-final-alpha.png'
+  heart:'../../arte/assets/footer/heart-mask-final-alpha.png',
+  eyeFrame:ACT.pet.eye.frameSource
 };
 
 function loadImage(url,onload){
@@ -75,11 +84,11 @@ function loadImage(url,onload){
   im.src=url;
 }
 Object.keys(URLS).forEach(function(k){
-  loadImage(URLS[k],function(im){assets[k]=im});
+  loadImage(URLS[k]+'?v=11',function(im){assets[k]=im});
 });
 
 var handStrip=null;
-loadImage(ACT.self.source+'?v=10',function(im){
+loadImage(ACT.self.source+'?v=11',function(im){
   if(im){
     handStrip=alphaKeyStrip(im);
   }else{
@@ -143,14 +152,80 @@ function drawRoom(t){
 
 var petReactUntil=0;
 var petReactDir=1;
+var blinkStart=-1;
+var nextBlink=1500;
 
 function reaction(ms){
   if(ms>=petReactUntil)return 0;
   return Math.max(0,Math.min(1,(petReactUntil-ms)/520));
 }
 
+function blinkState(ms){
+  var eye=ACT.pet.eye;
+  if(blinkStart<0 && ms>=nextBlink){
+    blinkStart=ms;
+  }
+  if(blinkStart>=0){
+    var idx=Math.floor((ms-blinkStart)/58);
+    if(idx>=eye.frameCount){
+      blinkStart=-1;
+      nextBlink=ms+2300+Math.random()*3000;
+      return {frame:0,open:1};
+    }
+    var f=eye.blinkFrames[Math.max(0,Math.min(eye.frameCount-1,idx))];
+    return {frame:f,open:eye.openness[f]};
+  }
+  return {frame:0,open:1};
+}
+
+function drawEyeFrame(frame,cx,cy,size,rot){
+  var im=assets.eyeFrame;
+  if(!im)return;
+  var S=ACT.pet.eye.frameCell||96;
+  x.save();
+  x.translate(Math.round(cx),Math.round(cy));
+  if(rot)x.rotate(rot);
+  x.globalCompositeOperation='source-over';
+  x.drawImage(im,frame*S,0,S,S,-size*.5,-size*.5,size,size);
+  x.restore();
+}
+
+function drawEyeContents(cx,cy,size,rot,open){
+  if(open<=.02)return;
+  x.save();
+  x.translate(Math.round(cx),Math.round(cy));
+  if(rot)x.rotate(rot);
+  x.globalAlpha=open;
+
+  var ew=size*.62;
+  var eh=size*.36;
+
+  x.beginPath();
+  x.ellipse(0,2,ew*.50,eh*.50,0,0,Math.PI*2);
+  x.fillStyle='rgba(208,208,198,.94)';
+  x.fill();
+
+  x.beginPath();
+  x.ellipse(0,2,ew*.20,eh*.40,0,0,Math.PI*2);
+  x.fillStyle='#242424';
+  x.fill();
+
+  x.beginPath();
+  x.arc(0,2,Math.max(3,size*.065),0,Math.PI*2);
+  x.fillStyle='#050505';
+  x.fill();
+
+  x.beginPath();
+  x.arc(-3,-2,Math.max(1,size*.012),0,Math.PI*2);
+  x.fillStyle='rgba(245,245,235,.88)';
+  x.fill();
+
+  x.restore();
+}
+
 function drawPet(t,ms){
-  if(!assets.mask&&!assets.heart)return;
+  if(!assets.heart&&!assets.eyeFrame)return;
+
   var r=reaction(ms);
   var breath=Math.sin(t*1.65);
   var cx=160+r*4*petReactDir;
@@ -159,15 +234,16 @@ function drawPet(t,ms){
 
   if(assets.heart){
     var heartH=48*(1+breath*.018+r*.08);
-    drawFit(assets.heart,cx+2,119+bob,heartH*1.10,rot,.22,'brightness(0) blur(3px)');
-    drawFit(assets.heart,cx,117+bob,heartH,rot,.90,'sepia(.72) saturate(1.42) hue-rotate(-24deg) contrast(1.30)');
+    drawFit(assets.heart,cx+2,121+bob,heartH*1.10,rot,.22,'brightness(0) blur(3px)');
+    drawFit(assets.heart,cx,119+bob,heartH,rot,.90,'sepia(.72) saturate(1.42) hue-rotate(-24deg) contrast(1.30)');
   }
 
-  if(assets.mask){
-    var headH=59*(1+breath*.010);
-    drawFit(assets.mask,cx+3,78+bob,headH,rot,.46,'brightness(0) blur(2px)');
-    drawFit(assets.mask,cx,76+bob,headH,rot,.98,'grayscale(.15) brightness(.82) contrast(1.36)');
-  }
+  var bs=blinkState(ms);
+  var eyeSize=91*(1+breath*.010);
+  var eyeY=76+bob;
+
+  drawEyeContents(cx,eyeY,eyeSize,rot,bs.open);
+  drawEyeFrame(bs.frame,cx,eyeY,eyeSize,rot);
 }
 
 var mode='IDLE';
@@ -234,6 +310,7 @@ function commitPet(ms){
   save();
   petReactUntil=ms+620;
   petReactDir*=-1;
+  blinkStart=ms;
   shake=2.2;
   try{navigator.vibrate&&navigator.vibrate([14,22,18])}catch(_){}
   beep(126,.075,'triangle',.021);
