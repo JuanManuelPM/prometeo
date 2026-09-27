@@ -2,42 +2,21 @@
 
 Status: CURRENT
 
-## Universal engine rules
-- Fixed frontal camera.
-- W/S, wheel and vertical touch swipe move forward/back.
-- A/D strafes within scene-specific bounds.
-- Light intensity is governed by true Euclidean 3D distance from each world point to camera center.
-- Browser text selection / touch callout remains disabled on the visual controls.
+## Map 5 · Ritual Avenue · v19 interaction rule
+- Every violet pointed spire may own one road-facing ritual sign.
+- Signs are hidden below the floor by default.
+- A sign only rises when the player is physically close to that individual spire.
+- Proximity is evaluated independently per left/right spire.
+- Use hysteresis: open below 11.2 world units, close above 13.4.
+- Do not use a single threshold that can flicker while the player hovers near the boundary.
+- Rise should be smooth and relatively quick.
+- Retract should be smooth and slightly slower.
+- The sign emerges toward the road-facing inner side, not outward away from the path.
+- Do not block the central avenue.
+- Signs are architectural/ritual objects, not generic web UI cards.
+- Current visual treatment: gold outer frame, violet inset face, minimal geometric glyph, telescoping post.
 
-## Map 1 · Green Nave
-- Preserve v15 structural continuity and backing wall behind arches.
-
-## Map 2 · Brutalist Palace
-- Preserve massive diagonal columns and v17 camera-distance lighting.
-
-## Map 3 · Straight paired-column road
-- Central road is straight and axial.
-- Column rows are parallel.
-- Every left column has an exact right partner at the same world Z.
-- Do not turn this scene into diagonal/random placement.
-- Rectangular monumental columns are intentionally distinct from Map 2 cylinders.
-
-## Map 4 · Tunnel
-- Must read as an enclosing barrel tunnel, not a flat corridor.
-- Use side walls + semicircular vault.
-- Warm stone texture is generated from the existing stone asset.
-- The center ends in a strong dark throat.
-- Keep strafe tightly limited so the player remains inside the tunnel envelope.
-
-## Map 5 · Ritual Avenue
-- Strong central vanishing road.
-- Alternating longitudinal floor stripes.
-- Paired pointed spires on both sides.
-- Orange/red sky.
-- Stepped temple/monument is a fixed world destination.
-- Render far temple before nearer repeated spires for correct occlusion.
-- Composition is axial and ceremonial, not random.
-
-## Navigation
-- Five map buttons are horizontally scrollable on narrow screens.
-- Keyboard keys 1–5 switch scenes.
+## Preserve
+- Map 5 axial striped road, orange/red sky, paired violet spires and stepped temple.
+- Universal true Euclidean camera-distance lighting.
+- Existing movement and mobile interaction rules.
