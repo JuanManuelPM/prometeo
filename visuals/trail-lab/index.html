@@ -63,7 +63,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;image-renderi
     <li>Próxima abstracción: <b>compileTrailAsset(image)</b> + <b>TrailEngine(asset, trajectory)</b>.</li>
     <li>La capa pseudo-3D agrega z y proyección; no requiere WebGL ni un efecto distinto por imagen.</li>
     <li>Jerarquía del trail: las copias viejas/traseras se renderizan mucho más oscuras y recuperan claridad progresivamente hasta la figura actual, evitando dos caras protagonistas al cerrar una órbita.</li>
-    <li>Giro 2.5D: ÓRBITA/LOOP se recorren por distancia real a velocidad constante. Las rectas y horquillas comparten la misma velocidad; la curva ya no frena ni acelera por easing.</li>
+    <li>Giro 2.5D: ÓRBITA/LOOP usan una pista amplia con semicírculos reales en X/Z. La velocidad sigue constante y el radio de giro es mucho mayor, sin volantazo cerrado.</li>
+    <li>Volumen: durante el yaw la imagen se proyecta en 7–11 tiras sobre una superficie curva; de costado conserva espesor visual en vez de colapsar como una hoja de papel.</li>
     <li>Cola: stamps ~25% más separados y vida algo mayor. La copia más vieja queda negra y más chica; oscuridad y escala progresan juntas hacia la figura actual.</li>
   </ul>
 </aside>
@@ -177,81 +178,68 @@ function updateVisualAngle(dt){
   const rate=active.turnRate||4.5;
   visualAngle=lerpAngle(visualAngle,desiredAngle(),1-Math.exp(-rate*dt));
 }
-const hairpinCache={w:0,h:0,lane:0,bulge:0,zNear:-.18,zFar:3.72,depthScale:96,straightLen:0,turnLen:0,cycleLen:0,table:null};
-function hairpinMetrics(){
-  if(hairpinCache.w===W&&hairpinCache.h===H&&hairpinCache.table)return hairpinCache;
-  const m=hairpinCache;
+const hairpinCache=[
+  {w:0,h:0,radiusPx:0,radiusZ:0,lift:0,zNear:-.18,zFar:3.72,depthScale:110,nearCenterZ:0,farCenterZ:0,straightLen:0,turnMetricRadius:0,turnLen:0,cycleLen:0},
+  {w:0,h:0,radiusPx:0,radiusZ:0,lift:0,zNear:-.18,zFar:3.72,depthScale:110,nearCenterZ:0,farCenterZ:0,straightLen:0,turnMetricRadius:0,turnLen:0,cycleLen:0}
+];
+function hairpinMetrics(loopMode=false){
+  const m=hairpinCache[loopMode?1:0];
+  if(m.w===W&&m.h===H&&m.cycleLen>0)return m;
   m.w=W;m.h=H;
-  m.lane=clamp(W*.22,72,220);
-  m.bulge=Math.min(H*.12,m.lane*.58);
-  m.depthScale=clamp(Math.min(W,H)*.22,72,116);
-  m.straightLen=(m.zFar-m.zNear)*m.depthScale;
-  const samples=64,table=new Float32Array(samples+1);
-  let lastX=-m.lane,lastY=0,total=0;
-  table[0]=0;
-  for(let i=1;i<=samples;i++){
-    const a=Math.PI*i/samples;
-    const ex=-Math.cos(a)*m.lane;
-    const ey=Math.sin(a)*m.bulge;
-    total+=Math.hypot(ex-lastX,ey-lastY);
-    table[i]=total;
-    lastX=ex;lastY=ey;
-  }
-  m.table=table;m.turnLen=total;
+  m.radiusPx=clamp(Math.min(W*.30,H*.46),130,230);
+  m.depthScale=clamp(Math.min(W,H)*.30,92,140);
+  m.radiusZ=m.radiusPx/m.depthScale;
+  m.lift=loopMode?Math.min(H*.10,m.radiusPx*.34):0;
+  m.nearCenterZ=m.zNear+m.radiusZ;
+  m.farCenterZ=m.zFar-m.radiusZ;
+  const straightWorld=Math.max(.18,m.farCenterZ-m.nearCenterZ);
+  m.straightLen=straightWorld*m.depthScale;
+  const verticalPerRadian=(m.lift*2)/Math.PI;
+  m.turnMetricRadius=Math.hypot(m.radiusPx,verticalPerRadian);
+  m.turnLen=Math.PI*m.turnMetricRadius;
   m.cycleLen=2*(m.straightLen+m.turnLen);
   return m;
 }
-function turnAngleAtDistance(m,d){
-  d=clamp(d,0,m.turnLen);
-  const table=m.table,last=table.length-1;
-  let lo=0,hi=last;
-  while(lo+1<hi){
-    const mid=(lo+hi)>>1;
-    if(table[mid]<d)lo=mid;else hi=mid;
-  }
-  const a=table[lo],b=table[hi];
-  const f=b>a?(d-a)/(b-a):0;
-  return Math.PI*(lo+f)/last;
-}
 function hairpinPose(distance,loopMode=false){
-  const m=hairpinMetrics(),cx=W*.5,cy=H*.5;
+  const m=hairpinMetrics(loopMode),cx=W*.5,cy=H*.5;
   let s=((distance%m.cycleLen)+m.cycleLen)%m.cycleLen;
   let px,py,pz,yaw;
 
   if(s<m.straightLen){
     const u=s/m.straightLen;
-    px=cx-m.lane;py=cy;pz=lerp(m.zFar,m.zNear,u);yaw=0;
+    px=cx-m.radiusPx;
+    py=cy-m.lift;
+    pz=lerp(m.farCenterZ,m.nearCenterZ,u);
+    yaw=0;
   }else if((s-=m.straightLen)<m.turnLen){
-    const a=turnAngleAtDistance(m,s);
-    px=cx-Math.cos(a)*m.lane;
-    py=cy+Math.sin(a)*m.bulge;
-    pz=m.zNear;
+    const a=s/m.turnMetricRadius;
+    px=cx-m.radiusPx*Math.cos(a);
+    py=cy-m.lift+(m.lift*2)*(a/Math.PI);
+    pz=m.nearCenterZ-m.radiusZ*Math.sin(a);
     yaw=a;
   }else if((s-=m.turnLen)<m.straightLen){
     const u=s/m.straightLen;
-    px=cx+m.lane;py=cy;pz=lerp(m.zNear,m.zFar,u);yaw=Math.PI;
+    px=cx+m.radiusPx;
+    py=cy+m.lift;
+    pz=lerp(m.nearCenterZ,m.farCenterZ,u);
+    yaw=Math.PI;
   }else{
     s-=m.straightLen;
-    const a=turnAngleAtDistance(m,s);
-    px=cx+Math.cos(a)*m.lane;
-    py=cy+(loopMode?1:-1)*Math.sin(a)*m.bulge;
-    pz=m.zFar;
+    const a=s/m.turnMetricRadius;
+    px=cx+m.radiusPx*Math.cos(a);
+    py=cy+m.lift-(m.lift*2)*(a/Math.PI);
+    pz=m.farCenterZ+m.radiusZ*Math.sin(a);
     yaw=Math.PI-a;
   }
   return {x:px,y:py,z:pz,yaw};
 }
 function yawAppearance(yawAngle){
-  if(worldMode==='2d')return {scaleX:1,mirror:false,rear:0,alpha:1};
+  if(worldMode==='2d')return {rear:false,rearAmount:0,sideAngle:0,alpha:1};
   const c=Math.cos(yawAngle);
-  const scaleX=Math.max(.045,Math.abs(c));
-  const mirror=c<0;
-  const rear=clamp(-c,0,1);
-  return {
-    scaleX,
-    mirror,
-    rear,
-    alpha:lerp(1,.68,rear)
-  };
+  const rear=c<0;
+  const rearAmount=clamp(-c,0,1);
+  const sideAngle=Math.acos(clamp(Math.abs(c),0,1));
+  return {rear,rearAmount,sideAngle,alpha:lerp(1,.68,rearAmount)};
 }
 function spriteSize(){
   let w=clamp(Math.min(W*.27,H*.47),150,320)*(active.size||1);
@@ -318,30 +306,91 @@ function stampHierarchy(trailT,pz){
   return {brightness,scale};
 }
 function stampBrightness(trailT,pz){return stampHierarchy(trailT,pz).brightness}
+const SURFACE_CURVE=1.05;
+function curvedSliceCount(){
+  return quality===0?7:(quality===1?9:11);
+}
+function drawCurvedSurface(source,w,h,yawAngle,alpha){
+  if(worldMode==='2d'){
+    ctx.globalAlpha=alpha;
+    ctx.drawImage(source,-w*.5,-h*.5,w,h);
+    return;
+  }
+  const look=yawAppearance(yawAngle);
+  const side=look.sideAngle;
+  if(side<.10){
+    ctx.globalAlpha=alpha;
+    if(look.rear){
+      ctx.save();
+      ctx.scale(-1,1);
+      ctx.drawImage(source,-w*.5,-h*.5,w,h);
+      ctx.restore();
+    }else{
+      ctx.drawImage(source,-w*.5,-h*.5,w,h);
+    }
+    return;
+  }
+
+  const slices=curvedSliceCount();
+  const radius=w/(2*Math.sin(SURFACE_CURVE));
+  const srcW=source.width,srcH=source.height;
+  const baseSlice=srcW/slices;
+
+  for(let pass=0;pass<2;pass++){
+    for(let i=0;i<slices;i++){
+      const u0=-1+2*i/slices;
+      const u1=-1+2*(i+1)/slices;
+      const phi0=u0*SURFACE_CURVE;
+      const phi1=u1*SURFACE_CURVE;
+      const mid=(phi0+phi1)*.5;
+      const localFacing=Math.cos(side+mid);
+      const isFront=localFacing>=0;
+      if((pass===0&&isFront)||(pass===1&&!isFront))continue;
+
+      const x0=radius*(Math.sin(side+phi0)-Math.sin(side));
+      const x1=radius*(Math.sin(side+phi1)-Math.sin(side));
+      const dx=Math.min(x0,x1)-.6;
+      const dw=Math.max(1.2,Math.abs(x1-x0)+1.2);
+      const face=Math.abs(localFacing);
+      const heightScale=lerp(.88,1,face);
+      const dh=h*heightScale;
+      const dy=-dh*.5+(1-face)*h*.014;
+
+      const sourceIndex=look.rear?(slices-1-i):i;
+      const sx=sourceIndex*baseSlice;
+      const sw=Math.min(srcW-sx,baseSlice+1);
+
+      ctx.globalAlpha=alpha*lerp(.72,1,face);
+      ctx.drawImage(source,sx,0,sw,srcH,dx,dy,dw,dh);
+    }
+  }
+}
 function drawWhole(px,py,pz,angle,scale=1,trailT=1,isHead=false,yawAngle=0){
   if(!assetReady)return;
   const p=project3D(px,py,pz);
   const yawLook=yawAppearance(yawAngle);
   const hierarchy=isHead?{brightness:1,scale:1}:stampHierarchy(trailT,pz);
   const effectiveScale=scale*hierarchy.scale;
-  const s=spriteSize(),w=s.w*effectiveScale*p.scale*yawLook.scaleX,h=s.h*effectiveScale*p.scale;
+  const s=spriteSize(),w=s.w*effectiveScale*p.scale,h=s.h*effectiveScale*p.scale;
   ctx.save();
   ctx.translate(Math.round(p.x),Math.round(p.y));
   ctx.rotate(angle);
-  if(yawLook.mirror)ctx.scale(-1,1);
-  ctx.globalAlpha=(isHead?1:p.alpha)*yawLook.alpha;
   ctx.globalCompositeOperation='source-over';
   ctx.imageSmoothingEnabled=false;
+  const alpha=(isHead?1:p.alpha)*yawLook.alpha;
   if(spriteReady){
     let source;
     if(isHead){
-      source=yawLook.rear<.04?sprite:shadeSprites[shadeIndexFor(lerp(.90,.46,yawLook.rear))];
+      source=yawLook.rearAmount<.04?sprite:shadeSprites[shadeIndexFor(lerp(.90,.46,yawLook.rearAmount))];
     }else{
       const baseBrightness=hierarchy.brightness;
-      source=shadeSprites[shadeIndexFor(baseBrightness*lerp(1,.62,yawLook.rear))];
+      source=shadeSprites[shadeIndexFor(baseBrightness*lerp(1,.62,yawLook.rearAmount))];
     }
-    ctx.drawImage(source,-w*.5,-h*.5,w,h);
-  }else ctx.drawImage(img,-w*.5,-h*.5,w,h);
+    drawCurvedSurface(source,w,h,yawAngle,alpha);
+  }else{
+    ctx.globalAlpha=alpha;
+    ctx.drawImage(img,-w*.5,-h*.5,w,h);
+  }
   ctx.restore();
   configure(ctx);
 }
