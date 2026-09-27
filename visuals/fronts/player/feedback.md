@@ -1,4 +1,4 @@
-# 🖐️ Retro Player / Generated Hand Atlas · Durable Feedback
+# 🖐️ Retro Player / Self Hand + Carried Pet · Durable Feedback
 
 Status: CURRENT
 
@@ -11,44 +11,44 @@ Status: CURRENT
 - one coherent scene rather than disconnected demos
 - one coherent generated photographic hand identity
 
-## OPEN / NEXT REVIEW
-- Verify V8 in the actual published Player: a hand must be visibly present during IDLE immediately after the row asset loads.
-- Judge the current 125ms IDLE / 90ms action cadence by motion, not by isolated frames.
-- Tune scale and placement only if the visible hand is too small/large after the rendering bug is confirmed fixed.
-- Current V8 keys the dark row-strip background into alpha once at load time. If this damages important dark hand detail, replace it with authored alpha assets.
-- Future actions can consume the remaining planned atlas rows only after the core hand loop reads correctly.
-
 ## LATEST USER DIRECTION
-- V6 looked horrible compared with the intended result.
-- The main failure was conceptual: unrelated Wikimedia SVGs/cursors/ornaments were being swapped quickly and called animation.
-- Generate the hand ourselves so identity, lighting, texture and pose vocabulary are controlled.
-- Build a 10x10 library where each row is an action and each column is temporal progression.
-- A first generated grid exposed another production error: some hands collided with frame edges and would be unusable when cropped.
-- Corrected rule: each frame needs visible internal padding; fingertips, knuckles, wrist and forearm must remain fully contained.
-- The corrected generated atlas became the intended source.
+- The hand atlas was mixing camera roles.
+- Hands/palms facing toward the viewer do not make sense as the player's default hand.
+- Separate animations by actor:
+  - PLAYER_HAND = our own first-person hand.
+  - FRONT_ACTOR_HANDS = hands belonging to somebody/something in front of us.
+- Do not use a generic hand catalog as if all frames were interchangeable.
+- The object carried in front should read as a **pet**, not a passive relic/prop.
 
-## OBSERVED V7 FAILURE
-- User supplied a screenshot of the published V7 and explicitly reported: "no veo las manos".
-- This was not a subjective styling complaint: the hand layer was effectively absent.
-- Diagnosis found two concrete implementation errors:
-  - the repository contained the wrong production atlas binary rather than the corrected 1280x1280 generated source;
-  - the manifest/render path assumed 96px cells even though the real corrected 10x10 atlas uses 128px cells.
-- V7 therefore cannot be treated as a visually reviewable success.
+## V9 IMPLEMENTATION
+- PLAYER_HAND now uses only a curated subset of the generated INSPECT row.
+- PLAYER_HAND is anchored to the lower-right edge; the wrist continues off-screen and the interaction moves inward toward the pet.
+- Default player animation no longer consumes the palm-forward IDLE row.
+- FRONT_ACTOR_HANDS are explicitly represented as a separate disabled category in `hand-atlas-v4.js`.
+- The carried mask + heart has become a living pet:
+  - stable front-center placement;
+  - breathing/bobbing idle;
+  - mask head + heart body;
+  - heartbeat scale;
+  - recoil/tilt response when petted;
+  - persistent bond level inherited from previous scene state.
+- Touch/Space/Enter performs a PET interaction rather than cycling unrelated hand actions.
 
-## V8 CORRECTION
-- Production now uses row strips derived from the real corrected 1280x1280 atlas.
-- Every frame crop is 128x128.
-- Current required rows are IDLE, GRAB, PUSH, INSPECT and WEIRD.
-- The dark neutral strip background is converted into alpha on load using luminance/chroma keying.
-- Rendering uses normal source-over compositing; the old screen-compositing workaround is removed.
-- V8 preserves persistent scene consequences, touch, 320x180 resolution, audio/vibration and mask/heart scene logic.
+## OPEN / NEXT REVIEW
+- Confirm visually that the hand reads as ours.
+- Confirm the pet is legible as a small living companion and does not block the scene.
+- Check whether any selected self-hand frame still feels like a hand aimed back at the camera.
+- Tune pet scale/recoil and hand approach only after real page feedback.
+- FRONT_ACTOR_HANDS should stay off unless a separate character/creature in front is intentionally introduced.
 
 ## REJECTED / DO NOT REVIVE
-- One nearly invisible dark hand.
-- Two/four static poses treated as a finished animation.
-- Primitive-drawn hands.
-- Unrelated Wikimedia hand SVGs, cursor icons and typographic pointing hands used as the main animation actor.
-- Rapid image replacement used as a substitute for coherent physical motion.
-- Atlas frames whose hand silhouette touches or crosses the source cell boundary.
-- V7 wrong-binary + 96px-cell implementation that produced no visible hand.
-- Screen compositing as a substitute for a usable transparent foreground hand.
+- one nearly invisible dark hand
+- two/four static poses treated as finished animation
+- primitive-drawn hands
+- unrelated Wikimedia SVG/cursor/typographic hands as the primary actor
+- rapid random image replacement as a substitute for coherent motion
+- atlas frames clipped by source-cell borders
+- V7 wrong binary + wrong 96px cell implementation
+- screen compositing used to hide source defects
+- mixing player-owned hand frames with palm-forward/front-actor hand frames
+- a floating centered hand sprite with no clear camera ownership

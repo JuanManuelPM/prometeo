@@ -1,24 +1,27 @@
-# 🖐️ Retro Player / Generated Hand Atlas · Durable Decisions
+# 🖐️ Retro Player / Self Hand + Carried Pet · Durable Decisions
 
 Status: CURRENT
 
-- The Player hand is one visual actor, not a bag of unrelated hand symbols.
-- Prefer a designed/generated photographic hand family over scraped icon/SVG mixtures.
-- Use an atlas vocabulary: one row = one action, left-to-right columns = temporal progression.
-- Planned atlas actions remain: IDLE, REACH, GRAB, POINT, PUSH, ATTACK, OFFER, INSPECT, PANIC, WEIRD.
-- The corrected generated source atlas is 1280x1280: every source cell is **128x128**, not 96x96.
-- Every source frame must preserve the complete hand silhouette with safe internal padding. Grid-edge cropping is a production failure, not a stylistic choice.
-- V7 is a broken/rejected implementation: wrong production atlas binary + wrong 96px crop math produced no visible hand in the user's published-page screenshot.
-- V8 production uses 1280x128 row strips for currently active actions: IDLE, GRAB, PUSH, INSPECT, WEIRD.
-- V8 converts the dark neutral strip background to alpha once at load time, using luminance/chroma keying, then renders with normal `source-over`.
-- Do not restore `screen` compositing as a way to hide bad source backgrounds.
-- If runtime keying destroys important dark hand detail, produce authored alpha assets instead.
-- Abrupt collage-like cuts remain allowed, but they must describe coherent physical progression.
-- Persistent scene consequences remain part of the Player baseline.
-- `hand-sequences-v1.js` and the V7 v2 atlas path are legacy; neither is the primary foreground source.
+- Every hand animation has explicit **actor ownership**.
+- `PLAYER_HAND` means our first-person hand:
+  - enters from a screen edge, currently lower-right;
+  - wrist continues beyond the camera frame;
+  - points/reaches into the world;
+  - must not default to a centered palm facing the viewer.
+- `FRONT_ACTOR_HANDS` means a different actor located in front of us:
+  - palm-forward / camera-facing poses can live here;
+  - these frames are never silently mixed into PLAYER_HAND.
+- V9 uses a curated subset of the generated INSPECT row for PLAYER_HAND because its middle frames read side/back rather than palm-forward.
+- The old generated atlas remains useful as source material, but **role beats quantity**: a technically valid frame is rejected if its camera ownership is wrong.
+- The foreground mask/heart is now a **carried pet**, not a passive relic.
+- The pet is image-first and built from existing approved assets: mask head + heart body.
+- The pet owns its own animation language: breathing/bobbing idle and recoil/heartbeat response.
+- Player interaction is currently PET: the self hand approaches from lower-right, touches/pets the creature, then returns.
+- Persistent state is now pet bond/evolution level; old scene state is migrated.
+- Keep 320x180, touch, cheap audio/vibration and persistent state.
+- Do not reintroduce generic HUD cards or procedural body parts.
 
 ## Session lifecycle
-- Reincarnation session reads handoff + repo and WAITs for feedback.
-- No implementation until user says ACTUALIZÁ or an unambiguous equivalent.
-- Update session must persist all meaningful new decisions before final delivery.
-- Accepted baseline may not be silently overwritten by an unreviewed candidate.
+- Reincarnation session reads handoff + repo and waits for feedback.
+- No implementation until user says ACTUALIZÁ or equivalent.
+- Update session persists meaningful feedback and versions before delivery.
