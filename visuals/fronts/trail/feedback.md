@@ -56,6 +56,12 @@ In-page movement modes:
 For 3D modes, z changes projected scale/position and distant stamps are slightly less opaque. Stamps are drawn far-to-near. There is still only one 2D sprite; no WebGL/mesh is required.
 
 ## LATEST USER FEEDBACK
+- User wants the rotation slower and physically weighted, "as if it needed a certain width to rotate."
+- User also wants a little more spacing between image copies so the tail reads longer.
+- Current candidate implements distance-gated yaw: after a direction change it holds briefly and needs about one sprite width of travel to complete the turn.
+- Stamp spacing is ~25% wider and lifetime is longer, extending the trail without turning it into a sparse chain.
+
+## PREVIOUS USER FEEDBACK
 - User rejected the previous rear-hemisphere disappearance.
 - Preferred behavior: simply continue the turn into an inverse/mirrored version.
 - Current candidate now keeps the object present through the entire turn: front → profile → mirrored dark rear → profile → front.
@@ -80,6 +86,12 @@ For 3D modes, z changes projected scale/position and distant stamps are slightly
 - Verify the new mode controls and adaptive quality on target mobile.
 
 ## RESOLVED IN CURRENT CANDIDATE
+- Replaced time-rate yaw with travel-distance yaw.
+- A facing change captures the current yaw, holds for ~16% of required travel, then smoothsteps across ~1.05 sprite widths.
+- Combined planar movement plus a small depth-distance equivalent drives turn progress, so CERCA/LEJOS still rotate even with little lateral travel.
+- Stamp intervals changed high/medium/low: 24/28/34 ms → 30/35/42 ms.
+- Trail lifetime changed 720 ms → 860 ms; reduced-motion 880 ms → 1040 ms.
+- Pool size and adaptive quality limits remain bounded.
 - Replaced rear disappearance with a mirrored rear representation.
 - Yaw still compresses width smoothly toward profile.
 - Once the yaw passes profile, the canvas flips the sprite horizontally while keeping positive draw dimensions.

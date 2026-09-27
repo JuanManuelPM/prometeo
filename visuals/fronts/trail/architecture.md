@@ -73,9 +73,16 @@ For 3D modes, stamps are depth-sorted far-to-near before drawing. With a bounded
 A single front-facing cutout has no real backside texture. When pseudo-3D motion goes away from the camera, Trail simulates a vertical-axis turn and then reuses a mirrored, darkened version as the rear proxy instead of making the object disappear.
 
 ```js
-if (vz >  threshold) yawTarget = Math.PI; // moving away
-if (vz < -threshold) yawTarget = 0;       // approaching
-yaw = smoothAngle(yaw, yawTarget)
+if (depthDirectionChanged) {
+  yawFrom = yaw
+  yawTravel = 0
+}
+
+yawTravel += planarDistance + depthDistanceEquivalent
+required = max(72px, spriteWidth * 1.05)
+hold = required * 0.16
+progress = smoothstep((yawTravel - hold) / (required - hold))
+yaw = lerpAngle(yawFrom, yawTarget, progress)
 ```
 
 Rendering uses:
@@ -87,6 +94,8 @@ rear = clamp(-cos(yaw), 0, 1)
 rearAlpha = lerp(1.0, 0.68, rear)
 rearBrightness = lerp(0.90, 0.46, rear)
 ```
+
+This makes rotation **distance-gated rather than time-rate driven**: the sprite must physically travel about one own-width to finish turning, with a short facing hold before the turn begins.
 
 Consequences:
 - front view: normal width, full front texture;
@@ -100,6 +109,21 @@ The canvas applies the mirror only after profile, when projected width is alread
 Each stamp captures yaw when created, so trail history preserves the orientation of that moment.
 
 2D mode fixes yaw at zero.
+
+## Trail spacing / duration
+
+The current tail tuning intentionally separates stamps a little more while keeping them alive longer:
+
+```js
+LIFE_MS = 860        // 1040 reduced motion
+high.stamp = 30ms
+medium.stamp = 35ms
+low.stamp = 42ms
+```
+
+Previous values were 720ms lifetime and 24/28/34ms cadence.
+
+The goal is a visibly longer trail with more air between copies, without converting the effect into a sparse chain. Pool size and adaptive stamp limits remain bounded.
 
 ## Trail brightness hierarchy
 

@@ -24,7 +24,7 @@ Trail is conceptually split into:
 The engine must not require separate animation code for WINGS vs a mask vs a future user-supplied image.
 
 Each stamp is lightweight state:
-`{x,y,z,angle,scale,born}`.
+`{x,y,z,angle,yaw,scale,born}`.
 
 One sprite is loaded and reused for all stamps.
 
@@ -54,6 +54,19 @@ Durable architecture detail:
 - Because there is only a front image, the rear hemisphere uses a mirrored and darkened proxy rather than disappearing.
 - Every stamp stores the yaw it had when created, preserving orientation history in the trail.
 - 2D mode keeps yaw = 0 and remains unchanged.
+
+## Turn inertia / width gate
+- Yaw should not begin and finish merely because `vz` changed sign.
+- A change in depth direction starts a turn but the figure must travel spatially before completing it.
+- Current rule: hold facing for ~16% of the turn distance, then complete the rotation over roughly **1.05 sprite widths** of combined planar/depth-equivalent travel.
+- This makes the turn feel like the image has physical width/inertia rather than snapping to a target orientation.
+- The mirrored rear representation remains the endpoint; disappearance remains rejected.
+
+## Trail length / spacing
+- Slightly wider gaps between complete stamps are preferred if the trail also lives longer.
+- Current cadence high/medium/low: **30 / 35 / 42 ms**.
+- Current lifetime: **860 ms** normal, **1040 ms** reduced motion.
+- Do not achieve length by increasing pool without bound. Tail length must remain compatible with the fixed pool and adaptive quality.
 
 ## Trail visibility hierarchy
 - The current/head sprite is the visual authority and remains full brightness.
