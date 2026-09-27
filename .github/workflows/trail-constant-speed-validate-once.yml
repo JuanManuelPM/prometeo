@@ -1,0 +1,60 @@
+name: trail-constant-speed-validate-once
+
+on:
+  push:
+    paths:
+      - ".github/workflows/trail-constant-speed-validate-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate constant speed and black-small tail
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path("visuals/trail-lab/index.html").read_text()
+          m=re.search(r"<script>([\s\S]*?)</script>",s)
+          assert m, "inline script missing"
+          script=m.group(1)
+          Path("/tmp/trail.js").write_text(script)
+
+          required=[
+            "const PATH_SPEED=reduced?150:230",
+            "pathDistance+=PATH_SPEED*dt",
+            "function hairpinMetrics",
+            "function turnAngleAtDistance",
+            "new Float32Array(samples+1)",
+            "const SHADE_BRIGHTNESS=[0,.12,.24,.38,.52,.68,.82,.92]",
+            "ageT<=.0001?0",
+            "const scale=lerp(.56,.97,ageCurve)",
+            "const hierarchy=isHead?{brightness:1,scale:1}:stampHierarchy(trailT,pz)"
+          ]
+          for token in required:
+              assert token in script, f"missing {token}"
+
+          forbidden=["function smooth01","const u=smooth01","turn=clamp((lane*2)/250"]
+          for token in forbidden:
+              assert token not in script, f"obsolete eased path remains: {token}"
+
+          assert "http://" not in script and "https://" not in script, "external runtime URL found"
+
+          state=Path("visuals/fronts/trail/state.json").read_text()
+          assert '"current_blob_sha": "17c9d32cfaf54b74a7a576470ef8c27699e2ff45"' in state
+          assert "Constant-speed trajectory" in Path("visuals/fronts/trail/decisions.md").read_text()
+          assert "Coupled darkness / size hierarchy" in Path("visuals/fronts/trail/decisions.md").read_text()
+          arch=Path("visuals/fronts/trail/architecture.md").read_text()
+          assert "pathDistance += PATH_SPEED * dt" in arch
+          assert "oldest/rearmost stamp = literal black silhouette" in arch
+          print("Trail constant-speed hierarchy checks OK")
+          PY
+          node --check /tmp/trail.js
+          echo "node syntax OK"
