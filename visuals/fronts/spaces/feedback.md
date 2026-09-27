@@ -2,47 +2,43 @@
 
 Status: CURRENT
 
-## UNIVERSAL VISUAL RULES
-- Camera/player is the dominant light source.
-- Lighting/darkness must respond to **full 3D distance**, including vertical distance, when rendering tall structures.
-- Near surfaces are readable; far, high and off-axis surfaces can approach black.
-- Floor and architecture share the same world-space lighting language.
-- Monumentality comes from mass, occlusion, cropping, darkness and scale.
-- No screen-space depth seams.
+## LATEST LIGHTING CORRECTION · v16
+User reported that the v15 lighting still violated the intended physical rule:
+- approaching a pillar could leave it too dark;
+- tower tips were not dark enough relative to their bases;
+- lighting should be determined by how far each point is from the **center of the camera**.
 
-## MAP 1 · v15 STRUCTURAL FIX
-Latest user correction:
-- the columns/supports did not visually reach the upper arch;
-- wall mass was missing behind the arch/figure.
+## CURRENT UNIVERSAL LIGHT RULE
+For any sampled point on floor / wall / pillar / tower:
 
-Root cause of the floating arch:
-- the crown sprite intentionally clears its bottom 20%;
-- supports ended at `shoulderY`, while the first visible crown pixels start higher;
-- therefore there was a real world-space gap even though the nominal values looked adjacent.
+1. Compute true 3D distance from camera center:
+   - dx = worldX - camX
+   - dy = worldY - cameraY
+   - dz = worldZ - camZ
+   - dist = hypot(dx, dy, dz)
+2. Distance is the primary lighting term:
+   - physically near = brighter
+   - physically far = darker
+3. Optical-axis alignment is only secondary:
+   - centered points receive somewhat more light
+   - it must NOT overpower proximity
+   - a nearby pillar should not become inexplicably black just because it is slightly off-axis
+4. Tall geometry is sampled vertically:
+   - bases are closer and therefore brighter
+   - tips are much farther and therefore darker
+   - extremely high/far tips may nearly disappear
 
-Current rule/implementation:
-- compute `springY = shoulderY + (ceilY - shoulderY) * .20`;
-- supports rise to `springY`, the **actual visible springline** of the crown;
-- the support top remains aligned with the inner arch width;
-- every rib gets a wall plane rendered **behind** the support + crown;
-- the backing wall has an arch-shaped opening cut out, so it creates architectural mass without blocking the passage;
-- render order is backing wall first, then supports, then arch crown.
+## IMPLEMENTATION v16
+- `cameraLight3DAt` now uses full Euclidean distance from the camera center as its primary falloff.
+- The old cone-style attenuation that could overpower near-field proximity was removed.
+- Optical-axis weighting remains but with a nonzero floor, so it cannot annihilate nearby surfaces.
+- Brutalist columns use 9 vertical lighting slices.
+- Cylinder curvature now has a stronger minimum light response, preventing near faces from going absurdly black.
+- Both floors and walls now use the same camera-center 3D light metric rather than separate 2D distance logic.
 
-## TALL PILLARS / TOWERS · 3D LIGHT RULE
-Latest user correction:
-- towers must get darker not only as they move away in the horizontal plane, but also as their parts get vertically farther from the player.
-
-Current implementation:
-- tower faces are divided into vertical slices;
-- each slice computes camera light from X + Y + Z distance;
-- high/far slices receive less light than low/near slices;
-- side/back curvature still reduces light further;
-- the result is a tower that can disappear upward into darkness instead of carrying one uniform brightness for its full height.
-
-## MOBILE INTERACTION · PRESERVE
-- swipe up/down on canvas = forward/back;
-- W/S = forward/back;
-- A/D = strafe;
-- wheel/trackpad = forward/back;
-- touch ↑/↓ buttons remain;
-- selection/callout/context-menu UI stays disabled on the visual surface.
+## PRESERVE
+- Map 1 supports reach the visible crown springline.
+- Backing wall remains behind the arch/support figure.
+- Map 2 remains massive, diagonal and brutalist.
+- Touch swipe, WASD, wheel and touch buttons remain.
+- Browser text-selection/callout UI remains disabled.
