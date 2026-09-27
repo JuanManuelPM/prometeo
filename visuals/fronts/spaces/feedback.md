@@ -2,55 +2,29 @@
 
 Status: CURRENT
 
-## v18 · THREE NEW SCENES
-The user asked to reuse the current locomotion / pseudo-3D / camera-distance-lighting effects in three additional compositions.
+## v19 · MAP 5 PROXIMITY SIGNS
+Latest user direction:
+- the violet triangular spires beside the ritual road need a sign;
+- the sign must remain hidden by default;
+- it should rise only when the player is **fairly close**.
 
-### Map 3 · Straight paired-column road
-Required:
-- one strict straight road through the center;
-- two parallel rows of columns;
-- each left column sits exactly opposite a right column at the same world Z;
-- strong axial perspective and no diagonal scatter.
+## IMPLEMENTATION
+- Every Map 5 spire has its own animated sign state.
+- Proximity is measured from player/camera XZ position to that spire base.
+- Open threshold: distance < 11.2 world units.
+- Close threshold: distance > 13.4 world units.
+- The two thresholds create hysteresis so signs do not chatter at the edge.
+- Rise is faster than retract.
+- Animation uses time-based exponential interpolation, not frame-count popping.
+- Signs start below the floor and telescope upward.
+- Each panel is placed toward the **inner / road-facing side** of its spire.
+- Panels use gold + violet ritual materials and a minimal geometric glyph, not UI text.
+- Left and right spires trigger independently, so strafing closer to one side can wake that side first.
 
-Implementation:
-- centered road with subtle edge lines;
-- exact opposing column pairs at ±X;
-- tall rectangular monumental columns;
-- same Euclidean camera-center lighting as the existing scenes.
-
-### Map 4 · Enclosing tunnel
-Reference direction:
-- long barrel/tube feeling;
-- walls and vault wrap around the view;
-- strong black depth at the center;
-- textured, claustrophobic, retro-surreal atmosphere.
-
-Implementation:
-- vertical side walls plus semicircular vault;
-- existing repo stone photo is re-graded warm/brown and tiled into `atlas.tunnelTile`;
-- tunnel is drawn as repeated world-space depth bands;
-- dark throat is anchored to the optical center;
-- no flat ceiling.
-
-### Map 5 · Ritual avenue / temple
-Reference direction:
-- straight central avenue;
-- repeated pointed forms on both sides;
-- strong striped floor perspective;
-- orange/red sky;
-- monumental stepped structure at the end.
-
-Implementation:
-- alternating purple world-space road stripes;
-- exact paired pointed obelisks/spires;
-- stepped temple fixed in world space as a destination;
-- temple renders behind nearer spires;
-- warm sky remains graphic while world geometry still follows camera-distance lighting.
-
-## UNIVERSAL RULES PRESERVED
-- fixed frontal camera;
-- W/S + wheel + touch swipe forward/back;
-- A/D strafe within scene-specific limits;
-- true Euclidean 3D distance from camera center drives world light;
-- nearby points brighter, far/high points darker;
-- no browser copy/select callout over controls.
+## PRESERVE
+- Map 5 orange/red sky.
+- Purple striped central road.
+- Paired pointed spires.
+- Stepped temple destination.
+- True 3D camera-center lighting.
+- Existing movement / touch controls and non-selectable UI.
