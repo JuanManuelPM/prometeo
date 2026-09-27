@@ -13,8 +13,8 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020403;col
 #veil{position:absolute;z-index:4;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 48%,transparent 22%,rgba(0,0,0,.05) 64%,rgba(0,0,0,.34) 100%);box-shadow:inset 0 0 7vw rgba(0,0,0,.34)}
 #scan{position:absolute;z-index:5;inset:0;pointer-events:none;opacity:.07;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.02) 0 1px,transparent 1px 4px);mix-blend-mode:screen}
 #tag{position:absolute;z-index:8;left:max(10px,env(safe-area-inset-left));top:max(9px,env(safe-area-inset-top));padding:6px 8px;background:rgba(3,5,3,.42);border:1px solid rgba(197,189,130,.08);color:rgba(221,213,173,.54);font:800 7px/1 system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase;pointer-events:none}
-#maps{position:absolute;z-index:11;top:max(9px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;gap:5px;max-width:90vw;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:0 2px}#maps::-webkit-scrollbar{display:none}
-#maps button{height:29px;padding:0 9px;border:1px solid rgba(235,226,181,.13);background:rgba(4,5,6,.58);color:rgba(235,226,181,.56);font:900 8px/1 system-ui;letter-spacing:.11em;text-transform:uppercase;backdrop-filter:blur(3px);touch-action:none;-webkit-user-select:none;user-select:none;flex:0 0 auto}
+#maps{position:absolute;z-index:11;top:max(9px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;gap:5px;width:min(92vw,620px);max-width:none;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none;padding:0 10px 4px;touch-action:pan-x;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;scroll-snap-type:x proximity}#maps::-webkit-scrollbar{display:none}
+#maps button{height:29px;padding:0 9px;border:1px solid rgba(235,226,181,.13);background:rgba(4,5,6,.58);color:rgba(235,226,181,.56);font:900 8px/1 system-ui;letter-spacing:.11em;text-transform:uppercase;backdrop-filter:blur(3px);touch-action:pan-x;-webkit-user-select:none;user-select:none;flex:0 0 auto;scroll-snap-align:center}
 #maps button.active{color:#f0e5bc;border-color:rgba(231,215,151,.35);background:rgba(55,68,37,.52)}
 #pad{position:absolute;z-index:10;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));width:58px;height:106px;pointer-events:none;opacity:.76}
 #pad button{position:absolute;left:0;width:58px;height:50px;border:1px solid rgba(229,220,171,.14);background:rgba(3,5,3,.58);color:rgba(231,221,177,.80);font:900 20px/1 system-ui,sans-serif;display:grid;place-items:center;pointer-events:auto;backdrop-filter:blur(2px);touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
@@ -23,7 +23,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020403;col
 #hint{position:absolute;z-index:8;left:max(10px,env(safe-area-inset-left));bottom:max(10px,env(safe-area-inset-bottom));max-width:62%;color:rgba(224,215,190,.34);font:800 7px/1.3 system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;pointer-events:none;transition:opacity 1s}
 #loading{position:absolute;z-index:20;inset:0;display:grid;place-items:center;background:#020403;color:#777861;font:800 9px/1 system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;transition:opacity .34s}
 #loading.off{opacity:0;pointer-events:none}
-@media(max-width:520px){#maps{top:44px}#maps button{height:27px;padding:0 8px;font-size:7px}}
+@media(max-width:520px){#maps{top:44px;width:calc(100vw - 14px);padding-left:8px;padding-right:8px}#maps button{height:30px;padding:0 10px;font-size:7px}}
 @media(max-height:430px){#tag{top:5px}#maps{top:5px}#pad{transform:scale(.92);transform-origin:bottom right}#hint{font-size:6px}}
 </style>
 </head>
@@ -54,7 +54,9 @@ const ctx=canvas.getContext('2d',{alpha:false,desynchronized:true});
 const loading=document.getElementById('loading');
 const hint=document.getElementById('hint');
 const tag=document.getElementById('tag');
+const mapsBar=document.getElementById('maps');
 const mapButtons=Array.from(document.querySelectorAll('#maps button'));
+let mapStripDrag=null,mapStripSuppressClickUntil=0;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
 const NEAR=.14;
@@ -899,6 +901,8 @@ function setMap(n){
   currentMap=n;camX=0;targetCamX=0;camZ=1.4;targetCamZ=1.4;
   if(n===5)ritualSigns.clear();
   mapButtons.forEach((b,i)=>b.classList.toggle('active',i===n-1));
+  const activeButton=mapButtons[n-1];
+  if(activeButton)activeButton.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
   const names=[
     'MAPA 1 · NAVE ALTA',
     'MAPA 2 · CILINDROS',
@@ -908,7 +912,45 @@ function setMap(n){
   ];
   tag.textContent=names[n-1]||names[0];
 }
-mapButtons.forEach((b,i)=>b.addEventListener('click',()=>setMap(i+1)));
+mapsBar.addEventListener('pointerdown',e=>{
+  if(e.pointerType!=='touch'&&e.pointerType!=='pen')return;
+  mapStripDrag={
+    id:e.pointerId,
+    startX:e.clientX,
+    lastX:e.clientX,
+    startScroll:mapsBar.scrollLeft,
+    moved:false
+  };
+  mapsBar.setPointerCapture(e.pointerId);
+});
+mapsBar.addEventListener('pointermove',e=>{
+  if(!mapStripDrag||e.pointerId!==mapStripDrag.id)return;
+  const dx=e.clientX-mapStripDrag.startX;
+  if(Math.abs(dx)>4)mapStripDrag.moved=true;
+  if(!mapStripDrag.moved)return;
+  e.preventDefault();
+  mapsBar.scrollLeft=mapStripDrag.startScroll-dx;
+  mapStripDrag.lastX=e.clientX;
+});
+function finishMapStripDrag(e){
+  if(!mapStripDrag||e.pointerId!==mapStripDrag.id)return;
+  if(mapStripDrag.moved)mapStripSuppressClickUntil=performance.now()+260;
+  try{mapsBar.releasePointerCapture(e.pointerId)}catch(_){}
+  mapStripDrag=null;
+}
+mapsBar.addEventListener('pointerup',finishMapStripDrag);
+mapsBar.addEventListener('pointercancel',finishMapStripDrag);
+
+mapButtons.forEach((b,i)=>b.addEventListener('click',e=>{
+  if(performance.now()<mapStripSuppressClickUntil){
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
+  setMap(i+1);
+  // Keep the active option visible even after selecting it near an edge.
+  b.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+}));
 const held=new Map();
 function nudge(kind,amount){
   const max=mapMaxZ();
@@ -975,7 +1017,7 @@ addEventListener('selectstart',e=>e.preventDefault());
 addEventListener('dragstart',e=>e.preventDefault());
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v19',
+  version:'spaces-maps-v20',
   maps:[
     '1 green arch nave',
     '2 brutalist cylinder hall',
@@ -983,7 +1025,7 @@ window.PrometeoSpaces={
     '4 enclosing barrel tunnel',
     '5 ritual striped avenue with proximity-raised signs, paired spires and stepped temple'
   ],
-  contract:'fixed frontal view; touch swipe + WASD + wheel; all scenes preserve true 3D camera-distance lighting. Map 5 adds per-spire ritual signs that remain hidden until real player proximity triggers a smooth rise, with hysteresis and a slower retract when the player leaves',
+  contract:'fixed frontal view; touch swipe + WASD + wheel; the five-map selector is a true horizontally finger-scrollable strip with native pan-x plus explicit pointer-drag fallback, and it auto-centers the active option. Map 5 keeps proximity-raised ritual signs',
   sourcePages:SOURCE_PAGES,
   camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
