@@ -5,18 +5,20 @@ Status: CURRENT
 - Exactly **one visible human hand** remains in the Player.
 - The hand stays lower-right and only performs the minimal PET interaction.
 - The carried entity remains a **handless pet**.
-- V11 replaces the previous mask head with the newly generated **retro black/white eye frame**.
-- The eye is deliberately split into layers:
-  1. **EYEBALL / PUPIL** rendered behind.
-  2. **EYE FRAME / EYELIDS / LINER** rendered from the generated sprite above.
-- Never bake look-around/pupil movement into the frame atlas. Those are different animation systems.
-- The eye-frame center must remain transparent.
-- Current production uses only the first row of the 10x10 generated grid: **BLINK**.
-- BLINK uses 10 frames at 96x96 each.
-- The pupil/eyeball fades with eyelid openness during blink so it cannot leak through a closed frame.
-- Automatic blink is sparse rather than continuous.
+- The pet face uses the newly generated **retro black/white eye frame**.
+- The eye is split into layers:
+  1. **EYEBALL / PUPIL** behind.
+  2. **EYE FRAME / EYELIDS / LINER** above.
+- Never bake look-around/pupil movement into the frame atlas.
+- The frame center remains transparent.
+- Current production activates only the first row of the 10x10 generated grid: **BLINK**.
+- Current verified production strip uses ten 64x64 cells in `player-eye-blink-v2.webp`.
+- Exact eye strip Git blob SHA is `326ca3ed8f714daddefa970ac13eac22091a1f2e`.
+- Eye contents are clipped by blink openness so the pupil disappears behind closing lids.
+- Automatic blink is sparse.
 - PET may force one blink as a reaction.
-- Do not activate the remaining grid rows until the basic layered eye is visually accepted.
+- Do not activate remaining eye-frame rows until basic layered-eye behavior is visually accepted.
+- `player-eye-blink-v1.webp` is a broken transient asset and must not be restored.
 - Preserve 320x180, persistent state, touch, cheap audio/vibration and image-first foreground.
 
 ## Session lifecycle
