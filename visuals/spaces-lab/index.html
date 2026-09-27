@@ -145,6 +145,28 @@ function buildCrown(img){
   g.globalCompositeOperation='source-over';
   atlas.crown=c;return c;
 }
+function buildArchBacking(img){
+  if(!img)return null;
+  const c=document.createElement('canvas');c.width=720;c.height=520;
+  const g=c.getContext('2d');
+  cover(g,img,c.width,c.height);
+  g.globalCompositeOperation='multiply';
+  g.fillStyle='rgba(25,58,24,.94)';
+  g.fillRect(0,0,c.width,c.height);
+  g.globalCompositeOperation='screen';
+  g.globalAlpha=.07;
+  g.fillStyle='#8f8247';
+  g.fillRect(0,0,c.width,c.height);
+  g.globalAlpha=1;
+  // Cut the walkable opening out of the backing wall. The structural arch is drawn later,
+  // in front of this plane, so the wall reads as architecture behind the figure.
+  g.globalCompositeOperation='destination-out';
+  archPath(g,c.width,c.height,c.width*.235,c.width*.765,c.height*.77,c.height*.18);
+  g.fill();
+  g.globalCompositeOperation='source-over';
+  atlas.archBacking=c;
+  return c;
+}
 function darken(name,src,amount){
   if(!src)return null;
   const c=document.createElement('canvas');c.width=src.width;c.height=src.height;const g=c.getContext('2d');
@@ -162,6 +184,7 @@ function buildAtlas(){
   mixMaterial('floorField',atlas.floorTile,atlas.stoneTile,.48);
   mixMaterial('wallMass',atlas.wallField,atlas.stoneTile,.30);
   buildCrown(assets.wall||assets.stone);
+  buildArchBacking(assets.wall||assets.stone);
   darken('shadow',atlas.wallMass||atlas.wall,.76);
   darken('far',atlas.stoneTile||atlas.stone,.88);
   loading.classList.add('off');
@@ -222,26 +245,38 @@ function chamferPier(img,side,outerX,innerFloor,innerTop,y0,y1,z0,z1,alpha){
   worldQuad(img,[{x:top,y:y1,z:z1},{x:top,y:y1,z:z0},{x:foot,y:y0,z:z0},{x:foot,y:y0,z:z1}],alpha*.88);
   worldQuad(img,[{x:outer,y:y1,z:z0},{x:outer,y:y1,z:z1},{x:top,y:y1,z:z1},{x:top,y:y1,z:z0}],alpha*.68);
 }
-function renderCylinderSolid(cx,cz,r,y0,y1,cameraLight){
-  const faces=[],n=28;
+function renderCylinderSolid(cx,cz,r,y0,y1){
+  const faces=[],n=28,slices=7;
   for(let i=0;i<n;i++){
     const a0=(i/n)*Math.PI*2,a1=((i+1)/n)*Math.PI*2;
     const x0=cx+Math.cos(a0)*r,z0=cz+Math.sin(a0)*r;
     const x1=cx+Math.cos(a1)*r,z1=cz+Math.sin(a1)*r;
-    faces.push({z:(z0+z1)*.5,mid:(a0+a1)*.5,pts:[
-      {x:x0,y:y1,z:z0},{x:x1,y:y1,z:z1},{x:x1,y:y0,z:z1},{x:x0,y:y0,z:z0}
-    ]});
+    const mid=(a0+a1)*.5;
+    for(let s=0;s<slices;s++){
+      const t0=s/slices,t1=(s+1)/slices;
+      const yy0=lerp(y0,y1,t0),yy1=lerp(y0,y1,t1);
+      faces.push({
+        z:(z0+z1)*.5,
+        y:(yy0+yy1)*.5,
+        mid,
+        pts:[
+          {x:x0,y:yy1,z:z0},{x:x1,y:yy1,z:z1},
+          {x:x1,y:yy0,z:z1},{x:x0,y:yy0,z:z0}
+        ]
+      });
+    }
   }
-  faces.sort((a,b)=>b.z-a.z);
-  const d=Math.pow(clamp(cameraLight,0,1),1.18);
+  faces.sort((a,b)=>b.z-a.z || b.y-a.y);
   for(const f of faces){
-    // Camera is the dominant light source. Front-facing curvature catches the beam;
-    // side/back faces fall almost completely into black.
-    const face=.08+.92*Math.max(0,Math.cos(f.mid+.72));
-    const rr=Math.round(2+126*face*d);
-    const gg=Math.round(1+61*face*d);
-    const bb=Math.round(5+166*face*d);
-    worldSolidQuad('rgb('+rr+','+gg+','+bb+')',f.pts,.995);
+    const midX=(f.pts[0].x+f.pts[1].x)*.5;
+    const midZ=(f.pts[0].z+f.pts[1].z)*.5;
+    const L=Math.pow(cameraLight3DAt(midX,f.y,midZ,52,.48,.0015),1.16);
+    const face=.07+.93*Math.max(0,Math.cos(f.mid+.72));
+    const shade=face*L;
+    const rr=Math.round(1+132*shade);
+    const gg=Math.round(1+62*shade);
+    const bb=Math.round(3+174*shade);
+    worldSolidQuad('rgb('+rr+','+gg+','+bb+')',f.pts,.997);
   }
 }
 function depthAlpha(d,max){return clamp(1-d/(max||112),.16,.98)}
@@ -259,6 +294,17 @@ function cameraLightAt(worldX,worldZ,reach,cone,ambient){
   const coneWidth=3.0+dz*(cone||.52);
   const beam=Math.exp(-Math.pow(dx/Math.max(2.2,coneWidth),2.15));
   return clamp((ambient||.006)+falloff*(.18+.82*beam),(ambient||.006),1);
+}
+function cameraLight3DAt(worldX,worldY,worldZ,reach,cone,ambient){
+  const dz=Math.max(0,worldZ-camZ);
+  const dx=worldX-camX;
+  const dy=worldY; // camera eye is the world Y origin in this projection
+  const radial=Math.hypot(dz,dx*.72,dy*.58);
+  const falloff=1/(1+Math.pow(radial/(reach||48),2.35));
+  const coneRadius=3.0+dz*(cone||.52);
+  const offAxis=Math.hypot(dx,dy*.68);
+  const beam=Math.exp(-Math.pow(offAxis/Math.max(2.2,coneRadius),2.05));
+  return clamp((ambient||.003)+falloff*(.14+.86*beam),(ambient||.003),1);
 }
 function renderCameraLitSolidFloor(floorY,zNear,zFar,color){
   const bands=28,cells=12;
@@ -332,12 +378,16 @@ function visibleHalfWidthAtDepth(cameraDepth,margin){
 function renderMap1(){
   baseFill('#010302','#030704','#000100');
   const halfW=5.75,floorY=-1.56,ceilY=10.6,shoulderY=3.72;
+  // buildCrown intentionally clears its bottom 20%; springY is therefore the real
+  // visible base of the arch. Supports must rise to this height or the crown floats.
+  const springY=shoulderY+(ceilY-shoulderY)*.20;
   const innerFloor=2.55,innerTop=3.34;
   const zNear=camZ+NEAR+.02,zFar=camZ+118;
   const wallTex=atlas.wallMass||atlas.wallField||atlas.wall;
   const floorTex=atlas.floorField||atlas.floorTile||atlas.floor;
   const ribTex=atlas.stoneTile||atlas.stone||wallTex;
   const shadowTex=atlas.shadow||wallTex;
+  const backingTex=atlas.archBacking||wallTex;
 
   // Universal rule: the camera carries the light. Floor and walls die into black by world distance.
   renderCameraLitTexturedFloor(floorTex,floorY,zNear,zFar,halfW);
@@ -354,14 +404,22 @@ function renderMap1(){
     const z0=r.z-thick*.5,z1=r.z+thick*.5;
     if(z1-camZ<NEAR-.02)continue;
 
-    const leftL =Math.pow(cameraLightAt(-innerFloor,r.z,46,.62,.005),1.20);
-    const rightL=Math.pow(cameraLightAt( innerFloor,r.z,46,.62,.005),1.20);
-    const crownL=Math.pow(cameraLightAt(0,r.z,52,.54,.004),1.34);
+    const leftL =Math.pow(cameraLight3DAt(-innerFloor,(floorY+springY)*.5,r.z,46,.62,.003),1.18);
+    const rightL=Math.pow(cameraLight3DAt( innerFloor,(floorY+springY)*.5,r.z,46,.62,.003),1.18);
+    const crownL=Math.pow(cameraLight3DAt(0,(springY+ceilY)*.5,r.z,52,.54,.002),1.30);
+    const wallL=Math.pow(cameraLight3DAt(0,(shoulderY+ceilY)*.5,r.z+.18,46,.58,.002),1.22);
 
-    chamferPier(shadowTex,-1,halfW-.10,innerFloor-.03,innerTop-.06,floorY,shoulderY,z0+.20,z1+.26,.05+.28*leftL);
-    chamferPier(shadowTex, 1,halfW-.10,innerFloor-.03,innerTop-.06,floorY,shoulderY,z0+.20,z1+.26,.05+.28*rightL);
-    chamferPier(ribTex,-1,halfW-.08,innerFloor,innerTop,floorY,shoulderY,z0,z1,.02+.98*leftL);
-    chamferPier(ribTex, 1,halfW-.08,innerFloor,innerTop,floorY,shoulderY,z0,z1,.02+.98*rightL);
+    // Wall plane first: it belongs behind the arch and supports, with the doorway cut out.
+    worldQuad(backingTex,[
+      {x:-halfW+.03,y:ceilY+.06,z:z0+.18},{x:halfW-.03,y:ceilY+.06,z:z0+.18},
+      {x:halfW-.03,y:floorY-.02,z:z0+.18},{x:-halfW+.03,y:floorY-.02,z:z0+.18}
+    ],.025+.58*wallL);
+
+    // Shadow + structural supports now rise to springY, the actual visible bottom of the crown.
+    chamferPier(shadowTex,-1,halfW-.10,innerFloor-.03,innerTop-.06,floorY,springY,z0+.20,z1+.26,.04+.27*leftL);
+    chamferPier(shadowTex, 1,halfW-.10,innerFloor-.03,innerTop-.06,floorY,springY,z0+.20,z1+.26,.04+.27*rightL);
+    chamferPier(ribTex,-1,halfW-.08,innerFloor,innerTop,floorY,springY,z0,z1,.018+.98*leftL);
+    chamferPier(ribTex, 1,halfW-.08,innerFloor,innerTop,floorY,springY,z0,z1,.018+.98*rightL);
 
     if(atlas.crown){
       worldQuad(atlas.crown,[
@@ -413,8 +471,7 @@ function renderMap2(){
   pillars.sort((a,b)=>b.depth-a.depth);
   for(const p of pillars){
     if(p.z+p.r-camZ<NEAR-.02)continue;
-    const L=cameraLightAt(p.x,p.z,54,.47,.0035);
-    renderCylinderSolid(p.x,p.z,p.r,floorY,175,L);
+    renderCylinderSolid(p.x,p.z,p.r,floorY,175);
   }
 
   // Large unlit zones are intentional. The hall is partly swallowed by black.
@@ -536,9 +593,9 @@ addEventListener('selectstart',e=>e.preventDefault());
 addEventListener('dragstart',e=>e.preventDefault());
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v14',
+  version:'spaces-maps-v15',
   maps:['1 green arch nave','2 brutalist cylinder hall'],
-  contract:'fixed frontal view; touch vertical swipe + WASD + wheel movement; browser selection/callout disabled on controls; both maps keep camera-source nonlinear lighting and monumental composition',
+  contract:'fixed frontal view; touch swipe + WASD + wheel; Map 1 supports meet the visible arch springline with masked wall planes behind the structure; pillar/tower lighting uses full 3D distance including height',
   sourcePages:SOURCE_PAGES,
   camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
