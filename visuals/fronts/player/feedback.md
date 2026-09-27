@@ -1,4 +1,4 @@
-# 🖐️ Retro Player / One Hand + Carried Pet · Durable Feedback
+# 🖐️ Retro Player / One Hand + Eye Pet · Durable Feedback
 
 Status: CURRENT
 
@@ -10,35 +10,44 @@ Status: CURRENT
 - image-first foreground
 - one coherent scene
 - one coherent generated photographic hand identity
+- exactly one player hand
+- carried pet has no human hands
 
 ## LATEST USER DIRECTION
-- There are too many animations.
-- Do not alternate between a right-side hand and a left-side hand.
-- The player should have one clear owned hand only.
-- The carried object/pet must not sprout human hands pointing back at the viewer.
-- Simplify aggressively instead of maintaining extra actor/action taxonomies.
+- The pet face should use the newly generated retro black/white eye-frame design.
+- The eye-frame animation and the actual eyeball/pupil are separate layers.
+- The frame itself must remain hollow/transparent in the middle.
+- Add a pupil behind the generated frame.
+- The generated 10x10 grid is the source vocabulary for future eyelid/frame animation.
+- Do not confuse frame motion with pupil/look-around motion.
 
-## V10 IMPLEMENTATION
-- Exactly one PLAYER_HAND runtime.
-- It is anchored lower-right and uses only the same-side family from the generated INSPECT strip.
-- Idle is a single fixed source frame: frame 8.
-- PET is the only action and uses a short same-family sequence: 8 → 7 → 6 → 5 → 6 → 7 → 8.
-- No left/right alternation.
-- No palm-forward endpoints.
-- No FRONT_ACTOR_HANDS runtime or manifest category.
-- The carried mask-heart pet has no human hands.
-- The pet only has:
-  - IDLE: tiny breathing/bob;
-  - REACT: small recoil/tilt when touched.
-- Touch/Space/Enter performs PET and returns to the same idle.
-- Persistent touch count remains for continuity but does not unlock extra visual animation states.
+## V11 IMPLEMENTATION
+- The old mask head is removed from the current Player runtime.
+- The pet still keeps the heart body.
+- The generated eye grid was normalized for production; V11 currently consumes only the first row as a 10-frame BLINK strip.
+- Production eye strip: `visuals/player-lab/player-eye-blink-v1.webp`.
+- Each frame is 96x96; the strip is 960x96.
+- The eye frame is transparent through its center and stays monochrome black/gray/white.
+- The actual eye content is rendered underneath:
+  - muted pale eyeball ellipse;
+  - dark pupil;
+  - tiny highlight.
+- The pupil/eyeball layer has its own rendering path and is not baked into the eyelid sprite.
+- Blink frames also drive an openness mask so the pupil fades away as the lids close instead of unrealistically showing through.
+- Automatic blink cadence is deliberately sparse: one blink every roughly 2.3–5.3 seconds.
+- PET interaction forces one blink/reaction, then returns to the same minimal idle.
+- The one lower-right player hand and its single PET sequence are preserved.
+
+## SOURCE GRID
+The user generated a 10x10 black/white eye-frame animation grid.
+Current production intentionally uses only the first BLINK row. Other rows remain unactivated until the basic layered eye reads correctly on the actual page. This avoids repeating the previous mistake of enabling a whole animation vocabulary before the core visual language is accepted.
 
 ## OPEN / NEXT REVIEW
-- Confirm visually that the player hand never flips side.
-- Confirm it reads as our own hand rather than somebody reaching toward us.
-- Confirm the pet remains handless.
-- Confirm the reduced motion feels cleaner rather than lifeless.
-- Do not add GRAB / PUSH / POINT / ATTACK / PANIC / WEIRD until the minimal interaction is accepted.
+- Confirm the pupil sits visually behind the frame.
+- Confirm the blink closes cleanly without the pupil leaking through.
+- Confirm the black/white frame has enough contrast over the room.
+- Confirm the pet still feels simple rather than becoming another over-animated system.
+- Do not activate more eye-frame rows until V11 is reviewed.
 
 ## REJECTED / DO NOT REVIVE
 - nearly invisible dark hand
@@ -51,5 +60,6 @@ Status: CURRENT
 - screen compositing used to hide source defects
 - mixed camera ownership
 - right/left hand alternation inside one player animation
-- hands belonging to the carried pet or pointing from the pet toward the viewer
+- hands belonging to the carried pet
 - large action vocabularies before the basic scene language works
+- baking pupil/look-around behavior into the eyelid/frame sprite
