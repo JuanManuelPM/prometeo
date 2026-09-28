@@ -8,6 +8,7 @@ const edge=read('supabase/functions/prometeo-change-loop-v1/index.ts');
 const apply=read('scripts/apply-page-change-frontier.mjs');
 const compact=read('scripts/build-claim-frontier.mjs');
 const fast=read('coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md');
+const wc=read('wc');
 const builder=read('coordination/workspaces/PAGE_CHANGE_WORKER_PROTOCOL_V1.md');
 const verifier=read('coordination/workspaces/PAGE_CHANGE_VERIFIER_PROTOCOL_V1.md');
 
@@ -31,6 +32,8 @@ must('verify-separate-result',edge,"verifyPath='coordination/executions/'+p.work
 must('apply-keeps-exclusion',apply,"forbidden_worker_ids:uniq(item.forbidden_worker_ids).slice(0,16)");
 must('compact-keeps-exclusion',compact,"'forbidden_worker_ids'");
 must('preclaim-skip-law',fast,'current worker_id is listed, that candidate is INELIGIBLE');
+must('canonical-bootstrap-preclaim-exclusion',wc,'INDEPENDENCE EXCLUSION BEFORE CLAIM');
+must('canonical-bootstrap-no-claim-when-forbidden',wc,'do NOT CREATE its claim/PIN/barrier entrant');
 
 must('verification-schema',edge,"verification.schema!=='prometeo.verification-result/v1'");
 must('verification-verdicts',edge,"['PASS','FAIL','BLOCKED'].includes(verdict)");
