@@ -1,0 +1,49 @@
+{
+  "schema": "prometeo.control-plane-diagnosis/v1",
+  "diagnosis_id": "SUPABASE_DISK_FULL_PG_WAL_20260928",
+  "project_ref": "catnohyouxqjjtseaueb",
+  "observed_at": "2026-09-28T22:45:00Z",
+  "status": "BLOCKED_EXTERNAL_STORAGE",
+  "scope": "PROMETEO_PAGE_CHANGE_AND_DATABASE_BACKED_CONTROL_PLANE",
+  "root_cause": {
+    "class": "POSTGRES_DISK_EXHAUSTION",
+    "code": "DISK_FULL_PG_WAL",
+    "log_evidence": "could not write to file pg_wal/xlogtemp.*: No space left on device",
+    "startup_effect": "PostgreSQL recovery repeatedly exits because WAL temp files cannot be written.",
+    "downstream_effects": [
+      "PostgREST cannot connect to PostgreSQL and emits PGRST000/PGRST002.",
+      "prometeo-capture returns HTTP 500 INTERNAL_ERROR.",
+      "direct SQL control-plane access is unavailable.",
+      "Page Change end-to-end canary cannot reach Capture/bootstrap."
+    ]
+  },
+  "observed_window": {
+    "from": "2026-09-27T22:45:00Z",
+    "to": "2026-09-28T22:45:00Z",
+    "disk_full_events": 15403,
+    "database_shutdown_events": 15390,
+    "ready_to_accept_connections_events": 0
+  },
+  "platform_metadata": {
+    "project_status_reported_by_management_api": "ACTIVE_HEALTHY",
+    "truth_boundary": "Management-plane health label conflicts with database/postgrest runtime evidence; runtime evidence governs this incident."
+  },
+  "product_boundary": {
+    "control_room_v11_status": "CANDIDATE",
+    "control_room_v10_status": "CURRENT_BASELINE",
+    "ordinary_allocator_fail_open": "PRESERVED",
+    "page_change_new_work": "BLOCKED",
+    "promotion_authorized": false
+  },
+  "recovery_gate": [
+    "Restore enough database disk headroom for PostgreSQL to complete recovery and accept connections.",
+    "Re-run direct SQL health checks and Page Change Capture bootstrap.",
+    "Re-run the existing Page Change Worker Pool canary.",
+    "Do not promote Control Room V11 until the real worker post-claim private-packet gate and human review also pass."
+  ],
+  "remediation_boundary": "The database cannot be cleaned with SQL while it cannot finish startup. Recovery requires a platform-level storage action or provider intervention before ordinary database maintenance is possible.",
+  "evidence_refs": [
+    "coordination/canaries/page-change-pipeline-v1/latest.json",
+    "https://github.com/JuanManuelPM/prometeo/actions/runs/36492764096"
+  ]
+}
