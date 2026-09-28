@@ -70,3 +70,13 @@ Anchor strategies:
 
 ## NEXT
 Review only whether V15 remains centered and stable through the blink. Player reintegration is still blocked on that visual review.
+
+
+## V15 PUBLIC FAILURE → V16
+The user opened V15 and saw a gray square plus a load error. Therefore V15 is rejected as a deployment result even though its local alignment QA passed.
+
+This distinguishes two independent questions:
+- **Geometry:** were the frames aligned correctly before export? V15 local QA said yes.
+- **Delivery:** did the public browser actually receive and decode the sprite? V15 public behavior said no.
+
+V16 keeps the same aligned frames but removes the fragile delivery path: the sprite is embedded directly in the HTML as a JPEG data URI. The runtime verifies the decoded dimensions (640×256) before drawing frame 0. No animation is enabled if that assertion fails.
