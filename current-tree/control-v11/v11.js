@@ -76,7 +76,7 @@ function pageObj(p){
   project_id:node?.owner_key||null,
   authority_status:p.authority||null,
   target_path:p.writable_target?.path||null,
-  target_source_blob:null
+  target_source_blob:p.target_source_blob||p.writable_target?.git_blob_sha||null
  };
 }
 function noteMeta(p){
