@@ -2,78 +2,76 @@
 
 Status: CURRENT
 
-## v33
+## v34 · visual review infrastructure
 
-Visible selector remains:
-1. ARCOS
-2. CALZADA
-3. TÚNEL
-4. TORRES
+v33 scene visuals remain the current visual direction. v34 changes how future visual iterations are verified.
 
-## Global movement
-- W/S and arrows remain continuous controls.
-- wheel/trackpad must no longer call direct `nudge()` jumps.
-- wheel adds bounded `scrollVelocity` impulse.
-- update loop consumes velocity each frame.
-- exponential decay creates smooth stop.
-- clear scroll velocity on scene change and blur.
-- tuning rule: adjust impulse/decay only; do not restore discrete wheel jumps.
+### Deterministic review mode
+Spaces supports:
+`?review=1&map=<1|3|4|5>&x=<number>&z=<number>&t=<ms>`
 
-## ARCOS
-- preserve v32 exactly.
+Review mode rules:
+- hide selector, movement controls, hint, tag and loading UI;
+- select an explicit internal map id;
+- pin camera X/Z;
+- freeze animation time to `t`;
+- pre-stabilize Map 5 sign state;
+- expose `window.PrometeoSpacesReview.ready`.
 
-## CALZADA
-- preserve v32 exactly.
+The same URL must render the same composition closely enough for screenshot comparison.
 
-## TÚNEL
-- preserve v32 exactly.
+### GitHub capture workflow
+Canonical workflow:
+`.github/workflows/spaces-visual-review.yml`
 
-## TORRES · geometry
-- RITUAL_ROAD_Y = -0.38.
-- RITUAL_ROAD_HALF = 0.18.
-- full path width = 0.36.
-- lateralLimit = 0.08.
-- RITUAL_COLUMN_GAP = 3.00.
-- tower radius = 3.20.
-- tower center X = ±6.38.
-- nearest tower surface = ±3.18.
-- bridge edge = ±0.18.
-- real lateral void = 3.00.
-- bridge-last lower-tower occlusion remains.
+Use `browser-actions/setup-chrome` + headless Chrome against the exact checked-out source.
+Do not add Playwright/npm merely for screenshot capture unless Chrome CLI becomes insufficient.
 
-## TORRES · neon architecture
-The tower must dominate. Neon is deliberately sparse.
+Capture set:
+- ARCOS desktop/mobile;
+- CALZADA desktop/mobile;
+- TÚNEL desktop/mobile;
+- TORRES desktop at entry/mid/near;
+- TORRES mobile.
 
-### Deployable sign
-- no return to the old large tan/cardboard billboard.
-- use a small vertical dark neon blade.
-- thin emissive border.
-- only abstract tiny glyph strokes.
-- palette: restrained cyan / magenta / warm red / amber.
-- hard maximum two deployed signs remains.
+### Published review evidence
+Canonical surfaces:
+- `visuals/review/spaces/index.html` = contact sheet;
+- `visuals/review/spaces/latest.json` = generated capture manifest;
+- `visuals/review/spaces/latest/*.png` = generated screenshots;
+- `visuals/fronts/spaces/current-review.json` = small durable pointer for future reincarnation.
 
-### Facade lights
-- a few tiny slit lights only.
-- no window grids.
-- no full-building RGB wash.
-- fade with depth.
+The workflow commits evidence to main and mirrors review evidence to gh-pages.
 
-### Orbital advertisement
-- occasional tower only.
-- one thin ring at a time.
-- slow moving bright dash.
-- rear half paints before tower, front half after tower, so ring wraps the cylinder.
-- no fast spinning / flashing.
+### Acceptance rule
+A visual change is not visually accepted merely because:
+- JS parses;
+- a commit exists;
+- main and gh-pages match;
+- numeric geometry is correct.
 
-## Preserve Map 5
+Before declaring completion, inspect generated screenshots for:
+- composition;
+- scale;
+- clipping;
+- contrast;
+- depth;
+- integration of moving/attached elements.
+
+For TORRES always inspect more than one camera depth.
+
+### Accepted references
+v34 deliberately leaves `accepted_reference=null`.
+Do not invent an accepted baseline. A future human-approved screenshot may be promoted explicitly and used for image-diff/reference comparison.
+
+## Preserve scene decisions from v33
+- visible scenes: ARCOS / CALZADA / TÚNEL / TORRES;
+- ARCOS current look;
+- CALZADA current look;
+- TÚNEL v32 layered stone and depth;
+- TORRES .36 full-width hairline path;
+- TORRES tower gap 3.00 and radius 3.20;
+- sparse neon architecture;
 - dark industrial void;
-- distant world-space megastructures;
-- pure-black deep tower bases;
-- hairline path;
-- one thin center path guide;
-- no stripe field;
-- no bright road rims;
-- signs -> tower -> bridge painter relationship.
-
-## Review risk
-This is still painter-style pseudo-3D. If orbital wrap fails visually, fix painter ordering/geometry before adding effects.
+- bridge-last occlusion;
+- max two deployable signs.
