@@ -4,5 +4,7 @@ window.PROMETEO_CONTROL_CONFIG_V1=Object.freeze({
   anonKey:'sb_publishable_eqh3PngXs4UjLLWiY3pz1w_nhHtf7X-',
   catalogUrl:'../../catalog/CATALOG_MANIFEST.json',
   legacyCatalogUrl:'../control-v8/catalog.json',
-  pageChangeEndpoint:'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-change-loop-v1'
+  pageChangeEndpoint:'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-change-loop-v1',
+  pageChangeCanaryUrl:'../../coordination/canaries/page-change-pipeline-v1/latest.json',
+  pageChangeDiagnosisUrl:'../../coordination/canaries/page-change-pipeline-v1/control-plane-diagnosis-20260928.json'
 });
