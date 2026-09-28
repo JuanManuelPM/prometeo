@@ -420,17 +420,13 @@ function renderMap1(){
   const shadowTex=atlas.shadow||wallTex;
   const backingTex=atlas.archBacking||wallTex;
 
-  // The old floor exposed its Z-band renderer as horizontal seams. Keep the geometry
-  // continuous: one corridor plane, with a restrained single-pass material overlay.
+  // Temporary direction: keep the floor geometry for continuity/collision cues,
+  // but visually erase the green material. The nave floor is pure black.
   const floorL=cameraLight3DAt(0,floorY,camZ+9.5,42,0,.001);
-  worldSolidQuad(litColor([31,62,31],floorL,.84),[
+  worldSolidQuad('rgb(0,0,0)',[
     {x:-halfW,y:floorY,z:zFar},{x:halfW,y:floorY,z:zFar},
     {x:halfW,y:floorY,z:zNear},{x:-halfW,y:floorY,z:zNear}
   ],1);
-  if(floorTex)worldQuad(floorTex,[
-    {x:-halfW,y:floorY+.006,z:zFar},{x:halfW,y:floorY+.006,z:zFar},
-    {x:halfW,y:floorY+.006,z:zNear},{x:-halfW,y:floorY+.006,z:zNear}
-  ],.10+.18*floorL);
 
   renderCameraLitWall(wallTex,-halfW, floorY,ceilY,zNear,zFar);
   renderCameraLitWall(wallTex, halfW, floorY,ceilY,zNear,zFar);
@@ -659,13 +655,15 @@ function renderMap4(){
   segs.sort((a,b)=>b.mid-a.mid);
 
   for(const s of segs){
+    const depthD=Math.max(0,s.mid-camZ);
+    const depthL=Math.pow(clamp(1-depthD/138,.045,1),1.55);
     for(const side of [-1,1]){
       const x=side*radius;
       const L=cameraLight3DAt(x,(floorY+springY)*.5,s.mid,34,0,.0005);
       worldQuad(tunnelTex,[
         {x,y:springY,z:s.z1},{x,y:springY,z:s.z0},
         {x,y:floorY,z:s.z0},{x,y:floorY,z:s.z1}
-      ],clamp(.03+.90*L,.025,1));
+      ],clamp((.035+.96*L)*depthL,.018,1));
     }
 
     for(let j=0;j<arcN;j++){
@@ -677,7 +675,7 @@ function renderMap4(){
       worldQuad(tunnelTex,[
         {x:x0,y:y0,z:s.z1},{x:x1,y:y1,z:s.z1},
         {x:x1,y:y1,z:s.z0},{x:x0,y:y0,z:s.z0}
-      ],clamp(.022+.92*L,.02,1));
+      ],clamp((.028+.98*L)*depthL,.016,1));
     }
 
     // Intentional structural rib at the fixed world joint. This is the optical-flow
@@ -688,7 +686,8 @@ function renderMap4(){
       for(const side of [-1,1]){
         const x=side*radius;
         const L=cameraLight3DAt(x,(floorY+springY)*.5,rz,40,0,.001);
-        worldSolidQuad(litColor([132,98,57],L,.78),[
+        const ribDepth=Math.pow(clamp(1-Math.max(0,rz-camZ)/145,.06,1),1.42);
+        worldSolidQuad(litColor([132,98,57],L*ribDepth,.88),[
           {x:x-side*.12,y:springY,z:rz+thick},{x:x+side*.12,y:springY,z:rz+thick},
           {x:x+side*.12,y:floorY,z:rz-thick},{x:x-side*.12,y:floorY,z:rz-thick}
         ],.96);
@@ -698,7 +697,8 @@ function renderMap4(){
         const x0=Math.cos(a0)*radius,x1=Math.cos(a1)*radius;
         const y0=springY+Math.sin(a0)*radius,y1=springY+Math.sin(a1)*radius;
         const L=cameraLight3DAt((x0+x1)*.5,(y0+y1)*.5,rz,38,0,.0008);
-        worldSolidQuad(litColor([137,101,59],L,.66),[
+        const ribDepth=Math.pow(clamp(1-Math.max(0,rz-camZ)/145,.06,1),1.42);
+        worldSolidQuad(litColor([137,101,59],L*ribDepth,.76),[
           {x:x0,y:y0,z:rz+thick},{x:x1,y:y1,z:rz+thick},
           {x:x1,y:y1,z:rz-thick},{x:x0,y:y0,z:rz-thick}
         ],.94);
@@ -707,6 +707,16 @@ function renderMap4(){
   }
 
   topDarkness(.32);
+
+  // Extra optical-depth veil: darkest at the vanishing throat, almost absent in
+  // the near field. This reinforces "near = clear / far = swallowed by black"
+  // without changing tunnel geometry or world-space motion.
+  const depthVeil=ctx.createRadialGradient(W*.5,H*.49,0,W*.5,H*.49,Math.max(W,H)*.72);
+  depthVeil.addColorStop(0,'rgba(0,0,0,.74)');
+  depthVeil.addColorStop(.18,'rgba(0,0,0,.58)');
+  depthVeil.addColorStop(.46,'rgba(0,0,0,.18)');
+  depthVeil.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=depthVeil;ctx.fillRect(0,0,W,H);
 }
 function renderAbyssColumn(cx,cz,r,yBottom,yTop){
   const faces=[],n=26,slices=20;
@@ -768,8 +778,8 @@ function renderAbyssColumn(cx,cz,r,yBottom,yTop){
 }
 const RITUAL_STEP=7.4;
 const RITUAL_ROAD_Y=-.38;
-const RITUAL_ROAD_HALF=.95;
-const RITUAL_COLUMN_GAP=1.20;
+const RITUAL_ROAD_HALF=.65;
+const RITUAL_COLUMN_GAP=1.90;
 function ritualSideForRow(ri){return (ri&1)?-1:1}
 function ritualSignKey(ri,side){return ri+':'+side}
 function ritualSignOpen(ri,side){
@@ -1084,7 +1094,7 @@ function lateralLimit(){
   if(currentMap===2)return 22;
   if(currentMap===3)return 4.7;
   if(currentMap===4)return 1.55;
-  return .68;
+  return .42;
 }
 function mapMaxZ(){
   if(currentMap===1)return 132;
@@ -1233,15 +1243,15 @@ addEventListener('selectstart',e=>e.preventDefault());
 addEventListener('dragstart',e=>e.preventDefault());
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v30',
+  version:'spaces-maps-v31',
   maps:[
-    '1 green arch nave',
+    '1 arch nave with blacked-out floor',
     '2 brutalist cylinder hall',
     '3 straight paired-column road',
-    '4 world-anchored barrel tunnel with moving ribs',
-    '5 razor-thin suspended bridge through colossal brutalist violet megatowers in a dark industrial void'
+    '4 world-anchored barrel tunnel with stronger near/far darkness falloff',
+    '5 thinner suspended bridge with farther colossal brutalist megatowers in a dark industrial void'
   ],
-  contract:'fixed frontal view; touch swipe + WASD + wheel; Map 5 v30 uses a razor-thin bridge half-width .95, lateral limit .68, larger radius-3.2 towers, a 1.20 abyss gap, and taller shafts from Y=-48 to 48/58. The bright orange sky is replaced by a near-black industrial void, weak horizon glow and distant world-space megastructure silhouettes. Bridge-last occlusion, pure-black deep bases and max-two-sign rule remain',
+  contract:'fixed frontal view; touch swipe + WASD + wheel; v31 keeps Map 3 unchanged, blacks out the Map 1 floor, strengthens Map 4 depth so near tunnel surfaces read clearer and the far throat falls much darker, and pushes Map 5 farther into a thin-bridge brutalist corridor: bridge half-width .65, lateral limit .42, radius-3.2 towers and a 1.90 abyss gap. Dark industrial background, bridge-last occlusion, pure-black deep bases and max-two-sign rule remain',
   sourcePages:SOURCE_PAGES,
   camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
