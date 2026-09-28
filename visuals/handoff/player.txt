@@ -1,81 +1,52 @@
 PROMETEO VISUAL HANDOFF · 🖐️ Player / Eye Frame Rework
-STATUS: CURRENT REINCARNATION PROJECTION
+STATUS: CURRENT
 GENERATED: 2026-09-28
 
-THIS CHAT IS DISPOSABLE. THIS FRONT IS NOT.
-
-PLAYER PUBLIC VISUAL
-https://juanmanuelpm.github.io/prometeo/visuals/player-lab/
-
-CURRENT EYE ISOLATION LAB
+PUBLIC EYE LAB
 https://juanmanuelpm.github.io/prometeo/visuals/eye-frame-lab/
 
-DURABLE FRONT SOURCES
-STATE: https://juanmanuelpm.github.io/prometeo/visuals/fronts/player/state.json
-FEEDBACK: https://juanmanuelpm.github.io/prometeo/visuals/fronts/player/feedback.md
-VERSIONS: https://juanmanuelpm.github.io/prometeo/visuals/fronts/player/versions.json
-ASSETS: https://juanmanuelpm.github.io/prometeo/visuals/fronts/player/assets.json
-DECISIONS: https://juanmanuelpm.github.io/prometeo/visuals/fronts/player/decisions.md
-
-CURRENT EYE LAB TARGETS
+CURRENT FILES
 - visuals/eye-frame-lab/index.html
 - visuals/eye-frame-lab/eye-blink-aligned-grid-v15.jpg
 - visuals/eye-frame-lab/normalization-manifest.json
 - visuals/eye-frame-lab/NORMALIZATION_PROTOCOL.md
 - visuals/eye-frame-lab/tools/sprite_prepare.py
 
-CURRENT EYE LAB EVIDENCE
-main implementation: d5531d4b5f9e88ba450f7931df1fda30b2be4414
-gh-pages implementation: 1a9655926bb24af0b57a70ce292fd4fd5275b3ba
-index blob: 863045e9086eb65d183f2e8ecff3079111ae27be
-sprite blob: c4fb7c8d739bb056f19dafb5586b3882e60e8fbd
-manifest blob: e214d1f4c7f07250b7fbd3a4f489b6a787c02858
-protocol blob: ccc5e5ad2d98a6d57e7036f5e6d0096e70f702f8
-tool blob: 036d5bff296b46cba8ad41f7e28414e164b3d035
+LATEST FAILURE
+The user saw a gray square plus a load error.
 
-LATEST USER DIRECTION
-- Stop trying to center/crop during animation.
-- Build a reusable preprocessing pipeline that separates, measures, aligns, verifies, and only then exports frames.
-- Run it locally first.
-- After local QA, publish when explicitly asked.
+ROOT CAUSE
+V16 embedded the JPEG as a base64 data URI, but the committed HTML contained a truncated base64 string ending in the literal text `truncated`. Browser decode therefore failed.
 
-CURRENT IMPLEMENTATION · V15
-- Source frames were processed locally before GitHub publication.
-- Frames were segmented and measured.
-- Semantic anchor: lower white liner median + horizontal center.
-- Every frame was translated to a common 512×512 canvas.
-- A residual re-measure/correction pass followed.
-- No scale normalization.
-- Local QA maximum anchor jitter: 1 px.
-- QA limit: 3 px.
-- QA result: PASS.
-- Only after QA passed was the review sheet downsampled to ten 128×128 cells.
-- The public runtime simply plays frames 0→9 and returns to 0.
-- Runtime does no crop/alignment repair.
+CURRENT FIX · V17
+- no embedded base64;
+- loads ./eye-blink-aligned-grid-v15.jpg as an external same-origin file;
+- fetch must return OK;
+- blob must be non-empty;
+- browser decode must succeed;
+- natural dimensions must be exactly 640x256;
+- then frame 0 is drawn and blink input is enabled;
+- failures are shown in Spanish with the actual stage.
 
-REUSABLE PIPELINE
+ALIGNMENT PIPELINE REMAINS CURRENT
 SPLIT → MASK → MEASURE → ANCHOR → NORMALIZE → RESIDUAL QA → VISUAL QA → EXPORT → ANIMATE
 
-PLAYER STATUS
-- Player V12 remains rejected for the eye.
-- Do not reintegrate V15 into Player until the isolated blink is visually accepted.
-- The pupil remains intentionally absent from this lab.
+V15 local QA:
+- semantic anchor: lower_liner_median;
+- normalized frame canvas: 512x512;
+- max anchor jitter: 1 px;
+- tolerance: 3 px;
+- scale normalization: none;
+- QA PASS.
 
-OPEN
-- Verify V15 is centered and no longer jumps during the blink.
-- If accepted, the next step is Player reintegration using this exact aligned source, then restore the pupil as a separate layer.
+DO NOT
+- embed large binary assets in HTML through text responses;
+- repair geometry in runtime;
+- reintegrate into Player before isolated visual acceptance.
 
 INCARNATION CONTRACT
-1. Read this handoff completely.
-2. Read durable front sources.
-3. Inspect actual repo targets before asserting behavior.
-4. DO NOT EDIT during incarnation.
-5. Reply with exactly 5 points: A CURRENT, B BASELINE, C OPEN, D HISTORY, E CONTRACT.
-6. End with: ENCARNACIÓN LISTA · esperando feedback
-7. Accumulate feedback until ACTUALIZÁ/equivalent.
-8. On update: implement accumulated feedback, self-critique, publish/verify relevant Player/Eye files across main and gh-pages, update durable continuity, regenerate this handoff.
-
-DO NOT CLAIM
-- visual acceptance that did not happen;
-- browser inspection you did not perform;
-- publication/equality you did not verify.
+1. Read this file and durable front sources.
+2. Inspect actual repo targets before claims.
+3. Do not edit until ACTUALIZÁ/equivalent.
+4. Preserve the normalization pipeline.
+5. Treat V16 as broken transport, not broken alignment.
