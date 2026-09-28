@@ -8,7 +8,7 @@
     "One Prometeo web surface for all pages/workspaces.",
     "Human feedback captured directly as text, audio and attachments.",
     "HACER/Trabajar in V11 queues existing Prometeo workers instead of opening ChatGPT by default.",
-    "Workers consume durable Page Change context, implement, verify, persist RETURN and update the same page feed.",
+    "Workers consume durable Page Change context, implement, persist CANDIDATE_READY RETURN, then a different worker independently verifies the candidate.",
     "GitHub/source owners keep durable version/evidence history.",
     "Manual reincarnation remains a fallback."
   ],
@@ -21,7 +21,8 @@
     "Candidate != Human Accepted != Served; ACTIVE != liveness.",
     "Existing concurrent Visual durable packages remain untouched.",
     "Atomic existing claim/create remains execution authority.",
-    "Existing Page Change tables/storage are reused instead of inventing a duplicate feedback database."
+    "Existing Page Change tables/storage are reused instead of inventing a duplicate feedback database.",
+    "WORKER_POOL builders cannot self-certify VERIFIED or SERVED; independent verifier identity must differ from builder identity."
   ],
   "source_owners": {
     "page_change": "Supabase Edge prometeo-change-loop-v1 + existing prometeo_change_* / prometeo_execution_* tables",
@@ -29,7 +30,8 @@
     "worker_allocation": "scripts/build-fast-allocator.mjs + scripts/build-claim-frontier.mjs + .github/workflows/live-feed.yml",
     "execution_protocol": "coordination/AGENT_EXECUTION_PROTOCOL_V1.md",
     "visual_continuity": "visuals/fronts/<front>/ + visuals/handoff/<front>.txt",
-    "control_baseline": "current-tree/control-v10/index.html"
+    "control_baseline": "current-tree/control-v10/index.html",
+    "independent_verification": "coordination/workspaces/PAGE_CHANGE_VERIFIER_PROTOCOL_V1.md + existing live allocator/claims + coordination/executions/<work_item_id>/VERIFY.json"
   },
   "failure_vaccines": [
     "FV001",
@@ -55,6 +57,10 @@
     "Worker claims before private packet retrieval.",
     "Worker without required private-context capability does not execute.",
     "Durable RETURN is ingested into the existing Page Change feed.",
+    "WORKER_POOL builder VERIFIED/SERVED claims are fenced to CANDIDATE_READY.",
+    "CANDIDATE_READY emits PAGE_CHANGE_VERIFY through the same allocator, not a second queue.",
+    "Builder worker_id is transported as a preclaim exclusion and the source builder cannot claim its verifier.",
+    "Only an independent PASS can upgrade the execution result to VERIFIED; FAIL/BLOCKED remain non-promoting.",
     "Human review can accept/reject candidate without silently changing accepted baseline."
   ],
   "rollback": {
@@ -63,13 +69,16 @@
     "page_change_default": "MANUAL_CHAT",
     "worker_runtime": "remove Page Change frontier merge; ordinary existing lanes continue unchanged"
   },
-  "promotion_gate": "CONTROL_ROOM_V11 remains CANDIDATE until a real Page Change -> worker claim -> private context -> RETURN -> feed canary passes and the human explicitly promotes it.",
+  "promotion_gate": "CONTROL_ROOM_V11 remains CANDIDATE until a real Page Change -> builder claim/private context -> CANDIDATE_READY RETURN -> independent verifier claim -> VERIFY PASS -> feed canary passes and the human explicitly promotes it.",
   "evidence_refs": [
     "coordination/GLOBAL_AGENT_CONSTITUTION_V1.md",
     "coordination/AGENT_EXECUTION_PROTOCOL_V1.md",
     "shared/capture/v1/change-loop.js",
     "supabase/functions/prometeo-change-loop-v1/index.ts",
     "coordination/workers/FAST_ALLOCATION_PROTOCOL_V1.md",
-    "coordination/workers/WORKER_PIPELINE_V1.json"
+    "coordination/workers/WORKER_PIPELINE_V1.json",
+    "coordination/workspaces/PAGE_CHANGE_WORKER_PROTOCOL_V1.md",
+    "coordination/workspaces/PAGE_CHANGE_VERIFIER_PROTOCOL_V1.md",
+    "coordination/portfolio/tests/page_change_independent_verify_v1.mjs"
   ]
 }
