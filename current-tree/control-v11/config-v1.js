@@ -6,5 +6,5 @@ window.PROMETEO_CONTROL_CONFIG_V1=Object.freeze({
   legacyCatalogUrl:'../control-v8/catalog.json',
   pageChangeEndpoint:'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-change-loop-v1',
   pageChangeCanaryUrl:'../../coordination/canaries/page-change-pipeline-v1/latest.json',
-  pageChangeDiagnosisUrl:'../../coordination/canaries/page-change-pipeline-v1/control-plane-diagnosis-20260928.json'
+  pageChangeDiagnosisUrl:'../../coordination/canaries/page-change-pipeline-v1/control-plane-diagnosis-latest.json'
 });
