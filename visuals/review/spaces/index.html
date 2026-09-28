@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Prometeo · Spaces Visual Review</title>
+<style>
+:root{color-scheme:dark;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*{box-sizing:border-box}body{margin:0;background:#050507;color:#d8d5df}
+header{position:sticky;top:0;z-index:2;background:rgba(5,5,7,.94);backdrop-filter:blur(10px);padding:14px 16px;border-bottom:1px solid #24212b}
+h1{font-size:15px;margin:0 0 7px}.meta{font-size:11px;color:#8e8997;display:flex;gap:14px;flex-wrap:wrap}
+main{padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:12px}
+figure{margin:0;border:1px solid #25212e;background:#09090d;overflow:hidden}
+img{display:block;width:100%;height:auto;background:#000}
+figcaption{padding:9px 10px;font-size:11px;display:flex;justify-content:space-between;gap:8px;color:#aaa4b3}
+.badge{color:#76d4ff}.empty{padding:32px;color:#8e8997}
+a{color:#a9dfff}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌀 Spaces · captura automática de revisión</h1>
+  <div class="meta" id="meta">cargando manifest…</div>
+</header>
+<main id="grid"><div class="empty">Esperando capturas.</div></main>
+<script>
+(async()=>{
+  const meta=document.getElementById('meta'),grid=document.getElementById('grid');
+  try{
+    const r=await fetch('./latest.json?ts='+Date.now(),{cache:'no-store'});
+    const m=await r.json();
+    meta.innerHTML=[
+      '<span>estado: <b class="badge">'+(m.status||'unknown')+'</b></span>',
+      '<span>versión: '+(m.version||'—')+'</span>',
+      '<span>source: '+((m.source_sha||'—').slice(0,12))+'</span>',
+      '<span>generado: '+(m.generated_at||'—')+'</span>',
+      m.source_commit_url?'<span><a href="'+m.source_commit_url+'">commit</a></span>':''
+    ].join('');
+    const shots=m.screenshots||[];
+    if(!shots.length){grid.innerHTML='<div class="empty">Todavía no hay capturas generadas.</div>';return}
+    grid.innerHTML='';
+    for(const s of shots){
+      const f=document.createElement('figure');
+      f.innerHTML='<img loading="lazy" src="'+s.url+'" alt="'+s.id+'"><figcaption><span>'+s.label+'</span><span>map '+s.map+' · z '+s.z+' · '+s.viewport.width+'×'+s.viewport.height+'</span></figcaption>';
+      grid.appendChild(f);
+    }
+  }catch(e){
+    meta.textContent='manifest no disponible';
+    grid.innerHTML='<div class="empty">'+String(e)+'</div>';
+  }
+})();
+</script>
+</body>
+</html>
