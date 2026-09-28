@@ -1,64 +1,62 @@
-# 🖐️ Retro Player / One Hand + Eye Pet · Durable Feedback
+# 🖐️ Retro Player / Eye Frame · Durable Feedback
 
 Status: CURRENT
 
 ## KEEP / ACCEPTED
 - persistent scene/state
-- 320x180 internal resolution
+- 320x180 internal Player resolution
 - touch
 - cheap audio/vibration
 - image-first foreground
-- one coherent scene
-- one coherent generated photographic hand identity
 - exactly one lower-right player hand
 - carried pet has no human hands
+- eye content and eye frame remain conceptually separate when reintegration eventually happens
 
-## LATEST USER DIRECTION
-- Apply the newly generated retro black/white eye-frame animation to the Player page.
-- Add a pupil **behind** that image.
-- The eye-frame animation and the eyeball/pupil are separate layers.
-- The frame itself is hollow/transparent through the center.
-- Do not confuse pupil/look direction with frame/eyelid animation.
+## LATEST USER REVIEW
+The previous eye implementation was still wrong because the visual frames were badly cropped/aligned. The user explicitly simplified the task before any further Player integration:
 
-## V12 IMPLEMENTATION
-- The old mask face remains removed from current runtime.
-- The pet body remains the heart asset.
-- The pet face is the generated monochrome eye-frame sprite.
-- Production currently consumes only the BLINK row from the generated 10x10 grid.
-- Correct production strip: `visuals/player-lab/player-eye-blink-v2.webp`.
-- Strip geometry: 640x64, ten 64x64 frames.
-- Exact production blob SHA: `326ca3ed8f714daddefa970ac13eac22091a1f2e`.
-- That SHA was verified against the locally derived source bytes before publishing.
-- Layer order is explicit:
-  1. eyeball/sclera;
-  2. dark pupil + tiny highlight;
-  3. generated eye-frame/liner sprite.
-- Eye contents are clipped by an aperture whose height follows blink openness, so the pupil is physically hidden as the lids close rather than merely floating through the frame.
-- Automatic blink cadence remains sparse: roughly one blink every 2.3–5.3 seconds.
-- PET forces one blink/recoil.
-- One lower-right player hand and its minimal PET sequence are preserved.
+- stop trying to support many eye-frame animations;
+- build **one blink only**;
+- use the newly generated **2 × 5 grid** with ten chronological blink frames;
+- preserve the black/white design;
+- first validate it on a page containing only the eye frame;
+- every touch should replay the same blink;
+- do not add pupil or other eye-content behavior in this isolation lab.
 
-## TRANSIENT V11 FAILURE
-- A first V11 publication used an incorrectly transported eye WebP binary.
-- The code/layering idea was valid, but that binary could not be trusted as the generated source.
-- V12 supersedes it with a smaller lossless WebP whose Git blob SHA was verified exactly before publication.
-- Do not revive `player-eye-blink-v1.webp`.
+## EYE BLINK LAB · CURRENT
+Public:
+https://juanmanuelpm.github.io/prometeo/visuals/eye-frame-lab/
 
-## OPEN / NEXT REVIEW
-- Confirm the pupil visually reads behind the frame.
-- Confirm the blink closes without pupil leakage.
-- Confirm the monochrome frame has enough contrast over the room.
-- Confirm the pet still feels simple rather than over-animated.
-- Do not activate more grid rows until the BLINK layer is accepted.
+Implementation:
+- `visuals/eye-frame-lab/index.html`
+- `visuals/eye-frame-lab/eye-blink-grid-v3.webp`
+
+### What changed after the cropping failures
+- The new source was generated as a simple 2 × 5 grid, not a dense 10 × 10 atlas.
+- The **entire generated grid is resized as one image** to exactly 640 × 256.
+- It is therefore exactly **5 columns × 2 rows of 128 × 128 cells**.
+- Runtime frame extraction uses those fixed grid cells directly.
+- There is **no content-aware trimming**, alpha-keying, bounding-box recrop, or attempt to reconstruct missing edges.
+- Frame order is simply top-left → top-right, then bottom-left → bottom-right.
+- One pointer handler is used; the old pointerdown + touchstart duplication is removed.
+- Every touch plays the same ten-frame blink and returns to frame 0.
+- No CSS squint/stretch/twitch fake animations remain.
+- No pupil exists in this lab.
+
+## WHY V12 IS NOT ACCEPTED
+V12's conceptual layering was reasonable, but the user rejected what was actually visible because the eye imagery/cropping was wrong. Do not use the fact that the asset had a verified Git SHA as evidence that its **visual crop** was correct. Byte integrity and visual correctness are different things, a distinction humanity apparently needed a few attempts to rediscover.
+
+## NEXT
+- Review the standalone blink only.
+- If accepted, then derive the Player eye frame from this exact fixed-cell source.
+- Only after that restore the separate pupil/eyeball layer behind it.
+- Do not expand the animation vocabulary before the blink itself is accepted.
 
 ## REJECTED / DO NOT REVIVE
-- nearly invisible dark hand
-- static pose collection treated as finished animation
-- unrelated Wikimedia/icon hand actor
-- random rapid pose replacement
-- mixed camera ownership
-- right/left hand alternation
-- human hands belonging to the carried pet
-- large action vocabularies before the basic scene language works
-- baking pupil/look-around behavior into the eyelid/frame sprite
-- `player-eye-blink-v1.webp` from transient V11 binary transport
+- dense 10x10 eye atlas as production source
+- per-frame content trimming
+- wrong cell geometry
+- using binary verification as a substitute for visual geometry verification
+- multiple fake eye-frame gestures made from scaling/twitch transforms
+- duplicate pointer + touch handlers
+- reintegrating into Player before the isolated blink is visually approved

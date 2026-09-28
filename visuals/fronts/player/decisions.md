@@ -1,25 +1,20 @@
-# 🖐️ Retro Player / One Hand + Eye Pet · Durable Decisions
+# 🖐️ Retro Player / Eye Frame · Durable Decisions
 
 Status: CURRENT
 
-- Exactly **one visible human hand** remains in the Player.
-- The hand stays lower-right and only performs the minimal PET interaction.
-- The carried entity remains a **handless pet**.
-- The pet face uses the newly generated **retro black/white eye frame**.
-- The eye is split into layers:
-  1. **EYEBALL / PUPIL** behind.
-  2. **EYE FRAME / EYELIDS / LINER** above.
-- Never bake look-around/pupil movement into the frame atlas.
-- The frame center remains transparent.
-- Current production activates only the first row of the 10x10 generated grid: **BLINK**.
-- Current verified production strip uses ten 64x64 cells in `player-eye-blink-v2.webp`.
-- Exact eye strip Git blob SHA is `326ca3ed8f714daddefa970ac13eac22091a1f2e`.
-- Eye contents are clipped by blink openness so the pupil disappears behind closing lids.
-- Automatic blink is sparse.
-- PET may force one blink as a reaction.
-- Do not activate remaining eye-frame rows until basic layered-eye behavior is visually accepted.
-- `player-eye-blink-v1.webp` is a broken transient asset and must not be restored.
-- Preserve 320x180, persistent state, touch, cheap audio/vibration and image-first foreground.
+- The old Player eye implementation is **not visually accepted**.
+- The current task is isolated eye-frame validation, not Player reintegration.
+- Use the newly generated **2 × 5** blink grid only.
+- The production review copy is **640 × 256**, exactly **5 × 2 cells of 128 × 128**.
+- Preserve every complete cell. Do not crop around visible pixels.
+- Do not use per-frame bounding boxes, alpha-keying, or inferred silhouette bounds.
+- One touch = one replay of the same ten-frame blink.
+- Use one pointer event path only; do not bind both `pointerdown` and `touchstart`.
+- No alternate eye-frame gestures exist in the current lab.
+- No pupil/eyeball exists in the current lab.
+- When the blink is accepted, the pupil can later return as a separate layer behind this frame source.
+- Do not mistake a matching Git blob SHA for visual correctness. It proves bytes, not composition.
+- Preserve the Player baseline outside this isolated experiment.
 
 ## Session lifecycle
 - Reincarnation reads handoff + repo and waits for feedback.
