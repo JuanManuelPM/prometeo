@@ -2,27 +2,26 @@
 
 Status: CURRENT
 
-## Map 5 · v25
-- The camera travels on one elevated central bridge/path.
-- Current road Y: -1.12.
-- Current road half-width: 6.15.
-- No lateral horizontal floor beyond the road edges.
-- Visible vertical road edge faces drop to Y=-4.8 to make elevation legible.
-- Columns sit immediately outside the road edges.
-- Current column radius: 2.15.
-- Current column bottom Y: -38.
-- Current column top Y: 42, periodic 50.
-- Lowest 18% of each column is forced to pure black.
-- Above that, violet brightness increases monotonically with height.
-- Camera light must never brighten the forced-black base.
-- Tops are expected to leave the frame.
-- Keep alternating left/right depth rhythm.
-- Keep straight longitudinal road stripes.
-- Signs remain hidden behind columns.
-- Hard maximum of two visible/opening signs remains.
+## Map 5 · v26
+- The bridge is the only horizontal walking surface.
+- roadHalf = 6.15.
+- column radius = 2.15.
+- columnGap = 0.65.
+- column center X = ±(roadHalf + radius + columnGap) = ±8.95.
+- nearest column surface = ±6.80.
+- bridge edge = ±6.15.
+- therefore the real empty gap is 0.65 world units.
+- Never return to radius*.72 placement or any formula that places the column surface inside roadHalf.
+- Render no horizontal floor/shoulder geometry inside the gap.
+- The gap is abyss only.
 
 ## Preserve
-- Map 1 continuous floor.
-- Map 4 world-anchored tunnel optical flow.
-- v20 horizontal finger-scroll selector.
-- fixed frontal camera and movement controls.
+- column bottom Y=-38;
+- top Y=42/50;
+- deep base forced pure black;
+- violet brightens upward;
+- hidden-hinge signs;
+- hard max two signs;
+- straight longitudinal road stripes;
+- Map 1 floor and Map 4 tunnel fixes;
+- v20 horizontal map selector.
