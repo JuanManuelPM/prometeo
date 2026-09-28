@@ -102,6 +102,22 @@ At minimum test:
 ### 11. PERSIST
 Persist code, contracts, migrations, tests and candidate artifacts under the correct owner. Keep private human material out of public artifacts. If promotion is not authorized, leave a candidate rather than inventing approval.
 
+### 11B. WORKER_POOL DELIVERY · PAGE CHANGE
+
+When an owned allocator candidate has `kind=PAGE_CHANGE_EXECUTION`, `context_transport=SUPABASE_CONNECTED_PROJECT`, and a `work_item_id`, the compact public frontier intentionally contains no private Execution Packet.
+
+After and only after the ordinary durable claim succeeds:
+
+1. Read `coordination/workspaces/PAGE_CHANGE_WORKER_PROTOCOL_V1.md`.
+2. Use the connected Prometeo Supabase project `catnohyouxqjjtseaueb`.
+3. Retrieve exactly one row from `public.prometeo_execution_packets` by the owned `work_item_id`.
+4. Require `status=READY`, an unexpired row, and `snapshot.work_item_id` equal to the claimed work item.
+5. Treat `snapshot` as the scoped private Execution Packet and continue this protocol from VALIDATE / REINCARNATE.
+6. Never publish raw Capture transcripts, attachment access URLs/tokens, packet tokens, audio or private session payloads to GitHub claims, RETURNs, receipts, logs or public frontier data.
+7. If the connected Supabase capability is unavailable before claim, skip this candidate. If it becomes unavailable after claim, persist a truthful bounded transport boundary and do no product mutation.
+
+This adapter changes context transport only. It does not create a new scheduler, authority source, worker family or acceptance rule.
+
 ### 12. RETURN
 Write a sanitized durable result to the exact `execution.result_submission.github_return_path` / `execution.return_path` provided by the packet. The file MUST use at least:
 
