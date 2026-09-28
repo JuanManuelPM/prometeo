@@ -1,3 +1,4 @@
+try{
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
@@ -157,3 +158,23 @@ if(mode==='prepare'){
   mkdirFor(out);fs.writeFileSync(out,JSON.stringify(evidence,null,2)+'\n');
   console.log(JSON.stringify({status:evidence.status,evidence_file:out,pool_work_item_id:state.pool.work_item_id}));
 }else throw new Error('unknown mode '+mode);
+}catch(error){
+  const message=String(error?.message||error);
+  const blocked=/HTTP 5\d\d|schema cache|PGRST002|ECONNREFUSED|fetch failed/i.test(message);
+  const evidence={
+    schema:'prometeo.page-change-pipeline-canary/v1',
+    generated_at:now(),
+    run_id:process.env.GITHUB_RUN_ID||null,
+    status:blocked?'BLOCKED_EXTERNAL_CONTROL_PLANE':'FAIL',
+    evidence:{workspace_bootstrap:'NOT_PROVEN',capture_sync:'NOT_PROVEN',worker_pool_execution_packet:'NOT_PROVEN',public_worker_frontier:'NOT_PROVEN',github_return_ingestion:'NOT_PROVEN'},
+    failure_stage:mode,
+    error_class:blocked?'CONTROL_PLANE_UNAVAILABLE':'CANARY_FAILURE',
+    error_summary:blocked?'Supabase Page Change control plane remained unavailable after bounded retries.':message.slice(0,500),
+    public_run_url:process.env.GITHUB_RUN_ID?`https://github.com/JuanManuelPM/prometeo/actions/runs/${process.env.GITHUB_RUN_ID}`:null,
+    truth_boundary:'No product mutation and no private Capture literal were published. This is a blocked canary, not a failed product capability claim.'
+  };
+  const out='coordination/canaries/page-change-pipeline-v1/latest.json';
+  mkdirFor(out);fs.writeFileSync(out,JSON.stringify(evidence,null,2)+'\n');
+  console.error(message);
+  process.exitCode=blocked?78:1;
+}
