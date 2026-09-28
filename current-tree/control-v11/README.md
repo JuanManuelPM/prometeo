@@ -62,6 +62,17 @@ Existing Universal Shell/Page Change callers remain `MANUAL_CHAT` by default and
 
 Only callers that explicitly set `WORKER_POOL` use the automatic worker path. Control Room V11 does this.
 
+## Degraded-mode evidence
+
+V11 keeps page/catalog navigation available when the database-backed control plane is unavailable. The Trabajo view reads the durable Page Change canary/diagnosis evidence and must describe the boundary truthfully instead of implying that workers are running.
+
+Current incident evidence:
+
+- `coordination/canaries/page-change-pipeline-v1/latest.json`
+- `coordination/canaries/page-change-pipeline-v1/control-plane-diagnosis-20260928.json`
+
+The 2026-09-28 diagnosis is `BLOCKED_EXTERNAL_STORAGE`: PostgreSQL cannot complete recovery because `pg_wal` cannot write temporary WAL files with the disk full. This is an infrastructure blocker, not evidence that V11's Page Change design passed or failed.
+
 ## Promotion gate
 
 Do not supersede V10 or call V11 Human Accepted until a real end-to-end canary proves:
