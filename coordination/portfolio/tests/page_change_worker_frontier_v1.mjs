@@ -28,6 +28,7 @@ const frontier={
     priority:96,
     source_path:'coordination/workspaces/PAGE_CHANGE_WORKER_PROTOCOL_V1.md',
     required_capabilities:['github_repository_write','connected_supabase_prometeo'],
+    forbidden_worker_ids:['builder-worker-1'],
     context_transport:'SUPABASE_CONNECTED_PROJECT',
     private_packet_lookup:{project_id:'catnohyouxqjjtseaueb',table:'prometeo_execution_packets',key:'work_item_id',value:'WI-TEST'},
     return_path:'coordination/executions/WI-TEST/RETURN.json',
@@ -42,6 +43,7 @@ assert.equal(merged.queue_ready.length,1);
 assert.equal(merged.queue_ready[0].claim_mode,'OPPORTUNITY_CLAIM_CREATE');
 assert.equal(merged.queue_ready[0].work_item_id,'WI-TEST');
 assert.deepEqual(merged.queue_ready[0].required_capabilities,['github_repository_write','connected_supabase_prometeo']);
+assert.deepEqual(merged.queue_ready[0].forbidden_worker_ids,['builder-worker-1']);
 
 const compact=buildClaimFrontier(merged);
 assert.equal(compact.candidate_count,1);
@@ -50,6 +52,7 @@ assert.equal(c.work_item_id,'WI-TEST');
 assert.equal(c.context_transport,'SUPABASE_CONNECTED_PROJECT');
 assert.equal(c.private_packet_lookup.value,'WI-TEST');
 assert.equal(c.return_path,'coordination/executions/WI-TEST/RETURN.json');
+assert.deepEqual(c.forbidden_worker_ids,['builder-worker-1']);
 assert.ok(!JSON.stringify(compact).includes(privateLiteral));
 assert.ok(!('packet_url' in c));
 assert.ok(!('capture_transcripts' in c));
