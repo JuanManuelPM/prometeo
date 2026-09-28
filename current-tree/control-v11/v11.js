@@ -161,6 +161,26 @@ function renderSpaces(){
  root.querySelectorAll('[data-manual]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const p=pageMap.get(b.dataset.manual);toast(await copy(manualPrompt(p))?'Prompt manual copiado':'No pude copiar')});
 }
 function renderWorkBadge(){const tab=document.querySelector('.tab[data-view="trabajo"]');if(tab)tab.textContent=unread?'Trabajo · '+unread:'Trabajo'}
+async function publicEvidence(url){
+ if(!url)return null;
+ try{const r=await fetch(url,{cache:'no-store'});if(!r.ok)return null;return await r.json()}catch{return null}
+}
+async function renderWorkFailure(root,error){
+ const cfg=window.PROMETEO_CONTROL_CONFIG_V1||{};
+ const [canary,diagnosis]=await Promise.all([
+  publicEvidence(cfg.pageChangeCanaryUrl),
+  publicEvidence(cfg.pageChangeDiagnosisUrl)
+ ]);
+ const externallyBlocked=canary?.status==='BLOCKED_EXTERNAL_CONTROL_PLANE'||diagnosis?.status==='BLOCKED_EXTERNAL_STORAGE';
+ if(externallyBlocked){
+  const diskFull=diagnosis?.root_cause?.code==='DISK_FULL_PG_WAL';
+  const observed=diagnosis?.observed_at||canary?.generated_at||null;
+  const when=observed?new Date(observed).toLocaleString('es-AR'):'sin timestamp';
+  root.innerHTML='<div class="worker-note"><b>Page Change bloqueado por infraestructura.</b> '+(diskFull?'PostgreSQL no puede completar recovery porque el disco no tiene espacio para WAL. ':'El control plane no está aceptando trabajo nuevo. ')+'V11 conserva navegación y feedback local, pero no inventa workers ni ejecución mientras esta frontera siga caída.</div><div class="rdesc">evidencia durable · '+esc(when)+' · V11 sigue CANDIDATE · V10 sigue baseline CURRENT</div>';
+  return;
+ }
+ root.innerHTML='<div class="rdesc">No pude cargar Page Change: '+esc(error?.message||error)+'</div>';
+}
 async function renderWork(){
  const root=$('#workV11');if(!root)return;
  if(!changeClient.hasWorkspace()){root.innerHTML='<div class="worker-note"><b>Workspace local no vinculado.</b> Abrí Notas en cualquier página; Control Room intentará reutilizar/vincular el workspace existente del dispositivo.</div>';return}
@@ -170,7 +190,7 @@ async function renderWork(){
   unread=threads.reduce((n,t)=>n+Number(t.unread_count||0),0);renderWorkBadge();
   root.innerHTML='<div class="worker-note"><b>Este tablero no crea otra cola.</b> “HACER” congela tus notas en un Execution Packet y lo proyecta al allocator CURRENT. Los workers reclaman por la autoridad normal y el resultado vuelve al mismo thread.</div><div class="work-overview">'+(threads.length?threads.map(t=>`<article class="work-thread ${t.unread?'unread':''}" data-thread-page="${esc(t.page_id)}"><div class="work-thread-top"><div class="work-thread-title">${esc(t.page_title||t.page_id)}</div><div class="work-thread-count">${t.pending?esc(t.pending)+' pendientes':t.unread?'resultado nuevo':'al día'}</div></div><div class="work-thread-meta">${t.last_worked_at?'último trabajo '+new Date(t.last_worked_at).toLocaleString('es-AR'):'sin trabajo previo'}</div>${t.latest_result?'<div class="work-thread-result">'+esc(t.latest_result.status)+' · '+esc(typeof t.latest_result.summary==='string'?t.latest_result.summary:'resultado disponible')+'</div>':''}</article>`).join(''):'<div class="rdesc">Todavía no hay threads de página.</div>')+'</div>';
   root.querySelectorAll('[data-thread-page]').forEach(el=>el.onclick=async()=>{selectedPage=pageMap.get(el.dataset.threadPage)||{id:el.dataset.threadPage,title:el.querySelector('.work-thread-title')?.textContent||el.dataset.threadPage,href:location.href,category_path:['Prometeo']};const l=await ensureLoop();await l?.open(pageObj(selectedPage))});
- }catch(e){root.innerHTML='<div class="rdesc">No pude cargar Page Change: '+esc(e?.message||e)+'</div>'}
+ }catch(e){await renderWorkFailure(root,e)}
 }
 async function hydrate(){
  bundle=window.PROMETEO_V11_LAST||bundle;
