@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#000000">
+<title>Prometeo · Eye Frame Lab</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;touch-action:none;overscroll-behavior:none}
+body{display:grid;place-items:center}
+#wrap{
+  width:min(76vw,540px);
+  aspect-ratio:1/1;
+  display:grid;
+  place-items:center;
+  transform-origin:center;
+  will-change:transform,filter;
+}
+#eye{
+  width:100%;
+  height:100%;
+  display:block;
+  image-rendering:pixelated;
+}
+@media (orientation:portrait){
+  #wrap{width:min(86vw,540px)}
+}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="eye" width="256" height="256" aria-label="Marco de ojo retro animado"></canvas></div>
+<script>
+(function(){
+'use strict';
+
+const canvas=document.getElementById('eye');
+const ctx=canvas.getContext('2d',{alpha:true});
+const wrap=document.getElementById('wrap');
+ctx.imageSmoothingEnabled=false;
+
+const FRAME=64;
+const STRIP='./../player-lab/player-eye-blink-v2.webp?v=eye-frame-lab-1';
+const img=new Image();
+img.decoding='async';
+
+let loaded=false;
+let busy=false;
+let animIndex=0;
+
+const animations=[
+  'blink',
+  'slowBlink',
+  'doubleBlink',
+  'squint',
+  'wideOpen',
+  'flinch',
+  'upperTwitch',
+  'lowerTwitch'
+];
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+function resetWrap(){
+  wrap.style.transform='translate3d(0,0,0) scale(1,1)';
+  wrap.style.filter='none';
+}
+
+function drawFrame(frame,scaleX=1,scaleY=1,offsetY=0){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const size=222;
+  const dw=size*scaleX;
+  const dh=size*scaleY;
+  const dx=(canvas.width-dw)*.5;
+  const dy=(canvas.height-dh)*.5+offsetY;
+  ctx.drawImage(img,frame*FRAME,0,FRAME,FRAME,dx,dy,dw,dh);
+}
+
+async function frames(seq,ms,opts={}){
+  for(const f of seq){
+    drawFrame(f,opts.scaleX||1,opts.scaleY||1,opts.offsetY||0);
+    await sleep(ms);
+  }
+}
+
+async function blink(){
+  await frames([0,1,2,3,4,5,6,7,8,9],50);
+}
+
+async function slowBlink(){
+  await frames([0,1,2,3,4,5,5,5,6,7,8,9],88);
+}
+
+async function doubleBlink(){
+  await frames([0,2,4,5,7,9],42);
+  await sleep(75);
+  await frames([0,2,4,5,7,9],42);
+}
+
+async function squint(){
+  await frames([0,1,2,3,4,4,3,2,1,0],55,{scaleY:.88});
+}
+
+async function wideOpen(){
+  drawFrame(0,1.02,1.05,-2); await sleep(65);
+  drawFrame(0,1.05,1.12,-5); await sleep(90);
+  drawFrame(0,1.08,1.18,-7); await sleep(120);
+  drawFrame(0,1.04,1.09,-3); await sleep(75);
+  drawFrame(0,1,1,0);
+}
+
+async function flinch(){
+  await frames([0,2,4,5,4,2,0],38);
+  wrap.style.transform='translate3d(2px,-1px,0)';
+  await sleep(38);
+  wrap.style.transform='translate3d(-1px,1px,0)';
+  await sleep(34);
+  resetWrap();
+}
+
+async function upperTwitch(){
+  drawFrame(0);
+  wrap.style.transform='translate3d(0,-3px,0) scale(1,1.015)'; await sleep(50);
+  wrap.style.transform='translate3d(0,1px,0) scale(1,.995)'; await sleep(40);
+  wrap.style.transform='translate3d(0,-2px,0) scale(1,1.01)'; await sleep(45);
+  resetWrap();
+}
+
+async function lowerTwitch(){
+  drawFrame(0,1,1.00,0); await sleep(35);
+  drawFrame(0,1,1.035,2); await sleep(48);
+  drawFrame(0,1,1.015,1); await sleep(38);
+  drawFrame(0,1,1.045,3); await sleep(46);
+  drawFrame(0,1,1,0);
+}
+
+async function play(name){
+  if(name==='blink')return blink();
+  if(name==='slowBlink')return slowBlink();
+  if(name==='doubleBlink')return doubleBlink();
+  if(name==='squint')return squint();
+  if(name==='wideOpen')return wideOpen();
+  if(name==='flinch')return flinch();
+  if(name==='upperTwitch')return upperTwitch();
+  return lowerTwitch();
+}
+
+async function trigger(){
+  if(!loaded||busy)return;
+  busy=true;
+  resetWrap();
+  const name=animations[animIndex];
+  animIndex=(animIndex+1)%animations.length;
+  await play(name);
+  resetWrap();
+  drawFrame(0);
+  busy=false;
+}
+
+function input(e){
+  if(e&&e.cancelable)e.preventDefault();
+  trigger();
+}
+
+img.onload=function(){
+  loaded=true;
+  drawFrame(0);
+};
+img.onerror=function(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+};
+img.src=STRIP;
+
+window.addEventListener('pointerdown',input,{passive:false});
+window.addEventListener('touchstart',input,{passive:false});
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'||e.code==='Enter')input(e);
+});
+})();
+</script>
+</body>
+</html>
