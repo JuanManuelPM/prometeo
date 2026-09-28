@@ -20,6 +20,9 @@ must('target-source-identity',edge,'source_identity:page?.source_identity||null'
 must('target-writable-owner',edge,'writable_target:page?.writable_target||null');
 must('baseline-current-digest',edge,'current_graph_digest:bindings.current_digest');
 must('baseline-catalog-digest',edge,'catalog_digest:bindings.catalog_digest');
+must('packet-writer-status-rule',edge,"'CLAIM_WRITER_STATUS'");
+must('packet-prewrite-rule',edge,"'PREWRITE'");
+must('packet-release-rule',edge,"'RELEASE'");
 must('optional-target-blob-validated',edge,"['surface_id','project_id','authority_status','target_path','target_source_blob'");
 must('v11-forwards-optional-target-blob',v11,'target_source_blob:p.target_source_blob||p.writable_target?.git_blob_sha||null');
 
@@ -32,6 +35,9 @@ must('execution-active-writers-only',exec,'overlapping **active writing workers*
 must('execution-cas',exec,'Use compare-and-swap/blob-SHA/head-aware writes');
 must('page-concurrent-head-replan',page,'If concurrent HEAD movement materially changes the owned target, stop or re-plan');
 must('page-reread-targets',page,'Re-read mutable targets immediately before mutation');
+must('page-writer-status',page,'active writer status required by the Global Agent Constitution');
+must('page-prewrite-law',page,'run the CURRENT PREWRITE law');
+must('page-release-writer-status',page,'release active writer status');
 
 if(!preservation.must_preserve?.includes('Atomic existing claim/create remains execution authority.')){
   throw new Error('PAGE_CHANGE_PREWRITE_FAIL atomic-existing-claim');
