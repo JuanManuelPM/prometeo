@@ -12,71 +12,43 @@ Status: CURRENT
 - carried pet has no human hands
 - eye contents and eye frame remain separate when reintegration eventually happens
 
-## LATEST USER DIRECTION
-After repeated crop/alignment failures, the user asked for a reusable preparation pipeline that works **before** animation:
-1. split the grid;
-2. detect the visible content;
-3. measure frames;
-4. choose an anchor appropriate to the asset;
-5. align every frame to a common target;
-6. verify the normalized frames;
-7. only then animate/export.
+## LATEST USER REVIEW
+The public eye lab still failed. The visible result was a gray square plus an English-style load failure message. This is a hard functional failure, not a subjective visual preference.
 
-The user then explicitly asked to run this locally first, confirm readiness, and only publish after approval to update GitHub.
+## ROOT CAUSE FOUND
+The current published V16 HTML tried to avoid an external asset request by embedding the JPEG as a base64 data URI.
 
-## V15 · CURRENT EYE ISOLATION LAB
-Public:
-https://juanmanuelpm.github.io/prometeo/visuals/eye-frame-lab/
+That embedded data URI was actually malformed/truncated in the committed HTML. The string literally terminated with `truncated`, so the browser could not decode it as an image.
 
-Files:
-- `visuals/eye-frame-lab/index.html`
-- `visuals/eye-frame-lab/eye-blink-aligned-grid-v15.jpg`
-- `visuals/eye-frame-lab/normalization-manifest.json`
-- `visuals/eye-frame-lab/NORMALIZATION_PROTOCOL.md`
-- `visuals/eye-frame-lab/tools/sprite_prepare.py`
+This explains the observed gray square + load error exactly.
 
-### What V15 does differently
-- The source grid was processed locally **before** runtime integration.
-- Frames were segmented first; runtime no longer tries to repair geometry.
-- Each frame was measured for bbox, centroid and semantic anchor candidates.
-- For this eye, the chosen semantic anchor is the **median of the bright lower liner** plus horizontal center.
-- Each frame was translated into a fixed 512×512 transparent canvas against the same target anchor.
-- Frames were re-measured after placement and one residual translation correction pass was applied.
-- No scale normalization was used.
-- Local QA measured maximum anchor jitter of **1 px at 512×512** with a 3 px tolerance: **PASS**.
-- Onion-skin and aligned-grid previews were generated locally before publication.
-- Only after QA passed was the review sheet downsampled to a 5×2 sheet of 128×128 cells.
-- The public page simply plays those already-normalized frames; it does not crop, align or deform them at runtime.
+The external aligned JPEG already present in the repo remains the intended source:
+`visuals/eye-frame-lab/eye-blink-aligned-grid-v15.jpg`
+blob:
+`c4fb7c8d739bb056f19dafb5586b3882e60e8fbd`
 
-## REUSABLE RULE
-Do not animate a raw generated grid directly.
+The local source used to create that asset had already passed PIL verification at 640×256 before publication.
 
-Preparation must be:
-**SPLIT → MASK → MEASURE → ANCHOR → NORMALIZE → RESIDUAL QA → VISUAL QA → EXPORT → ANIMATE**
+## V17 FIX
+- Removed the embedded base64 completely.
+- The page now loads the external same-origin JPEG by relative path.
+- Cache busting uses the known asset hash prefix.
+- The page first fetches the asset and verifies HTTP success.
+- It verifies that the fetched blob is non-empty.
+- It then asks the browser to decode that blob as an image.
+- It verifies natural dimensions are exactly 640×256.
+- Only after all checks pass is frame 0 drawn.
+- Any failure is reported in Spanish with the actual failure stage.
+- Runtime does not crop, center, scale-correct, or otherwise repair the sprite.
+- The pre-aligned 5×2 sprite remains authoritative.
 
-Anchor strategies:
-- simple symbols: bbox center;
-- blobs: alpha centroid;
-- eyes: lower liner / eye corners;
-- hands: wrist or palm pivot;
-- bodies: feet / hips / torso;
-- faces: eye / nose landmarks.
+## NORMALIZATION PIPELINE STILL CURRENT
+SPLIT → MASK → MEASURE → ANCHOR → NORMALIZE → RESIDUAL QA → VISUAL QA → EXPORT → ANIMATE
 
-## REJECTED HISTORY
-- V12: crop/alignment visually rejected.
-- V13: user saw effectively all black.
-- V14: made the asset visible but did not solve inter-frame centering.
-- Do not restore runtime hacks in place of asset normalization.
+The alignment work itself is not discarded by this loading bug. The failure happened after export, during transport/embedding into the public page.
 
-## NEXT
-Review only whether V15 remains centered and stable through the blink. Player reintegration is still blocked on that visual review.
-
-
-## V15 PUBLIC FAILURE → V16
-The user opened V15 and saw a gray square plus a load error. Therefore V15 is rejected as a deployment result even though its local alignment QA passed.
-
-This distinguishes two independent questions:
-- **Geometry:** were the frames aligned correctly before export? V15 local QA said yes.
-- **Delivery:** did the public browser actually receive and decode the sprite? V15 public behavior said no.
-
-V16 keeps the same aligned frames but removes the fragile delivery path: the sprite is embedded directly in the HTML as a JPEG data URI. The runtime verifies the decoded dimensions (640×256) before drawing frame 0. No animation is enabled if that assertion fails.
+## DO NOT REPEAT
+- Do not paste large binary assets into HTML data URIs through a text/tool response path.
+- Do not assume a successful commit means the browser can decode an embedded asset.
+- Do not treat an error overlay as proof that the sprite itself is wrong.
+- Do not change the alignment pipeline to fix a transport bug.
