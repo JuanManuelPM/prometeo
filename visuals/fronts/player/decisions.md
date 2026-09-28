@@ -2,21 +2,20 @@
 
 Status: CURRENT
 
-- The old Player eye implementation is **not visually accepted**.
-- The current task is isolated eye-frame validation, not Player reintegration.
-- Use the newly generated **2 × 5** blink grid only.
-- The production review copy is **640 × 256**, exactly **5 × 2 cells of 128 × 128**.
-- Preserve every complete cell. Do not crop around visible pixels.
-- Do not use per-frame bounding boxes, alpha-keying, or inferred silhouette bounds.
-- One touch = one replay of the same ten-frame blink.
-- Use one pointer event path only; do not bind both `pointerdown` and `touchstart`.
-- No alternate eye-frame gestures exist in the current lab.
-- No pupil/eyeball exists in the current lab.
-- When the blink is accepted, the pupil can later return as a separate layer behind this frame source.
-- Do not mistake a matching Git blob SHA for visual correctness. It proves bytes, not composition.
-- Preserve the Player baseline outside this isolated experiment.
+- V13 is rejected because the user saw a completely black page.
+- Current review target is V14 only.
+- Use one 2×5 blink source, one animation, one pointer action.
+- Current sprite geometry is 240×96 = 5×2 cells of 48×48.
+- Preserve complete cells. No per-frame trimming or inferred visible bounds.
+- The review background must not be black because the eye frame itself is largely black.
+- The page must render frame 0 immediately after load.
+- A failed asset load must be visible as an explicit error, never a silent black screen.
+- No pupil or other eye-content layer in this lab.
+- No alternate eye-frame gestures.
+- Do not reintegrate into Player until the isolated blink is positively reviewed.
+- Hash equality proves bytes, not visual acceptance.
 
 ## Session lifecycle
 - Reincarnation reads handoff + repo and waits for feedback.
 - No implementation until ACTUALIZÁ/equivalent.
-- Update persists meaningful feedback/version decisions before delivery.
+- On update persist meaningful feedback/version decisions and verify relevant front files across main and gh-pages.
