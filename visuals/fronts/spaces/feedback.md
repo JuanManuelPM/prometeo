@@ -2,69 +2,84 @@
 
 Status: CURRENT
 
-## v33 · SMOOTH SCROLL + FARTHER MEGATOWERS + SPARSE NEON SCALE CUES
+## v34 · DETERMINISTIC SCREENSHOT REVIEW PIPELINE
 
-Latest user direction:
-- all scenes: wheel/trackpad motion should feel smooth like the held arrow controls, not jumpy;
-- towers scene: keep the finally-thin path, but move the violet towers farther to both sides;
-- improve signs with restrained retrofuturist/cyberpunk cues;
-- make towers read like enormous buildings using tiny lights and occasional rotating neon elements;
-- avoid RGB clutter / theme-park overload.
+v33 visual direction is preserved. v34 changes the review process so obvious visual failures can be caught from real screenshots before another human iteration.
 
-## GLOBAL SCROLL
-- old wheel path called `nudge()` and jumped `targetCamZ` per wheel event.
-- v33 introduces `scrollVelocity`.
-- wheel events add a bounded impulse only.
-- `update(dt)` consumes that velocity over multiple frames.
-- velocity decays exponentially with `Math.exp(-dt*.0105)`.
-- residual scroll is cleared on map change and window blur.
-- keyboard arrows/WASD remain continuous and unchanged.
+## LAB REVIEW MODE
+Spaces now accepts deterministic query parameters:
 
-## MAP 5 · SPACING
-- RITUAL_ROAD_HALF stays 0.18.
-- full path width stays 0.36.
-- lateralLimit stays 0.08.
-- tower radius stays 3.20.
-- RITUAL_COLUMN_GAP: 1.90 → 3.00.
-- tower center X = ±6.38.
-- nearest tower surface = ±3.18.
-- bridge edge = ±0.18.
-- real lateral void = 3.00.
+`?review=1&map=<1|3|4|5>&x=<number>&z=<number>&t=<ms>`
 
-## MAP 5 · NEON / SIGNAGE
-Design rule: tower mass dominates. Neon is a small scale cue.
+When review mode is active:
+- map/camera are fixed from the URL;
+- animation clock is frozen to `t`;
+- UI/HUD controls are hidden;
+- Map 5 sign state is pre-set deterministically;
+- `window.PrometeoSpacesReview.ready` exposes material readiness.
 
-### Deployable blade sign
-- old giant tan/cardboard panel removed.
-- new sign is a narrow vertical dark housing with a thin emissive border.
-- small abstract glyph lines only, no readable text.
-- palette rotates between restrained cyan, magenta, warm red and amber.
-- existing max-two deployable sign scheduler remains.
+This makes screenshots comparable across commits instead of depending on manual navigation and random animation timing.
 
-### Micro facade lights
-- only three tiny emissive slits per eligible nearby tower.
-- light size is intentionally tiny relative to radius 3.20 / height ~100.
-- brightness fades with distance.
+## GITHUB AUTOMATION
+Workflow:
+`.github/workflows/spaces-visual-review.yml`
 
-### Orbital ring
-- only occasional towers (`abs(ri) % 6 === 0`) receive one.
-- only active in the near/mid field.
-- ring is thin and mostly dark.
-- one bright dash moves slowly around the circumference using frame time.
-- rear arc renders before the tower, front arc after it, so it visually wraps the cylinder rather than floating in front.
+Trigger:
+- any push changing `visuals/spaces-lab/**`;
+- workflow changes;
+- manual dispatch.
 
-## PRESERVED
-- visible scenes remain ARCOS / CALZADA / TÚNEL / TORRES.
-- Map 1 renderer unchanged from v32.
-- calzada renderer unchanged from v32.
-- tunnel renderer unchanged from v32.
-- hairline bridge stays .36 full width.
-- dark industrial void / distant megastructures stay.
-- deep tower bases stay pure black.
-- bridge-last lower-tower occlusion stays.
-- max two deployable signs stays.
+It:
+1. serves the exact main checkout locally;
+2. uses headless Chrome already available through `browser-actions/setup-chrome`;
+3. captures deterministic PNG evidence;
+4. uploads the exact evidence as a 30-day workflow artifact;
+5. commits stable latest screenshots + manifest to main;
+6. syncs the review evidence to gh-pages.
 
-## SELF-CRITIQUE / REVIEW RISKS
-- orbital rings use painter-style rear/front passes, not a depth buffer; visually inspect whether the wrap is convincing at close range.
-- micro-lights are intentionally sparse; if they disappear too much, increase emissive alpha/size slightly before adding more lights.
-- smooth wheel constants are deliberately conservative; tune impulse/decay rather than returning to direct nudge jumps.
+No Playwright/npm install is required for this capture path, deliberately reducing CI overhead.
+
+## CAPTURE SET
+Desktop:
+- ARCOS
+- CALZADA
+- TÚNEL
+- TORRES entry
+- TORRES middle
+- TORRES near
+
+Mobile:
+- ARCOS
+- CALZADA
+- TÚNEL
+- TORRES
+
+The extra three TORRES distances exist because one screenshot can hide bad scale, clipping, signage or perspective.
+
+## REVIEW SURFACES
+- contact sheet:
+  https://juanmanuelpm.github.io/prometeo/visuals/review/spaces/
+- generated manifest:
+  `visuals/review/spaces/latest.json`
+- durable pointer:
+  `visuals/fronts/spaces/current-review.json`
+
+A future chat can read HTML + handoff + current-review, download the public PNGs, inspect them visually, and only then decide whether a visual iteration is credible.
+
+## REVIEW RULE
+Do not call a Spaces visual change complete from:
+- JS syntax;
+- commit SHA;
+- main/gh-pages equality;
+- numeric geometry alone.
+
+Before visual acceptance inspect generated screenshots for:
+- composition;
+- scale;
+- clipping;
+- contrast;
+- depth;
+- element integration.
+
+## SELF-CRITIQUE / CURRENT LIMIT
+v34 automates capture/publication, not aesthetic judgment inside GitHub Actions. The AI visual critique still happens in the reviewing chat by loading the generated PNGs. Accepted-reference promotion and automated image-diff remain a future optional layer.
