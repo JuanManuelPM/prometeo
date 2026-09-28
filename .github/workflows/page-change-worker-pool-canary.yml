@@ -26,9 +26,35 @@ jobs:
           fetch-depth: 100
 
       - name: Prepare real Page Change canary
+        id: prepare
+        continue-on-error: true
         run: node .github/scripts/page-change-pipeline-canary.mjs prepare /tmp/page-change-canary.json
 
+      - name: Persist blocked/failure canary evidence
+        if: steps.prepare.outcome != 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s coordination/canaries/page-change-pipeline-v1/latest.json
+          git config user.name "prometeo-canary-bot"
+          git config user.email "prometeo-canary-bot@users.noreply.github.com"
+          git add coordination/canaries/page-change-pipeline-v1/latest.json
+          git commit -m "canary: persist Page Change blocked evidence"
+          for n in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            git fetch origin main
+            git rebase origin/main
+          done
+          exit 1
+
+      - name: Stop after truthful blocked canary
+        if: steps.prepare.outcome != 'success'
+        run: |
+          echo "Page Change canary is blocked; durable sanitized evidence was persisted."
+          exit 1
+
       - name: Publish durable canary claim and GitHub RETURN
+        if: steps.prepare.outcome == 'success'
         shell: bash
         run: |
           set -euo pipefail
@@ -44,9 +70,11 @@ jobs:
           done
 
       - name: Verify GitHub RETURN re-enters private Page Change feed
+        if: steps.prepare.outcome == 'success'
         run: node .github/scripts/page-change-pipeline-canary.mjs finish /tmp/page-change-canary.json
 
       - name: Publish sanitized canary evidence
+        if: steps.prepare.outcome == 'success'
         shell: bash
         run: |
           set -euo pipefail
