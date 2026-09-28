@@ -3,67 +3,80 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#000000">
-<title>Prometeo · Eye Blink Lab</title>
+<meta name="theme-color" content="#5a5a5a">
+<title>Prometeo · Eye Blink Lab V14</title>
 <style>
 *{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;touch-action:none;overscroll-behavior:none}
-body{display:grid;place-items:center}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;touch-action:none;overscroll-behavior:none;background:#5a5a5a}
+body{
+  display:grid;
+  place-items:center;
+  background:radial-gradient(circle at 50% 50%,#777 0%,#5a5a5a 48%,#3a3a3a 100%);
+}
 #eye{
-  width:min(92vw,76vh,760px);
+  width:min(94vw,82vh,760px);
   aspect-ratio:1/1;
   display:block;
-  background:#000;
+  image-rendering:pixelated;
 }
 </style>
 </head>
 <body>
-<canvas id="eye" width="512" height="512" aria-label="Marco de ojo retro parpadeando"></canvas>
+<canvas id="eye" width="384" height="384" aria-label="Marco de ojo retro parpadeando"></canvas>
 <script>
 (function(){
 'use strict';
 
 const canvas=document.getElementById('eye');
-const ctx=canvas.getContext('2d',{alpha:false});
-ctx.imageSmoothingEnabled=true;
+const ctx=canvas.getContext('2d',{alpha:true});
+ctx.imageSmoothingEnabled=false;
 
 const img=new Image();
 img.decoding='async';
 
-const CELL=128;
+const CELL=48;
 const COLS=5;
-const FRAME_COUNT=10;
-const timings=[70,62,56,52,52,92,52,56,62,70];
+const FRAMES=10;
+const HOLD=[72,62,56,50,46,92,46,56,62,72];
 
-let loaded=false;
+let ready=false;
 let busy=false;
 
-function srcRect(frame){
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+function sourceRect(frame){
   const col=frame%COLS;
   const row=Math.floor(frame/COLS);
   return [col*CELL,row*CELL,CELL,CELL];
 }
 
-function drawFrame(frame){
-  const [sx,sy,sw,sh]=srcRect(frame);
-  ctx.fillStyle='#000';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.drawImage(img,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
+function draw(frame){
+  const [sx,sy,sw,sh]=sourceRect(frame);
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const size=canvas.width*.96;
+  const dx=(canvas.width-size)/2;
+  const dy=(canvas.height-size)/2;
+
+  ctx.drawImage(
+    img,
+    sx,sy,sw,sh,
+    dx,dy,size,size
+  );
 }
 
-function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
-
 async function blink(){
-  if(!loaded||busy)return;
+  if(!ready||busy)return;
   busy=true;
 
-  for(let frame=0;frame<FRAME_COUNT;frame++){
-    drawFrame(frame);
-    await sleep(timings[frame]);
+  for(let i=0;i<FRAMES;i++){
+    draw(i);
+    await sleep(HOLD[i]);
   }
 
-  await sleep(38);
-  drawFrame(0);
+  await sleep(28);
+  draw(0);
   busy=false;
 }
 
@@ -72,12 +85,21 @@ function trigger(e){
   blink();
 }
 
-img.onload=function(){
-  loaded=true;
-  drawFrame(0);
-};
+function fail(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#fff';
+  ctx.font='700 18px system-ui,sans-serif';
+  ctx.textAlign='center';
+  ctx.fillText('ERROR CARGANDO OJO',canvas.width/2,canvas.height/2);
+}
 
-img.src='./eye-blink-grid-v3.webp?v=3';
+img.onload=function(){
+  ready=true;
+  draw(0);
+};
+img.onerror=fail;
+
+img.src='./eye-blink-grid-v4.webp?v=14';
 
 window.addEventListener('pointerdown',trigger,{passive:false});
 window.addEventListener('keydown',function(e){
