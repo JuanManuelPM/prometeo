@@ -709,8 +709,8 @@ function renderMap4(){
   topDarkness(.32);
 }
 function renderAbyssColumn(cx,cz,r,yBottom,yTop){
-  const faces=[],n=24,slices=12;
-  const baseRgb=[116,68,154];
+  const faces=[],n=26,slices=18;
+  const baseRgb=[122,74,166];
 
   for(let i=0;i<n;i++){
     const a0=(i/n)*Math.PI*2,a1=((i+1)/n)*Math.PI*2;
@@ -738,21 +738,26 @@ function renderAbyssColumn(cx,cz,r,yBottom,yTop){
   for(const f of faces){
     const mx=(f.pts[0].x+f.pts[1].x)*.5;
     const mz=(f.pts[0].z+f.pts[1].z)*.5;
-    const distL=cameraLight3DAt(mx,f.y,mz,48,0,.001);
-    const heightL=.035+.965*Math.pow(f.t,1.18); // abyss-dark bottom -> readable violet top
-    const curve=.46+.54*Math.max(0,Math.cos(f.midA+.72));
-    const shade=heightL*(.30+.70*distL)*curve;
+
+    // Horizontal camera proximity keeps nearby columns readable, while vertical
+    // height deliberately dominates: abyss-black below, bright violet above.
+    const horizontalL=cameraLightAt(mx,mz,52,0,.001);
+    const heightL=.018+.982*Math.pow(f.t,1.42);
+    const curve=.44+.56*Math.max(0,Math.cos(f.midA+.72));
+    const shade=heightL*(.34+.66*horizontalL)*curve;
+
     worldSolidQuad(litColor(baseRgb,shade,1),f.pts,1);
   }
 
-  // Simple capital/top disk. The player should read a column, not another pointed spire.
+  // A subtle upper rim is allowed to leave the frame. These are monumental shafts,
+  // not props that politely fit inside the viewport.
   const topPts=[];
   for(let i=0;i<n;i++){
     const a=(i/n)*Math.PI*2;
     topPts.push({x:cx+Math.cos(a)*r,y:yTop,z:cz+Math.sin(a)*r});
   }
-  const topL=cameraLight3DAt(cx,yTop,cz,52,0,.002);
-  worldSolidPoly(litColor([146,91,183],topL,.92),topPts,1);
+  const topL=cameraLightAt(cx,cz,56,0,.002);
+  worldSolidPoly(litColor([160,101,198],topL,.95),topPts,1);
 }
 const RITUAL_STEP=7.4;
 function ritualSideForRow(ri){return (ri&1)?-1:1}
@@ -836,7 +841,7 @@ function renderRitualSign(cx,cz,side,open){
 
   // Hinge lives inside/behind the column silhouette. The sign is rendered first;
   // the column is rendered afterward and therefore masks the stored mechanism.
-  const hingeX=cx-side*.18;
+  const hingeX=cx-side*.08;
   const hingeY=floorY+2.65;
   const signZ=cz+.26;
 
@@ -901,35 +906,46 @@ function renderMap5(){
   ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
 
   const floorY=-1.5,zNear=camZ+NEAR+.03,zFar=camZ+166;
-  const roadHalf=6.2,stripes=14;
+  const avenueHalf=7.6,stripes=16;
 
-  // No lateral floor here anymore: the striped avenue is a bridge over a dark
-  // precipice, so the columns can genuinely rise from below instead of sitting on tiles.
-  const voidShade=ctx.createLinearGradient(0,H*.50,0,H);
-  voidShade.addColorStop(0,'rgba(35,10,35,0)');
-  voidShade.addColorStop(.45,'rgba(10,3,14,.45)');
-  voidShade.addColorStop(1,'rgba(0,0,0,.94)');
-  ctx.fillStyle=voidShade;ctx.fillRect(0,H*.50,W,H*.50);
+  // Deep side void first. It is not "the floor"; it is the darkness below the
+  // flanking shafts. The actual camera path is drawn afterward as a broad avenue.
+  const voidShade=ctx.createLinearGradient(0,H*.47,0,H);
+  voidShade.addColorStop(0,'rgba(46,15,48,0)');
+  voidShade.addColorStop(.42,'rgba(12,4,17,.36)');
+  voidShade.addColorStop(1,'rgba(0,0,0,.97)');
+  ctx.fillStyle=voidShade;ctx.fillRect(0,H*.47,W,H*.53);
 
-  // Keep the successful straight world-space road lines.
+  // A continuous wide road under the camera. This is intentionally much broader
+  // than v23 so the composition reads as an avenue/causeway, not a skinny bridge.
+  const roadL=cameraLight3DAt(0,floorY,camZ+10,62,0,.004);
+  worldSolidQuad(litColor([70,43,90],roadL,.86),[
+    {x:-avenueHalf,y:floorY,z:zFar},{x:avenueHalf,y:floorY,z:zFar},
+    {x:avenueHalf,y:floorY,z:zNear},{x:-avenueHalf,y:floorY,z:zNear}
+  ],1);
+
+  // Preserve the successful visual language: straight longitudinal world-space
+  // stripes, continuous from camera to horizon, with no transverse renderer seams.
   for(let si=0;si<stripes;si++){
-    const x0=-roadHalf+(2*roadHalf)*(si/stripes);
-    const x1=-roadHalf+(2*roadHalf)*((si+1)/stripes);
-    const L=cameraLight3DAt((x0+x1)*.5,floorY,camZ+12,58,0,.004);
-    const rgb=(si&1)?[56,38,104]:[127,87,145];
-    worldSolidQuad(litColor(rgb,L,.92),[
+    const x0=-avenueHalf+(2*avenueHalf)*(si/stripes);
+    const x1=-avenueHalf+(2*avenueHalf)*((si+1)/stripes);
+    const L=cameraLight3DAt((x0+x1)*.5,floorY,camZ+12,60,0,.004);
+    const rgb=(si&1)?[58,39,108]:[132,88,150];
+    worldSolidQuad(litColor(rgb,L,.94),[
       {x:x0,y:floorY+.014,z:zFar},{x:x1,y:floorY+.014,z:zFar},
       {x:x1,y:floorY+.014,z:zNear},{x:x0,y:floorY+.014,z:zNear}
     ],1);
   }
 
-  // Thin bridge edges make the drop readable without adding horizontal floor seams.
-  for(const x of [-roadHalf,roadHalf]){
-    const L=cameraLight3DAt(x,floorY+.03,camZ+11,58,0,.004);
-    worldSolidQuad(litColor([194,124,58],L,.62),[
-      {x:x-.06,y:floorY+.025,z:zFar},{x:x+.06,y:floorY+.025,z:zFar},
-      {x:x+.06,y:floorY+.025,z:zNear},{x:x-.06,y:floorY+.025,z:zNear}
-    ],.88);
+  // Dark shoulders widen the path visually before it falls away into the side depth.
+  for(const side of [-1,1]){
+    const x0=side*avenueHalf;
+    const x1=side*9.15;
+    const L=cameraLight3DAt((x0+x1)*.5,floorY,camZ+10,58,0,.003);
+    worldSolidQuad(litColor([45,25,57],L,.72),[
+      {x:x0,y:floorY-.008,z:zFar},{x:x1,y:floorY-.008,z:zFar},
+      {x:x1,y:floorY-.008,z:zNear},{x:x0,y:floorY-.008,z:zNear}
+    ],1);
   }
 
   const tz=154;
@@ -938,25 +954,27 @@ function renderMap5(){
   renderTempleBlock(0,tz-1.8,12,5,6.8,9.8,[221,158,43],145);
   renderTempleBlock(0,tz-2.5,5.2,3.2,12.0,14.1,[219,153,35],145);
 
-  // One-and-one rhythm remains, but pointed spires are gone. Deep violet columns
-  // rise from well below the road: near-black at the abyss, lighter near the top.
+  // Monumental flanking columns. They sit just beyond the shoulders, alternate
+  // left/right in Z, extend far below the avenue into darkness, and continue so
+  // high that their tops often leave the frame.
   const step=RITUAL_STEP,first=Math.floor((camZ-step*1.0)/step);
   const columns=[];
-  for(let ri=first;ri<first+24;ri++){
+  for(let ri=first;ri<first+26;ri++){
     const side=ritualSideForRow(ri);
     columns.push({ri,side,z:ri*step+7});
   }
   columns.sort((a,b)=>b.z-a.z);
 
   for(const p of columns){
-    if(p.z-camZ<NEAR-2)continue;
-    const x=p.side*9.55;
-    const topY=7.4+((p.ri&3)===0?1.3:0);
-    const bottomY=-16.5;
+    if(p.z-camZ<NEAR-3)continue;
+    const x=p.side*9.75;
+    const bottomY=-30.0;
+    const topY=34.0+((p.ri&3)===0?7.0:0);
+    const radius=1.95;
 
-    // Sign first, column second: storage/transition is physically occluded.
+    // Sign first, then shaft: appearing/disappearing mechanism is naturally hidden.
     renderRitualSign(x,p.z,p.side,ritualSignOpen(p.ri,p.side));
-    renderAbyssColumn(x,p.z,1.72,bottomY,topY);
+    renderAbyssColumn(x,p.z,radius,bottomY,topY);
   }
 
   const sunGlow=ctx.createRadialGradient(W*.5,H*.39,0,W*.5,H*.39,W*.30);
@@ -1145,15 +1163,15 @@ addEventListener('selectstart',e=>e.preventDefault());
 addEventListener('dragstart',e=>e.preventDefault());
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v23',
+  version:'spaces-maps-v24',
   maps:[
     '1 green arch nave',
     '2 brutalist cylinder hall',
     '3 straight paired-column road',
     '4 world-anchored barrel tunnel with moving ribs',
-    '5 ritual bridge over abyss with alternating rising violet columns and giant hidden-hinge screens'
+    '5 monumental ritual avenue with alternating infinite violet columns and giant hidden-hinge screens'
   ],
-  contract:'fixed frontal view; touch swipe + WASD + wheel; Map 5 is now a striped bridge over a dark precipice with alternating violet columns rising from below, dark at the bottom and lighter at the top. Giant cardboard screens hinge from behind the columns, are hidden during storage/transition, and a hard two-slot scheduler prevents more than two signs from being visible at once',
+  contract:'fixed frontal view; touch swipe + WASD + wheel; Map 5 is a broad camera avenue with straight longitudinal stripes and dark shoulders. Alternating violet columns flank the route, extend from Y=-30 to roughly Y=34/41, fade from abyss-black below to lighter violet above, and frequently leave the frame. Giant screens remain hidden behind columns during storage and the strict two-visible-sign cap remains',
   sourcePages:SOURCE_PAGES,
   camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
