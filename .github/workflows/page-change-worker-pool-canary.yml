@@ -1,0 +1,63 @@
+name: Page Change Worker Pool Canary
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/page-change-pipeline-canary.mjs'
+      - '.github/workflows/page-change-worker-pool-canary.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: page-change-worker-pool-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 100
+
+      - name: Prepare real Page Change canary
+        run: node .github/scripts/page-change-pipeline-canary.mjs prepare /tmp/page-change-canary.json
+
+      - name: Publish durable canary claim and GitHub RETURN
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "prometeo-canary-bot"
+          git config user.email "prometeo-canary-bot@users.noreply.github.com"
+          git add coordination/opportunities/claims/page-change-*.json coordination/executions/*/RETURN.json
+          git commit -m "canary: claim and return Page Change worker-pool item"
+          for n in 1 2 3 4; do
+            if git push origin HEAD:main; then break; fi
+            git fetch origin main
+            git rebase origin/main
+            if [ "$n" = 4 ]; then exit 1; fi
+          done
+
+      - name: Verify GitHub RETURN re-enters private Page Change feed
+        run: node .github/scripts/page-change-pipeline-canary.mjs finish /tmp/page-change-canary.json
+
+      - name: Publish sanitized canary evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --rebase origin main
+          git config user.name "prometeo-canary-bot"
+          git config user.email "prometeo-canary-bot@users.noreply.github.com"
+          git add coordination/canaries/page-change-pipeline-v1/latest.json
+          git commit -m "canary: publish Page Change pipeline evidence"
+          for n in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            git fetch origin main
+            git rebase origin/main
+          done
+          exit 1
