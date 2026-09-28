@@ -6,36 +6,37 @@ PUBLIC VISUAL
 https://juanmanuelpm.github.io/prometeo/visuals/spaces-lab/
 
 CURRENT CANDIDATE
-2782686350edb8c761a35722ccde5f13f0d808c1 · Spaces v26
-Blob: 13a3e9742d66d8c1e204c978129f0ad8de42f03d
+e738fcd69fda54ffceffb4e5a7368df7b0f71f07 · Spaces v27
+Blob: 479ae0fa199e2b98f6371c684904778bb6ebfdda
 Review state: REVIEW
 
-LATEST FIX · MAP 5 BRIDGE/COLUMN SEPARATION
+LATEST USER EVIDENCE
+A mobile screenshot of v26 showed that the bridge still visually appeared below/between the columns.
 
-v25 was wrong because the column radius physically overlapped the bridge:
-roadHalf = 6.15
-radius = 2.15
-old center = 6.15 + 2.15*0.72 = 7.698
-old inner surface = 5.548
-bridge edge = 6.15
-=> overlap existed.
+ROOT CAUSE
+The X overlap had been fixed, but the canvas painter order was still wrong:
+- bridge drew first;
+- columns drew afterward;
+- therefore columns painted over the road and destroyed the suspended-bridge read.
+Camera eye height above the road was also too large.
 
-v26 geometry:
-roadHalf = 6.15
-radius = 2.15
-columnGap = 0.65
-center = 6.15 + 2.15 + 0.65 = 8.95
-inner surface = 8.95 - 2.15 = 6.80
-bridge edge = 6.15
-=> real abyss gap = 0.65
+v27
+- RITUAL_ROAD_Y = -0.38, camera eye is Y=0;
+- new thick bridge body reaches Y=-5.6;
+- signs render first;
+- columns render next;
+- bridge body/deck/stripes render LAST;
+- bridge therefore occludes the lower projected parts of columns;
+- 0.65 real abyss gap remains;
+- no lateral floor;
+- column bottom Y=-38, top Y=42/50;
+- lower shaft pure black, violet increases upward;
+- max 2 visible signs remains.
 
-CONTRACT
-- bridge ends before the columns;
-- no bridge/floor/shoulder geometry exists under the columns;
-- the gap between road and column is pure abyss;
-- column bases stay pure black deep below;
-- upper shafts stay tall and increasingly violet;
-- hidden signs + max-two scheduler preserved.
+CRITICAL ORDER
+abyss/temple -> signs -> columns -> bridge
+
+Do not regress bridge-before-columns.
 
 INCARNATION CONTRACT
 1. Read handoff + durable front files.
