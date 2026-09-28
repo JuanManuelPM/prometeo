@@ -68,7 +68,7 @@ Durable architecture detail:
 - During 3D turns, project the sprite as a curved surface split into vertical strips.
 - Current surface curvature = **1.05 rad** from center to edge mapping, rendered with **7 / 9 / 11 strips** at low/medium/high quality.
 - The curved projection must retain visible side-profile thickness at ~90° yaw.
-- Rear hemisphere still uses the inverse/reversed image direction and the existing darker rear hierarchy.
+- Rear hemisphere uses an alpha-derived detail-free backface silhouette. The frontal texture is forbidden on back-facing strips.
 - Near face-on front/rear states should fall back to one whole-image draw to avoid wasting mobile GPU/CPU time.
 
 ## Constant-speed trajectory
@@ -100,6 +100,17 @@ Durable architecture detail:
 - Current cadence high/medium/low: **30 / 35 / 42 ms**.
 - Current lifetime: **860 ms** normal, **1040 ms** reduced motion.
 - Do not achieve length by increasing pool without bound. Tail length must remain compatible with the fixed pool and adaptive quality.
+
+## True backface, no frontal texture on retreat
+- A darkened or mirrored frontal image is **not** a valid rear side.
+- Trail must generate a separate rear silhouette from the sprite alpha; it contains no eyes, mouth or internal frontal detail.
+- During curved yaw, each strip decides its source from its local normal:
+  `localFacing = cos(yaw + localPhi)`.
+- `localFacing >= 0` → frontSource.
+- `localFacing < 0` → backSource.
+- At full retreat (`yaw = π`) **zero visible strips may sample frontSource**.
+- Cheap/far body rendering follows the same hemisphere rule: rear → backSource only.
+- Back silhouettes are generated once per asset load; do not add external rear assets or per-frame filters.
 
 ## Worm body follows the head path
 - ORBIT/LOOP body is **not** a free trail and must not have an independent wobble.

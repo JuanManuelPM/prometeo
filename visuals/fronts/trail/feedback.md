@@ -56,6 +56,14 @@ In-page movement modes:
 For 3D modes, z changes projected scale/position and distant stamps are slightly less opaque. Stamps are drawn far-to-near. There is still only one 2D sprite; no WebGL/mesh is required.
 
 ## LATEST USER FEEDBACK
+- User reports the frontal face is still visible after the object has completed the turn and is moving away.
+- Root cause: the previous rear proxy still reused the frontal texture, only mirrored/darkened/curved.
+- Required invariant: once a surface strip faces away from camera, **frontal texture must not be available to that strip**.
+- Current candidate generates a separate rear silhouette bank from alpha only, with no eyes/mouth/front detail.
+- Curved renderer now chooses front/back source per strip from `localFacing = cos(yaw + phi)`.
+- At full retreat (`yaw = π`), renderer uses **backSource only**.
+
+## PREVIOUS USER FEEDBACK
 - User says the tail is still too short and does not yet read as a worm.
 - Required behavior: the body must follow **exactly the same path as the main face**, with each segment simply delayed along that path.
 - The previous tail-only sine/wobble is rejected because it creates a different path.

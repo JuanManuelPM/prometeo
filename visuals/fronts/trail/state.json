@@ -14,7 +14,7 @@
     "visuals/fronts/trail/architecture.md"
   ],
   "review_state": "REVIEW",
-  "current_blob_sha": "29fd29be3ea6c07edba1b32e60889365fe32c4a1",
+  "current_blob_sha": "df42c3deb5c13b3a2f3b5ce325c85b12fbf126e8",
   "accepted_baseline": {
     "label": "Full-stamp old-redraw",
     "commit": "26ff0e808fe0cf732af8c45f0eef9f13f99853e7",
@@ -39,8 +39,8 @@
     ]
   },
   "current_candidate": {
-    "commit": "1fa839f61d95cb6e265c0b03cb97778f25022bfe",
-    "summary": "ORBIT/LOOP now render a deterministic worm/dragon body instead of a historical trail. Each body segment samples the exact same hairpinPose() path as the head at pathDistance - offset. Body length is 26/32/38 segments by quality with 20/18 px spacing (~520–684 px), the artificial sine wave is removed, and the black endpoint tapers to ~16% temporal scale.",
+    "commit": "73bdf8c98222de9ee4bb72de1fb1628f02f9a849",
+    "summary": "True backface rendering: a detail-free rear silhouette bank is generated once from sprite alpha. Curved yaw now chooses frontSource/backSource per vertical strip from local surface facing. At yaw=180° the renderer uses only backSource, so frontal eyes/mouth/detail cannot remain visible while the body retreats.",
     "user_reviewed": false
   },
   "accepted_asset_direction": [
@@ -59,11 +59,10 @@
     "6 SHIKAMI"
   ],
   "open_feedback": [
-    "Review whether ORBIT/LOOP now reads as one long worm/dragon body rather than a short trail.",
-    "Confirm every body segment visibly takes the same turns as the head, with no independent wobble or shortcut.",
-    "Review whether ~684 px body length at high quality is enough or should extend farther around the racetrack.",
-    "Review the 16% black endpoint taper and body spacing (18 px normal / 20 px reduced-motion).",
-    "Review performance on target phone; ORBIT/LOOP now avoid historical stamp creation/aging and use mostly one draw per old segment.",
+    "Visually verify that once the head/body is on the retreat straight, no eyes/mouth/front facial texture remains visible.",
+    "Review the mixed 90°–135° turn: front texture should disappear progressively strip-by-strip rather than flipping abruptly.",
+    "Review whether the generated dark rear silhouette feels like a believable back rather than a flat black cutout.",
+    "Review worm length (~684 px), 18 px spacing and 16% black endpoint.",
     "Some masks still need cleaner segmentation: remove gray base/residue/halo before promotion."
   ],
   "resolved_feedback_in_current_candidate": [
@@ -124,13 +123,19 @@
     "Adaptive body length is 26 / 32 / 38 segments with 18px normal spacing (20px reduced-motion), reaching ~684px at high quality.",
     "The final black tail endpoint now tapers to ~16% temporal scale.",
     "ORBIT/LOOP avoid stamp creation and stamp aging entirely; body state is preallocated and recomputed from path distance.",
-    "2D remains the accepted historical-stamp baseline; CERCA/LEJOS retain their distance-stamp history."
+    "2D remains the accepted historical-stamp baseline; CERCA/LEJOS retain their distance-stamp history.",
+    "Stopped using a darkened/mirrored copy of the frontal texture as the rear side.",
+    "Added backShadeSprites generated from sprite alpha only, so eyes/mouth/front texture cannot exist on the backface.",
+    "Curved strips choose frontSource or backSource independently from local surface orientation.",
+    "At yaw 180° the fast face-on path draws only backSource.",
+    "Cheap old-body renderer also switches completely to backSource in the rear hemisphere.",
+    "Backface assets are generated once at load time and add no external fetch or runtime filtering."
   ],
   "asset_localization_evidence": {
     "workflow_run": "https://github.com/JuanManuelPM/prometeo/actions/runs/36272461620",
     "alpha_check": "all six generated assets reported transparent corners [0,0,0,0]; mask assets reported 22.7%–36.3% near-transparent pixels; BASE/WINGS 48.4%/67.7%"
   },
-  "last_durable_update": "2026-09-27",
+  "last_durable_update": "2026-09-28",
   "handoff_url": "https://juanmanuelpm.github.io/prometeo/visuals/handoff/trail.txt",
   "mask_direction_review": {
     "user_reviewed": true,
@@ -226,8 +231,8 @@
         "high": 11
       },
       "side_profile": "retains curved-surface thickness at 90° yaw instead of collapsing to near-zero scaleX",
-      "rear": "source strip order reverses on rear hemisphere; rear brightness hierarchy remains",
-      "optimization": "straight/front/rear views use one draw call when near face-on; strip rendering is used mainly during turn"
+      "rear": "true alpha-derived backface silhouette; front texture is never used for back-facing strips",
+      "optimization": "front/rear face-on states use one draw; mixed turn states use 7/9/11 strips with per-strip front/back source selection"
     },
     "dragon_tail": {
       "model": "deterministic delayed samples of the same head trajectory",
@@ -255,11 +260,19 @@
       "detailed_curvature": "head + newest ~16% of body",
       "cheap_tail_renderer": "older small/dark segments use one drawImage with thick side-profile floor",
       "baseline_2d": "unchanged historical stamp trail"
+    },
+    "backface": {
+      "source_generation": "precompute backShadeSprites from original sprite alpha using source-in solid fills",
+      "facial_detail_on_back": false,
+      "curved_rule": "localFacing = cos(yaw + localPhi); front-facing strips use frontSource, back-facing strips use backSource",
+      "full_rear_rule": "if abs(pi-yaw)<0.08, draw backSource only",
+      "cheap_tail_rule": "rear hemisphere uses backSource only",
+      "performance": "generated once per asset load; no extra external asset or per-frame filter"
     }
   },
   "pseudo3d_review": {
     "user_reviewed": true,
-    "result": "EXACT_PATH_WORM_BODY_LONGER",
-    "note": "User said the previous tail was too short and still read as a trail. Required worm behavior: every tail segment must follow exactly the same path as the main face, only delayed along that path."
+    "result": "TRUE_BACKFACE_NO_FRONT_DETAIL_ON_RETREAT",
+    "note": "User reported that after turning and moving away, the frontal face was still readable. The previous darkened/mirrored-front proxy was rejected. Current patch generates a separate rear silhouette with no facial pixels and selects front/back per curved strip."
   }
 }

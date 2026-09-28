@@ -1,7 +1,7 @@
 # Trail Engine · Architecture Notes
 
 Status: CURRENT
-Updated: 2026-09-27
+Updated: 2026-09-28
 
 ## Core model
 
@@ -128,6 +128,33 @@ Important consequences:
 - adaptive quality lowers strip count to contain mobile cost.
 
 This is deliberately a cheap 2.5D cylinder/sphere-like illusion, not WebGL or a mesh asset pipeline.
+
+### True front/back surface
+
+The rear side is no longer a darkened/mirrored copy of the frontal image.
+
+At asset load Trail precomputes `backShadeSprites[]` using only the source alpha mask:
+
+```js
+backCtx.drawImage(sprite, 0, 0)
+backCtx.globalCompositeOperation = 'source-in'
+backCtx.fillStyle = rearSolidTone
+backCtx.fillRect(...)
+```
+
+Therefore the rear sprite contains the original outer silhouette/alpha but **no eyes, mouth, face texture or photographic detail**.
+
+During curved yaw, every strip computes its own local facing:
+
+```js
+localFacing = cos(yaw + localPhi)
+source = localFacing >= 0 ? frontSource : backSource
+```
+
+At `yaw = π`, all visible strips are back-facing and the fast path draws `backSource` exclusively. The cheap old-body renderer also selects `backSource` for the rear hemisphere.
+
+This is the durable invariant: **retreating geometry cannot sample frontal texture.**
+
 
 ## Dragon / worm body
 
