@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>Web Speech · Transcripción en vivo</title>
+  <style>
+    *{box-sizing:border-box}
+    :root{--bg:#f7f5ef;--ink:#111;--line:#111;--muted:rgba(17,17,17,.5)}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    body{min-height:100vh;display:flex;justify-content:center;padding:clamp(18px,4vw,52px)}
+    main{width:min(920px,100%);display:flex;flex-direction:column;gap:18px}
+    header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:2px solid var(--line);padding-bottom:18px}
+    h1{font-size:clamp(28px,5vw,58px);line-height:.95;letter-spacing:-.045em;margin:0;max-width:700px}
+    .tag{border:1px solid var(--line);padding:7px 10px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+    .status{display:flex;align-items:center;gap:9px;font-weight:700;font-size:14px;min-height:24px}
+    .dot{width:11px;height:11px;border-radius:50%;background:var(--ink);opacity:.2;flex:0 0 auto}
+    .listening .dot{opacity:1;animation:pulse 1s ease-in-out infinite}
+    @keyframes pulse{50%{transform:scale(.6);opacity:.35}}
+    .controls{display:flex;flex-wrap:wrap;gap:10px}
+    button{appearance:none;border:2px solid var(--line);background:transparent;color:var(--ink);padding:13px 17px;font:inherit;font-weight:800;cursor:pointer}
+    button.primary{background:var(--ink);color:var(--bg)}
+    button:disabled{opacity:.35;cursor:not-allowed}
+    button:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+    .panel{border:2px solid var(--line);min-height:310px;padding:clamp(20px,4vw,38px);display:flex;flex-direction:column;gap:18px}
+    .label{font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+    #transcript{font-size:clamp(25px,4vw,42px);line-height:1.25;letter-spacing:-.025em;white-space:pre-wrap;overflow-wrap:anywhere;min-height:160px}
+    #finalText{font-weight:650}
+    #interimText{opacity:.38}
+    #placeholder{opacity:.35}
+    .metrics{display:flex;gap:20px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px;font-size:13px}
+    .metric b{font-variant-numeric:tabular-nums}
+    .notice{border:2px solid var(--line);padding:16px 18px;line-height:1.45;display:none}
+    .notice.show{display:block}
+    details{border-top:1px solid var(--line);padding-top:14px}
+    summary{cursor:pointer;font-weight:800}
+    .technical{font-size:14px;line-height:1.55;max-width:760px}
+    code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.95em;background:rgba(17,17,17,.07);padding:2px 5px}
+    footer{font-size:12px;line-height:1.5;opacity:.62;padding-top:4px}
+    @media (max-width:620px){header{flex-direction:column}.tag{align-self:flex-start}.controls button{flex:1 1 140px}.panel{min-height:360px}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <div class="label" style="margin-bottom:10px">Prometeo · prueba técnica</div>
+      <h1>Transcripción en vivo sin Whisper.</h1>
+    </div>
+    <div class="tag">Web Speech API</div>
+  </header>
+
+  <div id="status" class="status"><span class="dot"></span><span id="statusText">Comprobando compatibilidad…</span></div>
+
+  <div class="controls">
+    <button id="startBtn" class="primary" disabled>INICIAR MICRÓFONO</button>
+    <button id="stopBtn" disabled>DETENER</button>
+    <button id="copyBtn" disabled>COPIAR TEXTO</button>
+    <button id="clearBtn">LIMPIAR</button>
+  </div>
+
+  <section id="notice" class="notice"></section>
+
+  <section class="panel" aria-live="polite">
+    <div class="label">Lo que escucha el navegador</div>
+    <div id="transcript">
+      <span id="placeholder">Apretá “Iniciar micrófono” y hablá. El texto parcial aparece mientras todavía estás diciendo la frase.</span><span id="finalText"></span><span id="interimText"></span>
+    </div>
+    <div class="metrics">
+      <div class="metric">sesión: <b id="elapsed">00:00</b></div>
+      <div class="metric">resultados finales: <b id="finalCount">0</b></div>
+      <div class="metric">idioma: <b>es-AR</b></div>
+    </div>
+  </section>
+
+  <details>
+    <summary>Qué está usando realmente esta página</summary>
+    <div class="technical">
+      <p>Usa <code>SpeechRecognition</code> (o <code>webkitSpeechRecognition</code>) del navegador con <code>continuous = true</code> e <code>interimResults = true</code>. No hay Whisper, no hay clave de API y esta página no envía audio a un servidor propio.</p>
+      <p>Importante: “gratis” no significa necesariamente “100% local”. Algunos navegadores, especialmente Chrome, pueden usar un servicio de reconocimiento remoto del propio navegador. La implementación depende del navegador.</p>
+    </div>
+  </details>
+
+  <footer>Demo estática. Todo el JavaScript está en este mismo HTML. Si el navegador no expone SpeechRecognition, la página lo detecta y no finge que funciona.</footer>
+</main>
+
+<script>
+(() => {
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const status = document.getElementById('status');
+  const statusText = document.getElementById('statusText');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const copyBtn = document.getElementById('copyBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const notice = document.getElementById('notice');
+  const placeholder = document.getElementById('placeholder');
+  const finalTextEl = document.getElementById('finalText');
+  const interimTextEl = document.getElementById('interimText');
+  const elapsedEl = document.getElementById('elapsed');
+  const finalCountEl = document.getElementById('finalCount');
+
+  let recognition = null;
+  let shouldListen = false;
+  let active = false;
+  let finalText = '';
+  let finalCount = 0;
+  let startedAt = 0;
+  let timer = null;
+  let restartTimer = null;
+
+  const setStatus = (text, listening = false) => {
+    statusText.textContent = text;
+    status.classList.toggle('listening', listening);
+  };
+
+  const showNotice = (html) => {
+    notice.innerHTML = html;
+    notice.classList.add('show');
+  };
+
+  const hideNotice = () => {
+    notice.classList.remove('show');
+    notice.innerHTML = '';
+  };
+
+  const render = (interim = '') => {
+    placeholder.style.display = (finalText || interim) ? 'none' : 'inline';
+    finalTextEl.textContent = finalText;
+    interimTextEl.textContent = interim;
+    finalCountEl.textContent = String(finalCount);
+    copyBtn.disabled = !finalText.trim();
+  };
+
+  const updateTimer = () => {
+    if (!startedAt) return;
+    const seconds = Math.floor((Date.now() - startedAt) / 1000);
+    const mm = String(Math.floor(seconds / 60)).padStart(2, '0');
+    const ss = String(seconds % 60).padStart(2, '0');
+    elapsedEl.textContent = `${mm}:${ss}`;
+  };
+
+  const stopClock = () => {
+    clearInterval(timer);
+    timer = null;
+  };
+
+  const startRecognition = () => {
+    if (!recognition || active || !shouldListen) return;
+    try {
+      recognition.start();
+    } catch (err) {
+      if (err && err.name !== 'InvalidStateError') {
+        setStatus('No se pudo iniciar el reconocimiento');
+        showNotice(`<b>Error al iniciar:</b> ${String(err.message || err)}`);
+      }
+    }
+  };
+
+  if (!Recognition) {
+    setStatus('Este navegador no expone SpeechRecognition');
+    showNotice('<b>La Web Speech API no está habilitada en este navegador.</b><br>Probá esta misma URL en Chrome de escritorio o Safari. Firefox puede traer SpeechRecognition deshabilitado por defecto. La demo no usa un reemplazo oculto porque el objetivo es probar específicamente esta tecnología.');
+    startBtn.disabled = true;
+    stopBtn.disabled = true;
+    return;
+  }
+
+  recognition = new Recognition();
+  recognition.lang = 'es-AR';
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = () => {
+    active = true;
+    hideNotice();
+    setStatus('Escuchando en vivo', true);
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    if (!startedAt) {
+      startedAt = Date.now();
+      updateTimer();
+      timer = setInterval(updateTimer, 250);
+    }
+  };
+
+  recognition.onresult = (event) => {
+    let interim = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const text = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        const normalized = text.trim();
+        if (normalized) {
+          finalText += (finalText ? ' ' : '') + normalized;
+          finalCount++;
+        }
+      } else {
+        interim += text;
+      }
+    }
+    render(interim ? (finalText ? ' ' : '') + interim : '');
+  };
+
+  recognition.onerror = (event) => {
+    const code = event.error || 'desconocido';
+    if (code === 'aborted' && !shouldListen) return;
+    if (code === 'no-speech') {
+      setStatus('Sin voz detectada; mantengo la sesión activa', true);
+      return;
+    }
+    if (code === 'not-allowed' || code === 'service-not-allowed') {
+      shouldListen = false;
+      setStatus('Permiso de micrófono bloqueado');
+      showNotice('<b>El navegador bloqueó el micrófono.</b><br>Permití el acceso al micrófono para este sitio y volvé a iniciar.');
+      return;
+    }
+    if (code === 'network') {
+      setStatus('El servicio de reconocimiento reportó un error de red');
+      showNotice('<b>Error de red del reconocimiento.</b><br>En algunos navegadores Web Speech usa un servicio remoto del propio navegador, aunque esta página no use ninguna API paga.');
+      return;
+    }
+    setStatus(`Error de reconocimiento: ${code}`);
+  };
+
+  recognition.onend = () => {
+    active = false;
+    if (shouldListen) {
+      setStatus('Reanudando reconocimiento…', true);
+      clearTimeout(restartTimer);
+      restartTimer = setTimeout(startRecognition, 180);
+    } else {
+      setStatus('Detenido');
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      stopClock();
+      startedAt = 0;
+    }
+  };
+
+  startBtn.addEventListener('click', () => {
+    shouldListen = true;
+    hideNotice();
+    setStatus('Solicitando micrófono…');
+    startRecognition();
+  });
+
+  stopBtn.addEventListener('click', () => {
+    shouldListen = false;
+    clearTimeout(restartTimer);
+    setStatus('Deteniendo…');
+    try { recognition.stop(); } catch (_) {}
+    stopClock();
+  });
+
+  clearBtn.addEventListener('click', () => {
+    finalText = '';
+    finalCount = 0;
+    elapsedEl.textContent = '00:00';
+    render('');
+  });
+
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(finalText.trim());
+      const old = copyBtn.textContent;
+      copyBtn.textContent = 'COPIADO';
+      setTimeout(() => copyBtn.textContent = old, 900);
+    } catch (_) {
+      showNotice('<b>No pude copiar automáticamente.</b><br>Tu navegador bloqueó el portapapeles para esta página.');
+    }
+  });
+
+  setStatus('Compatible. Listo para probar.');
+  startBtn.disabled = false;
+  render('');
+})();
+</script>
+</body>
+</html>
