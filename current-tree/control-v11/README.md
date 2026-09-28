@@ -31,7 +31,7 @@ and adds:
 
 Normal V11 loop:
 
-`page → text/audio/files → Page Change Thread → HACER → Execution Packet → existing live allocator → ordinary worker claim → private packet post-claim → owner edit/test/persist → GitHub RETURN → same Page Change feed → human review`
+`page → text/audio/files → Page Change Thread → HACER → Execution Packet → existing live allocator → builder claim → private packet post-claim → owner edit/test/persist → CANDIDATE_READY RETURN → independent verifier claim → VERIFY.json → same Page Change result/feed → human review`
 
 There is no second scheduler and no second feedback database.
 
@@ -82,9 +82,12 @@ Do not supersede V10 or call V11 Human Accepted until a real end-to-end canary p
 3. sanitized item reaches live claim frontier;
 4. compatible worker wins ordinary claim;
 5. worker loads exact private packet only post-claim;
-6. worker writes truthful RETURN;
-7. existing Page Change ingestion surfaces the result;
-8. human can review candidate without acceptance being invented.
+6. builder writes truthful `CANDIDATE_READY` RETURN and cannot self-certify VERIFIED/SERVED;
+7. a different compatible worker claims `PAGE_CHANGE_VERIFY`;
+8. verifier loads the exact owned packet after claim, verifies real candidate evidence and writes `VERIFY.json`;
+9. backend accepts `VERIFIED` only from a valid independent PASS and keeps FAIL/BLOCKED non-promoting;
+10. existing Page Change ingestion surfaces builder + verification evidence;
+11. human can review candidate without acceptance being invented.
 
 Preservation contract:
 `coordination/design-dna/preservation-contracts/CONTROL_ROOM_V11_WORKSPACE_LOOP_V1.json`
