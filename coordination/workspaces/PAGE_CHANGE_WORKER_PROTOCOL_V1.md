@@ -99,6 +99,8 @@ Write the existing `prometeo.execution-result/v1` RETURN there with sanitized ev
 
 The Page Change backend will ingest the durable GitHub RETURN through its existing `execution_status` polling path and surface the result in the same page thread.
 
+For `WORKER_POOL` material execution, the builder's highest truthful success status is `CANDIDATE_READY`. A builder must never self-declare `VERIFIED` or `SERVED`; the backend also fences those claims back to `CANDIDATE_READY` until an independent verifier result is ingested.
+
 A valid result should truthfully include, when applicable:
 
 - `work_item_id`
