@@ -2,48 +2,45 @@
 
 Status: CURRENT
 
-## v25 · ELEVATED CENTRAL PATH + BOTTOMLESS SIDE COLUMNS
+## v26 · REAL GAP BETWEEN BRIDGE AND COLUMNS
 
-Latest correction:
-- the bridge/path must be clearly between the columns;
-- the camera path is elevated above the columns' hidden bases;
-- columns must have no lateral floor beneath them;
-- the deep base of every column must be 100% black;
-- columns get progressively lighter violet upward;
-- columns must appear immediately from the sides of the path and continue much higher.
+The v25 bug was geometric, not aesthetic.
 
-## MAP 5 · v25
+v25 used:
+- roadHalf = 6.15
+- radius = 2.15
+- column center = roadHalf + radius*0.72 = 7.698
+- inner column surface = 7.698 - 2.15 = 5.548
 
-### Central path
-- road Y: -1.12.
-- half-width: 6.15.
-- finite left/right edges.
-- straight longitudinal stripes preserved.
-- no dark horizontal shoulders outside the road.
-- visible vertical edge faces drop to Y=-4.8 to prove elevation.
+Therefore the column physically overlapped the bridge, which ended at X=6.15. This is why the bridge could still be seen passing under the columns.
 
-### Side space
-- no lateral horizontal floor is rendered.
-- side area is only abyss/depth background.
-- columns occupy this void directly beside the road.
+## v26 FIX
 
-### Columns
-- radius: 2.15.
-- center X = ±(roadHalf + radius*0.72), placing them directly beside the bridge.
-- bottom Y: -38.
-- top Y: 42, periodic taller columns at 50.
-- first 18% of shaft height is forced to RGB(0,0,0).
-- above that, violet emerges progressively with height.
-- camera proximity and curvature modulate only after the vertical rule.
-- tops are expected to leave the frame.
+New rule:
+- road edge = roadHalf
+- column center = roadHalf + radius + columnGap
+- columnGap = 0.65
+- current column center = 8.95
+- current inner column surface = 6.80
+- road edge = 6.15
+- real empty gap = 0.65
 
-### Signs
-- sign renders before column so the shaft masks the hinge/storage.
-- hidden threshold remains.
-- strict maximum two visible/opening signs remains.
+No horizontal world geometry is rendered between X=6.15 and X=6.80 on either side.
+
+That interval is pure abyss.
 
 ## PRESERVE
-- Map 1 continuous floor.
-- Map 4 world-anchored tunnel movement.
-- v20 mobile scene selector.
-- fixed frontal camera and current controls.
+- elevated central bridge;
+- no lateral floor;
+- column bottom Y=-38;
+- column top Y=42/50;
+- deepest lower section forced to pure black;
+- violet emerges upward;
+- signs hidden behind columns;
+- maximum two visible/opening signs;
+- straight longitudinal road lines;
+- Map 1 and Map 4 fixes;
+- mobile map selector.
+
+## REVIEW RISK
+The only thing to judge now is whether the 0.65 gap is visually large enough. It is structurally real and no longer an overlap.
