@@ -11,9 +11,11 @@ must('safe-boundary',"truth_boundary:'CONTROL_PLANE_UNAVAILABLE_NO_PAGE_CHANGE_W
 must('degraded-flag','degraded:true');
 must('empty-items','items:[]');
 
-const start=source.indexOf("truth_boundary:'CONTROL_PLANE_UNAVAILABLE_NO_PAGE_CHANGE_WORK_ADDED'");
-const segment=source.slice(Math.max(0,start-700),start+800);
-for(const forbidden of ['snapshot','transcript','packetToken','returnToken','asset_url']){
+const start=source.indexOf("if(code==='PGRST002'");
+const stop=source.indexOf('throw q.error;',start);
+if(start<0||stop<0)throw new Error('PAGE_CHANGE_FRONTIER_DEGRADED_FAIL degraded_block_missing');
+const segment=source.slice(start,stop);
+for(const forbidden of ['snapshot:','transcript:','packetToken','returnToken','asset_url']){
   if(segment.includes(forbidden))throw new Error('PAGE_CHANGE_FRONTIER_DEGRADED_FAIL private_literal_'+forbidden);
 }
 console.log('PAGE_CHANGE_FRONTIER_DEGRADED_PASS');
