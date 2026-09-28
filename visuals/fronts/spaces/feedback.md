@@ -2,57 +2,51 @@
 
 Status: CURRENT
 
-## v31 · BLACK NAVE FLOOR + DEEPER TUNNEL + THINNER/FARTHER RITUAL CORRIDOR
+## v32 · REMOVE CYLINDERS + HAIRLINE PATH + RICHER TUNNEL STONE
 
-Latest user direction combines three explicit map decisions.
+Latest user feedback:
+- Map 1 / arcos is liked a lot: preserve it.
+- Random-cylinder scene is disliked: remove it from the visible experience.
+- Calzada is liked: preserve it.
+- Tunnel composition is liked, but wall textures need improvement.
+- Megatower path is still far too wide: it must read almost like a drawn line.
 
 ## MAP 1 · ARCOS
-- Temporarily remove the visible green floor.
-- Keep the floor geometry so the scene structure does not break.
-- Render the floor pure black.
-- Do not draw the green floor texture/material overlay.
-- Preserve arches, supports, backing walls and depth.
+- renderMap1 is unchanged from v31.
+- Keep the blacked-out floor and current architecture.
 
-## MAP 3 · CALZADA
-- User likes it.
-- Leave it as-is.
-- v31 verification: renderMap3 is exactly unchanged from the v30 blob.
+## REMOVED VISIBLE SCENE · RANDOM CYLINDERS
+- the selector no longer exposes the old `2 CILINDROS` scene.
+- visible selector is now:
+  1. ARCOS
+  2. CALZADA
+  3. TÚNEL
+  4. TORRES
+- internal renderMap2 code remains dormant only to minimize unrelated refactor risk.
+- selector buttons now carry explicit `data-map` ids so UI numbering can differ safely from internal map ids.
+- keyboard 1–4 follows the visible selector.
 
-## MAP 4 · TÚNEL
-- User likes the current tunnel composition and motion.
-- Preserve world-anchored segments, ribs, end wall, floor and longitudinal guides.
-- Strengthen optical depth only:
-  - near surfaces clearer/brighter;
-  - far surfaces darker;
-  - throat more swallowed by black.
-- v31 adds an explicit nonlinear depth factor to tunnel wall/roof material and structural ribs.
-- v31 also adds a soft radial darkness veil centered on the vanishing throat, strongest at center and almost absent in the near field.
+## CALZADA
+- renderMap3 is unchanged from v31.
 
-## MAP 5 · RITUAL / MEGATOWERS
-Pending feedback from the immediately previous turn is also applied:
-- bridge thinner again:
-  - RITUAL_ROAD_HALF .95 → .65;
-  - full bridge width 1.9 → 1.3;
-  - lateral limit .68 → .42.
-- towers farther from player laterally:
-  - RITUAL_COLUMN_GAP 1.20 → 1.90.
-- preserve tower radius 3.20 and extreme height.
-- new geometry:
-  - bridge edge ±0.65;
-  - tower center ±5.75;
-  - nearest tower surface ±2.55;
-  - real abyss gap 1.90.
+## TÚNEL
+- geometry, world-Z anchoring, ribs, end wall, floor and v31 depth falloff are preserved.
+- added a second finer warm real-stone atlas (`tunnelDetail`) from the existing real stone source.
+- walls and roof now receive a restrained second texture pass.
+- detail strength still follows depth attenuation, so far tunnel stays darker instead of becoming noisy.
 
-## PRESERVE
-- Map 5 dark industrial background and distant megastructures;
-- Map 5 no lateral floor;
-- signs → columns → bridge painter order;
-- bridge-last lower-tower occlusion;
-- pure-black deep tower bases;
-- max two visible/opening signs;
-- v20 mobile map selector.
+## TORRES / HAIRLINE PATH
+- RITUAL_ROAD_HALF: .65 → .18.
+- full path width: 1.30 → .36.
+- lateral limit: .42 → .08.
+- removed six-stripe deck treatment.
+- removed bright edge rims.
+- added one center hairline with half-width .018.
+- the dark structural deck still exists and still renders after towers so lower-tower occlusion is preserved.
+- RITUAL_COLUMN_GAP remains 1.90.
+- tower radius remains 3.20.
 
 ## SELF-CRITIQUE / REVIEW RISKS
-- Map 1 floor is intentionally absolute black; if the nave loses too much spatial footing, the next adjustment should be a near-black edge cue, not a return to the green material.
-- Map 4 extra depth veil is screen-space by design and could be too strong on very narrow displays; review visually before increasing it.
-- Map 5 1.3-unit full bridge is deliberately extreme; camera lateral clamp is reduced accordingly.
+- .36 full width is intentionally extreme. If it still reads broad, the remaining cause is perspective/deck body, not stripe decoration.
+- the new tunnel detail is deliberately restrained; if texture still feels weak, next step should be a better source asset, not simply more opacity.
+- dormant cylinder code is not user-visible; removing the function itself would be cleanup, not a visual improvement.
