@@ -33,12 +33,24 @@ ACTUAL REPO TARGETS
 
 CURRENT STATE
 Review state: REVIEW
-Current implementation commit: ac40faa1c935fb62a4fe47287b9a7ac43328be84
-Current HTML blob evidence: 3cacb066945b31a22a13786ca1cc9a11fd1ec8b5
-Current candidate: true backface remains, but rear material is now invariant pure black (#000000). No gray rear shading exists; every rear-facing strip/full-rear segment uses backShadeSprites[0].
-User reviewed prior true-backface candidate: YES · explicitly required the entire rear side to be pure black, never gray
+Current implementation commit: 2644b03d50680ebc99c28eca2031654d71172f18
+Current HTML blob evidence: 94f1de07c3a023fa0f8fc69ff54720009d8129e7
+Current candidate: pseudo-3D pose is now engineering-driven rather than phase-coded. A 384-sample compiled path LUT stores x/y/z plus tangent-derived continuous yaw; near turn is 0→π and far turn continues π→2π. Head/body share samplePath(distance). Rear is one pure-black blackBackSprite.
+User reviewed prior pure-black-backface candidate: YES · near turn looked correct, but far turn/return showed the face from the wrong side; requested a higher-level engineering refactor with less hardcoding and lower runtime cost
 
 LATEST USER FEEDBACK
+- near/front turn reads correctly
+- far turn / return toward camera rotates visually from the wrong side
+- user wants the system redesigned around correct reusable functions, fewer special cases, and lower runtime cost
+- root cause: phase-coded yaw used 0→π then π→0, while renderer used acos(cos(yaw)) and erased handedness
+- current patch: rawPathPosition(distance) = geometry only
+- current patch: compilePath() builds 384 x/y/z/yaw samples per viewport/path mode
+- yaw comes from tangent atan2(dx,-dz) and is continuously unwrapped
+- full circuit = ~0→π→2π
+- head and worm segments all use samplePath(distance)
+- back shade bank removed; one pure-black blackBackSprite remains
+
+PREVIOUS LATEST USER FEEDBACK
 - rear side must always be 100% black, never gray
 - rear must not inherit brightness/depth/age/trail shading
 - current patch fills rear alpha silhouette with #000000
@@ -165,6 +177,17 @@ TrailEngine(asset, trajectory)
 
 See architecture.md for the durable technical model.
 
+CURRENT COMPILED PATH / CONTINUOUS YAW
+- geometry and facing are separated
+- rawPathPosition(distance) returns x/y/z only
+- compilePath() caches 384 samples per viewport/path mode
+- yaw derived from x/z tangent via atan2(dx,-dz)
+- yaw unwrapped continuously across ±π
+- near turn 0→π; retreat π; far turn π→2π; next approach 2π≡0
+- renderer preserves signed yaw; acos(cos(yaw)) is removed
+- samplePath(distance) is shared by head and every worm segment
+- cached interpolation replaces repeated path trig per segment/frame
+
 CURRENT CONSTANT SPEED
 - ORBIT/LOOP advance by one pathDistance scalar
 - PATH_SPEED = 230 px/s normal / 150 reduced motion
@@ -174,6 +197,10 @@ CURRENT CONSTANT SPEED
 - larger curves take longer because they are longer, not because speed changes
 
 CURRENT WORM / DRAGON BODY
+- head = samplePath(pathDistance)
+- segment(i) = samplePath(pathDistance - i * DRAGON_SPACING)
+- all position + continuous yaw come from the same compiled path
+- no segment-specific yaw/path exceptions
 - ORBIT/LOOP body is deterministic delayed samples of the head path
 - segment(i) = hairpinPose(pathDistance - i * DRAGON_SPACING)
 - no independent sine/wobble; every segment takes exactly the head's route
@@ -212,6 +239,9 @@ CURRENT WIDE TURN GEOMETRY
 - LOOP vertical lift is included in turn metric, preserving constant speed
 
 CURRENT PURE-BLACK BACKFACE
+- one blackBackSprite generated once from source alpha
+- rear shade bank removed as redundant
+- every back-facing surface = literal #000000
 - every back-facing surface = literal #000000
 - no rear brightness variation
 - no rear shade lookup
@@ -294,7 +324,7 @@ CURRENT PERFORMANCE
 - no external runtime image fetch
 
 OPEN USER FEEDBACK
-- first verify retreat shows no frontal facial detail at all; then review mixed-angle transition, worm length, spacing and endpoint
+- first verify the far turn now reveals the face from the correct/opposite side and remains smooth; then review worm length/spacing/endpoint and mask crops
 - clean current mask crop/base-gray defects
 - turn asset preparation into a robust compileTrailAsset(image) pipeline
 - later curate a larger ~20 candidate set only after the crop gate is trustworthy
@@ -339,6 +369,8 @@ RECENT MEANINGFUL VERSIONS
 - 73bdf8c98222de9ee4bb72de1fb1628f02f9a849 · REVIEW_PATCH · true alpha-derived backface; frontal texture forbidden on rear-facing strips
 
 - ac40faa1c935fb62a4fe47287b9a7ac43328be84 · REVIEW_PATCH · rear hemisphere forced to pure #000000; no gray backface variation
+
+- 2644b03d50680ebc99c28eca2031654d71172f18 · REVIEW_PATCH · compiled path + tangent-derived continuous yaw 0→2π; signed renderer yaw; shared samplePath; single blackBackSprite
 
 INCARNATION CONTRACT
 1. Read this handoff COMPLETELY.

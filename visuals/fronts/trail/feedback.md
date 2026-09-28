@@ -56,6 +56,15 @@ In-page movement modes:
 For 3D modes, z changes projected scale/position and distant stamps are slightly less opaque. Stamps are drawn far-to-near. There is still only one 2D sprite; no WebGL/mesh is required.
 
 ## LATEST USER FEEDBACK
+- User says the **near/front turn looks correct**, but the **far turn / return toward camera rotates from the wrong side**: the face reappears as if yaw direction were inverted relative to the curve.
+- Root cause: path yaw was hardcoded as near `0→π` but far `π→0`, and the renderer further folded orientation with `acos(cos(yaw))`, erasing turn handedness.
+- User explicitly asked to step back and engineer the system around correct reusable functions with less hardcoding and lower runtime cost.
+- Current candidate separates geometry from orientation: `rawPathPosition(distance)` returns position only; `compilePath()` derives yaw from tangent and unwraps it continuously.
+- One circuit now naturally reads `0→π→2π`; the far turn does **not** reverse yaw back toward zero.
+- A 384-sample path LUT caches x/y/z/yaw per viewport/mode, so head and 26–38 body segments use cheap interpolation instead of recalculating path trigonometry.
+- The rear resource is simplified from a redundant shade bank to one pure-black `blackBackSprite`.
+
+## PREVIOUS USER FEEDBACK
 - User requires the rear side to be **always 100% black**, never gray.
 - Rear color must not depend on brightness, age, depth, trail position or head/body role.
 - Current candidate hard-codes rear silhouette fill to `#000000`.

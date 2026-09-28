@@ -133,7 +133,7 @@ This is deliberately a cheap 2.5D cylinder/sphere-like illusion, not WebGL or a 
 
 The rear side is no longer a darkened/mirrored copy of the frontal image.
 
-At asset load Trail precomputes `backShadeSprites[]` using only the source alpha mask:
+At asset load Trail precomputes `blackBackSprite` using only the source alpha mask:
 
 ```js
 backCtx.drawImage(sprite, 0, 0)
@@ -163,10 +163,53 @@ The rear material is **not shaded**. It is always literal black:
 ```js
 backCtx.globalCompositeOperation = 'source-in'
 backCtx.fillStyle = '#000000'
-backSource = backShadeSprites[0]
+backSource = blackBackSprite
 ```
 
 No rear brightness is derived from `trailT`, depth, head/body state, or front brightness. The front can still use its normal brightness hierarchy, but every back-facing strip and every full rear view samples the same pure-black source.
+
+
+## Compiled path + tangent-derived pose
+
+ORBIT/LOOP now separate **geometry** from **orientation**.
+
+`rawPathPosition(distance)` contains the racetrack geometry and returns only:
+
+```js
+{x, y, z}
+```
+
+It does not decide where the face looks.
+
+`compilePath()` samples that geometry into a **384-entry LUT** whenever viewport/path mode changes. From neighboring position samples it derives the x/z tangent:
+
+```js
+dx = x[next] - x[prev]
+dz = (z[next] - z[prev]) * depthScale
+yaw = atan2(dx, -dz)
+```
+
+Yaw is then unwrapped against the previous sample so direction remains continuous through the ±π boundary.
+
+The resulting circuit is conceptually:
+
+```text
+approach       near turn       retreat       far turn        approach
+0°        →    0..180°    →     180°     →   180..360°   →    360°
+```
+
+The old `π → 0` far-turn yaw and renderer-side `acos(cos(yaw))` folding are superseded because they destroyed turn handedness and made the face reappear from the wrong side.
+
+At runtime:
+
+```js
+pose = samplePath(pathDistance)
+segmentPose = samplePath(pathDistance - i * DRAGON_SPACING)
+```
+
+`samplePath()` performs O(1) interpolation of cached x/y/z/yaw and adds one full turn (2π) per completed path cycle. `pathDistance += PATH_SPEED * dt` remains the sole motion clock, so speed stays constant.
+
+This also reduces runtime path work: the body no longer evaluates path trigonometry separately for every segment on every frame.
 
 
 ## Dragon / worm body
@@ -176,10 +219,10 @@ ORBIT/LOOP no longer treat the body as a historical trail.
 The body is a deterministic set of delayed samples from the **same trajectory function as the head**:
 
 ```js
-head = hairpinPose(pathDistance)
+head = samplePath(pathDistance)
 
 for (i = 1; i <= bodyCount; i++) {
-  body[i] = hairpinPose(pathDistance - i * DRAGON_SPACING)
+  body[i] = samplePath(pathDistance - i * DRAGON_SPACING)
 }
 ```
 
@@ -302,3 +345,8 @@ The target is a robust `compileTrailAsset(image)` that automatically chooses:
 - quality checks such as corner alpha and background leakage
 
 Once that is reliable, supplying a new image should be a data operation, not a new animation implementation.
+
+
+### Rear bitmap simplification
+
+Because the rear is always pure black, Trail now keeps one `blackBackSprite` instead of a bank of identical rear shade canvases. It is generated once from the source alpha with `source-in #000000` and reused for every back-facing strip.

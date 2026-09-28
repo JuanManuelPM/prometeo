@@ -14,7 +14,7 @@
     "visuals/fronts/trail/architecture.md"
   ],
   "review_state": "REVIEW",
-  "current_blob_sha": "3cacb066945b31a22a13786ca1cc9a11fd1ec8b5",
+  "current_blob_sha": "94f1de07c3a023fa0f8fc69ff54720009d8129e7",
   "accepted_baseline": {
     "label": "Full-stamp old-redraw",
     "commit": "26ff0e808fe0cf732af8c45f0eef9f13f99853e7",
@@ -39,8 +39,8 @@
     ]
   },
   "current_candidate": {
-    "commit": "ac40faa1c935fb62a4fe47287b9a7ac43328be84",
-    "summary": "Rear surface is now invariant pure black (#000000). Backface generation no longer derives gray from brightness and drawWhole always selects backShadeSprites[0] for any rear-facing surface. Front hierarchy remains unchanged.",
+    "commit": "2644b03d50680ebc99c28eca2031654d71172f18",
+    "summary": "Pseudo-3D orientation refactor: ORBIT/LOOP now compile a 384-sample path LUT containing position plus continuous yaw derived from the path tangent. The renderer preserves signed yaw instead of folding it through acos(cos(yaw)), so the near turn progresses 0→pi and the far turn continues pi→2pi. Head and worm body both use samplePath(distance); pure-black rear is a single blackBackSprite.",
     "user_reviewed": false
   },
   "accepted_asset_direction": [
@@ -59,8 +59,9 @@
     "6 SHIKAMI"
   ],
   "open_feedback": [
-    "Visually verify the entire rear hemisphere is pure black with no gray values while retreating.",
-    "Review the mixed turn: front color should give way to pure-black rear strips progressively.",
+    "Visually verify the far turn now reveals the face from the opposite/correct side and feels continuous with the curve.",
+    "Verify the near turn still looks as good as before after tangent-derived yaw replaced phase-coded yaw.",
+    "Review whether LUT interpolation is visually smooth enough on the target phone; 384 samples should be ample but remains user-review.",
     "Review worm length (~684 px), 18 px spacing and 16% black endpoint.",
     "Some masks still need cleaner segmentation: remove gray base/residue/halo before promotion."
   ],
@@ -132,7 +133,15 @@
     "Rear silhouette no longer derives any gray value from trail brightness.",
     "Backface fill is hard-coded to #000000.",
     "All rear-facing rendering uses backShadeSprites[0] directly; no rear brightness lookup remains.",
-    "Front-side brightness hierarchy is preserved unchanged."
+    "Front-side brightness hierarchy is preserved unchanged.",
+    "Removed phase-coded yaw assignments from the ORBIT/LOOP path.",
+    "Removed yaw folding via acos(cos(yaw)), which erased turn handedness.",
+    "Added compilePath() with a 384-sample position/yaw LUT per viewport and path mode.",
+    "Yaw is derived from the x/z tangent and unwrapped continuously through a full circuit.",
+    "Near turn progresses 0→π; far turn continues π→2π, so the face reappears from the physically consistent side.",
+    "Head and every worm segment now call the same samplePath(distance) function.",
+    "Replaced redundant identical black rear shade bank with one blackBackSprite.",
+    "2D accepted baseline remains unchanged."
   ],
   "asset_localization_evidence": {
     "workflow_run": "https://github.com/JuanManuelPM/prometeo/actions/runs/36272461620",
@@ -166,11 +175,13 @@
     ],
     "projection": "pseudo-3D focal projection; no WebGL required",
     "optimization": [
-      "single loaded sprite reused for all copies",
+      "single loaded front sprite plus one pure-black rear sprite",
+      "front shade bank precomputed once",
       "bounded preallocated stamp pool for 2D/CERCA/LEJOS",
       "preallocated 40-slot deterministic dragon body for ORBIT/LOOP",
+      "384-sample compiled path LUT caches x/y/z and tangent-derived continuous yaw",
+      "head/body path sampling is O(1) interpolation; no per-segment trigonometric path reconstruction",
       "ORBIT/LOOP do not create/age historical stamps",
-      "body segments are recomputed directly from the cached trajectory function",
       "controlled internal render resolution",
       "adaptive body count: 26 / 32 / 38 segments",
       "curved 7–11 slice renderer limited to head/newest body only",
@@ -186,14 +197,14 @@
       "shade bank is precomputed once per asset load; no per-stamp runtime filter"
     ],
     "yaw": {
-      "driver": "trajectory phase; no independent yaw accumulator",
+      "driver": "path tangent; no hardcoded per-phase yaw and no independent yaw accumulator",
       "behavior": [
-        "approach mode is front-facing from the start (yaw 0°)",
-        "retreat mode is rear-facing from the start (yaw 180°)",
-        "ORBIT/LOOP near hairpin holds z at near depth while x crosses laterally and yaw advances 0→180°",
-        "the backward straight begins only after the hairpin completes, with yaw already 180°",
-        "far hairpin holds z at far depth while x returns laterally and yaw advances 180→0°",
-        "rear proxy remains mirrored/darker and never disappears"
+        "approaching straight naturally resolves to yaw≈0 from tangent",
+        "near turn naturally resolves 0→π",
+        "retreat straight naturally resolves yaw≈π",
+        "far turn continues π→2π rather than π→0",
+        "next approach is 2π-equivalent to 0 without reversing rotation direction",
+        "renderer preserves signed/continuous yaw; acos(cos(yaw)) folding is forbidden"
       ]
     },
     "trail_spacing": {
@@ -234,8 +245,9 @@
         "high": 11
       },
       "side_profile": "retains curved-surface thickness at 90° yaw instead of collapsing to near-zero scaleX",
-      "rear": "true alpha-derived backface silhouette; front texture is never used for back-facing strips",
-      "optimization": "front/rear face-on states use one draw; mixed turn states use 7/9/11 strips with per-strip front/back source selection"
+      "rear": "pure-black blackBackSprite; front texture forbidden on back-facing strips",
+      "optimization": "front/rear face-on states use one draw; mixed turn states use 7/9/11 strips with per-strip front/back source selection",
+      "yaw_input": "continuous signed yaw normalized only modulo 2π; handedness is preserved"
     },
     "dragon_tail": {
       "model": "deterministic delayed samples of the same head trajectory",
@@ -255,7 +267,7 @@
         "high_normal": 684,
         "reduced_low": 520
       },
-      "pose_rule": "segment i = hairpinPose(pathDistance - i*spacing)",
+      "pose_rule": "segment i = samplePath(pathDistance - i*spacing)",
       "artificial_wave": false,
       "oldest_scale_3d": 0.16,
       "newest_trail_scale_3d": 0.98,
@@ -265,20 +277,30 @@
       "baseline_2d": "unchanged historical stamp trail"
     },
     "backface": {
-      "source_generation": "alpha-derived silhouette filled with pure black using source-in",
+      "source_generation": "single blackBackSprite generated from sprite alpha using source-in #000000",
       "facial_detail_on_back": false,
       "curved_rule": "localFacing = cos(yaw + localPhi); front-facing strips use frontSource, back-facing strips use pure-black backSource",
       "full_rear_rule": "yaw≈pi draws pure-black backSource only",
       "cheap_tail_rule": "rear hemisphere uses pure-black backSource only",
-      "performance": "generated once per asset load; no per-frame filter or rear shade lookup",
+      "performance": "one rear canvas per asset; no rear shade bank, no per-frame filter or shade lookup",
       "color": "#000000",
       "brightness_variation": false,
-      "source_selection": "all rear-facing geometry uses backShadeSprites[0]"
+      "source_selection": "all rear-facing geometry uses blackBackSprite"
+    },
+    "path": {
+      "model": "compiled racetrack path LUT",
+      "samples": 384,
+      "source_geometry": "rawPathPosition(distance) returns x/y/z only",
+      "orientation": "compilePath derives yaw from finite-difference tangent atan2(dx,-dz)",
+      "continuity": "yaw is unwrapped across the LUT; one circuit advances approximately 0→2π instead of folding back π→0",
+      "sampling": "samplePath(distance) interpolates x/y/z/yaw and adds 2π per completed cycle",
+      "speed": "pathDistance += PATH_SPEED * dt; constant-distance progression preserved",
+      "performance": "trigonometric path geometry and tangent derivation are compiled per viewport/mode, then body/head use O(1) interpolation"
     }
   },
   "pseudo3d_review": {
     "user_reviewed": true,
-    "result": "PURE_BLACK_BACKFACE",
-    "note": "User accepted the true backface direction but explicitly required the entire rear side to be 100% black, never gray. Current patch removes rear brightness variation entirely."
+    "result": "TANGENT_DERIVED_CONTINUOUS_YAW_REFACTOR",
+    "note": "User observed that the near turn looked correct but the far turn revealed the face from the wrong side, as if rotation direction were inverted. User then requested a more engineering-style simplification with fewer hardcoded states and lower runtime cost."
   }
 }

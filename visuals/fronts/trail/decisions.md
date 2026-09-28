@@ -101,6 +101,15 @@ Durable architecture detail:
 - Current lifetime: **860 ms** normal, **1040 ms** reduced motion.
 - Do not achieve length by increasing pool without bound. Tail length must remain compatible with the fixed pool and adaptive quality.
 
+## Orientation comes from path tangent
+- ORBIT/LOOP geometry owns **position only**. Do not hand-code yaw values for straight/near-turn/retreat/far-turn phases.
+- `compilePath()` samples the path and derives yaw from the x/z tangent: `atan2(dx, -dz)`.
+- Unwrap yaw continuously so a complete circuit advances approximately **0 → π → 2π**.
+- The far turn must continue rotation from π toward 2π; **π → 0 is rejected** because it makes the face reappear from the wrong side.
+- The renderer must preserve yaw handedness. Folding with `acos(cos(yaw))` is rejected.
+- Head and body use the same `samplePath(distance)`; body segments differ only by distance offset.
+- Compile/caching belongs outside the frame loop when possible. Current path LUT = **384 samples** per viewport/mode.
+
 ## Backface is always pure black
 - Every rear-facing surface uses **exact `#000000`**.
 - Rear color never depends on trail brightness, depth, age, body segment, or head/body status.
@@ -108,6 +117,11 @@ Durable architecture detail:
 - Do not select a rear shade index from brightness.
 - Durable source rule: `backSource = backShadeSprites[0]`.
 - Front hierarchy may still vary brightness normally; this rule applies only to the rear side.
+
+## Rear resource simplification
+- Since rear material is invariant `#000000`, a rear shade bank is unnecessary.
+- Keep one `blackBackSprite` generated from source alpha.
+- All rear-facing strips/full-rear draws use that one bitmap.
 
 ## True backface, no frontal texture on retreat
 - A darkened or mirrored frontal image is **not** a valid rear side.
