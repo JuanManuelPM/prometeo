@@ -1,0 +1,83 @@
+{
+  "schema": "prometeo.page-change-closeout/v1",
+  "checkpoint_id": "PAGE_CHANGE_SOFTWARE_CLOSEOUT_20260928T232800Z",
+  "observed_at": "2026-09-28T23:28:00Z",
+  "status": "SOFTWARE_CLOSEOUT_COMPLETE_EXTERNAL_STORAGE_BLOCK",
+  "scope": "CONTROL_ROOM_V11_PAGE_CHANGE_PRE_DB_RECOVERY",
+  "authority_boundary": {
+    "control_room_v10": "CURRENT_BASELINE",
+    "control_room_v11": "CANDIDATE",
+    "promotion_authorized": false,
+    "new_scheduler_created": false
+  },
+  "checks": {
+    "worker_frontier_degraded_mode": {
+      "result": "PASS",
+      "evidence": {
+        "github_actions_run": 36494473499,
+        "github_actions_job": 109170767381,
+        "edge_request_at": "2026-09-28T22:48:27.599Z",
+        "http_status": 200,
+        "contemporaneous_postgrest_error": "PGRST002",
+        "allocator_merge": "merged=0"
+      },
+      "interpretation": "The public Page Change frontier remains callable while the database is unavailable and adds no Page Change work. Ordinary allocator lanes continue."
+    },
+    "live_feed_ci": {
+      "result": "PASS",
+      "github_actions_run": 36494473499,
+      "tests": [
+        "page_change_worker_frontier_v1 PASS",
+        "PAGE_CHANGE_FRONTIER_DEGRADED_PASS",
+        "PAGE_CHANGE_PREWRITE_FENCING_PASS"
+      ]
+    },
+    "engine_ci": {
+      "result": "PASS",
+      "github_actions_run": 36494473604,
+      "github_actions_job": 109170708769
+    }
+  },
+  "current_external_block": {
+    "class": "POSTGRES_DISK_EXHAUSTION",
+    "project_ref": "catnohyouxqjjtseaueb",
+    "management_status": "ACTIVE_HEALTHY",
+    "runtime_truth": "DATABASE_NOT_READY",
+    "recent_window": {
+      "from": "2026-09-28T20:00:00Z",
+      "to": "2026-09-28T23:28:00Z",
+      "postgres_disk_full_events": 2218,
+      "ready_to_accept_connections_events": 0
+    },
+    "stable_diagnosis_ref": "coordination/canaries/page-change-pipeline-v1/control-plane-diagnosis-latest.json",
+    "remediation_boundary": "Database startup must regain platform-level disk headroom before SQL cleanup or the real Page Change end-to-end canary is possible."
+  },
+  "software_without_database": {
+    "status": "CLOSED",
+    "do_not_continue_with": [
+      "new scheduler or queue architecture",
+      "blind retention or destructive SQL",
+      "fake worker or synthetic success claims",
+      "Control Room V11 promotion"
+    ]
+  },
+  "next_gate": {
+    "name": "SUPABASE_STORAGE_RECOVERY",
+    "human_minimum_action": "Restore database disk headroom through Supabase platform/support if no connected tool exposes storage resizing.",
+    "after_recovery": [
+      "Confirm PostgreSQL ready to accept connections.",
+      "Measure actual database/WAL storage pressure read-only before pruning anything.",
+      "Run the existing Page Change Worker Pool canary.",
+      "Run one real worker claim with private packet only after claim.",
+      "Run a visible Spaces human canary.",
+      "Only then consider human promotion of V11."
+    ]
+  },
+  "evidence_refs": [
+    "https://github.com/JuanManuelPM/prometeo/actions/runs/36494473499",
+    "https://github.com/JuanManuelPM/prometeo/actions/runs/36494473604",
+    "coordination/canaries/page-change-pipeline-v1/control-plane-diagnosis-latest.json",
+    "coordination/portfolio/tests/page_change_prewrite_fencing_v1.mjs",
+    ".github/workflows/live-feed.yml"
+  ]
+}
