@@ -15,6 +15,7 @@ const STABLE_ENTRY='https://juanmanuelpm.github.io/prometeo/p.txt';
 const SAVE_PAGE='https://juanmanuelpm.github.io/prometeo/pages/capture/save-session/';
 const ENDPOINT=SUPABASE_URL+'/functions/v1/prometeo-change-loop-v1';
 const PAGE_CHANGE_WORKER_PROTOCOL='coordination/workspaces/PAGE_CHANGE_WORKER_PROTOCOL_V1.md';
+const PAGE_CHANGE_VERIFIER_PROTOCOL='coordination/workspaces/PAGE_CHANGE_VERIFIER_PROTOCOL_V1.md';
 const PAGE_CHANGE_PROJECT_ID='prometeo-page-change';
 const GITHUB_RAW='https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/';
 const TERMINAL=new Set(['CANDIDATE_READY','VERIFIED','SERVED','BLOCKED','FAILED']);
@@ -81,7 +82,59 @@ async function publicSessionSave(req:Request,t:string){if(t.length<24)fail('AI_S
 async function ingestResult(packet:any,payload:any,source:string){const requestedStatus=String(payload.status||'');if(!TERMINAL.has(requestedStatus))fail('RESULT_STATUS_INVALID');if(String(payload.work_item_id||'')!==packet.work_item_id)fail('RESULT_WORK_ITEM_MISMATCH',409);const deliveryMode=String(packet?.snapshot?.authorization?.delivery_mode||'MANUAL_CHAT').toUpperCase();const builderSelfCertified=deliveryMode==='WORKER_POOL'&&['VERIFIED','SERVED'].includes(requestedStatus);const status=builderSelfCertified?'CANDIDATE_READY':requestedStatus;const summary=payload.summary&&typeof payload.summary==='object'?payload.summary:{text:String(payload.summary||payload.change_summary||'')};const detail={schema:payload.schema||'prometeo.execution-result/v1',changed_files:Array.isArray(payload.changed_files)?payload.changed_files.slice(0,300):[],tests:payload.tests||null,regressions_checked:payload.regressions_checked||null,negative_knowledge:Array.isArray(payload.negative_knowledge)?payload.negative_knowledge.slice(0,100):[],return_ref:payload.return_ref||packet.return_path,receipt_ref:payload.receipt_ref||null,baseline_identity:payload.baseline_identity||null,candidate_identity:payload.candidate_identity||null,served_identity:payload.served_identity||null,requested_status:builderSelfCertified?requestedStatus:null,independent_verification_required:deliveryMode==='WORKER_POOL'&&status==='CANDIDATE_READY',prometeo_url:`https://juanmanuelpm.github.io/prometeo/?page=${encodeURIComponent(packet.page_id)}&changes=${encodeURIComponent(packet.work_item_id)}`};const now=nowISO();const up=await db.from('prometeo_execution_results').upsert({workspace_id:packet.workspace_id,thread_id:packet.thread_id,work_item_id:packet.work_item_id,status,source,summary,detail,candidate_url:payload.candidate_url||null,served_url:payload.served_url||null,created_at:payload.finished_at||now,seen_at:null},{onConflict:'work_item_id'}).select('*').single();if(up.error)throw up.error;await db.from('prometeo_execution_packets').update({status,candidate_url:payload.candidate_url||null,served_url:payload.served_url||null,completed_at:payload.finished_at||now}).eq('id',packet.id);await db.from('prometeo_change_threads').update({last_result_at:payload.finished_at||now,updated_at:now}).eq('id',packet.thread_id);if(SUCCESS.has(status)){if((packet.selected_revision_refs||[]).length)await db.from('prometeo_change_thread_captures').update({state:'METABOLIZED'}).eq('workspace_id',packet.workspace_id).eq('thread_id',packet.thread_id).in('revision_ref',packet.selected_revision_refs);if((packet.selected_attachment_ids||[]).length)await db.from('prometeo_change_attachments').update({state:'METABOLIZED'}).eq('workspace_id',packet.workspace_id).eq('thread_id',packet.thread_id).in('id',packet.selected_attachment_ids)}else if(['FAILED','BLOCKED'].includes(status)){if((packet.selected_revision_refs||[]).length)await db.from('prometeo_change_thread_captures').update({state:'PENDING',submitted_at:null}).eq('workspace_id',packet.workspace_id).eq('thread_id',packet.thread_id).in('revision_ref',packet.selected_revision_refs);if((packet.selected_attachment_ids||[]).length)await db.from('prometeo_change_attachments').update({state:'PENDING',submitted_at:null}).eq('workspace_id',packet.workspace_id).eq('thread_id',packet.thread_id).in('id',packet.selected_attachment_ids)}return up.data}
 async function publicResult(req:Request,t:string){if(t.length<30)fail('RESULT_TOKEN_INVALID',404);const q=await db.from('prometeo_execution_packets').select('*').eq('return_token_hash',await sha(t)).maybeSingle();if(q.error)throw q.error;if(!q.data)fail('RESULT_TOKEN_INVALID',404);if(new Date(q.data.expires_at).getTime()<Date.now())fail('RESULT_TOKEN_EXPIRED',410);const raw=await req.text();if(raw.length>200000)fail('RESULT_TOO_LARGE',413);let body:any;try{body=JSON.parse(raw)}catch{fail('INVALID_JSON')};const result=await ingestResult(q.data,body,'HTTP_RETURN');return json(req,{ok:true,work_item_id:q.data.work_item_id,status:result.status})}
 async function maybeGitHub(packet:any){const ex=await db.from('prometeo_execution_results').select('*').eq('work_item_id',packet.work_item_id).maybeSingle();if(ex.error)throw ex.error;if(ex.data)return ex.data;try{const r=await fetch(`https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/${packet.return_path}?v=${Date.now()}`,{cache:'no-store'});if(!r.ok)return null;const text=await r.text();if(text.length>200000)return null;const body=JSON.parse(text);if(body.schema!=='prometeo.execution-result/v1'||body.work_item_id!==packet.work_item_id)return null;return await ingestResult(packet,body,'GITHUB_RETURN')}catch{return null}}
-async function executionStatus(req:Request,ws:any,body:any){let q=db.from('prometeo_execution_packets').select('*').eq('workspace_id',ws.id).order('created_at',{ascending:false}).limit(80);if(body.thread_id)q=q.eq('thread_id',String(body.thread_id));if(body.work_item_id)q=q.eq('work_item_id',String(body.work_item_id));const packets=await q;if(packets.error)throw packets.error;const out=[];for(const p of packets.data||[]){await db.from('prometeo_execution_packets').update({last_polled_at:nowISO()}).eq('id',p.id);const result=await maybeGitHub(p);out.push({work_item_id:p.work_item_id,thread_id:p.thread_id,page_id:p.page_id,status:result?.status||p.status,created_at:p.created_at,completed_at:result?.created_at||p.completed_at,result:result?{summary:result.summary,detail:result.detail,candidate_url:result.candidate_url,served_url:result.served_url,seen_at:result.seen_at,source:result.source}:null})}return json(req,{ok:true,executions:out})}
+
+async function maybeGitHubVerification(packet:any,result:any){
+  if(!result||result.status!=='CANDIDATE_READY')return result;
+  const existingVerification=result?.detail?.verification;
+  if(existingVerification?.id)return result;
+
+  const builderClaimPath='coordination/opportunities/claims/page-change-'+packet.work_item_id+'.json';
+  const verifierClaimPath='coordination/opportunities/claims/page-change-verify-'+packet.work_item_id+'.json';
+  const verifyPath='coordination/executions/'+packet.work_item_id+'/VERIFY.json';
+  const [builderClaim,verifierClaim,verification]=await Promise.all([
+    githubJson(builderClaimPath),
+    githubJson(verifierClaimPath),
+    githubJson(verifyPath)
+  ]);
+  if(!verification)return result;
+  if(verification.schema!=='prometeo.verification-result/v1'||String(verification.work_item_id||'')!==packet.work_item_id)return result;
+  const verdict=String(verification.result||'').toUpperCase();
+  if(!['PASS','FAIL','BLOCKED'].includes(verdict))return result;
+  const builderWorkerId=String(builderClaim?.worker_id||'').trim();
+  const verifierWorkerId=String(verifierClaim?.worker_id||'').trim();
+  if(!builderWorkerId||!verifierWorkerId||builderWorkerId===verifierWorkerId)return result;
+  if(String(verification.builder_worker_id||'')!==builderWorkerId||String(verification.verifier_worker_id||'')!==verifierWorkerId)return result;
+  if(!verification.evidence||typeof verification.evidence!=='object'||Array.isArray(verification.evidence))return result;
+
+  const nextStatus=verdict==='PASS'?'VERIFIED':'CANDIDATE_READY';
+  const detail={
+    ...(result.detail||{}),
+    independent_verification_required:false,
+    verification:{
+      schema:verification.schema,
+      id:String(verification.id||''),
+      result:verdict,
+      builder_worker_id:builderWorkerId,
+      verifier_worker_id:verifierWorkerId,
+      verified_at:verification.verified_at||nowISO(),
+      candidate_identity:verification.candidate_identity||result?.detail?.candidate_identity||null,
+      evidence:verification.evidence,
+      verify_ref:verifyPath
+    }
+  };
+  const up=await db.from('prometeo_execution_results')
+    .update({status:nextStatus,detail,source:String(result.source||'GITHUB_RETURN')+'+INDEPENDENT_VERIFY'})
+    .eq('work_item_id',packet.work_item_id)
+    .select('*')
+    .single();
+  if(up.error)throw up.error;
+  if(nextStatus==='VERIFIED'){
+    const pu=await db.from('prometeo_execution_packets').update({status:'VERIFIED'}).eq('id',packet.id);
+    if(pu.error)throw pu.error;
+  }
+  return up.data;
+}
+async function executionStatus(req:Request,ws:any,body:any){let q=db.from('prometeo_execution_packets').select('*').eq('workspace_id',ws.id).order('created_at',{ascending:false}).limit(80);if(body.thread_id)q=q.eq('thread_id',String(body.thread_id));if(body.work_item_id)q=q.eq('work_item_id',String(body.work_item_id));const packets=await q;if(packets.error)throw packets.error;const out=[];for(const p of packets.data||[]){await db.from('prometeo_execution_packets').update({last_polled_at:nowISO()}).eq('id',p.id);let result=await maybeGitHub(p);result=await maybeGitHubVerification(p,result);out.push({work_item_id:p.work_item_id,thread_id:p.thread_id,page_id:p.page_id,status:result?.status||p.status,created_at:p.created_at,completed_at:result?.created_at||p.completed_at,result:result?{summary:result.summary,detail:result.detail,candidate_url:result.candidate_url,served_url:result.served_url,seen_at:result.seen_at,source:result.source}:null})}return json(req,{ok:true,executions:out})}
 async function markSeen(req:Request,ws:any,body:any){if(!body.work_item_id)fail('WORK_ITEM_REQUIRED');const now=nowISO();const q=await db.from('prometeo_execution_results').update({seen_at:now}).eq('workspace_id',ws.id).eq('work_item_id',String(body.work_item_id)).select('thread_id,work_item_id,seen_at').maybeSingle();if(q.error)throw q.error;if(!q.data)fail('RESULT_NOT_FOUND',404);await db.from('prometeo_change_threads').update({seen_through_at:now}).eq('id',q.data.thread_id);return json(req,{ok:true,...q.data})}
 
 async function uploadAttachment(req:Request,ws:any,url:URL){const pageId=String(url.searchParams.get('page_id')||'');const thread=await ensureThread(ws.id,pageId,url.searchParams.get('page_title'),{});const form=await req.formData();const f=form.get('file');if(!(f instanceof File))fail('FILE_REQUIRED');if(f.size>50*1024*1024)fail('FILE_TOO_LARGE',413);const bytes=new Uint8Array(await f.arrayBuffer()),digest=await shaBytes(bytes),id=crypto.randomUUID(),path=`${ws.id}/${thread.id}/${id}-${safeFile(f.name)}`;const up=await db.storage.from(BUCKET).upload(path,bytes,{contentType:f.type||'application/octet-stream',upsert:false});if(up.error)throw up.error;const row=await db.from('prometeo_change_attachments').insert({id,workspace_id:ws.id,thread_id:thread.id,page_id:pageId,file_name:safeFile(f.name),mime_type:f.type||null,size_bytes:f.size,digest,storage_path:path,state:'PENDING'}).select('id,file_name,mime_type,size_bytes,digest,state,created_at').single();if(row.error){await db.storage.from(BUCKET).remove([path]);throw row.error}await db.from('prometeo_change_threads').update({updated_at:nowISO(),last_capture_at:nowISO()}).eq('id',thread.id);return json(req,{ok:true,thread_id:thread.id,attachment:row.data})}
@@ -94,11 +147,21 @@ async function claimTranscription(req:Request,ws:any){const lease=token(24),unti
 async function completeTranscription(req:Request,ws:any,body:any){const id=String(body.capture_id||''),lease=String(body.lease_token||''),text=String(body.text||'').replace(/\s+/g,' ').trim();if(!id||lease.length<20)fail('TRANSCRIPTION_LEASE_REQUIRED');if(!text)fail('TRANSCRIPT_EMPTY');const q=await db.from('prometeo_captures').select('*').eq('workspace_id',ws.id).eq('id',id).maybeSingle();if(q.error)throw q.error;if(!q.data)fail('CAPTURE_NOT_FOUND',404);if(q.data.transcription_lease_hash!==await sha(lease)||!q.data.transcription_lease_until||new Date(q.data.transcription_lease_until).getTime()<Date.now())fail('TRANSCRIPTION_LEASE_INVALID',409);const rev=Math.max(1,Number(q.data.transcript_revision||1)+(String(q.data.transcript||'').trim()===text?0:1)),digest=await sha(text),now=nowISO();const up=await db.from('prometeo_captures').update({transcript:text,transcript_revision:rev,transcript_state:'MACHINE',transcript_digest:digest,processing_state:'READY',status:'pending',transcription_lease_hash:null,transcription_lease_until:null,transcription_error:null,updated_at:now,sync_version:Number(q.data.sync_version||1)+1}).eq('workspace_id',ws.id).eq('id',id);if(up.error)throw up.error;const rr=await db.from('prometeo_capture_revisions').upsert({workspace_id:ws.id,capture_id:id,revision:rev,transcript:text,created_at:now,transcript_state:'MACHINE',transcript_digest:digest,privacy:q.data.privacy||'PROJECT',source_ref:revisionRef(id,rev)},{onConflict:'workspace_id,capture_id,revision'});if(rr.error)throw rr.error;await syncPage(ws.id,q.data.page_id,q.data.source_title||q.data.page_id,{});return json(req,{ok:true,capture_id:id,page_id:q.data.page_id,revision:rev,transcript_state:'MACHINE'})}
 async function failTranscription(req:Request,ws:any,body:any){const id=String(body.capture_id||''),lease=String(body.lease_token||''),message=String(body.error||'No pude transcribir').slice(0,1000);if(!id||lease.length<20)fail('TRANSCRIPTION_LEASE_REQUIRED');const q=await db.from('prometeo_captures').select('transcription_lease_hash,transcription_attempts').eq('workspace_id',ws.id).eq('id',id).maybeSingle();if(q.error)throw q.error;if(!q.data)fail('CAPTURE_NOT_FOUND',404);if(q.data.transcription_lease_hash!==await sha(lease))fail('TRANSCRIPTION_LEASE_INVALID',409);const state=Number(q.data.transcription_attempts||0)>=4?'TRANSCRIPTION_ERROR':'RETRY_REMOTE';await db.from('prometeo_captures').update({processing_state:state,transcription_lease_hash:null,transcription_lease_until:null,transcription_error:message,updated_at:nowISO()}).eq('workspace_id',ws.id).eq('id',id);return json(req,{ok:true,capture_id:id,processing_state:state})}
 
+async function githubJson(rel:string){
+  try{
+    const r=await fetch(GITHUB_RAW+rel+'?v='+Date.now(),{cache:'no-store'});
+    if(!r.ok)return null;
+    const text=await r.text();
+    if(text.length>200000)return null;
+    return JSON.parse(text);
+  }catch{return null}
+}
+
 async function workerFrontier(req:Request){
   const now=nowISO();
   const q=await db.from('prometeo_execution_packets')
     .select('work_item_id,page_id,snapshot,return_path,created_at,expires_at,status')
-    .eq('status','READY')
+    .in('status',['READY','CANDIDATE_READY'])
     .gt('expires_at',now)
     .order('created_at',{ascending:true})
     .limit(80);
@@ -120,33 +183,64 @@ async function workerFrontier(req:Request){
   const rows=(q.data||[]).filter((p:any)=>String(p?.snapshot?.authorization?.delivery_mode||'MANUAL_CHAT').toUpperCase()==='WORKER_POOL');
   const items=[];
   for(const p of rows){
-    const opportunityId='page-change-'+p.work_item_id;
-    const claimPath='coordination/opportunities/claims/'+opportunityId+'.json';
-    let claimed=false;
-    try{
-      const r=await fetch(GITHUB_RAW+claimPath+'?v='+Date.now(),{cache:'no-store'});
-      claimed=r.ok;
-    }catch{}
-    if(claimed)continue;
     const title=String(p?.snapshot?.target?.page_title||p.page_id||'Prometeo').slice(0,160);
-    items.push({
-      work_item_id:p.work_item_id,
-      opportunity_id:opportunityId,
-      project_id:PAGE_CHANGE_PROJECT_ID,
-      page_id:p.page_id,
-      title:'Actualizar '+title,
-      mission:'Consumir el Execution Packet privado del Page Change Thread, integrar toda la intención humana seleccionada en su owner real, verificar, persistir RETURN y actualizar el mismo feed.',
-      kind:'PAGE_CHANGE_EXECUTION',
-      value_class:'PRODUCT_VALUE',
-      priority:96,
-      source_path:PAGE_CHANGE_WORKER_PROTOCOL,
-      required_capabilities:['github_repository_write','connected_supabase_prometeo'],
-      context_transport:'SUPABASE_CONNECTED_PROJECT',
-      private_packet_lookup:{project_id:'catnohyouxqjjtseaueb',table:'prometeo_execution_packets',key:'work_item_id',value:p.work_item_id},
-      return_path:p.return_path,
-      expires_at:p.expires_at,
-      claim_path:claimPath
-    });
+    if(p.status==='READY'){
+      const opportunityId='page-change-'+p.work_item_id;
+      const claimPath='coordination/opportunities/claims/'+opportunityId+'.json';
+      if(await githubJson(claimPath))continue;
+      items.push({
+        work_item_id:p.work_item_id,
+        opportunity_id:opportunityId,
+        project_id:PAGE_CHANGE_PROJECT_ID,
+        page_id:p.page_id,
+        title:'Actualizar '+title,
+        mission:'Consumir el Execution Packet privado del Page Change Thread, integrar toda la intención humana seleccionada en su owner real, verificar lo ejecutado, persistir RETURN y actualizar el mismo feed.',
+        kind:'PAGE_CHANGE_EXECUTION',
+        value_class:'PRODUCT_VALUE',
+        priority:96,
+        source_path:PAGE_CHANGE_WORKER_PROTOCOL,
+        required_capabilities:['github_repository_write','connected_supabase_prometeo'],
+        context_transport:'SUPABASE_CONNECTED_PROJECT',
+        private_packet_lookup:{project_id:'catnohyouxqjjtseaueb',table:'prometeo_execution_packets',key:'work_item_id',value:p.work_item_id},
+        return_path:p.return_path,
+        expires_at:p.expires_at,
+        claim_path:claimPath
+      });
+      continue;
+    }
+
+    if(p.status==='CANDIDATE_READY'){
+      const builderClaimPath='coordination/opportunities/claims/page-change-'+p.work_item_id+'.json';
+      const builderClaim=await githubJson(builderClaimPath);
+      const builderWorkerId=String(builderClaim?.worker_id||'').trim();
+      if(!builderWorkerId)continue;
+
+      const opportunityId='page-change-verify-'+p.work_item_id;
+      const claimPath='coordination/opportunities/claims/'+opportunityId+'.json';
+      const verifyPath='coordination/executions/'+p.work_item_id+'/VERIFY.json';
+      if(await githubJson(claimPath))continue;
+      if(await githubJson(verifyPath))continue;
+
+      items.push({
+        work_item_id:p.work_item_id,
+        opportunity_id:opportunityId,
+        project_id:PAGE_CHANGE_PROJECT_ID,
+        page_id:p.page_id,
+        title:'Verificar '+title,
+        mission:'Verificar de forma independiente el candidate Page Change contra el packet privado, el owner actual y evidencia real; no editar producto; persistir VERIFY.json.',
+        kind:'PAGE_CHANGE_VERIFY',
+        value_class:'PRODUCT_VALUE',
+        priority:95,
+        source_path:PAGE_CHANGE_VERIFIER_PROTOCOL,
+        required_capabilities:['github_repository_write','connected_supabase_prometeo','representative_javascript_browser'],
+        forbidden_worker_ids:[builderWorkerId],
+        context_transport:'SUPABASE_CONNECTED_PROJECT',
+        private_packet_lookup:{project_id:'catnohyouxqjjtseaueb',table:'prometeo_execution_packets',key:'work_item_id',value:p.work_item_id},
+        return_path:verifyPath,
+        expires_at:p.expires_at,
+        claim_path:claimPath
+      });
+    }
   }
   return json(req,{schema:'prometeo.page-change-worker-frontier/v1',generated_at:now,truth_boundary:'SANITIZED_DISCOVERY_ONLY_PRIVATE_PACKET_AFTER_CLAIM',items});
 }
