@@ -2,54 +2,55 @@
 
 Status: CURRENT
 
-## v31 cross-map decisions
+## v32 visible scene set
 
-### Map 1 · Arcos
-- Keep all nave architecture.
-- Keep floor geometry only for structural continuity.
-- Do not render the green floor material.
-- Current visual floor = pure black.
-- This is explicitly temporary until further visual review.
+Visible selector is now:
+1. ARCOS
+2. CALZADA
+3. TÚNEL
+4. TORRES
 
-### Map 3 · Calzada
-- Preserve exactly as-is.
-- v31 verified renderMap3 is byte-for-byte identical to v30.
+The old random-cylinder scene is rejected and must not reappear in the selector unless explicitly requested.
 
-### Map 4 · Túnel
-- Preserve existing world-space tunnel geometry and motion.
-- Preserve one continuous floor plane and longitudinal guides.
-- Preserve fixed world-Z ribs and real world-space end wall.
-- Add stronger nonlinear depth attenuation to wall/roof textures and ribs.
-- Add a soft throat-centered darkness veil:
-  - far / center = darker;
-  - near field = clearer.
-- Do not rebuild the tunnel into a screen-space static effect.
+## ARCOS
+- User explicitly likes the current scene.
+- Preserve renderMap1 from v31.
+- Keep black floor, arches, supports and backing walls.
 
-### Map 5 · Megatowers
+## CALZADA
+- User explicitly likes the current scene.
+- Preserve renderMap3 unchanged.
+
+## TÚNEL
+- Preserve world-space geometry and motion.
+- Preserve v31 near/far depth falloff and throat darkness.
+- Improve surface richness with a second finer real-stone texture layer.
+- Detail overlay must attenuate with depth and must not flatten the tunnel.
+- If more improvement is needed later, prefer a stronger source asset over brute-force opacity.
+
+## TORRES
 - RITUAL_ROAD_Y = -0.38.
-- RITUAL_ROAD_HALF = 0.65.
-- Full deck width = 1.30.
-- lateralLimit = 0.42.
+- RITUAL_ROAD_HALF = 0.18.
+- Full path width = 0.36.
+- lateralLimit = 0.08.
 - RITUAL_COLUMN_GAP = 1.90.
 - tower radius = 3.20.
-- tower center X = ±5.75.
-- nearest tower surface = ±2.55.
-- road edge = ±0.65.
-- real abyss gap = 1.90.
-- tower bottom/top remain -48 and 48/58.
-- Preserve dark industrial background and distant world-space megastructures.
+- no multi-stripe deck treatment.
+- no bright edge rims.
+- one center hairline only, lineHalf = 0.018.
+- bridge/deck body remains to preserve lower-tower foreground occlusion.
+- painter order remains signs -> towers -> bridge.
+- dark industrial void and distant megastructures remain.
+- pure-black deep bases remain.
+- max two visible/opening signs remains.
 
-### Map 5 occlusion
-Mandatory painter order:
-1. void / distant megastructures / temple;
-2. signs;
-3. main towers;
-4. bridge.
-
-Bridge remains last so it hides low tower portions.
+## Selector/control rule
+- selector buttons use explicit internal map ids via data-map.
+- visible numbering and internal renderer ids are intentionally decoupled.
+- keyboard 1–4 follows visible scene order.
 
 ## Preserve globally
 - fixed frontal camera;
 - W/S + wheel/touch forward/back;
-- v20 mobile horizontal selector;
+- mobile horizontal selector behavior;
 - no accidental transverse floor seams.
