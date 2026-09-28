@@ -1,0 +1,73 @@
+name: trail-backface-validate-once
+
+on:
+  push:
+    paths:
+      - ".github/workflows/trail-backface-validate-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate true backface
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import math,re
+          s=Path("visuals/trail-lab/index.html").read_text()
+          m=re.search(r"<script>([\s\S]*?)</script>",s)
+          assert m, "inline script missing"
+          script=m.group(1)
+          Path("/tmp/trail.js").write_text(script)
+
+          required=[
+            "const backShadeSprites=SHADE_BRIGHTNESS.map",
+            "bc.globalCompositeOperation='source-in'",
+            "const rearValue=Math.round(255*brightness*.52)",
+            "function yawSurfaceAngle",
+            "const localFacing=Math.cos(yaw+mid)",
+            "const source=isFront?frontSource:backSource",
+            "if(Math.PI-yaw<.08)",
+            "ctx.drawImage(backSource,-w*.5,-h*.5,w,h)",
+            "const source=rear?backSource:frontSource",
+            "drawCurvedSurface(frontSource,backSource,w,h,yawAngle)",
+            "drawCheapSurface(frontSource,backSource,w,h,yawAngle)"
+          ]
+          for token in required:
+              assert token in script, f"missing {token}"
+
+          forbidden=[
+            "source=yawLook.rearAmount",
+            "source=shadeSprites[shadeIndexFor(baseBrightness*lerp(1,.62,yawLook.rearAmount))]",
+            "drawCurvedSurface(source,w,h,yawAngle",
+            "drawCheapSurface(source,w,h,yawAngle"
+          ]
+          for token in forbidden:
+              assert token not in script, f"front-as-back path remains: {token}"
+
+          # Mathematical invariant for the current curved surface:
+          # at yaw=pi, every local strip normal in [-SURFACE_CURVE,+SURFACE_CURVE]
+          # faces away from camera, so no strip is eligible for frontSource.
+          curve=1.05
+          samples=101
+          facings=[math.cos(math.pi + (-curve + 2*curve*i/(samples-1))) for i in range(samples)]
+          assert max(facings) < 0, max(facings)
+
+          state=Path("visuals/fronts/trail/state.json").read_text()
+          assert '"current_blob_sha": "df42c3deb5c13b3a2f3b5ce325c85b12fbf126e8"' in state
+          assert '"facial_detail_on_back": false' in state
+          decisions=Path("visuals/fronts/trail/decisions.md").read_text()
+          assert "## True backface, no frontal texture on retreat" in decisions
+          arch=Path("visuals/fronts/trail/architecture.md").read_text()
+          assert "retreating geometry cannot sample frontal texture" in arch
+          print("true backface invariants OK")
+          PY
+          node --check /tmp/trail.js
+          echo "node syntax OK"
