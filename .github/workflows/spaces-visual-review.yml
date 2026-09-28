@@ -2,10 +2,7 @@ name: Spaces Visual Review
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'visuals/spaces-lab/**'
-      - '.github/workflows/spaces-visual-review.yml'
+    branches: [visual-review-spaces]
   workflow_dispatch:
 
 permissions:
@@ -22,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: visual-review-spaces
           fetch-depth: 2
 
       - id: chrome
@@ -166,16 +163,33 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          rm -rf /tmp/spaces-review-publish
+          mkdir -p /tmp/spaces-review-publish/review /tmp/spaces-review-publish/front
+          cp -a visuals/review/spaces/latest /tmp/spaces-review-publish/review/
+          cp visuals/review/spaces/latest.json /tmp/spaces-review-publish/review/latest.json
+          cp visuals/fronts/spaces/current-review.json /tmp/spaces-review-publish/front/current-review.json
+
+          git fetch origin main
+          git checkout -B main origin/main
+          mkdir -p visuals/review/spaces visuals/fronts/spaces
+          rm -rf visuals/review/spaces/latest
+          cp -a /tmp/spaces-review-publish/review/latest visuals/review/spaces/
+          cp /tmp/spaces-review-publish/review/latest.json visuals/review/spaces/latest.json
+          cp /tmp/spaces-review-publish/front/current-review.json visuals/fronts/spaces/current-review.json
+
           git add visuals/review/spaces/latest visuals/review/spaces/latest.json visuals/fronts/spaces/current-review.json
           if git diff --cached --quiet; then
             echo "Review evidence unchanged."
           else
             git commit -m "visuals: refresh Spaces visual review evidence"
             for n in 1 2 3 4; do
-              if git pull --rebase origin main && git push origin HEAD:main; then
+              if git push origin HEAD:main; then
                 break
               fi
               if [ "$n" = 4 ]; then exit 1; fi
+              git fetch origin main
+              git rebase origin/main
               sleep 2
             done
           fi
