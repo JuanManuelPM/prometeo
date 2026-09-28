@@ -1,9 +1,14 @@
 # Sprite runtime protocol V21
 
+Status: ACCEPTED BLINK BASELINE
+
 The eye runtime no longer consumes a generated grid, PNG sequence, JPEG atlas, or binary image file.
 
 Pipeline:
-AUTHORING → SPLIT → MASK → MEASURE → SEMANTIC ANCHOR → NORMALIZE → RESIDUAL QA → VISUAL QA → INDEXED/RLE PACK → RUNTIME.
+**AUTHORING → SPLIT → MASK → MEASURE → SEMANTIC ANCHOR → NORMALIZE → RESIDUAL QA → VISUAL QA → INDEXED/RLE PACK → RUNTIME**
+
+Full reusable engineering record:
+- `ANIMATION_PIPELINE_V1.md`
 
 Runtime source of truth:
 - `sprite-pack-v21.json`: logical size, pivot, palette, normalized frame data, checksums and animation timing.
@@ -24,6 +29,15 @@ Runtime behavior:
 4. Verify byte length, SHA-256, palette indices and exact pixel count.
 5. Decode frames once to offscreen canvases.
 6. Draw the default frame only after the whole pack passes.
-7. Advance animation using `performance.now()` + `requestAnimationFrame`.
+7. Advance animation using `performance.now()` + `requestAnimationFrame()`.
 
-This removes the binary transport class of failures that broke earlier versions and also removes hard-coded atlas rows, columns, frame rectangles, frame count and durations from the renderer.
+This removes the binary transport class of failures that broke earlier versions and removes hard-coded atlas rows, columns, frame rectangles, frame count and durations from the renderer.
+
+## Acceptance
+
+On 2026-09-28 the user reviewed V21 as "excelente, muchísimo mejor" and explicitly moved the work forward to the actual eye/pupil layer.
+
+Interpretation:
+- V21 blink animation = accepted baseline.
+- Do not redesign its geometry/runtime without new evidence.
+- Next work must preserve this blink and add eye contents as a separate layer behind it.
