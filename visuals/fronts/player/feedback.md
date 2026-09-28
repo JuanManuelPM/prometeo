@@ -10,39 +10,63 @@ Status: CURRENT
 - image-first foreground
 - exactly one lower-right player hand
 - carried pet has no human hands
-- eye content and eye frame remain separate when reintegration eventually happens
+- eye contents and eye frame remain separate when reintegration eventually happens
 
-## LATEST USER REVIEW
-The V13 isolation lab failed visibly: the page appeared completely black and the eye could not be seen.
+## LATEST USER DIRECTION
+After repeated crop/alignment failures, the user asked for a reusable preparation pipeline that works **before** animation:
+1. split the grid;
+2. detect the visible content;
+3. measure frames;
+4. choose an anchor appropriate to the asset;
+5. align every frame to a common target;
+6. verify the normalized frames;
+7. only then animate/export.
 
-This is now a hard rejection. Do not reinterpret it as a contrast preference or browser cache issue. The next implementation had to prove visibility first.
+The user then explicitly asked to run this locally first, confirm readiness, and only publish after approval to update GitHub.
 
-## EYE BLINK LAB · V14 CURRENT
+## V15 · CURRENT EYE ISOLATION LAB
 Public:
 https://juanmanuelpm.github.io/prometeo/visuals/eye-frame-lab/
 
-Current files:
+Files:
 - `visuals/eye-frame-lab/index.html`
-- `visuals/eye-frame-lab/eye-blink-grid-v4.webp`
+- `visuals/eye-frame-lab/eye-blink-aligned-grid-v15.jpg`
+- `visuals/eye-frame-lab/normalization-manifest.json`
+- `visuals/eye-frame-lab/NORMALIZATION_PROTOCOL.md`
+- `visuals/eye-frame-lab/tools/sprite_prepare.py`
 
-### V14 corrections
-- Re-exported the newly generated 2×5 blink grid into a fresh compact WebP.
-- Current sprite blob: `edd5a75c63a0dbd8f2a2bc210b63fc0a6da490af`.
-- The sprite is exactly 5 columns × 2 rows with ten equal 48×48 cells.
-- Runtime uses those cells directly in chronological order 0→9.
-- No per-frame trimming, bounding boxes, alpha-keying or inferred crop.
-- Page background is intentionally mid-gray with a darker vignette so both the black eye frame and white lower liner remain visible during review.
-- Initial frame is drawn immediately after the sprite loads.
-- If the sprite fails to load, the page now shows a visible `ERROR CARGANDO OJO` message instead of silently becoming black.
-- One pointer handler only.
-- One animation only: blink.
-- No pupil, no squint, no twitch, no synthetic scaling animation.
+### What V15 does differently
+- The source grid was processed locally **before** runtime integration.
+- Frames were segmented first; runtime no longer tries to repair geometry.
+- Each frame was measured for bbox, centroid and semantic anchor candidates.
+- For this eye, the chosen semantic anchor is the **median of the bright lower liner** plus horizontal center.
+- Each frame was translated into a fixed 512×512 transparent canvas against the same target anchor.
+- Frames were re-measured after placement and one residual translation correction pass was applied.
+- No scale normalization was used.
+- Local QA measured maximum anchor jitter of **1 px at 512×512** with a 3 px tolerance: **PASS**.
+- Onion-skin and aligned-grid previews were generated locally before publication.
+- Only after QA passed was the review sheet downsampled to a 5×2 sheet of 128×128 cells.
+- The public page simply plays those already-normalized frames; it does not crop, align or deform them at runtime.
+
+## REUSABLE RULE
+Do not animate a raw generated grid directly.
+
+Preparation must be:
+**SPLIT → MASK → MEASURE → ANCHOR → NORMALIZE → RESIDUAL QA → VISUAL QA → EXPORT → ANIMATE**
+
+Anchor strategies:
+- simple symbols: bbox center;
+- blobs: alpha centroid;
+- eyes: lower liner / eye corners;
+- hands: wrist or palm pivot;
+- bodies: feet / hips / torso;
+- faces: eye / nose landmarks.
 
 ## REJECTED HISTORY
-- V12: eye crop/alignment visually rejected.
-- V13: isolation lab rendered effectively all black for the user and is rejected.
-- Binary/hash verification alone is not proof of visible correctness.
+- V12: crop/alignment visually rejected.
+- V13: user saw effectively all black.
+- V14: made the asset visible but did not solve inter-frame centering.
+- Do not restore runtime hacks in place of asset normalization.
 
 ## NEXT
-- Review only whether V14 is visible and whether the blink itself reads correctly.
-- Do not reintegrate into Player before that.
+Review only whether V15 remains centered and stable through the blink. Player reintegration is still blocked on that visual review.
