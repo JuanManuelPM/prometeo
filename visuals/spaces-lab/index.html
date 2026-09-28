@@ -33,11 +33,10 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020403;col
   <div id="veil"></div><div id="scan"></div>
   <div id="tag">MAPA 1 · NAVE ALTA</div>
   <div id="maps" aria-label="Mapas">
-    <button id="map1" class="active">1 ARCOS</button>
-    <button id="map2">2 CILINDROS</button>
-    <button id="map3">3 CALZADA</button>
-    <button id="map4">4 TÚNEL</button>
-    <button id="map5">5 TEMPLO</button>
+    <button id="map1" data-map="1" class="active">1 ARCOS</button>
+    <button id="map3" data-map="3">2 CALZADA</button>
+    <button id="map4" data-map="4">3 TÚNEL</button>
+    <button id="map5" data-map="5">4 TORRES</button>
   </div>
   <div id="pad" aria-label="Caminar">
     <button id="up" aria-label="Avanzar">↑</button>
@@ -186,10 +185,12 @@ function buildAtlas(){
   grade('ceiling',assets.ceiling,'rgba(29,55,27,.94)','#8e7c42');
   grade('stone',assets.stone,'rgba(39,76,33,.96)','#c2a44f');
   grade('tunnel',assets.stone,'rgba(111,79,43,.96)','#d1b17d');
+  grade('tunnelDetailBase',assets.stone,'rgba(94,68,45,.98)','#ead0a0');
   tileMaterial('wallField',atlas.wall,160);
   tileMaterial('floorTile',atlas.floor,118);
   tileMaterial('stoneTile',atlas.stone,138);
   tileMaterial('tunnelTile',atlas.tunnel,132);
+  tileMaterial('tunnelDetail',atlas.tunnelDetailBase,76);
   mixMaterial('floorField',atlas.floorTile,atlas.stoneTile,.48);
   mixMaterial('wallMass',atlas.wallField,atlas.stoneTile,.30);
   buildCrown(assets.wall||assets.stone);
@@ -610,6 +611,7 @@ function renderMap4(){
   const tunnelEnd=170;
   const segment=5.6;
   const tunnelTex=atlas.tunnelTile||atlas.stoneTile||atlas.stone;
+  const tunnelDetail=atlas.tunnelDetail||tunnelTex;
 
   // Real world-space end wall. Unlike the old screen-space black gradient, this
   // actually approaches/recedes as camZ changes.
@@ -660,10 +662,12 @@ function renderMap4(){
     for(const side of [-1,1]){
       const x=side*radius;
       const L=cameraLight3DAt(x,(floorY+springY)*.5,s.mid,34,0,.0005);
-      worldQuad(tunnelTex,[
+      const wallPts=[
         {x,y:springY,z:s.z1},{x,y:springY,z:s.z0},
         {x,y:floorY,z:s.z0},{x,y:floorY,z:s.z1}
-      ],clamp((.035+.96*L)*depthL,.018,1));
+      ];
+      worldQuad(tunnelTex,wallPts,clamp((.035+.96*L)*depthL,.018,1));
+      worldQuad(tunnelDetail,wallPts,clamp((.012+.26*L)*depthL,.008,.25));
     }
 
     for(let j=0;j<arcN;j++){
@@ -672,10 +676,12 @@ function renderMap4(){
       const y0=springY+Math.sin(a0)*radius,y1=springY+Math.sin(a1)*radius;
       const mx=(x0+x1)*.5,my=(y0+y1)*.5;
       const L=cameraLight3DAt(mx,my,s.mid,32,0,.00035);
-      worldQuad(tunnelTex,[
+      const roofPts=[
         {x:x0,y:y0,z:s.z1},{x:x1,y:y1,z:s.z1},
         {x:x1,y:y1,z:s.z0},{x:x0,y:y0,z:s.z0}
-      ],clamp((.028+.98*L)*depthL,.016,1));
+      ];
+      worldQuad(tunnelTex,roofPts,clamp((.028+.98*L)*depthL,.016,1));
+      worldQuad(tunnelDetail,roofPts,clamp((.010+.22*L)*depthL,.007,.22));
     }
 
     // Intentional structural rib at the fixed world joint. This is the optical-flow
@@ -778,7 +784,7 @@ function renderAbyssColumn(cx,cz,r,yBottom,yTop){
 }
 const RITUAL_STEP=7.4;
 const RITUAL_ROAD_Y=-.38;
-const RITUAL_ROAD_HALF=.65;
+const RITUAL_ROAD_HALF=.18;
 const RITUAL_COLUMN_GAP=1.90;
 function ritualSideForRow(ri){return (ri&1)?-1:1}
 function ritualSignKey(ri,side){return ri+':'+side}
@@ -970,29 +976,15 @@ function renderRitualBridge(roadY,roadHalf,zNear,zFar){
     {x:roadHalf,y:roadY,z:zNear},{x:-roadHalf,y:roadY,z:zNear}
   ],1);
 
-  const stripes=6;
-  for(let si=0;si<stripes;si++){
-    const x0=-roadHalf+(2*roadHalf)*(si/stripes);
-    const x1=-roadHalf+(2*roadHalf)*((si+1)/stripes);
-    const L=cameraLight3DAt((x0+x1)*.5,roadY,camZ+11,60,0,.004);
-    const rgb=(si&1)?[55,37,103]:[130,86,150];
-    worldSolidQuad(litColor(rgb,L,.95),[
-      {x:x0,y:roadY+.012,z:zFar},{x:x1,y:roadY+.012,z:zFar},
-      {x:x1,y:roadY+.012,z:zNear},{x:x0,y:roadY+.012,z:zNear}
-    ],1);
-  }
-
-  for(const side of [-1,1]){
-    const x=side*roadHalf;
-    const rimL=cameraLight3DAt(x,roadY,camZ+9,55,0,.002);
-    const x0=x-side*.055,x1=x+side*.055;
-    worldSolidQuad(litColor([188,117,166],rimL,.52),[
-      {x:x0,y:roadY+.024,z:zFar},{x:x1,y:roadY+.024,z:zFar},
-      {x:x1,y:roadY+.024,z:zNear},{x:x0,y:roadY+.024,z:zNear}
-    ],.82);
-  }
-}
-function renderMap5(){
+  // One hairline guide only. No multi-stripe fill and no bright edge rims:
+  // the suspended path should read almost as a line, not as a road.
+  const lineHalf=.018;
+  const lineL=cameraLight3DAt(0,roadY,camZ+10,58,0,.003);
+  worldSolidQuad(litColor([151,96,160],lineL,.72),[
+    {x:-lineHalf,y:roadY+.018,z:zFar},{x:lineHalf,y:roadY+.018,z:zFar},
+    {x:lineHalf,y:roadY+.018,z:zNear},{x:-lineHalf,y:roadY+.018,z:zNear}
+  ],.86);
+}function renderMap5(){
   // The background is no longer a bright orange sky. It is a near-black industrial
   // void with one weak, distant horizon glow so scale comes from silhouette, not wash light.
   const sky=ctx.createLinearGradient(0,0,0,H);
@@ -1094,7 +1086,7 @@ function lateralLimit(){
   if(currentMap===2)return 22;
   if(currentMap===3)return 4.7;
   if(currentMap===4)return 1.55;
-  return .42;
+  return .08;
 }
 function mapMaxZ(){
   if(currentMap===1)return 132;
@@ -1126,17 +1118,16 @@ function frame(t){
 function setMap(n){
   currentMap=n;camX=0;targetCamX=0;camZ=1.4;targetCamZ=1.4;
   if(n===5){ritualSigns.clear();ritualVisibleSlots.clear();}
-  mapButtons.forEach((b,i)=>b.classList.toggle('active',i===n-1));
-  const activeButton=mapButtons[n-1];
+  mapButtons.forEach(b=>b.classList.toggle('active',Number(b.dataset.map)===n));
+  const activeButton=mapButtons.find(b=>Number(b.dataset.map)===n);
   if(activeButton)activeButton.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
-  const names=[
-    'MAPA 1 · NAVE ALTA',
-    'MAPA 2 · CILINDROS',
-    'MAPA 3 · CALZADA PAREADA',
-    'MAPA 4 · TÚNEL',
-    'MAPA 5 · AVENIDA RITUAL'
-  ];
-  tag.textContent=names[n-1]||names[0];
+  const names={
+    1:'MAPA 1 · NAVE ALTA',
+    3:'MAPA 2 · CALZADA PAREADA',
+    4:'MAPA 3 · TÚNEL',
+    5:'MAPA 4 · TORRES'
+  };
+  tag.textContent=names[n]||names[1];
 }
 mapsBar.addEventListener('pointerdown',e=>{
   if(e.pointerType!=='touch'&&e.pointerType!=='pen')return;
@@ -1173,7 +1164,7 @@ mapButtons.forEach((b,i)=>b.addEventListener('click',e=>{
     e.stopPropagation();
     return;
   }
-  setMap(i+1);
+  setMap(Number(b.dataset.map));
   // Keep the active option visible even after selecting it near an edge.
   b.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
 }));
@@ -1228,7 +1219,10 @@ addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();
   if(['w','a','s','d','arrowup','arrowdown'].includes(k)){
     keys.add(k);e.preventDefault();
-  }else if(['1','2','3','4','5'].includes(k))setMap(Number(k));
+  }else if(['1','2','3','4'].includes(k)){
+    const shortcutMaps=[1,3,4,5];
+    setMap(shortcutMaps[Number(k)-1]);
+  }
 });
 addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 addEventListener('blur',()=>keys.clear());
@@ -1243,15 +1237,14 @@ addEventListener('selectstart',e=>e.preventDefault());
 addEventListener('dragstart',e=>e.preventDefault());
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v31',
+  version:'spaces-maps-v32',
   maps:[
     '1 arch nave with blacked-out floor',
-    '2 brutalist cylinder hall',
-    '3 straight paired-column road',
-    '4 world-anchored barrel tunnel with stronger near/far darkness falloff',
-    '5 thinner suspended bridge with farther colossal brutalist megatowers in a dark industrial void'
+    '2 straight paired-column road',
+    '3 world-anchored barrel tunnel with richer layered real-stone texture and strong depth falloff',
+    '4 hairline suspended path through farther colossal brutalist megatowers'
   ],
-  contract:'fixed frontal view; touch swipe + WASD + wheel; v31 keeps Map 3 unchanged, blacks out the Map 1 floor, strengthens Map 4 depth so near tunnel surfaces read clearer and the far throat falls much darker, and pushes Map 5 farther into a thin-bridge brutalist corridor: bridge half-width .65, lateral limit .42, radius-3.2 towers and a 1.90 abyss gap. Dark industrial background, bridge-last occlusion, pure-black deep bases and max-two-sign rule remain',
+  contract:'fixed frontal view; touch swipe + WASD + wheel; v32 removes the rejected random-cylinder scene from the visible selector, preserves the liked arch nave and calzada, enriches tunnel walls/roof with a finer second real-stone texture layer while keeping world-space motion and depth falloff, and turns the megatower bridge into an almost-line: half-width .18, full width .36, lateral limit .08, one hairline center guide, no stripe field or bright edge rims. Tower gap 1.90, radius 3.20, dark industrial background, bridge-last occlusion, black deep bases and max-two-sign rule remain',
   sourcePages:SOURCE_PAGES,
   camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
