@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Prometeo · Eye Content Authoring Template</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;background:#555;color:#eee;font-family:system-ui,sans-serif}
+body{min-height:100vh}
+#wrap{padding:16px;display:flex;justify-content:center}
+canvas{display:block;background:#555;max-width:none;image-rendering:auto}
+#status{position:fixed;left:8px;bottom:8px;padding:6px 8px;background:#111c;color:#fff;font:12px monospace;border-radius:5px}
+.clean #status{display:none}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="grid"></canvas></div>
+<div id="status">cargando…</div>
+<script>
+(async()=>{
+'use strict';
+
+const params=new URLSearchParams(location.search);
+const mode=params.get('mode')==='sequence'?'sequence':'exploration';
+const debug=params.get('debug')==='1';
+const clean=params.get('clean')==='1';
+if(clean)document.body.classList.add('clean');
+
+const spec=await fetch('./content-spec-v1.json?v=1',{cache:'no-store'}).then(r=>{
+  if(!r.ok)throw new Error('spec HTTP '+r.status);
+  return r.json();
+});
+const pack=await fetch('../eye-frame-lab/sprite-pack-v21.json?v=21',{cache:'no-store'}).then(r=>{
+  if(!r.ok)throw new Error('pack HTTP '+r.status);
+  return r.json();
+});
+
+const frameDef=pack.frames.find(f=>f.id===spec.frame_source.frame_id);
+if(!frameDef)throw new Error('frame reference missing');
+
+function b64(s){const raw=atob(s);const a=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)a[i]=raw.charCodeAt(i);return a}
+function rgba(hex){return hex}
+function decode(frame){
+  const [w,h]=pack.logical_size;
+  const bytes=b64(frame.data_b64);
+  const out=new Uint8ClampedArray(w*h*4);
+  let px=0;
+  for(let i=0;i<bytes.length;i+=2){
+    const count=bytes[i], pi=bytes[i+1];
+    const col=pack.encoding.palette_rgba[pi];
+    for(let n=0;n<count;n++){
+      const o=px++*4;
+      out[o]=col[0];out[o+1]=col[1];out[o+2]=col[2];out[o+3]=col[3];
+    }
+  }
+  if(px!==w*h)throw new Error('pixel count mismatch');
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  c.getContext('2d').putImageData(new ImageData(out,w,h),0,0);
+  return c;
+}
+
+const ref=decode(frameDef);
+const tpl=spec.templates[mode];
+const rows=tpl.rows, cols=tpl.cols;
+const cell=mode==='exploration'?192:256;
+const canvas=document.getElementById('grid');
+canvas.width=cols*cell;canvas.height=rows*cell;
+const ctx=canvas.getContext('2d');
+ctx.imageSmoothingEnabled=true;
+
+const scale=cell/spec.frame_source.logical_size[0];
+const ap=spec.open_aperture.bbox;
+const safe=spec.open_aperture.safe_bbox;
+const center=spec.open_aperture.content_center;
+const pivot=spec.frame_source.frame_pivot;
+
+for(let r=0;r<rows;r++){
+  for(let c=0;c<cols;c++){
+    const x=c*cell,y=r*cell;
+    ctx.fillStyle='#555';ctx.fillRect(x,y,cell,cell);
+    ctx.drawImage(ref,x,y,cell,cell);
+    if(debug){
+      ctx.lineWidth=Math.max(1,cell/128);
+      ctx.strokeStyle='#8fd4ff';ctx.strokeRect(x+ap[0]*scale,y+ap[1]*scale,(ap[2]-ap[0])*scale,(ap[3]-ap[1])*scale);
+      ctx.strokeStyle='#ffd45a';ctx.strokeRect(x+safe[0]*scale,y+safe[1]*scale,(safe[2]-safe[0])*scale,(safe[3]-safe[1])*scale);
+      const cx=x+center[0]*scale,cy=y+center[1]*scale;
+      ctx.strokeStyle='#ff6666';ctx.beginPath();ctx.moveTo(cx-8,cy);ctx.lineTo(cx+8,cy);ctx.moveTo(cx,cy-8);ctx.lineTo(cx,cy+8);ctx.stroke();
+      const px=x+pivot[0]*scale,py=y+pivot[1]*scale;
+      ctx.strokeStyle='#72ff9c';ctx.beginPath();ctx.arc(px,py,3,0,Math.PI*2);ctx.stroke();
+      ctx.strokeStyle='#9998';ctx.strokeRect(x+.5,y+.5,cell-1,cell-1);
+    }
+  }
+}
+
+document.getElementById('status').textContent=
+  mode+' · '+rows+'×'+cols+' · '+(debug?'debug':'clean')+
+  ' · center '+center.join(',')+' · pivot '+pivot.join(',');
+})().catch(err=>{
+  document.getElementById('status').textContent='ERROR '+String(err.message||err);
+});
+</script>
+</body>
+</html>
