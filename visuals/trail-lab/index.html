@@ -64,7 +64,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;image-renderi
     <li>La capa pseudo-3D agrega z y proyección; no requiere WebGL ni un efecto distinto por imagen.</li>
     <li>Jerarquía del trail: las copias viejas/traseras se renderizan mucho más oscuras y recuperan claridad progresivamente hasta la figura actual, evitando dos caras protagonistas al cerrar una órbita.</li>
     <li>Giro 2.5D: ÓRBITA/LOOP usan una pista amplia con semicírculos reales en X/Z. La velocidad sigue constante y el radio de giro es mucho mayor, sin volantazo cerrado.</li>
-    <li>Volumen: cabeza y cuerpo cercano usan la superficie curva; la cola oscura/chica usa una proyección barata de una sola imagen con ancho mínimo, reduciendo muchísimo los draw calls.</li>
+    <li>Frente/dorso real: al cargar el asset se genera un dorso desde su alpha, sin ojos/boca/textura frontal. Cada tira curva decide frente o dorso por su orientación; a 180° no puede dibujarse ninguna tira frontal.</li>
+    <li>Volumen: cabeza y cuerpo cercano usan la superficie curva; la cola oscura/chica usa una proyección barata con dorso real y ancho mínimo, reduciendo draw calls.</li>
     <li>Cuerpo gusano: ÓRBITA/LOOP ya no usan una cola con recorrido propio. Cada segmento consulta exactamente la misma trayectoria que la cabeza con un offset de distancia. 26–38 caras forman ~520–680 px de cuerpo; la punta termina negra cerca del 16% de escala.</li>
   </ul>
 </aside>
@@ -135,6 +136,7 @@ const sprite=document.createElement('canvas');
 const spriteCtx=sprite.getContext('2d',{willReadFrequently:true});
 const SHADE_BRIGHTNESS=[0,.12,.24,.38,.52,.68,.82,.92];
 const shadeSprites=SHADE_BRIGHTNESS.map(()=>document.createElement('canvas'));
+const backShadeSprites=SHADE_BRIGHTNESS.map(()=>document.createElement('canvas'));
 let spriteReady=false;
 let assetReady=false;
 let spriteRatio=.75;
@@ -270,14 +272,25 @@ function isolateSprite(){
   spriteCtx.imageSmoothingEnabled=true;
   spriteCtx.drawImage(img,0,0,sw,sh);
   for(let i=0;i<shadeSprites.length;i++){
+    const brightness=SHADE_BRIGHTNESS[i];
     const shade=shadeSprites[i],sc=shade.getContext('2d');
     shade.width=sw;shade.height=sh;
     sc.clearRect(0,0,sw,sh);
     sc.drawImage(sprite,0,0);
     sc.globalCompositeOperation='source-atop';
-    sc.fillStyle='rgba(0,0,0,'+(1-SHADE_BRIGHTNESS[i])+')';
+    sc.fillStyle='rgba(0,0,0,'+(1-brightness)+')';
     sc.fillRect(0,0,sw,sh);
     sc.globalCompositeOperation='source-over';
+
+    const back=backShadeSprites[i],bc=back.getContext('2d');
+    back.width=sw;back.height=sh;
+    bc.clearRect(0,0,sw,sh);
+    bc.drawImage(sprite,0,0);
+    bc.globalCompositeOperation='source-in';
+    const rearValue=Math.round(255*brightness*.52);
+    bc.fillStyle='rgb('+rearValue+','+rearValue+','+rearValue+')';
+    bc.fillRect(0,0,sw,sh);
+    bc.globalCompositeOperation='source-over';
   }
   spriteReady=true;
 }
@@ -321,32 +334,37 @@ const SURFACE_CURVE=1.05;
 function curvedSliceCount(){
   return quality===0?7:(quality===1?9:11);
 }
-function drawCurvedSurface(source,w,h,yawAngle,alpha){
+function yawSurfaceAngle(yawAngle){
+  return Math.acos(clamp(Math.cos(yawAngle),-1,1));
+}
+function drawCurvedSurface(frontSource,backSource,w,h,yawAngle){
   if(worldMode==='2d'){
     ctx.globalAlpha=1;
-    ctx.drawImage(source,-w*.5,-h*.5,w,h);
+    ctx.drawImage(frontSource,-w*.5,-h*.5,w,h);
     return;
   }
-  const look=yawAppearance(yawAngle);
-  const side=look.sideAngle;
-  if(side<.10){
-    ctx.globalAlpha=alpha;
-    if(look.rear){
-      ctx.save();
-      ctx.scale(-1,1);
-      ctx.drawImage(source,-w*.5,-h*.5,w,h);
-      ctx.restore();
-    }else{
-      ctx.drawImage(source,-w*.5,-h*.5,w,h);
-    }
+
+  const yaw=yawSurfaceAngle(yawAngle);
+  if(yaw<.08){
+    ctx.globalAlpha=1;
+    ctx.drawImage(frontSource,-w*.5,-h*.5,w,h);
+    return;
+  }
+  if(Math.PI-yaw<.08){
+    ctx.globalAlpha=1;
+    ctx.save();
+    ctx.scale(-1,1);
+    ctx.drawImage(backSource,-w*.5,-h*.5,w,h);
+    ctx.restore();
     return;
   }
 
   const slices=curvedSliceCount();
   const radius=w/(2*Math.sin(SURFACE_CURVE));
-  const srcW=source.width,srcH=source.height;
+  const srcW=frontSource.width,srcH=frontSource.height;
   const baseSlice=srcW/slices;
 
+  // Back-facing strips first, then front-facing strips.
   for(let pass=0;pass<2;pass++){
     for(let i=0;i<slices;i++){
       const u0=-1+2*i/slices;
@@ -354,12 +372,12 @@ function drawCurvedSurface(source,w,h,yawAngle,alpha){
       const phi0=u0*SURFACE_CURVE;
       const phi1=u1*SURFACE_CURVE;
       const mid=(phi0+phi1)*.5;
-      const localFacing=Math.cos(side+mid);
+      const localFacing=Math.cos(yaw+mid);
       const isFront=localFacing>=0;
       if((pass===0&&isFront)||(pass===1&&!isFront))continue;
 
-      const x0=radius*(Math.sin(side+phi0)-Math.sin(side));
-      const x1=radius*(Math.sin(side+phi1)-Math.sin(side));
+      const x0=radius*(Math.sin(yaw+phi0)-Math.sin(yaw));
+      const x1=radius*(Math.sin(yaw+phi1)-Math.sin(yaw));
       const dx=Math.min(x0,x1)-.6;
       const dw=Math.max(1.2,Math.abs(x1-x0)+1.2);
       const face=Math.abs(localFacing);
@@ -367,7 +385,8 @@ function drawCurvedSurface(source,w,h,yawAngle,alpha){
       const dh=h*heightScale;
       const dy=-dh*.5+(1-face)*h*.014;
 
-      const sourceIndex=look.rear?(slices-1-i):i;
+      const source=isFront?frontSource:backSource;
+      const sourceIndex=isFront?i:(slices-1-i);
       const sx=sourceIndex*baseSlice;
       const sw=Math.min(srcW-sx,baseSlice+1);
 
@@ -376,12 +395,14 @@ function drawCurvedSurface(source,w,h,yawAngle,alpha){
     }
   }
 }
-function drawCheapSurface(source,w,h,yawAngle){
-  const look=yawAppearance(yawAngle);
-  const side=Math.sin(look.sideAngle);
+function drawCheapSurface(frontSource,backSource,w,h,yawAngle){
+  const yaw=yawSurfaceAngle(yawAngle);
+  const rear=yaw>Math.PI*.5;
+  const side=Math.sin(yaw);
   const widthScale=lerp(1,.30,Math.pow(side,.82));
+  const source=rear?backSource:frontSource;
   ctx.save();
-  if(look.rear)ctx.scale(-1,1);
+  if(rear)ctx.scale(-1,1);
   ctx.globalAlpha=1;
   ctx.drawImage(source,-w*widthScale*.5,-h*.5,w*widthScale,h);
   ctx.restore();
@@ -389,7 +410,6 @@ function drawCheapSurface(source,w,h,yawAngle){
 function drawWhole(px,py,pz,angle,scale=1,trailT=1,isHead=false,yawAngle=0,pathD=trailDistance){
   if(!assetReady)return;
   const p=project3D(px,py,pz);
-  const yawLook=yawAppearance(yawAngle);
   const hierarchy=isHead?{brightness:1,scale:1}:stampHierarchy(trailT,pz);
   const effectiveScale=scale*hierarchy.scale;
   const s=spriteSize(),w=s.w*effectiveScale*p.scale,h=s.h*effectiveScale*p.scale;
@@ -400,15 +420,12 @@ function drawWhole(px,py,pz,angle,scale=1,trailT=1,isHead=false,yawAngle=0,pathD
   ctx.imageSmoothingEnabled=false;
   ctx.globalAlpha=1;
   if(spriteReady){
-    let source;
-    if(isHead){
-      source=yawLook.rearAmount<.04?sprite:shadeSprites[shadeIndexFor(lerp(.90,.46,yawLook.rearAmount))];
-    }else{
-      const baseBrightness=hierarchy.brightness;
-      source=shadeSprites[shadeIndexFor(baseBrightness*lerp(1,.62,yawLook.rearAmount))];
-    }
-    if(isHead||trailT>=CURVED_DETAIL_T)drawCurvedSurface(source,w,h,yawAngle,1);
-    else drawCheapSurface(source,w,h,yawAngle);
+    const frontBrightness=isHead?.92:hierarchy.brightness;
+    const backBrightness=isHead?.46:clamp(hierarchy.brightness*.62,0,.92);
+    const frontSource=isHead?sprite:shadeSprites[shadeIndexFor(frontBrightness)];
+    const backSource=backShadeSprites[shadeIndexFor(backBrightness)];
+    if(isHead||trailT>=CURVED_DETAIL_T)drawCurvedSurface(frontSource,backSource,w,h,yawAngle);
+    else drawCheapSurface(frontSource,backSource,w,h,yawAngle);
   }else{
     ctx.drawImage(img,-w*.5,-h*.5,w,h);
   }
