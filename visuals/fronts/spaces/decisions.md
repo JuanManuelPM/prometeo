@@ -75,3 +75,43 @@ Do not invent an accepted baseline. A future human-approved screenshot may be pr
 - dark industrial void;
 - bridge-last occlusion;
 - max two deployable signs.
+
+
+## v34 review execution architecture · CURRENT
+
+The initial idea of capturing directly from every `main` push is superseded for Spaces.
+
+Reason:
+- this repository has a very large global Actions workload;
+- a main-branch trigger competes with unrelated workflow storms;
+- visual review should be isolated and cheap.
+
+Current trigger:
+- dedicated branch: `visual-review-spaces`;
+- after publishing a Spaces visual source commit, advance that branch ref to the exact source commit;
+- only the Spaces review workflow listens to this branch;
+- evidence is then published back to `main` and `gh-pages`.
+
+Current capture implementation:
+- one headless Chromium process;
+- Chrome DevTools Protocol controls all 10 screenshots;
+- browser cache/session reused across captures;
+- deterministic map / camera / animation query;
+- no npm/Playwright dependency for capture itself;
+- workflow artifact retained for 30 days;
+- stable PNGs + latest.json + current-review.json published.
+
+Verified run:
+- run id `36496687583`;
+- source `6cbba21e6057f678a828fe40d957311a0b666620`;
+- SUCCESS;
+- roughly 42 seconds end-to-end.
+
+The earlier multiple-Chromium-process capture path is superseded because it took about 168 seconds and could time out on the last mobile screenshot.
+
+### Review-before-delivery law
+
+For Spaces visual edits, a fresh incarnation should prefer:
+`handoff -> current-review.json -> generated screenshots -> HTML/code`.
+
+If the screenshot evidence exposes an obvious visual failure, do not call the iteration done merely because code and publication checks passed.
