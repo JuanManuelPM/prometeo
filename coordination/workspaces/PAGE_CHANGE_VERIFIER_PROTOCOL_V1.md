@@ -98,3 +98,9 @@ Never include raw Capture transcripts, audio, attachment tokens, packet tokens, 
 - None of these states means Human Accepted, Served or CURRENT.
 
 A builder RETURN can never substitute for this independent verification result.
+
+## Runtime evidence boundary
+
+The existence of this protocol, an Edge deployment, a static regression or a generated verifier opportunity is not proof that independent verification works end to end.
+
+Runtime certification requires a real `CANDIDATE_READY` Page Change item, a distinct verifier claim, post-claim private packet retrieval, real candidate evidence, durable `VERIFY.json`, backend ingestion and the resulting Page Change feed state.
