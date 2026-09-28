@@ -1,54 +1,55 @@
-# 🖐️ Retro Player / Eye Frame · Durable Feedback
+# 🖐️ Player / Eye Frame · Durable Feedback
 
 Status: CURRENT
 
-## KEEP / ACCEPTED
-- persistent Player scene/state
-- 320x180 internal Player resolution
-- touch
-- cheap audio/vibration
-- image-first foreground
-- exactly one lower-right player hand
-- carried pet has no human hands
-- eye contents and eye frame remain separate when reintegration eventually happens
+## Latest user feedback
+The user repeatedly observed failures in the public eye lab: bad crop, jitter, all-black output, gray/error states, and later a gray canvas even after loader validation. The user explicitly asked to stop patching symptoms and redesign the animation/publishing strategy like a small reliable game-engine asset pipeline.
 
-## LATEST USER REVIEW
-The public eye lab still failed. The visible result was a gray square plus an English-style load failure message. This is a hard functional failure, not a subjective visual preference.
+## Engineering diagnosis
+The previous architecture mixed too many responsibilities:
+- generated grid as runtime asset;
+- runtime knowledge of atlas geometry;
+- crop/alignment concerns leaking into rendering;
+- binary image transport through fragile text/plugin paths;
+- chained sleeps for animation timing;
+- hash equality being treated as if it proved visual correctness.
 
-## ROOT CAUSE FOUND
-The current published V16 HTML tried to avoid an external asset request by embedding the JPEG as a base64 data URI.
+## V21 current design
+V21 deliberately removes the fragile parts.
 
-That embedded data URI was actually malformed/truncated in the committed HTML. The string literally terminated with `truncated`, so the browser could not decode it as an image.
+Pipeline:
+**AUTHORING → SPLIT → MASK → MEASURE → SEMANTIC ANCHOR → NORMALIZE → RESIDUAL QA → VISUAL QA → INDEXED/RLE PACK → RUNTIME**
 
-This explains the observed gray square + load error exactly.
+The eye is aligned before runtime:
+- semantic vertical anchor: lower white liner median;
+- common horizontal center;
+- 512×512 normalization canvas;
+- no scale normalization;
+- residual correction pass;
+- measured maximum anchor jitter: 1 px;
+- QA tolerance: 3 px.
 
-The external aligned JPEG already present in the repo remains the intended source:
-`visuals/eye-frame-lab/eye-blink-aligned-grid-v15.jpg`
-blob:
-`c4fb7c8d739bb056f19dafb5586b3882e60e8fbd`
+Runtime:
+- fetches one text JSON pack;
+- validates schema/logical size/frame IDs/animation references;
+- each normalized frame is indexed black/white + alpha palette data;
+- RLE byte pairs are transported as base64 **text**, not as PNG/JPEG/WebP;
+- every frame has byte length + SHA-256;
+- runtime verifies checksum, palette indices, exact 128×128 pixel count;
+- frames decode once into offscreen canvases;
+- default frame is drawn only after the whole pack passes;
+- animation timing comes from data;
+- animation advances from performance.now() + requestAnimationFrame;
+- renderer has no atlas row/column/crop/frame-count/timing constants.
 
-The local source used to create that asset had already passed PIL verification at 640×256 before publication.
+## Rejected approaches
+- raw generated grid as runtime source;
+- per-frame crop/center repair in runtime;
+- hard-coded 5×2 or 10×10 atlas geometry;
+- embedded large binary base64 image data URI;
+- external binary sprite transport as the only source of truth;
+- chained sleep()/setTimeout frame progression;
+- treating branch/blob equality as visual QA.
 
-## V17 FIX
-- Removed the embedded base64 completely.
-- The page now loads the external same-origin JPEG by relative path.
-- Cache busting uses the known asset hash prefix.
-- The page first fetches the asset and verifies HTTP success.
-- It verifies that the fetched blob is non-empty.
-- It then asks the browser to decode that blob as an image.
-- It verifies natural dimensions are exactly 640×256.
-- Only after all checks pass is frame 0 drawn.
-- Any failure is reported in Spanish with the actual failure stage.
-- Runtime does not crop, center, scale-correct, or otherwise repair the sprite.
-- The pre-aligned 5×2 sprite remains authoritative.
-
-## NORMALIZATION PIPELINE STILL CURRENT
-SPLIT → MASK → MEASURE → ANCHOR → NORMALIZE → RESIDUAL QA → VISUAL QA → EXPORT → ANIMATE
-
-The alignment work itself is not discarded by this loading bug. The failure happened after export, during transport/embedding into the public page.
-
-## DO NOT REPEAT
-- Do not paste large binary assets into HTML data URIs through a text/tool response path.
-- Do not assume a successful commit means the browser can decode an embedded asset.
-- Do not treat an error overlay as proof that the sprite itself is wrong.
-- Do not change the alignment pipeline to fix a transport bug.
+## Player
+The main Player remains untouched. V21 must first be reviewed in isolation.

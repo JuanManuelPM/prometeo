@@ -1,52 +1,56 @@
-PROMETEO VISUAL HANDOFF · 🖐️ Player / Eye Frame Rework
+PROMETEO VISUAL HANDOFF · 🖐️ Player / Eye Frame
 STATUS: CURRENT
 GENERATED: 2026-09-28
 
 PUBLIC EYE LAB
 https://juanmanuelpm.github.io/prometeo/visuals/eye-frame-lab/
 
-CURRENT FILES
+CURRENT VERSION
+V21 · DATA_DRIVEN_INDEXED_RLE · REVIEW
+
+CURRENT TARGETS
 - visuals/eye-frame-lab/index.html
-- visuals/eye-frame-lab/eye-blink-aligned-grid-v15.jpg
-- visuals/eye-frame-lab/normalization-manifest.json
-- visuals/eye-frame-lab/NORMALIZATION_PROTOCOL.md
-- visuals/eye-frame-lab/tools/sprite_prepare.py
+- visuals/eye-frame-lab/sprite-pack-v21.json
+- visuals/eye-frame-lab/SPRITE_RUNTIME_PROTOCOL.md
+- visuals/eye-frame-lab/build-report-v21.json
 
-LATEST FAILURE
-The user saw a gray square plus a load error.
+CURRENT BLOBS
+- index: 86b73b41527b558bcd804d36a2f4a06e352c8991
+- sprite pack: 65da258749ff84a21f82c13829cf3613a94239c9
+- protocol: 00f11792d9e1307837b6631a17c0d55b8ff9a031
+- build report: 66832bcab2a28c5740c461c00713dcc1967522ea
 
-ROOT CAUSE
-V16 embedded the JPEG as a base64 data URI, but the committed HTML contained a truncated base64 string ending in the literal text `truncated`. Browser decode therefore failed.
+WHY V21 EXISTS
+Earlier versions mixed grid slicing, runtime geometry repair and fragile binary image transport. V21 moves geometry to a pre-runtime build and transports frames as validated text data.
 
-CURRENT FIX · V17
-- no embedded base64;
-- loads ./eye-blink-aligned-grid-v15.jpg as an external same-origin file;
-- fetch must return OK;
-- blob must be non-empty;
-- browser decode must succeed;
-- natural dimensions must be exactly 640x256;
-- then frame 0 is drawn and blink input is enabled;
-- failures are shown in Spanish with the actual stage.
+PIPELINE
+AUTHORING → SPLIT → MASK → MEASURE → SEMANTIC ANCHOR → NORMALIZE → RESIDUAL QA → VISUAL QA → INDEXED/RLE PACK → RUNTIME
 
-ALIGNMENT PIPELINE REMAINS CURRENT
-SPLIT → MASK → MEASURE → ANCHOR → NORMALIZE → RESIDUAL QA → VISUAL QA → EXPORT → ANIMATE
+ALIGNMENT QA
+- source canvas per normalized frame: 512×512
+- semantic anchor: lower_liner_median
+- max anchor jitter: 1 px
+- tolerance: 3 px
+- scale normalization: none
+- QA: PASS
 
-V15 local QA:
-- semantic anchor: lower_liner_median;
-- normalized frame canvas: 512x512;
-- max anchor jitter: 1 px;
-- tolerance: 3 px;
-- scale normalization: none;
-- QA PASS.
+RUNTIME
+- fetch one JSON pack
+- validate schema and refs
+- decode base64 RLE byte streams
+- verify per-frame byte length + SHA-256 + palette indices + exact pixel count
+- decode once to offscreen canvases
+- draw default only after full validation
+- animate from data using performance.now() + requestAnimationFrame
+- no atlas geometry hard-coded in renderer
 
-DO NOT
-- embed large binary assets in HTML through text responses;
-- repair geometry in runtime;
-- reintegrate into Player before isolated visual acceptance.
+PLAYER STATUS
+Main Player is untouched. Do not integrate eye or pupil until isolated V21 is visually accepted.
 
 INCARNATION CONTRACT
-1. Read this file and durable front sources.
-2. Inspect actual repo targets before claims.
+1. Read this handoff completely.
+2. Inspect actual repo targets before asserting behavior.
 3. Do not edit until ACTUALIZÁ/equivalent.
-4. Preserve the normalization pipeline.
-5. Treat V16 as broken transport, not broken alignment.
+4. Preserve the build/runtime separation.
+5. On update, publish and verify relevant eye files and continuity across main + gh-pages.
+6. Do not claim visual acceptance or browser inspection that did not happen.

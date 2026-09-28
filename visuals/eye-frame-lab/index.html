@@ -4,141 +4,155 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#606060">
-<title>Prometeo · Eye Alignment Lab V17</title>
+<title>Prometeo · Eye Blink V21</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;touch-action:none;overscroll-behavior:none;background:#606060}
-body{display:grid;place-items:center;background:radial-gradient(circle at 50% 50%,#777 0%,#606060 54%,#444 100%)}
+body{display:grid;place-items:center;background:radial-gradient(circle at center,#777 0%,#606060 55%,#444 100%)}
 #eye{width:min(94vw,82vh,760px);aspect-ratio:1/1;display:block}
-#status{
-  position:fixed;left:12px;right:12px;bottom:12px;margin:auto;max-width:760px;
-  padding:9px 11px;font:700 12px/1.35 system-ui,sans-serif;color:#fff;
-  background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.18);
-  border-radius:8px;white-space:pre-wrap;text-align:center
-}
+#status{position:fixed;left:12px;right:12px;bottom:12px;text-align:center;font:700 12px/1.35 system-ui;color:#fff;opacity:.82;pointer-events:none;white-space:pre-wrap}
 #status.ok{display:none}
-#status.error{background:#6e1c1c;border-color:rgba(255,255,255,.35)}
+#status.error{opacity:1;background:#6e1c1c;padding:10px;border-radius:8px}
 </style>
 </head>
 <body>
-<canvas id="eye" width="512" height="512" aria-label="Marco de ojo alineado parpadeando"></canvas>
-<div id="status">Cargando sprite alineado…</div>
-<script>
-(()=>{
-'use strict';
-
-const canvas=document.getElementById('eye');
-const ctx=canvas.getContext('2d',{alpha:false});
-const status=document.getElementById('status');
+<canvas id="eye" width="128" height="128" aria-label="Marco de ojo alineado parpadeando"></canvas>
+<div id="status">cargando sprite de datos…</div>
+<script type="module">
+const canvas=document.querySelector('#eye');
+const ctx=canvas.getContext('2d',{alpha:true});
+const status=document.querySelector('#status');
 ctx.imageSmoothingEnabled=true;
 
-const ASSET='./eye-blink-aligned-grid-v15.jpg?v=c4fb7c8d';
-const EXPECTED_W=640;
-const EXPECTED_H=256;
-const CELL=128;
-const COLS=5;
-const COUNT=10;
-const timing=[78,68,58,50,46,90,46,58,68,78];
-
-let img=null;
-let ready=false;
-let busy=false;
-let objectUrl=null;
-
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const rect=i=>[(i%COLS)*CELL,Math.floor(i/COLS)*CELL,CELL,CELL];
+let pack=null;
+let decoded=new Map();
+let active=null;
 
 function setStatus(message,kind=''){
   status.textContent=message;
   status.className=kind;
 }
 
-function clear(){
-  ctx.fillStyle='#606060';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+function b64bytes(s){
+  const bin=atob(s);
+  const out=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
+  return out;
 }
 
-function draw(i){
-  if(!img)return;
-  const [sx,sy,sw,sh]=rect(i);
-  clear();
-  ctx.drawImage(img,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
+async function sha256hex(bytes){
+  const hash=await crypto.subtle.digest('SHA-256',bytes);
+  return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
-async function blink(){
-  if(!ready||busy)return;
-  busy=true;
-  for(let i=0;i<COUNT;i++){
-    draw(i);
-    await sleep(timing[i]);
+function validatePack(p){
+  if(!p||p.schema!=='PROMETEO_INDEXED_SPRITE_PACK_V2') throw new Error('schema de sprite inválido');
+  const [w,h]=p.logical_size||[];
+  if(!Number.isInteger(w)||!Number.isInteger(h)||w<=0||h<=0) throw new Error('logical_size inválido');
+  if(p.encoding?.type!=='rle_palette_base64_u8') throw new Error('encoding inválido');
+  if(!Array.isArray(p.encoding?.palette_rgba)||p.encoding.palette_rgba.length<2) throw new Error('paleta inválida');
+  if(!Array.isArray(p.frames)||!p.frames.length) throw new Error('sin frames');
+  const ids=new Set(p.frames.map(f=>f.id));
+  if(ids.size!==p.frames.length) throw new Error('ids de frame duplicados');
+  if(!ids.has(p.default_frame)) throw new Error('default_frame inexistente');
+  for(const [name,a] of Object.entries(p.animations||{})){
+    if(!Array.isArray(a.frames)||!a.frames.length) throw new Error(name+': animación vacía');
+    for(const step of a.frames){
+      if(!ids.has(step.id)) throw new Error(name+': frame inexistente '+step.id);
+      if(!Number.isFinite(step.duration_ms)||step.duration_ms<=0) throw new Error(name+': duración inválida');
+    }
+    if(a.return_to&&!ids.has(a.return_to)) throw new Error(name+': return_to inexistente');
   }
-  await sleep(30);
-  draw(0);
-  busy=false;
+  return [w,h];
 }
 
-function input(e){
-  if(e?.cancelable)e.preventDefault();
-  blink();
+async function decodeFrame(frame,w,h,palette){
+  const bytes=b64bytes(frame.data_b64||'');
+  if(bytes.length!==frame.byte_length) throw new Error(frame.id+': byte_length no coincide');
+  if(bytes.length%2) throw new Error(frame.id+': RLE impar');
+  if(frame.sha256){
+    const got=await sha256hex(bytes);
+    if(got!==frame.sha256) throw new Error(frame.id+': checksum SHA-256 no coincide');
+  }
+  const rgba=new Uint8ClampedArray(w*h*4);
+  let px=0;
+  for(let i=0;i<bytes.length;i+=2){
+    const count=bytes[i],index=bytes[i+1];
+    if(count<=0) throw new Error(frame.id+': run cero');
+    if(index>=palette.length) throw new Error(frame.id+': índice de paleta inválido');
+    const color=palette[index];
+    for(let n=0;n<count;n++){
+      if(px>=w*h) throw new Error(frame.id+': overflow de píxeles');
+      const o=(px++)*4;
+      rgba[o]=color[0]; rgba[o+1]=color[1]; rgba[o+2]=color[2]; rgba[o+3]=color[3];
+    }
+  }
+  if(px!==w*h) throw new Error(`${frame.id}: ${px} píxeles; esperados ${w*h}`);
+  const off=document.createElement('canvas');
+  off.width=w; off.height=h;
+  off.getContext('2d').putImageData(new ImageData(rgba,w,h),0,0);
+  return off;
 }
 
-async function loadSprite(){
-  clear();
+function draw(id){
+  const frame=decoded.get(id);
+  if(!frame)return;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(frame,0,0,canvas.width,canvas.height);
+}
+
+async function boot(){
   try{
-    const response=await fetch(ASSET,{cache:'no-store'});
-    if(!response.ok){
-      throw new Error('HTTP '+response.status+' al pedir '+ASSET);
+    const response=await fetch('./sprite-pack-v21.json?v=21',{cache:'no-store'});
+    if(!response.ok) throw new Error('sprite-pack: HTTP '+response.status);
+    pack=await response.json();
+    const [w,h]=validatePack(pack);
+    canvas.width=w; canvas.height=h;
+    const loaded=[];
+    for(const frame of pack.frames){
+      loaded.push([frame.id,await decodeFrame(frame,w,h,pack.encoding.palette_rgba)]);
     }
-
-    const blob=await response.blob();
-    if(!blob.size){
-      throw new Error('el archivo llegó vacío');
-    }
-
-    objectUrl=URL.createObjectURL(blob);
-
-    await new Promise((resolve,reject)=>{
-      const candidate=new Image();
-      candidate.onload=()=>{
-        if(candidate.naturalWidth!==EXPECTED_W || candidate.naturalHeight!==EXPECTED_H){
-          reject(new Error(
-            'geometría inesperada '+candidate.naturalWidth+'×'+candidate.naturalHeight+
-            '; esperado '+EXPECTED_W+'×'+EXPECTED_H
-          ));
-          return;
-        }
-        img=candidate;
-        resolve();
-      };
-      candidate.onerror=()=>reject(new Error('el navegador recibió el archivo pero no pudo decodificarlo como imagen'));
-      candidate.src=objectUrl;
-    });
-
-    ready=true;
-    draw(0);
+    decoded=new Map(loaded);
+    draw(pack.default_frame);
     setStatus('', 'ok');
   }catch(err){
-    ready=false;
-    clear();
-    setStatus(
-      'ERROR CARGANDO SPRITE\n'+
-      String(err?.message||err)+
-      '\n\nEsta versión usa un archivo externo verificado; no contiene base64 embebido.',
-      'error'
-    );
+    setStatus('ERROR DE SPRITE\n'+String(err?.message||err),'error');
   }
 }
 
-window.addEventListener('pointerdown',input,{passive:false});
-window.addEventListener('keydown',e=>{
-  if(e.code==='Space'||e.code==='Enter')input(e);
-});
-window.addEventListener('pagehide',()=>{
-  if(objectUrl)URL.revokeObjectURL(objectUrl);
-},{once:true});
+function play(name){
+  if(active||!pack)return;
+  const def=pack.animations?.[name];
+  if(!def)return;
+  const starts=[];
+  let total=0;
+  for(const step of def.frames){starts.push(total);total+=step.duration_ms;}
+  active={def,starts,total,start:performance.now(),last:-1};
+  requestAnimationFrame(tick);
+}
 
-loadSprite();
-})();
+function tick(now){
+  if(!active)return;
+  const elapsed=now-active.start;
+  if(elapsed>=active.total){
+    draw(active.def.return_to||pack.default_frame);
+    active=null;
+    return;
+  }
+  let index=active.starts.length-1;
+  for(let i=0;i<active.starts.length-1;i++){
+    if(elapsed<active.starts[i+1]){index=i;break;}
+  }
+  if(index!==active.last){
+    draw(active.def.frames[index].id);
+    active.last=index;
+  }
+  requestAnimationFrame(tick);
+}
+
+window.addEventListener('pointerdown',e=>{if(e.cancelable)e.preventDefault();play('blink')},{passive:false});
+window.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='Enter')play('blink')});
+boot();
 </script>
 </body>
 </html>
