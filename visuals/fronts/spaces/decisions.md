@@ -2,21 +2,21 @@
 
 Status: CURRENT
 
-## Map 5 · v28
+## Map 5 · v29
 
-### Narrow bridge
+### Ultra-narrow bridge
 - RITUAL_ROAD_Y = -0.38.
-- RITUAL_ROAD_HALF = 3.4.
-- Full deck width = 6.8 world units.
-- Map 5 lateralLimit = 3.05 so the camera stays on the deck.
-- Do not widen back toward the v27 half-width 6.15 unless explicitly requested.
+- RITUAL_ROAD_HALF = 1.45.
+- Full deck width = 2.9 world units.
+- Map 5 lateralLimit = 1.15 so the camera stays on the deck.
+- Do not widen back toward v28 half-width 3.4 unless explicitly requested.
 
 ### Bridge / column spatial rule
 - column radius = 2.15.
 - RITUAL_COLUMN_GAP = 0.65.
-- column center X = ±(roadHalf + radius + gap) = ±6.20.
-- nearest column surface = ±4.05.
-- road edge = ±3.40.
+- column center X = ±(roadHalf + radius + gap) = ±4.25.
+- nearest column surface = ±2.10.
+- road edge = ±1.45.
 - real abyss gap = 0.65.
 - no horizontal geometry exists outside the bridge.
 
