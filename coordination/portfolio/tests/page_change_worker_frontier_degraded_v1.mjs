@@ -1,6 +1,8 @@
 import fs from 'node:fs';
+import path from 'node:path';
 
-const source=fs.readFileSync('supabase/functions/prometeo-change-loop-v1/index.ts','utf8');
+const sourceRoot=process.argv[2]||'.';
+const source=fs.readFileSync(path.join(sourceRoot,'supabase/functions/prometeo-change-loop-v1/index.ts'),'utf8');
 const must=(label,needle)=>{if(!source.includes(needle))throw new Error('PAGE_CHANGE_FRONTIER_DEGRADED_FAIL '+label)};
 
 must('pgrst002','code===\'PGRST002\'');
