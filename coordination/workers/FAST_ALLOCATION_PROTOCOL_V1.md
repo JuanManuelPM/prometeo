@@ -31,7 +31,7 @@ Forbidden before ownership:
 - analysis of another worker's history;
 - self-inventing Planner/Rescate work because concrete queues look empty.
 
-The only pre-PIN exceptions are allocator-supplied capability metadata and a machine-routed explicit contention barrier. Capability fit may use only the candidate's bounded metadata plus capabilities definitively known from the current runtime/tool surface. The barrier's entrant directory/release/timeout reads are bounded timing coordination for that one fixture, not project archaeology and not ownership.
+The only pre-PIN exceptions are allocator-supplied capability metadata and a machine-routed explicit contention barrier. Capability fit may use only the candidate's bounded metadata plus capabilities definitively known from the current runtime/tool surface. If a compact candidate contains `forbidden_worker_ids` and the current worker_id is listed, that candidate is INELIGIBLE: do not attempt its authority CREATE, count no collision, and continue bounded diversification using only the already-loaded frontier. This is an independence/fencing constraint, not priority metadata. The barrier's entrant directory/release/timeout reads are bounded timing coordination for that one fixture, not project archaeology and not ownership.
 
 ### Capability fit before authority
 
