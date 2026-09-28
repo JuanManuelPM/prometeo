@@ -1,4 +1,3 @@
-try{
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,6 +30,7 @@ function post(url,secret,body){return fetchJson(url,{method:'POST',headers:{'con
 function must(v,msg){if(!v)throw new Error('CANARY_FAIL '+msg)}
 function mkdirFor(file){fs.mkdirSync(path.dirname(file),{recursive:true})}
 
+try{
 if(mode==='prepare'){
   const run=process.env.GITHUB_RUN_ID||String(Date.now());
   const secret=b64url(crypto.randomBytes(32));
