@@ -14,7 +14,7 @@
     "visuals/fronts/trail/architecture.md"
   ],
   "review_state": "REVIEW",
-  "current_blob_sha": "df42c3deb5c13b3a2f3b5ce325c85b12fbf126e8",
+  "current_blob_sha": "3cacb066945b31a22a13786ca1cc9a11fd1ec8b5",
   "accepted_baseline": {
     "label": "Full-stamp old-redraw",
     "commit": "26ff0e808fe0cf732af8c45f0eef9f13f99853e7",
@@ -39,8 +39,8 @@
     ]
   },
   "current_candidate": {
-    "commit": "73bdf8c98222de9ee4bb72de1fb1628f02f9a849",
-    "summary": "True backface rendering: a detail-free rear silhouette bank is generated once from sprite alpha. Curved yaw now chooses frontSource/backSource per vertical strip from local surface facing. At yaw=180° the renderer uses only backSource, so frontal eyes/mouth/detail cannot remain visible while the body retreats.",
+    "commit": "ac40faa1c935fb62a4fe47287b9a7ac43328be84",
+    "summary": "Rear surface is now invariant pure black (#000000). Backface generation no longer derives gray from brightness and drawWhole always selects backShadeSprites[0] for any rear-facing surface. Front hierarchy remains unchanged.",
     "user_reviewed": false
   },
   "accepted_asset_direction": [
@@ -59,9 +59,8 @@
     "6 SHIKAMI"
   ],
   "open_feedback": [
-    "Visually verify that once the head/body is on the retreat straight, no eyes/mouth/front facial texture remains visible.",
-    "Review the mixed 90°–135° turn: front texture should disappear progressively strip-by-strip rather than flipping abruptly.",
-    "Review whether the generated dark rear silhouette feels like a believable back rather than a flat black cutout.",
+    "Visually verify the entire rear hemisphere is pure black with no gray values while retreating.",
+    "Review the mixed turn: front color should give way to pure-black rear strips progressively.",
     "Review worm length (~684 px), 18 px spacing and 16% black endpoint.",
     "Some masks still need cleaner segmentation: remove gray base/residue/halo before promotion."
   ],
@@ -129,7 +128,11 @@
     "Curved strips choose frontSource or backSource independently from local surface orientation.",
     "At yaw 180° the fast face-on path draws only backSource.",
     "Cheap old-body renderer also switches completely to backSource in the rear hemisphere.",
-    "Backface assets are generated once at load time and add no external fetch or runtime filtering."
+    "Backface assets are generated once at load time and add no external fetch or runtime filtering.",
+    "Rear silhouette no longer derives any gray value from trail brightness.",
+    "Backface fill is hard-coded to #000000.",
+    "All rear-facing rendering uses backShadeSprites[0] directly; no rear brightness lookup remains.",
+    "Front-side brightness hierarchy is preserved unchanged."
   ],
   "asset_localization_evidence": {
     "workflow_run": "https://github.com/JuanManuelPM/prometeo/actions/runs/36272461620",
@@ -262,17 +265,20 @@
       "baseline_2d": "unchanged historical stamp trail"
     },
     "backface": {
-      "source_generation": "precompute backShadeSprites from original sprite alpha using source-in solid fills",
+      "source_generation": "alpha-derived silhouette filled with pure black using source-in",
       "facial_detail_on_back": false,
-      "curved_rule": "localFacing = cos(yaw + localPhi); front-facing strips use frontSource, back-facing strips use backSource",
-      "full_rear_rule": "if abs(pi-yaw)<0.08, draw backSource only",
-      "cheap_tail_rule": "rear hemisphere uses backSource only",
-      "performance": "generated once per asset load; no extra external asset or per-frame filter"
+      "curved_rule": "localFacing = cos(yaw + localPhi); front-facing strips use frontSource, back-facing strips use pure-black backSource",
+      "full_rear_rule": "yaw≈pi draws pure-black backSource only",
+      "cheap_tail_rule": "rear hemisphere uses pure-black backSource only",
+      "performance": "generated once per asset load; no per-frame filter or rear shade lookup",
+      "color": "#000000",
+      "brightness_variation": false,
+      "source_selection": "all rear-facing geometry uses backShadeSprites[0]"
     }
   },
   "pseudo3d_review": {
     "user_reviewed": true,
-    "result": "TRUE_BACKFACE_NO_FRONT_DETAIL_ON_RETREAT",
-    "note": "User reported that after turning and moving away, the frontal face was still readable. The previous darkened/mirrored-front proxy was rejected. Current patch generates a separate rear silhouette with no facial pixels and selects front/back per curved strip."
+    "result": "PURE_BLACK_BACKFACE",
+    "note": "User accepted the true backface direction but explicitly required the entire rear side to be 100% black, never gray. Current patch removes rear brightness variation entirely."
   }
 }

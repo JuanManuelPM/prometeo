@@ -156,6 +156,19 @@ At `yaw = π`, all visible strips are back-facing and the fast path draws `backS
 This is the durable invariant: **retreating geometry cannot sample frontal texture.**
 
 
+#### Pure-black rear invariant
+
+The rear material is **not shaded**. It is always literal black:
+
+```js
+backCtx.globalCompositeOperation = 'source-in'
+backCtx.fillStyle = '#000000'
+backSource = backShadeSprites[0]
+```
+
+No rear brightness is derived from `trailT`, depth, head/body state, or front brightness. The front can still use its normal brightness hierarchy, but every back-facing strip and every full rear view samples the same pure-black source.
+
+
 ## Dragon / worm body
 
 ORBIT/LOOP no longer treat the body as a historical trail.

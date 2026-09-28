@@ -56,6 +56,13 @@ In-page movement modes:
 For 3D modes, z changes projected scale/position and distant stamps are slightly less opaque. Stamps are drawn far-to-near. There is still only one 2D sprite; no WebGL/mesh is required.
 
 ## LATEST USER FEEDBACK
+- User requires the rear side to be **always 100% black**, never gray.
+- Rear color must not depend on brightness, age, depth, trail position or head/body role.
+- Current candidate hard-codes rear silhouette fill to `#000000`.
+- Rear rendering now always uses `backShadeSprites[0]`; rear shade lookup was removed.
+- Front-side brightness/tail hierarchy remains unchanged.
+
+## PREVIOUS USER FEEDBACK
 - User reports the frontal face is still visible after the object has completed the turn and is moving away.
 - Root cause: the previous rear proxy still reused the frontal texture, only mirrored/darkened/curved.
 - Required invariant: once a surface strip faces away from camera, **frontal texture must not be available to that strip**.

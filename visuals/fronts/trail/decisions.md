@@ -101,6 +101,14 @@ Durable architecture detail:
 - Current lifetime: **860 ms** normal, **1040 ms** reduced motion.
 - Do not achieve length by increasing pool without bound. Tail length must remain compatible with the fixed pool and adaptive quality.
 
+## Backface is always pure black
+- Every rear-facing surface uses **exact `#000000`**.
+- Rear color never depends on trail brightness, depth, age, body segment, or head/body status.
+- Do not compute a rear gray value.
+- Do not select a rear shade index from brightness.
+- Durable source rule: `backSource = backShadeSprites[0]`.
+- Front hierarchy may still vary brightness normally; this rule applies only to the rear side.
+
 ## True backface, no frontal texture on retreat
 - A darkened or mirrored frontal image is **not** a valid rear side.
 - Trail must generate a separate rear silhouette from the sprite alpha; it contains no eyes, mouth or internal frontal detail.
