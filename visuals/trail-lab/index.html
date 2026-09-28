@@ -63,8 +63,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;image-renderi
     <li>Próxima abstracción: <b>compileTrailAsset(image)</b> + <b>TrailEngine(asset, trajectory)</b>.</li>
     <li>La capa pseudo-3D agrega z y proyección; no requiere WebGL ni un efecto distinto por imagen.</li>
     <li>Jerarquía del trail: las copias viejas/traseras se renderizan mucho más oscuras y recuperan claridad progresivamente hasta la figura actual, evitando dos caras protagonistas al cerrar una órbita.</li>
-    <li>Giro 2.5D: ÓRBITA/LOOP usan una pista amplia con semicírculos reales en X/Z. La velocidad sigue constante y el radio de giro es mucho mayor, sin volantazo cerrado.</li>
-    <li>Frente/dorso real: al cargar el asset se genera un dorso desde su alpha, sin ojos/boca/textura frontal y siempre negro puro #000. Cada tira curva decide frente o dorso por su orientación; a 180° no puede dibujarse ninguna tira frontal.</li>
+    <li>Trayectoria compilada: ÓRBITA/LOOP sólo definen posición. Una LUT de 384 muestras deriva yaw continuo desde la tangente; la segunda curva continúa π→2π en vez de girar al revés. Cabeza y gusano consultan el mismo samplePath(distance).</li>
+    <li>Frente/dorso real: un único blackBackSprite se genera desde alpha y queda #000 puro. El renderer conserva el signo del yaw continuo, así cada curva revela la cara por el costado físicamente correcto.</li>
     <li>Volumen: cabeza y cuerpo cercano usan la superficie curva; la cola oscura/chica usa una proyección barata con dorso real y ancho mínimo, reduciendo draw calls.</li>
     <li>Cuerpo gusano: ÓRBITA/LOOP ya no usan una cola con recorrido propio. Cada segmento consulta exactamente la misma trayectoria que la cabeza con un offset de distancia. 26–38 caras forman ~520–680 px de cuerpo; la punta termina negra cerca del 16% de escala.</li>
   </ul>
@@ -136,7 +136,7 @@ const sprite=document.createElement('canvas');
 const spriteCtx=sprite.getContext('2d',{willReadFrequently:true});
 const SHADE_BRIGHTNESS=[0,.12,.24,.38,.52,.68,.82,.92];
 const shadeSprites=SHADE_BRIGHTNESS.map(()=>document.createElement('canvas'));
-const backShadeSprites=SHADE_BRIGHTNESS.map(()=>document.createElement('canvas'));
+const blackBackSprite=document.createElement('canvas');
 let spriteReady=false;
 let assetReady=false;
 let spriteRatio=.75;
@@ -184,68 +184,102 @@ function updateVisualAngle(dt){
   const rate=active.turnRate||4.5;
   visualAngle=lerpAngle(visualAngle,desiredAngle(),1-Math.exp(-rate*dt));
 }
-const hairpinCache=[
-  {w:0,h:0,radiusPx:0,radiusZ:0,lift:0,zNear:-.18,zFar:3.72,depthScale:110,nearCenterZ:0,farCenterZ:0,straightLen:0,turnMetricRadius:0,turnLen:0,cycleLen:0},
-  {w:0,h:0,radiusPx:0,radiusZ:0,lift:0,zNear:-.18,zFar:3.72,depthScale:110,nearCenterZ:0,farCenterZ:0,straightLen:0,turnMetricRadius:0,turnLen:0,cycleLen:0}
-];
-function hairpinMetrics(loopMode=false){
-  const m=hairpinCache[loopMode?1:0];
-  if(m.w===W&&m.h===H&&m.cycleLen>0)return m;
-  m.w=W;m.h=H;
-  m.radiusPx=clamp(Math.min(W*.30,H*.46),130,230);
-  m.depthScale=clamp(Math.min(W,H)*.30,92,140);
-  m.radiusZ=m.radiusPx/m.depthScale;
-  m.lift=loopMode?Math.min(H*.10,m.radiusPx*.34):0;
-  m.nearCenterZ=m.zNear+m.radiusZ;
-  m.farCenterZ=m.zFar-m.radiusZ;
-  const straightWorld=Math.max(.18,m.farCenterZ-m.nearCenterZ);
-  m.straightLen=straightWorld*m.depthScale;
-  const verticalPerRadian=(m.lift*2)/Math.PI;
-  m.turnMetricRadius=Math.hypot(m.radiusPx,verticalPerRadian);
-  m.turnLen=Math.PI*m.turnMetricRadius;
-  m.cycleLen=2*(m.straightLen+m.turnLen);
-  return m;
-}
-function hairpinPose(distance,loopMode=false){
-  const m=hairpinMetrics(loopMode),cx=W*.5,cy=H*.5;
-  let s=((distance%m.cycleLen)+m.cycleLen)%m.cycleLen;
-  let px,py,pz,yaw;
+const TAU=Math.PI*2;
+const PATH_LUT_SAMPLES=384;
+const pathCache=[null,null];
 
+function pathMetrics(loopMode=false){
+  const radiusPx=clamp(Math.min(W*.30,H*.46),130,230);
+  const depthScale=clamp(Math.min(W,H)*.30,92,140);
+  const radiusZ=radiusPx/depthScale;
+  const lift=loopMode?Math.min(H*.10,radiusPx*.34):0;
+  const zNear=-.18,zFar=3.72;
+  const nearCenterZ=zNear+radiusZ;
+  const farCenterZ=zFar-radiusZ;
+  const straightLen=Math.max(.18,farCenterZ-nearCenterZ)*depthScale;
+  const verticalPerRadian=(lift*2)/Math.PI;
+  const turnMetricRadius=Math.hypot(radiusPx,verticalPerRadian);
+  const turnLen=Math.PI*turnMetricRadius;
+  return {radiusPx,depthScale,radiusZ,lift,zNear,zFar,nearCenterZ,farCenterZ,straightLen,turnMetricRadius,turnLen,cycleLen:2*(straightLen+turnLen)};
+}
+function rawPathPosition(distance,m){
+  const cx=W*.5,cy=H*.5;
+  let s=((distance%m.cycleLen)+m.cycleLen)%m.cycleLen;
   if(s<m.straightLen){
     const u=s/m.straightLen;
-    px=cx-m.radiusPx;
-    py=cy-m.lift;
-    pz=lerp(m.farCenterZ,m.nearCenterZ,u);
-    yaw=0;
-  }else if((s-=m.straightLen)<m.turnLen){
-    const a=s/m.turnMetricRadius;
-    px=cx-m.radiusPx*Math.cos(a);
-    py=cy-m.lift+(m.lift*2)*(a/Math.PI);
-    pz=m.nearCenterZ-m.radiusZ*Math.sin(a);
-    yaw=a;
-  }else if((s-=m.turnLen)<m.straightLen){
-    const u=s/m.straightLen;
-    px=cx+m.radiusPx;
-    py=cy+m.lift;
-    pz=lerp(m.nearCenterZ,m.farCenterZ,u);
-    yaw=Math.PI;
-  }else{
-    s-=m.straightLen;
-    const a=s/m.turnMetricRadius;
-    px=cx+m.radiusPx*Math.cos(a);
-    py=cy+m.lift-(m.lift*2)*(a/Math.PI);
-    pz=m.farCenterZ+m.radiusZ*Math.sin(a);
-    yaw=Math.PI-a;
+    return {x:cx-m.radiusPx,y:cy-m.lift,z:lerp(m.farCenterZ,m.nearCenterZ,u)};
   }
-  return {x:px,y:py,z:pz,yaw};
+  s-=m.straightLen;
+  if(s<m.turnLen){
+    const a=s/m.turnMetricRadius;
+    return {
+      x:cx-m.radiusPx*Math.cos(a),
+      y:cy-m.lift+(m.lift*2)*(a/Math.PI),
+      z:m.nearCenterZ-m.radiusZ*Math.sin(a)
+    };
+  }
+  s-=m.turnLen;
+  if(s<m.straightLen){
+    const u=s/m.straightLen;
+    return {x:cx+m.radiusPx,y:cy+m.lift,z:lerp(m.nearCenterZ,m.farCenterZ,u)};
+  }
+  s-=m.straightLen;
+  const a=s/m.turnMetricRadius;
+  return {
+    x:cx+m.radiusPx*Math.cos(a),
+    y:cy+m.lift-(m.lift*2)*(a/Math.PI),
+    z:m.farCenterZ+m.radiusZ*Math.sin(a)
+  };
 }
-function yawAppearance(yawAngle){
-  if(worldMode==='2d')return {rear:false,rearAmount:0,sideAngle:0,alpha:1};
-  const c=Math.cos(yawAngle);
-  const rear=c<0;
-  const rearAmount=clamp(-c,0,1);
-  const sideAngle=Math.acos(clamp(Math.abs(c),0,1));
-  return {rear,rearAmount,sideAngle,alpha:1};
+function compilePath(loopMode=false){
+  const slot=loopMode?1:0;
+  const cached=pathCache[slot];
+  if(cached&&cached.w===W&&cached.h===H)return cached;
+
+  const m=pathMetrics(loopMode);
+  const n=PATH_LUT_SAMPLES;
+  const xs=new Float32Array(n),ys=new Float32Array(n),zs=new Float32Array(n),yaws=new Float32Array(n);
+  for(let i=0;i<n;i++){
+    const p=rawPathPosition(m.cycleLen*i/n,m);
+    xs[i]=p.x;ys[i]=p.y;zs[i]=p.z;
+  }
+
+  let previousYaw=0;
+  for(let i=0;i<n;i++){
+    const prev=(i+n-1)%n,next=(i+1)%n;
+    const dx=xs[next]-xs[prev];
+    const dz=(zs[next]-zs[prev])*m.depthScale;
+    let yaw=Math.atan2(dx,-dz);
+    if(i===0){
+      if(Math.abs(yaw)<1e-4)yaw=0;
+    }else{
+      while(yaw-previousYaw>Math.PI)yaw-=TAU;
+      while(yaw-previousYaw<-Math.PI)yaw+=TAU;
+    }
+    yaws[i]=yaw;
+    previousYaw=yaw;
+  }
+
+  const compiled={w:W,h:H,loopMode,m,count:n,xs,ys,zs,yaws,cycleLen:m.cycleLen};
+  pathCache[slot]=compiled;
+  return compiled;
+}
+function samplePath(distance,loopMode=false){
+  const path=compilePath(loopMode);
+  const cycles=Math.floor(distance/path.cycleLen);
+  const local=distance-cycles*path.cycleLen;
+  const f=local/path.cycleLen*path.count;
+  const i=Math.floor(f)%path.count;
+  const j=(i+1)%path.count;
+  const t=f-Math.floor(f);
+  const yaw0=path.yaws[i];
+  const yaw1=j===0?path.yaws[0]+TAU:path.yaws[j];
+  return {
+    x:lerp(path.xs[i],path.xs[j],t),
+    y:lerp(path.ys[i],path.ys[j],t),
+    z:lerp(path.zs[i],path.zs[j],t),
+    yaw:lerp(yaw0,yaw1,t)+cycles*TAU
+  };
 }
 function spriteSize(){
   let w=clamp(Math.min(W*.27,H*.47),150,320)*(active.size||1);
@@ -271,6 +305,7 @@ function isolateSprite(){
   spriteCtx.clearRect(0,0,sw,sh);
   spriteCtx.imageSmoothingEnabled=true;
   spriteCtx.drawImage(img,0,0,sw,sh);
+
   for(let i=0;i<shadeSprites.length;i++){
     const brightness=SHADE_BRIGHTNESS[i];
     const shade=shadeSprites[i],sc=shade.getContext('2d');
@@ -281,16 +316,16 @@ function isolateSprite(){
     sc.fillStyle='rgba(0,0,0,'+(1-brightness)+')';
     sc.fillRect(0,0,sw,sh);
     sc.globalCompositeOperation='source-over';
-
-    const back=backShadeSprites[i],bc=back.getContext('2d');
-    back.width=sw;back.height=sh;
-    bc.clearRect(0,0,sw,sh);
-    bc.drawImage(sprite,0,0);
-    bc.globalCompositeOperation='source-in';
-    bc.fillStyle='#000000';
-    bc.fillRect(0,0,sw,sh);
-    bc.globalCompositeOperation='source-over';
   }
+
+  blackBackSprite.width=sw;blackBackSprite.height=sh;
+  const bc=blackBackSprite.getContext('2d');
+  bc.clearRect(0,0,sw,sh);
+  bc.drawImage(sprite,0,0);
+  bc.globalCompositeOperation='source-in';
+  bc.fillStyle='#000000';
+  bc.fillRect(0,0,sw,sh);
+  bc.globalCompositeOperation='source-over';
   spriteReady=true;
 }
 function project3D(px,py,pz){
@@ -333,8 +368,8 @@ const SURFACE_CURVE=1.05;
 function curvedSliceCount(){
   return quality===0?7:(quality===1?9:11);
 }
-function yawSurfaceAngle(yawAngle){
-  return Math.acos(clamp(Math.cos(yawAngle),-1,1));
+function yawPhase(yawAngle){
+  return ((yawAngle%TAU)+TAU)%TAU;
 }
 function drawCurvedSurface(frontSource,backSource,w,h,yawAngle){
   if(worldMode==='2d'){
@@ -343,18 +378,18 @@ function drawCurvedSurface(frontSource,backSource,w,h,yawAngle){
     return;
   }
 
-  const yaw=yawSurfaceAngle(yawAngle);
-  if(yaw<.08){
+  const yaw=yawPhase(yawAngle);
+  const sinYaw=Math.sin(yaw),cosYaw=Math.cos(yaw);
+  if(Math.abs(sinYaw)<.08){
     ctx.globalAlpha=1;
-    ctx.drawImage(frontSource,-w*.5,-h*.5,w,h);
-    return;
-  }
-  if(Math.PI-yaw<.08){
-    ctx.globalAlpha=1;
-    ctx.save();
-    ctx.scale(-1,1);
-    ctx.drawImage(backSource,-w*.5,-h*.5,w,h);
-    ctx.restore();
+    if(cosYaw>=0){
+      ctx.drawImage(frontSource,-w*.5,-h*.5,w,h);
+    }else{
+      ctx.save();
+      ctx.scale(-1,1);
+      ctx.drawImage(backSource,-w*.5,-h*.5,w,h);
+      ctx.restore();
+    }
     return;
   }
 
@@ -363,7 +398,6 @@ function drawCurvedSurface(frontSource,backSource,w,h,yawAngle){
   const srcW=frontSource.width,srcH=frontSource.height;
   const baseSlice=srcW/slices;
 
-  // Back-facing strips first, then front-facing strips.
   for(let pass=0;pass<2;pass++){
     for(let i=0;i<slices;i++){
       const u0=-1+2*i/slices;
@@ -375,8 +409,8 @@ function drawCurvedSurface(frontSource,backSource,w,h,yawAngle){
       const isFront=localFacing>=0;
       if((pass===0&&isFront)||(pass===1&&!isFront))continue;
 
-      const x0=radius*(Math.sin(yaw+phi0)-Math.sin(yaw));
-      const x1=radius*(Math.sin(yaw+phi1)-Math.sin(yaw));
+      const x0=radius*(Math.sin(yaw+phi0)-sinYaw);
+      const x1=radius*(Math.sin(yaw+phi1)-sinYaw);
       const dx=Math.min(x0,x1)-.6;
       const dw=Math.max(1.2,Math.abs(x1-x0)+1.2);
       const face=Math.abs(localFacing);
@@ -395,10 +429,11 @@ function drawCurvedSurface(frontSource,backSource,w,h,yawAngle){
   }
 }
 function drawCheapSurface(frontSource,backSource,w,h,yawAngle){
-  const yaw=yawSurfaceAngle(yawAngle);
-  const rear=yaw>Math.PI*.5;
-  const side=Math.sin(yaw);
+  const yaw=yawPhase(yawAngle);
+  const cosYaw=Math.cos(yaw);
+  const side=Math.abs(Math.sin(yaw));
   const widthScale=lerp(1,.30,Math.pow(side,.82));
+  const rear=cosYaw<0;
   const source=rear?backSource:frontSource;
   ctx.save();
   if(rear)ctx.scale(-1,1);
@@ -421,7 +456,7 @@ function drawWhole(px,py,pz,angle,scale=1,trailT=1,isHead=false,yawAngle=0,pathD
   if(spriteReady){
     const frontBrightness=isHead?.92:hierarchy.brightness;
     const frontSource=isHead?sprite:shadeSprites[shadeIndexFor(frontBrightness)];
-    const backSource=backShadeSprites[0];
+    const backSource=blackBackSprite;
     if(isHead||trailT>=CURVED_DETAIL_T)drawCurvedSurface(frontSource,backSource,w,h,yawAngle);
     else drawCheapSurface(frontSource,backSource,w,h,yawAngle);
   }else{
@@ -506,7 +541,7 @@ function update3D(dt){
   }else if(worldMode==='orbit'||worldMode==='loop'){
     travel=PATH_SPEED*dt;
     pathDistance+=travel;
-    const pose=hairpinPose(pathDistance,worldMode==='loop');
+    const pose=samplePath(pathDistance,worldMode==='loop');
     x=pose.x;y=pose.y;z=pose.z;visualYaw=pose.yaw;
   }
   const dx=x-px,dy=y-py,dz=z-pz;
@@ -565,7 +600,7 @@ function forEachDragonSegment(fn){
   for(let i=1;i<=count;i++){
     const seg=dragonBody[i-1];
     const offset=i*DRAGON_SPACING;
-    const pose=hairpinPose(pathDistance-offset,worldMode==='loop');
+    const pose=samplePath(pathDistance-offset,worldMode==='loop');
     seg.x=pose.x;seg.y=pose.y;seg.z=pose.z;seg.yaw=pose.yaw;
     seg.trailT=1-i/count;
     seg.pathD=pathDistance-offset;
