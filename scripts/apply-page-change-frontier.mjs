@@ -30,6 +30,7 @@ function normalizeItem(item, now=Date.now()){
     priority:Number.isFinite(Number(item.priority))?Number(item.priority):96,
     source_path:sourcePath,
     required_capabilities:caps,
+    forbidden_worker_ids:uniq(item.forbidden_worker_ids).slice(0,16),
     context_transport:String(item.context_transport||'SUPABASE_CONNECTED_PROJECT'),
     private_packet_lookup:item.private_packet_lookup&&typeof item.private_packet_lookup==='object'?item.private_packet_lookup:null,
     return_path:item.return_path?String(item.return_path):null,
