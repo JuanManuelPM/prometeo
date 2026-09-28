@@ -25,6 +25,31 @@ jobs:
       - id: chrome
         uses: browser-actions/setup-chrome@v1
 
+      - name: Mirror runtime texture assets locally for fast capture
+        run: |
+          set -euo pipefail
+          mkdir -p visuals/spaces-lab/.review-assets
+          curl -L --fail --retry 3 --connect-timeout 10 -o visuals/spaces-lab/.review-assets/wall.jpg "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Dark_green_grey_flecked_speckled_spotted_clean_marble_cemented_building_wall_square_checkered_tile_texture.jpg/1024px-Dark_green_grey_flecked_speckled_spotted_clean_marble_cemented_building_wall_square_checkered_tile_texture.jpg"
+          curl -L --fail --retry 3 --connect-timeout 10 -o visuals/spaces-lab/.review-assets/floor.jpg "https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/Green_mosaic_square_seamless_tiled_floor_texture.jpg/1280px-Green_mosaic_square_seamless_tiled_floor_texture.jpg"
+          curl -L --fail --retry 3 --connect-timeout 10 -o visuals/spaces-lab/.review-assets/ceiling.jpg "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Ceiling_Pattern%2C_Tomb_of_Qenamun_MET_DT10887.jpg/960px-Ceiling_Pattern%2C_Tomb_of_Qenamun_MET_DT10887.jpg"
+          curl -L --fail --retry 3 --connect-timeout 10 -o visuals/spaces-lab/.review-assets/stone.jpg "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Stone_Wall_Texture.jpg/1280px-Stone_Wall_Texture.jpg"
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('visuals/spaces-lab/index.html')
+          s=p.read_text()
+          repl={
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Dark_green_grey_flecked_speckled_spotted_clean_marble_cemented_building_wall_square_checkered_tile_texture.jpg/1024px-Dark_green_grey_flecked_speckled_spotted_clean_marble_cemented_building_wall_square_checkered_tile_texture.jpg":"./.review-assets/wall.jpg",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/Green_mosaic_square_seamless_tiled_floor_texture.jpg/1280px-Green_mosaic_square_seamless_tiled_floor_texture.jpg":"./.review-assets/floor.jpg",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Ceiling_Pattern%2C_Tomb_of_Qenamun_MET_DT10887.jpg/960px-Ceiling_Pattern%2C_Tomb_of_Qenamun_MET_DT10887.jpg":"./.review-assets/ceiling.jpg",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Stone_Wall_Texture.jpg/1280px-Stone_Wall_Texture.jpg":"./.review-assets/stone.jpg",
+          }
+          for a,b in repl.items():
+              if a not in s:
+                  raise SystemExit(f'missing runtime asset URL: {a}')
+              s=s.replace(a,b)
+          p.write_text(s)
+          PY
+
       - name: Serve exact checkout
         run: |
           set -euo pipefail
@@ -81,10 +106,10 @@ jobs:
                   chrome,'--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
                   '--hide-scrollbars',f"--window-size={item['w']},{item['h']}",
                   '--force-device-scale-factor=1','--run-all-compositor-stages-before-draw',
-                  '--virtual-time-budget=6500',f'--screenshot={dest}',url
+                  '--virtual-time-budget=2400',f'--screenshot={dest}',url
               ]
               print('CAPTURE',item['id'],url)
-              subprocess.run(cmd,check=True,timeout=45)
+              subprocess.run(cmd,check=True,timeout=22)
               data=dest.read_bytes()
               if not data.startswith(b'\x89PNG') or len(data)<10000:
                   raise SystemExit(f'Invalid screenshot {dest} ({len(data)} bytes)')
@@ -113,7 +138,7 @@ jobs:
               'source_sha':source_sha,
               'source_commit_url':f'https://github.com/{repo}/commit/{source_sha}',
               'review_url':'https://juanmanuelpm.github.io/prometeo/visuals/review/spaces/',
-              'capture_mode':'exact-checkout + deterministic query',
+              'capture_mode':'exact source + deterministic query + local mirror of the same runtime texture URLs',
               'screenshots':shots,
               'accepted_reference':None,
               'review_required':True,
