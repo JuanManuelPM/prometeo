@@ -75,7 +75,7 @@ After packet retrieval, follow the packet's embedded `execution.protocol_url` an
 
 The intended lifecycle remains:
 
-`FETCH → VALIDATE → REINCARNATE → RESYNC → RESOLVE_OWNER → RECOVER_THREAD → PLAN → EXECUTE → TEST → PERSIST → RETURN → RECEIPT → UPDATE_THREAD`
+`FETCH → VALIDATE → REINCARNATE → RESYNC → CLAIM/WRITER_STATUS → RESOLVE_OWNER → RECOVER_THREAD → PLAN → PREWRITE → EXECUTE → TEST → PERSIST → RETURN → RECEIPT → UPDATE_THREAD → RELEASE`
 
 Important rules:
 
@@ -87,6 +87,9 @@ Important rules:
 6. Never invent visual/browser/test evidence.
 7. If concurrent HEAD movement materially changes the owned target, stop or re-plan rather than blindly layering the old plan.
 8. Use bounded decomposition only when the owned task genuinely benefits; do not manufacture workers or subtasks for metrics.
+9. The ordinary opportunity claim grants execution authority, but material work must still expose/refresh the narrow active writer status required by the Global Agent Constitution when practical; this is what lets overlapping live write scopes become visible.
+10. Immediately before material mutation, run the CURRENT PREWRITE law: refresh EPOCH/compiled packet as needed, re-fetch the target, reconcile active overlapping writers, and use CAS/blob-SHA/head-aware writes.
+11. After RETURN or a real boundary, release active writer status so completed Page Change work does not become a phantom HARD_WRITE_COLLISION.
 
 ## RETURN
 
