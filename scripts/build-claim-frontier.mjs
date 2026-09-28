@@ -11,7 +11,7 @@ const DEFAULT_ZERO_CAPABILITY_CAPACITY = 8;
 // Human-facing labels, priority/state and duplicated identity already live in allocator/job files.
 const KEEP = [
   'job_id','opportunity_id','role_id','guide_work_id','work_item_id','page_id','source_path','project_id','scope_project_id','kind','role','trigger','value_class',
-  'required_capabilities','capability_confirmation_required','context_transport','private_packet_lookup','return_path','expires_at','claim_mode','claim_path','claim_payload_shape',
+  'required_capabilities','capability_confirmation_required','forbidden_worker_ids','context_transport','private_packet_lookup','return_path','expires_at','claim_mode','claim_path','claim_payload_shape',
   'post_claim_validate','contention_barrier','post_release_claim','next_action',
   'release_path','release_payload_shape','timeout_payload_shape',
   'deadline_at','entrant_dir'
