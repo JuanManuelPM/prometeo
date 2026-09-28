@@ -975,14 +975,21 @@ function renderMap5(){
   }
   columns.sort((a,b)=>b.z-a.z);
 
+  const columnGap=.65;
   for(const p of columns){
     if(p.z-camZ<NEAR-3)continue;
     const radius=2.15;
-    const x=p.side*(roadHalf+radius*.72);
+
+    // Geometric invariant: the bridge must NEVER continue underneath a column.
+    // road edge = roadHalf. column inner edge = |x|-radius.
+    // Therefore |x|-radius = roadHalf+columnGap, leaving a real empty gap.
+    const x=p.side*(roadHalf+radius+columnGap);
+    const innerColumnEdge=Math.abs(x)-radius;
     const bottomY=-38.0;
     const topY=42.0+((p.ri&3)===0?8.0:0);
 
-    // Sign first, shaft second: the shaft is the physical mask.
+    // Nothing horizontal is rendered between roadHalf and innerColumnEdge.
+    // The visible .65 world-unit interval is pure abyss.
     renderRitualSign(x,p.z,p.side,ritualSignOpen(p.ri,p.side));
     renderAbyssColumn(x,p.z,radius,bottomY,topY);
   }
@@ -1173,15 +1180,15 @@ addEventListener('selectstart',e=>e.preventDefault());
 addEventListener('dragstart',e=>e.preventDefault());
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v25',
+  version:'spaces-maps-v26',
   maps:[
     '1 green arch nave',
     '2 brutalist cylinder hall',
     '3 straight paired-column road',
     '4 world-anchored barrel tunnel with moving ribs',
-    '5 elevated ritual bridge between bottomless violet columns and giant hidden-hinge screens'
+    '5 elevated ritual bridge with a real abyss gap before bottomless violet columns'
   ],
-  contract:'fixed frontal view; touch swipe + WASD + wheel; Map 5 is an elevated central bridge/path with finite edges and no lateral floor. Violet columns sit immediately outside the bridge, extend from Y=-38 to roughly Y=42/50, are absolutely black at the deep base and progressively lighter upward. The path is visibly above those bases. Giant screens remain hidden behind columns and the strict two-visible-sign cap remains',
+  contract:'fixed frontal view; touch swipe + WASD + wheel; Map 5 is an elevated central bridge/path with finite edges and no lateral floor. A real .65 world-unit abyss gap now separates each road edge from the nearest column surface, so the bridge cannot pass underneath any column. Violet columns extend from Y=-38 to roughly Y=42/50, are absolutely black at the deep base and progressively lighter upward. Giant screens remain hidden behind columns and the strict two-visible-sign cap remains',
   sourcePages:SOURCE_PAGES,
   camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
