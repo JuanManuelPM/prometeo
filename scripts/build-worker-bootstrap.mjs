@@ -137,6 +137,10 @@ lines.push(
 
 const text = lines.join('\n');
 const html = '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Prometeo Worker</title><style>html{background:#050506;color:#eee;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}body{max-width:900px;margin:auto;padding:28px 18px}pre{white-space:pre-wrap;line-height:1.5;font-size:14px}</style></head><body><pre>' + text + '</pre></body></html>\n';
-fs.mkdirSync(path.dirname(out), { recursive: true });
+const outDir=path.dirname(out);
+if (fs.existsSync(outDir) && !fs.statSync(outDir).isDirectory()) {
+  fs.rmSync(outDir);
+}
+fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(out, html);
 console.log(JSON.stringify({ ok: true, mode: production ? 'production' : 'canary', version, invocation, out }));
