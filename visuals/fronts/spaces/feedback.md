@@ -2,60 +2,46 @@
 
 Status: CURRENT
 
-## v23 · MAP 5 ABYSS COLUMNS + HIDDEN GIANT SCREENS
+## v24 · MONUMENTAL AVENUE + INFINITE FLANKING COLUMNS
 
-Latest user direction:
-- replace the violet pointed triangles/spires;
-- use monumental violet columns like the other violet-column language in Spaces;
-- columns should come up from below, as if the avenue crossed a precipice;
-- lower parts must be darker and upper parts lighter;
-- the sign must be hidden behind the column while appearing/disappearing;
-- make the sign larger again;
-- never show more than two signs at once.
+Latest correction:
+- v23 read too much like a thin bridge over a void;
+- Map 5 must instead be a clear road/avenue where the camera travels;
+- columns should project from the sides, come from extreme depth below, and continue dramatically upward like the stronger violet-column language from the other scene.
 
-## MAP 5 STRUCTURE
+## MAP 5 · v24
 
-### Precipice
-- v22 lateral floor is removed from Map 5.
-- The central striped avenue remains as a bridge-like surface.
-- The lower half of the scene falls to near-black/purple so the columns can emerge from a void.
-- Thin longitudinal bridge edges reinforce the drop without reintroducing horizontal floor seams.
+### Avenue
+- Broad continuous camera path, not a skinny bridge.
+- Current avenue half-width: 7.6.
+- Straight longitudinal stripes are preserved.
+- Dark shoulders extend outside the main striped road before the scene falls into depth.
+- No transverse floor seams.
 
 ### Columns
-- Pointed obelisks are no longer rendered in Map 5.
-- New renderer: `renderAbyssColumn()`.
-- Columns are cylindrical / faceted, not pointed.
-- Current radius: 1.72.
-- Current bottom Y: -16.5.
-- Current top Y: ~7.4, with occasional slightly taller columns.
-- Vertical brightness factor runs from near-black at the bottom to readable violet at the top.
-- Camera-distance light and cylinder curvature still modulate the result.
-- Alternating one-by-one placement remains: left, right, left, right.
+- Alternating one-by-one left/right rhythm remains.
+- Column center X: about ±9.75, close enough to define the avenue.
+- Radius: 1.95.
+- Bottom Y: -30.
+- Top Y: 34, with some columns reaching 41.
+- Many column tops intentionally leave the frame.
+- Bottom brightness is almost black.
+- Upper shaft becomes progressively lighter violet.
+- Vertical height gradient dominates the visual read, with horizontal camera proximity + cylindrical face curvature as secondary modulation.
 
-### Giant signs
-- Pole length increased to 8.55.
-- Cardboard outer local half-size increased to 3.58 x 2.18.
-- The hinge sits inside the column silhouette rather than outside it.
-- Sign geometry is rendered first and the column afterward, so the column masks stored/retracting parts.
-- No sign geometry is rendered at all while `open <= .24`, so the beginning/end of the animation happens invisibly behind the column.
-- Deployment now starts farther ahead (<28 Z units) and raises again at <=9 Z units.
-
-### Hard maximum of two visible signs
-- Added `ritualVisibleSlots`.
-- At most two sign keys can occupy visible slots.
-- The nearest eligible signs get the slots.
-- A retracting sign keeps its slot until it is visually tucked behind the column.
-- A replacement sign cannot open until a slot is actually freed.
-- This prevents three overlapping giant screens during transitions.
+### Signs
+- Hidden-hinge mechanic remains.
+- Hinge moved closer to column center so stored geometry is better masked.
+- Sign renders before column.
+- Hard maximum of two visible/opening signs remains.
 
 ## PRESERVE
-- Map 5 straight longitudinal road stripes.
-- v20 finger-scrollable map selector.
-- Map 4 world-anchored tunnel flow.
 - Map 1 continuous floor.
-- fixed frontal movement and existing controls.
+- Map 4 world-anchored tunnel motion.
+- mobile horizontal scene selector.
+- fixed frontal camera and current controls.
 
-## SELF-CRITIQUE / REVIEW RISKS
-- The abyss is intentionally much darker than v22; verify the bridge still reads clearly on small screens.
-- The columns are tall and wide enough to hide the sign mechanism, but final visual review should confirm they do not crowd the road.
-- The two-slot scheduler is verified in code, but visual timing still needs user review for whether the second sign appears at the right moment.
+## REVIEW RISKS
+- verify the shoulders make the avenue feel broad instead of platform-like;
+- verify very tall shafts do not overpower the temple entirely;
+- verify the vertical gradient is obvious on mobile.
