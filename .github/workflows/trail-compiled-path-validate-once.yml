@@ -1,0 +1,130 @@
+name: trail-compiled-path-validate-once
+
+on:
+  push:
+    paths:
+      - ".github/workflows/trail-compiled-path-validate-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compiled path and continuous yaw
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import math,re
+
+          s=Path("visuals/trail-lab/index.html").read_text()
+          m=re.search(r"<script>([\s\S]*?)</script>",s)
+          assert m, "inline script missing"
+          script=m.group(1)
+          Path("/tmp/trail.js").write_text(script)
+
+          required=[
+            "const PATH_LUT_SAMPLES=384",
+            "function rawPathPosition",
+            "function compilePath",
+            "let yaw=Math.atan2(dx,-dz)",
+            "while(yaw-previousYaw<-Math.PI)yaw+=TAU",
+            "function samplePath",
+            "yaw:lerp(yaw0,yaw1,t)+cycles*TAU",
+            "function yawPhase",
+            "const localFacing=Math.cos(yaw+mid)",
+            "samplePath(pathDistance,worldMode==='loop')",
+            "samplePath(pathDistance-offset,worldMode==='loop')",
+            "const blackBackSprite=document.createElement('canvas')",
+            "const backSource=blackBackSprite"
+          ]
+          for token in required:
+              assert token in script, f"missing {token}"
+
+          forbidden=[
+            "hairpinPose(",
+            "yawSurfaceAngle(",
+            "Math.acos(clamp(Math.cos(yawAngle)",
+            "backShadeSprites",
+            "yaw=Math.PI-a",
+            "yaw=a;"
+          ]
+          for token in forbidden:
+              assert token not in script, f"superseded orientation path remains: {token}"
+
+          # Reproduce current path geometry and tangent-unwrapping numerically.
+          W,H=900.0,600.0
+          radius=max(130,min(230,min(W*.30,H*.46)))
+          depth=max(92,min(140,min(W,H)*.30))
+          rz=radius/depth
+          lift=0.0
+          zn,zf=-.18,3.72
+          nc,fc=zn+rz,zf-rz
+          straight=max(.18,fc-nc)*depth
+          turn_r=radius
+          turn=math.pi*turn_r
+          cycle=2*(straight+turn)
+
+          def pos(d):
+              s=d%cycle
+              cx,cy=W*.5,H*.5
+              if s<straight:
+                  u=s/straight
+                  return cx-radius,cy,nc+(fc-nc)*(1-u) # far -> near
+              s-=straight
+              if s<turn:
+                  a=s/turn_r
+                  return cx-radius*math.cos(a),cy,nc-rz*math.sin(a)
+              s-=turn
+              if s<straight:
+                  u=s/straight
+                  return cx+radius,cy,nc+(fc-nc)*u
+              s-=straight
+              a=s/turn_r
+              return cx+radius*math.cos(a),cy,fc+rz*math.sin(a)
+
+          n=384
+          pts=[pos(cycle*i/n) for i in range(n)]
+          yaws=[]
+          prevyaw=0.0
+          for i in range(n):
+              p=pts[(i-1)%n]; q=pts[(i+1)%n]
+              dx=q[0]-p[0]
+              dz=(q[2]-p[2])*depth
+              yaw=math.atan2(dx,-dz)
+              if i:
+                  while yaw-prevyaw>math.pi: yaw-=2*math.pi
+                  while yaw-prevyaw<-math.pi: yaw+=2*math.pi
+              elif abs(yaw)<1e-4:
+                  yaw=0.0
+              yaws.append(yaw); prevyaw=yaw
+
+          # Monotonic turn sense: no far-turn reversal back toward zero.
+          # Allow tiny discretization noise on straight joins.
+          drops=[yaws[i+1]-yaws[i] for i in range(n-1)]
+          assert min(drops) > -0.08, min(drops)
+          assert yaws[n//2] > math.pi-0.25, yaws[n//2]
+          assert yaws[-1] > 2*math.pi-0.25, yaws[-1]
+
+          state=Path("visuals/fronts/trail/state.json").read_text()
+          assert '"current_blob_sha": "94f1de07c3a023fa0f8fc69ff54720009d8129e7"' in state
+          assert '"samples": 384' in state
+          assert "far turn continues" in state
+
+          decisions=Path("visuals/fronts/trail/decisions.md").read_text()
+          assert "## Orientation comes from path tangent" in decisions
+          assert "π → 0 is rejected" in decisions
+
+          arch=Path("visuals/fronts/trail/architecture.md").read_text()
+          assert "## Compiled path + tangent-derived pose" in arch
+          assert "0..180" in arch and "180..360" in arch
+
+          print("compiled path + continuous yaw invariants OK")
+          PY
+          node --check /tmp/trail.js
+          echo "node syntax OK"
