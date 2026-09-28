@@ -2,26 +2,27 @@
 
 Status: CURRENT
 
-## Map 5 · v24
-- Do not describe/read the scene as a thin bridge.
-- The camera travels on a broad central ritual avenue.
-- Preserve straight longitudinal world-space stripes.
-- Add dark shoulders outside the striped road so the path has visual width before the side depth begins.
-- Current avenue half-width: 7.6.
-- Columns flank the avenue close to the side shoulders at about X=±9.75.
-- Keep one-column-per-depth-row alternation: left, right, left, right.
-- Current column radius: 1.95.
-- Current bottom Y: -30.
-- Current top Y: 34, with periodic columns at 41.
-- Column bottom should visually disappear into near-black depth.
-- Column upper shaft should become progressively lighter violet.
-- Tops are allowed and expected to leave the viewport.
-- Giant screens remain attached/hidden behind columns.
-- Sign renders before column so column masks storage/transition.
-- Hard maximum of two visible/opening screens remains.
+## Map 5 · v25
+- The camera travels on one elevated central bridge/path.
+- Current road Y: -1.12.
+- Current road half-width: 6.15.
+- No lateral horizontal floor beyond the road edges.
+- Visible vertical road edge faces drop to Y=-4.8 to make elevation legible.
+- Columns sit immediately outside the road edges.
+- Current column radius: 2.15.
+- Current column bottom Y: -38.
+- Current column top Y: 42, periodic 50.
+- Lowest 18% of each column is forced to pure black.
+- Above that, violet brightness increases monotonically with height.
+- Camera light must never brighten the forced-black base.
+- Tops are expected to leave the frame.
+- Keep alternating left/right depth rhythm.
+- Keep straight longitudinal road stripes.
+- Signs remain hidden behind columns.
+- Hard maximum of two visible/opening signs remains.
 
 ## Preserve
 - Map 1 continuous floor.
 - Map 4 world-anchored tunnel optical flow.
-- v20 finger-scroll map selector.
+- v20 horizontal finger-scroll selector.
 - fixed frontal camera and movement controls.
