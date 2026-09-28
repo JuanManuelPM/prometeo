@@ -1,0 +1,210 @@
+name: Spaces Visual Review
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'visuals/spaces-lab/**'
+      - '.github/workflows/spaces-visual-review.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: spaces-visual-review
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - id: chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Serve exact checkout
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --directory . >/tmp/spaces-review-http.log 2>&1 &
+          echo $! >/tmp/spaces-review-http.pid
+          for i in {1..30}; do
+            if curl -fsS "http://127.0.0.1:4173/visuals/spaces-lab/" >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/spaces-review-http.log
+          exit 1
+
+      - name: Capture deterministic review frames
+        env:
+          CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          SOURCE_SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          rm -rf visuals/review/spaces/latest
+          mkdir -p visuals/review/spaces/latest
+          python3 - <<'PY'
+          import json, os, pathlib, re, subprocess, urllib.parse, datetime
+
+          chrome=os.environ['CHROME']
+          source_sha=os.environ['SOURCE_SHA']
+          repo=os.environ['REPO']
+          root='http://127.0.0.1:4173/visuals/spaces-lab/'
+          out=pathlib.Path('visuals/review/spaces/latest')
+
+          targets=[
+            dict(id='arcos-desktop',label='ARCOS · desktop',map=1,z=22,x=0,t=5000,w=1365,h=768),
+            dict(id='calzada-desktop',label='CALZADA · desktop',map=3,z=24,x=0,t=5000,w=1365,h=768),
+            dict(id='tunel-desktop',label='TÚNEL · desktop',map=4,z=24,x=0,t=5000,w=1365,h=768),
+            dict(id='torres-entry-desktop',label='TORRES · entrada',map=5,z=8,x=0,t=7000,w=1365,h=768),
+            dict(id='torres-mid-desktop',label='TORRES · medio',map=5,z=34,x=0,t=7000,w=1365,h=768),
+            dict(id='torres-near-desktop',label='TORRES · cercano',map=5,z=58,x=0,t=7000,w=1365,h=768),
+            dict(id='arcos-mobile',label='ARCOS · mobile',map=1,z=22,x=0,t=5000,w=390,h=844),
+            dict(id='calzada-mobile',label='CALZADA · mobile',map=3,z=24,x=0,t=5000,w=390,h=844),
+            dict(id='tunel-mobile',label='TÚNEL · mobile',map=4,z=24,x=0,t=5000,w=390,h=844),
+            dict(id='torres-mobile',label='TORRES · mobile',map=5,z=34,x=0,t=7000,w=390,h=844),
+          ]
+
+          shots=[]
+          for item in targets:
+              query=urllib.parse.urlencode({
+                  'review':'1','map':item['map'],'z':item['z'],'x':item['x'],'t':item['t']
+              })
+              url=root+'?'+query
+              dest=out/(item['id']+'.png')
+              cmd=[
+                  chrome,'--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
+                  '--hide-scrollbars',f"--window-size={item['w']},{item['h']}",
+                  '--force-device-scale-factor=1','--run-all-compositor-stages-before-draw',
+                  '--virtual-time-budget=6500',f'--screenshot={dest}',url
+              ]
+              print('CAPTURE',item['id'],url)
+              subprocess.run(cmd,check=True,timeout=45)
+              data=dest.read_bytes()
+              if not data.startswith(b'\x89PNG') or len(data)<10000:
+                  raise SystemExit(f'Invalid screenshot {dest} ({len(data)} bytes)')
+              shots.append({
+                  'id':item['id'],
+                  'label':item['label'],
+                  'map':item['map'],
+                  'z':item['z'],
+                  'x':item['x'],
+                  't':item['t'],
+                  'viewport':{'width':item['w'],'height':item['h']},
+                  'url':'./latest/'+dest.name,
+                  'public_url':'https://juanmanuelpm.github.io/prometeo/visuals/review/spaces/latest/'+dest.name
+              })
+
+          html=pathlib.Path('visuals/spaces-lab/index.html').read_text()
+          m=re.search(r"version:'([^']+)'",html)
+          version=m.group(1) if m else 'unknown'
+          now=datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
+
+          manifest={
+              'schema':'prometeo.visual-review.spaces/v1',
+              'status':'CAPTURED',
+              'version':version,
+              'generated_at':now,
+              'source_sha':source_sha,
+              'source_commit_url':f'https://github.com/{repo}/commit/{source_sha}',
+              'review_url':'https://juanmanuelpm.github.io/prometeo/visuals/review/spaces/',
+              'capture_mode':'exact-checkout + deterministic query',
+              'screenshots':shots,
+              'accepted_reference':None,
+              'review_required':True,
+              'review_rule':'Inspect generated screenshots for composition, scale, clipping, contrast, depth and integration before calling a visual iteration complete.'
+          }
+          pathlib.Path('visuals/review/spaces/latest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+
+          pointer={
+              'schema':'PROMETEO_VISUAL_CURRENT_REVIEW_V1',
+              'front_id':'spaces',
+              'status':'CAPTURED',
+              'version':version,
+              'source_sha':source_sha,
+              'generated_at':now,
+              'review_url':manifest['review_url'],
+              'manifest_url':'https://juanmanuelpm.github.io/prometeo/visuals/review/spaces/latest.json',
+              'screenshot_base_url':'https://juanmanuelpm.github.io/prometeo/visuals/review/spaces/latest/',
+              'screenshots':shots,
+              'accepted_reference':None,
+              'capture_contract':{
+                  'deterministic_query':'?review=1&map=<1|3|4|5>&x=<number>&z=<number>&t=<ms>',
+                  'ui_hidden':True,
+                  'fixed_animation_time':True,
+                  'exact_checkout':True,
+                  'desktop_and_mobile':True,
+                  'torres_extra_depth_samples':True
+              },
+              'review_rule':manifest['review_rule']
+          }
+          pathlib.Path('visuals/fronts/spaces/current-review.json').write_text(json.dumps(pointer,indent=2)+'\n')
+          PY
+          ls -lh visuals/review/spaces/latest
+
+      - name: Upload exact screenshot evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: spaces-visual-review-${{ github.sha }}
+          path: |
+            visuals/review/spaces/latest/
+            visuals/review/spaces/latest.json
+            visuals/fronts/spaces/current-review.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish review evidence to main
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add visuals/review/spaces/latest visuals/review/spaces/latest.json visuals/fronts/spaces/current-review.json
+          if git diff --cached --quiet; then
+            echo "Review evidence unchanged."
+          else
+            git commit -m "visuals: refresh Spaces visual review evidence"
+            for n in 1 2 3 4; do
+              if git pull --rebase origin main && git push origin HEAD:main; then
+                break
+              fi
+              if [ "$n" = 4 ]; then exit 1; fi
+              sleep 2
+            done
+          fi
+
+      - name: Sync review evidence to gh-pages
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/spaces-review-copy
+          mkdir -p /tmp/spaces-review-copy/review /tmp/spaces-review-copy/front
+          cp -a visuals/review/spaces /tmp/spaces-review-copy/review/
+          cp visuals/fronts/spaces/current-review.json /tmp/spaces-review-copy/front/current-review.json
+
+          git fetch origin gh-pages
+          git checkout -B gh-pages origin/gh-pages
+          mkdir -p visuals/review visuals/fronts/spaces
+          rm -rf visuals/review/spaces
+          cp -a /tmp/spaces-review-copy/review/spaces visuals/review/
+          cp /tmp/spaces-review-copy/front/current-review.json visuals/fronts/spaces/current-review.json
+
+          git add visuals/review/spaces visuals/fronts/spaces/current-review.json
+          if git diff --cached --quiet; then
+            echo "gh-pages review evidence unchanged."
+            exit 0
+          fi
+          git commit -m "visuals: publish Spaces visual review evidence"
+          for n in 1 2 3 4; do
+            if git push origin HEAD:gh-pages; then exit 0; fi
+            git fetch origin gh-pages
+            git rebase origin/gh-pages
+            sleep 2
+          done
+          exit 1
