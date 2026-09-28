@@ -102,7 +102,21 @@ async function workerFrontier(req:Request){
     .gt('expires_at',now)
     .order('created_at',{ascending:true})
     .limit(80);
-  if(q.error)throw q.error;
+  if(q.error){
+    const code=String((q.error as any)?.code||'');
+    const message=String((q.error as any)?.message||'');
+    if(code==='PGRST002'||/schema cache|Could not query the database/i.test(message)){
+      return json(req,{
+        schema:'prometeo.page-change-worker-frontier/v1',
+        generated_at:now,
+        truth_boundary:'CONTROL_PLANE_UNAVAILABLE_NO_PAGE_CHANGE_WORK_ADDED',
+        degraded:true,
+        reason:'POSTGREST_SCHEMA_CACHE_UNAVAILABLE',
+        items:[]
+      });
+    }
+    throw q.error;
+  }
   const rows=(q.data||[]).filter((p:any)=>String(p?.snapshot?.authorization?.delivery_mode||'MANUAL_CHAT').toUpperCase()==='WORKER_POOL');
   const items=[];
   for(const p of rows){
