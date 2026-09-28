@@ -2,45 +2,41 @@
 
 Status: CURRENT
 
-## v26 · REAL GAP BETWEEN BRIDGE AND COLUMNS
+## v27 · LOW CAMERA + BRIDGE OCCLUSION
 
-The v25 bug was geometric, not aesthetic.
+User screenshot showed that v26 still failed visually even though the road/column X ranges no longer overlapped.
 
-v25 used:
-- roadHalf = 6.15
-- radius = 2.15
-- column center = roadHalf + radius*0.72 = 7.698
-- inner column surface = 7.698 - 2.15 = 5.548
+Observed failure:
+- the violet path still read as continuing below/between the columns;
+- columns painted on top of the road because the canvas renderer drew them after the bridge;
+- the camera felt too high;
+- the bridge lacked enough foreground mass to hide the lower shaft portions.
 
-Therefore the column physically overlapped the bridge, which ended at X=6.15. This is why the bridge could still be seen passing under the columns.
+## v27 FIX
 
-## v26 FIX
+### Low camera
+- Camera eye remains world Y=0.
+- Map 5 road moved to Y=-0.38.
+- This reduces eye height above the deck to 0.38 world units.
+- Sign hinge uses the same road Y.
 
-New rule:
-- road edge = roadHalf
-- column center = roadHalf + radius + columnGap
-- columnGap = 0.65
-- current column center = 8.95
-- current inner column surface = 6.80
-- road edge = 6.15
-- real empty gap = 0.65
+### Bridge as foreground occluder
+- New helper: `renderRitualBridge()`.
+- Bridge has visible vertical side body down to Y=-5.6.
+- The bridge is now rendered AFTER signs and columns.
+- Because this engine is a painter-style canvas renderer with no depth buffer, render order is the actual occlusion rule.
+- Drawing bridge last causes its near deck/body to mask lower projected column pixels.
 
-No horizontal world geometry is rendered between X=6.15 and X=6.80 on either side.
+### Columns
+- Keep bottom Y=-38.
+- Keep top Y=42/50.
+- Keep pure-black deepest section and violet emergence upward.
+- Keep real 0.65 world-unit abyss gap from road edge to nearest column surface.
 
-That interval is pure abyss.
-
-## PRESERVE
-- elevated central bridge;
-- no lateral floor;
-- column bottom Y=-38;
-- column top Y=42/50;
-- deepest lower section forced to pure black;
-- violet emerges upward;
-- signs hidden behind columns;
-- maximum two visible/opening signs;
-- straight longitudinal road lines;
-- Map 1 and Map 4 fixes;
-- mobile map selector.
+### Signs
+- Sign still renders before its column so the column hides the hinge/storage.
+- Bridge then renders after both.
+- Max two visible/opening signs remains.
 
 ## REVIEW RISK
-The only thing to judge now is whether the 0.65 gap is visually large enough. It is structurally real and no longer an overlap.
+The requested effect depends on projected occlusion, so visual browser/user screenshot review remains necessary. Code now enforces the correct painter order and low eye height.
