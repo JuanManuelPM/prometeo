@@ -2,30 +2,53 @@
 
 Status: CURRENT
 
-## v29 · ULTRA-NARROW SUSPENDED BRIDGE
+## v30 · RAZOR BRIDGE + BRUTALIST INFINITE TOWERS
 
-Latest user direction:
-- v28 still looked too wide;
-- reduce the bridge almost by half again;
-- preserve the low-camera suspended-bridge composition and all column/occlusion rules.
+Latest direction:
+- bridge even narrower;
+- towers a little farther from the bridge;
+- towers substantially larger and more brutalist;
+- background should stop flooding the scene with orange light;
+- scene should feel like an enormous sci-fi megastructure corridor: thin bridge, huge towers sliding past at the sides, bases lost below, tops lost above, distant architecture suggesting infinity.
 
-## v29 CHANGES
-- RITUAL_ROAD_HALF: 3.4 → 1.45.
-- full bridge width: 6.8 → 2.9 world units.
-- Map 5 lateral movement limit: 3.05 → 1.15.
-- column radius remains 2.15.
-- RITUAL_COLUMN_GAP remains 0.65.
-- column centers move consistently with the road edge to ±4.25.
-- nearest column surface is now at ±2.10.
-- road edge is ±1.45.
-- real abyss gap remains exactly 0.65.
+## v30 GEOMETRY
+- RITUAL_ROAD_HALF: 1.45 → 0.95.
+- full bridge width: 2.9 → 1.9 world units.
+- Map 5 lateral limit: 1.15 → 0.68.
+- RITUAL_COLUMN_GAP: 0.65 → 1.20.
+- column radius: 2.15 → 3.20.
+- column center: ±5.35.
+- nearest column surface: ±2.15.
+- bridge edge: ±0.95.
+- real abyss gap: 1.20.
+- column bottom: -48.
+- normal top: 48.
+- periodic tall top: 58.
 
-## PRESERVED
-- roadY = -0.38, camera almost on deck;
-- bridge body down to Y=-5.6;
-- painter order: signs → columns → bridge;
-- bridge renders last and masks lower projected column portions;
+## BACKGROUND / SCALE
+- removed bright orange sky from Map 5;
+- near-black blue/violet industrial void;
+- only a weak, localized horizon glow remains;
+- destination temple recolored to a subdued dark silhouette;
+- added `renderDistantRitualCity()`: low-cost world-space megatower silhouettes behind the active columns;
+- distant silhouettes move through actual perspective as camZ changes instead of being static wallpaper;
+- final glow is now a tiny cool-violet veil, not a bright sun wash.
+
+## BRIDGE
+- longitudinal stripes reduced to 6 so an ultra-thin bridge does not visually inflate into a wide striped floor.
+- camera remains almost on deck at roadY=-0.38.
+- bridge body still reaches Y=-5.6.
+- painter order remains signs → columns → bridge.
+
+## PRESERVE
 - no lateral floor;
-- column bottom Y=-38, top Y=42/50;
-- deepest lower column section pure black;
-- max two visible/opening signs.
+- bridge-last occlusion;
+- lower column section forced pure black;
+- hidden-hinge signs;
+- max two visible/opening signs;
+- Map 1 / Map 4 fixes and mobile selector.
+
+## SELF-CRITIQUE / REVIEW RISKS
+- radius 3.20 is intentionally aggressive; verify near towers feel monumental rather than simply blocking too much of the scene.
+- distant silhouette field is intentionally subtle and cheap; verify it reads as depth rather than random background slabs.
+- darkening the temple/background may need a later micro-adjustment if the far destination becomes too hard to read.
