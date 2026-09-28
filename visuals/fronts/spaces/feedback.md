@@ -2,51 +2,69 @@
 
 Status: CURRENT
 
-## v32 · REMOVE CYLINDERS + HAIRLINE PATH + RICHER TUNNEL STONE
+## v33 · SMOOTH SCROLL + FARTHER MEGATOWERS + SPARSE NEON SCALE CUES
 
-Latest user feedback:
-- Map 1 / arcos is liked a lot: preserve it.
-- Random-cylinder scene is disliked: remove it from the visible experience.
-- Calzada is liked: preserve it.
-- Tunnel composition is liked, but wall textures need improvement.
-- Megatower path is still far too wide: it must read almost like a drawn line.
+Latest user direction:
+- all scenes: wheel/trackpad motion should feel smooth like the held arrow controls, not jumpy;
+- towers scene: keep the finally-thin path, but move the violet towers farther to both sides;
+- improve signs with restrained retrofuturist/cyberpunk cues;
+- make towers read like enormous buildings using tiny lights and occasional rotating neon elements;
+- avoid RGB clutter / theme-park overload.
 
-## MAP 1 · ARCOS
-- renderMap1 is unchanged from v31.
-- Keep the blacked-out floor and current architecture.
+## GLOBAL SCROLL
+- old wheel path called `nudge()` and jumped `targetCamZ` per wheel event.
+- v33 introduces `scrollVelocity`.
+- wheel events add a bounded impulse only.
+- `update(dt)` consumes that velocity over multiple frames.
+- velocity decays exponentially with `Math.exp(-dt*.0105)`.
+- residual scroll is cleared on map change and window blur.
+- keyboard arrows/WASD remain continuous and unchanged.
 
-## REMOVED VISIBLE SCENE · RANDOM CYLINDERS
-- the selector no longer exposes the old `2 CILINDROS` scene.
-- visible selector is now:
-  1. ARCOS
-  2. CALZADA
-  3. TÚNEL
-  4. TORRES
-- internal renderMap2 code remains dormant only to minimize unrelated refactor risk.
-- selector buttons now carry explicit `data-map` ids so UI numbering can differ safely from internal map ids.
-- keyboard 1–4 follows the visible selector.
+## MAP 5 · SPACING
+- RITUAL_ROAD_HALF stays 0.18.
+- full path width stays 0.36.
+- lateralLimit stays 0.08.
+- tower radius stays 3.20.
+- RITUAL_COLUMN_GAP: 1.90 → 3.00.
+- tower center X = ±6.38.
+- nearest tower surface = ±3.18.
+- bridge edge = ±0.18.
+- real lateral void = 3.00.
 
-## CALZADA
-- renderMap3 is unchanged from v31.
+## MAP 5 · NEON / SIGNAGE
+Design rule: tower mass dominates. Neon is a small scale cue.
 
-## TÚNEL
-- geometry, world-Z anchoring, ribs, end wall, floor and v31 depth falloff are preserved.
-- added a second finer warm real-stone atlas (`tunnelDetail`) from the existing real stone source.
-- walls and roof now receive a restrained second texture pass.
-- detail strength still follows depth attenuation, so far tunnel stays darker instead of becoming noisy.
+### Deployable blade sign
+- old giant tan/cardboard panel removed.
+- new sign is a narrow vertical dark housing with a thin emissive border.
+- small abstract glyph lines only, no readable text.
+- palette rotates between restrained cyan, magenta, warm red and amber.
+- existing max-two deployable sign scheduler remains.
 
-## TORRES / HAIRLINE PATH
-- RITUAL_ROAD_HALF: .65 → .18.
-- full path width: 1.30 → .36.
-- lateral limit: .42 → .08.
-- removed six-stripe deck treatment.
-- removed bright edge rims.
-- added one center hairline with half-width .018.
-- the dark structural deck still exists and still renders after towers so lower-tower occlusion is preserved.
-- RITUAL_COLUMN_GAP remains 1.90.
-- tower radius remains 3.20.
+### Micro facade lights
+- only three tiny emissive slits per eligible nearby tower.
+- light size is intentionally tiny relative to radius 3.20 / height ~100.
+- brightness fades with distance.
+
+### Orbital ring
+- only occasional towers (`abs(ri) % 6 === 0`) receive one.
+- only active in the near/mid field.
+- ring is thin and mostly dark.
+- one bright dash moves slowly around the circumference using frame time.
+- rear arc renders before the tower, front arc after it, so it visually wraps the cylinder rather than floating in front.
+
+## PRESERVED
+- visible scenes remain ARCOS / CALZADA / TÚNEL / TORRES.
+- Map 1 renderer unchanged from v32.
+- calzada renderer unchanged from v32.
+- tunnel renderer unchanged from v32.
+- hairline bridge stays .36 full width.
+- dark industrial void / distant megastructures stay.
+- deep tower bases stay pure black.
+- bridge-last lower-tower occlusion stays.
+- max two deployable signs stays.
 
 ## SELF-CRITIQUE / REVIEW RISKS
-- .36 full width is intentionally extreme. If it still reads broad, the remaining cause is perspective/deck body, not stripe decoration.
-- the new tunnel detail is deliberately restrained; if texture still feels weak, next step should be a better source asset, not simply more opacity.
-- dormant cylinder code is not user-visible; removing the function itself would be cleanup, not a visual improvement.
+- orbital rings use painter-style rear/front passes, not a depth buffer; visually inspect whether the wrap is convincing at close range.
+- micro-lights are intentionally sparse; if they disappear too much, increase emissive alpha/size slightly before adding more lights.
+- smooth wheel constants are deliberately conservative; tune impulse/decay rather than returning to direct nudge jumps.
