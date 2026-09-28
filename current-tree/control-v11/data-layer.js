@@ -43,7 +43,7 @@ async function refresh(base={}){
  const cats=await catalogs();b.cat=cats.cat;b.catalogManifest=cats.catalogManifest;failures.push(...cats.failures);
  b.cached_at=new Date().toISOString();
  b.freshness={mode:failures.length?'partial':'live',freshCore,failures,at:b.cached_at};
- writeCache(b);fire(b);return b;
+ writeCache(b);window.PROMETEO_V11_LAST=b;fire(b);return b;
 }
 function emergency(cat,catalogManifest,error){
  return {
@@ -56,11 +56,11 @@ async function load(){
  const cached=readCache();
  if(cached){
   cached.freshness={mode:'stale',freshCore:false,failures:[],at:cached.cached_at||cached.tree?.generated_at||null};
-  refresh(cached).catch(e=>fire(cached,String(e?.message||e)));
+  window.PROMETEO_V11_LAST=cached;refresh(cached).catch(e=>fire(cached,String(e?.message||e)));
   return cached;
  }
  try{return await refresh({})}
- catch(e){const cats=await catalogs();const b=emergency(cats.cat,cats.catalogManifest,e);writeCache(b);fire(b,String(e?.message||e));return b}
+ catch(e){const cats=await catalogs();const b=emergency(cats.cat,cats.catalogManifest,e);writeCache(b);window.PROMETEO_V11_LAST=b;fire(b,String(e?.message||e));return b}
 }
 window.PROMETEO_DATA_V11={load,refresh,readCache};
 })();
