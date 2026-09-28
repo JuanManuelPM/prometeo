@@ -1,22 +1,18 @@
-# 🖐️ Player / Eye Frame · Durable Decisions
+# 🖐️ Player / Eye Content · Durable Decisions
 
 Status: CURRENT
 
-- V21 is the **accepted blink animation baseline**.
-- User explicitly reviewed it as "excelente, muchísimo mejor" and moved the work forward to the actual eye/pupil.
-- The generated grid is authoring input, never runtime truth.
-- Alignment happens before export.
-- Semantic eye anchor remains `lower_liner_median` plus horizontal center.
-- Normalization uses a fixed 512×512 source canvas and translation only.
-- Residual alignment QA must pass before packing.
-- Runtime logical frame size is 128×128.
-- Runtime eye-frame source is the text-only indexed/RLE JSON pack.
-- Runtime verifies the entire pack before enabling interaction.
-- Renderer has no hard-coded atlas rows, columns, crop rectangles, frame count or frame durations.
-- Blink timing lives in data.
-- Animation uses `performance.now()` + `requestAnimationFrame()`.
-- Hash equality is transport evidence, not visual acceptance.
-- Full reusable engineering record: `visuals/eye-frame-lab/ANIMATION_PIPELINE_V1.md`.
-- Next layer: actual eyeball/pupil behind V21 frame animation.
-- Pupil/eye-content movement must not alter frame pivot or blink alignment.
-- Test eye contents in isolation before reintegrating into Player.
+- Preserve V21 blink/frame animation unchanged.
+- Internal eye content is a separate subsystem behind the frame.
+- The frame pivot and the eye-content center are not the same coordinate.
+- Frame pivot: [64,86].
+- Content center: [64,70].
+- Open aperture bbox: [38,54,90,86].
+- Safe content bbox: [42,58,86,82].
+- Use the accepted V21 open frame as the repeated authoring reference.
+- Use 10×10 only for visual exploration.
+- Use 2×5 for one concrete ten-frame animation.
+- Reduce free variables: do not ask the generator to redesign the frame while designing the interior.
+- Generated grids remain authoring input, never runtime truth.
+- Selected content sequences go through the same normalization/QA discipline as the accepted frame animation.
+- Pupil/iris motion must never alter frame pivot or blink alignment.
