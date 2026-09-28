@@ -1,12 +1,21 @@
-# 🖐️ Retro Player / Eye Frame · Durable Decisions
+# 🖐️ Player / Eye Frame · Durable Decisions
 
 Status: CURRENT
 
-- V16 is REJECTED_BROKEN because its embedded base64 JPEG was truncated in committed HTML.
-- Large binary assets must stay as repository files, not be copied into HTML as data URIs through text tooling.
-- V17 loads `eye-blink-aligned-grid-v15.jpg` by same-origin relative URL.
-- V17 validates HTTP response, non-empty blob, image decoding, and exact 640×256 dimensions before enabling animation.
-- The alignment pipeline from V15 remains CURRENT.
-- The public runtime must consume already-normalized frames and must not perform geometry repair.
-- For this eye, `lower_liner_median` remains the semantic alignment anchor.
-- Player reintegration remains blocked until the isolated blink is visually accepted.
+- V21 is the current isolated eye candidate.
+- The generated grid is authoring input, never runtime truth.
+- Alignment happens before export.
+- Semantic eye anchor remains `lower_liner_median` plus horizontal center.
+- Normalization uses a fixed 512×512 canvas and translation only.
+- Residual alignment QA must pass before packing.
+- Runtime logical frame size is 128×128.
+- Runtime no longer consumes PNG/JPEG/WebP for the eye.
+- Runtime source is one text-only indexed/RLE JSON pack.
+- RLE payloads are base64 text byte streams with exact byte length and SHA-256.
+- Runtime verifies the entire pack before enabling interaction.
+- Runtime has no hard-coded atlas rows, columns, crop rectangles, frame count, or frame durations.
+- Blink timing lives in data.
+- Animation uses `performance.now()` + `requestAnimationFrame`, not chained sleeps.
+- Hash equality is transport evidence, not visual acceptance.
+- The Player scene remains unchanged until V21 is positively reviewed.
+- The pupil remains intentionally absent from the isolation lab.
