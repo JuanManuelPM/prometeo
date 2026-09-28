@@ -20,3 +20,8 @@ Status: CURRENT
 - Reincarnation reads handoff + repo and waits for feedback.
 - No implementation until ACTUALIZÁ/equivalent.
 - On update persist meaningful feedback/version decisions and verify relevant files across main and gh-pages.
+
+- V15 local alignment QA is not sufficient evidence of a working public build.
+- Public asset decode/load is now a separate mandatory deployment gate.
+- V16's review page is self-contained: aligned sprite bytes are embedded in index.html.
+- During isolated review, eliminate avoidable failure layers before judging animation geometry.
