@@ -768,8 +768,8 @@ function renderAbyssColumn(cx,cz,r,yBottom,yTop){
 }
 const RITUAL_STEP=7.4;
 const RITUAL_ROAD_Y=-.38;
-const RITUAL_ROAD_HALF=1.45;
-const RITUAL_COLUMN_GAP=.65;
+const RITUAL_ROAD_HALF=.95;
+const RITUAL_COLUMN_GAP=1.20;
 function ritualSideForRow(ri){return (ri&1)?-1:1}
 function ritualSignKey(ri,side){return ri+':'+side}
 function ritualSignOpen(ri,side){
@@ -907,6 +907,41 @@ function renderTempleBlock(cx,cz,w,d,y0,y1,rgb,reach){
     {x:cx+w*.5,y:y1,z:front},{x:cx-w*.5,y:y1,z:front}
   ],1);
 }
+function renderDistantMegatower(cx,cz,halfW,yBottom,yTop,alpha){
+  const depth=halfW*.62;
+  const d=cz-camZ;
+  const fade=clamp(1-d/190,.08,.36)*alpha;
+  const front='rgb(10,8,16)';
+  const side='rgb(17,11,23)';
+  const edge='rgb(31,18,35)';
+
+  worldSolidQuad(front,[
+    {x:cx-halfW,y:yTop,z:cz-depth},{x:cx+halfW,y:yTop,z:cz-depth},
+    {x:cx+halfW,y:yBottom,z:cz-depth},{x:cx-halfW,y:yBottom,z:cz-depth}
+  ],fade);
+  worldSolidQuad(side,[
+    {x:cx+halfW,y:yTop,z:cz-depth},{x:cx+halfW,y:yTop,z:cz+depth},
+    {x:cx+halfW,y:yBottom,z:cz+depth},{x:cx+halfW,y:yBottom,z:cz-depth}
+  ],fade*.74);
+  worldSolidQuad(edge,[
+    {x:cx-halfW,y:yTop,z:cz+depth},{x:cx+halfW,y:yTop,z:cz+depth},
+    {x:cx+halfW,y:yTop-.16,z:cz-depth},{x:cx-halfW,y:yTop-.16,z:cz-depth}
+  ],fade*.34);
+}
+function renderDistantRitualCity(){
+  const towers=[];
+  const base=Math.floor((camZ-12)/22)*22;
+  for(let i=0;i<10;i++){
+    const z=base+48+i*22;
+    const side=(i&1)?-1:1;
+    const lane=11.5+(i%3)*3.6;
+    const halfW=2.7+(i%4)*.65;
+    const top=31+(i%5)*7;
+    towers.push({x:side*lane,z,halfW,top});
+  }
+  towers.sort((a,b)=>b.z-a.z);
+  for(const t of towers)renderDistantMegatower(t.x,t.z,t.halfW,-46,t.top,.82);
+}
 function renderRitualBridge(roadY,roadHalf,zNear,zFar){
   const edgeDrop=-5.6;
 
@@ -925,7 +960,7 @@ function renderRitualBridge(roadY,roadHalf,zNear,zFar){
     {x:roadHalf,y:roadY,z:zNear},{x:-roadHalf,y:roadY,z:zNear}
   ],1);
 
-  const stripes=14;
+  const stripes=6;
   for(let si=0;si<stripes;si++){
     const x0=-roadHalf+(2*roadHalf)*(si/stripes);
     const x1=-roadHalf+(2*roadHalf)*((si+1)/stripes);
@@ -948,30 +983,44 @@ function renderRitualBridge(roadY,roadHalf,zNear,zFar){
   }
 }
 function renderMap5(){
+  // The background is no longer a bright orange sky. It is a near-black industrial
+  // void with one weak, distant horizon glow so scale comes from silhouette, not wash light.
   const sky=ctx.createLinearGradient(0,0,0,H);
-  sky.addColorStop(0,'#f13706');
-  sky.addColorStop(.48,'#f27b05');
-  sky.addColorStop(.70,'#8a344b');
+  sky.addColorStop(0,'#05070d');
+  sky.addColorStop(.40,'#090813');
+  sky.addColorStop(.66,'#120b18');
   sky.addColorStop(1,'#000000');
   ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+
+  const horizonGlow=ctx.createRadialGradient(W*.5,H*.49,0,W*.5,H*.49,W*.36);
+  horizonGlow.addColorStop(0,'rgba(150,66,30,.12)');
+  horizonGlow.addColorStop(.42,'rgba(78,42,72,.07)');
+  horizonGlow.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=horizonGlow;ctx.fillRect(0,0,W,H);
 
   const roadY=RITUAL_ROAD_Y;
   const roadHalf=RITUAL_ROAD_HALF;
   const zNear=camZ+NEAR+.03,zFar=camZ+166;
 
   // Camera eye is Y=0, so roadY=-.38 creates the requested almost-floor viewpoint.
-  const abyss=ctx.createLinearGradient(0,H*.38,0,H);
-  abyss.addColorStop(0,'rgba(38,9,43,0)');
-  abyss.addColorStop(.35,'rgba(13,2,17,.48)');
-  abyss.addColorStop(.70,'rgba(2,0,4,.90)');
+  const abyss=ctx.createLinearGradient(0,H*.36,0,H);
+  abyss.addColorStop(0,'rgba(11,8,18,0)');
+  abyss.addColorStop(.34,'rgba(5,2,8,.58)');
+  abyss.addColorStop(.68,'rgba(1,0,2,.94)');
   abyss.addColorStop(1,'rgba(0,0,0,1)');
-  ctx.fillStyle=abyss;ctx.fillRect(0,H*.38,W,H*.62);
+  ctx.fillStyle=abyss;ctx.fillRect(0,H*.36,W,H*.64);
+
+  // Faint world-space megastructures behind the active columns create an endless
+  // city/shaft illusion and move slowly with forward travel through real perspective.
+  renderDistantRitualCity();
 
   const tz=154;
-  renderTempleBlock(0,tz,27,9,roadY+.02,2.8,[188,120,24],145);
-  renderTempleBlock(0,tz-1.0,20,7,3.0,6.4,[205,139,31],145);
-  renderTempleBlock(0,tz-1.8,12,5,6.8,9.8,[221,158,43],145);
-  renderTempleBlock(0,tz-2.5,5.2,3.2,12.0,14.1,[219,153,35],145);
+  // Keep the destination, but suppress the old gold/orange beacon. It now reads as
+  // a distant brutalist silhouette inside the weak horizon glow.
+  renderTempleBlock(0,tz,27,9,roadY+.02,2.8,[42,31,48],145);
+  renderTempleBlock(0,tz-1.0,20,7,3.0,6.4,[51,35,55],145);
+  renderTempleBlock(0,tz-1.8,12,5,6.8,9.8,[61,39,61],145);
+  renderTempleBlock(0,tz-2.5,5.2,3.2,12.0,14.1,[72,44,65],145);
 
   // Columns exist below the bridge and are painted before it.
   const step=RITUAL_STEP,first=Math.floor((camZ-step*1.0)/step);
@@ -984,10 +1033,10 @@ function renderMap5(){
 
   for(const p of columns){
     if(p.z-camZ<NEAR-3)continue;
-    const radius=2.15;
+    const radius=3.20;
     const x=p.side*(roadHalf+radius+RITUAL_COLUMN_GAP);
-    const bottomY=-38.0;
-    const topY=42.0+((p.ri&3)===0?8.0:0);
+    const bottomY=-48.0;
+    const topY=48.0+((p.ri&3)===0?10.0:0);
 
     renderRitualSign(x,p.z,p.side,ritualSignOpen(p.ri,p.side));
     renderAbyssColumn(x,p.z,radius,bottomY,topY);
@@ -996,10 +1045,12 @@ function renderMap5(){
   // Critical order: the bridge is foreground and hides the lower column portions.
   renderRitualBridge(roadY,roadHalf,zNear,zFar);
 
-  const sunGlow=ctx.createRadialGradient(W*.5,H*.39,0,W*.5,H*.39,W*.30);
-  sunGlow.addColorStop(0,'rgba(255,197,57,.10)');
-  sunGlow.addColorStop(1,'rgba(255,99,0,0)');
-  ctx.fillStyle=sunGlow;ctx.fillRect(0,0,W,H);
+  // No bright sun wash. A tiny cool-violet veil keeps the far end readable without
+  // lighting the whole scene.
+  const farVeil=ctx.createRadialGradient(W*.5,H*.48,0,W*.5,H*.48,W*.24);
+  farVeil.addColorStop(0,'rgba(112,82,135,.055)');
+  farVeil.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=farVeil;ctx.fillRect(0,0,W,H);
 }
 function analog(){
   const palettes={
@@ -1033,7 +1084,7 @@ function lateralLimit(){
   if(currentMap===2)return 22;
   if(currentMap===3)return 4.7;
   if(currentMap===4)return 1.55;
-  return 1.15;
+  return .68;
 }
 function mapMaxZ(){
   if(currentMap===1)return 132;
@@ -1182,15 +1233,15 @@ addEventListener('selectstart',e=>e.preventDefault());
 addEventListener('dragstart',e=>e.preventDefault());
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v29',
+  version:'spaces-maps-v30',
   maps:[
     '1 green arch nave',
     '2 brutalist cylinder hall',
     '3 straight paired-column road',
     '4 world-anchored barrel tunnel with moving ribs',
-    '5 ultra-narrow low-camera suspended ritual bridge between bottomless violet columns'
+    '5 razor-thin suspended bridge through colossal brutalist violet megatowers in a dark industrial void'
   ],
-  contract:'fixed frontal view; touch swipe + WASD + wheel; Map 5 keeps the low-camera suspended-bridge occlusion, but the bridge half-width is reduced again from 3.4 to 1.45, cutting the full deck from 6.8 to 2.9 world units. The .65 abyss gap, bridge-last painter order, bottomless black-to-violet columns and max-two-sign rule remain unchanged. Map 5 lateral movement is clamped to 1.15 so the camera stays on the ultra-narrow deck',
+  contract:'fixed frontal view; touch swipe + WASD + wheel; Map 5 v30 uses a razor-thin bridge half-width .95, lateral limit .68, larger radius-3.2 towers, a 1.20 abyss gap, and taller shafts from Y=-48 to 48/58. The bright orange sky is replaced by a near-black industrial void, weak horizon glow and distant world-space megastructure silhouettes. Bridge-last occlusion, pure-black deep bases and max-two-sign rule remain',
   sourcePages:SOURCE_PAGES,
   camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
