@@ -785,7 +785,7 @@ function renderAbyssColumn(cx,cz,r,yBottom,yTop){
 const RITUAL_STEP=7.4;
 const RITUAL_ROAD_Y=-.38;
 const RITUAL_ROAD_HALF=.18;
-const RITUAL_COLUMN_GAP=1.90;
+const RITUAL_COLUMN_GAP=3.00;
 function ritualSideForRow(ri){return (ri&1)?-1:1}
 function ritualSignKey(ri,side){return ri+':'+side}
 function ritualSignOpen(ri,side){
@@ -856,20 +856,31 @@ function ritualRect(cx,cy,ux,uy,px,py,halfAlong,halfAcross,z){
     {x:cx-ux*halfAlong+px*halfAcross,y:cy-uy*halfAlong+py*halfAcross,z}
   ];
 }
-function renderRitualSign(cx,cz,side,open){
-  // Below this point the whole mechanism is considered physically hidden behind
-  // the column. This avoids seeing the cardboard "spawn" or vanish in mid-air.
+function ritualNeonRGB(seed){
+  const palette=[
+    [92,225,236],
+    [229,76,196],
+    [244,104,83],
+    [238,174,70]
+  ];
+  return palette[Math.abs(seed)%palette.length];
+}
+function rgbString(rgb){
+  return 'rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')';
+}
+function renderRitualSign(cx,cz,side,open,ri){
+  // A restrained neon blade replaces the old giant cardboard sign. It stays
+  // small relative to the tower so the signage reinforces scale instead of
+  // turning the scene into a theme-park billboard wall.
   if(open<=.24)return;
 
   const floorY=RITUAL_ROAD_Y;
   const reveal=clamp((open-.24)/.76,0,1);
   const t=reveal*reveal*(3-2*reveal);
-
-  // Hinge lives inside/behind the column silhouette. The sign is rendered first;
-  // the column is rendered afterward and therefore masks the stored mechanism.
-  const hingeX=cx-side*.08;
-  const hingeY=floorY+2.65;
-  const signZ=cz+.26;
+  const accent=ritualNeonRGB(ri);
+  const hingeX=cx-side*.14;
+  const hingeY=floorY+4.2;
+  const signZ=cz+.24;
 
   const angle=t*(Math.PI*.46);
   const ux=-side*Math.sin(angle);
@@ -877,32 +888,90 @@ function renderRitualSign(cx,cz,side,open){
   const px=-uy;
   const py=ux;
 
-  const poleLen=8.55;
-  const poleCenterX=hingeX+ux*poleLen*.5;
-  const poleCenterY=hingeY+uy*poleLen*.5;
-  const poleL=cameraLight3DAt(poleCenterX,poleCenterY,signZ,54,0,.0015);
+  const armLen=3.45;
+  const armCenterX=hingeX+ux*armLen*.5;
+  const armCenterY=hingeY+uy*armLen*.5;
+  worldSolidPoly('rgb(22,15,28)',
+    ritualRect(armCenterX,armCenterY,ux,uy,px,py,armLen*.5,.055,signZ),.98);
 
-  worldSolidPoly(litColor([103,66,30],poleL,.92),
-    ritualRect(poleCenterX,poleCenterY,ux,uy,px,py,poleLen*.5,.13,signZ),1);
+  const panelCenterX=hingeX+ux*3.05;
+  const panelCenterY=hingeY+uy*3.05;
 
-  // Big, screen-like cardboard surface aimed at the user when deployed.
-  const cardCenterX=hingeX+ux*6.05;
-  const cardCenterY=hingeY+uy*6.05;
-  const cardL=cameraLight3DAt(cardCenterX,cardCenterY,signZ-.03,58,0,.002);
+  // soft pseudo-glow, then a dark housing, then one thin luminous border
+  worldSolidPoly(rgbString(accent),
+    ritualRect(panelCenterX,panelCenterY,ux,uy,px,py,.64,1.38,signZ-.030),.13);
+  worldSolidPoly('rgb(8,8,14)',
+    ritualRect(panelCenterX,panelCenterY,ux,uy,px,py,.54,1.27,signZ-.038),.98);
+  worldSolidPoly(rgbString(accent),
+    ritualRect(panelCenterX,panelCenterY,ux,uy,px,py,.50,1.22,signZ-.046),.74);
+  worldSolidPoly('rgb(7,7,12)',
+    ritualRect(panelCenterX,panelCenterY,ux,uy,px,py,.43,1.13,signZ-.054),1);
 
-  worldSolidPoly(litColor([64,39,23],cardL,.95),
-    ritualRect(cardCenterX,cardCenterY,ux,uy,px,py,3.58,2.18,signZ-.015),1);
-
-  worldSolidPoly(litColor([190,140,80],cardL,1),
-    ritualRect(cardCenterX,cardCenterY,ux,uy,px,py,3.38,1.98,signZ-.032),1);
-
-  const markCenterX=cardCenterX+uy*.03;
-  const markCenterY=cardCenterY-ux*.03;
-  worldSolidPoly(litColor([69,36,91],cardL,.98),
-    ritualRect(markCenterX,markCenterY,ux,uy,px,py,1.86,.19,signZ-.047),1);
-  worldSolidPoly(litColor([69,36,91],cardL,.80),
-    ritualRect(cardCenterX+px*.78,cardCenterY+py*.78,ux,uy,px,py,.54,.16,signZ-.048),1);
+  // abstract retro-future glyphs: no readable copy, just tiny scale cues
+  worldSolidPoly(rgbString(accent),
+    ritualRect(panelCenterX+px*.30,panelCenterY+py*.30,ux,uy,px,py,.24,.035,signZ-.064),.92);
+  worldSolidPoly(rgbString(accent),
+    ritualRect(panelCenterX-px*.18,panelCenterY-py*.18,ux,uy,px,py,.16,.028,signZ-.064),.70);
 }
+
+function renderTowerMicroLights(cx,cz,r,ri,dz){
+  if(dz<1||dz>92)return;
+  const accent=ritualNeonRGB(ri+1);
+  const fade=clamp(1-dz/105,.10,.92);
+  const frontZ=cz-r-.028;
+  const baseY=2.8+((Math.abs(ri)%4)*2.6);
+  const pattern=Math.abs(ri)%3;
+
+  // Sparse, tiny emissive slits. Their small size is deliberate: they make the
+  // cylinder read as a building-scale object rather than a decorated prop.
+  const slots=[
+    {x:-.46,y:baseY,w:.055,h:.18},
+    {x:.18,y:baseY+3.8,w:.045,h:.11},
+    {x:(pattern-1)*.34,y:baseY+8.2,w:.060,h:.14}
+  ];
+  for(const s of slots){
+    worldSolidQuad(rgbString(accent),[
+      {x:cx+s.x-s.w,y:s.y+s.h,z:frontZ},
+      {x:cx+s.x+s.w,y:s.y+s.h,z:frontZ},
+      {x:cx+s.x+s.w,y:s.y-s.h,z:frontZ},
+      {x:cx+s.x-s.w,y:s.y-s.h,z:frontZ}
+    ],fade);
+  }
+}
+
+function renderTowerRing(cx,cz,r,ri,dz,frontPass){
+  // Only occasional towers get one animated orbital advertisement. The lit dash
+  // travels around a thin ring; the rear half is painted before the tower and the
+  // front half after it so the ring actually wraps the mass.
+  if(dz<2||dz>68||Math.abs(ri)%6!==0)return;
+  const y=9.4+(Math.abs(ri)%3)*5.0;
+  const accent=ritualNeonRGB(ri+2);
+  const n=18;
+  const phase=last*.00028+ri*.61;
+  const ringR=r+.22;
+  for(let i=0;i<n;i++){
+    const a0=(i/n)*Math.PI*2;
+    const a1=((i+1)/n)*Math.PI*2;
+    const am=(a0+a1)*.5;
+    const zMid=cz+Math.sin(am)*ringR;
+    const isFront=zMid<cz;
+    if(isFront!==frontPass)continue;
+
+    // moving bright dash with a faint residual ring
+    const wave=.5+.5*Math.cos(am-phase);
+    const pulse=Math.pow(wave,7);
+    const alpha=.035+.72*pulse;
+    if(alpha<.055)continue;
+    const x0=cx+Math.cos(a0)*ringR,z0=cz+Math.sin(a0)*ringR;
+    const x1=cx+Math.cos(a1)*ringR,z1=cz+Math.sin(a1)*ringR;
+    const h=.042;
+    worldSolidQuad(rgbString(accent),[
+      {x:x0,y:y+h,z:z0},{x:x1,y:y+h,z:z1},
+      {x:x1,y:y-h,z:z1},{x:x0,y:y-h,z:z0}
+    ],alpha);
+  }
+}
+
 function renderTempleBlock(cx,cz,w,d,y0,y1,rgb,reach){
   const front=cz-d*.5,back=cz+d*.5,my=(y0+y1)*.5;
   const L=cameraLight3DAt(cx,my,front,reach||90,0,.008);
@@ -1040,8 +1109,12 @@ function renderRitualBridge(roadY,roadHalf,zNear,zFar){
     const bottomY=-48.0;
     const topY=48.0+((p.ri&3)===0?10.0:0);
 
-    renderRitualSign(x,p.z,p.side,ritualSignOpen(p.ri,p.side));
+    const dz=p.z-camZ;
+    renderTowerRing(x,p.z,radius,p.ri,dz,false);
+    renderRitualSign(x,p.z,p.side,ritualSignOpen(p.ri,p.side),p.ri);
     renderAbyssColumn(x,p.z,radius,bottomY,topY);
+    renderTowerMicroLights(x,p.z,radius,p.ri,dz);
+    renderTowerRing(x,p.z,radius,p.ri,dz,true);
   }
 
   // Critical order: the bridge is foreground and hides the lower column portions.
@@ -1081,6 +1154,7 @@ function render(){
   analog();
 }
 const keys=new Set();
+let scrollVelocity=0;
 function lateralLimit(){
   if(currentMap===1)return 1.35;
   if(currentMap===2)return 22;
@@ -1102,6 +1176,17 @@ function update(dt){
   if(keys.has('s')||keys.has('arrowdown')) targetCamZ-=forwardSpeed;
   if(keys.has('a')) targetCamX-=lateralSpeed;
   if(keys.has('d')) targetCamX+=lateralSpeed;
+
+  // Wheel/trackpad movement is consumed over multiple frames instead of
+  // teleporting targetCamZ on each wheel event. This makes scroll feel like
+  // the held arrow controls: smooth acceleration followed by gentle decay.
+  if(Math.abs(scrollVelocity)>.00002){
+    targetCamZ+=scrollVelocity*dt;
+    scrollVelocity*=Math.exp(-dt*.0105);
+  }else{
+    scrollVelocity=0;
+  }
+
   targetCamZ=clamp(targetCamZ,-5,mapMaxZ());
   targetCamX=clamp(targetCamX,-lateralLimit(),lateralLimit());
 
@@ -1116,7 +1201,7 @@ function frame(t){
   const dt=Math.min(50,t-last||16);last=t;update(dt);render();
 }
 function setMap(n){
-  currentMap=n;camX=0;targetCamX=0;camZ=1.4;targetCamZ=1.4;
+  currentMap=n;camX=0;targetCamX=0;camZ=1.4;targetCamZ=1.4;scrollVelocity=0;
   if(n===5){ritualSigns.clear();ritualVisibleSlots.clear();}
   mapButtons.forEach(b=>b.classList.toggle('active',Number(b.dataset.map)===n));
   const activeButton=mapButtons.find(b=>Number(b.dataset.map)===n);
@@ -1225,26 +1310,26 @@ addEventListener('keydown',e=>{
   }
 });
 addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
-addEventListener('blur',()=>keys.clear());
+addEventListener('blur',()=>{keys.clear();scrollVelocity=0});
 addEventListener('wheel',e=>{
   e.preventDefault();
-  const amount=clamp(Math.abs(e.deltaY)/140,.08,.72);
-  if(e.deltaY<0)nudge('up',amount);
-  else if(e.deltaY>0)nudge('down',amount);
+  const impulse=clamp(-e.deltaY*.000055,-.018,.018);
+  scrollVelocity=clamp(scrollVelocity+impulse,-.035,.035);
+  hint.style.opacity='.18';
 },{passive:false});
 addEventListener('contextmenu',e=>e.preventDefault());
 addEventListener('selectstart',e=>e.preventDefault());
 addEventListener('dragstart',e=>e.preventDefault());
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v32',
+  version:'spaces-maps-v33',
   maps:[
     '1 arch nave with blacked-out floor',
     '2 straight paired-column road',
     '3 world-anchored barrel tunnel with richer layered real-stone texture and strong depth falloff',
-    '4 hairline suspended path through farther colossal brutalist megatowers'
+    '4 hairline suspended path through farther brutalist megatowers with sparse neon architecture'
   ],
-  contract:'fixed frontal view; touch swipe + WASD + wheel; v32 removes the rejected random-cylinder scene from the visible selector, preserves the liked arch nave and calzada, enriches tunnel walls/roof with a finer second real-stone texture layer while keeping world-space motion and depth falloff, and turns the megatower bridge into an almost-line: half-width .18, full width .36, lateral limit .08, one hairline center guide, no stripe field or bright edge rims. Tower gap 1.90, radius 3.20, dark industrial background, bridge-last occlusion, black deep bases and max-two-sign rule remain',
+  contract:'fixed frontal view; touch swipe + WASD + wheel; v33 makes wheel/trackpad movement globally inertial and frame-smoothed instead of discrete nudges. Map 5 preserves the .36 full-width hairline path but moves radius-3.2 towers farther out with gap 3.00. The old giant cardboard signs are replaced by sparse small neon blade signs, tiny facade light slits and occasional slow orbital neon rings. Neon stays minimal and self-emissive so the towers still read as colossal dark architecture. Dark void, bridge-last occlusion, black deep bases and max-two deployable sign rule remain',
   sourcePages:SOURCE_PAGES,
   camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
