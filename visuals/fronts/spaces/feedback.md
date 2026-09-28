@@ -83,3 +83,65 @@ Before visual acceptance inspect generated screenshots for:
 
 ## SELF-CRITIQUE / CURRENT LIMIT
 v34 automates capture/publication, not aesthetic judgment inside GitHub Actions. The AI visual critique still happens in the reviewing chat by loading the generated PNGs. Accepted-reference promotion and automated image-diff remain a future optional layer.
+
+
+## v34 LIVE PROOF · FIRST AUTOMATED VISUAL AUDIT
+
+The review pipeline was executed successfully, not merely configured.
+
+Successful optimized run:
+- workflow run: `36496687583`;
+- source: `6cbba21e6057f678a828fe40d957311a0b666620`;
+- result: SUCCESS;
+- duration: ~42 seconds;
+- 10 deterministic screenshots generated and published;
+- main/gh-pages review manifest and pointer are byte-identical.
+
+Optimization:
+- capture trigger moved off noisy `main` onto dedicated branch `visual-review-spaces`;
+- future visual updates trigger review by advancing that branch to the exact source commit;
+- one persistent Chromium process is driven over CDP for all screenshots;
+- browser/cache are reused across frames;
+- this replaced the earlier multi-process capture that took ~168 seconds and could time out on the final mobile frame.
+
+### Actual visual findings from generated screenshots
+
+ARCOS:
+- composition reads coherently;
+- black floor and repeated arch depth are working;
+- preserve unless explicitly changed.
+
+CALZADA:
+- current composition remains coherent with the user's liked direction;
+- preserve unless explicitly changed.
+
+TÚNEL:
+- near stone is clearly readable;
+- depth falls toward a dark throat as intended;
+- geometry/motion direction should remain;
+- future improvement target is texture character/repetition, not a structural rewrite.
+
+TORRES:
+- current scene is visibly not acceptable despite correct numeric geometry;
+- the `.36` world-width bridge still projects as a large purple triangular wedge in both desktop and mobile;
+- nearby towers fill too much of the frame and read as segmented cylindrical walls rather than distant colossal buildings;
+- horizontal shade bands reinforce a "stacked tube" look;
+- micro-lights read as isolated colored pixels rather than architectural lights;
+- neon blade signs look pasted onto the surfaces instead of embedded/mounted;
+- orbital cyan ring reads as a broken floating arc;
+- the automated entry/mid/near captures expose these failures consistently.
+
+This is exactly the class of problem the review system is now meant to catch before asking the user for another screenshot.
+
+### Operational rule
+
+For the next visual edit:
+1. edit/publish Spaces;
+2. advance `visual-review-spaces` to the exact source commit;
+3. wait for the review run;
+4. read `current-review.json`;
+5. load the generated screenshots/artifact;
+6. visually critique them;
+7. fix obvious failures before final delivery.
+
+Do not treat the screenshot workflow itself as aesthetic approval.
