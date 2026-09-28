@@ -767,6 +767,9 @@ function renderAbyssColumn(cx,cz,r,yBottom,yTop){
   worldSolidPoly(litColor([166,104,205],topL,.98),topPts,1);
 }
 const RITUAL_STEP=7.4;
+const RITUAL_ROAD_Y=-.38;
+const RITUAL_ROAD_HALF=6.15;
+const RITUAL_COLUMN_GAP=.65;
 function ritualSideForRow(ri){return (ri&1)?-1:1}
 function ritualSignKey(ri,side){return ri+':'+side}
 function ritualSignOpen(ri,side){
@@ -842,7 +845,7 @@ function renderRitualSign(cx,cz,side,open){
   // the column. This avoids seeing the cardboard "spawn" or vanish in mid-air.
   if(open<=.24)return;
 
-  const floorY=-1.12;
+  const floorY=RITUAL_ROAD_Y;
   const reveal=clamp((open-.24)/.76,0,1);
   const t=reveal*reveal*(3-2*reveal);
 
@@ -904,6 +907,46 @@ function renderTempleBlock(cx,cz,w,d,y0,y1,rgb,reach){
     {x:cx+w*.5,y:y1,z:front},{x:cx-w*.5,y:y1,z:front}
   ],1);
 }
+function renderRitualBridge(roadY,roadHalf,zNear,zFar){
+  const edgeDrop=-5.6;
+
+  for(const side of [-1,1]){
+    const x=side*roadHalf;
+    const edgeL=cameraLight3DAt(x,(roadY+edgeDrop)*.5,camZ+8,48,0,.001);
+    worldSolidQuad(litColor([31,18,42],edgeL,.70),[
+      {x,y:roadY,z:zFar},{x,y:roadY,z:zNear},
+      {x,y:edgeDrop,z:zNear},{x,y:edgeDrop,z:zFar}
+    ],1);
+  }
+
+  const roadL=cameraLight3DAt(0,roadY,camZ+9,62,0,.004);
+  worldSolidQuad(litColor([68,41,91],roadL,.90),[
+    {x:-roadHalf,y:roadY,z:zFar},{x:roadHalf,y:roadY,z:zFar},
+    {x:roadHalf,y:roadY,z:zNear},{x:-roadHalf,y:roadY,z:zNear}
+  ],1);
+
+  const stripes=14;
+  for(let si=0;si<stripes;si++){
+    const x0=-roadHalf+(2*roadHalf)*(si/stripes);
+    const x1=-roadHalf+(2*roadHalf)*((si+1)/stripes);
+    const L=cameraLight3DAt((x0+x1)*.5,roadY,camZ+11,60,0,.004);
+    const rgb=(si&1)?[55,37,103]:[130,86,150];
+    worldSolidQuad(litColor(rgb,L,.95),[
+      {x:x0,y:roadY+.012,z:zFar},{x:x1,y:roadY+.012,z:zFar},
+      {x:x1,y:roadY+.012,z:zNear},{x:x0,y:roadY+.012,z:zNear}
+    ],1);
+  }
+
+  for(const side of [-1,1]){
+    const x=side*roadHalf;
+    const rimL=cameraLight3DAt(x,roadY,camZ+9,55,0,.002);
+    const x0=x-side*.055,x1=x+side*.055;
+    worldSolidQuad(litColor([188,117,166],rimL,.52),[
+      {x:x0,y:roadY+.024,z:zFar},{x:x1,y:roadY+.024,z:zFar},
+      {x:x1,y:roadY+.024,z:zNear},{x:x0,y:roadY+.024,z:zNear}
+    ],.82);
+  }
+}
 function renderMap5(){
   const sky=ctx.createLinearGradient(0,0,0,H);
   sky.addColorStop(0,'#f13706');
@@ -912,52 +955,17 @@ function renderMap5(){
   sky.addColorStop(1,'#000000');
   ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
 
-  const roadY=-1.12,zNear=camZ+NEAR+.03,zFar=camZ+166;
-  const roadHalf=6.15,stripes=14;
-  const edgeDrop=-4.8;
+  const roadY=RITUAL_ROAD_Y;
+  const roadHalf=RITUAL_ROAD_HALF;
+  const zNear=camZ+NEAR+.03,zFar=camZ+166;
 
-  // Side space is pure depth, not floor. This sits behind every world object.
-  const abyss=ctx.createLinearGradient(0,H*.40,0,H);
-  abyss.addColorStop(0,'rgba(35,8,39,0)');
-  abyss.addColorStop(.38,'rgba(12,2,15,.48)');
-  abyss.addColorStop(.72,'rgba(2,0,4,.88)');
+  // Camera eye is Y=0, so roadY=-.38 creates the requested almost-floor viewpoint.
+  const abyss=ctx.createLinearGradient(0,H*.38,0,H);
+  abyss.addColorStop(0,'rgba(38,9,43,0)');
+  abyss.addColorStop(.35,'rgba(13,2,17,.48)');
+  abyss.addColorStop(.70,'rgba(2,0,4,.90)');
   abyss.addColorStop(1,'rgba(0,0,0,1)');
-  ctx.fillStyle=abyss;ctx.fillRect(0,H*.40,W,H*.60);
-
-  // The camera rides one elevated bridge/path. It has a finite edge and NOTHING
-  // horizontal beyond it. The columns live in the darkness outside these edges.
-  const roadL=cameraLight3DAt(0,roadY,camZ+10,62,0,.004);
-  worldSolidQuad(litColor([70,43,90],roadL,.88),[
-    {x:-roadHalf,y:roadY,z:zFar},{x:roadHalf,y:roadY,z:zFar},
-    {x:roadHalf,y:roadY,z:zNear},{x:-roadHalf,y:roadY,z:zNear}
-  ],1);
-
-  // Straight longitudinal bands remain the motion cue.
-  for(let si=0;si<stripes;si++){
-    const x0=-roadHalf+(2*roadHalf)*(si/stripes);
-    const x1=-roadHalf+(2*roadHalf)*((si+1)/stripes);
-    const L=cameraLight3DAt((x0+x1)*.5,roadY,camZ+12,60,0,.004);
-    const rgb=(si&1)?[58,39,108]:[132,88,150];
-    worldSolidQuad(litColor(rgb,L,.95),[
-      {x:x0,y:roadY+.014,z:zFar},{x:x1,y:roadY+.014,z:zFar},
-      {x:x1,y:roadY+.014,z:zNear},{x:x0,y:roadY+.014,z:zNear}
-    ],1);
-  }
-
-  // Visible vertical bridge edges prove that the road is elevated above the column bases.
-  for(const side of [-1,1]){
-    const x=side*roadHalf;
-    const edgeL=cameraLight3DAt(x,(roadY+edgeDrop)*.5,camZ+9,45,0,.001);
-    worldSolidQuad(litColor([38,22,49],edgeL,.62),[
-      {x,y:roadY,z:zFar},{x,y:roadY,z:zNear},
-      {x,y:edgeDrop,z:zNear},{x,y:edgeDrop,z:zFar}
-    ],1);
-    const rimX0=x-side*.07,rimX1=x+side*.07;
-    worldSolidQuad(litColor([183,112,158],edgeL,.45),[
-      {x:rimX0,y:roadY+.025,z:zFar},{x:rimX1,y:roadY+.025,z:zFar},
-      {x:rimX1,y:roadY+.025,z:zNear},{x:rimX0,y:roadY+.025,z:zNear}
-    ],.78);
-  }
+  ctx.fillStyle=abyss;ctx.fillRect(0,H*.38,W,H*.62);
 
   const tz=154;
   renderTempleBlock(0,tz,27,9,roadY+.02,2.8,[188,120,24],145);
@@ -965,8 +973,7 @@ function renderMap5(){
   renderTempleBlock(0,tz-1.8,12,5,6.8,9.8,[221,158,43],145);
   renderTempleBlock(0,tz-2.5,5.2,3.2,12.0,14.1,[219,153,35],145);
 
-  // Columns sit immediately outside the bridge edges. No floor exists beneath them.
-  // They pass the road height, continue far below into black, and far above the frame.
+  // Columns exist below the bridge and are painted before it.
   const step=RITUAL_STEP,first=Math.floor((camZ-step*1.0)/step);
   const columns=[];
   for(let ri=first;ri<first+28;ri++){
@@ -975,24 +982,19 @@ function renderMap5(){
   }
   columns.sort((a,b)=>b.z-a.z);
 
-  const columnGap=.65;
   for(const p of columns){
     if(p.z-camZ<NEAR-3)continue;
     const radius=2.15;
-
-    // Geometric invariant: the bridge must NEVER continue underneath a column.
-    // road edge = roadHalf. column inner edge = |x|-radius.
-    // Therefore |x|-radius = roadHalf+columnGap, leaving a real empty gap.
-    const x=p.side*(roadHalf+radius+columnGap);
-    const innerColumnEdge=Math.abs(x)-radius;
+    const x=p.side*(roadHalf+radius+RITUAL_COLUMN_GAP);
     const bottomY=-38.0;
     const topY=42.0+((p.ri&3)===0?8.0:0);
 
-    // Nothing horizontal is rendered between roadHalf and innerColumnEdge.
-    // The visible .65 world-unit interval is pure abyss.
     renderRitualSign(x,p.z,p.side,ritualSignOpen(p.ri,p.side));
     renderAbyssColumn(x,p.z,radius,bottomY,topY);
   }
+
+  // Critical order: the bridge is foreground and hides the lower column portions.
+  renderRitualBridge(roadY,roadHalf,zNear,zFar);
 
   const sunGlow=ctx.createRadialGradient(W*.5,H*.39,0,W*.5,H*.39,W*.30);
   sunGlow.addColorStop(0,'rgba(255,197,57,.10)');
@@ -1180,15 +1182,15 @@ addEventListener('selectstart',e=>e.preventDefault());
 addEventListener('dragstart',e=>e.preventDefault());
 setTimeout(()=>hint.style.opacity='.18',1800);
 window.PrometeoSpaces={
-  version:'spaces-maps-v26',
+  version:'spaces-maps-v27',
   maps:[
     '1 green arch nave',
     '2 brutalist cylinder hall',
     '3 straight paired-column road',
     '4 world-anchored barrel tunnel with moving ribs',
-    '5 elevated ritual bridge with a real abyss gap before bottomless violet columns'
+    '5 low-camera suspended ritual bridge occluding bottomless violet column bases'
   ],
-  contract:'fixed frontal view; touch swipe + WASD + wheel; Map 5 is an elevated central bridge/path with finite edges and no lateral floor. A real .65 world-unit abyss gap now separates each road edge from the nearest column surface, so the bridge cannot pass underneath any column. Violet columns extend from Y=-38 to roughly Y=42/50, are absolutely black at the deep base and progressively lighter upward. Giant screens remain hidden behind columns and the strict two-visible-sign cap remains',
+  contract:'fixed frontal view; touch swipe + WASD + wheel; Map 5 uses a near-floor camera at roadY=-.38. Columns/signs render before a thick foreground bridge, so the deck and side body occlude the low projected portions of the columns and they read as rising from below the suspended path. A real .65 world-unit abyss gap remains outside each edge, with no lateral floor. Max two signs remains',
   sourcePages:SOURCE_PAGES,
   camera:{get x(){return targetCamX},get z(){return targetCamZ}},
   get map(){return currentMap}
