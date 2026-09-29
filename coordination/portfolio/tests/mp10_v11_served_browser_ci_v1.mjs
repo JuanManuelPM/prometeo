@@ -16,6 +16,9 @@ const projectContextUrl=new URL('../../coordination/project-context-v1/INDEX.jso
 const statsUrl=new URL('../../coordination/analytics/control-room-stats-v1/latest.json',publicUrl).href;
 const chatSessionsUrl=new URL('../../coordination/chat-sessions/INDEX.json',publicUrl).href;
 const previewManifestUrl=new URL('./previews/manifest.json',publicUrl).href;
+const ingressUrl=new URL('./ingress-v1.js',publicUrl).href;
+const pageChangeCanaryUrl=new URL('../../coordination/canaries/page-change-pipeline-v1/latest.json',publicUrl).href;
+const controlPlaneDiagnosisUrl=new URL('../../coordination/canaries/page-change-pipeline-v1/control-plane-diagnosis-latest.json',publicUrl).href;
 const scriptUrl=new URL('./v11.js',publicUrl).href;
 const diagnosticsUrl=new URL('./diagnostics-v1.js',publicUrl).href;
 const continuityUrl=new URL('./continuity-v1.js',publicUrl).href;
@@ -26,6 +29,7 @@ const indexPath='current-tree/control-v11/index.html';
 const scriptPath='current-tree/control-v11/v11.js';
 const diagnosticsPath='current-tree/control-v11/diagnostics-v1.js';
 const continuityPath='current-tree/control-v11/continuity-v1.js';
+const ingressPath='current-tree/control-v11/ingress-v1.js';
 const changeLoopPath='shared/capture/v1/change-loop.js';
 const stableControlPath='current-tree/control/index.html';
 
@@ -158,6 +162,19 @@ try{
   assert.match(servedBootstrap,/must not silently erase|NO borra silenciosamente|MUST NOT SILENTLY ERASE/i);
   pass('universal_session_preflight_served',{organism:true,request_classification:true,lineage_preserved:true});
 
+  const ingressResponse=await desktop.request.get(ingressUrl,{timeout:20000,failOnStatusCode:false,headers:{'cache-control':'no-cache','pragma':'no-cache'}});
+  assert.equal(ingressResponse.status(),200);
+  const servedIngress=await ingressResponse.body();
+  const sourceIngress=fs.readFileSync(ingressPath);
+  assert.equal(sha256(servedIngress),sha256(sourceIngress),'served ingress must match main source');
+
+  const canaryProbe=await requestJson(desktop.request,pageChangeCanaryUrl,'page-change canary');
+  const diagnosisProbe=await requestJson(desktop.request,controlPlaneDiagnosisUrl,'control-plane diagnosis');
+  assert.equal(canaryProbe.status,200);
+  assert.equal(diagnosisProbe.status,200);
+  assert.match(String(diagnosisProbe.json?.status||''),/^BLOCKED_|^AVAILABLE|^RECOVERED|^HEALTHY/);
+  pass('diagnostic_packet_public_dependencies',{ingress:200,page_change_canary:canaryProbe.status,control_plane_diagnosis:diagnosisProbe.status,diagnosis_status:diagnosisProbe.json?.status||null});
+
   const changeResponse=await desktop.request.get(changeLoopUrl,{timeout:20000,failOnStatusCode:false,headers:{'cache-control':'no-cache','pragma':'no-cache'}});
   assert.equal(changeResponse.status(),200);
   const servedChange=await changeResponse.body();
@@ -196,6 +213,35 @@ try{
   assert.equal(response?.status(),200,'desktop browser navigation must return 200');
   await page.waitForTimeout(3500);
   pass('desktop_navigation',{status:response?.status(),final_url:page.url()});
+
+  await page.waitForFunction(()=>window.PROMETEO_CONTROL_PLANE_STATE_V1?.status&&window.PROMETEO_CONTROL_PLANE_STATE_V1.status!=='PROBING',null,{timeout:12000}).catch(()=>{});
+  const controlPlaneState=await page.evaluate(()=>window.PROMETEO_CONTROL_PLANE_STATE_V1||null);
+  if(controlPlaneState?.blocked){
+    const endpointPostsBefore=evidence.requests.filter(r=>r.method==='POST'&&(/prometeo-capture/.test(r.url)||/prometeo-change-loop-v1/.test(r.url))).length;
+    assert.equal(endpointPostsBefore,0,'blocked control plane must not receive automatic Capture/Page Change POSTs');
+    await page.evaluate(()=>{
+      localStorage.setItem('prometeo.capture.workspace.secret.v1','CI_BLOCKED_WORKSPACE_SECRET_12345678901234567890');
+      localStorage.setItem('prometeo.capture.workspace.secret.v2','CI_BLOCKED_WORKSPACE_SECRET_12345678901234567890');
+      document.querySelector('.tab[data-view="espacios"]')?.click();
+    });
+    const blockedNote=page.locator('#workspacesV11 [data-notes]').first();
+    await blockedNote.waitFor({state:'visible',timeout:15000});
+    await blockedNote.evaluate(el=>el.click());
+    await page.locator('#prometeoChangeLoop.open').waitFor({state:'visible',timeout:10000});
+    await page.waitForTimeout(800);
+    const endpointPostsAfter=evidence.requests.filter(r=>r.method==='POST'&&(/prometeo-capture/.test(r.url)||/prometeo-change-loop-v1/.test(r.url))).length;
+    assert.equal(endpointPostsAfter,endpointPostsBefore,'blocked diagnosis must circuit-break Capture/Page Change network calls');
+    await page.evaluate(()=>window.__PROMETEO_CHANGE_LOOP__?.close());
+    pass('published_outage_circuit_breaker',{state:controlPlaneState.status,automatic_posts:endpointPostsBefore,posts_after_notes_open:endpointPostsAfter});
+  }else{
+    pass('published_outage_circuit_breaker',{state:controlPlaneState?.status||'UNKNOWN',blocked:false,note:'runtime probe did not report a blocked control plane'});
+  }
+
+  await page.evaluate(()=>{scrollTo(0,0);document.querySelector('.tab[data-view="proyectos"]')?.click()});
+  await page.waitForTimeout(500);
+  const phantomPreviews=evidence.requests.filter(r=>/\/previews\/(push-scroll|class-player)\.png(?:$|\?)/.test(r.url));
+  assert.equal(phantomPreviews.length,0,'Projects must not fabricate preview URLs absent from manifest');
+  pass('manifest_backed_project_previews',{phantom_requests:phantomPreviews.length});
 
   await page.waitForFunction(()=>!!window.PROMETEO_DIAGNOSTICS_V1,{timeout:10000});
   const diagSecret='CI_DIAGNOSTIC_SECRET_'+Date.now();
