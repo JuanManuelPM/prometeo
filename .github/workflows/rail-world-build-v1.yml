@@ -1,4 +1,4 @@
-name: Rail World Build v3
+name: Rail World Build v4
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: rail-world-build-v3
+  group: rail-world-build-v4
   cancel-in-progress: true
 
 jobs:
@@ -40,7 +40,7 @@ jobs:
           cat /tmp/rail-http.log
           exit 1
 
-      - name: Review and decoupled-control browser test
+      - name: Review and gated-world browser test
         env:
           CHROME: ${{ steps.chrome.outputs.chrome-path }}
           SOURCE_SHA: ${{ github.sha }}
@@ -139,6 +139,7 @@ jobs:
 
           const reviews=[
             ['arcos','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=1&z=28&playerMap=1&playerZ=49&playerX=0'],
+            ['arcos-gate','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=1&z=105&playerMap=1&playerZ=124.5&playerX=0'],
             ['calzada','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=3&z=42&playerMap=3&playerZ=64&playerX=0'],
             ['tunel','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=4&z=42&playerMap=4&playerZ=64&playerX=0'],
             ['torres','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=5&z=42&playerMap=5&playerZ=64&playerX=0']
@@ -148,90 +149,102 @@ jobs:
           await send('Page.navigate',{url:'http://127.0.0.1:4173/demos/prometeo-rail-world-v1/'});
           await waitExpression('Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready&&window.PrometeoRailWorld)', 'rail runtime');
 
-          // 1. CLICK MOVES PLAYER, NOT CAMERA.
+          // 1. CLICK MOVES PLAYER, NEVER CAMERA.
           const initial=await state();
           await click(683,255);
-          await sleep(1050);
+          await sleep(900);
           const clicked=await state();
-          if(!(clicked.playerGlobal>initial.playerGlobal+16)){
-            throw new Error('Click did not move player far enough '+JSON.stringify({initial,clicked}));
+          if(!(clicked.playerGlobal>initial.playerGlobal+14))throw new Error('Click did not move player '+JSON.stringify({initial,clicked}));
+          if(Math.abs(clicked.cameraGlobal-initial.cameraGlobal)>.35)throw new Error('Click moved camera '+JSON.stringify({initial,clicked}));
+
+          // 2. CAMERA OVERTAKE IS A PROJECTION EXIT, NOT AN EARLY VISIBILITY TOGGLE.
+          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:20,cameraX:0,playerMap:1,playerZ:32,playerX:0,immediate:true})');
+          await sleep(80);
+          const pass0=await state();
+          await evaluate('window.PrometeoRailWorld.moveCameraBy(6,0)');
+          await sleep(160);
+          const pass1=await state();
+          await evaluate('window.PrometeoRailWorld.moveCameraBy(4,0)');
+          await sleep(160);
+          const pass2=await state();
+          await evaluate('window.PrometeoRailWorld.moveCameraBy(3,0)');
+          await sleep(160);
+          const pass3=await state();
+          if(!(pass0.playerProjection.visible && pass1.playerProjection.y>pass0.playerProjection.y+18 && pass1.playerProjection.scale>pass0.playerProjection.scale+.5)){
+            throw new Error('Player did not grow/drop while camera approached '+JSON.stringify({pass0,pass1}));
           }
-          if(Math.abs(clicked.cameraGlobal-initial.cameraGlobal)>.35){
-            throw new Error('Click incorrectly moved camera '+JSON.stringify({initial,clicked}));
+          if(!(pass2.playerProjection.rendered && !pass2.playerProjection.visible && pass2.playerProjection.y>130 && !pass2.playerProjection.behind)){
+            throw new Error('Player did not leave through bottom before overtake '+JSON.stringify(pass2));
+          }
+          if(!(pass3.playerProjection.behind && !pass3.playerProjection.visible)){
+            throw new Error('Player not behind camera after overtake '+JSON.stringify(pass3));
           }
 
-          // 2. ARROW MOVES CAMERA WHILE PLAYER KEEPS ITS OWN TARGET.
-          const clickTarget=clicked.playerTargetGlobal;
+          // 3. CAMERA CANNOT SCROLL INTO THE NEXT MAP. MAP BOUNDARY IS PHYSICAL.
+          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:131.55,cameraX:0,playerMap:1,playerZ:100,playerX:0,immediate:true})');
           await key('ArrowUp','ArrowUp',true);
           await sleep(850);
           await key('ArrowUp','ArrowUp',false);
-          await sleep(220);
-          const arrow=await state();
-          if(!(arrow.cameraGlobal>clicked.cameraGlobal+12)){
-            throw new Error('Arrow did not move camera '+JSON.stringify({clicked,arrow}));
-          }
-          if(Math.abs(arrow.playerTargetGlobal-clickTarget)>.02){
-            throw new Error('Camera movement changed player target '+JSON.stringify({clicked,arrow}));
-          }
-
-          // 3. WHEEL ADDS CAMERA INERTIA, STILL WITHOUT RETARGETING PLAYER.
-          const beforeWheel=await state();
-          for(let i=0;i<5;i++){
-            await send('Input.dispatchMouseEvent',{type:'mouseWheel',x:680,y:380,deltaX:0,deltaY:-420});
-            await sleep(65);
-          }
-          await sleep(720);
-          const wheel=await state();
-          if(!(wheel.cameraGlobal>beforeWheel.cameraGlobal+4)){
-            throw new Error('Wheel did not move camera '+JSON.stringify({beforeWheel,wheel}));
-          }
-          if(Math.abs(wheel.playerTargetGlobal-clickTarget)>.02){
-            throw new Error('Wheel changed player target '+JSON.stringify({beforeWheel,wheel}));
-          }
-
-          // 4. BACKWARD PLAYER MOVE: CAMERA FIRST, THEN CLICK A VISIBLE POINT BEHIND PLAYER.
-          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:5,cameraX:0,playerMap:1,playerZ:70,playerX:0,immediate:true})');
-          const beforeBack=await state();
-          await evaluate('window.PrometeoRailWorld.setPlayerTargetFromPercent(50,88)');
-          await sleep(900);
-          const backward=await state();
-          if(!(backward.playerTargetGlobal<beforeBack.playerGlobal-20 && backward.playerGlobal<beforeBack.playerGlobal-12)){
-            throw new Error('Backward click model failed '+JSON.stringify({beforeBack,backward}));
-          }
-          if(Math.abs(backward.cameraGlobal-beforeBack.cameraGlobal)>.35){
-            throw new Error('Backward player move dragged camera '+JSON.stringify({beforeBack,backward}));
-          }
-
-          // 5. CAMERA CAN CROSS TO NEXT MAP WHILE PLAYER REMAINS IN THE OLD MAP.
-          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:131.85,cameraX:0,playerMap:1,playerZ:52,playerX:0,immediate:true})');
-          const beforeCross=await state();
-          await key('ArrowUp','ArrowUp',true);
-          await sleep(720);
-          await key('ArrowUp','ArrowUp',false);
           await sleep(180);
-          const crossed=await state();
-          if(!(crossed.cameraMap===3 && crossed.playerMap===1 && crossed.transitions>=1)){
-            throw new Error('Independent map crossing failed '+JSON.stringify({beforeCross,crossed}));
+          const clamped=await state();
+          if(!(clamped.cameraMap===1 && clamped.cameraZ<132 && clamped.cameraZ>131.5)){
+            throw new Error('Camera crossed map without portal '+JSON.stringify(clamped));
           }
 
-          console.log('FUNCTIONAL_RAIL_V3 PASS',JSON.stringify({initial,clicked,arrow,wheel,beforeBack,backward,crossed}));
+          // 4. PORTAL IS DORMANT WHILE PLAYER IS FAR.
+          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:105,cameraX:0,playerMap:1,playerZ:94,playerX:0,immediate:true})');
+          await sleep(120);
+          const dormant=await state();
+          if(dormant.gate.active)throw new Error('Gate active while player far '+JSON.stringify(dormant));
+
+          // 5. FIRST CLICK: PLAYER APPROACHES EXIT; PORTAL MATERIALIZES.
+          await evaluate('window.PrometeoRailWorld.setPlayerTargetFromPercent(50,45)');
+          await sleep(1050);
+          const armed=await state();
+          if(!(armed.gate.active && armed.gate.key==='1>3' && armed.gate.projection.visible)){
+            throw new Error('Gate did not materialize near player '+JSON.stringify(armed));
+          }
+
+          // 6. WALK AWAY; PORTAL MUST RETRACT.
+          await evaluate('window.PrometeoRailWorld.moveCameraBy(-15,0)');
+          await evaluate('window.PrometeoRailWorld.setPlayerTargetFromPercent(50,90)');
+          await sleep(900);
+          const retracted=await state();
+          if(retracted.gate.active)throw new Error('Gate stayed active after player left '+JSON.stringify(retracted));
+
+          // 7. RETURN TO GATE, THEN SECOND CLICK ON THE PRISM ENTERS NEXT MAP WITH PLAYER + CAMERA TOGETHER.
+          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:105,cameraX:0,playerMap:1,playerZ:124.5,playerX:0,immediate:true})');
+          await sleep(180);
+          const readyGate=await state();
+          if(!(readyGate.gate.active&&readyGate.gate.projection.visible))throw new Error('Prepared gate not visible '+JSON.stringify(readyGate));
+          const rect=await evaluate('(()=>{const r=document.querySelector("#portal").getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height}})()');
+          await click(rect.x,rect.y);
+          await sleep(620);
+          const entered=await state();
+          if(!(entered.cameraMap===3 && entered.playerMap===3 && entered.sameMap && !entered.gate.entering && entered.transitions>=1)){
+            throw new Error('Portal did not bring camera and player together '+JSON.stringify({rect,entered}));
+          }
+
+          console.log('FUNCTIONAL_RAIL_V4 PASS',JSON.stringify({initial,clicked,pass0,pass1,pass2,pass3,clamped,dormant,armed,retracted,entered}));
           ws.close();
 
           await fs.writeFile('demos/prometeo-rail-world-v1/review/manifest.json',JSON.stringify({
-            schema:'prometeo.rail-world-review/v3',
+            schema:'prometeo.rail-world-review/v4',
             source_sha:process.env.SOURCE_SHA,
             generated_at:new Date().toISOString(),
             renderer:'visuals/spaces-lab v35 live bridge',
-            runtime:'v3-decoupled',
+            runtime:'v4-gated-world',
             semantics:{
               click:'player target only',
-              wheel:'camera only',
-              arrows:'camera only',
-              touch_drag:'camera only',
-              camera_and_player:'independent global route coordinates'
+              wheel_arrows_touch_drag:'camera only',
+              camera_overtake:'projection exits through viewport bottom',
+              map_boundary:'camera clamps; cannot auto-cross',
+              map_transition:'player proximity arms a world-space prism; second click enters',
+              portal_exit:'camera and player arrive together',
+              portal_retract:'moving player away hides it'
             },
             map_sequence:[1,3,4,5],
-            review:['arcos.png','calzada.png','tunel.png','torres.png']
+            review:['arcos.png','arcos-gate.png','calzada.png','tunel.png','torres.png']
           },null,2)+'\n');
           NODE
 
@@ -240,7 +253,7 @@ jobs:
       - name: Upload exact evidence
         uses: actions/upload-artifact@v4
         with:
-          name: rail-world-v3-${{ github.sha }}
+          name: rail-world-v4-${{ github.sha }}
           path: demos/prometeo-rail-world-v1/review/
           retention-days: 30
           if-no-files-found: error
@@ -251,12 +264,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          rm -rf /tmp/rail-world-v3
-          mkdir -p /tmp/rail-world-v3/demos/prometeo-rail-world-v1 /tmp/rail-world-v3/visuals/spaces-lab /tmp/rail-world-v3/workflow
-          cp demos/prometeo-rail-world-v1/index.html /tmp/rail-world-v3/demos/prometeo-rail-world-v1/index.html
-          cp -a demos/prometeo-rail-world-v1/review /tmp/rail-world-v3/demos/prometeo-rail-world-v1/
-          cp visuals/spaces-lab/index.html /tmp/rail-world-v3/visuals/spaces-lab/index.html
-          cp .github/workflows/rail-world-build-v1.yml /tmp/rail-world-v3/workflow/rail-world-build-v1.yml
+          rm -rf /tmp/rail-world-v4
+          mkdir -p /tmp/rail-world-v4/demos/prometeo-rail-world-v1 /tmp/rail-world-v4/visuals/spaces-lab /tmp/rail-world-v4/workflow
+          cp demos/prometeo-rail-world-v1/index.html /tmp/rail-world-v4/demos/prometeo-rail-world-v1/index.html
+          cp -a demos/prometeo-rail-world-v1/review /tmp/rail-world-v4/demos/prometeo-rail-world-v1/
+          cp visuals/spaces-lab/index.html /tmp/rail-world-v4/visuals/spaces-lab/index.html
+          cp .github/workflows/rail-world-build-v1.yml /tmp/rail-world-v4/workflow/rail-world-build-v1.yml
 
           git reset --hard HEAD
           git clean -fd
@@ -266,18 +279,18 @@ jobs:
             git fetch origin "$branch"
             git checkout -B "$branch" "origin/$branch"
             mkdir -p demos/prometeo-rail-world-v1 visuals/spaces-lab
-            cp /tmp/rail-world-v3/demos/prometeo-rail-world-v1/index.html demos/prometeo-rail-world-v1/index.html
+            cp /tmp/rail-world-v4/demos/prometeo-rail-world-v1/index.html demos/prometeo-rail-world-v1/index.html
             rm -rf demos/prometeo-rail-world-v1/review demos/prometeo-rail-world-v1/frames
-            cp -a /tmp/rail-world-v3/demos/prometeo-rail-world-v1/review demos/prometeo-rail-world-v1/
-            cp /tmp/rail-world-v3/visuals/spaces-lab/index.html visuals/spaces-lab/index.html
+            cp -a /tmp/rail-world-v4/demos/prometeo-rail-world-v1/review demos/prometeo-rail-world-v1/
+            cp /tmp/rail-world-v4/visuals/spaces-lab/index.html visuals/spaces-lab/index.html
             if [ "$branch" = "main" ]; then
               mkdir -p .github/workflows
-              cp /tmp/rail-world-v3/workflow/rail-world-build-v1.yml .github/workflows/rail-world-build-v1.yml
+              cp /tmp/rail-world-v4/workflow/rail-world-build-v1.yml .github/workflows/rail-world-build-v1.yml
             fi
             git add -A demos/prometeo-rail-world-v1 visuals/spaces-lab
             if [ "$branch" = "main" ]; then git add .github/workflows/rail-world-build-v1.yml; fi
             if git diff --cached --quiet; then return 0; fi
-            git commit -m "visuals: publish decoupled Rail World v3"
+            git commit -m "visuals: publish gated Rail World v4"
             for n in 1 2 3 4; do
               if git push origin "HEAD:$branch"; then return 0; fi
               git fetch origin "$branch"
@@ -290,7 +303,7 @@ jobs:
           publish_branch main
           publish_branch gh-pages
 
-      - name: Verify public decoupled controls
+      - name: Verify public gated world
         env:
           CHROME: ${{ steps.chrome.outputs.chrome-path }}
         run: |
@@ -298,7 +311,7 @@ jobs:
           URL="https://juanmanuelpm.github.io/prometeo/demos/prometeo-rail-world-v1/"
           for i in {1..48}; do
             PAGE="$(curl -fsSL --max-time 12 "$URL" 2>/dev/null || true)"
-            if printf '%s' "$PAGE" | grep -Fq "v3-decoupled"; then break; fi
+            if printf '%s' "$PAGE" | grep -Fq "v4-gated-world"; then break; fi
             sleep 5
           done
 
@@ -320,45 +333,29 @@ jobs:
           let seq=0;const pending=new Map();
           ws.addEventListener('message',ev=>{const m=JSON.parse(String(ev.data));if(!m.id)return;const p=pending.get(m.id);if(!p)return;pending.delete(m.id);m.error?p.reject(new Error(m.error.message)):p.resolve(m.result||{})});
           const send=(method,params={})=>{const id=++seq;return new Promise((resolve,reject)=>{pending.set(id,{resolve,reject});ws.send(JSON.stringify({id,method,params}))})};
+          const evaluate=async expression=>(await send('Runtime.evaluate',{expression,returnByValue:true}))?.result?.value;
           await send('Page.enable');await send('Runtime.enable');
           await send('Page.navigate',{url:'https://juanmanuelpm.github.io/prometeo/demos/prometeo-rail-world-v1/'});
           for(let i=0;i<240;i++){
-            const ev=await send('Runtime.evaluate',{expression:'Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready&&window.PrometeoRailWorld)',returnByValue:true});
-            if(ev?.result?.value)break;
+            if(await evaluate('Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready&&window.PrometeoRailWorld)'))break;
             if(i===239)throw new Error('Public Rail World never became ready');
             await sleep(125);
           }
-          const state=async()=> (await send('Runtime.evaluate',{expression:'window.PrometeoRailWorld.getState()',returnByValue:true}))?.result?.value;
-          const before=await state();
-          await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:683,y:255});
-          await send('Input.dispatchMouseEvent',{type:'mousePressed',x:683,y:255,button:'left',clickCount:1});
-          await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:683,y:255,button:'left',clickCount:1});
-          await sleep(900);
-          const afterClick=await state();
-          if(!(afterClick.playerGlobal>before.playerGlobal+12 && Math.abs(afterClick.cameraGlobal-before.cameraGlobal)<.35)){
-            throw new Error('Public click/camera decoupling failed '+JSON.stringify({before,afterClick}));
-          }
+          const state=()=>evaluate('window.PrometeoRailWorld.getState()');
 
-          await send('Input.dispatchKeyEvent',{type:'keyDown',key:'ArrowUp',code:'ArrowUp',windowsVirtualKeyCode:38,nativeVirtualKeyCode:38});
-          await sleep(720);
-          await send('Input.dispatchKeyEvent',{type:'keyUp',key:'ArrowUp',code:'ArrowUp',windowsVirtualKeyCode:38,nativeVirtualKeyCode:38});
+          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:105,cameraX:0,playerMap:1,playerZ:124.5,playerX:0,immediate:true})');
           await sleep(180);
-          const afterArrow=await state();
-          if(!(afterArrow.cameraGlobal>afterClick.cameraGlobal+9 && Math.abs(afterArrow.playerTargetGlobal-afterClick.playerTargetGlobal)<.02)){
-            throw new Error('Public camera control failed '+JSON.stringify({afterClick,afterArrow}));
-          }
+          const armed=await state();
+          if(!(armed.gate.active&&armed.gate.projection.visible))throw new Error('Public portal not armed '+JSON.stringify(armed));
 
-          const beforeWheel=await state();
-          for(let i=0;i<4;i++){
-            await send('Input.dispatchMouseEvent',{type:'mouseWheel',x:680,y:380,deltaX:0,deltaY:-420});
-            await sleep(60);
-          }
-          await sleep(650);
-          const afterWheel=await state();
-          if(!(afterWheel.cameraGlobal>beforeWheel.cameraGlobal+3 && Math.abs(afterWheel.playerTargetGlobal-beforeWheel.playerTargetGlobal)<.02)){
-            throw new Error('Public wheel camera control failed '+JSON.stringify({beforeWheel,afterWheel}));
-          }
+          const rect=await evaluate('(()=>{const r=document.querySelector("#portal").getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2}})()');
+          await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:rect.x,y:rect.y});
+          await send('Input.dispatchMouseEvent',{type:'mousePressed',x:rect.x,y:rect.y,button:'left',clickCount:1});
+          await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:rect.x,y:rect.y,button:'left',clickCount:1});
+          await sleep(620);
+          const entered=await state();
+          if(!(entered.cameraMap===3&&entered.playerMap===3&&entered.sameMap))throw new Error('Public portal transition failed '+JSON.stringify({armed,entered}));
 
-          console.log('PUBLIC_RAIL_WORLD_V3_VERIFIED',JSON.stringify({before,afterClick,afterArrow,afterWheel}));
+          console.log('PUBLIC_RAIL_WORLD_V4_VERIFIED',JSON.stringify({armed,entered}));
           ws.close();
           NODE
