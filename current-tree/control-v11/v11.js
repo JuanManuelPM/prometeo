@@ -228,7 +228,7 @@ async function restoreRoute(force=false){
  try{
   const st=routeState();
   if(st.view&&VALID_VIEWS.has(st.view)&&typeof window.setView==='function')window.setView(st.view);
-  if(st.node&&typeof window.openEntity==='function')window.openEntity(st.node);
+  if(st.node&&!st.page&&typeof window.openEntity==='function')window.openEntity(st.node);
   if(st.page){
    const p=pageMap.get(st.page);
    if(p){selectedPage=p;if(st.panel==='notes'||st.panel==='result'){const l=await ensureLoop();if(st.panel==='result'&&st.work)await l?.openResult(pageObj(p),st.work);else await l?.open(pageObj(p));activePanel=st.panel}}
