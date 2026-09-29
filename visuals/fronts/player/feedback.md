@@ -2,75 +2,61 @@
 
 Status: CURRENT
 
-## Latest user direction
-The eye should follow the mouse/pointer.
+## Latest user feedback
+The user wants the default pupil larger and wants the gaze system to exploit the entire visible white eye.
 
-The user specifically asked:
-- pupil should track the mouse;
-- clicking the eye can dilate the pupil until the eye turns black;
-- clicking can change eye color;
-- clicking can change pupil/eye type;
-- these style changes must **not** stop gaze tracking;
-- the pupil should stay where the pointer is while color/type changes happen.
+Specific complaints/direction:
+- default pupil should be bigger;
+- whenever pointer/touch interaction happens, the eye should look toward that location first;
+- some V26 eyes stayed trapped in a small central movement radius;
+- the pupil should be allowed to travel to the actual edge of the eye;
+- at extreme side glances, only part of the pupil may remain visible;
+- click color/type changes must keep the current gaze rather than recentering;
+- the procedural audio felt too bass-heavy and needs meaningful treble/high-frequency content.
 
-## V26
-V26 extends the current V25 interactive scene engine instead of replacing it.
+## V27 implementation
 
-New pointer scenes:
-- pointer_follow
-- pointer_dilate
-- pointer_color
-- pointer_shape
-- pointer_combo
+### Bigger default pupil
+Pointer baseline changed from roughly 0.24-0.26 to 0.34 logical radius.
 
-## Important behavior
-Pointer position is its own authority.
+### Full-aperture gaze
+V26 used a small fixed low-resolution offset.
 
-Style state is separate:
-- color;
-- morphology;
-- dilation state.
+V27 instead:
+1. gets the real open V21 aperture;
+2. quantizes pointer direction into 24 angular steps;
+3. quantizes distance into 6 radial steps;
+4. ray-casts from the actual aperture centroid until the real mask boundary;
+5. adds an edge-peek allowance equal to 58% of the pupil radius;
+6. lets the current blink/aperture mask naturally crop the pupil.
 
-Therefore changing color or shape does not recenter the pupil.
+This means extreme glances can intentionally show only part of the pupil.
 
-## Low-FPS pointer language
-Pointer tracking is intentionally not raw 60/120 Hz smooth motion.
+### Global gaze authority
+Pointer/touch position is updated before click actions.
+Color, shape and dilation states do not own or reset gaze.
 
-Default:
-- pointer sampling: 9 FPS;
-- horizontal gaze lattice: 9 positions;
-- vertical gaze lattice: 7 positions.
+### Dilation
+The click-dilate scene now uses 26 discrete states over about 2.4 seconds.
+It grows from the current gaze position toward full black.
+A later click contracts it again.
 
-This preserves the stepped/retro language established by the blink and V24/V25 inner-eye work.
+### Audio
+V27 replaces the previous low-heavy demo with:
+- sub/kick;
+- bass;
+- mid plucks;
+- 1.2-4.1 kHz chimes;
+- 4.2-5.4 kHz clicks;
+- high-frequency noise hats.
 
-## Click examples
-### pointer_dilate
-- gaze remains pointer-driven;
-- click starts 22 discrete dilation states over ~1.9 s;
-- final state is full black.
+The analyser lines now sample frequencies logarithmically from approximately 70 Hz to 8 kHz instead of mostly reading the lower bins.
 
-### pointer_color
-- click cycles white, red, blue, yellow, pink, cyan/green, black;
-- pointer gaze continues throughout;
-- on dark sclera the pupil switches to white so gaze remains visible.
+## Local QA
+- V27 scenes JS syntax: PASS.
+- V27 runtime JS syntax: PASS.
+- eight extreme gaze directions rendered against the real V21 aperture;
+- partial clipping at eye edges is visible and intentional;
+- local geometry QA: PASS.
 
-### pointer_shape
-- click cycles circle, oval, diamond, slit, cross, star, dot;
-- all shapes continue to follow pointer.
-
-### pointer_combo
-- click changes both color and pupil morphology;
-- gaze remains pointer-controlled.
-
-## QA
-- both V26 JavaScript files passed Node syntax checks;
-- a local composition sheet was generated for pointer positions, color changes, shape changes and dilation stages;
-- local composition QA passed;
-- container browser navigation was blocked by environment policy, so no local interactive-browser claim is made.
-
-## Review target
-The next review is specifically:
-- does the eye point toward the mouse naturally;
-- is the stepped tracking pleasant or too coarse;
-- are click transformations readable;
-- should gaze range be larger/smaller.
+Public browser acceptance remains pending.
