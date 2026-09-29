@@ -1,0 +1,56 @@
+name: Alumnos Student World route browser CI v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/portfolio/candidates/alumnos/student-world-live-route-bridge-v1/index.html'
+      - 'coordination/portfolio/tests/alumnos_student_world_route_browser_ci_v1.mjs'
+      - '.github/workflows/alumnos-student-world-route-browser-ci-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alumnos-student-world-route-browser-ci-v1
+  cancel-in-progress: true
+
+jobs:
+  representative-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Resolve expected canary blob
+        id: target
+        shell: bash
+        run: echo "blob=$(git hash-object coordination/portfolio/candidates/alumnos/student-world-live-route-bridge-v1/index.html)" >> "$GITHUB_OUTPUT"
+
+      - name: Install representative Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run Student World route desktop+narrow browser suite
+        env:
+          ALUMNOS_ROUTE_CANARY_URL: https://juanmanuelpm.github.io/prometeo/__canary/portfolio-alumnos-student-world-live-route-bridge-v1/
+          ALUMNOS_ROUTE_EXPECTED_BLOB: ${{ steps.target.outputs.blob }}
+          ALUMNOS_ROUTE_PROPAGATION_MS: '30000'
+        run: node coordination/portfolio/tests/alumnos_student_world_route_browser_ci_v1.mjs
+
+      - name: Upload bounded browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alumnos-student-world-route-browser-ci-evidence
+          path: artifacts/alumnos-student-world-route-browser-ci/
+          if-no-files-found: error
+          retention-days: 14
