@@ -1,3 +1,4 @@
+// diagnostic-packet-fix-canary: 2026-09-29T17:43Z
 // continuity-release-verified-head-trigger: 2026-09-29T16:23Z
 // continuity-release-final-trigger: 2026-09-29T16:20Z
 // continuity-release-clean-trigger: 2026-09-29T16:14Z
