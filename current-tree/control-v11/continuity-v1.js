@@ -127,6 +127,7 @@ PRIMERA ACCIÓN DURABLE:
 7. En cada turno material, antes de responder, publicá journal sanitizado: intención, conclusión, acciones reales, refs, decisiones, boundaries y next_action.
 8. Nunca publiques prompt raw, notas privadas, tokens, headers ni chain-of-thought.
 9. No inventes queue/scheduler/CURRENT paralelos. Reutilizá source owners y arquitectura existente.
+10. Si el humano quiere identidad visual para el chat/proyecto, podés agregar cover_image_url sólo si existe un asset público real con provenance; la imagen es UX, nunca authority.
 
 CONTROL ROOM:
 ${CONTROL}
@@ -155,7 +156,8 @@ HACÉ:
 6. Ubicá el trabajo en Organismo y recuperá objetivo/plan/baseline antes de la próxima mutación.
 7. Desde este turno en adelante, publicá cada interacción material al journal antes de responder.
 8. Si el trabajo mejora una Tool/Page/Project ajenos al foco original, agregá relaciones tipadas; no mudes el chat de “carpeta”.
-9. No publiques prompt raw ni información privada.
+9. Si el humano quiere identidad visual, podés publicar cover_image_url con asset/provenance real.
+10. No publiques prompt raw ni información privada.
 
 Después continuá normalmente. El humano no vuelve a ser message bus.`;
 }
@@ -182,7 +184,7 @@ function centerHtml(){
       <button id="continuityAdopt">Adoptar chat abierto</button>
       <button id="continuityExport">Exportar proyecto</button>
       <button id="continuityCopy">Copiar paquete</button>
-      <a href="${PREFLIGHT}" target="_blank" rel="noopener">preflight ↗</a>
+      <a href="https://chatgpt.com/" target="_blank" rel="noopener">abrir ChatGPT ↗</a><a href="${PREFLIGHT}" target="_blank" rel="noopener">preflight ↗</a>
     </div>
     <div class="continuity-note">Nuevo/Adoptar no crean otra autoridad: generan un bootstrap que obliga al chat a leer Current Tree + Organismo + plan + Work Context + Design DNA cuando corresponda antes de modificar.</div>
   </section>`;
