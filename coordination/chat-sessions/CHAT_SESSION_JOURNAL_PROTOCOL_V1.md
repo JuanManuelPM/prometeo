@@ -85,6 +85,11 @@ New sessions should persist, when known:
 `focus_objects`  
 `active_project`  
 `organism_nodes`  
+`chat_object_profile_ref`  
+`role`  
+`design_knowledge_refs`  
+`active_change_refs`  
+`recent_change_refs`  
 `current_plan_ref`  
 `objective_ref`  
 `work_context_refs`  
@@ -143,7 +148,7 @@ RULE:
 Read pointers, not the world. Expand only after READY.
 ```
 
-Domain specificity lives in Session Head pointers, not giant rescue prompts.
+Domain specificity lives in Session Head pointers, not giant rescue prompts. Specialized Chat Objects reuse the same envelope; their durable profile/role/design/change pointers travel through Session Head, never through a separate bootstrap system.
 
 ## 7. Per-turn contract
 
