@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const root = path.resolve(process.argv[2] || '.');
 const site = process.argv[3] ? path.resolve(process.argv[3]) : null;
@@ -1420,6 +1421,23 @@ const stableW = read(root, 'w');
 must('EFF067 w', stableW, 'BATCH <batch_id> EXPECTED <n>');
 must('EFF067 w', stableW, 'source=/w');
 must('EFF067 runtime', read(root, 'scripts/build-worker-runtime.mjs'), 'missing_expected');
+
+
+const eff060ScoreboardRegression = read(root, 'coordination/portfolio/tests/worker_scoreboard_canonical_transport_close_v1.mjs');
+must('EFF060 scoreboard regression', eff060ScoreboardRegression, 'prometeo.eff060-scoreboard-canonical-close-regression/v1');
+must('EFF060 scoreboard regression', eff060ScoreboardRegression, 'EARLY_CLOSE_EXPLAINED');
+must('EFF060 scoreboard regression', eff060ScoreboardRegression, 'TRANSPORT_BOUNDARY');
+must('EFF060 scoreboard regression', eff060ScoreboardRegression, 'unjustified_early_terminal_count');
+try {
+  execFileSync(process.execPath, [
+    path.join(root, 'coordination/portfolio/tests/worker_scoreboard_canonical_transport_close_v1.mjs')
+  ], { cwd: root, stdio: 'pipe' });
+  ok.push('EFF060 scoreboard canonical transport close:executed');
+} catch (error) {
+  const stderr=String(error?.stderr||'').trim();
+  const stdout=String(error?.stdout||'').trim();
+  errors.push('EFF060 scoreboard canonical transport close failed'+(stderr||stdout?': '+(stderr||stdout):''));
+}
 
 if (errors.length) {
   console.error('EFFICIENCY_RATCHET_FAIL');
