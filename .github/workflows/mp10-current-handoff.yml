@@ -1,0 +1,52 @@
+name: MP10 → CURRENT Handoff
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/integration-runs/PROMETEO-MP10-01/returns/**'
+      - 'coordination/integration-runs/PROMETEO-MP10-01/reallocation/**'
+      - 'coordination/launch-packets/PROMETEO-MP10-01/reallocation-claims/**'
+      - 'scripts/arm-mp10-current-handoff.mjs'
+      - 'coordination/portfolio/tests/mp10_current_handoff_v1.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mp10-current-handoff
+  cancel-in-progress: false
+
+jobs:
+  handoff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 50
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Guard compiler
+        run: node coordination/portfolio/tests/mp10_current_handoff_v1.mjs
+      - name: Compile only into CURRENT portfolio
+        run: node scripts/arm-mp10-current-handoff.mjs .
+      - name: Commit semantic handoff
+        run: |
+          set -euo pipefail
+          git add coordination/integration-runs/PROMETEO-MP10-01/CURRENT_HANDOFF.json
+          if [ -f coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-mp10-integrate-into-current-v1.json ]; then
+            git add coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-mp10-integrate-into-current-v1.json
+          fi
+          if git diff --cached --quiet; then
+            echo "No handoff delta."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "mp10: compile handoff into CURRENT portfolio"
+          git pull --rebase origin main
+          git push origin HEAD:main
