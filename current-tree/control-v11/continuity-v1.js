@@ -72,11 +72,21 @@ function relevantSessions(project){
   const direct=all.filter(s=>JSON.stringify(s).toLowerCase().includes(String(project.title||'').toLowerCase()));
   return [...new Map([...direct,...all.filter(s=>sessionIds.has(s.session_id))].map(x=>[x.session_id,x])).values()];
 }
+function missingOwner(name,ref,b){
+  const src=b?.freshness?.sources?.[name]||null;
+  return {state:'UNAVAILABLE_AT_EXPORT',owner:name,ref,source_status:src?.status||'unknown',source:src?.source||null,error:src?.error||null,checked_at:b?.freshness?.checked_at||new Date().toISOString()};
+}
 function continuityPacket(project){
-  const b=bundle();
+  const b=bundle(),contexts=project?{contexts:relevantContexts(project)}:(b.ctx||null);
+  const missing=[];
+  const tree=b.tree||missingOwner('tree',CURRENT_TREE,b);if(!b.tree)missing.push('tree');
+  const organism=b.org||missingOwner('org',CURRENT_TREE+'?view=organismo',b);if(!b.org)missing.push('organism');
+  const workContexts=contexts||missingOwner('ctx',WORK_CONTEXT,b);if(!contexts)missing.push('work_contexts');
   return {
     schema:'prometeo.project-continuity-packet/v1',
     generated_at:new Date().toISOString(),
+    completeness:missing.length?'DEGRADED_EXPLICIT':'COMPLETE_PUBLIC_SNAPSHOT',
+    missing_critical_sources:missing,
     selected_project:project?{
       key:projectKey(project),title:project.title||null,subtitle:project.subtitle||null,node_key:project.node_key||null,status:project.status||null,surface_ids:project.surface_ids||[]
     }:{key:'PROMETEO_ALL',title:'Prometeo completo'},
@@ -87,10 +97,10 @@ function continuityPacket(project){
     },
     stable_refs:{control:CONTROL,current_tree:CURRENT_TREE,design_dna:DESIGN_DNA,work_context:WORK_CONTEXT},
     current_snapshot:{
-      tree:b.tree||null,
-      organism:b.org||null,
-      work_contexts:project?{contexts:relevantContexts(project)}:(b.ctx||null),
-      activity:b.act||null,
+      tree,
+      organism,
+      work_contexts:workContexts,
+      activity:b.act||missingOwner('act',CONTROL+'?view=historial',b),
       catalog:b.cat||null,
       freshness:b.freshness||null
     },
@@ -105,6 +115,14 @@ function continuityPacket(project){
     },
     reopen_law:'Human new intent may change the plan, but a fresh shell must recover organism/plan/baseline/lineage and record whether the request is continuation, compatible delta, experiment, replan or destructive reset before durable mutation.'
   };
+}
+async function refreshedContinuityPacket(project){
+  try{
+    const dl=window.PROMETEO_DATA_V11,base=dl?.readCache?.()||bundle()||{};
+    if(dl?.refresh)await dl.refresh(base);
+  }catch{}
+  await load().catch(()=>{});
+  return continuityPacket(project);
 }
 function newChatPrompt(project){
   const p=project||{title:'Prometeo completo',node_key:'PROJECT:PROMETEO'};
@@ -235,8 +253,8 @@ function bindCenter(){
   const getP=()=>selectedProject();
   document.getElementById('continuityNew')?.addEventListener('click',async()=>{await copyText(newChatPrompt(getP()));toast('Prompt de nuevo chat copiado')});
   document.getElementById('continuityAdopt')?.addEventListener('click',async()=>{await copyText(adoptPrompt(getP()));toast('Prompt de adopción copiado')});
-  document.getElementById('continuityExport')?.addEventListener('click',()=>{const p=getP(),packet=continuityPacket(p),slug=(p?.title||'prometeo').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');download('prometeo-'+slug+'-continuity.json',JSON.stringify(packet,null,2)+'\n')});
-  document.getElementById('continuityCopy')?.addEventListener('click',async()=>{await copyText(JSON.stringify(continuityPacket(getP()),null,2));toast('Paquete de continuidad copiado')});
+  document.getElementById('continuityExport')?.addEventListener('click',async()=>{const p=getP();toast('Actualizando snapshot…');const packet=await refreshedContinuityPacket(p),slug=(p?.title||'prometeo').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');download('prometeo-'+slug+'-continuity.json',JSON.stringify(packet,null,2)+'\n');toast(packet.missing_critical_sources.length?'Exportado · fuentes degradadas explícitas':'Proyecto exportado')});
+  document.getElementById('continuityCopy')?.addEventListener('click',async()=>{toast('Actualizando snapshot…');const packet=await refreshedContinuityPacket(getP());await copyText(JSON.stringify(packet,null,2));toast(packet.missing_critical_sources.length?'Copiado · fuentes degradadas explícitas':'Paquete de continuidad copiado')});
 }
 function bindSessions(root,sessions){
   root.querySelectorAll('[data-cont]').forEach(btn=>btn.onclick=async()=>{
@@ -265,7 +283,7 @@ function goContinuity(){
   const tab=document.querySelector('.tab[data-view="historial"]');tab?.click();setTimeout(()=>document.getElementById('continuityCenter')?.scrollIntoView({behavior:'smooth',block:'start'}),80);
 }
 function install(){
-  window.PROMETEO_CONTINUITY_V1={version:VERSION,renderHistory,decorateNow,continuityPacket,newChatPrompt,adoptPrompt,goContinuity};
+  window.PROMETEO_CONTINUITY_V1={version:VERSION,renderHistory,decorateNow,continuityPacket,refreshedContinuityPacket,newChatPrompt,adoptPrompt,goContinuity};
   document.getElementById('continuityBtn')?.addEventListener('click',goContinuity);
   window.addEventListener('PROMETEO_V11_DATA',()=>{if(document.querySelector('.view#historial.on'))renderHistory();if(document.querySelector('.view#ahora.on'))setTimeout(decorateNow,0)});
   if(document.querySelector('.view#ahora.on'))setTimeout(decorateNow,0);
