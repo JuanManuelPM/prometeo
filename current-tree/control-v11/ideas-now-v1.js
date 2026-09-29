@@ -3,6 +3,7 @@
 
 const LOCATOR='CHATLOC-PROMETEO-IDEAS-20260929';
 const INDEX='../../coordination/chat-recovery/INDEX.json';
+const indexUrl=()=>new URL(INDEX,location.href);
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 async function json(url){try{const r=await fetch(url,{cache:'no-store'});return r.ok?await r.json():null}catch{return null}}
@@ -32,7 +33,7 @@ async function render(){
         '<div class="history-focus">'+esc(entry.purpose||'')+'</div>'+
         '<div class="history-session-summary">'+esc(ideas.map((x,i)=>(i+1)+'. '+x).join(' · '))+'</div>'+
         '<div class="history-session-status"><span class="history-handoff ready">RECOVERY V2</span> <span>sin authority nueva</span></div>'+
-        '<div class="history-session-actions"><button data-ideas-search>Buscar</button><button class="primary" data-ideas-adopt>Adoptar</button><a href="'+esc(new URL(entry.entry_ref,INDEX).href)+'" target="_blank" rel="noopener">Evidencia ↗</a></div>'+
+        '<div class="history-session-actions"><button data-ideas-search>Buscar</button><button class="primary" data-ideas-adopt>Adoptar</button><a href="'+esc(new URL(entry.entry_ref,indexUrl()).href)+'" target="_blank" rel="noopener">Evidencia ↗</a></div>'+
       '</div></article>';
   const activity=root.querySelector('.live-work-v1');
   if(activity)activity.insertAdjacentElement('afterend',section);else root.prepend(section);
@@ -40,7 +41,7 @@ async function render(){
     await copy(api.recoverySearchPrompt(entry));toast('Locator copiado');
   });
   section.querySelector('[data-ideas-adopt]')?.addEventListener('click',async()=>{
-    const detail=await json(new URL(entry.entry_ref,INDEX).href);
+    const detail=await json(new URL(entry.entry_ref,indexUrl()).href);
     await copy(api.recoveryAdoptPrompt(entry,detail));toast('Prompt de adopción copiado');
   });
   return true;
