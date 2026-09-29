@@ -1,7 +1,8 @@
 (function(){
 'use strict';
 
-const VERSION='PROMETEO_CONTINUITY_V1';
+const VERSION='PROMETEO_CONTINUITY_V1_FAST_PATH';
+const FAST_PATH='FAST_REINCARNATION_PATH_V1';
 const PREFLIGHT='https://juanmanuelpm.github.io/prometeo/coordination/bootstrap/UNIVERSAL_SESSION_PREFLIGHT_V1.txt';
 const CURRENT_TREE='https://juanmanuelpm.github.io/prometeo/current-tree/';
 const DESIGN_DNA='https://github.com/JuanManuelPM/prometeo/blob/main/coordination/design-dna/INDEX.json';
@@ -82,6 +83,7 @@ function continuityPacket(project){
   const tree=b.tree||missingOwner('tree',CURRENT_TREE,b);if(!b.tree)missing.push('tree');
   const organism=b.org||missingOwner('org',CURRENT_TREE+'?view=organismo',b);if(!b.org)missing.push('organism');
   const workContexts=contexts||missingOwner('ctx',WORK_CONTEXT,b);if(!contexts)missing.push('work_contexts');
+  const sessions=relevantSessions(project);
   return {
     schema:'prometeo.project-continuity-packet/v1',
     generated_at:new Date().toISOString(),
@@ -92,7 +94,9 @@ function continuityPacket(project){
     }:{key:'PROMETEO_ALL',title:'Prometeo completo'},
     mandatory_preflight:{
       url:PREFLIGHT,
-      order:['CURRENT_TREE_V2','CURRENT_ARCHITECTURE','ORGANISM','OBJECTIVE_PLAN','WORK_CONTEXT_SESSION','DESIGN_DNA_IF_MATERIAL','DRIFT','REQUEST_CLASSIFICATION','MUTATE'],
+      fast_path:FAST_PATH,
+      first_durable_action:'CREATE_SUCCESSOR_SESSION',
+      ready_budget:{durable_reads_min:3,durable_reads_max:6,successor_publication_cas:1},
       request_classes:['CONTINUE','COMPATIBLE_DELTA','EXPERIMENT','REPLAN','DESTRUCTIVE_RESET']
     },
     stable_refs:{control:CONTROL,current_tree:CURRENT_TREE,design_dna:DESIGN_DNA,work_context:WORK_CONTEXT},
@@ -104,7 +108,8 @@ function continuityPacket(project){
       catalog:b.cat||null,
       freshness:b.freshness||null
     },
-    chat_sessions:relevantSessions(project),
+    chat_sessions:sessions,
+    handoff_readiness:sessions.map(s=>({session_id:s.session_id,...handoffReadiness(s)})),
     capability_graph:capabilityGraph,
     visible_result_projection:resultProjection,
     privacy:{
@@ -113,72 +118,64 @@ function continuityPacket(project){
       private_prompt_text_included:false,
       credentials_included:false
     },
-    reopen_law:'Human new intent may change the plan, but a fresh shell must recover organism/plan/baseline/lineage and record whether the request is continuation, compatible delta, experiment, replan or destructive reset before durable mutation.'
+    reopen_law:'Create durable session identity/lineage first, then read target-specific owners. Human new intent may change the plan; preserve baseline and lineage.'
   };
 }
-async function refreshedContinuityPacket(project){
-  try{
-    const dl=window.PROMETEO_DATA_V11,base=dl?.readCache?.()||bundle()||{};
-    if(dl?.refresh)await dl.refresh(base);
-  }catch{}
-  await load().catch(()=>{});
-  return continuityPacket(project);
+function handoffReadiness(s){
+  const missing=[];
+  if(!s?.session_id)missing.push('session_id');
+  if(!s?.chat_object_id)missing.push('chat_object_id');
+  if(!s?.current_summary)missing.push('current_summary');
+  if(!s?.next_action)missing.push('next_action');
+  if(!(s?.public_session_url||s?.session_url))missing.push('session_ref');
+  if(!(s?.public_journal_url||s?.journal_url))missing.push('journal_ref');
+  if(!(s?.public_continue_url||s?.continue_url))missing.push('continue_ref');
+  return {ready:missing.length===0,label:missing.length?'MISSING HANDOFF DATA':'READY TO REINCARNATE',missing};
 }
-function newChatPrompt(project){
-  const p=project||{title:'Prometeo completo',node_key:'PROJECT:PROMETEO'};
-  return `PROMETEO · NUEVO CHAT DURABLE V1
+function continuePrompt(s){
+  const sessionUrl=s?.public_session_url||abs(s?.session_url,cfg().chatSessionsUrl||location.href);
+  const journalUrl=s?.public_journal_url||abs(s?.journal_url,cfg().chatSessionsUrl||location.href);
+  return `PROMETEO CONTINUE
 
+CHAT_OBJECT_ID: ${s?.chat_object_id||'UNKNOWN'}
+PREDECESSOR: ${s?.session_id||'UNKNOWN'}
+PIN: ${s?.session_pin||'UNKNOWN'}
+
+READ:
+${PREFLIGHT}
+${sessionUrl||'SESSION_REF_MISSING'}
+${journalUrl||'JOURNAL_REF_MISSING'}
+${CURRENT_TREE}
+
+FIRST DURABLE ACTION:
+Create a fresh successor SESSION_ID + SESSION_PIN, publish SESSION/JOURNAL/CONTINUE + index lineage, then continue predecessor next_action.
+
+RULE:
+Read pointers, not the world. No broad search, repo clone or Supabase before READY unless predecessor next_action explicitly requires it.`;
+}
+function interactiveBootstrapPrompt(mode,project){
+  const p=project||{title:'Prometeo completo',node_key:'PROJECT:PROMETEO'};
+  return `PROMETEO SESSION BOOTSTRAP
+
+MODE: ${mode}
 FOCUS_PROJECT: ${p.title||'Prometeo'}
 FOCUS_NODE: ${p.node_key||'AUTO_RESOLVE'}
 
-LEÉ PRIMERO:
+READ:
 ${PREFLIGHT}
 ${CURRENT_TREE}
 
-PRIMERA ACCIÓN DURABLE:
-1. Creá SESSION_ID + SESSION_PIN frescos. No reutilices una sesión histórica.
-2. Buscá si ya existe Chat Object / Work Context para este proyecto o propósito. Reutilizá identidad larga si corresponde; no dupliques owners.
-3. Publicá SESSION.json + JOURNAL.json + CONTINUE.txt e incorporá la sesión al índice durable.
-4. Ejecutá el preflight completo con los tokens canónicos: CURRENT_TREE_V2 → CURRENT_ARCHITECTURE → ORGANISM → OBJECTIVE_PLAN → WORK_CONTEXT_SESSION → DESIGN_DNA_IF_MATERIAL → DRIFT → REQUEST_CLASSIFICATION → MUTATE. En ORGANISM ubicá realmente el target, owner, padres, dependencias y superficies relacionadas.
-5. Clasificá la próxima instrucción humana como CONTINUE / COMPATIBLE_DELTA / EXPERIMENT / REPLAN / DESTRUCTIVE_RESET.
-6. El pedido humano manda como intención. Si contradice el plan anterior, NO lo ignores: registrá el cambio y preservá lineage/baseline; aislá como alternativa/experimento cuando corresponda o replanteá explícitamente si eso pidió el humano.
-7. En cada turno material, antes de responder, publicá journal sanitizado: intención, conclusión, acciones reales, refs, decisiones, boundaries y next_action.
-8. Nunca publiques prompt raw, notas privadas, tokens, headers ni chain-of-thought.
-9. No inventes queue/scheduler/CURRENT paralelos. Reutilizá source owners y arquitectura existente.
-10. Si el humano quiere identidad visual para el chat/proyecto, podés agregar cover_image_url sólo si existe un asset público real con provenance; la imagen es UX, nunca authority.
+FIRST DURABLE ACTION:
+Create fresh SESSION_ID + SESSION_PIN and publish SESSION/JOURNAL/CONTINUE + index. Reuse an existing Chat Object/Work Context when supplied focus/pointers resolve one; do not invent a parallel owner.
 
-CONTROL ROOM:
-${CONTROL}
+THEN:
+Resolve only the relevant Organism subgraph and exact plan/source owners. For ADOPT_EXISTING, backfill supported material milestones only after the session exists. Classify material human deltas as CONTINUE / COMPATIBLE_DELTA / EXPERIMENT / REPLAN / DESTRUCTIVE_RESET.
 
-Cuando termines el bootstrap, quedá listo para que el humano te diga qué quiere hacer. No le pidas que reconstruya contexto ya durable.`;
+RULE:
+Read pointers, not the world. No broad search, repo clone or Supabase before READY unless actual next_action requires it. Never publish raw prompts, private notes, credentials, headers or hidden reasoning.`;
 }
-function adoptPrompt(project){
-  const p=project||{title:'Prometeo completo',node_key:'PROJECT:PROMETEO'};
-  return `PROMETEO · ADOPTAR ESTE CHAT EXISTENTE V1
-
-Este chat ya tiene conversación y trabajo previo. Desde AHORA adoptalo como Chat Session durable sin pedirme que resuma lo anterior.
-
-FOCUS_PROJECT: ${p.title||'Prometeo'}
-FOCUS_NODE: ${p.node_key||'AUTO_RESOLVE'}
-
-LEÉ:
-${PREFLIGHT}
-${CURRENT_TREE}
-
-HACÉ:
-1. Inspeccioná la conversación actual + evidencia durable disponible y resolvé qué Chat Object / Project / Tools / Pages representa.
-2. Creá SESSION_ID + SESSION_PIN frescos para ESTE chat.
-3. Registrá predecessor sólo si encontrás uno real; no lo inventes.
-4. Publicá SESSION/JOURNAL/CONTINUE y el índice.
-5. Backfilleá únicamente hitos materiales que puedas sostener por conversación visible o refs durables; marcá backfill como tal.
-6. Ejecutá: CURRENT_TREE_V2 → CURRENT_ARCHITECTURE → ORGANISM → OBJECTIVE_PLAN → WORK_CONTEXT_SESSION → DESIGN_DNA_IF_MATERIAL → DRIFT → REQUEST_CLASSIFICATION. En ORGANISM ubicá el trabajo real y recuperá objetivo/plan/baseline antes de la próxima mutación.
-7. Desde este turno en adelante, publicá cada interacción material al journal antes de responder.
-8. Si el trabajo mejora una Tool/Page/Project ajenos al foco original, agregá relaciones tipadas; no mudes el chat de “carpeta”.
-9. Si el humano quiere identidad visual, podés publicar cover_image_url con asset/provenance real.
-10. No publiques prompt raw ni información privada.
-
-Después continuá normalmente. El humano no vuelve a ser message bus.`;
-}
+function newChatPrompt(project){return interactiveBootstrapPrompt('NEW',project);}
+function adoptPrompt(project){return interactiveBootstrapPrompt('ADOPT_EXISTING',project);}
 function download(name,text,type='application/json'){
   const a=document.createElement('a'),blob=new Blob([text],{type});a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
@@ -195,7 +192,7 @@ function toast(msg){
 function centerHtml(){
   const p=selectedProject();
   return `<section class="continuity-center" id="continuityCenter">
-    <div class="continuity-head"><div><div class="continuity-title">∞ Continuidad</div><div class="continuity-sub">Podés perder este chat. El proyecto no debería perderse con él.</div></div><span class="continuity-state">PREFLIGHT V1</span></div>
+    <div class="continuity-head"><div><div class="continuity-title">∞ Continuidad</div><div class="continuity-sub">Podés perder este chat. El proyecto no debería perderse con él.</div></div><span class="continuity-state">FAST PATH V1</span></div>
     <div class="continuity-select-row"><label>Foco</label><select id="continuityProject">${projectOptionHtml()}</select></div>
     <div class="continuity-actions">
       <button class="primary" id="continuityNew">Nuevo chat</button>
@@ -204,13 +201,17 @@ function centerHtml(){
       <button id="continuityCopy">Copiar paquete</button>
       <a href="https://chatgpt.com/" target="_blank" rel="noopener">abrir ChatGPT ↗</a><a href="${PREFLIGHT}" target="_blank" rel="noopener">preflight ↗</a>
     </div>
-    <div class="continuity-note">Nuevo/Adoptar no crean otra autoridad: generan un bootstrap que obliga al chat a leer Current Tree + Organismo + plan + Work Context + Design DNA cuando corresponda antes de modificar.</div>
+    <div class="continuity-note">Nuevo/Adoptar usan el mismo contrato universal: sesión durable primero, READY con pointers, y recién después expansión del target. Fuentes degradadas no disparan arqueología automática.</div>
   </section>`;
 }
 function sessionHtml(s){
   const img=s.cover_image_url?'<img class="history-avatar" src="'+esc(s.cover_image_url)+'" alt="">':'<div class="history-avatar fallback">💬</div>';
   const chatLink=s.chat_url?'<a href="'+esc(s.chat_url)+'" target="_blank" rel="noopener">abrir chat ↗</a>':'';
-  return '<article class="history-session" data-session="'+esc(s.session_id)+'">'+img+'<div><div class="history-session-top"><b>'+esc(s.title||s.session_id)+'</b><time>'+esc(clock(s.last_activity_at))+'</time></div><div class="history-session-summary">'+esc(s.current_summary||'')+'</div><div class="history-session-actions"><button data-cont="'+esc(s.session_id)+'">Continuar</button><button data-journal="'+esc(s.session_id)+'">Ver journal</button>'+chatLink+'</div><div class="history-session-journal" data-journal-body="'+esc(s.session_id)+'" hidden></div></div></article>';
+  const h=handoffReadiness(s),focus=[s.active_project,...(s.focus_objects||[])].filter(Boolean).join(' · ');
+  const handoff='<span class="history-handoff '+(h.ready?'ready':'missing')+'">'+esc(h.label)+'</span>';
+  const next=s.next_action?'<div class="history-next"><b>siguiente</b> '+esc(s.next_action)+'</div>':'';
+  const focusHtml=focus?'<div class="history-focus">'+esc(focus)+'</div>':'';
+  return '<article class="history-session" data-session="'+esc(s.session_id)+'">'+img+'<div><div class="history-session-top"><b>'+esc(s.title||s.session_id)+'</b><time>'+esc(clock(s.last_activity_at))+'</time></div>'+focusHtml+'<div class="history-session-status">'+handoff+' <span>'+esc(s.status||'')+'</span></div><div class="history-session-summary">'+esc(s.current_summary||'')+'</div>'+next+'<div class="history-session-actions"><button data-cont="'+esc(s.session_id)+'" '+(h.ready?'':'disabled')+'>Continuar</button><button data-journal="'+esc(s.session_id)+'">Ver journal</button>'+chatLink+'</div><div class="history-session-journal" data-journal-body="'+esc(s.session_id)+'" hidden></div></div></article>';
 }
 function clock(d){try{return new Intl.DateTimeFormat('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Argentina/Buenos_Aires'}).format(new Date(d))}catch{return'—'}}
 function day(d){try{return new Intl.DateTimeFormat('es-AR',{day:'numeric',month:'long',year:'numeric',timeZone:'America/Argentina/Buenos_Aires'}).format(new Date(d))}catch{return'—'}}
@@ -259,10 +260,8 @@ function bindCenter(){
 function bindSessions(root,sessions){
   root.querySelectorAll('[data-cont]').forEach(btn=>btn.onclick=async()=>{
     const s=sessions.find(x=>x.session_id===btn.dataset.cont);if(!s)return;
-    const prompt=await getText(s.public_continue_url||abs(s.continue_url,cfg().chatSessionsUrl||location.href));
-    if(!prompt){toast('No pude cargar CONTINUE.txt');return}
-    const guarded=prompt.includes('UNIVERSAL_SESSION_PREFLIGHT_V1')?prompt:('PREFLIGHT OBLIGATORIO: '+PREFLIGHT+'\n\n'+prompt);
-    await copyText(guarded);toast('Continuación copiada');
+    const h=handoffReadiness(s);if(!h.ready){toast('Faltan datos de handoff');return}
+    await copyText(continuePrompt(s));toast('Continuación mínima copiada');
   });
   root.querySelectorAll('[data-journal]').forEach(btn=>btn.onclick=async()=>{
     const s=sessions.find(x=>x.session_id===btn.dataset.journal),body=root.querySelector('[data-journal-body="'+CSS.escape(btn.dataset.journal)+'"]');if(!s||!body)return;
