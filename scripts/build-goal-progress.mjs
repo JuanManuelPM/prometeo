@@ -181,6 +181,20 @@ add('G10_PROMOTE_SERVE_ACCEPT',
 
 const earned = Number(gates.reduce((a,g)=>a+g.earned,0).toFixed(2));
 const percent = Math.round(earned);
+const remaining = Number((100-earned).toFixed(2));
+const reverseOrder = ['G05_REAL_PRIVATE_E2E','G06_VISIBLE_RESULT_LOOP','G09_RECOVERY_STORAGE_PRIVACY','G10_PROMOTE_SERVE_ACCEPT'];
+const reversePath = reverseOrder
+  .map(id=>gates.find(g=>g.id===id))
+  .filter(Boolean)
+  .map(g=>({
+    id:g.id,
+    title:g.title,
+    state:g.state,
+    remaining_points:Number((g.weight-g.earned).toFixed(2)),
+    closes_when:g.done_when,
+    blocker:g.blocker
+  }))
+  .filter(g=>g.remaining_points>0);
 const hardBlockers = gates.filter(g => g.state === 'BLOCKED').map(g => ({id:g.id,title:g.title,reason:g.blocker}));
 const partials = gates.filter(g => g.state === 'PARTIAL').map(g => ({id:g.id,title:g.title,reason:g.blocker}));
 const out = {
@@ -192,7 +206,10 @@ const out = {
   objective: contract.objective,
   percent,
   earned,
+  remaining,
   total: 100,
+  reverse_path: reversePath,
+  finish_mode: 'REVERSE_FROM_100',
   interpretation: 'PORCENTAJE_DE_GATES_NO_ETA',
   state: percent === 100 ? 'FINISH_GATES_COMPLETE_AWAIT_HUMAN_MEANING' : hardBlockers.length ? 'ADVANCING_WITH_HARD_BLOCKERS' : 'ADVANCING',
   gates,
