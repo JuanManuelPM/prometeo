@@ -2,6 +2,16 @@ const ENDPOINT = 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo
 const SECRET_KEY = 'prometeo.capture.workspace.secret.v1';
 const WORKSPACE_KEY = 'prometeo.capture.workspace.id.v1';
 
+function blockedControlPlaneError() {
+  const state = globalThis.PROMETEO_CONTROL_PLANE_STATE_V1;
+  if (!state?.blocked) return null;
+  const error = new Error('Control plane temporalmente bloqueado; usando modo local-first.');
+  error.code = 'CONTROL_PLANE_BLOCKED';
+  error.status = 503;
+  error.control_plane_state = state;
+  return error;
+}
+
 function randomSecret() {
   const a = new Uint8Array(32);
   crypto.getRandomValues(a);
@@ -20,6 +30,8 @@ function getSecret() {
 }
 
 async function call(action, payload = {}, secret = getSecret()) {
+  const blocked = blockedControlPlaneError();
+  if (blocked) throw blocked;
   const response = await fetch(ENDPOINT, {
     method: 'POST',
     headers: {
@@ -62,6 +74,8 @@ export class PrometeoRemote {
 
   async init() {
     if (!navigator.onLine) return null;
+    const blocked = blockedControlPlaneError();
+    if (blocked) throw blocked;
     if (!this.ready) {
       this.ready = call('bootstrap').then(data => {
         localStorage.setItem(WORKSPACE_KEY, data.workspace_id || '');
