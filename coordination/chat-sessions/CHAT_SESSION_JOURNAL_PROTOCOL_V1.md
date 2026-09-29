@@ -52,7 +52,7 @@ Binding preflight:
 `coordination/bootstrap/UNIVERSAL_SESSION_PREFLIGHT_V1.txt`
 
 ### R0 · Envelope
-Parse chat_object_id, predecessor id/pin, focus, predecessor SESSION/JOURNAL, Current Tree/preflight pointer and exact next_action.
+Parse chat_object_id, predecessor id/pin, focus, predecessor SESSION/JOURNAL, Current Tree/preflight pointer, exact next_action and optional `same_work_unit_ref`, `last_checkpoint_ref`, `current_stage`, `last_progress_at`, `repo_head_seen`.
 
 ### R1 · Minimal reads
 Normal target is about 3–6 durable reads:
@@ -60,7 +60,7 @@ Normal target is about 3–6 durable reads:
 2. predecessor SESSION;
 3. predecessor JOURNAL material head;
 4. named Current Tree/continuity snapshot;
-5. one exact plan/source owner only when SESSION already points to it.
+5. `same_work_unit_ref` / `last_checkpoint_ref` when present, otherwise one exact plan/source owner only when SESSION already points to it.
 
 No broad web/repo search, repo clone or Supabase investigation before READY unless next_action explicitly requires that source.
 
@@ -75,7 +75,7 @@ Preferred one CAS/tree commit:
 - INDEX.json;
 - predecessor successor/status update.
 
-Publication happens before target-specific archaeology/implementation.
+Publication happens before target-specific archaeology/implementation. When human intent still points to the same task, successor Session preserves the same Work Unit and resumes after the durable checkpoint instead of creating a second task.
 
 ### R4 · Session Head convention
 New sessions should persist, when known:
@@ -92,6 +92,10 @@ New sessions should persist, when known:
 `recent_change_refs`  
 `current_plan_ref`  
 `objective_ref`  
+`same_work_unit_ref`  
+`last_checkpoint_ref`  
+`current_stage`  
+`last_progress_at`  
 `work_context_refs`  
 `source_owner_refs`  
 `preservation_refs`  
@@ -118,6 +122,8 @@ Live owner fails -> record DEGRADED -> use last-good/cache/GitHub durable owner 
 
 Current Tree/Organism/Work Context/Supabase degradation does not block reincarnation when durable identity, lineage and reopening pointers remain available.
 
+A ChatGPT client error/spinner/Retry control is observation state, not durable work authority. Retry from the ChatGPT client UI is not assumed to be safe resume; reconcile durable Work Unit/checkpoint/commits first.
+
 ## 5. Request classification
 
 Material requests are classified operationally as CONTINUE / COMPATIBLE_DELTA / EXPERIMENT / REPLAN / DESTRUCTIVE_RESET.
@@ -134,6 +140,11 @@ PROMETEO CONTINUE
 CHAT_OBJECT_ID: <id>
 PREDECESSOR: <session_id>
 PIN: <session_pin>
+SAME_WORK_UNIT_REF: <ref-or-NONE>
+LAST_CHECKPOINT_REF: <ref-or-NONE>
+CURRENT_STAGE: <stage-or-UNKNOWN>
+LAST_PROGRESS_AT: <timestamp-or-UNKNOWN>
+REPO_HEAD_SEEN: <sha-or-UNKNOWN>
 
 READ:
 <universal preflight>
@@ -142,7 +153,7 @@ READ:
 <current tree>
 
 FIRST DURABLE ACTION:
-Create a fresh successor SESSION_ID + SESSION_PIN, publish successor + index lineage, then continue predecessor next_action.
+Create a fresh successor SESSION_ID + SESSION_PIN, publish successor + index lineage, preserve SAME_WORK_UNIT_REF when the objective is unchanged, then continue from LAST_CHECKPOINT_REF/current stage.
 
 RULE:
 Read pointers, not the world. Expand only after READY.
