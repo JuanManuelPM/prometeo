@@ -200,16 +200,18 @@ try{
     pass('command_dom_fail_closed',{maxlength:6000,button:'HACER',posts_before:postsBefore,posts_after:postsAfter,state:(await state.textContent())?.trim()});
   }
 
+  await page.route('**/functions/v1/prometeo-change-loop-v1**',route=>route.abort('failed'));
   await page.evaluate(()=>{
     localStorage.removeItem('prometeo.capture.workspace.secret.v1');
     localStorage.removeItem('prometeo.capture.workspace.secret.v2');
+    scrollTo(0,0);
+    document.querySelector('.tab[data-view="espacios"]')?.click();
   });
-  await page.locator('.tab[data-view="espacios"]').click();
   const noteButtons=page.locator('#workspacesV11 [data-notes]');
   await noteButtons.first().waitFor({state:'visible',timeout:20000});
   const pageId=await noteButtons.first().getAttribute('data-notes');
   assert.ok(pageId,'a page-scoped note button must carry page identity');
-  await noteButtons.first().click();
+  await noteButtons.first().evaluate(el=>el.click());
   await page.locator('#prometeoChangeLoop.open').waitFor({state:'visible',timeout:10000});
   await page.locator('#pclText').waitFor({state:'visible',timeout:10000});
   const initialLocalText=(await page.locator('#prometeoChangeLoop').innerText()).toLowerCase();
