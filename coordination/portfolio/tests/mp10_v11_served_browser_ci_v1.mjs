@@ -311,6 +311,26 @@ try{
   assert.match(copiedSteward,/FAST_REINCARNATION_PATH_V1/);
   pass('visual_steward_navigation_lineage',{target:'COMPONENT:CONTROL_NAVIGATION',actor_visible:true,before_after:true,commit:true,rollback:true,alternative_visible:true,specialized_session_bootstrap:true});
 
+  await page.evaluate(()=>{document.querySelector('.tab[data-view="ahora"]')?.click();return window.PROMETEO_CONTINUITY_V1?.decorateNow?.()});
+  const workCard=page.locator('[data-work-unit="WU-CONTROL-NAVIGATION-VISUAL-STEWARD-V1"]');
+  await workCard.waitFor({state:'visible',timeout:15000});
+  const workText=await workCard.innerText();
+  assert.match(workText,/95%/);
+  assert.match(workText,/VERIFY_RESUME/);
+  assert.match(workText,/COMPONENT:CONTROL_NAVIGATION/);
+  await workCard.evaluate(el=>el.open=true);
+  assert.match(await workCard.innerText(),/CP-WU-004-VERIFY-RESUME/);
+  assert.match(await workCard.innerText(),/NOTES_EXACT_BACK_RELOAD_TIMEOUT/);
+  await workCard.locator('[data-work-reincarnate]').evaluate(el=>el.click());
+  await page.waitForTimeout(250);
+  const copiedWorkResume=await page.evaluate(()=>navigator.clipboard.readText());
+  assert.match(copiedWorkResume,/SAME_WORK_UNIT_REF:/);
+  assert.match(copiedWorkResume,/WU-CONTROL-NAVIGATION-VISUAL-STEWARD-V1/);
+  assert.match(copiedWorkResume,/CP-WU-004-VERIFY-RESUME/);
+  assert.match(copiedWorkResume,/VERIFY_RESUME/);
+  assert.match(copiedWorkResume,/RETRY_FROM_UI != RESUME_DURABLE_WORK/);
+  pass('durable_activity_board_same_work_unit',{work_unit_id:'WU-CONTROL-NAVIGATION-VISUAL-STEWARD-V1',progress:95,stage:'VERIFY_RESUME',checkpoint:'CP-WU-004-VERIFY-RESUME',resume_same_work_unit:true,retry_not_resume:true});
+
   await page.evaluate(()=>{scrollTo(0,0);document.querySelector('.tab[data-view="chats"]')?.click()});
   const sessionCard=page.locator('[data-chat-session="CHAT-PROMETEO-CONTROL-20260929T145300Z-S01"]');
   await sessionCard.waitFor({state:'visible',timeout:20000});
