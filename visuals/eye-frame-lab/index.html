@@ -3,155 +3,132 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#606060">
-<title>Prometeo · Eye Blink V21</title>
+<meta name="theme-color" content="#555">
+<title>Prometeo · Eye Lab V23</title>
 <style>
 *{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;touch-action:none;overscroll-behavior:none;background:#606060}
-body{display:grid;place-items:center;background:radial-gradient(circle at center,#777 0%,#606060 55%,#444 100%)}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#555;touch-action:none;overscroll-behavior:none}
+body{display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,#777 0%,#606060 54%,#424242 100%)}
 #eye{width:min(94vw,82vh,760px);aspect-ratio:1/1;display:block}
-#status{position:fixed;left:12px;right:12px;bottom:12px;text-align:center;font:700 12px/1.35 system-ui;color:#fff;opacity:.82;pointer-events:none;white-space:pre-wrap}
+#status{position:fixed;left:12px;right:12px;bottom:12px;margin:auto;max-width:760px;padding:9px 11px;border-radius:8px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.14);color:#fff;font:700 12px/1.35 system-ui,sans-serif;text-align:center;white-space:pre-wrap;pointer-events:none}
 #status.ok{display:none}
-#status.error{opacity:1;background:#6e1c1c;padding:10px;border-radius:8px}
+#status.error{background:#6e1c1c}
+#mode{position:fixed;top:12px;left:12px;right:12px;text-align:center;color:rgba(255,255,255,.66);font:600 12px/1.2 system-ui,sans-serif;pointer-events:none;text-shadow:0 1px 1px rgba(0,0,0,.35);transition:opacity .35s}
 </style>
 </head>
 <body>
-<canvas id="eye" width="128" height="128" aria-label="Marco de ojo alineado parpadeando"></canvas>
-<div id="status">cargando sprite de datos…</div>
+<canvas id="eye" width="128" height="128" aria-label="Ojo procedural detrás del pestañeo V21"></canvas>
+<div id="mode"></div>
+<div id="status">cargando blink V21 + capa procedural…</div>
 <script type="module">
 const canvas=document.querySelector('#eye');
 const ctx=canvas.getContext('2d',{alpha:true});
 const status=document.querySelector('#status');
+const modeLabel=document.querySelector('#mode');
 ctx.imageSmoothingEnabled=true;
 
-let pack=null;
-let decoded=new Map();
-let active=null;
+const PACK_URL='./sprite-pack-v21.json?v=23';
+const BLINK='blink';
+const AUTO_BLINK=[2800,3400,4100,3100];
+const ALPHA_BARRIER=40;
+const DILATE_RADIUS=1;
 
-function setStatus(message,kind=''){
-  status.textContent=message;
-  status.className=kind;
-}
+let pack=null,decoded=new Map(),apertures=new Map(),defaultGeometry=null;
+let activeBlink=null,blinkSteps=[],blinkStarts=[],blinkTotal=0,blinkCadenceIndex=0,nextBlinkAt=Infinity;
+let modeIndex=0,modeLabelTimer=0,wanderIndex=0,nextWanderAt=0;
 
-function b64bytes(s){
-  const bin=atob(s);
-  const out=new Uint8Array(bin.length);
-  for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
-  return out;
-}
+const modes=[
+{id:'neutral',label:'neutral',fill:'#fff',pupil:'#000',shape:'circle',x:0,y:0,r:.22},
+{id:'look_left',label:'mirada izquierda',fill:'#fff',pupil:'#000',shape:'circle',x:-.72,y:0,r:.22},
+{id:'look_right',label:'mirada derecha',fill:'#fff',pupil:'#000',shape:'circle',x:.72,y:0,r:.22},
+{id:'look_up',label:'mirada arriba',fill:'#fff',pupil:'#000',shape:'circle',x:0,y:-.72,r:.22},
+{id:'look_down',label:'mirada abajo',fill:'#fff',pupil:'#000',shape:'circle',x:0,y:.70,r:.22},
+{id:'small',label:'pupila chica',fill:'#fff',pupil:'#000',shape:'circle',x:0,y:0,r:.12},
+{id:'large',label:'pupila grande',fill:'#fff',pupil:'#000',shape:'circle',x:0,y:0,r:.36},
+{id:'dilate',label:'dilatación',fill:'#fff',pupil:'#000',shape:'circle',x:0,y:0,r:.20,pulse:true},
+{id:'wander',label:'mirada automática',fill:'#fff',pupil:'#000',shape:'circle',x:0,y:0,r:.22,wander:true},
+{id:'slit',label:'pupila vertical',fill:'#fff',pupil:'#000',shape:'slit',x:0,y:0,r:.31},
+{id:'all_black',label:'ojo negro',fill:'#000',pupil:null,shape:'none',x:0,y:0,r:0},
+{id:'inverse',label:'ojo negro + pupila blanca',fill:'#000',pupil:'#fff',shape:'circle',x:0,y:0,r:.19,wander:true},
+{id:'all_white',label:'ojo blanco',fill:'#fff',pupil:null,shape:'none',x:0,y:0,r:0}
+];
+const current={x:0,y:0,r:.22},target={x:0,y:0,r:.22};
 
-async function sha256hex(bytes){
-  const hash=await crypto.subtle.digest('SHA-256',bytes);
-  return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');
-}
+function setStatus(msg,kind=''){status.textContent=msg;status.className=kind}
+function ease(a,b,k){return a+(b-a)*k}
+function b64bytes(s){const bin=atob(s),out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out}
+async function sha256hex(bytes){const h=await crypto.subtle.digest('SHA-256',bytes);return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('')}
 
 function validatePack(p){
-  if(!p||p.schema!=='PROMETEO_INDEXED_SPRITE_PACK_V2') throw new Error('schema de sprite inválido');
-  const [w,h]=p.logical_size||[];
-  if(!Number.isInteger(w)||!Number.isInteger(h)||w<=0||h<=0) throw new Error('logical_size inválido');
-  if(p.encoding?.type!=='rle_palette_base64_u8') throw new Error('encoding inválido');
-  if(!Array.isArray(p.encoding?.palette_rgba)||p.encoding.palette_rgba.length<2) throw new Error('paleta inválida');
-  if(!Array.isArray(p.frames)||!p.frames.length) throw new Error('sin frames');
-  const ids=new Set(p.frames.map(f=>f.id));
-  if(ids.size!==p.frames.length) throw new Error('ids de frame duplicados');
-  if(!ids.has(p.default_frame)) throw new Error('default_frame inexistente');
-  for(const [name,a] of Object.entries(p.animations||{})){
-    if(!Array.isArray(a.frames)||!a.frames.length) throw new Error(name+': animación vacía');
-    for(const step of a.frames){
-      if(!ids.has(step.id)) throw new Error(name+': frame inexistente '+step.id);
-      if(!Number.isFinite(step.duration_ms)||step.duration_ms<=0) throw new Error(name+': duración inválida');
-    }
-    if(a.return_to&&!ids.has(a.return_to)) throw new Error(name+': return_to inexistente');
-  }
-  return [w,h];
+if(!p||p.schema!=='PROMETEO_INDEXED_SPRITE_PACK_V2')throw new Error('schema V21 inválido');
+if(p.logical_size?.[0]!==128||p.logical_size?.[1]!==128)throw new Error('logical_size V21 inesperado');
+if(!Array.isArray(p.frames)||!p.frames.length)throw new Error('V21 sin frames');
+const ids=new Set(p.frames.map(f=>f.id));if(ids.size!==p.frames.length)throw new Error('ids duplicados');
+const a=p.animations?.[BLINK];if(!a?.frames?.length)throw new Error('blink faltante');
+for(const s of a.frames)if(!ids.has(s.id)||!Number.isFinite(s.duration_ms)||s.duration_ms<=0)throw new Error('blink inválido')
 }
 
-async function decodeFrame(frame,w,h,palette){
-  const bytes=b64bytes(frame.data_b64||'');
-  if(bytes.length!==frame.byte_length) throw new Error(frame.id+': byte_length no coincide');
-  if(bytes.length%2) throw new Error(frame.id+': RLE impar');
-  if(frame.sha256){
-    const got=await sha256hex(bytes);
-    if(got!==frame.sha256) throw new Error(frame.id+': checksum SHA-256 no coincide');
-  }
-  const rgba=new Uint8ClampedArray(w*h*4);
-  let px=0;
-  for(let i=0;i<bytes.length;i+=2){
-    const count=bytes[i],index=bytes[i+1];
-    if(count<=0) throw new Error(frame.id+': run cero');
-    if(index>=palette.length) throw new Error(frame.id+': índice de paleta inválido');
-    const color=palette[index];
-    for(let n=0;n<count;n++){
-      if(px>=w*h) throw new Error(frame.id+': overflow de píxeles');
-      const o=(px++)*4;
-      rgba[o]=color[0]; rgba[o+1]=color[1]; rgba[o+2]=color[2]; rgba[o+3]=color[3];
-    }
-  }
-  if(px!==w*h) throw new Error(`${frame.id}: ${px} píxeles; esperados ${w*h}`);
-  const off=document.createElement('canvas');
-  off.width=w; off.height=h;
-  off.getContext('2d').putImageData(new ImageData(rgba,w,h),0,0);
-  return off;
+async function decodeFrame(frame){
+const bytes=b64bytes(frame.data_b64||'');if(bytes.length!==frame.byte_length)throw new Error(frame.id+': byte_length');
+if(await sha256hex(bytes)!==frame.sha256)throw new Error(frame.id+': sha256');
+const pal=pack.encoding.palette_rgba,rgba=new Uint8ClampedArray(128*128*4);let px=0;
+for(let i=0;i<bytes.length;i+=2){const count=bytes[i],pi=bytes[i+1];if(count<=0||pi>=pal.length)throw new Error(frame.id+': RLE');const c=pal[pi];
+for(let n=0;n<count;n++){if(px>=16384)throw new Error(frame.id+': overflow');const o=px++*4;rgba[o]=c[0];rgba[o+1]=c[1];rgba[o+2]=c[2];rgba[o+3]=c[3]}}
+if(px!==16384)throw new Error(frame.id+': pixel count');
+const off=document.createElement('canvas');off.width=128;off.height=128;off.getContext('2d').putImageData(new ImageData(rgba,128,128),0,0);return off
 }
 
-function draw(id){
-  const frame=decoded.get(id);
-  if(!frame)return;
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.drawImage(frame,0,0,canvas.width,canvas.height);
+function buildAperture(frameCanvas){
+const src=frameCanvas.getContext('2d').getImageData(0,0,128,128).data,blocked=new Uint8Array(16384);
+for(let i=0;i<16384;i++)blocked[i]=src[i*4+3]>=ALPHA_BARRIER?1:0;
+for(let pass=0;pass<DILATE_RADIUS;pass++){const copy=blocked.slice();for(let y=1;y<127;y++)for(let x=1;x<127;x++){const i=y*128+x;if(copy[i])continue;if(copy[i-1]||copy[i+1]||copy[i-128]||copy[i+128])blocked[i]=1}}
+const seen=new Uint8Array(16384);let best=null;const qx=new Int16Array(16384),qy=new Int16Array(16384);
+for(let sy=1;sy<127;sy++)for(let sx=1;sx<127;sx++){const start=sy*128+sx;if(blocked[start]||seen[start])continue;
+let head=0,tail=0,touches=false;const pts=[];let minx=127,miny=127,maxx=0,maxy=0,sumx=0,sumy=0;
+qx[tail]=sx;qy[tail++]=sy;seen[start]=1;
+while(head<tail){const x=qx[head],y=qy[head++],i=y*128+x;pts.push(i);if(x===0||y===0||x===127||y===127)touches=true;
+if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;sumx+=x;sumy+=y;
+for(const [nx,ny] of [[x-1,y],[x+1,y],[x,y-1],[x,y+1]]){if(nx<0||ny<0||nx>=128||ny>=128)continue;const ni=ny*128+nx;if(!blocked[ni]&&!seen[ni]){seen[ni]=1;qx[tail]=nx;qy[tail++]=ny}}}
+if(!touches&&pts.length>8&&(!best||pts.length>best.pts.length))best={pts,minx,miny,maxx,maxy,sumx,sumy}}
+const mask=document.createElement('canvas');mask.width=128;mask.height=128;const mctx=mask.getContext('2d'),out=mctx.createImageData(128,128);
+if(!best)return {mask,bbox:null,cx:64,cy:70,area:0};
+for(const i of best.pts){const o=i*4;out.data[o]=255;out.data[o+1]=255;out.data[o+2]=255;out.data[o+3]=255}
+mctx.putImageData(out,0,0);return {mask,bbox:[best.minx,best.miny,best.maxx+1,best.maxy+1],cx:best.sumx/best.pts.length,cy:best.sumy/best.pts.length,area:best.pts.length}
 }
 
-async function boot(){
-  try{
-    const response=await fetch('./sprite-pack-v21.json?v=21',{cache:'no-store'});
-    if(!response.ok) throw new Error('sprite-pack: HTTP '+response.status);
-    pack=await response.json();
-    const [w,h]=validatePack(pack);
-    canvas.width=w; canvas.height=h;
-    const loaded=[];
-    for(const frame of pack.frames){
-      loaded.push([frame.id,await decodeFrame(frame,w,h,pack.encoding.palette_rgba)]);
-    }
-    decoded=new Map(loaded);
-    draw(pack.default_frame);
-    setStatus('', 'ok');
-  }catch(err){
-    setStatus('ERROR DE SPRITE\n'+String(err?.message||err),'error');
-  }
+function showMode(s){modeLabel.textContent=s;modeLabel.style.opacity='1';clearTimeout(modeLabelTimer);modeLabelTimer=setTimeout(()=>modeLabel.style.opacity='0',900)}
+function setMode(index,blink=true){modeIndex=(index+modes.length)%modes.length;const m=modes[modeIndex];target.x=m.x||0;target.y=m.y||0;target.r=m.r||0;showMode(m.label);if(blink)triggerBlink()}
+function scheduleBlink(now){nextBlinkAt=now+AUTO_BLINK[blinkCadenceIndex++%AUTO_BLINK.length]}
+function triggerBlink(){if(!pack)return;activeBlink={start:performance.now()};scheduleBlink(performance.now())}
+function frameAt(now){if(!activeBlink)return pack.default_frame;const t=now-activeBlink.start;if(t>=blinkTotal){activeBlink=null;return pack.default_frame}
+for(let i=blinkStarts.length-1;i>=0;i--)if(t>=blinkStarts[i])return blinkSteps[i].id;return blinkSteps[0].id}
+
+function updateDynamics(now){const m=modes[modeIndex];
+if(m.wander&&now>=nextWanderAt){const path=[[-.75,-.15],[.65,-.3],[.35,.55],[-.55,.45],[0,0],[.75,.1],[-.2,-.65],[0,0]],p=path[wanderIndex++%path.length];target.x=p[0];target.y=p[1];nextWanderAt=now+520}
+if(m.pulse)target.r=.14+(Math.sin(now*.006)+1)*.12;
+const k=.22;current.x=ease(current.x,target.x,k);current.y=ease(current.y,target.y,k);current.r=ease(current.r,target.r,k)
 }
 
-function play(name){
-  if(active||!pack)return;
-  const def=pack.animations?.[name];
-  if(!def)return;
-  const starts=[];
-  let total=0;
-  for(const step of def.frames){starts.push(total);total+=step.duration_ms;}
-  active={def,starts,total,start:performance.now(),last:-1};
-  requestAnimationFrame(tick);
+function drawContent(frameId){
+const ap=apertures.get(frameId);if(!ap||ap.area===0)return;const m=modes[modeIndex],g=defaultGeometry;
+const layer=document.createElement('canvas');layer.width=128;layer.height=128;const l=layer.getContext('2d');l.fillStyle=m.fill||'#fff';l.fillRect(0,0,128,128);
+if(m.pupil){const bw=g.bbox[2]-g.bbox[0],bh=g.bbox[3]-g.bbox[1],travelX=bw*.29,travelY=bh*.25,px=g.cx+current.x*travelX,py=g.cy+current.y*travelY,base=Math.min(bw,bh),r=Math.max(1,current.r*base);
+l.fillStyle=m.pupil;l.beginPath();if(m.shape==='slit')l.ellipse(px,py,Math.max(1,r*.34),r*1.25,0,0,Math.PI*2);else l.arc(px,py,r,0,Math.PI*2);l.fill()}
+l.globalCompositeOperation='destination-in';l.drawImage(ap.mask,0,0);ctx.drawImage(layer,0,0)
 }
 
-function tick(now){
-  if(!active)return;
-  const elapsed=now-active.start;
-  if(elapsed>=active.total){
-    draw(active.def.return_to||pack.default_frame);
-    active=null;
-    return;
-  }
-  let index=active.starts.length-1;
-  for(let i=0;i<active.starts.length-1;i++){
-    if(elapsed<active.starts[i+1]){index=i;break;}
-  }
-  if(index!==active.last){
-    draw(active.def.frames[index].id);
-    active.last=index;
-  }
-  requestAnimationFrame(tick);
-}
+function render(now){if(!pack)return;if(now>=nextBlinkAt&&!activeBlink)triggerBlink();updateDynamics(now);const id=frameAt(now);ctx.clearRect(0,0,128,128);drawContent(id);ctx.drawImage(decoded.get(id),0,0);requestAnimationFrame(render)}
 
-window.addEventListener('pointerdown',e=>{if(e.cancelable)e.preventDefault();play('blink')},{passive:false});
-window.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='Enter')play('blink')});
+async function boot(){try{
+const r=await fetch(PACK_URL,{cache:'no-store'});if(!r.ok)throw new Error('sprite-pack HTTP '+r.status);pack=await r.json();validatePack(pack);
+for(const f of pack.frames){const c=await decodeFrame(f);decoded.set(f.id,c);apertures.set(f.id,buildAperture(c))}
+defaultGeometry=apertures.get(pack.default_frame);if(!defaultGeometry?.area)throw new Error('no pude derivar la apertura del frame abierto');
+const a=pack.animations[BLINK];blinkSteps=a.frames.slice();blinkStarts=[];blinkTotal=0;for(const s of blinkSteps){blinkStarts.push(blinkTotal);blinkTotal+=s.duration_ms}
+const requested=new URLSearchParams(location.search).get('mode'),idx=modes.findIndex(m=>m.id===requested);setMode(idx>=0?idx:0,false);scheduleBlink(performance.now());setStatus('','ok');requestAnimationFrame(render)
+}catch(e){setStatus('ERROR EYE V23\n'+String(e?.message||e),'error')}}
+
+window.addEventListener('pointerdown',e=>{if(e.cancelable)e.preventDefault();setMode(modeIndex+1,true)},{passive:false});
+window.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='Enter'){e.preventDefault();setMode(modeIndex+1,true)}else if(e.key==='ArrowLeft'){e.preventDefault();setMode(modeIndex-1,true)}else if(e.key==='ArrowRight'){e.preventDefault();setMode(modeIndex+1,true)}});
 boot();
 </script>
 </body>

@@ -1,36 +1,69 @@
-# 🖐️ Player / Eye Content · Durable Feedback
+# 🖐️ Player / Eye Frame · Durable Feedback
 
 Status: CURRENT
 
-## Accepted
-V21 blink/frame animation is accepted and must remain unchanged.
+## Latest direction
+The user simplified the plan: do not create another frame animation for every pupil state.
 
-## New authoring preparation
-The next subsystem is the internal eye content behind the frame.
+Use two independent layers:
+1. accepted V21 blink / eye frame;
+2. procedural eye content behind it.
 
-A reusable authoring layer is now prepared at:
-https://juanmanuelpm.github.io/prometeo/visuals/eye-content-authoring/
+The user explicitly wants things such as:
+- black pupil moving in every direction;
+- white or black inner eye;
+- pupil growing/shrinking;
+- independent eye-content animation while blink remains unchanged.
 
-The accepted V21 open frame is used as the structural reference in every cell.
+## V23 implementation
+V23 follows that direction.
 
-### Geometry
-- logical frame: 128×128
-- frame pivot: [64,86]
-- measured open aperture bbox: [38,54,90,86]
-- conservative authoring safe bbox: [42,58,86,82]
-- eye-content center: [64,70]
+The V21 blink is unchanged and remains the accepted upper layer.
 
-### Two-template strategy
-- 10×10 = exploration / visual vocabulary only
-- 2×5 = one concrete ten-frame animation sequence
+The lower eye-content layer is procedural:
+- sclera/fill;
+- pupil color;
+- gaze x/y;
+- pupil radius;
+- pupil shape.
 
-The generated art should change only the content inside the opening whenever possible. The outer frame should stay fixed and should not be regenerated as a free variable.
+## Important V23 improvement over the local V22 prototype
+V22 used a hard-coded ellipse as the opening mask.
 
-## Rule
-Do not use the 10×10 exploration grid as runtime animation data.
+V23 removes that approximation.
 
-After selection:
-raw candidate → sequence-specific 2×5 → split → measure → semantic content anchor → normalize → residual QA → visual QA → pack → runtime.
+For every actual V21 blink frame V23:
+- decodes the real frame alpha;
+- builds an opacity barrier;
+- dilates it by one pixel to seal antialias gaps;
+- finds transparent connected components;
+- throws away components touching the canvas edge;
+- uses the largest enclosed component as the actual eye opening.
 
-## Next
-Generate the first internal-eye 10×10 exploration matrix using the clean template. Then select a family before making any motion sequence.
+Therefore the pupil/sclera are clipped by the **real accepted eyelid geometry** on every blink frame.
+
+Measured aperture areas:
+- frame_00 1239
+- frame_01 1060
+- frame_02 700
+- frame_03 395
+- frame_04 90
+- frame_05 0
+- frame_06 48
+- frame_07 509
+- frame_08 1024
+- frame_09 1295
+
+The closed frame is automatically detected as frame_05.
+
+## Local QA performed
+Before publication the V23 composition was rendered locally and inspected for:
+- neutral eye;
+- gaze left;
+- all-black eye;
+- full blink sequence with procedural content clipped underneath.
+
+Result: PASS_LOCAL_VISUAL_QA.
+
+## Current review
+The next review is about eye-content look/behavior only. Do not reopen the accepted V21 blink architecture unless new evidence shows a blink defect.
