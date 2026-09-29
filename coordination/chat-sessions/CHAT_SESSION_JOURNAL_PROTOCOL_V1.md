@@ -152,6 +152,11 @@ Do not journal:
 
 ## 5. Session bootstrap / PIN
 
+Binding preflight:
+`coordination/bootstrap/UNIVERSAL_SESSION_PREFLIGHT_V1.txt`
+
+Every fresh/adopted session MUST use that preflight before material mutation. It must locate the target in Current Tree + Organism, recover objective/plan/baseline, and classify the new request as CONTINUE / COMPATIBLE_DELTA / EXPERIMENT / REPLAN / DESTRUCTIVE_RESET. Human intent can change the plan; it must not silently erase the previous plan or its rationale.
+
 The continuation prompt must be small and stable.
 
 A successor prompt carries:
@@ -181,9 +186,9 @@ The old session can then be marked `SUPERSEDED_BY_SUCCESSOR` when the successor 
 
 ## 7. Control Room projection
 
-Add a first-class `Chats` view.
+Project chat continuity inside the unified `Historial` view.
 
-It shows:
+Historial can show recent chat/session events and expand a session to show:
 - session title;
 - chat_object_id;
 - status;
@@ -196,7 +201,7 @@ It shows:
 - public refs/links;
 - button `Copiar continuación`.
 
-This view is a projection. It must not become Chat Object or Work Context authority.
+This history projection must not become Chat Object or Work Context authority.
 
 ## 8. Session files
 
