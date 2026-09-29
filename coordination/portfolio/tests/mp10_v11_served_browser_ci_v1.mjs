@@ -1,3 +1,4 @@
+// continuity-release-clean-trigger: 2026-09-29T16:11Z
 // capability-graph-canary-trigger: 2026-09-29T15:36Z
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
