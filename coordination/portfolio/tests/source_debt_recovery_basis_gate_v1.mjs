@@ -477,6 +477,99 @@ assert.equal(reviewablePreviewFrontierAttention.source_debt_job_id, 'portfolio-j
 assert.equal(reviewablePreviewFrontierAttention.source_debt_ref, dependencyReturnRef);
 assert.equal(reviewablePreviewFrontierAttention.ordinary_claim_eligible, false);
 
+
+const browserCiJob = readJson('coordination/portfolio/derived/jose/portfolio-jose-v12-map-browser-ci-runner-v1.json');
+assert.equal(browserCiJob.source_debt_dependency?.schema, 'prometeo.source-debt-dependency/v1', 'Jose V12 browser CI runner must retain a structured SOURCE_DEBT dependency');
+assert.equal(browserCiJob.source_debt_dependency?.job_id, 'portfolio-jose-v12-pinned-v11-material-recovery-v1', 'Jose V12 browser CI dependency job drift');
+assert.equal(browserCiJob.source_debt_dependency?.return_ref, dependencyReturnRef, 'Jose V12 browser CI must stay pinned to the exact durable V11 material boundary');
+const browserCiProjection = (liveFeed.projects || [])
+  .flatMap(project => project.jobs || [])
+  .find(job => job.job_id === browserCiJob.job_id);
+assert.ok(browserCiProjection, 'Jose V12 browser CI runner must remain projected in Live feed');
+assert.equal(browserCiProjection.source_debt_dependency?.ref_bounded, true, 'browser CI dependency must use one bounded exact portfolio return ref');
+assert.equal(browserCiProjection.source_debt_dependency?.structurally_valid, true, 'browser CI dependency must resolve to valid structured SOURCE_DEBT');
+assert.equal(browserCiProjection.source_debt_dependency?.return_ref, dependencyReturnRef);
+assert.equal(browserCiProjection.source_debt_dependency?.source_debt?.status, 'OPEN');
+
+const browserCiSourceDebt = {
+  job_id: browserCiJob.job_id,
+  dedupe_key: browserCiJob.dedupe_key,
+  project_id: browserCiJob.project_id,
+  title: browserCiJob.title,
+  priority: browserCiJob.priority,
+  state: 'replaceable',
+  pin_generation: 3,
+  claimed_at: '2026-09-29T04:13:18Z',
+  last_signal_at: '2026-09-29T04:14:00Z',
+  created_at: browserCiJob.created_at,
+  evidence: browserCiJob.evidence || [],
+  required_capabilities: browserCiJob.required_capabilities || [],
+  source_debt_dependency: browserCiProjection.source_debt_dependency,
+  latest_return: {
+    path: 'coordination/portfolio/returns/portfolio-jose-v12-map-browser-ci-runner-v1/RETURN-fixture-G000003-PARTIAL.json',
+    generation: 3,
+    outcome: 'PARTIAL',
+    summary: 'Representative browser remains blocked by the unchanged byte-exact V11 SOURCE_DEBT.',
+    returned_at: '2026-09-29T04:14:00Z'
+  },
+  latest_pin_recovery_basis: null
+};
+const browserCiGate = recoveryBasisGate(browserCiSourceDebt);
+assert.equal(browserCiGate.eligible, false, 'Jose V12 browser CI must not emit a G4 from elapsed time after G3 returns on unchanged source debt');
+assert.equal(browserCiGate.reason, 'SOURCE_DEBT_BASIS_UNCHANGED');
+assert.equal(browserCiGate.source_debt?.dependency_job_id, 'portfolio-jose-v12-pinned-v11-material-recovery-v1');
+assert.equal(browserCiGate.source_debt?.dependency_return_ref, dependencyReturnRef);
+
+const browserCiAllocator = buildFastAllocator(
+  feedFor([browserCiSourceDebt]),
+  { status: 'HEALTHY', metrics: {}, reasons: [] },
+  { recoveryPolicies: [], roleContext: null }
+);
+assert.equal(
+  browserCiAllocator.recovery.some(row => row.job_id === browserCiSourceDebt.job_id),
+  false,
+  'Jose V12 browser CI must stay out of ordinary recovery while the exact source debt is unchanged'
+);
+const browserCiAttention = browserCiAllocator.recovery_attention.find(row => row.job_id === browserCiSourceDebt.job_id);
+assert.ok(browserCiAttention, 'Jose V12 browser CI must remain visible as bounded recovery attention');
+assert.equal(browserCiAttention.reason, 'SOURCE_DEBT_BASIS_UNCHANGED');
+
+const browserCiFrontier = buildClaimFrontier(browserCiAllocator);
+assert.equal(
+  browserCiFrontier.candidates.some(row => row.job_id === browserCiSourceDebt.job_id),
+  false,
+  'Jose V12 browser CI must stay non-claimable in compact frontier until materially new byte-complete evidence exists'
+);
+const browserCiFrontierAttention = browserCiFrontier.recovery_attention.find(row => row.job_id === browserCiSourceDebt.job_id);
+assert.ok(browserCiFrontierAttention, 'compact frontier must keep Jose V12 browser CI source debt observable');
+assert.equal(browserCiFrontierAttention.reason, 'SOURCE_DEBT_BASIS_UNCHANGED');
+assert.equal(browserCiFrontierAttention.source_debt_job_id, 'portfolio-jose-v12-pinned-v11-material-recovery-v1');
+assert.equal(browserCiFrontierAttention.source_debt_ref, dependencyReturnRef);
+assert.equal(browserCiFrontierAttention.ordinary_claim_eligible, false);
+
+const browserCiWithNewBasis = {
+  ...browserCiSourceDebt,
+  recovery_basis: {
+    revision: 1,
+    updated_at: '2026-09-29T04:15:00Z',
+    evidence: ['external-artifact:intact-v11-byte-exact-source-after-browser-ci-g3'],
+    retry_safe_trigger: 'AUTHORITATIVE_V11_SOURCE_RECOVERED'
+  },
+  updated_at: '2026-09-29T04:15:00Z'
+};
+const browserCiChangedGate = recoveryBasisGate(browserCiWithNewBasis);
+assert.equal(browserCiChangedGate.eligible, true, 'materially new durable V11 bytes must reopen one bounded Jose V12 browser CI recovery');
+assert.equal(browserCiChangedGate.reason, 'SOURCE_DEBT_BASIS_CHANGED');
+const browserCiReopened = buildFastAllocator(
+  feedFor([browserCiWithNewBasis]),
+  { status: 'HEALTHY', metrics: {}, reasons: [] },
+  { recoveryPolicies: [], roleContext: null }
+);
+const browserCiG4 = browserCiReopened.recovery.find(row => row.job_id === browserCiSourceDebt.job_id);
+assert.ok(browserCiG4, 'new byte-complete basis must expose exactly the next Jose V12 browser CI generation');
+assert.equal(browserCiG4.next_generation, 4);
+assert.equal(browserCiReopened.recovery.filter(row => row.job_id === browserCiSourceDebt.job_id).length, 1);
+
 const dependentWithNewBasis = {
   ...dependentSourceDebt,
   recovery_basis: {
