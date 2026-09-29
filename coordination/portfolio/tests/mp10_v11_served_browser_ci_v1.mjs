@@ -1,4 +1,4 @@
-// diagnostic-packet-fix-final-canary: 2026-09-29T17:47Z
+// diagnostic-packet-fix-final-canary: 2026-09-29T17:52Z
 // diagnostic-packet-fix-canary: 2026-09-29T17:43Z
 // continuity-release-verified-head-trigger: 2026-09-29T16:23Z
 // continuity-release-final-trigger: 2026-09-29T16:20Z
@@ -472,6 +472,13 @@ try{
   const statsDetails={status:stats.status,schema:stats.json?.schema||null,authority:stats.json?.authority||null,source_mode:stats.json?.source_mode||null,truth_boundaries:statsTruth,json_error:stats.error};
   if(statsOk) pass('stats_truthful',statsDetails);
   else { fail('stats_truthful',statsDetails); hardFailures.push('stats_truthful'); }
+
+  if(evidence.page_errors.length){
+    fail('page_errors_empty',{count:evidence.page_errors.length,errors:evidence.page_errors});
+    hardFailures.push('page_errors_empty');
+  }else{
+    pass('page_errors_empty',{count:0});
+  }
 
   evidence.authenticated_transport={
     state:'BOUNDARY_NOT_EXERCISED',
