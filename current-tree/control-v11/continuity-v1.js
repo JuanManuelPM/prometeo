@@ -1,3 +1,4 @@
+// visual-steward-served-final-canary: 2026-09-29T20:31Z
 (function(){
 'use strict';
 
