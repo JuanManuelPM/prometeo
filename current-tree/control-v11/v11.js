@@ -2,7 +2,7 @@ import {listNotes,putNote,getNote} from '../../shared/prometeo-shell/v1/db.js';
 import {VoiceQueue} from '../../shared/prometeo-shell/v1/voice.js';
 import {PrometeoRemote} from '../../shared/prometeo-shell/v2/sync.js';
 import {mountPageChangeLoop,createChangeLoopClient} from '../../shared/capture/v1/change-loop.js';
-import {normalizeVisibleResultProjection} from './result-adapter-v1.js';
+import {normalizeVisibleResultProjection,projectVisibleResultFromG05} from './result-adapter-v1.js';
 
 const $=q=>document.querySelector(q);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -247,8 +247,11 @@ async function publicEvidence(url){
 }
 async function loadResultProjection(){
  const cfg=window.PROMETEO_CONTROL_CONFIG_V1||{};
- const raw=await publicEvidence(cfg.resultProjectionUrl||'./result-candidate-v1.json');
- resultProjection=normalizeVisibleResultProjection(raw);
+ const [raw,g05]=await Promise.all([
+  publicEvidence(cfg.resultProjectionUrl||'./result-candidate-v1.json'),
+  publicEvidence(cfg.g05VerificationUrl||'../../coordination/goal-progress/G05_VERIFICATION.json')
+ ]);
+ resultProjection=projectVisibleResultFromG05(raw,g05);
  return resultProjection;
 }
 function evidenceHref(ref){
