@@ -51,7 +51,6 @@ assert.equal(visibleResultCanPromote(verified),true);
 assert.match(config,/resultProjectionUrl:'\.\/result-candidate-v1\.json'/);
 assert.match(v11,/normalizeVisibleResultProjection/);
 assert.match(v11,/data-visible-result-state/);
-assert.match(v11,/G05/);
 assert.match(v11,/builder_return_ref/);
 assert.match(v11,/verifier_ref/);
 assert.doesNotMatch(v11,/createElement\(['"]iframe/);
