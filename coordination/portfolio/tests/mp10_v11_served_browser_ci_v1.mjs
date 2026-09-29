@@ -36,8 +36,9 @@ const pass=(name,details=true)=>{evidence.checks[name]={result:'PASS',details};s
 const fail=(name,details)=>{evidence.checks[name]={result:'FAIL',details};save()};
 const requestJson=async (request,url,label)=>{
   const response=await request.get(url,{timeout:20000,failOnStatusCode:false,headers:{'cache-control':'no-cache','pragma':'no-cache'}});
-  assert.equal(response.status(),200,`${label} must return HTTP 200`);
-  return {response,json:await response.json()};
+  let json=null,error=null;
+  try{json=await response.json()}catch(err){error=String(err?.message||err)}
+  return {response,status:response.status(),json,error,label};
 };
 
 let browser;
@@ -153,31 +154,10 @@ try{
     pass('command_dom_fail_closed',{maxlength:6000,button:'HACER',posts_before:postsBefore,posts_after:postsAfter,state:(await state.textContent())?.trim()});
   }
 
-  assert.equal(await page.locator('iframe').count(),0,'V11 must not embed live previews via iframe');
-  const preview=await requestJson(desktop.request,previewManifestUrl,'preview manifest');
-  assert.equal(preview.json.schema,'prometeo.static-preview-manifest/v1');
-  assert.ok(Array.isArray(preview.json.surfaces)&&preview.json.surfaces.length>0);
-  assert.ok(preview.json.surfaces.every(row=>row.state!=='AVAILABLE'||String(row.preview_path||'').endsWith('.png')));
-  pass('static_previews_no_live_iframe',{iframe_count:0,surface_count:preview.json.surfaces.length,manifest_schema:preview.json.schema});
-
-  const projectContext=await requestJson(desktop.request,projectContextUrl,'project context');
-  assert.equal(projectContext.json.schema,'prometeo.project-context-index/v1');
-  assert.equal(projectContext.json.projection_status,'NON_AUTHORITATIVE_PROJECTION');
-  assert.ok(Number.isInteger(projectContext.json.project_count));
-  assert.equal(projectContext.json.project_count,projectContext.json.projects.length);
-  pass('project_context_truthful',{project_count:projectContext.json.project_count,projection_status:projectContext.json.projection_status});
-
-  const stats=await requestJson(desktop.request,statsUrl,'stats projection');
-  assert.equal(stats.json.schema,'prometeo.control-room-stats/v1');
-  assert.equal(stats.json.authority,'OBSERVABILITY_ONLY');
-  assert.ok(Array.isArray(stats.json.truth_boundaries));
-  assert.ok(stats.json.truth_boundaries.some(x=>String(x).includes('Missing evidence is unknown')));
-  pass('stats_truthful',{authority:stats.json.authority,source_mode:stats.json.source_mode,truth_boundaries:stats.json.truth_boundaries});
-
   const narrow=await browser.newContext({viewport:{width:390,height:844}});
   const narrowPage=await narrow.newPage();
   const narrowResponse=await narrowPage.goto(browserUrl.href,{waitUntil:'domcontentloaded',timeout:45000});
-  assert.equal(narrowResponse?.status(),200);
+  const narrowStatus=narrowResponse?.status()??null;
   await narrowPage.waitForTimeout(2500);
   const narrowShot=path.join(outDir,'v11-narrow.png');
   await narrowPage.screenshot({path:narrowShot,fullPage:true});
@@ -187,13 +167,46 @@ try{
     scrollWidth:document.documentElement.scrollWidth,
     bodyScrollWidth:document.body.scrollWidth
   }));
-  if(geometry.scrollWidth<=geometry.innerWidth+2){
-    pass('narrow_layout',{viewport:{width:390,height:844},geometry});
+  if(narrowStatus===200 && geometry.scrollWidth<=geometry.innerWidth+2){
+    pass('narrow_layout',{status:narrowStatus,viewport:{width:390,height:844},geometry});
   }else{
-    fail('narrow_layout',{viewport:{width:390,height:844},geometry});
+    fail('narrow_layout',{status:narrowStatus,viewport:{width:390,height:844},geometry});
     hardFailures.push('narrow_layout');
   }
   await narrow.close();
+
+  const iframeCount=await page.locator('iframe').count();
+  const preview=await requestJson(desktop.request,previewManifestUrl,'preview manifest');
+  const previewRows=Array.isArray(preview.json?.surfaces)?preview.json.surfaces:[];
+  const previewOk=iframeCount===0
+    && preview.status===200
+    && preview.json?.schema==='prometeo.static-preview-manifest/v1'
+    && previewRows.length>0
+    && previewRows.every(row=>row.state!=='AVAILABLE'||String(row.preview_path||'').endsWith('.png'));
+  const previewDetails={iframe_count:iframeCount,status:preview.status,manifest_schema:preview.json?.schema||null,surface_count:previewRows.length,json_error:preview.error};
+  if(previewOk) pass('static_previews_no_live_iframe',previewDetails);
+  else { fail('static_previews_no_live_iframe',previewDetails); hardFailures.push('static_previews_no_live_iframe'); }
+
+  const projectContext=await requestJson(desktop.request,projectContextUrl,'project context');
+  const projectRows=Array.isArray(projectContext.json?.projects)?projectContext.json.projects:[];
+  const projectOk=projectContext.status===200
+    && projectContext.json?.schema==='prometeo.project-context-index/v1'
+    && projectContext.json?.projection_status==='NON_AUTHORITATIVE_PROJECTION'
+    && Number.isInteger(projectContext.json?.project_count)
+    && projectContext.json.project_count===projectRows.length;
+  const projectDetails={status:projectContext.status,schema:projectContext.json?.schema||null,project_count:projectContext.json?.project_count??null,rows:projectRows.length,projection_status:projectContext.json?.projection_status||null,json_error:projectContext.error};
+  if(projectOk) pass('project_context_truthful',projectDetails);
+  else { fail('project_context_truthful',projectDetails); hardFailures.push('project_context_truthful'); }
+
+  const stats=await requestJson(desktop.request,statsUrl,'stats projection');
+  const statsTruth=Array.isArray(stats.json?.truth_boundaries)?stats.json.truth_boundaries:[];
+  const statsOk=stats.status===200
+    && stats.json?.schema==='prometeo.control-room-stats/v1'
+    && stats.json?.authority==='OBSERVABILITY_ONLY'
+    && statsTruth.some(x=>String(x).includes('Missing evidence is unknown'));
+  const statsDetails={status:stats.status,schema:stats.json?.schema||null,authority:stats.json?.authority||null,source_mode:stats.json?.source_mode||null,truth_boundaries:statsTruth,json_error:stats.error};
+  if(statsOk) pass('stats_truthful',statsDetails);
+  else { fail('stats_truthful',statsDetails); hardFailures.push('stats_truthful'); }
 
   evidence.authenticated_transport={
     state:'BOUNDARY_NOT_EXERCISED',
