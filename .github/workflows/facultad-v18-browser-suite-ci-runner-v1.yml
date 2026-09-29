@@ -1,0 +1,63 @@
+name: Facultad V18 browser suite CI runner v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pages/study-library/index.html'
+      - 'pages/study-library/study-v11-experience.js'
+      - 'pages/study-library/study-v18.js'
+      - 'pages/study-library/study-v18-5-fix.js'
+      - 'pages/study-library/study-v18-6-fix.js'
+      - 'pages/study-library/study-v18.css'
+      - 'pages/study-library/psychology-curriculum-v1.json'
+      - 'pages/study-library/course-enrichment-v16.json'
+      - 'coordination/portfolio/tests/facultad_v18_browser_suite_ci_runner_v1.mjs'
+      - '.github/workflows/facultad-v18-browser-suite-ci-runner-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: facultad-v18-browser-suite-ci-runner-v1
+  cancel-in-progress: true
+
+jobs:
+  representative-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Resolve expected deployed V18 blob
+        id: target
+        shell: bash
+        run: echo "blob=$(git hash-object pages/study-library/study-v18.js)" >> "$GITHUB_OUTPUT"
+
+      - name: Install representative Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run live V18 desktop+narrow browser suite
+        env:
+          FACULTAD_V18_TARGET_URL: https://juanmanuelpm.github.io/prometeo/pages/study-library/
+          FACULTAD_V18_EXPECTED_BLOB: ${{ steps.target.outputs.blob }}
+          FACULTAD_V18_ASSET_WAIT_MS: '180000'
+        run: node coordination/portfolio/tests/facultad_v18_browser_suite_ci_runner_v1.mjs
+
+      - name: Upload bounded browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: facultad-v18-browser-suite-ci-evidence
+          path: artifacts/facultad-v18-browser-suite-ci/
+          if-no-files-found: error
+          retention-days: 14
