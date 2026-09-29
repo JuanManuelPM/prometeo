@@ -1,4 +1,4 @@
-name: Rail World Build v6
+name: Rail World Build v7
 
 on:
   push:
@@ -32,12 +32,12 @@ jobs:
       - name: Serve exact checkout
         run: |
           set -euo pipefail
-          python3 -m http.server 4173 --directory . >/tmp/rail-v6-http.log 2>&1 &
+          python3 -m http.server 4173 --directory . >/tmp/rail-v7-http.log 2>&1 &
           for i in {1..30}; do
             if curl -fsS "http://127.0.0.1:4173/demos/prometeo-rail-world-v2/" >/dev/null; then exit 0; fi
             sleep 1
           done
-          cat /tmp/rail-v6-http.log
+          cat /tmp/rail-v7-http.log
           exit 1
 
       - name: Browser test and visual review
@@ -50,9 +50,9 @@ jobs:
           mkdir -p demos/prometeo-rail-world-v2/review
 
           "$CHROME" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars \
-            --remote-debugging-port=9222 --user-data-dir=/tmp/rail-v6-chrome about:blank >/tmp/rail-v6-chrome.log 2>&1 &
-          echo $! >/tmp/rail-v6-chrome.pid
-          trap 'kill "$(cat /tmp/rail-v6-chrome.pid)" 2>/dev/null || true' EXIT
+            --remote-debugging-port=9222 --user-data-dir=/tmp/rail-v7-chrome about:blank >/tmp/rail-v7-chrome.log 2>&1 &
+          echo $! >/tmp/rail-v7-chrome.pid
+          trap 'kill "$(cat /tmp/rail-v7-chrome.pid)" 2>/dev/null || true' EXIT
 
           for i in {1..80}; do
             if curl -fsS "http://127.0.0.1:9222/json/version" >/dev/null; then break; fi
@@ -98,7 +98,7 @@ jobs:
           async function waitReady(label,attempts=280){
             for(let i=0;i<attempts;i++){
               try{
-                if(await evaluate('Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready&&window.PrometeoRailWorldV6)'))return;
+                if(await evaluate('Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready&&window.PrometeoRailWorldV7)'))return;
               }catch{}
               await sleep(125);
             }
@@ -110,7 +110,7 @@ jobs:
           await send('Network.enable');
           await send('Emulation.setDeviceMetricsOverride',{width:1365,height:768,deviceScaleFactor:1,mobile:false,screenWidth:1365,screenHeight:768});
 
-          async function state(){return evaluate('window.PrometeoRailWorldV6.getState()')}
+          async function state(){return evaluate('window.PrometeoRailWorldV7.getState()')}
           async function shot(name,url){
             await send('Page.navigate',{url});
             await waitReady(name);
@@ -140,16 +140,16 @@ jobs:
           await sleep(180);
 
           const initial=await state();
-          if(initial.version!=='rail-world-v6-rotational-r2')throw new Error('Wrong runtime '+JSON.stringify(initial));
+          if(initial.version!=='rail-world-v7-autofollow-r1')throw new Error('Wrong runtime '+JSON.stringify(initial));
           if(initial.hasIframe)throw new Error('V6 still depends on iframe');
           if(!(initial.graph.nodes>50&&initial.graph.edges>50&&initial.gates.length===4))throw new Error('World graph incomplete '+JSON.stringify(initial.graph));
           if(!(initial.render.faces>20&&initial.render.paths>30))throw new Error('Renderer evidence too small '+JSON.stringify(initial.render));
 
           // Rotation must redraw real world geometry from a new camera angle.
-          await evaluate('window.PrometeoRailWorldV6.setCamera({x:-7,z:20,yaw:0})');
+          await evaluate('window.PrometeoRailWorldV7.setCamera({x:-7,z:20,yaw:0})');
           await sleep(120);
           const yaw0=await state();
-          await evaluate('window.PrometeoRailWorldV6.setCamera({x:-7,z:20,yaw:0.82})');
+          await evaluate('window.PrometeoRailWorldV7.setCamera({x:-7,z:20,yaw:0.82})');
           await sleep(120);
           const yaw1=await state();
           if(!(Math.abs(yaw1.camera.yaw-yaw0.camera.yaw)>.7&&yaw0.render.faces>15&&yaw1.render.faces>15)){
@@ -157,7 +157,7 @@ jobs:
           }
 
           // Wheel moves only the camera, preserving the player route/position.
-          await evaluate('window.PrometeoRailWorldV6.setCamera({x:0,z:-5,yaw:0});window.PrometeoRailWorldV6.setPlayer({x:0,z:4})');
+          await evaluate('window.PrometeoRailWorldV7.setCamera({x:0,z:-5,yaw:0});window.PrometeoRailWorldV7.setPlayer({x:0,z:4})');
           const beforeWheel=await state();
           for(let i=0;i<5;i++){
             await send('Input.dispatchMouseEvent',{type:'mouseWheel',x:680,y:380,deltaX:0,deltaY:-420});
@@ -168,26 +168,38 @@ jobs:
           if(!(afterWheel.camera.z>beforeWheel.camera.z+4))throw new Error('Wheel camera movement failed '+JSON.stringify({beforeWheel,afterWheel}));
           if(Math.hypot(afterWheel.player.x-beforeWheel.player.x,afterWheel.player.z-beforeWheel.player.z)>.08)throw new Error('Wheel dragged player '+JSON.stringify({beforeWheel,afterWheel}));
 
-          // Route to the museum. Camera position stays independent, but yaw must rotate
-          // when the avatar commits to the museum branch at the junction.
-          await evaluate('window.PrometeoRailWorldV6.setCamera({x:0,z:-5,yaw:0});window.PrometeoRailWorldV6.setPlayer({x:0,z:4});window.PrometeoRailWorldV6.routeToGate("MUSEO")');
+          // Auto-follow: clicking/routing the avatar must now pull the camera forward
+          // once the avatar exits the camera dead zone.
+          await evaluate('window.PrometeoRailWorldV7.setScene("ARCOS");window.PrometeoRailWorldV7.setCamera({x:0,z:-5,yaw:0});window.PrometeoRailWorldV7.setPlayer({x:0,z:4});window.PrometeoRailWorldV7.routeToNode("spineB_6")');
+          const followStart=await state();
+          let followed=null;
+          for(let i=0;i<100;i++){
+            await sleep(100);
+            const s=await state();
+            if(s.player.z>38&&s.camera.z>followStart.camera.z+8&&s.follow.autoFollowMoves>0){followed=s;break}
+          }
+          if(!followed)throw new Error('Automatic camera follow never engaged');
+          const dxFollow=followed.player.x-followed.camera.x,dzFollow=followed.player.z-followed.camera.z;
+          const relDepth=dxFollow*Math.sin(followed.camera.yaw)+dzFollow*Math.cos(followed.camera.yaw);
+          if(!(relDepth>5&&relDepth<20))throw new Error('Auto-follow dead zone invalid '+JSON.stringify({followed,relDepth}));
+
+          // Route to the museum. Yaw rotates at the junction and camera position now follows
+          // the route instead of remaining artificially detached.
+          await evaluate('window.PrometeoRailWorldV7.setScene("ARCOS");window.PrometeoRailWorldV7.setCamera({x:0,z:-5,yaw:0});window.PrometeoRailWorldV7.setPlayer({x:0,z:4});window.PrometeoRailWorldV7.routeToGate("MUSEO")');
           const routeStart=await state();
           let turned=null,armed=null;
-          for(let i=0;i<120;i++){
+          for(let i=0;i<140;i++){
             await sleep(100);
             const s=await state();
             if(!turned&&s.lastTurn&&Math.abs(s.camera.targetYaw)>.18)turned=s;
             if(s.activeGate==='MUSEO'){armed=s;break}
           }
           if(!turned)throw new Error('Junction never rotated camera toward museum branch');
-          if(Math.hypot(turned.camera.x-routeStart.camera.x,turned.camera.z-routeStart.camera.z)>.65){
-            throw new Error('Camera position followed avatar during turn '+JSON.stringify({routeStart,turned}));
-          }
           if(!armed)throw new Error('Avatar never reached museum gate');
-          if(!(Math.abs(armed.camera.yaw)>.18&&armed.player.z>70))throw new Error('Branch motion evidence weak '+JSON.stringify(armed));
+          if(!(Math.abs(armed.camera.yaw)>.18&&armed.player.z>70&&armed.follow.autoFollowMoves>0))throw new Error('Branch follow evidence weak '+JSON.stringify(armed));
 
           // Gate transition lands in a real museum scene with physical panels and another 4-way graph.
-          await evaluate('window.PrometeoRailWorldV6.enterActive()');
+          await evaluate('window.PrometeoRailWorldV7.enterActive()');
           await sleep(650);
           const museum=await state();
           if(!(museum.scene==='MUSEO'&&museum.museumPanels===4&&museum.gates.length===4&&museum.graph.nodes>50)){
@@ -195,11 +207,12 @@ jobs:
           }
           if(museum.hasIframe)throw new Error('Museum unexpectedly uses iframe');
 
-          console.log('FUNCTIONAL_RAIL_V6 PASS',JSON.stringify({
+          console.log('FUNCTIONAL_RAIL_V7 PASS',JSON.stringify({
             initial:{scene:initial.scene,graph:initial.graph,render:initial.render},
             yaw0:{yaw:yaw0.camera.yaw,faces:yaw0.render.faces},
             yaw1:{yaw:yaw1.camera.yaw,faces:yaw1.render.faces},
             wheel:{before:beforeWheel.camera,after:afterWheel.camera},
+            follow:{camera:followed.camera,player:followed.player,moves:followed.follow.autoFollowMoves},
             turn:{lastTurn:turned.lastTurn,camera:turned.camera,player:turned.player},
             armed:{activeGate:armed.activeGate,player:armed.player,camera:armed.camera},
             museum:{scene:museum.scene,panels:museum.museumPanels,gates:museum.gates.map(g=>g.destination)}
@@ -209,7 +222,7 @@ jobs:
             schema:'prometeo.rail-world-review/v6',
             source_sha:process.env.SOURCE_SHA,
             generated_at:new Date().toISOString(),
-            runtime:'rail-world-v6-rotational-r2',
+            runtime:'rail-world-v7-autofollow-r1',
             renderer:'world-space canvas perspective; yaw camera; depth-sorted faces; textured triangles',
             controls:['click player route','wheel camera','W/S camera','A/D strafe','arrow-left/right yaw'],
             scenes:['ARCOS','CALZADA','TUNEL','TORRES','MUSEO'],
@@ -258,7 +271,7 @@ jobs:
             git add -A demos/prometeo-rail-world-v2
             if [ "$branch" = "main" ]; then git add .github/workflows/rail-world-build-v2.yml; fi
             if git diff --cached --quiet; then return 0; fi
-            git commit -m "visuals: publish rotational Rail World V6"
+            git commit -m "visuals: publish rotational Rail World V7"
             for n in 1 2 3 4; do
               if git push origin "HEAD:$branch"; then return 0; fi
               git fetch origin "$branch"
@@ -279,14 +292,14 @@ jobs:
           URL="https://juanmanuelpm.github.io/prometeo/demos/prometeo-rail-world-v2/"
           for i in {1..60}; do
             PAGE="$(curl -fsSL --max-time 12 "$URL" 2>/dev/null || true)"
-            if printf '%s' "$PAGE" | grep -Fq "rail-world-v6-rotational-r2"; then break; fi
+            if printf '%s' "$PAGE" | grep -Fq "rail-world-v7-autofollow-r1"; then break; fi
             sleep 5
           done
 
           "$CHROME" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars \
-            --remote-debugging-port=9223 --user-data-dir=/tmp/rail-v6-public about:blank >/tmp/rail-v6-public.log 2>&1 &
-          echo $! >/tmp/rail-v6-public.pid
-          trap 'kill "$(cat /tmp/rail-v6-public.pid)" 2>/dev/null || true' EXIT
+            --remote-debugging-port=9223 --user-data-dir=/tmp/rail-v7-public about:blank >/tmp/rail-v7-public.log 2>&1 &
+          echo $! >/tmp/rail-v7-public.pid
+          trap 'kill "$(cat /tmp/rail-v7-public.pid)" 2>/dev/null || true' EXIT
           for i in {1..80}; do
             if curl -fsS "http://127.0.0.1:9223/json/version" >/dev/null; then break; fi
             sleep .25
@@ -305,18 +318,18 @@ jobs:
           await send('Page.enable');await send('Runtime.enable');
           await send('Page.navigate',{url:'https://juanmanuelpm.github.io/prometeo/demos/prometeo-rail-world-v2/'});
           for(let i=0;i<280;i++){
-            if(await evaluate('Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready&&window.PrometeoRailWorldV6)'))break;
-            if(i===279)throw new Error('Public V6 never became ready');
+            if(await evaluate('Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready&&window.PrometeoRailWorldV7)'))break;
+            if(i===279)throw new Error('Public V7 never became ready');
             await sleep(125);
           }
-          const before=await evaluate('window.PrometeoRailWorldV6.getState()');
-          if(before.hasIframe||before.gates.length!==4||before.render.faces<15)throw new Error('Public V6 invalid '+JSON.stringify(before));
-          await evaluate('window.PrometeoRailWorldV6.setScene("MUSEO")');
+          const before=await evaluate('window.PrometeoRailWorldV7.getState()');
+          if(before.hasIframe||before.gates.length!==4||before.render.faces<15)throw new Error('Public V7 invalid '+JSON.stringify(before));
+          await evaluate('window.PrometeoRailWorldV7.setScene("MUSEO")');
           await sleep(180);
-          const museum=await evaluate('window.PrometeoRailWorldV6.getState()');
+          const museum=await evaluate('window.PrometeoRailWorldV7.getState()');
           if(!(museum.scene==='MUSEO'&&museum.museumPanels===4&&museum.gates.length===4))throw new Error('Public museum invalid '+JSON.stringify(museum));
-          await evaluate('window.PrometeoRailWorldV6.setCamera({x:-7,z:42,yaw:1.0});window.PrometeoRailWorldV6.forceFrame()');
-          const rotated=await evaluate('window.PrometeoRailWorldV6.getState()');
+          await evaluate('window.PrometeoRailWorldV7.setCamera({x:-7,z:42,yaw:1.0});window.PrometeoRailWorldV7.forceFrame()');
+          const rotated=await evaluate('window.PrometeoRailWorldV7.getState()');
           if(!(Math.abs(rotated.camera.yaw-1)<.01&&rotated.render.faces>10))throw new Error('Public rotational renderer invalid '+JSON.stringify(rotated));
           console.log('PUBLIC_RAIL_WORLD_V6_VERIFIED',JSON.stringify({before:{scene:before.scene,faces:before.render.faces,gates:before.gates.length},museum:{panels:museum.museumPanels,gates:museum.gates.length},rotated:{yaw:rotated.camera.yaw,faces:rotated.render.faces}}));
           ws.close();
