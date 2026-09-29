@@ -18,7 +18,7 @@ A · FAST REINCARNATION · INTERACTIVE CONTINUATION
 Use this path when CONTINUE already names a Chat Object and predecessor.
 
 R0 · Parse envelope
-Extract chat_object_id, predecessor id/pin, focus if present, predecessor SESSION/JOURNAL refs, preflight/Current Tree ref and predecessor next_action.
+Extract chat_object_id, predecessor id/pin, focus if present, predecessor SESSION/JOURNAL refs, preflight/Current Tree ref, predecessor next_action and, when present, same_work_unit_ref, last_checkpoint_ref, current_stage, last_progress_at and repo_head_seen.
 
 R1 · Minimal durable reads
 Normal target: about 3–6 reads.
@@ -26,7 +26,7 @@ Normal target: about 3–6 reads.
 2. predecessor SESSION.json;
 3. predecessor JOURNAL material head/latest entries needed;
 4. named Current Tree or continuity snapshot;
-5. one exact plan/source-owner ref already named by SESSION only when needed.
+5. same_work_unit_ref / last_checkpoint_ref when present, otherwise one exact plan/source-owner ref already named by SESSION only when needed.
 
 Before READY:
 - no broad repository search;
@@ -44,7 +44,8 @@ Preferred one CAS/tree commit:
 - successor JOURNAL.json;
 - successor CONTINUE.txt;
 - INDEX.json update;
-- predecessor successor_session_id/status update when practical.
+- predecessor successor_session_id/status update when practical;
+- preserve same_work_unit_ref + last_checkpoint_ref when human intent still targets the same work.
 
 If one atomic write is unavailable, use the minimum sequential CAS writes. Do not insert research between them.
 
@@ -54,6 +55,8 @@ Persist enough sanitized pointers for the next shell:
 - repo_head_seen;
 - current_tree_ref / organism_ref;
 - objective_ref / current_plan_ref;
+- same_work_unit_ref / last_checkpoint_ref when present;
+- current_stage / last_progress_at;
 - work_context_refs;
 - source_owner_refs;
 - preservation_refs when applicable;
@@ -89,6 +92,10 @@ Live owner works -> use it.
 Live owner fails/5xx/times out -> record DEGRADED -> use last-good/cache/GitHub durable owner -> continue when identity/lineage/pointers are sufficient.
 
 Do not turn a failed Current Tree/Organism/Work Context/Supabase read into storage archaeology unless the exact next_action is to repair it.
+
+CHATGPT_UI_ERROR != EXECUTION_FAILURE.
+RETRY_FROM_UI != RESUME_DURABLE_WORK.
+If the client UI errors/reconnects, reconcile the newest durable checkpoint/commit/evidence before deciding whether to continue, reincarnate or declare failure.
 
 ============================================================
 C · REQUEST CLASSIFICATION
