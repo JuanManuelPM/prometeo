@@ -2,16 +2,18 @@
 
 Status: CURRENT
 
-- V21 blink remains frozen as the accepted top layer.
-- V25 supersedes V24 as current eye-effects candidate.
-- Eye effects are now data-driven from eye-effects-v25.json.
-- Pupil/scelera/color/media/audio are independent from blink.
-- Dilation uses 14 explicit discrete stages before full black.
-- Low-FPS visual quantization remains intentional.
-- Color families should be variable-driven; hue and fps are URL/config parameters.
-- Audio visualization reuses the previous Prometeo pattern: one audio source → AnalyserNode → actual waveform/energy-driven visual.
-- The eye itself can act as play/pause control.
-- Audio is browser-local procedural for the isolated demo, avoiding external asset dependency.
-- Media portal accepts GIF/video URL when supplied.
-- Media portal has a procedural moving fallback so the example remains demonstrable without a media asset.
-- Do not merge this into Player until public V25 visual review.
+- V21 remains the accepted blink baseline.
+- V25 supersedes V24 for eye-content exploration.
+- The eye itself is a play/pause control in the lab.
+- Blink remains independent and keeps running even when inner-eye playback is paused.
+- Scene definitions must live in data/config rather than renderer branches whenever practical.
+- Dilation defaults to 24 discrete frames and may be changed by one step-count variable.
+- Contraction/red reveal defaults to 22 discrete frames.
+- Color variation is parameterized by hue rather than requiring new assets.
+- Audio-reactive motion reuses the Bent Sticks design language from the existing audio visual lab.
+- The audio demo is locally generated and does not depend on Supabase/TTS.
+- Video/GIF-style moving content may live behind the aperture or inside the pupil as a separate media layer.
+- External media must have a visual fallback.
+- Eye-content scenes remain clipped by the per-frame aperture derived from V21.
+- Eye-content FPS remains intentionally quantized / low-FPS.
+- Player integration remains blocked until V25 public review.
