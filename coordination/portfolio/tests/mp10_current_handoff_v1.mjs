@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
 
 const source=new URL('../../../scripts/arm-mp10-current-handoff.mjs',import.meta.url);
-const script=path.fileURLToPath?path.fileURLToPath(source):source.pathname;
+const script=fileURLToPath(source);
 function fixture(n){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'mp10-handoff-'));
  fs.mkdirSync(path.join(root,'coordination/integration-runs/PROMETEO-MP10-01/returns'),{recursive:true});
