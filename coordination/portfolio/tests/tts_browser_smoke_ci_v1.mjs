@@ -5,6 +5,7 @@ import { chromium } from 'playwright';
 
 const candidateUrl=process.env.TTS_CANDIDATE_URL||'https://juanmanuelpm.github.io/prometeo/__canary/portfolio-tts-generic-text-surface-v1/';
 const outDir=process.env.TTS_BROWSER_SMOKE_OUT||'artifacts/tts-browser-smoke-ci';
+const propagationMs=Number(process.env.TTS_PROPAGATION_MS||180000);
 fs.mkdirSync(outDir,{recursive:true});
 
 const evidence={
@@ -44,10 +45,32 @@ try{
     }
   });
 
-  const response=await page.goto(candidateUrl,{waitUntil:'networkidle',timeout:45000});
+  const propagationDeadline=Date.now()+propagationMs;
+  evidence.propagation_attempts=[];
+  let preflightStatus=null;
+  do{
+    const verifyUrl=new URL(candidateUrl);
+    verifyUrl.searchParams.set('_prometeo_verify',String(Date.now()));
+    const preflight=await context.request.get(verifyUrl.toString(),{
+      timeout:15000,
+      failOnStatusCode:false,
+      headers:{'cache-control':'no-cache','pragma':'no-cache'}
+    });
+    preflightStatus=preflight.status();
+    evidence.propagation_attempts.push({status:preflightStatus,at:new Date().toISOString()});
+    save();
+    if(preflightStatus===200) break;
+    if(Date.now()<propagationDeadline) await page.waitForTimeout(5000);
+  }while(Date.now()<propagationDeadline);
+  assert.equal(preflightStatus,200,'public TTS candidate must propagate to HTTP 200 within bounded window');
+  pass('public_candidate_propagated',{status:preflightStatus,attempts:evidence.propagation_attempts.length,window_ms:propagationMs});
+
+  const browserUrl=new URL(candidateUrl);
+  browserUrl.searchParams.set('_prometeo_browser',String(Date.now()));
+  const response=await page.goto(browserUrl.toString(),{waitUntil:'networkidle',timeout:45000});
   const status=response?.status()??null;
   evidence.navigation={status,final_url:page.url()};
-  assert.equal(status,200,'public TTS candidate must return HTTP 200');
+  assert.equal(status,200,'public TTS candidate browser navigation must return HTTP 200');
   pass('public_candidate_http',{status,final_url:page.url()});
 
   const marker=page.getByText('candidate · no current',{exact:true});
