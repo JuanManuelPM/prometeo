@@ -16,17 +16,18 @@ body{font-family:Inter,ui-sans-serif,system-ui,sans-serif}
 #target{position:absolute;z-index:6;width:25px;height:12px;border:1px solid rgba(223,211,178,.56);border-radius:50%;opacity:0;transform:translate(-50%,-50%) scale(.25);pointer-events:none}
 #target.pulse{animation:ping .48s ease-out}
 @keyframes ping{0%{opacity:0;transform:translate(-50%,-50%) scale(.25)}28%{opacity:.86}100%{opacity:0;transform:translate(-50%,-50%) scale(1.55)}}
-#player{position:absolute;z-index:8;left:50%;top:85%;width:clamp(42px,6.4%,92px);transform:translate(-50%,-100%);transform-origin:50% 100%;pointer-events:none;will-change:left,transform}
-#player .avatar{display:block;width:100%;height:auto;transform-origin:50% 78%;filter:brightness(.72) contrast(1.15) saturate(.78) drop-shadow(0 8px 8px rgba(0,0,0,.72))}
-#player:after{content:"";position:absolute;left:50%;bottom:-5%;width:82%;height:9%;transform:translateX(-50%);border-radius:50%;background:rgba(0,0,0,.40);filter:blur(4px)}
+#player{position:absolute;z-index:8;left:50%;top:82%;width:clamp(34px,5.1%,72px);opacity:0;transform:translate(-50%,-100%) scale(var(--s,1));transform-origin:50% 100%;pointer-events:none;will-change:left,top,transform,opacity}
+#player.visible{opacity:1}
+#player .avatar{display:block;width:100%;height:auto;transform-origin:50% 78%;filter:brightness(.70) contrast(1.12) saturate(.72) drop-shadow(0 7px 7px rgba(0,0,0,.70))}
+#player:after{content:"";position:absolute;left:50%;bottom:-5%;width:76%;height:8%;transform:translateX(-50%);border-radius:50%;background:rgba(0,0,0,.38);filter:blur(4px)}
 #player.moving .avatar{animation:step .30s ease-in-out infinite}
-@keyframes step{0%,100%{transform:translateY(0) rotate(-.35deg)}50%{transform:translateY(-5.5%) rotate(.35deg)}}
-#fade{position:absolute;inset:0;z-index:18;background:#010201;opacity:0;pointer-events:none;transition:opacity .14s ease}
-#fade.on{opacity:1}
+@keyframes step{0%,100%{transform:translateY(0) rotate(-.25deg)}50%{transform:translateY(-5%) rotate(.25deg)}}
+#fade{position:absolute;inset:0;z-index:18;background:#010201;opacity:0;pointer-events:none;transition:opacity .12s ease}
+#fade.on{opacity:.92}
 #mapName{position:absolute;z-index:19;left:50%;top:50%;transform:translate(-50%,-50%);color:rgba(225,216,184,.74);font:800 9px/1 system-ui,sans-serif;letter-spacing:.22em;text-transform:uppercase;opacity:0;pointer-events:none}
-#mapName.show{animation:mapflash .62s ease}
-@keyframes mapflash{0%,100%{opacity:0}25%,66%{opacity:1}}
-#hint{position:absolute;z-index:12;left:max(10px,env(safe-area-inset-left));bottom:max(9px,env(safe-area-inset-bottom));color:rgba(224,215,190,.32);font:800 7px/1.2 system-ui,sans-serif;letter-spacing:.10em;text-transform:uppercase;pointer-events:none;transition:opacity .8s}
+#mapName.show{animation:mapflash .55s ease}
+@keyframes mapflash{0%,100%{opacity:0}24%,66%{opacity:1}}
+#hint{position:absolute;z-index:12;left:max(10px,env(safe-area-inset-left));bottom:max(9px,env(safe-area-inset-bottom));color:rgba(224,215,190,.34);font:800 7px/1.25 system-ui,sans-serif;letter-spacing:.10em;text-transform:uppercase;pointer-events:none;transition:opacity .8s}
 #loading{position:absolute;inset:0;z-index:30;display:grid;place-items:center;background:#020302;color:#69695d;font:800 9px/1 system-ui,sans-serif;letter-spacing:.13em;text-transform:uppercase;transition:opacity .28s ease}
 #loading.off{opacity:0;pointer-events:none}
 #orientation{display:none;position:fixed;inset:0;z-index:99;background:#020202;color:#666158;place-items:center;text-align:center;font:800 10px/1.5 system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase}
@@ -45,7 +46,7 @@ body.review #player .avatar{animation:none!important}
     <div id="player"><img class="avatar" src="../../strategy/mask-mouth/assets/mask-transparent.webp" alt=""></div>
     <div id="fade"></div>
     <div id="mapName"></div>
-    <div id="hint">scroll · ↑↓ / W S · swipe · A D lateral</div>
+    <div id="hint">click = mover jugador · scroll / ↑↓ / W S = mover cámara · A D = cámara lateral</div>
     <div id="debug"></div>
     <div id="loading">cargando mundo</div>
   </div>
@@ -54,20 +55,44 @@ body.review #player .avatar{animation:none!important}
 <script>
 (()=>{
 "use strict";
+
 const MAPS=[
-  {id:1,name:"ARCOS",maxZ:132},
-  {id:3,name:"CALZADA",maxZ:165},
-  {id:4,name:"TÚNEL",maxZ:150},
-  {id:5,name:"TORRES",maxZ:118}
+  {id:1,name:"ARCOS",minZ:-5,maxZ:132},
+  {id:3,name:"CALZADA",minZ:-5,maxZ:165},
+  {id:4,name:"TÚNEL",minZ:-5,maxZ:150},
+  {id:5,name:"TORRES",minZ:-5,maxZ:118}
 ];
+let route=0;
+for(const m of MAPS){
+  m.start=route;
+  m.length=m.maxZ-m.minZ;
+  m.end=m.start+m.length;
+  route=m.end;
+}
+const TOTAL_ROUTE=route;
+const mapIndex=id=>Math.max(0,MAPS.findIndex(m=>m.id===id));
+const mapSpec=id=>MAPS[mapIndex(id)];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+function localToGlobal(mapId,z){
+  const m=mapSpec(mapId);
+  return m.start+clamp(z,m.minZ,m.maxZ)-m.minZ;
+}
+function globalToLocal(g){
+  const x=clamp(g,0,TOTAL_ROUTE-.0001);
+  let m=MAPS[MAPS.length-1];
+  for(const candidate of MAPS){if(x<candidate.end){m=candidate;break}}
+  return{map:m,z:m.minZ+(x-m.start)};
+}
+
 const q=new URLSearchParams(location.search);
 const review=q.get("review")==="1";
 if(review)document.body.classList.add("review");
 if(q.get("debug")==="1")document.body.classList.add("debug");
 const stage=document.getElementById("stage");
 const world=document.getElementById("world");
-const player=document.getElementById("player");
-const target=document.getElementById("target");
+const playerEl=document.getElementById("player");
+const targetEl=document.getElementById("target");
 const fade=document.getElementById("fade");
 const mapName=document.getElementById("mapName");
 const loading=document.getElementById("loading");
@@ -78,100 +103,156 @@ const reviewMap=Number(q.get("map")||1);
 const reviewZ=Number(q.get("z")||20);
 const reviewX=Number(q.get("x")||0);
 const reviewT=Number(q.get("t")||5000);
+const reviewPlayerMap=Number(q.get("playerMap")||reviewMap);
+const reviewPlayerZ=Number(q.get("playerZ")||Math.min(mapSpec(reviewPlayerMap).maxZ-2,reviewZ+18));
+const reviewPlayerX=Number(q.get("playerX")||0);
 let src="../../visuals/spaces-lab/?embed=1";
 if(review)src+="&review=1&map="+encodeURIComponent(reviewMap)+"&z="+encodeURIComponent(reviewZ)+"&x="+encodeURIComponent(reviewX)+"&t="+encodeURIComponent(reviewT);
 world.src=src;
 
 let api=null;
 let ready=false;
-let transitioning=false;
 let last=performance.now();
 let wheelVelocity=0;
-let autopilot=null;
+let cameraGlobal=localToGlobal(1,1.4);
+let cameraMap=1;
+let cameraX=0;
+let transitionCount=0;
+let lastCameraMap=1;
 let touchPointer=null;
 let touchStartX=0,touchStartY=0,touchLastX=0,touchLastY=0,touchMoved=false;
-let avatarX=50,avatarTargetX=50;
-let movementHold=0;
-let transitionCount=0;
 const keys=new Set();
+const player={
+  globalZ:localToGlobal(1,20),
+  targetGlobalZ:localToGlobal(1,20),
+  x:0,
+  tx:0,
+  moving:false
+};
 
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const lerp=(a,b,t)=>a+(b-a)*t;
-const mapIndex=id=>Math.max(0,MAPS.findIndex(m=>m.id===id));
-function getState(){
-  if(!api)return{ready:false,map:null};
+function getCameraState(){
+  if(!api)return null;
   const s=api.getState();
-  return {
+  const current=mapSpec(s.map);
+  const renderedGlobal=localToGlobal(s.map,s.renderedZ);
+  return{...s,current,renderedGlobal};
+}
+function playerLocation(g=player.globalZ){return globalToLocal(g)}
+function targetLocation(){return globalToLocal(player.targetGlobalZ)}
+function getState(){
+  if(!api)return{ready:false};
+  const c=getCameraState();
+  const p=playerLocation();
+  const t=targetLocation();
+  return{
     ready,
-    map:s.map,
-    mapName:(MAPS.find(m=>m.id===s.map)||MAPS[0]).name,
-    cameraZ:s.cameraZ,
-    renderedZ:s.renderedZ,
-    cameraX:s.cameraX,
-    renderedX:s.renderedX,
-    maxZ:s.maxZ,
-    minZ:s.minZ,
-    lateralLimit:s.lateralLimit,
+    cameraMap:c.map,
+    cameraMapName:c.current.name,
+    cameraZ:c.cameraZ,
+    cameraRenderedZ:c.renderedZ,
+    cameraGlobal,
+    cameraRenderedGlobal:c.renderedGlobal,
+    cameraX:c.cameraX,
+    cameraRenderedX:c.renderedX,
+    playerMap:p.map.id,
+    playerMapName:p.map.name,
+    playerZ:p.z,
+    playerGlobal:player.globalZ,
+    playerX:player.x,
+    playerTargetMap:t.map.id,
+    playerTargetZ:t.z,
+    playerTargetGlobal:player.targetGlobalZ,
+    playerTargetX:player.tx,
+    playerMoving:player.moving,
+    sameMap:c.map===p.map.id,
     wheelVelocity,
-    autopilotRemaining:autopilot?autopilot.remaining:0,
-    transitioning,
     transitions:transitionCount
   };
 }
 function pulseTarget(x,y){
-  target.style.left=x+"%";target.style.top=y+"%";
-  target.classList.remove("pulse");void target.offsetWidth;target.classList.add("pulse");
+  targetEl.style.left=x+"%";targetEl.style.top=y+"%";
+  targetEl.classList.remove("pulse");void targetEl.offsetWidth;targetEl.classList.add("pulse");
 }
 function flashMap(name){
   mapName.textContent=name;
   mapName.classList.remove("show");void mapName.offsetWidth;mapName.classList.add("show");
 }
-function transitionMap(dir){
-  if(!api||transitioning)return;
-  transitioning=true;
-  wheelVelocity*=.72;
-  const before=api.getState();
-  const i=mapIndex(before.map);
-  const next=MAPS[(i+dir+MAPS.length)%MAPS.length];
+function announceCameraMap(id){
+  if(id===lastCameraMap)return;
+  lastCameraMap=id;
+  transitionCount++;
   fade.classList.add("on");
-  setTimeout(()=>{
-    api.setMap(next.id);
-    const z=dir>0?1.4:Math.max(2,next.maxZ-1.8);
-    api.setCamera({x:0,z,immediate:true});
-    avatarTargetX=50;
-    flashMap(next.name);
-    transitionCount++;
-    setTimeout(()=>{
-      fade.classList.remove("on");
-      setTimeout(()=>{transitioning=false},150);
-    },80);
-  },145);
+  flashMap(mapSpec(id).name);
+  setTimeout(()=>fade.classList.remove("on"),120);
 }
-function drive(dz,dx=0){
-  if(!api||!ready||review||transitioning)return;
-  const s=api.getState();
-  if(dz>0&&s.cameraZ>=s.maxZ-.12){transitionMap(1);return}
-  if(dz<0&&s.cameraZ<=s.minZ+.12){transitionMap(-1);return}
-  api.moveBy({z:dz,x:dx});
-  if(Math.abs(dz)>.001||Math.abs(dx)>.001)movementHold=.18;
+function setCameraGlobal(nextGlobal,{immediate=false,x=null}={}){
+  if(!api)return;
+  cameraGlobal=clamp(nextGlobal,0,TOTAL_ROUTE-.001);
+  const loc=globalToLocal(cameraGlobal);
+  if(loc.map.id!==cameraMap){
+    cameraMap=loc.map.id;
+    api.setMap(cameraMap);
+    announceCameraMap(cameraMap);
+    const nextX=x===null?0:x;
+    api.setCamera({z:loc.z,x:nextX,immediate:true});
+    cameraX=nextX;
+    return;
+  }
+  if(x!==null)cameraX=x;
+  api.setCamera({z:loc.z,x:cameraX,immediate});
 }
-function clickTravel(px,py){
+function moveCamera(dz,dx=0){
   if(!api||!ready||review)return;
-  const s=api.getState();
-  const dy=.55-py/100;
-  const dir=dy>=0?1:-1;
-  const distance=clamp(10+Math.abs(dy)*92,10,52);
-  autopilot={dir,remaining:distance};
+  if(Math.abs(dx)>.00001){
+    const s=api.getState();
+    cameraX=clamp(cameraX+dx,-s.lateralLimit,s.lateralLimit);
+  }
+  setCameraGlobal(cameraGlobal+dz,{x:cameraX});
+}
+
+function clickToPlayerTarget(px,py){
+  if(!api||!ready||review)return;
+  const c=getCameraState();
+  const HORIZON=43,NEAR_Y=91;
+  const y=clamp(py,HORIZON+3,NEAR_Y);
+  const ratio=clamp((y-HORIZON)/48,.115,1);
+  const distance=10/Math.pow(ratio,1/.72);
+  const localZ=clamp(c.renderedZ+distance,c.current.minZ+1,c.current.maxZ-.7);
   const lateral=(px-50)/50;
-  const x=clamp(lateral*s.lateralLimit*.72,-s.lateralLimit,s.lateralLimit);
-  api.setCamera({x});
-  avatarTargetX=clamp(50+lateral*10,39,61);
+  const worldX=clamp(c.renderedX+lateral*c.lateralLimit*.86,-c.lateralLimit,c.lateralLimit);
+  player.targetGlobalZ=localToGlobal(c.map,localZ);
+  player.tx=worldX;
+  player.moving=Math.abs(player.targetGlobalZ-player.globalZ)>.04||Math.abs(player.tx-player.x)>.01;
   pulseTarget(px,py);
 }
-function pointerPercent(ev){
-  const r=stage.getBoundingClientRect();
-  return{x:(ev.clientX-r.left)/r.width*100,y:(ev.clientY-r.top)/r.height*100};
+
+function projectPlayer(){
+  if(!api)return;
+  const c=getCameraState();
+  const p=playerLocation();
+  if(c.map!==p.map.id){
+    playerEl.classList.remove("visible");
+    return;
+  }
+  const d=p.z-c.renderedZ;
+  if(d<3.5||d>190){
+    playerEl.classList.remove("visible");
+    return;
+  }
+  const HORIZON=43;
+  const y=HORIZON+48*Math.pow(12/d,.72);
+  const x=50+(player.x-c.renderedX)*(160/d);
+  if(x<-10||x>110||y<39||y>104){
+    playerEl.classList.remove("visible");
+    return;
+  }
+  const scale=clamp(12/d,.30,1.02);
+  playerEl.style.left=x+"%";
+  playerEl.style.top=clamp(y,HORIZON+1,94)+"%";
+  playerEl.style.setProperty("--s",scale.toFixed(3));
+  playerEl.classList.add("visible");
 }
+
 stage.addEventListener("pointerdown",ev=>{
   if(review)return;
   if(ev.button!==undefined&&ev.button!==0)return;
@@ -188,17 +269,15 @@ stage.addEventListener("pointermove",ev=>{
   if(Math.hypot(ev.clientX-touchStartX,ev.clientY-touchStartY)>7)touchMoved=true;
   if(!touchMoved)return;
   ev.preventDefault();
-  autopilot=null;
   const s=api.getState();
-  drive(-dy*.050,-dx*.0038*Math.max(.25,s.lateralLimit));
-  avatarTargetX=clamp(avatarTargetX+dx*.045,41,59);
+  moveCamera(-dy*.050,-dx*.0038*Math.max(.25,s.lateralLimit));
 });
 function endPointer(ev){
   if(ev.pointerId!==touchPointer)return;
   ev.preventDefault();
   if(!touchMoved){
-    const p=pointerPercent(ev);
-    clickTravel(p.x,p.y);
+    const r=stage.getBoundingClientRect();
+    clickToPlayerTarget((ev.clientX-r.left)/r.width*100,(ev.clientY-r.top)/r.height*100);
   }
   touchPointer=null;
   try{stage.releasePointerCapture(ev.pointerId)}catch(_){}
@@ -210,15 +289,15 @@ addEventListener("keydown",ev=>{
   if(review)return;
   const k=ev.key.toLowerCase();
   if(["w","a","s","d","arrowup","arrowdown"].includes(k)){
-    keys.add(k);autopilot=null;ev.preventDefault();
+    keys.add(k);ev.preventDefault();
   }else if(["1","2","3","4"].includes(k)&&api){
-    const spec=MAPS[Number(k)-1];
-    transitioning=true;fade.classList.add("on");
-    setTimeout(()=>{
-      api.setMap(spec.id);api.setCamera({z:1.4,x:0,immediate:true});
-      flashMap(spec.name);avatarTargetX=50;fade.classList.remove("on");
-      setTimeout(()=>transitioning=false,170);
-    },120);
+    const m=MAPS[Number(k)-1];
+    cameraMap=m.id;
+    cameraGlobal=localToGlobal(m.id,1.4);
+    cameraX=0;
+    api.setMap(m.id);
+    api.setCamera({z:1.4,x:0,immediate:true});
+    announceCameraMap(m.id);
     ev.preventDefault();
   }
 });
@@ -227,20 +306,35 @@ addEventListener("blur",()=>keys.clear());
 addEventListener("wheel",ev=>{
   if(review)return;
   ev.preventDefault();
-  autopilot=null;
   const impulse=clamp(-ev.deltaY*.00007,-.026,.026);
   wheelVelocity=clamp(wheelVelocity+impulse,-.050,.050);
-  movementHold=.22;
   hint.style.opacity=".14";
 },{passive:false});
 addEventListener("contextmenu",ev=>ev.preventDefault());
 addEventListener("selectstart",ev=>ev.preventDefault());
 addEventListener("dragstart",ev=>ev.preventDefault());
 
+function updatePlayer(dt){
+  const dz=player.targetGlobalZ-player.globalZ;
+  const current=playerLocation();
+  const targetLoc=targetLocation();
+  const desiredX=current.map.id===targetLoc.map.id?player.tx:0;
+  const dx=desiredX-player.x;
+  if(Math.abs(dz)>.03){
+    const speed=28;
+    player.globalZ+=Math.sign(dz)*Math.min(Math.abs(dz),speed*dt);
+  }else player.globalZ=player.targetGlobalZ;
+  if(Math.abs(dx)>.006){
+    const xSpeed=2.2;
+    player.x+=Math.sign(dx)*Math.min(Math.abs(dx),xSpeed*dt);
+  }else player.x=desiredX;
+  player.moving=Math.abs(player.targetGlobalZ-player.globalZ)>.03||Math.abs(desiredX-player.x)>.006;
+}
 function frame(now){
   requestAnimationFrame(frame);
   const dtMs=Math.min(48,now-last||16);last=now;
-  if(!ready||review)return;
+  if(!ready)return;
+  if(review){projectPlayer();return}
   const dt=dtMs/1000;
   let dz=0,dx=0;
   if(keys.has("w")||keys.has("arrowup"))dz+=dtMs*.026;
@@ -251,21 +345,15 @@ function frame(now){
     dz+=wheelVelocity*dtMs;
     wheelVelocity*=Math.exp(-dtMs*.0092);
   }else wheelVelocity=0;
-  if(autopilot&&Math.abs(dz)<.001){
-    const step=Math.min(autopilot.remaining,24*dt);
-    dz+=autopilot.dir*step;
-    autopilot.remaining-=step;
-    if(autopilot.remaining<=.03)autopilot=null;
-  }
-  if(Math.abs(dz)>.0001||Math.abs(dx)>.0001)drive(dz,dx);
-  movementHold=Math.max(0,movementHold-dt);
-  const s=api.getState();
-  const moving=movementHold>0||Math.abs(s.cameraZ-s.renderedZ)>.12||Boolean(autopilot)||Math.abs(wheelVelocity)>.0001;
-  player.classList.toggle("moving",moving);
-  if(!keys.has("a")&&!keys.has("d")&&!touchMoved&&Math.abs(s.cameraX)<.04)avatarTargetX=50;
-  avatarX=lerp(avatarX,avatarTargetX,1-Math.exp(-dt*7.5));
-  player.style.left=avatarX+"%";
-  debug.textContent="map "+s.map+"\ntarget z "+s.cameraZ.toFixed(2)+"\nrender z "+s.renderedZ.toFixed(2)+"\nwheel "+wheelVelocity.toFixed(4)+"\ntransitions "+transitionCount;
+  if(Math.abs(dz)>.00001||Math.abs(dx)>.00001)moveCamera(dz,dx);
+  updatePlayer(dt);
+  playerEl.classList.toggle("moving",player.moving);
+  projectPlayer();
+  const s=getState();
+  debug.textContent=
+    "camera "+s.cameraMapName+" z "+s.cameraZ.toFixed(1)+"\n"+
+    "player "+s.playerMapName+" z "+s.playerZ.toFixed(1)+" -> "+s.playerTargetMap+" / "+s.playerTargetZ.toFixed(1)+"\n"+
+    "same map "+s.sameMap+"\nwheel "+wheelVelocity.toFixed(4);
 }
 requestAnimationFrame(frame);
 
@@ -276,13 +364,22 @@ async function waitWorld(){
       if(w&&w.PrometeoSpaces&&w.PrometeoSpacesReview&&w.PrometeoSpacesReview.ready){
         api=w.PrometeoSpaces;
         ready=true;
-        loading.classList.add("off");
         if(review){
+          cameraMap=reviewMap;
+          cameraGlobal=localToGlobal(reviewMap,reviewZ);
+          cameraX=reviewX;
+          player.globalZ=player.targetGlobalZ=localToGlobal(reviewPlayerMap,reviewPlayerZ);
+          player.x=player.tx=reviewPlayerX;
+        }else{
           const s=api.getState();
-          avatarTargetX=avatarX=clamp(50+(s.cameraX/Math.max(.001,s.lateralLimit))*8,42,58);
-          player.style.left=avatarX+"%";
+          cameraMap=s.map;
+          lastCameraMap=s.map;
+          cameraGlobal=localToGlobal(s.map,s.cameraZ);
+          cameraX=s.cameraX;
         }
-        window.PrometeoRailWorldReview={ready:true,version:"v2-live-spaces",map:api.map};
+        loading.classList.add("off");
+        projectPlayer();
+        window.PrometeoRailWorldReview={ready:true,version:"v3-decoupled",map:cameraMap};
         return;
       }
     }catch(_){}
@@ -290,23 +387,33 @@ async function waitWorld(){
   }
   loading.textContent="no pude cargar el mundo";
 }
+
 window.PrometeoRailWorld={
-  version:"v2-live-spaces",
+  version:"v3-decoupled",
   getState,
-  moveBy(z=0,x=0){drive(Number(z)||0,Number(x)||0);return getState()},
+  moveCameraBy(z=0,x=0){moveCamera(Number(z)||0,Number(x)||0);return getState()},
+  setPlayerTargetFromPercent(x,y){clickToPlayerTarget(Number(x)||50,Number(y)||50);return getState()},
   setState(next={}){
     if(!api)return getState();
-    if(Number.isFinite(Number(next.map)))api.setMap(Number(next.map));
-    api.setCamera({
-      x:Number.isFinite(Number(next.x))?Number(next.x):api.camera.x,
-      z:Number.isFinite(Number(next.z))?Number(next.z):api.camera.z,
-      immediate:next.immediate!==false
-    });
-    transitioning=false;fade.classList.remove("on");autopilot=null;wheelVelocity=0;
+    const cm=Number.isFinite(Number(next.cameraMap))?Number(next.cameraMap):cameraMap;
+    const cz=Number.isFinite(Number(next.cameraZ))?Number(next.cameraZ):globalToLocal(cameraGlobal).z;
+    cameraMap=mapSpec(cm).id;
+    cameraGlobal=localToGlobal(cameraMap,cz);
+    cameraX=Number.isFinite(Number(next.cameraX))?Number(next.cameraX):cameraX;
+    api.setMap(cameraMap);
+    api.setCamera({z:cz,x:cameraX,immediate:next.immediate!==false});
+    lastCameraMap=cameraMap;
+    if(Number.isFinite(Number(next.playerMap))||Number.isFinite(Number(next.playerZ))){
+      const pm=Number.isFinite(Number(next.playerMap))?Number(next.playerMap):playerLocation().map.id;
+      const pz=Number.isFinite(Number(next.playerZ))?Number(next.playerZ):playerLocation().z;
+      player.globalZ=localToGlobal(pm,pz);
+      player.targetGlobalZ=player.globalZ;
+    }
+    if(Number.isFinite(Number(next.playerX)))player.x=player.tx=Number(next.playerX);
+    wheelVelocity=0;
+    projectPlayer();
     return getState();
-  },
-  nextMap(){transitionMap(1)},
-  previousMap(){transitionMap(-1)}
+  }
 };
 setTimeout(()=>hint.style.opacity=".14",2200);
 waitWorld();
