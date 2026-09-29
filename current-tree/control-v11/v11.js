@@ -91,6 +91,11 @@ async function loadPreviewManifest(){
 function previewFor(p){
  return previewMap.get('id:'+String(p?.id||''))||previewMap.get('url:'+pathKey(p?.href||p?.public_url||''))||null;
 }
+function previewSrcForSurface(id,url=''){
+ const pv=previewMap.get('id:'+String(id||''))||previewMap.get('url:'+pathKey(url||''))||null;
+ if(!pv||String(pv.state||'').toUpperCase()!=='AVAILABLE')return'';
+ return staticPreviewUrl(pv);
+}
 function previewMarkup(p){
  const pv=previewFor(p);if(!pv)return'';
  const state=String(pv.state||'UNAVAILABLE').toUpperCase(),src=state==='AVAILABLE'?staticPreviewUrl(pv):'';
@@ -500,11 +505,12 @@ async function hydrate(){
  if(!previewManifest)await loadPreviewManifest().catch(()=>installPreviewManifest(null));
  if(!resultProjection)await loadResultProjection().catch(()=>{resultProjection=normalizeVisibleResultProjection(null)});
  if(!capabilityGraph)await loadCapabilityGraph().catch(()=>{capabilityGraph=null});
- renderFreshness();renderPreviewGrid();renderSpaces();renderChats().catch(()=>{});renderCapabilityTools();renderWork().catch(()=>{});bindCommandV11();await restoreRoute(false);
+ renderFreshness();renderPreviewGrid();renderSpaces();renderChats().catch(()=>{});renderCapabilityTools();if(document.querySelector('.view#proyectos.on'))window.renderProjects?.();renderWork().catch(()=>{});bindCommandV11();await restoreRoute(false);
  const search=$('#workspaceSearchV11');if(search&&!search.dataset.bound){search.dataset.bound='1';search.addEventListener('input',renderSpaces)}
  await remote.init().catch(()=>null);voice.init().catch(()=>{});
 }
 window.addEventListener('PROMETEO_V11_DATA',e=>{bundle=e.detail?.bundle||bundle;window.PROMETEO_V11_LAST=bundle;hydrate().catch(()=>{})});
+window.PROMETEO_V11_PREVIEW_SRC=(id,url='')=>previewSrcForSurface(id,url);
 window.PROMETEO_V11_RENDER_SPACES=renderSpaces;
 window.PROMETEO_V11_RENDER_CHATS=()=>renderChats();
 window.PROMETEO_V11_RENDER_TOOLS=()=>renderCapabilityTools();
