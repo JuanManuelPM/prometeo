@@ -60,7 +60,7 @@ export function projectVisibleResultFromG05(base,g05){
   const lineageId=text(g05.lineage_id);
   const visible=g05.visible_result&&typeof g05.visible_result==='object'?g05.visible_result:{};
   const sameLineage=Boolean(lineageId&&accepted(g05.evidence?.same_lineage));
-  const independentVerifier=status==='PASS'&&accepted(g05.evidence?.independent_verifier);
+  const independentVerifier=accepted(g05.evidence?.independent_verifier);
   const requestedState=status==='PASS'?'VERIFIED':'BLOCKED';
 
   return normalizeVisibleResultProjection({
