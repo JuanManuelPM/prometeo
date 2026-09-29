@@ -9,6 +9,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const one=x=>Array.isArray(x)&&x.length===1?x[0]:x;
 const now=()=>new Date().toISOString();
 const diag=(source,error,url=null,status=null)=>{try{window.PROMETEO_DIAGNOSTICS_V1?.sourceFailure?.(source,error,url,status)}catch{}};
+if(!window.PROMETEO_CONTROL_PLANE_STATE_V1)window.PROMETEO_CONTROL_PLANE_STATE_V1=Object.freeze({blocked:true,status:'PROBING',source:'data-layer-bootstrap',observed_at:now()});
 function observedAt(x){
  if(!x||typeof x!=='object')return null;
  return x.observed_at||x.generated_at||x.updated_at||x.checked_at||x.cached_at||x.created_at||null;
