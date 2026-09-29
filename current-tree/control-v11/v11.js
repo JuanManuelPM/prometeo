@@ -2,13 +2,14 @@ import {listNotes,putNote,getNote} from '../../shared/prometeo-shell/v1/db.js';
 import {VoiceQueue} from '../../shared/prometeo-shell/v1/voice.js';
 import {PrometeoRemote} from '../../shared/prometeo-shell/v2/sync.js';
 import {mountPageChangeLoop,createChangeLoopClient} from '../../shared/capture/v1/change-loop.js';
+import {normalizeVisibleResultProjection} from './result-adapter-v1.js';
 
 const $=q=>document.querySelector(q);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const remote=new PrometeoRemote();
 const changeClient=createChangeLoopClient();
 let bundle=window.PROMETEO_V11_LAST||null;
-let pages=[],pageMap=new Map(),selectedPage=null,loop=null,unread=0,syncTimer=null,previewManifest=null,previewMap=new Map(),commandBusy=false;
+let pages=[],pageMap=new Map(),selectedPage=null,loop=null,unread=0,syncTimer=null,previewManifest=null,previewMap=new Map(),resultProjection=null,commandBusy=false;
 const toastEl=document.createElement('div');toastEl.className='v11-toast';document.body.appendChild(toastEl);
 function toast(s){toastEl.textContent=s;toastEl.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>toastEl.classList.remove('on'),1500)}
 function abs(href){try{return new URL(href,'https://juanmanuelpm.github.io/prometeo/catalog/CATALOG_MANIFEST.json').href}catch{return href||''}}
@@ -244,6 +245,27 @@ async function publicEvidence(url){
  if(!url)return null;
  try{const r=await fetch(url,{cache:'no-store'});if(!r.ok)return null;return await r.json()}catch{return null}
 }
+async function loadResultProjection(){
+ const cfg=window.PROMETEO_CONTROL_CONFIG_V1||{};
+ const raw=await publicEvidence(cfg.resultProjectionUrl||'./result-candidate-v1.json');
+ resultProjection=normalizeVisibleResultProjection(raw);
+ return resultProjection;
+}
+function evidenceHref(ref){
+ const clean=String(ref||'').replace(/^\/+/, '');
+ return clean?'https://github.com/JuanManuelPM/prometeo/blob/main/'+clean.split('/').map(encodeURIComponent).join('/'):'';
+}
+function visibleResultMarkup(){
+ const r=resultProjection||normalizeVisibleResultProjection(null);
+ const lineage=r.lineage||{},refs=[
+  ['RETURN',lineage.builder_return_ref],
+  ['VERIFY',lineage.verifier_ref],
+  ['candidate',lineage.candidate_ref]
+ ].filter(([,ref])=>ref);
+ const links=refs.length?'<div class="context-meta">'+refs.map(([label,ref])=>'<a href="'+esc(evidenceHref(ref))+'" target="_blank" rel="noopener">'+esc(label)+'</a>').join(' · ')+'</div>':'<div class="context-meta">lineage G05 todavía no disponible</div>';
+ const candidate=r.state==='VERIFIED'&&r.candidate_url?'<div class="dactions"><a class="dbtn primary" href="'+esc(r.candidate_url)+'" target="_blank" rel="noopener">abrir candidate</a></div>':'';
+ return '<section class="worker-note" data-visible-result-state="'+esc(r.state)+'"><b>Resultado visible · '+esc(r.state.toLowerCase())+'</b> · '+esc(r.summary)+(r.fixture_contract_only?' · fixture contractual G06, no resultado real':'')+(r.blocker?' · '+esc(r.blocker):'')+links+candidate+'</section>';
+}
 async function renderWorkFailure(root,error){
  const cfg=window.PROMETEO_CONTROL_CONFIG_V1||{};
  const [canary,diagnosis]=await Promise.all([
@@ -262,12 +284,14 @@ async function renderWorkFailure(root,error){
 }
 async function renderWork(){
  const root=$('#workV11');if(!root)return;
- if(!changeClient.hasWorkspace()){root.innerHTML='<div class="worker-note"><b>Workspace local no vinculado.</b> Abrí Notas en cualquier página; Control Room intentará reutilizar/vincular el workspace existente del dispositivo.</div>';return}
+ if(!resultProjection)await loadResultProjection().catch(()=>{resultProjection=normalizeVisibleResultProjection(null)});
+ const resultPanel=visibleResultMarkup();
+ if(!changeClient.hasWorkspace()){root.innerHTML=resultPanel+'<div class="worker-note"><b>Workspace local no vinculado.</b> Abrí Notas en cualquier página; Control Room intentará reutilizar/vincular el workspace existente del dispositivo.</div>';return}
  try{
   await changeClient.executionStatus({});
   const d=await changeClient.overview(),threads=d.threads||[];
   unread=threads.reduce((n,t)=>n+Number(t.unread_count||0),0);renderWorkBadge();
-  root.innerHTML='<div class="worker-note"><b>Este tablero no crea otra cola.</b> “HACER” congela tus notas en un Execution Packet y lo proyecta al allocator CURRENT. Los workers reclaman por la autoridad normal y el resultado vuelve al mismo thread.</div><div class="work-overview">'+(threads.length?threads.map(t=>`<article class="work-thread ${t.unread?'unread':''}" data-thread-page="${esc(t.page_id)}"><div class="work-thread-top"><div class="work-thread-title">${esc(t.page_title||t.page_id)}</div><div class="work-thread-count">${t.pending?esc(t.pending)+' pendientes':t.unread?'resultado nuevo':'al día'}</div></div><div class="work-thread-meta">${t.last_worked_at?'último trabajo '+new Date(t.last_worked_at).toLocaleString('es-AR'):'sin trabajo previo'}</div>${t.latest_result?'<div class="work-thread-result">'+esc(t.latest_result.status)+' · '+esc(typeof t.latest_result.summary==='string'?t.latest_result.summary:'resultado disponible')+'</div>':''}</article>`).join(''):'<div class="rdesc">Todavía no hay threads de página.</div>')+'</div>';
+  root.innerHTML=resultPanel+'<div class="worker-note"><b>Este tablero no crea otra cola.</b> “HACER” congela tus notas en un Execution Packet y lo proyecta al allocator CURRENT. Los workers reclaman por la autoridad normal y el resultado vuelve al mismo thread.</div><div class="work-overview">'+(threads.length?threads.map(t=>`<article class="work-thread ${t.unread?'unread':''}" data-thread-page="${esc(t.page_id)}"><div class="work-thread-top"><div class="work-thread-title">${esc(t.page_title||t.page_id)}</div><div class="work-thread-count">${t.pending?esc(t.pending)+' pendientes':t.unread?'resultado nuevo':'al día'}</div></div><div class="work-thread-meta">${t.last_worked_at?'último trabajo '+new Date(t.last_worked_at).toLocaleString('es-AR'):'sin trabajo previo'}</div>${t.latest_result?'<div class="work-thread-result">'+esc(t.latest_result.status)+' · '+esc(typeof t.latest_result.summary==='string'?t.latest_result.summary:'resultado disponible')+'</div>':''}</article>`).join(''):'<div class="rdesc">Todavía no hay threads de página.</div>')+'</div>';
   root.querySelectorAll('[data-thread-page]').forEach(el=>el.onclick=async()=>{selectedPage=pageMap.get(el.dataset.threadPage)||{id:el.dataset.threadPage,title:el.querySelector('.work-thread-title')?.textContent||el.dataset.threadPage,href:location.href,category_path:['Prometeo']};const l=await ensureLoop();await l?.open(pageObj(selectedPage))});
  }catch(e){await renderWorkFailure(root,e)}
 }
@@ -275,6 +299,7 @@ async function hydrate(){
  bundle=window.PROMETEO_V11_LAST||bundle;
  pages=mergePages(catalogPages(),await visualPages());pageMap=new Map(pages.map(p=>[p.id,p]));
  if(!previewManifest)await loadPreviewManifest().catch(()=>installPreviewManifest(null));
+ if(!resultProjection)await loadResultProjection().catch(()=>{resultProjection=normalizeVisibleResultProjection(null)});
  renderFreshness();renderPreviewGrid();renderSpaces();renderWork().catch(()=>{});bindCommandV11();
  const search=$('#workspaceSearchV11');if(search&&!search.dataset.bound){search.dataset.bound='1';search.addEventListener('input',renderSpaces)}
  await remote.init().catch(()=>null);voice.init().catch(()=>{});
