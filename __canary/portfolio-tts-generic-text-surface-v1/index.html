@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111411">
+<title>Texto → audio · candidate</title>
+<style>
+:root{--bg:#111411;--fg:#e9e1d3;--muted:#9e988e;--line:#3b3b35;--danger:#f2b7a2}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button,textarea,select{font:inherit;color:inherit}button{cursor:pointer}.wrap{width:min(900px,100%);margin:auto;padding:18px 18px 64px}.top{display:flex;align-items:center;gap:10px;padding:4px 0 28px;border-bottom:1px solid var(--line)}.tag{font:800 10px/1 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--fg);padding:5px 7px}.sub{margin-left:auto;font:700 10px/1.3 ui-monospace,monospace;color:var(--muted);text-align:right}.hero{padding:38px 0 26px}.hero h1{font-size:clamp(44px,9vw,86px);line-height:.88;letter-spacing:-.065em;margin:0}.hero p{max-width:680px;margin:18px 0 0;font-size:14px;line-height:1.55;color:var(--muted)}.field{border-top:1px solid var(--line);padding:18px 0}.field-head{display:flex;align-items:end;gap:12px;margin-bottom:10px}.field-head label{font-weight:850}.count{margin-left:auto;font:700 11px/1 ui-monospace,monospace;color:var(--muted)}textarea{width:100%;min-height:230px;resize:vertical;border:0;border-bottom:1px solid var(--line);outline:none;background:transparent;padding:10px 0 18px;font:400 clamp(20px,3.1vw,30px)/1.42 Georgia,serif}textarea:focus{border-bottom-color:var(--fg)}.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:end}.voice label{display:block;font-size:11px;font-weight:800;color:var(--muted);margin-bottom:7px}select{width:100%;background:var(--bg);border:1px solid var(--line);padding:12px;outline:none}select:focus{border-color:var(--fg)}.primary{border:0;background:var(--fg);color:var(--bg);padding:13px 18px;font-weight:900;min-width:150px}.primary:disabled{opacity:.3;cursor:not-allowed}.status{min-height:54px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;font:750 12px/1.4 ui-monospace,monospace}.dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:0 0 auto}.status[data-state="working"] .dot{background:var(--fg);animation:p .8s infinite alternate}.status[data-state="ready"] .dot{background:var(--fg)}.status[data-state="error"]{color:var(--danger)}.status[data-state="error"] .dot{background:var(--danger)}@keyframes p{to{opacity:.2}}
+.player{padding:20px 0;border-bottom:1px solid var(--line)}audio{width:100%}.player[hidden]{display:none}.trace{margin-top:18px}summary{cursor:pointer;font-size:11px;font-weight:800;color:var(--muted)}pre{white-space:pre-wrap;word-break:break-word;font:10px/1.55 ui-monospace,monospace;color:var(--muted);margin:12px 0 0}.privacy{margin-top:32px;border-top:1px solid var(--line);padding-top:15px;font-size:11px;line-height:1.55;color:var(--muted)}.privacy strong{color:var(--fg)}
+@media(max-width:620px){.wrap{padding-inline:14px}.top{align-items:flex-start}.sub{max-width:190px}.row{grid-template-columns:1fr}.primary{width:100%}.hero{padding-top:30px}textarea{min-height:260px}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="top">
+    <span class="tag">candidate · no current</span>
+    <span class="sub">tool:tts:generic-text-surface:v1</span>
+  </header>
+
+  <section class="hero">
+    <h1>Texto<br>→ audio</h1>
+    <p>Pegá un texto, elegí una voz y generá una lectura. Si ese texto con esa voz ya existe en caché, se reutiliza en lugar de volver a generarlo.</p>
+  </section>
+
+  <section class="field">
+    <div class="field-head">
+      <label for="text">Texto</label>
+      <span class="count" id="count">0 / 1800</span>
+    </div>
+    <textarea id="text" maxlength="1800" spellcheck="true" placeholder="Pegá acá el texto que querés escuchar…"></textarea>
+  </section>
+
+  <section class="field row">
+    <div class="voice">
+      <label for="voice">Voz</label>
+      <select id="voice" aria-label="Voz">
+        <option value="martin">Martín · cálida, medio-grave</option>
+        <option value="lucia">Lucía · clara, luminosa</option>
+        <option value="ines">Inés · grave, íntima</option>
+        <option value="bruno">Bruno · joven, energética</option>
+        <option value="vera">Vera · curiosa, excéntrica</option>
+        <option value="milo">Milo · radio rara, juguetona</option>
+      </select>
+    </div>
+    <button class="primary" id="go" disabled>Generar / cargar</button>
+  </section>
+
+  <div class="status" id="status" data-state="idle" role="status" aria-live="polite"><span class="dot"></span><span id="statusText">Esperando texto.</span></div>
+
+  <section class="player" id="player" hidden>
+    <audio id="audio" controls preload="metadata"></audio>
+  </section>
+
+  <details class="trace">
+    <summary>Prueba técnica</summary>
+    <pre id="trace">sin solicitud</pre>
+  </details>
+
+  <p class="privacy"><strong>Generación remota.</strong> Al tocar “Generar / cargar”, el texto se envía al backend existente de Supabase y Qwen3-TTS/Hugging Face. Esta candidate no envía nada al abrir la página y no guarda el texto en localStorage.</p>
+</main>
+<script>
+const API='https://catnohyouxqjjtseaueb.supabase.co/functions/v1/audio-lab-page-audio-v1';
+const MAX=1800;
+const VOICES={
+  martin:'Speaker identity: Martín, 31, native Buenos Aires. Exact same man in every clip. Warm medium-low male voice, slightly textured, calm, intelligent. Authentic Rioplatense Spanish, conversational, relaxed confidence, clear articulation. Never Iberian, never generic dubbing, no announcer or assistant tone.',
+  lucia:'Speaker identity: Lucía, 29, native Buenos Aires. Exact same woman in every clip. Warm clear female voice, medium register, bright but not sharp. Authentic Rioplatense Spanish, contemporary, close and intelligent, subtle natural smile. Never Iberian or neutral dubbing; no announcer or assistant voice.',
+  ines:'Speaker identity: Inés, 38, native Buenos Aires. Exact same woman every time. Low-to-medium female register, velvety and slightly husky, intimate close-microphone feeling, composed and thoughtful. Natural Rioplatense Spanish, excellent diction, understated emotion, deliberate pauses. Never theatrical, Iberian or generic dubbing.',
+  bruno:'Speaker identity: Bruno, 27, native Buenos Aires. Exact same man every clip. Medium male voice, youthful energy, agile rhythm and playful edge. Authentic Rioplatense Spanish, spontaneous young teacher who enjoys surprising students. Crisp pronunciation, warm, never shouty, never cartoonish or Iberian.',
+  vera:'Speaker identity: Vera, 34, native Buenos Aires, memorable slightly unusual voice. Exact same woman every clip. Medium-low female register, dry wit, curious mischievous energy, as if revealing a fascinating secret. Authentic Rioplatense Spanish, controlled expressiveness, unexpected pauses, never caricature, never Iberian or generic dubbing.',
+  milo:'Speaker identity: Milo, 41, native Buenos Aires. Exact same man every clip. Distinctive medium-low voice, lightly raspy texture, experimental late-night-radio personality. Curious, playful, slightly eccentric, excellent clarity, authentic Rioplatense Spanish. Use rhythm and tiny silences, but never cartoon character, Iberian or generic dubbing.'
+};
+const $=id=>document.getElementById(id), text=$('text'), voice=$('voice'), go=$('go'), count=$('count'), status=$('status'), statusText=$('statusText'), player=$('player'), audio=$('audio'), trace=$('trace');
+let objectUrl=null, busy=false, lastMeta=null;
+function setStatus(state,msg){status.dataset.state=state;statusText.textContent=msg}
+function update(){const n=text.value.length;count.textContent=`${n} / ${MAX}`;go.disabled=busy||n===0||n>MAX}
+async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+function clearAudio(){audio.pause();audio.removeAttribute('src');audio.load();player.hidden=true;if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null}}
+function showBlob(blob,meta){clearAudio();objectUrl=URL.createObjectURL(blob);audio.src=objectUrl;player.hidden=false;lastMeta={...meta,bytes:blob.size,type:blob.type||'unknown'};trace.textContent=JSON.stringify(lastMeta,null,2)}
+async function getCached(id){const r=await fetch(`${API}?id=${encodeURIComponent(id)}`,{cache:'no-store'});if(r.status===404)return null;if(!r.ok)throw new Error(`cache HTTP ${r.status}`);return {blob:await r.blob(),response:r}}
+async function generate(id,prompt,bodyText){const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),165000);try{return await fetch(API,{method:'POST',headers:{'content-type':'application/json'},signal:ctrl.signal,body:JSON.stringify({voicePrompt:prompt,text:bodyText,messageId:id})})}finally{clearTimeout(timer)}}
+async function run(){
+  if(busy)return;
+  const bodyText=text.value.trim(), key=voice.value, prompt=VOICES[key];
+  if(!bodyText){setStatus('error','Falta texto.');return}
+  if(bodyText.length>MAX){setStatus('error',`Máximo ${MAX} caracteres.`);return}
+  busy=true;update();clearAudio();trace.textContent='preparando id determinístico…';
+  try{
+    const digest=await sha256(`tts-generic-v1|${key}|${prompt}|${bodyText}`),id=`tts-generic-v1-${key}-${digest.slice(0,24)}`;
+    setStatus('working','Buscando una copia en caché…');
+    const hit=await getCached(id);
+    if(hit){
+      showBlob(hit.blob,{messageId:id,voice:key,cache:hit.response.headers.get('x-audio-lab-cache')||'HIT',source:'GET'});
+      setStatus('ready','Listo · reutilizado desde caché.');
+      return;
+    }
+    setStatus('working','Generando audio remoto…');
+    const r=await generate(id,prompt,bodyText);
+    if(!r.ok){let detail='';try{detail=(await r.text()).slice(0,240)}catch{}throw new Error(`generación HTTP ${r.status}${detail?' · '+detail:''}`)}
+    const blob=await r.blob();
+    if(!blob.size)throw new Error('respuesta de audio vacía');
+    showBlob(blob,{messageId:id,voice:key,cache:r.headers.get('x-audio-lab-cache')||'MISS',source:'POST'});
+    setStatus('ready','Listo · audio generado.');
+  }catch(e){
+    clearAudio();trace.textContent=String(e?.stack||e);setStatus('error',e?.name==='AbortError'?'La generación superó el tiempo límite.':`Error · ${e?.message||e}`);
+  }finally{busy=false;update()}
+}
+text.addEventListener('input',()=>{update();if(!busy&&text.value.length===0)setStatus('idle','Esperando texto.')});
+voice.addEventListener('change',()=>{if(!busy&&text.value.trim())setStatus('idle','Voz cambiada · listo para generar / cargar.')});
+go.addEventListener('click',run);
+audio.addEventListener('play',()=>setStatus('ready','Reproduciendo.'));
+audio.addEventListener('pause',()=>{if(audio.currentTime>0&&!audio.ended)setStatus('ready','Pausado.')});
+audio.addEventListener('ended',()=>setStatus('ready','Reproducción terminada.'));
+audio.addEventListener('error',()=>setStatus('error','El navegador no pudo reproducir este audio.'));
+update();
+</script>
+</body>
+</html>
