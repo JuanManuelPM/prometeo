@@ -85,11 +85,10 @@ const efficiencyRegression = {
 };
 out = compileRoleFrontier(feed, efficiencyRegression, [], [], [], [], {...baseContext,noAlloc:mixedNoAlloc});
 const efficiencyRescue = out.role_ready.find(row => row.role === 'GUIDE_RESCATE');
-assert.ok(efficiencyRescue, 'efficiency regression must preserve GUIDE_RESCATE');
-const efficiencyEvidence = efficiencyRescue.claim_payload_shape?.evidence || efficiencyRescue.evidence || [];
-assert.ok(efficiencyEvidence.includes('gh-pages:live/efficiency.json#no_allocation_causes'), 'bounded cause summary stays in rescue evidence');
-assert.ok(efficiencyEvidence.includes('coordination/workers/no-allocation/race-efficiency.json'), 'actionable efficiency no-allocation receipt stays in rescue evidence');
-assert.ok(!efficiencyEvidence.includes('coordination/workers/no-allocation/blocked-efficiency.json'), 'transport-blocked efficiency receipt must not re-enter rescue evidence through efficiencyRegressionEvidence');
-assert.ok(!efficiencyEvidence.includes('coordination/workers/no-allocation/blocked-outcome-efficiency.json'), 'transport-blocked outcome receipt must not re-enter rescue evidence through efficiencyRegressionEvidence');
+assert.equal(efficiencyRescue, undefined, 'sub-threshold actionable no-allocation plus efficiency regression must not duplicate GUIDE_CRITIC with GUIDE_RESCATE');
+assert.ok(
+  out.role_ready.some(row => row.role === 'GUIDE_CRITIC' && row.trigger === 'LOW_YIELD'),
+  'efficiency regression must remain visible through GUIDE_CRITIC'
+);
 
 console.log('GUIDE_RESCATE_NO_ALLOCATION_SIGNAL_PASS');
