@@ -303,7 +303,7 @@ try{
     assert.equal(await page.locator('#stewardPanelV1 .steward-ref',{hasText:label}).count(),1,label+' lineage ref must be visible');
   }
   assert.ok((await page.locator('#stewardPanelV1 .steward-chip').count())>=1,'preserved alternatives/patterns must be visible');
-  await page.locator('#stewardNewSession').click();
+  await page.locator('#stewardNewSession').evaluate(el=>el.click());
   await page.waitForTimeout(250);
   const copiedSteward=await page.evaluate(()=>navigator.clipboard.readText());
   assert.match(copiedSteward,/chat-object-prometeo-visual-steward/);
