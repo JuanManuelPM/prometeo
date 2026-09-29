@@ -2,18 +2,17 @@
 
 Status: CURRENT
 
-- V21 remains the accepted blink baseline.
-- V25 supersedes V24 for eye-content exploration.
-- The eye itself is a play/pause control in the lab.
-- Blink remains independent and keeps running even when inner-eye playback is paused.
-- Scene definitions must live in data/config rather than renderer branches whenever practical.
-- Dilation defaults to 24 discrete frames and may be changed by one step-count variable.
-- Contraction/red reveal defaults to 22 discrete frames.
-- Color variation is parameterized by hue rather than requiring new assets.
-- Audio-reactive motion reuses the Bent Sticks design language from the existing audio visual lab.
-- The audio demo is locally generated and does not depend on Supabase/TTS.
-- Video/GIF-style moving content may live behind the aperture or inside the pupil as a separate media layer.
-- External media must have a visual fallback.
-- Eye-content scenes remain clipped by the per-frame aperture derived from V21.
-- Eye-content FPS remains intentionally quantized / low-FPS.
-- Player integration remains blocked until V25 public review.
+- V21 blink remains accepted and unchanged.
+- V26 supersedes V25 only as the current review target; V25 audio/media scenes remain preserved inside V26.
+- Pointer gaze is an independent subsystem.
+- Pointer gaze must survive color, morphology and click-state changes.
+- Do not encode mouse direction into blink frames.
+- Pointer motion is quantized to preserve low-FPS visual language.
+- Default quantization: 9 FPS, 9 horizontal positions, 7 vertical positions.
+- Clicking may mutate style without changing gaze authority.
+- pointer_dilate uses 22 discrete dilation states before full black.
+- Dark-background pointer styles switch pupil to white for visibility.
+- Full-black dilation is allowed to hide the pupil intentionally.
+- Mouse movement works globally across the page; touch drag also updates gaze.
+- V25 audio, media, hue and shape examples remain available after the new pointer examples.
+- Player integration remains blocked until public V26 review.
