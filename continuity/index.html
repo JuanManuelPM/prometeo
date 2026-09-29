@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08090b">
+<title>Prometeo · Continuity Room</title>
+<style>
+:root{--bg:#08090b;--panel:#0d1014;--line:#252b33;--ink:#f1f0e9;--muted:#8c96a1;--soft:#151a20;--good:#91d29b;--warn:#ddb45f;--bad:#e77e7e}
+*{box-sizing:border-box}html{background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}body{margin:0}
+.wrap{max-width:980px;margin:auto;padding:18px 15px 70px}.top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.eyebrow{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}h1{font-size:clamp(34px,8vw,70px);line-height:.92;letter-spacing:-.06em;margin:7px 0 8px}
+.sub{max-width:720px;color:#aeb5bd;font-size:13px;line-height:1.5}.stamp{font:10px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);text-align:right;white-space:nowrap}
+.bar{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0 24px}.pill{border:1px solid var(--line);border-radius:999px;padding:6px 9px;font-size:9px;color:#b5bcc4}.pill.good{border-color:#35563c;color:var(--good)}.pill.warn{border-color:#5a4930;color:var(--warn)}
+.copy{width:100%;border:1px solid #b8bec5;background:#ecebe5;color:#090a0c;border-radius:11px;padding:13px 15px;font-weight:800;font-size:13px;cursor:pointer;margin:4px 0 9px}.copy.done{background:#cfe8d3}
+.hint{font-size:9px;color:var(--muted);line-height:1.45;margin-bottom:28px}.grid{display:grid;gap:18px}.section{border-top:1px solid var(--line);padding-top:12px}.section h2{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#b3bac2;margin:0 0 12px}
+.truth{display:grid;gap:1px;border:1px solid var(--line);border-radius:12px;overflow:hidden}.truthrow{display:grid;grid-template-columns:minmax(130px,.75fr) 1.8fr;gap:12px;padding:10px 11px;background:var(--panel)}
+.truthrow span{font-size:9px;color:var(--muted)}.truthrow b{font-size:11px;font-weight:650;line-height:1.45}.target{font-size:13px;line-height:1.55;color:#cdd2d7;max-width:820px}
+.phase{display:grid;grid-template-columns:46px 1fr auto;gap:10px;padding:12px 0;border-bottom:1px solid #1c2229}.phase:last-child{border-bottom:0}.pid{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#727c87}
+.pname{font-size:13px;font-weight:760}.pgoal{font-size:10px;color:#939ca6;line-height:1.45;margin-top:3px}.pstate{font-size:8px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding-top:2px}.pstate.ACTIVE{color:var(--good)}.pstate.NEXT,.pstate.QUEUED{color:var(--warn)}
+.next{counter-reset:item;margin:0;padding:0;list-style:none}.next li{counter-increment:item;display:grid;grid-template-columns:26px 1fr;gap:9px;padding:8px 0;border-bottom:1px solid #1b2027;font-size:11px;line-height:1.45;color:#c9ced3}.next li:before{content:counter(item,decimal-leading-zero);font:9px ui-monospace,SFMono-Regular,Menlo,monospace;color:#6f7882;padding-top:2px}
+.links{display:flex;gap:6px;flex-wrap:wrap}.links a{color:#c8ced5;text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:9px}.links a:hover{border-color:#59616b}
+.promptbox{white-space:pre-wrap;max-height:270px;overflow:auto;background:#080a0d;border:1px solid var(--line);border-radius:10px;padding:11px;color:#9ca6af;font:9px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+.footer{margin-top:30px;border-top:1px solid var(--line);padding-top:12px;color:#69737e;font-size:9px;line-height:1.5}
+.err{border:1px solid #593738;color:#e6a1a1;padding:12px;border-radius:10px}
+@media(min-width:760px){.grid.two{grid-template-columns:1fr 1fr}.wrap{padding-top:28px}.copy{width:auto;min-width:300px}.truthrow{grid-template-columns:180px 1fr}}
+</style>
+</head>
+<body><main class="wrap">
+<header class="top"><div><div class="eyebrow">TEMPORARY PROJECTION · NOT AUTHORITY</div><h1>Continuity<br>Room</h1><div class="sub">Presencia durable para que Prometeo continúe desde el último push aunque muera este chat. Esta página orienta; la autoridad sigue en la arquitectura CURRENT y en los artefactos durables exactos.</div></div><div class="stamp" id="stamp">cargando…</div></header>
+<div class="bar" id="bar"></div>
+<button class="copy" id="copy">COPIAR PROMPT DE CONTINUIDAD</button>
+<div class="hint">Pegalo en un chat nuevo. El prompt obliga al sucesor a leer HEAD actual y reconciliar cualquier cambio posterior a esta página antes de tocar nada.</div>
+<div id="app"></div>
+</main>
+<script>
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let STATE=null;
+function render(s){
+ STATE=s;
+ document.getElementById('stamp').innerHTML='campaign<br>'+esc(s.campaign)+'<br><br>baseline<br>'+esc(s.baseline_head_before_continuity_write.slice(0,12));
+ document.getElementById('bar').innerHTML=[
+  '<span class="pill good">USD 0 obligatorio</span>',
+  '<span class="pill">Work Graph V1.1 CURRENT</span>',
+  '<span class="pill">Current Tree V2</span>',
+  '<span class="pill warn">V11 CANDIDATE</span>',
+  '<span class="pill warn">Supabase no bloquea</span>'
+ ].join('');
+ const truth=Object.entries(s.current_truth).map(([k,v])=>'<div class="truthrow"><span>'+esc(k)+'</span><b>'+esc(v)+'</b></div>').join('');
+ const phases=s.phases.map(p=>'<div class="phase"><div class="pid">'+esc(p.id)+'</div><div><div class="pname">'+esc(p.name)+'</div><div class="pgoal">'+esc(p.goal)+'</div><div class="pgoal">→ '+esc(p.next)+'</div></div><div class="pstate '+esc(p.state)+'">'+esc(p.state)+'</div></div>').join('');
+ const next=s.exact_next.map(x=>'<li>'+esc(x)+'</li>').join('');
+ const links=Object.entries(s.key_links).map(([k,v])=>'<a href="'+esc(v)+'" target="_blank" rel="noopener">'+esc(k)+'</a>').join('');
+ const target=s.target_shape.map(x=>'• '+esc(x)).join('<br>');
+ document.getElementById('app').innerHTML=
+  '<div class="grid two">'+
+   '<section class="section"><h2>Verdad actual</h2><div class="truth">'+truth+'</div></section>'+
+   '<section class="section"><h2>Cómo debería quedar</h2><div class="target">'+target+'</div></section>'+
+  '</div>'+
+  '<section class="section"><h2>Plan vivo</h2>'+phases+'</section>'+
+  '<div class="grid two">'+
+   '<section class="section"><h2>Exact next</h2><ol class="next">'+next+'</ol></section>'+
+   '<section class="section"><h2>Continuidad</h2><div class="promptbox">'+esc(s.continuity_prompt)+'</div></section>'+
+  '</div>'+
+  '<section class="section"><h2>Entradas útiles</h2><div class="links">'+links+'</div></section>'+
+  '<div class="footer">Esta página es deliberadamente una proyección. Si contradice HEAD, Design DNA, CURRENT o evidencia durable más nueva, gana la evidencia nueva. El sucesor debe actualizar state.json después de cambios materiales.</div>';
+}
+document.getElementById('copy').onclick=async()=>{
+ if(!STATE)return;
+ try{await navigator.clipboard.writeText(STATE.continuity_prompt);const b=document.getElementById('copy');b.textContent='COPIADO';b.classList.add('done');setTimeout(()=>{b.textContent='COPIAR PROMPT DE CONTINUIDAD';b.classList.remove('done')},1600)}
+ catch(e){const t=document.createElement('textarea');t.value=STATE.continuity_prompt;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();}
+};
+fetch('./state.json?ts='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(render).catch(e=>{document.getElementById('app').innerHTML='<div class="err">No pude cargar state.json. La página no inventa estado: revisá el archivo durable o HEAD.</div>';});
+</script></body></html>
