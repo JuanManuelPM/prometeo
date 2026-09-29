@@ -1098,21 +1098,18 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
         'coordination/efficiency/RATCHET_BASELINE_V1.json'
       ])
     : [];
+  const independentRescatePressure =
+    genericRecoveryRescuePressure ||
+    collisionEvidence.length >= Number(signals.collision_pressure_trigger || 3) ||
+    rescueEligibleNoAlloc.length >= 3;
   const rescueEvidence = uniq([
-    ...efficiencyRegressionEvidence,
     ...recoveryEvidence,
     ...collisionEvidence,
     ...(capabilityPressure.specialized_total && genericCompatibleFrontier < cleanFrontier ? [capabilityPressureEvidenceRef] : []),
     ...(recoveryCapabilityPressure.specialized_total ? [recoveryCapabilityPressureEvidenceRef] : []),
-    ...(efficiency.status === 'REGRESSION' ? ['coordination/efficiency/RATCHET_BASELINE_V1.json'] : []),
     ...rescueEligibleNoAlloc.slice(0, 4).map(row => row.path)
   ]);
-  if (
-    genericRecoveryRescuePressure ||
-    collisionEvidence.length >= Number(signals.collision_pressure_trigger || 3) ||
-    efficiency.status === 'REGRESSION' ||
-    rescueEligibleNoAlloc.length >= 3
-  ) {
+  if (independentRescatePressure) {
     roleReady.push(candidate({
       role: 'GUIDE_RESCATE',
       trigger: 'LOW_YIELD',
