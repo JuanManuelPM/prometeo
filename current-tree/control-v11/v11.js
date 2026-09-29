@@ -9,7 +9,7 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const remote=new PrometeoRemote();
 const changeClient=createChangeLoopClient();
 let bundle=window.PROMETEO_V11_LAST||null;
-let pages=[],pageMap=new Map(),selectedPage=null,loop=null,unread=0,syncTimer=null,previewManifest=null,previewMap=new Map(),resultProjection=null,chatSessionIndex=null,chatJournalCache=new Map(),commandBusy=false,restoringRoute=false,restoredRoute=false,activePanel=null;
+let pages=[],pageMap=new Map(),selectedPage=null,loop=null,unread=0,syncTimer=null,previewManifest=null,previewMap=new Map(),resultProjection=null,chatSessionIndex=null,chatJournalCache=new Map(),capabilityGraph=null,openCapabilityHubId=null,commandBusy=false,restoringRoute=false,restoredRoute=false,activePanel=null;
 const toastEl=document.createElement('div');toastEl.className='v11-toast';document.body.appendChild(toastEl);
 function toast(s){toastEl.textContent=s;toastEl.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>toastEl.classList.remove('on'),1500)}
 function abs(href){try{return new URL(href,'https://juanmanuelpm.github.io/prometeo/catalog/CATALOG_MANIFEST.json').href}catch{return href||''}}
@@ -351,6 +351,52 @@ async function publicText(url){
  if(!url)return null;
  try{const r=await fetch(url,{cache:'no-store'});if(!r.ok)return null;return await r.text()}catch{return null}
 }
+
+async function loadCapabilityGraph(){
+ const cfg=window.PROMETEO_CONTROL_CONFIG_V1||{};
+ capabilityGraph=await publicEvidence(cfg.capabilityGraphUrl||'../../coordination/semantic-relations/CAPABILITY_GRAPH_V1.json');
+ return capabilityGraph;
+}
+function graphObjectMap(){
+ return new Map((capabilityGraph?.objects||[]).map(x=>[x.id,x]));
+}
+function capabilityRelations(id){
+ return (capabilityGraph?.relations||[]).filter(r=>r.source===id||r.target===id);
+}
+function capGitHref(ref){
+ const x=String(ref||'').replace(/^\/+/, '');
+ return x?'https://github.com/JuanManuelPM/prometeo/blob/main/'+x.split('/').map(encodeURIComponent).join('/'):'';
+}
+function capabilityHubMarkup(cap,map){
+ const rels=capabilityRelations(cap.id);
+ const variants=rels.filter(r=>r.source===cap.id&&r.type==='HAS_VARIANT').map(r=>({rel:r,obj:map.get(r.target)})).filter(x=>x.obj);
+ const incoming=rels.filter(r=>r.target===cap.id).map(r=>({rel:r,obj:map.get(r.source)})).filter(x=>x.obj);
+ const projects=incoming.filter(x=>x.obj.kind==='PROJECT');
+ const chats=incoming.filter(x=>x.obj.kind==='CHAT_SESSION');
+ const ownerRefs=Array.isArray(cap.refs)?cap.refs:[];
+ const opened=openCapabilityHubId===cap.id;
+ const rows=(items,kind)=>items.map(({rel,obj})=>{
+   let href='';
+   if(obj.kind==='ALTERNATIVE')href=capGitHref(obj.ref);
+   else if(obj.kind==='CHAT_SESSION')href=stableControlUrl({view:'chats'});
+   else if(obj.kind==='PROJECT')href=stableControlUrl({view:'proyectos'});
+   return '<div class="cap-rel"><div><div class="cap-rel-title">'+esc(obj.title||obj.id)+'</div><div class="cap-rel-sub">'+esc(obj.summary||obj.status||obj.id)+'</div></div><div><div class="cap-rel-kind">'+esc(rel.type)+'</div>'+(href?'<a href="'+esc(href)+'" target="_blank" rel="noopener">abrir ↗</a>':'')+'</div></div>';
+ }).join('');
+ return '<article class="cap-card" data-capability="'+esc(cap.id)+'"><div class="cap-main"><div class="tool-emoji">'+esc(cap.emoji||'◈')+'</div><div><div class="tool-top"><div><div class="tool-title">'+esc(cap.title||cap.id)+'</div><div class="tool-sub">'+esc(cap.summary||'')+'</div></div><div class="tool-status '+String(cap.status||'').toLowerCase()+'">'+esc(cap.status||'')+'</div></div><div class="cap-chips"><span class="cap-chip">'+variants.length+' variantes</span><span class="cap-chip">'+projects.length+' proyectos</span><span class="cap-chip">'+chats.length+' chats</span></div><div class="cap-actions"><button class="primary" data-cap-toggle="'+esc(cap.id)+'">'+(opened?'Cerrar hub':'Ver hub')+'</button>'+(cap.public_url?'<a href="'+esc(cap.public_url)+'" target="_blank" rel="noopener">abrir herramienta ↗</a>':'')+'</div></div><div></div></div><div class="cap-hub" data-cap-body="'+esc(cap.id)+'" '+(opened?'':'hidden')+'>'+(projects.length?'<section class="cap-section"><div class="cap-section-title">Proyectos / contextos</div>'+rows(projects,'PROJECT')+'</section>':'')+(chats.length?'<section class="cap-section"><div class="cap-section-title">Chats relacionados</div>'+rows(chats,'CHAT_SESSION')+'</section>':'')+(variants.length?'<section class="cap-section"><div class="cap-section-title">Alternativas / variantes</div>'+rows(variants,'ALTERNATIVE')+'</section>':'')+(ownerRefs.length?'<section class="cap-section"><div class="cap-section-title">Source owners / evidencia</div>'+ownerRefs.map(ref=>'<div class="cap-rel"><div><div class="cap-rel-title">'+esc(ref.split('/').pop())+'</div><div class="cap-rel-sub">'+esc(ref)+'</div></div><div><a href="'+esc(capGitHref(ref))+'" target="_blank" rel="noopener">fuente ↗</a></div></div>').join('')+'</section>':'')+'<div class="cap-note">Este hub es una proyección del grafo. No convierte alternatives en CURRENT ni hace que un chat sea owner de la herramienta.</div></div></article>';
+}
+function renderCapabilityTools(){
+ const root=$('#tools');if(!root)return false;
+ if(!capabilityGraph){return false}
+ const map=graphObjectMap(),caps=(capabilityGraph.objects||[]).filter(x=>x.kind==='CAPABILITY');
+ const represented=new Set(caps.map(c=>c.node_key).filter(Boolean));
+ const legacy=(bundle?.cat?.tools||[]).filter(t=>!represented.has(t.node_key));
+ root.innerHTML='<section class="section"><div class="section-head"><div class="section-title">Hubs de capability</div><div class="section-action">'+caps.length+' con relaciones</div></div><div class="tool-grid">'+caps.map(c=>capabilityHubMarkup(c,map)).join('')+'</div></section>'+(legacy.length?'<section class="section"><div class="section-head"><div class="section-title">Otras herramientas registradas</div><div class="section-action">'+legacy.length+'</div></div><div class="tool-grid">'+legacy.map(x=>'<article class="tool-card" data-key="'+esc(x.node_key)+'"><div class="tool-emoji">'+esc(x.emoji)+'</div><div><div class="tool-top"><div><div class="tool-title">'+esc(x.title)+'</div><div class="tool-sub">'+esc(x.summary)+'</div></div><div class="tool-status '+String(x.status).toLowerCase()+'">'+esc(x.status)+'</div></div><div class="tool-meta"><span>todavía sin relations V1</span></div></div><button class="tool-open" data-cap-open="'+esc(x.public_url||'')+'">abrir ↗</button></article>').join('')+'</div></section>':'')+'<div class="rdesc">Una capability puede relacionarse con muchos chats/proyectos/variantes. Ninguna de esas relaciones cambia por sí sola su autoridad.</div>';
+ root.querySelectorAll('[data-cap-toggle]').forEach(btn=>btn.onclick=()=>{
+   const id=btn.dataset.capToggle;openCapabilityHubId=openCapabilityHubId===id?null:id;renderCapabilityTools();
+ });
+ root.querySelectorAll('[data-cap-open]').forEach(btn=>btn.onclick=e=>{e.stopPropagation();if(btn.dataset.capOpen)window.open(btn.dataset.capOpen,'_blank','noopener')});
+ return true;
+}
 function chatAbs(url){if(!url)return null;try{return new URL(url,(window.PROMETEO_CONTROL_CONFIG_V1||{}).chatSessionsUrl||location.href).href}catch{return null}}
 function chatTime(v){if(!v)return'—';try{return new Date(v).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}catch{return String(v)}}
 function chatRefs(refs=[]){return refs.length?'<div class="chat-entry-links">'+refs.map(r=>'<a href="'+esc(r.url||'#')+'" target="_blank" rel="noopener">'+esc(r.label||r.kind||'ref')+' ↗</a>').join('')+'</div>':''}
@@ -453,13 +499,15 @@ async function hydrate(){
  pages=mergePages(catalogPages(),await visualPages());pageMap=new Map(pages.map(p=>[p.id,p]));
  if(!previewManifest)await loadPreviewManifest().catch(()=>installPreviewManifest(null));
  if(!resultProjection)await loadResultProjection().catch(()=>{resultProjection=normalizeVisibleResultProjection(null)});
- renderFreshness();renderPreviewGrid();renderSpaces();renderChats().catch(()=>{});renderWork().catch(()=>{});bindCommandV11();await restoreRoute(false);
+ if(!capabilityGraph)await loadCapabilityGraph().catch(()=>{capabilityGraph=null});
+ renderFreshness();renderPreviewGrid();renderSpaces();renderChats().catch(()=>{});renderCapabilityTools();renderWork().catch(()=>{});bindCommandV11();await restoreRoute(false);
  const search=$('#workspaceSearchV11');if(search&&!search.dataset.bound){search.dataset.bound='1';search.addEventListener('input',renderSpaces)}
  await remote.init().catch(()=>null);voice.init().catch(()=>{});
 }
 window.addEventListener('PROMETEO_V11_DATA',e=>{bundle=e.detail?.bundle||bundle;window.PROMETEO_V11_LAST=bundle;hydrate().catch(()=>{})});
 window.PROMETEO_V11_RENDER_SPACES=renderSpaces;
 window.PROMETEO_V11_RENDER_CHATS=()=>renderChats();
+window.PROMETEO_V11_RENDER_TOOLS=()=>renderCapabilityTools();
 window.PROMETEO_V11_RENDER_WORK=()=>renderWork();
 window.PROMETEO_V11_SUBMIT_COMMAND=()=>submitCommandV11();
 window.PROMETEO_V11_OPEN_PAGE_NOTES=(p,opts={})=>openNotesForPage(p,{view:opts.view||'espacios',push:opts.push!==false,work:opts.work||null});
