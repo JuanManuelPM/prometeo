@@ -85,7 +85,7 @@ export function compileStats({root='.',projection=null,now=new Date().toISOStrin
   }
 
   let productiveUnits=0,visibleWorkers=0,collisions=0,noAllocationCount=0;
-  let explicitExamCoverage=0;
+  let explicitExamCoverage=0;\n  const transportBoundaryWorkers=new Set();
   for(const {doc} of exams){
     if(!doc?.worker_id)continue;
     explicitExamCoverage++;
@@ -93,10 +93,10 @@ export function compileStats({root='.',projection=null,now=new Date().toISOStrin
     productiveUnits+=valid.length;
     if(valid.some(s=>s.visible_change===true)) visibleWorkers++;
     collisions+=Number.isFinite(Number(doc.collisions))?Number(doc.collisions):0;
-    noAllocationCount+=Number.isFinite(Number(doc.no_allocation_count))?Number(doc.no_allocation_count):0;
+    noAllocationCount+=Number.isFinite(Number(doc.no_allocation_count))?Number(doc.no_allocation_count):0;\n    if(String(doc.close_reason||'')==='TRANSPORT_BOUNDARY') transportBoundaryWorkers.add(doc.worker_id);
   }
 
-  const beaconWithoutClaim=beacons.filter(x=>x.doc?.worker_id&&!claimByWorker.has(x.doc.worker_id));
+  const beaconWithoutClaim=beacons.filter(x=>x.doc?.worker_id&&x.doc?.run_id&&!claimByWorker.has(x.doc.worker_id));
   const openClaims=claims.filter(x=>!returnByRunSlot.has(x.doc.run_id+':'+x.doc.slot_id));
 
   const beaconToClaim=[];
@@ -126,7 +126,7 @@ export function compileStats({root='.',projection=null,now=new Date().toISOStrin
     const np=firstNonPass(doc);
     if(np){
       const k=np.stage+':'+np.status+(np.failure_code?':'+np.failure_code:'');
-      firstNonPassByStage[k]=(firstNonPassByStage[k]||0)+1;
+      firstNonPassByStage[k]=(firstNonPassByStage[k]||0)+1;\n      if(String(np.failure_code||'').includes('TRANSPORT')) transportBoundaryWorkers.add(doc.worker_id);
     }
   }
 
@@ -190,7 +190,7 @@ export function compileStats({root='.',projection=null,now=new Date().toISOStrin
     wasted_time:{
       collisions_observed:observed(collisions,'explicit exams only'),
       no_allocation_observed:observed(noAllocationCount,'explicit exams only'),
-      beacons_without_primary_claim:observed(beaconWithoutClaim.length,'durable beacons vs launch claims'),
+      run_beacons_without_primary_claim:observed(beaconWithoutClaim.length,'RUN beacons vs atomic RUN launch claims'),\n      transport_boundaries_observed:observed(transportBoundaryWorkers.size,'explicit exams and benchmark receipt failure codes'),
       primary_claims_without_return:observed(openClaims.length,'durable run claims vs run returns'),
       first_non_pass_by_stage:{state:'observed',value:firstNonPassByStage,coverage:'benchmark receipts only'}
     },
