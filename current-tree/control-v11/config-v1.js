@@ -20,5 +20,6 @@ window.PROMETEO_CONTROL_CONFIG_V1=Object.freeze({
   g05VerificationUrl:'../../coordination/goal-progress/G05_VERIFICATION.json',
   statsUrl:'../../coordination/analytics/control-room-stats-v1/latest.json',
   projectContextUrl:'../../coordination/project-context-v1/INDEX.json',
+  chatSessionsUrl:'../../coordination/chat-sessions/INDEX.json',
   storageMode:'auto'
 });
