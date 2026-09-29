@@ -121,21 +121,37 @@ try{
   await page.waitForTimeout(3500);
   pass('desktop_navigation',{status:response?.status(),final_url:page.url()});
 
+  const desktopShot=path.join(outDir,'v11-desktop.png');
+  await page.screenshot({path:desktopShot,fullPage:true});
+  evidence.screenshots.push('v11-desktop.png');
+  save();
+
   const command=page.locator('#commandInputV11');
   const send=page.locator('#commandSendV11');
   const state=page.locator('#commandStateV11');
-  await command.waitFor({state:'visible'});
-  await send.waitFor({state:'visible'});
-  assert.equal(await command.getAttribute('maxlength'),'6000');
-  assert.equal((await send.textContent())?.trim(),'HACER');
-  assert.match((await state.textContent())||'',/Sin enviar/i);
-  const postsBefore=evidence.requests.filter(r=>r.method==='POST').length;
-  await command.fill('verificación CI · no enviar');
-  await page.waitForTimeout(350);
-  const postsAfter=evidence.requests.filter(r=>r.method==='POST').length;
-  assert.equal(postsAfter,postsBefore,'editing command text must not submit work');
-  assert.match((await state.textContent())||'',/Sin enviar/i,'editing without HACER must remain unsent');
-  pass('command_dom_fail_closed',{maxlength:6000,button:'HACER',posts_before:postsBefore,posts_after:postsAfter,state:(await state.textContent())?.trim()});
+  const commandPresent=await command.count()>0 && await command.isVisible().catch(()=>false);
+  const sendPresent=await send.count()>0 && await send.isVisible().catch(()=>false);
+  if(!commandPresent||!sendPresent){
+    const details={
+      command_count:await command.count(),
+      send_count:await send.count(),
+      state_count:await state.count(),
+      expected:{command:'#commandInputV11',send:'#commandSendV11',state:'#commandStateV11'}
+    };
+    fail('command_dom_fail_closed',details);
+    hardFailures.push('command_dom_fail_closed');
+  }else{
+    assert.equal(await command.getAttribute('maxlength'),'6000');
+    assert.equal((await send.textContent())?.trim(),'HACER');
+    assert.match((await state.textContent())||'',/Sin enviar/i);
+    const postsBefore=evidence.requests.filter(r=>r.method==='POST').length;
+    await command.fill('verificación CI · no enviar');
+    await page.waitForTimeout(350);
+    const postsAfter=evidence.requests.filter(r=>r.method==='POST').length;
+    assert.equal(postsAfter,postsBefore,'editing command text must not submit work');
+    assert.match((await state.textContent())||'',/Sin enviar/i,'editing without HACER must remain unsent');
+    pass('command_dom_fail_closed',{maxlength:6000,button:'HACER',posts_before:postsBefore,posts_after:postsAfter,state:(await state.textContent())?.trim()});
+  }
 
   assert.equal(await page.locator('iframe').count(),0,'V11 must not embed live previews via iframe');
   const preview=await requestJson(desktop.request,previewManifestUrl,'preview manifest');
@@ -158,27 +174,25 @@ try{
   assert.ok(stats.json.truth_boundaries.some(x=>String(x).includes('Missing evidence is unknown')));
   pass('stats_truthful',{authority:stats.json.authority,source_mode:stats.json.source_mode,truth_boundaries:stats.json.truth_boundaries});
 
-  const desktopShot=path.join(outDir,'v11-desktop.png');
-  await page.screenshot({path:desktopShot,fullPage:true});
-  evidence.screenshots.push('v11-desktop.png');
-  save();
-
   const narrow=await browser.newContext({viewport:{width:390,height:844}});
   const narrowPage=await narrow.newPage();
   const narrowResponse=await narrowPage.goto(browserUrl.href,{waitUntil:'domcontentloaded',timeout:45000});
   assert.equal(narrowResponse?.status(),200);
   await narrowPage.waitForTimeout(2500);
-  await narrowPage.locator('#commandInputV11').waitFor({state:'visible'});
+  const narrowShot=path.join(outDir,'v11-narrow.png');
+  await narrowPage.screenshot({path:narrowShot,fullPage:true});
+  evidence.screenshots.push('v11-narrow.png');
   const geometry=await narrowPage.evaluate(()=>({
     innerWidth:window.innerWidth,
     scrollWidth:document.documentElement.scrollWidth,
     bodyScrollWidth:document.body.scrollWidth
   }));
-  assert.ok(geometry.scrollWidth<=geometry.innerWidth+2,`narrow layout overflows viewport: ${JSON.stringify(geometry)}`);
-  const narrowShot=path.join(outDir,'v11-narrow.png');
-  await narrowPage.screenshot({path:narrowShot,fullPage:true});
-  evidence.screenshots.push('v11-narrow.png');
-  pass('narrow_layout',{viewport:{width:390,height:844},geometry});
+  if(geometry.scrollWidth<=geometry.innerWidth+2){
+    pass('narrow_layout',{viewport:{width:390,height:844},geometry});
+  }else{
+    fail('narrow_layout',{viewport:{width:390,height:844},geometry});
+    hardFailures.push('narrow_layout');
+  }
   await narrow.close();
 
   evidence.authenticated_transport={
