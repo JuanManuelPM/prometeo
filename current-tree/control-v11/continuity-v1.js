@@ -178,15 +178,17 @@ ROLE_HINT: ${roleHint}
 READ:
 ${PREFLIGHT}
 ${CURRENT_TREE}
+ORGANISM: resolve only the relevant subgraph after READY.
 
 FIRST DURABLE ACTION:
 Create fresh SESSION_ID + SESSION_PIN and publish SESSION/JOURNAL/CONTINUE + index. Resolve/reuse an existing durable Chat Object matching ROLE_HINT when one exists; create a new Chat Object Profile only for a genuinely new durable role, never per task.
 
 THEN:
-Resolve only the relevant Organism subgraph and exact plan/source owners. For ADOPT_EXISTING, backfill supported material milestones only after the session exists. Classify material human deltas as CONTINUE / COMPATIBLE_DELTA / EXPERIMENT / REPLAN / DESTRUCTIVE_RESET.
+Resolve only the relevant Organism subgraph and exact plan/source owners. For ADOPT_EXISTING, backfill supported material milestones only after the session exists.
+REQUEST CLASS: CONTINUE / COMPATIBLE_DELTA / EXPERIMENT / REPLAN / DESTRUCTIVE_RESET.
 
 RULE:
-Read pointers, not the world. No broad search, repo clone or Supabase before READY unless actual next_action requires it. Never publish raw prompts, private notes, credentials, headers or hidden reasoning.`;
+Read pointers, not the world. No le pidas que reconstruya contexto ya durable. No broad search, repo clone or Supabase before READY unless actual next_action requires it. Never publish raw prompts, private notes, credentials, headers or hidden reasoning.`;
 }
 function specializedBootstrapPrompt(profile,focusObject='SURFACE:CONTROL_ROOM',project=null){
   const p=project||selectedProject()||{title:'Prometeo',node_key:'PROJECT:PROMETEO'},prof=profile||{};
@@ -194,7 +196,7 @@ function specializedBootstrapPrompt(profile,focusObject='SURFACE:CONTROL_ROOM',p
   return `PROMETEO SESSION BOOTSTRAP\n\nMODE: NEW_SPECIALIZED\nCHAT_OBJECT_ID: ${prof.chat_object_id||'chat-object-prometeo-visual-steward'}\nCHAT_OBJECT_PROFILE_REF: ${profileRef}\nROLE: ${prof.role||'VISUAL_SYSTEMS_STEWARD'}\nFOCUS_PROJECT: ${p.title||'Prometeo'}\nFOCUS_NODE: ${p.node_key||'PROJECT:PROMETEO'}\nFOCUS_OBJECT: ${focusObject}\nDESIGN_KNOWLEDGE_REFS: ${designRefs}\n\nREAD:\n${PREFLIGHT}\n${CURRENT_TREE}\n${profileRef}\n\nFIRST DURABLE ACTION:\nReuse this durable Chat Object and create a fresh SESSION_ID + SESSION_PIN; publish SESSION/JOURNAL/CONTINUE + index lineage before target-specific expansion. Do not mint another specialist if this profile already fits.\n\nTHEN:\nResolve only the relevant Organism subgraph, source owner, plan/baseline, design refs and recent change refs for ${focusObject}. Role/profile gives context, never mutation authority.\n\nRULE:\nUse FAST_REINCARNATION_PATH_V1. Pointers first; no giant specialist prompt, no new memory/queue/scheduler/Organism.`;
 }
 function newChatPrompt(project){return interactiveBootstrapPrompt('NEW',project);}
-function adoptPrompt(project){return interactiveBootstrapPrompt('ADOPT_EXISTING',project);}
+function adoptPrompt(project){return 'PROMETEO · ADOPTAR ESTE CHAT EXISTENTE V1\n\n'+interactiveBootstrapPrompt('ADOPT_EXISTING',project)+'\n\nAdoptá este chat sin pedirme que resuma lo anterior; backfill sólo hitos materiales soportados por conversación visible o refs durables.';}
 function download(name,text,type='application/json'){
   const a=document.createElement('a'),blob=new Blob([text],{type});a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
