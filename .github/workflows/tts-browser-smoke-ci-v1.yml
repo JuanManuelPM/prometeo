@@ -1,0 +1,42 @@
+name: TTS browser smoke CI v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/portfolio/tests/tts_browser_smoke_ci_v1.mjs'
+      - '.github/workflows/tts-browser-smoke-ci-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tts-browser-smoke-ci-v1
+  cancel-in-progress: true
+
+jobs:
+  chromium-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright@1.55.0 install --with-deps chromium
+      - name: Run bounded TTS browser smoke
+        env:
+          TTS_CANDIDATE_URL: https://juanmanuelpm.github.io/prometeo/__canary/portfolio-tts-generic-text-surface-v1/
+        run: node coordination/portfolio/tests/tts_browser_smoke_ci_v1.mjs
+      - name: Upload bounded browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tts-browser-smoke-ci-evidence
+          path: artifacts/tts-browser-smoke-ci/
+          if-no-files-found: error
+          retention-days: 14
