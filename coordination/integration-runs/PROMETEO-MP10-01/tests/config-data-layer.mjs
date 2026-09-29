@@ -1,0 +1,26 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const here=path.dirname(fileURLToPath(import.meta.url));
+const root=process.env.PROMETEO_ROOT||path.resolve(here,'../../../..');
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+const config=read('current-tree/control-v11/config-v1.js');
+const data=read('current-tree/control-v11/data-layer.js');
+const s001=JSON.parse(read('coordination/integration-runs/PROMETEO-MP10-01/returns/S001.json'));
+const s002=JSON.parse(read('coordination/integration-runs/PROMETEO-MP10-01/returns/S002.json'));
+const required=['githubRawBase','githubPagesBase','continuityStateUrl','claimFrontierUrl','previewManifestUrl','statsUrl','projectContextUrl','storageMode'];
+const consumed=['continuityStateUrl','claimFrontierUrl','statsUrl','projectContextUrl'];
+const failures=[];
+const check=(ok,msg)=>{if(!ok)failures.push(msg)};
+check(s001.slot_id==='S001'&&s002.slot_id==='S002','prerequisite RETURNS mismatch');
+for(const key of required)check(new RegExp('\\b'+key+'\\s*:').test(config),'config missing '+key);
+check(/sourcePreference\s*:\s*Object\.freeze\(\['rpc','github','last-good'\]\)/.test(config),'sourcePreference is not rpc→github→last-good');
+for(const key of consumed)check(new RegExp('CFG\\.'+key+'\\b').test(data),'data-layer does not consume '+key);
+check(/window\.PROMETEO_DATA_V11=\{load,refresh,readCache\}/.test(data),'PROMETEO_DATA_V11 caller ABI changed');
+check(/githubFallback\(/.test(data)&&/github-degraded/.test(data),'explicit GitHub degraded fallback missing');
+check(/observed_at/.test(data)&&/checked_at/.test(data),'freshness timestamps missing');
+check(!/work:\{counts:\{\}/.test(data),'fabricated zero work counts still present');
+check(!/semantic_registry:\[\]/.test(data),'fabricated empty semantic registry still present');
+check(/rpc\('prometeo_current_tree_v2',1\)/.test(data),'live core RPC precedence missing');
+if(failures.length){console.error(JSON.stringify({status:'FAIL',failures},null,2));process.exit(1)}
+console.log(JSON.stringify({status:'PASS',required_config:required,consumed_by_data_layer:consumed,caller_abi:'load,refresh,readCache',prerequisites:['S001','S002']},null,2));
