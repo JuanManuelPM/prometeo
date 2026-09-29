@@ -312,6 +312,37 @@ try{
   pass('visual_steward_navigation_lineage',{target:'COMPONENT:CONTROL_NAVIGATION',actor_visible:true,before_after:true,commit:true,rollback:true,alternative_visible:true,specialized_session_bootstrap:true});
 
   await page.evaluate(()=>{document.querySelector('.tab[data-view="ahora"]')?.click();return window.PROMETEO_CONTINUITY_V1?.decorateNow?.()});
+
+  const mvp3IdeasCard=page.locator('[data-now-conversation="CHATLOC-PROMETEO-IDEAS-20260929"]').first();
+  const mvp3SttCard=page.locator('[data-now-conversation="CHATLOC-STT-LIVE-UX-20260929"]').first();
+  await mvp3IdeasCard.waitFor({state:'visible',timeout:15000});
+  await mvp3SttCard.waitFor({state:'visible',timeout:15000});
+  assert.match(await mvp3IdeasCard.innerText(),/PROMETEO WIDGET WORKSPACE/);
+  assert.match(await mvp3SttCard.innerText(),/STT Live/i);
+  await mvp3IdeasCard.locator('[data-recovery-now-adopt]').click();
+  await page.waitForTimeout(150);
+  const mvp3IdeasPrompt=await page.evaluate(()=>navigator.clipboard.readText());
+  assert.match(mvp3IdeasPrompt,/CHATLOC-PROMETEO-IDEAS-20260929/);
+  assert.match(mvp3IdeasPrompt,/ADOPTAR CHAT RECUPERADO V2/);
+  assert.match(mvp3IdeasPrompt,/FIRST DURABLE ACTION/);
+  await mvp3SttCard.locator('[data-recovery-now-adopt]').click();
+  await page.waitForTimeout(150);
+  const mvp3SttPrompt=await page.evaluate(()=>navigator.clipboard.readText());
+  assert.match(mvp3SttPrompt,/CHATLOC-STT-LIVE-UX-20260929/);
+  assert.match(mvp3SttPrompt,/ADOPTAR CHAT RECUPERADO V2/);
+  assert.match(mvp3SttPrompt,/FIRST DURABLE ACTION/);
+  const mvp3Projection=await page.evaluate(()=>({
+    version:window.PROMETEO_RECOVERY_NOW_V1?.version||null,
+    selector:window.PROMETEO_RECOVERY_NOW_V1?.selector||null,
+    locators:[...document.querySelectorAll('.recovery-now-v1 [data-now-conversation]')].map(el=>el.getAttribute('data-now-conversation'))
+  }));
+  assert.equal(mvp3Projection.version,'1.0.0');
+  assert.equal(mvp3Projection.selector,'ui_projection.control_room_now=true');
+  assert.ok(mvp3Projection.locators.includes('CHATLOC-PROMETEO-IDEAS-20260929'));
+  assert.ok(mvp3Projection.locators.includes('CHATLOC-STT-LIVE-UX-20260929'));
+  assert.equal(new Set(mvp3Projection.locators).size,mvp3Projection.locators.length);
+  pass('generic_recovery_projection_mvp3',{host:'SURFACE:CONTROL_ROOM',view:'Ahora',selector:mvp3Projection.selector,locators:mvp3Projection.locators,search_adopt_semantics:true,uses_existing_recovery:true,new_authority:false,new_backend:false,new_model:false});
+
   const workCard=page.locator('[data-work-unit="WU-CONTROL-NAVIGATION-VISUAL-STEWARD-V1"]');
   await workCard.waitFor({state:'visible',timeout:15000});
   const workText=await workCard.innerText();
@@ -361,16 +392,6 @@ try{
   assert.match(copiedSttAdopt,/ADOPTAR CHAT RECUPERADO V2/);
   assert.match(copiedSttAdopt,/FIRST DURABLE ACTION/);
   pass('stt_conversation_projection_canary',{chat_locator_id:'CHATLOC-STT-LIVE-UX-20260929',host:'SURFACE:CONTROL_ROOM',view:'Ahora',uses_existing_recovery:true,new_authority:false,clone_without_new_model:true});
-
-  const genericRecoveryProjection=await page.evaluate(()=>({
-    version:window.PROMETEO_RECOVERY_NOW_V1?.version||null,
-    locators:[...document.querySelectorAll('.recovery-now-v1 [data-now-conversation]')].map(el=>el.getAttribute('data-now-conversation'))
-  }));
-  assert.equal(genericRecoveryProjection.version,'1.0.0');
-  assert.ok(genericRecoveryProjection.locators.includes('CHATLOC-PROMETEO-IDEAS-20260929'));
-  assert.ok(genericRecoveryProjection.locators.includes('CHATLOC-STT-LIVE-UX-20260929'));
-  assert.equal(new Set(genericRecoveryProjection.locators).size,genericRecoveryProjection.locators.length);
-  pass('generic_recovery_projection_mvp3',{host:'SURFACE:CONTROL_ROOM',view:'Ahora',selector:'ui_projection.control_room_now=true',locators:genericRecoveryProjection.locators,uses_existing_recovery:true,new_authority:false,new_backend:false,new_model:false});
 
   await page.evaluate(()=>{scrollTo(0,0);document.querySelector('.tab[data-view="chats"]')?.click()});
   const sessionCard=page.locator('[data-chat-session="CHAT-PROMETEO-CONTROL-20260929T145300Z-S01"]');
