@@ -9,6 +9,7 @@ const outDir=process.env.V11_BROWSER_CI_OUT||'artifacts/mp10-v11-served-browser-
 const propagationMs=Number(process.env.V11_PROPAGATION_MS||180000);
 const projectContextUrl=new URL('../../coordination/project-context-v1/INDEX.json',publicUrl).href;
 const statsUrl=new URL('../../coordination/analytics/control-room-stats-v1/latest.json',publicUrl).href;
+const chatSessionsUrl=new URL('../../coordination/chat-sessions/INDEX.json',publicUrl).href;
 const previewManifestUrl=new URL('./previews/manifest.json',publicUrl).href;
 const scriptUrl=new URL('./v11.js',publicUrl).href;
 const diagnosticsUrl=new URL('./diagnostics-v1.js',publicUrl).href;
@@ -186,12 +187,34 @@ try{
   pass('diagnostic_terminal_privacy_and_copy_packet',{schema:diagPacket.schema,secret_redacted:true,recent_events:diagPacket.recent_events.length});
   await page.evaluate(()=>window.PROMETEO_DIAGNOSTICS_V1.close());
 
+  await desktop.grantPermissions(['clipboard-read','clipboard-write'],{origin:new URL(publicUrl).origin});
+  await page.evaluate(()=>{scrollTo(0,0);document.querySelector('.tab[data-view="chats"]')?.click()});
+  const sessionCard=page.locator('[data-chat-session="CHAT-PROMETEO-CONTROL-20260929T145300Z-S01"]');
+  await sessionCard.waitFor({state:'visible',timeout:20000});
+  assert.match(await sessionCard.innerText(),/PIN-PROMETEO-CTRL-S01-7F4C/);
+  await sessionCard.locator('[data-chat-journal]').click();
+  await sessionCard.locator('[data-chat-journal-body]').waitFor({state:'visible',timeout:10000});
+  await page.waitForFunction(()=>document.querySelector('[data-chat-journal-body="CHAT-PROMETEO-CONTROL-20260929T145300Z-S01"]')?.innerText.includes('J003'),null,{timeout:10000});
+  await sessionCard.locator('[data-chat-continue]').click();
+  await page.waitForTimeout(300);
+  const copiedContinue=await page.evaluate(()=>navigator.clipboard.readText());
+  assert.match(copiedContinue,/PREDECESSOR_SESSION_ID: CHAT-PROMETEO-CONTROL-20260929T145300Z-S01/);
+  assert.match(copiedContinue,/PREDECESSOR_SESSION_PIN: PIN-PROMETEO-CTRL-S01-7F4C/);
+  assert.match(copiedContinue,/Creá un SESSION_ID y SESSION_PIN frescos/);
+  const chatIndexProbe=await requestJson(desktop.request,chatSessionsUrl,'chat sessions');
+  assert.equal(chatIndexProbe.status,200);
+  assert.equal(chatIndexProbe.json?.schema,'prometeo.chat-session-index/v1');
+  assert.equal(chatIndexProbe.json?.projection_status,'NON_AUTHORITATIVE_PUBLIC_PROJECTION');
+  assert.ok(Array.isArray(chatIndexProbe.json?.sessions)&&chatIndexProbe.json.sessions.some(x=>x.session_id==='CHAT-PROMETEO-CONTROL-20260929T145300Z-S01'));
+  pass('chat_session_journal_and_continue',{session_id:'CHAT-PROMETEO-CONTROL-20260929T145300Z-S01',journal_visible:true,continue_copied:true,private_projection:true});
+
   const servedIndexText=servedIndex.toString('utf8');
   const servedScriptText=servedScript.toString('utf8');
   const servedDiagnosticsText=servedDiagnostics.toString('utf8');
   const servedChangeText=servedChange.toString('utf8');
   assert.match(servedIndexText,/id="notesBtn"/,'object drawer must expose universal Notes');
   assert.match(servedIndexText,/id="diagBtn"/,'Control Room must expose the hidden diagnostics terminal');
+  assert.match(servedIndexText,/data-view="chats"/,'Control Room must expose first-class Chats continuity view');
   assert.match(servedIndexText,/diagnostics-v1\.js/,'diagnostics must load before the data layer');
   assert.match(servedDiagnosticsText,/PROMETEO_DIAGNOSTIC_PACKET_V1/);
   assert.match(servedDiagnosticsText,/query_strings_in_urls_included:false/);
