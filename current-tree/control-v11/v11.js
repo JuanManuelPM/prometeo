@@ -9,7 +9,7 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const remote=new PrometeoRemote();
 const changeClient=createChangeLoopClient();
 let bundle=window.PROMETEO_V11_LAST||null;
-let pages=[],pageMap=new Map(),selectedPage=null,loop=null,unread=0,syncTimer=null,previewManifest=null,previewMap=new Map(),resultProjection=null,commandBusy=false;
+let pages=[],pageMap=new Map(),selectedPage=null,loop=null,unread=0,syncTimer=null,previewManifest=null,previewMap=new Map(),resultProjection=null,commandBusy=false,restoringRoute=false,restoredRoute=false,activePanel=null;
 const toastEl=document.createElement('div');toastEl.className='v11-toast';document.body.appendChild(toastEl);
 function toast(s){toastEl.textContent=s;toastEl.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>toastEl.classList.remove('on'),1500)}
 function abs(href){try{return new URL(href,'https://juanmanuelpm.github.io/prometeo/catalog/CATALOG_MANIFEST.json').href}catch{return href||''}}
@@ -55,10 +55,13 @@ function groupName(p){
  return a.length?a.slice(0,2).join(' / '):(p.kind==='VISUAL_FRONT'?'Visuales':'Sin carpeta');
 }
 function organismFor(p){
- const key=pathKey(p.href),nodes=bundle?.org?.nodes||[];
+ const nodes=bundle?.org?.nodes||[];
+ if(p?.node_key){const exact=nodes.find(n=>n.node_key===p.node_key);if(exact)return exact}
+ const key=pathKey(p?.href||p?.public_url),direct=p?.id?nodes.find(n=>n.payload?.page_id===p.id||n.payload?.surface_id===p.id):null;
+ if(direct)return direct;
  return nodes.find(n=>{
   const hay=[n.public_route,n.source_ref,n.payload?.public_url].filter(Boolean).map(pathKey);
-  return hay.some(x=>x&&key&& (x===key||x.includes(key)||key.includes(x)));
+  return hay.some(x=>x&&key&&(x===key||x.includes(key)||key.includes(x)));
  })||null;
 }
 function contextsFor(node){
@@ -110,21 +113,33 @@ function pageObj(p){
  return {
   ...p,
   page_id:p.id,
+  node_key:node?.node_key||p.node_key||null,
+  context_key:ctx?.context_key||p.context_key||null,
   execution_delivery_mode:'WORKER_POOL',
   served_identity:p.source_identity||null,
-  baseline:{served_identity:p.source_identity||null,artifact_state:p.artifact_state||null,node_key:node?.node_key||null,context_key:ctx?.context_key||null},
-  surface_id:p.id,
-  project_id:node?.owner_key||null,
-  authority_status:p.authority||null,
-  target_path:p.writable_target?.path||null,
-  target_source_blob:p.target_source_blob||p.writable_target?.git_blob_sha||null
+  baseline:{served_identity:p.source_identity||null,artifact_state:p.artifact_state||null,node_key:node?.node_key||p.node_key||null,context_key:ctx?.context_key||p.context_key||null},
+  surface_id:p.surface_id||p.id,
+  project_id:p.project_id||node?.owner_key||null,
+  authority_status:p.authority||p.authority_status||null,
+  target_path:p.writable_target?.path||p.target_path||null,
+  target_source_blob:p.target_source_blob||p.writable_target?.git_blob_sha||null,
+  semantic_context:{
+   object_kind:p.kind||'PAGE',
+   node_key:node?.node_key||p.node_key||null,
+   context_key:ctx?.context_key||p.context_key||null,
+   surface_id:p.surface_id||p.id,
+   project_id:p.project_id||node?.owner_key||null,
+   authority_status:p.authority||p.authority_status||null,
+   target_path:p.writable_target?.path||p.target_path||null
+  }
  };
 }
 function noteMeta(p){
+ const q=pageObj(p);
  return {
-  sourcePath:p.public_url||p.href||location.pathname,sourceHref:p.public_url||p.href||location.href,
-  sourceTitle:p.title||p.id,viewport:`${innerWidth}x${innerHeight}`,pageId:p.id,transcriptRevision:1,
-  metadata:{source_kind:'HUMAN_AUDIO',control_surface:'CONTROL_ROOM_V11'}
+  sourcePath:q.public_url||q.href||location.pathname,sourceHref:q.public_url||q.href||location.href,
+  sourceTitle:q.title||q.id,viewport:`${innerWidth}x${innerHeight}`,pageId:q.id,transcriptRevision:1,
+  metadata:{source_kind:'HUMAN_AUDIO',control_surface:'CONTROL_ROOM_V11',node_key:q.node_key||null,context_key:q.context_key||null,object_kind:q.kind||'PAGE'}
  };
 }
 const voice=new VoiceQueue({
@@ -141,13 +156,96 @@ async function syncPageNotes(p){
  }
 }
 function scheduleSync(){clearTimeout(syncTimer);syncTimer=setTimeout(()=>selectedPage&&syncPageNotes(pageObj(selectedPage)).catch(()=>{}),250)}
+
+const VALID_VIEWS=new Set(['ahora','proyectos','espacios','trabajo','herramientas','historial','estadisticas','organismo']);
+function routeState(url=location.href){
+ const u=new URL(url,location.href);
+ return {view:u.searchParams.get('view')||null,page:u.searchParams.get('page')||null,node:u.searchParams.get('node')||null,panel:u.searchParams.get('panel')||null,work:u.searchParams.get('work')||null};
+}
+function writeRoute(patch={},replace=false){
+ if(restoringRoute)return;
+ const u=new URL(location.href),before=u.search;
+ for(const [k,v] of Object.entries(patch)){if(v===null||v===undefined||v==='')u.searchParams.delete(k);else u.searchParams.set(k,String(v))}
+ if(u.search===before)return;
+ history[replace?'replaceState':'pushState']({prometeo:true},'',u.pathname+u.search+u.hash);
+}
+function stableControlUrl({view=null,page=null,node=null,panel=null,work=null}={}){
+ const u=new URL('../control/',import.meta.url);
+ for(const [k,v] of Object.entries({view,page,node,panel,work}))if(v)u.searchParams.set(k,String(v));
+ return u.href;
+}
+function sourceHref(ref){
+ const x=String(ref||'');
+ if(/^https:\/\//.test(x))return x;
+ if(x.startsWith('GitHub:/'))return 'https://github.com/JuanManuelPM/prometeo/blob/main/'+x.slice(8).split('/').map(encodeURIComponent).join('/');
+ return '';
+}
+function objectForNode(info={}){
+ const key=String(info.nodeKey||info.node_key||'').trim(),node=(bundle?.org?.nodes||[]).find(n=>n.node_key===key)||null;
+ if(!key)return null;
+ const existing=pages.find(p=>organismFor(p)?.node_key===key);
+ if(existing)return {...existing,node_key:key,kind:existing.kind||node?.kind||info.kind||'PAGE'};
+ const route=node?.public_route||node?.payload?.public_url||'';
+ const href=route?(route.startsWith('http')?route:new URL(route,'https://juanmanuelpm.github.io/prometeo/').href):location.href;
+ return {
+  id:'node:'+key,title:node?.title||info.title||key,href,public_url:href,
+  category_path:['Prometeo','Organismo'],live_status:node?.status||'',artifact_state:node?.status||'',
+  authority:node?.status||'',source_identity:'organism-node:'+key,writable_target:null,
+  source_repo:'JuanManuelPM/prometeo',source_entrypoint:null,kind:node?.kind||info.kind||'NODE',
+  node_key:key,project_id:node?.owner_key||info.ownerKey||null
+ };
+}
+function contextHistoryFor(p){
+ const node=organismFor(p),items=[];
+ if(node?.source_ref)items.push({kind:'fuente',title:node.title||node.node_key,detail:'owner · '+(node.owner_key||'—')+' · '+(node.status||'—'),created_at:node.updated_at||null,href:sourceHref(node.source_ref)});
+ for(const c of contextsFor(node).slice(0,5)){
+  items.push({kind:'work context',title:c.title||c.context_key,detail:[c.summary,c.next_action?'Siguiente: '+c.next_action:''].filter(Boolean).join('\n'),created_at:c.last_activity_at||c.updated_at||null,href:sourceHref(c.source_ref)});
+ }
+ const exact=(bundle?.act?.events||[]).filter(e=>node&&e.node_key===node.node_key).sort((a,b)=>new Date(b.occurred_at)-new Date(a.occurred_at)).slice(0,8);
+ for(const e of exact)items.push({kind:e.kind||e.event_type||'actividad',title:e.title||e.event_type||'Evento',detail:[e.event_type,e.scope].filter(Boolean).join(' · '),created_at:e.occurred_at||null,href:sourceHref(e.source_ref)});
+ return items.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+}
+function exactBackForPage(pageId,work=null){
+ const p=pageMap.get(pageId)||selectedPage,node=p?organismFor(p):null;
+ return stableControlUrl({view:'espacios',page:pageId,node:node?.node_key||null,panel:work?'result':'notes',work});
+}
+async function openNotesForPage(p,{view='espacios',push=true,work=null}={}){
+ if(!p)return false;selectedPage=p;activePanel=work?'result':'notes';
+ const node=organismFor(p);
+ if(push)writeRoute({view,page:p.id,node:node?.node_key||null,panel:activePanel,work:work||null});
+ const l=await ensureLoop();
+ if(work)return l?.openResult(pageObj(p),work);
+ return l?.open(pageObj(p));
+}
+async function openNodeNotes(info,{push=true}={}){
+ const p=objectForNode(info);if(!p)return false;selectedPage=p;activePanel='notes';
+ if(push)writeRoute({view:info.view||'organismo',page:null,node:p.node_key||info.nodeKey,panel:'notes',work:null});
+ const l=await ensureLoop();return l?.open(pageObj(p));
+}
+async function restoreRoute(force=false){
+ if(restoringRoute||(!force&&restoredRoute))return;
+ restoringRoute=true;
+ try{
+  const st=routeState();
+  if(st.view&&VALID_VIEWS.has(st.view)&&typeof window.setView==='function')window.setView(st.view);
+  if(st.node&&typeof window.openEntity==='function')window.openEntity(st.node);
+  if(st.page){
+   const p=pageMap.get(st.page);
+   if(p){selectedPage=p;if(st.panel==='notes'||st.panel==='result'){const l=await ensureLoop();if(st.panel==='result'&&st.work)await l?.openResult(pageObj(p),st.work);else await l?.open(pageObj(p));activePanel=st.panel}}
+  }else if(st.node&&st.panel==='notes'){
+   const p=objectForNode({nodeKey:st.node,view:st.view||'organismo'});
+   if(p){selectedPage=p;const l=await ensureLoop();await l?.open(pageObj(p));activePanel='notes'}
+  }
+ }finally{restoringRoute=false;restoredRoute=true}
+}
+
 async function createTextCapture(text,target){
  const p=target?.id?target:pageObj(selectedPage||{id:'control-room-v11',title:'Control Room V11',href:location.href});
  const now=Date.now(),note={
   id:crypto.randomUUID?.()||`txt-${now}-${Math.random().toString(36).slice(2)}`,created:now,status:'done',
   text:String(text||'').trim(),audio:null,error:'',sourcePath:p.public_url||p.href||location.pathname,
   sourceHref:p.public_url||p.href||location.href,sourceTitle:p.title||p.id,viewport:`${innerWidth}x${innerHeight}`,
-  pageId:p.id,transcriptRevision:1,metadata:{source_kind:'HUMAN_TEXT',control_surface:'CONTROL_ROOM_V11'}
+  pageId:p.id,transcriptRevision:1,metadata:{source_kind:'HUMAN_TEXT',control_surface:'CONTROL_ROOM_V11',node_key:p.node_key||p.semantic_context?.node_key||null,context_key:p.context_key||p.semantic_context?.context_key||null,object_kind:p.kind||p.semantic_context?.object_kind||'PAGE'}
  };
  if(!note.text)return null;
  await putNote(note);await remote.syncCapture(note,p).catch(()=>{});return note;
@@ -171,9 +269,12 @@ async function ensureLoop(){
   workDeliveryMode:()=> 'WORKER_POOL',
   onPrepared:(d,{kind})=>{if(kind==='work'&&d?.queued_to_worker_pool){toast('Trabajo en cola para workers');renderWork().catch(()=>{})}},
   previewUrl:url=>window.open(url,'_blank','noopener'),
-  hostUrl:(pageId)=>pageMap.get(pageId)?.href||location.href,
-  navigatePage:async pageId=>{selectedPage=pageMap.get(pageId)||selectedPage},
-  openLegacyNotes:()=>toast('Vinculando workspace…'),
+  hostUrl:(pageId,work)=>exactBackForPage(pageId,work),
+  navigatePage:async pageId=>{selectedPage=pageMap.get(pageId)||selectedPage;const node=selectedPage?organismFor(selectedPage):null;writeRoute({view:'espacios',page:pageId,node:node?.node_key||null,panel:'notes',work:null})},
+  historyForPage:p=>contextHistoryFor(p),
+  onOpen:p=>{activePanel='notes'},
+  onClose:()=>{activePanel=null;writeRoute({panel:null,work:null},true)},
+  openLegacyNotes:()=>toast('Captura local disponible'),
   onUnread:n=>{unread=Number(n||0);renderWorkBadge()}
  }});
  return loop;
@@ -198,7 +299,7 @@ function renderSpaces(){
  const rows=pages.filter(p=>!q||[p.title,p.id,groupName(p),p.source_identity,p.writable_target?.path].filter(Boolean).join(' ').toLowerCase().includes(q));
  const groups=new Map();for(const p of rows){const g=groupName(p);if(!groups.has(g))groups.set(g,[]);groups.get(g).push(p)}
  root.innerHTML=[...groups.entries()].map(([g,items])=>`<section><div class="workspace-group-head"><div class="workspace-group-title">${esc(g)}</div><div class="workspace-count">${items.length}</div></div><div class="workspace-grid">${items.map(card).join('')}</div></section>`).join('')||'<div class="rdesc">No encontré páginas con ese filtro.</div>';
- root.querySelectorAll('[data-notes]').forEach(b=>b.onclick=async e=>{e.stopPropagation();selectedPage=pageMap.get(b.dataset.notes);const l=await ensureLoop();await l?.open(pageObj(selectedPage))});
+ root.querySelectorAll('[data-notes]').forEach(b=>b.onclick=async e=>{e.stopPropagation();await openNotesForPage(pageMap.get(b.dataset.notes),{view:'espacios',push:true})});
  root.querySelectorAll('[data-manual]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const p=pageMap.get(b.dataset.manual);toast(await copy(manualPrompt(p))?'Prompt manual copiado':'No pude copiar')});
 }
 function setCommandState(state,message){
@@ -295,7 +396,7 @@ async function renderWork(){
   const d=await changeClient.overview(),threads=d.threads||[];
   unread=threads.reduce((n,t)=>n+Number(t.unread_count||0),0);renderWorkBadge();
   root.innerHTML=resultPanel+'<div class="worker-note"><b>Este tablero no crea otra cola.</b> “HACER” congela tus notas en un Execution Packet y lo proyecta al allocator CURRENT. Los workers reclaman por la autoridad normal y el resultado vuelve al mismo thread.</div><div class="work-overview">'+(threads.length?threads.map(t=>`<article class="work-thread ${t.unread?'unread':''}" data-thread-page="${esc(t.page_id)}"><div class="work-thread-top"><div class="work-thread-title">${esc(t.page_title||t.page_id)}</div><div class="work-thread-count">${t.pending?esc(t.pending)+' pendientes':t.unread?'resultado nuevo':'al día'}</div></div><div class="work-thread-meta">${t.last_worked_at?'último trabajo '+new Date(t.last_worked_at).toLocaleString('es-AR'):'sin trabajo previo'}</div>${t.latest_result?'<div class="work-thread-result">'+esc(t.latest_result.status)+' · '+esc(typeof t.latest_result.summary==='string'?t.latest_result.summary:'resultado disponible')+'</div>':''}</article>`).join(''):'<div class="rdesc">Todavía no hay threads de página.</div>')+'</div>';
-  root.querySelectorAll('[data-thread-page]').forEach(el=>el.onclick=async()=>{selectedPage=pageMap.get(el.dataset.threadPage)||{id:el.dataset.threadPage,title:el.querySelector('.work-thread-title')?.textContent||el.dataset.threadPage,href:location.href,category_path:['Prometeo']};const l=await ensureLoop();await l?.open(pageObj(selectedPage))});
+  root.querySelectorAll('[data-thread-page]').forEach(el=>el.onclick=async()=>{const p=pageMap.get(el.dataset.threadPage)||{id:el.dataset.threadPage,title:el.querySelector('.work-thread-title')?.textContent||el.dataset.threadPage,href:location.href,category_path:['Prometeo'],kind:'PAGE'};await openNotesForPage(p,{view:'trabajo',push:true})});
  }catch(e){await renderWorkFailure(root,e)}
 }
 async function hydrate(){
@@ -303,7 +404,7 @@ async function hydrate(){
  pages=mergePages(catalogPages(),await visualPages());pageMap=new Map(pages.map(p=>[p.id,p]));
  if(!previewManifest)await loadPreviewManifest().catch(()=>installPreviewManifest(null));
  if(!resultProjection)await loadResultProjection().catch(()=>{resultProjection=normalizeVisibleResultProjection(null)});
- renderFreshness();renderPreviewGrid();renderSpaces();renderWork().catch(()=>{});bindCommandV11();
+ renderFreshness();renderPreviewGrid();renderSpaces();renderWork().catch(()=>{});bindCommandV11();await restoreRoute(false);
  const search=$('#workspaceSearchV11');if(search&&!search.dataset.bound){search.dataset.bound='1';search.addEventListener('input',renderSpaces)}
  await remote.init().catch(()=>null);voice.init().catch(()=>{});
 }
@@ -311,6 +412,11 @@ window.addEventListener('PROMETEO_V11_DATA',e=>{bundle=e.detail?.bundle||bundle;
 window.PROMETEO_V11_RENDER_SPACES=renderSpaces;
 window.PROMETEO_V11_RENDER_WORK=()=>renderWork();
 window.PROMETEO_V11_SUBMIT_COMMAND=()=>submitCommandV11();
-window.PROMETEO_V11_OPEN_PAGE_NOTES=async p=>{selectedPage=p;const l=await ensureLoop();return l?.open(pageObj(p))};
+window.PROMETEO_V11_OPEN_PAGE_NOTES=(p,opts={})=>openNotesForPage(p,{view:opts.view||'espacios',push:opts.push!==false,work:opts.work||null});
+window.PROMETEO_V11_OPEN_NODE_NOTES=(info,opts={})=>openNodeNotes(info,{push:opts.push!==false});
+window.PROMETEO_V11_ENTITY_OPENED=info=>{if(restoringRoute)return;writeRoute({view:info?.view||'organismo',node:info?.nodeKey||null,page:null,panel:null,work:null})};
+window.PROMETEO_V11_VIEW_CHANGED=v=>{if(restoringRoute||!VALID_VIEWS.has(v))return;writeRoute({view:v,panel:null,work:null},false)};
+window.PROMETEO_V11_STABLE_URL=stableControlUrl;
+addEventListener('popstate',()=>restoreRoute(true).catch(()=>{}));
 setTimeout(()=>hydrate().catch(()=>{}),0);
 setInterval(()=>{if(document.querySelector('.view#trabajo.on'))renderWork().catch(()=>{})},12000);
