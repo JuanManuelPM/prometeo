@@ -1,0 +1,80 @@
+name: Prometeo Goal Progress
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'current-tree/control-v11/**'
+      - 'coordination/canaries/page-change-pipeline-v1/**'
+      - 'coordination/integration-runs/PROMETEO-MP10-01/**'
+      - 'coordination/portfolio/returns/**'
+      - 'coordination/project-context-v1/**'
+      - 'coordination/storage-recovery/**'
+      - 'coordination/design-dna/CURRENT_RECOVERY_STATE_V2.json'
+      - 'coordination/goal-progress/**'
+      - 'continuity/state.json'
+      - 'scripts/build-goal-progress.mjs'
+      - 'progress/**'
+      - '.github/workflows/goal-progress.yml'
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prometeo-goal-progress
+  cancel-in-progress: true
+
+jobs:
+  build-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout CURRENT source
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: source
+          fetch-depth: 1
+
+      - name: Checkout public projections
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          fetch-depth: 10
+
+      - name: Compile evidence-based progress
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: node source/scripts/build-goal-progress.mjs source site /tmp/prometeo-goal-progress.json
+
+      - name: Guard score contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.schema=="prometeo.goal-progress/v1"' /tmp/prometeo-goal-progress.json >/dev/null
+          jq -e '.total==100 and (.percent>=0 and .percent<=100)' /tmp/prometeo-goal-progress.json >/dev/null
+          jq -e '([.gates[].weight] | add)==100' /tmp/prometeo-goal-progress.json >/dev/null
+
+      - name: Publish progress page
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C site config user.name github-actions[bot]
+          git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C site pull --ff-only origin gh-pages
+          mkdir -p site/progress
+          cp source/progress/index.html site/progress/index.html
+          cp /tmp/prometeo-goal-progress.json site/progress/state.json
+          git -C site add progress/index.html progress/state.json
+          if git -C site diff --cached --quiet; then exit 0; fi
+          git -C site commit -m "progress: refresh objective completion projection"
+          for n in 1 2 3; do
+            if git -C site push origin HEAD:gh-pages; then exit 0; fi
+            git -C site fetch origin gh-pages
+            git -C site rebase origin/gh-pages
+          done
+          exit 1
