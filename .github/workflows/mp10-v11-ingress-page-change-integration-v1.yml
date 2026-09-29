@@ -40,3 +40,26 @@ jobs:
           node --check current-tree/control-v11/result-adapter-v1.js
       - name: Verify G06 visible-result prewire contract
         run: node coordination/portfolio/tests/control_v11_visible_result_prewire_v1.mjs
+      - name: Verify G06 served candidate surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://juanmanuelpm.github.io/prometeo/current-tree/control-v11'
+          ok=0
+          for i in $(seq 1 12); do
+            stamp="$(date +%s)-$i"
+            if curl -fsS "$base/result-candidate-v1.json?v=$stamp" -o /tmp/g06-result.json \
+              && curl -fsS "$base/result-adapter-v1.js?v=$stamp" -o /tmp/g06-adapter.js \
+              && curl -fsS "$base/v11.js?v=$stamp" -o /tmp/g06-v11.js \
+              && grep -q 'prometeo.v11-visible-result-projection/v1' /tmp/g06-result.json \
+              && grep -q 'G05_REAL_PRIVATE_E2E_NOT_VERIFIED' /tmp/g06-result.json \
+              && grep -q 'normalizeVisibleResultProjection' /tmp/g06-adapter.js \
+              && grep -q 'data-visible-result-state' /tmp/g06-v11.js \
+              && grep -q 'builder_return_ref' /tmp/g06-v11.js \
+              && grep -q 'verifier_ref' /tmp/g06-v11.js; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ok" = 1
