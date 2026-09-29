@@ -21,5 +21,6 @@ window.PROMETEO_CONTROL_CONFIG_V1=Object.freeze({
   statsUrl:'../../coordination/analytics/control-room-stats-v1/latest.json',
   projectContextUrl:'../../coordination/project-context-v1/INDEX.json',
   chatSessionsUrl:'../../coordination/chat-sessions/INDEX.json',
+  capabilityGraphUrl:'../../coordination/semantic-relations/CAPABILITY_GRAPH_V1.json',
   storageMode:'auto'
 });
