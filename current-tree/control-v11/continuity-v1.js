@@ -139,7 +139,7 @@ PRIMERA ACCIÓN DURABLE:
 1. Creá SESSION_ID + SESSION_PIN frescos. No reutilices una sesión histórica.
 2. Buscá si ya existe Chat Object / Work Context para este proyecto o propósito. Reutilizá identidad larga si corresponde; no dupliques owners.
 3. Publicá SESSION.json + JOURNAL.json + CONTINUE.txt e incorporá la sesión al índice durable.
-4. Ejecutá el preflight completo: Current Tree V2 → arquitectura CURRENT → Organismo (ubicá realmente el target y dependencias) → objetivo/plan/checkpoint → Work Context/session lineage → Design DNA/golden si el cambio es material → drift.
+4. Ejecutá el preflight completo con los tokens canónicos: CURRENT_TREE_V2 → CURRENT_ARCHITECTURE → ORGANISM → OBJECTIVE_PLAN → WORK_CONTEXT_SESSION → DESIGN_DNA_IF_MATERIAL → DRIFT → REQUEST_CLASSIFICATION → MUTATE. En ORGANISM ubicá realmente el target, owner, padres, dependencias y superficies relacionadas.
 5. Clasificá la próxima instrucción humana como CONTINUE / COMPATIBLE_DELTA / EXPERIMENT / REPLAN / DESTRUCTIVE_RESET.
 6. El pedido humano manda como intención. Si contradice el plan anterior, NO lo ignores: registrá el cambio y preservá lineage/baseline; aislá como alternativa/experimento cuando corresponda o replanteá explícitamente si eso pidió el humano.
 7. En cada turno material, antes de responder, publicá journal sanitizado: intención, conclusión, acciones reales, refs, decisiones, boundaries y next_action.
@@ -171,7 +171,7 @@ HACÉ:
 3. Registrá predecessor sólo si encontrás uno real; no lo inventes.
 4. Publicá SESSION/JOURNAL/CONTINUE y el índice.
 5. Backfilleá únicamente hitos materiales que puedas sostener por conversación visible o refs durables; marcá backfill como tal.
-6. Ubicá el trabajo en Organismo y recuperá objetivo/plan/baseline antes de la próxima mutación.
+6. Ejecutá: CURRENT_TREE_V2 → CURRENT_ARCHITECTURE → ORGANISM → OBJECTIVE_PLAN → WORK_CONTEXT_SESSION → DESIGN_DNA_IF_MATERIAL → DRIFT → REQUEST_CLASSIFICATION. En ORGANISM ubicá el trabajo real y recuperá objetivo/plan/baseline antes de la próxima mutación.
 7. Desde este turno en adelante, publicá cada interacción material al journal antes de responder.
 8. Si el trabajo mejora una Tool/Page/Project ajenos al foco original, agregá relaciones tipadas; no mudes el chat de “carpeta”.
 9. Si el humano quiere identidad visual, podés publicar cover_image_url con asset/provenance real.
