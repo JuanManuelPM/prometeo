@@ -521,6 +521,113 @@ No human courier.
 No second notes product.
 No pretending infrastructure health is product completion.
 
+## 11. Execution checkpoint · 2026-09-29
+
+P1–P5 have now been materially implemented as a served V11 candidate. This checkpoint is evidence of implementation, not a CURRENT/HUMAN_ACCEPTED promotion.
+
+### P1 · Universal Capture local-first
+
+Implemented:
+- Notes opens and renders local captures even with no usable remote workspace.
+- Remote identity and remote liveness are separate: a stored secret is not treated as proof that transport works.
+- Text saves to IndexedDB before remote sync; remote sync is fire-and-reconcile rather than a save prerequisite.
+- Audio remains local-first.
+- Work/Think/files remain truthfully gated on proven private transport availability.
+- Universal Notes overlays host chrome rather than being intercepted by the Control Room header.
+
+Main commits:
+- 3d38ea75b348f98a701137552ca065666fddf513
+- c391f563a0da469d21e4e4da633a96e632f74486
+- 46e261b4fb0383d2f73f4f19a46efac835de6221
+- 183db3fa59e8d72fe7c3f0e8e4a49922cc84ddfb
+
+### P2 · Capture native to the integrated object surface
+
+Implemented:
+- Side /notes/ is no longer a primary Control Room tab.
+- Page cards use the existing Page Change / Capture owner.
+- The existing object drawer now exposes Notes.
+- Project/Tool/Context/Organism rows that already resolve to semantic nodes use the same drawer and same Capture implementation.
+- No new note editor/store/router was created.
+
+Main commits:
+- 15993aa50a4a62197689aaa0b1a2e5a69da7d02b
+- 0ad85ec56284833d513040c240f0ab7877fce56c
+
+### P3 · Semantic address + Exact Back
+
+Implemented:
+- URL carries only non-secret semantic routing fields: view/page/node/panel/work.
+- Private note text never enters the URL.
+- Reload restores the selected page and Notes panel.
+- Browser Back closes Notes when the semantic route no longer requests it.
+- Browser Forward restores the same page/panel and local capture.
+- Exact object metadata carries page/node/context/object kind without creating a new authority.
+
+Main commits:
+- 326657267e1b6710802f205a6645e4f35d15d9c3
+- ed52da49f722255cc66c0b5967c37c65e55c2d2c
+- d977ceeffff3781cf52fc0bc2aaa3a4665f56ce6
+
+### P4 · Object history/context projection
+
+Implemented:
+- Universal Notes can render existing exact-node Work Context and Activity evidence under “Contexto · misma lineage”.
+- This is a read projection only. Work Context, Activity, Page Change results and source owners retain authority.
+- The projection degrades independently if remote context sources are unavailable.
+- Page Change results remain separately typed from notes/context.
+
+Main commit:
+- 15993aa50a4a62197689aaa0b1a2e5a69da7d02b
+
+### P5 · Stable public human entry
+
+Implemented:
+- Stable route: /current-tree/control/
+- Target: /current-tree/control-v11/
+- Query/hash semantic route is preserved through the alias.
+- Alias declares V11 CANDIDATE and preserves V10 as baseline; it does not silently promote authority.
+- main and gh-pages product bytes were compared and matched for the integrated V11 index/script, shared Capture, stable route and route truth file.
+- Static preview bytes and the non-authoritative Project Context index were published to gh-pages using existing Git blobs.
+
+Main commits:
+- 1b7773105f0103ff913efe2340f1a4c2223a83e9
+- cadb443553036b6587eb491fd969d51c6853e0a2
+
+gh-pages publication commit:
+- 949f97036b859b38e7f619700634843fe61690aa
+
+### Served browser evidence before final full-site rerun
+
+Run 36575909390 already passed:
+- public V11 HTTP 200;
+- served index == source bytes;
+- served v11.js == source bytes;
+- served change-loop.js == source bytes;
+- stable route == source bytes;
+- stable route redirect/query preservation;
+- Universal Shell finish static contract;
+- command text fail-closed: typing does not submit work;
+- local-first page capture;
+- private text absent from URL;
+- reload persistence;
+- browser Back/Forward Exact Back;
+- 390px narrow layout without horizontal overflow;
+- truthful stats projection.
+
+That run reached the site before the newly published preview manifest and Project Context projection had propagated, so its only remaining hard failures were HTTP 404 for those two public projections. Both have since been materialized on gh-pages and Pages deployment completed successfully. The next served Chromium run is the final P1–P5 publication check.
+
+### Known non-blocking historical workflow drift
+
+Two V5 publication workflows triggered by changes under shared/capture still expect the repository root index.html to be the historical Universal Shell V5 EXPECTED/CHUNKS loader. The current root is Prometeo Home V2, so those workflows fail their legacy packaging assertion. This predates P1–P5 and must not be “fixed” by restoring the old root loader. Current Design DNA / Current Tree rules require classifying and later retiring or updating that stale workflow rather than reviving LEGACY bytes.
+
+### Current truth boundary
+
+P1–P5 = IMPLEMENTED_SERVED_CANDIDATE_PENDING_FINAL_FULL_SITE_CI.
+
+P6 remains separate:
+private cross-device durability / authenticated work transport / worker execution may remain degraded or blocked without invalidating the local-first human surface.
+
 ## 11. Immediate next actions
 
 In order:
