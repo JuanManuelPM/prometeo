@@ -44,45 +44,30 @@ mustReject("authorization_key", {...safe, authorization:"Bearer synthetic"});
 mustReject("private_packet_key", {...safe, private_packet:"opaque"});
 mustReject("percent_encoded_ref", {...safe, result_refs:["coordination/x%3Ftoken"]});
 
-const privacyFailures = [];
-
-function mustBeForbiddenButIsAccepted(code, candidate, field, expected) {
-  let output;
-  let threw = false;
-  try {
-    output = exportClosurePack(candidate);
-  } catch {
-    threw = true;
-  }
-  if (!threw && output?.[field] === expected) {
-    privacyFailures.push({code, field, accepted_value:expected});
-  }
-}
-
-mustBeForbiddenButIsAccepted(
-  "FORBIDDEN_CLASS_EMAIL_VALUE_ACCEPTED",
-  {...safe, project_id:"alice@example.com"},
-  "project_id",
-  "alice@example.com"
+mustReject(
+  "forbidden_email_value_class",
+  {...safe, project_id:"alice@example.com"}
 );
-mustBeForbiddenButIsAccepted(
-  "FORBIDDEN_CLASS_PHONE_VALUE_ACCEPTED",
-  {...safe, closure_id:"+14155551212"},
-  "closure_id",
-  "+14155551212"
+mustReject(
+  "forbidden_phone_value_class",
+  {...safe, closure_id:"+14155551212"}
 );
 
-assert.deepEqual(
-  privacyFailures.map(x=>x.code),
-  ["FORBIDDEN_CLASS_EMAIL_VALUE_ACCEPTED","FORBIDDEN_CLASS_PHONE_VALUE_ACCEPTED"]
+assert.equal(
+  rejected.find(x=>x.name==="forbidden_email_value_class")?.code,
+  "FORBIDDEN_VALUE_CLASS"
+);
+assert.equal(
+  rejected.find(x=>x.name==="forbidden_phone_value_class")?.code,
+  "FORBIDDEN_VALUE_CLASS"
 );
 
 process.stdout.write(JSON.stringify({
   schema:"prometeo.multipyramid-r007-adversarial-test/v1",
   harness_result:"PASS",
-  audited_candidate_result:"FAIL",
-  positive_controls:2,
+  audited_candidate_result:"PASS",
+  positive_controls:4,
   fail_closed_controls:rejected,
-  privacy_failures:privacyFailures,
-  truth_boundary:"The harness passed by reproducing forbidden private-value acceptance; S010 privacy claim is not independently verified."
+  privacy_failures:[],
+  truth_boundary:"The harness passes only when forbidden private value classes are rejected; this is an R007-equivalent regression check, not storage/CURRENT authority."
 })+"\n");
