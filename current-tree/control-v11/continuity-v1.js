@@ -122,6 +122,18 @@ function continuityPacket(project){
     reopen_law:'Create durable session identity/lineage first, then read target-specific owners. Human new intent may change the plan; preserve baseline and lineage.'
   };
 }
+async function refreshedContinuityPacket(project){
+  try{
+    const dl=window.PROMETEO_DATA_V11;
+    const base=dl?.readCache?.()||bundle()||{};
+    const fresh=await dl?.refresh?.(base);
+    if(fresh)window.PROMETEO_V11_LAST=fresh;
+  }catch(e){
+    try{window.PROMETEO_DIAGNOSTICS_V1?.sourceFailure?.('continuity-refresh',e,null,null)}catch{}
+  }
+  await load();
+  return continuityPacket(project);
+}
 function handoffReadiness(s){
   const missing=[];
   if(!s?.session_id)missing.push('session_id');
