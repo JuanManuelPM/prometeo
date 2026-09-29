@@ -25,12 +25,13 @@ function lineageLinks(change){if(!change)return '<span style="opacity:.5">—</s
 async function render(meta){
  await load();const target=objectByNode(meta?.nodeKey),old=document.getElementById('stewardPanelV1');if(old)old.remove();if(!target)return;
  const steward=stewardFor(target.id),change=latestChange(target.id),alts=alternatives(target.id),chats=relatedChats(target.id),pats=patterns(target.id);
+ const actor=change?[change.actor_chat_object,change.actor_session].filter(Boolean).join(' · '):'—';
  if(!steward&&!['SURFACE:CONTROL_ROOM','COMPONENT:CONTROL_NAVIGATION'].includes(meta.nodeKey))return;
  const panel=document.createElement('section');panel.id='stewardPanelV1';panel.className='steward-panel';
  const avatar=profile?.cover_image_url?'<img src="'+esc(profile.cover_image_url)+'" alt="">':esc(profile?.emoji||steward?.emoji||'🎨');
  const last=change?esc(change.title||change.id)+' · '+esc(change.status||''):'sin cambio estructurado todavía';
  panel.innerHTML='<div class="steward-head"><div class="steward-avatar">'+avatar+'</div><div><div class="steward-title">'+esc(profile?.short_name||steward?.title||'Visual Steward')+'</div><div class="steward-sub">'+esc(profile?.role||'VISUAL_SYSTEMS_STEWARD')+' · rol/contexto, no authority</div></div></div>'+
-  line('last change',last)+line('lineage',lineageLinks(change))+line('recent chats',chips(chats.map(x=>x.title)))+line('alternatives',chips(alts.map(x=>x.title)))+line('patterns',chips(pats.map(x=>x.title)))+
+  line('last change',last)+line('actor',esc(actor))+line('lineage',lineageLinks(change))+line('recent chats',chips(chats.map(x=>x.title)))+line('alternatives',chips(alts.map(x=>x.title)))+line('patterns',chips(pats.map(x=>x.title)))+
   '<div class="steward-actions"><button class="primary" id="stewardNewSession">Nueva sesión Visual Steward</button><button id="stewardHistory">Historial</button></div>';
  const actions=document.querySelector('#drawer .dactions');actions?.parentNode?.insertBefore(panel,actions);
  document.getElementById('stewardNewSession')?.addEventListener('click',async()=>{const fn=window.PROMETEO_CONTINUITY_V1?.specializedBootstrapPrompt;if(!fn)return;await copyText(fn(profile,meta.nodeKey));toast('Bootstrap Visual Steward copiado')});
