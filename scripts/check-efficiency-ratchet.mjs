@@ -1423,6 +1423,25 @@ must('EFF067 w', stableW, 'source=/w');
 must('EFF067 runtime', read(root, 'scripts/build-worker-runtime.mjs'), 'missing_expected');
 
 
+const eff068 = baseline.items?.find(item => item.id === 'EFF068');
+if (!eff068) errors.push('ratchet: EFF068 missing');
+else {
+  if (eff068.required?.pure_efficiency_regression_rescate_forbidden !== true) errors.push('ratchet: EFF068 pure efficiency rescate guard drift');
+  if (eff068.required?.efficiency_regression_critic_preserved !== true) errors.push('ratchet: EFF068 critic routing drift');
+  if (eff068.required?.concentrated_generic_recovery_rescate_preserved !== true) errors.push('ratchet: EFF068 recovery rescate drift');
+  if (eff068.required?.collision_trigger_preserved !== true || eff068.required?.actionable_no_allocation_trigger_preserved !== true) errors.push('ratchet: EFF068 independent rescue trigger drift');
+  if (eff068.required?.efficiency_plus_independent_rescue_allows_distinct_roles !== true) errors.push('ratchet: EFF068 distinct-role coexistence drift');
+  if (eff068.required?.recovery_candidates_preserved !== true || eff068.required?.claim_authority_unchanged !== true) errors.push('ratchet: EFF068 authority/recovery drift');
+  if (eff068.required?.regression_test !== 'coordination/portfolio/tests/guide_rescate_capability_recovery_pressure_v1.mjs') errors.push('ratchet: EFF068 regression-test drift');
+  if (!Array.isArray(eff068.supersedes) || !eff068.supersedes.includes('EFF065.required.efficiency_regression_trigger_preserved')) errors.push('ratchet: EFF068 EFF065 supersession drift');
+}
+must('EFF068 allocator', allocator, 'const independentRescatePressure =');
+mustNot('EFF068 allocator', allocator, "genericRecoveryRescuePressure ||\n    collisionEvidence.length >= Number(signals.collision_pressure_trigger || 3) ||\n    efficiency.status === 'REGRESSION'");
+must('EFF068 test', recoveryDiversityTest, 'pure efficiency regression must not duplicate GUIDE_CRITIC with GUIDE_RESCATE');
+must('EFF068 test', recoveryDiversityTest, 'pure efficiency regression must remain routed to GUIDE_CRITIC');
+must('EFF068 test', recoveryDiversityTest, 'independent concentrated recovery must still permit GUIDE_RESCATE during an efficiency regression');
+
+
 const eff060ScoreboardRegression = read(root, 'coordination/portfolio/tests/worker_scoreboard_canonical_transport_close_v1.mjs');
 must('EFF060 scoreboard regression', eff060ScoreboardRegression, 'prometeo.eff060-scoreboard-canonical-close-regression/v1');
 must('EFF060 scoreboard regression', eff060ScoreboardRegression, 'EARLY_CLOSE_EXPLAINED');
