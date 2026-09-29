@@ -60,6 +60,26 @@ assert.ok(!('capture_transcripts' in c));
 const expired=applyPageChangeFrontier(allocator,{...frontier,items:[{...frontier.items[0],expires_at:'2026-09-28T20:59:59Z'}]},{now});
 assert.equal(expired.page_change_frontier.count,0);
 
+const missingTransport=applyPageChangeFrontier(allocator,{...frontier,items:[{...frontier.items[0],context_transport:null}]},{now});
+assert.equal(missingTransport.page_change_frontier.count,0,'private transport must be explicit; no hidden Supabase default');
+
+const missingLookup=applyPageChangeFrontier(allocator,{...frontier,items:[{...frontier.items[0],private_packet_lookup:null}]},{now});
+assert.equal(missingLookup.page_change_frontier.count,0,'private lookup must be explicit');
+
+const alternate=applyPageChangeFrontier(allocator,{...frontier,items:[{
+  ...frontier.items[0],
+  work_item_id:'WI-ALT',
+  opportunity_id:'page-change-WI-ALT',
+  claim_path:'coordination/opportunities/claims/page-change-WI-ALT.json',
+  required_capabilities:['github_repository_write','trusted_private_context_bridge'],
+  context_transport:'TRUSTED_PRIVATE_CONTEXT_BRIDGE',
+  private_packet_lookup:{resolver:'trusted-bridge-v1',key:'work_item_id',value:'WI-ALT'}
+}]},{now});
+assert.equal(alternate.page_change_frontier.count,1);
+assert.equal(alternate.queue_ready[0].context_transport,'TRUSTED_PRIVATE_CONTEXT_BRIDGE');
+assert.deepEqual(alternate.queue_ready[0].required_capabilities,['github_repository_write','trusted_private_context_bridge']);
+assert.equal(alternate.queue_ready[0].private_packet_lookup.value,'WI-ALT');
+
 const duplicate=applyPageChangeFrontier({...allocator,queue_ready:[merged.queue_ready[0]]},frontier,{now});
 assert.equal(duplicate.page_change_frontier.count,0);
 
