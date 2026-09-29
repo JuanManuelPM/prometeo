@@ -11,10 +11,12 @@ const projectContextUrl=new URL('../../coordination/project-context-v1/INDEX.jso
 const statsUrl=new URL('../../coordination/analytics/control-room-stats-v1/latest.json',publicUrl).href;
 const previewManifestUrl=new URL('./previews/manifest.json',publicUrl).href;
 const scriptUrl=new URL('./v11.js',publicUrl).href;
+const diagnosticsUrl=new URL('./diagnostics-v1.js',publicUrl).href;
 const changeLoopUrl=new URL('../../shared/capture/v1/change-loop.js',publicUrl).href;
 const stableControlUrl=new URL('../control/',publicUrl).href;
 const indexPath='current-tree/control-v11/index.html';
 const scriptPath='current-tree/control-v11/v11.js';
+const diagnosticsPath='current-tree/control-v11/diagnostics-v1.js';
 const changeLoopPath='shared/capture/v1/change-loop.js';
 const stableControlPath='current-tree/control/index.html';
 
@@ -116,6 +118,15 @@ try{
     fail('served_v11_js_source_identity',scriptIdentity);
     hardFailures.push('served_v11_js_source_identity');
   }
+  const diagnosticsResponse=await desktop.request.get(diagnosticsUrl,{timeout:20000,failOnStatusCode:false,headers:{'cache-control':'no-cache','pragma':'no-cache'}});
+  assert.equal(diagnosticsResponse.status(),200);
+  const servedDiagnostics=await diagnosticsResponse.body();
+  const sourceDiagnostics=fs.readFileSync(diagnosticsPath);
+  const diagnosticsIdentity={served_sha256:sha256(servedDiagnostics),source_sha256:sha256(sourceDiagnostics),source_bytes:sourceDiagnostics.length,served_bytes:servedDiagnostics.length};
+  diagnosticsIdentity.match=diagnosticsIdentity.served_sha256===diagnosticsIdentity.source_sha256;
+  if(diagnosticsIdentity.match) pass('served_diagnostics_source_identity',diagnosticsIdentity);
+  else {fail('served_diagnostics_source_identity',diagnosticsIdentity);hardFailures.push('served_diagnostics_source_identity')}
+
   const changeResponse=await desktop.request.get(changeLoopUrl,{timeout:20000,failOnStatusCode:false,headers:{'cache-control':'no-cache','pragma':'no-cache'}});
   assert.equal(changeResponse.status(),200);
   const servedChange=await changeResponse.body();
@@ -134,7 +145,7 @@ try{
   if(stableIdentity.match) pass('stable_control_route_source_identity',stableIdentity);
   else {fail('stable_control_route_source_identity',stableIdentity);hardFailures.push('stable_control_route_source_identity')}
 
-  evidence.served_identity={index:indexIdentity,v11_js:scriptIdentity,change_loop:changeIdentity,stable_control:stableIdentity};
+  evidence.served_identity={index:indexIdentity,v11_js:scriptIdentity,diagnostics:diagnosticsIdentity,change_loop:changeIdentity,stable_control:stableIdentity};
   save();
 
   const stablePage=await desktop.newPage();
@@ -155,10 +166,37 @@ try{
   await page.waitForTimeout(3500);
   pass('desktop_navigation',{status:response?.status(),final_url:page.url()});
 
+  await page.waitForFunction(()=>!!window.PROMETEO_DIAGNOSTICS_V1,{timeout:10000});
+  const diagSecret='CI_DIAGNOSTIC_SECRET_'+Date.now();
+  const diagPacket=await page.evaluate(secret=>{
+    const d=window.PROMETEO_DIAGNOSTICS_V1;
+    d.record({kind:'http',source:'ci-canary',status:503,method:'GET',url:location.origin+'/prometeo/__diagnostic_canary__.json?token='+secret,message:'HTTP 503 synthetic canary'});
+    d.open();
+    return d.snapshot();
+  },diagSecret);
+  const diagText=JSON.stringify(diagPacket);
+  assert.equal(diagPacket.schema,'prometeo.control-diagnostic-packet/v1');
+  assert.equal(diagPacket.privacy.note_bodies_included,false);
+  assert.equal(diagPacket.privacy.request_headers_included,false);
+  assert.equal(diagPacket.privacy.query_strings_in_urls_included,false);
+  assert.equal(diagText.includes(diagSecret),false,'diagnostic packet must strip query-string secrets');
+  assert.ok(diagPacket.recent_events.some(x=>x.source==='ci-canary'&&x.status===503&&String(x.url||'').endsWith('/prometeo/__diagnostic_canary__.json')));
+  await page.locator('#diagTerminal.on').waitFor({state:'visible',timeout:5000});
+  assert.equal(await page.locator('#diagCopy').count(),1);
+  pass('diagnostic_terminal_privacy_and_copy_packet',{schema:diagPacket.schema,secret_redacted:true,recent_events:diagPacket.recent_events.length});
+  await page.evaluate(()=>window.PROMETEO_DIAGNOSTICS_V1.close());
+
   const servedIndexText=servedIndex.toString('utf8');
   const servedScriptText=servedScript.toString('utf8');
+  const servedDiagnosticsText=servedDiagnostics.toString('utf8');
   const servedChangeText=servedChange.toString('utf8');
   assert.match(servedIndexText,/id="notesBtn"/,'object drawer must expose universal Notes');
+  assert.match(servedIndexText,/id="diagBtn"/,'Control Room must expose the hidden diagnostics terminal');
+  assert.match(servedIndexText,/diagnostics-v1\.js/,'diagnostics must load before the data layer');
+  assert.match(servedDiagnosticsText,/PROMETEO_DIAGNOSTIC_PACKET_V1/);
+  assert.match(servedDiagnosticsText,/query_strings_in_urls_included:false/);
+  assert.match(servedDiagnosticsText,/request_headers_included:false/);
+  assert.match(servedDiagnosticsText,/window\.fetch=async function/);
   assert.doesNotMatch(servedIndexText,/href="\.\.\/\.\.\/notes\/"[^>]*>Notas<\/a>/,'side Notes app must not remain primary navigation');
   assert.match(servedScriptText,/PROMETEO_V11_OPEN_NODE_NOTES/);
   assert.match(servedScriptText,/contextHistoryFor/);
