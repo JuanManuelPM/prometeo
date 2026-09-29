@@ -1,4 +1,4 @@
-name: Rail World Build v4
+name: Rail World Build v5
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: rail-world-build-v4
+  group: rail-world-build-v5
   cancel-in-progress: true
 
 jobs:
@@ -40,7 +40,7 @@ jobs:
           cat /tmp/rail-http.log
           exit 1
 
-      - name: Review and gated-world browser test
+      - name: Review and network-gate browser test
         env:
           CHROME: ${{ steps.chrome.outputs.chrome-path }}
           SOURCE_SHA: ${{ github.sha }}
@@ -113,23 +113,18 @@ jobs:
             return ev?.result?.value;
           }
           async function state(){return evaluate('window.PrometeoRailWorld.getState()')}
-          async function key(key,code,down){
-            await send('Input.dispatchKeyEvent',{
-              type:down?'keyDown':'keyUp',
-              key,code,
-              windowsVirtualKeyCode:key==='ArrowUp'?38:key==='ArrowDown'?40:0,
-              nativeVirtualKeyCode:key==='ArrowUp'?38:key==='ArrowDown'?40:0
-            });
-          }
           async function click(x,y){
             await send('Input.dispatchMouseEvent',{type:'mouseMoved',x,y});
             await send('Input.dispatchMouseEvent',{type:'mousePressed',x,y,button:'left',clickCount:1});
             await send('Input.dispatchMouseEvent',{type:'mouseReleased',x,y,button:'left',clickCount:1});
           }
+          async function gateRect(key){
+            return evaluate('(()=>{const e=document.querySelector('.gate[data-key="'+key+'"]');if(!e)return null;const r=e.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height,cls:e.className,animation:getComputedStyle(e).animationName,recess:getComputedStyle(e.querySelector(".recess")).backgroundImage}})()');
+          }
           async function shot(url,file){
             await send('Page.navigate',{url});
             await waitExpression('Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready)',file);
-            await sleep(420);
+            await sleep(500);
             const out=await send('Page.captureScreenshot',{format:'png',fromSurface:true,captureBeyondViewport:false});
             const bytes=Buffer.from(out.data,'base64');
             if(bytes.length<10000)throw new Error('Screenshot too small '+file+' '+bytes.length);
@@ -138,113 +133,114 @@ jobs:
           }
 
           const reviews=[
-            ['arcos','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=1&z=28&playerMap=1&playerZ=49&playerX=0'],
-            ['arcos-gate','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=1&z=105&playerMap=1&playerZ=124.5&playerX=0'],
-            ['calzada','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=3&z=42&playerMap=3&playerZ=64&playerX=0'],
-            ['tunel','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=4&z=42&playerMap=4&playerZ=64&playerX=0'],
-            ['torres','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=5&z=42&playerMap=5&playerZ=64&playerX=0']
+            ['arcos-network','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=1&z=20&playerMap=1&playerZ=20&playerX=0'],
+            ['arcos-active','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=1&z=88&playerMap=1&playerZ=111&playerX=0'],
+            ['calzada-network','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=3&z=18&playerMap=3&playerZ=18&playerX=0'],
+            ['tunel-network','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=4&z=18&playerMap=4&playerZ=18&playerX=0'],
+            ['torres-network','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=5&z=12&playerMap=5&playerZ=12&playerX=0']
           ];
           for(const [id,url] of reviews)await shot(url,'demos/prometeo-rail-world-v1/review/'+id+'.png');
 
           await send('Page.navigate',{url:'http://127.0.0.1:4173/demos/prometeo-rail-world-v1/'});
           await waitExpression('Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready&&window.PrometeoRailWorld)', 'rail runtime');
 
-          // 1. CLICK MOVES PLAYER, NEVER CAMERA.
-          const initial=await state();
-          await click(683,255);
-          await sleep(900);
-          const clicked=await state();
-          if(!(clicked.playerGlobal>initial.playerGlobal+14))throw new Error('Click did not move player '+JSON.stringify({initial,clicked}));
-          if(Math.abs(clicked.cameraGlobal-initial.cameraGlobal)>.35)throw new Error('Click moved camera '+JSON.stringify({initial,clicked}));
-
-          // 2. CAMERA OVERTAKE IS A PROJECTION EXIT, NOT AN EARLY VISIBILITY TOGGLE.
-          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:20,cameraX:0,playerMap:1,playerZ:32,playerX:0,immediate:true})');
-          await sleep(80);
-          const pass0=await state();
-          await evaluate('window.PrometeoRailWorld.moveCameraBy(6,0)');
-          await sleep(160);
-          const pass1=await state();
-          await evaluate('window.PrometeoRailWorld.moveCameraBy(4,0)');
-          await sleep(160);
-          const pass2=await state();
-          await evaluate('window.PrometeoRailWorld.moveCameraBy(3,0)');
-          await sleep(160);
-          const pass3=await state();
-          if(!(pass0.playerProjection.visible && pass1.playerProjection.y>pass0.playerProjection.y+18 && pass1.playerProjection.scale>pass0.playerProjection.scale+.5)){
-            throw new Error('Player did not grow/drop while camera approached '+JSON.stringify({pass0,pass1}));
-          }
-          if(!(pass2.playerProjection.rendered && !pass2.playerProjection.visible && pass2.playerProjection.y>130 && !pass2.playerProjection.behind)){
-            throw new Error('Player did not leave through bottom before overtake '+JSON.stringify(pass2));
-          }
-          if(!(pass3.playerProjection.behind && !pass3.playerProjection.visible)){
-            throw new Error('Player not behind camera after overtake '+JSON.stringify(pass3));
+          // 1. Every map exposes every other map exactly once.
+          const mapIds=[1,3,4,5];
+          const connectivity={};
+          for(const mapId of mapIds){
+            await evaluate('window.PrometeoRailWorld.setState({cameraMap:'+mapId+',cameraZ:12,cameraX:0,playerMap:'+mapId+',playerZ:12,playerX:0,immediate:true})');
+            await sleep(90);
+            const s=await state();
+            const dest=s.gates.map(g=>g.destinationMap).sort((a,b)=>a-b);
+            const expected=mapIds.filter(x=>x!==mapId).sort((a,b)=>a-b);
+            if(s.gates.length!==3||JSON.stringify(dest)!==JSON.stringify(expected)){
+              throw new Error('Incomplete all-to-all connectivity '+JSON.stringify({mapId,dest,expected,gates:s.gates}));
+            }
+            connectivity[mapId]=dest;
           }
 
-          // 3. CAMERA CANNOT SCROLL INTO THE NEXT MAP. MAP BOUNDARY IS PHYSICAL.
-          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:131.55,cameraX:0,playerMap:1,playerZ:100,playerX:0,immediate:true})');
-          await key('ArrowUp','ArrowUp',true);
-          await sleep(850);
-          await key('ArrowUp','ArrowUp',false);
+          // 2. Fixed gate exists and is visible while player is far. No rotation/animation.
+          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:88,cameraX:0,playerMap:1,playerZ:76,playerX:0,immediate:true})');
           await sleep(180);
-          const clamped=await state();
-          if(!(clamped.cameraMap===1 && clamped.cameraZ<132 && clamped.cameraZ>131.5)){
-            throw new Error('Camera crossed map without portal '+JSON.stringify(clamped));
+          const far=await state();
+          const farGate=far.gates.find(g=>g.key==='1>5');
+          const farRect=await gateRect('1>5');
+          if(!(farGate&&farGate.projection.visible&&!farGate.active&&farRect&&farRect.w>10)){
+            throw new Error('Fixed inactive gate missing '+JSON.stringify({far,farRect}));
+          }
+          if(farRect.animation!=='none')throw new Error('Gate is still animated '+JSON.stringify(farRect));
+          const inactiveMaterial=farRect.recess;
+
+          // 3. First click on inactive architecture sends avatar to that exact gate.
+          await click(farRect.x,farRect.y);
+          await sleep(1500);
+          const arrived=await state();
+          const activeGate=arrived.gates.find(g=>g.key==='1>5');
+          const activeRect=await gateRect('1>5');
+          if(!(arrived.gate.active&&arrived.gate.key==='1>5'&&activeGate.active)){
+            throw new Error('Player arrival did not arm selected gate '+JSON.stringify(arrived));
+          }
+          if(activeRect.recess===inactiveMaterial){
+            throw new Error('Gate material/color did not change on arrival '+JSON.stringify({inactiveMaterial,active:activeRect.recess}));
           }
 
-          // 4. PORTAL IS DORMANT WHILE PLAYER IS FAR.
-          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:105,cameraX:0,playerMap:1,playerZ:94,playerX:0,immediate:true})');
-          await sleep(120);
-          const dormant=await state();
-          if(dormant.gate.active)throw new Error('Gate active while player far '+JSON.stringify(dormant));
-
-          // 5. FIRST CLICK: PLAYER APPROACHES EXIT; PORTAL MATERIALIZES.
-          await evaluate('window.PrometeoRailWorld.setPlayerTargetFromPercent(50,45)');
-          await sleep(1050);
-          const armed=await state();
-          if(!(armed.gate.active && armed.gate.key==='1>3' && armed.gate.projection.visible)){
-            throw new Error('Gate did not materialize near player '+JSON.stringify(armed));
-          }
-
-          // 6. WALK AWAY; PORTAL MUST RETRACT.
-          await evaluate('window.PrometeoRailWorld.moveCameraBy(-15,0)');
-          await evaluate('window.PrometeoRailWorld.setPlayerTargetFromPercent(50,90)');
-          await sleep(900);
-          const retracted=await state();
-          if(retracted.gate.active)throw new Error('Gate stayed active after player left '+JSON.stringify(retracted));
-
-          // 7. RETURN TO GATE, THEN SECOND CLICK ON THE PRISM ENTERS NEXT MAP WITH PLAYER + CAMERA TOGETHER.
-          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:105,cameraX:0,playerMap:1,playerZ:124.5,playerX:0,immediate:true})');
+          // 4. Moving avatar away does NOT remove architecture; it only deactivates its material.
+          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:88,cameraX:0,playerMap:1,playerZ:92,playerX:0,immediate:true})');
           await sleep(180);
-          const readyGate=await state();
-          if(!(readyGate.gate.active&&readyGate.gate.projection.visible))throw new Error('Prepared gate not visible '+JSON.stringify(readyGate));
-          const rect=await evaluate('(()=>{const r=document.querySelector("#portal").getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height}})()');
-          await click(rect.x,rect.y);
+          const away=await state();
+          const awayGate=away.gates.find(g=>g.key==='1>5');
+          const awayRect=await gateRect('1>5');
+          if(!(awayGate.projection.visible&&!awayGate.active&&awayRect.w>10)){
+            throw new Error('Gate disappeared instead of deactivating '+JSON.stringify({away,awayRect}));
+          }
+
+          // 5. Direct non-sequential travel ARCOS -> TORRES by second click.
+          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:88,cameraX:0,playerMap:1,playerZ:111,playerX:0,immediate:true})');
+          await sleep(160);
+          const armed15=await state();
+          if(armed15.gate.key!=='1>5')throw new Error('ARCOS->TORRES gate not armed '+JSON.stringify(armed15));
+          const rect15=await gateRect('1>5');
+          await click(rect15.x,rect15.y);
           await sleep(620);
-          const entered=await state();
-          if(!(entered.cameraMap===3 && entered.playerMap===3 && entered.sameMap && !entered.gate.entering && entered.transitions>=1)){
-            throw new Error('Portal did not bring camera and player together '+JSON.stringify({rect,entered}));
+          const inTorres=await state();
+          if(!(inTorres.cameraMap===5&&inTorres.playerMap===5&&inTorres.sameMap)){
+            throw new Error('Direct ARCOS->TORRES failed '+JSON.stringify(inTorres));
           }
 
-          console.log('FUNCTIONAL_RAIL_V4 PASS',JSON.stringify({initial,clicked,pass0,pass1,pass2,pass3,clamped,dormant,armed,retracted,entered}));
+          // 6. Another arbitrary edge TORRES -> CALZADA proves network, not a linear chain.
+          const gate53=inTorres.gates.find(g=>g.key==='5>3');
+          await evaluate('window.PrometeoRailWorld.setState({cameraMap:5,cameraZ:38,cameraX:0,playerMap:5,playerZ:58,playerX:0,immediate:true})');
+          await sleep(160);
+          const armed53=await state();
+          if(armed53.gate.key!=='5>3')throw new Error('TORRES->CALZADA gate not armed '+JSON.stringify({gate53,armed53}));
+          const rect53=await gateRect('5>3');
+          await click(rect53.x,rect53.y);
+          await sleep(620);
+          const inCalzada=await state();
+          if(!(inCalzada.cameraMap===3&&inCalzada.playerMap===3&&inCalzada.sameMap)){
+            throw new Error('Direct TORRES->CALZADA failed '+JSON.stringify(inCalzada));
+          }
+
+          console.log('FUNCTIONAL_RAIL_V5 PASS',JSON.stringify({connectivity,farGate,arrived:arrived.gate,awayGate,inTorres:{cameraMap:inTorres.cameraMap,playerMap:inTorres.playerMap},inCalzada:{cameraMap:inCalzada.cameraMap,playerMap:inCalzada.playerMap}}));
           ws.close();
 
           await fs.writeFile('demos/prometeo-rail-world-v1/review/manifest.json',JSON.stringify({
-            schema:'prometeo.rail-world-review/v4',
+            schema:'prometeo.rail-world-review/v5',
             source_sha:process.env.SOURCE_SHA,
             generated_at:new Date().toISOString(),
             renderer:'visuals/spaces-lab v35 live bridge',
-            runtime:'v4-gated-world',
+            runtime:'v5-network-gates',
             semantics:{
-              click:'player target only',
-              wheel_arrows_touch_drag:'camera only',
-              camera_overtake:'projection exits through viewport bottom',
-              map_boundary:'camera clamps; cannot auto-cross',
-              map_transition:'player proximity arms a world-space prism; second click enters',
-              portal_exit:'camera and player arrive together',
-              portal_retract:'moving player away hides it'
+              gates_per_map:3,
+              network:'all-to-all between ARCOS, CALZADA, TUNEL, TORRES',
+              geometry:'fixed architectural monolith/sign; no rotation',
+              inactive:'dark wall/stone material remains visible',
+              active:'same fixed object changes panel material/color by player proximity',
+              first_click:'walk player to selected gate',
+              second_click:'enter selected destination',
+              transition:'camera and player arrive together near reverse gate'
             },
-            map_sequence:[1,3,4,5],
-            review:['arcos.png','arcos-gate.png','calzada.png','tunel.png','torres.png']
+            review:['arcos-network.png','arcos-active.png','calzada-network.png','tunel-network.png','torres-network.png']
           },null,2)+'\n');
           NODE
 
@@ -253,7 +249,7 @@ jobs:
       - name: Upload exact evidence
         uses: actions/upload-artifact@v4
         with:
-          name: rail-world-v4-${{ github.sha }}
+          name: rail-world-v5-${{ github.sha }}
           path: demos/prometeo-rail-world-v1/review/
           retention-days: 30
           if-no-files-found: error
@@ -264,12 +260,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          rm -rf /tmp/rail-world-v4
-          mkdir -p /tmp/rail-world-v4/demos/prometeo-rail-world-v1 /tmp/rail-world-v4/visuals/spaces-lab /tmp/rail-world-v4/workflow
-          cp demos/prometeo-rail-world-v1/index.html /tmp/rail-world-v4/demos/prometeo-rail-world-v1/index.html
-          cp -a demos/prometeo-rail-world-v1/review /tmp/rail-world-v4/demos/prometeo-rail-world-v1/
-          cp visuals/spaces-lab/index.html /tmp/rail-world-v4/visuals/spaces-lab/index.html
-          cp .github/workflows/rail-world-build-v1.yml /tmp/rail-world-v4/workflow/rail-world-build-v1.yml
+          rm -rf /tmp/rail-world-v5
+          mkdir -p /tmp/rail-world-v5/demos/prometeo-rail-world-v1 /tmp/rail-world-v5/visuals/spaces-lab /tmp/rail-world-v5/workflow
+          cp demos/prometeo-rail-world-v1/index.html /tmp/rail-world-v5/demos/prometeo-rail-world-v1/index.html
+          cp -a demos/prometeo-rail-world-v1/review /tmp/rail-world-v5/demos/prometeo-rail-world-v1/
+          cp visuals/spaces-lab/index.html /tmp/rail-world-v5/visuals/spaces-lab/index.html
+          cp .github/workflows/rail-world-build-v1.yml /tmp/rail-world-v5/workflow/rail-world-build-v1.yml
 
           git reset --hard HEAD
           git clean -fd
@@ -279,18 +275,18 @@ jobs:
             git fetch origin "$branch"
             git checkout -B "$branch" "origin/$branch"
             mkdir -p demos/prometeo-rail-world-v1 visuals/spaces-lab
-            cp /tmp/rail-world-v4/demos/prometeo-rail-world-v1/index.html demos/prometeo-rail-world-v1/index.html
+            cp /tmp/rail-world-v5/demos/prometeo-rail-world-v1/index.html demos/prometeo-rail-world-v1/index.html
             rm -rf demos/prometeo-rail-world-v1/review demos/prometeo-rail-world-v1/frames
-            cp -a /tmp/rail-world-v4/demos/prometeo-rail-world-v1/review demos/prometeo-rail-world-v1/
-            cp /tmp/rail-world-v4/visuals/spaces-lab/index.html visuals/spaces-lab/index.html
+            cp -a /tmp/rail-world-v5/demos/prometeo-rail-world-v1/review demos/prometeo-rail-world-v1/
+            cp /tmp/rail-world-v5/visuals/spaces-lab/index.html visuals/spaces-lab/index.html
             if [ "$branch" = "main" ]; then
               mkdir -p .github/workflows
-              cp /tmp/rail-world-v4/workflow/rail-world-build-v1.yml .github/workflows/rail-world-build-v1.yml
+              cp /tmp/rail-world-v5/workflow/rail-world-build-v1.yml .github/workflows/rail-world-build-v1.yml
             fi
             git add -A demos/prometeo-rail-world-v1 visuals/spaces-lab
             if [ "$branch" = "main" ]; then git add .github/workflows/rail-world-build-v1.yml; fi
             if git diff --cached --quiet; then return 0; fi
-            git commit -m "visuals: publish gated Rail World v4"
+            git commit -m "visuals: publish Rail World all-to-all gate network v5"
             for n in 1 2 3 4; do
               if git push origin "HEAD:$branch"; then return 0; fi
               git fetch origin "$branch"
@@ -303,7 +299,7 @@ jobs:
           publish_branch main
           publish_branch gh-pages
 
-      - name: Verify public gated world
+      - name: Verify public all-to-all gate network
         env:
           CHROME: ${{ steps.chrome.outputs.chrome-path }}
         run: |
@@ -311,7 +307,7 @@ jobs:
           URL="https://juanmanuelpm.github.io/prometeo/demos/prometeo-rail-world-v1/"
           for i in {1..48}; do
             PAGE="$(curl -fsSL --max-time 12 "$URL" 2>/dev/null || true)"
-            if printf '%s' "$PAGE" | grep -Fq "v4-gated-world"; then break; fi
+            if printf '%s' "$PAGE" | grep -Fq "v5-network-gates"; then break; fi
             sleep 5
           done
 
@@ -342,20 +338,17 @@ jobs:
             await sleep(125);
           }
           const state=()=>evaluate('window.PrometeoRailWorld.getState()');
-
-          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:105,cameraX:0,playerMap:1,playerZ:124.5,playerX:0,immediate:true})');
+          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:88,cameraX:0,playerMap:1,playerZ:111,playerX:0,immediate:true})');
           await sleep(180);
           const armed=await state();
-          if(!(armed.gate.active&&armed.gate.projection.visible))throw new Error('Public portal not armed '+JSON.stringify(armed));
-
-          const rect=await evaluate('(()=>{const r=document.querySelector("#portal").getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2}})()');
+          if(!(armed.gates.length===3&&armed.gate.key==='1>5'))throw new Error('Public V5 network not armed '+JSON.stringify(armed));
+          const rect=await evaluate('(()=>{const e=document.querySelector('.gate[data-key="1>5"]');const r=e.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2}})()');
           await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:rect.x,y:rect.y});
           await send('Input.dispatchMouseEvent',{type:'mousePressed',x:rect.x,y:rect.y,button:'left',clickCount:1});
           await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:rect.x,y:rect.y,button:'left',clickCount:1});
           await sleep(620);
           const entered=await state();
-          if(!(entered.cameraMap===3&&entered.playerMap===3&&entered.sameMap))throw new Error('Public portal transition failed '+JSON.stringify({armed,entered}));
-
-          console.log('PUBLIC_RAIL_WORLD_V4_VERIFIED',JSON.stringify({armed,entered}));
+          if(!(entered.cameraMap===5&&entered.playerMap===5&&entered.sameMap))throw new Error('Public direct ARCOS->TORRES failed '+JSON.stringify(entered));
+          console.log('PUBLIC_RAIL_WORLD_V5_VERIFIED',JSON.stringify({armed:{gate:armed.gate,gates:armed.gates.map(g=>g.destinationMap)},entered:{cameraMap:entered.cameraMap,playerMap:entered.playerMap}}));
           ws.close();
           NODE
