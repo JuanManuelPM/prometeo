@@ -3,16 +3,15 @@
 Status: CURRENT
 
 - V21 remains the accepted blink baseline.
-- V23 is the current eye-content candidate.
-- Eye content is a separate procedural subsystem behind V21.
-- Do not create a sprite grid merely to move a circular pupil.
-- Gaze, pupil scale and fill states are parameters.
-- V23 derives aperture masks from the real alpha geometry of each V21 blink frame.
-- The aperture is not a hard-coded ellipse.
-- Largest enclosed transparent connected component is used as the visible opening.
-- Closed frames naturally expose zero eye content.
-- Eye-content movement must never shift/recenter the blink frames.
-- Blink timing and eye-content timing remain independent.
-- Current demo modes: neutral, directional gaze, small/large pupil, dilation, automatic wander, vertical slit, all black, inverse, all white.
+- V24 supersedes V23 for eye-content behavior.
+- Eye content must not use continuously eased perfect-circle motion as its primary visual language.
+- Eye-content motion is quantized into visible temporal and geometric steps.
+- V24 renders the inner eye on a 24×16 logical buffer and upscales with nearest-neighbor sampling.
+- Per-frame V21 aperture masking remains mandatory.
+- Blink and eye-content clocks remain independent.
+- Pupil dilation may end in full-black sclera.
+- Pupil contraction may reveal red or other sclera colors while maintaining the pupil's prior center.
+- Pupil shape may change between circle, oval, slit, thin slit, full aperture, dot, or none.
+- Current V24 sequences: look_scan, dilate_to_black, contract_reveal_red, slit_breathe, inverse_scan.
 - Local visual QA passed before publication.
-- Player integration remains blocked until public V23 eye-content review.
+- Player integration remains blocked until public review of V24.

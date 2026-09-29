@@ -4,131 +4,210 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#555">
-<title>Prometeo · Eye Lab V23</title>
+<title>Prometeo · Eye Lab V24</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#555;touch-action:none;overscroll-behavior:none}
 body{display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,#777 0%,#606060 54%,#424242 100%)}
-#eye{width:min(94vw,82vh,760px);aspect-ratio:1/1;display:block}
+#eye{width:min(94vw,82vh,760px);aspect-ratio:1/1;display:block;image-rendering:auto}
 #status{position:fixed;left:12px;right:12px;bottom:12px;margin:auto;max-width:760px;padding:9px 11px;border-radius:8px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.14);color:#fff;font:700 12px/1.35 system-ui,sans-serif;text-align:center;white-space:pre-wrap;pointer-events:none}
 #status.ok{display:none}
 #status.error{background:#6e1c1c}
-#mode{position:fixed;top:12px;left:12px;right:12px;text-align:center;color:rgba(255,255,255,.66);font:600 12px/1.2 system-ui,sans-serif;pointer-events:none;text-shadow:0 1px 1px rgba(0,0,0,.35);transition:opacity .35s}
+#mode{position:fixed;top:12px;left:12px;right:12px;text-align:center;color:rgba(255,255,255,.72);font:600 12px/1.2 system-ui,sans-serif;pointer-events:none;text-shadow:0 1px 1px rgba(0,0,0,.35);transition:opacity .35s}
 </style>
 </head>
 <body>
-<canvas id="eye" width="128" height="128" aria-label="Ojo procedural detrás del pestañeo V21"></canvas>
+<canvas id="eye" width="128" height="128" aria-label="Ojo con blink V21 y animaciones discretas de pupila"></canvas>
 <div id="mode"></div>
-<div id="status">cargando blink V21 + capa procedural…</div>
+<div id="status">cargando V24…</div>
 <script type="module">
-const canvas=document.querySelector('#eye');
+const canvas=document.getElementById('eye');
 const ctx=canvas.getContext('2d',{alpha:true});
-const status=document.querySelector('#status');
-const modeLabel=document.querySelector('#mode');
+const status=document.getElementById('status');
+const modeLabel=document.getElementById('mode');
 ctx.imageSmoothingEnabled=true;
 
-const PACK_URL='./sprite-pack-v21.json?v=23';
+const PACK_URL='./sprite-pack-v21.json?v=24';
 const BLINK='blink';
-const AUTO_BLINK=[2800,3400,4100,3100];
+const AUTO_BLINK=[2900,3500,4300,3100];
 const ALPHA_BARRIER=40;
-const DILATE_RADIUS=1;
+const DILATE_BARRIER=1;
+const LOW_W=24, LOW_H=16;
+const COLORS={white:'#ffffff', black:'#000000', red:'#b40000', darkred:'#560000', gray:'#c8c8c8'};
 
-let pack=null,decoded=new Map(),apertures=new Map(),defaultGeometry=null;
-let activeBlink=null,blinkSteps=[],blinkStarts=[],blinkTotal=0,blinkCadenceIndex=0,nextBlinkAt=Infinity;
-let modeIndex=0,modeLabelTimer=0,wanderIndex=0,nextWanderAt=0;
+let pack=null, decoded=new Map(), apertures=new Map(), defaultGeometry=null;
+let activeBlink=null, blinkSteps=[], blinkStarts=[], blinkTotal=0, blinkCadenceIndex=0, nextBlinkAt=Infinity;
+let sequenceIndex=0, sequenceStart=0, modeHideTimer=0;
+const QUERY=new URLSearchParams(location.search);
+const QA_STEP=QUERY.has('step')?Number(QUERY.get('step')):null;
+const QA_NO_BLINK=QUERY.get('noblink')==='1';
 
-const modes=[
-{id:'neutral',label:'neutral',fill:'#fff',pupil:'#000',shape:'circle',x:0,y:0,r:.22},
-{id:'look_left',label:'mirada izquierda',fill:'#fff',pupil:'#000',shape:'circle',x:-.72,y:0,r:.22},
-{id:'look_right',label:'mirada derecha',fill:'#fff',pupil:'#000',shape:'circle',x:.72,y:0,r:.22},
-{id:'look_up',label:'mirada arriba',fill:'#fff',pupil:'#000',shape:'circle',x:0,y:-.72,r:.22},
-{id:'look_down',label:'mirada abajo',fill:'#fff',pupil:'#000',shape:'circle',x:0,y:.70,r:.22},
-{id:'small',label:'pupila chica',fill:'#fff',pupil:'#000',shape:'circle',x:0,y:0,r:.12},
-{id:'large',label:'pupila grande',fill:'#fff',pupil:'#000',shape:'circle',x:0,y:0,r:.36},
-{id:'dilate',label:'dilatación',fill:'#fff',pupil:'#000',shape:'circle',x:0,y:0,r:.20,pulse:true},
-{id:'wander',label:'mirada automática',fill:'#fff',pupil:'#000',shape:'circle',x:0,y:0,r:.22,wander:true},
-{id:'slit',label:'pupila vertical',fill:'#fff',pupil:'#000',shape:'slit',x:0,y:0,r:.31},
-{id:'all_black',label:'ojo negro',fill:'#000',pupil:null,shape:'none',x:0,y:0,r:0},
-{id:'inverse',label:'ojo negro + pupila blanca',fill:'#000',pupil:'#fff',shape:'circle',x:0,y:0,r:.19,wander:true},
-{id:'all_white',label:'ojo blanco',fill:'#fff',pupil:null,shape:'none',x:0,y:0,r:0}
+const sequences=[
+  {
+    id:'look_scan', label:'scan stepped', loop:true,
+    steps:[
+      {ms:180, fill:'white', pupil:'black', shape:'circle', x:0, y:0, size:'m'},
+      {ms:120, fill:'white', pupil:'black', shape:'circle', x:-1, y:0, size:'m'},
+      {ms:120, fill:'white', pupil:'black', shape:'circle', x:-2, y:0, size:'m'},
+      {ms:140, fill:'white', pupil:'black', shape:'circle', x:0, y:0, size:'m'},
+      {ms:120, fill:'white', pupil:'black', shape:'circle', x:1, y:0, size:'m'},
+      {ms:120, fill:'white', pupil:'black', shape:'circle', x:2, y:0, size:'m'},
+      {ms:150, fill:'white', pupil:'black', shape:'circle', x:0, y:0, size:'m'},
+      {ms:120, fill:'white', pupil:'black', shape:'circle', x:0, y:-1, size:'m'},
+      {ms:120, fill:'white', pupil:'black', shape:'circle', x:0, y:1, size:'m'}
+    ]
+  },
+  {
+    id:'dilate_to_black', label:'dilate → black', loop:true,
+    steps:[
+      {ms:130, fill:'white', pupil:'black', shape:'circle', x:0, y:0, size:'s'},
+      {ms:130, fill:'white', pupil:'black', shape:'circle', x:0, y:0, size:'m'},
+      {ms:130, fill:'white', pupil:'black', shape:'circle', x:0, y:0, size:'l'},
+      {ms:130, fill:'white', pupil:'black', shape:'circle', x:0, y:0, size:'xl'},
+      {ms:160, fill:'white', pupil:'black', shape:'full', x:0, y:0, size:'full'},
+      {ms:210, fill:'black', pupil:null, shape:'none', x:0, y:0, size:'full'},
+      {ms:160, fill:'black', pupil:null, shape:'none', x:0, y:0, size:'full'}
+    ]
+  },
+  {
+    id:'contract_reveal_red', label:'contract + red', loop:true,
+    steps:[
+      {ms:170, fill:'black', pupil:null, shape:'none', x:0, y:0, size:'full'},
+      {ms:130, fill:'red', pupil:'black', shape:'full', x:0, y:0, size:'full'},
+      {ms:120, fill:'red', pupil:'black', shape:'circle', x:0, y:0, size:'xl'},
+      {ms:120, fill:'red', pupil:'black', shape:'circle', x:0, y:0, size:'l'},
+      {ms:120, fill:'red', pupil:'black', shape:'circle', x:0, y:0, size:'m'},
+      {ms:150, fill:'red', pupil:'black', shape:'circle', x:0, y:0, size:'s'},
+      {ms:180, fill:'red', pupil:'black', shape:'dot', x:0, y:0, size:'dot'}
+    ]
+  },
+  {
+    id:'slit_breathe', label:'slit breathe', loop:true,
+    steps:[
+      {ms:150, fill:'white', pupil:'black', shape:'circle', x:0, y:0, size:'m'},
+      {ms:120, fill:'white', pupil:'black', shape:'oval', x:0, y:0, size:'m'},
+      {ms:120, fill:'white', pupil:'black', shape:'slit', x:0, y:0, size:'l'},
+      {ms:150, fill:'white', pupil:'black', shape:'slitThin', x:0, y:0, size:'l'},
+      {ms:120, fill:'white', pupil:'black', shape:'slit', x:0, y:0, size:'l'},
+      {ms:130, fill:'white', pupil:'black', shape:'oval', x:0, y:0, size:'m'}
+    ]
+  },
+  {
+    id:'inverse_scan', label:'black + white pupil', loop:true,
+    steps:[
+      {ms:180, fill:'black', pupil:'white', shape:'circle', x:0, y:0, size:'s'},
+      {ms:120, fill:'black', pupil:'white', shape:'circle', x:-2, y:0, size:'s'},
+      {ms:120, fill:'black', pupil:'white', shape:'circle', x:2, y:0, size:'s'},
+      {ms:120, fill:'black', pupil:'white', shape:'circle', x:0, y:-1, size:'s'},
+      {ms:120, fill:'black', pupil:'white', shape:'circle', x:0, y:1, size:'s'},
+      {ms:160, fill:'black', pupil:'white', shape:'slit', x:0, y:0, size:'m'}
+    ]
+  }
 ];
-const current={x:0,y:0,r:.22},target={x:0,y:0,r:.22};
 
-function setStatus(msg,kind=''){status.textContent=msg;status.className=kind}
-function ease(a,b,k){return a+(b-a)*k}
-function b64bytes(s){const bin=atob(s),out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out}
-async function sha256hex(bytes){const h=await crypto.subtle.digest('SHA-256',bytes);return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('')}
+function setStatus(msg, kind=''){status.textContent=msg;status.className=kind;}
+function b64bytes(s){const bin=atob(s), out=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i); return out;}
+async function sha256hex(bytes){const h=await crypto.subtle.digest('SHA-256',bytes);return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('');}
 
 function validatePack(p){
-if(!p||p.schema!=='PROMETEO_INDEXED_SPRITE_PACK_V2')throw new Error('schema V21 inválido');
-if(p.logical_size?.[0]!==128||p.logical_size?.[1]!==128)throw new Error('logical_size V21 inesperado');
-if(!Array.isArray(p.frames)||!p.frames.length)throw new Error('V21 sin frames');
-const ids=new Set(p.frames.map(f=>f.id));if(ids.size!==p.frames.length)throw new Error('ids duplicados');
-const a=p.animations?.[BLINK];if(!a?.frames?.length)throw new Error('blink faltante');
-for(const s of a.frames)if(!ids.has(s.id)||!Number.isFinite(s.duration_ms)||s.duration_ms<=0)throw new Error('blink inválido')
+  if(!p||p.schema!=='PROMETEO_INDEXED_SPRITE_PACK_V2') throw new Error('schema inválido');
+  if(p.logical_size?.[0]!==128||p.logical_size?.[1]!==128) throw new Error('logical size inválido');
+  const ids=new Set((p.frames||[]).map(f=>f.id));
+  if(!ids.size) throw new Error('sin frames');
+  const a=p.animations?.[BLINK]; if(!a?.frames?.length) throw new Error('blink faltante');
+  for(const s of a.frames) if(!ids.has(s.id)||!Number.isFinite(s.duration_ms)||s.duration_ms<=0) throw new Error('blink inválido');
 }
-
 async function decodeFrame(frame){
-const bytes=b64bytes(frame.data_b64||'');if(bytes.length!==frame.byte_length)throw new Error(frame.id+': byte_length');
-if(await sha256hex(bytes)!==frame.sha256)throw new Error(frame.id+': sha256');
-const pal=pack.encoding.palette_rgba,rgba=new Uint8ClampedArray(128*128*4);let px=0;
-for(let i=0;i<bytes.length;i+=2){const count=bytes[i],pi=bytes[i+1];if(count<=0||pi>=pal.length)throw new Error(frame.id+': RLE');const c=pal[pi];
-for(let n=0;n<count;n++){if(px>=16384)throw new Error(frame.id+': overflow');const o=px++*4;rgba[o]=c[0];rgba[o+1]=c[1];rgba[o+2]=c[2];rgba[o+3]=c[3]}}
-if(px!==16384)throw new Error(frame.id+': pixel count');
-const off=document.createElement('canvas');off.width=128;off.height=128;off.getContext('2d').putImageData(new ImageData(rgba,128,128),0,0);return off
+  const bytes=b64bytes(frame.data_b64||'');
+  if(bytes.length!==frame.byte_length) throw new Error(frame.id+': byte_length');
+  if(await sha256hex(bytes)!==frame.sha256) throw new Error(frame.id+': sha256');
+  const pal=pack.encoding.palette_rgba, rgba=new Uint8ClampedArray(128*128*4); let px=0;
+  for(let i=0;i<bytes.length;i+=2){ const count=bytes[i], pi=bytes[i+1]; if(count<=0||pi>=pal.length) throw new Error(frame.id+': RLE'); const c=pal[pi];
+    for(let n=0;n<count;n++){ if(px>=16384) throw new Error(frame.id+': overflow'); const o=px++*4; rgba[o]=c[0]; rgba[o+1]=c[1]; rgba[o+2]=c[2]; rgba[o+3]=c[3]; }}
+  if(px!==16384) throw new Error(frame.id+': pixels');
+  const off=document.createElement('canvas'); off.width=128; off.height=128; off.getContext('2d').putImageData(new ImageData(rgba,128,128),0,0); return off;
 }
-
 function buildAperture(frameCanvas){
-const src=frameCanvas.getContext('2d').getImageData(0,0,128,128).data,blocked=new Uint8Array(16384);
-for(let i=0;i<16384;i++)blocked[i]=src[i*4+3]>=ALPHA_BARRIER?1:0;
-for(let pass=0;pass<DILATE_RADIUS;pass++){const copy=blocked.slice();for(let y=1;y<127;y++)for(let x=1;x<127;x++){const i=y*128+x;if(copy[i])continue;if(copy[i-1]||copy[i+1]||copy[i-128]||copy[i+128])blocked[i]=1}}
-const seen=new Uint8Array(16384);let best=null;const qx=new Int16Array(16384),qy=new Int16Array(16384);
-for(let sy=1;sy<127;sy++)for(let sx=1;sx<127;sx++){const start=sy*128+sx;if(blocked[start]||seen[start])continue;
-let head=0,tail=0,touches=false;const pts=[];let minx=127,miny=127,maxx=0,maxy=0,sumx=0,sumy=0;
-qx[tail]=sx;qy[tail++]=sy;seen[start]=1;
-while(head<tail){const x=qx[head],y=qy[head++],i=y*128+x;pts.push(i);if(x===0||y===0||x===127||y===127)touches=true;
-if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;sumx+=x;sumy+=y;
-for(const [nx,ny] of [[x-1,y],[x+1,y],[x,y-1],[x,y+1]]){if(nx<0||ny<0||nx>=128||ny>=128)continue;const ni=ny*128+nx;if(!blocked[ni]&&!seen[ni]){seen[ni]=1;qx[tail]=nx;qy[tail++]=ny}}}
-if(!touches&&pts.length>8&&(!best||pts.length>best.pts.length))best={pts,minx,miny,maxx,maxy,sumx,sumy}}
-const mask=document.createElement('canvas');mask.width=128;mask.height=128;const mctx=mask.getContext('2d'),out=mctx.createImageData(128,128);
-if(!best)return {mask,bbox:null,cx:64,cy:70,area:0};
-for(const i of best.pts){const o=i*4;out.data[o]=255;out.data[o+1]=255;out.data[o+2]=255;out.data[o+3]=255}
-mctx.putImageData(out,0,0);return {mask,bbox:[best.minx,best.miny,best.maxx+1,best.maxy+1],cx:best.sumx/best.pts.length,cy:best.sumy/best.pts.length,area:best.pts.length}
+  const src=frameCanvas.getContext('2d').getImageData(0,0,128,128).data; const blocked=new Uint8Array(16384);
+  for(let i=0;i<16384;i++) blocked[i]=src[i*4+3]>=ALPHA_BARRIER?1:0;
+  for(let pass=0;pass<DILATE_BARRIER;pass++){
+    const copy=blocked.slice();
+    for(let y=1;y<127;y++)for(let x=1;x<127;x++){ const i=y*128+x; if(copy[i]) continue; if(copy[i-1]||copy[i+1]||copy[i-128]||copy[i+128]) blocked[i]=1; }
+  }
+  const seen=new Uint8Array(16384); let best=null; const qx=new Int16Array(16384), qy=new Int16Array(16384);
+  for(let sy=1;sy<127;sy++)for(let sx=1;sx<127;sx++){
+    const start=sy*128+sx; if(blocked[start]||seen[start]) continue;
+    let head=0,tail=0,touches=false,sumx=0,sumy=0,minx=127,miny=127,maxx=0,maxy=0; const pts=[];
+    qx[tail]=sx; qy[tail++]=sy; seen[start]=1;
+    while(head<tail){ const x=qx[head], y=qy[head++], i=y*128+x; pts.push(i); if(x===0||y===0||x===127||y===127) touches=true; if(x<minx)minx=x; if(x>maxx)maxx=x; if(y<miny)miny=y; if(y>maxy)maxy=y; sumx+=x; sumy+=y;
+      const ns=[[x-1,y],[x+1,y],[x,y-1],[x,y+1]]; for(const [nx,ny] of ns){ if(nx<0||ny<0||nx>=128||ny>=128) continue; const ni=ny*128+nx; if(!blocked[ni]&&!seen[ni]){ seen[ni]=1; qx[tail]=nx; qy[tail++]=ny; }} }
+    if(!touches && pts.length>8 && (!best || pts.length>best.pts.length)) best={pts,minx,miny,maxx,maxy,sumx,sumy};
+  }
+  const mask=document.createElement('canvas'); mask.width=128; mask.height=128; const mctx=mask.getContext('2d'), out=mctx.createImageData(128,128);
+  if(!best) return {mask,bbox:[38,54,90,86],cx:64,cy:70,area:0};
+  for(const i of best.pts){ const o=i*4; out.data[o]=255; out.data[o+1]=255; out.data[o+2]=255; out.data[o+3]=255; }
+  mctx.putImageData(out,0,0);
+  return {mask,bbox:[best.minx,best.miny,best.maxx+1,best.maxy+1],cx:best.sumx/best.pts.length,cy:best.sumy/best.pts.length,area:best.pts.length};
 }
-
-function showMode(s){modeLabel.textContent=s;modeLabel.style.opacity='1';clearTimeout(modeLabelTimer);modeLabelTimer=setTimeout(()=>modeLabel.style.opacity='0',900)}
-function setMode(index,blink=true){modeIndex=(index+modes.length)%modes.length;const m=modes[modeIndex];target.x=m.x||0;target.y=m.y||0;target.r=m.r||0;showMode(m.label);if(blink)triggerBlink()}
-function scheduleBlink(now){nextBlinkAt=now+AUTO_BLINK[blinkCadenceIndex++%AUTO_BLINK.length]}
-function triggerBlink(){if(!pack)return;activeBlink={start:performance.now()};scheduleBlink(performance.now())}
-function frameAt(now){if(!activeBlink)return pack.default_frame;const t=now-activeBlink.start;if(t>=blinkTotal){activeBlink=null;return pack.default_frame}
-for(let i=blinkStarts.length-1;i>=0;i--)if(t>=blinkStarts[i])return blinkSteps[i].id;return blinkSteps[0].id}
-
-function updateDynamics(now){const m=modes[modeIndex];
-if(m.wander&&now>=nextWanderAt){const path=[[-.75,-.15],[.65,-.3],[.35,.55],[-.55,.45],[0,0],[.75,.1],[-.2,-.65],[0,0]],p=path[wanderIndex++%path.length];target.x=p[0];target.y=p[1];nextWanderAt=now+520}
-if(m.pulse)target.r=.14+(Math.sin(now*.006)+1)*.12;
-const k=.22;current.x=ease(current.x,target.x,k);current.y=ease(current.y,target.y,k);current.r=ease(current.r,target.r,k)
+function sequenceDuration(seq){ return seq.steps.reduce((a,s)=>a+s.ms,0); }
+function currentStep(now){
+  const seq=sequences[sequenceIndex];
+  if(Number.isInteger(QA_STEP) && QA_STEP>=0 && QA_STEP<seq.steps.length) return seq.steps[QA_STEP];
+  const dur=sequenceDuration(seq); let t=(now-sequenceStart); if(seq.loop) t=((t%dur)+dur)%dur; else t=Math.min(t,dur-1);
+  let acc=0; for(const s of seq.steps){ acc+=s.ms; if(t<acc) return s; } return seq.steps[seq.steps.length-1];
 }
+function showMode(msg){ modeLabel.textContent=msg; modeLabel.style.opacity='1'; clearTimeout(modeHideTimer); modeHideTimer=setTimeout(()=>modeLabel.style.opacity='0',950); }
+function nextSequence(){ sequenceIndex=(sequenceIndex+1)%sequences.length; sequenceStart=performance.now(); showMode(sequences[sequenceIndex].label); triggerBlink(); }
+function scheduleBlink(now){ nextBlinkAt=now+AUTO_BLINK[blinkCadenceIndex++%AUTO_BLINK.length]; }
+function triggerBlink(){ if(!pack) return; activeBlink={start:performance.now()}; scheduleBlink(performance.now()); }
+function blinkFrameAt(now){ if(!activeBlink) return pack.default_frame; const t=now-activeBlink.start; if(t>=blinkTotal){ activeBlink=null; return pack.default_frame; } for(let i=blinkStarts.length-1;i>=0;i--) if(t>=blinkStarts[i]) return blinkSteps[i].id; return blinkSteps[0].id; }
 
-function drawContent(frameId){
-const ap=apertures.get(frameId);if(!ap||ap.area===0)return;const m=modes[modeIndex],g=defaultGeometry;
-const layer=document.createElement('canvas');layer.width=128;layer.height=128;const l=layer.getContext('2d');l.fillStyle=m.fill||'#fff';l.fillRect(0,0,128,128);
-if(m.pupil){const bw=g.bbox[2]-g.bbox[0],bh=g.bbox[3]-g.bbox[1],travelX=bw*.29,travelY=bh*.25,px=g.cx+current.x*travelX,py=g.cy+current.y*travelY,base=Math.min(bw,bh),r=Math.max(1,current.r*base);
-l.fillStyle=m.pupil;l.beginPath();if(m.shape==='slit')l.ellipse(px,py,Math.max(1,r*.34),r*1.25,0,0,Math.PI*2);else l.arc(px,py,r,0,Math.PI*2);l.fill()}
-l.globalCompositeOperation='destination-in';l.drawImage(ap.mask,0,0);ctx.drawImage(layer,0,0)
+function stepSize(base, name){ const map={dot:0.10, xs:0.14, s:0.18, m:0.25, l:0.34, xl:0.43, full:0.62}; return (map[name]||0.25)*base; }
+function drawLowContent(step, geom){
+  const low=document.createElement('canvas'); low.width=LOW_W; low.height=LOW_H; const l=low.getContext('2d'); l.imageSmoothingEnabled=false;
+  const fill=COLORS[step.fill||'white']||step.fill||'#fff'; l.fillStyle=fill; l.fillRect(0,0,LOW_W,LOW_H);
+  if(step.pupil){
+    const pupil=COLORS[step.pupil]||step.pupil||'#000'; l.fillStyle=pupil;
+    const cx=Math.round(LOW_W/2 + (step.x||0)*3); const cy=Math.round(LOW_H/2 + (step.y||0)*2);
+    const base=Math.min(LOW_W,LOW_H); const r=stepSize(base, step.size||'m');
+    const shape=step.shape||'circle';
+    l.beginPath();
+    if(shape==='dot') l.arc(cx, cy, Math.max(1, r*0.35), 0, Math.PI*2);
+    else if(shape==='oval') l.ellipse(cx, cy, Math.max(1, r*0.75), Math.max(1,r*0.55), 0, 0, Math.PI*2);
+    else if(shape==='slit') l.ellipse(cx, cy, Math.max(1, r*0.25), Math.max(2,r*0.95), 0, 0, Math.PI*2);
+    else if(shape==='slitThin') l.ellipse(cx, cy, 1.2, Math.max(2,r*1.1), 0, 0, Math.PI*2);
+    else if(shape==='full') l.ellipse(cx, cy, Math.max(2,r), Math.max(2,r), 0, 0, Math.PI*2);
+    else l.arc(cx, cy, Math.max(1,r*0.8), 0, Math.PI*2);
+    l.fill();
+  }
+  const scaled=document.createElement('canvas'); scaled.width=128; scaled.height=128; const s=scaled.getContext('2d'); s.imageSmoothingEnabled=false;
+  s.drawImage(low, geom.bbox[0], geom.bbox[1], geom.bbox[2]-geom.bbox[0], geom.bbox[3]-geom.bbox[1]);
+  return scaled;
 }
-
-function render(now){if(!pack)return;if(now>=nextBlinkAt&&!activeBlink)triggerBlink();updateDynamics(now);const id=frameAt(now);ctx.clearRect(0,0,128,128);drawContent(id);ctx.drawImage(decoded.get(id),0,0);requestAnimationFrame(render)}
-
-async function boot(){try{
-const r=await fetch(PACK_URL,{cache:'no-store'});if(!r.ok)throw new Error('sprite-pack HTTP '+r.status);pack=await r.json();validatePack(pack);
-for(const f of pack.frames){const c=await decodeFrame(f);decoded.set(f.id,c);apertures.set(f.id,buildAperture(c))}
-defaultGeometry=apertures.get(pack.default_frame);if(!defaultGeometry?.area)throw new Error('no pude derivar la apertura del frame abierto');
-const a=pack.animations[BLINK];blinkSteps=a.frames.slice();blinkStarts=[];blinkTotal=0;for(const s of blinkSteps){blinkStarts.push(blinkTotal);blinkTotal+=s.duration_ms}
-const requested=new URLSearchParams(location.search).get('mode'),idx=modes.findIndex(m=>m.id===requested);setMode(idx>=0?idx:0,false);scheduleBlink(performance.now());setStatus('','ok');requestAnimationFrame(render)
-}catch(e){setStatus('ERROR EYE V23\n'+String(e?.message||e),'error')}}
-
-window.addEventListener('pointerdown',e=>{if(e.cancelable)e.preventDefault();setMode(modeIndex+1,true)},{passive:false});
-window.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='Enter'){e.preventDefault();setMode(modeIndex+1,true)}else if(e.key==='ArrowLeft'){e.preventDefault();setMode(modeIndex-1,true)}else if(e.key==='ArrowRight'){e.preventDefault();setMode(modeIndex+1,true)}});
+function render(now){
+  if(!pack) return; if(!QA_NO_BLINK && now>=nextBlinkAt&&!activeBlink) triggerBlink();
+  const blinkId=blinkFrameAt(now), ap=apertures.get(blinkId), step=currentStep(now);
+  ctx.clearRect(0,0,128,128);
+  if(ap && ap.area>0){
+    const layer=drawLowContent(step, defaultGeometry);
+    const clip=document.createElement('canvas'); clip.width=128; clip.height=128; const c=clip.getContext('2d'); c.drawImage(layer,0,0); c.globalCompositeOperation='destination-in'; c.drawImage(ap.mask,0,0); ctx.drawImage(clip,0,0);
+  }
+  ctx.drawImage(decoded.get(blinkId),0,0);
+  requestAnimationFrame(render);
+}
+async function boot(){
+  try{
+    const r=await fetch(PACK_URL,{cache:'no-store'}); if(!r.ok) throw new Error('sprite-pack HTTP '+r.status);
+    pack=await r.json(); validatePack(pack);
+    for(const f of pack.frames){ const c=await decodeFrame(f); decoded.set(f.id,c); apertures.set(f.id, buildAperture(c)); }
+    defaultGeometry=apertures.get(pack.default_frame); if(!defaultGeometry?.area) throw new Error('no pude derivar apertura');
+    const a=pack.animations[BLINK]; blinkSteps=a.frames.slice(); blinkStarts=[]; blinkTotal=0; for(const s of blinkSteps){ blinkStarts.push(blinkTotal); blinkTotal+=s.duration_ms; }
+    const requested=QUERY.get('seq'); const requestedIndex=sequences.findIndex(s=>s.id===requested); if(requestedIndex>=0) sequenceIndex=requestedIndex;
+    sequenceStart=performance.now(); if(!QA_NO_BLINK) scheduleBlink(sequenceStart); showMode(sequences[sequenceIndex].label); setStatus('', 'ok'); requestAnimationFrame(render);
+  }catch(e){ setStatus('ERROR V24\n'+String(e?.message||e), 'error'); }
+}
+window.addEventListener('pointerdown', e=>{ if(e.cancelable)e.preventDefault(); nextSequence(); }, {passive:false});
+window.addEventListener('keydown', e=>{ if(e.code==='Space'||e.code==='Enter'||e.key==='ArrowRight'){ e.preventDefault(); nextSequence(); } });
 boot();
 </script>
 </body>

@@ -2,68 +2,40 @@
 
 Status: CURRENT
 
-## Latest direction
-The user simplified the plan: do not create another frame animation for every pupil state.
+## Latest user direction
+The user rejected the overly smooth procedural-circle feel.
 
-Use two independent layers:
-1. accepted V21 blink / eye frame;
-2. procedural eye content behind it.
+Desired visual language:
+- inner-eye animation should feel stepped / low-FPS like the accepted blink;
+- pupil does not need to remain a perfect circle;
+- pupil and sclera can animate independently;
+- black-eye transformation should happen by pupil dilation until it occupies the whole opening;
+- inverse transformation can shrink the black pupil while revealing another color, explicitly red as an example;
+- all of this must remain independent from V21 blink.
 
-The user explicitly wants things such as:
-- black pupil moving in every direction;
-- white or black inner eye;
-- pupil growing/shrinking;
-- independent eye-content animation while blink remains unchanged.
+## V24
+V24 keeps V21 blink untouched and replaces smooth eye-content interpolation with discrete state sequences rendered on a deliberately low-resolution 24×16 inner surface.
 
-## V23 implementation
-V23 follows that direction.
+Current sequences:
+- look_scan: discrete gaze jumps;
+- dilate_to_black: pupil grows by visible steps until full black;
+- contract_reveal_red: black contracts while red is revealed in the freed area;
+- slit_breathe: circle → oval → slit → thin slit;
+- inverse_scan: black sclera + stepped white pupil.
 
-The V21 blink is unchanged and remains the accepted upper layer.
+The low-res inner surface is enlarged with nearest-neighbor sampling and then clipped by the real aperture mask derived from each current V21 frame.
 
-The lower eye-content layer is procedural:
-- sclera/fill;
-- pupil color;
-- gaze x/y;
-- pupil radius;
-- pupil shape.
+## Local review
+A contact sheet of every V24 sequence step was generated and visually inspected before publication.
 
-## Important V23 improvement over the local V22 prototype
-V22 used a hard-coded ellipse as the opening mask.
-
-V23 removes that approximation.
-
-For every actual V21 blink frame V23:
-- decodes the real frame alpha;
-- builds an opacity barrier;
-- dilates it by one pixel to seal antialias gaps;
-- finds transparent connected components;
-- throws away components touching the canvas edge;
-- uses the largest enclosed component as the actual eye opening.
-
-Therefore the pupil/sclera are clipped by the **real accepted eyelid geometry** on every blink frame.
-
-Measured aperture areas:
-- frame_00 1239
-- frame_01 1060
-- frame_02 700
-- frame_03 395
-- frame_04 90
-- frame_05 0
-- frame_06 48
-- frame_07 509
-- frame_08 1024
-- frame_09 1295
-
-The closed frame is automatically detected as frame_05.
-
-## Local QA performed
-Before publication the V23 composition was rendered locally and inspected for:
-- neutral eye;
-- gaze left;
-- all-black eye;
-- full blink sequence with procedural content clipped underneath.
+Observed result:
+- gaze movement reads as discrete rather than smoothly interpolated;
+- dilation visibly advances in size stages;
+- red reveal preserves the centered shrinking pupil idea;
+- slit transformations read as distinct morphology states;
+- inverse mode remains legible.
 
 Result: PASS_LOCAL_VISUAL_QA.
 
-## Current review
-The next review is about eye-content look/behavior only. Do not reopen the accepted V21 blink architecture unless new evidence shows a blink defect.
+## Current review target
+Review the public V24 vocabulary. Do not reopen the accepted V21 blink unless new evidence shows a blink defect.
