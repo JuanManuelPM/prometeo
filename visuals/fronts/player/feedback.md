@@ -3,39 +3,48 @@
 Status: CURRENT
 
 ## Latest user direction
-The user rejected the overly smooth procedural-circle feel.
+The eye-content system should become much richer and more reusable:
+- many more animations and color variations;
+- colors should be variable-driven rather than one-off hard-coded versions;
+- pupil may become black, red, white, slit, dot, or other forms;
+- dilation should contain more frames because V24 advanced too quickly;
+- the eye itself should be able to become a play/pause button;
+- clicking play should reproduce audio, clicking again should pause;
+- previous audio visualization language should be reused: waveform / bend-stick / line-boil behavior linked to actual audio amplitude;
+- GIF/video may appear inside the eye aperture as the pupil contracts or as a portal state.
 
-Desired visual language:
-- inner-eye animation should feel stepped / low-FPS like the accepted blink;
-- pupil does not need to remain a perfect circle;
-- pupil and sclera can animate independently;
-- black-eye transformation should happen by pupil dilation until it occupies the whole opening;
-- inverse transformation can shrink the black pupil while revealing another color, explicitly red as an example;
-- all of this must remain independent from V21 blink.
+## Recovered audio design precedent
+Prometeo previously established:
+- one real PLAY/audio source feeds shared visualization;
+- Web Audio AnalyserNode provides waveform/energy data;
+- visual activity follows amplitude/silence;
+- line-boil is intentionally quantized at roughly low FPS even if audio analysis runs continuously.
 
-## V24
-V24 keeps V21 blink untouched and replaces smooth eye-content interpolation with discrete state sequences rendered on a deliberately low-resolution 24×16 inner surface.
+V25 reuses those principles rather than inventing unrelated audio chrome.
 
-Current sequences:
-- look_scan: discrete gaze jumps;
-- dilate_to_black: pupil grows by visible steps until full black;
-- contract_reveal_red: black contracts while red is revealed in the freed area;
-- slit_breathe: circle → oval → slit → thin slit;
-- inverse_scan: black sclera + stepped white pupil.
+## V25
+V25 externalizes effect definitions into:
+`visuals/eye-frame-lab/eye-effects-v25.json`
 
-The low-res inner surface is enlarged with nearest-neighbor sampling and then clipped by the real aperture mask derived from each current V21 frame.
+The renderer keeps V21 blink independent.
 
-## Local review
-A contact sheet of every V24 sequence step was generated and visually inspected before publication.
+Effects:
+- dilate_long: 14 discrete pupil sizes ending in full black;
+- contract_red: centered black contraction revealing red;
+- scan: stepped low-FPS gaze;
+- chromatic: parameterized hue animation;
+- audio_player: eye becomes play/pause, browser-local audio loop + AnalyserNode waveform halo;
+- media_portal: GIF/video surface inside aperture, with procedural moving fallback;
+- glitch: discrete color/shape/gaze changes.
 
-Observed result:
-- gaze movement reads as discrete rather than smoothly interpolated;
-- dilation visibly advances in size stages;
-- red reveal preserves the centered shrinking pupil idea;
-- slit transformations read as distinct morphology states;
-- inverse mode remains legible.
+## Fast variables
+URL/config overrides:
+- effect
+- hue
+- fps
+- media
 
-Result: PASS_LOCAL_VISUAL_QA.
+This allows whole families of examples to change by data/variables instead of renderer rewrites.
 
-## Current review target
-Review the public V24 vocabulary. Do not reopen the accepted V21 blink unless new evidence shows a blink defect.
+## Current review
+V25 has been implemented and published for public review. Do not treat it as visually accepted until the user inspects it.
