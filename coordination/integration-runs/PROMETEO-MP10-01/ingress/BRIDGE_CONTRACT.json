@@ -1,0 +1,79 @@
+{
+  "schema": "prometeo.github-ingress-bridge-contract/v1",
+  "run_id": "PROMETEO-MP10-01",
+  "slot_id": "S003",
+  "status": "CANDIDATE_FAIL_CLOSED",
+  "purpose": "Carry V11 command input to the existing Prometeo execution path without exposing repository credentials or raw private command text in public GitHub metadata.",
+  "browser_contract": {
+    "global": "window.PROMETEO_INGRESS_V1",
+    "method": "submit({page,text,kind})",
+    "result_shape": {
+      "status": "string",
+      "ref": "string|null",
+      "queued": "boolean",
+      "error": "string|null"
+    },
+    "no_transport_result": {
+      "status": "BOUNDARY_AUTH_REQUIRED",
+      "ref": null,
+      "queued": false,
+      "error": "AUTH_BRIDGE_REQUIRED"
+    }
+  },
+  "injected_transport": {
+    "global": "window.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1",
+    "method": "submit({public_envelope,private_payload})",
+    "public_envelope_schema": "prometeo.browser-ingress-request/v1",
+    "private_payload": {
+      "text": "raw command text; MUST NOT be committed to the public Prometeo repository by the bridge"
+    },
+    "success_result": {
+      "schema": "prometeo.ingress-transport-result/v1",
+      "status": "QUEUED|ACCEPTED",
+      "ref": "durable GitHub ref under JuanManuelPM/prometeo",
+      "queued": true,
+      "error": null
+    }
+  },
+  "privacy": {
+    "public_repo_may_receive": [
+      "opaque request_id",
+      "created_at",
+      "kind",
+      "sanitized public page metadata",
+      "durable sanitized execution metadata produced by the existing authority path"
+    ],
+    "public_repo_must_never_receive": [
+      "raw command text unless separately and explicitly classified public by a later authority contract",
+      "Capture transcripts",
+      "audio",
+      "attachments",
+      "GitHub PATs",
+      "GitHub App private keys",
+      "OAuth access tokens",
+      "signed private URLs",
+      "private Execution Packet bodies"
+    ],
+    "fail_closed": true
+  },
+  "authority": {
+    "scheduler_owner": "Existing Prometeo PIN/claim/RETURN semantics",
+    "bridge_is_not_scheduler": true,
+    "bridge_is_not_current": true,
+    "bridge_is_not_persistence_authority": true
+  },
+  "zero_cost_candidate": {
+    "direct_pages_to_github_write": "UNSAFE_WITHOUT_CREDENTIAL",
+    "reason": "A public GitHub Pages script cannot safely embed a GitHub write credential; client-side credentials are readable by page code and users. GitHub Pages itself provides no authenticated write endpoint.",
+    "smallest_safe_shape": "One trusted HTTPS transport already controlled by Prometeo or a zero-cost/free-tier bridge that holds GitHub App installation credentials server-side and only writes sanitized metadata into the existing Prometeo authority surface.",
+    "recurring_cost_requirement": "USD 0 mandatory recurring cost",
+    "unresolved_external_boundary": "A trusted authenticated HTTP transport must exist somewhere outside the public page runtime. Until one is bound, the browser adapter returns AUTH_BRIDGE_REQUIRED and V11 keeps the command text intact for fallback.",
+    "github_only_strict_mode": "If strict GitHub-only means no trusted HTTP bridge at all, automatic browser-to-GitHub durable write remains an authentication boundary rather than something this adapter fakes."
+  },
+  "evidence_law": [
+    "queued=true is accepted only with schema prometeo.ingress-transport-result/v1",
+    "queued=true also requires a durable ref inside JuanManuelPM/prometeo",
+    "transport exceptions downgrade to BOUNDARY_TRANSPORT_FAILED",
+    "malformed success responses downgrade to BOUNDARY_TRANSPORT_INVALID"
+  ]
+}
