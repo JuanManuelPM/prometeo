@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#030403">
+<title>Prometeo · Walk World</title>
+<style>
+:root{--ink:#d9d2c3;--dim:#77756c;--bg:#020302}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{overscroll-behavior:none;touch-action:none;user-select:none;-webkit-user-select:none}
+#shell{position:fixed;inset:0;display:grid;place-items:center;background:#000;overflow:hidden}
+#stage{position:relative;width:min(100vw,177.777vh);height:min(56.25vw,100vh);min-width:280px;min-height:157px;overflow:hidden;background:#030403;cursor:crosshair;isolation:isolate;touch-action:none}
+.layer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#roomBg{object-fit:cover;object-position:center;z-index:0;filter:saturate(.88) contrast(1.08) brightness(.82);transform:scale(1.002)}
+#roomTint{z-index:1;background:radial-gradient(ellipse at 50% 68%,transparent 0 30%,rgba(0,0,0,.18) 70%,rgba(0,0,0,.42) 100%),linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.06) 55%,rgba(0,0,0,.20));mix-blend-mode:multiply}
+#ambient{z-index:2;opacity:.28;background:radial-gradient(circle at 51% 28%,rgba(167,110,48,.09),transparent 20%),linear-gradient(110deg,transparent 0 45%,rgba(140,105,63,.025) 49%,transparent 53%)}
+#dust{z-index:3;overflow:hidden}
+.dust{position:absolute;width:2px;height:2px;border-radius:50%;background:rgba(225,218,190,.36);animation:drift var(--t) linear infinite;animation-delay:var(--d)}
+@keyframes drift{from{transform:translate3d(0,8vh,0);opacity:0}15%{opacity:.28}70%{opacity:.12}to{transform:translate3d(var(--dx),-62vh,0);opacity:0}}
+#target{position:absolute;z-index:5;width:26px;height:12px;border:1px solid rgba(216,199,161,.65);border-radius:50%;transform:translate(-50%,-50%) scale(.2);opacity:0;box-shadow:0 0 18px rgba(204,172,118,.16);pointer-events:none}
+#target.show{animation:targetPulse .5s ease-out}
+@keyframes targetPulse{0%{opacity:0;transform:translate(-50%,-50%) scale(.25)}28%{opacity:.82}100%{opacity:0;transform:translate(-50%,-50%) scale(1.55)}}
+#sign{position:absolute;z-index:7;left:66%;top:-19%;width:15%;aspect-ratio:1.65;transform-origin:50% -18px;transform:rotate(-2deg);opacity:0;pointer-events:none;transition:top .7s cubic-bezier(.2,.82,.18,1),opacity .2s ease,transform .35s ease}
+#sign.visible{top:18%;opacity:1}
+#sign.near{transform:rotate(5deg) translateY(2%)}
+.sign-wire{position:absolute;left:49.5%;bottom:100%;width:1px;height:26%;background:#211b14}
+.sign-board{position:absolute;inset:0;background:linear-gradient(105deg,rgba(190,116,45,.34),transparent 20% 70%,rgba(0,0,0,.26)),repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 4px),#6e482c;border:1px solid #332316;box-shadow:0 10px 18px rgba(0,0,0,.44),inset 0 0 0 2px rgba(213,164,102,.05);display:grid;place-items:center;text-align:center;color:#d6c7ad;font:800 clamp(7px,.72vw,13px)/1.05 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em}
+.sign-board b{font-size:1.7em;display:block;margin-bottom:.22em}
+#player{--s:1;position:absolute;z-index:6;left:50%;top:82%;width:8.4%;aspect-ratio:.62;transform:translate(-50%,-100%) scale(var(--s));transform-origin:50% 100%;will-change:left,top,transform;pointer-events:none}
+#player.facing-left .actor{transform:scaleX(-1)}
+.actor{position:absolute;inset:0;transform-origin:50% 100%;animation:breathe 2.6s ease-in-out infinite}
+#player.walking .actor{animation:walkBob .34s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5%)}}
+@keyframes walkBob{0%,100%{transform:translateY(0) rotate(-.5deg)}50%{transform:translateY(-3%) rotate(.7deg)}}
+.shadow{position:absolute;left:50%;bottom:-1.7%;width:90%;height:13%;transform:translateX(-50%);border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.68),rgba(0,0,0,.05) 70%,transparent);filter:blur(2px)}
+.cloak{position:absolute;left:15%;right:15%;bottom:2%;height:68%;clip-path:polygon(34% 0,66% 0,83% 18%,94% 60%,100% 100%,0 100%,6% 60%,17% 18%);background:radial-gradient(ellipse at 50% 8%,rgba(85,69,54,.6),transparent 36%),linear-gradient(100deg,#090908 0 28%,#211d19 47%,#0c0b0a 63%,#050505 100%);box-shadow:inset 0 0 18px rgba(176,122,74,.08)}
+.cloak:before,.cloak:after{content:"";position:absolute;top:28%;width:34%;height:66%;background:linear-gradient(180deg,rgba(71,57,43,.42),rgba(5,5,5,.18));filter:blur(.2px)}
+.cloak:before{left:4%;clip-path:polygon(0 0,100% 16%,70% 100%,8% 88%)}
+.cloak:after{right:4%;clip-path:polygon(100% 0,0 16%,30% 100%,92% 88%)}
+.eyeGlow{position:absolute;z-index:2;left:50%;top:13%;width:46%;height:20%;transform:translateX(-50%)}
+.eyeGlow:before,.eyeGlow:after{content:"";position:absolute;top:45%;width:10%;aspect-ratio:1;border-radius:50%;background:#b68a4e;box-shadow:0 0 8px rgba(199,151,78,.62),0 0 20px rgba(159,112,57,.28);animation:eyePulse 3.2s ease-in-out infinite}
+.eyeGlow:before{left:20%}.eyeGlow:after{right:20%}
+@keyframes eyePulse{0%,100%{opacity:.48;transform:scale(.8)}50%{opacity:.94;transform:scale(1.05)}}
+.mask{position:absolute;z-index:3;left:50%;top:0;width:72%;height:auto;transform:translateX(-50%);filter:brightness(.78) contrast(1.18) sepia(.06) drop-shadow(0 3px 5px rgba(0,0,0,.65))}
+.neck{position:absolute;z-index:1;left:37%;right:37%;top:23%;height:17%;background:linear-gradient(90deg,#050505,#2a231c 45%,#0b0a09)}
+#foreground{z-index:8;background-image:var(--room-image);background-size:100% 100%;background-position:center;filter:saturate(.88) contrast(1.08) brightness(.82);opacity:1}
+body[data-room="hall"] #foreground{clip-path:polygon(0 0,17.5% 0,20.5% 100%,0 100%,0 0,100% 0,100% 100%,80% 100%,82.5% 0)}
+body[data-room="causeway"] #foreground{clip-path:polygon(0 0,12% 0,18% 76%,0 87%,0 0,100% 0,100% 87%,82% 76%,88% 0)}
+#fade{position:absolute;inset:0;z-index:30;background:#000;opacity:0;pointer-events:none;transition:opacity .34s ease}
+#fade.on{opacity:1}
+#roomLabel{position:absolute;left:16px;bottom:13px;z-index:40;color:rgba(220,211,193,.36);font:700 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.18em;text-transform:uppercase;pointer-events:none;transition:opacity .6s ease}
+#roomLabel.hide{opacity:0}
+#grain{position:absolute;inset:-50%;z-index:20;pointer-events:none;opacity:.075;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.93' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");animation:grain .28s steps(2) infinite}
+@keyframes grain{0%{transform:translate(0,0)}25%{transform:translate(2%,-1%)}50%{transform:translate(-1%,2%)}75%{transform:translate(1%,1%)}100%{transform:translate(-2%,-1%)}}
+#orientation{display:none;position:fixed;inset:0;z-index:99;background:#030303;color:#746f65;place-items:center;text-align:center;font:700 10px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;padding:30px}
+@media (max-width:680px) and (orientation:portrait){#orientation{display:grid}}
+.review #grain,.review .dust,.review .actor,.review .eyeGlow:before,.review .eyeGlow:after{animation:none!important}
+.review #roomLabel{display:none}
+</style>
+</head>
+<body data-room="hall">
+<div id="shell">
+  <div id="stage" aria-label="Prometeo Walk World">
+    <img id="roomBg" class="layer" alt="">
+    <div id="roomTint" class="layer"></div>
+    <div id="ambient" class="layer"></div>
+    <div id="dust" class="layer"></div>
+    <div id="target"></div>
+    <div id="sign" aria-hidden="true"><div class="sign-wire"></div><div class="sign-board"><span><b>04</b>ARCHIVE<br>BELOW</span></div></div>
+    <div id="player"><div class="actor"><div class="shadow"></div><div class="cloak"></div><div class="neck"></div><div class="eyeGlow"></div><img class="mask" src="../../strategy/mask-mouth/assets/mask-transparent.webp" alt=""></div></div>
+    <div id="foreground" class="layer"></div>
+    <div id="grain"></div><div id="fade"></div><div id="roomLabel">LOWER HALL · 04</div>
+  </div>
+</div>
+<div id="orientation">giralo horizontalmente</div>
+<script>
+(()=>{
+"use strict";
+const ROOM={
+  hall:{id:"hall",label:"LOWER HALL · 04",bg:"../../visuals/review/spaces/latest/arcos-desktop.png",start:{x:50,y:83},yMin:48,yMax:88,bounds(y){const t=Math.max(0,Math.min(1,(y-48)/40));const half=8.5+t*31;return{min:50-half,max:50+half}},portal:{x:50,y:48.6,r:3.5,next:"causeway"},sign:true},
+  causeway:{id:"causeway",label:"CAUSEWAY · NORTH",bg:"../../visuals/review/spaces/latest/calzada-desktop.png",start:{x:50,y:84},yMin:57,yMax:89,bounds(y){const t=Math.max(0,Math.min(1,(y-57)/32));const half=4.5+t*42;return{min:50-half,max:50+half}},portal:{x:50,y:57.7,r:3.7,next:"hall"},sign:false}
+};
+const stage=document.getElementById("stage"),bg=document.getElementById("roomBg"),playerEl=document.getElementById("player"),fade=document.getElementById("fade"),targetEl=document.getElementById("target"),sign=document.getElementById("sign"),label=document.getElementById("roomLabel"),dust=document.getElementById("dust");
+let room=ROOM.hall,player={x:50,y:83,tx:50,ty:83},transitioning=false,last=performance.now(),signShown=false;
+const SPEED=24;
+function makeDust(){const frag=document.createDocumentFragment();for(let i=0;i<18;i++){const d=document.createElement("i");d.className="dust";d.style.left=(5+Math.random()*90)+"%";d.style.top=(20+Math.random()*75)+"%";d.style.setProperty("--t",(6+Math.random()*11)+"s");d.style.setProperty("--d",(-Math.random()*12)+"s");d.style.setProperty("--dx",(-18+Math.random()*36)+"vw");frag.append(d)}dust.replaceChildren(frag)}
+function clampTarget(x,y){y=Math.max(room.yMin,Math.min(room.yMax,y));const b=room.bounds(y);x=Math.max(b.min,Math.min(b.max,x));return{x,y}}
+function scaleAt(y){const t=(y-room.yMin)/(room.yMax-room.yMin);return .54+Math.max(0,Math.min(1,t))*.62}
+function render(){playerEl.style.left=player.x+"%";playerEl.style.top=player.y+"%";playerEl.style.setProperty("--s",scaleAt(player.y).toFixed(3));if(room.sign){if(player.y<69&&!signShown){signShown=true;sign.classList.add("visible")}sign.classList.toggle("near",player.y<58)}}
+function pulseTarget(x,y){targetEl.style.left=x+"%";targetEl.style.top=y+"%";targetEl.classList.remove("show");void targetEl.offsetWidth;targetEl.classList.add("show")}
+function moveTo(x,y,pulse=true){if(transitioning)return;const p=clampTarget(x,y);player.tx=p.x;player.ty=p.y;playerEl.classList.toggle("facing-left",p.x<player.x);playerEl.classList.add("walking");if(pulse)pulseTarget(p.x,p.y)}
+function distance(a,b){const dx=a.x-b.x,dy=(a.y-b.y)*1.7;return Math.hypot(dx,dy)}
+async function changeRoom(next){if(transitioning)return;transitioning=true;playerEl.classList.remove("walking");fade.classList.add("on");await new Promise(r=>setTimeout(r,360));room=ROOM[next];document.body.dataset.room=room.id;document.body.style.setProperty("--room-image",'url("'+room.bg+'")');bg.src=room.bg;player.x=room.start.x;player.y=room.start.y;player.tx=player.x;player.ty=player.y;signShown=false;sign.classList.remove("visible","near");label.textContent=room.label;label.classList.remove("hide");render();try{await bg.decode()}catch{}await new Promise(r=>setTimeout(r,100));fade.classList.remove("on");setTimeout(()=>label.classList.add("hide"),1700);transitioning=false}
+function maybePortal(){const p=room.portal;if(distance(player,p)<p.r){if(room.id==="hall"){sign.classList.add("near");setTimeout(()=>changeRoom(p.next),180)}else{changeRoom(p.next)}return true}return false}
+function tick(now){const dt=Math.min(.04,(now-last)/1000);last=now;if(!transitioning){const dx=player.tx-player.x,dy=player.ty-player.y,metric=Math.hypot(dx,dy*1.7);if(metric>.08){const amount=Math.min(metric,SPEED*dt);player.x+=dx/metric*amount;player.y+=dy/metric*amount/1.7;render();maybePortal()}else{player.x=player.tx;player.y=player.ty;playerEl.classList.remove("walking");render();maybePortal()}}requestAnimationFrame(tick)}
+function pointerToStage(ev){const r=stage.getBoundingClientRect();return{x:(ev.clientX-r.left)/r.width*100,y:(ev.clientY-r.top)/r.height*100}}
+stage.addEventListener("pointerdown",ev=>{if(ev.button!==undefined&&ev.button!==0)return;const p=pointerToStage(ev);moveTo(p.x,p.y,true)});
+function setInitialRoom(next,px,py){room=ROOM[next]||ROOM.hall;document.body.dataset.room=room.id;document.body.style.setProperty("--room-image",'url("'+room.bg+'")');bg.src=room.bg;player.x=Number.isFinite(px)?px:room.start.x;player.y=Number.isFinite(py)?py:room.start.y;const p=clampTarget(player.x,player.y);player.x=p.x;player.y=p.y;player.tx=p.x;player.ty=p.y;label.textContent=room.label;signShown=false;sign.classList.toggle("visible",room.sign&&player.y<69);sign.classList.toggle("near",room.sign&&player.y<58);render()}
+const q=new URLSearchParams(location.search),review=q.get("review")==="1";if(review)document.body.classList.add("review");const px=Number(q.get("px")),py=Number(q.get("py"));setInitialRoom(q.get("room")||"hall",Number.isFinite(px)?px:undefined,Number.isFinite(py)?py:undefined);makeDust();
+Promise.all([bg.decode().catch(()=>{}),document.querySelector(".mask").decode().catch(()=>{})]).then(()=>{if(review){window.PrometeoWalkWorldReview={ready:true,room:room.id,player:{x:player.x,y:player.y},version:"v1"}}});
+setTimeout(()=>label.classList.add("hide"),1700);requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
