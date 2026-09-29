@@ -10,8 +10,9 @@ const DESIGN_DNA='https://github.com/JuanManuelPM/prometeo/blob/main/coordinatio
 const WORK_CONTEXT='https://juanmanuelpm.github.io/prometeo/current-tree/work-context/invoke.txt';
 const CONTROL='https://juanmanuelpm.github.io/prometeo/current-tree/control/';
 const SPECIALIST_PROFILE='https://juanmanuelpm.github.io/prometeo/coordination/workstreams/chat-native-control-plane-v1/chat-objects/chat-object-prometeo-visual-steward/CHAT_OBJECT.json';
+const WORK_UNITS='https://juanmanuelpm.github.io/prometeo/coordination/portfolio/derived/INTERACTIVE_WORK_UNITS_V1.json';
 const STORE_PROJECT='prometeo.control.v11.continuity.project.v1';
-let sessionsIndex=null,capabilityGraph=null,resultProjection=null,journalCache=new Map(),loading=null;
+let sessionsIndex=null,capabilityGraph=null,resultProjection=null,workUnitsProjection=null,journalCache=new Map(),loading=null;
 
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const cfg=()=>window.PROMETEO_CONTROL_CONFIG_V1||{};
@@ -30,8 +31,9 @@ async function load(){
   loading=Promise.all([
     getJson(cfg().chatSessionsUrl||'../../coordination/chat-sessions/INDEX.json'),
     getJson(cfg().capabilityGraphUrl||'../../coordination/semantic-relations/CAPABILITY_GRAPH_V1.json'),
-    getJson(cfg().resultProjectionUrl||'./result-candidate-v1.json')
-  ]).then(([s,g,r])=>{sessionsIndex=s;capabilityGraph=g;resultProjection=r;return true}).finally(()=>{loading=null});
+    getJson(cfg().resultProjectionUrl||'./result-candidate-v1.json'),
+    getJson(cfg().workUnitsUrl||WORK_UNITS)
+  ]).then(([s,g,r,w])=>{sessionsIndex=s;capabilityGraph=g;resultProjection=r;workUnitsProjection=w;return true}).finally(()=>{loading=null});
   return loading;
 }
 async function journalFor(s){
@@ -149,23 +151,31 @@ function handoffReadiness(s){
 function continuePrompt(s){
   const sessionUrl=s?.public_session_url||abs(s?.session_url,cfg().chatSessionsUrl||location.href);
   const journalUrl=s?.public_journal_url||abs(s?.journal_url,cfg().chatSessionsUrl||location.href);
+  const workRef=s?.same_work_unit_ref||'NONE';
+  const checkpoint=s?.last_checkpoint_ref||'NONE';
   return `PROMETEO CONTINUE
 
 CHAT_OBJECT_ID: ${s?.chat_object_id||'UNKNOWN'}
 PREDECESSOR: ${s?.session_id||'UNKNOWN'}
 PIN: ${s?.session_pin||'UNKNOWN'}
+SAME_WORK_UNIT_REF: ${workRef}
+LAST_CHECKPOINT_REF: ${checkpoint}
+CURRENT_STAGE: ${s?.current_stage||'UNKNOWN'}
+LAST_PROGRESS_AT: ${s?.last_progress_at||'UNKNOWN'}
+REPO_HEAD_SEEN: ${s?.repo_head_seen||'UNKNOWN'}
 
 READ:
 ${PREFLIGHT}
 ${sessionUrl||'SESSION_REF_MISSING'}
 ${journalUrl||'JOURNAL_REF_MISSING'}
+${workRef!=='NONE'?abs(workRef.split('#')[0],location.href):CURRENT_TREE}
 ${CURRENT_TREE}
 
 FIRST DURABLE ACTION:
-Create a fresh successor SESSION_ID + SESSION_PIN, publish SESSION/JOURNAL/CONTINUE + index lineage, then continue predecessor next_action.
+Create a fresh successor SESSION_ID + SESSION_PIN, publish SESSION/JOURNAL/CONTINUE + index lineage, preserve SAME_WORK_UNIT_REF when the human objective has not changed, then continue from LAST_CHECKPOINT_REF/current stage.
 
 RULE:
-Read pointers, not the world. No broad search, repo clone or Supabase before READY unless predecessor next_action explicitly requires it.`;
+Read pointers, not the world. Retry-from-UI is not durable resume. No broad search, repo clone or Supabase before READY unless predecessor next_action explicitly requires it.`;
 }
 function interactiveBootstrapPrompt(mode,project,roleHint='GENERAL'){
   const p=project||{title:'Prometeo completo',node_key:'PROJECT:PROMETEO'};
@@ -300,12 +310,76 @@ function bindSessions(root,sessions){
     body.innerHTML=es.length?es.map(e=>'<div class="history-journal-entry"><time>'+esc(clock(e.occurred_at))+'</time><div><b>'+esc(e.assistant_conclusion||e.entry_id)+'</b><p>'+esc(e.human_intent_summary||'')+'</p></div></div>').join(''):'<div class="rdesc">Journal no disponible.</div>';
   });
 }
-function decorateNow(){
-  const root=document.getElementById('now');if(!root||root.querySelector('.live-work-v1'))return;
-  const w=bundle()?.tree?.work?.counts||{};
-  const sec=document.createElement('section');sec.className='section live-work-v1';
-  sec.innerHTML='<div class="section-head"><div class="section-title">Trabajo vivo</div><div class="section-action">estado actual, no historial</div></div><div class="live-work-grid"><div><b>'+Number(w.ACTIVE||0)+'</b><span>active</span></div><div><b>'+Number(w.READY||0)+'</b><span>ready</span></div><div><b>'+Number(w.BLOCKED||0)+'</b><span>blocked</span></div></div>';
+function relativeAge(ts){
+  if(!ts)return 'sin progreso durable fechado';
+  const ms=Math.max(0,Date.now()-new Date(ts).getTime()),s=Math.floor(ms/1000);
+  if(s<60)return 'hace '+s+'s';
+  const m=Math.floor(s/60);if(m<60)return 'hace '+m+'m';
+  const h=Math.floor(m/60);if(h<48)return 'hace '+h+'h';
+  return new Date(ts).toLocaleDateString();
+}
+function workUnitSession(wu){
+  const id=wu?.current_session_id;
+  return (sessionsIndex?.sessions||[]).find(s=>s.session_id===id)||null;
+}
+function workUnitResumePrompt(wu){
+  const s=workUnitSession(wu);
+  if(s)return continuePrompt({...s,same_work_unit_ref:WORK_UNITS+'#'+wu.work_unit_id,last_checkpoint_ref:WORK_UNITS+'#'+wu.latest_checkpoint_id,current_stage:wu.current_stage,last_progress_at:wu.last_progress_at,repo_head_seen:wu.repo_head_last_seen});
+  return `PROMETEO CONTINUE
+
+CHAT_OBJECT_ID: ${wu?.actor_chat_object||'UNKNOWN'}
+SAME_WORK_UNIT_REF: ${WORK_UNITS}#${wu?.work_unit_id||'UNKNOWN'}
+LAST_CHECKPOINT_REF: ${WORK_UNITS}#${wu?.latest_checkpoint_id||'UNKNOWN'}
+CURRENT_STAGE: ${wu?.current_stage||'UNKNOWN'}
+LAST_PROGRESS_AT: ${wu?.last_progress_at||'UNKNOWN'}
+REPO_HEAD_SEEN: ${wu?.repo_head_last_seen||'UNKNOWN'}
+
+READ:
+${PREFLIGHT}
+${WORK_UNITS}
+${CURRENT_TREE}
+
+FIRST DURABLE ACTION:
+Create a fresh Chat Session and continue the SAME Work Unit from its durable checkpoint. Do not recreate the task.
+
+RULE:
+UI error/Retry is not execution truth. Reconcile durable state first.`;
+}
+function workUnitHtml(wu){
+  const done=(wu.steps||[]).filter(x=>x.status==='DONE'),pending=(wu.steps||[]).filter(x=>x.status!=='DONE');
+  const evidence=(wu.latest_evidence||[]).slice(0,4);
+  const err=wu.latest_error?.kind||'—';
+  return '<details class="activity-card" data-work-unit="'+esc(wu.work_unit_id)+'"><summary><div class="activity-dot" aria-hidden="true">●</div><div class="activity-main"><b>'+esc(wu.actor_chat_object||'Work Unit')+'</b><span>'+esc(wu.target_object||'')+'</span></div><div class="activity-progress"><strong>'+Number(wu.progress||0)+'%</strong><span>'+esc(wu.current_stage||'UNKNOWN')+'</span></div><time>'+esc(relativeAge(wu.last_progress_at))+'</time></summary>'+
+    '<div class="activity-detail">'+
+    '<div><b>objective</b><span>'+esc(wu.objective||'—')+'</span></div>'+
+    '<div><b>session</b><span>'+esc(wu.current_session_id||'—')+'</span></div>'+
+    '<div><b>work unit</b><span>'+esc(wu.work_unit_id||'—')+'</span></div>'+
+    '<div><b>created</b><span>'+esc(wu.created_at||'—')+' · '+esc(wu.created_at_confidence||'')+'</span></div>'+
+    '<div><b>last durable progress</b><span>'+esc(wu.last_progress_at||'—')+'</span></div>'+
+    '<div><b>checkpoint</b><span>'+esc(wu.latest_checkpoint_id||'—')+'</span></div>'+
+    '<div><b>done</b><span>'+esc(done.map(x=>x.step_id).join(', ')||'—')+'</span></div>'+
+    '<div><b>pending</b><span>'+esc(pending.map(x=>x.step_id).join(', ')||'—')+'</span></div>'+
+    '<div><b>latest evidence</b><span>'+evidence.map(x=>'<code>'+esc(x)+'</code>').join(' ')+'</span></div>'+
+    '<div><b>last error</b><span>'+esc(err)+'</span></div>'+
+    '<div><b>next</b><span>'+esc(wu.next_action||'—')+'</span></div>'+
+    '<div class="activity-actions"><button data-work-continue="'+esc(wu.work_unit_id)+'">Continuar</button><button data-work-reincarnate="'+esc(wu.work_unit_id)+'">Reincarnar</button></div>'+
+    '</div></details>';
+}
+async function decorateNow(){
+  const root=document.getElementById('now');if(!root)return;
+  root.querySelector('.live-work-v1')?.remove();
+  await load();
+  const units=(workUnitsProjection?.work_units||[]).slice().sort((a,b)=>new Date(b.last_progress_at||0)-new Date(a.last_progress_at||0)).slice(0,10);
+  const sec=document.createElement('section');sec.className='section live-work-v1 activity-board-v1';
+  sec.innerHTML='<div class="section-head"><div class="section-title">Actividad</div><div class="section-action">progreso durable · no spinner/liveness</div></div>'+
+    (units.length?'<div class="activity-list">'+units.map(workUnitHtml).join('')+'</div>':'<div class="rdesc">Sin Work Units durables todavía.</div>');
   root.prepend(sec);
+  sec.querySelectorAll('[data-work-continue],[data-work-reincarnate]').forEach(btn=>btn.addEventListener('click',async ev=>{
+    ev.preventDefault();ev.stopPropagation();
+    const id=btn.dataset.workContinue||btn.dataset.workReincarnate,wu=units.find(x=>x.work_unit_id===id);if(!wu)return;
+    await copyText(workUnitResumePrompt(wu));
+    toast(btn.dataset.workReincarnate?'Reincarnation envelope copiado':'Continuación durable copiada');
+  }));
 }
 function goContinuity(){
   const tab=document.querySelector('.tab[data-view="historial"]');tab?.click();setTimeout(()=>document.getElementById('continuityCenter')?.scrollIntoView({behavior:'smooth',block:'start'}),80);
