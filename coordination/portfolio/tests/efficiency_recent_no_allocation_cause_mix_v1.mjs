@@ -88,7 +88,7 @@ const roleContext={
 const baseFeed={generated_at:iso(now),source_sha:'cause-mix-fixture',workers:[],plans:[],projects:[],summary:{workers:{}},diagnostics:{}};
 const allocator=buildFastAllocator(baseFeed,{...efficiency,status:'REGRESSION',reasons:['CAUSE_MIX_FIXTURE']},{recoveryPolicies:[],roleContext});
 const rescate=allocator.role_ready.find(row=>row.role==='GUIDE_RESCATE' && row.trigger==='LOW_YIELD');
-assert(rescate,'efficiency regression must compile LOW_YIELD GUIDE_RESCATE');
+assert(rescate,'actionable recent NO_ALLOCATION pressure must compile LOW_YIELD GUIDE_RESCATE even when efficiency is also REGRESSION');
 assert(rescate.evidence.includes('gh-pages:live/efficiency.json#no_allocation_causes'));
 for(const [reason,ref] of expectedRefs){
   if(reason==='CLAIM_TRANSPORT_BLOCKED'){
