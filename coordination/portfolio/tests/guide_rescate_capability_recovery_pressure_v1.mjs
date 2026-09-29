@@ -109,4 +109,44 @@ assert.equal(
   'causally concentrated generic recovery must preserve GUIDE_RESCATE'
 );
 
+const pureEfficiencyRegression = compileRoleFrontier(
+  feed,
+  { status:'REGRESSION', metrics:{}, reasons:['TTFA_P90_GT_90S'] },
+  [],
+  [],
+  [],
+  [],
+  roleContext
+);
+assert.equal(
+  pureEfficiencyRegression.role_ready.some(row => row.role === 'GUIDE_RESCATE'),
+  false,
+  'pure efficiency regression must not duplicate GUIDE_CRITIC with GUIDE_RESCATE'
+);
+assert.equal(
+  pureEfficiencyRegression.role_ready.some(row => row.role === 'GUIDE_CRITIC' && row.trigger === 'LOW_YIELD'),
+  true,
+  'pure efficiency regression must remain routed to GUIDE_CRITIC'
+);
+
+const efficiencyPlusConcentratedRecovery = compileRoleFrontier(
+  feed,
+  { status:'REGRESSION', metrics:{}, reasons:['TTFA_P90_GT_90S'] },
+  [],
+  [],
+  [],
+  recovery('efficiency-plus-recovery', [], ['shared-basis', 'shared-basis', 'shared-basis']),
+  roleContext
+);
+assert.equal(
+  efficiencyPlusConcentratedRecovery.role_ready.some(row => row.role === 'GUIDE_RESCATE' && row.trigger === 'LOW_YIELD'),
+  true,
+  'independent concentrated recovery must still permit GUIDE_RESCATE during an efficiency regression'
+);
+assert.equal(
+  efficiencyPlusConcentratedRecovery.role_ready.some(row => row.role === 'GUIDE_CRITIC'),
+  true,
+  'efficiency regression must preserve GUIDE_CRITIC when independent rescue pressure also exists'
+);
+
 console.log('GUIDE_RESCATE_CAPABILITY_RECOVERY_PRESSURE_PASS');
