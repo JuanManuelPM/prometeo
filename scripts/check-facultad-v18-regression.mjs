@@ -8,7 +8,7 @@ const RAW_ROOT = `https://raw.githubusercontent.com/JuanManuelPM/prometeo/${BRAN
 const SPECS = {
   index: { path: 'pages/study-library/index.html', sha: 'b088b71517f081e641e984bd8378e22e9be3f368' },
   v11: { path: 'pages/study-library/study-v11-experience.js', sha: 'b1f6b5bd68e2cbaf205d627697332591d1e2b433' },
-  v18: { path: 'pages/study-library/study-v18.js', sha: 'f7b50664ec9543ef007b050bb15dc854ed74178f' },
+  v18: { path: 'pages/study-library/study-v18.js', sha: '621eca9b35ff8d2c622e62eb333f30c6deaa0401' },
   fix5: { path: 'pages/study-library/study-v18-5-fix.js', sha: '26ead844db7e93934fe742ce86a16d60f71beff6' },
   fix6: { path: 'pages/study-library/study-v18-6-fix.js', sha: '1754527feefbda95b59e79a0235d367ce16591a5' },
   css: { path: 'pages/study-library/study-v18.css', sha: 'd06e0df3580c64c86a06e5eb3db2798b255b745b' }
@@ -108,9 +108,11 @@ function evaluate(bundle) {
       ok: containsAll(bundle.v18.text, [
         "qs.get('course')",
         "u.searchParams.set('course',id)",
-        "history.pushState({v18:'course',course:id}",
         "window.addEventListener('popstate'"
-      ])
+      ]) && (
+        bundle.v18.text.includes("history.pushState({v18:'course',course:id}") ||
+        bundle.v18.text.includes("history.pushState({v18:'course',course:id,year:openYear,tab:activeTab}")
+      )
     },
     {
       id: 'javascript_parse',
