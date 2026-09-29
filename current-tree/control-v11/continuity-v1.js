@@ -8,6 +8,7 @@ const CURRENT_TREE='https://juanmanuelpm.github.io/prometeo/current-tree/';
 const DESIGN_DNA='https://github.com/JuanManuelPM/prometeo/blob/main/coordination/design-dna/INDEX.json';
 const WORK_CONTEXT='https://juanmanuelpm.github.io/prometeo/current-tree/work-context/invoke.txt';
 const CONTROL='https://juanmanuelpm.github.io/prometeo/current-tree/control/';
+const SPECIALIST_PROFILE='https://juanmanuelpm.github.io/prometeo/coordination/workstreams/chat-native-control-plane-v1/chat-objects/chat-object-prometeo-visual-steward/CHAT_OBJECT.json';
 const STORE_PROJECT='prometeo.control.v11.continuity.project.v1';
 let sessionsIndex=null,capabilityGraph=null,resultProjection=null,journalCache=new Map(),loading=null;
 
@@ -153,26 +154,32 @@ Create a fresh successor SESSION_ID + SESSION_PIN, publish SESSION/JOURNAL/CONTI
 RULE:
 Read pointers, not the world. No broad search, repo clone or Supabase before READY unless predecessor next_action explicitly requires it.`;
 }
-function interactiveBootstrapPrompt(mode,project){
+function interactiveBootstrapPrompt(mode,project,roleHint='GENERAL'){
   const p=project||{title:'Prometeo completo',node_key:'PROJECT:PROMETEO'};
   return `PROMETEO SESSION BOOTSTRAP
 
 MODE: ${mode}
 FOCUS_PROJECT: ${p.title||'Prometeo'}
 FOCUS_NODE: ${p.node_key||'AUTO_RESOLVE'}
+ROLE_HINT: ${roleHint}
 
 READ:
 ${PREFLIGHT}
 ${CURRENT_TREE}
 
 FIRST DURABLE ACTION:
-Create fresh SESSION_ID + SESSION_PIN and publish SESSION/JOURNAL/CONTINUE + index. Reuse an existing Chat Object/Work Context when supplied focus/pointers resolve one; do not invent a parallel owner.
+Create fresh SESSION_ID + SESSION_PIN and publish SESSION/JOURNAL/CONTINUE + index. Resolve/reuse an existing durable Chat Object matching ROLE_HINT when one exists; create a new Chat Object Profile only for a genuinely new durable role, never per task.
 
 THEN:
 Resolve only the relevant Organism subgraph and exact plan/source owners. For ADOPT_EXISTING, backfill supported material milestones only after the session exists. Classify material human deltas as CONTINUE / COMPATIBLE_DELTA / EXPERIMENT / REPLAN / DESTRUCTIVE_RESET.
 
 RULE:
 Read pointers, not the world. No broad search, repo clone or Supabase before READY unless actual next_action requires it. Never publish raw prompts, private notes, credentials, headers or hidden reasoning.`;
+}
+function specializedBootstrapPrompt(profile,focusObject='SURFACE:CONTROL_ROOM',project=null){
+  const p=project||selectedProject()||{title:'Prometeo',node_key:'PROJECT:PROMETEO'},prof=profile||{};
+  const profileRef=prof.public_url||SPECIALIST_PROFILE,designRefs=(prof.design_knowledge_refs||[]).join(' ; ')||'coordination/design-knowledge/DESIGN_KNOWLEDGE_INDEX_V1.json';
+  return `PROMETEO SESSION BOOTSTRAP\n\nMODE: NEW_SPECIALIZED\nCHAT_OBJECT_ID: ${prof.chat_object_id||'chat-object-prometeo-visual-steward'}\nCHAT_OBJECT_PROFILE_REF: ${profileRef}\nROLE: ${prof.role||'VISUAL_SYSTEMS_STEWARD'}\nFOCUS_PROJECT: ${p.title||'Prometeo'}\nFOCUS_NODE: ${p.node_key||'PROJECT:PROMETEO'}\nFOCUS_OBJECT: ${focusObject}\nDESIGN_KNOWLEDGE_REFS: ${designRefs}\n\nREAD:\n${PREFLIGHT}\n${CURRENT_TREE}\n${profileRef}\n\nFIRST DURABLE ACTION:\nReuse this durable Chat Object and create a fresh SESSION_ID + SESSION_PIN; publish SESSION/JOURNAL/CONTINUE + index lineage before target-specific expansion. Do not mint another specialist if this profile already fits.\n\nTHEN:\nResolve only the relevant Organism subgraph, source owner, plan/baseline, design refs and recent change refs for ${focusObject}. Role/profile gives context, never mutation authority.\n\nRULE:\nUse FAST_REINCARNATION_PATH_V1. Pointers first; no giant specialist prompt, no new memory/queue/scheduler/Organism.`;
 }
 function newChatPrompt(project){return interactiveBootstrapPrompt('NEW',project);}
 function adoptPrompt(project){return interactiveBootstrapPrompt('ADOPT_EXISTING',project);}
@@ -193,7 +200,7 @@ function centerHtml(){
   const p=selectedProject();
   return `<section class="continuity-center" id="continuityCenter">
     <div class="continuity-head"><div><div class="continuity-title">∞ Continuidad</div><div class="continuity-sub">Podés perder este chat. El proyecto no debería perderse con él.</div></div><span class="continuity-state">FAST PATH V1</span></div>
-    <div class="continuity-select-row"><label>Foco</label><select id="continuityProject">${projectOptionHtml()}</select></div>
+    <div class="continuity-select-row"><label>Foco</label><select id="continuityProject">${projectOptionHtml()}</select><label>Rol</label><select id="continuityRole"><option value="GENERAL">General</option><option value="VISUAL_UX">Visual / UX</option><option value="TOOL_RESEARCH">Tool research</option><option value="PROJECT_GUIDE">Project guide</option><option value="DEBUG_DIAGNOSTICS">Debug / diagnostics</option><option value="RESEARCH">Research</option><option value="CUSTOM">Custom</option></select></div>
     <div class="continuity-actions">
       <button class="primary" id="continuityNew">Nuevo chat</button>
       <button id="continuityAdopt">Adoptar chat abierto</button>
@@ -228,6 +235,11 @@ async function allHistoryEvents(){
       out.push({at:e.occurred_at,type:'CHAT',title:s.title||'Chat',desc:e.assistant_conclusion||e.human_intent_summary||'',session:s,entry:e,refs:e.refs||[]});
     }
   }
+  for(const o of capabilityGraph?.objects||[]){
+    if(o.kind!=='CHANGE'||!o.occurred_at)continue;
+    const refs=[o.before_ref?{label:'before',url:o.before_ref}:null,o.after_ref?{label:'after',url:o.after_ref}:null,o.commit_url?{label:'commit',url:o.commit_url}:null,o.rollback_ref?{label:'rollback',url:o.rollback_ref}:null].filter(Boolean);
+    out.push({at:o.occurred_at,type:'CAMBIO',title:o.title||o.id,desc:o.summary||o.human_intent||o.change_type||'',node_key:o.target_node_key||null,refs});
+  }
   if(resultProjection?.generated_at){
     out.push({at:resultProjection.generated_at,type:'RESULTADO',title:'Resultado visible V11',desc:resultProjection.summary||resultProjection.state||'',refs:[resultProjection.candidate_url?{label:'candidate',url:resultProjection.candidate_url}:null].filter(Boolean)});
   }
@@ -252,7 +264,8 @@ function bindCenter(){
   const sel=document.getElementById('continuityProject');
   if(sel)sel.onchange=()=>{localStorage.setItem(STORE_PROJECT,sel.value);renderHistory()};
   const getP=()=>selectedProject();
-  document.getElementById('continuityNew')?.addEventListener('click',async()=>{await copyText(newChatPrompt(getP()));toast('Prompt de nuevo chat copiado')});
+  const role=()=>document.getElementById('continuityRole')?.value||'GENERAL';
+  document.getElementById('continuityNew')?.addEventListener('click',async()=>{const r=role();if(r==='VISUAL_UX'){const prof=await getJson(SPECIALIST_PROFILE);await copyText(specializedBootstrapPrompt(prof,'SURFACE:CONTROL_ROOM',getP()));toast('Nueva sesión Visual Steward copiada')}else{await copyText(interactiveBootstrapPrompt('NEW',getP(),r));toast('Prompt de nuevo chat copiado')}});
   document.getElementById('continuityAdopt')?.addEventListener('click',async()=>{await copyText(adoptPrompt(getP()));toast('Prompt de adopción copiado')});
   document.getElementById('continuityExport')?.addEventListener('click',async()=>{const p=getP();toast('Actualizando snapshot…');const packet=await refreshedContinuityPacket(p),slug=(p?.title||'prometeo').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');download('prometeo-'+slug+'-continuity.json',JSON.stringify(packet,null,2)+'\n');toast(packet.missing_critical_sources.length?'Exportado · fuentes degradadas explícitas':'Proyecto exportado')});
   document.getElementById('continuityCopy')?.addEventListener('click',async()=>{toast('Actualizando snapshot…');const packet=await refreshedContinuityPacket(getP());await copyText(JSON.stringify(packet,null,2));toast(packet.missing_critical_sources.length?'Copiado · fuentes degradadas explícitas':'Paquete de continuidad copiado')});
@@ -282,7 +295,7 @@ function goContinuity(){
   const tab=document.querySelector('.tab[data-view="historial"]');tab?.click();setTimeout(()=>document.getElementById('continuityCenter')?.scrollIntoView({behavior:'smooth',block:'start'}),80);
 }
 function install(){
-  window.PROMETEO_CONTINUITY_V1={version:VERSION,renderHistory,decorateNow,continuityPacket,refreshedContinuityPacket,newChatPrompt,adoptPrompt,goContinuity};
+  window.PROMETEO_CONTINUITY_V1={version:VERSION,renderHistory,decorateNow,continuityPacket,refreshedContinuityPacket,newChatPrompt,adoptPrompt,specializedBootstrapPrompt,goContinuity};
   document.getElementById('continuityBtn')?.addEventListener('click',goContinuity);
   window.addEventListener('PROMETEO_V11_DATA',()=>{if(document.querySelector('.view#historial.on'))renderHistory();if(document.querySelector('.view#ahora.on'))setTimeout(decorateNow,0)});
   if(document.querySelector('.view#ahora.on'))setTimeout(decorateNow,0);

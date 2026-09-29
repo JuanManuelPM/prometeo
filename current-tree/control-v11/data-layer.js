@@ -53,6 +53,29 @@ function readCache(){
  }catch{return null}
 }
 function writeCache(x){try{localStorage.setItem(CACHE_KEY,JSON.stringify(x))}catch{}}
+function mergeSemanticGraph(org,graph){
+ const base=org&&typeof org==='object'?{...org,nodes:[...(org.nodes||[])],edges:[...(org.edges||[])]}:{schema:'prometeo.organism-client-overlay/v1',projection_status:'DEGRADED_SEMANTIC_OVERLAY',nodes:[],edges:[]};
+ const source='GitHub:/coordination/semantic-relations/CAPABILITY_GRAPH_V1.json';
+ if(!base.nodes.some(n=>n.node_key==='PROJECT:PROMETEO'))base.nodes.push({node_key:'PROJECT:PROMETEO',title:'Prometeo',kind:'PROJECT',status:'DEGRADED_FALLBACK',owner_key:'ROOT',updated_at:graph?.updated_at||null,source_ref:source,payload:{summary:'Root fallback for durable semantic overlay while live Organism is unavailable.'}});
+ const idToKey=new Map();
+ for(const o of graph?.objects||[])if(o?.id&&o?.node_key)idToKey.set(o.id,o.node_key);
+ const keys=new Set(base.nodes.map(n=>n.node_key));
+ for(const o of graph?.objects||[]){
+  if(!o?.node_key||o.organism_projection===false||keys.has(o.node_key))continue;
+  base.nodes.push({node_key:o.node_key,title:o.title||o.id,kind:o.organism_kind||o.kind||'SEMANTIC_OBJECT',status:o.status||'CANDIDATE',owner_key:o.owner_key||null,updated_at:o.updated_at||graph.updated_at||null,source_ref:o.ref?'GitHub:/'+o.ref:source,public_route:o.public_url||null,payload:{summary:o.summary||o.mission||'',semantic_object_id:o.id,emoji:o.emoji||null,profile_ref:o.profile_ref||null}});keys.add(o.node_key);
+ }
+ const edgeKeys=new Set(base.edges.map(e=>e.from+'|'+e.kind+'|'+e.to));
+ const resolve=id=>idToKey.get(id)||(keys.has(id)?id:null);
+ for(const r of graph?.relations||[]){const from=resolve(r.source),to=resolve(r.target);if(!from||!to)continue;const k=from+'|'+r.type+'|'+to;if(edgeKeys.has(k))continue;base.edges.push({from,to,kind:r.type,source_ref:source});edgeKeys.add(k)}
+ base.semantic_overlay={source_ref:source,updated_at:graph?.updated_at||null,authority:'PROJECTION_ONLY'};
+ return base;
+}
+async function applySemanticOverlay(bundle,states={},failures=[],checkedAt=now()){
+ try{
+  const graph=await getJson(CFG.capabilityGraphUrl);bundle.capabilityGraph=graph;bundle.org=mergeSemanticGraph(bundle.org,graph);states.capabilityGraph=sourceState('available','github',CFG.capabilityGraphUrl,graph,null,checkedAt);
+ }catch(e){states.capabilityGraph=sourceState('unavailable','github',CFG.capabilityGraphUrl,null,e,checkedAt);failures.push({key:'capabilityGraph',message:String(e?.message||e)});diag('capabilityGraph',e,CFG.capabilityGraphUrl)}
+ return bundle;
+}
 function fire(bundle,error=null){window.dispatchEvent(new CustomEvent('PROMETEO_V11_DATA',{detail:{bundle,error}}))}
 async function catalogs(checkedAt){
  const sources=[['catalogManifest',CFG.catalogUrl],['legacyCatalog',CFG.legacyCatalogUrl]];
@@ -168,6 +191,7 @@ async function refresh(base={}){
  if(cats.cat!==null)b.cat=cats.cat;
  if(cats.catalogManifest!==null)b.catalogManifest=cats.catalogManifest;
  sourceStates={...sourceStates,...cats.state};failures.push(...cats.failures);
+ await applySemanticOverlay(b,sourceStates,failures,checkedAt);
  const observed=bestObserved(b,sourceStates);
  let mode='live';
  if(!freshCore){
@@ -192,6 +216,7 @@ async function load(){
  const cached=readCache();
  if(cached){
   const checkedAt=now(),observed=cached.freshness?.observed_at||bestObserved(cached,cached.freshness?.sources)||null;
+  cached=await applySemanticOverlay(cached,cached.freshness?.sources||{},cached.freshness?.failures||[],checkedAt);
   cached.freshness={...(cached.freshness||{}),mode:'stale',freshCore:false,failures:cached.freshness?.failures||[],observed_at:observed,checked_at:checkedAt,at:checkedAt};
   window.PROMETEO_V11_LAST=cached;refresh(cached).catch(e=>fire(cached,String(e?.message||e)));
   return cached;
