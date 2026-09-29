@@ -1,4 +1,4 @@
-name: Rail World Build v2
+name: Rail World Build v3
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: rail-world-build-v2
+  group: rail-world-build-v3
   cancel-in-progress: true
 
 jobs:
@@ -40,7 +40,7 @@ jobs:
           cat /tmp/rail-http.log
           exit 1
 
-      - name: Review and functional browser test
+      - name: Review and decoupled-control browser test
         env:
           CHROME: ${{ steps.chrome.outputs.chrome-path }}
           SOURCE_SHA: ${{ github.sha }}
@@ -73,6 +73,7 @@ jobs:
             ws.addEventListener('open',resolve,{once:true});
             ws.addEventListener('error',reject,{once:true});
           });
+
           let seq=0;
           const pending=new Map();
           ws.addEventListener('message',ev=>{
@@ -91,6 +92,7 @@ jobs:
               ws.send(JSON.stringify({id,method,params}));
             });
           };
+
           await send('Page.enable');
           await send('Runtime.enable');
           await send('Network.enable');
@@ -106,31 +108,11 @@ jobs:
             }
             throw new Error('Never ready: '+label);
           }
-          async function shot(url,file){
-            await send('Page.navigate',{url});
-            await waitExpression('Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready)',file);
-            await sleep(450);
-            const out=await send('Page.captureScreenshot',{format:'png',fromSurface:true,captureBeyondViewport:false});
-            const bytes=Buffer.from(out.data,'base64');
-            if(bytes.length<10000)throw new Error('Screenshot too small '+file+' '+bytes.length);
-            await fs.mkdir(path.dirname(file),{recursive:true});
-            await fs.writeFile(file,bytes);
-          }
-          const reviews=[
-            ['arcos','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=1&z=28&x=0'],
-            ['calzada','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=3&z=42&x=0'],
-            ['tunel','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=4&z=42&x=0'],
-            ['torres','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=5&z=42&x=0']
-          ];
-          for(const [id,url] of reviews)await shot(url,'demos/prometeo-rail-world-v1/review/'+id+'.png');
-
-          await send('Page.navigate',{url:'http://127.0.0.1:4173/demos/prometeo-rail-world-v1/'});
-          await waitExpression('Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready&&window.PrometeoRailWorld)', 'rail runtime');
-
-          async function state(){
-            const ev=await send('Runtime.evaluate',{expression:'window.PrometeoRailWorld.getState()',returnByValue:true});
+          async function evaluate(expression){
+            const ev=await send('Runtime.evaluate',{expression,returnByValue:true});
             return ev?.result?.value;
           }
+          async function state(){return evaluate('window.PrometeoRailWorld.getState()')}
           async function key(key,code,down){
             await send('Input.dispatchKeyEvent',{
               type:down?'keyDown':'keyUp',
@@ -139,17 +121,60 @@ jobs:
               nativeVirtualKeyCode:key==='ArrowUp'?38:key==='ArrowDown'?40:0
             });
           }
-
-          const initial=await state();
-          await key('ArrowUp','ArrowUp',true);
-          await sleep(1150);
-          await key('ArrowUp','ArrowUp',false);
-          await sleep(260);
-          const arrow=await state();
-          if(!(arrow.cameraZ>initial.cameraZ+12 && arrow.renderedZ>initial.renderedZ+5)){
-            throw new Error('Arrow movement failed '+JSON.stringify({initial,arrow}));
+          async function click(x,y){
+            await send('Input.dispatchMouseEvent',{type:'mouseMoved',x,y});
+            await send('Input.dispatchMouseEvent',{type:'mousePressed',x,y,button:'left',clickCount:1});
+            await send('Input.dispatchMouseEvent',{type:'mouseReleased',x,y,button:'left',clickCount:1});
+          }
+          async function shot(url,file){
+            await send('Page.navigate',{url});
+            await waitExpression('Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready)',file);
+            await sleep(420);
+            const out=await send('Page.captureScreenshot',{format:'png',fromSurface:true,captureBeyondViewport:false});
+            const bytes=Buffer.from(out.data,'base64');
+            if(bytes.length<10000)throw new Error('Screenshot too small '+file+' '+bytes.length);
+            await fs.mkdir(path.dirname(file),{recursive:true});
+            await fs.writeFile(file,bytes);
           }
 
+          const reviews=[
+            ['arcos','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=1&z=28&playerMap=1&playerZ=49&playerX=0'],
+            ['calzada','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=3&z=42&playerMap=3&playerZ=64&playerX=0'],
+            ['tunel','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=4&z=42&playerMap=4&playerZ=64&playerX=0'],
+            ['torres','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&map=5&z=42&playerMap=5&playerZ=64&playerX=0']
+          ];
+          for(const [id,url] of reviews)await shot(url,'demos/prometeo-rail-world-v1/review/'+id+'.png');
+
+          await send('Page.navigate',{url:'http://127.0.0.1:4173/demos/prometeo-rail-world-v1/'});
+          await waitExpression('Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready&&window.PrometeoRailWorld)', 'rail runtime');
+
+          // 1. CLICK MOVES PLAYER, NOT CAMERA.
+          const initial=await state();
+          await click(683,255);
+          await sleep(1050);
+          const clicked=await state();
+          if(!(clicked.playerGlobal>initial.playerGlobal+16)){
+            throw new Error('Click did not move player far enough '+JSON.stringify({initial,clicked}));
+          }
+          if(Math.abs(clicked.cameraGlobal-initial.cameraGlobal)>.35){
+            throw new Error('Click incorrectly moved camera '+JSON.stringify({initial,clicked}));
+          }
+
+          // 2. ARROW MOVES CAMERA WHILE PLAYER KEEPS ITS OWN TARGET.
+          const clickTarget=clicked.playerTargetGlobal;
+          await key('ArrowUp','ArrowUp',true);
+          await sleep(850);
+          await key('ArrowUp','ArrowUp',false);
+          await sleep(220);
+          const arrow=await state();
+          if(!(arrow.cameraGlobal>clicked.cameraGlobal+12)){
+            throw new Error('Arrow did not move camera '+JSON.stringify({clicked,arrow}));
+          }
+          if(Math.abs(arrow.playerTargetGlobal-clickTarget)>.02){
+            throw new Error('Camera movement changed player target '+JSON.stringify({clicked,arrow}));
+          }
+
+          // 3. WHEEL ADDS CAMERA INERTIA, STILL WITHOUT RETARGETING PLAYER.
           const beforeWheel=await state();
           for(let i=0;i<5;i++){
             await send('Input.dispatchMouseEvent',{type:'mouseWheel',x:680,y:380,deltaX:0,deltaY:-420});
@@ -157,33 +182,54 @@ jobs:
           }
           await sleep(720);
           const wheel=await state();
-          if(!(wheel.cameraZ>beforeWheel.cameraZ+4 && wheel.renderedZ>beforeWheel.renderedZ+2)){
-            throw new Error('Wheel movement failed '+JSON.stringify({beforeWheel,wheel}));
+          if(!(wheel.cameraGlobal>beforeWheel.cameraGlobal+4)){
+            throw new Error('Wheel did not move camera '+JSON.stringify({beforeWheel,wheel}));
+          }
+          if(Math.abs(wheel.playerTargetGlobal-clickTarget)>.02){
+            throw new Error('Wheel changed player target '+JSON.stringify({beforeWheel,wheel}));
           }
 
-          await send('Runtime.evaluate',{
-            expression:'window.PrometeoRailWorld.setState({map:1,z:131.95,x:0,immediate:true})',
-            returnByValue:true
-          });
-          await key('ArrowUp','ArrowUp',true);
+          // 4. BACKWARD PLAYER MOVE: CAMERA FIRST, THEN CLICK A VISIBLE POINT BEHIND PLAYER.
+          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:5,cameraX:0,playerMap:1,playerZ:70,playerX:0,immediate:true})');
+          const beforeBack=await state();
+          await evaluate('window.PrometeoRailWorld.setPlayerTargetFromPercent(50,88)');
           await sleep(900);
+          const backward=await state();
+          if(!(backward.playerTargetGlobal<beforeBack.playerGlobal-20 && backward.playerGlobal<beforeBack.playerGlobal-12)){
+            throw new Error('Backward click model failed '+JSON.stringify({beforeBack,backward}));
+          }
+          if(Math.abs(backward.cameraGlobal-beforeBack.cameraGlobal)>.35){
+            throw new Error('Backward player move dragged camera '+JSON.stringify({beforeBack,backward}));
+          }
+
+          // 5. CAMERA CAN CROSS TO NEXT MAP WHILE PLAYER REMAINS IN THE OLD MAP.
+          await evaluate('window.PrometeoRailWorld.setState({cameraMap:1,cameraZ:131.85,cameraX:0,playerMap:1,playerZ:52,playerX:0,immediate:true})');
+          const beforeCross=await state();
+          await key('ArrowUp','ArrowUp',true);
+          await sleep(720);
           await key('ArrowUp','ArrowUp',false);
           await sleep(180);
           const crossed=await state();
-          if(!(crossed.map===3 && crossed.transitions>=1 && crossed.cameraZ<30)){
-            throw new Error('Map transition failed '+JSON.stringify(crossed));
+          if(!(crossed.cameraMap===3 && crossed.playerMap===1 && crossed.transitions>=1)){
+            throw new Error('Independent map crossing failed '+JSON.stringify({beforeCross,crossed}));
           }
 
-          console.log('FUNCTIONAL_RAIL_V2 PASS',JSON.stringify({initial,arrow,wheel,crossed}));
+          console.log('FUNCTIONAL_RAIL_V3 PASS',JSON.stringify({initial,clicked,arrow,wheel,beforeBack,backward,crossed}));
           ws.close();
 
           await fs.writeFile('demos/prometeo-rail-world-v1/review/manifest.json',JSON.stringify({
-            schema:'prometeo.rail-world-review/v2',
+            schema:'prometeo.rail-world-review/v3',
             source_sha:process.env.SOURCE_SHA,
             generated_at:new Date().toISOString(),
             renderer:'visuals/spaces-lab v35 live bridge',
-            runtime:'v2-live-spaces',
-            controls:['click','wheel','ArrowUp/ArrowDown','W/S','A/D','touch-swipe'],
+            runtime:'v3-decoupled',
+            semantics:{
+              click:'player target only',
+              wheel:'camera only',
+              arrows:'camera only',
+              touch_drag:'camera only',
+              camera_and_player:'independent global route coordinates'
+            },
             map_sequence:[1,3,4,5],
             review:['arcos.png','calzada.png','tunel.png','torres.png']
           },null,2)+'\n');
@@ -194,7 +240,7 @@ jobs:
       - name: Upload exact evidence
         uses: actions/upload-artifact@v4
         with:
-          name: rail-world-v2-${{ github.sha }}
+          name: rail-world-v3-${{ github.sha }}
           path: demos/prometeo-rail-world-v1/review/
           retention-days: 30
           if-no-files-found: error
@@ -205,16 +251,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          rm -rf /tmp/rail-world-v2
-          mkdir -p /tmp/rail-world-v2/demos/prometeo-rail-world-v1 /tmp/rail-world-v2/visuals/spaces-lab /tmp/rail-world-v2/workflow
-          cp demos/prometeo-rail-world-v1/index.html /tmp/rail-world-v2/demos/prometeo-rail-world-v1/index.html
-          cp -a demos/prometeo-rail-world-v1/review /tmp/rail-world-v2/demos/prometeo-rail-world-v1/
-          cp visuals/spaces-lab/index.html /tmp/rail-world-v2/visuals/spaces-lab/index.html
-          cp .github/workflows/rail-world-build-v1.yml /tmp/rail-world-v2/workflow/rail-world-build-v1.yml
+          rm -rf /tmp/rail-world-v3
+          mkdir -p /tmp/rail-world-v3/demos/prometeo-rail-world-v1 /tmp/rail-world-v3/visuals/spaces-lab /tmp/rail-world-v3/workflow
+          cp demos/prometeo-rail-world-v1/index.html /tmp/rail-world-v3/demos/prometeo-rail-world-v1/index.html
+          cp -a demos/prometeo-rail-world-v1/review /tmp/rail-world-v3/demos/prometeo-rail-world-v1/
+          cp visuals/spaces-lab/index.html /tmp/rail-world-v3/visuals/spaces-lab/index.html
+          cp .github/workflows/rail-world-build-v1.yml /tmp/rail-world-v3/workflow/rail-world-build-v1.yml
 
-          # Generated review files are now safely outside the checkout. Restore the
-          # source tree before switching branches so Git does not treat evidence as
-          # an uncommitted conflict.
           git reset --hard HEAD
           git clean -fd
 
@@ -223,18 +266,18 @@ jobs:
             git fetch origin "$branch"
             git checkout -B "$branch" "origin/$branch"
             mkdir -p demos/prometeo-rail-world-v1 visuals/spaces-lab
-            cp /tmp/rail-world-v2/demos/prometeo-rail-world-v1/index.html demos/prometeo-rail-world-v1/index.html
+            cp /tmp/rail-world-v3/demos/prometeo-rail-world-v1/index.html demos/prometeo-rail-world-v1/index.html
             rm -rf demos/prometeo-rail-world-v1/review demos/prometeo-rail-world-v1/frames
-            cp -a /tmp/rail-world-v2/demos/prometeo-rail-world-v1/review demos/prometeo-rail-world-v1/
-            cp /tmp/rail-world-v2/visuals/spaces-lab/index.html visuals/spaces-lab/index.html
+            cp -a /tmp/rail-world-v3/demos/prometeo-rail-world-v1/review demos/prometeo-rail-world-v1/
+            cp /tmp/rail-world-v3/visuals/spaces-lab/index.html visuals/spaces-lab/index.html
             if [ "$branch" = "main" ]; then
               mkdir -p .github/workflows
-              cp /tmp/rail-world-v2/workflow/rail-world-build-v1.yml .github/workflows/rail-world-build-v1.yml
+              cp /tmp/rail-world-v3/workflow/rail-world-build-v1.yml .github/workflows/rail-world-build-v1.yml
             fi
             git add -A demos/prometeo-rail-world-v1 visuals/spaces-lab
             if [ "$branch" = "main" ]; then git add .github/workflows/rail-world-build-v1.yml; fi
             if git diff --cached --quiet; then return 0; fi
-            git commit -m "visuals: publish live Rail World v2"
+            git commit -m "visuals: publish decoupled Rail World v3"
             for n in 1 2 3 4; do
               if git push origin "HEAD:$branch"; then return 0; fi
               git fetch origin "$branch"
@@ -247,7 +290,7 @@ jobs:
           publish_branch main
           publish_branch gh-pages
 
-      - name: Verify public live controls
+      - name: Verify public decoupled controls
         env:
           CHROME: ${{ steps.chrome.outputs.chrome-path }}
         run: |
@@ -255,8 +298,7 @@ jobs:
           URL="https://juanmanuelpm.github.io/prometeo/demos/prometeo-rail-world-v1/"
           for i in {1..48}; do
             PAGE="$(curl -fsSL --max-time 12 "$URL" 2>/dev/null || true)"
-            SPACE="$(curl -fsSL --max-time 12 "https://juanmanuelpm.github.io/prometeo/visuals/spaces-lab/" 2>/dev/null || true)"
-            if printf '%s' "$PAGE" | grep -Fq "v2-live-spaces" && printf '%s' "$SPACE" | grep -Fq "spaces-maps-v35-rail-bridge"; then break; fi
+            if printf '%s' "$PAGE" | grep -Fq "v3-decoupled"; then break; fi
             sleep 5
           done
 
@@ -286,13 +328,37 @@ jobs:
             if(i===239)throw new Error('Public Rail World never became ready');
             await sleep(125);
           }
-          const before=(await send('Runtime.evaluate',{expression:'window.PrometeoRailWorld.getState()',returnByValue:true}))?.result?.value;
-          await send('Input.dispatchKeyEvent',{type:'keyDown',key:'ArrowUp',code:'ArrowUp',windowsVirtualKeyCode:38,nativeVirtualKeyCode:38});
+          const state=async()=> (await send('Runtime.evaluate',{expression:'window.PrometeoRailWorld.getState()',returnByValue:true}))?.result?.value;
+          const before=await state();
+          await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:683,y:255});
+          await send('Input.dispatchMouseEvent',{type:'mousePressed',x:683,y:255,button:'left',clickCount:1});
+          await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:683,y:255,button:'left',clickCount:1});
           await sleep(900);
+          const afterClick=await state();
+          if(!(afterClick.playerGlobal>before.playerGlobal+12 && Math.abs(afterClick.cameraGlobal-before.cameraGlobal)<.35)){
+            throw new Error('Public click/camera decoupling failed '+JSON.stringify({before,afterClick}));
+          }
+
+          await send('Input.dispatchKeyEvent',{type:'keyDown',key:'ArrowUp',code:'ArrowUp',windowsVirtualKeyCode:38,nativeVirtualKeyCode:38});
+          await sleep(720);
           await send('Input.dispatchKeyEvent',{type:'keyUp',key:'ArrowUp',code:'ArrowUp',windowsVirtualKeyCode:38,nativeVirtualKeyCode:38});
-          await sleep(240);
-          const after=(await send('Runtime.evaluate',{expression:'window.PrometeoRailWorld.getState()',returnByValue:true}))?.result?.value;
-          if(!(after.cameraZ>before.cameraZ+8 && after.renderedZ>before.renderedZ+3))throw new Error('Public movement failed '+JSON.stringify({before,after}));
-          console.log('PUBLIC_RAIL_WORLD_V2_VERIFIED',JSON.stringify({before,after}));
+          await sleep(180);
+          const afterArrow=await state();
+          if(!(afterArrow.cameraGlobal>afterClick.cameraGlobal+9 && Math.abs(afterArrow.playerTargetGlobal-afterClick.playerTargetGlobal)<.02)){
+            throw new Error('Public camera control failed '+JSON.stringify({afterClick,afterArrow}));
+          }
+
+          const beforeWheel=await state();
+          for(let i=0;i<4;i++){
+            await send('Input.dispatchMouseEvent',{type:'mouseWheel',x:680,y:380,deltaX:0,deltaY:-420});
+            await sleep(60);
+          }
+          await sleep(650);
+          const afterWheel=await state();
+          if(!(afterWheel.cameraGlobal>beforeWheel.cameraGlobal+3 && Math.abs(afterWheel.playerTargetGlobal-beforeWheel.playerTargetGlobal)<.02)){
+            throw new Error('Public wheel camera control failed '+JSON.stringify({beforeWheel,afterWheel}));
+          }
+
+          console.log('PUBLIC_RAIL_WORLD_V3_VERIFIED',JSON.stringify({before,afterClick,afterArrow,afterWheel}));
           ws.close();
           NODE
