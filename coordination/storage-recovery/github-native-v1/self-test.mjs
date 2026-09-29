@@ -53,4 +53,24 @@ assert.throws(
   /INVALID_CLOSED_AT/
 );
 
+assert.throws(
+  () => exportClosurePack({ ...safe, project_id: "alice@example.com" }),
+  /FORBIDDEN_VALUE_CLASS/
+);
+
+assert.throws(
+  () => exportClosurePack({ ...safe, closure_id: "+14155551212" }),
+  /FORBIDDEN_VALUE_CLASS/
+);
+
+assert.throws(
+  () => exportClosurePack({ ...safe, objective_id: "ghp_123456789012345678901234567890" }),
+  /FORBIDDEN_VALUE_CLASS/
+);
+
+assert.throws(
+  () => exportClosurePack({ ...safe, source_refs: [{ ref: "coordination/private" }] }),
+  /UNSAFE_TOKEN/
+);
+
 process.stdout.write("PASS closure-pack fail-closed self-test\n");
