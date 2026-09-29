@@ -269,7 +269,8 @@ async function renderHistory(){
   const events=await allHistoryEvents();
   const groups={};for(const e of events.slice(0,120))(groups[day(e.at)]??=[]).push(e);
   const hr=document.getElementById('historyUnified');
-  hr.innerHTML='<div class="timeline-dir"><span>PRESENTE</span><span>↓ hacia el pasado</span></div><div class="timeline">'+Object.entries(groups).map(([d,es])=>'<section class="day"><div class="dayhead">'+esc(d)+'</div>'+es.map(e=>'<article class="event history-event"><div class="eventtime">'+esc(clock(e.at))+' · '+esc(e.type)+'</div><div class="eventtitle">'+esc(e.title)+'</div><div class="eventdesc">'+esc(e.desc||'')+'</div>'+(e.refs?.length?'<div class="history-links">'+e.refs.filter(r=>r?.url).slice(0,5).map(r=>'<a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.label||r.kind||'ref')+' ↗</a>').join('')+'</div>':'')+'</article>').join('')+'</section>').join('')+'</div>';
+  hr.innerHTML='<div class="timeline-dir"><span>PRESENTE</span><span>↓ hacia el pasado</span></div><div class="timeline">'+Object.entries(groups).map(([d,es])=>'<section class="day"><div class="dayhead">'+esc(d)+'</div>'+es.map(e=>'<article class="event history-event"'+(e.node_key?' data-history-key="'+esc(e.node_key)+'"':'')+'><div class="eventtime">'+esc(clock(e.at))+' · '+esc(e.type)+'</div><div class="eventtitle">'+esc(e.title)+'</div><div class="eventdesc">'+esc(e.desc||'')+'</div>'+(e.refs?.length?'<div class="history-links">'+e.refs.filter(r=>r?.url).slice(0,5).map(r=>'<a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.label||r.kind||'ref')+' ↗</a>').join('')+'</div>':'')+'</article>').join('')+'</section>').join('')+'</div>';
+  hr.querySelectorAll('[data-history-key]').forEach(el=>el.addEventListener('click',ev=>{if(ev.target.closest('a'))return;window.PROMETEO_V11_OPEN_ENTITY?.(el.dataset.historyKey)}));
   return true;
 }
 function bindCenter(){
