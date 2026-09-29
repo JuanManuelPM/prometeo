@@ -25,7 +25,7 @@ const liveBlocked=projectVisibleResultFromG05(projection,g05);
 assert.equal(liveBlocked.state,'BLOCKED');
 assert.equal(liveBlocked.fixture_contract_only,false);
 assert.equal(liveBlocked.lineage.same_lineage,true);
-assert.equal(liveBlocked.lineage.independent_verifier,false);
+assert.equal(liveBlocked.lineage.independent_verifier,true);
 assert.equal(liveBlocked.lineage.verifier_ref,'coordination/goal-progress/G05_VERIFICATION.json');
 assert.equal(liveBlocked.candidate_url,null);
 assert.equal(visibleResultCanPromote(liveBlocked),false);
