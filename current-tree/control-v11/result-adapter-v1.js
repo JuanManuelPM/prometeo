@@ -12,6 +12,7 @@ export function normalizeVisibleResultProjection(raw){
       blocker:'RESULT_PROJECTION_UNAVAILABLE',
       summary:'Resultado E2E todavía no proyectado.',
       lineage:{builder_return_ref:null,verifier_ref:null,candidate_ref:null,same_lineage:false,independent_verifier:false},
+      verification:{outcome:null},
       candidate_url:null,
       observed_at:null,
       integrity:'UNAVAILABLE'
@@ -41,6 +42,7 @@ export function normalizeVisibleResultProjection(raw){
     blocker:state==='VERIFIED'?null:text(raw.blocker)||(requested==='VERIFIED'?'VERIFIED_GATE_INCOMPLETE':null),
     summary:text(raw.summary)||'Sin resumen durable.',
     lineage,
+    verification:{outcome:raw.verification?.outcome==='PASS'?'PASS':text(raw.verification?.outcome)},
     candidate_url:state==='VERIFIED'?text(raw.candidate_url):null,
     observed_at:text(raw.observed_at)||text(raw.generated_at),
     integrity:state==='VERIFIED'?'VERIFIED_LINEAGE':'NON_PROMOTING'
