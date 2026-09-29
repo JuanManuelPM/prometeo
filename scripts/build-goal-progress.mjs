@@ -35,6 +35,7 @@ const integrator = read('coordination/portfolio/returns/portfolio-mp10-integrate
 const pageClose = read('coordination/canaries/page-change-pipeline-v1/software-closeout-20260928T232800Z.json');
 const pageLatest = read('coordination/canaries/page-change-pipeline-v1/latest.json');
 const g05Contract = read('coordination/goal-progress/G05_REAL_PRIVATE_E2E_EVIDENCE_CONTRACT_V1.json');
+const g09Verification = read('coordination/storage-recovery/github-native-v1/G09_VERIFICATION.json');
 const continuity = read('continuity/state.json');
 const scoreboard = readSite('live/worker-scoreboard.json');
 const publicStats = readSite('coordination/analytics/control-room-stats-v1/latest.json');
@@ -79,11 +80,20 @@ const visibleE2E =
 const storageContracts =
   exists('coordination/storage-recovery/github-native-v1/CLOSURE_PACK_CONTRACT.json') &&
   exists('coordination/integration-runs/PROMETEO-MP10-01/tests/privacy-closure.mjs');
+const g09GithubNativeEquivalent =
+  outcome(g09Verification) === 'PASS' &&
+  g09Verification?.gate_id === 'G09_RECOVERY_STORAGE_PRIVACY' &&
+  g09Verification?.route === 'GITHUB_NATIVE_EQUIVALENT' &&
+  g09Verification?.checks?.reconstructibility === 'PASS' &&
+  g09Verification?.checks?.privacy === 'PASS' &&
+  g09Verification?.checks?.retention_safety === 'PASS' &&
+  g09Verification?.checks?.control_plane_without_database === 'PASS';
 const storageRecovered =
-  realE2E &&
-  !['POSTGRES_DISK_EXHAUSTION','DATABASE_NOT_READY','BLOCKED_EXTERNAL_CONTROL_PLANE'].includes(
-    txt(pageClose?.current_external_block?.class || pageLatest?.status).toUpperCase()
-  );
+  g09GithubNativeEquivalent ||
+  (realE2E &&
+    !['POSTGRES_DISK_EXHAUSTION','DATABASE_NOT_READY','BLOCKED_EXTERNAL_CONTROL_PLANE'].includes(
+      txt(pageClose?.current_external_block?.class || pageLatest?.status).toUpperCase()
+    ));
 
 const continuityText = JSON.stringify(continuity || {});
 const promoted =
@@ -179,9 +189,10 @@ add('G09_RECOVERY_STORAGE_PRIVACY',
   [
     'coordination/storage-recovery/github-native-v1/CLOSURE_PACK_CONTRACT.json',
     'coordination/integration-runs/PROMETEO-MP10-01/tests/privacy-closure.mjs',
-    'coordination/canaries/page-change-pipeline-v1/software-closeout-20260928T232800Z.json'
+    'coordination/canaries/page-change-pipeline-v1/software-closeout-20260928T232800Z.json',
+    'coordination/storage-recovery/github-native-v1/G09_VERIFICATION.json'
   ],
-  storageRecovered ? null : 'Los contratos/privacy existen; falta demostrar recovery real del control plane/storage y volver a correr el E2E sobre infraestructura recuperada.'
+  storageRecovered ? null : 'Los contratos/privacy existen; falta una verificación PASS de recovery/storage o de la ruta GitHub-native equivalente autorizada por G09.'
 );
 
 add('G10_PROMOTE_SERVE_ACCEPT',
