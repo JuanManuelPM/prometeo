@@ -248,7 +248,7 @@ async function createTextCapture(text,target){
   pageId:p.id,transcriptRevision:1,metadata:{source_kind:'HUMAN_TEXT',control_surface:'CONTROL_ROOM_V11',node_key:p.node_key||p.semantic_context?.node_key||null,context_key:p.context_key||p.semantic_context?.context_key||null,object_kind:p.kind||p.semantic_context?.object_kind||'PAGE'}
  };
  if(!note.text)return null;
- await putNote(note);await remote.syncCapture(note,p).catch(()=>{});return note;
+ await putNote(note);remote.syncCapture(note,p).catch(()=>{});return note;
 }
 async function retryLocal(id){const n=await getNote(id);if(!n?.audio)return null;n.status='queued';n.error='';await putNote(n);voice.processQueue();return n}
 async function ensureLoop(){
