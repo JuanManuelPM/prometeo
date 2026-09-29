@@ -5,7 +5,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const TARGET_URL = process.env.ALUMNOS_ROUTE_CANARY_URL || 'https://juanmanuelpm.github.io/prometeo/__canary/portfolio-alumnos-student-world-live-route-bridge-v1/';
-const EXPECTED_BLOB = process.env.ALUMNOS_ROUTE_EXPECTED_BLOB || '35133e9a92ad7014b3ef3cfa46be15e36e4d4266';
+const EXPECTED_BLOB = process.env.ALUMNOS_ROUTE_EXPECTED_BLOB || 'f7c31e2edc4aa8b7affcf0d25c60a9856f1def72';
 const OUT_DIR = process.env.ALUMNOS_ROUTE_ARTIFACT_DIR || 'artifacts/alumnos-student-world-route-browser-ci';
 const PROPAGATION_MS = Number(process.env.ALUMNOS_ROUTE_PROPAGATION_MS || 30000);
 
