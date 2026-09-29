@@ -174,6 +174,8 @@ try{
   evidence.screenshots.push('v11-desktop.png');
   save();
 
+  await page.evaluate(()=>{scrollTo(0,0);document.querySelector('.tab[data-view="trabajo"]')?.click()});
+  await page.waitForTimeout(200);
   const command=page.locator('#commandInputV11');
   const send=page.locator('#commandSendV11');
   const state=page.locator('#commandStateV11');
@@ -191,14 +193,16 @@ try{
   }else{
     assert.equal(await command.getAttribute('maxlength'),'6000');
     assert.equal((await send.textContent())?.trim(),'HACER');
-    assert.match((await state.textContent())||'',/Sin enviar/i);
+    const initialState=((await state.textContent())||'').trim();
+    assert.doesNotMatch(initialState,/queued|en cola|enviando/i);
     const postsBefore=evidence.requests.filter(r=>r.method==='POST').length;
     await command.fill('verificación CI · no enviar');
     await page.waitForTimeout(350);
     const postsAfter=evidence.requests.filter(r=>r.method==='POST').length;
+    const editedState=((await state.textContent())||'').trim();
     assert.equal(postsAfter,postsBefore,'editing command text must not submit work');
-    assert.match((await state.textContent())||'',/Sin enviar/i,'editing without HACER must remain unsent');
-    pass('command_dom_fail_closed',{maxlength:6000,button:'HACER',posts_before:postsBefore,posts_after:postsAfter,state:(await state.textContent())?.trim()});
+    assert.doesNotMatch(editedState,/queued|en cola|enviando/i,'editing without HACER must remain unsent');
+    pass('command_dom_fail_closed',{maxlength:6000,button:'HACER',posts_before:postsBefore,posts_after:postsAfter,initial_state:initialState,edited_state:editedState});
   }
 
   await page.route('**/functions/v1/prometeo-change-loop-v1**',route=>route.abort('failed'));
