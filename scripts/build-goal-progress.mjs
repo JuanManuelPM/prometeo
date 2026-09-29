@@ -34,6 +34,7 @@ const handoff = read('coordination/integration-runs/PROMETEO-MP10-01/CURRENT_HAN
 const integrator = read('coordination/portfolio/returns/portfolio-mp10-integrate-into-current-v1/RETURN-wc-20260929T034758Z-a7c4e19b6f2d-G000001-DONE.json');
 const pageClose = read('coordination/canaries/page-change-pipeline-v1/software-closeout-20260928T232800Z.json');
 const pageLatest = read('coordination/canaries/page-change-pipeline-v1/latest.json');
+const g05Contract = read('coordination/goal-progress/G05_REAL_PRIVATE_E2E_EVIDENCE_CONTRACT_V1.json');
 const continuity = read('continuity/state.json');
 const scoreboard = readSite('live/worker-scoreboard.json');
 const publicStats = readSite('coordination/analytics/control-room-stats-v1/latest.json');
@@ -58,11 +59,18 @@ const pageSoftwarePass =
   pageClose?.checks?.engine_ci?.result === 'PASS';
 
 const latestEvidence = pageLatest?.evidence || {};
+const evidencePass = value =>
+  arr(g05Contract?.accepted_evidence_status).includes(txt(value).toUpperCase());
+const requiredRealE2E = arr(g05Contract?.required_evidence)
+  .map(key => [key, latestEvidence[key]]);
+const missingRealE2E = requiredRealE2E
+  .filter(([, value]) => !evidencePass(value))
+  .map(([key]) => key);
 const realE2E =
-  ['PASS','VERIFIED','SUCCESS'].includes(txt(pageLatest?.status).toUpperCase()) &&
-  ['PROVEN','PASS','VERIFIED'].includes(txt(latestEvidence.worker_pool_execution_packet).toUpperCase()) &&
-  ['PROVEN','PASS','VERIFIED'].includes(txt(latestEvidence.github_return_ingestion).toUpperCase()) &&
-  ['PROVEN','PASS','VERIFIED'].includes(txt(latestEvidence.capture_sync).toUpperCase());
+  g05Contract?.gate_id === 'G05_REAL_PRIVATE_E2E' &&
+  arr(g05Contract?.accepted_terminal_status).includes(txt(pageLatest?.status).toUpperCase()) &&
+  requiredRealE2E.length > 0 &&
+  missingRealE2E.length === 0;
 
 const visibleE2E =
   realE2E &&
@@ -131,8 +139,11 @@ add('G04_PAGE_CHANGE_SOFTWARE',
 
 add('G05_REAL_PRIVATE_E2E',
   realE2E ? 'PASS' : 'BLOCKED',
-  ['coordination/canaries/page-change-pipeline-v1/latest.json'],
-  realE2E ? null : 'Falta canary real: claim → packet privado post-claim → PREWRITE/CAS → RETURN → verifier independiente.',
+  [
+    'coordination/canaries/page-change-pipeline-v1/latest.json',
+    'coordination/goal-progress/G05_REAL_PRIVATE_E2E_EVIDENCE_CONTRACT_V1.json'
+  ],
+  realE2E ? null : `Falta canary real de un solo lineage: claim → packet privado post-claim → PREWRITE/CAS → RETURN sanitizado → verifier independiente. Evidencia faltante: ${missingRealE2E.join(', ') || 'contrato G05 inválido'}.`,
   txt(pageLatest?.status || pageClose?.current_external_block?.class)
 );
 
