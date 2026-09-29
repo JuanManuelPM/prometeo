@@ -235,25 +235,26 @@ const attentionOutcome = row => {
   return ['partial', 'boundary', 'route_aborted'].includes(value) ? value : null;
 };
 
-function detectPartialLoop(jobs = [], threshold = 2) {
+function detectPartialLoop(jobs = [], threshold = 2, consumedReturns = new Set()) {
   const minimum = Math.max(2, finiteInt(threshold, 2));
+  const unconsumedAttentionRows = job => returnEvidenceRows(job)
+    .filter(row => Boolean(attentionOutcome(row)))
+    .filter(row => !row?.path || !consumedReturns.has(row.path));
+
   const attentionJobs = arr(jobs)
     .filter(job => job?.state !== 'done')
-    .filter(job => {
-      const latest = returnEvidenceRows(job).at(-1) || job?.latest_return || null;
-      return ['partial', 'blocked'].includes(job?.state) || Boolean(attentionOutcome(latest));
-    });
+    .filter(job => unconsumedAttentionRows(job).length > 0);
 
   const returnOwner = new Map();
   for (const job of attentionJobs) {
-    for (const ret of returnEvidenceRows(job).filter(row => Boolean(attentionOutcome(row)))) {
+    for (const ret of unconsumedAttentionRows(job)) {
       if (ret?.path) returnOwner.set(ret.path, job);
     }
   }
 
   const groups = [];
   for (const job of attentionJobs) {
-    const rows = returnEvidenceRows(job).filter(row => Boolean(attentionOutcome(row)));
+    const rows = unconsumedAttentionRows(job);
 
     if (rows.length >= minimum) {
       const selected = rows.slice(-minimum);
@@ -269,7 +270,7 @@ function detectPartialLoop(jobs = [], threshold = 2) {
     const parent = parentRef ? returnOwner.get(parentRef) : null;
     if (!parent || parent.job_id === job.job_id) continue;
 
-    const parentRows = returnEvidenceRows(parent).filter(row => Boolean(attentionOutcome(row)));
+    const parentRows = unconsumedAttentionRows(parent);
     const parentReturn = parentRows.find(row => row?.path === parentRef) || parentRows.at(-1) || null;
     const childReturn = rows.at(-1) || null;
     const returnRefs = uniq([parentReturn?.path, childReturn?.path]);
@@ -892,7 +893,7 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
     })
     .map(row => row.path)
     .slice(-12));
-  const partialLoop = detectPartialLoop(jobs, Number(signals.partial_loop_trigger || 2));
+  const partialLoop = detectPartialLoop(jobs, Number(signals.partial_loop_trigger || 2), consumedReturns);
   const unresolvedEvidence = uniq(jobs
     .filter(job => job.state !== 'done')
     .sort((a, b) => (b.priority || 0) - (a.priority || 0))
