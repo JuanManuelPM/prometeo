@@ -17,30 +17,23 @@ Do not retrieve private Page Change context before the claim succeeds.
 
 ## Required capabilities
 
-The candidate declares:
+The candidate always declares the concrete capabilities required by its selected private-context adapter. The protocol itself does **not** require one storage/provider.
 
-- `github_repository_write`
-- `connected_supabase_prometeo`
+- `github_repository_write` is required for the ordinary GitHub claim / PREWRITE / RETURN path.
+- Any private-context capability is adapter-specific and MUST come from the compact frontier candidate. Never invent, silently add or globally hard-code a provider capability.
+- `context_transport` and `private_packet_lookup` MUST both be explicit in the candidate. If either is missing or the runtime cannot use the declared transport, do not claim that candidate.
 
-If either capability is unavailable, do not claim the candidate.
-
-The Prometeo Supabase project is:
-
-`catnohyouxqjjtseaueb`
+The currently deployed adapter may declare `context_transport=SUPABASE_CONNECTED_PROJECT` with `connected_supabase_prometeo`. That is one adapter, not an architectural dependency. A future authenticated adapter may replace it without changing the Page Change authority, privacy, PREWRITE, RETURN or verifier laws.
 
 ## After a successful claim
 
-The compact frontier provides `work_item_id` and `private_packet_lookup`.
+The compact frontier provides `work_item_id`, `context_transport` and `private_packet_lookup`.
 
-Use the connected Prometeo Supabase control plane to retrieve exactly that packet from:
+Resolve exactly the owned private packet using the **declared** authenticated transport only after the atomic opportunity claim succeeds. Do not probe alternate providers, downgrade to public context, or browse unrelated captures, threads or packets.
 
-`public.prometeo_execution_packets`
+For the current `SUPABASE_CONNECTED_PROJECT` adapter, the lookup resolves the exact `work_item_id` in the declared Prometeo project/table and requires the existing connected capability. Other adapters must supply an equally bounded exact lookup contract in the frontier before they are eligible.
 
-by exact `work_item_id`.
-
-Retrieve only the owned row needed for this work item. Do not browse unrelated captures, threads or packets.
-
-Required fields:
+The resolved private packet must expose the fields needed by the execution contract, including:
 
 - `snapshot`
 - `snapshot_hash`
