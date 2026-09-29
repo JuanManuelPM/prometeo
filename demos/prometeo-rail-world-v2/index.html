@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#030503">
+<title>Prometeo · Rail World V6</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;overscroll-behavior:none;touch-action:none;user-select:none;-webkit-user-select:none}
+body{font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+#shell{position:fixed;inset:0;display:grid;place-items:center;background:#000}
+#stage{position:relative;width:min(100vw,177.777vh);height:min(56.25vw,100vh);overflow:hidden;background:#020402;touch-action:none;isolation:isolate}
+#scene{position:absolute;inset:0;width:100%;height:100%;display:block;background:#020402;touch-action:none}
+#veil{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 58%,transparent 34%,rgba(0,0,0,.17) 60%,rgba(0,0,0,.86) 100%);box-shadow:inset 0 0 8vw rgba(0,0,0,.56)}
+#grain{position:absolute;inset:-4%;pointer-events:none;opacity:.05;mix-blend-mode:screen;background-image:radial-gradient(circle at 19% 23%,rgba(221,196,144,.18) 0 .55px,transparent .8px),radial-gradient(circle at 63% 71%,rgba(221,196,144,.11) 0 .55px,transparent .8px);background-size:11px 13px,17px 19px}
+#hud{position:absolute;inset:0;pointer-events:none;color:#c9b990;text-shadow:0 1px #000}
+#sceneName{position:absolute;left:12px;top:11px;font:900 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;opacity:.58}
+#mode{position:absolute;right:12px;top:11px;font:800 7px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;text-align:right;opacity:.42}
+#hint{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);white-space:nowrap;font:800 7px/1 system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;opacity:.31}
+#debug{display:none;position:absolute;right:8px;top:34px;padding:6px 7px;background:rgba(0,0,0,.58);font:700 7px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre}
+body.debug #debug{display:block}
+#loading{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:#020402;color:#6f705f;font:900 9px/1 system-ui,sans-serif;letter-spacing:.13em;text-transform:uppercase;transition:opacity .3s ease}
+#loading.off{opacity:0;pointer-events:none}
+#flash{position:absolute;inset:0;z-index:15;background:#050504;opacity:0;pointer-events:none;transition:opacity .16s ease}
+#flash.on{opacity:.96}
+#orientation{display:none;position:fixed;inset:0;z-index:99;background:#020202;color:#69655b;place-items:center;text-align:center;font:900 10px/1.5 system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase}
+body.review #hud{display:none}
+@media(max-width:680px) and (orientation:portrait){#orientation{display:grid}}
+</style>
+</head>
+<body>
+<div id="shell"><div id="stage">
+  <canvas id="scene" aria-label="Prometeo Rail World V6"></canvas>
+  <div id="veil"></div><div id="grain"></div>
+  <div id="hud"><div id="sceneName"></div><div id="mode"></div><div id="hint">click = caminar · scroll / ↑↓ = cámara · A D = lateral · ← → = rotar cámara</div><div id="debug"></div></div>
+  <div id="flash"></div><div id="loading">construyendo mundo</div>
+</div></div>
+<div id="orientation">giralo horizontalmente</div>
+<script>
+(()=>{
+"use strict";
+
+const canvas=document.getElementById("scene");
+const ctx=canvas.getContext("2d",{alpha:false});
+const stage=document.getElementById("stage");
+const loading=document.getElementById("loading");
+const flash=document.getElementById("flash");
+const sceneNameEl=document.getElementById("sceneName");
+const modeEl=document.getElementById("mode");
+const debugEl=document.getElementById("debug");
+
+const TAU=Math.PI*2,NEAR=.32,CAMERA_H=1.72;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const hypot=(a,b)=>Math.hypot(a,b);
+const wrapAngle=a=>{while(a>Math.PI)a-=TAU;while(a<-Math.PI)a+=TAU;return a};
+const angleDamp=(a,b,k)=>a+wrapAngle(b-a)*k;
+const q=new URLSearchParams(location.search);
+const REVIEW=q.get("review")==="1";
+if(REVIEW)document.body.classList.add("review");
+if(q.get("debug")==="1")document.body.classList.add("debug");
+
+let W=800,H=450,F=330,HORIZON=.47;
+function resize(){
+  const r=stage.getBoundingClientRect();
+  W=Math.max(480,Math.round(r.width));
+  H=Math.max(270,Math.round(r.height));
+  canvas.width=W;canvas.height=H;
+  F=Math.min(W,H*1.777)*.58;
+}
+addEventListener("resize",resize,{passive:true});resize();
+
+const ASSET_URLS={
+  wall:"https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Dark_green_grey_flecked_speckled_spotted_clean_marble_cemented_building_wall_square_checkered_tile_texture.jpg/1024px-Dark_green_grey_flecked_speckled_spotted_clean_marble_cemented_building_wall_square_checkered_tile_texture.jpg",
+  floor:"https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/Green_mosaic_square_seamless_tiled_floor_texture.jpg/1280px-Green_mosaic_square_seamless_tiled_floor_texture.jpg",
+  stone:"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Stone_Wall_Texture.jpg/1280px-Stone_Wall_Texture.jpg",
+  avatar:"../../strategy/mask-mouth/assets/mask-transparent.webp",
+  arcos:"../prometeo-rail-world-v1/review/arcos-network.png",
+  calzada:"../prometeo-rail-world-v1/review/calzada-network.png",
+  tunel:"../prometeo-rail-world-v1/review/tunel-network.png",
+  torres:"../prometeo-rail-world-v1/review/torres-network.png"
+};
+const assets={};
+function loadAsset(k,u){return new Promise(resolve=>{const im=new Image();im.decoding="async";if(/^https?:/.test(u))im.crossOrigin="anonymous";im.onload=()=>{assets[k]=im;resolve(true)};im.onerror=()=>{assets[k]=null;resolve(false)};im.src=u})}
+
+const SCENE_IDS=["ARCOS","CALZADA","TUNEL","TORRES","MUSEO"];
+const SCENE_META={
+  ARCOS:{label:"ARCOS",sky:["#010302","#071008","#000100"],accent:[116,139,84]},
+  CALZADA:{label:"CALZADA",sky:["#020104","#10071a","#000001"],accent:[111,89,150]},
+  TUNEL:{label:"TÚNEL",sky:["#070503","#171008","#010101"],accent:[139,103,68]},
+  TORRES:{label:"TORRES",sky:["#02060a","#091522","#010203"],accent:[67,109,128]},
+  MUSEO:{label:"MUSEO DE MAPAS",sky:["#050403","#15110b","#010101"],accent:[151,126,76]}
+};
+
+function sceneDestinations(id){
+  const others=SCENE_IDS.filter(x=>x!==id);
+  if(id!=="MUSEO"&&others.includes("MUSEO")){
+    return others.filter(x=>x!=="MUSEO").slice(0,3).concat("MUSEO");
+  }
+  return others;
+}
+function makeGraph(sceneId){
+  const nodes=new Map(),edges=[],gates=[],junctions=new Set();
+  const add=(id,x,z,meta={})=>{nodes.set(id,{id,x,z,neighbors:[],...meta});return id};
+  const link=(a,b,kind="path")=>{nodes.get(a).neighbors.push(b);nodes.get(b).neighbors.push(a);edges.push({a,b,kind})};
+  const chain=(prefix,startId,pts,kind="path",endMeta={})=>{
+    let prev=startId,last=startId;
+    pts.forEach((p,i)=>{
+      const id=prefix+"_"+i;
+      add(id,p.x,p.z,i===pts.length-1?endMeta:{});
+      link(prev,id,kind);prev=id;last=id;
+    });
+    return last;
+  };
+  const linePts=(a,b,n)=>Array.from({length:n},(_,i)=>({x:lerp(a.x,b.x,(i+1)/n),z:lerp(a.z,b.z,(i+1)/n)}));
+  const bezierPts=(a,c,b,n)=>Array.from({length:n},(_,i)=>{const t=(i+1)/n,u=1-t;return{x:u*u*a.x+2*u*t*c.x+t*t*b.x,z:u*u*a.z+2*u*t*c.z+t*t*b.z}});
+  add("entry",0,0,{entry:true});
+  const j1={x:0,z:34},j2={x:0,z:62};
+  chain("spineA","entry",linePts({x:0,z:0},j1,8),"spine",{junction:true});
+  const j1id="spineA_7";junctions.add(j1id);
+  chain("spineB",j1id,linePts(j1,j2,7),"spine",{junction:true});
+  const j2id="spineB_6";junctions.add(j2id);
+  const dests=sceneDestinations(sceneId);
+  const defs=[
+    {j:j1id,start:j1,end:{x:-25,z:55},ctrl:{x:-9,z:43}},
+    {j:j1id,start:j1,end:{x:25,z:55},ctrl:{x:9,z:43}},
+    {j:j2id,start:j2,end:{x:-29,z:90},ctrl:{x:-12,z:75}},
+    {j:j2id,start:j2,end:{x:31,z:92},ctrl:{x:15,z:74}}
+  ];
+  defs.forEach((d,i)=>{
+    const dest=dests[i];
+    const kind=dest==="MUSEO"?"museum":"branch";
+    const endId=chain("b"+i,d.j,bezierPts(d.start,d.ctrl,d.end,10),kind,{gate:true,destination:dest});
+    gates.push({nodeId:endId,destination:dest,kind});
+  });
+  if(sceneId==="MUSEO"){
+    const a=chain("galleryL",j1id,bezierPts(j1,{x:-7,z:51},{x:-13,z:68},7),"gallery");
+    const b=chain("galleryR",j2id,bezierPts(j2,{x:8,z:73},{x:13,z:83},6),"gallery");
+    link(a,b,"gallery");
+  }
+  return{nodes,edges,gates,junctions};
+}
+
+let sceneId=q.get("scene")?.toUpperCase();
+if(!SCENE_IDS.includes(sceneId))sceneId="ARCOS";
+let graph=makeGraph(sceneId);
+
+const camera={x:Number(q.get("cx")||0),z:Number(q.get("cz")||-5),yaw:Number(q.get("yaw")||0),targetYaw:Number(q.get("yaw")||0),moveVelocity:0};
+const player={x:Number(q.get("px")||0),z:Number(q.get("pz")||4),heading:0,currentNode:"entry",route:[],segment:null,moving:false,targetNode:null,walkPhase:0};
+const state={ready:false,transitioning:false,activeGate:null,lastTurn:null,sceneChanges:0,clickPulse:null};
+const renderStats={faces:0,boxes:0,paths:0,avatarVisible:false,avatarDepth:null,scene:sceneId};
+
+function nearestNode(x,z){
+  let best=null,bd=Infinity;
+  for(const n of graph.nodes.values()){
+    const d=hypot(n.x-x,n.z-z);
+    if(d<bd){bd=d;best=n}
+  }
+  return best;
+}
+function bfs(startId,targetId){
+  if(startId===targetId)return[];
+  const queue=[startId],prev=new Map([[startId,null]]);
+  while(queue.length){
+    const id=queue.shift();
+    for(const nb of graph.nodes.get(id).neighbors){
+      if(prev.has(nb))continue;
+      prev.set(nb,id);
+      if(nb===targetId){
+        const out=[];let k=targetId;
+        while(k&&k!==startId){out.push(k);k=prev.get(k)}
+        return out.reverse();
+      }
+      queue.push(nb);
+    }
+  }
+  return[];
+}
+function planToNode(targetId){
+  const start=nearestNode(player.x,player.z);
+  if(!start||!graph.nodes.has(targetId))return false;
+  player.currentNode=start.id;player.segment=null;player.route=bfs(start.id,targetId);player.targetNode=targetId;player.moving=player.route.length>0;
+  return player.moving;
+}
+function routeToGate(destination){
+  const g=graph.gates.find(x=>x.destination===destination);
+  return g?planToNode(g.nodeId):false;
+}
+function startNextPlayerSegment(){
+  if(player.segment||!player.route.length)return;
+  const id=player.route.shift(),n=graph.nodes.get(id);
+  const dx=n.x-player.x,dz=n.z-player.z,dist=Math.max(.001,hypot(dx,dz));
+  const heading=Math.atan2(dx,dz);
+  player.segment={id,sx:player.x,sz:player.z,ex:n.x,ez:n.z,t:0,dist,heading};
+  player.heading=heading;
+  const nearJunction=graph.junctions.has(player.currentNode)||graph.junctions.has(id);
+  if(nearJunction&&Math.abs(wrapAngle(camera.targetYaw-heading))>.18){
+    camera.targetYaw=heading;
+    state.lastTurn={from:player.currentNode,to:id,yaw:heading,at:performance.now()};
+  }
+}
+function updatePlayer(dt){
+  startNextPlayerSegment();
+  if(!player.segment){player.moving=false;return}
+  player.moving=true;
+  const s=player.segment;
+  s.t=clamp(s.t+13.5*dt/s.dist,0,1);
+  const u=s.t*s.t*(3-2*s.t);
+  player.x=lerp(s.sx,s.ex,u);player.z=lerp(s.sz,s.ez,u);player.walkPhase+=dt*8.5;
+  if(s.t>=1){player.x=s.ex;player.z=s.ez;player.currentNode=s.id;player.segment=null;if(!player.route.length)player.moving=false}
+}
+function updateActiveGate(){
+  let best=null,bd=Infinity;
+  for(const g of graph.gates){
+    const n=graph.nodes.get(g.nodeId),d=hypot(n.x-player.x,n.z-player.z);
+    if(d<bd){bd=d;best=g}
+  }
+  state.activeGate=best&&bd<3.25?best.destination:null;
+}
+
+function worldToCamera(p){
+  const dx=p.x-camera.x,dz=p.z-camera.z,c=Math.cos(camera.yaw),s=Math.sin(camera.yaw);
+  return{x:dx*c-dz*s,y:(p.y||0)-CAMERA_H,z:dx*s+dz*c,u:p.u||0,v:p.v||0};
+}
+function projectCam(p){const f=F/p.z;return{x:W*.5+p.x*f,y:H*HORIZON-p.y*f,z:p.z,f}}
+function clipNear(poly){
+  const out=[];
+  for(let i=0;i<poly.length;i++){
+    const a=poly[i],b=poly[(i+1)%poly.length],ain=a.z>=NEAR,bin=b.z>=NEAR;
+    if(ain)out.push(a);
+    if(ain!==bin){
+      const t=(NEAR-a.z)/(b.z-a.z);
+      out.push({x:lerp(a.x,b.x,t),y:lerp(a.y,b.y,t),z:NEAR,u:lerp(a.u,b.u,t),v:lerp(a.v,b.v,t)});
+    }
+  }
+  return out;
+}
+function texTri(img,p0,p1,p2,uv0,uv1,uv2,alpha){
+  if(!img)return;
+  const den=uv0.x*(uv1.y-uv2.y)+uv1.x*(uv2.y-uv0.y)+uv2.x*(uv0.y-uv1.y);
+  if(Math.abs(den)<.001)return;
+  const a=(p0.x*(uv1.y-uv2.y)+p1.x*(uv2.y-uv0.y)+p2.x*(uv0.y-uv1.y))/den;
+  const c=(p0.x*(uv2.x-uv1.x)+p1.x*(uv0.x-uv2.x)+p2.x*(uv1.x-uv0.x))/den;
+  const e=(p0.x*(uv1.x*uv2.y-uv2.x*uv1.y)+p1.x*(uv2.x*uv0.y-uv0.x*uv2.y)+p2.x*(uv0.x*uv1.y-uv1.x*uv0.y))/den;
+  const b=(p0.y*(uv1.y-uv2.y)+p1.y*(uv2.y-uv0.y)+p2.y*(uv0.y-uv1.y))/den;
+  const d=(p0.y*(uv2.x-uv1.x)+p1.y*(uv0.x-uv2.x)+p2.y*(uv1.x-uv0.x))/den;
+  const fy=(p0.y*(uv1.x*uv2.y-uv2.x*uv1.y)+p1.y*(uv2.x*uv0.y-uv0.x*uv2.y)+p2.y*(uv0.x*uv1.y-uv1.x*uv0.y))/den;
+  ctx.save();ctx.globalAlpha=alpha;ctx.beginPath();ctx.moveTo(p0.x,p0.y);ctx.lineTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.closePath();ctx.clip();
+  ctx.setTransform(a,b,c,d,e,fy);ctx.drawImage(img,0,0);ctx.restore();
+}
+function projectedPoly(points){
+  let poly=points.map(worldToCamera);poly=clipNear(poly);if(poly.length<3)return null;
+  return{cam:poly,screen:poly.map(projectCam),depth:poly.reduce((s,p)=>s+p.z,0)/poly.length};
+}
+function solidPoly(points,color,alpha=1){
+  const p=projectedPoly(points);if(!p)return;
+  ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(p.screen[0].x,p.screen[0].y);
+  for(let i=1;i<p.screen.length;i++)ctx.lineTo(p.screen[i].x,p.screen[i].y);ctx.closePath();ctx.fill();ctx.restore();
+}
+function texturedPoly(points,img,alpha=1,tint=null,tintAlpha=0){
+  let poly=points.map((p,i)=>worldToCamera({...p,u:(i===1||i===2)?(img?.width||1):0,v:(i>=2)?(img?.height||1):0}));
+  poly=clipNear(poly);if(poly.length<3)return;
+  const pp=poly.map(projectCam);
+  if(img)for(let i=1;i<poly.length-1;i++)texTri(img,pp[0],pp[i],pp[i+1],{x:poly[0].u,y:poly[0].v},{x:poly[i].u,y:poly[i].v},{x:poly[i+1].u,y:poly[i+1].v},alpha);
+  if(tint){
+    ctx.save();ctx.globalAlpha=img?tintAlpha:Math.max(.35,alpha);ctx.fillStyle=tint;ctx.beginPath();ctx.moveTo(pp[0].x,pp[0].y);for(let i=1;i<pp.length;i++)ctx.lineTo(pp[i].x,pp[i].y);ctx.closePath();ctx.fill();ctx.restore();
+  }
+}
+function rotateXZ(x,z,yaw){const c=Math.cos(yaw),s=Math.sin(yaw);return{x:x*c+z*s,z:-x*s+z*c}}
+function boxFaces(o){
+  const hw=o.w/2,hd=o.d/2,y0=o.y||0,y1=y0+o.h;
+  const corner=(x,y,z)=>{const r=rotateXZ(x,z,o.yaw||0);return{x:o.x+r.x,y,z:o.z+r.z}};
+  const p={flb:corner(-hw,y0,-hd),frb:corner(hw,y0,-hd),blb:corner(-hw,y0,hd),brb:corner(hw,y0,hd),flt:corner(-hw,y1,-hd),frt:corner(hw,y1,-hd),blt:corner(-hw,y1,hd),brt:corner(hw,y1,hd)};
+  const norms=[
+    {n:rotateXZ(0,-1,o.yaw||0),pts:[p.flt,p.frt,p.frb,p.flb],shade:1},
+    {n:rotateXZ(0,1,o.yaw||0),pts:[p.brt,p.blt,p.blb,p.brb],shade:.52},
+    {n:rotateXZ(-1,0,o.yaw||0),pts:[p.blt,p.flt,p.flb,p.blb],shade:.68},
+    {n:rotateXZ(1,0,o.yaw||0),pts:[p.frt,p.brt,p.brb,p.frb],shade:.78}
+  ];
+  const out=[];
+  for(const f of norms){
+    const center=f.pts.reduce((a,v)=>({x:a.x+v.x/4,z:a.z+v.z/4}),{x:0,z:0}),vx=camera.x-center.x,vz=camera.z-center.z;
+    if(f.n.x*vx+f.n.z*vz>0)out.push(f);
+  }
+  if(CAMERA_H>y1-.2)out.push({pts:[p.blt,p.brt,p.frt,p.flt],shade:1.08});
+  return out;
+}
+function lightAt(x,z,base=1){const d=hypot(x-camera.x,z-camera.z);return clamp(.08+.92/(1+Math.pow(d/34,1.8)),.08,1)*base}
+function faceDepth(pts){const cs=pts.map(worldToCamera);return cs.reduce((s,p)=>s+p.z,0)/cs.length}
+function queueBox(queue,o){
+  for(const f of boxFaces(o)){
+    const depth=faceDepth(f.pts);if(depth<NEAR-.4)continue;
+    queue.push({depth,draw:()=>{const L=lightAt(o.x,o.z,f.shade),img=assets[o.material]||assets.stone;texturedPoly(f.pts,img,.18+.82*L,o.tint||"#071008",.32*(1-L))}});
+    renderStats.faces++;
+  }
+  renderStats.boxes++;
+}
+function queueCylinder(queue,o){
+  const n=o.sides||10,r=o.r;
+  for(let i=0;i<n;i++){
+    const a0=i*TAU/n,a1=(i+1)*TAU/n,am=(a0+a1)/2,nx=Math.cos(am),nz=Math.sin(am),cx=o.x+nx*r,cz=o.z+nz*r;
+    if(nx*(camera.x-cx)+nz*(camera.z-cz)<=0)continue;
+    const pts=[{x:o.x+Math.cos(a0)*r,y:(o.y||0)+o.h,z:o.z+Math.sin(a0)*r},{x:o.x+Math.cos(a1)*r,y:(o.y||0)+o.h,z:o.z+Math.sin(a1)*r},{x:o.x+Math.cos(a1)*r,y:o.y||0,z:o.z+Math.sin(a1)*r},{x:o.x+Math.cos(a0)*r,y:o.y||0,z:o.z+Math.sin(a0)*r}];
+    const depth=faceDepth(pts);if(depth<NEAR-.4)continue;
+    queue.push({depth,draw:()=>{const L=lightAt(cx,cz,.65+.35*Math.max(0,nx*.4+nz*.6));texturedPoly(pts,assets[o.material]||assets.stone,.15+.85*L,o.tint||"#050704",.38*(1-L))}});
+    renderStats.faces++;
+  }
+}
+function panelPoints(o){
+  const right=rotateXZ(1,0,o.yaw||0),hw=o.w/2;
+  return[{x:o.x-right.x*hw,y:o.y+o.h,z:o.z-right.z*hw},{x:o.x+right.x*hw,y:o.y+o.h,z:o.z+right.z*hw},{x:o.x+right.x*hw,y:o.y,z:o.z+right.z*hw},{x:o.x-right.x*hw,y:o.y,z:o.z-right.z*hw}];
+}
+function queuePanel(queue,o){
+  const pts=panelPoints(o),depth=faceDepth(pts);if(depth<NEAR-.4)return;
+  queue.push({depth,draw:()=>{
+    texturedPoly(pts,assets[o.image]||assets.wall,.92,"#100d08",.13);
+    const pp=projectedPoly(pts);if(pp){ctx.save();ctx.strokeStyle="rgba(186,157,101,.46)";ctx.lineWidth=Math.max(1,pp.screen.reduce((s,p)=>s+p.f,0)/pp.screen.length*.012);ctx.beginPath();ctx.moveTo(pp.screen[0].x,pp.screen[0].y);for(let i=1;i<pp.screen.length;i++)ctx.lineTo(pp.screen[i].x,pp.screen[i].y);ctx.closePath();ctx.stroke();ctx.restore()}
+  }});
+}
+function pathQuad(a,b,width=2.7,y=.015){
+  const dx=b.x-a.x,dz=b.z-a.z,len=Math.max(.001,hypot(dx,dz)),px=-dz/len*width/2,pz=dx/len*width/2;
+  return[{x:a.x+px,y,z:a.z+pz},{x:b.x+px,y,z:b.z+pz},{x:b.x-px,y,z:b.z-pz},{x:a.x-px,y,z:a.z-pz}];
+}
+function drawFloor(){
+  const meta=SCENE_META[sceneId],cell=8;
+  for(let z=104;z>=-16;z-=cell)for(let x=-48;x<48;x+=cell){
+    const pts=[{x,y:-.035,z:z+cell},{x:x+cell,y:-.035,z:z+cell},{x:x+cell,y:-.035,z},{x,y:-.035,z}],center={x:x+cell/2,z:z+cell/2},L=lightAt(center.x,center.z,.72);
+    texturedPoly(pts,assets.floor,.08+.44*L,"rgb("+meta.accent.join(",")+")",.22+.28*(1-L));
+  }
+}
+function drawPaths(){
+  for(const e of graph.edges){
+    const a=graph.nodes.get(e.a),b=graph.nodes.get(e.b),pts=pathQuad(a,b,e.kind==="museum"?3.2:2.7),L=lightAt((a.x+b.x)/2,(a.z+b.z)/2,1),color=e.kind==="museum"?"#574725":e.kind==="gallery"?"#3d3322":"#182219";
+    solidPoly(pts,color,.72);texturedPoly(pts,assets.stone,.08+.30*L,null,0);renderStats.paths++;
+  }
+}
+function sceneObjects(){
+  const out=[];
+  if(sceneId==="ARCOS"){
+    for(let z=8;z<=94;z+=10){
+      out.push({type:"box",x:-6.2,z,w:1.25,d:1.25,h:7.6,y:0,yaw:0,material:"wall",tint:"#061008"});
+      out.push({type:"box",x:6.2,z,w:1.25,d:1.25,h:7.6,y:0,yaw:0,material:"wall",tint:"#061008"});
+      if(z%20===8)out.push({type:"box",x:0,z,w:13.5,d:1.0,h:1.0,y:6.6,yaw:0,material:"stone",tint:"#08120a"});
+    }
+  }else if(sceneId==="CALZADA"){
+    for(let z=10;z<=96;z+=13){out.push({type:"cyl",x:-8,z,r:1.25,h:16,y:0,material:"stone",tint:"#1b1526"});out.push({type:"cyl",x:8,z,r:1.25,h:16,y:0,material:"stone",tint:"#1b1526"})}
+  }else if(sceneId==="TUNEL"){
+    for(let z=7;z<=100;z+=8){out.push({type:"box",x:-7.2,z,w:1.6,d:2.8,h:5.6,y:0,yaw:0,material:"stone",tint:"#241a0e"});out.push({type:"box",x:7.2,z,w:1.6,d:2.8,h:5.6,y:0,yaw:0,material:"stone",tint:"#241a0e"});if(z%16===7)out.push({type:"box",x:0,z,w:15.6,d:1.1,h:.8,y:5.2,yaw:0,material:"stone",tint:"#1d160d"})}
+  }else if(sceneId==="TORRES"){
+    const spots=[[-13,16,18],[12,22,24],[-17,35,31],[18,43,25],[-12,58,38],[14,70,33],[-20,83,44],[20,93,36]];
+    spots.forEach((p,i)=>out.push({type:"box",x:p[0],z:p[1],w:4+(i%3),d:4.5,h:p[2],y:0,yaw:(i%2?-.18:.15),material:"stone",tint:"#071321"}));
+  }else if(sceneId==="MUSEO"){
+    for(let z=6;z<=96;z+=14){out.push({type:"box",x:-11.2,z,w:1.2,d:6,h:6.8,y:0,yaw:0,material:"wall",tint:"#171209"});out.push({type:"box",x:11.2,z,w:1.2,d:6,h:6.8,y:0,yaw:0,material:"wall",tint:"#171209"})}
+    const imgs=["arcos","calzada","tunel","torres"];
+    imgs.forEach((im,i)=>{const left=i%2===0,x=left?-10.55:10.55,z=22+i*17,yaw=left?Math.PI/2:-Math.PI/2;out.push({type:"panel",x,z,y:1.35,w:5.2,h:3.1,yaw,image:im})});
+    for(const p of [[-4,30],[4,46],[-4,64],[4,80]])out.push({type:"box",x:p[0],z:p[1],w:2.3,d:2.3,h:1.1,y:0,yaw:.2,material:"stone",tint:"#2a2112"});
+  }
+  return out;
+}
+function gateObjects(){
+  const out=[];
+  for(const g of graph.gates){
+    const n=graph.nodes.get(g.nodeId),nb=graph.nodes.get(n.neighbors[0]),heading=Math.atan2(n.x-nb.x,n.z-nb.z),active=state.activeGate===g.destination;
+    out.push({type:"gate",x:n.x,z:n.z,w:5.3,d:1.4,h:5.7,y:0,yaw:heading,material:"stone",tint:active?"#394927":"#10130d",active,destination:g.destination,nodeId:g.nodeId});
+  }
+  return out;
+}
+function queueGate(queue,o){
+  queueBox(queue,o);
+  const forward=rotateXZ(0,-1,o.yaw),right=rotateXZ(1,0,o.yaw),offset=.74,center={x:o.x+forward.x*offset,z:o.z+forward.z*offset};
+  const pts=[{x:center.x-right.x*1.45,y:4.5,z:center.z-right.z*1.45},{x:center.x+right.x*1.45,y:4.5,z:center.z+right.z*1.45},{x:center.x+right.x*1.45,y:1.0,z:center.z+right.z*1.45},{x:center.x-right.x*1.45,y:1.0,z:center.z-right.z*1.45}];
+  const depth=faceDepth(pts);
+  queue.push({depth:depth-.01,draw:()=>{
+    solidPoly(pts,o.active?"rgba(192,157,71,.74)":"rgba(10,14,9,.88)",1);
+    const p=projectedPoly(pts);
+    if(p){ctx.save();ctx.fillStyle=o.active?"rgba(248,231,174,.88)":"rgba(184,169,127,.42)";const c=p.screen.reduce((a,v)=>({x:a.x+v.x/4,y:a.y+v.y/4}),{x:0,y:0}),size=clamp(F/Math.max(depth,1)*.14,7,28);ctx.font="900 "+size+"px Georgia,serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(o.destination==="MUSEO"?"M":o.destination[0],c.x,c.y);ctx.restore()}
+  }});
+}
+function queueAvatar(queue){
+  const foot=worldToCamera({x:player.x,y:0,z:player.z});if(foot.z<NEAR)return;
+  const top=worldToCamera({x:player.x,y:1.55,z:player.z}),pf=projectCam(foot),pt=projectCam(top),h=Math.abs(pf.y-pt.y),rel=wrapAngle(player.heading-camera.yaw),side=.48+.52*Math.abs(Math.cos(rel)),w=h*.66*side,depth=foot.z;
+  queue.push({depth,draw:()=>{
+    const im=assets.avatar,bob=player.moving?Math.sin(player.walkPhase*2)*h*.025:0;
+    if(im){ctx.save();const flip=Math.sin(rel)>0?-1:1;ctx.translate(pf.x,pf.y+bob);ctx.scale(flip,1);ctx.globalAlpha=clamp(.28+.72*lightAt(player.x,player.z,1),.35,1);ctx.filter="brightness(.76) contrast(1.14) saturate(.72) drop-shadow(0 5px 5px rgba(0,0,0,.65))";ctx.drawImage(im,-w/2,-h,w,h);ctx.restore()}
+    else{ctx.save();ctx.fillStyle="#b49658";ctx.beginPath();ctx.ellipse(pf.x,pf.y-h*.5+bob,w*.35,h*.5,0,0,TAU);ctx.fill();ctx.restore()}
+  }});
+  renderStats.avatarVisible=true;renderStats.avatarDepth=depth;
+}
+function drawBackdrop(){
+  const m=SCENE_META[sceneId],g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,m.sky[0]);g.addColorStop(.54,m.sky[1]);g.addColorStop(1,m.sky[2]);ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+}
+function drawClickPulse(now){
+  if(!state.clickPulse)return;
+  const age=(now-state.clickPulse.t)/500;if(age>=1){state.clickPulse=null;return}
+  const p=worldToCamera({x:state.clickPulse.x,y:.05,z:state.clickPulse.z});if(p.z<NEAR)return;
+  const s=projectCam(p),r=6+age*18;ctx.save();ctx.globalAlpha=1-age;ctx.strokeStyle="#c4ad73";ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(s.x,s.y,r,r*.35,0,0,TAU);ctx.stroke();ctx.restore();
+}
+function render(now){
+  renderStats.faces=0;renderStats.boxes=0;renderStats.paths=0;renderStats.avatarVisible=false;renderStats.avatarDepth=null;renderStats.scene=sceneId;
+  drawBackdrop();drawFloor();drawPaths();
+  const queue=[];
+  for(const o of sceneObjects()){if(o.type==="box")queueBox(queue,o);else if(o.type==="cyl")queueCylinder(queue,o);else if(o.type==="panel")queuePanel(queue,o)}
+  for(const o of gateObjects())queueGate(queue,o);
+  queueAvatar(queue);queue.sort((a,b)=>b.depth-a.depth);for(const c of queue)c.draw();drawClickPulse(now);
+}
+function groundFromScreen(sx,sy){
+  const dy=sy-H*HORIZON;if(dy<=3)return null;
+  const forward=CAMERA_H*F/dy;if(forward<NEAR||forward>180)return null;
+  const right=(sx-W*.5)*forward/F,c=Math.cos(camera.yaw),s=Math.sin(camera.yaw);
+  return{x:camera.x+right*c+forward*s,z:camera.z-right*s+forward*c};
+}
+function gateScreenCandidates(){
+  const out=[];
+  for(const g of graph.gates){const n=graph.nodes.get(g.nodeId),p=worldToCamera({x:n.x,y:2.7,z:n.z});if(p.z<NEAR)continue;const sp=projectCam(p);out.push({...g,x:sp.x,y:sp.y,depth:p.z})}
+  return out;
+}
+function handleClick(clientX,clientY){
+  if(REVIEW||state.transitioning)return;
+  const r=canvas.getBoundingClientRect(),sx=(clientX-r.left)/r.width*W,sy=(clientY-r.top)/r.height*H;
+  let picked=null,pd=Infinity;
+  for(const g of gateScreenCandidates()){const radius=clamp(F/Math.max(g.depth,1)*1.2,18,72),d=hypot(g.x-sx,g.y-sy);if(d<radius&&d<pd){picked=g;pd=d}}
+  if(picked){
+    if(state.activeGate===picked.destination)enterScene(picked.destination);
+    else{planToNode(picked.nodeId);state.clickPulse={x:graph.nodes.get(picked.nodeId).x,z:graph.nodes.get(picked.nodeId).z,t:performance.now()}}
+    return;
+  }
+  const p=groundFromScreen(sx,sy);if(!p)return;const n=nearestNode(p.x,p.z);if(n){planToNode(n.id);state.clickPulse={x:n.x,z:n.z,t:performance.now()}}
+}
+function enterScene(dest){
+  if(state.transitioning||!SCENE_IDS.includes(dest))return;
+  state.transitioning=true;flash.classList.add("on");
+  setTimeout(()=>{
+    sceneId=dest;graph=makeGraph(sceneId);
+    player.x=0;player.z=3.8;player.currentNode="entry";player.route=[];player.segment=null;player.moving=false;player.targetNode=null;player.heading=0;
+    camera.x=0;camera.z=-5.2;camera.yaw=0;camera.targetYaw=0;camera.moveVelocity=0;
+    state.activeGate=null;state.sceneChanges++;state.lastTurn=null;flash.classList.remove("on");state.transitioning=false;
+  },180);
+}
+function applyReviewState(){
+  if(!REVIEW)return;
+  sceneId=(q.get("scene")||sceneId).toUpperCase();if(!SCENE_IDS.includes(sceneId))sceneId="ARCOS";graph=makeGraph(sceneId);
+  camera.x=Number(q.get("cx")||0);camera.z=Number(q.get("cz")||-5);camera.yaw=camera.targetYaw=Number(q.get("yaw")||0);
+  player.x=Number(q.get("px")||0);player.z=Number(q.get("pz")||18);player.heading=Number(q.get("ph")||0);player.currentNode=nearestNode(player.x,player.z)?.id||"entry";
+}
+
+const keys=new Set();let pointer=null,startX=0,startY=0,lastX=0,lastY=0,moved=false;
+stage.addEventListener("pointerdown",e=>{if(REVIEW)return;pointer=e.pointerId;startX=lastX=e.clientX;startY=lastY=e.clientY;moved=false;stage.setPointerCapture(e.pointerId)});
+stage.addEventListener("pointermove",e=>{if(REVIEW||e.pointerId!==pointer)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;if(hypot(e.clientX-startX,e.clientY-startY)>7)moved=true;if(moved){camera.targetYaw+=dx*.0055;camera.moveVelocity+=-dy*.0008;e.preventDefault()}});
+stage.addEventListener("pointerup",e=>{if(e.pointerId!==pointer)return;e.preventDefault();if(!moved)handleClick(e.clientX,e.clientY);pointer=null});
+stage.addEventListener("pointercancel",e=>{if(e.pointerId===pointer)pointer=null});
+addEventListener("keydown",e=>{const k=e.key.toLowerCase();if(["w","s","a","d","arrowup","arrowdown","arrowleft","arrowright"].includes(k)){keys.add(k);e.preventDefault()}});
+addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
+addEventListener("blur",()=>keys.clear());
+stage.addEventListener("wheel",e=>{if(REVIEW)return;e.preventDefault();camera.moveVelocity=clamp(camera.moveVelocity-e.deltaY*.00012,-.095,.095)},{passive:false});
+addEventListener("contextmenu",e=>e.preventDefault());
+
+let last=performance.now();
+function update(now){
+  const dt=Math.min(.05,(now-last)/1000);last=now;
+  if(!REVIEW&&!state.transitioning){
+    let forward=0,strafe=0,turn=0;
+    if(keys.has("w")||keys.has("arrowup"))forward+=16*dt;
+    if(keys.has("s")||keys.has("arrowdown"))forward-=16*dt;
+    if(keys.has("a"))strafe-=11*dt;if(keys.has("d"))strafe+=11*dt;
+    if(keys.has("arrowleft"))turn-=1.15*dt;if(keys.has("arrowright"))turn+=1.15*dt;
+    camera.targetYaw+=turn;
+    if(Math.abs(camera.moveVelocity)>.00005){forward+=camera.moveVelocity*220*dt;camera.moveVelocity*=Math.exp(-dt*8.8)}else camera.moveVelocity=0;
+    camera.yaw=angleDamp(camera.yaw,camera.targetYaw,1-Math.exp(-dt*4.8));
+    const sy=Math.sin(camera.yaw),cy=Math.cos(camera.yaw),rx=cy,rz=-sy;
+    camera.x=clamp(camera.x+sy*forward+rx*strafe,-44,44);camera.z=clamp(camera.z+cy*forward+rz*strafe,-12,106);
+    updatePlayer(dt);updateActiveGate();
+  }
+  render(now);
+  sceneNameEl.textContent=SCENE_META[sceneId].label+" · V6";
+  modeEl.textContent="YAW "+(camera.yaw*180/Math.PI).toFixed(0)+"°\\n"+(state.activeGate?"ACCESO "+state.activeGate:"MUNDO");
+  debugEl.textContent="scene "+sceneId+"\\ncamera "+camera.x.toFixed(1)+", "+camera.z.toFixed(1)+" yaw "+(camera.yaw*180/Math.PI).toFixed(1)+"\\nplayer "+player.x.toFixed(1)+", "+player.z.toFixed(1)+" "+(player.moving?"walking":"idle")+"\\nroute "+player.route.length+" target "+(player.targetNode||"-")+"\\nactiveGate "+(state.activeGate||"-")+"\\nlastTurn "+(state.lastTurn?state.lastTurn.from+"→"+state.lastTurn.to:"-")+"\\nfaces "+renderStats.faces+" boxes "+renderStats.boxes+" paths "+renderStats.paths;
+  requestAnimationFrame(update);
+}
+function getState(){
+  return{version:"rail-world-v6-rotational",ready:state.ready,scene:sceneId,camera:{x:camera.x,z:camera.z,yaw:camera.yaw,targetYaw:camera.targetYaw,moveVelocity:camera.moveVelocity},player:{x:player.x,z:player.z,heading:player.heading,moving:player.moving,currentNode:player.currentNode,targetNode:player.targetNode,routeLength:player.route.length},activeGate:state.activeGate,gates:graph.gates.map(g=>({destination:g.destination,nodeId:g.nodeId,x:graph.nodes.get(g.nodeId).x,z:graph.nodes.get(g.nodeId).z})),graph:{nodes:graph.nodes.size,edges:graph.edges.length,junctions:[...graph.junctions]},lastTurn:state.lastTurn,sceneChanges:state.sceneChanges,render:{...renderStats},hasIframe:Boolean(document.querySelector("iframe")),museumPanels:sceneId==="MUSEO"?sceneObjects().filter(x=>x.type==="panel").length:0};
+}
+window.PrometeoRailWorldV6={
+  getState,
+  setScene(id){if(SCENE_IDS.includes(id)){sceneId=id;graph=makeGraph(sceneId);player.x=0;player.z=3.8;player.currentNode="entry";player.route=[];player.segment=null;camera.x=0;camera.z=-5.2;camera.yaw=camera.targetYaw=0;state.activeGate=null;state.lastTurn=null}return getState()},
+  setCamera(next={}){if(Number.isFinite(+next.x))camera.x=+next.x;if(Number.isFinite(+next.z))camera.z=+next.z;if(Number.isFinite(+next.yaw))camera.yaw=camera.targetYaw=+next.yaw;camera.moveVelocity=0;return getState()},
+  setPlayer(next={}){if(Number.isFinite(+next.x))player.x=+next.x;if(Number.isFinite(+next.z))player.z=+next.z;player.currentNode=nearestNode(player.x,player.z)?.id||"entry";player.route=[];player.segment=null;player.moving=false;updateActiveGate();return getState()},
+  routeToGate(dest){routeToGate(dest);return getState()},
+  routeToNode(id){planToNode(id);return getState()},
+  enterActive(){if(state.activeGate)enterScene(state.activeGate);return getState()},
+  clickWorld(x,z){const n=nearestNode(+x,+z);if(n)planToNode(n.id);return getState()},
+  forceFrame(){render(performance.now());return getState()}
+};
+
+Promise.all(Object.entries(ASSET_URLS).map(([k,u])=>loadAsset(k,u))).then(()=>{
+  applyReviewState();updateActiveGate();state.ready=true;loading.classList.add("off");
+  window.PrometeoRailWorldReview={ready:true,version:"rail-world-v6-rotational"};
+  requestAnimationFrame(update);
+});
+})();
+</script>
+</body>
+</html>
