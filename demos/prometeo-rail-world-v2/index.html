@@ -3,532 +3,194 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#030503">
-<title>Prometeo · Rail World V6</title>
+<meta name="theme-color" content="#020302">
+<title>Prometeo · Rail World V2</title>
 <style>
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;overscroll-behavior:none;touch-action:none;user-select:none;-webkit-user-select:none}
-body{font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#ddd5c5;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none}
 #shell{position:fixed;inset:0;display:grid;place-items:center;background:#000}
-#stage{position:relative;width:min(100vw,177.777vh);height:min(56.25vw,100vh);overflow:hidden;background:#020402;touch-action:none;isolation:isolate}
-#scene{position:absolute;inset:0;width:100%;height:100%;display:block;background:#020402;touch-action:none}
-#veil{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 58%,transparent 34%,rgba(0,0,0,.17) 60%,rgba(0,0,0,.86) 100%);box-shadow:inset 0 0 8vw rgba(0,0,0,.56)}
-#grain{position:absolute;inset:-4%;pointer-events:none;opacity:.05;mix-blend-mode:screen;background-image:radial-gradient(circle at 19% 23%,rgba(221,196,144,.18) 0 .55px,transparent .8px),radial-gradient(circle at 63% 71%,rgba(221,196,144,.11) 0 .55px,transparent .8px);background-size:11px 13px,17px 19px}
-#hud{position:absolute;inset:0;pointer-events:none;color:#c9b990;text-shadow:0 1px #000}
-#sceneName{position:absolute;left:12px;top:11px;font:900 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;opacity:.58}
-#mode{position:absolute;right:12px;top:11px;font:800 7px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;text-align:right;opacity:.42}
-#hint{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);white-space:nowrap;font:800 7px/1 system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;opacity:.31}
-#debug{display:none;position:absolute;right:8px;top:34px;padding:6px 7px;background:rgba(0,0,0,.58);font:700 7px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre}
-body.debug #debug{display:block}
-#loading{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:#020402;color:#6f705f;font:900 9px/1 system-ui,sans-serif;letter-spacing:.13em;text-transform:uppercase;transition:opacity .3s ease}
-#loading.off{opacity:0;pointer-events:none}
-#flash{position:absolute;inset:0;z-index:15;background:#050504;opacity:0;pointer-events:none;transition:opacity .16s ease}
-#flash.on{opacity:.96}
-#orientation{display:none;position:fixed;inset:0;z-index:99;background:#020202;color:#69655b;place-items:center;text-align:center;font:900 10px/1.5 system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase}
-body.review #hud{display:none}
+#stage{position:relative;width:min(100vw,177.777vh);height:min(56.25vw,100vh);overflow:hidden;background:#020302;isolation:isolate;touch-action:none;cursor:crosshair}
+.railFrame{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;opacity:0;will-change:opacity;filter:saturate(.91) contrast(1.07) brightness(.87);pointer-events:none}
+#frameA{z-index:0;opacity:1}#frameB{z-index:1}
+#grade{position:absolute;inset:0;z-index:2;pointer-events:none;background:radial-gradient(ellipse at 50% 66%,transparent 0 28%,rgba(0,0,0,.12) 58%,rgba(0,0,0,.43) 100%),linear-gradient(180deg,rgba(0,0,0,.05),transparent 45%,rgba(0,0,0,.18));mix-blend-mode:multiply}
+#dust{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:hidden}
+.dust{position:absolute;width:2px;height:2px;border-radius:50%;background:rgba(224,215,179,.34);animation:drift var(--t) linear infinite;animation-delay:var(--d)}
+@keyframes drift{from{transform:translate3d(0,12vh,0);opacity:0}18%{opacity:.25}to{transform:translate3d(var(--dx),-70vh,0);opacity:0}}
+#target{position:absolute;z-index:5;width:28px;height:12px;border:1px solid rgba(224,205,165,.66);border-radius:50%;opacity:0;transform:translate(-50%,-50%) scale(.25);pointer-events:none;box-shadow:0 0 18px rgba(205,168,105,.16)}
+#target.show{animation:ping .5s ease-out}
+@keyframes ping{0%{opacity:0;transform:translate(-50%,-50%) scale(.25)}28%{opacity:.85}100%{opacity:0;transform:translate(-50%,-50%) scale(1.65)}}
+#player{--s:1;position:absolute;z-index:7;width:9.2%;aspect-ratio:.62;transform:translate(-50%,-100%) scale(var(--s));transform-origin:50% 100%;will-change:left,top,transform;pointer-events:none}
+#player.flip .actor{transform:scaleX(-1)}
+.actor{position:absolute;inset:0;transform-origin:50% 100%;animation:breathe 2.6s ease-in-out infinite}
+#player.walking .actor{animation:walk .34s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.6%)}}
+@keyframes walk{0%,100%{transform:translateY(0) rotate(-.5deg)}50%{transform:translateY(-3%) rotate(.7deg)}}
+.shadow{position:absolute;left:50%;bottom:-1.5%;width:112%;height:13%;transform:translateX(-50%);border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.72),rgba(0,0,0,.06) 68%,transparent);filter:blur(2px)}
+.wings{position:absolute;z-index:0;left:50%;top:13%;width:178%;height:auto;transform:translateX(-50%) rotate(-1deg);filter:brightness(.53) saturate(.68) sepia(.18) contrast(1.15) drop-shadow(0 5px 9px rgba(0,0,0,.72));opacity:.88}
+.cloak{position:absolute;z-index:1;left:10%;right:10%;bottom:1%;height:61%;clip-path:polygon(28% 0,67% 3%,82% 15%,92% 37%,85% 64%,100% 100%,63% 94%,49% 100%,29% 92%,0 100%,10% 61%,5% 32%,20% 12%);background:radial-gradient(ellipse at 47% 9%,rgba(102,78,52,.55),transparent 34%),repeating-linear-gradient(82deg,rgba(255,255,255,.016) 0 1px,transparent 1px 5px),linear-gradient(100deg,#070706 0 22%,#241e18 43%,#100e0c 61%,#050505 100%)}
+.neck{position:absolute;z-index:2;left:37%;right:37%;top:23%;height:17%;background:linear-gradient(90deg,#050505,#2a231c 45%,#0b0a09)}
+.eyeGlow{position:absolute;z-index:3;left:50%;top:16%;width:39%;height:18%;transform:translateX(-50%)}
+.eyeGlow:before,.eyeGlow:after{content:"";position:absolute;top:45%;width:7%;aspect-ratio:1;border-radius:50%;background:#9d6c33;box-shadow:0 0 8px rgba(199,151,78,.62),0 0 20px rgba(159,112,57,.28);animation:eye 3.2s ease-in-out infinite}
+.eyeGlow:before{left:20%}.eyeGlow:after{right:20%}
+@keyframes eye{0%,100%{opacity:.48;transform:scale(.8)}50%{opacity:.94;transform:scale(1.05)}}
+.mask{position:absolute;z-index:4;left:50%;top:2%;width:60%;height:auto;transform:translateX(-50%);filter:brightness(.78) contrast(1.18) sepia(.06) drop-shadow(0 3px 5px rgba(0,0,0,.65))}
+#sign{position:absolute;z-index:6;width:11%;aspect-ratio:1.72;opacity:0;transform-origin:50% -18px;pointer-events:none;will-change:left,top,transform,opacity}
+.sign-wire{position:absolute;left:50%;bottom:100%;width:1px;height:33%;background:#211b14}
+.sign-board{position:absolute;inset:0;background:linear-gradient(105deg,rgba(190,116,45,.35),transparent 25% 70%,rgba(0,0,0,.3)),repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 4px),#6e482c;border:1px solid #352416;box-shadow:0 10px 18px rgba(0,0,0,.46);display:grid;place-items:center;text-align:center;color:#d6c7ad;font:800 clamp(6px,.66vw,12px)/1.04 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.11em}
+.sign-board b{display:block;font-size:1.7em;margin-bottom:.18em}
+#grain{position:absolute;inset:-50%;z-index:20;pointer-events:none;opacity:.065;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.93' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");animation:grain .28s steps(2) infinite}
+@keyframes grain{0%{transform:translate(0,0)}25%{transform:translate(2%,-1%)}50%{transform:translate(-1%,2%)}75%{transform:translate(1%,1%)}100%{transform:translate(-2%,-1%)}}
+#debug{position:absolute;z-index:30;left:10px;top:10px;color:rgba(230,221,199,.34);font:700 8px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;pointer-events:none;white-space:pre}
+#orientation{display:none;position:fixed;inset:0;z-index:99;background:#020202;color:#746f65;place-items:center;text-align:center;font:700 10px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase}
 @media(max-width:680px) and (orientation:portrait){#orientation{display:grid}}
+.review #grain,.review .dust,.review .actor,.review .eyeGlow:before,.review .eyeGlow:after{animation:none!important}
+.review #debug{display:none}
 </style>
 </head>
 <body>
-<div id="shell"><div id="stage">
-  <canvas id="scene" aria-label="Prometeo Rail World V6"></canvas>
-  <div id="veil"></div><div id="grain"></div>
-  <div id="hud"><div id="sceneName"></div><div id="mode"></div><div id="hint">click = caminar · scroll / ↑↓ = cámara · A D = lateral · ← → = rotar cámara</div><div id="debug"></div></div>
-  <div id="flash"></div><div id="loading">construyendo mundo</div>
-</div></div>
+<div id="shell">
+  <div id="stage" aria-label="Prometeo Rail World">
+    <img id="frameA" class="railFrame" alt="">
+    <img id="frameB" class="railFrame" alt="">
+    <div id="grade"></div>
+    <div id="dust"></div>
+    <div id="target"></div>
+    <div id="sign"><div class="sign-wire"></div><div class="sign-board"><span><b>04</b>ARCHIVE<br>BELOW</span></div></div>
+    <div id="player"><div class="actor"><div class="shadow"></div><img class="wings" src="../../visuals/trail-lab/assets/02-wings.png" alt=""><div class="cloak"></div><div class="neck"></div><div class="eyeGlow"></div><img class="mask" src="../../strategy/mask-mouth/assets/mask-transparent.webp" alt=""></div></div>
+    <div id="grain"></div>
+    <div id="debug"></div>
+  </div>
+</div>
 <div id="orientation">giralo horizontalmente</div>
 <script>
 (()=>{
 "use strict";
-
-const canvas=document.getElementById("scene");
-const ctx=canvas.getContext("2d",{alpha:false});
-const stage=document.getElementById("stage");
-const loading=document.getElementById("loading");
-const flash=document.getElementById("flash");
-const sceneNameEl=document.getElementById("sceneName");
-const modeEl=document.getElementById("mode");
-const debugEl=document.getElementById("debug");
-
-const TAU=Math.PI*2,NEAR=.32,CAMERA_H=1.72;
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const lerp=(a,b,t)=>a+(b-a)*t;
-const hypot=(a,b)=>Math.hypot(a,b);
-const wrapAngle=a=>{while(a>Math.PI)a-=TAU;while(a<-Math.PI)a+=TAU;return a};
-const angleDamp=(a,b,k)=>a+wrapAngle(b-a)*k;
-const q=new URLSearchParams(location.search);
-const REVIEW=q.get("review")==="1";
-if(REVIEW)document.body.classList.add("review");
-if(q.get("debug")==="1")document.body.classList.add("debug");
-
-let W=800,H=450,F=330,HORIZON=.47;
-function resize(){
-  const r=stage.getBoundingClientRect();
-  W=Math.max(480,Math.round(r.width));
-  H=Math.max(270,Math.round(r.height));
-  canvas.width=W;canvas.height=H;
-  F=Math.min(W,H*1.777)*.58;
-}
-addEventListener("resize",resize,{passive:true});resize();
-
-const ASSET_URLS={
-  wall:"https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Dark_green_grey_flecked_speckled_spotted_clean_marble_cemented_building_wall_square_checkered_tile_texture.jpg/1024px-Dark_green_grey_flecked_speckled_spotted_clean_marble_cemented_building_wall_square_checkered_tile_texture.jpg",
-  floor:"https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/Green_mosaic_square_seamless_tiled_floor_texture.jpg/1280px-Green_mosaic_square_seamless_tiled_floor_texture.jpg",
-  stone:"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Stone_Wall_Texture.jpg/1280px-Stone_Wall_Texture.jpg",
-  avatar:"../../strategy/mask-mouth/assets/mask-transparent.webp",
-  arcos:"../prometeo-rail-world-v1/review/arcos-network.png",
-  calzada:"../prometeo-rail-world-v1/review/calzada-network.png",
-  tunel:"../prometeo-rail-world-v1/review/tunel-network.png",
-  torres:"../prometeo-rail-world-v1/review/torres-network.png"
-};
-const assets={};
-function loadAsset(k,u){return new Promise(resolve=>{const im=new Image();im.decoding="async";if(/^https?:/.test(u))im.crossOrigin="anonymous";im.onload=()=>{assets[k]=im;resolve(true)};im.onerror=()=>{assets[k]=null;resolve(false)};im.src=u})}
-
-const SCENE_IDS=["ARCOS","CALZADA","TUNEL","TORRES","MUSEO"];
-const SCENE_META={
-  ARCOS:{label:"ARCOS",sky:["#010302","#071008","#000100"],accent:[116,139,84]},
-  CALZADA:{label:"CALZADA",sky:["#020104","#10071a","#000001"],accent:[111,89,150]},
-  TUNEL:{label:"TÚNEL",sky:["#070503","#171008","#010101"],accent:[139,103,68]},
-  TORRES:{label:"TORRES",sky:["#02060a","#091522","#010203"],accent:[67,109,128]},
-  MUSEO:{label:"MUSEO DE MAPAS",sky:["#050403","#15110b","#010101"],accent:[151,126,76]}
-};
-
-function sceneDestinations(id){
-  const others=SCENE_IDS.filter(x=>x!==id);
-  if(id!=="MUSEO"&&others.includes("MUSEO")){
-    return others.filter(x=>x!=="MUSEO").slice(0,3).concat("MUSEO");
-  }
-  return others;
-}
-function makeGraph(sceneId){
-  const nodes=new Map(),edges=[],gates=[],junctions=new Set();
-  const add=(id,x,z,meta={})=>{nodes.set(id,{id,x,z,neighbors:[],...meta});return id};
-  const link=(a,b,kind="path")=>{nodes.get(a).neighbors.push(b);nodes.get(b).neighbors.push(a);edges.push({a,b,kind})};
-  const chain=(prefix,startId,pts,kind="path",endMeta={})=>{
-    let prev=startId,last=startId;
-    pts.forEach((p,i)=>{
-      const id=prefix+"_"+i;
-      add(id,p.x,p.z,i===pts.length-1?endMeta:{});
-      link(prev,id,kind);prev=id;last=id;
-    });
-    return last;
-  };
-  const linePts=(a,b,n)=>Array.from({length:n},(_,i)=>({x:lerp(a.x,b.x,(i+1)/n),z:lerp(a.z,b.z,(i+1)/n)}));
-  const bezierPts=(a,c,b,n)=>Array.from({length:n},(_,i)=>{const t=(i+1)/n,u=1-t;return{x:u*u*a.x+2*u*t*c.x+t*t*b.x,z:u*u*a.z+2*u*t*c.z+t*t*b.z}});
-  add("entry",0,0,{entry:true});
-  const j1={x:0,z:34},j2={x:0,z:62};
-  chain("spineA","entry",linePts({x:0,z:0},j1,8),"spine",{junction:true});
-  const j1id="spineA_7";junctions.add(j1id);
-  chain("spineB",j1id,linePts(j1,j2,7),"spine",{junction:true});
-  const j2id="spineB_6";junctions.add(j2id);
-  const dests=sceneDestinations(sceneId);
-  const defs=[
-    {j:j1id,start:j1,end:{x:-25,z:55},ctrl:{x:-9,z:43}},
-    {j:j1id,start:j1,end:{x:25,z:55},ctrl:{x:9,z:43}},
-    {j:j2id,start:j2,end:{x:-29,z:90},ctrl:{x:-12,z:75}},
-    {j:j2id,start:j2,end:{x:31,z:92},ctrl:{x:15,z:74}}
-  ];
-  defs.forEach((d,i)=>{
-    const dest=dests[i];
-    const kind=dest==="MUSEO"?"museum":"branch";
-    const endId=chain("b"+i,d.j,bezierPts(d.start,d.ctrl,d.end,10),kind,{gate:true,destination:dest});
-    gates.push({nodeId:endId,destination:dest,kind});
-  });
-  if(sceneId==="MUSEO"){
-    const a=chain("galleryL",j1id,bezierPts(j1,{x:-7,z:51},{x:-13,z:68},7),"gallery");
-    const b=chain("galleryR",j2id,bezierPts(j2,{x:8,z:73},{x:13,z:83},6),"gallery");
-    link(a,b,"gallery");
-  }
-  return{nodes,edges,gates,junctions};
-}
-
-let sceneId=q.get("scene")?.toUpperCase();
-if(!SCENE_IDS.includes(sceneId))sceneId="ARCOS";
-let graph=makeGraph(sceneId);
-
-const camera={x:Number(q.get("cx")||0),z:Number(q.get("cz")||-5),yaw:Number(q.get("yaw")||0),targetYaw:Number(q.get("yaw")||0),moveVelocity:0};
-const player={x:Number(q.get("px")||0),z:Number(q.get("pz")||4),heading:0,currentNode:"entry",route:[],segment:null,moving:false,targetNode:null,walkPhase:0};
-const state={ready:false,transitioning:false,activeGate:null,lastTurn:null,sceneChanges:0,clickPulse:null};
-const renderStats={faces:0,boxes:0,paths:0,avatarVisible:false,avatarDepth:null,scene:sceneId};
-
-function nearestNode(x,z){
-  let best=null,bd=Infinity;
-  for(const n of graph.nodes.values()){
-    const d=hypot(n.x-x,n.z-z);
-    if(d<bd){bd=d;best=n}
-  }
-  return best;
-}
-function bfs(startId,targetId){
-  if(startId===targetId)return[];
-  const queue=[startId],prev=new Map([[startId,null]]);
-  while(queue.length){
-    const id=queue.shift();
-    for(const nb of graph.nodes.get(id).neighbors){
-      if(prev.has(nb))continue;
-      prev.set(nb,id);
-      if(nb===targetId){
-        const out=[];let k=targetId;
-        while(k&&k!==startId){out.push(k);k=prev.get(k)}
-        return out.reverse();
-      }
-      queue.push(nb);
-    }
-  }
-  return[];
-}
-function planToNode(targetId){
-  const start=nearestNode(player.x,player.z);
-  if(!start||!graph.nodes.has(targetId))return false;
-  player.currentNode=start.id;player.segment=null;player.route=bfs(start.id,targetId);player.targetNode=targetId;player.moving=player.route.length>0;
-  return player.moving;
-}
-function routeToGate(destination){
-  const g=graph.gates.find(x=>x.destination===destination);
-  return g?planToNode(g.nodeId):false;
-}
-function startNextPlayerSegment(){
-  if(player.segment||!player.route.length)return;
-  const id=player.route.shift(),n=graph.nodes.get(id);
-  const dx=n.x-player.x,dz=n.z-player.z,dist=Math.max(.001,hypot(dx,dz));
-  const heading=Math.atan2(dx,dz);
-  player.segment={id,sx:player.x,sz:player.z,ex:n.x,ez:n.z,t:0,dist,heading};
-  player.heading=heading;
-  const nearJunction=graph.junctions.has(player.currentNode)||graph.junctions.has(id);
-  if(nearJunction&&Math.abs(wrapAngle(camera.targetYaw-heading))>.18){
-    camera.targetYaw=heading;
-    state.lastTurn={from:player.currentNode,to:id,yaw:heading,at:performance.now()};
-  }
-}
-function updatePlayer(dt){
-  startNextPlayerSegment();
-  if(!player.segment){player.moving=false;return}
-  player.moving=true;
-  const s=player.segment;
-  s.t=clamp(s.t+13.5*dt/s.dist,0,1);
-  const u=s.t*s.t*(3-2*s.t);
-  player.x=lerp(s.sx,s.ex,u);player.z=lerp(s.sz,s.ez,u);player.walkPhase+=dt*8.5;
-  if(s.t>=1){player.x=s.ex;player.z=s.ez;player.currentNode=s.id;player.segment=null;if(!player.route.length)player.moving=false}
-}
-function updateActiveGate(){
-  let best=null,bd=Infinity;
-  for(const g of graph.gates){
-    const n=graph.nodes.get(g.nodeId),d=hypot(n.x-player.x,n.z-player.z);
-    if(d<bd){bd=d;best=g}
-  }
-  state.activeGate=best&&bd<3.25?best.destination:null;
-}
-
-function worldToCamera(p){
-  const dx=p.x-camera.x,dz=p.z-camera.z,c=Math.cos(camera.yaw),s=Math.sin(camera.yaw);
-  return{x:dx*c-dz*s,y:(p.y||0)-CAMERA_H,z:dx*s+dz*c,u:p.u||0,v:p.v||0};
-}
-function projectCam(p){const f=F/p.z;return{x:W*.5+p.x*f,y:H*HORIZON-p.y*f,z:p.z,f}}
-function clipNear(poly){
-  const out=[];
-  for(let i=0;i<poly.length;i++){
-    const a=poly[i],b=poly[(i+1)%poly.length],ain=a.z>=NEAR,bin=b.z>=NEAR;
-    if(ain)out.push(a);
-    if(ain!==bin){
-      const t=(NEAR-a.z)/(b.z-a.z);
-      out.push({x:lerp(a.x,b.x,t),y:lerp(a.y,b.y,t),z:NEAR,u:lerp(a.u,b.u,t),v:lerp(a.v,b.v,t)});
-    }
-  }
-  return out;
-}
-function texTri(img,p0,p1,p2,uv0,uv1,uv2,alpha){
-  if(!img)return;
-  const den=uv0.x*(uv1.y-uv2.y)+uv1.x*(uv2.y-uv0.y)+uv2.x*(uv0.y-uv1.y);
-  if(Math.abs(den)<.001)return;
-  const a=(p0.x*(uv1.y-uv2.y)+p1.x*(uv2.y-uv0.y)+p2.x*(uv0.y-uv1.y))/den;
-  const c=(p0.x*(uv2.x-uv1.x)+p1.x*(uv0.x-uv2.x)+p2.x*(uv1.x-uv0.x))/den;
-  const e=(p0.x*(uv1.x*uv2.y-uv2.x*uv1.y)+p1.x*(uv2.x*uv0.y-uv0.x*uv2.y)+p2.x*(uv0.x*uv1.y-uv1.x*uv0.y))/den;
-  const b=(p0.y*(uv1.y-uv2.y)+p1.y*(uv2.y-uv0.y)+p2.y*(uv0.y-uv1.y))/den;
-  const d=(p0.y*(uv2.x-uv1.x)+p1.y*(uv0.x-uv2.x)+p2.y*(uv1.x-uv0.x))/den;
-  const fy=(p0.y*(uv1.x*uv2.y-uv2.x*uv1.y)+p1.y*(uv2.x*uv0.y-uv0.x*uv2.y)+p2.y*(uv0.x*uv1.y-uv1.x*uv0.y))/den;
-  ctx.save();ctx.globalAlpha=alpha;ctx.beginPath();ctx.moveTo(p0.x,p0.y);ctx.lineTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.closePath();ctx.clip();
-  ctx.setTransform(a,b,c,d,e,fy);ctx.drawImage(img,0,0);ctx.restore();
-}
-function projectedPoly(points){
-  let poly=points.map(worldToCamera);poly=clipNear(poly);if(poly.length<3)return null;
-  return{cam:poly,screen:poly.map(projectCam),depth:poly.reduce((s,p)=>s+p.z,0)/poly.length};
-}
-function solidPoly(points,color,alpha=1){
-  const p=projectedPoly(points);if(!p)return;
-  ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(p.screen[0].x,p.screen[0].y);
-  for(let i=1;i<p.screen.length;i++)ctx.lineTo(p.screen[i].x,p.screen[i].y);ctx.closePath();ctx.fill();ctx.restore();
-}
-function texturedPoly(points,img,alpha=1,tint=null,tintAlpha=0){
-  let poly=points.map((p,i)=>worldToCamera({...p,u:(i===1||i===2)?(img?.width||1):0,v:(i>=2)?(img?.height||1):0}));
-  poly=clipNear(poly);if(poly.length<3)return;
-  const pp=poly.map(projectCam);
-  if(img)for(let i=1;i<poly.length-1;i++)texTri(img,pp[0],pp[i],pp[i+1],{x:poly[0].u,y:poly[0].v},{x:poly[i].u,y:poly[i].v},{x:poly[i+1].u,y:poly[i+1].v},alpha);
-  if(tint){
-    ctx.save();ctx.globalAlpha=img?tintAlpha:Math.max(.35,alpha);ctx.fillStyle=tint;ctx.beginPath();ctx.moveTo(pp[0].x,pp[0].y);for(let i=1;i<pp.length;i++)ctx.lineTo(pp[i].x,pp[i].y);ctx.closePath();ctx.fill();ctx.restore();
-  }
-}
-function rotateXZ(x,z,yaw){const c=Math.cos(yaw),s=Math.sin(yaw);return{x:x*c+z*s,z:-x*s+z*c}}
-function boxFaces(o){
-  const hw=o.w/2,hd=o.d/2,y0=o.y||0,y1=y0+o.h;
-  const corner=(x,y,z)=>{const r=rotateXZ(x,z,o.yaw||0);return{x:o.x+r.x,y,z:o.z+r.z}};
-  const p={flb:corner(-hw,y0,-hd),frb:corner(hw,y0,-hd),blb:corner(-hw,y0,hd),brb:corner(hw,y0,hd),flt:corner(-hw,y1,-hd),frt:corner(hw,y1,-hd),blt:corner(-hw,y1,hd),brt:corner(hw,y1,hd)};
-  const norms=[
-    {n:rotateXZ(0,-1,o.yaw||0),pts:[p.flt,p.frt,p.frb,p.flb],shade:1},
-    {n:rotateXZ(0,1,o.yaw||0),pts:[p.brt,p.blt,p.blb,p.brb],shade:.52},
-    {n:rotateXZ(-1,0,o.yaw||0),pts:[p.blt,p.flt,p.flb,p.blb],shade:.68},
-    {n:rotateXZ(1,0,o.yaw||0),pts:[p.frt,p.brt,p.brb,p.frb],shade:.78}
-  ];
-  const out=[];
-  for(const f of norms){
-    const center=f.pts.reduce((a,v)=>({x:a.x+v.x/4,z:a.z+v.z/4}),{x:0,z:0}),vx=camera.x-center.x,vz=camera.z-center.z;
-    if(f.n.x*vx+f.n.z*vz>0)out.push(f);
-  }
-  if(CAMERA_H>y1-.2)out.push({pts:[p.blt,p.brt,p.frt,p.flt],shade:1.08});
-  return out;
-}
-function lightAt(x,z,base=1){const d=hypot(x-camera.x,z-camera.z);return clamp(.08+.92/(1+Math.pow(d/34,1.8)),.08,1)*base}
-function faceDepth(pts){const cs=pts.map(worldToCamera);return cs.reduce((s,p)=>s+p.z,0)/cs.length}
-function queueBox(queue,o){
-  for(const f of boxFaces(o)){
-    const depth=faceDepth(f.pts);if(depth<NEAR-.4)continue;
-    queue.push({depth,draw:()=>{const L=lightAt(o.x,o.z,f.shade),img=assets[o.material]||assets.stone;texturedPoly(f.pts,img,.18+.82*L,o.tint||"#071008",.32*(1-L))}});
-    renderStats.faces++;
-  }
-  renderStats.boxes++;
-}
-function queueCylinder(queue,o){
-  const n=o.sides||10,r=o.r;
-  for(let i=0;i<n;i++){
-    const a0=i*TAU/n,a1=(i+1)*TAU/n,am=(a0+a1)/2,nx=Math.cos(am),nz=Math.sin(am),cx=o.x+nx*r,cz=o.z+nz*r;
-    if(nx*(camera.x-cx)+nz*(camera.z-cz)<=0)continue;
-    const pts=[{x:o.x+Math.cos(a0)*r,y:(o.y||0)+o.h,z:o.z+Math.sin(a0)*r},{x:o.x+Math.cos(a1)*r,y:(o.y||0)+o.h,z:o.z+Math.sin(a1)*r},{x:o.x+Math.cos(a1)*r,y:o.y||0,z:o.z+Math.sin(a1)*r},{x:o.x+Math.cos(a0)*r,y:o.y||0,z:o.z+Math.sin(a0)*r}];
-    const depth=faceDepth(pts);if(depth<NEAR-.4)continue;
-    queue.push({depth,draw:()=>{const L=lightAt(cx,cz,.65+.35*Math.max(0,nx*.4+nz*.6));texturedPoly(pts,assets[o.material]||assets.stone,.15+.85*L,o.tint||"#050704",.38*(1-L))}});
-    renderStats.faces++;
-  }
-}
-function panelPoints(o){
-  const right=rotateXZ(1,0,o.yaw||0),hw=o.w/2;
-  return[{x:o.x-right.x*hw,y:o.y+o.h,z:o.z-right.z*hw},{x:o.x+right.x*hw,y:o.y+o.h,z:o.z+right.z*hw},{x:o.x+right.x*hw,y:o.y,z:o.z+right.z*hw},{x:o.x-right.x*hw,y:o.y,z:o.z-right.z*hw}];
-}
-function queuePanel(queue,o){
-  const pts=panelPoints(o),depth=faceDepth(pts);if(depth<NEAR-.4)return;
-  queue.push({depth,draw:()=>{
-    texturedPoly(pts,assets[o.image]||assets.wall,.92,"#100d08",.13);
-    const pp=projectedPoly(pts);if(pp){ctx.save();ctx.strokeStyle="rgba(186,157,101,.46)";ctx.lineWidth=Math.max(1,pp.screen.reduce((s,p)=>s+p.f,0)/pp.screen.length*.012);ctx.beginPath();ctx.moveTo(pp.screen[0].x,pp.screen[0].y);for(let i=1;i<pp.screen.length;i++)ctx.lineTo(pp.screen[i].x,pp.screen[i].y);ctx.closePath();ctx.stroke();ctx.restore()}
-  }});
-}
-function pathQuad(a,b,width=2.7,y=.015){
-  const dx=b.x-a.x,dz=b.z-a.z,len=Math.max(.001,hypot(dx,dz)),px=-dz/len*width/2,pz=dx/len*width/2;
-  return[{x:a.x+px,y,z:a.z+pz},{x:b.x+px,y,z:b.z+pz},{x:b.x-px,y,z:b.z-pz},{x:a.x-px,y,z:a.z-pz}];
-}
-function drawFloor(){
-  const meta=SCENE_META[sceneId];
-  const ground=[
-    {x:-54,y:-.045,z:110},{x:54,y:-.045,z:110},
-    {x:54,y:-.045,z:-18},{x:-54,y:-.045,z:-18}
-  ];
-  // One continuous world material instead of one texture reset per grid cell.
-  // This keeps the Coliseo world-space behavior without turning the floor into debug graph paper.
-  solidPoly(ground,"rgb("+meta.accent.map(v=>Math.round(v*.18)).join(",")+")",1);
-  texturedPoly(ground,assets.floor,.24,"rgb("+meta.accent.map(v=>Math.round(v*.42)).join(",")+")",.42);
-  // Broad low-contrast wear strips break the stretch without reintroducing a visible square grid.
-  for(let i=0;i<6;i++){
-    const z0=6+i*18,offset=(i%2?5:-4),wear=[
-      {x:-43+offset,y:-.036,z:z0+13},{x:43+offset,y:-.036,z:z0+13},
-      {x:43-offset,y:-.036,z:z0-3},{x:-43-offset,y:-.036,z:z0-3}
-    ];
-    solidPoly(wear,i%2?"rgba(13,20,13,.10)":"rgba(78,67,39,.055)",1);
-  }
-}
-function drawPaths(){
-  for(const e of graph.edges){
-    const a=graph.nodes.get(e.a),b=graph.nodes.get(e.b),pts=pathQuad(a,b,e.kind==="museum"?3.2:2.7),L=lightAt((a.x+b.x)/2,(a.z+b.z)/2,1),color=e.kind==="museum"?"#574725":e.kind==="gallery"?"#3d3322":"#182219";
-    solidPoly(pts,color,.72);texturedPoly(pts,assets.stone,.08+.30*L,null,0);renderStats.paths++;
-  }
-}
-function sceneObjects(){
-  const out=[];
-  if(sceneId==="ARCOS"){
-    for(let z=8;z<=94;z+=10){
-      out.push({type:"cyl",x:-6.2,z,r:1.05,h:7.6,y:0,sides:10,material:"wall",tint:"#061008"});
-      out.push({type:"cyl",x:6.2,z,r:1.05,h:7.6,y:0,sides:10,material:"wall",tint:"#061008"});
-      if(z%20===8)out.push({type:"box",x:0,z,w:13.7,d:1.05,h:.88,y:6.72,yaw:0,material:"stone",tint:"#08120a"});
-    }
-  }else if(sceneId==="CALZADA"){
-    for(let z=10;z<=96;z+=13){out.push({type:"cyl",x:-8,z,r:1.25,h:16,y:0,material:"stone",tint:"#1b1526"});out.push({type:"cyl",x:8,z,r:1.25,h:16,y:0,material:"stone",tint:"#1b1526"})}
-  }else if(sceneId==="TUNEL"){
-    for(let z=7;z<=100;z+=8){out.push({type:"box",x:-7.2,z,w:1.6,d:2.8,h:5.6,y:0,yaw:0,material:"stone",tint:"#241a0e"});out.push({type:"box",x:7.2,z,w:1.6,d:2.8,h:5.6,y:0,yaw:0,material:"stone",tint:"#241a0e"});if(z%16===7)out.push({type:"box",x:0,z,w:15.6,d:1.1,h:.8,y:5.2,yaw:0,material:"stone",tint:"#1d160d"})}
-  }else if(sceneId==="TORRES"){
-    const spots=[[-13,16,18],[12,22,24],[-17,35,31],[18,43,25],[-12,58,38],[14,70,33],[-20,83,44],[20,93,36]];
-    spots.forEach((p,i)=>out.push({type:"box",x:p[0],z:p[1],w:4+(i%3),d:4.5,h:p[2],y:0,yaw:(i%2?-.18:.15),material:"stone",tint:"#071321"}));
-  }else if(sceneId==="MUSEO"){
-    for(let z=6;z<=96;z+=14){out.push({type:"box",x:-11.2,z,w:1.2,d:6,h:6.8,y:0,yaw:0,material:"wall",tint:"#171209"});out.push({type:"box",x:11.2,z,w:1.2,d:6,h:6.8,y:0,yaw:0,material:"wall",tint:"#171209"})}
-    const imgs=["arcos","calzada","tunel","torres"];
-    imgs.forEach((im,i)=>{const left=i%2===0,x=left?-10.55:10.55,z=22+i*17,yaw=left?Math.PI/2:-Math.PI/2;out.push({type:"panel",x,z,y:1.35,w:5.2,h:3.1,yaw,image:im})});
-    for(const p of [[-4,30],[4,46],[-4,64],[4,80]])out.push({type:"box",x:p[0],z:p[1],w:2.3,d:2.3,h:1.1,y:0,yaw:.2,material:"stone",tint:"#2a2112"});
-  }
-  return out;
-}
-function gateObjects(){
-  const out=[];
-  for(const g of graph.gates){
-    const n=graph.nodes.get(g.nodeId),nb=graph.nodes.get(n.neighbors[0]),heading=Math.atan2(n.x-nb.x,n.z-nb.z),active=state.activeGate===g.destination;
-    out.push({type:"gate",x:n.x,z:n.z,w:5.3,d:1.4,h:5.7,y:0,yaw:heading,material:"stone",tint:active?"#394927":"#10130d",active,destination:g.destination,nodeId:g.nodeId});
-  }
-  return out;
-}
-function queueGate(queue,o){
-  queueBox(queue,o);
-  const forward=rotateXZ(0,-1,o.yaw),right=rotateXZ(1,0,o.yaw),offset=.74,center={x:o.x+forward.x*offset,z:o.z+forward.z*offset};
-  const pts=[{x:center.x-right.x*1.45,y:4.5,z:center.z-right.z*1.45},{x:center.x+right.x*1.45,y:4.5,z:center.z+right.z*1.45},{x:center.x+right.x*1.45,y:1.0,z:center.z+right.z*1.45},{x:center.x-right.x*1.45,y:1.0,z:center.z-right.z*1.45}];
-  const depth=faceDepth(pts);
-  queue.push({depth:depth-.01,draw:()=>{
-    solidPoly(pts,o.active?"rgba(192,157,71,.74)":"rgba(10,14,9,.88)",1);
-    const p=projectedPoly(pts);
-    if(p){ctx.save();ctx.fillStyle=o.active?"rgba(248,231,174,.88)":"rgba(184,169,127,.42)";const c=p.screen.reduce((a,v)=>({x:a.x+v.x/4,y:a.y+v.y/4}),{x:0,y:0}),size=clamp(F/Math.max(depth,1)*.14,7,28);ctx.font="900 "+size+"px Georgia,serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(o.destination==="MUSEO"?"M":o.destination[0],c.x,c.y);ctx.restore()}
-  }});
-}
-function queueAvatar(queue){
-  const foot=worldToCamera({x:player.x,y:0,z:player.z});if(foot.z<NEAR)return;
-  const top=worldToCamera({x:player.x,y:1.70,z:player.z}),pf=projectCam(foot),pt=projectCam(top);
-  const h=Math.abs(pf.y-pt.y),rel=wrapAngle(player.heading-camera.yaw),side=.62+.38*Math.abs(Math.cos(rel)),w=h*.46*side,depth=foot.z;
-  queue.push({depth,draw:()=>{
-    const im=assets.avatar,step=player.moving?Math.sin(player.walkPhase*2):0,bob=player.moving?Math.abs(step)*h*.018:0;
-    const light=clamp(.24+.76*lightAt(player.x,player.z,1),.30,1);
-    const bodyTop=pf.y-h*.66+bob,bodyBottom=pf.y+bob,lean=step*w*.035;
-    ctx.save();ctx.globalAlpha=light;ctx.translate(lean,0);
-    // One simple body silhouette. The image is only the head, so the avatar reads as a person,
-    // not as a floating mask, while remaining deliberately much simpler than the old collage.
-    const bodyGrad=ctx.createLinearGradient(0,bodyTop,0,bodyBottom);
-    bodyGrad.addColorStop(0,"#20231c");bodyGrad.addColorStop(.55,"#0c100d");bodyGrad.addColorStop(1,"#020403");
-    ctx.fillStyle=bodyGrad;ctx.beginPath();
-    ctx.moveTo(pf.x-w*.38,bodyTop+h*.04);ctx.lineTo(pf.x+w*.38,bodyTop+h*.04);
-    ctx.lineTo(pf.x+w*.28,bodyBottom-h*.08);ctx.lineTo(pf.x+w*.10,bodyBottom);
-    ctx.lineTo(pf.x,bodyBottom-h*.05);ctx.lineTo(pf.x-w*.10,bodyBottom);
-    ctx.lineTo(pf.x-w*.28,bodyBottom-h*.08);ctx.closePath();ctx.fill();
-    ctx.globalAlpha*=.38;ctx.fillStyle="#58604b";
-    ctx.fillRect(pf.x-w*.30,bodyTop+h*.12,w*.60,Math.max(1,h*.025));
-    ctx.restore();
-    if(im){
-      const head=h*.32,flip=Math.sin(rel)>0?-1:1;
-      ctx.save();ctx.translate(pf.x+lean,bodyTop+h*.01);ctx.scale(flip,1);
-      ctx.globalAlpha=light;ctx.filter="brightness(.82) contrast(1.16) saturate(.72) drop-shadow(0 3px 4px rgba(0,0,0,.72))";
-      ctx.drawImage(im,-head*.5,-head*.48,head,head);ctx.restore();
-    }
-  }});
-  renderStats.avatarVisible=true;renderStats.avatarDepth=depth;
-}
-function drawBackdrop(){
-  const m=SCENE_META[sceneId],g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,m.sky[0]);g.addColorStop(.54,m.sky[1]);g.addColorStop(1,m.sky[2]);ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
-}
-function drawClickPulse(now){
-  if(!state.clickPulse)return;
-  const age=(now-state.clickPulse.t)/500;if(age>=1){state.clickPulse=null;return}
-  const p=worldToCamera({x:state.clickPulse.x,y:.05,z:state.clickPulse.z});if(p.z<NEAR)return;
-  const s=projectCam(p),r=6+age*18;ctx.save();ctx.globalAlpha=1-age;ctx.strokeStyle="#c4ad73";ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(s.x,s.y,r,r*.35,0,0,TAU);ctx.stroke();ctx.restore();
-}
-function render(now){
-  renderStats.faces=0;renderStats.boxes=0;renderStats.paths=0;renderStats.avatarVisible=false;renderStats.avatarDepth=null;renderStats.scene=sceneId;
-  drawBackdrop();drawFloor();drawPaths();
-  const queue=[];
-  for(const o of sceneObjects()){if(o.type==="box")queueBox(queue,o);else if(o.type==="cyl")queueCylinder(queue,o);else if(o.type==="panel")queuePanel(queue,o)}
-  for(const o of gateObjects())queueGate(queue,o);
-  queueAvatar(queue);queue.sort((a,b)=>b.depth-a.depth);for(const c of queue)c.draw();drawClickPulse(now);
-}
-function groundFromScreen(sx,sy){
-  const dy=sy-H*HORIZON;if(dy<=3)return null;
-  const forward=CAMERA_H*F/dy;if(forward<NEAR||forward>180)return null;
-  const right=(sx-W*.5)*forward/F,c=Math.cos(camera.yaw),s=Math.sin(camera.yaw);
-  return{x:camera.x+right*c+forward*s,z:camera.z-right*s+forward*c};
-}
-function gateScreenCandidates(){
-  const out=[];
-  for(const g of graph.gates){const n=graph.nodes.get(g.nodeId),p=worldToCamera({x:n.x,y:2.7,z:n.z});if(p.z<NEAR)continue;const sp=projectCam(p);out.push({...g,x:sp.x,y:sp.y,depth:p.z})}
-  return out;
-}
-function handleClick(clientX,clientY){
-  if(REVIEW||state.transitioning)return;
-  const r=canvas.getBoundingClientRect(),sx=(clientX-r.left)/r.width*W,sy=(clientY-r.top)/r.height*H;
-  let picked=null,pd=Infinity;
-  for(const g of gateScreenCandidates()){const radius=clamp(F/Math.max(g.depth,1)*1.2,18,72),d=hypot(g.x-sx,g.y-sy);if(d<radius&&d<pd){picked=g;pd=d}}
-  if(picked){
-    if(state.activeGate===picked.destination)enterScene(picked.destination);
-    else{planToNode(picked.nodeId);state.clickPulse={x:graph.nodes.get(picked.nodeId).x,z:graph.nodes.get(picked.nodeId).z,t:performance.now()}}
-    return;
-  }
-  const p=groundFromScreen(sx,sy);if(!p)return;const n=nearestNode(p.x,p.z);if(n){planToNode(n.id);state.clickPulse={x:n.x,z:n.z,t:performance.now()}}
-}
-function enterScene(dest){
-  if(state.transitioning||!SCENE_IDS.includes(dest))return;
-  state.transitioning=true;flash.classList.add("on");
-  setTimeout(()=>{
-    sceneId=dest;graph=makeGraph(sceneId);
-    player.x=0;player.z=3.8;player.currentNode="entry";player.route=[];player.segment=null;player.moving=false;player.targetNode=null;player.heading=0;
-    camera.x=0;camera.z=-5.2;camera.yaw=0;camera.targetYaw=0;camera.moveVelocity=0;
-    state.activeGate=null;state.sceneChanges++;state.lastTurn=null;flash.classList.remove("on");state.transitioning=false;
-  },180);
-}
-function applyReviewState(){
-  if(!REVIEW)return;
-  sceneId=(q.get("scene")||sceneId).toUpperCase();if(!SCENE_IDS.includes(sceneId))sceneId="ARCOS";graph=makeGraph(sceneId);
-  camera.x=Number(q.get("cx")||0);camera.z=Number(q.get("cz")||-5);camera.yaw=camera.targetYaw=Number(q.get("yaw")||0);
-  player.x=Number(q.get("px")||0);player.z=Number(q.get("pz")||18);player.heading=Number(q.get("ph")||0);player.currentNode=nearestNode(player.x,player.z)?.id||"entry";
-}
-
-const keys=new Set();let pointer=null,startX=0,startY=0,lastX=0,lastY=0,moved=false;
-stage.addEventListener("pointerdown",e=>{if(REVIEW)return;pointer=e.pointerId;startX=lastX=e.clientX;startY=lastY=e.clientY;moved=false;stage.setPointerCapture(e.pointerId)});
-stage.addEventListener("pointermove",e=>{if(REVIEW||e.pointerId!==pointer)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;if(hypot(e.clientX-startX,e.clientY-startY)>7)moved=true;if(moved){camera.targetYaw+=dx*.0055;camera.moveVelocity+=-dy*.0008;e.preventDefault()}});
-stage.addEventListener("pointerup",e=>{if(e.pointerId!==pointer)return;e.preventDefault();if(!moved)handleClick(e.clientX,e.clientY);pointer=null});
-stage.addEventListener("pointercancel",e=>{if(e.pointerId===pointer)pointer=null});
-addEventListener("keydown",e=>{const k=e.key.toLowerCase();if(["w","s","a","d","arrowup","arrowdown","arrowleft","arrowright"].includes(k)){keys.add(k);e.preventDefault()}});
-addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
-addEventListener("blur",()=>keys.clear());
-stage.addEventListener("wheel",e=>{if(REVIEW)return;e.preventDefault();camera.moveVelocity=clamp(camera.moveVelocity-e.deltaY*.00012,-.095,.095)},{passive:false});
-addEventListener("contextmenu",e=>e.preventDefault());
-
+const RAIL=[
+  {z:8,src:"./rail/arcos-z08.png"},
+  {z:14,src:"./rail/arcos-z14.png"},
+  {z:20,src:"./rail/arcos-z20.png"},
+  {z:26,src:"./rail/arcos-z26.png"},
+  {z:32,src:"./rail/arcos-z32.png"},
+  {z:38,src:"./rail/arcos-z38.png"},
+  {z:44,src:"./rail/arcos-z44.png"},
+  {z:50,src:"./rail/arcos-z50.png"}
+];
+const WORLD={minZ:10,maxZ:64,minCamZ:8,maxCamZ:50,sign:{x:.72,z:34}};
+const stage=document.getElementById("stage"),a=document.getElementById("frameA"),b=document.getElementById("frameB"),playerEl=document.getElementById("player"),targetEl=document.getElementById("target"),sign=document.getElementById("sign"),debug=document.getElementById("debug"),dust=document.getElementById("dust");
+let cameraZ=8,targetCameraZ=8;
+let player={x:0,z:13,tx:0,tz:13};
 let last=performance.now();
-function update(now){
-  const dt=Math.min(.05,(now-last)/1000);last=now;
-  if(!REVIEW&&!state.transitioning){
-    let forward=0,strafe=0,turn=0;
-    if(keys.has("w")||keys.has("arrowup"))forward+=16*dt;
-    if(keys.has("s")||keys.has("arrowdown"))forward-=16*dt;
-    if(keys.has("a"))strafe-=11*dt;if(keys.has("d"))strafe+=11*dt;
-    if(keys.has("arrowleft"))turn-=1.15*dt;if(keys.has("arrowright"))turn+=1.15*dt;
-    camera.targetYaw+=turn;
-    if(Math.abs(camera.moveVelocity)>.00005){forward+=camera.moveVelocity*220*dt;camera.moveVelocity*=Math.exp(-dt*8.8)}else camera.moveVelocity=0;
-    camera.yaw=angleDamp(camera.yaw,camera.targetYaw,1-Math.exp(-dt*4.8));
-    const sy=Math.sin(camera.yaw),cy=Math.cos(camera.yaw),rx=cy,rz=-sy;
-    camera.x=clamp(camera.x+sy*forward+rx*strafe,-44,44);camera.z=clamp(camera.z+cy*forward+rz*strafe,-12,106);
-    updatePlayer(dt);updateActiveGate();
-  }
-  render(now);
-  sceneNameEl.textContent=SCENE_META[sceneId].label+" · V6";
-  modeEl.textContent="YAW "+(camera.yaw*180/Math.PI).toFixed(0)+"°\\n"+(state.activeGate?"ACCESO "+state.activeGate:"MUNDO");
-  debugEl.textContent="scene "+sceneId+"\\ncamera "+camera.x.toFixed(1)+", "+camera.z.toFixed(1)+" yaw "+(camera.yaw*180/Math.PI).toFixed(1)+"\\nplayer "+player.x.toFixed(1)+", "+player.z.toFixed(1)+" "+(player.moving?"walking":"idle")+"\\nroute "+player.route.length+" target "+(player.targetNode||"-")+"\\nactiveGate "+(state.activeGate||"-")+"\\nlastTurn "+(state.lastTurn?state.lastTurn.from+"→"+state.lastTurn.to:"-")+"\\nfaces "+renderStats.faces+" boxes "+renderStats.boxes+" paths "+renderStats.paths;
-  requestAnimationFrame(update);
-}
-function getState(){
-  return{version:"rail-world-v6-rotational-r2",ready:state.ready,scene:sceneId,camera:{x:camera.x,z:camera.z,yaw:camera.yaw,targetYaw:camera.targetYaw,moveVelocity:camera.moveVelocity},player:{x:player.x,z:player.z,heading:player.heading,moving:player.moving,currentNode:player.currentNode,targetNode:player.targetNode,routeLength:player.route.length},activeGate:state.activeGate,gates:graph.gates.map(g=>({destination:g.destination,nodeId:g.nodeId,x:graph.nodes.get(g.nodeId).x,z:graph.nodes.get(g.nodeId).z})),graph:{nodes:graph.nodes.size,edges:graph.edges.length,junctions:[...graph.junctions]},lastTurn:state.lastTurn,sceneChanges:state.sceneChanges,render:{...renderStats},hasIframe:Boolean(document.querySelector("iframe")),museumPanels:sceneId==="MUSEO"?sceneObjects().filter(x=>x.type==="panel").length:0};
-}
-window.PrometeoRailWorldV6={
-  getState,
-  setScene(id){if(SCENE_IDS.includes(id)){sceneId=id;graph=makeGraph(sceneId);player.x=0;player.z=3.8;player.currentNode="entry";player.route=[];player.segment=null;camera.x=0;camera.z=-5.2;camera.yaw=camera.targetYaw=0;state.activeGate=null;state.lastTurn=null}return getState()},
-  setCamera(next={}){if(Number.isFinite(+next.x))camera.x=+next.x;if(Number.isFinite(+next.z))camera.z=+next.z;if(Number.isFinite(+next.yaw))camera.yaw=camera.targetYaw=+next.yaw;camera.moveVelocity=0;return getState()},
-  setPlayer(next={}){if(Number.isFinite(+next.x))player.x=+next.x;if(Number.isFinite(+next.z))player.z=+next.z;player.currentNode=nearestNode(player.x,player.z)?.id||"entry";player.route=[];player.segment=null;player.moving=false;updateActiveGate();return getState()},
-  routeToGate(dest){routeToGate(dest);return getState()},
-  routeToNode(id){planToNode(id);return getState()},
-  enterActive(){if(state.activeGate)enterScene(state.activeGate);return getState()},
-  clickWorld(x,z){const n=nearestNode(+x,+z);if(n)planToNode(n.id);return getState()},
-  forceFrame(){render(performance.now());return getState()}
-};
+const PLAYER_SPEED=11.5,CAMERA_EASE=4.6;
+const q=new URLSearchParams(location.search),review=q.get("review")==="1";
+if(review)document.body.classList.add("review");
 
-Promise.all(Object.entries(ASSET_URLS).map(([k,u])=>loadAsset(k,u))).then(()=>{
-  applyReviewState();updateActiveGate();state.ready=true;loading.classList.add("off");
-  window.PrometeoRailWorldReview={ready:true,version:"rail-world-v6-rotational-r2"};
-  requestAnimationFrame(update);
+function makeDust(){
+  const f=document.createDocumentFragment();
+  for(let i=0;i<18;i++){
+    const d=document.createElement("i");d.className="dust";
+    d.style.left=(5+Math.random()*90)+"%";d.style.top=(22+Math.random()*72)+"%";
+    d.style.setProperty("--t",(7+Math.random()*10)+"s");d.style.setProperty("--d",(-Math.random()*12)+"s");d.style.setProperty("--dx",(-18+Math.random()*36)+"vw");f.append(d);
+  }
+  dust.replaceChildren(f);
+}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function relToScreenY(rel){return 88-rel*1.62}
+function screenYToRel(y){return clamp((88-y)/1.62,3.8,30)}
+function corridorHalf(rel){return clamp(35-rel*.92,7.5,32)}
+function projectX(worldX,rel){return 50+worldX*corridorHalf(rel)}
+function scaleForRel(rel){return clamp(1.18-rel*.029,.48,1.08)}
+function setRail(z){
+  z=clamp(z,RAIL[0].z,RAIL[RAIL.length-1].z);
+  let lo=RAIL[0],hi=RAIL[RAIL.length-1];
+  for(let i=0;i<RAIL.length-1;i++){
+    if(z>=RAIL[i].z&&z<=RAIL[i+1].z){lo=RAIL[i];hi=RAIL[i+1];break}
+  }
+  const span=Math.max(.001,hi.z-lo.z),t=clamp((z-lo.z)/span,0,1);
+  if(a.dataset.src!==lo.src){a.src=lo.src;a.dataset.src=lo.src}
+  if(b.dataset.src!==hi.src){b.src=hi.src;b.dataset.src=hi.src}
+  a.style.opacity=String(1-t);
+  b.style.opacity=String(t);
+}
+function renderSign(){
+  const rel=WORLD.sign.z-cameraZ;
+  if(rel<1.2||rel>28){sign.style.opacity="0";return}
+  const y=relToScreenY(rel)-8.5;
+  const x=projectX(WORLD.sign.x,rel);
+  const s=clamp(1.12-rel*.025,.46,1.04);
+  const op=clamp((rel-1.2)/5,0,1)*clamp((28-rel)/7,0,1);
+  sign.style.left=x+"%";sign.style.top=y+"%";
+  sign.style.opacity=String(op);
+  sign.style.transform="translate(-50%,-50%) perspective(500px) rotateY(-9deg) rotate(3deg) scale("+s.toFixed(3)+")";
+}
+function render(){
+  const rel=player.z-cameraZ;
+  const y=clamp(relToScreenY(rel),48,87);
+  const x=projectX(player.x,rel);
+  playerEl.style.left=x+"%";playerEl.style.top=y+"%";
+  playerEl.style.setProperty("--s",scaleForRel(rel).toFixed(3));
+  setRail(cameraZ);renderSign();
+  debug.textContent="PLAYER Z "+player.z.toFixed(1)+"\\nCAMERA Z "+cameraZ.toFixed(1)+"\\nREL "+rel.toFixed(1);
+}
+function desiredCamera(){
+  const rel=player.z-cameraZ;
+  let desired=cameraZ;
+  if(rel>15.5)desired=player.z-12.4;
+  else if(rel<5.2)desired=player.z-7.6;
+  return clamp(desired,WORLD.minCamZ,WORLD.maxCamZ);
+}
+function pulse(x,y){
+  targetEl.style.left=x+"%";targetEl.style.top=y+"%";
+  targetEl.classList.remove("show");void targetEl.offsetWidth;targetEl.classList.add("show");
+}
+function pointerTarget(ev){
+  const r=stage.getBoundingClientRect();
+  const sx=(ev.clientX-r.left)/r.width*100,sy=(ev.clientY-r.top)/r.height*100;
+  const rel=screenYToRel(clamp(sy,39,87));
+  const z=clamp(cameraZ+rel,WORLD.minZ,WORLD.maxZ);
+  const half=corridorHalf(rel);
+  const x=clamp((sx-50)/half,-.95,.95);
+  return{x,z,sx:projectX(x,rel),sy:relToScreenY(rel)};
+}
+stage.addEventListener("pointerdown",ev=>{
+  if(ev.button!==undefined&&ev.button!==0)return;
+  const t=pointerTarget(ev);
+  player.tx=t.x;player.tz=t.z;
+  playerEl.classList.toggle("flip",t.x<player.x);
+  playerEl.classList.add("walking");
+  pulse(t.sx,t.sy);
 });
+function step(now){
+  const dt=Math.min(.04,(now-last)/1000);last=now;
+  const dx=player.tx-player.x,dz=player.tz-player.z;
+  const dist=Math.hypot(dx*10,dz);
+  if(dist>.04){
+    const m=Math.min(dist,PLAYER_SPEED*dt);
+    player.x+=dx/dist*m/10;
+    player.z+=dz/dist*m;
+  }else{
+    player.x=player.tx;player.z=player.tz;playerEl.classList.remove("walking");
+  }
+  targetCameraZ=desiredCamera();
+  const alpha=1-Math.exp(-CAMERA_EASE*dt);
+  cameraZ+=(targetCameraZ-cameraZ)*alpha;
+  render();requestAnimationFrame(step);
+}
+const preload=RAIL.map(f=>new Promise(res=>{const im=new Image();im.onload=im.onerror=res;im.src=f.src}));
+Promise.all(preload.concat([
+  document.querySelector(".mask").decode().catch(()=>{}),
+  document.querySelector(".wings").decode().catch(()=>{})
+])).then(()=>{
+  const rc=Number(q.get("cameraZ")),rp=Number(q.get("playerZ")),rx=Number(q.get("playerX"));
+  if(review){
+    if(Number.isFinite(rc))cameraZ=targetCameraZ=clamp(rc,WORLD.minCamZ,WORLD.maxCamZ);
+    if(Number.isFinite(rp))player.z=player.tz=clamp(rp,WORLD.minZ,WORLD.maxZ);
+    if(Number.isFinite(rx))player.x=player.tx=clamp(rx,-.95,.95);
+  }
+  render();
+  window.PrometeoRailWorld={ready:true,version:"v2",cameraZ,player:{x:player.x,z:player.z}};
+});
+makeDust();requestAnimationFrame(step);
 })();
 </script>
 </body>
