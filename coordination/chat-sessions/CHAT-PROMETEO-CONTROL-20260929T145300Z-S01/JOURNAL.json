@@ -3,7 +3,7 @@
   "session_id": "CHAT-PROMETEO-CONTROL-20260929T145300Z-S01",
   "session_pin": "PIN-PROMETEO-CTRL-S01-7F4C",
   "chat_object_id": "chat-object-prometeo-chat-control-main",
-  "updated_at": "2026-09-29T17:10:00Z",
+  "updated_at": "2026-09-29T18:00:00Z",
   "entries": [
     {
       "entry_id": "J001",
@@ -322,6 +322,48 @@
         "Authenticated private P6 execution transport remains separate from continuity."
       ],
       "next_action": "Use Control Room continuity normally. For an old Visuales/STT chat, use Adoptar chat abierto once; for a fresh conversation, use Nuevo chat or Continuar. No further continuity-release work is pending."
+    },
+    {
+      "entry_id": "J008",
+      "ordinal": 8,
+      "occurred_at": "2026-09-29T18:00:00Z",
+      "entry_mode": "LIVE_SESSION",
+      "human_intent_summary": "Diagnosticar y corregir el paquete de errores exportado desde Control Room.",
+      "assistant_conclusion": "El paquete de 17:36 era válido pero quedó obsoleto: durante la misma ventana otros commits corrigieron los 404/resources, agregaron outage circuit breaker para Supabase y tolerancia a Work Context faltante. La CI servida de 17:54 pasó sin hard failures ni page errors.",
+      "actions": [
+        "Comparó el paquete con HEAD y la evidencia servida más reciente.",
+        "Verificó que ingress-v1.js existe y main == gh-pages.",
+        "Verificó que ambos canaries Page Change existen y main == gh-pages.",
+        "Verificó que el preview manifest ya no referencia push-scroll.png/class-player.png fantasmas; usa class-player-v26 y sólo assets publicados.",
+        "Verificó control-plane diagnosis BLOCKED_EXTERNAL_STORAGE y circuit breaker publicado.",
+        "Verificó Chromium run 36608197715 SUCCESS / PASS_WITH_AUTH_BOUNDARY."
+      ],
+      "decisions": [
+        "No reabrir Supabase ni fingir recuperación: la UI debe tratar el control plane como bloqueado externamente.",
+        "No perseguir errores del packet viejo si receipts posteriores prueban corrección servida.",
+        "Mantener P6/auth como boundary separado."
+      ],
+      "refs": [
+        {
+          "kind": "commit",
+          "label": "Honor published outage before Current Tree RPC",
+          "url": "https://github.com/JuanManuelPM/prometeo/commit/96608b7afd1185199ecd244223ab676de4e04b39"
+        },
+        {
+          "kind": "commit",
+          "label": "Tolerate missing Work Context projection",
+          "url": "https://github.com/JuanManuelPM/prometeo/commit/31abbb2dab104012f68a76be0e875a215679a3c6"
+        },
+        {
+          "kind": "ci",
+          "label": "Served diagnostic CI",
+          "url": "https://github.com/JuanManuelPM/prometeo/actions/runs/36608197715"
+        }
+      ],
+      "boundaries": [
+        "PostgreSQL/Supabase remains externally blocked due disk exhaustion; this is not repaired by UI changes."
+      ],
+      "next_action": "Reload Control Room and, only if errors remain, export a fresh diagnostic packet so we compare current served state rather than the 17:36 snapshot."
     }
   ]
 }
