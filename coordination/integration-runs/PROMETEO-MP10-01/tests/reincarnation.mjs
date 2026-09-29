@@ -86,7 +86,6 @@ check(
   'A reincarnated worker must CREATE its own fresh beacon; historical RETURN/exam evidence cannot become current liveness.'
 );
 
-const historicalLivenessRestored = !results.find(r=>r.id==='fresh_worker_identity_required')?.status==='PASS';
 const pass=results.every(r=>r.status==='PASS');
 const report={
   schema:'prometeo.reincarnation-static-test/v1',
