@@ -12,9 +12,10 @@
 .hero{margin:34px 0 26px}.num{font-size:clamp(72px,22vw,190px);font-weight:900;letter-spacing:-.09em;line-height:.72}.num small{font-size:.28em;letter-spacing:-.03em;color:var(--muted)}
 .track{height:24px;border:1px solid #343c45;background:#11151a;margin:25px 0 8px;overflow:hidden}.fill{height:100%;width:0;background:#d7dad4;transition:width .5s ease}.scale{display:flex;justify-content:space-between;color:var(--muted);font:9px ui-monospace,SFMono-Regular,Menlo,monospace}.note{margin-top:13px;color:#929da7;font-size:10px;line-height:1.5}
 .focus{margin:32px 0;padding:16px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:grid;grid-template-columns:150px 1fr;gap:18px}.focus .k{font-size:9px;letter-spacing:.13em;color:var(--muted);text-transform:uppercase}.focus .v{font-size:18px;font-weight:780;line-height:1.25}.focus .why{font-size:11px;color:#9da7b1;margin-top:5px;line-height:1.5}
+.reverse{margin:26px 0 34px}.reverseHead{display:flex;justify-content:space-between;gap:16px;align-items:end;margin-bottom:11px}.reverseHead .label{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}.reverseHead .left{font-size:28px;font-weight:850;letter-spacing:-.04em}.reverseList{border-top:1px solid var(--line)}.reverseRow{display:grid;grid-template-columns:64px 1fr 84px;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}.reversePts{font:700 11px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--warn)}.reverseTitle{font-size:13px;font-weight:760}.reverseWhy{font-size:10px;color:#8e98a2;line-height:1.45;margin-top:3px}.reverseState{text-align:right;font:9px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
 .gates{border-top:1px solid var(--line)}.gate{display:grid;grid-template-columns:52px 1fr 72px;gap:13px;padding:15px 0;border-bottom:1px solid var(--line);align-items:start}.gid{font:10px ui-monospace,SFMono-Regular,Menlo,monospace;color:#737d87}.gt{font-size:14px;font-weight:760}.gd{font-size:10px;color:#8e98a2;line-height:1.45;margin-top:4px}.ge{font-size:9px;color:#69747f;line-height:1.4;margin-top:5px}.gs{text-align:right;font:9px ui-monospace,SFMono-Regular,Menlo,monospace}.PASS .gs{color:var(--good)}.PARTIAL .gs{color:var(--warn)}.BLOCKED .gs{color:var(--bad)}.PENDING .gs{color:var(--muted)}
 .bottom{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:28px}.block{border-top:1px solid var(--line);padding-top:12px}.block h2{font-size:9px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin:0 0 9px}.block ul{margin:0;padding-left:18px;color:#b2bac2;font-size:10px;line-height:1.55}.stamp{margin-top:30px;color:#626d77;font:9px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}.err{padding:14px;border:1px solid #5b3537;color:#e9a1a4}
-@media(max-width:640px){.wrap{padding-top:18px}.focus{grid-template-columns:1fr}.gate{grid-template-columns:42px 1fr}.gs{grid-column:2;text-align:left}.bottom{grid-template-columns:1fr}.track{height:20px}}
+@media(max-width:640px){.wrap{padding-top:18px}.focus{grid-template-columns:1fr}.gate{grid-template-columns:42px 1fr}.gs{grid-column:2;text-align:left}.bottom{grid-template-columns:1fr}.track{height:20px}.reverseRow{grid-template-columns:56px 1fr}.reverseState{grid-column:2;text-align:left}.reverseHead{align-items:start;flex-direction:column}}
 @media(prefers-reduced-motion:reduce){.fill{transition:none}}
 </style>
 </head>
@@ -28,6 +29,7 @@
 <div class="scale"><span>0 · arquitectura sin cerrar</span><span>100 · gates de terminado</span></div>
 <div class="note">Esto es porcentaje de gates verificables, <b>no una ETA temporal</b>. El 100% técnico tampoco falsifica aceptación humana: esa aceptación sigue siendo explícita.</div>
 </section>
+<section class="reverse"><div class="reverseHead"><div><div class="label">Modo reversa desde 100%</div><div class="left" id="remaining">— puntos restantes</div></div><div class="label">sólo trabajo que cierre gates</div></div><div class="reverseList" id="reversePath"></div></section>
 <section class="focus"><div class="k">Cuello de botella actual</div><div><div class="v" id="focusTitle">cargando…</div><div class="why" id="focusWhy"></div></div></section>
 <section class="gates" id="gates"></section>
 <div class="bottom"><section class="block"><h2>Bloqueos duros</h2><ul id="blockers"></ul></section><section class="block"><h2>Parciales</h2><ul id="partials"></ul></section></div>
@@ -38,6 +40,8 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 function render(s){
  document.getElementById('percent').innerHTML=esc(s.percent)+'<small>%</small>';
  document.getElementById('fill').style.width=Math.max(0,Math.min(100,Number(s.percent)||0))+'%';
+ document.getElementById('remaining').textContent=(s.remaining??(100-(Number(s.earned)||0)))+' puntos restantes';
+ document.getElementById('reversePath').innerHTML=(s.reverse_path||[]).map((g,i)=>'<div class="reverseRow"><div class="reversePts">+'+esc(g.remaining_points)+' pts</div><div><div class="reverseTitle">'+(i+1)+'. '+esc(g.title)+'</div><div class="reverseWhy">'+esc(g.blocker||g.closes_when)+'</div></div><div class="reverseState">'+esc(g.state)+'</div></div>').join('')||'<div class="reverseRow"><div class="reversePts">0 pts</div><div><div class="reverseTitle">Camino técnico cerrado</div></div><div class="reverseState">DONE</div></div>';
  const f=s.next_focus;
  document.getElementById('focusTitle').textContent=f?f.id+' · '+f.title:'Sin bloqueo técnico pendiente';
  document.getElementById('focusWhy').textContent=f?.reason||'Los gates técnicos medidos están completos.';
