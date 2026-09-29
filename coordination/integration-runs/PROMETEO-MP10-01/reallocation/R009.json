@@ -1,0 +1,107 @@
+{
+  "schema": "prometeo.multipyramid-reallocation-result/v1",
+  "run_id": "PROMETEO-MP10-01",
+  "slot_id": "R009",
+  "slot_kind": "REALLOCATION_INTEGRATE_OR_VERIFY",
+  "worker_id": "wc-20260929T032700Z-7c4a91e2d6bf",
+  "claim_ref": "coordination/launch-packets/PROMETEO-MP10-01/reallocation-claims/R009.json@55b6c59f37948750a685627879884d4160d5f45e",
+  "requires_returns": [
+    "S003",
+    "S004",
+    "S005",
+    "S006"
+  ],
+  "status": "BOUNDARY_INTEGRATION_GAP",
+  "completion_class": "BOUNDARY",
+  "completed_at": "2026-09-29T03:45:00Z",
+  "goal": "Static integration harness for V11 text -> ingress -> Page Change packet -> existing worker authority surface.",
+  "changed_refs": [
+    {
+      "path": "coordination/integration-runs/PROMETEO-MP10-01/tests/command-to-work.mjs",
+      "blob_sha": "b075dea48ed9bee571d73b6f41f22f6847fe4002",
+      "commit_sha": "0df00087b1eaae4ba4835caa60fdac750bda65e3"
+    }
+  ],
+  "prerequisite_evidence": {
+    "returns_reopened": {
+      "S003": "2b38aa86153cea2843f3bd359fd5968071636932",
+      "S004": "80a37b7fb28386bee7328bf0f6b536aacc64dee4",
+      "S005": "6484b4c9ce29f6c4f6f689c1160e634517f4950c",
+      "S006": "e6b6621a5e700b4260590f636458f534f3aca764"
+    },
+    "changed_bytes_reopened": "PASS_ALL_11_CHANGED_REFS_MATCH_RETURNED_BLOB_SHAS"
+  },
+  "checks": [
+    {
+      "id": "R009_HARNESS_SYNTAX_AND_IDENTITY",
+      "status": "PASS",
+      "evidence": [
+        "node --check command-to-work.mjs PASS",
+        "local git hash-object b075dea48ed9bee571d73b6f41f22f6847fe4002 == GitHub blob SHA"
+      ]
+    },
+    {
+      "id": "R009_EXACT_GITHUB_STATIC_CONTRACT_SCAN",
+      "status": "PASS_DIAGNOSED_BOUNDARY",
+      "evidence": {
+        "index_blob": "15c8ef3a6cbab90a2de753793bb2758809aee8c9",
+        "v11_blob": "9df6dc28fc42f77c9080dccb51c60ee2264fc8ee",
+        "ingress_blob": "d8d0718d5136a130291607c3c7fec061fa041dbd",
+        "page_change_blob": "07e2cf533a7d8fb25590d9460d110403a62b5242",
+        "command_dom_ids_once": true,
+        "v11_calls_ingress": true,
+        "positive_queue_requires_queued_true": true,
+        "v11_loads_ingress_script": false,
+        "v11_references_page_change_adapter": false,
+        "ingress_builds_execution_packet": false,
+        "page_change_expects_existing_execution_packet": true,
+        "page_change_emits_PAGE_CHANGE_METADATA_V1": true,
+        "page_change_preserves_existing_opportunity_claim_authority": true
+      }
+    },
+    {
+      "id": "R009_COMPONENT_EVIDENCE",
+      "status": "PASS",
+      "evidence": [
+        "S003 deterministic ingress smoke PASS with fail-closed privacy",
+        "S004 returned 23-assertion adversarial privacy/ingress test PASS",
+        "S005 source contract confirms V11 calls PROMETEO_INGRESS_V1 and only claims queue on queued===true",
+        "S006 source contract confirms required command DOM IDs"
+      ]
+    },
+    {
+      "id": "R009_NO_SUPABASE_DEPENDENCY",
+      "status": "PASS",
+      "evidence": "Reallocation used GitHub durable evidence and local static/syntax checks only; no Supabase call."
+    }
+  ],
+  "integration_findings": {
+    "component_contracts": "PASS",
+    "end_to_end_static_path": "BOUNDARY",
+    "blockers": [
+      {
+        "code": "INGRESS_SCRIPT_NOT_LOADED_BY_V11",
+        "evidence": "current-tree/control-v11/index.html does not load ./ingress-v1.js even though v11.js looks for window.PROMETEO_INGRESS_V1."
+      },
+      {
+        "code": "COMMAND_TO_EXECUTION_PACKET_BRIDGE_MISSING",
+        "evidence": "V11 sends raw command text into PROMETEO_INGRESS_V1; S004 adapter begins from an already-created prometeo.execution-packet/v2 and sends sanitized metadata back through ingress. No bounded source connects those directions without the external Page Change service."
+      },
+      {
+        "code": "AUTHENTICATED_TRANSPORT_EXTERNAL",
+        "evidence": "S003 correctly fails closed as AUTH_BRIDGE_REQUIRED when no trusted authenticated transport is injected."
+      }
+    ],
+    "existing_worker_authority_preserved": true,
+    "self_certified_primary_as_independent": false
+  },
+  "repair_frontier": [
+    "Authorized V11 integration scope must load ingress-v1.js before v11.js.",
+    "A trusted authenticated bridge must convert the private V11 command into the existing Page Change Execution Packet semantics without committing raw private text to public GitHub.",
+    "Only after that private packet exists should S004 publish sanitized candidate metadata pointing at the existing opportunity claim; the public envelope itself must never grant authority.",
+    "Then run a real fresh-worker wake/claim/RETURN canary. Static contracts alone are not evidence of unattended wake."
+  ],
+  "truth_boundary": "R009 completed as an integration diagnosis, not a PASS. It proves the current static sources do not yet form a complete text-in-V11 -> durable packet -> worker path. It does not promote V11, certify this worker's S003 independently, or claim live authenticated execution.",
+  "supabase_required_calls": 0,
+  "exact_next": "Persist final benchmark receipt with reallocation_complete=true and result BOUNDARY_INTEGRATION_GAP, then E9 exam/close."
+}
