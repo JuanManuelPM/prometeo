@@ -1,0 +1,105 @@
+name: Walk World Visual Review
+
+on:
+  push:
+    branches: [visual-review-walk-world-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: walk-world-visual-review
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: visual-review-walk-world-v1
+          fetch-depth: 2
+
+      - id: chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Serve exact checkout
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --directory . >/tmp/walk-world-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS "http://127.0.0.1:4173/demos/prometeo-walk-world-v1/?review=1" >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/walk-world-http.log
+          exit 1
+
+      - name: Capture deterministic frames
+        env:
+          CHROME: ${{ steps.chrome.outputs.chrome-path }}
+        run: |
+          set -euo pipefail
+          rm -rf demos/prometeo-walk-world-v1/review/latest
+          mkdir -p demos/prometeo-walk-world-v1/review/latest
+
+          capture () {
+            local name="$1"
+            local size="$2"
+            local url="$3"
+            "$CHROME" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars               --run-all-compositor-stages-before-draw --virtual-time-budget=1800               --window-size="$size"               --screenshot="demos/prometeo-walk-world-v1/review/latest/$name.png" "$url"
+            test "$(stat -c%s "demos/prometeo-walk-world-v1/review/latest/$name.png")" -gt 10000
+          }
+
+          capture hall-start 1365,768 "http://127.0.0.1:4173/demos/prometeo-walk-world-v1/?review=1&room=hall&px=50&py=83"
+          capture hall-near 1365,768 "http://127.0.0.1:4173/demos/prometeo-walk-world-v1/?review=1&room=hall&px=51&py=60"
+          capture causeway 1365,768 "http://127.0.0.1:4173/demos/prometeo-walk-world-v1/?review=1&room=causeway&px=50&py=78"
+
+          cat > demos/prometeo-walk-world-v1/review/latest.json <<JSON
+          {
+            "schema":"prometeo.walk-world-review/v1",
+            "source_sha":"${GITHUB_SHA}",
+            "generated_at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "screenshots":[
+              "hall-start.png",
+              "hall-near.png",
+              "causeway.png"
+            ]
+          }
+          JSON
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: walk-world-review-${{ github.sha }}
+          path: demos/prometeo-walk-world-v1/review/
+          retention-days: 30
+
+      - name: Publish review evidence
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          rm -rf /tmp/walk-world-review
+          cp -a demos/prometeo-walk-world-v1/review /tmp/walk-world-review
+
+          git fetch origin main
+          git checkout -B main origin/main
+          rm -rf demos/prometeo-walk-world-v1/review
+          cp -a /tmp/walk-world-review demos/prometeo-walk-world-v1/review
+          git add demos/prometeo-walk-world-v1/review
+          if ! git diff --cached --quiet; then
+            git commit -m "visuals: publish Walk World review evidence"
+            git push origin HEAD:main
+          fi
+
+          git fetch origin gh-pages
+          git checkout -B gh-pages origin/gh-pages
+          rm -rf demos/prometeo-walk-world-v1/review
+          cp -a /tmp/walk-world-review demos/prometeo-walk-world-v1/review
+          git add demos/prometeo-walk-world-v1/review
+          if ! git diff --cached --quiet; then
+            git commit -m "visuals: publish Walk World review evidence"
+            git push origin HEAD:gh-pages
+          fi
