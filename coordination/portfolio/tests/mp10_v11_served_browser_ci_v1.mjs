@@ -1,3 +1,4 @@
+// capability-graph-canary-trigger: 2026-09-29T15:36Z
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
