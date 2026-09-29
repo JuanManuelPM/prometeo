@@ -1,0 +1,212 @@
+name: Rail World Build v1
+
+on:
+  push:
+    branches: [visual-review-rail-world-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rail-world-build-v1
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: visual-review-rail-world-v1
+          fetch-depth: 2
+
+      - id: chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Serve exact checkout
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --directory . >/tmp/rail-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS "http://127.0.0.1:4173/visuals/spaces-lab/?review=1&map=1&z=4&t=5000" >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/rail-http.log
+          exit 1
+
+      - name: Render camera rail and review
+        env:
+          CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          rm -rf demos/prometeo-rail-world-v1/frames demos/prometeo-rail-world-v1/review
+          mkdir -p demos/prometeo-rail-world-v1/frames demos/prometeo-rail-world-v1/review
+
+          "$CHROME" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars             --remote-debugging-port=9222 --user-data-dir=/tmp/rail-world-chrome about:blank >/tmp/rail-chrome.log 2>&1 &
+          echo $! >/tmp/rail-chrome.pid
+          trap 'kill "$(cat /tmp/rail-chrome.pid)" 2>/dev/null || true' EXIT
+
+          for i in {1..80}; do
+            if curl -fsS "http://127.0.0.1:9222/json/version" >/tmp/rail-version.json; then break; fi
+            sleep .25
+          done
+          test -s /tmp/rail-version.json
+
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs/promises';
+          import path from 'node:path';
+
+          const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+          const pages=await (await fetch('http://127.0.0.1:9222/json/list')).json();
+          const page=pages.find(x=>x.type==='page');
+          if(!page?.webSocketDebuggerUrl)throw new Error('No Chrome page target');
+
+          const ws=new WebSocket(page.webSocketDebuggerUrl);
+          await new Promise((resolve,reject)=>{
+            ws.addEventListener('open',resolve,{once:true});
+            ws.addEventListener('error',reject,{once:true});
+          });
+
+          let seq=0;
+          const pending=new Map();
+          ws.addEventListener('message',ev=>{
+            const msg=JSON.parse(String(ev.data));
+            if(!msg.id)return;
+            const p=pending.get(msg.id);
+            if(!p)return;
+            pending.delete(msg.id);
+            if(msg.error)p.reject(new Error(msg.error.message||JSON.stringify(msg.error)));
+            else p.resolve(msg.result||{});
+          });
+          const send=(method,params={})=>{
+            const id=++seq;
+            return new Promise((resolve,reject)=>{
+              pending.set(id,{resolve,reject});
+              ws.send(JSON.stringify({id,method,params}));
+            });
+          };
+
+          await send('Page.enable');
+          await send('Runtime.enable');
+          await send('Network.enable');
+          await send('Network.setCacheDisabled',{cacheDisabled:false});
+          await send('Emulation.setDeviceMetricsOverride',{width:1365,height:768,deviceScaleFactor:1,mobile:false,screenWidth:1365,screenHeight:768});
+
+          async function waitExpression(expression,label){
+            for(let i=0;i<160;i++){
+              try{
+                const ev=await send('Runtime.evaluate',{expression,returnByValue:true});
+                if(ev?.result?.value)return;
+              }catch{}
+              await sleep(125);
+            }
+            throw new Error('Never ready: '+label);
+          }
+          async function shot(url,file,readyExpr){
+            await send('Page.navigate',{url});
+            await waitExpression(readyExpr,file);
+            await sleep(180);
+            const out=await send('Page.captureScreenshot',{format:'png',fromSurface:true,captureBeyondViewport:false});
+            const bytes=Buffer.from(out.data,'base64');
+            if(bytes.length<10000)throw new Error('Screenshot too small '+file+' '+bytes.length);
+            await fs.mkdir(path.dirname(file),{recursive:true});
+            await fs.writeFile(file,bytes);
+          }
+
+          const zs=[4,10,16,22,28,34,40,46,52,58,64];
+          for(const z of zs){
+            const id=String(z).padStart(3,'0');
+            const url='http://127.0.0.1:4173/visuals/spaces-lab/?review=1&map=1&x=0&z='+z+'&t=5000';
+            await shot(url,'demos/prometeo-rail-world-v1/frames/arcos-z'+id+'.png',
+              'Boolean(window.PrometeoSpacesReview&&window.PrometeoSpacesReview.ready)');
+          }
+
+          const reviews=[
+            ['near','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&camera=4&player=20&x=0'],
+            ['follow','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&camera=22&player=48&x=-.45'],
+            ['deep','http://127.0.0.1:4173/demos/prometeo-rail-world-v1/?review=1&camera=52&player=78&x=.55']
+          ];
+          for(const [id,url] of reviews){
+            await shot(url,'demos/prometeo-rail-world-v1/review/'+id+'.png',
+              'Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready)');
+          }
+
+          ws.close();
+          await fs.writeFile('demos/prometeo-rail-world-v1/review/manifest.json',JSON.stringify({
+            schema:'prometeo.rail-world-review/v1',
+            source_sha:process.env.SOURCE_SHA,
+            generated_at:new Date().toISOString(),
+            camera_frames:zs,
+            review:['near.png','follow.png','deep.png']
+          },null,2)+'\n');
+          NODE
+
+          ls -lh demos/prometeo-rail-world-v1/frames
+          ls -lh demos/prometeo-rail-world-v1/review
+
+      - name: Upload exact evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: rail-world-v1-${{ github.sha }}
+          path: |
+            demos/prometeo-rail-world-v1/frames/
+            demos/prometeo-rail-world-v1/review/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish frames and evidence
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          rm -rf /tmp/rail-world-assets
+          mkdir -p /tmp/rail-world-assets
+          cp -a demos/prometeo-rail-world-v1/frames /tmp/rail-world-assets/
+          cp -a demos/prometeo-rail-world-v1/review /tmp/rail-world-assets/
+
+          publish_branch () {
+            local branch="$1"
+            git fetch origin "$branch"
+            git checkout -B "$branch" "origin/$branch"
+            mkdir -p demos/prometeo-rail-world-v1
+            rm -rf demos/prometeo-rail-world-v1/frames demos/prometeo-rail-world-v1/review
+            cp -a /tmp/rail-world-assets/frames demos/prometeo-rail-world-v1/
+            cp -a /tmp/rail-world-assets/review demos/prometeo-rail-world-v1/
+            git add demos/prometeo-rail-world-v1/frames demos/prometeo-rail-world-v1/review
+            if git diff --cached --quiet; then return 0; fi
+            git commit -m "visuals: publish Rail World camera frames"
+            for n in 1 2 3 4; do
+              if git push origin "HEAD:$branch"; then return 0; fi
+              git fetch origin "$branch"
+              git rebase "origin/$branch"
+              sleep 2
+            done
+            return 1
+          }
+
+          publish_branch main
+          publish_branch gh-pages
+
+      - name: Verify public game
+        run: |
+          set -euo pipefail
+          URL="https://juanmanuelpm.github.io/prometeo/demos/prometeo-rail-world-v1/"
+          FRAME="https://juanmanuelpm.github.io/prometeo/demos/prometeo-rail-world-v1/frames/arcos-z022.png"
+          for i in {1..48}; do
+            PAGE="$(curl -fsSL --max-time 12 "$URL" 2>/dev/null || true)"
+            SIZE="$(curl -fsSL --max-time 12 "$FRAME" 2>/dev/null | wc -c || true)"
+            if printf '%s' "$PAGE" | grep -Fq "Prometeo · Rail World" && [ "${SIZE:-0}" -gt 10000 ]; then
+              echo "PUBLIC_RAIL_WORLD_VERIFIED $URL frame_bytes=$SIZE"
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
