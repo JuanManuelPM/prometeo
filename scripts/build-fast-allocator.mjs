@@ -743,6 +743,8 @@ function compactPortfolio(feed, semantic, job, targetGeneration = null, growthPo
     source_path: job.source_path || null,
     required_capabilities: jobRequiredCapabilities(job),
     priority: job.priority || 0,
+    finish_critical: job.finish_critical === true,
+    goal_gate_ids: arr(job.goal_gate_ids),
     state: job.state,
     authority_mode: job.authority_mode || null,
     pin_generation: current,
@@ -1316,18 +1318,40 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
     const pid = item?.project_id || item?.scope_project_id || null;
     return pid ? meshInfra.has(pid) : false;
   };
+  const isFinishCritical = item => item?.finish_critical === true;
+  const candidateKey = (lane, item) => item?.claim_path || [lane,item?.job_id,item?.opportunity_id,item?.role_id,item?.guide_work_id].filter(Boolean).join(':');
+  const pushed = new Set();
   const pushBatch = (lane, items) => {
-    for (const item of arr(items)) batchCandidates.push({ lane, ...item });
+    for (const item of arr(items)) {
+      const key = candidateKey(lane,item);
+      if (!key || pushed.has(key)) continue;
+      pushed.add(key);
+      batchCandidates.push({ lane, ...item });
+    }
   };
-  const productReady = ready.filter(item => !isInfraCandidate(item));
-  const productQueue = queueReady.filter(item => !isInfraCandidate(item));
-  const productRoles = roles.role_ready.filter(item => !isInfraCandidate(item));
-  const infraReady = ready.filter(isInfraCandidate);
-  const infraRoles = roles.role_ready.filter(isInfraCandidate);
+
+  // FINISH-CRITICAL is not a new queue or scheduler. It is a bounded preference inside
+  // the existing CURRENT allocator so evidence-bound work that closes the declared human
+  // objective cannot be starved merely because its project is classified as infrastructure.
+  const finishCritical = [
+    ...ready.map(item=>({lane:'ready',item})),
+    ...queueReady.map(item=>({lane:'queue_ready',item})),
+    ...roles.role_ready.map(item=>({lane:'role_ready',item})),
+    ...recovery.map(item=>({lane:'recovery',item}))
+  ]
+    .filter(row=>isFinishCritical(row.item))
+    .sort((a,b)=>(b.item.priority||0)-(a.item.priority||0) || candidateKey(a.lane,a.item).localeCompare(candidateKey(b.lane,b.item)));
+  for (const row of finishCritical) pushBatch(row.lane,[row.item]);
+
+  const productReady = ready.filter(item => !isFinishCritical(item) && !isInfraCandidate(item));
+  const productQueue = queueReady.filter(item => !isFinishCritical(item) && !isInfraCandidate(item));
+  const productRoles = roles.role_ready.filter(item => !isFinishCritical(item) && !isInfraCandidate(item));
+  const infraReady = ready.filter(item => !isFinishCritical(item) && isInfraCandidate(item));
+  const infraRoles = roles.role_ready.filter(item => !isFinishCritical(item) && isInfraCandidate(item));
   pushBatch('ready', productReady);
   pushBatch('queue_ready', productQueue);
   pushBatch('role_ready', productRoles);
-  if (batchCandidates.length < 8) pushBatch('recovery', recovery.filter(item => !isInfraCandidate(item)).slice(0, Math.max(0, 8 - batchCandidates.length)));
+  if (batchCandidates.length < 8) pushBatch('recovery', recovery.filter(item => !isFinishCritical(item) && !isInfraCandidate(item)).slice(0, Math.max(0, 8 - batchCandidates.length)));
   if (batchCandidates.length < 8) pushBatch('ready', infraReady.slice(0, Math.max(0, 8 - batchCandidates.length)));
   if (batchCandidates.length < 8) pushBatch('role_ready', infraRoles.slice(0, Math.max(0, 8 - batchCandidates.length)));
 
