@@ -9,7 +9,7 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const remote=new PrometeoRemote();
 const changeClient=createChangeLoopClient();
 let bundle=window.PROMETEO_V11_LAST||null;
-let pages=[],pageMap=new Map(),selectedPage=null,loop=null,unread=0,syncTimer=null,previewManifest=null,previewMap=new Map(),resultProjection=null,commandBusy=false,restoringRoute=false,restoredRoute=false,activePanel=null;
+let pages=[],pageMap=new Map(),selectedPage=null,loop=null,unread=0,syncTimer=null,previewManifest=null,previewMap=new Map(),resultProjection=null,chatSessionIndex=null,chatJournalCache=new Map(),commandBusy=false,restoringRoute=false,restoredRoute=false,activePanel=null;
 const toastEl=document.createElement('div');toastEl.className='v11-toast';document.body.appendChild(toastEl);
 function toast(s){toastEl.textContent=s;toastEl.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>toastEl.classList.remove('on'),1500)}
 function abs(href){try{return new URL(href,'https://juanmanuelpm.github.io/prometeo/catalog/CATALOG_MANIFEST.json').href}catch{return href||''}}
@@ -157,7 +157,7 @@ async function syncPageNotes(p){
 }
 function scheduleSync(){clearTimeout(syncTimer);syncTimer=setTimeout(()=>selectedPage&&syncPageNotes(pageObj(selectedPage)).catch(()=>{}),250)}
 
-const VALID_VIEWS=new Set(['ahora','proyectos','espacios','trabajo','herramientas','historial','estadisticas','organismo']);
+const VALID_VIEWS=new Set(['ahora','proyectos','chats','espacios','trabajo','herramientas','historial','estadisticas','organismo']);
 function routeState(url=location.href){
  const u=new URL(url,location.href);
  return {view:u.searchParams.get('view')||null,page:u.searchParams.get('page')||null,node:u.searchParams.get('node')||null,panel:u.searchParams.get('panel')||null,work:u.searchParams.get('work')||null};
@@ -347,6 +347,54 @@ async function publicEvidence(url){
  if(!url)return null;
  try{const r=await fetch(url,{cache:'no-store'});if(!r.ok)return null;return await r.json()}catch{return null}
 }
+async function publicText(url){
+ if(!url)return null;
+ try{const r=await fetch(url,{cache:'no-store'});if(!r.ok)return null;return await r.text()}catch{return null}
+}
+function chatAbs(url){if(!url)return null;try{return new URL(url,(window.PROMETEO_CONTROL_CONFIG_V1||{}).chatSessionsUrl||location.href).href}catch{return null}}
+function chatTime(v){if(!v)return'—';try{return new Date(v).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}catch{return String(v)}}
+function chatRefs(refs=[]){return refs.length?'<div class="chat-entry-links">'+refs.map(r=>'<a href="'+esc(r.url||'#')+'" target="_blank" rel="noopener">'+esc(r.label||r.kind||'ref')+' ↗</a>').join('')+'</div>':''}
+function chatEntryMarkup(e){
+ const actions=Array.isArray(e.actions)&&e.actions.length?'<div class="chat-entry-actions">'+e.actions.map(x=>'• '+esc(x)).join('<br>')+'</div>':'';
+ return '<article class="chat-entry"><div class="chat-entry-top"><span>'+esc(e.entry_id||'entrada')+' · '+esc(e.entry_mode||'')+'</span><span>'+esc(chatTime(e.occurred_at))+'</span></div><div class="chat-entry-title">'+esc(e.assistant_conclusion||e.human_intent_summary||'Iteración')+'</div>'+(e.human_intent_summary?'<div class="chat-entry-text"><b>Intención:</b> '+esc(e.human_intent_summary)+'</div>':'')+actions+chatRefs(e.refs||[])+'</article>';
+}
+async function loadChatSessionIndex(){
+ const cfg=window.PROMETEO_CONTROL_CONFIG_V1||{};
+ chatSessionIndex=await publicEvidence(cfg.chatSessionsUrl||'../../coordination/chat-sessions/INDEX.json');
+ return chatSessionIndex;
+}
+async function sessionJournal(session){
+ const key=session?.session_id;if(!key)return null;
+ if(chatJournalCache.has(key))return chatJournalCache.get(key);
+ const url=session.public_journal_url||chatAbs(session.journal_url);
+ const j=await publicEvidence(url);
+ if(j)chatJournalCache.set(key,j);
+ return j;
+}
+async function renderChats(){
+ const root=$('#chatsV11');if(!root)return;
+ let idx=chatSessionIndex;
+ if(!idx)idx=await loadChatSessionIndex().catch(()=>null);
+ const sessions=Array.isArray(idx?.sessions)?idx.sessions:[];
+ if(!sessions.length){root.innerHTML='<div class="rdesc">Todavía no hay sesiones públicas adoptadas.</div>';return}
+ root.innerHTML='<div class="chat-session-list">'+sessions.map(s=>'<article class="chat-session-card" data-chat-session="'+esc(s.session_id)+'"><div class="chat-session-head"><div><div class="chat-session-title">'+esc(s.title||s.session_id)+'</div><div class="chat-session-meta">'+esc(s.session_id)+' · '+esc(s.session_pin||'sin pin')+'</div></div><div class="chat-session-state">'+esc(s.status||'')+'</div></div><div class="chat-session-body"><div class="chat-session-summary">'+esc(s.current_summary||'')+'</div><div class="chat-session-next"><b>Siguiente:</b> '+esc(s.next_action||'—')+'</div><div class="chat-lineage">prev: '+esc(s.predecessor_session_id||'—')+' · next: '+esc(s.successor_session_id||'—')+' · '+Number(s.material_iteration_count||0)+' iteraciones</div><div class="chat-session-actions"><button class="primary" data-chat-continue="'+esc(s.session_id)+'">Copiar continuación</button><button data-chat-journal="'+esc(s.session_id)+'">Ver journal</button><a href="'+esc(s.public_journal_url||chatAbs(s.journal_url)||'#')+'" target="_blank" rel="noopener">JSON ↗</a><span class="chat-copy-status" data-chat-copy-status="'+esc(s.session_id)+'"></span></div></div><div class="chat-journal" data-chat-journal-body="'+esc(s.session_id)+'" hidden></div></article>').join('')+'</div>';
+ root.querySelectorAll('[data-chat-journal]').forEach(btn=>btn.onclick=async()=>{
+   const id=btn.dataset.chatJournal,sess=sessions.find(x=>x.session_id===id),body=root.querySelector('[data-chat-journal-body="'+CSS.escape(id)+'"]');
+   if(!sess||!body)return;
+   if(!body.hidden){body.hidden=true;btn.textContent='Ver journal';return}
+   body.hidden=false;btn.textContent='Ocultar journal';body.innerHTML='<div class="rdesc" style="padding:10px 0">Cargando…</div>';
+   const j=await sessionJournal(sess);
+   const entries=Array.isArray(j?.entries)?j.entries.slice().reverse():[];
+   body.innerHTML=entries.length?entries.map(chatEntryMarkup).join(''):'<div class="rdesc" style="padding:10px 0">No pude cargar el journal.</div>';
+ });
+ root.querySelectorAll('[data-chat-continue]').forEach(btn=>btn.onclick=async()=>{
+   const id=btn.dataset.chatContinue,sess=sessions.find(x=>x.session_id===id),status=root.querySelector('[data-chat-copy-status="'+CSS.escape(id)+'"]');
+   if(!sess)return;
+   const prompt=await publicText(sess.public_continue_url||chatAbs(sess.continue_url));
+   if(!prompt){if(status)status.textContent='no disponible';return}
+   const ok=await copy(prompt);if(status){status.textContent=ok?'copiado':'falló';setTimeout(()=>status.textContent='',1800)}
+ });
+}
 async function loadResultProjection(){
  const cfg=window.PROMETEO_CONTROL_CONFIG_V1||{};
  const [raw,g05]=await Promise.all([
@@ -405,12 +453,13 @@ async function hydrate(){
  pages=mergePages(catalogPages(),await visualPages());pageMap=new Map(pages.map(p=>[p.id,p]));
  if(!previewManifest)await loadPreviewManifest().catch(()=>installPreviewManifest(null));
  if(!resultProjection)await loadResultProjection().catch(()=>{resultProjection=normalizeVisibleResultProjection(null)});
- renderFreshness();renderPreviewGrid();renderSpaces();renderWork().catch(()=>{});bindCommandV11();await restoreRoute(false);
+ renderFreshness();renderPreviewGrid();renderSpaces();renderChats().catch(()=>{});renderWork().catch(()=>{});bindCommandV11();await restoreRoute(false);
  const search=$('#workspaceSearchV11');if(search&&!search.dataset.bound){search.dataset.bound='1';search.addEventListener('input',renderSpaces)}
  await remote.init().catch(()=>null);voice.init().catch(()=>{});
 }
 window.addEventListener('PROMETEO_V11_DATA',e=>{bundle=e.detail?.bundle||bundle;window.PROMETEO_V11_LAST=bundle;hydrate().catch(()=>{})});
 window.PROMETEO_V11_RENDER_SPACES=renderSpaces;
+window.PROMETEO_V11_RENDER_CHATS=()=>renderChats();
 window.PROMETEO_V11_RENDER_WORK=()=>renderWork();
 window.PROMETEO_V11_SUBMIT_COMMAND=()=>submitCommandV11();
 window.PROMETEO_V11_OPEN_PAGE_NOTES=(p,opts={})=>openNotesForPage(p,{view:opts.view||'espacios',push:opts.push!==false,work:opts.work||null});
