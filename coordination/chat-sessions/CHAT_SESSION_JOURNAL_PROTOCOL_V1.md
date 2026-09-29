@@ -1,250 +1,196 @@
 # PROMETEO · CHAT SESSION JOURNAL PROTOCOL V1
 
-Status: CANDIDATE CANARY
-Date: 2026-09-29
+Status: CANDIDATE CANARY · FAST_REINCARNATION_PATH_V1  
+Date: 2026-09-29  
 Owner: existing Chat Object / Work Context architecture
-Scope: disposable chat sessions, public continuity journal, reincarnation prompt, Control Room projection
 
-## 0. Problem
+## 0. Core law
 
-A material Prometeo chat currently produces useful reasoning, actions, commits, links and decisions, but too much of that can remain discoverable only through the conversation transcript.
+Conversation is disposable compute. Chat Object is the long-lived identity. Work Context/source owners retain private/exact operating state. Session Journal is a sanitized continuity projection.
 
-That violates the existing Survival Set:
-- conversation is disposable compute;
-- the human is not the context bus;
-- a fresh shell must reconstruct state without transcript archaeology;
-- material reasoning must become durable structured state.
+**FIRST DURABLE ACTION for an authorized continuation is CREATE SUCCESSOR SESSION.**
 
-The missing layer is not another memory authority. It is a **session journal projection** over the existing Chat Object / Work Context / source-owner system.
+Reincarnation is not research. A successor reads durable pointers, creates identity/lineage, reaches READY, and only then expands the exact target needed for work.
 
-## 1. Identity model
+## 1. Identity
 
-### Chat Object
+A Chat Session is one disposable shell/incarnation with:
+- `session_id`, `session_pin`;
+- `chat_object_id`, `context_key`;
+- timestamps/status;
+- predecessor/successor lineage;
+- journal/continue refs.
 
-Long-lived durable conversational/operational identity.
+A successor never reuses predecessor identity. PIN proves incarnation identity only; it grants no authority.
 
-Example:
-`chat-object-prometeo-chat-control-main`
-
-It owns the mission/role/survival method, not a specific ChatGPT conversation.
-
-### Chat Session
-
-One disposable conversation shell/incarnation of a Chat Object.
-
-Each session gets:
-- `session_id`
-- `session_pin`
-- `chat_object_id`
-- `context_key`
-- `started_at`
-- `last_activity_at`
-- `predecessor_session_id`
-- `successor_session_id` when known
-- `status`
-- `journal_ref`
-- `continue_prompt_ref`
-
-A fresh chat must create a NEW session identity. It never reuses the predecessor's session id/pin.
-
-### Turn Journal Entry
-
-A sanitized public summary of one material interaction cycle.
-
-It is NOT a raw transcript.
-
-It records:
-- timestamp;
-- iteration ordinal;
+A material journal entry records only sanitized:
 - human intent summary;
 - assistant conclusion;
-- actions actually performed;
-- artifacts/commits/URLs;
+- real actions;
+- refs;
 - decisions;
-- blockers/boundaries;
-- next action.
+- boundaries;
+- exact next action.
 
-## 2. Privacy split
+It is not a transcript or hidden-reasoning store.
 
-### PRIVATE / internal continuity
+## 2. Privacy
 
-Existing Work Context remains the correct place for:
-- exact user prompt;
-- sensitive context;
-- private source refs;
-- private chat URL when available;
-- detailed private payload.
+PRIVATE remains in Work Context/private owners when available:
+- exact prompt;
+- sensitive/private refs;
+- private chat URL/payload;
+- note bodies/attachments.
 
-Exact prompts remain PRIVATE by default.
+PUBLIC session projection may contain distilled intent/conclusion, public refs, degraded-source boundaries, current summary and next action.
 
-### PUBLIC session journal
+Never publish raw private prompts, credentials/tokens, Authorization headers, private note bodies/attachments, hidden reasoning or secrets in URLs.
 
-May contain:
-- distilled human intent;
-- non-sensitive conclusions;
-- source-owner refs;
-- public GitHub commits;
-- public Pages URLs;
-- public test/action links;
-- high-level errors/boundaries;
-- next action.
+## 3. FAST_REINCARNATION_PATH_V1
 
-Must NOT contain:
-- raw private prompts by default;
-- note bodies;
-- credentials/tokens;
-- Authorization headers;
-- private attachments;
-- hidden chain-of-thought;
-- secrets embedded in URLs/query strings.
-
-## 3. Per-turn contract
-
-For every MATERIAL user interaction in an adopted session:
-
-### Before/while work
-
-Use existing source owners and architecture normally. Do not mutate journal merely for every low-value token.
-
-### Before final assistant reply
-
-Append/update one public session journal entry containing:
-1. `human_intent_summary`
-2. `assistant_conclusion`
-3. `actions[]`
-4. `refs[]`
-5. `decisions[]`
-6. `boundaries[]`
-7. `next_action`
-
-Update the session head:
-- last_activity_at;
-- current_summary;
-- next_action;
-- last_entry_id;
-- material_iteration_count.
-
-The reply can then truthfully state what was persisted.
-
-If repository write is externally blocked:
-- do NOT fake publication;
-- mention the boundary;
-- retry only through the normal durable path later.
-
-## 4. What counts as material
-
-Journal:
-- architecture decisions;
-- implementation;
-- test/verification;
-- diagnosis;
-- changed objective;
-- blocker resolution;
-- promotion/authority boundary;
-- new reusable lesson;
-- source-owner link worth reopening.
-
-Do not journal:
-- greetings;
-- typo correction with no semantic change;
-- repetitive status polling with no changed fact;
-- filler.
-
-## 5. Session bootstrap / PIN
-
-Binding preflight:
+Binding preflight:  
 `coordination/bootstrap/UNIVERSAL_SESSION_PREFLIGHT_V1.txt`
 
-Every fresh/adopted session MUST use that preflight before material mutation. It must locate the target in Current Tree + Organism, recover objective/plan/baseline, and classify the new request as CONTINUE / COMPATIBLE_DELTA / EXPERIMENT / REPLAN / DESTRUCTIVE_RESET. Human intent can change the plan; it must not silently erase the previous plan or its rationale.
+### R0 · Envelope
+Parse chat_object_id, predecessor id/pin, focus, predecessor SESSION/JOURNAL, Current Tree/preflight pointer and exact next_action.
 
-The continuation prompt must be small and stable.
+### R1 · Minimal reads
+Normal target is about 3–6 durable reads:
+1. universal preflight;
+2. predecessor SESSION;
+3. predecessor JOURNAL material head;
+4. named Current Tree/continuity snapshot;
+5. one exact plan/source owner only when SESSION already points to it.
 
-A successor prompt carries:
-- stable public bootstrap URL;
-- chat_object_id;
-- predecessor_session_id;
-- predecessor session journal URL;
-- requirement to create fresh session_id + session_pin;
-- requirement to read Current Tree / Design DNA / session head / source owners before material mutation;
-- requirement to append its own session journal each material turn.
+No broad web/repo search, repo clone or Supabase investigation before READY unless next_action explicitly requires that source.
 
-The PIN proves a new incarnation exists. It does NOT grant authority.
+### R2 · Fresh identity
+Create new session_id + session_pin.
 
-## 6. Reincarnation flow
+### R3 · Successor publication
+Preferred one CAS/tree commit:
+- successor SESSION.json;
+- successor JOURNAL.json;
+- successor CONTINUE.txt;
+- INDEX.json;
+- predecessor successor/status update.
 
-`old chat -> public journal head -> Copy Continue -> new chat -> fresh session pin -> read durable context -> write successor session -> continue work`
+Publication happens before target-specific archaeology/implementation.
 
-The successor:
-1. reads the session head;
-2. resolves Chat Object + Current Tree + relevant Work Context/source refs;
-3. creates a fresh session identity with predecessor link;
-4. publishes its session head;
-5. performs work;
-6. journals material iterations.
+### R4 · Session Head convention
+New sessions should persist, when known:
 
-The old session can then be marked `SUPERSEDED_BY_SUCCESSOR` when the successor is durable.
+`current_summary`  
+`next_action`  
+`focus_objects`  
+`active_project`  
+`organism_nodes`  
+`current_plan_ref`  
+`objective_ref`  
+`work_context_refs`  
+`source_owner_refs`  
+`preservation_refs`  
+`known_boundaries`  
+`known_degraded_sources`  
+`repo_head_seen`  
+`latest_material_entry`  
+`continue_prompt_ref`
 
-## 7. Control Room projection
+A compact `bootstrap` object should include predecessor/head, repo head, Current Tree/Organism, objective/plan, Work Context, optional Design DNA, next_action, request_class, degraded sources, read count, pre-READY broad-search/clone/Supabase flags and `bootstrap_status`.
 
-Project chat continuity inside the unified `Historial` view.
+`bootstrap_status=READY` means a new shell can reopen identity, lineage and next action from durable pointers. It does not mean every live dependency is healthy.
 
-Historial can show recent chat/session events and expand a session to show:
-- session title;
-- chat_object_id;
-- status;
-- started / last activity;
-- predecessor/successor;
-- material iteration count;
-- current summary;
-- next action;
-- recent journal entries;
-- public refs/links;
-- button `Copiar continuación`.
+### R5 · Target expansion
+After READY, resolve only the relevant Organism subgraph and exact owners required by next_action. Design DNA is conditional on material scope.
 
-This history projection must not become Chat Object or Work Context authority.
+### R6 · Normal work
+Continue normal work and journal each material turn.
 
-## 8. Session files
+## 4. Degraded owners
 
-For canary V1:
+Live owner succeeds -> use it.  
+Live owner fails -> record DEGRADED -> use last-good/cache/GitHub durable owner -> continue when safe.
 
-`coordination/chat-sessions/INDEX.json`
+Current Tree/Organism/Work Context/Supabase degradation does not block reincarnation when durable identity, lineage and reopening pointers remain available.
 
-Per session:
+## 5. Request classification
 
-`coordination/chat-sessions/<SESSION_ID>/SESSION.json`
-`coordination/chat-sessions/<SESSION_ID>/JOURNAL.json`
-`coordination/chat-sessions/<SESSION_ID>/CONTINUE.txt`
+Material requests are classified operationally as CONTINUE / COMPATIBLE_DELTA / EXPERIMENT / REPLAN / DESTRUCTIVE_RESET.
 
-The first implementation uses immutable-ish journal entry arrays in JSON for simple GitHub Pages projection. If scale demands it later, storage may be sharded without changing session identity.
+New human intent may change the plan. Preserve lineage/reason/baseline; do not use old context as a veto.
 
-## 9. Authority / preservation
+## 6. CONTINUE.txt universal envelope
 
-Must preserve:
-- Current Tree V2 orientation;
-- Chat Object durable identity;
-- Work Context private exact prompt semantics;
-- Design DNA;
-- source-owner authority;
-- no human result courier;
-- no new scheduler/queue/CURRENT;
-- private/public split;
-- candidate/current/served distinctions.
+CONTINUE.txt stays deliberately small:
 
-The public journal is evidence/continuity projection, never product authority.
+```
+PROMETEO CONTINUE
 
-## 10. Canary
+CHAT_OBJECT_ID: <id>
+PREDECESSOR: <session_id>
+PIN: <session_pin>
 
-First adopted session:
-- Chat Object: `chat-object-prometeo-chat-control-main`
-- Domain: main Prometeo continuity/control conversation
-- Purpose: prove one real chat can persist material turn summaries, actions, refs and a successor prompt while the human continues talking normally.
+READ:
+<universal preflight>
+<predecessor SESSION>
+<predecessor JOURNAL>
+<current tree>
 
-Canary passes when:
-1. session appears in Control Room Chats;
-2. at least one material iteration is publicly visible;
-3. Continue copies a usable successor prompt;
-4. fresh successor creates a new session/pin rather than reusing predecessor;
-5. predecessor/successor lineage is visible;
-6. successor can continue without human transcript reconstruction;
-7. private prompt text is not exposed by the public projection.
+FIRST DURABLE ACTION:
+Create a fresh successor SESSION_ID + SESSION_PIN, publish successor + index lineage, then continue predecessor next_action.
 
+RULE:
+Read pointers, not the world. Expand only after READY.
+```
+
+Domain specificity lives in Session Head pointers, not giant rescue prompts.
+
+## 7. Per-turn contract
+
+For each material interaction, before final reply update one sanitized journal entry and SESSION head fields: last_activity_at, current_summary, next_action, last_entry_id, material_iteration_count, latest_material_entry and any pointer/boundary field that materially changed.
+
+If repository write is blocked, never fake publication.
+
+## 8. Control Room
+
+Continuity remains inside Historial.
+
+Each session should show time/title, project/focus, state, current summary, next action, Continue, journal/refs and either `READY TO REINCARNATE` or `MISSING HANDOFF DATA`.
+
+Buttons:
+- CONTINUAR -> minimal continuation envelope;
+- NUEVO CHAT -> same universal bootstrap, mode NEW;
+- ADOPTAR CHAT -> same universal bootstrap, mode ADOPT_EXISTING;
+- EXPORTAR PROYECTO / COPIAR PAQUETE -> continuity packet from the same contract.
+
+No domain-specific giant prompt variants.
+
+## 9. Worker variant
+
+Worker CURRENT is preserved:
+
+`fresh worker identity/beacon -> CURRENT dispatch/claim -> WORK -> target-specific preflight -> mutate within packet -> RETURN`.
+
+Interactive:
+
+`continuation envelope -> fresh durable session -> READY -> target-specific work`.
+
+A worker never traverses all Prometeo before claim, and Organism never expands packet authority.
+
+## 10. Authority preservation
+
+Preserve Current Tree V2, CURRENT architecture/source-owner distinctions, Chat Object identity, Work Context private prompt semantics, Design DNA, no human result courier, no new queue/scheduler/CURRENT/Organism/memory authority, and candidate/current/human-accepted/served distinctions.
+
+Journal/index are continuity/evidence projections only.
+
+## 11. Fast-path canary
+
+Pass requires: minimal reads, fresh identity, published lineage, target/plan pointers, READY, no human reconstruction, no broad search/clone/Supabase before READY, no invented owner, durable bootstrap refs, preserved next_action and no private raw prompt publication.
+
+Budget:
+- 1 envelope;
+- about 3–6 durable reads;
+- 1 successor publication CAS;
+- READY.
+
+An S02→S03 simulation may certify the contract without superseding an active real S02, but it must be explicitly non-live and absent from INDEX.
