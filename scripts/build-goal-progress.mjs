@@ -35,6 +35,7 @@ const integrator = read('coordination/portfolio/returns/portfolio-mp10-integrate
 const pageClose = read('coordination/canaries/page-change-pipeline-v1/software-closeout-20260928T232800Z.json');
 const pageLatest = read('coordination/canaries/page-change-pipeline-v1/latest.json');
 const g05Contract = read('coordination/goal-progress/G05_REAL_PRIVATE_E2E_EVIDENCE_CONTRACT_V1.json');
+const g05Verification = read('coordination/goal-progress/G05_VERIFICATION.json');
 const g09Verification = read('coordination/storage-recovery/github-native-v1/G09_VERIFICATION.json');
 const continuity = read('continuity/state.json');
 const scoreboard = readSite('live/worker-scoreboard.json');
@@ -67,11 +68,20 @@ const requiredRealE2E = arr(g05Contract?.required_evidence)
 const missingRealE2E = requiredRealE2E
   .filter(([, value]) => !evidencePass(value))
   .map(([key]) => key);
-const realE2E =
+const verifiedG05Evidence = g05Verification?.evidence || {};
+const verifiedG05Missing = arr(g05Contract?.required_evidence)
+  .filter(key => !evidencePass(verifiedG05Evidence[key]));
+const verifiedG05 =
+  g05Verification?.gate_id === 'G05_REAL_PRIVATE_E2E' &&
+  txt(g05Verification?.status).toUpperCase() === 'PASS' &&
+  Boolean(g05Verification?.lineage_id) &&
+  verifiedG05Missing.length === 0;
+const legacyRealE2E =
   g05Contract?.gate_id === 'G05_REAL_PRIVATE_E2E' &&
   arr(g05Contract?.accepted_terminal_status).includes(txt(pageLatest?.status).toUpperCase()) &&
   requiredRealE2E.length > 0 &&
   missingRealE2E.length === 0;
+const realE2E = verifiedG05 || legacyRealE2E;
 
 const visibleE2E =
   realE2E &&
@@ -151,10 +161,11 @@ add('G05_REAL_PRIVATE_E2E',
   realE2E ? 'PASS' : 'BLOCKED',
   [
     'coordination/canaries/page-change-pipeline-v1/latest.json',
-    'coordination/goal-progress/G05_REAL_PRIVATE_E2E_EVIDENCE_CONTRACT_V1.json'
+    'coordination/goal-progress/G05_REAL_PRIVATE_E2E_EVIDENCE_CONTRACT_V1.json',
+    'coordination/goal-progress/G05_VERIFICATION.json'
   ],
-  realE2E ? null : `Falta canary real de un solo lineage: claim → packet privado post-claim → PREWRITE/CAS → RETURN sanitizado → verifier independiente. Evidencia faltante: ${missingRealE2E.join(', ') || 'contrato G05 inválido'}.`,
-  txt(pageLatest?.status || pageClose?.current_external_block?.class)
+  realE2E ? null : `Falta canary real de un solo lineage: claim → packet privado post-claim → PREWRITE/CAS → RETURN sanitizado → verifier independiente. Evidencia faltante: ${(g05Verification ? verifiedG05Missing : missingRealE2E).join(', ') || 'contrato G05 inválido'}.`,
+  txt(g05Verification?.status || pageLatest?.status || pageClose?.current_external_block?.class)
 );
 
 add('G06_VISIBLE_RESULT_LOOP',
