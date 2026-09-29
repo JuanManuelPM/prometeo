@@ -166,7 +166,8 @@ try{
   assert.match(servedChangeText,/Modo local-first: texto y audio se guardan en este dispositivo/);
   assert.match(servedChangeText,/remoteAvailable=false/);
   assert.match(servedChangeText,/Contexto · misma lineage/);
-  pass('universal_shell_finish_static_contract',{object_notes:true,side_notes_removed:true,exact_back:true,context_projection:true,local_first:true});
+  assert.match(servedChangeText,/#prometeoChangeLoop\{[^}]*z-index:60/);
+  pass('universal_shell_finish_static_contract',{object_notes:true,side_notes_removed:true,exact_back:true,context_projection:true,local_first:true,notes_above_host_chrome:true});
 
   const desktopShot=path.join(outDir,'v11-desktop.png');
   await page.screenshot({path:desktopShot,fullPage:true});
@@ -236,6 +237,16 @@ try{
   await page.waitForFunction(value=>document.querySelector('#prometeoChangeLoop')?.innerText.includes(value),sentinel,{timeout:12000});
   assert.equal(new URL(page.url()).searchParams.get('page'),pageId);
   pass('exact_back_reload_restores_local_capture',{page_id:pageId,persisted:true});
+
+  await page.goBack({waitUntil:'domcontentloaded',timeout:30000});
+  await page.waitForTimeout(500);
+  assert.equal(new URL(page.url()).searchParams.get('panel'),null,'Back must leave the semantic notes panel state');
+  assert.equal(await page.locator('#prometeoChangeLoop.open').count(),0,'Back must close Notes when route no longer requests it');
+  await page.goForward({waitUntil:'domcontentloaded',timeout:30000});
+  await page.locator('#prometeoChangeLoop.open').waitFor({state:'visible',timeout:12000});
+  await page.waitForFunction(value=>document.querySelector('#prometeoChangeLoop')?.innerText.includes(value),sentinel,{timeout:12000});
+  assert.equal(new URL(page.url()).searchParams.get('panel'),'notes');
+  pass('exact_back_browser_history',{page_id:pageId,back_closed:true,forward_restored:true});
 
   const narrow=await browser.newContext({viewport:{width:390,height:844}});
   const narrowPage=await narrow.newPage();
