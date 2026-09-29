@@ -338,7 +338,7 @@ try{
   assert.match(ideasText,/prototipo vertical mínimo/i);
   assert.match(ideasText,/PROMETEO WIDGET WORKSPACE/);
   assert.match(ideasText,/HABITS \/ DAILY CHECK-IN/);
-  await ideasCard.locator('[data-ideas-adopt]').click();
+  await ideasCard.locator('[data-recovery-now-adopt]').click();
   await page.waitForTimeout(250);
   const copiedIdeasAdopt=await page.evaluate(()=>navigator.clipboard.readText());
   assert.match(copiedIdeasAdopt,/CHATLOC-PROMETEO-IDEAS-20260929/);
@@ -354,13 +354,23 @@ try{
   assert.match(sttText,/RECOVERY V2/i);
   assert.match(sttText,/Buscar/i);
   assert.match(sttText,/Adoptar/i);
-  await sttCard.locator('[data-stt-adopt]').click();
+  await sttCard.locator('[data-recovery-now-adopt]').click();
   await page.waitForTimeout(250);
   const copiedSttAdopt=await page.evaluate(()=>navigator.clipboard.readText());
   assert.match(copiedSttAdopt,/CHATLOC-STT-LIVE-UX-20260929/);
   assert.match(copiedSttAdopt,/ADOPTAR CHAT RECUPERADO V2/);
   assert.match(copiedSttAdopt,/FIRST DURABLE ACTION/);
   pass('stt_conversation_projection_canary',{chat_locator_id:'CHATLOC-STT-LIVE-UX-20260929',host:'SURFACE:CONTROL_ROOM',view:'Ahora',uses_existing_recovery:true,new_authority:false,clone_without_new_model:true});
+
+  const genericRecoveryProjection=await page.evaluate(()=>({
+    version:window.PROMETEO_RECOVERY_NOW_V1?.version||null,
+    locators:[...document.querySelectorAll('.recovery-now-v1 [data-now-conversation]')].map(el=>el.getAttribute('data-now-conversation'))
+  }));
+  assert.equal(genericRecoveryProjection.version,'1.0.0');
+  assert.ok(genericRecoveryProjection.locators.includes('CHATLOC-PROMETEO-IDEAS-20260929'));
+  assert.ok(genericRecoveryProjection.locators.includes('CHATLOC-STT-LIVE-UX-20260929'));
+  assert.equal(new Set(genericRecoveryProjection.locators).size,genericRecoveryProjection.locators.length);
+  pass('generic_recovery_projection_mvp3',{host:'SURFACE:CONTROL_ROOM',view:'Ahora',selector:'ui_projection.control_room_now=true',locators:genericRecoveryProjection.locators,uses_existing_recovery:true,new_authority:false,new_backend:false,new_model:false});
 
   await page.evaluate(()=>{scrollTo(0,0);document.querySelector('.tab[data-view="chats"]')?.click()});
   const sessionCard=page.locator('[data-chat-session="CHAT-PROMETEO-CONTROL-20260929T145300Z-S01"]');
