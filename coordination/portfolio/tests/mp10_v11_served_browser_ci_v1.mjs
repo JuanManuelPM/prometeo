@@ -11,8 +11,12 @@ const projectContextUrl=new URL('../../coordination/project-context-v1/INDEX.jso
 const statsUrl=new URL('../../coordination/analytics/control-room-stats-v1/latest.json',publicUrl).href;
 const previewManifestUrl=new URL('./previews/manifest.json',publicUrl).href;
 const scriptUrl=new URL('./v11.js',publicUrl).href;
+const changeLoopUrl=new URL('../../shared/capture/v1/change-loop.js',publicUrl).href;
+const stableControlUrl=new URL('../control/',publicUrl).href;
 const indexPath='current-tree/control-v11/index.html';
 const scriptPath='current-tree/control-v11/v11.js';
+const changeLoopPath='shared/capture/v1/change-loop.js';
+const stableControlPath='current-tree/control/index.html';
 
 fs.mkdirSync(outDir,{recursive:true});
 const sha256=value=>crypto.createHash('sha256').update(value).digest('hex');
@@ -112,8 +116,37 @@ try{
     fail('served_v11_js_source_identity',scriptIdentity);
     hardFailures.push('served_v11_js_source_identity');
   }
-  evidence.served_identity={index:indexIdentity,v11_js:scriptIdentity};
+  const changeResponse=await desktop.request.get(changeLoopUrl,{timeout:20000,failOnStatusCode:false,headers:{'cache-control':'no-cache','pragma':'no-cache'}});
+  assert.equal(changeResponse.status(),200);
+  const servedChange=await changeResponse.body();
+  const sourceChange=fs.readFileSync(changeLoopPath);
+  const changeIdentity={served_sha256:sha256(servedChange),source_sha256:sha256(sourceChange),source_bytes:sourceChange.length,served_bytes:servedChange.length};
+  changeIdentity.match=changeIdentity.served_sha256===changeIdentity.source_sha256;
+  if(changeIdentity.match) pass('served_change_loop_source_identity',changeIdentity);
+  else {fail('served_change_loop_source_identity',changeIdentity);hardFailures.push('served_change_loop_source_identity')}
+
+  const stableResponse=await desktop.request.get(stableControlUrl,{timeout:20000,failOnStatusCode:false,headers:{'cache-control':'no-cache','pragma':'no-cache'}});
+  assert.equal(stableResponse.status(),200);
+  const servedStable=await stableResponse.body();
+  const sourceStable=fs.readFileSync(stableControlPath);
+  const stableIdentity={served_sha256:sha256(servedStable),source_sha256:sha256(sourceStable),source_bytes:sourceStable.length,served_bytes:servedStable.length};
+  stableIdentity.match=stableIdentity.served_sha256===stableIdentity.source_sha256;
+  if(stableIdentity.match) pass('stable_control_route_source_identity',stableIdentity);
+  else {fail('stable_control_route_source_identity',stableIdentity);hardFailures.push('stable_control_route_source_identity')}
+
+  evidence.served_identity={index:indexIdentity,v11_js:scriptIdentity,change_loop:changeIdentity,stable_control:stableIdentity};
   save();
+
+  const stablePage=await desktop.newPage();
+  const stableProbe=new URL(stableControlUrl);
+  stableProbe.searchParams.set('view','espacios');
+  stableProbe.searchParams.set('_prometeo_stable',String(Date.now()));
+  const stableNav=await stablePage.goto(stableProbe.href,{waitUntil:'domcontentloaded',timeout:45000});
+  assert.equal(stableNav?.status(),200,'stable control alias must return 200');
+  await stablePage.waitForURL(/\/current-tree\/control-v11\//,{timeout:12000});
+  assert.equal(new URL(stablePage.url()).searchParams.get('view'),'espacios','stable alias must preserve semantic query');
+  pass('stable_control_redirect',{entry:stableProbe.href,final_url:stablePage.url()});
+  await stablePage.close();
 
   const browserUrl=new URL(publicUrl);
   browserUrl.searchParams.set('_prometeo_browser',String(Date.now()));
@@ -121,6 +154,19 @@ try{
   assert.equal(response?.status(),200,'desktop browser navigation must return 200');
   await page.waitForTimeout(3500);
   pass('desktop_navigation',{status:response?.status(),final_url:page.url()});
+
+  const servedIndexText=servedIndex.toString('utf8');
+  const servedScriptText=servedScript.toString('utf8');
+  const servedChangeText=servedChange.toString('utf8');
+  assert.match(servedIndexText,/id="notesBtn"/,'object drawer must expose universal Notes');
+  assert.doesNotMatch(servedIndexText,/href="\.\.\/\.\.\/notes\/"[^>]*>Notas<\/a>/,'side Notes app must not remain primary navigation');
+  assert.match(servedScriptText,/PROMETEO_V11_OPEN_NODE_NOTES/);
+  assert.match(servedScriptText,/contextHistoryFor/);
+  assert.match(servedScriptText,/addEventListener\('popstate'/);
+  assert.match(servedChangeText,/Modo local-first: texto y audio se guardan en este dispositivo/);
+  assert.match(servedChangeText,/remoteAvailable=false/);
+  assert.match(servedChangeText,/Contexto · misma lineage/);
+  pass('universal_shell_finish_static_contract',{object_notes:true,side_notes_removed:true,exact_back:true,context_projection:true,local_first:true});
 
   const desktopShot=path.join(outDir,'v11-desktop.png');
   await page.screenshot({path:desktopShot,fullPage:true});
@@ -153,6 +199,41 @@ try{
     assert.match((await state.textContent())||'',/Sin enviar/i,'editing without HACER must remain unsent');
     pass('command_dom_fail_closed',{maxlength:6000,button:'HACER',posts_before:postsBefore,posts_after:postsAfter,state:(await state.textContent())?.trim()});
   }
+
+  await page.evaluate(()=>{
+    localStorage.removeItem('prometeo.capture.workspace.secret.v1');
+    localStorage.removeItem('prometeo.capture.workspace.secret.v2');
+  });
+  await page.locator('.tab[data-view="espacios"]').click();
+  const noteButtons=page.locator('#workspacesV11 [data-notes]');
+  await noteButtons.first().waitFor({state:'visible',timeout:20000});
+  const pageId=await noteButtons.first().getAttribute('data-notes');
+  assert.ok(pageId,'a page-scoped note button must carry page identity');
+  await noteButtons.first().click();
+  await page.locator('#prometeoChangeLoop.open').waitFor({state:'visible',timeout:10000});
+  await page.locator('#pclText').waitFor({state:'visible',timeout:10000});
+  const initialLocalText=(await page.locator('#prometeoChangeLoop').innerText()).toLowerCase();
+  assert.match(initialLocalText,/local-first|notas nuevas/);
+  const sentinel='CI_LOCAL_ONLY_'+Date.now();
+  await page.locator('#pclText').fill(sentinel);
+  await page.locator('[data-act="text"]').click();
+  await page.waitForFunction(value=>document.querySelector('#prometeoChangeLoop')?.innerText.includes(value),sentinel,{timeout:10000});
+  const routed=new URL(page.url());
+  assert.equal(routed.searchParams.get('view'),'espacios');
+  assert.equal(routed.searchParams.get('page'),pageId);
+  assert.equal(routed.searchParams.get('panel'),'notes');
+  assert.equal(page.url().includes(sentinel),false,'private note text must never enter URL');
+  pass('local_first_capture_and_exact_back',{page_id:pageId,route:{view:routed.searchParams.get('view'),page:routed.searchParams.get('page'),panel:routed.searchParams.get('panel')},private_text_in_url:false});
+
+  await page.evaluate(()=>{
+    localStorage.removeItem('prometeo.capture.workspace.secret.v1');
+    localStorage.removeItem('prometeo.capture.workspace.secret.v2');
+  });
+  await page.reload({waitUntil:'domcontentloaded',timeout:45000});
+  await page.locator('#prometeoChangeLoop.open').waitFor({state:'visible',timeout:20000});
+  await page.waitForFunction(value=>document.querySelector('#prometeoChangeLoop')?.innerText.includes(value),sentinel,{timeout:12000});
+  assert.equal(new URL(page.url()).searchParams.get('page'),pageId);
+  pass('exact_back_reload_restores_local_capture',{page_id:pageId,persisted:true});
 
   const narrow=await browser.newContext({viewport:{width:390,height:844}});
   const narrowPage=await narrow.newPage();
