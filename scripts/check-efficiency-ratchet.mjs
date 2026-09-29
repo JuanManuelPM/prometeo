@@ -326,6 +326,24 @@ if (staleCollisionRefreshItem?.required?.full_allocator_refresh_forbidden !== tr
 if (staleCollisionRefreshItem?.required?.explicit_denial_refresh_forbidden !== true) errors.push('baseline: EFF034 explicit denial refresh must be forbidden');
 if (staleCollisionRefreshItem?.required?.ambiguous_transport_refresh_forbidden !== true) errors.push('baseline: EFF034 ambiguous transport refresh must be forbidden');
 if (staleCollisionRefreshItem?.required?.stale_recovery_refresh_does_not_authorize_recovery !== true) errors.push('baseline: EFF034 stale recovery authority drift');
+
+if (staleCollisionRefreshItem?.required?.runtime_evidence_scanner !== 'scripts/scan-eff034-runtime-evidence.mjs') errors.push('baseline: EFF034 runtime scanner drift');
+if (staleCollisionRefreshItem?.required?.runtime_evidence_scanner_guard !== 'coordination/portfolio/tests/eff034_runtime_evidence_scanner_v1.mjs') errors.push('baseline: EFF034 scanner guard drift');
+if (JSON.stringify(staleCollisionRefreshItem?.required?.runtime_evidence_statuses) !== JSON.stringify(['OBSERVED','UNOBSERVED'])) errors.push('baseline: EFF034 scanner statuses drift');
+if (staleCollisionRefreshItem?.required?.unobserved_is_boundary_not_pass !== true) errors.push('baseline: EFF034 unobserved truth-boundary drift');
+if (staleCollisionRefreshItem?.required?.synthetic_fixture_runtime_promotion_forbidden !== true) errors.push('baseline: EFF034 synthetic promotion guard drift');
+if (staleCollisionRefreshItem?.required?.scanner_requires_explicit_post_second_collision_time !== true) errors.push('baseline: EFF034 explicit decision-time drift');
+if (staleCollisionRefreshItem?.required?.scanner_requires_exact_refresh_path !== true) errors.push('baseline: EFF034 scanner refresh-path drift');
+if (staleCollisionRefreshItem?.required?.scanner_requires_beacon_seed_reuse !== true) errors.push('baseline: EFF034 scanner seed drift');
+if (staleCollisionRefreshItem?.required?.scanner_requires_capability_filter_rebuild !== true) errors.push('baseline: EFF034 scanner capability-rebuild drift');
+const eff034Scanner = read(root, 'scripts/scan-eff034-runtime-evidence.mjs');
+const eff034ScannerTest = read(root, 'coordination/portfolio/tests/eff034_runtime_evidence_scanner_v1.mjs');
+must('EFF034 scanner', eff034Scanner, "status:qualifying.length ? 'OBSERVED' : 'UNOBSERVED'");
+must('EFF034 scanner', eff034Scanner, 'artificial_collision_or_delay_performed:false');
+must('EFF034 scanner', eff034Scanner, "REFRESH_PATH = 'gh-pages:live/claim-frontier.json'");
+must('EFF034 scanner-test', eff034ScannerTest, 'STATIC_CLASSIFIER_FIXTURE_ONLY');
+must('EFF034 scanner-test', eff034ScannerTest, 'runtime OBSERVED may only originate from durable repository evidence');
+
 const retainedCandidatePayloadItem = baseline?.items?.find(x=>x.id==='EFF035');
 if (retainedCandidatePayloadItem?.required?.local_view_retains_full_candidate_object !== true) errors.push('baseline: EFF035 local full-candidate retention drift');
 if (JSON.stringify(retainedCandidatePayloadItem?.required?.retained_fields) !== JSON.stringify(['claim_mode','claim_path','claim_payload_shape','barrier_post_release_fields'])) errors.push('baseline: EFF035 retained fields drift');
