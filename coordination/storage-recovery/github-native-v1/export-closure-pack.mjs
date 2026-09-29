@@ -44,7 +44,10 @@ const COMPLETION = new Set(["SUCCESS", "BOUNDARY", "FAILED"]);
 const RETENTION = new Set(["PUBLIC_DURABLE_CLOSURE", "PUBLIC_COMPACTED_EVIDENCE"]);
 const SENSITIVE_KEY = /(prompt|transcript|message|audio|attachment|packet|payload|authorization|cookie|token|api[_-]?key|secret|password|signed[_-]?url|email|phone|address|location|pii)/i;
 const TOKEN = /^[A-Za-z0-9._:/@+#-]+$/;
-const EMAIL_VALUE = /^[A-Za-z0-9.!#const TOKEN = /^[A-Za-z0-9._:/@+#-]+$/;
+const EMAIL_VALUE = /^[A-Za-z0-9.!#$&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/i;
+const PHONE_VALUE = /^(?:\+\d{8,15}|\d{8,15})$/;
+const URL_CREDENTIAL_VALUE = /^[A-Za-z][A-Za-z0-9+.-]*:\/\/[^/@]+@/;
+const SECRET_VALUE = /^(?:gh[pousr]_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{16,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})$/;
 
 function fail(code, detail) {'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/i;
 const PHONE_VALUE = /^(?:\+\d{8,15}|\d{8,15})$/;
