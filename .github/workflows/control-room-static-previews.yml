@@ -5,7 +5,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/control-room-static-previews.yml'
-      - 'current-tree/control-v10/preview-targets.json'
+      - 'current-tree/control-v11/preview-targets.json'
+      - 'catalog/CATALOG_MANIFEST.json'
   workflow_dispatch:
 
 permissions:
@@ -19,43 +20,146 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
+          fetch-depth: 0
       - id: chrome
         uses: browser-actions/setup-chrome@v1
-      - name: Capture static previews
+      - name: Capture bounded V11 static previews
         env:
           CHROME: ${{ steps.chrome.outputs.chrome-path }}
         run: |
           set -euo pipefail
-          mkdir -p current-tree/control-v10/previews
+          mkdir -p current-tree/control-v11/previews
           python3 - <<'PY'
-          import json, subprocess, os, pathlib
-          data=json.load(open('current-tree/control-v10/preview-targets.json'))
-          chrome=os.environ['CHROME']
-          out=pathlib.Path('current-tree/control-v10/previews')
-          for item in data['surfaces']:
-              dest=out/(item['id']+'.png')
-              cmd=[
-                chrome,'--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-                '--hide-scrollbars','--window-size=900,600','--force-device-scale-factor=1',
-                '--virtual-time-budget=7000',f'--screenshot={dest}',item['url']
-              ]
-              print('CAPTURE',item['id'],item['url'])
+          import datetime as dt
+          import json
+          import os
+          import pathlib
+          import re
+          import subprocess
+          import tempfile
+          import urllib.parse
+
+          TARGETS = pathlib.Path('current-tree/control-v11/preview-targets.json')
+          CATALOG = pathlib.Path('catalog/CATALOG_MANIFEST.json')
+          OUT = pathlib.Path('current-tree/control-v11/previews')
+          MANIFEST = OUT / 'manifest.json'
+          chrome = os.environ['CHROME']
+
+          spec = json.loads(TARGETS.read_text())
+          catalog = json.loads(CATALOG.read_text())
+          pages = {p.get('page_id'): p for p in catalog.get('pages', [])}
+          catalog_base = spec.get('catalog_base_url', 'https://juanmanuelpm.github.io/prometeo/catalog/')
+          checked_at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+          results = []
+
+          def resolve_url(item):
+              page_id = item.get('catalog_page_id')
+              if page_id:
+                  page = pages.get(page_id)
+                  if not page:
+                      raise ValueError(f'catalog page not found: {page_id}')
+                  href = page.get('href')
+                  if not href:
+                      raise ValueError(f'catalog page has no href: {page_id}')
+                  return urllib.parse.urljoin(catalog_base, href), f'catalog:{page_id}'
+              url = item.get('url')
+              if not url:
+                  raise ValueError('target has neither catalog_page_id nor url')
+              return url, item.get('source_ref', 'explicit-url')
+
+          for item in spec.get('surfaces', []):
+              preview_id = item.get('id', '')
+              if not re.fullmatch(r'[A-Za-z0-9._-]+', preview_id):
+                  raise ValueError(f'unsafe preview id: {preview_id!r}')
+
+              dest = OUT / f'{preview_id}.png'
+              tmp = pathlib.Path(tempfile.gettempdir()) / f'prometeo-preview-{preview_id}.png'
               try:
-                  subprocess.run(cmd,check=True,timeout=35)
-              except Exception as e:
-                  print('FAILED',item['id'],repr(e))
+                  url, source_ref = resolve_url(item)
+                  cmd = [
+                      chrome, '--headless=new', '--no-sandbox', '--disable-gpu',
+                      '--disable-dev-shm-usage', '--hide-scrollbars',
+                      '--window-size=900,600', '--force-device-scale-factor=1',
+                      '--virtual-time-budget=7000', f'--screenshot={tmp}', url
+                  ]
+                  print('CAPTURE', preview_id, url)
+                  subprocess.run(cmd, check=True, timeout=35)
+                  if not tmp.exists() or tmp.stat().st_size <= 0:
+                      raise RuntimeError('capture produced no bytes')
+                  tmp.replace(dest)
+                  results.append({
+                      'id': preview_id,
+                      'title': item.get('title', preview_id),
+                      'source_ref': source_ref,
+                      'url': url,
+                      'state': 'AVAILABLE',
+                      'preview_path': '/' + dest.as_posix(),
+                      'observed_at': checked_at,
+                      'checked_at': checked_at,
+                      'error': None
+                  })
+              except Exception as exc:
+                  print('FAILED', preview_id, repr(exc))
+                  if tmp.exists():
+                      tmp.unlink()
+                  if dest.exists() and dest.stat().st_size > 0:
+                      try:
+                          observed_at = subprocess.check_output(
+                              ['git', 'log', '-1', '--format=%cI', '--', str(dest)],
+                              text=True
+                          ).strip() or None
+                      except Exception:
+                          observed_at = None
+                      results.append({
+                          'id': preview_id,
+                          'title': item.get('title', preview_id),
+                          'source_ref': item.get('source_ref') or (
+                              f"catalog:{item.get('catalog_page_id')}" if item.get('catalog_page_id') else 'unknown'
+                          ),
+                          'url': item.get('url'),
+                          'state': 'STALE',
+                          'preview_path': '/' + dest.as_posix(),
+                          'observed_at': observed_at,
+                          'checked_at': checked_at,
+                          'error': type(exc).__name__ + ': ' + str(exc)[:240]
+                      })
+                  else:
+                      results.append({
+                          'id': preview_id,
+                          'title': item.get('title', preview_id),
+                          'source_ref': item.get('source_ref') or (
+                              f"catalog:{item.get('catalog_page_id')}" if item.get('catalog_page_id') else 'unknown'
+                          ),
+                          'url': item.get('url'),
+                          'state': 'UNAVAILABLE',
+                          'preview_path': None,
+                          'observed_at': None,
+                          'checked_at': checked_at,
+                          'error': type(exc).__name__ + ': ' + str(exc)[:240]
+                      })
+
+          manifest = {
+              'schema': 'prometeo.static-preview-manifest/v1',
+              'surface': 'current-tree/control-v11',
+              'generator': '.github/workflows/control-room-static-previews.yml',
+              'target_manifest': str(TARGETS),
+              'catalog_ref': str(CATALOG),
+              'checked_at': checked_at,
+              'surfaces': results
+          }
+          MANIFEST.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + '\n')
           PY
-          ls -lh current-tree/control-v10/previews || true
-      - name: Commit changed previews
+          ls -lh current-tree/control-v11/previews || true
+      - name: Commit changed previews and manifest
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add current-tree/control-v10/previews
+          git add current-tree/control-v11/previews
           if git diff --cached --quiet; then
             echo "No preview changes."
             exit 0
           fi
-          git commit -m "Refresh Control Room static previews"
+          git commit -m "Refresh Control Room V11 static previews"
           git pull --rebase origin main
           git push origin HEAD:main
