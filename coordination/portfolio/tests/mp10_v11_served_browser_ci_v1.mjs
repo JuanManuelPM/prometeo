@@ -79,17 +79,40 @@ try{
 
   const indexResponse=await desktop.request.get(publicUrl,{timeout:20000,failOnStatusCode:false,headers:{'cache-control':'no-cache','pragma':'no-cache'}});
   assert.equal(indexResponse.status(),200);
+  const hardFailures=[];
   const servedIndex=await indexResponse.body();
   const sourceIndex=fs.readFileSync(indexPath);
-  assert.equal(sha256(servedIndex),sha256(sourceIndex),'served index.html must match checked-out source bytes');
-  pass('served_index_source_identity',{sha256:sha256(sourceIndex),bytes:sourceIndex.length});
+  const indexIdentity={
+    served_sha256:sha256(servedIndex),
+    source_sha256:sha256(sourceIndex),
+    source_bytes:sourceIndex.length,
+    served_bytes:servedIndex.length
+  };
+  indexIdentity.match=indexIdentity.served_sha256===indexIdentity.source_sha256;
+  if(indexIdentity.match) pass('served_index_source_identity',indexIdentity);
+  else {
+    fail('served_index_source_identity',indexIdentity);
+    hardFailures.push('served_index_source_identity');
+  }
 
   const scriptResponse=await desktop.request.get(scriptUrl,{timeout:20000,failOnStatusCode:false,headers:{'cache-control':'no-cache','pragma':'no-cache'}});
   assert.equal(scriptResponse.status(),200);
   const servedScript=await scriptResponse.body();
   const sourceScript=fs.readFileSync(scriptPath);
-  assert.equal(sha256(servedScript),sha256(sourceScript),'served v11.js must match checked-out source bytes');
-  pass('served_v11_js_source_identity',{sha256:sha256(sourceScript),bytes:sourceScript.length});
+  const scriptIdentity={
+    served_sha256:sha256(servedScript),
+    source_sha256:sha256(sourceScript),
+    source_bytes:sourceScript.length,
+    served_bytes:servedScript.length
+  };
+  scriptIdentity.match=scriptIdentity.served_sha256===scriptIdentity.source_sha256;
+  if(scriptIdentity.match) pass('served_v11_js_source_identity',scriptIdentity);
+  else {
+    fail('served_v11_js_source_identity',scriptIdentity);
+    hardFailures.push('served_v11_js_source_identity');
+  }
+  evidence.served_identity={index:indexIdentity,v11_js:scriptIdentity};
+  save();
 
   const browserUrl=new URL(publicUrl);
   browserUrl.searchParams.set('_prometeo_browser',String(Date.now()));
@@ -158,16 +181,25 @@ try{
   pass('narrow_layout',{viewport:{width:390,height:844},geometry});
   await narrow.close();
 
-  evidence.ui_source_overall='PASS';
   evidence.authenticated_transport={
     state:'BOUNDARY_NOT_EXERCISED',
     pass:false,
     reason:'This CI intentionally does not submit a private command or claim wake/auth transport without credentials and owned private packet evidence.'
   };
-  evidence.overall='PASS_WITH_AUTH_BOUNDARY';
   evidence.completed_at=new Date().toISOString();
-  save();
-  console.log('mp10_v11_served_browser_ci_v1: PASS_WITH_AUTH_BOUNDARY');
+  if(hardFailures.length){
+    evidence.ui_source_overall='FAIL';
+    evidence.overall='FAIL';
+    evidence.hard_failures=hardFailures;
+    save();
+    console.error('mp10_v11_served_browser_ci_v1: FAIL',hardFailures.join(','));
+    process.exitCode=1;
+  }else{
+    evidence.ui_source_overall='PASS';
+    evidence.overall='PASS_WITH_AUTH_BOUNDARY';
+    save();
+    console.log('mp10_v11_served_browser_ci_v1: PASS_WITH_AUTH_BOUNDARY');
+  }
 }catch(error){
   evidence.ui_source_overall='FAIL';
   evidence.overall='FAIL';
