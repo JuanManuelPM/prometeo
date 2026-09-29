@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: mp10-v11-ingress-page-change-integration-v1
@@ -41,6 +41,40 @@ jobs:
           node --check current-tree/control-v11/result-adapter-v1.js
       - name: Verify G06 visible-result prewire contract
         run: node coordination/portfolio/tests/control_v11_visible_result_prewire_v1.mjs
+
+      - name: Checkout gh-pages projection
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          fetch-depth: 20
+
+      - name: Publish G06 visible-result projection inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C site config user.name "github-actions[bot]"
+          git -C site config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C site pull --ff-only origin gh-pages
+          mkdir -p site/current-tree/control-v11 site/coordination/goal-progress
+          cp current-tree/control-v11/result-adapter-v1.js site/current-tree/control-v11/result-adapter-v1.js
+          cp current-tree/control-v11/v11.js site/current-tree/control-v11/v11.js
+          cp current-tree/control-v11/config-v1.js site/current-tree/control-v11/config-v1.js
+          cp current-tree/control-v11/result-candidate-v1.json site/current-tree/control-v11/result-candidate-v1.json
+          cp coordination/goal-progress/G05_VERIFICATION.json site/coordination/goal-progress/G05_VERIFICATION.json
+          git -C site add             current-tree/control-v11/result-adapter-v1.js             current-tree/control-v11/v11.js             current-tree/control-v11/config-v1.js             current-tree/control-v11/result-candidate-v1.json             coordination/goal-progress/G05_VERIFICATION.json
+          if git -C site diff --cached --quiet; then
+            echo "G06 projection already current."
+          else
+            git -C site commit -m "g06: publish visible-result projection inputs [skip ci]"
+            for n in 1 2 3; do
+              if git -C site push origin HEAD:gh-pages; then break; fi
+              git -C site fetch origin gh-pages
+              git -C site rebase origin/gh-pages
+              test "$n" -lt 3
+            done
+          fi
+
       - name: Verify G06 served candidate surface
         shell: bash
         run: |
@@ -58,6 +92,9 @@ jobs:
               && grep -q 'prometeo.g05-lineage-verification/v1' /tmp/g05-verification.json \
               && grep -q 'G05_REAL_PRIVATE_E2E_NOT_VERIFIED' /tmp/g06-result.json \
               && grep -q 'normalizeVisibleResultProjection' /tmp/g06-adapter.js \
+              && grep -q 'projectVisibleResultFromG05' /tmp/g06-adapter.js \
+              && grep -q 'projectVisibleResultFromG05' /tmp/g06-v11.js \
+              && grep -q 'g05VerificationUrl' "$base/config-v1.js" \
               && grep -q 'data-visible-result-state' /tmp/g06-v11.js \
               && grep -q 'builder_return_ref' /tmp/g06-v11.js \
               && grep -q 'verifier_ref' /tmp/g06-v11.js; then
