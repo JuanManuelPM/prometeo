@@ -8,6 +8,7 @@ const OPTIONAL={org:'prometeo_organism_projection_v1_1',ctx:'prometeo_work_conte
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const one=x=>Array.isArray(x)&&x.length===1?x[0]:x;
 const now=()=>new Date().toISOString();
+const diag=(source,error,url=null,status=null)=>{try{window.PROMETEO_DIAGNOSTICS_V1?.sourceFailure?.(source,error,url,status)}catch{}};
 function observedAt(x){
  if(!x||typeof x!=='object')return null;
  return x.observed_at||x.generated_at||x.updated_at||x.checked_at||x.cached_at||x.created_at||null;
@@ -59,7 +60,7 @@ async function catalogs(checkedAt){
  settled.forEach((r,i)=>{
   const [key,url]=sources[i];
   if(r.status==='fulfilled')state[key]=sourceState('available','catalog',url,r.value,null,checkedAt);
-  else{state[key]=sourceState('unavailable','catalog',url,null,r.reason,checkedAt);failures.push({key,message:String(r.reason?.message||r.reason)})}
+  else{state[key]=sourceState('unavailable','catalog',url,null,r.reason,checkedAt);failures.push({key,message:String(r.reason?.message||r.reason)});diag(key,r.reason,url);diag(key,r.reason,url)}
  });
  return {
   catalogManifest:settled[0].status==='fulfilled'?settled[0].value:null,
@@ -76,7 +77,7 @@ async function githubFallback(base,coreError,checkedAt){
   ['projectContext',CFG.projectContextUrl]
  ];
  const settled=await Promise.allSettled(specs.map(([,url])=>getJson(url)));
- const states={},failures=[{key:'tree',message:String(coreError?.message||coreError)}];
+ const states={},failures=[{key:'tree',message:String(coreError?.message||coreError)}];diag('tree',coreError,CFG.rpcBase+'prometeo_current_tree_v2');
  settled.forEach((r,i)=>{
   const [key,url]=specs[i];
   if(r.status==='fulfilled'){
@@ -118,6 +119,7 @@ async function refresh(base={}){
   b.tree=await rpc('prometeo_current_tree_v2',1);freshCore=true;
   sourceStates.tree=sourceState('available','rpc',CFG.rpcBase+'prometeo_current_tree_v2',b.tree,null,checkedAt);
  }catch(e){
+  diag('tree',e,CFG.rpcBase+'prometeo_current_tree_v2');
   const gh=await githubFallback(b,e,checkedAt);
   b=gh.bundle;sourceStates={...sourceStates,...gh.states};failures.push(...gh.failures);
  }
@@ -130,7 +132,7 @@ async function refresh(base={}){
    if(r.status==='fulfilled'){
     b[k]=r.value;sourceStates[k]=sourceState('available','rpc',url,r.value,null,checkedAt);
    }else{
-    failures.push({key:k,message:n+' · '+String(r.reason?.message||r.reason)});
+    failures.push({key:k,message:n+' · '+String(r.reason?.message||r.reason)});diag(k,r.reason,url);
     sourceStates[k]=sourceState('unavailable','rpc',url,null,r.reason,checkedAt);
    }
   });
