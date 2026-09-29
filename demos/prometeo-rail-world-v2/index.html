@@ -323,10 +323,22 @@ function pathQuad(a,b,width=2.7,y=.015){
   return[{x:a.x+px,y,z:a.z+pz},{x:b.x+px,y,z:b.z+pz},{x:b.x-px,y,z:b.z-pz},{x:a.x-px,y,z:a.z-pz}];
 }
 function drawFloor(){
-  const meta=SCENE_META[sceneId],cell=8;
-  for(let z=104;z>=-16;z-=cell)for(let x=-48;x<48;x+=cell){
-    const pts=[{x,y:-.035,z:z+cell},{x:x+cell,y:-.035,z:z+cell},{x:x+cell,y:-.035,z},{x,y:-.035,z}],center={x:x+cell/2,z:z+cell/2},L=lightAt(center.x,center.z,.72);
-    texturedPoly(pts,assets.floor,.08+.44*L,"rgb("+meta.accent.join(",")+")",.22+.28*(1-L));
+  const meta=SCENE_META[sceneId];
+  const ground=[
+    {x:-54,y:-.045,z:110},{x:54,y:-.045,z:110},
+    {x:54,y:-.045,z:-18},{x:-54,y:-.045,z:-18}
+  ];
+  // One continuous world material instead of one texture reset per grid cell.
+  // This keeps the Coliseo world-space behavior without turning the floor into debug graph paper.
+  solidPoly(ground,"rgb("+meta.accent.map(v=>Math.round(v*.18)).join(",")+")",1);
+  texturedPoly(ground,assets.floor,.24,"rgb("+meta.accent.map(v=>Math.round(v*.42)).join(",")+")",.42);
+  // Broad low-contrast wear strips break the stretch without reintroducing a visible square grid.
+  for(let i=0;i<6;i++){
+    const z0=6+i*18,offset=(i%2?5:-4),wear=[
+      {x:-43+offset,y:-.036,z:z0+13},{x:43+offset,y:-.036,z:z0+13},
+      {x:43-offset,y:-.036,z:z0-3},{x:-43-offset,y:-.036,z:z0-3}
+    ];
+    solidPoly(wear,i%2?"rgba(13,20,13,.10)":"rgba(78,67,39,.055)",1);
   }
 }
 function drawPaths(){
@@ -339,9 +351,9 @@ function sceneObjects(){
   const out=[];
   if(sceneId==="ARCOS"){
     for(let z=8;z<=94;z+=10){
-      out.push({type:"box",x:-6.2,z,w:1.25,d:1.25,h:7.6,y:0,yaw:0,material:"wall",tint:"#061008"});
-      out.push({type:"box",x:6.2,z,w:1.25,d:1.25,h:7.6,y:0,yaw:0,material:"wall",tint:"#061008"});
-      if(z%20===8)out.push({type:"box",x:0,z,w:13.5,d:1.0,h:1.0,y:6.6,yaw:0,material:"stone",tint:"#08120a"});
+      out.push({type:"cyl",x:-6.2,z,r:1.05,h:7.6,y:0,sides:10,material:"wall",tint:"#061008"});
+      out.push({type:"cyl",x:6.2,z,r:1.05,h:7.6,y:0,sides:10,material:"wall",tint:"#061008"});
+      if(z%20===8)out.push({type:"box",x:0,z,w:13.7,d:1.05,h:.88,y:6.72,yaw:0,material:"stone",tint:"#08120a"});
     }
   }else if(sceneId==="CALZADA"){
     for(let z=10;z<=96;z+=13){out.push({type:"cyl",x:-8,z,r:1.25,h:16,y:0,material:"stone",tint:"#1b1526"});out.push({type:"cyl",x:8,z,r:1.25,h:16,y:0,material:"stone",tint:"#1b1526"})}
@@ -379,11 +391,31 @@ function queueGate(queue,o){
 }
 function queueAvatar(queue){
   const foot=worldToCamera({x:player.x,y:0,z:player.z});if(foot.z<NEAR)return;
-  const top=worldToCamera({x:player.x,y:1.55,z:player.z}),pf=projectCam(foot),pt=projectCam(top),h=Math.abs(pf.y-pt.y),rel=wrapAngle(player.heading-camera.yaw),side=.48+.52*Math.abs(Math.cos(rel)),w=h*.66*side,depth=foot.z;
+  const top=worldToCamera({x:player.x,y:1.70,z:player.z}),pf=projectCam(foot),pt=projectCam(top);
+  const h=Math.abs(pf.y-pt.y),rel=wrapAngle(player.heading-camera.yaw),side=.62+.38*Math.abs(Math.cos(rel)),w=h*.46*side,depth=foot.z;
   queue.push({depth,draw:()=>{
-    const im=assets.avatar,bob=player.moving?Math.sin(player.walkPhase*2)*h*.025:0;
-    if(im){ctx.save();const flip=Math.sin(rel)>0?-1:1;ctx.translate(pf.x,pf.y+bob);ctx.scale(flip,1);ctx.globalAlpha=clamp(.28+.72*lightAt(player.x,player.z,1),.35,1);ctx.filter="brightness(.76) contrast(1.14) saturate(.72) drop-shadow(0 5px 5px rgba(0,0,0,.65))";ctx.drawImage(im,-w/2,-h,w,h);ctx.restore()}
-    else{ctx.save();ctx.fillStyle="#b49658";ctx.beginPath();ctx.ellipse(pf.x,pf.y-h*.5+bob,w*.35,h*.5,0,0,TAU);ctx.fill();ctx.restore()}
+    const im=assets.avatar,step=player.moving?Math.sin(player.walkPhase*2):0,bob=player.moving?Math.abs(step)*h*.018:0;
+    const light=clamp(.24+.76*lightAt(player.x,player.z,1),.30,1);
+    const bodyTop=pf.y-h*.66+bob,bodyBottom=pf.y+bob,lean=step*w*.035;
+    ctx.save();ctx.globalAlpha=light;ctx.translate(lean,0);
+    // One simple body silhouette. The image is only the head, so the avatar reads as a person,
+    // not as a floating mask, while remaining deliberately much simpler than the old collage.
+    const bodyGrad=ctx.createLinearGradient(0,bodyTop,0,bodyBottom);
+    bodyGrad.addColorStop(0,"#20231c");bodyGrad.addColorStop(.55,"#0c100d");bodyGrad.addColorStop(1,"#020403");
+    ctx.fillStyle=bodyGrad;ctx.beginPath();
+    ctx.moveTo(pf.x-w*.38,bodyTop+h*.04);ctx.lineTo(pf.x+w*.38,bodyTop+h*.04);
+    ctx.lineTo(pf.x+w*.28,bodyBottom-h*.08);ctx.lineTo(pf.x+w*.10,bodyBottom);
+    ctx.lineTo(pf.x,bodyBottom-h*.05);ctx.lineTo(pf.x-w*.10,bodyBottom);
+    ctx.lineTo(pf.x-w*.28,bodyBottom-h*.08);ctx.closePath();ctx.fill();
+    ctx.globalAlpha*=.38;ctx.fillStyle="#58604b";
+    ctx.fillRect(pf.x-w*.30,bodyTop+h*.12,w*.60,Math.max(1,h*.025));
+    ctx.restore();
+    if(im){
+      const head=h*.32,flip=Math.sin(rel)>0?-1:1;
+      ctx.save();ctx.translate(pf.x+lean,bodyTop+h*.01);ctx.scale(flip,1);
+      ctx.globalAlpha=light;ctx.filter="brightness(.82) contrast(1.16) saturate(.72) drop-shadow(0 3px 4px rgba(0,0,0,.72))";
+      ctx.drawImage(im,-head*.5,-head*.48,head,head);ctx.restore();
+    }
   }});
   renderStats.avatarVisible=true;renderStats.avatarDepth=depth;
 }
@@ -478,7 +510,7 @@ function update(now){
   requestAnimationFrame(update);
 }
 function getState(){
-  return{version:"rail-world-v6-rotational",ready:state.ready,scene:sceneId,camera:{x:camera.x,z:camera.z,yaw:camera.yaw,targetYaw:camera.targetYaw,moveVelocity:camera.moveVelocity},player:{x:player.x,z:player.z,heading:player.heading,moving:player.moving,currentNode:player.currentNode,targetNode:player.targetNode,routeLength:player.route.length},activeGate:state.activeGate,gates:graph.gates.map(g=>({destination:g.destination,nodeId:g.nodeId,x:graph.nodes.get(g.nodeId).x,z:graph.nodes.get(g.nodeId).z})),graph:{nodes:graph.nodes.size,edges:graph.edges.length,junctions:[...graph.junctions]},lastTurn:state.lastTurn,sceneChanges:state.sceneChanges,render:{...renderStats},hasIframe:Boolean(document.querySelector("iframe")),museumPanels:sceneId==="MUSEO"?sceneObjects().filter(x=>x.type==="panel").length:0};
+  return{version:"rail-world-v6-rotational-r2",ready:state.ready,scene:sceneId,camera:{x:camera.x,z:camera.z,yaw:camera.yaw,targetYaw:camera.targetYaw,moveVelocity:camera.moveVelocity},player:{x:player.x,z:player.z,heading:player.heading,moving:player.moving,currentNode:player.currentNode,targetNode:player.targetNode,routeLength:player.route.length},activeGate:state.activeGate,gates:graph.gates.map(g=>({destination:g.destination,nodeId:g.nodeId,x:graph.nodes.get(g.nodeId).x,z:graph.nodes.get(g.nodeId).z})),graph:{nodes:graph.nodes.size,edges:graph.edges.length,junctions:[...graph.junctions]},lastTurn:state.lastTurn,sceneChanges:state.sceneChanges,render:{...renderStats},hasIframe:Boolean(document.querySelector("iframe")),museumPanels:sceneId==="MUSEO"?sceneObjects().filter(x=>x.type==="panel").length:0};
 }
 window.PrometeoRailWorldV6={
   getState,
@@ -494,7 +526,7 @@ window.PrometeoRailWorldV6={
 
 Promise.all(Object.entries(ASSET_URLS).map(([k,u])=>loadAsset(k,u))).then(()=>{
   applyReviewState();updateActiveGate();state.ready=true;loading.classList.add("off");
-  window.PrometeoRailWorldReview={ready:true,version:"rail-world-v6-rotational"};
+  window.PrometeoRailWorldReview={ready:true,version:"rail-world-v6-rotational-r2"};
   requestAnimationFrame(update);
 });
 })();
