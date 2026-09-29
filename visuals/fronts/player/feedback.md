@@ -3,56 +3,74 @@
 Status: CURRENT
 
 ## Latest user direction
-The eye-content system should become substantially more expressive without generating a new sprite sheet for every effect.
+The eye should follow the mouse/pointer.
 
-Requested examples:
-- eye itself becomes a play button;
-- click/tap starts audio and second tap pauses it;
-- reuse previous Prometeo audio-motion lines;
-- arbitrarily many animations/colors should come from variables rather than new assets;
-- pupil can become black or any other state;
-- moving GIF/video can appear inside the pupil;
-- moving media can be revealed behind a shrinking pupil;
-- pupil dilation needs many more intermediate frames because V24 advanced too quickly.
+The user specifically asked:
+- pupil should track the mouse;
+- clicking the eye can dilate the pupil until the eye turns black;
+- clicking can change eye color;
+- clicking can change pupil/eye type;
+- these style changes must **not** stop gaze tracking;
+- the pupil should stay where the pointer is while color/type changes happen.
 
-## V25 response
-V25 introduces a data-driven interactive eye-scene engine.
+## V26
+V26 extends the current V25 interactive scene engine instead of replacing it.
 
-The eye is now the play/pause control.
+New pointer scenes:
+- pointer_follow
+- pointer_dilate
+- pointer_color
+- pointer_shape
+- pointer_combo
 
-V25 reuses:
-- Bent Sticks / local WAV / Web Audio AnalyserNode ideas from `strategy/audio-viz-lines/`;
-- independent media-behind-eye-window pattern from `visuals/mask-eye-lab/`.
+## Important behavior
+Pointer position is its own authority.
 
-Scene definitions were separated into `eye-scenes-v25.js`, so FPS, step count, hue, media URL, gaze paths and many visual parameters can change without rewriting the renderer.
+Style state is separate:
+- color;
+- morphology;
+- dilation state.
 
-## Dilation
-Default dilation increased from a short stepped sequence to **24 discrete steps**, followed by a black hold.
+Therefore changing color or shape does not recenter the pupil.
 
-## Red contraction
-Default contraction uses **22 discrete steps**, revealing red behind the shrinking black pupil.
+## Low-FPS pointer language
+Pointer tracking is intentionally not raw 60/120 Hz smooth motion.
 
-## Media
-Two examples:
-- moving media revealed behind a shrinking pupil;
-- moving video used as the pupil itself.
+Default:
+- pointer sampling: 9 FPS;
+- horizontal gaze lattice: 9 positions;
+- vertical gaze lattice: 7 positions.
 
-A synthetic moving texture is the fallback if remote media is unavailable.
+This preserves the stepped/retro language established by the blink and V24/V25 inner-eye work.
 
-## Audio
-The audio example:
-- shows play while paused;
-- generates the demo WAV locally;
-- starts on eye tap;
-- uses Web Audio analysis;
-- renders a compact low-resolution Bent Sticks family inside the aperture;
-- pauses on second tap.
+## Click examples
+### pointer_dilate
+- gaze remains pointer-driven;
+- click starts 22 discrete dilation states over ~1.9 s;
+- final state is full black.
 
-## Local QA
-JS syntax was checked.
-A contact sheet inspected representative states of audio, dilation, red contraction, shape morph, gaze and hue cycles.
-Result: PASS_LOCAL_VISUAL_QA.
+### pointer_color
+- click cycles white, red, blue, yellow, pink, cyan/green, black;
+- pointer gaze continues throughout;
+- on dark sclera the pupil switches to white so gaze remains visible.
 
-## Review boundary
-V21 blink remains accepted and unchanged.
-Public V25 review is about the inner-eye scene vocabulary and controls.
+### pointer_shape
+- click cycles circle, oval, diamond, slit, cross, star, dot;
+- all shapes continue to follow pointer.
+
+### pointer_combo
+- click changes both color and pupil morphology;
+- gaze remains pointer-controlled.
+
+## QA
+- both V26 JavaScript files passed Node syntax checks;
+- a local composition sheet was generated for pointer positions, color changes, shape changes and dilation stages;
+- local composition QA passed;
+- container browser navigation was blocked by environment policy, so no local interactive-browser claim is made.
+
+## Review target
+The next review is specifically:
+- does the eye point toward the mouse naturally;
+- is the stepped tracking pleasant or too coarse;
+- are click transformations readable;
+- should gaze range be larger/smaller.
