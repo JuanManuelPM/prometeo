@@ -84,5 +84,61 @@ const renderLibraryBefore11=renderLibrary,renderCourseBefore11=renderCourse;
 renderLibrary=function(){renderLibraryBefore11();setTimeout(hydrateLibrary11,0);setTimeout(hydrateLibrary11,180)};
 renderCourse=function(){renderCourseBefore11();setTimeout(hydrateCourse11,0);setTimeout(hydrateCourse11,180)};
 function rerender11(){if(view==='library')renderLibrary();else if(view==='course'&&!document.querySelector('.assessmentView10'))renderCourse()}
+function scheduleMatch11(courseId,title){
+ const name=norm11(title||C[courseId]?.name||'');
+ return combinedEvents11().filter(e=>{
+  if(courseId&&e.courseId===courseId)return true;
+  if(!name)return false;
+  const en=norm11(e.courseName||'');
+  return !!en&&(en===name||en.includes(name)||name.includes(en));
+ }).map(e=>({id:e.id,date:e.date,starts_at:e.at instanceof Date?e.at.toISOString():String(e.at||''),title:e.title,course_id:e.courseId||null,course_name:e.courseName||'',type:e.type,source:e.source}));
+}
+async function courseSessionsBridge11(courseId,title){
+ await load11();
+ const local=courseSessions(courseId);
+ const sessions=[];
+ let remoteErrors=0;
+ for(const s of local){
+  const t=String(s?.token||'');
+  if(!t){remoteErrors++;continue}
+  try{
+   const rc=clientFor(t);
+   const [sq,dq]=await Promise.all([
+    rc.from('study_class_sessions').select('id,course_id,unit_id,title,class_date,status').eq('id',s.id).maybeSingle(),
+    rc.from('study_session_docs').select('shared_notes').eq('session_id',s.id).maybeSingle()
+   ]);
+   const row=sq.data;
+   if(sq.error||!row||row.course_id!==courseId){remoteErrors++;continue}
+   sessions.push({
+    id:row.id,
+    course_id:row.course_id,
+    unit_id:row.unit_id||null,
+    title:clean11(row.title||s.title||'Clase',180),
+    class_date:row.class_date||null,
+    status:row.status||s.status||null,
+    shared_notes:clean11(dq.error?'':(dq.data?.shared_notes||''),12000),
+    source:'study_class_sessions+study_session_docs'
+   });
+  }catch(error){remoteErrors++}
+ }
+ sessions.sort((a,b)=>String(b.class_date||'').localeCompare(String(a.class_date||''))||String(a.title).localeCompare(String(b.title),'es'));
+ return {
+  schema:'prometeo.study-course-sessions/v1',
+  course_id:courseId,
+  course_title:title||C[courseId]?.name||'',
+  status:remoteErrors&&sessions.length===0?'degraded':'ready',
+  local_session_count:local.length,
+  remote_error_count:remoteErrors,
+  sessions
+ };
+}
+window.PrometeoStudyCalendarV11={
+ async courseSessions(courseId,title){return courseSessionsBridge11(courseId,title)},
+ async courseSchedule(courseId,title){
+  await load11();
+  const source=(data11.sources||[]).find(x=>x.source_id==='palermo')||null;
+  return {schema:'prometeo.study-calendar-course/v1',configured:!!localStorage.getItem(BB11_TOKEN),status:source?.last_error?'degraded':'ready',source_age:sourceAge11(),source_last_sync_at:source?.last_sync_at||null,events:scheduleMatch11(courseId,title)};
+ }
+};
 load11();setInterval(()=>{if(localStorage.getItem(BB11_TOKEN))load11()},10*60*1000);
 })();
