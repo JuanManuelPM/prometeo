@@ -31,7 +31,9 @@ function run(root){return JSON.parse(execFileSync(process.execPath,[script,root]
  assert.equal(job.guide_role,'GUIDE_INTEGRATOR');
  assert.equal(job.source_primary_returns.length,10);
  assert(job.mission.includes('EFF021')&&job.mission.includes('EFF030')&&job.mission.includes('EFF043'));
- const r2=run(root);assert.equal(r2.created,false,'second run must be idempotent');
+ const statePath=path.join(root,'coordination/integration-runs/PROMETEO-MP10-01/CURRENT_HANDOFF.json');
+ const before=fs.readFileSync(statePath,'utf8');
+ const r2=run(root);assert.equal(r2.created,false,'second run must be idempotent');assert.equal(r2.state_changed,false,'semantic no-op must not rewrite handoff state');assert.equal(fs.readFileSync(statePath,'utf8'),before,'semantic no-op bytes must remain identical');
 }
 {
  const root=fixture(10);
