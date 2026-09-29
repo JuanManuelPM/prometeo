@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Prometeo · Notas</title>
+<style>
+:root{--bg:#070809;--panel:#0d0f12;--panel2:#12151a;--ink:#f2f1ec;--muted:#7f8791;--line:#292f36;--accent:#e7e4da;--ok:#7ed997}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input,textarea{font:inherit;color:inherit}button{cursor:pointer}
+.app{min-height:100vh;display:grid;grid-template-columns:minmax(240px,330px) 1fr}
+.sidebar{border-right:1px solid var(--line);background:#090b0e;display:flex;flex-direction:column;min-height:100vh}
+.head{padding:14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#090b0e;z-index:4}
+.brand{font-size:13px;font-weight:850;letter-spacing:.08em}.sub{font-size:9px;color:var(--muted);margin-top:4px;line-height:1.35}
+.search{width:100%;margin-top:10px;border:1px solid #343b44;background:#0f1216;border-radius:9px;padding:9px 10px;font-size:12px}
+.pages{padding:8px;overflow:auto;flex:1}
+.group{font-size:8px;color:#69727d;letter-spacing:.1em;text-transform:uppercase;padding:10px 8px 5px}
+.page{width:100%;border:0;border-left:2px solid transparent;background:transparent;text-align:left;padding:9px 9px;margin:1px 0}
+.page:hover{background:#111419}.page.on{background:#161a1f;border-left-color:#e7e4da}
+.pt{font-size:11px;font-weight:760}.pm{font-size:8px;color:#6f7882;margin-top:3px;display:flex;gap:6px;flex-wrap:wrap}
+.badge{border:1px solid #343b44;border-radius:999px;padding:1px 5px}
+.main{min-width:0;display:grid;grid-template-rows:minmax(260px,48vh) 1fr}
+.preview{position:relative;border-bottom:1px solid var(--line);background:#050607}
+.preview iframe{width:100%;height:100%;border:0;background:#050607}
+.previewbar{position:absolute;left:10px;right:10px;top:10px;display:flex;gap:6px;justify-content:space-between;pointer-events:none}
+.chip{pointer-events:auto;border:1px solid #343a43;background:rgba(8,10,12,.92);border-radius:8px;padding:7px 9px;font-size:9px;color:#aeb5bd;text-decoration:none}
+.notes{padding:15px;overflow:auto}
+.noteshead{display:flex;justify-content:space-between;gap:12px;align-items:end}
+.kicker{font-size:8px;color:#747d87;letter-spacing:.13em;text-transform:uppercase}.title{font-size:clamp(24px,5vw,42px);font-weight:880;letter-spacing:-.045em;line-height:.95;margin-top:4px}
+.status{font-size:9px;color:#7f8993;text-align:right}.status.ok{color:var(--ok)}
+.editor{margin-top:14px;border:1px solid #333a43;border-radius:12px;background:var(--panel);overflow:hidden}
+textarea{display:block;width:100%;min-height:150px;resize:vertical;border:0;outline:0;background:transparent;padding:13px;font-size:14px;line-height:1.45}
+.actions{display:flex;gap:7px;align-items:center;padding:9px;border-top:1px solid var(--line);flex-wrap:wrap}
+.primary,.ghost{border:1px solid #343b44;border-radius:8px;padding:8px 10px;font-size:9px;font-weight:750}
+.primary{background:#e7e4da;color:#08090a;border-color:#e7e4da}.ghost{background:#111419;color:#aeb5bd}
+.hint{margin-left:auto;font-size:8px;color:#68717c}
+.history{margin-top:18px}.historyhead{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:7px;font-size:9px;color:#858e98}
+.note{padding:11px 0;border-bottom:1px solid #1f242a}.noteText{white-space:pre-wrap;font-size:12px;line-height:1.45}.noteMeta{margin-top:6px;display:flex;justify-content:space-between;gap:8px;color:#68717c;font-size:8px}.noteDelete{border:0;background:transparent;color:#7b838d;padding:0}
+.empty{padding:24px 0;color:#6d7680;font-size:11px}
+.globalbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+@media(max-width:760px){
+ .app{display:block}.sidebar{min-height:0;border-right:0;border-bottom:1px solid var(--line)}
+ .pages{max-height:34vh}.main{grid-template-rows:36vh auto}.notes{overflow:visible}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="head">
+      <div class="brand">PROMETEO · NOTAS</div>
+      <div class="sub">Todas las páginas en un solo lugar. Las notas se guardan primero en este dispositivo, sin depender de Supabase.</div>
+      <input id="search" class="search" placeholder="Buscar página, visual, proyecto…">
+      <div class="globalbar">
+        <button id="exportAll" class="ghost">Exportar backup</button>
+        <a class="ghost" href="../current-tree/control-v11/" style="text-decoration:none">Control V11</a>
+      </div>
+    </div>
+    <div id="pages" class="pages"></div>
+  </aside>
+  <main class="main">
+    <section class="preview">
+      <iframe id="frame" title="Página seleccionada"></iframe>
+      <div class="previewbar">
+        <span id="pageChip" class="chip">seleccioná una página</span>
+        <a id="open" class="chip" target="_blank" rel="noopener" hidden>abrir aparte ↗</a>
+      </div>
+    </section>
+    <section class="notes">
+      <div class="noteshead">
+        <div><div class="kicker">NOTAS DE PÁGINA</div><div id="title" class="title">Elegí algo a la izquierda</div></div>
+        <div id="status" class="status">local-first</div>
+      </div>
+      <div class="editor">
+        <textarea id="text" placeholder="Escribí cualquier cosa que quieras cambiar, probar, recordar o trabajar en esta página…" disabled></textarea>
+        <div class="actions">
+          <button id="save" class="primary" disabled>Guardar nota</button>
+          <button id="copyPage" class="ghost" disabled>Copiar notas de esta página</button>
+          <span class="hint">Ctrl/Cmd + Enter guarda</span>
+        </div>
+      </div>
+      <div class="history">
+        <div class="historyhead"><span>Historial</span><span id="count">0 notas</span></div>
+        <div id="history"></div>
+      </div>
+    </section>
+  </main>
+</div>
+<script type="module">
+import {listNotes,putNote,removeNote} from '../shared/prometeo-shell/v1/db.js';
+
+const $=q=>document.querySelector(q);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let pages=[],selected=null,notes=[];
+const frame=$('#frame'),search=$('#search');
+
+function pathKey(p){return String(p||'').replace(/^https?:\/\/juanmanuelpm\.github\.io\/prometeo\//,'').replace(/^\.\.\//,'').replace(/^\.\//,'').replace(/index\.html$/,'').replace(/\/$/,'')}
+function abs(href,base=location.href){try{return new URL(href,base).href}catch{return href||''}}
+function group(p){const a=(p.category_path||[]).filter(x=>String(x).toLowerCase()!=='prometeo');return a.length?a.slice(0,2).join(' / '):(p.kind==='VISUAL_FRONT'?'Visuales':'Otros')}
+function noteCount(id){return notes.filter(n=>n.pageId===id).length}
+
+async function loadPages(){
+  const base=[];
+  try{
+    const r=await fetch('../catalog/CATALOG_MANIFEST.json',{cache:'no-store'}),m=await r.json();
+    for(const p of m.pages||[])base.push({id:p.page_id,title:p.title||p.page_id,href:abs(p.href,'../catalog/CATALOG_MANIFEST.json'),category_path:p.category_path||[],kind:'PAGE'});
+  }catch{}
+  try{
+    await import('../visuals/registry-v1.js');
+    const reg=window.PROMETEO_VISUALS_REGISTRY_V1,root=new URL('../visuals/',location.href).href;
+    for(const folder of reg?.folders||[])for(const item of folder.items||[])if(item?.src){
+      const href=new URL(item.src,root).href;
+      base.push({id:'visual-'+(item.front||item.id),title:item.label||item.front||item.id,href,category_path:['Prometeo','Visuales',folder.label||folder.id],kind:'VISUAL_FRONT'});
+    }
+  }catch{}
+  const by=new Map();
+  for(const p of base){const k=pathKey(p.href)||p.id;if(!by.has(k))by.set(k,p)}
+  pages=[...by.values()].sort((a,b)=>group(a).localeCompare(group(b),'es')||a.title.localeCompare(b.title,'es'));
+}
+
+function renderPages(){
+  const q=search.value.trim().toLowerCase(),rows=pages.filter(p=>!q||[p.title,p.id,group(p),p.href].join(' ').toLowerCase().includes(q));
+  let last='',html='';
+  for(const p of rows){
+    const g=group(p);if(g!==last){html+=`<div class="group">${esc(g)}</div>`;last=g}
+    html+=`<button class="page ${selected?.id===p.id?'on':''}" data-id="${esc(p.id)}"><div class="pt">${esc(p.title)}</div><div class="pm"><span>${esc(p.kind)}</span><span class="badge">${noteCount(p.id)} notas</span></div></button>`;
+  }
+  $('#pages').innerHTML=html||'<div class="empty">No encontré páginas.</div>';
+  document.querySelectorAll('.page[data-id]').forEach(b=>b.onclick=()=>select(b.dataset.id));
+}
+
+function renderNotes(){
+  if(!selected){$('#history').innerHTML='<div class="empty">Elegí una página.</div>';return}
+  const rows=notes.filter(n=>n.pageId===selected.id).sort((a,b)=>b.created-a.created);
+  $('#count').textContent=rows.length+' nota'+(rows.length===1?'':'s');
+  $('#history').innerHTML=rows.length?rows.map(n=>`<article class="note"><div class="noteText">${esc(n.text||'')}</div><div class="noteMeta"><span>${new Date(n.created).toLocaleString('es-AR')}</span><button class="noteDelete" data-del="${esc(n.id)}">eliminar</button></div></article>`).join(''):'<div class="empty">Todavía no escribiste nada acá.</div>';
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{await removeNote(b.dataset.del);await refreshNotes();});
+}
+
+async function refreshNotes(){notes=await listNotes();renderPages();renderNotes()}
+
+function select(id){
+  selected=pages.find(p=>p.id===id)||null;if(!selected)return;
+  frame.src=selected.href;$('#title').textContent=selected.title;$('#pageChip').textContent=selected.title;
+  $('#open').hidden=false;$('#open').href=selected.href;$('#text').disabled=false;$('#save').disabled=false;$('#copyPage').disabled=false;
+  history.replaceState(null,'','#'+encodeURIComponent(id));renderPages();renderNotes();$('#text').focus();
+}
+
+async function save(){
+  if(!selected)return;const text=$('#text').value.trim();if(!text)return;
+  const now=Date.now(),n={id:crypto.randomUUID?.()||`note-${now}-${Math.random().toString(36).slice(2)}`,created:now,status:'done',text,audio:null,error:'',sourcePath:selected.href,sourceHref:selected.href,sourceTitle:selected.title,viewport:`${innerWidth}x${innerHeight}`,pageId:selected.id,transcriptRevision:1,metadata:{source_kind:'HUMAN_TEXT',control_surface:'PROMETEO_NOTES_LOCAL_FIRST'}};
+  await putNote(n);$('#text').value='';$('#status').textContent='guardado en este dispositivo';$('#status').classList.add('ok');setTimeout(()=>$('#status').classList.remove('ok'),1200);await refreshNotes();
+}
+
+$('#save').onclick=save;
+$('#text').addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();save()}});
+search.oninput=renderPages;
+$('#copyPage').onclick=async()=>{
+  if(!selected)return;const rows=notes.filter(n=>n.pageId===selected.id).sort((a,b)=>a.created-b.created);
+  const text=[`PROMETEO · NOTAS · ${selected.title}`,selected.href,'',...rows.map(n=>`[${new Date(n.created).toLocaleString('es-AR')}] ${n.text}`)].join('\n');
+  await navigator.clipboard.writeText(text).catch(()=>{});$('#status').textContent='notas copiadas';
+};
+$('#exportAll').onclick=async()=>{
+  const all=await listNotes(),blob=new Blob([JSON.stringify({schema:'prometeo.local-notes-backup/v1',exported_at:new Date().toISOString(),notes:all},null,2)],{type:'application/json'}),a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='prometeo-notas-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+};
+
+await Promise.all([loadPages(),refreshNotes()]);
+const initial=decodeURIComponent(location.hash.slice(1));if(initial&&pages.some(p=>p.id===initial))select(initial);else if(pages[0])select(pages[0]);
+</script>
+</body>
+</html>
