@@ -17,6 +17,7 @@ window.PROMETEO_CONTROL_CONFIG_V1=Object.freeze({
   claimFrontierUrl:'https://juanmanuelpm.github.io/prometeo/live/claim-frontier.json',
   previewManifestUrl:'./previews/manifest.json',
   resultProjectionUrl:'./result-candidate-v1.json',
+  g05VerificationUrl:'../../coordination/goal-progress/G05_VERIFICATION.json',
   statsUrl:'../../coordination/analytics/control-room-stats-v1/latest.json',
   projectContextUrl:'../../coordination/project-context-v1/INDEX.json',
   storageMode:'auto'
