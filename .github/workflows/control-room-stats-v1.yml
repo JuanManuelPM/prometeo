@@ -12,7 +12,7 @@ on:
       - '.github/workflows/control-room-stats-v1.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: control-room-stats-v1-main
@@ -39,21 +39,41 @@ jobs:
       - name: Test compiler
         run: node source/coordination/analytics/control-room-stats-v1/compiler.test.mjs
 
-      - name: Compile snapshot
-        run: >
-          node source/coordination/analytics/control-room-stats-v1/compiler.mjs
-          --root source
-          --projection projection
-          --out control-room-stats-v1.json
+      - name: Compile public projection snapshot
+        run: |
+          mkdir -p projection/coordination/analytics/control-room-stats-v1
+          node source/coordination/analytics/control-room-stats-v1/compiler.mjs \
+            --root source \
+            --projection projection \
+            --out projection/coordination/analytics/control-room-stats-v1/latest.json
 
       - name: Validate snapshot
         run: |
-          node -e "const d=require('./control-room-stats-v1.json'); if(d.schema!=='prometeo.control-room-stats/v1') process.exit(1); if(d.source_mode!=='GITHUB_DURABLE_EVIDENCE_ONLY') process.exit(1); if(!Array.isArray(d.truth_boundaries)||!d.truth_boundaries.length) process.exit(1);"
+          node -e "const d=require('./projection/coordination/analytics/control-room-stats-v1/latest.json'); if(d.schema!=='prometeo.control-room-stats/v1') process.exit(1); if(d.source_mode!=='GITHUB_DURABLE_EVIDENCE_ONLY') process.exit(1); if(d.authority!=='OBSERVABILITY_ONLY') process.exit(1); if(!Array.isArray(d.truth_boundaries)||!d.truth_boundaries.length) process.exit(1);"
+
+      - name: Publish gh-pages projection
+        working-directory: projection
+        run: |
+          git config user.name "prometeo-stats-bot"
+          git config user.email "prometeo-stats-bot@users.noreply.github.com"
+          git add coordination/analytics/control-room-stats-v1/latest.json
+          if git diff --cached --quiet; then
+            echo "Snapshot unchanged"
+            exit 0
+          fi
+          git commit -m "stats: publish control room snapshot [skip ci]"
+          for attempt in 1 2 3; do
+            git fetch origin gh-pages
+            git rebase origin/gh-pages
+            if git push origin HEAD:gh-pages; then exit 0; fi
+            sleep 2
+          done
+          exit 1
 
       - name: Upload compiled snapshot
         uses: actions/upload-artifact@v4
         with:
           name: control-room-stats-v1
-          path: control-room-stats-v1.json
+          path: projection/coordination/analytics/control-room-stats-v1/latest.json
           if-no-files-found: error
           retention-days: 7
