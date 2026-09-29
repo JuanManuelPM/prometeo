@@ -1,0 +1,43 @@
+name: Prometeo Live mobile PIN lineage CI runner v1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/portfolio/tests/live_mobile_pin_lineage_ci_runner_v1.mjs'
+      - '.github/workflows/live-mobile-pin-lineage-ci-runner-v1.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-mobile-pin-lineage-ci-runner-v1
+  cancel-in-progress: true
+
+jobs:
+  representative-narrow-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install representative Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify published Prometeo Live in a narrow browser
+        env:
+          LIVE_TARGET_URL: https://juanmanuelpm.github.io/prometeo/live/
+          LIVE_BROWSER_TIMEOUT_MS: '45000'
+        run: node coordination/portfolio/tests/live_mobile_pin_lineage_ci_runner_v1.mjs
+      - name: Upload bounded machine-readable evidence and screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-mobile-pin-lineage-ci-evidence
+          path: artifacts/live-mobile-pin-lineage-ci/
+          if-no-files-found: error
+          retention-days: 14
