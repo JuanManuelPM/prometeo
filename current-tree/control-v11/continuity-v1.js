@@ -11,8 +11,11 @@ const WORK_CONTEXT='https://juanmanuelpm.github.io/prometeo/current-tree/work-co
 const CONTROL='https://juanmanuelpm.github.io/prometeo/current-tree/control/';
 const SPECIALIST_PROFILE='https://juanmanuelpm.github.io/prometeo/coordination/workstreams/chat-native-control-plane-v1/chat-objects/chat-object-prometeo-visual-steward/CHAT_OBJECT.json';
 const WORK_UNITS='https://juanmanuelpm.github.io/prometeo/coordination/portfolio/derived/INTERACTIVE_WORK_UNITS_V1.json';
+const RECOVERY_INDEX='https://juanmanuelpm.github.io/prometeo/coordination/chat-recovery/INDEX.json';
+const RECOVERY_LINEAGE='https://juanmanuelpm.github.io/prometeo/coordination/chat-recovery/LINEAGE.json';
+const PROMETEO_RECOVERY_CONTROL_V2=true;
 const STORE_PROJECT='prometeo.control.v11.continuity.project.v1';
-let sessionsIndex=null,capabilityGraph=null,resultProjection=null,workUnitsProjection=null,journalCache=new Map(),loading=null;
+let sessionsIndex=null,capabilityGraph=null,resultProjection=null,workUnitsProjection=null,recoveryIndex=null,recoveryLineage=null,journalCache=new Map(),recoveryEntryCache=new Map(),loading=null;
 
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const cfg=()=>window.PROMETEO_CONTROL_CONFIG_V1||{};
@@ -32,8 +35,10 @@ async function load(){
     getJson(cfg().chatSessionsUrl||'../../coordination/chat-sessions/INDEX.json'),
     getJson(cfg().capabilityGraphUrl||'../../coordination/semantic-relations/CAPABILITY_GRAPH_V1.json'),
     getJson(cfg().resultProjectionUrl||'./result-candidate-v1.json'),
-    getJson(cfg().workUnitsUrl||WORK_UNITS)
-  ]).then(([s,g,r,w])=>{sessionsIndex=s;capabilityGraph=g;resultProjection=r;workUnitsProjection=w;return true}).finally(()=>{loading=null});
+    getJson(cfg().workUnitsUrl||WORK_UNITS),
+    getJson(cfg().chatRecoveryUrl||'../../coordination/chat-recovery/INDEX.json'),
+    getJson(cfg().chatRecoveryLineageUrl||'../../coordination/chat-recovery/LINEAGE.json')
+  ]).then(([s,g,r,w,ri,rl])=>{sessionsIndex=s;capabilityGraph=g;resultProjection=r;workUnitsProjection=w;recoveryIndex=ri;recoveryLineage=rl;return true}).finally(()=>{loading=null});
   return loading;
 }
 async function journalFor(s){
@@ -77,6 +82,80 @@ function relevantSessions(project){
   const direct=all.filter(s=>JSON.stringify(s).toLowerCase().includes(String(project.title||'').toLowerCase()));
   return [...new Map([...direct,...all.filter(s=>sessionIds.has(s.session_id))].map(x=>[x.session_id,x])).values()];
 }
+
+function relevantRecovery(project){
+  const all=recoveryIndex?.entries||[];
+  if(!project)return all;
+  const needles=[project.title,project.node_key,project.subtitle].filter(Boolean).map(x=>String(x).toLowerCase());
+  return all.filter(e=>needles.some(n=>JSON.stringify(e).toLowerCase().includes(n)));
+}
+const recoveryIndexUrl=()=>abs(cfg().chatRecoveryUrl||RECOVERY_INDEX);
+const recoveryLineageUrl=()=>abs(cfg().chatRecoveryLineageUrl||RECOVERY_LINEAGE);
+const recoveryEntryUrl=e=>abs(e?.entry_ref||'',recoveryIndexUrl());
+async function recoveryEntryFor(e){
+  if(!e?.chat_locator_id)return null;
+  if(recoveryEntryCache.has(e.chat_locator_id))return recoveryEntryCache.get(e.chat_locator_id);
+  const d=await getJson(recoveryEntryUrl(e));if(d)recoveryEntryCache.set(e.chat_locator_id,d);return d;
+}
+function sourceStamp(ts){
+  if(!ts)return 'fecha fuente desconocida';
+  const only=/^(\d{4})-(\d{2})-(\d{2})$/.exec(ts);
+  try{
+    if(only){
+      const d=new Date(Date.UTC(+only[1],+only[2]-1,+only[3]));
+      return new Intl.DateTimeFormat('es-AR',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).format(d);
+    }
+    return new Intl.DateTimeFormat('es-AR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Argentina/Buenos_Aires'}).format(new Date(ts));
+  }catch{return String(ts)}
+}
+function sourceAge(ts){
+  if(!ts)return 'edad desconocida';
+  const dayKey=String(ts).slice(0,10),d=new Date(dayKey+'T12:00:00Z');
+  if(Number.isNaN(d.getTime()))return 'edad desconocida';
+  const n=Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));
+  return n===0?'hoy':n===1?'ayer':'hace '+n+' días';
+}
+function recoverySearchPrompt(e){
+  return 'PROMETEO · BUSCAR CHAT RECUPERADO V2\n\n'+
+    'CHAT_LOCATOR_ID: '+(e?.chat_locator_id||'UNKNOWN')+'\n'+
+    'TITLE: '+(e?.title||'UNKNOWN')+'\n'+
+    'PROJECT: '+(e?.project_name||e?.project||'UNKNOWN')+'\n'+
+    'SOURCE_CREATED_AT: '+(e?.source_created_at||'UNKNOWN')+'\n'+
+    'LOCATOR_CONFIDENCE: '+(e?.confidence||e?.locator_confidence||'UNKNOWN')+'\n'+
+    'SEARCH_ANCHORS: '+((e?.search_anchors||[]).join(' | ')||'NONE')+'\n\n'+
+    'Buscá dentro de Project /g usando este locator, título, fecha y anchors. No inventes permalink ni conversation_id. Si encontrás el chat exacto, devolvé su identificador real; si no, mantené el locator como STRONG_SEARCH_LOCATOR.';
+}
+function recoveryAdoptPrompt(e,detail){
+  const objects=detail?.related_objects||e?.related_objects||[];
+  return 'PROMETEO · ADOPTAR CHAT RECUPERADO V2\n\n'+
+    'CHAT_LOCATOR_ID: '+(e?.chat_locator_id||'UNKNOWN')+'\n'+
+    'RECOVERY_ENTRY: '+recoveryEntryUrl(e)+'\n'+
+    'LINEAGE: '+recoveryLineageUrl()+'\n'+
+    'SOURCE_CREATED_AT: '+(e?.source_created_at||'UNKNOWN')+'\n'+
+    'PROJECT: '+(e?.project_name||e?.project||'UNKNOWN')+'\n'+
+    'SOURCE_DEPTH: '+(e?.source_depth||'UNKNOWN')+'\n'+
+    'LOCATOR_CONFIDENCE: '+(e?.confidence||e?.locator_confidence||'UNKNOWN')+'\n'+
+    'RELEVANT_OBJECTS: '+JSON.stringify(objects)+'\n\n'+
+    'READ FIRST:\n'+PREFLIGHT+'\n'+recoveryEntryUrl(e)+'\n'+recoveryLineageUrl()+'\n\n'+
+    'FIRST DURABLE ACTION:\nCreate/reuse the appropriate durable Chat Object and create a fresh SESSION_ID + SESSION_PIN. Publish SESSION/JOURNAL/CONTINUE + session index lineage before target-specific expansion.\n\n'+
+    'RULES:\nThis recovered historical chat remains historical evidence. Adoption creates a new modern Session; it does not rewrite the old chat into a Session. Preserve source time, recovery provenance and lineage. Do not invent chat_url/conversation_id.';
+}
+function recoveryHtml(e){
+  const adopted=e?.adopted_session_id&&(sessionsIndex?.sessions||[]).some(s=>s.session_id===e.adopted_session_id);
+  const source='Fuente: '+sourceStamp(e.source_created_at)+' · '+sourceAge(e.source_created_at);
+  const recovered='Recuperado: '+sourceStamp(e.recovered_at);
+  const depth=(e.deep_read?'DEEP READ · ':'')+(e.source_depth||'UNKNOWN');
+  const conf=e.reopenability_class||e.confidence||'UNKNOWN',status=(e.status||[]).join(' · ');
+  const reopen=e.chat_url?'<a href="'+esc(e.chat_url)+'" target="_blank" rel="noopener">Abrir chat ↗</a>':'<button data-recovery-locator="'+esc(e.chat_locator_id)+'">Buscar chat</button>';
+  const adopt=adopted?'<button data-recovery-continue="'+esc(e.adopted_session_id)+'">Continuar</button>':'<button class="primary" data-recovery-adopt="'+esc(e.chat_locator_id)+'">Adoptar</button>';
+  return '<article class="history-session recovery-card" data-recovery="'+esc(e.chat_locator_id)+'"><div class="history-avatar fallback">🧭</div><div><div class="history-session-top"><b>'+esc(e.title||e.chat_locator_id)+'</b><time>'+esc(e.project_name||e.project||'')+'</time></div><div class="history-focus recovery-source">'+esc(source)+'</div><div class="history-focus recovery-recovered">'+esc(recovered)+'</div><div class="history-session-status"><span class="history-handoff '+(e.deep_read?'ready':'missing')+'">'+esc(depth)+'</span> <span>'+esc(conf)+'</span></div><div class="history-session-summary">'+esc(status||'RECOVERED')+'</div><div class="history-session-actions"><a href="'+esc(recoveryEntryUrl(e))+'" target="_blank" rel="noopener">Ver recovery ↗</a>'+reopen+adopt+'<a class="recovery-lineage-link" href="'+esc(recoveryLineageUrl())+'" target="_blank" rel="noopener">Lineage ↗</a></div></div></article>';
+}
+function bindRecovery(root,items){
+  root.querySelectorAll('[data-recovery-locator]').forEach(btn=>btn.onclick=async()=>{const e=items.find(x=>x.chat_locator_id===btn.dataset.recoveryLocator);if(!e)return;await copyText(recoverySearchPrompt(e));toast('Locator copiado')});
+  root.querySelectorAll('[data-recovery-adopt]').forEach(btn=>btn.onclick=async()=>{const e=items.find(x=>x.chat_locator_id===btn.dataset.recoveryAdopt);if(!e)return;const detail=await recoveryEntryFor(e);await copyText(recoveryAdoptPrompt(e,detail));toast('Prompt de adopción copiado')});
+  root.querySelectorAll('[data-recovery-continue]').forEach(btn=>btn.onclick=async()=>{const s=(sessionsIndex?.sessions||[]).find(x=>x.session_id===btn.dataset.recoveryContinue);if(!s){toast('Session adoptada no disponible');return}await copyText(continuePrompt(s));toast('Continuación copiada')});
+}
+
 function missingOwner(name,ref,b){
   const src=b?.freshness?.sources?.[name]||null;
   return {state:'UNAVAILABLE_AT_EXPORT',owner:name,ref,source_status:src?.status||'unknown',source:src?.source||null,error:src?.error||null,checked_at:b?.freshness?.checked_at||new Date().toISOString()};
@@ -113,6 +192,8 @@ function continuityPacket(project){
       freshness:b.freshness||null
     },
     chat_sessions:sessions,
+    recovered_chats:relevantRecovery(project),
+    recovery_lineage:recoveryLineage,
     handoff_readiness:sessions.map(s=>({session_id:s.session_id,...handoffReadiness(s)})),
     capability_graph:capabilityGraph,
     visible_result_projection:resultProjection,
@@ -260,6 +341,10 @@ async function allHistoryEvents(){
       out.push({at:e.occurred_at,type:'CHAT',title:s.title||'Chat',desc:e.assistant_conclusion||e.human_intent_summary||'',session:s,entry:e,refs:e.refs||[]});
     }
   }
+  for(const e of recoveryIndex?.entries||[]){
+    if(!e.recovered_at)continue;
+    out.push({at:e.recovered_at,type:'RECOVERY',title:'Se recuperó: '+(e.title||e.chat_locator_id),desc:'Fuente: '+sourceStamp(e.source_created_at)+' · '+(e.source_depth||'UNKNOWN')+' · '+(e.reopenability_class||e.confidence||'UNKNOWN'),refs:[{label:'recovery',url:recoveryEntryUrl(e)}]});
+  }
   for(const o of capabilityGraph?.objects||[]){
     if(o.kind!=='CHANGE'||!o.occurred_at)continue;
     const refs=[o.before_ref?{label:'before',url:o.before_ref}:null,o.after_ref?{label:'after',url:o.after_ref}:null,o.commit_url?{label:'commit',url:o.commit_url}:null,o.rollback_ref?{label:'rollback',url:o.rollback_ref}:null].filter(Boolean);
@@ -272,13 +357,17 @@ async function allHistoryEvents(){
 }
 async function renderHistory(){
   const root=document.getElementById('history');if(!root)return false;
-  root.innerHTML=centerHtml()+'<section class="section"><div class="section-head"><div class="section-title">Sesiones recientes</div><div class="section-action">hora local</div></div><div id="historySessions" class="history-sessions"><div class="rdesc">Cargando…</div></div></section><section class="section"><div class="section-head"><div class="section-title">Todo lo que pasó</div><div class="section-action">chats · trabajo · resultados · contexto</div></div><div id="historyUnified"><div class="rdesc">Cargando…</div></div></section>';
+  root.innerHTML=centerHtml()+'<section class="section"><div class="section-head"><div class="section-title">Sesiones recientes</div><div class="section-action">hora local</div></div><div id="historySessions" class="history-sessions"><div class="rdesc">Cargando…</div></div></section><section class="section" id="recoverySection"><div class="section-head"><div class="section-title">Chats recuperados</div><div class="section-action">fuente ≠ recovery</div></div><div id="recoveryChats" class="history-sessions"><div class="rdesc">Cargando…</div></div></section><section class="section"><div class="section-head"><div class="section-title">Todo lo que pasó</div><div class="section-action">chats · trabajo · resultados · contexto</div></div><div id="historyUnified"><div class="rdesc">Cargando…</div></div></section>';
   bindCenter();
   await load();
   const sr=document.getElementById('historySessions');
   const sessions=(sessionsIndex?.sessions||[]).slice().sort((a,b)=>new Date(b.last_activity_at)-new Date(a.last_activity_at));
   sr.innerHTML=sessions.length?sessions.slice(0,8).map(sessionHtml).join(''):'<div class="rdesc">No hay sesiones adoptadas todavía.</div>';
   bindSessions(sr,sessions);
+  const rr=document.getElementById('recoveryChats');
+  const recovered=relevantRecovery(selectedProject()).slice().sort((a,b)=>new Date(b.source_created_at||0)-new Date(a.source_created_at||0));
+  rr.innerHTML=recoveryIndex?(recovered.length?recovered.slice(0,20).map(recoveryHtml).join(''):'<div class="rdesc">No hay chats recuperados para este filtro.</div>'):'<div class="rdesc">Recovery no disponible.</div>';
+  bindRecovery(rr,recovered);
   const events=await allHistoryEvents();
   const groups={};for(const e of events.slice(0,120))(groups[day(e.at)]??=[]).push(e);
   const hr=document.getElementById('historyUnified');
@@ -385,7 +474,7 @@ function goContinuity(){
   const tab=document.querySelector('.tab[data-view="historial"]');tab?.click();setTimeout(()=>document.getElementById('continuityCenter')?.scrollIntoView({behavior:'smooth',block:'start'}),80);
 }
 function install(){
-  window.PROMETEO_CONTINUITY_V1={version:VERSION,renderHistory,decorateNow,continuityPacket,refreshedContinuityPacket,newChatPrompt,adoptPrompt,specializedBootstrapPrompt,goContinuity};
+  window.PROMETEO_CONTINUITY_V1={version:VERSION,renderHistory,decorateNow,continuityPacket,refreshedContinuityPacket,newChatPrompt,adoptPrompt,specializedBootstrapPrompt,recoverySearchPrompt,recoveryAdoptPrompt,goContinuity};
   document.getElementById('continuityBtn')?.addEventListener('click',goContinuity);
   window.addEventListener('PROMETEO_V11_DATA',()=>{if(document.querySelector('.view#historial.on'))renderHistory();if(document.querySelector('.view#ahora.on'))setTimeout(decorateNow,0)});
   if(document.querySelector('.view#ahora.on'))setTimeout(decorateNow,0);
