@@ -12,13 +12,24 @@ const SEMANTIC_CONTEXT_KEYS=['surface_id','project_id','authority_status','targe
 function semanticContext(p){const s=p?.semantic_context;if(!s||typeof s!=='object'||Array.isArray(s))return null;const out={};for(const k of SEMANTIC_CONTEXT_KEYS)if(s[k]!==undefined)out[k]=s[k];return Object.keys(out).length?out:null}
 function canonicalHostUrl(id,work){const u=new URL(HOST_BASE);if(id)u.searchParams.set('page',String(id));if(work)u.searchParams.set('changes',String(work));return u.href}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+function controlPlaneBlocked(){
+  const state=globalThis.PROMETEO_CONTROL_PLANE_STATE_V1;
+  return state?.blocked?state:null;
+}
+function blockedError(){
+  const state=controlPlaneBlocked();
+  if(!state)return null;
+  return Object.assign(new Error('Control plane temporalmente bloqueado; Notas sigue local-first.'),{
+    code:'CONTROL_PLANE_BLOCKED',status:503,control_plane_state:state
+  });
+}
 
 export function createChangeLoopClient({endpoint=DEFAULT_ENDPOINT,storage=globalThis.localStorage,fetchImpl=globalThis.fetch}={}){
   const secret=()=>secretFrom(storage);
-  async function call(action,payload={}){const s=secret();if(!s)throw Object.assign(new Error('Este dispositivo todavía no está vinculado.'),{code:'WORKSPACE_NOT_LINKED'});const r=await fetchImpl(endpoint,{method:'POST',headers:{'content-type':'application/json','authorization':`Bearer ${s}`},body:JSON.stringify({action,...payload}),cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(new Error(d?.message||d?.error||`HTTP ${r.status}`),{code:d?.error,status:r.status,data:d});return d}
-  async function upload(path,file,p,fields={}){const s=secret();if(!s)throw new Error('Este dispositivo todavía no está vinculado.');const form=new FormData();form.append('file',file);for(const [k,v] of Object.entries(fields))if(v!==undefined&&v!==null)form.append(k,String(v));const q=path==='attachment'?`?${new URLSearchParams({page_id:pageId(p),page_title:pageTitle(p)})}`:'';const r=await fetchImpl(`${endpoint}/${path}${q}`,{method:'POST',headers:{authorization:`Bearer ${s}`},body:form,cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.message||d?.error||`HTTP ${r.status}`);return d}
+  async function call(action,payload={}){const s=secret();if(!s)throw Object.assign(new Error('Este dispositivo todavía no está vinculado.'),{code:'WORKSPACE_NOT_LINKED'});const blocked=blockedError();if(blocked)throw blocked;const r=await fetchImpl(endpoint,{method:'POST',headers:{'content-type':'application/json','authorization':`Bearer ${s}`},body:JSON.stringify({action,...payload}),cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(new Error(d?.message||d?.error||`HTTP ${r.status}`),{code:d?.error,status:r.status,data:d});return d}
+  async function upload(path,file,p,fields={}){const s=secret();if(!s)throw new Error('Este dispositivo todavía no está vinculado.');const blocked=blockedError();if(blocked)throw blocked;const form=new FormData();form.append('file',file);for(const [k,v] of Object.entries(fields))if(v!==undefined&&v!==null)form.append(k,String(v));const q=path==='attachment'?`?${new URLSearchParams({page_id:pageId(p),page_title:pageTitle(p)})}`:'';const r=await fetchImpl(`${endpoint}/${path}${q}`,{method:'POST',headers:{authorization:`Bearer ${s}`},body:form,cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.message||d?.error||`HTTP ${r.status}`);return d}
   return Object.freeze({
-    schema:'prometeo.page-change-loop-client/v3',endpoint,hasWorkspace:()=>!!secret(),workspace:()=>call('workspace'),overview:()=>call('overview'),
+    schema:'prometeo.page-change-loop-client/v3',endpoint,hasWorkspace:()=>!!secret()&&!controlPlaneBlocked(),hasStoredWorkspace:()=>!!secret(),workspace:()=>call('workspace'),overview:()=>call('overview'),
     syncPage:p=>call('sync_page',{page_id:pageId(p),page_title:pageTitle(p),baseline:p?.baseline||{},semantic_context:semanticContext(p)}),detail:p=>call('detail',{page_id:pageId(p),page_title:pageTitle(p),baseline:p?.baseline||{},semantic_context:semanticContext(p)}),
     trabajar:p=>call('prepare_execution',{page_id:pageId(p),page_title:pageTitle(p),source_href:p?.href||null,served_identity:p?.served_identity||null,baseline:p?.baseline||{},semantic_context:semanticContext(p),delivery_mode:p?.delivery_mode||p?.execution_delivery_mode||'MANUAL_CHAT',intent:'WORK_PAGE',human_approved:true}),
     pensar:p=>call('prepare_research',{page_id:pageId(p),page_title:pageTitle(p),source_href:p?.href||null,served_identity:p?.served_identity||null,baseline:p?.baseline||{},semantic_context:semanticContext(p),intent:'THINK_PAGE',human_approved:true}),
