@@ -23,14 +23,15 @@ async function render(){
   root.querySelector('.stt-now-canary-v1')?.remove();
   const index=await json(INDEX),entry=(index?.entries||[]).find(x=>x.chat_locator_id===LOCATOR);
   if(!entry)return false;
+  const detail=await json(new URL(entry.entry_ref,indexUrl()).href);
   const api=window.PROMETEO_CONTINUITY_V1;if(!api)return false;
   const section=document.createElement('section');section.className='section stt-now-canary-v1';
-  const ideas=(entry.important_ideas||[]).slice(0,5);
+  const ideas=(detail?.important_ideas||entry.important_ideas||[]).slice(0,5);
   section.innerHTML='<div class="section-head"><div class="section-title">Conversación</div><div class="section-action">Chat Recovery V2 · proyección</div></div>'+
     '<article class="history-session recovery-card" data-now-conversation="'+esc(LOCATOR)+'">'+
       '<div class="history-avatar fallback">🎙️</div><div>'+
-        '<div class="history-session-top"><b>'+esc(entry.title||entry.chat_title||'STT Live')+'</b><time>'+esc(entry.project_name||entry.project||'Prometeo')+'</time></div>'+
-        '<div class="history-focus">'+esc(entry.purpose||'')+'</div>'+
+        '<div class="history-session-top"><b>'+esc(entry.title||detail?.chat_title||'STT Live')+'</b><time>'+esc(entry.project_name||detail?.project_name||entry.project||'Prometeo')+'</time></div>'+
+        '<div class="history-focus">'+esc(detail?.purpose||entry.purpose||'')+'</div>'+
         '<div class="history-session-summary">'+esc(ideas.map((x,i)=>(i+1)+'. '+x).join(' · '))+'</div>'+
         '<div class="history-session-status"><span class="history-handoff ready">RECOVERY V2</span> <span>sin authority nueva</span></div>'+
         '<div class="history-session-actions"><button data-stt-search>Buscar</button><button class="primary" data-stt-adopt>Adoptar</button><a href="'+esc(new URL(entry.entry_ref,indexUrl()).href)+'" target="_blank" rel="noopener">Evidencia ↗</a></div>'+
@@ -41,7 +42,6 @@ async function render(){
     await copy(api.recoverySearchPrompt(entry));toast('Locator copiado');
   });
   section.querySelector('[data-stt-adopt]')?.addEventListener('click',async()=>{
-    const detail=await json(new URL(entry.entry_ref,indexUrl()).href);
     await copy(api.recoveryAdoptPrompt(entry,detail));toast('Prompt de adopción copiado');
   });
   return true;
