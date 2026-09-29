@@ -76,7 +76,7 @@ async function githubFallback(base,coreError,checkedAt){
   ['claimFrontier',CFG.claimFrontierUrl],
   ['stats',CFG.statsUrl],
   ['projectContext',CFG.projectContextUrl],
-  ['controlPlaneDiagnosis',CFG.pageChangeDiagnosisUrl]
+  ...(b.controlPlaneDiagnosis?[]:[['controlPlaneDiagnosis',CFG.pageChangeDiagnosisUrl]])
  ];
  const settled=await Promise.allSettled(specs.map(([,url])=>getJson(url)));
  const states={},failures=[{key:'tree',message:String(coreError?.message||coreError)}];diag('tree',coreError,CFG.rpcBase+'prometeo_current_tree_v2');
@@ -128,7 +128,20 @@ function bestObserved(bundle,states){
 async function refresh(base={}){
  const checkedAt=now();
  let b={...base},failures=[],freshCore=false,sourceStates={};
+ let publishedDiagnosis=null,publishedBlocked=false;
  try{
+  publishedDiagnosis=await getJson(CFG.pageChangeDiagnosisUrl);
+  b.controlPlaneDiagnosis=publishedDiagnosis;
+  publishedBlocked=/^BLOCKED_/.test(String(publishedDiagnosis?.status||''));
+  sourceStates.controlPlaneDiagnosis=sourceState('available','github',CFG.pageChangeDiagnosisUrl,publishedDiagnosis,null,checkedAt);
+  globalThis.PROMETEO_CONTROL_PLANE_STATE_V1=Object.freeze({
+   blocked:publishedBlocked,status:publishedDiagnosis?.status||'UNKNOWN',
+   diagnosis_id:publishedDiagnosis?.diagnosis_id||null,observed_at:publishedDiagnosis?.observed_at||null,
+   source:'published-diagnosis'
+  });
+ }catch{}
+ try{
+  if(publishedBlocked)throw Object.assign(new Error('Current Tree RPC omitted · published control plane '+String(publishedDiagnosis?.status||'BLOCKED')),{code:'CONTROL_PLANE_BLOCKED'});
   b.tree=await rpc('prometeo_current_tree_v2',0);freshCore=true;
   globalThis.PROMETEO_CONTROL_PLANE_STATE_V1=Object.freeze({blocked:false,status:'RPC_AVAILABLE',source:'tree-probe',observed_at:checkedAt});
   sourceStates.tree=sourceState('available','rpc',CFG.rpcBase+'prometeo_current_tree_v2',b.tree,null,checkedAt);
