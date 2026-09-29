@@ -32,6 +32,12 @@ html.review-mode #hint,
 html.review-mode #tag,
 html.review-mode #loading{display:none!important}
 html.review-mode body{cursor:none}
+html.embed-mode #maps,
+html.embed-mode #pad,
+html.embed-mode #hint,
+html.embed-mode #tag,
+html.embed-mode #loading{display:none!important}
+html.embed-mode body{cursor:none}
 </style>
 </head>
 <body>
@@ -61,7 +67,9 @@ const REVIEW_MAP=Number(REVIEW_PARAMS.get('map')||1);
 const REVIEW_Z=Number(REVIEW_PARAMS.get('z')||24);
 const REVIEW_X=Number(REVIEW_PARAMS.get('x')||0);
 const REVIEW_T=Number(REVIEW_PARAMS.get('t')||5000);
+const EMBED_MODE=REVIEW_PARAMS.get('embed')==='1';
 if(REVIEW_MODE)document.documentElement.classList.add('review-mode');
+if(EMBED_MODE)document.documentElement.classList.add('embed-mode');
 window.PrometeoSpacesReview={ready:false,mode:REVIEW_MODE,map:REVIEW_MAP,z:REVIEW_Z,x:REVIEW_X,t:REVIEW_T};
 const canvas=document.getElementById('scene');
 const ctx=canvas.getContext('2d',{alpha:false,desynchronized:true});
@@ -1351,18 +1359,59 @@ addEventListener('contextmenu',e=>e.preventDefault());
 addEventListener('selectstart',e=>e.preventDefault());
 addEventListener('dragstart',e=>e.preventDefault());
 setTimeout(()=>hint.style.opacity='.18',1800);
+function publicState(){
+  return {
+    ready:Boolean(window.PrometeoSpacesReview&&window.PrometeoSpacesReview.ready),
+    map:currentMap,
+    cameraX:targetCamX,
+    cameraZ:targetCamZ,
+    renderedX:camX,
+    renderedZ:camZ,
+    maxZ:mapMaxZ(),
+    minZ:-5,
+    lateralLimit:lateralLimit(),
+    scrollVelocity
+  };
+}
 window.PrometeoSpaces={
-  version:'spaces-maps-v34',
+  version:'spaces-maps-v35-rail-bridge',
   maps:[
     '1 arch nave with blacked-out floor',
     '2 straight paired-column road',
     '3 world-anchored barrel tunnel with richer layered real-stone texture and strong depth falloff',
     '4 hairline suspended path through farther brutalist megatowers with sparse neon architecture'
   ],
-  contract:'fixed frontal view; touch swipe + WASD + wheel; v34 preserves v33 visuals and adds a deterministic visual-review harness. Query params review=1,map,x,z,t select a stable scene/camera/animation frame, hide HUD controls and expose PrometeoSpacesReview.ready so GitHub capture automation can generate comparable screenshots. v33 smooth wheel, .36 hairline path, gap 3.00, sparse neon architecture, dark void and bridge-last occlusion remain unchanged',
+  contract:'fixed frontal live renderer; touch swipe + WASD + wheel; v35 preserves v34 visuals and adds an embed/imperative bridge for Rail World without changing map art.',
   sourcePages:SOURCE_PAGES,
-  camera:{get x(){return targetCamX},get z(){return targetCamZ}},
-  get map(){return currentMap}
+  camera:{
+    get x(){return targetCamX},
+    get z(){return targetCamZ},
+    get renderedX(){return camX},
+    get renderedZ(){return camZ}
+  },
+  get map(){return currentMap},
+  get maxZ(){return mapMaxZ()},
+  get minZ(){return -5},
+  getState:publicState,
+  setMap(n){
+    const allowed=[1,3,4,5];
+    setMap(allowed.includes(Number(n))?Number(n):1);
+    return publicState();
+  },
+  setCamera(next={}){
+    const x=Number(next.x),z=Number(next.z);
+    if(Number.isFinite(x))targetCamX=clamp(x,-lateralLimit(),lateralLimit());
+    if(Number.isFinite(z))targetCamZ=clamp(z,-5,mapMaxZ());
+    scrollVelocity=0;
+    if(next.immediate===true){camX=targetCamX;camZ=targetCamZ}
+    return publicState();
+  },
+  moveBy(delta={}){
+    const x=Number(delta.x)||0,z=Number(delta.z)||0;
+    targetCamX=clamp(targetCamX+x,-lateralLimit(),lateralLimit());
+    targetCamZ=clamp(targetCamZ+z,-5,mapMaxZ());
+    return publicState();
+  }
 };
 applyReviewState();
 requestAnimationFrame(frame);
