@@ -346,6 +346,21 @@ try{
   assert.match(copiedIdeasAdopt,/FIRST DURABLE ACTION/);
   pass('ideas_conversation_projection_mvp',{chat_locator_id:'CHATLOC-PROMETEO-IDEAS-20260929',host:'SURFACE:CONTROL_ROOM',view:'Ahora',uses_existing_recovery:true,new_authority:false});
 
+  const sttCard=page.locator('[data-now-conversation="CHATLOC-STT-LIVE-UX-20260929"]');
+  await sttCard.waitFor({state:'visible',timeout:15000});
+  const sttText=await sttCard.innerText();
+  assert.match(sttText,/STT Live/i);
+  assert.match(sttText,/captura instantánea/i);
+  assert.match(sttText,/waveform/i);
+  assert.match(sttText,/máquina de escribir/i);
+  await sttCard.locator('[data-stt-adopt]').click();
+  await page.waitForTimeout(250);
+  const copiedSttAdopt=await page.evaluate(()=>navigator.clipboard.readText());
+  assert.match(copiedSttAdopt,/CHATLOC-STT-LIVE-UX-20260929/);
+  assert.match(copiedSttAdopt,/ADOPTAR CHAT RECUPERADO V2/);
+  assert.match(copiedSttAdopt,/FIRST DURABLE ACTION/);
+  pass('stt_conversation_projection_canary',{chat_locator_id:'CHATLOC-STT-LIVE-UX-20260929',host:'SURFACE:CONTROL_ROOM',view:'Ahora',uses_existing_recovery:true,new_authority:false,clone_without_new_model:true});
+
   await page.evaluate(()=>{scrollTo(0,0);document.querySelector('.tab[data-view="chats"]')?.click()});
   const sessionCard=page.locator('[data-chat-session="CHAT-PROMETEO-CONTROL-20260929T145300Z-S01"]');
   await sessionCard.waitFor({state:'visible',timeout:20000});
