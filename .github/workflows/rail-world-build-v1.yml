@@ -138,6 +138,39 @@ jobs:
               'Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready)');
           }
 
+          // FUNCTIONAL_RAIL_TEST: prove far click advances player+camera and near click retreats both.
+          await send('Page.navigate',{url:'http://127.0.0.1:4173/demos/prometeo-rail-world-v1/'});
+          await waitExpression('Boolean(window.PrometeoRailWorldReview&&window.PrometeoRailWorldReview.ready&&window.PrometeoRailWorld)', 'rail runtime');
+
+          async function clickAt(x,y){
+            await send('Input.dispatchMouseEvent',{type:'mouseMoved',x,y});
+            await send('Input.dispatchMouseEvent',{type:'mousePressed',x,y,button:'left',clickCount:1});
+            await send('Input.dispatchMouseEvent',{type:'mouseReleased',x,y,button:'left',clickCount:1});
+          }
+          async function railState(){
+            const ev=await send('Runtime.evaluate',{
+              expression:'window.PrometeoRailWorld.getState()',
+              returnByValue:true
+            });
+            return ev?.result?.value;
+          }
+
+          const initial=await railState();
+          await clickAt(683,360);
+          await sleep(5000);
+          const far=await railState();
+          if(!(far.playerZ>initial.playerZ+30 && far.cameraZ>initial.cameraZ+15)){
+            throw new Error('Far click failed to advance rail: '+JSON.stringify({initial,far}));
+          }
+
+          await clickAt(683,700);
+          await sleep(2800);
+          const near=await railState();
+          if(!(near.playerZ<far.playerZ-5 && near.cameraZ<far.cameraZ-1)){
+            throw new Error('Near click failed to retreat rail: '+JSON.stringify({far,near}));
+          }
+          console.log('FUNCTIONAL_RAIL_TEST PASS',JSON.stringify({initial,far,near}));
+
           ws.close();
           await fs.writeFile('demos/prometeo-rail-world-v1/review/manifest.json',JSON.stringify({
             schema:'prometeo.rail-world-review/v1',
