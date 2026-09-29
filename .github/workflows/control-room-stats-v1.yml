@@ -1,0 +1,66 @@
+name: Control Room Stats V1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/workers/beacons/**'
+      - 'coordination/workers/exams/**'
+      - 'coordination/workers/benchmark-receipts/**'
+      - 'coordination/workers/no-allocation/**'
+      - 'coordination/launch-packets/**'
+      - 'coordination/integration-runs/**/returns/**'
+      - 'coordination/portfolio/returns/**'
+      - 'coordination/guide/receipts/**'
+      - 'coordination/analytics/control-room-stats-v1/compiler.mjs'
+      - 'coordination/analytics/control-room-stats-v1/compiler.test.mjs'
+      - 'coordination/analytics/control-room-stats-v1/SCHEMA.json'
+      - '.github/workflows/control-room-stats-v1.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-room-stats-v1-main
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: source
+          fetch-depth: 1
+
+      - name: Checkout gh-pages projections
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: projection
+          fetch-depth: 1
+
+      - name: Test compiler
+        run: node source/coordination/analytics/control-room-stats-v1/compiler.test.mjs
+
+      - name: Compile snapshot
+        run: >
+          node source/coordination/analytics/control-room-stats-v1/compiler.mjs
+          --root source
+          --projection projection
+          --out control-room-stats-v1.json
+
+      - name: Validate snapshot
+        run: |
+          node -e "const d=require('./control-room-stats-v1.json'); if(d.schema!=='prometeo.control-room-stats/v1') process.exit(1); if(d.source_mode!=='GITHUB_DURABLE_EVIDENCE_ONLY') process.exit(1); if(!Array.isArray(d.truth_boundaries)||!d.truth_boundaries.length) process.exit(1);"
+
+      - name: Upload compiled snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: control-room-stats-v1
+          path: control-room-stats-v1.json
+          if-no-files-found: error
+          retention-days: 7
