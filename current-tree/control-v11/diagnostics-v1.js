@@ -172,6 +172,7 @@ function close(){document.getElementById('diagTerminal')?.classList.remove('on')
 function mount(){
   if(mounted)return;mounted=true;
   document.getElementById('diagBtn')?.addEventListener('click',open);
+  document.getElementById('freshbarV11')?.addEventListener('click',open);
   document.getElementById('diagClose')?.addEventListener('click',close);
   document.getElementById('diagCopy')?.addEventListener('click',()=>copyState());
   document.getElementById('diagClear')?.addEventListener('click',clear);
@@ -203,6 +204,7 @@ addEventListener('unhandledrejection',event=>{
   const r=event.reason;record({kind:'promise',source:'unhandledrejection',error:r,message:r?.message||String(r||'Unhandled rejection'),stack:r?.stack});
 });
 addEventListener('online',()=>render());
+addEventListener('PROMETEO_V11_DATA',()=>render());
 addEventListener('offline',()=>record({kind:'network',source:'browser',level:'warn',message:'Navegador offline'}));
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else queueMicrotask(mount);
 
