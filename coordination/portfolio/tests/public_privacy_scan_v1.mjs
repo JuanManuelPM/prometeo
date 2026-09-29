@@ -131,7 +131,9 @@ try{
   assert.ok(evidence.scopes.find(x=>x.name==='gh_pages_public')?.files>0,'gh-pages checkout must contribute files');
   pass('bounded_scopes',{scopes:evidence.scopes,max_file_bytes:MAX_BYTES});
 
-  pass('public_authorization_metadata_not_blanket_secret',{rule:'authorization key alone is not a leak outside public-closure-pack; literal Bearer/token patterns still fail'});\n\n  const highConfidence=evidence.findings.filter(x=>[
+  pass('public_authorization_metadata_not_blanket_secret',{rule:'authorization key alone is not a leak outside public-closure-pack; literal Bearer/token patterns still fail'});
+
+  const highConfidence=evidence.findings.filter(x=>[
     'forbidden_json_key','github_token_literal','openai_style_secret_literal','jwt_literal','bearer_literal','signed_query_literal'
   ].includes(x.class));
   if(highConfidence.length){
