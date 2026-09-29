@@ -1092,18 +1092,20 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
   const efficiencyNoAllocationCauseRef = Number(efficiency?.no_allocation_causes?.recent_total || 0) > 0
     ? 'gh-pages:live/efficiency.json#no_allocation_causes'
     : null;
-  const efficiencyRegressionEvidence = efficiency.status === 'REGRESSION'
+  const efficiencyActionableNoAllocationPressure = efficiencyNoAllocationReceipts.length >= 3;
+  const efficiencyActionableNoAllocationEvidence = efficiencyActionableNoAllocationPressure
     ? uniq([
         ...(efficiencyNoAllocationCauseRef ? [efficiencyNoAllocationCauseRef] : []),
-        ...efficiencyNoAllocationReceipts,
-        'coordination/efficiency/RATCHET_BASELINE_V1.json'
+        ...efficiencyNoAllocationReceipts
       ])
     : [];
   const independentRescatePressure =
     genericRecoveryRescuePressure ||
     collisionEvidence.length >= Number(signals.collision_pressure_trigger || 3) ||
-    rescueEligibleNoAlloc.length >= 3;
+    rescueEligibleNoAlloc.length >= 3 ||
+    efficiencyActionableNoAllocationPressure;
   const rescueEvidence = uniq([
+    ...efficiencyActionableNoAllocationEvidence,
     ...recoveryEvidence,
     ...collisionEvidence,
     ...(capabilityPressure.specialized_total && genericCompatibleFrontier < cleanFrontier ? [capabilityPressureEvidenceRef] : []),
