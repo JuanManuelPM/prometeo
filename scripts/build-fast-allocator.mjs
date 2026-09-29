@@ -321,6 +321,48 @@ export function normalizeRecoveryPolicy(job = {}, policy = null) {
       reason: source.reason || 'JOB_CONTRACT_IS_GENERATION_FIXED'
     };
   }
+  if (source.mode === 'new_evidence_gate') {
+    const fixedGeneration = finiteInt(source.fixed_generation, 0);
+    const currentGeneration = finiteInt(job?.pin_generation, 0);
+    const targetSha256 = String(source.target_sha256 || '').trim().toLowerCase();
+    const basis = job?.recovery_basis && typeof job.recovery_basis === 'object' ? job.recovery_basis : {};
+    const sourceRef = typeof basis.source_ref === 'string' && basis.source_ref.trim() ? basis.source_ref.trim() : null;
+    const sourceSha256 = String(basis.source_sha256 || '').trim().toLowerCase();
+    const targetValid = /^[0-9a-f]{64}$/.test(targetSha256);
+    const sourceShaValid = /^[0-9a-f]{64}$/.test(sourceSha256);
+    const exactEvidence = Boolean(targetValid && sourceRef && sourceShaValid && sourceSha256 === targetSha256);
+    const unlockGeneration = fixedGeneration + 1;
+    const unlockAvailable = exactEvidence && currentGeneration < unlockGeneration;
+    const unlockConsumed = exactEvidence && currentGeneration >= unlockGeneration;
+    const reason = !targetValid
+      ? 'NEW_EVIDENCE_GATE_INVALID_TARGET_SHA256'
+      : unlockAvailable
+        ? 'NEW_EVIDENCE_GATE_SATISFIED'
+        : unlockConsumed
+          ? 'NEW_EVIDENCE_GATE_UNLOCK_CONSUMED'
+          : sourceShaValid && sourceSha256 !== targetSha256
+            ? 'NEW_EVIDENCE_GATE_SHA_MISMATCH'
+            : 'NEW_EVIDENCE_GATE_UNSATISFIED';
+    return {
+      mode: 'new_evidence_gate',
+      ordinary_next_generation_eligible: unlockAvailable,
+      fixed_generation: fixedGeneration,
+      target_generation: unlockAvailable ? unlockGeneration : null,
+      attention_route: source.attention_route || 'NEW_EVIDENCE_GATE_RECONCILE',
+      attention_until: null,
+      valid: fixedGeneration >= 1 && targetValid,
+      reason,
+      gate: {
+        gate_id: source.gate_id || null,
+        target_sha256: targetSha256 || null,
+        known_malformed_source_ref: source.known_malformed_source_ref || null,
+        source_ref: sourceRef,
+        source_sha256: sourceSha256 || null,
+        satisfied: exactEvidence,
+        unlock_generation: unlockGeneration
+      }
+    };
+  }
   return {
     mode: 'next_generation_retry',
     ordinary_next_generation_eligible: true,
@@ -1182,13 +1224,23 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
     .filter(job => job.state !== 'partial' || recoveryBasisGate(job).eligible)
     .filter(job => {
       const semantics = semantic(job);
-      if (semantics.mode !== 'fixed_generation') return semantics.valid;
-      return semantics.valid && finiteInt(job.pin_generation, 0) < semantics.fixed_generation;
+      if (semantics.mode === 'fixed_generation') {
+        return semantics.valid && finiteInt(job.pin_generation, 0) < semantics.fixed_generation;
+      }
+      if (semantics.mode === 'new_evidence_gate') {
+        return semantics.valid && semantics.ordinary_next_generation_eligible;
+      }
+      return semantics.valid;
     })
     .sort(byPriority)
     .map(job => {
       const semantics = semantic(job);
-      return compactPortfolio(feed, semantic, job, semantics.mode === 'fixed_generation' ? semantics.fixed_generation : null, growthPolicy);
+      const targetGeneration = semantics.mode === 'fixed_generation'
+        ? semantics.fixed_generation
+        : semantics.mode === 'new_evidence_gate'
+          ? semantics.target_generation
+          : null;
+      return compactPortfolio(feed, semantic, job, targetGeneration, growthPolicy);
     })
     .slice(0, 40);
 
@@ -1248,29 +1300,38 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
 
   const recoveryAttention = jobs
     .filter(jobCapabilityRouteable)
-    .filter(job => ['replaceable', 'partial'].includes(job.state))
-    .filter(job => semantic(job).valid && semantic(job).ordinary_next_generation_eligible)
-    .map(job => ({ job, gate: combinedRecoveryGate(job) }))
-    .filter(({ gate }) => !gate.eligible)
+    .filter(job => ['ready', 'replaceable', 'partial'].includes(job.state))
+    .map(job => ({ job, semantics: semantic(job), gate: combinedRecoveryGate(job) }))
+    .filter(({ semantics, gate }) => (
+      semantics.valid &&
+      (
+        (semantics.mode === 'new_evidence_gate' && !semantics.ordinary_next_generation_eligible) ||
+        (semantics.ordinary_next_generation_eligible && !gate.eligible)
+      )
+    ))
     .sort((a, b) => byPriority(a.job, b.job))
-    .map(({ job, gate }) => ({
-      job_id: job.job_id,
-      dedupe_key: job.dedupe_key || null,
-      project_id: job.project_id || null,
-      project_label: job.project_label || null,
-      title: job.title || job.job_id,
-      source_path: job.source_path || null,
-      required_capabilities: jobRequiredCapabilities(job),
-      priority: job.priority || 0,
-      state: job.state,
-      pin_generation: finiteInt(job.pin_generation, 0),
-      latest_return: job.latest_return || null,
-      reason: gate.reason,
-      recovery_basis: gate.basis || null,
-      source_debt: gate.gate_kind === 'source_debt' ? (gate.source_debt || null) : null,
-      authority_gate: gate.gate_kind === 'authority' ? gate : (gate.authority_gate || null),
-      ordinary_next_generation_eligible: false
-    }))
+    .map(({ job, semantics, gate }) => {
+      const policyBlocked = semantics.mode === 'new_evidence_gate' && !semantics.ordinary_next_generation_eligible;
+      return {
+        job_id: job.job_id,
+        dedupe_key: job.dedupe_key || null,
+        project_id: job.project_id || null,
+        project_label: job.project_label || null,
+        title: job.title || job.job_id,
+        source_path: job.source_path || null,
+        required_capabilities: jobRequiredCapabilities(job),
+        priority: job.priority || 0,
+        state: job.state,
+        pin_generation: finiteInt(job.pin_generation, 0),
+        latest_return: job.latest_return || null,
+        reason: policyBlocked ? semantics.reason : gate.reason,
+        recovery_basis: gate.basis || null,
+        source_debt: gate.gate_kind === 'source_debt' ? (gate.source_debt || null) : null,
+        authority_gate: gate.gate_kind === 'authority' ? gate : (gate.authority_gate || null),
+        new_evidence_gate: semantics.mode === 'new_evidence_gate' ? semantics.gate : null,
+        ordinary_next_generation_eligible: false
+      };
+    })
     .slice(0, 30);
 
   const fixedAttentionResolved = (job, semantics) => {
