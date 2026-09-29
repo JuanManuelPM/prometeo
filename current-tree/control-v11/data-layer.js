@@ -60,7 +60,7 @@ async function catalogs(checkedAt){
  settled.forEach((r,i)=>{
   const [key,url]=sources[i];
   if(r.status==='fulfilled')state[key]=sourceState('available','catalog',url,r.value,null,checkedAt);
-  else{state[key]=sourceState('unavailable','catalog',url,null,r.reason,checkedAt);failures.push({key,message:String(r.reason?.message||r.reason)});diag(key,r.reason,url);diag(key,r.reason,url)}
+  else{state[key]=sourceState('unavailable','catalog',url,null,r.reason,checkedAt);failures.push({key,message:String(r.reason?.message||r.reason)});diag(key,r.reason,url)}
  });
  return {
   catalogManifest:settled[0].status==='fulfilled'?settled[0].value:null,
@@ -74,7 +74,8 @@ async function githubFallback(base,coreError,checkedAt){
   ['runtime',CFG.continuityStateUrl],
   ['claimFrontier',CFG.claimFrontierUrl],
   ['stats',CFG.statsUrl],
-  ['projectContext',CFG.projectContextUrl]
+  ['projectContext',CFG.projectContextUrl],
+  ['controlPlaneDiagnosis',CFG.pageChangeDiagnosisUrl]
  ];
  const settled=await Promise.allSettled(specs.map(([,url])=>getJson(url)));
  const states={},failures=[{key:'tree',message:String(coreError?.message||coreError)}];diag('tree',coreError,CFG.rpcBase+'prometeo_current_tree_v2');
@@ -89,6 +90,17 @@ async function githubFallback(base,coreError,checkedAt){
    if(key==='projectContext'){
     b.projectContext=value;
     if(value&&Array.isArray(value.contexts))b.ctx=value;
+   }
+   if(key==='controlPlaneDiagnosis'){
+    b.controlPlaneDiagnosis=value;
+    const blocked=/^BLOCKED_/.test(String(value?.status||''));
+    globalThis.PROMETEO_CONTROL_PLANE_STATE_V1=Object.freeze({
+      blocked,
+      status:value?.status||null,
+      diagnosis_id:value?.diagnosis_id||null,
+      observed_at:value?.observed_at||null,
+      source:'published-diagnosis'
+    });
    }
   }else{
    states[key]=sourceState('unavailable','github',url,null,r.reason,checkedAt);
@@ -116,7 +128,8 @@ async function refresh(base={}){
  const checkedAt=now();
  let b={...base},failures=[],freshCore=false,sourceStates={};
  try{
-  b.tree=await rpc('prometeo_current_tree_v2',1);freshCore=true;
+  b.tree=await rpc('prometeo_current_tree_v2',0);freshCore=true;
+  globalThis.PROMETEO_CONTROL_PLANE_STATE_V1=Object.freeze({blocked:false,status:'RPC_AVAILABLE',source:'tree-probe',observed_at:checkedAt});
   sourceStates.tree=sourceState('available','rpc',CFG.rpcBase+'prometeo_current_tree_v2',b.tree,null,checkedAt);
  }catch(e){
   diag('tree',e,CFG.rpcBase+'prometeo_current_tree_v2');
