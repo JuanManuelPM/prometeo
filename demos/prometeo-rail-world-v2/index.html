@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#030503">
-<title>Prometeo · Rail World V9</title>
+<title>Prometeo · Rail World V10</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;overscroll-behavior:none;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -31,7 +31,7 @@ body.review #hud{display:none}
 </head>
 <body>
 <div id="shell"><div id="stage">
-  <canvas id="scene" aria-label="Prometeo Rail World V9"></canvas>
+  <canvas id="scene" aria-label="Prometeo Rail World V10"></canvas>
   <div id="veil"></div><div id="grain"></div>
   <div id="hud"><div id="sceneName"></div><div id="mode"></div><div id="hint">click = caminar · scroll = acercar/alejar · cartel = mirar</div><div id="debug"></div></div>
   <div id="flash"></div><div id="loading">construyendo mundo</div>
@@ -192,7 +192,7 @@ function queueTurnCamera(turn){
   if(!turn||state.directedView)return false;
   const key=turn.key||("turn@"+turn.pivotX.toFixed(2)+","+turn.pivotZ.toFixed(2));
   if(key===state.lastTurnKey||state.turnCamera?.key===key)return false;
-  const back=1.8;
+  const back=.35;
   const anchorX=turn.pivotX-Math.sin(turn.incomingYaw)*back;
   const anchorZ=turn.pivotZ-Math.cos(turn.incomingYaw)*back;
   state.turnCamera={
@@ -630,9 +630,18 @@ function update(now){
         const speed=clamp(14+dist*2.2,14,36),step=Math.min(dist,speed*dt);
         camera.x=clamp(camera.x+dx/dist*step,-44,44);
         camera.z=clamp(camera.z+dz/dist*step,-12,106);
-        if(dist<.72){
+
+        // The turn is a hand-off, not a remote pan. The camera must physically arrive
+        // at the old player/turn position AND the avatar must be at that same hinge
+        // before we are allowed to rotate toward the new branch.
+        const playerToPivot=hypot(player.x-t.pivotX,player.z-t.pivotZ);
+        const cameraReady=dist<.42;
+        const playerReady=playerToPivot<2.25 ||
+          (player.segment && player.segment.sx===t.pivotX && player.segment.sz===t.pivotZ);
+        if(cameraReady&&playerReady){
           camera.x=t.anchorX;camera.z=t.anchorZ;
           t.phase="ROTATE";
+          t.playerToPivotAtRotate=playerToPivot;
           state.cameraMode="TURN_ROTATE";
           camera.targetYaw=t.outgoingYaw;
         }
@@ -679,15 +688,15 @@ function update(now){
     }
   }
   render(now);
-  sceneNameEl.textContent=SCENE_META[sceneId].label+" · V9";
+  sceneNameEl.textContent=SCENE_META[sceneId].label+" · V10";
   modeEl.textContent=state.cameraMode.replaceAll("_"," ")+" · "+(camera.yaw*180/Math.PI).toFixed(0)+"°\\n"+(state.activeGate?"ACCESO "+state.activeGate:"COMPOSICIÓN");
   debugEl.textContent="scene "+sceneId+"\\ncamera "+camera.x.toFixed(1)+", "+camera.z.toFixed(1)+" yaw "+(camera.yaw*180/Math.PI).toFixed(1)+"\\nplayer "+player.x.toFixed(1)+", "+player.z.toFixed(1)+" "+(player.moving?"walking":"idle")+"\\nroute "+player.route.length+" target "+(player.targetNode||"-")+"\\nactiveGate "+(state.activeGate||"-")+"\\nlastTurn "+(state.lastTurn?state.lastTurn.from+"→"+state.lastTurn.to:"-")+"\\nfaces "+renderStats.faces+" boxes "+renderStats.boxes+" paths "+renderStats.paths;
   requestAnimationFrame(update);
 }
 function getState(){
-  return{version:"rail-world-v9-path-turn-camera-r1",ready:state.ready,scene:sceneId,camera:{x:camera.x,z:camera.z,yaw:camera.yaw,targetYaw:camera.targetYaw,moveVelocity:camera.moveVelocity},composition:{mode:state.cameraMode,manualOverride:performance.now()<state.manualCameraUntil,manualYawOffset:0,autoFollowMoves:state.autoFollowMoves,cameraSettles:state.cameraSettles,directedViews:state.directedViews,directed:Boolean(state.directedView),turnTransitions:state.turnTransitions,turn:state.turnCamera?{key:state.turnCamera.key,phase:state.turnCamera.phase,pivotX:state.turnCamera.pivotX,pivotZ:state.turnCamera.pivotZ,anchorX:state.turnCamera.anchorX,anchorZ:state.turnCamera.anchorZ,incomingYaw:state.turnCamera.incomingYaw,outgoingYaw:state.turnCamera.outgoingYaw}:null},player:{x:player.x,z:player.z,heading:player.heading,moving:player.moving,currentNode:player.currentNode,targetNode:player.targetNode,routeLength:player.route.length},activeGate:state.activeGate,gates:graph.gates.map(g=>({destination:g.destination,nodeId:g.nodeId,x:graph.nodes.get(g.nodeId).x,z:graph.nodes.get(g.nodeId).z})),graph:{nodes:graph.nodes.size,edges:graph.edges.length,junctions:[...graph.junctions]},lastTurn:state.lastTurn,sceneChanges:state.sceneChanges,render:{...renderStats},hasIframe:Boolean(document.querySelector("iframe")),museumPanels:sceneId==="MUSEO"?sceneObjects().filter(x=>x.type==="panel").length:0};
+  return{version:"rail-world-v10-turn-handoff-camera-r1",ready:state.ready,scene:sceneId,camera:{x:camera.x,z:camera.z,yaw:camera.yaw,targetYaw:camera.targetYaw,moveVelocity:camera.moveVelocity},composition:{mode:state.cameraMode,manualOverride:performance.now()<state.manualCameraUntil,manualYawOffset:0,autoFollowMoves:state.autoFollowMoves,cameraSettles:state.cameraSettles,directedViews:state.directedViews,directed:Boolean(state.directedView),turnTransitions:state.turnTransitions,turn:state.turnCamera?{key:state.turnCamera.key,phase:state.turnCamera.phase,pivotX:state.turnCamera.pivotX,pivotZ:state.turnCamera.pivotZ,anchorX:state.turnCamera.anchorX,anchorZ:state.turnCamera.anchorZ,incomingYaw:state.turnCamera.incomingYaw,outgoingYaw:state.turnCamera.outgoingYaw}:null},player:{x:player.x,z:player.z,heading:player.heading,moving:player.moving,currentNode:player.currentNode,targetNode:player.targetNode,routeLength:player.route.length},activeGate:state.activeGate,gates:graph.gates.map(g=>({destination:g.destination,nodeId:g.nodeId,x:graph.nodes.get(g.nodeId).x,z:graph.nodes.get(g.nodeId).z})),graph:{nodes:graph.nodes.size,edges:graph.edges.length,junctions:[...graph.junctions]},lastTurn:state.lastTurn,sceneChanges:state.sceneChanges,render:{...renderStats},hasIframe:Boolean(document.querySelector("iframe")),museumPanels:sceneId==="MUSEO"?sceneObjects().filter(x=>x.type==="panel").length:0};
 }
-window.PrometeoRailWorldV9={
+window.PrometeoRailWorldV10={
   getState,
   setScene(id){if(SCENE_IDS.includes(id)){sceneId=id;graph=makeGraph(sceneId);player.x=0;player.z=3.8;player.currentNode="entry";player.route=[];player.segment=null;camera.x=0;camera.z=-5.2;camera.yaw=camera.targetYaw=0;state.activeGate=null;state.lastTurn=null;state.directedView=null;state.turnCamera=null;state.lastTurnKey=null;state.cameraMode="IDLE_COMPOSITION";state.routeBaseYaw=0;state.manualYawOffset=0}return getState()},
   setCamera(next={}){if(Number.isFinite(+next.x))camera.x=+next.x;if(Number.isFinite(+next.z))camera.z=+next.z;if(Number.isFinite(+next.yaw)){camera.yaw=camera.targetYaw=+next.yaw;state.routeBaseYaw=+next.yaw;state.manualYawOffset=0}camera.moveVelocity=0;state.cameraMode="IDLE_COMPOSITION";state.directedView=null;state.turnCamera=null;state.lastTurnKey=null;return getState()},
@@ -702,7 +711,7 @@ window.PrometeoRailWorldV9={
 
 Promise.all(Object.entries(ASSET_URLS).map(([k,u])=>loadAsset(k,u))).then(()=>{
   applyReviewState();updateActiveGate();state.ready=true;loading.classList.add("off");
-  window.PrometeoRailWorldReview={ready:true,version:"rail-world-v9-path-turn-camera-r1"};
+  window.PrometeoRailWorldReview={ready:true,version:"rail-world-v10-turn-handoff-camera-r1"};
   requestAnimationFrame(update);
 });
 })();
