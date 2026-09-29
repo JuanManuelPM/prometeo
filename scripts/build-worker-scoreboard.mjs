@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { classifyPoolResidency, poolResidencyFailure } from './worker-residency-integrity.mjs';
+import { classifyPoolResidency, canonicalPoolTerminalClose, poolResidencyFailure } from './worker-residency-integrity.mjs';
 
 const root=process.argv[2]||'.';
 const outPath=process.argv[3]||path.join(root,'worker-scoreboard.json');
@@ -317,13 +317,21 @@ for(const [workerId,b] of beaconByWorker){
   const terminalClassified=!!explicit || !!noalloc || !!benchmarkReceipt?.doc?.closed_at_or_null;
   const protocolVersion=explicit?.protocol_version||b.doc?.canary_protocol||b.doc?.protocol_version||null;
   const poolId=explicit?.pool_id||b.doc?.pool_id||null;
+  const projectedPoolClose=(explicit && noalloc)
+    ? canonicalPoolTerminalClose({
+        no_allocation:noalloc.doc,
+        no_allocation_ref:noalloc.ref
+      })
+    : null;
   const poolResidency=classifyPoolResidency({
     protocol_version:protocolVersion,
     pool_id:poolId,
     explicit_exam:!!explicit,
     productive_units:units.length,
-    close_reason:explicit?.close_reason||null,
-    close_evidence_refs:explicit?.close_evidence_refs||[]
+    close_reason:projectedPoolClose?.close_reason||explicit?.close_reason||null,
+    close_evidence_refs:projectedPoolClose?.close_evidence_refs?.length
+      ? projectedPoolClose.close_evidence_refs
+      : (explicit?.close_evidence_refs||[])
   });
   launchMeasurements.push({
     worker_id:workerId,
