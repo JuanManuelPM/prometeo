@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#020302">
+<title>Prometeo · Rail World</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;touch-action:none;user-select:none;-webkit-user-select:none}
+body{font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+#shell{position:fixed;inset:0;display:grid;place-items:center;background:#000}
+#stage{position:relative;width:min(100vw,177.777vh);height:min(56.25vw,100vh);overflow:hidden;background:#020302;isolation:isolate;cursor:crosshair;touch-action:none}
+.world,.front{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+.world{z-index:0;filter:saturate(.9) contrast(1.08) brightness(.86)}
+.front{z-index:9;filter:saturate(.9) contrast(1.08) brightness(.86);clip-path:polygon(0 0,13% 0,19% 100%,0 100%,0 0,100% 0,100% 100%,81% 100%,87% 0)}
+#worldB,#frontB{opacity:0}
+#shade{position:absolute;inset:0;z-index:2;pointer-events:none;background:radial-gradient(ellipse at 50% 68%,transparent 0 26%,rgba(0,0,0,.13) 64%,rgba(0,0,0,.48) 100%),linear-gradient(180deg,rgba(0,0,0,.04),rgba(0,0,0,.18))}
+#dust{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:hidden}
+.dust{position:absolute;width:2px;height:2px;border-radius:50%;background:rgba(224,216,191,.34);animation:drift var(--t) linear infinite;animation-delay:var(--d)}
+@keyframes drift{from{transform:translate3d(0,12vh,0);opacity:0}15%{opacity:.3}75%{opacity:.1}to{transform:translate3d(var(--dx),-70vh,0);opacity:0}}
+#target{position:absolute;z-index:5;width:26px;height:12px;border-radius:50%;border:1px solid rgba(213,198,165,.62);transform:translate(-50%,-50%) scale(.2);opacity:0;box-shadow:0 0 16px rgba(197,163,104,.14);pointer-events:none}
+#target.pulse{animation:ping .5s ease-out}
+@keyframes ping{0%{opacity:0;transform:translate(-50%,-50%) scale(.2)}30%{opacity:.9}100%{opacity:0;transform:translate(-50%,-50%) scale(1.5)}}
+#player{--s:1;position:absolute;z-index:7;left:50%;top:82%;width:9.3%;aspect-ratio:.62;transform:translate(-50%,-100%) scale(var(--s));transform-origin:50% 100%;will-change:left,top,transform;pointer-events:none}
+.actor{position:absolute;inset:0;transform-origin:50% 100%;animation:breathe 2.7s ease-in-out infinite}
+#player.walking .actor{animation:walk .32s ease-in-out infinite}
+#player.left .actor{transform:scaleX(-1)}
+@keyframes breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.6%)}}
+@keyframes walk{0%,100%{transform:translateY(0) rotate(-.6deg)}50%{transform:translateY(-3.2%) rotate(.7deg)}}
+.shadow{position:absolute;left:50%;bottom:-2%;width:112%;height:13%;transform:translateX(-50%);border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.7),rgba(0,0,0,.05) 70%,transparent);filter:blur(2px)}
+.wings{position:absolute;z-index:0;left:50%;top:13%;width:178%;height:auto;transform:translateX(-50%) rotate(-1deg);filter:brightness(.52) saturate(.66) sepia(.2) contrast(1.16) drop-shadow(0 5px 9px rgba(0,0,0,.7));opacity:.9}
+.cloak{position:absolute;z-index:1;left:10%;right:10%;bottom:1%;height:61%;clip-path:polygon(28% 0,67% 3%,82% 15%,92% 37%,85% 64%,100% 100%,63% 94%,49% 100%,29% 92%,0 100%,10% 61%,5% 32%,20% 12%);background:radial-gradient(ellipse at 47% 9%,rgba(102,78,52,.55),transparent 34%),repeating-linear-gradient(82deg,rgba(255,255,255,.016) 0 1px,transparent 1px 5px),linear-gradient(100deg,#070706 0 22%,#241e18 43%,#100e0c 61%,#050505 100%)}
+.neck{position:absolute;z-index:1;left:37%;right:37%;top:23%;height:17%;background:linear-gradient(90deg,#050505,#2a231c 45%,#0b0a09)}
+.mask{position:absolute;z-index:4;left:50%;top:2%;width:60%;height:auto;transform:translateX(-50%);filter:brightness(.78) contrast(1.18) sepia(.06) drop-shadow(0 3px 5px rgba(0,0,0,.65))}
+#eyes{position:absolute;z-index:3;left:50%;top:16%;width:39%;height:18%;transform:translateX(-50%)}
+#eyes:before,#eyes:after{content:"";position:absolute;top:45%;width:7%;aspect-ratio:1;border-radius:50%;background:#aa7839;box-shadow:0 0 8px rgba(199,151,78,.62),0 0 18px rgba(159,112,57,.28)}
+#eyes:before{left:20%}#eyes:after{right:20%}
+#grain{position:absolute;inset:-50%;z-index:15;pointer-events:none;opacity:.07;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.93' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");animation:grain .28s steps(2) infinite}
+@keyframes grain{0%{transform:translate(0,0)}25%{transform:translate(2%,-1%)}50%{transform:translate(-1%,2%)}75%{transform:translate(1%,1%)}100%{transform:translate(-2%,-1%)}}
+#debug{display:none;position:absolute;z-index:30;left:10px;top:10px;color:#c4baa8;background:rgba(0,0,0,.55);padding:7px 8px;font:700 9px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre}
+body.debug #debug{display:block}
+#loading{position:absolute;inset:0;z-index:40;display:grid;place-items:center;background:#020302;color:#4c493f;font:700 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.13em;text-transform:uppercase;transition:opacity .35s ease}
+#loading.off{opacity:0;pointer-events:none}
+#orientation{display:none;position:fixed;inset:0;z-index:99;background:#020202;color:#666158;place-items:center;text-align:center;font:700 10px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase}
+@media(max-width:680px) and (orientation:portrait){#orientation{display:grid}}
+.review .actor,.review #grain,.review .dust{animation:none!important}
+</style>
+</head>
+<body>
+<div id="shell">
+  <div id="stage">
+    <img id="worldA" class="world" alt="">
+    <img id="worldB" class="world" alt="">
+    <div id="shade"></div>
+    <div id="dust"></div>
+    <div id="target"></div>
+    <div id="player">
+      <div class="actor">
+        <div class="shadow"></div>
+        <img class="wings" src="../../visuals/trail-lab/assets/02-wings.png" alt="">
+        <div class="cloak"></div><div class="neck"></div><div id="eyes"></div>
+        <img class="mask" src="../../strategy/mask-mouth/assets/mask-transparent.webp" alt="">
+      </div>
+    </div>
+    <img id="frontA" class="front" alt="">
+    <img id="frontB" class="front" alt="">
+    <div id="grain"></div>
+    <div id="debug"></div>
+    <div id="loading">loading rail</div>
+  </div>
+</div>
+<div id="orientation">giralo horizontalmente</div>
+<script>
+(()=>{
+"use strict";
+const FRAME_Z=[4,10,16,22,28,34,40,46,52,58,64];
+const FRAME_URL=z=>"./frames/arcos-z"+String(z).padStart(3,"0")+".png";
+const stage=document.getElementById("stage");
+const worldA=document.getElementById("worldA"),worldB=document.getElementById("worldB");
+const frontA=document.getElementById("frontA"),frontB=document.getElementById("frontB");
+const playerEl=document.getElementById("player"),targetEl=document.getElementById("target");
+const debug=document.getElementById("debug"),loading=document.getElementById("loading"),dust=document.getElementById("dust");
+const q=new URLSearchParams(location.search);
+if(q.get("debug")==="1")document.body.classList.add("debug");
+const review=q.get("review")==="1";
+if(review)document.body.classList.add("review");
+
+const state={
+  cameraZ:4,
+  targetCameraZ:4,
+  player:{x:0,z:20,tx:0,tz:20},
+  moving:false,
+  last:performance.now(),
+  pair:""
+};
+const SPEED_Z=13.5,SPEED_X=.72;
+const MIN_CAMERA=4,MAX_CAMERA=64;
+const DEAD_NEAR=14,DEAD_FAR=29;
+const HORIZON=43,NEAR_Y=91;
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function lerp(a,b,t){return a+(b-a)*t}
+
+function project(x,z){
+  const d=Math.max(7,z-state.cameraZ);
+  const y=HORIZON+48*Math.pow(12/d,.72);
+  const sx=50+x*(160/d);
+  const scale=clamp(12/d,.42,1.08);
+  return{x:sx,y:clamp(y,HORIZON+2,NEAR_Y),scale,d};
+}
+function clickToWorld(sx,sy){
+  const y=clamp(sy,HORIZON+3,NEAR_Y);
+  const ratio=clamp((y-HORIZON)/48,.12,1);
+  const d=12/Math.pow(ratio,1/.72);
+  const worldZ=clamp(state.cameraZ+d,state.cameraZ+8,92);
+  const x=(sx-50)*d/160;
+  return{x:clamp(x,-1.18,1.18),z:worldZ};
+}
+function desiredCamera(){
+  const d=state.player.z-state.cameraZ;
+  let wanted=state.targetCameraZ;
+  if(d>DEAD_FAR)wanted=state.player.z-DEAD_FAR;
+  else if(d<DEAD_NEAR)wanted=state.player.z-DEAD_NEAR;
+  return clamp(wanted,MIN_CAMERA,MAX_CAMERA);
+}
+function framePair(z){
+  if(z<=FRAME_Z[0])return{a:0,b:0,t:0};
+  if(z>=FRAME_Z.at(-1))return{a:FRAME_Z.length-1,b:FRAME_Z.length-1,t:0};
+  for(let i=0;i<FRAME_Z.length-1;i++){
+    if(z>=FRAME_Z[i]&&z<=FRAME_Z[i+1]){
+      return{a:i,b:i+1,t:(z-FRAME_Z[i])/(FRAME_Z[i+1]-FRAME_Z[i])};
+    }
+  }
+  return{a:0,b:0,t:0};
+}
+function applyFrames(){
+  const p=framePair(state.cameraZ),key=p.a+":"+p.b;
+  if(state.pair!==key){
+    const a=FRAME_URL(FRAME_Z[p.a]),b=FRAME_URL(FRAME_Z[p.b]);
+    worldA.src=a;frontA.src=a;worldB.src=b;frontB.src=b;
+    state.pair=key;
+  }
+  worldB.style.opacity=p.t.toFixed(3);
+  frontB.style.opacity=p.t.toFixed(3);
+}
+function render(){
+  applyFrames();
+  const p=project(state.player.x,state.player.z);
+  playerEl.style.left=p.x+"%";
+  playerEl.style.top=p.y+"%";
+  playerEl.style.setProperty("--s",p.scale.toFixed(3));
+  debug.textContent="player z "+state.player.z.toFixed(1)+"\\ncamera z "+state.cameraZ.toFixed(1)+"\\ndistance "+p.d.toFixed(1);
+}
+function pulseTarget(sx,sy){
+  targetEl.style.left=sx+"%";targetEl.style.top=sy+"%";
+  targetEl.classList.remove("pulse");void targetEl.offsetWidth;targetEl.classList.add("pulse");
+}
+function setDestination(sx,sy){
+  const t=clickToWorld(sx,sy);
+  state.player.tx=t.x;state.player.tz=t.z;state.moving=true;
+  playerEl.classList.add("walking");
+  playerEl.classList.toggle("left",t.x<state.player.x);
+  pulseTarget(sx,sy);
+}
+function pointerPercent(ev){
+  const r=stage.getBoundingClientRect();
+  return{x:(ev.clientX-r.left)/r.width*100,y:(ev.clientY-r.top)/r.height*100};
+}
+stage.addEventListener("pointerdown",ev=>{
+  if(ev.button!==undefined&&ev.button!==0)return;
+  const p=pointerPercent(ev);setDestination(p.x,p.y);
+});
+function tick(now){
+  const dt=Math.min(.04,(now-state.last)/1000);state.last=now;
+  if(!review){
+    const dz=state.player.tz-state.player.z,dx=state.player.tx-state.player.x;
+    if(Math.abs(dz)>.03||Math.abs(dx)>.008){
+      const zstep=Math.sign(dz)*Math.min(Math.abs(dz),SPEED_Z*dt);
+      const xstep=Math.sign(dx)*Math.min(Math.abs(dx),SPEED_X*dt);
+      state.player.z+=zstep;state.player.x+=xstep;
+    }else{
+      state.player.z=state.player.tz;state.player.x=state.player.tx;state.moving=false;playerEl.classList.remove("walking");
+    }
+    state.targetCameraZ=desiredCamera();
+    const k=1-Math.exp(-dt*5.2);
+    state.cameraZ=lerp(state.cameraZ,state.targetCameraZ,k);
+  }
+  render();requestAnimationFrame(tick);
+}
+function makeDust(){
+  const f=document.createDocumentFragment();
+  for(let i=0;i<15;i++){const d=document.createElement("i");d.className="dust";d.style.left=(5+Math.random()*90)+"%";d.style.top=(18+Math.random()*78)+"%";d.style.setProperty("--t",(7+Math.random()*11)+"s");d.style.setProperty("--d",(-Math.random()*14)+"s");d.style.setProperty("--dx",(-16+Math.random()*32)+"vw");f.append(d)}
+  dust.replaceChildren(f);
+}
+async function preload(){
+  const imgs=FRAME_Z.map(z=>new Promise(resolve=>{const i=new Image;i.onload=resolve;i.onerror=resolve;i.src=FRAME_URL(z)}));
+  await Promise.all(imgs);
+  loading.classList.add("off");
+}
+const rz=Number(q.get("camera")),pz=Number(q.get("player")),px=Number(q.get("x"));
+if(review){
+  if(Number.isFinite(rz))state.cameraZ=state.targetCameraZ=clamp(rz,MIN_CAMERA,MAX_CAMERA);
+  if(Number.isFinite(pz))state.player.z=state.player.tz=pz;
+  if(Number.isFinite(px))state.player.x=state.player.tx=px;
+}
+makeDust();render();
+preload().then(()=>{
+  window.PrometeoRailWorldReview={ready:true,cameraZ:state.cameraZ,playerZ:state.player.z,version:"v1"};
+});
+requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
