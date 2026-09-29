@@ -1,93 +1,72 @@
 PROMETEO VISUAL HANDOFF · 🖐️ Player / Eye
 STATUS: CURRENT
-GENERATED: 2026-09-29
+GENERATED: 2026-09-28
 
 PUBLIC EYE LAB
 https://juanmanuelpm.github.io/prometeo/visuals/eye-frame-lab/
 
 BLINK BASELINE
 V21 · ACCEPTED_BLINK_BASELINE
-Do not redesign blink for pupil/content changes.
+Preserve it.
 
-CURRENT CANDIDATE
-V23 · TWO LAYERS · REVIEW
+CURRENT EYE-CONTENT CANDIDATE
+V24 · LOW-FPS DISCRETE TWO-LAYER EYE · REVIEW
+
+WHY V24 EXISTS
+The user said V23's procedural circle felt too smooth compared with the appealing low-FPS blink. Eye-content animation should have its own stepped frame language even when generated procedurally.
 
 ARCHITECTURE
-Layer A, top:
+Top:
 - accepted V21 blink/frame
 
-Layer B, bottom:
-- procedural eye content
-- fill/sclera
-- pupil color
-- gaze x/y
-- pupil radius
-- pupil shape
+Bottom:
+- independent eye content
+- derived real V21 aperture masks
+- 24×16 low-resolution logical surface
+- nearest-neighbor upscale
+- discrete timed states
 
-V23 DOES NOT USE A HARDCODED EYE-OPENING ELLIPSE.
-For each real V21 frame it derives the aperture from frame alpha:
-barrier → 1px dilation → transparent connected components → discard edge-connected outside → largest enclosed component = aperture.
+CURRENT SEQUENCES
 
-DEFAULT OPEN APERTURE
-bbox: [38,54,90,86]
-centroid: [63.6004842615,69.4987893462]
+look_scan
+- stepped center/left/right/up/down gaze
 
-APERTURE AREA THROUGH BLINK
-00 1239
-01 1060
-02 700
-03 395
-04 90
-05 0
-06 48
-07 509
-08 1024
-09 1295
+dilate_to_black
+- small → medium → large → extra-large → almost full → full black
 
-This automatically makes frame_05 fully closed.
+contract_reveal_red
+- begins black
+- black pupil contracts in visible stages
+- freed area becomes red
+- pupil remains centered
 
-V23 MODES
-neutral
-look_left
-look_right
-look_up
-look_down
-small
-large
-dilate
-wander
-slit
-all_black
-inverse
-all_white
+slit_breathe
+- circle → oval → slit → thin slit → slit → oval
+
+inverse_scan
+- black sclera
+- white stepped pupil movement
+- optional white slit
+
+MASKING
+Every eye-content state is clipped by the aperture derived from the actual current V21 blink frame. Closed blink frame exposes zero content.
 
 LOCAL QA
-Created and inspected:
-- neutral composition
-- left gaze
-- all-black eye
-- full blink contact sheet with procedural pupil underneath
-Result: PASS_LOCAL_VISUAL_QA
+A deterministic contact sheet of all sequence steps was generated and visually inspected.
+Result: PASS_LOCAL_VISUAL_QA.
 
-CURRENT TARGETS
-- visuals/eye-frame-lab/index.html
-- visuals/eye-frame-lab/sprite-pack-v21.json
-- visuals/eye-frame-lab/EYE_CONTENT_PROTOCOL_V1.md
-- visuals/eye-frame-lab/eye-content-qa-v23.json
-- visuals/eye-frame-lab/ANIMATION_PIPELINE_V1.md
-- visuals/fronts/player/state.json
-- visuals/fronts/player/feedback.md
-- visuals/fronts/player/decisions.md
-- visuals/fronts/player/versions.json
-- visuals/fronts/player/assets.json
+DEBUG URL PARAMETERS
+?seq=<sequence_id>
+?step=<zero_based_step>
+?noblink=1
 
 NEXT
-Review public V23 eye-content behavior. If accepted, select the default behavior and integrate the two-layer eye into Player without changing V21 blink.
+Review V24 publicly. Keep the strongest sequences, decide default behavior/triggers, then integrate the accepted two-layer system into Player without changing V21 blink.
 
 INCARNATION CONTRACT
-1. Read this handoff completely.
-2. Preserve V21 blink.
-3. Treat eye content as an independent subsystem.
-4. Inspect repo targets before claims.
+1. Preserve V21 blink.
+2. Treat eye-content animation as independent.
+3. Keep low-FPS/discrete visual language unless user changes direction.
+4. Inspect actual repo targets before claims.
 5. Do not claim public visual review that did not occur.
-6. On update, publish and verify relevant files across main + gh-pages.
+6. On update, sync relevant files across main and gh-pages.
