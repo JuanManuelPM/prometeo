@@ -59,14 +59,15 @@ check(
   'Project context is an orientation projection with source refs/freshness, not a truth owner.'
 );
 
-const configuredLower='coordination/project-context-v1/index.json';
-const actualUpper='coordination/project-context-v1/INDEX.json';
+const projectContextMatch=configText.match(/projectContextUrl:'([^']+)'/);
+const configuredProjectContextUrl=projectContextMatch?.[1]||'';
+const configuredProjectContextPath=path.normalize(path.join('current-tree/control-v11',configuredProjectContextUrl));
 check(
   'configured_project_context_path_exists_exactly',
-  fs.existsSync(path.join(root, configuredLower)),
-  fs.existsSync(path.join(root, configuredLower))
-    ? configuredLower+' exists.'
-    : configuredLower+' is missing while '+actualUpper+' exists; GitHub case-sensitive delivery would not resolve the configured target.'
+  Boolean(projectContextMatch)&&fs.existsSync(path.join(root,configuredProjectContextPath)),
+  projectContextMatch&&fs.existsSync(path.join(root,configuredProjectContextPath))
+    ? configuredProjectContextPath+' exists exactly as configured.'
+    : 'Configured projectContextUrl does not resolve to an exact repo path: '+configuredProjectContextUrl
 );
 
 check(
