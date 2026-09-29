@@ -256,7 +256,7 @@ FIRST DURABLE ACTION:
 Create a fresh successor SESSION_ID + SESSION_PIN, publish SESSION/JOURNAL/CONTINUE + index lineage, preserve SAME_WORK_UNIT_REF when the human objective has not changed, then continue from LAST_CHECKPOINT_REF/current stage.
 
 RULE:
-Read pointers, not the world. Retry-from-UI is not durable resume. No broad search, repo clone or Supabase before READY unless predecessor next_action explicitly requires it.`;
+Read pointers, not the world. CHATGPT_UI_ERROR != EXECUTION_FAILURE. RETRY_FROM_UI != RESUME_DURABLE_WORK. No broad search, repo clone or Supabase before READY unless predecessor next_action explicitly requires it.`;
 }
 function interactiveBootstrapPrompt(mode,project,roleHint='GENERAL'){
   const p=project||{title:'Prometeo completo',node_key:'PROJECT:PROMETEO'};
