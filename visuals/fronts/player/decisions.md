@@ -2,16 +2,16 @@
 
 Status: CURRENT
 
-- V21 remains the accepted blink baseline.
-- V24 supersedes V23 for eye-content behavior.
-- Eye content must not use continuously eased perfect-circle motion as its primary visual language.
-- Eye-content motion is quantized into visible temporal and geometric steps.
-- V24 renders the inner eye on a 24×16 logical buffer and upscales with nearest-neighbor sampling.
-- Per-frame V21 aperture masking remains mandatory.
-- Blink and eye-content clocks remain independent.
-- Pupil dilation may end in full-black sclera.
-- Pupil contraction may reveal red or other sclera colors while maintaining the pupil's prior center.
-- Pupil shape may change between circle, oval, slit, thin slit, full aperture, dot, or none.
-- Current V24 sequences: look_scan, dilate_to_black, contract_reveal_red, slit_breathe, inverse_scan.
-- Local visual QA passed before publication.
-- Player integration remains blocked until public review of V24.
+- V21 blink remains frozen as the accepted top layer.
+- V25 supersedes V24 as current eye-effects candidate.
+- Eye effects are now data-driven from eye-effects-v25.json.
+- Pupil/scelera/color/media/audio are independent from blink.
+- Dilation uses 14 explicit discrete stages before full black.
+- Low-FPS visual quantization remains intentional.
+- Color families should be variable-driven; hue and fps are URL/config parameters.
+- Audio visualization reuses the previous Prometeo pattern: one audio source → AnalyserNode → actual waveform/energy-driven visual.
+- The eye itself can act as play/pause control.
+- Audio is browser-local procedural for the isolated demo, avoiding external asset dependency.
+- Media portal accepts GIF/video URL when supplied.
+- Media portal has a procedural moving fallback so the example remains demonstrable without a media asset.
+- Do not merge this into Player until public V25 visual review.
