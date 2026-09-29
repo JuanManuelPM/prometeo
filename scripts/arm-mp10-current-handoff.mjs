@@ -18,6 +18,16 @@ const exists=p=>fs.existsSync(p);
 const rel=p=>path.relative(root,p).split(path.sep).join('/');
 const read=p=>JSON.parse(fs.readFileSync(p,'utf8'));
 const write=(p,v)=>{fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,JSON.stringify(v,null,2)+'\n')};
+const comparable=v=>{const x=JSON.parse(JSON.stringify(v));delete x.checked_at;return JSON.stringify(x)};
+const writeSemantic=(p,v)=>{
+  if(exists(p)){
+    try{
+      const prior=read(p);
+      if(comparable(prior)===comparable(v)) return false;
+    }catch{}
+  }
+  write(p,v);return true;
+};
 
 const primary=[];
 for(let i=1;i<=10;i++){
@@ -92,7 +102,7 @@ const state={
   reallocation:realloc,
   handoff_gate:ready?'OPEN':'WAIT_PRIMARY_RETURNS',
   integrator_job_ref:exists(jobPath)?jobRel:null,
-  integrator_job_created_this_tick:created,
+  integrator_job_present:exists(jobPath),
   next_worker_mode:ready?'POOL_CURRENT':'FINISH_MP10',
   current_reuse:{
     allocation:'FAST_ALLOCATION_PROTOCOL_V1 + claim-frontier + atomic PIN',
@@ -107,5 +117,12 @@ const state={
   forbidden:['new scheduler','new queue','new CURRENT','human routing of slots','Supabase required completion'],
   truth_boundary:'Handoff state is a compiler/projection into the existing portfolio. Atomic PIN remains execution authority.'
 };
-write(statePath,state);
-console.log(JSON.stringify({ok:true,ready,primary_returns:primary.length,created,job_ref:exists(jobPath)?jobRel:null,state_ref:stateRel},null,2));
+let stateChanged=false;
+if(exists(statePath)){
+  try{
+    const prior=read(statePath);
+    if(comparable(prior)===comparable(state)) state.checked_at=prior.checked_at||state.checked_at;
+  }catch{}
+}
+stateChanged=writeSemantic(statePath,state);
+console.log(JSON.stringify({ok:true,ready,primary_returns:primary.length,created,state_changed:stateChanged,job_ref:exists(jobPath)?jobRel:null,state_ref:stateRel},null,2));
