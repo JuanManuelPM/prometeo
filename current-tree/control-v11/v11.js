@@ -2,13 +2,14 @@ import {listNotes,putNote,getNote} from '../../shared/prometeo-shell/v1/db.js';
 import {VoiceQueue} from '../../shared/prometeo-shell/v1/voice.js';
 import {PrometeoRemote} from '../../shared/prometeo-shell/v2/sync.js';
 import {mountPageChangeLoop,createChangeLoopClient} from '../../shared/capture/v1/change-loop.js';
+import {normalizeVisibleResultProjection} from './result-adapter-v1.js';
 
 const $=q=>document.querySelector(q);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const remote=new PrometeoRemote();
 const changeClient=createChangeLoopClient();
 let bundle=window.PROMETEO_V11_LAST||null;
-let pages=[],pageMap=new Map(),selectedPage=null,loop=null,unread=0,syncTimer=null;
+let pages=[],pageMap=new Map(),selectedPage=null,loop=null,unread=0,syncTimer=null,previewManifest=null,previewMap=new Map(),resultProjection=null,commandBusy=false;
 const toastEl=document.createElement('div');toastEl.className='v11-toast';document.body.appendChild(toastEl);
 function toast(s){toastEl.textContent=s;toastEl.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>toastEl.classList.remove('on'),1500)}
 function abs(href){try{return new URL(href,'https://juanmanuelpm.github.io/prometeo/catalog/CATALOG_MANIFEST.json').href}catch{return href||''}}
@@ -64,6 +65,46 @@ function contextsFor(node){
  if(!node)return[];
  return (bundle?.ctx?.contexts||[]).filter(x=>x.organism_parent_key===node.node_key).sort((a,b)=>new Date(b.last_activity_at)-new Date(a.last_activity_at));
 }
+function staticPreviewUrl(item){
+ const p=String(item?.preview_path||'').replace(/^\/+/,'');
+ if(!p)return'';
+ try{return new URL('../../'+p,import.meta.url).href}catch{return''}
+}
+function installPreviewManifest(manifest){
+ previewManifest=manifest?.schema==='prometeo.static-preview-manifest/v1'?manifest:null;
+ previewMap=new Map();
+ for(const item of previewManifest?.surfaces||[]){
+  if(item?.id)previewMap.set('id:'+String(item.id),item);
+  const k=pathKey(item?.url||'');if(k)previewMap.set('url:'+k,item);
+ }
+}
+async function loadPreviewManifest(){
+ const cfg=window.PROMETEO_CONTROL_CONFIG_V1||{};
+ const url=cfg.previewManifestUrl||'./previews/manifest.json';
+ const manifest=await publicEvidence(url);
+ installPreviewManifest(manifest);
+ return previewManifest;
+}
+function previewFor(p){
+ return previewMap.get('id:'+String(p?.id||''))||previewMap.get('url:'+pathKey(p?.href||p?.public_url||''))||null;
+}
+function previewMarkup(p){
+ const pv=previewFor(p);if(!pv)return'';
+ const state=String(pv.state||'UNAVAILABLE').toUpperCase(),src=state==='AVAILABLE'?staticPreviewUrl(pv):'';
+ const stamp=pv.observed_at||pv.checked_at||null;
+ if(!src)return `<div class="preview-empty-v11" data-preview-state="${esc(state)}">Preview ${esc(state.toLowerCase())}${stamp?' · '+esc(stamp):''}</div>`;
+ return `<div class="workspace-preview-v11" data-preview-state="${esc(state)}"><img src="${esc(src)}" alt="Preview estática de ${esc(p.title||p.id)}" loading="lazy" decoding="async" style="display:block;width:100%;height:118px;object-fit:cover;border:1px solid #282e35;border-radius:9px;background:#0c0e11"><div class="workspace-meta"><span>preview estática</span>${stamp?'<span>'+esc(stamp)+'</span>':''}</div></div>`;
+}
+function renderPreviewGrid(){
+ const root=$('#previewGridV11');if(!root)return;
+ const rows=previewManifest?.surfaces||[];
+ if(!rows.length){root.innerHTML='<div class="preview-empty-v11">Manifest de previews no disponible. No se inventa una miniatura viva.</div>';return}
+ root.innerHTML=rows.map(item=>{
+  const state=String(item.state||'UNAVAILABLE').toUpperCase(),src=state==='AVAILABLE'?staticPreviewUrl(item):'';
+  if(!src)return `<article class="preview-empty-v11" data-preview-state="${esc(state)}"><b>${esc(item.title||item.id)}</b> · ${esc(state.toLowerCase())}</article>`;
+  return `<article data-preview-state="${esc(state)}"><img src="${esc(src)}" alt="Preview estática de ${esc(item.title||item.id)}" loading="lazy" decoding="async" style="display:block;width:100%;height:150px;object-fit:cover;border:1px solid #282e35;border-radius:9px;background:#0c0e11"><div class="workspace-meta"><span>${esc(item.title||item.id)}</span><span>${esc(state.toLowerCase())}</span></div></article>`;
+ }).join('');
+}
 function pageObj(p){
  const node=organismFor(p),ctx=contextsFor(node)[0]||null;
  return {
@@ -76,7 +117,7 @@ function pageObj(p){
   project_id:node?.owner_key||null,
   authority_status:p.authority||null,
   target_path:p.writable_target?.path||null,
-  target_source_blob:null
+  target_source_blob:p.target_source_blob||p.writable_target?.git_blob_sha||null
  };
 }
 function noteMeta(p){
@@ -149,7 +190,7 @@ function renderFreshness(){
 }
 function card(p){
  const node=organismFor(p),ctx=contextsFor(node)[0],desc=ctx?.summary||p.human_accepted_scope||p.source_identity||p.writable_target?.path||'';
- return `<article class="workspace-card" data-page="${esc(p.id)}"><div class="workspace-top"><div><div class="workspace-title">${esc(p.title)}</div><div class="workspace-kind">${esc(p.kind)} · ${esc(groupName(p))}</div></div><div class="workspace-state">${esc(p.artifact_state||p.live_status||'')}</div></div><div class="workspace-desc">${esc(String(desc||'').slice(0,230))}</div><div class="workspace-meta"><span>${node?'⌁ '+esc(node.node_key):'catalog'}</span>${ctx?'<span>contexto durable</span>':''}${p.last_verified?'<span>verificado '+esc(p.last_verified)+'</span>':''}</div><div class="workspace-actions"><button class="notes" data-notes="${esc(p.id)}">Notas · HACER</button><a href="${esc(p.href)}" target="_blank" rel="noopener">abrir ↗</a><button class="manual" data-manual="${esc(p.id)}">↻ manual</button></div></article>`;
+ return `<article class="workspace-card" data-page="${esc(p.id)}">${previewMarkup(p)}<div class="workspace-top"><div><div class="workspace-title">${esc(p.title)}</div><div class="workspace-kind">${esc(p.kind)} · ${esc(groupName(p))}</div></div><div class="workspace-state">${esc(p.artifact_state||p.live_status||'')}</div></div><div class="workspace-desc">${esc(String(desc||'').slice(0,230))}</div><div class="workspace-meta"><span>${node?'⌁ '+esc(node.node_key):'catalog'}</span>${ctx?'<span>contexto durable</span>':''}${p.last_verified?'<span>verificado '+esc(p.last_verified)+'</span>':''}</div><div class="workspace-actions"><button class="notes" data-notes="${esc(p.id)}">Notas · HACER</button><a href="${esc(p.href)}" target="_blank" rel="noopener">abrir ↗</a><button class="manual" data-manual="${esc(p.id)}">↻ manual</button></div></article>`;
 }
 function renderSpaces(){
  const root=$('#workspacesV11');if(!root)return;
@@ -160,28 +201,113 @@ function renderSpaces(){
  root.querySelectorAll('[data-notes]').forEach(b=>b.onclick=async e=>{e.stopPropagation();selectedPage=pageMap.get(b.dataset.notes);const l=await ensureLoop();await l?.open(pageObj(selectedPage))});
  root.querySelectorAll('[data-manual]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const p=pageMap.get(b.dataset.manual);toast(await copy(manualPrompt(p))?'Prompt manual copiado':'No pude copiar')});
 }
+function setCommandState(state,message){
+ const el=$('#commandStateV11');if(!el)return;el.dataset.state=state;el.textContent=message;
+}
+function commandPage(){
+ return selectedPage?pageObj(selectedPage):pageObj({id:'control-room-v11',title:'Control Room V11',href:location.href,public_url:location.href,category_path:['Prometeo'],kind:'CONTROL_ROOM'});
+}
+async function submitCommandV11(){
+ const input=$('#commandInputV11'),button=$('#commandSendV11');if(!input||!button||commandBusy)return;
+ const text=String(input.value||'').trim();
+ if(!text){setCommandState('idle','Sin enviar · escribí una instrucción concreta.');return}
+ const ingress=window.PROMETEO_INGRESS_V1;
+ if(!ingress||typeof ingress.submit!=='function'){
+  setCommandState('boundary','Ingreso durable no disponible todavía · el texto queda intacto. Usá Notas · HACER o ↻ manual.');
+  return;
+ }
+ commandBusy=true;button.disabled=true;setCommandState('sending','Preparando ingreso durable…');
+ try{
+  const result=await ingress.submit({page:commandPage(),text,kind:'work'});
+  const status=String(result?.status||'').toUpperCase(),ref=result?.ref?String(result.ref):'';
+  if(result?.queued===true){
+   setCommandState('queued','En cola durable'+(ref?' · '+ref:'')+' · todavía no implica worker activo.');
+   input.value='';
+   renderWork().catch(()=>{});
+  }else if(result?.error||/BOUNDARY|BLOCK|UNAVAILABLE|DENIED|FAIL/.test(status)){
+   setCommandState('boundary','No quedó en cola'+(status?' · '+status.toLowerCase():'')+(result?.error?' · '+String(result.error):'')+'. El texto se conserva para reintento/fallback.');
+  }else{
+   setCommandState('unknown','El adapter respondió sin confirmar queued=true. No se asume trabajo durable ni worker activo.');
+  }
+ }catch(e){
+  setCommandState('boundary','Ingreso falló cerrado · '+String(e?.message||e)+'. El texto se conserva.');
+ }finally{commandBusy=false;button.disabled=false}
+}
+function bindCommandV11(){
+ const input=$('#commandInputV11'),button=$('#commandSendV11');if(!input||!button||button.dataset.bound)return;
+ button.dataset.bound='1';button.addEventListener('click',()=>submitCommandV11());
+ input.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();submitCommandV11()}});
+ if(window.PROMETEO_INGRESS_V1&&typeof window.PROMETEO_INGRESS_V1.submit==='function')setCommandState('ready','Listo para preparar trabajo durable. Enviar no equivale a worker activo.');
+ else setCommandState('boundary','Adapter de ingreso todavía no disponible · Notas · HACER y ↻ manual siguen disponibles.');
+}
 function renderWorkBadge(){const tab=document.querySelector('.tab[data-view="trabajo"]');if(tab)tab.textContent=unread?'Trabajo · '+unread:'Trabajo'}
+async function publicEvidence(url){
+ if(!url)return null;
+ try{const r=await fetch(url,{cache:'no-store'});if(!r.ok)return null;return await r.json()}catch{return null}
+}
+async function loadResultProjection(){
+ const cfg=window.PROMETEO_CONTROL_CONFIG_V1||{};
+ const raw=await publicEvidence(cfg.resultProjectionUrl||'./result-candidate-v1.json');
+ resultProjection=normalizeVisibleResultProjection(raw);
+ return resultProjection;
+}
+function evidenceHref(ref){
+ const clean=String(ref||'').replace(/^\/+/, '');
+ return clean?'https://github.com/JuanManuelPM/prometeo/blob/main/'+clean.split('/').map(encodeURIComponent).join('/'):'';
+}
+function visibleResultMarkup(){
+ const r=resultProjection||normalizeVisibleResultProjection(null);
+ const lineage=r.lineage||{},refs=[
+  ['RETURN',lineage.builder_return_ref],
+  ['VERIFY',lineage.verifier_ref],
+  ['candidate',lineage.candidate_ref]
+ ].filter(([,ref])=>ref);
+ const links=refs.length?'<div class="context-meta">'+refs.map(([label,ref])=>'<a href="'+esc(evidenceHref(ref))+'" target="_blank" rel="noopener">'+esc(label)+'</a>').join(' · ')+'</div>':'<div class="context-meta">lineage G05 todavía no disponible</div>';
+ const candidate=r.state==='VERIFIED'&&r.candidate_url?'<div class="dactions"><a class="dbtn primary" href="'+esc(r.candidate_url)+'" target="_blank" rel="noopener">abrir candidate</a></div>':'';
+ return '<section class="worker-note" data-visible-result-state="'+esc(r.state)+'"><b>Resultado visible · '+esc(r.state.toLowerCase())+'</b> · '+esc(r.summary)+(r.fixture_contract_only?' · fixture contractual G06, no resultado real':'')+(r.blocker?' · '+esc(r.blocker):'')+links+candidate+'</section>';
+}
+async function renderWorkFailure(root,error){
+ const cfg=window.PROMETEO_CONTROL_CONFIG_V1||{};
+ const [canary,diagnosis]=await Promise.all([
+  publicEvidence(cfg.pageChangeCanaryUrl),
+  publicEvidence(cfg.pageChangeDiagnosisUrl)
+ ]);
+ const externallyBlocked=canary?.status==='BLOCKED_EXTERNAL_CONTROL_PLANE'||diagnosis?.status==='BLOCKED_EXTERNAL_STORAGE';
+ if(externallyBlocked){
+  const diskFull=diagnosis?.root_cause?.code==='DISK_FULL_PG_WAL';
+  const observed=diagnosis?.observed_at||canary?.generated_at||null;
+  const when=observed?new Date(observed).toLocaleString('es-AR'):'sin timestamp';
+  root.innerHTML='<div class="worker-note"><b>Page Change bloqueado por infraestructura.</b> '+(diskFull?'PostgreSQL no puede completar recovery porque el disco no tiene espacio para WAL. ':'El control plane no está aceptando trabajo nuevo. ')+'V11 conserva navegación y feedback local, pero no inventa workers ni ejecución mientras esta frontera siga caída.</div><div class="rdesc">evidencia durable · '+esc(when)+' · V11 sigue CANDIDATE · V10 sigue baseline CURRENT</div>';
+  return;
+ }
+ root.innerHTML='<div class="rdesc">No pude cargar Page Change: '+esc(error?.message||error)+'</div>';
+}
 async function renderWork(){
  const root=$('#workV11');if(!root)return;
- if(!changeClient.hasWorkspace()){root.innerHTML='<div class="worker-note"><b>Workspace local no vinculado.</b> Abrí Notas en cualquier página; Control Room intentará reutilizar/vincular el workspace existente del dispositivo.</div>';return}
+ if(!resultProjection)await loadResultProjection().catch(()=>{resultProjection=normalizeVisibleResultProjection(null)});
+ const resultPanel=visibleResultMarkup();
+ if(!changeClient.hasWorkspace()){root.innerHTML=resultPanel+'<div class="worker-note"><b>Workspace local no vinculado.</b> Abrí Notas en cualquier página; Control Room intentará reutilizar/vincular el workspace existente del dispositivo.</div>';return}
  try{
   await changeClient.executionStatus({});
   const d=await changeClient.overview(),threads=d.threads||[];
   unread=threads.reduce((n,t)=>n+Number(t.unread_count||0),0);renderWorkBadge();
-  root.innerHTML='<div class="worker-note"><b>Este tablero no crea otra cola.</b> “HACER” congela tus notas en un Execution Packet y lo proyecta al allocator CURRENT. Los workers reclaman por la autoridad normal y el resultado vuelve al mismo thread.</div><div class="work-overview">'+(threads.length?threads.map(t=>`<article class="work-thread ${t.unread?'unread':''}" data-thread-page="${esc(t.page_id)}"><div class="work-thread-top"><div class="work-thread-title">${esc(t.page_title||t.page_id)}</div><div class="work-thread-count">${t.pending?esc(t.pending)+' pendientes':t.unread?'resultado nuevo':'al día'}</div></div><div class="work-thread-meta">${t.last_worked_at?'último trabajo '+new Date(t.last_worked_at).toLocaleString('es-AR'):'sin trabajo previo'}</div>${t.latest_result?'<div class="work-thread-result">'+esc(t.latest_result.status)+' · '+esc(typeof t.latest_result.summary==='string'?t.latest_result.summary:'resultado disponible')+'</div>':''}</article>`).join(''):'<div class="rdesc">Todavía no hay threads de página.</div>')+'</div>';
+  root.innerHTML=resultPanel+'<div class="worker-note"><b>Este tablero no crea otra cola.</b> “HACER” congela tus notas en un Execution Packet y lo proyecta al allocator CURRENT. Los workers reclaman por la autoridad normal y el resultado vuelve al mismo thread.</div><div class="work-overview">'+(threads.length?threads.map(t=>`<article class="work-thread ${t.unread?'unread':''}" data-thread-page="${esc(t.page_id)}"><div class="work-thread-top"><div class="work-thread-title">${esc(t.page_title||t.page_id)}</div><div class="work-thread-count">${t.pending?esc(t.pending)+' pendientes':t.unread?'resultado nuevo':'al día'}</div></div><div class="work-thread-meta">${t.last_worked_at?'último trabajo '+new Date(t.last_worked_at).toLocaleString('es-AR'):'sin trabajo previo'}</div>${t.latest_result?'<div class="work-thread-result">'+esc(t.latest_result.status)+' · '+esc(typeof t.latest_result.summary==='string'?t.latest_result.summary:'resultado disponible')+'</div>':''}</article>`).join(''):'<div class="rdesc">Todavía no hay threads de página.</div>')+'</div>';
   root.querySelectorAll('[data-thread-page]').forEach(el=>el.onclick=async()=>{selectedPage=pageMap.get(el.dataset.threadPage)||{id:el.dataset.threadPage,title:el.querySelector('.work-thread-title')?.textContent||el.dataset.threadPage,href:location.href,category_path:['Prometeo']};const l=await ensureLoop();await l?.open(pageObj(selectedPage))});
- }catch(e){root.innerHTML='<div class="rdesc">No pude cargar Page Change: '+esc(e?.message||e)+'</div>'}
+ }catch(e){await renderWorkFailure(root,e)}
 }
 async function hydrate(){
  bundle=window.PROMETEO_V11_LAST||bundle;
  pages=mergePages(catalogPages(),await visualPages());pageMap=new Map(pages.map(p=>[p.id,p]));
- renderFreshness();renderSpaces();renderWork().catch(()=>{});
+ if(!previewManifest)await loadPreviewManifest().catch(()=>installPreviewManifest(null));
+ if(!resultProjection)await loadResultProjection().catch(()=>{resultProjection=normalizeVisibleResultProjection(null)});
+ renderFreshness();renderPreviewGrid();renderSpaces();renderWork().catch(()=>{});bindCommandV11();
  const search=$('#workspaceSearchV11');if(search&&!search.dataset.bound){search.dataset.bound='1';search.addEventListener('input',renderSpaces)}
  await remote.init().catch(()=>null);voice.init().catch(()=>{});
 }
 window.addEventListener('PROMETEO_V11_DATA',e=>{bundle=e.detail?.bundle||bundle;window.PROMETEO_V11_LAST=bundle;hydrate().catch(()=>{})});
 window.PROMETEO_V11_RENDER_SPACES=renderSpaces;
 window.PROMETEO_V11_RENDER_WORK=()=>renderWork();
+window.PROMETEO_V11_SUBMIT_COMMAND=()=>submitCommandV11();
 window.PROMETEO_V11_OPEN_PAGE_NOTES=async p=>{selectedPage=p;const l=await ensureLoop();return l?.open(pageObj(p))};
 setTimeout(()=>hydrate().catch(()=>{}),0);
 setInterval(()=>{if(document.querySelector('.view#trabajo.on'))renderWork().catch(()=>{})},12000);
