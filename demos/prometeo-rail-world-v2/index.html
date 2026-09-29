@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#030503">
-<title>Prometeo · Rail World V8</title>
+<title>Prometeo · Rail World V9</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;overscroll-behavior:none;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -31,9 +31,9 @@ body.review #hud{display:none}
 </head>
 <body>
 <div id="shell"><div id="stage">
-  <canvas id="scene" aria-label="Prometeo Rail World V8"></canvas>
+  <canvas id="scene" aria-label="Prometeo Rail World V9"></canvas>
   <div id="veil"></div><div id="grain"></div>
-  <div id="hud"><div id="sceneName"></div><div id="mode"></div><div id="hint">click = caminar · arrastrá = mirar · cartel = encuadrar · scroll = distancia</div><div id="debug"></div></div>
+  <div id="hud"><div id="sceneName"></div><div id="mode"></div><div id="hint">click = caminar · scroll = acercar/alejar · cartel = mirar</div><div id="debug"></div></div>
   <div id="flash"></div><div id="loading">construyendo mundo</div>
 </div></div>
 <div id="orientation">giralo horizontalmente</div>
@@ -152,7 +152,8 @@ const state={
   ready:false,transitioning:false,activeGate:null,lastTurn:null,sceneChanges:0,clickPulse:null,
   manualCameraUntil:0,autoFollowMoves:0,cameraMode:"IDLE_COMPOSITION",
   routeBaseYaw:camera.yaw,manualYawOffset:0,routeAlignUntil:0,
-  directedView:null,cameraSettles:0,directedViews:0
+  directedView:null,cameraSettles:0,directedViews:0,
+  turnCamera:null,turnTransitions:0,lastTurnKey:null
 };
 const renderStats={faces:0,boxes:0,paths:0,avatarVisible:false,avatarDepth:null,scene:sceneId};
 
@@ -187,12 +188,67 @@ function routeHeadingFrom(startId,route){
   const a=graph.nodes.get(startId),b=graph.nodes.get(route[0]);
   return a&&b?Math.atan2(b.x-a.x,b.z-a.z):(player.heading||camera.yaw);
 }
+function queueTurnCamera(turn){
+  if(!turn||state.directedView)return false;
+  const key=turn.key||("turn@"+turn.pivotX.toFixed(2)+","+turn.pivotZ.toFixed(2));
+  if(key===state.lastTurnKey||state.turnCamera?.key===key)return false;
+  const back=1.8;
+  const anchorX=turn.pivotX-Math.sin(turn.incomingYaw)*back;
+  const anchorZ=turn.pivotZ-Math.cos(turn.incomingYaw)*back;
+  state.turnCamera={
+    key,phase:"APPROACH",
+    pivotX:turn.pivotX,pivotZ:turn.pivotZ,
+    anchorX,anchorZ,
+    incomingYaw:turn.incomingYaw,outgoingYaw:turn.outgoingYaw
+  };
+  state.manualYawOffset=0;
+  state.cameraMode="TURN_APPROACH";
+  camera.targetYaw=turn.incomingYaw;
+  state.turnTransitions++;
+  return true;
+}
+function upcomingTurn(maxDistance=18){
+  const pts=[{id:"player",x:player.x,z:player.z}];
+  if(player.segment)pts.push({id:player.segment.id,x:player.segment.ex,z:player.segment.ez});
+  for(const id of player.route.slice(0,6)){
+    const n=graph.nodes.get(id);if(n)pts.push({id,x:n.x,z:n.z});
+  }
+  if(pts.length<3)return null;
+  let walked=0;
+  for(let i=1;i<pts.length-1;i++){
+    const prev=pts[i-1],pivot=pts[i],next=pts[i+1];
+    walked+=hypot(pivot.x-prev.x,pivot.z-prev.z);
+    const incomingYaw=Math.atan2(pivot.x-prev.x,pivot.z-prev.z);
+    const outgoingYaw=Math.atan2(next.x-pivot.x,next.z-pivot.z);
+    const delta=Math.abs(wrapAngle(outgoingYaw-incomingYaw));
+    if(delta>.18&&walked<=maxDistance){
+      return{key:pivot.id+"→"+next.id,pivotX:pivot.x,pivotZ:pivot.z,incomingYaw,outgoingYaw,distance:walked};
+    }
+  }
+  return null;
+}
+function maybePrepareTurnCamera(){
+  if(!player.moving||state.turnCamera||state.directedView)return;
+  const turn=upcomingTurn(18);
+  if(turn)queueTurnCamera(turn);
+}
 function beginRouteComposition(startId,route){
   state.directedView=null;
+  state.turnCamera=null;
   state.manualYawOffset=0;
-  state.routeBaseYaw=routeHeadingFrom(startId,route);
+  const nextYaw=routeHeadingFrom(startId,route);
+  const delta=Math.abs(wrapAngle(nextYaw-state.routeBaseYaw));
+  if(delta>.18){
+    queueTurnCamera({
+      key:startId+"→"+(route[0]||"route"),
+      pivotX:player.x,pivotZ:player.z,
+      incomingYaw:state.routeBaseYaw,outgoingYaw:nextYaw
+    });
+    return;
+  }
+  state.routeBaseYaw=nextYaw;
   camera.targetYaw=state.routeBaseYaw;
-  state.routeAlignUntil=performance.now()+620;
+  state.routeAlignUntil=performance.now()+520;
   state.cameraMode="ROUTE_ALIGN";
 }
 function planToNode(targetId){
@@ -210,17 +266,20 @@ function startNextPlayerSegment(){
   if(player.segment||!player.route.length)return;
   const id=player.route.shift(),n=graph.nodes.get(id);
   const dx=n.x-player.x,dz=n.z-player.z,dist=Math.max(.001,hypot(dx,dz));
+  const previousHeading=player.heading||state.routeBaseYaw;
   const heading=Math.atan2(dx,dz);
   player.segment={id,sx:player.x,sz:player.z,ex:n.x,ez:n.z,t:0,dist,heading};
   player.heading=heading;
   const nearJunction=graph.junctions.has(player.currentNode)||graph.junctions.has(id);
-  if(nearJunction&&Math.abs(wrapAngle(state.routeBaseYaw-heading))>.12){
-    state.routeBaseYaw=heading;
-    state.manualYawOffset=0;
-    camera.targetYaw=heading;
-    state.routeAlignUntil=performance.now()+560;
-    state.cameraMode="ROUTE_ALIGN";
+  if(nearJunction&&Math.abs(wrapAngle(previousHeading-heading))>.12){
     state.lastTurn={from:player.currentNode,to:id,yaw:heading,at:performance.now()};
+    if(!state.turnCamera){
+      queueTurnCamera({
+        key:player.currentNode+"→"+id,
+        pivotX:player.x,pivotZ:player.z,
+        incomingYaw:previousHeading,outgoingYaw:heading
+      });
+    }
   }
 }
 function updatePlayer(dt){
@@ -472,6 +531,7 @@ function gateScreenCandidates(){
 }
 function directViewAt(x,z,duration=1300){
   const dx=x-camera.x,dz=z-camera.z;
+  state.turnCamera=null;
   state.directedView={x,z,until:performance.now()+duration};
   state.cameraMode="DIRECTED_VIEW";
   state.directedViews++;
@@ -502,7 +562,7 @@ function enterScene(dest){
     sceneId=dest;graph=makeGraph(sceneId);
     player.x=0;player.z=3.8;player.currentNode="entry";player.route=[];player.segment=null;player.moving=false;player.targetNode=null;player.heading=0;
     camera.x=0;camera.z=-5.2;camera.yaw=0;camera.targetYaw=0;camera.moveVelocity=0;
-    state.activeGate=null;state.sceneChanges++;state.lastTurn=null;state.directedView=null;
+    state.activeGate=null;state.sceneChanges++;state.lastTurn=null;state.directedView=null;state.turnCamera=null;state.lastTurnKey=null;
     state.cameraMode="IDLE_COMPOSITION";state.routeBaseYaw=0;state.manualYawOffset=0;state.cameraSettles++;
     flash.classList.remove("on");state.transitioning=false;
   },180);
@@ -518,44 +578,32 @@ const keys=new Set();let pointer=null,startX=0,startY=0,lastX=0,lastY=0,moved=fa
 stage.addEventListener("pointerdown",e=>{if(REVIEW)return;pointer=e.pointerId;startX=lastX=e.clientX;startY=lastY=e.clientY;moved=false;stage.setPointerCapture(e.pointerId)});
 stage.addEventListener("pointermove",e=>{
   if(REVIEW||e.pointerId!==pointer)return;
-  const dx=e.clientX-lastX;lastX=e.clientX;lastY=e.clientY;
+  lastX=e.clientX;lastY=e.clientY;
   if(hypot(e.clientX-startX,e.clientY-startY)>7)moved=true;
-  if(moved){
-    state.directedView=null;
-    state.cameraMode="IDLE_COMPOSITION";
-    state.manualYawOffset=clamp(state.manualYawOffset+dx*.0042,-.44,.44);
-    camera.targetYaw=state.routeBaseYaw+state.manualYawOffset;
-    state.manualCameraUntil=performance.now()+900;
-    e.preventDefault();
-  }
+  if(moved)e.preventDefault();
 });
 stage.addEventListener("pointerup",e=>{if(e.pointerId!==pointer)return;e.preventDefault();if(!moved)handleClick(e.clientX,e.clientY);pointer=null});
 stage.addEventListener("pointercancel",e=>{if(e.pointerId===pointer)pointer=null});
-addEventListener("keydown",e=>{const k=e.key.toLowerCase();if(["w","s","a","d","arrowup","arrowdown","arrowleft","arrowright"].includes(k)){keys.add(k);e.preventDefault()}});
+addEventListener("keydown",e=>{const k=e.key.toLowerCase();if(["w","s","arrowup","arrowdown"].includes(k)){keys.add(k);e.preventDefault()}});
 addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
 addEventListener("blur",()=>keys.clear());
-stage.addEventListener("wheel",e=>{if(REVIEW)return;e.preventDefault();camera.moveVelocity=clamp(camera.moveVelocity-e.deltaY*.00012,-.095,.095);state.manualCameraUntil=performance.now()+1100;state.cameraMode="IDLE_COMPOSITION";state.directedView=null},{passive:false});
+stage.addEventListener("wheel",e=>{if(REVIEW||state.turnCamera||state.directedView)return;e.preventDefault();camera.moveVelocity=clamp(camera.moveVelocity-e.deltaY*.00012,-.095,.095);state.manualCameraUntil=performance.now()+1100;state.cameraMode="IDLE_COMPOSITION"},{passive:false});
 addEventListener("contextmenu",e=>e.preventDefault());
 
 let last=performance.now();
 function update(now){
   const dt=Math.min(.05,(now-last)/1000);last=now;
   if(!REVIEW&&!state.transitioning){
-    let forward=0,turn=0;
+    let forward=0;
     if(keys.has("w")||keys.has("arrowup"))forward+=16*dt;
     if(keys.has("s")||keys.has("arrowdown"))forward-=16*dt;
-    if(keys.has("a")||keys.has("arrowleft"))turn-=1.0*dt;
-    if(keys.has("d")||keys.has("arrowright"))turn+=1.0*dt;
-    if(forward||turn){
+    if(forward&&!state.turnCamera&&!state.directedView){
       state.manualCameraUntil=now+1000;
-      state.directedView=null;
       state.cameraMode="IDLE_COMPOSITION";
+    }else if(state.turnCamera||state.directedView){
+      forward=0;
     }
-    if(turn){
-      state.manualYawOffset=clamp(state.manualYawOffset+turn,-.44,.44);
-      camera.targetYaw=state.routeBaseYaw+state.manualYawOffset;
-    }
-    if(Math.abs(camera.moveVelocity)>.00005){forward+=camera.moveVelocity*220*dt;camera.moveVelocity*=Math.exp(-dt*8.8)}else camera.moveVelocity=0;
+    if(Math.abs(camera.moveVelocity)>.00005&&!state.turnCamera&&!state.directedView){forward+=camera.moveVelocity*220*dt;camera.moveVelocity*=Math.exp(-dt*8.8)}else if(state.turnCamera||state.directedView){camera.moveVelocity=0}else camera.moveVelocity=0;
 
     if(state.directedView){
       camera.targetYaw=Math.atan2(state.directedView.x-camera.x,state.directedView.z-camera.z);
@@ -571,13 +619,48 @@ function update(now){
       state.cameraSettles++;
     }
 
-    camera.yaw=angleDamp(camera.yaw,camera.targetYaw,1-Math.exp(-dt*(state.cameraMode==="ROUTE_ALIGN"?6.2:4.5)));
+    maybePrepareTurnCamera();
+
+    if(state.turnCamera){
+      const t=state.turnCamera;
+      if(t.phase==="APPROACH"){
+        state.cameraMode="TURN_APPROACH";
+        camera.targetYaw=t.incomingYaw;
+        const dx=t.anchorX-camera.x,dz=t.anchorZ-camera.z,dist=Math.max(.0001,hypot(dx,dz));
+        const speed=clamp(14+dist*2.2,14,36),step=Math.min(dist,speed*dt);
+        camera.x=clamp(camera.x+dx/dist*step,-44,44);
+        camera.z=clamp(camera.z+dz/dist*step,-12,106);
+        if(dist<.72){
+          camera.x=t.anchorX;camera.z=t.anchorZ;
+          t.phase="ROTATE";
+          state.cameraMode="TURN_ROTATE";
+          camera.targetYaw=t.outgoingYaw;
+        }
+      }else{
+        state.cameraMode="TURN_ROTATE";
+        camera.targetYaw=t.outgoingYaw;
+      }
+    }
+
+    camera.yaw=angleDamp(camera.yaw,camera.targetYaw,1-Math.exp(-dt*(state.cameraMode==="TURN_ROTATE"?6.8:state.cameraMode==="ROUTE_ALIGN"?6.2:4.5)));
     const sy=Math.sin(camera.yaw),cy=Math.cos(camera.yaw);
-    camera.x=clamp(camera.x+sy*forward,-44,44);camera.z=clamp(camera.z+cy*forward,-12,106);
+    if(!state.turnCamera){camera.x=clamp(camera.x+sy*forward,-44,44);camera.z=clamp(camera.z+cy*forward,-12,106)}
+
+    if(state.turnCamera?.phase==="ROTATE"&&Math.abs(wrapAngle(state.turnCamera.outgoingYaw-camera.yaw))<.035){
+      const done=state.turnCamera;
+      camera.yaw=camera.targetYaw=done.outgoingYaw;
+      state.routeBaseYaw=done.outgoingYaw;
+      state.lastTurnKey=done.key;
+      state.turnCamera=null;
+      state.cameraSettles++;
+      const pc=worldToCamera({x:player.x,y:0,z:player.z});
+      state.cameraMode=(pc.z>17.0||pc.z<5.6)?"FOLLOW_CATCHUP":"IDLE_COMPOSITION";
+    }
 
     updatePlayer(dt);updateActiveGate();
+    maybePrepareTurnCamera();
 
-    if((player.moving||state.cameraMode==="FOLLOW_CATCHUP")&&now>state.manualCameraUntil&&!state.directedView){
+    if((player.moving||state.cameraMode==="FOLLOW_CATCHUP")&&now>state.manualCameraUntil&&!state.directedView&&!state.turnCamera){
       const pc=worldToCamera({x:player.x,y:0,z:player.z});
       if(state.cameraMode==="IDLE_COMPOSITION"&&(pc.z>17.0||pc.z<5.6))state.cameraMode="FOLLOW_CATCHUP";
       if(state.cameraMode==="FOLLOW_CATCHUP"){
@@ -596,18 +679,18 @@ function update(now){
     }
   }
   render(now);
-  sceneNameEl.textContent=SCENE_META[sceneId].label+" · V8";
+  sceneNameEl.textContent=SCENE_META[sceneId].label+" · V9";
   modeEl.textContent=state.cameraMode.replaceAll("_"," ")+" · "+(camera.yaw*180/Math.PI).toFixed(0)+"°\\n"+(state.activeGate?"ACCESO "+state.activeGate:"COMPOSICIÓN");
   debugEl.textContent="scene "+sceneId+"\\ncamera "+camera.x.toFixed(1)+", "+camera.z.toFixed(1)+" yaw "+(camera.yaw*180/Math.PI).toFixed(1)+"\\nplayer "+player.x.toFixed(1)+", "+player.z.toFixed(1)+" "+(player.moving?"walking":"idle")+"\\nroute "+player.route.length+" target "+(player.targetNode||"-")+"\\nactiveGate "+(state.activeGate||"-")+"\\nlastTurn "+(state.lastTurn?state.lastTurn.from+"→"+state.lastTurn.to:"-")+"\\nfaces "+renderStats.faces+" boxes "+renderStats.boxes+" paths "+renderStats.paths;
   requestAnimationFrame(update);
 }
 function getState(){
-  return{version:"rail-world-v8-composition-camera-r1",ready:state.ready,scene:sceneId,camera:{x:camera.x,z:camera.z,yaw:camera.yaw,targetYaw:camera.targetYaw,moveVelocity:camera.moveVelocity},composition:{mode:state.cameraMode,manualOverride:performance.now()<state.manualCameraUntil,manualYawOffset:state.manualYawOffset,autoFollowMoves:state.autoFollowMoves,cameraSettles:state.cameraSettles,directedViews:state.directedViews,directed:Boolean(state.directedView)},player:{x:player.x,z:player.z,heading:player.heading,moving:player.moving,currentNode:player.currentNode,targetNode:player.targetNode,routeLength:player.route.length},activeGate:state.activeGate,gates:graph.gates.map(g=>({destination:g.destination,nodeId:g.nodeId,x:graph.nodes.get(g.nodeId).x,z:graph.nodes.get(g.nodeId).z})),graph:{nodes:graph.nodes.size,edges:graph.edges.length,junctions:[...graph.junctions]},lastTurn:state.lastTurn,sceneChanges:state.sceneChanges,render:{...renderStats},hasIframe:Boolean(document.querySelector("iframe")),museumPanels:sceneId==="MUSEO"?sceneObjects().filter(x=>x.type==="panel").length:0};
+  return{version:"rail-world-v9-path-turn-camera-r1",ready:state.ready,scene:sceneId,camera:{x:camera.x,z:camera.z,yaw:camera.yaw,targetYaw:camera.targetYaw,moveVelocity:camera.moveVelocity},composition:{mode:state.cameraMode,manualOverride:performance.now()<state.manualCameraUntil,manualYawOffset:0,autoFollowMoves:state.autoFollowMoves,cameraSettles:state.cameraSettles,directedViews:state.directedViews,directed:Boolean(state.directedView),turnTransitions:state.turnTransitions,turn:state.turnCamera?{key:state.turnCamera.key,phase:state.turnCamera.phase,pivotX:state.turnCamera.pivotX,pivotZ:state.turnCamera.pivotZ,anchorX:state.turnCamera.anchorX,anchorZ:state.turnCamera.anchorZ,incomingYaw:state.turnCamera.incomingYaw,outgoingYaw:state.turnCamera.outgoingYaw}:null},player:{x:player.x,z:player.z,heading:player.heading,moving:player.moving,currentNode:player.currentNode,targetNode:player.targetNode,routeLength:player.route.length},activeGate:state.activeGate,gates:graph.gates.map(g=>({destination:g.destination,nodeId:g.nodeId,x:graph.nodes.get(g.nodeId).x,z:graph.nodes.get(g.nodeId).z})),graph:{nodes:graph.nodes.size,edges:graph.edges.length,junctions:[...graph.junctions]},lastTurn:state.lastTurn,sceneChanges:state.sceneChanges,render:{...renderStats},hasIframe:Boolean(document.querySelector("iframe")),museumPanels:sceneId==="MUSEO"?sceneObjects().filter(x=>x.type==="panel").length:0};
 }
-window.PrometeoRailWorldV8={
+window.PrometeoRailWorldV9={
   getState,
-  setScene(id){if(SCENE_IDS.includes(id)){sceneId=id;graph=makeGraph(sceneId);player.x=0;player.z=3.8;player.currentNode="entry";player.route=[];player.segment=null;camera.x=0;camera.z=-5.2;camera.yaw=camera.targetYaw=0;state.activeGate=null;state.lastTurn=null;state.directedView=null;state.cameraMode="IDLE_COMPOSITION";state.routeBaseYaw=0;state.manualYawOffset=0}return getState()},
-  setCamera(next={}){if(Number.isFinite(+next.x))camera.x=+next.x;if(Number.isFinite(+next.z))camera.z=+next.z;if(Number.isFinite(+next.yaw)){camera.yaw=camera.targetYaw=+next.yaw;state.routeBaseYaw=+next.yaw;state.manualYawOffset=0}camera.moveVelocity=0;state.cameraMode="IDLE_COMPOSITION";state.directedView=null;return getState()},
+  setScene(id){if(SCENE_IDS.includes(id)){sceneId=id;graph=makeGraph(sceneId);player.x=0;player.z=3.8;player.currentNode="entry";player.route=[];player.segment=null;camera.x=0;camera.z=-5.2;camera.yaw=camera.targetYaw=0;state.activeGate=null;state.lastTurn=null;state.directedView=null;state.turnCamera=null;state.lastTurnKey=null;state.cameraMode="IDLE_COMPOSITION";state.routeBaseYaw=0;state.manualYawOffset=0}return getState()},
+  setCamera(next={}){if(Number.isFinite(+next.x))camera.x=+next.x;if(Number.isFinite(+next.z))camera.z=+next.z;if(Number.isFinite(+next.yaw)){camera.yaw=camera.targetYaw=+next.yaw;state.routeBaseYaw=+next.yaw;state.manualYawOffset=0}camera.moveVelocity=0;state.cameraMode="IDLE_COMPOSITION";state.directedView=null;state.turnCamera=null;state.lastTurnKey=null;return getState()},
   setPlayer(next={}){if(Number.isFinite(+next.x))player.x=+next.x;if(Number.isFinite(+next.z))player.z=+next.z;player.currentNode=nearestNode(player.x,player.z)?.id||"entry";player.route=[];player.segment=null;player.moving=false;updateActiveGate();return getState()},
   routeToGate(dest){routeToGate(dest);return getState()},
   routeToNode(id){planToNode(id);return getState()},
@@ -619,7 +702,7 @@ window.PrometeoRailWorldV8={
 
 Promise.all(Object.entries(ASSET_URLS).map(([k,u])=>loadAsset(k,u))).then(()=>{
   applyReviewState();updateActiveGate();state.ready=true;loading.classList.add("off");
-  window.PrometeoRailWorldReview={ready:true,version:"rail-world-v8-composition-camera-r1"};
+  window.PrometeoRailWorldReview={ready:true,version:"rail-world-v9-path-turn-camera-r1"};
   requestAnimationFrame(update);
 });
 })();
