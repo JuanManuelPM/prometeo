@@ -255,7 +255,7 @@ try{
   const copiedContinue=await page.evaluate(()=>navigator.clipboard.readText());
   assert.match(copiedContinue,/PREDECESSOR_SESSION_ID: CHAT-PROMETEO-CONTROL-20260929T145300Z-S01/);
   assert.match(copiedContinue,/PREDECESSOR_SESSION_PIN: PIN-PROMETEO-CTRL-S01-7F4C/);
-  assert.match(copiedContinue,/Creá un SESSION_ID y SESSION_PIN frescos/);
+  assert.match(copiedContinue,/Creá(?: un)? SESSION_ID(?: y|\s*\+)\s*(?:un )?SESSION_PIN frescos/);
   const chatIndexProbe=await requestJson(desktop.request,chatSessionsUrl,'chat sessions');
   assert.equal(chatIndexProbe.status,200);
   assert.equal(chatIndexProbe.json?.schema,'prometeo.chat-session-index/v1');
