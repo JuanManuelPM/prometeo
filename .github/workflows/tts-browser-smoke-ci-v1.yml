@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: tts-browser-smoke-ci-v1
@@ -29,9 +29,46 @@ jobs:
           npm install --no-save playwright@1.55.0
           npx playwright@1.55.0 install --with-deps chromium
       - name: Run bounded TTS browser smoke
+        id: smoke
         env:
           TTS_CANDIDATE_URL: https://juanmanuelpm.github.io/prometeo/__canary/portfolio-tts-generic-text-surface-v1/
         run: node coordination/portfolio/tests/tts_browser_smoke_ci_v1.mjs
+      - name: Persist machine-readable run evidence
+        if: always()
+        env:
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          HEAD_SHA: ${{ github.sha }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          mkdir -p coordination/portfolio/evidence/audio-text-to-speech
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const src='artifacts/tts-browser-smoke-ci/evidence.json';
+          const evidence=fs.existsSync(src)?JSON.parse(fs.readFileSync(src,'utf8')):{
+            schema:'prometeo.tts-browser-smoke-ci/v1',
+            overall:'NO_EVIDENCE_FILE',
+            error:{message:'runner did not produce evidence.json'}
+          };
+          evidence.ci={
+            run_id:process.env.RUN_ID,
+            run_attempt:process.env.RUN_ATTEMPT,
+            head_sha:process.env.HEAD_SHA,
+            smoke_step_outcome:process.env.SMOKE_OUTCOME,
+            run_url:`${process.env.SERVER_URL}/${process.env.REPOSITORY}/actions/runs/${process.env.RUN_ID}`
+          };
+          const dest=`coordination/portfolio/evidence/audio-text-to-speech/TTS_BROWSER_SMOKE_CI_RUN_${process.env.RUN_ID}.json`;
+          fs.writeFileSync(dest,JSON.stringify(evidence,null,2)+'\n');
+          console.log(dest);
+          NODE
+          git config user.name "prometeo-ci"
+          git config user.email "actions@users.noreply.github.com"
+          git add coordination/portfolio/evidence/audio-text-to-speech/TTS_BROWSER_SMOKE_CI_RUN_*.json
+          git commit -m "tts: persist browser smoke CI run ${RUN_ID}"
+          git pull --rebase origin main
+          git push origin HEAD:main
       - name: Upload bounded browser evidence
         if: always()
         uses: actions/upload-artifact@v4
