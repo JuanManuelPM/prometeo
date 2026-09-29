@@ -18,6 +18,11 @@ function normalizeItem(item, now=Date.now()){
   const expires=parseTime(item.expires_at);
   if(expires&&expires<=now)return null;
   const caps=uniq(item.required_capabilities);
+  const contextTransport=String(item.context_transport||'').trim();
+  const privatePacketLookup=item.private_packet_lookup&&typeof item.private_packet_lookup==='object'&&!Array.isArray(item.private_packet_lookup)
+    ? item.private_packet_lookup
+    : null;
+  if(!contextTransport||!privatePacketLookup)return null;
   return {
     opportunity_id:opportunity,
     work_item_id:work,
@@ -31,8 +36,8 @@ function normalizeItem(item, now=Date.now()){
     source_path:sourcePath,
     required_capabilities:caps,
     forbidden_worker_ids:uniq(item.forbidden_worker_ids).slice(0,16),
-    context_transport:String(item.context_transport||'SUPABASE_CONNECTED_PROJECT'),
-    private_packet_lookup:item.private_packet_lookup&&typeof item.private_packet_lookup==='object'?item.private_packet_lookup:null,
+    context_transport:contextTransport,
+    private_packet_lookup:privatePacketLookup,
     return_path:item.return_path?String(item.return_path):null,
     expires_at:item.expires_at||null,
     state:'ready',
