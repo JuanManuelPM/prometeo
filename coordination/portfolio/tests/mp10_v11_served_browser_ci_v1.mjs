@@ -14,11 +14,14 @@ const chatSessionsUrl=new URL('../../coordination/chat-sessions/INDEX.json',publ
 const previewManifestUrl=new URL('./previews/manifest.json',publicUrl).href;
 const scriptUrl=new URL('./v11.js',publicUrl).href;
 const diagnosticsUrl=new URL('./diagnostics-v1.js',publicUrl).href;
+const continuityUrl=new URL('./continuity-v1.js',publicUrl).href;
+const bootstrapUrl=new URL('../../coordination/bootstrap/UNIVERSAL_SESSION_PREFLIGHT_V1.txt',publicUrl).href;
 const changeLoopUrl=new URL('../../shared/capture/v1/change-loop.js',publicUrl).href;
 const stableControlUrl=new URL('../control/',publicUrl).href;
 const indexPath='current-tree/control-v11/index.html';
 const scriptPath='current-tree/control-v11/v11.js';
 const diagnosticsPath='current-tree/control-v11/diagnostics-v1.js';
+const continuityPath='current-tree/control-v11/continuity-v1.js';
 const changeLoopPath='shared/capture/v1/change-loop.js';
 const stableControlPath='current-tree/control/index.html';
 
@@ -129,6 +132,28 @@ try{
   if(diagnosticsIdentity.match) pass('served_diagnostics_source_identity',diagnosticsIdentity);
   else {fail('served_diagnostics_source_identity',diagnosticsIdentity);hardFailures.push('served_diagnostics_source_identity')}
 
+  const continuityResponse=await desktop.request.get(continuityUrl,{timeout:20000,failOnStatusCode:false,headers:{'cache-control':'no-cache','pragma':'no-cache'}});
+  assert.equal(continuityResponse.status(),200);
+  const servedContinuity=await continuityResponse.body();
+  const sourceContinuity=fs.readFileSync(continuityPath);
+  const continuityIdentity={served_sha256:sha256(servedContinuity),source_sha256:sha256(sourceContinuity),source_bytes:sourceContinuity.length,served_bytes:servedContinuity.length};
+  continuityIdentity.match=continuityIdentity.served_sha256===continuityIdentity.source_sha256;
+  if(continuityIdentity.match) pass('served_continuity_source_identity',continuityIdentity);
+  else {fail('served_continuity_source_identity',continuityIdentity);hardFailures.push('served_continuity_source_identity')}
+
+  const bootstrapResponse=await desktop.request.get(bootstrapUrl,{timeout:20000,failOnStatusCode:false,headers:{'cache-control':'no-cache','pragma':'no-cache'}});
+  assert.equal(bootstrapResponse.status(),200);
+  const servedBootstrap=await bootstrapResponse.text();
+  assert.match(servedBootstrap,/CURRENT_TREE_V2/);
+  assert.match(servedBootstrap,/ORGANISM/);
+  assert.match(servedBootstrap,/CONTINUE/);
+  assert.match(servedBootstrap,/COMPATIBLE_DELTA/);
+  assert.match(servedBootstrap,/EXPERIMENT/);
+  assert.match(servedBootstrap,/REPLAN/);
+  assert.match(servedBootstrap,/DESTRUCTIVE_RESET/);
+  assert.match(servedBootstrap,/must not silently erase|NO borra silenciosamente|MUST NOT SILENTLY ERASE/i);
+  pass('universal_session_preflight_served',{organism:true,request_classification:true,lineage_preserved:true});
+
   const changeResponse=await desktop.request.get(changeLoopUrl,{timeout:20000,failOnStatusCode:false,headers:{'cache-control':'no-cache','pragma':'no-cache'}});
   assert.equal(changeResponse.status(),200);
   const servedChange=await changeResponse.body();
@@ -147,7 +172,7 @@ try{
   if(stableIdentity.match) pass('stable_control_route_source_identity',stableIdentity);
   else {fail('stable_control_route_source_identity',stableIdentity);hardFailures.push('stable_control_route_source_identity')}
 
-  evidence.served_identity={index:indexIdentity,v11_js:scriptIdentity,diagnostics:diagnosticsIdentity,change_loop:changeIdentity,stable_control:stableIdentity};
+  evidence.served_identity={index:indexIdentity,v11_js:scriptIdentity,diagnostics:diagnosticsIdentity,continuity:continuityIdentity,change_loop:changeIdentity,stable_control:stableIdentity};
   save();
 
   const stablePage=await desktop.newPage();
@@ -189,6 +214,32 @@ try{
   await page.evaluate(()=>window.PROMETEO_DIAGNOSTICS_V1.close());
 
   await desktop.grantPermissions(['clipboard-read','clipboard-write'],{origin:new URL(publicUrl).origin});
+  await page.waitForFunction(()=>!!window.PROMETEO_CONTINUITY_V1,{timeout:10000});
+  await page.evaluate(()=>{scrollTo(0,0);document.querySelector('.tab[data-view="historial"]')?.click()});
+  await page.locator('#continuityCenter').waitFor({state:'visible',timeout:12000});
+  assert.equal(await page.locator('.tab[data-view="chats"]').isVisible(),false,'Chats must not be a visible primary tab');
+  assert.equal(await page.locator('.tab[data-view="trabajo"]').isVisible(),false,'Trabajo must not be a visible primary tab');
+  const continuityPacket=await page.evaluate(()=>window.PROMETEO_CONTINUITY_V1.continuityPacket(null));
+  assert.equal(continuityPacket.schema,'prometeo.project-continuity-packet/v1');
+  assert.ok(continuityPacket.current_snapshot.tree,'continuity packet must include Current Tree snapshot');
+  assert.ok(continuityPacket.current_snapshot.organism,'continuity packet must include Organism snapshot');
+  assert.ok(continuityPacket.current_snapshot.work_contexts,'continuity packet must include Work Context projection');
+  assert.equal(continuityPacket.privacy.local_note_bodies_included,false);
+  assert.equal(continuityPacket.privacy.private_prompt_text_included,false);
+  await page.locator('#continuityNew').click();
+  await page.waitForTimeout(250);
+  const copiedNew=await page.evaluate(()=>navigator.clipboard.readText());
+  assert.match(copiedNew,/UNIVERSAL_SESSION_PREFLIGHT_V1/);
+  assert.match(copiedNew,/ORGANISM/);
+  assert.match(copiedNew,/CONTINUE \/ COMPATIBLE_DELTA \/ EXPERIMENT \/ REPLAN \/ DESTRUCTIVE_RESET/);
+  assert.match(copiedNew,/No le pidas que reconstruya contexto ya durable/i);
+  await page.locator('#continuityAdopt').click();
+  await page.waitForTimeout(250);
+  const copiedAdopt=await page.evaluate(()=>navigator.clipboard.readText());
+  assert.match(copiedAdopt,/ADOPTAR ESTE CHAT EXISTENTE V1/);
+  assert.match(copiedAdopt,/sin pedirme que resuma lo anterior/i);
+  pass('continuity_center_export_and_bootstrap',{history_is_primary:true,chats_tab_hidden:true,work_tab_hidden:true,packet_has_organism:true,private_data_excluded:true,new_chat_bootstrap:true,adopt_existing_chat:true});
+
   await page.evaluate(()=>{scrollTo(0,0);document.querySelector('.tab[data-view="chats"]')?.click()});
   const sessionCard=page.locator('[data-chat-session="CHAT-PROMETEO-CONTROL-20260929T145300Z-S01"]');
   await sessionCard.waitFor({state:'visible',timeout:20000});
@@ -215,7 +266,10 @@ try{
   const servedChangeText=servedChange.toString('utf8');
   assert.match(servedIndexText,/id="notesBtn"/,'object drawer must expose universal Notes');
   assert.match(servedIndexText,/id="diagBtn"/,'Control Room must expose the hidden diagnostics terminal');
-  assert.match(servedIndexText,/data-view="chats"/,'Control Room must expose first-class Chats continuity view');
+  assert.match(servedIndexText,/class="tab legacy-tab" data-view="chats"/,'Chats must remain only as hidden legacy route');
+  assert.match(servedIndexText,/class="tab legacy-tab" data-view="trabajo"/,'Trabajo must remain only as hidden legacy route');
+  assert.match(servedIndexText,/id="continuityBtn"/,'Control Room must expose global continuity entry');
+  assert.match(servedIndexText,/continuity-v1\.js/,'Control Room must load continuity module');
   assert.match(servedIndexText,/diagnostics-v1\.js/,'diagnostics must load before the data layer');
   assert.match(servedDiagnosticsText,/PROMETEO_DIAGNOSTIC_PACKET_V1/);
   assert.match(servedDiagnosticsText,/query_strings_in_urls_included:false/);
