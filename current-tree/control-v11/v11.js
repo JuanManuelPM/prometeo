@@ -227,6 +227,7 @@ async function restoreRoute(force=false){
  restoringRoute=true;
  try{
   const st=routeState();
+  if(!st.panel&&loop){loop.close();activePanel=null}
   if(st.view&&VALID_VIEWS.has(st.view)&&typeof window.setView==='function')window.setView(st.view);
   if(st.node&&!st.page&&typeof window.openEntity==='function')window.openEntity(st.node);
   if(st.page){
