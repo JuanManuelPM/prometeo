@@ -291,6 +291,26 @@ try{
   assert.match(copiedAdopt,/sin pedirme que resuma lo anterior/i);
   pass('continuity_center_export_and_bootstrap',{history_is_primary:true,chats_tab_hidden:true,work_tab_hidden:true,packet_has_organism:true,private_data_excluded:true,new_chat_bootstrap:true,adopt_existing_chat:true});
 
+  await page.waitForFunction(()=>!!window.PROMETEO_STEWARD_V1&&!!window.PROMETEO_CONTINUITY_V1,{timeout:10000});
+  await page.evaluate(()=>window.PROMETEO_STEWARD_V1.render({nodeKey:'COMPONENT:CONTROL_NAVIGATION'}));
+  await page.locator('#stewardPanelV1').waitFor({state:'visible',timeout:12000});
+  const stewardText=await page.locator('#stewardPanelV1').innerText();
+  assert.match(stewardText,/Visual Steward/);
+  assert.match(stewardText,/VISUAL_SYSTEMS_STEWARD/);
+  assert.match(stewardText,/actor/i);
+  assert.match(stewardText,/CHAT-PROMETEO-CONTROL-20260929T194500Z-S02/);
+  for(const label of ['BEFORE','AFTER','COMMIT','ROLLBACK']){
+    assert.equal(await page.locator('#stewardPanelV1 .steward-ref',{hasText:label}).count(),1,label+' lineage ref must be visible');
+  }
+  assert.ok((await page.locator('#stewardPanelV1 .steward-chip').count())>=1,'preserved alternatives/patterns must be visible');
+  await page.locator('#stewardNewSession').click();
+  await page.waitForTimeout(250);
+  const copiedSteward=await page.evaluate(()=>navigator.clipboard.readText());
+  assert.match(copiedSteward,/chat-object-prometeo-visual-steward/);
+  assert.match(copiedSteward,/COMPONENT:CONTROL_NAVIGATION/);
+  assert.match(copiedSteward,/FAST_REINCARNATION_PATH_V1/);
+  pass('visual_steward_navigation_lineage',{target:'COMPONENT:CONTROL_NAVIGATION',actor_visible:true,before_after:true,commit:true,rollback:true,alternative_visible:true,specialized_session_bootstrap:true});
+
   await page.evaluate(()=>{scrollTo(0,0);document.querySelector('.tab[data-view="chats"]')?.click()});
   const sessionCard=page.locator('[data-chat-session="CHAT-PROMETEO-CONTROL-20260929T145300Z-S01"]');
   await sessionCard.waitFor({state:'visible',timeout:20000});
