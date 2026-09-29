@@ -1,3 +1,4 @@
+// continuity-release-final-trigger: 2026-09-29T16:20Z
 // continuity-release-clean-trigger: 2026-09-29T16:14Z
 // capability-graph-canary-trigger: 2026-09-29T15:36Z
 import assert from 'node:assert/strict';
