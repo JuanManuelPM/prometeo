@@ -350,9 +350,10 @@ try{
   await sttCard.waitFor({state:'visible',timeout:15000});
   const sttText=await sttCard.innerText();
   assert.match(sttText,/STT Live/i);
-  assert.match(sttText,/captura instantánea/i);
-  assert.match(sttText,/waveform/i);
-  assert.match(sttText,/máquina de escribir/i);
+  assert.match(sttText,/Experimentos \/ STT/i);
+  assert.match(sttText,/RECOVERY V2/i);
+  assert.match(sttText,/Buscar/i);
+  assert.match(sttText,/Adoptar/i);
   await sttCard.locator('[data-stt-adopt]').click();
   await page.waitForTimeout(250);
   const copiedSttAdopt=await page.evaluate(()=>navigator.clipboard.readText());
