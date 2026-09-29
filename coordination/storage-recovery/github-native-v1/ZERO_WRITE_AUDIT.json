@@ -1,0 +1,56 @@
+{
+  "schema": "prometeo.zero-write-audit-targets/v1",
+  "status": "TARGETS_DEFINED_NOT_YET_CERTIFIED",
+  "run_id": "PROMETEO-MP10-01",
+  "principle": "Read, refresh and poll paths must not mutate durable state merely because observation occurred.",
+  "forbidden_read_side_effects": [
+    "heartbeat write",
+    "last_seen write",
+    "view counter write",
+    "poll event append",
+    "progress write",
+    "lease renewal caused only by read",
+    "synthetic zero/freshness write"
+  ],
+  "targets": [
+    {
+      "id": "CLAIM_FRONTIER_PROJECTION",
+      "ref": "gh-pages:live/claim-frontier.json",
+      "expected_method_class": "GET_OR_STATIC_READ_ONLY",
+      "authority_note": "Projection only; atomic CREATE claim remains authority."
+    },
+    {
+      "id": "RUN_PACKET_PROJECTION",
+      "ref": "launch/PROMETEO-MP10-01/packet.json",
+      "expected_method_class": "GET_OR_STATIC_READ_ONLY",
+      "authority_note": "Packet projection is immutable after arm."
+    },
+    {
+      "id": "RUN_STATUS_PROJECTION",
+      "ref": "integration-run/state.json",
+      "expected_method_class": "GET_OR_STATIC_READ_ONLY",
+      "authority_note": "Status is derived projection, not liveness owner."
+    },
+    {
+      "id": "V11_DATA_REFRESH",
+      "ref": "current-tree/control-v11/data-layer.js",
+      "expected_method_class": "READ_REFRESH_ONLY",
+      "authority_note": "refresh/load/readCache may fetch/cache locally but must not create durable coordination writes."
+    },
+    {
+      "id": "PROJECT_CONTEXT_READ",
+      "ref": "coordination/project-context-v1/",
+      "expected_method_class": "GET_OR_STATIC_READ_ONLY",
+      "authority_note": "Compiled context references owners; it is not an owner."
+    },
+    {
+      "id": "WORKER_EVIDENCE_READS",
+      "ref": "coordination/workers/benchmark-receipts/",
+      "expected_method_class": "GET_OR_STATIC_READ_ONLY",
+      "authority_note": "Reading receipts must not emit new receipt/progress events."
+    }
+  ],
+  "certification_rule": "A target becomes PASS only after its concrete implementation is inspected or exercised and no durable write-on-read path is observed.",
+  "missing_source_rule": "UNKNOWN_OR_UNAVAILABLE, never numeric zero and never fresh.",
+  "destructive_action": "NONE"
+}
