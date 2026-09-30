@@ -594,6 +594,24 @@ try{
   if(statsOk) pass('stats_truthful',statsDetails);
   else { fail('stats_truthful',statsDetails); hardFailures.push('stats_truthful'); }
 
+  const semanticRegistryNullGuard=await page.evaluate(()=>{
+    try{
+      const previousD=D,previousA=A;
+      D=null;A={events:[]};
+      try{
+        renderNow();
+        return {ok:true,rendered:true};
+      }finally{
+        D=previousD;A=previousA;
+        try{renderNow()}catch{}
+      }
+    }catch(error){
+      return {ok:false,error:String(error?.message||error)};
+    }
+  });
+  if(semanticRegistryNullGuard.ok) pass('semantic_registry_null_guard',semanticRegistryNullGuard);
+  else { fail('semantic_registry_null_guard',semanticRegistryNullGuard); hardFailures.push('semantic_registry_null_guard'); }
+
   if(evidence.page_errors.length){
     fail('page_errors_empty',{count:evidence.page_errors.length,errors:evidence.page_errors});
     hardFailures.push('page_errors_empty');
