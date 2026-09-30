@@ -1,0 +1,103 @@
+{
+  "schema":"prometeo.worker-io-accounting-candidate/v1",
+  "status":"CANDIDATE_EXPERIMENT_ONLY_NO_PROMOTION",
+  "created_at":"2026-09-30T01:20:34Z",
+  "created_by":"wc-20260930T005648Z-e9d1a056bf7b",
+  "authority_ref":"coordination/portfolio/pins/portfolio-worker-io-accounting-candidate-v1/G000001.json",
+  "purpose":"Measure externally observable worker I/O without asking the model to invent timings, operation counts, or a fake zero. Keep local reasoning/work coalesced into stage/RETURN summaries and reuse the existing worker pipeline/event/receipt mechanisms.",
+  "does_not_replace":[
+    "coordination/workers/WORKER_PIPELINE_V1.json",
+    "coordination/workers/WORKER_EVENT_STREAM_V1.md",
+    "coordination/workers/WORKER_PRODUCTIVITY_EXAM_V1.json"
+  ],
+  "measurement_law":{
+    "externally_observed_wins":"Externally observed counters must come from tool/transport/commit/workflow/artifact evidence. Model prose never upgrades UNKNOWN to a number.",
+    "zero_requires_closed_coverage":"A numeric zero is valid only when coverage=COMPLETE_FOR_SCOPE and coverage_evidence_refs proves the observed external trace or bounded fixture is closed for that counter.",
+    "unknown_is_honest":"When the runtime cannot reconstruct a complete external trace, use UNKNOWN plus unknown_reason; never infer zero from missing evidence.",
+    "wall_clock":"External wall-clock is optional diagnostic telemetry only. Model-authored timestamps or duration guesses are not performance evidence."
+  },
+  "counter_contract":{
+    "external_read_ops":{
+      "value":"nonnegative_integer | UNKNOWN",
+      "counts":"Successful or failed external read operations visible in the bounded runtime/tool trace, such as GitHub fetch/read, connector reads, public network reads, or workflow/log reads.",
+      "does_not_count":"Pure local reasoning, already-present prompt/context, in-memory parsing, local deterministic validation.",
+      "evidence":"operation/trace refs; zero additionally needs closed coverage evidence"
+    },
+    "external_write_ops":{
+      "value":"nonnegative_integer | UNKNOWN",
+      "counts":"External mutation attempts visible in the bounded trace, including durable GitHub file writes/updates/comments or other authorized external mutations.",
+      "does_not_count":"Local temporary files, in-memory transforms, prose generated before transport.",
+      "evidence":"write/commit/transport refs; failed attempts may count as operations when externally observed"
+    },
+    "commits":{
+      "value":"nonnegative_integer | UNKNOWN",
+      "counts":"Distinct durable commit SHAs caused by the measured unit.",
+      "dedupe":"Count a SHA once even if cited by multiple receipts.",
+      "evidence":"exact commit refs or a closed commit list"
+    },
+    "workflow_waits":{
+      "value":"nonnegative_integer | UNKNOWN",
+      "counts":"Explicit externally observed workflow-status wait/poll cycles attributable to the measured unit.",
+      "does_not_count":"Workflow execution time itself or unobserved waiting.",
+      "evidence":"workflow run/job status observations"
+    },
+    "retries":{
+      "value":"nonnegative_integer | UNKNOWN",
+      "counts":"Repeated external operation attempts after an observed failure/conflict for the same intended action.",
+      "evidence":"paired failure + retry/success refs where available"
+    },
+    "artifact_count":{
+      "value":"nonnegative_integer | UNKNOWN",
+      "counts":"Externally observed durable artifacts emitted by the unit.",
+      "evidence":"artifact ids/refs or closed artifact listing"
+    },
+    "artifact_bytes":{
+      "value":"nonnegative_integer | UNKNOWN",
+      "counts":"Sum of externally reported artifact byte sizes for the same bounded artifact set.",
+      "evidence":"artifact metadata with sizes; never estimate from prose"
+    }
+  },
+  "record_shape":{
+    "schema":"prometeo.worker-io-accounting-record/v1",
+    "worker_id":"string",
+    "unit_ref":"durable RETURN/guide receipt/job ref",
+    "measurement_scope":"bounded description of which external trace/events are covered",
+    "model_self_reported":{
+      "local_work_summary":"qualitative string only",
+      "claimed_local_operations":"optional diagnostic; never authoritative for external counters",
+      "claimed_timing":"optional diagnostic; never authoritative wall clock"
+    },
+    "externally_observed":{
+      "<counter>":{
+        "value":"integer | UNKNOWN",
+        "coverage":"COMPLETE_FOR_SCOPE | PARTIAL | UNAVAILABLE",
+        "evidence_refs":"array of exact refs",
+        "coverage_evidence_refs":"array of exact closed-trace/bounded-fixture refs",
+        "unknown_reason":"required iff value=UNKNOWN"
+      }
+    },
+    "local_work_summary":{
+      "stage_ids":"array of WORKER_PIPELINE stages covered",
+      "summary":"one coalesced summary for many local operations",
+      "durable_result_ref":"RETURN/guide receipt"
+    }
+  },
+  "coalescing":{
+    "persist_frequency":"AT_MOST_ONCE_PER_PRODUCTIVE_UNIT_IN_RETURN_OR_EXAM_UNLESS_EXISTING_STAGE_RECEIPT_ALREADY_CARRIES_IT",
+    "per_local_operation_event_forbidden":true,
+    "per_tool_call_git_commit_forbidden":true,
+    "event_stream_change_required":false,
+    "rule":"Accumulate observable counters during the unit, then persist one compact measurement object. Existing ROUTED/STARTED/CLOSE and heartbeat mechanisms remain unchanged."
+  },
+  "false_zero_guard":{
+    "fail_when":[
+      "numeric zero with coverage other than COMPLETE_FOR_SCOPE",
+      "numeric zero without coverage_evidence_refs",
+      "numeric positive value without evidence_refs",
+      "UNKNOWN without unknown_reason",
+      "model_self_reported value used as externally_observed evidence"
+    ],
+    "harness_ref":"tests/worker-io-accounting-candidate-v1.test.mjs"
+  },
+  "authority":"CANDIDATE_EXTENSION_ONLY_NO_CURRENT_NO_PIPELINE_REPLACEMENT"
+}
