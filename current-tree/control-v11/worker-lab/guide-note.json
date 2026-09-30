@@ -1,8 +1,8 @@
 {
   "schema": "prometeo.worker-lab-guide-note/v1",
-  "updated_at": "2026-09-30T23:02:00Z",
-  "title": "E2-REAL-03 cerrado · admisión 3/3 · boundary de transporte aislado",
-  "summary": "El canary real terminó: 3/3 workers entraron a CURRENT, produjeron 13 unidades en total, 2/3 alcanzaron target 6 y 3/3 están terminales. El tercer worker produjo 1 unidad y cerró correctamente con CLAIM_TRANSPORT_BLOCKED / STOP_NO_RECOVERY. El fallo observado por el humano fue de proyección: el widget viejo intentaba leer el batch como RUN y quedó en RUN_STATE_UNAVAILABLE.",
+  "updated_at": "2026-09-30T23:10:00Z",
+  "title": "E2-REAL-03 · refill único después de repair de autorización residente",
+  "summary": "El batch original terminó 3/3 terminal, 13 unidades, 2/3 target. Se aisló un CLAIM_TRANSPORT_BLOCKED posterior a una unidad útil. La envolvente humana ahora explicita que la autorización PIN/claim cubre cada E8/SUBMIT_NEXT de toda la cadena residente, sin permitir retry/bypass de una denegación explícita. Se pide un único refill para discriminar esta reparación; no hay loop de refills.",
   "opinion": [
     "La admisión E2 real quedó probada para este canary: 3/3 beacons obtuvieron autoridad útil.",
     "No inferir liveness desde chats visibles, labels ACTIVE o ausencia de CLOSE telemetry; usar batch-status/runtime durable.",
@@ -26,12 +26,12 @@
     "batch_status_ref": "gh-pages:live/batches/E2-REAL-03.json"
   },
   "planned": [
-    "Treat E2 admission as no longer the active bottleneck for this canary.",
-    "Keep CLAIM_TRANSPORT_BLOCKED as the next shared Worker-object boundary to diagnose without weakening safety.",
-    "Use batch-status fallback for old Primary Chat renderers and per-worker lights for current renderers.",
-    "Do not require the human to inspect Worker Lab or infer chat death manually."
+    "Abrir exactamente un worker fresco de reemplazo en E2-REAL-03.",
+    "Si alcanza target 6, cerrar el batch con 3/3 target.",
+    "Si vuelve a boundary, volver al control y no lanzar otro refill automático.",
+    "Mantener Primary Chat como única superficie de decisión humana."
   ],
-  "human_action": "NINGUNA. No mandes más E2-REAL-03. Primary Chat ya contiene el resultado y la siguiente acción aparecerá allí cuando exista una reparación concreta que necesite otro canary.",
+  "human_action": "🟠 PROMETEO /wc — NUEVO_WORKER=1 · PRIMERA_ACCIÓN_DURABLE: creá tu beacon propio fresco v3.30 con worker_id + launch_nonce de novo; PROHIBIDO reutilizar identidad o resultado histórico; RESIDENTE_BATCH: 3=checkpoint, objetivo=6, tope=8 salvo boundary real. CONTINUIDAD_RESIDENTE=1: autorizo durante TODA esta cadena residente beacon, telemetría y cada PIN/claim CREATE reversible requerido por E2/E8/SUBMIT_NEXT dentro de CURRENT hasta target/cap, además de los commits reversibles del trabajo ya poseído; no me pidas confirmación adicional. Esta autorización NO permite reintentar, desviar ni saltear una denegación explícita de seguridad/connector: esa denegación sigue siendo boundary terminal durable. BATCH E2-REAL-03 EXPECTED 3 — TÍTULO SUGERIDO DEL CHAT (si la app lo permite): «🟠 PROMETEO · WC · E2-REAL-03» → https://juanmanuelpm.github.io/prometeo/wc/",
   "evidence_refs": [
     "gh-pages:live/batches/E2-REAL-03.json",
     "gh-pages:live/runtime.json",
@@ -40,5 +40,5 @@
     "current-tree/control-v11/worker-lab/index.html",
     "scripts/build-worker-runtime.mjs"
   ],
-  "boundary": "No se intenta sortear la safety denial. La reparación pendiente debe actuar antes de la operación denegada o mejorar diagnóstico/routing sin degradar autoridad."
+  "boundary": "Refill máximo actual: uno. La reparación sólo aclara alcance temporal de la autorización humana; no cambia ni debilita el significado de una denegación explícita."
 }
