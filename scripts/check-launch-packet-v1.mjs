@@ -42,9 +42,12 @@ for(const ent of packetEntries){
   if(packet.same_prompt_for_every_worker!==true||packet.human_numbers_slots!==false) fail(runId+': human routing/numbering regression');
   if(!String(packet.human_invocation||'').includes('RUN '+runId)) fail(runId+': run prompt missing run id');
   if(!String(packet.human_invocation||'').includes('RUN-slot claim')) fail(runId+': run prompt missing slot authorization');
-  for(const marker of ['NUEVO_WORKER=1','PRIMERA_ACCIÓN_DURABLE','NO reutilices identidad/slot','https://juanmanuelpm.github.io/prometeo/wc/']){
+  for(const marker of ['NUEVO_WORKER=1','PRIMERA_ACCIÓN_DURABLE','https://juanmanuelpm.github.io/prometeo/wc/']){
     if(!String(packet.human_invocation||'').includes(marker)) fail(runId+': run prompt missing '+marker);
   }
+  const invocation=String(packet.human_invocation||'');
+  const antiReuseOk=invocation.includes('NO reutilices identidad/slot') || /PROHIBIDO[^\n.]{0,120}reutilizar identidad\/slot/i.test(invocation);
+  if(!antiReuseOk) fail(runId+': run prompt missing anti-reuse identity/slot guard');
 
   const slots=Array.isArray(packet.slots)?packet.slots:[];
   const realloc=Array.isArray(packet.reallocation_slots)?packet.reallocation_slots:[];
