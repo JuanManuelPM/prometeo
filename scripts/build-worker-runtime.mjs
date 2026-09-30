@@ -201,9 +201,12 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
         ?? benchmarkReceipt?.doc?.close_status
         ?? ''
       ).toUpperCase();
+      const receiptCloseReason=String(benchmarkReceipt?.doc?.close_reason||'').toUpperCase();
+      const receiptTerminalBoundary=/TERMINAL_BOUNDARY|RUN_TERMINAL_BOUNDARY/.test(receiptCloseReason);
       const durableRunTerminal=isRun && (
         !!examDoc ||
         /^(PASS|FAIL|BOUNDARY|RUN_COMPLETE|RUN_TERMINAL_BOUNDARY)$/.test(e9Status) ||
+        receiptTerminalBoundary ||
         (!!repo.noalloc.get(w.worker_id) && benchmarkReceipt?.doc)
       );
       const terminalClose=(!!close && (!isPool || !!examRef)) || durableRunTerminal;
