@@ -1,0 +1,194 @@
+{
+  "schema": "prometeo.worker-maxcap-stress/v1",
+  "experiment_id": "MAXCAP-50-01",
+  "status": "ARMING_CANDIDATE",
+  "purpose": "Estimate the sustainable local-work ceiling of fresh /wc workers and whether continuation priming shifts that ceiling, while classifying admission/orchestration/tool boundaries separately from cognitive workload failure.",
+  "design": {
+    "primary_slots": 50,
+    "factors": {
+      "load_tier": [
+        {
+          "id": "L1_5K",
+          "target_words": 5000,
+          "primary_tasks": 100,
+          "realloc_words": 1500,
+          "realloc_tasks": 30
+        },
+        {
+          "id": "L2_10K",
+          "target_words": 10000,
+          "primary_tasks": 200,
+          "realloc_words": 2500,
+          "realloc_tasks": 50
+        },
+        {
+          "id": "L3_15K",
+          "target_words": 15000,
+          "primary_tasks": 300,
+          "realloc_words": 4000,
+          "realloc_tasks": 80
+        },
+        {
+          "id": "L4_20K",
+          "target_words": 20000,
+          "primary_tasks": 400,
+          "realloc_words": 5000,
+          "realloc_tasks": 100
+        },
+        {
+          "id": "L5_30K",
+          "target_words": 30000,
+          "primary_tasks": 600,
+          "realloc_words": 7500,
+          "realloc_tasks": 150
+        }
+      ],
+      "continuation_condition": [
+        {
+          "id": "C0_CONTROL",
+          "prompt_delta": null,
+          "description": "Current evidence-map baseline and ordinary RUN continuation only."
+        },
+        {
+          "id": "C1_CONTINUATION_PRIMING",
+          "prompt_delta": "No final answer, recap or closure is permitted after a block, midpoint, primary completion, tool success, tool collision or primary RETURN. Treat all of those as intermediate state. Continue immediately until the assigned primary workload, paired reallocation workload and E9 close are durably accounted for, unless a genuine explicit safety/authority/tool denial makes the next mandatory action impossible.",
+          "description": "Explicit anti-early-answer continuation priming; workload and evidence rules unchanged."
+        }
+      ],
+      "replicas_per_cell": 5
+    },
+    "expected_cells": 10,
+    "slots_per_cell": 5,
+    "interleaving_rule": "Round-robin across load tiers and continuation conditions before repeating replica ordinal; worker never chooses cell."
+  },
+  "common_worker_baseline": {
+    "evidence_map": "V3_EVIDENCE_MAP",
+    "fresh_identity": true,
+    "atomic_slot_claim": true,
+    "synthetic_only": true,
+    "cross_slot_read_before_close": "CONTAMINATED",
+    "final_answer_before_close": "PROTOCOL_FAIL_UNLESS_HARD_BOUNDARY",
+    "self_reported_timing_authority": "DIAGNOSTIC_ONLY"
+  },
+  "workload_generator": {
+    "task_types": [
+      "CLASSIFY",
+      "EXTRACT",
+      "ACTIONIZE",
+      "CONTRADICTION",
+      "EVIDENCE_MAP",
+      "COMPARE",
+      "DEDUPE",
+      "MICRO_SPEC",
+      "FAILURE_ANALYSIS",
+      "QUALITY_AUDIT"
+    ],
+    "generator_rule": "For task index n starting at 1, task_type = task_types[(n-1) mod 10]. Build a synthetic case with case_id MAXCAP-<slot_id>-T<n>, objective=(n mod 11)+1, dependency=D((n mod 7)+1), state cycling READY/PARTIAL/BOUNDARY/UNKNOWN, two synthetic refs R<n>:A/B and exactly three constraints: no external facts, preserve UNKNOWN vs FAIL, synthetic/no-product authority. Produce a concise useful answer for the task type.",
+    "target_words_per_task": [
+      42,
+      58
+    ],
+    "primary_blocks": 10,
+    "midpoint_after_block": 5,
+    "block_rule": "Partition the assigned primary task_count into 10 contiguous blocks as evenly as possible. No durable write between claim and the single B5 midpoint; no durable write between B5 midpoint and primary receipt.",
+    "block_summary_words": [
+      35,
+      60
+    ],
+    "primary_word_tolerance_fraction": 0.15,
+    "reallocation_rule": "After durable primary receipt, same worker/nonce claims paired R###, generates the same deterministic task family with REALLOC case prefix, executes assigned reallocation_tasks locally, persists one reallocation receipt, then E9 CLOSE.",
+    "hard_boundary_visible_diagnostic": {
+      "trigger": "Only if an explicit tool/security/transport denial makes the next mandatory durable action impossible after the protocol-allowed attempt/recovery.",
+      "required_fields": [
+        "stop_reason_code",
+        "last_successful_stage",
+        "attempted_operation",
+        "tool_or_security_error_summary",
+        "local_work_complete_boolean",
+        "durable_receipt_persisted_boolean"
+      ],
+      "rule": "This diagnostic is not a normal exit option and does not convert the boundary to success."
+    }
+  },
+  "io_contract": {
+    "W0": "After packet/spec load + authority claim, no external I/O until the single B5 MIDPOINT.",
+    "W1": "After MIDPOINT, no external I/O until primary receipt.",
+    "W2": "After paired reallocation claim, no external I/O until reallocation receipt.",
+    "allowed_durable_boundaries": [
+      "fresh beacon",
+      "primary claim",
+      "one midpoint",
+      "primary receipt",
+      "paired reallocation claim",
+      "reallocation receipt",
+      "exam/close"
+    ],
+    "forbidden": "Per-task/per-block GitHub reads,writes,heartbeats or peer-slot inspection."
+  },
+  "quality_contract": {
+    "per_task_checks": [
+      "task_id unique and sequential",
+      "answer relevant to task_type",
+      "UNKNOWN preserved when evidence missing",
+      "no external facts",
+      "no product/current/served authority"
+    ],
+    "aggregate_checks": [
+      "task_count exact",
+      "word target within tolerance or RANGE_FAIL",
+      "first-vs-last-quartile sample audit",
+      "duplicate task/output detection",
+      "missing-block detection",
+      "cross-slot contamination check"
+    ],
+    "independent_analysis_required": true
+  },
+  "external_measurement": {
+    "clocks": [
+      "beacon commit/server timestamp",
+      "primary claim commit/server timestamp",
+      "midpoint commit/server timestamp",
+      "primary receipt commit/server timestamp",
+      "reallocation claim commit/server timestamp",
+      "reallocation receipt commit/server timestamp",
+      "exam/close commit/server timestamp"
+    ],
+    "primary_metrics": [
+      "wake_to_beacon observed when human launch denominator available",
+      "beacon_to_claim",
+      "claim_to_midpoint",
+      "claim_to_primary_return",
+      "primary_return_to_reallocation_claim",
+      "reallocation_claim_to_return",
+      "claim_to_close",
+      "useful_output_words",
+      "completed_tasks",
+      "last_completed_task_on_failure",
+      "durable writes per completed 100 tasks",
+      "admission failure rate",
+      "transport/tool boundary rate",
+      "contamination rate",
+      "first-vs-last-quartile quality delta"
+    ]
+  },
+  "analysis_plan": {
+    "first_pass": "Compute per-cell medians/distributions and failure taxonomy. Do not rank cells with fewer than 3 causal-valid replicas.",
+    "capacity_frontier": "For each continuation condition, define provisional sustainable tier as the highest load tier with >=4/5 causal-valid primary completions and >=3/5 same-worker reallocations, subject to independent quality audit.",
+    "continuation_effect": "Compare C0 vs C1 within each load tier; do not pool across load tiers for causal claim.",
+    "chat_visible_reconciliation": "Guide separately reviews worker final-chat outputs for hard-stop reasons that did not persist durably and reconciles them with stage evidence.",
+    "next_step": "If both conditions clear 30K, start a higher-load follow-up rather than declaring 30K the maximum."
+  },
+  "non_goals": [
+    "No product work.",
+    "No promotion to CURRENT.",
+    "No new scheduler/queue.",
+    "No worker-to-worker peer inspection during frozen cohort.",
+    "No claim that 30K is the true maximum if it passes."
+  ],
+  "evidence_refs": [
+    "coordination/design-dna/preservation-contracts/WORKER_MAXCAP_50_V1.json",
+    "coordination/workers/WORKER_CHAT_VISIBLE_FAILURE_ANALYSIS_RESIDENCY_MACROBATCH_01.json",
+    "coordination/workers/WORKER_PLAYBOOK_DISTILLATION_V1.json",
+    "coordination/workers/RESIDENCY_MACROBATCH_15X_V1.json"
+  ]
+}
