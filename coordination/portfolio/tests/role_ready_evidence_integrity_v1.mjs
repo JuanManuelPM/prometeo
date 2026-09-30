@@ -157,12 +157,19 @@ try {
         guidePins: [],
         heartbeats: [],
         beacons: [],
-        noAlloc: []
+        noAlloc: [1, 2, 3].map(n => ({
+          path: `coordination/workers/no-allocation/role-evidence-integrity-fixture-${n}.json`,
+          doc: {
+            observed_at: new Date().toISOString(),
+            outcome: 'NO_ALLOCATION',
+            reason: 'CREATE_EXISTS_EXHAUSTED'
+          }
+        }))
       }
     }
   );
   const rescue = recoveryAllocator.role_ready.find(row => row.role === 'GUIDE_RESCATE');
-  assert(rescue, 'three replaceable derived jobs must materialize GUIDE_RESCATE');
+  assert(rescue, 'actionable no-allocation pressure must materialize GUIDE_RESCATE while derived recovery evidence remains available');
   assert(rescue.evidence.includes('coordination/portfolio/derived/alpha/derived-recovery-1.json'), 'derived recovery evidence must preserve source_path');
   assert(!rescue.evidence.some(ref => ref === 'coordination/portfolio/PORTFOLIO.json#job:derived-recovery-1'), 'derived recovery evidence must not fabricate a seed PORTFOLIO job anchor');
 
