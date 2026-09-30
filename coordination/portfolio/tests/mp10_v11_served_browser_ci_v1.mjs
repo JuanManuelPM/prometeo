@@ -23,6 +23,7 @@ const controlPlaneDiagnosisUrl=new URL('../../coordination/canaries/page-change-
 const scriptUrl=new URL('./v11.js',publicUrl).href;
 const diagnosticsUrl=new URL('./diagnostics-v1.js',publicUrl).href;
 const continuityUrl=new URL('./continuity-v1.js',publicUrl).href;
+const recoveryNowUrl=new URL('./recovery-now-v1.js?v=locator-uniqueness-v2',publicUrl).href;
 const bootstrapUrl=new URL('../../coordination/bootstrap/UNIVERSAL_SESSION_PREFLIGHT_V1.txt',publicUrl).href;
 const changeLoopUrl=new URL('../../shared/capture/v1/change-loop.js',publicUrl).href;
 const stableControlUrl=new URL('../control/',publicUrl).href;
@@ -30,6 +31,7 @@ const indexPath='current-tree/control-v11/index.html';
 const scriptPath='current-tree/control-v11/v11.js';
 const diagnosticsPath='current-tree/control-v11/diagnostics-v1.js';
 const continuityPath='current-tree/control-v11/continuity-v1.js';
+const recoveryNowPath='current-tree/control-v11/recovery-now-v1.js';
 const ingressPath='current-tree/control-v11/ingress-v1.js';
 const changeLoopPath='shared/capture/v1/change-loop.js';
 const stableControlPath='current-tree/control/index.html';
@@ -150,6 +152,17 @@ try{
   if(continuityIdentity.match) pass('served_continuity_source_identity',continuityIdentity);
   else {fail('served_continuity_source_identity',continuityIdentity);hardFailures.push('served_continuity_source_identity')}
 
+  const recoveryNowResponse=await desktop.request.get(recoveryNowUrl,{timeout:20000,failOnStatusCode:false,headers:{'cache-control':'no-cache','pragma':'no-cache'}});
+  assert.equal(recoveryNowResponse.status(),200);
+  const servedRecoveryNow=await recoveryNowResponse.body();
+  const sourceRecoveryNow=fs.readFileSync(recoveryNowPath);
+  const recoveryNowIdentity={served_sha256:sha256(servedRecoveryNow),source_sha256:sha256(sourceRecoveryNow),source_bytes:sourceRecoveryNow.length,served_bytes:servedRecoveryNow.length};
+  recoveryNowIdentity.match=recoveryNowIdentity.served_sha256===recoveryNowIdentity.source_sha256;
+  recoveryNowIdentity.render_generation=servedRecoveryNow.toString('utf8').includes('renderGeneration');
+  recoveryNowIdentity.locator_validation=servedRecoveryNow.toString('utf8').includes('const locatorId=entry=>');
+  if(recoveryNowIdentity.match&&recoveryNowIdentity.render_generation&&recoveryNowIdentity.locator_validation) pass('served_recovery_now_source_identity',recoveryNowIdentity);
+  else {fail('served_recovery_now_source_identity',recoveryNowIdentity);hardFailures.push('served_recovery_now_source_identity')}
+
   const bootstrapResponse=await desktop.request.get(bootstrapUrl,{timeout:20000,failOnStatusCode:false,headers:{'cache-control':'no-cache','pragma':'no-cache'}});
   assert.equal(bootstrapResponse.status(),200);
   const servedBootstrap=await bootstrapResponse.text();
@@ -194,7 +207,7 @@ try{
   if(stableIdentity.match) pass('stable_control_route_source_identity',stableIdentity);
   else {fail('stable_control_route_source_identity',stableIdentity);hardFailures.push('stable_control_route_source_identity')}
 
-  evidence.served_identity={index:indexIdentity,v11_js:scriptIdentity,diagnostics:diagnosticsIdentity,continuity:continuityIdentity,change_loop:changeIdentity,stable_control:stableIdentity};
+  evidence.served_identity={index:indexIdentity,v11_js:scriptIdentity,diagnostics:diagnosticsIdentity,continuity:continuityIdentity,recovery_now:recoveryNowIdentity,change_loop:changeIdentity,stable_control:stableIdentity};
   save();
 
   const stablePage=await desktop.newPage();
