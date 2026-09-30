@@ -64,6 +64,21 @@ jobs:
           console.log(JSON.stringify({ok:true,run:p.current_run,timeline:p.timeline.length,rules:p.rules.length}));
           NODE
 
+      - name: Validate Worker Lab inline UI contract
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('fs');
+          const html=fs.readFileSync('source/current-tree/control-v11/worker-lab/index.html','utf8');
+          const m=html.match(/<script>([\s\S]*?)<\/script>/);
+          if(!m) throw new Error('inline script missing');
+          fs.writeFileSync('/tmp/worker-lab-inline.js',m[1]);
+          for(const token of ['focus-stage-rail','dimension-grid','8 ÁREAS UNIVERSALES','renderDimensions','fetchMidpoint']){
+            if(!html.includes(token)) throw new Error('missing UI token '+token);
+          }
+          NODE
+          node --check /tmp/worker-lab-inline.js
+
       - name: Checkout gh-pages
         uses: actions/checkout@v4
         with:
