@@ -95,7 +95,9 @@ try {
   await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: 'HÁBITOS' }).tap();
   await page.getByRole('button', { name: 'EDITAR' }).tap();
-  check('tracker_add_persisted_after_reload', await page.locator('.tracker-config-row', { hasText: 'Canary touch' }).count() === 1);
+  const trackerNamesAfterReload = await trackerDialog.locator('.tracker-config-row input[aria-label="Nombre"]').evaluateAll(els => els.map(el => el.value));
+  result.observations.tracker_names_after_reload = trackerNamesAfterReload;
+  check('tracker_add_persisted_after_reload', trackerNamesAfterReload.includes('Canary touch'), trackerNamesAfterReload);
 
   const beforeRange = (await page.locator('#traceRange').textContent())?.trim() || '';
   await trackerDialog.getByRole('button', { name: 'Cerrar' }).tap();
