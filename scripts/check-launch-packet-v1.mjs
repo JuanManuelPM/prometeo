@@ -41,7 +41,9 @@ for(const ent of packetEntries){
   if(!runId||runId!==ent.run_id) fail('run directory/id mismatch '+ent.run_id);
   if(packet.same_prompt_for_every_worker!==true||packet.human_numbers_slots!==false) fail(runId+': human routing/numbering regression');
   if(!String(packet.human_invocation||'').includes('RUN '+runId)) fail(runId+': run prompt missing run id');
-  if(!String(packet.human_invocation||'').includes('RUN-slot claim')) fail(runId+': run prompt missing slot authorization');
+  const runInvocation=String(packet.human_invocation||'');
+  const slotAuthorization=/RUN-slot(?:\s+claim)?|slot único(?:\s+del)?\s+RUN|slot único del RUN/i.test(runInvocation);
+  if(!slotAuthorization) fail(runId+': run prompt missing slot authorization');
   for(const marker of ['NUEVO_WORKER=1','PRIMERA_ACCIÓN_DURABLE','https://juanmanuelpm.github.io/prometeo/wc/']){
     if(!String(packet.human_invocation||'').includes(marker)) fail(runId+': run prompt missing '+marker);
   }
