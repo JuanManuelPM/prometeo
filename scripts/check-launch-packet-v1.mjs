@@ -98,7 +98,9 @@ for(const ent of packetEntries){
   const counts={};
   for(const s of slots){
     if(!/^S\d{3}$/.test(s.slot_id)) fail(runId+': bad slot id '+s.slot_id);
-    if(!variantMap.has(s.evolution_variant)) fail(runId+': unknown variant '+s.evolution_variant);
+    if(genericPacket){
+      if(!String(s.evolution_variant||'').trim()) fail(runId+': generic slot missing experiment variant '+s.slot_id);
+    }else if(!variantMap.has(s.evolution_variant)) fail(runId+': unknown variant '+s.evolution_variant);
     counts[s.evolution_variant]=(counts[s.evolution_variant]||0)+1;
     if(!genericPacket&&(s.required_capabilities||[]).length!==0) fail(runId+': primary slots must stay generic');
     if(s.claim_path!==`coordination/launch-packets/${runId}/claims/${s.slot_id}.json`) fail(runId+': claim path mismatch '+s.slot_id);
