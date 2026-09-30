@@ -16,6 +16,7 @@
       --ok:#82d69a;
       --warn:#d9b45f;
       --bad:#ff7676;
+      --composer-height:96px;
     }
     *{box-sizing:border-box}
     html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink)}
@@ -47,7 +48,7 @@
       color:#777;font-size:10px;line-height:1.35
     }
     #status.visible{display:block}
-    #thread{padding:20px 2px 118px}
+    #thread{padding:20px 2px calc(var(--composer-height) + 28px)}
     .msg{display:flex;flex-direction:column;margin:0 0 28px}
     .msg.human{align-items:flex-end}
     .msg.system{align-items:center;margin:8px 0 22px}
@@ -211,7 +212,13 @@
       background:#ededeb;color:#050505;
       font-size:20px;line-height:1;font-weight:700;cursor:pointer
     }
-    [data-prometeo-chat-composer-submit-v1]:disabled{opacity:.35}
+    [data-prometeo-chat-composer-submit-v1]:disabled{opacity:.24;cursor:not-allowed}
+    [data-prometeo-chat-composer-v1][data-transport-ready="false"] [data-prometeo-chat-composer-form-v1]{
+      border-color:#332d20;
+    }
+    [data-prometeo-chat-composer-v1][data-transport-ready="false"] [data-prometeo-chat-composer-status-v1]{
+      color:var(--warn);
+    }
     [data-prometeo-chat-composer-status-v1]{
       min-height:0;margin:5px 6px 0;
       color:#707070;font:9px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -497,6 +504,14 @@
       main.append(button);
     }
 
+    function compactPreview(text, max = 250) {
+      const clean = String(text || '').replace(/\s+/g, ' ').trim();
+      if (clean.length <= max) return clean;
+      const cut = clean.slice(0, max);
+      const lastSpace = cut.lastIndexOf(' ');
+      return (lastSpace > max * 0.7 ? cut.slice(0, lastSpace) : cut).trim() + '…';
+    }
+
     function renderMessage(message) {
       const actor = String(message.actor_type || 'ASSISTANT').toUpperCase();
       const article = node('article', null, 'msg ' + actorClass(actor));
@@ -508,13 +523,21 @@
       if (when) meta.append(node('span', when));
       if (message.source_surface) meta.append(node('span', message.source_surface, 'source'));
 
-      const bodyText = message.body_kind === 'ARTIFACT_REF'
+      const fullBodyText = message.body_kind === 'ARTIFACT_REF'
         ? (message.body_ref || '[artifact]')
         : (message.body_text || '');
+      const isLongHuman = actor === 'HUMAN' && String(fullBodyText).length >= 420;
+      const bodyText = isLongHuman
+        ? (message.summary_text || compactPreview(fullBodyText))
+        : fullBodyText;
       const body = node('div', bodyText, 'body');
 
       main.append(meta, body);
-      wireLongMessage(body, main, actor);
+      if (isLongHuman) {
+        const full = renderDetails({ label: 'ver mensaje completo', body: fullBodyText });
+        full.classList.add('human-full-message');
+        main.append(full);
+      }
       renderUiBlocks(message, main);
 
       const debug = renderDebug(message);
@@ -591,6 +614,21 @@
     }
 
     const composerHost = document.getElementById('chatComposer');
+    const composerShell = document.querySelector('.composer-shell');
+    const syncComposerSpace = () => {
+      if (!composerShell) return;
+      const height = Math.max(76, Math.ceil(composerShell.getBoundingClientRect().height));
+      document.documentElement.style.setProperty('--composer-height', height + 'px');
+    };
+    if (composerShell) {
+      if ('ResizeObserver' in window) {
+        const composerObserver = new ResizeObserver(syncComposerSpace);
+        composerObserver.observe(composerShell);
+      }
+      window.addEventListener('resize', syncComposerSpace);
+      syncComposerSpace();
+    }
+
     const composerApi = window.PROMETEO_CHAT_CANARY_INPUT_V1;
     if (composerHost && composerApi && typeof composerApi.mount === 'function') {
       const mounted = composerApi.mount(composerHost, {
@@ -625,8 +663,12 @@
           input.style.height = 'auto';
           input.style.height = Math.min(input.scrollHeight, 180) + 'px';
         };
-        input.addEventListener('input', resize);
+        input.addEventListener('input', () => {
+          resize();
+          requestAnimationFrame(syncComposerSpace);
+        });
         resize();
+        requestAnimationFrame(syncComposerSpace);
       }
     } else if (composerHost) {
       setStatus('input no disponible');
