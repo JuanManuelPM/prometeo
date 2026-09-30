@@ -504,6 +504,66 @@
           const s = statusRes && statusRes.ok ? await statusRes.json() : null;
           const lab = labRes && labRes.ok ? await labRes.json() : null;
           const runtime = runtimeRes && runtimeRes.ok ? await runtimeRes.json() : null;
+
+          const explicitBatchId = block.batch_id || null;
+          if (explicitBatchId) {
+            const batch = Array.isArray(runtime?.batches)
+              ? runtime.batches.find(row => row && row.batch_id === explicitBatchId)
+              : null;
+            if (!batch) throw new Error('BATCH_STATE_UNAVAILABLE');
+
+            const workers = Array.isArray(batch.workers) ? batch.workers : [];
+            const summary = batch.summary || {};
+            const total = Math.max(1, Number(block.expected_workers ?? summary.expected ?? 0));
+            const admitted = workers.filter(w => w?.authority_won === true).length;
+            const live = workers.filter(w => {
+              if (terminalWorker(w)) return false;
+              const d = asTime(lastWorkerAt(w));
+              return d && (Date.now() - d.getTime()) < 600000;
+            }).length;
+            const units = Number(summary.productive_units_total || 0);
+            const target = Number(summary.workers_at_target || 0);
+            const closed = Number(summary.closed || 0);
+            const unitTarget = Math.max(1, total * Number(block.resident_target || 6));
+            const overall = Math.max(0, Math.min(100,
+              ((admitted/total)*25) +
+              ((Math.min(units,unitTarget)/unitTarget)*50) +
+              ((target/total)*15) +
+              ((closed/total)*10)
+            ));
+
+            pct.textContent = Math.round(overall) + '%';
+            fill.style.width = overall + '%';
+            breakdown.replaceChildren(
+              kpi(admitted + '/' + total, 'adentro'),
+              kpi(String(live), 'vivos <10m'),
+              kpi(String(units), 'unidades'),
+              kpi(target + '/' + total, 'target'),
+              kpi(closed + '/' + total, 'cierre')
+            );
+            const observed = newestTime(runtime?.generated_at, batch?.last_event_at);
+            const ageMs = observed ? Date.now() - observed.getTime() : null;
+            const stale = ageMs !== null && ageMs > 120000;
+            freshness.classList.toggle('stale', stale);
+            const hhmm = observed ? observed.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : 'sin hora';
+            freshness.textContent =
+              explicitBatchId + ' · ' + admitted + '/' + total + ' adentro · ' +
+              live + ' vivos · ' + units + ' unidades · observado ' + hhmm +
+              (stale ? ' · PROYECCIÓN ATRASADA' : '');
+
+            action.classList.remove('warn','good');
+            if (admitted < total) {
+              action.textContent = 'ACCIÓN: faltan ' + Math.max(0,total-admitted) + ' worker(s) admitidos. Si ya abriste los ' + total + ' chats, hacé refill exacto sólo por esa diferencia.';
+              action.classList.add('warn');
+            } else if (live > 0) {
+              action.textContent = 'ACCIÓN: ninguna por ahora · hay ' + live + ' worker(s) con señal reciente; el widget sigue refrescando.';
+            } else {
+              action.textContent = 'ACCIÓN: VOLVÉ AL CONTROL AHORA · el lote ya no tiene motor vivo; corresponde reducir resultados y decidir el siguiente paso.';
+              action.classList.add(closed >= total ? 'good' : 'warn');
+            }
+            return;
+          }
+
           const runId = block.run_id || s?.run_id || lab?.current_run?.run_id || null;
           const runtimeRun = runId && Array.isArray(runtime?.launch_runs)
             ? runtime.launch_runs.find(row => row && row.run_id === runId)
