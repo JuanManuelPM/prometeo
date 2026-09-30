@@ -138,6 +138,9 @@
     .run-progress-kpi span{display:block;margin-top:2px;font-size:8px;color:#5e5e5b;text-transform:uppercase;letter-spacing:.05em}
     .run-progress-freshness{margin-top:9px;font-size:9px;color:#5d5d59}
     .run-progress-freshness.stale{color:var(--warn)}
+    .run-progress-action{margin-top:9px;font-size:11px;line-height:1.4;color:#bdbdb8;font-weight:650}
+    .run-progress-action.warn{color:var(--warn)}
+    .run-progress-action.good{color:var(--ok)}
     .details-block{border-top:1px solid var(--line);padding-top:8px}
     .details-block>summary{list-style:none;cursor:pointer;color:#9b9b96;font-size:11px;min-height:34px;display:flex;align-items:center;gap:7px}
     .details-block>summary::before{content:"›";font-size:18px;line-height:1;color:#666;transform:rotate(0deg);transition:transform .12s ease}
@@ -468,10 +471,12 @@
       rail.append(fill);
       const breakdown = node('div', null, 'run-progress-breakdown');
       const freshness = node('div', 'leyendo estado durable…', 'run-progress-freshness');
-      wrap.append(head, rail, breakdown, freshness);
+      const action = node('div', 'calculando próxima acción…', 'run-progress-action');
+      wrap.append(head, rail, breakdown, freshness, action);
 
       const statusUrl = block.status_url || '';
       const labUrl = block.lab_url || '';
+      const runtimeUrl = block.runtime_url || '../../../live/runtime.json';
       let timer = null;
 
       const kpi = (value, labelText) => {
@@ -479,32 +484,55 @@
         box.append(node('b', value), node('span', labelText));
         return box;
       };
+      const asTime = value => {
+        const d = value ? new Date(value) : null;
+        return d && !Number.isNaN(d.getTime()) ? d : null;
+      };
+      const newestTime = (...values) => values.map(asTime).filter(Boolean).sort((a,b)=>b-a)[0] || null;
+      const terminalWorker = w => Boolean(w && ((w.close && w.close.terminal) || String(w.state||'').toUpperCase()==='CLOSED'));
+      const lastWorkerAt = w => (w?.close?.at || w?.last_event_at || w?.claim?.at || w?.routed?.at || w?.first_event_at || null);
 
       async function update() {
         try {
           const stamp = '?t=' + Date.now();
-          const [statusRes, labRes] = await Promise.all([
-            fetch(statusUrl + stamp, {cache:'no-store'}),
-            labUrl ? fetch(labUrl + stamp, {cache:'no-store'}) : Promise.resolve(null)
+          const [statusRes, labRes, runtimeRes] = await Promise.all([
+            statusUrl ? fetch(statusUrl + stamp, {cache:'no-store'}) : Promise.resolve(null),
+            labUrl ? fetch(labUrl + stamp, {cache:'no-store'}) : Promise.resolve(null),
+            runtimeUrl ? fetch(runtimeUrl + stamp, {cache:'no-store'}) : Promise.resolve(null)
           ]);
-          if (!statusRes.ok) throw new Error('HTTP ' + statusRes.status);
-          const s = await statusRes.json();
-          let lab = null;
-          if (labRes && labRes.ok) lab = await labRes.json();
-          const midpoints = Number(lab?.current_run?.midpoints || 0);
-          const labRun = lab && lab.current_run && lab.current_run.run_id === s.run_id ? lab.current_run : null;
-          const total = Math.max(1, Number(s.slots_total || labRun?.slots_total || 0));
-          const claimed = Number(s.slots_claimed ?? labRun?.slots_claimed ?? 0);
-          const primary = Number(labRun?.primary_complete ?? s.primary_complete ?? 0);
-          const realloc = Number(labRun?.reallocation_complete ?? s.reallocation_complete ?? 0);
-          const terminal = Number(labRun?.terminal ?? s.workers_terminal ?? 0);
+
+          const s = statusRes && statusRes.ok ? await statusRes.json() : null;
+          const lab = labRes && labRes.ok ? await labRes.json() : null;
+          const runtime = runtimeRes && runtimeRes.ok ? await runtimeRes.json() : null;
+          const runId = block.run_id || s?.run_id || lab?.current_run?.run_id || null;
+          const runtimeRun = runId && Array.isArray(runtime?.launch_runs)
+            ? runtime.launch_runs.find(row => row && row.run_id === runId)
+            : null;
+          const labRun = runId && lab?.current_run?.run_id === runId ? lab.current_run : null;
+          const batch = runId && Array.isArray(runtime?.batches)
+            ? runtime.batches.find(row => row && row.batch_id === 'RUN-' + runId)
+            : null;
+
+          if (!s && !labRun && !runtimeRun) throw new Error('RUN_STATE_UNAVAILABLE');
+
+          const total = Math.max(1, Number(runtimeRun?.slots_total ?? labRun?.slots_total ?? s?.slots_total ?? 0));
+          const claimed = Number(runtimeRun?.slots_claimed ?? labRun?.slots_claimed ?? s?.slots_claimed ?? 0);
+          const primary = Number(runtimeRun?.primary_complete ?? labRun?.primary_complete ?? s?.primary_complete ?? 0);
+          const realloc = Number(runtimeRun?.reallocation_complete ?? labRun?.reallocation_complete ?? s?.reallocation_complete ?? 0);
+          const terminal = Number(batch?.summary?.closed ?? labRun?.terminal ?? s?.workers_terminal ?? s?.terminal ?? 0);
+
+          const workers = Array.isArray(batch?.workers) ? batch.workers : [];
+          const active = workers.filter(w => {
+            if (terminalWorker(w)) return false;
+            const d = asTime(lastWorkerAt(w));
+            return d && (Date.now() - d.getTime()) < 600000;
+          }).length;
 
           const overall = Math.max(0, Math.min(100,
             ((claimed/total)*20) +
-            ((midpoints/total)*20) +
             ((primary/total)*30) +
-            ((realloc/total)*20) +
-            ((terminal/total)*10)
+            ((realloc/total)*30) +
+            ((terminal/total)*20)
           ));
           pct.textContent = Math.round(overall) + '%';
           fill.style.width = overall + '%';
@@ -515,21 +543,38 @@
             kpi(terminal + '/' + total, 'cierre')
           );
 
-          const observed = s.generated_at ? new Date(s.generated_at) : null;
-          const ageMs = observed && !Number.isNaN(observed.getTime()) ? Date.now() - observed.getTime() : null;
+          const observed = newestTime(runtime?.generated_at, s?.generated_at, s?.updated_at, lab?.generated_at);
+          const ageMs = observed ? Date.now() - observed.getTime() : null;
           const stale = ageMs !== null && ageMs > 120000;
           freshness.classList.toggle('stale', stale);
           const hhmm = observed ? observed.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : 'sin hora';
-          if (claimed < total && stale) {
-            freshness.textContent = 'estado sin avanzar · ' + claimed + '/' + total + ' slots · si ya mandaste todos, faltan ' + (total-claimed) + ' admisiones observadas · observado ' + hhmm;
-          } else if (claimed < total) {
-            freshness.textContent = 'actualizando solo cada 10 s · ' + claimed + '/' + total + ' slots · observado ' + hhmm;
+          freshness.textContent =
+            claimed + '/' + total + ' claims · ' +
+            primary + '/' + total + ' primary · ' +
+            realloc + '/' + total + ' realloc · ' +
+            terminal + '/' + total + ' cierres · ' +
+            active + ' vivos <10m · observado ' + hhmm +
+            (stale ? ' · PROYECCIÓN ATRASADA' : '');
+
+          action.classList.remove('warn','good');
+          if (claimed < total) {
+            const missing = total - claimed;
+            action.textContent = 'ACCIÓN: si ya lanzaste el lote completo, mandá sólo ' + missing + ' refill(s) idénticos; no numeres ni rutees.';
+            action.classList.add('warn');
+          } else if (terminal >= total) {
+            action.textContent = 'ACCIÓN: VOLVÉ AL CONTROL · el RUN ya está terminal y corresponde síntesis/siguiente paso.';
+            action.classList.add('good');
+          } else if (active > 0) {
+            action.textContent = 'ACCIÓN: ninguna por ahora · hay ' + active + ' worker(s) con señal reciente; el widget sigue refrescando.';
           } else {
-            freshness.textContent = '50/50 adentro · actualizando solo cada 10 s · observado ' + hhmm;
+            action.textContent = 'ACCIÓN: VOLVÉ AL CONTROL AHORA · no hay motor vivo y todavía faltan ' + Math.max(0,total-terminal) + ' cierres/boundaries por reducir.';
+            action.classList.add('warn');
           }
         } catch (err) {
           freshness.classList.add('stale');
           freshness.textContent = 'no pude refrescar el estado: ' + (err?.message || 'error');
+          action.classList.add('warn');
+          action.textContent = 'ACCIÓN: volver al control; no esperar a ciegas con el widget sin estado.';
         }
       }
       void update();
