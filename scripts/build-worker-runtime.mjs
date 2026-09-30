@@ -109,7 +109,7 @@ function repoEvidence(root) {
     const d=readJson(p); if (d?.worker_id) noalloc.set(d.worker_id,repoRef(root,p));
   }
   for (const p of walk(path.join(root,'coordination','workers','exams')).filter(x=>x.endsWith('.json'))) {
-    const d=readJson(p); if (d?.worker_id) exams.set(d.worker_id,repoRef(root,p));
+    const d=readJson(p); if (d?.worker_id) exams.set(d.worker_id,{ref:repoRef(root,p),doc:d});
   }
   for (const [base,kind] of [
     [path.join(root,'coordination','portfolio','returns'),'portfolio-return'],
@@ -191,9 +191,31 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
       const productiveUnits=repo.productiveByWorker.get(w.worker_id)||[];
       const productiveCount=productiveUnits.length;
       const productiveChainState=productiveCount>=8?'HARD_CAP_REACHED':productiveCount>=6?'TARGET_REACHED':productiveCount>=3?'CHECKPOINT_REACHED':'BUILDING';
-      const examRef=repo.exams.get(w.worker_id)||null;
+      const examRow=repo.exams.get(w.worker_id)||null;
+      const examRef=examRow?.ref||null;
+      const examDoc=examRow?.doc||null;
       const isPool=String(b.batch_id||'').startsWith('POOL-');
-      const terminalClose=!!close && (!isPool || !!examRef);
+      const isRun=String(b.batch_id||'').startsWith('RUN-');
+      const e9Status=String(
+        benchmarkReceipt?.doc?.stage_trace?.E9_EXAM_CLOSE?.status
+        ?? benchmarkReceipt?.doc?.close_status
+        ?? ''
+      ).toUpperCase();
+      const durableRunTerminal=isRun && (
+        !!examDoc ||
+        /^(PASS|FAIL|BOUNDARY|RUN_COMPLETE|RUN_TERMINAL_BOUNDARY)$/.test(e9Status) ||
+        (!!repo.noalloc.get(w.worker_id) && benchmarkReceipt?.doc)
+      );
+      const terminalClose=(!!close && (!isPool || !!examRef)) || durableRunTerminal;
+      const durableCloseOutcome=examDoc?.close_reason
+        || benchmarkReceipt?.doc?.close_reason
+        || (/BOUNDARY|FAIL/.test(e9Status)?'RUN_TERMINAL_BOUNDARY':(durableRunTerminal?'RUN_COMPLETE':null));
+      const durableCloseAt=examDoc?.closed_at
+        || benchmarkReceipt?.doc?.closed_at
+        || benchmarkReceipt?.doc?.updated_at
+        || benchmarkReceipt?.doc?.returned_at
+        || w.last_event_at
+        || null;
       const state=terminalClose?'CLOSED':authorityWon?(claim?.started?'ACTIVE':'OWNED'):claim?'CLAIM_RESOLVED':routed?'ROUTED':'BEACONED';
       const anomalies=[];
       if (isPool && close && !examRef) anomalies.push('POOL_CLOSE_WITHOUT_TERMINAL_EXAM');
@@ -215,7 +237,9 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
         productive_units:productiveCount,
         productive_chain_state:productiveChainState,
         productive_unit_refs:productiveUnits.slice(-8).map(unit=>unit.ref),
-        close:close?{outcome:close.outcome||null,job_id_or_null:close.job_id_or_null||close.job_id||close.guide_work_id||null,result_ref_or_null:close.result_ref_or_null||close.return_ref||close.receipt_ref||null,at:close.server_created_at,terminal:terminalClose}:null,
+        close:close
+          ?{outcome:close.outcome||durableCloseOutcome||null,job_id_or_null:close.job_id_or_null||close.job_id||close.guide_work_id||null,result_ref_or_null:close.result_ref_or_null||close.return_ref||close.receipt_ref||benchmarkReceipt?.ref||examRef||null,at:close.server_created_at||durableCloseAt,terminal:terminalClose,source:'TELEMETRY_PLUS_DURABLE_EVIDENCE'}
+          :(terminalClose?{outcome:durableCloseOutcome||'RUN_TERMINAL',job_id_or_null:null,result_ref_or_null:benchmarkReceipt?.ref||examRef||repo.noalloc.get(w.worker_id)||null,at:durableCloseAt,terminal:true,source:'DURABLE_EXAM_RECEIPT_OR_BOUNDARY'}:null),
         anomalies
       };
     }).sort((a,b)=>Date.parse(a.first_event_at||0)-Date.parse(b.first_event_at||0));
