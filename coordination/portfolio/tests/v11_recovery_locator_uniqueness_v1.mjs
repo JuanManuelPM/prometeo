@@ -75,9 +75,9 @@ const normalized=api.eligibleEntries({entries:[
   projected('CHATLOC-CONFLICT','entries/CHATLOC-CONFLICT.json'),
   projected('CHATLOC-CONFLICT','entries/CHATLOC-CONFLICT-OTHER.json')
 ]});
-assert.deepEqual(
-  normalized.map(row=>row.chat_locator_id),
-  ['CHATLOC-A-20260930','CHATLOC-B-20260930'],
+assert.equal(
+  JSON.stringify(normalized.map(row=>row.chat_locator_id)),
+  JSON.stringify(['CHATLOC-A-20260930','CHATLOC-B-20260930']),
   'exact duplicates must collapse, malformed identity must fail closed, and conflicting same-locator refs must be suppressed'
 );
 
