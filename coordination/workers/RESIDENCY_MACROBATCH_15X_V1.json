@@ -1,0 +1,2445 @@
+{
+  "schema": "prometeo.residency-macrobatch-benchmark-spec/v1",
+  "experiment_id": "RESIDENCY-MACROBATCH-15X-V1",
+  "status": "CANDIDATE_READY_FOR_GENERIC_RUN_PACKET",
+  "created_at": "2026-09-30T01:52:10Z",
+  "created_by_worker_id": "wc-20260930T012248Z-29e031704cff",
+  "authority": "CANDIDATE_EXPERIMENT_ONLY_NO_PROMOTION",
+  "purpose": "Medir cuánto trabajo local sostenido puede hacer un mismo chat por conexión durable, y si conserva continuidad después del primary RETURN, sin convertir cada microtarea en I/O.",
+  "hypotheses": [
+    "Coalescer 72 subtareas primarias en seis bloques con un solo MIDPOINT reduce write amplification sin degradar completitud.",
+    "La variante de prompting puede cambiar calidad/retención sin cambiar workload, gates, clock ni número de escrituras.",
+    "Un mismo worker puede ejecutar una reallocation sintética de 30 subtareas después del primary RETURN sin re-bootstrap humano.",
+    "Timestamps externos durables permiten separar latencia observable de autoreportes del modelo."
+  ],
+  "frozen_common_contract": {
+    "fresh_identity": "Cada slot requiere worker_id + launch_nonce v3.30 nuevos; ningún worker participa en más de un primary slot.",
+    "source_freeze": "Cada RUN packet debe pinnear spec_blob_sha y prompt/workload hash. Cambio de bytes durante un slot => CONTAMINATED.",
+    "six_block_primary": true,
+    "local_blocks": 6,
+    "common_local_task_count": 72,
+    "common_reallocation_task_count": 30,
+    "primary_useful_output_target_words": [
+      3500,
+      5500
+    ],
+    "per_task_target_words": [
+      45,
+      65
+    ],
+    "block_summary_target_words": [
+      55,
+      75
+    ],
+    "midpoint_after_block": 3,
+    "primary_receipt_after_block": 6,
+    "reallocation_after_primary_receipt": true,
+    "no_human_routing": true,
+    "synthetic_only": true
+  },
+  "variants": [
+    {
+      "variant_id": "V0_MINIMAL_CONTROL",
+      "causal_delta_key": null,
+      "causal_delta": "NONE",
+      "prompt_delta": null,
+      "purpose": "Control mínimo: instrucciones comunes solamente."
+    },
+    {
+      "variant_id": "V1_EXPLICIT_ZERO_LEDGER",
+      "causal_delta_key": "explicit_zero_ledger",
+      "causal_delta": "ADD_EXPLICIT_ZERO_LEDGER",
+      "prompt_delta": "Antes de comenzar el trabajo local, fijá un ledger mental external_reads=0, external_writes=0, tool_calls=0 para cada ventana prohibida. No lo persistas durante la ventana. Si al final no existe cobertura externa cerrada, tratá esos ceros como autoreporte diagnóstico, no como medición.",
+      "purpose": "Aísla el efecto de explicitar el ledger cero sin cambiar workload, gates ni verificación."
+    },
+    {
+      "variant_id": "V2_BLOCK_REVIEW",
+      "causal_delta_key": "block_review",
+      "causal_delta": "ADD_SILENT_BLOCK_REVIEW",
+      "prompt_delta": "Después de cada bloque hacé una revisión local silenciosa de completitud, rango de palabras, UNKNOWN honestos y constraints; corregí en memoria antes de seguir. No escribas ni uses herramientas por esa revisión.",
+      "purpose": "Aísla revisión por bloque."
+    },
+    {
+      "variant_id": "V3_CONTINUATION_PRIMING",
+      "causal_delta_key": "continuation_priming",
+      "causal_delta": "ADD_ANTI_EARLY_ANSWER_CONTINUATION_PRIMING",
+      "prompt_delta": "No produzcas respuesta terminal ni RETURN antes de completar B6. Al cerrar cada bloque, tratá el siguiente como continuación obligatoria del mismo trabajo local; B3 sólo habilita MIDPOINT, nunca cierre.",
+      "purpose": "Aísla priming contra respuesta/cierre temprano y a favor de continuidad."
+    },
+    {
+      "variant_id": "V4_FILL_QUESTIONS_PRE_GUIDE",
+      "causal_delta_key": "fill_questions_pre_guide",
+      "causal_delta": "ADD_FILL_QUESTIONS_SCAFFOLD",
+      "prompt_delta": "Mantené en memoria una ficha PRE-GUIDE con: qué terminó, qué cambió, evidencia, calidad, fallas, contradicciones, reuse, comportamiento del worker, bottleneck, next experiment, next work, human action y stop rule. Completala sólo con evidencia del workload y usala para el primary bundle.",
+      "purpose": "Aísla scaffold de preguntas/ficha."
+    }
+  ],
+  "slots": [
+    {
+      "slot_id": "MB15-S01",
+      "ordinal": 1,
+      "variant_id": "V0_MINIMAL_CONTROL",
+      "replica": 1,
+      "assignment_key": "V0_MINIMAL_CONTROL:R1",
+      "fresh_worker_required": true
+    },
+    {
+      "slot_id": "MB15-S02",
+      "ordinal": 2,
+      "variant_id": "V1_EXPLICIT_ZERO_LEDGER",
+      "replica": 1,
+      "assignment_key": "V1_EXPLICIT_ZERO_LEDGER:R1",
+      "fresh_worker_required": true
+    },
+    {
+      "slot_id": "MB15-S03",
+      "ordinal": 3,
+      "variant_id": "V2_BLOCK_REVIEW",
+      "replica": 1,
+      "assignment_key": "V2_BLOCK_REVIEW:R1",
+      "fresh_worker_required": true
+    },
+    {
+      "slot_id": "MB15-S04",
+      "ordinal": 4,
+      "variant_id": "V3_CONTINUATION_PRIMING",
+      "replica": 1,
+      "assignment_key": "V3_CONTINUATION_PRIMING:R1",
+      "fresh_worker_required": true
+    },
+    {
+      "slot_id": "MB15-S05",
+      "ordinal": 5,
+      "variant_id": "V4_FILL_QUESTIONS_PRE_GUIDE",
+      "replica": 1,
+      "assignment_key": "V4_FILL_QUESTIONS_PRE_GUIDE:R1",
+      "fresh_worker_required": true
+    },
+    {
+      "slot_id": "MB15-S06",
+      "ordinal": 6,
+      "variant_id": "V0_MINIMAL_CONTROL",
+      "replica": 2,
+      "assignment_key": "V0_MINIMAL_CONTROL:R2",
+      "fresh_worker_required": true
+    },
+    {
+      "slot_id": "MB15-S07",
+      "ordinal": 7,
+      "variant_id": "V1_EXPLICIT_ZERO_LEDGER",
+      "replica": 2,
+      "assignment_key": "V1_EXPLICIT_ZERO_LEDGER:R2",
+      "fresh_worker_required": true
+    },
+    {
+      "slot_id": "MB15-S08",
+      "ordinal": 8,
+      "variant_id": "V2_BLOCK_REVIEW",
+      "replica": 2,
+      "assignment_key": "V2_BLOCK_REVIEW:R2",
+      "fresh_worker_required": true
+    },
+    {
+      "slot_id": "MB15-S09",
+      "ordinal": 9,
+      "variant_id": "V3_CONTINUATION_PRIMING",
+      "replica": 2,
+      "assignment_key": "V3_CONTINUATION_PRIMING:R2",
+      "fresh_worker_required": true
+    },
+    {
+      "slot_id": "MB15-S10",
+      "ordinal": 10,
+      "variant_id": "V4_FILL_QUESTIONS_PRE_GUIDE",
+      "replica": 2,
+      "assignment_key": "V4_FILL_QUESTIONS_PRE_GUIDE:R2",
+      "fresh_worker_required": true
+    },
+    {
+      "slot_id": "MB15-S11",
+      "ordinal": 11,
+      "variant_id": "V0_MINIMAL_CONTROL",
+      "replica": 3,
+      "assignment_key": "V0_MINIMAL_CONTROL:R3",
+      "fresh_worker_required": true
+    },
+    {
+      "slot_id": "MB15-S12",
+      "ordinal": 12,
+      "variant_id": "V1_EXPLICIT_ZERO_LEDGER",
+      "replica": 3,
+      "assignment_key": "V1_EXPLICIT_ZERO_LEDGER:R3",
+      "fresh_worker_required": true
+    },
+    {
+      "slot_id": "MB15-S13",
+      "ordinal": 13,
+      "variant_id": "V2_BLOCK_REVIEW",
+      "replica": 3,
+      "assignment_key": "V2_BLOCK_REVIEW:R3",
+      "fresh_worker_required": true
+    },
+    {
+      "slot_id": "MB15-S14",
+      "ordinal": 14,
+      "variant_id": "V3_CONTINUATION_PRIMING",
+      "replica": 3,
+      "assignment_key": "V3_CONTINUATION_PRIMING:R3",
+      "fresh_worker_required": true
+    },
+    {
+      "slot_id": "MB15-S15",
+      "ordinal": 15,
+      "variant_id": "V4_FILL_QUESTIONS_PRE_GUIDE",
+      "replica": 3,
+      "assignment_key": "V4_FILL_QUESTIONS_PRE_GUIDE:R3",
+      "fresh_worker_required": true
+    }
+  ],
+  "automatic_interleaved_assignment": {
+    "mode": "FIXED_ROUND_ROBIN_VARIANT_THEN_REPLICA_ATOMIC_SLOT_CLAIM",
+    "formula": {
+      "variant_index": "(slot_ordinal - 1) mod 5",
+      "replica": "floor((slot_ordinal - 1) / 5) + 1"
+    },
+    "ordering": "S01..S05 = replica 1 across V0..V4; S06..S10 = replica 2; S11..S15 = replica 3.",
+    "authority_rule": "Generic RUN compiler materializes atomic slot claim paths; a worker never chooses variant/replica.",
+    "balance_guarantee": "Exactly 3 independent fresh workers per variant when all 15 slots close."
+  },
+  "common_capsule": {
+    "preface": "Ejecutá el workload exactamente en orden B1→B6. Todo es sintético y local. No busques contexto externo. No cambies autoridad ni produzcas producto real.",
+    "local_workload": {
+      "blocks": [
+        {
+          "block_id": "B1",
+          "local_task_count": 12,
+          "tasks": [
+            {
+              "task_id": "B1-T01",
+              "task_type": "CLASSIFY",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-1-1",
+                "note": "Caso 1.1: objetivo local 8, dependencia D2, estado PARTIAL, evidencia R11; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R11:A",
+                  "synthetic:R11:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Clasificá la nota sintética como IDEA, ACCION o REFERENCIA; justificá con criterio observable y no inventes contexto."
+            },
+            {
+              "task_id": "B1-T02",
+              "task_type": "EXTRACT",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-1-2",
+                "note": "Caso 1.2: objetivo local 9, dependencia D3, estado BOUNDARY, evidencia R12; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R12:A",
+                  "synthetic:R12:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Extraé objective, input, processing, output, boundary y ambiguity del caso sintético; si falta algo, marcá UNKNOWN."
+            },
+            {
+              "task_id": "B1-T03",
+              "task_type": "CONTRADICTION",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-1-3",
+                "note": "Caso 1.3: objetivo local 1, dependencia D4, estado UNKNOWN, evidencia R13; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R13:A",
+                  "synthetic:R13:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Detectá hasta dos contradicciones internas, separá conflicto real de tensión aparente y nombrá la evidencia textual necesaria."
+            },
+            {
+              "task_id": "B1-T04",
+              "task_type": "ACTIONIZE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-1-4",
+                "note": "Caso 1.4: objetivo local 2, dependencia D5, estado READY, evidencia R14; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R14:A",
+                  "synthetic:R14:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Convertí el pedido ambiguo en una acción concreta, verificable y acotada, preservando la intención y explicitando un boundary."
+            },
+            {
+              "task_id": "B1-T05",
+              "task_type": "PRIORITIZE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-1-5",
+                "note": "Caso 1.5: objetivo local 3, dependencia D1, estado PARTIAL, evidencia R15; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R15:A",
+                  "synthetic:R15:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Ordená cinco microtareas sintéticas bajo dependencias dadas; explicá por qué sin introducir prioridades externas."
+            },
+            {
+              "task_id": "B1-T06",
+              "task_type": "MICRO_SPEC",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-1-6",
+                "note": "Caso 1.6: objetivo local 4, dependencia D2, estado BOUNDARY, evidencia R16; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R16:A",
+                  "synthetic:R16:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Redactá una micro-especificación con objetivo, entradas, proceso, salida, DoD, fallas y no-goals."
+            },
+            {
+              "task_id": "B1-T07",
+              "task_type": "FAILURE_ANALYSIS",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-1-7",
+                "note": "Caso 1.7: objetivo local 5, dependencia D3, estado UNKNOWN, evidencia R17; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R17:A",
+                  "synthetic:R17:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Clasificá el fallo sintético, distinguí síntoma de causa posible y definí evidencia mínima para resolverlo."
+            },
+            {
+              "task_id": "B1-T08",
+              "task_type": "EVIDENCE_MAP",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-1-8",
+                "note": "Caso 1.8: objetivo local 6, dependencia D4, estado READY, evidencia R18; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R18:A",
+                  "synthetic:R18:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Mapeá cuatro claims sintéticos a refs provistas, marcando VERIFIED, PARTIAL, BOUNDARY o UNKNOWN sin elevar autoridad."
+            },
+            {
+              "task_id": "B1-T09",
+              "task_type": "COMPARE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-1-9",
+                "note": "Caso 1.9: objetivo local 7, dependencia D5, estado PARTIAL, evidencia R19; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R19:A",
+                  "synthetic:R19:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Compará dos alternativas sintéticas en seis dimensiones sin declarar ganador; explicitá incomparables y datos faltantes."
+            },
+            {
+              "task_id": "B1-T10",
+              "task_type": "DEDUPE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-1-10",
+                "note": "Caso 1.10: objetivo local 8, dependencia D1, estado BOUNDARY, evidencia R110; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R110:A",
+                  "synthetic:R110:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Detectá duplicados y solapamientos entre seis intents sintéticos; conservá un representante y justificá cada merge/no-merge."
+            },
+            {
+              "task_id": "B1-T11",
+              "task_type": "HANDOFF",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-1-11",
+                "note": "Caso 1.11: objetivo local 9, dependencia D2, estado UNKNOWN, evidencia R111; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R111:A",
+                  "synthetic:R111:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Producí un handoff compacto con estado, cambios, evidencia, abiertos, siguiente acción y stop rule."
+            },
+            {
+              "task_id": "B1-T12",
+              "task_type": "QUALITY_AUDIT",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-1-12",
+                "note": "Caso 1.12: objetivo local 1, dependencia D3, estado READY, evidencia R112; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R112:A",
+                  "synthetic:R112:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Auditá una salida sintética contra siete constraints, registrá PASS/FAIL/UNKNOWN y una reparación mínima cuando corresponda."
+            }
+          ],
+          "block_summary_target_words": [
+            55,
+            75
+          ],
+          "block_summary_instruction": "Resumí patrones, correcciones internas y dudas del bloque sin responder todavía al benchmark ni escribir telemetría."
+        },
+        {
+          "block_id": "B2",
+          "local_task_count": 12,
+          "tasks": [
+            {
+              "task_id": "B2-T01",
+              "task_type": "CLASSIFY",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-2-1",
+                "note": "Caso 2.1: objetivo local 6, dependencia D3, estado BOUNDARY, evidencia R21; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R21:A",
+                  "synthetic:R21:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Clasificá la nota sintética como IDEA, ACCION o REFERENCIA; justificá con criterio observable y no inventes contexto."
+            },
+            {
+              "task_id": "B2-T02",
+              "task_type": "EXTRACT",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-2-2",
+                "note": "Caso 2.2: objetivo local 7, dependencia D4, estado UNKNOWN, evidencia R22; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R22:A",
+                  "synthetic:R22:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Extraé objective, input, processing, output, boundary y ambiguity del caso sintético; si falta algo, marcá UNKNOWN."
+            },
+            {
+              "task_id": "B2-T03",
+              "task_type": "CONTRADICTION",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-2-3",
+                "note": "Caso 2.3: objetivo local 8, dependencia D5, estado READY, evidencia R23; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R23:A",
+                  "synthetic:R23:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Detectá hasta dos contradicciones internas, separá conflicto real de tensión aparente y nombrá la evidencia textual necesaria."
+            },
+            {
+              "task_id": "B2-T04",
+              "task_type": "ACTIONIZE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-2-4",
+                "note": "Caso 2.4: objetivo local 9, dependencia D1, estado PARTIAL, evidencia R24; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R24:A",
+                  "synthetic:R24:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Convertí el pedido ambiguo en una acción concreta, verificable y acotada, preservando la intención y explicitando un boundary."
+            },
+            {
+              "task_id": "B2-T05",
+              "task_type": "PRIORITIZE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-2-5",
+                "note": "Caso 2.5: objetivo local 1, dependencia D2, estado BOUNDARY, evidencia R25; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R25:A",
+                  "synthetic:R25:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Ordená cinco microtareas sintéticas bajo dependencias dadas; explicá por qué sin introducir prioridades externas."
+            },
+            {
+              "task_id": "B2-T06",
+              "task_type": "MICRO_SPEC",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-2-6",
+                "note": "Caso 2.6: objetivo local 2, dependencia D3, estado UNKNOWN, evidencia R26; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R26:A",
+                  "synthetic:R26:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Redactá una micro-especificación con objetivo, entradas, proceso, salida, DoD, fallas y no-goals."
+            },
+            {
+              "task_id": "B2-T07",
+              "task_type": "FAILURE_ANALYSIS",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-2-7",
+                "note": "Caso 2.7: objetivo local 3, dependencia D4, estado READY, evidencia R27; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R27:A",
+                  "synthetic:R27:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Clasificá el fallo sintético, distinguí síntoma de causa posible y definí evidencia mínima para resolverlo."
+            },
+            {
+              "task_id": "B2-T08",
+              "task_type": "EVIDENCE_MAP",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-2-8",
+                "note": "Caso 2.8: objetivo local 4, dependencia D5, estado PARTIAL, evidencia R28; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R28:A",
+                  "synthetic:R28:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Mapeá cuatro claims sintéticos a refs provistas, marcando VERIFIED, PARTIAL, BOUNDARY o UNKNOWN sin elevar autoridad."
+            },
+            {
+              "task_id": "B2-T09",
+              "task_type": "COMPARE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-2-9",
+                "note": "Caso 2.9: objetivo local 5, dependencia D1, estado BOUNDARY, evidencia R29; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R29:A",
+                  "synthetic:R29:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Compará dos alternativas sintéticas en seis dimensiones sin declarar ganador; explicitá incomparables y datos faltantes."
+            },
+            {
+              "task_id": "B2-T10",
+              "task_type": "DEDUPE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-2-10",
+                "note": "Caso 2.10: objetivo local 6, dependencia D2, estado UNKNOWN, evidencia R210; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R210:A",
+                  "synthetic:R210:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Detectá duplicados y solapamientos entre seis intents sintéticos; conservá un representante y justificá cada merge/no-merge."
+            },
+            {
+              "task_id": "B2-T11",
+              "task_type": "HANDOFF",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-2-11",
+                "note": "Caso 2.11: objetivo local 7, dependencia D3, estado READY, evidencia R211; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R211:A",
+                  "synthetic:R211:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Producí un handoff compacto con estado, cambios, evidencia, abiertos, siguiente acción y stop rule."
+            },
+            {
+              "task_id": "B2-T12",
+              "task_type": "QUALITY_AUDIT",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-2-12",
+                "note": "Caso 2.12: objetivo local 8, dependencia D4, estado PARTIAL, evidencia R212; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R212:A",
+                  "synthetic:R212:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Auditá una salida sintética contra siete constraints, registrá PASS/FAIL/UNKNOWN y una reparación mínima cuando corresponda."
+            }
+          ],
+          "block_summary_target_words": [
+            55,
+            75
+          ],
+          "block_summary_instruction": "Resumí patrones, correcciones internas y dudas del bloque sin responder todavía al benchmark ni escribir telemetría."
+        },
+        {
+          "block_id": "B3",
+          "local_task_count": 12,
+          "tasks": [
+            {
+              "task_id": "B3-T01",
+              "task_type": "CLASSIFY",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-3-1",
+                "note": "Caso 3.1: objetivo local 4, dependencia D4, estado UNKNOWN, evidencia R31; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R31:A",
+                  "synthetic:R31:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Clasificá la nota sintética como IDEA, ACCION o REFERENCIA; justificá con criterio observable y no inventes contexto."
+            },
+            {
+              "task_id": "B3-T02",
+              "task_type": "EXTRACT",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-3-2",
+                "note": "Caso 3.2: objetivo local 5, dependencia D5, estado READY, evidencia R32; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R32:A",
+                  "synthetic:R32:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Extraé objective, input, processing, output, boundary y ambiguity del caso sintético; si falta algo, marcá UNKNOWN."
+            },
+            {
+              "task_id": "B3-T03",
+              "task_type": "CONTRADICTION",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-3-3",
+                "note": "Caso 3.3: objetivo local 6, dependencia D1, estado PARTIAL, evidencia R33; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R33:A",
+                  "synthetic:R33:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Detectá hasta dos contradicciones internas, separá conflicto real de tensión aparente y nombrá la evidencia textual necesaria."
+            },
+            {
+              "task_id": "B3-T04",
+              "task_type": "ACTIONIZE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-3-4",
+                "note": "Caso 3.4: objetivo local 7, dependencia D2, estado BOUNDARY, evidencia R34; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R34:A",
+                  "synthetic:R34:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Convertí el pedido ambiguo en una acción concreta, verificable y acotada, preservando la intención y explicitando un boundary."
+            },
+            {
+              "task_id": "B3-T05",
+              "task_type": "PRIORITIZE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-3-5",
+                "note": "Caso 3.5: objetivo local 8, dependencia D3, estado UNKNOWN, evidencia R35; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R35:A",
+                  "synthetic:R35:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Ordená cinco microtareas sintéticas bajo dependencias dadas; explicá por qué sin introducir prioridades externas."
+            },
+            {
+              "task_id": "B3-T06",
+              "task_type": "MICRO_SPEC",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-3-6",
+                "note": "Caso 3.6: objetivo local 9, dependencia D4, estado READY, evidencia R36; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R36:A",
+                  "synthetic:R36:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Redactá una micro-especificación con objetivo, entradas, proceso, salida, DoD, fallas y no-goals."
+            },
+            {
+              "task_id": "B3-T07",
+              "task_type": "FAILURE_ANALYSIS",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-3-7",
+                "note": "Caso 3.7: objetivo local 1, dependencia D5, estado PARTIAL, evidencia R37; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R37:A",
+                  "synthetic:R37:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Clasificá el fallo sintético, distinguí síntoma de causa posible y definí evidencia mínima para resolverlo."
+            },
+            {
+              "task_id": "B3-T08",
+              "task_type": "EVIDENCE_MAP",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-3-8",
+                "note": "Caso 3.8: objetivo local 2, dependencia D1, estado BOUNDARY, evidencia R38; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R38:A",
+                  "synthetic:R38:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Mapeá cuatro claims sintéticos a refs provistas, marcando VERIFIED, PARTIAL, BOUNDARY o UNKNOWN sin elevar autoridad."
+            },
+            {
+              "task_id": "B3-T09",
+              "task_type": "COMPARE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-3-9",
+                "note": "Caso 3.9: objetivo local 3, dependencia D2, estado UNKNOWN, evidencia R39; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R39:A",
+                  "synthetic:R39:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Compará dos alternativas sintéticas en seis dimensiones sin declarar ganador; explicitá incomparables y datos faltantes."
+            },
+            {
+              "task_id": "B3-T10",
+              "task_type": "DEDUPE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-3-10",
+                "note": "Caso 3.10: objetivo local 4, dependencia D3, estado READY, evidencia R310; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R310:A",
+                  "synthetic:R310:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Detectá duplicados y solapamientos entre seis intents sintéticos; conservá un representante y justificá cada merge/no-merge."
+            },
+            {
+              "task_id": "B3-T11",
+              "task_type": "HANDOFF",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-3-11",
+                "note": "Caso 3.11: objetivo local 5, dependencia D4, estado PARTIAL, evidencia R311; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R311:A",
+                  "synthetic:R311:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Producí un handoff compacto con estado, cambios, evidencia, abiertos, siguiente acción y stop rule."
+            },
+            {
+              "task_id": "B3-T12",
+              "task_type": "QUALITY_AUDIT",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-3-12",
+                "note": "Caso 3.12: objetivo local 6, dependencia D5, estado BOUNDARY, evidencia R312; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R312:A",
+                  "synthetic:R312:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Auditá una salida sintética contra siete constraints, registrá PASS/FAIL/UNKNOWN y una reparación mínima cuando corresponda."
+            }
+          ],
+          "block_summary_target_words": [
+            55,
+            75
+          ],
+          "block_summary_instruction": "Resumí patrones, correcciones internas y dudas del bloque sin responder todavía al benchmark ni escribir telemetría."
+        },
+        {
+          "block_id": "B4",
+          "local_task_count": 12,
+          "tasks": [
+            {
+              "task_id": "B4-T01",
+              "task_type": "CLASSIFY",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-4-1",
+                "note": "Caso 4.1: objetivo local 2, dependencia D5, estado READY, evidencia R41; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R41:A",
+                  "synthetic:R41:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Clasificá la nota sintética como IDEA, ACCION o REFERENCIA; justificá con criterio observable y no inventes contexto."
+            },
+            {
+              "task_id": "B4-T02",
+              "task_type": "EXTRACT",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-4-2",
+                "note": "Caso 4.2: objetivo local 3, dependencia D1, estado PARTIAL, evidencia R42; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R42:A",
+                  "synthetic:R42:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Extraé objective, input, processing, output, boundary y ambiguity del caso sintético; si falta algo, marcá UNKNOWN."
+            },
+            {
+              "task_id": "B4-T03",
+              "task_type": "CONTRADICTION",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-4-3",
+                "note": "Caso 4.3: objetivo local 4, dependencia D2, estado BOUNDARY, evidencia R43; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R43:A",
+                  "synthetic:R43:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Detectá hasta dos contradicciones internas, separá conflicto real de tensión aparente y nombrá la evidencia textual necesaria."
+            },
+            {
+              "task_id": "B4-T04",
+              "task_type": "ACTIONIZE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-4-4",
+                "note": "Caso 4.4: objetivo local 5, dependencia D3, estado UNKNOWN, evidencia R44; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R44:A",
+                  "synthetic:R44:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Convertí el pedido ambiguo en una acción concreta, verificable y acotada, preservando la intención y explicitando un boundary."
+            },
+            {
+              "task_id": "B4-T05",
+              "task_type": "PRIORITIZE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-4-5",
+                "note": "Caso 4.5: objetivo local 6, dependencia D4, estado READY, evidencia R45; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R45:A",
+                  "synthetic:R45:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Ordená cinco microtareas sintéticas bajo dependencias dadas; explicá por qué sin introducir prioridades externas."
+            },
+            {
+              "task_id": "B4-T06",
+              "task_type": "MICRO_SPEC",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-4-6",
+                "note": "Caso 4.6: objetivo local 7, dependencia D5, estado PARTIAL, evidencia R46; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R46:A",
+                  "synthetic:R46:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Redactá una micro-especificación con objetivo, entradas, proceso, salida, DoD, fallas y no-goals."
+            },
+            {
+              "task_id": "B4-T07",
+              "task_type": "FAILURE_ANALYSIS",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-4-7",
+                "note": "Caso 4.7: objetivo local 8, dependencia D1, estado BOUNDARY, evidencia R47; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R47:A",
+                  "synthetic:R47:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Clasificá el fallo sintético, distinguí síntoma de causa posible y definí evidencia mínima para resolverlo."
+            },
+            {
+              "task_id": "B4-T08",
+              "task_type": "EVIDENCE_MAP",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-4-8",
+                "note": "Caso 4.8: objetivo local 9, dependencia D2, estado UNKNOWN, evidencia R48; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R48:A",
+                  "synthetic:R48:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Mapeá cuatro claims sintéticos a refs provistas, marcando VERIFIED, PARTIAL, BOUNDARY o UNKNOWN sin elevar autoridad."
+            },
+            {
+              "task_id": "B4-T09",
+              "task_type": "COMPARE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-4-9",
+                "note": "Caso 4.9: objetivo local 1, dependencia D3, estado READY, evidencia R49; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R49:A",
+                  "synthetic:R49:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Compará dos alternativas sintéticas en seis dimensiones sin declarar ganador; explicitá incomparables y datos faltantes."
+            },
+            {
+              "task_id": "B4-T10",
+              "task_type": "DEDUPE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-4-10",
+                "note": "Caso 4.10: objetivo local 2, dependencia D4, estado PARTIAL, evidencia R410; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R410:A",
+                  "synthetic:R410:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Detectá duplicados y solapamientos entre seis intents sintéticos; conservá un representante y justificá cada merge/no-merge."
+            },
+            {
+              "task_id": "B4-T11",
+              "task_type": "HANDOFF",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-4-11",
+                "note": "Caso 4.11: objetivo local 3, dependencia D5, estado BOUNDARY, evidencia R411; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R411:A",
+                  "synthetic:R411:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Producí un handoff compacto con estado, cambios, evidencia, abiertos, siguiente acción y stop rule."
+            },
+            {
+              "task_id": "B4-T12",
+              "task_type": "QUALITY_AUDIT",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-4-12",
+                "note": "Caso 4.12: objetivo local 4, dependencia D1, estado UNKNOWN, evidencia R412; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R412:A",
+                  "synthetic:R412:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Auditá una salida sintética contra siete constraints, registrá PASS/FAIL/UNKNOWN y una reparación mínima cuando corresponda."
+            }
+          ],
+          "block_summary_target_words": [
+            55,
+            75
+          ],
+          "block_summary_instruction": "Resumí patrones, correcciones internas y dudas del bloque sin responder todavía al benchmark ni escribir telemetría."
+        },
+        {
+          "block_id": "B5",
+          "local_task_count": 12,
+          "tasks": [
+            {
+              "task_id": "B5-T01",
+              "task_type": "CLASSIFY",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-5-1",
+                "note": "Caso 5.1: objetivo local 9, dependencia D1, estado PARTIAL, evidencia R51; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R51:A",
+                  "synthetic:R51:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Clasificá la nota sintética como IDEA, ACCION o REFERENCIA; justificá con criterio observable y no inventes contexto."
+            },
+            {
+              "task_id": "B5-T02",
+              "task_type": "EXTRACT",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-5-2",
+                "note": "Caso 5.2: objetivo local 1, dependencia D2, estado BOUNDARY, evidencia R52; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R52:A",
+                  "synthetic:R52:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Extraé objective, input, processing, output, boundary y ambiguity del caso sintético; si falta algo, marcá UNKNOWN."
+            },
+            {
+              "task_id": "B5-T03",
+              "task_type": "CONTRADICTION",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-5-3",
+                "note": "Caso 5.3: objetivo local 2, dependencia D3, estado UNKNOWN, evidencia R53; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R53:A",
+                  "synthetic:R53:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Detectá hasta dos contradicciones internas, separá conflicto real de tensión aparente y nombrá la evidencia textual necesaria."
+            },
+            {
+              "task_id": "B5-T04",
+              "task_type": "ACTIONIZE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-5-4",
+                "note": "Caso 5.4: objetivo local 3, dependencia D4, estado READY, evidencia R54; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R54:A",
+                  "synthetic:R54:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Convertí el pedido ambiguo en una acción concreta, verificable y acotada, preservando la intención y explicitando un boundary."
+            },
+            {
+              "task_id": "B5-T05",
+              "task_type": "PRIORITIZE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-5-5",
+                "note": "Caso 5.5: objetivo local 4, dependencia D5, estado PARTIAL, evidencia R55; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R55:A",
+                  "synthetic:R55:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Ordená cinco microtareas sintéticas bajo dependencias dadas; explicá por qué sin introducir prioridades externas."
+            },
+            {
+              "task_id": "B5-T06",
+              "task_type": "MICRO_SPEC",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-5-6",
+                "note": "Caso 5.6: objetivo local 5, dependencia D1, estado BOUNDARY, evidencia R56; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R56:A",
+                  "synthetic:R56:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Redactá una micro-especificación con objetivo, entradas, proceso, salida, DoD, fallas y no-goals."
+            },
+            {
+              "task_id": "B5-T07",
+              "task_type": "FAILURE_ANALYSIS",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-5-7",
+                "note": "Caso 5.7: objetivo local 6, dependencia D2, estado UNKNOWN, evidencia R57; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R57:A",
+                  "synthetic:R57:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Clasificá el fallo sintético, distinguí síntoma de causa posible y definí evidencia mínima para resolverlo."
+            },
+            {
+              "task_id": "B5-T08",
+              "task_type": "EVIDENCE_MAP",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-5-8",
+                "note": "Caso 5.8: objetivo local 7, dependencia D3, estado READY, evidencia R58; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R58:A",
+                  "synthetic:R58:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Mapeá cuatro claims sintéticos a refs provistas, marcando VERIFIED, PARTIAL, BOUNDARY o UNKNOWN sin elevar autoridad."
+            },
+            {
+              "task_id": "B5-T09",
+              "task_type": "COMPARE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-5-9",
+                "note": "Caso 5.9: objetivo local 8, dependencia D4, estado PARTIAL, evidencia R59; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R59:A",
+                  "synthetic:R59:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Compará dos alternativas sintéticas en seis dimensiones sin declarar ganador; explicitá incomparables y datos faltantes."
+            },
+            {
+              "task_id": "B5-T10",
+              "task_type": "DEDUPE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-5-10",
+                "note": "Caso 5.10: objetivo local 9, dependencia D5, estado BOUNDARY, evidencia R510; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R510:A",
+                  "synthetic:R510:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Detectá duplicados y solapamientos entre seis intents sintéticos; conservá un representante y justificá cada merge/no-merge."
+            },
+            {
+              "task_id": "B5-T11",
+              "task_type": "HANDOFF",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-5-11",
+                "note": "Caso 5.11: objetivo local 1, dependencia D1, estado UNKNOWN, evidencia R511; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R511:A",
+                  "synthetic:R511:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Producí un handoff compacto con estado, cambios, evidencia, abiertos, siguiente acción y stop rule."
+            },
+            {
+              "task_id": "B5-T12",
+              "task_type": "QUALITY_AUDIT",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-5-12",
+                "note": "Caso 5.12: objetivo local 2, dependencia D2, estado READY, evidencia R512; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R512:A",
+                  "synthetic:R512:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Auditá una salida sintética contra siete constraints, registrá PASS/FAIL/UNKNOWN y una reparación mínima cuando corresponda."
+            }
+          ],
+          "block_summary_target_words": [
+            55,
+            75
+          ],
+          "block_summary_instruction": "Resumí patrones, correcciones internas y dudas del bloque sin responder todavía al benchmark ni escribir telemetría."
+        },
+        {
+          "block_id": "B6",
+          "local_task_count": 12,
+          "tasks": [
+            {
+              "task_id": "B6-T01",
+              "task_type": "CLASSIFY",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-6-1",
+                "note": "Caso 6.1: objetivo local 7, dependencia D2, estado BOUNDARY, evidencia R61; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R61:A",
+                  "synthetic:R61:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Clasificá la nota sintética como IDEA, ACCION o REFERENCIA; justificá con criterio observable y no inventes contexto."
+            },
+            {
+              "task_id": "B6-T02",
+              "task_type": "EXTRACT",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-6-2",
+                "note": "Caso 6.2: objetivo local 8, dependencia D3, estado UNKNOWN, evidencia R62; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R62:A",
+                  "synthetic:R62:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Extraé objective, input, processing, output, boundary y ambiguity del caso sintético; si falta algo, marcá UNKNOWN."
+            },
+            {
+              "task_id": "B6-T03",
+              "task_type": "CONTRADICTION",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-6-3",
+                "note": "Caso 6.3: objetivo local 9, dependencia D4, estado READY, evidencia R63; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R63:A",
+                  "synthetic:R63:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Detectá hasta dos contradicciones internas, separá conflicto real de tensión aparente y nombrá la evidencia textual necesaria."
+            },
+            {
+              "task_id": "B6-T04",
+              "task_type": "ACTIONIZE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-6-4",
+                "note": "Caso 6.4: objetivo local 1, dependencia D5, estado PARTIAL, evidencia R64; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R64:A",
+                  "synthetic:R64:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Convertí el pedido ambiguo en una acción concreta, verificable y acotada, preservando la intención y explicitando un boundary."
+            },
+            {
+              "task_id": "B6-T05",
+              "task_type": "PRIORITIZE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-6-5",
+                "note": "Caso 6.5: objetivo local 2, dependencia D1, estado BOUNDARY, evidencia R65; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R65:A",
+                  "synthetic:R65:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Ordená cinco microtareas sintéticas bajo dependencias dadas; explicá por qué sin introducir prioridades externas."
+            },
+            {
+              "task_id": "B6-T06",
+              "task_type": "MICRO_SPEC",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-6-6",
+                "note": "Caso 6.6: objetivo local 3, dependencia D2, estado UNKNOWN, evidencia R66; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R66:A",
+                  "synthetic:R66:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Redactá una micro-especificación con objetivo, entradas, proceso, salida, DoD, fallas y no-goals."
+            },
+            {
+              "task_id": "B6-T07",
+              "task_type": "FAILURE_ANALYSIS",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-6-7",
+                "note": "Caso 6.7: objetivo local 4, dependencia D3, estado READY, evidencia R67; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R67:A",
+                  "synthetic:R67:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Clasificá el fallo sintético, distinguí síntoma de causa posible y definí evidencia mínima para resolverlo."
+            },
+            {
+              "task_id": "B6-T08",
+              "task_type": "EVIDENCE_MAP",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-6-8",
+                "note": "Caso 6.8: objetivo local 5, dependencia D4, estado PARTIAL, evidencia R68; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R68:A",
+                  "synthetic:R68:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Mapeá cuatro claims sintéticos a refs provistas, marcando VERIFIED, PARTIAL, BOUNDARY o UNKNOWN sin elevar autoridad."
+            },
+            {
+              "task_id": "B6-T09",
+              "task_type": "COMPARE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-6-9",
+                "note": "Caso 6.9: objetivo local 6, dependencia D5, estado BOUNDARY, evidencia R69; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R69:A",
+                  "synthetic:R69:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Compará dos alternativas sintéticas en seis dimensiones sin declarar ganador; explicitá incomparables y datos faltantes."
+            },
+            {
+              "task_id": "B6-T10",
+              "task_type": "DEDUPE",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-6-10",
+                "note": "Caso 6.10: objetivo local 7, dependencia D1, estado UNKNOWN, evidencia R610; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R610:A",
+                  "synthetic:R610:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Detectá duplicados y solapamientos entre seis intents sintéticos; conservá un representante y justificá cada merge/no-merge."
+            },
+            {
+              "task_id": "B6-T11",
+              "task_type": "HANDOFF",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-6-11",
+                "note": "Caso 6.11: objetivo local 8, dependencia D2, estado READY, evidencia R611; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R611:A",
+                  "synthetic:R611:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Producí un handoff compacto con estado, cambios, evidencia, abiertos, siguiente acción y stop rule."
+            },
+            {
+              "task_id": "B6-T12",
+              "task_type": "QUALITY_AUDIT",
+              "target_words": [
+                45,
+                65
+              ],
+              "synthetic_seed": {
+                "case_id": "SYN-6-12",
+                "note": "Caso 6.12: objetivo local 9, dependencia D3, estado PARTIAL, evidencia R612; existe al menos una restricción explícita y una señal potencialmente ambigua.",
+                "refs": [
+                  "synthetic:R612:A",
+                  "synthetic:R612:B"
+                ],
+                "constraints": [
+                  "No inventar hechos externos.",
+                  "Distinguir UNKNOWN de FAIL.",
+                  "Mantener autoridad sintética/no-productiva."
+                ]
+              },
+              "instruction": "Auditá una salida sintética contra siete constraints, registrá PASS/FAIL/UNKNOWN y una reparación mínima cuando corresponda."
+            }
+          ],
+          "block_summary_target_words": [
+            55,
+            75
+          ],
+          "block_summary_instruction": "Resumí patrones, correcciones internas y dudas del bloque sin responder todavía al benchmark ni escribir telemetría."
+        }
+      ]
+    },
+    "primary_bundle_contract": {
+      "required_fields": [
+        "experiment_id",
+        "slot_id",
+        "variant_id",
+        "replica",
+        "completed_task_ids",
+        "block_summaries",
+        "primary_output",
+        "local_corrections",
+        "unknowns",
+        "self_reported_io_diagnostic",
+        "constraint_audit"
+      ],
+      "completed_task_ids_expected": 72,
+      "word_target": [
+        3500,
+        5500
+      ],
+      "rule": "El bundle puede resumir correcciones internas, pero no debe atribuirse clocks ni external counters autoritativos."
+    },
+    "reallocation_workload": {
+      "trigger": "Immediately after durable primary receipt, same worker continues without human recap.",
+      "local_task_count": 30,
+      "tasks": [
+        {
+          "task_id": "R1-T1",
+          "task_type": "R-CLASSIFY",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 1.1: state=PARTIAL, dependency=D2, ref=synthetic:RR11.",
+          "instruction": "Clasificá un intent sintético y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R1-T2",
+          "task_type": "R-BOUNDARY",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 1.2: state=BOUNDARY, dependency=D3, ref=synthetic:RR12.",
+          "instruction": "Dado un resultado sintético, separá DONE/PARTIAL/BOUNDARY/UNKNOWN y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R1-T3",
+          "task_type": "R-DEDUPE",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 1.3: state=UNKNOWN, dependency=D4, ref=synthetic:RR13.",
+          "instruction": "Decidí si dos intents sintéticos son duplicados o sólo relacionados y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R1-T4",
+          "task_type": "R-NEXT",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 1.4: state=DONE, dependency=D5, ref=synthetic:RR14.",
+          "instruction": "Elegí la siguiente microacción sintética compatible con las dependencias provistas en 25-40 palabras."
+        },
+        {
+          "task_id": "R1-T5",
+          "task_type": "R-AUDIT",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 1.5: state=PARTIAL, dependency=D1, ref=synthetic:RR15.",
+          "instruction": "Auditá tres constraints sintéticos y devolvé PASS/FAIL/UNKNOWN en 25-40 palabras."
+        },
+        {
+          "task_id": "R2-T1",
+          "task_type": "R-CLASSIFY",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 2.1: state=BOUNDARY, dependency=D3, ref=synthetic:RR21.",
+          "instruction": "Clasificá un intent sintético y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R2-T2",
+          "task_type": "R-BOUNDARY",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 2.2: state=UNKNOWN, dependency=D4, ref=synthetic:RR22.",
+          "instruction": "Dado un resultado sintético, separá DONE/PARTIAL/BOUNDARY/UNKNOWN y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R2-T3",
+          "task_type": "R-DEDUPE",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 2.3: state=DONE, dependency=D5, ref=synthetic:RR23.",
+          "instruction": "Decidí si dos intents sintéticos son duplicados o sólo relacionados y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R2-T4",
+          "task_type": "R-NEXT",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 2.4: state=PARTIAL, dependency=D1, ref=synthetic:RR24.",
+          "instruction": "Elegí la siguiente microacción sintética compatible con las dependencias provistas en 25-40 palabras."
+        },
+        {
+          "task_id": "R2-T5",
+          "task_type": "R-AUDIT",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 2.5: state=BOUNDARY, dependency=D2, ref=synthetic:RR25.",
+          "instruction": "Auditá tres constraints sintéticos y devolvé PASS/FAIL/UNKNOWN en 25-40 palabras."
+        },
+        {
+          "task_id": "R3-T1",
+          "task_type": "R-CLASSIFY",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 3.1: state=UNKNOWN, dependency=D4, ref=synthetic:RR31.",
+          "instruction": "Clasificá un intent sintético y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R3-T2",
+          "task_type": "R-BOUNDARY",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 3.2: state=DONE, dependency=D5, ref=synthetic:RR32.",
+          "instruction": "Dado un resultado sintético, separá DONE/PARTIAL/BOUNDARY/UNKNOWN y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R3-T3",
+          "task_type": "R-DEDUPE",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 3.3: state=PARTIAL, dependency=D1, ref=synthetic:RR33.",
+          "instruction": "Decidí si dos intents sintéticos son duplicados o sólo relacionados y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R3-T4",
+          "task_type": "R-NEXT",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 3.4: state=BOUNDARY, dependency=D2, ref=synthetic:RR34.",
+          "instruction": "Elegí la siguiente microacción sintética compatible con las dependencias provistas en 25-40 palabras."
+        },
+        {
+          "task_id": "R3-T5",
+          "task_type": "R-AUDIT",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 3.5: state=UNKNOWN, dependency=D3, ref=synthetic:RR35.",
+          "instruction": "Auditá tres constraints sintéticos y devolvé PASS/FAIL/UNKNOWN en 25-40 palabras."
+        },
+        {
+          "task_id": "R4-T1",
+          "task_type": "R-CLASSIFY",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 4.1: state=DONE, dependency=D5, ref=synthetic:RR41.",
+          "instruction": "Clasificá un intent sintético y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R4-T2",
+          "task_type": "R-BOUNDARY",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 4.2: state=PARTIAL, dependency=D1, ref=synthetic:RR42.",
+          "instruction": "Dado un resultado sintético, separá DONE/PARTIAL/BOUNDARY/UNKNOWN y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R4-T3",
+          "task_type": "R-DEDUPE",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 4.3: state=BOUNDARY, dependency=D2, ref=synthetic:RR43.",
+          "instruction": "Decidí si dos intents sintéticos son duplicados o sólo relacionados y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R4-T4",
+          "task_type": "R-NEXT",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 4.4: state=UNKNOWN, dependency=D3, ref=synthetic:RR44.",
+          "instruction": "Elegí la siguiente microacción sintética compatible con las dependencias provistas en 25-40 palabras."
+        },
+        {
+          "task_id": "R4-T5",
+          "task_type": "R-AUDIT",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 4.5: state=DONE, dependency=D4, ref=synthetic:RR45.",
+          "instruction": "Auditá tres constraints sintéticos y devolvé PASS/FAIL/UNKNOWN en 25-40 palabras."
+        },
+        {
+          "task_id": "R5-T1",
+          "task_type": "R-CLASSIFY",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 5.1: state=PARTIAL, dependency=D1, ref=synthetic:RR51.",
+          "instruction": "Clasificá un intent sintético y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R5-T2",
+          "task_type": "R-BOUNDARY",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 5.2: state=BOUNDARY, dependency=D2, ref=synthetic:RR52.",
+          "instruction": "Dado un resultado sintético, separá DONE/PARTIAL/BOUNDARY/UNKNOWN y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R5-T3",
+          "task_type": "R-DEDUPE",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 5.3: state=UNKNOWN, dependency=D3, ref=synthetic:RR53.",
+          "instruction": "Decidí si dos intents sintéticos son duplicados o sólo relacionados y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R5-T4",
+          "task_type": "R-NEXT",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 5.4: state=DONE, dependency=D4, ref=synthetic:RR54.",
+          "instruction": "Elegí la siguiente microacción sintética compatible con las dependencias provistas en 25-40 palabras."
+        },
+        {
+          "task_id": "R5-T5",
+          "task_type": "R-AUDIT",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 5.5: state=PARTIAL, dependency=D5, ref=synthetic:RR55.",
+          "instruction": "Auditá tres constraints sintéticos y devolvé PASS/FAIL/UNKNOWN en 25-40 palabras."
+        },
+        {
+          "task_id": "R6-T1",
+          "task_type": "R-CLASSIFY",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 6.1: state=BOUNDARY, dependency=D2, ref=synthetic:RR61.",
+          "instruction": "Clasificá un intent sintético y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R6-T2",
+          "task_type": "R-BOUNDARY",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 6.2: state=UNKNOWN, dependency=D3, ref=synthetic:RR62.",
+          "instruction": "Dado un resultado sintético, separá DONE/PARTIAL/BOUNDARY/UNKNOWN y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R6-T3",
+          "task_type": "R-DEDUPE",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 6.3: state=DONE, dependency=D4, ref=synthetic:RR63.",
+          "instruction": "Decidí si dos intents sintéticos son duplicados o sólo relacionados y justificá en 25-40 palabras."
+        },
+        {
+          "task_id": "R6-T4",
+          "task_type": "R-NEXT",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 6.4: state=PARTIAL, dependency=D5, ref=synthetic:RR64.",
+          "instruction": "Elegí la siguiente microacción sintética compatible con las dependencias provistas en 25-40 palabras."
+        },
+        {
+          "task_id": "R6-T5",
+          "task_type": "R-AUDIT",
+          "target_words": [
+            25,
+            40
+          ],
+          "synthetic_seed": "Reallocation 6.5: state=BOUNDARY, dependency=D1, ref=synthetic:RR65.",
+          "instruction": "Auditá tres constraints sintéticos y devolvé PASS/FAIL/UNKNOWN en 25-40 palabras."
+        }
+      ],
+      "useful_output_target_words": [
+        750,
+        1200
+      ],
+      "result_contract": [
+        "same worker_id/launch_nonce and slot lineage",
+        "all 30 task_ids completed or explicit UNKNOWN/BOUNDARY",
+        "no re-bootstrap or human recap",
+        "one reallocation receipt before CLOSE"
+      ]
+    }
+  },
+  "io_windows": {
+    "W0_claim_to_midpoint": {
+      "starts_after": "Atomic claim plus one exact frozen capsule load.",
+      "local_blocks": [
+        "B1",
+        "B2",
+        "B3"
+      ],
+      "external_io_rule": "NO web/GitHub/tools/external reads/writes after capsule load until the one MIDPOINT write.",
+      "permitted_durable_write": "MIDPOINT only",
+      "midpoint_schema": {
+        "schema": "prometeo.residency-macrobatch-midpoint/v1",
+        "fields": [
+          "experiment_id",
+          "slot_id",
+          "worker_id",
+          "launch_nonce",
+          "variant_id",
+          "replica",
+          "blocks_completed",
+          "tasks_completed",
+          "local_digest",
+          "unknowns_count"
+        ],
+        "required_values": {
+          "blocks_completed": 3,
+          "tasks_completed": 36
+        }
+      }
+    },
+    "W1_midpoint_to_primary": {
+      "starts_after": "MIDPOINT durable write completes.",
+      "local_blocks": [
+        "B4",
+        "B5",
+        "B6"
+      ],
+      "external_io_rule": "NO web/GitHub/tools/external reads/writes until the one primary receipt.",
+      "permitted_durable_write": "Primary receipt only",
+      "required_tasks_completed": 72
+    },
+    "W2_primary_to_reallocation": {
+      "starts_after": "Primary receipt durable write completes.",
+      "external_io_rule": "Use the already-loaded reallocation capsule; no external reads/tools during the 30 local reallocation tasks.",
+      "permitted_durable_write": "One reallocation receipt after all 30 tasks."
+    },
+    "W3_reallocation_to_close": {
+      "starts_after": "Reallocation receipt durable write completes.",
+      "purpose": "External verification/accounting and CLOSE may read durable evidence. No additional synthetic work is required."
+    }
+  },
+  "external_clock_contract": {
+    "primary_source_order": [
+      "GitHub server event timestamps when exact operation event exists",
+      "durable Git commit creation timestamps for claim/MIDPOINT/primary/reallocation/close",
+      "workflow artifact/server timestamps when the packet uses a workflow"
+    ],
+    "forbidden_as_primary_clock": [
+      "model-authored timestamps",
+      "model duration estimates",
+      "timestamps embedded only inside worker-authored JSON without external server corroboration"
+    ],
+    "event_points": [
+      "claim",
+      "midpoint",
+      "primary_receipt",
+      "reallocation_receipt",
+      "close"
+    ],
+    "derived_metrics": [
+      "claim_to_midpoint_seconds",
+      "midpoint_to_primary_seconds",
+      "claim_to_primary_seconds",
+      "primary_to_reallocation_seconds",
+      "reallocation_to_close_seconds",
+      "claim_to_close_seconds"
+    ],
+    "missing_clock_rule": "UNKNOWN, never zero or imputed."
+  },
+  "io_accounting": {
+    "ref": "coordination/workers/WORKER_IO_ACCOUNTING_CANDIDATE_V1.json",
+    "counters": [
+      "external_read_ops",
+      "external_write_ops",
+      "commits",
+      "workflow_waits",
+      "retries",
+      "artifact_count",
+      "artifact_bytes"
+    ],
+    "zero_rule": "Numeric zero is valid only with COMPLETE_FOR_SCOPE plus coverage_evidence_refs from a closed trace/fixture.",
+    "model_ledger_rule": "Any worker-stated external_reads=0/external_writes=0/tool_calls=0 is diagnostic until independently closed.",
+    "write_budget_intent": {
+      "primary_path_expected_semantic_writes": [
+        "claim",
+        "MIDPOINT",
+        "primary receipt",
+        "reallocation receipt",
+        "close"
+      ],
+      "forbidden": "per-task or per-block durable telemetry other than the single B3 MIDPOINT"
+    }
+  },
+  "quality_contract": {
+    "primary_hard_checks": [
+      "72 distinct primary task_ids accounted for",
+      "6 block summaries present",
+      "primary useful output 3500-5500 words or explicit RANGE_FAIL",
+      "no invented external facts",
+      "UNKNOWN preserved where synthetic evidence is insufficient",
+      "variant_id matches assigned slot and only its declared prompt_delta is applied",
+      "B3 MIDPOINT exactly once and not treated as terminal",
+      "no primary receipt before B6"
+    ],
+    "reallocation_hard_checks": [
+      "same worker_id and launch_nonce as primary",
+      "30 distinct reallocation task_ids accounted for",
+      "no human recap between primary and reallocation",
+      "reallocation receipt precedes CLOSE"
+    ],
+    "independent_verifier_required": true,
+    "done_vs_pass_separate": true,
+    "speed_never_overrides_quality": true
+  },
+  "failure_taxonomy": [
+    "EARLY_PRIMARY_ANSWER",
+    "EARLY_CLOSE_AT_MIDPOINT",
+    "MISSING_MIDPOINT",
+    "MULTIPLE_MIDPOINT_WRITES",
+    "PROHIBITED_EXTERNAL_READ",
+    "PROHIBITED_EXTERNAL_WRITE",
+    "PROHIBITED_TOOL_CALL",
+    "PER_TASK_TELEMETRY",
+    "PRIMARY_TASK_OMISSION",
+    "PRIMARY_OUTPUT_RANGE_FAIL",
+    "INSTRUCTION_DRIFT",
+    "UNKNOWN_FABRICATED_AS_FACT",
+    "FALSE_ZERO_IO",
+    "SELF_REPORTED_CLOCK_USED_AS_EXTERNAL",
+    "VARIANT_CONTAMINATION",
+    "CROSS_SLOT_RESULT_EXPOSURE",
+    "REUSED_WORKER_ID_OR_NONCE",
+    "MANUAL_VARIANT_ROUTING",
+    "REALLOCATION_SKIPPED",
+    "REALLOCATION_TASK_OMISSION",
+    "REBOOTSTRAP_OR_HUMAN_RECAP_REQUIRED",
+    "CLOSE_BEFORE_REALLOCATION",
+    "DUPLICATE_SLOT_ACCEPT",
+    "STALE_GENERATION_RESULT",
+    "AUTHORITY_OR_PRODUCT_VALUE_DRIFT",
+    "EXTERNAL_TRANSPORT_FAILURE",
+    "UNMEASURED_RETRY"
+  ],
+  "contamination_rules": [
+    "Any prompt/workload/gate change besides the assigned variant's single prompt_delta contaminates the slot.",
+    "A worker participating in more than one primary slot contaminates both slots for causal comparison.",
+    "Reading another slot's result before own CLOSE contaminates the slot.",
+    "Human correction/routing during local windows contaminates the slot.",
+    "Packet/spec source hash mismatch contaminates the slot.",
+    "Unaccounted external I/O inside W0/W1/W2 is contamination or UNKNOWN if trace coverage cannot establish it; never silently zero.",
+    "Repairing immutable primary output after external verification preserves the original slot result and marks degradation/invalidity rather than rewriting history."
+  ],
+  "metrics": {
+    "primary": [
+      "valid_primary_completion_rate_by_variant",
+      "independent_quality_pass_rate_by_variant",
+      "primary_task_coverage_rate",
+      "primary_word_range_pass_rate",
+      "false_zero_rate",
+      "prohibited_io_violation_rate",
+      "claim_to_primary_seconds_external_p50",
+      "claim_to_primary_seconds_external_p90"
+    ],
+    "continuity": [
+      "reallocation_completion_rate_by_variant",
+      "reallocation_task_coverage_rate",
+      "primary_to_reallocation_seconds_external_p50",
+      "same_worker_lineage_rate",
+      "human_recap_rate"
+    ],
+    "diagnostics": [
+      "local_corrections_self_reported",
+      "worker_claimed_io_ledger",
+      "worker_claimed_duration",
+      "external_transport_failure_class"
+    ],
+    "causal_boundary": "Compare variants only after 3 independent uncontaminated replicas each. No automatic winner; timing is descriptive unless clocks and workloads are homologous."
+  },
+  "promotion_and_authority": {
+    "synthetic_output_value_class": "EXPERIMENT_ONLY_NOT_PRODUCT_VALUE",
+    "no_current": true,
+    "no_human_accepted": true,
+    "no_served": true,
+    "no_worker_pipeline_promotion": true,
+    "promotion_rule": "This spec or a future result cannot alter binding worker laws without an independently reproduced comparison and a separate authorized promotion decision."
+  },
+  "generic_run_packet_mapping": {
+    "packet_id_candidate": "RESIDENCY-MACROBATCH-15X-V1-RUN",
+    "protocol_ref": "coordination/workers/LAUNCH_PACKET_PROTOCOL_V1.json",
+    "slots_source": "$.slots",
+    "common_capsule_source": "$.common_capsule",
+    "per_slot_prompt_delta_source": "join($.variants by variant_id).prompt_delta",
+    "immutable_fields": [
+      "experiment_id",
+      "slot_id",
+      "variant_id",
+      "replica",
+      "spec_blob_sha",
+      "common_capsule_hash",
+      "prompt_delta_hash"
+    ],
+    "stage_expectations": [
+      "E0 fresh external launch identity",
+      "E1 beacon with run_id/slot lineage",
+      "E2 atomic slot claim",
+      "E3 exact frozen capsule load",
+      "E4 local B1-B3",
+      "MIDPOINT single durable write",
+      "E4 local B4-B6",
+      "E5 primary receipt",
+      "E6 independent verification",
+      "E8 same-worker synthetic reallocation",
+      "CLOSE terminal exam"
+    ],
+    "mechanical_ready_when": [
+      "spec parses",
+      "15 unique slots",
+      "5 variants exactly",
+      "3 slots per variant",
+      "72 primary tasks",
+      "30 reallocation tasks",
+      "all slot variant ids resolve",
+      "each treatment variant has exactly one causal_delta_key and control has none"
+    ]
+  },
+  "evidence_refs": [
+    "coordination/workers/WORKER_LOCAL_CAPACITY_V2_10X_CHECKPOINT.json@36dacce96cf9d749a242ec2aaf98882a6890bed0",
+    "coordination/workers/WORKER_IO_ACCOUNTING_CANDIDATE_V1.json@cf66f4f2fd757cf6b83d077da8f72fb9a34b49c7",
+    "coordination/workers/WORKER_PRE_GUIDE_TEMPLATE_V1.json@357001e15c6feafab1f13b823fd7ace873f302cf",
+    "coordination/design-dna/GOLDENS_V1.json@bea4359027ff6a5c2b1acce3c1161f1c696e2ae0",
+    "coordination/design-dna/REGRESSION_HARNESS_V1.json@1be748e3a973b0ec051b97cebace731d74112576"
+  ]
+}
