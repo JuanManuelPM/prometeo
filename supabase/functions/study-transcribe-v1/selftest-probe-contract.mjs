@@ -7,6 +7,7 @@ const checks = [
   ['deadline contract', 'SELFTEST_PROBE_DEADLINES'],
   ['TTS timeout code', '"TTS_TIMEOUT"'],
   ['Whisper connect timeout code', '"WHISPER_CONNECT_TIMEOUT"'],
+  ['Whisper connect failure code', '"WHISPER_CONNECT_FAILED"'],
   ['Whisper API timeout code', '"WHISPER_API_TIMEOUT"'],
   ['probe cannot claim E2E', 'full_e2e_pass: false'],
   ['normal POST preserved', 'if (req.method !== "POST")'],
