@@ -241,9 +241,9 @@ function inspectPortfolioJob(project, job) {
   else if (owner && age < ACTIVE_MS) state = generation(latestPin) > 1 ? 'recovery' : 'working';
   else if (owner && age < REPLACE_MS) state = 'suspect';
   else if (!prerequisiteGate.satisfied) state = 'blocked';
+  else if (lower(job.seed_status).includes('block')) state = 'blocked';
   else if (owner) state = 'replaceable';
   else if (latestReturn && ['partial','boundary'].includes(lower(latestReturn.doc?.outcome))) state = 'partial';
-  else if (lower(job.seed_status).includes('block')) state = 'blocked';
   return {
     ...job,
     project_id:project.project_id,
