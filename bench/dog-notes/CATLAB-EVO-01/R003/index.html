@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dog Notes · R003</title>
+<style>
+:root{--bg:#f4efe3;--fg:#151515}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);font-family:Arial,Helvetica,sans-serif}
+body{display:grid;grid-template-rows:auto 1fr}
+header{padding:32px clamp(20px,7vw,90px);border-bottom:4px solid var(--fg)}
+small{font-weight:900;letter-spacing:.14em}
+h1{font-size:clamp(3.2rem,11vw,8rem);line-height:.82;letter-spacing:-.06em;margin:.22em 0 0}
+main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);min-height:70vh}
+.entry,.notes{padding:clamp(22px,5vw,64px)}
+.entry{border-right:2px solid var(--fg)}
+label{display:block;font-weight:900;margin-bottom:8px}
+.row{display:flex;gap:8px}
+input,button{font:inherit;border:2px solid var(--fg);background:var(--bg);color:var(--fg);min-height:48px}
+input{flex:1;min-width:0;padding:10px 12px}
+button{padding:10px 14px;font-weight:900;cursor:pointer}
+button:hover,button:focus-visible{background:var(--fg);color:var(--bg)}
+h2{font-size:clamp(2rem,5vw,4rem);margin:0 0 18px;line-height:.9}
+ul{list-style:none;margin:0;padding:0;border-top:2px solid var(--fg)}
+li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px 0;border-bottom:2px solid var(--fg)}
+.note-text{overflow-wrap:anywhere}
+.empty{font-weight:800;padding:18px 0}
+@media(max-width:700px){main{grid-template-columns:1fr}.entry{border-right:0;border-bottom:2px solid var(--fg)}.row{flex-direction:column}}
+</style>
+</head>
+<body>
+<header><small>DOG NOTES / CATLAB-EVO-01 / R003</small><h1>KEEP<br>THE NOTE</h1></header>
+<main>
+<section class="entry">
+  <label for="dog-note-input">Nueva nota</label>
+  <div class="row">
+    <input id="dog-note-input" type="text" autocomplete="off" maxlength="240" aria-describedby="dog-note-help">
+    <button id="dog-note-add" type="button">AGREGAR</button>
+  </div>
+  <p id="dog-note-help">Enter también agrega. Los datos quedan en este navegador.</p>
+</section>
+<section class="notes">
+  <h2>Notas</h2>
+  <ul id="dog-note-list" aria-live="polite"></ul>
+  <div id="dog-note-empty" class="empty">Todavía no hay notas.</div>
+</section>
+</main>
+<script>
+(()=>{
+'use strict';
+const input=document.getElementById('dog-note-input');
+const add=document.getElementById('dog-note-add');
+const list=document.getElementById('dog-note-list');
+const empty=document.getElementById('dog-note-empty');
+const key='dognotes.CATLAB-EVO-01.R003';
+let notes=[];
+try{const raw=localStorage.getItem(key);const parsed=raw?JSON.parse(raw):[];if(Array.isArray(parsed))notes=parsed.filter(x=>typeof x==='string')}catch(e){notes=[]}
+function save(){try{localStorage.setItem(key,JSON.stringify(notes))}catch(e){}}
+function render(){
+ list.textContent='';
+ empty.hidden=notes.length>0;
+ notes.forEach((text,index)=>{
+   const li=document.createElement('li');
+   const span=document.createElement('span');
+   span.className='note-text';
+   span.textContent=text;
+   const remove=document.createElement('button');
+   remove.type='button';
+   remove.textContent='ELIMINAR';
+   remove.setAttribute('aria-label','Eliminar nota '+(index+1));
+   remove.addEventListener('click',()=>{notes.splice(index,1);save();render()});
+   li.append(span,remove);
+   list.append(li);
+ });
+}
+function addNote(){
+ const value=input.value.trim();
+ if(!value)return;
+ notes.push(value);
+ input.value='';
+ save();
+ render();
+ input.focus();
+}
+add.addEventListener('click',addNote);
+input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();addNote()}});
+render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+{
+  "schema": "prometeo.object-flow-recritique-audit/v1",
+  "run_id": "OBJECT-FLOW-CANARY-01",
+  "slot_id": "R001",
+  "paired_primary_slot_id": "S001",
+  "worker_id": "wc-20260930T175406Z-786e1a80a104",
+  "launch_nonce": "528a049dd826a8f1",
+  "primary_graph_ref": "pages/bench/object-flow/OBJECT-FLOW-CANARY-01/S001/graph.json@68bcd2aa6b00ed62ae990a05d3fd7deb5eb9bd37",
+  "primary_trace_ref": "pages/bench/object-flow/OBJECT-FLOW-CANARY-01/S001/trace.json@bf81e888eaed35f9dd710fbb78836748668db880",
+  "checks": [
+    {
+      "check": "drift / scope overclaim",
+      "status": "FOUND_AND_REPAIRED",
+      "finding": "Primary labeled the graph universal while ordinary non-RUN allocation was collapsed to a success-only edge.",
+      "repair": "Scope corrected to bounded RUN slice; normal allocator is an explicit referenced-but-not-modeled terminal."
+    },
+    {
+      "check": "dangling branches",
+      "status": "FOUND_AND_REPAIRED",
+      "finding": "CURRENT_TRANSITION_GATE had no modeled TRUE destination; CANDIDATE_OUTPUT was marked terminal while having outgoing edges.",
+      "repair": "Promotion/integration removed from RUN path and represented as external authority cuts."
+    },
+    {
+      "check": "unbounded loops",
+      "status": "FOUND_AND_REPAIRED",
+      "finding": "CANDIDATE_OUTPUT ↔ HUMAN_ACCEPTANCE_GATE could repeat without a retry budget, contradicting bounded-loop coverage.",
+      "repair": "Post-RUN promotion cycle removed from executable RUN projection."
+    },
+    {
+      "check": "false timing",
+      "status": "FOUND_AND_REPAIRED",
+      "finding": "monotonic_ms held elapsed values derived from wall-clock timestamps rather than a monotonic clock.",
+      "repair": "monotonic_ms set null; elapsed_from_first_durable_ms records derived elapsed time explicitly."
+    },
+    {
+      "check": "unjustified human gates",
+      "status": "PASS_AFTER_REPAIR",
+      "finding": "Human acceptance is legitimate product authority but was represented inside the RUN path.",
+      "repair": "Moved to external authority-cut annotation; worker RUN requires no human routing."
+    },
+    {
+      "check": "accidental second source of truth",
+      "status": "PASS_WITH_EXPLICIT_LIMIT",
+      "finding": "Primary declared projection-only, but a hand-authored graph can still drift before parity automation exists.",
+      "repair": "Corrected graph marks parity PROPOSED_NOT_EXECUTED and generated_from_sources=false; executable contracts remain truth."
+    }
+  ],
+  "strongest_likely_mistake": {
+    "statement": "Primary structural coverage PASS implied the represented graph had only bounded loops.",
+    "critique": "Structural TRUE/FALSE/UNKNOWN/ERROR coverage missed a semantic unbounded promotion cycle because authority-cut nodes were not classified as decision nodes and one terminal node had outgoing edges.",
+    "correction": "Coverage must include terminal-outdegree=0 plus cycle/SCC checks, not only decision-label coverage."
+  },
+  "no_scope_expansion": true,
+  "new_authority_created": false
+}

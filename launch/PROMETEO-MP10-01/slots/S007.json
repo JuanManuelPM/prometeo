@@ -1,0 +1,221 @@
+{
+  "schema": "prometeo.launch-slot-capsule/v1",
+  "run_id": "PROMETEO-MP10-01",
+  "packet_status": "ARMED",
+  "slot": {
+    "slot_id": "S007",
+    "slot_kind": "PRIMARY_PRODUCT_UNIT",
+    "pyramid": "P4_PREVIEWS",
+    "title": "Static preview pipeline V11",
+    "goal": "Evolve the existing Control Room Static Previews workflow from V10-only to a V11-compatible manifest-driven pipeline using existing catalog/pages. Preserve static screenshots and bounded refresh; do not run live page simulations in Control Room.",
+    "required_capabilities": [],
+    "project_id": "prometeo-control-room",
+    "objective_id": "PROMETEO-USABLE-CONTROL-ROOM-V1",
+    "baseline_refs": [
+      ".github/workflows/control-room-static-previews.yml@fc680e4333c45f202c4095c6163310548bf51a60",
+      "catalog/CATALOG_MANIFEST.json@b77eb69a62491d69efa0445703e8ca8052aa140d"
+    ],
+    "write_scope": [
+      ".github/workflows/control-room-static-previews.yml",
+      "current-tree/control-v11/preview-targets.json",
+      "current-tree/control-v11/previews/manifest.json",
+      "coordination/integration-runs/PROMETEO-MP10-01/returns/S007.json"
+    ],
+    "forbidden": [
+      "Supabase-required completion",
+      "new scheduler/queue/CURRENT",
+      "private data in public GitHub",
+      "writing outside write_scope",
+      "claiming V11 promoted"
+    ],
+    "acceptance": [
+      "Workflow remains bounded/free-tier sensible.",
+      "V11 preview target manifest exists.",
+      "Failure of one screenshot does not fabricate a preview.",
+      "Control Room can consume static manifest without iframe."
+    ],
+    "tests": [
+      "Re-open every changed file from GitHub and inspect exact bytes.",
+      "Persist evidence-backed RETURN; no narrative-only completion."
+    ],
+    "claim_path": "coordination/launch-packets/PROMETEO-MP10-01/claims/S007.json",
+    "fixed_output_path": "coordination/integration-runs/PROMETEO-MP10-01/returns/S007.json",
+    "receipt_path_pattern": "coordination/workers/benchmark-receipts/PROMETEO-MP10-01/<worker_id>.json",
+    "exam_path_pattern": "coordination/workers/exams/<worker_id>.json",
+    "evolution_variant": "V3_EVIDENCE_MAP",
+    "allow_new_files": true
+  },
+  "variant": {
+    "id": "V3_EVIDENCE_MAP",
+    "changed_stage": "E6_VERIFY",
+    "rule": "Before implementation, map each required feature/hard gate to the exact evidence that will prove it; use that map as the implementation checklist and close only when every row is PASS/BOUNDARY.",
+    "replicas": 2
+  },
+  "pipeline_stages": [
+    {
+      "id": "E0_ENVELOPE",
+      "name": "Interpret launch envelope",
+      "goal": "Resolve NEW/RESUME, run_id/pool/batch, authorization and exact first durable action before consulting historical worker evidence.",
+      "hard_rule": "For NEW launches, historical identity/result reuse is forbidden.",
+      "evidence": "beacon invocation fields"
+    },
+    {
+      "id": "E1_IDENTITY",
+      "name": "Fresh identity",
+      "goal": "Create fresh worker_id + launch_nonce and atomically CREATE own beacon.",
+      "hard_rule": "Beacon is the first durable worker write.",
+      "evidence": "coordination/workers/beacons/<worker_id>.json"
+    },
+    {
+      "id": "E2_ASSIGN",
+      "name": "Unique assignment",
+      "goal": "In RUN mode atomically self-claim one compatible launch slot; otherwise use the normal allocator.",
+      "hard_rule": "One RUN slot has at most one owner; human does not number or route slots.",
+      "evidence": "coordination/launch-packets/<run_id>/claims/<slot_id>.json or normal PIN"
+    },
+    {
+      "id": "E3_CONTEXT",
+      "name": "Exact context load",
+      "goal": "Read only the assigned long capsule/exact sources needed to execute the owned objective.",
+      "hard_rule": "No broad project archaeology before the packet/capsule proves it necessary.",
+      "evidence": "exam stage_trace + exact source refs"
+    },
+    {
+      "id": "E4_PLAN_LOCK",
+      "name": "Execution lock",
+      "goal": "Convert the objective into a small actionable contract tied to hard gates before large implementation work.",
+      "hard_rule": "Planning is bounded and must immediately lead to implementation; no status-only plan.",
+      "evidence": "exam stage_trace.plan_lock or benchmark receipt"
+    },
+    {
+      "id": "E5_PRODUCE",
+      "name": "Production",
+      "goal": "Implement the entire owned objective through its definition of done, not just the first edit.",
+      "hard_rule": "Do not stop at first commit/checkpoint when executable acceptance work remains.",
+      "evidence": "changed paths + durable return"
+    },
+    {
+      "id": "E6_VERIFY",
+      "name": "Verification",
+      "goal": "Build and maintain an explicit evidence map from every required feature/hard gate to the exact check/artifact that proves it, then run available static/runtime/browser/public checks and close only when every row is PASS or a truthful capability/authority BOUNDARY.",
+      "hard_rule": "Evidence-map-first verification is baseline: every owned objective must know what proves each hard gate before close. Never claim a check that was not executed. A separate second acceptance pass is optional reinforcement for high-risk/ambiguous work, not mandatory baseline.",
+      "evidence": "evidence map + executed tests + receipt feature_evidence",
+      "promoted_law": {
+        "id": "V3_EVIDENCE_MAP",
+        "source_exploration": "CATLAB-EVO-01",
+        "source_confirmation": "CATLAB-P2B-01",
+        "confirmation": "3/3 primary + 3/3 reallocation + 3/3 independent browser PASS",
+        "status": "PROMOTED_BASELINE"
+      },
+      "confirmed_optional_law": {
+        "id": "V4_TWO_PASS_REVIEW",
+        "status": "CONFIRMED_OPTIONAL",
+        "trigger": "high-risk, ambiguous, safety/authority-sensitive, externally brittle, or evidence-map rows whose first pass remains uncertain",
+        "rule": "Run a separate acceptance pass from the original owned contract without relying on the implementation summary; repair all found misses before RETURN."
+      }
+    },
+    {
+      "id": "E7_RETURN",
+      "name": "Durable return",
+      "goal": "Persist the primary result/evidence so another actor can reconstruct what changed. A transport denial must remain explicit and must not erase already durable production/verification evidence.",
+      "hard_rule": "No terminal human answer before durable RETURN/guide receipt when the scope is executable. For non-RUN BATCH/POOL only: if an explicit tool/connector safety denial proves the canonical RETURN/guide receipt was NOT persisted after E5 and E6 completed, never retry or bypass the denied operation/path. If a separate permitted transport-boundary receipt is durably persisted with exact authority_ref, started_ref and completed evidence refs, keep E7=BOUNDARY and allow only E8 continuation to unrelated compatible work. The blocked unit does not count as productive, prior authority is not released, and the blocked job remains recovery debt.",
+      "evidence": "RETURN/guide receipt; or explicit transport-boundary receipt proving non-persistence plus exact authority/STARTED/product/test evidence (BOUNDARY only, never PASS)",
+      "transport_continuation": {
+        "status": "ACTIVE_BINDING",
+        "scope": "NON_RUN_BATCH_OR_POOL_ONLY",
+        "trigger": "EXPLICIT_RETURN_OR_GUIDE_RECEIPT_TRANSPORT_DENIAL_AFTER_E5_E6_COMPLETE",
+        "required_durable_evidence": [
+          "authority_ref",
+          "started_ref",
+          "completed_product_or_frontier_evidence",
+          "verification_evidence",
+          "transport_boundary_receipt"
+        ],
+        "forbidden": [
+          "retry_denied_operation_or_path",
+          "alternate_path_used_as_fake_RETURN",
+          "count_blocked_unit_as_productive",
+          "release_or_overwrite_prior_authority",
+          "continue_into_same exclusive mutation target",
+          "reinterpret E7 as PASS"
+        ],
+        "continuation": "E7 remains BOUNDARY; worker may enter E8 and claim unrelated compatible work under the same fresh worker_id. Old job stays immutable/recovery-bound until normal recovery resolves the missing RETURN.",
+        "run_mode": "DISALLOWED_UNLESS_PACKET_EXPLICITLY_AUTHORIZES; default RUN behavior remains terminal boundary"
+      }
+    },
+    {
+      "id": "E8_REALLOCATE",
+      "name": "Autonomous reallocation",
+      "goal": "After a counted RETURN, or after an explicitly evidenced non-RUN E7 transport boundary that permits continuation, take a compatible unrelated objective without new human routing.",
+      "hard_rule": "Primary completion is not terminal in graduation RUNs. In ordinary BATCH/POOL, an E7 transport-boundary continuation never counts the blocked unit and must not touch the still-owned blocked target; it only preserves resident capacity for unrelated compatible work.",
+      "evidence": "reallocation claim + next-objective evidence; when entered from E7 BOUNDARY also cite the exact transport-boundary receipt"
+    },
+    {
+      "id": "E9_EXAM_CLOSE",
+      "name": "Exam and close",
+      "goal": "Write one structured exam/benchmark receipt exposing stage outcomes and only then close when the run contract permits.",
+      "hard_rule": "The exam reports failures; it does not excuse them or manufacture evidence.",
+      "evidence": "coordination/workers/exams/<worker_id>.json + benchmark receipt"
+    }
+  ],
+  "common_capsule": {
+    "title": "Prometeo multi-pyramid integration RUN",
+    "objective": "Advance ten independent bases in parallel so the bottleneck is integration, not idle capacity.",
+    "exact_sources": [
+      "coordination/launch-packets/PROMETEO-MP10-01/PACKET.json",
+      "coordination/integration-runs/PROMETEO-MP10-01/INTEGRATION_ABI.json",
+      "coordination/workers/WORKER_PIPELINE_V1.json",
+      "coordination/design-dna/INDEX.json"
+    ],
+    "hard_gates": [
+      "FRESH_GITHUB_BEACON",
+      "UNIQUE_PRIMARY_CLAIM",
+      "WRITE_SCOPE_ONLY",
+      "EVIDENCE_MAP",
+      "DURABLE_RETURN",
+      "READY_DEPENDENCY_REALLOCATION",
+      "E9_CLOSE"
+    ],
+    "primary_output_rule": "CREATE PROMETEO-MP10-01 return path with schema prometeo.multipyramid-return/v1; include changed_refs, tests, hard_gate_evidence, unresolved_boundary, exact_next.",
+    "reallocation_requirement": "After primary RETURN, scan reallocation slots in deterministic order but claim only a slot whose requires_returns all exist. Complete one READY reallocation unit, persist its output, then E9. If none are ready after one bounded full scan, persist REALLOCATION_NOT_READY boundary; do not ask human to route.",
+    "non_goals": [
+      "promote V11",
+      "recover Supabase",
+      "invent backend provider as CURRENT",
+      "solve every product project"
+    ]
+  },
+  "benchmark_receipt": {
+    "path_pattern": "coordination/workers/benchmark-receipts/<run_id>/<worker_id>.json",
+    "required_fields": [
+      "schema",
+      "run_id",
+      "worker_id",
+      "launch_nonce",
+      "slot_id",
+      "evolution_variant",
+      "primary_project_id",
+      "stage_trace",
+      "hard_gates",
+      "feature_evidence",
+      "primary_complete",
+      "reallocation_complete",
+      "closed_at_or_null"
+    ],
+    "stage_trace_fields": [
+      "E0_ENVELOPE",
+      "E1_IDENTITY",
+      "E2_ASSIGN",
+      "E3_CONTEXT",
+      "E4_PLAN_LOCK",
+      "E5_PRODUCE",
+      "E6_VERIFY",
+      "E7_RETURN",
+      "E8_REALLOCATE",
+      "E9_EXAM_CLOSE"
+    ],
+    "evidence_rule": "A PASS must cite exact durable evidence. A missing capability is BOUNDARY, never fabricated PASS."
+  },
+  "authority_mode": "HUMAN_EXPLICIT_BOUNDED_RUN_SLOT",
+  "authority_rule": "The human explicitly authorized preparation and launch of this bounded multi-pyramid run. After atomic slot claim, that worker may perform reversible writes only inside slot.write_scope, preserving Design DNA and CURRENT boundaries."
+}

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dog Notes · R004</title>
+<style>
+:root{--ink:#111;--paper:#f4efe4}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Arial,Helvetica,sans-serif;min-height:100vh}
+main{max-width:780px;margin:auto;padding:clamp(24px,7vw,72px)}
+header{border-bottom:3px solid var(--ink);padding-bottom:24px;margin-bottom:28px}
+small{font-weight:800;letter-spacing:.14em}
+h1{font-size:clamp(3.5rem,12vw,7rem);line-height:.85;letter-spacing:-.06em;margin:.18em 0}
+.composer{display:grid;grid-template-columns:1fr auto;gap:10px}
+input,button{font:inherit;border:2px solid var(--ink);border-radius:0;background:var(--paper);color:var(--ink)}
+input{padding:14px;min-width:0}
+button{padding:12px 16px;font-weight:800;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+ul{list-style:none;padding:0;margin:36px 0 0;border-top:2px solid var(--ink)}
+li{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:18px 0;border-bottom:2px solid var(--ink)}
+.empty{font-style:italic;padding:18px 0}
+@media(max-width:560px){.composer{grid-template-columns:1fr}.composer button{width:100%}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <small>DOG-NOTES-POOL · R004</small>
+  <h1>DOG<br>NOTES</h1>
+  <p>One local list. Add a note, remove it when done, reload without losing the rest.</p>
+</header>
+<form id="dog-note-form" class="composer">
+  <input id="dog-note-input" autocomplete="off" maxlength="240" placeholder="Add a dog note" aria-label="Dog note">
+  <button id="dog-note-add" type="submit">Add note</button>
+</form>
+<ul id="dog-note-list" aria-live="polite"></ul>
+</main>
+<script>
+(() => {
+  const KEY = 'dog-notes.CATLAB-EVO-01.R004';
+  const form = document.getElementById('dog-note-form');
+  const input = document.getElementById('dog-note-input');
+  const list = document.getElementById('dog-note-list');
+  let notes = [];
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || '[]');
+    notes = Array.isArray(saved) ? saved.filter(x => x && typeof x.text === 'string') : [];
+  } catch { notes = []; }
+
+  const save = () => {
+    try { localStorage.setItem(KEY, JSON.stringify(notes)); } catch {}
+  };
+  const render = () => {
+    list.replaceChildren();
+    if (!notes.length) {
+      const empty = document.createElement('li');
+      empty.className = 'empty';
+      empty.textContent = 'No notes yet.';
+      list.append(empty);
+      return;
+    }
+    notes.forEach(note => {
+      const li = document.createElement('li');
+      const text = document.createElement('span');
+      text.textContent = note.text;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.textContent = 'Remove';
+      remove.setAttribute('aria-label', 'Remove note: ' + note.text);
+      remove.addEventListener('click', () => {
+        notes = notes.filter(item => item.id !== note.id);
+        save();
+        render();
+      });
+      li.append(text, remove);
+      list.append(li);
+    });
+  };
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    const text = input.value.trim();
+    if (!text) { input.focus(); return; }
+    notes.push({id: Date.now().toString(36) + Math.random().toString(36).slice(2), text});
+    save();
+    input.value = '';
+    input.focus();
+    render();
+  });
+  render();
+})();
+</script>
+</body>
+</html>

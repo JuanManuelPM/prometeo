@@ -1,0 +1,583 @@
+{
+  "schema": "prometeo.object-flow-graph/v1",
+  "experiment_id": "OBJECT-FLOW-CANARY-01",
+  "target_object": "bounded RUN slice of universal worker execution /wc + E0-E9",
+  "authority": "projection_only_candidate",
+  "truth_source_rule": "Generated from exact executable contracts; this graph grants no authority and cannot redefine them.",
+  "nodes": [
+    {
+      "id": "START",
+      "kind": "terminal_entry",
+      "label": "Fresh /wc invocation"
+    },
+    {
+      "id": "D0_NEW_OR_RESUME",
+      "kind": "decision",
+      "label": "Launch envelope resolves NEW vs RESUME"
+    },
+    {
+      "id": "E1_BEACON",
+      "kind": "action",
+      "label": "Generate fresh identity and atomic beacon CREATE"
+    },
+    {
+      "id": "D1_BEACON_RESULT",
+      "kind": "decision",
+      "label": "Beacon CREATE outcome"
+    },
+    {
+      "id": "D2_RUN_MODE",
+      "kind": "decision",
+      "label": "RUN packet mode?"
+    },
+    {
+      "id": "D3_PACKET_ARMED",
+      "kind": "decision",
+      "label": "Packet status/authority valid?"
+    },
+    {
+      "id": "D4_SLOT_COMPATIBLE",
+      "kind": "decision",
+      "label": "Compatible unclaimed primary slot remains?"
+    },
+    {
+      "id": "E2_CLAIM_PRIMARY",
+      "kind": "action",
+      "label": "Atomic primary RUN-slot CREATE"
+    },
+    {
+      "id": "D5_PRIMARY_CLAIM_RESULT",
+      "kind": "decision",
+      "label": "Primary slot claim outcome"
+    },
+    {
+      "id": "E3_CONTEXT",
+      "kind": "action",
+      "label": "Load claimed capsule + exact sources only"
+    },
+    {
+      "id": "D6_CONTEXT_VALID",
+      "kind": "decision",
+      "label": "Capsule/context valid and scoped?"
+    },
+    {
+      "id": "E4_PLAN_LOCK",
+      "kind": "action",
+      "label": "Bound execution contract to hard gates"
+    },
+    {
+      "id": "D7_PLAN_ACTIONABLE",
+      "kind": "decision",
+      "label": "Plan immediately actionable?"
+    },
+    {
+      "id": "E5_PRODUCE",
+      "kind": "action",
+      "label": "Produce entire owned candidate objective"
+    },
+    {
+      "id": "D8_PRODUCTION_STATE",
+      "kind": "decision",
+      "label": "Production completion state"
+    },
+    {
+      "id": "E6_VERIFY",
+      "kind": "action",
+      "label": "Evidence-map-first verification"
+    },
+    {
+      "id": "D9_VERIFICATION_STATE",
+      "kind": "decision",
+      "label": "Verification result"
+    },
+    {
+      "id": "E7_RETURN",
+      "kind": "action",
+      "label": "Persist durable primary RETURN/result + receipt"
+    },
+    {
+      "id": "D10_RETURN_PERSISTED",
+      "kind": "decision",
+      "label": "Primary RETURN persisted?"
+    },
+    {
+      "id": "E8_REALLOCATE",
+      "kind": "action",
+      "label": "Same-worker atomic reallocation claim"
+    },
+    {
+      "id": "D11_REALLOCATION_RESULT",
+      "kind": "decision",
+      "label": "Reallocation claim outcome"
+    },
+    {
+      "id": "E8_RECRITIQUE",
+      "kind": "action",
+      "label": "Execute bounded same-worker re-critique"
+    },
+    {
+      "id": "E9_EXAM",
+      "kind": "action",
+      "label": "Persist benchmark receipt + structured exam"
+    },
+    {
+      "id": "D12_EXAM_PERSISTED",
+      "kind": "decision",
+      "label": "E9 exam/close durable?"
+    },
+    {
+      "id": "RUN_COMPLETE",
+      "kind": "terminal",
+      "label": "RUN_COMPLETE"
+    },
+    {
+      "id": "BOUNDARY",
+      "kind": "terminal",
+      "label": "Truthful RUN_TERMINAL_BOUNDARY"
+    },
+    {
+      "id": "RESUME_PATH",
+      "kind": "terminal",
+      "label": "Explicit resume path, outside NEW-launch canary"
+    },
+    {
+      "id": "OUT_OF_SCOPE_NORMAL_ALLOCATOR",
+      "kind": "terminal",
+      "label": "Normal /wc allocator is referenced, not modeled by this RUN canary"
+    }
+  ],
+  "edges": [
+    {
+      "from": "START",
+      "to": "D0_NEW_OR_RESUME",
+      "outcome": "NEXT",
+      "guard": "human invocation received"
+    },
+    {
+      "from": "D0_NEW_OR_RESUME",
+      "to": "E1_BEACON",
+      "outcome": "TRUE",
+      "guard": "NEW launch explicitly resolved"
+    },
+    {
+      "from": "D0_NEW_OR_RESUME",
+      "to": "RESUME_PATH",
+      "outcome": "FALSE",
+      "guard": "explicit existing worker_id + resume requested"
+    },
+    {
+      "from": "D0_NEW_OR_RESUME",
+      "to": "BOUNDARY",
+      "outcome": "UNKNOWN",
+      "guard": "ENVELOPE_AMBIGUOUS"
+    },
+    {
+      "from": "D0_NEW_OR_RESUME",
+      "to": "BOUNDARY",
+      "outcome": "ERROR",
+      "guard": "envelope parse/authorization error"
+    },
+    {
+      "from": "E1_BEACON",
+      "to": "D1_BEACON_RESULT",
+      "outcome": "NEXT",
+      "guard": "atomic CREATE attempted"
+    },
+    {
+      "from": "D1_BEACON_RESULT",
+      "to": "D2_RUN_MODE",
+      "outcome": "TRUE",
+      "guard": "beacon CREATE succeeds; identity frozen"
+    },
+    {
+      "from": "D1_BEACON_RESULT",
+      "to": "E1_BEACON",
+      "outcome": "FALSE",
+      "guard": "CREATE_EXISTS and attempt_count < 3; generate new identity"
+    },
+    {
+      "from": "D1_BEACON_RESULT",
+      "to": "BOUNDARY",
+      "outcome": "UNKNOWN",
+      "guard": "transport ambiguous; no durable fresh identity"
+    },
+    {
+      "from": "D1_BEACON_RESULT",
+      "to": "BOUNDARY",
+      "outcome": "ERROR",
+      "guard": "explicit denial or retries exhausted -> FRESH_LAUNCH_BEACON_NOT_CREATED"
+    },
+    {
+      "from": "D2_RUN_MODE",
+      "to": "D3_PACKET_ARMED",
+      "outcome": "TRUE",
+      "guard": "human message names RUN <run_id>"
+    },
+    {
+      "from": "D2_RUN_MODE",
+      "to": "BOUNDARY",
+      "outcome": "UNKNOWN",
+      "guard": "run_id interpretation ambiguous"
+    },
+    {
+      "from": "D2_RUN_MODE",
+      "to": "BOUNDARY",
+      "outcome": "ERROR",
+      "guard": "packet mode dispatch error"
+    },
+    {
+      "from": "D3_PACKET_ARMED",
+      "to": "D4_SLOT_COMPATIBLE",
+      "outcome": "TRUE",
+      "guard": "status=ARMED + run_id match + authority_mode valid"
+    },
+    {
+      "from": "D3_PACKET_ARMED",
+      "to": "BOUNDARY",
+      "outcome": "FALSE",
+      "guard": "RUN_PACKET_NOT_ARMED"
+    },
+    {
+      "from": "D3_PACKET_ARMED",
+      "to": "BOUNDARY",
+      "outcome": "UNKNOWN",
+      "guard": "packet fields incomplete/ambiguous"
+    },
+    {
+      "from": "D3_PACKET_ARMED",
+      "to": "BOUNDARY",
+      "outcome": "ERROR",
+      "guard": "packet read/parse failure"
+    },
+    {
+      "from": "D4_SLOT_COMPATIBLE",
+      "to": "E2_CLAIM_PRIMARY",
+      "outcome": "TRUE",
+      "guard": "one compatible slot retained"
+    },
+    {
+      "from": "D4_SLOT_COMPATIBLE",
+      "to": "BOUNDARY",
+      "outcome": "FALSE",
+      "guard": "NO_COMPATIBLE_LAUNCH_SLOT"
+    },
+    {
+      "from": "D4_SLOT_COMPATIBLE",
+      "to": "BOUNDARY",
+      "outcome": "UNKNOWN",
+      "guard": "capability availability unresolved where required"
+    },
+    {
+      "from": "D4_SLOT_COMPATIBLE",
+      "to": "BOUNDARY",
+      "outcome": "ERROR",
+      "guard": "slot contract invalid"
+    },
+    {
+      "from": "E2_CLAIM_PRIMARY",
+      "to": "D5_PRIMARY_CLAIM_RESULT",
+      "outcome": "NEXT",
+      "guard": "atomic CREATE attempted"
+    },
+    {
+      "from": "D5_PRIMARY_CLAIM_RESULT",
+      "to": "E3_CONTEXT",
+      "outcome": "TRUE",
+      "guard": "primary slot CREATE succeeds"
+    },
+    {
+      "from": "D5_PRIMARY_CLAIM_RESULT",
+      "to": "D4_SLOT_COMPATIBLE",
+      "outcome": "FALSE",
+      "guard": "CREATE_EXISTS; advance cyclically within finite compatible set"
+    },
+    {
+      "from": "D5_PRIMARY_CLAIM_RESULT",
+      "to": "BOUNDARY",
+      "outcome": "UNKNOWN",
+      "guard": "SLOT_CLAIM_TRANSPORT_AMBIGUOUS"
+    },
+    {
+      "from": "D5_PRIMARY_CLAIM_RESULT",
+      "to": "BOUNDARY",
+      "outcome": "ERROR",
+      "guard": "SLOT_CLAIM_TRANSPORT_BLOCKED or invalid claim"
+    },
+    {
+      "from": "E3_CONTEXT",
+      "to": "D6_CONTEXT_VALID",
+      "outcome": "NEXT",
+      "guard": "exact sources loaded"
+    },
+    {
+      "from": "D6_CONTEXT_VALID",
+      "to": "E4_PLAN_LOCK",
+      "outcome": "TRUE",
+      "guard": "capsule/source set valid and within authority"
+    },
+    {
+      "from": "D6_CONTEXT_VALID",
+      "to": "BOUNDARY",
+      "outcome": "FALSE",
+      "guard": "CAPSULE_MISSING_OR_INVALID"
+    },
+    {
+      "from": "D6_CONTEXT_VALID",
+      "to": "BOUNDARY",
+      "outcome": "UNKNOWN",
+      "guard": "required owner/context fact unavailable without authorized fallback"
+    },
+    {
+      "from": "D6_CONTEXT_VALID",
+      "to": "BOUNDARY",
+      "outcome": "ERROR",
+      "guard": "context parse/read failure"
+    },
+    {
+      "from": "E4_PLAN_LOCK",
+      "to": "D7_PLAN_ACTIONABLE",
+      "outcome": "NEXT",
+      "guard": "bounded plan created"
+    },
+    {
+      "from": "D7_PLAN_ACTIONABLE",
+      "to": "E5_PRODUCE",
+      "outcome": "TRUE",
+      "guard": "plan maps objective to hard-gate evidence and implementation"
+    },
+    {
+      "from": "D7_PLAN_ACTIONABLE",
+      "to": "BOUNDARY",
+      "outcome": "FALSE",
+      "guard": "PLAN_LOOP_NO_IMPLEMENTATION"
+    },
+    {
+      "from": "D7_PLAN_ACTIONABLE",
+      "to": "BOUNDARY",
+      "outcome": "UNKNOWN",
+      "guard": "definition-of-done unresolved"
+    },
+    {
+      "from": "D7_PLAN_ACTIONABLE",
+      "to": "BOUNDARY",
+      "outcome": "ERROR",
+      "guard": "plan violates scope/authority"
+    },
+    {
+      "from": "E5_PRODUCE",
+      "to": "D8_PRODUCTION_STATE",
+      "outcome": "NEXT",
+      "guard": "implementation attempted"
+    },
+    {
+      "from": "D8_PRODUCTION_STATE",
+      "to": "E6_VERIFY",
+      "outcome": "TRUE",
+      "guard": "owned objective complete enough to verify"
+    },
+    {
+      "from": "D8_PRODUCTION_STATE",
+      "to": "BOUNDARY",
+      "outcome": "FALSE",
+      "guard": "PRODUCTION_INCOMPLETE"
+    },
+    {
+      "from": "D8_PRODUCTION_STATE",
+      "to": "BOUNDARY",
+      "outcome": "UNKNOWN",
+      "guard": "external wait with explicit owner + resume condition"
+    },
+    {
+      "from": "D8_PRODUCTION_STATE",
+      "to": "BOUNDARY",
+      "outcome": "ERROR",
+      "guard": "unsafe/unauthorized production transition"
+    },
+    {
+      "from": "E6_VERIFY",
+      "to": "D9_VERIFICATION_STATE",
+      "outcome": "NEXT",
+      "guard": "evidence map executed"
+    },
+    {
+      "from": "D9_VERIFICATION_STATE",
+      "to": "E7_RETURN",
+      "outcome": "TRUE",
+      "guard": "all required rows PASS"
+    },
+    {
+      "from": "D9_VERIFICATION_STATE",
+      "to": "BOUNDARY",
+      "outcome": "FALSE",
+      "guard": "VERIFICATION_INCOMPLETE"
+    },
+    {
+      "from": "D9_VERIFICATION_STATE",
+      "to": "BOUNDARY",
+      "outcome": "UNKNOWN",
+      "guard": "truthful capability/authority boundary; no fabricated PASS"
+    },
+    {
+      "from": "D9_VERIFICATION_STATE",
+      "to": "BOUNDARY",
+      "outcome": "ERROR",
+      "guard": "verification execution error"
+    },
+    {
+      "from": "E7_RETURN",
+      "to": "D10_RETURN_PERSISTED",
+      "outcome": "NEXT",
+      "guard": "durable result/receipt write attempted"
+    },
+    {
+      "from": "D10_RETURN_PERSISTED",
+      "to": "E8_REALLOCATE",
+      "outcome": "TRUE",
+      "guard": "primary durable RETURN exists; RUN primary is nonterminal"
+    },
+    {
+      "from": "D10_RETURN_PERSISTED",
+      "to": "BOUNDARY",
+      "outcome": "FALSE",
+      "guard": "RETURN_NOT_PERSISTED"
+    },
+    {
+      "from": "D10_RETURN_PERSISTED",
+      "to": "BOUNDARY",
+      "outcome": "UNKNOWN",
+      "guard": "transport outcome ambiguous; no terminal PASS"
+    },
+    {
+      "from": "D10_RETURN_PERSISTED",
+      "to": "BOUNDARY",
+      "outcome": "ERROR",
+      "guard": "explicit RUN receipt transport denial"
+    },
+    {
+      "from": "E8_REALLOCATE",
+      "to": "D11_REALLOCATION_RESULT",
+      "outcome": "NEXT",
+      "guard": "paired finite reallocation claim attempted"
+    },
+    {
+      "from": "D11_REALLOCATION_RESULT",
+      "to": "E8_RECRITIQUE",
+      "outcome": "TRUE",
+      "guard": "R001 CREATE succeeds for same worker"
+    },
+    {
+      "from": "D11_REALLOCATION_RESULT",
+      "to": "BOUNDARY",
+      "outcome": "FALSE",
+      "guard": "paired reallocation CREATE_EXISTS / contamination"
+    },
+    {
+      "from": "D11_REALLOCATION_RESULT",
+      "to": "BOUNDARY",
+      "outcome": "UNKNOWN",
+      "guard": "reallocation transport ambiguous"
+    },
+    {
+      "from": "D11_REALLOCATION_RESULT",
+      "to": "BOUNDARY",
+      "outcome": "ERROR",
+      "guard": "REALLOCATION_NOT_COMPLETED"
+    },
+    {
+      "from": "E8_RECRITIQUE",
+      "to": "E9_EXAM",
+      "outcome": "NEXT",
+      "guard": "bounded re-critique result + updated receipt persisted"
+    },
+    {
+      "from": "E9_EXAM",
+      "to": "D12_EXAM_PERSISTED",
+      "outcome": "NEXT",
+      "guard": "exam and final benchmark receipt write attempted"
+    },
+    {
+      "from": "D12_EXAM_PERSISTED",
+      "to": "RUN_COMPLETE",
+      "outcome": "TRUE",
+      "guard": "exam durable + primary_complete=true + reallocation_complete=true"
+    },
+    {
+      "from": "D12_EXAM_PERSISTED",
+      "to": "BOUNDARY",
+      "outcome": "FALSE",
+      "guard": "EXAM_NOT_PERSISTED"
+    },
+    {
+      "from": "D12_EXAM_PERSISTED",
+      "to": "BOUNDARY",
+      "outcome": "UNKNOWN",
+      "guard": "close state not durably proven"
+    },
+    {
+      "from": "D12_EXAM_PERSISTED",
+      "to": "BOUNDARY",
+      "outcome": "ERROR",
+      "guard": "E9 persistence failure"
+    },
+    {
+      "from": "D2_RUN_MODE",
+      "to": "OUT_OF_SCOPE_NORMAL_ALLOCATOR",
+      "outcome": "FALSE",
+      "guard": "ordinary /wc allocation exists but is outside this bounded RUN slice"
+    }
+  ],
+  "loops": [
+    {
+      "loop_id": "L_BEACON_RETRY",
+      "edge": "D1_BEACON_RESULT(FALSE)->E1_BEACON",
+      "budget": "max 3 beacon identity attempts",
+      "exit": "TRUE or BOUNDARY",
+      "bounded": true
+    },
+    {
+      "loop_id": "L_PRIMARY_SLOT_ROTATION",
+      "edge": "D5_PRIMARY_CLAIM_RESULT(FALSE)->D4_SLOT_COMPATIBLE",
+      "budget": "each compatible RUN slot at most once; S001 packet size=1",
+      "exit": "claim success or NO_COMPATIBLE_LAUNCH_SLOT/contamination boundary",
+      "bounded": true
+    }
+  ],
+  "authority_cuts": [
+    {
+      "id": "HUMAN_ACCEPTANCE_EXTERNAL_CUT",
+      "kind": "external_authority_cut",
+      "source": "shared/workflow/v1/workflow.js",
+      "minimum_human_action": "exact human_acceptance_id",
+      "effect": "Candidate may become HUMAN_ACCEPTED only in product workflow; this RUN graph terminates before that transition."
+    },
+    {
+      "id": "CURRENT_INTEGRATION_EXTERNAL_CUT",
+      "kind": "external_authority_cut",
+      "source": "shared/workflow/v1/workflow.js",
+      "minimum_human_action": "no new human action beyond prior acceptance; exact acceptance id must be carried in currentTransitionRequest",
+      "effect": "No direct CURRENT mutation is represented or authorized here."
+    }
+  ],
+  "unknown_policy": "UNKNOWN is a first-class outcome, never coerced to FALSE or zero.",
+  "timing_policy": "Observed durable timestamps are separate from diagnostic/inferred reachability; missing time remains UNKNOWN.",
+  "projection_scope": {
+    "modeled": "RUN packet path E0-E9 for OBJECT-FLOW-CANARY-01 plus explicit boundaries",
+    "referenced_not_modeled": [
+      "ordinary compact-frontier allocator internals",
+      "post-RUN product promotion/integration"
+    ],
+    "reason": "Do not claim universal completeness from one bounded packet."
+  },
+  "artifact_state": "CANDIDATE",
+  "parity": {
+    "generated_from_sources": false,
+    "status": "PROPOSED_NOT_EXECUTED",
+    "rule": "Until a generator/parity test exists, this graph is inspectable candidate output, never executable truth."
+  },
+  "recritique_repairs": [
+    "removed terminal-with-outgoing promotion branch",
+    "removed unbounded candidate↔human-acceptance cycle from RUN graph",
+    "replaced under-modeled non-RUN allocator path with explicit out-of-scope terminal",
+    "made human acceptance/integration external authority cuts instead of incomplete decision nodes"
+  ]
+}

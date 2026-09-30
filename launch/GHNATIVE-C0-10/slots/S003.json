@@ -1,0 +1,276 @@
+{
+  "schema": "prometeo.launch-slot-capsule/v1",
+  "run_id": "GHNATIVE-C0-10",
+  "packet_status": "ARMED",
+  "slot": {
+    "slot_id": "S003",
+    "slot_kind": "PRIMARY_PAGE_AUDIT",
+    "required_capabilities": [],
+    "target": {
+      "target_id": "CONTROL_V11",
+      "repository": "JuanManuelPM/prometeo",
+      "ref": "main",
+      "path": "current-tree/control-v11/index.html",
+      "baseline_sha": "6bb2eb178f4e20346bd0157bdfc9e8bcd385fde5",
+      "public_url": "https://juanmanuelpm.github.io/prometeo/current-tree/control-v11/"
+    },
+    "question": "¿V11 organiza Proyectos/Espacios/Trabajo/Historial/Estadísticas/Organismo como pidió el humano, usa previews estáticos y no infiere actividad falsa?",
+    "claim_path": "coordination/launch-packets/GHNATIVE-C0-10/claims/S003.json",
+    "return_path": "coordination/storage-recovery/github-native-canary/GHNATIVE-C0-10/returns/S003.json",
+    "verification_claim_path": "coordination/storage-recovery/github-native-canary/GHNATIVE-C0-10/verification-claims/S003.json",
+    "verification_path": "coordination/storage-recovery/github-native-canary/GHNATIVE-C0-10/verifications/S003.json",
+    "write_scope": [
+      "coordination/storage-recovery/github-native-canary/GHNATIVE-C0-10/returns/S003.json"
+    ],
+    "hard_gates": [
+      "FRESH_GITHUB_BEACON",
+      "UNIQUE_PRIMARY_CLAIM",
+      "NO_SUPABASE_TOOL_USE",
+      "TARGET_READ_BY_EXACT_REF",
+      "RETURN_CREATE_ONLY",
+      "NO_TARGET_MUTATION",
+      "EVIDENCE_BACKED_FINDINGS"
+    ],
+    "evolution_variant": "V3_EVIDENCE_MAP",
+    "project_id": "prometeo-github-native-canary",
+    "objective_id": "GHNATIVE-PAGE-AUDIT-V1",
+    "fixed_output_path": "coordination/storage-recovery/github-native-canary/GHNATIVE-C0-10/returns/S003.json",
+    "receipt_path_pattern": "coordination/workers/benchmark-receipts/GHNATIVE-C0-10/<worker_id>.json",
+    "exam_path_pattern": "coordination/workers/exams/<worker_id>.json"
+  },
+  "variant": {
+    "id": "V3_EVIDENCE_MAP",
+    "changed_stage": "E6_VERIFY",
+    "rule": "Before implementation, map each required feature/hard gate to the exact evidence that will prove it; use that map as the implementation checklist and close only when every row is PASS/BOUNDARY.",
+    "replicas": 2
+  },
+  "pipeline_stages": [
+    {
+      "id": "E0_ENVELOPE",
+      "name": "Interpret launch envelope",
+      "goal": "Resolve NEW/RESUME, run_id/pool/batch, authorization and exact first durable action before consulting historical worker evidence.",
+      "hard_rule": "For NEW launches, historical identity/result reuse is forbidden.",
+      "evidence": "beacon invocation fields"
+    },
+    {
+      "id": "E1_IDENTITY",
+      "name": "Fresh identity",
+      "goal": "Create fresh worker_id + launch_nonce and atomically CREATE own beacon.",
+      "hard_rule": "Beacon is the first durable worker write.",
+      "evidence": "coordination/workers/beacons/<worker_id>.json"
+    },
+    {
+      "id": "E2_ASSIGN",
+      "name": "Unique assignment",
+      "goal": "In RUN mode atomically self-claim one compatible launch slot; otherwise use the normal allocator.",
+      "hard_rule": "One RUN slot has at most one owner; human does not number or route slots.",
+      "evidence": "coordination/launch-packets/<run_id>/claims/<slot_id>.json or normal PIN"
+    },
+    {
+      "id": "E3_CONTEXT",
+      "name": "Exact context load",
+      "goal": "Read only the assigned long capsule/exact sources needed to execute the owned objective.",
+      "hard_rule": "No broad project archaeology before the packet/capsule proves it necessary.",
+      "evidence": "exam stage_trace + exact source refs"
+    },
+    {
+      "id": "E4_PLAN_LOCK",
+      "name": "Execution lock",
+      "goal": "Convert the objective into a small actionable contract tied to hard gates before large implementation work.",
+      "hard_rule": "Planning is bounded and must immediately lead to implementation; no status-only plan.",
+      "evidence": "exam stage_trace.plan_lock or benchmark receipt"
+    },
+    {
+      "id": "E5_PRODUCE",
+      "name": "Production",
+      "goal": "Implement the entire owned objective through its definition of done, not just the first edit.",
+      "hard_rule": "Do not stop at first commit/checkpoint when executable acceptance work remains.",
+      "evidence": "changed paths + durable return"
+    },
+    {
+      "id": "E6_VERIFY",
+      "name": "Verification",
+      "goal": "Build and maintain an explicit evidence map from every required feature/hard gate to the exact check/artifact that proves it, then run available static/runtime/browser/public checks and close only when every row is PASS or a truthful capability/authority BOUNDARY.",
+      "hard_rule": "Evidence-map-first verification is baseline: every owned objective must know what proves each hard gate before close. Never claim a check that was not executed. A separate second acceptance pass is optional reinforcement for high-risk/ambiguous work, not mandatory baseline.",
+      "evidence": "evidence map + executed tests + receipt feature_evidence",
+      "promoted_law": {
+        "id": "V3_EVIDENCE_MAP",
+        "source_exploration": "CATLAB-EVO-01",
+        "source_confirmation": "CATLAB-P2B-01",
+        "confirmation": "3/3 primary + 3/3 reallocation + 3/3 independent browser PASS",
+        "status": "PROMOTED_BASELINE"
+      },
+      "confirmed_optional_law": {
+        "id": "V4_TWO_PASS_REVIEW",
+        "status": "CONFIRMED_OPTIONAL",
+        "trigger": "high-risk, ambiguous, safety/authority-sensitive, externally brittle, or evidence-map rows whose first pass remains uncertain",
+        "rule": "Run a separate acceptance pass from the original owned contract without relying on the implementation summary; repair all found misses before RETURN."
+      }
+    },
+    {
+      "id": "E7_RETURN",
+      "name": "Durable return",
+      "goal": "Persist the primary result/evidence so another actor can reconstruct what changed. A transport denial must remain explicit and must not erase already durable production/verification evidence.",
+      "hard_rule": "No terminal human answer before durable RETURN/guide receipt when the scope is executable. For non-RUN BATCH/POOL only: if an explicit tool/connector safety denial proves the canonical RETURN/guide receipt was NOT persisted after E5 and E6 completed, never retry or bypass the denied operation/path. If a separate permitted transport-boundary receipt is durably persisted with exact authority_ref, started_ref and completed evidence refs, keep E7=BOUNDARY and allow only E8 continuation to unrelated compatible work. The blocked unit does not count as productive, prior authority is not released, and the blocked job remains recovery debt.",
+      "evidence": "RETURN/guide receipt; or explicit transport-boundary receipt proving non-persistence plus exact authority/STARTED/product/test evidence (BOUNDARY only, never PASS)",
+      "transport_continuation": {
+        "status": "ACTIVE_BINDING",
+        "scope": "NON_RUN_BATCH_OR_POOL_ONLY",
+        "trigger": "EXPLICIT_RETURN_OR_GUIDE_RECEIPT_TRANSPORT_DENIAL_AFTER_E5_E6_COMPLETE",
+        "required_durable_evidence": [
+          "authority_ref",
+          "started_ref",
+          "completed_product_or_frontier_evidence",
+          "verification_evidence",
+          "transport_boundary_receipt"
+        ],
+        "forbidden": [
+          "retry_denied_operation_or_path",
+          "alternate_path_used_as_fake_RETURN",
+          "count_blocked_unit_as_productive",
+          "release_or_overwrite_prior_authority",
+          "continue_into_same exclusive mutation target",
+          "reinterpret E7 as PASS"
+        ],
+        "continuation": "E7 remains BOUNDARY; worker may enter E8 and claim unrelated compatible work under the same fresh worker_id. Old job stays immutable/recovery-bound until normal recovery resolves the missing RETURN.",
+        "run_mode": "DISALLOWED_UNLESS_PACKET_EXPLICITLY_AUTHORIZES; default RUN behavior remains terminal boundary"
+      }
+    },
+    {
+      "id": "E8_REALLOCATE",
+      "name": "Autonomous reallocation",
+      "goal": "After a counted RETURN, or after an explicitly evidenced non-RUN E7 transport boundary that permits continuation, take a compatible unrelated objective without new human routing.",
+      "hard_rule": "Primary completion is not terminal in graduation RUNs. In ordinary BATCH/POOL, an E7 transport-boundary continuation never counts the blocked unit and must not touch the still-owned blocked target; it only preserves resident capacity for unrelated compatible work.",
+      "evidence": "reallocation claim + next-objective evidence; when entered from E7 BOUNDARY also cite the exact transport-boundary receipt"
+    },
+    {
+      "id": "E9_EXAM_CLOSE",
+      "name": "Exam and close",
+      "goal": "Write one structured exam/benchmark receipt exposing stage outcomes and only then close when the run contract permits.",
+      "hard_rule": "The exam reports failures; it does not excuse them or manufacture evidence.",
+      "evidence": "coordination/workers/exams/<worker_id>.json + benchmark receipt"
+    }
+  ],
+  "common_capsule": {
+    "title": "GitHub-native page audit canary",
+    "primary_objective": "Prove fresh workers can do useful page-specific work and resident continuation with GitHub-only durable authority while Supabase is unavailable.",
+    "constraints": [
+      "Use GitHub reads and CREATE-only durable files; Supabase calls are forbidden.",
+      "Audited target pages are READ_ONLY; never edit them in this run.",
+      "No human slot routing, recap or result transport.",
+      "No private prompts/transcripts/audio/tokens/PII/private packet content in public receipts."
+    ],
+    "exact_sources": [
+      "coordination/launch-packets/GHNATIVE-C0-10/PACKET.json",
+      "coordination/workers/WORKER_PIPELINE_V1.json",
+      "coordination/workers/WORKER_BENCHMARK_RECEIPT_V1.json",
+      "coordination/design-dna/GOLDENS_V1.json#GOLDEN_CATLAB_P2B_01"
+    ],
+    "primary_hard_gates": [
+      "FRESH_GITHUB_BEACON",
+      "UNIQUE_PRIMARY_CLAIM",
+      "NO_SUPABASE_TOOL_USE",
+      "TARGET_READ_BY_EXACT_REF",
+      "PRIMARY_OUTPUT_CREATE_ONLY",
+      "NO_TARGET_MUTATION",
+      "BENCHMARK_RECEIPT_COMPLETE"
+    ],
+    "primary_output_rule": "CREATE the slot.fixed_output_path with schema prometeo.github-native-page-audit/v1. Findings max 3; explicit NO_FINDING allowed with evidence.",
+    "primary_output_schema": {
+      "required": [
+        "schema",
+        "run_id",
+        "slot_id",
+        "worker_id",
+        "launch_nonce",
+        "claim_ref",
+        "target",
+        "target_observed_sha",
+        "source_moved",
+        "supabase_calls",
+        "target_mutated",
+        "findings",
+        "exact_next",
+        "returned_at"
+      ],
+      "invariants": {
+        "schema": "prometeo.github-native-page-audit/v1",
+        "supabase_calls": 0,
+        "target_mutated": false,
+        "findings_max": 3
+      }
+    },
+    "primary_return_path_pattern": "coordination/workers/benchmark-receipts/GHNATIVE-C0-10/<worker_id>.json",
+    "reallocation_requirement": "After primary output and benchmark E7 evidence are durable, immediately claim exactly one packet reallocation slot and complete its output. Update the same benchmark receipt with reallocation_complete=true, then write terminal exam/E9.",
+    "non_goals": [
+      "fixing page findings",
+      "recovering Supabase",
+      "editing Current/V10/V11",
+      "creating scheduler/queue/persistence authority"
+    ]
+  },
+  "reallocation_pool": {
+    "pool_id": "GHNATIVE-CONTINUATION-POOL",
+    "objective": {
+      "objective_id": "GHNATIVE-CONTINUATION-V1",
+      "title": "GitHub-only resident continuation",
+      "mission": "Claim one separate reallocation slot, read its target by exact Git ref, and CREATE the fixed output with one evidence-backed fact about how the central page can represent it without live runtime.",
+      "hard_gates": [
+        "UNIQUE_REALLOCATION_SLOT",
+        "NO_SUPABASE_TOOL_USE",
+        "TARGET_READ_BY_EXACT_REF",
+        "REALLOCATION_OUTPUT_CREATE_ONLY",
+        "NO_TARGET_MUTATION"
+      ],
+      "output_schema": {
+        "schema": "prometeo.github-native-continuation/v1",
+        "required": [
+          "run_id",
+          "slot_id",
+          "worker_id",
+          "claim_ref",
+          "target",
+          "target_observed_sha",
+          "supabase_calls",
+          "target_mutated",
+          "fact",
+          "created_at"
+        ]
+      }
+    },
+    "selection_rule": "After durable primary evidence, deterministically choose/cyclically CREATE one unclaimed reallocation slot; human never routes."
+  },
+  "benchmark_receipt": {
+    "path_pattern": "coordination/workers/benchmark-receipts/<run_id>/<worker_id>.json",
+    "required_fields": [
+      "schema",
+      "run_id",
+      "worker_id",
+      "launch_nonce",
+      "slot_id",
+      "evolution_variant",
+      "primary_project_id",
+      "stage_trace",
+      "hard_gates",
+      "feature_evidence",
+      "primary_complete",
+      "reallocation_complete",
+      "closed_at_or_null"
+    ],
+    "stage_trace_fields": [
+      "E0_ENVELOPE",
+      "E1_IDENTITY",
+      "E2_ASSIGN",
+      "E3_CONTEXT",
+      "E4_PLAN_LOCK",
+      "E5_PRODUCE",
+      "E6_VERIFY",
+      "E7_RETURN",
+      "E8_REALLOCATE",
+      "E9_EXAM_CLOSE"
+    ],
+    "evidence_rule": "A PASS must cite exact durable evidence. A missing capability is BOUNDARY, never fabricated PASS."
+  },
+  "authority_mode": "SYNTHETIC_BENCHMARK_SLOT_CLAIM",
+  "authority_rule": "Human RUN invocation authorizes only the fresh GitHub beacon, exact primary RUN slot claim, fixed primary output, benchmark receipt/exam, exact reallocation claim/output and reversible receipts/tests required by this isolated run. Audited target pages are read-only. Supabase use is forbidden."
+}

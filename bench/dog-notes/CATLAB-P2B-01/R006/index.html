@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dog Notes · R006</title>
+<style>
+:root{--paper:#f5f0e6;--ink:#111}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Arial,Helvetica,sans-serif}.wrap{width:min(720px,100%);margin:auto;padding:24px 16px 64px}header{border-bottom:4px solid var(--ink);padding-bottom:18px;margin-bottom:24px}h1{font-size:clamp(3rem,13vw,7rem);line-height:.8;letter-spacing:-.07em;text-transform:uppercase;margin:0}p{line-height:1.45}.composer{display:grid;grid-template-columns:1fr auto;gap:10px;margin:24px 0}input,button{font:inherit;border:3px solid var(--ink);border-radius:0;background:var(--paper);color:var(--ink);min-height:50px}input{padding:10px 12px;min-width:0}button{padding:10px 14px;font-weight:900;text-transform:uppercase;cursor:pointer}button:hover,button:focus-visible{background:var(--ink);color:var(--paper)}button:focus-visible,input:focus-visible{outline:4px solid var(--ink);outline-offset:3px}ul{list-style:none;padding:0;margin:0;border-top:3px solid var(--ink)}li{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;border-bottom:3px solid var(--ink);padding:12px 0}.note{overflow-wrap:anywhere;font-size:1.08rem}.empty{padding:24px 0;font-weight:800;text-transform:uppercase}footer{margin-top:36px;border-top:3px solid var(--ink);padding-top:12px;font-size:.82rem;font-weight:800}@media(max-width:520px){.composer{grid-template-columns:1fr}.composer button{width:100%}li{grid-template-columns:minmax(0,1fr) auto}}
+</style>
+</head>
+<body>
+<main class="wrap">
+<header><h1>Dog<br>Notes</h1><p>Notas mínimas, guardadas sólo en este navegador.</p></header>
+<section aria-label="Agregar nota">
+<div class="composer">
+<input id="dog-note-input" type="text" maxlength="240" autocomplete="off" placeholder="Escribí una nota" aria-label="Nueva nota">
+<button id="dog-note-add" type="button">agregar</button>
+</div>
+<div id="dog-note-empty" class="empty">Todavía no hay notas.</div>
+<ul id="dog-note-list" aria-live="polite"></ul>
+</section>
+<footer>R006 · localStorage · agregar / eliminar</footer>
+</main>
+<script>
+(()=>{
+'use strict';
+const KEY='dog-notes.catlab-p2b.r006.v1';
+const input=document.getElementById('dog-note-input');
+const add=document.getElementById('dog-note-add');
+const list=document.getElementById('dog-note-list');
+const empty=document.getElementById('dog-note-empty');
+let notes=[];
+try{const raw=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(raw))notes=raw.filter(x=>x&&typeof x.text==='string')}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(notes))}catch(e){}};
+const remove=id=>{notes=notes.filter(n=>n.id!==id);save();render()};
+const render=()=>{
+  list.textContent='';
+  empty.hidden=notes.length>0;
+  notes.forEach(n=>{
+    const li=document.createElement('li');
+    const text=document.createElement('span'); text.className='note'; text.textContent=n.text;
+    const del=document.createElement('button'); del.type='button'; del.textContent='eliminar'; del.setAttribute('aria-label','Eliminar nota: '+n.text); del.addEventListener('click',()=>remove(n.id));
+    li.append(text,del); list.append(li);
+  });
+};
+const create=()=>{
+  const text=input.value.trim(); if(!text)return;
+  notes.push({id:'n-'+Date.now()+'-'+Math.random().toString(16).slice(2),text}); save(); render(); input.value=''; input.focus();
+};
+add.addEventListener('click',create);
+input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();create()}});
+render();
+})();
+</script>
+</body>
+</html>

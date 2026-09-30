@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Dog Notes</title>
+<style>
+:root{--bg:#f3efe6;--fg:#111}*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);font-family:Arial,sans-serif}body{display:grid;place-items:center;padding:clamp(1rem,5vw,4rem)}main{width:min(760px,100%);border:2px solid var(--fg)}header{padding:clamp(1rem,4vw,2rem);border-bottom:2px solid var(--fg)}h1{margin:0;font-size:clamp(3.5rem,13vw,8rem);line-height:.82;letter-spacing:-.07em;text-transform:uppercase}.intro{margin:1rem 0 0;max-width:34rem;font-weight:700;line-height:1.4}.composer{display:grid;grid-template-columns:minmax(0,1fr) auto;border-bottom:2px solid var(--fg)}input,button{font:inherit;border:0;border-radius:0;background:var(--bg);color:var(--fg)}input{min-width:0;padding:1rem;font-size:1rem;outline:none}button{cursor:pointer;font-weight:900;text-transform:uppercase;padding:.9rem 1rem;border-left:2px solid var(--fg)}button:hover,button:focus-visible{background:var(--fg);color:var(--bg)}button:focus-visible,input:focus-visible{outline:3px solid var(--fg);outline-offset:-5px}ul{list-style:none;padding:0;margin:0}.note{display:grid;grid-template-columns:minmax(0,1fr) auto;border-bottom:2px solid var(--fg)}.note:last-child{border-bottom:0}.note-text{padding:1rem;line-height:1.45;overflow-wrap:anywhere}.empty{padding:2rem;text-align:center;font-weight:800;text-transform:uppercase;letter-spacing:.08em}.meta{padding:.65rem 1rem;border-top:2px solid var(--fg);font-size:.78rem;font-weight:800;text-transform:uppercase}@media(max-width:560px){body{padding:0;place-items:stretch}main{min-height:100svh;border:0}.composer{grid-template-columns:1fr}.composer button{border-left:0;border-top:2px solid var(--fg)}h1{font-size:clamp(4rem,20vw,6.5rem)}}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Dog Notes</h1><p class="intro">Tiny local notes for walks, training cues, feeding reminders, or anything else worth keeping close.</p></header>
+<form class="composer" id="dog-note-form">
+<input id="dog-note-input" autocomplete="off" aria-label="New dog note" maxlength="240" placeholder="Add a note…">
+<button id="dog-note-add" type="submit">Add</button>
+</form>
+<ul id="dog-note-list" aria-live="polite"></ul>
+<div class="meta" id="dog-note-status">Stored only in this browser</div>
+</main>
+<script>
+(function(){
+'use strict';
+var KEY='dognotes.CATLAB-EVO-01.R008';
+var form=document.getElementById('dog-note-form');
+var input=document.getElementById('dog-note-input');
+var list=document.getElementById('dog-note-list');
+var status=document.getElementById('dog-note-status');
+var notes=[];
+try{notes=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(notes))notes=[];}catch(e){notes=[];status.textContent='Local storage could not be read';}
+function save(){localStorage.setItem(KEY,JSON.stringify(notes));status.textContent=notes.length+' note'+(notes.length===1?'':'s')+' saved locally';}
+function render(){
+list.textContent='';
+if(!notes.length){var empty=document.createElement('li');empty.className='empty';empty.textContent='No notes yet';list.appendChild(empty);return;}
+notes.forEach(function(note,index){
+var li=document.createElement('li');li.className='note';
+var text=document.createElement('div');text.className='note-text';text.textContent=note;
+var remove=document.createElement('button');remove.type='button';remove.textContent='Remove';remove.setAttribute('aria-label','Remove note '+(index+1));
+remove.addEventListener('click',function(){notes.splice(index,1);save();render();input.focus();});
+li.appendChild(text);li.appendChild(remove);list.appendChild(li);
+});
+}
+form.addEventListener('submit',function(event){event.preventDefault();var value=input.value.trim();if(!value){input.focus();return;}notes.push(value);input.value='';save();render();input.focus();});
+render();if(notes.length)status.textContent=notes.length+' note'+(notes.length===1?'':'s')+' restored locally';
+})();
+</script>
+</body>
+</html>

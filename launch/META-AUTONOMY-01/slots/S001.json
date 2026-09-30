@@ -1,0 +1,277 @@
+{
+  "schema": "prometeo.launch-slot-capsule/v1",
+  "run_id": "META-AUTONOMY-01",
+  "packet_status": "ARMED",
+  "slot": {
+    "slot_id": "S001",
+    "slot_kind": "PRIMARY",
+    "required_capabilities": [],
+    "evolution_variant": "V3_EVIDENCE_MAP",
+    "benchmark_variant_id": "META_AUTONOMY_PRIMARY_V1",
+    "benchmark_replica": 1,
+    "project_id": "prometeo-autonomous-growth",
+    "objective_id": "META-AUTONOMY-01-PRIMARY",
+    "claim_path": "coordination/launch-packets/META-AUTONOMY-01/claims/S001.json",
+    "write_scope": [
+      "pages/bench/meta-autonomy/META-AUTONOMY-01/S001/"
+    ],
+    "public_route": "https://juanmanuelpm.github.io/prometeo/bench/meta-autonomy/META-AUTONOMY-01/S001/",
+    "receipt_path_pattern": "coordination/workers/benchmark-receipts/META-AUTONOMY-01/<worker_id>.json"
+  },
+  "variant": {
+    "id": "V3_EVIDENCE_MAP",
+    "changed_stage": "E6_VERIFY",
+    "rule": "Before implementation, map each required feature/hard gate to the exact evidence that will prove it; use that map as the implementation checklist and close only when every row is PASS/BOUNDARY.",
+    "replicas": 2
+  },
+  "pipeline_stages": [
+    {
+      "id": "E0_ENVELOPE",
+      "name": "Interpret launch envelope",
+      "goal": "Resolve NEW/RESUME, run_id/pool/batch, authorization and exact first durable action before consulting historical worker evidence.",
+      "hard_rule": "For NEW launches, historical identity/result reuse is forbidden.",
+      "evidence": "beacon invocation fields"
+    },
+    {
+      "id": "E1_IDENTITY",
+      "name": "Fresh identity",
+      "goal": "Create fresh worker_id + launch_nonce and atomically CREATE own beacon.",
+      "hard_rule": "Beacon is the first durable worker write.",
+      "evidence": "coordination/workers/beacons/<worker_id>.json"
+    },
+    {
+      "id": "E2_ASSIGN",
+      "name": "Unique assignment",
+      "goal": "In RUN mode atomically self-claim one compatible launch slot; otherwise use the normal allocator.",
+      "hard_rule": "One RUN slot has at most one owner; human does not number or route slots.",
+      "evidence": "coordination/launch-packets/<run_id>/claims/<slot_id>.json or normal PIN"
+    },
+    {
+      "id": "E3_CONTEXT",
+      "name": "Exact context load",
+      "goal": "Read only the assigned long capsule/exact sources needed to execute the owned objective.",
+      "hard_rule": "No broad project archaeology before the packet/capsule proves it necessary.",
+      "evidence": "exam stage_trace + exact source refs"
+    },
+    {
+      "id": "E4_PLAN_LOCK",
+      "name": "Execution lock",
+      "goal": "Convert the objective into a small actionable contract tied to hard gates before large implementation work.",
+      "hard_rule": "Planning is bounded and must immediately lead to implementation; no status-only plan.",
+      "evidence": "exam stage_trace.plan_lock or benchmark receipt"
+    },
+    {
+      "id": "E5_PRODUCE",
+      "name": "Production",
+      "goal": "Implement the entire owned objective through its definition of done, not just the first edit.",
+      "hard_rule": "Do not stop at first commit/checkpoint when executable acceptance work remains.",
+      "evidence": "changed paths + durable return"
+    },
+    {
+      "id": "E6_VERIFY",
+      "name": "Verification",
+      "goal": "Build and maintain an explicit evidence map from every required feature/hard gate to the exact check/artifact that proves it, then run available static/runtime/browser/public checks and close only when every row is PASS or a truthful capability/authority BOUNDARY.",
+      "hard_rule": "Evidence-map-first verification is baseline: every owned objective must know what proves each hard gate before close. Never claim a check that was not executed. A separate second acceptance pass is optional reinforcement for high-risk/ambiguous work, not mandatory baseline.",
+      "evidence": "evidence map + executed tests + receipt feature_evidence",
+      "promoted_law": {
+        "id": "V3_EVIDENCE_MAP",
+        "source_exploration": "CATLAB-EVO-01",
+        "source_confirmation": "CATLAB-P2B-01",
+        "confirmation": "3/3 primary + 3/3 reallocation + 3/3 independent browser PASS",
+        "status": "PROMOTED_BASELINE"
+      },
+      "confirmed_optional_law": {
+        "id": "V4_TWO_PASS_REVIEW",
+        "status": "CONFIRMED_OPTIONAL",
+        "trigger": "high-risk, ambiguous, safety/authority-sensitive, externally brittle, or evidence-map rows whose first pass remains uncertain",
+        "rule": "Run a separate acceptance pass from the original owned contract without relying on the implementation summary; repair all found misses before RETURN."
+      }
+    },
+    {
+      "id": "E7_RETURN",
+      "name": "Durable return",
+      "goal": "Persist the primary result/evidence so another actor can reconstruct what changed. A transport denial must remain explicit and must not erase already durable production/verification evidence.",
+      "hard_rule": "No terminal human answer before durable RETURN/guide receipt when the scope is executable. For non-RUN BATCH/POOL only: if an explicit tool/connector safety denial proves the canonical RETURN/guide receipt was NOT persisted after E5 and E6 completed, never retry or bypass the denied operation/path. If a separate permitted transport-boundary receipt is durably persisted with exact authority_ref, started_ref and completed evidence refs, keep E7=BOUNDARY and allow only E8 continuation to unrelated compatible work. The blocked unit does not count as productive, prior authority is not released, and the blocked job remains recovery debt.",
+      "evidence": "RETURN/guide receipt; or explicit transport-boundary receipt proving non-persistence plus exact authority/STARTED/product/test evidence (BOUNDARY only, never PASS)",
+      "transport_continuation": {
+        "status": "ACTIVE_BINDING",
+        "scope": "NON_RUN_BATCH_OR_POOL_ONLY",
+        "trigger": "EXPLICIT_RETURN_OR_GUIDE_RECEIPT_TRANSPORT_DENIAL_AFTER_E5_E6_COMPLETE",
+        "required_durable_evidence": [
+          "authority_ref",
+          "started_ref",
+          "completed_product_or_frontier_evidence",
+          "verification_evidence",
+          "transport_boundary_receipt"
+        ],
+        "forbidden": [
+          "retry_denied_operation_or_path",
+          "alternate_path_used_as_fake_RETURN",
+          "count_blocked_unit_as_productive",
+          "release_or_overwrite_prior_authority",
+          "continue_into_same exclusive mutation target",
+          "reinterpret E7 as PASS"
+        ],
+        "continuation": "E7 remains BOUNDARY; worker may enter E8 and claim unrelated compatible work under the same fresh worker_id. Old job stays immutable/recovery-bound until normal recovery resolves the missing RETURN.",
+        "run_mode": "DISALLOWED_UNLESS_PACKET_EXPLICITLY_AUTHORIZES; default RUN behavior remains terminal boundary"
+      }
+    },
+    {
+      "id": "E8_REALLOCATE",
+      "name": "Autonomous reallocation",
+      "goal": "After a counted RETURN, or after an explicitly evidenced non-RUN E7 transport boundary that permits continuation, take a compatible unrelated objective without new human routing.",
+      "hard_rule": "Primary completion is not terminal in graduation RUNs. In ordinary BATCH/POOL, an E7 transport-boundary continuation never counts the blocked unit and must not touch the still-owned blocked target; it only preserves resident capacity for unrelated compatible work.",
+      "evidence": "reallocation claim + next-objective evidence; when entered from E7 BOUNDARY also cite the exact transport-boundary receipt"
+    },
+    {
+      "id": "E9_EXAM_CLOSE",
+      "name": "Exam and close",
+      "goal": "Write one structured exam/benchmark receipt exposing stage outcomes and only then close when the run contract permits.",
+      "hard_rule": "The exam reports failures; it does not excuse them or manufacture evidence.",
+      "evidence": "coordination/workers/exams/<worker_id>.json + benchmark receipt"
+    }
+  ],
+  "common_capsule": {
+    "title": "Meta Autonomy 01 · Human Independence / Turning Point Audit",
+    "primary_objective": "Act as one fresh fungible meta-worker. Inspect only the declared existing Prometeo owners/capabilities, apply Organism-first + Existing Capability Check + Human-Absence Test + Strategic Discovery Question Bank, analyze the sanitized recent turning points, identify operational dependencies on the human and on the acting shell itself, propose the smallest reuse-first integration, and leave a durable resumable candidate result. Do not implement architecture or promote anything.",
+    "constraints": [
+      "This is a bounded synthetic/candidate RUN. Do not mutate CURRENT, scheduler, Worker Bus, Guides, Organism authority, Supabase schema, product surfaces or shared Question Bank.",
+      "Read only exact_sources plus the source experiment packet before producing the primary result; no broad repository archaeology.",
+      "Treat Organism as projection/orientation, never authority. If live Organism/Current Tree is unavailable, use the exact durable fallback sources and mark DEGRADED rather than doing storage archaeology.",
+      "Run C22 EXISTING_CAPABILITY_CHECK before naming any new mechanism. Prefer REUSE, ACTIVATE, REPAIR, INSTRUMENT or SIMPLIFY over MISSING_CANDIDATE.",
+      "Run C17 HUMAN_GESTURE_TEST and C18 MESSAGE_BUS_TEST against each foreseeable human intervention.",
+      "Apply Q01-Q07 from the shared question bank. Evaluate Q08_HUMAN_BOTTLENECK and the self-execution blocker question as candidates only; do not rewrite the bank.",
+      "Analyze human redirects as evidence, not commands retroactively made infallible. Effect may be POSITIVE, NEGATIVE, MIXED or UNKNOWN.",
+      "Do not persist raw private prompts or chain-of-thought. Use only sanitized event summaries already present in the source experiment packet and durable evidence refs.",
+      "Audit your own execution path before promising a next step: critical transitions, tool/control-plane dependencies, earliest probe, sanctioned fallback, boundary and resume condition.",
+      "If an external wait appears, persist WAITING_EXTERNAL with owner + exact resume condition and yield/close honestly. Never silently poll waiting for the human.",
+      "GitHub writes are limited to the claimed slot write_scope plus standard RUN benchmark receipt/exam/claim paths allowed by /wc."
+    ],
+    "exact_sources": [
+      "coordination/design-dna/experiments/META-AUTONOMY-01/PACKET.json",
+      "coordination/bootstrap/UNIVERSAL_SESSION_PREFLIGHT_V1.txt",
+      "coordination/workers/CURRENT_WORKER_REUSE_CONTRACT_V1.json",
+      "coordination/workers/WORKER_PIPELINE_V1.json",
+      "current-tree/organism/handoff.txt",
+      "coordination/design-dna/STRATEGIC_DISCOVERY_QUESTION_BANK_V1.json",
+      "coordination/design-dna/discovery-notes/DISCOVERY-20260930-SILENT-WAIT.json",
+      "coordination/design-dna/discovery-notes/DISCOVERY-20260930-OPERATOR-BLOCKER-PREFLIGHT.json",
+      "coordination/design-dna/STRATEGIC_REASONING_CHECKLIST_V2.md",
+      "current-tree/control-v11/worker-lab/guide-note.json",
+      "coordination/portfolio/evidence/prometeo-autonomous-growth/WORKER_MIN_TRIGGER_01_LIVE.json",
+      "coordination/portfolio/evidence/prometeo-autonomous-growth/SINGLE_WORKER_REALITY_01_PRELAUNCH_V1.json"
+    ],
+    "required_outputs": [
+      "organism_and_owner_map",
+      "existing_capability_reuse_map",
+      "human_dependency_audit",
+      "self_execution_blocker_audit",
+      "turning_point_analysis",
+      "question_bank_answers_Q01_Q07",
+      "Q08_evaluation",
+      "better_question_candidates_max_3",
+      "minimal_recipe_and_hook_proposal",
+      "worker_lab_observability_delta",
+      "organism_projection_candidate_only",
+      "next_single_worker_experiment",
+      "resumable_checkpoint"
+    ],
+    "turning_point_schema": [
+      "event_id",
+      "before_state",
+      "human_redirect_summary",
+      "assumption_broken",
+      "trajectory_delta",
+      "later_outcome",
+      "effect",
+      "avoidable_by_existing_capability",
+      "better_question_candidate",
+      "evidence_refs",
+      "confidence"
+    ],
+    "hard_gates": [
+      "FRESH_IDENTITY_AND_UNIQUE_PRIMARY_SLOT",
+      "EXACT_CONTEXT_ONLY",
+      "ORGANISM_FIRST_OR_EXPLICIT_DEGRADED_FALLBACK",
+      "SELF_EXECUTION_PREFLIGHT_COMPLETED",
+      "C22_EXISTING_CAPABILITY_CHECK_COMPLETED",
+      "C17_C18_HUMAN_DEPENDENCY_AUDIT_COMPLETED",
+      "Q01_Q07_APPLIED",
+      "Q08_CANDIDATE_EVALUATED",
+      "TURNING_POINTS_ALLOW_NEGATIVE_MIXED_UNKNOWN",
+      "NO_RAW_PRIVATE_PROMPTS_OR_CHAIN_OF_THOUGHT",
+      "NO_PARALLEL_AUTHORITY_INVENTED",
+      "MINIMAL_REUSE_MAP_PRODUCED",
+      "PRIMARY_RETURN_DURABLE",
+      "SAME_WORKER_RECRITIQUE_CONTINUATION",
+      "RESUMABLE_NEXT_ACTION_PRODUCED",
+      "E9_CLOSE_AFTER_CONTINUATION"
+    ],
+    "primary_return_path_pattern": "coordination/workers/benchmark-receipts/META-AUTONOMY-01/<worker_id>.json",
+    "machine_contract": {
+      "entry_file": "result.json",
+      "selectors": {},
+      "state_contract": [
+        "primary result covers every required_output",
+        "each hard gate maps to evidence or truthful boundary",
+        "turning points do not assume human redirect correctness",
+        "no new scheduler/queue/CURRENT/worker family proposed when existing mechanism suffices",
+        "same worker completes R001 adversarial re-critique before close"
+      ]
+    },
+    "measurement_contract": {
+      "report": [
+        "first/last durable clocks",
+        "external reads/writes when reconstructable",
+        "questions actually used",
+        "existing capabilities reused",
+        "human dependencies identified",
+        "assistant/worker self-execution blockers identified",
+        "turning points by effect class",
+        "better-question candidates",
+        "UNKNOWN coverage"
+      ],
+      "no_fake_zero": true
+    }
+  },
+  "reallocation_pool": {
+    "objective": "Immediately after the primary RETURN, the same worker performs an adversarial re-critique of its own candidate result without human recap: identify the strongest likely mistake/overreach, re-run Human-Absence + Existing-Capability + Reincarnation tests against the proposed next step, produce a compact successor checkpoint, and publish R001 candidate artifacts. Do not expand scope or mutate shared architecture.",
+    "pairing_rule": "S001 maps only to R001",
+    "same_worker_required": true,
+    "human_recap_forbidden": true,
+    "receipt_path_pattern": "coordination/workers/benchmark-receipts/META-AUTONOMY-01/<worker_id>.json"
+  },
+  "benchmark_receipt": {
+    "path_pattern": "coordination/workers/benchmark-receipts/<run_id>/<worker_id>.json",
+    "required_fields": [
+      "schema",
+      "run_id",
+      "worker_id",
+      "launch_nonce",
+      "slot_id",
+      "evolution_variant",
+      "primary_project_id",
+      "stage_trace",
+      "hard_gates",
+      "feature_evidence",
+      "primary_complete",
+      "reallocation_complete",
+      "closed_at_or_null"
+    ],
+    "stage_trace_fields": [
+      "E0_ENVELOPE",
+      "E1_IDENTITY",
+      "E2_ASSIGN",
+      "E3_CONTEXT",
+      "E4_PLAN_LOCK",
+      "E5_PRODUCE",
+      "E6_VERIFY",
+      "E7_RETURN",
+      "E8_REALLOCATE",
+      "E9_EXAM_CLOSE"
+    ],
+    "evidence_rule": "A PASS must cite exact durable evidence. A missing capability is BOUNDARY, never fabricated PASS."
+  },
+  "authority_mode": "SYNTHETIC_BENCHMARK_SLOT_CLAIM",
+  "authority_rule": "Bounded candidate-only autonomy experiment. Atomic S001 CREATE authorizes only declared benchmark write_scope plus standard RUN receipt/exam writes. No CURRENT, scheduler, Guide, Organism, Product or promotion authority."
+}

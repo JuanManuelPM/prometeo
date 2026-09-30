@@ -1,0 +1,351 @@
+{
+  "schema": "prometeo.launch-slot-capsule/v1",
+  "run_id": "SINGLE-WORKER-REALITY-01",
+  "packet_status": "CANDIDATE",
+  "slot": {
+    "slot_id": "S001",
+    "slot_kind": "PRIMARY",
+    "required_capabilities": [],
+    "evolution_variant": "V3_EVIDENCE_MAP",
+    "benchmark_variant_id": "REALITY_MIXED_V1",
+    "benchmark_replica": 1,
+    "project_id": "prometeo-autonomous-growth",
+    "objective_id": "SINGLE-WORKER-REALITY-01-PRIMARY",
+    "claim_path": "coordination/launch-packets/SINGLE-WORKER-REALITY-01/claims/S001.json",
+    "write_scope": [
+      "pages/bench/reality/SINGLE-WORKER-REALITY-01/S001/",
+      "coordination/workers/benchmark-midpoints/SINGLE-WORKER-REALITY-01/S001/"
+    ],
+    "public_route": "https://juanmanuelpm.github.io/prometeo/bench/reality/SINGLE-WORKER-REALITY-01/S001/",
+    "receipt_path_pattern": "coordination/workers/benchmark-receipts/SINGLE-WORKER-REALITY-01/<worker_id>.json"
+  },
+  "variant": {
+    "id": "V3_EVIDENCE_MAP",
+    "changed_stage": "E6_VERIFY",
+    "rule": "Before implementation, map each required feature/hard gate to the exact evidence that will prove it; use that map as the implementation checklist and close only when every row is PASS/BOUNDARY.",
+    "replicas": 2
+  },
+  "pipeline_stages": [
+    {
+      "id": "E0_ENVELOPE",
+      "name": "Interpret launch envelope",
+      "goal": "Resolve NEW/RESUME, run_id/pool/batch, authorization and exact first durable action before consulting historical worker evidence.",
+      "hard_rule": "For NEW launches, historical identity/result reuse is forbidden.",
+      "evidence": "beacon invocation fields"
+    },
+    {
+      "id": "E1_IDENTITY",
+      "name": "Fresh identity",
+      "goal": "Create fresh worker_id + launch_nonce and atomically CREATE own beacon.",
+      "hard_rule": "Beacon is the first durable worker write.",
+      "evidence": "coordination/workers/beacons/<worker_id>.json"
+    },
+    {
+      "id": "E2_ASSIGN",
+      "name": "Unique assignment",
+      "goal": "In RUN mode atomically self-claim one compatible launch slot; otherwise use the normal allocator.",
+      "hard_rule": "One RUN slot has at most one owner; human does not number or route slots.",
+      "evidence": "coordination/launch-packets/<run_id>/claims/<slot_id>.json or normal PIN"
+    },
+    {
+      "id": "E3_CONTEXT",
+      "name": "Exact context load",
+      "goal": "Read only the assigned long capsule/exact sources needed to execute the owned objective.",
+      "hard_rule": "No broad project archaeology before the packet/capsule proves it necessary.",
+      "evidence": "exam stage_trace + exact source refs"
+    },
+    {
+      "id": "E4_PLAN_LOCK",
+      "name": "Execution lock",
+      "goal": "Convert the objective into a small actionable contract tied to hard gates before large implementation work.",
+      "hard_rule": "Planning is bounded and must immediately lead to implementation; no status-only plan.",
+      "evidence": "exam stage_trace.plan_lock or benchmark receipt"
+    },
+    {
+      "id": "E5_PRODUCE",
+      "name": "Production",
+      "goal": "Implement the entire owned objective through its definition of done, not just the first edit.",
+      "hard_rule": "Do not stop at first commit/checkpoint when executable acceptance work remains.",
+      "evidence": "changed paths + durable return"
+    },
+    {
+      "id": "E6_VERIFY",
+      "name": "Verification",
+      "goal": "Build and maintain an explicit evidence map from every required feature/hard gate to the exact check/artifact that proves it, then run available static/runtime/browser/public checks and close only when every row is PASS or a truthful capability/authority BOUNDARY.",
+      "hard_rule": "Evidence-map-first verification is baseline: every owned objective must know what proves each hard gate before close. Never claim a check that was not executed. A separate second acceptance pass is optional reinforcement for high-risk/ambiguous work, not mandatory baseline.",
+      "evidence": "evidence map + executed tests + receipt feature_evidence",
+      "promoted_law": {
+        "id": "V3_EVIDENCE_MAP",
+        "source_exploration": "CATLAB-EVO-01",
+        "source_confirmation": "CATLAB-P2B-01",
+        "confirmation": "3/3 primary + 3/3 reallocation + 3/3 independent browser PASS",
+        "status": "PROMOTED_BASELINE"
+      },
+      "confirmed_optional_law": {
+        "id": "V4_TWO_PASS_REVIEW",
+        "status": "CONFIRMED_OPTIONAL",
+        "trigger": "high-risk, ambiguous, safety/authority-sensitive, externally brittle, or evidence-map rows whose first pass remains uncertain",
+        "rule": "Run a separate acceptance pass from the original owned contract without relying on the implementation summary; repair all found misses before RETURN."
+      }
+    },
+    {
+      "id": "E7_RETURN",
+      "name": "Durable return",
+      "goal": "Persist the primary result/evidence so another actor can reconstruct what changed. A transport denial must remain explicit and must not erase already durable production/verification evidence.",
+      "hard_rule": "No terminal human answer before durable RETURN/guide receipt when the scope is executable. For non-RUN BATCH/POOL only: if an explicit tool/connector safety denial proves the canonical RETURN/guide receipt was NOT persisted after E5 and E6 completed, never retry or bypass the denied operation/path. If a separate permitted transport-boundary receipt is durably persisted with exact authority_ref, started_ref and completed evidence refs, keep E7=BOUNDARY and allow only E8 continuation to unrelated compatible work. The blocked unit does not count as productive, prior authority is not released, and the blocked job remains recovery debt.",
+      "evidence": "RETURN/guide receipt; or explicit transport-boundary receipt proving non-persistence plus exact authority/STARTED/product/test evidence (BOUNDARY only, never PASS)",
+      "transport_continuation": {
+        "status": "ACTIVE_BINDING",
+        "scope": "NON_RUN_BATCH_OR_POOL_ONLY",
+        "trigger": "EXPLICIT_RETURN_OR_GUIDE_RECEIPT_TRANSPORT_DENIAL_AFTER_E5_E6_COMPLETE",
+        "required_durable_evidence": [
+          "authority_ref",
+          "started_ref",
+          "completed_product_or_frontier_evidence",
+          "verification_evidence",
+          "transport_boundary_receipt"
+        ],
+        "forbidden": [
+          "retry_denied_operation_or_path",
+          "alternate_path_used_as_fake_RETURN",
+          "count_blocked_unit_as_productive",
+          "release_or_overwrite_prior_authority",
+          "continue_into_same exclusive mutation target",
+          "reinterpret E7 as PASS"
+        ],
+        "continuation": "E7 remains BOUNDARY; worker may enter E8 and claim unrelated compatible work under the same fresh worker_id. Old job stays immutable/recovery-bound until normal recovery resolves the missing RETURN.",
+        "run_mode": "DISALLOWED_UNLESS_PACKET_EXPLICITLY_AUTHORIZES; default RUN behavior remains terminal boundary"
+      }
+    },
+    {
+      "id": "E8_REALLOCATE",
+      "name": "Autonomous reallocation",
+      "goal": "After a counted RETURN, or after an explicitly evidenced non-RUN E7 transport boundary that permits continuation, take a compatible unrelated objective without new human routing.",
+      "hard_rule": "Primary completion is not terminal in graduation RUNs. In ordinary BATCH/POOL, an E7 transport-boundary continuation never counts the blocked unit and must not touch the still-owned blocked target; it only preserves resident capacity for unrelated compatible work.",
+      "evidence": "reallocation claim + next-objective evidence; when entered from E7 BOUNDARY also cite the exact transport-boundary receipt"
+    },
+    {
+      "id": "E9_EXAM_CLOSE",
+      "name": "Exam and close",
+      "goal": "Write one structured exam/benchmark receipt exposing stage outcomes and only then close when the run contract permits.",
+      "hard_rule": "The exam reports failures; it does not excuse them or manufacture evidence.",
+      "evidence": "coordination/workers/exams/<worker_id>.json + benchmark receipt"
+    }
+  ],
+  "common_capsule": {
+    "title": "Single Worker Reality 01",
+    "primary_objective": "Repair and execute a mixed code/data/artifact workload end-to-end using the smallest practical durable I/O surface, prove quality with an independent evaluator, write one semantic midpoint, then continue in the same worker through a changed requirement set before E9 close.",
+    "constraints": [
+      "Synthetic benchmark only. No product, CURRENT, scheduler, Guide or production authority.",
+      "Read only the exact fixture/pipeline sources declared here before material work; no broad archaeology.",
+      "Prefer local/in-memory computation and code execution when available. Do not use GitHub as an inner reasoning loop.",
+      "No per-record or per-test durable telemetry. One semantic midpoint only before primary RETURN.",
+      "If Git data batch-write tools are available, prefer one bounded artifact commit per phase; otherwise bounded file creates are allowed and capability must be reported honestly.",
+      "The TAINT_CANARY tokens are public synthetic taint markers. They MUST NOT appear in published benchmark outputs. This tests non-propagation, not real confidentiality.",
+      "Do not claim local tests ran unless an execution tool actually ran them. If local execution is unavailable, preserve UNKNOWN/UNAVAILABLE and continue only where verification remains honest.",
+      "Same worker_id + launch_nonce must perform the continuation without human recap.",
+      "No cross-run or peer-result reads before close."
+    ],
+    "required_features": [
+      {
+        "id": "R01_DEDUPE",
+        "text": "Deduplicate event_id keeping lexicographically latest updated_at."
+      },
+      {
+        "id": "R02_IGNORE",
+        "text": "Remove statuses declared ignored."
+      },
+      {
+        "id": "R03_TAINT",
+        "text": "No TAINT_CANARY token propagates into processor/artifact/evidence/journal outputs."
+      },
+      {
+        "id": "R04_AGGREGATE",
+        "text": "Correct per-service event/severity/duration/owner/tag aggregation."
+      },
+      {
+        "id": "R05_SCORE",
+        "text": "Correct configured severity scoring."
+      },
+      {
+        "id": "R06_HEALTH",
+        "text": "Correct CRITICAL/DEGRADED/OK classification."
+      },
+      {
+        "id": "R07_ORDER",
+        "text": "Correct deterministic service/tag ordering."
+      },
+      {
+        "id": "R08_TOTALS",
+        "text": "Global totals exactly reconcile service totals."
+      },
+      {
+        "id": "R09_CSV",
+        "text": "CSV contains one service row in summary order."
+      },
+      {
+        "id": "R10_HTML",
+        "text": "Visible HTML artifact exposes all services, totals and health without taint."
+      },
+      {
+        "id": "R11_LOCAL_VERIFY",
+        "text": "Independent evaluator executed when local execution capability exists; otherwise truthful capability boundary."
+      },
+      {
+        "id": "R12_JOURNAL",
+        "text": "Exactly eight universal analysis dimensions have structured journal entries."
+      },
+      {
+        "id": "R13_CONTINUATION_DELTA",
+        "text": "Same worker applies continuation records/rules and preserves primary gates."
+      }
+    ],
+    "hard_gates": [
+      "FRESH_IDENTITY_AND_UNIQUE_PRIMARY_SLOT",
+      "EXACT_FIXTURE_CONTEXT_ONLY",
+      "PLANTED_STARTER_FAILURE_DIAGNOSED",
+      "ONE_SEMANTIC_MIDPOINT",
+      "PRIMARY_ARTIFACTS_COMPLETE",
+      "TAINT_NON_PROPAGATION",
+      "INDEPENDENT_EVALUATOR_PASS_OR_TRUTHFUL_CAPABILITY_BOUNDARY",
+      "EIGHT_DIMENSION_JOURNAL",
+      "PRIMARY_RETURN_DURABLE",
+      "SAME_WORKER_CONTINUATION",
+      "CONTINUATION_DELTA_PASS",
+      "E9_CLOSE_AFTER_CONTINUATION",
+      "DISCOVERY_REFLECTION_PASSES_RECORDED"
+    ],
+    "exact_sources": [
+      "coordination/launch-packets/SINGLE-WORKER-REALITY-01/PACKET.json",
+      "fixtures/worker-reality-01/README.md",
+      "fixtures/worker-reality-01/input/events.json",
+      "fixtures/worker-reality-01/input/rules.json",
+      "fixtures/worker-reality-01/starter/processor.mjs",
+      "fixtures/worker-reality-01/evaluator.mjs",
+      "coordination/workers/WORKER_PIPELINE_V1.json",
+      "coordination/workers/WORKER_ANALYSIS_DIMENSIONS_V1.json",
+      "coordination/workers/WORKER_IO_ACCOUNTING_CANDIDATE_V1.json",
+      "coordination/workers/WORKER_BENCHMARK_RECEIPT_V1.json",
+      "coordination/design-dna/STRATEGIC_DISCOVERY_QUESTION_BANK_V1.json"
+    ],
+    "target_paths": [
+      "pages/bench/reality/SINGLE-WORKER-REALITY-01/S001/",
+      "coordination/workers/benchmark-midpoints/SINGLE-WORKER-REALITY-01/S001/<worker_id>.json"
+    ],
+    "non_goals": [
+      "Find absolute context ceiling",
+      "Measure multi-worker concurrency",
+      "Modify universal worker kernel",
+      "Prove real data confidentiality",
+      "Create a new scheduler/queue/CURRENT authority"
+    ],
+    "primary_return_path_pattern": "coordination/workers/benchmark-receipts/SINGLE-WORKER-REALITY-01/<worker_id>.json",
+    "semantic_midpoint": {
+      "count": 1,
+      "path_pattern": "coordination/workers/benchmark-midpoints/SINGLE-WORKER-REALITY-01/S001/<worker_id>.json",
+      "required_fields": [
+        "worker_id",
+        "run_id",
+        "slot_id",
+        "phase",
+        "failures_found",
+        "repairs_made",
+        "remaining_gates",
+        "next_action",
+        "local_diagnostics",
+        "evidence_refs"
+      ],
+      "trigger": "After first candidate + at least one planted failure is diagnosed and material repair has occurred; not based on character count."
+    },
+    "machine_contract": {
+      "entry_file": "summary.json",
+      "selectors": {},
+      "state_contract": [
+        "primary output contains six required files",
+        "processor.mjs exports buildReport",
+        "fixture evaluator proves deterministic primary result when executable",
+        "journal contains exactly eight universal dimensions",
+        "one semantic midpoint only",
+        "continuation R001 preserves primary gates and applies delta"
+      ],
+      "static_test": "node tests/single-worker-reality-v1.test.mjs"
+    },
+    "measurement_contract": {
+      "dimensions_ref": "coordination/workers/WORKER_ANALYSIS_DIMENSIONS_V1.json",
+      "io_ref": "coordination/workers/WORKER_IO_ACCOUNTING_CANDIDATE_V1.json",
+      "report": [
+        "external reads/writes when reconstructable",
+        "commits",
+        "workflow waits",
+        "retries",
+        "artifact count/bytes when known",
+        "local execution capability",
+        "first/last durable clocks",
+        "midpoint phase",
+        "tests/failures/repairs",
+        "UNKNOWN coverage"
+      ],
+      "no_fake_zero": true
+    },
+    "discovery_reflection": {
+      "status": "CANDIDATE_CANARY",
+      "question_bank_ref": "coordination/design-dna/STRATEGIC_DISCOVERY_QUESTION_BANK_V1.json",
+      "required_passes": [
+        {
+          "hook": "E4_PLAN_LOCK",
+          "pass_id": "P1_BEFORE_BUILD"
+        },
+        {
+          "hook": "E6_VERIFY_AFTER_FIRST_REAL_FEEDBACK_OR_PROTOTYPE",
+          "pass_id": "P2_AFTER_CONTACT"
+        },
+        {
+          "hook": "E9_EXAM_CLOSE",
+          "pass_id": "P3_BEFORE_RETURN"
+        }
+      ],
+      "output_rule": "Persist concise discovery conclusions in journal/evidence. Question deltas remain candidate; they do not rewrite the shared bank inside the run."
+    }
+  },
+  "reallocation_pool": {
+    "objective": "Immediately after verified primary RETURN, the same worker reads only fixtures/worker-reality-01/input/continuation.json plus already-retained primary context, applies the delta, validates, publishes R001 artifacts, updates the same receipt and closes E9 without human recap.",
+    "pairing_rule": "S001 maps only to R001.",
+    "same_worker_required": true,
+    "human_recap_forbidden": true,
+    "continuation_source": "fixtures/worker-reality-01/input/continuation.json",
+    "receipt_path_pattern": "coordination/workers/benchmark-receipts/SINGLE-WORKER-REALITY-01/<worker_id>.json"
+  },
+  "benchmark_receipt": {
+    "path_pattern": "coordination/workers/benchmark-receipts/<run_id>/<worker_id>.json",
+    "required_fields": [
+      "schema",
+      "run_id",
+      "worker_id",
+      "launch_nonce",
+      "slot_id",
+      "evolution_variant",
+      "primary_project_id",
+      "stage_trace",
+      "hard_gates",
+      "feature_evidence",
+      "primary_complete",
+      "reallocation_complete",
+      "closed_at_or_null"
+    ],
+    "stage_trace_fields": [
+      "E0_ENVELOPE",
+      "E1_IDENTITY",
+      "E2_ASSIGN",
+      "E3_CONTEXT",
+      "E4_PLAN_LOCK",
+      "E5_PRODUCE",
+      "E6_VERIFY",
+      "E7_RETURN",
+      "E8_REALLOCATE",
+      "E9_EXAM_CLOSE"
+    ],
+    "evidence_rule": "A PASS must cite exact durable evidence. A missing capability is BOUNDARY, never fabricated PASS."
+  },
+  "authority_mode": "SYNTHETIC_BENCHMARK_SLOT_CLAIM",
+  "authority_rule": "Synthetic benchmark only. Atomic S001 CREATE authorizes only the declared benchmark write_scope plus standard RUN receipt/exam writes. No product/CURRENT/scheduler authority."
+}
