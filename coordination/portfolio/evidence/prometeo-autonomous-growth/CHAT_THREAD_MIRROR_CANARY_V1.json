@@ -1233,7 +1233,7 @@
       "source_surface": "PROMETEO",
       "input_origin": "WORKER_AUTOMATIC",
       "body_kind": "TEXT",
-      "body_text": "Hay una reparación concreta para probar y falta exactamente una cadena exitosa para completar 3/3 targets. Se aclaró en la envolvente humana que la autorización de PIN/claim persiste durante toda la cadena residente E8/SUBMIT_NEXT, sin permitir bypass ni retry de una safety denial. Hacé un solo refill en E2-REAL-03. No abras más de uno.",
+      "body_text": "REFILL 1 recibido. No abras otro worker para E2-REAL-03. El reemplazo wc-20260930T232400Z-b7e4c19a62fd ya entró a CURRENT y está trabajando; el control pasa a progreso vivo hasta target o boundary.",
       "created_at": "2026-09-30T23:10:00Z",
       "published_at": "2026-09-30T23:10:00Z",
       "status": "PUBLISHED",
@@ -1252,15 +1252,9 @@
           "min_client_build": 5
         },
         {
-          "type": "copy_group",
-          "label": "Acción humana ahora · REFILL 1",
-          "items": [
-            {
-              "label": "WORKER UNIVERSAL · REEMPLAZO 1",
-              "text": "🟠 PROMETEO /wc — NUEVO_WORKER=1 · PRIMERA_ACCIÓN_DURABLE: creá tu beacon propio fresco v3.30 con worker_id + launch_nonce de novo; PROHIBIDO reutilizar identidad o resultado histórico; RESIDENTE_BATCH: 3=checkpoint, objetivo=6, tope=8 salvo boundary real. CONTINUIDAD_RESIDENTE=1: autorizo durante TODA esta cadena residente beacon, telemetría y cada PIN/claim CREATE reversible requerido por E2/E8/SUBMIT_NEXT dentro de CURRENT hasta target/cap, además de los commits reversibles del trabajo ya poseído; no me pidas confirmación adicional. Esta autorización NO permite reintentar, desviar ni saltear una denegación explícita de seguridad/connector: esa denegación sigue siendo boundary terminal durable. BATCH E2-REAL-03 EXPECTED 3 — TÍTULO SUGERIDO DEL CHAT (si la app lo permite): «🟠 PROMETEO · WC · E2-REAL-03» → https://juanmanuelpm.github.io/prometeo/wc/"
-            }
-          ],
-          "note": "Abrí exactamente un chat fresco. Es reemplazo de capacidad, no un lote nuevo. No elijas tarea ni proyecto."
+          "type": "details",
+          "label": "refill recibido",
+          "body": "El beacon del reemplazo ya existe. No lances otro. Este mismo widget sigue E2-REAL-03 hasta que el reemplazo alcance target o cierre por boundary."
         },
         {
           "type": "details",
@@ -1284,7 +1278,72 @@
         "gh-pages:live/batches/E2-REAL-03.json",
         "coordination/workers/no-allocation/wc-20260930T222353Z-1a8f8167699f.json"
       ]
+    },
+    {
+      "message_id": "MSG-HUMAN-E2-REFILL-NO-VISIBLE-CHANGE-20260930T2333Z",
+      "chat_object_id": "chat-object-prometeo-chat-control-main",
+      "actor_type": "HUMAN",
+      "source_surface": "CHATGPT",
+      "body_kind": "TEXT",
+      "body_text": "Mandé un /wc nuevo como decía Primary Chat, pero la página siguió mostrando el mismo estado: 3/3 adentro, 0 vivos, 13 unidades, 2/3 target y el botón REFILL 1. Quiero que el progreso cambie realmente mientras el worker reclama/arranca trabajo, sin tener que venir a ChatGPT a comprobar si sigue vivo.",
+      "created_at": "2026-09-30T23:33:00Z",
+      "published_at": "2026-09-30T23:33:00Z",
+      "status": "PUBLISHED",
+      "privacy": "PUBLIC_SANITIZED_CANARY",
+      "summary_text": "El refill fue lanzado pero Primary Chat no reflejó claim/STARTED en tiempo real."
+    },
+    {
+      "message_id": "MSG-ASSISTANT-E2-LIVENESS-STARTED-FIX-20260930T2333Z",
+      "chat_object_id": "chat-object-prometeo-chat-control-main",
+      "reply_to_message_id": "MSG-HUMAN-E2-REFILL-NO-VISIBLE-CHANGE-20260930T2333Z",
+      "actor_type": "ASSISTANT",
+      "actor_ref": "PROMETEO_GUIDE_CURRENT",
+      "source_surface": "PROMETEO",
+      "input_origin": "WORKER_AUTOMATIC",
+      "body_kind": "TEXT",
+      "body_text": "El refill sí entró: wc-20260930T232400Z-b7e4c19a62fd está ACTIVE. La página no se movía porque el runtime se recompilaba con beacon/RETURN/receipt, pero no con PIN ni STARTED. Reparé el compilador para usar STARTED como señal durable y el workflow para reconstruir liveness ante PIN/STARTED. Estado actual: 1 worker vivo, 15 unidades totales del batch, 2 unidades del reemplazo; su última señal durable es el STARTED de portfolio-stt-project-state-reconcile-v1. No lances otro refill.",
+      "created_at": "2026-09-30T23:33:00Z",
+      "published_at": "2026-09-30T23:33:00Z",
+      "status": "PUBLISHED",
+      "privacy": "PUBLIC_SANITIZED_CANARY",
+      "ui_blocks": [
+        {
+          "type": "run_progress",
+          "label": "E2-REAL-03 · reemplazo trabajando",
+          "run_id": "E2-REAL-03",
+          "batch_id": "E2-REAL-03",
+          "expected_workers": 3,
+          "resident_target": 6,
+          "status_url": "../../../live/batches/E2-REAL-03.json",
+          "runtime_url": "../../../live/runtime.json",
+          "poll_ms": 10000,
+          "min_client_build": 5
+        },
+        {
+          "type": "details",
+          "label": "qué estaba roto",
+          "body": "El worker podía crear PIN y STARTED durables sin que el workflow de runtime se disparara. Además el compilador no usaba STARTED para adelantar last_event_at. Resultado: trabajo real invisible entre beacon y RETURN."
+        },
+        {
+          "type": "details",
+          "label": "qué quedó corregido",
+          "body": "Los cambios en portfolio/guide PINs y coordination/workers/started disparan ahora el runtime. STARTED mueve el estado a ACTIVE y actualiza la última señal aunque no exista todavía RETURN ni comentario de telemetría."
+        },
+        {
+          "type": "details",
+          "label": "acción humana ahora",
+          "body": "NINGUNA. No abras otro E2-REAL-03. Mientras el reemplazo esté vivo, este widget debe seguir moviéndose con PIN/STARTED/RETURN. Volvé al control sólo cuando marque 0 vivos."
+        }
+      ],
+      "evidence_refs": [
+        "gh-pages:live/runtime.json",
+        "gh-pages:live/batches/E2-REAL-03.json",
+        "coordination/workers/beacons/wc-20260930T232400Z-b7e4c19a62fd.json",
+        "scripts/build-worker-runtime.mjs",
+        ".github/workflows/worker-runtime-events.yml",
+        "tests/worker-runtime-events-v1.test.mjs"
+      ]
     }
   ],
-  "updated_at": "2026-09-30T23:12:00Z"
+  "updated_at": "2026-09-30T23:33:00Z"
 }
