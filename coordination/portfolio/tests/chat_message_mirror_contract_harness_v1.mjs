@@ -111,7 +111,10 @@ function validatePage(contract,html,label){
   assert.match(html,/composerApi\.mount/,`${label}: composer must mount through the reviewed module API`);
   assert.match(html,/id=["']chat-canary-progress["']/,`${label}: durable Work Unit progress host is required`);
   assert.doesNotMatch(html,/\b(?:EventSource|WebSocket|ReadableStream)\b/,`${label}: streaming surface is forbidden`);
-  assert.doesNotMatch(html,/\bsetInterval\s*\(/,`${label}: aggressive/automatic polling is forbidden`);
+  const intervalCount=(html.match(/\bsetInterval\s*\(/g)||[]).length;
+  assert.equal(intervalCount,2,`${label}: only the bounded thread + RUN-progress pollers are allowed`);
+  assert.match(html,/setInterval\(\(\) => load\(\), 10000\)/,`${label}: thread polling must stay at 10s`);
+  assert.match(html,/Math\.max\(10000, Number\(block\.poll_ms \|\| 10000\)\)/,`${label}: RUN-progress polling must enforce a >=10s floor`);
   assert.doesNotMatch(html,/method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i,`${label}: index may not bypass the ingress facade with direct mutation requests`);
   assert.doesNotMatch(html,/supabase\.co|\/functions\/v1\/|\/api\//i,`${label}: index may not embed backend endpoint references`);
   return {
@@ -122,7 +125,7 @@ function validatePage(contract,html,label){
     ingress_facade:true,
     progress_module:true,
     streaming:false,
-    auto_polling:false,
+    auto_polling:'BOUNDED_READ_ONLY_10S',
     direct_mutation_requests:false,
     embedded_backend_endpoint:false
   };
