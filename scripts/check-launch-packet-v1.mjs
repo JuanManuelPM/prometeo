@@ -51,7 +51,12 @@ for(const ent of packetEntries){
   const expected=Number(packet.expected_human_launches??slots.length);
   if(!Number.isInteger(expected)||expected<1) fail(runId+': invalid expected_human_launches');
   if(slots.length!==expected) fail(runId+': primary slot count must equal expected_human_launches');
-  if(realloc.length!==slots.length) fail(runId+': reallocation slots must match primary slot count');
+  const genericPacket=packet.packet_profile==='GENERIC_SYNTHETIC_V1';
+  const hasReallocationObjective=Boolean(packet?.reallocation_pool?.objective);
+  if(genericPacket){
+    if(hasReallocationObjective&&realloc.length!==slots.length) fail(runId+': generic reallocation slots must match primary slot count when objective exists');
+    if(!hasReallocationObjective&&realloc.length!==0) fail(runId+': generic packet without reallocation objective must not declare reallocation slots');
+  }else if(realloc.length!==slots.length) fail(runId+': reallocation slots must match primary slot count');
 
   uniq(slots.map(x=>x.slot_id),runId+' primary slot ids');
   uniq(slots.map(x=>x.claim_path),runId+' primary claim paths');
@@ -67,18 +72,28 @@ for(const ent of packetEntries){
     if(!/^S\d{3}$/.test(s.slot_id)) fail(runId+': bad slot id '+s.slot_id);
     if(!variantMap.has(s.evolution_variant)) fail(runId+': unknown variant '+s.evolution_variant);
     counts[s.evolution_variant]=(counts[s.evolution_variant]||0)+1;
-    if((s.required_capabilities||[]).length!==0) fail(runId+': primary slots must stay generic');
+    if(!genericPacket&&(s.required_capabilities||[]).length!==0) fail(runId+': primary slots must stay generic');
     if(s.claim_path!==`coordination/launch-packets/${runId}/claims/${s.slot_id}.json`) fail(runId+': claim path mismatch '+s.slot_id);
-    if(!(s.write_scope||[]).every(x=>String(x).includes(`/cat-lab/${runId}/${s.slot_id}/`))) fail(runId+': primary write scope mismatch '+s.slot_id);
-    if(!String(s.public_route).includes(`/bench/cat-lab/${runId}/${s.slot_id}/`)) fail(runId+': public route mismatch '+s.slot_id);
+    if(genericPacket){
+      if(!Array.isArray(s.write_scope)||s.write_scope.length<1||!s.write_scope.every(x=>String(x).includes(`/${runId}/${s.slot_id}/`))) fail(runId+': generic primary write scope mismatch '+s.slot_id);
+      if(!String(s.public_route||'').includes(`/${runId}/${s.slot_id}/`)) fail(runId+': generic public route mismatch '+s.slot_id);
+    }else{
+      if(!(s.write_scope||[]).every(x=>String(x).includes(`/cat-lab/${runId}/${s.slot_id}/`))) fail(runId+': primary write scope mismatch '+s.slot_id);
+      if(!String(s.public_route).includes(`/bench/cat-lab/${runId}/${s.slot_id}/`)) fail(runId+': public route mismatch '+s.slot_id);
+    }
     if(!String(s.receipt_path_pattern||'').includes(`benchmark-receipts/${runId}/`)) fail(runId+': receipt path mismatch '+s.slot_id);
   }
   for(const s of realloc){
     if(!/^R\d{3}$/.test(s.slot_id)) fail(runId+': bad reallocation slot '+s.slot_id);
-    if((s.required_capabilities||[]).length!==0) fail(runId+': reallocation slots must stay generic');
+    if(!genericPacket&&(s.required_capabilities||[]).length!==0) fail(runId+': reallocation slots must stay generic');
     if(s.claim_path!==`coordination/launch-packets/${runId}/reallocation-claims/${s.slot_id}.json`) fail(runId+': reallocation claim path mismatch '+s.slot_id);
-    if(!(s.write_scope||[]).every(x=>String(x).includes(`/dog-notes/${runId}/${s.slot_id}/`))) fail(runId+': reallocation write scope mismatch '+s.slot_id);
-    if(!String(s.public_route).includes(`/bench/dog-notes/${runId}/${s.slot_id}/`)) fail(runId+': reallocation route mismatch '+s.slot_id);
+    if(genericPacket){
+      if(!Array.isArray(s.write_scope)||s.write_scope.length<1||!s.write_scope.every(x=>String(x).includes(`/${runId}/${s.slot_id}/`))) fail(runId+': generic reallocation write scope mismatch '+s.slot_id);
+      if(!String(s.public_route||'').includes(`/${runId}/${s.slot_id}/`)) fail(runId+': generic reallocation route mismatch '+s.slot_id);
+    }else{
+      if(!(s.write_scope||[]).every(x=>String(x).includes(`/dog-notes/${runId}/${s.slot_id}/`))) fail(runId+': reallocation write scope mismatch '+s.slot_id);
+      if(!String(s.public_route).includes(`/bench/dog-notes/${runId}/${s.slot_id}/`)) fail(runId+': reallocation route mismatch '+s.slot_id);
+    }
   }
 
   if(runId==='CATLAB-EVO-01'){
@@ -96,9 +111,16 @@ for(const ent of packetEntries){
     if(nonSelected.length) fail(runId+': confirmation packet contains unselected variants '+nonSelected.map(x=>x[0]).join(','));
   }
 
-  const selectors=packet?.common_capsule?.machine_contract?.selectors||{};
-  for(const k of ['chapters','current_chapter','tts_play','tts_prev','tts_next','tts_rate','radio_play','radio_volume','notes','palette_controls']){
-    if(!selectors[k]) fail(runId+': machine contract missing '+k);
+  const machineContract=packet?.common_capsule?.machine_contract;
+  const selectors=machineContract?.selectors||{};
+  if(genericPacket){
+    if(!packet?.common_capsule?.primary_objective) fail(runId+': generic common capsule missing primary_objective');
+    if(!machineContract||typeof machineContract!=='object') fail(runId+': generic common capsule missing machine_contract');
+    if(!Array.isArray(packet?.common_capsule?.exact_sources)) fail(runId+': generic common capsule missing exact_sources');
+  }else{
+    for(const k of ['chapters','current_chapter','tts_play','tts_prev','tts_next','tts_rate','radio_play','radio_volume','notes','palette_controls']){
+      if(!selectors[k]) fail(runId+': machine contract missing '+k);
+    }
   }
   if(String(packet.common_capsule?.primary_return_path_pattern||'').includes('CATLAB-EVO-01') && runId!=='CATLAB-EVO-01') fail(runId+': inherited primary return path points at exploration run');
   for(const ref of packet.common_capsule?.exact_sources||[]){
