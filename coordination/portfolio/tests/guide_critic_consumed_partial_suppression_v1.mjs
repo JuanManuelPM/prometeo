@@ -61,7 +61,10 @@ const fullyConsumed = compile([{
     guide_work_id: 'guide-critic-old',
     role: 'GUIDE_CRITIC',
     trigger: 'PARTIAL_LOOP',
-    consumed_returns: [ret1, ret2]
+    consumed_returns: [
+      { ref: ret1, disposition: 'CONSUMED' },
+      { path: ret2, disposition: 'CONSUMED' }
+    ]
   }
 }]);
 assert(
