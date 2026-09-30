@@ -109,6 +109,37 @@ assert.equal(
   'causally concentrated generic recovery must preserve GUIDE_RESCATE'
 );
 
+const sharedStaticUnbound = recovery(
+  'shared-static-unbound',
+  [],
+  ['shared-static-context', 'shared-static-context', 'shared-static-context']
+).map(row => ({
+  ...row,
+  recovery_basis_gate: {
+    ...row.recovery_basis_gate,
+    evidence_bound: false
+  }
+}));
+const unboundSharedContext = compileRoleFrontier(
+  feed,
+  efficiency,
+  [],
+  [],
+  [],
+  sharedStaticUnbound,
+  roleContext
+);
+assert.equal(unboundSharedContext.metabolism.generic_compatible_recovery, 3);
+assert.equal(unboundSharedContext.metabolism.generic_recovery_diversity_known, true);
+assert.equal(unboundSharedContext.metabolism.generic_recovery_distinct_basis_count, 3);
+assert.equal(unboundSharedContext.metabolism.generic_recovery_unbound_lineage_count, 3);
+assert.equal(unboundSharedContext.metabolism.generic_recovery_rescue_pressure, false);
+assert.equal(
+  unboundSharedContext.role_ready.some(row => row.role === 'GUIDE_RESCATE'),
+  false,
+  'shared static context on non-evidence-bound sibling recoveries must not fake causal concentration'
+);
+
 const pureEfficiencyRegression = compileRoleFrontier(
   feed,
   { status:'REGRESSION', metrics:{}, reasons:['TTFA_P90_GT_90S'] },

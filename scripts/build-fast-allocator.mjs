@@ -919,9 +919,28 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
 
   const genericRecovery = recovery.filter(item => classifyFrontierCapabilityPressure([item], metabolism).generic_compatible_count === 1);
   const replaceableTrigger = Number(signals.replaceable_trigger || 3);
+  const genericRecoveryCausalFingerprint = item => {
+    const gate = item?.recovery_basis_gate || item?.recovery_gate || null;
+    const basisFingerprint = gate?.basis?.fingerprint || null;
+    if (!gate || !basisFingerprint) return null;
+
+    // A non-evidence-bound basis fingerprint is derived from the job's static
+    // context/evidence bundle. Two sibling jobs may legitimately share it
+    // without sharing a recovery cause. Scope those rows by lineage so static
+    // context similarity cannot masquerade as causal concentration.
+    if (gate.evidence_bound === false) {
+      const lineage = item?.job_id || item?.source_path || item?.predecessor_pin_ref || null;
+      return lineage ? `UNBOUND_LINEAGE:${lineage}` : null;
+    }
+
+    return `EVIDENCE_BOUND:${basisFingerprint}`;
+  };
   const genericRecoveryBasisFingerprints = genericRecovery
-    .map(item => item?.recovery_basis_gate?.basis?.fingerprint || item?.recovery_gate?.basis?.fingerprint || null)
+    .map(genericRecoveryCausalFingerprint)
     .filter(Boolean);
+  const genericRecoveryUnboundLineageCount = genericRecovery
+    .filter(item => (item?.recovery_basis_gate || item?.recovery_gate || null)?.evidence_bound === false)
+    .length;
   const genericRecoveryDiversityKnown = genericRecovery.length > 0 &&
     genericRecoveryBasisFingerprints.length === genericRecovery.length;
   const genericRecoveryDistinctBasisCount = new Set(genericRecoveryBasisFingerprints).size;
@@ -1196,6 +1215,7 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       generic_compatible_recovery: genericRecoveryPressure,
       generic_recovery_basis_fingerprint_count: genericRecoveryBasisFingerprints.length,
       generic_recovery_distinct_basis_count: genericRecoveryDistinctBasisCount,
+      generic_recovery_unbound_lineage_count: genericRecoveryUnboundLineageCount,
       generic_recovery_diversity_known: genericRecoveryDiversityKnown,
       generic_recovery_rescue_pressure: genericRecoveryRescuePressure,
       recovery_capability_pressure: recoveryCapabilityPressure,

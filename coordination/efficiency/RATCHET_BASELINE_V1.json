@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-30T01:56:00Z",
+  "updated_at": "2026-09-30T01:55:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -2621,35 +2621,36 @@
     },
     {
       "id": "EFF070",
-      "title": "No-I/O local-batch replicas remain single-owner instead of becoming recovery duplicates",
+      "title": "Non-evidence-bound recovery context cannot fake causal concentration",
       "scope": [
         "worker-allocation",
+        "guide-rescate",
         "recovery",
-        "LOCAL-BATCH-E5-01",
-        "local-batching",
         "efficiency-ratchet"
       ],
-      "observed_failure": "LOCAL-BATCH-E5 deliberately forbids all external I/O between its durable START marker and RESULT while requiring a large A1→A8 local workload. Its ordinary PIN lease is still ten minutes, so a compliant silent owner can become replaceable and admit a second generation, duplicating work and contaminating the experiment that is meant to measure longer local production between GitHub interactions.",
-      "invariant": "Each of the six LOCAL-BATCH-E5-01 replica jobs is generation-fixed at G000001. After one durable owner exists, ordinary G+1 recovery is suppressed and residual absence is routed to bounded attention. Missing RESULT stays evidence of an incomplete/invalid replica; it is never repaired by silently launching another owner for the same replica.",
+      "observed_failure": "The live allocator had six generic-compatible recoveries and five raw basis fingerprints, so EFF065 emitted GUIDE_RESCATE. The only repeated fingerprint belonged to two different LOCAL-BATCH-E5 sibling jobs whose recovery_basis_gate explicitly said evidence_bound=false: one already had a productive but comparison-invalid RETURN, while the other had only a stale G000001 PIN. They shared the same static experiment evidence bundle, not the same durable recovery cause.",
+      "invariant": "Recovery concentration may reuse a shared basis fingerprint only when that gate is evidence-bound (or legacy/unknown semantics require fail-safe handling). When recovery_basis_gate.evidence_bound=false, its basis fingerprint describes static job context and is scoped by durable job lineage for diversity accounting. Distinct sibling jobs therefore cannot create GUIDE_RESCATE merely by sharing source/evidence files.",
+      "supersedes": [
+        "EFF065.required.basis_source:non-evidence-bound interpretation"
+      ],
       "required": {
-        "experiment_id": "LOCAL-BATCH-E5-01",
-        "replica_job_count": 6,
-        "recovery_mode": "fixed_generation",
-        "fixed_generation": 1,
-        "ordinary_next_generation_eligible": false,
-        "attention_route": "LOCAL_BATCH_E5_SINGLE_OWNER_ATTENTION",
-        "initial_G000001_claim_preserved": true,
-        "G000002_and_later_ordinary_recovery_forbidden": true,
-        "missing_result_not_zero_or_pass": true,
-        "global_worker_lease_semantics_unchanged": true,
-        "implementation": "coordination/portfolio/recovery-policies/portfolio-worker-local-batch-e5-*.json",
-        "regression_test": "coordination/portfolio/tests/local_batch_e5_single_generation_recovery_v1.mjs",
+        "generic_recovery_threshold_preserved": 3,
+        "evidence_bound_shared_fingerprint_preserved": true,
+        "non_evidence_bound_basis_scoped_by_job_lineage": true,
+        "non_evidence_bound_static_context_cannot_prove_concentration": true,
+        "missing_basis_legacy_rescate_preserved": true,
+        "recovery_candidates_preserved": true,
+        "claim_authority_unchanged": true,
+        "diagnostic_field": "generic_recovery_unbound_lineage_count",
+        "implementation": "scripts/build-fast-allocator.mjs",
+        "regression_test": "coordination/portfolio/tests/guide_rescate_capability_recovery_pressure_v1.mjs",
         "workflow_guard": ".github/workflows/efficiency-ratchet.yml"
       },
-      "status": "STATIC_GUARDED_PENDING_RUNTIME",
+      "status": "PATCHED_PENDING_GUARD_AND_RUNTIME",
       "evidence": [
-        "coordination/workers/WORKER_LOCAL_BATCH_E5_EXPERIMENT_V1.json",
-        "coordination/portfolio/pins/portfolio-worker-local-batch-e5-lb0-direct-r1-v1/G000001.json",
+        "coordination/guide/pins/guide-rescate-cafd7b719126/G000001.json",
+        "gh-pages:live/allocator.json@generated_at:2026-09-30T01:48:02.750Z",
+        "coordination/portfolio/returns/portfolio-worker-local-batch-e5-lb0-direct-r1-v1/RETURN-wc-20260930T005500Z-4d8e71c2a9f6-G000001-DONE.json",
         "coordination/portfolio/pins/portfolio-worker-local-batch-e5-lb2-fill-template-r2-v1/G000001.json"
       ]
     }
