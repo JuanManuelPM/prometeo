@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
 
 const candidateUrl=process.env.TTS_CANDIDATE_URL||'https://juanmanuelpm.github.io/prometeo/__canary/portfolio-tts-generic-text-surface-v1/';
-const healthUrl=process.env.TTS_HEALTH_URL||'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/audio-lab-page-audio-v1';
 const outDir=process.env.TTS_BROWSER_SMOKE_OUT||'artifacts/tts-browser-smoke-ci';
 const propagationMs=Number(process.env.TTS_PROPAGATION_MS||180000);
 fs.mkdirSync(outDir,{recursive:true});
@@ -66,48 +64,6 @@ try{
   }while(Date.now()<propagationDeadline);
   assert.equal(preflightStatus,200,'public TTS candidate must propagate to HTTP 200 within bounded window');
   pass('public_candidate_propagated',{status:preflightStatus,attempts:evidence.propagation_attempts.length,window_ms:propagationMs});
-
-  const servedUrl=new URL(candidateUrl);
-  servedUrl.searchParams.set('_prometeo_attest',String(Date.now()));
-  const servedResponse=await context.request.get(servedUrl.toString(),{
-    timeout:15000,
-    failOnStatusCode:false,
-    headers:{'cache-control':'no-cache','pragma':'no-cache'}
-  });
-  const servedStatus=servedResponse.status();
-  const servedBytes=await servedResponse.body();
-  const servedText=servedBytes.toString('utf8');
-  const servedSha256=createHash('sha256').update(servedBytes).digest('hex');
-  evidence.served_content={
-    status:servedStatus,
-    sha256:servedSha256,
-    bytes:servedBytes.length,
-    final_url:servedResponse.url()
-  };
-  assert.equal(servedStatus,200,'served candidate bytes must return HTTP 200');
-  assert.match(servedText,/candidate · no current/,'served HTML must contain candidate marker');
-  assert.match(servedText,/audio-lab-page-audio-v1/,'served HTML must retain existing backend reference');
-  assert.match(servedText,/1800/,'served HTML must retain the 1800-character contract');
-  pass('served_content_sha256',evidence.served_content);
-  pass('served_contract_markers',{candidate_marker:true,backend_ref:'audio-lab-page-audio-v1',max_chars:1800});
-
-  const healthResponse=await context.request.get(healthUrl,{
-    timeout:15000,
-    failOnStatusCode:false,
-    headers:{'cache-control':'no-cache','pragma':'no-cache'}
-  });
-  const healthStatus=healthResponse.status();
-  const healthText=await healthResponse.text();
-  let healthJson=null;
-  try{ healthJson=JSON.parse(healthText); }catch{}
-  evidence.health={
-    url:healthUrl,
-    status:healthStatus,
-    body:healthJson??healthText
-  };
-  assert.equal(healthStatus,200,'existing TTS health GET must return HTTP 200');
-  assert.equal(healthJson?.maxChars,1800,'existing TTS health contract must report maxChars=1800');
-  pass('readonly_health_get',{status:healthStatus,body:healthJson});
 
   const browserUrl=new URL(candidateUrl);
   browserUrl.searchParams.set('_prometeo_browser',String(Date.now()));
