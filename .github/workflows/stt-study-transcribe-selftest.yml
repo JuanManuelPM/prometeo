@@ -1,0 +1,107 @@
+name: STT Study public selftest
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/stt-study-transcribe-selftest.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stt-study-public-selftest
+  cancel-in-progress: false
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SELFTEST_URL: "https://catnohyouxqjjtseaueb.supabase.co/functions/v1/study-transcribe-v1?selftest=1"
+    steps:
+      - name: Public GET selftest with mutation guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          : > out/body.txt
+
+          readonly METHOD="GET"
+          case "$METHOD" in
+            GET) ;;
+            *)
+              echo "Blocked mutating HTTP method before network: $METHOD" >&2
+              exit 64
+              ;;
+          esac
+
+          set +e
+          HTTP_STATUS="$(curl --silent --show-error --location \
+            --request "$METHOD" \
+            --output out/body.txt \
+            --write-out '%{http_code}' \
+            "$SELFTEST_URL")"
+          CURL_EXIT="$?"
+          set -e
+
+          BODY_SHA256="$(sha256sum out/body.txt | awk '{print $1}')"
+          OBSERVED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          SELFTEST_URL="$SELFTEST_URL" \
+          HTTP_STATUS="$HTTP_STATUS" \
+          CURL_EXIT="$CURL_EXIT" \
+          BODY_SHA256="$BODY_SHA256" \
+          OBSERVED_AT="$OBSERVED_AT" \
+          python3 - <<'PY'
+          import json, os
+          result = {
+              "schema": "prometeo.stt-study-public-selftest-ci/v1",
+              "url": os.environ["SELFTEST_URL"],
+              "method": "GET",
+              "request_count": 1,
+              "mutating_requests": 0,
+              "http_status": int(os.environ["HTTP_STATUS"] or "0"),
+              "curl_exit_code": int(os.environ["CURL_EXIT"]),
+              "body_path": "body.txt",
+              "body_sha256": os.environ["BODY_SHA256"],
+              "observed_at": os.environ["OBSERVED_AT"],
+              "privacy": {
+                  "audio_sent": False,
+                  "transcript_sent": False,
+                  "session_id_sent": False,
+                  "room_token_sent": False,
+                  "credentials_sent": False
+              }
+          }
+          with open("out/result.json", "w", encoding="utf-8") as f:
+              json.dump(result, f, indent=2, sort_keys=True)
+              f.write("\n")
+          print(json.dumps(result, sort_keys=True))
+          PY
+
+      - name: Upload machine-readable evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stt-study-transcribe-selftest-${{ github.run_id }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Require successful public selftest
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          with open("out/result.json", encoding="utf-8") as f:
+              r = json.load(f)
+          if r["method"] != "GET" or r["mutating_requests"] != 0:
+              raise SystemExit("mutation guard evidence failed")
+          if r["curl_exit_code"] != 0 or r["http_status"] != 200:
+              raise SystemExit(
+                  f"public selftest failed: curl={r['curl_exit_code']} http={r['http_status']}"
+              )
+          PY
