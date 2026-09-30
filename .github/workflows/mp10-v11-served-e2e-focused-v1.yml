@@ -1,0 +1,37 @@
+name: MP10 V11 served E2E focused verify v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/portfolio/tests/mp10_v11_served_e2e_focused_v1.mjs'
+      - '.github/workflows/mp10-v11-served-e2e-focused-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright@1.55.0 install --with-deps chromium
+      - name: Verify focused served V11 contract
+        env:
+          V11_PUBLIC_URL: https://juanmanuelpm.github.io/prometeo/current-tree/control-v11/
+        run: node coordination/portfolio/tests/mp10_v11_served_e2e_focused_v1.mjs
+      - name: Upload bounded evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mp10-v11-served-e2e-focused-v1
+          path: artifacts/mp10-v11-served-e2e-focused/
+          if-no-files-found: error
