@@ -1,567 +1,558 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="color-scheme" content="dark">
-  <title>Prometeo · Worker Lab</title>
-  <style>
-    :root{
-      --bg:#000;--panel:#070707;--panel2:#0b0b0b;--ink:#f0f0ec;--muted:#777;--line:#202020;
-      --good:#8bd59b;--warn:#ddb35f;--bad:#ef7d7d;--accent:#dddcd6;
-    }
-    *{box-sizing:border-box}
-    html,body{margin:0;background:var(--bg);color:var(--ink)}
-    body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    button,a,summary{touch-action:manipulation}
-    button{font:inherit}
-    a{color:inherit}
-    .shell{width:min(980px,100%);margin:0 auto;padding:0 max(12px,env(safe-area-inset-right)) 32px max(12px,env(safe-area-inset-left))}
-    .top{
-      position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:10px;
-      min-height:50px;padding:max(7px,env(safe-area-inset-top)) 0 7px;background:rgba(0,0,0,.96);
-      border-bottom:1px solid #111
-    }
-    .brand{font-size:12px;font-weight:800}
-    .top a{font-size:11px;color:#767672;text-decoration:none}
-    .grow{flex:1}
-    .sync{font-size:9px;color:#555}
-    .refresh{border:0;background:transparent;color:#888;font-size:17px;padding:7px;cursor:pointer}
-
-    .guide-strip{
-      margin:12px 0 10px;padding:13px 14px;border:1px solid var(--line);border-radius:14px;background:var(--panel)
-    }
-    .guide-top{display:flex;gap:8px;align-items:center}
-    .guide-icon{font-size:18px}
-    .guide-title{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.08em;font-weight:750}
-    .guide-age{margin-left:auto;font-size:9px;color:#555}
-    .guide-brief{font-size:13px;line-height:1.45;color:#d0d0cb;margin-top:8px}
-    .guide-link{display:inline-block;margin-top:8px;color:#777;font-size:10px;text-decoration:none}
-
-    .mission{
-      padding:15px 16px;border:1px solid #272727;border-radius:16px;background:linear-gradient(180deg,#0a0a0a,#050505)
-    }
-    .mission-head{display:flex;align-items:flex-start;gap:10px}
-    .mission-emoji{font-size:24px;line-height:1}
-    .mission-title{font-size:20px;font-weight:800;letter-spacing:-.035em}
-    .mission-sub{font-size:11px;color:#73736f;margin-top:3px;line-height:1.4}
-    .goal-bar{height:5px;background:#1b1b1b;border-radius:999px;overflow:hidden;margin:13px 0 8px}
-    .goal-bar>div{height:100%;width:0;background:var(--good);transition:width .25s ease}
-    .goal-meta{display:flex;justify-content:space-between;gap:8px;font-size:10px;color:#6c6c68}
-
-    .tabs{
-      display:flex;gap:7px;overflow:auto;padding:11px 0 7px;scrollbar-width:none;
-      position:sticky;top:50px;z-index:35;background:rgba(0,0,0,.96)
-    }
-    .tabs::-webkit-scrollbar{display:none}
-    .tab{
-      flex:0 0 auto;border:1px solid #242424;background:#080808;color:#8a8a86;border-radius:999px;
-      padding:9px 12px;cursor:pointer;font-size:11px;white-space:nowrap
-    }
-    .tab.active{background:#f1f1ec;color:#080808;border-color:#f1f1ec;font-weight:800}
-    .panel{display:none;padding:7px 0 0}
-    .panel.active{display:block}
-
-    .cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-    .card{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:13px;min-height:102px}
-    .card .emoji{font-size:18px}
-    .card .big{font-size:25px;font-weight:800;letter-spacing:-.045em;margin-top:8px}
-    .card .label{font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.07em;margin-top:3px}
-    .card .note{font-size:10px;line-height:1.4;color:#777;margin-top:7px}
-
-    .section-title{font-size:10px;color:#858581;text-transform:uppercase;letter-spacing:.09em;margin:15px 2px 8px}
-    .latest{
-      display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;
-      border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:12px 13px
-    }
-    .dot{width:9px;height:9px;border-radius:50%;background:#555}
-    .dot.recent{background:var(--good);box-shadow:0 0 10px rgba(139,213,155,.4)}
-    .dot.warm{background:var(--warn)}
-    .dot.boundary{background:var(--bad)}
-    .dot.closed{background:#4d4d49}
-    .latest-id{font:11px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .latest-sub{font-size:9px;color:#686864;margin-top:3px}
-    .latest-age{font-size:10px;color:#777;white-space:nowrap}
-
-    .worker-list{display:grid;gap:7px}
-    details.worker{
-      border:1px solid var(--line);border-radius:13px;background:var(--panel);overflow:hidden
-    }
-    details.worker>summary{
-      list-style:none;display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:9px;align-items:center;
-      padding:11px 12px;cursor:pointer
-    }
-    details.worker>summary::-webkit-details-marker{display:none}
-    .worker-id{font:10px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;color:#d0d0cb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .worker-mini{font-size:9px;color:#666;margin-top:3px}
-    .worker-age{font-size:9px;color:#70706c}
-    .worker-body{padding:0 12px 13px;border-top:1px solid #171717}
-    .worker-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:#1b1b1b;margin:11px 0}
-    .worker-stat{background:#080808;padding:9px}
-    .worker-stat b{display:block;font-size:16px}
-    .worker-stat span{display:block;font-size:8px;color:#5f5f5b;text-transform:uppercase;margin-top:3px}
-    .timeline{border-top:1px solid #1a1a1a}
-    .step{display:grid;grid-template-columns:68px 96px minmax(0,1fr);gap:8px;padding:7px 0;border-bottom:1px solid #161616;font-size:9px}
-    .step time{color:#5d5d59}.step .stage{color:#9a9a95}.step .desc{color:#747470;overflow-wrap:anywhere}
-    .refs{display:grid;gap:5px;margin-top:8px}
-    .ref{font:8.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:#666;text-decoration:none;overflow-wrap:anywhere}
-    .commit{display:grid;grid-template-columns:60px 108px minmax(0,1fr);gap:8px;padding:6px 0;border-bottom:1px solid #151515;font-size:8.5px}
-    .commit a{color:#999;text-decoration:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-    .commit time{color:#5a5a56}.commit span{color:#71716d}
-    .boundary-note{font-size:9px;color:#666;line-height:1.4;margin-top:9px}
-    .loading{font-size:9px;color:#666;padding:10px 0}
-    .historical summary,.archive summary,.guide-details summary{
-      cursor:pointer;color:#8a8a86;font-size:11px;padding:11px 0
-    }
-    .historical{margin-top:10px;border-top:1px solid var(--line)}
-    .historical .worker-list{padding-top:4px}
-
-    .perf-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-    .perf-card{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:14px}
-    .perf-card .big{font-size:24px;font-weight:800;letter-spacing:-.04em}
-    .perf-card .label{font-size:9px;color:#62625f;margin-top:4px;text-transform:uppercase}
-    .perf-card .note{font-size:10px;color:#777;line-height:1.45;margin-top:8px}
-    .unknown{color:var(--warn)!important}
-
-    .guide-card{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:14px}
-    .guide-card h3{font-size:13px;margin:0 0 8px}
-    .guide-card p{font-size:11px;line-height:1.5;color:#999;margin:7px 0}
-    .guide-points{display:grid;gap:7px;margin-top:10px}
-    .guide-point{padding:9px 10px;border:1px solid #1c1c1c;border-radius:10px;background:#050505;font-size:10px;line-height:1.45;color:#898985}
-
-    .profile-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-    .profile{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:13px}
-    .profile .name{font-size:12px;font-weight:750}
-    .profile .state{font-size:8px;color:var(--warn);text-transform:uppercase;margin-top:4px}
-    .profile .body{font-size:10px;color:#777;line-height:1.45;margin-top:7px}
-
-    .archive{margin-top:14px;border-top:1px solid var(--line)}
-    .archive-body{display:grid;gap:7px;padding-bottom:12px}
-    .archive-row{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;padding:8px 0;border-bottom:1px solid #151515}
-    .archive-key{font-size:9px;color:#666}.archive-val{font-size:10px;color:#8a8a86;line-height:1.45}
-    .foot{font-size:9px;color:#4f4f4b;line-height:1.5;padding:15px 2px 4px}
-
-    @media(max-width:720px){
-      .cards{grid-template-columns:1fr 1fr}
-      .perf-grid{grid-template-columns:1fr 1fr}
-      .profile-grid{grid-template-columns:1fr 1fr}
-      .worker-grid{grid-template-columns:1fr 1fr}
-      .commit{grid-template-columns:58px minmax(0,1fr)}
-      .commit time{display:none}
-      .step{grid-template-columns:62px minmax(0,1fr)}
-      .step .desc{grid-column:2}
-    }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Prometeo · Worker Lab</title>
+<style>
+:root{
+  --bg:#000;--panel:#070707;--panel2:#0b0b0b;--ink:#efefeb;--muted:#777;--line:#202020;
+  --good:#8bd49c;--warn:#deb766;--bad:#ee7b7b;--blue:#9bb8e7;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);min-height:100%}
+body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button,a{font:inherit}
+button{color:inherit}
+a{color:inherit}
+.shell{width:min(980px,100%);margin:0 auto;padding:0 max(12px,env(safe-area-inset-right)) calc(30px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+.top{
+  position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:9px;min-height:48px;
+  padding:max(7px,env(safe-area-inset-top)) 0 7px;background:rgba(0,0,0,.94);backdrop-filter:blur(12px)
+}
+.brand{font-size:12px;font-weight:750}
+.top .grow{flex:1}
+.chat-link,.refresh{
+  border:1px solid #252525;border-radius:999px;background:#090909;color:#aaa;text-decoration:none;
+  padding:7px 10px;font-size:10px
+}
+.refresh{cursor:pointer}
+.sync{font-size:8px;color:#555;white-space:nowrap}
+.guide-strip{
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;
+  border:1px solid var(--line);background:var(--panel);padding:11px 12px;border-radius:13px;margin:5px 0 10px
+}
+.guide-face{font-size:23px}
+.guide-copy{min-width:0}
+.guide-copy b{display:block;font-size:12px}
+.guide-copy span{display:block;margin-top:3px;color:#80807b;font-size:10px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.guide-time{color:#565652;font-size:8px;white-space:nowrap}
+.tabs{
+  position:sticky;top:49px;z-index:40;display:grid;grid-template-columns:repeat(6,1fr);gap:5px;
+  padding:6px 0 9px;background:rgba(0,0,0,.95);backdrop-filter:blur(12px)
+}
+.tab{
+  border:1px solid #222;background:#070707;border-radius:10px;min-height:54px;padding:6px 4px;cursor:pointer
+}
+.tab .emoji{display:block;font-size:18px;line-height:1}
+.tab .label{display:block;margin-top:6px;color:#777;font-size:8px}
+.tab.active{background:#111;border-color:#3a3a3a}
+.tab.active .label{color:#ddd}
+.panel{display:none;animation:appear .12s ease-out}
+.panel.active{display:block}
+@keyframes appear{from{opacity:.4;transform:translateY(2px)}to{opacity:1;transform:none}}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.card{
+  background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:13px;min-width:0
+}
+.card.span2{grid-column:span 2}
+.card.span4{grid-column:1/-1}
+.card h2{font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:#656560;margin:0 0 7px}
+.big{font-size:28px;line-height:1;font-weight:780;letter-spacing:-.05em}
+.medium{font-size:17px;line-height:1.2;font-weight:720;letter-spacing:-.025em}
+.note{font-size:10px;line-height:1.42;color:#777;margin-top:7px}
+.action{font-size:15px;line-height:1.3;font-weight:730}
+.action.good{color:var(--good)}
+.action.warn{color:var(--warn)}
+.progress{height:7px;background:#171717;border-radius:999px;overflow:hidden;margin-top:10px}
+.progress>div{height:100%;background:#d9d9d3;border-radius:999px;width:0}
+.microline{font-size:9px;color:#5e5e5a;margin-top:7px}
+.status-row{display:flex;align-items:center;gap:7px}
+.dot{width:8px;height:8px;border-radius:50%;background:#555;flex:0 0 auto}
+.dot.green{background:var(--good);box-shadow:0 0 10px rgba(139,212,156,.35)}
+.dot.yellow{background:var(--warn)}
+.dot.red{background:var(--bad)}
+.dot.gray{background:#4d4d48}
+.worker-list{display:grid;gap:6px;margin-top:8px}
+.worker-row{
+  width:100%;display:grid;grid-template-columns:14px minmax(0,1.45fr) minmax(80px,.7fr) auto;gap:9px;
+  align-items:center;text-align:left;border:1px solid #1d1d1d;background:#060606;border-radius:10px;padding:10px;cursor:pointer
+}
+.worker-row:hover{background:#0b0b0b}
+.worker-id{font:10px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.worker-meta{font-size:8px;color:#676762;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.worker-output{font-size:9px;color:#8c8c87}
+.worker-age{font-size:9px;color:#666;white-space:nowrap}
+details{border:1px solid #1f1f1f;border-radius:10px;background:#050505;margin-top:7px}
+summary{cursor:pointer;list-style:none;padding:11px 12px;font-size:10px;color:#8a8a85}
+summary::-webkit-details-marker{display:none}
+details[open]>summary{border-bottom:1px solid #1d1d1d;color:#ccc}
+.details-body{padding:11px 12px;color:#858580;font-size:10px;line-height:1.5}
+.details-body p{margin:0 0 8px}
+.details-body p:last-child{margin-bottom:0}
+.kv{display:grid;grid-template-columns:120px minmax(0,1fr);gap:7px;padding:6px 0;border-bottom:1px solid #151515}
+.kv:last-child{border-bottom:0}
+.kv b{font-size:9px;color:#6a6a65;font-weight:600}
+.kv span{font-size:10px;color:#9b9b96;overflow-wrap:anywhere}
+.section-title{display:flex;align-items:center;justify-content:space-between;margin:7px 0 8px}
+.section-title h1{font-size:18px;margin:0;letter-spacing:-.03em}
+.section-title span{font-size:8px;color:#555}
+.inline-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.pill{display:inline-flex;border:1px solid #242424;border-radius:999px;padding:4px 7px;font-size:8px;color:#74746f}
+.unknown{color:#888}
+.good{color:var(--good)}
+.warn{color:var(--warn)}
+.bad{color:var(--bad)}
+.meter-line{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:#666;margin-top:6px}
+.heat{display:grid;grid-template-columns:70px 1fr 1fr;gap:5px;margin-top:8px}
+.heat>div{padding:8px;border:1px solid #1c1c1c;border-radius:8px;background:#050505;font-size:9px}
+.heat .head{color:#666;background:transparent;border-color:transparent}
+.heat .pass{color:var(--good)}
+.heat .mixed{color:var(--warn)}
+.profile-list{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:8px}
+.profile{border:1px solid #1d1d1d;border-radius:10px;padding:10px;background:#050505}
+.profile b{display:block;font-size:10px}
+.profile span{display:block;color:#676762;font-size:8px;line-height:1.4;margin-top:4px}
+.archive-sections{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.archive-sections details{margin:0}
+.inspector{
+  position:fixed;inset:0;z-index:100;display:none;background:rgba(0,0,0,.78);backdrop-filter:blur(8px);padding:12px
+}
+.inspector.open{display:flex;align-items:flex-end;justify-content:center}
+.sheet{
+  width:min(760px,100%);max-height:88vh;overflow:auto;background:#050505;border:1px solid #282828;
+  border-radius:18px;padding:14px 14px calc(14px + env(safe-area-inset-bottom))
+}
+.sheet-head{display:flex;align-items:flex-start;gap:8px}
+.sheet-title{font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
+.sheet-close{margin-left:auto;border:0;background:transparent;color:#777;font-size:22px;cursor:pointer}
+.sheet-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:12px 0}
+.sheet-stat{padding:10px;background:#090909;border:1px solid #1d1d1d;border-radius:9px}
+.sheet-stat b{display:block;font-size:15px}
+.sheet-stat span{display:block;margin-top:4px;color:#61615c;font-size:7px;text-transform:uppercase;letter-spacing:.06em}
+.timeline{margin-top:8px}
+.step{display:grid;grid-template-columns:75px 105px 1fr;gap:8px;padding:7px 0;border-bottom:1px solid #161616;font-size:9px}
+.step time{color:#5e5e59}.step .stage{color:#aaa}.step .desc{color:#70706b;overflow-wrap:anywhere}
+.refs{display:grid;gap:5px}.refs a{font:8px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:#777;text-decoration:none;overflow-wrap:anywhere}
+.commit{display:grid;grid-template-columns:62px 115px 1fr;gap:8px;padding:6px 0;border-bottom:1px solid #151515;font-size:8px}
+.commit a{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#8b8b86;text-decoration:none}.commit time{color:#555}.commit span{color:#74746f}
+.boundary{font-size:8px;color:#5d5d58;line-height:1.45;margin-top:10px}
+@media(max-width:720px){
+  .tabs{grid-template-columns:repeat(3,1fr)}
+  .grid{grid-template-columns:1fr 1fr}
+  .card.span2{grid-column:span 2}.card.span4{grid-column:1/-1}
+  .inline-cards{grid-template-columns:1fr 1fr}
+  .profile-list{grid-template-columns:1fr 1fr}
+  .archive-sections{grid-template-columns:1fr}
+  .worker-row{grid-template-columns:14px minmax(0,1fr) auto}.worker-output{display:none}
+}
+@media(max-width:430px){
+  .shell{padding-left:9px;padding-right:9px}
+  .guide-strip{grid-template-columns:auto minmax(0,1fr)}
+  .guide-time{display:none}
+  .grid{gap:5px}
+  .card{padding:11px}
+  .big{font-size:25px}
+  .sheet{padding:12px}
+  .sheet-grid{grid-template-columns:1fr 1fr}
+  .step{grid-template-columns:62px 1fr}.step .desc{grid-column:2}
+  .commit{grid-template-columns:58px 1fr}.commit time{display:none}
+}
+</style>
 </head>
 <body>
 <div class="shell">
-  <header class="top">
-    <div class="brand">Worker Lab</div>
-    <a href="../chat-canary/">💬 chat</a>
-    <div class="grow"></div>
-    <span class="sync" id="sync">cargando…</span>
-    <button class="refresh" id="refresh" aria-label="Actualizar">↻</button>
-  </header>
+<header class="top">
+  <div class="brand">Worker Lab</div>
+  <div class="grow"></div>
+  <span class="sync" id="sync">cargando…</span>
+  <a class="chat-link" href="../chat-canary/">💬 chat</a>
+  <button class="refresh" id="refresh" aria-label="Actualizar">↻</button>
+</header>
 
-  <section class="guide-strip">
-    <div class="guide-top">
-      <span class="guide-icon">🧠</span>
-      <span class="guide-title">último análisis del Guide</span>
-      <span class="guide-age" id="guide-age">—</span>
-    </div>
-    <div class="guide-brief" id="guide-brief">Leyendo análisis durable…</div>
-    <a class="guide-link" href="../chat-canary/">abrir conversación →</a>
-  </section>
+<section class="guide-strip" id="guide-strip">
+  <div class="guide-face">🧠</div>
+  <div class="guide-copy">
+    <b id="guide-strip-title">Guide</b>
+    <span id="guide-strip-summary">Leyendo último análisis…</span>
+  </div>
+  <div class="guide-time" id="guide-strip-time"></div>
+</section>
 
-  <section class="mission">
-    <div class="mission-head">
-      <div class="mission-emoji" id="mission-emoji">🚦</div>
-      <div>
-        <div class="mission-title" id="mission-title">Leyendo RUN…</div>
-        <div class="mission-sub" id="mission-sub">Esta es la respuesta humana simple: si hay que mandar más capacidad o no.</div>
+<nav class="tabs" aria-label="Worker Lab">
+  <button class="tab active" data-panel="now"><span class="emoji">🧭</span><span class="label">Ahora</span></button>
+  <button class="tab" data-panel="workers"><span class="emoji">👷</span><span class="label">Workers</span></button>
+  <button class="tab" data-panel="capacity"><span class="emoji">⚡</span><span class="label">Capacidad</span></button>
+  <button class="tab" data-panel="experiments"><span class="emoji">🧪</span><span class="label">Experimentos</span></button>
+  <button class="tab" data-panel="guide"><span class="emoji">🧠</span><span class="label">Guide</span></button>
+  <button class="tab" data-panel="archive"><span class="emoji">🗂️</span><span class="label">Archivo</span></button>
+</nav>
+
+<main>
+<section class="panel active" id="panel-now">
+  <div class="grid">
+    <article class="card span2">
+      <h2>Qué tenés que hacer</h2>
+      <div class="action" id="human-action">Leyendo RUN…</div>
+      <div class="progress"><div id="run-progress"></div></div>
+      <div class="meter-line"><span id="run-label">—</span><span id="run-pct">—</span></div>
+    </article>
+    <article class="card">
+      <h2>Señal reciente</h2>
+      <div class="big" id="now-live">—</div>
+      <div class="note">workers no terminales con evidencia en últimos 10 min</div>
+    </article>
+    <article class="card">
+      <h2>Último movimiento</h2>
+      <div class="medium" id="now-latest">—</div>
+      <div class="note" id="now-latest-note">—</div>
+    </article>
+    <article class="card">
+      <h2>Velocidad observada</h2>
+      <div class="big" id="now-speed">—</div>
+      <div class="note">cierres por hora durante la ventana del batch</div>
+    </article>
+    <article class="card">
+      <h2>Duración típica</h2>
+      <div class="big" id="now-duration">—</div>
+      <div class="note">mediana primera→última evidencia durable</div>
+    </article>
+    <article class="card">
+      <h2>Paralelismo</h2>
+      <div class="medium unknown" id="now-concurrency">UNKNOWN</div>
+      <div class="note">todavía no aislamos efecto causal de concurrencia sobre duración/calidad</div>
+    </article>
+    <article class="card">
+      <h2>Problemas</h2>
+      <div class="big" id="now-boundary">—</div>
+      <div class="note">boundary, transporte, contaminación o anomalía observada</div>
+    </article>
+  </div>
+</section>
+
+<section class="panel" id="panel-workers">
+  <div class="section-title"><h1>Workers recientes</h1><span>últimas 2 horas</span></div>
+  <div class="inline-cards">
+    <article class="card"><h2>Con señal &lt;10m</h2><div class="big" id="workers-live">—</div></article>
+    <article class="card"><h2>Recientes &lt;2h</h2><div class="big" id="workers-recent">—</div></article>
+    <article class="card"><h2>Viejos ocultos</h2><div class="big" id="workers-old">—</div></article>
+  </div>
+  <div class="worker-list" id="worker-list"></div>
+  <details id="more-recent-wrap" hidden><summary id="more-recent-summary">ver más recientes</summary><div class="details-body"><div class="worker-list" id="worker-more-list"></div></div></details>
+  <details id="old-workers-wrap" hidden><summary id="old-workers-summary">archivo viejo</summary><div class="details-body"><div class="worker-list" id="worker-old-list"></div></div></details>
+</section>
+
+<section class="panel" id="panel-capacity">
+  <div class="section-title"><h1>Capacidad</h1><span>lo útil, no la decoración</span></div>
+  <div class="grid">
+    <article class="card"><h2>Output 30k</h2><div class="big" id="cap-words">—</div><div class="note">mediana palabras útiles total por worker válido</div></article>
+    <article class="card"><h2>Tareas 30k</h2><div class="big" id="cap-tasks">—</div><div class="note">primary + reallocation</div></article>
+    <article class="card"><h2>Claim→primary</h2><div class="big" id="cap-primary-time">—</div><div class="note">mediana con clocks GitHub</div></article>
+    <article class="card"><h2>Claim→close</h2><div class="big" id="cap-close-time">—</div><div class="note">end-to-end, incluye I/O/contención</div></article>
+    <article class="card span2">
+      <h2>¿Conviene mandar muchos?</h2>
+      <div class="medium unknown" id="cap-concurrency">Todavía no aislado</div>
+      <div class="note">Tenemos throughput alto en paralelo, pero falta comparar duración y calidad contra concurrencia observada para saber cuánto empeora cada worker y si el volumen compensa.</div>
+    </article>
+    <article class="card span2">
+      <h2>Perfiles que falta medir</h2>
+      <div class="profile-list">
+        <div class="profile"><b>📝 TEXT</b><span>redacción, extracción, clasificación, síntesis</span></div>
+        <div class="profile"><b>💻 BUILD/CODE</b><span>código, integración, tests, reparación</span></div>
+        <div class="profile"><b>📦 ARTIFACT</b><span>archivos, páginas, paquetes, transformaciones</span></div>
+        <div class="profile"><b>🔎 VERIFY</b><span>browser, evidencia, auditoría y aceptación</span></div>
       </div>
-    </div>
-    <div class="goal-bar"><div id="goal-fill"></div></div>
-    <div class="goal-meta"><span id="goal-left">—</span><span id="goal-right">—</span></div>
-  </section>
+    </article>
+  </div>
+</section>
 
-  <nav class="tabs" aria-label="Worker Lab">
-    <button class="tab active" data-panel="now">🟢 Ahora</button>
-    <button class="tab" data-panel="workers">👷 Workers</button>
-    <button class="tab" data-panel="speed">⚡ Rendimiento</button>
-    <button class="tab" data-panel="guide">🧠 Guide</button>
-    <button class="tab" data-panel="profiles">🧪 Perfiles</button>
-  </nav>
+<section class="panel" id="panel-experiments">
+  <div class="section-title"><h1>Experimentos</h1><span>qué falta mandar</span></div>
+  <article class="card">
+    <h2 id="exp-run-id">RUN actual</h2>
+    <div class="action good" id="exp-action">—</div>
+    <div class="progress"><div id="exp-progress"></div></div>
+    <div class="meter-line"><span id="exp-count">—</span><span id="exp-percent">—</span></div>
+  </article>
+  <details open><summary>resultado importante</summary><div class="details-body" id="exp-result">—</div></details>
+  <details><summary>10 celdas / variantes</summary><div class="details-body"><div id="exp-variants"></div></div></details>
+  <details open><summary>próximo experimento</summary><div class="details-body" id="exp-next">—</div></details>
+</section>
 
-  <main>
-    <section class="panel active" id="panel-now">
-      <div class="cards">
-        <div class="card"><div class="emoji">🟢</div><div class="big" id="open-recent">—</div><div class="label">señal &lt;2h sin cierre</div><div class="note">Evidencia reciente, no etiqueta ACTIVE.</div></div>
-        <div class="card"><div class="emoji">📡</div><div class="big" id="recent-all">—</div><div class="label">workers con señal &lt;2h</div><div class="note">Incluye cierres recientes.</div></div>
-        <div class="card"><div class="emoji">✅</div><div class="big" id="run-primary">—</div><div class="label">primary completos</div><div class="note" id="run-primary-note">RUN actual.</div></div>
-        <div class="card"><div class="emoji">⚠️</div><div class="big" id="boundaries">—</div><div class="label">boundary / fallo</div><div class="note">No se mezclan con fallo cognitivo.</div></div>
-      </div>
-      <div class="section-title">última señal</div>
-      <div class="latest">
-        <span class="dot" id="latest-dot"></span>
-        <div><div class="latest-id" id="latest-id">—</div><div class="latest-sub" id="latest-sub">—</div></div>
-        <div class="latest-age" id="latest-age">—</div>
-      </div>
-    </section>
+<section class="panel" id="panel-guide">
+  <div class="section-title"><h1>Guide</h1><span id="guide-updated">—</span></div>
+  <article class="card">
+    <h2>Última opinión</h2>
+    <div class="medium" id="guide-title">—</div>
+    <div class="note" id="guide-summary">—</div>
+  </article>
+  <details open><summary>qué creo que está pasando</summary><div class="details-body" id="guide-opinion"></div></details>
+  <details><summary>qué quiero mejorar</summary><div class="details-body" id="guide-plan"></div></details>
+  <details><summary>acción humana</summary><div class="details-body" id="guide-action"></div></details>
+  <details><summary>límite de esta tarjeta</summary><div class="details-body">Acá publico conclusiones y criterio resumido, no chain-of-thought privado. El proceso observable sí puede reconstruirse con etapas, herramientas, commits, clocks y receipts.</div></details>
+</section>
 
-    <section class="panel" id="panel-workers">
-      <div class="section-title">workers con señal en las últimas 2 horas</div>
-      <div class="worker-list" id="recent-workers"><div class="loading">leyendo…</div></div>
-      <details class="historical">
-        <summary id="historical-summary">🗄️ Ver workers anteriores</summary>
-        <div class="worker-list" id="old-workers"></div>
-      </details>
-    </section>
+<section class="panel" id="panel-archive">
+  <div class="section-title"><h1>Archivo</h1><span>todo lo largo vive acá</span></div>
+  <div class="archive-sections">
+    <details><summary>📌 Lo que sabemos</summary><div class="details-body" id="archive-rules"></div></details>
+    <details><summary>⚠️ Qué nos hizo perder tiempo</summary><div class="details-body" id="archive-negative"></div></details>
+    <details><summary>🕰️ Historia</summary><div class="details-body" id="archive-history"></div></details>
+    <details><summary>❓ Preguntas abiertas</summary><div class="details-body" id="archive-questions"></div></details>
+    <details><summary>📏 Qué medimos</summary><div class="details-body" id="archive-measurements"></div></details>
+    <details><summary>🧱 Pendientes del Worker Lab</summary><div class="details-body">Inspector compilado, clocks externos por etapa, I/O activo/espera, efecto de concurrencia, throughput por ventana, heatmap de capacidad, funnel de pérdidas y perfiles por tipo de tarea.</div></details>
+  </div>
+</section>
+</main>
+</div>
 
-    <section class="panel" id="panel-speed">
-      <div class="perf-grid">
-        <div class="perf-card"><div class="big" id="median-primary">—</div><div class="label">claim → primary</div><div class="note">Mediana externa de la muestra 30k auditada.</div></div>
-        <div class="perf-card"><div class="big" id="median-close">—</div><div class="label">claim → cierre</div><div class="note">Incluye GitHub/transport, no compute puro.</div></div>
-        <div class="perf-card"><div class="big" id="median-output">—</div><div class="label">palabras útiles / worker</div><div class="note">Primary + reallocation en muestra 30k.</div></div>
-        <div class="perf-card"><div class="big" id="tasks-per-worker">—</div><div class="label">tareas / worker</div><div class="note">Workers 30k completos auditados.</div></div>
-        <div class="perf-card"><div class="big unknown">PENDIENTE</div><div class="label">impacto de concurrencia</div><div class="note">Todavía no aislamos 1 vs 10 vs 50 workers manteniendo la misma carga.</div></div>
-        <div class="perf-card"><div class="big unknown">PENDIENTE</div><div class="label">tiempo activo vs espera</div><div class="note">Falta compilar operación local / wait / reads / writes / retries con cobertura real.</div></div>
-      </div>
-    </section>
-
-    <section class="panel" id="panel-guide">
-      <div class="guide-card">
-        <h3>🧠 Qué pienso del estado actual</h3>
-        <p id="guide-opinion">Leyendo síntesis…</p>
-        <div class="guide-points" id="guide-points"></div>
-      </div>
-      <details class="guide-details">
-        <summary>Ver próxima prueba propuesta</summary>
-        <div class="guide-card"><p id="guide-next">—</p></div>
-      </details>
-    </section>
-
-    <section class="panel" id="panel-profiles">
-      <div class="profile-grid">
-        <div class="profile"><div class="name">📝 TEXT</div><div class="state">ya medido parcialmente</div><div class="body">Clasificar, extraer, escribir, sintetizar y micro-batches locales.</div></div>
-        <div class="profile"><div class="name">🧱 BUILD</div><div class="state">pendiente</div><div class="body">Código, páginas, componentes y artifacts con verificación.</div></div>
-        <div class="profile"><div class="name">🔎 VERIFY</div><div class="state">pendiente</div><div class="body">Browser, evidencia, comparación y cierre independiente.</div></div>
-        <div class="profile"><div class="name">📦 TRANSFORM</div><div class="state">pendiente</div><div class="body">Archivos, bundles, normalización y resultados estructurados.</div></div>
-        <div class="profile"><div class="name">🧠 SYNTHESIS</div><div class="state">pendiente</div><div class="body">Reducers y Guide: combinar resultados sin releer el universo.</div></div>
-        <div class="profile"><div class="name">🌐 TOOL / I/O</div><div class="state">pendiente</div><div class="body">Cuánto se pierde al introducir GitHub, browser, waits y retries.</div></div>
-      </div>
-    </section>
-  </main>
-
-  <details class="archive">
-    <summary>📚 Datos técnicos / archivo del Lab</summary>
-    <div class="archive-body" id="archive-body"></div>
-  </details>
-
-  <footer class="foot">
-    Proyección pública no autoritativa. Luces = recencia de evidencia, no liveness. UNKNOWN nunca se convierte en 0. El inspector reconstruye proceso observable; no expone razonamiento privado interno del modelo.
-  </footer>
+<div class="inspector" id="inspector" aria-hidden="true">
+  <div class="sheet" id="sheet"></div>
 </div>
 
 <script>
 (function(){
-  'use strict';
+'use strict';
+var DATA='./data.json';
+var GUIDE='./guide-note.json';
+var RUNTIME='../../../live/runtime.json';
+var RAW_MAIN='https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/';
+var GH_API='https://api.github.com/repos/JuanManuelPM/prometeo/commits?per_page=8&path=';
+var state={data:null,guide:null,runtime:null,run:null};
 
-  var DATA='./data.json';
-  var RUN='../../../launch/MAXCAP-50-01/status.json';
-  var RUNTIME='../../../live/runtime.json';
-  var GUIDE_RAW='https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/coordination/portfolio/evidence/prometeo-autonomous-growth/MAXCAP_50_01_GUIDE_SYNTHESIS_V1.json';
-  var RAW_MAIN='https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/';
-  var GH_COMMITS='https://api.github.com/repos/JuanManuelPM/prometeo/commits?per_page=8&path=';
+function $(id){return document.getElementById(id)}
+function fmt(n){return Number.isFinite(Number(n))?new Intl.NumberFormat('es-AR').format(Number(n)):'—'}
+function parseDate(v){var d=v?new Date(v):null;return d&&!Number.isNaN(d.getTime())?d:null}
+function ageSec(v){var d=parseDate(v);return d?Math.max(0,(Date.now()-d.getTime())/1000):null}
+function age(v){
+  var s=ageSec(v);if(s===null)return 'UNKNOWN';
+  if(s<60)return Math.max(1,Math.round(s))+'s';
+  if(s<3600)return Math.round(s/60)+'m';
+  if(s<86400)return Math.round(s/3600)+'h';
+  return Math.round(s/86400)+'d'
+}
+function dur(s){
+  if(!Number.isFinite(s)||s<0)return 'UNKNOWN';
+  if(s<60)return Math.round(s)+'s';
+  var m=Math.floor(s/60),ss=Math.round(s%60);
+  if(m<60)return m+'m '+String(ss).padStart(2,'0')+'s';
+  return Math.floor(m/60)+'h '+String(m%60).padStart(2,'0')+'m'
+}
+function median(arr){
+  var a=arr.filter(Number.isFinite).sort(function(x,y){return x-y});
+  if(!a.length)return null;var m=Math.floor(a.length/2);
+  return a.length%2?a[m]:(a[m-1]+a[m])/2
+}
+function lastAt(w){return (w.close&&w.close.at)||w.last_event_at||(w.claim&&w.claim.at)||(w.routed&&w.routed.at)||w.first_event_at||null}
+function boundary(w){
+  var o=String((w.close&&w.close.outcome)||(w.claim&&w.claim.outcome)||'').toUpperCase();
+  return /BOUNDARY|FAIL|BLOCK|UNSTABLE|ABORT/.test(o)||(Array.isArray(w.anomalies)&&w.anomalies.length>0)
+}
+function terminal(w){return !!(w.close&&w.close.terminal)||String(w.state||'').toUpperCase()==='CLOSED'}
+function signalClass(w){
+  if(boundary(w))return 'red';
+  if(terminal(w))return 'gray';
+  var s=ageSec(lastAt(w));if(s!==null&&s<600)return 'green';
+  if(s!==null&&s<7200)return 'yellow';
+  return 'gray'
+}
+function stage(w){
+  if(w.close&&w.close.terminal)return w.close.outcome||'CLOSED';
+  if(w.reallocation_complete)return 'REALLOCATION COMPLETE';
+  if(w.primary_complete)return 'PRIMARY COMPLETE';
+  if(w.claim&&w.claim.outcome)return 'CLAIM '+w.claim.outcome;
+  if(w.slot_id)return 'OWNED '+w.slot_id;
+  return w.state||'UNKNOWN'
+}
+function shortId(v){var s=String(v||'worker');return s.length>18?'…'+s.slice(-14):s}
+function getBatch(){
+  var r=state.runtime;
+  if(!r||!Array.isArray(r.batches))return null;
+  return r.batches.find(function(b){return b.batch_id===r.current_batch})||r.batches[0]||null
+}
+function workers(){
+  var b=getBatch();return Array.isArray(b&&b.workers)?b.workers.slice():[]
+}
+function setPanel(name){
+  document.querySelectorAll('.panel').forEach(function(p){p.classList.toggle('active',p.id==='panel-'+name)});
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.panel===name)});
+  window.scrollTo({top:0,behavior:'smooth'})
+}
+document.querySelectorAll('.tab').forEach(function(t){t.addEventListener('click',function(){setPanel(t.dataset.panel)})});
 
-  function $(id){return document.getElementById(id)}
-  function fmt(n){return Number.isFinite(Number(n))?new Intl.NumberFormat('es-AR').format(Number(n)):'—'}
-  function d(value){var x=value?new Date(value):null;return x&&!Number.isNaN(x.getTime())?x:null}
-  function ageSeconds(value){var x=d(value);return x?Math.max(0,(Date.now()-x.getTime())/1000):null}
-  function age(value){
-    var s=ageSeconds(value);if(s===null)return 'UNKNOWN';
-    if(s<60)return Math.max(1,Math.round(s))+'s';
-    if(s<3600)return Math.round(s/60)+'m';
-    if(s<86400)return Math.round(s/3600)+'h';
-    return Math.round(s/86400)+'d';
+function workerRow(w){
+  var b=document.createElement('button');b.className='worker-row';b.type='button';
+  var d=document.createElement('span');d.className='dot '+signalClass(w);
+  var mid=document.createElement('div');
+  var id=document.createElement('div');id.className='worker-id';id.textContent=w.worker_id||'worker';
+  var meta=document.createElement('div');meta.className='worker-meta';meta.textContent=stage(w)+' · '+(w.slot_id||'sin primary slot');
+  mid.append(id,meta);
+  var out=document.createElement('div');out.className='worker-output';out.textContent=(w.primary_complete?'primary ✓':'primary —')+' · '+(w.reallocation_complete?'realloc ✓':'realloc —');
+  var a=document.createElement('div');a.className='worker-age';a.textContent='hace '+age(lastAt(w));
+  b.append(d,mid,out,a);b.addEventListener('click',function(){openInspector(w)});return b
+}
+function fillWorkerHost(host,list){host.replaceChildren();list.forEach(function(w){host.append(workerRow(w))})}
+
+function renderWorkers(){
+  var ws=workers().sort(function(a,b){return String(lastAt(b)||'').localeCompare(String(lastAt(a)||''))});
+  var recent=ws.filter(function(w){var s=ageSec(lastAt(w));return s!==null&&s<=7200});
+  var old=ws.filter(function(w){var s=ageSec(lastAt(w));return s===null||s>7200});
+  var live=recent.filter(function(w){var s=ageSec(lastAt(w));return !terminal(w)&&s!==null&&s<600});
+  $('workers-live').textContent=fmt(live.length);$('workers-recent').textContent=fmt(recent.length);$('workers-old').textContent=fmt(old.length);
+  fillWorkerHost($('worker-list'),recent.slice(0,8));
+  var more=recent.slice(8);
+  $('more-recent-wrap').hidden=!more.length;
+  $('more-recent-summary').textContent='ver '+more.length+' recientes más';
+  fillWorkerHost($('worker-more-list'),more);
+  $('old-workers-wrap').hidden=!old.length;
+  $('old-workers-summary').textContent='archivo viejo · '+old.length+' workers >2h';
+  fillWorkerHost($('worker-old-list'),old);
+}
+function renderNow(){
+  var ws=workers().sort(function(a,b){return String(lastAt(b)||'').localeCompare(String(lastAt(a)||''))});
+  var live=ws.filter(function(w){var s=ageSec(lastAt(w));return !terminal(w)&&s!==null&&s<600});
+  var closed=ws.filter(terminal);
+  var durations=closed.map(function(w){var a=parseDate(w.first_event_at),b=parseDate(lastAt(w));return a&&b?(b-a)/1000:null});
+  var med=median(durations);
+  var batch=getBatch(),span=null,closeRate=null;
+  if(batch){
+    var a=parseDate(batch.first_event_at),b=parseDate(batch.last_event_at);
+    span=a&&b?(b-a)/1000:null;
+    if(span&&span>0)closeRate=(closed.length/(span/3600));
   }
-  function dur(s){
-    if(!Number.isFinite(Number(s)))return 'UNKNOWN';s=Number(s);
-    if(s<60)return Math.round(s)+'s';
-    var m=Math.floor(s/60),ss=Math.round(s%60);
-    if(m<60)return m+'m '+String(ss).padStart(2,'0')+'s';
-    return Math.floor(m/60)+'h '+String(m%60).padStart(2,'0')+'m';
-  }
-  function lastAt(w){return (w.close&&w.close.at)||w.last_event_at||(w.claim&&w.claim.at)||(w.routed&&w.routed.at)||w.first_event_at||null}
-  function isBoundary(w){
-    var o=String((w.close&&w.close.outcome)||(w.claim&&w.claim.outcome)||'').toUpperCase();
-    return /BOUNDARY|FAIL|BLOCK|UNSTABLE|ABORT/.test(o)||(Array.isArray(w.anomalies)&&w.anomalies.length>0);
-  }
-  function isClosed(w){return !!(w.close&&w.close.terminal)||String(w.state||'').toUpperCase()==='CLOSED'}
-  function signal(w){
-    if(isBoundary(w))return 'boundary';
-    if(isClosed(w))return 'closed';
-    var a=ageSeconds(lastAt(w));
-    if(a!==null&&a<120)return 'recent';
-    if(a!==null&&a<600)return 'warm';
-    return 'closed';
-  }
-  function stageLabel(w){
-    if(w.close&&w.close.terminal)return w.close.outcome||'CLOSED';
-    if(w.reallocation_complete)return 'REALLOCATION COMPLETE';
-    if(w.primary_complete)return 'PRIMARY COMPLETE';
-    if(w.claim&&w.claim.outcome)return 'CLAIM '+w.claim.outcome;
-    if(w.slot_id)return 'OWNED '+w.slot_id;
-    return w.state||'UNKNOWN';
-  }
-  function shortId(id){var s=String(id||'worker');return s.length>21?'…'+s.slice(-17):s}
-  function metric(obj,paths){
-    for(var i=0;i<paths.length;i++){
-      var cur=obj,keys=paths[i].split('.');
-      for(var k=0;k<keys.length;k++)cur=cur&&Object.prototype.hasOwnProperty.call(cur,keys[k])?cur[keys[k]]:undefined;
-      if(cur!==undefined&&cur!==null)return cur;
-    }
-    return null;
-  }
-  function blobHref(ref){
-    var raw=String(ref||''),path=raw.split('@')[0];if(!path)return '#';
-    var tail=raw.indexOf('@')>=0?raw.split('@').pop():'main';
-    var refName=/^[a-f0-9]{7,40}$/i.test(tail)?tail:'main';
-    return 'https://github.com/JuanManuelPM/prometeo/blob/'+refName+'/'+path;
-  }
-  function stat(value,label){
-    var box=document.createElement('div');box.className='worker-stat';
-    var b=document.createElement('b');b.textContent=value===null||value===undefined?'UNKNOWN':String(value);
-    var sp=document.createElement('span');sp.textContent=label;box.append(b,sp);return box;
-  }
+  $('now-live').textContent=fmt(live.length);
+  $('now-duration').textContent=med===null?'UNKNOWN':dur(med);
+  $('now-speed').textContent=closeRate===null?'UNKNOWN':closeRate.toFixed(1)+'/h';
+  $('now-boundary').textContent=fmt(ws.filter(boundary).length);
+  var latest=ws[0];
+  $('now-latest').textContent=latest?shortId(latest.worker_id):'—';
+  $('now-latest-note').textContent=latest?stage(latest)+' · hace '+age(lastAt(latest)):'sin evidencia';
+  $('now-concurrency').textContent=(state.guide&&state.guide.observed&&state.guide.observed.concurrency_effect)||'UNKNOWN';
+}
+function runProgress(){
+  var run=state.run||state.data&&state.data.current_run||null;if(!run)return;
+  var total=Number(run.slots_total||0),claimed=Number(run.slots_claimed||0),pct=total?Math.min(100,claimed/total*100):0;
+  $('run-progress').style.width=pct+'%';$('exp-progress').style.width=pct+'%';
+  $('run-label').textContent=(run.run_id||'RUN')+' · '+claimed+'/'+total+' slots';
+  $('run-pct').textContent=Math.round(pct)+'%';
+  $('exp-run-id').textContent=run.run_id||'RUN actual';$('exp-count').textContent=claimed+'/'+total+' slots';$('exp-percent').textContent=Math.round(pct)+'%';
+  var full=total>0&&claimed>=total;
+  var action=full?'No mandes más workers a este RUN.':'Faltan '+Math.max(0,total-claimed)+' claims.';
+  $('human-action').textContent=action;$('human-action').className='action '+(full?'good':'warn');
+  $('exp-action').textContent=action;$('exp-action').className='action '+(full?'good':'warn');
+}
+function renderGuide(){
+  var g=state.guide;if(!g)return;
+  $('guide-strip-title').textContent='Guide · '+(g.title||'último análisis');
+  $('guide-strip-summary').textContent=g.summary||'';
+  $('guide-strip-time').textContent=g.updated_at?age(g.updated_at):'';
+  $('guide-title').textContent=g.title||'—';$('guide-summary').textContent=g.summary||'—';
+  $('guide-updated').textContent=g.updated_at?new Date(g.updated_at).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+  function paragraphs(host,list){host.replaceChildren();(list||[]).forEach(function(x){var p=document.createElement('p');p.textContent=x;host.append(p)})}
+  paragraphs($('guide-opinion'),g.opinion);paragraphs($('guide-plan'),g.planned);$('guide-action').textContent=g.human_action||'—';
+  var o=g.observed||{};
+  $('cap-words').textContent=o.median_30k_total_useful_words?fmt(o.median_30k_total_useful_words):'UNKNOWN';
+  $('cap-tasks').textContent=o.median_30k_total_tasks?fmt(o.median_30k_total_tasks):'UNKNOWN';
+  $('cap-primary-time').textContent=Number.isFinite(Number(o.median_claim_to_primary_seconds))?dur(Number(o.median_claim_to_primary_seconds)):'UNKNOWN';
+  $('cap-close-time').textContent=Number.isFinite(Number(o.median_claim_to_close_seconds))?dur(Number(o.median_claim_to_close_seconds)):'UNKNOWN';
+  $('cap-concurrency').textContent=o.concurrency_effect==='UNKNOWN_NOT_ISOLATED'?'Todavía no aislado':String(o.concurrency_effect||'UNKNOWN');
+  $('exp-result').textContent='30k no fue el techo. Workers válidos completaron 600 primary + 150 reallocation sin degradación tardía material; los fallos dominantes fueron de protocolo/transporte/contaminación.';
+  $('exp-next').textContent=(g.planned||[]).filter(function(x){return /40k|60k|90k|120k|ceiling/i.test(x)}).join(' ')||'Buscar el techo con tiers mayores después de reparar el latch.';
+}
+function renderVariants(){
+  var run=state.run||state.data&&state.data.current_run||null,host=$('exp-variants');host.replaceChildren();
+  var map=run&&(run.benchmark_variants||run.variants)||{};
+  Object.entries(map).forEach(function(entry){
+    var id=entry[0],v=entry[1];if(!v||Number(v.slots_total||0)===0)return;
+    var row=document.createElement('div');row.className='kv';
+    var b=document.createElement('b');b.textContent=id;
+    var s=document.createElement('span');s.textContent=fmt(v.primary_complete)+' primary · '+fmt(v.reallocation_complete)+' realloc · '+fmt(v.slots_claimed)+'/'+fmt(v.slots_total)+' claims';
+    row.append(b,s);host.append(row)
+  })
+}
+function renderArchive(){
+  var d=state.data||{};
+  function list(host,items,fn){host.replaceChildren();(items||[]).forEach(function(x){var p=document.createElement('p');p.textContent=fn?fn(x):String(x);host.append(p)})}
+  list($('archive-rules'),d.rules,function(x){return (x.id?x.id+' · ':'')+(x.observed||x.rule||x.hypothesis||'')});
+  list($('archive-negative'),d.negative_knowledge,function(x){return (x.id?x.id+' · ':'')+(x.observed||x.consequence||x.hypothesis||'')});
+  list($('archive-history'),d.timeline,function(x){return (x.date?x.date+' · ':'')+(x.title||'')+' — '+(x.summary||'')});
+  list($('archive-questions'),d.open_questions);
+  list($('archive-measurements'),d.recommended_measurements)
+}
+function metric(receipt,paths){
+  for(var i=0;i<paths.length;i++){var cur=receipt;var keys=paths[i].split('.');
+    for(var j=0;j<keys.length;j++)cur=cur&&Object.prototype.hasOwnProperty.call(cur,keys[j])?cur[keys[j]]:undefined;
+    if(cur!==undefined&&cur!==null)return cur
+  }return null
+}
+async function fetchReceipt(w){
+  var ref=w&&w.repo&&w.repo.benchmark_receipt_ref;if(!ref)return null;var path=String(ref).split('@')[0];
+  try{var r=await fetch(RAW_MAIN+path+'?t='+Date.now(),{cache:'no-store'});return r.ok?await r.json():null}catch(e){return null}
+}
+async function fetchCommits(w){
+  var refs=[w&&w.repo&&w.repo.beacon_ref,w&&w.repo&&w.repo.launch_slot_ref,w&&w.repo&&w.repo.benchmark_receipt_ref,w&&w.repo&&w.repo.exam_ref].filter(Boolean).map(function(x){return String(x).split('@')[0]});
+  refs=[...new Set(refs)].slice(0,4);
+  var groups=await Promise.all(refs.map(async function(path){try{var r=await fetch(GH_API+encodeURIComponent(path),{cache:'no-store'});if(!r.ok)return[];var rows=await r.json();return Array.isArray(rows)?rows.map(function(c){return{sha:c.sha,date:c.commit&&c.commit.committer&&c.commit.committer.date||c.commit&&c.commit.author&&c.commit.author.date,message:String(c.commit&&c.commit.message||'').split('\n')[0],url:c.html_url,path:path}}):[]}catch(e){return[]}}));
+  var m=new Map();groups.flat().forEach(function(c){if(c.sha&&!m.has(c.sha))m.set(c.sha,c)});return [...m.values()].sort(function(a,b){return String(a.date).localeCompare(String(b.date))})
+}
+function stat(value,label){var box=document.createElement('div');box.className='sheet-stat';var b=document.createElement('b');b.textContent=value==null?'UNKNOWN':value;var s=document.createElement('span');s.textContent=label;box.append(b,s);return box}
+function blob(ref){var p=String(ref||'').split('@')[0];if(!p)return'#';return 'https://github.com/JuanManuelPM/prometeo/blob/main/'+p}
+async function openInspector(w){
+  var host=$('inspector'),sheet=$('sheet');host.classList.add('open');host.setAttribute('aria-hidden','false');sheet.replaceChildren();
+  var head=document.createElement('div');head.className='sheet-head';
+  var title=document.createElement('div');title.className='sheet-title';title.textContent=w.worker_id||'worker';
+  var close=document.createElement('button');close.className='sheet-close';close.type='button';close.textContent='×';close.addEventListener('click',closeInspector);
+  head.append(title,close);sheet.append(head);
+  var wait=document.createElement('div');wait.className='boundary';wait.textContent='Leyendo receipt + commits públicos…';sheet.append(wait);
+  var results=await Promise.all([fetchReceipt(w),fetchCommits(w)]),receipt=results[0],commits=results[1];wait.remove();
+  var first=parseDate(w.first_event_at),last=parseDate(lastAt(w)),windowSec=first&&last?(last-first)/1000:null;
+  var pTasks=metric(receipt,['primary_metrics.completed_tasks','feature_evidence.primary_completed_tasks','assignment.primary_task_count','primary_task_count']);
+  var rTasks=metric(receipt,['reallocation_metrics.completed_tasks','feature_evidence.reallocation_completed_tasks','reallocation.reallocation_task_count','assignment.reallocation_task_count']);
+  var totalTasks=metric(receipt,['total_metrics.completed_tasks','feature_evidence.total_completed_tasks']);
+  if(totalTasks==null&&(pTasks!=null||rTasks!=null))totalTasks=(Number(pTasks)||0)+(Number(rTasks)||0);
+  var pWords=metric(receipt,['primary_metrics.useful_output_words','feature_evidence.primary_useful_output_words','useful_output_words']);
+  var rWords=metric(receipt,['reallocation_metrics.useful_output_words','feature_evidence.reallocation_useful_output_words']);
+  var totalWords=metric(receipt,['total_metrics.useful_output_words','feature_evidence.total_useful_output_words']);
+  if(totalWords==null&&(pWords!=null||rWords!=null))totalWords=(Number(pWords)||0)+(Number(rWords)||0);
+  var grid=document.createElement('div');grid.className='sheet-grid';grid.append(stat(totalTasks==null?'UNKNOWN':fmt(totalTasks),'tareas'),stat(totalWords==null?'UNKNOWN':fmt(totalWords),'palabras'),stat(windowSec==null?'UNKNOWN':dur(windowSec),'ventana durable'),stat(age(lastAt(w)),'última señal'));sheet.append(grid);
+  var stages=[];
+  if(w.first_event_at)stages.push({at:w.first_event_at,stage:'E1',desc:'beacon / primera señal'});
+  if(w.routed&&w.routed.at)stages.push({at:w.routed.at,stage:'ROUTED',desc:w.routed.candidate_title||w.routed.candidate_id||'routing'});
+  if(w.claim&&w.claim.at)stages.push({at:w.claim.at,stage:'E2',desc:w.claim.outcome||'claim'});
+  if(w.slot_id&&!w.claim)stages.push({at:null,stage:'E2',desc:'slot '+w.slot_id+' · authority durable'});
+  if(receipt&&receipt.stage_trace){Object.entries(receipt.stage_trace).forEach(function(entry){var st=entry[0],v=entry[1];if(v&&typeof v==='object'&&(v.started_at||v.completed_at))stages.push({at:v.completed_at||v.started_at,stage:st,desc:(v.status||'')+(v.failure_code?' · '+v.failure_code:'')+' · receipt diagnostic'})})}
+  if(w.close&&w.close.at)stages.push({at:w.close.at,stage:'E9',desc:w.close.outcome||'cierre'});
+  stages.sort(function(a,b){return String(a.at||'9999').localeCompare(String(b.at||'9999'))});
+  var sh=document.createElement('div');sh.className='microline';sh.textContent='TIMELINE';sheet.append(sh);
+  var tl=document.createElement('div');tl.className='timeline';stages.forEach(function(e){var row=document.createElement('div');row.className='step';var t=document.createElement('time');t.textContent=e.at?new Date(e.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';var st=document.createElement('div');st.className='stage';st.textContent=e.stage;var ds=document.createElement('div');ds.className='desc';ds.textContent=e.desc;row.append(t,st,ds);tl.append(row)});sheet.append(tl);
+  var rh=document.createElement('div');rh.className='microline';rh.textContent='EVIDENCIA';sheet.append(rh);
+  var refs=document.createElement('div');refs.className='refs';Object.entries(w.repo||{}).forEach(function(entry){var label=entry[0],value=entry[1],vals=Array.isArray(value)?value:[value];vals.filter(Boolean).forEach(function(ref){var a=document.createElement('a');a.href=blob(ref);a.target='_blank';a.rel='noopener';a.textContent=label+' · '+ref;refs.append(a)})});sheet.append(refs);
+  var ch=document.createElement('div');ch.className='microline';ch.textContent='COMMITS OBSERVADOS';sheet.append(ch);
+  if(!commits.length){var unk=document.createElement('div');unk.className='boundary';unk.textContent='UNKNOWN · no recuperé commits para esos refs.';sheet.append(unk)}else{commits.forEach(function(c){var row=document.createElement('div');row.className='commit';var a=document.createElement('a');a.href=c.url;a.target='_blank';a.rel='noopener';a.textContent=c.sha.slice(0,7);var t=document.createElement('time');t.textContent=c.date?new Date(c.date).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';var m=document.createElement('span');m.textContent=c.message;row.append(a,t,m);sheet.append(row)})}
+  var b=document.createElement('div');b.className='boundary';b.textContent='La ventana durable no es compute puro. Timestamps del receipt son diagnósticos salvo corroboración externa. UNKNOWN no se reemplaza por 0.';sheet.append(b)
+}
+function closeInspector(){$('inspector').classList.remove('open');$('inspector').setAttribute('aria-hidden','true')}
+$('inspector').addEventListener('click',function(e){if(e.target===$('inspector'))closeInspector()});
 
-  async function fetchReceipt(w){
-    var ref=w.repo&&w.repo.benchmark_receipt_ref;if(!ref)return null;
-    var path=String(ref).split('@')[0];
-    try{var r=await fetch(RAW_MAIN+path+'?t='+Date.now(),{cache:'no-store'});return r.ok?await r.json():null}catch(e){return null}
-  }
-
-  async function fetchCommits(w){
-    var refs=[
-      w.repo&&w.repo.beacon_ref,w.repo&&w.repo.launch_slot_ref,w.repo&&w.repo.benchmark_receipt_ref,w.repo&&w.repo.exam_ref
-    ].filter(Boolean).map(function(x){return String(x).split('@')[0]});
-    refs=Array.from(new Set(refs)).slice(0,4);
-    var groups=await Promise.all(refs.map(async function(path){
-      try{
-        var r=await fetch(GH_COMMITS+encodeURIComponent(path),{cache:'no-store'});if(!r.ok)return [];
-        var rows=await r.json();return Array.isArray(rows)?rows.map(function(c){
-          return {sha:c.sha,date:(c.commit&&c.commit.committer&&c.commit.committer.date)||(c.commit&&c.commit.author&&c.commit.author.date)||null,message:String((c.commit&&c.commit.message)||'').split('\n')[0],url:c.html_url};
-        }):[];
-      }catch(e){return []}
-    }));
-    var map=new Map();groups.flat().forEach(function(c){if(c.sha&&!map.has(c.sha))map.set(c.sha,c)});
-    return Array.from(map.values()).sort(function(a,b){return String(a.date).localeCompare(String(b.date))});
-  }
-
-  async function fillWorker(detail,w){
-    var body=detail.querySelector('.worker-body');
-    if(body.dataset.loaded==='1')return;
-    body.dataset.loaded='1';body.innerHTML='<div class="loading">leyendo receipt + commits…</div>';
-    var pair=await Promise.all([fetchReceipt(w),fetchCommits(w)]),receipt=pair[0],commits=pair[1];
-    body.replaceChildren();
-
-    var first=d(w.first_event_at),last=d(lastAt(w)),windowSec=first&&last?(last-first)/1000:null;
-    var pTasks=metric(receipt,['primary_metrics.completed_tasks','feature_evidence.primary_completed_tasks','assignment.primary_task_count','primary_task_count']);
-    var rTasks=metric(receipt,['reallocation_metrics.completed_tasks','feature_evidence.reallocation_completed_tasks','reallocation.reallocation_task_count','assignment.reallocation_task_count']);
-    var totalTasks=metric(receipt,['total_metrics.completed_tasks','feature_evidence.total_completed_tasks']);
-    if(totalTasks===null&&Number.isFinite(Number(pTasks))&&Number.isFinite(Number(rTasks)))totalTasks=Number(pTasks)+Number(rTasks);
-    var pWords=metric(receipt,['primary_metrics.useful_output_words','feature_evidence.primary_useful_output_words','useful_output_words']);
-    var rWords=metric(receipt,['reallocation_metrics.useful_output_words','feature_evidence.reallocation_useful_output_words']);
-    var totalWords=metric(receipt,['total_metrics.useful_output_words','feature_evidence.total_useful_output_words']);
-    if(totalWords===null&&Number.isFinite(Number(pWords))&&Number.isFinite(Number(rWords)))totalWords=Number(pWords)+Number(rWords);
-
-    var grid=document.createElement('div');grid.className='worker-grid';
-    grid.append(stat(totalTasks===null?'UNKNOWN':fmt(totalTasks),'tareas'),stat(totalWords===null?'UNKNOWN':fmt(totalWords),'palabras'),stat(dur(windowSec),'ventana durable'),stat(age(lastAt(w)),'última señal'));
-    body.append(grid);
-
-    var steps=[];
-    if(w.first_event_at)steps.push({at:w.first_event_at,stage:'E1',desc:'beacon / primera señal'});
-    if(w.routed&&w.routed.at)steps.push({at:w.routed.at,stage:'ROUTED',desc:w.routed.candidate_title||w.routed.candidate_id||'routing'});
-    if(w.claim&&w.claim.at)steps.push({at:w.claim.at,stage:'E2',desc:w.claim.outcome||'claim'});
-    if(w.slot_id&&!(w.claim&&w.claim.at))steps.push({at:null,stage:'E2',desc:'slot '+w.slot_id+' · authority durable'});
-    var trace=receipt&&receipt.stage_trace&&typeof receipt.stage_trace==='object'?receipt.stage_trace:null;
-    if(trace)Object.entries(trace).forEach(function(pair){
-      var key=pair[0],v=pair[1];if(!v||typeof v!=='object')return;
-      var at=v.completed_at||v.started_at;if(at)steps.push({at:at,stage:key,desc:(v.status||'')+(v.failure_code?' · '+v.failure_code:'')+' · receipt'});
-    });
-    if(w.close&&w.close.at)steps.push({at:w.close.at,stage:'E9',desc:w.close.outcome||'cierre'});
-    steps.sort(function(a,b){return String(a.at||'9999').localeCompare(String(b.at||'9999'))});
-    var tl=document.createElement('div');tl.className='timeline';
-    steps.forEach(function(e){
-      var row=document.createElement('div');row.className='step';
-      var ti=document.createElement('time');ti.textContent=e.at?new Date(e.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';
-      var st=document.createElement('div');st.className='stage';st.textContent=e.stage;
-      var de=document.createElement('div');de.className='desc';de.textContent=e.desc;row.append(ti,st,de);tl.append(row);
-    });
-    body.append(tl);
-
-    var refs=document.createElement('div');refs.className='refs';
-    Object.entries(w.repo||{}).forEach(function(pair){
-      var key=pair[0],value=pair[1];if(!value||Array.isArray(value))return;
-      var a=document.createElement('a');a.className='ref';a.target='_blank';a.rel='noopener';a.href=blobHref(value);a.textContent=key+' · '+value;refs.append(a);
-    });
-    body.append(refs);
-
-    if(commits.length){
-      commits.forEach(function(c){
-        var row=document.createElement('div');row.className='commit';
-        var a=document.createElement('a');a.href=c.url;a.target='_blank';a.rel='noopener';a.textContent=String(c.sha).slice(0,7);
-        var ti=document.createElement('time');ti.textContent=c.date?new Date(c.date).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
-        var sp=document.createElement('span');sp.textContent=c.message;row.append(a,ti,sp);body.append(row);
-      });
-    }
-
-    var note=document.createElement('div');note.className='boundary-note';
-    note.textContent='Proceso observable. La ventana durable es primera→última evidencia, no compute puro. UNKNOWN queda UNKNOWN.';
-    body.append(note);
-  }
-
-  function workerDetail(w){
-    var det=document.createElement('details');det.className='worker';
-    var sum=document.createElement('summary');
-    var dot=document.createElement('span');dot.className='dot '+signal(w);
-    var mid=document.createElement('div');
-    var id=document.createElement('div');id.className='worker-id';id.textContent=w.worker_id||'worker';
-    var mini=document.createElement('div');mini.className='worker-mini';mini.textContent=stageLabel(w)+' · '+(w.slot_id||'sin primary slot');
-    mid.append(id,mini);
-    var ag=document.createElement('div');ag.className='worker-age';ag.textContent='hace '+age(lastAt(w));
-    sum.append(dot,mid,ag);
-    var body=document.createElement('div');body.className='worker-body';body.innerHTML='<div class="loading">abrí para cargar historial</div>';
-    det.append(sum,body);
-    det.addEventListener('toggle',function(){if(det.open)fillWorker(det,w)});
-    return det;
-  }
-
-  function renderWorkers(runtime){
-    var batch=(runtime&&runtime.batches&&runtime.batches.find(function(b){return b.batch_id===runtime.current_batch}))||(runtime&&runtime.batches&&runtime.batches[0])||null;
-    var workers=Array.isArray(batch&&batch.workers)?batch.workers.slice():[];
-    workers.sort(function(a,b){return String(lastAt(b)||'').localeCompare(String(lastAt(a)||''))});
-
-    var recent=workers.filter(function(w){var a=ageSeconds(lastAt(w));return a!==null&&a<7200});
-    var old=workers.filter(function(w){var a=ageSeconds(lastAt(w));return a===null||a>=7200});
-    var openRecent=recent.filter(function(w){return !isClosed(w)});
-    var boundaries=workers.filter(isBoundary);
-
-    $('open-recent').textContent=fmt(openRecent.length);
-    $('recent-all').textContent=fmt(recent.length);
-    $('boundaries').textContent=fmt(boundaries.length);
-
-    var latest=workers[0];
-    if(latest){
-      $('latest-id').textContent=latest.worker_id||'worker';
-      $('latest-sub').textContent=stageLabel(latest)+' · '+(latest.slot_id||'sin slot');
-      $('latest-age').textContent='hace '+age(lastAt(latest));
-      $('latest-dot').className='dot '+signal(latest);
-    }
-
-    var host=$('recent-workers');host.replaceChildren();
-    if(!recent.length)host.innerHTML='<div class="loading">No hay señales en las últimas 2 horas.</div>';
-    else recent.forEach(function(w){host.append(workerDetail(w))});
-
-    var oldHost=$('old-workers');oldHost.replaceChildren();
-    old.forEach(function(w){oldHost.append(workerDetail(w))});
-    $('historical-summary').textContent='🗄️ Ver workers anteriores ('+old.length+')';
-  }
-
-  function renderMission(run){
-    var total=Number(run&&run.slots_total||0),claimed=Number(run&&run.slots_claimed||0),missing=Math.max(0,total-claimed),pct=total?Math.min(100,claimed/total*100):0;
-    $('goal-fill').style.width=pct+'%';
-    $('goal-left').textContent=claimed+'/'+total+' slots con claim';
-    $('goal-right').textContent=Math.round(pct)+'%';
-    $('run-primary').textContent=fmt(run&&run.primary_complete);
-    $('run-primary-note').textContent=(run&&run.run_id)||'RUN actual';
-    if(total&&missing===0){
-      $('mission-emoji').textContent='✅';$('mission-title').textContent='No mandes más workers a este RUN';
-      $('mission-sub').textContent='La admisión está completa. Ahora toca analizar/corregir, no agregar capacidad.';
-    }else if(total){
-      $('mission-emoji').textContent='🟡';$('mission-title').textContent='Faltan '+missing+' slots con claim';
-      $('mission-sub').textContent='Seguí lanzando el mismo RUN hasta completar claims; no numeres workers a mano.';
-    }else{
-      $('mission-emoji').textContent='⚪';$('mission-title').textContent='No hay RUN medible';
-      $('mission-sub').textContent='Todavía no hay un denominator claro para decirte cuánta capacidad falta.';
-    }
-  }
-
-  function renderGuide(g){
-    if(!g)return;
-    $('guide-age').textContent='hace '+age(g.observed_at);
-    var ceiling=g.capacity_conclusion&&g.capacity_conclusion.cognitive_local_ceiling;
-    var brief=ceiling==='NOT_FOUND_AT_30K'?'30k no fue el techo. Los fallos dominantes fueron de protocolo/transporte, no de capacidad local.':'Hay una síntesis durable disponible.';
-    $('guide-brief').textContent=brief;
-    $('guide-opinion').textContent=brief+' La señal de continuation priming es prometedora, pero todavía no es una causalidad limpia.';
-    var points=$('guide-points');points.replaceChildren();
-    [
-      'No lanzar más MAXCAP-50-01: 50/50 slots ya tienen claim.',
-      'Corregir el latch para impedir múltiples primary slots por worker/nonce.',
-      'Buscar el techo real con 40k / 60k / 90k / 120k y pocas réplicas controladas.',
-      'Separar capacidad cognitiva de transporte, waits, persistencia y contaminación.'
-    ].forEach(function(t){var x=document.createElement('div');x.className='guide-point';x.textContent=t;points.append(x)});
-    var design=g.next_experiment&&g.next_experiment.design;
-    $('guide-next').textContent=design?(design.phase_A+' '+design.escalation+' '+design.confirmation):'Pendiente.';
-    var tim=g.external_timing_sample||{};
-    $('median-primary').textContent=dur(tim.median_claim_to_primary_seconds);
-    $('median-close').textContent=dur(tim.median_claim_to_close_seconds);
-    var out=g.independent_30k_payload_audit&&g.independent_30k_payload_audit.useful_output||{};
-    $('median-output').textContent=fmt(out.median_total_words);
-    $('tasks-per-worker').textContent=fmt(out.total_tasks_per_complete_worker);
-  }
-
-  function archive(data){
-    var host=$('archive-body');host.replaceChildren();
-    var rows=[
-      ['fase',data&&data.evolution&&data.evolution.phase],
-      ['baseline',data&&data.evolution&&data.evolution.promoted_baseline],
-      ['reglas',Array.isArray(data&&data.rules)?data.rules.length:'—'],
-      ['negative knowledge',Array.isArray(data&&data.negative_knowledge)?data.negative_knowledge.length:'—'],
-      ['preguntas abiertas',Array.isArray(data&&data.open_questions)?data.open_questions.length:'—']
-    ];
-    rows.forEach(function(pair){
-      var r=document.createElement('div');r.className='archive-row';
-      var k=document.createElement('div');k.className='archive-key';k.textContent=pair[0];
-      var v=document.createElement('div');v.className='archive-val';v.textContent=pair[1]===undefined?'—':String(pair[1]);
-      r.append(k,v);host.append(r);
-    });
-  }
-
-  async function load(){
-    $('refresh').disabled=true;
-    try{
-      var q='?t='+Date.now();
-      var res=await Promise.all([
-        fetch(DATA+q,{cache:'no-store'}),fetch(RUN+q,{cache:'no-store'}),fetch(RUNTIME+q,{cache:'no-store'}),fetch(GUIDE_RAW+q,{cache:'no-store'})
-      ]);
-      if(!res[0].ok)throw new Error('data '+res[0].status);
-      var data=await res[0].json();
-      var run=res[1].ok?await res[1].json():(data.current_run||null);
-      var runtime=res[2].ok?await res[2].json():null;
-      var guide=res[3].ok?await res[3].json():null;
-      renderMission(run||data.current_run||{});
-      renderWorkers(runtime);
-      renderGuide(guide);
-      archive(data);
-      var freshness=(runtime&&runtime.generated_at)||data.generated_at;
-      $('sync').textContent='actualizado '+new Date(freshness).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-    }catch(e){
-      $('sync').textContent='error';
-      $('guide-brief').textContent='No pude refrescar Worker Lab: '+(e&&e.message?e.message:'error');
-    }finally{$('refresh').disabled=false}
-  }
-
-  document.querySelectorAll('.tab').forEach(function(btn){
-    btn.addEventListener('click',function(){
-      document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active')});
-      document.querySelectorAll('.panel').forEach(function(x){x.classList.remove('active')});
-      btn.classList.add('active');$('panel-'+btn.dataset.panel).classList.add('active');
-    });
-  });
-  $('refresh').addEventListener('click',load);
-  load();
-  setInterval(load,10000);
+async function load(){
+  $('refresh').disabled=true;
+  try{
+    var stamp='?t='+Date.now();
+    var base=await Promise.all([fetch(DATA+stamp,{cache:'no-store'}),fetch(GUIDE+stamp,{cache:'no-store'}),fetch(RUNTIME+stamp,{cache:'no-store'})]);
+    if(!base[0].ok)throw new Error('data '+base[0].status);
+    state.data=await base[0].json();state.guide=base[1].ok?await base[1].json():null;state.runtime=base[2].ok?await base[2].json():null;
+    var runId=state.data&&state.data.current_run&&state.data.current_run.run_id;
+    state.run=state.data&&state.data.current_run||null;
+    if(runId){try{var rr=await fetch('../../../launch/'+runId+'/status.json'+stamp,{cache:'no-store'});if(rr.ok)state.run=Object.assign({},state.run,await rr.json())}catch(e){}}
+    renderGuide();renderNow();renderWorkers();runProgress();renderVariants();renderArchive();
+    var fresh=(state.runtime&&state.runtime.generated_at)||(state.data&&state.data.generated_at);
+    $('sync').textContent=fresh?'↻ '+age(fresh):'actualizado';
+  }catch(e){$('sync').textContent='error';$('human-action').textContent='No pude reconstruir Worker Lab: '+String(e&&e.message||e)}
+  finally{$('refresh').disabled=false}
+}
+$('refresh').addEventListener('click',load);
+load();setInterval(load,10000);
 })();
 </script>
 </body>
