@@ -33,6 +33,13 @@ jobs:
           git fetch origin gh-pages:refs/remotes/origin/gh-pages
           git worktree add /tmp/prometeo-gh-pages refs/remotes/origin/gh-pages
 
+      - name: Stage sanitized Primary Chat projection
+        run: |
+          set -euo pipefail
+          rel='coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
+          mkdir -p "/tmp/prometeo-gh-pages/$(dirname "$rel")"
+          cp "$rel" "/tmp/prometeo-gh-pages/$rel"
+
       - name: Run deterministic contract harness
         id: harness
         run: |
@@ -43,6 +50,29 @@ jobs:
             --json \
             > artifacts/chat-message-mirror-contract-harness/evidence.json
           cat artifacts/chat-message-mirror-contract-harness/evidence.json
+
+      - name: Publish validated Primary Chat projection
+        if: steps.harness.outcome == 'success'
+        run: |
+          set -euo pipefail
+          rel='coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
+          cd /tmp/prometeo-gh-pages
+          git add "$rel"
+          if git diff --cached --quiet; then
+            echo "Primary Chat projection already current."
+            exit 0
+          fi
+          git config user.name "prometeo-ci"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "chat: publish validated Primary Chat projection"
+          for n in 1 2 3 4; do
+            if git push origin HEAD:gh-pages; then
+              exit 0
+            fi
+            git fetch origin gh-pages
+            git rebase origin/gh-pages
+          done
+          exit 1
 
       - name: Persist machine-readable run evidence
         if: always()
