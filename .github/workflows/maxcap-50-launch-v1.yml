@@ -1,0 +1,91 @@
+name: MAXCAP 50 Launch v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/launch-packets/MAXCAP-50-01/**'
+      - 'coordination/workers/WORKER_MAXCAP_50_V1.json'
+      - 'scripts/build-launch-packets.mjs'
+      - 'tests/maxcap-50-run-v1.test.mjs'
+      - '.github/workflows/maxcap-50-launch-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prometeo-maxcap-50-launch-v1
+  cancel-in-progress: false
+
+jobs:
+  validate-build-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: source
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate MAXCAP matrix
+        run: |
+          set -euo pipefail
+          cd source
+          node tests/maxcap-50-run-v1.test.mjs
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          fetch-depth: 20
+
+      - name: Build and isolate MAXCAP
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C site pull --ff-only origin gh-pages
+          tmp="$(mktemp -d)"
+          node source/scripts/build-launch-packets.mjs source "$tmp"
+          test -f "$tmp/launch/MAXCAP-50-01/packet.json"
+          test -f "$tmp/launch/MAXCAP-50-01/status.json"
+          rm -rf site/launch/MAXCAP-50-01
+          mkdir -p site/launch
+          cp -a "$tmp/launch/MAXCAP-50-01" site/launch/
+
+      - name: Validate bounded public projection
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('fs');
+          const packet=JSON.parse(fs.readFileSync('site/launch/MAXCAP-50-01/packet.json','utf8'));
+          const status=JSON.parse(fs.readFileSync('site/launch/MAXCAP-50-01/status.json','utf8'));
+          if(packet.run_id!=='MAXCAP-50-01'||packet.slots.length!==50||packet.reallocation_slots.length!==50) throw new Error('packet denominator drift');
+          if(status.run_id!=='MAXCAP-50-01'||status.slots_total!==50||status.reallocation_slots_total!==50) throw new Error('status denominator drift');
+          if(packet.human_numbers_slots!==false||packet.same_prompt_for_every_worker!==true) throw new Error('human routing regression');
+          console.log(JSON.stringify({ok:true,slots:packet.slots.length,realloc:packet.reallocation_slots.length,status}));
+          NODE
+
+      - name: Publish bounded projection
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C site config user.name github-actions[bot]
+          git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C site add launch/MAXCAP-50-01
+          if git -C site diff --cached --quiet; then exit 0; fi
+          git -C site commit -m "launch: publish MAXCAP-50-01"
+          for n in 1 2 3 4; do
+            if git -C site push origin HEAD:gh-pages; then exit 0; fi
+            git -C site fetch origin gh-pages
+            git -C site rebase origin/gh-pages
+          done
+          exit 1
