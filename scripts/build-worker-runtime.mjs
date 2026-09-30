@@ -70,9 +70,9 @@ export function parseEventComment(comment) {
 }
 
 function repoEvidence(root) {
-  const beacons = new Map(), pins = new Map(), noalloc = new Map(), exams = new Map(), beaconDocs = [], productiveByWorker = new Map();
+  const beacons = new Map(), pins = new Map(), pinSignals = new Map(), started = new Map(), noalloc = new Map(), exams = new Map(), beaconDocs = [], productiveByWorker = new Map();
   const launchClaims = new Map(), reallocationClaims = new Map(), benchmarkReceipts = new Map(), runPackets = new Map();
-  if (!root) return {beacons,pins,noalloc,exams,beaconDocs,productiveByWorker,launchClaims,reallocationClaims,benchmarkReceipts,runPackets};
+  if (!root) return {beacons,pins,pinSignals,started,noalloc,exams,beaconDocs,productiveByWorker,launchClaims,reallocationClaims,benchmarkReceipts,runPackets};
 
   for (const p of walk(path.join(root,'coordination','workers','beacons'))) {
     const d=readJson(p); if (d?.worker_id) {
@@ -103,6 +103,15 @@ function repoEvidence(root) {
     const d=readJson(p); if (d?.worker_id) {
       const arr=pins.get(d.worker_id)||[];
       arr.push(path.relative(root,p).split(path.sep).join('/')); pins.set(d.worker_id,arr);
+      const at=d.claimed_at||d.created_at||d.updated_at||null;
+      const prev=pinSignals.get(d.worker_id)||null;
+      if (at && (!prev || Date.parse(at)>Date.parse(prev))) pinSignals.set(d.worker_id,at);
+    }
+  }
+  for (const p of walk(path.join(root,'coordination','workers','started')).filter(x=>x.endsWith('.json'))) {
+    const d=readJson(p); if (d?.worker_id) {
+      const arr=started.get(d.worker_id)||[];
+      arr.push({ref:repoRef(root,p),doc:d}); started.set(d.worker_id,arr);
     }
   }
   for (const p of walk(path.join(root,'coordination','workers','no-allocation'))) {
@@ -125,7 +134,7 @@ function repoEvidence(root) {
   for (const units of productiveByWorker.values()) {
     units.sort((a,b)=>Date.parse(a.at||0)-Date.parse(b.at||0)||String(a.ref).localeCompare(String(b.ref)));
   }
-  return {beacons,pins,noalloc,exams,beaconDocs,productiveByWorker,launchClaims,reallocationClaims,benchmarkReceipts,runPackets};
+  return {beacons,pins,pinSignals,started,noalloc,exams,beaconDocs,productiveByWorker,launchClaims,reallocationClaims,benchmarkReceipts,runPackets};
 }
 
 export function compileRuntime(comments, root=null, nowIso=new Date().toISOString()) {
@@ -164,12 +173,37 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
     }
   }
 
+  // STARTED is durable liveness evidence. Merge it into the same batch/worker clock
+  // so UI liveness does not wait for a later RETURN/receipt or best-effort telemetry.
+  for (const [workerId, rows] of repo.started.entries()) {
+    for (const row of rows) {
+      const d=row.doc||{};
+      if (!d.batch_id) continue;
+      if (!batches.has(d.batch_id)) batches.set(d.batch_id,{batch_id:d.batch_id,expected_workers:null,events:[],workers:new Map(),first_event_at:null,last_event_at:null});
+      const b=batches.get(d.batch_id);
+      if (Number.isFinite(Number(d.expected_workers)) && Number(d.expected_workers)>0) b.expected_workers=Math.max(b.expected_workers||0,Number(d.expected_workers));
+      const at=d.started_at||d.created_at||d.updated_at||null;
+      if (at && (!b.first_event_at || Date.parse(at)<Date.parse(b.first_event_at))) b.first_event_at=at;
+      if (at && (!b.last_event_at || Date.parse(at)>Date.parse(b.last_event_at))) b.last_event_at=at;
+      if (!b.workers.has(workerId)) b.workers.set(workerId,{worker_id:workerId,events:[],first_event_at:at,last_event_at:at});
+      else {
+        const w=b.workers.get(workerId);
+        if (at && (!w.first_event_at || Date.parse(at)<Date.parse(w.first_event_at))) w.first_event_at=at;
+        if (at && (!w.last_event_at || Date.parse(at)>Date.parse(w.last_event_at))) w.last_event_at=at;
+      }
+    }
+  }
+
   const compiled=[...batches.values()].map(b=>{
     const workers=[...b.workers.values()].map(w=>{
       const routed=[...w.events].reverse().find(e=>e.event==='ROUTED')||null;
       const claim=[...w.events].reverse().find(e=>e.event==='CLAIM_RESULT')||null;
       const close=[...w.events].reverse().find(e=>e.event==='CLOSE')||null;
       const pinRefs=repo.pins.get(w.worker_id)||[];
+      const startedRows=repo.started.get(w.worker_id)||[];
+      const latestStarted=startedRows.slice().sort((a,b)=>Date.parse(b?.doc?.started_at||b?.doc?.created_at||0)-Date.parse(a?.doc?.started_at||a?.doc?.created_at||0))[0]||null;
+      const latestStartedAt=latestStarted?.doc?.started_at||latestStarted?.doc?.created_at||null;
+      const latestPinAt=repo.pinSignals.get(w.worker_id)||null;
       const launchClaim=repo.launchClaims.get(w.worker_id)||null;
       const reallocationClaim=repo.reallocationClaims.get(w.worker_id)||null;
       const benchmarkReceipt=repo.benchmarkReceipts.get(w.worker_id)||null;
@@ -230,14 +264,17 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
         || noallocDoc?.returned_at
         || w.last_event_at
         || null;
-      const state=terminalClose?'CLOSED':authorityWon?(claim?.started?'ACTIVE':'OWNED'):claim?'CLAIM_RESOLVED':routed?'ROUTED':'BEACONED';
+      const durableSignalAt=[w.last_event_at,latestPinAt,latestStartedAt,productiveUnits.at(-1)?.at,noallocDoc?.observed_at]
+        .filter(Boolean).sort((a,b)=>Date.parse(b)-Date.parse(a))[0]||w.last_event_at||null;
+      const startedDurable=Boolean(latestStartedAt||claim?.started);
+      const state=terminalClose?'CLOSED':authorityWon?(startedDurable?'ACTIVE':'OWNED'):claim?'CLAIM_RESOLVED':routed?'ROUTED':'BEACONED';
       const anomalies=[];
       if (isPool && close && !examRef) anomalies.push('POOL_CLOSE_WITHOUT_TERMINAL_EXAM');
       if (normalizedOutcome==='WON' && root && !pinRefs.length) anomalies.push('CLAIM_WON_WITHOUT_REPO_PIN');
       if (pinRefs.length && normalizedOutcome!=='WON') anomalies.push('REPO_PIN_WITHOUT_CANONICAL_WON_EVENT');
       if (close?.outcome==='NO_ALLOCATION' && root && !repo.noalloc.has(w.worker_id)) anomalies.push('NO_ALLOCATION_EVENT_WITHOUT_REPO_RECEIPT');
       return {
-        worker_id:w.worker_id,state,first_event_at:w.first_event_at,last_event_at:w.last_event_at,
+        worker_id:w.worker_id,state,first_event_at:w.first_event_at,last_event_at:durableSignalAt,
         run_id:launchClaim?.doc?.run_id||benchmarkReceipt?.doc?.run_id||null,
         slot_id:launchClaim?.doc?.slot_id||benchmarkReceipt?.doc?.slot_id||null,
         evolution_variant:launchClaim?.doc?.evolution_variant||benchmarkReceipt?.doc?.evolution_variant||null,
@@ -246,7 +283,8 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
         reallocation_complete:benchmarkReceipt?.doc?.reallocation_complete===true,
         routed:routed?{lane:routed.lane||null,candidate_id:routed.candidate_id||null,candidate_title:routed.candidate_title||null,at:routed.server_created_at}:null,
         claim:claim?{outcome:normalizedOutcome,raw_outcome:claim.outcome||null,attempts:attemptCount,collisions:collisionCount,candidate_id:claim.candidate_id||claim.job_id||claim.guide_work_id||null,authority_ref_or_null:claim.authority_ref_or_null||claim.pin_ref||claim.claim_path||null,started:!!claim.started,at:claim.server_created_at}:null,
-        repo:{beacon_ref:repo.beacons.get(w.worker_id)||null,pin_refs:pinRefs,no_allocation_ref:repo.noalloc.get(w.worker_id)?.ref||null,exam_ref:examRef,launch_slot_ref:launchClaim?.ref||null,reallocation_slot_ref:reallocationClaim?.ref||null,benchmark_receipt_ref:benchmarkReceipt?.ref||null},
+        repo:{beacon_ref:repo.beacons.get(w.worker_id)||null,pin_refs:pinRefs,started_refs:startedRows.map(x=>x.ref),no_allocation_ref:repo.noalloc.get(w.worker_id)?.ref||null,exam_ref:examRef,launch_slot_ref:launchClaim?.ref||null,reallocation_slot_ref:reallocationClaim?.ref||null,benchmark_receipt_ref:benchmarkReceipt?.ref||null},
+        started:latestStarted?{job_id:latestStarted.doc?.job_id||null,authority_ref:latestStarted.doc?.authority_ref||null,at:latestStartedAt}:null,
         authority_won:authorityWon,
         productive_units:productiveCount,
         productive_chain_state:productiveChainState,
@@ -269,7 +307,7 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
       claim_attempts:workers.reduce((n,w)=>n+(w.claim?.attempts||0),0),
       pin_won:workers.filter(w=>w.authority_won).length,
       collisions:workers.reduce((n,w)=>n+(w.claim?.collisions||0),0),
-      started:workers.filter(w=>w.claim?.started).length,
+      started:workers.filter(w=>w.started?.at||w.claim?.started).length,
       closed:workers.filter(w=>w.state==='CLOSED').length,
       active:workers.filter(w=>w.state==='ACTIVE').length,
       productive_units_total:workers.reduce((n,w)=>n+(w.productive_units||0),0),
