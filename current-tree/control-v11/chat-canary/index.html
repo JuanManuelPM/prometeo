@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <title>Prometeo · Chat canary</title>
+  <style>
+    :root{--bg:#08090b;--panel:#101318;--panel2:#0d0f12;--line:#292f36;--ink:#e4e5e1;--muted:#858e99;--soft:#b6bdc5;--ok:#91c99b;--wait:#d0ae6b}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    body{padding:max(18px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(28px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}
+    main{width:min(760px,100%);margin:0 auto}
+    header{display:grid;gap:8px;margin-bottom:22px}
+    .eyebrow{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#747e89}
+    h1{font:800 clamp(22px,6vw,34px)/1.05 system-ui,sans-serif;letter-spacing:-.03em;margin:0}
+    .sub{max-width:64ch;color:var(--muted);font-size:11px;line-height:1.55}
+    .bar{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:9px 10px}
+    .status{display:flex;align-items:center;gap:8px;min-width:0;font-size:10px;color:var(--muted)}
+    .dot{width:7px;height:7px;border-radius:50%;background:var(--wait);flex:none}
+    .status.ready .dot{background:var(--ok)}
+    .status.ready{color:var(--ok)}
+    button{border:1px solid #3a424c;background:#15191f;color:var(--ink);border-radius:9px;padding:8px 10px;font:700 9px/1 ui-monospace,monospace;cursor:pointer}
+    button:disabled{opacity:.45;cursor:default}
+    .thread{display:grid;gap:12px;margin-top:14px}
+    .msg{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:14px}
+    .msg.worker{border-color:#34483a;background:#0f1511}
+    .meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;color:#76818c;font-size:8px;text-transform:uppercase;letter-spacing:.07em}
+    .actor{font-weight:900;color:#c8cdd2}
+    .worker .actor{color:var(--ok)}
+    .body{font:500 14px/1.55 system-ui,sans-serif;margin-top:9px;white-space:pre-wrap;overflow-wrap:anywhere}
+    .refs{display:grid;gap:4px;margin-top:11px;padding-top:9px;border-top:1px solid #232930;color:#77818b;font-size:8px;line-height:1.45}
+    .refs code{white-space:normal;overflow-wrap:anywhere;color:#929ca6}
+    .waiting{border:1px dashed #3e454d;background:var(--panel2);border-radius:12px;padding:14px;color:var(--muted);font-size:10px;line-height:1.55}
+    .waiting b{color:var(--wait)}
+    footer{margin-top:18px;color:#5f6872;font-size:8px;line-height:1.55}
+    @media(max-width:520px){body{padding-left:12px;padding-right:12px}.bar{align-items:stretch;flex-direction:column}.bar button{min-height:38px}.body{font-size:15px}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">Control Room V11 · diagnostic canary</div>
+    <h1>Prometeo · un chat durable</h1>
+    <div class="sub">Proyección pública mínima de un único Chat Object. No es autoridad, no crea mensajes y no simula liveness.</div>
+  </header>
+
+  <section class="bar" aria-live="polite">
+    <div id="status" class="status"><span class="dot"></span><span id="statusText">Cargando thread…</span></div>
+    <button id="refresh" type="button">REFRESH</button>
+  </section>
+
+  <section id="thread" class="thread" aria-live="polite"></section>
+
+  <footer>
+    CHAT_OBJECT: chat-object-prometeo-chat-control-main<br>
+    SOURCE: coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json<br>
+    Boundary: display projection only · no input · no backend · no polling automático.
+  </footer>
+</main>
+<script>
+(() => {
+  'use strict';
+
+  const THREAD_URL = '../../../coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json';
+  const CHAT_OBJECT_ID = 'chat-object-prometeo-chat-control-main';
+  const HUMAN_FALLBACK = {
+    message_id: 'MSG-CANARY-HUMAN-001',
+    chat_object_id: CHAT_OBJECT_ID,
+    actor_type: 'HUMAN',
+    body_kind: 'TEXT',
+    body_text: 'Explicá en una sola frase qué significa un worker atómico dentro de este experimento.',
+    created_at: null,
+    published_at: null,
+    status: 'PUBLISHED',
+    privacy: 'PUBLIC_SANITIZED_CANARY'
+  };
+
+  const elThread = document.getElementById('thread');
+  const elStatus = document.getElementById('status');
+  const elStatusText = document.getElementById('statusText');
+  const refresh = document.getElementById('refresh');
+
+  function text(tag, value, cls) {
+    const el = document.createElement(tag);
+    if (cls) el.className = cls;
+    el.textContent = value == null || value === '' ? '—' : String(value);
+    return el;
+  }
+
+  function addRef(box, label, value) {
+    if (!value) return;
+    const row = document.createElement('div');
+    row.append(text('span', label + ': '));
+    row.append(text('code', value));
+    box.append(row);
+  }
+
+  function renderMessage(message) {
+    const actor = String(message.actor_type || 'UNKNOWN').toUpperCase();
+    const card = document.createElement('article');
+    card.className = 'msg' + (actor === 'WORKER' ? ' worker' : '');
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.append(text('span', actor, 'actor'));
+    meta.append(text('span', message.status || 'PUBLISHED'));
+    const when = message.published_at || message.created_at;
+    if (when) meta.append(text('span', when));
+
+    const body = text('div',
+      message.body_kind === 'ARTIFACT_REF'
+        ? (message.body_ref || '[artifact]')
+        : (message.body_text || ''),
+      'body'
+    );
+
+    const refs = document.createElement('div');
+    refs.className = 'refs';
+    addRef(refs, 'message_id', message.message_id);
+    addRef(refs, 'actor_ref', message.actor_ref);
+    addRef(refs, 'result_ref', message.result_ref);
+    addRef(refs, 'work_unit_ref', message.work_unit_ref);
+
+    card.append(meta, body);
+    if (refs.childNodes.length) card.append(refs);
+    return card;
+  }
+
+  function renderWaiting(reason) {
+    const box = document.createElement('div');
+    box.className = 'waiting';
+    const strong = document.createElement('b');
+    strong.textContent = 'WAITING · ';
+    box.append(strong, document.createTextNode(reason));
+    elThread.append(box);
+  }
+
+  function setState(kind, label) {
+    elStatus.classList.toggle('ready', kind === 'ready');
+    elStatusText.textContent = label;
+  }
+
+  function render(messages, updatedAt) {
+    elThread.replaceChildren();
+    const safe = Array.isArray(messages) ? messages.filter(Boolean) : [];
+    const hasHuman = safe.some(m => String(m.actor_type).toUpperCase() === 'HUMAN');
+    if (!hasHuman) elThread.append(renderMessage(HUMAN_FALLBACK));
+    safe.forEach(m => elThread.append(renderMessage(m)));
+
+    const worker = safe.find(m => String(m.actor_type).toUpperCase() === 'WORKER');
+    if (worker) {
+      setState('ready', 'THREAD DURABLE · respuesta WORKER publicada' + (updatedAt ? ' · ' + updatedAt : ''));
+    } else {
+      setState('waiting', 'WAITING · thread sin respuesta WORKER');
+      renderWaiting('Todavía no hay una respuesta worker publicada en el thread durable. Refresh vuelve a leer la misma fuente.');
+    }
+  }
+
+  async function load() {
+    refresh.disabled = true;
+    setState('waiting', 'Leyendo thread durable…');
+    try {
+      const sep = THREAD_URL.includes('?') ? '&' : '?';
+      const response = await fetch(THREAD_URL + sep + 't=' + Date.now(), {cache:'no-store'});
+      if (response.status === 404) {
+        render([], null);
+        return;
+      }
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const data = await response.json();
+      if (!data || data.schema !== 'prometeo.chat-thread-projection/v1' || data.chat_object_id !== CHAT_OBJECT_ID) {
+        throw new Error('thread shape incompatible');
+      }
+      render(data.messages, data.updated_at || null);
+    } catch (err) {
+      elThread.replaceChildren(renderMessage(HUMAN_FALLBACK));
+      setState('waiting', 'WAITING · fuente no disponible');
+      renderWaiting('No se pudo leer una proyección válida ahora. Esto no prueba que un worker esté vivo o muerto. ' + (err && err.message ? err.message : ''));
+    } finally {
+      refresh.disabled = false;
+    }
+  }
+
+  refresh.addEventListener('click', load);
+  load();
+})();
+</script>
+</body>
+</html>
