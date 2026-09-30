@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import {spawnSync} from 'node:child_process';
 
 const root=path.resolve(new URL('..',import.meta.url).pathname);
 const runId='RESIDENCY-MACROBATCH-01';
@@ -82,6 +84,45 @@ assert.equal(packet.reallocation_pool.human_recap_forbidden,true);
 assert.equal(packet.launch_gate.initial_launches_exactly,15);
 assert.equal(packet.launch_gate.human_numbers_slots,false);
 assert.match(packet.truth_boundary,/has not executed any slot/i);
+
+// Isolated public projection proof: keep unrelated legacy RUN debt out of this job.
+const fixtureRoot=fs.mkdtempSync(path.join(os.tmpdir(),'prometeo-residency-macrobatch-fixture-'));
+const out=fs.mkdtempSync(path.join(os.tmpdir(),'prometeo-residency-macrobatch-public-'));
+for(const rel of [
+  'coordination/workers/LAUNCH_PACKET_PROTOCOL_V1.json',
+  'coordination/workers/WORKER_PIPELINE_V1.json',
+  'coordination/workers/WORKER_EVOLUTION_LAB_V1.json',
+  'coordination/workers/WORKER_BENCHMARK_RECEIPT_V1.json',
+  'coordination/launch-packets/RESIDENCY-MACROBATCH-01/PACKET.json'
+]){
+  const src=path.join(root,rel);
+  const dst=path.join(fixtureRoot,rel);
+  fs.mkdirSync(path.dirname(dst),{recursive:true});
+  fs.copyFileSync(src,dst);
+}
+const node=process.execPath;
+const build=spawnSync(node,[path.join(root,'scripts/build-launch-packets.mjs'),fixtureRoot,out],{encoding:'utf8'});
+assert.equal(build.status,0,'isolated public build must succeed: '+build.stderr);
+const check=spawnSync(node,[path.join(root,'scripts/check-launch-packet-v1.mjs'),fixtureRoot,out],{encoding:'utf8'});
+assert.equal(check.status,0,'isolated public projection must validate: '+check.stderr);
+const publicPacket=JSON.parse(fs.readFileSync(path.join(out,'launch',runId,'packet.json'),'utf8'));
+assert.deepEqual(publicPacket,packet,'public packet must equal canonical packet');
+const publicStatus=JSON.parse(fs.readFileSync(path.join(out,'launch',runId,'status.json'),'utf8'));
+assert.equal(publicStatus.slots_total,15);
+assert.equal(publicStatus.reallocation_slots_total,15);
+assert.equal(publicStatus.human_numbering_required,false);
+assert.deepEqual(Object.fromEntries(Object.entries(publicStatus.benchmark_variants).map(([k,v])=>[k,v.slots_total])),counts);
+for(const slot of packet.slots){
+  const cap=JSON.parse(fs.readFileSync(path.join(out,'launch',runId,'slots',slot.slot_id+'.json'),'utf8'));
+  assert.equal(cap.slot.benchmark_variant_id,slot.benchmark_variant_id);
+  assert.equal(cap.variant.id,'V3_EVIDENCE_MAP');
+  assert.equal(cap.common_capsule.source_freeze.benchmark_spec_blob_sha,specSha);
+}
+for(const slot of packet.reallocation_slots){
+  const cap=JSON.parse(fs.readFileSync(path.join(out,'launch',runId,'reallocation-slots',slot.slot_id+'.json'),'utf8'));
+  assert.equal(cap.slot.paired_primary_slot_id,'S'+slot.slot_id.slice(1));
+  assert.equal(cap.objective,packet.reallocation_pool.objective);
+}
 
 console.log(JSON.stringify({
   ok:true,
