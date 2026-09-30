@@ -4,229 +4,466 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
-  <title>Prometeo · Chat canary</title>
+  <title>Prometeo</title>
   <style>
-    :root{--bg:#08090b;--panel:#101318;--panel2:#0d0f12;--line:#292f36;--ink:#e4e5e1;--muted:#858e99;--soft:#b6bdc5;--ok:#91c99b;--wait:#d0ae6b}
+    :root{
+      --bg:#000;
+      --ink:#f1f1ef;
+      --muted:#777;
+      --faint:#3f3f3f;
+      --human:#171717;
+      --line:#202020;
+      --ok:#82d69a;
+      --warn:#d9b45f;
+      --bad:#ff7676;
+    }
     *{box-sizing:border-box}
-    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-    body{padding:max(18px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(28px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}
-    main{width:min(760px,100%);margin:0 auto}
-    header{display:grid;gap:8px;margin-bottom:22px}
-    .eyebrow{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#747e89}
-    h1{font:800 clamp(22px,6vw,34px)/1.05 system-ui,sans-serif;letter-spacing:-.03em;margin:0}
-    .sub{max-width:64ch;color:var(--muted);font-size:11px;line-height:1.55}
-    .bar{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:9px 10px}
-    .status{display:flex;align-items:center;gap:8px;min-width:0;font-size:10px;color:var(--muted)}
-    .dot{width:7px;height:7px;border-radius:50%;background:var(--wait);flex:none}
-    .status.ready .dot{background:var(--ok)}
-    .status.ready{color:var(--ok)}
-    button{border:1px solid #3a424c;background:#15191f;color:var(--ink);border-radius:9px;padding:8px 10px;font:700 9px/1 ui-monospace,monospace;cursor:pointer}
-    button:disabled{opacity:.45;cursor:default}
-    .thread{display:grid;gap:12px;margin-top:14px}
-    .msg{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:14px}
-    .msg.worker{border-color:#34483a;background:#0f1511}
-    .meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;color:#76818c;font-size:8px;text-transform:uppercase;letter-spacing:.07em}
-    .actor{font-weight:900;color:#c8cdd2}
-    .worker .actor{color:var(--ok)}
-    .body{font:500 14px/1.55 system-ui,sans-serif;margin-top:9px;white-space:pre-wrap;overflow-wrap:anywhere}
-    .refs{display:grid;gap:4px;margin-top:11px;padding-top:9px;border-top:1px solid #232930;color:#77818b;font-size:8px;line-height:1.45}
-    .refs code{white-space:normal;overflow-wrap:anywhere;color:#929ca6}
-    .waiting{border:1px dashed #3e454d;background:var(--panel2);border-radius:12px;padding:14px;color:var(--muted);font-size:10px;line-height:1.55}
-    .waiting b{color:var(--wait)}
-    .module-shell{margin-top:14px;border:1px solid var(--line);background:var(--panel2);border-radius:14px;padding:12px}
-    .module-label{margin-bottom:9px;color:#747e89;font-size:8px;letter-spacing:.1em;text-transform:uppercase}
-    [data-prometeo-chat-composer-form-v1]{display:grid;gap:8px}
-    [data-prometeo-chat-composer-input-v1]{width:100%;min-height:82px;resize:vertical;border:1px solid #343b43;background:#080a0d;color:var(--ink);border-radius:10px;padding:10px;font:500 14px/1.45 system-ui,sans-serif;outline:none}
-    [data-prometeo-chat-composer-input-v1]:focus{border-color:#56616d}
-    [data-prometeo-chat-composer-submit-v1]{justify-self:end;min-width:92px}
-    [data-prometeo-chat-composer-status-v1]{margin-top:8px;color:var(--muted);font-size:8px;line-height:1.45;overflow-wrap:anywhere}
-    footer{margin-top:18px;color:#5f6872;font-size:8px;line-height:1.55}
-    @media(max-width:520px){body{padding-left:12px;padding-right:12px}.bar{align-items:stretch;flex-direction:column}.bar button{min-height:38px}.body{font-size:15px}}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink)}
+    body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    button,textarea{font:inherit}
+    button{color:inherit}
+    .app{width:min(820px,100%);min-height:100vh;margin:0 auto;padding:0 max(14px,env(safe-area-inset-right)) 0 max(14px,env(safe-area-inset-left))}
+    .topbar{
+      position:sticky;top:0;z-index:20;
+      display:flex;align-items:center;gap:12px;
+      min-height:54px;
+      padding:max(8px,env(safe-area-inset-top)) 2px 8px;
+      background:rgba(0,0,0,.94);
+    }
+    .brand{font-size:12px;font-weight:650;letter-spacing:-.01em;color:#d7d7d2}
+    .top-spacer{flex:1}
+    #refresh{
+      border:0;background:transparent;padding:8px 4px;
+      color:#666;font-size:17px;line-height:1;cursor:pointer
+    }
+    #refresh:hover{color:#aaa}
+    #refresh:disabled{opacity:.35}
+    #status{
+      display:none;
+      padding:0 2px 8px;
+      color:#777;font-size:10px;line-height:1.35
+    }
+    #status.visible{display:block}
+    #thread{padding:20px 2px 24px}
+    .msg{display:flex;flex-direction:column;margin:0 0 28px}
+    .msg.human{align-items:flex-end}
+    .msg.system{align-items:center;margin:8px 0 22px}
+    .msg-main{max-width:90%}
+    .human .msg-main{max-width:min(82%,660px)}
+    .system .msg-main{max-width:88%;text-align:center}
+    .meta{
+      display:flex;align-items:center;gap:7px;
+      min-height:18px;margin:0 2px 5px;
+      color:#5d5d5d;font-size:10px;line-height:1.2
+    }
+    .human .meta{justify-content:flex-end}
+    .actor{color:#858585}
+    .source{color:#4f4f4f}
+    .body{
+      white-space:pre-wrap;overflow-wrap:anywhere;
+      font-size:16px;line-height:1.52;letter-spacing:-.01em
+    }
+    .human .body{
+      padding:10px 13px;
+      border-radius:18px;
+      background:var(--human);
+    }
+    .assistant .body,.worker .body{padding:1px 2px}
+    .system .body{color:#737373;font-size:12px}
+    .message-tools{display:flex;gap:8px;margin-top:8px}
+    .human .message-tools{justify-content:flex-end}
+    .message-debug{color:#555;font-size:10px}
+    .message-debug summary{list-style:none;cursor:pointer;user-select:none}
+    .message-debug summary::-webkit-details-marker{display:none}
+    .message-debug pre{
+      margin:7px 0 0;
+      max-width:100%;
+      white-space:pre-wrap;overflow-wrap:anywhere;
+      color:#666;font:10px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace
+    }
+    .message-widgets{display:grid;gap:8px;margin-top:12px}
+    .inline-widget{
+      border-top:1px solid var(--line);
+      padding-top:10px;
+      color:#aaa;
+    }
+    .inline-widget details>summary,
+    .prometeo-progress-widget>summary{
+      display:flex;align-items:center;gap:8px;
+      list-style:none;cursor:pointer;user-select:none;
+      min-height:28px;
+      color:#8a8a8a;font-size:11px
+    }
+    .inline-widget details>summary::-webkit-details-marker,
+    .prometeo-progress-widget>summary::-webkit-details-marker{display:none}
+    .widget-title{font-weight:650;color:#bdbdb8}
+    .widget-note{margin-top:8px;color:#666;font-size:11px;line-height:1.45}
+    .stats-grid{
+      display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));
+      gap:14px;margin-top:12px;padding-bottom:3px
+    }
+    .stat{min-width:0}
+    .stat-value{font-size:19px;line-height:1.05;color:#e2e2df;font-weight:700;letter-spacing:-.03em}
+    .stat-label{margin-top:4px;color:#666;font-size:9px;line-height:1.25;text-transform:uppercase;letter-spacing:.06em}
+    .widget-link{color:#b7b7b1;text-decoration:none;border-bottom:1px solid #444}
+    .waiting{
+      margin:16px 2px 26px;
+      color:#595959;font-size:12px;line-height:1.45
+    }
+
+    #chat-canary-progress{min-width:0}
+    .prometeo-progress-widget{position:relative}
+    .prometeo-progress-widget>summary{
+      padding:5px 0;
+      min-height:30px;
+      color:#777
+    }
+    .progress-dot{font-size:9px}
+    .progress-pct{font-size:11px;color:#bdbdb8}
+    .progress-stage{
+      max-width:170px;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+      color:#595959;font-size:9px
+    }
+    .progress-inner{
+      position:absolute;right:0;top:36px;z-index:50;
+      width:min(360px,calc(100vw - 28px));
+      padding:14px 14px 13px;
+      background:#080808;
+      border:1px solid #1d1d1d;
+      border-radius:14px;
+      box-shadow:0 16px 50px rgba(0,0,0,.65)
+    }
+    .progress-rail{height:3px;background:#1a1a1a;overflow:hidden;border-radius:99px}
+    .progress-fill{height:100%;background:#d0d0cb}
+    .progress-counts{margin-top:9px;color:#686868;font-size:9px}
+    .progress-steps{display:grid;gap:7px;margin-top:11px}
+    .progress-step{
+      display:grid;grid-template-columns:14px minmax(0,1fr) auto;
+      gap:7px;align-items:baseline;
+      color:#747474;font-size:9px;line-height:1.3
+    }
+    .progress-step-state{color:#555}
+    .progress-step-state.done{color:var(--ok)}
+    .progress-step-weight{color:#4d4d4d}
+    .progress-error{color:#666;font-size:9px}
+
+    .composer-shell{
+      position:sticky;bottom:0;z-index:30;
+      padding:10px 0 max(10px,env(safe-area-inset-bottom));
+      background:rgba(0,0,0,.97)
+    }
+    [data-prometeo-chat-composer-form-v1]{
+      display:grid;grid-template-columns:minmax(0,1fr) auto;
+      gap:8px;align-items:end;
+      padding:6px 7px 6px 14px;
+      border:1px solid #232323;
+      border-radius:23px;
+      background:#0b0b0b
+    }
+    [data-prometeo-chat-composer-input-v1]{
+      width:100%;min-height:30px;max-height:180px;resize:none;
+      padding:6px 0;
+      border:0;outline:0;background:transparent;color:var(--ink);
+      font-size:15px;line-height:1.42
+    }
+    [data-prometeo-chat-composer-input-v1]::placeholder{color:#505050}
+    [data-prometeo-chat-composer-submit-v1]{
+      width:34px;height:34px;border:0;border-radius:50%;
+      background:#ededeb;color:#050505;
+      font-size:20px;line-height:1;font-weight:700;cursor:pointer
+    }
+    [data-prometeo-chat-composer-submit-v1]:disabled{opacity:.35}
+    [data-prometeo-chat-composer-status-v1]{
+      min-height:0;margin:5px 6px 0;
+      color:#707070;font:9px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;
+      overflow-wrap:anywhere
+    }
+    [data-prometeo-chat-composer-status-v1]:empty{display:none}
+
+    @media(max-width:560px){
+      .app{padding-left:12px;padding-right:12px}
+      .topbar{min-height:48px}
+      #thread{padding-top:14px}
+      .msg{margin-bottom:24px}
+      .msg-main{max-width:94%}
+      .human .msg-main{max-width:88%}
+      .body{font-size:15.5px}
+      .progress-stage{display:none}
+    }
   </style>
 </head>
 <body>
-<main>
-  <header>
-    <div class="eyebrow">Control Room V11 · diagnostic canary</div>
-    <h1>Prometeo · un chat durable</h1>
-    <div class="sub">Proyección pública mínima de un único Chat Object. No es autoridad, no crea mensajes y no simula liveness.</div>
-  </header>
+  <main class="app">
+    <div class="topbar">
+      <div class="brand">Prometeo</div>
+      <div class="top-spacer"></div>
+      <div id="chat-canary-progress" aria-label="Progreso durable"></div>
+      <button id="refresh" type="button" aria-label="Actualizar conversación">↻</button>
+    </div>
 
-  <section class="bar" aria-live="polite">
-    <div id="status" class="status"><span class="dot"></span><span id="statusText">Cargando thread…</span></div>
-    <button id="refresh" type="button">REFRESH</button>
-  </section>
+    <div id="status" role="status" aria-live="polite"></div>
+    <section id="thread" aria-live="polite"></section>
 
-  <section id="thread" class="thread" aria-live="polite"></section>
+    <div class="composer-shell">
+      <div id="chatComposer" data-prometeo-chat-composer-v1></div>
+    </div>
+  </main>
 
-  <section class="module-shell" aria-label="Composer durable">
-    <div class="module-label">INPUT DURABLE · FAIL-CLOSED</div>
-    <div id="chatComposer" data-prometeo-chat-composer-v1></div>
-  </section>
+  <script src="../ingress-v1.js"></script>
+  <script src="./input-module-v1.js"></script>
+  <script src="./progress-v1.js"></script>
+  <script>
+  (() => {
+    'use strict';
 
-  <section class="module-shell" aria-label="Progreso durable">
-    <div class="module-label">PROGRESO · WORK UNIT</div>
-    <div id="chat-canary-progress"></div>
-  </section>
+    const THREAD_URL = '../../../coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json';
+    const CHAT_OBJECT_ID = 'chat-object-prometeo-chat-control-main';
+    const HUMAN_FALLBACK = {
+      message_id: 'MSG-CANARY-HUMAN-001',
+      chat_object_id: CHAT_OBJECT_ID,
+      actor_type: 'HUMAN',
+      body_kind: 'TEXT',
+      body_text: 'Explicá en una sola frase qué significa un worker atómico dentro de este experimento.',
+      created_at: null,
+      published_at: null,
+      status: 'PUBLISHED',
+      privacy: 'PUBLIC_SANITIZED_CANARY'
+    };
 
-  <footer>
-    CHAT_OBJECT: chat-object-prometeo-chat-control-main<br>
-    SOURCE: coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json<br>
-    Boundary: candidate UI · existing ingress only · no embedded auth · no backend nuevo · no polling automático.
-  </footer>
-</main>
-<script src="../ingress-v1.js"></script>
-<script src="./input-module-v1.js"></script>
-<script src="./progress-v1.js"></script>
-<script>
-(() => {
-  'use strict';
+    const thread = document.getElementById('thread');
+    const status = document.getElementById('status');
+    const refresh = document.getElementById('refresh');
 
-  const THREAD_URL = '../../../coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json';
-  const CHAT_OBJECT_ID = 'chat-object-prometeo-chat-control-main';
-  const HUMAN_FALLBACK = {
-    message_id: 'MSG-CANARY-HUMAN-001',
-    chat_object_id: CHAT_OBJECT_ID,
-    actor_type: 'HUMAN',
-    body_kind: 'TEXT',
-    body_text: 'Explicá en una sola frase qué significa un worker atómico dentro de este experimento.',
-    created_at: null,
-    published_at: null,
-    status: 'PUBLISHED',
-    privacy: 'PUBLIC_SANITIZED_CANARY'
-  };
-
-  const elThread = document.getElementById('thread');
-  const elStatus = document.getElementById('status');
-  const elStatusText = document.getElementById('statusText');
-  const refresh = document.getElementById('refresh');
-
-  function text(tag, value, cls) {
-    const el = document.createElement(tag);
-    if (cls) el.className = cls;
-    el.textContent = value == null || value === '' ? '—' : String(value);
-    return el;
-  }
-
-  function addRef(box, label, value) {
-    if (!value) return;
-    const row = document.createElement('div');
-    row.append(text('span', label + ': '));
-    row.append(text('code', value));
-    box.append(row);
-  }
-
-  function renderMessage(message) {
-    const actor = String(message.actor_type || 'UNKNOWN').toUpperCase();
-    const card = document.createElement('article');
-    card.className = 'msg' + (actor === 'WORKER' ? ' worker' : '');
-
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.append(text('span', actor, 'actor'));
-    meta.append(text('span', message.status || 'PUBLISHED'));
-    const when = message.published_at || message.created_at;
-    if (when) meta.append(text('span', when));
-
-    const body = text('div',
-      message.body_kind === 'ARTIFACT_REF'
-        ? (message.body_ref || '[artifact]')
-        : (message.body_text || ''),
-      'body'
-    );
-
-    const refs = document.createElement('div');
-    refs.className = 'refs';
-    addRef(refs, 'message_id', message.message_id);
-    addRef(refs, 'actor_ref', message.actor_ref);
-    addRef(refs, 'result_ref', message.result_ref);
-    addRef(refs, 'work_unit_ref', message.work_unit_ref);
-
-    card.append(meta, body);
-    if (refs.childNodes.length) card.append(refs);
-    return card;
-  }
-
-  function renderWaiting(reason) {
-    const box = document.createElement('div');
-    box.className = 'waiting';
-    const strong = document.createElement('b');
-    strong.textContent = 'WAITING · ';
-    box.append(strong, document.createTextNode(reason));
-    elThread.append(box);
-  }
-
-  function setState(kind, label) {
-    elStatus.classList.toggle('ready', kind === 'ready');
-    elStatusText.textContent = label;
-  }
-
-  function render(messages, updatedAt) {
-    elThread.replaceChildren();
-    const safe = Array.isArray(messages) ? messages.filter(Boolean) : [];
-    const hasHuman = safe.some(m => String(m.actor_type).toUpperCase() === 'HUMAN');
-    if (!hasHuman) elThread.append(renderMessage(HUMAN_FALLBACK));
-    safe.forEach(m => elThread.append(renderMessage(m)));
-
-    const worker = safe.find(m => String(m.actor_type).toUpperCase() === 'WORKER');
-    if (worker) {
-      setState('ready', 'THREAD DURABLE · respuesta WORKER publicada' + (updatedAt ? ' · ' + updatedAt : ''));
-    } else {
-      setState('waiting', 'WAITING · thread sin respuesta WORKER');
-      renderWaiting('Todavía no hay una respuesta worker publicada en el thread durable. Refresh vuelve a leer la misma fuente.');
+    function node(tag, text, className) {
+      const element = document.createElement(tag);
+      if (className) element.className = className;
+      if (text !== undefined && text !== null) element.textContent = String(text);
+      return element;
     }
-  }
 
-  async function load() {
-    refresh.disabled = true;
-    setState('waiting', 'Leyendo thread durable…');
-    try {
-      const sep = THREAD_URL.includes('?') ? '&' : '?';
-      const response = await fetch(THREAD_URL + sep + 't=' + Date.now(), {cache:'no-store'});
-      if (response.status === 404) {
-        render([], null);
-        return;
-      }
-      if (!response.ok) throw new Error('HTTP ' + response.status);
-      const data = await response.json();
-      if (!data || data.schema !== 'prometeo.chat-thread-projection/v1' || data.chat_object_id !== CHAT_OBJECT_ID) {
-        throw new Error('thread shape incompatible');
-      }
-      render(data.messages, data.updated_at || null);
-    } catch (err) {
-      elThread.replaceChildren(renderMessage(HUMAN_FALLBACK));
-      setState('waiting', 'WAITING · fuente no disponible');
-      renderWaiting('No se pudo leer una proyección válida ahora. Esto no prueba que un worker esté vivo o muerto. ' + (err && err.message ? err.message : ''));
-    } finally {
-      refresh.disabled = false;
+    function actorLabel(actor) {
+      const value = String(actor || '').toUpperCase();
+      if (value === 'HUMAN') return 'vos';
+      if (value === 'SYSTEM') return 'sistema';
+      return 'Prometeo';
     }
-  }
 
-  const composerHost = document.getElementById('chatComposer');
-  const composerApi = window.PROMETEO_CHAT_CANARY_INPUT_V1;
-  if (composerHost && composerApi && typeof composerApi.mount === 'function') {
-    composerApi.mount(composerHost, {
-      page: {
-        id: 'chat-canary',
-        page_id: 'control-v11-chat-canary',
-        title: 'Prometeo · Chat canary',
-        surface_id: 'current-tree-control-v11-chat-canary',
-        project_id: 'prometeo-autonomous-growth',
-        target_path: 'current-tree/control-v11/chat-canary/'
-      },
-      onResult(result) {
-        if (result && result.queued === true && result.ref) {
-          setState('waiting', 'QUEUED DURABLE · usá REFRESH para releer el thread');
+    function actorClass(actor) {
+      const value = String(actor || '').toUpperCase();
+      if (value === 'HUMAN') return 'human';
+      if (value === 'SYSTEM') return 'system';
+      if (value === 'WORKER') return 'worker';
+      return 'assistant';
+    }
+
+    function timeLabel(value) {
+      if (!value) return '';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      try {
+        return new Intl.DateTimeFormat('es-AR', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).format(date);
+      } catch {
+        return date.toISOString().slice(11,16);
+      }
+    }
+
+    function setStatus(label) {
+      status.textContent = label || '';
+      status.classList.toggle('visible', Boolean(label));
+    }
+
+    function renderExperimentStats(block) {
+      const wrap = node('div', null, 'inline-widget');
+      const details = document.createElement('details');
+      const summary = document.createElement('summary');
+      summary.append(node('span', block.label || 'estadísticas', 'widget-title'));
+
+      const grid = node('div', null, 'stats-grid');
+      const metrics = block && typeof block.metrics === 'object' && block.metrics ? block.metrics : {};
+      for (const [label, value] of Object.entries(metrics)) {
+        const stat = node('div', null, 'stat');
+        stat.append(
+          node('div', value, 'stat-value'),
+          node('div', label, 'stat-label')
+        );
+        grid.append(stat);
+      }
+      details.append(summary, grid);
+      if (block.note) details.append(node('div', block.note, 'widget-note'));
+      wrap.append(details);
+      return wrap;
+    }
+
+    function renderLink(block) {
+      const wrap = node('div', null, 'inline-widget');
+      const a = node('a', block.label || 'abrir', 'widget-link');
+      a.href = block.href || '#';
+      a.target = '_blank';
+      a.rel = 'noopener';
+      wrap.append(a);
+      return wrap;
+    }
+
+    function renderUiBlocks(message, host) {
+      const blocks = Array.isArray(message.ui_blocks) ? message.ui_blocks : [];
+      if (!blocks.length) return;
+      const box = node('div', null, 'message-widgets');
+      host.append(box);
+
+      for (const block of blocks) {
+        if (!block || !block.type) continue;
+        if (block.type === 'experiment_stats') {
+          box.append(renderExperimentStats(block));
+        } else if (block.type === 'link') {
+          box.append(renderLink(block));
+        } else if (block.type === 'work_unit_progress') {
+          const widget = node('div', null, 'inline-widget');
+          const progressHost = node('div');
+          widget.append(progressHost);
+          box.append(widget);
+          const api = window.PrometeoChatCanaryProgress;
+          if (api && typeof api.load === 'function') void api.load(progressHost);
         }
       }
-    });
-  } else if (composerHost) {
-    composerHost.textContent = 'BOUNDARY_INPUT_MODULE_UNAVAILABLE';
-  }
+    }
 
-  refresh.addEventListener('click', load);
-  load();
-})();
-</script>
+    function renderDebug(message) {
+      const refs = [
+        ['message', message.message_id],
+        ['source', message.source_surface],
+        ['actor_ref', message.actor_ref],
+        ['result_ref', message.result_ref],
+        ['work_unit_ref', message.work_unit_ref]
+      ].filter(([,value]) => value);
+      if (!refs.length) return null;
+
+      const details = document.createElement('details');
+      details.className = 'message-debug';
+      const summary = node('summary', '⋯');
+      const pre = node('pre', refs.map(([k,v]) => k + ': ' + v).join('\n'));
+      details.append(summary, pre);
+      return details;
+    }
+
+    function renderMessage(message) {
+      const actor = String(message.actor_type || 'ASSISTANT').toUpperCase();
+      const article = node('article', null, 'msg ' + actorClass(actor));
+      const main = node('div', null, 'msg-main');
+
+      const meta = node('div', null, 'meta');
+      meta.append(node('span', actorLabel(actor), 'actor'));
+      const when = timeLabel(message.published_at || message.created_at);
+      if (when) meta.append(node('span', when));
+      if (message.source_surface) meta.append(node('span', message.source_surface, 'source'));
+
+      const bodyText = message.body_kind === 'ARTIFACT_REF'
+        ? (message.body_ref || '[artifact]')
+        : (message.body_text || '');
+      const body = node('div', bodyText, 'body');
+
+      main.append(meta, body);
+      renderUiBlocks(message, main);
+
+      const debug = renderDebug(message);
+      if (debug) {
+        const tools = node('div', null, 'message-tools');
+        tools.append(debug);
+        main.append(tools);
+      }
+
+      article.append(main);
+      return article;
+    }
+
+    function renderWaiting(label) {
+      thread.append(node('div', label || 'esperando respuesta…', 'waiting'));
+    }
+
+    function render(messages) {
+      thread.replaceChildren();
+      const safe = Array.isArray(messages) ? messages.filter(Boolean) : [];
+      const hasHuman = safe.some(m => String(m.actor_type).toUpperCase() === 'HUMAN');
+      if (!hasHuman) thread.append(renderMessage(HUMAN_FALLBACK));
+      for (const message of safe) thread.append(renderMessage(message));
+      if (!safe.some(m => ['ASSISTANT','WORKER'].includes(String(m.actor_type).toUpperCase()))) {
+        renderWaiting('esperando respuesta…');
+      }
+      setStatus('');
+      requestAnimationFrame(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'auto' }));
+    }
+
+    async function load() {
+      refresh.disabled = true;
+      try {
+        const separator = THREAD_URL.includes('?') ? '&' : '?';
+        const response = await fetch(THREAD_URL + separator + 't=' + Date.now(), { cache: 'no-store' });
+        if (response.status === 404) {
+          render([]);
+          return;
+        }
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const data = await response.json();
+        if (!data || data.schema !== 'prometeo.chat-thread-projection/v1' || data.chat_object_id !== CHAT_OBJECT_ID) {
+          throw new Error('THREAD_SHAPE_INCOMPATIBLE');
+        }
+        render(data.messages);
+      } catch (error) {
+        thread.replaceChildren(renderMessage(HUMAN_FALLBACK));
+        renderWaiting('no pude releer el thread durable');
+        setStatus(error && error.message ? error.message : 'THREAD_UNAVAILABLE');
+      } finally {
+        refresh.disabled = false;
+      }
+    }
+
+    const composerHost = document.getElementById('chatComposer');
+    const composerApi = window.PROMETEO_CHAT_CANARY_INPUT_V1;
+    if (composerHost && composerApi && typeof composerApi.mount === 'function') {
+      const mounted = composerApi.mount(composerHost, {
+        rows: 1,
+        placeholder: 'Mensaje',
+        submitLabel: '↑',
+        page: {
+          id: 'chat-canary',
+          page_id: 'control-v11-chat-canary',
+          title: 'Prometeo',
+          surface_id: 'current-tree-control-v11-chat-canary',
+          project_id: 'prometeo-autonomous-growth',
+          target_path: 'current-tree/control-v11/chat-canary/'
+        },
+        onResult(result) {
+          if (result && result.queued === true && result.ref) {
+            setStatus('');
+            void load();
+          } else if (result && result.status) {
+            setStatus(result.status === 'BOUNDARY_AUTH_REQUIRED'
+              ? 'envío todavía bloqueado por el bridge privado'
+              : result.status);
+          }
+        }
+      });
+
+      const input = mounted && mounted.elements ? mounted.elements.input : null;
+      if (input) {
+        const resize = () => {
+          input.style.height = 'auto';
+          input.style.height = Math.min(input.scrollHeight, 180) + 'px';
+        };
+        input.addEventListener('input', resize);
+        resize();
+      }
+    } else if (composerHost) {
+      setStatus('input no disponible');
+    }
+
+    refresh.addEventListener('click', load);
+    load();
+  })();
+  </script>
 </body>
 </html>
