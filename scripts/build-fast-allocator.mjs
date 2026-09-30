@@ -862,7 +862,10 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
       values.push(row);
       receiptByWork.set(id, values);
     }
-    for (const ref of arr(row.doc?.consumed_returns)) consumedReturns.add(ref);
+    for (const entry of arr(row.doc?.consumed_returns)) {
+      const ref = typeof entry === 'string' ? entry : (entry?.ref || entry?.path || null);
+      if (ref) consumedReturns.add(ref);
+    }
   }
 
   const hbByWorker = new Map();
