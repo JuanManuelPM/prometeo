@@ -1,0 +1,40 @@
+{
+  "schema": "prometeo.guide-receipt/v1",
+  "guide_work_id": "guide-critic-aa11568b0244",
+  "receipt_id": "RECEIPT-wc-20260930T005655Z-6b0387637c2b-G000001",
+  "worker_id": "wc-20260930T005655Z-6b0387637c2b",
+  "role": "GUIDE_CRITIC",
+  "created_at": "2026-09-30T01:08:51.184Z",
+  "trigger": "PARTIAL_LOOP",
+  "evidence": [
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-eff034-live-stale-collision-refresh-observation-v1.json",
+    "coordination/portfolio/returns/portfolio-eff034-live-stale-collision-refresh-observation-v1/RETURN-wc-20260919T145702Z-b4a9587e3851-G000002-BOUNDARY-UNOBSERVED.json",
+    "coordination/portfolio/returns/portfolio-eff034-live-stale-collision-refresh-observation-v1/RETURN-wc-20260930T0055Z-444dc3e3e9d9-G000003-UNOBSERVED.json",
+    "scripts/build-fast-allocator.mjs@4df18253203d4235b300e1a6c8682f847c892fc5",
+    "coordination/portfolio/tests/guide_critic_consumed_partial_suppression_v1.mjs@0b8ac9ac966db39d75be6d5f56f0953178c929ea"
+  ],
+  "diagnosis": "The repeated EFF034 critic/integrator loop exposed a compiler compatibility bug: compileRoleFrontier inserted consumed_returns entries directly into a Set. Guide receipts may use structured disposition objects ({ref|path,...}), so later string return paths did not match those object identities. Already-consumed PARTIAL/BOUNDARY returns could therefore resurrect RETURNS_UNCONSUMED/PARTIAL_LOOP roles under new fingerprints.",
+  "intervention": "Patched scripts/build-fast-allocator.mjs to normalize both legacy string consumed_returns and structured {ref|path} entries before inserting paths into consumedReturns. Extended the existing consumed-partial suppression regression test so full consumption uses structured ref/path objects while the one-consumed case still exercises the legacy string form.",
+  "created_jobs": [],
+  "consumed_returns": [
+    {
+      "ref": "coordination/portfolio/returns/portfolio-eff034-live-stale-collision-refresh-observation-v1/RETURN-wc-20260919T145702Z-b4a9587e3851-G000002-BOUNDARY-UNOBSERVED.json",
+      "disposition": "CONSUMED_BY_CRITIC_REPAIR"
+    },
+    {
+      "ref": "coordination/portfolio/returns/portfolio-eff034-live-stale-collision-refresh-observation-v1/RETURN-wc-20260930T0055Z-444dc3e3e9d9-G000003-UNOBSERVED.json",
+      "disposition": "CONSUMED_BY_CRITIC_REPAIR"
+    }
+  ],
+  "changed_paths": [
+    "scripts/build-fast-allocator.mjs",
+    "coordination/portfolio/tests/guide_critic_consumed_partial_suppression_v1.mjs",
+    "coordination/guide/receipts/guide-critic-aa11568b0244/RECEIPT-wc-20260930T005655Z-6b0387637c2b-G000001.json"
+  ],
+  "tests": [
+    "PASS static patch inspection: structured consumed_returns resolves entry.ref or entry.path; legacy strings remain supported.",
+    "PASS regression fixture now covers structured {ref} and {path} consumption plus legacy string consumption.",
+    "NOT_EXECUTED locally: this chat runtime does not expose the repository as a shell checkout; no fabricated Node test execution claim."
+  ],
+  "remaining_boundary": "A subsequent allocator build/run should execute the regression test in its normal CI/test environment and confirm the consumed EFF034 returns no longer regenerate PARTIAL_LOOP solely because receipt entries are structured objects."
+}
