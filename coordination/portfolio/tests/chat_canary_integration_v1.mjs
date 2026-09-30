@@ -32,8 +32,9 @@ for(const [name,a,b] of [
 const ingressPos=mainIndex.indexOf('src="../ingress-v1.js"');
 const inputPos=mainIndex.indexOf('src="./input-module-v1.js"');
 const progressPos=mainIndex.indexOf('src="./progress-v1.js"');
-const mountPos=mainIndex.indexOf('PROMETEO_CHAT_CANARY_INPUT_V1.mount');
-assert.ok(ingressPos>=0&&inputPos>ingressPos&&progressPos>inputPos&&mountPos>progressPos,'script/mount order must be ingress -> input -> progress -> mount');
+const globalPos=mainIndex.indexOf('PROMETEO_CHAT_CANARY_INPUT_V1');
+const mountPos=mainIndex.indexOf('composerApi.mount');
+assert.ok(ingressPos>=0&&inputPos>ingressPos&&progressPos>inputPos&&globalPos>progressPos&&mountPos>globalPos,'script/mount order must be ingress -> input -> progress -> reviewed global -> mount');
 assert.match(mainIndex,/id="chatComposer"/);
 assert.match(mainIndex,/id="chat-canary-progress"/);
 assert.doesNotMatch(mainIndex,/<(?:form|input|textarea)\b/i,'index must keep input markup inside reviewed module');
