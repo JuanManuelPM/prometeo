@@ -205,7 +205,7 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
       const receiptTerminalBoundary=/TERMINAL_BOUNDARY|RUN_TERMINAL_BOUNDARY/.test(receiptCloseReason);
       const durableRunTerminal=isRun && (
         !!examDoc ||
-        /^(PASS|FAIL|BOUNDARY|RUN_COMPLETE|RUN_TERMINAL_BOUNDARY)$/.test(e9Status) ||
+        (/^(PASS|FAIL|BOUNDARY|RUN_COMPLETE|RUN_TERMINAL_BOUNDARY)$/.test(e9Status) || /TERMINAL_BOUNDARY/.test(e9Status)) ||
         receiptTerminalBoundary ||
         (!!repo.noalloc.get(w.worker_id) && benchmarkReceipt?.doc)
       );
