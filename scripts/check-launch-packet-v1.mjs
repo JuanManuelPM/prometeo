@@ -64,6 +64,28 @@ for(const ent of packetEntries){
     if(!hasReallocationObjective&&realloc.length!==0) fail(runId+': generic packet without reallocation objective must not declare reallocation slots');
   }else if(realloc.length!==slots.length) fail(runId+': reallocation slots must match primary slot count');
 
+  // Packets created before packet_profile existed remain durable historical contracts.
+  // Validate their identity/atomic namespaces, but do not retroactively force later
+  // CatLab/generic projection fields onto immutable experiments.
+  if(legacyPacket){
+    uniq(slots.map(x=>x.slot_id),runId+' primary slot ids');
+    uniq(slots.map(x=>x.claim_path),runId+' primary claim paths');
+    uniq(realloc.map(x=>x.slot_id),runId+' reallocation slot ids');
+    uniq(realloc.map(x=>x.claim_path),runId+' reallocation claim paths');
+    for(const s of slots){
+      if(!/^S\d{3}$/.test(s.slot_id)) fail(runId+': bad legacy slot id '+s.slot_id);
+      if(s.claim_path!==`coordination/launch-packets/${runId}/claims/${s.slot_id}.json`) fail(runId+': legacy claim path mismatch '+s.slot_id);
+      if(!Array.isArray(s.write_scope)||s.write_scope.length<1) fail(runId+': legacy primary write scope missing '+s.slot_id);
+    }
+    for(const s of realloc){
+      if(!/^R\d{3}$/.test(s.slot_id)) fail(runId+': bad legacy reallocation slot '+s.slot_id);
+      if(s.claim_path!==`coordination/launch-packets/${runId}/reallocation-claims/${s.slot_id}.json`) fail(runId+': legacy reallocation claim path mismatch '+s.slot_id);
+      if(!Array.isArray(s.write_scope)||s.write_scope.length<1) fail(runId+': legacy reallocation write scope missing '+s.slot_id);
+    }
+    summaries.push({run_id:runId,status:packet.status,slots:slots.length,reallocation_slots:realloc.length,variant_counts:{legacy:true}});
+    continue;
+  }
+
   uniq(slots.map(x=>x.slot_id),runId+' primary slot ids');
   uniq(slots.map(x=>x.claim_path),runId+' primary claim paths');
   uniq(slots.flatMap(x=>x.write_scope||[]),runId+' primary write scopes');
