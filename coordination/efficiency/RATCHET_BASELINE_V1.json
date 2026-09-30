@@ -1,7 +1,7 @@
 {
   "schema": "prometeo.efficiency-ratchet/v1",
   "status": "CANARY_BINDING",
-  "updated_at": "2026-09-30T01:10:50.095Z",
+  "updated_at": "2026-09-30T01:56:00Z",
   "runtime_baseline_activated_at": "2026-09-17T20:15:00Z",
   "purpose": "Machine-readable non-regression baseline for coordination hot paths.",
   "items": [
@@ -2617,6 +2617,40 @@
         "coordination/guide/pins/guide-critic-6ff41058f76f/G000001.json",
         "coordination/portfolio/returns/portfolio-jose-v12-map-browser-ci-runner-v1/RETURN-w-20260921T0009Z-7b13c9e4a2-portfolio-jose-v12-map-browser-ci-runner-v1-G000001-PARTIAL.json",
         "coordination/portfolio/returns/portfolio-jose-v12-map-browser-ci-runner-v1/RETURN-wc-20260929T034600Z-b8e4d21c7f93-G000002-PARTIAL.json"
+      ]
+    },
+    {
+      "id": "EFF070",
+      "title": "No-I/O local-batch replicas remain single-owner instead of becoming recovery duplicates",
+      "scope": [
+        "worker-allocation",
+        "recovery",
+        "LOCAL-BATCH-E5-01",
+        "local-batching",
+        "efficiency-ratchet"
+      ],
+      "observed_failure": "LOCAL-BATCH-E5 deliberately forbids all external I/O between its durable START marker and RESULT while requiring a large A1→A8 local workload. Its ordinary PIN lease is still ten minutes, so a compliant silent owner can become replaceable and admit a second generation, duplicating work and contaminating the experiment that is meant to measure longer local production between GitHub interactions.",
+      "invariant": "Each of the six LOCAL-BATCH-E5-01 replica jobs is generation-fixed at G000001. After one durable owner exists, ordinary G+1 recovery is suppressed and residual absence is routed to bounded attention. Missing RESULT stays evidence of an incomplete/invalid replica; it is never repaired by silently launching another owner for the same replica.",
+      "required": {
+        "experiment_id": "LOCAL-BATCH-E5-01",
+        "replica_job_count": 6,
+        "recovery_mode": "fixed_generation",
+        "fixed_generation": 1,
+        "ordinary_next_generation_eligible": false,
+        "attention_route": "LOCAL_BATCH_E5_SINGLE_OWNER_ATTENTION",
+        "initial_G000001_claim_preserved": true,
+        "G000002_and_later_ordinary_recovery_forbidden": true,
+        "missing_result_not_zero_or_pass": true,
+        "global_worker_lease_semantics_unchanged": true,
+        "implementation": "coordination/portfolio/recovery-policies/portfolio-worker-local-batch-e5-*.json",
+        "regression_test": "coordination/portfolio/tests/local_batch_e5_single_generation_recovery_v1.mjs",
+        "workflow_guard": ".github/workflows/efficiency-ratchet.yml"
+      },
+      "status": "STATIC_GUARDED_PENDING_RUNTIME",
+      "evidence": [
+        "coordination/workers/WORKER_LOCAL_BATCH_E5_EXPERIMENT_V1.json",
+        "coordination/portfolio/pins/portfolio-worker-local-batch-e5-lb0-direct-r1-v1/G000001.json",
+        "coordination/portfolio/pins/portfolio-worker-local-batch-e5-lb2-fill-template-r2-v1/G000001.json"
       ]
     }
   ],
