@@ -51,6 +51,12 @@
     return ingress && typeof ingress.submit === 'function' ? ingress : null;
   }
 
+  function transportReady(explicitIngress = null) {
+    if (explicitIngress && typeof explicitIngress.submit === 'function') return true;
+    const transport = global.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1;
+    return Boolean(transport && typeof transport.submit === 'function');
+  }
+
   async function submitText({ text, ingress = null, page = DEFAULT_PAGE, kind = KIND } = {}) {
     const raw = text === undefined || text === null ? '' : String(text);
     if (!raw.trim()) {
@@ -63,6 +69,9 @@
     const api = activeIngress(ingress);
     if (!api) {
       return frozenResult('BOUNDARY_AUTH_REQUIRED', false, null, 'INGRESS_API_REQUIRED', false);
+    }
+    if (!transportReady(ingress)) {
+      return frozenResult('BOUNDARY_AUTH_REQUIRED', false, null, 'AUTH_BRIDGE_REQUIRED', false);
     }
 
     let result;
@@ -142,9 +151,35 @@
     root.replaceChildren(form, status);
 
     let destroyed = false;
+    let availabilityTimer = null;
+
+    function syncAvailability() {
+      if (destroyed) return false;
+      const ready = transportReady(options.ingress || null);
+      root.setAttribute('data-transport-ready', ready ? 'true' : 'false');
+      submit.disabled = !ready;
+      submit.setAttribute('aria-disabled', ready ? 'false' : 'true');
+      submit.title = ready ? 'Enviar' : 'No enviado: falta bridge privado autenticado';
+      if (!ready) {
+        setStatus(status, 'SOLO BORRADOR · NO ENVIADO · falta bridge privado autenticado');
+      } else if (status.textContent.includes('SOLO BORRADOR') || status.textContent.includes('BOUNDARY_AUTH_REQUIRED')) {
+        setStatus(status, '');
+      }
+      return ready;
+    }
+
+    syncAvailability();
+    availabilityTimer = global.setInterval ? global.setInterval(syncAvailability, 5000) : null;
+    input.addEventListener('focus', syncAvailability);
+
     async function send() {
       if (destroyed) throw new Error('CHAT_CANARY_COMPOSER_DESTROYED');
       const preserved = input.value;
+      if (!syncAvailability()) {
+        const blocked = frozenResult('BOUNDARY_AUTH_REQUIRED', false, null, 'AUTH_BRIDGE_REQUIRED', false);
+        if (typeof options.onResult === 'function') options.onResult(blocked);
+        return blocked;
+      }
       submit.disabled = true;
       setStatus(status, 'SUBMITTING · esperando confirmación durable…');
       let result;
@@ -156,7 +191,7 @@
           kind: options.kind || KIND
         });
       } finally {
-        submit.disabled = false;
+        syncAvailability();
       }
       if (result.clear_input === true && result.queued === true && validDurableRef(result.ref)) {
         input.value = '';
@@ -181,6 +216,8 @@
       destroy() {
         destroyed = true;
         form.removeEventListener('submit', onSubmit);
+        input.removeEventListener('focus', syncAvailability);
+        if (availabilityTimer && global.clearInterval) global.clearInterval(availabilityTimer);
       }
     });
   }
@@ -194,6 +231,7 @@
     dom_contract: DOM_CONTRACT,
     default_page: DEFAULT_PAGE,
     validDurableRef,
+    transportReady,
     submitText,
     mount,
     privacy: Object.freeze({
