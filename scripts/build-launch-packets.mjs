@@ -20,6 +20,7 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
   if(!fs.existsSync(source)) continue;
   const packet=readJson(source);
   const runId=packet.run_id;
+  const humanLaunchDeclaration=readJsonSafe(path.join(packetsRoot,ent.name,'HUMAN_LAUNCH_DECLARATION.json'));
   if(!runId||runId!==ent.name) throw new Error('run directory/id mismatch '+ent.name);
   const outDir=path.join(site,'launch',runId);
   fs.mkdirSync(path.join(outDir,'slots'),{recursive:true});
@@ -60,6 +61,15 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
     return {worker_id:x.worker_id,state};
   });
   const slots=packet.slots||[];
+  const expectedLaunches=packet.expected_human_launches??slots.length;
+  const declaredLaunchAttempts=Number.isFinite(Number(humanLaunchDeclaration?.attempted_launches))
+    ? Number(humanLaunchDeclaration.attempted_launches)
+    : null;
+  const launchCohortDeclaredComplete=declaredLaunchAttempts!==null && declaredLaunchAttempts>=expectedLaunches;
+  const unclaimedCount=Math.max(0,slots.length-claimedIds.size);
+  const replacementRecommendation=launchCohortDeclaredComplete
+    ? unclaimedCount
+    : (runBeacons.length>=expectedLaunches ? Math.min(unclaimedCount,unassignedBeacons.length) : 0);
   const variantStatus={};
   const benchmarkVariantStatus={};
   for(const slot of slots){
@@ -91,7 +101,9 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
     generated_at:new Date().toISOString(),
     run_id:runId,
     packet_status:packet.status,
-    expected_human_launches:packet.expected_human_launches??slots.length,
+    expected_human_launches:expectedLaunches,
+    human_launch_attempts_declared:declaredLaunchAttempts,
+    human_launch_cohort_declared_complete:launchCohortDeclaredComplete,
     slots_total:slots.length,
     slots_claimed:claimedIds.size,
     slots_unclaimed:Math.max(0,slots.length-claimedIds.size),
@@ -101,7 +113,7 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
     workers_beaconed_without_primary_claim:unassignedBeacons.length,
     unassigned_beacon_workers:unassignedBeacons.map(x=>({worker_id:x.worker_id,launched_at:x.launched_at||null,stage_observation:'E2_ASSIGN:NOT_REACHED_NO_CLAIM_EVIDENCE'})),
     assignment_success_rate:runBeacons.length?Number((claimedWorkerIds.size/runBeacons.length).toFixed(3)):null,
-    replacement_launches_recommended:(runBeacons.length>=(packet.expected_human_launches??slots.length))?Math.min(Math.max(0,slots.length-claimedIds.size),unassignedBeacons.length):0,
+    replacement_launches_recommended:replacementRecommendation,
     workers_terminal:terminalWorkers.length,
     terminal_completion_rate:slots.length?Number((terminalWorkers.length/slots.length).toFixed(3)):null,
     workers_incomplete:incompleteWorkers.length,
@@ -114,7 +126,7 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
     variants:variantStatus,
     benchmark_variants:Object.keys(benchmarkVariantStatus).length?benchmarkVariantStatus:null,
     human_numbering_required:false,
-    truth_boundary:'Durable main-branch beacons, packet claims and benchmark receipts only. A beacon without a primary claim is an observable E1-complete/E2-not-reached launch outcome, not proof of why the chat stopped.'
+    truth_boundary:'Claims/receipts/exams are durable main-branch evidence. human_launch_attempts_declared is human-reported attempt count only; it proves neither beacon nor claim. A beacon without a primary claim is E1-complete/E2-not-reached, not proof of why the chat stopped.'
   };
   fs.writeFileSync(path.join(outDir,'status.json'),JSON.stringify(status,null,2)+'\n');
   for(const slot of packet.slots||[]){
