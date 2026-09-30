@@ -1,0 +1,193 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const argv=process.argv.slice(2);
+const flag=(name)=>argv.includes(name);
+const value=(name,fallback=null)=>{
+  const i=argv.indexOf(name);
+  return i>=0 && i+1<argv.length ? argv[i+1] : fallback;
+};
+
+const repoRoot=path.resolve(value('--repo-root',process.cwd()));
+const pagesRootRaw=value('--pages-root',process.env.CHAT_MIRROR_PAGES_ROOT||null);
+const pagesRoot=pagesRootRaw ? path.resolve(pagesRootRaw) : null;
+const fixtureOnly=flag('--fixture-only');
+const jsonOutput=flag('--json');
+
+const CONTRACT_REL='coordination/portfolio/derived/prometeo-autonomous-growth/CHAT_MESSAGE_MIRROR_CANARY_V1.json';
+const FIXTURE_REL='coordination/portfolio/fixtures/chat_message_mirror_contract_harness_v1.json';
+const PAGE_REL='current-tree/control-v11/chat-canary/index.html';
+
+const result={
+  schema:'prometeo.chat-message-mirror-contract-harness-result/v1',
+  observed_at:new Date().toISOString(),
+  fixture:'NOT_RUN',
+  real_thread:'NOT_RUN',
+  thread_parity:'NOT_RUN',
+  page_static:'NOT_RUN',
+  overall:'RUNNING',
+  details:{}
+};
+
+const readText=(root,rel)=>fs.readFileSync(path.join(root,rel),'utf8');
+const exists=(root,rel)=>fs.existsSync(path.join(root,rel));
+const fail=(name,error)=>{
+  result[name]='FAIL';
+  result.details[name]={error:String(error?.message||error)};
+};
+const pass=(name,details={})=>{
+  result[name]='PASS';
+  result.details[name]=details;
+};
+const notReady=(name,reason)=>{
+  result[name]='NOT_READY';
+  result.details[name]={reason};
+};
+
+function terminalSentenceCount(text){
+  return (String(text).trim().match(/[.!?]+(?=\s|$)/g)||[]).length;
+}
+
+function assertRequiredMessageFields(contract,message,label){
+  for(const field of contract.message_projection_contract.required){
+    assert.ok(Object.prototype.hasOwnProperty.call(message,field),`${label}: missing required field ${field}`);
+    assert.notEqual(message[field],null,`${label}: required field ${field} is null`);
+    assert.notEqual(message[field],'',`${label}: required field ${field} is empty`);
+  }
+}
+
+function validateThread(contract,thread,label){
+  assert.equal(thread.schema,'prometeo.chat-thread-projection/v1',`${label}: wrong schema`);
+  assert.equal(thread.projection_status,'NON_AUTHORITATIVE',`${label}: projection must stay NON_AUTHORITATIVE`);
+  assert.equal(thread.chat_object_id,contract.chat_object_id,`${label}: chat_object_id mismatch`);
+  assert.ok(Array.isArray(thread.messages),`${label}: messages must be an array`);
+  assert.ok(thread.updated_at,`${label}: updated_at required`);
+
+  thread.messages.forEach((message,index)=>{
+    assertRequiredMessageFields(contract,message,`${label}.messages[${index}]`);
+    assert.equal(message.chat_object_id,contract.chat_object_id,`${label}.messages[${index}]: chat_object_id mismatch`);
+    assert.equal(message.privacy,'PUBLIC_SANITIZED_CANARY',`${label}.messages[${index}]: privacy boundary mismatch`);
+  });
+
+  const expectedHuman=contract.human_test_message;
+  const humans=thread.messages.filter(m=>m.actor_type==='HUMAN' && m.message_id===expectedHuman.message_id);
+  assert.equal(humans.length,1,`${label}: expected exactly one canonical human test message`);
+  const human=humans[0];
+  for(const field of ['message_id','actor_type','body_kind','body_text','privacy']){
+    assert.equal(human[field],expectedHuman[field],`${label}: human field ${field} diverged from contract`);
+  }
+
+  const workers=thread.messages.filter(m=>m.actor_type==='WORKER');
+  assert.equal(workers.length,1,`${label}: expected exactly one WORKER reply`);
+  const worker=workers[0];
+  assert.equal(worker.reply_to_message_id,expectedHuman.message_id,`${label}: WORKER reply lineage mismatch`);
+  assert.equal(worker.body_kind,'TEXT',`${label}: WORKER body_kind must be TEXT`);
+  assert.ok(String(worker.body_text||'').trim(),`${label}: WORKER body_text must be useful/non-empty`);
+  assert.equal(terminalSentenceCount(worker.body_text),1,`${label}: WORKER reply must be exactly one sentence`);
+  assert.ok(worker.actor_ref || worker.result_ref,`${label}: WORKER must expose actor_ref and/or result_ref traceability`);
+  assert.equal(worker.status,'PUBLISHED',`${label}: WORKER message must be PUBLISHED`);
+
+  return {
+    message_count:thread.messages.length,
+    human_message_id:human.message_id,
+    worker_message_id:worker.message_id,
+    worker_reply_to:worker.reply_to_message_id,
+    trace_ref:worker.result_ref||worker.actor_ref
+  };
+}
+
+function validatePage(contract,html,label){
+  const expectedThread=contract.thread_path_pages;
+  assert.ok(html.includes(expectedThread),`${label}: expected public thread path not referenced`);
+  assert.match(html,/\bfetch\s*\(/,`${label}: page must read the durable thread`);
+  assert.match(html,/WAITING/,`${label}: WAITING state must be explicit`);
+  assert.doesNotMatch(html,/<(?:form|input|textarea)\b/i,`${label}: bidirectional input surface is forbidden in this canary`);
+  assert.doesNotMatch(html,/\b(?:EventSource|WebSocket|ReadableStream)\b/,`${label}: streaming surface is forbidden`);
+  assert.doesNotMatch(html,/\bsetInterval\s*\(/,`${label}: aggressive/automatic polling is forbidden`);
+  assert.doesNotMatch(html,/method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i,`${label}: mutation request is forbidden`);
+  assert.doesNotMatch(html,/supabase\.co|\/functions\/v1\/|\/api\//i,`${label}: backend endpoint reference is forbidden`);
+  return {
+    thread_path:expectedThread,
+    waiting_state:true,
+    bidirectional_input:false,
+    streaming:false,
+    auto_polling:false,
+    mutation_requests:false,
+    backend_endpoint:false
+  };
+}
+
+function compareBytes(a,b,label){
+  const left=Buffer.from(a,'utf8');
+  const right=Buffer.from(b,'utf8');
+  assert.equal(left.equals(right),true,`${label}: main/gh-pages bytes diverge`);
+  return {bytes:left.length,identical:true};
+}
+
+let contract;
+try{
+  contract=JSON.parse(readText(repoRoot,CONTRACT_REL));
+  const fixture=JSON.parse(readText(repoRoot,FIXTURE_REL));
+  assert.equal(fixture.schema,'prometeo.chat-message-mirror-harness-fixture/v1','fixture schema mismatch');
+  assert.equal(fixture.contract_ref,CONTRACT_REL,'fixture contract_ref mismatch');
+  pass('fixture',validateThread(contract,fixture.thread,'fixture.thread'));
+}catch(error){
+  fail('fixture',error);
+}
+
+if(!fixtureOnly && result.fixture==='PASS'){
+  const threadRel=contract.thread_path_main;
+
+  if(!exists(repoRoot,threadRel)){
+    notReady('real_thread',`main thread missing: ${threadRel}`);
+  }else{
+    try{
+      const thread=JSON.parse(readText(repoRoot,threadRel));
+      pass('real_thread',validateThread(contract,thread,'main.thread'));
+    }catch(error){
+      fail('real_thread',error);
+    }
+  }
+
+  if(!exists(repoRoot,PAGE_REL)){
+    notReady('page_static',`main page missing: ${PAGE_REL}`);
+  }else{
+    try{
+      pass('page_static',validatePage(contract,readText(repoRoot,PAGE_REL),'main.page'));
+    }catch(error){
+      fail('page_static',error);
+    }
+  }
+
+  if(!pagesRoot){
+    notReady('thread_parity','--pages-root / CHAT_MIRROR_PAGES_ROOT not supplied; parity is not claimed');
+  }else{
+    const pagesThreadRel=contract.thread_path_pages;
+    if(!exists(repoRoot,threadRel) || !exists(pagesRoot,pagesThreadRel)){
+      notReady('thread_parity','thread missing on main or gh-pages checkout');
+    }else{
+      try{
+        pass('thread_parity',compareBytes(
+          readText(repoRoot,threadRel),
+          readText(pagesRoot,pagesThreadRel),
+          'thread parity'
+        ));
+      }catch(error){
+        fail('thread_parity',error);
+      }
+    }
+  }
+}
+
+const checked=['fixture',...(fixtureOnly?[]:['real_thread','thread_parity','page_static'])];
+if(checked.some(name=>result[name]==='FAIL')) result.overall='FAIL';
+else if(checked.some(name=>result[name]==='NOT_READY')) result.overall='NOT_READY';
+else result.overall='PASS';
+
+if(jsonOutput) console.log(JSON.stringify(result,null,2));
+else{
+  for(const name of checked) console.log(`${name}: ${result[name]}`);
+  console.log(`overall: ${result.overall}`);
+}
+if(result.overall==='FAIL') process.exitCode=1;
