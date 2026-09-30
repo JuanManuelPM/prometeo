@@ -251,12 +251,18 @@ async function selftestProbe() {
 
   const space = SPACES[0];
   const connectStarted = Date.now();
-  const app = await withProbeDeadline(
-    Client.connect(space),
-    SELFTEST_PROBE_DEADLINES.whisper_connect_ms,
-    "whisper_connect",
-    "WHISPER_CONNECT_TIMEOUT"
-  );
+  let app;
+  try {
+    app = await withProbeDeadline(
+      Client.connect(space),
+      SELFTEST_PROBE_DEADLINES.whisper_connect_ms,
+      "whisper_connect",
+      "WHISPER_CONNECT_TIMEOUT"
+    );
+  } catch (e) {
+    if (e?.phase) throw e;
+    throw probeError("whisper_connect", "WHISPER_CONNECT_FAILED", e?.message || e);
+  }
   phases.push({ phase: "whisper_connect", ok: true, space, elapsed_ms: Date.now() - connectStarted });
 
   const apiStarted = Date.now();
