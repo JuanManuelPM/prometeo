@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {compileReplica,aggregate,artifactPaths} from '../scripts/compile-local-batch-e5-telemetry.mjs';
+const job={job_id:'portfolio-worker-local-batch-e5-lb0-direct-r1-v1',variant:'LB0_DIRECT',replica:1};
+const paths=artifactPaths(job.job_id),start={schema:'start'};
+const result={experiment_id:'LOCAL-BATCH-E5-01',variant:'LB0_DIRECT',replica:1,worker_id:'wc-fixture-1',start_ref:paths.start,result_ref:paths.result};
+const git={start_commit:{sha:'a',committed_at:'2026-09-30T01:00:00Z'},result_commit:{sha:'c',committed_at:'2026-09-30T01:00:05Z'},intermediate_commits:[]};
+const pass=compileReplica({job,startArtifact:start,resultArtifact:result,git});
+assert.equal(pass.status,'COMPLETE');assert.equal(pass.elapsed_external_ms,5000);assert.equal(pass.observable_writes_between_start_and_result,0);assert.equal(pass.model_authored_duration_used_as_wall_clock,false);
+const missing=compileReplica({job,startArtifact:start,resultArtifact:null,git});assert.equal(missing.status,'NOT_READY');assert.equal(missing.reason,'MISSING_RESULT');assert.equal(missing.elapsed_external_ms,null);
+const ambient=compileReplica({job,startArtifact:start,resultArtifact:result,git:{...git,intermediate_commits:[{sha:'b',changed_paths:['some/other-worker/file.json']}]}});assert.equal(ambient.status,'COMPLETE');assert.equal(ambient.ambient_repo_commits_between,1);assert.equal(ambient.observable_writes_between_start_and_result,0);
+const violation=compileReplica({job,startArtifact:start,resultArtifact:result,git:{...git,intermediate_commits:[{sha:'b',changed_paths:[`coordination/workers/local-batch-results/LOCAL-BATCH-E5-01/${job.job_id}.PROGRESS.json`]}]}});assert.equal(violation.status,'INVALID_CONTRACT');assert.equal(violation.observable_writes_between_start_and_result,1);assert.ok(violation.violations.includes('ATTRIBUTABLE_INTERMEDIATE_DURABLE_WRITE'));
+const malformed=compileReplica({job,startArtifact:start,resultArtifact:{experiment_id:'LOCAL-BATCH-E5-01'},git});assert.equal(malformed.status,'MALFORMED');assert.ok(malformed.violations.includes('MISSING_WORKER_ID'));
+const agg=aggregate([pass],2);assert.equal(agg.variants.LB0_DIRECT.status,'INSUFFICIENT_SAMPLES');assert.equal(agg.winner,null);assert.equal(agg.automatic_promotion,false);
+console.log('PASS local-batch-e5-telemetry-compiler');
