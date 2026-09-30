@@ -12,6 +12,7 @@ const examSpec=json('coordination/workers/WORKER_PRODUCTIVITY_EXAM_V1.json');
 const growth=json('coordination/workers/WORKER_GROWTH_POLICY_V1.json');
 const strategy=json('coordination/workers/WORKER_STRATEGY_EXPERIMENT_V1.json');
 const handoff=json('coordination/guide/GUIDE_WORKER_HANDOFF_V1.json');
+const exitAudit=json('coordination/workers/WORKER_EXIT_AUDIT_V1.json');
 const mission=json('coordination/guide/CURRENT_MISSION_V1.json');
 const oldExam=json('coordination/workers/exams/wc-20260918T212321Z-94fec87501.json');
 const oldBeacon=json('coordination/workers/beacons/wc-20260918T212321Z-94fec87501.json');
@@ -73,6 +74,10 @@ assert.ok(examSpec.v330_pool_residency.conditional_terminal_fields.includes('clo
 assert.equal(examSpec.v330_fresh_launch.policy_ref,'coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json');
 assert.equal(growth.worker_protocol_min_version,'v3.30');
 assert.equal(strategy.protocol_min_version,'v3.30');
+assert.equal(exitAudit.status,'CANARY_BINDING');
+assert.equal(exitAudit.durable_owner.existing_owner,'coordination/workers/exams/<worker_id>.json');
+assert.equal(exitAudit.durable_owner.field,'exit_audit_v1');
+assert.ok(exitAudit.privacy_and_reasoning_rules.some(x=>x.includes('hidden chain-of-thought')));
 assert.equal(handoff.integrity_smoke_override.status,'DISABLED_AFTER_SMOKE_PASS');
 assert.equal(handoff.integrity_smoke_override.pass_gate,'gh-pages:live/worker-scoreboard.json#fresh_launch_integrity.status == SMOKE_PASS');
 assert.equal(mission.operating_mode.current_worker_protocol_version,'v3.30');
@@ -86,9 +91,13 @@ assert.ok(residencyGuard.includes('EARLY_CLOSE_UNJUSTIFIED'),'residency helper m
 
 if(site){
   const publicWc=fs.readFileSync(path.join(site,'wc','index.html'),'utf8');
+  const publicExit=fs.readFileSync(path.join(site,'wc','exit','index.html'),'utf8');
   const publicW=fs.readFileSync(path.join(site,'w','index.html'),'utf8');
   assert.ok(publicWc.includes(mission.operating_mode.invocation),'public /wc must render exact canonical mission invocation');
   assert.ok(publicW.includes(mission.operating_mode.production_invocation),'public /w must render exact canonical production invocation');
+  assert.ok(publicExit.includes('PROMETEO WORKER EXIT AUDIT'),'public /wc/exit must render exit audit');
+  assert.ok(publicExit.includes('exit_audit_v1'),'public /wc/exit must name existing E9 field');
+  assert.ok(publicExit.includes('Never reveal hidden chain-of-thought'),'public /wc/exit must forbid hidden reasoning disclosure');
   assert.ok(publicW.includes('PRODUCTION STABLE'),'public /w must identify stable production');
   assert.ok(publicW.includes('V3_EVIDENCE_MAP'),'public /w must expose promoted E6 baseline');
   assert.ok(publicW.includes('source=/w'),'public /w must expose stable beacon source');
