@@ -3,7 +3,7 @@ import fs from 'node:fs';
 
 const arr = v => Array.isArray(v) ? v : [];
 const DEFAULT_MAX_CANDIDATES = 24;
-const DEFAULT_MAX_SERIALIZED_BYTES = 24_000;
+const DEFAULT_MAX_SERIALIZED_BYTES = 14_000;
 const DEFAULT_CAPABILITY_DIVERSITY_SLOTS = 8;
 const DEFAULT_ZERO_CAPABILITY_CAPACITY = 8;
 
@@ -20,6 +20,10 @@ const KEEP = [
 function compactCandidate(item, lane) {
   const out = { lane };
   for (const k of KEEP) if (item?.[k] !== undefined && item?.[k] !== null) out[k] = item[k];
+  // E2 fences are contract fields, not optional decoration. Empty must stay explicit so
+  // a worker never has to guess whether a missing array means [] or a truncated contract.
+  out.required_capabilities = arr(item?.required_capabilities);
+  out.forbidden_worker_ids = arr(item?.forbidden_worker_ids);
   if (item?.source_path) out.postclaim_context = { source_ref:item.source_path, compile:'EXACT_SOURCE_ONLY_AFTER_OWNERSHIP' };
   // Opportunity/Guide candidates may have no durable job file, so retain bounded execution context only there.
   if (item?.opportunity_id || lane==='role_ready') {
