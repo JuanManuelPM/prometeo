@@ -106,6 +106,21 @@
     .stat-value{font-size:19px;line-height:1.05;color:#e2e2df;font-weight:700;letter-spacing:-.03em}
     .stat-label{margin-top:4px;color:#666;font-size:9px;line-height:1.25;text-transform:uppercase;letter-spacing:.06em}
     .widget-link{color:#b7b7b1;text-decoration:none;border-bottom:1px solid #444}
+    .run-progress-widget{padding:10px 0 2px}
+    .run-progress-head{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
+    .run-progress-pct{font-size:26px;font-weight:760;letter-spacing:-.04em;color:#ecece8}
+    .run-progress-label{font-size:10px;color:#70706c}
+    .run-progress-rail{height:4px;background:#171717;border-radius:99px;overflow:hidden}
+    .run-progress-fill{height:100%;background:#d5d5cf;width:0}
+    .run-progress-breakdown{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
+    .run-progress-kpi b{display:block;font-size:14px;color:#d2d2cd}
+    .run-progress-kpi span{display:block;margin-top:2px;font-size:8px;color:#5e5e5b;text-transform:uppercase;letter-spacing:.05em}
+    .run-progress-freshness{margin-top:9px;font-size:9px;color:#5d5d59}
+    .run-progress-freshness.stale{color:var(--warn)}
+    .details-block{border-top:1px solid var(--line);padding-top:8px}
+    .details-block>summary{list-style:none;cursor:pointer;color:#8b8b87;font-size:11px;min-height:28px;display:flex;align-items:center}
+    .details-block>summary::-webkit-details-marker{display:none}
+    .details-body{padding:3px 0 2px;color:#a2a29d;font-size:13px;line-height:1.5;white-space:pre-wrap}
     .waiting{
       margin:16px 2px 26px;
       color:#595959;font-size:12px;line-height:1.45
@@ -309,6 +324,95 @@
       return wrap;
     }
 
+    function renderDetails(block) {
+      const details = document.createElement('details');
+      details.className = 'details-block';
+      const summary = node('summary', block.label || 'ver más');
+      const body = node('div', block.body || '', 'details-body');
+      details.append(summary, body);
+      return details;
+    }
+
+    function renderRunProgress(block) {
+      const wrap = node('div', null, 'inline-widget run-progress-widget');
+      const head = node('div', null, 'run-progress-head');
+      const pct = node('div', '—', 'run-progress-pct');
+      const label = node('div', block.label || 'progreso del experimento', 'run-progress-label');
+      head.append(pct, label);
+      const rail = node('div', null, 'run-progress-rail');
+      const fill = node('div', null, 'run-progress-fill');
+      rail.append(fill);
+      const breakdown = node('div', null, 'run-progress-breakdown');
+      const freshness = node('div', 'leyendo estado durable…', 'run-progress-freshness');
+      wrap.append(head, rail, breakdown, freshness);
+
+      const statusUrl = block.status_url || '';
+      const labUrl = block.lab_url || '';
+      let timer = null;
+
+      const kpi = (value, labelText) => {
+        const box = node('div', null, 'run-progress-kpi');
+        box.append(node('b', value), node('span', labelText));
+        return box;
+      };
+
+      async function update() {
+        try {
+          const stamp = '?t=' + Date.now();
+          const [statusRes, labRes] = await Promise.all([
+            fetch(statusUrl + stamp, {cache:'no-store'}),
+            labUrl ? fetch(labUrl + stamp, {cache:'no-store'}) : Promise.resolve(null)
+          ]);
+          if (!statusRes.ok) throw new Error('HTTP ' + statusRes.status);
+          const s = await statusRes.json();
+          let lab = null;
+          if (labRes && labRes.ok) lab = await labRes.json();
+          const midpoints = Number(lab?.current_run?.midpoints || 0);
+          const total = Math.max(1, Number(s.slots_total || 0));
+          const claimed = Number(s.slots_claimed || 0);
+          const primary = Number(s.primary_complete || 0);
+          const realloc = Number(s.reallocation_complete || 0);
+          const terminal = Number(s.workers_terminal || 0);
+
+          const overall = Math.max(0, Math.min(100,
+            ((claimed/total)*20) +
+            ((midpoints/total)*20) +
+            ((primary/total)*30) +
+            ((realloc/total)*20) +
+            ((terminal/total)*10)
+          ));
+          pct.textContent = Math.round(overall) + '%';
+          fill.style.width = overall + '%';
+          breakdown.replaceChildren(
+            kpi(claimed + '/' + total, 'adentro'),
+            kpi(primary + '/' + total, 'primary'),
+            kpi(realloc + '/' + total, 'realloc'),
+            kpi(terminal + '/' + total, 'cierre')
+          );
+
+          const observed = s.generated_at ? new Date(s.generated_at) : null;
+          const ageMs = observed && !Number.isNaN(observed.getTime()) ? Date.now() - observed.getTime() : null;
+          const stale = ageMs !== null && ageMs > 120000;
+          freshness.classList.toggle('stale', stale);
+          const hhmm = observed ? observed.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : 'sin hora';
+          if (claimed < total && stale) {
+            freshness.textContent = 'estado sin avanzar · ' + claimed + '/' + total + ' slots · si ya mandaste todos, faltan ' + (total-claimed) + ' admisiones observadas · observado ' + hhmm;
+          } else if (claimed < total) {
+            freshness.textContent = 'actualizando solo cada 10 s · ' + claimed + '/' + total + ' slots · observado ' + hhmm;
+          } else {
+            freshness.textContent = '50/50 adentro · actualizando solo cada 10 s · observado ' + hhmm;
+          }
+        } catch (err) {
+          freshness.classList.add('stale');
+          freshness.textContent = 'no pude refrescar el estado: ' + (err?.message || 'error');
+        }
+      }
+      void update();
+      timer = setInterval(update, Math.max(10000, Number(block.poll_ms || 10000)));
+      wrap.addEventListener('DOMNodeRemoved', () => { if (timer) clearInterval(timer); }, {once:true});
+      return wrap;
+    }
+
     function renderUiBlocks(message, host) {
       const blocks = Array.isArray(message.ui_blocks) ? message.ui_blocks : [];
       if (!blocks.length) return;
@@ -328,6 +432,10 @@
           box.append(widget);
           const api = window.PrometeoChatCanaryProgress;
           if (api && typeof api.load === 'function') void api.load(progressHost);
+        } else if (block.type === 'run_progress') {
+          box.append(renderRunProgress(block));
+        } else if (block.type === 'details') {
+          box.append(renderDetails(block));
         }
       }
     }
@@ -463,6 +571,7 @@
 
     refresh.addEventListener('click', load);
     load();
+    setInterval(() => load(), 10000);
   })();
   </script>
 </body>
