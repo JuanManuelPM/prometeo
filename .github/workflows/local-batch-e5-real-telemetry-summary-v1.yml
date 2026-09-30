@@ -1,0 +1,60 @@
+name: LOCAL-BATCH-E5 Real Telemetry Summary v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/workers/local-batch-results/LOCAL-BATCH-E5-01/**'
+      - 'scripts/compile-local-batch-e5-telemetry.mjs'
+      - 'tests/local-batch-e5-telemetry-compiler.test.mjs'
+      - 'tests/local-batch-e5-real-telemetry-summary-v1.test.mjs'
+      - '.github/workflows/local-batch-e5-real-telemetry-summary-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prometeo-local-batch-e5-real-telemetry-summary-v1
+  cancel-in-progress: false
+
+jobs:
+  compile-verify-persist:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main with history
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate compiler semantics
+        run: node tests/local-batch-e5-telemetry-compiler.test.mjs
+
+      - name: Compile durable evidence
+        run: |
+          set -euo pipefail
+          node scripts/compile-local-batch-e5-telemetry.mjs > coordination/portfolio/evidence/prometeo-autonomous-growth/WORKER_LOCAL_BATCH_E5_REAL_TELEMETRY_SUMMARY_V1.json
+
+      - name: Validate real six-replica summary
+        run: node tests/local-batch-e5-real-telemetry-summary-v1.test.mjs
+
+      - name: Persist report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add coordination/portfolio/evidence/prometeo-autonomous-growth/WORKER_LOCAL_BATCH_E5_REAL_TELEMETRY_SUMMARY_V1.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "telemetry: persist real LOCAL-BATCH-E5 summary"
+          for n in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            git fetch origin main
+            git rebase origin/main
+          done
+          exit 1
