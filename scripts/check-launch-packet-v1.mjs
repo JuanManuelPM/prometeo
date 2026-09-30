@@ -149,7 +149,8 @@ for(const ent of packetEntries){
   const selectors=machineContract?.selectors||{};
   if(genericPacket){
     if(!packet?.common_capsule?.primary_objective) fail(runId+': generic common capsule missing primary_objective');
-    if(!machineContract||typeof machineContract!=='object') fail(runId+': generic common capsule missing machine_contract');
+    const genericContract = machineContract || packet?.common_capsule?.measurement_contract || null;
+    if(!genericContract||typeof genericContract!=='object') fail(runId+': generic common capsule missing machine/measurement contract');
     if(!Array.isArray(packet?.common_capsule?.exact_sources)) fail(runId+': generic common capsule missing exact_sources');
   }else if(legacyPacket){
     if(!packet?.common_capsule?.primary_objective) fail(runId+': legacy common capsule missing primary_objective');
