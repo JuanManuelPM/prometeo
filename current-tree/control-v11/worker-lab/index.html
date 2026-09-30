@@ -91,6 +91,68 @@
       border:0;background:transparent;color:#666;font:inherit;font-size:14px;cursor:pointer;padding:7px
     }
     .empty{color:#565656;font-size:12px;padding:14px 0}
+
+    /* Worker inspector prototype: derived/read-only, never liveness authority. */
+    .proto-label{
+      display:inline-flex;align-items:center;gap:6px;
+      margin-left:7px;padding:3px 6px;border:1px solid #2a2a2a;border-radius:999px;
+      color:#777;font-size:8px;letter-spacing:.08em;text-transform:uppercase
+    }
+    .live-overview{
+      display:grid;grid-template-columns:minmax(0,1.6fr) repeat(3,minmax(78px,.55fr));
+      gap:1px;background:var(--line);border:1px solid var(--line);margin:0 0 16px
+    }
+    .live-card{background:#050505;padding:14px 13px;min-height:84px}
+    .live-card.latest{display:flex;flex-direction:column;justify-content:center}
+    .live-value{font-size:21px;font-weight:760;letter-spacing:-.035em}
+    .live-label{margin-top:5px;color:#606060;font-size:8px;text-transform:uppercase;letter-spacing:.08em}
+    .live-note{margin-top:6px;color:#777;font-size:10px;line-height:1.4}
+    .worker-list{border-top:1px solid var(--line)}
+    .worker-row{
+      width:100%;display:grid;grid-template-columns:18px minmax(0,1.25fr) minmax(90px,.75fr) auto;
+      gap:10px;align-items:center;padding:13px 2px;border:0;border-bottom:1px solid var(--line);
+      background:transparent;color:inherit;text-align:left;cursor:pointer
+    }
+    .worker-row:hover{background:#050505}
+    .worker-dot{width:8px;height:8px;border-radius:50%;background:#555;box-shadow:0 0 0 3px rgba(255,255,255,.025)}
+    .worker-dot.recent{background:var(--good);box-shadow:0 0 10px rgba(137,210,154,.38)}
+    .worker-dot.warm{background:var(--warn)}
+    .worker-dot.boundary{background:var(--bad)}
+    .worker-dot.closed{background:#4d4d4a}
+    .worker-main{min-width:0}
+    .worker-id{font:11px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;color:#d0d0cb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .worker-stage{margin-top:3px;color:#686864;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .worker-output{font-size:10px;color:#8b8b87;line-height:1.35}
+    .worker-age{font-size:10px;color:#696965;text-align:right;white-space:nowrap}
+    .worker-inspector{
+      display:none;margin:0 0 20px;padding:16px 0 20px;border-bottom:1px solid var(--line)
+    }
+    .worker-inspector.visible{display:block}
+    .inspector-head{display:flex;align-items:flex-start;gap:10px;justify-content:space-between}
+    .inspector-title{font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:#ddd}
+    .inspector-close{border:0;background:transparent;color:#666;font-size:18px;cursor:pointer}
+    .inspector-grid{
+      display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);
+      border:1px solid var(--line);margin:14px 0
+    }
+    .inspector-stat{background:#060606;padding:11px;min-height:66px}
+    .inspector-stat b{display:block;font-size:17px;color:#ddd;letter-spacing:-.025em}
+    .inspector-stat span{display:block;margin-top:4px;color:#5f5f5b;font-size:8px;text-transform:uppercase;letter-spacing:.06em}
+    .inspector-subtitle{margin:18px 0 8px;color:#878783;font-size:9px;text-transform:uppercase;letter-spacing:.09em}
+    .worker-timeline{border-top:1px solid var(--line)}
+    .worker-step{display:grid;grid-template-columns:76px 108px minmax(0,1fr);gap:9px;padding:8px 0;border-bottom:1px solid #151515;font-size:10px}
+    .worker-step time{color:#666}
+    .worker-step .stage{color:#a5a5a0}
+    .worker-step .desc{color:#72726e;overflow-wrap:anywhere}
+    .worker-refs{display:grid;gap:6px}
+    .worker-ref{font:9px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:#6f6f6a;overflow-wrap:anywhere;text-decoration:none}
+    .worker-ref:hover{color:#aaa}
+    .worker-commit{display:grid;grid-template-columns:68px 118px minmax(0,1fr);gap:9px;padding:7px 0;border-bottom:1px solid #151515;font-size:9px}
+    .worker-commit a{color:#90908b;text-decoration:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+    .worker-commit time{color:#5d5d59}
+    .worker-commit span{color:#777}
+    .inspector-boundary{color:#666;font-size:10px;line-height:1.45;margin-top:8px}
+
     @media(max-width:620px){
       .hero{padding-top:32px}
       .variant,.rule,.event{grid-template-columns:1fr;gap:6px}
@@ -98,6 +160,15 @@
       .runline{gap:12px}
       .metric{min-width:82px}
       .metric b{font-size:25px}
+      .live-overview{grid-template-columns:1fr 1fr}
+      .live-card.latest{grid-column:1/-1}
+      .worker-row{grid-template-columns:16px minmax(0,1fr) auto}
+      .worker-output{display:none}
+      .inspector-grid{grid-template-columns:1fr 1fr}
+      .worker-step{grid-template-columns:68px minmax(0,1fr)}
+      .worker-step .desc{grid-column:2}
+      .worker-commit{grid-template-columns:62px minmax(0,1fr)}
+      .worker-commit time{display:none}
     }
   </style>
 </head>
@@ -132,6 +203,23 @@
     <div class="subline" id="now-sub"></div>
     <div class="return-trigger wait" id="return-trigger">Esperando estado durable…</div>
     <div class="variant-list" id="variants"></div>
+  </section>
+
+  <section class="section">
+    <h2>Workers recientes <span class="proto-label">prototipo</span></h2>
+    <div class="section-intro">La luz indica recencia de evidencia, no “ACTIVE”. Tocá un worker para abrir su historia durable y, cuando existe, su receipt.</div>
+    <div class="live-overview">
+      <div class="live-card latest">
+        <div class="live-value" id="latest-worker">—</div>
+        <div class="live-label">última señal durable</div>
+        <div class="live-note" id="latest-worker-note">leyendo runtime…</div>
+      </div>
+      <div class="live-card"><div class="live-value" id="recent-count">—</div><div class="live-label">señal &lt; 2 min</div></div>
+      <div class="live-card"><div class="live-value" id="warm-count">—</div><div class="live-label">2–10 min</div></div>
+      <div class="live-card"><div class="live-value" id="boundary-count">—</div><div class="live-label">boundary/fallo</div></div>
+    </div>
+    <div class="worker-list" id="worker-list"><div class="empty">leyendo workers…</div></div>
+    <div class="worker-inspector" id="worker-inspector"></div>
   </section>
 
   <section class="section">
@@ -191,7 +279,10 @@
 (() => {
   'use strict';
   const DATA='./data.json';
-  const RUN='../../../launch/RESIDENCY-MACROBATCH-01/status.json';
+  const RUN='../../../launch/MAXCAP-50-01/status.json';
+  const RUNTIME='../../../live/runtime.json';
+  const RAW_MAIN='https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/';
+  const GH_API='https://api.github.com/repos/JuanManuelPM/prometeo/commits?per_page=8&path=';
 
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??'');
@@ -272,6 +363,271 @@
     });
   }
 
+  function parseDate(value){
+    const d=value?new Date(value):null;
+    return d&&!Number.isNaN(d.getTime())?d:null;
+  }
+
+  function ageSeconds(value){
+    const d=parseDate(value);
+    return d?Math.max(0,(Date.now()-d.getTime())/1000):null;
+  }
+
+  function ageLabel(value){
+    const sec=ageSeconds(value);
+    if(sec===null) return 'UNKNOWN';
+    if(sec<60) return Math.max(1,Math.round(sec))+'s';
+    if(sec<3600) return Math.round(sec/60)+'m';
+    if(sec<86400) return Math.round(sec/3600)+'h';
+    return Math.round(sec/86400)+'d';
+  }
+
+  function durationLabel(seconds){
+    if(!Number.isFinite(seconds)||seconds<0) return 'UNKNOWN';
+    if(seconds<60) return Math.round(seconds)+'s';
+    const m=Math.floor(seconds/60), s=Math.round(seconds%60);
+    if(m<60) return m+'m '+String(s).padStart(2,'0')+'s';
+    const h=Math.floor(m/60), mm=m%60;
+    return h+'h '+String(mm).padStart(2,'0')+'m';
+  }
+
+  function workerLastAt(worker){
+    return worker?.close?.at||worker?.last_event_at||worker?.claim?.at||worker?.routed?.at||worker?.first_event_at||null;
+  }
+
+  function workerIsBoundary(worker){
+    const outcome=String(worker?.close?.outcome||worker?.claim?.outcome||'').toUpperCase();
+    return /BOUNDARY|FAIL|BLOCK|UNSTABLE|ABORT/.test(outcome) || (Array.isArray(worker?.anomalies)&&worker.anomalies.length>0);
+  }
+
+  function workerSignal(worker){
+    if(workerIsBoundary(worker)) return 'boundary';
+    if(worker?.close?.terminal===true || String(worker?.state||'').toUpperCase()==='CLOSED') return 'closed';
+    const age=ageSeconds(workerLastAt(worker));
+    if(age!==null && age<120) return 'recent';
+    if(age!==null && age<600) return 'warm';
+    return 'closed';
+  }
+
+  function workerStageLabel(worker){
+    if(worker?.close?.terminal) return worker.close.outcome||'CLOSED';
+    if(worker?.reallocation_complete) return 'REALLOCATION COMPLETE';
+    if(worker?.primary_complete) return 'PRIMARY COMPLETE';
+    if(worker?.claim?.outcome) return 'CLAIM '+worker.claim.outcome;
+    if(worker?.slot_id) return 'OWNED '+worker.slot_id;
+    return worker?.state||'UNKNOWN';
+  }
+
+  function shortWorkerId(id){
+    const s=String(id||'worker');
+    return s.length>20?'…'+s.slice(-16):s;
+  }
+
+  function receiptMetric(receipt, candidates){
+    for(const path of candidates){
+      let cur=receipt;
+      for(const key of path.split('.')) cur=cur&&Object.prototype.hasOwnProperty.call(cur,key)?cur[key]:undefined;
+      if(cur!==undefined&&cur!==null) return cur;
+    }
+    return null;
+  }
+
+  async function fetchReceipt(worker){
+    const ref=worker?.repo?.benchmark_receipt_ref;
+    if(!ref) return null;
+    const path=String(ref).split('@')[0];
+    try{
+      const res=await fetch(RAW_MAIN+path+'?t='+Date.now(),{cache:'no-store'});
+      return res.ok?await res.json():null;
+    }catch{return null}
+  }
+
+  function githubBlobHref(ref){
+    const path=String(ref||'').split('@')[0];
+    if(!path) return null;
+    const explicitSha=String(ref||'').includes('@')?String(ref).split('@').pop():null;
+    return 'https://github.com/JuanManuelPM/prometeo/blob/'+(explicitSha&&/^[a-f0-9]{7,40}$/i.test(explicitSha)?explicitSha:'main')+'/'+path;
+  }
+
+  async function fetchWorkerCommits(worker){
+    const refs=[
+      worker?.repo?.beacon_ref,
+      worker?.repo?.launch_slot_ref,
+      worker?.repo?.benchmark_receipt_ref,
+      worker?.repo?.exam_ref
+    ].filter(Boolean).map(r=>String(r).split('@')[0]);
+    const unique=[...new Set(refs)].slice(0,4);
+    const responses=await Promise.all(unique.map(async path=>{
+      try{
+        const res=await fetch(GH_API+encodeURIComponent(path),{cache:'no-store'});
+        if(!res.ok) return [];
+        const rows=await res.json();
+        return Array.isArray(rows)?rows.map(c=>({
+          sha:c.sha,
+          date:c.commit?.committer?.date||c.commit?.author?.date||null,
+          message:String(c.commit?.message||'').split('\n')[0],
+          url:c.html_url,
+          path
+        })):[];
+      }catch{return []}
+    }));
+    const map=new Map();
+    responses.flat().forEach(c=>{if(c.sha&&!map.has(c.sha))map.set(c.sha,c)});
+    return [...map.values()].sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  }
+
+  function inspectorStat(value,label){
+    const box=document.createElement('div');box.className='inspector-stat';
+    const b=document.createElement('b');b.textContent=value??'UNKNOWN';
+    const span=document.createElement('span');span.textContent=label;
+    box.append(b,span);return box;
+  }
+
+  async function openWorkerInspector(worker){
+    const host=$('worker-inspector');
+    host.classList.add('visible');
+    host.replaceChildren();
+
+    const head=document.createElement('div');head.className='inspector-head';
+    const title=document.createElement('div');title.className='inspector-title';title.textContent=worker.worker_id||'worker';
+    const close=document.createElement('button');close.className='inspector-close';close.type='button';close.textContent='×';
+    close.addEventListener('click',()=>{host.classList.remove('visible');host.replaceChildren()});
+    head.append(title,close);
+    const loading=document.createElement('div');loading.className='inspector-boundary';loading.textContent='Leyendo receipt + commits públicos…';
+    host.append(head,loading);
+    host.scrollIntoView({behavior:'smooth',block:'nearest'});
+
+    const [receipt,commits]=await Promise.all([fetchReceipt(worker),fetchWorkerCommits(worker)]);
+    loading.remove();
+
+    const first=parseDate(worker.first_event_at);
+    const last=parseDate(workerLastAt(worker));
+    const duration=first&&last?(last-first)/1000:null;
+    const primaryTasks=receiptMetric(receipt,[
+      'primary_metrics.completed_tasks','feature_evidence.primary_completed_tasks','assignment.primary_task_count','primary_task_count'
+    ]);
+    const reallocTasks=receiptMetric(receipt,[
+      'reallocation_metrics.completed_tasks','feature_evidence.reallocation_completed_tasks','reallocation.reallocation_task_count','assignment.reallocation_task_count'
+    ]);
+    const totalTasks=receiptMetric(receipt,['total_metrics.completed_tasks','feature_evidence.total_completed_tasks']);
+    const primaryWords=receiptMetric(receipt,[
+      'primary_metrics.useful_output_words','feature_evidence.primary_useful_output_words','useful_output_words'
+    ]);
+    const reallocWords=receiptMetric(receipt,[
+      'reallocation_metrics.useful_output_words','feature_evidence.reallocation_useful_output_words'
+    ]);
+    const totalWords=receiptMetric(receipt,['total_metrics.useful_output_words','feature_evidence.total_useful_output_words']);
+
+    const grid=document.createElement('div');grid.className='inspector-grid';
+    grid.append(
+      inspectorStat(totalTasks??((Number(primaryTasks)||0)+(Number(reallocTasks)||0)||'UNKNOWN'),'tareas'),
+      inspectorStat(totalWords??((Number(primaryWords)||0)+(Number(reallocWords)||0)||'UNKNOWN'),'palabras útiles'),
+      inspectorStat(durationLabel(duration),'ventana durable'),
+      inspectorStat(ageLabel(workerLastAt(worker)),'desde última señal')
+    );
+    host.append(grid);
+
+    const stages=[];
+    if(worker.first_event_at) stages.push({at:worker.first_event_at,stage:'E1',desc:'primera señal / beacon observado'});
+    if(worker.routed?.at) stages.push({at:worker.routed.at,stage:'ROUTED',desc:worker.routed.candidate_title||worker.routed.candidate_id||'candidato elegido'});
+    if(worker.claim?.at) stages.push({at:worker.claim.at,stage:'E2',desc:worker.claim.outcome||'claim'});
+    if(worker.slot_id&&!worker.claim?.at) stages.push({at:null,stage:'E2',desc:'slot '+worker.slot_id+' · authority durable'});
+    if(worker.primary_complete) stages.push({at:null,stage:'E7',desc:'primary durable completo'});
+    if(worker.reallocation_complete) stages.push({at:null,stage:'E8',desc:'reallocation durable completa'});
+    if(worker.close?.at) stages.push({at:worker.close.at,stage:'E9',desc:worker.close.outcome||'cierre durable'});
+
+    const trace=receipt?.stage_trace&&typeof receipt.stage_trace==='object'?receipt.stage_trace:null;
+    if(trace){
+      for(const [stage,v] of Object.entries(trace)){
+        if(!v||typeof v!=='object') continue;
+        const at=v.completed_at||v.started_at;
+        if(at) stages.push({at,stage,desc:(v.status||'')+(v.failure_code?' · '+v.failure_code:'')+' · receipt diagnostic'});
+      }
+    }
+    stages.sort((a,b)=>String(a.at||'9999').localeCompare(String(b.at||'9999')));
+
+    const st=document.createElement('div');st.className='inspector-subtitle';st.textContent='timeline';
+    const timeline=document.createElement('div');timeline.className='worker-timeline';
+    for(const e of stages){
+      const row=document.createElement('div');row.className='worker-step';
+      const time=document.createElement('time');time.textContent=e.at?new Date(e.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';
+      const stage=document.createElement('div');stage.className='stage';stage.textContent=e.stage;
+      const desc=document.createElement('div');desc.className='desc';desc.textContent=e.desc;
+      row.append(time,stage,desc);timeline.append(row);
+    }
+    host.append(st,timeline);
+
+    const refs=Object.entries(worker.repo||{}).filter(([,v])=>v&&(!Array.isArray(v)||v.length));
+    const rt=document.createElement('div');rt.className='inspector-subtitle';rt.textContent='evidencia durable';
+    const refHost=document.createElement('div');refHost.className='worker-refs';
+    for(const [label,value] of refs){
+      const values=Array.isArray(value)?value:[value];
+      for(const ref of values){
+        const a=document.createElement('a');a.className='worker-ref';a.target='_blank';a.rel='noopener';
+        a.href=githubBlobHref(ref)||'#';a.textContent=label+' · '+ref;refHost.append(a);
+      }
+    }
+    host.append(rt,refHost);
+
+    const ct=document.createElement('div');ct.className='inspector-subtitle';ct.textContent='commits observados en esos refs';
+    const ch=document.createElement('div');
+    if(!commits.length){
+      ch.className='inspector-boundary';ch.textContent='UNKNOWN · no se recuperaron commits para los refs consultados.';
+    }else{
+      commits.forEach(c=>{
+        const row=document.createElement('div');row.className='worker-commit';
+        const a=document.createElement('a');a.href=c.url;a.target='_blank';a.rel='noopener';a.textContent=String(c.sha).slice(0,7);
+        const time=document.createElement('time');time.textContent=c.date?new Date(c.date).toLocaleString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
+        const msg=document.createElement('span');msg.textContent=c.message;
+        row.append(a,time,msg);ch.append(row);
+      });
+    }
+    host.append(ct,ch);
+
+    const boundary=document.createElement('div');boundary.className='inspector-boundary';
+    boundary.textContent='Prototipo read-only. “Ventana durable” mide primera→última evidencia observada; no equivale todavía a compute puro. Timestamps del receipt se marcan como diagnósticos.';
+    host.append(boundary);
+  }
+
+  function renderWorkerPrototype(runtime){
+    const batch=runtime?.batches?.find(b=>b.batch_id===runtime.current_batch)||runtime?.batches?.[0]||null;
+    const workers=Array.isArray(batch?.workers)?[...batch.workers]:[];
+    workers.sort((a,b)=>String(workerLastAt(b)||'').localeCompare(String(workerLastAt(a)||'')));
+
+    const recent=workers.filter(w=>workerSignal(w)==='recent').length;
+    const warm=workers.filter(w=>workerSignal(w)==='warm').length;
+    const boundary=workers.filter(workerIsBoundary).length;
+    $('recent-count').textContent=fmt(recent);
+    $('warm-count').textContent=fmt(warm);
+    $('boundary-count').textContent=fmt(boundary);
+
+    const latest=workers[0];
+    if(latest){
+      $('latest-worker').textContent=shortWorkerId(latest.worker_id);
+      $('latest-worker-note').textContent=workerStageLabel(latest)+' · hace '+ageLabel(workerLastAt(latest))+' · '+(latest.slot_id||'sin slot');
+    }else{
+      $('latest-worker').textContent='—';
+      $('latest-worker-note').textContent='sin workers observados';
+    }
+
+    const host=$('worker-list');host.replaceChildren();
+    if(!workers.length){host.innerHTML='<div class="empty">sin workers observados</div>';return}
+    workers.slice(0,14).forEach(worker=>{
+      const row=document.createElement('button');row.type='button';row.className='worker-row';
+      const dot=document.createElement('span');dot.className='worker-dot '+workerSignal(worker);
+      const main=document.createElement('div');main.className='worker-main';
+      const id=document.createElement('div');id.className='worker-id';id.textContent=worker.worker_id;
+      const stage=document.createElement('div');stage.className='worker-stage';stage.textContent=workerStageLabel(worker)+' · '+(worker.slot_id||'sin primary slot');
+      main.append(id,stage);
+      const output=document.createElement('div');output.className='worker-output';
+      output.textContent=(worker.primary_complete?'primary ✓':'primary —')+' · '+(worker.reallocation_complete?'realloc ✓':'realloc —');
+      const age=document.createElement('div');age.className='worker-age';age.textContent='hace '+ageLabel(workerLastAt(worker));
+      row.append(dot,main,output,age);
+      row.addEventListener('click',()=>openWorkerInspector(worker));
+      host.append(row);
+    });
+  }
+
   function applyRun(run){
     if(!run) return;
     const total=Number(run.slots_total||0);
@@ -310,13 +666,15 @@
     $('refresh').disabled=true;
     try{
       const stamp='?t='+Date.now();
-      const [dataRes,runRes]=await Promise.all([
+      const [dataRes,runRes,runtimeRes]=await Promise.all([
         fetch(DATA+stamp,{cache:'no-store'}),
-        fetch(RUN+stamp,{cache:'no-store'})
+        fetch(RUN+stamp,{cache:'no-store'}),
+        fetch(RUNTIME+stamp,{cache:'no-store'})
       ]);
       if(!dataRes.ok) throw new Error('data '+dataRes.status);
       const data=await dataRes.json();
       const run=runRes.ok?await runRes.json():null;
+      const runtime=runtimeRes.ok?await runtimeRes.json():null;
 
       $('thesis').textContent=data.thesis||'';
       applyRun(data.current_run||{});
@@ -334,7 +692,9 @@
       renderTimeline(data.timeline);
       renderQuestions(data.open_questions);
       renderMeasurements(data.recommended_measurements);
-      $('sync').textContent='actualizado '+new Date(data.generated_at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+      renderWorkerPrototype(runtime);
+      const freshness=runtime?.generated_at||data.generated_at;
+      $('sync').textContent='actualizado '+new Date(freshness).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
     }catch(err){
       $('sync').textContent='error de lectura';
       $('now').textContent='No pude reconstruir Worker Lab: '+(err?.message||'error');
@@ -343,6 +703,7 @@
 
   $('refresh').addEventListener('click',load);
   load();
+  setInterval(load,10000);
 })();
 </script>
 </body>
