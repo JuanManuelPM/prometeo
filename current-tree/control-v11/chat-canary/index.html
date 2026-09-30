@@ -33,6 +33,13 @@
     .refs code{white-space:normal;overflow-wrap:anywhere;color:#929ca6}
     .waiting{border:1px dashed #3e454d;background:var(--panel2);border-radius:12px;padding:14px;color:var(--muted);font-size:10px;line-height:1.55}
     .waiting b{color:var(--wait)}
+    .module-shell{margin-top:14px;border:1px solid var(--line);background:var(--panel2);border-radius:14px;padding:12px}
+    .module-label{margin-bottom:9px;color:#747e89;font-size:8px;letter-spacing:.1em;text-transform:uppercase}
+    [data-prometeo-chat-composer-form-v1]{display:grid;gap:8px}
+    [data-prometeo-chat-composer-input-v1]{width:100%;min-height:82px;resize:vertical;border:1px solid #343b43;background:#080a0d;color:var(--ink);border-radius:10px;padding:10px;font:500 14px/1.45 system-ui,sans-serif;outline:none}
+    [data-prometeo-chat-composer-input-v1]:focus{border-color:#56616d}
+    [data-prometeo-chat-composer-submit-v1]{justify-self:end;min-width:92px}
+    [data-prometeo-chat-composer-status-v1]{margin-top:8px;color:var(--muted);font-size:8px;line-height:1.45;overflow-wrap:anywhere}
     footer{margin-top:18px;color:#5f6872;font-size:8px;line-height:1.55}
     @media(max-width:520px){body{padding-left:12px;padding-right:12px}.bar{align-items:stretch;flex-direction:column}.bar button{min-height:38px}.body{font-size:15px}}
   </style>
@@ -52,12 +59,25 @@
 
   <section id="thread" class="thread" aria-live="polite"></section>
 
+  <section class="module-shell" aria-label="Composer durable">
+    <div class="module-label">INPUT DURABLE · FAIL-CLOSED</div>
+    <div id="chatComposer" data-prometeo-chat-composer-v1></div>
+  </section>
+
+  <section class="module-shell" aria-label="Progreso durable">
+    <div class="module-label">PROGRESO · WORK UNIT</div>
+    <div id="chat-canary-progress"></div>
+  </section>
+
   <footer>
     CHAT_OBJECT: chat-object-prometeo-chat-control-main<br>
     SOURCE: coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json<br>
-    Boundary: display projection only · no input · no backend · no polling automático.
+    Boundary: candidate UI · existing ingress only · no embedded auth · no backend nuevo · no polling automático.
   </footer>
 </main>
+<script src="../ingress-v1.js"></script>
+<script src="./input-module-v1.js"></script>
+<script src="./progress-v1.js"></script>
 <script>
 (() => {
   'use strict';
@@ -180,6 +200,28 @@
     } finally {
       refresh.disabled = false;
     }
+  }
+
+  const composerHost = document.getElementById('chatComposer');
+  const composerApi = window.PROMETEO_CHAT_CANARY_INPUT_V1;
+  if (composerHost && composerApi && typeof composerApi.mount === 'function') {
+    composerApi.mount(composerHost, {
+      page: {
+        id: 'chat-canary',
+        page_id: 'control-v11-chat-canary',
+        title: 'Prometeo · Chat canary',
+        surface_id: 'current-tree-control-v11-chat-canary',
+        project_id: 'prometeo-autonomous-growth',
+        target_path: 'current-tree/control-v11/chat-canary/'
+      },
+      onResult(result) {
+        if (result && result.queued === true && result.ref) {
+          setState('waiting', 'QUEUED DURABLE · usá REFRESH para releer el thread');
+        }
+      }
+    });
+  } else if (composerHost) {
+    composerHost.textContent = 'BOUNDARY_INPUT_MODULE_UNAVAILABLE';
   }
 
   refresh.addEventListener('click', load);
