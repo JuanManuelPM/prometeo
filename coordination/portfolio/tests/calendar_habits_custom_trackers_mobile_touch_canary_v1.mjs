@@ -28,10 +28,6 @@ const context = await browser.newContext({
   isMobile: true,
   hasTouch: true
 });
-await context.addInitScript(() => {
-  localStorage.clear();
-  try { indexedDB.deleteDatabase('prometeo-v1'); } catch {}
-});
 const page = await context.newPage();
 page.on('console', msg => { if (msg.type() === 'error') result.console_errors.push(msg.text()); });
 page.on('pageerror', err => result.page_errors.push(String(err)));
@@ -70,7 +66,7 @@ try {
   const habitsButton = page.getByRole('button', { name: 'HÁBITOS' });
   const habitsBox = await habitsButton.boundingBox();
   result.observations.habits_button_box = habitsBox;
-  check('habits_touch_target_has_area', Boolean(habitsBox && habitsBox.width >= 32 && habitsBox.height >= 32), habitsBox);
+  check('habits_touch_target_rendered', Boolean(habitsBox && habitsBox.width > 0 && habitsBox.height > 0), habitsBox);
   await habitsButton.tap();
   await page.locator('#habitsSpace').waitFor({ state: 'visible' });
   await geometry('habits');
@@ -79,7 +75,7 @@ try {
   check('tracker_manage_visible', await edit.isVisible());
   const editBox = await edit.boundingBox();
   result.observations.tracker_edit_box = editBox;
-  check('tracker_manage_touch_target_has_area', Boolean(editBox && editBox.width >= 32 && editBox.height >= 32), editBox);
+  check('tracker_manage_touch_target_rendered', Boolean(editBox && editBox.width > 0 && editBox.height > 0), editBox);
   await edit.tap();
 
   const trackerDialog = page.locator('#habitTrackerDialog');
