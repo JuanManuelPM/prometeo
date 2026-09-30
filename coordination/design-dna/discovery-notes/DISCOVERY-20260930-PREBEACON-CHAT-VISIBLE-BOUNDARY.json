@@ -1,0 +1,55 @@
+{
+  "schema": "prometeo.strategic-discovery-note/v1",
+  "discovery_id": "DISCOVERY-20260930-PREBEACON-CHAT-VISIBLE-BOUNDARY",
+  "status": "CANDIDATE_LEARNING",
+  "created_at": "2026-09-30T18:32:00Z",
+  "observation": "A universal worker can fail before its first durable beacon. In that case GitHub contains no worker evidence, the ChatGPT worker visibly returns a boundary, and Primary Chat can otherwise wait forever because it only sees durable state. The user then becomes the failure detector/message bus.",
+  "concrete_case": {
+    "worker_intended_id": "wc-20260930T182405Z-cf99d4d87627",
+    "visible_terminal": "BOUNDARY REAL: FRESH_LAUNCH_BEACON_NOT_CREATED",
+    "durable_beacon": false,
+    "claim": false,
+    "later_mutations": false,
+    "cause_class": "EXPLICIT_TOOL_SAFETY_DENIAL_BEFORE_FIRST_DURABLE_WRITE"
+  },
+  "recovered_related_patterns": [
+    "pre-claim safety denial after beacon",
+    "claim transport unstable / branch-head races",
+    "candidate write safety denial after claim",
+    "return receipt not persisted after work completed",
+    "UI appears thinking/stopped while durable state is ambiguous",
+    "successful durable CLOSE exists but user sees only chat completion"
+  ],
+  "gap": "Current public control flow models durable worker state well, but not pre-durable launch attempts or chat-visible-only terminal boundaries.",
+  "protocol_candidate": {
+    "states": [
+      "IDLE",
+      "LAUNCH_INTENT_LOCAL",
+      "WAITING_FIRST_DURABLE_SIGNAL",
+      "ENTERED_DURABLE",
+      "PRE_DURABLE_BOUNDARY_REPORTED",
+      "UNCONFIRMED_TIMEOUT",
+      "ACTIVE",
+      "TERMINAL_DURABLE",
+      "RECOVERY_REQUIRED"
+    ],
+    "transitions": [
+      "copy universal prompt -> LAUNCH_INTENT_LOCAL",
+      "beacon/claim becomes durable -> ENTERED_DURABLE",
+      "chat-visible boundary before beacon -> PRE_DURABLE_BOUNDARY_REPORTED",
+      "no durable signal within bounded window -> UNCONFIRMED_TIMEOUT, never infinite spinner",
+      "one isolated pre-beacon transport/safety boundary -> allow one identical fresh-shell retry",
+      "same blocker repeated >=2 -> GUIDE_RESCATE / mechanism investigation; stop blind retries",
+      "durable terminal evidence -> TERMINAL_DURABLE"
+    ]
+  },
+  "page_rule": "Primary Chat must always show whether it is waiting for durable evidence, has confirmed a worker, suspects a pre-beacon failure, or needs human attention. An absence of evidence must never render as indefinite passive waiting.",
+  "chat_history_rule": "When the controlling ChatGPT session is active, recent project worker chats may be harvested as secondary evidence for chat-visible-only boundaries and reduced into public-safe incident summaries. This is not yet an unattended public-page capability and must not be represented as one.",
+  "no_extra_roundtrip_rule": "Use existing thread polling/durable projections for confirmed state. Pre-beacon watchdog can be local/client-side timing. Do not add a remote API call per second or per decision.",
+  "escalation_rule": "Repeated same-class launch failure is a GUIDE_RESCATE trigger, not a reason to ask the human to keep retrying indefinitely.",
+  "evidence_refs": [
+    "coordination/guide/METABOLISM_POLICY_V1.json",
+    "coordination/design-dna/discovery-notes/DISCOVERY-20260930-NONLINEAR-HUMAN-TEMPO.json",
+    "coordination/design-dna/discovery-notes/DISCOVERY-20260930-NO-PRIMARY-WORK-IS-NOT-STOP.json"
+  ]
+}
