@@ -136,7 +136,7 @@
     status.setAttribute('data-prometeo-chat-composer-status-v1', '');
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
-    setStatus(status, 'READY · envío durable solamente');
+    setStatus(status, '');
 
     form.append(input, submit);
     root.replaceChildren(form, status);
