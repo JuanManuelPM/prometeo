@@ -64,6 +64,34 @@ assert.equal(beaconOnly.batches[0].summary.missing_expected,1);
 assert.equal(beaconOnly.batches[0].workers[0].state,'BEACONED');
 fs.rmSync(root,{recursive:true,force:true});
 
+// Durable PIN + STARTED must move liveness even when issue-comment telemetry is missing.
+const startedRoot=fs.mkdtempSync(path.join(os.tmpdir(),'prometeo-runtime-started-'));
+fs.mkdirSync(path.join(startedRoot,'coordination','workers','beacons'),{recursive:true});
+fs.mkdirSync(path.join(startedRoot,'coordination','guide','pins','guide-test'),{recursive:true});
+fs.mkdirSync(path.join(startedRoot,'coordination','workers','started'),{recursive:true});
+fs.writeFileSync(path.join(startedRoot,'coordination','workers','beacons','sw.json'),JSON.stringify({
+  schema:'prometeo.worker-beacon/v1',worker_id:'sw',
+  launched_at:'2026-09-30T23:20:00Z',batch_id:'E2-REAL-03',expected_workers:3
+}));
+fs.writeFileSync(path.join(startedRoot,'coordination','guide','pins','guide-test','G000001.json'),JSON.stringify({
+  schema:'prometeo.guide-role-pin/v1',worker_id:'sw',guide_work_id:'guide-test',
+  claimed_at:'2026-09-30T23:21:00Z'
+}));
+fs.writeFileSync(path.join(startedRoot,'coordination','workers','started','sw-guide-test-G000001.json'),JSON.stringify({
+  schema:'prometeo.worker-started/v1',worker_id:'sw',batch_id:'E2-REAL-03',expected_workers:3,
+  authority_ref:'coordination/guide/pins/guide-test/G000001.json',
+  job_id:'guide-test',started_at:'2026-09-30T23:22:00Z'
+}));
+const startedCompiled=compileRuntime([],startedRoot,'2026-09-30T23:22:10Z');
+const startedWorker=startedCompiled.batches[0].workers[0];
+assert.equal(startedWorker.state,'ACTIVE');
+assert.equal(startedWorker.authority_won,true);
+assert.equal(startedWorker.last_event_at,'2026-09-30T23:22:00Z');
+assert.equal(startedWorker.started.job_id,'guide-test');
+assert.equal(startedCompiled.batches[0].summary.started,1);
+assert.equal(startedCompiled.batches[0].last_event_at,'2026-09-30T23:22:00Z');
+fs.rmSync(startedRoot,{recursive:true,force:true});
+
 // Pool CLOSE is only terminal when the required productivity exam exists.
 const poolRoot=fs.mkdtempSync(path.join(os.tmpdir(),'prometeo-runtime-pool-'));
 const poolBeaconDir=path.join(poolRoot,'coordination','workers','beacons');
