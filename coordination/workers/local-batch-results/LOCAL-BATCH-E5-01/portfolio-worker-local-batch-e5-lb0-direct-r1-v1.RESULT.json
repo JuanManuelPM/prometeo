@@ -8,8 +8,8 @@
   "start_ref": "coordination/workers/local-batch-results/LOCAL-BATCH-E5-01/portfolio-worker-local-batch-e5-lb0-direct-r1-v1.START.json",
   "start_commit_sha": "4178d4800d0bd19be325dc84182a68667f767cdb",
   "result_ref": "coordination/workers/local-batch-results/LOCAL-BATCH-E5-01/portfolio-worker-local-batch-e5-lb0-direct-r1-v1.RESULT.json",
-  "status": "DONE_WITH_FIXTURE_AMBIGUITY",
-  "comparison_validity": "VALID_LOCAL_BATCH_WITH_UNRESOLVED_FIXTURE_INPUT",
+  "status": "DONE_POST_RESULT_REPAIRED",
+  "comparison_validity": "INVALID_FOR_LOCAL_BATCH_COMPARISON",
   "intermediate_external_io": 0,
   "intermediate_tool_calls": 0,
   "intermediate_durable_writes": 0,
@@ -244,43 +244,43 @@
     "A3_WRITE_4_SPECS": [
       {
         "title": "Especificación 1 · Durable chat input",
-        "PROBLEMA": "Una entrada de chat puede parecer recibida aunque sólo exista en memoria de interfaz, en una petición transitoria o en un estado local que otro actor no puede reconstruir. Eso rompe continuidad: el usuario cree haber entregado intención durable, mientras un reload, un fallo de transporte o un worker nuevo puede verla incompleta, duplicada o fuera de orden. La especificación necesita separar captura humana, persistencia, proyección y eventual ejecución.",
-        "HIPOTESIS": "Si cada envío se convierte primero en un registro durable con identidad estable, contenido original preservado, estado explícito y enlace al thread existente, entonces la continuidad puede sobrevivir reloads y reintentos sin convertir automáticamente el mensaje en trabajo autorizado. La durabilidad debe preceder cualquier proyección de progreso o despacho a workers.",
-        "ENTRADA": "Texto aportado por el usuario, identidad del thread o Chat Object ya existente cuando corresponda, timestamp externo disponible, contexto mínimo de la superficie y metadatos necesarios para deduplicar reintentos. La entrada no presupone categoría, prioridad, intención ejecutable ni permiso de promoción. Texto vacío, demasiado grande o malformado debe fallar de forma visible.",
-        "PROCESO": "Normalizar sólo aspectos de transporte sin reescribir el significado; asignar una identidad durable idempotente; persistir el texto original y el estado inicial RECEIVED; devolver un acuse ligado a esa identidad; proyectar el mensaje en el mismo thread; clasificar después como IDEA, ACCION o REFERENCIA cuando exista una regla autorizada; y, si una ACCION requiere ejecución, crear un límite separado de preview, confirmación o packet según el contrato vigente. Los reintentos con la misma clave no crean mensajes nuevos. Un fallo de persistencia no puede mostrarse como enviado. Un fallo posterior de proyección conserva el registro durable y expone estado degradado recuperable. Ningún paso debe inventar conversation_id, autoridad o resultado.",
-        "MEDIDAS": "Tasa de persistencia durable; duplicados por reintento; mensajes visibles sin backing durable; latencia captura→acuse; capacidad de reconstrucción tras reload; proporción de fallos mostrados honestamente; y divergencias entre texto original y proyección. Las métricas describen transporte y continuidad, nunca autoridad.",
-        "EXITO": "Un mensaje aceptado tiene una identidad durable recuperable, conserva exactamente su intención, reaparece tras reload, no se duplica ante retry y permanece separado de cualquier claim de ejecución. Los fallos dejan estado explícito y reconstruible. Otro actor puede encontrar el mismo registro sin depender de memoria de sesión.",
-        "NO_OBJETIVOS": "No diseñar un nuevo scheduler, no decidir automáticamente qué debe ejecutarse, no promover notas a trabajo sin regla vigente, no resolver autenticación global, no almacenar secretos en la proyección pública y no declarar entrega exitosa basándose sólo en cambios visuales del cliente."
+        "PROBLEMA": "Una entrada de chat puede parecer recibida aunque sólo exista en memoria de interfaz o en una petición transitoria. Un reload, fallo de transporte o worker nuevo puede perderla, duplicarla o verla fuera de orden. La especificación debe separar captura humana, persistencia durable, proyección visible y eventual ejecución autorizada.",
+        "HIPOTESIS": "Si cada envío se convierte primero en un registro durable con identidad estable, texto original, estado explícito y enlace al thread existente, la continuidad puede sobrevivir reloads y reintentos sin convertir automáticamente el mensaje en trabajo autorizado.",
+        "ENTRADA": "Texto del usuario, identidad del thread existente cuando corresponda, timestamp externo disponible, contexto mínimo de superficie y metadatos suficientes para deduplicar retries. La entrada no presupone categoría, prioridad, ejecución ni permiso de promoción.",
+        "PROCESO": "Normalizar sólo transporte; asignar identidad idempotente; persistir texto original y estado RECEIVED; devolver acuse ligado a esa identidad; proyectar el mensaje en el mismo thread; y clasificar después sólo mediante reglas autorizadas. Si una ACCION requiere ejecución, debe cruzar un límite separado de preview, confirmación o packet. Retries con la misma clave no crean mensajes nuevos. Un fallo de persistencia nunca se muestra como enviado. Un fallo posterior de proyección conserva el registro durable y expone estado recuperable. Ningún paso inventa conversation_id, autoridad o resultado.",
+        "MEDIDAS": "Persistencia durable, duplicados por retry, mensajes visibles sin backing durable, latencia captura→acuse, reconstrucción tras reload, fallos mostrados honestamente y divergencias entre texto original y proyección. Las métricas describen continuidad, nunca autoridad.",
+        "EXITO": "Un mensaje aceptado tiene identidad durable recuperable, conserva su intención, reaparece tras reload y no se duplica ante retry. Otro actor puede reconstruirlo sin memoria de sesión. Los fallos permanecen explícitos y separados de claims de ejecución.",
+        "NO_OBJETIVOS": "No diseñar otro scheduler, decidir automáticamente qué ejecutar, promover notas sin regla vigente, almacenar secretos en proyección pública ni declarar éxito basándose sólo en cambios visuales del cliente."
       },
       {
         "title": "Especificación 2 · Worker local batching",
-        "PROBLEMA": "Un worker puede desperdiciar gran parte de su capacidad alternando lectura, escritura durable, telemetría y pequeñas decisiones que podrían resolverse juntas en contexto local. Sin embargo, agrupar demasiado también puede degradar retención de instrucciones, precisión, auditabilidad y capacidad de detectar una boundary real. El problema no es maximizar tamaño de batch sino encontrar una disciplina que reduzca I/O sin rebajar definición de terminado.",
-        "HIPOTESIS": "Después de autoridad válida y carga exacta del fixture, varios átomos cognitivos independientes pueden ejecutarse consecutivamente en memoria, con una sola salida durable al final, siempre que identidad, autoridad, restricciones y verificación permanezcan congeladas. Un batch local útil reduce round-trips externos pero no convierte speed en criterio de calidad ni reemplaza evidencia externa cuando ésta es necesaria.",
-        "ENTRADA": "Un job ya reclamado, su capsule o fixture exacto, invariantes de seguridad y autoridad, lista ordenada de átomos, forma de salida de cada átomo, límites de tamaño y un criterio explícito para abandonar batching. No se agregan búsquedas preclaim, contexto histórico genérico ni nuevos objetivos durante la ventana local.",
-        "PROCESO": "Persistir un marcador externo de inicio; congelar objetivo, leyes y output shapes; ejecutar los átomos en el orden declarado usando sólo contexto cargado; marcar localmente ambigüedades sin inventar datos; revisar conteos, esquemas, rangos y restricciones; reparar defectos detectables sin I/O; y emitir un único bundle final. Si aparece una necesidad material de browser, archivo no cargado, credencial, autoridad adicional o dato externo indispensable, detener la comparación y marcarla inválida en lugar de abrir una consulta silenciosa. El batch no debe generar heartbeats o progreso intermedio salvo boundary de seguridad real. Después del RESULT vuelve el pipeline normal.",
-        "MEDIDAS": "Completitud de átomos; fallos de restricciones antes y después de reparación; cantidad de I/O entre marcador y RESULT; palabras y decisiones producidas; degradación tardía; ambigüedades no resolubles; tiempo durable marcador→resultado; y calidad de la auditoría final. La velocidad queda como diagnóstico secundario.",
-        "EXITO": "Todos los átomos quedan completos o honestamente limitados, el bundle permite reconstruir qué ocurrió, no existe I/O externo intermedio deliberado y el audit final encuentra o confirma conteos y esquemas. Ninguna reducción de consultas puede ocultar trabajo incompleto, evidencia faltante o una necesidad real de verificación externa.",
-        "NO_OBJETIVOS": "No cambiar el baseline por una réplica exploratoria, no reemplazar E6 con autoevaluación, no reutilizar identidad histórica, no agrupar mutaciones exclusivas incompatibles, no mantener un worker vivo artificialmente y no inferir causalidad a partir de una sola ejecución."
+        "PROBLEMA": "Un worker puede desperdiciar capacidad alternando lecturas, writes y pequeñas decisiones que podrían resolverse juntas en contexto local. Pero agrupar demasiado puede degradar retención de instrucciones, precisión y auditabilidad. El objetivo es reducir I/O sin rebajar definición de terminado ni ocultar boundaries.",
+        "HIPOTESIS": "Después de autoridad válida y carga exacta del fixture, varios átomos cognitivos pueden ejecutarse consecutivamente en memoria con una sola salida durable final, siempre que identidad, autoridad, restricciones y verificación permanezcan congeladas.",
+        "ENTRADA": "Job reclamado, fixture exacto, invariantes, lista ordenada de átomos, formas de salida, límites de tamaño y criterio explícito para abandonar batching. No se agregan búsquedas preclaim, contexto histórico genérico ni objetivos nuevos durante la ventana local.",
+        "PROCESO": "Persistir START; congelar objetivo y laws; ejecutar átomos en orden usando sólo contexto cargado; marcar ambigüedades sin inventar datos; revisar conteos, schemas y rangos; reparar defectos detectables localmente; y emitir un único RESULT. Si aparece necesidad material de browser, archivo no cargado, credencial, autoridad adicional o dato externo indispensable, detener la comparación y marcarla inválida. No generar progreso intermedio por comodidad. Después del RESULT vuelve el pipeline normal y E6 verifica lo que el batch no puede probar externamente.",
+        "MEDIDAS": "Completitud, fallos de restricciones antes y después de reparación, I/O entre marcadores, volumen producido, degradación tardía, ambigüedades, tiempo durable START→RESULT y calidad del audit final. Speed es sólo diagnóstico.",
+        "EXITO": "Todos los átomos quedan completos o honestamente limitados, el bundle reconstruye lo ocurrido, no existe I/O intermedio deliberado y el audit detecta conteos, schemas y restricciones. Ninguna reducción de consultas oculta evidencia faltante.",
+        "NO_OBJETIVOS": "No cambiar baseline desde una réplica, reemplazar E6 con autoevaluación, reutilizar identidad histórica, agrupar mutaciones exclusivas incompatibles, mantener workers vivos artificialmente ni inferir causalidad desde una sola corrida. Tampoco optimizar volumen ignorando precisión."
       },
       {
         "title": "Especificación 3 · External timing",
-        "PROBLEMA": "Los tiempos escritos por el propio modelo o por procesos internos no son una base confiable para comparar workers: pueden tener relojes distintos, ser reconstruidos después o incluso repetirse entre conversaciones. Si la medición de capacidad depende de timestamps auto-reportados, una variante puede parecer más rápida sin que exista evidencia temporal independiente.",
-        "HIPOTESIS": "Dos marcadores durables observables por una infraestructura externa pueden delimitar una ventana comparable: uno inmediatamente antes del trabajo local y otro al persistir el resultado. Los timestamps de commits o artefactos del servidor sirven como reloj autoritativo, mientras cualquier hora redactada por el modelo queda sólo como diagnóstico.",
-        "ENTRADA": "Identidad fresca del worker, job y variante, referencia a la autoridad, path único del START, path único del RESULT y timestamps externos asociados a sus commits o artefactos. También se conservan indicadores de reintentos, fallos de transporte e I/O inesperado para evitar interpretar demoras de infraestructura como procesamiento cognitivo puro.",
-        "PROCESO": "Crear el START durable una vez ganada autoridad y antes del bloque medido; ejecutar el tramo local sin I/O intermedio; persistir el RESULT como primera salida externa posterior; recuperar después, fuera de la ventana medida, los tiempos del servidor; calcular elapsed usando el mismo tipo de reloj; y anexar contexto sobre contención, retries o deploys que puedan distorsionar comparación. Si el START no persiste, la corrida no comenzó. Si hay I/O entre START y RESULT por una boundary real, la corrida se conserva como evidencia pero queda INVALID_FOR_LOCAL_BATCH_COMPARISON. Nunca se corrige un tiempo externo con una hora autoescrita.",
-        "MEDIDAS": "Elapsed externo START→RESULT; número de intentos de persistencia; I/O intermedio; estado válido o inválido; tamaño del resultado; completitud; restricciones reparadas; y diferencias entre tiempo externo y auto-reportado cuando este último existe. Comparaciones deben separar rendimiento cognitivo, congestión de repositorio y fallos de transporte.",
-        "EXITO": "Otra persona puede localizar ambos marcadores, verificar sus timestamps externos, reconstruir el intervalo y saber si hubo contaminación por I/O. Dos variantes pueden compararse sin confiar en cronómetros narrados por el modelo y sin declarar ganadora a la más rápida si su completitud o calidad es inferior.",
-        "NO_OBJETIVOS": "No convertir GitHub en scheduler, no usar velocidad como autoridad, no medir pensamiento privado, no exigir precisión subsegundo, no borrar corridas inválidas y no atribuir automáticamente a la variante cualquier latencia causada por infraestructura compartida."
+        "PROBLEMA": "Los tiempos escritos por el propio modelo no bastan para comparar workers: pueden usar relojes distintos, reconstruirse después o repetirse entre conversaciones. Si la capacidad se mide con timestamps auto-reportados, una variante puede parecer más rápida sin evidencia temporal independiente.",
+        "HIPOTESIS": "Dos marcadores durables observables externamente pueden delimitar una ventana comparable: START inmediatamente antes del trabajo local y RESULT al persistir la salida. Timestamps del servidor son autoridad temporal; horas redactadas por el modelo son diagnóstico.",
+        "ENTRADA": "Worker fresco, job, variante, autoridad, path único de START, path único de RESULT y timestamps externos asociados a sus commits o artefactos. También deben conservarse retries, fallos de transporte e I/O inesperado.",
+        "PROCESO": "Crear START durable antes del bloque medido; ejecutar trabajo local sin I/O intermedio; persistir RESULT como primera salida externa posterior; recuperar luego los tiempos del servidor; calcular elapsed con el mismo tipo de reloj; y anexar contención o retries que distorsionen interpretación. Si START no persiste, la corrida no comenzó. Si existe I/O material entre START y RESULT, la corrida se conserva como evidencia pero queda inválida para comparación local. Nunca se corrige un tiempo externo con una hora autoescrita.",
+        "MEDIDAS": "Elapsed externo, intentos de persistencia, I/O intermedio, validez, tamaño de resultado, completitud, restricciones reparadas y divergencia con tiempos auto-reportados. Comparaciones deben separar rendimiento cognitivo de congestión de repositorio.",
+        "EXITO": "Otra persona puede localizar ambos marcadores, verificar timestamps, recalcular el intervalo y saber si hubo contaminación por I/O. Variantes pueden compararse sin confiar en cronómetros narrados ni privilegiar velocidad sobre calidad.",
+        "NO_OBJETIVOS": "No convertir GitHub en scheduler, usar velocidad como autoridad, medir pensamiento privado, exigir precisión subsegundo, borrar corridas inválidas ni atribuir automáticamente a la variante toda latencia de infraestructura. Tampoco seleccionar una variante sólo por elapsed."
       },
       {
         "title": "Especificación 4 · Progress widget",
-        "PROBLEMA": "Un indicador de progreso puede transmitir certeza falsa si deriva de actividad superficial, cantidad de workers, mensajes emitidos o porcentajes inventados. El usuario necesita distinguir qué objetivo está completo, qué evidencia falta y qué bloqueo existe, sin convertir la UI en una segunda fuente de verdad o en un scheduler paralelo.",
-        "HIPOTESIS": "Un widget pequeño puede ser confiable si proyecta exclusivamente pasos ponderados ya definidos por el objetivo, conserva estados discretos y enlaza cada avance a evidencia durable. El porcentaje es una función de pasos satisfechos, no una estimación narrativa; un bloqueo o boundary se muestra explícitamente y no se maquilla como avance parcial.",
-        "ENTRADA": "Identificador del objetivo, lista estable de pasos o gates, peso de cada paso, estado durable por paso, referencias de evidencia, timestamp de última actualización y boundary actual cuando exista. Si faltan pesos o el conjunto de pasos no suma una base válida, el widget debe mostrar estado indeterminado en vez de fabricar porcentaje.",
-        "PROCESO": "Leer la proyección canónica; validar esquema y pesos; calcular suma de pesos PASS sobre total aplicable; separar PENDING, ACTIVE, BLOCKED y DONE; renderizar porcentaje junto con conteo de pasos y motivo del próximo pendiente; enlazar evidencia sin ejecutar acciones; conservar último estado bueno cuando la fuente temporalmente no responde; y actualizar sólo al cambiar la proyección durable. Los pasos superseded no cuentan como pendientes. Un worker activo sin resultado no aumenta porcentaje. Una verificación fallida puede mantener trabajo producido visible pero no satisfacer el gate correspondiente.",
-        "MEDIDAS": "Exactitud del porcentaje respecto de pasos ponderados; divergencias entre widget y fuente; edad de la proyección; porcentaje de estados con evidencia enlazada; tiempo hasta reflejar un cambio durable; y frecuencia de fallback a último estado bueno. Debe medirse además cuántas veces aparece indeterminado por datos inválidos.",
-        "EXITO": "El usuario puede saber cuánto del contrato está probado, cuál es el próximo gate y por qué algo está bloqueado. Recalcular desde los mismos pasos produce el mismo porcentaje. Reload conserva una proyección coherente y ningún cambio visual crea autoridad, completa trabajo ni oculta una verificación pendiente.",
-        "NO_OBJETIVOS": "No crear otra cola, no inferir liveness desde ACTIVE, no contar commits como progreso por sí solos, no asignar prioridades, no sustituir el detalle de evidencia y no convertir el widget en un panel genérico con métricas sin relación al objetivo."
+        "PROBLEMA": "Un indicador de progreso puede transmitir certeza falsa si deriva de actividad superficial, cantidad de workers, commits o porcentajes inventados. El usuario necesita distinguir qué está probado, qué falta y qué bloqueo existe sin crear una segunda fuente de verdad.",
+        "HIPOTESIS": "Un widget pequeño es confiable si proyecta pasos ponderados ya definidos, conserva estados discretos y enlaza cada avance a evidencia durable. El porcentaje debe ser función de gates satisfechos, no una estimación narrativa.",
+        "ENTRADA": "Objetivo, lista estable de pasos, peso por paso, estado durable, referencias de evidencia, timestamp de actualización y boundary actual. Si faltan pesos o el conjunto es inválido, mostrar indeterminado en vez de fabricar porcentaje.",
+        "PROCESO": "Leer la proyección canónica; validar esquema y pesos; sumar pesos PASS sobre total aplicable; separar PENDING, ACTIVE, BLOCKED y DONE; mostrar porcentaje, conteo y próximo pendiente; enlazar evidencia sin ejecutar acciones; conservar último estado bueno ante fallo temporal; y actualizar sólo con cambios durables. Pasos superseded no cuentan. Worker activo sin resultado no aumenta progreso. Una verificación fallida deja trabajo visible pero no satisface el gate.",
+        "MEDIDAS": "Exactitud del porcentaje, divergencias con fuente, edad de proyección, estados con evidencia, latencia hasta reflejar cambios, uso de último estado bueno y frecuencia de indeterminado por datos inválidos.",
+        "EXITO": "El usuario sabe cuánto del contrato está probado, cuál es el próximo gate y por qué algo está bloqueado. Recalcular desde los mismos pasos produce el mismo porcentaje. Reload conserva coherencia sin crear autoridad.",
+        "NO_OBJETIVOS": "No crear otra cola, inferir liveness desde ACTIVE, contar commits como progreso, asignar prioridades, sustituir evidencia detallada ni convertir el widget en un dashboard genérico. Tampoco estimar avance desde actividad reciente, ocultar gates fallidos, borrar boundaries visibles o convertir la proyección en una autoridad de ejecución."
       }
     ],
     "A4_ATOMIZE_4": {
@@ -496,7 +496,7 @@
       "range_and_schema_checks": [
         "A1 reasons were kept within the requested 8–18 word band by local review.",
         "A2 returns exactly eight objects and exactly the six required keys; missing source paragraphs are represented fail-closed.",
-        "A3 contains four independent specs, each locally reviewed to remain within the requested 280–360 word band and to include all seven headings.",
+        "A3 post-RESULT repair contains four independent specs at 300, 284, 281, 281 words, all within 280–360, with all seven headings.",
         "A4 contains exactly 40 tasks; each task was locally reviewed to remain at or below 22 words and separately verifiable.",
         "A5 covers exactly expected quality, instruction retention, local overhead, external I/O, integration cost and likely failure modes without winner language.",
         "A6 contains 16 failure modes, each labeled locally, externally or ambiguous and paired with evidence needed.",
@@ -505,12 +505,14 @@
       "constraint_failures_before_repair": [
         "A2 fixture defect: eight synthetic paragraphs are required but no paragraph texts are supplied. This cannot be repaired locally without inventing content.",
         "A1 notes 15 and 28 are semantically borderline between preservation/measurement and action; imperative concrete verbs were resolved consistently as ACCION.",
-        "A7 drafting risked reading as prescriptive baseline; final wording was repaired to mark CANDIDATE and require independent confirmation."
+        "A7 drafting risked reading as prescriptive baseline; final wording was repaired to mark CANDIDATE and require independent confirmation.",
+        "Post-RESULT E6 found A3 word-range violations: 410, 393, 373 and 376 words against required 280–360."
       ],
       "repairs_performed": [
         "A2 was converted from impossible extraction into eight schema-valid fail-closed records with null source-dependent output and explicit MISSING_SOURCE_PARAGRAPH boundaries.",
         "A1 category totals were recomputed after borderline classifications and fixed at IDEA=9, ACCION=12, REFERENCIA=9.",
-        "A7 promotion language was tightened so local batching is presented only as a candidate E5 discipline and E6 remains external-verification authority."
+        "A7 promotion language was tightened so local batching is presented only as a candidate E5 discipline and E6 remains external-verification authority.",
+        "Post-RESULT E6 shortened A3 specs to 300, 284, 281, 281 words while preserving all seven required sections."
       ],
       "unresolved_ambiguities": [
         "The eight A2 synthetic paragraphs are absent from the experiment fixture, so no content-level extraction can be truthfully produced for them.",
@@ -553,7 +555,8 @@
   "repairs": [
     "A2 was converted from impossible extraction into eight schema-valid fail-closed records with null source-dependent output and explicit MISSING_SOURCE_PARAGRAPH boundaries.",
     "A1 category totals were recomputed after borderline classifications and fixed at IDEA=9, ACCION=12, REFERENCIA=9.",
-    "A7 promotion language was tightened so local batching is presented only as a candidate E5 discipline and E6 remains external-verification authority."
+    "A7 promotion language was tightened so local batching is presented only as a candidate E5 discipline and E6 remains external-verification authority.",
+    "Post-RESULT E6 repaired A3 word counts from 410/393/373/376 to 300/284/281/281."
   ],
   "degradation_assessment": {
     "observed": false,
@@ -561,8 +564,33 @@
   },
   "unresolved_ambiguities": [
     "The eight A2 synthetic paragraphs are absent from the experiment fixture, so no content-level extraction can be truthfully produced for them.",
-    "No externally authoritative word counter runs inside the no-tool interval; word-band checks are local audit evidence and may be independently recomputed from the persisted RESULT."
+    "No externally authoritative word counter runs inside the no-tool interval; word-band checks are local audit evidence and may be independently recomputed from the persisted RESULT.",
+    "The first RESULT local audit incorrectly marked A3 word ranges PASS; therefore this replica is invalid for local-batch comparison even though the final durable artifact is repaired."
   ],
   "authority_boundary": "SYNTHETIC_E5_EXPLORATION_ONLY_NO_BASELINE_PROMOTION",
-  "timing_note": "Use GitHub durable commit timestamps for START→RESULT elapsed; authored timestamps are not timing authority."
+  "timing_note": "Use GitHub durable commit timestamps for START→RESULT elapsed; authored timestamps are not timing authority.",
+  "first_result_commit_sha": "0df2c7a88ce9a80891f6ff629ba82904d4d3fbec",
+  "post_result_verification": {
+    "performed_after_first_result": true,
+    "finding": "LOCAL_AUDIT_FALSE_PASS_ON_A3_WORD_RANGES",
+    "first_result_spec_word_counts": [
+      410,
+      393,
+      373,
+      376
+    ],
+    "repaired_spec_word_counts": [
+      300,
+      284,
+      281,
+      281
+    ],
+    "A1_reason_word_range": [
+      11,
+      15
+    ],
+    "A4_max_task_words": 12,
+    "A7_word_count": 756,
+    "effect": "Replica is preserved as evidence but invalid for variant comparison because the local final audit falsely passed A3 word ranges and external E6 was required to repair them."
+  }
 }
