@@ -1377,6 +1377,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
   const roles = compileRoleFrontier(feed, efficiency, jobs, ready, queueReady, recovery, roleContext);
 
   const batchCandidates = [];
+  const BATCH_INFRA_RESERVE = 2;
   const meshInfra = new Set(arr(roleContext?.projectGuideMesh?.infrastructure_projects));
   const isInfraCandidate = item => {
     const pid = item?.project_id || item?.scope_project_id || null;
@@ -1412,6 +1413,20 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
   const productRoles = roles.role_ready.filter(item => !isFinishCritical(item) && !isInfraCandidate(item));
   const infraReady = ready.filter(item => !isFinishCritical(item) && isInfraCandidate(item));
   const infraRoles = roles.role_ready.filter(item => !isFinishCritical(item) && isInfraCandidate(item));
+
+  // Keep product work dominant, but reserve a tiny bounded share of the SAME unified
+  // batch surface for high-value system multipliers. Without this, a product-rich
+  // frontier can starve worker/runtime repair indefinitely even at much higher priority.
+  // This is not a new lane/queue: the candidates retain their original ready/role lane
+  // and the worker still hashes one unified candidate array under EFF021.
+  const infraReserve = [
+    ...infraReady.map(item => ({ lane:'ready', item })),
+    ...infraRoles.map(item => ({ lane:'role_ready', item }))
+  ]
+    .sort((a,b)=>(b.item.priority||0)-(a.item.priority||0) || candidateKey(a.lane,a.item).localeCompare(candidateKey(b.lane,b.item)))
+    .slice(0, BATCH_INFRA_RESERVE);
+  for (const row of infraReserve) pushBatch(row.lane,[row.item]);
+
   pushBatch('ready', productReady);
   pushBatch('queue_ready', productQueue);
   pushBatch('role_ready', productRoles);
