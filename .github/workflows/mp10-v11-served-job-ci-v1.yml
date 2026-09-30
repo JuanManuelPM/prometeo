@@ -1,0 +1,52 @@
+name: MP10 V11 served job CI v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/mp10-v11-served-job-ci-v1.yml'
+      - 'coordination/portfolio/tests/mp10_v11_served_job_ci_v1.mjs'
+      - 'current-tree/control-v11/**'
+      - 'coordination/project-context-v1/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mp10-v11-served-job-ci-v1
+  cancel-in-progress: false
+
+jobs:
+  focused-served-v11:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright@1.55.0 install --with-deps chromium
+
+      - name: Verify served V11 job contract
+        env:
+          V11_PUBLIC_URL: https://juanmanuelpm.github.io/prometeo/current-tree/control-v11/
+          V11_PROPAGATION_MS: '180000'
+          V11_JOB_CI_OUT: artifacts/mp10-v11-served-job-ci
+        run: node coordination/portfolio/tests/mp10_v11_served_job_ci_v1.mjs
+
+      - name: Upload bounded evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mp10-v11-served-job-ci-evidence
+          path: artifacts/mp10-v11-served-job-ci/
+          if-no-files-found: error
+          retention-days: 14
