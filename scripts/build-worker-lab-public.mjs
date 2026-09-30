@@ -41,7 +41,16 @@ function buildRun(runId){
   const receiptByWorker=new Map(receipts.filter(x=>x.doc?.worker_id).map(x=>[x.doc.worker_id,x.doc]));
   const primaryWorkers=uniq(receipts.filter(x=>x.doc?.primary_complete===true).map(x=>x.doc.worker_id));
   const reallocWorkers=uniq(receipts.filter(x=>x.doc?.reallocation_complete===true).map(x=>x.doc.worker_id));
-  const terminalWorkers=uniq(exams.map(x=>x.doc?.worker_id).filter(Boolean));
+  const receiptTerminal = doc => {
+    const e9=String(doc?.stage_trace?.E9_EXAM_CLOSE?.status||doc?.close_status||'').toUpperCase();
+    const reason=String(doc?.close_reason||'').toUpperCase();
+    return /^(PASS|FAIL|BOUNDARY|RUN_COMPLETE|RUN_TERMINAL_BOUNDARY)$/.test(e9)
+      || /TERMINAL_BOUNDARY|RUN_COMPLETE/.test(reason);
+  };
+  const terminalWorkers=uniq([
+    ...exams.map(x=>x.doc?.worker_id),
+    ...receipts.filter(x=>receiptTerminal(x.doc)).map(x=>x.doc?.worker_id)
+  ].filter(Boolean));
 
   const variants={};
   for(const s of slots){
@@ -58,10 +67,10 @@ function buildRun(runId){
   for(const row of receipts){
     const sid=row.doc?.slot_id||row.doc?.primary_slot_id||null;
     const slot=sid?slotById.get(sid):null;
-    const key=row.doc?.benchmark_variant_id || (
+    const key=slot?.benchmark_variant_id || row.doc?.benchmark_variant_id || (
       slot?.load_tier_id && slot?.continuation_condition_id
         ? slot.load_tier_id+' × '+slot.continuation_condition_id
-        : row.doc?.evolution_variant||slot?.evolution_variant||'UNSPECIFIED'
+        : slot?.evolution_variant||row.doc?.evolution_variant||'UNSPECIFIED'
     );
     variants[key]??={slots_total:0,slots_claimed:0,primary_complete:0,reallocation_complete:0};
     if(row.doc?.primary_complete===true) variants[key].primary_complete++;
