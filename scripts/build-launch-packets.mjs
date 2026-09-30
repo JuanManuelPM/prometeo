@@ -61,17 +61,30 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
   });
   const slots=packet.slots||[];
   const variantStatus={};
+  const benchmarkVariantStatus={};
   for(const slot of slots){
     const id=slot.evolution_variant||'UNSPECIFIED';
     variantStatus[id]??={slots_total:0,slots_claimed:0,primary_complete:0,reallocation_complete:0};
     variantStatus[id].slots_total++;
     if(claimedIds.has(slot.slot_id)) variantStatus[id].slots_claimed++;
+    if(slot.benchmark_variant_id){
+      const bid=slot.benchmark_variant_id;
+      benchmarkVariantStatus[bid]??={slots_total:0,slots_claimed:0,primary_complete:0,reallocation_complete:0};
+      benchmarkVariantStatus[bid].slots_total++;
+      if(claimedIds.has(slot.slot_id)) benchmarkVariantStatus[bid].slots_claimed++;
+    }
   }
   for(const rcpt of receipts){
     const id=rcpt.evolution_variant||'UNSPECIFIED';
     variantStatus[id]??={slots_total:0,slots_claimed:0,primary_complete:0,reallocation_complete:0};
     if(rcpt.primary_complete===true) variantStatus[id].primary_complete++;
     if(rcpt.reallocation_complete===true) variantStatus[id].reallocation_complete++;
+    if(rcpt.benchmark_variant_id){
+      const bid=rcpt.benchmark_variant_id;
+      benchmarkVariantStatus[bid]??={slots_total:0,slots_claimed:0,primary_complete:0,reallocation_complete:0};
+      if(rcpt.primary_complete===true) benchmarkVariantStatus[bid].primary_complete++;
+      if(rcpt.reallocation_complete===true) benchmarkVariantStatus[bid].reallocation_complete++;
+    }
   }
   const status={
     schema:'prometeo.launch-run-status/v1',
@@ -99,6 +112,7 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
     reallocation_complete:new Set(receipts.filter(x=>x.reallocation_complete===true).map(x=>x.worker_id)).size,
     receipts:receipts.length,
     variants:variantStatus,
+    benchmark_variants:Object.keys(benchmarkVariantStatus).length?benchmarkVariantStatus:null,
     human_numbering_required:false,
     truth_boundary:'Durable main-branch beacons, packet claims and benchmark receipts only. A beacon without a primary claim is an observable E1-complete/E2-not-reached launch outcome, not proof of why the chat stopped.'
   };
@@ -127,7 +141,7 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
       authority_mode:packet.authority_mode,authority_rule:packet.authority_rule
     },null,2)+'\n');
   }
-  const rows=(packet.slots||[]).map(slot=>'<tr><td>'+esc(slot.slot_id)+'</td><td>'+esc(slot.evolution_variant)+'</td><td>'+esc(slot.project_id)+'</td><td>'+(claimedIds.has(slot.slot_id)?'CLAIMED':'OPEN')+'</td></tr>').join('');
+  const rows=(packet.slots||[]).map(slot=>'<tr><td>'+esc(slot.slot_id)+'</td><td>'+esc(slot.benchmark_variant_id||slot.evolution_variant)+'</td><td>'+esc(slot.project_id)+'</td><td>'+(claimedIds.has(slot.slot_id)?'CLAIMED':'OPEN')+'</td></tr>').join('');
   const html='<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>'+esc(runId)+' · Prometeo Launch</title><style>html{background:#080808;color:#f0eee9;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}body{max-width:980px;margin:auto;padding:28px 18px}h1{font-size:24px}pre{white-space:pre-wrap;border:1px solid #4a453d;padding:14px;user-select:all}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #34312d;text-align:left;padding:8px}a{color:#ff9b54}.muted{color:#aaa}.metrics{display:flex;gap:18px;flex-wrap:wrap}.metrics b{display:block;font-size:20px}</style></head><body><h1>'+esc(runId)+'</h1><p class="muted">Launch Packet · '+esc(packet.status)+'</p><div class="metrics"><span>slots<b>'+status.slots_claimed+'/'+status.slots_total+'</b></span><span>primary complete<b>'+status.primary_complete+'</b></span><span>reallocated<b>'+status.reallocation_complete+'</b></span></div><h2>Prompt único</h2><pre>'+esc(packet.human_invocation)+'</pre><p><a href="./packet.json">packet.json</a> · <a href="./status.json">status.json</a> · <a href="./manifest.json">manifest.json</a></p><h2>Slots</h2><table><thead><tr><th>slot</th><th>variant</th><th>project</th><th>state</th></tr></thead><tbody>'+rows+'</tbody></table></body></html>\n';
   fs.writeFileSync(path.join(outDir,'index.html'),html);
   console.log(JSON.stringify({run_id:runId,status:packet.status,slots:(packet.slots||[]).length,outDir}));
