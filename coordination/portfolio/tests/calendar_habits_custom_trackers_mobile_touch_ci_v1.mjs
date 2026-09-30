@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
 
-const base = process.env.PROMETEO_CANARY_URL || 'http://127.0.0.1:8000/prometeo/candidate/calendar-habits-custom-trackers-v1/?view=habits';
+const base = process.env.PROMETEO_CANARY_URL || 'http://127.0.0.1:8000/candidate/calendar-habits-custom-trackers-v1/?view=habits';
 const outDir = process.env.PROMETEO_CANARY_OUT || 'artifacts/calendar-habits-mobile-touch-canary';
 fs.mkdirSync(outDir, { recursive: true });
 
