@@ -4,18 +4,18 @@
   const WORK_UNIT_ID = 'WU-CHAT-CANARY-DURABLE-MESSAGE-V1';
   const PROJECTION_URL = '../../../coordination/portfolio/derived/INTERACTIVE_WORK_UNITS_V1.json';
 
-  function node(tag, text, className) {
-    const el = document.createElement(tag);
-    if (className) el.className = className;
-    if (text !== undefined && text !== null) el.textContent = String(text);
-    return el;
+  function el(tag, text, className) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
   }
 
-  function traffic(status) {
+  function tone(status) {
     const value = String(status || '').toUpperCase();
-    if (value === 'COMPLETED') return { label: 'VERDE', glyph: '●', tone: '#91c99b' };
-    if (value === 'FAILED') return { label: 'ROJO', glyph: '●', tone: '#d98282' };
-    return { label: 'ÁMBAR', glyph: '●', tone: '#d0ae6b' };
+    if (value === 'COMPLETED') return { glyph: '●', color: '#82d69a' };
+    if (value === 'FAILED') return { glyph: '●', color: '#ff7676' };
+    return { glyph: '●', color: '#d9b45f' };
   }
 
   function render(host, wu) {
@@ -23,113 +23,45 @@
     host.setAttribute('data-work-unit-id', WORK_UNIT_ID);
     host.setAttribute('data-progress-source', 'INTERACTIVE_WORK_UNITS_V1');
 
-    const wrap = node('section', null, 'chat-canary-progress-v1');
-    Object.assign(wrap.style, {
-      borderTop: '1px solid #292f36',
-      marginTop: '16px',
-      paddingTop: '14px',
-      fontFamily: 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace'
-    });
+    const details = el('details', null, 'prometeo-progress-widget');
+    const summary = el('summary');
 
-    const top = node('div');
-    Object.assign(top.style, {
-      display: 'grid',
-      gridTemplateColumns: 'minmax(0,1fr) auto',
-      gap: '12px',
-      alignItems: 'end'
-    });
+    const light = tone(wu.status);
+    const dot = el('span', light.glyph, 'progress-dot');
+    dot.style.color = light.color;
 
-    const titleBox = node('div');
-    const eyebrow = node('div', 'WORK UNIT · DURABLE', null);
-    Object.assign(eyebrow.style, {
-      color: '#747e89',
-      fontSize: '8px',
-      letterSpacing: '.1em'
-    });
-    const stage = node('div', wu.current_stage || 'UNKNOWN');
-    Object.assign(stage.style, {
-      marginTop: '4px',
-      fontSize: '12px',
-      fontWeight: '800',
-      overflowWrap: 'anywhere'
-    });
-    titleBox.append(eyebrow, stage);
+    const pctValue = Number.isFinite(Number(wu.progress)) ? Math.round(Number(wu.progress)) : null;
+    const pct = el('strong', pctValue === null ? '—' : pctValue + '%', 'progress-pct');
+    const stage = el('span', wu.current_stage || 'UNKNOWN', 'progress-stage');
 
-    const pct = node('strong', Number.isFinite(Number(wu.progress)) ? Math.round(Number(wu.progress)) + '%' : '—');
-    Object.assign(pct.style, { fontSize: '25px', lineHeight: '1' });
-    top.append(titleBox, pct);
+    summary.append(dot, pct, stage);
 
-    const rail = node('div');
-    Object.assign(rail.style, {
-      height: '7px',
-      border: '1px solid #343b43',
-      borderRadius: '999px',
-      marginTop: '10px',
-      overflow: 'hidden',
-      background: '#0d0f12'
-    });
-    const fill = node('div');
-    const progress = Math.max(0, Math.min(100, Number(wu.progress) || 0));
-    Object.assign(fill.style, {
-      width: progress + '%',
-      height: '100%',
-      background: '#d8d8d2'
-    });
+    const inner = el('div', null, 'progress-inner');
+    const rail = el('div', null, 'progress-rail');
+    const fill = el('div', null, 'progress-fill');
+    fill.style.width = Math.max(0, Math.min(100, Number(wu.progress) || 0)) + '%';
     rail.append(fill);
 
     const steps = Array.isArray(wu.steps) ? wu.steps : [];
     const done = steps.filter(step => step && step.status === 'DONE').length;
-    const light = traffic(wu.status);
-    const summary = node('div');
-    Object.assign(summary.style, {
-      display: 'flex',
-      flexWrap: 'wrap',
-      gap: '10px',
-      marginTop: '9px',
-      color: '#858e99',
-      fontSize: '8px'
-    });
-    const lightEl = node('span', light.glyph + ' ' + light.label);
-    lightEl.style.color = light.tone;
-    summary.append(
-      lightEl,
-      node('span', done + '/' + steps.length + ' pasos DONE'),
-      node('span', 'último progreso: ' + (wu.last_progress_at || 'desconocido'))
-    );
+    const counts = el('div', done + '/' + steps.length + ' · ' + (wu.status || 'UNKNOWN'), 'progress-counts');
 
-    const list = node('div');
-    Object.assign(list.style, { display: 'grid', gap: '5px', marginTop: '11px' });
+    const list = el('div', null, 'progress-steps');
     for (const step of steps) {
-      const row = node('div');
-      Object.assign(row.style, {
-        display: 'grid',
-        gridTemplateColumns: '54px minmax(0,1fr) auto',
-        gap: '8px',
-        alignItems: 'baseline',
-        borderTop: '1px solid #20252b',
-        paddingTop: '6px',
-        fontSize: '8px'
-      });
-      const state = node('span', step.status || 'UNKNOWN');
-      state.style.color = step.status === 'DONE' ? '#91c99b' : '#8b949f';
+      const row = el('div', null, 'progress-step');
+      const state = el('span', step.status === 'DONE' ? '✓' : '·', 'progress-step-state');
+      if (step.status === 'DONE') state.classList.add('done');
       row.append(
         state,
-        node('span', step.name || step.step_id || 'step'),
-        node('span', String(step.weight || 0) + '%')
+        el('span', step.name || step.step_id || 'step', 'progress-step-name'),
+        el('span', String(step.weight || 0) + '%', 'progress-step-weight')
       );
       list.append(row);
     }
 
-    const boundary = node('div', 'Fuente: INTERACTIVE_WORK_UNITS_V1 · observabilidad, no autoridad/liveness.');
-    Object.assign(boundary.style, {
-      marginTop: '10px',
-      color: '#606a74',
-      fontSize: '7px',
-      lineHeight: '1.5'
-    });
-
-    wrap.append(top, rail, summary, list, boundary);
-    host.append(wrap);
+    inner.append(rail, counts, list);
+    details.append(summary, inner);
+    host.append(details);
   }
 
   async function load(hostOrSelector) {
@@ -147,9 +79,15 @@
         : null;
       if (!wu) throw new Error('WORK_UNIT_MISSING');
       render(host, wu);
-      return { ok: true, work_unit_id: WORK_UNIT_ID, progress: wu.progress, current_stage: wu.current_stage };
+      return {
+        ok: true,
+        work_unit_id: WORK_UNIT_ID,
+        progress: wu.progress,
+        current_stage: wu.current_stage,
+        status: wu.status
+      };
     } catch (error) {
-      host.replaceChildren(node('div', 'Progreso durable no disponible: ' + (error?.message || 'UNKNOWN')));
+      host.replaceChildren(el('span', 'progreso no disponible', 'progress-error'));
       return { ok: false, reason: error?.message || 'UNKNOWN' };
     }
   }
