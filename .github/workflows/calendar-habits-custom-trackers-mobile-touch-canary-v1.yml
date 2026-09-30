@@ -1,0 +1,49 @@
+name: Calendar habits mobile touch canary v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'candidate/calendar-habits-custom-trackers-v1/**'
+      - 'coordination/portfolio/tests/calendar_habits_custom_trackers_mobile_touch_canary_v1.mjs'
+      - '.github/workflows/calendar-habits-custom-trackers-mobile-touch-canary-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-touch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.57.0
+          npx playwright install --with-deps chromium
+      - name: Serve Prometeo snapshot locally
+        run: |
+          mkdir -p /tmp/prometeo-site
+          ln -s "$GITHUB_WORKSPACE" /tmp/prometeo-site/prometeo
+          nohup python3 -m http.server 4173 --directory /tmp/prometeo-site >/tmp/prometeo-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/prometeo/candidate/calendar-habits-custom-trackers-v1/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/prometeo-http.log
+          exit 1
+      - name: Run representative mobile touch canary
+        run: node coordination/portfolio/tests/calendar_habits_custom_trackers_mobile_touch_canary_v1.mjs
+      - name: Upload rendered evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: calendar-habits-mobile-touch-canary-v1
+          path: artifacts/calendar-habits-mobile-touch/
+          if-no-files-found: error
