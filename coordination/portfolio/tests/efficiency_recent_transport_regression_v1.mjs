@@ -69,7 +69,7 @@ assert.equal(historicalOnly.status, 'HEALTHY');
 assert.deepEqual(historicalOnly.reasons, []);
 
 // Two fresh durable transport blocks inside the bounded window are still a
-// real current regression and must trigger GUIDE_RESCATE.
+// real current regression and must route through GUIDE_CRITIC; transport denial remains telemetry, not rescue debt.
 blocked('recent-block-1', 5 * 60_000, 4.5 * 60_000);
 blocked('recent-block-2', 4 * 60_000, 3.5 * 60_000);
 
@@ -78,6 +78,6 @@ assert.equal(currentRepeat.metrics.claim_transport_blocked, 4);
 assert.equal(currentRepeat.metrics.claim_transport_blocked_recent, 2);
 assert.equal(currentRepeat.status, 'REGRESSION');
 assert.deepEqual(currentRepeat.reasons, ['CLAIM_TRANSPORT_BLOCKED_REPEAT']);
-assert.equal(currentRepeat.rescue?.recommended_role, 'GUIDE_RESCATE');
+assert.equal(currentRepeat.rescue?.recommended_role, 'GUIDE_CRITIC');
 
 console.log('EFFICIENCY_RECENT_TRANSPORT_REGRESSION_PASS');
