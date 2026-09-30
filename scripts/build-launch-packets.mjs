@@ -141,7 +141,10 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
   };
   fs.writeFileSync(path.join(outDir,'status.json'),JSON.stringify(status,null,2)+'\n');
   for(const slot of packet.slots||[]){
-    const variant=variantMap.get(slot.evolution_variant)||null;
+    const variant=variantMap.get(slot.evolution_variant)
+      || (packet.packet_profile==='GENERIC_SYNTHETIC_V1'
+        ? {id:slot.evolution_variant,scope:'PACKET_LOCAL_GENERIC_EXPERIMENT'}
+        : null);
     const capsule={
       schema:'prometeo.launch-slot-capsule/v1',
       run_id:runId,
