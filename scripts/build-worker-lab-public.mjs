@@ -45,6 +45,7 @@ function buildRun(runId){
     const e9=String(doc?.stage_trace?.E9_EXAM_CLOSE?.status||doc?.close_status||'').toUpperCase();
     const reason=String(doc?.close_reason||'').toUpperCase();
     return /^(PASS|FAIL|BOUNDARY|RUN_COMPLETE|RUN_TERMINAL_BOUNDARY)$/.test(e9)
+      || /TERMINAL_BOUNDARY/.test(e9)
       || /TERMINAL_BOUNDARY|RUN_COMPLETE/.test(reason);
   };
   const terminalWorkers=uniq([
