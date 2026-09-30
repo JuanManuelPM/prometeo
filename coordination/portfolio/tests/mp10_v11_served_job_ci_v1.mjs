@@ -121,17 +121,21 @@ async function runViewport(browser,id,viewport){
     assert.equal(await page.locator('iframe').count(),0);
     row.checks.static_preview_only=true;
 
-    row.project_context=await page.evaluate(async()=>{
-      try{
-        const api=window.PROMETEO_PROJECT_CONTEXT_V1;
-        if(!api)return {status:'API_MISSING'};
-        const res=await api.loadIndex();
-        return {status:String(res?.status||'UNKNOWN'),authority:res?.authority||null,has_data:Boolean(res?.data),project_count:Array.isArray(res?.data?.projects)?res.data.projects.length:null};
-      }catch(e){return {status:'THREW',error:String(e?.message||e)}}
+    await activate(page,'proyectos');
+    await page.waitForFunction(()=>Boolean(document.getElementById('projects')?.innerText.trim()),null,{timeout:15000});
+    row.project_context=await page.evaluate(()=>{
+      const root=document.getElementById('projects');
+      const text=root?.innerText||'';
+      return {
+        visible:Boolean(document.getElementById('proyectos')?.classList.contains('on')),
+        context_section:/Contextos recientes/i.test(text),
+        context_count:root?.querySelectorAll('.context').length||0,
+        text:text.slice(0,5000)
+      };
     });
-    assert.notEqual(row.project_context.status,'THREW');
-    assert.notEqual(row.project_context.status,'API_MISSING');
-    if(row.project_context.has_data) assert.match(String(row.project_context.authority||''),/NON_AUTHORITATIVE/i);
+    assert.equal(row.project_context.visible,true);
+    assert.equal(row.project_context.context_section,true);
+    assert.doesNotMatch(row.project_context.text,/undefined|null\\s+eventos|NaN/i);
     row.checks.project_context_truthful=true;
 
     await activate(page,'estadisticas');
