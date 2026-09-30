@@ -67,3 +67,44 @@ test('ordinary infrastructure priority still does not leapfrog product work',()=
   const out=buildFastAllocator(withoutCritical,{status:'OK',metrics:{},reasons:[]},{roleContext});
   assert.equal(out.batch_candidates[0].job_id,'product-high');
 });
+
+
+test('product-rich batch reserves two infrastructure candidates without displacing the product head',()=>{
+  const richFeed={
+    generated_at:'2026-09-30T01:50:00Z',
+    source_sha:'reserve-test',
+    projects:[
+      {
+        project_id:'product-project',
+        label:'Product',
+        jobs:Array.from({length:9},(_,i)=>({
+          job_id:'product-'+String(i+1).padStart(2,'0'),
+          project_id:'product-project',
+          priority:900-i,
+          state:'ready',
+          required_capabilities:[]
+        }))
+      },
+      {
+        project_id:'prometeo-autonomous-growth',
+        label:'Prometeo',
+        jobs:Array.from({length:3},(_,i)=>({
+          job_id:'infra-'+String(i+1).padStart(2,'0'),
+          project_id:'prometeo-autonomous-growth',
+          priority:1000-i,
+          state:'ready',
+          required_capabilities:[]
+        }))
+      }
+    ],
+    plans:[],
+    workers:[],
+    summary:{workers:{}}
+  };
+  const out=buildFastAllocator(richFeed,{status:'OK',metrics:{},reasons:[]},{roleContext});
+  assert.equal(out.batch_candidates[0].job_id,'product-01','ordinary product must retain the head position');
+  const infra=out.batch_candidates.filter(row=>row.project_id==='prometeo-autonomous-growth');
+  assert.equal(infra.length,2,'exactly two infrastructure candidates should be reserved into the unified batch');
+  assert.deepEqual(infra.map(row=>row.job_id),['infra-01','infra-02']);
+  assert.ok(out.batch_candidates.filter(row=>row.project_id==='product-project').length>=9,'product work remains the majority');
+});
