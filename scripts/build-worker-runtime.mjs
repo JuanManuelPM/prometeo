@@ -106,7 +106,7 @@ function repoEvidence(root) {
     }
   }
   for (const p of walk(path.join(root,'coordination','workers','no-allocation'))) {
-    const d=readJson(p); if (d?.worker_id) noalloc.set(d.worker_id,repoRef(root,p));
+    const d=readJson(p); if (d?.worker_id) noalloc.set(d.worker_id,{ref:repoRef(root,p),doc:d});
   }
   for (const p of walk(path.join(root,'coordination','workers','exams')).filter(x=>x.endsWith('.json'))) {
     const d=readJson(p); if (d?.worker_id) exams.set(d.worker_id,{ref:repoRef(root,p),doc:d});
@@ -203,20 +203,31 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
       ).toUpperCase();
       const receiptCloseReason=String(benchmarkReceipt?.doc?.close_reason||'').toUpperCase();
       const receiptTerminalBoundary=/TERMINAL_BOUNDARY|RUN_TERMINAL_BOUNDARY/.test(receiptCloseReason);
+      const noallocRow=repo.noalloc.get(w.worker_id)||null;
+      const noallocDoc=noallocRow?.doc||null;
+      const noallocFailure=String(noallocDoc?.failure_code||noallocDoc?.reason||noallocDoc?.outcome||'').toUpperCase();
+      const noallocNext=String(noallocDoc?.next_action||'').toUpperCase();
+      const durableNoAllocationTerminal=!!noallocDoc && (
+        noallocNext==='STOP_NO_RECOVERY' ||
+        /CLAIM_TRANSPORT_BLOCKED|AUTHORITY_BOUNDARY|TERMINAL_BOUNDARY|STOP_NO_RECOVERY/.test(noallocFailure)
+      );
       const durableRunTerminal=isRun && (
         !!examDoc ||
         (/^(PASS|FAIL|BOUNDARY|RUN_COMPLETE|RUN_TERMINAL_BOUNDARY)$/.test(e9Status) || /TERMINAL_BOUNDARY/.test(e9Status)) ||
         receiptTerminalBoundary ||
-        (!!repo.noalloc.get(w.worker_id) && benchmarkReceipt?.doc)
+        (!!noallocRow && benchmarkReceipt?.doc)
       );
-      const terminalClose=(!!close && (!isPool || !!examRef)) || durableRunTerminal;
+      const terminalClose=(!!close && (!isPool || !!examRef)) || durableRunTerminal || durableNoAllocationTerminal;
       const durableCloseOutcome=examDoc?.close_reason
         || benchmarkReceipt?.doc?.close_reason
+        || (durableNoAllocationTerminal?(noallocFailure||'STOP_NO_RECOVERY'):null)
         || (/BOUNDARY|FAIL/.test(e9Status)?'RUN_TERMINAL_BOUNDARY':(durableRunTerminal?'RUN_COMPLETE':null));
       const durableCloseAt=examDoc?.closed_at
         || benchmarkReceipt?.doc?.closed_at
         || benchmarkReceipt?.doc?.updated_at
         || benchmarkReceipt?.doc?.returned_at
+        || noallocDoc?.observed_at
+        || noallocDoc?.returned_at
         || w.last_event_at
         || null;
       const state=terminalClose?'CLOSED':authorityWon?(claim?.started?'ACTIVE':'OWNED'):claim?'CLAIM_RESOLVED':routed?'ROUTED':'BEACONED';
@@ -235,14 +246,14 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
         reallocation_complete:benchmarkReceipt?.doc?.reallocation_complete===true,
         routed:routed?{lane:routed.lane||null,candidate_id:routed.candidate_id||null,candidate_title:routed.candidate_title||null,at:routed.server_created_at}:null,
         claim:claim?{outcome:normalizedOutcome,raw_outcome:claim.outcome||null,attempts:attemptCount,collisions:collisionCount,candidate_id:claim.candidate_id||claim.job_id||claim.guide_work_id||null,authority_ref_or_null:claim.authority_ref_or_null||claim.pin_ref||claim.claim_path||null,started:!!claim.started,at:claim.server_created_at}:null,
-        repo:{beacon_ref:repo.beacons.get(w.worker_id)||null,pin_refs:pinRefs,no_allocation_ref:repo.noalloc.get(w.worker_id)||null,exam_ref:examRef,launch_slot_ref:launchClaim?.ref||null,reallocation_slot_ref:reallocationClaim?.ref||null,benchmark_receipt_ref:benchmarkReceipt?.ref||null},
+        repo:{beacon_ref:repo.beacons.get(w.worker_id)||null,pin_refs:pinRefs,no_allocation_ref:repo.noalloc.get(w.worker_id)?.ref||null,exam_ref:examRef,launch_slot_ref:launchClaim?.ref||null,reallocation_slot_ref:reallocationClaim?.ref||null,benchmark_receipt_ref:benchmarkReceipt?.ref||null},
         authority_won:authorityWon,
         productive_units:productiveCount,
         productive_chain_state:productiveChainState,
         productive_unit_refs:productiveUnits.slice(-8).map(unit=>unit.ref),
         close:close
           ?{outcome:close.outcome||durableCloseOutcome||null,job_id_or_null:close.job_id_or_null||close.job_id||close.guide_work_id||null,result_ref_or_null:close.result_ref_or_null||close.return_ref||close.receipt_ref||benchmarkReceipt?.ref||examRef||null,at:close.server_created_at||durableCloseAt,terminal:terminalClose,source:'TELEMETRY_PLUS_DURABLE_EVIDENCE'}
-          :(terminalClose?{outcome:durableCloseOutcome||'RUN_TERMINAL',job_id_or_null:null,result_ref_or_null:benchmarkReceipt?.ref||examRef||repo.noalloc.get(w.worker_id)||null,at:durableCloseAt,terminal:true,source:'DURABLE_EXAM_RECEIPT_OR_BOUNDARY'}:null),
+          :(terminalClose?{outcome:durableCloseOutcome||'RUN_TERMINAL',job_id_or_null:null,result_ref_or_null:benchmarkReceipt?.ref||examRef||repo.noalloc.get(w.worker_id)?.ref||null,at:durableCloseAt,terminal:true,source:'DURABLE_EXAM_RECEIPT_OR_BOUNDARY'}:null),
         anomalies
       };
     }).sort((a,b)=>Date.parse(a.first_event_at||0)-Date.parse(b.first_event_at||0));
