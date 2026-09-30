@@ -237,11 +237,13 @@ function inspectPortfolioJob(project, job) {
   const lastSignalAt = newestIso([timeOf(latestPin?.doc),timeOf(authority?.doc),timeOf(hb?.doc),timeOf(latestReturn?.doc)]);
   const age = signalAge(lastSignalAt);
   let state = 'ready';
+  const seedStatus=lower(job.seed_status);
   if (terminalReturn) state = 'done';
+  else if (seedStatus.includes('supersed')) state = 'superseded';
   else if (owner && age < ACTIVE_MS) state = generation(latestPin) > 1 ? 'recovery' : 'working';
   else if (owner && age < REPLACE_MS) state = 'suspect';
   else if (!prerequisiteGate.satisfied) state = 'blocked';
-  else if (lower(job.seed_status).includes('block')) state = 'blocked';
+  else if (seedStatus.includes('block')) state = 'blocked';
   else if (owner) state = 'replaceable';
   else if (latestReturn && ['partial','boundary'].includes(lower(latestReturn.doc?.outcome))) state = 'partial';
   return {
