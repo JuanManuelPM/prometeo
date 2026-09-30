@@ -210,7 +210,7 @@ if(status==='REGRESSION'){
     fingerprint,
     dedupe_key:`efficiency:runtime-regression:${fingerprint}:v1`,
     recommended_role:'GUIDE_CRITIC',
-    scope:'ONE_EFFICIENCY_REGRESSION_NOT_PER_WORKER',
+    scope:'ONE_SYSTEM_BOTTLENECK_NOT_PER_WORKER',
     instruction:'Audit the measured efficiency regression and implement or materialize one bounded repair/verification. GUIDE_RESCATE requires an independent mechanism-level rescue signal compiled by the allocator.'
   };
 }
