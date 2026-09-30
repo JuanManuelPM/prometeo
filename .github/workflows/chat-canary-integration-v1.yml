@@ -1,0 +1,47 @@
+name: Chat canary integration v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'current-tree/control-v11/chat-canary/index.html'
+      - 'current-tree/control-v11/chat-canary/input-module-v1.js'
+      - 'current-tree/control-v11/chat-canary/progress-v1.js'
+      - 'coordination/portfolio/derived/INTERACTIVE_WORK_UNITS_V1.json'
+      - 'coordination/portfolio/tests/chat_canary_input_module_v1.mjs'
+      - 'coordination/portfolio/tests/chat_canary_integration_v1.mjs'
+      - '.github/workflows/chat-canary-integration-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare gh-pages checkout
+        run: |
+          git fetch origin gh-pages:refs/remotes/origin/gh-pages
+          git worktree add /tmp/prometeo-gh-pages refs/remotes/origin/gh-pages
+
+      - name: Verify fail-closed input module
+        run: node coordination/portfolio/tests/chat_canary_input_module_v1.mjs .
+
+      - name: Verify integrated source and served parity
+        run: |
+          mkdir -p artifacts/chat-canary-integration-v1
+          node coordination/portfolio/tests/chat_canary_integration_v1.mjs . /tmp/prometeo-gh-pages             | tee artifacts/chat-canary-integration-v1/evidence.json
+
+      - name: Upload bounded evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-canary-integration-v1-evidence
+          path: artifacts/chat-canary-integration-v1/evidence.json
+          if-no-files-found: error
+          retention-days: 14
