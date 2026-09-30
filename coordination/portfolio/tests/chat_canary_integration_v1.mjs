@@ -38,7 +38,11 @@ assert.ok(ingressPos>=0&&inputPos>ingressPos&&progressPos>inputPos&&globalPos>pr
 assert.match(mainIndex,/id="chatComposer"/);
 assert.match(mainIndex,/id="chat-canary-progress"/);
 assert.doesNotMatch(mainIndex,/<(?:form|input|textarea)\b/i,'index must keep input markup inside reviewed module');
-assert.doesNotMatch(mainIndex,/\b(?:EventSource|WebSocket|ReadableStream|setInterval\s*\()\b/,'no streaming/automatic polling in index');
+assert.doesNotMatch(mainIndex,/\b(?:EventSource|WebSocket|ReadableStream)\b/,'no streaming transports in index');
+const intervalCount=(mainIndex.match(/\bsetInterval\s*\(/g)||[]).length;
+assert.equal(intervalCount,2,'only bounded thread + RUN-progress pollers are allowed');
+assert.match(mainIndex,/setInterval\(\(\) => load\(\), 10000\)/,'thread polling must stay at 10s');
+assert.match(mainIndex,/Math\.max\(10000, Number\(block\.poll_ms \|\| 10000\)\)/,'RUN-progress polling must enforce >=10s');
 assert.doesNotMatch(mainIndex,/method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i,'index must not bypass ingress with direct mutation');
 assert.match(mainIndex,/experiment_stats/,'message widget renderer required');
 assert.match(mainIndex,/work_unit_progress/,'work-unit message widget renderer required');
