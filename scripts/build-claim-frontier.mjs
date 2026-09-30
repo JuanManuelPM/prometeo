@@ -111,7 +111,10 @@ function preserveCapabilityDiversity(
     }
   }
   const protectedSet = new Set([...promoted, ...zeroPromoted]);
-  return [...head, ...promoted, ...zeroPromoted, ...tail.filter(candidate => !protectedSet.has(candidate))];
+  // Under a byte cap, candidates later in the array may never cross the transport
+  // boundary. Put the bounded zero-capability reserve immediately after the allocator
+  // prefix so several generic workers can enter without erasing capability exemplars.
+  return [...head, ...zeroPromoted, ...promoted, ...tail.filter(candidate => !protectedSet.has(candidate))];
 }
 
 export function buildClaimFrontier(
