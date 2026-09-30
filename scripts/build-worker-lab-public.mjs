@@ -101,14 +101,27 @@ function buildRun(runId){
   };
 }
 
-const maxcap=buildRun('MAXCAP-50-01');
-const residency=buildRun('RESIDENCY-MACROBATCH-01');
-const currentRun=maxcap||residency||{
+const launchRoot=path.join(root,'coordination','launch-packets');
+const runRows=fs.existsSync(launchRoot)
+  ? fs.readdirSync(launchRoot,{withFileTypes:true})
+      .filter(ent=>ent.isDirectory()&&fs.existsSync(path.join(launchRoot,ent.name,'PACKET.json')))
+      .map(ent=>({
+        run:buildRun(ent.name),
+        packet:readJson(path.join('coordination','launch-packets',ent.name,'PACKET.json'))||{}
+      }))
+      .filter(row=>row.run)
+      .sort((a,b)=>{
+        const bt=Date.parse(b.packet?.created_at||b.packet?.updated_at||0)||0;
+        const at=Date.parse(a.packet?.created_at||a.packet?.updated_at||0)||0;
+        return bt-at || String(b.run.run_id).localeCompare(String(a.run.run_id));
+      })
+  : [];
+const currentRun=runRows[0]?.run||{
   run_id:'NONE',packet_status:'UNKNOWN',slots_total:0,slots_claimed:0,slots_unclaimed:0,
   midpoints:0,primary_complete:0,reallocation_claims:0,reallocation_complete:0,terminal:0,
   variants:{},latest_receipts:[],human_invocation:null
 };
-const previousRuns=[residency].filter(Boolean).filter(r=>r.run_id!==currentRun.run_id);
+const previousRuns=runRows.slice(1,8).map(row=>row.run);
 
 const selfDur=Array.isArray(capacity.self_reported_duration_seconds)?capacity.self_reported_duration_seconds.map(Number).filter(Number.isFinite):[];
 const wordRange=Array.isArray(capacity.total_output_words_range)?capacity.total_output_words_range:[null,null];
@@ -194,8 +207,8 @@ const projection={
     'human interventions'
   ],
   next_program:[
-    'Run MAXCAP-50-01: 5 load tiers × 2 continuation conditions × 5 replicas.',
-    'Keep RESIDENCY-MACROBATCH-01 as moderate-load baseline and failure-class evidence.',
+    'Treat current_run as the newest durable launch packet, never a hardcoded historical benchmark.',
+    'Keep older RUNs in previous_runs for comparison without letting them drive current human action.',
     'Reconcile durable stage failures with chat-visible final reasons.',
     'Estimate provisional sustainable load separately for control and continuation priming.',
     'If 30K passes, raise the ceiling rather than declaring 30K the maximum.',
