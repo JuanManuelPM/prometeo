@@ -74,6 +74,7 @@ assert.equal(recent.metrics.no_allocation_recent,2);
 assert.equal(recent.metrics.no_allocation_close_p90_recent_ms,110_000);
 assert(recent.reasons.includes('NO_ALLOCATION_P90_GT_90S'),'recent slow closures must still trigger the regression');
 assert.equal(recent.status,'REGRESSION');
+assert.equal(recent.rescue?.recommended_role,'GUIDE_CRITIC','efficiency close-latency regression alone must route to Critic');
 assert.equal(recent.metrics.no_allocation_close_p90_ms,120_000,'adding a recent window must not erase cumulative telemetry');
 
 fs.rmSync(root,{recursive:true,force:true});
