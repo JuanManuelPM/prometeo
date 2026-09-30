@@ -24,6 +24,7 @@ const capacity=readJson('coordination/workers/WORKER_LOCAL_CAPACITY_V2_10X_CHECK
 const evolution=readJson('coordination/workers/WORKER_EVOLUTION_LAB_V1.json')||{};
 const io=readJson('coordination/workers/WORKER_IO_ACCOUNTING_CANDIDATE_V1.json')||{};
 const chatFailure=readJson('coordination/workers/WORKER_CHAT_VISIBLE_FAILURE_ANALYSIS_RESIDENCY_MACROBATCH_01.json')||{};
+const dimensions=readJson('coordination/workers/WORKER_ANALYSIS_DIMENSIONS_V1.json')||{};
 
 function buildRun(runId){
   const packet=readJson(`coordination/launch-packets/${runId}/PACKET.json`);
@@ -154,6 +155,8 @@ const projection={
     confirmation:evolution.p2b_confirmation||null
   },
   current_run:currentRun,
+  analysis_dimensions:Array.isArray(dimensions.dimensions)?dimensions.dimensions:[],
+  analysis_journal_schema:dimensions.journal_entry_shape||null,
   previous_runs:previousRuns,
   rules:Array.isArray(playbook.rules)?playbook.rules:[],
   negative_knowledge:[
