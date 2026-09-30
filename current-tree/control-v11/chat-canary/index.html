@@ -141,6 +141,18 @@
     .run-progress-action{margin-top:9px;font-size:11px;line-height:1.4;color:#bdbdb8;font-weight:650}
     .run-progress-action.warn{color:var(--warn)}
     .run-progress-action.good{color:var(--ok)}
+    .run-worker-list{display:grid;gap:6px;margin-top:10px}
+    .run-worker-row{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 0;border-top:1px solid #151515}
+    .run-worker-row:first-child{border-top:0}
+    .run-worker-dot{width:8px;height:8px;border-radius:50%;background:#555}
+    .run-worker-dot.live{background:#67d486;box-shadow:0 0 0 3px rgba(103,212,134,.08)}
+    .run-worker-dot.done{background:#83c997}
+    .run-worker-dot.warn{background:#d7a85b}
+    .run-worker-dot.fail{background:#d56b6b}
+    .run-worker-main{min-width:0}
+    .run-worker-id{font:9px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:#8b8b86;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .run-worker-meta{margin-top:2px;font-size:9px;color:#555}
+    .run-worker-age{font-size:9px;color:#696965;white-space:nowrap}
     .details-block{border-top:1px solid var(--line);padding-top:8px}
     .details-block>summary{list-style:none;cursor:pointer;color:#9b9b96;font-size:11px;min-height:34px;display:flex;align-items:center;gap:7px}
     .details-block>summary::before{content:"›";font-size:18px;line-height:1;color:#666;transform:rotate(0deg);transition:transform .12s ease}
@@ -280,6 +292,7 @@
 
     const THREAD_URL = '../../../coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json';
     const CHAT_OBJECT_ID = 'chat-object-prometeo-chat-control-main';
+    const CLIENT_BUILD = 3;
     const HUMAN_FALLBACK = {
       message_id: 'MSG-CANARY-HUMAN-001',
       chat_object_id: CHAT_OBJECT_ID,
@@ -507,23 +520,37 @@
 
           const explicitBatchId = block.batch_id || null;
           if (explicitBatchId) {
-            const batch = Array.isArray(runtime?.batches)
+            const runtimeBatch = Array.isArray(runtime?.batches)
               ? runtime.batches.find(row => row && row.batch_id === explicitBatchId)
               : null;
-            if (!batch) throw new Error('BATCH_STATE_UNAVAILABLE');
+            const statusBatch = s && s.batch_id === explicitBatchId ? s : null;
+            if (!runtimeBatch && !statusBatch) throw new Error('BATCH_STATE_UNAVAILABLE');
 
-            const workers = Array.isArray(batch.workers) ? batch.workers : [];
-            const summary = batch.summary || {};
-            const total = Math.max(1, Number(block.expected_workers ?? summary.expected ?? 0));
-            const admitted = workers.filter(w => w?.authority_won === true).length;
-            const live = workers.filter(w => {
-              if (terminalWorker(w)) return false;
+            const summary = runtimeBatch?.summary || {
+              expected:statusBatch?.slots_total,
+              beaconed:statusBatch?.workers_beaconed,
+              closed:statusBatch?.workers_terminal ?? statusBatch?.terminal,
+              productive_units_total:statusBatch?.productive_units_total,
+              workers_at_checkpoint:statusBatch?.workers_at_checkpoint ?? statusBatch?.primary_complete,
+              workers_at_target:statusBatch?.workers_at_target ?? statusBatch?.reallocation_complete,
+              workers_at_hard_cap:statusBatch?.workers_at_hard_cap
+            };
+            const workers = Array.isArray(runtimeBatch?.workers)
+              ? runtimeBatch.workers
+              : (Array.isArray(statusBatch?.workers) ? statusBatch.workers : []);
+            const total = Math.max(1, Number(block.expected_workers ?? summary.expected ?? statusBatch?.slots_total ?? workers.length ?? 0));
+            const admitted = runtimeBatch
+              ? workers.filter(w => w?.authority_won === true).length
+              : Number(statusBatch?.slots_claimed ?? workers.length ?? 0);
+            const liveWorkers = workers.filter(w => {
+              if (terminalWorker(w) || w?.terminal === true) return false;
               const d = asTime(lastWorkerAt(w));
               return d && (Date.now() - d.getTime()) < 600000;
-            }).length;
-            const units = Number(summary.productive_units_total || 0);
-            const target = Number(summary.workers_at_target || 0);
-            const closed = Number(summary.closed || 0);
+            });
+            const live = runtimeBatch ? liveWorkers.length : Number(statusBatch?.live_recent ?? liveWorkers.length);
+            const units = Number(summary.productive_units_total || statusBatch?.productive_units_total || 0);
+            const target = Number(summary.workers_at_target || statusBatch?.workers_at_target || 0);
+            const closed = Number(summary.closed || statusBatch?.workers_terminal || statusBatch?.terminal || 0);
             const unitTarget = Math.max(1, total * Number(block.resident_target || 6));
             const overall = Math.max(0, Math.min(100,
               ((admitted/total)*25) +
@@ -534,31 +561,70 @@
 
             pct.textContent = Math.round(overall) + '%';
             fill.style.width = overall + '%';
+            breakdown.style.gridTemplateColumns='repeat(5,minmax(0,1fr))';
             breakdown.replaceChildren(
               kpi(admitted + '/' + total, 'adentro'),
-              kpi(String(live), 'vivos <10m'),
+              kpi(String(live), 'vivos'),
               kpi(String(units), 'unidades'),
               kpi(target + '/' + total, 'target'),
               kpi(closed + '/' + total, 'cierre')
             );
-            const observed = newestTime(runtime?.generated_at, batch?.last_event_at);
+
+            let workerList = wrap.querySelector('.run-worker-list');
+            if (!workerList) {
+              workerList = node('div', null, 'run-worker-list');
+              wrap.insertBefore(workerList, freshness);
+            }
+            const ageLabel = value => {
+              const d=asTime(value);
+              if(!d) return 'sin señal';
+              const sec=Math.max(0,Math.round((Date.now()-d.getTime())/1000));
+              if(sec<60) return 'hace '+sec+'s';
+              const min=Math.round(sec/60);
+              if(min<60) return 'hace '+min+'m';
+              return 'hace '+Math.round(min/60)+'h';
+            };
+            workerList.replaceChildren();
+            for (const w of workers.slice().sort((a,b)=>Date.parse(lastWorkerAt(b)||0)-Date.parse(lastWorkerAt(a)||0))) {
+              const terminal=terminalWorker(w)||w?.terminal===true;
+              const unitsW=Number(w?.productive_units||0);
+              const closeOutcome=String(w?.close?.outcome||w?.close_outcome||'').toUpperCase();
+              const noAlloc=Boolean(w?.repo?.no_allocation_ref||w?.no_allocation_ref);
+              const recent=!terminal && asTime(lastWorkerAt(w)) && (Date.now()-asTime(lastWorkerAt(w)).getTime())<600000;
+              const dotClass=recent?'live':(
+                terminal && unitsW>=Number(block.resident_target||6)?'done':
+                (noAlloc||/BLOCKED|BOUNDARY|FAIL/.test(closeOutcome))?'fail':
+                terminal?'warn':''
+              );
+              const row=node('div',null,'run-worker-row');
+              row.append(node('span',null,'run-worker-dot '+dotClass));
+              const main=node('div',null,'run-worker-main');
+              main.append(
+                node('div',String(w.worker_id||'worker').replace(/^wc-/,'').slice(-22),'run-worker-id'),
+                node('div',unitsW+' unidades · '+(closeOutcome||w?.productive_chain_state||w?.state||'sin estado'),'run-worker-meta')
+              );
+              row.append(main,node('div',ageLabel(lastWorkerAt(w)),'run-worker-age'));
+              workerList.append(row);
+            }
+
+            const observed = newestTime(runtime?.generated_at, statusBatch?.generated_at, runtimeBatch?.last_event_at, statusBatch?.last_event_at);
             const ageMs = observed ? Date.now() - observed.getTime() : null;
             const stale = ageMs !== null && ageMs > 120000;
             freshness.classList.toggle('stale', stale);
             const hhmm = observed ? observed.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : 'sin hora';
             freshness.textContent =
               explicitBatchId + ' · ' + admitted + '/' + total + ' adentro · ' +
-              live + ' vivos · ' + units + ' unidades · observado ' + hhmm +
+              live + ' vivos · ' + units + ' unidades · ' + target + '/' + total + ' target · ' + closed + '/' + total + ' cierre · observado ' + hhmm +
               (stale ? ' · PROYECCIÓN ATRASADA' : '');
 
             action.classList.remove('warn','good');
             if (admitted < total) {
-              action.textContent = 'ACCIÓN: faltan ' + Math.max(0,total-admitted) + ' worker(s) admitidos. Si ya abriste los ' + total + ' chats, hacé refill exacto sólo por esa diferencia.';
+              action.textContent = 'ACCIÓN: REFILL ' + Math.max(0,total-admitted) + ' · faltan workers admitidos; no rutees tareas.';
               action.classList.add('warn');
             } else if (live > 0) {
-              action.textContent = 'ACCIÓN: ninguna por ahora · hay ' + live + ' worker(s) con señal reciente; el widget sigue refrescando.';
+              action.textContent = 'ACCIÓN: ninguna · siguen trabajando ' + live + ' worker(s). Última señal arriba.';
             } else {
-              action.textContent = 'ACCIÓN: VOLVÉ AL CONTROL AHORA · el lote ya no tiene motor vivo; corresponde reducir resultados y decidir el siguiente paso.';
+              action.textContent = 'ACCIÓN: VOLVÉ AL CONTROL AHORA · 0 workers vivos · ' + units + ' unidades · ' + target + '/' + total + ' llegaron al target.';
               action.classList.add(closed >= total ? 'good' : 'warn');
             }
             return;
@@ -836,7 +902,22 @@
           throw new Error('THREAD_SHAPE_INCOMPATIBLE');
         }
 
-        const nextSignature = JSON.stringify(Array.isArray(data.messages) ? data.messages : []);
+        const messages = Array.isArray(data.messages) ? data.messages : [];
+        const requiredBuild = messages.reduce((max,message)=>{
+          for(const block of (Array.isArray(message?.ui_blocks)?message.ui_blocks:[])) {
+            max=Math.max(max,Number(block?.min_client_build||0));
+          }
+          return max;
+        },0);
+        if(requiredBuild>CLIENT_BUILD) {
+          const u=new URL(window.location.href);
+          if(u.searchParams.get('client_build')!==String(requiredBuild)) {
+            u.searchParams.set('client_build',String(requiredBuild));
+            window.location.replace(u.toString());
+            return;
+          }
+        }
+        const nextSignature = JSON.stringify(messages);
         if (!hasRenderedThread || nextSignature !== lastThreadSignature) {
           const previousView = hasRenderedThread ? captureViewState() : null;
           render(data.messages, previousView);
