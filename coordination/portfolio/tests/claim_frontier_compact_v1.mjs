@@ -40,9 +40,9 @@ const allocator={
 };
 const f=buildClaimFrontier(allocator);
 assert.equal(f.schema,'prometeo.claim-frontier/v1');
-assert.equal(f.candidate_count,24);
+assert(f.candidate_count>0 && f.candidate_count<=24);
 assert.equal(f.candidate_total,24);
-assert.equal(f.transport_bytes_max,24000);
+assert.equal(f.transport_bytes_max,14000);
 assert.equal(f.candidates[0].lane,'ready');
 assert(f.candidates.some(x=>x.lane==='role_ready'));
 assert(f.candidates.every(x=>!('evidence' in x)));
@@ -56,7 +56,9 @@ assert(f.candidates.filter(x=>x.lane==='role_ready').every(x=>x.scope_project_id
 assert(f.candidates.every(x=>x.claim_path && x.claim_payload_shape));
 assert(f.candidates.filter(x=>x.job_id).every(x=>x.source_path));
 const bytes=Buffer.byteLength(JSON.stringify(f));
-assert(bytes<=24000,`compact frontier too large: ${bytes}`);
+assert(bytes<=14000,`compact frontier too large: ${bytes}`);
+assert(f.candidates.every(x=>Array.isArray(x.required_capabilities)),'required_capabilities must be explicit');
+assert(f.candidates.every(x=>Array.isArray(x.forbidden_worker_ids)),'forbidden_worker_ids must be explicit');
 
 const bloatedRoles=Array.from({length:24},(_,i)=>({
   role_id:'bloated-'+i,guide_work_id:'bloated-'+i,
