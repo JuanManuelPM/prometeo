@@ -1,8 +1,8 @@
 {
   "schema": "prometeo.worker-lab-guide-note/v1",
-  "updated_at": "2026-09-30T23:10:00Z",
-  "title": "E2-REAL-03 · refill único después de repair de autorización residente",
-  "summary": "El batch original terminó 3/3 terminal, 13 unidades, 2/3 target. Se aisló un CLAIM_TRANSPORT_BLOCKED posterior a una unidad útil. La envolvente humana ahora explicita que la autorización PIN/claim cubre cada E8/SUBMIT_NEXT de toda la cadena residente, sin permitir retry/bypass de una denegación explícita. Se pide un único refill para discriminar esta reparación; no hay loop de refills.",
+  "updated_at": "2026-09-30T23:34:00Z",
+  "title": "E2-REAL-03 · reemplazo activo · no lanzar más",
+  "summary": "El refill único ya entró como wc-20260930T232400Z-b7e4c19a62fd. Está ACTIVE y acumuló 2 unidades productivas; el batch suma 15. El bug visible era de liveness: PIN/STARTED no disparaban ni avanzaban el runtime, por lo que Primary Chat podía quedar congelado entre beacon y RETURN. Runtime y workflow ya usan PIN/STARTED durables.",
   "opinion": [
     "La admisión E2 real quedó probada para este canary: 3/3 beacons obtuvieron autoridad útil.",
     "No inferir liveness desde chats visibles, labels ACTIVE o ausencia de CLOSE telemetry; usar batch-status/runtime durable.",
@@ -12,26 +12,25 @@
   ],
   "observed": {
     "batch_id": "E2-REAL-03",
-    "workers_expected": 3,
-    "workers_admitted": 3,
-    "workers_live": 0,
-    "workers_terminal": 3,
-    "productive_units_total": 13,
-    "workers_at_checkpoint": 2,
+    "expected_capacity": 3,
+    "historical_launches": 4,
+    "live_workers": 1,
+    "productive_units_total": 15,
+    "replacement_worker": "wc-20260930T232400Z-b7e4c19a62fd",
+    "replacement_units": 2,
+    "replacement_state": "ACTIVE",
+    "replacement_last_started_job": "portfolio-stt-project-state-reconcile-v1",
+    "replacement_last_signal_at": "2026-09-30T23:35:00Z",
     "workers_at_target": 2,
-    "target_units_per_worker": 6,
-    "boundary_worker": "wc-20260930T222353Z-1a8f8167699f",
-    "boundary_code": "CLAIM_TRANSPORT_BLOCKED",
-    "boundary_next_action": "STOP_NO_RECOVERY",
-    "batch_status_ref": "gh-pages:live/batches/E2-REAL-03.json"
+    "human_refill_needed": 0
   },
   "planned": [
-    "Abrir exactamente un worker fresco de reemplazo en E2-REAL-03.",
-    "Si alcanza target 6, cerrar el batch con 3/3 target.",
-    "Si vuelve a boundary, volver al control y no lanzar otro refill automático.",
-    "Mantener Primary Chat como única superficie de decisión humana."
+    "No lanzar más capacidad mientras el reemplazo siga vivo.",
+    "Seguir PIN/STARTED/RETURN del reemplazo desde live runtime.",
+    "Si llega a 6 unidades, cerrar reducción con cobertura target 3/3.",
+    "Si termina antes por boundary, volver al control y reducir el boundary antes de cualquier refill adicional."
   ],
-  "human_action": "🟠 PROMETEO /wc — NUEVO_WORKER=1 · PRIMERA_ACCIÓN_DURABLE: creá tu beacon propio fresco v3.30 con worker_id + launch_nonce de novo; PROHIBIDO reutilizar identidad o resultado histórico; RESIDENTE_BATCH: 3=checkpoint, objetivo=6, tope=8 salvo boundary real. CONTINUIDAD_RESIDENTE=1: autorizo durante TODA esta cadena residente beacon, telemetría y cada PIN/claim CREATE reversible requerido por E2/E8/SUBMIT_NEXT dentro de CURRENT hasta target/cap, además de los commits reversibles del trabajo ya poseído; no me pidas confirmación adicional. Esta autorización NO permite reintentar, desviar ni saltear una denegación explícita de seguridad/connector: esa denegación sigue siendo boundary terminal durable. BATCH E2-REAL-03 EXPECTED 3 — TÍTULO SUGERIDO DEL CHAT (si la app lo permite): «🟠 PROMETEO · WC · E2-REAL-03» → https://juanmanuelpm.github.io/prometeo/wc/",
+  "human_action": "NINGUNA. El reemplazo ya está vivo. Mirá Primary Chat; no abras otro E2-REAL-03 mientras el widget muestre un worker vivo.",
   "evidence_refs": [
     "gh-pages:live/batches/E2-REAL-03.json",
     "gh-pages:live/runtime.json",
@@ -40,5 +39,5 @@
     "current-tree/control-v11/worker-lab/index.html",
     "scripts/build-worker-runtime.mjs"
   ],
-  "boundary": "Refill máximo actual: uno. La reparación sólo aclara alcance temporal de la autorización humana; no cambia ni debilita el significado de una denegación explícita."
+  "boundary": "Liveness now derives from durable PIN/STARTED/RETURN evidence. ACTIVE remains a projection, not authority; explicit connector/safety denial still terminates the shell."
 }
