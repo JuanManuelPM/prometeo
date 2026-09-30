@@ -148,4 +148,27 @@ assert.equal(runWorker.reallocation_complete,true);
 assert.equal(runWorker.repo.launch_slot_ref,'coordination/launch-packets/RUN-T1/claims/S002.json');
 fs.rmSync(runRoot,{recursive:true,force:true});
 
+// A durable STOP_NO_RECOVERY / CLAIM_TRANSPORT_BLOCKED receipt is terminal even when
+// the chat could not emit best-effort CLOSE telemetry.
+const boundaryRoot=fs.mkdtempSync(path.join(os.tmpdir(),'prometeo-runtime-boundary-'));
+fs.mkdirSync(path.join(boundaryRoot,'coordination','workers','beacons'),{recursive:true});
+fs.mkdirSync(path.join(boundaryRoot,'coordination','workers','no-allocation'),{recursive:true});
+fs.writeFileSync(path.join(boundaryRoot,'coordination','workers','beacons','bw.json'),JSON.stringify({
+  schema:'prometeo.worker-beacon/v1',worker_id:'bw',launch_nonce:'b1',fresh_launch:true,
+  launched_at:'2026-09-30T22:23:53Z',batch_id:'E2-REAL-03',expected_workers:3
+}));
+fs.writeFileSync(path.join(boundaryRoot,'coordination','workers','no-allocation','bw.json'),JSON.stringify({
+  schema:'prometeo.worker-no-allocation/v1',worker_id:'bw',batch_id:'E2-REAL-03',
+  observed_at:'2026-09-30T22:29:44Z',failure_code:'CLAIM_TRANSPORT_BLOCKED',
+  next_action:'STOP_NO_RECOVERY',productive_units:1
+}));
+const boundaryCompiled=compileRuntime([],boundaryRoot,'2026-09-30T22:30:00Z');
+assert.equal(boundaryCompiled.batches[0].workers[0].state,'CLOSED');
+assert.equal(boundaryCompiled.batches[0].workers[0].close.terminal,true);
+assert.equal(boundaryCompiled.batches[0].workers[0].close.outcome,'CLAIM_TRANSPORT_BLOCKED');
+assert.equal(boundaryCompiled.batches[0].summary.closed,1);
+assert.equal(boundaryCompiled.batches[0].summary.active,0);
+assert.equal(boundaryCompiled.batches[0].workers[0].repo.no_allocation_ref,'coordination/workers/no-allocation/bw.json');
+fs.rmSync(boundaryRoot,{recursive:true,force:true});
+
 console.log('WORKER_RUNTIME_EVENTS_PASS');
