@@ -1,0 +1,72 @@
+name: Residency MacroBatch Launch v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/launch-packets/RESIDENCY-MACROBATCH-01/**'
+      - 'coordination/workers/RESIDENCY_MACROBATCH_15X_V1.json'
+      - 'scripts/build-launch-packets.mjs'
+      - 'scripts/check-launch-packet-v1.mjs'
+      - 'tests/residency-macrobatch-run-arm-v1.test.mjs'
+      - '.github/workflows/residency-macrobatch-launch-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prometeo-residency-macrobatch-launch-v1
+  cancel-in-progress: false
+
+jobs:
+  validate-build-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: source
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate canonical and isolated public projection
+        run: node source/tests/residency-macrobatch-run-arm-v1.test.mjs
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          fetch-depth: 20
+
+      - name: Build and isolate this RUN
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C site pull --ff-only origin gh-pages
+          tmp="$(mktemp -d)"
+          node source/scripts/build-launch-packets.mjs source "$tmp"
+          rm -rf site/launch/RESIDENCY-MACROBATCH-01
+          mkdir -p site/launch
+          cp -a "$tmp/launch/RESIDENCY-MACROBATCH-01" site/launch/
+
+      - name: Publish bounded projection
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C site config user.name github-actions[bot]
+          git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C site add launch/RESIDENCY-MACROBATCH-01
+          if git -C site diff --cached --quiet; then exit 0; fi
+          git -C site commit -m "launch: publish RESIDENCY-MACROBATCH-01"
+          for n in 1 2 3 4; do
+            if git -C site push origin HEAD:gh-pages; then exit 0; fi
+            git -C site fetch origin gh-pages
+            git -C site rebase origin/gh-pages
+          done
+          exit 1
