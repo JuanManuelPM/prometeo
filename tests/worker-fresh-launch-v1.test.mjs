@@ -62,6 +62,8 @@ for(const needle of [
 assert.ok(wc.indexOf('atomically CREATE \`coordination/workers/beacons/<worker_id>.json\`') < wc.indexOf('Read ONE compact claim frontier directly:'),'fresh beacon must precede frontier read');
 
 assert.ok(wc.includes('HUMAN INLINE LAUNCH GUARD'),'wc must carry defense-in-depth launch envelope semantics');
+assert.ok(wc.includes('RESIDENT CONTINUATION GUARD'),'wc must carry resident continuation guard');
+assert.ok(wc.includes('After every nonterminal productive RETURN'),'wc must make RETURN -> NEXT explicit');
 assert.ok(wc.includes('For **BATCH and POOL launches**'),'POOL residency target must be explicit');
 assert.ok(wc.includes("historical worker's exhaustion/no-allocation evidence never satisfies this launch"),'below-target close cannot inherit historical exhaustion');
 assert.equal(examSpec.current_worker_protocol_version,'v3.30');
