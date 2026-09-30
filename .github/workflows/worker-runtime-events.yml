@@ -52,6 +52,63 @@ jobs:
           set -euo pipefail
           gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/22/comments?per_page=100" --slurp | jq 'add // []' > /tmp/comments.json
           node source/scripts/build-worker-runtime.mjs /tmp/comments.json source /tmp/runtime.json
+          rm -rf /tmp/batch-status
+          mkdir -p /tmp/batch-status
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const runtime=JSON.parse(fs.readFileSync('/tmp/runtime.json','utf8'));
+          const now=Date.parse(runtime.generated_at||new Date().toISOString());
+          for(const batch of runtime.batches||[]){
+            if(!batch?.batch_id) continue;
+            const workers=Array.isArray(batch.workers)?batch.workers:[];
+            const summary=batch.summary||{};
+            const total=Number(summary.expected??batch.expected_workers??workers.length??0);
+            const liveWorkers=workers.filter(w=>{
+              if(String(w.state||'').toUpperCase()==='CLOSED'||w?.close?.terminal===true) return false;
+              const at=Date.parse(w?.last_event_at||w?.first_event_at||0);
+              return Number.isFinite(at) && now-at<600000;
+            });
+            const admitted=workers.filter(w=>w?.authority_won===true).length;
+            const status={
+              schema:'prometeo.worker-batch-status/v1',
+              generated_at:runtime.generated_at,
+              run_id:batch.batch_id,
+              batch_id:batch.batch_id,
+              status:liveWorkers.length?'ACTIVE':(workers.length?'QUIESCENT':'WAITING'),
+              slots_total:total,
+              slots_claimed:admitted,
+              primary_complete:Number(summary.workers_at_checkpoint||0),
+              reallocation_complete:Number(summary.workers_at_target||0),
+              terminal:Number(summary.closed||0),
+              workers_terminal:Number(summary.closed||0),
+              workers_beaconed:Number(summary.beaconed||0),
+              productive_units_total:Number(summary.productive_units_total||0),
+              workers_at_checkpoint:Number(summary.workers_at_checkpoint||0),
+              workers_at_target:Number(summary.workers_at_target||0),
+              workers_at_hard_cap:Number(summary.workers_at_hard_cap||0),
+              live_recent:liveWorkers.length,
+              last_event_at:batch.last_event_at||null,
+              action:admitted<total
+                ? {kind:'REFILL_EXACT',count:Math.max(0,total-admitted)}
+                : liveWorkers.length
+                  ? {kind:'WAIT_LIVE',count:liveWorkers.length}
+                  : {kind:'RETURN_TO_CONTROL',count:0},
+              workers:workers.map(w=>({
+                worker_id:w.worker_id,
+                state:w.state,
+                productive_units:Number(w.productive_units||0),
+                productive_chain_state:w.productive_chain_state||null,
+                last_event_at:w.last_event_at||w.first_event_at||null,
+                close_outcome:w?.close?.outcome||null,
+                terminal:Boolean(w?.close?.terminal||String(w.state||'').toUpperCase()==='CLOSED'),
+                no_allocation_ref:w?.repo?.no_allocation_ref||null,
+                anomalies:Array.isArray(w.anomalies)?w.anomalies:[]
+              })),
+              truth_boundary:'Derived from live/runtime.json for UI compatibility; authority remains durable pins/receipts.'
+            };
+            fs.writeFileSync('/tmp/batch-status/'+encodeURIComponent(batch.batch_id)+'.json',JSON.stringify(status,null,2)+'\n');
+          }
+          NODE
 
       - name: Checkout public site
         uses: actions/checkout@v4
@@ -66,9 +123,11 @@ jobs:
           git -C site config user.name github-actions[bot]
           git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git -C site pull --ff-only origin gh-pages
-          mkdir -p site/live
+          mkdir -p site/live site/live/batches
           cp /tmp/runtime.json site/live/runtime.json
-          git -C site add live/runtime.json
+          rm -f site/live/batches/*.json
+          cp /tmp/batch-status/*.json site/live/batches/ 2>/dev/null || true
+          git -C site add live/runtime.json live/batches
           if git -C site diff --cached --quiet; then exit 0; fi
           git -C site commit -m "live: refresh worker wave runtime"
           for n in 1 2 3; do
