@@ -1,0 +1,115 @@
+{
+  "schema": "prometeo.strategic-discovery-note/v1",
+  "discovery_id": "DISCOVERY-20260930-NONLINEAR-HUMAN-TEMPO",
+  "status": "CANDIDATE_LEARNING",
+  "created_at": "2026-09-30T17:18:00Z",
+  "source_context": "META-AUTONOMY-01 launched; human identified that assistant planning still assumes synchronous turn-by-turn attention.",
+  "observation": "The interaction has been treated too linearly: assistant finishes a turn, hands one action to the human, and often stops reasoning about what can continue, what can be precompiled, what can run in parallel, and what the human should do after a delayed response. Human attention is asynchronous and may resume minutes or hours later. Every avoidable stop starts an idle-latency clock and increases drift risk.",
+  "evidence_now": {
+    "run_id": "META-AUTONOMY-01",
+    "primary_claim": "coordination/launch-packets/META-AUTONOMY-01/claims/S001.json",
+    "worker_id": "wc-20260930T171211Z-639a88987500",
+    "claimed_at": "2026-09-30T17:12:46.985Z",
+    "reallocation_claim_status": "NOT_YET_DURABLE",
+    "primary_receipt_status": "NOT_YET_DURABLE"
+  },
+  "existing_capabilities_reused": [
+    "STRATEGIC_REASONING_CHECKLIST_V2#C17_HUMAN_GESTURE_TEST",
+    "STRATEGIC_REASONING_CHECKLIST_V2#C18_MESSAGE_BUS_TEST",
+    "STRATEGIC_REASONING_CHECKLIST_V2#C21_LOOP_CONTINUITY",
+    "STRATEGIC_REASONING_CHECKLIST_V2#C23_WORK_AVAILABLE_NOW",
+    "STRATEGIC_REASONING_CHECKLIST_V2#C36_DO_NOT_WAIT_FOR_PERFECTION",
+    "RATCHET_BASELINE_V1#EFF030_ROLLING_POOL",
+    "UNIVERSAL_SESSION_PREFLIGHT_V1#DEGRADED_OWNER_FAST_FAIL"
+  ],
+  "discovered_pattern": "Human interaction should be modeled as sparse asynchronous authority/wake events, not as a synchronous step clock. Machine work should continue, branch, precompile, or wait durably whenever human authority is not genuinely required. The assistant/Guide must distinguish 'my turn ended' from 'the work must stop'.",
+  "temporal_classes": [
+    {
+      "id": "T_MACHINE_CONTINUABLE",
+      "meaning": "Can continue immediately without human authority.",
+      "default": "CONTINUE_NOW"
+    },
+    {
+      "id": "T_PARALLEL_SAFE",
+      "meaning": "Independent work can run concurrently without contaminating the active experiment or shared mutation target.",
+      "default": "PREPARE_OR_DISPATCH_IN_PARALLEL"
+    },
+    {
+      "id": "T_DEPENDENT_PRECOMPILABLE",
+      "meaning": "Needs a future result but packet/checks/successor logic can be prepared now.",
+      "default": "PRECOMPILE_NOW_WAIT_FOR_TRIGGER"
+    },
+    {
+      "id": "T_EXTERNAL_WAIT",
+      "meaning": "External state must change and no useful local action remains on that dependency.",
+      "default": "PERSIST_WAIT_OWNER_RESUME_CONDITION_AND_RELEASE_ATTENTION"
+    },
+    {
+      "id": "T_HUMAN_AUTHORITY",
+      "meaning": "Requires real human intent/choice/authorization; cannot be safely inferred.",
+      "default": "ASK_ONCE_WITH_MINIMUM_ACTION_AND_PREPARE_EVERYTHING_ELSE"
+    },
+    {
+      "id": "T_OBSERVATION_ONLY",
+      "meaning": "Experiment must not be perturbed; extra same-scope workers would contaminate evidence.",
+      "default": "DO_NOT_INTERVENE; USE_OTHER_SAFE_FRONTIERS"
+    }
+  ],
+  "response_protocol_candidate": {
+    "purpose": "Make every user-visible handoff temporally complete even when the human responds much later.",
+    "fields": [
+      "HUMAN_NOW: exact minimum action or NO_ACTION",
+      "SYSTEM_WHILE: what continues without the human",
+      "NEXT_TRIGGER: durable event/condition that changes the plan",
+      "HUMAN_THEN: exact next human action at that trigger or NO_ACTION",
+      "PARALLEL_NOW: safe independent work that may proceed",
+      "WHY_NOT_MORE: explicit reason when additional workers are intentionally not launched",
+      "IDLE_DEBT: any remaining avoidable wait"
+    ],
+    "rule": "A reply is incomplete if it gives HUMAN_NOW but leaves the user to infer what happens after, whether they must watch, whether other work can proceed, or why capacity is intentionally idle."
+  },
+  "current_case_application": {
+    "HUMAN_NOW": "NONE. META-AUTONOMY-01 is already launched and S001 is claimed.",
+    "SYSTEM_WHILE": "The active worker should complete primary RETURN, same-worker R001 re-critique and E9 close or persist a real boundary.",
+    "NEXT_TRIGGER": "Durable primary receipt + R001 claim/return + E9 close, or durable terminal boundary.",
+    "HUMAN_THEN": "Return to the controlling chat with a single '.' only because external ChatGPT wake is still a real product boundary; no manual result copying or interpretation.",
+    "PARALLEL_NOW": [
+      "Precompile the post-run harvest/decision logic.",
+      "Record the nonlinear-tempo learning and future response protocol candidate.",
+      "Do not launch another META-AUTONOMY worker because this canary intentionally measures one-worker independence and same-worker continuation."
+    ],
+    "WHY_NOT_MORE": "Additional same-scope workers would contaminate the one-worker autonomy canary. Separate unrelated frontier work may proceed, but this chat should not invent/reroute unrelated work while the canary is active.",
+    "IDLE_DEBT": "External chat wake after run completion is still human-dependent. This is a known product/runtime boundary to eliminate later."
+  },
+  "better_questions": [
+    {
+      "id": "Q09_TEMPORAL_CONTINUITY",
+      "text": "Si el humano responde dentro de una hora en vez de ahora, ¿qué trabajo útil debería haber avanzado igual, qué resultado debería estar esperándolo y qué única decisión humana seguiría siendo necesaria?"
+    },
+    {
+      "id": "Q10_STOP_CAUSE",
+      "text": "¿Estoy frenando porque el trabajo realmente necesita autoridad/evidencia externa, o sólo porque terminó mi turno actual?"
+    },
+    {
+      "id": "Q11_PARALLEL_FRONTIER",
+      "text": "Mientras esta dependencia está abierta, ¿qué trabajo independiente, preparación de sucesor o verificación puedo avanzar sin contaminar el experimento ni crear autoridad paralela?"
+    }
+  ],
+  "metrics_candidates": [
+    "avoidable_human_gestures",
+    "human_wait_started_at_to_next_useful_system_progress",
+    "machine_work_completed_during_human_absence",
+    "precompiled_successor_rate",
+    "manual_result_relay_count",
+    "idle_windows_with_safe_frontier_available",
+    "false_stops_due_to_turn_end",
+    "experiment_contamination_avoided"
+  ],
+  "non_goal": "Do not maximize activity for its own sake. Parallelism is useful only when it preserves authority, experiment validity, and a real consumer.",
+  "evidence_refs": [
+    "coordination/efficiency/RATCHET_BASELINE_V1.json#EFF030",
+    "coordination/design-dna/STRATEGIC_REASONING_CHECKLIST_V2.md#C17-C23",
+    "coordination/launch-packets/META-AUTONOMY-01/claims/S001.json",
+    "coordination/design-dna/experiments/META-AUTONOMY-01/PACKET.json"
+  ]
+}
