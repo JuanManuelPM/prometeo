@@ -102,19 +102,28 @@ function validatePage(contract,html,label){
   assert.ok(html.includes(expectedThread),`${label}: expected public thread path not referenced`);
   assert.match(html,/\bfetch\s*\(/,`${label}: page must read the durable thread`);
   assert.match(html,/WAITING/,`${label}: WAITING state must be explicit`);
-  assert.doesNotMatch(html,/<(?:form|input|textarea)\b/i,`${label}: bidirectional input surface is forbidden in this canary`);
+  assert.doesNotMatch(html,/<(?:form|input|textarea)\b/i,`${label}: approved composer must stay modular; index may not inline raw form/input/textarea markup`);
+  assert.match(html,/id=["']chatComposer["']/,`${label}: approved chat composer host is required`);
+  assert.match(html,/src=["']\.\.\/ingress-v1\.js["']/,`${label}: existing ingress facade must load before composer`);
+  assert.match(html,/src=["']\.\/input-module-v1\.js["']/,`${label}: approved fail-closed input module is required`);
+  assert.match(html,/src=["']\.\/progress-v1\.js["']/,`${label}: durable progress module is required`);
+  assert.match(html,/PROMETEO_CHAT_CANARY_INPUT_V1\.mount/,`${label}: composer must mount through the reviewed module API`);
+  assert.match(html,/id=["']chat-canary-progress["']/,`${label}: durable Work Unit progress host is required`);
   assert.doesNotMatch(html,/\b(?:EventSource|WebSocket|ReadableStream)\b/,`${label}: streaming surface is forbidden`);
   assert.doesNotMatch(html,/\bsetInterval\s*\(/,`${label}: aggressive/automatic polling is forbidden`);
-  assert.doesNotMatch(html,/method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i,`${label}: mutation request is forbidden`);
-  assert.doesNotMatch(html,/supabase\.co|\/functions\/v1\/|\/api\//i,`${label}: backend endpoint reference is forbidden`);
+  assert.doesNotMatch(html,/method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i,`${label}: index may not bypass the ingress facade with direct mutation requests`);
+  assert.doesNotMatch(html,/supabase\.co|\/functions\/v1\/|\/api\//i,`${label}: index may not embed backend endpoint references`);
   return {
     thread_path:expectedThread,
     waiting_state:true,
-    bidirectional_input:false,
+    bidirectional_input:'APPROVED_FAIL_CLOSED_MODULE',
+    direct_input_markup:false,
+    ingress_facade:true,
+    progress_module:true,
     streaming:false,
     auto_polling:false,
-    mutation_requests:false,
-    backend_endpoint:false
+    direct_mutation_requests:false,
+    embedded_backend_endpoint:false
   };
 }
 
