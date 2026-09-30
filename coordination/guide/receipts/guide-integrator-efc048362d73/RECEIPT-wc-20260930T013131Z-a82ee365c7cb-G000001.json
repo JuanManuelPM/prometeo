@@ -1,0 +1,87 @@
+{
+  "schema": "prometeo.guide-receipt/v1",
+  "guide_work_id": "guide-integrator-efc048362d73",
+  "receipt_id": "RECEIPT-wc-20260930T013131Z-a82ee365c7cb-G000001",
+  "worker_id": "wc-20260930T013131Z-a82ee365c7cb",
+  "role": "GUIDE_INTEGRATOR",
+  "created_at": "2026-09-30T01:57:02Z",
+  "trigger": "RETURNS_UNCONSUMED",
+  "outcome": "DONE",
+  "productive_unit_counted": true,
+  "evidence": [
+    "coordination/portfolio/returns/portfolio-finish-g06-shard-a-visible-result-prewire-v1/RETURN-wc-20260930T012322Z-51d6ea488b36-G000007-DONE-PREWIRE-READY.json",
+    "coordination/portfolio/returns/portfolio-worker-io-accounting-real-closed-trace-v1/RETURN-wc-20260930T013131Z-a82ee365c7cb-G000001-VERIFIED.json",
+    "coordination/portfolio/returns/portfolio-worker-local-batch-e5-lb0-direct-r2-v1/RETURN-wc-20260930T013000Z-c84f1a6d92b7-G000002-ROUTE_ABORTED.json",
+    "coordination/portfolio/returns/portfolio-worker-local-batch-e5-lb1-block-audit-r2-v1/RETURN-wc-20260930T013000Z-c84f1a6d92b7-G000001-DONE.json",
+    "coordination/portfolio/returns/portfolio-worker-local-batch-telemetry-compiler-v1/RETURN-wc-20260930T012200Z-6a7f2c9d41e8-G000001-DONE.json",
+    "coordination/guide/receipts/guide-integrator-38a6f64e63aa/RECEIPT-wc-20260930T013131Z-a82ee365c7cb-G000001.json"
+  ],
+  "diagnosis": "Two of five listed returns were already covered by an earlier integrator receipt or an existing durable lane, while three carry new delta. G06 prewire is deployed-ready but remains correctly gated by the existing G05/G06 chain. The I/O accounting real trace exposes four UNKNOWN counters because transport operations were not closed. The local-batch compiler is complete and four real replica pairs are present, while LB0 r2 lacks RESULT and LB1 r2 is timing-invalid after a first RESULT branch-head conflict.",
+  "intervention": "Reconciled prior consumption, preserved existing G05/G06 and fixed-generation local-batch authority, and materialized exactly two nonduplicate successors: a bounded transport trace for worker I/O accounting and a real LOCAL-BATCH-E5 telemetry summary using the already-built compiler.",
+  "dispositions": [
+    {
+      "return_ref": "coordination/portfolio/returns/portfolio-finish-g06-shard-a-visible-result-prewire-v1/RETURN-wc-20260930T012322Z-51d6ea488b36-G000007-DONE-PREWIRE-READY.json",
+      "state": "CONSUMED_EXISTING_GATE_CHAIN",
+      "successor": null,
+      "reason": "Existing finish-g05 shard jobs and portfolio-finish-g06-visible-result-loop-v1 already represent the unresolved same-lineage gate; no duplicate created."
+    },
+    {
+      "return_ref": "coordination/portfolio/returns/portfolio-worker-io-accounting-real-closed-trace-v1/RETURN-wc-20260930T013131Z-a82ee365c7cb-G000001-VERIFIED.json",
+      "state": "CONSUMED_SUCCESSOR_CREATED",
+      "successor": "portfolio-worker-io-accounting-transport-trace-v1",
+      "reason": "Real closed trace proved the candidate discipline but left reads/writes/waits/retries UNKNOWN because transport-level observations were not closed."
+    },
+    {
+      "return_ref": "coordination/portfolio/returns/portfolio-worker-local-batch-e5-lb0-direct-r2-v1/RETURN-wc-20260930T013000Z-c84f1a6d92b7-G000002-ROUTE_ABORTED.json",
+      "state": "CONSUMED_NO_RETRY_GENERATION",
+      "successor": null,
+      "reason": "The independent-sample abort must not be repaired by another generation; EFF070 fixed-generation semantics preserve absence as experiment evidence."
+    },
+    {
+      "return_ref": "coordination/portfolio/returns/portfolio-worker-local-batch-e5-lb1-block-audit-r2-v1/RETURN-wc-20260930T013000Z-c84f1a6d92b7-G000001-DONE.json",
+      "state": "ALREADY_CONSUMED_CLASSIFIED_INVALID_TIMING",
+      "successor": "portfolio-worker-local-batch-e5-real-telemetry-summary-v1",
+      "reason": "Prior integrator already classified its first RESULT conflict; the new real summary can now consume that boundary without treating it as clean timing."
+    },
+    {
+      "return_ref": "coordination/portfolio/returns/portfolio-worker-local-batch-telemetry-compiler-v1/RETURN-wc-20260930T012200Z-6a7f2c9d41e8-G000001-DONE.json",
+      "state": "CONSUMED_SUCCESSOR_CREATED",
+      "successor": "portfolio-worker-local-batch-e5-real-telemetry-summary-v1",
+      "reason": "Compiler implementation is complete and real START/RESULT artifacts now exist for bounded execution; missing replicas remain NOT_READY."
+    }
+  ],
+  "created_jobs": [
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-worker-io-accounting-transport-trace-v1.json",
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-worker-local-batch-e5-real-telemetry-summary-v1.json"
+  ],
+  "consumed_returns": [
+    "portfolio-finish-g06-shard-a-visible-result-prewire-v1",
+    "portfolio-worker-io-accounting-real-closed-trace-v1",
+    "portfolio-worker-local-batch-e5-lb0-direct-r2-v1",
+    "portfolio-worker-local-batch-e5-lb1-block-audit-r2-v1",
+    "portfolio-worker-local-batch-telemetry-compiler-v1"
+  ],
+  "changed_paths": [
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-worker-io-accounting-transport-trace-v1.json",
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-worker-local-batch-e5-real-telemetry-summary-v1.json",
+    "coordination/guide/receipts/guide-integrator-efc048362d73/RECEIPT-wc-20260930T013131Z-a82ee365c7cb-G000001.json"
+  ],
+  "tests": [
+    "PASS exact five role return refs were reopened after ownership.",
+    "PASS prior guide receipt was reopened and overlapping LB1 r2 consumption was not counted as a new unresolved lane.",
+    "PASS derived-tree scan found no existing worker I/O transport-trace or LOCAL-BATCH-E5 real telemetry-summary job before creation.",
+    "PASS current result directory shows real START/RESULT pairs plus explicit missing artifacts; successor requires NOT_READY rather than zero.",
+    "PASS no duplicate G05/G06 jobs, local-batch replica reruns, scheduler/queue changes or CURRENT promotions were created."
+  ],
+  "lifecycle": {
+    "resident_pool_id": "PROD-01",
+    "productive_unit_index": 5,
+    "resident_checkpoint": 3,
+    "resident_target": 6,
+    "resident_hard_cap": 8,
+    "checkpoint_reached": true,
+    "target_reached": false,
+    "post_receipt_next_action": "REENTER_FAST_ALLOCATOR"
+  },
+  "remaining_boundary": "One normal productive unit remains to reach resident target 6; existing capability and Human Acceptance boundaries remain untouched."
+}
