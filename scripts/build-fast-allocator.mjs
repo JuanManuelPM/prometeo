@@ -1419,6 +1419,15 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
   // frontier can starve worker/runtime repair indefinitely even at much higher priority.
   // This is not a new lane/queue: the candidates retain their original ready/role lane
   // and the worker still hashes one unified candidate array under EFF021.
+  const productHead = productReady.length
+    ? { lane:'ready', item:productReady[0] }
+    : productQueue.length
+      ? { lane:'queue_ready', item:productQueue[0] }
+      : productRoles.length
+        ? { lane:'role_ready', item:productRoles[0] }
+        : null;
+  if (productHead) pushBatch(productHead.lane,[productHead.item]);
+
   const infraReserve = [
     ...infraReady.map(item => ({ lane:'ready', item })),
     ...infraRoles.map(item => ({ lane:'role_ready', item }))
