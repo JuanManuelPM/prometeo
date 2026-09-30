@@ -324,7 +324,10 @@ try{
   assert.match(copiedSteward,/FAST_REINCARNATION_PATH_V1/);
   pass('visual_steward_navigation_lineage',{target:'COMPONENT:CONTROL_NAVIGATION',actor_visible:true,before_after:true,commit:true,rollback:true,alternative_visible:true,specialized_session_bootstrap:true});
 
-  await page.evaluate(()=>{document.querySelector('.tab[data-view="ahora"]')?.click();return window.PROMETEO_CONTINUITY_V1?.decorateNow?.()});
+  await page.evaluate(async()=>{
+    document.querySelector('.tab[data-view="ahora"]')?.click();
+    await Promise.all(Array.from({length:4},()=>window.PROMETEO_CONTINUITY_V1?.decorateNow?.()));
+  });
 
   const mvp3IdeasCard=page.locator('[data-now-conversation="CHATLOC-PROMETEO-IDEAS-20260929"]').first();
   const mvp3SttCard=page.locator('[data-now-conversation="CHATLOC-STT-LIVE-UX-20260929"]').first();
@@ -356,8 +359,11 @@ try{
   assert.equal(new Set(mvp3Projection.locators).size,mvp3Projection.locators.length);
   pass('generic_recovery_projection_mvp3',{host:'SURFACE:CONTROL_ROOM',view:'Ahora',selector:mvp3Projection.selector,locators:mvp3Projection.locators,search_adopt_semantics:true,uses_existing_recovery:true,new_authority:false,new_backend:false,new_model:false});
 
-  const workCard=page.locator('[data-work-unit="WU-CONTROL-NAVIGATION-VISUAL-STEWARD-V1"]');
-  await workCard.waitFor({state:'visible',timeout:15000});
+  const workCards=page.locator('[data-work-unit="WU-CONTROL-NAVIGATION-VISUAL-STEWARD-V1"]');
+  await workCards.first().waitFor({state:'visible',timeout:15000});
+  assert.equal(await page.locator('.activity-board-v1').count(),1,'concurrent decorateNow calls must leave exactly one Activity Board');
+  assert.equal(await workCards.count(),1,'one durable work_unit_id must render at most once');
+  const workCard=workCards.first();
   const workText=await workCard.innerText();
   assert.match(workText,/100%/);
   assert.match(workText,/RECEIPT/);
@@ -373,7 +379,7 @@ try{
   assert.match(copiedWorkResume,/CP-WU-005-RECEIPT/);
   assert.match(copiedWorkResume,/RECEIPT/);
   assert.match(copiedWorkResume,/RETRY_FROM_UI != RESUME_DURABLE_WORK/);
-  pass('durable_activity_board_same_work_unit',{work_unit_id:'WU-CONTROL-NAVIGATION-VISUAL-STEWARD-V1',progress:100,stage:'RECEIPT',checkpoint:'CP-WU-005-RECEIPT',resume_same_work_unit:true,retry_not_resume:true});
+  pass('durable_activity_board_same_work_unit',{work_unit_id:'WU-CONTROL-NAVIGATION-VISUAL-STEWARD-V1',progress:100,stage:'RECEIPT',checkpoint:'CP-WU-005-RECEIPT',resume_same_work_unit:true,retry_not_resume:true,concurrent_render_unique:true});
 
   const ideasCard=page.locator('[data-now-conversation="CHATLOC-PROMETEO-IDEAS-20260929"]');
   await ideasCard.waitFor({state:'visible',timeout:15000});
