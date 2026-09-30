@@ -21,6 +21,11 @@ assert.equal(ratchet.required?.portfolio_fragment_semantics_validated, true);
 assert.equal(ratchet.required?.derived_recovery_source_path_preserved, true);
 assert.equal(ratchet.required?.regression_test, 'coordination/portfolio/tests/role_ready_evidence_integrity_v1.mjs');
 
+const causalRecoveryRatchet = baseline.items?.find(item => item.id === 'EFF065');
+assert(causalRecoveryRatchet, 'EFF065 must remain in the efficiency ratchet baseline');
+assert.equal(causalRecoveryRatchet.required?.all_distinct_known_basis_suppresses_count_only_rescate, true);
+assert.equal(causalRecoveryRatchet.required?.actionable_no_allocation_trigger_preserved, true);
+
 const workflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/live-feed.yml'), 'utf8');
 const coverageStage = 'node source/scripts/apply-project-coverage.mjs /tmp/allocator.json /tmp/feed.json /tmp/allocator.json source';
 const integrityStage = 'node source/scripts/apply-role-evidence-integrity.mjs /tmp/allocator.json /tmp/allocator.json source';
