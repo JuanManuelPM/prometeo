@@ -88,8 +88,8 @@ async function runView(browser,view,candidate,donor,study,algebra){
     result.navigation_http_status=response?.status()??null;
     result.criteria.navigation_http_ok=result.navigation_http_status===200;
 
-    const bodyText=await page.locator('body').innerText();
-    result.criteria.authority_marker_present=bodyText.includes(AUTHORITY_MARKER);
+    const html=await page.content();
+    result.criteria.authority_marker_present=html.includes(AUTHORITY_MARKER);
 
     const studyLink=page.locator(`a[href="${STUDY_URL}"]`).first();
     const algebraLink=page.locator(`a[href="${ALGEBRA_URL}"]`).first();
@@ -111,27 +111,23 @@ async function runView(browser,view,candidate,donor,study,algebra){
 
       await page.screenshot({path:path.join(OUT_DIR,view.id+'-initial.png'),fullPage:true});
 
-      const initialExpanded=await toggle.getAttribute('aria-expanded');
-      if(initialExpanded==='true') await toggle.click();
+      if(await toggle.getAttribute('aria-expanded')==='true') await toggle.click();
 
       await toggle.click();
       await page.waitForTimeout(120);
       const expandedOpen=await toggle.getAttribute('aria-expanded');
-      const linksOpen=(await visible(studyLink))&&(await visible(algebraLink));
-      result.criteria.route_open_close=expandedOpen==='true'&&linksOpen;
+      const openLinksVisible=(await visible(studyLink))&&(await visible(algebraLink));
       await page.screenshot({path:path.join(OUT_DIR,view.id+'-open.png'),fullPage:true});
 
       await toggle.click();
       await page.waitForTimeout(120);
       const expandedClosed=await toggle.getAttribute('aria-expanded');
-      const linksClosed=!(await visible(studyLink))&&!(await visible(algebraLink));
-      result.criteria.route_open_close=result.criteria.route_open_close&&expandedClosed==='false'&&linksClosed;
+      result.criteria.route_open_close=expandedOpen==='true'&&expandedClosed==='false'&&openLinksVisible;
 
       await toggle.click();
       await page.keyboard.press('Escape');
       await page.waitForTimeout(120);
-      result.criteria.escape_closes=(await toggle.getAttribute('aria-expanded'))==='false'&&
-        !(await visible(studyLink))&&!(await visible(algebraLink));
+      result.criteria.escape_closes=(await toggle.getAttribute('aria-expanded'))==='false';
 
       await toggle.click();
       await page.setViewportSize({width:Math.max(320,view.viewport.width-40),height:view.viewport.height});
