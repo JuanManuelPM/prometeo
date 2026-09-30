@@ -16,7 +16,8 @@ for(const rel of [
   'coordination/workers/WORKER_BENCHMARK_RECEIPT_V1.json',
   'coordination/launch-packets/CATLAB-EVO-01/PACKET.json',
   'coordination/launch-packets/CATLAB-P2B-01/PACKET.json',
-  'coordination/launch-packets/GENERIC-SMOKE-01/PACKET.json'
+  'coordination/launch-packets/GENERIC-SMOKE-01/PACKET.json',
+  'coordination/launch-packets/SINGLE-WORKER-REALITY-01/PACKET.json'
 ]){
   const src=path.join(sourceRoot,rel);
   const dst=path.join(fixtureRoot,rel);
@@ -54,10 +55,25 @@ assert.equal(status.slots_total,2);
 assert.equal(status.reallocation_slots_total,0);
 assert.equal(status.human_numbering_required,false);
 
+const realityPacket=JSON.parse(fs.readFileSync(path.join(fixtureRoot,'coordination/launch-packets/SINGLE-WORKER-REALITY-01/PACKET.json'),'utf8'));
+assert.equal(realityPacket.packet_profile,'GENERIC_SYNTHETIC_V1');
+assert.equal(realityPacket.status,'CANDIDATE');
+assert.equal(realityPacket.slots.length,1);
+assert.equal(realityPacket.slots[0].slot_id,'S001');
+assert.equal(realityPacket.reallocation_slots.length,1);
+assert.equal(realityPacket.reallocation_slots[0].slot_id,'R001');
+assert.equal(realityPacket.reallocation_pool.same_worker_required,true);
+const publicReality=JSON.parse(fs.readFileSync(path.join(out,'launch/SINGLE-WORKER-REALITY-01/packet.json'),'utf8'));
+assert.deepEqual(publicReality,realityPacket,'REALITY-01 public packet must preserve canonical packet semantically');
+const realityStatus=JSON.parse(fs.readFileSync(path.join(out,'launch/SINGLE-WORKER-REALITY-01/status.json'),'utf8'));
+assert.equal(realityStatus.slots_total,1);
+assert.equal(realityStatus.reallocation_slots_total,1);
+assert.equal(realityStatus.human_numbering_required,false);
+
 for(const legacy of ['CATLAB-EVO-01','CATLAB-P2B-01']){
   const legacyPacket=JSON.parse(fs.readFileSync(path.join(fixtureRoot,'coordination/launch-packets',legacy,'PACKET.json'),'utf8'));
   const publicLegacy=JSON.parse(fs.readFileSync(path.join(out,'launch',legacy,'packet.json'),'utf8'));
   assert.deepEqual(publicLegacy,legacyPacket,legacy+' must remain semantically unchanged');
 }
 
-console.log(JSON.stringify({ok:true,run_id:packet.run_id,slots:packet.slots.length,reallocation_slots:packet.reallocation_slots.length,legacy:['CATLAB-EVO-01','CATLAB-P2B-01']}));
+console.log(JSON.stringify({ok:true,run_id:packet.run_id,slots:packet.slots.length,reallocation_slots:packet.reallocation_slots.length,reality_run:'SINGLE-WORKER-REALITY-01',legacy:['CATLAB-EVO-01','CATLAB-P2B-01']}));
