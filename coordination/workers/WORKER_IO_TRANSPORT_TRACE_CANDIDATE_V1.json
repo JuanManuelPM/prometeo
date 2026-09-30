@@ -1,0 +1,105 @@
+{
+  "schema": "prometeo.worker-io-transport-trace-candidate/v1",
+  "status": "CANDIDATE_EXPERIMENT_ONLY_NO_PROMOTION",
+  "created_at": "2026-09-30T02:14:54Z",
+  "created_by_worker_id": "prod01-20260929T2257-03-229ca3deaf7e",
+  "authority_ref": "coordination/portfolio/pins/portfolio-worker-io-accounting-transport-trace-v1/G000001.json",
+  "extends": "coordination/workers/WORKER_IO_ACCOUNTING_CANDIDATE_V1.json",
+  "preservation_ref": "coordination/portfolio/evidence/prometeo-autonomous-growth/WORKER_IO_TRANSPORT_TRACE_PRESERVATION_V1.json",
+  "purpose": "Represent only externally observable transport operations for one bounded productive-unit scope, with an explicit coverage boundary that decides whether a counter is numeric or UNKNOWN.",
+  "worker_interface_change": false,
+  "operation_schema": {
+    "schema": "prometeo.worker-io-transport-operation/v1",
+    "required": [
+      "operation_id",
+      "class",
+      "external_target_family",
+      "outcome",
+      "durable_evidence_or_null"
+    ],
+    "class_enum": [
+      "READ",
+      "WRITE",
+      "WAIT",
+      "RETRY"
+    ],
+    "outcome_enum": [
+      "SUCCESS",
+      "FAILURE",
+      "CONFLICT",
+      "TIMEOUT",
+      "CANCELLED",
+      "UNKNOWN"
+    ],
+    "fields": {
+      "operation_id": "unique string within trace",
+      "class": "READ | WRITE | WAIT | RETRY",
+      "external_target_family": "bounded external family such as github_contents, github_actions, public_http, connector",
+      "outcome": "externally observed outcome class",
+      "durable_evidence_or_null": "exact durable/server evidence ref when one exists, else null; null never means operation absent",
+      "retry_of_operation_id_or_null": "required for RETRY, null otherwise",
+      "retry_of_class_or_null": "READ | WRITE | WAIT for RETRY so the repeated external attempt is counted in both retries and the underlying external-op counter",
+      "note_or_null": "compact diagnostic only; never a counter authority"
+    }
+  },
+  "trace_schema": {
+    "schema": "prometeo.worker-io-transport-trace/v1",
+    "required": [
+      "trace_id",
+      "worker_id",
+      "unit_ref",
+      "scope",
+      "operations",
+      "coverage"
+    ],
+    "scope_required": [
+      "starts_after",
+      "ends_at",
+      "included_external_target_families",
+      "local_work_excluded"
+    ],
+    "local_work_excluded_required": true,
+    "coverage_counters": [
+      "external_read_ops",
+      "external_write_ops",
+      "workflow_waits",
+      "retries"
+    ]
+  },
+  "coverage_contract": {
+    "status_enum": [
+      "COMPLETE_FOR_SCOPE",
+      "PARTIAL",
+      "UNAVAILABLE"
+    ],
+    "complete_rule": "COMPLETE_FOR_SCOPE requires non-empty coverage_evidence_refs that close the declared bounded transport scope for that counter.",
+    "partial_rule": "PARTIAL/UNAVAILABLE always summarize as UNKNOWN, even when one or more observed operations provide a lower bound.",
+    "zero_rule": "Numeric zero is emitted only for COMPLETE_FOR_SCOPE plus non-empty coverage_evidence_refs. No events + partial coverage is UNKNOWN, never 0.",
+    "positive_rule": "Numeric positives require at least one in-trace operation evidence ref or durable operation ref, plus complete coverage.",
+    "unknown_rule": "PARTIAL/UNAVAILABLE requires unknown_reason and may expose observed_minimum as a diagnostic lower bound."
+  },
+  "derivation": {
+    "external_read_ops": "Count READ plus RETRY where retry_of_class=READ.",
+    "external_write_ops": "Count WRITE plus RETRY where retry_of_class=WRITE; failed/conflicting mutation attempts count when observed.",
+    "workflow_waits": "Count WAIT plus RETRY where retry_of_class=WAIT.",
+    "retries": "Count RETRY operations exactly once.",
+    "commits": "Not derived by this trace candidate; keep the existing accounting contract and durable commit evidence.",
+    "artifacts": "Not derived by this trace candidate; keep the existing accounting contract and artifact listing evidence."
+  },
+  "coalescing": {
+    "local_reasoning_events_forbidden": true,
+    "per_local_operation_persist_forbidden": true,
+    "durable_persist_target": "one bounded trace/evidence object or existing productive-unit RETURN/exam attachment",
+    "worker_hot_path_change_required": false,
+    "rule": "Transport may observe many external operations in memory/runtime, but durable worker coordination stays coalesced. Local reasoning is never emitted as an operation."
+  },
+  "real_sample_policy": {
+    "complete_real_trace_required_for_numeric_counter": true,
+    "partial_real_sample_allowed": true,
+    "rule": "A real sample may demonstrate durable observed operations while counters remain UNKNOWN if the connector/runtime cannot prove the observation boundary is closed."
+  },
+  "harness_ref": "tests/worker-io-accounting-transport-trace-v1.test.mjs",
+  "fixture_ref": "coordination/portfolio/evidence/prometeo-autonomous-growth/WORKER_IO_TRANSPORT_TRACE_FIXTURE_V1.json",
+  "summarizer_ref": "scripts/summarize-worker-io-transport-trace-v1.mjs",
+  "authority": "CANDIDATE_OBSERVABILITY_ONLY_NO_CURRENT_NO_PIPELINE_NO_SCHEDULER"
+}
