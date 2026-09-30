@@ -16,6 +16,7 @@ const RECOVERY_LINEAGE='https://juanmanuelpm.github.io/prometeo/coordination/cha
 const PROMETEO_RECOVERY_CONTROL_V2=true;
 const STORE_PROJECT='prometeo.control.v11.continuity.project.v1';
 let sessionsIndex=null,capabilityGraph=null,resultProjection=null,workUnitsProjection=null,recoveryIndex=null,recoveryLineage=null,journalCache=new Map(),recoveryEntryCache=new Map(),loading=null;
+let activityRenderGeneration=0;
 
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const cfg=()=>window.PROMETEO_CONTROL_CONFIG_V1||{};
@@ -434,6 +435,16 @@ Create a fresh Chat Session and continue the SAME Work Unit from its durable che
 RULE:
 UI error/Retry is not execution truth. Reconcile durable state first.`;
 }
+function uniqueWorkUnits(items){
+  const byId=new Map();
+  for(const wu of items||[]){
+    const id=String(wu?.work_unit_id||'').trim();
+    if(!id)continue;
+    const current=byId.get(id);
+    if(!current||new Date(wu?.last_progress_at||0)>new Date(current?.last_progress_at||0))byId.set(id,wu);
+  }
+  return [...byId.values()];
+}
 function workUnitHtml(wu){
   const done=(wu.steps||[]).filter(x=>x.status==='DONE'),pending=(wu.steps||[]).filter(x=>x.status!=='DONE');
   const evidence=(wu.latest_evidence||[]).slice(0,4);
@@ -455,10 +466,12 @@ function workUnitHtml(wu){
     '</div></details>';
 }
 async function decorateNow(){
-  const root=document.getElementById('now');if(!root)return;
-  root.querySelector('.live-work-v1')?.remove();
+  const renderGeneration=++activityRenderGeneration;
+  const root=document.getElementById('now');if(!root)return false;
   await load();
-  const units=(workUnitsProjection?.work_units||[]).slice().sort((a,b)=>new Date(b.last_progress_at||0)-new Date(a.last_progress_at||0)).slice(0,10);
+  if(renderGeneration!==activityRenderGeneration)return false;
+  root.querySelector('.live-work-v1')?.remove();
+  const units=uniqueWorkUnits(workUnitsProjection?.work_units||[]).sort((a,b)=>new Date(b.last_progress_at||0)-new Date(a.last_progress_at||0)).slice(0,10);
   const sec=document.createElement('section');sec.className='section live-work-v1 activity-board-v1';
   sec.innerHTML='<div class="section-head"><div class="section-title">Actividad</div><div class="section-action">progreso durable · no spinner/liveness</div></div>'+
     (units.length?'<div class="activity-list">'+units.map(workUnitHtml).join('')+'</div>':'<div class="rdesc">Sin Work Units durables todavía.</div>');
@@ -469,6 +482,7 @@ async function decorateNow(){
     await copyText(workUnitResumePrompt(wu));
     toast(btn.dataset.workReincarnate?'Reincarnation envelope copiado':'Continuación durable copiada');
   }));
+  return true;
 }
 function goContinuity(){
   const tab=document.querySelector('.tab[data-view="historial"]');tab?.click();setTimeout(()=>document.getElementById('continuityCenter')?.scrollIntoView({behavior:'smooth',block:'start'}),80);
