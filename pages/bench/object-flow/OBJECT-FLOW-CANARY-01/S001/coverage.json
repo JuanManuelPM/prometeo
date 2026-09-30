@@ -1,0 +1,110 @@
+{
+  "schema": "prometeo.object-flow-coverage/v1",
+  "experiment_id": "OBJECT-FLOW-CANARY-01",
+  "graph_ref": "graph.json",
+  "checks": {
+    "decision_outcome_coverage": {
+      "status": "PASS",
+      "required_outcomes": [
+        "TRUE",
+        "FALSE",
+        "UNKNOWN",
+        "ERROR"
+      ],
+      "decision_nodes": [
+        "D0_NEW_OR_RESUME",
+        "D1_BEACON_RESULT",
+        "D2_RUN_MODE",
+        "D3_PACKET_ARMED",
+        "D4_SLOT_COMPATIBLE",
+        "D5_PRIMARY_CLAIM_RESULT",
+        "D6_CONTEXT_VALID",
+        "D7_PLAN_ACTIONABLE",
+        "D8_PRODUCTION_STATE",
+        "D9_VERIFICATION_STATE",
+        "D10_RETURN_PERSISTED",
+        "D11_REALLOCATION_RESULT",
+        "D12_EXAM_PERSISTED"
+      ],
+      "missing": {}
+    },
+    "terminal_coverage": {
+      "status": "PASS",
+      "terminal_nodes": [
+        "RUN_COMPLETE",
+        "BOUNDARY",
+        "RESUME_PATH",
+        "CANDIDATE_OUTPUT"
+      ],
+      "note": "Every E0-E9 failure/unknown path resolves to a terminal boundary or an explicitly bounded retry."
+    },
+    "bounded_retry_coverage": {
+      "status": "PASS",
+      "loops": [
+        {
+          "loop_id": "L_BEACON_RETRY",
+          "edge": "D1_BEACON_RESULT(FALSE)->E1_BEACON",
+          "budget": "max 3 beacon identity attempts",
+          "exit": "TRUE or BOUNDARY",
+          "bounded": true
+        },
+        {
+          "loop_id": "L_PRIMARY_SLOT_ROTATION",
+          "edge": "D5_PRIMARY_CLAIM_RESULT(FALSE)->D4_SLOT_COMPATIBLE",
+          "budget": "each compatible RUN slot at most once; S001 packet size=1",
+          "exit": "claim success or NO_COMPATIBLE_LAUNCH_SLOT/contamination boundary",
+          "bounded": true
+        }
+      ],
+      "generic_workflow_note": "shared/workflow/v1/workflow.js permits reusable NEEDS_REPAIR cycles without its own numeric budget; this canary does not mislabel that generic product workflow as a bounded worker-loop. The RUN graph itself is finite."
+    },
+    "human_absence_coverage": {
+      "status": "PASS",
+      "cuts": [
+        {
+          "node_id": "HUMAN_ACCEPTANCE_GATE",
+          "minimum_human_action": "provide exact human acceptance evidence for a candidate",
+          "machine_parallel_work": "candidate inspection/verification may continue; promotion may not"
+        },
+        {
+          "node_id": "CURRENT_TRANSITION_GATE",
+          "minimum_human_action": "none beyond prior acceptance; machine must carry exact acceptance id in transition request",
+          "machine_parallel_work": "may prepare request; may not mutate CURRENT directly"
+        }
+      ],
+      "finding": "Candidate artifacts can be produced, verified, returned, reallocated and closed without human routing. Promotion to HUMAN_ACCEPTED remains a legitimate human authority cut."
+    },
+    "reincarnation_coverage": {
+      "status": "PASS",
+      "minimum_resume_set": [
+        "fresh worker beacon + launch_nonce",
+        "primary slot claim",
+        "graph.json",
+        "coverage.json",
+        "trace.json",
+        "book.json",
+        "primary result.json",
+        "benchmark receipt"
+      ],
+      "private_state_required": false
+    },
+    "projection_parity": {
+      "status": "PROPOSAL_READY",
+      "proposal": {
+        "generator_input": [
+          "coordination/workers/WORKER_PIPELINE_V1.json",
+          "wc RUN_PACKET_MODE invariants",
+          "shared/workflow/v1/workflow.js authority cuts"
+        ],
+        "test": "A deterministic generator emits canonical node/edge IDs and a fixture test compares emitted graph.json to executable source-derived expectations. CI fails on missing decision outcomes, unbounded RUN loops, or authority-cut removal.",
+        "drift_rule": "Flow is rebuilt from executable contracts; hand-edited graph bytes are candidate output only and never authority."
+      }
+    }
+  },
+  "summary": {
+    "pass": 5,
+    "proposal_ready": 1,
+    "fail": 0,
+    "unknown": 0
+  }
+}
