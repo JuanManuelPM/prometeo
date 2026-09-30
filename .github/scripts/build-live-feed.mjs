@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildGroundedReproductionMetric } from '../../scripts/live-reproduction-metric.mjs';
+import { evaluatePortfolioPrerequisites } from '../../scripts/portfolio-prerequisite-gate.mjs';
 
 const root = path.resolve(process.argv[2] || '.');
 const out = path.resolve(process.argv[3] || 'feed.json');
@@ -76,6 +77,19 @@ const opportunityFiles = walk('coordination/opportunities').filter(x=>x.endsWith
 const workerFiles = walk('coordination/workers').filter(x=>x.endsWith('.json'));
 const inboxFiles = walk('coordination/inbox/messages').filter(x=>x.endsWith('.json'));
 const portfolio = read('coordination/portfolio/PORTFOLIO.json') || {projects:[]};
+
+const prerequisiteEvidenceByJob = {};
+for (const file of portfolioFiles) {
+  const m = file.match(/^coordination\/portfolio\/returns\/([^/]+)\/[^/]+\.json$/);
+  if (!m) continue;
+  const doc = read(file);
+  if (!doc) continue;
+  const id = m[1];
+  const current = prerequisiteEvidenceByJob[id] || { any_return:false, terminal_success:false };
+  current.any_return = true;
+  if (terminal(doc, file)) current.terminal_success = true;
+  prerequisiteEvidenceByJob[id] = current;
+}
 
 const heartbeatRows = docs(workerFiles.filter(x=>/coordination\/workers\/heartbeats\/.+\.json$/.test(x)));
 const heartbeatsByWorker = new Map();
@@ -206,6 +220,7 @@ function inspectPortfolioJob(project, job) {
   const terminalReturn = [...returns].reverse().find(x=>terminal(x.doc, x.path)) || null;
   const latestReturn = returns.at(-1) || null;
   const latestSourceDebtReturn = [...returns].reverse().find(x=>Object.prototype.hasOwnProperty.call(x.doc || {}, 'source_debt')) || null;
+  const prerequisiteGate = evaluatePortfolioPrerequisites(job, prerequisiteEvidenceByJob);
   const authorityGate = authorityGateByJob.get(id) || null;
   const latestPin = pins.at(-1) || null;
   let authority = null;
@@ -227,6 +242,7 @@ function inspectPortfolioJob(project, job) {
   else if (owner && age < REPLACE_MS) state = 'suspect';
   else if (owner) state = 'replaceable';
   else if (latestReturn && ['partial','boundary'].includes(lower(latestReturn.doc?.outcome))) state = 'partial';
+  else if (!prerequisiteGate.satisfied) state = 'blocked';
   else if (lower(job.seed_status).includes('block')) state = 'blocked';
   return {
     ...job,
@@ -245,6 +261,7 @@ function inspectPortfolioJob(project, job) {
     latest_source_debt_return:compactSourceDebtReturn(latestSourceDebtReturn),
     source_debt_dependency:compactSourceDebtDependency(job),
     authority_gate:compactAuthorityGate(authorityGate),
+    prerequisite_gate:prerequisiteGate,
     latest_pin_recovery_basis:latestPin?.doc?.recovery_basis_or_null || null,
     terminal_return:terminalReturn ? {path:terminalReturn.path,outcome:first(terminalReturn.doc.outcome,terminalReturn.doc.status),returned_at:timeOf(terminalReturn.doc),worker_id:terminalReturn.doc.worker_id||null} : null,
     recent_return_evidence:returns.slice(-3).map(r=>({path:r.path,outcome:first(r.doc.outcome,r.doc.status),returned_at:timeOf(r.doc)})),
