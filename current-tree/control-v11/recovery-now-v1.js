@@ -18,26 +18,51 @@ function toast(text){
   if(!el){el=document.createElement('div');el.id='recoveryNowToastV1';el.className='continuity-toast';document.body.appendChild(el)}
   el.textContent=text;el.classList.add('on');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),1600);
 }
+const locatorId=entry=>{
+  const id=String(entry?.chat_locator_id||'').trim();
+  return /^CHATLOC-[A-Z0-9][A-Z0-9._-]*$/.test(id)?id:null;
+};
+const locatorRef=entry=>{
+  const ref=String(entry?.entry_ref||'').trim();
+  return /^entries\/[A-Z0-9][A-Z0-9._-]*\.json$/i.test(ref)?ref:null;
+};
 function eligibleEntries(index){
-  return (index?.entries||[])
+  const rows=(index?.entries||[])
     .filter(entry=>entry?.ui_projection?.control_room_now===true&&entry?.ui_projection?.authority_effect==='NONE')
-    .slice()
-    .sort((a,b)=>String(b.source_last_material_at||b.published_at||'').localeCompare(String(a.source_last_material_at||a.published_at||'')));
+    .map(entry=>({entry,id:locatorId(entry),ref:locatorRef(entry)}))
+    .filter(row=>row.id&&row.ref)
+    .sort((a,b)=>
+      String(b.entry.source_last_material_at||b.entry.published_at||'').localeCompare(String(a.entry.source_last_material_at||a.entry.published_at||''))||
+      a.id.localeCompare(b.id)||
+      a.ref.localeCompare(b.ref)
+    );
+  const firstById=new Map(),conflicts=new Set();
+  for(const row of rows){
+    const prior=firstById.get(row.id);
+    if(!prior)firstById.set(row.id,row);
+    else if(prior.ref!==row.ref)conflicts.add(row.id);
+  }
+  return [...firstById.values()].filter(row=>!conflicts.has(row.id)).map(row=>row.entry);
 }
 function entryUrl(entry){return new URL(entry.entry_ref,indexUrl()).href}
+let renderGeneration=0;
 async function render(){
+  const generation=++renderGeneration;
   const root=document.getElementById('now');if(!root)return false;
-  root.querySelector('.recovery-now-v1')?.remove();
+  root.querySelectorAll('.recovery-now-v1').forEach(el=>el.remove());
   root.querySelector('.ideas-now-v1')?.remove();
   root.querySelector('.stt-now-canary-v1')?.remove();
 
   const index=await json(INDEX);
+  if(generation!==renderGeneration)return false;
   const entries=eligibleEntries(index);
   if(!entries.length)return false;
   const api=window.PROMETEO_CONTINUITY_V1;if(!api)return false;
 
   const detailPairs=await Promise.all(entries.map(async entry=>[entry.chat_locator_id,await json(entryUrl(entry))]));
+  if(generation!==renderGeneration)return false;
   const details=new Map(detailPairs);
+  root.querySelectorAll('.recovery-now-v1').forEach(el=>el.remove());
   const section=document.createElement('section');section.className='section recovery-now-v1';
   const cards=entries.map(entry=>{
     const detail=details.get(entry.chat_locator_id);
