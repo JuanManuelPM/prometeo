@@ -88,11 +88,16 @@ jobs:
               workers_at_hard_cap:Number(summary.workers_at_hard_cap||0),
               live_recent:liveWorkers.length,
               last_event_at:batch.last_event_at||null,
+              replacement_launches_recommended:admitted<total
+                ? Math.max(0,total-admitted)
+                : (liveWorkers.length>0 ? Math.max(0,total-Number(summary.workers_at_target||0)-liveWorkers.length) : 0),
               action:admitted<total
-                ? {kind:'REFILL_EXACT',count:Math.max(0,total-admitted)}
-                : liveWorkers.length
-                  ? {kind:'WAIT_LIVE',count:liveWorkers.length}
-                  : {kind:'RETURN_TO_CONTROL',count:0},
+                ? {kind:'REFILL_EXACT',count:Math.max(0,total-admitted),reason:'ADMISSION_SHORTFALL'}
+                : (liveWorkers.length>0 && Number(summary.workers_at_target||0)+liveWorkers.length<total)
+                  ? {kind:'REFILL_EXACT',count:Math.max(0,total-Number(summary.workers_at_target||0)-liveWorkers.length),reason:'EARLY_TERMINAL_BELOW_TARGET'}
+                  : liveWorkers.length
+                    ? {kind:'WAIT_LIVE',count:liveWorkers.length}
+                    : {kind:'RETURN_TO_CONTROL',count:0},
               workers:workers.map(w=>({
                 worker_id:w.worker_id,
                 state:w.state,
