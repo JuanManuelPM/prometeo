@@ -1,0 +1,55 @@
+name: Chat canary served browser CI v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/chat-canary-served-browser-ci-v1.yml'
+      - 'coordination/portfolio/tests/chat_canary_served_browser_ci_v1.mjs'
+      - 'current-tree/control-v11/chat-canary/index.html'
+      - 'current-tree/control-v11/chat-canary/input-module-v1.js'
+      - 'current-tree/control-v11/chat-canary/progress-v1.js'
+      - 'coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chat-canary-served-browser-ci-v1
+  cancel-in-progress: false
+
+jobs:
+  representative-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install representative Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run served chat-canary desktop+narrow suite
+        env:
+          CHAT_CANARY_URL: https://juanmanuelpm.github.io/prometeo/current-tree/control-v11/chat-canary/
+          CHAT_CANARY_THREAD_URL: https://juanmanuelpm.github.io/prometeo/coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json
+          CHAT_CANARY_PROPAGATION_MS: '180000'
+          CHAT_CANARY_ARTIFACT_DIR: artifacts/chat-canary-served-browser-ci
+        run: node coordination/portfolio/tests/chat_canary_served_browser_ci_v1.mjs
+
+      - name: Upload bounded browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-canary-served-browser-ci-evidence
+          path: artifacts/chat-canary-served-browser-ci/
+          if-no-files-found: error
+          retention-days: 14
