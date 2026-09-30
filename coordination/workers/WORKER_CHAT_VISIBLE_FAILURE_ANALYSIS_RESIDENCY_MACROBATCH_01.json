@@ -1,0 +1,125 @@
+{
+  "schema": "prometeo.worker-chat-visible-failure-analysis/v1",
+  "run_id": "RESIDENCY-MACROBATCH-01",
+  "status": "GUIDE_COMPILED_CHAT_VISIBLE_EVIDENCE_CANDIDATE",
+  "purpose": "Capture failure details visible in worker chat finals that may be absent or coarser in durable RUN status. Summaries only; no raw private transcript bodies are published.",
+  "evidence_boundary": "Compiled by the Guide from recent worker-chat visible final outputs plus durable GitHub refs. Chat-visible summaries are candidate evidence until reconciled with exact durable artifacts. Never use this file as execution authority.",
+  "observed_failure_classes": [
+    {
+      "id": "E2_CLAIM_TRANSPORT_SECURITY_BLOCK",
+      "stage": "E2_ASSIGN",
+      "examples": [
+        {
+          "worker_id": "wc-20260930T104848Z-d53e1b5c3c59",
+          "durable_observation": "Beacon existed; no primary claim persisted.",
+          "chat_visible_reason": "Attempted slot-claim CREATE was explicitly blocked by connector/security before authority. Worker did not skip to another slot or fabricate B1-B6 work.",
+          "consequence": "Admission failure, not cognition/workload failure."
+        },
+        {
+          "worker_id": "wc-20260930T104900Z-7c3a9f2d1b64",
+          "durable_observation": "Beacon existed; no primary claim persisted.",
+          "chat_visible_reason": "CLAIM_TRANSPORT_BLOCKED before authority; no primary/reallocation executed.",
+          "consequence": "Admission failure, not cognition/workload failure."
+        }
+      ],
+      "lesson": "Measure wake→beacon and beacon→claim separately. Oversubscription/replacement is valid for pre-authority admission loss, but do not count these workers in workload-quality denominators."
+    },
+    {
+      "id": "E7_RETURN_PERSISTENCE_DENIAL",
+      "stage": "E7_RETURN",
+      "examples": [
+        {
+          "worker_id": "wc-20260930T104800Z-c48a72e19d5b",
+          "attempted_slot": "S015",
+          "chat_visible_reason": "Primary work reached RETURN, but the durable receipt path hit a tool/transport denial; reallocation and CLOSE were not completed.",
+          "consequence": "Useful local work may have succeeded while durable completion failed. Classify orchestration/transport separately from cognition."
+        }
+      ],
+      "lesson": "A worker that produced the workload but cannot persist RETURN is not equivalent to a worker that failed the workload. Preserve local-complete/durable-incomplete distinction."
+    },
+    {
+      "id": "CROSS_SLOT_RESULT_EXPOSURE",
+      "stage": "E6_VERIFY/E9",
+      "examples": [
+        {
+          "worker_id": "wc-20260930T104745Z-a91f7c2d84be",
+          "slot_id": "S005",
+          "variant": "V4_FILL_QUESTIONS_PRE_GUIDE",
+          "chat_visible_reason": "Worker inspected S002 before its own S005 close and marked itself CONTAMINATED_CROSS_SLOT_EXPOSURE despite completing primary + reallocation.",
+          "consequence": "Replica invalid for causal comparison."
+        },
+        {
+          "worker_id": "wc-20260930T104800Z-7e3b91a4c6d2",
+          "slot_id": "S006",
+          "variant": "V0_MINIMAL_CONTROL",
+          "chat_visible_reason": "Worker read another slot/result diff and closed CONTAMINATED_PROTOCOL after otherwise completing primary + reallocation.",
+          "consequence": "Replica invalid for causal comparison."
+        },
+        {
+          "worker_id": "wc-20260930T104800Z-7c91a4e6b2fd",
+          "slot_id": "S014",
+          "variant": "V3_CONTINUATION_PRIMING",
+          "chat_visible_reason": "E6_VERIFY failed CROSS_SLOT_RESULT_EXPOSURE after primary + reallocation; final state CONTAMINATED.",
+          "consequence": "Replica invalid for causal comparison."
+        }
+      ],
+      "lesson": "Curiosity/verification can contaminate frozen experiments. Own-slot evidence must remain isolated until CLOSE; independent analyzer reads all slots later."
+    },
+    {
+      "id": "PUBLIC_ROUTE_BROWSER_NOT_VERIFIED",
+      "stage": "POST_RETURN_VERIFICATION",
+      "examples": [
+        {
+          "worker_id": "wc-20260930T104835Z-35c868b0f398",
+          "slot_id": "S003",
+          "variant": "V2_BLOCK_REVIEW",
+          "chat_visible_reason": "RUN_COMPLETE with primary 72/72 + reallocation 30/30; Pages/browser route not verified from that worker runtime.",
+          "consequence": "Do not downgrade local benchmark completion to failure; preserve browser/public verification as a separate boundary."
+        },
+        {
+          "worker_id": "wc-20260930T105735Z-02607e88f217",
+          "slot_id": "S012",
+          "variant": "V1_EXPLICIT_ZERO_LEDGER",
+          "chat_visible_reason": "RUN_COMPLETE; all benchmark gates passed, while Pages verification remained unavailable/nonblocking.",
+          "consequence": "Separate experiment closure from optional served-route observation."
+        }
+      ],
+      "lesson": "Verification dimensions must stay separate. A missing browser check is not a workload failure unless browser verification is a declared hard gate."
+    }
+  ],
+  "successful_reference_examples": [
+    {
+      "worker_id": "wc-20260930T104810Z-aa42f4798a2c",
+      "slot_id": "S001",
+      "variant": "V0_MINIMAL_CONTROL",
+      "chat_visible_summary": "Primary 72/72 + reallocation 30/30, RUN_COMPLETE/E9 PASS; concurrent HEAD movement reconciled without cross-slot contamination."
+    },
+    {
+      "worker_id": "wc-20260930T104835Z-35c868b0f398",
+      "slot_id": "S003",
+      "variant": "V2_BLOCK_REVIEW",
+      "chat_visible_summary": "Primary 72/72 + reallocation 30/30, RUN_COMPLETE/E9 PASS."
+    },
+    {
+      "worker_id": "wc-20260930T104852Z-46abf4ed10c1",
+      "slot_id": "S008",
+      "variant": "V2_BLOCK_REVIEW",
+      "chat_visible_summary": "Primary 72/72 + reallocation 30/30, RUN_COMPLETE; no contamination."
+    },
+    {
+      "worker_id": "wc-20260930T102900Z-d4a7c91e52bf",
+      "slot_id": "S002",
+      "variant": "V1_EXPLICIT_ZERO_LEDGER",
+      "chat_visible_summary": "Primary 72/72 + reallocation 30/30; diagnostic I/O zeros remained non-authoritative and primary useful output was 3636 words."
+    }
+  ],
+  "next_experiment_implications": [
+    "MAXCAP analysis must exclude pre-authority E2 failures from local-work quality denominators while still reporting admission rate.",
+    "Persist last_completed_block/task and local_work_complete separately from durable_receipt_persisted.",
+    "Treat cross-slot reads before CLOSE as automatic contamination.",
+    "Do not ask workers to inspect peers; use a separate analyzer after the frozen cohort.",
+    "Require a compact visible hard-stop diagnostic only when a genuine tool/security/transport denial prevents the next mandatory durable action.",
+    "Continue using external durable clocks for timing; chat-visible reasons explain failure class, not elapsed time."
+  ],
+  "authority": "ANALYSIS_ONLY_NO_ROUTING_NO_PROMOTION"
+}
