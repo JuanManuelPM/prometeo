@@ -38,13 +38,16 @@
     }
     #refresh:hover{color:#aaa}
     #refresh:disabled{opacity:.35}
+    #chat-sync{font-size:9px;color:#666}
+    #chat-sync.live{color:var(--ok)}
+    #chat-sync.stale{color:var(--warn)}
     #status{
       display:none;
       padding:0 2px 8px;
       color:#777;font-size:10px;line-height:1.35
     }
     #status.visible{display:block}
-    #thread{padding:20px 2px 24px}
+    #thread{padding:20px 2px 118px}
     .msg{display:flex;flex-direction:column;margin:0 0 28px}
     .msg.human{align-items:flex-end}
     .msg.system{align-items:center;margin:8px 0 22px}
@@ -67,6 +70,23 @@
       padding:10px 13px;
       border-radius:18px;
       background:var(--human);
+    }
+    .human .body.collapsible-long{
+      position:relative;
+      max-height:9.3em;
+      overflow:hidden;
+    }
+    .human .body.collapsible-long::after{
+      content:"";
+      position:absolute;left:0;right:0;bottom:0;height:3.4em;
+      background:linear-gradient(to bottom,rgba(23,23,23,0),rgba(23,23,23,1) 75%);
+      pointer-events:none;
+    }
+    .human .body.expanded{max-height:none}
+    .human .body.expanded::after{display:none}
+    .expand-message{
+      margin:5px 5px 0;border:0;background:transparent;color:#767672;
+      padding:4px 7px;font-size:10px;cursor:pointer
     }
     .assistant .body,.worker .body{padding:1px 2px}
     .system .body{color:#737373;font-size:12px}
@@ -118,7 +138,9 @@
     .run-progress-freshness{margin-top:9px;font-size:9px;color:#5d5d59}
     .run-progress-freshness.stale{color:var(--warn)}
     .details-block{border-top:1px solid var(--line);padding-top:8px}
-    .details-block>summary{list-style:none;cursor:pointer;color:#8b8b87;font-size:11px;min-height:28px;display:flex;align-items:center}
+    .details-block>summary{list-style:none;cursor:pointer;color:#9b9b96;font-size:11px;min-height:34px;display:flex;align-items:center;gap:7px}
+    .details-block>summary::before{content:"›";font-size:18px;line-height:1;color:#666;transform:rotate(0deg);transition:transform .12s ease}
+    .details-block[open]>summary::before{transform:rotate(90deg)}
     .details-block>summary::-webkit-details-marker{display:none}
     .details-body{padding:3px 0 2px;color:#a2a29d;font-size:13px;line-height:1.5;white-space:pre-wrap}
     .waiting{
@@ -164,9 +186,10 @@
     .progress-error{color:#666;font-size:9px}
 
     .composer-shell{
-      position:sticky;bottom:0;z-index:30;
+      position:fixed;left:50%;transform:translateX(-50%);bottom:0;z-index:30;
+      width:min(820px,calc(100% - 24px));
       padding:10px 0 max(10px,env(safe-area-inset-bottom));
-      background:rgba(0,0,0,.97)
+      background:linear-gradient(to bottom,rgba(0,0,0,0),rgba(0,0,0,.98) 26%)
     }
     [data-prometeo-chat-composer-form-v1]{
       display:grid;grid-template-columns:minmax(0,1fr) auto;
@@ -213,7 +236,7 @@
     <div class="topbar">
       <div class="brand">Prometeo</div>
       <div class="top-spacer"></div>
-      <div id="chat-canary-progress" aria-label="Progreso durable"></div>
+      <div id="chat-sync" aria-label="Estado de sincronización">●</div>
       <button id="refresh" type="button" aria-label="Actualizar conversación">↻</button>
     </div>
 
@@ -249,6 +272,7 @@
     const thread = document.getElementById('thread');
     const status = document.getElementById('status');
     const refresh = document.getElementById('refresh');
+    const chatSync = document.getElementById('chat-sync');
 
     function node(tag, text, className) {
       const element = document.createElement(tag);
@@ -368,11 +392,12 @@
           let lab = null;
           if (labRes && labRes.ok) lab = await labRes.json();
           const midpoints = Number(lab?.current_run?.midpoints || 0);
-          const total = Math.max(1, Number(s.slots_total || 0));
-          const claimed = Number(s.slots_claimed || 0);
-          const primary = Number(s.primary_complete || 0);
-          const realloc = Number(s.reallocation_complete || 0);
-          const terminal = Number(s.workers_terminal || 0);
+          const labRun = lab && lab.current_run && lab.current_run.run_id === s.run_id ? lab.current_run : null;
+          const total = Math.max(1, Number(s.slots_total || labRun?.slots_total || 0));
+          const claimed = Number(s.slots_claimed ?? labRun?.slots_claimed ?? 0);
+          const primary = Number(labRun?.primary_complete ?? s.primary_complete ?? 0);
+          const realloc = Number(labRun?.reallocation_complete ?? s.reallocation_complete ?? 0);
+          const terminal = Number(labRun?.terminal ?? s.workers_terminal ?? 0);
 
           const overall = Math.max(0, Math.min(100,
             ((claimed/total)*20) +
@@ -458,6 +483,20 @@
       return details;
     }
 
+    function wireLongMessage(body, main, actor) {
+      if (actor !== 'HUMAN') return;
+      const text = body.textContent || '';
+      if (text.length < 420) return;
+      body.classList.add('collapsible-long');
+      const button = node('button', 'ver mensaje completo', 'expand-message');
+      button.type = 'button';
+      button.addEventListener('click', () => {
+        const open = body.classList.toggle('expanded');
+        button.textContent = open ? 'contraer' : 'ver mensaje completo';
+      });
+      main.append(button);
+    }
+
     function renderMessage(message) {
       const actor = String(message.actor_type || 'ASSISTANT').toUpperCase();
       const article = node('article', null, 'msg ' + actorClass(actor));
@@ -475,6 +514,7 @@
       const body = node('div', bodyText, 'body');
 
       main.append(meta, body);
+      wireLongMessage(body, main, actor);
       renderUiBlocks(message, main);
 
       const debug = renderDebug(message);
@@ -520,10 +560,20 @@
           throw new Error('THREAD_SHAPE_INCOMPATIBLE');
         }
         render(data.messages);
+        if (chatSync) {
+          chatSync.classList.remove('stale');
+          chatSync.classList.add('live');
+          chatSync.title = 'sincronizado ' + new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        }
       } catch (error) {
         thread.replaceChildren(renderMessage(HUMAN_FALLBACK));
         renderWaiting('no pude releer el thread durable');
         setStatus(error && error.message ? error.message : 'THREAD_UNAVAILABLE');
+        if (chatSync) {
+          chatSync.classList.remove('live');
+          chatSync.classList.add('stale');
+          chatSync.title = 'sincronización fallida';
+        }
       } finally {
         refresh.disabled = false;
       }
