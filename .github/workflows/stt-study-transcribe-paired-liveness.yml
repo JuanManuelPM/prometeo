@@ -1,0 +1,151 @@
+name: STT Study paired liveness probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/stt-study-transcribe-paired-liveness.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stt-study-transcribe-paired-liveness
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    env:
+      BASE_URL: "https://catnohyouxqjjtseaueb.supabase.co/functions/v1/study-transcribe-v1"
+    steps:
+      - name: Paired bounded read-only GETs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          readonly METHOD="GET"
+          case "$METHOD" in
+            GET) ;;
+            *) echo "mutating method blocked before network" >&2; exit 64 ;;
+          esac
+
+          probe() {
+            local label="$1"
+            local url="$2"
+            local max_time="$3"
+            : > "out/${label}-body.txt"
+            : > "out/${label}-stderr.txt"
+            set +e
+            curl --silent --show-error --location \
+              --connect-timeout 10 \
+              --max-time "$max_time" \
+              --request "$METHOD" \
+              --output "out/${label}-body.txt" \
+              --write-out '%{http_code}\t%{time_namelookup}\t%{time_connect}\t%{time_appconnect}\t%{time_starttransfer}\t%{time_total}\t%{remote_ip}\n' \
+              "$url" > "out/${label}-metrics.tsv" 2> "out/${label}-stderr.txt"
+            local rc="$?"
+            set -e
+            printf '%s\n' "$rc" > "out/${label}-curl-exit.txt"
+          }
+
+          probe liveness "$BASE_URL" 12
+          probe heavy_selftest "$BASE_URL?selftest=1" 35
+
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+
+          def read_probe(label, url):
+              parts = Path(f"out/{label}-metrics.tsv").read_text().rstrip("\n").split("\t")
+              while len(parts) < 7:
+                  parts.append("")
+              http_code, dns, connect, tls, ttfb, total, remote_ip = parts[:7]
+              body = Path(f"out/{label}-body.txt").read_bytes()
+              stderr = Path(f"out/{label}-stderr.txt").read_text()
+              return {
+                  "label": label,
+                  "url": url,
+                  "method": "GET",
+                  "curl_exit_code": int(Path(f"out/{label}-curl-exit.txt").read_text().strip() or "0"),
+                  "http_status": int(http_code or "0"),
+                  "time_namelookup_s": float(dns or "0"),
+                  "time_connect_s": float(connect or "0"),
+                  "time_appconnect_s": float(tls or "0"),
+                  "time_starttransfer_s": float(ttfb or "0"),
+                  "time_total_s": float(total or "0"),
+                  "remote_ip": remote_ip or None,
+                  "body_bytes": len(body),
+                  "body_sha256": hashlib.sha256(body).hexdigest(),
+                  "stderr": stderr[-1200:],
+              }
+
+          base = os.environ["BASE_URL"]
+          liveness = read_probe("liveness", base)
+          heavy = read_probe("heavy_selftest", base + "?selftest=1")
+
+          if liveness["http_status"] > 0:
+              liveness_class = "LIVENESS_HTTP"
+          else:
+              liveness_class = "LIVENESS_TIMEOUT_OR_PRE_HTTP_BOUNDARY"
+
+          if heavy["http_status"] > 0:
+              heavy_class = "HEAVY_SELFTEST_HTTP"
+          elif heavy["curl_exit_code"] == 28:
+              heavy_class = "HEAVY_SELFTEST_TIMEOUT"
+          else:
+              heavy_class = "HEAVY_SELFTEST_PRE_HTTP_BOUNDARY"
+
+          result = {
+              "schema": "prometeo.stt-study-paired-liveness-probe/v1",
+              "request_count": 2,
+              "mutating_requests": 0,
+              "liveness": liveness,
+              "heavy_selftest": heavy,
+              "classification": {
+                  "liveness": liveness_class,
+                  "heavy_selftest": heavy_class,
+                  "full_e2e_pass": False
+              },
+              "prior_evidence": [
+                  {"run_id": 36656247320, "role": "bounded_selftest_runner"},
+                  {"run_id": 36657024654, "role": "egress_diagnosis"}
+              ],
+              "privacy": {
+                  "audio_sent": False,
+                  "transcript_sent": False,
+                  "session_id_sent": False,
+                  "room_token_sent": False,
+                  "credentials_sent": False
+              }
+          }
+          Path("out/result.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+          print(json.dumps(result, sort_keys=True))
+          PY
+
+      - name: Guard paired evidence contract
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          r=json.load(open("out/result.json"))
+          assert r["request_count"] == 2
+          assert r["mutating_requests"] == 0
+          assert r["liveness"]["method"] == "GET"
+          assert r["heavy_selftest"]["method"] == "GET"
+          assert not any(r["privacy"].values())
+          assert r["classification"]["full_e2e_pass"] is False
+          print(r["classification"])
+          PY
+
+      - name: Upload paired evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stt-study-transcribe-paired-liveness-${{ github.run_id }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 7
