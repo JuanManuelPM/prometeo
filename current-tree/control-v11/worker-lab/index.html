@@ -718,6 +718,61 @@ async function fetchReceipt(w){
   var ref=w&&w.repo&&w.repo.benchmark_receipt_ref;if(!ref)return null;var path=String(ref).split('@')[0];
   try{var r=await fetch(RAW_MAIN+path+'?t='+Date.now(),{cache:'no-store'});return r.ok?await r.json():null}catch(e){return null}
 }
+async function fetchExam(w){
+  if(!w||!w.worker_id)return null;
+  var ref=w&&w.repo&&w.repo.exam_ref;
+  var path=ref?String(ref).split('@')[0]:'coordination/workers/exams/'+w.worker_id+'.json';
+  try{var r=await fetch(RAW_MAIN+path+'?t='+Date.now(),{cache:'no-store'});return r.ok?await r.json():null}catch(e){return null}
+}
+function renderExitAudit(sheet,exam){
+  var audit=exam&&exam.exit_audit_v1;if(!audit)return;
+  var label=document.createElement('div');label.className='microline';label.textContent='AUDITORÍA DE SALIDA';sheet.append(label);
+  if(audit.public_safe_summary){
+    var p=document.createElement('div');p.className='boundary';p.textContent=audit.public_safe_summary;sheet.append(p);
+  }
+  var grid=document.createElement('div');grid.className='sheet-grid';
+  var sinks=Array.isArray(audit.top_time_sinks)?audit.top_time_sinks:[];
+  var frictions=Array.isArray(audit.friction_events)?audit.friction_events:[];
+  var tools=Array.isArray(audit.tool_usage)?audit.tool_usage:[];
+  var debt=Array.isArray(audit.unfinished_debt)?audit.unfinished_debt:[];
+  var knownMs=sinks.map(function(x){return Number(x&&x.elapsed_ms_or_null)}).filter(Number.isFinite).reduce(function(a,b){return a+b},0);
+  grid.append(
+    stat(sinks.length,'time sinks'),
+    stat(frictions.length,'fricciones'),
+    stat(tools.length,'tools/connectors'),
+    stat(debt.length,'deuda'),
+    stat(knownMs?dur(knownMs/1000):'UNKNOWN','tiempo clasificado')
+  );
+  sheet.append(grid);
+  function addList(title,items,fmtItem){
+    if(!items.length)return;
+    var h=document.createElement('div');h.className='microline';h.textContent=title;sheet.append(h);
+    var host=document.createElement('div');host.className='timeline';
+    items.forEach(function(item){
+      var row=document.createElement('div');row.className='step';
+      var t=document.createElement('time');
+      var ms=Number(item&&item.elapsed_ms_or_null);
+      t.textContent=Number.isFinite(ms)?dur(ms/1000):'—';
+      var st=document.createElement('div');st.className='stage';st.textContent=String(item&&item.category||item&&item.tool_or_connector||item&&item.target||'');
+      var ds=document.createElement('div');ds.className='desc';ds.textContent=fmtItem(item);
+      row.append(t,st,ds);host.append(row)
+    });
+    sheet.append(host)
+  }
+  addList('TOP TIME SINKS',sinks,function(x){return String(x&&x.note||'')});
+  addList('FRICCIONES',frictions,function(x){
+    var bits=[x&&x.description||'',x&&x.boundary_code_or_null?('boundary '+x.boundary_code_or_null):'',x&&x.recovered===true?'recuperado':''].filter(Boolean);
+    return bits.join(' · ')
+  });
+  addList('TOOLS / CONNECTORS',tools,function(x){
+    var calls=x&&x.calls_or_operations;
+    var useful=x&&x.useful_operations;
+    return (calls==null?'ops UNKNOWN':calls+' ops')+' · '+(useful==null?'útiles UNKNOWN':useful+' útiles')
+  });
+  addList('DEUDA ABIERTA',debt,function(x){return String(x&&x.item||'')+(x&&x.owner_or_recovery_ref_or_null?' · '+x.owner_or_recovery_ref_or_null:'')});
+  var improvements=Array.isArray(audit.improvement_candidates)?audit.improvement_candidates:[];
+  addList('MEJORAS CANDIDATAS',improvements,function(x){return String(x&&x.proposal||'')+(x&&x.expected_effect?' · '+x.expected_effect:'')});
+}
 async function fetchCommits(w){
   var midpointPath=w&&w.run_id&&w.slot_id&&w.worker_id?'coordination/workers/benchmark-midpoints/'+w.run_id+'/'+w.slot_id+'-'+w.worker_id+'.json':null;
   var refs=[w&&w.repo&&w.repo.beacon_ref,w&&w.repo&&w.repo.launch_slot_ref,midpointPath,w&&w.repo&&w.repo.benchmark_receipt_ref,w&&w.repo&&w.repo.exam_ref].filter(Boolean).map(function(x){return String(x).split('@')[0]});
@@ -733,13 +788,14 @@ async function openInspector(w){
   var title=document.createElement('div');title.className='sheet-title';title.textContent=w.worker_id||'worker';
   var close=document.createElement('button');close.className='sheet-close';close.type='button';close.textContent='×';close.addEventListener('click',closeInspector);
   head.append(title,close);sheet.append(head);
-  var wait=document.createElement('div');wait.className='boundary';wait.textContent='Leyendo receipt + commits públicos…';sheet.append(wait);
-  var results=await Promise.all([fetchReceipt(w),fetchMidpoint(w),fetchCommits(w)]),receipt=results[0],midpoint=results[1],commits=results[2];wait.remove();
+  var wait=document.createElement('div');wait.className='boundary';wait.textContent='Leyendo receipt + exam + commits públicos…';sheet.append(wait);
+  var results=await Promise.all([fetchReceipt(w),fetchMidpoint(w),fetchCommits(w),fetchExam(w)]),receipt=results[0],midpoint=results[1],commits=results[2],exam=results[3];wait.remove();
   var m=workerMetrics(w,receipt,midpoint);
   var grid=document.createElement('div');grid.className='sheet-grid';grid.append(stat(m.totalTasks==null?'UNKNOWN':fmt(m.totalTasks),'tareas'),stat(m.totalWords==null?'UNKNOWN':fmt(m.totalWords),'palabras'),stat(m.liveSec==null?'UNKNOWN':dur(m.liveSec),'ventana durable'),stat(age(lastAt(w)),'última señal'));sheet.append(grid);
   var railLabel=document.createElement('div');railLabel.className='microline';railLabel.textContent='PIPELINE E0→E9';sheet.append(railLabel);
   var rail=document.createElement('div');rail.className='stage-rail';renderStageRail(rail,w,receipt,midpoint);sheet.append(rail);
   renderDimensions(sheet,w,receipt,midpoint,commits);
+  renderExitAudit(sheet,exam);
   var stages=[];
   if(w.first_event_at)stages.push({at:w.first_event_at,stage:'E1',desc:'beacon / primera señal'});
   if(w.routed&&w.routed.at)stages.push({at:w.routed.at,stage:'ROUTED',desc:w.routed.candidate_title||w.routed.candidate_id||'routing'});
