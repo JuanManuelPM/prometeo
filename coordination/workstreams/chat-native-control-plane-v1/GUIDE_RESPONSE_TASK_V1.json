@@ -1,0 +1,106 @@
+{
+  "schema": "prometeo.guide-response-task/v1",
+  "status": "ACTIVE_CANDIDATE_REUSE_EXISTING_CHAT_OBJECT",
+  "purpose": "Make a human-facing Guide response reconstructible by any fresh Guide/generic worker without depending on hidden chat memory. The task prepares a candidate response for the existing Chat Object; it creates no new chat authority.",
+  "parent_chat_object_id": "chat-object-prometeo-chat-control-main",
+  "reuses": [
+    "coordination/workstreams/chat-native-control-plane-v1/CHAT_OBJECT.json",
+    "coordination/workstreams/chat-native-control-plane-v1/DELEGATED_RETURN_CONTRACT_V1.json",
+    "coordination/workers/WORKER_PRE_GUIDE_TEMPLATE_V1.json",
+    "coordination/guide/CURRENT_MISSION_V1.json",
+    "coordination/workers/CURRENT_WORKER_REUSE_CONTRACT_V1.json"
+  ],
+  "trigger_classes": [
+    {
+      "id": "HUMAN_MESSAGE",
+      "rule": "A new human message requesting analysis/action can materialize one GUIDE_RESPONSE preparation task linked to that message."
+    },
+    {
+      "id": "MATERIAL_STATE_HINGE",
+      "rule": "A declared future hinge such as RUN completion/threshold may materialize one response task without waiting for another human message, if the prior human message explicitly requested that follow-up."
+    }
+  ],
+  "context_capsule": {
+    "principle": "Read the smallest exact set that reconstructs current truth. Never ask the fresh worker to rediscover Prometeo broadly.",
+    "required": [
+      "latest_human_message_exact_text",
+      "previous_visible_assistant_message_or_summary",
+      "CHAT_OBJECT mission/human_goal/update_law",
+      "CURRENT_MISSION current objective and boundaries",
+      "active Work Unit / active RUN exact projection",
+      "durable state delta since previous assistant message",
+      "relevant recent RETURN/receipt/failure refs only",
+      "Worker Playbook / negative knowledge entries materially relevant to this turn",
+      "PRE_GUIDE required questions"
+    ],
+    "optional": [
+      "last 2-4 visible human/assistant turns if needed for referents",
+      "chat-visible failure summaries that are not otherwise durable",
+      "Design DNA preservation contract if the response recommends architecture/runtime mutation"
+    ],
+    "forbidden": [
+      "broad repo archaeology by default",
+      "entire historical transcript as mandatory context",
+      "stale occupancy snapshots presented as current",
+      "private transcript publication unless explicitly requested"
+    ]
+  },
+  "mandatory_questions_ref": "coordination/workers/WORKER_PRE_GUIDE_TEMPLATE_V1.json",
+  "additional_questions": [
+    "What does the human need to see in the first 3-5 lines without expanding anything?",
+    "Which details belong behind expandable sections rather than the visible summary?",
+    "Which live metric/widget would reduce the need for the human to ask again?",
+    "Is the requested next action actually necessary now, or can the system continue without human work?",
+    "If human action is required, what exact single action and count are justified by durable state?",
+    "What part of the answer is likely to become stale and therefore should be rendered by a live projection instead of frozen prose?"
+  ],
+  "output_contract": {
+    "schema": "prometeo.guide-response-prep/v1",
+    "required": [
+      "reply_to_message_id",
+      "human_goal",
+      "factual_state",
+      "state_delta",
+      "summary_text",
+      "detail_sections",
+      "ui_blocks",
+      "human_action",
+      "no_action",
+      "open_boundaries",
+      "evidence_refs",
+      "freshness_policy"
+    ],
+    "detail_section_shape": {
+      "label": "short expandable title",
+      "body": "self-contained prose; no hidden dependency on the original chat"
+    },
+    "ui_block_types": [
+      "run_progress",
+      "experiment_stats",
+      "work_unit_progress",
+      "details",
+      "link"
+    ],
+    "summary_rule": "Default visible answer is compact and decision-complete. Long analysis moves into detail_sections, not a giant always-open bubble.",
+    "freshness_rule": "Counters/timings that can change should be live widgets or explicitly timestamped; do not freeze dynamic state into prose if a projection exists."
+  },
+  "review_chain": {
+    "prepare": "A generic worker or Guide may produce GUIDE_RESPONSE_PREP using this capsule.",
+    "critic": "For material claims/worker-count/routing changes, a critic checks cited refs and stale-state risk.",
+    "final": "Guide/assistant consumes the prep, corrects material errors, and publishes one assistant message into the existing Chat Object.",
+    "authority": "Preparation/critic returns are candidates only; publication does not imply Human Accepted/Current product authority."
+  },
+  "publish_contract": {
+    "destination": "coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json",
+    "rule": "Append one ASSISTANT message linked to the human message. Preserve previous messages durably; default UI may archive/collapse old diagnostic canary turns.",
+    "privacy": "Public thread contains only content the human explicitly asked to surface publicly plus sanitized operational evidence."
+  },
+  "success_conditions": [
+    "A fresh Guide can answer without access to the predecessor transcript.",
+    "Visible answer tells the human what happened, what to do, and what not to do before any expansion.",
+    "Expandable details contain the deeper analysis.",
+    "A live widget carries changing experiment progress.",
+    "No duplicate Conversation Center, scheduler, queue or message authority is introduced."
+  ],
+  "authority": "RESPONSE_PREPARATION_AND_PUBLICATION_PROTOCOL_ONLY"
+}
