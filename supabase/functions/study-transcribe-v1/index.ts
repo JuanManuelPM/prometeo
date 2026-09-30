@@ -198,11 +198,11 @@ const SELFTEST_PROBE_DEADLINES = Object.freeze({
 });
 
 function probeError(phase, code, detail = "") {
-  const e = new Error(code);
-  e.phase = phase;
-  e.code = code;
-  e.detail = clean(detail, 300);
-  return e;
+  return Object.assign(new Error(code), {
+    phase,
+    code,
+    detail: clean(detail, 300)
+  });
 }
 
 async function withProbeDeadline(promise, ms, phase, timeoutCode) {
