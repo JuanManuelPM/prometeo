@@ -41,7 +41,7 @@ try {
 
   await page.goto(base, { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForSelector('#modeSwitch', { timeout: 15000 });
-  await page.waitForSelector('#habitTrackerManage', { timeout: 15000 });
+  await page.waitForSelector('#habitTrackerManage', { state: 'attached', timeout: 15000 });
 
   const viewportState = await page.evaluate(() => ({
     innerWidth: window.innerWidth,
