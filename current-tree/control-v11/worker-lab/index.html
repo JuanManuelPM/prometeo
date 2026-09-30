@@ -452,7 +452,7 @@ function fillWorkerHost(host,list){host.replaceChildren();list.forEach(function(
 
 async function renderFocusWorker(w){
   if(!w){
-    $('focus-id').textContent='esperando worker…';$('focus-stage').textContent='La ficha se llena desde el primer beacon.';$('focus-age').textContent='—';
+    $('focus-id').textContent='sin worker vivo ahora';$('focus-stage').textContent='No hay evidencia reciente de una shell no terminal. Los workers anteriores quedan en historial.';$('focus-age').textContent='—';
     ['focus-first','focus-last','focus-elapsed','focus-tasks','focus-words'].forEach(function(id){$(id).textContent='—'});
     $('focus-stage-rail').replaceChildren();return
   }
@@ -471,10 +471,10 @@ async function renderFocusWorker(w){
 }
 function renderWorkers(){
   var ws=workers().sort(function(a,b){return String(lastAt(b)||'').localeCompare(String(lastAt(a)||''))});
-  renderFocusWorker(ws[0]||null);
   var recent=ws.filter(function(w){var s=ageSec(lastAt(w));return s!==null&&s<=7200});
   var old=ws.filter(function(w){var s=ageSec(lastAt(w));return s===null||s>7200});
   var live=recent.filter(function(w){var s=ageSec(lastAt(w));return !terminal(w)&&s!==null&&s<600});
+  renderFocusWorker(live[0]||null);
   $('workers-live').textContent=fmt(live.length);$('workers-recent').textContent=fmt(recent.length);$('workers-old').textContent=fmt(old.length);
   fillWorkerHost($('worker-list'),recent.slice(0,8));
   var more=recent.slice(8);
@@ -508,15 +508,32 @@ function renderNow(){
 }
 function runProgress(){
   var run=state.run||state.data&&state.data.current_run||null;if(!run)return;
-  var total=Number(run.slots_total||0),claimed=Number(run.slots_claimed||0),pct=total?Math.min(100,claimed/total*100):0;
+  var total=Number(run.slots_total||0),claimed=Number(run.slots_claimed||0);
+  var primary=Number(run.primary_complete||0),realloc=Number(run.reallocation_complete||0),terminalCount=Number(run.terminal||run.workers_terminal||0);
+  var batch=getBatch();
+  if(batch&&batch.batch_id==='RUN-'+run.run_id){
+    terminalCount=Math.max(terminalCount,Number(batch.summary&&batch.summary.closed||0));
+  }
+  var pct=total?Math.min(100,((claimed/total)*20)+((primary/total)*30)+((realloc/total)*30)+((terminalCount/total)*20)):0;
   $('run-progress').style.width=pct+'%';$('exp-progress').style.width=pct+'%';
-  $('run-label').textContent=(run.run_id||'RUN')+' · '+claimed+'/'+total+' slots';
+  $('run-label').textContent=(run.run_id||'RUN')+' · '+claimed+'/'+total+' claims · '+primary+' primary · '+realloc+' realloc · '+terminalCount+' cierre';
   $('run-pct').textContent=Math.round(pct)+'%';
-  $('exp-run-id').textContent=run.run_id||'RUN actual';$('exp-count').textContent=claimed+'/'+total+' slots';$('exp-percent').textContent=Math.round(pct)+'%';
+  $('exp-run-id').textContent=run.run_id||'RUN actual';$('exp-count').textContent=claimed+'/'+total+' claims';$('exp-percent').textContent=Math.round(pct)+'%';
+  var live=workers().filter(function(w){var s=ageSec(lastAt(w));return !terminal(w)&&s!==null&&s<600}).length;
   var full=total>0&&claimed>=total;
-  var action=full?'No mandes más workers a este RUN.':'Faltan '+Math.max(0,total-claimed)+' claims.';
-  $('human-action').textContent=action;$('human-action').className='action '+(full?'good':'warn');
-  $('exp-action').textContent=action;$('exp-action').className='action '+(full?'good':'warn');
+  var action;
+  if(!full){
+    action='Faltan '+Math.max(0,total-claimed)+' admisiones. Si ya mandaste el lote completo, el control debe pedir refill exacto.';
+  }else if(terminalCount>=total){
+    action='RUN cerrado. Volvé al control para la síntesis y el siguiente experimento.';
+  }else if(live>0){
+    action='Ninguna acción ahora · '+live+' worker(s) con señal reciente · el widget sigue actualizando.';
+  }else{
+    action='VOLVÉ AL CONTROL AHORA · no hay workers vivos y faltan '+Math.max(0,total-terminalCount)+' cierres/boundaries por reducir.';
+  }
+  var good=terminalCount>=total;
+  $('human-action').textContent=action;$('human-action').className='action '+(good?'good':'warn');
+  $('exp-action').textContent=action;$('exp-action').className='action '+(good?'good':'warn');
 }
 function renderGuide(){
   var g=state.guide;if(!g)return;
@@ -746,8 +763,16 @@ async function load(){
     if(!base[0].ok)throw new Error('data '+base[0].status);
     state.data=await base[0].json();state.guide=base[1].ok?await base[1].json():null;state.runtime=base[2].ok?await base[2].json():null;
     var runId=state.data&&state.data.current_run&&state.data.current_run.run_id;
+    var runtimeBatchId=state.runtime&&state.runtime.current_batch||'';
+    var runtimeRunId=String(runtimeBatchId).indexOf('RUN-')===0?String(runtimeBatchId).slice(4):null;
+    if(runtimeRunId)runId=runtimeRunId;
     state.run=state.data&&state.data.current_run||null;
-    if(runId){try{var rr=await fetch('../../../launch/'+runId+'/status.json'+stamp,{cache:'no-store'});if(rr.ok)state.run=Object.assign({},state.run,await rr.json())}catch(e){}}
+    var runtimeRun=state.runtime&&Array.isArray(state.runtime.launch_runs)
+      ? state.runtime.launch_runs.find(function(x){return x&&x.run_id===runId})
+      : null;
+    var publicStatus=null;
+    if(runId){try{var rr=await fetch('../../../launch/'+runId+'/status.json'+stamp,{cache:'no-store'});if(rr.ok)publicStatus=await rr.json()}catch(e){}}
+    state.run=Object.assign({},publicStatus||{},state.run&&state.run.run_id===runId?state.run:{run_id:runId},runtimeRun||{});
     renderGuide();renderNow();renderWorkers();runProgress();renderVariants();renderArchive();
     var fresh=(state.runtime&&state.runtime.generated_at)||(state.data&&state.data.generated_at);
     $('sync').textContent=fresh?'↻ '+age(fresh):'actualizado';
