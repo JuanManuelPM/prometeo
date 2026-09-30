@@ -1,0 +1,87 @@
+name: Worker Lab Public v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/workers/WORKER_LAB_HISTORY_V1.json'
+      - 'coordination/workers/WORKER_PLAYBOOK_DISTILLATION_V1.json'
+      - 'coordination/workers/WORKER_LOCAL_CAPACITY_V2_10X_CHECKPOINT.json'
+      - 'coordination/workers/WORKER_LOCAL_BATCH_OBSERVATIONS_V1.json'
+      - 'coordination/workers/WORKER_EVOLUTION_LAB_V1.json'
+      - 'coordination/workers/WORKER_IO_ACCOUNTING_CANDIDATE_V1.json'
+      - 'coordination/workers/benchmark-midpoints/RESIDENCY-MACROBATCH-01/**'
+      - 'coordination/workers/benchmark-receipts/RESIDENCY-MACROBATCH-01/**'
+      - 'coordination/workers/exams/**'
+      - 'coordination/launch-packets/RESIDENCY-MACROBATCH-01/**'
+      - 'current-tree/control-v11/worker-lab/index.html'
+      - 'scripts/build-worker-lab-public.mjs'
+      - '.github/workflows/worker-lab-public-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: worker-lab-public-v1
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: source
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build public projection
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/worker-lab
+          node source/scripts/build-worker-lab-public.mjs source /tmp/worker-lab/data.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const p=JSON.parse(fs.readFileSync('/tmp/worker-lab/data.json','utf8'));
+          if(p.schema!=='prometeo.worker-lab-public/v1') throw new Error('bad schema');
+          if(p.status!=='NON_AUTHORITATIVE_PUBLIC_PROJECTION') throw new Error('bad authority boundary');
+          if(!Array.isArray(p.timeline)||p.timeline.length<8) throw new Error('history too small');
+          if(!Array.isArray(p.rules)||p.rules.length<5) throw new Error('playbook rules missing');
+          if(!p.current_run||p.current_run.run_id!=='RESIDENCY-MACROBATCH-01') throw new Error('current run missing');
+          if(p.current_run.slots_claimed>p.current_run.slots_total) throw new Error('run denominator drift');
+          console.log(JSON.stringify({ok:true,run:p.current_run,timeline:p.timeline.length,rules:p.rules.length}));
+          NODE
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+          fetch-depth: 20
+
+      - name: Publish Worker Lab
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C site pull --ff-only origin gh-pages
+          mkdir -p site/current-tree/control-v11/worker-lab
+          cp source/current-tree/control-v11/worker-lab/index.html site/current-tree/control-v11/worker-lab/index.html
+          cp /tmp/worker-lab/data.json site/current-tree/control-v11/worker-lab/data.json
+          git -C site config user.name github-actions[bot]
+          git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C site add current-tree/control-v11/worker-lab
+          if git -C site diff --cached --quiet; then exit 0; fi
+          git -C site commit -m "worker-lab: publish public notebook"
+          for n in 1 2 3 4; do
+            if git -C site push origin HEAD:gh-pages; then exit 0; fi
+            git -C site fetch origin gh-pages
+            git -C site rebase origin/gh-pages
+          done
+          exit 1
