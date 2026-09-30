@@ -144,6 +144,18 @@
     .details-block[open]>summary::before{transform:rotate(90deg)}
     .details-block>summary::-webkit-details-marker{display:none}
     .details-body{padding:3px 0 2px;color:#a2a29d;font-size:13px;line-height:1.5;white-space:pre-wrap}
+    .copy-widget{border-top:1px solid var(--line);padding-top:10px}
+    .copy-widget-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .copy-widget-title{font-size:11px;font-weight:650;color:#bdbdb8}
+    .copy-list{display:grid;gap:7px;margin-top:9px}
+    .copy-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid #151515}
+    .copy-row:first-child{border-top:0}
+    .copy-label{min-width:0;color:#8f8f8a;font-size:11px;line-height:1.35;overflow-wrap:anywhere}
+    .copy-button{border:1px solid #2a2a2a;background:#111;color:#d7d7d2;border-radius:999px;padding:7px 10px;font-size:10px;cursor:pointer;white-space:nowrap}
+    .copy-button:active{transform:translateY(1px)}
+    .copy-button.copied{border-color:#31543a;color:var(--ok)}
+    .copy-feedback{min-height:14px;margin-top:7px;color:#666;font-size:9px;line-height:1.35}
+    .copy-note{margin-top:6px;color:#555;font-size:9px;line-height:1.4}
     .waiting{
       margin:16px 2px 26px;
       color:#595959;font-size:12px;line-height:1.45
@@ -281,6 +293,8 @@
     const status = document.getElementById('status');
     const refresh = document.getElementById('refresh');
     const chatSync = document.getElementById('chat-sync');
+    let lastThreadSignature = null;
+    let hasRenderedThread = false;
 
     function node(tag, text, className) {
       const element = document.createElement(tag);
@@ -363,6 +377,84 @@
       const body = node('div', block.body || '', 'details-body');
       details.append(summary, body);
       return details;
+    }
+
+    async function copyText(value) {
+      const text = String(value || '');
+      if (!text) throw new Error('EMPTY_COPY_TEXT');
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function' && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.append(area);
+      area.select();
+      const ok = document.execCommand && document.execCommand('copy');
+      area.remove();
+      if (!ok) throw new Error('CLIPBOARD_UNAVAILABLE');
+    }
+
+    function renderCopyGroup(block) {
+      const wrap = node('div', null, 'copy-widget');
+      const items = Array.isArray(block.items)
+        ? block.items.filter(item => item && String(item.text || '').trim())
+        : [];
+      const head = node('div', null, 'copy-widget-head');
+      head.append(node('div', block.label || 'copiar', 'copy-widget-title'));
+      const feedback = node('div', '', 'copy-feedback');
+
+      const flash = (button, label) => {
+        if (!button) return;
+        const original = button.textContent;
+        button.textContent = label || 'copiado';
+        button.classList.add('copied');
+        window.setTimeout(() => {
+          button.textContent = original;
+          button.classList.remove('copied');
+        }, 1300);
+      };
+
+      if (items.length > 1) {
+        const all = node('button', block.copy_all_label || 'Copiar todos juntos', 'copy-button');
+        all.type = 'button';
+        all.addEventListener('click', async () => {
+          try {
+            await copyText(items.map(item => String(item.text)).join('\n\n'));
+            feedback.textContent = 'Copiados como un solo bloque.';
+            flash(all, 'copiados');
+          } catch (error) {
+            feedback.textContent = 'No pude copiar automáticamente.';
+          }
+        });
+        head.append(all);
+      }
+
+      const list = node('div', null, 'copy-list');
+      for (const item of items) {
+        const row = node('div', null, 'copy-row');
+        row.append(node('div', item.label || 'prompt', 'copy-label'));
+        const button = node('button', item.button_label || 'Copiar', 'copy-button');
+        button.type = 'button';
+        button.addEventListener('click', async () => {
+          try {
+            await copyText(item.text);
+            feedback.textContent = 'Copiado: ' + (item.label || 'prompt');
+            flash(button, 'copiado');
+          } catch (error) {
+            feedback.textContent = 'No pude copiar automáticamente.';
+          }
+        });
+        row.append(button);
+        list.append(row);
+      }
+
+      wrap.append(head, list, feedback);
+      if (block.note) wrap.append(node('div', block.note, 'copy-note'));
+      return wrap;
     }
 
     function renderRunProgress(block) {
@@ -469,6 +561,8 @@
           box.append(renderRunProgress(block));
         } else if (block.type === 'details') {
           box.append(renderDetails(block));
+        } else if (block.type === 'copy_group') {
+          box.append(renderCopyGroup(block));
         }
       }
     }
@@ -516,6 +610,7 @@
     function renderMessage(message) {
       const actor = String(message.actor_type || 'ASSISTANT').toUpperCase();
       const article = node('article', null, 'msg ' + actorClass(actor));
+      article.dataset.messageId = String(message.message_id || '');
       const main = node('div', null, 'msg-main');
 
       const meta = node('div', null, 'meta');
@@ -567,7 +662,44 @@
       requestAnimationFrame(() => window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}));
     }
 
-    function render(messages) {
+    function captureViewState() {
+      const openDetails = [];
+      for (const article of thread.querySelectorAll('article.msg[data-message-id]')) {
+        const messageId = article.dataset.messageId || '';
+        [...article.querySelectorAll('details')].forEach((details, index) => {
+          if (details.open) openDetails.push(messageId + '::' + index);
+        });
+      }
+      const doc = document.documentElement;
+      const scrollY = window.scrollY || doc.scrollTop || 0;
+      const maxScroll = Math.max(0, doc.scrollHeight - window.innerHeight);
+      return {
+        openDetails,
+        scrollY,
+        nearBottom: (maxScroll - scrollY) < 140
+      };
+    }
+
+    function restoreViewState(state) {
+      if (!state) {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'auto' });
+        return;
+      }
+      const wanted = new Set(state.openDetails || []);
+      for (const article of thread.querySelectorAll('article.msg[data-message-id]')) {
+        const messageId = article.dataset.messageId || '';
+        [...article.querySelectorAll('details')].forEach((details, index) => {
+          details.open = wanted.has(messageId + '::' + index);
+        });
+      }
+      if (state.nearBottom) {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'auto' });
+      } else {
+        window.scrollTo({ top: state.scrollY, behavior: 'auto' });
+      }
+    }
+
+    function render(messages, previousView = null) {
       thread.replaceChildren();
       const safe = Array.isArray(messages) ? messages.filter(m => m && m.archived !== true) : [];
       const hasHuman = safe.some(m => String(m.actor_type).toUpperCase() === 'HUMAN');
@@ -577,7 +709,7 @@
         renderWaiting('WAITING · esperando respuesta…');
       }
       setStatus('');
-      requestAnimationFrame(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'auto' }));
+      requestAnimationFrame(() => restoreViewState(previousView));
     }
 
     async function load() {
@@ -586,7 +718,11 @@
         const separator = THREAD_URL.includes('?') ? '&' : '?';
         const response = await fetch(THREAD_URL + separator + 't=' + Date.now(), { cache: 'no-store' });
         if (response.status === 404) {
-          render([]);
+          if (!hasRenderedThread) {
+            render([]);
+            hasRenderedThread = true;
+            lastThreadSignature = '[]';
+          }
           return;
         }
         if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -594,20 +730,30 @@
         if (!data || data.schema !== 'prometeo.chat-thread-projection/v1' || data.chat_object_id !== CHAT_OBJECT_ID) {
           throw new Error('THREAD_SHAPE_INCOMPATIBLE');
         }
-        render(data.messages);
+
+        const nextSignature = JSON.stringify(Array.isArray(data.messages) ? data.messages : []);
+        if (!hasRenderedThread || nextSignature !== lastThreadSignature) {
+          const previousView = hasRenderedThread ? captureViewState() : null;
+          render(data.messages, previousView);
+          lastThreadSignature = nextSignature;
+          hasRenderedThread = true;
+        }
+
         if (chatSync) {
           chatSync.classList.remove('stale');
           chatSync.classList.add('live');
           chatSync.title = 'sincronizado ' + new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
         }
       } catch (error) {
-        thread.replaceChildren(renderMessage(HUMAN_FALLBACK));
-        renderWaiting('WAITING · no pude releer el thread durable');
+        if (!hasRenderedThread) {
+          thread.replaceChildren(renderMessage(HUMAN_FALLBACK));
+          renderWaiting('WAITING · no pude releer el thread durable');
+        }
         setStatus(error && error.message ? error.message : 'THREAD_UNAVAILABLE');
         if (chatSync) {
           chatSync.classList.remove('live');
           chatSync.classList.add('stale');
-          chatSync.title = 'sincronización fallida';
+          chatSync.title = 'sincronización fallida · mantengo lo que estabas viendo';
         }
       } finally {
         refresh.disabled = false;
