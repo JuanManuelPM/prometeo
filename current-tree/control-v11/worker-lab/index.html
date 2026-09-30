@@ -550,8 +550,13 @@ function renderGuide(){
   $('cap-primary-time').textContent=Number.isFinite(Number(o.median_claim_to_primary_seconds))?dur(Number(o.median_claim_to_primary_seconds)):'UNKNOWN';
   $('cap-close-time').textContent=Number.isFinite(Number(o.median_claim_to_close_seconds))?dur(Number(o.median_claim_to_close_seconds)):'UNKNOWN';
   $('cap-concurrency').textContent=o.concurrency_effect==='UNKNOWN_NOT_ISOLATED'?'Todavía no aislado':String(o.concurrency_effect||'UNKNOWN');
-  $('exp-result').textContent='30k no fue el techo. Workers válidos completaron 600 primary + 150 reallocation sin degradación tardía material; los fallos dominantes fueron de protocolo/transporte/contaminación.';
-  $('exp-next').textContent=(g.planned||[]).filter(function(x){return /40k|60k|90k|120k|ceiling/i.test(x)}).join(' ')||'Buscar el techo con tiers mayores después de reparar el latch.';
+  var current=state.run||state.data&&state.data.current_run||null;
+  if(current){
+    $('exp-result').textContent=(current.run_id||'RUN')+' · '+fmt(current.slots_claimed)+'/'+fmt(current.slots_total)+' claims · '+fmt(current.primary_complete)+' primary · '+fmt(current.reallocation_complete)+' realloc · '+fmt(current.terminal||current.workers_terminal||0)+' terminal.';
+  }else{
+    $('exp-result').textContent=g.summary||'Sin RUN actual reconstruible.';
+  }
+  $('exp-next').textContent=(g.planned||[]).join(' ')||'El Guide todavía no publicó un siguiente paso.';
 }
 function renderVariants(){
   var run=state.run||state.data&&state.data.current_run||null,host=$('exp-variants');host.replaceChildren();
