@@ -1,0 +1,49 @@
+name: Worker external clock measurement v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/workers/EXTERNAL_CLOCK_SAMPLE_V1.json'
+      - 'coordination/workers/external-clock-measurement-v1.mjs'
+      - '.github/workflows/worker-external-clock-measurement-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive external-clock report
+        run: |
+          mkdir -p artifacts/worker-external-clock-measurement-v1
+          node coordination/workers/external-clock-measurement-v1.mjs .             coordination/workers/EXTERNAL_CLOCK_SAMPLE_V1.json             | tee artifacts/worker-external-clock-measurement-v1/report.json
+
+      - name: Validate report truth boundaries
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const p='artifacts/worker-external-clock-measurement-v1/report.json';
+          const r=JSON.parse(fs.readFileSync(p,'utf8'));
+          if(r.schema!=='prometeo.worker-external-clock-report/v1') throw new Error('schema');
+          if(r.sample_size<3) throw new Error('sample_size');
+          if(r.summary.beacon_to_claim.known_count<3) throw new Error('beacon_to_claim coverage');
+          if(r.summary.claim_to_return.known_count<3) throw new Error('claim_to_return coverage');
+          if(r.summary.beacon_to_close.unknown_count<1) throw new Error('missing close must remain unknown');
+          if(r.workers.some(w=>w.metrics.beacon_to_close.state==='UNKNOWN'&&w.metrics.beacon_to_close.seconds===0)) throw new Error('unknown imputed as zero');
+          NODE
+
+      - name: Upload bounded report
+        uses: actions/upload-artifact@v4
+        with:
+          name: worker-external-clock-measurement-v1-report
+          path: artifacts/worker-external-clock-measurement-v1/report.json
+          if-no-files-found: error
+          retention-days: 14
