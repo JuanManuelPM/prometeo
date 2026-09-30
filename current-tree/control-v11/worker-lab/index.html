@@ -770,14 +770,35 @@ async function load(){
     var runId=state.data&&state.data.current_run&&state.data.current_run.run_id;
     var runtimeBatchId=state.runtime&&state.runtime.current_batch||'';
     var runtimeRunId=String(runtimeBatchId).indexOf('RUN-')===0?String(runtimeBatchId).slice(4):null;
+    var runtimeBatch=state.runtime&&Array.isArray(state.runtime.batches)
+      ? state.runtime.batches.find(function(x){return x&&x.batch_id===runtimeBatchId})
+      : null;
     if(runtimeRunId)runId=runtimeRunId;
     state.run=state.data&&state.data.current_run||null;
     var runtimeRun=state.runtime&&Array.isArray(state.runtime.launch_runs)
       ? state.runtime.launch_runs.find(function(x){return x&&x.run_id===runId})
       : null;
     var publicStatus=null;
-    if(runId){try{var rr=await fetch('../../../launch/'+runId+'/status.json'+stamp,{cache:'no-store'});if(rr.ok)publicStatus=await rr.json()}catch(e){}}
-    state.run=Object.assign({},publicStatus||{},state.run&&state.run.run_id===runId?state.run:{run_id:runId},runtimeRun||{});
+    if(runtimeRunId&&runId){try{var rr=await fetch('../../../launch/'+runId+'/status.json'+stamp,{cache:'no-store'});if(rr.ok)publicStatus=await rr.json()}catch(e){}}
+    if(runtimeBatchId && !runtimeRunId && runtimeBatch){
+      var s=runtimeBatch.summary||{};
+      state.run={
+        run_id:runtimeBatchId,
+        packet_status:'LIVE_BATCH',
+        slots_total:Number(s.expected||runtimeBatch.expected_workers||0),
+        slots_claimed:Number(s.pin_won||0),
+        slots_unclaimed:Math.max(0,Number(s.expected||runtimeBatch.expected_workers||0)-Number(s.pin_won||0)),
+        primary_complete:Number(s.workers_at_checkpoint||0),
+        reallocation_complete:Number(s.workers_at_target||0),
+        terminal:Number(s.closed||0),
+        productive_units_total:Number(s.productive_units_total||0),
+        live_recent:Number(s.active||0),
+        human_invocation:null,
+        truth_boundary:'Current non-RUN batch derived from live/runtime.json.'
+      };
+    }else{
+      state.run=Object.assign({},publicStatus||{},state.run&&state.run.run_id===runId?state.run:{run_id:runId},runtimeRun||{});
+    }
     renderGuide();renderNow();renderWorkers();runProgress();renderVariants();renderArchive();
     var fresh=(state.runtime&&state.runtime.generated_at)||(state.data&&state.data.generated_at);
     $('sync').textContent=fresh?'↻ '+age(fresh):'actualizado';
