@@ -26,20 +26,34 @@ export function validateResultBundle(bundle, job){
   return errors;
 }
 
+export function resultComparisonBoundary(bundle){
+  const reasons=[];
+  if(bundle?.valid_for_local_batch_comparison===false) reasons.push('RESULT_DECLARES_NOT_VALID_FOR_LOCAL_BATCH_COMPARISON');
+  for(const key of ['comparison_validity','validity']){
+    const value=bundle?.[key];
+    if(typeof value==='string'&&value.startsWith('INVALID')) reasons.push(key.toUpperCase()+':'+value);
+  }
+  return [...new Set(reasons)];
+}
+
 export function compileReplica({job,startArtifact,resultArtifact,git}){
   const paths=artifactPaths(job.job_id);
-  if(!startArtifact) return {job_id:job.job_id,variant:job.variant,replica:job.replica,status:'NOT_READY',reason:'MISSING_START',elapsed_external_ms:null,observable_writes_between_start_and_result:null,ambient_repo_commits_between:null,violations:[]};
-  if(!resultArtifact) return {job_id:job.job_id,variant:job.variant,replica:job.replica,status:'NOT_READY',reason:'MISSING_RESULT',elapsed_external_ms:null,observable_writes_between_start_and_result:null,ambient_repo_commits_between:null,violations:[]};
+  if(!startArtifact) return {job_id:job.job_id,variant:job.variant,replica:job.replica,status:'NOT_READY',reason:'MISSING_START',start_ref:paths.start,result_ref:paths.result,start_present:false,result_present:Boolean(resultArtifact),timing_eligible:false,elapsed_external_ms:null,observable_writes_between_start_and_result:null,ambient_repo_commits_between:null,violations:[],comparison_boundary:[]};
+  if(!resultArtifact) return {job_id:job.job_id,variant:job.variant,replica:job.replica,status:'NOT_READY',reason:'MISSING_RESULT',start_ref:paths.start,result_ref:paths.result,start_present:true,result_present:false,timing_eligible:false,elapsed_external_ms:null,observable_writes_between_start_and_result:null,ambient_repo_commits_between:null,violations:[],comparison_boundary:[]};
   const malformed=validateResultBundle(resultArtifact,job);
-  if(malformed.length) return {job_id:job.job_id,variant:job.variant,replica:job.replica,status:'MALFORMED',reason:'RESULT_SCHEMA',elapsed_external_ms:null,observable_writes_between_start_and_result:null,ambient_repo_commits_between:null,violations:malformed};
-  if(!git?.start_commit || !git?.result_commit) return {job_id:job.job_id,variant:job.variant,replica:job.replica,worker_id:resultArtifact.worker_id,status:'NOT_READY',reason:'MISSING_GIT_MARKER_HISTORY',elapsed_external_ms:null,observable_writes_between_start_and_result:null,ambient_repo_commits_between:null,violations:[]};
+  if(malformed.length) return {job_id:job.job_id,variant:job.variant,replica:job.replica,status:'MALFORMED',reason:'RESULT_SCHEMA',start_ref:paths.start,result_ref:paths.result,start_present:true,result_present:true,timing_eligible:false,elapsed_external_ms:null,observable_writes_between_start_and_result:null,ambient_repo_commits_between:null,violations:malformed,comparison_boundary:[]};
+  const comparison_boundary=resultComparisonBoundary(resultArtifact);
+  if(!git?.start_commit || !git?.result_commit) return {job_id:job.job_id,variant:job.variant,replica:job.replica,worker_id:resultArtifact.worker_id,status:'NOT_READY',reason:'MISSING_GIT_MARKER_HISTORY',start_ref:paths.start,result_ref:paths.result,start_present:true,result_present:true,timing_eligible:false,elapsed_external_ms:null,observable_writes_between_start_and_result:null,ambient_repo_commits_between:null,violations:[],comparison_boundary};
   const st=Date.parse(git.start_commit.committed_at),rt=Date.parse(git.result_commit.committed_at),violations=[];
   if(!Number.isFinite(st)||!Number.isFinite(rt)||rt<st) violations.push('INVALID_DURABLE_COMMIT_TIME_ORDER');
   const intermediate=Array.isArray(git.intermediate_commits)?git.intermediate_commits:[],attributable=[];
   for(const commit of intermediate){const changed=Array.isArray(commit.changed_paths)?commit.changed_paths:[];const owned=changed.filter(p=>p.includes(job.job_id)||p.includes(resultArtifact.worker_id));if(owned.length) attributable.push({sha:commit.sha,changed_paths:owned});}
   if(attributable.length) violations.push('ATTRIBUTABLE_INTERMEDIATE_DURABLE_WRITE');
-  const complete=violations.length===0;
-  return {job_id:job.job_id,variant:job.variant,replica:job.replica,worker_id:resultArtifact.worker_id,status:complete?'COMPLETE':'INVALID_CONTRACT',reason:complete?null:'CONTRACT_VIOLATION',start_ref:paths.start,result_ref:paths.result,start_commit:git.start_commit.sha,result_commit:git.result_commit.sha,elapsed_external_ms:Number.isFinite(st)&&Number.isFinite(rt)&&rt>=st?rt-st:null,observable_writes_between_start_and_result:attributable.length,attributable_intermediate_writes:attributable,ambient_repo_commits_between:intermediate.length,model_authored_duration_used_as_wall_clock:false,violations};
+  const observedElapsed=Number.isFinite(st)&&Number.isFinite(rt)&&rt>=st?rt-st:null;
+  const timing_eligible=violations.length===0&&comparison_boundary.length===0;
+  const status=violations.length?'INVALID_CONTRACT':comparison_boundary.length?'INVALID_COMPARISON':'COMPLETE';
+  const reason=violations.length?'CONTRACT_VIOLATION':comparison_boundary.length?'RESULT_COMPARISON_BOUNDARY':null;
+  return {job_id:job.job_id,variant:job.variant,replica:job.replica,worker_id:resultArtifact.worker_id,status,reason,start_ref:paths.start,result_ref:paths.result,start_present:true,result_present:true,start_commit:git.start_commit.sha,result_commit:git.result_commit.sha,timing_eligible,elapsed_external_ms:timing_eligible?observedElapsed:null,observed_elapsed_external_ms:observedElapsed,observable_writes_between_start_and_result:attributable.length,attributable_intermediate_writes:attributable,ambient_repo_commits_between:intermediate.length,model_authored_duration_used_as_wall_clock:false,violations,comparison_boundary};
 }
 
 export function aggregate(replicas,minSamples=2){
@@ -53,7 +67,8 @@ function gitFirstAdd(path){try{const raw=execFileSync('git',['log','--diff-filte
 function gitIntermediate(startSha,resultSha){if(!startSha||!resultSha)return [];try{const raw=execFileSync('git',['rev-list','--reverse',`${startSha}..${resultSha}`],{encoding:'utf8'}).trim();if(!raw)return [];return raw.split('\n').filter(sha=>sha&&sha!==resultSha).map(sha=>{const paths=execFileSync('git',['diff-tree','--no-commit-id','--name-only','-r',sha],{encoding:'utf8'}).trim();return {sha,changed_paths:paths?paths.split('\n'):[]};});}catch{return [];}}
 
 export function compileRepository(){
-  const replicas=JOBS.map(job=>{const paths=artifactPaths(job.job_id),startArtifact=readJson(paths.start),resultArtifact=readJson(paths.result);if(startArtifact?.__parse_error||resultArtifact?.__parse_error)return {job_id:job.job_id,variant:job.variant,replica:job.replica,status:'MALFORMED',reason:'JSON_PARSE',elapsed_external_ms:null,observable_writes_between_start_and_result:null,ambient_repo_commits_between:null,violations:['JSON_PARSE']};const start_commit=gitFirstAdd(paths.start),result_commit=gitFirstAdd(paths.result),intermediate_commits=gitIntermediate(start_commit?.sha,result_commit?.sha);return compileReplica({job,startArtifact,resultArtifact,git:{start_commit,result_commit,intermediate_commits}});});
-  return {schema:'prometeo.worker-local-batch-telemetry-report/v1',experiment_id:EXPERIMENT_ID,clock_source:'git commit timestamps only',replicas,aggregate:aggregate(replicas)};
+  const replicas=JOBS.map(job=>{const paths=artifactPaths(job.job_id),startArtifact=readJson(paths.start),resultArtifact=readJson(paths.result);if(startArtifact?.__parse_error||resultArtifact?.__parse_error)return {job_id:job.job_id,variant:job.variant,replica:job.replica,status:'MALFORMED',reason:'JSON_PARSE',start_ref:paths.start,result_ref:paths.result,start_present:Boolean(startArtifact),result_present:Boolean(resultArtifact),timing_eligible:false,elapsed_external_ms:null,observable_writes_between_start_and_result:null,ambient_repo_commits_between:null,violations:['JSON_PARSE'],comparison_boundary:[]};const start_commit=gitFirstAdd(paths.start),result_commit=gitFirstAdd(paths.result),intermediate_commits=gitIntermediate(start_commit?.sha,result_commit?.sha);return compileReplica({job,startArtifact,resultArtifact,git:{start_commit,result_commit,intermediate_commits}});});
+  let source_head=null;try{source_head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()||null;}catch{}
+  return {schema:'prometeo.worker-local-batch-telemetry-report/v1',experiment_id:EXPERIMENT_ID,source_head,clock_source:'git commit timestamps only; model-authored durations excluded',replicas,aggregate:aggregate(replicas),truth_boundary:'Evidence-bound experiment summary only. Missing or comparison-invalid replicas are excluded from clean timing aggregates; no automatic winner or baseline promotion.'};
 }
 if(import.meta.url===`file://${process.argv[1]}`) process.stdout.write(JSON.stringify(compileRepository(),null,2)+'\n');
