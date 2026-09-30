@@ -532,6 +532,17 @@
       thread.append(node('div', label || 'esperando respuesta…', 'waiting'));
     }
 
+    function showLocalBoundaryNotice(label) {
+      const article = node('article', null, 'msg system local-boundary-notice');
+      const main = node('div', null, 'msg-main');
+      const meta = node('div', null, 'meta');
+      meta.append(node('span', 'sistema', 'actor'));
+      main.append(meta, node('div', label, 'body'));
+      article.append(main);
+      thread.append(article);
+      requestAnimationFrame(() => window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}));
+    }
+
     function render(messages) {
       thread.replaceChildren();
       const safe = Array.isArray(messages) ? messages.filter(m => m && m.archived !== true) : [];
@@ -599,9 +610,11 @@
             setStatus('');
             void load();
           } else if (result && result.status) {
-            setStatus(result.status === 'BOUNDARY_AUTH_REQUIRED'
-              ? 'envío todavía bloqueado por el bridge privado'
-              : result.status);
+            const boundaryLabel = result.status === 'BOUNDARY_AUTH_REQUIRED'
+              ? 'NO ENVIADO · falta bridge privado · tu texto sigue en el composer'
+              : 'NO ENVIADO · ' + result.status;
+            setStatus(boundaryLabel);
+            showLocalBoundaryNotice(boundaryLabel);
           }
         }
       });
