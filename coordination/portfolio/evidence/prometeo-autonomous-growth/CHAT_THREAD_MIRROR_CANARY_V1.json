@@ -169,7 +169,8 @@
       "created_at": "2026-09-30T11:46:21Z",
       "published_at": "2026-09-30T11:46:21Z",
       "status": "PUBLISHED",
-      "privacy": "PUBLIC_BY_HUMAN_REQUEST"
+      "privacy": "PUBLIC_BY_HUMAN_REQUEST",
+      "summary_text": "Ya mandé los 50. Quiero que éste sea el chat principal: respuestas resumidas, detalles desplegables, progreso vivo y sin obligarme a volver a ChatGPT."
     },
     {
       "message_id": "MSG-ASSISTANT-PRIMARY-CHAT-20260930T0843-0300",
@@ -212,8 +213,89 @@
         "current-tree/control-v11/chat-canary/index.html",
         "launch/MAXCAP-50-01/status.json",
         "coordination/design-dna/preservation-contracts/CHAT_PRIMARY_SURFACE_LIVE_V1.json"
+      ],
+      "archived": true
+    },
+    {
+      "message_id": "MSG-PROMETEO-MAXCAP-GUIDE-SYNTHESIS-V1",
+      "chat_object_id": "chat-object-prometeo-chat-control-main",
+      "reply_to_message_id": "MSG-HUMAN-PRIMARY-CHAT-20260930T0843-0300",
+      "actor_type": "ASSISTANT",
+      "actor_ref": "PROMETEO_GUIDE_CURRENT",
+      "source_surface": "PROMETEO",
+      "body_kind": "TEXT",
+      "body_text": "MAXCAP ya dio una respuesta útil: 30k no fue el techo. Workers válidos completaron 600 tareas primarias y siguieron con reallocation sin degradación material; los fallos dominantes fueron admisión, transporte, contaminación y cierre, no incapacidad local. No mandes más workers a MAXCAP-50-01.",
+      "created_at": "2026-09-30T12:58:30Z",
+      "published_at": "2026-09-30T12:58:30Z",
+      "status": "PUBLISHED",
+      "privacy": "PUBLIC_SANITIZED_CANARY",
+      "ui_blocks": [
+        {
+          "type": "run_progress",
+          "label": "MAXCAP-50-01 · avance durable",
+          "status_url": "../../../launch/MAXCAP-50-01/status.json",
+          "lab_url": "../worker-lab/data.json",
+          "poll_ms": 10000
+        },
+        {
+          "type": "details",
+          "label": "qué pasó",
+          "body": "La lectura pública más fresca usada para esta síntesis muestra 50/50 slots reclamados, 44 primary completos, 43 reallocations completas y 42 cierres observados en Worker Lab. Pero 50 claims no son 50 réplicas independientes: sólo hay 45 workers primarios distintos y un mismo worker/nonce reclamó seis slots. Esos slots duplicados no cuentan para comparación causal."
+        },
+        {
+          "type": "details",
+          "label": "qué aprendimos de capacidad",
+          "body": "El techo cognitivo/local NO apareció en 30k. En cinco payloads 30k auditados independientemente, cada worker completó 600/600 tareas primarias; después completó 150 tareas de reallocation. La mediana fue 30.840 palabras útiles primarias + 7.500 de reallocation = 38.550 palabras útiles y 750 tareas por worker. No hubo respuestas exactas duplicadas, IDs faltantes ni desvíos del ciclo de tipos."
+        },
+        {
+          "type": "details",
+          "label": "calidad y tiempo externo",
+          "body": "Auditoría independiente de S020/S029/S030/S040/S049: 600 tareas por primary, 0 respuestas exactas duplicadas, 0 IDs faltantes, 0 errores del ciclo de tipos. El cambio de longitud media entre primer y último cuartil fue -2, 0, 0, +0,11 y 0 palabras: no aparece degradación tardía material en esta muestra. Con timestamps de commits de GitHub, no tiempos inventados por el modelo, la mediana claim→primary fue 5m04s y claim→cierre 11m21s. Rangos: 4m07s–10m36s y 9m40s–16m17s. Es tiempo end-to-end con contención/I/O, no compute puro."
+        },
+        {
+          "type": "details",
+          "label": "dónde fallaron y por qué",
+          "body": "Separamos cinco clases. 1) E2/admisión: seis beacons quedaron sin primary claim; no son fallos cognitivos. 2) Persistencia: S006 completó localmente 300 tareas, pero el CREATE durable fue bloqueado y además quedó contaminado. 3) E8/transporte: S019 completó 30k primary y falló al reclamar reallocation por branch-head movement repetido. 4) Contaminación: S009/S050 miraron datos de otros slots antes del cierre y quedan fuera del análisis causal. 5) E9/protocolo: algunos workers completaron el trabajo pero cerraron tarde o inválidos. También encontramos el bug grave de un worker que reclamó seis primary slots."
+        },
+        {
+          "type": "details",
+          "label": "las 10 celdas",
+          "body": "Causal-valid primary/reallocation, separando contaminación y duplicate-claim:\n5k · control 4/4 · priming 4/4\n10k · control 5/5 · priming 4/4\n15k · control 5/5 · priming 4/4\n20k · control 4/4 · priming 5/5\n30k · control 3/2 · priming 4/4\n\nCon la regla congelada del experimento, control queda sostenible hasta 20k y continuation priming llega al menos a 30k. Es una señal prometedora, no prueba causal limpia del prompt, porque varias pérdidas de control fueron de transporte/contaminación."
+        },
+        {
+          "type": "details",
+          "label": "qué todavía no sabemos",
+          "body": "No sabemos el techo real: 30k pasó. Tampoco sabemos cuánto de la ventaja aparente de continuation priming viene de la redacción versus azar/infraestructura, ni cuánto de estos resultados sintéticos se traslada a tareas largas heterogéneas, código, archivos o páginas reales. El tiempo observado incluye GitHub y contención, así que todavía falta separar compute local de I/O."
+        },
+        {
+          "type": "details",
+          "label": "qué corregir antes de escalar",
+          "body": "Primero: después del primer primary claim exitoso, el worker debe quedar enclavado en ese slot y cualquier segundo primary CREATE del mismo worker/nonce debe ser imposible o cuarentenado. Segundo: contaminación cross-slot excluida automáticamente. Tercero: branch-head/transport se mide como infraestructura, no como capacidad cognitiva. Cuarto: mantener I/O disperso, un midpoint y un resultado final, no commits por tarea."
+        },
+        {
+          "type": "details",
+          "label": "próximo experimento",
+          "body": "Buscar el techo, no repetir 30k. Diseño candidato: 12 workers idénticos, continuation priming congelado, trabajo local primary-only de 40k / 60k / 90k / 120k con 3 réplicas por tier, un midpoint al 50% y un solo result/receipt final. Si 120k pasa 3/3 con calidad intacta, subir geométricamente. Cuando aparezca la primera banda de fallo, confirmar el mayor tier que pasa y el menor que falla con 5 réplicas cada uno."
+        },
+        {
+          "type": "details",
+          "label": "acción humana",
+          "body": "Ahora: ninguna. MAXCAP-50-01 ya tiene 50/50 slots reclamados. No mandes más workers a este RUN. El próximo lanzamiento humano será un único prompt RUN repetido cuando el guard de single-primary-claim y el nuevo ceiling packet estén durables."
+        },
+        {
+          "type": "link",
+          "label": "Worker Lab · detalle técnico secundario",
+          "href": "https://juanmanuelpm.github.io/prometeo/current-tree/control-v11/worker-lab/"
+        }
+      ],
+      "evidence_refs": [
+        "coordination/portfolio/evidence/prometeo-autonomous-growth/MAXCAP_50_01_GUIDE_SYNTHESIS_V1.json",
+        "launch/MAXCAP-50-01/status.json",
+        "current-tree/control-v11/worker-lab/data.json",
+        "coordination/workers/WORKER_CHAT_VISIBLE_FAILURE_ANALYSIS_RESIDENCY_MACROBATCH_01.json",
+        "coordination/workers/WORKER_MAXCAP_50_V1.json"
       ]
     }
   ],
-  "updated_at": "2026-09-30T11:46:21Z"
+  "updated_at": "2026-09-30T12:58:30Z"
 }
