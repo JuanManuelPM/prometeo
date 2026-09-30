@@ -72,6 +72,7 @@ assert.equal(recent.metrics.ttfa_recent,7);
 assert.equal(recent.metrics.ttfa_p90_recent_ms,110_000);
 assert(recent.reasons.includes('TTFA_P90_GT_90S'),'recent slow authority acquisition must still trigger the regression');
 assert.equal(recent.status,'REGRESSION');
+assert.equal(recent.rescue?.recommended_role,'GUIDE_CRITIC','pure TTFA regression must route to Critic, not Rescate');
 assert.equal(recent.metrics.ttfa_p90_ms,120_000,'recent windowing must not erase cumulative TTFA telemetry');
 
 fs.rmSync(root,{recursive:true,force:true});
