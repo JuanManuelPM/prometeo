@@ -107,7 +107,8 @@ function validatePage(contract,html,label){
   assert.match(html,/src=["']\.\.\/ingress-v1\.js["']/,`${label}: existing ingress facade must load before composer`);
   assert.match(html,/src=["']\.\/input-module-v1\.js["']/,`${label}: approved fail-closed input module is required`);
   assert.match(html,/src=["']\.\/progress-v1\.js["']/,`${label}: durable progress module is required`);
-  assert.match(html,/PROMETEO_CHAT_CANARY_INPUT_V1\.mount/,`${label}: composer must mount through the reviewed module API`);
+  assert.match(html,/PROMETEO_CHAT_CANARY_INPUT_V1/,`${label}: reviewed composer global must be referenced`);
+  assert.match(html,/composerApi\.mount/,`${label}: composer must mount through the reviewed module API`);
   assert.match(html,/id=["']chat-canary-progress["']/,`${label}: durable Work Unit progress host is required`);
   assert.doesNotMatch(html,/\b(?:EventSource|WebSocket|ReadableStream)\b/,`${label}: streaming surface is forbidden`);
   assert.doesNotMatch(html,/\bsetInterval\s*\(/,`${label}: aggressive/automatic polling is forbidden`);
