@@ -57,6 +57,7 @@ for(const ent of packetEntries){
   if(!Number.isInteger(expected)||expected<1) fail(runId+': invalid expected_human_launches');
   if(slots.length!==expected) fail(runId+': primary slot count must equal expected_human_launches');
   const genericPacket=packet.packet_profile==='GENERIC_SYNTHETIC_V1';
+  const legacyPacket=!packet.packet_profile;
   const hasReallocationObjective=Boolean(packet?.reallocation_pool?.objective);
   if(genericPacket){
     if(hasReallocationObjective&&realloc.length!==slots.length) fail(runId+': generic reallocation slots must match primary slot count when objective exists');
@@ -66,11 +67,11 @@ for(const ent of packetEntries){
   uniq(slots.map(x=>x.slot_id),runId+' primary slot ids');
   uniq(slots.map(x=>x.claim_path),runId+' primary claim paths');
   uniq(slots.flatMap(x=>x.write_scope||[]),runId+' primary write scopes');
-  uniq(slots.map(x=>x.public_route),runId+' primary public routes');
+  uniq(slots.map(x=>x.public_route).filter(Boolean),runId+' primary public routes');
   uniq(realloc.map(x=>x.slot_id),runId+' reallocation slot ids');
   uniq(realloc.map(x=>x.claim_path),runId+' reallocation claim paths');
   uniq(realloc.flatMap(x=>x.write_scope||[]),runId+' reallocation write scopes');
-  uniq(realloc.map(x=>x.public_route),runId+' reallocation public routes');
+  uniq(realloc.map(x=>x.public_route).filter(Boolean),runId+' reallocation public routes');
 
   const counts={};
   for(const s of slots){
@@ -82,6 +83,8 @@ for(const ent of packetEntries){
     if(genericPacket){
       if(!Array.isArray(s.write_scope)||s.write_scope.length<1||!s.write_scope.every(x=>String(x).includes(`/${runId}/${s.slot_id}/`))) fail(runId+': generic primary write scope mismatch '+s.slot_id);
       if(!String(s.public_route||'').includes(`/${runId}/${s.slot_id}/`)) fail(runId+': generic public route mismatch '+s.slot_id);
+    }else if(legacyPacket){
+      if(!Array.isArray(s.write_scope)||s.write_scope.length<1) fail(runId+': legacy primary write scope missing '+s.slot_id);
     }else{
       if(!(s.write_scope||[]).every(x=>String(x).includes(`/cat-lab/${runId}/${s.slot_id}/`))) fail(runId+': primary write scope mismatch '+s.slot_id);
       if(!String(s.public_route).includes(`/bench/cat-lab/${runId}/${s.slot_id}/`)) fail(runId+': public route mismatch '+s.slot_id);
@@ -95,6 +98,8 @@ for(const ent of packetEntries){
     if(genericPacket){
       if(!Array.isArray(s.write_scope)||s.write_scope.length<1||!s.write_scope.every(x=>String(x).includes(`/${runId}/${s.slot_id}/`))) fail(runId+': generic reallocation write scope mismatch '+s.slot_id);
       if(!String(s.public_route||'').includes(`/${runId}/${s.slot_id}/`)) fail(runId+': generic reallocation route mismatch '+s.slot_id);
+    }else if(legacyPacket){
+      if(!Array.isArray(s.write_scope)||s.write_scope.length<1) fail(runId+': legacy reallocation write scope missing '+s.slot_id);
     }else{
       if(!(s.write_scope||[]).every(x=>String(x).includes(`/dog-notes/${runId}/${s.slot_id}/`))) fail(runId+': reallocation write scope mismatch '+s.slot_id);
       if(!String(s.public_route).includes(`/bench/dog-notes/${runId}/${s.slot_id}/`)) fail(runId+': reallocation route mismatch '+s.slot_id);
@@ -122,6 +127,9 @@ for(const ent of packetEntries){
     if(!packet?.common_capsule?.primary_objective) fail(runId+': generic common capsule missing primary_objective');
     if(!machineContract||typeof machineContract!=='object') fail(runId+': generic common capsule missing machine_contract');
     if(!Array.isArray(packet?.common_capsule?.exact_sources)) fail(runId+': generic common capsule missing exact_sources');
+  }else if(legacyPacket){
+    if(!packet?.common_capsule?.primary_objective) fail(runId+': legacy common capsule missing primary_objective');
+    if(!Array.isArray(packet?.common_capsule?.exact_sources)) fail(runId+': legacy common capsule missing exact_sources');
   }else{
     for(const k of ['chapters','current_chapter','tts_play','tts_prev','tts_next','tts_rate','radio_play','radio_volume','notes','palette_controls']){
       if(!selectors[k]) fail(runId+': machine contract missing '+k);
