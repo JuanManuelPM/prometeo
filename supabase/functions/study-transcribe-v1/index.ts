@@ -190,6 +190,102 @@ async function selftest() {
   return await whisper(f);
 }
 
+const SELFTEST_PROBE_DEADLINES = Object.freeze({
+  tts_ms: 5000,
+  whisper_connect_ms: 6000,
+  whisper_api_ms: 4000,
+  total_budget_ms: 15000
+});
+
+function probeError(phase, code, detail = "") {
+  const e = new Error(code);
+  e.phase = phase;
+  e.code = code;
+  e.detail = clean(detail, 300);
+  return e;
+}
+
+async function withProbeDeadline(promise, ms, phase, timeoutCode) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(probeError(phase, timeoutCode)), ms);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function fetchProbe(url, init, ms, phase) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (e) {
+    if (controller.signal.aborted) throw probeError(phase, "TTS_TIMEOUT");
+    throw probeError(phase, "TTS_FETCH_FAILED", e?.message || e);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function selftestProbe() {
+  const started = Date.now();
+  const phases = [{ phase: "handler", ok: true, elapsed_ms: 0 }];
+
+  const ttsStarted = Date.now();
+  const tts = await fetchProbe(`${SUPABASE_URL}/functions/v1/casa-tts`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      text: "Prueba corta de disponibilidad STT.",
+      voice: "es-AR-TomasNeural"
+    })
+  }, SELFTEST_PROBE_DEADLINES.tts_ms, "tts");
+  phases.push({ phase: "tts", ok: tts.ok, http_status: tts.status, elapsed_ms: Date.now() - ttsStarted });
+  try { await tts.body?.cancel(); } catch {}
+  if (!tts.ok) throw probeError("tts", `TTS_HTTP_${tts.status}`);
+
+  const space = SPACES[0];
+  const connectStarted = Date.now();
+  const app = await withProbeDeadline(
+    Client.connect(space),
+    SELFTEST_PROBE_DEADLINES.whisper_connect_ms,
+    "whisper_connect",
+    "WHISPER_CONNECT_TIMEOUT"
+  );
+  phases.push({ phase: "whisper_connect", ok: true, space, elapsed_ms: Date.now() - connectStarted });
+
+  const apiStarted = Date.now();
+  let api;
+  try {
+    api = await withProbeDeadline(
+      app.view_api(),
+      SELFTEST_PROBE_DEADLINES.whisper_api_ms,
+      "whisper_api",
+      "WHISPER_API_TIMEOUT"
+    );
+  } catch (e) {
+    if (e?.phase) throw e;
+    throw probeError("whisper_api", "WHISPER_API_FAILED", e?.message || e);
+  }
+  const endpointCount = Object.keys(api?.named_endpoints || {}).length;
+  phases.push({ phase: "whisper_api", ok: endpointCount > 0, endpoint_count: endpointCount, elapsed_ms: Date.now() - apiStarted });
+  if (!endpointCount) throw probeError("whisper_api", "WHISPER_API_EMPTY");
+
+  return {
+    ok: true,
+    probe: true,
+    phase: "complete",
+    phases,
+    deadlines_ms: SELFTEST_PROBE_DEADLINES,
+    total_ms: Date.now() - started
+  };
+}
+
 function readMeta(form) {
   const startMs = Math.round(num(form.get("start_ms"), 0));
   const endMs = Math.max(startMs, Math.round(num(form.get("end_ms"), startMs)));
@@ -253,7 +349,30 @@ Deno.serve(async (req) => {
 
     if (req.method === "GET") {
       const u = new URL(req.url);
-      if (u.searchParams.get("selftest") === "1") {
+      const selftestMode = u.searchParams.get("selftest");
+      if (selftestMode === "probe") {
+        try {
+          const r = await selftestProbe();
+          return out(req, {
+            service: "study-transcribe-v1",
+            selftest: "probe",
+            full_e2e_pass: false,
+            ...r
+          });
+        } catch (e) {
+          return out(req, {
+            ok: false,
+            service: "study-transcribe-v1",
+            selftest: "probe",
+            full_e2e_pass: false,
+            phase: clean(e?.phase || "unknown", 40),
+            code: clean(e?.code || "SELFTEST_PROBE_FAILED", 80),
+            detail: clean(e?.detail || e?.message || e, 300),
+            deadlines_ms: SELFTEST_PROBE_DEADLINES
+          }, 503);
+        }
+      }
+      if (selftestMode === "1") {
         try {
           const r = await selftest();
           return out(req, {
