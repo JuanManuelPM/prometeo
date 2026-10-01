@@ -1,0 +1,52 @@
+{
+  "schema": "prometeo.primary-chat-approval-current-materialization-evidence/v1",
+  "status": "SOURCE_PASS_RUNTIME_E2E_PENDING",
+  "captured_at": "2026-10-01T19:24:41Z",
+  "worker_id": "wc-20261001T190746Z-18fa8c2e4b5a",
+  "job_id": "portfolio-primary-chat-p0-approval-current-materialization-v1",
+  "authority_ref": "coordination/portfolio/pins/portfolio-primary-chat-p0-approval-current-materialization-v1/G000001.json",
+  "implementation": {
+    "owner": "current-tree/control-v11/ingress-v1.js",
+    "commit": "bdd94cc5ce93b7fc7e614ceb06fef6d8717f6c9c",
+    "blob": "6e62172194d9fb6df6790c172e14769f1909c803",
+    "added_api": "window.PROMETEO_INGRESS_V1.submitApprovedPlan({text,page,approval})",
+    "approval_schema": "prometeo.primary-chat-approval/v1",
+    "approved_kind": "PRIMARY_CHAT_APPROVED_PLAN_V1",
+    "authority_boundary": "Primary Chat approval is sanitized input metadata only. Page Change packet + existing CURRENT/PIN/claim semantics remain execution authority."
+  },
+  "behavior": {
+    "approved": "Explicit APPROVED envelope with approval_id, proposal_id, SHA-256 proposal_digest and approved_at enters the existing private Capture -> Page Change WORKER_POOL -> sanitized wake path.",
+    "rejected_or_ambiguous": "submitApprovedPlan returns a boundary before transport; no Capture/Page Change/wake call occurs.",
+    "same_browser_replay": "A successful approval stores only a sanitized local receipt index keyed by approval_id; exact replay returns QUEUED_REPLAY without a second transport. Reusing approval_id with a different digest fails closed.",
+    "stable_private_correlation": "Approved requests use deterministic request_id approval-<approval_id>; the private capture metadata and Page Change semantic_anchor carry approval_id/proposal_id/proposal_digest without publishing raw text.",
+    "wake_privacy": "Wake receives work_item_id/page_id/return_path plus sanitized approval identifiers/digest only; raw approved-plan text remains in the existing private owner."
+  },
+  "tests": {
+    "path": "coordination/portfolio/tests/primary_chat_approval_current_v1.mjs",
+    "commit": "e4741422488cae710e80cb0f542d6c88352e1ee1",
+    "command": "node coordination/portfolio/tests/primary_chat_approval_current_v1.mjs",
+    "local_result": "PASS primary_chat_approval_current_v1",
+    "covers": [
+      "approved happy path",
+      "same-browser exact replay",
+      "approval-id digest conflict",
+      "explicit rejection",
+      "ambiguous/non-approved decision",
+      "malformed wake fail-closed",
+      "raw text absent from sanitized wake"
+    ]
+  },
+  "known_residuals": [
+    "The V11 UI does not yet call submitApprovedPlan from a proposal/Approve control; this source API is the materialization hook for that separate UI/planning lane.",
+    "Cross-device/server-side approval replay dedupe is not yet proven. Current protection is deterministic capture identity plus a browser-persistent sanitized receipt index; the existing Page Change backend does not yet query approval_id before creating a packet.",
+    "No served authenticated end-to-end approval canary was run in this worker. The private Page Change path remains externally degraded/unverified, so SOURCE_PASS must not be promoted to runtime PASS."
+  ],
+  "privacy": {
+    "raw_primary_chat_text_published": false,
+    "workspace_secret_published": false,
+    "packet_token_published": false,
+    "credential_published": false
+  },
+  "promotion": "NONE",
+  "current_authority_changed": false
+}
