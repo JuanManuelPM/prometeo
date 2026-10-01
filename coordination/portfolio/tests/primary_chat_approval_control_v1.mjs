@@ -1,0 +1,23 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+
+const src=fs.readFileSync(new URL('../../../current-tree/control-v11/chat-canary/approval-module-v1.js',import.meta.url),'utf8');
+const calls=[];
+const context={Promise,Object,String,Boolean,RegExp,Error,globalThis:null,PROMETEO_INGRESS_V1:{async submitApprovedPlan(input){calls.push(input);return {status:'QUEUED',queued:true,ref:'coordination/executions/WI-1/RETURN.json',error:null};}}};
+context.globalThis=context;
+vm.createContext(context);
+vm.runInContext(src,context);
+const api=context.PROMETEO_PRIMARY_CHAT_APPROVAL_V1;
+const approval={decision:'APPROVED',approval_id:'APR-1',proposal_id:'PLAN-1',proposal_digest:'a'.repeat(64),approved_at:'2026-10-01T19:00:00Z'};
+let out=await api.submitApproved({text:'ejecutar',approval});
+assert.equal(out.queued,true);
+assert.equal(calls.length,1);
+assert.equal(calls[0].approval.approval_id,'APR-1');
+out=await api.submitApproved({text:'',approval});
+assert.equal(out.status,'BOUNDARY_INVALID_INPUT');
+assert.equal(calls.length,1);
+const bad={async submitApprovedPlan(){return {status:'QUEUED',queued:true,ref:'not-durable'}}};
+out=await api.submitApproved({text:'x',approval,ingress:bad});
+assert.equal(out.status,'BOUNDARY_TRANSPORT_INVALID');
+console.log('PASS primary_chat_approval_control_v1');
