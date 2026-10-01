@@ -1,0 +1,23 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+
+const contractPath='coordination/guide/PRIMARY_CHAT_STATE_COMMUNICATION_CONTRACT_V1.json';
+const legacyHarness='coordination/guide/tests/primary_chat_state_communication_v1.mjs';
+const rendererPath='current-tree/control-v11/chat-canary/progress-v1.js';
+const prior=spawnSync(process.execPath,[legacyHarness,contractPath],{encoding:'utf8'});
+assert.equal(prior.status,0,'existing communication harness must remain green: '+(prior.stderr||prior.stdout));
+const contract=JSON.parse(fs.readFileSync(contractPath,'utf8'));
+const renderer=fs.readFileSync(rendererPath,'utf8');
+assert.match(renderer,/PRIMARY_CHAT_STATE_COMMUNICATION_CONTRACT_V1\.json/);
+assert.match(renderer,/function compileContractState\(/);
+assert.match(renderer,/getJson\(RUNTIME_URL\).*getJson\(FRONTIER_URL\).*getJson\(THREAD_URL\).*getJson\(CONTRACT_URL\)/s);
+for(const state of contract.state_precedence) assert.match(renderer,new RegExp("['\"]"+state+"['\"]"),'renderer missing '+state);
+assert.match(renderer,/NON_AUTHORITATIVE_DERIVED_PROJECTION/);
+assert.match(renderer,/no promover a éxito/i);
+assert.doesNotMatch(renderer,/localStorage|sessionStorage/);
+assert.doesNotMatch(renderer,/raw[_-]?audio|raw[_-]?transcript/i);
+assert.match(renderer,/campaign_complete === true/);
+assert.match(renderer,/PROJECTION_STALE/);
+assert.match(renderer,/CLAIM_TRANSPORT_DEGRADED/);
+console.log('PASS primary_chat_state_renderer_wiring_v1 · existing harness + live renderer contract wiring');
