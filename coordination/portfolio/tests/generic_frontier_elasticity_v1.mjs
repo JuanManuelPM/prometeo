@@ -114,18 +114,19 @@ assert.equal(frontier.candidates[0].claim_path, roles[0].claim_path, 'allocator 
 assert(bytes <= 14_000, `compact frontier exceeded transport ceiling: ${bytes}`);
 assert.equal(frontier.recovery_attention_total, 8, 'diagnostic total cardinality must remain truthful');
 assert.equal(frontier.recovery_attention.length, 2, 'verbose non-authority diagnostics must be bounded to two transport exemplars');
-// Acceptance explicitly allows remaining starvation when measured rather than hidden. This fixture
-// is the full serialized shape, including postclaim_context; under 14 KB it exposes nine generic
-// claims plus one specialized exemplar. Ratchet that measured boundary without pretending it is ten.
-assert(genericVisible >= 9, `generic frontier regressed below measured burst fixture: visible generic=${genericVisible}`);
-assert(burst10Starvation <= 1, `burst 10 starvation regressed beyond measured boundary: ${burst10Starvation}`);
-assert(burst20Starvation <= 11, `burst 20 starvation regressed beyond measured boundary: ${burst20Starvation}`);
+assert(genericVisible >= 10, `generic frontier must expose burst-10 compatible claims: visible generic=${genericVisible}`);
+assert.equal(burst10Starvation, 0, `burst 10 starvation must be zero: ${burst10Starvation}`);
+assert(burst20Starvation <= 10, `burst 20 starvation regressed beyond bounded transport expectation: ${burst20Starvation}`);
 assert(frontier.candidates.some(row => row.required_capabilities?.includes('representative_javascript_browser')), 'specialized capability exemplar must survive generic packing');
 
 for (const candidate of frontier.candidates) {
   const source = [...roles, ...ready, specialized].find(row => row.claim_path === candidate.claim_path);
   assert.ok(source, `fixture source missing for ${candidate.claim_path}`);
   assert.deepEqual(candidate.claim_payload_shape, source.claim_payload_shape, 'transport packing must never mutate immutable claim authority payloads');
+  if (source.source_path) {
+    assert.equal(candidate.postclaim_context?.source_ref, source.source_path, 'exact post-claim source must remain available after transport dedupe');
+    assert.equal(Object.hasOwn(candidate, 'source_path'), false, 'top-level source_path must not duplicate postclaim_context.source_ref');
+  }
 }
 
 console.log('GENERIC_FRONTIER_ELASTICITY_PASS', JSON.stringify({
