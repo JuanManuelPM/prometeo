@@ -6,6 +6,7 @@
   const RUNTIME_URL = '../../../live/runtime.json';
   const FRONTIER_URL = '../../../live/claim-frontier.json';
   const THREAD_URL = '../../../coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json';
+  const CONTRACT_URL = '../../../coordination/guide/PRIMARY_CHAT_STATE_COMMUNICATION_CONTRACT_V1.json';
   const WAKE_OWNER_REF = 'coordination/jobs/derived/primary-chat-p0-platform-wake-capacity-v1/OWNER.json';
   const STALE_MS = 120000;
   const LIVE_MS = 600000;
@@ -30,28 +31,20 @@
     host.replaceChildren();
     host.setAttribute('data-work-unit-id', WORK_UNIT_ID);
     host.setAttribute('data-progress-source', 'INTERACTIVE_WORK_UNITS_V1');
-
     const details = el('details', null, 'prometeo-progress-widget');
     const summary = el('summary');
-
     const light = tone(wu.status);
     const dot = el('span', light.glyph, 'progress-dot');
     dot.style.color = light.color;
-
     const pctValue = Number.isFinite(Number(wu.progress)) ? Math.round(Number(wu.progress)) : null;
-    const pct = el('strong', pctValue === null ? '—' : pctValue + '%', 'progress-pct');
-    const stage = el('span', wu.current_stage || 'UNKNOWN', 'progress-stage');
-    summary.append(dot, pct, stage);
-
+    summary.append(dot, el('strong', pctValue === null ? '—' : pctValue + '%', 'progress-pct'), el('span', wu.current_stage || 'UNKNOWN', 'progress-stage'));
     const inner = el('div', null, 'progress-inner');
     const rail = el('div', null, 'progress-rail');
     const fill = el('div', null, 'progress-fill');
     fill.style.width = Math.max(0, Math.min(100, Number(wu.progress) || 0)) + '%';
     rail.append(fill);
-
     const steps = Array.isArray(wu.steps) ? wu.steps : [];
     const done = steps.filter(step => step && step.status === 'DONE').length;
-    const counts = el('div', done + '/' + steps.length + ' · ' + (wu.status || 'UNKNOWN'), 'progress-counts');
     const list = el('div', null, 'progress-steps');
     for (const step of steps) {
       const row = el('div', null, 'progress-step');
@@ -60,7 +53,7 @@
       row.append(state, el('span', step.name || step.step_id || 'step', 'progress-step-name'), el('span', String(step.weight || 0) + '%', 'progress-step-weight'));
       list.append(row);
     }
-    inner.append(rail, counts, list);
+    inner.append(rail, el('div', done + '/' + steps.length + ' · ' + (wu.status || 'UNKNOWN'), 'progress-counts'), list);
     details.append(summary, inner);
     host.append(details);
   }
@@ -95,21 +88,46 @@
     return Boolean(worker && (worker.terminal === true || worker?.close?.terminal === true || String(worker.state || '').toUpperCase() === 'CLOSED'));
   }
 
+  const n = value => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
+
+  function compileContractState(input, contract, cfg = {}) {
+    const staleThresholdSeconds = Number(cfg.projection_stale_threshold_seconds || STALE_MS / 1000);
+    const reserveLowThreshold = Number(cfg.reserve_low_threshold ?? RESERVE_LOW_THRESHOLD);
+    const rules = [
+      ['PROJECTION_STALE', n(input.projection_age_seconds) > staleThresholdSeconds],
+      ['HUMAN_DECISION_REQUIRED', input.human_decision_required === true],
+      ['CLAIM_TRANSPORT_DEGRADED', n(input.claim_transport_blocked_count) > 0],
+      ['HUMAN_INTENT_WAITING_NO_CAPACITY', n(input.pending_human_intent_count) > 0 && n(input.live_worker_count) === 0 && n(input.capacity_gap) > 0],
+      ['RETURNS_UNCONSUMED', n(input.unconsumed_returns_count) > 0],
+      ['RECOVERY_PRESSURE', n(input.recovery_attention_count) > 0],
+      ['REFILL_N', n(input.capacity_gap) > 0 && (n(input.claimable_generic_count) + n(input.claimable_specialized_count)) > 0],
+      ['BUFFER_LOW', n(input.capacity_gap) === 0 && n(input.reserve_workers) <= reserveLowThreshold && n(input.core_demand) > 0],
+      ['CAPACITY_OK', n(input.core_demand) > 0 && n(input.capacity_gap) === 0 && n(input.live_worker_count) > 0],
+      ['WORKERS_ACTIVE_NO_ACTION', n(input.live_worker_count) > 0],
+      ['CAMPAIGN_COMPLETE', input.campaign_complete === true]
+    ];
+    const state = rules.find(([,ok]) => ok)?.[0] || 'NO_SAFE_WORK';
+    const allowed = Array.isArray(contract?.state_precedence) ? new Set(contract.state_precedence) : null;
+    return !allowed || allowed.has(state) ? state : 'NO_SAFE_WORK';
+  }
+
   function classifyCapacityState(input) {
-    const stale = Boolean(input.stale);
-    const live = Math.max(0, Number(input.live || 0));
-    const claimable = Math.max(0, Number(input.claimable || 0));
-    const core = Math.max(0, Number(input.core || 0));
-    const reserve = Math.max(0, Number(input.reserve || 0));
-    const need = Math.max(0, Number(input.need || 0));
-    if (stale) return 'PROJECTION_STALE';
-    if (input.humanDecisionRequired) return 'HUMAN_DECISION_REQUIRED';
-    if (live === 0 && claimable > 0) return 'NO_CAPACITY_WITH_CLAIMABLE_WORK';
-    if (need > 0) return 'REFILL_N';
-    if (claimable > 0 && reserve <= RESERVE_LOW_THRESHOLD) return 'BUFFER_LOW';
-    if (live > 0) return 'WORKERS_ACTIVE_NO_ACTION';
-    if (core === 0 && claimable === 0) return 'WORK_COMPLETE_OR_NO_SAFE_WORK';
-    return 'WORK_COMPLETE_OR_NO_SAFE_WORK';
+    const compat = {
+      projection_age_seconds: input.stale ? STALE_MS / 1000 + 1 : 0,
+      human_decision_required: Boolean(input.humanDecisionRequired),
+      claim_transport_blocked_count: n(input.claimTransportBlockedCount),
+      pending_human_intent_count: n(input.pendingHumanIntentCount),
+      unconsumed_returns_count: n(input.unconsumedReturnsCount),
+      recovery_attention_count: n(input.recoveryAttentionCount),
+      live_worker_count: n(input.live),
+      claimable_generic_count: n(input.claimable),
+      claimable_specialized_count: 0,
+      core_demand: n(input.core),
+      reserve_workers: n(input.reserve),
+      capacity_gap: n(input.need),
+      campaign_complete: Boolean(input.campaignComplete)
+    };
+    return compileContractState(compat, null);
   }
 
   function scenario(name, input, expected) {
@@ -119,14 +137,17 @@
 
   function runCapacityHarness() {
     const cases = [
-      scenario('0 workers + trabajo', {live:0,claimable:4,core:4,reserve:0,need:4}, 'NO_CAPACITY_WITH_CLAIMABLE_WORK'),
-      scenario('capacidad suficiente', {live:7,claimable:3,core:3,reserve:4,need:0}, 'WORKERS_ACTIVE_NO_ACTION'),
+      scenario('0 workers + trabajo', {live:0,claimable:4,core:4,reserve:0,need:4}, 'REFILL_N'),
+      scenario('capacidad suficiente', {live:7,claimable:3,core:3,reserve:4,need:0}, 'CAPACITY_OK'),
       scenario('buffer <=3', {live:5,claimable:3,core:3,reserve:2,need:0}, 'BUFFER_LOW'),
-      scenario('humano sin acción >1h con trabajo detenido', {live:0,claimable:2,core:2,reserve:0,need:2,humanAgeMs:7200000}, 'NO_CAPACITY_WITH_CLAIMABLE_WORK'),
-      scenario('humano recién activo con déficit', {live:2,claimable:5,core:5,reserve:0,need:3,humanAgeMs:30000}, 'REFILL_N'),
+      scenario('humano sin acción >1h con trabajo detenido', {live:0,claimable:2,core:2,reserve:0,need:2,pendingHumanIntentCount:1}, 'HUMAN_INTENT_WAITING_NO_CAPACITY'),
+      scenario('humano recién activo con déficit', {live:2,claimable:5,core:5,reserve:0,need:3}, 'REFILL_N'),
       scenario('proyección stale', {stale:true,live:0,claimable:5,core:5,reserve:0,need:5}, 'PROJECTION_STALE'),
       scenario('human decision boundary', {humanDecisionRequired:true,live:4,claimable:2,core:2,reserve:2,need:0}, 'HUMAN_DECISION_REQUIRED'),
-      scenario('campaña terminada', {live:0,claimable:0,core:0,reserve:0,need:0}, 'WORK_COMPLETE_OR_NO_SAFE_WORK')
+      scenario('claim transport blocked', {claimTransportBlockedCount:1,live:4,claimable:2,core:2,reserve:2,need:0}, 'CLAIM_TRANSPORT_DEGRADED'),
+      scenario('returns unconsumed', {unconsumedReturnsCount:2,live:4,claimable:2,core:2,reserve:2,need:0}, 'RETURNS_UNCONSUMED'),
+      scenario('recovery pressure', {recoveryAttentionCount:2,live:4,claimable:2,core:2,reserve:2,need:0}, 'RECOVERY_PRESSURE'),
+      scenario('campaña terminada explícita', {live:0,claimable:0,core:0,reserve:0,need:0,campaignComplete:true}, 'CAMPAIGN_COMPLETE')
     ];
     return Object.freeze({ total: cases.length, passed: cases.filter(row => row.pass).length, cases });
   }
@@ -152,7 +173,12 @@
     ));
   }
 
-  function capacitySnapshot(runtime, frontier, thread, now = Date.now()) {
+  function pendingHumanIntentCount(thread) {
+    const rows = Array.isArray(thread?.messages) ? thread.messages : [];
+    return rows.filter(row => row && row.archived !== true && String(row.actor_type || '').toUpperCase() === 'HUMAN' && ['QUEUED','WAITING','PENDING'].includes(String(row.status || '').toUpperCase())).length;
+  }
+
+  function stateInput(runtime, frontier, thread, now = Date.now()) {
     const batchId = runtime?.current_batch || 'POOL-PROD-01';
     const batch = Array.isArray(runtime?.batches) ? runtime.batches.find(row => row && row.batch_id === batchId) : null;
     const workers = Array.isArray(batch?.workers) ? batch.workers : [];
@@ -161,39 +187,85 @@
       const signal = asDate(lastWorkerSignal(worker));
       return Boolean(signal && now - signal.getTime() < LIVE_MS);
     }).length;
-    const claimable = Math.max(0, Number(frontier?.candidate_count || (Array.isArray(frontier?.candidates) ? frontier.candidates.length : 0)));
+    const candidates = Array.isArray(frontier?.candidates) ? frontier.candidates : [];
+    const generic = candidates.filter(row => !Array.isArray(row?.required_capabilities) || row.required_capabilities.length === 0).length;
+    const specialized = Math.max(0, candidates.length - generic);
+    const claimable = Math.max(0, Number(frontier?.candidate_count ?? candidates.length));
     const core = Math.min(CORE_LIMIT, claimable);
     const reserve = Math.max(0, live - core);
     const need = Math.max(0, core - live);
-    const humanAt = latestHumanAt(thread);
     const runtimeAt = asDate(runtime?.generated_at);
     const frontierAt = asDate(frontier?.generated_at);
     const projectionAt = [runtimeAt, frontierAt].filter(Boolean).sort((a,b)=>a-b)[0] || null;
-    const stale = !projectionAt || now - projectionAt.getTime() > STALE_MS;
-    const humanAgeMs = humanAt ? now - humanAt.getTime() : null;
-    const decision = humanDecisionRequired(thread);
-    const state = classifyCapacityState({stale,live,claimable,core,reserve,need,humanDecisionRequired:decision,humanAgeMs});
-    return Object.freeze({batchId,live,claimable,core,reserve,need,humanAt:humanAt?.toISOString() || null,humanAgeMs,projectionAt:projectionAt?.toISOString() || null,stale,humanDecisionRequired:decision,state});
+    const projectionAgeSeconds = projectionAt ? Math.max(0, (now - projectionAt.getTime()) / 1000) : STALE_MS / 1000 + 1;
+    const humanAt = latestHumanAt(thread);
+    const blocked = workers.filter(worker => /CLAIM_TRANSPORT_BLOCKED/.test(String(worker?.close?.outcome || worker?.close_outcome || worker?.state || ''))).length;
+    const recovery = candidates.filter(row => String(row?.lane || row?.candidate_type || '').toUpperCase() === 'RECOVERY').length;
+    const explicitComplete = runtime?.campaign_complete === true || batch?.campaign_complete === true;
+    return Object.freeze({
+      batchId,
+      input: Object.freeze({
+        last_human_action_at: humanAt?.toISOString() || null,
+        last_worker_signal_at: workers.map(lastWorkerSignal).filter(Boolean).sort().at(-1) || null,
+        live_worker_count: live,
+        claimable_generic_count: generic,
+        claimable_specialized_count: specialized,
+        core_demand: core,
+        reserve_workers: reserve,
+        capacity_gap: need,
+        unconsumed_returns_count: n(runtime?.unconsumed_returns_count ?? batch?.unconsumed_returns_count),
+        recovery_attention_count: n(runtime?.recovery_attention_count ?? recovery),
+        projection_age_seconds: projectionAgeSeconds,
+        human_decision_required: humanDecisionRequired(thread),
+        pending_human_intent_count: pendingHumanIntentCount(thread),
+        claim_transport_blocked_count: n(runtime?.claim_transport_blocked_count ?? blocked),
+        campaign_complete: explicitComplete,
+        last_return_at: runtime?.last_return_at ?? batch?.last_return_at ?? null,
+        last_visible_result_at: runtime?.last_visible_result_at ?? thread?.generated_at ?? null
+      }),
+      projectionAt: projectionAt?.toISOString() || null,
+      humanAt: humanAt?.toISOString() || null,
+      humanAgeMs: humanAt ? Math.max(0, now - humanAt.getTime()) : null
+    });
+  }
+
+  function capacitySnapshot(runtime, frontier, thread, contract = null, now = Date.now()) {
+    const derived = stateInput(runtime, frontier, thread, now);
+    const state = compileContractState(derived.input, contract);
+    return Object.freeze({
+      batchId: derived.batchId,
+      live: derived.input.live_worker_count,
+      claimable: derived.input.claimable_generic_count + derived.input.claimable_specialized_count,
+      core: derived.input.core_demand,
+      reserve: derived.input.reserve_workers,
+      need: derived.input.capacity_gap,
+      humanAt: derived.humanAt,
+      humanAgeMs: derived.humanAgeMs,
+      projectionAt: derived.projectionAt,
+      stale: state === 'PROJECTION_STALE',
+      humanDecisionRequired: derived.input.human_decision_required,
+      state,
+      contractInput: derived.input
+    });
   }
 
   function ageLabel(ms) {
-    if (ms === null || ms === undefined || !Number.isFinite(ms)) return 'sin acción humana durable';
+    if (ms === null || ms === undefined || !Number.isFinite(ms)) return 'acción humana: desconocida';
     const min = Math.max(0, Math.round(ms / 60000));
     if (min < 60) return 'acción humana hace ' + min + 'm';
     return 'acción humana hace ' + Math.round(min / 60) + 'h';
   }
 
-  function actionText(snapshot) {
-    const n = snapshot.need;
-    const prefix = snapshot.humanAgeMs !== null && snapshot.humanAgeMs > 3600000 ? 'Volviste. ' : '';
+  function actionText(snapshot, contract) {
+    const template = contract?.templates?.[snapshot.state];
+    if (template) return String(template).replace('{capacity_gap}', String(snapshot.need));
     switch (snapshot.state) {
-      case 'PROJECTION_STALE': return 'ACCIÓN: ninguna automática · proyección atrasada; refrescar owners antes de pedir capacidad.';
-      case 'HUMAN_DECISION_REQUIRED': return 'ACCIÓN: decisión humana requerida · no rellenar capacidad hasta resolver el boundary.';
-      case 'NO_CAPACITY_WITH_CLAIMABLE_WORK': return prefix + 'ACCIÓN: REFILL ' + Math.max(1,n || snapshot.core) + ' · hay trabajo reclamable y 0 workers vivos.';
-      case 'REFILL_N': return prefix + 'ACCIÓN: REFILL ' + n + ' · déficit exacto de shells contra demanda core.';
-      case 'BUFFER_LOW': return 'ACCIÓN: ninguna inmediata · buffer bajo (' + snapshot.reserve + '); reserva <= ' + RESERVE_LOW_THRESHOLD + '.';
-      case 'WORKERS_ACTIVE_NO_ACTION': return 'ACCIÓN: ninguna · ' + snapshot.live + ' worker(s) vivos cubren la demanda observable.';
-      default: return 'ACCIÓN: ninguna · trabajo completo o sin trabajo seguro reclamable.';
+      case 'CLAIM_TRANSPORT_DEGRADED': return 'Claim transport degradado · no promover a éxito ni reintentar una denegación.';
+      case 'HUMAN_INTENT_WAITING_NO_CAPACITY': return 'Intención humana durable esperando capacidad.';
+      case 'RETURNS_UNCONSUMED': return 'Returns sin integrar · estado pendiente, no éxito.';
+      case 'RECOVERY_PRESSURE': return 'Recovery pendiente · requiere owner compatible.';
+      case 'NO_SAFE_WORK': return 'Sin trabajo seguro demostrable · no inferir campaña completa.';
+      default: return snapshot.state;
     }
   }
 
@@ -209,20 +281,23 @@
     return host;
   }
 
-  function renderCapacity(host, snapshot, harness) {
+  function renderCapacity(host, snapshot, harness, contract) {
     host.replaceChildren();
     host.dataset.state = snapshot.state;
+    host.dataset.contract = contract?.schema || 'UNAVAILABLE';
+    host.dataset.authority = contract?.authority || 'NON_AUTHORITATIVE_DERIVED_PROJECTION';
     host.dataset.harness = harness.passed + '/' + harness.total;
     const title = el('div', snapshot.state);
     title.style.cssText = 'font-weight:700;color:#d7d7d2;letter-spacing:.02em;';
     const metrics = el('div', 'Core ' + snapshot.core + ' · Live ' + snapshot.live + ' · Reserve ' + snapshot.reserve + ' · Need ' + snapshot.need + ' · Claimable ' + snapshot.claimable);
     metrics.style.cssText = 'margin-top:3px;color:#777;font-size:10px;';
-    const human = el('div', ageLabel(snapshot.humanAgeMs) + ' · última señal durable ' + (snapshot.projectionAt ? new Date(snapshot.projectionAt).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : 'desconocida'));
+    const human = el('div', ageLabel(snapshot.humanAgeMs) + ' · proyección ' + (snapshot.projectionAt ? new Date(snapshot.projectionAt).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : 'desconocida'));
     human.style.cssText = 'margin-top:3px;color:#666;font-size:9px;';
-    const action = el('div', actionText(snapshot));
-    action.style.cssText = 'margin-top:6px;color:' + (/REFILL|requerida|atrasada|buffer bajo/i.test(action.textContent) ? '#d9b45f' : '#82d69a') + ';font-weight:650;';
+    const action = el('div', actionText(snapshot, contract));
+    const pending = ['PROJECTION_STALE','HUMAN_DECISION_REQUIRED','CLAIM_TRANSPORT_DEGRADED','HUMAN_INTENT_WAITING_NO_CAPACITY','RETURNS_UNCONSUMED','RECOVERY_PRESSURE','REFILL_N','BUFFER_LOW','NO_SAFE_WORK'].includes(snapshot.state);
+    action.style.cssText = 'margin-top:6px;color:' + (pending ? '#d9b45f' : '#82d69a') + ';font-weight:650;';
     host.append(title, metrics, human, action);
-    host.title = 'Owner: ' + WAKE_OWNER_REF + ' · harness ' + harness.passed + '/' + harness.total;
+    host.title = 'Projection only · owner: ' + WAKE_OWNER_REF + ' · contract ' + (contract?.schema || 'unavailable') + ' · harness ' + harness.passed + '/' + harness.total;
   }
 
   async function loadCapacityAction() {
@@ -230,13 +305,15 @@
     if (!host) return {ok:false,reason:'CAPACITY_HOST_MISSING'};
     const harness = runCapacityHarness();
     try {
-      const [runtime, frontier, thread] = await Promise.all([getJson(RUNTIME_URL), getJson(FRONTIER_URL), getJson(THREAD_URL)]);
-      const snapshot = capacitySnapshot(runtime, frontier, thread);
-      renderCapacity(host, snapshot, harness);
-      return {ok:true,snapshot,harness};
+      const [runtime, frontier, thread, contract] = await Promise.all([getJson(RUNTIME_URL), getJson(FRONTIER_URL), getJson(THREAD_URL), getJson(CONTRACT_URL)]);
+      if (contract?.schema !== 'prometeo.primary-chat-state-communication-contract/v1') throw new Error('STATE_CONTRACT_INCOMPATIBLE');
+      const snapshot = capacitySnapshot(runtime, frontier, thread, contract);
+      renderCapacity(host, snapshot, harness, contract);
+      return {ok:true,snapshot,harness,contract:contract.schema};
     } catch (error) {
-      renderCapacity(host, Object.freeze({state:'PROJECTION_STALE',live:0,claimable:0,core:0,reserve:0,need:0,humanAgeMs:null,projectionAt:null,stale:true}), harness);
-      host.title = 'PROJECTION_STALE · ' + (error?.message || 'UNKNOWN') + ' · harness ' + harness.passed + '/' + harness.total;
+      const snapshot = Object.freeze({state:'PROJECTION_STALE',live:0,claimable:0,core:0,reserve:0,need:0,humanAgeMs:null,projectionAt:null,stale:true});
+      renderCapacity(host, snapshot, harness, null);
+      host.title = 'PROJECTION_STALE · ' + (error?.message || 'UNKNOWN') + ' · projection only · harness ' + harness.passed + '/' + harness.total;
       return {ok:false,reason:error?.message || 'UNKNOWN',harness};
     }
   }
@@ -249,9 +326,11 @@
       runtimeUrl:RUNTIME_URL,
       frontierUrl:FRONTIER_URL,
       threadUrl:THREAD_URL,
+      contractUrl:CONTRACT_URL,
       wakeOwnerRef:WAKE_OWNER_REF,
       reserveLowThreshold:RESERVE_LOW_THRESHOLD,
       classify:classifyCapacityState,
+      compileContractState,
       snapshot:capacitySnapshot,
       runHarness:runCapacityHarness,
       load:loadCapacityAction
