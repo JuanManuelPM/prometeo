@@ -9,7 +9,7 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const remote=new PrometeoRemote();
 const changeClient=createChangeLoopClient();
 let bundle=window.PROMETEO_V11_LAST||null;
-let pages=[],pageMap=new Map(),selectedPage=null,loop=null,unread=0,syncTimer=null,previewManifest=null,previewMap=new Map(),resultProjection=null,chatSessionIndex=null,chatJournalCache=new Map(),capabilityGraph=null,openCapabilityHubId=null,commandBusy=false,restoringRoute=false,restoredRoute=false,activePanel=null;
+let pages=[],pageMap=new Map(),selectedPage=null,loop=null,unread=0,syncTimer=null,previewManifest=null,previewMap=new Map(),resultProjection=null,chatSessionIndex=null,chatJournalCache=new Map(),capabilityGraph=null,openCapabilityHubId=null,commandBusy=false,restoringRoute=false,restoredRoute=false,routeRetryTimer=null,routeRetryCount=0,activePanel=null;
 const toastEl=document.createElement('div');toastEl.className='v11-toast';document.body.appendChild(toastEl);
 function toast(s){toastEl.textContent=s;toastEl.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>toastEl.classList.remove('on'),1500)}
 function abs(href){try{return new URL(href,'https://juanmanuelpm.github.io/prometeo/catalog/CATALOG_MANIFEST.json').href}catch{return href||''}}
@@ -101,7 +101,7 @@ function previewMarkup(p){
  const state=String(pv.state||'UNAVAILABLE').toUpperCase(),src=state==='AVAILABLE'?staticPreviewUrl(pv):'';
  const stamp=pv.observed_at||pv.checked_at||null;
  if(!src)return `<div class="preview-empty-v11" data-preview-state="${esc(state)}">Preview ${esc(state.toLowerCase())}${stamp?' · '+esc(stamp):''}</div>`;
- return `<div class="workspace-preview-v11" data-preview-state="${esc(state)}"><img src="${esc(src)}" alt="Preview estática de ${esc(p.title||p.id)}" loading="lazy" decoding="async" style="display:block;width:100%;height:118px;object-fit:cover;border:1px solid #282e35;border-radius:9px;background:#0c0e11"><div class="workspace-meta"><span>preview estática</span>${stamp?'<span>'+esc(stamp)+'</span>':''}</div></div>`;
+ return `<div class="workspace-preview-v11" data-preview-state="${esc(state)}"><img src="${esc(src)}" alt="Preview estática de ${esc(p.title||p.id)}" loading="lazy" decoding="async" style="display:block;width:100%;height:118px;object-fit:cover;border:1px solid #282e35;border-radius:9px;background:#0c0e11"><div class="workspace-meta"><span>preview estática</span>${stamp?'<span>'+esc(stamp):''}</span></div></div>`;
 }
 function renderPreviewGrid(){
  const root=$('#previewGridV11');if(!root)return;
@@ -227,8 +227,15 @@ async function openNodeNotes(info,{push=true}={}){
  if(push)writeRoute({view:info.view||'organismo',page:null,node:p.node_key||info.nodeKey,panel:'notes',work:null});
  const l=await ensureLoop();return l?.open(pageObj(p));
 }
+function scheduleRouteRetry(){
+ if(routeRetryCount>=60)return;
+ if(routeRetryTimer)clearTimeout(routeRetryTimer);
+ routeRetryCount++;
+ routeRetryTimer=setTimeout(()=>{routeRetryTimer=null;restoreRoute(true).catch(()=>{})},250);
+}
 async function restoreRoute(force=false){
- if(restoringRoute||(!force&&restoredRoute))return;
+ if(restoringRoute){if(force)scheduleRouteRetry();return}
+ if(!force&&restoredRoute)return;
  restoringRoute=true;
  let routeResolved=true;
  try{
@@ -244,7 +251,11 @@ async function restoreRoute(force=false){
    const p=objectForNode({nodeKey:st.node,view:st.view||'organismo'});
    if(p){selectedPage=p;const l=await ensureLoop();await l?.open(pageObj(p));activePanel='notes'}
   }
- }finally{restoringRoute=false;if(routeResolved)restoredRoute=true}
+ }finally{
+  restoringRoute=false;
+  if(routeResolved){restoredRoute=true;routeRetryCount=0;if(routeRetryTimer){clearTimeout(routeRetryTimer);routeRetryTimer=null}}
+  else{restoredRoute=false;scheduleRouteRetry()}
+ }
 }
 
 async function createTextCapture(text,target){
