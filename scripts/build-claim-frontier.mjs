@@ -6,6 +6,7 @@ const DEFAULT_MAX_CANDIDATES = 24;
 const DEFAULT_MAX_SERIALIZED_BYTES = 14_000;
 const DEFAULT_CAPABILITY_DIVERSITY_SLOTS = 8;
 const DEFAULT_ZERO_CAPABILITY_CAPACITY = 8;
+const DEFAULT_ZERO_CAPABILITY_RUNWAY = 4;
 
 // Pre-claim needs authority bytes, capability routing, and one exact post-claim source.
 // Human-facing labels, priority/state and duplicated identity already live in allocator/job files.
@@ -104,7 +105,8 @@ function preserveCapabilityDiversity(
   {
     prefix = 1,
     maxPromotions = DEFAULT_CAPABILITY_DIVERSITY_SLOTS,
-    minZeroCapabilityCandidates = DEFAULT_ZERO_CAPABILITY_CAPACITY
+    minZeroCapabilityCandidates = DEFAULT_ZERO_CAPABILITY_CAPACITY,
+    zeroCapabilityRunway = DEFAULT_ZERO_CAPABILITY_RUNWAY
   } = {}
 ) {
   const rows = arr(ordered);
@@ -127,10 +129,8 @@ function preserveCapabilityDiversity(
   // Capability diversity alone collapses every [] candidate into one signature. In a pooled
   // launch that can hide several distinct no-special-capability claims behind a long
   // specialized tail, leaving generic workers to collide on only one or two visible paths.
-  // Preserve exact capability exemplars, then reserve a small bounded amount of additional
-  // zero-capacity claim paths. Within that reserve prefer smaller immutable candidate records:
-  // authority bytes are never changed, we merely fit more already-grounded claims before the
-  // transport byte ceiling. Stable index tie-breaking preserves allocator order for equal sizes.
+  // Reserve a bounded amount of additional zero-capability claim paths and prefer smaller
+  // immutable candidate records so more authority paths fit before the byte ceiling.
   const promotedSet = new Set(promoted);
   const zeroTarget = Math.max(0, minZeroCapabilityCandidates);
   const zeroCount = [...head, ...promoted].filter(hasZeroRequiredCapabilities).length;
@@ -141,12 +141,26 @@ function preserveCapabilityDiversity(
     .slice(0, Math.max(0, zeroTarget - zeroCount))
     .map(({candidate}) => candidate);
 
+  // Under pooled collision pressure, putting every specialized exemplar before the generic
+  // reserve can consume the byte envelope before a generic worker sees enough distinct atomic
+  // paths to spend its four-attempt claim budget. Preserve allocator choice #1, then establish
+  // a bounded no-special-capability runway before capability exemplars. This changes transport
+  // order only: claim payloads, capability truth, priority data and atomic authority are intact.
+  const headZeroCount = head.filter(hasZeroRequiredCapabilities).length;
+  const runwayCount = Math.min(
+    zeroPromoted.length,
+    Math.max(0, Math.min(zeroTarget, zeroCapabilityRunway) - headZeroCount)
+  );
+  const zeroRunway = zeroPromoted.slice(0, runwayCount);
+  const zeroReserveTail = zeroPromoted.slice(runwayCount);
   const protectedSet = new Set([...promoted, ...zeroPromoted]);
-  // Under a byte cap, candidates later in the array may never cross the transport boundary.
-  // Keep exact capability exemplars immediately after the allocator's first choice, then pack
-  // the byte-dense generic reserve. This prevents generic elasticity from erasing specialized
-  // reachability. Claim payloads, capability truth and atomic authority semantics stay untouched.
-  return [...head, ...promoted, ...zeroPromoted, ...tail.filter(candidate => !protectedSet.has(candidate))];
+  return [
+    ...head,
+    ...zeroRunway,
+    ...promoted,
+    ...zeroReserveTail,
+    ...tail.filter(candidate => !protectedSet.has(candidate))
+  ];
 }
 
 export function buildClaimFrontier(
@@ -185,7 +199,7 @@ export function buildClaimFrontier(
   }
 
   // Preserve the allocator's first choice while ensuring the compact transport carries
-  // capability exemplars plus a byte-dense generic reserve when space permits.
+  // a generic collision runway plus capability exemplars when space permits.
   const capabilityDiverse = preserveCapabilityDiversity(ordered);
   const bounded = capabilityDiverse.slice(0, Math.max(1, maxCandidates));
   // recovery_attention is diagnostic, not claim authority. Keep total cardinality and two
