@@ -1,0 +1,53 @@
+{
+  "schema": "prometeo.writer-attribution-evidence/v1",
+  "job_id": "portfolio-gh-pages-deploy-churn-writer-attribution-v1",
+  "worker_id": "wc-20261001T123408Z-6e8a2de49ff2",
+  "observed_at": "2026-10-01T12:56:33Z",
+  "window": {
+    "main_head_observed": "647bc553092e9721d73358d9adea27fd0e910904",
+    "gh_pages_example_commit": "0655c9dd90eccc7125a08c7aeb331701a6b98cd5"
+  },
+  "writers": [
+    {
+      "class": "worker-wave-runtime",
+      "actor": "github-actions[bot]",
+      "example_commit": "0655c9dd90eccc7125a08c7aeb331701a6b98cd5",
+      "classification": "EXPECTED_DERIVED_WRITER_WITH_AMPLIFICATION",
+      "evidence": "One runtime refresh changed generated_at across many QUIESCENT batch projections while only a small subset had semantic state changes; the same commit also refreshed claim-frontier, next-job, scheduler-health, worker-wave and worker-lab status surfaces."
+    },
+    {
+      "class": "worker-productivity-scoreboard",
+      "path": ".github/workflows/worker-productivity-scoreboard.yml",
+      "classification": "EXPECTED_BOUNDED_WRITER",
+      "evidence": "The workflow intentionally listens to coordination/workers/** and coordination/portfolio/**, but already uses concurrency cancel-in-progress and exits without publishing when generated scoreboard paths have no diff."
+    },
+    {
+      "class": "worker-lab-publication",
+      "classification": "INDEPENDENT_EXPECTED_WRITER",
+      "evidence": "Recent gh-pages history interleaves worker-lab publication with runtime and scoreboard commits; no evidence in this bounded read proves it is pathological."
+    }
+  ],
+  "stale_required_context": [
+    "README.md no longer contains the requested 'Inicio canónico único' section in the observed main revision",
+    "docs/PORTFOLIO_EXECUTION_MODEL.md was not present on main",
+    "live/portfolio-summary.json was not present on main"
+  ],
+  "too_broad_firing_condition": {
+    "condition": "worker-wave runtime publication rewrites per-batch generated_at for many semantically unchanged QUIESCENT batch files on a refresh that contains only a few material worker-state transitions",
+    "effect": "one material worker event expands into a larger gh-pages commit and additional Pages deployment work",
+    "confidence": "HIGH_FOR_BYTE_AMPLIFICATION; SOURCE_TRIGGER_WORKFLOW_NOT_IDENTIFIED_IN_BOUNDED_CONTEXT"
+  },
+  "narrowest_reversible_follow_up": {
+    "title": "Suppress timestamp-only batch projection rewrites in worker-wave runtime publisher",
+    "acceptance": [
+      "For a batch whose semantic projection is unchanged, preserve its previous generated_at or omit that file from the publish diff.",
+      "A single worker transition changes only the affected batch/global projections plus genuinely changed allocator surfaces.",
+      "Existing concurrency and append-only worker evidence remain untouched.",
+      "No CURRENT, scheduler or production promotion semantics change."
+    ]
+  },
+  "limitations": [
+    "The exact main workflow/script that emitted the worker-wave commit was not located within the job's bounded required context, so no trigger-path edit is asserted here.",
+    "This artifact attributes observed writer classes and byte amplification; it does not claim that every recent Pages deployment was pathological."
+  ]
+}
