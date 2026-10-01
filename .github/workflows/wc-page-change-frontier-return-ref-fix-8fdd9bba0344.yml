@@ -1,0 +1,41 @@
+name: WC page-change frontier return_ref fix 8fdd9bba0344
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/wc-page-change-frontier-return-ref-fix-8fdd9bba0344.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Preserve opportunity return_path through compact frontier
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/build-claim-frontier.mjs')
+          s = p.read_text()
+          old = """  if (item?.source_path) {\n    // A reusable portfolio/queue source owns semantic context. Worker-specific return paths\n    // and legacy task/matrix/program/must-read/execution overlays are runtime products, not\n    // source fields. Never carry a historical worker binding across E3.\n    delete out.return_path;\n    out.postclaim_context = compilePostclaimContext(item);\n  }\n"""
+          new = """  if (item?.source_path) {\n    // A reusable portfolio/queue source owns semantic context. Worker-specific return paths\n    // and legacy task/matrix/program/must-read/execution overlays are runtime products, not\n    // source fields. Never carry a historical worker binding across E3. Page Change\n    // opportunities are different: their return_path is an explicit work-item contract\n    // carried by the private-frontier adapter, not a reusable source-job worker binding.\n    if (!item?.opportunity_id) delete out.return_path;\n    out.postclaim_context = compilePostclaimContext(item);\n  }\n"""
+          if old not in s:
+              raise SystemExit('expected build-claim-frontier block not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          node coordination/portfolio/tests/page_change_worker_frontier_v1.mjs
+          node coordination/portfolio/tests/claim_frontier_compact_v1.mjs
+          git diff --check
+          git config user.name 'prometeo-wc'
+          git config user.email 'prometeo-wc@users.noreply.github.com'
+          git add scripts/build-claim-frontier.mjs
+          git commit -m 'allocator: preserve Page Change return_ref in compact frontier'
+          git pull --rebase origin main
+          git push origin HEAD:main
