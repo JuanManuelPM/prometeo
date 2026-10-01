@@ -75,13 +75,17 @@ export function suppressClaimedGuideRoleCandidates(allocator = {}, guidePins = [
   if (!claimedPaths.size) return allocator;
 
   const roleReady = arr(allocator.role_ready);
+  const batchCandidates = arr(allocator.batch_candidates);
   const suppressed = roleReady.filter(candidate => candidate?.claim_path && claimedPaths.has(candidate.claim_path));
-  if (!suppressed.length) return allocator;
+  const batchSuppressed = batchCandidates.filter(candidate => candidate?.claim_path && claimedPaths.has(candidate.claim_path));
+  if (!suppressed.length && !batchSuppressed.length) return allocator;
 
   const kept = roleReady.filter(candidate => !candidate?.claim_path || !claimedPaths.has(candidate.claim_path));
+  const batchKept = batchCandidates.filter(candidate => !candidate?.claim_path || !claimedPaths.has(candidate.claim_path));
   return {
     ...allocator,
     role_ready: kept,
+    batch_candidates: batchKept,
     counts: {
       ...(allocator.counts || {}),
       role_ready: kept.length
@@ -90,8 +94,14 @@ export function suppressClaimedGuideRoleCandidates(allocator = {}, guidePins = [
       ...(allocator.diagnostics || {}),
       guide_claim_path_suppression: {
         schema: 'prometeo.guide-claim-path-suppression/v1',
-        policy: 'SUPPRESS_EXACT_EXISTING_IMMUTABLE_PIN_PATH',
+        policy: 'SUPPRESS_EXACT_EXISTING_IMMUTABLE_PIN_PATH_FROM_ROLE_AND_UNIFIED_BATCH',
         suppressed_candidates: suppressed.map(candidate => ({
+          guide_work_id: candidate.guide_work_id || candidate.role_id || null,
+          role: candidate.role || null,
+          trigger: candidate.trigger || null,
+          claim_path: candidate.claim_path || null
+        })),
+        batch_suppressed_candidates: batchSuppressed.map(candidate => ({
           guide_work_id: candidate.guide_work_id || candidate.role_id || null,
           role: candidate.role || null,
           trigger: candidate.trigger || null,
@@ -108,13 +118,17 @@ export function suppressConcurrentGuideRescate(allocator = {}, state = {}, now =
   if (!active.length) return claimedFiltered;
 
   const roleReady = arr(claimedFiltered.role_ready);
+  const batchCandidates = arr(claimedFiltered.batch_candidates);
   const suppressed = roleReady.filter(candidate => candidate?.role === 'GUIDE_RESCATE');
-  if (!suppressed.length) return claimedFiltered;
+  const batchSuppressed = batchCandidates.filter(candidate => candidate?.role === 'GUIDE_RESCATE');
+  if (!suppressed.length && !batchSuppressed.length) return claimedFiltered;
 
   const kept = roleReady.filter(candidate => candidate?.role !== 'GUIDE_RESCATE');
+  const batchKept = batchCandidates.filter(candidate => candidate?.role !== 'GUIDE_RESCATE');
   return {
     ...claimedFiltered,
     role_ready: kept,
+    batch_candidates: batchKept,
     counts: {
       ...(claimedFiltered.counts || {}),
       role_ready: kept.length
@@ -122,12 +136,18 @@ export function suppressConcurrentGuideRescate(allocator = {}, state = {}, now =
     diagnostics: {
       ...(claimedFiltered.diagnostics || {}),
       guide_rescate_active_suppression: {
-        policy: 'ONE_ACTIVE_GUIDE_RESCATE_ACROSS_FINGERPRINT_CHURN',
+        policy: 'ONE_ACTIVE_GUIDE_RESCATE_ACROSS_FINGERPRINT_CHURN_AND_UNIFIED_BATCH',
         active_pins: active,
         suppressed_candidates: suppressed.map(candidate => ({
           guide_work_id: candidate.guide_work_id || candidate.role_id || null,
           fingerprint: candidate.fingerprint || null,
           trigger: candidate.trigger || null
+        })),
+        batch_suppressed_candidates: batchSuppressed.map(candidate => ({
+          guide_work_id: candidate.guide_work_id || candidate.role_id || null,
+          fingerprint: candidate.fingerprint || null,
+          trigger: candidate.trigger || null,
+          claim_path: candidate.claim_path || null
         }))
       }
     }
@@ -146,8 +166,10 @@ export function runCli(argv = process.argv.slice(2)) {
   const next = suppressConcurrentGuideRescate(allocator, state);
   fs.writeFileSync(allocatorPath, `${JSON.stringify(next, null, 2)}\n`);
   const suppressed = next.diagnostics?.guide_rescate_active_suppression?.suppressed_candidates?.length || 0;
+  const batchSuppressed = next.diagnostics?.guide_rescate_active_suppression?.batch_suppressed_candidates?.length || 0;
   const claimed = next.diagnostics?.guide_claim_path_suppression?.suppressed_candidates?.length || 0;
-  process.stdout.write(`guide-role suppression claimed=${claimed} active_rescate=${activeGuideRescatePins(state).length} rescate_suppressed=${suppressed}\n`);
+  const claimedBatch = next.diagnostics?.guide_claim_path_suppression?.batch_suppressed_candidates?.length || 0;
+  process.stdout.write(`guide-role suppression claimed=${claimed} claimed_batch=${claimedBatch} active_rescate=${activeGuideRescatePins(state).length} rescate_suppressed=${suppressed} rescate_batch_suppressed=${batchSuppressed}\n`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
