@@ -1,0 +1,37 @@
+{
+  "schema": "prometeo.speculative-downstream-prep-fixtures/v1",
+  "cases": [
+    {
+      "id": "overlap-reduces-post-return-idle",
+      "prepared_against": {"artifact_ref":"candidate/demo-v1.json","version":"v1","digest":"sha256:demo111"},
+      "observed_upstream": {"artifact_ref":"candidate/demo-v1.json","version":"v1","digest":"sha256:demo111"},
+      "prepared_branch": "PASS",
+      "observed_outcome": "PASS",
+      "normal_authority_ready": true,
+      "timing": {"upstream_return_ms":120000,"serial_setup_ms":45000,"prepared_ready_ms":90000,"reconciliation_ms":3000},
+      "expected": {"state":"ELIGIBLE_FOR_EXISTING_CLAIM_FLOW","activate":true,"serial_baseline_idle_ms":45000,"prepared_path_idle_ms":3000,"idle_ms_saved":42000}
+    },
+    {
+      "id": "digest-change-invalidates-preparation",
+      "prepared_against": {"artifact_ref":"candidate/demo-v1.json","version":"v1","digest":"sha256:demo111"},
+      "observed_upstream": {"artifact_ref":"candidate/demo-v1.json","version":"v1","digest":"sha256:changed"},
+      "prepared_branch": "PASS",
+      "observed_outcome": "PASS",
+      "normal_authority_ready": true,
+      "expected": {"state":"STALE_PREPARATION","activate":false}
+    },
+    {
+      "id": "matching-pass-without-normal-authority-remains-prepared",
+      "prepared_against": {"artifact_ref":"candidate/demo-v1.json","version":"v1","digest":"sha256:demo111"},
+      "observed_upstream": {"artifact_ref":"candidate/demo-v1.json","version":"v1","digest":"sha256:demo111"},
+      "prepared_branch": "PASS",
+      "observed_outcome": "PASS",
+      "normal_authority_ready": false,
+      "expected": {"state":"PREPARED_NOT_AUTHORIZED","activate":false}
+    }
+  ],
+  "expected_value": {
+    "positive": {"probability_branch":0.8,"idle_ms_saved_if_hit":45000,"preparation_cost_ms":6000,"probability_invalidation":0.1,"invalidation_rework_cost_ms":3000,"consumer_ref":"normal-portfolio-successor","expected":29700},
+    "negative": {"probability_branch":0.1,"idle_ms_saved_if_hit":10000,"preparation_cost_ms":3000,"probability_invalidation":0.3,"invalidation_rework_cost_ms":5000,"consumer_ref":"normal-portfolio-successor","expected":-3500}
+  }
+}
