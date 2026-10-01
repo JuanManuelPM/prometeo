@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { evaluateDeliveryDagRuntimeCanary } from './delivery-dag-runtime-canary.mjs';
+import { evaluateDeliveryDagRuntimeCanary, normalizeDeliveryUnit } from './delivery-dag-runtime-canary.mjs';
 
 const overlap = evaluateDeliveryDagRuntimeCanary({
   producer: {
@@ -66,5 +66,64 @@ const missingEndpoint = evaluateDeliveryDagRuntimeCanary({
 });
 assert.equal(missingEndpoint.runtime.status, 'INSUFFICIENT_COMPARABLE_RUNTIME_EVIDENCE');
 assert.equal(missingEndpoint.runtime.reason, 'COMPARABLE_RELATION_EXISTS_BUT_DURABLE_START_OR_COMPLETE_ENDPOINT_IS_MISSING');
+
+const durableEventPair = evaluateDeliveryDagRuntimeCanary({
+  producer_events: {
+    started_ref: 'fixture/producer/STARTED.json',
+    completion_ref: 'fixture/producer/RETURN.json',
+    started: {
+      schema: 'prometeo.worker-started/v1',
+      delivery_unit_ref: 'delivery:fixture:event-binding:v1',
+      started_at: '2026-10-01T00:00:00Z'
+    },
+    completion: {
+      schema: 'prometeo.portfolio-return/v1',
+      delivery_unit_ref: 'delivery:fixture:event-binding:v1',
+      returned_at: '2026-10-01T00:00:10Z'
+    }
+  },
+  qa_precompile_events: {
+    started_ref: 'fixture/qa/STARTED.json',
+    completion_ref: 'fixture/qa/RETURN.json',
+    started: {
+      schema: 'prometeo.worker-started/v1',
+      delivery_unit_ref: 'delivery:fixture:event-binding:v1',
+      started_at: '2026-10-01T00:00:04Z'
+    },
+    completion: {
+      schema: 'prometeo.portfolio-return/v1',
+      delivery_unit_ref: 'delivery:fixture:event-binding:v1',
+      returned_at: '2026-10-01T00:00:12Z'
+    }
+  }
+});
+assert.equal(durableEventPair.runtime.status, 'COMPARABLE_RUNTIME_OVERLAP_OBSERVED');
+assert.equal(durableEventPair.runtime.delivery_unit_ref, 'delivery:fixture:event-binding:v1');
+assert.equal(durableEventPair.runtime.overlap_ms, 6000);
+assert.equal(durableEventPair.runtime.serial_baseline_ms, 18000);
+assert.equal(durableEventPair.runtime.critical_path_ms, 12000);
+assert.equal(durableEventPair.runtime.producer_event_binding_status, 'STARTED_COMPLETION_REF_MATCH');
+assert.equal(durableEventPair.runtime.qa_precompile_event_binding_status, 'STARTED_COMPLETION_REF_MATCH');
+
+const mismatchedEvents = evaluateDeliveryDagRuntimeCanary({
+  producer_events: {
+    started: {delivery_unit_ref:'delivery:fixture:mismatch:a',started_at:'2026-10-01T00:00:00Z'},
+    completion: {delivery_unit_ref:'delivery:fixture:mismatch:b',returned_at:'2026-10-01T00:00:10Z'}
+  },
+  qa_precompile_events: {
+    started: {delivery_unit_ref:'delivery:fixture:mismatch:a',started_at:'2026-10-01T00:00:04Z'},
+    completion: {delivery_unit_ref:'delivery:fixture:mismatch:a',returned_at:'2026-10-01T00:00:12Z'}
+  }
+});
+assert.equal(mismatchedEvents.runtime.status, 'INSUFFICIENT_COMPARABLE_RUNTIME_EVIDENCE');
+assert.equal(mismatchedEvents.runtime.producer_event_binding_status, 'STARTED_COMPLETION_REF_MISSING_OR_MISMATCHED');
+assert.equal(mismatchedEvents.runtime.overlap_ms, null);
+
+const normalized = normalizeDeliveryUnit({
+  started:{delivery_unit_ref:'delivery:fixture:normalize',started_at:'2026-10-01T00:00:00Z'},
+  completion:{delivery_unit_ref:'delivery:fixture:normalize',returned_at:'2026-10-01T00:00:03Z'}
+});
+assert.equal(normalized.delivery_unit_ref,'delivery:fixture:normalize');
+assert.equal(normalized.completed_at,'2026-10-01T00:00:03Z');
 
 console.log('DELIVERY_DAG_RUNTIME_CANARY_PASS');
