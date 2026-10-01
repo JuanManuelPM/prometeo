@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import './guide_recursive_real_successor_contract_v1.mjs';
 import {
   DEFAULT_RECURSION_BUDGET,
   HARD_RECURSION_CAPS,
