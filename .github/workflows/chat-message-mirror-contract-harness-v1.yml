@@ -6,12 +6,14 @@ on:
     paths:
       - 'coordination/portfolio/tests/chat_message_mirror_contract_harness_v1.mjs'
       - 'coordination/portfolio/tests/primary_chat_mirror_atomic_append_v1.mjs'
+      - 'coordination/portfolio/tests/primary_chat_asset_versioning_v1.mjs'
       - 'coordination/portfolio/fixtures/chat_message_mirror_contract_harness_v1.json'
       - 'coordination/portfolio/derived/prometeo-autonomous-growth/CHAT_MESSAGE_MIRROR_CANARY_V1.json'
       - 'coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
       - 'coordination/portfolio/returns/portfolio-primary-chat-canary-*/RETURN-*.json'
       - 'scripts/reconcile-primary-chat-returns.mjs'
       - 'scripts/lib/primary-chat-mirror-merge.mjs'
+      - 'scripts/version-primary-chat-assets.mjs'
       - 'current-tree/control-v11/chat-canary/index.html'
       - 'current-tree/control-v11/chat-canary/progress-v1.js'
       - '.github/workflows/chat-message-mirror-contract-harness-v1.yml'
@@ -61,6 +63,14 @@ jobs:
           cp "$thread_rel" "/tmp/prometeo-gh-pages/$thread_rel"
           cp "$page_rel" "/tmp/prometeo-gh-pages/$page_rel"
           cp "$progress_rel" "/tmp/prometeo-gh-pages/$progress_rel"
+          node scripts/version-primary-chat-assets.mjs --root /tmp/prometeo-gh-pages
+
+      - name: Run served asset versioning gate
+        run: |
+          set -euo pipefail
+          node coordination/portfolio/tests/primary_chat_asset_versioning_v1.mjs \
+            --repo-root . \
+            --pages-root /tmp/prometeo-gh-pages
 
       - name: Run deterministic contract harness
         id: harness
@@ -91,9 +101,14 @@ jobs:
               main:refs/remotes/origin/main \
               gh-pages:refs/remotes/origin/gh-pages
             git show "origin/main:$thread_rel" > /tmp/prometeo-origin-main-thread.json
+            git show "origin/main:$page_rel" > /tmp/prometeo-origin-main-chat-index.html
             git show "origin/main:$progress_rel" > /tmp/prometeo-origin-main-progress-v1.js
             if ! cmp -s "$source_thread" /tmp/prometeo-origin-main-thread.json; then
               echo "Main Primary Chat projection advanced; defer gh-pages publication to the newer workflow run."
+              exit 0
+            fi
+            if ! cmp -s "$source_page" /tmp/prometeo-origin-main-chat-index.html; then
+              echo "Main Primary Chat page advanced; defer gh-pages publication to the newer workflow run."
               exit 0
             fi
             if ! cmp -s "$source_progress" /tmp/prometeo-origin-main-progress-v1.js; then
@@ -105,6 +120,7 @@ jobs:
             cp "$source_thread" "$thread_rel"
             cp "$source_page" "$page_rel"
             cp "$source_progress" "$progress_rel"
+            node "$GITHUB_WORKSPACE/scripts/version-primary-chat-assets.mjs" --root /tmp/prometeo-gh-pages
             git add "$thread_rel" "$page_rel" "$progress_rel"
             if git diff --cached --quiet; then
               echo "Primary Chat projection already current."
