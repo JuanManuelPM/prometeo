@@ -88,6 +88,13 @@
     return Boolean(worker && (worker.terminal === true || worker?.close?.terminal === true || String(worker.state || '').toUpperCase() === 'CLOSED'));
   }
 
+  function isFreshClaimTransportBlock(worker, now = Date.now()) {
+    const outcome = String(worker?.close?.outcome || worker?.close_outcome || worker?.state || '');
+    if (!/CLAIM_TRANSPORT_BLOCKED/.test(outcome)) return false;
+    const signal = asDate(worker?.close?.at || worker?.last_event_at || worker?.claim?.at || worker?.first_event_at);
+    return Boolean(signal && now - signal.getTime() < LIVE_MS);
+  }
+
   const n = value => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
 
   function compileContractState(input, contract, cfg = {}) {
@@ -149,7 +156,13 @@
       scenario('recovery pressure', {recoveryAttentionCount:2,live:4,claimable:2,core:2,reserve:2,need:0}, 'RECOVERY_PRESSURE'),
       scenario('campaña terminada explícita', {live:0,claimable:0,core:0,reserve:0,need:0,campaignComplete:true}, 'CAMPAIGN_COMPLETE')
     ];
-    return Object.freeze({ total: cases.length, passed: cases.filter(row => row.pass).length, cases });
+    const freshnessNow = Date.parse('2026-10-01T22:45:00Z');
+    const freshnessCases = [
+      {name:'block reciente cuenta', pass:isFreshClaimTransportBlock({close:{outcome:'CLAIM_TRANSPORT_BLOCKED',at:'2026-10-01T22:44:00Z'}}, freshnessNow) === true},
+      {name:'block histórico no envenena estado actual', pass:isFreshClaimTransportBlock({close:{outcome:'CLAIM_TRANSPORT_BLOCKED',at:'2026-10-01T22:20:00Z'}}, freshnessNow) === false}
+    ].map(row => Object.freeze({...row, expected:true, actual:row.pass}));
+    const all = [...cases, ...freshnessCases];
+    return Object.freeze({ total: all.length, passed: all.filter(row => row.pass).length, cases: all });
   }
 
   async function getJson(url) {
@@ -199,7 +212,7 @@
     const projectionAt = [runtimeAt, frontierAt].filter(Boolean).sort((a,b)=>a-b)[0] || null;
     const projectionAgeSeconds = projectionAt ? Math.max(0, (now - projectionAt.getTime()) / 1000) : STALE_MS / 1000 + 1;
     const humanAt = latestHumanAt(thread);
-    const blocked = workers.filter(worker => /CLAIM_TRANSPORT_BLOCKED/.test(String(worker?.close?.outcome || worker?.close_outcome || worker?.state || ''))).length;
+    const blocked = workers.filter(worker => isFreshClaimTransportBlock(worker, now)).length;
     const recovery = candidates.filter(row => String(row?.lane || row?.candidate_type || '').toUpperCase() === 'RECOVERY').length;
     const explicitComplete = runtime?.campaign_complete === true || batch?.campaign_complete === true;
     return Object.freeze({
@@ -260,11 +273,11 @@
     const template = contract?.templates?.[snapshot.state];
     if (template) return String(template).replace('{capacity_gap}', String(snapshot.need));
     switch (snapshot.state) {
-      case 'CLAIM_TRANSPORT_DEGRADED': return 'Claim transport degradado · no promover a éxito ni reintentar una denegación.';
-      case 'HUMAN_INTENT_WAITING_NO_CAPACITY': return 'Intención humana durable esperando capacidad.';
-      case 'RETURNS_UNCONSUMED': return 'Returns sin integrar · estado pendiente, no éxito.';
-      case 'RECOVERY_PRESSURE': return 'Recovery pendiente · requiere owner compatible.';
-      case 'NO_SAFE_WORK': return 'Sin trabajo seguro demostrable · no inferir campaña completa.';
+      case 'CLAIM_TRANSPORT_DEGRADED': return 'ACCIÓN: ninguna · claim transport degradado; recovery/owner decide reintento.';
+      case 'HUMAN_INTENT_WAITING_NO_CAPACITY': return 'MANDÁ ' + snapshot.need + ' /wc/';
+      case 'RETURNS_UNCONSUMED': return 'ACCIÓN: ninguna · returns pendientes de integración.';
+      case 'RECOVERY_PRESSURE': return 'ACCIÓN: ninguna · recovery pendiente; CURRENT/owner compatible lo toma.';
+      case 'NO_SAFE_WORK': return 'ACCIÓN: ninguna · sin trabajo seguro demostrable.';
       default: return snapshot.state;
     }
   }
