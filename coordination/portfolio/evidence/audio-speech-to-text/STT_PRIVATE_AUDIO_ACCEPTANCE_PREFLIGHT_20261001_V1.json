@@ -1,0 +1,82 @@
+{
+  "schema": "prometeo.stt-private-audio-acceptance-preflight/v1",
+  "project_id": "audio-speech-to-text",
+  "compiled_at": "2026-10-01T14:48:03Z",
+  "compiled_by_worker_id": "wc-20261001T141630Z-63bc965ce6ac",
+  "classification": "SOURCE_BOUNDARY",
+  "proven": [
+    {
+      "capability": "browser_voice_transcription_with_synthetic_audio",
+      "classification": "PROVEN",
+      "evidence_ref": "coordination/portfolio/returns/portfolio-stt-browser-cold-start-ci-runner-v1/RETURN-w-20260920T2329Z-7c4e91b2a6fd-G000001-VERIFIED.json",
+      "does_not_prove": "authenticated private-audio acceptance"
+    },
+    {
+      "capability": "study_transcribe_normal_handler_liveness",
+      "classification": "PROVEN",
+      "evidence_ref": "coordination/portfolio/returns/portfolio-stt-study-transcribe-paired-liveness-probe-v1/RETURN-wc-20260930T145454Z-6cd10384faf1-G000001-DONE.json",
+      "does_not_prove": "full class transcription E2E"
+    }
+  ],
+  "unproven": [
+    "Exact authenticated request contract that accepts private audio, including method/content type/body shape and required auth context.",
+    "Served runtime identity that implements that private-audio request contract.",
+    "Successful authenticated ingestion of one bounded private-audio sample through that served contract.",
+    "Non-empty transcription result for that request without persisting transcript/audio into Prometeo evidence.",
+    "Zero unintended persistence/retention of raw audio, provisional text, session identifiers or credentials in evidence/logs."
+  ],
+  "separate_deployment_boundary": {
+    "bounded_probe_request": "GET ?selftest=probe",
+    "classification": "CANDIDATE_SOURCE_ONLY",
+    "served_identity_observed": "study-transcribe-v1@v7#ezbr_sha256=06e3fb618f4ceb1fcdf39b4362d94aa03d6df607bf4e752d1e8c14be2cafa690",
+    "truth_boundary": "The read-only bounded probe deliberately sends no audio and therefore cannot establish private-audio acceptance even after deployment."
+  },
+  "future_runtime_test_contract": {
+    "preconditions": [
+      "Resolve the authoritative authenticated private-audio request shape from source/runtime owner evidence.",
+      "Record served function version/digest before sending the test.",
+      "Use one bounded ephemeral audio sample whose raw bytes remain outside Prometeo evidence."
+    ],
+    "allowed_receipt_fields": [
+      "served_function_version_or_digest",
+      "authenticated_request=true",
+      "input_class=PRIVATE_AUDIO_EPHEMERAL",
+      "mime_type",
+      "duration_bucket",
+      "request_started_at",
+      "request_finished_at",
+      "http_status",
+      "structured_phase_codes",
+      "phase_timings_ms",
+      "transcript_nonempty_boolean",
+      "transcript_length_bucket",
+      "raw_audio_persisted=false",
+      "transcript_content_persisted=false",
+      "credential_persisted=false"
+    ],
+    "forbidden_receipt_fields": [
+      "raw_audio_bytes",
+      "audio_url_or_private_locator",
+      "verbatim_transcript",
+      "provisional_text",
+      "session_id",
+      "room_token",
+      "authorization_header",
+      "credential_or_secret"
+    ],
+    "pass_rule": "PASS only when the resolved authenticated private-audio contract is served, one bounded request succeeds, a non-empty transcription is returned, and the durable receipt contains only allowed sanitized metadata.",
+    "fail_closed_rule": "If request shape, served identity, auth authority, or privacy behavior cannot be proven, emit SOURCE_BOUNDARY/AUTH_BOUNDARY instead of inferring acceptance from synthetic browser audio, handler liveness, or selftest probes."
+  },
+  "next_required_source": "Authoritative source/runtime evidence defining the authenticated private-audio request contract. Current evidence only defines liveness and no-audio selftest shapes.",
+  "prohibited_inference": [
+    "Do not infer private-audio acceptance from synthetic browser transcription.",
+    "Do not infer private-audio acceptance from HTTP 200 handler liveness.",
+    "Do not infer private-audio acceptance from GET ?selftest=probe because it sends no audio.",
+    "Do not store private audio or verbatim transcript in Prometeo receipts."
+  ],
+  "evidence": [
+    "coordination/portfolio/evidence/audio-speech-to-text/STT_PROJECT_STATE_20260930_V1.json@9927d71bd41c901dd197418fa64d185f8dd22ac7",
+    "coordination/portfolio/returns/portfolio-stt-project-state-reconcile-v1/RETURN-wc-20260930T232400Z-b7e4c19a62fd-G000001-DONE.json",
+    "coordination/portfolio/derived/audio-speech-to-text/portfolio-stt-study-transcribe-bounded-probe-readonly-runtime-v1.json@cb2bb25dd25a0f1bdaaa8e1d3a552d286821ad43"
+  ]
+}
