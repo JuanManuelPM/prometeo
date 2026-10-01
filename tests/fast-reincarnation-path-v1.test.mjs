@@ -8,6 +8,7 @@ const preflight=read('coordination/bootstrap/UNIVERSAL_SESSION_PREFLIGHT_V1.txt'
 const protocol=read('coordination/chat-sessions/CHAT_SESSION_JOURNAL_PROTOCOL_V1.md');
 const ui=read('current-tree/control-v11/continuity-v1.js');
 const worker=read('wc');
+const primaryContinue=read('reincarnation/PRIMARY_CHAT_CONTINUE_PROMPT_V1.txt');
 const s02=json('coordination/chat-sessions/CHAT-PROMETEO-CONTROL-20260929T194500Z-S02/SESSION.json');
 const idx=json('coordination/chat-sessions/INDEX.json');
 
@@ -22,6 +23,11 @@ assert(ui.includes('function interactiveBootstrapPrompt('),'shared bootstrap ren
 assert(ui.includes('function continuePrompt('),'minimal continue renderer missing');
 assert(ui.includes('READY TO REINCARNATE'),'UI readiness missing');
 assert(worker.includes('MUST NOT run before worker ownership'),'worker dispatch-first guard missing');
+assert(primaryContinue.includes('PRIMERA ACCIÓN DURABLE OBLIGATORIA'),'Primary Chat continuation missing first durable action');
+assert(primaryContinue.includes('coordination/chat-sessions/INDEX.json'),'Primary Chat continuation must resolve CURRENT session');
+assert(primaryContinue.includes('session_id + session_pin nuevos'),'Primary Chat continuation must require fresh successor identity');
+assert(primaryContinue.includes('NO dupliques trabajo'),'Primary Chat continuation must reconcile in-flight work');
+assert(primaryContinue.includes('hidden chain-of-thought'),'Primary Chat continuation must preserve reasoning privacy');
 
 assert(s02.predecessor_session_id==='CHAT-PROMETEO-CONTROL-20260929T145300Z-S01','S02 predecessor mismatch');
 assert(s02.bootstrap?.bootstrap_status==='READY','S02 not READY');
