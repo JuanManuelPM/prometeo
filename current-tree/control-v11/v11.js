@@ -101,7 +101,7 @@ function previewMarkup(p){
  const state=String(pv.state||'UNAVAILABLE').toUpperCase(),src=state==='AVAILABLE'?staticPreviewUrl(pv):'';
  const stamp=pv.observed_at||pv.checked_at||null;
  if(!src)return `<div class="preview-empty-v11" data-preview-state="${esc(state)}">Preview ${esc(state.toLowerCase())}${stamp?' · '+esc(stamp):''}</div>`;
- return `<div class="workspace-preview-v11" data-preview-state="${esc(state)}"><img src="${esc(src)}" alt="Preview estática de ${esc(p.title||p.id)}" loading="lazy" decoding="async" style="display:block;width:100%;height:118px;object-fit:cover;border:1px solid #282e35;border-radius:9px;background:#0c0e11"><div class="workspace-meta"><span>preview estática</span>${stamp?'<span>'+esc(stamp):''}</span></div></div>`;
+ return `<div class="workspace-preview-v11" data-preview-state="${esc(state)}"><img src="${esc(src)}" alt="Preview estática de ${esc(p.title||p.id)}" loading="lazy" decoding="async" style="display:block;width:100%;height:118px;object-fit:cover;border:1px solid #282e35;border-radius:9px;background:#0c0e11"><div class="workspace-meta"><span>preview estática</span>${stamp?'<span>'+esc(stamp)+'</span>':''}</div></div>`;
 }
 function renderPreviewGrid(){
  const root=$('#previewGridV11');if(!root)return;
