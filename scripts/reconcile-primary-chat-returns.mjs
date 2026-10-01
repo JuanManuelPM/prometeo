@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { mergePrimaryChatMessages } from './lib/primary-chat-mirror-merge.mjs';
+import { primaryChatQaUiBlocks } from './lib/primary-chat-async-qa-v1.mjs';
 
 const root = process.cwd();
 const threadRel = 'coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json';
@@ -53,6 +54,7 @@ for (const dir of candidateDirs) {
     if (!thread.messages.some(message => message?.message_id === replyTo)) continue;
 
     const messageId = `MSG-WORKER-${String(ret?.return_id || entry.name.replace(/\.json$/i, ''))}`;
+    const qaBlocks = primaryChatQaUiBlocks(ret?.qa);
     candidates.push({
       message_id: messageId,
       chat_object_id: thread.chat_object_id,
@@ -68,6 +70,7 @@ for (const dir of candidateDirs) {
       status: 'PUBLISHED',
       result_ref: rel,
       evidence_refs: Array.isArray(ret?.evidence) ? ret.evidence : [],
+      ...(qaBlocks.length ? { ui_blocks: qaBlocks } : {}),
       privacy: 'PUBLIC_SANITIZED_CANARY'
     });
     candidateResultRefs.add(rel);
