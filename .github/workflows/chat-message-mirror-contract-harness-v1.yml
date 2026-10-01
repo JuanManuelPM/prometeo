@@ -13,6 +13,7 @@ on:
       - 'scripts/reconcile-primary-chat-returns.mjs'
       - 'scripts/lib/primary-chat-mirror-merge.mjs'
       - 'current-tree/control-v11/chat-canary/index.html'
+      - 'current-tree/control-v11/chat-canary/progress-v1.js'
       - '.github/workflows/chat-message-mirror-contract-harness-v1.yml'
   workflow_dispatch:
 
@@ -55,9 +56,11 @@ jobs:
           set -euo pipefail
           thread_rel='coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
           page_rel='current-tree/control-v11/chat-canary/index.html'
-          mkdir -p "/tmp/prometeo-gh-pages/$(dirname "$thread_rel")" "/tmp/prometeo-gh-pages/$(dirname "$page_rel")"
+          progress_rel='current-tree/control-v11/chat-canary/progress-v1.js'
+          mkdir -p "/tmp/prometeo-gh-pages/$(dirname "$thread_rel")" "/tmp/prometeo-gh-pages/$(dirname "$page_rel")" "/tmp/prometeo-gh-pages/$(dirname "$progress_rel")"
           cp "$thread_rel" "/tmp/prometeo-gh-pages/$thread_rel"
           cp "$page_rel" "/tmp/prometeo-gh-pages/$page_rel"
+          cp "$progress_rel" "/tmp/prometeo-gh-pages/$progress_rel"
 
       - name: Run deterministic contract harness
         id: harness
@@ -76,8 +79,10 @@ jobs:
           set -euo pipefail
           thread_rel='coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
           page_rel='current-tree/control-v11/chat-canary/index.html'
+          progress_rel='current-tree/control-v11/chat-canary/progress-v1.js'
           source_thread="$GITHUB_WORKSPACE/$thread_rel"
           source_page="$GITHUB_WORKSPACE/$page_rel"
+          source_progress="$GITHUB_WORKSPACE/$progress_rel"
           cd /tmp/prometeo-gh-pages
           git config user.name "prometeo-ci"
           git config user.email "actions@users.noreply.github.com"
@@ -86,15 +91,21 @@ jobs:
               main:refs/remotes/origin/main \
               gh-pages:refs/remotes/origin/gh-pages
             git show "origin/main:$thread_rel" > /tmp/prometeo-origin-main-thread.json
+            git show "origin/main:$progress_rel" > /tmp/prometeo-origin-main-progress-v1.js
             if ! cmp -s "$source_thread" /tmp/prometeo-origin-main-thread.json; then
               echo "Main Primary Chat projection advanced; defer gh-pages publication to the newer workflow run."
               exit 0
             fi
+            if ! cmp -s "$source_progress" /tmp/prometeo-origin-main-progress-v1.js; then
+              echo "Main Primary Chat progress asset advanced; defer gh-pages publication to the newer workflow run."
+              exit 0
+            fi
             git reset --hard origin/gh-pages
-            mkdir -p "$(dirname "$thread_rel")" "$(dirname "$page_rel")"
+            mkdir -p "$(dirname "$thread_rel")" "$(dirname "$page_rel")" "$(dirname "$progress_rel")"
             cp "$source_thread" "$thread_rel"
             cp "$source_page" "$page_rel"
-            git add "$thread_rel" "$page_rel"
+            cp "$source_progress" "$progress_rel"
+            git add "$thread_rel" "$page_rel" "$progress_rel"
             if git diff --cached --quiet; then
               echo "Primary Chat projection already current."
               exit 0
