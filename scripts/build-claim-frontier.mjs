@@ -7,11 +7,12 @@ const DEFAULT_MAX_SERIALIZED_BYTES = 14_000;
 const DEFAULT_CAPABILITY_DIVERSITY_SLOTS = 8;
 const DEFAULT_ZERO_CAPABILITY_CAPACITY = 10;
 const DEFAULT_ZERO_CAPABILITY_RUNWAY = 4;
+const POSTCLAIM_RUNTIME_BINDINGS = Object.freeze(['worker_id','generation','claim_id','source_head']);
 
 // Pre-claim needs authority bytes, capability routing, and one exact post-claim source.
 // Human-facing labels, priority/state and duplicated identity already live in allocator/job files.
 const KEEP = [
-  'job_id','opportunity_id','role_id','guide_work_id','work_item_id','page_id','project_id','scope_project_id','kind','role','trigger','value_class',
+  'job_id','opportunity_id','role_id','guide_work_id','work_item_id','page_id','source_path','project_id','scope_project_id','kind','role','trigger','value_class',
   'required_capabilities','capability_confirmation_required','forbidden_worker_ids','context_transport','private_packet_lookup','return_path','expires_at','claim_mode','claim_path','claim_payload_shape',
   'post_claim_validate','contention_barrier','post_release_claim','next_action',
   'release_path','release_payload_shape','timeout_payload_shape',
@@ -34,7 +35,6 @@ export function compilePostclaimContext(item = {}) {
     source_ref:item.source_path,
     compile:'EXACT_SOURCE_ONLY_AFTER_OWNERSHIP',
     field_policy:'DECLARED_SOURCE_FIELDS_PLUS_RUNTIME_BINDINGS',
-    runtime_bindings:['worker_id','generation','claim_id','source_head'],
     forbidden_inherited_fields:[...POSTCLAIM_FORBIDDEN_INHERITED_FIELDS]
   };
 }
@@ -47,9 +47,6 @@ function compactCandidate(item, lane) {
   out.required_capabilities = arr(item?.required_capabilities);
   out.forbidden_worker_ids = arr(item?.forbidden_worker_ids);
   if (item?.source_path) {
-    // The exact durable source is carried once as postclaim_context.source_ref. Keeping a
-    // second top-level source_path duplicated the same string on every candidate and could
-    // starve otherwise-compatible claims under the fixed 14 KB pre-claim transport ceiling.
     // A reusable portfolio/queue source owns semantic context. Worker-specific return paths
     // and legacy task/matrix/program/must-read/execution overlays are runtime products, not
     // source fields. Never carry a historical worker binding across E3. Page Change
@@ -132,8 +129,8 @@ function preserveCapabilityDiversity(
   // Capability diversity alone collapses every [] candidate into one signature. In a pooled
   // launch that can hide several distinct no-special-capability claims behind a long
   // specialized tail, leaving generic workers to collide on only one or two visible paths.
-  // Reserve a bounded amount of additional zero-capability claim paths and prefer smaller
-  // immutable candidate records so more authority paths fit before the byte ceiling.
+  // Reserve ten zero-capability claim paths and prefer smaller immutable candidate records so
+  // a controlled burst of ten generic workers can each see a distinct compatible authority path.
   const promotedSet = new Set(promoted);
   const zeroTarget = Math.max(0, minZeroCapabilityCandidates);
   const zeroCount = [...head, ...promoted].filter(hasZeroRequiredCapabilities).length;
@@ -144,11 +141,6 @@ function preserveCapabilityDiversity(
     .slice(0, Math.max(0, zeroTarget - zeroCount))
     .map(({candidate}) => candidate);
 
-  // Under pooled collision pressure, putting every specialized exemplar before the generic
-  // reserve can consume the byte envelope before a generic worker sees enough distinct atomic
-  // paths to spend its four-attempt claim budget. Preserve allocator choice #1, then establish
-  // a bounded no-special-capability runway before capability exemplars. This changes transport
-  // order only: claim payloads, capability truth, priority data and atomic authority are intact.
   const headZeroCount = head.filter(hasZeroRequiredCapabilities).length;
   const runwayCount = Math.min(
     zeroPromoted.length,
@@ -193,7 +185,6 @@ export function buildClaimFrontier(
     ordered.push(compactCandidate(row,lane));
   }
 
-  // Preserve a bounded fallback if post-processors introduced a candidate after batch_candidates was built.
   for (const {lane,row} of live) {
     const key = keyOf({lane,...row});
     if (!key || seen.has(key)) continue;
@@ -201,12 +192,8 @@ export function buildClaimFrontier(
     ordered.push(compactCandidate(row,lane));
   }
 
-  // Preserve the allocator's first choice while ensuring the compact transport carries
-  // a generic collision runway plus capability exemplars when space permits.
   const capabilityDiverse = preserveCapabilityDiversity(ordered);
   const bounded = capabilityDiverse.slice(0, Math.max(1, maxCandidates));
-  // recovery_attention is diagnostic, not claim authority. Keep total cardinality and two
-  // concrete exemplars, but reserve the remaining bytes for actual atomic claim paths.
   const recoveryAttention = arr(allocator.recovery_attention)
     .map(compactRecoveryAttention)
     .filter(row => row.job_id && row.reason)
@@ -222,6 +209,7 @@ export function buildClaimFrontier(
     candidate_total:bounded.length,
     recovery_attention_total:arr(allocator.recovery_attention).length,
     recovery_attention:recoveryAttention,
+    postclaim_runtime_bindings:[...POSTCLAIM_RUNTIME_BINDINGS],
     transport_bytes_max:maxSerializedBytes,
     truth_boundary:'COMPACT_CLAIM_HINT_ONLY_ATOMIC_CREATE_REMAINS_AUTHORITY'
   };
@@ -246,7 +234,6 @@ if (process.argv[1] && process.argv[1].endsWith('build-claim-frontier.mjs')) {
   if (!inPath || !outPath) throw new Error('usage: build-claim-frontier.mjs <allocator.json> <claim-frontier.json>');
   const allocator=JSON.parse(fs.readFileSync(inPath,'utf8'));
   const out=buildClaimFrontier(allocator);
-  // Minified JSON is deliberate: connector rendering expands whitespace and can truncate a semantically compact file.
   fs.writeFileSync(outPath,JSON.stringify(out)+'\n');
   process.stdout.write(`claim-frontier ${out.candidate_count}/${out.candidate_total} candidates ${fs.statSync(outPath).size} bytes\n`);
 }
