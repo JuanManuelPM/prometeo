@@ -1,0 +1,105 @@
+{
+  "schema": "prometeo.primary-chat-async-qa-contract/v1",
+  "status": "CANARY",
+  "authority": "NON_AUTHORITATIVE_VERIFICATION_EVIDENCE_ONLY",
+  "purpose": "Provide one reusable VERIFY/QA block for existing worker packets, Guide/Integrator/Judge and Primary Chat projection without creating scheduling, acceptance, promotion or version authority.",
+  "verify_block": {
+    "required_inputs": [
+      "artifact_ref",
+      "version_ref",
+      "acceptance_vectors",
+      "risk",
+      "expected_evidence"
+    ],
+    "optional_inputs": [
+      "candidate_ref",
+      "public_ui",
+      "served_asset",
+      "interaction_change",
+      "visual_risk",
+      "cross_component",
+      "authority_sensitive",
+      "safety_sensitive",
+      "human_approval_required",
+      "auto_promotable"
+    ],
+    "states": [
+      "QA_PENDING",
+      "QA_PASS",
+      "QA_REPAIR_IN_PROGRESS",
+      "QA_BLOCKED",
+      "READY_TO_PROMOTE"
+    ]
+  },
+  "depth_order": [
+    "SOURCE_STATIC",
+    "DETERMINISTIC_HARNESS",
+    "INTEGRATION",
+    "SERVED_BYTE_PARITY",
+    "REPRESENTATIVE_INTERACTION",
+    "VISUAL_SCREENSHOT",
+    "FULL_E2E_ADVERSARIAL"
+  ],
+  "selection_rule": "Choose the cheapest sufficient depth. Browser/image lanes are required only when served behavior, interaction, visual risk, authority/safety risk or other acceptance vectors cannot be proven deterministically.",
+  "candidate_visibility": {
+    "rule": "A candidate/preview may remain visible while expensive QA is pending when existing safety/acceptance policy does not require gating.",
+    "forbidden_equivalence": "QA_PENDING_NEVER_MEANS_PROMOTED_OR_CURRENT"
+  },
+  "disposition": {
+    "pass": "Produce evidence and either READY_TO_PROMOTE when existing policy requires human acceptance, or an auto-promotion-permitted signal only when existing policy already grants that authority.",
+    "fail": "Materialize one bounded repair successor through existing Guide/Integrator/CURRENT after semantic dedup; reverify the repaired candidate.",
+    "boundary": "Record QA_BLOCKED with exact missing capability/authority/evidence; do not manufacture PASS."
+  },
+  "served_asset_rule": {
+    "owner": ".github/workflows/chat-message-mirror-contract-harness-v1.yml + scripts/version-primary-chat-assets.mjs",
+    "acceptance": [
+      "published HTML carries content-derived ?v=<sha12> for progress-v1.js",
+      "staged gh-pages asset bytes equal source asset bytes",
+      "stable unversioned or wrong-version served reference is FAIL"
+    ]
+  },
+  "primary_chat_projection": {
+    "owner": "current-tree/control-v11/chat-canary/index.html",
+    "existing_block_type": "details",
+    "producer": "scripts/reconcile-primary-chat-returns.mjs",
+    "rule": "Only render compact QA detail when an eligible projected return carries a valid qa envelope. Do not add QA noise to unrelated messages."
+  },
+  "repair_successor": {
+    "owners": [
+      "coordination/guide/GUIDE_SWARM_PROTOCOL_V1.md",
+      "coordination/guide/METABOLISM_POLICY_V1.json",
+      "portfolio/CURRENT"
+    ],
+    "semantic_dedup_required": true,
+    "new_scheduler_forbidden": true
+  },
+  "precompile_downstream": [
+    "acceptance_vectors",
+    "verifier_packet_fields",
+    "recovery_refs",
+    "likely_repair_successor_identity"
+  ],
+  "owner_reuse_map": {
+    "PCI-029": ["coordination/workers/WORKER_PIPELINE_V1.json#E6_VERIFY", "candidate_visibility"],
+    "PCI-030": ["portfolio/CURRENT", "existing acceptance/promotion semantics"],
+    "PCI-031": ["current-tree/control-v11/chat-canary/index.html#ui_blocks.details", "scripts/reconcile-primary-chat-returns.mjs"],
+    "PCI-032": ["coordination/workers/WORKER_PIPELINE_V1.json", "verify_block"],
+    "PCI-033": ["depth_order", "selection_rule"],
+    "PCI-034": ["verify_block.acceptance_vectors", "precompile_downstream"],
+    "PCI-035": ["coordination/guide/GUIDE_SWARM_PROTOCOL_V1.md", "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-guide-useful-reserve-reactive-priority-v1.json"],
+    "PCI-036": ["coordination/guide/GUIDE_SWARM_PROTOCOL_V1.md#successor-semantic-dedup-hard-gate", "portfolio/CURRENT"],
+    "PCI-037": ["existing acceptance/promotion semantics", "READY_TO_PROMOTE"],
+    "PCI-038": ["scripts/version-primary-chat-assets.mjs", "coordination/portfolio/tests/primary_chat_asset_versioning_v1.mjs", ".github/workflows/chat-message-mirror-contract-harness-v1.yml"],
+    "PCI-039": ["representative_javascript_browser capability lane", "REPRESENTATIVE_INTERACTION", "VISUAL_SCREENSHOT"],
+    "PCI-040": ["coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-guide-useful-reserve-reactive-priority-v1.json"],
+    "PCI-041": ["PRODUCER -> E6 VERIFY -> JUDGE/DISPOSITION -> repair/reverify -> existing promotion authority"]
+  },
+  "invariants": [
+    "QA evidence never becomes scheduling authority.",
+    "QA evidence never silently promotes a candidate.",
+    "No parallel version registry is introduced.",
+    "No browser or image verification is required when deterministic evidence is sufficient.",
+    "Every material FAIL creates a grounded repair successor or an explicit non-actionable/boundary disposition.",
+    "Raw private human content remains outside the public repository."
+  ]
+}
