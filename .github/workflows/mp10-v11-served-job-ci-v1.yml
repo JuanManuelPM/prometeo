@@ -30,6 +30,27 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Gate Chromium on served v11.js byte identity
+        env:
+          V11_SERVED_JS: https://juanmanuelpm.github.io/prometeo/current-tree/control-v11/v11.js
+        run: |
+          set -euo pipefail
+          served=/tmp/prometeo-v11-served.js
+          source_sha="$(git hash-object current-tree/control-v11/v11.js)"
+          for i in $(seq 1 36); do
+            if curl -fsS -H 'Cache-Control: no-cache' "${V11_SERVED_JS}?source=${GITHUB_SHA}-${i}" -o "$served"; then
+              served_sha="$(git hash-object "$served")"
+              if [ "$source_sha" = "$served_sha" ]; then
+                echo "served-byte identity PASS: $served_sha"
+                exit 0
+              fi
+              echo "served-byte identity pending: source=$source_sha served=$served_sha"
+            fi
+            sleep 5
+          done
+          echo "served-byte identity did not converge before Chromium" >&2
+          exit 1
+
       - name: Install Chromium
         run: |
           npm install --no-save playwright@1.55.0
