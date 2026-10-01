@@ -47,3 +47,5 @@ window.addEventListener('PROMETEO_V11_DATA',()=>{
   };
   setTimeout(wake,0);
 });
+
+// served-verification-trigger: wc-20261001T222735Z-2a198c54df16 / G000001 / 2026-10-01T22:47Z
