@@ -1,0 +1,93 @@
+{
+  "schema": "prometeo.guide-delivery-dag-canary-fixture/v1",
+  "fixture_id": "GUIDE-DELIVERY-DAG-CANARY-01",
+  "authority": "EVIDENCE_ONLY_NO_CURRENT_OR_PROMOTION_AUTHORITY",
+  "time_origin": "2026-10-01T21:28:00.000Z",
+  "candidate_policy": {
+    "reversible": true,
+    "pre_usable_blockers": [],
+    "promotion_blockers": ["contract_verify", "security_gate"],
+    "advisory_checks": ["visual_advisory"],
+    "candidate_visible_state_while_qa_pending": "QA_PENDING"
+  },
+  "dag": [
+    {
+      "id": "producer",
+      "owner": "portfolio/CURRENT normal PIN",
+      "depends_on": [],
+      "start_at": "2026-10-01T21:28:00.000Z",
+      "finish_at": "2026-10-01T21:28:12.000Z",
+      "duration_ms": 12000,
+      "output": "candidate_bytes"
+    },
+    {
+      "id": "qa_precompile",
+      "owner": "coordination/guide/QA_PRECOMPILE_V1.json",
+      "depends_on": [],
+      "start_at": "2026-10-01T21:28:00.000Z",
+      "finish_at": "2026-10-01T21:28:03.000Z",
+      "duration_ms": 3000,
+      "output": "prepared_checks"
+    },
+    {
+      "id": "contract_verify",
+      "owner": "WORKER_PIPELINE_V1#E6_VERIFY",
+      "depends_on": ["producer", "qa_precompile"],
+      "blocking_scope": "PROMOTION_GATE_ONLY",
+      "start_at": "2026-10-01T21:28:12.000Z",
+      "finish_at": "2026-10-01T21:28:15.000Z",
+      "duration_ms": 3000,
+      "result": "PASS"
+    },
+    {
+      "id": "security_gate",
+      "owner": "WORKER_PIPELINE_V1#E6_VERIFY",
+      "depends_on": ["producer", "qa_precompile"],
+      "blocking_scope": "PROMOTION_GATE_ONLY",
+      "start_at": "2026-10-01T21:28:12.000Z",
+      "finish_at": "2026-10-01T21:28:16.000Z",
+      "duration_ms": 4000,
+      "result": "PASS"
+    },
+    {
+      "id": "visual_advisory",
+      "owner": "existing portfolio verifier/GUIDE_CRITIC",
+      "depends_on": ["producer", "qa_precompile"],
+      "blocking_scope": "ASYNC_AFTER_CANDIDATE",
+      "start_at": "2026-10-01T21:28:12.000Z",
+      "finish_at": "2026-10-01T21:28:22.000Z",
+      "duration_ms": 10000,
+      "result": "PASS"
+    },
+    {
+      "id": "judge",
+      "owner": "existing judge/integrator/steward",
+      "depends_on": ["contract_verify", "security_gate"],
+      "blocking_scope": "PROMOTION_GATE_ONLY",
+      "start_at": "2026-10-01T21:28:16.000Z",
+      "finish_at": "2026-10-01T21:28:16.000Z",
+      "duration_ms": 0,
+      "result": "PROMOTION_READY_SIGNAL_ONLY"
+    }
+  ],
+  "serial_equivalent_order": [
+    "producer",
+    "qa_precompile",
+    "contract_verify",
+    "security_gate",
+    "visual_advisory"
+  ],
+  "expected": {
+    "candidate_usable_at_offset_ms": 12000,
+    "dag_promotion_ready_at_offset_ms": 16000,
+    "dag_all_qa_done_at_offset_ms": 22000,
+    "serial_promotion_ready_at_offset_ms": 22000,
+    "serial_all_qa_done_at_offset_ms": 32000,
+    "promotion_critical_path_saved_ms": 6000,
+    "all_qa_wall_clock_saved_ms": 10000,
+    "advisory_tail_after_candidate_usable_ms": 10000,
+    "candidate_blocked_by_advisory": false,
+    "promotion_blocked_until_security_gate": true
+  },
+  "truth_boundary": "Synthetic deterministic timing fixture exercises CURRENT owner contracts only. It demonstrates dependency semantics and wall-clock consequences; it does not prove real distributed runtime parallelism or grant release/promotion authority."
+}
