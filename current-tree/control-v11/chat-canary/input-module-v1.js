@@ -19,6 +19,16 @@
     submit: 'button[data-prometeo-chat-composer-submit-v1]',
     status: '[data-prometeo-chat-composer-status-v1]'
   });
+  const BOOTSTRAP_PUBLICATION = Object.freeze({
+    schema: 'prometeo.primary-chat-bootstrap-publication/v1',
+    publication_id: 'PRIMARY-CHAT-EMERGENCY-INGRESS-BOOTSTRAP-20261001T0235Z',
+    privacy: 'PUBLIC_SANITIZED_CANARY',
+    status: 'HUMAN_DECISION_REQUIRED',
+    human_summary: 'Autorización extraordinaria de una sola vez para restaurar el ingreso privado/autenticado de Primary Chat reutilizando CURRENT, Work Graph, /wc y el pipeline existentes; sin publicar texto privado ni credenciales y sin crear scheduler, queue, CURRENT, provider, worker family o persistence authority paralelos.',
+    result_summary: 'S04 quedó READY y enlazada. El browser ingress ya valida durable ref y falla cerrado. No existe un backend HTTPS autenticado reutilizable: worker-lab y capture-lab están servidos como superficies estáticas, y el connector Vercel disponible no expone deployment write operativo ni configuración de secrets. Un transport real necesita una credencial GitHub de escritura almacenada sólo server-side antes de poder devolver queued=true.',
+    human_action: 'En Vercel, completá el setup serverless de worker-lab y guardá una credencial GitHub restringida a JuanManuelPM/prometeo con Contents: Read and write como environment secret server-side. No pegues la credencial en ChatGPT ni en el repo.',
+    evidence_ref: 'coordination/chat-sessions/CHAT-PROMETEO-MAXCAP-20261001T022700Z-S04/JOURNAL.json#J002'
+  });
 
   function clean(value, max = 4096) {
     if (value === undefined || value === null) return null;
@@ -55,6 +65,39 @@
     if (explicitIngress && typeof explicitIngress.submit === 'function') return true;
     const transport = global.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1;
     return Boolean(transport && typeof transport.submit === 'function');
+  }
+
+  function publishBootstrapRecord(root, doc) {
+    if (!root || !root.parentNode || !doc) return null;
+    const selector = '[data-prometeo-emergency-bootstrap-publication-v1]';
+    const existing = doc.querySelector(selector);
+    if (existing) return existing;
+
+    const section = doc.createElement('section');
+    section.setAttribute('data-prometeo-emergency-bootstrap-publication-v1', '');
+    section.setAttribute('data-status', BOOTSTRAP_PUBLICATION.status);
+    section.style.border = '1px solid currentColor';
+    section.style.padding = '12px';
+    section.style.margin = '12px 0';
+
+    const title = doc.createElement('strong');
+    title.textContent = 'BOOTSTRAP TEMPORAL · ' + BOOTSTRAP_PUBLICATION.status;
+
+    const human = doc.createElement('p');
+    human.textContent = 'HUMANO · PUBLIC_SANITIZED_CANARY: ' + BOOTSTRAP_PUBLICATION.human_summary;
+
+    const result = doc.createElement('p');
+    result.textContent = 'PROMETEO: ' + BOOTSTRAP_PUBLICATION.result_summary;
+
+    const action = doc.createElement('p');
+    action.textContent = 'ÚNICA ACCIÓN: ' + BOOTSTRAP_PUBLICATION.human_action;
+
+    const evidence = doc.createElement('code');
+    evidence.textContent = BOOTSTRAP_PUBLICATION.evidence_ref;
+
+    section.append(title, human, result, action, evidence);
+    root.parentNode.insertBefore(section, root);
+    return section;
   }
 
   async function submitText({ text, ingress = null, page = DEFAULT_PAGE, kind = KIND } = {}) {
@@ -122,6 +165,7 @@
       throw new Error('CHAT_CANARY_DOCUMENT_REQUIRED');
     }
 
+    publishBootstrapRecord(root, doc);
     root.setAttribute('data-prometeo-chat-composer-v1', '');
 
     const form = doc.createElement('form');
@@ -230,6 +274,7 @@
     max_text: MAX_TEXT,
     dom_contract: DOM_CONTRACT,
     default_page: DEFAULT_PAGE,
+    bootstrap_publication: BOOTSTRAP_PUBLICATION,
     validDurableRef,
     transportReady,
     submitText,
