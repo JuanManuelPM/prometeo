@@ -114,6 +114,7 @@ assert.equal(frontier.candidates[0].claim_path, roles[0].claim_path, 'allocator 
 assert(bytes <= 14_000, `compact frontier exceeded transport ceiling: ${bytes}`);
 assert.equal(frontier.recovery_attention_total, 8, 'diagnostic total cardinality must remain truthful');
 assert.equal(frontier.recovery_attention.length, 2, 'verbose non-authority diagnostics must be bounded to two transport exemplars');
+assert.deepEqual(frontier.postclaim_runtime_bindings, ['worker_id','generation','claim_id','source_head'], 'shared runtime bindings must remain explicit at frontier scope');
 assert(genericVisible >= 10, `generic frontier must expose burst-10 compatible claims: visible generic=${genericVisible}`);
 assert.equal(burst10Starvation, 0, `burst 10 starvation must be zero: ${burst10Starvation}`);
 assert(burst20Starvation <= 10, `burst 20 starvation regressed beyond bounded transport expectation: ${burst20Starvation}`);
@@ -124,8 +125,9 @@ for (const candidate of frontier.candidates) {
   assert.ok(source, `fixture source missing for ${candidate.claim_path}`);
   assert.deepEqual(candidate.claim_payload_shape, source.claim_payload_shape, 'transport packing must never mutate immutable claim authority payloads');
   if (source.source_path) {
-    assert.equal(candidate.postclaim_context?.source_ref, source.source_path, 'exact post-claim source must remain available after transport dedupe');
-    assert.equal(Object.hasOwn(candidate, 'source_path'), false, 'top-level source_path must not duplicate postclaim_context.source_ref');
+    assert.equal(candidate.source_path, source.source_path, 'top-level exact source path must remain backward-compatible');
+    assert.equal(candidate.postclaim_context?.source_ref, source.source_path, 'exact post-claim source must remain available');
+    assert.equal(candidate.postclaim_context?.compile, 'EXACT_SOURCE_ONLY_AFTER_OWNERSHIP', 'post-claim compile policy must remain explicit per candidate');
   }
 }
 
