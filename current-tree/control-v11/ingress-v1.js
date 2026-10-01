@@ -4,6 +4,9 @@
   const SCHEMA = 'prometeo.browser-ingress/v1';
   const REQUEST_SCHEMA = 'prometeo.browser-ingress-request/v1';
   const RESULT_SCHEMA = 'prometeo.ingress-transport-result/v1';
+  const APPROVAL_SCHEMA = 'prometeo.primary-chat-approval/v1';
+  const APPROVED_PLAN_KIND = 'PRIMARY_CHAT_APPROVED_PLAN_V1';
+  const APPROVAL_CACHE_PREFIX = 'prometeo.primary-chat.approval.v1:';
   const MAX_TEXT = 65536;
   const REQUEST_TIMEOUT_MS = 7000;
   const CAPTURE_ENDPOINT = 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-capture';
@@ -19,7 +22,7 @@
   ]);
 
   let activeSubmitPromise = null;
-  let activeSubmitText = null;
+  let activeSubmitKey = null;
 
   function result(status, ref = null, queued = false, error = null) {
     return Object.freeze({ status, ref, queued, error });
@@ -61,6 +64,54 @@
 
   function isExplicitCanary(text) {
     return /^CANARY:\s*/i.test(String(text || '').trim());
+  }
+
+  function safeApprovalId(value, max = 120) {
+    const text = cleanString(value, max);
+    return text && /^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(text) ? text : null;
+  }
+
+  function normalizeApproval(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return Object.freeze({ ok: false, status: 'BOUNDARY_APPROVAL_REQUIRED', error: 'APPROVAL_REQUIRED', approval: null });
+    }
+    const decision = String(value.decision || '').trim().toUpperCase();
+    if (decision !== 'APPROVED') {
+      return Object.freeze({
+        ok: false,
+        status: decision === 'REJECTED' ? 'BOUNDARY_APPROVAL_REJECTED' : 'BOUNDARY_APPROVAL_REQUIRED',
+        error: decision === 'REJECTED' ? 'APPROVAL_REJECTED' : 'APPROVAL_NOT_EXPLICIT',
+        approval: null
+      });
+    }
+    const approvalId = safeApprovalId(value.approval_id);
+    const proposalId = safeApprovalId(value.proposal_id);
+    const proposalDigest = cleanString(value.proposal_digest, 64);
+    const approvedAtMs = Date.parse(String(value.approved_at || ''));
+    if (!approvalId || !proposalId || !proposalDigest || !/^[a-f0-9]{64}$/i.test(proposalDigest) || !Number.isFinite(approvedAtMs)) {
+      return Object.freeze({ ok: false, status: 'BOUNDARY_APPROVAL_INVALID', error: 'APPROVAL_ENVELOPE_INVALID', approval: null });
+    }
+    return Object.freeze({
+      ok: true,
+      status: 'APPROVED',
+      error: null,
+      approval: Object.freeze({
+        schema: APPROVAL_SCHEMA,
+        decision: 'APPROVED',
+        approval_id: approvalId,
+        proposal_id: proposalId,
+        proposal_digest: proposalDigest.toLowerCase(),
+        approved_at: new Date(approvedAtMs).toISOString()
+      })
+    });
+  }
+
+  function approvalAnchor(approval) {
+    return approval ? 'primary-chat-approval:' + approval.approval_id + ':' + approval.proposal_digest : null;
+  }
+
+  function approvalCacheKey(approval) {
+    return APPROVAL_CACHE_PREFIX + approval.approval_id;
   }
 
   function removeObsoleteBootstrap() {
@@ -170,7 +221,7 @@
     if (typeof global.fetch !== 'function') return null;
 
     const transport = Object.freeze({
-      schema: 'prometeo.page-change-github-wake-transport/v3',
+      schema: 'prometeo.page-change-github-wake-transport/v4',
       mode: 'PRIVATE_BY_DEFAULT_EXPLICIT_CANARY_PUBLIC_FALLBACK',
       endpoint: WAKE_ENDPOINT,
       async submit(payload = {}) {
@@ -180,8 +231,13 @@
         const page = envelope && envelope.page && typeof envelope.page === 'object' ? envelope.page : {};
         const pageId = cleanString(page.page_id || page.id, 160);
         const canary = isExplicitCanary(text);
+        const approvalState = envelope && envelope.kind === APPROVED_PLAN_KIND ? normalizeApproval(envelope.approval) : null;
+        const approval = approvalState && approvalState.ok ? approvalState.approval : null;
         if (!envelope || envelope.schema !== REQUEST_SCHEMA || !text || !pageId) {
           return Object.freeze({ schema: RESULT_SCHEMA, status: 'BOUNDARY_INVALID_INPUT', ref: null, queued: false, error: 'TRANSPORT_INPUT_INVALID' });
+        }
+        if (envelope.kind === APPROVED_PLAN_KIND && !approval) {
+          return Object.freeze({ schema: RESULT_SCHEMA, status: approvalState.status, ref: null, queued: false, error: approvalState.error });
         }
 
         if (canary) {
@@ -218,10 +274,16 @@
               source_href: cleanString(page.href || page.public_url || (global.location && global.location.href), 2048),
               source_title: cleanString(page.title, 300) || 'Prometeo · Primary Chat',
               metadata: {
-                source_kind: 'HUMAN_PRIMARY_CHAT',
+                source_kind: approval ? 'HUMAN_PRIMARY_CHAT_APPROVED_PLAN' : 'HUMAN_PRIMARY_CHAT',
                 source_surface: 'PRIMARY_CHAT',
                 request_id: cleanString(envelope.request_id, 160),
-                chat_object_id: 'chat-object-prometeo-chat-control-main'
+                chat_object_id: 'chat-object-prometeo-chat-control-main',
+                ...(approval ? {
+                  approval_id: approval.approval_id,
+                  proposal_id: approval.proposal_id,
+                  proposal_digest: approval.proposal_digest,
+                  approved_at: approval.approved_at
+                } : {})
               },
               page: {
                 source_repo: 'JuanManuelPM/prometeo',
@@ -241,11 +303,13 @@
             semantic_context: {
               surface_id: cleanString(page.surface_id, 120) || 'current-tree-control-v11-chat-canary',
               project_id: cleanString(page.project_id, 120) || 'prometeo-autonomous-growth',
-              target_path: cleanString(page.target_path, 300) || 'current-tree/control-v11/chat-canary/'
+              target_path: cleanString(page.target_path, 300) || 'current-tree/control-v11/chat-canary/',
+              ...(approval ? { semantic_anchor: approvalAnchor(approval) } : {})
             },
+            ...(approval ? { approval } : {}),
             delivery_mode: 'WORKER_POOL',
             intent: 'WORK_PAGE',
-            human_approved: true
+            human_approved: approval ? true : envelope.kind !== APPROVED_PLAN_KIND
           }, secret);
 
           const workItemId = cleanString(prepared.work_item_id, 160);
@@ -258,7 +322,15 @@
             schema: 'prometeo.primary-chat-page-change-wake/v1',
             work_item_id: workItemId,
             page_id: pageId,
-            return_path: returnPath
+            return_path: returnPath,
+            ...(approval ? {
+              approval: {
+                schema: APPROVAL_SCHEMA,
+                approval_id: approval.approval_id,
+                proposal_id: approval.proposal_id,
+                proposal_digest: approval.proposal_digest
+              }
+            } : {})
           });
           if (!wake || wake.schema !== RESULT_SCHEMA || wake.queued !== true) {
             throw Object.assign(new Error(cleanString(wake && wake.error, 160) || 'WAKE_NOT_QUEUED'), { code: 'WAKE_NOT_QUEUED' });
@@ -297,28 +369,61 @@
     );
   }
 
-  function submit(input = {}) {
+  function readApprovalReceipt(approval) {
+    try {
+      const raw = global.localStorage && global.localStorage.getItem(approvalCacheKey(approval));
+      if (!raw) return null;
+      const cached = JSON.parse(raw);
+      if (!cached || cached.approval_id !== approval.approval_id) return null;
+      if (cached.proposal_digest !== approval.proposal_digest) {
+        return result('BOUNDARY_APPROVAL_REPLAY_CONFLICT', null, false, 'APPROVAL_ID_REUSED_FOR_DIFFERENT_PROPOSAL');
+      }
+      if (cached.queued === true && validDurableRef(cached.ref)) return result('QUEUED_REPLAY', cached.ref, true, null);
+    } catch {}
+    return null;
+  }
+
+  function writeApprovalReceipt(approval, normalized) {
+    if (!approval || !normalized || normalized.queued !== true || !validDurableRef(normalized.ref)) return;
+    try {
+      if (!global.localStorage) return;
+      global.localStorage.setItem(approvalCacheKey(approval), JSON.stringify({
+        schema: 'prometeo.primary-chat-approval-receipt-index/v1',
+        approval_id: approval.approval_id,
+        proposal_id: approval.proposal_id,
+        proposal_digest: approval.proposal_digest,
+        ref: normalized.ref,
+        queued: true,
+        cached_at: new Date().toISOString(),
+        authority: 'INDEX_ONLY_DURABLE_AUTHORITY_REMAINS_CURRENT'
+      }));
+    } catch {}
+  }
+
+  function submitInternal(input = {}, approval = null) {
     const text = cleanString(input.text, MAX_TEXT);
-    const kind = cleanString(input.kind, 64) || 'work';
+    const kind = approval ? APPROVED_PLAN_KIND : (cleanString(input.kind, 64) || 'work');
     if (!text) return Promise.resolve(result('BOUNDARY_INVALID_INPUT', null, false, 'EMPTY_TEXT'));
     if (String(input.text).length > MAX_TEXT) return Promise.resolve(result('BOUNDARY_INVALID_INPUT', null, false, 'TEXT_TOO_LARGE'));
 
+    const submitKey = approval ? 'approval:' + approval.approval_id + ':' + approval.proposal_digest : 'text:' + text;
     if (activeSubmitPromise) {
-      if (activeSubmitText === text) return activeSubmitPromise;
+      if (activeSubmitKey === submitKey) return activeSubmitPromise;
       return Promise.resolve(result('BOUNDARY_SUBMIT_IN_FLIGHT', null, false, 'WAIT_FOR_CURRENT_SUBMIT'));
     }
 
     const transport = activeTransport();
     if (!transport) return Promise.resolve(result('BOUNDARY_AUTH_REQUIRED', null, false, 'INGRESS_TRANSPORT_UNAVAILABLE'));
 
-    const requestIdValue = requestId();
+    const requestIdValue = approval ? 'approval-' + approval.approval_id : requestId();
     const explicitCanary = isExplicitCanary(text);
     const public_envelope = Object.freeze({
       schema: REQUEST_SCHEMA,
       request_id: requestIdValue,
-      created_at: new Date().toISOString(),
+      created_at: approval ? approval.approved_at : new Date().toISOString(),
       kind,
       page: publicPage(input.page),
+      ...(approval ? { approval } : {}),
       privacy: Object.freeze({
         raw_text_public: false,
         credentials_public: false,
@@ -331,7 +436,7 @@
     const optimistic = optimisticStart(text, requestIdValue);
     clearComposerImmediately();
 
-    activeSubmitText = text;
+    activeSubmitKey = submitKey;
     const run = (async () => {
       let transportResult;
       try {
@@ -357,20 +462,36 @@
         }
       }
 
+      if (approval) writeApprovalReceipt(approval, normalized);
       optimisticFinish(optimistic, normalized);
       return normalized;
     })();
 
     activeSubmitPromise = run.finally(() => {
       activeSubmitPromise = null;
-      activeSubmitText = null;
+      activeSubmitKey = null;
     });
     return activeSubmitPromise;
+  }
+
+  function submit(input = {}) {
+    return submitInternal(input, null);
+  }
+
+  function submitApprovedPlan(input = {}) {
+    const state = normalizeApproval(input.approval);
+    if (!state.ok) return Promise.resolve(result(state.status, null, false, state.error));
+    const replay = readApprovalReceipt(state.approval);
+    if (replay) return Promise.resolve(replay);
+    return submitInternal(input, state.approval);
   }
 
   global.PROMETEO_INGRESS_V1 = Object.freeze({
     schema: SCHEMA,
     submit,
+    submitApprovedPlan,
+    approval_schema: APPROVAL_SCHEMA,
+    approved_plan_kind: APPROVED_PLAN_KIND,
     transport_schema: RESULT_SCHEMA,
     default_transport_mode: 'PRIVATE_BY_DEFAULT_EXPLICIT_CANARY_PUBLIC_FALLBACK',
     privacy: Object.freeze({
@@ -381,7 +502,8 @@
       raw_text_private_owner: 'prometeo-change-loop-v1',
       credentials_public: false,
       browser_embedded_repository_token: false,
-      github_wake_payload: 'SANITIZED_METADATA_ONLY'
+      github_wake_payload: 'SANITIZED_METADATA_ONLY',
+      approval_public_fields: Object.freeze(['approval_id','proposal_id','proposal_digest','approved_at','decision'])
     })
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
