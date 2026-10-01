@@ -64,10 +64,13 @@ function validateThread(contract,thread,label){
   assert.ok(Array.isArray(thread.messages),`${label}: messages must be an array`);
   assert.ok(thread.updated_at,`${label}: updated_at required`);
 
+  const byId=new Map();
   thread.messages.forEach((message,index)=>{
     assertRequiredMessageFields(contract,message,`${label}.messages[${index}]`);
     assert.equal(message.chat_object_id,contract.chat_object_id,`${label}.messages[${index}]: chat_object_id mismatch`);
     assert.equal(message.privacy,'PUBLIC_SANITIZED_CANARY',`${label}.messages[${index}]: privacy boundary mismatch`);
+    assert.ok(!byId.has(message.message_id),`${label}: duplicate message_id ${message.message_id}`);
+    byId.set(message.message_id,message);
   });
 
   const expectedHuman=contract.human_test_message;
@@ -79,17 +82,31 @@ function validateThread(contract,thread,label){
   }
 
   const workers=thread.messages.filter(m=>m.actor_type==='WORKER');
-  assert.equal(workers.length,1,`${label}: expected exactly one WORKER reply`);
-  const worker=workers[0];
-  assert.equal(worker.reply_to_message_id,expectedHuman.message_id,`${label}: WORKER reply lineage mismatch`);
-  assert.equal(worker.body_kind,'TEXT',`${label}: WORKER body_kind must be TEXT`);
-  assert.ok(String(worker.body_text||'').trim(),`${label}: WORKER body_text must be useful/non-empty`);
-  assert.equal(terminalSentenceCount(worker.body_text),1,`${label}: WORKER reply must be exactly one sentence`);
-  assert.ok(worker.actor_ref || worker.result_ref,`${label}: WORKER must expose actor_ref and/or result_ref traceability`);
-  assert.equal(worker.status,'PUBLISHED',`${label}: WORKER message must be PUBLISHED`);
+  assert.ok(workers.length>=1,`${label}: expected at least one WORKER reply`);
+  for(const [index,workerMessage] of workers.entries()){
+    assert.ok(workerMessage.reply_to_message_id,`${label}.workers[${index}]: reply lineage required`);
+    const parent=byId.get(workerMessage.reply_to_message_id);
+    assert.ok(parent,`${label}.workers[${index}]: reply parent missing`);
+    assert.equal(parent.actor_type,'HUMAN',`${label}.workers[${index}]: reply parent must be HUMAN`);
+    assert.equal(workerMessage.body_kind,'TEXT',`${label}.workers[${index}]: body_kind must be TEXT`);
+    assert.ok(String(workerMessage.body_text||'').trim(),`${label}.workers[${index}]: body_text must be useful/non-empty`);
+    assert.ok(workerMessage.actor_ref || workerMessage.result_ref,`${label}.workers[${index}]: actor_ref and/or result_ref traceability required`);
+    assert.equal(workerMessage.status,'PUBLISHED',`${label}.workers[${index}]: message must be PUBLISHED`);
+  }
+
+  // The original contract canary stays strict even as the real thread grows.
+  const canonicalWorkers=workers.filter(m=>m.reply_to_message_id===expectedHuman.message_id);
+  assert.equal(canonicalWorkers.length,1,`${label}: expected exactly one canonical WORKER reply to the canonical human test message`);
+  const worker=canonicalWorkers[0];
+  assert.equal(worker.body_kind,'TEXT',`${label}: canonical WORKER body_kind must be TEXT`);
+  assert.ok(String(worker.body_text||'').trim(),`${label}: canonical WORKER body_text must be useful/non-empty`);
+  assert.equal(terminalSentenceCount(worker.body_text),1,`${label}: canonical WORKER reply must be exactly one sentence`);
+  assert.ok(worker.actor_ref || worker.result_ref,`${label}: canonical WORKER must expose actor_ref and/or result_ref traceability`);
+  assert.equal(worker.status,'PUBLISHED',`${label}: canonical WORKER message must be PUBLISHED`);
 
   return {
     message_count:thread.messages.length,
+    worker_count:workers.length,
     human_message_id:human.message_id,
     worker_message_id:worker.message_id,
     worker_reply_to:worker.reply_to_message_id,
