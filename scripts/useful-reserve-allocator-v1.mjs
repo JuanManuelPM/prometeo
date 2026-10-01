@@ -43,9 +43,12 @@ export function applyUsefulReserveOrdering(candidates=[], {jobs=[], policy=null}
   const jobsById=new Map(arr(jobs).filter(j=>j?.job_id).map(j=>[j.job_id,j]));
   const buckets={HUMAN_DURABLE_INTENT:[],CURRENT_PRODUCT_WORK:[],INTEGRATION_VERIFICATION_RECOVERY:[],USEFUL_RESERVE:[],REJECTED_RESERVE:[]};
   for(const row of rows) buckets[usefulReserveClass(row,jobsById)].push(row);
-  const admitted=buckets.USEFUL_RESERVE;
   const rejected=buckets.REJECTED_RESERVE;
-  const integration=prioritizeFanInBurst(buckets.INTEGRATION_VERIFICATION_RECOVERY);
-  const ordered=[...buckets.HUMAN_DURABLE_INTENT,...buckets.CURRENT_PRODUCT_WORK,...integration,...admitted];
-  return {ordered,report:{enabled:true,policy_schema:policy.schema||null,higher_priority_claimable_before:rows.length-admitted.length-rejected.length,verified_reserve_candidates_before:admitted.length,reserve_admitted:admitted.length,rejected_reserve:rejected.length,reserve_floor:Number(policy?.reserve_target?.floor??0),fanin_burst_critical_admitted:integration.filter(fanInBurstCritical).length,fanin_burst_critical_min:FANIN_BURST_CRITICAL_MIN,started_exclusive_preemption_attempted:false}};
+  const criticalFanIn=rows.filter(row=>fanInBurstCritical(row)&&usefulReserveClass(row,jobsById)!=='REJECTED_RESERVE');
+  const criticalSet=new Set(criticalFanIn);
+  const withoutCritical=items=>arr(items).filter(row=>!criticalSet.has(row));
+  const admitted=withoutCritical(buckets.USEFUL_RESERVE);
+  const integration=prioritizeFanInBurst(withoutCritical(buckets.INTEGRATION_VERIFICATION_RECOVERY));
+  const ordered=[...withoutCritical(buckets.HUMAN_DURABLE_INTENT),...withoutCritical(buckets.CURRENT_PRODUCT_WORK),...criticalFanIn,...integration,...admitted];
+  return {ordered,report:{enabled:true,policy_schema:policy.schema||null,higher_priority_claimable_before:rows.length-buckets.USEFUL_RESERVE.length-rejected.length,verified_reserve_candidates_before:buckets.USEFUL_RESERVE.length,reserve_admitted:admitted.length,rejected_reserve:rejected.length,reserve_floor:Number(policy?.reserve_target?.floor??0),fanin_burst_critical_admitted:criticalFanIn.length,fanin_burst_critical_min:FANIN_BURST_CRITICAL_MIN,started_exclusive_preemption_attempted:false}};
 }
