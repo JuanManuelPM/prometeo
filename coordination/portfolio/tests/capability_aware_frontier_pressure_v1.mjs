@@ -65,6 +65,15 @@ const feed = {
   plans:[],
   projects:[{project_id:'fixture-project', label:'Fixture Project', jobs}]
 };
+const nowIso = new Date().toISOString();
+const recentNoAlloc = [1,2,3].map(index => ({
+  path:`coordination/workers/no-allocation/capability-pressure-${index}.json`,
+  doc:{
+    worker_id:`capability-pressure-${index}`,
+    reason:'NO_COMPATIBLE_CANDIDATE',
+    recorded_at:nowIso
+  }
+}));
 const roleContext = {
   metabolism:{
     signals:{
@@ -86,7 +95,7 @@ const roleContext = {
   guidePins:[],
   heartbeats:[],
   beacons:[],
-  noAlloc:[],
+  noAlloc:recentNoAlloc,
   projectGuideMesh:null,
   projectGuideStates:[],
   portfolio:null
@@ -109,5 +118,16 @@ assert.ok(
   'Guide pressure evidence must cite the compiled capability-aware signal without adding worker preclaim reads'
 );
 assert.match(planner.title, /genérica \(0\/8; total 8\)/);
+
+const rescate = allocator.role_ready.find(row => row.role === 'GUIDE_RESCATE' && row.trigger === 'LOW_YIELD');
+assert.ok(rescate, 'independent no-allocation pressure must allow Guide Rescate to consume capability-aware pressure');
+assert.ok(
+  rescate.evidence.includes('gh-pages:live/allocator.json#metabolism.capability_pressure'),
+  'Guide Rescate must cite the same compiled capability-aware signal without adding worker preclaim reads'
+);
+assert.ok(
+  recentNoAlloc.every(row => rescate.evidence.includes(row.path)),
+  'Guide Rescate must retain bounded independent no-allocation evidence alongside capability pressure'
+);
 
 console.log('CAPABILITY_AWARE_FRONTIER_PRESSURE_PASS');
