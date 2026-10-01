@@ -49,7 +49,7 @@ function validateKnownLocalFragment(ref, absolute, localPath) {
 
   const jobOnly = fragment.match(/^job:(.+)$/);
   if (jobOnly) {
-    const found = projects.some(project => arr(project?.jobs).some(job => job?.job_id === jobOnly[1]));
+    const found = projects.some(row => arr(row?.jobs).some(job => job?.job_id === jobOnly[1]));
     return found
       ? { ref, usable: true, kind: 'REPO_LOCAL_FRAGMENT_RESOLVED', local_path: localPath, fragment }
       : { ref, usable: false, kind: 'MISSING_REPO_LOCAL_FRAGMENT', local_path: localPath, fragment };
@@ -94,16 +94,56 @@ export function validateRoleEvidenceRefs(evidence = [], repoRoot = '.') {
   return { usable, diagnostics, external_preserved };
 }
 
+export function isExplicitTransportBlockedNoAllocationRef(ref, repoRoot = '.') {
+  const value = String(ref || '').trim();
+  if (!value || externalRef(value)) return false;
+  const localPath = localPathFromRef(value);
+  if (!localPath.startsWith('coordination/workers/no-allocation/')) return false;
+
+  const root = path.resolve(repoRoot);
+  const absolute = path.resolve(root, localPath);
+  const insideRoot = absolute === root || absolute.startsWith(`${root}${path.sep}`);
+  if (!insideRoot || !fs.existsSync(absolute)) return false;
+
+  let doc;
+  try {
+    doc = JSON.parse(fs.readFileSync(absolute, 'utf8'));
+  } catch {
+    return false;
+  }
+
+  return [doc?.reason, doc?.outcome, doc?.classification, doc?.code]
+    .map(value => String(value || '').trim().toUpperCase())
+    .includes('CLAIM_TRANSPORT_BLOCKED');
+}
+
 export function applyRoleEvidenceIntegrity(allocator = {}, repoRoot = '.') {
   const roleReady = arr(allocator.role_ready);
   const emitted = [];
   const missing = [];
   const suppressed = [];
   const externalPreserved = [];
+  const explicitTransportBlockedTelemetryOnly = [];
 
   for (const candidate of roleReady) {
     const result = validateRoleEvidenceRefs(candidate.evidence, repoRoot);
-    const candidateDiagnostics = result.diagnostics.map(row => ({
+    const filterTransportBoundaries = candidate?.role === 'GUIDE_RESCATE' && candidate?.trigger === 'LOW_YIELD';
+    const transportBlockedRefs = filterTransportBoundaries
+      ? result.usable.filter(ref => isExplicitTransportBlockedNoAllocationRef(ref, repoRoot))
+      : [];
+    const transportBlockedSet = new Set(transportBlockedRefs);
+    const usableEvidence = result.usable.filter(ref => !transportBlockedSet.has(ref));
+    explicitTransportBlockedTelemetryOnly.push(...transportBlockedRefs);
+
+    const candidateDiagnostics = [
+      ...result.diagnostics,
+      ...transportBlockedRefs.map(ref => ({
+        ref,
+        kind: 'TELEMETRY_ONLY_EXPLICIT_TRANSPORT_BLOCKED',
+        local_path: localPathFromRef(ref),
+        explicit_transport_boundary: true
+      }))
+    ].map(row => ({
       ...row,
       role_id: candidate.role_id || candidate.guide_work_id || null,
       role: candidate.role || null,
@@ -112,13 +152,15 @@ export function applyRoleEvidenceIntegrity(allocator = {}, repoRoot = '.') {
     missing.push(...candidateDiagnostics.filter(row => row.kind === 'MISSING_REPO_LOCAL' || row.kind === 'MISSING_REPO_LOCAL_FRAGMENT'));
     externalPreserved.push(...result.external_preserved);
 
-    if (!result.usable.length) {
+    if (!usableEvidence.length) {
       suppressed.push({
         role_id: candidate.role_id || candidate.guide_work_id || null,
         role: candidate.role || null,
         trigger: candidate.trigger || null,
         fingerprint: candidate.fingerprint || null,
-        reason: 'NO_USABLE_EVIDENCE_AFTER_REPO_LOCAL_VALIDATION',
+        reason: transportBlockedRefs.length
+          ? 'NO_ACTIONABLE_EVIDENCE_AFTER_TRANSPORT_BOUNDARY_FILTER'
+          : 'NO_USABLE_EVIDENCE_AFTER_REPO_LOCAL_VALIDATION',
         evidence_diagnostics: candidateDiagnostics
       });
       continue;
@@ -126,11 +168,11 @@ export function applyRoleEvidenceIntegrity(allocator = {}, repoRoot = '.') {
 
     emitted.push({
       ...candidate,
-      evidence: result.usable,
+      evidence: usableEvidence,
       evidence_diagnostics: candidateDiagnostics,
       claim_payload_shape: candidate.claim_payload_shape ? {
         ...candidate.claim_payload_shape,
-        evidence: result.usable
+        evidence: usableEvidence
       } : candidate.claim_payload_shape
     });
   }
@@ -151,7 +193,8 @@ export function applyRoleEvidenceIntegrity(allocator = {}, repoRoot = '.') {
         suppressed_candidates: suppressed,
         missing_repo_local_refs: missing,
         missing_repo_local_fragment_refs: missing.filter(row => row.kind === 'MISSING_REPO_LOCAL_FRAGMENT'),
-        external_refs_preserved: uniq(externalPreserved)
+        external_refs_preserved: uniq(externalPreserved),
+        explicit_transport_blocked_telemetry_only_refs: uniq(explicitTransportBlockedTelemetryOnly)
       }
     }
   };
@@ -166,7 +209,7 @@ export function runCli(argv = process.argv.slice(2)) {
   const next = applyRoleEvidenceIntegrity(allocator, repoRoot);
   fs.writeFileSync(outputPath, `${JSON.stringify(next, null, 2)}\n`);
   const diag = next.diagnostics.role_evidence_integrity;
-  process.stdout.write(`role-evidence-integrity checked=${diag.checked_candidates} emitted=${diag.emitted_candidates} suppressed=${diag.suppressed_candidates.length} missing=${diag.missing_repo_local_refs.length}\n`);
+  process.stdout.write(`role-evidence-integrity checked=${diag.checked_candidates} emitted=${diag.emitted_candidates} suppressed=${diag.suppressed_candidates.length} missing=${diag.missing_repo_local_refs.length} transport_blocked_telemetry_only=${diag.explicit_transport_blocked_telemetry_only_refs.length}\n`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
