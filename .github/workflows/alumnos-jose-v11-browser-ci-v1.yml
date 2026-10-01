@@ -1,0 +1,53 @@
+name: Alumnos Jose V11 browser CI v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/alumnos-jose-v11-browser-ci-v1.yml'
+      - 'coordination/portfolio/tests/alumnos_jose_v11_browser_ci_v1.mjs'
+      - 'coordination/workstreams/jose-study-design-20260911/material/PROMETEO_JOSE_RECOVERY_ENGINE_V11.html.gz.b64'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alumnos-jose-v11-browser-ci-v1
+  cancel-in-progress: false
+
+jobs:
+  representative-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install representative Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run Jose V11 desktop+narrow browser suite
+        env:
+          ALUMNOS_JOSE_V11_URL: https://juanmanuelpm.github.io/prometeo/candidates/jose-v11-reviewable-preview/
+          ALUMNOS_JOSE_V11_BYTES: '69235'
+          ALUMNOS_JOSE_V11_SHA256: 0cf9a40fb53e977dccb40c9755d668a3ee922ccd61883f19229bb4a113139a05
+          ALUMNOS_JOSE_V11_MATERIAL: coordination/workstreams/jose-study-design-20260911/material/PROMETEO_JOSE_RECOVERY_ENGINE_V11.html.gz.b64
+          ALUMNOS_JOSE_V11_ARTIFACT_DIR: artifacts/alumnos-jose-v11-browser-ci
+        run: node coordination/portfolio/tests/alumnos_jose_v11_browser_ci_v1.mjs
+
+      - name: Upload bounded browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alumnos-jose-v11-browser-ci-evidence
+          path: artifacts/alumnos-jose-v11-browser-ci/
+          if-no-files-found: error
+          retention-days: 14
