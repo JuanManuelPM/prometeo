@@ -1,0 +1,42 @@
+name: Primary Chat ingress canary regression v1
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - coordination/portfolio/tests/primary_chat_ingress_canary_regression_v1_TRIGGER.txt
+
+permissions:
+  contents: read
+
+jobs:
+  ingress-canary-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate payload locally without network
+        env:
+          REQUEST_ID: dry-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          python coordination/portfolio/tests/primary_chat_ingress_canary_regression_v1.py \
+            --request-id "$REQUEST_ID" \
+            --dry-run \
+            --output /tmp/ingress-canary-dry-run.json
+
+      - name: Execute one fresh explicit public sanitized canary
+        env:
+          REQUEST_ID: gh-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          python coordination/portfolio/tests/primary_chat_ingress_canary_regression_v1.py \
+            --request-id "$REQUEST_ID" \
+            --output ingress-canary-regression-result.json
+
+      - name: Upload sanitized regression evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: primary-chat-ingress-canary-regression-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ingress-canary-regression-result.json
+          if-no-files-found: error
+          retention-days: 14
