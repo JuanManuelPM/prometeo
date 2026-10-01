@@ -1,0 +1,89 @@
+{
+  "schema": "prometeo.speculative-downstream-prep-fixture/v1",
+  "fixture_id": "SPECULATIVE_DOWNSTREAM_PREP_FIXTURE_20261001_V1",
+  "worker_id": "wc-20261001T210529Z-6bdd92ea4013",
+  "job_id": "portfolio-guide-speculative-downstream-prep-v1",
+  "recorded_at": "2026-10-01T21:35:00Z",
+  "fixture_kind": "DETERMINISTIC_TIMING_MODEL_NOT_PRODUCTION_BENCHMARK",
+  "purpose": "Demonstrate the contract's expected reduction in post-RETURN idle time without claiming observed production latency.",
+  "upstream": {
+    "ref": "fixture://producer/candidate-v1",
+    "version_or_digest": "sha256:fixture-v1",
+    "producer_started_ms": 0,
+    "upstream_returned_ms": 1000
+  },
+  "branches": [
+    {
+      "branch_class": "PASS",
+      "probability_branch": 0.70,
+      "preparation_started_ms": 300,
+      "preparation_ready_ms": 900,
+      "preparation_cost_ms": 100,
+      "serial_preparation_duration_ms": 600,
+      "gate_reconcile_duration_ms": 50,
+      "probability_invalidation": 0.10,
+      "invalidation_rework_cost_ms": 20,
+      "idle_ms_saved_if_hit": 600,
+      "ev_saved_idle_ms": 318,
+      "decision": "PREPARE",
+      "serial_baseline": {
+        "prepare_starts_ms": 1000,
+        "prepare_ready_ms": 1600,
+        "successor_claimable_ms": 1650,
+        "post_return_idle_ms": 650
+      },
+      "prepared_path": {
+        "prepare_ready_before_return": true,
+        "gate_reconciled_ms": 1050,
+        "successor_claimable_ms": 1050,
+        "post_return_idle_ms": 50
+      },
+      "idle_ms_saved": 600
+    },
+    {
+      "branch_class": "FAIL_REPAIR",
+      "probability_branch": 0.20,
+      "preparation_cost_ms": 80,
+      "probability_invalidation": 0.10,
+      "invalidation_rework_cost_ms": 20,
+      "idle_ms_saved_if_hit": 500,
+      "ev_saved_idle_ms": 18,
+      "decision": "PREPARE_BOUNDED"
+    },
+    {
+      "branch_class": "BOUNDARY",
+      "probability_branch": 0.01,
+      "preparation_cost_ms": 200,
+      "probability_invalidation": 0.10,
+      "invalidation_rework_cost_ms": 20,
+      "idle_ms_saved_if_hit": 500,
+      "ev_saved_idle_ms": -197,
+      "decision": "SKIP_NEGATIVE_EV"
+    }
+  ],
+  "calculation_checks": [
+    "PASS EV = 0.70*600 - 100 - 0.10*20 = 318 ms",
+    "PASS serial post-return idle = 1650 - 1000 = 650 ms",
+    "PASS prepared post-return idle = 1050 - 1000 = 50 ms",
+    "PASS modeled idle reduction = 650 - 50 = 600 ms",
+    "FAIL_REPAIR EV = 0.20*500 - 80 - 0.10*20 = 18 ms",
+    "BOUNDARY EV = 0.01*500 - 200 - 0.10*20 = -197 ms and is skipped"
+  ],
+  "invalidation_case": {
+    "prepared_against": "sha256:fixture-v1",
+    "observed_upstream_digest": "sha256:fixture-v2",
+    "expected_state": "STALE_PREPARATION",
+    "execution_allowed": false,
+    "promotion_allowed": false
+  },
+  "authority_checks": {
+    "prepared_state": "PREPARED_NOT_AUTHORIZED",
+    "normal_successor_dedup_required": true,
+    "normal_pin_claim_required": true,
+    "existing_gate_required": true,
+    "current_mutation_allowed_by_fixture": false,
+    "promotion_allowed_by_fixture": false
+  },
+  "result": "PASS",
+  "truth_boundary": "All timing values are a deterministic acceptance fixture. They prove contract arithmetic and state transitions, not measured production wall-clock performance."
+}
