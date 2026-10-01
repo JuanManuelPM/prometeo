@@ -1,0 +1,81 @@
+{
+  "schema": "prometeo.stt-study-transcribe-served-source-delta/v1",
+  "reviewed_at": "2026-10-01T15:43:11Z",
+  "worker_id": "wc-20261001T151238Z-3ac27825ecff",
+  "job_id": "portfolio-stt-study-transcribe-served-source-delta-review-v1",
+  "served": {
+    "project_ref": "catnohyouxqjjtseaueb",
+    "function_slug": "study-transcribe-v1",
+    "version": 7,
+    "ezbr_sha256": "06e3fb618f4ceb1fcdf39b4362d94aa03d6df607bf4e752d1e8c14be2cafa690",
+    "verify_jwt": false,
+    "source_basis": "live Supabase.get_edge_function readback"
+  },
+  "candidate": {
+    "path": "supabase/functions/study-transcribe-v1/index.ts",
+    "git_blob_sha": "b77e395630c66e9c39db5a30362d69ba4be97daf",
+    "classification": "CANDIDATE_SOURCE_ONLY"
+  },
+  "observed_delta": {
+    "candidate_only_additions": [
+      "SELFTEST_PROBE_DEADLINES with bounded tts/whisper/total budgets",
+      "probeError phase/code helper",
+      "withProbeDeadline timeout wrapper",
+      "fetchProbe AbortController wrapper",
+      "selftestProbe bounded no-audio phase probe",
+      "GET selftest=probe branch returning structured phase evidence and full_e2e_pass=false"
+    ],
+    "served_v7_behavior": [
+      "GET selftest=1 heavy selftest exists",
+      "GET without selftest returns canonical-long-window descriptor",
+      "GET selftest=probe is not implemented as a distinct branch in the Served v7 source readback"
+    ]
+  },
+  "invariant_review": [
+    {
+      "area": "CORS",
+      "result": "NO_SEMANTIC_DELTA_OBSERVED",
+      "detail": "Allowed origins and Access-Control-Allow-Headers/Methods match in the inspected Served v7 and candidate sources."
+    },
+    {
+      "area": "POST multipart audio gate",
+      "result": "NO_SEMANTIC_DELTA_OBSERVED",
+      "detail": "Both inspected sources require POST formData audio File, minimum 256 bytes, maximum 24 MiB, with the same rate gate."
+    },
+    {
+      "area": "authenticated class route",
+      "result": "NO_SEMANTIC_DELTA_OBSERVED",
+      "detail": "Both inspected sources validate session_id + room_token through roomOK against study_class_sessions before class transcription."
+    },
+    {
+      "area": "standalone route",
+      "result": "NO_SEMANTIC_DELTA_OBSERVED",
+      "detail": "Both inspected sources use mode=standalone + client_session_id and do not apply roomOK to that branch."
+    },
+    {
+      "area": "class transcript persistence",
+      "result": "NO_SEMANTIC_DELTA_OBSERVED",
+      "detail": "Both inspected sources upsert/update study_transcript_chunks with transcript/status/source metadata for the class route."
+    }
+  ],
+  "truth_boundary": "This is a static semantic review of the two inspected source bodies. It does not claim byte-for-byte equality outside the enumerated delta/invariant areas and does not make the repository candidate Served.",
+  "deploy_recommendation": {
+    "classification": "BOUNDED_CANDIDATE_READY_FOR_SEPARATELY_AUTHORIZED_DEPLOY_VERIFY",
+    "basis": "The observed candidate delta is confined to a bounded GET selftest=probe diagnostic path; no semantic change was observed in the private-audio POST/auth contract areas reviewed.",
+    "required_before_mutation": "Follow STT_STUDY_TRANSCRIBE_DEPLOY_OWNER_CONTRACT_V1.json, including explicit Supabase mutation authority and rollback snapshot.",
+    "required_after_mutation": [
+      "Fresh Served version/digest/verify_jwt readback",
+      "Source readback binding the candidate probe branch to Served",
+      "Bounded GET ?selftest=probe verification",
+      "Do not treat GET probe PASS as private-audio E2E PASS"
+    ]
+  },
+  "privacy": {
+    "audio_sent": false,
+    "transcript_observed": false,
+    "room_token_observed": false,
+    "session_id_observed": false,
+    "credential_observed": false,
+    "supabase_mutation": false
+  }
+}
