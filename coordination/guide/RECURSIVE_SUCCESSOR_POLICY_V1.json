@@ -1,0 +1,77 @@
+{
+  "schema": "prometeo.guide-recursive-successor-policy/v1",
+  "status": "CANARY",
+  "owner_refs": [
+    "coordination/guide/GUIDE_SWARM_PROTOCOL_V1.md#Successor semantic dedup hard gate",
+    "coordination/guide/METABOLISM_POLICY_V1.json#self_materializing_guide_jobs",
+    "scripts/discovery-dedup-lib.mjs",
+    "scripts/build-fast-allocator.mjs"
+  ],
+  "purpose": "Allow Guide workers to propose and materialize bounded child/successor jobs through existing portfolio owners without creating shells, a scheduler, a queue, or new authority.",
+  "defaults": {
+    "max_depth": 2,
+    "max_children_per_parent": 3,
+    "max_open_descendants": 6,
+    "proposal_ttl_hours": 24
+  },
+  "hard_caps": {
+    "max_depth": 4,
+    "max_children_per_parent": 7,
+    "max_open_descendants": 20,
+    "proposal_ttl_hours": 168
+  },
+  "override_rule": "Defaults may be changed only by an explicit packet/owner override carrying authority=CURRENT_OWNER_RECURSION_BUDGET_OVERRIDE and a durable source_ref. A child job cannot enlarge its own budget.",
+  "required_child_fields": [
+    "parent_ref",
+    "root_ref",
+    "project_id",
+    "dedupe_key",
+    "dependency_ids",
+    "gate",
+    "consumer",
+    "definition_of_done",
+    "evidence_refs",
+    "priority",
+    "value_class",
+    "semantic_identity",
+    "semantic_fingerprint",
+    "semantic_pin_ref",
+    "recursive_lineage"
+  ],
+  "recursive_lineage_contract": {
+    "root_ref": "Stable durable root/campaign ref.",
+    "parent_ref": "Immediate durable parent job/return ref.",
+    "depth": "Root children are depth 1; every successor increments exactly by one.",
+    "budget": "Resolved immutable budget copied from the authorized root/owner context for audit only; it grants no authority.",
+    "expires_at": "Proposal validity horizon. Expiry suppresses new materialization but never invalidates an already won normal portfolio execution PIN."
+  },
+  "stop_conditions": [
+    "FRONTIER_SUFFICIENT_FOR_OBSERVABLE_CAPACITY",
+    "SEMANTIC_DUPLICATE_OR_SUPERSEDED",
+    "CONSUMER_ABSENT",
+    "EVIDENCE_INSUFFICIENT",
+    "CAPABILITY_WITHOUT_OBSERVABLE_OFFER",
+    "HUMAN_AUTHORITY_BOUNDARY",
+    "CAMPAIGN_CLOSED",
+    "MAX_DEPTH_REACHED",
+    "MAX_CHILDREN_PER_PARENT_REACHED",
+    "MAX_OPEN_DESCENDANTS_REACHED",
+    "PROPOSAL_TTL_EXPIRED"
+  ],
+  "priority_rule": "Human-intent and already-productive CURRENT work preempt speculative/reserve descendants through existing portfolio priority/value_class ordering. Recursive descendants never receive an automatic priority boost.",
+  "authority_rule": "Children do not inherit mutation authority, allowed paths, tool policy, execution ownership, promotion authority, or shell identity from a parent. Each child still requires a fresh normal portfolio PIN/claim compiled by CURRENT.",
+  "spawn_boundary": "This mechanism creates durable work descriptions only. PLATFORM_SPAWN_CAPABILITY_UNAVAILABLE remains a separate capacity boundary; capacity widgets may report missing shells but no child may create a ChatGPT shell.",
+  "dedupe_rule": "Reuse canonicalDiscoveryIdentity/discoveryFingerprint from scripts/discovery-dedup-lib.mjs and the existing coordination/guide/successor-pins/<fingerprint>.json CREATE hard gate. Parent ids, worker ids, timestamps and wording never distinguish semantically equivalent residuals.",
+  "supersession_rule": "A descendant is suppressed before materialization when an equivalent semantic fingerprint already exists, the target is superseded, the upstream artifact/version/digest changed, or the campaign/root is closed. Historical jobs remain append-only evidence.",
+  "fan_in_rule": "A parent may close only when every blocking child is terminal PASS/consumed or explicitly superseded. A terminal FAIL opens only the bounded repair successor supported by evidence; advisory children may remain non-blocking. Fan-in emits the next grounded frontier or closure, never human routing by default.",
+  "metrics": [
+    "children_proposed",
+    "children_materialized",
+    "duplicates_suppressed",
+    "descendants_claimed",
+    "descendants_consumed",
+    "orphan_ratio",
+    "max_depth_observed"
+  ],
+  "truth_boundary": "Policy and helper validation constrain Guide successor generation. They do not themselves CREATE a derived job, grant execution authority, alter CURRENT, spawn workers, or promote product state."
+}
