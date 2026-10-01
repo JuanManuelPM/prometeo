@@ -17,6 +17,9 @@ function makeRuntime({ badWake = false } = {}) {
     calls.push({ url: String(url), body });
     if (String(url).includes('prometeo-capture')) return response({ ok: true });
     if (String(url).includes('prometeo-change-loop-v1')) {
+      if (body.action === 'approval_replay_status') {
+        return response({ ok: true, status: 'NEW_APPROVAL', replayed: false });
+      }
       return response({
         ok: true,
         queued_to_worker_pool: true,
@@ -87,24 +90,25 @@ const approval = {
   const out = await api.submitApprovedPlan({ text: 'ejecutá el plan aprobado', page, approval });
   assert.equal(out.queued, true);
   assert.equal(out.status, 'QUEUED');
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
+  assert.equal(calls[0].body.action, 'approval_replay_status');
 
-  const capture = calls[0].body.capture;
+  const capture = calls[1].body.capture;
   assert.equal(capture.id, 'primary-chat-approval-APR-001');
   assert.equal(capture.metadata.approval_id, 'APR-001');
 
-  const prepared = calls[1].body;
+  const prepared = calls[2].body;
   assert.equal(prepared.human_approved, true);
   assert.equal(prepared.approval.approval_id, 'APR-001');
   assert.equal(prepared.semantic_context.semantic_anchor, `primary-chat-approval:APR-001:${digest}`);
 
-  assert.equal(JSON.stringify(calls[2].body).includes('ejecutá el plan aprobado'), false);
-  assert.equal(calls[2].body.approval.approval_id, 'APR-001');
+  assert.equal(JSON.stringify(calls[3].body).includes('ejecutá el plan aprobado'), false);
+  assert.equal(calls[3].body.approval.approval_id, 'APR-001');
 
   const replay = await api.submitApprovedPlan({ text: 'ejecutá el plan aprobado', page, approval });
   assert.equal(replay.status, 'QUEUED_REPLAY');
   assert.equal(replay.queued, true);
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
 
   const conflict = await api.submitApprovedPlan({
     text: 'otro plan',
@@ -112,7 +116,7 @@ const approval = {
     approval: { ...approval, proposal_digest: 'b'.repeat(64) }
   });
   assert.equal(conflict.status, 'BOUNDARY_APPROVAL_REPLAY_CONFLICT');
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
 
   const rejected = await api.submitApprovedPlan({
     text: 'no ejecutes',
@@ -120,7 +124,7 @@ const approval = {
     approval: { ...approval, approval_id: 'APR-002', decision: 'REJECTED' }
   });
   assert.equal(rejected.status, 'BOUNDARY_APPROVAL_REJECTED');
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
 
   const ambiguous = await api.submitApprovedPlan({
     text: 'quizá',
@@ -128,7 +132,7 @@ const approval = {
     approval: { ...approval, approval_id: 'APR-003', decision: 'AMBIGUOUS' }
   });
   assert.equal(ambiguous.status, 'BOUNDARY_APPROVAL_REQUIRED');
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
 }
 
 {
@@ -140,7 +144,7 @@ const approval = {
   });
   assert.equal(out.status, 'BOUNDARY_PRIVATE_STORAGE_UNAVAILABLE');
   assert.equal(out.queued, false);
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
 }
 
 console.log('PASS primary_chat_approval_current_v1');
