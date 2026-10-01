@@ -230,6 +230,7 @@ async function openNodeNotes(info,{push=true}={}){
 async function restoreRoute(force=false){
  if(restoringRoute||(!force&&restoredRoute))return;
  restoringRoute=true;
+ let routeResolved=true;
  try{
   const st=routeState();
   if(!st.panel&&loop){loop.close();activePanel=null}
@@ -238,11 +239,12 @@ async function restoreRoute(force=false){
   if(st.page){
    const p=pageMap.get(st.page);
    if(p){selectedPage=p;if(st.panel==='notes'||st.panel==='result'){const l=await ensureLoop();if(st.panel==='result'&&st.work)await l?.openResult(pageObj(p),st.work);else await l?.open(pageObj(p));activePanel=st.panel}}
+   else if(st.panel==='notes'||st.panel==='result')routeResolved=false;
   }else if(st.node&&st.panel==='notes'){
    const p=objectForNode({nodeKey:st.node,view:st.view||'organismo'});
    if(p){selectedPage=p;const l=await ensureLoop();await l?.open(pageObj(p));activePanel='notes'}
   }
- }finally{restoringRoute=false;restoredRoute=true}
+ }finally{restoringRoute=false;if(routeResolved)restoredRoute=true}
 }
 
 async function createTextCapture(text,target){
