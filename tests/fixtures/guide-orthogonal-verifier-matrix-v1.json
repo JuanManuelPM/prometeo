@@ -1,0 +1,55 @@
+{
+  "schema": "prometeo.orthogonal-verifier-fixture/v1",
+  "matrix_ref": "coordination/guide/ORTHOGONAL_VERIFIER_MATRIX_V1.json",
+  "cases": [
+    {
+      "id": "F1_LOCAL_STATIC_LOW_RISK",
+      "artifact_identity": {"project_id": "fixture", "artifact_key": "static-manifest", "artifact_version_ref": "sha256:aaa111", "target_scope": "manifest.json"},
+      "signals": {"source_changed": true},
+      "expected_slices": ["SOURCE_STATIC"],
+      "expected_parallelism": "ONE_VERIFIER_SUFFICIENT"
+    },
+    {
+      "id": "F2_SERVED_UI_CANDIDATE",
+      "artifact_identity": {"project_id": "fixture", "artifact_key": "control-page", "artifact_version_ref": "commit:bbb222", "target_scope": "/control/"},
+      "signals": {"source_changed": true, "contract_changed": true, "publish_claim": true, "served_ui_claim": true, "ui_behavior_changed": true, "visual_surface_changed": true, "cross_component_behavior": true, "known_good_baseline": true},
+      "expected_slices": ["SOURCE_STATIC", "CONTRACT_TEST", "PUBLISHED_BYTES", "SERVED_UI_INTERACTION", "VISUAL", "E2E", "REGRESSION"],
+      "expected_parallelism": "N_ORTHOGONAL"
+    },
+    {
+      "id": "F3_AUTHORITY_RECOVERY_CHANGE",
+      "artifact_identity": {"project_id": "fixture", "artifact_key": "worker-recovery", "artifact_version_ref": "commit:ccc333", "target_scope": "recovery/runtime"},
+      "signals": {"source_changed": true, "contract_changed": true, "cross_component_behavior": true, "known_good_baseline": true, "authority_or_security_risk": true, "recovery_semantics_changed": true},
+      "expected_slices": ["SOURCE_STATIC", "CONTRACT_TEST", "E2E", "REGRESSION", "ADVERSARIAL"],
+      "expected_parallelism": "N_ORTHOGONAL"
+    },
+    {
+      "id": "F4_PUBLISHED_VISUAL_ONLY",
+      "artifact_identity": {"project_id": "fixture", "artifact_key": "css-patch", "artifact_version_ref": "commit:ddd444", "target_scope": "/landing/"},
+      "signals": {"source_changed": true, "publish_claim": true, "visual_surface_changed": true, "known_good_baseline": true},
+      "expected_slices": ["SOURCE_STATIC", "PUBLISHED_BYTES", "VISUAL", "REGRESSION"],
+      "expected_parallelism": "N_ORTHOGONAL"
+    }
+  ],
+  "dedupe_cases": [
+    {
+      "id": "D1_SAME_VERSION_SAME_SLICE_COLLIDES",
+      "a": {"project_id": "fixture", "artifact_key": "control-page", "artifact_version_ref": "commit:bbb222", "slice_id": "VISUAL", "target_scope": "/control/", "fixture_revision": "v1", "replica_index": 0},
+      "b": {"project_id": "fixture", "artifact_key": "control-page", "artifact_version_ref": "commit:bbb222", "slice_id": "VISUAL", "target_scope": "/control/", "fixture_revision": "v1", "replica_index": 0},
+      "expect_same_fingerprint": true
+    },
+    {
+      "id": "D2_NEW_VERSION_IS_NEW_QA_GENERATION",
+      "a": {"project_id": "fixture", "artifact_key": "control-page", "artifact_version_ref": "commit:bbb222", "slice_id": "VISUAL", "target_scope": "/control/", "fixture_revision": "v1", "replica_index": 0},
+      "b": {"project_id": "fixture", "artifact_key": "control-page", "artifact_version_ref": "commit:eee555", "slice_id": "VISUAL", "target_scope": "/control/", "fixture_revision": "v1", "replica_index": 0},
+      "expect_same_fingerprint": false
+    },
+    {
+      "id": "D3_EXPLICIT_REPLICA_IS_DISTINCT_ONLY_WHEN_DECLARED",
+      "a": {"project_id": "fixture", "artifact_key": "authority-change", "artifact_version_ref": "commit:fff666", "slice_id": "ADVERSARIAL", "target_scope": "claims", "fixture_revision": "v1", "replica_index": 0},
+      "b": {"project_id": "fixture", "artifact_key": "authority-change", "artifact_version_ref": "commit:fff666", "slice_id": "ADVERSARIAL", "target_scope": "claims", "fixture_revision": "v1", "replica_index": 1},
+      "expect_same_fingerprint": false,
+      "replication": {"required_replicas": 2, "declared_before_claim": true}
+    }
+  ]
+}

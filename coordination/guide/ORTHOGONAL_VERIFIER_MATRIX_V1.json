@@ -1,0 +1,171 @@
+{
+  "schema": "prometeo.orthogonal-verifier-matrix/v1",
+  "status": "CANDIDATE_VERIFICATION_DESIGN",
+  "matrix_id": "GUIDE-ORTHOGONAL-VERIFIER-MATRIX-V1",
+  "version": 1,
+  "created_by": "wc-20261001T200806Z-e1e80d1f3edd",
+  "created_at": "2026-10-01T20:17:00Z",
+  "source_job_ref": "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-guide-orthogonal-verifier-matrix-v1.json",
+  "purpose": "Split QA for one immutable candidate artifact version into non-overlapping verifier slices claimable by distinct ordinary workers without creating a second scheduler or judge.",
+  "authority_boundary": {
+    "creates_execution_authority": false,
+    "creates_promotion_authority": false,
+    "execution_authority": "Existing portfolio PIN/claim machinery.",
+    "dedupe_authority": "Existing Guide successor semantic pin using scripts/discovery-dedup-lib.mjs.",
+    "final_judgment": "Existing Judge/source owner/promotion authority for the candidate.",
+    "note": "This matrix compiles verification slices only. It does not make CANDIDATE become VERIFIED/CURRENT/HUMAN_ACCEPTED/SERVED."
+  },
+  "artifact_identity": {
+    "required": ["project_id", "artifact_key", "artifact_version_ref", "target_scope"],
+    "rules": [
+      "artifact_version_ref MUST be immutable for the evidence being checked: source commit/blob, deployment/version id, or served-byte digest as appropriate.",
+      "target_scope MUST name the concrete file/route/API/feature scope rather than prose.",
+      "A new artifact_version_ref creates a new QA generation; old PASS results never silently carry forward."
+    ]
+  },
+  "dedupe": {
+    "semantic_identity": {
+      "root": "project_id",
+      "target": {
+        "artifact_key": "<artifact_key>",
+        "artifact_version_ref": "<immutable version>",
+        "slice_id": "<slice id>",
+        "target_scope": "<normalized target scope>",
+        "fixture_revision": "<fixture or acceptance revision>",
+        "replica_index": "0 unless an existing contract explicitly requires independent replication"
+      },
+      "problem": "orthogonal_verifier_slice",
+      "acceptance": "slice.acceptance"
+    },
+    "fingerprint_function": "scripts/discovery-dedup-lib.mjs#discoveryFingerprint",
+    "proposal_pin_path": "coordination/guide/successor-pins/<fingerprint>.json",
+    "execution_claim": "Normal portfolio PIN for the materialized verifier job.",
+    "collision_rule": "Same artifact version + slice + target scope + fixture revision + replica_index produces the same semantic fingerprint. CREATE_EXISTS means equivalent verifier work already exists; do not mint a renamed duplicate.",
+    "new_version_rule": "Changing artifact_version_ref intentionally changes semantic identity, allowing verification of the successor version.",
+    "intentional_replication_rule": "replica_index MAY differ only when replication.required_replicas > 1 was declared before claims. Accidental duplicate workers may not create replica_index values retroactively."
+  },
+  "result_schema": {
+    "schema": "prometeo.orthogonal-verifier-result/v1",
+    "required": ["artifact_identity", "slice_id", "replica_index", "verifier_worker_id", "started_at", "finished_at", "verdict", "classification", "executed_checks", "evidence_refs", "observed_target_ref", "fixture_ref"],
+    "verdict_enum": ["PASS", "FAIL", "BOUNDARY"],
+    "classification_enum": ["PASS", "COSMETIC_OR_LOW_RISK_FIX", "REPAIR_REQUIRED", "REGRESSION", "CAPABILITY_BOUNDARY", "HUMAN_DECISION_REQUIRED"],
+    "forbidden": ["hidden_chain_of_thought", "private_scratchpad", "self_promotion_to_CURRENT_or_SERVED"],
+    "truth_rule": "Every executed_checks item must name observable evidence. Unexecuted checks are absent, never implied."
+  },
+  "parallelism_policy": {
+    "one_verifier_is_enough_when": [
+      "Exactly one slice is applicable and its acceptance evidence is mechanically sufficient for the owned candidate claim.",
+      "The change is local, reversible, low blast radius, and does not claim served UI, publication, authority/security/privacy behavior, cross-component E2E behavior, or preservation of a known-good baseline outside that slice.",
+      "The existing source owner/Judge does not require independent replication."
+    ],
+    "n_parallel_verifiers_when": [
+      "Two or more orthogonal dimensions are independently necessary to establish the candidate claim; materialize one job per applicable slice and let ordinary workers claim them independently.",
+      "A candidate spans source/contract/publication/served behavior/visual/E2E/regression/adversarial concerns that cannot be proven by one evidence class.",
+      "Independent reproduction is explicitly required for a high-risk, externally brittle, ambiguous, or previously falsified slice. Declare required_replicas before claims."
+    ],
+    "n_definition": "N is the number of applicable slice instances after explicit replication expansion, not the number of idle workers available.",
+    "anti_pattern": "Never launch N workers on the same default slice merely because capacity exists."
+  },
+  "qa_state_mapping": {
+    "slice_returns_are_evidence_only": true,
+    "candidate_states": ["QA_PENDING", "VERIFIED", "LOW_RISK_REPAIR", "REPAIR_REQUIRED", "BOUNDARY", "PROMOTION_READY"],
+    "aggregation_owner": "Existing Guide/Integrator + existing Judge/source owner.",
+    "rule": "The matrix may recommend blocking/asynchronous timing but cannot promote state by itself."
+  },
+  "slices": [
+    {
+      "slice_id": "SOURCE_STATIC",
+      "goal": "Source/configuration structure is part of the candidate.",
+      "applies_when": {"any_signal": ["source_changed", "generated_config_changed", "schema_or_manifest_changed"]},
+      "preconditions": ["artifact_identity is complete and artifact_version_ref is immutable for this slice", "slice acceptance is grounded in the candidate/source-owner contract", "required target/fixture refs exist"],
+      "required_capabilities": [],
+      "acceptance": ["Exact source/blob/commit ref inspected", "Static invariants relevant to the changed scope checked", "No claim about served bytes inferred from source alone"],
+      "output_schema": {"schema": "prometeo.orthogonal-verifier-result/v1", "required": ["artifact_identity", "slice_id", "replica_index", "verifier_worker_id", "started_at", "finished_at", "verdict", "classification", "executed_checks", "evidence_refs", "observed_target_ref", "fixture_ref"], "slice_specific_required": ["source_refs", "static_checks"]},
+      "consumer_judge": {"consumer": "existing Guide/Integrator", "judge": "existing Judge/source owner", "authority": "EVIDENCE_CONSUMER_ONLY_UNLESS_EXISTING_OWNER_SEPARATELY_GRANTS_MORE"},
+      "default_timing": "CAN_RUN_IN_PARALLEL_WHEN_DEPENDENCIES_READY"
+    },
+    {
+      "slice_id": "CONTRACT_TEST",
+      "goal": "Behavioral/API/schema/CLI contract is changed or relied upon.",
+      "applies_when": {"any_signal": ["contract_changed", "api_or_schema_changed", "behavioral_contract_changed"]},
+      "preconditions": ["artifact_identity is complete and artifact_version_ref is immutable for this slice", "slice acceptance is grounded in the candidate/source-owner contract", "required target/fixture refs exist"],
+      "required_capabilities": ["runtime_or_test_runner_for_target"],
+      "acceptance": ["Declared contract cases executed against the candidate", "Expected outputs/errors/invariants compared", "Failures retain exact case evidence"],
+      "output_schema": {"schema": "prometeo.orthogonal-verifier-result/v1", "required": ["artifact_identity", "slice_id", "replica_index", "verifier_worker_id", "started_at", "finished_at", "verdict", "classification", "executed_checks", "evidence_refs", "observed_target_ref", "fixture_ref"], "slice_specific_required": ["test_command_or_fixture", "case_results"]},
+      "consumer_judge": {"consumer": "existing Guide/Integrator", "judge": "existing Judge/source owner", "authority": "EVIDENCE_CONSUMER_ONLY_UNLESS_EXISTING_OWNER_SEPARATELY_GRANTS_MORE"},
+      "default_timing": "CAN_RUN_IN_PARALLEL_WHEN_DEPENDENCIES_READY"
+    },
+    {
+      "slice_id": "PUBLISHED_BYTES",
+      "goal": "Candidate claims that specific bytes/version were published or deployed.",
+      "applies_when": {"any_signal": ["publish_claim", "served_claim"]},
+      "preconditions": ["artifact_identity is complete and artifact_version_ref is immutable for this slice", "slice acceptance is grounded in the candidate/source-owner contract", "required target/fixture refs exist"],
+      "required_capabilities": ["public_or_deployment_byte_fetch"],
+      "acceptance": ["Published/deployed target resolves", "Observed bytes/version are cryptographically or immutably tied to artifact_version_ref", "No source-only evidence is substituted for publication evidence"],
+      "output_schema": {"schema": "prometeo.orthogonal-verifier-result/v1", "required": ["artifact_identity", "slice_id", "replica_index", "verifier_worker_id", "started_at", "finished_at", "verdict", "classification", "executed_checks", "evidence_refs", "observed_target_ref", "fixture_ref"], "slice_specific_required": ["deployment_or_route_ref", "observed_digest_or_version"]},
+      "consumer_judge": {"consumer": "existing Guide/Integrator", "judge": "existing Served/publication authority", "authority": "EVIDENCE_CONSUMER_ONLY_UNLESS_EXISTING_OWNER_SEPARATELY_GRANTS_MORE"},
+      "default_timing": "SERVED_GATE"
+    },
+    {
+      "slice_id": "SERVED_UI_INTERACTION",
+      "goal": "Candidate claims real browser interaction on a served UI.",
+      "applies_when": {"any_signal": ["ui_behavior_changed", "served_ui_claim"]},
+      "preconditions": ["artifact_identity is complete and artifact_version_ref is immutable for this slice", "slice acceptance is grounded in the candidate/source-owner contract", "required target/fixture refs exist"],
+      "required_capabilities": ["representative_javascript_browser", "browser_network_navigation_to_target"],
+      "acceptance": ["Real served route loaded in representative JS browser", "Declared click/tap/input path executed", "Observed state/effect recorded"],
+      "output_schema": {"schema": "prometeo.orthogonal-verifier-result/v1", "required": ["artifact_identity", "slice_id", "replica_index", "verifier_worker_id", "started_at", "finished_at", "verdict", "classification", "executed_checks", "evidence_refs", "observed_target_ref", "fixture_ref"], "slice_specific_required": ["served_route", "interaction_trace", "browser_evidence"]},
+      "consumer_judge": {"consumer": "existing Guide/Integrator", "judge": "existing Judge/source owner", "authority": "EVIDENCE_CONSUMER_ONLY_UNLESS_EXISTING_OWNER_SEPARATELY_GRANTS_MORE"},
+      "default_timing": "SERVED_GATE"
+    },
+    {
+      "slice_id": "VISUAL",
+      "goal": "Visual/layout/typography/image rendering is part of acceptance or can regress.",
+      "applies_when": {"any_signal": ["visual_surface_changed", "layout_changed", "visual_acceptance_required"]},
+      "preconditions": ["artifact_identity is complete and artifact_version_ref is immutable for this slice", "slice acceptance is grounded in the candidate/source-owner contract", "required target/fixture refs exist"],
+      "required_capabilities": ["rendered_visual_inspection"],
+      "acceptance": ["Rendered target captured/inspected at declared viewport(s)", "Visual acceptance/preservation reference compared when one exists", "Visual findings classified separately from functional PASS"],
+      "output_schema": {"schema": "prometeo.orthogonal-verifier-result/v1", "required": ["artifact_identity", "slice_id", "replica_index", "verifier_worker_id", "started_at", "finished_at", "verdict", "classification", "executed_checks", "evidence_refs", "observed_target_ref", "fixture_ref"], "slice_specific_required": ["viewport_refs", "visual_evidence", "visual_findings"]},
+      "consumer_judge": {"consumer": "existing Guide/Integrator", "judge": "existing visual/Judge authority", "authority": "EVIDENCE_CONSUMER_ONLY_UNLESS_EXISTING_OWNER_SEPARATELY_GRANTS_MORE"},
+      "default_timing": "CAN_RUN_IN_PARALLEL_WHEN_DEPENDENCIES_READY"
+    },
+    {
+      "slice_id": "E2E",
+      "goal": "Acceptance crosses more than one component, persistence boundary, network hop, auth boundary, or page/runtime owner.",
+      "applies_when": {"any_signal": ["cross_component_behavior", "persistence_boundary_changed", "network_or_auth_flow_changed"]},
+      "preconditions": ["artifact_identity is complete and artifact_version_ref is immutable for this slice", "slice acceptance is grounded in the candidate/source-owner contract", "required target/fixture refs exist"],
+      "required_capabilities": ["end_to_end_runtime_access_for_target"],
+      "acceptance": ["End-to-end path starts from declared user/system entry", "All required boundary crossings are exercised", "Final observable effect is tied to the same artifact version/configuration"],
+      "output_schema": {"schema": "prometeo.orthogonal-verifier-result/v1", "required": ["artifact_identity", "slice_id", "replica_index", "verifier_worker_id", "started_at", "finished_at", "verdict", "classification", "executed_checks", "evidence_refs", "observed_target_ref", "fixture_ref"], "slice_specific_required": ["entry_ref", "boundary_trace", "final_effect_evidence"]},
+      "consumer_judge": {"consumer": "existing Guide/Integrator", "judge": "existing Judge/source owner", "authority": "EVIDENCE_CONSUMER_ONLY_UNLESS_EXISTING_OWNER_SEPARATELY_GRANTS_MORE"},
+      "default_timing": "CAN_RUN_IN_PARALLEL_WHEN_DEPENDENCIES_READY"
+    },
+    {
+      "slice_id": "REGRESSION",
+      "goal": "A known-good baseline, Golden, must-preserve behavior, or prior accepted capability can regress.",
+      "applies_when": {"any_signal": ["known_good_baseline", "must_preserve_behavior", "golden_applies"]},
+      "preconditions": ["artifact_identity is complete and artifact_version_ref is immutable for this slice", "slice acceptance is grounded in the candidate/source-owner contract", "required target/fixture refs exist"],
+      "required_capabilities": ["baseline_and_candidate_comparison"],
+      "acceptance": ["Relevant baseline/Golden identified", "Candidate compared on must-preserve behavior", "Any capability loss is reported as REGRESSION unless explicitly authorized"],
+      "output_schema": {"schema": "prometeo.orthogonal-verifier-result/v1", "required": ["artifact_identity", "slice_id", "replica_index", "verifier_worker_id", "started_at", "finished_at", "verdict", "classification", "executed_checks", "evidence_refs", "observed_target_ref", "fixture_ref"], "slice_specific_required": ["baseline_ref", "preservation_checks", "regressions"]},
+      "consumer_judge": {"consumer": "existing Guide/Integrator", "judge": "existing Judge/source owner", "authority": "EVIDENCE_CONSUMER_ONLY_UNLESS_EXISTING_OWNER_SEPARATELY_GRANTS_MORE"},
+      "default_timing": "CAN_RUN_IN_PARALLEL_WHEN_DEPENDENCIES_READY"
+    },
+    {
+      "slice_id": "ADVERSARIAL",
+      "goal": "Authority/security/privacy/data-loss/untrusted-input/recovery semantics or other high-blast-radius failure modes are in scope.",
+      "applies_when": {"any_signal": ["authority_or_security_risk", "privacy_or_data_loss_risk", "untrusted_input", "recovery_semantics_changed", "high_blast_radius"]},
+      "preconditions": ["artifact_identity is complete and artifact_version_ref is immutable for this slice", "slice acceptance is grounded in the candidate/source-owner contract", "required target/fixture refs exist"],
+      "required_capabilities": ["target_specific_adversarial_capability"],
+      "acceptance": ["At least one plausible misuse/failure path is exercised or bounded", "Authority/privacy/security boundaries are not inferred from happy-path PASS", "Any untestable high-risk branch returns CAPABILITY_BOUNDARY rather than PASS"],
+      "output_schema": {"schema": "prometeo.orthogonal-verifier-result/v1", "required": ["artifact_identity", "slice_id", "replica_index", "verifier_worker_id", "started_at", "finished_at", "verdict", "classification", "executed_checks", "evidence_refs", "observed_target_ref", "fixture_ref"], "slice_specific_required": ["attack_or_failure_cases", "boundary_evidence", "negative_results"]},
+      "consumer_judge": {"consumer": "existing Guide/Integrator", "judge": "existing security/authority Judge/source owner", "authority": "EVIDENCE_CONSUMER_ONLY_UNLESS_EXISTING_OWNER_SEPARATELY_GRANTS_MORE"},
+      "default_timing": "RISK_GATE"
+    }
+  ],
+  "preservation": {
+    "touched_invariants": ["DNA008_DONE_NE_PASS", "DNA009_GUIDE_OUT_OF_HOT_PATH", "DNA011_PRESERVE_FIRST", "DNA016_COMPLEXITY_MUST_EARN_ITSELF", "DNA019_EVIDENCE_OVER_NARRATIVE"],
+    "relevant_failure_vaccines": ["FV001_INFRA_FOR_INFRA", "FV005_VISUAL_SUCCESS_CONFUSION", "FV008_REINVENT_EXISTING_CAPABILITY", "FV010_SELF_EVALUATION_INFLATION", "FV015_OVERGENERALIZE_ONE_CHAMPION"],
+    "baseline_refs": ["coordination/design-dna/GOLDENS_V1.json#GOLDEN_CATLAB_P2B_01", "coordination/guide/GUIDE_SWARM_PROTOCOL_V1.md#Successor semantic dedup hard gate", "scripts/discovery-dedup-lib.mjs"],
+    "must_preserve": ["Normal worker portfolio PIN remains execution authority.", "Existing Guide/Judge/source owner remains aggregation and promotion authority.", "Worker hot path gains no mandatory QA handshake.", "Same semantic verifier work cannot be duplicated by renaming a job.", "Candidate and known-good CURRENT may coexist while asynchronous QA runs when existing policy permits."]
+  }
+}
