@@ -27,10 +27,9 @@ window.PROMETEO_CONTROL_CONFIG_V1=Object.freeze({
   storageMode:'auto'
 });
 
-// A semantic notes/result URL can be restored before the async catalog has populated
-// V11's page map. Once fresh data has actually rendered the requested page, force one
-// route reconciliation through the existing popstate owner instead of creating a second
-// routing implementation here.
+// Semantic notes URLs can be evaluated before the async catalog has populated V11's
+// page map. Once the requested card is rendered, invoke the card's existing Notes owner
+// instead of inventing a second routing implementation. Result routes stay on popstate.
 window.addEventListener('PROMETEO_V11_DATA',()=>{
   const url=new URL(location.href);
   const pageId=url.searchParams.get('page');
@@ -38,9 +37,10 @@ window.addEventListener('PROMETEO_V11_DATA',()=>{
   if(!pageId||!['notes','result'].includes(panel))return;
   const deadline=Date.now()+5000;
   const wake=()=>{
-    const selector='[data-notes="'+CSS.escape(pageId)+'"]';
-    if(document.querySelector(selector)){
-      window.dispatchEvent(new PopStateEvent('popstate'));
+    const button=document.querySelector('[data-notes="'+CSS.escape(pageId)+'"]');
+    if(button){
+      if(panel==='notes')button.click();
+      else window.dispatchEvent(new PopStateEvent('popstate'));
       return;
     }
     if(Date.now()<deadline)setTimeout(wake,50);
