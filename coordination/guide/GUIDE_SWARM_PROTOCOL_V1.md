@@ -112,11 +112,33 @@ A generated guide task should use a stable `dedupe_key`, for example:
 
 Workers losing the pin immediately re-enter allocation.
 
+## Successor semantic dedup hard gate
+
+Guide successor dedup MUST happen before the derived job CREATE. A prose/ID scan after creation is too late because two concurrent Guide workers can choose different job ids for the same residual and both become claimable.
+
+For every new successor proposed by `GUIDE_PLANNER`, `GUIDE_INTEGRATOR`, `GUIDE_RESCATE`, `GUIDE_CRITIC` or `GUIDE_STEWARD`:
+
+1. Build one explicit semantic identity using the same canonical dimensions already implemented by `scripts/discovery-dedup-lib.mjs`:
+   - `root`: the owning `project_id` / durable root;
+   - `target`: the concrete owner/surface/capability being changed, not the proposed job id;
+   - `problem`: a stable problem class;
+   - `acceptance`: the observable acceptance outcomes.
+2. Exclude volatile wording and routing from that identity. `job_id`, title, mission prose, worker id, timestamps, generation and return path MUST NOT distinguish equivalent residuals.
+3. Compute the existing `discoveryFingerprint(...)` over that semantic identity and atomically CREATE its append-only dedup pin at:
+   `coordination/guide/successor-pins/<fingerprint>.json`
+   The pin uses `schema=prometeo.proposal-fingerprint-claim/v1`, preserves the canonical identity, names the proposing `guide_work_id`/worker and carries `authority=DEDUP_PIN_ONLY_NO_EXECUTION_OR_PROMOTION_AUTHORITY`.
+4. `CREATE_EXISTS` on that fingerprint pin is a semantic collision, not a transport failure. Read only that winning pin if needed, reference its existing successor/fingerprint in the Guide receipt/disposition, DO NOT create a differently named duplicate job, then continue allocation.
+5. Only the fingerprint-pin winner may CREATE the new derived job. The new job SHOULD persist `semantic_identity`, `semantic_fingerprint` and `semantic_pin_ref` so later allocator/integrator tooling can reconcile it without title matching.
+6. The semantic pin grants no execution, scheduling, promotion, acceptance or ownership authority. The normal portfolio PIN/claim remains the execution authority boundary and existing live ownership is never stolen.
+7. Historical duplicate jobs are evidence. Do not destructively rewrite/delete them merely to make the ledger look tidy.
+
+Deterministic regression: `node scripts/check-guide-successor-semantic-dedup-v1.mjs` MUST show that equivalent residuals with different ids/wording share one fingerprint, a genuinely different target has a different fingerprint, and a concurrent equivalent pin race produces exactly one winner plus one collision.
+
 ## Planner replenishment contract
 
 When `GUIDE_PLANNER` sees a thin frontier, it must:
 1. reload recent terminal/PARTIAL/BOUNDARY returns, current portfolio and project goals;
-2. dedupe against seed + derived + active + terminal work;
+2. dedupe against seed + derived + active + terminal work and pass every new successor through the semantic dedup hard gate above;
 3. identify the current bottleneck and at least one alternative route;
 4. materialize between 2 and 7 safe bounded jobs when evidence supports them;
 5. include implementation, verification and/or integration lanes as needed rather than only more analysis;
@@ -132,12 +154,12 @@ For each material return:
 - classify what it actually proves;
 - reconcile duplicate/conflicting evidence;
 - record whether it is consumed, partial, superseded, conflicted or waiting on a real boundary;
-- materialize grounded successor jobs immediately;
+- materialize grounded successor jobs immediately, after passing the semantic dedup hard gate above;
 - avoid sending the result back to the human or one privileged guide chat merely for routing.
 
 ## Critic contract
 
-`GUIDE_CRITIC` is independent from the generator when possible. It should target false completion, silent authority escalation, accidental local optima, repeated partial loops, poor worker yield, weak metrics and regressions. A critic should create a repair/verification job when the issue is software-solvable.
+`GUIDE_CRITIC` is independent from the generator when possible. It should target false completion, silent authority escalation, accidental local optima, repeated partial loops, poor worker yield, weak metrics and regressions. A critic should create a repair/verification job when the issue is software-solvable. Any new successor must pass the semantic dedup hard gate above before materialization.
 
 ## Rotation
 
