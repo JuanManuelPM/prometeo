@@ -15,7 +15,8 @@
     "returns": ["coordination/portfolio/returns/"],
     "chat_recovery_history": ["coordination/chat-recovery/INDEX.json", "coordination/chat-sessions/INDEX.json"],
     "primary_chat_projection": ["current-tree/control-v11/chat-canary/index.html"],
-    "step_exit_telemetry": ["coordination/workers/WORKER_PIPELINE_V1.json", "coordination/workers/WORKER_EXIT_AUDIT_V1.json"]
+    "step_exit_telemetry": ["coordination/workers/WORKER_PIPELINE_V1.json", "coordination/workers/WORKER_EXIT_AUDIT_V1.json"],
+    "qa_evidence_and_disposition": ["coordination/guide/VERIFY_QA_BLOCK_V1.json", "coordination/workers/WORKER_PIPELINE_V1.json", "coordination/guide/GUIDE_SWARM_PROTOCOL_V1.md"]
   },
   "inputs": ["last_human_action_at","last_worker_signal_at","live_worker_count","claimable_generic_count","claimable_specialized_count","core_demand","reserve_workers","capacity_gap","unconsumed_returns_count","recovery_attention_count","projection_age_seconds","human_decision_required","pending_human_intent_count","claim_transport_blocked_count","campaign_complete","last_return_at","last_visible_result_at"],
   "state_precedence": ["PROJECTION_STALE","HUMAN_DECISION_REQUIRED","CLAIM_TRANSPORT_DEGRADED","HUMAN_INTENT_WAITING_NO_CAPACITY","RETURNS_UNCONSUMED","RECOVERY_PRESSURE","REFILL_N","BUFFER_LOW","CAPACITY_OK","WORKERS_ACTIVE_NO_ACTION","CAMPAIGN_COMPLETE","NO_SAFE_WORK"],
@@ -32,6 +33,15 @@
     "WORKERS_ACTIVE_NO_ACTION": "live_worker_count > 0",
     "CAMPAIGN_COMPLETE": "campaign_complete === true",
     "NO_SAFE_WORK": "otherwise"
+  },
+  "qa_projection": {
+    "authority": "EVIDENCE_PROJECTION_ONLY_NEVER_ACCEPTANCE_OR_PROMOTION_AUTHORITY",
+    "source_rule": "Use only a durable QA status already attached to a Primary Chat mirrored message/result by existing return/integration owners. The renderer does not infer QA from worker liveness or prose.",
+    "allowed_statuses": ["QA_PENDING", "QA_PASS", "QA_REPAIR_IN_PROGRESS", "QA_BLOCKED", "READY_TO_PROMOTE"],
+    "surface_only_when_present": true,
+    "fields": ["qa_status", "qa_updated_at", "artifact_ref", "version_ref", "qa_evidence_ref"],
+    "ready_to_promote_rule": "READY_TO_PROMOTE is a notification/action state only when existing acceptance policy requires human approval; it grants no promotion authority.",
+    "auto_promotable_rule": "QA_PASS may emit a signal to an existing automatic promotion authority when policy already permits it; QA itself never performs promotion."
   },
   "timing": {
     "human_idle_source": "last_human_action_at_only",
