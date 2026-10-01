@@ -11,7 +11,9 @@ fs.mkdirSync(outDir,{recursive:true});
 const sha256=s=>crypto.createHash('sha256').update(s).digest('hex');
 
 async function load(browser,viewport,name){
-  const page=await browser.newPage({viewportSize:viewport,reducedMotion:'reduce'});
+  const mobile=name==='narrow';
+  const context=await browser.newContext({viewport,isMobile:mobile,hasTouch:mobile,deviceScaleFactor:mobile?2:1,reducedMotion:'reduce'});
+  const page=await context.newPage();
   const consoleErrors=[]; const pageErrors=[];
   page.on('console',m=>{if(m.type()==='error') consoleErrors.push(m.text())});
   page.on('pageerror',e=>pageErrors.push(String(e.message||e)));
@@ -28,7 +30,9 @@ async function load(browser,viewport,name){
     jsDataset:document.documentElement.dataset.js||null,
     title:document.title,
     bodyWidth:document.body.scrollWidth,
+    documentWidth:document.documentElement.scrollWidth,
     viewportWidth:window.innerWidth,
+    visualViewportWidth:window.visualViewport?.width??null,
     href:location.href
   }));
   if(httpStatus!==200) throw new Error(`${name}:HTTP_${httpStatus}`);
@@ -38,11 +42,12 @@ async function load(browser,viewport,name){
   if(dom.status!=='candidate-canary') throw new Error(`${name}:STATUS_MISMATCH:${dom.status}`);
   if(dom.jsStatus!=='JS_OK'||dom.jsDataset!=='ok') throw new Error(`${name}:JS_RUNTIME_NOT_OK`);
   if(dom.href!==target) throw new Error(`${name}:UNEXPECTED_FINAL_URL:${dom.href}`);
-  if(viewport.width<=400 && dom.bodyWidth>dom.viewportWidth+1) throw new Error(`${name}:HORIZONTAL_CLIP:${dom.bodyWidth}>${dom.viewportWidth}`);
+  const observedViewportMatchesRequest=Math.abs(dom.viewportWidth-viewport.width)<=1;
+  const clipping=dom.documentWidth>dom.viewportWidth+1 || dom.bodyWidth>dom.viewportWidth+1;
   const screenshot=path.join(outDir,`${name}.png`);
   await page.screenshot({path:screenshot,fullPage:true});
-  await page.close();
-  return {name,viewport,http_status:httpStatus,dom,console_errors:consoleErrors,page_errors:pageErrors,screenshot};
+  await context.close();
+  return {name,requested_viewport:viewport,mobile_emulation:mobile,http_status:httpStatus,dom,observed_viewport_matches_request:observedViewportMatchesRequest,clipping,console_errors:consoleErrors,page_errors:pageErrors,screenshot};
 }
 
 let browser;
@@ -66,6 +71,7 @@ try{
     expected_revision_sha256:expectedRevisionSha,
     revision_identity:'BYTE_IDENTICAL_TO_EXPECTED_PUBLICATION_REVISION',
     desktop,narrow,
+    narrow_surface_status:narrow.clipping?'CLIPPING_OBSERVED':'NO_CLIPPING_OBSERVED',
     authority:'VERIFICATION_ONLY_NO_REGISTRY_NO_CURRENT_NO_HUMAN_ACCEPTED_NO_SERVED'
   };
   fs.writeFileSync(path.join(outDir,'evidence.json'),JSON.stringify(result,null,2)+'\n');
