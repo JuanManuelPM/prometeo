@@ -188,12 +188,12 @@ export function buildClaimFrontier(
   // capability exemplars plus a byte-dense generic reserve when space permits.
   const capabilityDiverse = preserveCapabilityDiversity(ordered);
   const bounded = capabilityDiverse.slice(0, Math.max(1, maxCandidates));
-  // recovery_attention is diagnostic, not claim authority. Keep total cardinality but bound
-  // the verbose sample so diagnostics cannot consume bytes needed by actual atomic claim paths.
+  // recovery_attention is diagnostic, not claim authority. Keep total cardinality and two
+  // concrete exemplars, but reserve the remaining bytes for actual atomic claim paths.
   const recoveryAttention = arr(allocator.recovery_attention)
     .map(compactRecoveryAttention)
     .filter(row => row.job_id && row.reason)
-    .slice(0, 4);
+    .slice(0, 2);
   const base = {
     schema:'prometeo.claim-frontier/v1',
     generated_at:allocator.generated_at || new Date().toISOString(),
