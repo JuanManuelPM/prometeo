@@ -285,7 +285,7 @@
 
   <script src="../ingress-v1.js"></script>
   <script src="./input-module-v1.js"></script>
-  <script src="./progress-v1.js?v=bce10be728e0"></script>
+  <script src="./progress-v1.js?v=b1fb5c5e375c"></script>
   <script>
   (() => {
     'use strict';
@@ -714,6 +714,75 @@
       return wrap;
     }
 
+    function renderApproval(block) {
+      const wrap = node('div', null, 'copy-widget');
+      const head = node('div', null, 'copy-widget-head');
+      const title = node('div', block.label || 'Aprobación', 'copy-widget-title');
+      const approve = node('button', 'Aprobar', 'copy-button');
+      const reject = node('button', 'No aprobar', 'copy-button');
+      const feedback = node('div', null, 'copy-feedback');
+      head.append(title, approve, reject);
+      wrap.append(head, feedback);
+      const approvalId = String(block.approval_id || '').trim();
+      const proposalId = String(block.proposal_id || '').trim();
+      const proposalDigest = String(block.proposal_digest || '').trim().toLowerCase();
+      const valid = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(approvalId) && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(proposalId) && /^[a-f0-9]{64}$/.test(proposalDigest);
+      if (!valid) {
+        approve.disabled = true;
+        reject.disabled = true;
+        feedback.textContent = 'approval envelope inválido';
+        return wrap;
+      }
+      reject.addEventListener('click', () => {
+        approve.disabled = true;
+        reject.disabled = true;
+        feedback.textContent = 'no aprobado · no se envió nada';
+      }, { once: true });
+      approve.addEventListener('click', async () => {
+        const api = window.PROMETEO_INGRESS_V1;
+        if (!api || typeof api.submitApprovedPlan !== 'function') {
+          feedback.textContent = 'ingress no disponible';
+          return;
+        }
+        approve.disabled = true;
+        reject.disabled = true;
+        feedback.textContent = 'enviando aprobación…';
+        const marker = 'APPROVED PLAN · ' + proposalId + ' · ' + proposalDigest;
+        try {
+          const out = await api.submitApprovedPlan({
+            text: marker,
+            page: {
+              id: 'chat-canary',
+              page_id: 'control-v11-chat-canary',
+              title: 'Prometeo',
+              surface_id: 'current-tree-control-v11-chat-canary',
+              project_id: 'prometeo-autonomous-growth',
+              target_path: 'current-tree/control-v11/chat-canary/'
+            },
+            approval: {
+              schema: 'prometeo.primary-chat-approval/v1',
+              decision: 'APPROVED',
+              approval_id: approvalId,
+              proposal_id: proposalId,
+              proposal_digest: proposalDigest,
+              approved_at: new Date().toISOString()
+            }
+          });
+          const status = String(out && out.status || 'UNKNOWN');
+          feedback.textContent = out && out.queued === true ? (status === 'QUEUED_REPLAY' ? 'ya aprobado · receipt reutilizado' : 'aprobado · enviado') : ('no enviado · ' + status);
+          if (!(out && out.queued === true)) {
+            approve.disabled = false;
+            reject.disabled = false;
+          }
+        } catch (error) {
+          feedback.textContent = 'no enviado · ' + String(error && (error.code || error.message) || 'ERROR');
+          approve.disabled = false;
+          reject.disabled = false;
+        }
+      });
+      return wrap;
+    }
+
     function renderUiBlocks(message, host) {
       const blocks = Array.isArray(message.ui_blocks) ? message.ui_blocks : [];
       if (!blocks.length) return;
@@ -737,6 +806,8 @@
           box.append(renderRunProgress(block));
         } else if (block.type === 'details') {
           box.append(renderDetails(block));
+        } else if (block.type === 'approval') {
+          box.append(renderApproval(block));
         } else if (block.type === 'copy_group') {
           box.append(renderCopyGroup(block));
         }

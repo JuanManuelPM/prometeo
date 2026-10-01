@@ -12,7 +12,6 @@
   const LIVE_MS = 600000;
   const RESERVE_LOW_THRESHOLD = 3;
   const CORE_LIMIT = 6;
-  const QA_STATUSES = new Set(['QA_PENDING','QA_PASS','QA_REPAIR_IN_PROGRESS','QA_BLOCKED','READY_TO_PROMOTE']);
 
   function el(tag, text, className) {
     const node = document.createElement(tag);
@@ -192,23 +191,6 @@
     return rows.filter(row => row && row.archived !== true && String(row.actor_type || '').toUpperCase() === 'HUMAN' && ['QUEUED','WAITING','PENDING'].includes(String(row.status || '').toUpperCase())).length;
   }
 
-  function latestQaStatus(thread) {
-    const rows = Array.isArray(thread?.messages) ? thread.messages : [];
-    const candidates = rows.map(row => {
-      const status = String(row?.qa_status || row?.metadata?.qa_status || '').toUpperCase();
-      const at = asDate(row?.qa_updated_at || row?.published_at || row?.created_at);
-      if (!QA_STATUSES.has(status) || !at) return null;
-      return {
-        status,
-        at: at.toISOString(),
-        artifact_ref: row?.artifact_ref || row?.metadata?.artifact_ref || null,
-        version_ref: row?.version_ref || row?.metadata?.version_ref || null,
-        evidence_ref: row?.qa_evidence_ref || row?.metadata?.qa_evidence_ref || null
-      };
-    }).filter(Boolean).sort((a,b)=>new Date(b.at)-new Date(a.at));
-    return candidates[0] || null;
-  }
-
   function stateInput(runtime, frontier, thread, now = Date.now()) {
     const batchId = runtime?.current_batch || 'POOL-PROD-01';
     const batch = Array.isArray(runtime?.batches) ? runtime.batches.find(row => row && row.batch_id === batchId) : null;
@@ -276,7 +258,6 @@
       stale: state === 'PROJECTION_STALE',
       humanDecisionRequired: derived.input.human_decision_required,
       state,
-      qa: latestQaStatus(thread),
       contractInput: derived.input
     });
   }
@@ -319,8 +300,6 @@
     host.dataset.contract = contract?.schema || 'UNAVAILABLE';
     host.dataset.authority = contract?.authority || 'NON_AUTHORITATIVE_DERIVED_PROJECTION';
     host.dataset.harness = harness.passed + '/' + harness.total;
-    if (snapshot.qa?.status) host.dataset.qaStatus = snapshot.qa.status;
-    else delete host.dataset.qaStatus;
     const title = el('div', snapshot.state);
     title.style.cssText = 'font-weight:700;color:#d7d7d2;letter-spacing:.02em;';
     const metrics = el('div', 'Core ' + snapshot.core + ' · Live ' + snapshot.live + ' · Reserve ' + snapshot.reserve + ' · Need ' + snapshot.need + ' · Claimable ' + snapshot.claimable);
@@ -330,15 +309,7 @@
     const action = el('div', actionText(snapshot, contract));
     const pending = ['PROJECTION_STALE','HUMAN_DECISION_REQUIRED','CLAIM_TRANSPORT_DEGRADED','HUMAN_INTENT_WAITING_NO_CAPACITY','RETURNS_UNCONSUMED','RECOVERY_PRESSURE','REFILL_N','BUFFER_LOW','NO_SAFE_WORK'].includes(snapshot.state);
     action.style.cssText = 'margin-top:6px;color:' + (pending ? '#d9b45f' : '#82d69a') + ';font-weight:650;';
-    host.append(title, metrics, human);
-    if (snapshot.qa) {
-      const qa = el('div', 'QA ' + snapshot.qa.status + (snapshot.qa.version_ref ? ' · ' + snapshot.qa.version_ref : ''));
-      const qaPending = ['QA_PENDING','QA_REPAIR_IN_PROGRESS','QA_BLOCKED'].includes(snapshot.qa.status);
-      qa.style.cssText = 'margin-top:4px;color:' + (qaPending ? '#d9b45f' : '#82d69a') + ';font-size:10px;font-weight:650;';
-      qa.title = [snapshot.qa.artifact_ref, snapshot.qa.evidence_ref].filter(Boolean).join(' · ');
-      host.append(qa);
-    }
-    host.append(action);
+    host.append(title, metrics, human, action);
     host.title = 'Projection only · owner: ' + WAKE_OWNER_REF + ' · contract ' + (contract?.schema || 'unavailable') + ' · harness ' + harness.passed + '/' + harness.total;
   }
 
@@ -353,7 +324,7 @@
       renderCapacity(host, snapshot, harness, contract);
       return {ok:true,snapshot,harness,contract:contract.schema};
     } catch (error) {
-      const snapshot = Object.freeze({state:'PROJECTION_STALE',live:0,claimable:0,core:0,reserve:0,need:0,humanAgeMs:null,projectionAt:null,stale:true,qa:null});
+      const snapshot = Object.freeze({state:'PROJECTION_STALE',live:0,claimable:0,core:0,reserve:0,need:0,humanAgeMs:null,projectionAt:null,stale:true});
       renderCapacity(host, snapshot, harness, null);
       host.title = 'PROJECTION_STALE · ' + (error?.message || 'UNKNOWN') + ' · projection only · harness ' + harness.passed + '/' + harness.total;
       return {ok:false,reason:error?.message || 'UNKNOWN',harness};
@@ -374,7 +345,6 @@
       classify:classifyCapacityState,
       compileContractState,
       snapshot:capacitySnapshot,
-      latestQaStatus,
       runHarness:runCapacityHarness,
       load:loadCapacityAction
     })
