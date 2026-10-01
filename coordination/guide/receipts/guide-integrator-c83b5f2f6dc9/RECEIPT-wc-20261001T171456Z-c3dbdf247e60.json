@@ -1,0 +1,38 @@
+{
+  "schema": "prometeo.guide-receipt/v1",
+  "guide_work_id": "guide-integrator-c83b5f2f6dc9",
+  "receipt_id": "RECEIPT-wc-20261001T171456Z-c3dbdf247e60",
+  "worker_id": "wc-20261001T171456Z-c3dbdf247e60",
+  "role": "GUIDE_INTEGRATOR",
+  "created_at": "2026-10-01T17:28:01Z",
+  "trigger": "RETURNS_UNCONSUMED",
+  "evidence": [
+    "coordination/guide/receipts/guide-integrator-276c14e63886/RECEIPT-wc-20261001T171456Z-c3dbdf247e60.json",
+    "coordination/portfolio/returns/portfolio-primary-chat-canary-03500d23-2fa3-4f2e-ba24-0341f05603e0/RETURN-wc-20261001T171456Z-c3dbdf247e60-G000001-BOUNDARY.json"
+  ],
+  "diagnosis": "Tres de cuatro trigger returns ya estaban consumidos por el receipt previo de este mismo worker. El único delta material es el boundary de Primary Chat: la respuesta fue resuelta y el RETURN quedó durable, pero un mirror compartido y grande no puede publicarse con seguridad mediante reemplazo completo cuando hay escritores concurrentes.",
+  "intervention": "Se reconciliaron los tres returns ya consumidos sin duplicar disposición y se materializó un único sucesor deduplicado para reparar append/CAS del mirror con pruebas de concurrencia, idempotencia y fail-closed.",
+  "created_jobs": [
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-primary-chat-mirror-atomic-append-v1.json"
+  ],
+  "consumed_returns": [
+    "coordination/portfolio/returns/portfolio-primary-chat-canary-03500d23-2fa3-4f2e-ba24-0341f05603e0/RETURN-wc-20261001T171456Z-c3dbdf247e60-G000001-BOUNDARY.json"
+  ],
+  "already_consumed_returns": [
+    "coordination/portfolio/returns/portfolio-mp10-v11-served-end-to-end-browser-verify-v1/RETURN-wc-20261001T170924Z-39b70b3435b4.json",
+    "coordination/portfolio/returns/portfolio-stt-private-audio-receipt-privacy-guard-v1/RETURN-wc-20261001T171544Z-faf68cc45ec7-G000001-BOUNDARY.json",
+    "coordination/portfolio/returns/portfolio-stt-study-transcribe-served-source-delta-review-v1/RETURN-wc-20261001T151238Z-3ac27825ecff-G000001-VERIFIED.json"
+  ],
+  "changed_paths": [
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-primary-chat-mirror-atomic-append-v1.json",
+    "coordination/guide/receipts/guide-integrator-c83b5f2f6dc9/RECEIPT-wc-20261001T171456Z-c3dbdf247e60.json"
+  ],
+  "tests": [
+    {"name":"duplicate_integration_avoided","status":"PASS","evidence":"The three prior returns point to the existing guide-integrator-276c14e63886 receipt and were not re-materialized."},
+    {"name":"new_boundary_has_consumer","status":"PASS","evidence":"portfolio-primary-chat-mirror-atomic-append-v1 is a bounded software repair with explicit concurrency/idempotence acceptance."},
+    {"name":"no_parallel_authority","status":"PASS","evidence":"Successor is a normal derived job for CURRENT; no scheduler/queue/current/provider was created."}
+  ],
+  "remaining_boundary": null,
+  "productive_unit": 1,
+  "next_action": "E8_SUBMIT_NEXT"
+}
