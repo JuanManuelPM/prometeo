@@ -1,0 +1,46 @@
+name: Wire useful reserve allocator v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/patch-useful-reserve-allocator-wiring-v1.mjs'
+      - 'scripts/useful-reserve-allocator-v1.mjs'
+      - 'coordination/guide/tests/useful_reserve_allocator_wiring_v1.mjs'
+      - '.github/workflows/wire-useful-reserve-allocator-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wire-useful-reserve-allocator-v1
+  cancel-in-progress: false
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch CURRENT allocator owner
+        run: node scripts/patch-useful-reserve-allocator-wiring-v1.mjs
+      - name: Deterministic allocator wiring regression
+        run: node coordination/guide/tests/useful_reserve_allocator_wiring_v1.mjs
+      - name: Commit owner wiring when changed
+        run: |
+          if git diff --quiet -- scripts/build-fast-allocator.mjs; then
+            echo 'Allocator already wired.'
+            exit 0
+          fi
+          git config user.name 'prometeo-ci'
+          git config user.email '72280945+JuanManuelPM@users.noreply.github.com'
+          git add scripts/build-fast-allocator.mjs
+          git commit -m 'allocator: wire useful reserve policy into CURRENT owner'
+          git pull --rebase origin main
+          git push origin HEAD:main
