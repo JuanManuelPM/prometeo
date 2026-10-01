@@ -1,0 +1,100 @@
+{
+  "schema": "prometeo.speculative-downstream-prep-contract/v1",
+  "status": "CANARY",
+  "purpose": "Prepare bounded downstream artifacts before an upstream gate resolves so a later PASS, repairable FAIL, or BOUNDARY can be consumed quickly without granting execution, promotion, scheduling, or acceptance authority early.",
+  "owner_reuse_map": {
+    "work_authority": "portfolio/CURRENT + normal portfolio PIN claim",
+    "guide_successor_materialization": "coordination/guide/GUIDE_SWARM_PROTOCOL_V1.md#successor-semantic-dedup-hard-gate",
+    "qa": "coordination/guide/ASYNC_QA_PROMOTION_V1.json",
+    "worker_execution": "coordination/workers/WORKER_PIPELINE_V1.json",
+    "promotion": "existing project Current/Human Accepted/Served authority"
+  },
+  "derived_state": {
+    "name": "PREPARED_NOT_AUTHORIZED",
+    "meaning": "Preparation artifacts exist for a still-unresolved branch and may reduce post-RETURN setup time.",
+    "authority": "NONE",
+    "forbidden_equivalences": [
+      "CURRENT",
+      "CLAIMED",
+      "AUTHORIZED",
+      "VERIFIED",
+      "PROMOTION_READY",
+      "PROMOTED",
+      "HUMAN_ACCEPTED",
+      "SERVED"
+    ]
+  },
+  "branch_classes": {
+    "PASS": {
+      "may_prepare": ["fixtures", "tests", "candidate_successor_packet", "integration_inputs", "verification_targets"],
+      "activation_gate": "Observed upstream outcome is PASS, prepared_against digest/version still matches, all existing authority gates are satisfied, and the successor wins normal semantic dedup plus normal PIN ownership."
+    },
+    "FAIL_REPAIR": {
+      "may_prepare": ["repair_fixture", "bounded_repair_candidate", "reverification_vectors", "recovery_refs"],
+      "activation_gate": "Observed upstream outcome is FAIL/REPAIR_REQUIRED, failure matches the prepared defect class, prepared_against digest/version still matches, and the repair successor passes existing dedup and PIN authority."
+    },
+    "BOUNDARY": {
+      "may_prepare": ["boundary_receipt_shape", "evidence_bundle", "recovery_refs", "human_decision_packet_when_policy_requires"],
+      "activation_gate": "Observed upstream outcome is BOUNDARY and the exact boundary class/evidence basis matches. Preparation may package evidence but cannot bypass the boundary."
+    }
+  },
+  "required_preparation_record": [
+    "prep_id",
+    "upstream_ref",
+    "prepared_against.version_or_digest",
+    "branch_class",
+    "prepared_artifacts",
+    "expected_value_inputs",
+    "created_at",
+    "state"
+  ],
+  "invalidation": {
+    "result_state": "STALE_PREPARATION",
+    "triggers": [
+      "upstream artifact digest changes",
+      "upstream version changes incompatibly",
+      "acceptance vectors or gate schema materially change",
+      "the authority/source ref used by preparation is superseded",
+      "the observed outcome belongs to a different branch class",
+      "prepared evidence basis is explicitly invalidated or contradicted"
+    ],
+    "rule": "On any trigger, preparation is not executable and not promotable. Recompute from current evidence or discard it as cache-like derived work; never mutate CURRENT to make the preparation fit."
+  },
+  "expected_value_rule": {
+    "formula": "EV_saved_idle_ms = probability_branch * idle_ms_saved_if_hit - preparation_cost_ms - probability_invalidation * invalidation_rework_cost_ms",
+    "prepare_when": [
+      "EV_saved_idle_ms > 0",
+      "preparation is reversible or discardable",
+      "preparation does not require premature authority",
+      "the branch is evidence-backed rather than invented filler",
+      "resource cost is bounded relative to currently available worker capacity"
+    ],
+    "skip_when": [
+      "EV_saved_idle_ms <= 0",
+      "branch probability is unsupported",
+      "preparation would duplicate an already durable successor",
+      "preparation requires destructive or irreversible action",
+      "preparation would weaken a safety, privacy, capability, verification, or human-decision gate"
+    ]
+  },
+  "transition_rules": [
+    "PREPARED_NOT_AUTHORIZED + matching PASS -> candidate successor may enter existing semantic dedup and claim flow",
+    "PREPARED_NOT_AUTHORIZED + matching FAIL_REPAIR -> bounded repair candidate may enter existing semantic dedup and claim flow",
+    "PREPARED_NOT_AUTHORIZED + matching BOUNDARY -> evidence/boundary packet may be consumed; boundary remains authoritative",
+    "PREPARED_NOT_AUTHORIZED + invalidation -> STALE_PREPARATION",
+    "Any prepared branch without matching observed upstream outcome -> remain non-authoritative and do not execute"
+  ],
+  "telemetry": [
+    "prepared_at",
+    "upstream_returned_at",
+    "gate_reconciled_at",
+    "successor_claimable_at",
+    "serial_baseline_idle_ms",
+    "prepared_path_idle_ms",
+    "idle_ms_saved",
+    "branch_hit_or_miss",
+    "invalidated",
+    "discard_reason"
+  ],
+  "truth_boundary": "This is a derived preparation/cache contract. It creates no queue, scheduler, worker family, liveness truth, execution authority, verification authority, acceptance authority, CURRENT owner or promotion authority."
+}
