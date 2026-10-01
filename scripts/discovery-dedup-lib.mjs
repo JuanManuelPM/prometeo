@@ -16,6 +16,25 @@ const FORBIDDEN_AUTHORITY = new Set([
   'READY', 'CURRENT', 'HUMAN_ACCEPTED', 'SERVED', 'PROMOTED', 'APPROVED'
 ]);
 
+const PRIVATE_INGRESS_CORRELATION_ALIAS = Object.freeze({
+  id: 'primary-chat-private-ingress-correlation-v1',
+  identity: Object.freeze({
+    root: 'prometeo-autonomous-growth',
+    target: Object.freeze({
+      capability: 'opaque work_item_id return_path correlation',
+      owner: 'current-tree/control-v11/private-ingress',
+      surface: 'primary-chat'
+    }),
+    problem: 'browser drops opaque private ingress execution correlation before exact ui reload',
+    acceptance: Object.freeze([
+      'correlation uses sanitized identifiers only and never persists workspace secret or raw private payload',
+      'deterministic regressions preserve existing ingress behavior',
+      'invalid or replayed correlation fails closed',
+      'opaque work_item_id and return_path correlation survives prepare execution through primary chat ui'
+    ])
+  })
+});
+
 export const sha256 = value => crypto
   .createHash('sha256')
   .update(typeof value === 'string' ? value : JSON.stringify(value))
@@ -65,13 +84,48 @@ function requiredTarget(value) {
   return normalized;
 }
 
-export function canonicalDiscoveryIdentity(candidate = {}) {
+function baseCanonicalDiscoveryIdentity(candidate = {}) {
   const root = requiredText(candidate.root ?? candidate.root_id ?? candidate.project_id, 'root');
   const target = requiredTarget(candidate.target ?? candidate.semantic_target);
   const problem = requiredText(candidate.problem ?? candidate.problem_class ?? candidate.problem_or_opportunity, 'problem');
   const acceptance = canonicalList(candidate.acceptance ?? candidate.acceptance_outcome ?? candidate.acceptance_criteria);
   if (!acceptance.length) throw new Error('DISCOVERY_INVALID:acceptance_required');
   return {root, target, problem, acceptance};
+}
+
+function privateIngressCorrelationAliasMatches(identity) {
+  if (identity.root !== 'prometeo-autonomous-growth') return false;
+  const targetText = normalizeText(JSON.stringify(identity.target));
+  const identityText = normalizeText(JSON.stringify(identity));
+  const concretePathForm =
+    targetText.includes('current-tree/control-v11/ingress-v1.js') &&
+    targetText.includes('current-tree/control-v11/chat-canary/input-module-v1.js');
+  const ownerCapabilityForm =
+    targetText.includes('current-tree/control-v11 private ingress') &&
+    targetText.includes('primary chat') &&
+    targetText.includes('work_item_id') &&
+    targetText.includes('return_path');
+  const correlationProblem =
+    identityText.includes('browser') &&
+    identityText.includes('correlation') &&
+    (identityText.includes('work_item_id') || identityText.includes('opaque execution correlation')) &&
+    (identityText.includes('return_path') || identityText.includes('exact sanitized return correlation'));
+  return (concretePathForm || ownerCapabilityForm) && correlationProblem;
+}
+
+function resolveSemanticAlias(identity) {
+  if (privateIngressCorrelationAliasMatches(identity)) return PRIVATE_INGRESS_CORRELATION_ALIAS;
+  return null;
+}
+
+export function canonicalDiscoveryIdentity(candidate = {}) {
+  const base = baseCanonicalDiscoveryIdentity(candidate);
+  const alias = resolveSemanticAlias(base);
+  return alias ? alias.identity : base;
+}
+
+export function discoverySemanticAliasId(candidate = {}) {
+  return resolveSemanticAlias(baseCanonicalDiscoveryIdentity(candidate))?.id ?? null;
 }
 
 export function discoveryFingerprint(candidate = {}) {
@@ -133,6 +187,7 @@ export function buildProposalPin(candidate, source = {}, now = new Date().toISOS
   const validated = validateDiscoveryCandidate(candidate);
   const fingerprint = discoveryFingerprint(candidate);
   const proposal_id = String(candidate.proposal_id || `P-${fingerprint.slice(4, 16)}-${sha256(`${source.worker_instance_id || 'worker'}:${now}`).slice(0, 8)}`);
+  const semantic_alias_id = discoverySemanticAliasId(candidate);
   return {
     schema: 'prometeo.proposal-fingerprint-claim/v1',
     fingerprint,
@@ -145,6 +200,7 @@ export function buildProposalPin(candidate, source = {}, now = new Date().toISOS
       run_id: source.run_id ?? null
     },
     canonical_identity: validated.identity,
+    ...(semantic_alias_id ? {semantic_alias_id} : {}),
     authority: 'DEDUP_PIN_ONLY_NO_EXECUTION_OR_PROMOTION_AUTHORITY'
   };
 }
