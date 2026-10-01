@@ -1,0 +1,40 @@
+name: Tele current room two-client verify v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/portfolio/tests/tele_current_room_physical_verify_v1.mjs'
+      - '.github/workflows/tele-current-room-physical-verify-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tele-current-room-physical-verify-v1
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright@1.55.0 install --with-deps chromium
+      - name: Verify live TV and independent mobile controller
+        run: node coordination/portfolio/tests/tele_current_room_physical_verify_v1.mjs
+      - name: Upload bounded evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tele-current-room-physical-verify-evidence
+          path: artifacts/tele-current-room-physical-verify/evidence.json
+          if-no-files-found: error
+          retention-days: 14
