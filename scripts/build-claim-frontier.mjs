@@ -17,6 +17,27 @@ const KEEP = [
   'deadline_at','entrant_dir'
 ];
 
+const POSTCLAIM_FORBIDDEN_INHERITED_FIELDS = Object.freeze([
+  'task_ref',
+  'matrix_source_ref',
+  'program_ref',
+  'must_read',
+  'execution.scope',
+  'execution_scope',
+  'return_path'
+]);
+
+export function compilePostclaimContext(item = {}) {
+  if (!item?.source_path) return null;
+  return {
+    source_ref:item.source_path,
+    compile:'EXACT_SOURCE_ONLY_AFTER_OWNERSHIP',
+    field_policy:'DECLARED_SOURCE_FIELDS_PLUS_RUNTIME_BINDINGS',
+    runtime_bindings:['worker_id','generation','claim_id','source_head'],
+    forbidden_inherited_fields:[...POSTCLAIM_FORBIDDEN_INHERITED_FIELDS]
+  };
+}
+
 function compactCandidate(item, lane) {
   const out = { lane };
   for (const k of KEEP) if (item?.[k] !== undefined && item?.[k] !== null) out[k] = item[k];
@@ -24,7 +45,13 @@ function compactCandidate(item, lane) {
   // a worker never has to guess whether a missing array means [] or a truncated contract.
   out.required_capabilities = arr(item?.required_capabilities);
   out.forbidden_worker_ids = arr(item?.forbidden_worker_ids);
-  if (item?.source_path) out.postclaim_context = { source_ref:item.source_path, compile:'EXACT_SOURCE_ONLY_AFTER_OWNERSHIP' };
+  if (item?.source_path) {
+    // A reusable portfolio/queue source owns semantic context. Worker-specific return paths
+    // and legacy task/matrix/program/must-read/execution overlays are runtime products, not
+    // source fields. Never carry a historical worker binding across E3.
+    delete out.return_path;
+    out.postclaim_context = compilePostclaimContext(item);
+  }
   // Opportunity/Guide candidates may have no durable job file, so retain bounded execution context only there.
   if (item?.opportunity_id || lane==='role_ready') {
     if (item?.title) out.title = item.title;
@@ -96,8 +123,9 @@ function preserveCapabilityDiversity(
   // launch that can hide several distinct no-special-capability claims behind a long
   // specialized tail, leaving generic workers to collide on only one or two visible paths.
   // Preserve the allocator prefix + exact capability exemplars, then reserve a small bounded
-  // amount of additional zero-capacity claim paths. Eight keeps a full generic-worker safety\n  // margin inside the 24-candidate ceiling while capability exemplars remain protected.\n  // This changes transport ordering only;
-  // claim payloads and atomic authority semantics stay untouched.
+  // amount of additional zero-capacity claim paths. Eight keeps a full generic-worker safety
+  // margin inside the 24-candidate ceiling while capability exemplars remain protected.
+  // This changes transport ordering only; claim payloads and atomic authority semantics stay untouched.
   const promotedSet = new Set(promoted);
   const zeroPromoted = [];
   let zeroCount = [...head, ...promoted].filter(hasZeroRequiredCapabilities).length;
