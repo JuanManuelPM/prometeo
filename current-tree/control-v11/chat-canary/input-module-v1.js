@@ -287,4 +287,12 @@
   });
 
   global.PROMETEO_CHAT_CANARY_INPUT_V1 = api;
+
+  if (global.document && !global.document.querySelector('script[data-prometeo-current-first-loader-v1]')) {
+    const script = global.document.createElement('script');
+    script.src = './current-first-v1.js';
+    script.async = false;
+    script.setAttribute('data-prometeo-current-first-loader-v1', '');
+    (global.document.head || global.document.documentElement).appendChild(script);
+  }
 })(typeof globalThis !== 'undefined' ? globalThis : window);
