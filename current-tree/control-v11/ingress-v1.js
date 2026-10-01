@@ -5,7 +5,13 @@
   const REQUEST_SCHEMA = 'prometeo.browser-ingress-request/v1';
   const RESULT_SCHEMA = 'prometeo.ingress-transport-result/v1';
   const MAX_TEXT = 65536;
-  const DEFAULT_CANARY_ENDPOINT = 'https://worker-lab.vercel.app/api/prometeo-ingress';
+  const CAPTURE_ENDPOINT = 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-capture';
+  const CHANGE_LOOP_ENDPOINT = 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-change-loop-v1';
+  const WAKE_ENDPOINT = 'https://worker-lab.vercel.app/api/prometeo-ingress';
+  const WORKSPACE_SECRET_KEYS = Object.freeze([
+    'prometeo.capture.workspace.secret.v2',
+    'prometeo.capture.workspace.secret.v1'
+  ]);
   const SAFE_PAGE_KEYS = Object.freeze([
     'id','page_id','title','href','public_url','surface_id','project_id',
     'authority_status','target_path','source_identity','served_identity'
@@ -36,53 +42,134 @@
     try {
       if (global.crypto && typeof global.crypto.randomUUID === 'function') return global.crypto.randomUUID();
     } catch {}
-    const stamp = Date.now().toString(36);
-    const rand = Math.random().toString(36).slice(2, 14);
-    return 'ing-' + stamp + '-' + rand;
+    return 'ing-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 14);
   }
 
-  function installDefaultCanaryTransport() {
+  function workspaceSecret() {
+    for (const key of WORKSPACE_SECRET_KEYS) {
+      try {
+        const value = global.localStorage && global.localStorage.getItem(key);
+        if (value && value.length >= 32) return value;
+      } catch {}
+    }
+    return '';
+  }
+
+  async function postJson(url, body, secret = '') {
+    const headers = { 'Content-Type': 'application/json' };
+    if (secret) headers.Authorization = 'Bearer ' + secret;
+    const response = await global.fetch(url, {
+      method: 'POST',
+      mode: 'cors',
+      cache: 'no-store',
+      headers,
+      body: JSON.stringify(body)
+    });
+    let data = null;
+    try { data = await response.json(); } catch {}
+    if (!response.ok) {
+      const error = new Error(cleanString(data && (data.error || data.message), 240) || ('HTTP_' + response.status));
+      error.code = cleanString(data && data.error, 120) || ('HTTP_' + response.status);
+      throw error;
+    }
+    return data || {};
+  }
+
+  function captureIdFor(requestIdValue) {
+    const safe = String(requestIdValue || '').replace(/[^A-Za-z0-9._:-]/g, '-').slice(0, 120);
+    return 'primary-chat-' + (safe || Date.now().toString(36));
+  }
+
+  function installDefaultPrivateTransport() {
     const existing = global.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1;
     if (existing && typeof existing.submit === 'function') return existing;
-    if (typeof global.fetch !== 'function') return null;
+    if (typeof global.fetch !== 'function' || !workspaceSecret()) return null;
 
     const transport = Object.freeze({
-      schema: 'prometeo.github-ingress-browser-transport/v1',
-      mode: 'PUBLIC_SANITIZED_CANARY',
-      endpoint: DEFAULT_CANARY_ENDPOINT,
+      schema: 'prometeo.page-change-github-wake-transport/v1',
+      mode: 'PRIVATE_PAGE_CHANGE_SANITIZED_WAKE',
+      endpoint: WAKE_ENDPOINT,
       async submit(payload = {}) {
+        const envelope = payload.public_envelope;
+        const privatePayload = payload.private_payload;
+        const text = privatePayload && typeof privatePayload.text === 'string' ? privatePayload.text.trim() : '';
+        const page = envelope && envelope.page && typeof envelope.page === 'object' ? envelope.page : {};
+        const pageId = cleanString(page.page_id || page.id, 160);
+        const secret = workspaceSecret();
+        if (!secret) return Object.freeze({ schema: RESULT_SCHEMA, status: 'BOUNDARY_AUTH_REQUIRED', ref: null, queued: false, error: 'WORKSPACE_NOT_LINKED' });
+        if (!envelope || envelope.schema !== REQUEST_SCHEMA || !text || !pageId) {
+          return Object.freeze({ schema: RESULT_SCHEMA, status: 'BOUNDARY_INVALID_INPUT', ref: null, queued: false, error: 'TRANSPORT_INPUT_INVALID' });
+        }
+
         try {
-          const response = await global.fetch(DEFAULT_CANARY_ENDPOINT, {
-            method: 'POST',
-            mode: 'cors',
-            cache: 'no-store',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              schema: 'prometeo.primary-chat-public-canary-submit/v1',
-              public_canary: true,
-              public_envelope: payload.public_envelope,
-              private_payload: payload.private_payload
-            })
-          });
-          let data = null;
-          try { data = await response.json(); } catch {}
-          if (!response.ok || !data || data.schema !== RESULT_SCHEMA) {
-            return Object.freeze({
-              schema: RESULT_SCHEMA,
-              status: 'BOUNDARY_TRANSPORT_FAILED',
-              ref: null,
-              queued: false,
-              error: cleanString(data && data.error, 240) || ('HTTP_' + response.status)
-            });
+          const createdMs = Number.isFinite(Date.parse(envelope.created_at)) ? Date.parse(envelope.created_at) : Date.now();
+          const captureId = captureIdFor(envelope.request_id);
+          await postJson(CAPTURE_ENDPOINT, {
+            action: 'sync_capture',
+            capture: {
+              id: captureId,
+              page_id: pageId,
+              created: createdMs,
+              transcript: text,
+              transcript_revision: 1,
+              status: 'pending',
+              source_path: cleanString(page.target_path, 320),
+              source_href: cleanString(page.href || page.public_url || (global.location && global.location.href), 2048),
+              source_title: cleanString(page.title, 300) || 'Prometeo · Primary Chat',
+              metadata: {
+                source_kind: 'HUMAN_PRIMARY_CHAT',
+                source_surface: 'PRIMARY_CHAT',
+                request_id: cleanString(envelope.request_id, 160),
+                chat_object_id: 'chat-object-prometeo-chat-control-main'
+              },
+              page: {
+                source_repo: 'JuanManuelPM/prometeo',
+                source_entrypoint: cleanString(page.target_path, 320),
+                public_url: cleanString(page.href || page.public_url || (global.location && global.location.href), 2048)
+              }
+            }
+          }, secret);
+
+          const prepared = await postJson(CHANGE_LOOP_ENDPOINT, {
+            action: 'prepare_execution',
+            page_id: pageId,
+            page_title: cleanString(page.title, 300) || 'Prometeo · Primary Chat',
+            source_href: cleanString(page.href || page.public_url || (global.location && global.location.href), 2048),
+            served_identity: cleanString(page.served_identity, 160),
+            baseline: {},
+            semantic_context: {
+              surface_id: cleanString(page.surface_id, 120) || 'current-tree-control-v11-chat-canary',
+              project_id: cleanString(page.project_id, 120) || 'prometeo-autonomous-growth',
+              target_path: cleanString(page.target_path, 300) || 'current-tree/control-v11/chat-canary/'
+            },
+            delivery_mode: 'WORKER_POOL',
+            intent: 'WORK_PAGE',
+            human_approved: true
+          }, secret);
+
+          const workItemId = cleanString(prepared.work_item_id, 160);
+          const returnPath = cleanString(prepared.return_path, 360);
+          if (!prepared.queued_to_worker_pool || !workItemId || !returnPath) {
+            throw Object.assign(new Error('PAGE_CHANGE_PREPARE_INVALID'), { code: 'PAGE_CHANGE_PREPARE_INVALID' });
           }
-          return data;
+
+          const wake = await postJson(WAKE_ENDPOINT, {
+            schema: 'prometeo.primary-chat-page-change-wake/v1',
+            work_item_id: workItemId,
+            page_id: pageId,
+            return_path: returnPath
+          });
+          if (!wake || wake.schema !== RESULT_SCHEMA || wake.queued !== true) {
+            throw Object.assign(new Error(cleanString(wake && wake.error, 160) || 'WAKE_NOT_QUEUED'), { code: 'WAKE_NOT_QUEUED' });
+          }
+          return Object.freeze(wake);
         } catch (error) {
           return Object.freeze({
             schema: RESULT_SCHEMA,
             status: 'BOUNDARY_TRANSPORT_FAILED',
             ref: null,
             queued: false,
-            error: cleanString(error && (error.code || error.name), 120) || 'FETCH_FAILED'
+            error: cleanString(error && (error.code || error.message || error.name), 180) || 'PRIVATE_TRANSPORT_FAILED'
           });
         }
       }
@@ -91,30 +178,10 @@
     return transport;
   }
 
-  function showPublicCanaryWarning() {
-    if (!global.document) return;
-    const render = () => {
-      if (global.document.querySelector('[data-prometeo-public-canary-warning]')) return;
-      const composer = global.document.querySelector('[data-prometeo-chat-composer-v1]');
-      if (!composer || !composer.parentNode) return;
-      const note = global.document.createElement('div');
-      note.setAttribute('data-prometeo-public-canary-warning', '');
-      note.textContent = 'MODO PÚBLICO CANARY · lo que envíes se publica sanitizado en el repo público. No pegues secretos ni datos sensibles.';
-      note.style.cssText = 'margin:4px 8px 7px;color:#d9b45f;font:9px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;';
-      composer.parentNode.insertBefore(note, composer);
-    };
-    if (global.document.readyState === 'loading') {
-      global.document.addEventListener('DOMContentLoaded', render, { once: true });
-    } else {
-      global.setTimeout(render, 0);
-    }
-  }
-
-  installDefaultCanaryTransport();
-  showPublicCanaryWarning();
+  installDefaultPrivateTransport();
 
   function activeTransport() {
-    const t = global.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1 || installDefaultCanaryTransport();
+    const t = global.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1 || installDefaultPrivateTransport();
     return t && typeof t.submit === 'function' ? t : null;
   }
 
@@ -132,15 +199,10 @@
     const text = cleanString(input.text, MAX_TEXT);
     const kind = cleanString(input.kind, 64) || 'work';
     if (!text) return result('BOUNDARY_INVALID_INPUT', null, false, 'EMPTY_TEXT');
-    if (String(input.text).length > MAX_TEXT) {
-      return result('BOUNDARY_INVALID_INPUT', null, false, 'TEXT_TOO_LARGE');
-    }
+    if (String(input.text).length > MAX_TEXT) return result('BOUNDARY_INVALID_INPUT', null, false, 'TEXT_TOO_LARGE');
 
     const transport = activeTransport();
-    if (!transport) {
-      return result('BOUNDARY_AUTH_REQUIRED', null, false, 'AUTH_BRIDGE_REQUIRED');
-    }
-    const publicCanary = transport.mode === 'PUBLIC_SANITIZED_CANARY';
+    if (!transport) return result('BOUNDARY_AUTH_REQUIRED', null, false, 'WORKSPACE_NOT_LINKED');
 
     const public_envelope = Object.freeze({
       schema: REQUEST_SCHEMA,
@@ -149,52 +211,41 @@
       kind,
       page: publicPage(input.page),
       privacy: Object.freeze({
-        raw_text_public: publicCanary,
+        raw_text_public: false,
         credentials_public: false,
-        public_payload_class: publicCanary ? 'PUBLIC_SANITIZED_CANARY' : 'SANITIZED_METADATA_ONLY'
+        public_payload_class: 'SANITIZED_METADATA_ONLY'
       })
     });
     const private_payload = Object.freeze({ text });
 
     let transportResult;
     try {
-      transportResult = await transport.submit(Object.freeze({
-        public_envelope,
-        private_payload
-      }));
+      transportResult = await transport.submit(Object.freeze({ public_envelope, private_payload }));
     } catch (error) {
-      const code = cleanString(error && (error.code || error.name), 120) || 'TRANSPORT_ERROR';
-      return result('BOUNDARY_TRANSPORT_FAILED', null, false, code);
+      return result('BOUNDARY_TRANSPORT_FAILED', null, false, cleanString(error && (error.code || error.name), 120) || 'TRANSPORT_ERROR');
     }
 
-    if (!transportResult || typeof transportResult !== 'object') {
-      return result('BOUNDARY_TRANSPORT_INVALID', null, false, 'TRANSPORT_RESULT_INVALID');
-    }
-
+    if (!transportResult || typeof transportResult !== 'object') return result('BOUNDARY_TRANSPORT_INVALID', null, false, 'TRANSPORT_RESULT_INVALID');
     const status = cleanString(transportResult.status, 120) || 'UNKNOWN';
     const ref = cleanString(transportResult.ref, 4096);
     const queued = transportResult.queued === true;
     const error = cleanString(transportResult.error, 240);
-
-    if (queued && (!validDurableRef(ref) || transportResult.schema !== RESULT_SCHEMA)) {
-      return result('BOUNDARY_TRANSPORT_INVALID', null, false, 'TRANSPORT_RESULT_INVALID');
-    }
+    if (queued && (!validDurableRef(ref) || transportResult.schema !== RESULT_SCHEMA)) return result('BOUNDARY_TRANSPORT_INVALID', null, false, 'TRANSPORT_RESULT_INVALID');
     if (!queued) return result(status, ref && validDurableRef(ref) ? ref : null, false, error);
-
     return result(status || 'QUEUED', ref, true, error);
   }
 
-  const api = Object.freeze({
+  global.PROMETEO_INGRESS_V1 = Object.freeze({
     schema: SCHEMA,
     submit,
     transport_schema: RESULT_SCHEMA,
-    default_transport_mode: 'PUBLIC_SANITIZED_CANARY',
+    default_transport_mode: 'PRIVATE_PAGE_CHANGE_SANITIZED_WAKE',
     privacy: Object.freeze({
-      raw_text_public: true,
+      raw_text_public: false,
+      raw_text_private_owner: 'prometeo-change-loop-v1',
       credentials_public: false,
-      browser_embedded_repository_token: false
+      browser_embedded_repository_token: false,
+      github_wake_payload: 'SANITIZED_METADATA_ONLY'
     })
   });
-
-  global.PROMETEO_INGRESS_V1 = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
