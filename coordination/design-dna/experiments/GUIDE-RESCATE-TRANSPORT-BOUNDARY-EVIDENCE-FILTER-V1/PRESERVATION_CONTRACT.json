@@ -1,0 +1,56 @@
+{
+  "schema": "prometeo.preservation-contract/v1",
+  "experiment_id": "GUIDE-RESCATE-TRANSPORT-BOUNDARY-EVIDENCE-FILTER-V1",
+  "created_at": "2026-10-01T21:16:18Z",
+  "created_by": "wc-20261001T210602Z-191e5e374442",
+  "authority_ref": "coordination/guide/pins/guide-rescate-35e53af333b7/G000001.json",
+  "requested_delta": "Preserve explicit CLAIM_TRANSPORT_BLOCKED no-allocation receipts as telemetry while excluding them from GUIDE_RESCATE LOW_YIELD causal evidence regardless of whether legacy/current receipts encode the classification in reason, outcome, classification or code.",
+  "problem_evidence": [
+    "coordination/workers/no-allocation/wc-20261001T210538Z-bd30498635d1.json",
+    "coordination/workers/no-allocation/wc-20261001T210551Z-16cb12035008.json",
+    "coordination/workers/no-allocation/wc-20261001T210614Z-21995f246c52.json",
+    "coordination/efficiency/RATCHET_BASELINE_V1.json#EFF016B",
+    "coordination/efficiency/RATCHET_BASELINE_V1.json#EFF017"
+  ],
+  "diagnosis": "The allocator's first-pass transport filter recognizes only doc.reason/doc.outcome. Recent canonical no-allocation receipts encode the explicit denial in doc.classification, so their paths survive into GUIDE_RESCATE LOW_YIELD evidence despite the existing EFF016B ratchet. The existing role-evidence-integrity postprocessor is the narrowest canonical place to enforce the ratchet without adding a scheduler or new truth owner.",
+  "invariants_touched": [
+    "EFF016B explicit transport denials remain telemetry only and do not become GUIDE_RESCATE repair debt",
+    "EFF017 role_ready evidence is centrally prevalidated before publication",
+    "Role identity/fingerprint and claim authority are unchanged by evidence sanitation",
+    "Fresh /wc claim-first path gains no reads or handshakes",
+    "Actionable no-allocation evidence remains eligible for rescate"
+  ],
+  "failure_vaccines": [
+    "FV001_INFRA_FOR_INFRA",
+    "FV006_PROTOCOL_VOLUME_AS_SAFETY",
+    "FV007_SCALE_HIDES_ORCHESTRATION_WEAKNESS",
+    "FV014_GOLDEN_ERASURE"
+  ],
+  "baseline": {
+    "current_filter": "build-fast-allocator excludes CLAIM_TRANSPORT_BLOCKED only when reason/outcome carry the value",
+    "current_postprocessor": "scripts/apply-role-evidence-integrity.mjs validates local evidence existence/fragments but does not classify transport-boundary semantics",
+    "observed_regression": "GUIDE_RESCATE guide-rescate-35e53af333b7 includes explicit transport-blocked no-allocation refs encoded through classification"
+  },
+  "must_preserve": [
+    "No new queue/scheduler/CURRENT owner",
+    "No worker-side preclaim archaeology",
+    "No retry or bypass of explicit connector/tool denials",
+    "Actionable CREATE_EXISTS/exhaustion/recovery/collision evidence remains available to GUIDE_RESCATE",
+    "External and valid repo-local evidence sanitation behavior remains deterministic",
+    "claim_payload_shape.evidence exactly matches the postprocessed candidate evidence"
+  ],
+  "forbidden_regressions": [
+    "Suppress all LOW_YIELD rescate merely because one transport-denied receipt exists",
+    "Delete transport-denial receipts or hide them from telemetry",
+    "Recompute guide role identity/fingerprint after evidence sanitation",
+    "Add a parallel role compiler or worker-facing handshake",
+    "Treat a safety denial as software-repairable debt"
+  ],
+  "implementation_target": "scripts/apply-role-evidence-integrity.mjs",
+  "regression_target": "coordination/portfolio/tests/role_ready_evidence_integrity_v1.mjs",
+  "control": "Existing valid/missing/external role evidence fixtures plus actionable no-allocation rescate fixture must continue to pass unchanged.",
+  "new_test": "Add classification/outcome/code transport-block fixtures; verify they are telemetry-only for GUIDE_RESCATE LOW_YIELD, absent from claim payload evidence, and a blocked-only rescate is suppressed while actionable evidence is preserved.",
+  "promotion_gate": "Targeted regression PASS plus existing role-evidence-integrity regression invariants PASS. Runtime publication is subsequent evidence; this patch alone is not RATCHETED runtime proof.",
+  "rollback": "Revert the two-file code/test change while preserving this contract and observed receipts if sanitation removes actionable non-transport evidence or changes role identity/authority.",
+  "truth_boundary": "This repair changes only compiled Guide causal evidence sanitation. It does not change connector safety controls, claim authority, product authority, worker spawning, Current, Human Accepted or Served state."
+}
