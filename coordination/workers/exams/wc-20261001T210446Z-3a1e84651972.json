@@ -1,0 +1,149 @@
+{
+  "schema": "prometeo.worker-productivity-exam/v1",
+  "worker_id": "wc-20261001T210446Z-3a1e84651972",
+  "batch_id": "POOL-PROD-01",
+  "pool_id": "PROD-01",
+  "protocol_version": "v3.30",
+  "launch_nonce": "b2d8c92e3ea83463",
+  "started_at_or_null": null,
+  "closed_at": "2026-10-01T21:06:45.784Z",
+  "slots": [],
+  "collisions": 0,
+  "no_allocation_count": 1,
+  "projects_touched": [],
+  "pattern_id_or_null": null,
+  "experiment_enrolled": false,
+  "close_reason": "TRANSPORT_BOUNDARY",
+  "close_evidence_refs": [
+    "coordination/workers/no-allocation/wc-20261001T210446Z-3a1e84651972.json"
+  ],
+  "wall_clock_seconds": 119.316,
+  "exit_audit_v1": {
+    "worker_id": "wc-20261001T210446Z-3a1e84651972",
+    "batch_or_pool_or_run": "POOL-PROD-01",
+    "exit_reason": "BOUNDARY",
+    "productive_units": 0,
+    "final_state": "CLAIM_TRANSPORT_UNSTABLE",
+    "started_at": "2026-10-01T21:04:46.468393Z",
+    "audit_completed_at": "2026-10-01T21:06:45.784Z",
+    "timing_basis": "MIXED_DIAGNOSTIC",
+    "stage_timings": [
+      {
+        "stage": "E0",
+        "elapsed_ms_or_null": null,
+        "basis": "coordination/workers/beacons/wc-20261001T210446Z-3a1e84651972.json"
+      },
+      {
+        "stage": "E2",
+        "elapsed_ms_or_null": null,
+        "basis": "coordination/workers/no-allocation/wc-20261001T210446Z-3a1e84651972.json"
+      },
+      {
+        "stage": "E9",
+        "elapsed_ms_or_null": null,
+        "basis": "this exam"
+      }
+    ],
+    "tool_usage": [
+      {
+        "tool_or_connector": "GitHub Contents API",
+        "calls_or_operations": 4,
+        "useful_operations": 4,
+        "wait_ms_or_null": null
+      },
+      {
+        "tool_or_connector": "GitHub issue comments",
+        "calls_or_operations": 2,
+        "useful_operations": 2,
+        "wait_ms_or_null": null
+      },
+      {
+        "tool_or_connector": "GitHub file reads",
+        "calls_or_operations": 4,
+        "useful_operations": 4,
+        "wait_ms_or_null": null
+      },
+      {
+        "tool_or_connector": "public HTTP bootstrap reads",
+        "calls_or_operations": 4,
+        "useful_operations": 3,
+        "wait_ms_or_null": null
+      }
+    ],
+    "friction_events": [
+      {
+        "category": "CLAIM_TRANSPORT",
+        "elapsed_ms_or_null": null,
+        "description": "Authority CREATE hit branch-head movement twice on the same exact claim path, including the single permitted stabilization retry.",
+        "evidence_refs": [
+          "coordination/workers/no-allocation/wc-20261001T210446Z-3a1e84651972.json"
+        ],
+        "recovered": false,
+        "boundary_code_or_null": "CLAIM_TRANSPORT_UNSTABLE",
+        "proposed_new_category_or_null": null
+      }
+    ],
+    "decision_trace": [
+      {
+        "decision": "Create a de-novo v3.30 beacon before allocation.",
+        "observable_basis": "Fresh-launch policy requires an atomic beacon CREATE before any claim.",
+        "action": "Created the worker beacon on main and froze worker_id plus launch_nonce.",
+        "outcome": "Beacon persisted successfully.",
+        "evidence_refs": [
+          "coordination/workers/beacons/wc-20261001T210446Z-3a1e84651972.json"
+        ]
+      },
+      {
+        "decision": "Route by deterministic POOL sharding over the compact frontier.",
+        "observable_basis": "POOL PROD-01 plus beacon commit seed selected the generic-frontier-elasticity candidate from the retained frontier.",
+        "action": "Attempted the exact allocator-supplied G000001 PIN CREATE.",
+        "outcome": "GitHub returned branch-head movement rather than CREATE_EXISTS or success.",
+        "evidence_refs": [
+          "coordination/workers/no-allocation/wc-20261001T210446Z-3a1e84651972.json"
+        ]
+      },
+      {
+        "decision": "Use the one allowed same-path stabilization retry.",
+        "observable_basis": "The first failure explicitly proved branch-head movement and did not prove the claim path existed.",
+        "action": "Retried the same exact claim path with byte-identical payload once.",
+        "outcome": "The branch head moved again, establishing CLAIM_TRANSPORT_UNSTABLE.",
+        "evidence_refs": [
+          "coordination/workers/no-allocation/wc-20261001T210446Z-3a1e84651972.json"
+        ]
+      },
+      {
+        "decision": "Stop without diverting or inventing ownership.",
+        "observable_basis": "Binding /wc protocol requires terminal stop after a second branch-head movement on the stabilization retry.",
+        "action": "Persisted the transport boundary and emitted CLAIM_RESULT observability.",
+        "outcome": "No execution authority was acquired and no substantive mutation was performed.",
+        "evidence_refs": [
+          "coordination/workers/no-allocation/wc-20261001T210446Z-3a1e84651972.json"
+        ]
+      }
+    ],
+    "top_time_sinks": [
+      {
+        "category": "CLAIM_TRANSPORT",
+        "elapsed_ms_or_null": null,
+        "note": "Repeated concurrent branch-head movement prevented the authority PIN from landing."
+      }
+    ],
+    "unfinished_debt": [
+      {
+        "item": "The routed generic-frontier-elasticity job was not owned by this worker because authority transport never stabilized.",
+        "owner_or_recovery_ref_or_null": null
+      }
+    ],
+    "improvement_candidates": [
+      {
+        "target": "E2",
+        "proposal": "Reduce branch-head coupling for atomic claim CREATEs so unrelated concurrent commits do not consume the single stabilization window.",
+        "expected_effect": "Fewer fresh workers terminate before ownership under high commit concurrency.",
+        "evidence_refs": [
+          "coordination/workers/no-allocation/wc-20261001T210446Z-3a1e84651972.json"
+        ]
+      }
+    ],
+    "public_safe_summary": "Fresh v3.30 worker beacon succeeded, deterministic pool routing selected one ready job, but the claim transport encountered two consecutive branch-head movements. The worker stopped without authority or product mutation and persisted a transport-boundary receipt."
+  }
+}
