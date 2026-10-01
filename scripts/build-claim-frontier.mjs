@@ -143,10 +143,10 @@ function preserveCapabilityDiversity(
 
   const protectedSet = new Set([...promoted, ...zeroPromoted]);
   // Under a byte cap, candidates later in the array may never cross the transport boundary.
-  // Put the byte-dense generic reserve directly after the allocator's first choice, then exact
-  // capability exemplars, then the remaining allocator order. This changes transport ordering
-  // only; claim payloads, capability truth and atomic authority semantics stay untouched.
-  return [...head, ...zeroPromoted, ...promoted, ...tail.filter(candidate => !protectedSet.has(candidate))];
+  // Keep exact capability exemplars immediately after the allocator's first choice, then pack
+  // the byte-dense generic reserve. This prevents generic elasticity from erasing specialized
+  // reachability. Claim payloads, capability truth and atomic authority semantics stay untouched.
+  return [...head, ...promoted, ...zeroPromoted, ...tail.filter(candidate => !protectedSet.has(candidate))];
 }
 
 export function buildClaimFrontier(
@@ -188,10 +188,12 @@ export function buildClaimFrontier(
   // capability exemplars plus a byte-dense generic reserve when space permits.
   const capabilityDiverse = preserveCapabilityDiversity(ordered);
   const bounded = capabilityDiverse.slice(0, Math.max(1, maxCandidates));
+  // recovery_attention is diagnostic, not claim authority. Keep total cardinality but bound
+  // the verbose sample so diagnostics cannot consume bytes needed by actual atomic claim paths.
   const recoveryAttention = arr(allocator.recovery_attention)
     .map(compactRecoveryAttention)
     .filter(row => row.job_id && row.reason)
-    .slice(0, 8);
+    .slice(0, 4);
   const base = {
     schema:'prometeo.claim-frontier/v1',
     generated_at:allocator.generated_at || new Date().toISOString(),
