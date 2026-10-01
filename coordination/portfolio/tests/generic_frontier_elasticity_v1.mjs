@@ -115,6 +115,21 @@ assert(bytes <= 14_000, `compact frontier exceeded transport ceiling: ${bytes}`)
 assert.equal(frontier.recovery_attention_total, 8, 'diagnostic total cardinality must remain truthful');
 assert.equal(frontier.recovery_attention.length, 2, 'verbose non-authority diagnostics must be bounded to two transport exemplars');
 assert.deepEqual(frontier.postclaim_runtime_bindings, ['worker_id','generation','claim_id','source_head'], 'shared runtime bindings must remain explicit at frontier scope');
+assert.deepEqual(frontier.claim_phase_contract, {
+  contract_version:'EFF001_EFF034_V1',
+  ordinary_base_create_budget:3,
+  pool_tail_rescue_max:1,
+  total_authority_create_hard_cap:4,
+  stale_collision_refresh:{
+    after_create_exists:2,
+    snapshot_age_seconds_gt:90,
+    max_refreshes:1,
+    refresh_ref:'gh-pages:live/claim-frontier.json',
+    rebuild_capability_filter:true,
+    reuse_beacon_shard_seed:true,
+    consumes_authority_attempt:false
+  }
+}, 'compact frontier must carry the machine-readable EFF001/EFF034 claim-phase transition contract');
 assert(genericVisible >= 10, `generic frontier must expose burst-10 compatible claims: visible generic=${genericVisible}`);
 assert.equal(burst10Starvation, 0, `burst 10 starvation must be zero: ${burst10Starvation}`);
 assert(burst20Starvation <= 10, `burst 20 starvation regressed beyond bounded transport expectation: ${burst20Starvation}`);
@@ -140,5 +155,6 @@ console.log('GENERIC_FRONTIER_ELASTICITY_PASS', JSON.stringify({
   recovery_attention_transport_sample:frontier.recovery_attention.length,
   burst_10:{starvation:burst10Starvation,status:burst10Starvation===0?'PASS':'REMAINING_STARVATION_EXPLICIT'},
   burst_20:{starvation:burst20Starvation,status:burst20Starvation===0?'PASS':'REMAINING_STARVATION_EXPLICIT'},
-  specialized_exemplar_preserved:true
+  specialized_exemplar_preserved:true,
+  claim_phase_contract:frontier.claim_phase_contract.contract_version
 }));
