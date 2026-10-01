@@ -1,0 +1,43 @@
+{
+  "schema": "prometeo.guide-receipt/v1",
+  "guide_work_id": "guide-rescate-2bffbbfadea6",
+  "receipt_id": "receipt-wc-20261001T222712Z-800118e4587a-G000001",
+  "worker_id": "wc-20261001T222712Z-800118e4587a",
+  "role": "GUIDE_RESCATE",
+  "created_at": "2026-10-01T22:43:40Z",
+  "trigger": "LOW_YIELD",
+  "authority_ref": "coordination/guide/pins/guide-rescate-2bffbbfadea6/G000001.json",
+  "evidence": [
+    "coordination/workers/no-allocation/wc-20261001T222714Z-039046527870.json",
+    "gh-pages:live/claim-frontier.json@2026-10-01T22:35:30.802Z",
+    "scripts/build-claim-frontier.mjs@29469e4f350a547d9fc3a73357552af425015161",
+    "coordination/portfolio/tests/claim_frontier_compact_v1.mjs@cf93d4585a3187ce96a6dcf2274ec7dcc13b8f56",
+    "coordination/portfolio/tests/generic_frontier_elasticity_v1.mjs@cc70bdb873048b0ce5f1f61aefe5afeb7a4f015e"
+  ],
+  "diagnosis": "A fresh worker exhausted its bounded four-claim budget on CREATE_EXISTS while the compact frontier reported 24 grounded candidates but transported only six. The transport ordering placed capability exemplars ahead of the generic reserve, so pooled no-special-capability workers could repeatedly collide on a small visible subset while compatible grounded claims remained hidden behind the 14 KB transport ceiling.",
+  "intervention": "Patched the existing compact-frontier compiler, without changing allocator authority or claim payloads, to preserve allocator choice #1 and then establish a bounded four-path no-special-capability runway before specialized capability exemplars. Added a regression fixture requiring the first four visible paths to remain generic when enough generic work exists while browser and HTTP exemplars still survive and serialized transport remains <= 14 KB.",
+  "created_jobs": [],
+  "consumed_returns": [],
+  "changed_paths": [
+    "scripts/build-claim-frontier.mjs",
+    "coordination/portfolio/tests/claim_frontier_generic_collision_runway_v1.mjs"
+  ],
+  "commits": [
+    "6dd561a49d95ebfa82a3ac0105929162ef21e7d8",
+    "9a718e3a5914e6a8150098a9f684779647c8af93"
+  ],
+  "tests": [
+    {
+      "name": "node --check build-claim-frontier-updated.mjs",
+      "status": "PASS"
+    },
+    {
+      "name": "synthetic generic collision runway fixture",
+      "status": "PASS",
+      "detail": "CLAIM_FRONTIER_GENERIC_RUNWAY_PASS visible=12 generic=10 bytes=13935; browser and HTTP exemplars preserved"
+    }
+  ],
+  "expected_multiplicative_effect": "A generic worker's four bounded atomic attempts can span four distinct no-special-capability paths instead of spending the entire budget on a transport-narrow collision fan-in, reducing false NO_ALLOCATION under concurrent launches without increasing claim authority or transport ceiling.",
+  "remaining_boundary": "Live reduction in CREATE_EXISTS/NO_ALLOCATION is not claimed until fresh post-change launches exercise a newly compiled frontier; this receipt proves the mechanism patch and deterministic fixture only.",
+  "truth_boundary": "No claim that all 24 candidates fit 14 KB, no claim that collisions disappear, and no claim that specialized capability routing is universally optimal. Authority remains atomic CREATE on the published exact path."
+}
