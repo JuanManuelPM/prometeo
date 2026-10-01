@@ -1,0 +1,86 @@
+{
+  "schema": "prometeo.human-time-ledger-contract/v1",
+  "status": "DURABLE_NON_AUTHORITATIVE_PROJECTION_CONTRACT",
+  "project_id": "prometeo-autonomous-growth",
+  "owner_job_id": "portfolio-elastic-kernel-human-time-ledger-v1",
+  "purpose": "Derive observable human coordination cost from durable events without inventing presence, effort, timestamps or external-chat duration, and expose deterministic fields reusable by scale-readiness and Primary Chat.",
+  "authority_boundary": "This contract derives metrics only. It creates no scheduler, liveness owner, CURRENT, telemetry authority, acceptance authority or human-presence inference.",
+  "events": {
+    "HUMAN_ACTION_REQUIRED": {
+      "meaning": "An existing machine owner durably states that further machine progress depends on one specific human action.",
+      "required_fields": ["at", "boundary_id", "classification"],
+      "classification": ["NECESSARY_HUMAN_GATE", "AVOIDABLE_HUMAN_HANDOFF"],
+      "law": "Human inactivity alone MUST NOT create this event."
+    },
+    "HUMAN_ACTION_OBSERVED": {
+      "meaning": "An existing durable ingress/approval/action owner records an actual human action.",
+      "required_fields": ["at"],
+      "optional_fields": ["boundary_id"],
+      "law": "Only this event advances last_human_action_at. Worker signals never do."
+    },
+    "boundary_cleared": {
+      "meaning": "The machine no longer requires the previously declared human action, without claiming that the human acted.",
+      "required_fields": ["at", "boundary_id"]
+    },
+    "EXTERNAL_UNOBSERVED": {
+      "meaning": "Relevant interaction occurred outside a durable interval owner or lacks a durable start/end pair.",
+      "required_fields": ["at"],
+      "law": "Its quantitative duration is null, never guessed."
+    },
+    "WORKER_SIGNAL": {
+      "meaning": "Beacon, claim, STARTED, heartbeat, RETURN or equivalent durable worker signal projected for comparison.",
+      "required_fields": ["at"],
+      "law": "It may update last_worker_signal_at but never last_human_action_at and never clears a human boundary unless a separate boundary_cleared event exists."
+    }
+  },
+  "derived_metrics": {
+    "human_round_trips": "Count of explicit HUMAN_ACTION_REQUIRED boundaries closed by HUMAN_ACTION_OBSERVED.",
+    "avoidable_human_handoffs": "Count of HUMAN_ACTION_REQUIRED events classified AVOIDABLE_HUMAN_HANDOFF.",
+    "unavoidable_human_gates": "Count of HUMAN_ACTION_REQUIRED events classified NECESSARY_HUMAN_GATE.",
+    "human_boundary_wait_ms": "Sum of completed explicit human-boundary intervals with observable endpoints.",
+    "human_action_wait_ms": "Subset of human_boundary_wait_ms whose close event is HUMAN_ACTION_OBSERVED.",
+    "human_idle_ms": "Elapsed time since last durable HUMAN_ACTION_OBSERVED when as_of is known; informational only and never itself a bottleneck.",
+    "external_unobserved_duration_ms": "Always null because external unobserved interval duration is not inferable."
+  },
+  "projection_contract": {
+    "scale_readiness_path": "scale_readiness.human_bottleneck",
+    "scale_readiness_fields": [
+      "human_round_trips",
+      "avoidable_human_handoffs",
+      "unavoidable_human_gates",
+      "human_boundary_wait_ms",
+      "human_action_wait_ms",
+      "human_boundary_wait_samples",
+      "open_human_boundaries",
+      "oldest_open_human_boundary_age_ms",
+      "external_unobserved_count",
+      "external_unobserved_duration_ms",
+      "human_silence_is_bottleneck"
+    ],
+    "primary_chat_path": "primary_chat",
+    "primary_chat_fields": [
+      "human_decision_required",
+      "pending_human_actions",
+      "last_human_action_at",
+      "last_worker_signal_at",
+      "human_idle_ms",
+      "human_boundary_wait_ms",
+      "external_unobserved"
+    ],
+    "human_touch_budget_path": "human_touch_budget"
+  },
+  "implementation_ref": "scripts/human-time-ledger-v1.mjs",
+  "harness_ref": "coordination/portfolio/tests/human_time_ledger_v1.mjs",
+  "consumers": [
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-guide-scale-readiness-recent-window-v1.json",
+    "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-primary-chat-human-action-capacity-widget-v1.json",
+    "current-tree/control-v11/chat-canary/index.html"
+  ],
+  "fixtures_prove": [
+    "worker signals do not reset the human clock",
+    "human silence without explicit HUMAN_ACTION_REQUIRED is not a bottleneck",
+    "machine-cleared avoidable handoff is timed without claiming a human action",
+    "external chat without durable endpoints remains EXTERNAL_UNOBSERVED with null duration"
+  ],
+  "truth_boundary": "Only durable observable endpoints may become quantitative time. Wall-clock silence, physical presence, private external-chat timing and human effort are not inferred."
+}
