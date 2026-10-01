@@ -28,3 +28,4 @@ window.PROMETEO_CONTROL_CONFIG_V1=Object.freeze({
 });
 
 // served-verification-trigger: wc-20261001T222735Z-2a198c54df16 / G000001 / 2026-10-01T22:47Z
+// served-rerun-after-route-resolution-fix: wc-20261001T222735Z-2a198c54df16 / G000001 / 2026-10-01T22:50Z
