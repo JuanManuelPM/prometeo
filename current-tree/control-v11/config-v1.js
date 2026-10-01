@@ -26,24 +26,3 @@ window.PROMETEO_CONTROL_CONFIG_V1=Object.freeze({
   capabilityGraphUrl:'../../coordination/semantic-relations/CAPABILITY_GRAPH_V1.json',
   storageMode:'auto'
 });
-
-// Semantic notes URLs can be evaluated before the async catalog has populated V11's
-// page map. Once the requested card is rendered, invoke the card's existing Notes owner
-// instead of inventing a second routing implementation. Result routes stay on popstate.
-window.addEventListener('PROMETEO_V11_DATA',()=>{
-  const url=new URL(location.href);
-  const pageId=url.searchParams.get('page');
-  const panel=url.searchParams.get('panel');
-  if(!pageId||!['notes','result'].includes(panel))return;
-  const deadline=Date.now()+5000;
-  const wake=()=>{
-    const button=document.querySelector('[data-notes="'+CSS.escape(pageId)+'"]');
-    if(button){
-      if(panel==='notes')button.click();
-      else window.dispatchEvent(new PopStateEvent('popstate'));
-      return;
-    }
-    if(Date.now()<deadline)setTimeout(wake,50);
-  };
-  setTimeout(wake,0);
-});
