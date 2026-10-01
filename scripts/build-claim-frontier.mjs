@@ -102,14 +102,17 @@ function hasZeroRequiredCapabilities(candidate) {
 function preserveCapabilityDiversity(
   ordered,
   {
-    prefix = 4,
+    prefix = 1,
     maxPromotions = DEFAULT_CAPABILITY_DIVERSITY_SLOTS,
     minZeroCapabilityCandidates = DEFAULT_ZERO_CAPABILITY_CAPACITY
   } = {}
 ) {
   const rows = arr(ordered);
   if (rows.length <= 1) return rows;
-  const head = rows.slice(0, Math.max(0, prefix));
+  // Keep the allocator's first choice authoritative for a single worker, then optimize the
+  // bounded reserve for transport density. A four-row fixed prefix let one or two evidence-heavy
+  // Guide candidates consume most of the 14 KB envelope even when many exact generic claims existed.
+  const head = rows.slice(0, Math.max(1, prefix));
   const tail = rows.slice(head.length);
   const seenSignatures = new Set(head.map(capabilitySignature));
   const promoted = [];
@@ -124,26 +127,25 @@ function preserveCapabilityDiversity(
   // Capability diversity alone collapses every [] candidate into one signature. In a pooled
   // launch that can hide several distinct no-special-capability claims behind a long
   // specialized tail, leaving generic workers to collide on only one or two visible paths.
-  // Preserve the allocator prefix + exact capability exemplars, then reserve a small bounded
-  // amount of additional zero-capacity claim paths. Eight keeps a full generic-worker safety
-  // margin inside the 24-candidate ceiling while capability exemplars remain protected.
-  // This changes transport ordering only; claim payloads and atomic authority semantics stay untouched.
+  // Preserve exact capability exemplars, then reserve a small bounded amount of additional
+  // zero-capacity claim paths. Within that reserve prefer smaller immutable candidate records:
+  // authority bytes are never changed, we merely fit more already-grounded claims before the
+  // transport byte ceiling. Stable index tie-breaking preserves allocator order for equal sizes.
   const promotedSet = new Set(promoted);
-  const zeroPromoted = [];
-  let zeroCount = [...head, ...promoted].filter(hasZeroRequiredCapabilities).length;
   const zeroTarget = Math.max(0, minZeroCapabilityCandidates);
-  if (zeroCount < zeroTarget) {
-    for (const candidate of tail) {
-      if (promotedSet.has(candidate) || !hasZeroRequiredCapabilities(candidate)) continue;
-      zeroPromoted.push(candidate);
-      zeroCount += 1;
-      if (zeroCount >= zeroTarget) break;
-    }
-  }
+  const zeroCount = [...head, ...promoted].filter(hasZeroRequiredCapabilities).length;
+  const zeroPromoted = tail
+    .map((candidate, index) => ({ candidate, index }))
+    .filter(({candidate}) => !promotedSet.has(candidate) && hasZeroRequiredCapabilities(candidate))
+    .sort((a, b) => serializedBytes(a.candidate) - serializedBytes(b.candidate) || a.index - b.index)
+    .slice(0, Math.max(0, zeroTarget - zeroCount))
+    .map(({candidate}) => candidate);
+
   const protectedSet = new Set([...promoted, ...zeroPromoted]);
-  // Under a byte cap, candidates later in the array may never cross the transport
-  // boundary. Put the bounded zero-capability reserve immediately after the allocator
-  // prefix so several generic workers can enter without erasing capability exemplars.
+  // Under a byte cap, candidates later in the array may never cross the transport boundary.
+  // Put the byte-dense generic reserve directly after the allocator's first choice, then exact
+  // capability exemplars, then the remaining allocator order. This changes transport ordering
+  // only; claim payloads, capability truth and atomic authority semantics stay untouched.
   return [...head, ...zeroPromoted, ...promoted, ...tail.filter(candidate => !protectedSet.has(candidate))];
 }
 
@@ -182,10 +184,8 @@ export function buildClaimFrontier(
     ordered.push(compactCandidate(row,lane));
   }
 
-  // Preserve allocator preference at the front while ensuring the compact transport
-  // carries at least one exemplar of each observed capability signature when space permits.
-  // This prevents byte/candidate truncation from hiding e.g. public-HTTP-only recovery behind
-  // many browser-only rows and making otherwise compatible workers appear idle.
+  // Preserve the allocator's first choice while ensuring the compact transport carries
+  // capability exemplars plus a byte-dense generic reserve when space permits.
   const capabilityDiverse = preserveCapabilityDiversity(ordered);
   const bounded = capabilityDiverse.slice(0, Math.max(1, maxCandidates));
   const recoveryAttention = arr(allocator.recovery_attention)
