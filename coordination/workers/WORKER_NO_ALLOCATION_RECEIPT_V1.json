@@ -1,0 +1,78 @@
+{
+  "schema": "prometeo.worker-no-allocation-contract/v1",
+  "status": "ACTIVE_BINDING",
+  "purpose": "Normalize the already-existing coordination/workers/no-allocation/<worker_id>.json receipt so pre-authority claim transport boundaries can be clustered without changing authority, retry, or safety semantics.",
+  "durable_owner": "coordination/workers/no-allocation/<worker_id>.json",
+  "authority_effect": "NONE",
+  "scope": "PRE_AUTHORITY_E2_ASSIGN_BOUNDARIES_AND_NO_ALLOCATION_ONLY",
+  "canonical_transport_boundary": {
+    "field": "transport_boundary_v1",
+    "required_when": [
+      "CLAIM_TRANSPORT_BLOCKED",
+      "CLAIM_TRANSPORT_AMBIGUOUS",
+      "CLAIM_TRANSPORT_UNSTABLE"
+    ],
+    "fields": {
+      "stage": "E2_ASSIGN",
+      "operation": "ATOMIC_AUTHORITY_CREATE",
+      "classification": "CLAIM_TRANSPORT_BLOCKED | CLAIM_TRANSPORT_AMBIGUOUS | CLAIM_TRANSPORT_UNSTABLE",
+      "signature": "stable observable signature or UNKNOWN",
+      "explicit_denial": "boolean",
+      "authority_created": "boolean",
+      "claim_path_or_null": "string|null",
+      "candidate_id_or_null": "string|null",
+      "attempt_ordinal_or_null": "integer|null",
+      "retry_allowed": "boolean",
+      "observable_detail": "short public-safe description of the tool/connector outcome"
+    }
+  },
+  "attempt_shape": {
+    "ordinal": "integer",
+    "candidate_id": "string",
+    "claim_path": "string",
+    "result": "CREATE_EXISTS | CREATED | CLAIM_TRANSPORT_BLOCKED | CLAIM_TRANSPORT_AMBIGUOUS | CLAIM_TRANSPORT_UNSTABLE | OTHER",
+    "signature_or_null": "string|null"
+  },
+  "classification_rules": [
+    {
+      "classification": "CREATE_EXISTS",
+      "signature": "GITHUB_CONTENTS_CREATE_EXISTS_422_SHA_MISSING",
+      "rule": "A create-only GitHub Contents request that omitted sha and receives the exact missing-sha-on-existing-path signature is a collision, not a transport block."
+    },
+    {
+      "classification": "CLAIM_TRANSPORT_BLOCKED",
+      "signature": "OPENAI_TOOL_SAFETY_DENIAL",
+      "rule": "Use only for an explicit authorization/safety denial before authority exists. Set explicit_denial=true, authority_created=false and retry_allowed=false. Never retry, divert, or bypass the denied action/path."
+    },
+    {
+      "classification": "CLAIM_TRANSPORT_AMBIGUOUS",
+      "rule": "Use only when the pre-authority write failure proves neither explicit denial, path existence nor branch-head movement. At most one diversion to a different preloaded compatible claim path is allowed by the binding /wc contract."
+    },
+    {
+      "classification": "CLAIM_TRANSPORT_UNSTABLE",
+      "rule": "Use only for the bounded transport/CAS instability class defined by the binding allocation protocol. It is not an authorization denial and grants no authority."
+    }
+  ],
+  "compatibility": {
+    "legacy_receipts_remain_valid": true,
+    "legacy_aliases_observed": [
+      "reason",
+      "classification",
+      "connector_evidence",
+      "boundary",
+      "detail",
+      "blocked_operation",
+      "blocked_claim_path"
+    ],
+    "new_receipt_rule": "Future receipts may retain legacy top-level fields for compatibility, but when a claim transport boundary is present they MUST also populate transport_boundary_v1 and canonical attempt fields when attempts are recorded.",
+    "no_backfill_required": true
+  },
+  "clustering_key": [
+    "transport_boundary_v1.stage",
+    "transport_boundary_v1.classification",
+    "transport_boundary_v1.signature",
+    "transport_boundary_v1.operation"
+  ],
+  "privacy": "Persist observable tool/connector outcomes only. No hidden chain-of-thought, private scratchpad, credentials, tokens, or secret system instructions.",
+  "truth_boundary": "This contract standardizes evidence only. It never creates ownership, never converts a blocked claim into success, and never relaxes the explicit-denial STOP rule."
+}
