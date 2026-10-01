@@ -1,0 +1,80 @@
+{
+  "schema": "prometeo.guide-delivery-dag-canary-evidence/v1",
+  "job_id": "portfolio-guide-delivery-dag-canary-v1",
+  "worker_id": "wc-20261001T210505Z-7aa40f2ff255",
+  "status": "VERIFIED_FIXTURE_CANARY",
+  "authority_ref": "coordination/portfolio/pins/portfolio-guide-delivery-dag-canary-v1/G000001.json",
+  "fixture_ref": "coordination/portfolio/evidence/prometeo-autonomous-growth/GUIDE_DELIVERY_DAG_CANARY_FIXTURE_V1.json",
+  "test_ref": "coordination/portfolio/tests/guide_delivery_dag_canary_v1.mjs",
+  "owner_reuse": {
+    "producer": "portfolio/CURRENT normal PIN",
+    "qa_precompile": "coordination/guide/QA_PRECOMPILE_V1.json",
+    "verification": "coordination/workers/WORKER_PIPELINE_V1.json#E6_VERIFY",
+    "async_qa": "coordination/guide/ASYNC_QA_PROMOTION_V1.json",
+    "judge_fanin": "existing judge/integrator/steward roles"
+  },
+  "dag": {
+    "parallel_roots": ["producer", "qa_precompile"],
+    "artifact_gated_checks": ["contract_verify", "security_gate", "visual_advisory"],
+    "promotion_blockers": ["contract_verify", "security_gate"],
+    "advisory_non_blocking": ["visual_advisory"],
+    "judge_waits_only_for": ["contract_verify", "security_gate"]
+  },
+  "measurement": {
+    "time_origin": "2026-10-01T21:28:00.000Z",
+    "candidate_usable_ms": 12000,
+    "dag_promotion_ready_ms": 16000,
+    "dag_all_qa_done_ms": 22000,
+    "serial_promotion_ready_ms": 22000,
+    "serial_all_qa_done_ms": 32000,
+    "promotion_critical_path_saved_ms": 6000,
+    "promotion_critical_path_reduction_pct": 27.27,
+    "all_qa_wall_clock_saved_ms": 10000,
+    "all_qa_wall_clock_reduction_pct": 31.25,
+    "post_producer_idle_before_blocking_checks_ms": 0,
+    "qa_precompile_idle_waiting_for_candidate_bytes_ms": 9000,
+    "advisory_tail_after_candidate_usable_ms": 10000
+  },
+  "behavioral_proofs": [
+    {
+      "gate": "ADVISORY_NON_BLOCKING",
+      "status": "PASS",
+      "detail": "visual_advisory remains PENDING after candidate availability without blocking candidate usability or the promotion fan-in because it is ASYNC_AFTER_CANDIDATE."
+    },
+    {
+      "gate": "REAL_BLOCKER_HOLDS_PROMOTION",
+      "status": "PASS",
+      "detail": "When security_gate is deterministically changed from PASS to FAIL, candidateUsable remains true while promotionReady becomes false."
+    },
+    {
+      "gate": "EARLY_QA_PREP",
+      "status": "PASS",
+      "detail": "qa_precompile starts at the same timestamp as producer and finishes 9 seconds before candidate bytes, eliminating the serial 3-second post-producer preparation tax."
+    },
+    {
+      "gate": "MINIMAL_FAN_IN",
+      "status": "PASS",
+      "detail": "judge starts at 16 seconds, when the slowest promotion blocker completes, rather than waiting for the advisory verifier at 22 seconds."
+    }
+  ],
+  "test_execution": {
+    "command": "node coordination/portfolio/tests/guide_delivery_dag_canary_v1.mjs",
+    "result": "PASS",
+    "output": {
+      "dag_candidate_usable_ms": 12000,
+      "dag_promotion_ready_ms": 16000,
+      "dag_all_qa_done_ms": 22000,
+      "serial_promotion_ready_ms": 22000,
+      "serial_all_qa_done_ms": 32000,
+      "advisory_non_blocking": true,
+      "blocker_failure_holds_promotion": true
+    }
+  },
+  "recommendation": {
+    "granularity": "Keep producer, QA-precompile, each independently evidenced verifier class, and promotion judge as separate DAG slices when their dependencies differ. Do not split checks that share the same artifact, owner and blocking semantics merely to increase task count.",
+    "capacity": "When spare worker capacity exists, fill prepared independent verifier/critic slices before duplicating producers. Keep advisory ASYNC_AFTER_CANDIDATE work off the promotion critical path unless policy explicitly marks it PRE_USABLE or PROMOTION_GATE_ONLY.",
+    "fan_in": "Judge waits only on explicit promotion blockers. Candidate visibility follows PRE_USABLE gates, not every outstanding verifier.",
+    "promotion": "No promotion authority changes. QA_PASS or promotion-ready is evidence consumed by existing authority only."
+  },
+  "truth_boundary": "This deterministic fixture proves dependency and timing semantics under CURRENT contracts. It does not prove actual distributed scheduler parallelism, served-runtime behavior, or production promotion."
+}
