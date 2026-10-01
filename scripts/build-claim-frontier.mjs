@@ -8,6 +8,21 @@ const DEFAULT_CAPABILITY_DIVERSITY_SLOTS = 8;
 const DEFAULT_ZERO_CAPABILITY_CAPACITY = 10;
 const DEFAULT_ZERO_CAPABILITY_RUNWAY = 4;
 const POSTCLAIM_RUNTIME_BINDINGS = Object.freeze(['worker_id','generation','claim_id','source_head']);
+const CLAIM_PHASE_CONTRACT = Object.freeze({
+  contract_version:'EFF001_EFF034_V1',
+  ordinary_base_create_budget:3,
+  pool_tail_rescue_max:1,
+  total_authority_create_hard_cap:4,
+  stale_collision_refresh:Object.freeze({
+    after_create_exists:2,
+    snapshot_age_seconds_gt:90,
+    max_refreshes:1,
+    refresh_ref:'gh-pages:live/claim-frontier.json',
+    rebuild_capability_filter:true,
+    reuse_beacon_shard_seed:true,
+    consumes_authority_attempt:false
+  })
+});
 
 // Pre-claim needs authority bytes, capability routing, and one exact post-claim source.
 // Human-facing labels, priority/state and duplicated identity already live in allocator/job files.
@@ -210,6 +225,7 @@ export function buildClaimFrontier(
     recovery_attention_total:arr(allocator.recovery_attention).length,
     recovery_attention:recoveryAttention,
     postclaim_runtime_bindings:[...POSTCLAIM_RUNTIME_BINDINGS],
+    claim_phase_contract:CLAIM_PHASE_CONTRACT,
     transport_bytes_max:maxSerializedBytes,
     truth_boundary:'COMPACT_CLAIM_HINT_ONLY_ATOMIC_CREATE_REMAINS_AUTHORITY'
   };
