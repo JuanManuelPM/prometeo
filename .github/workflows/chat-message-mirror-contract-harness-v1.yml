@@ -154,6 +154,29 @@ jobs:
           done
           exit 1
 
+      - name: Verify served state communication contract identity
+        if: steps.harness.outcome == 'success'
+        run: |
+          set -euo pipefail
+          state_contract_rel='coordination/guide/PRIMARY_CHAT_STATE_COMMUNICATION_CONTRACT_V1.json'
+          served_url="https://juanmanuelpm.github.io/prometeo/$state_contract_rel"
+          git fetch origin main:refs/remotes/origin/main
+          git show "origin/main:$state_contract_rel" > /tmp/prometeo-current-main-state-contract.json
+          for n in $(seq 1 18); do
+            status="$(curl -sS -o /tmp/prometeo-served-state-contract.json -w '%{http_code}' "${served_url}?run=${GITHUB_RUN_ID}&attempt=${n}" || true)"
+            if [ "$status" = "200" ] && cmp -s /tmp/prometeo-current-main-state-contract.json /tmp/prometeo-served-state-contract.json; then
+              echo "Served Primary Chat state communication contract matches fresh origin/main."
+              sha256sum /tmp/prometeo-current-main-state-contract.json /tmp/prometeo-served-state-contract.json
+              exit 0
+            fi
+            echo "served contract not current yet (attempt=$n http=$status)"
+            sleep 5
+            git fetch origin main:refs/remotes/origin/main
+            git show "origin/main:$state_contract_rel" > /tmp/prometeo-current-main-state-contract.json
+          done
+          echo "Served Primary Chat state communication contract failed freshness/identity gate."
+          exit 1
+
       - name: Persist machine-readable run evidence
         if: always()
         env:
