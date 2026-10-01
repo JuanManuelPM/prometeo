@@ -18,6 +18,9 @@
     'authority_status','target_path','source_identity','served_identity'
   ]);
 
+  let activeSubmitPromise = null;
+  let activeSubmitText = null;
+
   function result(status, ref = null, queued = false, error = null) {
     return Object.freeze({ status, ref, queued, error });
   }
@@ -67,6 +70,52 @@
     };
     if (global.document.readyState === 'loading') global.document.addEventListener('DOMContentLoaded', remove, { once: true });
     else global.setTimeout(remove, 0);
+  }
+
+  function clearComposerImmediately() {
+    if (!global.document) return;
+    const input = global.document.querySelector('[data-prometeo-chat-composer-input-v1]');
+    if (!input || typeof input.value !== 'string') return;
+    input.value = '';
+    try { input.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
+  }
+
+  function optimisticStart(text, localId) {
+    if (!global.document) return null;
+    const thread = global.document.getElementById('thread');
+    if (!thread) return null;
+    const article = global.document.createElement('article');
+    article.className = 'msg human';
+    article.setAttribute('data-local-ingress-id', localId);
+    article.setAttribute('data-local-ingress-state', 'sending');
+
+    const main = global.document.createElement('div');
+    main.className = 'msg-main';
+    const meta = global.document.createElement('div');
+    meta.className = 'meta';
+    const actor = global.document.createElement('span');
+    actor.className = 'actor';
+    actor.textContent = 'vos';
+    const state = global.document.createElement('span');
+    state.setAttribute('data-local-ingress-state-label', '');
+    state.textContent = 'enviando…';
+    meta.append(actor, state);
+    const body = global.document.createElement('div');
+    body.className = 'body';
+    body.textContent = text;
+    main.append(meta, body);
+    article.append(main);
+    thread.append(article);
+    try { article.scrollIntoView({ block: 'end', behavior: 'smooth' }); } catch {}
+    return article;
+  }
+
+  function optimisticFinish(article, transportResult) {
+    if (!article) return;
+    const label = article.querySelector('[data-local-ingress-state-label]');
+    const queued = Boolean(transportResult && transportResult.queued === true);
+    article.setAttribute('data-local-ingress-state', queued ? 'queued' : 'failed');
+    if (label) label.textContent = queued ? 'enviado' : 'no enviado';
   }
 
   async function postJson(url, body, secret = '', timeoutMs = REQUEST_TIMEOUT_MS) {
@@ -121,7 +170,7 @@
     if (typeof global.fetch !== 'function') return null;
 
     const transport = Object.freeze({
-      schema: 'prometeo.page-change-github-wake-transport/v2',
+      schema: 'prometeo.page-change-github-wake-transport/v3',
       mode: 'PRIVATE_BY_DEFAULT_EXPLICIT_CANARY_PUBLIC_FALLBACK',
       endpoint: WAKE_ENDPOINT,
       async submit(payload = {}) {
@@ -135,12 +184,21 @@
           return Object.freeze({ schema: RESULT_SCHEMA, status: 'BOUNDARY_INVALID_INPUT', ref: null, queued: false, error: 'TRANSPORT_INPUT_INVALID' });
         }
 
+        if (canary) {
+          try { return Object.freeze(await publicCanaryFallback(envelope, text)); }
+          catch (error) {
+            return Object.freeze({
+              schema: RESULT_SCHEMA,
+              status: 'BOUNDARY_TRANSPORT_FAILED',
+              ref: null,
+              queued: false,
+              error: cleanString(error && (error.code || error.message), 180) || 'CANARY_FALLBACK_FAILED'
+            });
+          }
+        }
+
         const secret = workspaceSecret();
         if (!secret) {
-          if (canary) {
-            try { return Object.freeze(await publicCanaryFallback(envelope, text)); }
-            catch (error) { return Object.freeze({ schema: RESULT_SCHEMA, status: 'BOUNDARY_TRANSPORT_FAILED', ref: null, queued: false, error: cleanString(error && (error.code || error.message), 180) || 'CANARY_FALLBACK_FAILED' }); }
-          }
           return Object.freeze({ schema: RESULT_SCHEMA, status: 'BOUNDARY_AUTH_REQUIRED', ref: null, queued: false, error: 'WORKSPACE_NOT_LINKED' });
         }
 
@@ -207,12 +265,6 @@
           }
           return Object.freeze(wake);
         } catch (error) {
-          if (canary) {
-            try { return Object.freeze(await publicCanaryFallback(envelope, text)); }
-            catch (fallbackError) {
-              return Object.freeze({ schema: RESULT_SCHEMA, status: 'BOUNDARY_TRANSPORT_FAILED', ref: null, queued: false, error: cleanString(fallbackError && (fallbackError.code || fallbackError.message), 180) || 'CANARY_FALLBACK_FAILED' });
-            }
-          }
           return Object.freeze({
             schema: RESULT_SCHEMA,
             status: 'BOUNDARY_PRIVATE_STORAGE_UNAVAILABLE',
@@ -245,45 +297,75 @@
     );
   }
 
-  async function submit(input = {}) {
+  function submit(input = {}) {
     const text = cleanString(input.text, MAX_TEXT);
     const kind = cleanString(input.kind, 64) || 'work';
-    if (!text) return result('BOUNDARY_INVALID_INPUT', null, false, 'EMPTY_TEXT');
-    if (String(input.text).length > MAX_TEXT) return result('BOUNDARY_INVALID_INPUT', null, false, 'TEXT_TOO_LARGE');
+    if (!text) return Promise.resolve(result('BOUNDARY_INVALID_INPUT', null, false, 'EMPTY_TEXT'));
+    if (String(input.text).length > MAX_TEXT) return Promise.resolve(result('BOUNDARY_INVALID_INPUT', null, false, 'TEXT_TOO_LARGE'));
+
+    if (activeSubmitPromise) {
+      if (activeSubmitText === text) return activeSubmitPromise;
+      return Promise.resolve(result('BOUNDARY_SUBMIT_IN_FLIGHT', null, false, 'WAIT_FOR_CURRENT_SUBMIT'));
+    }
 
     const transport = activeTransport();
-    if (!transport) return result('BOUNDARY_AUTH_REQUIRED', null, false, 'INGRESS_TRANSPORT_UNAVAILABLE');
+    if (!transport) return Promise.resolve(result('BOUNDARY_AUTH_REQUIRED', null, false, 'INGRESS_TRANSPORT_UNAVAILABLE'));
 
+    const requestIdValue = requestId();
     const explicitCanary = isExplicitCanary(text);
     const public_envelope = Object.freeze({
       schema: REQUEST_SCHEMA,
-      request_id: requestId(),
+      request_id: requestIdValue,
       created_at: new Date().toISOString(),
       kind,
       page: publicPage(input.page),
       privacy: Object.freeze({
-        raw_text_public: explicitCanary ? 'ONLY_IF_PRIVATE_PATH_FAILS_AND_CANARY_PREFIX_IS_PRESENT' : false,
+        raw_text_public: false,
         credentials_public: false,
-        public_payload_class: explicitCanary ? 'PRIVATE_FIRST_EXPLICIT_CANARY_FALLBACK_ALLOWED' : 'SANITIZED_METADATA_ONLY'
+        public_payload_class: explicitCanary ? 'EXPLICIT_PUBLIC_CANARY_FALLBACK_AUTHORIZED' : 'SANITIZED_METADATA_ONLY',
+        explicit_public_canary_fallback_allowed: explicitCanary,
+        explicit_public_canary_may_publish_raw_text: explicitCanary
       })
     });
     const private_payload = Object.freeze({ text });
+    const optimistic = optimisticStart(text, requestIdValue);
+    clearComposerImmediately();
 
-    let transportResult;
-    try {
-      transportResult = await transport.submit(Object.freeze({ public_envelope, private_payload }));
-    } catch (error) {
-      return result('BOUNDARY_TRANSPORT_FAILED', null, false, cleanString(error && (error.code || error.name), 120) || 'TRANSPORT_ERROR');
-    }
+    activeSubmitText = text;
+    const run = (async () => {
+      let transportResult;
+      try {
+        transportResult = await transport.submit(Object.freeze({ public_envelope, private_payload }));
+      } catch (error) {
+        transportResult = result('BOUNDARY_TRANSPORT_FAILED', null, false, cleanString(error && (error.code || error.name), 120) || 'TRANSPORT_ERROR');
+      }
 
-    if (!transportResult || typeof transportResult !== 'object') return result('BOUNDARY_TRANSPORT_INVALID', null, false, 'TRANSPORT_RESULT_INVALID');
-    const status = cleanString(transportResult.status, 120) || 'UNKNOWN';
-    const ref = cleanString(transportResult.ref, 4096);
-    const queued = transportResult.queued === true;
-    const error = cleanString(transportResult.error, 240);
-    if (queued && (!validDurableRef(ref) || transportResult.schema !== RESULT_SCHEMA)) return result('BOUNDARY_TRANSPORT_INVALID', null, false, 'TRANSPORT_RESULT_INVALID');
-    if (!queued) return result(status, ref && validDurableRef(ref) ? ref : null, false, error);
-    return result(status || 'QUEUED', ref, true, error);
+      let normalized;
+      if (!transportResult || typeof transportResult !== 'object') {
+        normalized = result('BOUNDARY_TRANSPORT_INVALID', null, false, 'TRANSPORT_RESULT_INVALID');
+      } else {
+        const status = cleanString(transportResult.status, 120) || 'UNKNOWN';
+        const ref = cleanString(transportResult.ref, 4096);
+        const queued = transportResult.queued === true;
+        const error = cleanString(transportResult.error, 240);
+        if (queued && (!validDurableRef(ref) || transportResult.schema !== RESULT_SCHEMA)) {
+          normalized = result('BOUNDARY_TRANSPORT_INVALID', null, false, 'TRANSPORT_RESULT_INVALID');
+        } else if (!queued) {
+          normalized = result(status, ref && validDurableRef(ref) ? ref : null, false, error);
+        } else {
+          normalized = result(status || 'QUEUED', ref, true, error);
+        }
+      }
+
+      optimisticFinish(optimistic, normalized);
+      return normalized;
+    })();
+
+    activeSubmitPromise = run.finally(() => {
+      activeSubmitPromise = null;
+      activeSubmitText = null;
+    });
+    return activeSubmitPromise;
   }
 
   global.PROMETEO_INGRESS_V1 = Object.freeze({
@@ -292,8 +374,10 @@
     transport_schema: RESULT_SCHEMA,
     default_transport_mode: 'PRIVATE_BY_DEFAULT_EXPLICIT_CANARY_PUBLIC_FALLBACK',
     privacy: Object.freeze({
+      raw_text_public: false,
       raw_text_public_default: false,
       explicit_public_canary_prefix: 'CANARY:',
+      explicit_public_canary_requires_prefix: true,
       raw_text_private_owner: 'prometeo-change-loop-v1',
       credentials_public: false,
       browser_embedded_repository_token: false,
