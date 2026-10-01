@@ -130,7 +130,7 @@ assert(fast.includes('Invocations that are neither a multi-worker batch nor a po
 
 const allocator = fs.readFileSync(path.join(repoRoot, 'scripts/build-fast-allocator.mjs'), 'utf8');
 assert(allocator.includes("batch_strategy: 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD'"));
-assert(allocator.includes('batch_candidates: batchCandidates.slice(0, 40)'));
+assert(allocator.includes('batch_candidates: usefulReserve.ordered.slice(0, 40)'));
 const compact = fs.readFileSync(path.join(repoRoot, 'scripts/build-claim-frontier.mjs'), 'utf8');
 assert(compact.includes("schema:'prometeo.claim-frontier/v1'"));
 
