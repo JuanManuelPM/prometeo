@@ -15,6 +15,12 @@ function replaceOnce(source, needle, replacement, label) {
 let ingress = fs.readFileSync(ingressPath, 'utf8');
 ingress = replaceOnce(
   ingress,
+  "        try {\n          const createdMs = Number.isFinite(Date.parse(envelope.created_at)) ? Date.parse(envelope.created_at) : Date.now();",
+  "        try {\n          if (approval) {\n            const replayProbe = await postJson(CHANGE_LOOP_ENDPOINT, {\n              action: 'approval_replay_status',\n              page_id: pageId,\n              approval\n            }, secret);\n            if (replayProbe && replayProbe.replayed === true) {\n              const replayRef = cleanString(replayProbe.return_path, 360);\n              if (!replayRef || !validDurableRef(replayRef)) {\n                throw Object.assign(new Error('APPROVAL_REPLAY_RECEIPT_INVALID'), { code: 'APPROVAL_REPLAY_RECEIPT_INVALID' });\n              }\n              return Object.freeze({ schema: RESULT_SCHEMA, status: 'QUEUED_REPLAY', ref: replayRef, queued: true, error: null });\n            }\n          }\n          const createdMs = Number.isFinite(Date.parse(envelope.created_at)) ? Date.parse(envelope.created_at) : Date.now();",
+  'ingress-private-replay-preflight'
+);
+ingress = replaceOnce(
+  ingress,
   "          }, secret);\n\n          const workItemId = cleanString(prepared.work_item_id, 160);",
   "          }, secret);\n\n          if (prepared && (prepared.replayed === true || prepared.status === 'QUEUED_REPLAY')) {\n            const replayRef = cleanString(prepared.return_path, 360);\n            if (!replayRef || !validDurableRef(replayRef)) {\n              throw Object.assign(new Error('APPROVAL_REPLAY_RECEIPT_INVALID'), { code: 'APPROVAL_REPLAY_RECEIPT_INVALID' });\n            }\n            return Object.freeze({ schema: RESULT_SCHEMA, status: 'QUEUED_REPLAY', ref: replayRef, queued: true, error: null });\n          }\n\n          const workItemId = cleanString(prepared.work_item_id, 160);",
   'ingress-server-replay-short-circuit'
@@ -50,6 +56,14 @@ async function existingApprovalExecution(wsId:string,pageId:string,approval:any)
   }
   return null;
 }
+async function approvalReplayStatus(req:Request,ws:any,body:any){
+  const pageId=String(body.page_id||'');
+  if(!pageId)fail('PAGE_ID_REQUIRED',400);
+  const approval=executionApproval(body.approval);
+  if(!approval)fail('APPROVAL_ENVELOPE_INVALID',400);
+  const replay=await existingApprovalExecution(ws.id,pageId,approval);
+  return json(req,replay?{ok:true,status:'QUEUED_REPLAY',replayed:true,approval_receipt:true,work_item_id:replay.work_item_id,return_path:replay.return_path}:{ok:true,status:'NEW_APPROVAL',replayed:false});
+}
 
 `;
 if (!changeLoop.includes('async function existingApprovalExecution(')) {
@@ -58,6 +72,12 @@ if (!changeLoop.includes('async function existingApprovalExecution(')) {
 const beginNeedle = "async function prepareExecution(req:Request,ws:any,body:any){if(body.human_approved!==true||body.intent!=='WORK_PAGE')fail('HUMAN_ACTION_REQUIRED',403);const deliveryMode=String(body.delivery_mode||'MANUAL_CHAT').toUpperCase();if(!['MANUAL_CHAT','WORKER_POOL'].includes(deliveryMode))fail('DELIVERY_MODE_INVALID',400);const pageId=String(body.page_id||'');const thread=await syncPage(ws.id,pageId,body.page_title||null,body.baseline||{});";
 const beginReplacement = "async function prepareExecution(req:Request,ws:any,body:any){if(body.human_approved!==true||body.intent!=='WORK_PAGE')fail('HUMAN_ACTION_REQUIRED',403);const deliveryMode=String(body.delivery_mode||'MANUAL_CHAT').toUpperCase();if(!['MANUAL_CHAT','WORKER_POOL'].includes(deliveryMode))fail('DELIVERY_MODE_INVALID',400);const pageId=String(body.page_id||'');const approval=executionApproval(body.approval);if(approval){const replay=await existingApprovalExecution(ws.id,pageId,approval);if(replay)return json(req,{ok:true,status:'QUEUED_REPLAY',replayed:true,approval_receipt:true,work_item_id:replay.work_item_id,delivery_mode:deliveryMode,queued_to_worker_pool:deliveryMode==='WORKER_POOL',return_path:replay.return_path});}const thread=await syncPage(ws.id,pageId,body.page_title||null,body.baseline||{});";
 changeLoop = replaceOnce(changeLoop, beginNeedle, beginReplacement, 'change-loop-replay-before-materialize');
+changeLoop = replaceOnce(
+  changeLoop,
+  "case'grant_status':return await grantStatus(req,ws);case'set_project_grant':return await setGrant(req,ws,body);case'prepare_execution':return await prepareExecution(req,ws,body);",
+  "case'grant_status':return await grantStatus(req,ws);case'set_project_grant':return await setGrant(req,ws,body);case'approval_replay_status':return await approvalReplayStatus(req,ws,body);case'prepare_execution':return await prepareExecution(req,ws,body);",
+  'change-loop-replay-status-route'
+);
 fs.writeFileSync(changeLoopPath, changeLoop);
 
 let chat = fs.readFileSync(chatPath, 'utf8');
