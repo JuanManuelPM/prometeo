@@ -5,13 +5,13 @@ const arr = v => Array.isArray(v) ? v : [];
 const DEFAULT_MAX_CANDIDATES = 24;
 const DEFAULT_MAX_SERIALIZED_BYTES = 14_000;
 const DEFAULT_CAPABILITY_DIVERSITY_SLOTS = 8;
-const DEFAULT_ZERO_CAPABILITY_CAPACITY = 8;
+const DEFAULT_ZERO_CAPABILITY_CAPACITY = 10;
 const DEFAULT_ZERO_CAPABILITY_RUNWAY = 4;
 
 // Pre-claim needs authority bytes, capability routing, and one exact post-claim source.
 // Human-facing labels, priority/state and duplicated identity already live in allocator/job files.
 const KEEP = [
-  'job_id','opportunity_id','role_id','guide_work_id','work_item_id','page_id','source_path','project_id','scope_project_id','kind','role','trigger','value_class',
+  'job_id','opportunity_id','role_id','guide_work_id','work_item_id','page_id','project_id','scope_project_id','kind','role','trigger','value_class',
   'required_capabilities','capability_confirmation_required','forbidden_worker_ids','context_transport','private_packet_lookup','return_path','expires_at','claim_mode','claim_path','claim_payload_shape',
   'post_claim_validate','contention_barrier','post_release_claim','next_action',
   'release_path','release_payload_shape','timeout_payload_shape',
@@ -47,6 +47,9 @@ function compactCandidate(item, lane) {
   out.required_capabilities = arr(item?.required_capabilities);
   out.forbidden_worker_ids = arr(item?.forbidden_worker_ids);
   if (item?.source_path) {
+    // The exact durable source is carried once as postclaim_context.source_ref. Keeping a
+    // second top-level source_path duplicated the same string on every candidate and could
+    // starve otherwise-compatible claims under the fixed 14 KB pre-claim transport ceiling.
     // A reusable portfolio/queue source owns semantic context. Worker-specific return paths
     // and legacy task/matrix/program/must-read/execution overlays are runtime products, not
     // source fields. Never carry a historical worker binding across E3. Page Change
