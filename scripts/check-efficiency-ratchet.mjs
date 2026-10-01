@@ -802,7 +802,7 @@ must('live-workflow', live, 'live/efficiency.json');
 
 must('fast-allocator', allocator, "schema: 'prometeo.fast-allocator/v3'");
 must('fast-allocator', allocator, "batch_strategy: 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD'");
-must('fast-allocator', allocator, 'batch_candidates: batchCandidates.slice(0, 40)');
+must('fast-allocator', allocator, 'batch_candidates: usefulReserve.ordered.slice(0, 40)');
 must('fast-allocator', allocator, 'returnEvidenceRows');
 must('fast-allocator', allocator, 'collisionEvidenceRows');
 must('fast-allocator', allocator, 'collision_pressure_window_minutes');
@@ -1192,7 +1192,7 @@ must('source-debt-recovery-test', sourceDebtRecoveryTest, 'compact claim frontie
 const claimFrontier = read(root, 'scripts/build-claim-frontier.mjs');
 must('claim-frontier', claimFrontier, "schema:'prometeo.claim-frontier/v1'");
 must('claim-frontier', claimFrontier, 'DEFAULT_MAX_CANDIDATES = 24');
-must('claim-frontier', claimFrontier, 'DEFAULT_MAX_SERIALIZED_BYTES = 24_000');
+must('claim-frontier', claimFrontier, 'DEFAULT_MAX_SERIALIZED_BYTES = 14_000');
 must('claim-frontier', claimFrontier, "'source_path'");
 must('claim-frontier', claimFrontier, 'recovery_attention:recoveryAttention');
 must('claim-frontier', claimFrontier, 'source_debt_ref');
@@ -1206,7 +1206,7 @@ must('claim-frontier-test', claimFrontierTest, 'CLAIM_FRONTIER_COMPACT_PASS');
 must('claim-frontier-test', claimFrontierTest, 'CLAIM_FRONTIER_CAPABILITY_DIVERSITY_PASS');
 must('claim-frontier-test', claimFrontierTest, 'compact frontier must promote an HTTP-only capability signature before truncation');
 must('claim-frontier-test', claimFrontierTest, 'HTTP-only recovery must be visible inside the bounded compact frontier');
-must('claim-frontier-test', claimFrontierTest, 'bytes<=24000');
+must('claim-frontier-test', claimFrontierTest, 'bytes<=14000');
 must('claim-frontier-test', claimFrontierTest, 'byte budget must trim before transport overflow');
 
 const roleClaimPathSuppression = read(root, 'scripts/suppress-concurrent-guide-rescate.mjs');
