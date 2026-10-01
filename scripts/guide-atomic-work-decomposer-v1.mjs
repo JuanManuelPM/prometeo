@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 
 const enc = new TextEncoder();
-const sortUnique = xs => [...new Set((xs || []).map(x => String(x).trim()).filter(Boolean))].sort((a,b)=>Buffer.from(a).compare(Buffer.from(b)));
+const byteCompare = (a,b) => Buffer.from(String(a)).compare(Buffer.from(String(b)));
+const sortUnique = xs => [...new Set((xs || []).map(x => String(x).trim()).filter(Boolean))].sort(byteCompare);
 const slug = s => String(s || 'task').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,48) || 'task';
 
 export function shouldAtomize(signals = {}) {
@@ -77,7 +78,7 @@ export function decompose(parent) {
     provisional.set(key, out);
     return out;
   };
-  for (const key of [...byKey.keys()].sort()) visit(key);
+  for (const key of [...byKey.keys()].sort(byteCompare)) visit(key);
   const atoms = [...provisional.values()];
   const depth = new Map();
   const depthOf = id => {
@@ -86,7 +87,7 @@ export function decompose(parent) {
     const d = a.dependencies.length ? 1 + Math.max(...a.dependencies.map(depthOf)) : 0;
     depth.set(id,d); return d;
   };
-  atoms.sort((a,b)=>depthOf(a.atomic_task_id)-depthOf(b.atomic_task_id) || a.phase.localeCompare(b.phase) || a.atomic_task_id.localeCompare(b.atomic_task_id));
+  atoms.sort((a,b)=>depthOf(a.atomic_task_id)-depthOf(b.atomic_task_id) || byteCompare(a.phase,b.phase) || byteCompare(a.atomic_task_id,b.atomic_task_id));
   return { decision, atoms };
 }
 
