@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { applyUsefulReserveOrdering } from './useful-reserve-allocator-v1.mjs';
 
 const g = n => String(n).padStart(6, '0');
 const arr = value => Array.isArray(value) ? value : [];
@@ -1463,6 +1464,10 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
   if (batchCandidates.length < 8) pushBatch('ready', infraReady.slice(0, Math.max(0, 8 - batchCandidates.length)));
   if (batchCandidates.length < 8) pushBatch('role_ready', infraRoles.slice(0, Math.max(0, 8 - batchCandidates.length)));
 
+  // USEFUL_RESERVE is an ordering refinement inside the existing allocator, never a new queue.
+  // Invalid reserve-shaped candidates are omitted; verified reserve stays behind human/product/system work.
+  const usefulReserve = applyUsefulReserveOrdering(batchCandidates, { jobs, policy: roleContext?.usefulReservePolicy });
+
   return {
     schema: 'prometeo.fast-allocator/v3',
     generated_at: feed.generated_at,
@@ -1471,7 +1476,8 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
     max_recovery_snapshot_age_seconds: 90,
     preferred_order: ['ready', 'queue_ready', 'role_ready', 'recovery'],
     batch_strategy: 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD',
-    batch_candidates: batchCandidates.slice(0, 40),
+    useful_reserve: usefulReserve.report,
+    batch_candidates: usefulReserve.ordered.slice(0, 40),
     counts: {
       ready: ready.length,
       queue_ready: queueReady.length,
@@ -1544,6 +1550,7 @@ export function loadRoleContext(root = '.') {
   if (!fs.existsSync(metabolismPath)) return null;
   return {
     metabolism: JSON.parse(fs.readFileSync(metabolismPath, 'utf8')),
+    usefulReservePolicy: fs.existsSync(path.join(root, 'coordination', 'guide', 'USEFUL_RESERVE_POLICY_V1.json')) ? JSON.parse(fs.readFileSync(path.join(root, 'coordination', 'guide', 'USEFUL_RESERVE_POLICY_V1.json'), 'utf8')) : null,
     projectGuideMesh: fs.existsSync(path.join(root, 'coordination', 'guide', 'PROJECT_GUIDE_MESH_V1.json')) ? JSON.parse(fs.readFileSync(path.join(root, 'coordination', 'guide', 'PROJECT_GUIDE_MESH_V1.json'), 'utf8')) : null,
     projectGuideStates: loadJsonRows(root, 'coordination/project-guides').filter(row => row.path.endsWith('/STATE.json')),
     portfolio: fs.existsSync(path.join(root, 'coordination', 'portfolio', 'PORTFOLIO.json')) ? JSON.parse(fs.readFileSync(path.join(root, 'coordination', 'portfolio', 'PORTFOLIO.json'), 'utf8')) : null,
