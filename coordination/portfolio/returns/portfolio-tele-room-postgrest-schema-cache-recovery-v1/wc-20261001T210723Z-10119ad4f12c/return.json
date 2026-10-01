@@ -1,0 +1,76 @@
+{
+  "schema": "prometeo.portfolio-return/v1",
+  "return_id": "RETURN-wc-20261001T210723Z-10119ad4f12c-tele-room-postgrest-schema-cache-recovery-v1-G000002",
+  "job_id": "portfolio-tele-room-postgrest-schema-cache-recovery-v1",
+  "dedupe_key": "tele:room:postgrest-schema-cache:recovery:v1",
+  "project_id": "tele",
+  "generation": 2,
+  "worker_id": "wc-20261001T210723Z-10119ad4f12c",
+  "claim_id": "claim-portfolio-tele-room-postgrest-schema-cache-recovery-v1-G000002-wc-20261001T210723Z-10119ad4f12c",
+  "returned_at": "2026-10-01T21:12:14Z",
+  "outcome": "BOUNDARY",
+  "productive_unit": false,
+  "boundary_code": "SUPABASE_STORAGE_EXHAUSTED_PG_WAL_CRASH_LOOP",
+  "summary": "Current read-only diagnostics prove the room failure is not a Tele-only schema-cache defect. The Supabase project reports ACTIVE_HEALTHY at the control-plane surface, but direct SQL failed with ECONNREFUSED to Postgres port 5432, PostgREST returned PGRST002/503 across unrelated REST tables, and postgres_logs repeatedly recorded 'could not write to file pg_wal/xlogtemp.*: No space left on device' followed by process termination and automatic recovery. Restoring service therefore requires storage-capacity/operator action outside this worker's reversible Prometeo canary authority; destructive DELETE/VACUUM/pruning/migration was not attempted.",
+  "authority": {
+    "pin_ref": "coordination/portfolio/pins/portfolio-tele-room-postgrest-schema-cache-recovery-v1/G000002.json",
+    "pin_commit": "6e23de137ce1ad4bd7b0e66203675889377b248e",
+    "started_ref": "coordination/workers/started/wc-20261001T210723Z-10119ad4f12c-portfolio-tele-room-postgrest-schema-cache-recovery-v1-G000002.json",
+    "started_commit": "4a66eacb94a5577925e8ea2af9c3979dd8947f2c"
+  },
+  "diagnostics": {
+    "supabase_project_ref": "catnohyouxqjjtseaueb",
+    "control_plane_status": "ACTIVE_HEALTHY",
+    "direct_sql": "ECONNREFUSED_5432",
+    "postgrest": "PGRST002_503_PERSISTENT",
+    "postgres_root_cause": "PG_WAL_NO_SPACE_LEFT_ON_DEVICE",
+    "postgres_observation_window": "2026-10-01T20:55:00Z/2026-10-01T21:13:30Z",
+    "observed_cycle": "pg_wal xlogtemp write fails -> terminate server processes -> restart PostgreSQL 17.6 -> automatic recovery -> repeat"
+  },
+  "feature_evidence": [
+    {
+      "gate": "confirm_current_PGRST002",
+      "status": "PASS",
+      "evidence": "Supabase unified logs showed repeated postgrest_logs PGRST002 and REST 503 responses at 2026-10-01T21:10Z-21:11Z."
+    },
+    {
+      "gate": "separate_schema_cache_vs_database_availability",
+      "status": "PASS",
+      "evidence": "Direct read-only SQL failed with ECONNREFUSED on Postgres port 5432 while postgres_logs showed restart/recovery loops."
+    },
+    {
+      "gate": "identify_non_destructive_recovery_basis",
+      "status": "BOUNDARY",
+      "evidence": "postgres_logs repeatedly reported pg_wal/xlogtemp write failure: No space left on device. Capacity/operator remediation is required before SQL or PostgREST can become healthy; destructive cleanup was outside authority and forbidden by job contract."
+    },
+    {
+      "gate": "room_backend_healthy",
+      "status": "NOT_REACHED",
+      "evidence": "No authorized safe storage-capacity remediation was available in this worker scope."
+    },
+    {
+      "gate": "two_client_browser_rerun_after_backend_healthy",
+      "status": "NOT_REACHED",
+      "evidence": "Backend never reached healthy state, so browser re-verification was correctly not claimed."
+    }
+  ],
+  "tests": [
+    "PASS_PROJECT_DISCOVERY: exactly one connected Supabase project found; project ref catnohyouxqjjtseaueb reported ACTIVE_HEALTHY.",
+    "FAIL_DB_CONNECTIVITY: read-only execute_sql returned ECONNREFUSED on port 5432.",
+    "CONFIRMED_POSTGREST_FAILURE: PGRST002/503 affected multiple unrelated REST resources, proving a project-wide backend failure rather than a room-table-only defect.",
+    "CONFIRMED_ROOT_CAUSE: postgres_logs repeatedly recorded pg_wal xlogtemp writes failing with No space left on device and immediate crash/recovery loops.",
+    "PASS_NO_DESTRUCTIVE_MUTATION: no DELETE, VACUUM, pruning, destructive migration, pause/restore, or storage mutation was attempted.",
+    "NOT_RUN_BROWSER_REVERIFY: backend prerequisite remained unhealthy."
+  ],
+  "changed_paths": [
+    "coordination/workers/started/wc-20261001T210723Z-10119ad4f12c-portfolio-tele-room-postgrest-schema-cache-recovery-v1-G000002.json",
+    "coordination/portfolio/returns/portfolio-tele-room-postgrest-schema-cache-recovery-v1/wc-20261001T210723Z-10119ad4f12c/return.json"
+  ],
+  "product_bytes_modified": false,
+  "promoted": false,
+  "unresolved": [
+    "Increase/free database storage through an authorized non-destructive operator path or Supabase support/control-plane action; this worker did not have authority to perform storage mutation.",
+    "After storage is healthy, verify direct SQL succeeds, confirm PGRST002 disappears, then rerun the existing Tele two-client room verifier before claiming pairing or remote-control functionality."
+  ],
+  "continuation": "E9_TERMINAL_BOUNDARY_STORAGE_AUTHORITY"
+}
