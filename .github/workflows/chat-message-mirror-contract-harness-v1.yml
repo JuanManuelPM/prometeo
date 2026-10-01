@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - 'coordination/portfolio/tests/chat_message_mirror_contract_harness_v1.mjs'
+      - 'coordination/portfolio/tests/primary_chat_mirror_atomic_append_v1.mjs'
       - 'coordination/portfolio/fixtures/chat_message_mirror_contract_harness_v1.json'
       - 'coordination/portfolio/derived/prometeo-autonomous-growth/CHAT_MESSAGE_MIRROR_CANARY_V1.json'
       - 'coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
       - 'coordination/portfolio/returns/portfolio-primary-chat-canary-*/RETURN-*.json'
       - 'scripts/reconcile-primary-chat-returns.mjs'
+      - 'scripts/lib/primary-chat-mirror-merge.mjs'
       - 'current-tree/control-v11/chat-canary/index.html'
       - '.github/workflows/chat-message-mirror-contract-harness-v1.yml'
   workflow_dispatch:
@@ -34,6 +36,14 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/reconcile-primary-chat-returns.mjs
+
+      - name: Run atomic mirror merge semantics test
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/chat-message-mirror-contract-harness
+          node coordination/portfolio/tests/primary_chat_mirror_atomic_append_v1.mjs \
+            > artifacts/chat-message-mirror-contract-harness/atomic-merge.json
+          cat artifacts/chat-message-mirror-contract-harness/atomic-merge.json
 
       - name: Prepare gh-pages checkout
         run: |
@@ -66,21 +76,34 @@ jobs:
           set -euo pipefail
           thread_rel='coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
           page_rel='current-tree/control-v11/chat-canary/index.html'
+          source_thread="$GITHUB_WORKSPACE/$thread_rel"
+          source_page="$GITHUB_WORKSPACE/$page_rel"
           cd /tmp/prometeo-gh-pages
-          git add "$thread_rel" "$page_rel"
-          if git diff --cached --quiet; then
-            echo "Primary Chat projection already current."
-            exit 0
-          fi
           git config user.name "prometeo-ci"
           git config user.email "actions@users.noreply.github.com"
-          git commit -m "chat: publish validated Primary Chat projection"
           for n in 1 2 3 4; do
+            git fetch origin \
+              main:refs/remotes/origin/main \
+              gh-pages:refs/remotes/origin/gh-pages
+            git show "origin/main:$thread_rel" > /tmp/prometeo-origin-main-thread.json
+            if ! cmp -s "$source_thread" /tmp/prometeo-origin-main-thread.json; then
+              echo "Main Primary Chat projection advanced; defer gh-pages publication to the newer workflow run."
+              exit 0
+            fi
+            git reset --hard origin/gh-pages
+            mkdir -p "$(dirname "$thread_rel")" "$(dirname "$page_rel")"
+            cp "$source_thread" "$thread_rel"
+            cp "$source_page" "$page_rel"
+            git add "$thread_rel" "$page_rel"
+            if git diff --cached --quiet; then
+              echo "Primary Chat projection already current."
+              exit 0
+            fi
+            git commit -m "chat: publish validated Primary Chat projection"
             if git push origin HEAD:gh-pages; then
               exit 0
             fi
-            git fetch origin gh-pages
-            git rebase origin/gh-pages
+            echo "gh-pages moved during publish attempt $n; reconciling from latest branch head."
           done
           exit 1
 
@@ -94,17 +117,24 @@ jobs:
           SERVER_URL: ${{ github.server_url }}
           REPOSITORY: ${{ github.repository }}
         run: |
+          set -euo pipefail
           mkdir -p coordination/portfolio/evidence/prometeo-autonomous-growth
-          node --input-type=module <<'NODE'
+          cp artifacts/chat-message-mirror-contract-harness/evidence.json /tmp/chat-mirror-contract-evidence.json 2>/dev/null || true
+          cp artifacts/chat-message-mirror-contract-harness/atomic-merge.json /tmp/chat-mirror-atomic-evidence.json 2>/dev/null || true
+          cat > /tmp/persist-chat-mirror-run-evidence.mjs <<'NODE'
           import fs from 'node:fs';
-          const src='artifacts/chat-message-mirror-contract-harness/evidence.json';
-          const evidence=fs.existsSync(src)
-            ? JSON.parse(fs.readFileSync(src,'utf8'))
+          const contractSrc='/tmp/chat-mirror-contract-evidence.json';
+          const atomicSrc='/tmp/chat-mirror-atomic-evidence.json';
+          const evidence=fs.existsSync(contractSrc)
+            ? JSON.parse(fs.readFileSync(contractSrc,'utf8'))
             : {
                 schema:'prometeo.chat-message-mirror-contract-harness-result/v1',
                 overall:'NO_EVIDENCE_FILE',
                 details:{terminal:{error:'runner did not produce evidence.json'}}
               };
+          evidence.atomic_merge=fs.existsSync(atomicSrc)
+            ? JSON.parse(fs.readFileSync(atomicSrc,'utf8'))
+            : {overall:'NO_EVIDENCE_FILE'};
           evidence.ci={
             run_id:process.env.RUN_ID,
             run_attempt:process.env.RUN_ATTEMPT,
@@ -116,11 +146,25 @@ jobs:
           fs.writeFileSync(dest,JSON.stringify(evidence,null,2)+'\n');
           console.log(dest);
           NODE
+          thread_rel='coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
+          evidence_rel="coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_MESSAGE_MIRROR_CONTRACT_HARNESS_RUN_${RUN_ID}.json"
           git config user.name "prometeo-ci"
           git config user.email "actions@users.noreply.github.com"
-          git add coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_MESSAGE_MIRROR_CONTRACT_HARNESS_RUN_*.json
-          git add coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json
-          git diff --cached --quiet && exit 0
-          git commit -m "chat canary: persist contract harness CI run ${RUN_ID}"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          for n in 1 2 3 4; do
+            git fetch origin main:refs/remotes/origin/main
+            git reset --hard origin/main
+            node scripts/reconcile-primary-chat-returns.mjs
+            node coordination/portfolio/tests/primary_chat_mirror_atomic_append_v1.mjs > /tmp/chat-mirror-atomic-latest.json
+            node /tmp/persist-chat-mirror-run-evidence.mjs
+            git add "$thread_rel" "$evidence_rel"
+            if git diff --cached --quiet; then
+              echo "Primary Chat main projection/evidence already current."
+              exit 0
+            fi
+            git commit -m "chat canary: persist contract harness CI run ${RUN_ID}"
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "main moved during persist attempt $n; discarding stale derived bytes and reconciling again from latest origin/main."
+          done
+          exit 1
