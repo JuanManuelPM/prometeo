@@ -4,7 +4,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyRoleEvidenceIntegrity, validateRoleEvidenceRefs } from '../../../scripts/apply-role-evidence-integrity.mjs';
+import {
+  applyRoleEvidenceIntegrity,
+  isExplicitTransportBlockedNoAllocationRef,
+  validateRoleEvidenceRefs
+} from '../../../scripts/apply-role-evidence-integrity.mjs';
 import { buildFastAllocator } from '../../../scripts/build-fast-allocator.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -20,6 +24,10 @@ assert.equal(ratchet.required?.workers_must_not_add_preclaim_evidence_archaeolog
 assert.equal(ratchet.required?.portfolio_fragment_semantics_validated, true);
 assert.equal(ratchet.required?.derived_recovery_source_path_preserved, true);
 assert.equal(ratchet.required?.regression_test, 'coordination/portfolio/tests/role_ready_evidence_integrity_v1.mjs');
+
+const transportBoundaryRatchet = baseline.items?.find(item => item.id === 'EFF016B');
+assert(transportBoundaryRatchet, 'EFF016B must remain in the efficiency ratchet baseline');
+assert.match(String(transportBoundaryRatchet.title || ''), /telemetry.*GUIDE_RESCATE/i, 'EFF016B must keep transport denials telemetry-only for GUIDE_RESCATE');
 
 const causalRecoveryRatchet = baseline.items?.find(item => item.id === 'EFF065');
 assert(causalRecoveryRatchet, 'EFF065 must remain in the efficiency ratchet baseline');
@@ -39,10 +47,25 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prometeo-role-evidence-'));
 try {
   fs.mkdirSync(path.join(root, 'coordination', 'evidence'), { recursive: true });
   fs.mkdirSync(path.join(root, 'coordination', 'portfolio'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'coordination', 'workers', 'no-allocation'), { recursive: true });
   fs.writeFileSync(path.join(root, 'coordination', 'evidence', 'valid.json'), '{}\n');
   fs.writeFileSync(path.join(root, 'coordination', 'portfolio', 'PORTFOLIO.json'), JSON.stringify({
     projects: [{ project_id: 'alpha', jobs: [{ job_id: 'seed-one' }] }]
   }) + '\n');
+
+  const blockedClassification = 'coordination/workers/no-allocation/blocked-classification.json';
+  const blockedOutcome = 'coordination/workers/no-allocation/blocked-outcome.json';
+  const blockedCode = 'coordination/workers/no-allocation/blocked-code.json';
+  const actionableNoAlloc = 'coordination/workers/no-allocation/actionable.json';
+  fs.writeFileSync(path.join(root, blockedClassification), JSON.stringify({ classification: 'CLAIM_TRANSPORT_BLOCKED' }) + '\n');
+  fs.writeFileSync(path.join(root, blockedOutcome), JSON.stringify({ outcome: 'CLAIM_TRANSPORT_BLOCKED' }) + '\n');
+  fs.writeFileSync(path.join(root, blockedCode), JSON.stringify({ code: 'CLAIM_TRANSPORT_BLOCKED' }) + '\n');
+  fs.writeFileSync(path.join(root, actionableNoAlloc), JSON.stringify({ reason: 'CREATE_EXISTS_EXHAUSTED' }) + '\n');
+
+  assert.equal(isExplicitTransportBlockedNoAllocationRef(blockedClassification, root), true, 'classification field must preserve explicit transport-boundary semantics');
+  assert.equal(isExplicitTransportBlockedNoAllocationRef(blockedOutcome, root), true, 'outcome field must preserve explicit transport-boundary semantics');
+  assert.equal(isExplicitTransportBlockedNoAllocationRef(blockedCode, root), true, 'code field must preserve explicit transport-boundary semantics');
+  assert.equal(isExplicitTransportBlockedNoAllocationRef(actionableNoAlloc, root), false, 'actionable no-allocation evidence must remain repair-eligible');
 
   const valid = 'coordination/evidence/valid.json#proof';
   const validPortfolioProject = 'coordination/portfolio/PORTFOLIO.json#project:alpha';
@@ -80,7 +103,7 @@ try {
 
   const allocator = {
     schema: 'prometeo.fast-allocator/v3',
-    counts: { role_ready: 2 },
+    counts: { role_ready: 4 },
     role_ready: [
       {
         role_id: 'guide-critic-fixedfingerprint',
@@ -107,6 +130,32 @@ try {
           guide_work_id: 'guide-planner-missingonly',
           evidence: ['missing:coordination/evidence/already-known-missing.json']
         }
+      },
+      {
+        role_id: 'guide-rescate-mixed',
+        guide_work_id: 'guide-rescate-mixed',
+        role: 'GUIDE_RESCATE',
+        trigger: 'LOW_YIELD',
+        fingerprint: 'mixed',
+        evidence: [blockedClassification, blockedOutcome, blockedCode, actionableNoAlloc, valid],
+        claim_payload_shape: {
+          schema: 'prometeo.guide-role-pin/v1',
+          guide_work_id: 'guide-rescate-mixed',
+          evidence: [blockedClassification, blockedOutcome, blockedCode, actionableNoAlloc, valid]
+        }
+      },
+      {
+        role_id: 'guide-rescate-blockedonly',
+        guide_work_id: 'guide-rescate-blockedonly',
+        role: 'GUIDE_RESCATE',
+        trigger: 'LOW_YIELD',
+        fingerprint: 'blockedonly',
+        evidence: [blockedClassification, blockedOutcome, blockedCode],
+        claim_payload_shape: {
+          schema: 'prometeo.guide-role-pin/v1',
+          guide_work_id: 'guide-rescate-blockedonly',
+          evidence: [blockedClassification, blockedOutcome, blockedCode]
+        }
       }
     ]
   };
@@ -114,10 +163,11 @@ try {
   const first = applyRoleEvidenceIntegrity(structuredClone(allocator), root);
   const second = applyRoleEvidenceIntegrity(structuredClone(allocator), root);
   assert.deepEqual(first, second, 'compiled evidence validation must be deterministic');
-  assert.equal(first.counts.role_ready, 1, 'evidence-empty role candidates must be suppressed');
-  assert.equal(first.role_ready.length, 1);
+  assert.equal(first.counts.role_ready, 2, 'missing-only and transport-blocked-only role candidates must be suppressed');
+  assert.equal(first.role_ready.length, 2);
 
-  const kept = first.role_ready[0];
+  const kept = first.role_ready.find(row => row.role_id === 'guide-critic-fixedfingerprint');
+  assert(kept, 'valid critic candidate must remain emitted');
   assert.equal(kept.role_id, 'guide-critic-fixedfingerprint', 'role identity must not be recomputed');
   assert.equal(kept.fingerprint, 'fixedfingerprint', 'role fingerprint must not be recomputed');
   assert(kept.evidence.includes(valid));
@@ -129,6 +179,20 @@ try {
   assert(kept.evidence.includes(externalPages));
   assert.deepEqual(kept.claim_payload_shape.evidence, kept.evidence, 'PIN payload evidence must match sanitized evidence');
   assert(kept.evidence_diagnostics.some(row => row.kind === 'MISSING_REPO_LOCAL' && row.ref === missing));
+
+  const rescueKept = first.role_ready.find(row => row.role_id === 'guide-rescate-mixed');
+  assert(rescueKept, 'mixed rescate candidate must remain when actionable evidence survives');
+  assert(rescueKept.evidence.includes(actionableNoAlloc), 'actionable no-allocation evidence must survive');
+  assert(rescueKept.evidence.includes(valid), 'unrelated valid causal evidence must survive');
+  assert(!rescueKept.evidence.includes(blockedClassification), 'classification-form explicit transport denial must be telemetry-only');
+  assert(!rescueKept.evidence.includes(blockedOutcome), 'outcome-form explicit transport denial must be telemetry-only');
+  assert(!rescueKept.evidence.includes(blockedCode), 'code-form explicit transport denial must be telemetry-only');
+  assert.deepEqual(rescueKept.claim_payload_shape.evidence, rescueKept.evidence, 'rescate PIN payload must receive the same sanitized evidence');
+  assert(rescueKept.evidence_diagnostics.filter(row => row.kind === 'TELEMETRY_ONLY_EXPLICIT_TRANSPORT_BLOCKED').length === 3, 'transport boundary refs must remain machine-visible diagnostics');
+
+  const blockedOnlySuppressed = first.diagnostics.role_evidence_integrity.suppressed_candidates.find(row => row.role_id === 'guide-rescate-blockedonly');
+  assert(blockedOnlySuppressed, 'blocked-only rescate must be suppressed');
+  assert.equal(blockedOnlySuppressed.reason, 'NO_ACTIONABLE_EVIDENCE_AFTER_TRANSPORT_BOUNDARY_FILTER');
 
   const recoveryFeed = {
     generated_at: '2026-09-17T22:36:00Z',
@@ -180,14 +244,16 @@ try {
 
   const diag = first.diagnostics.role_evidence_integrity;
   assert.equal(diag.schema, 'prometeo.role-evidence-integrity/v1');
-  assert.equal(diag.suppressed_candidates.length, 1);
-  assert.equal(diag.suppressed_candidates[0].reason, 'NO_USABLE_EVIDENCE_AFTER_REPO_LOCAL_VALIDATION');
+  assert.equal(diag.suppressed_candidates.length, 2);
+  assert(diag.suppressed_candidates.some(row => row.reason === 'NO_USABLE_EVIDENCE_AFTER_REPO_LOCAL_VALIDATION'));
+  assert(diag.suppressed_candidates.some(row => row.reason === 'NO_ACTIONABLE_EVIDENCE_AFTER_TRANSPORT_BOUNDARY_FILTER'));
   assert(diag.missing_repo_local_refs.some(row => row.ref === missing));
   assert(diag.missing_repo_local_refs.some(row => row.ref === 'missing:coordination/evidence/already-known-missing.json'));
   assert(diag.missing_repo_local_fragment_refs.some(row => row.ref === missingPortfolioProject));
   assert(diag.missing_repo_local_fragment_refs.some(row => row.ref === missingPortfolioJob));
   assert(diag.external_refs_preserved.includes(externalActions));
   assert(diag.external_refs_preserved.includes(externalPages));
+  assert.deepEqual(diag.explicit_transport_blocked_telemetry_only_refs, [blockedClassification, blockedCode, blockedOutcome].sort(), 'transport-denial refs must remain visible in deterministic telemetry-only diagnostics');
 
   console.log('ROLE_READY_EVIDENCE_INTEGRITY_PASS');
 } finally {
