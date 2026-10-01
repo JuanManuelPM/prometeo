@@ -1,0 +1,74 @@
+{
+  "schema": "prometeo.portfolio-return/v1",
+  "return_id": "RETURN-wc-20261001T210602Z-191e5e374442-G000001-VERIFIED",
+  "job_id": "portfolio-guide-delivery-dag-runtime-canary-v1",
+  "dedupe_key": "prometeo:guide:delivery-dag-runtime-canary:v1",
+  "project_id": "prometeo-autonomous-growth",
+  "worker_id": "wc-20261001T210602Z-191e5e374442",
+  "generation": 1,
+  "returned_at": "2026-10-01T21:42:36Z",
+  "outcome": "VERIFIED",
+  "runtime_evidence_status": "INSUFFICIENT_COMPARABLE_RUNTIME_EVIDENCE",
+  "summary": "The runtime canary verified the evidence boundary rather than inventing concurrency. A historical QA-precompile execution has durable PIN, STARTED and RETURN endpoints from 20:10:14Z to 20:12:14Z (120000 ms), but no producer execution is durably bound to the same delivery unit. Therefore the parent fixture's 1250 ms serial / 750 ms modeled parallel / 40% reduction remains simulation evidence only. The canary adds an observability-only evaluator and regression that requires a shared explicit delivery_unit_ref before computing overlap, serial baseline or real critical path. QA-precompile remains advisory-only and outside promotion fan-in; blocker failure still forces promotion_ready=false while a reversible candidate can remain usable, without creating new scheduling or promotion authority.",
+  "changed_paths": [
+    "coordination/analytics/control-room-stats-v1/delivery-dag-runtime-canary.mjs",
+    "coordination/analytics/control-room-stats-v1/delivery-dag-runtime-canary.test.mjs",
+    "coordination/analytics/control-room-stats-v1/reports/delivery-dag-runtime-canary-20261001-wc-191e5e37.json"
+  ],
+  "evidence": [
+    "coordination/portfolio/pins/portfolio-guide-delivery-dag-runtime-canary-v1/G000001.json",
+    "coordination/workers/started/wc-20261001T210602Z-191e5e374442-portfolio-guide-delivery-dag-runtime-canary-v1-G000001.json",
+    "coordination/analytics/control-room-stats-v1/delivery-dag-runtime-canary.mjs",
+    "coordination/analytics/control-room-stats-v1/delivery-dag-runtime-canary.test.mjs",
+    "coordination/analytics/control-room-stats-v1/reports/delivery-dag-runtime-canary-20261001-wc-191e5e37.json",
+    "coordination/portfolio/pins/portfolio-guide-qa-precompile-v1/G000001.json",
+    "coordination/workers/started/wc-20261001T194155Z-ac99a2fe8d17-portfolio-guide-qa-precompile-v1-G000001.json",
+    "coordination/portfolio/returns/portfolio-guide-qa-precompile-v1/wc-20261001T194155Z-ac99a2fe8d17/return.json",
+    "coordination/guide/QA_PRECOMPILE_V1.json",
+    "coordination/guide/ASYNC_QA_PROMOTION_V1.json",
+    "coordination/portfolio/returns/portfolio-guide-delivery-dag-canary-v1/wc-20261001T210505Z-7aa40f2ff255/return.json",
+    "164a2ffb49dee57b6608ea3b88e159c0d4e628ac",
+    "29191dbfab419e55250c92f9a7401cfe26758617",
+    "fe4690a96eb1d898cdeeb713dbc21f607cc7787c"
+  ],
+  "tests": [
+    "PASS: exact delivery-dag-runtime-canary.test.mjs executed in this worker runtime and printed DELIVERY_DAG_RUNTIME_CANARY_PASS.",
+    "PASS: comparable fixture with shared delivery_unit_ref computes 6000 ms overlap, 18000 ms serial baseline, 12000 ms critical path and 1/3 reduction.",
+    "PASS: unrelated wall-clock overlap without shared durable delivery_unit_ref remains INSUFFICIENT_COMPARABLE_RUNTIME_EVIDENCE with overlap_ms=null.",
+    "PASS: blocker_result=FAIL overrides stale promotion_ready=true to false while reversible_candidate_usable=true remains preserved.",
+    "PASS: missing durable producer completion endpoint cannot produce a runtime overlap claim."
+  ],
+  "feature_evidence": [
+    {
+      "requirement": "Use durable producer + QA-precompile timestamps and prove or refute actual overlap",
+      "status": "PASS_REFUTED_WITH_EVIDENCE_GAP",
+      "evidence": "QA-precompile has a durable 120000 ms interval, but no producer shares an explicit durable delivery_unit_ref. Runtime overlap is therefore not proven and is emitted as insufficient comparable evidence."
+    },
+    {
+      "requirement": "Independent verifier prerequisites and advisory-only exclusion from promotion fan-in",
+      "status": "PASS",
+      "evidence": "QA_PRECOMPILE_V1 marks precompile advisory_only=true/promotion_blocker=false; ASYNC_QA_PROMOTION_V1 preserves explicit blocker prerequisites and optional/advisory separation."
+    },
+    {
+      "requirement": "Report real critical path vs serial baseline for same unit",
+      "status": "PASS_UNKNOWN_NOT_FABRICATED",
+      "evidence": "Evaluator computes these fields only with shared delivery_unit_ref + completed durable intervals. Actual report leaves them null because the comparable pair does not exist."
+    },
+    {
+      "requirement": "Blocker failure prevents promotion-ready while reversible candidate remains usable",
+      "status": "PASS",
+      "evidence": "Regression enforces blocker FAIL => promotion_ready=false and candidate usable=true; parent deterministic failure canary independently records the same guarded behavior."
+    },
+    {
+      "requirement": "Leave re-openable regression/receipt and avoid false distributed-concurrency claim",
+      "status": "PASS",
+      "evidence": "Evaluator, regression, runtime report and this return are durable repo artifacts. Runtime report explicitly says NOT_PROVEN for the parent's modeled 40% reduction."
+    }
+  ],
+  "truth_boundary": "This return verifies the runtime evidence boundary, not distributed concurrency. It does not claim a real 40% reduction, does not infer a producer from unrelated workers, and grants no scheduler, liveness, CURRENT, Human Accepted, Served or promotion authority.",
+  "unresolved": [
+    "A future comparable canary needs an existing durable event owner to bind producer and QA-precompile to the same delivery_unit_ref.",
+    "Both comparable units need durable STARTED and completion endpoints before overlap, serial baseline and real critical path can be measured."
+  ],
+  "spawn_candidates": []
+}
