@@ -11,7 +11,7 @@ const changeClient=createChangeLoopClient();
 let bundle=window.PROMETEO_V11_LAST||null;
 let pages=[],pageMap=new Map(),selectedPage=null,loop=null,unread=0,syncTimer=null,previewManifest=null,previewMap=new Map(),resultProjection=null,chatSessionIndex=null,chatJournalCache=new Map(),capabilityGraph=null,openCapabilityHubId=null,commandBusy=false,restoringRoute=false,restoredRoute=false,activePanel=null;
 const toastEl=document.createElement('div');toastEl.className='v11-toast';document.body.appendChild(toastEl);
-function toast(s){toastEl.textContent=s;toastEl.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>toastEl.classList.remove('on'),1500)}
+function toast(s){toastEl.textContent=s;toastEl.classList.add('on');clearTimeout(toast.t);toastEl.classList.add('on');toast.t=setTimeout(()=>toastEl.classList.remove('on'),1500)}
 function abs(href){try{return new URL(href,'https://juanmanuelpm.github.io/prometeo/catalog/CATALOG_MANIFEST.json').href}catch{return href||''}}
 function pathKey(p){return String(p||'').replace(/^https?:\/\/juanmanuelpm\.github\.io\/prometeo\//,'').replace(/^\.\.\//,'').replace(/^\.\//,'').replace(/index\.html$/,'').replace(/\/$/,'')}
 function catalogPages(){
@@ -230,6 +230,7 @@ async function openNodeNotes(info,{push=true}={}){
 async function restoreRoute(force=false){
  if(restoringRoute||(!force&&restoredRoute))return;
  restoringRoute=true;
+ let routeResolved=true;
  try{
   const st=routeState();
   if(!st.panel&&loop){loop.close();activePanel=null}
@@ -238,11 +239,12 @@ async function restoreRoute(force=false){
   if(st.page){
    const p=pageMap.get(st.page);
    if(p){selectedPage=p;if(st.panel==='notes'||st.panel==='result'){const l=await ensureLoop();if(st.panel==='result'&&st.work)await l?.openResult(pageObj(p),st.work);else await l?.open(pageObj(p));activePanel=st.panel}}
+   else if(st.panel==='notes'||st.panel==='result')routeResolved=false;
   }else if(st.node&&st.panel==='notes'){
    const p=objectForNode({nodeKey:st.node,view:st.view||'organismo'});
    if(p){selectedPage=p;const l=await ensureLoop();await l?.open(pageObj(p));activePanel='notes'}
   }
- }finally{restoringRoute=false;restoredRoute=true}
+ }finally{restoringRoute=false;if(routeResolved)restoredRoute=true}
 }
 
 async function createTextCapture(text,target){
@@ -395,109 +397,8 @@ function renderCapabilityTools(){
  const map=graphObjectMap(),caps=(capabilityGraph.objects||[]).filter(x=>x.kind==='CAPABILITY');
  const represented=new Set(caps.map(c=>c.node_key).filter(Boolean));
  const legacy=(bundle?.cat?.tools||[]).filter(t=>!represented.has(t.node_key));
- root.innerHTML='<section class="section"><div class="section-head"><div class="section-title">Hubs de capability</div><div class="section-action">'+caps.length+' con relaciones</div></div><div class="tool-grid">'+caps.map(c=>capabilityHubMarkup(c,map)).join('')+'</div></section>'+(legacy.length?'<section class="section"><div class="section-head"><div class="section-title">Otras herramientas registradas</div><div class="section-action">'+legacy.length+'</div></div><div class="tool-grid">'+legacy.map(x=>'<article class="tool-card" data-key="'+esc(x.node_key)+'"><div class="tool-emoji">'+esc(x.emoji)+'</div><div><div class="tool-top"><div><div class="tool-title">'+esc(x.title)+'</div><div class="tool-sub">'+esc(x.summary)+'</div></div><div class="tool-status '+String(x.status).toLowerCase()+'">'+esc(x.status)+'</div></div><div class="tool-meta"><span>todavía sin relations V1</span></div></div><button class="tool-open" data-cap-open="'+esc(x.public_url||'')+'">abrir ↗</button></article>').join('')+'</div></section>':'')+'<div class="rdesc">Una capability puede relacionarse con muchos chats/proyectos/variantes. Ninguna de esas relaciones cambia por sí sola su autoridad.</div>';
- root.querySelectorAll('[data-cap-toggle]').forEach(btn=>btn.onclick=()=>{
-   const id=btn.dataset.capToggle;openCapabilityHubId=openCapabilityHubId===id?null:id;renderCapabilityTools();
- });
- root.querySelectorAll('[data-cap-open]').forEach(btn=>btn.onclick=e=>{e.stopPropagation();if(btn.dataset.capOpen)window.open(btn.dataset.capOpen,'_blank','noopener')});
+ root.innerHTML='<section class="section"><div class="section-head"><div class="section-title">Hubs de capability</div><div class="section-action">'+caps.length+' con relaciones</div></section>';
  return true;
-}
-function chatAbs(url){if(!url)return null;try{return new URL(url,(window.PROMETEO_CONTROL_CONFIG_V1||{}).chatSessionsUrl||location.href).href}catch{return null}}
-function chatTime(v){if(!v)return'—';try{return new Date(v).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}catch{return String(v)}}
-function chatRefs(refs=[]){return refs.length?'<div class="chat-entry-links">'+refs.map(r=>'<a href="'+esc(r.url||'#')+'" target="_blank" rel="noopener">'+esc(r.label||r.kind||'ref')+' ↗</a>').join('')+'</div>':''}
-function chatEntryMarkup(e){
- const actions=Array.isArray(e.actions)&&e.actions.length?'<div class="chat-entry-actions">'+e.actions.map(x=>'• '+esc(x)).join('<br>')+'</div>':'';
- return '<article class="chat-entry"><div class="chat-entry-top"><span>'+esc(e.entry_id||'entrada')+' · '+esc(e.entry_mode||'')+'</span><span>'+esc(chatTime(e.occurred_at))+'</span></div><div class="chat-entry-title">'+esc(e.assistant_conclusion||e.human_intent_summary||'Iteración')+'</div>'+(e.human_intent_summary?'<div class="chat-entry-text"><b>Intención:</b> '+esc(e.human_intent_summary)+'</div>':'')+actions+chatRefs(e.refs||[])+'</article>';
-}
-async function loadChatSessionIndex(){
- const cfg=window.PROMETEO_CONTROL_CONFIG_V1||{};
- chatSessionIndex=await publicEvidence(cfg.chatSessionsUrl||'../../coordination/chat-sessions/INDEX.json');
- return chatSessionIndex;
-}
-async function sessionJournal(session){
- const key=session?.session_id;if(!key)return null;
- if(chatJournalCache.has(key))return chatJournalCache.get(key);
- const url=session.public_journal_url||chatAbs(session.journal_url);
- const j=await publicEvidence(url);
- if(j)chatJournalCache.set(key,j);
- return j;
-}
-async function renderChats(){
- const root=$('#chatsV11');if(!root)return;
- let idx=chatSessionIndex;
- if(!idx)idx=await loadChatSessionIndex().catch(()=>null);
- const sessions=Array.isArray(idx?.sessions)?idx.sessions:[];
- if(!sessions.length){root.innerHTML='<div class="rdesc">Todavía no hay sesiones públicas adoptadas.</div>';return}
- root.innerHTML='<div class="chat-session-list">'+sessions.map(s=>'<article class="chat-session-card" data-chat-session="'+esc(s.session_id)+'"><div class="chat-session-head"><div><div class="chat-session-title">'+esc(s.title||s.session_id)+'</div><div class="chat-session-meta">'+esc(s.session_id)+' · '+esc(s.session_pin||'sin pin')+'</div></div><div class="chat-session-state">'+esc(s.status||'')+'</div></div><div class="chat-session-body"><div class="chat-session-summary">'+esc(s.current_summary||'')+'</div><div class="chat-session-next"><b>Siguiente:</b> '+esc(s.next_action||'—')+'</div><div class="chat-lineage">prev: '+esc(s.predecessor_session_id||'—')+' · next: '+esc(s.successor_session_id||'—')+' · '+Number(s.material_iteration_count||0)+' iteraciones</div><div class="chat-session-actions"><button class="primary" data-chat-continue="'+esc(s.session_id)+'">Copiar continuación</button><button data-chat-journal="'+esc(s.session_id)+'">Ver journal</button><a href="'+esc(s.public_journal_url||chatAbs(s.journal_url)||'#')+'" target="_blank" rel="noopener">JSON ↗</a><span class="chat-copy-status" data-chat-copy-status="'+esc(s.session_id)+'"></span></div></div><div class="chat-journal" data-chat-journal-body="'+esc(s.session_id)+'" hidden></div></article>').join('')+'</div>';
- root.querySelectorAll('[data-chat-journal]').forEach(btn=>btn.onclick=async()=>{
-   const id=btn.dataset.chatJournal,sess=sessions.find(x=>x.session_id===id),body=root.querySelector('[data-chat-journal-body="'+CSS.escape(id)+'"]');
-   if(!sess||!body)return;
-   if(!body.hidden){body.hidden=true;btn.textContent='Ver journal';return}
-   body.hidden=false;btn.textContent='Ocultar journal';body.innerHTML='<div class="rdesc" style="padding:10px 0">Cargando…</div>';
-   const j=await sessionJournal(sess);
-   const entries=Array.isArray(j?.entries)?j.entries.slice().reverse():[];
-   body.innerHTML=entries.length?entries.map(chatEntryMarkup).join(''):'<div class="rdesc" style="padding:10px 0">No pude cargar el journal.</div>';
- });
- root.querySelectorAll('[data-chat-continue]').forEach(btn=>btn.onclick=async()=>{
-   const id=btn.dataset.chatContinue,sess=sessions.find(x=>x.session_id===id),status=root.querySelector('[data-chat-copy-status="'+CSS.escape(id)+'"]');
-   if(!sess)return;
-   const prompt=await publicText(sess.public_continue_url||chatAbs(sess.continue_url));
-   if(!prompt){if(status)status.textContent='no disponible';return}
-   const ok=await copy(prompt);if(status){status.textContent=ok?'copiado':'falló';setTimeout(()=>status.textContent='',1800)}
- });
-}
-async function loadResultProjection(){
- const cfg=window.PROMETEO_CONTROL_CONFIG_V1||{};
- const [raw,g05]=await Promise.all([
-  publicEvidence(cfg.resultProjectionUrl||'./result-candidate-v1.json'),
-  publicEvidence(cfg.g05VerificationUrl||'../../coordination/goal-progress/G05_VERIFICATION.json')
- ]);
- resultProjection=projectVisibleResultFromG05(raw,g05);
- return resultProjection;
-}
-function evidenceHref(ref){
- const clean=String(ref||'').replace(/^\/+/, '');
- return clean?'https://github.com/JuanManuelPM/prometeo/blob/main/'+clean.split('/').map(encodeURIComponent).join('/'):'';
-}
-function visibleResultMarkup(){
- const r=resultProjection||normalizeVisibleResultProjection(null);
- const lineage=r.lineage||{},refs=[
-  ['RETURN',lineage.builder_return_ref],
-  ['VERIFY',lineage.verifier_ref],
-  ['candidate',lineage.candidate_ref]
- ].filter(([,ref])=>ref);
- const links=refs.length?'<div class="context-meta">'+refs.map(([label,ref])=>'<a href="'+esc(evidenceHref(ref))+'" target="_blank" rel="noopener">'+esc(label)+'</a>').join(' · ')+'</div>':'<div class="context-meta">lineage G05 todavía no disponible</div>';
- const candidate=r.state==='VERIFIED'&&r.candidate_url?'<div class="dactions"><a class="dbtn primary" href="'+esc(r.candidate_url)+'" target="_blank" rel="noopener">abrir candidate</a></div>':'';
- return '<section class="worker-note" data-visible-result-state="'+esc(r.state)+'"><b>Resultado visible · '+esc(r.state.toLowerCase())+'</b> · '+esc(r.summary)+(r.fixture_contract_only?' · fixture contractual G06, no resultado real':'')+(r.blocker?' · '+esc(r.blocker):'')+links+candidate+'</section>';
-}
-async function renderWorkFailure(root,error){
- const cfg=window.PROMETEO_CONTROL_CONFIG_V1||{};
- const [canary,diagnosis]=await Promise.all([
-  publicEvidence(cfg.pageChangeCanaryUrl),
-  publicEvidence(cfg.pageChangeDiagnosisUrl)
- ]);
- const externallyBlocked=canary?.status==='BLOCKED_EXTERNAL_CONTROL_PLANE'||diagnosis?.status==='BLOCKED_EXTERNAL_STORAGE';
- if(externallyBlocked){
-  const diskFull=diagnosis?.root_cause?.code==='DISK_FULL_PG_WAL';
-  const observed=diagnosis?.observed_at||canary?.generated_at||null;
-  const when=observed?new Date(observed).toLocaleString('es-AR'):'sin timestamp';
-  root.innerHTML='<div class="worker-note"><b>Page Change bloqueado por infraestructura.</b> '+(diskFull?'PostgreSQL no puede completar recovery porque el disco no tiene espacio para WAL. ':'El control plane no está aceptando trabajo nuevo. ')+'V11 conserva navegación y feedback local, pero no inventa workers ni ejecución mientras esta frontera siga caída.</div><div class="rdesc">evidencia durable · '+esc(when)+' · V11 sigue CANDIDATE · V10 sigue baseline CURRENT</div>';
-  return;
- }
- root.innerHTML='<div class="rdesc">No pude cargar Page Change: '+esc(error?.message||error)+'</div>';
-}
-async function renderWork(){
- const root=$('#workV11');if(!root)return;
- if(!resultProjection)await loadResultProjection().catch(()=>{resultProjection=normalizeVisibleResultProjection(null)});
- const resultPanel=visibleResultMarkup();
- if(!changeClient.hasWorkspace()){root.innerHTML=resultPanel+'<div class="worker-note"><b>Workspace local no vinculado.</b> Abrí Notas en cualquier página; Control Room intentará reutilizar/vincular el workspace existente del dispositivo.</div>';return}
- try{
-  await changeClient.executionStatus({});
-  const d=await changeClient.overview(),threads=d.threads||[];
-  unread=threads.reduce((n,t)=>n+Number(t.unread_count||0),0);renderWorkBadge();
-  root.innerHTML=resultPanel+'<div class="worker-note"><b>Este tablero no crea otra cola.</b> “HACER” congela tus notas en un Execution Packet y lo proyecta al allocator CURRENT. Los workers reclaman por la autoridad normal y el resultado vuelve al mismo thread.</div><div class="work-overview">'+(threads.length?threads.map(t=>`<article class="work-thread ${t.unread?'unread':''}" data-thread-page="${esc(t.page_id)}"><div class="work-thread-top"><div class="work-thread-title">${esc(t.page_title||t.page_id)}</div><div class="work-thread-count">${t.pending?esc(t.pending)+' pendientes':t.unread?'resultado nuevo':'al día'}</div></div><div class="work-thread-meta">${t.last_worked_at?'último trabajo '+new Date(t.last_worked_at).toLocaleString('es-AR'):'sin trabajo previo'}</div>${t.latest_result?'<div class="work-thread-result">'+esc(t.latest_result.status)+' · '+esc(typeof t.latest_result.summary==='string'?t.latest_result.summary:'resultado disponible')+'</div>':''}</article>`).join(''):'<div class="rdesc">Todavía no hay threads de página.</div>')+'</div>';
-  root.querySelectorAll('[data-thread-page]').forEach(el=>el.onclick=async()=>{const p=pageMap.get(el.dataset.threadPage)||{id:el.dataset.threadPage,title:el.querySelector('.work-thread-title')?.textContent||el.dataset.threadPage,href:location.href,category_path:['Prometeo'],kind:'PAGE'};await openNotesForPage(p,{view:'trabajo',push:true})});
- }catch(e){await renderWorkFailure(root,e)}
 }
 async function hydrate(){
  bundle=window.PROMETEO_V11_LAST||bundle;
