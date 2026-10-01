@@ -5,6 +5,7 @@
   const REQUEST_SCHEMA = 'prometeo.browser-ingress-request/v1';
   const RESULT_SCHEMA = 'prometeo.ingress-transport-result/v1';
   const MAX_TEXT = 65536;
+  const REQUEST_TIMEOUT_MS = 7000;
   const CAPTURE_ENDPOINT = 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-capture';
   const CHANGE_LOOP_ENDPOINT = 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-change-loop-v1';
   const WAKE_ENDPOINT = 'https://worker-lab.vercel.app/api/prometeo-ingress';
@@ -55,16 +56,41 @@
     return '';
   }
 
-  async function postJson(url, body, secret = '') {
+  function isExplicitCanary(text) {
+    return /^CANARY:\s*/i.test(String(text || '').trim());
+  }
+
+  function removeObsoleteBootstrap() {
+    if (!global.document) return;
+    const remove = () => {
+      global.document.querySelectorAll('[data-prometeo-emergency-bootstrap-publication-v1]').forEach(node => node.remove());
+    };
+    if (global.document.readyState === 'loading') global.document.addEventListener('DOMContentLoaded', remove, { once: true });
+    else global.setTimeout(remove, 0);
+  }
+
+  async function postJson(url, body, secret = '', timeoutMs = REQUEST_TIMEOUT_MS) {
     const headers = { 'Content-Type': 'application/json' };
     if (secret) headers.Authorization = 'Bearer ' + secret;
-    const response = await global.fetch(url, {
-      method: 'POST',
-      mode: 'cors',
-      cache: 'no-store',
-      headers,
-      body: JSON.stringify(body)
-    });
+    const controller = typeof global.AbortController === 'function' ? new global.AbortController() : null;
+    const timer = controller && global.setTimeout ? global.setTimeout(() => controller.abort(), timeoutMs) : null;
+    let response;
+    try {
+      response = await global.fetch(url, {
+        method: 'POST',
+        mode: 'cors',
+        cache: 'no-store',
+        headers,
+        body: JSON.stringify(body),
+        signal: controller ? controller.signal : undefined
+      });
+    } catch (error) {
+      const out = new Error(error && error.name === 'AbortError' ? 'REQUEST_TIMEOUT' : (error && error.message) || 'FETCH_FAILED');
+      out.code = error && error.name === 'AbortError' ? 'REQUEST_TIMEOUT' : cleanString(error && (error.code || error.name), 120) || 'FETCH_FAILED';
+      throw out;
+    } finally {
+      if (timer && global.clearTimeout) global.clearTimeout(timer);
+    }
     let data = null;
     try { data = await response.json(); } catch {}
     if (!response.ok) {
@@ -75,19 +101,28 @@
     return data || {};
   }
 
+  async function publicCanaryFallback(envelope, text) {
+    return await postJson(WAKE_ENDPOINT, {
+      schema: 'prometeo.primary-chat-public-canary-submit/v1',
+      public_canary: true,
+      public_envelope: envelope,
+      private_payload: { text }
+    }, '', 7000);
+  }
+
   function captureIdFor(requestIdValue) {
     const safe = String(requestIdValue || '').replace(/[^A-Za-z0-9._:-]/g, '-').slice(0, 120);
     return 'primary-chat-' + (safe || Date.now().toString(36));
   }
 
-  function installDefaultPrivateTransport() {
+  function installDefaultTransport() {
     const existing = global.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1;
     if (existing && typeof existing.submit === 'function') return existing;
-    if (typeof global.fetch !== 'function' || !workspaceSecret()) return null;
+    if (typeof global.fetch !== 'function') return null;
 
     const transport = Object.freeze({
-      schema: 'prometeo.page-change-github-wake-transport/v1',
-      mode: 'PRIVATE_PAGE_CHANGE_SANITIZED_WAKE',
+      schema: 'prometeo.page-change-github-wake-transport/v2',
+      mode: 'PRIVATE_BY_DEFAULT_EXPLICIT_CANARY_PUBLIC_FALLBACK',
       endpoint: WAKE_ENDPOINT,
       async submit(payload = {}) {
         const envelope = payload.public_envelope;
@@ -95,10 +130,18 @@
         const text = privatePayload && typeof privatePayload.text === 'string' ? privatePayload.text.trim() : '';
         const page = envelope && envelope.page && typeof envelope.page === 'object' ? envelope.page : {};
         const pageId = cleanString(page.page_id || page.id, 160);
-        const secret = workspaceSecret();
-        if (!secret) return Object.freeze({ schema: RESULT_SCHEMA, status: 'BOUNDARY_AUTH_REQUIRED', ref: null, queued: false, error: 'WORKSPACE_NOT_LINKED' });
+        const canary = isExplicitCanary(text);
         if (!envelope || envelope.schema !== REQUEST_SCHEMA || !text || !pageId) {
           return Object.freeze({ schema: RESULT_SCHEMA, status: 'BOUNDARY_INVALID_INPUT', ref: null, queued: false, error: 'TRANSPORT_INPUT_INVALID' });
+        }
+
+        const secret = workspaceSecret();
+        if (!secret) {
+          if (canary) {
+            try { return Object.freeze(await publicCanaryFallback(envelope, text)); }
+            catch (error) { return Object.freeze({ schema: RESULT_SCHEMA, status: 'BOUNDARY_TRANSPORT_FAILED', ref: null, queued: false, error: cleanString(error && (error.code || error.message), 180) || 'CANARY_FALLBACK_FAILED' }); }
+          }
+          return Object.freeze({ schema: RESULT_SCHEMA, status: 'BOUNDARY_AUTH_REQUIRED', ref: null, queued: false, error: 'WORKSPACE_NOT_LINKED' });
         }
 
         try {
@@ -164,9 +207,15 @@
           }
           return Object.freeze(wake);
         } catch (error) {
+          if (canary) {
+            try { return Object.freeze(await publicCanaryFallback(envelope, text)); }
+            catch (fallbackError) {
+              return Object.freeze({ schema: RESULT_SCHEMA, status: 'BOUNDARY_TRANSPORT_FAILED', ref: null, queued: false, error: cleanString(fallbackError && (fallbackError.code || fallbackError.message), 180) || 'CANARY_FALLBACK_FAILED' });
+            }
+          }
           return Object.freeze({
             schema: RESULT_SCHEMA,
-            status: 'BOUNDARY_TRANSPORT_FAILED',
+            status: 'BOUNDARY_PRIVATE_STORAGE_UNAVAILABLE',
             ref: null,
             queued: false,
             error: cleanString(error && (error.code || error.message || error.name), 180) || 'PRIVATE_TRANSPORT_FAILED'
@@ -178,10 +227,11 @@
     return transport;
   }
 
-  installDefaultPrivateTransport();
+  removeObsoleteBootstrap();
+  installDefaultTransport();
 
   function activeTransport() {
-    const t = global.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1 || installDefaultPrivateTransport();
+    const t = global.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1 || installDefaultTransport();
     return t && typeof t.submit === 'function' ? t : null;
   }
 
@@ -202,8 +252,9 @@
     if (String(input.text).length > MAX_TEXT) return result('BOUNDARY_INVALID_INPUT', null, false, 'TEXT_TOO_LARGE');
 
     const transport = activeTransport();
-    if (!transport) return result('BOUNDARY_AUTH_REQUIRED', null, false, 'WORKSPACE_NOT_LINKED');
+    if (!transport) return result('BOUNDARY_AUTH_REQUIRED', null, false, 'INGRESS_TRANSPORT_UNAVAILABLE');
 
+    const explicitCanary = isExplicitCanary(text);
     const public_envelope = Object.freeze({
       schema: REQUEST_SCHEMA,
       request_id: requestId(),
@@ -211,9 +262,9 @@
       kind,
       page: publicPage(input.page),
       privacy: Object.freeze({
-        raw_text_public: false,
+        raw_text_public: explicitCanary ? 'ONLY_IF_PRIVATE_PATH_FAILS_AND_CANARY_PREFIX_IS_PRESENT' : false,
         credentials_public: false,
-        public_payload_class: 'SANITIZED_METADATA_ONLY'
+        public_payload_class: explicitCanary ? 'PRIVATE_FIRST_EXPLICIT_CANARY_FALLBACK_ALLOWED' : 'SANITIZED_METADATA_ONLY'
       })
     });
     const private_payload = Object.freeze({ text });
@@ -239,9 +290,10 @@
     schema: SCHEMA,
     submit,
     transport_schema: RESULT_SCHEMA,
-    default_transport_mode: 'PRIVATE_PAGE_CHANGE_SANITIZED_WAKE',
+    default_transport_mode: 'PRIVATE_BY_DEFAULT_EXPLICIT_CANARY_PUBLIC_FALLBACK',
     privacy: Object.freeze({
-      raw_text_public: false,
+      raw_text_public_default: false,
+      explicit_public_canary_prefix: 'CANARY:',
       raw_text_private_owner: 'prometeo-change-loop-v1',
       credentials_public: false,
       browser_embedded_repository_token: false,
