@@ -1,6 +1,7 @@
 const ENDPOINT = 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-capture';
 const SECRET_KEY = 'prometeo.capture.workspace.secret.v1';
 const WORKSPACE_KEY = 'prometeo.capture.workspace.id.v1';
+const REMOTE_INIT_BUDGET_MS = 3500;
 
 function blockedControlPlaneError() {
   const state = globalThis.PROMETEO_CONTROL_PLANE_STATE_V1;
@@ -10,6 +11,23 @@ function blockedControlPlaneError() {
   error.status = 503;
   error.control_plane_state = state;
   return error;
+}
+
+function remoteInitTimeoutError(ms = REMOTE_INIT_BUDGET_MS) {
+  const error = new Error(`Bootstrap remoto excedió ${ms}ms; modo local-first sigue disponible.`);
+  error.code = 'REMOTE_INIT_TIMEOUT';
+  error.status = 504;
+  return error;
+}
+
+function withinBudget(promise, ms = REMOTE_INIT_BUDGET_MS) {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(remoteInitTimeoutError(ms)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
 }
 
 function randomSecret() {
@@ -77,7 +95,7 @@ export class PrometeoRemote {
     const blocked = blockedControlPlaneError();
     if (blocked) throw blocked;
     if (!this.ready) {
-      this.ready = call('bootstrap').then(data => {
+      this.ready = withinBudget(call('bootstrap')).then(data => {
         localStorage.setItem(WORKSPACE_KEY, data.workspace_id || '');
         this.onState({ online: true, synced: true, workspaceId: data.workspace_id });
         return data;
