@@ -1,0 +1,53 @@
+name: Alumnos Student World Jose Catalog route extension browser CI v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/alumnos-student-world-jose-catalog-route-extension-browser-ci-v1.yml'
+      - 'coordination/portfolio/tests/alumnos_student_world_jose_catalog_route_extension_browser_ci_v1.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alumnos-student-world-jose-catalog-route-extension-browser-ci-v1
+  cancel-in-progress: false
+
+jobs:
+  representative-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install representative Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run Jose Catalog route extension desktop+narrow browser suite
+        env:
+          ALUMNOS_JOSE_CATALOG_URL: https://juanmanuelpm.github.io/prometeo/__candidate/portfolio-alumnos-student-world-jose-catalog-route-extension-candidate-v1/G000001/
+          ALUMNOS_JOSE_CATALOG_INDEX_BLOB: 9a7e304ee2209f7e3c5f5978a4f5db1da77caee8
+          ALUMNOS_JOSE_CATALOG_MANIFEST_BLOB: 2e8cd6287ccececf6ca3f22e878f64f8f2aa87ba
+          ALUMNOS_JOSE_CATALOG_DIFF_BLOB: 4681156eb48ec11de3f62974ab7998ef53547fb4
+          ALUMNOS_JOSE_CATALOG_PROPAGATION_MS: '180000'
+          ALUMNOS_JOSE_CATALOG_ARTIFACT_DIR: artifacts/alumnos-student-world-jose-catalog-route-extension-browser-ci
+        run: node coordination/portfolio/tests/alumnos_student_world_jose_catalog_route_extension_browser_ci_v1.mjs
+
+      - name: Upload bounded browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alumnos-student-world-jose-catalog-route-extension-browser-ci-evidence
+          path: artifacts/alumnos-student-world-jose-catalog-route-extension-browser-ci/
+          if-no-files-found: error
+          retention-days: 14
