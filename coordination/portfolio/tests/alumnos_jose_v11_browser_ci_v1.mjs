@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -9,7 +8,9 @@ const TARGET_URL=process.env.ALUMNOS_JOSE_V11_URL||'https://juanmanuelpm.github.
 const MATERIAL_PATH=process.env.ALUMNOS_JOSE_V11_MATERIAL||'coordination/workstreams/jose-study-design-20260911/material/PROMETEO_JOSE_RECOVERY_ENGINE_V11.html.gz.b64';
 const EXPECTED_BYTES=Number(process.env.ALUMNOS_JOSE_V11_BYTES||69235);
 const EXPECTED_SHA256=process.env.ALUMNOS_JOSE_V11_SHA256||'0cf9a40fb53e977dccb40c9755d668a3ee922ccd61883f19229bb4a113139a05';
+const EXPECTED_BLOB_SHA1=process.env.ALUMNOS_JOSE_V11_BLOB_SHA1||'a58f325e24686a0dfc1f7606a30aed74b1b31a9c';
 const OUT_DIR=process.env.ALUMNOS_JOSE_V11_ARTIFACT_DIR||'artifacts/alumnos-jose-v11-browser-ci';
+const MATERIAL_ONLY=process.argv.includes('--material-only')||process.env.ALUMNOS_JOSE_V11_MATERIAL_ONLY==='1';
 const VIEWS=[
   {id:'desktop',viewport:{width:1365,height:900},isMobile:false,hasTouch:false},
   {id:'narrow',viewport:{width:390,height:844},isMobile:true,hasTouch:true}
@@ -21,15 +22,46 @@ const TOPICS=[
   {id:'index-laws',re:/[ií]ndice|exponent|potenc/i}
 ];
 
+function gitBlobSha1(bytes){
+  const header=Buffer.from(`blob ${bytes.length}\0`,'utf8');
+  return createHash('sha1').update(header).update(bytes).digest('hex');
+}
+
 async function verifyLocalMaterial(){
-  const encoded=(await readFile(MATERIAL_PATH,'utf8')).trim();
-  const raw=gunzipSync(Buffer.from(encoded,'base64'));
-  return {
+  const stored=await readFile(MATERIAL_PATH);
+  const encoded=stored.toString('utf8').trim();
+  const result={
     path:MATERIAL_PATH,
-    decoded_bytes:raw.length,
-    sha256:createHash('sha256').update(raw).digest('hex'),
-    pass:raw.length===EXPECTED_BYTES&&createHash('sha256').update(raw).digest('hex')===EXPECTED_SHA256
+    stored_bytes:stored.length,
+    stored_sha256:createHash('sha256').update(stored).digest('hex'),
+    git_blob_sha1:gitBlobSha1(stored),
+    expected_git_blob_sha1:EXPECTED_BLOB_SHA1,
+    blob_identity_match:gitBlobSha1(stored)===EXPECTED_BLOB_SHA1,
+    base64_shape:/^[A-Za-z0-9+/=\s]+$/.test(encoded),
+    expected_decoded_bytes:EXPECTED_BYTES,
+    expected_sha256:EXPECTED_SHA256,
+    pass:false
   };
+  try{
+    const compressed=Buffer.from(encoded,'base64');
+    result.compressed_bytes=compressed.length;
+    result.compressed_sha256=createHash('sha256').update(compressed).digest('hex');
+    const raw=gunzipSync(compressed);
+    result.decoded_bytes=raw.length;
+    result.sha256=createHash('sha256').update(raw).digest('hex');
+    result.pass=raw.length===EXPECTED_BYTES&&result.sha256===EXPECTED_SHA256;
+    if(!result.pass) result.boundary_code='MATERIAL_IDENTITY_MISMATCH';
+  }catch(error){
+    result.boundary_code='MATERIAL_GZIP_INVALID';
+    result.decode_error={name:error?.name||'Error',code:error?.code||null,message:error?.message||String(error)};
+  }
+  return result;
+}
+
+async function writeEvidence(evidence){
+  await mkdir(OUT_DIR,{recursive:true});
+  await writeFile(path.join(OUT_DIR,'evidence.json'),JSON.stringify(evidence,null,2)+'\n','utf8');
+  console.log(JSON.stringify(evidence,null,2));
 }
 
 async function findRuntimeFrame(page){
@@ -173,22 +205,43 @@ async function main(){
     schema:'prometeo.alumnos-jose-v11-browser-ci/v1',
     generated_at:new Date().toISOString(),
     authority:'TECHNICAL_CANDIDATE_VERIFICATION_ONLY_NO_V11_CURRENT_CATALOG_LINEAGE_HUMAN_ACCEPTED_OR_SERVED_MUTATION',
+    mode:MATERIAL_ONLY?'MATERIAL_ONLY':'REPRESENTATIVE_BROWSER',
     target_url:TARGET_URL,
-    expected:{decoded_bytes:EXPECTED_BYTES,sha256:EXPECTED_SHA256},
+    expected:{decoded_bytes:EXPECTED_BYTES,sha256:EXPECTED_SHA256,git_blob_sha1:EXPECTED_BLOB_SHA1},
     local_material:material,
     views:[],
-    status:'PENDING'
+    status:'PENDING',
+    boundaries:[]
   };
+
+  if(!material.pass){
+    evidence.status='BOUNDARY';
+    evidence.boundaries=[material.boundary_code||'MATERIAL_GATE_FAILED'];
+    evidence.browser_execution='NOT_EXECUTED_SOURCE_GATE_FAILED';
+    await writeEvidence(evidence);
+    process.exit(1);
+  }
+
+  if(MATERIAL_ONLY){
+    evidence.status='SOURCE_PASS';
+    evidence.browser_execution='DEFERRED_TO_REPRESENTATIVE_BROWSER_STEP';
+    await writeEvidence(evidence);
+    process.exit(0);
+  }
+
   try{
+    const { chromium }=await import('playwright');
     const browser=await chromium.launch({headless:true});
     try{
       for(const view of VIEWS)evidence.views.push(await runView(browser,view,material));
     }finally{await browser.close()}
   }catch(error){evidence.browser_launch_error=error?.stack||error?.message||String(error)}
   evidence.status=material.pass&&evidence.views.length===2&&evidence.views.every(view=>view.pass)?'PASS':'BOUNDARY';
-  evidence.boundaries=[...new Set(evidence.views.map(view=>view.boundary_code).filter(Boolean))];
-  await writeFile(path.join(OUT_DIR,'evidence.json'),JSON.stringify(evidence,null,2)+'\n','utf8');
-  console.log(JSON.stringify(evidence,null,2));
+  evidence.boundaries=[...new Set([
+    ...evidence.views.map(view=>view.boundary_code).filter(Boolean),
+    ...(evidence.browser_launch_error?['BROWSER_LAUNCH_FAILED']:[])
+  ])];
+  await writeEvidence(evidence);
   process.exit(evidence.status==='PASS'?0:1);
 }
 
