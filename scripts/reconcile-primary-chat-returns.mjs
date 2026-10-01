@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { mergePrimaryChatMessages } from './lib/primary-chat-mirror-merge.mjs';
 
 const root = process.cwd();
 const threadRel = 'coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json';
@@ -16,9 +17,7 @@ if (!Array.isArray(thread.messages)) thread.messages = [];
 const existingResultRefs = new Set(
   thread.messages.map(message => message?.result_ref).filter(Boolean)
 );
-const existingMessageIds = new Set(
-  thread.messages.map(message => message?.message_id).filter(Boolean)
-);
+const candidateResultRefs = new Set();
 
 const candidateDirs = fs.existsSync(returnsRoot)
   ? fs.readdirSync(returnsRoot, { withFileTypes: true })
@@ -27,13 +26,13 @@ const candidateDirs = fs.existsSync(returnsRoot)
       .sort()
   : [];
 
-const additions = [];
+const candidates = [];
 for (const dir of candidateDirs) {
   const dirPath = path.join(returnsRoot, dir);
   for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
     if (!entry.isFile() || !/^RETURN-.*\.json$/i.test(entry.name)) continue;
     const rel = path.posix.join(returnsRootRel, dir, entry.name);
-    if (existingResultRefs.has(rel)) continue;
+    if (existingResultRefs.has(rel) || candidateResultRefs.has(rel)) continue;
 
     let ret;
     try {
@@ -53,12 +52,8 @@ for (const dir of candidateDirs) {
     if (!String(ret?.job_id || '').startsWith('portfolio-primary-chat-canary-')) continue;
     if (!thread.messages.some(message => message?.message_id === replyTo)) continue;
 
-    const baseId = `MSG-WORKER-${String(ret?.return_id || entry.name.replace(/\.json$/i, ''))}`;
-    let messageId = baseId;
-    let suffix = 2;
-    while (existingMessageIds.has(messageId)) messageId = `${baseId}-${suffix++}`;
-
-    const message = {
+    const messageId = `MSG-WORKER-${String(ret?.return_id || entry.name.replace(/\.json$/i, ''))}`;
+    candidates.push({
       message_id: messageId,
       chat_object_id: thread.chat_object_id,
       reply_to_message_id: replyTo,
@@ -74,32 +69,26 @@ for (const dir of candidateDirs) {
       result_ref: rel,
       evidence_refs: Array.isArray(ret?.evidence) ? ret.evidence : [],
       privacy: 'PUBLIC_SANITIZED_CANARY'
-    };
-
-    additions.push(message);
-    existingResultRefs.add(rel);
-    existingMessageIds.add(messageId);
+    });
+    candidateResultRefs.add(rel);
   }
 }
 
-if (!additions.length) {
+if (!candidates.length) {
   console.log('Primary Chat mirror already contains all eligible canonical canary returns.');
   process.exit(0);
 }
 
-thread.messages.push(...additions);
-thread.messages.sort((a, b) => {
-  const ta = Date.parse(a?.published_at || a?.created_at || '') || 0;
-  const tb = Date.parse(b?.published_at || b?.created_at || '') || 0;
-  return ta - tb;
-});
-const newest = thread.messages.reduce((max, message) => {
-  const value = message?.published_at || message?.created_at;
-  const ms = Date.parse(value || '') || 0;
-  return ms > max.ms ? { ms, value } : max;
-}, { ms: 0, value: thread.updated_at || null });
-if (newest.value) thread.updated_at = newest.value;
+const merged = mergePrimaryChatMessages(thread, candidates);
+if (!merged.added) {
+  console.log('Primary Chat mirror merge was idempotent; no new canonical canary returns added.');
+  process.exit(0);
+}
 
-fs.writeFileSync(threadPath, JSON.stringify(thread, null, 2) + '\n');
-console.log(`Primary Chat mirror reconciled ${additions.length} canonical canary return(s).`);
-for (const message of additions) console.log(`${message.reply_to_message_id} -> ${message.body_text} (${message.result_ref})`);
+fs.writeFileSync(threadPath, JSON.stringify(merged.thread, null, 2) + '\n');
+console.log(`Primary Chat mirror reconciled ${merged.added} canonical canary return(s).`);
+for (const message of candidates) {
+  if (merged.thread.messages.some(existing => existing.result_ref === message.result_ref)) {
+    console.log(`${message.reply_to_message_id} -> ${message.body_text} (${message.result_ref})`);
+  }
+}
