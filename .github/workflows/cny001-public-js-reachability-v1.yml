@@ -1,0 +1,43 @@
+name: CNY001 public JS reachability v1
+run-name: CNY001 public JS reachability · ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/portfolio/tests/cny001_public_js_reachability_v1.mjs'
+      - '.github/workflows/cny001-public-js-reachability-v1.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cny001-public-js-reachability-v1
+  cancel-in-progress: true
+
+jobs:
+  representative-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify CNY001 publication revision and JS runtime
+        env:
+          CNY001_TARGET_URL: https://juanmanuelpm.github.io/prometeo/pages/canary/CNY001/
+        run: node coordination/portfolio/tests/cny001_public_js_reachability_v1.mjs
+      - name: Upload bounded evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cny001-public-js-reachability-evidence
+          path: artifacts/cny001-public-js-reachability/
+          if-no-files-found: error
+          retention-days: 14
