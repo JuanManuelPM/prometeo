@@ -48,8 +48,10 @@ function compactCandidate(item, lane) {
   if (item?.source_path) {
     // A reusable portfolio/queue source owns semantic context. Worker-specific return paths
     // and legacy task/matrix/program/must-read/execution overlays are runtime products, not
-    // source fields. Never carry a historical worker binding across E3.
-    delete out.return_path;
+    // source fields. Never carry a historical worker binding across E3. Page Change
+    // opportunities are different: their return_path is an explicit work-item contract
+    // carried by the private-frontier adapter, not a reusable source-job worker binding.
+    if (!item?.opportunity_id) delete out.return_path;
     out.postclaim_context = compilePostclaimContext(item);
   }
   // Opportunity/Guide candidates may have no durable job file, so retain bounded execution context only there.
