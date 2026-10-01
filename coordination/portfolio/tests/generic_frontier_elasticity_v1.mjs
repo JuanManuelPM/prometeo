@@ -73,6 +73,16 @@ const specialized = {
   required_capabilities:['representative_javascript_browser']
 };
 
+const recoveryAttention = Array.from({length:8}, (_, i) => ({
+  job_id:`blocked-${i}`,
+  reason:'SOURCE_DEBT_BASIS_UNCHANGED',
+  source_path:`coordination/portfolio/derived/blocked/blocked-${i}.json`,
+  source_debt:{
+    dependency_job_id:`dependency-${i}`,
+    dependency_return_ref:`coordination/portfolio/returns/blocked/very-long-return-${i}.json`
+  }
+}));
+
 const allocator = {
   schema:'prometeo.fast-allocator/v3',
   generated_at:'2026-10-01T21:16:11Z',
@@ -83,6 +93,7 @@ const allocator = {
   queue_ready:[],
   role_ready:roles,
   recovery:[],
+  recovery_attention:recoveryAttention,
   batch_candidates:[
     {lane:'role_ready', ...roles[0]},
     {lane:'ready', ...ready[0]},
@@ -101,6 +112,8 @@ const bytes = Buffer.byteLength(JSON.stringify(frontier), 'utf8');
 
 assert.equal(frontier.candidates[0].claim_path, roles[0].claim_path, 'allocator first choice must stay first');
 assert(bytes <= 14_000, `compact frontier exceeded transport ceiling: ${bytes}`);
+assert.equal(frontier.recovery_attention_total, 8, 'diagnostic total cardinality must remain truthful');
+assert.equal(frontier.recovery_attention.length, 2, 'verbose non-authority diagnostics must be bounded to two transport exemplars');
 assert(genericVisible >= 10, `burst 10 still starved: visible generic=${genericVisible}`);
 assert.equal(burst10Starvation, 0, 'ten fresh generic workers must have ten compatible claim paths in the synthetic burst');
 assert(burst20Starvation > 0, 'burst 20 remaining starvation must be explicit until transport/materialization grows further');
@@ -117,6 +130,8 @@ console.log('GENERIC_FRONTIER_ELASTICITY_PASS', JSON.stringify({
   candidate_total:frontier.candidate_total,
   candidate_visible:frontier.candidate_count,
   generic_compatible_visible:genericVisible,
+  recovery_attention_total:frontier.recovery_attention_total,
+  recovery_attention_transport_sample:frontier.recovery_attention.length,
   burst_10:{starvation:burst10Starvation,status:'PASS'},
   burst_20:{starvation:burst20Starvation,status:'REMAINING_STARVATION_EXPLICIT'},
   specialized_exemplar_preserved:true
