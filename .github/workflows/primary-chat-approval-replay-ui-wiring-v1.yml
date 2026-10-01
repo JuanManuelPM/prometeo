@@ -34,15 +34,25 @@ jobs:
         run: node coordination/portfolio/tests/primary_chat_approval_current_v1.mjs
       - name: Replay + UI wiring regression
         run: node coordination/portfolio/tests/primary_chat_approval_replay_ui_wiring_v1.mjs
-      - name: Commit owner wiring when changed
+      - name: Commit owner wiring on fresh main
         run: |
-          if git diff --quiet -- current-tree/control-v11/ingress-v1.js current-tree/control-v11/chat-canary/index.html supabase/functions/prometeo-change-loop-v1/index.ts; then
-            echo 'Approval replay/UI wiring already present.'
-            exit 0
-          fi
           git config user.name 'prometeo-ci'
           git config user.email '72280945+JuanManuelPM@users.noreply.github.com'
-          git add current-tree/control-v11/ingress-v1.js current-tree/control-v11/chat-canary/index.html supabase/functions/prometeo-change-loop-v1/index.ts
-          git commit -m 'primary-chat: wire server approval replay and visible control'
-          git pull --rebase origin main
-          git push origin HEAD:main
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            node scripts/patch-primary-chat-approval-replay-ui-wiring-v1.mjs
+            node coordination/portfolio/tests/primary_chat_approval_current_v1.mjs
+            node coordination/portfolio/tests/primary_chat_approval_replay_ui_wiring_v1.mjs
+            if git diff --quiet -- current-tree/control-v11/ingress-v1.js current-tree/control-v11/chat-canary/index.html supabase/functions/prometeo-change-loop-v1/index.ts; then
+              echo 'Approval replay/UI wiring already present.'
+              exit 0
+            fi
+            git add current-tree/control-v11/ingress-v1.js current-tree/control-v11/chat-canary/index.html supabase/functions/prometeo-change-loop-v1/index.ts
+            git commit -m 'primary-chat: wire server approval replay and visible control'
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "push race on attempt ${attempt}; retrying from fresh main"
+          done
+          exit 1
