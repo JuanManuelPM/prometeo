@@ -2,21 +2,39 @@ import fs from 'node:fs';
 import { chromium, devices } from 'playwright';
 
 const LIVE='https://juanmanuelpm.github.io/prometeo/experiments/prometeo-live/';
+const ROOM_FN='prometeo-tv-room-v1';
 const OUT='artifacts/tele-current-room-physical-verify/evidence.json';
 fs.mkdirSync('artifacts/tele-current-room-physical-verify',{recursive:true});
-const evidence={schema:'prometeo.tele-current-room-browser-pair/v1',generated_at:new Date().toISOString(),live_url:LIVE,checks:[],overall:'FAIL'};
+const evidence={schema:'prometeo.tele-current-room-browser-pair/v1',generated_at:new Date().toISOString(),live_url:LIVE,checks:[],diagnostics:[],overall:'FAIL'};
 const add=(name,ok,detail={})=>evidence.checks.push({name,ok,...detail});
-let browser;
+const diag=(kind,detail)=>evidence.diagnostics.push({kind,detail:String(detail||'').slice(0,300).replace(/https?:\/\/\S+/g,'<redacted-url>').replace(/(?:tv_token|remote_token|token)=?[^&\s#]+/gi,'token=<redacted>')});
+let browser,tv;
 try {
   browser=await chromium.launch({headless:true});
   const tvCtx=await browser.newContext({viewport:{width:1440,height:900}});
   const phoneCtx=await browser.newContext({...devices['Pixel 7']});
-  const tv=await tvCtx.newPage();
+  tv=await tvCtx.newPage();
   const phone=await phoneCtx.newPage();
+  tv.on('console',m=>{if(['warning','error'].includes(m.type()))diag('console_'+m.type(),m.text())});
+  tv.on('pageerror',e=>diag('pageerror',e.message));
+  tv.on('requestfailed',r=>{if(r.url().includes(ROOM_FN))diag('room_request_failed',r.failure()?.errorText||'unknown')});
+  tv.on('response',r=>{if(r.url().includes(ROOM_FN))diag('room_response_status',r.status())});
 
   const tvResp=await tv.goto(LIVE,{waitUntil:'domcontentloaded',timeout:60000});
   add('PUBLIC_TV_LOAD',!!tvResp?.ok(),{status:tvResp?.status()??null});
-  await tv.waitForFunction(()=>/^TV-[A-Z2-9]{6}$/.test(document.querySelector('#tvPairCode')?.textContent||''),null,{timeout:30000});
+  try {
+    await tv.waitForFunction(()=>/^TV-[A-Z2-9]{6}$/.test(document.querySelector('#tvPairCode')?.textContent||''),null,{timeout:30000});
+  } catch (e) {
+    const boot=await tv.evaluate(()=>({
+      pair_code_text:document.querySelector('#tvPairCode')?.textContent||null,
+      pair_link_has_href:!!document.querySelector('#tvPairLink')?.getAttribute('href'),
+      remote_script_loaded:[...document.scripts].some(s=>(s.src||'').includes('remote-room-v1.js')),
+      qr_library_loaded:typeof window.QRCode==='function',
+      online:navigator.onLine
+    }));
+    add('ROOM_CREATED',false,boot);
+    throw new Error('ROOM_BOOTSTRAP_TIMEOUT');
+  }
   const pair=await tv.locator('#tvPairLink').getAttribute('href');
   if(!pair||!pair.includes('#')) throw new Error('PAIR_LINK_MISSING');
   add('ROOM_CREATED',true);
@@ -73,11 +91,11 @@ try {
   add('TV_STATE_RETURNED',remoteSurfaceCount>0,{surface_count:remoteSurfaceCount});
   evidence.overall=evidence.checks.every(c=>c.ok)?'PASS':'PARTIAL';
 } catch (e) {
-  evidence.error={code:String(e?.message||e).replace(/https?:\/\/\S+/g,'<redacted-url>').replace(/t=[^&\s#]+/g,'t=<redacted>')};
+  evidence.error={code:String(e?.message||e).replace(/https?:\/\/\S+/g,'<redacted-url>').replace(/(?:tv_token|remote_token|token)=?[^&\s#]+/gi,'token=<redacted>')};
 } finally {
   evidence.completed_at=new Date().toISOString();
   fs.writeFileSync(OUT,JSON.stringify(evidence,null,2)+'\n');
-  console.log(JSON.stringify({overall:evidence.overall,checks:evidence.checks,error:evidence.error||null}));
+  console.log(JSON.stringify({overall:evidence.overall,checks:evidence.checks,diagnostics:evidence.diagnostics,error:evidence.error||null}));
   if(browser) await browser.close();
 }
 if(evidence.overall!=='PASS') process.exitCode=1;
