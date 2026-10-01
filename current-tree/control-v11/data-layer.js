@@ -224,7 +224,7 @@ async function load(){
  try{return await refresh({})}
  catch(e){
   const checkedAt=now(),cats=await catalogs(checkedAt).catch(()=>({cat:null,catalogManifest:null}));
-  const b=emergency(cats.cat,catalogManifest,e);writeCache(b);window.PROMETEO_V11_LAST=b;fire(b,String(e?.message||e));return b;
+  const b=emergency(cats.cat,cats.catalogManifest,e);writeCache(b);window.PROMETEO_V11_LAST=b;fire(b,String(e?.message||e));return b;
  }
 }
 window.PROMETEO_DATA_V11={load,refresh,readCache};
