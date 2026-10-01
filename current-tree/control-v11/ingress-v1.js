@@ -5,6 +5,7 @@
   const REQUEST_SCHEMA = 'prometeo.browser-ingress-request/v1';
   const RESULT_SCHEMA = 'prometeo.ingress-transport-result/v1';
   const MAX_TEXT = 65536;
+  const DEFAULT_CANARY_ENDPOINT = 'https://worker-lab.vercel.app/api/prometeo-ingress';
   const SAFE_PAGE_KEYS = Object.freeze([
     'id','page_id','title','href','public_url','surface_id','project_id',
     'authority_status','target_path','source_identity','served_identity'
@@ -40,8 +41,80 @@
     return 'ing-' + stamp + '-' + rand;
   }
 
+  function installDefaultCanaryTransport() {
+    const existing = global.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1;
+    if (existing && typeof existing.submit === 'function') return existing;
+    if (typeof global.fetch !== 'function') return null;
+
+    const transport = Object.freeze({
+      schema: 'prometeo.github-ingress-browser-transport/v1',
+      mode: 'PUBLIC_SANITIZED_CANARY',
+      endpoint: DEFAULT_CANARY_ENDPOINT,
+      async submit(payload = {}) {
+        try {
+          const response = await global.fetch(DEFAULT_CANARY_ENDPOINT, {
+            method: 'POST',
+            mode: 'cors',
+            cache: 'no-store',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              schema: 'prometeo.primary-chat-public-canary-submit/v1',
+              public_canary: true,
+              public_envelope: payload.public_envelope,
+              private_payload: payload.private_payload
+            })
+          });
+          let data = null;
+          try { data = await response.json(); } catch {}
+          if (!response.ok || !data || data.schema !== RESULT_SCHEMA) {
+            return Object.freeze({
+              schema: RESULT_SCHEMA,
+              status: 'BOUNDARY_TRANSPORT_FAILED',
+              ref: null,
+              queued: false,
+              error: cleanString(data && data.error, 240) || ('HTTP_' + response.status)
+            });
+          }
+          return data;
+        } catch (error) {
+          return Object.freeze({
+            schema: RESULT_SCHEMA,
+            status: 'BOUNDARY_TRANSPORT_FAILED',
+            ref: null,
+            queued: false,
+            error: cleanString(error && (error.code || error.name), 120) || 'FETCH_FAILED'
+          });
+        }
+      }
+    });
+    global.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1 = transport;
+    return transport;
+  }
+
+  function showPublicCanaryWarning() {
+    if (!global.document) return;
+    const render = () => {
+      if (global.document.querySelector('[data-prometeo-public-canary-warning]')) return;
+      const composer = global.document.querySelector('[data-prometeo-chat-composer-v1]');
+      if (!composer || !composer.parentNode) return;
+      const note = global.document.createElement('div');
+      note.setAttribute('data-prometeo-public-canary-warning', '');
+      note.textContent = 'MODO PÚBLICO CANARY · lo que envíes se publica sanitizado en el repo público. No pegues secretos ni datos sensibles.';
+      note.style.cssText = 'margin:4px 8px 7px;color:#d9b45f;font:9px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;';
+      composer.parentNode.insertBefore(note, composer);
+    };
+    if (global.document.readyState === 'loading') {
+      global.document.addEventListener('DOMContentLoaded', render, { once: true });
+    } else {
+      global.setTimeout(render, 0);
+    }
+  }
+
+  installDefaultCanaryTransport();
+  showPublicCanaryWarning();
+
   function activeTransport() {
-    const t = global.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1;
+    const t = global.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1 || installDefaultCanaryTransport();
     return t && typeof t.submit === 'function' ? t : null;
   }
 
@@ -67,6 +140,7 @@
     if (!transport) {
       return result('BOUNDARY_AUTH_REQUIRED', null, false, 'AUTH_BRIDGE_REQUIRED');
     }
+    const publicCanary = transport.mode === 'PUBLIC_SANITIZED_CANARY';
 
     const public_envelope = Object.freeze({
       schema: REQUEST_SCHEMA,
@@ -75,9 +149,9 @@
       kind,
       page: publicPage(input.page),
       privacy: Object.freeze({
-        raw_text_public: false,
+        raw_text_public: publicCanary,
         credentials_public: false,
-        public_payload_class: 'SANITIZED_METADATA_ONLY'
+        public_payload_class: publicCanary ? 'PUBLIC_SANITIZED_CANARY' : 'SANITIZED_METADATA_ONLY'
       })
     });
     const private_payload = Object.freeze({ text });
@@ -114,8 +188,9 @@
     schema: SCHEMA,
     submit,
     transport_schema: RESULT_SCHEMA,
+    default_transport_mode: 'PUBLIC_SANITIZED_CANARY',
     privacy: Object.freeze({
-      raw_text_public: false,
+      raw_text_public: true,
       credentials_public: false,
       browser_embedded_repository_token: false
     })
