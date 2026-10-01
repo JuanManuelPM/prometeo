@@ -14,3 +14,8 @@ This file is a machine/human entrypoint, not canonical truth by itself.
 10. Return a Candidate. Never mutate Human Accepted or Served from an artifact return.
 
 A fresh agent should be able to wake from these durable sources without this chat.
+
+## Primary Chat interactive continuation
+
+For the human-copyable fallback prompt, use `reincarnation/PRIMARY_CHAT_CONTINUE_PROMPT_V1.txt`.
+It is an invocation alias only, not a truth owner: it must resolve the current session from `coordination/chat-sessions/INDEX.json`, create a fresh successor first, and then obey the durable owners named by that session.
