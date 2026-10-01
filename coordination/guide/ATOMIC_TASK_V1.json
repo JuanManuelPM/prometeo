@@ -1,0 +1,72 @@
+{
+  "schema": "prometeo.atomic-task-contract/v1",
+  "status": "CANARY",
+  "purpose": "Represent a deterministic planner decomposition unit without creating scheduling, claim, CURRENT or promotion authority.",
+  "truth_boundary": "atomic_task_v1 is planning evidence only. A unit becomes executable only after the existing Guide successor semantic-dedup gate materializes an existing portfolio-derived job and the normal portfolio PIN/claim grants ownership.",
+  "coarse_job_detection": {
+    "atomize_when_any": [
+      "two_or_more_independent_done_when_clusters",
+      "two_or_more_lifecycle_phases_can_be_owned_independently",
+      "different_required_capability_sets_can_progress_without_shared_mutation",
+      "one_failure_gate_prevents_unrelated_verification_or_implementation_work",
+      "one_output_has_multiple_independent_consumers_or_validators"
+    ],
+    "do_not_atomize_when_any": [
+      "all_steps_mutate_one_small_shared_object_and_must_be_serial",
+      "expected_coordination_cost_is_greater_than_or_equal_to_expected_execution_or_recovery_savings",
+      "split_would_duplicate_context_or_external_setup_more_than_it_isolates_failure",
+      "split_would_change_authority_or_require_a_new_scheduler_queue_current_or_owner",
+      "resulting_unit_cannot_name_a_concrete_output_done_when_and_consumer"
+    ],
+    "objective_test": "A split is justified only when at least two proposed units can be independently resumed, verified, retried or assigned without inventing new authority, and the saved parallelism/recovery/isolation value exceeds the extra claim+context+return overhead."
+  },
+  "atomic_task_v1": {
+    "required_fields": ["schema","atomic_task_id","parent_job_id","phase","input_refs","output","done_when","owner","consumer","dependencies","required_capabilities","recovery_checkpoint","authority"],
+    "schema_value": "prometeo.atomic-task/v1",
+    "owner_rule": "Name an existing durable role/project owner such as GUIDE_PLANNER, GUIDE_CRITIC, portfolio project_id or verifier role. Never bind a worker_id before normal claim authority exists.",
+    "consumer_rule": "Name the existing downstream role/job/artifact that can consume the output; no consumer means the unit is not materializable.",
+    "dependency_rule": "Dependencies contain atomic_task_id values from the same decomposition only when a hard data/authority dependency exists; ordering preference alone is not a dependency.",
+    "capability_rule": "Copy only capabilities actually required by the unit, allowing central allocator capability pressure to route it later.",
+    "recovery_rule": "Checkpoint names the smallest durable evidence needed for a fresh shell to continue without chat recap.",
+    "authority_rule": "Use PLANNING_ONLY_NO_CLAIM_AUTHORITY until semantic dedup + derived-job materialization + normal PIN claim occur."
+  },
+  "determinism": {
+    "canonical_identity_keys": ["parent_job_id","phase","output","done_when","consumer","dependencies","required_capabilities"],
+    "canonicalization": "Trim scalar strings, sort/dedupe string arrays bytewise, serialize JSON with the canonical_identity_keys order, SHA-256 the UTF-8 bytes, and use the first 12 lowercase hex chars.",
+    "id_format": "atom-<parent-slug>-<phase-slug>-<fingerprint12>",
+    "ordering": "Topologically sort by hard dependencies, then phase, then atomic_task_id bytewise."
+  },
+  "materialization": {
+    "gate": "coordination/guide/GUIDE_SWARM_PROTOCOL_V1.md#Successor semantic dedup hard gate",
+    "rule": "For each materializable atom, build the existing semantic identity root/target/problem/acceptance, CREATE the existing successor fingerprint pin, and only the pin winner may CREATE the derived portfolio job. The atom itself grants no execution authority.",
+    "portfolio_mapping": {
+      "mission": "input_refs + output",
+      "definition_of_done": "done_when",
+      "required_capabilities": "required_capabilities",
+      "evidence": "input_refs + parent job ref + atom contract ref",
+      "semantic_identity": "existing Guide semantic identity",
+      "atomic_task_ref": "planner_trace_v1.atomic_tasks[atomic_task_id] or Guide receipt equivalent"
+    }
+  },
+  "single_worker_fallback": {
+    "rule": "When extra capacity is absent, one claimed Guide/worker shell may execute ready atoms sequentially in deterministic order, preserving the same atomic_task_v1 inputs/outputs/checkpoints. This changes execution concurrency, not the contract or authority model.",
+    "forbidden": "Do not mint fake sub-worker ownership or skip normal authority when an atom is materialized as a separate portfolio job."
+  },
+  "examples": [
+    {
+      "parent_ref": "coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-guide-planner-universal-cognitive-block-v1.json",
+      "why_coarse": "The job combines planner-contract design, Guide/Metabolism integration, deterministic regression and compatibility verification. The harness can be implemented/verified independently after contract inputs are frozen.",
+      "safe_split": ["planner-contract-and-policy","deterministic-regression-harness","compatibility-and-authority-verification"]
+    },
+    {
+      "parent_ref": "coordination/portfolio/derived/jose/portfolio-jose-v12-map-runtime-verification-v1.json",
+      "why_coarse": "Source-fixture integrity and representative-browser behavior are separate gates. A corrupted immutable fixture should fail a source atom without consuming the browser atom's setup budget.",
+      "safe_split": ["pinned-source-integrity-gate","representative-browser-map-verification"]
+    },
+    {
+      "parent_ref": "coordination/portfolio/derived/tele/portfolio-tele-current-room-physical-verify-v1.json",
+      "why_coarse": "Room bootstrap/backend reachability is an upstream gate distinct from paired-client command/state verification. Isolating it makes a PGRST/backend failure recoverable without rerunning the entire command matrix.",
+      "safe_split": ["room-bootstrap-backend-gate","paired-client-command-matrix","tv-state-return-verification"]
+    }
+  ]
+}
