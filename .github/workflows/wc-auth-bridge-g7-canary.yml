@@ -1,0 +1,85 @@
+name: WC auth bridge G7 canary
+
+on:
+  push:
+    paths:
+      - .github/workflows/wc-auth-bridge-g7-canary.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  explicit-public-canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST one explicit public sanitized canary
+        env:
+          REQUEST_ID: wc-20261001t171811z-841dbc04e5b8-g7
+        run: |
+          python - <<'PY'
+          import datetime, json, os, urllib.request
+
+          request_id = os.environ['REQUEST_ID']
+          text = 'CANARY: ACK transport bridge G7; public sanitized test only.'
+          expected_ref = f'coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-primary-chat-canary-{request_id}.json'
+          payload = {
+              'schema': 'prometeo.primary-chat-public-canary-submit/v1',
+              'public_canary': True,
+              'public_envelope': {
+                  'schema': 'prometeo.browser-ingress-request/v1',
+                  'request_id': request_id,
+                  'created_at': datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z'),
+                  'kind': 'CHAT_CANARY_HUMAN_MESSAGE_V1',
+                  'page': {
+                      'page_id': 'control-v11-chat-canary',
+                      'title': 'Prometeo · Primary Chat canary',
+                      'href': 'https://juanmanuelpm.github.io/prometeo/current-tree/control-v11/chat-canary/',
+                      'surface_id': 'current-tree-control-v11-chat-canary',
+                      'project_id': 'prometeo-autonomous-growth'
+                  },
+                  'privacy': {
+                      'raw_text_public': False,
+                      'credentials_public': False,
+                      'public_payload_class': 'EXPLICIT_PUBLIC_CANARY_FALLBACK_AUTHORIZED',
+                      'explicit_public_canary_fallback_allowed': True,
+                      'explicit_public_canary_may_publish_raw_text': True
+                  }
+              },
+              'private_payload': {'text': text}
+          }
+          req = urllib.request.Request(
+              'https://worker-lab.vercel.app/api/prometeo-ingress',
+              data=json.dumps(payload, separators=(',', ':')).encode('utf-8'),
+              method='POST',
+              headers={
+                  'Content-Type': 'application/json',
+                  'Origin': 'https://juanmanuelpm.github.io',
+                  'User-Agent': 'prometeo-wc-auth-bridge-g7-canary'
+              },
+          )
+          with urllib.request.urlopen(req, timeout=20) as response:
+              status = response.status
+              body = json.loads(response.read().decode('utf-8'))
+          safe = {
+              'http_status': status,
+              'schema': body.get('schema'),
+              'status': body.get('status'),
+              'queued': body.get('queued'),
+              'ref': body.get('ref'),
+              'privacy': body.get('privacy'),
+              'projection': body.get('projection'),
+          }
+          print(json.dumps(safe, sort_keys=True))
+          if status != 200:
+              raise SystemExit(f'HTTP_STATUS_{status}')
+          if body.get('schema') != 'prometeo.ingress-transport-result/v1':
+              raise SystemExit('RESULT_SCHEMA_INVALID')
+          if body.get('queued') is not True:
+              raise SystemExit('NOT_QUEUED')
+          if body.get('ref') != expected_ref:
+              raise SystemExit('DURABLE_REF_MISMATCH')
+          if body.get('privacy') != 'PUBLIC_SANITIZED_CANARY':
+              raise SystemExit('PRIVACY_CLASS_MISMATCH')
+          PY
