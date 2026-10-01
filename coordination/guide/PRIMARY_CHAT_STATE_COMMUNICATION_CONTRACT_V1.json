@@ -1,0 +1,65 @@
+{
+  "schema": "prometeo.primary-chat-state-communication-contract/v1",
+  "status": "CANARY",
+  "authority": "NON_AUTHORITATIVE_DERIVED_PROJECTION",
+  "blocks": {
+    "A_STATE_COMPILER": {"model_required": false, "owner_rule": "read durable CURRENT owners only"},
+    "B_COGNITIVE_INTERPRETER": {"model_required": "ONLY_FOR_AMBIGUITY_SYNTHESIS_PLANNING_JUDGE_OR_MEANINGFUL_DELTA"},
+    "C_HUMAN_COMMUNICATOR": {"model_required": "NO_FOR_SIMPLE_STATES_OPTIONAL_FOR_COMPLEX_SUMMARY", "voice_authority": false}
+  },
+  "owner_reuse_map": {
+    "human_durable_intent": ["current-tree/control-v11/ingress-v1.js", "supabase/functions/prometeo-change-loop-v1/index.ts"],
+    "worker_beacon_and_signal": ["coordination/workers/beacons/", "coordination/workers/heartbeats/"],
+    "claimable_and_recovery_pressure": ["gh-pages:live/claim-frontier.json"],
+    "capacity_policy": ["coordination/guide/METABOLISM_POLICY_V1.json", "coordination/guide/USEFUL_RESERVE_POLICY_V1.json"],
+    "returns": ["coordination/portfolio/returns/"],
+    "chat_recovery_history": ["coordination/chat-recovery/INDEX.json", "coordination/chat-sessions/INDEX.json"],
+    "primary_chat_projection": ["current-tree/control-v11/chat-canary/index.html"],
+    "step_exit_telemetry": ["coordination/workers/WORKER_PIPELINE_V1.json", "coordination/workers/WORKER_EXIT_AUDIT_V1.json"]
+  },
+  "inputs": ["last_human_action_at","last_worker_signal_at","live_worker_count","claimable_generic_count","claimable_specialized_count","core_demand","reserve_workers","capacity_gap","unconsumed_returns_count","recovery_attention_count","projection_age_seconds","human_decision_required","pending_human_intent_count","claim_transport_blocked_count","campaign_complete","last_return_at","last_visible_result_at"],
+  "state_precedence": ["PROJECTION_STALE","HUMAN_DECISION_REQUIRED","CLAIM_TRANSPORT_DEGRADED","HUMAN_INTENT_WAITING_NO_CAPACITY","RETURNS_UNCONSUMED","RECOVERY_PRESSURE","REFILL_N","BUFFER_LOW","CAPACITY_OK","WORKERS_ACTIVE_NO_ACTION","CAMPAIGN_COMPLETE","NO_SAFE_WORK"],
+  "state_rules": {
+    "PROJECTION_STALE": "projection_age_seconds > projection_stale_threshold_seconds",
+    "HUMAN_DECISION_REQUIRED": "human_decision_required === true",
+    "CLAIM_TRANSPORT_DEGRADED": "claim_transport_blocked_count > 0",
+    "HUMAN_INTENT_WAITING_NO_CAPACITY": "pending_human_intent_count > 0 && live_worker_count === 0 && capacity_gap > 0",
+    "RETURNS_UNCONSUMED": "unconsumed_returns_count > 0",
+    "RECOVERY_PRESSURE": "recovery_attention_count > 0",
+    "REFILL_N": "capacity_gap > 0 && (claimable_generic_count + claimable_specialized_count) > 0",
+    "BUFFER_LOW": "capacity_gap === 0 && reserve_workers <= reserve_low_threshold && core_demand > 0",
+    "CAPACITY_OK": "core_demand > 0 && capacity_gap === 0 && live_worker_count > 0",
+    "WORKERS_ACTIVE_NO_ACTION": "live_worker_count > 0",
+    "CAMPAIGN_COMPLETE": "campaign_complete === true",
+    "NO_SAFE_WORK": "otherwise"
+  },
+  "timing": {
+    "human_idle_source": "last_human_action_at_only",
+    "worker_signals_must_not_reset_human_idle": true,
+    "missing_timestamp": "UNKNOWN_NOT_ZERO",
+    "derived_metrics": {
+      "human_to_first_durable_action_ms": ["HUMAN_MESSAGE_DURABLE","INTENT_MATERIALIZED"],
+      "human_to_plan_ready_ms": ["HUMAN_MESSAGE_DURABLE","PLAN_READY"],
+      "job_ready_to_claim_ms": ["JOB_READY","CLAIM"],
+      "claim_to_started_ms": ["CLAIM","STARTED"],
+      "started_to_return_ms": ["STARTED","RETURN"],
+      "return_to_integrated_ms": ["RETURN","INTEGRATED"],
+      "integrated_to_visible_ms": ["INTEGRATED","VISIBLE_RESPONSE"],
+      "human_to_visible_result_ms": ["HUMAN_MESSAGE_DURABLE","VISIBLE_RESPONSE"],
+      "capacity_request_to_human_launch_ms": ["CAPACITY_REQUEST_VISIBLE","HUMAN_NEXT_ACTION"],
+      "recovery_eligible_to_recovery_claim_ms": ["RECOVERY_ELIGIBLE","RECOVERY_CLAIM"]
+    }
+  },
+  "human_boundary_wait": {"starts_only_on": "explicit durable state requiring one specific human action", "human_silence_alone": "NOT_A_BOTTLENECK"},
+  "templates": {
+    "REFILL_N": "REFILL {capacity_gap}",
+    "CAPACITY_OK": "ACCIÓN: ninguna",
+    "WORKERS_ACTIVE_NO_ACTION": "ACCIÓN: ninguna",
+    "PROJECTION_STALE": "Proyección desactualizada",
+    "HUMAN_DECISION_REQUIRED": "Decisión humana requerida",
+    "CAMPAIGN_COMPLETE": "Campaña completa",
+    "BUFFER_LOW": "Buffer bajo"
+  },
+  "voice_input_context_envelope": ["route","active_pane","focused_element","recent_interactions","viewport","capture_started_at","capture_ended_at","transcription_latency_ms","model_response_latency_ms"],
+  "privacy": "Raw/private audio and transcript remain in private ingress/storage; public projection receives sanitized references and derived state only."
+}
