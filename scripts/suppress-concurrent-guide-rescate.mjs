@@ -94,7 +94,7 @@ export function suppressClaimedGuideRoleCandidates(allocator = {}, guidePins = [
       ...(allocator.diagnostics || {}),
       guide_claim_path_suppression: {
         schema: 'prometeo.guide-claim-path-suppression/v1',
-        policy: 'SUPPRESS_EXACT_EXISTING_IMMUTABLE_PIN_PATH_FROM_ROLE_AND_UNIFIED_BATCH',
+        policy: 'SUPPRESS_EXACT_EXISTING_IMMUTABLE_PIN_PATH',
         suppressed_candidates: suppressed.map(candidate => ({
           guide_work_id: candidate.guide_work_id || candidate.role_id || null,
           role: candidate.role || null,
@@ -136,7 +136,7 @@ export function suppressConcurrentGuideRescate(allocator = {}, state = {}, now =
     diagnostics: {
       ...(claimedFiltered.diagnostics || {}),
       guide_rescate_active_suppression: {
-        policy: 'ONE_ACTIVE_GUIDE_RESCATE_ACROSS_FINGERPRINT_CHURN_AND_UNIFIED_BATCH',
+        policy: 'ONE_ACTIVE_GUIDE_RESCATE_ACROSS_FINGERPRINT_CHURN',
         active_pins: active,
         suppressed_candidates: suppressed.map(candidate => ({
           guide_work_id: candidate.guide_work_id || candidate.role_id || null,
