@@ -1,0 +1,170 @@
+{
+  "schema": "prometeo.worker-productivity-exam/v1",
+  "worker_id": "wc-20261001T232439Z-43f03a149972",
+  "batch_id": "POOL-PROD-01",
+  "pool_id": "PROD-01",
+  "protocol_version": "v3.30",
+  "launch_nonce": "37211f38feb9241d",
+  "started_at_or_null": "2026-10-01T23:24:39Z",
+  "closed_at": "2026-10-01T23:30:44Z",
+  "slots": [],
+  "collisions": 6,
+  "no_allocation_count": 1,
+  "projects_touched": [],
+  "productive_units": 0,
+  "checkpoint_productive_units": 3,
+  "target_productive_units": 6,
+  "hard_cap_productive_units": 8,
+  "close_reason": "EXHAUSTED_COMPATIBLE_FRONTIER",
+  "close_evidence_refs": [
+    "coordination/workers/no-allocation/wc-20261001T232439Z-43f03a149972.json"
+  ],
+  "authority_acquired": false,
+  "pattern_id_or_null": null,
+  "experiment_enrolled": false,
+  "score": {
+    "evidence_backed_productive_slots": 0,
+    "visible_product_change": 0,
+    "reproduction": 0,
+    "breadth": 0,
+    "low_waste": 0,
+    "total": 0
+  },
+  "wall_clock_seconds": 365,
+  "terminal_state": "STOP_NO_RECOVERY",
+  "exit_audit_v1": {
+    "worker_id": "wc-20261001T232439Z-43f03a149972",
+    "batch_or_pool_or_run": "POOL-PROD-01 / PROD-01",
+    "exit_reason": "FRONTIER_EXHAUSTED",
+    "productive_units": 0,
+    "final_state": "STOP_NO_RECOVERY",
+    "started_at": "2026-10-01T23:24:39Z",
+    "audit_completed_at": "2026-10-01T23:30:44Z",
+    "timing_basis": "MIXED_DIAGNOSTIC",
+    "stage_timings": [
+      {
+        "stage": "E0-E1",
+        "elapsed_ms_or_null": null,
+        "basis": "Fresh beacon timestamp and compact-frontier lifecycle were durable, but per-stage millisecond boundaries were not recorded."
+      },
+      {
+        "stage": "E2-E8",
+        "elapsed_ms_or_null": null,
+        "basis": "No authority was acquired; six atomic claim collisions prevented productive execution/reallocation."
+      },
+      {
+        "stage": "E9",
+        "elapsed_ms_or_null": null,
+        "basis": "Terminal receipt and exam close timestamp are durable; one initial exam persistence attempt hit a concurrent branch-head 409 before retry."
+      }
+    ],
+    "tool_usage": [
+      {
+        "tool_or_connector": "GitHub.create_file",
+        "calls_or_operations": 9,
+        "useful_operations": 2,
+        "wait_ms_or_null": null
+      },
+      {
+        "tool_or_connector": "GitHub.add_comment_to_issue",
+        "calls_or_operations": 1,
+        "useful_operations": 1,
+        "wait_ms_or_null": null
+      },
+      {
+        "tool_or_connector": "GitHub.fetch / GitHub.fetch_file",
+        "calls_or_operations": null,
+        "useful_operations": null,
+        "wait_ms_or_null": null
+      }
+    ],
+    "friction_events": [
+      {
+        "category": "CLAIM_CONTENTION",
+        "elapsed_ms_or_null": null,
+        "description": "All six compatible candidates retained by the fresh compact frontier returned CREATE_EXISTS on atomic claim create.",
+        "evidence_refs": [
+          "coordination/workers/no-allocation/wc-20261001T232439Z-43f03a149972.json"
+        ],
+        "recovered": false,
+        "boundary_code_or_null": "EXHAUSTED_COMPATIBLE_FRONTIER",
+        "proposed_new_category_or_null": null
+      },
+      {
+        "category": "RETURN_PERSISTENCE",
+        "elapsed_ms_or_null": null,
+        "description": "The first E9 exam create returned HTTP 409 because main moved concurrently; the error explicitly identified branch-head movement rather than authorization denial.",
+        "evidence_refs": [
+          "coordination/workers/no-allocation/wc-20261001T232439Z-43f03a149972.json"
+        ],
+        "recovered": true,
+        "boundary_code_or_null": null,
+        "proposed_new_category_or_null": null
+      },
+      {
+        "category": "UI_OR_OBSERVABILITY",
+        "elapsed_ms_or_null": null,
+        "description": "The exact repository-owned exit contract was loaded for the terminal audit rather than treating the public page as authority.",
+        "evidence_refs": [
+          "coordination/workers/WORKER_EXIT_AUDIT_V1.json"
+        ],
+        "recovered": true,
+        "boundary_code_or_null": null,
+        "proposed_new_category_or_null": null
+      }
+    ],
+    "decision_trace": [
+      {
+        "decision": "Create a de-novo v3.30 beacon before allocation.",
+        "observable_basis": "Fresh-launch envelope required a new worker_id and launch_nonce and forbade historical reuse.",
+        "action": "Atomically created the worker beacon on main.",
+        "outcome": "Fresh identity was durably established before any claim attempt.",
+        "evidence_refs": [
+          "coordination/workers/beacons/wc-20261001T232439Z-43f03a149972.json"
+        ]
+      },
+      {
+        "decision": "Use only the fresh compact claim frontier for pre-ownership allocation.",
+        "observable_basis": "The loaded frontier retained six compatible RECOVERY candidates and no materialized higher-priority lane candidates.",
+        "action": "Attempted atomic claim CREATE for each of the six retained candidates without broad pre-ownership discovery.",
+        "outcome": "Every attempt returned CREATE_EXISTS; no authority was acquired.",
+        "evidence_refs": [
+          "coordination/workers/no-allocation/wc-20261001T232439Z-43f03a149972.json"
+        ]
+      },
+      {
+        "decision": "Close below POOL target under a real compatible-frontier exhaustion boundary.",
+        "observable_basis": "All six candidates from this worker's fresh compact frontier were tried and collided, with no authorization denial or ambiguous transport failure.",
+        "action": "Persisted bounded NO_ALLOCATION evidence and E9 exit audit.",
+        "outcome": "STOP_NO_RECOVERY with zero productive slots; the receipt explicitly does not claim global project exhaustion.",
+        "evidence_refs": [
+          "coordination/workers/no-allocation/wc-20261001T232439Z-43f03a149972.json"
+        ]
+      }
+    ],
+    "top_time_sinks": [
+      {
+        "category": "CLAIM_CONTENTION",
+        "elapsed_ms_or_null": null,
+        "note": "Six sequential atomic claim collisions consumed the allocation cycle and prevented ownership."
+      }
+    ],
+    "unfinished_debt": [
+      {
+        "item": "No primary work was owned or executed by this worker because every retained compatible claim path was already materialized.",
+        "owner_or_recovery_ref_or_null": null
+      }
+    ],
+    "improvement_candidates": [
+      {
+        "target": "E1",
+        "proposal": "Reduce stale retained candidates whose claim paths are already materialized before publishing a fresh compact frontier.",
+        "expected_effect": "Fewer fresh workers spend their entire allocation window on CREATE_EXISTS collisions.",
+        "evidence_refs": [
+          "coordination/workers/no-allocation/wc-20261001T232439Z-43f03a149972.json"
+        ]
+      }
+    ],
+    "public_safe_summary": "Fresh v3.30 PROD-01 worker created its own beacon, loaded one compact frontier, and attempted all six retained compatible recovery claims. Every atomic claim collided with CREATE_EXISTS, so no authority or productive slot was obtained. It closed under EXHAUSTED_COMPATIBLE_FRONTIER with a durable bounded receipt; this does not assert global project exhaustion."
+  }
+}
