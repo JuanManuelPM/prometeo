@@ -12,6 +12,11 @@ assert.equal(rules.get('CREATE_EXISTS')?.signature, 'GITHUB_CONTENTS_CREATE_EXIS
 assert.equal(rules.get('CLAIM_TRANSPORT_BLOCKED')?.signature, 'OPENAI_TOOL_SAFETY_DENIAL');
 assert.match(rules.get('CLAIM_TRANSPORT_BLOCKED')?.rule ?? '', /retry_allowed=false/);
 assert.match(rules.get('CLAIM_TRANSPORT_BLOCKED')?.rule ?? '', /Never retry, divert, or bypass/);
+assert.equal(contract.compatibility?.eff016b_transport_denial_projection?.required, true);
+assert.equal(contract.compatibility?.eff016b_transport_denial_projection?.canonical_reason, 'CLAIM_TRANSPORT_BLOCKED');
+assert.equal(contract.compatibility?.eff016b_transport_denial_projection?.nested_classification, 'transport_boundary_v1.classification');
+assert.match(contract.compatibility?.eff016b_transport_denial_projection?.rule ?? '', /EFF016B/);
+assert.match(contract.compatibility?.eff016b_transport_denial_projection?.rule ?? '', /GUIDE_RESCATE/);
 
 const samples = [
   {
@@ -43,7 +48,8 @@ for (const sample of samples) {
 
 console.log(JSON.stringify({
   test: 'claim_transport_boundary_contract_v1',
-  passed: samples.length + 4,
+  passed: samples.length + 9,
   failed: 0,
-  classifications: samples.map((sample) => sample.expected)
+  classifications: samples.map((sample) => sample.expected),
+  eff016b_transport_denial_projection: true
 }));
