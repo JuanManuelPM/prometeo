@@ -14,6 +14,13 @@ function timestamp(message) {
   return Date.parse(message?.published_at || message?.created_at || '') || 0;
 }
 
+function isPublicCanaryWorkerReply(message) {
+  return message?.actor_type === 'WORKER'
+    && message?.input_origin === 'WORKER_AUTOMATIC'
+    && String(message?.privacy || '').toUpperCase() === 'PUBLIC_SANITIZED_CANARY'
+    && String(message?.result_ref || '').startsWith('coordination/portfolio/returns/portfolio-primary-chat-canary-');
+}
+
 export function validatePrimaryChatMirror(thread) {
   assert.equal(thread?.schema, 'prometeo.chat-thread-projection/v1', 'THREAD_SHAPE_INCOMPATIBLE');
   if (!Array.isArray(thread.messages)) thread.messages = [];
@@ -84,4 +91,31 @@ export function mergePrimaryChatMessages(threadInput, candidateMessages = []) {
   if (newest.value) thread.updated_at = newest.value;
 
   return { thread, added, idempotent };
+}
+
+export function reconcilePrimaryChatCanonicalWorkerReplies(threadInput, canonicalMessages = []) {
+  const thread = validatePrimaryChatMirror(JSON.parse(JSON.stringify(threadInput)));
+  const canonicalByReply = new Map();
+
+  for (const candidate of canonicalMessages) {
+    if (!candidate?.message_id) throw new Error('CANDIDATE_MESSAGE_ID_REQUIRED');
+    if (!candidate?.reply_to_message_id) throw new Error(`CANDIDATE_REPLY_TO_REQUIRED:${candidate.message_id}`);
+    if (!isPublicCanaryWorkerReply(candidate)) throw new Error(`CANDIDATE_NOT_PUBLIC_CANARY_WORKER_REPLY:${candidate.message_id}`);
+    if (canonicalByReply.has(candidate.reply_to_message_id)) {
+      throw new Error(`MULTIPLE_CANONICAL_REPLIES:${candidate.reply_to_message_id}`);
+    }
+    canonicalByReply.set(candidate.reply_to_message_id, candidate);
+  }
+
+  let superseded = 0;
+  thread.messages = thread.messages.filter(message => {
+    const canonical = canonicalByReply.get(message?.reply_to_message_id);
+    if (!canonical || !isPublicCanaryWorkerReply(message)) return true;
+    if (message?.message_id === canonical.message_id || message?.result_ref === canonical.result_ref) return true;
+    superseded += 1;
+    return false;
+  });
+
+  const merged = mergePrimaryChatMessages(thread, canonicalMessages);
+  return { ...merged, superseded };
 }
