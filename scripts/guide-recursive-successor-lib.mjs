@@ -1,4 +1,5 @@
 import { canonicalDiscoveryIdentity, discoveryFingerprint } from './discovery-dedup-lib.mjs';
+import { compileWorkBlockHandoff, validateCompiledDispatchContract } from './compiled-dispatch-contract-lib.mjs';
 
 export const DEFAULT_RECURSION_BUDGET = Object.freeze({
   max_depth: 2,
@@ -128,6 +129,83 @@ export function compileGuideSuccessor(spec = {}, context = {}) {
         budget,
         expires_at: expiresAt
       }
+    }
+  };
+}
+
+// GUIDE_PLANNER / Guide-derived successor materialization MUST use this wrapper.
+// compileGuideSuccessor remains the low-level bounded-recursion primitive for historical fixtures
+// and non-dispatch compilation internals; it does not satisfy the pre-dispatch invariant by itself.
+export function compileGuideDispatchSuccessor(spec = {}, context = {}) {
+  const compiledDispatchContractRef = String(context.compiled_dispatch_contract_ref ?? '').trim();
+  if (!compiledDispatchContractRef) {
+    return {
+      materialize: false,
+      stop_reason: 'COMPILED_DISPATCH_CONTRACT_REF_REQUIRED',
+      compile_gate: {status: 'FAIL', errors: ['compiled_dispatch_contract_ref_required']}
+    };
+  }
+
+  const validation = validateCompiledDispatchContract(context.compiled_dispatch_contract ?? {});
+  if (!validation.pass) {
+    return {
+      materialize: false,
+      stop_reason: 'COMPILED_DISPATCH_CONTRACT_FAIL',
+      compile_gate: {status: 'FAIL', errors: validation.errors}
+    };
+  }
+
+  const workBlockId = String(spec.work_block_id ?? '').trim();
+  if (!workBlockId) {
+    return {
+      materialize: false,
+      stop_reason: 'WORK_BLOCK_ID_REQUIRED',
+      compile_gate: {status: 'FAIL', errors: ['work_block_id_required']}
+    };
+  }
+
+  const handoff = compileWorkBlockHandoff(context.compiled_dispatch_contract, workBlockId, compiledDispatchContractRef);
+  if (!handoff.pass) {
+    return {
+      materialize: false,
+      stop_reason: handoff.reason,
+      compile_gate: {status: 'FAIL', errors: handoff.errors ?? []}
+    };
+  }
+
+  const workBlock = handoff.packet.work_block;
+  if (String(spec.consumer ?? '').trim() !== String(workBlock.consumer ?? '').trim()) {
+    return {
+      materialize: false,
+      stop_reason: 'WORK_BLOCK_CONSUMER_DRIFT',
+      compile_gate: {status: 'FAIL', errors: ['consumer_must_match_compiled_work_block']}
+    };
+  }
+  if (JSON.stringify(uniq(spec.required_capabilities)) !== JSON.stringify(uniq(workBlock.required_capabilities))) {
+    return {
+      materialize: false,
+      stop_reason: 'WORK_BLOCK_CAPABILITY_DRIFT',
+      compile_gate: {status: 'FAIL', errors: ['required_capabilities_must_match_compiled_work_block']}
+    };
+  }
+
+  const compiled = compileGuideSuccessor(spec, context);
+  if (!compiled.materialize) {
+    return {
+      ...compiled,
+      compile_gate: {status: 'PASS', errors: []}
+    };
+  }
+
+  return {
+    ...compiled,
+    compile_gate: {status: 'PASS', errors: []},
+    child: {
+      ...compiled.child,
+      compiled_dispatch_contract_ref: compiledDispatchContractRef,
+      work_block_id: workBlockId,
+      organism_refs: handoff.packet.organism_node_refs,
+      work_block: handoff.packet.work_block
     }
   };
 }
