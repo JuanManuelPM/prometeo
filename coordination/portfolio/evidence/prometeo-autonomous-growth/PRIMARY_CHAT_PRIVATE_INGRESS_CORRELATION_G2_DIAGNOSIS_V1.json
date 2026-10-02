@@ -1,0 +1,72 @@
+{
+  "schema": "prometeo.primary-chat-private-ingress-correlation-diagnosis/v1",
+  "status": "GAP_CONFIRMED_PATCH_PENDING",
+  "captured_at": "2026-10-02T19:23:31Z",
+  "worker_id": "wc-20261002T185151Z-9a7a48e81d95",
+  "job_id": "portfolio-primary-chat-private-ingress-correlation-retention-v1",
+  "generation": 2,
+  "authority_ref": "coordination/portfolio/pins/portfolio-primary-chat-private-ingress-correlation-retention-v1/G000002.json",
+  "source_snapshot": {
+    "ingress": {
+      "path": "current-tree/control-v11/ingress-v1.js",
+      "blob_sha": "38e05ab7b0c1ec44bae39b3e728feb0fffb916f6"
+    },
+    "input_module": {
+      "path": "current-tree/control-v11/chat-canary/input-module-v1.js",
+      "blob_sha": "47a423e1736bfe077755d8507089ce85d8e887b0"
+    }
+  },
+  "trace": [
+    {
+      "stage": "prepare_execution",
+      "state": "CORRELATION_PRESENT",
+      "observed_fields": ["prepared.work_item_id", "prepared.return_path"]
+    },
+    {
+      "stage": "wake_request",
+      "state": "CORRELATION_PRESENT",
+      "observed_fields": ["work_item_id", "return_path"],
+      "privacy": "OPAQUE_IDENTIFIERS_ONLY"
+    },
+    {
+      "stage": "ingress_transport_return",
+      "state": "CORRELATION_DROPPED",
+      "cause": "transport returns Object.freeze(wake) instead of a validated result carrying the prepared correlation"
+    },
+    {
+      "stage": "submitInternal_normalization",
+      "state": "CORRELATION_DROPPED",
+      "cause": "result(status, ref, queued, error) has no correlation field and normalization discards all transport extensions"
+    },
+    {
+      "stage": "input_module_frozenResult",
+      "state": "CORRELATION_DROPPED",
+      "cause": "frozenResult persists only status/queued/ref/error/clear_input"
+    }
+  ],
+  "required_patch_contract": {
+    "public_shape": "correlation: { work_item_id, return_path }",
+    "validation": [
+      "work_item_id must be a bounded opaque identifier returned by prepare_execution",
+      "return_path must pass the existing durable-ref contract and correspond to the same prepared execution",
+      "queued=true without valid correlation must fail closed for private non-canary submissions",
+      "replay may reuse the exact durable correlation but must not create a second work item",
+      "input-module state may persist only the opaque identifiers, never transcript/audio/token/workspace secret"
+    ],
+    "owners_to_change": [
+      "current-tree/control-v11/ingress-v1.js",
+      "current-tree/control-v11/chat-canary/input-module-v1.js"
+    ],
+    "deterministic_cases": [
+      "private happy path retains work_item_id + return_path",
+      "reload restores only validated opaque correlation",
+      "exact replay resolves to the same return_path without duplicate work",
+      "malformed return_path fails closed",
+      "work_item_id/return_path mismatch fails closed",
+      "no raw private payload appears in persisted correlation"
+    ]
+  },
+  "implementation_status": "NOT_PATCHED_BY_THIS_WORKER",
+  "reason_not_patched": "The connected GitHub contents action requires whole-file replacement for both live browser owners. This worker can read exact current source but has no repository checkout/patch runtime; reconstructing large live owners from truncated connector transport would create avoidable corruption risk. A source diagnosis is persisted rather than claiming a partial live fix.",
+  "truth_boundary": "This evidence proves the current source-level loss point only. It is not a completion claim and does not authorize storing private content."
+}
