@@ -8,8 +8,18 @@ import {
 } from '../../../scripts/guide-recursive-successor-lib.mjs';
 
 const receipt = JSON.parse(fs.readFileSync(new URL('../../guide/receipts/portfolio-guide-planner-universal-cognitive-block-v1/RECEIPT-DISPATCH-COMPILER-DOGFOOD-V1.json', import.meta.url), 'utf8'));
-const root = receipt.compiled_dispatch_contract;
+const root = JSON.parse(JSON.stringify(receipt.compiled_dispatch_contract));
 assert.ok(root, 'dogfood compiled dispatch contract required');
+root.autonomy_closure.mechanical_enforcement = {
+  schema: 'prometeo.compiled-dispatch-mechanical-enforcement/v1',
+  gates: [{
+    gate_id: 'SUCCESSOR_MATERIALIZATION',
+    validator_ref: 'scripts/compiled-dispatch-claim-ready-validator.mjs',
+    fail_closed: true,
+    before_claim_ready: true,
+    failure_codes: ['STRUCTURAL_INVALID', 'MECHANICAL_INVALID']
+  }]
+};
 
 const clone = value => JSON.parse(JSON.stringify(value));
 const allForbidden = [...new Set(root.decomposition.blocks.flatMap(block => block.forbidden_scope || []))].sort();
