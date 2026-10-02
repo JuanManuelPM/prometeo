@@ -1,5 +1,6 @@
 import { canonicalDiscoveryIdentity, discoveryFingerprint } from './discovery-dedup-lib.mjs';
 import { compileWorkBlockHandoff, validateCompiledDispatchContract } from './compiled-dispatch-contract-lib.mjs';
+import { validateClaimReadyCompiledDispatch } from './compiled-dispatch-claim-ready-validator.mjs';
 
 export const DEFAULT_RECURSION_BUDGET = Object.freeze({
   max_depth: 2,
@@ -146,12 +147,17 @@ export function compileGuideDispatchSuccessor(spec = {}, context = {}) {
     };
   }
 
-  const validation = validateCompiledDispatchContract(context.compiled_dispatch_contract ?? {});
+  const validation = validateClaimReadyCompiledDispatch(context.compiled_dispatch_contract ?? {});
   if (!validation.pass) {
     return {
       materialize: false,
       stop_reason: 'COMPILED_DISPATCH_CONTRACT_FAIL',
-      compile_gate: {status: 'FAIL', errors: validation.errors}
+      compile_gate: {
+        status: 'FAIL',
+        errors: validation.errors,
+        structural_errors: validation.structural_errors,
+        mechanical_errors: validation.mechanical_errors
+      }
     };
   }
 
@@ -193,13 +199,13 @@ export function compileGuideDispatchSuccessor(spec = {}, context = {}) {
   if (!compiled.materialize) {
     return {
       ...compiled,
-      compile_gate: {status: 'PASS', errors: []}
+      compile_gate: {status: 'PASS', errors: [], structural_errors: [], mechanical_errors: []}
     };
   }
 
   return {
     ...compiled,
-    compile_gate: {status: 'PASS', errors: []},
+    compile_gate: {status: 'PASS', errors: [], structural_errors: [], mechanical_errors: []},
     child: {
       ...compiled.child,
       compiled_dispatch_contract_ref: compiledDispatchContractRef,
