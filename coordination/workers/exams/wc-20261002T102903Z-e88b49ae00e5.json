@@ -1,0 +1,107 @@
+{
+  "schema": "prometeo.worker-productivity-exam/v1",
+  "worker_id": "wc-20261002T102903Z-e88b49ae00e5",
+  "batch_id": "POOL-PROD-01",
+  "pool_id": "PROD-01",
+  "protocol_version": "v3.30",
+  "launch_nonce": "6377939e52a13fd8",
+  "started_at_or_null": "2026-10-02T10:29:03Z",
+  "closed_at": "2026-10-02T10:31:36Z",
+  "slots": [],
+  "collisions": 1,
+  "no_allocation_count": 1,
+  "projects_touched": [],
+  "experiment_enrolled": false,
+  "pattern_id_or_null": null,
+  "close_reason": "TRANSPORT_BOUNDARY",
+  "close_evidence_refs": [
+    "coordination/workers/beacons/wc-20261002T102903Z-e88b49ae00e5.json",
+    "coordination/workers/no-allocation/wc-20261002T102903Z-e88b49ae00e5.json"
+  ],
+  "exit_audit_v1": {
+    "worker_id": "wc-20261002T102903Z-e88b49ae00e5",
+    "batch_or_pool_or_run": "POOL PROD-01",
+    "exit_reason": "BOUNDARY",
+    "productive_units": 0,
+    "final_state": "CLAIM_TRANSPORT_BLOCKED",
+    "started_at": "2026-10-02T10:29:03Z",
+    "audit_completed_at": "2026-10-02T10:31:36Z",
+    "timing_basis": "MIXED_DIAGNOSTIC",
+    "stage_timings": [
+      {"stage":"E0","elapsed_ms_or_null":null,"basis":"fresh launch beacon timestamp"},
+      {"stage":"E1","elapsed_ms_or_null":null,"basis":"beacon commit + compact frontier read"},
+      {"stage":"E2","elapsed_ms_or_null":null,"basis":"one CREATE_EXISTS followed by explicit connector safety denial"},
+      {"stage":"E3","elapsed_ms_or_null":null,"basis":"NOT_REACHED"},
+      {"stage":"E4","elapsed_ms_or_null":null,"basis":"NOT_REACHED"},
+      {"stage":"E5","elapsed_ms_or_null":null,"basis":"NOT_REACHED"},
+      {"stage":"E6","elapsed_ms_or_null":null,"basis":"NOT_REACHED"},
+      {"stage":"E7","elapsed_ms_or_null":null,"basis":"NOT_REACHED"},
+      {"stage":"E8","elapsed_ms_or_null":null,"basis":"NOT_REACHED"},
+      {"stage":"E9","elapsed_ms_or_null":null,"basis":"terminal boundary receipt + exam close"}
+    ],
+    "tool_usage": [
+      {"tool_or_connector":"GitHub connector","calls_or_operations":11,"useful_operations":10,"wait_ms_or_null":null},
+      {"tool_or_connector":"response-resource search","calls_or_operations":3,"useful_operations":3,"wait_ms_or_null":null},
+      {"tool_or_connector":"direct web retrieval","calls_or_operations":1,"useful_operations":0,"wait_ms_or_null":null}
+    ],
+    "friction_events": [
+      {
+        "category":"CLAIM_CONTENTION",
+        "elapsed_ms_or_null":null,
+        "description":"First authority PIN CREATE returned the canonical CREATE_EXISTS signature.",
+        "evidence_refs":["gh-pages:live/claim-frontier.json"],
+        "recovered":true,
+        "boundary_code_or_null":null,
+        "proposed_new_category_or_null":null
+      },
+      {
+        "category":"CLAIM_TRANSPORT",
+        "elapsed_ms_or_null":null,
+        "description":"Second authority PIN CREATE received an explicit connector safety denial before ownership.",
+        "evidence_refs":["coordination/workers/no-allocation/wc-20261002T102903Z-e88b49ae00e5.json"],
+        "recovered":false,
+        "boundary_code_or_null":"CLAIM_TRANSPORT_BLOCKED",
+        "proposed_new_category_or_null":null
+      }
+    ],
+    "decision_trace": [
+      {
+        "decision":"Use fresh v3.30 identity and POOL-PROD-01 launch envelope.",
+        "observable_basis":"Current human invocation and fresh-launch policy required a new beacon before allocation.",
+        "action":"Created a unique beacon and froze worker_id + launch_nonce.",
+        "outcome":"Fresh launch identity became durable.",
+        "evidence_refs":["coordination/workers/beacons/wc-20261002T102903Z-e88b49ae00e5.json"]
+      },
+      {
+        "decision":"Advance after a real atomic claim collision.",
+        "observable_basis":"The first claim returned the exact CREATE_EXISTS 422 signature.",
+        "action":"Advanced cyclically to the next retained candidate without rereading directories.",
+        "outcome":"A second authority CREATE was attempted.",
+        "evidence_refs":["gh-pages:live/claim-frontier.json"]
+      },
+      {
+        "decision":"Stop immediately after explicit safety denial.",
+        "observable_basis":"The second authority CREATE was explicitly blocked by connector safety controls before authority existed.",
+        "action":"Did not retry the denied path or divert to another candidate; persisted one bounded no-allocation receipt.",
+        "outcome":"Terminal transport boundary recorded truthfully with zero productive units.",
+        "evidence_refs":["coordination/workers/no-allocation/wc-20261002T102903Z-e88b49ae00e5.json"]
+      }
+    ],
+    "top_time_sinks": [
+      {"category":"CLAIM_TRANSPORT","elapsed_ms_or_null":null,"note":"Explicit connector safety denial ended the claim phase."},
+      {"category":"CLAIM_CONTENTION","elapsed_ms_or_null":null,"note":"One initial CREATE_EXISTS collision preceded the boundary."}
+    ],
+    "unfinished_debt": [
+      {"item":"No execution authority was acquired; resident productive work never began.","owner_or_recovery_ref_or_null":"coordination/workers/no-allocation/wc-20261002T102903Z-e88b49ae00e5.json"}
+    ],
+    "improvement_candidates": [
+      {
+        "target":"CONNECTOR",
+        "proposal":"Expose a stable machine-readable denial code for authority CREATE blocks so Worker Lab can separate safety denial from transport ambiguity without parsing prose.",
+        "expected_effect":"Cleaner automatic boundary classification and less orchestration uncertainty.",
+        "evidence_refs":["coordination/workers/no-allocation/wc-20261002T102903Z-e88b49ae00e5.json"]
+      }
+    ],
+    "public_safe_summary":"Fresh PROD-01 worker created its own v3.30 beacon, hit one real claim collision, then received an explicit connector safety denial on the next authority CREATE. It did not retry or bypass the denial, recorded CLAIM_TRANSPORT_BLOCKED, and closed with zero productive units."
+  }
+}
