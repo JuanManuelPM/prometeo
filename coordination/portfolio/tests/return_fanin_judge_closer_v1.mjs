@@ -19,6 +19,16 @@ const b = {...base, return_id:'R-B', job_id:'lane-b', lane:'lane-b', generation:
 const fanin = fanInReturns([a, a, b]);
 assert.equal(fanin.unique_return_count, 2, 'duplicate/replay must be idempotent');
 
+const crossCampaignSameReturnId = {
+  ...a,
+  campaign_id: 'C-2',
+  return_id: 'R-A',
+  returned_at: '2026-10-02T19:01:00Z'
+};
+const scopedIdentityFanin = fanInReturns([a, crossCampaignSameReturnId]);
+assert.equal(scopedIdentityFanin.unique_return_count, 2, 'same return_id in different canonical campaign/work/job scopes must not collide');
+assert.deepEqual(scopedIdentityFanin.groups.map(group => group.campaign_id), ['C-1', 'C-2']);
+
 const incomplete = judgeCampaign({campaign_id:campaign, required_lanes:['lane-a','lane-b'], returns:[a]});
 assert.equal(incomplete.status, 'INCOMPLETE');
 assert.deepEqual(incomplete.missing_lanes, ['lane-b']);
