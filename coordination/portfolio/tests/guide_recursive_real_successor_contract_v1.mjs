@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+import './guide_pre_dispatch_compile_gate_v1.mjs';
 
 const read = rel => JSON.parse(fs.readFileSync(new URL(rel, import.meta.url), 'utf8'));
 const policy = read('../../guide/RECURSIVE_SUCCESSOR_POLICY_V1.json');
