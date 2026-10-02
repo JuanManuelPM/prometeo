@@ -128,7 +128,17 @@ function contract({depth = 'P0', blocks = [block('local')], edges = [], ready = 
       done_condition: 'All blocking WorkBlocks consumed and independent QA passes.',
       successor_policy: 'Materialize only semantically deduped, compiled, consumer-bound successors.',
       telemetry: ['started_at', 'return', 'consumer disposition', 'capacity derivation'],
-      orphan_check: 'Any artifact without APP/CHAT/OBJECTIVE/TARGET/OWNER/CONSUMER binding is non-promotable.'
+      orphan_check: 'Any artifact without APP/CHAT/OBJECTIVE/TARGET/OWNER/CONSUMER binding is non-promotable.',
+      mechanical_enforcement: {
+        schema: 'prometeo.compiled-dispatch-mechanical-enforcement/v1',
+        gates: [{
+          gate_id: 'SUCCESSOR_MATERIALIZATION',
+          validator_ref: 'scripts/compiled-dispatch-claim-ready-validator.mjs',
+          fail_closed: true,
+          before_claim_ready: true,
+          failure_codes: ['STRUCTURAL_INVALID', 'MECHANICAL_INVALID']
+        }]
+      }
     },
     capacity_plan: {
       ready_block_ids: readyIds,
@@ -243,11 +253,43 @@ const allowed = compileGuideDispatchSuccessor(successorSpec, {
 });
 assert.equal(allowed.materialize, true);
 assert.equal(allowed.compile_gate.status, 'PASS');
+assert.equal(allowed.compile_gate.structural_errors.length, 0);
+assert.equal(allowed.compile_gate.mechanical_errors.length, 0);
 assert.equal(allowed.child.work_block_id, 'local');
 assert.equal(allowed.child.compiled_dispatch_contract_ref, 'receipt://local#compiled_dispatch_contract');
 assert.equal(allowed.child.organism_refs.objective_ref, baseOrganism.objective_ref);
 
-// Dogfood: the current Shell + Apps/Chats + Organism objective must pass the same gate.
+// J. structurally invalid contracts fail closed in the production consumer and keep structural errors separate.
+const structurallyInvalid = JSON.parse(JSON.stringify(local));
+delete structurallyInvalid.intent.requested;
+const structuralBlocked = compileGuideDispatchSuccessor(successorSpec, {
+  root_ref:'objective://root',
+  parent_ref:'receipt://parent',
+  compiled_dispatch_contract: structurallyInvalid,
+  compiled_dispatch_contract_ref: 'receipt://local#compiled_dispatch_contract',
+  created_at: '2026-10-02T01:30:00Z'
+});
+assert.equal(structuralBlocked.materialize, false);
+assert.equal(structuralBlocked.stop_reason, 'COMPILED_DISPATCH_CONTRACT_FAIL');
+assert.equal(structuralBlocked.compile_gate.structural_errors.length > 0, true);
+assert.equal(structuralBlocked.compile_gate.mechanical_errors.length, 0);
+
+// K. mechanically invalid contracts fail closed in the same production consumer and preserve MECHANICAL:*.
+const mechanicallyInvalid = JSON.parse(JSON.stringify(local));
+mechanicallyInvalid.autonomy_closure.mechanical_enforcement.gates[0].before_claim_ready = false;
+const mechanicalBlocked = compileGuideDispatchSuccessor(successorSpec, {
+  root_ref:'objective://root',
+  parent_ref:'receipt://parent',
+  compiled_dispatch_contract: mechanicallyInvalid,
+  compiled_dispatch_contract_ref: 'receipt://local#compiled_dispatch_contract',
+  created_at: '2026-10-02T01:30:00Z'
+});
+assert.equal(mechanicalBlocked.materialize, false);
+assert.equal(mechanicalBlocked.stop_reason, 'COMPILED_DISPATCH_CONTRACT_FAIL');
+assert.equal(mechanicalBlocked.compile_gate.structural_errors.length, 0);
+assert(mechanicalBlocked.compile_gate.mechanical_errors.some(error => error.startsWith('MECHANICAL:')));
+
+// Dogfood: the current Shell + Apps/Chats + Organism objective must pass the structural contract gate.
 const dogfoodPath = new URL('../../guide/receipts/portfolio-guide-planner-universal-cognitive-block-v1/RECEIPT-DISPATCH-COMPILER-DOGFOOD-V1.json', import.meta.url);
 const dogfoodReceipt = JSON.parse(fs.readFileSync(dogfoodPath, 'utf8'));
 assert.equal(dogfoodReceipt.schema, 'prometeo.guide-receipt/v1');
@@ -281,6 +323,8 @@ console.log(JSON.stringify({
   G_semantic_dedupe: 'PASS',
   H_orphan_audit: 'PASS',
   I_recovery_from_durable_state: 'PASS',
+  J_claim_ready_structural_fail_closed: 'PASS',
+  K_claim_ready_mechanical_fail_closed: 'PASS',
   scale_fixture_capacity_request: deriveCapacityRequest(scale3).capacity_request
 }));
 console.log('GUIDE_PRE_DISPATCH_DOGFOOD_PASS');
