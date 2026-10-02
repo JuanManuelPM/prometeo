@@ -28,10 +28,13 @@ jobs:
           git fetch --no-tags --depth=1 origin "$SOURCE_COMMIT"
           git show "$SOURCE_COMMIT:$SOURCE_PATH" > /tmp/jose-v11.b64
           python3 - <<'PY'
-          import base64,gzip,hashlib,pathlib
+          import base64,gzip,hashlib,pathlib,string
           p=pathlib.Path('/tmp/jose-v11.b64')
           text=p.read_text(encoding='utf-8')
           compact=''.join(text.split())
+          allowed=set(string.ascii_letters+string.digits+'+/=')
+          bad=[(i,ord(ch),repr(ch)) for i,ch in enumerate(compact) if ch not in allowed]
+          print(f'FIXTURE_DIAG compact_chars={len(compact)} invalid_count={len(bad)} invalid_first={bad[:20]}')
           gz=base64.b64decode(compact, validate=True)
           html=gzip.decompress(gz)
           digest=hashlib.sha256(html).hexdigest()
@@ -176,3 +179,4 @@ jobs:
 # wc-harness-fix: immutable git fixture interception
 # wc-trigger: wc-20261001T183422Z-2876785d47d5 G000006
 # wc-trigger: wc-20261002T211822Z-a7c727e0daaf G000002
+# wc-diag: strict invalid-character inventory G000002
