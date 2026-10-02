@@ -1,0 +1,78 @@
+{
+  "schema": "prometeo.preservation-contract/v1",
+  "change_id": "wc-resident-pool-implicit-alias-canary-v1",
+  "actor": "wc-20261002T011510Z-cdb1b0d051f9",
+  "target": "canary /wc launch-envelope classification",
+  "requested_delta": "For /wc only, when the HUMAN MESSAGE contains RESIDENTE_POOL but omits explicit POOL <pool_id>, classify it as the CURRENT default rolling pool PROD-01 instead of UNBATCHED. Preserve explicit RUN/BATCH/POOL precedence and leave /w stable semantics unchanged.",
+  "problem_evidence": [
+    "coordination/workers/no-allocation/wc-20261002T011522Z-9bbfba256657.json",
+    "coordination/workers/no-allocation/wc-20261002T011543Z-304992aff122.json",
+    "coordination/workers/beacons/wc-20261002T011543Z-304992aff122.json",
+    "coordination/workers/beacons/wc-20261002T011510Z-cdb1b0d051f9.json",
+    "main:wc#WAVE_OBSERVABILITY",
+    "coordination/guide/CURRENT_MISSION_V1.json#operating_mode"
+  ],
+  "touched_invariants": [
+    "DNA001_WORKER_MINIMAL_ABI",
+    "DNA003_SUBMIT_AND_NEXT_CONTINUITY",
+    "DNA004_RESIDENT_WORKER_LOOP",
+    "DNA011_PRESERVE_FIRST",
+    "DNA017_REDUCE_BEFORE_ADD",
+    "DNA020_GUIDE_IMPROVEMENT_GATE"
+  ],
+  "relevant_failure_vaccines": [
+    "FV001_INFRA_FOR_INFRA",
+    "FV003_COMPLETION_NEXT_GAP",
+    "FV007_SCALE_HIDES_ORCHESTRATION_WEAKNESS",
+    "FV008_REINVENT_EXISTING_CAPABILITY",
+    "FV014_GOLDEN_ERASURE"
+  ],
+  "baseline_refs": [
+    "coordination/design-dna/GOLDENS_V1.json#GOLDEN_POOL_8_100_01",
+    "coordination/workers/CURRENT_WORKER_REUSE_CONTRACT_V1.json#DETERMINISTIC_SHARDING",
+    "coordination/guide/CURRENT_MISSION_V1.json#operating_mode.invocation",
+    "tests/worker-fresh-launch-v1.test.mjs"
+  ],
+  "must_preserve": [
+    "Explicit RUN mode continues to outrank all generic envelope parsing.",
+    "Explicit BATCH <id> EXPECTED <n> and POOL <id> keep exact identities.",
+    "Atomic PIN/claim CREATE remains execution authority.",
+    "Resident workers continue RETURN -> E8/SUBMIT_NEXT without human routing.",
+    "Stable production /w behavior is unchanged by this canary repair.",
+    "The canonical PROD-01 prompt remains explicit and unchanged as the preferred human invocation."
+  ],
+  "forbidden_regressions": [
+    "Creating a new scheduler/queue/CURRENT/planner/provider/family.",
+    "Treating arbitrary unbatched /wc invocations as pool workers without the RESIDENTE_POOL marker.",
+    "Changing explicit pool IDs or finite batch accounting.",
+    "Increasing worker-visible handshake count.",
+    "Using historical no-allocation as current exhaustion evidence."
+  ],
+  "experiment_or_test": {
+    "control": "Existing explicit POOL PROD-01 invocation remains byte-identical and keeps exact parsing semantics.",
+    "candidate": "Canary alias: RESIDENTE_POOL + no explicit POOL token => pool_id=PROD-01, batch_id=POOL-PROD-01.",
+    "held_constant": [
+      "allocator",
+      "claim paths",
+      "claim attempt budgets",
+      "resident checkpoint/target/hard-cap",
+      "production /w",
+      "task frontier ordering"
+    ],
+    "metrics": [
+      "explicit envelope precedence",
+      "resident alias classification",
+      "canonical prompt alias equality",
+      "fresh-launch guard regression"
+    ]
+  },
+  "promotion_gate": [
+    "worker-fresh-launch-v1 static test covers the canary-only fallback and explicit-precedence rules.",
+    "Existing canonical invocation equality assertions still pass.",
+    "No production /w fallback is introduced.",
+    "Future fresh /wc RESIDENTE_POOL-only beacon records POOL-PROD-01 instead of UNBATCHED."
+  ],
+  "rollback": "Revert only the canary implicit resident-pool alias additions in wc, WORKER_FRESH_LAUNCH_POLICY_V1.json and worker-fresh-launch-v1.test.mjs.",
+  "truth_boundary": "This is a reversible canary repair. It does not prove collision-rate improvement until a later fresh /wc launch exercises the alias and durable beacon/claim evidence confirms sharding behavior.",
+  "created_at": "2026-10-02T01:22:33.798876Z"
+}
