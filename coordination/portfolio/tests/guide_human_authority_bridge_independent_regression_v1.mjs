@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const governance = fs.readFileSync('coordination/guide/GUIDE_MESH_GOVERNANCE_V1.md', 'utf8');
-const wc = fs.readFileSync('wc', 'utf8');
+const governance = fs.readFileSync(new URL('../../guide/GUIDE_MESH_GOVERNANCE_V1.md', import.meta.url), 'utf8');
+const wc = fs.readFileSync(new URL('../../../wc', import.meta.url), 'utf8');
 
 const start = governance.indexOf('### 4.1 Explicit human `/wc` authority override');
 const end = governance.indexOf('\n## 5.', start);
