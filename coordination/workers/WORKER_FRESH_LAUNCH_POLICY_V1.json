@@ -70,7 +70,7 @@
     "tests/worker-fresh-launch-v1.test.mjs",
     "coordination/efficiency/RATCHET_BASELINE_V1.json"
   ],
-  "updated_at": "2026-09-30T01:35:00Z",
+  "updated_at": "2026-10-02T01:24:30Z",
   "human_inline_launch_guard": {
     "status": "ACTIVE_BINDING",
     "reason": "The replay incident occurred before a new worker beacon existed; repository/page-only anti-replay text is too late if a chat answers from historical project/model context without dereferencing the launcher.",
@@ -102,11 +102,32 @@
     "status": "ACTIVE_BINDING",
     "parsing_before_first_write_only": true,
     "authority": false,
+    "parser_owner": "THIS_OBJECT",
+    "explicit_precedence": [
+      "RUN",
+      "BATCH",
+      "POOL"
+    ],
     "forms": {
       "batch": "BATCH <batch_id> EXPECTED <n> => preserve exact batch_id and positive integer expected_workers; pool_id=null",
       "pool": "POOL <pool_id> => batch_id=POOL-<pool_id>, expected_workers=null, pool_id=<pool_id>",
-      "unbatched": "otherwise batch_id=UNBATCHED, expected_workers=null, pool_id=null"
+      "canary_resident_pool_alias": "On source=/wc only: RESIDENTE_POOL present with no explicit RUN/BATCH/POOL identity => launch_class=POOL, batch_id=POOL-PROD-01, expected_workers=null, pool_id=PROD-01",
+      "unbatched": "otherwise, after evaluating the canary resident-pool alias, batch_id=UNBATCHED, expected_workers=null, pool_id=null"
     },
+    "canary_resident_pool_alias": {
+      "status": "ACTIVE_CANARY",
+      "surface": "/wc",
+      "trigger": "RESIDENTE_POOL is present AND no explicit RUN <run_id>, BATCH <batch_id> EXPECTED <n>, or POOL <pool_id> identity is present",
+      "launch_class": "POOL",
+      "pool_id": "PROD-01",
+      "batch_id": "POOL-PROD-01",
+      "expected_workers": null,
+      "authority": false,
+      "explicit_identity_always_wins": true,
+      "stable_production_unchanged": true,
+      "reason": "Resident canary launches were arriving with pool residency semantics but no explicit POOL token, becoming UNBATCHED and therefore losing deterministic pooled sharding and POOL_TAIL_RESCUE. The alias repairs classification without adding a scheduler, queue or authority layer."
+    },
+    "downstream_predicate_rule": "All downstream /wc protocol predicates written as BATCH/POOL invocation, POOL-only, pooled worker, batch/pool sharding, or POOL_TAIL_RESCUE MUST evaluate the parsed launch_class and persisted beacon identity from this parser rather than re-parsing literal human tokens. Therefore a canary_resident_pool_alias launch is pool-classified for sharding/residency/tail-rescue. This rule does not alter /w explicit-envelope parsing.",
     "first_beacon_rule": "The surface creating the first beacon must persist parsed batch_id, expected_workers and pool_id in that beacon before loading any mutable repo state.",
     "refill_rule": "A finite BATCH is complete when durable runtime observed workers reaches expected_workers. If fewer are observed, Guide requests exactly missing_expected fresh launches using the identical BATCH prompt. Existing batch workers are never relaunched/recounted.",
     "no_inference": "No cause may be inferred for a human wake that produced no durable beacon."
