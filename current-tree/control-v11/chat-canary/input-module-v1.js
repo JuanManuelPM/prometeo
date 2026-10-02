@@ -4,6 +4,10 @@
   const SCHEMA = 'prometeo.chat-canary-input/v1';
   const KIND = 'CHAT_CANARY_HUMAN_MESSAGE_V1';
   const MAX_TEXT = 65536;
+  const WORKSPACE_SECRET_KEYS = Object.freeze([
+    'prometeo.capture.workspace.secret.v2',
+    'prometeo.capture.workspace.secret.v1'
+  ]);
   const DEFAULT_PAGE = Object.freeze({
     id: 'chat-canary',
     page_id: 'control-v11-chat-canary',
@@ -61,10 +65,22 @@
     return ingress && typeof ingress.submit === 'function' ? ingress : null;
   }
 
+  function workspaceLinked() {
+    for (const key of WORKSPACE_SECRET_KEYS) {
+      try {
+        const value = global.localStorage && global.localStorage.getItem(key);
+        if (value && value.length >= 32) return true;
+      } catch {}
+    }
+    return false;
+  }
+
   function transportReady(explicitIngress = null) {
-    if (explicitIngress && typeof explicitIngress.submit === 'function') return true;
     const transport = global.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1;
-    return Boolean(transport && typeof transport.submit === 'function');
+    const hasTransport = explicitIngress && explicitIngress === transport
+      ? typeof explicitIngress.submit === 'function'
+      : Boolean(transport && typeof transport.submit === 'function');
+    return hasTransport && workspaceLinked();
   }
 
   function publishBootstrapRecord(root, doc) {
@@ -276,6 +292,7 @@
     default_page: DEFAULT_PAGE,
     bootstrap_publication: BOOTSTRAP_PUBLICATION,
     validDurableRef,
+    workspaceLinked,
     transportReady,
     submitText,
     mount,
