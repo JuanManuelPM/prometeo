@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 
 export const COMPILED_DISPATCH_SCHEMA = 'prometeo.compiled-dispatch-contract/v1';
 export const COMPILED_DISPATCH_AUTHORITY = 'EVIDENCE_GATE_ONLY_NO_SCHEDULING_OR_PROMOTION_AUTHORITY';
+export const SPECIFICATION_ASSURANCE_SCHEMA = 'prometeo.specification-assurance/v1';
+export const SPECIFICATION_QUESTION_POLICY = 'CONTEXTUAL_INFORMATION_GAIN_ONLY';
 export const FAILURE_ORDER = Object.freeze([
   'SUCCESS',
   'SAFE_PARTIAL',
@@ -34,6 +36,187 @@ const uniq = values => [...new Set(arr(values).map(str).filter(Boolean))].sort()
 const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
 const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
 const push = (errors, condition, code) => { if (!condition) errors.push(code); };
+const lower = value => str(value).toLowerCase();
+
+function weakHumanSuccessTest(value) {
+  const text = lower(value);
+  if (text.length < 12) return true;
+  const observableTerms = ['see', 'show', 'pass', 'verify', 'observe', 'visible', 'works', 'funciona', 'verific', 'muestra', 'puede', 'can '];
+  return !observableTerms.some(term => text.includes(term));
+}
+
+function resolvedValue(resolutions, id) {
+  const value = resolutions?.[id];
+  if (Array.isArray(value)) return value.map(str).filter(Boolean).join('; ');
+  if (isObject(value)) return str(value.resolution ?? value.value ?? value.answer);
+  return str(value);
+}
+
+export function compileSpecificationAssurance(contract = {}, signals = {}) {
+  const intent = contract.intent || {};
+  const reuse = contract.reuse_authority || {};
+  const evidence = contract.evidence || {};
+  const decomposition = contract.decomposition || {};
+  const stored = isObject(contract.specification_assurance) ? contract.specification_assurance : {};
+  const storedSignals = isObject(stored.signals) ? stored.signals : {};
+  const mergedSignals = {...storedSignals, ...(isObject(signals) ? signals : {})};
+  const resolutions = isObject(stored.resolutions) ? stored.resolutions : {};
+  const questions = [];
+
+  const addQuestion = (id, dimension, trigger, question, whyItMatters) => {
+    if (!trigger) return;
+    const resolution = resolvedValue(resolutions, id);
+    questions.push({
+      id,
+      dimension,
+      question,
+      trigger: whyItMatters,
+      information_gain: 'HIGH',
+      blocking: !resolution,
+      resolution: resolution || null
+    });
+  };
+
+  const missingIntent = [
+    ['requested', 'SPEC_REQUESTED', '¿Qué pedido concreto debe preservar la compilación?', 'literal human ask is absent'],
+    ['observable_outcome', 'SPEC_OUTCOME', '¿Qué resultado observable debe quedar cierto al terminar?', 'observable desired outcome is absent'],
+    ['human_success_test', 'SPEC_HUMAN_TEST', '¿Cómo puede una persona reconocer que el resultado funciona?', 'human success test is absent']
+  ];
+  for (const [field, id, question, reason] of missingIntent) {
+    addQuestion(id, 'FIDELITY', !str(intent[field]), question, reason);
+  }
+  addQuestion(
+    'SPEC_NON_GOALS',
+    'FIDELITY',
+    !Array.isArray(intent.non_goals),
+    '¿Qué resultados o efectos deben quedar explícitamente fuera de alcance?',
+    'non-goals are not durably represented'
+  );
+
+  addQuestion(
+    'SPEC_LITERAL_OUTCOME_CONFLICT',
+    'FIDELITY',
+    mergedSignals.literal_request_conflicts_with_outcome === true,
+    'El pedido literal y el resultado observable apuntan en direcciones distintas. ¿Cuál debe gobernar y qué parte literal debe preservarse?',
+    'literal fulfillment could violate the desired observable outcome'
+  );
+
+  const metrics = arr(intent.success_metrics ?? stored.success_metrics);
+  const antiGaming = arr(stored.anti_gaming_constraints);
+  addQuestion(
+    'SPEC_METRIC_GAMING',
+    'ANTI_FULFILLMENT',
+    mergedSignals.metric_gaming_risk === true || (metrics.length > 0 && antiGaming.length === 0),
+    '¿Qué comportamiento contaría como “ganar la métrica” pero fallar el objetivo, y qué constraint observable lo impide?',
+    'a metric can be optimized while breaking the actual objective'
+  );
+
+  addQuestion(
+    'SPEC_OWNER_REUSE',
+    'OWNER_REUSE',
+    mergedSignals.owner_or_reuse_omitted === true || !str(reuse.current_owner_ref) || arr(reuse.reuse).length === 0,
+    '¿Qué owner/capability CURRENT debe reutilizarse y qué mecanismo duplicado queda prohibido?',
+    'owner or reuse binding is missing or explicitly flagged as omitted'
+  );
+
+  addQuestion(
+    'SPEC_HUMAN_TEST_INCOMPLETE',
+    'VERIFICATION',
+    mergedSignals.human_test_incomplete === true || (!!str(intent.human_success_test) && weakHumanSuccessTest(intent.human_success_test)),
+    'El human success test no parece producir una observación verificable. ¿Qué evidencia concreta debe poder inspeccionarse?',
+    'acceptance cannot be independently recognized from the durable test'
+  );
+
+  addQuestion(
+    'SPEC_FUTURE_CONDITION',
+    'FUTURE_BRANCHES',
+    mergedSignals.foreseeable_condition_changes_decomposition === true,
+    '¿Qué condición futura previsible cambiaría la descomposición, y cuál es la rama correspondiente si ocurre?',
+    'a foreseeable condition would change the correct decomposition'
+  );
+
+  addQuestion(
+    'SPEC_GRANULARITY_PARALLELISM',
+    'DECOMPOSITION',
+    mergedSignals.granularity_or_parallelism_uncertain === true,
+    '¿Qué dependencia o shared-state constraint impide separar o paralelizar estos bloques con seguridad?',
+    'granularity or parallelism is uncertain enough to change WorkBlock boundaries'
+  );
+
+  addQuestion(
+    'SPEC_VERIFICATION_GAP',
+    'VERIFICATION',
+    mergedSignals.verification_incomplete === true || arr(evidence.evidence_refs).length === 0,
+    '¿Qué evidencia durable permite verificar el resultado sin depender del chat original?',
+    'verification evidence is absent or explicitly incomplete'
+  );
+
+  const unresolved = questions.filter(item => item.blocking).map(item => item.id);
+  const reconstruction = {
+    requested: str(intent.requested),
+    observable_outcome: str(intent.observable_outcome),
+    non_goals: uniq(intent.non_goals),
+    human_success_test: str(intent.human_success_test),
+    current_owner_ref: str(reuse.current_owner_ref),
+    reuse_refs: uniq(reuse.reuse),
+    evidence_refs: uniq(evidence.evidence_refs),
+    work_block_ids: uniq(arr(decomposition.blocks).map(block => block?.block_id)),
+    private_history_required: false
+  };
+
+  return {
+    schema: SPECIFICATION_ASSURANCE_SCHEMA,
+    policy: SPECIFICATION_QUESTION_POLICY,
+    status: unresolved.length === 0 ? 'PASS' : 'NEEDS_CLARIFICATION',
+    intent_contract: {
+      requested: reconstruction.requested,
+      observable_outcome: reconstruction.observable_outcome,
+      non_goals: reconstruction.non_goals,
+      human_success_test: reconstruction.human_success_test
+    },
+    signals: mergedSignals,
+    resolutions,
+    questions,
+    unresolved_blocking_question_ids: unresolved,
+    reconstruction,
+    private_history_required: false
+  };
+}
+
+export function validateSpecificationAssuranceRecord(record = {}, contract = {}) {
+  const errors = [];
+  push(errors, record.schema === SPECIFICATION_ASSURANCE_SCHEMA, 'SPEC:SCHEMA_INVALID');
+  push(errors, record.policy === SPECIFICATION_QUESTION_POLICY, 'SPEC:QUESTION_POLICY_INVALID');
+  push(errors, record.private_history_required === false, 'SPEC:PRIVATE_HISTORY_MUST_NOT_BE_REQUIRED');
+  push(errors, isObject(record.intent_contract), 'SPEC:INTENT_CONTRACT_REQUIRED');
+  push(errors, Array.isArray(record.questions), 'SPEC:QUESTIONS_ARRAY_REQUIRED');
+  push(errors, Array.isArray(record.unresolved_blocking_question_ids), 'SPEC:UNRESOLVED_ARRAY_REQUIRED');
+  push(errors, isObject(record.reconstruction), 'SPEC:RECONSTRUCTION_REQUIRED');
+  push(errors, record.reconstruction?.private_history_required === false, 'SPEC:RECONSTRUCTION_PRIVATE_HISTORY_MUST_BE_FALSE');
+
+  const intent = contract.intent || {};
+  if (isObject(record.intent_contract)) {
+    push(errors, str(record.intent_contract.requested) === str(intent.requested), 'SPEC:REQUESTED_DRIFT');
+    push(errors, str(record.intent_contract.observable_outcome) === str(intent.observable_outcome), 'SPEC:OUTCOME_DRIFT');
+    push(errors, JSON.stringify(uniq(record.intent_contract.non_goals)) === JSON.stringify(uniq(intent.non_goals)), 'SPEC:NON_GOALS_DRIFT');
+    push(errors, str(record.intent_contract.human_success_test) === str(intent.human_success_test), 'SPEC:HUMAN_TEST_DRIFT');
+  }
+
+  const unresolved = arr(record.unresolved_blocking_question_ids).map(str).filter(Boolean);
+  const blockingQuestionIds = arr(record.questions).filter(q => q?.blocking === true).map(q => str(q.id)).filter(Boolean);
+  push(errors, JSON.stringify(uniq(unresolved)) === JSON.stringify(uniq(blockingQuestionIds)), 'SPEC:UNRESOLVED_BLOCKING_MISMATCH');
+  push(errors, unresolved.length === 0, `SPEC:UNRESOLVED_BLOCKING:${unresolved.join(',') || 'unknown'}`);
+  push(errors, record.status === 'PASS', 'SPEC:STATUS_NOT_PASS');
+
+  for (const question of arr(record.questions)) {
+    push(errors, !!str(question?.id), 'SPEC:QUESTION_ID_REQUIRED');
+    push(errors, !!str(question?.dimension), `SPEC:${str(question?.id) || 'unknown'}:DIMENSION_REQUIRED`);
+    push(errors, !!str(question?.question), `SPEC:${str(question?.id) || 'unknown'}:QUESTION_REQUIRED`);
+    push(errors, question?.information_gain === 'HIGH', `SPEC:${str(question?.id) || 'unknown'}:INFORMATION_GAIN_HIGH_REQUIRED`);
+  }
+
+  return {pass: errors.length === 0, status: errors.length ? 'FAIL' : 'PASS', errors};
+}
 
 function validateBlock(block, errors, blockIds) {
   const id = str(block?.block_id);
@@ -68,9 +251,7 @@ export function validateCompiledDispatchContract(contract = {}) {
   push(errors, contract.status === 'PASS', 'STATUS_NOT_PASS');
   push(errors, /^P[0-4]$/.test(str(contract.planning_depth)), 'PLANNING_DEPTH_INVALID');
 
-  for (const section of REQUIRED_SECTIONS) {
-    push(errors, isObject(contract[section]), `SECTION_REQUIRED:${section}`);
-  }
+  for (const section of REQUIRED_SECTIONS) push(errors, isObject(contract[section]), `SECTION_REQUIRED:${section}`);
 
   const e1 = contract.intent || {};
   push(errors, !!str(e1.requested), 'E1:requested_required');
@@ -148,9 +329,7 @@ export function validateCompiledDispatchContract(contract = {}) {
   push(errors, !!str(e8.hard_boundary_condition), 'E8:hard_boundary_condition_required');
 
   const e9 = contract.future_branches || {};
-  for (const key of ['ON_PASS','ON_PARTIAL','ON_FAIL','ON_CORRECTION','ON_SCALE','ON_DEPENDENCY_DOWN']) {
-    push(errors, has(e9, key), `E9:${key}_required`);
-  }
+  for (const key of ['ON_PASS','ON_PARTIAL','ON_FAIL','ON_CORRECTION','ON_SCALE','ON_DEPENDENCY_DOWN']) push(errors, has(e9, key), `E9:${key}_required`);
 
   const e10 = contract.autonomy_closure || {};
   push(errors, Array.isArray(e10.autonomous_without_human), 'E10:autonomous_without_human_array_required');
@@ -181,13 +360,20 @@ export function validateCompiledDispatchContract(contract = {}) {
   push(errors, Number(cp.capacity_request) === expectedCapacityRequest, `CAPACITY:request_mismatch:expected_${expectedCapacityRequest}`);
   push(errors, Number(e6.useful_capacity) === prepared, `CAPACITY:useful_capacity_mismatch:expected_${prepared}`);
 
+  let specificationAssurance = null;
+  if (isObject(contract.specification_assurance)) {
+    specificationAssurance = validateSpecificationAssuranceRecord(contract.specification_assurance, contract);
+    for (const error of specificationAssurance.errors) errors.push(error);
+  }
+
   return {
     pass: errors.length === 0,
     status: errors.length === 0 ? 'PASS' : 'FAIL',
     errors,
     block_count: blockIds.size,
     prepared_units: prepared,
-    expected_capacity_request: expectedCapacityRequest
+    expected_capacity_request: expectedCapacityRequest,
+    specification_assurance: specificationAssurance
   };
 }
 
