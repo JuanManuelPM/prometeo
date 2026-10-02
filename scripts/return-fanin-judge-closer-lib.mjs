@@ -54,11 +54,26 @@ export function fanInReturns(returns = []) {
 
 function outcomeClass(ret = {}) {
   const value = str(ret.outcome).toUpperCase();
-  if (['DONE','PASS','SUCCESS','NO_ACTION_NEEDED','DEPLOYED'].some(token => value.includes(token))) return 'PASS';
+  if (['DONE','VERIFIED','NO_ACTION_NEEDED','SUPERSEDED'].includes(value)) return 'PASS';
   if (value.includes('BOUNDARY')) return 'BOUNDARY';
   if (value.includes('PARTIAL')) return 'PARTIAL';
-  if (value.includes('FAIL') || value.includes('ERROR')) return 'FAIL';
+  if (value.includes('FAIL') || value.includes('ERROR') || value === 'ROUTE_ABORTED') return 'FAIL';
   return 'UNKNOWN';
+}
+
+function generationRank(ret = {}) {
+  const generation = Number(ret.generation);
+  return Number.isFinite(generation) ? generation : -1;
+}
+
+function newestCompatibleReturn(candidates = []) {
+  return [...candidates].sort((a, b) => {
+    const generationDelta = generationRank(b) - generationRank(a);
+    if (generationDelta) return generationDelta;
+    const timeDelta = (Date.parse(b.returned_at || 0) || 0) - (Date.parse(a.returned_at || 0) || 0);
+    if (timeDelta) return timeDelta;
+    return canonicalReturnIdentity(b).return_id.localeCompare(canonicalReturnIdentity(a).return_id);
+  })[0];
 }
 
 export function judgeCampaign({campaign_id, required_lanes = [], returns = []} = {}) {
@@ -70,12 +85,14 @@ export function judgeCampaign({campaign_id, required_lanes = [], returns = []} =
   const boundaries = [];
 
   for (const lane of lanes) {
-    const candidates = fanin.groups.flatMap(group => group.returns).filter(ret => str(ret.lane) === lane || str(ret.job_id) === lane || str(ret.work_id) === lane);
+    const candidates = fanin.groups
+      .flatMap(group => group.returns)
+      .filter(ret => str(ret.campaign_id || ret.project_id) === str(campaign_id) && (str(ret.lane) === lane || str(ret.job_id) === lane || str(ret.work_id) === lane));
     if (!candidates.length) {
       missing.push(lane);
       continue;
     }
-    const latest = [...candidates].sort((a, b) => (Date.parse(b.returned_at || 0) || 0) - (Date.parse(a.returned_at || 0) || 0))[0];
+    const latest = newestCompatibleReturn(candidates);
     const classification = outcomeClass(latest);
     const ref = str(latest.return_ref) || str(latest.return_id);
     evidence.push({lane, classification, ref, generation: latest.generation ?? null});
@@ -99,7 +116,7 @@ export function judgeCampaign({campaign_id, required_lanes = [], returns = []} =
 
 export function closeCampaign({verdict, durable_boundary = null, prior_close = null} = {}) {
   if (prior_close?.schema === CAMPAIGN_CLOSE_SCHEMA && prior_close?.status === 'CLOSED') {
-    return {...prior_close, replay_ignored: true};
+    return prior_close;
   }
   const boundaryValid = durable_boundary && typeof durable_boundary === 'object' && str(durable_boundary.ref) && str(durable_boundary.code);
   const verdictPass = verdict?.schema === CAMPAIGN_VERDICT_SCHEMA && verdict?.status === 'PASS';
