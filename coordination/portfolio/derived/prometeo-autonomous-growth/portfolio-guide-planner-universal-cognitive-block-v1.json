@@ -9,20 +9,68 @@
   "priority": 640,
   "seed_status": "ready",
   "required_capabilities": [],
-  "mission": "Extend the existing GUIDE_PLANNER role so any universal /wc worker assigned that role can turn a coarse objective into a durable, parallelizable, recoverable frontier without depending on a bespoke prompt or privileged chat. Reuse GUIDE_SWARM_PROTOCOL_V1 and METABOLISM_POLICY_V1 as the planning/metabolism owners. Do not create another planner, scheduler, queue, CURRENT, worker family, Guide Broker, plan authority or persistence authority. Keep WORKER_PIPELINE E4 as the bounded execution plan for ordinary executors; this richer block activates only for GUIDE_PLANNER or an explicitly planner-class packet. Prefer a structured planner_trace_v1 section in the existing Guide receipt/contract rather than a new authority artifact. Words/local reasoning are cheap: require explicit written coverage of context, problem framing, reuse, alternatives, critique, task graph, fan-out/fan-in, human-dependency audit, recovery, capacity and successor policy before PLAN_READY. Materialize executable successors through existing portfolio/CURRENT only after semantic dedup and authority checks.",
+  "mission": "Extend the existing GUIDE_PLANNER/Guide successor path into the universal pre-dispatch compile gate. Any Planner/Guide that will materialize derived successor work for other workers MUST first produce a PASS compiled_dispatch_contract inside the existing Guide receipt/checkpoint authority surface. Reuse GUIDE_SWARM_PROTOCOL_V1, METABOLISM_POLICY_V1, CURRENT/allocator/PIN, WORKER_PIPELINE E0-E9 and scripts/guide-recursive-successor-lib.mjs. Do not create another planner, scheduler, queue, CURRENT, Work Graph, intent service, worker family, Guide Broker, plan authority or persistence authority. Ordinary executors retain bounded E4_PLAN_LOCK. The heavy exam runs once per new intent or material REPLAN; children receive only compiled_dispatch_contract_ref + organism refs + their self-sufficient WorkBlock, then perform mechanical generation/dependency/ref/capability checks before WORK. Capacity requests are derived only from compiled handoff-ready blocks plus explicit compatible reserve/recovery minus live compatible capacity. Materialize executable successors through existing portfolio/CURRENT only after this compile gate, semantic dedup and authority checks.",
+  "compiled_dispatch_gate": {
+    "status": "ACTIVE_CANARY",
+    "schema": "prometeo.compiled-dispatch-contract/v1",
+    "authority": "EVIDENCE_GATE_ONLY_NO_SCHEDULING_OR_PROMOTION_AUTHORITY",
+    "implementation_ref": "scripts/compiled-dispatch-contract-lib.mjs",
+    "successor_wrapper_ref": "scripts/guide-recursive-successor-lib.mjs#compileGuideDispatchSuccessor",
+    "harness_ref": "coordination/portfolio/tests/guide_pre_dispatch_compile_gate_v1.mjs",
+    "durable_surface": "Embed compiled_dispatch_contract in the existing Guide receipt/checkpoint and reference it by exact receipt ref; do not create a parallel planning store.",
+    "mandatory_before": [
+      "Guide/Planner successor materialization for other workers",
+      "campaign-specific capacity_request",
+      "PLAN_READY for planner-class work"
+    ],
+    "exam_sections": {
+      "E1_INTENT": ["requested", "observable_outcome", "request_class", "non_goals", "human_success_test"],
+      "E2_ORGANISM": ["app_ref", "chat_ref", "objective_ref", "target_node_refs", "parents", "consumers", "CURRENT/candidate refs", "owner/artifact refs"],
+      "E3_REUSE_AUTHORITY": ["CURRENT owner", "existing mechanisms", "reuse", "forbidden duplicates", "authority vs projection"],
+      "E4_EVIDENCE": ["known", "unknown", "evidence refs", "stale refs", "fresh checks", "truth boundary"],
+      "E5_IMPACT": ["mutate", "preserve", "affected nodes", "security/privacy", "rollback/baseline", "scope limit"],
+      "E6_DECOMPOSITION": ["blocks", "dependency edges", "parallel now", "serial gates", "precompilable downstream", "blocks to fuse", "useful capacity"],
+      "E7_HANDOFF_SUFFICIENCY": ["fresh-worker executable", "exact input refs", "output contract", "allowed/forbidden scope", "done_when", "evidence", "capabilities", "consumer", "APP/CHAT/OBJECTIVE/TARGET/OWNER/CONSUMER refs"],
+      "E8_QA_RECOVERY": ["QA profile", "self checks", "independent checks", "known failure branches", "recovery", "hard boundary condition"],
+      "E9_FUTURE_BRANCHES": ["ON_PASS", "ON_PARTIAL", "ON_FAIL", "ON_CORRECTION", "ON_SCALE", "ON_DEPENDENCY_DOWN"],
+      "E10_AUTONOMY_CLOSURE": ["autonomous continuation", "return consumers", "closer", "done condition", "successor policy", "telemetry", "orphan check"]
+    },
+    "adaptive_depth": {
+      "P0": "Trivial/local; all E1-E10 categories remain present but compact.",
+      "P1": "Small bounded feature/change.",
+      "P2": "Multi-owner feature with explicit impact and independent verification.",
+      "P3": "Cross-system/multi-lane campaign with fan-out/fan-in/recovery/future branches.",
+      "P4": "Foundational architecture/control-plane work with full alternatives, critic/judge and recovery evidence."
+    },
+    "child_packet": {
+      "shape": "compiled_dispatch_contract_ref + organism_node_refs + work_block",
+      "pre_work_mechanical_checks": ["generation current", "dependencies satisfied", "refs resolvable", "worker capability compatible"],
+      "forbidden": ["repeat global context", "re-read conversation", "re-decide architecture"]
+    },
+    "capacity_gate": {
+      "rule": "capacity_request=N is valid only when N additional compatible prepared units exist after subtracting live compatible capacity. Prepared units are compiled handoff-ready blocks plus explicit compatible reserve/recovery refs. Never request shells to compensate for missing compilation.",
+      "semantic_dedupe_required": true,
+      "consumer_required": true,
+      "fan_in_required": true,
+      "capabilities_explicit": true
+    },
+    "failure_order": ["SUCCESS", "SAFE_PARTIAL", "KNOWN_REPAIR", "CAPABILITY_REALLOCATION", "RECOVERY", "DECOMPOSE_AROUND_BLOCKER", "HARD_BOUNDARY"],
+    "orphan_rule": "Artifact/WorkBlock without APP+CHAT+OBJECTIVE+TARGET NODE+OWNER+CONSUMER binding is ORPHAN and cannot promote."
+  },
   "definition_of_done": [
     "Read and preserve coordination/guide/GUIDE_SWARM_PROTOCOL_V1.md, coordination/guide/METABOLISM_POLICY_V1.json, coordination/workers/CURRENT_WORKER_REUSE_CONTRACT_V1.json and coordination/workers/WORKER_PIPELINE_V1.json; do not broaden authority.",
-    "Bind a role-specific GUIDE_PLANNER cognitive block into existing Guide owners. Ordinary EXECUTION workers retain bounded E4_PLAN_LOCK and do not run the full planner block unless their packet explicitly selects planner-class work.",
-    "Define AUTO planning depth P0-P4 so trivial/local work does not trigger the full campaign tape while system/foundational work requires progressively stronger reuse, alternatives, critic/judge, recovery and successor gates.",
-    "Define a structured planner_trace_v1 carried by the existing guide receipt/contract with at least: context_snapshot, problem_frame, reuse_map, alternatives, critique, task_graph, fanout_fanin, human_dependency_audit, recovery_contract, capacity_plan, successor_policy, final_gate. These are evidence/decision records, not hidden chain-of-thought and not authority.",
-    "Make the anti-human-bottleneck gate mandatory before PLAN_READY: if the human disappears for 5-15 minutes after the requested action, identify whether all useful capacity remains working, batch sub-30-second human actions, eliminate avoidable courier/routing steps, precompute the next likely bottleneck and successor work, and expose any irreducible capacity_request as machine-readable state.",
-    "Require every task_graph node to name owner/input/output/dependencies/done_when/evidence/required_capabilities/consumer and classify serial vs parallel vs producer/critic/verify/judge/integration/recovery/terminal.",
-    "Require fan-in design before broad fan-out: each producer must have an explicit consumer/disposition path and material multi-worker work must name validator/judge/integrator/closer behavior through existing owners.",
-    "Define capacity calculation from independent frontier, required capabilities, resident/live durable signals, producer/critic/verify/integration needs and recovery reserve; never use worker count alone as progress or useful capacity.",
-    "Define one-worker fallback: when no extra capacity exists, the same universal worker performs the required planner/critic/judge passes sequentially and still emits the same structured contract; when capacity exists, those passes may become independent CURRENT jobs without changing the contract.",
-    "Define recovery semantics: planner death must be recoverable from owned objective + durable evidence + current guide work/checkpoint/receipt state without human recap; do not depend on finding an old chat.",
-    "Define successor policy for PASS/FAIL/BOUNDARY before execution begins, including which frontier may open automatically and which real human/authority boundary stops automation.",
-    "Add a deterministic regression/harness covering at least: trivial P0 task, multi-lane P3 campaign, foundational P4 task, one-worker sequential fallback, multi-worker fan-out, human-disappears audit, duplicate-successor prevention, and recovery/reincarnation from durable state.",
+    "Bind the richer cognitive block only to GUIDE_PLANNER/Guide-derived successor planning or explicitly planner-class packets. Ordinary EXECUTION workers retain bounded E4_PLAN_LOCK.",
+    "AUTO planning depth P0-P4 is adaptive: trivial/local contracts stay compact while all E1-E10 categories remain structurally present; system/foundational work requires stronger reuse, impact, alternatives, critic/judge, recovery and successor evidence.",
+    "Before PLAN_READY or successor materialization, a planner-class cycle must produce compiled_dispatch_contract schema=prometeo.compiled-dispatch-contract/v1, authority=EVIDENCE_GATE_ONLY_NO_SCHEDULING_OR_PROMOTION_AUTHORITY and status=PASS inside an existing durable Guide receipt/checkpoint.",
+    "E7 is hard fail-closed: every child must be executable by a fresh worker with no chat history, exact input refs, output contract, scope, done_when, evidence, capabilities, consumer and APP/CHAT/OBJECTIVE/TARGET/OWNER/CONSUMER bindings. Failure means NO DISPATCH.",
+    "Guide-derived successors use scripts/guide-recursive-successor-lib.mjs#compileGuideDispatchSuccessor so the PASS contract, exact contract ref, WorkBlock, consumer and capability set are checked before ordinary bounded recursion/semantic dedup materialization.",
+    "Capacity calculation is exact and machine-checkable: prepared compatible WorkBlocks + explicit reserve/recovery - live compatible capacity. REFILL N is invalid if fewer than N prepared units remain or if the contract lies about readiness.",
+    "Fan-in is designed before broad fan-out; every producer has a consumer/disposition path and material multi-worker work names verifier/judge/integrator/closer behavior through existing owners.",
+    "A correction invalidates/recompiles only the affected block and transitive descendants; independent siblings continue.",
+    "Failure handling follows SUCCESS -> SAFE_PARTIAL -> KNOWN_REPAIR -> CAPABILITY_REALLOCATION -> RECOVERY -> DECOMPOSE_AROUND_BLOCKER -> HARD_BOUNDARY without using forward-progress to bypass auth/scope/privacy/truth.",
+    "Planner/worker death is recoverable from the durable compiled contract + WorkBlock + existing owner/PIN state without human recap or old chat history.",
+    "Harness A-I passes: simple local; complex multi-lane; selective correction; dependency/capability failure; capacity gate; history-free worker handoff; semantic dedupe; orphan audit; durable recovery.",
+    "Dogfood the current Prometeo Shell + Apps/Chats + Organism + distributed-work objective through the same gate and persist the resulting compiled_dispatch_contract, DAG, WorkBlocks, consumers, QA/future branches and calculated capacity_request on the existing Guide receipt surface.",
     "After implementation, persist a Guide/portfolio RETURN with changed paths, test evidence, migration/compatibility notes and one bounded follow-up only if a real residual remains."
   ],
   "evidence": [
@@ -30,9 +78,12 @@
     "coordination/guide/METABOLISM_POLICY_V1.json",
     "coordination/workers/CURRENT_WORKER_REUSE_CONTRACT_V1.json",
     "coordination/workers/WORKER_PIPELINE_V1.json",
+    "scripts/guide-recursive-successor-lib.mjs",
+    "scripts/compiled-dispatch-contract-lib.mjs",
+    "coordination/portfolio/tests/guide_pre_dispatch_compile_gate_v1.mjs",
     "coordination/guide/receipts/guide-planner-c97dc9a0e1dd/RECEIPT-wc-20261001T170924Z-39b70b3435b4.json"
   ],
   "created_at": "2026-10-01T18:47:30Z",
   "created_by": "primary-chat-compatible-delta",
-  "truth_boundary": "This job strengthens how the existing GUIDE_PLANNER role reasons, checkpoints and materializes CURRENT work. It creates no new planning authority; Work Graph/portfolio/CURRENT remain authoritative and visible Primary Chat plans remain projections."
+  "truth_boundary": "This owner strengthens how the existing GUIDE_PLANNER/Guide path compiles and gates successor work. compiled_dispatch_contract is evidence/gating state inside existing Guide receipts, never a new planning/scheduling/promotion authority. Work Graph/portfolio/CURRENT/PIN remain authoritative; visible Primary Chat plans remain projections."
 }
