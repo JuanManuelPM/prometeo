@@ -16,6 +16,7 @@ on:
       - 'scripts/lib/primary-chat-mirror-merge.mjs'
       - 'scripts/version-primary-chat-assets.mjs'
       - 'current-tree/control-v11/chat-canary/index.html'
+      - 'current-tree/control-v11/chat-canary/input-module-v1.js'
       - 'current-tree/control-v11/chat-canary/progress-v1.js'
       - '.github/workflows/chat-message-mirror-contract-harness-v1.yml'
   workflow_dispatch:
@@ -59,6 +60,7 @@ jobs:
           set -euo pipefail
           thread_rel='coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
           page_rel='current-tree/control-v11/chat-canary/index.html'
+          input_rel='current-tree/control-v11/chat-canary/input-module-v1.js'
           progress_rel='current-tree/control-v11/chat-canary/progress-v1.js'
           state_contract_rel='coordination/guide/PRIMARY_CHAT_STATE_COMMUNICATION_CONTRACT_V1.json'
           jq -e '
@@ -68,9 +70,10 @@ jobs:
             and (.privacy | contains("Raw/private"))
             and (.privacy | contains("public projection receives sanitized references and derived state only"))
           ' "$state_contract_rel" >/dev/null
-          mkdir -p "/tmp/prometeo-gh-pages/$(dirname "$thread_rel")" "/tmp/prometeo-gh-pages/$(dirname "$page_rel")" "/tmp/prometeo-gh-pages/$(dirname "$progress_rel")" "/tmp/prometeo-gh-pages/$(dirname "$state_contract_rel")"
+          mkdir -p "/tmp/prometeo-gh-pages/$(dirname "$thread_rel")" "/tmp/prometeo-gh-pages/$(dirname "$page_rel")" "/tmp/prometeo-gh-pages/$(dirname "$input_rel")" "/tmp/prometeo-gh-pages/$(dirname "$progress_rel")" "/tmp/prometeo-gh-pages/$(dirname "$state_contract_rel")"
           cp "$thread_rel" "/tmp/prometeo-gh-pages/$thread_rel"
           cp "$page_rel" "/tmp/prometeo-gh-pages/$page_rel"
+          cp "$input_rel" "/tmp/prometeo-gh-pages/$input_rel"
           cp "$progress_rel" "/tmp/prometeo-gh-pages/$progress_rel"
           cp "$state_contract_rel" "/tmp/prometeo-gh-pages/$state_contract_rel"
           cmp -s "$state_contract_rel" "/tmp/prometeo-gh-pages/$state_contract_rel"
@@ -100,10 +103,12 @@ jobs:
           set -euo pipefail
           thread_rel='coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
           page_rel='current-tree/control-v11/chat-canary/index.html'
+          input_rel='current-tree/control-v11/chat-canary/input-module-v1.js'
           progress_rel='current-tree/control-v11/chat-canary/progress-v1.js'
           state_contract_rel='coordination/guide/PRIMARY_CHAT_STATE_COMMUNICATION_CONTRACT_V1.json'
           source_thread="$GITHUB_WORKSPACE/$thread_rel"
           source_page="$GITHUB_WORKSPACE/$page_rel"
+          source_input="$GITHUB_WORKSPACE/$input_rel"
           source_progress="$GITHUB_WORKSPACE/$progress_rel"
           source_state_contract="$GITHUB_WORKSPACE/$state_contract_rel"
           cd /tmp/prometeo-gh-pages
@@ -115,6 +120,7 @@ jobs:
               gh-pages:refs/remotes/origin/gh-pages
             git show "origin/main:$thread_rel" > /tmp/prometeo-origin-main-thread.json
             git show "origin/main:$page_rel" > /tmp/prometeo-origin-main-chat-index.html
+            git show "origin/main:$input_rel" > /tmp/prometeo-origin-main-input-module-v1.js
             git show "origin/main:$progress_rel" > /tmp/prometeo-origin-main-progress-v1.js
             git show "origin/main:$state_contract_rel" > /tmp/prometeo-origin-main-state-communication-contract.json
             if ! cmp -s "$source_thread" /tmp/prometeo-origin-main-thread.json; then
@@ -123,6 +129,10 @@ jobs:
             fi
             if ! cmp -s "$source_page" /tmp/prometeo-origin-main-chat-index.html; then
               echo "Main Primary Chat page advanced; defer gh-pages publication to the newer workflow run."
+              exit 0
+            fi
+            if ! cmp -s "$source_input" /tmp/prometeo-origin-main-input-module-v1.js; then
+              echo "Main Primary Chat input asset advanced; defer gh-pages publication to the newer workflow run."
               exit 0
             fi
             if ! cmp -s "$source_progress" /tmp/prometeo-origin-main-progress-v1.js; then
@@ -134,14 +144,15 @@ jobs:
               exit 0
             fi
             git reset --hard origin/gh-pages
-            mkdir -p "$(dirname "$thread_rel")" "$(dirname "$page_rel")" "$(dirname "$progress_rel")" "$(dirname "$state_contract_rel")"
+            mkdir -p "$(dirname "$thread_rel")" "$(dirname "$page_rel")" "$(dirname "$input_rel")" "$(dirname "$progress_rel")" "$(dirname "$state_contract_rel")"
             cp "$source_thread" "$thread_rel"
             cp "$source_page" "$page_rel"
+            cp "$source_input" "$input_rel"
             cp "$source_progress" "$progress_rel"
             cp "$source_state_contract" "$state_contract_rel"
             cmp -s "$source_state_contract" "$state_contract_rel"
             node "$GITHUB_WORKSPACE/scripts/version-primary-chat-assets.mjs" --root /tmp/prometeo-gh-pages
-            git add "$thread_rel" "$page_rel" "$progress_rel" "$state_contract_rel"
+            git add "$thread_rel" "$page_rel" "$input_rel" "$progress_rel" "$state_contract_rel"
             if git diff --cached --quiet; then
               echo "Primary Chat projection already current."
               exit 0
