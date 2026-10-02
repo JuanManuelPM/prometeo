@@ -162,7 +162,10 @@ must('fresh-launch-scoreboard', strategyScoreboard, 'fresh_launch_integrity');
 const freshLaunchTest = read(root,'tests/worker-fresh-launch-v1.test.mjs');
 must('fresh-launch-test', freshLaunchTest, 'WORKER_FRESH_LAUNCH_V1_PASS');
 
-const allocator = read(root, 'scripts/build-fast-allocator.mjs');
+const allocator = [
+  read(root, 'scripts/build-fast-allocator.mjs'),
+  read(root, 'scripts/build-fast-allocator-core-v3.mjs')
+].join('\n');
 must('allocator', allocator, 'value_class');
 const latentItem = baseline?.items?.find(x=>x.id==='EFF013');
 if (latentItem?.required?.role_ready_compiled_centrally !== true) errors.push('baseline: EFF013 role_ready_compiled_centrally must be true');
@@ -1388,7 +1391,7 @@ else {
   if (eff065.required?.recovery_candidates_preserved !== true || eff065.required?.claim_authority_unchanged !== true) errors.push('ratchet: EFF065 authority/recovery drift');
   if (eff065.required?.regression_test !== 'coordination/portfolio/tests/guide_rescate_capability_recovery_pressure_v1.mjs') errors.push('ratchet: EFF065 regression-test drift');
 }
-const recoveryDiversityAllocator = read(root, 'scripts/build-fast-allocator.mjs');
+const recoveryDiversityAllocator = allocator;
 must('EFF065 allocator', recoveryDiversityAllocator, 'genericRecoveryRescuePressure');
 must('EFF065 allocator', recoveryDiversityAllocator, 'genericRecoveryDiversityKnown');
 must('EFF065 allocator', recoveryDiversityAllocator, 'generic_recovery_distinct_basis_count');
