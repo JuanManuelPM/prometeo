@@ -30,13 +30,12 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Repair ratchet source layout and workflow watches
+      - name: Repair ratchet split allocator source layout
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
-
           const checkerPath = 'scripts/check-efficiency-ratchet.mjs';
           let checker = fs.readFileSync(checkerPath, 'utf8');
           const from = "const allocator = read(root, 'scripts/build-fast-allocator.mjs');";
@@ -44,29 +43,11 @@ jobs:
           const count = checker.split(from).length - 1;
           if (count !== 1) throw new Error(`expected exactly one allocator source read, found ${count}`);
           checker = checker.replace(from, to);
-
           const recoveryFrom = "const recoveryDiversityAllocator = read(root, 'scripts/build-fast-allocator.mjs');";
           const recoveryCount = checker.split(recoveryFrom).length - 1;
           if (recoveryCount !== 1) throw new Error(`expected exactly one EFF065 allocator source read, found ${recoveryCount}`);
           checker = checker.replace(recoveryFrom, 'const recoveryDiversityAllocator = allocator;');
           fs.writeFileSync(checkerPath, checker);
-
-          const effPath = '.github/workflows/eff016b-guide-rescate-transport-debt.yml';
-          let eff = fs.readFileSync(effPath, 'utf8');
-          const effNeedle = "      - 'scripts/build-fast-allocator.mjs'\n";
-          const effInsert = "      - 'scripts/build-fast-allocator.mjs'\n      - 'scripts/build-fast-allocator-core-v3.mjs'\n      - 'scripts/check-efficiency-ratchet.mjs'\n";
-          const effCount = eff.split(effNeedle).length - 1;
-          if (effCount !== 2) throw new Error(`expected two EFF016B wrapper path entries, found ${effCount}`);
-          eff = eff.replaceAll(effNeedle, effInsert);
-          fs.writeFileSync(effPath, eff);
-
-          const livePath = '.github/workflows/live-feed.yml';
-          let live = fs.readFileSync(livePath, 'utf8');
-          const liveNeedle = "      - 'scripts/build-fast-allocator.mjs'\n";
-          const liveCount = live.split(liveNeedle).length - 1;
-          if (liveCount !== 1) throw new Error(`expected one Live wrapper path entry, found ${liveCount}`);
-          live = live.replace(liveNeedle, "      - 'scripts/build-fast-allocator.mjs'\n      - 'scripts/build-fast-allocator-core-v3.mjs'\n");
-          fs.writeFileSync(livePath, live);
           NODE
 
       - name: Verify EFF016B and transport boundary contract
@@ -93,9 +74,7 @@ jobs:
           const blockedRef = 'coordination/workers/no-allocation/wc-20261001T232400Z-9f3a7c1d8b2e.json';
           const rescates = (allocator.role_ready || []).filter(row => row.role === 'GUIDE_RESCATE');
           const actionableEvidence = rescates.flatMap(row => row?.claim_payload_shape?.evidence || row?.evidence || []);
-          if (actionableEvidence.includes(blockedRef)) {
-            throw new Error('classification-only explicit transport denial leaked into actionable GUIDE_RESCATE evidence');
-          }
+          if (actionableEvidence.includes(blockedRef)) throw new Error('classification-only explicit transport denial leaked into actionable GUIDE_RESCATE evidence');
           console.log(JSON.stringify({
             schema: allocator.schema,
             generated_at: allocator.generated_at || null,
@@ -107,17 +86,14 @@ jobs:
           }));
           NODE
 
-      - name: Commit durable repair and remove one-shot workflow
+      - name: Commit checker repair only
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm .github/workflows/eff016b-source-layout-repair-v1.yml
-          git add scripts/check-efficiency-ratchet.mjs \
-            .github/workflows/eff016b-guide-rescate-transport-debt.yml \
-            .github/workflows/live-feed.yml
-          git commit -m 'EFF016B: teach ratchet and workflows split allocator source layout'
+          git add scripts/check-efficiency-ratchet.mjs
+          git commit -m 'EFF016B: teach ratchet split allocator source layout'
           for n in 1 2 3; do
             if git push origin HEAD:main; then exit 0; fi
             git fetch origin main
