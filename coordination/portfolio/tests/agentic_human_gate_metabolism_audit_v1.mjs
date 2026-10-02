@@ -61,7 +61,7 @@ const cases = [
   ['local_vs_global_wait', gate.machine_transitions.LOCAL_BLOCK_WITH_INDEPENDENT_SIBLINGS.includes('not a global stop')],
   ['return_without_consumer', gate.machine_transitions.RETURN_WITHOUT_CONSUMER.includes('independent work moving')],
   ['zero_live_ready_work', primary.state_rules.REFILL_N.includes('capacity_gap > 0') && primary.state_rules.REFILL_N.includes('> 0')],
-  ['no_prepared_work_no_refill', primary.state_rules.NO_SAFE_WORK === 'otherwise' && gate.no_prepared_work_rule.includes('do not project REFILL')),
+  ['no_prepared_work_no_refill', primary.state_rules.NO_SAFE_WORK === 'otherwise' && gate.no_prepared_work_rule.includes('do not project REFILL')],
   ['real_human_boundary', gate.human_wait_requires_one_of.length >= 3 && primary.human_boundary_wait.human_silence_alone === 'NOT_A_BOTTLENECK'],
   ['resident_submit_next', gate.machine_transitions.COUNTED_RESIDENT_RETURN.includes('E8/SUBMIT_NEXT') && /without new human routing/i.test(e8.goal)],
   ['return_with_consumer', gate.machine_transitions.RETURN_WITH_CONSUMER.includes('GUIDE_INTEGRATOR') && /avoid sending the result back to the human/i.test(guide)]
