@@ -6,8 +6,30 @@ function normalizedMessage(message) {
   return clone;
 }
 
+function normalizedMessageWithoutEvidence(message) {
+  const clone = normalizedMessage(message);
+  delete clone.evidence_refs;
+  return clone;
+}
+
 function sameMessage(a, b) {
   return JSON.stringify(normalizedMessage(a)) === JSON.stringify(normalizedMessage(b));
+}
+
+function sameMessageExceptEvidence(a, b) {
+  return JSON.stringify(normalizedMessageWithoutEvidence(a)) === JSON.stringify(normalizedMessageWithoutEvidence(b));
+}
+
+function enrichEvidenceRefs(target, candidate) {
+  const merged = [...new Set([
+    ...(Array.isArray(target?.evidence_refs) ? target.evidence_refs : []),
+    ...(Array.isArray(candidate?.evidence_refs) ? candidate.evidence_refs : [])
+  ])].sort();
+  const current = Array.isArray(target?.evidence_refs) ? [...target.evidence_refs].sort() : [];
+  if (JSON.stringify(current) === JSON.stringify(merged)) return false;
+  if (merged.length) target.evidence_refs = merged;
+  else delete target.evidence_refs;
+  return true;
 }
 
 function timestamp(message) {
@@ -50,12 +72,18 @@ export function mergePrimaryChatMessages(threadInput, candidateMessages = []) {
 
   let added = 0;
   let idempotent = 0;
+  let updated = 0;
   for (const candidate of candidateMessages) {
     if (!candidate?.message_id) throw new Error('CANDIDATE_MESSAGE_ID_REQUIRED');
 
     const sameId = byId.get(candidate.message_id);
     if (sameId) {
-      if (!sameMessage(sameId, candidate)) throw new Error(`MESSAGE_ID_CONFLICT:${candidate.message_id}`);
+      if (!sameMessage(sameId, candidate)) {
+        if (!sameMessageExceptEvidence(sameId, candidate)) {
+          throw new Error(`MESSAGE_ID_CONFLICT:${candidate.message_id}`);
+        }
+        if (enrichEvidenceRefs(sameId, candidate)) updated += 1;
+      }
       idempotent += 1;
       continue;
     }
@@ -90,7 +118,7 @@ export function mergePrimaryChatMessages(threadInput, candidateMessages = []) {
   }, { ms: 0, value: thread.updated_at || null });
   if (newest.value) thread.updated_at = newest.value;
 
-  return { thread, added, idempotent };
+  return { thread, added, idempotent, updated };
 }
 
 export function reconcilePrimaryChatCanonicalWorkerReplies(threadInput, canonicalMessages = []) {

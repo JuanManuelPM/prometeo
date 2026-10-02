@@ -96,13 +96,13 @@ if (!canonicalMessages.length) {
 }
 
 const reconciled = reconcilePrimaryChatCanonicalWorkerReplies(thread, canonicalMessages);
-if (!reconciled.added && !reconciled.superseded) {
+if (!reconciled.added && !reconciled.superseded && !reconciled.updated) {
   console.log('Primary Chat mirror already matches canonical canary winners.');
   process.exit(0);
 }
 
 fs.writeFileSync(threadPath, JSON.stringify(reconciled.thread, null, 2) + '\n');
-console.log(`Primary Chat mirror reconciled ${reconciled.added} canonical winner(s); superseded ${reconciled.superseded} stale retry projection(s).`);
+console.log(`Primary Chat mirror reconciled ${reconciled.added} canonical winner(s); superseded ${reconciled.superseded} stale retry projection(s); enriched ${reconciled.updated} evidence set(s).`);
 for (const message of canonicalMessages) {
   if (reconciled.thread.messages.some(existing => existing.result_ref === message.result_ref)) {
     console.log(`${message.reply_to_message_id} -> ${message.body_text} (${message.result_ref})`);

@@ -54,7 +54,27 @@ assert.equal(latest.thread.messages.length, 3);
 const duplicate = mergePrimaryChatMessages(latest.thread, [b]);
 assert.equal(duplicate.added, 0);
 assert.equal(duplicate.idempotent, 1);
+assert.equal(duplicate.updated, 0);
 assert.equal(duplicate.thread.messages.length, 3);
+
+const evidenceBase = {
+  ...b,
+  message_id: 'MSG-WORKER-EVIDENCE',
+  result_ref: 'returns/EVIDENCE.json',
+  evidence_refs: ['evidence/one.json']
+};
+const evidenceThread = mergePrimaryChatMessages(base, [evidenceBase]).thread;
+const evidenceEnriched = mergePrimaryChatMessages(evidenceThread, [{
+  ...evidenceBase,
+  evidence_refs: ['evidence/two.json', 'evidence/one.json']
+}]);
+assert.equal(evidenceEnriched.added, 0);
+assert.equal(evidenceEnriched.idempotent, 1);
+assert.equal(evidenceEnriched.updated, 1);
+assert.deepEqual(
+  evidenceEnriched.thread.messages.find(m => m.message_id === evidenceBase.message_id).evidence_refs,
+  ['evidence/one.json', 'evidence/two.json']
+);
 
 assert.throws(
   () => mergePrimaryChatMessages(latest.thread, [{ ...b, body_text: 'DIFFERENT' }]),
@@ -73,6 +93,7 @@ console.log(JSON.stringify({
     'UNIQUE_APPEND',
     'STALE_WRITERS_RECONCILE_TO_LATEST_WITHOUT_LOSS',
     'DUPLICATE_IDEMPOTENT',
+    'EVIDENCE_REFS_ENRICH_MONOTONIC_IDEMPOTENT',
     'MESSAGE_ID_CONFLICT_FAIL_CLOSED',
     'RESULT_REF_CONFLICT_FAIL_CLOSED'
   ]
