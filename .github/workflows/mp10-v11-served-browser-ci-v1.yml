@@ -34,6 +34,42 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Publish atomic V11 candidate served cut
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          source_root="$GITHUB_WORKSPACE/current-tree/control-v11"
+          for n in $(seq 1 12); do
+            git worktree remove --force /tmp/prometeo-v11-pages 2>/dev/null || true
+            rm -rf /tmp/prometeo-v11-pages
+            git worktree prune
+            git fetch origin gh-pages
+            git worktree add --detach /tmp/prometeo-v11-pages origin/gh-pages
+            mkdir -p /tmp/prometeo-v11-pages/current-tree/control-v11
+            cp "$source_root/v11.js" /tmp/prometeo-v11-pages/current-tree/control-v11/v11.js
+            cp "$source_root/data-layer.js" /tmp/prometeo-v11-pages/current-tree/control-v11/data-layer.js
+            git -C /tmp/prometeo-v11-pages add \
+              current-tree/control-v11/v11.js \
+              current-tree/control-v11/data-layer.js
+            if git -C /tmp/prometeo-v11-pages diff --cached --quiet; then
+              echo "V11 candidate served cut already byte-current."
+              git worktree remove --force /tmp/prometeo-v11-pages
+              exit 0
+            fi
+            git -C /tmp/prometeo-v11-pages commit -m "v11: publish atomic candidate served cut ${GITHUB_SHA} attempt ${n}"
+            if git -C /tmp/prometeo-v11-pages push origin HEAD:gh-pages; then
+              git worktree remove --force /tmp/prometeo-v11-pages
+              exit 0
+            fi
+            echo "gh-pages advanced during V11 publish attempt ${n}; rebuilding atomic cut from latest head."
+            git worktree remove --force /tmp/prometeo-v11-pages
+            sleep 1
+          done
+          echo "V11 atomic candidate publication exhausted bounded no-force retries" >&2
+          exit 1
+
       - name: Gate Chromium on mutated served-cut identity
         env:
           V11_PUBLIC_BASE: https://juanmanuelpm.github.io/prometeo/current-tree/control-v11
