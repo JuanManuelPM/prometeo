@@ -13,6 +13,7 @@
   const RESERVE_LOW_THRESHOLD = 3;
   const CORE_LIMIT = 6;
   const QA_STATUSES = new Set(['QA_PENDING','QA_PASS','QA_REPAIR_IN_PROGRESS','QA_BLOCKED','READY_TO_PROMOTE']);
+  // Guard durable: no promover a éxito sin evidencia compatible y explícita.
 
   function el(tag, text, className) {
     const node = document.createElement(tag);
