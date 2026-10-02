@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const { compileRoleFrontier } = await import(pathToFileURL(path.join(root, 'scripts/build-fast-allocator.mjs')).href);
+const { compileRoleFrontier, isExplicitClaimTransportBlocked } = await import(pathToFileURL(path.join(root, 'scripts/build-fast-allocator.mjs')).href);
 
 const baseline = JSON.parse(fs.readFileSync(path.join(root, 'coordination/efficiency/RATCHET_BASELINE_V1.json'),'utf8'));
 const ratchet = baseline.items.find(x => x.id === 'EFF016B');
@@ -39,15 +39,32 @@ const blocked = n => Array.from({length:n}, (_,i) => ({
   path:`coordination/workers/no-allocation/blocked-${i+1}.json`,
   doc:{schema:'prometeo.worker-no-allocation/v1',observed_at:nowIso,reason:'CLAIM_TRANSPORT_BLOCKED',outcome:'CLAIM_TRANSPORT_BLOCKED'}
 }));
+const blockedClassificationOnly = {
+  path:'coordination/workers/no-allocation/wc-20261001T232400Z-9f3a7c1d8b2e.json',
+  doc:{schema:'prometeo.worker-no-allocation/v1',observed_at:nowIso,classification:'CLAIM_TRANSPORT_BLOCKED'}
+};
+const blockedNestedOnly = {
+  path:'coordination/workers/no-allocation/nested-transport-boundary.json',
+  doc:{schema:'prometeo.worker-no-allocation/v1',observed_at:nowIso,transport_boundary_v1:{classification:'CLAIM_TRANSPORT_BLOCKED'}}
+};
 const raced = n => Array.from({length:n}, (_,i) => ({
   path:`coordination/workers/no-allocation/race-${i+1}.json`,
   doc:{schema:'prometeo.worker-no-allocation/v1',observed_at:nowIso,reason:'CLAIM_RACE_EXHAUSTED'}
 }));
 const feed = {generated_at:nowIso, source_sha:'fixture', workers:[]};
 
+assert.equal(isExplicitClaimTransportBlocked(blockedClassificationOnly.doc), true, 'root classification alias must normalize as explicit transport block');
+assert.equal(isExplicitClaimTransportBlocked(blockedNestedOnly.doc), true, 'nested transport boundary classification must normalize as explicit transport block');
+
 let out = compileRoleFrontier(feed, {status:'HEALTHY'}, [], [], [], [], {...baseContext,noAlloc:blocked(3)});
 assert.equal(out.role_ready.some(row => row.role === 'GUIDE_RESCATE'), false, 'explicit transport denials alone must not self-materialize GUIDE_RESCATE');
 assert.equal(out.metabolism.recent_no_allocation, 3, 'transport denials stay observable in total telemetry');
+assert.equal(out.metabolism.rescue_eligible_recent_no_allocation, 0);
+assert.equal(out.metabolism.explicit_transport_blocked_recent_no_allocation, 3);
+
+out = compileRoleFrontier(feed, {status:'HEALTHY'}, [], [], [], [], {...baseContext,noAlloc:[blockedClassificationOnly, blockedNestedOnly, blocked(1)[0]]});
+assert.equal(out.role_ready.some(row => row.role === 'GUIDE_RESCATE'), false, 'classification-only denial receipts must remain telemetry, not rescue debt');
+assert.equal(out.metabolism.recent_no_allocation, 3);
 assert.equal(out.metabolism.rescue_eligible_recent_no_allocation, 0);
 assert.equal(out.metabolism.explicit_transport_blocked_recent_no_allocation, 3);
 
@@ -56,7 +73,7 @@ assert.ok(out.role_ready.some(row => row.role === 'GUIDE_RESCATE'), 'three actio
 assert.equal(out.metabolism.rescue_eligible_recent_no_allocation, 3);
 assert.equal(out.metabolism.explicit_transport_blocked_recent_no_allocation, 0);
 
-const mixedNoAlloc = [...blocked(2), ...raced(1)];
+const mixedNoAlloc = [blockedClassificationOnly, blockedNestedOnly, ...raced(1)];
 const recovery = [
   {job_id:'recovery-a',predecessor_pin_ref:'coordination/portfolio/pins/recovery-a/G000001.json',required_capabilities:[]},
   {job_id:'recovery-b',predecessor_pin_ref:'coordination/portfolio/pins/recovery-b/G000001.json',required_capabilities:[]},
@@ -67,7 +84,8 @@ const rescue = out.role_ready.find(row => row.role === 'GUIDE_RESCATE');
 assert.ok(rescue, 'independent generic recovery pressure must still trigger GUIDE_RESCATE');
 const evidence = rescue.claim_payload_shape?.evidence || rescue.evidence || [];
 assert.ok(evidence.includes('coordination/workers/no-allocation/race-1.json'), 'actionable no-allocation stays in rescue evidence');
-assert.ok(!evidence.some(ref => ref.includes('/blocked-')), 'explicit transport denials must not enter rescue repair evidence');
+assert.ok(!evidence.includes(blockedClassificationOnly.path), 'root classification-only transport denial must not enter rescue repair evidence');
+assert.ok(!evidence.includes(blockedNestedOnly.path), 'nested classification transport denial must not enter rescue repair evidence');
 assert.equal(out.metabolism.recent_no_allocation, 3);
 assert.equal(out.metabolism.rescue_eligible_recent_no_allocation, 1);
 assert.equal(out.metabolism.explicit_transport_blocked_recent_no_allocation, 2);
@@ -77,9 +95,9 @@ const efficiencyRegression = {
   no_allocation_causes:{
     recent_total:3,
     recent_receipts:[
-      {reason:'CLAIM_TRANSPORT_BLOCKED',ref:'coordination/workers/no-allocation/blocked-efficiency.json'},
+      {classification:'CLAIM_TRANSPORT_BLOCKED',ref:'coordination/workers/no-allocation/blocked-efficiency.json'},
       {reason:'CLAIM_RACE_EXHAUSTED',ref:'coordination/workers/no-allocation/race-efficiency.json'},
-      {outcome:'CLAIM_TRANSPORT_BLOCKED',ref:'coordination/workers/no-allocation/blocked-outcome-efficiency.json'}
+      {transport_boundary_v1:{classification:'CLAIM_TRANSPORT_BLOCKED'},ref:'coordination/workers/no-allocation/blocked-nested-efficiency.json'}
     ]
   }
 };
