@@ -96,6 +96,14 @@ function keyOf(x) {
   return x?.claim_path || [x?.lane,x?.job_id,x?.opportunity_id,x?.role_id,x?.guide_work_id].filter(Boolean).join(':');
 }
 
+function stableJobRouteKey(lane, item) {
+  return item?.job_id ? `${lane}:job:${item.job_id}` : null;
+}
+
+function isBarrierRoutedCandidate(item) {
+  return String(item?.claim_mode || '').startsWith('PORTFOLIO_BARRIER_') || item?.contention_barrier?.mode === 'contention_barrier';
+}
+
 function serializedBytes(value) {
   return Buffer.byteLength(JSON.stringify(value), 'utf8');
 }
@@ -187,12 +195,27 @@ export function buildClaimFrontier(
   ]) for (const row of arr(rows)) live.push({ lane, row });
 
   const byKey = new Map(live.map(({lane,row}) => [keyOf({lane,...row}), {lane,row}]));
+  // Contention routing intentionally changes or removes claim_path. Reconcile an older/raw
+  // batch candidate only to the final live barrier representation of the same lane+job so the
+  // compact frontier cannot resurrect the pre-barrier portfolio PIN.
+  const barrierByStableJob = new Map(
+    live
+      .filter(({row}) => isBarrierRoutedCandidate(row))
+      .map(({lane,row}) => [stableJobRouteKey(lane,row), {lane,row}])
+      .filter(([key]) => Boolean(key))
+  );
+  const suppressedBarrierJobs = new Set(
+    arr(allocator?.contention_barrier_routing?.suppressed_expired_candidates)
+      .map(row => row?.job_id)
+      .filter(Boolean)
+  );
   const ordered = [];
   const seen = new Set();
 
   for (const raw of arr(allocator.batch_candidates)) {
     const lane = raw.lane || 'ready';
-    const match = byKey.get(keyOf(raw));
+    if (raw?.job_id && suppressedBarrierJobs.has(raw.job_id)) continue;
+    const match = byKey.get(keyOf(raw)) || barrierByStableJob.get(stableJobRouteKey(lane,raw));
     const row = match?.row || raw;
     const key = keyOf({lane,...row});
     if (!key || seen.has(key)) continue;
@@ -201,6 +224,7 @@ export function buildClaimFrontier(
   }
 
   for (const {lane,row} of live) {
+    if (row?.job_id && suppressedBarrierJobs.has(row.job_id)) continue;
     const key = keyOf({lane,...row});
     if (!key || seen.has(key)) continue;
     seen.add(key);
