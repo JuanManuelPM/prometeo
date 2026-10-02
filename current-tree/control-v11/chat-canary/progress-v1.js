@@ -12,6 +12,7 @@
   const LIVE_MS = 600000;
   const RESERVE_LOW_THRESHOLD = 3;
   const CORE_LIMIT = 6;
+  const QA_STATUSES = new Set(['QA_PENDING','QA_PASS','QA_REPAIR_IN_PROGRESS','QA_BLOCKED','READY_TO_PROMOTE']);
 
   function el(tag, text, className) {
     const node = document.createElement(tag);
@@ -142,6 +143,40 @@
     return Object.freeze({ name, expected, actual, pass: actual === expected });
   }
 
+  function explicitQa(thread) {
+    const rows = Array.isArray(thread?.messages) ? thread.messages : [];
+    const found = rows.map(row => {
+      const status = String(row?.qa_status || row?.metadata?.qa_status || row?.qa?.status || row?.metadata?.qa?.status || '').toUpperCase();
+      if (!QA_STATUSES.has(status)) return null;
+      const at = asDate(row?.qa_updated_at || row?.metadata?.qa_updated_at || row?.qa?.updated_at || row?.published_at || row?.created_at);
+      if (!at) return null;
+      return {
+        status,
+        at: at.toISOString(),
+        artifact_ref: row?.artifact_ref || row?.metadata?.artifact_ref || row?.qa?.artifact_ref || null,
+        version_ref: row?.version_ref || row?.metadata?.version_ref || row?.qa?.version_ref || null,
+        evidence_ref: row?.qa_evidence_ref || row?.metadata?.qa_evidence_ref || row?.qa?.evidence_ref || null
+      };
+    }).filter(Boolean).sort((a,b)=>new Date(b.at)-new Date(a.at));
+    return found[0] || null;
+  }
+
+  function workerRows(workers, now = Date.now()) {
+    return workers.map(worker => {
+      const signal = asDate(lastWorkerSignal(worker));
+      if (!signal) return null;
+      const terminal = isTerminal(worker);
+      return {
+        worker_id: worker?.worker_id || worker?.id || worker?.agent_id || 'worker',
+        terminal,
+        state: terminal ? String(worker?.close?.outcome || worker?.state || 'CLOSED') : String(worker?.state || worker?.stage || 'LIVE'),
+        last_signal_at: signal.toISOString(),
+        age_seconds: Math.max(0, Math.round((now - signal.getTime()) / 1000)),
+        result_ref: worker?.close?.result_ref || worker?.result_ref || worker?.return_ref || null
+      };
+    }).filter(Boolean).sort((a,b)=>new Date(b.last_signal_at)-new Date(a.last_signal_at));
+  }
+
   function runCapacityHarness() {
     const cases = [
       scenario('0 workers + trabajo', {live:0,claimable:4,core:4,reserve:0,need:4}, 'REFILL_N'),
@@ -159,7 +194,9 @@
     const freshnessNow = Date.parse('2026-10-01T22:45:00Z');
     const freshnessCases = [
       {name:'block reciente cuenta', pass:isFreshClaimTransportBlock({close:{outcome:'CLAIM_TRANSPORT_BLOCKED',at:'2026-10-01T22:44:00Z'}}, freshnessNow) === true},
-      {name:'block histórico no envenena estado actual', pass:isFreshClaimTransportBlock({close:{outcome:'CLAIM_TRANSPORT_BLOCKED',at:'2026-10-01T22:20:00Z'}}, freshnessNow) === false}
+      {name:'block histórico no envenena estado actual', pass:isFreshClaimTransportBlock({close:{outcome:'CLAIM_TRANSPORT_BLOCKED',at:'2026-10-01T22:20:00Z'}}, freshnessNow) === false},
+      {name:'terminal no cuenta como live', pass:workerRows([{worker_id:'done',terminal:true,last_event_at:'2026-10-01T22:44:30Z'}],freshnessNow)[0]?.terminal === true},
+      {name:'QA sólo sale de campo durable explícito', pass:explicitQa({messages:[{body_text:'QA_PASS no debe inferirse desde prose',published_at:'2026-10-01T22:44:00Z'},{qa_status:'QA_PASS',qa_updated_at:'2026-10-01T22:44:30Z'}]})?.status === 'QA_PASS'}
     ].map(row => Object.freeze({...row, expected:true, actual:row.pass}));
     const all = [...cases, ...freshnessCases];
     return Object.freeze({ total: all.length, passed: all.filter(row => row.pass).length, cases: all });
@@ -195,11 +232,8 @@
     const batchId = runtime?.current_batch || 'POOL-PROD-01';
     const batch = Array.isArray(runtime?.batches) ? runtime.batches.find(row => row && row.batch_id === batchId) : null;
     const workers = Array.isArray(batch?.workers) ? batch.workers : [];
-    const live = workers.filter(worker => {
-      if (isTerminal(worker)) return false;
-      const signal = asDate(lastWorkerSignal(worker));
-      return Boolean(signal && now - signal.getTime() < LIVE_MS);
-    }).length;
+    const rows = workerRows(workers, now);
+    const live = rows.filter(row => !row.terminal && row.age_seconds * 1000 < LIVE_MS).length;
     const candidates = Array.isArray(frontier?.candidates) ? frontier.candidates : [];
     const generic = candidates.filter(row => !Array.isArray(row?.required_capabilities) || row.required_capabilities.length === 0).length;
     const specialized = Math.max(0, candidates.length - generic);
@@ -215,11 +249,12 @@
     const blocked = workers.filter(worker => isFreshClaimTransportBlock(worker, now)).length;
     const recovery = candidates.filter(row => String(row?.lane || row?.candidate_type || '').toUpperCase() === 'RECOVERY').length;
     const explicitComplete = runtime?.campaign_complete === true || batch?.campaign_complete === true;
+    const lastFinished = rows.find(row => row.terminal) || null;
     return Object.freeze({
       batchId,
       input: Object.freeze({
         last_human_action_at: humanAt?.toISOString() || null,
-        last_worker_signal_at: workers.map(lastWorkerSignal).filter(Boolean).sort().at(-1) || null,
+        last_worker_signal_at: rows[0]?.last_signal_at || null,
         live_worker_count: live,
         claimable_generic_count: generic,
         claimable_specialized_count: specialized,
@@ -238,7 +273,10 @@
       }),
       projectionAt: projectionAt?.toISOString() || null,
       humanAt: humanAt?.toISOString() || null,
-      humanAgeMs: humanAt ? Math.max(0, now - humanAt.getTime()) : null
+      humanAgeMs: humanAt ? Math.max(0, now - humanAt.getTime()) : null,
+      recentWorkers: rows.slice(0, 4),
+      lastFinished,
+      qa: explicitQa(thread)
     });
   }
 
@@ -258,6 +296,11 @@
       stale: state === 'PROJECTION_STALE',
       humanDecisionRequired: derived.input.human_decision_required,
       state,
+      recentWorkers: derived.recentWorkers,
+      lastFinished: derived.lastFinished,
+      lastReturnAt: derived.input.last_return_at,
+      lastVisibleResultAt: derived.input.last_visible_result_at,
+      qa: derived.qa,
       contractInput: derived.input
     });
   }
@@ -267,6 +310,20 @@
     const min = Math.max(0, Math.round(ms / 60000));
     if (min < 60) return 'acción humana hace ' + min + 'm';
     return 'acción humana hace ' + Math.round(min / 60) + 'h';
+  }
+
+  function compactAge(seconds) {
+    if (!Number.isFinite(Number(seconds))) return '—';
+    const value = Math.max(0, Number(seconds));
+    if (value < 60) return Math.round(value) + 's';
+    if (value < 3600) return Math.round(value / 60) + 'm';
+    return Math.round(value / 3600) + 'h';
+  }
+
+  function projectionLabel(value) {
+    const date = asDate(value);
+    if (!date) return 'proyección desconocida';
+    return 'proyección ' + date.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   }
 
   function actionText(snapshot, contract) {
@@ -289,9 +346,38 @@
     if (!thread || !thread.parentNode) return null;
     host = el('section');
     host.setAttribute('data-primary-chat-capacity-action-v1','');
-    host.style.cssText = 'margin:8px 2px 2px;padding:10px 0;border-top:1px solid #202020;border-bottom:1px solid #202020;color:#bdbdb8;font:11px/1.45 ui-sans-serif,system-ui;';
+    host.setAttribute('aria-label','Estado CURRENT de Prometeo');
+    host.style.cssText = 'margin:4px 2px 20px;padding:14px 0 16px;border-top:1px solid #2b2b2b;border-bottom:1px solid #2b2b2b;color:#bdbdb8;font:12px/1.45 ui-sans-serif,system-ui;min-height:170px;';
     thread.parentNode.insertBefore(host, thread);
     return host;
+  }
+
+  function renderWorkerSignals(snapshot) {
+    const wrap = el('div');
+    wrap.style.cssText = 'display:grid;gap:5px;margin-top:12px;padding-top:10px;border-top:1px solid #171717;';
+    const title = el('div','SEÑALES RECIENTES');
+    title.style.cssText = 'font-size:8px;letter-spacing:.12em;color:#5f5f5b;font-weight:700;';
+    wrap.append(title);
+    const rows = Array.isArray(snapshot.recentWorkers) ? snapshot.recentWorkers : [];
+    if (!rows.length) {
+      const empty = el('div','sin señales de worker disponibles');
+      empty.style.cssText = 'color:#5f5f5b;font-size:10px;';
+      wrap.append(empty);
+      return wrap;
+    }
+    for (const row of rows.slice(0,3)) {
+      const line = el('div');
+      line.style.cssText = 'display:grid;grid-template-columns:9px minmax(0,1fr) auto;gap:7px;align-items:center;';
+      const dot = el('span','●');
+      dot.style.cssText = 'font-size:8px;color:' + (row.terminal ? '#777' : row.age_seconds * 1000 < LIVE_MS ? '#82d69a' : '#d9b45f') + ';';
+      const main = el('span', row.worker_id + ' · ' + row.state);
+      main.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#8a8a86;font:9px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;';
+      const age = el('span',compactAge(row.age_seconds));
+      age.style.cssText = 'color:#60605c;font-size:9px;';
+      line.append(dot,main,age);
+      wrap.append(line);
+    }
+    return wrap;
   }
 
   function renderCapacity(host, snapshot, harness, contract) {
@@ -300,16 +386,64 @@
     host.dataset.contract = contract?.schema || 'UNAVAILABLE';
     host.dataset.authority = contract?.authority || 'NON_AUTHORITATIVE_DERIVED_PROJECTION';
     host.dataset.harness = harness.passed + '/' + harness.total;
+    if (snapshot.qa?.status) host.dataset.qaStatus = snapshot.qa.status;
+    else delete host.dataset.qaStatus;
+
+    const head = el('div');
+    head.style.cssText = 'display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;';
+    const eyebrow = el('strong','CURRENT');
+    eyebrow.style.cssText = 'font-size:9px;letter-spacing:.15em;color:#d7d7d2;';
+    const projected = el('span',projectionLabel(snapshot.projectionAt));
+    projected.style.cssText = 'color:#666;font-size:9px;';
+    head.append(eyebrow,projected);
+
     const title = el('div', snapshot.state);
-    title.style.cssText = 'font-weight:700;color:#d7d7d2;letter-spacing:.02em;';
-    const metrics = el('div', 'Core ' + snapshot.core + ' · Live ' + snapshot.live + ' · Reserve ' + snapshot.reserve + ' · Need ' + snapshot.need + ' · Claimable ' + snapshot.claimable);
-    metrics.style.cssText = 'margin-top:3px;color:#777;font-size:10px;';
-    const human = el('div', ageLabel(snapshot.humanAgeMs) + ' · proyección ' + (snapshot.projectionAt ? new Date(snapshot.projectionAt).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : 'desconocida'));
-    human.style.cssText = 'margin-top:3px;color:#666;font-size:9px;';
+    title.style.cssText = 'margin-top:7px;font-size:clamp(20px,5.5vw,28px);line-height:1.05;font-weight:760;color:#ecece8;letter-spacing:-.035em;overflow-wrap:anywhere;';
+
     const action = el('div', actionText(snapshot, contract));
     const pending = ['PROJECTION_STALE','HUMAN_DECISION_REQUIRED','CLAIM_TRANSPORT_DEGRADED','HUMAN_INTENT_WAITING_NO_CAPACITY','RETURNS_UNCONSUMED','RECOVERY_PRESSURE','REFILL_N','BUFFER_LOW','NO_SAFE_WORK'].includes(snapshot.state);
-    action.style.cssText = 'margin-top:6px;color:' + (pending ? '#d9b45f' : '#82d69a') + ';font-weight:650;';
-    host.append(title, metrics, human, action);
+    action.style.cssText = 'margin-top:9px;color:' + (pending ? '#d9b45f' : '#82d69a') + ';font-size:14px;line-height:1.35;font-weight:720;';
+
+    const metrics = el('div');
+    metrics.style.cssText = 'display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:13px;';
+    for (const [label,value] of [['LIVE',snapshot.live],['NEED',snapshot.need],['CLAIM',snapshot.claimable],['RESERVE',snapshot.reserve]]) {
+      const item = el('div');
+      const v = el('div',value);
+      v.style.cssText = 'font-size:17px;font-weight:730;color:#d3d3cf;line-height:1;';
+      const l = el('div',label);
+      l.style.cssText = 'margin-top:3px;font-size:7px;letter-spacing:.1em;color:#565652;';
+      item.append(v,l);
+      metrics.append(item);
+    }
+
+    const context = el('div', ageLabel(snapshot.humanAgeMs));
+    context.style.cssText = 'margin-top:9px;color:#61615d;font-size:9px;';
+
+    host.append(head,title,action,metrics,context);
+
+    if (snapshot.lastFinished || snapshot.lastReturnAt) {
+      const last = snapshot.lastFinished;
+      const line = el('div');
+      line.style.cssText = 'margin-top:11px;padding-top:9px;border-top:1px solid #171717;color:#777;font-size:9px;line-height:1.4;overflow-wrap:anywhere;';
+      const ref = last?.result_ref || null;
+      line.textContent = 'ÚLTIMO TERMINADO · ' + (last?.worker_id || 'worker') + (last?.last_signal_at ? ' · ' + projectionLabel(last.last_signal_at).replace('proyección ','') : '') + (ref ? ' · ' + ref : snapshot.lastReturnAt ? ' · return ' + snapshot.lastReturnAt : '');
+      host.append(line);
+    }
+
+    if (snapshot.qa) {
+      const qa = el('div','QA ' + snapshot.qa.status + (snapshot.qa.version_ref ? ' · ' + snapshot.qa.version_ref : ''));
+      const qaPending = ['QA_PENDING','QA_REPAIR_IN_PROGRESS','QA_BLOCKED'].includes(snapshot.qa.status);
+      qa.style.cssText = 'margin-top:9px;color:' + (qaPending ? '#d9b45f' : '#82d69a') + ';font-size:10px;font-weight:700;overflow-wrap:anywhere;';
+      qa.title = [snapshot.qa.artifact_ref,snapshot.qa.evidence_ref].filter(Boolean).join(' · ');
+      host.append(qa);
+    }
+
+    host.append(renderWorkerSignals(snapshot));
+
+    const history = el('div','HISTORIA ↓');
+    history.style.cssText = 'margin-top:14px;padding-top:9px;border-top:1px solid #202020;color:#50504d;font-size:8px;font-weight:700;letter-spacing:.12em;';
+    host.append(history);
+
     host.title = 'Projection only · owner: ' + WAKE_OWNER_REF + ' · contract ' + (contract?.schema || 'unavailable') + ' · harness ' + harness.passed + '/' + harness.total;
   }
 
@@ -324,7 +458,7 @@
       renderCapacity(host, snapshot, harness, contract);
       return {ok:true,snapshot,harness,contract:contract.schema};
     } catch (error) {
-      const snapshot = Object.freeze({state:'PROJECTION_STALE',live:0,claimable:0,core:0,reserve:0,need:0,humanAgeMs:null,projectionAt:null,stale:true});
+      const snapshot = Object.freeze({state:'PROJECTION_STALE',live:0,claimable:0,core:0,reserve:0,need:0,humanAgeMs:null,projectionAt:null,stale:true,recentWorkers:[],lastFinished:null,lastReturnAt:null,qa:null});
       renderCapacity(host, snapshot, harness, null);
       host.title = 'PROJECTION_STALE · ' + (error?.message || 'UNKNOWN') + ' · projection only · harness ' + harness.passed + '/' + harness.total;
       return {ok:false,reason:error?.message || 'UNKNOWN',harness};
@@ -345,6 +479,8 @@
       classify:classifyCapacityState,
       compileContractState,
       snapshot:capacitySnapshot,
+      explicitQa,
+      workerRows,
       runHarness:runCapacityHarness,
       load:loadCapacityAction
     })
