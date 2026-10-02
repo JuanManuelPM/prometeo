@@ -7,17 +7,22 @@ on:
       - 'coordination/portfolio/tests/chat_message_mirror_contract_harness_v1.mjs'
       - 'coordination/portfolio/tests/primary_chat_mirror_atomic_append_v1.mjs'
       - 'coordination/portfolio/tests/primary_chat_asset_versioning_v1.mjs'
+      - 'coordination/portfolio/tests/primary_chat_async_qa_v1.mjs'
+      - 'coordination/portfolio/tests/primary_chat_async_qa_served_browser_v1.mjs'
       - 'coordination/portfolio/fixtures/chat_message_mirror_contract_harness_v1.json'
       - 'coordination/portfolio/derived/prometeo-autonomous-growth/CHAT_MESSAGE_MIRROR_CANARY_V1.json'
       - 'coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
       - 'coordination/portfolio/returns/portfolio-primary-chat-canary-*/RETURN-*.json'
       - 'coordination/guide/PRIMARY_CHAT_STATE_COMMUNICATION_CONTRACT_V1.json'
+      - 'coordination/guide/PRIMARY_CHAT_ASYNC_QA_CONTRACT_V1.json'
       - 'scripts/reconcile-primary-chat-returns.mjs'
       - 'scripts/lib/primary-chat-mirror-merge.mjs'
+      - 'scripts/lib/primary-chat-async-qa-v1.mjs'
       - 'scripts/version-primary-chat-assets.mjs'
       - 'current-tree/control-v11/chat-canary/index.html'
       - 'current-tree/control-v11/chat-canary/input-module-v1.js'
       - 'current-tree/control-v11/chat-canary/progress-v1.js'
+      - 'current-tree/control-v11/chat-canary/async-qa-browser-fixture-v1.json'
       - '.github/workflows/chat-message-mirror-contract-harness-v1.yml'
   workflow_dispatch:
 
@@ -31,11 +36,20 @@ concurrency:
 jobs:
   contract-harness:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run deterministic async QA contract test
+        run: |
+          set -euo pipefail
+          node coordination/portfolio/tests/primary_chat_async_qa_v1.mjs
 
       - name: Reconcile canonical Primary Chat returns
         run: |
@@ -62,6 +76,7 @@ jobs:
           page_rel='current-tree/control-v11/chat-canary/index.html'
           input_rel='current-tree/control-v11/chat-canary/input-module-v1.js'
           progress_rel='current-tree/control-v11/chat-canary/progress-v1.js'
+          fixture_rel='current-tree/control-v11/chat-canary/async-qa-browser-fixture-v1.json'
           state_contract_rel='coordination/guide/PRIMARY_CHAT_STATE_COMMUNICATION_CONTRACT_V1.json'
           jq -e '
             .schema == "prometeo.primary-chat-state-communication-contract/v1"
@@ -70,12 +85,20 @@ jobs:
             and (.privacy | contains("Raw/private"))
             and (.privacy | contains("public projection receives sanitized references and derived state only"))
           ' "$state_contract_rel" >/dev/null
-          mkdir -p "/tmp/prometeo-gh-pages/$(dirname "$thread_rel")" "/tmp/prometeo-gh-pages/$(dirname "$page_rel")" "/tmp/prometeo-gh-pages/$(dirname "$input_rel")" "/tmp/prometeo-gh-pages/$(dirname "$progress_rel")" "/tmp/prometeo-gh-pages/$(dirname "$state_contract_rel")"
+          jq -e '
+            .schema == "prometeo.chat-thread-projection/v1"
+            and .synthetic_fixture == true
+            and .authority == "NONE_TEST_ONLY"
+            and (.privacy | contains("NO_HUMAN_PAYLOAD"))
+          ' "$fixture_rel" >/dev/null
+          mkdir -p "/tmp/prometeo-gh-pages/$(dirname "$thread_rel")" "/tmp/prometeo-gh-pages/$(dirname "$page_rel")" "/tmp/prometeo-gh-pages/$(dirname "$input_rel")" "/tmp/prometeo-gh-pages/$(dirname "$progress_rel")" "/tmp/prometeo-gh-pages/$(dirname "$fixture_rel")" "/tmp/prometeo-gh-pages/$(dirname "$state_contract_rel")"
           cp "$thread_rel" "/tmp/prometeo-gh-pages/$thread_rel"
           cp "$page_rel" "/tmp/prometeo-gh-pages/$page_rel"
           cp "$input_rel" "/tmp/prometeo-gh-pages/$input_rel"
           cp "$progress_rel" "/tmp/prometeo-gh-pages/$progress_rel"
+          cp "$fixture_rel" "/tmp/prometeo-gh-pages/$fixture_rel"
           cp "$state_contract_rel" "/tmp/prometeo-gh-pages/$state_contract_rel"
+          cmp -s "$fixture_rel" "/tmp/prometeo-gh-pages/$fixture_rel"
           cmp -s "$state_contract_rel" "/tmp/prometeo-gh-pages/$state_contract_rel"
           node scripts/version-primary-chat-assets.mjs --root /tmp/prometeo-gh-pages
 
@@ -105,11 +128,13 @@ jobs:
           page_rel='current-tree/control-v11/chat-canary/index.html'
           input_rel='current-tree/control-v11/chat-canary/input-module-v1.js'
           progress_rel='current-tree/control-v11/chat-canary/progress-v1.js'
+          fixture_rel='current-tree/control-v11/chat-canary/async-qa-browser-fixture-v1.json'
           state_contract_rel='coordination/guide/PRIMARY_CHAT_STATE_COMMUNICATION_CONTRACT_V1.json'
           source_thread="$GITHUB_WORKSPACE/$thread_rel"
           source_page="$GITHUB_WORKSPACE/$page_rel"
           source_input="$GITHUB_WORKSPACE/$input_rel"
           source_progress="$GITHUB_WORKSPACE/$progress_rel"
+          source_fixture="$GITHUB_WORKSPACE/$fixture_rel"
           source_state_contract="$GITHUB_WORKSPACE/$state_contract_rel"
           cd /tmp/prometeo-gh-pages
           git config user.name "prometeo-ci"
@@ -122,6 +147,7 @@ jobs:
             git show "origin/main:$page_rel" > /tmp/prometeo-origin-main-chat-index.html
             git show "origin/main:$input_rel" > /tmp/prometeo-origin-main-input-module-v1.js
             git show "origin/main:$progress_rel" > /tmp/prometeo-origin-main-progress-v1.js
+            git show "origin/main:$fixture_rel" > /tmp/prometeo-origin-main-async-qa-browser-fixture-v1.json
             git show "origin/main:$state_contract_rel" > /tmp/prometeo-origin-main-state-communication-contract.json
             if ! cmp -s "$source_thread" /tmp/prometeo-origin-main-thread.json; then
               echo "Main Primary Chat projection advanced; defer gh-pages publication to the newer workflow run."
@@ -139,20 +165,26 @@ jobs:
               echo "Main Primary Chat progress asset advanced; defer gh-pages publication to the newer workflow run."
               exit 0
             fi
+            if ! cmp -s "$source_fixture" /tmp/prometeo-origin-main-async-qa-browser-fixture-v1.json; then
+              echo "Main Primary Chat QA browser fixture advanced; defer gh-pages publication to the newer workflow run."
+              exit 0
+            fi
             if ! cmp -s "$source_state_contract" /tmp/prometeo-origin-main-state-communication-contract.json; then
               echo "Main Primary Chat state communication contract advanced; defer gh-pages publication to the newer workflow run."
               exit 0
             fi
             git reset --hard origin/gh-pages
-            mkdir -p "$(dirname "$thread_rel")" "$(dirname "$page_rel")" "$(dirname "$input_rel")" "$(dirname "$progress_rel")" "$(dirname "$state_contract_rel")"
+            mkdir -p "$(dirname "$thread_rel")" "$(dirname "$page_rel")" "$(dirname "$input_rel")" "$(dirname "$progress_rel")" "$(dirname "$fixture_rel")" "$(dirname "$state_contract_rel")"
             cp "$source_thread" "$thread_rel"
             cp "$source_page" "$page_rel"
             cp "$source_input" "$input_rel"
             cp "$source_progress" "$progress_rel"
+            cp "$source_fixture" "$fixture_rel"
             cp "$source_state_contract" "$state_contract_rel"
+            cmp -s "$source_fixture" "$fixture_rel"
             cmp -s "$source_state_contract" "$state_contract_rel"
             node "$GITHUB_WORKSPACE/scripts/version-primary-chat-assets.mjs" --root /tmp/prometeo-gh-pages
-            git add "$thread_rel" "$page_rel" "$input_rel" "$progress_rel" "$state_contract_rel"
+            git add "$thread_rel" "$page_rel" "$input_rel" "$progress_rel" "$fixture_rel" "$state_contract_rel"
             if git diff --cached --quiet; then
               echo "Primary Chat projection already current."
               exit 0
@@ -188,10 +220,28 @@ jobs:
           echo "Served Primary Chat state communication contract failed freshness/identity gate."
           exit 1
 
+      - name: Install pinned Playwright Chromium
+        if: steps.harness.outcome == 'success'
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright@1.55.0 install --with-deps chromium
+
+      - name: Verify served async QA in representative Chromium
+        id: browser
+        if: steps.harness.outcome == 'success'
+        continue-on-error: true
+        env:
+          PRIMARY_CHAT_PUBLIC_BASE: https://juanmanuelpm.github.io/prometeo/current-tree/control-v11/chat-canary
+        run: |
+          set -euo pipefail
+          node coordination/portfolio/tests/primary_chat_async_qa_served_browser_v1.mjs
+
       - name: Persist machine-readable run evidence
         if: always()
         env:
           HARNESS_OUTCOME: ${{ steps.harness.outcome }}
+          BROWSER_OUTCOME: ${{ steps.browser.outcome }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           HEAD_SHA: ${{ github.sha }}
@@ -202,10 +252,20 @@ jobs:
           mkdir -p coordination/portfolio/evidence/prometeo-autonomous-growth
           cp artifacts/chat-message-mirror-contract-harness/evidence.json /tmp/chat-mirror-contract-evidence.json 2>/dev/null || true
           cp artifacts/chat-message-mirror-contract-harness/atomic-merge.json /tmp/chat-mirror-atomic-evidence.json 2>/dev/null || true
+          cp artifacts/primary-chat-async-qa-served-browser/evidence.json /tmp/primary-chat-async-qa-served-browser-evidence.json 2>/dev/null || true
           cat > /tmp/persist-chat-mirror-run-evidence.mjs <<'NODE'
           import fs from 'node:fs';
           const contractSrc='/tmp/chat-mirror-contract-evidence.json';
           const atomicSrc='/tmp/chat-mirror-atomic-evidence.json';
+          const browserSrc='/tmp/primary-chat-async-qa-served-browser-evidence.json';
+          const ci={
+            run_id:process.env.RUN_ID,
+            run_attempt:process.env.RUN_ATTEMPT,
+            head_sha:process.env.HEAD_SHA,
+            harness_step_outcome:process.env.HARNESS_OUTCOME,
+            browser_step_outcome:process.env.BROWSER_OUTCOME,
+            run_url:`${process.env.SERVER_URL}/${process.env.REPOSITORY}/actions/runs/${process.env.RUN_ID}`
+          };
           const evidence=fs.existsSync(contractSrc)
             ? JSON.parse(fs.readFileSync(contractSrc,'utf8'))
             : {
@@ -216,19 +276,28 @@ jobs:
           evidence.atomic_merge=fs.existsSync(atomicSrc)
             ? JSON.parse(fs.readFileSync(atomicSrc,'utf8'))
             : {overall:'NO_EVIDENCE_FILE'};
-          evidence.ci={
-            run_id:process.env.RUN_ID,
-            run_attempt:process.env.RUN_ATTEMPT,
-            head_sha:process.env.HEAD_SHA,
-            harness_step_outcome:process.env.HARNESS_OUTCOME,
-            run_url:`${process.env.SERVER_URL}/${process.env.REPOSITORY}/actions/runs/${process.env.RUN_ID}`
-          };
+          evidence.ci=ci;
           const dest=`coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_MESSAGE_MIRROR_CONTRACT_HARNESS_RUN_${process.env.RUN_ID}.json`;
           fs.writeFileSync(dest,JSON.stringify(evidence,null,2)+'\n');
+
+          const browser=fs.existsSync(browserSrc)
+            ? JSON.parse(fs.readFileSync(browserSrc,'utf8'))
+            : {
+                schema:'prometeo.primary-chat-async-qa-served-browser-evidence/v1',
+                overall:'NO_EVIDENCE_FILE',
+                synthetic_fixture:true,
+                authority:'EVIDENCE_ONLY_NO_PROMOTION_AUTHORITY',
+                error:{message:'browser verifier did not produce evidence.json'}
+              };
+          browser.ci=ci;
+          const browserDest=`coordination/portfolio/evidence/prometeo-autonomous-growth/PRIMARY_CHAT_ASYNC_QA_SERVED_BROWSER_RUN_${process.env.RUN_ID}.json`;
+          fs.writeFileSync(browserDest,JSON.stringify(browser,null,2)+'\n');
           console.log(dest);
+          console.log(browserDest);
           NODE
           thread_rel='coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
           evidence_rel="coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_MESSAGE_MIRROR_CONTRACT_HARNESS_RUN_${RUN_ID}.json"
+          browser_evidence_rel="coordination/portfolio/evidence/prometeo-autonomous-growth/PRIMARY_CHAT_ASYNC_QA_SERVED_BROWSER_RUN_${RUN_ID}.json"
           git config user.name "prometeo-ci"
           git config user.email "actions@users.noreply.github.com"
           for n in 1 2 3 4; do
@@ -237,7 +306,7 @@ jobs:
             node scripts/reconcile-primary-chat-returns.mjs
             node coordination/portfolio/tests/primary_chat_mirror_atomic_append_v1.mjs > /tmp/chat-mirror-atomic-latest.json
             node /tmp/persist-chat-mirror-run-evidence.mjs
-            git add "$thread_rel" "$evidence_rel"
+            git add "$thread_rel" "$evidence_rel" "$browser_evidence_rel"
             if git diff --cached --quiet; then
               echo "Primary Chat main projection/evidence already current."
               exit 0
@@ -249,3 +318,11 @@ jobs:
             echo "main moved during persist attempt $n; discarding stale derived bytes and reconciling again from latest origin/main."
           done
           exit 1
+
+      - name: Enforce served async QA browser result
+        if: always()
+        env:
+          BROWSER_OUTCOME: ${{ steps.browser.outcome }}
+        run: |
+          set -euo pipefail
+          test "$BROWSER_OUTCOME" = "success"
