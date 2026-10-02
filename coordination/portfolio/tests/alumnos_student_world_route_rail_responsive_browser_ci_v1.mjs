@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 
 const TARGET_URL = process.env.ALUMNOS_ROUTE_CANARY_URL || 'https://juanmanuelpm.github.io/prometeo/__canary/portfolio-alumnos-student-world-live-route-bridge-v1/';
 const EXPECTED_BLOB = process.env.ALUMNOS_ROUTE_EXPECTED_BLOB || '0cb9aa0450884ceb6d298a95056f7d90df9229d8';
+const SETTLE_MS = 250;
 
 const gitBlobSha = bytes => createHash('sha1').update(Buffer.from('blob '+bytes.length+'\0')).update(bytes).digest('hex');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -54,16 +55,19 @@ page.on('pageerror',e=>errors.push(e?.message||String(e)));
 await page.goto(TARGET_URL,{waitUntil:'domcontentloaded',timeout:30000});
 
 await page.click('#routeToggle');
+await page.waitForTimeout(SETTLE_MS);
 const open500=await geometry(page,'open-500');
 
 await page.setViewportSize({width:360,height:800});
-await page.waitForTimeout(100);
+await page.waitForTimeout(SETTLE_MS);
 const resized360=await geometry(page,'resize-open-360');
 
 await page.keyboard.press('Escape');
+await page.waitForTimeout(SETTLE_MS);
 const escape360=await geometry(page,'escape-360');
 
 await page.click('#routeToggle');
+await page.waitForTimeout(SETTLE_MS);
 const reopen360=await geometry(page,'reopen-360');
 
 await browser.close();
