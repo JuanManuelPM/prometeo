@@ -71,4 +71,6 @@ assert.equal(
   'disabled gate must preserve ordinary planner behavior'
 );
 
+await import('./agentic_human_gate_metabolism_audit_v1.mjs');
+
 console.log('PROJECT_GUIDE_HUMAN_DECISION_GATE_PASS');
