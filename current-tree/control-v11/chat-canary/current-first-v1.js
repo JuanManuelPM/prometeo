@@ -28,31 +28,40 @@
     catch { throw new Error('JSON_PARSE_FAILED'); }
   }
 
-  function latestResult(thread) {
-    const rows = Array.isArray(thread?.messages) ? thread.messages : [];
-    return rows
-      .filter(row => row && row.result_ref)
+  function rows(thread) {
+    return Array.isArray(thread?.messages) ? thread.messages.filter(Boolean) : [];
+  }
+
+  function newestMessage(thread, predicate) {
+    return rows(thread)
+      .filter(predicate)
       .sort((a, b) => (asDate(b.published_at || b.created_at)?.getTime() || 0) - (asDate(a.published_at || a.created_at)?.getTime() || 0))[0] || null;
+  }
+
+  function latestResult(thread) {
+    return newestMessage(thread, row => Boolean(row.result_ref));
   }
 
   function latestQa(thread) {
-    const rows = Array.isArray(thread?.messages) ? thread.messages : [];
-    return rows
-      .filter(row => row && (row.qa_status || row.verification_status || row.qa || row.verification))
-      .sort((a, b) => (asDate(b.published_at || b.created_at)?.getTime() || 0) - (asDate(a.published_at || a.created_at)?.getTime() || 0))[0] || null;
+    return newestMessage(thread, row => Boolean(row.qa_status || row.verification_status || row.qa || row.verification));
+  }
+
+  function latestHuman(thread) {
+    return newestMessage(thread, row => String(row.actor_type || '').toUpperCase() === 'HUMAN');
   }
 
   function hasHumanDecision(thread) {
-    const rows = Array.isArray(thread?.messages) ? thread.messages : [];
-    return rows.some(row => row && row.archived !== true && (
+    return rows(thread).some(row => row.archived !== true && (
       String(row.status || '').toUpperCase() === 'HUMAN_DECISION_REQUIRED' ||
       /HUMAN_DECISION_REQUIRED/.test(String(row.body_text || ''))
     ));
   }
 
   function pendingHumanIntent(thread) {
-    const rows = Array.isArray(thread?.messages) ? thread.messages : [];
-    return rows.filter(row => row && row.archived !== true && String(row.actor_type || '').toUpperCase() === 'HUMAN' && ['QUEUED','WAITING','PENDING'].includes(String(row.status || '').toUpperCase())).length;
+    return rows(thread).filter(row => row.archived !== true &&
+      String(row.actor_type || '').toUpperCase() === 'HUMAN' &&
+      ['QUEUED','WAITING','PENDING'].includes(String(row.status || '').toUpperCase())
+    ).length;
   }
 
   function freshBlocked(worker, now) {
@@ -78,6 +87,8 @@
       return Boolean(signal && now - signal.getTime() < LIVE_MS);
     });
     const latestSignal = workers.map(lastSignal).map(asDate).filter(Boolean).sort((a, b) => b - a)[0] || null;
+    const human = latestHuman(thread);
+    const latestHumanActionAt = asDate(human?.published_at || human?.created_at);
     const claimable = n(frontier?.candidate_count ?? candidates.length);
     const core = Math.min(CORE_LIMIT, claimable);
     const gap = Math.max(0, core - liveWorkers.length);
@@ -89,6 +100,7 @@
     const stale = transportInvalid || !projectionAt || projectionAgeSeconds > STALE_MS / 1000;
     const input = {
       projection_age_seconds: projectionAgeSeconds,
+      last_human_action_at: latestHumanActionAt ? latestHumanActionAt.toISOString() : null,
       human_decision_required: hasHumanDecision(thread),
       claim_transport_blocked_count: blocked,
       pending_human_intent_count: pendingHumanIntent(thread),
@@ -107,8 +119,8 @@
       ['HUMAN_DECISION_REQUIRED', input.human_decision_required],
       ['CLAIM_TRANSPORT_DEGRADED', input.claim_transport_blocked_count > 0],
       ['HUMAN_INTENT_WAITING_NO_CAPACITY', input.pending_human_intent_count > 0 && input.live_worker_count === 0 && input.capacity_gap > 0],
-      ['RETURNS_UNCONSUMED', input.unconsumed_returns_count > 0],
-      ['RECOVERY_PRESSURE', input.recovery_attention_count > 0],
+      ['RETURNS_UNCONSUMED', input.unconsumed_returns_count > 0 && input.live_worker_count > 0],
+      ['RECOVERY_PRESSURE', input.recovery_attention_count > 0 && input.live_worker_count > 0],
       ['REFILL_N', input.capacity_gap > 0 && claimable > 0],
       ['BUFFER_LOW', input.capacity_gap === 0 && input.reserve_workers <= 3 && input.core_demand > 0],
       ['CAPACITY_OK', input.core_demand > 0 && input.capacity_gap === 0 && input.live_worker_count > 0],
@@ -123,6 +135,8 @@
       const parts = [runtimeError ? 'runtime ' + runtimeError : null, frontierError ? 'frontier ' + frontierError : null].filter(Boolean);
       action = 'ACCIÓN: ninguna · proyección inválida (' + parts.join(' · ') + '); no lances capacidad a ciegas.';
     }
+    const buffer = gap > 0 ? ('FALTA ' + gap) : reserve > 3 ? ('OK +' + reserve) : (core > 0 ? 'BAJO' : 'SIN DEMANDA');
+    const liveness = liveWorkers.length > 0 ? 'VIVO ' + liveWorkers.length : 'SIN MOTOR VIVO';
     return {
       state,
       action,
@@ -133,8 +147,11 @@
       claimable,
       liveWorkers,
       latestSignal,
+      latestHumanActionAt,
       latestResult: latestResult(thread),
       latestQa: latestQa(thread),
+      buffer,
+      liveness,
       runtimeError,
       frontierError
     };
@@ -152,11 +169,13 @@
       .pc-current-action{margin-top:11px;font-size:15px;line-height:1.3;font-weight:720;color:#e9e9e4}
       #prometeo-current-first-v1[data-state="PROJECTION_STALE"] .pc-current-action{color:#d9b45f}
       .pc-current-meta{margin-top:9px;color:#696965;font:9px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
-      .pc-current-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid #1d1d1d}
-      .pc-current-kpi b{display:block;font-size:17px;color:#deded9}.pc-current-kpi span{display:block;margin-top:3px;color:#5f5f5b;font-size:8px;text-transform:uppercase;letter-spacing:.06em}
-      .pc-current-result{margin-top:12px;padding-top:11px;border-top:1px solid #1d1d1d;font-size:10px;line-height:1.45;color:#8c8c87;overflow-wrap:anywhere}
+      .pc-current-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid #1d1d1d}
+      .pc-current-kpi b{display:block;font-size:15px;color:#deded9;overflow-wrap:anywhere}.pc-current-kpi span{display:block;margin-top:3px;color:#5f5f5b;font-size:8px;text-transform:uppercase;letter-spacing:.06em}
+      .pc-current-human{margin-top:12px;padding-top:11px;border-top:1px solid #1d1d1d;color:#9c9c97;font-size:10px;line-height:1.45}
+      .pc-current-human strong{color:#d0d0cb}
+      .pc-current-result{margin-top:10px;font-size:10px;line-height:1.45;color:#8c8c87;overflow-wrap:anywhere}
       .pc-current-result strong{color:#c3c3be}.pc-current-history-label{margin:14px 2px 0;color:#4f4f4c;font:700 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.11em}
-      @media(max-width:560px){#prometeo-current-first-v1{margin-top:0;padding:17px 14px 15px}.pc-current-state{font-size:29px}.pc-current-action{font-size:16px}.pc-current-grid{gap:8px}}
+      @media(max-width:560px){#prometeo-current-first-v1{margin-top:0;padding:17px 14px 15px}.pc-current-state{font-size:29px}.pc-current-action{font-size:16px}.pc-current-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}
     `;
     document.head.append(style);
   }
@@ -173,7 +192,7 @@
     host.setAttribute('aria-label', 'Estado CURRENT de Prometeo');
     topbar.insertAdjacentElement('afterend', host);
     const thread = q('#thread');
-    if (thread) {
+    if (thread && !q('.pc-current-history-label')) {
       thread.setAttribute('aria-label', 'Historial de conversación');
       const label = document.createElement('div');
       label.className = 'pc-current-history-label';
@@ -183,43 +202,63 @@
     return host;
   }
 
+  function metric(value, label) {
+    const item = document.createElement('div');
+    item.className = 'pc-current-kpi';
+    const b = document.createElement('b');
+    b.textContent = String(value);
+    const s = document.createElement('span');
+    s.textContent = label;
+    item.append(b, s);
+    return item;
+  }
+
   function render(host, view) {
     host.replaceChildren();
     host.dataset.state = view.state;
+
     const kicker = document.createElement('div');
     kicker.className = 'pc-current-kicker';
     kicker.textContent = 'CURRENT · ' + view.batchId;
+
     const state = document.createElement('div');
     state.className = 'pc-current-state';
     state.textContent = view.state.replaceAll('_', ' ');
+
     const action = document.createElement('div');
     action.className = 'pc-current-action';
     action.textContent = view.action;
+
     const meta = document.createElement('div');
     meta.className = 'pc-current-meta';
     const stamp = view.projectionAt ? view.projectionAt.toISOString() : 'sin timestamp válido';
     const age = Number.isFinite(view.projectionAgeSeconds) ? Math.round(view.projectionAgeSeconds) + 's' : '—';
-    meta.textContent = 'proyección ' + stamp + ' · edad ' + age + (view.latestSignal ? ' · última señal ' + view.latestSignal.toISOString() : ' · última señal —');
+    meta.textContent = 'proyección ' + stamp + ' · edad ' + age +
+      (view.latestSignal ? ' · última señal ' + view.latestSignal.toISOString() : ' · última señal —');
+
     const grid = document.createElement('div');
     grid.className = 'pc-current-grid';
-    const metrics = [
-      [view.liveWorkers.length, 'workers vivos'],
-      [view.claimable, 'claimables'],
-      [view.input.recovery_attention_count, 'recovery']
-    ];
-    for (const [value, label] of metrics) {
-      const item = document.createElement('div');
-      item.className = 'pc-current-kpi';
-      const b = document.createElement('b'); b.textContent = String(value);
-      const s = document.createElement('span'); s.textContent = label;
-      item.append(b, s); grid.append(item);
-    }
+    grid.append(
+      metric(view.input.capacity_gap, 'REFILL_N'),
+      metric(view.buffer, 'buffer'),
+      metric(view.liveness, 'liveness'),
+      metric(view.claimable, 'claimables')
+    );
+
+    const human = document.createElement('div');
+    human.className = 'pc-current-human';
+    const humanAt = view.latestHumanActionAt ? view.latestHumanActionAt.toISOString() : '—';
+    human.innerHTML = '<strong>acción humana actual</strong> ' + escapeHtml(view.action) +
+      '<br><strong>última acción humana durable</strong> ' + escapeHtml(humanAt);
+
     const result = document.createElement('div');
     result.className = 'pc-current-result';
     const resultText = view.latestResult?.result_ref || 'sin result_ref visible';
     const qa = view.latestQa?.qa_status || view.latestQa?.verification_status || view.latestQa?.qa || view.latestQa?.verification || 'sin señal QA durable en thread';
-    result.innerHTML = '<strong>último resultado</strong> ' + escapeHtml(resultText) + '<br><strong>QA</strong> ' + escapeHtml(String(qa));
-    host.append(kicker, state, action, meta, grid, result);
+    result.innerHTML = '<strong>último resultado</strong> ' + escapeHtml(resultText) +
+      '<br><strong>QA</strong> ' + escapeHtml(String(qa));
+
+    host.append(kicker, state, action, meta, grid, human, result);
   }
 
   function escapeHtml(value) {
