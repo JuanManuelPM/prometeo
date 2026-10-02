@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { mergePrimaryChatMessages } from './lib/primary-chat-mirror-merge.mjs';
+import { reconcilePrimaryChatCanonicalWorkerReplies } from './lib/primary-chat-mirror-merge.mjs';
 import { primaryChatQaUiBlocks } from './lib/primary-chat-async-qa-v1.mjs';
 
 const root = process.cwd();
@@ -15,11 +15,6 @@ if (thread?.schema !== 'prometeo.chat-thread-projection/v1') {
 }
 if (!Array.isArray(thread.messages)) thread.messages = [];
 
-const existingResultRefs = new Set(
-  thread.messages.map(message => message?.result_ref).filter(Boolean)
-);
-const candidateResultRefs = new Set();
-
 const candidateDirs = fs.existsSync(returnsRoot)
   ? fs.readdirSync(returnsRoot, { withFileTypes: true })
       .filter(entry => entry.isDirectory() && entry.name.startsWith('portfolio-primary-chat-canary-'))
@@ -27,13 +22,29 @@ const candidateDirs = fs.existsSync(returnsRoot)
       .sort()
   : [];
 
-const candidates = [];
+function outcomeRank(outcome) {
+  const value = String(outcome || '').toUpperCase();
+  if (['DONE', 'PASS', 'SUCCESS', 'DEPLOYED'].some(token => value.includes(token))) return 4;
+  if (value.includes('PARTIAL')) return 3;
+  if (value.includes('STALE')) return 2;
+  if (value.includes('BOUNDARY')) return 1;
+  return 0;
+}
+
+function compareReturns(a, b) {
+  const rankDelta = outcomeRank(a?.outcome) - outcomeRank(b?.outcome);
+  if (rankDelta) return rankDelta;
+  const generationDelta = Number(a?.generation || 0) - Number(b?.generation || 0);
+  if (generationDelta) return generationDelta;
+  return (Date.parse(a?.returned_at || 0) || 0) - (Date.parse(b?.returned_at || 0) || 0);
+}
+
+const winnersByReply = new Map();
 for (const dir of candidateDirs) {
   const dirPath = path.join(returnsRoot, dir);
   for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
     if (!entry.isFile() || !/^RETURN-.*\.json$/i.test(entry.name)) continue;
     const rel = path.posix.join(returnsRootRel, dir, entry.name);
-    if (existingResultRefs.has(rel) || candidateResultRefs.has(rel)) continue;
 
     let ret;
     try {
@@ -48,14 +59,13 @@ for (const dir of candidateDirs) {
     const workerId = typeof ret?.worker_id === 'string' ? ret.worker_id.trim() : '';
     const returnedAt = typeof ret?.returned_at === 'string' ? ret.returned_at : null;
 
-    // This reconciler is deliberately narrow: only explicit public canaries may be projected.
     if (!responseText || !replyTo || privacy !== 'PUBLIC_SANITIZED_CANARY') continue;
     if (!String(ret?.job_id || '').startsWith('portfolio-primary-chat-canary-')) continue;
     if (!thread.messages.some(message => message?.message_id === replyTo)) continue;
 
     const messageId = `MSG-WORKER-${String(ret?.return_id || entry.name.replace(/\.json$/i, ''))}`;
     const qaBlocks = primaryChatQaUiBlocks(ret?.qa);
-    candidates.push({
+    const candidate = {
       message_id: messageId,
       chat_object_id: thread.chat_object_id,
       reply_to_message_id: replyTo,
@@ -72,26 +82,29 @@ for (const dir of candidateDirs) {
       evidence_refs: Array.isArray(ret?.evidence) ? ret.evidence : [],
       ...(qaBlocks.length ? { ui_blocks: qaBlocks } : {}),
       privacy: 'PUBLIC_SANITIZED_CANARY'
-    });
-    candidateResultRefs.add(rel);
+    };
+
+    const previous = winnersByReply.get(replyTo);
+    if (!previous || compareReturns(previous.ret, ret) < 0) winnersByReply.set(replyTo, { ret, candidate });
   }
 }
 
-if (!candidates.length) {
-  console.log('Primary Chat mirror already contains all eligible canonical canary returns.');
+const canonicalMessages = [...winnersByReply.values()].map(value => value.candidate);
+if (!canonicalMessages.length) {
+  console.log('Primary Chat mirror has no eligible canonical canary returns to reconcile.');
   process.exit(0);
 }
 
-const merged = mergePrimaryChatMessages(thread, candidates);
-if (!merged.added) {
-  console.log('Primary Chat mirror merge was idempotent; no new canonical canary returns added.');
+const reconciled = reconcilePrimaryChatCanonicalWorkerReplies(thread, canonicalMessages);
+if (!reconciled.added && !reconciled.superseded) {
+  console.log('Primary Chat mirror already matches canonical canary winners.');
   process.exit(0);
 }
 
-fs.writeFileSync(threadPath, JSON.stringify(merged.thread, null, 2) + '\n');
-console.log(`Primary Chat mirror reconciled ${merged.added} canonical canary return(s).`);
-for (const message of candidates) {
-  if (merged.thread.messages.some(existing => existing.result_ref === message.result_ref)) {
+fs.writeFileSync(threadPath, JSON.stringify(reconciled.thread, null, 2) + '\n');
+console.log(`Primary Chat mirror reconciled ${reconciled.added} canonical winner(s); superseded ${reconciled.superseded} stale retry projection(s).`);
+for (const message of canonicalMessages) {
+  if (reconciled.thread.messages.some(existing => existing.result_ref === message.result_ref)) {
     console.log(`${message.reply_to_message_id} -> ${message.body_text} (${message.result_ref})`);
   }
 }
