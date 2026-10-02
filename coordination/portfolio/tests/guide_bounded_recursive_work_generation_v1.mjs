@@ -171,6 +171,25 @@ const openBudgetCut = compileGuideSuccessor({
 });
 assert.equal(openBudgetCut.stop_reason, 'MAX_OPEN_DESCENDANTS_REACHED');
 
+const ttlCut = compileGuideSuccessor({
+  ...common,
+  dedupe_key: 'fixture:expired-proposal:v1',
+  target: 'fixture/expired-proposal',
+  problem: 'expired recursive proposal',
+  acceptance: ['should never materialize'],
+  definition_of_done: ['should never materialize']
+}, {
+  root_ref: rootRef,
+  parent_ref: parentRef,
+  parent_depth: 0,
+  existing_children_for_parent: 0,
+  open_descendants: 0,
+  now: '2026-10-02T20:40:01Z',
+  expires_at: '2026-10-02T20:40:00Z'
+});
+assert.equal(ttlCut.materialize, false);
+assert.equal(ttlCut.stop_reason, 'PROPOSAL_TTL_EXPIRED');
+
 assert.throws(() => resolveRecursionBudget({max_depth:4}), /owner_override_required/);
 const overridden = resolveRecursionBudget({
   authority: 'CURRENT_OWNER_RECURSION_BUDGET_OVERRIDE',
@@ -232,6 +251,7 @@ console.log(JSON.stringify({
   depth_cut: depthCut.stop_reason,
   child_budget_cut: childBudgetCut.stop_reason,
   open_budget_cut: openBudgetCut.stop_reason,
+  ttl_cut: ttlCut.stop_reason,
   fan_in_before_repair: fanInBeforeRepair.status,
   fan_in_after_repair: fanInAfterRepair.status,
   metrics
