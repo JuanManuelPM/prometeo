@@ -85,7 +85,7 @@ const exactRecoveryEvidenceSignal = job => {
   const sourceSha = String(basis.source_sha256 || '').trim().toLowerCase();
   const exactSha = /^[0-9a-f]{64}$/.test(sourceSha);
   const evidence = uniq([...arr(basis.evidence), ...arr(basis.artifacts)]);
-  if (!sourceRef && !(exactSha && evidence.length)) return null;
+  if (!(exactSha && (sourceRef || evidence.length))) return null;
   const at = parseTime(basis.updated_at || job?.recovery_basis_updated_at || job?.updated_at);
   return at > 0 ? { at, kind: 'EXACT_RECOVERY_EVIDENCE', ref: sourceRef || evidence.at(-1) || null } : null;
 };
