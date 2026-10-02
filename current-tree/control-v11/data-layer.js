@@ -213,7 +213,7 @@ function emergency(cat,catalogManifest,error){
  };
 }
 async function load(){
- const cached=readCache();
+ let cached=readCache();
  if(cached){
   const checkedAt=now(),observed=cached.freshness?.observed_at||bestObserved(cached,cached.freshness?.sources)||null;
   cached=await applySemanticOverlay(cached,cached.freshness?.sources||{},cached.freshness?.failures||[],checkedAt);
