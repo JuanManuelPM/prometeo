@@ -1,0 +1,58 @@
+{
+  "schema": "prometeo.guide-receipt/v1",
+  "guide_work_id": "guide-rescate-a82178d9a30c",
+  "receipt_id": "RECEIPT-wc-20261002T011510Z-cdb1b0d051f9",
+  "worker_id": "wc-20261002T011510Z-cdb1b0d051f9",
+  "role": "GUIDE_RESCATE",
+  "created_at": "2026-10-02T01:31:02.050659Z",
+  "trigger": "LOW_YIELD",
+  "authority_ref": "coordination/guide/pins/guide-rescate-a82178d9a30c/G000001.json",
+  "evidence": [
+    "coordination/workers/no-allocation/wc-20261002T011522Z-9bbfba256657.json",
+    "coordination/workers/no-allocation/wc-20261002T011543Z-304992aff122.json",
+    "coordination/workers/beacons/wc-20261002T011543Z-304992aff122.json",
+    "coordination/workers/beacons/wc-20261002T011510Z-cdb1b0d051f9.json",
+    "coordination/guide/CURRENT_MISSION_V1.json#operating_mode",
+    "coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json",
+    "tests/worker-fresh-launch-v1.test.mjs",
+    "github-actions:Prometeo Efficiency Ratchet/run-36951071962",
+    "github-actions:Prometeo Efficiency Ratchet/run-36950906418"
+  ],
+  "diagnosis": "Resident /wc launch envelopes that carried RESIDENTE_POOL but omitted an explicit POOL <id> were classified UNBATCHED. That silently disabled deterministic pooled sharding and POOL_TAIL_RESCUE, concentrating concurrent workers on the same leading claims and increasing bounded CREATE_EXISTS/no-allocation outcomes. The canonical mission prompt already names POOL PROD-01, so the defect was a compatibility/parser gap rather than a missing allocator or scheduler.",
+  "intervention": "Made WORKER_FRESH_LAUNCH_POLICY_V1 the singular launch-envelope parser owner. On /wc only, RESIDENTE_POOL with no explicit RUN/BATCH/POOL identity now aliases to the existing CURRENT rolling pool PROD-01 (launch_class=POOL, batch_id=POOL-PROD-01, pool_id=PROD-01). Explicit RUN/BATCH/POOL identities retain precedence. Downstream BATCH/POOL predicates must consume parsed launch_class/beacon identity rather than re-parse literal tokens, so existing sharding/residency/POOL_TAIL_RESCUE apply without any new scheduler, queue, CURRENT, planner, provider or family. Stable /w remains explicit-only. Added a regression guard tying the alias to CURRENT mission pool identity and preserving canonical prompt aliases.",
+  "created_jobs": [],
+  "consumed_returns": [],
+  "changed_paths": [
+    "coordination/workers/WORKER_FRESH_LAUNCH_POLICY_V1.json",
+    "tests/worker-fresh-launch-v1.test.mjs",
+    "coordination/guide/receipts/guide-rescate-a82178d9a30c/PRESERVATION_CONTRACT-wc-20261002T011510Z-cdb1b0d051f9.json"
+  ],
+  "commits": [
+    "75d52e8c90ef446e9f2324f7d4945147b529b8ee",
+    "747e3e4e9bc1d0ce7e112f57f88cf140d0f488d4"
+  ],
+  "tests": [
+    {
+      "name": "Prometeo Efficiency Ratchet / Check unified batch sharding",
+      "status": "PASS",
+      "evidence": "run 36951071962 step 14: BATCHED_UNIFIED_SHARDING_PASS; BATCHED_CAPABILITY_FILTERED_SHARDING_PASS; POOL_UNIFIED_SHARDING_CONTRACT_PASS"
+    },
+    {
+      "name": "worker-fresh-launch-v1 static regression guard",
+      "status": "ADDED_NOT_REACHED_BY_FULL_CI",
+      "evidence": "tests/worker-fresh-launch-v1.test.mjs at commit 747e3e4e9bc1d0ce7e112f57f88cf140d0f488d4; full ratchet job stopped earlier at generic_frontier_elasticity_v1"
+    },
+    {
+      "name": "pre-existing generic frontier elasticity guard",
+      "status": "PRE_EXISTING_FAILURE_UNRELATED_TO_CHANGED_PATHS",
+      "evidence": "run 36951071962 failed visible generic=9; immediate parent run 36950906418 already failed the same step before the alias patch"
+    }
+  ],
+  "expected_multiplicative_effect": "Future fresh /wc resident-pool envelopes of the user-provided shortened form enter PROD-01 sharding/tail-rescue instead of behaving as independent UNBATCHED workers, reducing same-frontier collision concentration and false bounded exhaustion while preserving one allocator and one authority primitive.",
+  "productive_unit": true,
+  "productive_unit_index": 1,
+  "verification_state": "PATCHED_STATIC_GUARD_RUNTIME_PENDING",
+  "remaining_boundary": "Runtime effect is not yet RATCHETED: a later fresh /wc launch using RESIDENTE_POOL without an explicit POOL token must produce a beacon with batch_id=POOL-PROD-01 and pool_id=PROD-01 and then demonstrate pooled sharding. The full efficiency workflow also has an independent pre-existing generic-frontier elasticity failure (visible generic=9, contract requires >=10).",
+  "next_action": "E8_SUBMIT_NEXT_REFRESH_COMPACT_FRONTIER",
+  "promotion_authority": false
+}
