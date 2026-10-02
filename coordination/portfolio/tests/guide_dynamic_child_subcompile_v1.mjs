@@ -103,6 +103,10 @@ const unavailableBlock = clone(capabilityBlock);
 unavailableBlock.block_id = 'dynamic-child-unavailable-capability';
 unavailableBlock.semantic_key = 'prometeo:agentic:dynamic-child-unavailable-capability:v1';
 unavailableBlock.forbidden_scope = allForbidden;
+// This fixture isolates the unavailable-capability branch. The source block is owned by the
+// served-browser workflow, so bind the synthetic dynamic child back to the root owner before
+// asserting the capability stop reason; otherwise envelope validation correctly fails first.
+unavailableBlock.organism_refs.owner_ref = root.reuse_authority.current_owner_ref;
 const unavailableCaps = [...unavailableBlock.required_capabilities];
 const unavailable = compileGuideDynamicChildProposal(proposalFrom(unavailableBlock, 'unavailable-capability'), {
   ...context,
