@@ -305,3 +305,16 @@
 
   global.PROMETEO_CHAT_CANARY_INPUT_V1 = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
+
+(function loadPrometeoCurrentFirstProjectionV1(global) {
+  'use strict';
+  const doc = global && global.document;
+  if (!doc || global.PROMETEO_PRIMARY_CHAT_CURRENT_FIRST_V1) return;
+  const selector = 'script[data-prometeo-current-first-loader-v1]';
+  if (doc.querySelector(selector)) return;
+  const script = doc.createElement('script');
+  script.src = './current-first-v1.js';
+  script.async = false;
+  script.setAttribute('data-prometeo-current-first-loader-v1', '');
+  doc.head.append(script);
+})(typeof globalThis !== 'undefined' ? globalThis : window);
