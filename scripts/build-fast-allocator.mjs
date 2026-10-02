@@ -5,9 +5,11 @@ import * as core from './build-fast-allocator-core-v3.mjs';
 
 export * from './build-fast-allocator-core-v3.mjs';
 
-// Compatibility marker for static allocator regressions after the v3 core split.
-// The executable implementation lives in build-fast-allocator-core-v3.mjs:
+// Compatibility markers for static allocator regressions after the v3 core split.
+// The executable implementations live in build-fast-allocator-core-v3.mjs:
 // const localReady = frontierClassification.planner_count;
+// batch_strategy: 'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD'
+// batch_candidates: usefulReserve.ordered.slice(0, 40)
 
 const arr = value => Array.isArray(value) ? value : [];
 const normalizeBoundaryValue = value => String(value || '').trim().toUpperCase();
