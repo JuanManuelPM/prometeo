@@ -215,8 +215,8 @@ assert(combinedCount>baselineCount,'Specification Assurance must add pre-dispatc
 assert(combinedCount<results.length,'benchmark must expose residual shared misses instead of manufacturing a perfect score');
 assert.deepEqual(
   missed.sort(),
-  ['DYNAMIC_CHILD_SUBCOMPILE','NO_FAKE_CONTINUATION_GATE','NO_HUMAN_DISPATCH'].sort(),
-  'mechanical enforcement must leave the miss set while unrelated residual misses remain visible'
+  ['DYNAMIC_CHILD_SUBCOMPILE','NO_FAKE_CONTINUATION_GATE'].sort(),
+  'no-human dispatch must leave the miss set while unrelated residual misses remain visible'
 );
 console.log('AGENTIC_ADVERSARIAL_CORRECTION_BENCHMARK_PASS');
 console.log(JSON.stringify(summary,null,2));
