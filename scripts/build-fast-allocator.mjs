@@ -5,6 +5,10 @@ import * as core from './build-fast-allocator-core-v3.mjs';
 
 export * from './build-fast-allocator-core-v3.mjs';
 
+// Compatibility marker for static allocator regressions after the v3 core split.
+// The executable implementation lives in build-fast-allocator-core-v3.mjs:
+// const localReady = frontierClassification.planner_count;
+
 const arr = value => Array.isArray(value) ? value : [];
 const normalizeBoundaryValue = value => String(value || '').trim().toUpperCase();
 const transportBoundaryValues = doc => [
