@@ -3,8 +3,15 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 
 const source = fs.readFileSync(new URL('../../../current-tree/control-v11/ingress-v1.js', import.meta.url), 'utf8');
+const serverSource = fs.readFileSync(new URL('../../../supabase/functions/prometeo-change-loop-v1/index.ts', import.meta.url), 'utf8');
+const chatSource = fs.readFileSync(new URL('../../../current-tree/control-v11/chat-canary/index.html', import.meta.url), 'utf8');
 
-function makeRuntime({ badWake = false } = {}) {
+assert(serverSource.includes('approval_replay_status'), 'private Page Change owner must expose approval replay status');
+assert(serverSource.includes('APPROVAL_REPLAY_CONFLICT'), 'private Page Change owner must fail closed on approval digest conflict');
+assert(chatSource.includes('submitApprovedPlan'), 'visible approval control must delegate to PROMETEO_INGRESS_V1.submitApprovedPlan');
+assert(chatSource.includes("block.type === 'approval'"), 'Primary Chat must render the explicit approval UI block');
+
+function makeRuntime({ badWake = false, serverReplay = false, serverConflict = false } = {}) {
   const store = new Map([['prometeo.capture.workspace.secret.v2', 'x'.repeat(40)]]);
   const calls = [];
   const localStorage = {
@@ -12,12 +19,22 @@ function makeRuntime({ badWake = false } = {}) {
     setItem: (key, value) => store.set(key, String(value))
   };
   const response = data => ({ ok: true, status: 200, async json() { return data; } });
+  const errorResponse = (status, data) => ({ ok: false, status, async json() { return data; } });
   async function fetch(url, opts = {}) {
     const body = JSON.parse(opts.body || '{}');
     calls.push({ url: String(url), body });
     if (String(url).includes('prometeo-capture')) return response({ ok: true });
     if (String(url).includes('prometeo-change-loop-v1')) {
       if (body.action === 'approval_replay_status') {
+        if (serverConflict) return errorResponse(409, { error: 'APPROVAL_REPLAY_CONFLICT' });
+        if (serverReplay) {
+          return response({
+            ok: true,
+            status: 'QUEUED_REPLAY',
+            replayed: true,
+            return_path: 'coordination/executions/WI-SERVER-REPLAY/RETURN.json'
+          });
+        }
         return response({ ok: true, status: 'NEW_APPROVAL', replayed: false });
       }
       return response({
@@ -85,6 +102,7 @@ const approval = {
   approved_at: '2026-10-01T19:20:00Z'
 };
 
+// First approval and same-browser replay are idempotent; raw plan text never enters wake metadata.
 {
   const { api, calls } = makeRuntime();
   const out = await api.submitApprovedPlan({ text: 'ejecutá el plan aprobado', page, approval });
@@ -135,6 +153,35 @@ const approval = {
   assert.equal(calls.length, 4);
 }
 
+// A fresh browser/device with no local receipt must reuse the durable server receipt and stop
+// before Capture/Page Change materialization or wake.
+{
+  const { api, calls, store } = makeRuntime({ serverReplay: true });
+  assert.equal(store.has('prometeo.primary-chat.approval.v1:APR-001'), false);
+  const replay = await api.submitApprovedPlan({ text: 'ejecutá el plan aprobado', page, approval });
+  assert.equal(replay.status, 'QUEUED_REPLAY');
+  assert.equal(replay.queued, true);
+  assert.equal(replay.ref, 'coordination/executions/WI-SERVER-REPLAY/RETURN.json');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].body.action, 'approval_replay_status');
+}
+
+// A fresh browser/device reusing approval_id with another digest must fail closed at the server
+// preflight and must not reach Capture/Page Change/wake.
+{
+  const { api, calls } = makeRuntime({ serverConflict: true });
+  const conflict = await api.submitApprovedPlan({
+    text: 'otro plan',
+    page,
+    approval: { ...approval, proposal_digest: 'b'.repeat(64) }
+  });
+  assert.equal(conflict.status, 'BOUNDARY_APPROVAL_REPLAY_CONFLICT');
+  assert.equal(conflict.queued, false);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].body.action, 'approval_replay_status');
+}
+
+// Wake failure remains fail-closed and never upgrades a non-queued result to queued=true.
 {
   const { api, calls } = makeRuntime({ badWake: true });
   const out = await api.submitApprovedPlan({
