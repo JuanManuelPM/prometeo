@@ -13,22 +13,27 @@ export function canonicalReturnIdentity(ret = {}) {
   return {campaign, work, job, return_id: returnId};
 }
 
+function canonicalReturnKey(identity = {}) {
+  return [identity.campaign, identity.work, identity.job, identity.return_id].map(str).join('::');
+}
+
 export function fanInReturns(returns = []) {
-  const byReturnId = new Map();
+  const byReturnIdentity = new Map();
   for (const ret of arr(returns)) {
     const identity = canonicalReturnIdentity(ret);
-    const previous = byReturnId.get(identity.return_id);
+    const identityKey = canonicalReturnKey(identity);
+    const previous = byReturnIdentity.get(identityKey);
     if (!previous) {
-      byReturnId.set(identity.return_id, ret);
+      byReturnIdentity.set(identityKey, ret);
       continue;
     }
     const previousAt = Date.parse(previous.returned_at || 0) || 0;
     const currentAt = Date.parse(ret.returned_at || 0) || 0;
-    if (currentAt > previousAt) byReturnId.set(identity.return_id, ret);
+    if (currentAt > previousAt) byReturnIdentity.set(identityKey, ret);
   }
 
   const groups = new Map();
-  for (const ret of byReturnId.values()) {
+  for (const ret of byReturnIdentity.values()) {
     const identity = canonicalReturnIdentity(ret);
     const key = `${identity.campaign}::${identity.work}::${identity.job}`;
     if (!groups.has(key)) groups.set(key, {campaign_id: identity.campaign, work_id: identity.work, job_id: identity.job, returns: []});
@@ -42,7 +47,7 @@ export function fanInReturns(returns = []) {
 
   return {
     schema: RETURN_FANIN_SCHEMA,
-    unique_return_count: byReturnId.size,
+    unique_return_count: byReturnIdentity.size,
     groups: grouped
   };
 }
