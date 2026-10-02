@@ -1,0 +1,76 @@
+{
+  "schema": "prometeo.elastic-atomic-effectiveness-benchmark/v1",
+  "benchmark_id": "ELASTIC-ATOMIC-EFFECTIVENESS-V1",
+  "created_at": "2026-10-02T19:16:29Z",
+  "worker_id": "wc-20261002T185151Z-9a7a48e81d95",
+  "job_id": "portfolio-elastic-kernel-atomic-effectiveness-benchmark-v1",
+  "basis": {
+    "decomposer_ref": "scripts/guide-atomic-work-decomposer-v1.mjs",
+    "decomposer_verified_ref": "coordination/portfolio/returns/portfolio-guide-atomic-work-decomposer-v1/RETURN-wc-20261001T210713Z-1372942823c6-G000002-VERIFIED.json",
+    "measurement_kind": "MODELED_REPRODUCIBLE_FIXTURE_NOT_WALL_CLOCK"
+  },
+  "same_outcome_fixture": {
+    "outcome": "one integration-ready candidate with implementation artifact, independent evidence artifact, and final judge receipt",
+    "serial": {
+      "units": 4,
+      "sequence": [
+        {"id":"intake","estimated_minutes":2,"consumer":"implementation,evidence","done_when":["bounded input capsule emitted"],"evidence":["fixture:intake"]},
+        {"id":"implementation","estimated_minutes":10,"consumer":"judge","done_when":["implementation artifact complete"],"evidence":["fixture:implementation"]},
+        {"id":"evidence","estimated_minutes":8,"consumer":"judge","done_when":["independent evidence artifact complete"],"evidence":["fixture:evidence"]},
+        {"id":"judge","estimated_minutes":4,"consumer":"integration","done_when":["candidate disposition recorded"],"evidence":["fixture:judge"]}
+      ],
+      "estimated_critical_path_minutes": 24,
+      "coordination_overhead_minutes": 0
+    },
+    "atomic_dag": {
+      "units": 4,
+      "dependencies": [
+        ["implementation","intake"],
+        ["evidence","intake"],
+        ["judge","implementation"],
+        ["judge","evidence"]
+      ],
+      "estimated_critical_path_minutes": 16,
+      "coordination_overhead_minutes": 2,
+      "gross_path_saving_minutes": 8,
+      "net_path_saving_minutes": 6,
+      "net_path_saving_fraction_vs_serial": 0.25,
+      "duplicate_risk": "LOW_DISJOINT_OUTPUTS_SINGLE_FINAL_CONSUMER"
+    },
+    "result": "ATOMIZE",
+    "reason": "independent implementation/evidence branches save 8 modeled critical-path minutes; 2 minutes coordination overhead leaves 6 minutes net saving while every child has a concrete consumer, done_when and evidence contract"
+  },
+  "no_split_fixture": {
+    "outcome": "one small shared-state patch plus local verification",
+    "serial": {
+      "units": 3,
+      "estimated_critical_path_minutes": 8,
+      "phases": [
+        {"id":"edit-a","estimated_minutes":3},
+        {"id":"edit-b","estimated_minutes":3},
+        {"id":"judge","estimated_minutes":2}
+      ]
+    },
+    "hypothetical_atomic_dag": {
+      "estimated_critical_path_minutes_before_coordination": 5,
+      "gross_path_saving_minutes": 3,
+      "coordination_overhead_minutes": 4,
+      "net_path_saving_minutes": -1,
+      "duplicate_risk": "HIGH_SHARED_MUTATION"
+    },
+    "result": "NO_SPLIT",
+    "reason": "coordination overhead 4 >= gross expected saving 3 and work shares mutation state"
+  },
+  "minimal_rule": {
+    "name": "NO_SPLIT_OVERHEAD_GTE_SAVING",
+    "predicate": "coordination_cost >= execution_or_recovery_savings",
+    "expected_decomposer_result": {"atomize":false,"veto":true},
+    "production_owner": "scripts/guide-atomic-work-decomposer-v1.mjs#shouldAtomize"
+  },
+  "conclusions": [
+    "Atomize only when independent branches preserve one bounded final consumer and gross critical-path saving exceeds coordination overhead.",
+    "NO_SPLIT when coordination_cost >= execution_or_recovery_savings; shared mutation or context duplication remains an independent veto.",
+    "Modeled duration is decision evidence, not wall-clock performance evidence."
+  ],
+  "truth_boundary": "This benchmark compares deterministic modeled fixtures. It does not claim observed worker wall-clock acceleration."
+}
