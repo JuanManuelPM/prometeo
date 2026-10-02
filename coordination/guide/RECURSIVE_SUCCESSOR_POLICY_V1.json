@@ -64,6 +64,31 @@
   "dedupe_rule": "Reuse canonicalDiscoveryIdentity/discoveryFingerprint from scripts/discovery-dedup-lib.mjs and the existing coordination/guide/successor-pins/<fingerprint>.json CREATE hard gate. Parent ids, worker ids, timestamps and wording never distinguish semantically equivalent residuals.",
   "supersession_rule": "A descendant is suppressed before materialization when an equivalent semantic fingerprint already exists, the target is superseded, the upstream artifact/version/digest changed, or the campaign/root is closed. Historical jobs remain append-only evidence.",
   "fan_in_rule": "A parent may close only when every blocking child is terminal PASS/consumed or explicitly superseded. A terminal FAIL opens only the bounded repair successor supported by evidence; advisory children may remain non-blocking. Fan-in emits the next grounded frontier or closure, never human routing by default.",
+  "lifecycle_audit_contract": {
+    "allowed_classes": [
+      "CONSUMED",
+      "CLAIMABLE",
+      "BLOCKED_GROUNDED",
+      "DUPLICATE_OR_SUPERSEDED",
+      "ORPHAN"
+    ],
+    "CONSUMED": "A durable useful completion/integration or explicit consumer receipt exists for the descendant.",
+    "CLAIMABLE": "The descendant has a valid durable consumer and lineage, is not consumed/superseded/blocked, and no still-valid execution owner prevents a normal fresh claim. An expired execution PIN alone never makes the descendant an orphan.",
+    "BLOCKED_GROUNDED": "The descendant has a valid durable consumer and lineage, but a durable current blocker proves execution/recovery is unsafe or impossible until an identified route, owner path, dependency, capability, or authority condition changes. The classification must carry a blocker_ref and blocker_code.",
+    "DUPLICATE_OR_SUPERSEDED": "A semantic fingerprint collision or durable supersession/closure proves the descendant must not be rematerialized as distinct work.",
+    "ORPHAN": "A materialized descendant lacks a durable consumer or parent/root lineage, or has no viable consumer/claim/recovery path after its terminal or stale state and is not grounded by a durable blocker/supersession record.",
+    "route_abort_rule": "A durable ROUTE_ABORTED or equivalent grounded blocker must not be blindly recycled as ordinary recovery. Until the relevant owner/route changes, compilation should suppress the stale route or repoint it to an existing compatible owner; this rule adds no new queue or authority.",
+    "audit_metrics": [
+      "sample_n",
+      "consumed_n",
+      "claimable_n",
+      "blocked_grounded_n",
+      "duplicate_or_superseded_n",
+      "orphan_n",
+      "orphan_ratio",
+      "duplicate_ratio"
+    ]
+  },
   "metrics": [
     "children_proposed",
     "children_materialized",
@@ -71,7 +96,8 @@
     "descendants_claimed",
     "descendants_consumed",
     "orphan_ratio",
+    "duplicate_ratio",
     "max_depth_observed"
   ],
-  "truth_boundary": "Policy and helper validation constrain Guide successor generation. They do not themselves CREATE a derived job, grant execution authority, alter CURRENT, spawn workers, or promote product state."
+  "truth_boundary": "Policy and helper validation constrain Guide successor generation. Lifecycle audit classes describe observed durable state but do not grant or revoke execution authority. This policy does not itself CREATE a derived job, alter CURRENT, spawn workers, create a queue, or promote product state."
 }
