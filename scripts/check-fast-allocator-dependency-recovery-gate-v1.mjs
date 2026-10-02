@@ -56,6 +56,30 @@ assert.equal(blockedJobs.find(row => row.job_id === 'unrelated').state, 'replace
 assert.equal(blockedFeed.decisions.length, 1);
 assert.equal(blockedFeed.decisions[0].eligible, false);
 
+const refOnlyDependency = {
+  job_id: 'dependency',
+  state: 'replaceable',
+  recovery_basis: {
+    source_ref: 'coordination/portfolio/evidence/dependency/new.json',
+    updated_at: '2026-10-02T10:40:00Z'
+  }
+};
+const refOnly = dependencyRecoveryGate(downstream, [downstream, refOnlyDependency, unrelated]);
+assert.equal(refOnly.eligible, false, 'source_ref without exact sha256 must not unlock recovery');
+
+const exactEvidenceDependency = {
+  job_id: 'dependency',
+  state: 'replaceable',
+  recovery_basis: {
+    source_ref: 'coordination/portfolio/evidence/dependency/new.json',
+    source_sha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    updated_at: '2026-10-02T10:40:00Z'
+  }
+};
+const exactEvidenceUnlock = dependencyRecoveryGate(downstream, [downstream, exactEvidenceDependency, unrelated]);
+assert.equal(exactEvidenceUnlock.eligible, true);
+assert.equal(exactEvidenceUnlock.reason, 'DEPENDENCY_MATERIAL_SUCCESS_UNLOCK');
+
 const satisfiedDependency = {
   job_id: 'dependency',
   state: 'done',
