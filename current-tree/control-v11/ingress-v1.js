@@ -259,6 +259,20 @@
         }
 
         try {
+          if (approval) {
+            const replayProbe = await postJson(CHANGE_LOOP_ENDPOINT, {
+              action: 'approval_replay_status',
+              page_id: pageId,
+              approval
+            }, secret);
+            if (replayProbe && replayProbe.replayed === true) {
+              const replayRef = cleanString(replayProbe.return_path, 360);
+              if (!replayRef || !validDurableRef(replayRef)) {
+                throw Object.assign(new Error('APPROVAL_REPLAY_RECEIPT_INVALID'), { code: 'APPROVAL_REPLAY_RECEIPT_INVALID' });
+              }
+              return Object.freeze({ schema: RESULT_SCHEMA, status: 'QUEUED_REPLAY', ref: replayRef, queued: true, error: null });
+            }
+          }
           const createdMs = Number.isFinite(Date.parse(envelope.created_at)) ? Date.parse(envelope.created_at) : Date.now();
           const captureId = captureIdFor(envelope.request_id);
           await postJson(CAPTURE_ENDPOINT, {
@@ -312,6 +326,14 @@
             human_approved: approval ? true : envelope.kind !== APPROVED_PLAN_KIND
           }, secret);
 
+          if (prepared && (prepared.replayed === true || prepared.status === 'QUEUED_REPLAY')) {
+            const replayRef = cleanString(prepared.return_path, 360);
+            if (!replayRef || !validDurableRef(replayRef)) {
+              throw Object.assign(new Error('APPROVAL_REPLAY_RECEIPT_INVALID'), { code: 'APPROVAL_REPLAY_RECEIPT_INVALID' });
+            }
+            return Object.freeze({ schema: RESULT_SCHEMA, status: 'QUEUED_REPLAY', ref: replayRef, queued: true, error: null });
+          }
+
           const workItemId = cleanString(prepared.work_item_id, 160);
           const returnPath = cleanString(prepared.return_path, 360);
           if (!prepared.queued_to_worker_pool || !workItemId || !returnPath) {
@@ -339,7 +361,7 @@
         } catch (error) {
           return Object.freeze({
             schema: RESULT_SCHEMA,
-            status: 'BOUNDARY_PRIVATE_STORAGE_UNAVAILABLE',
+            status: error && error.code === 'APPROVAL_REPLAY_CONFLICT' ? 'BOUNDARY_APPROVAL_REPLAY_CONFLICT' : 'BOUNDARY_PRIVATE_STORAGE_UNAVAILABLE',
             ref: null,
             queued: false,
             error: cleanString(error && (error.code || error.message || error.name), 180) || 'PRIVATE_TRANSPORT_FAILED'
