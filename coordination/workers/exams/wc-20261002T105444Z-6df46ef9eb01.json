@@ -1,0 +1,186 @@
+{
+  "schema": "prometeo.worker-productivity-exam/v1",
+  "worker_id": "wc-20261002T105444Z-6df46ef9eb01",
+  "batch_id": "POOL-PROD-01",
+  "pool_id": "PROD-01",
+  "protocol_version": "v3.30",
+  "launch_nonce": "78d398182eac23ca",
+  "started_at_or_null": null,
+  "closed_at": "2026-10-02T10:58:37.372202Z",
+  "slots": [],
+  "collisions": 4,
+  "no_allocation_count": 1,
+  "projects_touched": [],
+  "pattern_id_or_null": null,
+  "productive_units": 0,
+  "close_reason": "RUNTIME_BOUNDARY",
+  "close_evidence_refs": [
+    "coordination/workers/beacons/wc-20261002T105444Z-6df46ef9eb01.json@a7421289f3e9a3966e7fbe0f7be0ddd0395798d2",
+    "coordination/workers/no-allocation/wc-20261002T105444Z-6df46ef9eb01.json@151b39fa4cef2c7a9ed6763fe3f64c26c4285344",
+    "gh-pages:live/claim-frontier.json@2f08b9ac44a3c5f06247dc6b124297e83cece999"
+  ],
+  "exit_audit_v1": {
+    "schema": "prometeo.worker-exit-audit/v1",
+    "worker_id": "wc-20261002T105444Z-6df46ef9eb01",
+    "batch_or_pool_or_run": "POOL-PROD-01 / PROD-01",
+    "exit_reason": "BOUNDARY",
+    "productive_units": 0,
+    "final_state": "STOP_NO_RECOVERY",
+    "started_at": "2026-10-02T10:54:44.413748Z",
+    "audit_completed_at": "2026-10-02T10:58:37.372202Z",
+    "timing_basis": "MIXED_DIAGNOSTIC",
+    "stage_timings": [
+      {
+        "stage": "E0_ENTRY_BEACON",
+        "elapsed_ms_or_null": null,
+        "basis": "coordination/workers/beacons/wc-20261002T105444Z-6df46ef9eb01.json"
+      },
+      {
+        "stage": "E1_ALLOCATION_CLAIM",
+        "elapsed_ms_or_null": null,
+        "basis": "four atomic CREATE_EXISTS outcomes plus coordination/workers/no-allocation/wc-20261002T105444Z-6df46ef9eb01.json"
+      },
+      {
+        "stage": "E9_EXAM_CLOSE",
+        "elapsed_ms_or_null": null,
+        "basis": "this exam and no-allocation receipt"
+      }
+    ],
+    "tool_usage": [
+      {
+        "tool_or_connector": "GitHub Contents CREATE",
+        "calls_or_operations": 7,
+        "useful_operations": 3,
+        "wait_ms_or_null": null
+      },
+      {
+        "tool_or_connector": "GitHub repository reads",
+        "calls_or_operations": 6,
+        "useful_operations": 6,
+        "wait_ms_or_null": null
+      },
+      {
+        "tool_or_connector": "GitHub issue observability comments",
+        "calls_or_operations": 2,
+        "useful_operations": 2,
+        "wait_ms_or_null": null
+      },
+      {
+        "tool_or_connector": "public exit-page fetch",
+        "calls_or_operations": 2,
+        "useful_operations": 1,
+        "wait_ms_or_null": null
+      }
+    ],
+    "friction_events": [
+      {
+        "category": "CLAIM_CONTENTION",
+        "elapsed_ms_or_null": null,
+        "description": "All four permitted authority CREATE attempts returned GitHub Contents CREATE_EXISTS.",
+        "evidence_refs": [
+          "coordination/workers/no-allocation/wc-20261002T105444Z-6df46ef9eb01.json"
+        ],
+        "recovered": false,
+        "boundary_code_or_null": "CLAIM_CONTENTION_HARD_CAP_REACHED",
+        "proposed_new_category_or_null": null
+      },
+      {
+        "category": "ALLOCATION_FRONTIER",
+        "elapsed_ms_or_null": null,
+        "description": "A post-claim compact-frontier read returned the same blob generated at 2026-10-02T09:44:25.436Z, older than the v3.30 stale-collision threshold.",
+        "evidence_refs": [
+          "gh-pages:live/claim-frontier.json@2f08b9ac44a3c5f06247dc6b124297e83cece999"
+        ],
+        "recovered": false,
+        "boundary_code_or_null": "STALE_COMPACT_FRONTIER_AT_CLOSE",
+        "proposed_new_category_or_null": null
+      },
+      {
+        "category": "OTHER",
+        "elapsed_ms_or_null": null,
+        "description": "The mandatory >90s stale-frontier refresh check was not performed at the prescribed post-second-collision point; the worker did not add any authority attempts and recorded the deviation in the terminal audit.",
+        "evidence_refs": [
+          "coordination/workers/no-allocation/wc-20261002T105444Z-6df46ef9eb01.json"
+        ],
+        "recovered": false,
+        "boundary_code_or_null": "PROTOCOL_SEQUENCE_DEVIATION",
+        "proposed_new_category_or_null": "PROTOCOL_SEQUENCE_DEVIATION"
+      }
+    ],
+    "decision_trace": [
+      {
+        "decision": "Create a de-novo v3.30 worker identity before allocation.",
+        "observable_basis": "Human launch envelope required NUEVO_WORKER=1 and the binding fresh-launch policy requires beacon-first durability.",
+        "action": "Created the fresh beacon and froze worker_id plus launch_nonce.",
+        "outcome": "Beacon CREATE succeeded.",
+        "evidence_refs": [
+          "coordination/workers/beacons/wc-20261002T105444Z-6df46ef9eb01.json@a7421289f3e9a3966e7fbe0f7be0ddd0395798d2"
+        ]
+      },
+      {
+        "decision": "Use POOL unified sharding and bounded atomic claim attempts.",
+        "observable_basis": "The launch parsed as POOL PROD-01 and the compact frontier declared DETERMINISTIC_UNIFIED_CANDIDATE_SHARD with hard cap 4 including tail rescue.",
+        "action": "Attempted four distinct retained claim paths without pre-reading them.",
+        "outcome": "All four returned CREATE_EXISTS; no authority was acquired.",
+        "evidence_refs": [
+          "coordination/workers/no-allocation/wc-20261002T105444Z-6df46ef9eb01.json"
+        ]
+      },
+      {
+        "decision": "Do not execute project work or attempt a fifth claim.",
+        "observable_basis": "No PIN/claim CREATE succeeded and total authority CREATE attempts reached the protocol hard cap.",
+        "action": "Read the compact frontier once for close evidence and persisted STOP_NO_RECOVERY.",
+        "outcome": "The close read was byte-identical to the stale initial frontier; terminal boundary recorded without fabricating ownership.",
+        "evidence_refs": [
+          "gh-pages:live/claim-frontier.json@2f08b9ac44a3c5f06247dc6b124297e83cece999",
+          "coordination/workers/no-allocation/wc-20261002T105444Z-6df46ef9eb01.json@151b39fa4cef2c7a9ed6763fe3f64c26c4285344"
+        ]
+      }
+    ],
+    "top_time_sinks": [
+      {
+        "category": "CLAIM_CONTENTION",
+        "elapsed_ms_or_null": null,
+        "note": "Four bounded atomic claim collisions consumed the entire authority-attempt budget."
+      },
+      {
+        "category": "ALLOCATION_FRONTIER",
+        "elapsed_ms_or_null": null,
+        "note": "Compact frontier remained stale/unchanged at terminal close."
+      }
+    ],
+    "unfinished_debt": [
+      {
+        "item": "No productive unit executed because no authority claim succeeded.",
+        "owner_or_recovery_ref_or_null": null
+      },
+      {
+        "item": "Allocator/live claim frontier still published claim paths that were already occupied during all bounded attempts.",
+        "owner_or_recovery_ref_or_null": "gh-pages:live/claim-frontier.json@2f08b9ac44a3c5f06247dc6b124297e83cece999"
+      },
+      {
+        "item": "The stale-refresh sequencing deviation should be evaluated by the worker-evolution pipeline; this launch must not self-promote a repair without authority.",
+        "owner_or_recovery_ref_or_null": null
+      }
+    ],
+    "improvement_candidates": [
+      {
+        "target": "E1",
+        "proposal": "Make stale-collision refresh an explicit machine-enforced transition immediately after the second CREATE_EXISTS when snapshot age exceeds threshold.",
+        "expected_effect": "Reduce protocol-sequencing misses and avoid spending remaining claim budget on known-stale paths.",
+        "evidence_refs": [
+          "coordination/workers/no-allocation/wc-20261002T105444Z-6df46ef9eb01.json"
+        ]
+      },
+      {
+        "target": "UI",
+        "proposal": "Publish claim-frontier generations promptly when ownership paths become occupied, or expose freshness/claimed-path invalidation in the compact compiler output.",
+        "expected_effect": "Lower CREATE_EXISTS contention for fresh resident workers.",
+        "evidence_refs": [
+          "gh-pages:live/claim-frontier.json@2f08b9ac44a3c5f06247dc6b124297e83cece999"
+        ]
+      }
+    ],
+    "public_safe_summary": "Fresh v3.30 PROD-01 worker created successfully. Four bounded atomic claim attempts collided with existing paths, no authority was acquired, and the compact frontier remained stale/unchanged at close. The worker stopped without touching project work and persisted the contention/runtime boundary plus exit audit."
+  }
+}
