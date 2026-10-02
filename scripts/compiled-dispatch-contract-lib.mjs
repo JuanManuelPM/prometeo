@@ -329,7 +329,10 @@ export function validateCompiledDispatchContract(contract = {}) {
   push(errors, !!str(e8.hard_boundary_condition), 'E8:hard_boundary_condition_required');
 
   const e9 = contract.future_branches || {};
-  for (const key of ['ON_PASS','ON_PARTIAL','ON_FAIL','ON_CORRECTION','ON_SCALE','ON_DEPENDENCY_DOWN']) push(errors, has(e9, key), `E9:${key}_required`);
+  for (const key of ['ON_PASS','ON_PARTIAL','ON_FAIL','ON_CORRECTION','ON_SCALE','ON_DEPENDENCY_DOWN']) {
+    push(errors, has(e9, key), `E9:${key}_required`);
+    push(errors, arr(e9[key]).map(str).filter(Boolean).length > 0, `E9:${key}_route_required`);
+  }
 
   const e10 = contract.autonomy_closure || {};
   push(errors, Array.isArray(e10.autonomous_without_human), 'E10:autonomous_without_human_array_required');
