@@ -4,16 +4,26 @@ import fs from 'node:fs';
 import { allocateRoleAndOpportunity } from '../../../scripts/universal-cognitive-worker-lib.mjs';
 import { buildClaimFrontier } from '../../../scripts/build-claim-frontier.mjs';
 
-const dynamicChild = JSON.parse(fs.readFileSync(
-  new URL('../derived/prometeo-autonomous-growth/portfolio-agentic-dynamic-child-subcompile-v1.json', import.meta.url),
+const readDerived = name => JSON.parse(fs.readFileSync(
+  new URL(`../derived/prometeo-autonomous-growth/${name}.json`, import.meta.url),
   'utf8'
 ));
 
-assert.deepEqual(
-  dynamicChild.required_capabilities,
-  ['repository_test_runtime'],
-  'repository-test job must declare repository_test_runtime'
-);
+const dynamicChild = readDerived('portfolio-agentic-dynamic-child-subcompile-v1');
+const combinedValidator = readDerived('portfolio-agentic-claim-ready-combined-validator-v1');
+const capabilityGate = readDerived('portfolio-repository-test-runtime-capability-gate-v1');
+
+for (const [name, job] of [
+  ['dynamic-child-subcompile', dynamicChild],
+  ['claim-ready-combined-validator', combinedValidator],
+  ['repository-test-runtime-capability-gate', capabilityGate]
+]) {
+  assert.deepEqual(
+    job.required_capabilities,
+    ['repository_test_runtime'],
+    `${name} must declare repository_test_runtime`
+  );
+}
 
 const repositoryJob = {
   opportunity_id: 'repo-test-job',
@@ -85,7 +95,9 @@ console.log(JSON.stringify({
   ok: true,
   test: 'repository_test_runtime_capability_gate_v1',
   cases: {
-    metadata_declared: true,
+    dynamic_child_metadata_declared: true,
+    combined_validator_metadata_declared: true,
+    capability_gate_metadata_declared: true,
     incompatible_worker_excluded: true,
     control_job_remains_compatible: true,
     capable_worker_remains_eligible: true,
