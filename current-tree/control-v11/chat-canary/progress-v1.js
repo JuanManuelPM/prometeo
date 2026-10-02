@@ -106,8 +106,8 @@
       ['HUMAN_DECISION_REQUIRED', input.human_decision_required === true],
       ['CLAIM_TRANSPORT_DEGRADED', n(input.claim_transport_blocked_count) > 0],
       ['HUMAN_INTENT_WAITING_NO_CAPACITY', n(input.pending_human_intent_count) > 0 && n(input.live_worker_count) === 0 && n(input.capacity_gap) > 0],
-      ['RETURNS_UNCONSUMED', n(input.unconsumed_returns_count) > 0],
-      ['RECOVERY_PRESSURE', n(input.recovery_attention_count) > 0],
+      ['RETURNS_UNCONSUMED', n(input.unconsumed_returns_count) > 0 && n(input.live_worker_count) > 0],
+      ['RECOVERY_PRESSURE', n(input.recovery_attention_count) > 0 && n(input.live_worker_count) > 0],
       ['REFILL_N', n(input.capacity_gap) > 0 && (n(input.claimable_generic_count) + n(input.claimable_specialized_count)) > 0],
       ['BUFFER_LOW', n(input.capacity_gap) === 0 && n(input.reserve_workers) <= reserveLowThreshold && n(input.core_demand) > 0],
       ['CAPACITY_OK', n(input.core_demand) > 0 && n(input.capacity_gap) === 0 && n(input.live_worker_count) > 0],
@@ -188,7 +188,9 @@
       scenario('human decision boundary', {humanDecisionRequired:true,live:4,claimable:2,core:2,reserve:2,need:0}, 'HUMAN_DECISION_REQUIRED'),
       scenario('claim transport blocked', {claimTransportBlockedCount:1,live:4,claimable:2,core:2,reserve:2,need:0}, 'CLAIM_TRANSPORT_DEGRADED'),
       scenario('returns unconsumed', {unconsumedReturnsCount:2,live:4,claimable:2,core:2,reserve:2,need:0}, 'RETURNS_UNCONSUMED'),
+      scenario('returns sin worker vivo pide refill', {unconsumedReturnsCount:2,live:0,claimable:4,core:4,reserve:0,need:4}, 'REFILL_N'),
       scenario('recovery pressure', {recoveryAttentionCount:2,live:4,claimable:2,core:2,reserve:2,need:0}, 'RECOVERY_PRESSURE'),
+      scenario('recovery sin worker vivo pide refill', {recoveryAttentionCount:2,live:0,claimable:4,core:4,reserve:0,need:4}, 'REFILL_N'),
       scenario('campaña terminada explícita', {live:0,claimable:0,core:0,reserve:0,need:0,campaignComplete:true}, 'CAMPAIGN_COMPLETE')
     ];
     const freshnessNow = Date.parse('2026-10-01T22:45:00Z');
