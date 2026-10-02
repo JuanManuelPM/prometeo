@@ -190,7 +190,7 @@
       scenario('returns unconsumed', {unconsumedReturnsCount:2,live:4,claimable:2,core:2,reserve:2,need:0}, 'RETURNS_UNCONSUMED'),
       scenario('returns sin worker vivo pide refill', {unconsumedReturnsCount:2,live:0,claimable:4,core:4,reserve:0,need:4}, 'REFILL_N'),
       scenario('recovery pressure', {recoveryAttentionCount:2,live:4,claimable:2,core:2,reserve:2,need:0}, 'RECOVERY_PRESSURE'),
-      scenario('recovery sin worker vivo pide refill', {recoveryAttentionCount:2,live:0,claimable:4,core:4,reserve:0,need:4}, 'REFILL_N'),
+      scenario('recovery sin worker vivo pide refill', {unconsumedReturnsCount:0,recoveryAttentionCount:2,live:0,claimable:4,core:4,reserve:0,need:4}, 'REFILL_N'),
       scenario('campaña terminada explícita', {live:0,claimable:0,core:0,reserve:0,need:0,campaignComplete:true}, 'CAMPAIGN_COMPLETE')
     ];
     const freshnessNow = Date.parse('2026-10-01T22:45:00Z');
@@ -342,21 +342,29 @@
   }
 
   function ensureCapacityHost() {
-    let host = document.querySelector('[data-primary-chat-capacity-action-v1]');
-    if (host) return host;
+    const topbar = document.querySelector('.topbar');
     const thread = document.getElementById('thread');
+    let host = document.querySelector('[data-primary-chat-capacity-action-v1]');
+    if (host) {
+      if (topbar && topbar.nextElementSibling !== host) topbar.insertAdjacentElement('afterend', host);
+      return host;
+    }
     if (!thread || !thread.parentNode) return null;
     host = el('section');
     host.setAttribute('data-primary-chat-capacity-action-v1','');
+    host.setAttribute('data-current-surface','CURRENT_FIRST');
+    host.setAttribute('role','region');
+    host.setAttribute('aria-live','polite');
     host.setAttribute('aria-label','Estado CURRENT de Prometeo');
-    host.style.cssText = 'margin:4px 2px 20px;padding:14px 0 16px;border-top:1px solid #2b2b2b;border-bottom:1px solid #2b2b2b;color:#bdbdb8;font:12px/1.45 ui-sans-serif,system-ui;min-height:170px;';
-    thread.parentNode.insertBefore(host, thread);
+    host.style.cssText = 'margin:0 2px 18px;padding:18px 0 18px;border-bottom:1px solid #2b2b2b;color:#bdbdb8;font:12px/1.45 ui-sans-serif,system-ui;min-height:260px;';
+    if (topbar) topbar.insertAdjacentElement('afterend', host);
+    else thread.parentNode.insertBefore(host, thread);
     return host;
   }
 
   function renderWorkerSignals(snapshot) {
     const wrap = el('div');
-    wrap.style.cssText = 'display:grid;gap:5px;margin-top:12px;padding-top:10px;border-top:1px solid #171717;';
+    wrap.style.cssText = 'display:grid;gap:6px;margin-top:14px;padding-top:11px;border-top:1px solid #171717;';
     const title = el('div','SEÑALES RECIENTES');
     title.style.cssText = 'font-size:8px;letter-spacing:.12em;color:#5f5f5b;font-weight:700;';
     wrap.append(title);
@@ -388,45 +396,47 @@
     host.dataset.contract = contract?.schema || 'UNAVAILABLE';
     host.dataset.authority = contract?.authority || 'NON_AUTHORITATIVE_DERIVED_PROJECTION';
     host.dataset.harness = harness.passed + '/' + harness.total;
+    if (snapshot.projectionAt) host.dataset.projectionAt = snapshot.projectionAt;
+    else delete host.dataset.projectionAt;
     if (snapshot.qa?.status) host.dataset.qaStatus = snapshot.qa.status;
     else delete host.dataset.qaStatus;
 
     const head = el('div');
     head.style.cssText = 'display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;';
     const eyebrow = el('strong','CURRENT');
-    eyebrow.style.cssText = 'font-size:9px;letter-spacing:.15em;color:#d7d7d2;';
+    eyebrow.style.cssText = 'font-size:10px;letter-spacing:.16em;color:#e1e1dc;';
     const projected = el('span',projectionLabel(snapshot.projectionAt));
-    projected.style.cssText = 'color:#666;font-size:9px;';
+    projected.style.cssText = 'color:#70706c;font-size:9px;';
     head.append(eyebrow,projected);
 
     const title = el('div', snapshot.state);
-    title.style.cssText = 'margin-top:7px;font-size:clamp(20px,5.5vw,28px);line-height:1.05;font-weight:760;color:#ecece8;letter-spacing:-.035em;overflow-wrap:anywhere;';
+    title.style.cssText = 'margin-top:8px;font-size:clamp(24px,7vw,34px);line-height:1.02;font-weight:780;color:#f0f0ec;letter-spacing:-.04em;overflow-wrap:anywhere;';
 
     const action = el('div', actionText(snapshot, contract));
     const pending = ['PROJECTION_STALE','HUMAN_DECISION_REQUIRED','CLAIM_TRANSPORT_DEGRADED','HUMAN_INTENT_WAITING_NO_CAPACITY','RETURNS_UNCONSUMED','RECOVERY_PRESSURE','REFILL_N','BUFFER_LOW','NO_SAFE_WORK'].includes(snapshot.state);
-    action.style.cssText = 'margin-top:9px;color:' + (pending ? '#d9b45f' : '#82d69a') + ';font-size:14px;line-height:1.35;font-weight:720;';
+    action.style.cssText = 'margin-top:11px;color:' + (pending ? '#d9b45f' : '#82d69a') + ';font-size:15px;line-height:1.35;font-weight:740;';
 
     const metrics = el('div');
-    metrics.style.cssText = 'display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:13px;';
+    metrics.style.cssText = 'display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:16px;';
     for (const [label,value] of [['LIVE',snapshot.live],['NEED',snapshot.need],['CLAIM',snapshot.claimable],['RESERVE',snapshot.reserve]]) {
       const item = el('div');
       const v = el('div',value);
-      v.style.cssText = 'font-size:17px;font-weight:730;color:#d3d3cf;line-height:1;';
+      v.style.cssText = 'font-size:20px;font-weight:750;color:#d8d8d3;line-height:1;';
       const l = el('div',label);
-      l.style.cssText = 'margin-top:3px;font-size:7px;letter-spacing:.1em;color:#565652;';
+      l.style.cssText = 'margin-top:4px;font-size:7px;letter-spacing:.1em;color:#5f5f5a;';
       item.append(v,l);
       metrics.append(item);
     }
 
     const context = el('div', ageLabel(snapshot.humanAgeMs));
-    context.style.cssText = 'margin-top:9px;color:#61615d;font-size:9px;';
+    context.style.cssText = 'margin-top:11px;color:#686864;font-size:9px;';
 
     host.append(head,title,action,metrics,context);
 
     if (snapshot.lastFinished || snapshot.lastReturnAt) {
       const last = snapshot.lastFinished;
       const line = el('div');
-      line.style.cssText = 'margin-top:11px;padding-top:9px;border-top:1px solid #171717;color:#777;font-size:9px;line-height:1.4;overflow-wrap:anywhere;';
+      line.style.cssText = 'margin-top:13px;padding-top:10px;border-top:1px solid #171717;color:#7d7d78;font-size:9px;line-height:1.4;overflow-wrap:anywhere;';
       const ref = last?.result_ref || null;
       line.textContent = 'ÚLTIMO TERMINADO · ' + (last?.worker_id || 'worker') + (last?.last_signal_at ? ' · ' + projectionLabel(last.last_signal_at).replace('proyección ','') : '') + (ref ? ' · ' + ref : snapshot.lastReturnAt ? ' · return ' + snapshot.lastReturnAt : '');
       host.append(line);
@@ -435,7 +445,7 @@
     if (snapshot.qa) {
       const qa = el('div','QA ' + snapshot.qa.status + (snapshot.qa.version_ref ? ' · ' + snapshot.qa.version_ref : ''));
       const qaPending = ['QA_PENDING','QA_REPAIR_IN_PROGRESS','QA_BLOCKED'].includes(snapshot.qa.status);
-      qa.style.cssText = 'margin-top:9px;color:' + (qaPending ? '#d9b45f' : '#82d69a') + ';font-size:10px;font-weight:700;overflow-wrap:anywhere;';
+      qa.style.cssText = 'margin-top:10px;color:' + (qaPending ? '#d9b45f' : '#82d69a') + ';font-size:10px;font-weight:700;overflow-wrap:anywhere;';
       qa.title = [snapshot.qa.artifact_ref,snapshot.qa.evidence_ref].filter(Boolean).join(' · ');
       host.append(qa);
     }
@@ -443,7 +453,8 @@
     host.append(renderWorkerSignals(snapshot));
 
     const history = el('div','HISTORIA ↓');
-    history.style.cssText = 'margin-top:14px;padding-top:9px;border-top:1px solid #202020;color:#50504d;font-size:8px;font-weight:700;letter-spacing:.12em;';
+    history.setAttribute('data-current-history-boundary','');
+    history.style.cssText = 'margin-top:16px;padding-top:10px;border-top:1px solid #202020;color:#555550;font-size:8px;font-weight:700;letter-spacing:.12em;';
     host.append(history);
 
     host.title = 'Projection only · owner: ' + WAKE_OWNER_REF + ' · contract ' + (contract?.schema || 'unavailable') + ' · harness ' + harness.passed + '/' + harness.total;
@@ -458,12 +469,21 @@
       if (contract?.schema !== 'prometeo.primary-chat-state-communication-contract/v1') throw new Error('STATE_CONTRACT_INCOMPATIBLE');
       const snapshot = capacitySnapshot(runtime, frontier, thread, contract);
       renderCapacity(host, snapshot, harness, contract);
+      delete host.dataset.error;
       return {ok:true,snapshot,harness,contract:contract.schema};
     } catch (error) {
+      const reason = error?.message || 'UNKNOWN';
       const snapshot = Object.freeze({state:'PROJECTION_STALE',live:0,claimable:0,core:0,reserve:0,need:0,humanAgeMs:null,projectionAt:null,stale:true,recentWorkers:[],lastFinished:null,lastReturnAt:null,qa:null});
       renderCapacity(host, snapshot, harness, null);
-      host.title = 'PROJECTION_STALE · ' + (error?.message || 'UNKNOWN') + ' · projection only · harness ' + harness.passed + '/' + harness.total;
-      return {ok:false,reason:error?.message || 'UNKNOWN',harness};
+      host.dataset.error = reason;
+      const failure = el('div','ERROR DE PROYECCIÓN · ' + reason);
+      failure.setAttribute('data-current-projection-error','');
+      failure.style.cssText = 'margin-top:12px;padding:10px 0;border-top:1px solid #3a2b20;color:#d9b45f;font:10px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere;';
+      const boundary = host.querySelector('[data-current-history-boundary]');
+      if (boundary) host.insertBefore(failure, boundary);
+      else host.append(failure);
+      host.title = 'PROJECTION_STALE · ' + reason + ' · projection only · harness ' + harness.passed + '/' + harness.total;
+      return {ok:false,reason,harness};
     }
   }
 
@@ -490,6 +510,8 @@
 
   const autoHost = document.getElementById('chat-canary-progress');
   if (autoHost) load(autoHost);
+  const refreshButton = document.getElementById('refresh');
+  if (refreshButton) refreshButton.addEventListener('click', () => { void loadCapacityAction(); });
   void loadCapacityAction();
   window.setInterval(() => { void loadCapacityAction(); }, 10000);
 })();
