@@ -198,5 +198,86 @@ assert.equal(
   'generic reservation must not erase the HTTP capability exemplar'
 );
 
+// Barrier routing changes claim_path by design. A raw batch candidate must never win over the
+// final routed lane representation merely because its old direct PIN path differs.
+const rawBarrier={
+  ...capabilityRow(700,[]),
+  job_id:'barrier-job',
+  project_id:'prometeo-autonomous-growth',
+  source_path:'coordination/portfolio/derived/prometeo-autonomous-growth/barrier-job.json',
+  claim_path:'coordination/portfolio/pins/barrier-job/G000001.json',
+  claim_payload_shape:{...payload(700),job_id:'barrier-job'}
+};
+const barrierAllocator=(routedRow,suppressed=[])=>({
+  schema:'prometeo.fast-allocator/v3',
+  generated_at:'2026-10-02T13:40:00Z',
+  source_sha:'barrier-route-fixture',
+  batch_strategy:'DETERMINISTIC_UNIFIED_CANDIDATE_SHARD',
+  preferred_order:['ready','queue_ready','role_ready','recovery'],
+  ready:routedRow?[routedRow]:[],queue_ready:[],role_ready:[],recovery:[],
+  batch_candidates:[{lane:'ready',...rawBarrier}],
+  contention_barrier_routing:{suppressed_expired_candidates:suppressed}
+});
+const barrierMeta={mode:'contention_barrier',fixture_id:'fixture-route-preservation',required_contenders:2};
+const entrantPath='coordination/portfolio/contention_barriers/fixture-route-preservation/entrants/<worker_id>.json';
+const timeoutPath='coordination/portfolio/contention_barriers/fixture-route-preservation/timeouts/<worker_id>.json';
+const enterRow={
+  ...rawBarrier,
+  claim_mode:'PORTFOLIO_BARRIER_ENTER',
+  claim_path:entrantPath,
+  claim_payload_shape:{schema:'prometeo.portfolio-contention-entrant/v1',fixture_id:'fixture-route-preservation',worker_id:'<worker_id>',grants_execution_authority:false},
+  contention_barrier:{...barrierMeta,state:'ARMING'},
+  next_action:'WAIT_FOR_RELEASE_OR_TIMEOUT',
+  post_release_claim:rawBarrier
+};
+const enterFrontier=buildClaimFrontier(barrierAllocator(enterRow));
+assert.equal(enterFrontier.candidate_count,1);
+assert.equal(enterFrontier.candidates[0].claim_mode,'PORTFOLIO_BARRIER_ENTER');
+assert.equal(enterFrontier.candidates[0].claim_path,entrantPath);
+assert.notEqual(enterFrontier.candidates[0].claim_path,rawBarrier.claim_path,'ARMING barrier must not resurrect direct PIN');
+
+const releasedRow={
+  ...rawBarrier,
+  claim_mode:'PORTFOLIO_BARRIER_RELEASED',
+  claim_path:null,
+  claim_payload_shape:null,
+  contention_barrier:{...barrierMeta,state:'RELEASED',entrant_worker_ids:['worker-a','worker-b']},
+  next_action:'CHECK_RELEASE_MEMBERSHIP',
+  post_release_claim:rawBarrier
+};
+const releasedFrontier=buildClaimFrontier(barrierAllocator(releasedRow));
+assert.equal(releasedFrontier.candidate_count,1);
+assert.equal(releasedFrontier.candidates[0].claim_mode,'PORTFOLIO_BARRIER_RELEASED');
+assert.equal('claim_path' in releasedFrontier.candidates[0],false,'RELEASED barrier must gate membership before exposing deterministic PIN');
+assert.equal(releasedFrontier.candidates[0].post_release_claim.claim_path,rawBarrier.claim_path);
+
+const timeoutRow={
+  ...rawBarrier,
+  claim_mode:'PORTFOLIO_BARRIER_TIMEOUT',
+  claim_path:timeoutPath,
+  claim_payload_shape:{schema:'prometeo.portfolio-contention-timeout/v1',fixture_id:'fixture-route-preservation',worker_id:'<worker_id>',pin_attempted:false,grants_execution_authority:false},
+  contention_barrier:{...barrierMeta,state:'TIMED_OUT'},
+  next_action:'REENTER_ALLOCATION',
+  post_release_claim:null
+};
+const timeoutFrontier=buildClaimFrontier(barrierAllocator(timeoutRow));
+assert.equal(timeoutFrontier.candidate_count,1);
+assert.equal(timeoutFrontier.candidates[0].claim_mode,'PORTFOLIO_BARRIER_TIMEOUT');
+assert.equal(timeoutFrontier.candidates[0].claim_path,timeoutPath);
+assert.equal(timeoutFrontier.candidates[0].claim_payload_shape.pin_attempted,false);
+
+const suppressedFrontier=buildClaimFrontier(barrierAllocator(null,[{job_id:'barrier-job',reason:'DURABLE_TIMEOUT_ALREADY_OBSERVED'}]));
+assert.equal(suppressedFrontier.candidate_count,0,'expired barrier with durable timeout evidence must stay suppressed');
+assert.equal(suppressedFrontier.candidates.some(row=>row.claim_path===rawBarrier.claim_path),false);
+
+const ordinaryFrontier=buildClaimFrontier({
+  ...barrierAllocator(rawBarrier),
+  contention_barrier_routing:{suppressed_expired_candidates:[]}
+});
+assert.equal(ordinaryFrontier.candidate_count,1);
+assert.equal(ordinaryFrontier.candidates[0].claim_mode,'PORTFOLIO_PIN_CREATE');
+assert.equal(ordinaryFrontier.candidates[0].claim_path,rawBarrier.claim_path,'ordinary non-barrier job must stay direct-to-PIN');
+
+console.log('CLAIM_FRONTIER_BARRIER_ROUTE_PRESERVATION_PASS');
 console.log('CLAIM_FRONTIER_CAPABILITY_DIVERSITY_PASS',diverse.candidate_count);
 console.log('CLAIM_FRONTIER_COMPACT_PASS',bytes,boundedBytes,bounded.candidate_count);
