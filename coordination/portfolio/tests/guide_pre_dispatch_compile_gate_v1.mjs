@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
   COMPILED_DISPATCH_AUTHORITY,
   COMPILED_DISPATCH_SCHEMA,
@@ -246,6 +247,29 @@ assert.equal(allowed.child.work_block_id, 'local');
 assert.equal(allowed.child.compiled_dispatch_contract_ref, 'receipt://local#compiled_dispatch_contract');
 assert.equal(allowed.child.organism_refs.objective_ref, baseOrganism.objective_ref);
 
+// Dogfood: the current Shell + Apps/Chats + Organism objective must pass the same gate.
+const dogfoodPath = new URL('../../guide/receipts/portfolio-guide-planner-universal-cognitive-block-v1/RECEIPT-DISPATCH-COMPILER-DOGFOOD-V1.json', import.meta.url);
+const dogfoodReceipt = JSON.parse(fs.readFileSync(dogfoodPath, 'utf8'));
+assert.equal(dogfoodReceipt.schema, 'prometeo.guide-receipt/v1');
+const dogfood = dogfoodReceipt.compiled_dispatch_contract;
+const dogfoodValidation = validateCompiledDispatchContract(dogfood);
+assert.equal(dogfoodValidation.pass, true, `dogfood contract failed: ${dogfoodValidation.errors.join(',')}`);
+assert.equal(orphanAudit(dogfood).pass, true, 'dogfood contract must have zero orphan WorkBlocks');
+assert.equal(dogfood.capacity_plan.ready_block_ids.length, 2, 'dogfood ready frontier must contain exactly two capability-neutral blocks');
+assert.equal(dogfood.capacity_plan.live_compatible_count, 2, 'dogfood compile snapshot must account for two already-live compatible Guide workers');
+assert.equal(deriveCapacityRequest(dogfood).capacity_request, 0, 'dogfood must not request more shells while compatible live capacity covers prepared blocks');
+assert.equal(dogfood.capacity_plan.ready_block_ids.includes('served-shell-chat-qa'), false, 'browser-gated QA must not masquerade as generic ready capacity');
+for (const workBlock of dogfood.decomposition.blocks) {
+  const handoff = compileWorkBlockHandoff(
+    dogfood,
+    workBlock.block_id,
+    'coordination/guide/receipts/portfolio-guide-planner-universal-cognitive-block-v1/RECEIPT-DISPATCH-COMPILER-DOGFOOD-V1.json#compiled_dispatch_contract'
+  );
+  assert.equal(handoff.pass, true, `dogfood handoff failed for ${workBlock.block_id}`);
+  assert.equal(handoff.packet.work_block.done_when.length > 0, true);
+  assert.equal(Boolean(handoff.packet.organism_node_refs.consumer_ref), true);
+}
+
 console.log('GUIDE_PRE_DISPATCH_COMPILE_GATE_PASS');
 console.log(JSON.stringify({
   A_local_block: 'PASS',
@@ -258,4 +282,12 @@ console.log(JSON.stringify({
   H_orphan_audit: 'PASS',
   I_recovery_from_durable_state: 'PASS',
   scale_fixture_capacity_request: deriveCapacityRequest(scale3).capacity_request
+}));
+console.log('GUIDE_PRE_DISPATCH_DOGFOOD_PASS');
+console.log(JSON.stringify({
+  ready_blocks: dogfood.capacity_plan.ready_block_ids.length,
+  live_compatible_count: dogfood.capacity_plan.live_compatible_count,
+  capacity_request: deriveCapacityRequest(dogfood).capacity_request,
+  compiled_blocks_total: dogfood.decomposition.blocks.length,
+  orphan_audit: 'PASS'
 }));
