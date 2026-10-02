@@ -26,6 +26,21 @@ assert.equal(policy.human_inline_launch_guard.status,'ACTIVE_BINDING');
 assert.equal(policy.productive_smoke.status,'ACTIVE');
 assert.equal(policy.smoke_gate.status,'SMOKE_PASS');
 assert.equal(policy.productive_smoke.target_productive_units,6);
+const residentPoolAlias=policy.launch_envelope.canary_resident_pool_alias;
+assert.equal(policy.launch_envelope.parser_owner,'THIS_OBJECT','launch envelope parser owner must remain singular');
+assert.deepEqual(policy.launch_envelope.explicit_precedence,['RUN','BATCH','POOL'],'explicit launch identities must keep precedence');
+assert.equal(residentPoolAlias.status,'ACTIVE_CANARY');
+assert.equal(residentPoolAlias.surface,'/wc');
+assert.equal(residentPoolAlias.launch_class,'POOL');
+assert.equal(residentPoolAlias.pool_id,mission.operating_mode.pool_id,'canary resident alias must target CURRENT pool');
+assert.equal(residentPoolAlias.batch_id,`POOL-${mission.operating_mode.pool_id}`,'canary resident alias batch identity must derive from CURRENT pool');
+assert.equal(residentPoolAlias.expected_workers,null);
+assert.equal(residentPoolAlias.authority,false,'launch alias must never grant execution authority');
+assert.equal(residentPoolAlias.explicit_identity_always_wins,true);
+assert.equal(residentPoolAlias.stable_production_unchanged,true,'canary fallback must not change /w parsing');
+assert.ok(policy.launch_envelope.forms.canary_resident_pool_alias.includes('RESIDENTE_POOL'),'policy must define the human-envelope trigger');
+assert.ok(policy.launch_envelope.downstream_predicate_rule.includes('parsed launch_class'),'downstream pool predicates must use parsed class rather than literal-token reparsing');
+assert.ok(policy.launch_envelope.downstream_predicate_rule.includes('POOL_TAIL_RESCUE'),'pool tail rescue must inherit parsed pool classification');
 assert.equal(mission.human_prompts.worker.prompt,mission.operating_mode.invocation,'worker human prompt alias must equal canonical operating invocation');
 assert.equal(mission.human_prompts.worker_production.prompt,mission.operating_mode.production_invocation,'production worker prompt alias must equal canonical production invocation');
 if(mission.operating_mode.production_wave?.status==='ARMED'){
@@ -36,6 +51,8 @@ if(mission.operating_mode.production_wave?.status==='ARMED'){
 }
 assert.ok(mission.operating_mode.production_invocation.includes('/w'),'production invocation must use /w');
 assert.ok(mission.operating_mode.production_invocation.includes('NUEVO_WORKER=1'),'production invocation missing fresh launch marker');
+assert.ok(mission.operating_mode.invocation.includes(`POOL ${residentPoolAlias.pool_id}`),'preferred canonical /wc invocation must remain explicit even with fallback alias');
+assert.ok(mission.operating_mode.production_invocation.includes(`POOL ${residentPoolAlias.pool_id}`),'stable /w invocation must remain explicit-only');
 assert.equal(poolPrompt,mission.operating_mode.invocation+'\n','POOL PROD-01 prompt alias must equal canonical operating invocation plus final newline');
 for(const marker of policy.human_inline_launch_guard.required_markers){
   assert.ok(mission.operating_mode.invocation.includes(marker),'mission invocation missing inline guard '+marker);
