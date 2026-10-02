@@ -333,6 +333,7 @@ export function validateCompiledDispatchContract(contract = {}) {
 
   const e10 = contract.autonomy_closure || {};
   push(errors, Array.isArray(e10.autonomous_without_human), 'E10:autonomous_without_human_array_required');
+  push(errors, arr(e10.autonomous_without_human).map(str).filter(Boolean).length > 0, 'E10:autonomous_without_human_route_required');
   push(errors, Array.isArray(e10.return_consumers), 'E10:return_consumers_array_required');
   push(errors, !!str(e10.closer), 'E10:closer_required');
   push(errors, !!str(e10.done_condition), 'E10:done_condition_required');
