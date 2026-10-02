@@ -13,6 +13,10 @@ export * from './build-fast-allocator-core-v3.mjs';
 
 const arr = value => Array.isArray(value) ? value : [];
 const normalizeBoundaryValue = value => String(value || '').trim().toUpperCase();
+const parseTime = value => Date.parse(value || '') || 0;
+const uniq = values => [...new Set(arr(values).filter(Boolean).map(value => String(value)))];
+const SUCCESS_VALUES = new Set(['DONE', 'SUCCESS', 'SUCCEEDED', 'COMPLETE', 'COMPLETED', 'PASS', 'PASSED', 'VERIFIED', 'OK']);
+const DEPENDENCY_BOUNDARY_VALUES = new Set(['BOUNDARY', 'PARTIAL', 'FAILED', 'FAILURE', 'BLOCKED', 'ROUTE_ABORTED', 'CAPABILITY_BOUNDARY', 'HTTP_BOUNDARY']);
 const transportBoundaryValues = doc => [
   doc?.reason,
   doc?.outcome,
@@ -57,6 +61,175 @@ function normalizeEfficiency(efficiency) {
   };
 }
 
+const rowOutcome = row => normalizeBoundaryValue(row?.outcome || row?.status || row?.result);
+const rowTime = row => parseTime(
+  row?.returned_at || row?.completed_at || row?.verified_at || row?.recorded_at ||
+  row?.updated_at || row?.created_at || row?.observed_at || row?.timestamp
+);
+const jobReturnRows = job => {
+  const rows = arr(job?.recent_return_evidence).length ? arr(job.recent_return_evidence) : arr(job?.returns);
+  const latest = job?.latest_return && typeof job.latest_return === 'object' ? [job.latest_return] : [];
+  const seen = new Set();
+  return [...rows, ...latest].filter(row => {
+    const key = `${row?.path || ''}\u0000${rowOutcome(row)}\u0000${rowTime(row)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const exactRecoveryEvidenceSignal = job => {
+  const basis = job?.recovery_basis && typeof job.recovery_basis === 'object' ? job.recovery_basis : null;
+  if (!basis) return null;
+  const sourceRef = typeof basis.source_ref === 'string' && basis.source_ref.trim() ? basis.source_ref.trim() : null;
+  const sourceSha = String(basis.source_sha256 || '').trim().toLowerCase();
+  const exactSha = /^[0-9a-f]{64}$/.test(sourceSha);
+  const evidence = uniq([...arr(basis.evidence), ...arr(basis.artifacts)]);
+  if (!sourceRef && !(exactSha && evidence.length)) return null;
+  const at = parseTime(basis.updated_at || job?.recovery_basis_updated_at || job?.updated_at);
+  return at > 0 ? { at, kind: 'EXACT_RECOVERY_EVIDENCE', ref: sourceRef || evidence.at(-1) || null } : null;
+};
+
+const dependencyMaterialSignal = dependency => {
+  if (!dependency) return null;
+  const successRows = jobReturnRows(dependency)
+    .filter(row => SUCCESS_VALUES.has(rowOutcome(row)))
+    .map(row => ({ at: rowTime(row), kind: 'TERMINAL_SUCCESS_RETURN', ref: row?.path || null }))
+    .filter(row => row.at > 0);
+  if (String(dependency?.state || '').toLowerCase() === 'done') {
+    const at = Math.max(
+      0,
+      ...successRows.map(row => row.at),
+      parseTime(dependency?.completed_at || dependency?.returned_at || dependency?.updated_at || dependency?.created_at)
+    );
+    if (at > 0) successRows.push({ at, kind: 'DEPENDENCY_DONE', ref: dependency?.source_path || null });
+  }
+  const exact = exactRecoveryEvidenceSignal(dependency);
+  if (exact) successRows.push(exact);
+  successRows.sort((a, b) => b.at - a.at || String(a.kind).localeCompare(String(b.kind)));
+  return successRows[0] || null;
+};
+
+export function dependencyRecoveryGate(job = {}, allJobs = []) {
+  const dependencyIds = uniq(job?.dependency_ids);
+  if (!dependencyIds.length) {
+    return { required: false, eligible: true, reason: 'NO_DEPENDENCIES', dependency_ids: [] };
+  }
+
+  const byId = new Map(arr(allJobs).filter(row => row?.job_id).map(row => [String(row.job_id), row]));
+  const boundaryRows = jobReturnRows(job).filter(row => DEPENDENCY_BOUNDARY_VALUES.has(rowOutcome(row)));
+  const boundaryCount = boundaryRows.length;
+  const latestBoundaryAt = Math.max(0, ...boundaryRows.map(rowTime));
+  const claimedAt = parseTime(job?.claimed_at);
+  const dependencies = dependencyIds.map(jobId => {
+    const dependency = byId.get(jobId) || null;
+    const signal = dependencyMaterialSignal(dependency);
+    const terminalNonSuccess = Boolean(
+      dependency &&
+      String(dependency?.state || '').toLowerCase() === 'done' &&
+      !signal
+    ) || jobReturnRows(dependency || {}).some(row => DEPENDENCY_BOUNDARY_VALUES.has(rowOutcome(row)));
+    return {
+      job_id: jobId,
+      present: Boolean(dependency),
+      state: dependency?.state || null,
+      terminal_non_success: terminalNonSuccess,
+      material_signal: signal
+    };
+  });
+
+  const allSatisfiedAfterBoundary = latestBoundaryAt > 0 && dependencies.every(row => row.material_signal?.at > latestBoundaryAt);
+  const unlockAt = allSatisfiedAfterBoundary
+    ? Math.max(...dependencies.map(row => row.material_signal.at))
+    : 0;
+  const unlockConsumed = unlockAt > 0 && claimedAt > unlockAt;
+  if (allSatisfiedAfterBoundary && !unlockConsumed) {
+    return {
+      required: true,
+      eligible: true,
+      reason: 'DEPENDENCY_MATERIAL_SUCCESS_UNLOCK',
+      dependency_ids: dependencyIds,
+      boundary_count: boundaryCount,
+      latest_boundary_at: latestBoundaryAt,
+      unlock_at: unlockAt,
+      unlock_consumed: false,
+      dependencies
+    };
+  }
+  if (allSatisfiedAfterBoundary && unlockConsumed) {
+    return {
+      required: true,
+      eligible: false,
+      reason: 'DEPENDENCY_MATERIAL_SUCCESS_UNLOCK_CONSUMED',
+      dependency_ids: dependencyIds,
+      boundary_count: boundaryCount,
+      latest_boundary_at: latestBoundaryAt,
+      unlock_at: unlockAt,
+      unlock_consumed: true,
+      dependencies
+    };
+  }
+
+  const terminalNonSuccess = dependencies.some(row => row.terminal_non_success);
+  const repeatedEquivalentBoundary = boundaryCount >= 3 && latestBoundaryAt > 0;
+  if (terminalNonSuccess || repeatedEquivalentBoundary) {
+    return {
+      required: true,
+      eligible: false,
+      reason: terminalNonSuccess ? 'DEPENDENCY_TERMINAL_NON_SUCCESS' : 'DEPENDENCY_REPEATED_BOUNDARY_UNRESOLVED',
+      dependency_ids: dependencyIds,
+      boundary_count: boundaryCount,
+      latest_boundary_at: latestBoundaryAt,
+      unlock_at: 0,
+      unlock_consumed: false,
+      dependencies
+    };
+  }
+
+  return {
+    required: true,
+    eligible: true,
+    reason: 'DEPENDENCY_GATE_NOT_YET_ARMED',
+    dependency_ids: dependencyIds,
+    boundary_count: boundaryCount,
+    latest_boundary_at: latestBoundaryAt,
+    unlock_at: 0,
+    unlock_consumed: false,
+    dependencies
+  };
+}
+
+export function applyDependencyRecoveryGate(feed = {}) {
+  const projects = arr(feed?.projects);
+  const allJobs = projects.flatMap(project => arr(project?.jobs));
+  const decisions = [];
+  const nextProjects = projects.map(project => ({
+    ...project,
+    jobs: arr(project?.jobs).map(job => {
+      if (String(job?.state || '').toLowerCase() !== 'replaceable' || !arr(job?.dependency_ids).length) return job;
+      const decision = dependencyRecoveryGate(job, allJobs);
+      decisions.push({ job_id: job?.job_id || null, ...decision });
+      if (decision.eligible) return job;
+      return {
+        ...job,
+        state: 'dependency_blocked',
+        dependency_recovery_gate: {
+          reason: decision.reason,
+          dependency_ids: decision.dependency_ids,
+          boundary_count: decision.boundary_count,
+          latest_boundary_at: decision.latest_boundary_at || 0,
+          unlock_at: decision.unlock_at || 0,
+          unlock_consumed: decision.unlock_consumed === true
+        }
+      };
+    })
+  }));
+  return {
+    feed: { ...feed, projects: nextProjects },
+    decisions
+  };
+}
+
 export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready = [], queueReady = [], recovery = [], roleContext = null) {
   return core.compileRoleFrontier(
     feed,
@@ -70,10 +243,19 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
 }
 
 export function buildFastAllocator(feed = {}, efficiency = {}, options = {}) {
-  return core.buildFastAllocator(feed, normalizeEfficiency(efficiency), {
+  const dependencyGate = applyDependencyRecoveryGate(feed);
+  const allocator = core.buildFastAllocator(dependencyGate.feed, normalizeEfficiency(efficiency), {
     ...options,
     roleContext: normalizeRoleContext(options?.roleContext || null)
   });
+  return {
+    ...allocator,
+    dependency_recovery_gate: {
+      evaluated: dependencyGate.decisions.length,
+      suppressed: dependencyGate.decisions.filter(row => row.eligible === false).length,
+      decisions: dependencyGate.decisions
+    }
+  };
 }
 
 export function runCli(argv = process.argv.slice(2)) {
