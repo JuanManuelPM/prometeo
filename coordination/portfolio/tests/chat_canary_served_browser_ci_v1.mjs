@@ -72,6 +72,7 @@ async function runView(browser,view,publicState){
 
     await page.locator('textarea[data-prometeo-chat-composer-input-v1]').waitFor({state:'visible',timeout:15000});
     await page.waitForFunction(()=>document.querySelectorAll('#thread article.msg').length>0,null,{timeout:15000});
+    await page.locator('[data-primary-chat-capacity-action-v1][data-state]').waitFor({state:'visible',timeout:15000});
     await page.waitForTimeout(800);
 
     result.criteria.thread_fetch_observed=runtime.thread_responses.some(x=>x.status===200);
@@ -81,6 +82,21 @@ async function runView(browser,view,publicState){
     result.criteria.ingress_api_loaded=await page.evaluate(()=>Boolean(window.PROMETEO_INGRESS_V1&&typeof window.PROMETEO_INGRESS_V1.submit==='function'));
     result.criteria.input_api_loaded=await page.evaluate(()=>Boolean(window.PROMETEO_CHAT_CANARY_INPUT_V1&&typeof window.PROMETEO_CHAT_CANARY_INPUT_V1.submitText==='function'));
     result.criteria.progress_api_loaded=await page.evaluate(()=>Boolean(window.PrometeoChatCanaryProgress&&typeof window.PrometeoChatCanaryProgress.load==='function'));
+
+    const current=page.locator('[data-primary-chat-capacity-action-v1]');
+    const currentText=await current.innerText();
+    result.criteria.current_widget_visible=await current.isVisible();
+    result.criteria.current_before_history=await page.evaluate(()=>{
+      const current=document.querySelector('[data-primary-chat-capacity-action-v1]');
+      const thread=document.querySelector('#thread');
+      if(!current||!thread)return false;
+      return current.getBoundingClientRect().top < thread.getBoundingClientRect().top;
+    });
+    result.criteria.current_projection_timestamp=/CURRENT[\s\S]*proyección\s+(?:\d{1,2}:\d{2}:\d{2}|desconocida)/i.test(currentText);
+    result.criteria.current_exact_action=/(?:ACCIÓN:\s*[^\n]+|MANDÁ\s+\d+\s+\/wc\/)/i.test(currentText);
+    result.criteria.current_recent_signals=/SEÑALES RECIENTES/i.test(currentText);
+    result.current_state=await current.getAttribute('data-state');
+    result.current_text=currentText.slice(0,1200);
 
     if(expected.human?.message_id){
       const human=page.locator('article[data-message-id="'+expected.human.message_id+'"]');
@@ -96,7 +112,7 @@ async function runView(browser,view,publicState){
       result.criteria.expected_agent_rendered=await agent.count()===1 && text.includes(String(expected.agent.body_text||'').slice(0,120));
       if(expected.agent.result_ref){
         const debug=agent.locator('.message-debug pre');
-        result.criteria.agent_result_ref_traceable=await debug.count()===1 && (await debug.innerText()).includes(expected.agent.result_ref);
+        result.criteria.agent_result_ref_traceable=await debug.count()===1 && String(await debug.textContent()).includes(expected.agent.result_ref);
       }else result.criteria.agent_result_ref_traceable=true;
     }else{
       result.criteria.expected_agent_rendered=false;
@@ -118,17 +134,22 @@ async function runView(browser,view,publicState){
 
     const beforeReload={
       human:expected.human?.message_id?await page.locator('article[data-message-id="'+expected.human.message_id+'"]').count():0,
-      agent:expected.agent?.message_id?await page.locator('article[data-message-id="'+expected.agent.message_id+'"]').count():0
+      agent:expected.agent?.message_id?await page.locator('article[data-message-id="'+expected.agent.message_id+'"]').count():0,
+      current_state:await current.getAttribute('data-state')
     };
     await page.reload({waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForFunction(()=>document.querySelectorAll('#thread article.msg').length>0,null,{timeout:15000});
+    await page.locator('[data-primary-chat-capacity-action-v1][data-state]').waitFor({state:'visible',timeout:15000});
     await page.waitForTimeout(500);
+    const currentAfter=page.locator('[data-primary-chat-capacity-action-v1]');
     const afterReload={
       human:expected.human?.message_id?await page.locator('article[data-message-id="'+expected.human.message_id+'"]').count():0,
-      agent:expected.agent?.message_id?await page.locator('article[data-message-id="'+expected.agent.message_id+'"]').count():0
+      agent:expected.agent?.message_id?await page.locator('article[data-message-id="'+expected.agent.message_id+'"]').count():0,
+      current_state:await currentAfter.getAttribute('data-state')
     };
     result.reload={beforeReload,afterReload};
     result.criteria.reload_persists_durable_thread=beforeReload.human===1&&beforeReload.agent===1&&afterReload.human===1&&afterReload.agent===1;
+    result.criteria.reload_preserves_current=Boolean(afterReload.current_state);
     result.criteria.no_iframes=await page.locator('iframe').count()===0;
     result.criteria.no_websockets=runtime.websockets.length===0;
     result.criteria.no_horizontal_overflow=await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+2);
@@ -147,7 +168,7 @@ async function runView(browser,view,publicState){
 
   result.criteria.no_uncaught_page_errors=runtime.page_errors.length===0;
   const checks=Object.values(result.criteria);
-  result.pass=!result.fatal_error&&checks.length>=18&&checks.every(Boolean);
+  result.pass=!result.fatal_error&&checks.length>=24&&checks.every(Boolean);
   return result;
 }
 
@@ -183,7 +204,8 @@ async function main(){
     narrow_pass:evidence.views.find(v=>v.view==='narrow')?.pass||false,
     auth_boundary_expected:true,
     authenticated_transport_certified:false,
-    worker_liveness_certified:false
+    worker_liveness_certified:false,
+    current_first_certified:evidence.views.every(v=>v.criteria?.current_widget_visible&&v.criteria?.current_before_history&&v.criteria?.current_projection_timestamp&&v.criteria?.current_exact_action&&v.criteria?.current_recent_signals&&v.criteria?.reload_preserves_current)
   };
   await writeFile(path.join(OUT_DIR,'evidence.json'),JSON.stringify(evidence,null,2)+'\n','utf8');
   console.log(JSON.stringify(evidence,null,2));
