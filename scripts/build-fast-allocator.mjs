@@ -2,8 +2,10 @@
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import * as core from './build-fast-allocator-core-v3.mjs';
+import { compileFixedGenerationRecoveryPolicies } from './fixed-generation-recovery-policy-gate-v1.mjs';
 
 export * from './build-fast-allocator-core-v3.mjs';
+export * from './fixed-generation-recovery-policy-gate-v1.mjs';
 
 // Compatibility markers for static allocator regressions after the v3 core split.
 // The executable implementations live in build-fast-allocator-core-v3.mjs:
@@ -244,8 +246,13 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
 
 export function buildFastAllocator(feed = {}, efficiency = {}, options = {}) {
   const dependencyGate = applyDependencyRecoveryGate(feed);
+  const fixedGenerationGate = compileFixedGenerationRecoveryPolicies(
+    dependencyGate.feed,
+    options?.recoveryPolicies || []
+  );
   const allocator = core.buildFastAllocator(dependencyGate.feed, normalizeEfficiency(efficiency), {
     ...options,
+    recoveryPolicies: fixedGenerationGate.recoveryPolicies,
     roleContext: normalizeRoleContext(options?.roleContext || null)
   });
   return {
@@ -254,6 +261,17 @@ export function buildFastAllocator(feed = {}, efficiency = {}, options = {}) {
       evaluated: dependencyGate.decisions.length,
       suppressed: dependencyGate.decisions.filter(row => row.eligible === false).length,
       decisions: dependencyGate.decisions
+    },
+    fixed_generation_recovery_policy_gate: {
+      evaluated: fixedGenerationGate.decisions.length,
+      unlocked: fixedGenerationGate.decisions.filter(row => row.eligible === true).length,
+      suppressed_at_or_above_fixed_generation: fixedGenerationGate.decisions.filter(row =>
+        row.eligible === false &&
+        Number.isInteger(row.current_generation) &&
+        Number.isInteger(row.fixed_generation) &&
+        row.current_generation >= row.fixed_generation
+      ).length,
+      decisions: fixedGenerationGate.decisions
     }
   };
 }
