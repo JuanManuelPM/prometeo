@@ -120,3 +120,61 @@ test('real José fixed-generation policy cannot surface G7 without new authorita
   assert.equal(out.batch_candidates.some(row => row.claim_path?.endsWith('/G000007.json')), false);
   assert.equal(out.fixed_generation_recovery_policy_gate.decisions[0].reason, 'FIXED_GENERATION_ATTENTION_UNSATISFIED');
 });
+
+test('new timestamp without a new evidence ref cannot unlock G7', () => {
+  const out = buildFastAllocator(feedFor(jobAt(6, {
+    recovery_basis:{ updated_at:'2026-10-03T01:35:00Z' }
+  })), efficiency, { recoveryPolicies:[policy] });
+  assert.equal(out.recovery.some(row => row.job_id === fixedJobId), false);
+  assert.equal(out.fixed_generation_recovery_policy_gate.decisions[0].required_change_satisfied, false);
+});
+
+test('replaying only policy-baseline evidence with a newer timestamp cannot unlock G7', () => {
+  const out = buildFastAllocator(feedFor(jobAt(6, {
+    recovery_basis:{
+      updated_at:'2026-10-03T01:35:00Z',
+      evidence:[baselineEvidence, policy.attention_until.owner_ref]
+    }
+  })), efficiency, { recoveryPolicies:[policy] });
+  assert.equal(out.recovery.some(row => row.job_id === fixedJobId), false);
+  assert.deepEqual(out.fixed_generation_recovery_policy_gate.decisions[0].new_evidence_refs, []);
+});
+
+test('missing policy created_at fails closed even when a new-looking evidence ref exists', () => {
+  const noCreationTime = { ...policy };
+  delete noCreationTime.created_at;
+  const out = buildFastAllocator(feedFor(jobAt(6, {
+    recovery_basis:{
+      updated_at:'2026-10-03T01:35:00Z',
+      evidence:[newEvidence]
+    }
+  })), efficiency, { recoveryPolicies:[noCreationTime] });
+  assert.equal(out.recovery.some(row => row.job_id === fixedJobId), false);
+  assert.equal(out.fixed_generation_recovery_policy_gate.decisions[0].required_change_satisfied, false);
+});
+
+test('even different fresh evidence at G7 cannot cascade into G8', () => {
+  const out = buildFastAllocator(feedFor(jobAt(7, {
+    recovery_basis:{
+      updated_at:'2026-10-03T01:45:00Z',
+      evidence:['coordination/evidence/a-second-new-source.json']
+    }
+  })), efficiency, { recoveryPolicies:[policy] });
+  assert.equal(out.recovery.some(row => row.job_id === fixedJobId), false);
+  assert.equal(out.fixed_generation_recovery_policy_gate.decisions[0].reason, 'FIXED_GENERATION_ATTENTION_UNLOCK_CONSUMED');
+});
+
+test('blank required_change fails closed instead of silently becoming ordinary recovery', () => {
+  const blankGatePolicy = {
+    ...policy,
+    attention_until:{ ...policy.attention_until, required_change:'   ' }
+  };
+  const out = buildFastAllocator(feedFor(jobAt(6, {
+    recovery_basis:{
+      updated_at:'2026-10-03T01:35:00Z',
+      evidence:[newEvidence]
+    }
+  })), efficiency, { recoveryPolicies:[blankGatePolicy] });
+  assert.equal(out.recovery.some(row => row.job_id === fixedJobId), false);
+  assert.equal(out.fixed_generation_recovery_policy_gate.decisions[0].reason, 'FIXED_GENERATION_NO_REQUIRED_CHANGE_GATE');
+});
