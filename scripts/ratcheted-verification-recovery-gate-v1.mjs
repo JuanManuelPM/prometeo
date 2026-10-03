@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const arr = value => Array.isArray(value) ? value : [];
-const RATCHeT_REF_PREFIX = 'coordination/efficiency/RATCHET_BASELINE_V1.json#';
+const RATCHET_REF_PREFIX = 'coordination/efficiency/RATCHET_BASELINE_V1.json#';
 const SATISFIED_RUNTIME_STATUSES = new Set(['OBSERVED', 'VERIFIED', 'PASS', 'PASSED', 'SATISFIED', 'COMPLETE', 'COMPLETED', 'DONE']);
 
 const normalize = value => String(value || '').trim().toUpperCase();
@@ -12,9 +12,9 @@ const ratchetRefs = job => [...new Set([
   ...arr(job?.evidence_refs),
   ...arr(job?.artifacts),
   ...arr(job?.source_refs)
-].filter(value => typeof value === 'string' && value.startsWith(RATCHeT_REF_PREFIX)))];
+].filter(value => typeof value === 'string' && value.startsWith(RATCHET_REF_PREFIX)))];
 
-const ratchetItemId = ref => String(ref || '').slice(RATCHeT_REF_PREFIX.length).trim();
+const ratchetItemId = ref => String(ref || '').slice(RATCHET_REF_PREFIX.length).trim();
 
 const isSatisfiedRatchetItem = item => {
   if (!item || normalize(item.status) !== 'RATCHETED') return false;
@@ -22,7 +22,10 @@ const isSatisfiedRatchetItem = item => {
   return SATISFIED_RUNTIME_STATUSES.has(normalize(item.runtime_evidence.status));
 };
 
-const isVerificationDebt = job => String(job?.kind || '').toLowerCase().includes('verification');
+const isReplaceableVerificationDebt = job => (
+  String(job?.state || '').toLowerCase() === 'replaceable' &&
+  String(job?.kind || '').toLowerCase().includes('verification')
+);
 
 export function compileRatchetedVerificationRecoveryGate(feed = {}, ratchetBaseline = null) {
   const items = arr(ratchetBaseline?.items);
@@ -32,7 +35,7 @@ export function compileRatchetedVerificationRecoveryGate(feed = {}, ratchetBasel
   const projects = arr(feed?.projects).map(project => ({
     ...project,
     jobs: arr(project?.jobs).map(job => {
-      if (!isVerificationDebt(job)) return job;
+      if (!isReplaceableVerificationDebt(job)) return job;
       const refs = ratchetRefs(job);
       if (!refs.length) return job;
       const satisfied = refs
