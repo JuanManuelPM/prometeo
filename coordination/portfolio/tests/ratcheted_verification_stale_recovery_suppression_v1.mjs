@@ -34,6 +34,17 @@ const feed = {
         evidence: ['coordination/efficiency/RATCHET_BASELINE_V1.json#EFF034']
       },
       {
+        job_id: 'fixture-fresh-reverification',
+        dedupe_key: 'fixture:fresh-reverification:v1',
+        project_id: 'prometeo-autonomous-growth',
+        title: 'Explicit fresh reverification despite historical ratchet',
+        kind: 'verification',
+        priority: 180,
+        state: 'ready',
+        pin_generation: 0,
+        evidence: ['coordination/efficiency/RATCHET_BASELINE_V1.json#EFF034']
+      },
+      {
         job_id: 'fixture-pending-verification-debt',
         dedupe_key: 'fixture:pending-verification:v1',
         project_id: 'prometeo-autonomous-growth',
@@ -85,13 +96,16 @@ const ratchetBaseline = {
 
 const out = buildFastAllocator(feed, { status: 'OK', metrics: {}, reasons: [] }, { ratchetBaseline, recoveryPolicies: [] });
 
-const staleInRecovery = out.recovery.find(row => row.job_id === 'fixture-ratcheted-verification-debt');
-if (staleInRecovery) throw new Error('canonically ratcheted verification debt resurfaced as ordinary recovery');
-if (out.ready.some(row => row.job_id === 'fixture-ratcheted-verification-debt')) throw new Error('canonically ratcheted verification debt resurfaced as ready work');
+if (out.recovery.some(row => row.job_id === 'fixture-ratcheted-verification-debt')) throw new Error('canonically ratcheted verification debt resurfaced as ordinary recovery');
+if (out.ready.some(row => row.job_id === 'fixture-ratcheted-verification-debt')) throw new Error('canonically ratcheted replaceable debt resurfaced as ready work');
 
 const suppression = out.ratcheted_verification_recovery_gate?.decisions?.find(row => row.job_id === 'fixture-ratcheted-verification-debt');
 if (!suppression?.suppressed) throw new Error('ratcheted verification suppression decision missing');
 if (suppression.ratchet_id !== 'EFF034' || suppression.runtime_evidence_status !== 'OBSERVED') throw new Error('ratchet suppression did not bind to canonical EFF034 observed evidence');
+
+const fresh = out.ready.find(row => row.job_id === 'fixture-fresh-reverification');
+if (!fresh) throw new Error('fresh ready reverification was incorrectly suppressed by historical ratchet');
+if (fresh.next_generation !== 1 || !fresh.claim_path.endsWith('/G000001.json')) throw new Error('fresh ready reverification generation changed');
 
 const pending = out.recovery.find(row => row.job_id === 'fixture-pending-verification-debt');
 if (!pending) throw new Error('unsatisfied verification debt was incorrectly suppressed');
@@ -108,7 +122,8 @@ console.log(JSON.stringify({
   ok: true,
   fixture_returns: [staleReturnG8.path, staleReturnG9.path],
   ratchet: 'EFF034',
-  ratcheted_verification_suppressed: true,
+  ratcheted_replaceable_verification_suppressed: true,
+  fresh_ready_reverification_preserved: true,
   pending_verification_preserved: true,
   ordinary_retry_safe_preserved: true,
   ordinary_next_generation: ordinary.next_generation
