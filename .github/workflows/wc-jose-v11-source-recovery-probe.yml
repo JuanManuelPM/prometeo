@@ -1,0 +1,84 @@
+name: WC Jose V11 source recovery probe
+
+on:
+  push:
+    paths:
+      - '.github/workflows/wc-jose-v11-source-recovery-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Find exact V11 bytes in durable git history
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED='0cf9a40fb53e977dccb40c9755d668a3ee922ccd61883f19229bb4a113139a05'
+          out=/tmp/jose-v11-source-recovery.txt
+          : > "$out"
+          echo "expected_sha256=$EXPECTED" >> "$out"
+
+          scan_repo() {
+            local repo="$1" label="$2" pattern="$3"
+            echo "scan=$label repo=$repo" >> "$out"
+            local dir="/tmp/scan-$label"
+            rm -rf "$dir"
+            git clone --quiet --mirror "$repo" "$dir"
+            cd "$dir"
+            local candidates=0
+            local objects
+            objects="$(git rev-list --objects --all | grep -Ei "$pattern" || true)"
+            while read -r oid path; do
+              [ -n "${oid:-}" ] || continue
+              git cat-file -e "$oid" 2>/dev/null || continue
+              [ "$(git cat-file -t "$oid" 2>/dev/null || true)" = blob ] || continue
+              candidates=$((candidates+1))
+              observed="$(git cat-file blob "$oid" | sha256sum | awk '{print $1}')"
+              if [ "$observed" = "$EXPECTED" ]; then
+                echo "MATCH label=$label object=$oid path=$path" | tee -a "$out"
+                git cat-file blob "$oid" > /tmp/jose-v11-recovered.html
+                git log --all --format='%H' -- "$path" | while read -r commit; do
+                  [ -n "$commit" ] || continue
+                  if git cat-file -e "$commit:$path" 2>/dev/null; then
+                    boid="$(git rev-parse "$commit:$path")"
+                    if [ "$boid" = "$oid" ]; then
+                      echo "MATCH_COMMIT label=$label commit=$commit path=$path" | tee -a "$out"
+                      break
+                    fi
+                  fi
+                done
+                echo "candidates_scanned=$candidates" >> "$out"
+                return 0
+              fi
+            done <<< "$objects"
+            echo "NO_MATCH label=$label candidates_scanned=$candidates" | tee -a "$out"
+            return 1
+          }
+
+          found=0
+          scan_repo "https://github.com/JuanManuelPM/prometeo.git" prometeo '(jose|study|recovery|algebra).*\.html$' && found=1 || true
+          if [ "$found" -eq 0 ]; then
+            scan_repo "https://github.com/JuanManuelPM/jose-study.git" jose-study 'index\.html$|\.html$' && found=1 || true
+          fi
+          echo "found=$found" >> "$out"
+          cat "$out"
+          if [ "$found" -eq 1 ]; then
+            gzip -n -c /tmp/jose-v11-recovered.html | base64 -w0 > /tmp/jose-v11-recovered.html.gz.b64
+          fi
+      - name: Upload source recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jose-v11-source-recovery-probe
+          path: |
+            /tmp/jose-v11-source-recovery.txt
+            /tmp/jose-v11-recovered.html
+            /tmp/jose-v11-recovered.html.gz.b64
+          if-no-files-found: warn
