@@ -81,7 +81,18 @@ const jobReturnRows = job => {
   });
 };
 
-const explicitSafetyDenialRow = job => jobReturnRows(job)
+const safetyReturnRows = job => {
+  const latest = job?.latest_return && typeof job.latest_return === 'object' ? [job.latest_return] : [];
+  const seen = new Set();
+  return [...arr(job?.returns), ...arr(job?.recent_return_evidence), ...latest].filter(row => {
+    const key = `${row?.path || ''}\u0000${rowOutcome(row)}\u0000${rowTime(row)}\u0000${normalizeBoundaryValue(row?.completion_class)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const explicitSafetyDenialRow = job => safetyReturnRows(job)
   .filter(row => (
     EXPLICIT_SAFETY_COMPLETION_CLASSES.has(normalizeBoundaryValue(row?.completion_class)) ||
     isExplicitClaimTransportBlocked(row)
