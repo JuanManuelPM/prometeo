@@ -1,0 +1,43 @@
+name: Worker Lab canary submit route verify v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/worker-lab-canary-submit-route-verify-v1.yml'
+      - 'coordination/portfolio/tests/worker_lab_canary_submit_route_verify_v1.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: worker-lab-canary-submit-route-verify-v1
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify deployed canary submit route
+        env:
+          WORKER_LAB_CANARY_ENDPOINT: https://worker-lab.vercel.app/api/prometeo-ingress
+          VERIFY_REQUEST_ID: wc-route-verify-${{ github.run_id }}-${{ github.run_attempt }}
+          VERIFY_ARTIFACT_DIR: artifacts/worker-lab-canary-submit-route-verify-v1
+        run: node coordination/portfolio/tests/worker_lab_canary_submit_route_verify_v1.mjs
+
+      - name: Upload bounded evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: worker-lab-canary-submit-route-verify-v1-evidence
+          path: artifacts/worker-lab-canary-submit-route-verify-v1/evidence.json
+          if-no-files-found: error
+          retention-days: 14
