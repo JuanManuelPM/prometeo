@@ -1,0 +1,414 @@
+name: WC primary chat correlation retention G4
+
+on:
+  push:
+    paths:
+      - '.github/workflows/wc-primary-chat-correlation-retention-g4.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch opaque correlation retention only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          ingress=Path('current-tree/control-v11/ingress-v1.js')
+          text=ingress.read_text()
+
+          old="""  function result(status, ref = null, queued = false, error = null) {
+            return Object.freeze({ status, ref, queued, error });
+          }
+
+          function cleanString(value, max = 512) {
+            if (value === undefined || value === null) return null;
+            const text = String(value).trim();
+            if (!text) return null;
+            return text.slice(0, max);
+          }
+"""
+          new="""  function result(status, ref = null, queued = false, error = null, correlation = null) {
+            return Object.freeze({ status, ref, queued, error, correlation: normalizeCorrelationEnvelope(correlation) });
+          }
+
+          function cleanString(value, max = 512) {
+            if (value === undefined || value === null) return null;
+            const text = String(value).trim();
+            if (!text) return null;
+            return text.slice(0, max);
+          }
+
+          const CORRELATION_SCHEMA = 'prometeo.private-ingress-correlation/v1';
+
+          function safeWorkItemId(value) {
+            const id = cleanString(value, 160);
+            return id && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(id) ? id : null;
+          }
+
+          function correlationFromReturnPath(returnPath, expectedWorkItemId = null) {
+            const path = cleanString(returnPath, 360);
+            const match = path && path.match(/^coordination\\/executions\\/([A-Za-z0-9][A-Za-z0-9._:-]{0,159})\\/RETURN\\.json$/);
+            if (!match) return null;
+            const workItemId = safeWorkItemId(match[1]);
+            const expected = expectedWorkItemId === null ? workItemId : safeWorkItemId(expectedWorkItemId);
+            if (!workItemId || !expected || workItemId !== expected) return null;
+            return Object.freeze({ schema: CORRELATION_SCHEMA, work_item_id: workItemId, return_path: path });
+          }
+
+          function normalizeCorrelationEnvelope(value) {
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+            const workItemId = safeWorkItemId(value.work_item_id);
+            return workItemId ? correlationFromReturnPath(value.return_path, workItemId) : null;
+          }
+"""
+          assert text.count(old)==1, 'ingress result/clean anchor drift'
+          text=text.replace(old,new,1)
+
+          old_line="return Object.freeze({ schema: RESULT_SCHEMA, status: 'QUEUED_REPLAY', ref: replayRef, queued: true, error: null });"
+          new_lines="""const replayCorrelation = correlationFromReturnPath(replayRef);
+              if (!replayCorrelation) throw Object.assign(new Error('APPROVAL_REPLAY_CORRELATION_INVALID'), { code: 'APPROVAL_REPLAY_CORRELATION_INVALID' });
+              return Object.freeze({ schema: RESULT_SCHEMA, status: 'QUEUED_REPLAY', ref: replayRef, queued: true, error: null, work_item_id: replayCorrelation.work_item_id, return_path: replayCorrelation.return_path, correlation: replayCorrelation });"""
+          assert text.count(old_line)==2, f'ingress replay anchors drift count={text.count(old_line)}'
+          text=text.replace(old_line,new_lines)
+
+          old_wake="""          if (!wake || wake.schema !== RESULT_SCHEMA || wake.queued !== true) {
+            throw Object.assign(new Error(cleanString(wake && wake.error, 160) || 'WAKE_NOT_QUEUED'), { code: 'WAKE_NOT_QUEUED' });
+          }
+          return Object.freeze(wake);
+"""
+          new_wake="""          if (!wake || wake.schema !== RESULT_SCHEMA || wake.queued !== true) {
+            throw Object.assign(new Error(cleanString(wake && wake.error, 160) || 'WAKE_NOT_QUEUED'), { code: 'WAKE_NOT_QUEUED' });
+          }
+          const correlation = correlationFromReturnPath(returnPath, workItemId);
+          if (!correlation) {
+            throw Object.assign(new Error('PRIVATE_CORRELATION_INVALID'), { code: 'PRIVATE_CORRELATION_INVALID' });
+          }
+          return Object.freeze({ ...wake, work_item_id: correlation.work_item_id, return_path: correlation.return_path, correlation });
+"""
+          assert text.count(old_wake)==1, 'ingress wake anchor drift'
+          text=text.replace(old_wake,new_wake,1)
+
+          old_norm="""        const status = cleanString(transportResult.status, 120) || 'UNKNOWN';
+        const ref = cleanString(transportResult.ref, 4096);
+        const queued = transportResult.queued === true;
+        const error = cleanString(transportResult.error, 240);
+        if (queued && (!validDurableRef(ref) || transportResult.schema !== RESULT_SCHEMA)) {
+          normalized = result('BOUNDARY_TRANSPORT_INVALID', null, false, 'TRANSPORT_RESULT_INVALID');
+        } else if (!queued) {
+          normalized = result(status, ref && validDurableRef(ref) ? ref : null, false, error);
+        } else {
+          normalized = result(status || 'QUEUED', ref, true, error);
+        }
+"""
+          new_norm="""        const status = cleanString(transportResult.status, 120) || 'UNKNOWN';
+        const ref = cleanString(transportResult.ref, 4096);
+        const queued = transportResult.queued === true;
+        const error = cleanString(transportResult.error, 240);
+        const correlationInput = transportResult.correlation || ((transportResult.work_item_id !== undefined || transportResult.return_path !== undefined) ? transportResult : null);
+        const correlation = normalizeCorrelationEnvelope(correlationInput);
+        const correlationPresent = correlationInput !== null;
+        if (queued && (!validDurableRef(ref) || transportResult.schema !== RESULT_SCHEMA)) {
+          normalized = result('BOUNDARY_TRANSPORT_INVALID', null, false, 'TRANSPORT_RESULT_INVALID');
+        } else if (correlationPresent && !correlation) {
+          normalized = result('BOUNDARY_TRANSPORT_INVALID', null, false, 'PRIVATE_CORRELATION_INVALID');
+        } else if (!queued) {
+          normalized = result(status, ref && validDurableRef(ref) ? ref : null, false, error, correlation);
+        } else {
+          normalized = result(status || 'QUEUED', ref, true, error, correlation);
+        }
+"""
+          assert text.count(old_norm)==1, 'ingress normalize anchor drift'
+          text=text.replace(old_norm,new_norm,1)
+
+          old_read="""      if (cached.queued === true && validDurableRef(cached.ref)) return result('QUEUED_REPLAY', cached.ref, true, null);
+"""
+          new_read="""      if (cached.queued === true && validDurableRef(cached.ref)) {
+        const correlation = normalizeCorrelationEnvelope(cached.correlation);
+        if (!correlation) return result('BOUNDARY_APPROVAL_REPLAY_CORRELATION_INVALID', null, false, 'APPROVAL_REPLAY_CORRELATION_INVALID');
+        return result('QUEUED_REPLAY', cached.ref, true, null, correlation);
+      }
+"""
+          assert text.count(old_read)==1, 'approval receipt read anchor drift'
+          text=text.replace(old_read,new_read,1)
+
+          old_write="""        ref: normalized.ref,
+        queued: true,
+        cached_at: new Date().toISOString(),
+"""
+          new_write="""        ref: normalized.ref,
+        queued: true,
+        correlation: normalizeCorrelationEnvelope(normalized.correlation),
+        cached_at: new Date().toISOString(),
+"""
+          assert text.count(old_write)==1, 'approval receipt write anchor drift'
+          text=text.replace(old_write,new_write,1)
+
+          old_api="""    submitApprovedPlan,
+    approval_schema: APPROVAL_SCHEMA,
+"""
+          new_api="""    submitApprovedPlan,
+    correlation_schema: CORRELATION_SCHEMA,
+    safeWorkItemId,
+    correlationFromReturnPath,
+    normalizeCorrelation: normalizeCorrelationEnvelope,
+    approval_schema: APPROVAL_SCHEMA,
+"""
+          assert text.count(old_api)==1, 'ingress api anchor drift'
+          text=text.replace(old_api,new_api,1)
+          ingress.write_text(text)
+
+          module=Path('current-tree/control-v11/chat-canary/input-module-v1.js')
+          text=module.read_text()
+
+          old_consts="""  const MAX_TEXT = 65536;
+  const WORKSPACE_SECRET_KEYS = Object.freeze([
+"""
+          new_consts="""  const MAX_TEXT = 65536;
+  const CORRELATION_SCHEMA = 'prometeo.private-ingress-correlation/v1';
+  const CORRELATION_STORAGE_KEY = 'prometeo.primary-chat.correlation.v1';
+  const WORKSPACE_SECRET_KEYS = Object.freeze([
+"""
+          assert text.count(old_consts)==1, 'input constants anchor drift'
+          text=text.replace(old_consts,new_consts,1)
+
+          old_valid="""  function validDurableRef(ref) {
+    const value = clean(ref, 4096);
+    if (!value) return false;
+    return (
+      /^coordination\\//.test(value) ||
+      /^https:\\/\\/github\\.com\\/JuanManuelPM\\/prometeo\\//.test(value) ||
+      /^https:\\/\\/api\\.github\\.com\\/repos\\/JuanManuelPM\\/prometeo\\//.test(value)
+    );
+  }
+"""
+          new_valid=old_valid+"""
+
+  function safeWorkItemId(value) {
+    const id = clean(value, 160);
+    return id && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(id) ? id : null;
+  }
+
+  function normalizeCorrelation(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const workItemId = safeWorkItemId(value.work_item_id);
+    const returnPath = clean(value.return_path, 360);
+    if (!workItemId || returnPath !== `coordination/executions/${workItemId}/RETURN.json`) return null;
+    return Object.freeze({ schema: CORRELATION_SCHEMA, work_item_id: workItemId, return_path: returnPath });
+  }
+
+  function readRetainedCorrelation() {
+    try {
+      if (!global.sessionStorage) return null;
+      const raw = global.sessionStorage.getItem(CORRELATION_STORAGE_KEY);
+      if (!raw) return null;
+      const correlation = normalizeCorrelation(JSON.parse(raw));
+      if (!correlation) global.sessionStorage.removeItem(CORRELATION_STORAGE_KEY);
+      return correlation;
+    } catch {
+      try { if (global.sessionStorage) global.sessionStorage.removeItem(CORRELATION_STORAGE_KEY); } catch {}
+      return null;
+    }
+  }
+
+  function retainCorrelation(value) {
+    const correlation = normalizeCorrelation(value);
+    if (!correlation) return null;
+    try {
+      if (global.sessionStorage) global.sessionStorage.setItem(CORRELATION_STORAGE_KEY, JSON.stringify(correlation));
+    } catch {}
+    return correlation;
+  }
+
+  function clearRetainedCorrelation() {
+    try { if (global.sessionStorage) global.sessionStorage.removeItem(CORRELATION_STORAGE_KEY); } catch {}
+  }
+"""
+          assert text.count(old_valid)==1, 'input durable ref anchor drift'
+          text=text.replace(old_valid,new_valid,1)
+
+          old_frozen="""  function frozenResult(status, queued, ref = null, error = null, clearInput = false) {
+    return Object.freeze({
+      status,
+      queued: queued === true,
+      ref,
+      error,
+      clear_input: clearInput === true
+    });
+  }
+"""
+          new_frozen="""  function frozenResult(status, queued, ref = null, error = null, clearInput = false, correlation = null) {
+    return Object.freeze({
+      status,
+      queued: queued === true,
+      ref,
+      error,
+      clear_input: clearInput === true,
+      correlation: normalizeCorrelation(correlation)
+    });
+  }
+"""
+          assert text.count(old_frozen)==1, 'input frozen result anchor drift'
+          text=text.replace(old_frozen,new_frozen,1)
+
+          old_branch="""    const status = clean(result.status, 120) || 'BOUNDARY_TRANSPORT_INVALID';
+    const ref = clean(result.ref, 4096);
+    const error = clean(result.error, 240);
+
+    if (result.queued === true) {
+      if (!validDurableRef(ref)) {
+        return frozenResult('BOUNDARY_TRANSPORT_INVALID', false, null, 'DURABLE_REF_REQUIRED', false);
+      }
+      return frozenResult(status === 'BOUNDARY_TRANSPORT_INVALID' ? 'QUEUED' : status, true, ref, error, true);
+    }
+
+    return frozenResult(status, false, validDurableRef(ref) ? ref : null, error, false);
+"""
+          new_branch="""    const status = clean(result.status, 120) || 'BOUNDARY_TRANSPORT_INVALID';
+    const ref = clean(result.ref, 4096);
+    const error = clean(result.error, 240);
+    const correlationInput = result.correlation || ((result.work_item_id !== undefined || result.return_path !== undefined) ? result : null);
+    const correlation = normalizeCorrelation(correlationInput);
+    const correlationPresent = correlationInput !== null;
+
+    if (correlationPresent && !correlation) {
+      return frozenResult('BOUNDARY_TRANSPORT_INVALID', false, null, 'PRIVATE_CORRELATION_INVALID', false);
+    }
+
+    if (result.queued === true) {
+      if (!validDurableRef(ref)) {
+        return frozenResult('BOUNDARY_TRANSPORT_INVALID', false, null, 'DURABLE_REF_REQUIRED', false);
+      }
+      if (correlation) retainCorrelation(correlation);
+      return frozenResult(status === 'BOUNDARY_TRANSPORT_INVALID' ? 'QUEUED' : status, true, ref, error, true, correlation);
+    }
+
+    return frozenResult(status, false, validDurableRef(ref) ? ref : null, error, false, correlation);
+"""
+          assert text.count(old_branch)==1, 'input result normalization anchor drift'
+          text=text.replace(old_branch,new_branch,1)
+
+          old_api="""    validDurableRef,
+    workspaceLinked,
+"""
+          new_api="""    validDurableRef,
+    correlation_schema: CORRELATION_SCHEMA,
+    normalizeCorrelation,
+    getRetainedCorrelation: readRetainedCorrelation,
+    retainCorrelation,
+    clearRetainedCorrelation,
+    workspaceLinked,
+"""
+          assert text.count(old_api)==1, 'input api anchor drift'
+          text=text.replace(old_api,new_api,1)
+          module.write_text(text)
+          PY
+
+          mkdir -p current-tree/control-v11/chat-canary/tests
+          cat > current-tree/control-v11/chat-canary/tests/correlation-retention-v1.test.cjs <<'EOF'
+          'use strict';
+          const fs=require('fs');
+          const vm=require('vm');
+          const assert=require('assert');
+          const ingressCode=fs.readFileSync('current-tree/control-v11/ingress-v1.js','utf8');
+          const inputCode=fs.readFileSync('current-tree/control-v11/chat-canary/input-module-v1.js','utf8');
+
+          class Storage {
+            constructor(seed={}){this.map=new Map(Object.entries(seed));}
+            getItem(k){return this.map.has(k)?this.map.get(k):null;}
+            setItem(k,v){this.map.set(k,String(v));}
+            removeItem(k){this.map.delete(k);}
+          }
+          const correlation={schema:'prometeo.private-ingress-correlation/v1',work_item_id:'WI-opaque-123',return_path:'coordination/executions/WI-opaque-123/RETURN.json'};
+          const durableRef=correlation.return_path;
+
+          function baseContext(sessionStorage=new Storage()){
+            const localStorage=new Storage({'prometeo.capture.workspace.secret.v2':'x'.repeat(40)});
+            const ctx={console,Date,Math,JSON,Object,Array,String,RegExp,Promise,Error,URL,TextEncoder,TextDecoder,setTimeout,clearTimeout,setInterval,clearInterval,localStorage,sessionStorage,location:{href:'https://example.invalid/chat'},crypto:{randomUUID:()=> 'req-1'}};
+            ctx.globalThis=ctx; ctx.window=ctx;
+            return vm.createContext(ctx);
+          }
+
+          (async()=>{
+            // ingress-v1 must preserve a valid opaque pair returned by transport.
+            const ingressCtx=baseContext();
+            ingressCtx.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1={submit:async()=>({schema:'prometeo.ingress-transport-result/v1',status:'QUEUED',ref:durableRef,queued:true,error:null,work_item_id:correlation.work_item_id,return_path:correlation.return_path})};
+            vm.runInContext(ingressCode,ingressCtx,{filename:'ingress-v1.js'});
+            const ingressResult=await ingressCtx.PROMETEO_INGRESS_V1.submit({text:'private test payload never persisted',page:{page_id:'control-v11-chat-canary',title:'canary'}});
+            assert.equal(ingressResult.queued,true);
+            assert.equal(ingressResult.correlation.work_item_id,correlation.work_item_id);
+            assert.equal(ingressResult.correlation.return_path,correlation.return_path);
+
+            // malformed correlation fails closed at ingress normalization.
+            ingressCtx.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1={submit:async()=>({schema:'prometeo.ingress-transport-result/v1',status:'QUEUED',ref:durableRef,queued:true,error:null,work_item_id:'WI-other',return_path:correlation.return_path})};
+            const malformedIngress=await ingressCtx.PROMETEO_INGRESS_V1.submit({text:'x',page:{page_id:'control-v11-chat-canary'}});
+            assert.equal(malformedIngress.queued,false);
+            assert.equal(malformedIngress.error,'PRIVATE_CORRELATION_INVALID');
+
+            // input-module retains only the opaque pair in sessionStorage and restores it after reload.
+            const sharedSession=new Storage();
+            const inputCtx=baseContext(sharedSession);
+            const mockIngress={submit:async()=>({status:'QUEUED',queued:true,ref:durableRef,error:null,correlation})};
+            inputCtx.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1=mockIngress;
+            vm.runInContext(inputCode,inputCtx,{filename:'input-module-v1.js'});
+            const inputResult=await inputCtx.PROMETEO_CHAT_CANARY_INPUT_V1.submitText({text:'human private text',ingress:mockIngress});
+            assert.equal(inputResult.queued,true);
+            assert.deepEqual(JSON.parse(sharedSession.getItem('prometeo.primary-chat.correlation.v1')),correlation);
+            assert.equal([...sharedSession.map.values()].some(v=>v.includes('human private text')),false);
+
+            const reloadCtx=baseContext(sharedSession);
+            reloadCtx.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1=mockIngress;
+            vm.runInContext(inputCode,reloadCtx,{filename:'input-module-v1.js#reload'});
+            const restored=reloadCtx.PROMETEO_CHAT_CANARY_INPUT_V1.getRetainedCorrelation();
+            assert.equal(restored.work_item_id,correlation.work_item_id);
+            assert.equal(restored.return_path,correlation.return_path);
+
+            // replay of the same correlation is idempotent; malformed result does not overwrite valid retained state.
+            const replay=await reloadCtx.PROMETEO_CHAT_CANARY_INPUT_V1.submitText({text:'replay',ingress:mockIngress});
+            assert.equal(replay.correlation.return_path,durableRef);
+            const malformedIngress2={submit:async()=>({status:'QUEUED',queued:true,ref:durableRef,error:null,correlation:{...correlation,return_path:'coordination/executions/OTHER/RETURN.json'}})};
+            reloadCtx.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1=malformedIngress2;
+            const bad=await reloadCtx.PROMETEO_CHAT_CANARY_INPUT_V1.submitText({text:'bad',ingress:malformedIngress2});
+            assert.equal(bad.queued,false);
+            assert.equal(bad.error,'PRIVATE_CORRELATION_INVALID');
+            assert.equal(reloadCtx.PROMETEO_CHAT_CANARY_INPUT_V1.getRetainedCorrelation().return_path,durableRef);
+
+            // malformed persisted state is rejected and removed on reload.
+            sharedSession.setItem('prometeo.primary-chat.correlation.v1',JSON.stringify({work_item_id:'WI-opaque-123',return_path:'coordination/executions/OTHER/RETURN.json'}));
+            const malformedReload=baseContext(sharedSession);
+            malformedReload.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1=mockIngress;
+            vm.runInContext(inputCode,malformedReload,{filename:'input-module-v1.js#malformed-reload'});
+            assert.equal(malformedReload.PROMETEO_CHAT_CANARY_INPUT_V1.getRetainedCorrelation(),null);
+            assert.equal(sharedSession.getItem('prometeo.primary-chat.correlation.v1'),null);
+
+            console.log('CORRELATION_RETENTION_V1 PASS');
+          })().catch(err=>{console.error(err);process.exit(1);});
+          EOF
+
+      - name: Run deterministic correlation harness
+        run: |
+          set -euo pipefail
+          node current-tree/control-v11/chat-canary/tests/correlation-retention-v1.test.cjs
+          grep -q "coordination/executions/" current-tree/control-v11/chat-canary/input-module-v1.js
+          ! grep -q "private test payload never persisted" current-tree/control-v11/ingress-v1.js
+          ! grep -q "human private text" current-tree/control-v11/chat-canary/input-module-v1.js
+
+      - name: Commit verified patch and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/wc-primary-chat-correlation-retention-g4.yml
+          git add current-tree/control-v11/ingress-v1.js current-tree/control-v11/chat-canary/input-module-v1.js current-tree/control-v11/chat-canary/tests/correlation-retention-v1.test.cjs
+          git commit -m 'primary-chat: retain validated opaque ingress correlation'
+          git push origin HEAD:main
