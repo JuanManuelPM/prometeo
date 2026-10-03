@@ -39,4 +39,16 @@ assert.equal(metric({CLAIM:100},'CLAIM','STARTED'),null);
 assert.equal(metric({CLAIM:250,STARTED:100},'CLAIM','STARTED'),null);
 assert.equal(c.timing.worker_signals_must_not_reset_human_idle,true);
 assert.equal(c.human_boundary_wait.human_silence_alone,'NOT_A_BOTTLENECK');
+assert.equal(c.authority,'NON_AUTHORITATIVE_DERIVED_PROJECTION');
+assert.equal(c.daily_projection.authority,'DERIVED_ONLY');
+assert.equal(c.daily_projection.targets.human_routing_actions,0);
+for (const field of ['human_interventions','capacity_launch_actions','human_routing_actions','intents_completed_without_followup_routing','consumed_productive_returns','successors_created_and_claimed','median_human_to_visible_result_ms','p95_human_to_visible_result_ms','median_ready_to_claim_ms','human_boundary_wait_minutes','claim_transport_blocks','median_recovery_latency_ms','planner_gate_compliance_ratio','reserve_work_consumed_ratio']) {
+  assert.ok(c.daily_projection.fields.includes(field),`daily projection missing ${field}`);
+}
+for (const kind of ['SINGLE_SHOT_SYNTHESIS','MULTI_DOT_CONTINUATION','INTERNAL_MULTI_PASS_SYNTHESIS','BOT_CARDS_PRODUCED_BUT_NOT_RUN','REAL_BOT_RETURNS_SYNTHESIZED','RECOVERY_OR_PARTIAL_RUN']) {
+  assert.ok(c.execution_depth_taxonomy[kind],`execution depth missing ${kind}`);
+}
+assert.equal(c.step_telemetry_projection.second_authoritative_ledger_forbidden,true);
+assert.equal(c.step_telemetry_projection.missing_event_rule,'UNKNOWN_NOT_INFERRED');
+assert.match(c.missing_telemetry_boundaries.provider_compute_depth,/never infer/i);
 console.log('PASS primary_chat_state_communication_v1');
