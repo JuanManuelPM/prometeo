@@ -21,13 +21,28 @@ const denied = {
   pin_generation: 6,
   claimed_at: '2026-10-03T01:03:00Z',
   last_signal_at: '2026-10-03T01:13:02Z',
+  // Reproduce the real Live Feed shape: compact latest/recent rows omit completion_class.
   latest_return: {
     path: denialRef,
+    generation: 6,
+    outcome: 'BOUNDARY',
+    returned_at: '2026-10-03T01:13:02Z',
+    summary: 'Inherited explicit safety denial; do not retry or bypass.'
+  },
+  recent_return_evidence: [{
+    path: denialRef,
+    outcome: 'BOUNDARY',
+    returned_at: '2026-10-03T01:13:02Z'
+  }],
+  // Full durable return rows retain the causal completion class.
+  returns: [{
+    path: denialRef,
+    generation: 6,
     outcome: 'BOUNDARY',
     completion_class: 'EXPLICIT_SAFETY_BOUNDARY_INHERITED',
     returned_at: '2026-10-03T01:13:02Z',
     summary: 'Inherited explicit safety denial; do not retry or bypass.'
-  }
+  }]
 };
 
 const ordinary = {
@@ -40,7 +55,9 @@ const ordinary = {
   pin_generation: 2,
   claimed_at: '2026-10-03T01:00:00Z',
   last_signal_at: '2026-10-03T01:00:00Z',
-  latest_return: null
+  latest_return: null,
+  recent_return_evidence: [],
+  returns: []
 };
 
 const feedFor = jobs => ({
