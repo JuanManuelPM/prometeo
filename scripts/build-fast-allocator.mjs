@@ -3,9 +3,11 @@ import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import * as core from './build-fast-allocator-core-v3.mjs';
 import { compileFixedGenerationRecoveryPolicies } from './fixed-generation-recovery-policy-gate-v1.mjs';
+import { compileRatchetedVerificationRecoveryGate, loadRatchetBaseline } from './ratcheted-verification-recovery-gate-v1.mjs';
 
 export * from './build-fast-allocator-core-v3.mjs';
 export * from './fixed-generation-recovery-policy-gate-v1.mjs';
+export * from './ratcheted-verification-recovery-gate-v1.mjs';
 
 // Compatibility markers for static allocator regressions after the v3 core split.
 // The executable implementations live in build-fast-allocator-core-v3.mjs:
@@ -253,13 +255,19 @@ export function buildFastAllocator(feed = {}, efficiency = {}, options = {}) {
   const sourceDebtNormalization = normalizeCurrentSourceDebtReturnShapes(feed);
   const safetyGate = normalizeExplicitSafetyDenialAuthorityGates(sourceDebtNormalization.feed);
   const dependencyGate = applyDependencyRecoveryGate(safetyGate.feed);
-  const fixedGenerationGate = compileFixedGenerationRecoveryPolicies(dependencyGate.feed, options?.recoveryPolicies || []);
-  const allocator = core.buildFastAllocator(dependencyGate.feed, normalizeEfficiency(efficiency), { ...options, recoveryPolicies: fixedGenerationGate.recoveryPolicies, roleContext: normalizeRoleContext(options?.roleContext || null) });
+  const ratchetedVerificationGate = compileRatchetedVerificationRecoveryGate(dependencyGate.feed, options?.ratchetBaseline || null);
+  const fixedGenerationGate = compileFixedGenerationRecoveryPolicies(ratchetedVerificationGate.feed, options?.recoveryPolicies || []);
+  const allocator = core.buildFastAllocator(ratchetedVerificationGate.feed, normalizeEfficiency(efficiency), { ...options, recoveryPolicies: fixedGenerationGate.recoveryPolicies, roleContext: normalizeRoleContext(options?.roleContext || null) });
   return {
     ...allocator,
     source_debt_recovery_shape_normalization: { evaluated: sourceDebtNormalization.decisions.length, normalized: sourceDebtNormalization.decisions.filter(row => row.normalized === true).length, decisions: sourceDebtNormalization.decisions },
     explicit_safety_denial_recovery_gate: { evaluated: safetyGate.decisions.length, synthesized_open_gates: safetyGate.decisions.filter(row => row.normalized === true).length, decisions: safetyGate.decisions },
     dependency_recovery_gate: { evaluated: dependencyGate.decisions.length, suppressed: dependencyGate.decisions.filter(row => row.eligible === false).length, decisions: dependencyGate.decisions },
+    ratcheted_verification_recovery_gate: {
+      evaluated: ratchetedVerificationGate.decisions.length,
+      suppressed: ratchetedVerificationGate.decisions.filter(row => row.suppressed === true).length,
+      decisions: ratchetedVerificationGate.decisions
+    },
     fixed_generation_recovery_policy_gate: {
       evaluated: fixedGenerationGate.decisions.length,
       unlocked: fixedGenerationGate.decisions.filter(row => row.eligible === true).length,
@@ -276,7 +284,8 @@ export function runCli(argv = process.argv.slice(2)) {
   const efficiency = JSON.parse(fs.readFileSync(efficiencyPath, 'utf8'));
   const recoveryPolicies = core.loadRecoveryPolicies(root);
   const roleContext = core.loadRoleContext(root);
-  const allocator = buildFastAllocator(feed, efficiency, { recoveryPolicies, roleContext });
+  const ratchetBaseline = loadRatchetBaseline(root);
+  const allocator = buildFastAllocator(feed, efficiency, { recoveryPolicies, roleContext, ratchetBaseline });
   fs.writeFileSync(outPath, `${JSON.stringify(allocator, null, 2)}\n`);
   process.stdout.write(`allocator ${allocator.schema} ready=${allocator.counts.ready} queue=${allocator.counts.queue_ready} roles=${allocator.counts.role_ready} recovery=${allocator.counts.recovery}\n`);
 }
