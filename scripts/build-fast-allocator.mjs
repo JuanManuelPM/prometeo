@@ -19,6 +19,7 @@ const parseTime = value => Date.parse(value || '') || 0;
 const uniq = values => [...new Set(arr(values).filter(Boolean).map(value => String(value)))];
 const SUCCESS_VALUES = new Set(['DONE', 'SUCCESS', 'SUCCEEDED', 'COMPLETE', 'COMPLETED', 'PASS', 'PASSED', 'VERIFIED', 'OK']);
 const DEPENDENCY_BOUNDARY_VALUES = new Set(['BOUNDARY', 'PARTIAL', 'FAILED', 'FAILURE', 'BLOCKED', 'ROUTE_ABORTED', 'CAPABILITY_BOUNDARY', 'HTTP_BOUNDARY']);
+const EXPLICIT_SAFETY_COMPLETION_CLASSES = new Set(['EXPLICIT_SAFETY_BOUNDARY_INHERITED']);
 const transportBoundaryValues = doc => [
   doc?.reason,
   doc?.outcome,
@@ -79,6 +80,66 @@ const jobReturnRows = job => {
     return true;
   });
 };
+
+const explicitSafetyDenialRow = job => jobReturnRows(job)
+  .filter(row => (
+    EXPLICIT_SAFETY_COMPLETION_CLASSES.has(normalizeBoundaryValue(row?.completion_class)) ||
+    isExplicitClaimTransportBlocked(row)
+  ))
+  .sort((a, b) => rowTime(b) - rowTime(a) || String(b?.path || '').localeCompare(String(a?.path || '')))[0] || null;
+
+const explicitSafetyGateKind = gate => String(gate?.required_authority?.kind || '').trim().toUpperCase();
+
+export function normalizeExplicitSafetyDenialAuthorityGates(feed = {}) {
+  const decisions = [];
+  const projects = arr(feed?.projects).map(project => ({
+    ...project,
+    jobs: arr(project?.jobs).map(job => {
+      const denial = explicitSafetyDenialRow(job);
+      if (!denial) return job;
+
+      const existing = job?.authority_gate && typeof job.authority_gate === 'object' && !Array.isArray(job.authority_gate)
+        ? job.authority_gate
+        : null;
+      if (existing && explicitSafetyGateKind(existing) === 'EXPLICIT_SAFETY_DENIAL_LIFT') {
+        decisions.push({
+          job_id: job?.job_id || null,
+          normalized: false,
+          reason: 'EXPLICIT_SAFETY_GATE_ALREADY_PRESENT',
+          boundary_return_ref: existing.boundary_return_ref || denial?.path || null
+        });
+        return job;
+      }
+
+      const boundaryRef = denial?.path || job?.latest_return?.path || null;
+      const boundaryAt = denial?.returned_at || denial?.completed_at || denial?.recorded_at || denial?.updated_at || null;
+      const authorityGate = {
+        schema: 'prometeo.portfolio-authority-gate/v1',
+        gate: 'NEW_AUTHORITY_GATE',
+        status: 'OPEN',
+        boundary_return_ref: boundaryRef,
+        boundary_returned_at: boundaryAt,
+        opened_at: boundaryAt,
+        required_authority: {
+          kind: 'EXPLICIT_SAFETY_DENIAL_LIFT',
+          description: 'Durable explicit evidence that the inherited safety denial was lifted or replaced without bypass.'
+        },
+        satisfied_by_evidence_ref_or_null: null,
+        satisfied_at_or_null: null,
+        satisfied_ref_exists: false,
+        synthesized_from_completion_class: normalizeBoundaryValue(denial?.completion_class) || null
+      };
+      decisions.push({
+        job_id: job?.job_id || null,
+        normalized: true,
+        reason: 'EXPLICIT_SAFETY_DENIAL_NORMALIZED_TO_AUTHORITY_GATE',
+        boundary_return_ref: boundaryRef
+      });
+      return { ...job, authority_gate: authorityGate };
+    })
+  }));
+  return { feed: { ...feed, projects }, decisions };
+}
 
 const exactRecoveryEvidenceSignal = job => {
   const basis = job?.recovery_basis && typeof job.recovery_basis === 'object' ? job.recovery_basis : null;
@@ -245,7 +306,8 @@ export function compileRoleFrontier(feed = {}, efficiency = {}, jobs = [], ready
 }
 
 export function buildFastAllocator(feed = {}, efficiency = {}, options = {}) {
-  const dependencyGate = applyDependencyRecoveryGate(feed);
+  const safetyGate = normalizeExplicitSafetyDenialAuthorityGates(feed);
+  const dependencyGate = applyDependencyRecoveryGate(safetyGate.feed);
   const fixedGenerationGate = compileFixedGenerationRecoveryPolicies(
     dependencyGate.feed,
     options?.recoveryPolicies || []
@@ -257,6 +319,11 @@ export function buildFastAllocator(feed = {}, efficiency = {}, options = {}) {
   });
   return {
     ...allocator,
+    explicit_safety_denial_recovery_gate: {
+      evaluated: safetyGate.decisions.length,
+      synthesized_open_gates: safetyGate.decisions.filter(row => row.normalized === true).length,
+      decisions: safetyGate.decisions
+    },
     dependency_recovery_gate: {
       evaluated: dependencyGate.decisions.length,
       suppressed: dependencyGate.decisions.filter(row => row.eligible === false).length,
