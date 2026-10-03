@@ -4,8 +4,7 @@
   const SCHEMA = 'prometeo.chat-canary-input/v1';
   const KIND = 'CHAT_CANARY_HUMAN_MESSAGE_V1';
   const MAX_TEXT = 65536;
-  const CORRELATION_SCHEMA = 'prometeo.private-ingress-correlation/v1';
-  const CORRELATION_STORAGE_KEY = 'prometeo.primary-chat.correlation.v1';
+  const PRIVATE_CORRELATION_SCHEMA = 'prometeo.primary-chat-private-correlation/v1';
   const WORKSPACE_SECRET_KEYS = Object.freeze([
     'prometeo.capture.workspace.secret.v2',
     'prometeo.capture.workspace.secret.v1'
@@ -52,46 +51,72 @@
     );
   }
 
-  function safeWorkItemId(value) {
-    const id = clean(value, 160);
-    return id && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(id) ? id : null;
+  let privateCorrelationLoadPromise = null;
+
+  function privateCorrelationApi() {
+    const api = global.PROMETEO_PRIMARY_CHAT_PRIVATE_CORRELATION_V1;
+    return api && api.schema === PRIVATE_CORRELATION_SCHEMA && typeof api.normalize === 'function' && typeof api.fromIngressResult === 'function' && typeof api.save === 'function' && typeof api.load === 'function' ? api : null;
+  }
+
+  function privateCorrelationScriptUrl() {
+    try {
+      const doc = global.document;
+      const current = doc && doc.currentScript && doc.currentScript.src;
+      if (current) return new URL('./private-correlation-v1.js', current).href;
+    } catch {}
+    return './private-correlation-v1.js';
+  }
+
+  function ensurePrivateCorrelationApi() {
+    const ready = privateCorrelationApi();
+    if (ready) return Promise.resolve(ready);
+    if (privateCorrelationLoadPromise) return privateCorrelationLoadPromise;
+    const doc = global.document;
+    if (!doc || typeof doc.createElement !== 'function') return Promise.resolve(null);
+    privateCorrelationLoadPromise = new Promise(resolve => {
+      const selector = 'script[data-prometeo-primary-chat-private-correlation-v1]';
+      let script = typeof doc.querySelector === 'function' ? doc.querySelector(selector) : null;
+      const finish = () => resolve(privateCorrelationApi());
+      if (!script) {
+        script = doc.createElement('script');
+        script.setAttribute('data-prometeo-primary-chat-private-correlation-v1', '');
+        script.src = privateCorrelationScriptUrl();
+        script.async = false;
+        script.addEventListener('load', finish, { once: true });
+        script.addEventListener('error', () => resolve(null), { once: true });
+        const parent = doc.head || doc.documentElement || doc.body;
+        if (!parent || typeof parent.appendChild !== 'function') return resolve(null);
+        parent.appendChild(script);
+      } else if (privateCorrelationApi()) {
+        finish();
+      } else {
+        script.addEventListener('load', finish, { once: true });
+        script.addEventListener('error', () => resolve(null), { once: true });
+      }
+    });
+    return privateCorrelationLoadPromise;
   }
 
   function normalizeCorrelation(value) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-    const workItemId = safeWorkItemId(value.work_item_id);
-    const returnPath = clean(value.return_path, 360);
-    if (!workItemId || returnPath !== `coordination/executions/${workItemId}/RETURN.json`) return null;
-    return Object.freeze({ schema: CORRELATION_SCHEMA, work_item_id: workItemId, return_path: returnPath });
+    const api = privateCorrelationApi();
+    return api ? api.normalize(value) : null;
   }
 
   function readRetainedCorrelation() {
-    try {
-      if (!global.sessionStorage) return null;
-      const raw = global.sessionStorage.getItem(CORRELATION_STORAGE_KEY);
-      if (!raw) return null;
-      const correlation = normalizeCorrelation(JSON.parse(raw));
-      if (!correlation) global.sessionStorage.removeItem(CORRELATION_STORAGE_KEY);
-      return correlation;
-    } catch {
-      try { if (global.sessionStorage) global.sessionStorage.removeItem(CORRELATION_STORAGE_KEY); } catch {}
-      return null;
-    }
+    const api = privateCorrelationApi();
+    return api ? api.load() : null;
   }
 
   function retainCorrelation(value) {
-    const correlation = normalizeCorrelation(value);
-    if (!correlation) return null;
-    try {
-      if (global.sessionStorage) global.sessionStorage.setItem(CORRELATION_STORAGE_KEY, JSON.stringify(correlation));
-    } catch {}
-    return correlation;
+    const api = privateCorrelationApi();
+    if (!api) return null;
+    try { return api.save(value); } catch { return null; }
   }
 
   function clearRetainedCorrelation() {
-    try { if (global.sessionStorage) global.sessionStorage.removeItem(CORRELATION_STORAGE_KEY); } catch {}
+    const api = privateCorrelationApi();
+    if (api) api.clear();
   }
-
 
   function frozenResult(status, queued, ref = null, error = null, clearInput = false, correlation = null) {
     return Object.freeze({
@@ -169,6 +194,11 @@
       return frozenResult('BOUNDARY_INVALID_INPUT', false, null, 'TEXT_TOO_LARGE', false);
     }
 
+    const correlationApi = await ensurePrivateCorrelationApi();
+    if (!correlationApi) {
+      return frozenResult('BOUNDARY_TRANSPORT_INVALID', false, null, 'PRIVATE_CORRELATION_HELPER_REQUIRED', false);
+    }
+
     const api = activeIngress(ingress);
     if (!api) {
       return frozenResult('BOUNDARY_AUTH_REQUIRED', false, null, 'INGRESS_API_REQUIRED', false);
@@ -192,23 +222,21 @@
     const status = clean(result.status, 120) || 'BOUNDARY_TRANSPORT_INVALID';
     const ref = clean(result.ref, 4096);
     const error = clean(result.error, 240);
-    const correlationInput = result.correlation || ((result.work_item_id !== undefined || result.return_path !== undefined) ? result : null);
-    const correlation = normalizeCorrelation(correlationInput);
-    const correlationPresent = correlationInput !== null;
-
-    if (correlationPresent && !correlation) {
-      return frozenResult('BOUNDARY_TRANSPORT_INVALID', false, null, 'PRIVATE_CORRELATION_INVALID', false);
-    }
 
     if (result.queued === true) {
-      if (!validDurableRef(ref)) {
-        return frozenResult('BOUNDARY_TRANSPORT_INVALID', false, null, 'DURABLE_REF_REQUIRED', false);
+      const correlation = correlationApi.fromIngressResult(result);
+      if (!correlation || ref !== correlation.return_path) {
+        return frozenResult('BOUNDARY_TRANSPORT_INVALID', false, null, 'PRIVATE_CORRELATION_INVALID', false);
       }
-      if (correlation) retainCorrelation(correlation);
-      return frozenResult(status === 'BOUNDARY_TRANSPORT_INVALID' ? 'QUEUED' : status, true, ref, error, true, correlation);
+      let retained;
+      try { retained = correlationApi.save(correlation); }
+      catch (correlationError) {
+        return frozenResult('BOUNDARY_TRANSPORT_INVALID', false, null, clean(correlationError && correlationError.message, 120) || 'PRIVATE_CORRELATION_SAVE_FAILED', false);
+      }
+      return frozenResult(status === 'BOUNDARY_TRANSPORT_INVALID' ? 'QUEUED' : status, true, retained.return_path, error, true, retained);
     }
 
-    return frozenResult(status, false, validDurableRef(ref) ? ref : null, error, false, correlation);
+    return frozenResult(status, false, validDurableRef(ref) ? ref : null, error, false, null);
   }
 
   function setStatus(element, resultOrLabel) {
@@ -344,7 +372,8 @@
     default_page: DEFAULT_PAGE,
     bootstrap_publication: BOOTSTRAP_PUBLICATION,
     validDurableRef,
-    correlation_schema: CORRELATION_SCHEMA,
+    correlation_schema: PRIVATE_CORRELATION_SCHEMA,
+    ensurePrivateCorrelationApi,
     normalizeCorrelation,
     getRetainedCorrelation: readRetainedCorrelation,
     retainCorrelation,
