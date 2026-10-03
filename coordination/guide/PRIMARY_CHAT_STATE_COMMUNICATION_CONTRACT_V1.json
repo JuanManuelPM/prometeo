@@ -14,7 +14,7 @@
     "capacity_policy": ["coordination/guide/METABOLISM_POLICY_V1.json", "coordination/guide/USEFUL_RESERVE_POLICY_V1.json"],
     "returns": ["coordination/portfolio/returns/"],
     "chat_recovery_history": ["coordination/chat-recovery/INDEX.json", "coordination/chat-sessions/INDEX.json"],
-    "primary_chat_projection": ["current-tree/control-v11/chat-canary/index.html"],
+    "primary_chat_projection": ["current-tree/control-v11/chat-canary/index.html", "current-tree/control-v11/chat-canary/progress-v1.js"],
     "step_exit_telemetry": ["coordination/workers/WORKER_PIPELINE_V1.json", "coordination/workers/WORKER_EXIT_AUDIT_V1.json"]
   },
   "inputs": ["last_human_action_at","last_worker_signal_at","live_worker_count","claimable_generic_count","claimable_specialized_count","core_demand","reserve_workers","capacity_gap","unconsumed_returns_count","recovery_attention_count","projection_age_seconds","human_decision_required","pending_human_intent_count","claim_transport_blocked_count","campaign_complete","last_return_at","last_visible_result_at"],
@@ -50,7 +50,67 @@
       "recovery_eligible_to_recovery_claim_ms": ["RECOVERY_ELIGIBLE","RECOVERY_CLAIM"]
     }
   },
+  "step_telemetry_projection": {
+    "authority": "DERIVED_ONLY_FROM_EXISTING_DURABLE_EVENTS",
+    "normalized_fields": ["step_id","component","start_ts","end_ms","status","tags"],
+    "target_events": ["HUMAN_MESSAGE_DURABLE","HUMAN_AUDIO_DURABLE","INTENT_MATERIALIZED","PLAN_READY","CAPACITY_REQUEST_VISIBLE","WORKER_BEACON","CLAIM","STARTED","FIRST_MATERIAL_WRITE","RETURN","FANIN_STARTED","JUDGED","INTEGRATED","VISIBLE_RESPONSE","HUMAN_NEXT_ACTION"],
+    "statistics": ["p50_ms","p95_ms","outliers"],
+    "missing_event_rule": "UNKNOWN_NOT_INFERRED",
+    "second_authoritative_ledger_forbidden": true
+  },
   "human_boundary_wait": {"starts_only_on": "explicit durable state requiring one specific human action", "human_silence_alone": "NOT_A_BOTTLENECK"},
+  "daily_projection": {
+    "schema": "prometeo.primary-chat-daily-autonomy-projection/v1",
+    "authority": "DERIVED_ONLY",
+    "bucket_basis": "UTC_DAY_FROM_DURABLE_EVENT_TIMESTAMPS",
+    "fields": [
+      "human_interventions",
+      "capacity_launch_actions",
+      "human_routing_actions",
+      "intents_completed_without_followup_routing",
+      "consumed_productive_returns",
+      "successors_created_and_claimed",
+      "median_human_to_visible_result_ms",
+      "p95_human_to_visible_result_ms",
+      "median_ready_to_claim_ms",
+      "human_boundary_wait_minutes",
+      "claim_transport_blocks",
+      "median_recovery_latency_ms",
+      "planner_gate_compliance_ratio",
+      "reserve_work_consumed_ratio"
+    ],
+    "targets": {
+      "human_routing_actions": 0
+    },
+    "aggregation_rules": {
+      "human_interventions": "count durable HUMAN_MESSAGE_DURABLE/HUMAN_AUDIO_DURABLE actions that materially alter work or satisfy an explicit boundary; do not count passive viewing",
+      "capacity_launch_actions": "count durable human launches whose explicit purpose is capacity creation",
+      "human_routing_actions": "count durable human actions that manually select worker routing/task ownership; target zero",
+      "intents_completed_without_followup_routing": "count intents whose visible result occurs without any human routing action after intent materialization",
+      "consumed_productive_returns": "count productive RETURN records consumed by a durable integration disposition",
+      "successors_created_and_claimed": "count successor jobs with both durable creation and subsequent claim evidence",
+      "latencies": "derive only when both endpoint timestamps exist; missing endpoints remain unknown and are excluded from percentiles rather than coerced to zero",
+      "human_boundary_wait_minutes": "sum only intervals opened by an explicit durable human-decision/action boundary and closed by satisfying action or boundary disappearance",
+      "claim_transport_blocks": "count explicit current-period CLAIM_TRANSPORT_BLOCKED outcomes, preserving terminal/history distinction",
+      "planner_gate_compliance_ratio": "eligible planner decisions with durable gate evidence / eligible planner decisions; unknown if denominator cannot be derived",
+      "reserve_work_consumed_ratio": "durably consumed reserve work / durably materialized reserve work; unknown if denominator cannot be derived"
+    },
+    "freshness": {
+      "generated_at_required": true,
+      "source_max_event_at_required": true,
+      "stale_if_source_frontier_or_runtime_is_stale": true
+    },
+    "privacy": "counts, durations and durable refs only; never raw/private transcript, audio, credentials or hidden reasoning"
+  },
+  "execution_depth_taxonomy": {
+    "SINGLE_SHOT_SYNTHESIS": "one synthesis result; no claim that multiple bots/workers ran",
+    "MULTI_DOT_CONTINUATION": "multiple explicit continuation steps in one worker/session; report actual durable steps separately from model passes",
+    "INTERNAL_MULTI_PASS_SYNTHESIS": "multiple internal synthesis passes; never report them as workers",
+    "BOT_CARDS_PRODUCED_BUT_NOT_RUN": "recommended/generated bot cards exist without durable worker returns",
+    "REAL_BOT_RETURNS_SYNTHESIZED": "two or more independently durable bot/worker returns were actually received and synthesized",
+    "RECOVERY_OR_PARTIAL_RUN": "run resumed/recovered or only partially executed; report missing expected work explicitly"
+  },
+  "depth_reporting_fields": ["execution_depth_class","workers_recommended","workers_claimed","returns_received","internal_passes_if_observable","missing_expected"],
   "templates": {
     "REFILL_N": "MANDÁ {capacity_gap} /wc/",
     "CAPACITY_OK": "ACCIÓN: ninguna",
@@ -65,5 +125,12 @@
     "BUFFER_LOW": "ACCIÓN: ninguna · buffer bajo, pero core cubierto."
   },
   "voice_input_context_envelope": ["route","active_pane","focused_element","recent_interactions","viewport","capture_started_at","capture_ended_at","transcription_latency_ms","model_response_latency_ms"],
+  "missing_telemetry_boundaries": {
+    "FIRST_MATERIAL_WRITE": "may be absent in legacy work; must remain UNKNOWN unless a durable timestamp exists",
+    "FANIN_STARTED": "may be absent where integration is represented only by a receipt timestamp; do not synthesize an earlier start",
+    "JUDGED": "only available when an explicit Judge/verification record exists",
+    "provider_compute_depth": "not derivable from worker counts or UI bot cards; never infer",
+    "model_internal_passes": "private/internal unless an observable product exposes a sanctioned aggregate; never reconstruct hidden reasoning"
+  },
   "privacy": "Raw/private audio and transcript remain in private ingress/storage; public projection receives sanitized references and derived state only."
 }
