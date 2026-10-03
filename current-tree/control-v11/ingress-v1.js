@@ -24,8 +24,8 @@
   let activeSubmitPromise = null;
   let activeSubmitKey = null;
 
-  function result(status, ref = null, queued = false, error = null) {
-    return Object.freeze({ status, ref, queued, error });
+  function result(status, ref = null, queued = false, error = null, correlation = null) {
+    return Object.freeze({ status, ref, queued, error, correlation: normalizeCorrelationEnvelope(correlation) });
   }
 
   function cleanString(value, max = 512) {
@@ -33,6 +33,30 @@
     const text = String(value).trim();
     if (!text) return null;
     return text.slice(0, max);
+  }
+
+
+  const CORRELATION_SCHEMA = 'prometeo.private-ingress-correlation/v1';
+
+  function safeWorkItemId(value) {
+    const id = cleanString(value, 160);
+    return id && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(id) ? id : null;
+  }
+
+  function correlationFromReturnPath(returnPath, expectedWorkItemId = null) {
+    const path = cleanString(returnPath, 360);
+    const match = path && path.match(/^coordination\/executions\/([A-Za-z0-9][A-Za-z0-9._:-]{0,159})\/RETURN\.json$/);
+    if (!match) return null;
+    const workItemId = safeWorkItemId(match[1]);
+    const expected = expectedWorkItemId === null ? workItemId : safeWorkItemId(expectedWorkItemId);
+    if (!workItemId || !expected || workItemId !== expected) return null;
+    return Object.freeze({ schema: CORRELATION_SCHEMA, work_item_id: workItemId, return_path: path });
+  }
+
+  function normalizeCorrelationEnvelope(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const workItemId = safeWorkItemId(value.work_item_id);
+    return workItemId ? correlationFromReturnPath(value.return_path, workItemId) : null;
   }
 
   function publicPage(page) {
@@ -270,7 +294,9 @@
               if (!replayRef || !validDurableRef(replayRef)) {
                 throw Object.assign(new Error('APPROVAL_REPLAY_RECEIPT_INVALID'), { code: 'APPROVAL_REPLAY_RECEIPT_INVALID' });
               }
-              return Object.freeze({ schema: RESULT_SCHEMA, status: 'QUEUED_REPLAY', ref: replayRef, queued: true, error: null });
+              const replayCorrelation = correlationFromReturnPath(replayRef);
+              if (!replayCorrelation) throw Object.assign(new Error('APPROVAL_REPLAY_CORRELATION_INVALID'), { code: 'APPROVAL_REPLAY_CORRELATION_INVALID' });
+              return Object.freeze({ schema: RESULT_SCHEMA, status: 'QUEUED_REPLAY', ref: replayRef, queued: true, error: null, work_item_id: replayCorrelation.work_item_id, return_path: replayCorrelation.return_path, correlation: replayCorrelation });
             }
           }
           const createdMs = Number.isFinite(Date.parse(envelope.created_at)) ? Date.parse(envelope.created_at) : Date.now();
@@ -331,7 +357,9 @@
             if (!replayRef || !validDurableRef(replayRef)) {
               throw Object.assign(new Error('APPROVAL_REPLAY_RECEIPT_INVALID'), { code: 'APPROVAL_REPLAY_RECEIPT_INVALID' });
             }
-            return Object.freeze({ schema: RESULT_SCHEMA, status: 'QUEUED_REPLAY', ref: replayRef, queued: true, error: null });
+            const replayCorrelation = correlationFromReturnPath(replayRef);
+              if (!replayCorrelation) throw Object.assign(new Error('APPROVAL_REPLAY_CORRELATION_INVALID'), { code: 'APPROVAL_REPLAY_CORRELATION_INVALID' });
+              return Object.freeze({ schema: RESULT_SCHEMA, status: 'QUEUED_REPLAY', ref: replayRef, queued: true, error: null, work_item_id: replayCorrelation.work_item_id, return_path: replayCorrelation.return_path, correlation: replayCorrelation });
           }
 
           const workItemId = cleanString(prepared.work_item_id, 160);
@@ -357,7 +385,11 @@
           if (!wake || wake.schema !== RESULT_SCHEMA || wake.queued !== true) {
             throw Object.assign(new Error(cleanString(wake && wake.error, 160) || 'WAKE_NOT_QUEUED'), { code: 'WAKE_NOT_QUEUED' });
           }
-          return Object.freeze(wake);
+          const correlation = correlationFromReturnPath(returnPath, workItemId);
+          if (!correlation) {
+            throw Object.assign(new Error('PRIVATE_CORRELATION_INVALID'), { code: 'PRIVATE_CORRELATION_INVALID' });
+          }
+          return Object.freeze({ ...wake, work_item_id: correlation.work_item_id, return_path: correlation.return_path, correlation });
         } catch (error) {
           return Object.freeze({
             schema: RESULT_SCHEMA,
@@ -400,7 +432,11 @@
       if (cached.proposal_digest !== approval.proposal_digest) {
         return result('BOUNDARY_APPROVAL_REPLAY_CONFLICT', null, false, 'APPROVAL_ID_REUSED_FOR_DIFFERENT_PROPOSAL');
       }
-      if (cached.queued === true && validDurableRef(cached.ref)) return result('QUEUED_REPLAY', cached.ref, true, null);
+      if (cached.queued === true && validDurableRef(cached.ref)) {
+        const correlation = normalizeCorrelationEnvelope(cached.correlation);
+        if (!correlation) return result('BOUNDARY_APPROVAL_REPLAY_CORRELATION_INVALID', null, false, 'APPROVAL_REPLAY_CORRELATION_INVALID');
+        return result('QUEUED_REPLAY', cached.ref, true, null, correlation);
+      }
     } catch {}
     return null;
   }
@@ -416,6 +452,7 @@
         proposal_digest: approval.proposal_digest,
         ref: normalized.ref,
         queued: true,
+        correlation: normalizeCorrelationEnvelope(normalized.correlation),
         cached_at: new Date().toISOString(),
         authority: 'INDEX_ONLY_DURABLE_AUTHORITY_REMAINS_CURRENT'
       }));
@@ -475,12 +512,17 @@
         const ref = cleanString(transportResult.ref, 4096);
         const queued = transportResult.queued === true;
         const error = cleanString(transportResult.error, 240);
+        const correlationInput = transportResult.correlation || ((transportResult.work_item_id !== undefined || transportResult.return_path !== undefined) ? transportResult : null);
+        const correlation = normalizeCorrelationEnvelope(correlationInput);
+        const correlationPresent = correlationInput !== null;
         if (queued && (!validDurableRef(ref) || transportResult.schema !== RESULT_SCHEMA)) {
           normalized = result('BOUNDARY_TRANSPORT_INVALID', null, false, 'TRANSPORT_RESULT_INVALID');
+        } else if (correlationPresent && !correlation) {
+          normalized = result('BOUNDARY_TRANSPORT_INVALID', null, false, 'PRIVATE_CORRELATION_INVALID');
         } else if (!queued) {
-          normalized = result(status, ref && validDurableRef(ref) ? ref : null, false, error);
+          normalized = result(status, ref && validDurableRef(ref) ? ref : null, false, error, correlation);
         } else {
-          normalized = result(status || 'QUEUED', ref, true, error);
+          normalized = result(status || 'QUEUED', ref, true, error, correlation);
         }
       }
 
@@ -512,6 +554,10 @@
     schema: SCHEMA,
     submit,
     submitApprovedPlan,
+    correlation_schema: CORRELATION_SCHEMA,
+    safeWorkItemId,
+    correlationFromReturnPath,
+    normalizeCorrelation: normalizeCorrelationEnvelope,
     approval_schema: APPROVAL_SCHEMA,
     approved_plan_kind: APPROVED_PLAN_KIND,
     transport_schema: RESULT_SCHEMA,

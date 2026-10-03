@@ -4,6 +4,8 @@
   const SCHEMA = 'prometeo.chat-canary-input/v1';
   const KIND = 'CHAT_CANARY_HUMAN_MESSAGE_V1';
   const MAX_TEXT = 65536;
+  const CORRELATION_SCHEMA = 'prometeo.private-ingress-correlation/v1';
+  const CORRELATION_STORAGE_KEY = 'prometeo.primary-chat.correlation.v1';
   const WORKSPACE_SECRET_KEYS = Object.freeze([
     'prometeo.capture.workspace.secret.v2',
     'prometeo.capture.workspace.secret.v1'
@@ -50,13 +52,55 @@
     );
   }
 
-  function frozenResult(status, queued, ref = null, error = null, clearInput = false) {
+  function safeWorkItemId(value) {
+    const id = clean(value, 160);
+    return id && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(id) ? id : null;
+  }
+
+  function normalizeCorrelation(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const workItemId = safeWorkItemId(value.work_item_id);
+    const returnPath = clean(value.return_path, 360);
+    if (!workItemId || returnPath !== `coordination/executions/${workItemId}/RETURN.json`) return null;
+    return Object.freeze({ schema: CORRELATION_SCHEMA, work_item_id: workItemId, return_path: returnPath });
+  }
+
+  function readRetainedCorrelation() {
+    try {
+      if (!global.sessionStorage) return null;
+      const raw = global.sessionStorage.getItem(CORRELATION_STORAGE_KEY);
+      if (!raw) return null;
+      const correlation = normalizeCorrelation(JSON.parse(raw));
+      if (!correlation) global.sessionStorage.removeItem(CORRELATION_STORAGE_KEY);
+      return correlation;
+    } catch {
+      try { if (global.sessionStorage) global.sessionStorage.removeItem(CORRELATION_STORAGE_KEY); } catch {}
+      return null;
+    }
+  }
+
+  function retainCorrelation(value) {
+    const correlation = normalizeCorrelation(value);
+    if (!correlation) return null;
+    try {
+      if (global.sessionStorage) global.sessionStorage.setItem(CORRELATION_STORAGE_KEY, JSON.stringify(correlation));
+    } catch {}
+    return correlation;
+  }
+
+  function clearRetainedCorrelation() {
+    try { if (global.sessionStorage) global.sessionStorage.removeItem(CORRELATION_STORAGE_KEY); } catch {}
+  }
+
+
+  function frozenResult(status, queued, ref = null, error = null, clearInput = false, correlation = null) {
     return Object.freeze({
       status,
       queued: queued === true,
       ref,
       error,
-      clear_input: clearInput === true
+      clear_input: clearInput === true,
+      correlation: normalizeCorrelation(correlation)
     });
   }
 
@@ -148,15 +192,23 @@
     const status = clean(result.status, 120) || 'BOUNDARY_TRANSPORT_INVALID';
     const ref = clean(result.ref, 4096);
     const error = clean(result.error, 240);
+    const correlationInput = result.correlation || ((result.work_item_id !== undefined || result.return_path !== undefined) ? result : null);
+    const correlation = normalizeCorrelation(correlationInput);
+    const correlationPresent = correlationInput !== null;
+
+    if (correlationPresent && !correlation) {
+      return frozenResult('BOUNDARY_TRANSPORT_INVALID', false, null, 'PRIVATE_CORRELATION_INVALID', false);
+    }
 
     if (result.queued === true) {
       if (!validDurableRef(ref)) {
         return frozenResult('BOUNDARY_TRANSPORT_INVALID', false, null, 'DURABLE_REF_REQUIRED', false);
       }
-      return frozenResult(status === 'BOUNDARY_TRANSPORT_INVALID' ? 'QUEUED' : status, true, ref, error, true);
+      if (correlation) retainCorrelation(correlation);
+      return frozenResult(status === 'BOUNDARY_TRANSPORT_INVALID' ? 'QUEUED' : status, true, ref, error, true, correlation);
     }
 
-    return frozenResult(status, false, validDurableRef(ref) ? ref : null, error, false);
+    return frozenResult(status, false, validDurableRef(ref) ? ref : null, error, false, correlation);
   }
 
   function setStatus(element, resultOrLabel) {
@@ -292,6 +344,11 @@
     default_page: DEFAULT_PAGE,
     bootstrap_publication: BOOTSTRAP_PUBLICATION,
     validDurableRef,
+    correlation_schema: CORRELATION_SCHEMA,
+    normalizeCorrelation,
+    getRetainedCorrelation: readRetainedCorrelation,
+    retainCorrelation,
+    clearRetainedCorrelation,
     workspaceLinked,
     transportReady,
     submitText,
