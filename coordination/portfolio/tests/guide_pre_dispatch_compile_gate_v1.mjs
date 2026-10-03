@@ -12,6 +12,7 @@ import {
   validateCompiledDispatchContract
 } from '../../../scripts/compiled-dispatch-contract-lib.mjs';
 import { compileGuideDispatchSuccessor } from '../../../scripts/guide-recursive-successor-lib.mjs';
+import './guide_dynamic_child_subcompile_v1.mjs';
 
 const baseOrganism = Object.freeze({
   app_ref: 'organism://prometeo-shell',
