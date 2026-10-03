@@ -17,9 +17,19 @@ jobs:
         with:
           fetch-depth: 0
       - name: Apply bounded opaque-correlation patch
-        run: python3 coordination/workers/helpers/wc-primary-chat-correlation-retention-g4.py
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 coordination/workers/helpers/wc-primary-chat-correlation-retention-g4.py 2>&1 | tee /tmp/correlation-patch.log
       - name: Run deterministic correlation harness
         run: node current-tree/control-v11/chat-canary/tests/correlation-retention-v1.test.cjs
+      - name: Upload bounded diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wc-correlation-retention-g4-diagnostics
+          path: /tmp/correlation-patch.log
+          if-no-files-found: warn
       - name: Commit verified patch and remove temporary runner
         shell: bash
         run: |
