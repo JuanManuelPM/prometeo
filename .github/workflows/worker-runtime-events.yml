@@ -8,7 +8,9 @@ on:
     paths:
       - 'scripts/build-worker-runtime.mjs'
       - 'scripts/build-worker-operational-stats.mjs'
+      - 'scripts/build-activity-timeline.mjs'
       - 'tests/worker-runtime-events-v1.test.mjs'
+      - 'tests/activity-timeline-v1.test.mjs'
       - 'coordination/portfolio/tests/worker_residency_runtime_v1.mjs'
       - 'coordination/portfolio/tests/worker_passive_operational_stats_v1.mjs'
       - 'coordination/portfolio/pins/**'
@@ -21,6 +23,8 @@ on:
       - 'coordination/workers/benchmark-receipts/**'
       - 'coordination/launch-packets/**'
       - 'coordination/workers/beacons/**'
+      - 'coordination/chat-sessions/**'
+      - 'current-tree/control-v11/cycle/**'
       - '.github/workflows/worker-runtime-events.yml'
   workflow_dispatch:
 
@@ -48,6 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           node source/tests/worker-runtime-events-v1.test.mjs
+          node source/tests/activity-timeline-v1.test.mjs
           node source/coordination/portfolio/tests/worker_residency_runtime_v1.mjs
           node source/coordination/portfolio/tests/worker_passive_operational_stats_v1.mjs
 
@@ -59,6 +64,7 @@ jobs:
           gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/22/comments?per_page=100" --slurp | jq 'add // []' > /tmp/comments.json
           node source/scripts/build-worker-runtime.mjs /tmp/comments.json source /tmp/runtime.json
           node source/scripts/build-worker-operational-stats.mjs source /tmp/operational-stats.json
+          node source/scripts/build-activity-timeline.mjs /tmp/runtime.json source /tmp/activity-timeline.json
           rm -rf /tmp/batch-status
           mkdir -p /tmp/batch-status
           node --input-type=module <<'NODE'
@@ -136,14 +142,16 @@ jobs:
           git -C site config user.name github-actions[bot]
           git -C site config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git -C site pull --ff-only origin gh-pages
-          mkdir -p site/live site/live/batches
+          mkdir -p site/live site/live/batches site/current-tree/control-v11/cycle
           cp /tmp/runtime.json site/live/runtime.json
           cp /tmp/operational-stats.json site/live/operational-stats.json
+          cp /tmp/activity-timeline.json site/live/activity-timeline.json
+          cp source/current-tree/control-v11/cycle/index.html site/current-tree/control-v11/cycle/index.html
           rm -f site/live/batches/*.json
           cp /tmp/batch-status/*.json site/live/batches/ 2>/dev/null || true
-          git -C site add live/runtime.json live/operational-stats.json live/batches
+          git -C site add live/runtime.json live/operational-stats.json live/activity-timeline.json live/batches current-tree/control-v11/cycle/index.html
           if git -C site diff --cached --quiet; then exit 0; fi
-          git -C site commit -m "live: refresh worker wave runtime"
+          git -C site commit -m "live: refresh worker wave runtime and activity timeline"
           for n in 1 2 3; do
             if git -C site push origin HEAD:gh-pages; then exit 0; fi
             git -C site fetch origin gh-pages
