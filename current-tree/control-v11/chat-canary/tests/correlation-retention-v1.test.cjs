@@ -1,52 +1,76 @@
 'use strict';
-const fs=require('fs');
-const vm=require('vm');
-const assert=require('assert');
-const ingressCode=fs.readFileSync('current-tree/control-v11/ingress-v1.js','utf8');
-const inputCode=fs.readFileSync('current-tree/control-v11/chat-canary/input-module-v1.js','utf8');
-class Storage { constructor(seed={}){this.map=new Map(Object.entries(seed));} getItem(k){return this.map.has(k)?this.map.get(k):null;} setItem(k,v){this.map.set(k,String(v));} removeItem(k){this.map.delete(k);} }
-const correlation={schema:'prometeo.private-ingress-correlation/v1',work_item_id:'WI-opaque-123',return_path:'coordination/executions/WI-opaque-123/RETURN.json'};
-const durableRef=correlation.return_path;
-function baseContext(sessionStorage=new Storage()){
-  const localStorage=new Storage({'prometeo.capture.workspace.secret.v2':'x'.repeat(40)});
-  const ctx={console,Date,Math,JSON,Object,Array,String,RegExp,Promise,Error,URL,TextEncoder,TextDecoder,setTimeout,clearTimeout,setInterval,clearInterval,localStorage,sessionStorage,location:{href:'https://example.invalid/chat'},crypto:{randomUUID:()=> 'req-1'}};
-  ctx.globalThis=ctx; ctx.window=ctx; return vm.createContext(ctx);
+const fs = require('fs');
+const vm = require('vm');
+const assert = require('assert');
+const helperCode = fs.readFileSync('current-tree/control-v11/chat-canary/private-correlation-v1.js','utf8');
+const ingressCode = fs.readFileSync('current-tree/control-v11/ingress-v1.js','utf8');
+const inputCode = fs.readFileSync('current-tree/control-v11/chat-canary/input-module-v1.js','utf8');
+class Storage {
+  constructor(seed={}) { this.map = new Map(Object.entries(seed)); }
+  getItem(k) { return this.map.has(k) ? this.map.get(k) : null; }
+  setItem(k,v) { this.map.set(k,String(v)); }
+  removeItem(k) { this.map.delete(k); }
+}
+const workItemId = 'page-change:pc-1234';
+const returnPath = 'coordination/portfolio/returns/page-change/RETURN-pc-1234.json';
+function context(sessionStorage = new Storage()) {
+  const localStorage = new Storage({'prometeo.capture.workspace.secret.v2':'x'.repeat(40)});
+  const ctx = {console,Date,Math,JSON,Object,Array,String,RegExp,Promise,Error,URL,TextEncoder,TextDecoder,setTimeout,clearTimeout,setInterval,clearInterval,localStorage,sessionStorage,location:{href:'https://example.invalid/chat'},crypto:{randomUUID:()=> 'req-1'}};
+  ctx.globalThis = ctx; ctx.window = ctx; return vm.createContext(ctx);
+}
+function load(ctx, code, name) { vm.runInContext(code, ctx, {filename:name}); }
+function queued(id=workItemId, path=returnPath) {
+  return {schema:'prometeo.ingress-transport-result/v1',status:'QUEUED',ref:path,queued:true,error:null,work_item_id:id,return_path:path};
 }
 (async()=>{
-  const ingressCtx=baseContext();
-  ingressCtx.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1={submit:async()=>({schema:'prometeo.ingress-transport-result/v1',status:'QUEUED',ref:durableRef,queued:true,error:null,work_item_id:correlation.work_item_id,return_path:correlation.return_path})};
-  vm.runInContext(ingressCode,ingressCtx,{filename:'ingress-v1.js'});
-  const ingressResult=await ingressCtx.PROMETEO_INGRESS_V1.submit({text:'private test payload never persisted',page:{page_id:'control-v11-chat-canary',title:'canary'}});
-  assert.equal(ingressResult.queued,true);
-  assert.equal(ingressResult.correlation.work_item_id,correlation.work_item_id);
-  assert.equal(ingressResult.correlation.return_path,correlation.return_path);
-  ingressCtx.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1={submit:async()=>({schema:'prometeo.ingress-transport-result/v1',status:'QUEUED',ref:durableRef,queued:true,error:null,work_item_id:'WI-other',return_path:correlation.return_path})};
-  const malformedIngress=await ingressCtx.PROMETEO_INGRESS_V1.submit({text:'x',page:{page_id:'control-v11-chat-canary'}});
-  assert.equal(malformedIngress.queued,false); assert.equal(malformedIngress.error,'PRIVATE_CORRELATION_INVALID');
-  const sharedSession=new Storage();
-  const inputCtx=baseContext(sharedSession);
-  const mockIngress={submit:async()=>({status:'QUEUED',queued:true,ref:durableRef,error:null,correlation})};
-  inputCtx.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1=mockIngress;
-  vm.runInContext(inputCode,inputCtx,{filename:'input-module-v1.js'});
-  const inputResult=await inputCtx.PROMETEO_CHAT_CANARY_INPUT_V1.submitText({text:'human private text',ingress:mockIngress});
-  assert.equal(inputResult.queued,true);
-  assert.deepEqual(JSON.parse(sharedSession.getItem('prometeo.primary-chat.correlation.v1')),correlation);
-  assert.equal([...sharedSession.map.values()].some(v=>v.includes('human private text')),false);
-  const reloadCtx=baseContext(sharedSession); reloadCtx.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1=mockIngress;
-  vm.runInContext(inputCode,reloadCtx,{filename:'input-module-v1.js#reload'});
-  const restored=reloadCtx.PROMETEO_CHAT_CANARY_INPUT_V1.getRetainedCorrelation();
-  assert.equal(restored.work_item_id,correlation.work_item_id); assert.equal(restored.return_path,correlation.return_path);
-  const replay=await reloadCtx.PROMETEO_CHAT_CANARY_INPUT_V1.submitText({text:'replay',ingress:mockIngress});
-  assert.equal(replay.correlation.return_path,durableRef);
-  const malformedIngress2={submit:async()=>({status:'QUEUED',queued:true,ref:durableRef,error:null,correlation:{...correlation,return_path:'coordination/executions/OTHER/RETURN.json'}})};
-  reloadCtx.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1=malformedIngress2;
-  const bad=await reloadCtx.PROMETEO_CHAT_CANARY_INPUT_V1.submitText({text:'bad',ingress:malformedIngress2});
-  assert.equal(bad.queued,false); assert.equal(bad.error,'PRIVATE_CORRELATION_INVALID');
-  assert.equal(reloadCtx.PROMETEO_CHAT_CANARY_INPUT_V1.getRetainedCorrelation().return_path,durableRef);
-  sharedSession.setItem('prometeo.primary-chat.correlation.v1',JSON.stringify({work_item_id:'WI-opaque-123',return_path:'coordination/executions/OTHER/RETURN.json'}));
-  const malformedReload=baseContext(sharedSession); malformedReload.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1=mockIngress;
-  vm.runInContext(inputCode,malformedReload,{filename:'input-module-v1.js#malformed-reload'});
-  assert.equal(malformedReload.PROMETEO_CHAT_CANARY_INPUT_V1.getRetainedCorrelation(),null);
-  assert.equal(sharedSession.getItem('prometeo.primary-chat.correlation.v1'),null);
-  console.log('CORRELATION_RETENTION_V1 PASS');
+  const shared = new Storage();
+  const ctx = context(shared);
+  load(ctx, helperCode, 'private-correlation-v1.js');
+  ctx.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1 = {submit:async()=>queued()};
+  load(ctx, ingressCode, 'ingress-v1.js');
+  load(ctx, inputCode, 'input-module-v1.js');
+
+  const ingress = await ctx.PROMETEO_INGRESS_V1.submit({text:'private payload never retained',page:{page_id:'control-v11-chat-canary'}});
+  assert.equal(ingress.queued,true);
+  assert.equal(ingress.work_item_id,workItemId);
+  assert.equal(ingress.return_path,returnPath);
+  assert.equal(ingress.ref,returnPath);
+
+  const first = await ctx.PROMETEO_CHAT_CANARY_INPUT_V1.submitText({text:'human private text',ingress:ctx.PROMETEO_INGRESS_V1});
+  assert.equal(first.queued,true);
+  assert.equal(first.correlation.work_item_id,workItemId);
+  assert.equal(first.correlation.return_path,returnPath);
+  const helper = ctx.PROMETEO_PRIMARY_CHAT_PRIVATE_CORRELATION_V1;
+  const rawStored = shared.getItem(helper.storage_key);
+  assert.ok(rawStored);
+  assert.equal(rawStored.includes('human private text'),false);
+  assert.equal(rawStored.includes('private payload never retained'),false);
+
+  const replay = await ctx.PROMETEO_CHAT_CANARY_INPUT_V1.submitText({text:'same pair replay',ingress:ctx.PROMETEO_INGRESS_V1});
+  assert.equal(replay.queued,true);
+  assert.equal(replay.correlation.return_path,returnPath);
+  assert.equal(shared.getItem(helper.storage_key),rawStored);
+
+  const reload = context(shared);
+  load(reload, helperCode, 'private-correlation-v1.js#reload');
+  reload.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1 = {submit:async()=>queued()};
+  load(reload, inputCode, 'input-module-v1.js#reload');
+  const restored = reload.PROMETEO_CHAT_CANARY_INPUT_V1.getRetainedCorrelation();
+  assert.equal(restored.work_item_id,workItemId);
+  assert.equal(restored.return_path,returnPath);
+
+  ctx.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1 = {submit:async()=>queued('page-change:other', returnPath)};
+  const mismatch = await ctx.PROMETEO_CHAT_CANARY_INPUT_V1.submitText({text:'mismatch',ingress:ctx.PROMETEO_INGRESS_V1});
+  assert.equal(mismatch.queued,false);
+  assert.equal(mismatch.error,'CORRELATION_CONFLICT');
+  assert.equal(shared.getItem(helper.storage_key),rawStored);
+
+  ctx.PROMETEO_GITHUB_INGRESS_TRANSPORT_V1 = {submit:async()=>queued(workItemId,'coordination/executions/page-change:pc-1234/RETURN.json')};
+  const wrongAuthority = await ctx.PROMETEO_INGRESS_V1.submit({text:'wrong authority',page:{page_id:'control-v11-chat-canary'}});
+  assert.equal(wrongAuthority.queued,false);
+  assert.ok(String(wrongAuthority.error||'').includes('PRIVATE_CORRELATION'));
+  assert.equal(shared.getItem(helper.storage_key),rawStored);
+
+  assert.equal(ctx.PROMETEO_CHAT_CANARY_INPUT_V1.correlation_schema,'prometeo.primary-chat-private-correlation/v1');
+  console.log('PRIMARY_CHAT_PRIVATE_CORRELATION_WIRING_V1 PASS');
 })().catch(err=>{console.error(err);process.exit(1);});
