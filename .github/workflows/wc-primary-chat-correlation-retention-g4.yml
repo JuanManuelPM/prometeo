@@ -20,7 +20,16 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python3 coordination/workers/helpers/wc-primary-chat-correlation-retention-g4.py 2>&1 | tee /tmp/correlation-patch.log
+          python3 - <<'PY' | tee /tmp/correlation-patch.log
+          from pathlib import Path
+          p=Path('current-tree/control-v11/ingress-v1.js')
+          b=p.read_bytes()
+          t=p.read_text(encoding='utf-8')
+          pos=t.find('  function result')
+          print('LINE_ENDINGS', {'crlf': b.count(b'\r\n'), 'lf': b.count(b'\n'), 'bytes': len(b)})
+          print('RESULT_SLICE', repr(t[pos:pos+180]))
+          PY
+          python3 coordination/workers/helpers/wc-primary-chat-correlation-retention-g4.py 2>&1 | tee -a /tmp/correlation-patch.log
       - name: Run deterministic correlation harness
         run: node current-tree/control-v11/chat-canary/tests/correlation-retention-v1.test.cjs
       - name: Upload bounded diagnostics
