@@ -18,36 +18,25 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Recover exact immutable V11 fixture by content identity
+      - name: Prepare immutable V11 fixture
         run: |
-          set -euo pipefail
           CANDIDATE='pages/lab/jose-study-design-20260911/PROMETEO_JOSE_RECOVERY_ENGINE_V12_MAP_REFINEMENT_CANDIDATE.html'
           EXPECTED_BLOB='8f22dd9e0079dab7174eaba784a0d6c793e0ac90'
-          EXPECTED_V11_SHA256='0cf9a40fb53e977dccb40c9755d668a3ee922ccd61883f19229bb4a113139a05'
+          SOURCE_COMMIT='158357fe4e1cb672e4574d9ebe6f317b9418a30f'
+          SOURCE_PATH='coordination/workstreams/jose-study-design-20260911/material/PROMETEO_JOSE_RECOVERY_ENGINE_V11.html.gz.b64'
           test "$(git hash-object "$CANDIDATE")" = "$EXPECTED_BLOB"
-
-          rm -rf /tmp/jose-study-source
-          git clone --quiet --filter=blob:none --no-checkout https://github.com/JuanManuelPM/jose-study.git /tmp/jose-study-source
-          cd /tmp/jose-study-source
-          MATCH_COMMIT=''
-          while read -r commit; do
-            if git cat-file -e "$commit:index.html" 2>/dev/null; then
-              git show "$commit:index.html" > /tmp/jose-v11-candidate.html
-              observed="$(sha256sum /tmp/jose-v11-candidate.html | awk '{print $1}')"
-              if [ "$observed" = "$EXPECTED_V11_SHA256" ]; then
-                MATCH_COMMIT="$commit"
-                break
-              fi
-            fi
-          done < <(git rev-list --all -- index.html)
-          test -n "$MATCH_COMMIT" || { echo "SOURCE_DEBT: no historical jose-study:index.html matches expected V11 SHA-256 $EXPECTED_V11_SHA256"; exit 1; }
-          git show "$MATCH_COMMIT:index.html" > /tmp/jose-v11.html
-          echo "$EXPECTED_V11_SHA256  /tmp/jose-v11.html" | sha256sum -c -
-          gzip -n -c /tmp/jose-v11.html | base64 -w0 > /tmp/jose-v11.b64
+          git fetch --no-tags --depth=1 origin "$SOURCE_COMMIT"
+          git show "$SOURCE_COMMIT:$SOURCE_PATH" > /tmp/jose-v11.b64
           python3 - <<'PY'
-          import base64,gzip,hashlib,pathlib
+          import base64,gzip,hashlib,pathlib,string
           p=pathlib.Path('/tmp/jose-v11.b64')
-          compact=''.join(p.read_text(encoding='utf-8').split())
+          text=p.read_text(encoding='utf-8')
+          compact=''.join(text.split())
+          allowed=set(string.ascii_letters+string.digits+'+/=')
+          bad=[(i,ord(ch),repr(ch)) for i,ch in enumerate(compact) if ch not in allowed]
+          print(f'FIXTURE_DIAG compact_chars={len(compact)} invalid_count={len(bad)} invalid_first={bad[:20]}')
+          if 'ELLIPSIZATION' in compact:
+              raise SystemExit('SOURCE_DEBT: immutable V11 fixture contains literal ELLIPSIZATION marker; exact bytes must be recovered, never reconstructed')
           gz=base64.b64decode(compact, validate=True)
           html=gzip.decompress(gz)
           digest=hashlib.sha256(html).hexdigest()
@@ -55,8 +44,6 @@ jobs:
           print(f'FIXTURE_BASE64_PASS chars={len(compact)} gzip_bytes={len(gz)} html_bytes={len(html)} sha256={digest}')
           assert digest == expected, (digest, expected)
           PY
-          echo "RECOVERED_V11_COMMIT=$MATCH_COMMIT"
-          echo "RECOVERED_V11_COMMIT=$MATCH_COMMIT" >> "$GITHUB_ENV"
 
       - name: Install browser driver
         run: |
@@ -86,7 +73,7 @@ jobs:
           const sleep=ms=>new Promise(r=>setTimeout(r,ms));
           const server=spawn('python3',['-m','http.server','8765','--bind','127.0.0.1'],{stdio:['ignore','pipe','pipe']});
           let browser;
-          const evidence={candidate,expected_blob:expectedBlob,recovered_v11_commit:process.env.RECOVERED_V11_COMMIT,chrome_path:process.env.CHROME_PATH,topics:[],errors:[]};
+          const evidence={candidate,expected_blob:expectedBlob,chrome_path:process.env.CHROME_PATH,topics:[],errors:[]};
           try {
             await sleep(700);
             browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
@@ -97,7 +84,12 @@ jobs:
             await page.setRequestInterception(true);
             page.on('request',req=>{
               if(req.url()===sourceUrl){
-                req.respond({status:200,contentType:'text/plain; charset=utf-8',headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'no-store'},body:fixtureText});
+                req.respond({
+                  status:200,
+                  contentType:'text/plain; charset=utf-8',
+                  headers:{'Access-Control-Allow-Origin':'*','Cache-Control':'no-store'},
+                  body:fixtureText
+                });
               } else req.continue();
             });
 
@@ -110,7 +102,9 @@ jobs:
               await frame.waitForSelector('body',{timeout:10000});
               const menuText=await frame.evaluate(()=>document.body.innerText);
               const n=norm(menuText);
-              for(const topic of topics){if(!topic.aliases.some(a=>n.includes(norm(a)))) throw new Error('Menu missing distinct topic: '+topic.name);}
+              for(const topic of topics){
+                if(!topic.aliases.some(a=>n.includes(norm(a)))) throw new Error('Menu missing distinct topic: '+topic.name);
+              }
               return {frame,menuText};
             }
 
@@ -123,7 +117,9 @@ jobs:
                 const visible=el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'};
                 const hit=els.find(el=>visible(el)&&aa.some(a=>norm(el.textContent).includes(a)));
                 if(!hit) return null;
-                const text=(hit.textContent||'').trim(); hit.click(); return text;
+                const text=(hit.textContent||'').trim();
+                hit.click();
+                return text;
               },{aliases:topic.aliases});
               if(!clicked) throw new Error('Could not click topic '+topic.name);
               await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('niveles'),{timeout:15000});
@@ -139,6 +135,7 @@ jobs:
               if(!/12\/12 niveles/.test(statusOn)) throw new Error(topic.name+' expected 12/12 levels, got: '+statusOn);
               if(!/3 rondas/.test(statusOn)) throw new Error(topic.name+' expected 3 rounds, got: '+statusOn);
               if(!runtime.rail||runtime.levels!==12||runtime.rounds!==3||!runtime.root_v12_on) throw new Error(topic.name+' runtime markers mismatch: '+JSON.stringify(runtime));
+
               await page.click('#toggle');
               await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('V12 apagado'),{timeout:5000});
               const statusOff=await page.$eval('#status',el=>el.textContent);
@@ -148,6 +145,7 @@ jobs:
               await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('V12 activo'),{timeout:5000});
               const backOn=await frame.evaluate(()=>document.documentElement.classList.contains('prometeo-v12-on'));
               if(!backOn) throw new Error(topic.name+' V12 A/B toggle did not restore V12 class');
+
               evidence.topics.push({topic:topic.name,clicked,status_on:statusOn,status_off:statusOff,rail:runtime.rail,levels:runtime.levels,rounds:runtime.rounds,headings:runtime.heading,menu_has_four_distinct_topics:true,toggle_v11_intact:true,toggle_v12_restore:true});
               if(evidence.topics.length===1) await page.screenshot({path:'/tmp/jose-v12-runtime.png',fullPage:true});
             }
@@ -163,7 +161,10 @@ jobs:
             fs.writeFileSync('/tmp/jose-v12-runtime-evidence.json',JSON.stringify(evidence,null,2));
             console.error('RUNTIME_EVIDENCE='+JSON.stringify(evidence));
             process.exitCode=1;
-          } finally {if(browser) await browser.close(); server.kill('SIGTERM');}
+          } finally {
+            if(browser) await browser.close();
+            server.kill('SIGTERM');
+          }
           EOF
           node jose-v12-verify.mjs
 
@@ -180,4 +181,4 @@ jobs:
 # wc-harness-fix: immutable git fixture interception
 # wc-trigger: wc-20261001T183422Z-2876785d47d5 G000006
 # wc-trigger: wc-20261002T211822Z-a7c727e0daaf G000002
-# wc-source-recovery: wc-20261003T004046Z-1d5ac432cea9 G000002 exact SHA-256 history scan
+# wc-source-debt: immutable fixture contains literal ELLIPSIZATION; exact V11 bytes absent from durable sources scanned by G000002
