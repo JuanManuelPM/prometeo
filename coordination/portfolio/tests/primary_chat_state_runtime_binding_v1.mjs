@@ -9,7 +9,7 @@ const index=read('current-tree/control-v11/chat-canary/index.html');
 const progress=read('current-tree/control-v11/chat-canary/progress-v1.js');
 const contract=JSON.parse(read('coordination/guide/PRIMARY_CHAT_STATE_COMMUNICATION_CONTRACT_V1.json'));
 
-assert.match(index,/src="\.\/progress-v1\.js"/,'served canary must load the CURRENT progress/state compiler');
+assert.match(index,/src="\.\/progress-v1\.js(?:\?v=[^"]+)?"/,'served canary must load the CURRENT progress/state compiler');
 assert.doesNotMatch(index,/src="\.\/current-first-v1\.js"/,'dead/stale current-first compiler must not become a second runtime owner');
 
 assert.match(progress,/function\s+compileContractState\s*\(/,'runtime compiler required');
@@ -20,6 +20,11 @@ assert.match(progress,/const\s+live\s*=\s*rows\.filter\(row\s*=>\s*!row\.termina
 assert.match(progress,/worker\?\.close\?\.at\s*\|\|\s*worker\?\.last_event_at\s*\|\|\s*worker\?\.claim\?\.at\s*\|\|\s*worker\?\.routed\?\.at\s*\|\|\s*worker\?\.first_event_at/,'worker freshness must derive from durable timestamps');
 assert.match(progress,/runtime\?\.generated_at/,'runtime projection timestamp required');
 assert.match(progress,/frontier\?\.generated_at/,'frontier projection timestamp required');
+assert.match(progress,/const\s+ALLOCATOR_URL\s*=\s*['"][^'"]*live\/allocator\.json['"]/,'allocator fallback source required');
+assert.match(progress,/async\s+function\s+getRuntimeForCapacity\s*\(/,'runtime fallback loader required');
+assert.match(progress,/worker_projection\?\.working/,'allocator fallback must preserve explicit working count');
+assert.match(progress,/metabolism\?\.unconsumed_returns/,'allocator fallback must preserve unconsumed returns');
+assert.match(progress,/getRuntimeForCapacity\(\),\s*getJson\(FRONTIER_URL\)/,'capacity load must use runtime fallback loader');
 assert.match(progress,/isFreshClaimTransportBlock/,'claim transport degradation must be freshness bounded');
 assert.match(progress,/explicitQa\(/,'QA must derive from explicit durable metadata');
 
