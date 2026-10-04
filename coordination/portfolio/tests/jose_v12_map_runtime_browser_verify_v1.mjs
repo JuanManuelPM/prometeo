@@ -11,7 +11,7 @@ const EXPECTED_V11_SHA256='0cf9a40fb53e977dccb40c9755d668a3ee922ccd61883f19229bb
 const OUT=process.env.JOSE_V12_ARTIFACT_DIR||'artifacts/jose-v12-map-runtime-browser-verify';
 const TIMEOUT=Number(process.env.JOSE_V12_TIMEOUT_MS||45000);
 const PORT=18765;
-const URL='http://127.0.0.1:'+PORT+'/'+REL;
+const URL='http://127.0.0.1:'+PORT+'/candidate.html';
 
 await fs.mkdir(OUT,{recursive:true});
 const candidateBytes=await fs.readFile(path.join(ROOT,REL));
@@ -39,16 +39,11 @@ const must=(condition,name,evidence,code=name)=>{
 };
 
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8'};
-const server=http.createServer(async(req,res)=>{
- try{
-   const u=new URL(req.url,'http://127.0.0.1');
-   const rel=decodeURIComponent(u.pathname).replace(/^\/+/, '');
-   const file=path.resolve(ROOT,rel);
-   if(!file.startsWith(ROOT+path.sep)){res.writeHead(403);res.end('forbidden');return;}
-   const body=await fs.readFile(file);
-   res.writeHead(200,{'content-type':mime[path.extname(file)]||'application/octet-stream','cache-control':'no-store'});
-   res.end(body);
- }catch(e){res.writeHead(404,{'content-type':'text/plain'});res.end('not found');}
+const server=http.createServer((req,res)=>{
+ const u=new URL(req.url,'http://127.0.0.1');
+ if(u.pathname!=='/candidate.html'){res.writeHead(404,{'content-type':'text/plain'});res.end('not found');return;}
+ res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});
+ res.end(candidateBytes);
 });
 await new Promise((resolve,reject)=>server.listen(PORT,'127.0.0.1',err=>err?reject(err):resolve()));
 
