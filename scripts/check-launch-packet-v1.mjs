@@ -51,6 +51,17 @@ for(const ent of packetEntries){
   const antiReuseOk=invocation.includes('NO reutilices identidad/slot') || /PROHIBIDO[^\n.]{0,120}reutilizar identidad\/slot/i.test(invocation);
   if(!antiReuseOk) fail(runId+': run prompt missing anti-reuse identity/slot guard');
 
+  const preclaimGate=packet.preclaim_gate||null;
+  if(preclaimGate){
+    const requiredOrder=['VALIDATE_STATUS','VALIDATE_RUN_ID','VALIDATE_AUTHORITY_MODE','CREATE_CLAIM'];
+    if(JSON.stringify(preclaimGate.order)!==JSON.stringify(requiredOrder)) fail(runId+': preclaim gate order drift');
+    if(preclaimGate.required_status!=='ARMED') fail(runId+': preclaim required status must be ARMED');
+    if(preclaimGate.required_authority_mode!=='SYNTHETIC_BENCHMARK_SLOT_CLAIM') fail(runId+': preclaim authority literal drift');
+    if(packet.authority_mode!==preclaimGate.required_authority_mode) fail(runId+': preclaim authority_mode mismatch');
+    if(preclaimGate.invalid_gate_claim_attempted!==false) fail(runId+': failed preclaim gate must mean claim_attempted=false');
+    if(preclaimGate.invalid_gate_counts_occupancy!==false) fail(runId+': failed preclaim gate must not count occupancy');
+  }
+
   const slots=Array.isArray(packet.slots)?packet.slots:[];
   const realloc=Array.isArray(packet.reallocation_slots)?packet.reallocation_slots:[];
   const expected=Number(packet.expected_human_launches??slots.length);
