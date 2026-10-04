@@ -15,9 +15,22 @@ export function classifySourceFreshness(generatedAt, options = {}) {
 export function aggregateRequiredSourceFreshness(sources = {}, options = {}) {
   const required = Array.isArray(options.required) ? options.required.map(String) : Object.keys(sources);
   const perSource = {};
-  for (const name of required) perSource[name] = classifySourceFreshness(sources?.[name]?.generated_at ?? sources?.[name], options);
+  for (const name of required) {
+    const source = sources?.[name];
+    const classified = classifySourceFreshness(source?.generated_at ?? source, options);
+    const fetchError = source && typeof source === 'object' && (source.fetch_error || source.current_fetch_ok === false);
+    perSource[name] = fetchError && classified.status !== 'MISSING'
+      ? {...classified, status:'LAST_GOOD_ERROR', fetch_error:String(source.fetch_error || 'CURRENT_FETCH_FAILED')}
+      : classified;
+  }
   const states = Object.values(perSource);
-  const status = states.length > 0 && states.every(x => x.status === 'FRESH') ? 'FRESH' : states.some(x => x.status === 'MISSING') ? 'MISSING' : 'STALE';
+  const status = states.length > 0 && states.every(x => x.status === 'FRESH')
+    ? 'FRESH'
+    : states.some(x => x.status === 'MISSING')
+      ? 'MISSING'
+      : states.some(x => x.status === 'LAST_GOOD_ERROR')
+        ? 'LAST_GOOD_ERROR'
+        : 'STALE';
   const ages = states.map(x => x.age_ms).filter(Number.isFinite);
   return {
     schema:'prometeo.required-source-freshness/v1',
