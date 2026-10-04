@@ -1,0 +1,44 @@
+{
+  "schema": "prometeo.portfolio-return/v1",
+  "return_id": "RETURN-wc-20261004T160852Z-446a63f11b60-G000001-VERIFIED",
+  "job_id": "portfolio-10wc-pre-run-b034",
+  "dedupe_key": "prometeo:10wc-pre-run:b034:v1",
+  "project_id": "prometeo-autonomous-growth",
+  "worker_id": "wc-20261004T160852Z-446a63f11b60",
+  "returned_at": "2026-10-04T16:32:16Z",
+  "outcome": "VERIFIED",
+  "summary": "Completed B034 freshness regression across B017 generation binding and B018 read-time stale semantics. Added a reusable freshness model that evaluates every required source independently, exposes the stalest age, preserves last-good data as LAST_GOOD_ERROR after a failed current fetch, validates the B017 scoreboard/source binding without upgrading it to liveness, and enforces the canonical worker evidence thresholds (<6m fresh, 6-10m suspect, >=10m replaceable). The historical B018 audit test was made forward-safe so fixing the bug no longer causes the audit itself to fail. Regression tests executed successfully.",
+  "authority_ref": "coordination/portfolio/pins/portfolio-10wc-pre-run-b034/G000001.json",
+  "started_ref": "coordination/workers/started/wc-20261004T160852Z-446a63f11b60-portfolio-10wc-pre-run-b034-G000001.json",
+  "block_id": "B034",
+  "changed_paths": [
+    "current-tree/control-v11/work-score/freshness-model.mjs",
+    "coordination/portfolio/tests/freshness-regression-v1.test.mjs",
+    "coordination/portfolio/tests/work-score-last-good-stale-audit-v1.test.mjs"
+  ],
+  "evidence": [
+    "coordination/portfolio/pins/portfolio-10wc-pre-run-b034/G000001.json@2d0cae22a909db2c9d9bf4c6fb453e5088b174c8",
+    "coordination/workers/started/wc-20261004T160852Z-446a63f11b60-portfolio-10wc-pre-run-b034-G000001.json@b374b176706a28345080df5dcb0515df7dde6108",
+    "coordination/portfolio/returns/portfolio-10wc-pre-run-b017/return-portfolio-10wc-pre-run-b017-wc-20261004T160859Z-386963c5e9de.json",
+    "scripts/build-worker-scoreboard-freshness.mjs@adf7e2c9e8008f89f8e47f02649dbba077cfd462",
+    "current-tree/control-v11/work-score/freshness-model.mjs@0bb301a2bf62d41e780d6061e7ae23dee41fd31e",
+    "coordination/portfolio/tests/freshness-regression-v1.test.mjs@5ee9bd0652a2cea9db1dcefa2911735c8885dccf",
+    "coordination/portfolio/tests/work-score-last-good-stale-audit-v1.test.mjs@31b931f80f17b1ea5f672c51f2bc40b17c8cf521"
+  ],
+  "feature_evidence": [
+    {"requirement":"fresh source cannot mask stale required source","status":"PASS","evidence":"aggregateRequiredSourceFreshness only reports FRESH when every required source is fresh and reports stalest_age_ms"},
+    {"requirement":"failed refresh keeps last-good bytes but marks stale/error","status":"PASS","evidence":"source fetch_error/current_fetch_ok=false yields LAST_GOOD_ERROR even when retained generated_at is recent"},
+    {"requirement":"B017 source binding remains generation-only","status":"PASS","evidence":"validateScoreboardGenerationBinding requires sidecar/schema/time/SHA match and explicitly disclaims read-time freshness/liveness/authority"},
+    {"requirement":"worker older than active threshold is not live capacity","status":"PASS","evidence":"classifyWorkerEvidence contributes live capacity only below 6 minutes; 6-10m suspect, >=10m replaceable"},
+    {"requirement":"historical audit survives downstream repair","status":"PASS","evidence":"B018 audit test now validates frozen audit artifact instead of requiring bad renderer patterns to remain"}
+  ],
+  "tests": [
+    "node coordination/portfolio/tests/freshness-regression-v1.test.mjs => freshness-regression: PASS",
+    "node coordination/portfolio/tests/work-score-last-good-stale-audit-v1.test.mjs => work-score-last-good-stale-audit: PASS (historical evidence stable)"
+  ],
+  "unresolved": [
+    "Renderer wiring of the reusable freshness model remains a downstream composition concern; B034 establishes the regression contract and implementation primitive without inventing new UI authority."
+  ],
+  "spawn_candidates": [],
+  "next_transition": "RESIDENT_TARGET_REACHED"
+}
