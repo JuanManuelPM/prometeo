@@ -4,6 +4,7 @@
   const WORK_UNIT_ID = 'WU-CHAT-CANARY-DURABLE-MESSAGE-V1';
   const PROJECTION_URL = '../../../coordination/portfolio/derived/INTERACTIVE_WORK_UNITS_V1.json';
   const RUNTIME_URL = '../../../live/runtime.json';
+  const ALLOCATOR_URL = '../../../live/allocator.json';
   const FRONTIER_URL = '../../../live/claim-frontier.json';
   const THREAD_URL = '../../../coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json';
   const CONTRACT_URL = '../../../coordination/guide/PRIMARY_CHAT_STATE_COMMUNICATION_CONTRACT_V1.json';
@@ -211,6 +212,34 @@
     return response.json();
   }
 
+
+  async function getRuntimeForCapacity() {
+    try {
+      const runtime = await getJson(RUNTIME_URL);
+      if (!runtime || typeof runtime !== 'object' || !runtime.generated_at) throw new Error('RUNTIME_INVALID');
+      return runtime;
+    } catch (runtimeError) {
+      const allocator = await getJson(ALLOCATOR_URL);
+      if (!allocator || allocator.schema !== 'prometeo.fast-allocator/v3' || !allocator.generated_at) {
+        throw runtimeError;
+      }
+      return Object.freeze({
+        schema: 'prometeo.primary-chat-runtime-fallback/v1',
+        generated_at: allocator.generated_at,
+        live_worker_count: n(allocator?.worker_projection?.working),
+        unconsumed_returns_count: n(allocator?.metabolism?.unconsumed_returns),
+        recovery_attention_count: n(allocator?.counts?.recovery_attention),
+        claim_transport_blocked_count: n(allocator?.metabolism?.explicit_transport_blocked_recent_no_allocation),
+        campaign_complete: false,
+        current_batch: 'ALLOCATOR_FALLBACK',
+        batches: [],
+        source_ref: 'gh-pages:live/allocator.json',
+        source_schema: allocator.schema,
+        fallback: true
+      });
+    }
+  }
+
   function latestHumanAt(thread) {
     const rows = Array.isArray(thread?.messages) ? thread.messages : [];
     const times = rows.filter(row => row && String(row.actor_type || '').toUpperCase() === 'HUMAN')
@@ -236,7 +265,9 @@
     const batch = Array.isArray(runtime?.batches) ? runtime.batches.find(row => row && row.batch_id === batchId) : null;
     const workers = Array.isArray(batch?.workers) ? batch.workers : [];
     const rows = workerRows(workers, now);
-    const live = rows.filter(row => !row.terminal && row.age_seconds * 1000 < LIVE_MS).length;
+    const liveFromSignals = rows.filter(row => !row.terminal && row.age_seconds * 1000 < LIVE_MS).length;
+    const explicitLive = Number(runtime?.live_worker_count);
+    const live = Number.isFinite(explicitLive) ? n(explicitLive) : liveFromSignals;
     const candidates = Array.isArray(frontier?.candidates) ? frontier.candidates : [];
     const generic = candidates.filter(row => !Array.isArray(row?.required_capabilities) || row.required_capabilities.length === 0).length;
     const specialized = Math.max(0, candidates.length - generic);
@@ -466,7 +497,7 @@
     if (!host) return {ok:false,reason:'CAPACITY_HOST_MISSING'};
     const harness = runCapacityHarness();
     try {
-      const [runtime, frontier, thread, contract] = await Promise.all([getJson(RUNTIME_URL), getJson(FRONTIER_URL), getJson(THREAD_URL), getJson(CONTRACT_URL)]);
+      const [runtime, frontier, thread, contract] = await Promise.all([getRuntimeForCapacity(), getJson(FRONTIER_URL), getJson(THREAD_URL), getJson(CONTRACT_URL)]);
       if (contract?.schema !== 'prometeo.primary-chat-state-communication-contract/v1') throw new Error('STATE_CONTRACT_INCOMPATIBLE');
       const snapshot = capacitySnapshot(runtime, frontier, thread, contract);
       renderCapacity(host, snapshot, harness, contract);
@@ -494,6 +525,7 @@
     load,
     capacity: Object.freeze({
       runtimeUrl:RUNTIME_URL,
+      allocatorFallbackUrl:ALLOCATOR_URL,
       frontierUrl:FRONTIER_URL,
       threadUrl:THREAD_URL,
       contractUrl:CONTRACT_URL,
