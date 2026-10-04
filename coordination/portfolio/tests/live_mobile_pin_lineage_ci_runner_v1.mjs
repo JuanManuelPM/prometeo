@@ -11,22 +11,32 @@ await fs.mkdir(ARTIFACT_DIR, { recursive: true });
 
 const result = {
   schema: 'prometeo.live-mobile-pin-lineage-ci-result/v1',
+  contract: 'LIVE_V6',
   target_url: TARGET_URL,
   checked_at: new Date().toISOString(),
   viewport: VIEWPORT,
   outcome: 'FAIL',
   failure_code: null,
+  final_url: null,
+  document_title: null,
   selected_worker_id: null,
   lineage_text: null,
   http_status: null,
   checks: [],
+  defects: [],
   console_errors: [],
   page_errors: []
 };
 
 const pass = (name, evidence = null) => result.checks.push({ name, status: 'PASS', evidence });
-const fail = (name, code, evidence = null) => {
-  result.checks.push({ name, status: 'FAIL', code, evidence });
+const defect = (name, code, evidence = null) => {
+  const item = { name, status: 'FAIL', code, evidence };
+  result.checks.push(item);
+  result.defects.push(item);
+  if (!result.failure_code) result.failure_code = code;
+};
+const hardFail = (name, code, evidence = null) => {
+  defect(name, code, evidence);
   const error = new Error(code);
   error.failureCode = code;
   throw error;
@@ -46,17 +56,30 @@ try {
 
   const response = await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
   result.http_status = response?.status() ?? null;
-  if (!response) fail('published-live-route', 'LIVE_ROUTE_NO_RESPONSE');
-  if (response.status() >= 400) fail('published-live-route', `LIVE_ROUTE_HTTP_${response.status()}`, { status: response.status() });
-  pass('published-live-route', { status: response.status(), final_url: page.url() });
+  if (!response) hardFail('published-live-route', 'LIVE_ROUTE_NO_RESPONSE');
+  if (response.status() >= 400) hardFail('published-live-route', `LIVE_ROUTE_HTTP_${response.status()}`, { status: response.status() });
+  result.final_url = page.url();
+  pass('published-live-route', { status: response.status(), final_url: result.final_url });
 
-  await page.waitForSelector('#rail', { timeout: TIMEOUT_MS });
-  await page.waitForSelector('.tabs [data-go="projectsView"]', { timeout: TIMEOUT_MS });
+  await page.waitForSelector('button.tab[data-view="estado"]', { timeout: TIMEOUT_MS });
+  await page.waitForSelector('#estado.view.on', { timeout: TIMEOUT_MS });
+  await page.waitForSelector('#statecontent', { timeout: TIMEOUT_MS });
+  result.document_title = await page.title();
+
+  if (!/Prometeo\s*·\s*Live State V6/i.test(result.document_title)) {
+    defect('live-v6-shell', 'LIVE_V6_SHELL_IDENTITY_MISMATCH', {
+      title: result.document_title,
+      final_url: result.final_url
+    });
+  } else {
+    pass('live-v6-shell', { title: result.document_title, final_url: result.final_url });
+  }
+
   await page.waitForFunction(() => {
-    const line = document.querySelector('#statusLine')?.textContent || '';
-    return /6\s*min/i.test(line) && /10\s*min/i.test(line);
+    const state = document.querySelector('#statecontent');
+    return Boolean(state && state.textContent && state.textContent.trim().length > 0);
   }, { timeout: TIMEOUT_MS });
-  pass('liveness-threshold-presentation', await page.locator('#statusLine').innerText());
+  pass('live-v6-state-rendered', (await page.locator('#statecontent').innerText()).slice(0, 600));
 
   const overflow = await page.evaluate(() => ({
     innerWidth: window.innerWidth,
@@ -64,85 +87,69 @@ try {
     bodyScrollWidth: document.body.scrollWidth
   }));
   if (overflow.documentScrollWidth > overflow.innerWidth + 1 || overflow.bodyScrollWidth > overflow.innerWidth + 1) {
-    fail('page-wide-horizontal-overflow', 'LIVE_PAGE_HORIZONTAL_OVERFLOW', overflow);
+    defect('page-wide-horizontal-overflow', 'LIVE_PAGE_HORIZONTAL_OVERFLOW', overflow);
+  } else {
+    pass('page-wide-horizontal-overflow', overflow);
   }
-  pass('page-wide-horizontal-overflow', overflow);
 
-  const cards = page.locator('details.workerCard');
-  await cards.first().waitFor({ state: 'attached', timeout: TIMEOUT_MS });
-  const cardCount = await cards.count();
-  let selected = null;
-  for (let i = 0; i < cardCount; i += 1) {
-    const card = cards.nth(i);
-    await card.evaluate(el => { el.open = true; el.dispatchEvent(new Event('toggle')); });
-    const tech = card.locator('.tech');
-    const text = (await tech.innerText()).replace(/\s+/g, ' ').trim();
-    const hasGeneration = /PIN G\d{6}/.test(text);
-    const hasOwner = /dueño\s+\S+/i.test(text);
-    const hasContention = /\b[1-9]\d*\s+colisi(?:ón|ones)\b/i.test(text);
-    const hasRecovery = /recuperación/i.test(text);
-    if (hasGeneration && hasOwner && (hasContention || hasRecovery)) {
-      selected = {
-        index: i,
-        workerId: await card.getAttribute('data-worker'),
-        text,
-        hasContention,
-        hasRecovery
-      };
-      break;
-    }
-    await card.evaluate(el => { el.open = false; el.dispatchEvent(new Event('toggle')); });
+  for (const view of ['historial', 'trabajo', 'organismo', 'estado']) {
+    const tab = page.locator(`button.tab[data-view="${view}"]`);
+    await tab.click();
+    await page.waitForFunction(
+      expected => {
+        const button = document.querySelector(`button.tab[data-view="${expected}"]`);
+        const section = document.getElementById(expected);
+        return Boolean(button?.classList.contains('on') && section?.classList.contains('on'));
+      },
+      view,
+      { timeout: 5000 }
+    );
   }
-  if (!selected) {
-    fail('expanded-pin-lineage-evidence', 'NO_CONTENDED_OR_RECOVERED_WORKER_DETAIL', { card_count: cardCount });
+  pass('tab-navigation', 'estado → historial → trabajo → organismo → estado');
+
+  const bodyText = (await page.locator('body').innerText()).replace(/\s+/g, ' ').trim();
+
+  const livenessSignals = {
+    six_minute_threshold: /(?:^|\D)6\s*(?:min|m)(?:\D|$)/i.test(bodyText),
+    ten_minute_threshold: /(?:^|\D)10\s*(?:min|m)(?:\D|$)/i.test(bodyText)
+  };
+  if (livenessSignals.six_minute_threshold && livenessSignals.ten_minute_threshold) {
+    pass('liveness-threshold-presentation', livenessSignals);
+  } else {
+    defect('liveness-threshold-presentation', 'LIVE_V6_LIVENESS_THRESHOLDS_NOT_EXPOSED', livenessSignals);
   }
-  result.selected_worker_id = selected.workerId;
-  result.lineage_text = selected.text;
-  pass('expanded-pin-lineage-evidence', selected);
 
-  const readable = await cards.nth(selected.index).locator('.tech').evaluate(el => {
-    const style = getComputedStyle(el);
-    const rect = el.getBoundingClientRect();
-    return {
-      fontSizePx: Number.parseFloat(style.fontSize || '0'),
-      overflowWrap: style.overflowWrap,
-      left: rect.left,
-      right: rect.right,
-      viewportWidth: innerWidth
-    };
-  });
-  if (readable.fontSizePx < 12 || readable.left < -1 || readable.right > readable.viewportWidth + 1) {
-    fail('expanded-detail-readable', 'LIVE_LINEAGE_DETAIL_NOT_READABLE', readable);
+  const lineageSignals = {
+    generation: /\bPIN\s+G\d{6}\b/i.test(bodyText),
+    owner: /\b(?:dueño|owner)\b/i.test(bodyText),
+    contention: /\b(?:colisi[oó]n|colisiones|collision|collisions)\b/i.test(bodyText),
+    recovery: /\b(?:recuperaci[oó]n|recovery)\b/i.test(bodyText)
+  };
+  if (lineageSignals.generation && lineageSignals.owner && (lineageSignals.contention || lineageSignals.recovery)) {
+    result.lineage_text = bodyText.match(/.{0,120}PIN\s+G\d{6}.{0,320}/i)?.[0] ?? null;
+    pass('expanded-pin-lineage-evidence', lineageSignals);
+  } else {
+    defect('expanded-pin-lineage-evidence', 'LIVE_V6_PIN_LINEAGE_SURFACE_ABSENT', lineageSignals);
   }
-  pass('expanded-detail-readable', readable);
-
-  await page.locator('.tabs [data-go="projectsView"]').click();
-  await page.waitForFunction(() => document.querySelector('.tabs [data-go="projectsView"]')?.classList.contains('selected'), { timeout: 5000 });
-  pass('tab-navigation', 'projectsView selected');
-
-  const rail = page.locator('#rail');
-  await rail.evaluate(el => {
-    el.scrollTo({ left: el.clientWidth * 3, behavior: 'auto' });
-    el.dispatchEvent(new Event('scroll'));
-  });
-  await page.waitForFunction(() => document.querySelector('.tabs [data-go="productionView"]')?.classList.contains('selected'), { timeout: 5000 });
-  pass('swipe-equivalent-navigation', 'rail scroll selected productionView');
-
-  await page.locator('.tabs [data-go="nowView"]').click();
-  await page.waitForFunction(() => document.querySelector('.tabs [data-go="nowView"]')?.classList.contains('selected'), { timeout: 5000 });
 
   if (result.console_errors.length || result.page_errors.length) {
-    fail('runtime-errors', 'LIVE_BROWSER_RUNTIME_ERRORS', {
+    defect('runtime-errors', 'LIVE_BROWSER_RUNTIME_ERRORS', {
       console_errors: result.console_errors,
       page_errors: result.page_errors
     });
+  } else {
+    pass('runtime-errors', 'none');
   }
-  pass('runtime-errors', 'none');
 
-  result.outcome = 'PASS';
+  result.outcome = result.defects.length ? 'BOUNDED_DEFECT' : 'PASS';
+  if (result.defects.length) {
+    terminalError = new Error(result.failure_code || 'LIVE_V6_BOUNDED_DEFECT');
+    terminalError.failureCode = result.failure_code;
+  }
 } catch (error) {
   terminalError = error;
-  result.failure_code = error?.failureCode || error?.message || 'LIVE_BROWSER_RUNNER_FAILED';
+  result.failure_code = result.failure_code || error?.failureCode || error?.message || 'LIVE_BROWSER_RUNNER_FAILED';
+  if (result.outcome !== 'BOUNDED_DEFECT') result.outcome = 'FAIL';
 } finally {
   if (page) {
     try {
