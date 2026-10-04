@@ -1,0 +1,51 @@
+{
+  "schema": "prometeo.fanin-consumer-reentry-audit/v1",
+  "audit_id": "B022-FANIN-CONSUMER-REENTRY-V1",
+  "status": "AUDIT_COMPLETE",
+  "block_id": "B022",
+  "audited_at": "2026-10-04T16:22:11Z",
+  "sources": [
+    {"path":"scripts/return-fanin-judge-closer-lib.mjs","sha":"c91617ada293d7e2af94aacc8a74a247b2378e36"},
+    {"path":"scripts/materialize-return-fanin-judge-closer.mjs","sha":"e4b81979913dee366631618e7cd4a27a11baefad"},
+    {"path":"scripts/multi-stage-worker-continuation.mjs","sha":"869dbd0a09443ea709c54f6f723c7c086654621b"}
+  ],
+  "truth_boundary": "Audit evidence only. This artifact does not schedule work, mint authority, or create a successor claim.",
+  "verdict": "REENTRY_GAP_CONFIRMED",
+  "findings": [
+    {
+      "id": "B022-F1-CONTINUE_EMITS_REQUEST_ONLY",
+      "severity": "HIGH",
+      "status": "CONFIRMED",
+      "finding": "closeCampaign returns status CONTINUE with continuity_request when campaign requirements remain unsatisfied, and explicitly labels that output CONTINUITY_REQUEST_ONLY_NO_SCHEDULING_OR_PROMOTION_AUTHORITY.",
+      "evidence_pattern": "continuity_request: needed"
+    },
+    {
+      "id": "B022-F2-MATERIALIZER_STOPS_AT_PROJECTION",
+      "severity": "HIGH",
+      "status": "CONFIRMED",
+      "finding": "materialize-return-fanin-judge-closer persists FANIN, VERDICT, CLOSE and PRIMARY_CHAT_PROJECTION, but performs no allocation reentry, successor materialization, or atomic claim attempt from continuity_request.",
+      "evidence_pattern": "writes = { fanin, verdict, close, projection }"
+    },
+    {
+      "id": "B022-F3-ATOMIC_SUCCESSOR_PATH_IS_DISCONNECTED",
+      "severity": "HIGH",
+      "status": "CONFIRMED",
+      "finding": "multi-stage-worker-continuation can evaluate and atomically CREATE a successor claim only after receiving a successor object with opportunity_id/readiness/context/authority; it has no adapter from campaign continuity_request lane IDs to that successor contract.",
+      "evidence_pattern": "evaluateSuccessorClaim + attemptAtomicSuccessorClaim"
+    }
+  ],
+  "required_reentry_contract": {
+    "input": "campaign close status CONTINUE + continuity_request lane IDs + durable fan-in/verdict refs",
+    "adapter": "resolve requested lanes into existing claimable CURRENT work without inventing a scheduler or new authority",
+    "output": "ordinary allocator-visible work or an existing successor opportunity contract with preserved context/authority/readiness evidence",
+    "claim": "existing atomic CREATE authority path only",
+    "failure": "durable boundary if mapping cannot be proven; never silently mark campaign active"
+  },
+  "regression_expectations": [
+    "PASS close creates no successor work",
+    "durable-boundary close creates no successor work",
+    "CONTINUE close cannot be considered reentered merely because PRIMARY_CHAT_PROJECTION exists",
+    "CONTINUE reentry must end in existing allocator-visible work or an atomic successor-claim attempt",
+    "no worker-specific routing or parallel scheduler is introduced"
+  ]
+}
