@@ -7,6 +7,12 @@
   const CLIENT_SUBMIT_TIMEOUT_MS = 32000;
   const FLIGHT_KEY = 'prometeo.control.flight.v1';
   const FLIGHT_MAX = 1000;
+  const OUTBOX_KEY = 'prometeo.primary-chat.outbox.v1';
+  const OUTBOX_MAX = 10;
+  const OUTBOX_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+  const BREAKER_KEY = 'prometeo.primary-chat.storage-breaker.v1';
+  const BREAKER_COOLDOWN_MS = 5 * 60 * 1000;
+  const OUTBOX_RETRY_INTERVAL_MS = 60 * 1000;
   const PRIVATE_CORRELATION_SCHEMA = 'prometeo.primary-chat-private-correlation/v1';
   const WORKSPACE_SECRET_KEYS = Object.freeze([
     'prometeo.capture.workspace.secret.v2',
@@ -83,7 +89,83 @@
     }
   }
 
+  function readOutbox() {
+    try {
+      const parsed = JSON.parse(global.localStorage?.getItem(OUTBOX_KEY) || '[]');
+      const now = Date.now();
+      return (Array.isArray(parsed) ? parsed : []).filter(row => {
+        if (!row || typeof row.request_id !== 'string' || typeof row.text !== 'string') return false;
+        const at = Date.parse(String(row.created_at || ''));
+        return Number.isFinite(at) && now - at <= OUTBOX_MAX_AGE_MS;
+      }).slice(-OUTBOX_MAX);
+    } catch {
+      return [];
+    }
+  }
+
+  function writeOutbox(rows) {
+    try {
+      global.localStorage?.setItem(OUTBOX_KEY, JSON.stringify(rows.slice(-OUTBOX_MAX)));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function saveOutbox(entry) {
+    const rows = readOutbox().filter(row => row.request_id !== entry.request_id);
+    rows.push(entry);
+    return writeOutbox(rows) ? entry : null;
+  }
+
+  function removeOutbox(requestId) {
+    const rows = readOutbox();
+    const next = rows.filter(row => row.request_id !== requestId);
+    return writeOutbox(next);
+  }
+
+  function readBreaker() {
+    try {
+      const value = JSON.parse(global.localStorage?.getItem(BREAKER_KEY) || 'null');
+      if (!value || !Number.isFinite(Number(value.open_until))) return null;
+      if (Date.now() >= Number(value.open_until)) {
+        global.localStorage?.removeItem(BREAKER_KEY);
+        return null;
+      }
+      return value;
+    } catch {
+      return null;
+    }
+  }
+
+  function openBreaker(reason, requestId = null) {
+    const value = {
+      opened_at: new Date().toISOString(),
+      open_until: Date.now() + BREAKER_COOLDOWN_MS,
+      reason: clean(reason, 180) || 'STORAGE_DEGRADED',
+      request_id: clean(requestId, 160)
+    };
+    try { global.localStorage?.setItem(BREAKER_KEY, JSON.stringify(value)); } catch {}
+    recordFlight('STORAGE_BREAKER_OPEN', { request_id: requestId, status: value.reason });
+    return value;
+  }
+
+  function closeBreaker() {
+    try { global.localStorage?.removeItem(BREAKER_KEY); } catch {}
+  }
+
+  function isStorageBoundary(result) {
+    const status = clean(result && result.status, 120) || '';
+    const stage = clean(result && result.stage, 40) || '';
+    const error = clean(result && result.error, 180) || '';
+    return status === 'BOUNDARY_PRIVATE_STORAGE_UNAVAILABLE'
+      || status === 'BOUNDARY_CAPTURE_TIMEOUT'
+      || (stage === 'CAPTURE' && /REQUEST_TIMEOUT|INTERNAL_ERROR|STORAGE/i.test(error));
+  }
+
   function recoverPendingRequestId() {
+    const pending = readOutbox();
+    if (pending.length) return pending[pending.length - 1].request_id;
     const rows = readFlight();
     const now = Date.now();
     for (let i = rows.length - 1; i >= 0; i -= 1) {
@@ -362,6 +444,8 @@
 
     let destroyed = false;
     let availabilityTimer = null;
+    let outboxRetryTimer = null;
+    let flushingOutbox = false;
     let pendingRequestId = recoverPendingRequestId();
     const notesKey = options.notesKey || 'prometeo.primary-chat.notes.v1';
 
@@ -375,12 +459,24 @@
     function syncAvailability() {
       if (destroyed) return false;
       const ready = transportReady(options.ingress || null);
+      const pending = readOutbox();
+      const breaker = readBreaker();
       root.setAttribute('data-transport-ready', ready ? 'true' : 'false');
-      submit.disabled = !ready;
-      submit.setAttribute('aria-disabled', ready ? 'false' : 'true');
-      submit.title = ready ? 'Enviar' : 'No enviado: falta bridge privado autenticado';
-      if (!ready) {
-        setStatus(status, 'SOLO BORRADOR · NO ENVIADO · falta bridge privado autenticado');
+      root.setAttribute('data-local-outbox-pending', String(pending.length));
+      root.setAttribute('data-storage-breaker-open', breaker ? 'true' : 'false');
+      submit.disabled = false;
+      submit.setAttribute('aria-disabled', 'false');
+      submit.title = ready && !breaker
+        ? 'Guardar localmente y enviar'
+        : 'Guardar localmente; el envío remoto seguirá cuando vuelva el transporte';
+      if (pending.length && breaker) {
+        const latest = pending[pending.length - 1];
+        setStatus(status, 'LOCAL_DURABLE · STORAGE_DEGRADED · ' + latest.request_id + ' · reintento remoto suspendido');
+      } else if (pending.length && !ready) {
+        const latest = pending[pending.length - 1];
+        setStatus(status, 'LOCAL_DURABLE · ' + latest.request_id + ' · esperando transporte remoto');
+      } else if (!pending.length && !ready) {
+        setStatus(status, 'LOCAL READY · el próximo RESPONDER se guarda primero en este navegador');
       } else if (status.textContent.includes('SOLO BORRADOR') || status.textContent.includes('BOUNDARY_AUTH_REQUIRED')) {
         setStatus(status, '');
       }
@@ -389,11 +485,110 @@
 
     recordFlight('COMPOSER_MOUNT', { request_id: pendingRequestId });
     syncAvailability();
-    if (pendingRequestId && transportReady(options.ingress || null)) {
-      setStatus(status, 'RECOVERY READY · ' + pendingRequestId + ' · el próximo RESPONDER reutiliza este request');
+    if (readOutbox().length) {
+      const latest = readOutbox().slice(-1)[0];
+      setStatus(status, 'LOCAL_DURABLE · ' + latest.request_id + ' · recuperación automática pendiente');
     }
     availabilityTimer = global.setInterval ? global.setInterval(syncAvailability, 5000) : null;
     input.addEventListener('focus', syncAvailability);
+
+    async function remoteSubmitEntry(entry) {
+      const submitter = typeof options.submitter === 'function'
+        ? options.submitter
+        : payload => submitText({
+            text: payload.text,
+            ingress: options.ingress || null,
+            page: payload.page || options.page || DEFAULT_PAGE,
+            kind: options.kind || KIND,
+            request_id: payload.request_id
+          });
+      return await submitter({
+        text: entry.text,
+        inputApi: api,
+        page: options.page || DEFAULT_PAGE,
+        request_id: entry.request_id
+      });
+    }
+
+    async function flushPendingOutbox({ interactive = false } = {}) {
+      if (destroyed || flushingOutbox) return null;
+      const pending = readOutbox();
+      if (!pending.length) {
+        closeBreaker();
+        syncAvailability();
+        return null;
+      }
+      if (!transportReady(options.ingress || null) || readBreaker()) {
+        syncAvailability();
+        return null;
+      }
+
+      flushingOutbox = true;
+      let last = null;
+      try {
+        const entry = pending[0];
+        recordFlight('OUTBOX_FLUSH_START', { request_id: entry.request_id, stage: 'REMOTE' });
+        try {
+          last = await remoteSubmitEntry(entry);
+        } catch (error) {
+          last = frozenResult(
+            'BOUNDARY_CLIENT_EXCEPTION',
+            false,
+            null,
+            clean(error && (error.code || error.name || error.message), 240) || 'CLIENT_EXCEPTION',
+            false,
+            null,
+            { request_id: entry.request_id, stage: 'CLIENT', ambiguous: true }
+          );
+        }
+        recordFlight('OUTBOX_FLUSH_RESULT', {
+          request_id: entry.request_id,
+          stage: last && last.stage,
+          status: last && last.status
+        });
+
+        if (last && last.queued === true && validDurableRef(last.ref)) {
+          removeOutbox(entry.request_id);
+          closeBreaker();
+          recordFlight('QUEUED_CONFIRMED', { request_id: entry.request_id, status: last.status });
+          const remaining = readOutbox();
+          pendingRequestId = remaining.length ? remaining[remaining.length - 1].request_id : null;
+          setStatus(status, remaining.length
+            ? 'QUEUED · ' + entry.request_id + ' · quedan ' + remaining.length + ' local(es)'
+            : 'QUEUED · ' + entry.request_id);
+          if (typeof options.onResult === 'function') options.onResult(last);
+          return last;
+        }
+
+        if (isStorageBoundary(last)) {
+          openBreaker((last && (last.status || last.error)) || 'STORAGE_DEGRADED', entry.request_id);
+          setStatus(status, 'LOCAL_DURABLE · STORAGE_DEGRADED · ' + entry.request_id + ' · sin acción humana');
+          if (typeof options.onResult === 'function') options.onResult(Object.freeze({
+            ...last,
+            status: 'LOCAL_DURABLE_STORAGE_DEGRADED',
+            remote_status: last && last.status,
+            request_id: entry.request_id,
+            local_durable: true
+          }));
+          return last;
+        }
+
+        setStatus(status, 'LOCAL_DURABLE · REMOTE_PENDING · ' + entry.request_id);
+        if (interactive && typeof options.onResult === 'function') {
+          options.onResult(Object.freeze({
+            ...(last || {}),
+            status: 'LOCAL_DURABLE_REMOTE_PENDING',
+            remote_status: last && last.status,
+            request_id: entry.request_id,
+            local_durable: true
+          }));
+        }
+        return last;
+      } finally {
+        flushingOutbox = false;
+        syncAvailability();
+      }
+    }
 
     async function send() {
       if (destroyed) throw new Error('CHAT_CANARY_COMPOSER_DESTROYED');
@@ -403,115 +598,84 @@
         setStatus(status, blocked);
         return blocked;
       }
-      if (!syncAvailability()) {
-        const blocked = frozenResult('BOUNDARY_AUTH_REQUIRED', false, null, 'AUTH_BRIDGE_REQUIRED', false);
+
+      const requestId = newRequestId();
+      pendingRequestId = requestId;
+      const createdAt = new Date().toISOString();
+      const textForSubmit = (options.includeNotesInSubmit === false ? '' : noteContext()) + preserved;
+      const localEntry = Object.freeze({
+        schema: 'prometeo.primary-chat-local-outbox/v1',
+        request_id: requestId,
+        created_at: createdAt,
+        text: textForSubmit,
+        page_id: clean((options.page || DEFAULT_PAGE).page_id || (options.page || DEFAULT_PAGE).id, 160),
+        kind: options.kind || KIND
+      });
+
+      if (!saveOutbox(localEntry)) {
+        const blocked = frozenResult(
+          'BOUNDARY_LOCAL_OUTBOX_UNAVAILABLE',
+          false,
+          null,
+          'LOCAL_STORAGE_WRITE_FAILED',
+          false,
+          null,
+          { request_id: requestId, stage: 'LOCAL' }
+        );
+        setStatus(status, blocked);
+        recordFlight('LOCAL_OUTBOX_FAILED', { request_id: requestId, status: blocked.status });
         if (typeof options.onResult === 'function') options.onResult(blocked);
         return blocked;
       }
 
-      if (!pendingRequestId) pendingRequestId = newRequestId();
-      const requestId = pendingRequestId;
-      const startedAt = Date.now();
       recordFlight('RESPONDER_CLICK', { request_id: requestId, text_length: preserved.length });
-      recordFlight('SUBMIT_STARTED', { request_id: requestId, stage: 'CLIENT' });
+      recordFlight('LOCAL_OUTBOX_SAVED', { request_id: requestId, stage: 'LOCAL', status: 'LOCAL_DURABLE' });
 
-      submit.disabled = true;
-      recheck.hidden = true;
-      setStatus(status, 'SUBMITTING · ' + requestId + ' · esperando confirmación durable…');
+      input.value = '';
+      if (options.includeNotesInSubmit !== false) writeNotes([]);
+      try { input.dispatchEvent(new Event('input', { bubbles:true })); } catch {}
+      setStatus(status, 'LOCAL_DURABLE · ' + requestId + ' · intentando entrega remota…');
 
-      let result;
-      let timeoutTimer = null;
-      const textForSubmit = (options.includeNotesInSubmit === false ? '' : noteContext()) + preserved;
-      try {
-        const submitPromise = typeof options.submitter === 'function'
-          ? options.submitter({
-              text: textForSubmit,
-              inputApi: api,
-              page: options.page || DEFAULT_PAGE,
-              request_id: requestId
-            })
-          : submitText({
-              text: textForSubmit,
-              ingress: options.ingress || null,
-              page: options.page || DEFAULT_PAGE,
-              kind: options.kind || KIND,
-              request_id: requestId
-            });
-
-        const clientTimeout = new Promise(resolve => {
-          timeoutTimer = global.setTimeout ? global.setTimeout(() => resolve(
-            frozenResult(
-              'BOUNDARY_CLIENT_TIMEOUT',
-              false,
-              null,
-              'CLIENT_SUBMIT_TIMEOUT',
-              false,
-              null,
-              { request_id: requestId, stage: 'CLIENT', ambiguous: true }
-            )
-          ), CLIENT_SUBMIT_TIMEOUT_MS) : null;
-        });
-
-        result = await Promise.race([Promise.resolve(submitPromise), clientTimeout]);
-      } catch (error) {
-        result = frozenResult(
-          'BOUNDARY_CLIENT_EXCEPTION',
+      if (!transportReady(options.ingress || null)) {
+        const localOnly = frozenResult(
+          'LOCAL_DURABLE',
           false,
           null,
-          clean(error && (error.code || error.name || error.message), 240) || 'CLIENT_EXCEPTION',
-          false,
+          'REMOTE_TRANSPORT_UNAVAILABLE',
+          true,
           null,
-          { request_id: requestId, stage: 'CLIENT', ambiguous: true }
+          { request_id: requestId, stage: 'LOCAL', local_durable: true }
         );
-      } finally {
-        if (timeoutTimer && global.clearTimeout) global.clearTimeout(timeoutTimer);
-        syncAvailability();
+        setStatus(status, 'LOCAL_DURABLE · ' + requestId + ' · esperando transporte remoto');
+        if (typeof options.onResult === 'function') options.onResult(localOnly);
+        return localOnly;
       }
 
-      recordFlight('SUBMIT_RESULT', {
-        request_id: requestId,
-        stage: result && result.stage,
-        status: result && result.status,
-        elapsed_ms: Date.now() - startedAt
-      });
-
-      if (result && result.request_id) pendingRequestId = result.request_id;
-
-      if (result && result.ambiguous === true && pendingRequestId) {
-        const ingressApi = options.ingress || global.PROMETEO_INGRESS_V1;
-        if (ingressApi && typeof ingressApi.requestStatus === 'function') {
-          recordFlight('STATUS_AUTO_CHECK_START', { request_id: pendingRequestId });
-          try {
-            const recovered = await ingressApi.requestStatus({
-              request_id: pendingRequestId,
-              page: options.page || DEFAULT_PAGE
-            });
-            recordFlight('STATUS_AUTO_CHECK_RESULT', {
-              request_id: pendingRequestId,
-              status: recovered && recovered.status
-            });
-            if (recovered && recovered.queued === true && recovered.ref) result = recovered;
-          } catch (error) {
-            recordFlight('STATUS_AUTO_CHECK_ERROR', {
-              request_id: pendingRequestId,
-              status: clean(error && (error.code || error.name || error.message), 120)
-            });
-          }
-        }
+      if (readBreaker()) {
+        const deferred = frozenResult(
+          'LOCAL_DURABLE_STORAGE_DEGRADED',
+          false,
+          null,
+          'STORAGE_BREAKER_OPEN',
+          true,
+          null,
+          { request_id: requestId, stage: 'LOCAL', local_durable: true }
+        );
+        setStatus(status, 'LOCAL_DURABLE · STORAGE_DEGRADED · ' + requestId + ' · sin acción humana');
+        if (typeof options.onResult === 'function') options.onResult(deferred);
+        return deferred;
       }
 
-      if (result && result.queued === true && validDurableRef(result.ref)) {
-        input.value = '';
-        recordFlight('QUEUED_CONFIRMED', { request_id: pendingRequestId || requestId, status: result.status });
-        pendingRequestId = null;
-        if (options.includeNotesInSubmit !== false) writeNotes([]);
-      } else {
-        input.value = preserved;
-        recheck.hidden = !(result && result.ambiguous === true && pendingRequestId);
-      }
-      setStatus(status, result);
-      if (typeof options.onResult === 'function') options.onResult(result);
-      return result;
+      const result = await flushPendingOutbox({ interactive: true });
+      return result || frozenResult(
+        'LOCAL_DURABLE_REMOTE_PENDING',
+        false,
+        null,
+        'REMOTE_PENDING',
+        true,
+        null,
+        { request_id: requestId, stage: 'LOCAL', local_durable: true }
+      );
     }
 
     note.addEventListener('click', () => {
@@ -528,29 +692,11 @@
     });
 
     recheck.addEventListener('click', async () => {
-      const ingressApi = options.ingress || global.PROMETEO_INGRESS_V1;
-      if (!pendingRequestId || !ingressApi || typeof ingressApi.requestStatus !== 'function') return;
       recheck.disabled = true;
-      setStatus(status, 'COMPROBANDO · ' + pendingRequestId);
-      recordFlight('STATUS_CHECK_START', { request_id: pendingRequestId });
-      const out = await ingressApi.requestStatus({ request_id:pendingRequestId, page:options.page || DEFAULT_PAGE });
-      recordFlight('STATUS_CHECK_RESULT', { request_id: pendingRequestId, status: out && out.status });
+      closeBreaker();
+      await flushPendingOutbox({ interactive: true });
       recheck.disabled = false;
-      if (out && out.queued === true && out.ref) {
-        const correlationApi = await ensurePrivateCorrelationApi();
-        const corr = correlationApi ? correlationApi.fromIngressResult(out) : null;
-        if (corr) try { correlationApi.save(corr); } catch {}
-        input.value = '';
-        pendingRequestId = null;
-        recheck.hidden = true;
-        if (options.includeNotesInSubmit !== false) writeNotes([]);
-        setStatus(status, 'QUEUED · confirmado después del timeout');
-        if (typeof options.onResult === 'function') options.onResult(out);
-        return;
-      }
-      recheck.hidden = false;
-      setStatus(status, (out?.status || 'UNKNOWN') + ' · ' + (out?.request_state || 'sin confirmación') + ' · ' + pendingRequestId);
-      if (typeof options.onResult === 'function') options.onResult(out);
+      recheck.hidden = readOutbox().length === 0;
     });
 
     const onSubmit = event => {
@@ -558,6 +704,12 @@
       void send();
     };
     form.addEventListener('submit', onSubmit);
+    outboxRetryTimer = global.setInterval
+      ? global.setInterval(() => { void flushPendingOutbox({ interactive: false }); }, OUTBOX_RETRY_INTERVAL_MS)
+      : null;
+    if (readOutbox().length) {
+      global.setTimeout?.(() => { void flushPendingOutbox({ interactive: false }); }, 1500);
+    }
 
     return Object.freeze({
       schema: SCHEMA,
@@ -568,6 +720,7 @@
         form.removeEventListener('submit', onSubmit);
         input.removeEventListener('focus', syncAvailability);
         if (availabilityTimer && global.clearInterval) global.clearInterval(availabilityTimer);
+        if (outboxRetryTimer && global.clearInterval) global.clearInterval(outboxRetryTimer);
       }
     });
   }
@@ -591,6 +744,12 @@
     workspaceLinked,
     transportReady,
     submitText,
+    outbox: Object.freeze({
+      key: OUTBOX_KEY,
+      read: readOutbox,
+      remove: removeOutbox,
+      breaker: readBreaker
+    }),
     mount,
     privacy: Object.freeze({
       raw_text_public: false,
