@@ -9,6 +9,10 @@
   const APPROVAL_CACHE_PREFIX = 'prometeo.primary-chat.approval.v1:';
   const MAX_TEXT = 65536;
   const REQUEST_TIMEOUT_MS = 7000;
+  const CAPTURE_TIMEOUT_MS = 20000;
+  const PREPARE_TIMEOUT_MS = 20000;
+  const WAKE_TIMEOUT_MS = 15000;
+  const STATUS_TIMEOUT_MS = 12000;
   const CAPTURE_ENDPOINT = 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-capture';
   const CHANGE_LOOP_ENDPOINT = 'https://catnohyouxqjjtseaueb.supabase.co/functions/v1/prometeo-change-loop-v1';
   const WAKE_ENDPOINT = 'https://worker-lab.vercel.app/api/prometeo-ingress';
@@ -308,7 +312,7 @@
           privateStage = 'CAPTURE';
           const createdMs = Number.isFinite(Date.parse(envelope.created_at)) ? Date.parse(envelope.created_at) : Date.now();
           const captureId = captureIdFor(envelope.request_id);
-          await postJson(CAPTURE_ENDPOINT, {
+          const capturePayload = {
             action: 'sync_capture',
             capture: {
               id: captureId,
@@ -338,7 +342,15 @@
                 public_url: cleanString(page.href || page.public_url || (global.location && global.location.href), 2048)
               }
             }
-          }, secret);
+          };
+          try {
+            await postJson(CAPTURE_ENDPOINT, capturePayload, secret, CAPTURE_TIMEOUT_MS);
+          } catch (captureError) {
+            const captureCode = cleanString(captureError && (captureError.code || captureError.message || captureError.name), 180);
+            if (captureCode !== 'REQUEST_TIMEOUT') throw captureError;
+            // sync_capture is idempotent on (workspace_id,id); one bounded retry is safe.
+            await postJson(CAPTURE_ENDPOINT, capturePayload, secret, CAPTURE_TIMEOUT_MS);
+          }
 
           privateStage = 'PREPARE';
           const prepared = await postJson(CHANGE_LOOP_ENDPOINT, {
@@ -359,7 +371,7 @@
             delivery_mode: 'WORKER_POOL',
             intent: 'WORK_PAGE',
             human_approved: approval ? true : envelope.kind !== APPROVED_PLAN_KIND
-          }, secret);
+          }, secret, PREPARE_TIMEOUT_MS);
 
           if (prepared && (prepared.replayed === true || prepared.status === 'QUEUED_REPLAY')) {
             const replayRef = cleanString(prepared.return_path, 360);
@@ -402,7 +414,7 @@
                 proposal_digest: approval.proposal_digest
               }
             } : {})
-          });
+          }, '', WAKE_TIMEOUT_MS);
           if (!wake || wake.schema !== RESULT_SCHEMA || wake.queued !== true) {
             throw Object.assign(new Error(cleanString(wake && wake.error, 160) || 'WAKE_NOT_QUEUED'), { code: 'WAKE_NOT_QUEUED' });
           }
@@ -580,7 +592,7 @@
     if (!requestIdValue || !pageId) return Object.freeze({ status:'BOUNDARY_INVALID_INPUT', request_id:requestIdValue, queued:false, error:'REQUEST_ID_AND_PAGE_REQUIRED' });
     if (!secret) return Object.freeze({ status:'BOUNDARY_AUTH_REQUIRED', request_id:requestIdValue, queued:false, error:'WORKSPACE_NOT_LINKED' });
     try {
-      const data = await postJson(CHANGE_LOOP_ENDPOINT, { action:'request_status', page_id:pageId, request_id:requestIdValue }, secret, 7000);
+      const data = await postJson(CHANGE_LOOP_ENDPOINT, { action:'request_status', page_id:pageId, request_id:requestIdValue }, secret, STATUS_TIMEOUT_MS);
       const correlation = data && data.work_item_id && data.return_path ? normalizePrivateCorrelation(data) : null;
       return Object.freeze({
         status: cleanString(data && data.status,120) || 'UNKNOWN',
