@@ -117,6 +117,8 @@ After the fresh beacon succeeds:
 1. Freeze `run_id` from the HUMAN MESSAGE. Never infer a RUN from history.
 2. Read exactly one packet, preferably `https://juanmanuelpm.github.io/prometeo/launch/<run_id>/packet.json`; fallback is `main:coordination/launch-packets/<run_id>/PACKET.json`. Never search for the packet.
 3. Require packet `status=ARMED`, matching `run_id`, and `authority_mode=SYNTHETIC_BENCHMARK_SLOT_CLAIM`. Otherwise stop as `RUN_PACKET_NOT_ARMED`.
+
+**PRECLAIM HARD GATE — BINDING:** Step 3 is an absolute write barrier. Until packet status, run_id and authority_mode all PASS, the worker MUST NOT compute a claim payload, MUST NOT attempt or persist any slot claim, and MUST NOT count occupancy. A failed gate records claim_attempted=false, authority_created=false and stops at E2 with durable boundary evidence. Any claim artifact that exists despite a failed gate is protocol-invalid historical evidence only and MUST NOT grant authority or occupancy.
 4. Build the compatible primary-slot list from packet `slots`, removing only capabilities definitively absent in this runtime. Preserve packet order.
 5. Choose the start index from `parseInt(first 8 hex chars of beacon_commit_sha,16) mod compatible_slots.length`; if unavailable use the first 8 hex chars of `launch_nonce`. This is only a deterministic starting point, never authority.
 6. Atomically CREATE the exact packet `claim_path` for that slot with schema `prometeo.launch-slot-claim/v1`, `run_id`, `slot_id`, frozen `worker_id`, frozen `launch_nonce`, `beacon_ref`, `evolution_variant`, `claimed_at`, and `write_scope`. CREATE_EXISTS -> advance cyclically to the next retained compatible slot. Try each compatible slot at most once. Do not pre-read claim paths.
