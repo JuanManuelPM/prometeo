@@ -101,9 +101,15 @@
     if (!api || typeof api.submitText !== 'function') {
       return Object.freeze({ status: 'BOUNDARY_INGRESS_REQUIRED', queued: false, ref: null, error: 'CHAT_CANARY_INPUT_REQUIRED' });
     }
+    let envelope;
     let privateText;
-    try { privateText = encodePrivate(text, { request_id, created_at }); }
-    catch (error) {
+    try {
+      envelope = buildEnvelope({ request_id, created_at });
+      privateText = encodePrivate(text, {
+        request_id: envelope.request_id,
+        created_at: envelope.created_at
+      });
+    } catch (error) {
       return Object.freeze({ status: 'BOUNDARY_INVALID_INPUT', queued: false, ref: null, error: clean(error && error.message, 120) || 'INVALID_RESPONSE_REQUEST' });
     }
     return await api.submitText(Object.freeze({
