@@ -39,8 +39,8 @@
     return api ? api.fromIngressResult(value) : null;
   }
 
-  function result(status, ref = null, queued = false, error = null, correlation = null) {
-    const out = { status, ref, queued, error };
+  function result(status, ref = null, queued = false, error = null, correlation = null, meta = null) {
+    const out = { status, ref, queued, error, ...(meta && typeof meta === 'object' ? meta : {}) };
     const normalized = queued === true && correlation ? normalizePrivateCorrelation(correlation) : null;
     if (normalized) {
       out.ref = normalized.return_path;
@@ -280,6 +280,7 @@
           return Object.freeze({ schema: RESULT_SCHEMA, status: 'BOUNDARY_AUTH_REQUIRED', ref: null, queued: false, error: 'WORKSPACE_NOT_LINKED' });
         }
 
+        let privateStage = 'CAPTURE';
         try {
           if (approval) {
             const replayProbe = await postJson(CHANGE_LOOP_ENDPOINT, {
@@ -304,6 +305,7 @@
               });
             }
           }
+          privateStage = 'CAPTURE';
           const createdMs = Number.isFinite(Date.parse(envelope.created_at)) ? Date.parse(envelope.created_at) : Date.now();
           const captureId = captureIdFor(envelope.request_id);
           await postJson(CAPTURE_ENDPOINT, {
@@ -338,6 +340,7 @@
             }
           }, secret);
 
+          privateStage = 'PREPARE';
           const prepared = await postJson(CHANGE_LOOP_ENDPOINT, {
             action: 'prepare_execution',
             page_id: pageId,
@@ -349,8 +352,9 @@
               surface_id: cleanString(page.surface_id, 120) || 'current-tree-control-v11-chat-canary',
               project_id: cleanString(page.project_id, 120) || 'prometeo-autonomous-growth',
               target_path: cleanString(page.target_path, 300) || 'current-tree/control-v11/chat-canary/',
-              ...(approval ? { semantic_anchor: approvalAnchor(approval) } : {})
+              semantic_anchor: approval ? approvalAnchor(approval) : ('primary-chat-request:' + cleanString(envelope.request_id, 160))
             },
+            request_id: approval ? null : cleanString(envelope.request_id, 160),
             ...(approval ? { approval } : {}),
             delivery_mode: 'WORKER_POOL',
             intent: 'WORK_PAGE',
@@ -384,6 +388,7 @@
             throw Object.assign(new Error('PAGE_CHANGE_CORRELATION_INVALID'), { code: 'PAGE_CHANGE_CORRELATION_INVALID' });
           }
 
+          privateStage = 'WAKE';
           const wake = await postJson(WAKE_ENDPOINT, {
             schema: 'prometeo.primary-chat-page-change-wake/v1',
             work_item_id: preparedCorrelation.work_item_id,
@@ -402,11 +407,9 @@
             throw Object.assign(new Error(cleanString(wake && wake.error, 160) || 'WAKE_NOT_QUEUED'), { code: 'WAKE_NOT_QUEUED' });
           }
           const wakeWorkItemId = cleanString(wake.work_item_id, 160);
-          const wakeReturnPath = cleanString(wake.return_path, 360);
-          const wakeRef = cleanString(wake.ref, 360);
+          const wakeReturnPath = cleanString(wake.return_path || wake.ref, 360);
           if ((wakeWorkItemId && wakeWorkItemId !== preparedCorrelation.work_item_id) ||
-              (wakeReturnPath && wakeReturnPath !== preparedCorrelation.return_path) ||
-              (wakeRef && wakeRef !== preparedCorrelation.return_path)) {
+              (wakeReturnPath && wakeReturnPath !== preparedCorrelation.return_path)) {
             throw Object.assign(new Error('PRIVATE_CORRELATION_CONFLICT'), { code: 'PRIVATE_CORRELATION_CONFLICT' });
           }
           return Object.freeze({
@@ -419,12 +422,18 @@
             return_path: preparedCorrelation.return_path
           });
         } catch (error) {
+          const code = cleanString(error && (error.code || error.message || error.name), 180) || 'PRIVATE_TRANSPORT_FAILED';
+          const timeout = code === 'REQUEST_TIMEOUT';
+          const stageStatus = timeout ? ('BOUNDARY_' + privateStage + '_TIMEOUT') : 'BOUNDARY_PRIVATE_STORAGE_UNAVAILABLE';
           return Object.freeze({
             schema: RESULT_SCHEMA,
-            status: error && error.code === 'APPROVAL_REPLAY_CONFLICT' ? 'BOUNDARY_APPROVAL_REPLAY_CONFLICT' : 'BOUNDARY_PRIVATE_STORAGE_UNAVAILABLE',
+            status: error && error.code === 'APPROVAL_REPLAY_CONFLICT' ? 'BOUNDARY_APPROVAL_REPLAY_CONFLICT' : stageStatus,
             ref: null,
             queued: false,
-            error: cleanString(error && (error.code || error.message || error.name), 180) || 'PRIVATE_TRANSPORT_FAILED'
+            error: code,
+            request_id: cleanString(envelope && envelope.request_id, 160),
+            stage: privateStage,
+            ambiguous: timeout === true
           });
         }
       }
@@ -503,7 +512,7 @@
     const transport = activeTransport();
     if (!transport) return Promise.resolve(result('BOUNDARY_AUTH_REQUIRED', null, false, 'INGRESS_TRANSPORT_UNAVAILABLE'));
 
-    const requestIdValue = approval ? 'approval-' + approval.approval_id : requestId();
+    const explicitRequestId = cleanString(input.request_id, 160); const requestIdValue = approval ? 'approval-' + approval.approval_id : (explicitRequestId || requestId());
     const explicitCanary = isExplicitCanary(text);
     const public_envelope = Object.freeze({
       schema: REQUEST_SCHEMA,
@@ -545,9 +554,9 @@
         if (queued && (!validDurableRef(ref) || transportResult.schema !== RESULT_SCHEMA || !correlation)) {
           normalized = result('BOUNDARY_TRANSPORT_INVALID', null, false, 'PRIVATE_CORRELATION_REQUIRED');
         } else if (!queued) {
-          normalized = result(status, ref && validDurableRef(ref) ? ref : null, false, error);
+          normalized = result(status, ref && validDurableRef(ref) ? ref : null, false, error, null, { request_id: cleanString(transportResult.request_id,160) || requestIdValue, stage: cleanString(transportResult.stage,40), ambiguous: transportResult.ambiguous === true });
         } else {
-          normalized = result(status || 'QUEUED', correlation.return_path, true, error, correlation);
+          normalized = result(status || 'QUEUED', correlation.return_path, true, error, correlation, { request_id: cleanString(transportResult.request_id,160) || requestIdValue, ambiguous: false });
         }
       }
 
@@ -561,6 +570,32 @@
       activeSubmitKey = null;
     });
     return activeSubmitPromise;
+  }
+
+  async function requestStatus(input = {}) {
+    const requestIdValue = cleanString(input.request_id, 160);
+    const page = publicPage(input.page || {});
+    const pageId = cleanString(page.page_id || page.id, 160);
+    const secret = workspaceSecret();
+    if (!requestIdValue || !pageId) return Object.freeze({ status:'BOUNDARY_INVALID_INPUT', request_id:requestIdValue, queued:false, error:'REQUEST_ID_AND_PAGE_REQUIRED' });
+    if (!secret) return Object.freeze({ status:'BOUNDARY_AUTH_REQUIRED', request_id:requestIdValue, queued:false, error:'WORKSPACE_NOT_LINKED' });
+    try {
+      const data = await postJson(CHANGE_LOOP_ENDPOINT, { action:'request_status', page_id:pageId, request_id:requestIdValue }, secret, 7000);
+      const correlation = data && data.work_item_id && data.return_path ? normalizePrivateCorrelation(data) : null;
+      return Object.freeze({
+        status: cleanString(data && data.status,120) || 'UNKNOWN',
+        request_state: cleanString(data && data.request_state,120),
+        request_id: requestIdValue,
+        queued: Boolean(correlation),
+        ref: correlation ? correlation.return_path : null,
+        work_item_id: correlation ? correlation.work_item_id : null,
+        return_path: correlation ? correlation.return_path : null,
+        result: data && data.result ? data.result : null,
+        error: null
+      });
+    } catch (error) {
+      return Object.freeze({ status:'BOUNDARY_REQUEST_STATUS_UNAVAILABLE', request_id:requestIdValue, queued:false, ref:null, error:cleanString(error && (error.code || error.message),180) || 'REQUEST_STATUS_FAILED' });
+    }
   }
 
   function submit(input = {}) {
@@ -578,6 +613,7 @@
   global.PROMETEO_INGRESS_V1 = Object.freeze({
     schema: SCHEMA,
     submit,
+    requestStatus,
     submitApprovedPlan,
     approval_schema: APPROVAL_SCHEMA,
     approved_plan_kind: APPROVED_PLAN_KIND,
