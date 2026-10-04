@@ -235,6 +235,12 @@ export function hasDurableTerminalReturn(job = {}) {
     return TERMINAL_RETURN_OUTCOMES.has(outcome);
   });
 }
+
+export function durableTerminalBlocksRecovery(job = {}) {
+  if (!hasDurableTerminalReturn(job)) return false;
+  const gate = recoveryBasisGate(job);
+  return !(gate.evidence_bound === true && gate.eligible === true);
+}
 const collisionEvidenceRows = job => {
   const compact = arr(job?.recent_collision_evidence);
   return compact.length ? compact : arr(job?.collisions);
@@ -1299,7 +1305,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
 
   const recovery = jobs
     .filter(job => job.state === 'replaceable')
-    .filter(job => !hasDurableTerminalReturn(job))
+    .filter(job => !durableTerminalBlocksRecovery(job))
     .filter(jobCapabilityRouteable)
     .filter(job => semantic(job).valid && semantic(job).ordinary_next_generation_eligible)
     .filter(job => authorityBoundaryGate(job).eligible)
