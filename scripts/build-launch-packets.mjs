@@ -6,6 +6,7 @@ const site=path.resolve(process.argv[3]||path.join(root,'dist'));
 const readJson=p=>JSON.parse(fs.readFileSync(p,'utf8'));
 const walk=dir=>{if(!fs.existsSync(dir)) return [];const out=[];for(const ent of fs.readdirSync(dir,{withFileTypes:true})){const p=path.join(dir,ent.name);if(ent.isDirectory()) out.push(...walk(p)); else out.push(p);}return out;};
 const readJsonSafe=p=>{try{return JSON.parse(fs.readFileSync(p,'utf8'));}catch{return null;}};
+const repoRel=p=>path.relative(root,p).split(path.sep).join('/');
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 const packetsRoot=path.join(root,'coordination','launch-packets');
 const evolution=readJson(path.join(root,'coordination','workers','WORKER_EVOLUTION_LAB_V1.json'));
@@ -36,8 +37,23 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
   },null,2)+'\n');
   const claimDir=path.join(packetsRoot,runId,'claims');
   const reallocClaimDir=path.join(packetsRoot,runId,'reallocation-claims');
-  const primaryClaims=walk(claimDir).filter(x=>x.endsWith('.json')).map(readJsonSafe).filter(Boolean);
+  const noAllocationDir=path.join(root,'coordination','workers','no-allocation');
+  const runNoAllocations=walk(noAllocationDir).filter(x=>x.endsWith('.json')).map(readJsonSafe).filter(x=>x?.run_id===runId);
+  const invalidClaimRefs=new Set(runNoAllocations.map(x=>String(x?.invalid_claim_ref||'').split('@')[0]).filter(Boolean));
+  const primaryClaimFiles=walk(claimDir).filter(x=>x.endsWith('.json'));
+  const invalidPrimaryClaimFiles=primaryClaimFiles.filter(p=>invalidClaimRefs.has(repoRel(p)));
+  const primaryClaims=primaryClaimFiles.filter(p=>!invalidClaimRefs.has(repoRel(p))).map(readJsonSafe).filter(Boolean);
   const reallocationClaims=walk(reallocClaimDir).filter(x=>x.endsWith('.json')).map(readJsonSafe).filter(Boolean);
+  const workerPrimarySlots=new Map();
+  for(const claim of primaryClaims){
+    if(!claim?.worker_id||!claim?.slot_id) continue;
+    const ids=workerPrimarySlots.get(claim.worker_id)||[];
+    ids.push(claim.slot_id);
+    workerPrimarySlots.set(claim.worker_id,ids);
+  }
+  for(const [workerId,slotIds] of workerPrimarySlots){
+    if(new Set(slotIds).size>1) throw new Error(runId+': worker claims multiple primary slots '+workerId+' -> '+slotIds.join(','));
+  }
   const receiptDir=path.join(root,'coordination','workers','benchmark-receipts',runId);
   const receipts=walk(receiptDir).filter(x=>x.endsWith('.json')).map(readJsonSafe).filter(Boolean);
   const beaconDir=path.join(root,'coordination','workers','beacons');
@@ -117,6 +133,8 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
     human_launch_cohort_declared_complete:launchCohortDeclaredComplete,
     slots_total:slots.length,
     slots_claimed:claimedIds.size,
+    invalid_primary_claim_artifacts:invalidPrimaryClaimFiles.length,
+    invalid_primary_claim_refs:invalidPrimaryClaimFiles.map(repoRel),
     slots_unclaimed:Math.max(0,slots.length-claimedIds.size),
     unclaimed_slot_ids:slots.map(x=>x.slot_id).filter(id=>!claimedIds.has(id)),
     distinct_primary_workers:new Set(primaryClaims.map(x=>x.worker_id).filter(Boolean)).size,
