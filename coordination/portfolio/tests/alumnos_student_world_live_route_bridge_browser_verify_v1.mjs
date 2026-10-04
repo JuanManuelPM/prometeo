@@ -3,7 +3,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { chromium } from 'playwright';
 
-// trigger: G000017 representative browser verification\nconst TARGET='https://juanmanuelpm.github.io/prometeo/__canary/portfolio-alumnos-student-world-live-route-bridge-v1/';
+// trigger: G000017 representative browser verification
+const TARGET='https://juanmanuelpm.github.io/prometeo/__canary/portfolio-alumnos-student-world-live-route-bridge-v1/';
 const DONOR='https://juanmanuelpm.github.io/prometeo/pages/PROMETEO_STUDENT_WORLD_MAP_FIXED_OPEN_ME.html';
 const JOSE_STUDY='https://juanmanuelpm.github.io/jose-study/';
 const JOSE_ALGEBRA='https://juanmanuelpm.github.io/prometeo/pages/JOSE_RECUPERACION_ALGEBRA_FINAL.html';
