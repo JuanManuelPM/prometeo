@@ -7,7 +7,7 @@
   "protocol_version": "v3.30",
   "launch_nonce": "73e1c940b5fa2d6c",
   "started_at_or_null": null,
-  "closed_at": "2026-10-04T17:15:00Z",
+  "closed_at": "2026-10-04T20:07:26Z",
   "slots": [],
   "collisions": 5,
   "no_allocation_count": 1,
@@ -26,7 +26,12 @@
     "blob_sha": "5de2c2cd9317b0ffc0235a205c8fc558063b9cfb",
     "generated_at": "2026-10-04T17:06:49.268Z",
     "candidate_count": 5,
-    "exhausted_claimable_candidates": 5
+    "exhausted_claimable_candidates": 5,
+    "stale_at_launch": true,
+    "age_seconds_at_beacon_commit": 10563.732,
+    "usable_nonrecovery_candidates": 2,
+    "usable_nonrecovery_candidates_exhausted": 2,
+    "recovery_candidates_ineligible_due_staleness": 3
   },
   "exit_audit_v1": {
     "worker_id": "wc-20261004T200200Z-8bc04f17a2d9",
@@ -35,7 +40,7 @@
     "productive_units": 0,
     "final_state": "CLOSED",
     "started_at": "2026-10-04T20:02:00Z",
-    "audit_completed_at": "2026-10-04T17:15:00Z",
+    "audit_completed_at": "2026-10-04T20:07:26Z",
     "timing_basis": "MIXED_DIAGNOSTIC",
     "stage_timings": [
       {
@@ -105,9 +110,20 @@
     ],
     "friction_events": [
       {
+        "category": "ALLOCATION_FRONTIER",
+        "elapsed_ms_or_null": null,
+        "description": "Allocator generated_at was ~2h56m older than the worker beacon commit according to GitHub server time, so recovery candidates were ineligible under the >90s stale-snapshot rule.",
+        "evidence_refs": [
+          "coordination/workers/no-allocation/wc-20261004T200200Z-8bc04f17a2d9.json"
+        ],
+        "recovered": false,
+        "boundary_code_or_null": "EXHAUSTED_COMPATIBLE_FRONTIER",
+        "proposed_new_category_or_null": null
+      },
+      {
         "category": "CLAIM_CONTENTION",
         "elapsed_ms_or_null": null,
-        "description": "Five compatible allocator candidates returned exact GitHub Contents CREATE_EXISTS collisions; no authority was created.",
+        "description": "The two usable non-recovery candidates returned exact GitHub Contents CREATE_EXISTS collisions. Three stale recovery attempts were also made before clock reconciliation; all collided and created no authority.",
         "evidence_refs": [
           "coordination/workers/no-allocation/wc-20261004T200200Z-8bc04f17a2d9.json"
         ],
@@ -132,25 +148,25 @@
         "decision": "Create a fresh v3.30 identity before allocation.",
         "observable_basis": "NUEVO_WORKER=1 and fresh-launch contract.",
         "action": "Created the worker beacon and froze worker_id plus launch_nonce.",
-        "outcome": "Fresh beacon persisted.",
+        "outcome": "Fresh beacon persisted at GitHub server time 2026-10-04T20:02:53Z.",
         "evidence_refs": [
           "coordination/workers/beacons/wc-20261004T200200Z-8bc04f17a2d9.json"
         ]
       },
       {
-        "decision": "Use deterministic BATCH sharding and bounded collision handling.",
-        "observable_basis": "Fresh compact frontier plus beacon commit seed.",
-        "action": "Attempted the published candidate claim paths under the three-attempt base limit, one tail rescue, then a fresh identical frontier for the sole untried candidate.",
-        "outcome": "All five claimable candidates returned CREATE_EXISTS.",
+        "decision": "Correct allocator clock interpretation before finalizing E9.",
+        "observable_basis": "GitHub commit server time showed claim-frontier generated_at was ~10564 seconds old, exceeding the >90s recovery eligibility limit.",
+        "action": "Reclassified all recovery candidates as ineligible and excluded them from terminal exhaustion accounting.",
+        "outcome": "Only ready + role_ready remain usable; both had already returned CREATE_EXISTS.",
         "evidence_refs": [
           "coordination/workers/no-allocation/wc-20261004T200200Z-8bc04f17a2d9.json"
         ]
       },
       {
         "decision": "Close at E2 rather than fabricate work below the residency target.",
-        "observable_basis": "Fresh compact frontier remained unchanged and every compatible claimable candidate was proven owned.",
-        "action": "Persisted a no-allocation boundary receipt and terminal exam.",
-        "outcome": "Truthful frontier-exhaustion boundary with zero productive units.",
+        "observable_basis": "No usable non-recovery candidate remained on the allocator surface; stale recovery was contract-ineligible.",
+        "action": "Updated the no-allocation receipt and terminal exam with corrected stale-frontier accounting.",
+        "outcome": "Truthful terminal NO_ALLOCATION boundary with zero productive units and explicit protocol deviation record.",
         "evidence_refs": [
           "coordination/workers/no-allocation/wc-20261004T200200Z-8bc04f17a2d9.json"
         ]
@@ -172,13 +188,20 @@
     "improvement_candidates": [
       {
         "target": "E2",
-        "proposal": "After a finite batch saturates all published claim paths, have the allocator publish the next claimable generation or additional compatible work promptly.",
-        "expected_effect": "Reduce fresh-worker loss to collision-only launches without weakening atomic ownership.",
+        "proposal": "Ensure claim-frontier freshness timestamps use the same UTC basis as GitHub server time and refresh the public allocator surface before recovery routing.",
+        "expected_effect": "Prevent stale recovery attempts and reduce collision-only fresh-worker launches.",
         "evidence_refs": [
           "coordination/workers/no-allocation/wc-20261004T200200Z-8bc04f17a2d9.json"
         ]
       }
     ],
-    "public_safe_summary": "Fresh v3.30 BATCH worker created successfully. It reached E2, observed five claimable compatible candidates, received exact CREATE_EXISTS on all five, persisted frontier-exhaustion evidence, and closed with zero productive units rather than inventing work."
+    "public_safe_summary": "Fresh v3.30 BATCH worker created successfully. GitHub server time proved the allocator projection was ~2h56m stale. The two usable non-recovery candidates were both already owned; three stale recovery paths had also been attempted in error but all returned CREATE_EXISTS, creating no authority. The corrected terminal record is NO_ALLOCATION with zero productive units."
+  },
+  "protocol_deviation": {
+    "occurred": true,
+    "code": "STALE_RECOVERY_ATTEMPTS_MADE_BEFORE_CLOCK_RECONCILIATION",
+    "authority_created": false,
+    "substantive_mutation": false,
+    "corrected_by_ref": "coordination/workers/no-allocation/wc-20261004T200200Z-8bc04f17a2d9.json"
   }
 }
