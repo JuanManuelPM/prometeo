@@ -44,12 +44,14 @@ jobs:
           const base='coordination/portfolio/derived/prometeo-autonomous-growth';
           const graph=JSON.parse(fs.readFileSync('coordination/experiments/PROMETEO-10WC-PRE-RUN-V1/WORK_GRAPH.json','utf8'));
           const byId=new Map(graph.blocks.map(b=>[b.block_id,b]));
-          const read=id=>JSON.parse(fs.readFileSync(`${base}/portfolio-10wc-pre-run-${id.toLowerCase()}.json`,'utf8'));
+          const jid=id=>`portfolio-10wc-pre-run-${String(id).toLowerCase()}`;
+          const read=id=>JSON.parse(fs.readFileSync(`${base}/${jid(id)}.json`,'utf8'));
           for(let i=1;i<=64;i++){
             const id=`B${String(i).padStart(3,'0')}`;
             const b=byId.get(id), j=read(id);
             if(!b) throw new Error(`${id}: missing graph block`);
-            if(JSON.stringify(j.dependency_ids||[])!==JSON.stringify(b.dependencies||[])) throw new Error(`${id}: dependency_ids diverge from WORK_GRAPH`);
+            const expected=(b.dependencies||[]).map(jid);
+            if(JSON.stringify(j.dependency_ids||[])!==JSON.stringify(expected)) throw new Error(`${id}: dependency_ids diverge from mapped WORK_GRAPH dependencies`);
             if(j.worker_id||j.assigned_worker_id||j.reserve_worker) throw new Error(`${id}: worker role/binding leaked into portable block`);
           }
           const initial=graph.blocks.filter(b=>(b.dependencies||[]).length===0).length;
