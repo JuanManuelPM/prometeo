@@ -1,0 +1,89 @@
+name: Prometeo 10WC pre-run activation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/experiments/PROMETEO-10WC-PRE-RUN-V1/ACTIVATE'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prometeo-10wc-pre-run-activate
+  cancel-in-progress: false
+
+jobs:
+  activate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 50
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Seed fungible work graph into existing portfolio
+        run: node scripts/activate-prometeo-10wc-pre-run-v1.mjs
+
+      - name: Verify 64 portable jobs and dependency preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=$(find coordination/portfolio/derived/prometeo-autonomous-growth -maxdepth 1 -type f -name 'portfolio-10wc-pre-run-b*.json' | wc -l)
+          test "$count" -eq 64
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const base='coordination/portfolio/derived/prometeo-autonomous-growth';
+          const read=id=>JSON.parse(fs.readFileSync(`${base}/portfolio-10wc-pre-run-${id.toLowerCase()}.json`,'utf8'));
+          const b1=read('B001'), b25=read('B025'), b64=read('B064');
+          if ((b1.dependency_ids||[]).length!==0) throw new Error('B001 must be initially READY-compatible');
+          if (!(b25.dependency_ids||[]).length) throw new Error('B025 dependencies missing');
+          if (JSON.stringify(b64.dependency_ids||[])!==JSON.stringify(['B060','B061','B062','B063'])) throw new Error('B064 final serial dependency set changed');
+          for(let i=1;i<=64;i++){
+            const id=`B${String(i).padStart(3,'0')}`;
+            const j=read(id);
+            if(j.worker_id||j.assigned_worker_id||j.reserve_worker) throw new Error(`${id}: worker role/binding leaked into portable block`);
+          }
+          NODE
+
+      - name: Persist seeded activation state
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const p='coordination/experiments/PROMETEO-10WC-PRE-RUN-V1/PRE_RUN_STATUS.json';
+          const x=JSON.parse(fs.readFileSync(p,'utf8'));
+          x.status='ACTIVATED_SEEDED';
+          x.activated_at=new Date().toISOString();
+          x.activation_evidence={
+            jobs_seeded:64,
+            initial_dependency_free_blocks:24,
+            worker_model:'10 fungible WC; blocks portable; SUBMIT_NEXT',
+            next_gate:'LIVE_CLAIM_FRONTIER_PUBLICATION'
+          };
+          fs.writeFileSync(p,JSON.stringify(x,null,2)+'\n');
+          NODE
+
+      - name: Commit activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'prometeo-ci'
+          git config user.email '72280945+JuanManuelPM@users.noreply.github.com'
+          git add coordination/portfolio/derived/prometeo-autonomous-growth/portfolio-10wc-pre-run-b*.json coordination/experiments/PROMETEO-10WC-PRE-RUN-V1/PRE_RUN_STATUS.json
+          if git diff --cached --quiet; then
+            echo 'Activation already seeded.'
+            exit 0
+          fi
+          git commit -m 'pre-run: seed 64 fungible 10wc work blocks'
+          git pull --rebase origin main
+          git push origin HEAD:main
