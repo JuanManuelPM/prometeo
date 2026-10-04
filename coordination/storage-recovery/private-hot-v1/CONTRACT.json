@@ -5,9 +5,10 @@
   "authority": "TRANSPORT_ONLY_NO_SCHEDULER_NO_QUEUE_NO_CURRENT_NO_WORK_GRAPH_NO_MEMORY_AUTHORITY",
   "storage_budget": {
     "tables": 2,
-    "normal_writes_per_new_request": 2,
+    "normal_writes_per_new_request": "2 durable request-state writes + at most one bounded expired-row prune",
     "write_sequence": [
-      "request INSERT/UPSERT once",
+      "bounded prune of rows already past expires_at",
+      "request INSERT once",
       "state UPDATE to QUEUED once"
     ],
     "read_side_effects": "FORBIDDEN",
@@ -15,7 +16,8 @@
     "polling_writes": "FORBIDDEN",
     "telemetry_writes": "FORBIDDEN",
     "raw_worker_history": "FORBIDDEN",
-    "target_raw_retention_hours": 72
+    "target_raw_retention_hours": 72,
+    "retention_enforcement": "Expired rows are pruned only on a new human submit; no heartbeat/cron/poll writer is required."
   },
   "tables": [
     {
@@ -58,5 +60,11 @@
     "set Vercel PROMETEO_PRIMARY_HOT_ENDPOINT to the fresh function URL",
     "switch browser ingress endpoint via one public config constant",
     "run one real E2E before considering old Supabase non-critical"
+  ],
+  "prepared_components": [
+    "coordination/storage-recovery/private-hot-v1/schema.sql",
+    "coordination/storage-recovery/private-hot-v1/edge-function/index.ts",
+    "Experimentos:worker-lab/api/prometeo-ingress.js supports prometeo.primary-chat-hot-wake/v1 when PROMETEO_PRIMARY_HOT_ENDPOINT is configured",
+    "Prometeo browser ingress supports PROMETEO_PRIMARY_HOT_CONFIG_V1 while disabled config preserves the current transport"
   ]
 }
