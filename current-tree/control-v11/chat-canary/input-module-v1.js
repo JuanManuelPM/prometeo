@@ -503,20 +503,29 @@
       const current = String(currentText || '');
       const notes = readNotes();
       const noteSection = notes.length ? 'NOTAS PRIVADAS:\n' + notes.map(x=>'• '+x.text).join('\n') : '';
-      const fixedLength = current.length + (noteSection ? noteSection.length + 11 : 0);
-      let room = Math.max(0, Math.min(PRIVATE_CONTEXT_MAX_CHARS, MAX_TEXT - fixedLength));
+      const messageDivider = '\n\nMENSAJE:\n';
+      const contextHeader = 'CONTEXTO PRIVADO RECIENTE:\n';
+      const notePrefixLength = noteSection ? noteSection.length + messageDivider.length : 0;
+      const contextJoinLength = noteSection ? 2 : messageDivider.length;
+      let room = Math.max(0, Math.min(
+        PRIVATE_CONTEXT_MAX_CHARS,
+        MAX_TEXT - current.length - notePrefixLength - contextHeader.length - contextJoinLength
+      ));
       const selected = [];
       const rows = readPrivateContext();
       for (let i = rows.length - 1; i >= 0; i -= 1) {
         const line = '• ' + rows[i].text;
-        if (line.length + 1 > room) break;
+        const cost = line.length + (selected.length ? 1 : 0);
+        if (cost > room) break;
         selected.unshift(line);
-        room -= line.length + 1;
+        room -= cost;
       }
-      const sections = [];
-      if (selected.length) sections.push('CONTEXTO PRIVADO RECIENTE:\n' + selected.join('\n'));
-      if (noteSection) sections.push(noteSection);
-      return (sections.length ? sections.join('\n\n') + '\n\nMENSAJE:\n' : '') + current;
+      if (selected.length) {
+        return contextHeader + selected.join('\n') +
+          (noteSection ? '\n\n' + noteSection : '') +
+          messageDivider + current;
+      }
+      return (noteSection ? noteSection + messageDivider : '') + current;
     }
 
     const restoredDraft = readDraft();
