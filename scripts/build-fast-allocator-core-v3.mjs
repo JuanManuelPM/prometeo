@@ -227,7 +227,7 @@ const returnEvidenceRows = job => {
   const compact = arr(job?.recent_return_evidence);
   return compact.length ? compact : arr(job?.returns);
 };
-const TERMINAL_RETURN_OUTCOMES = new Set(['done','verified','no_action_needed','superseded','route_aborted','error']);
+const TERMINAL_RETURN_OUTCOMES = new Set(['done','verified','no_action_needed','superseded','error']);
 export function hasDurableTerminalReturn(job = {}) {
   const latest = job?.latest_return && typeof job.latest_return === 'object' ? [job.latest_return] : [];
   return [...returnEvidenceRows(job), ...latest].some(row => {
@@ -236,19 +236,6 @@ export function hasDurableTerminalReturn(job = {}) {
   });
 }
 
-export function durableTerminalBlocksRecovery(job = {}) {
-  if (!hasDurableTerminalReturn(job)) return false;
-  const latest = job?.latest_return && typeof job.latest_return === 'object' ? [job.latest_return] : [];
-  const hasRouteAbortedBoundary = [...returnEvidenceRows(job), ...latest].some(row =>
-    lower(row?.outcome || row?.status || row?.result || row?.terminal_reason) === 'route_aborted'
-  );
-  if (!hasRouteAbortedBoundary) return true;
-  const sourceDebt = recoveryBasisGate(job);
-  if (sourceDebt.evidence_bound === true && sourceDebt.eligible === true) return false;
-  const authority = authorityBoundaryGate(job);
-  if (authority.present === true && authority.eligible === true) return false;
-  return true;
-}
 const collisionEvidenceRows = job => {
   const compact = arr(job?.recent_collision_evidence);
   return compact.length ? compact : arr(job?.collisions);
@@ -1313,7 +1300,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
 
   const recovery = jobs
     .filter(job => job.state === 'replaceable')
-    .filter(job => !durableTerminalBlocksRecovery(job))
+    .filter(job => !hasDurableTerminalReturn(job))
     .filter(jobCapabilityRouteable)
     .filter(job => semantic(job).valid && semantic(job).ordinary_next_generation_eligible)
     .filter(job => authorityBoundaryGate(job).eligible)
