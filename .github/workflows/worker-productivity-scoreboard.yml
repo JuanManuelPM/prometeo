@@ -22,6 +22,8 @@ on:
       - 'coordination/guide/pins/**'
       - 'coordination/guide/receipts/**'
       - 'scripts/build-worker-scoreboard.mjs'
+      - 'scripts/build-worker-scoreboard-freshness.mjs'
+      - 'coordination/portfolio/tests/test_scoreboard_generation_freshness_contract.py'
       - 'tests/worker-growth-pipeline-v1.test.mjs'
       - 'tests/worker-fresh-launch-v1.test.mjs'
       - '.github/workflows/worker-productivity-scoreboard.yml'
@@ -49,9 +51,18 @@ jobs:
         run: node source/tests/worker-growth-pipeline-v1.test.mjs source
       - name: Guard fresh-launch anti-replay
         run: node source/tests/worker-fresh-launch-v1.test.mjs source
+      - name: Guard scoreboard generation freshness contract
+        run: python3 source/coordination/portfolio/tests/test_scoreboard_generation_freshness_contract.py
 
       - name: Build scoreboard
         run: node source/scripts/build-worker-scoreboard.mjs source scoreboard.json
+
+      - name: Bind scoreboard generation to source revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha="$(git -C source rev-parse HEAD)"
+          node source/scripts/build-worker-scoreboard-freshness.mjs scoreboard.json scoreboard-freshness.json "$source_sha" refs/heads/main
 
       - name: Checkout public site
         uses: actions/checkout@v4
@@ -68,7 +79,8 @@ jobs:
           git -C site pull --ff-only origin gh-pages
           mkdir -p site/live
           cp scoreboard.json site/live/worker-scoreboard.json
-          git -C site add live/worker-scoreboard.json
+          cp scoreboard-freshness.json site/live/worker-scoreboard-freshness.json
+          git -C site add live/worker-scoreboard.json live/worker-scoreboard-freshness.json
           if git -C site diff --cached --quiet; then exit 0; fi
           git -C site commit -m "live: refresh worker productivity scoreboard"
           for n in 1 2 3; do
