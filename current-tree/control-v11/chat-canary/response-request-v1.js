@@ -109,6 +109,7 @@
     return await api.submitText(Object.freeze({
       text: privateText,
       kind: KIND,
+      request_id: envelope.request_id,
       ...(page ? { page } : {})
     }));
   }
