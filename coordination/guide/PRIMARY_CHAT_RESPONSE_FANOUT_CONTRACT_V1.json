@@ -1,0 +1,67 @@
+{
+  "schema": "prometeo.primary-chat-response-fanout-contract/v1",
+  "status": "CANDIDATE_IMPLEMENTED",
+  "owner_job": "portfolio-primary-chat-independence-c004",
+  "campaign_id": "PROMETEO-PRIMARY-CHAT-INDEPENDENCE-V1",
+  "objective": "Materialize exactly four independent response-candidate WorkBlocks through the existing CURRENT compiled-dispatch / portfolio path, without publishing raw private prompt text or inventing a scheduler, queue, CURRENT, worker identity or execution claim.",
+  "request_input": {
+    "schema": "prometeo.primary-chat-response-request-public-projection/v1",
+    "required": [
+      "request_id",
+      "routing=CURRENT_WORK_GRAPH",
+      "requested_candidate_count=4",
+      "counts_are_targets_not_claims=true",
+      "raw_text_public=false"
+    ],
+    "raw_fields_forbidden": [
+      "text",
+      "raw_text",
+      "private_text",
+      "private_payload",
+      "prompt",
+      "transcript",
+      "messages"
+    ]
+  },
+  "reuse": {
+    "compiled_dispatch_validator": "scripts/compiled-dispatch-contract-lib.mjs#validateCompiledDispatchContract",
+    "workblock_handoff": "scripts/compiled-dispatch-contract-lib.mjs#compileWorkBlockHandoff",
+    "authority": "Existing CURRENT Work Graph / portfolio PIN remains execution authority.",
+    "materializer": "scripts/primary-chat-response-fanout-v1.mjs"
+  },
+  "fanout": {
+    "candidate_count": 4,
+    "candidate_blocks_are_parallel_ready": true,
+    "candidate_identity": "request_id + ordinal 1..4",
+    "human_routing_actions": 0,
+    "workers_claimed_initial": 0,
+    "returns_received_initial": 0,
+    "multi_worker_claim_requires_durable_independent_returns": true,
+    "runtime_payload_binding": "Existing private ingress resolves request_id only after ownership; the public WorkBlock contains sanitized refs/status, never raw prompt text."
+  },
+  "privacy": {
+    "public_raw_prompt": false,
+    "public_private_payload": false,
+    "public_allowed": [
+      "request_id",
+      "sanitized request projection ref",
+      "existing ingress owner ref",
+      "candidate ordinal",
+      "CURRENT owner/consumer/organism refs",
+      "derived counts and status"
+    ]
+  },
+  "verification": {
+    "test": "coordination/portfolio/tests/primary_chat_response_fanout_v1.mjs",
+    "ci_consumer": "coordination/portfolio/tests/guide_pre_dispatch_compile_gate_v1.mjs",
+    "expected_marker": "PRIMARY_CHAT_RESPONSE_FANOUT_V1_PASS"
+  },
+  "forbidden": [
+    "new scheduler/queue/CURRENT/authority",
+    "hard-coded worker identities",
+    "claiming four workers merely because four candidate WorkBlocks exist",
+    "public raw/private prompt persistence",
+    "candidate count derived from UI cards instead of durable WorkBlocks/returns"
+  ],
+  "truth_boundary": "A compiled four-block fanout proves four independent CURRENT-compatible work units are prepared. It does not prove four workers ran. REAL_BOT_RETURNS_SYNTHESIZED requires independently durable returns."
+}
