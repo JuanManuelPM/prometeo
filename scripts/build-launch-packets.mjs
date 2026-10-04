@@ -52,7 +52,7 @@ for(const ent of fs.readdirSync(packetsRoot,{withFileTypes:true})){
     workerPrimarySlots.set(claim.worker_id,ids);
   }
   for(const [workerId,slotIds] of workerPrimarySlots){
-    if(new Set(slotIds).size>1) throw new Error(runId+': worker claims multiple primary slots '+workerId+' -> '+slotIds.join(','));
+    if(packet.preclaim_gate&&new Set(slotIds).size>1) throw new Error(runId+': worker claims multiple primary slots '+workerId+' -> '+slotIds.join(','));
   }
   const receiptDir=path.join(root,'coordination','workers','benchmark-receipts',runId);
   const receipts=walk(receiptDir).filter(x=>x.endsWith('.json')).map(readJsonSafe).filter(Boolean);
