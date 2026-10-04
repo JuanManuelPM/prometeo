@@ -31,14 +31,13 @@
 </main>
 <script>
 (()=>{'use strict';
-const APP='./app.html',MEDIA='prometeo.control.media.v2',FRAME=document.getElementById('controlFrame'),UPDATE=document.getElementById('updateBtn');
-let loadedHash=null,latestHash=null,checking=false,ytFrame=null;
+const APP='./app.html',MANIFEST='../control-manifest.json',MEDIA='prometeo.control.media.v2',FRAME=document.getElementById('controlFrame'),UPDATE=document.getElementById('updateBtn');
+let loadedVersion=null,latestVersion=null,checking=false,ytFrame=null;
 const pad=n=>String(n).padStart(2,'0');
-async function hashText(t){const b=new TextEncoder().encode(t);const d=await crypto.subtle.digest('SHA-256',b);return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('')}
-async function fetchApp(){const r=await fetch(APP+'?probe='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error('HTTP_'+r.status);const t=await r.text();return {text:t,hash:await hashText(t)}}
-async function boot(){try{const x=await fetchApp();loadedHash=x.hash;latestHash=x.hash}catch{}FRAME.src=APP+'?embedded=1&boot='+Date.now()}
-async function checkUpdate(){if(checking)return;checking=true;try{const x=await fetchApp();latestHash=x.hash;if(loadedHash&&latestHash!==loadedHash)UPDATE.classList.add('show')}catch{}finally{checking=false}}
-UPDATE.onclick=async()=>{if(!latestHash||latestHash===loadedHash)return;UPDATE.classList.add('busy');UPDATE.querySelector('span').textContent='ACTUALIZANDO CONTROL…';FRAME.src=APP+'?embedded=1&v='+encodeURIComponent(latestHash.slice(0,12))+'&t='+Date.now();loadedHash=latestHash;UPDATE.classList.remove('show','busy');UPDATE.querySelector('span').textContent='ACTUALIZACIÓN DISPONIBLE'};
+async function fetchManifest(){const r=await fetch(MANIFEST+'?probe='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error('MANIFEST_HTTP_'+r.status);const m=await r.json();if(!m||m.schema!=='prometeo.control-manifest/v1'||!m.control_version)throw Error('MANIFEST_INVALID');return m}
+async function boot(){try{const m=await fetchManifest();loadedVersion=m.control_version;latestVersion=m.control_version}catch{}FRAME.src=APP+'?embedded=1&boot='+Date.now()+(loadedVersion?'&control_version='+encodeURIComponent(loadedVersion):'')}
+async function checkUpdate(){if(checking)return;checking=true;try{const m=await fetchManifest();latestVersion=m.control_version;if(loadedVersion&&latestVersion!==loadedVersion)UPDATE.classList.add('show');else if(loadedVersion&&latestVersion===loadedVersion)UPDATE.classList.remove('show')}catch{}finally{checking=false}}
+UPDATE.onclick=async()=>{if(!latestVersion||latestVersion===loadedVersion)return;UPDATE.classList.add('busy');UPDATE.querySelector('span').textContent='ACTUALIZANDO CONTROL…';FRAME.src=APP+'?embedded=1&control_version='+encodeURIComponent(latestVersion)+'&t='+Date.now();loadedVersion=latestVersion;UPDATE.classList.remove('show','busy');UPDATE.querySelector('span').textContent='ACTUALIZACIÓN DISPONIBLE'};
 setInterval(checkUpdate,12000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkUpdate()});
 
 function readMedia(){const raw=localStorage.getItem(MEDIA)||'';try{const x=JSON.parse(raw);if(x&&typeof x==='object')return x}catch{}return{src:raw,t:0,volume:1,muted:false,playing:false}}
