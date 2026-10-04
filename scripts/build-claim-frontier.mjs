@@ -4,6 +4,8 @@ import fs from 'node:fs';
 const arr = v => Array.isArray(v) ? v : [];
 const DEFAULT_MAX_CANDIDATES = 24;
 const DEFAULT_MAX_SERIALIZED_BYTES = 14_000;
+const PREPARED_BURST_MAX_SERIALIZED_BYTES = 24_000;
+const DEFAULT_PREPARED_BURST_CAPACITY = 10;
 const DEFAULT_CAPABILITY_DIVERSITY_SLOTS = 8;
 const DEFAULT_ZERO_CAPABILITY_CAPACITY = 10;
 const DEFAULT_ZERO_CAPABILITY_RUNWAY = 4;
@@ -57,20 +59,12 @@ export function compilePostclaimContext(item = {}) {
 function compactCandidate(item, lane) {
   const out = { lane };
   for (const k of KEEP) if (item?.[k] !== undefined && item?.[k] !== null) out[k] = item[k];
-  // E2 fences are contract fields, not optional decoration. Empty must stay explicit so
-  // a worker never has to guess whether a missing array means [] or a truncated contract.
   out.required_capabilities = arr(item?.required_capabilities);
   out.forbidden_worker_ids = arr(item?.forbidden_worker_ids);
   if (item?.source_path) {
-    // A reusable portfolio/queue source owns semantic context. Worker-specific return paths
-    // and legacy task/matrix/program/must-read/execution overlays are runtime products, not
-    // source fields. Never carry a historical worker binding across E3. Page Change
-    // opportunities are different: their return_path is an explicit work-item contract
-    // carried by the private-frontier adapter, not a reusable source-job worker binding.
     if (!item?.opportunity_id) delete out.return_path;
     out.postclaim_context = compilePostclaimContext(item);
   }
-  // Opportunity/Guide candidates may have no durable job file, so retain bounded execution context only there.
   if (item?.opportunity_id || lane==='role_ready') {
     if (item?.title) out.title = item.title;
     if (item?.mission) out.mission = String(item.mission).slice(0, 220);
@@ -123,20 +117,51 @@ function hasZeroRequiredCapabilities(candidate) {
     .filter(Boolean).length === 0;
 }
 
+// A prepared block graph names portable blocks ...-b001, ...-b002, etc. When at least ten
+// compatible blocks from the same prepared graph are simultaneously claimable, keeping only
+// one exemplar of that capability signature destroys the very concurrency the graph prepared.
+// This is transport ordering only. Atomic PIN CREATE remains authority and no worker identity,
+// role, reserve label or routing assignment is introduced here.
+function preparedBurstGroupKey(candidate) {
+  const id = String(candidate?.job_id || '');
+  const match = id.match(/^(.*)-b\d{3}$/i);
+  if (!match) return null;
+  return `${match[1]}\n${capabilitySignature(candidate)}`;
+}
+
+function selectPreparedBurst(rows, capacity = DEFAULT_PREPARED_BURST_CAPACITY) {
+  const groups = new Map();
+  arr(rows).forEach((candidate, index) => {
+    const key = preparedBurstGroupKey(candidate);
+    if (!key) return;
+    if (!groups.has(key)) groups.set(key, { key, first:index, rows:[] });
+    groups.get(key).rows.push(candidate);
+  });
+  const eligible = [...groups.values()]
+    .filter(group => group.rows.length >= capacity)
+    .sort((a,b)=>a.first-b.first || b.rows.length-a.rows.length || a.key.localeCompare(b.key));
+  return eligible[0]?.rows.slice(0, capacity) || [];
+}
+
 function preserveCapabilityDiversity(
   ordered,
   {
     prefix = 1,
     maxPromotions = DEFAULT_CAPABILITY_DIVERSITY_SLOTS,
     minZeroCapabilityCandidates = DEFAULT_ZERO_CAPABILITY_CAPACITY,
-    zeroCapabilityRunway = DEFAULT_ZERO_CAPABILITY_RUNWAY
+    zeroCapabilityRunway = DEFAULT_ZERO_CAPABILITY_RUNWAY,
+    preparedBurstCapacity = DEFAULT_PREPARED_BURST_CAPACITY
   } = {}
 ) {
   const rows = arr(ordered);
   if (rows.length <= 1) return rows;
-  // Keep the allocator's first choice authoritative for a single worker, then optimize the
-  // bounded reserve for transport density. A four-row fixed prefix let one or two evidence-heavy
-  // Guide candidates consume most of the 14 KB envelope even when many exact generic claims existed.
+
+  const preparedBurst = selectPreparedBurst(rows, preparedBurstCapacity);
+  if (preparedBurst.length) {
+    const selected = new Set(preparedBurst);
+    return [...preparedBurst, ...rows.filter(candidate => !selected.has(candidate))];
+  }
+
   const head = rows.slice(0, Math.max(1, prefix));
   const tail = rows.slice(head.length);
   const seenSignatures = new Set(head.map(capabilitySignature));
@@ -149,11 +174,6 @@ function preserveCapabilityDiversity(
     if (promoted.length >= Math.max(0, maxPromotions)) break;
   }
 
-  // Capability diversity alone collapses every [] candidate into one signature. In a pooled
-  // launch that can hide several distinct no-special-capability claims behind a long
-  // specialized tail, leaving generic workers to collide on only one or two visible paths.
-  // Reserve ten zero-capability claim paths and prefer smaller immutable candidate records so
-  // a controlled burst of ten generic workers can each see a distinct compatible authority path.
   const promotedSet = new Set(promoted);
   const zeroTarget = Math.max(0, minZeroCapabilityCandidates);
   const zeroCount = [...head, ...promoted].filter(hasZeroRequiredCapabilities).length;
@@ -195,9 +215,6 @@ export function buildClaimFrontier(
   ]) for (const row of arr(rows)) live.push({ lane, row });
 
   const byKey = new Map(live.map(({lane,row}) => [keyOf({lane,...row}), {lane,row}]));
-  // Contention routing intentionally changes or removes claim_path. Reconcile an older/raw
-  // batch candidate only to the final live barrier representation of the same lane+job so the
-  // compact frontier cannot resurrect the pre-barrier portfolio PIN.
   const barrierByStableJob = new Map(
     live
       .filter(({row}) => isBarrierRoutedCandidate(row))
@@ -231,6 +248,10 @@ export function buildClaimFrontier(
     ordered.push(compactCandidate(row,lane));
   }
 
+  const preparedBurst = selectPreparedBurst(ordered);
+  const effectiveMaxSerializedBytes = preparedBurst.length
+    ? Math.max(maxSerializedBytes, PREPARED_BURST_MAX_SERIALIZED_BYTES)
+    : maxSerializedBytes;
   const capabilityDiverse = preserveCapabilityDiversity(ordered);
   const bounded = capabilityDiverse.slice(0, Math.max(1, maxCandidates));
   const recoveryAttention = arr(allocator.recovery_attention)
@@ -250,7 +271,13 @@ export function buildClaimFrontier(
     recovery_attention:recoveryAttention,
     postclaim_runtime_bindings:[...POSTCLAIM_RUNTIME_BINDINGS],
     claim_phase_contract:CLAIM_PHASE_CONTRACT,
-    transport_bytes_max:maxSerializedBytes,
+    transport_bytes_max:effectiveMaxSerializedBytes,
+    prepared_burst:preparedBurst.length ? {
+      detected:true,
+      capacity:preparedBurst.length,
+      group:preparedBurstGroupKey(preparedBurst[0])?.split('\n')[0] || null,
+      authority_change:false
+    } : null,
     truth_boundary:'COMPACT_CLAIM_HINT_ONLY_ATOMIC_CREATE_REMAINS_AUTHORITY'
   };
 
@@ -258,12 +285,12 @@ export function buildClaimFrontier(
   for (const candidate of bounded) {
     const next = [...candidates, candidate];
     const trial = {...base, candidate_count:next.length, candidates:next};
-    if (serializedBytes(trial) > maxSerializedBytes) break;
+    if (serializedBytes(trial) > effectiveMaxSerializedBytes) break;
     candidates.push(candidate);
   }
 
   if (!candidates.length && bounded.length) {
-    throw new Error(`claim frontier cannot fit one candidate inside ${maxSerializedBytes} bytes`);
+    throw new Error(`claim frontier cannot fit one candidate inside ${effectiveMaxSerializedBytes} bytes`);
   }
 
   return {...base, candidate_count:candidates.length, candidates};
