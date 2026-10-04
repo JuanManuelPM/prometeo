@@ -1,0 +1,43 @@
+name: Alumnos Student World route bridge browser verify v1
+run-name: Alumnos bridge browser verify · ${{ github.sha }}
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coordination/portfolio/tests/alumnos_student_world_live_route_bridge_browser_verify_v1.mjs'
+      - '.github/workflows/alumnos-student-world-live-route-bridge-browser-verify-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alumnos-student-world-live-route-bridge-browser-verify-v1
+  cancel-in-progress: true
+
+jobs:
+  browser-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install representative Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify candidate-only Student World route bridge
+        env:
+          ALUMNOS_BRIDGE_TIMEOUT_MS: '45000'
+        run: node coordination/portfolio/tests/alumnos_student_world_live_route_bridge_browser_verify_v1.mjs
+      - name: Upload bounded verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alumnos-student-world-live-route-bridge-browser-evidence
+          path: artifacts/alumnos-student-world-live-route-bridge-browser-verify/
+          if-no-files-found: error
+          retention-days: 14
