@@ -39,6 +39,7 @@ const evidence={
   assertions:{},
   page_errors:[],
   console_errors:[],
+  http_errors:[],
   authority_boundary:'Synthetic public fixture and browser evidence do not mutate CURRENT, HUMAN_ACCEPTED, SERVED governance, acceptance or promotion authority.'
 };
 
@@ -94,6 +95,8 @@ try {
   const page=await browser.newPage({viewport:{width:390,height:844}});
   page.on('pageerror',error=>evidence.page_errors.push(String(error?.message || error)));
   page.on('console',msg=>{ if(msg.type()==='error') evidence.console_errors.push(msg.text()); });
+  page.on('response',response=>{ if(response.status()>=400) evidence.http_errors.push({status:response.status(),url:response.url()}); });
+  page.on('requestfailed',request=>evidence.http_errors.push({status:0,url:request.url(),failure:request.failure()?.errorText||'REQUEST_FAILED'}));
   const fixtureBody=servedFixture.toString('utf8');
   await page.route('**/CHAT_THREAD_MIRROR_CANARY_V1.json**',async route=>{
     await route.fulfill({
