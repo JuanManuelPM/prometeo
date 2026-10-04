@@ -118,14 +118,15 @@
     if (api) api.clear();
   }
 
-  function frozenResult(status, queued, ref = null, error = null, clearInput = false, correlation = null) {
+  function frozenResult(status, queued, ref = null, error = null, clearInput = false, correlation = null, meta = null) {
     return Object.freeze({
       status,
       queued: queued === true,
       ref,
       error,
       clear_input: clearInput === true,
-      correlation: normalizeCorrelation(correlation)
+      correlation: normalizeCorrelation(correlation),
+      ...(meta && typeof meta === 'object' ? meta : {})
     });
   }
 
@@ -185,7 +186,7 @@
     return section;
   }
 
-  async function submitText({ text, ingress = null, page = DEFAULT_PAGE, kind = KIND } = {}) {
+  async function submitText({ text, ingress = null, page = DEFAULT_PAGE, kind = KIND, request_id = null } = {}) {
     const raw = text === undefined || text === null ? '' : String(text);
     if (!raw.trim()) {
       return frozenResult('BOUNDARY_INVALID_INPUT', false, null, 'EMPTY_TEXT', false);
@@ -209,7 +210,7 @@
 
     let result;
     try {
-      result = await api.submit(Object.freeze({ text: raw, kind, page }));
+      result = await api.submit(Object.freeze({ text: raw, kind, page, ...(request_id ? { request_id } : {}) }));
     } catch (error) {
       const code = clean(error && (error.code || error.name || error.message), 240) || 'TRANSPORT_ERROR';
       return frozenResult('BOUNDARY_TRANSPORT_FAILED', false, null, code, false);
@@ -233,10 +234,10 @@
       catch (correlationError) {
         return frozenResult('BOUNDARY_TRANSPORT_INVALID', false, null, clean(correlationError && correlationError.message, 120) || 'PRIVATE_CORRELATION_SAVE_FAILED', false);
       }
-      return frozenResult(status === 'BOUNDARY_TRANSPORT_INVALID' ? 'QUEUED' : status, true, retained.return_path, error, true, retained);
+      return frozenResult(status === 'BOUNDARY_TRANSPORT_INVALID' ? 'QUEUED' : status, true, retained.return_path, error, true, retained, { request_id: clean(result.request_id,160) || request_id || null, ambiguous:false });
     }
 
-    return frozenResult(status, false, validDurableRef(ref) ? ref : null, error, false, null);
+    return frozenResult(status, false, validDurableRef(ref) ? ref : null, error, false, null, { request_id: clean(result.request_id,160) || request_id || null, stage: clean(result.stage,40), ambiguous: result.ambiguous === true });
   }
 
   function setStatus(element, resultOrLabel) {
@@ -276,10 +277,21 @@
     input.autocomplete = 'off';
     input.placeholder = options.placeholder || 'Escribí un mensaje…';
 
+    const note = doc.createElement('button');
+    note.setAttribute('data-prometeo-chat-composer-note-v1', '');
+    note.type = 'button';
+    note.textContent = options.noteLabel || 'NOTA';
+
     const submit = doc.createElement('button');
     submit.setAttribute('data-prometeo-chat-composer-submit-v1', '');
     submit.type = 'submit';
-    submit.textContent = options.submitLabel || 'ENVIAR';
+    submit.textContent = options.submitLabel || 'RESPONDER';
+
+    const recheck = doc.createElement('button');
+    recheck.setAttribute('data-prometeo-chat-composer-recheck-v1', '');
+    recheck.type = 'button';
+    recheck.textContent = 'COMPROBAR';
+    recheck.hidden = true;
 
     const status = doc.createElement('div');
     status.setAttribute('data-prometeo-chat-composer-status-v1', '');
@@ -287,11 +299,20 @@
     status.setAttribute('aria-live', 'polite');
     setStatus(status, '');
 
-    form.append(input, submit);
+    form.append(note, submit, recheck);
     root.replaceChildren(form, status);
 
     let destroyed = false;
     let availabilityTimer = null;
+    let pendingRequestId = null;
+    const notesKey = options.notesKey || 'prometeo.primary-chat.notes.v1';
+
+    function readNotes() {
+      try { const v = JSON.parse(global.localStorage?.getItem(notesKey) || '[]'); return Array.isArray(v) ? v.filter(x=>x&&typeof x.text==='string').slice(-50) : []; } catch { return []; }
+    }
+    function writeNotes(rows) { try { global.localStorage?.setItem(notesKey, JSON.stringify(rows.slice(-50))); } catch {} }
+    function noteContext() { const rows=readNotes(); return rows.length ? 'NOTAS PRIVADAS:\n' + rows.map(x=>'• '+x.text).join('\n') + '\n\nMENSAJE:\n' : ''; }
+
 
     function syncAvailability() {
       if (destroyed) return false;
@@ -315,33 +336,90 @@
     async function send() {
       if (destroyed) throw new Error('CHAT_CANARY_COMPOSER_DESTROYED');
       const preserved = input.value;
+      if (!preserved.trim()) {
+        const blocked = frozenResult('BOUNDARY_INVALID_INPUT', false, null, 'EMPTY_TEXT', false);
+        setStatus(status, blocked);
+        return blocked;
+      }
       if (!syncAvailability()) {
         const blocked = frozenResult('BOUNDARY_AUTH_REQUIRED', false, null, 'AUTH_BRIDGE_REQUIRED', false);
         if (typeof options.onResult === 'function') options.onResult(blocked);
         return blocked;
       }
       submit.disabled = true;
-      setStatus(status, 'SUBMITTING · esperando confirmación durable…');
+      recheck.hidden = true;
+      setStatus(status, pendingRequestId ? 'RETRY SAME REQUEST · esperando confirmación durable…' : 'SUBMITTING · esperando confirmación durable…');
       let result;
+      const textForSubmit = (options.includeNotesInSubmit === false ? '' : noteContext()) + preserved;
       try {
-        result = await submitText({
-          text: preserved,
-          ingress: options.ingress || null,
-          page: options.page || DEFAULT_PAGE,
-          kind: options.kind || KIND
-        });
+        if (typeof options.submitter === 'function') {
+          result = await options.submitter({
+            text: textForSubmit,
+            inputApi: api,
+            page: options.page || DEFAULT_PAGE,
+            request_id: pendingRequestId
+          });
+        } else {
+          result = await submitText({
+            text: textForSubmit,
+            ingress: options.ingress || null,
+            page: options.page || DEFAULT_PAGE,
+            kind: options.kind || KIND,
+            request_id: pendingRequestId
+          });
+        }
       } finally {
         syncAvailability();
       }
-      if (result.clear_input === true && result.queued === true && validDurableRef(result.ref)) {
+      if (result && result.request_id) pendingRequestId = result.request_id;
+      if (result && result.queued === true && validDurableRef(result.ref)) {
         input.value = '';
+        pendingRequestId = null;
+        if (options.includeNotesInSubmit !== false) writeNotes([]);
       } else {
         input.value = preserved;
+        recheck.hidden = !(result && result.ambiguous === true && pendingRequestId);
       }
       setStatus(status, result);
       if (typeof options.onResult === 'function') options.onResult(result);
       return result;
     }
+
+    note.addEventListener('click', () => {
+      const value = input.value.trim();
+      if (!value) return;
+      const rows = readNotes();
+      rows.push({ at: new Date().toISOString(), text: value });
+      writeNotes(rows);
+      input.value = '';
+      try { input.dispatchEvent(new Event('input', { bubbles:true })); } catch {}
+      setStatus(status, 'NOTA LOCAL · guardada · no creó trabajo');
+      if (typeof options.onNote === 'function') options.onNote(Object.freeze({ at:new Date().toISOString(), text:value, count:rows.length }));
+    });
+
+    recheck.addEventListener('click', async () => {
+      const ingressApi = options.ingress || global.PROMETEO_INGRESS_V1;
+      if (!pendingRequestId || !ingressApi || typeof ingressApi.requestStatus !== 'function') return;
+      recheck.disabled = true;
+      setStatus(status, 'COMPROBANDO · ' + pendingRequestId);
+      const out = await ingressApi.requestStatus({ request_id:pendingRequestId, page:options.page || DEFAULT_PAGE });
+      recheck.disabled = false;
+      if (out && out.queued === true && out.ref) {
+        const correlationApi = await ensurePrivateCorrelationApi();
+        const corr = correlationApi ? correlationApi.fromIngressResult(out) : null;
+        if (corr) try { correlationApi.save(corr); } catch {}
+        input.value = '';
+        pendingRequestId = null;
+        recheck.hidden = true;
+        if (options.includeNotesInSubmit !== false) writeNotes([]);
+        setStatus(status, 'QUEUED · confirmado después del timeout');
+        if (typeof options.onResult === 'function') options.onResult(out);
+        return;
+      }
+      recheck.hidden = false;
+      setStatus(status, (out?.status || 'UNKNOWN') + ' · ' + (out?.request_state || 'sin confirmación') + ' · ' + pendingRequestId);
+      if (typeof options.onResult === 'function') options.onResult(out);
+    });
 
     const onSubmit = event => {
       if (event && typeof event.preventDefault === 'function') event.preventDefault();
@@ -351,7 +429,7 @@
 
     return Object.freeze({
       schema: SCHEMA,
-      elements: Object.freeze({ root, form, input, submit, status }),
+      elements: Object.freeze({ root, form, input, note, submit, recheck, status }),
       submit: send,
       destroy() {
         destroyed = true;
