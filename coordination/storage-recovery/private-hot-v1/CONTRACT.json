@@ -1,0 +1,62 @@
+{
+  "schema": "prometeo.primary-hot-contract/v1",
+  "status": "PREPARED_NOT_DEPLOYED",
+  "purpose": "Minimal replaceable private HOT substrate for Primary Chat. Durable coordination authority remains GitHub/CURRENT; browser local outbox is the first durable acknowledgement.",
+  "authority": "TRANSPORT_ONLY_NO_SCHEDULER_NO_QUEUE_NO_CURRENT_NO_WORK_GRAPH_NO_MEMORY_AUTHORITY",
+  "storage_budget": {
+    "tables": 2,
+    "normal_writes_per_new_request": 2,
+    "write_sequence": [
+      "request INSERT/UPSERT once",
+      "state UPDATE to QUEUED once"
+    ],
+    "read_side_effects": "FORBIDDEN",
+    "heartbeat_writes": "FORBIDDEN",
+    "polling_writes": "FORBIDDEN",
+    "telemetry_writes": "FORBIDDEN",
+    "raw_worker_history": "FORBIDDEN",
+    "target_raw_retention_hours": 72
+  },
+  "tables": [
+    {
+      "name": "prometeo_primary_hot_workspaces_v1",
+      "purpose": "custom workspace-secret hash only"
+    },
+    {
+      "name": "prometeo_primary_hot_requests_v1",
+      "purpose": "short-lived private request/outbox server copy and delivery correlation"
+    }
+  ],
+  "browser_flow": [
+    "save exact message + stable request_id locally before any network dependency",
+    "POST action=submit to HOT edge with workspace bearer secret",
+    "receive deterministic work_item_id + return_path + wake_token",
+    "POST sanitized wake envelope + wake_token to Vercel bridge",
+    "Vercel verifies wake_token with HOT edge and writes one sanitized derived job into existing GitHub portfolio",
+    "existing allocator/PIN/claim authority claims the job",
+    "claimed worker reads the private request from the connected Supabase project using private_packet_lookup",
+    "worker writes durable RETURN + sanitized Primary Chat response to GitHub",
+    "browser/thread projection shows result"
+  ],
+  "failure_mode": {
+    "hot_backend_down": "browser remains LOCAL_DURABLE; circuit breaker suspends retry storm; GitHub-native work continues",
+    "vercel_down": "request remains LOCAL_DURABLE/HOT_STORED and retries same request_id",
+    "github_write_down": "HOT row remains STORED; no queued claim is fabricated",
+    "worker_capacity_zero": "GitHub job remains READY; human action is only generic WC capacity refill"
+  },
+  "privacy": {
+    "raw_text_public": false,
+    "raw_text_in_github": false,
+    "wake_token_public": false,
+    "credentials_public": false,
+    "worker_public_job_contains_only_sanitized_locator": true
+  },
+  "deployment_gate": [
+    "create a fresh Supabase project after explicit org/cost confirmation",
+    "apply only private-hot schema, not historical Prometeo migrations",
+    "deploy only prometeo-primary-hot-v1 edge function",
+    "set Vercel PROMETEO_PRIMARY_HOT_ENDPOINT to the fresh function URL",
+    "switch browser ingress endpoint via one public config constant",
+    "run one real E2E before considering old Supabase non-critical"
+  ]
+}
