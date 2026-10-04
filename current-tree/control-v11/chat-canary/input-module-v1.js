@@ -13,6 +13,10 @@
   const BREAKER_KEY = 'prometeo.primary-chat.storage-breaker.v1';
   const BREAKER_COOLDOWN_MS = 5 * 60 * 1000;
   const OUTBOX_RETRY_INTERVAL_MS = 60 * 1000;
+  const DRAFT_KEY = 'prometeo.primary-chat.draft.v1';
+  const PRIVATE_CONTEXT_KEY = 'prometeo.primary-chat.private-context.v1';
+  const PRIVATE_CONTEXT_MAX = 8;
+  const PRIVATE_CONTEXT_MAX_CHARS = 12000;
   const PRIVATE_CORRELATION_SCHEMA = 'prometeo.primary-chat-private-correlation/v1';
   const WORKSPACE_SECRET_KEYS = Object.freeze([
     'prometeo.capture.workspace.secret.v2',
@@ -448,13 +452,77 @@
     let flushingOutbox = false;
     let pendingRequestId = recoverPendingRequestId();
     const notesKey = options.notesKey || 'prometeo.primary-chat.notes.v1';
+    const draftKey = options.draftKey || DRAFT_KEY;
+    const privateContextKey = options.privateContextKey || PRIVATE_CONTEXT_KEY;
 
     function readNotes() {
       try { const v = JSON.parse(global.localStorage?.getItem(notesKey) || '[]'); return Array.isArray(v) ? v.filter(x=>x&&typeof x.text==='string').slice(-50) : []; } catch { return []; }
     }
     function writeNotes(rows) { try { global.localStorage?.setItem(notesKey, JSON.stringify(rows.slice(-50))); } catch {} }
-    function noteContext() { const rows=readNotes(); return rows.length ? 'NOTAS PRIVADAS:\n' + rows.map(x=>'• '+x.text).join('\n') + '\n\nMENSAJE:\n' : ''; }
+    function readDraft() {
+      try { return String(global.localStorage?.getItem(draftKey) || '').slice(0, MAX_TEXT); } catch { return ''; }
+    }
+    function writeDraft(value) {
+      try {
+        const text = String(value || '').slice(0, MAX_TEXT);
+        if (text) global.localStorage?.setItem(draftKey, text);
+        else global.localStorage?.removeItem(draftKey);
+        return true;
+      } catch { return false; }
+    }
+    function boundPrivateContext(rows) {
+      const normalized = (Array.isArray(rows) ? rows : [])
+        .filter(row => row && typeof row.text === 'string' && row.text.trim())
+        .map(row => ({ at: clean(row.at, 64) || new Date().toISOString(), text: String(row.text).slice(0, PRIVATE_CONTEXT_MAX_CHARS) }))
+        .slice(-PRIVATE_CONTEXT_MAX);
+      const kept = [];
+      let used = 0;
+      for (let i = normalized.length - 1; i >= 0; i -= 1) {
+        const row = normalized[i];
+        if (used + row.text.length > PRIVATE_CONTEXT_MAX_CHARS) break;
+        kept.unshift(row);
+        used += row.text.length;
+      }
+      return kept;
+    }
+    function readPrivateContext() {
+      try { return boundPrivateContext(JSON.parse(global.localStorage?.getItem(privateContextKey) || '[]')); } catch { return []; }
+    }
+    function writePrivateContext(rows) {
+      try {
+        global.localStorage?.setItem(privateContextKey, JSON.stringify(boundPrivateContext(rows)));
+        return true;
+      } catch { return false; }
+    }
+    function appendPrivateContext(text, at) {
+      const rows = readPrivateContext();
+      rows.push({ at, text:String(text || '') });
+      return writePrivateContext(rows);
+    }
+    function composePrivateSubmit(currentText) {
+      const current = String(currentText || '');
+      const notes = readNotes();
+      const noteSection = notes.length ? 'NOTAS PRIVADAS:\n' + notes.map(x=>'• '+x.text).join('\n') : '';
+      const fixedLength = current.length + (noteSection ? noteSection.length + 11 : 0);
+      let room = Math.max(0, Math.min(PRIVATE_CONTEXT_MAX_CHARS, MAX_TEXT - fixedLength));
+      const selected = [];
+      const rows = readPrivateContext();
+      for (let i = rows.length - 1; i >= 0; i -= 1) {
+        const line = '• ' + rows[i].text;
+        if (line.length + 1 > room) break;
+        selected.unshift(line);
+        room -= line.length + 1;
+      }
+      const sections = [];
+      if (selected.length) sections.push('CONTEXTO PRIVADO RECIENTE:\n' + selected.join('\n'));
+      if (noteSection) sections.push(noteSection);
+      return (sections.length ? sections.join('\n\n') + '\n\nMENSAJE:\n' : '') + current;
+    }
 
+    const restoredDraft = readDraft();
+    if (restoredDraft) input.value = restoredDraft;
+    const onDraftInput = () => { writeDraft(input.value); };
+    input.addEventListener('input', onDraftInput);
 
     function syncAvailability() {
       if (destroyed) return false;
@@ -602,7 +670,7 @@
       const requestId = newRequestId();
       pendingRequestId = requestId;
       const createdAt = new Date().toISOString();
-      const textForSubmit = (options.includeNotesInSubmit === false ? '' : noteContext()) + preserved;
+      const textForSubmit = options.includeNotesInSubmit === false ? preserved : composePrivateSubmit(preserved);
       const localEntry = Object.freeze({
         schema: 'prometeo.primary-chat-local-outbox/v1',
         request_id: requestId,
@@ -628,10 +696,12 @@
         return blocked;
       }
 
+      appendPrivateContext(preserved, createdAt);
       recordFlight('RESPONDER_CLICK', { request_id: requestId, text_length: preserved.length });
       recordFlight('LOCAL_OUTBOX_SAVED', { request_id: requestId, stage: 'LOCAL', status: 'LOCAL_DURABLE' });
 
       input.value = '';
+      writeDraft('');
       if (options.includeNotesInSubmit !== false) writeNotes([]);
       try { input.dispatchEvent(new Event('input', { bubbles:true })); } catch {}
       setStatus(status, 'LOCAL_DURABLE · ' + requestId + ' · intentando entrega remota…');
@@ -719,6 +789,7 @@
         destroyed = true;
         form.removeEventListener('submit', onSubmit);
         input.removeEventListener('focus', syncAvailability);
+        input.removeEventListener('input', onDraftInput);
         if (availabilityTimer && global.clearInterval) global.clearInterval(availabilityTimer);
         if (outboxRetryTimer && global.clearInterval) global.clearInterval(outboxRetryTimer);
       }
@@ -751,10 +822,18 @@
       breaker: readBreaker
     }),
     mount,
+    local_state: Object.freeze({
+      draft_key: DRAFT_KEY,
+      private_context_key: PRIVATE_CONTEXT_KEY,
+      private_context_max_entries: PRIVATE_CONTEXT_MAX,
+      private_context_max_chars: PRIVATE_CONTEXT_MAX_CHARS
+    }),
     privacy: Object.freeze({
       raw_text_public: false,
       credentials_public: false,
-      embedded_repository_token: false
+      embedded_repository_token: false,
+      draft_local_only: true,
+      private_context_local_only: true
     })
   });
 
