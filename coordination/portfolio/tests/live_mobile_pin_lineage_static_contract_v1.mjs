@@ -26,6 +26,15 @@ if(present.length===0){
   console.log('LIVE_MOBILE_PIN_LINEAGE_STATIC_CONTRACT_NOT_APPLICABLE surface_absent');
   process.exit(0);
 }
+if(!fs.existsSync(mobilePath)&&!fs.existsSync(cssPath)&&fs.existsSync(indexPath)){
+  const redirectIndex=read(indexPath);
+  if(redirectIndex.includes('../current-tree/live-v6/')){
+    // /live/ is intentionally retained only as a compatibility redirect.
+    // A redirect stub is not a partial resurrection of the historical mobile renderer.
+    console.log('LIVE_MOBILE_PIN_LINEAGE_STATIC_CONTRACT_NOT_APPLICABLE redirect_only');
+    process.exit(0);
+  }
+}
 if(present.length!==surfacePaths.length){
   const missing=surfacePaths.filter(p=>!fs.existsSync(p));
   throw new Error(`LIVE_MOBILE_PIN_LINEAGE_STATIC_CONTRACT_FAIL partial_surface missing:${missing.join(',')}`);
