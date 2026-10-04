@@ -1,6 +1,6 @@
 {
   "schema": "prometeo.primary-hot-contract/v1",
-  "status": "PREPARED_NOT_DEPLOYED",
+  "status": "PREPARED_NOT_DEPLOYED_SECURITY_RATCHETED",
   "purpose": "Minimal replaceable private HOT substrate for Primary Chat. Durable coordination authority remains GitHub/CURRENT; browser local outbox is the first durable acknowledgement.",
   "authority": "TRANSPORT_ONLY_NO_SCHEDULER_NO_QUEUE_NO_CURRENT_NO_WORK_GRAPH_NO_MEMORY_AUTHORITY",
   "storage_budget": {
@@ -51,12 +51,17 @@
     "raw_text_in_github": false,
     "wake_token_public": false,
     "credentials_public": false,
-    "worker_public_job_contains_only_sanitized_locator": true
+    "worker_public_job_contains_only_sanitized_locator": true,
+    "workspace_auth": "Only a browser secret whose SHA-256 equals PROMETEO_PRIMARY_HOT_WORKSPACE_SECRET_SHA256 may resolve or bootstrap the single allowed workspace. Random bearer secrets cannot self-provision.",
+    "raw_workspace_secret_server_side": false,
+    "cors_is_not_authentication": true
   },
   "deployment_gate": [
     "create a fresh Supabase project after explicit org/cost confirmation",
     "apply only private-hot schema, not historical Prometeo migrations",
-    "deploy only prometeo-primary-hot-v1 edge function",
+    "set PROMETEO_PRIMARY_HOT_WORKSPACE_SECRET_SHA256 to the SHA-256 of the existing browser-private workspace secret; never store the raw secret server-side",
+    "deploy only prometeo-primary-hot-v1 edge function with verify_jwt=false because the function uses its own workspace-bearer and wake-token authentication",
+    "verify random bearer cannot create a workspace and configured browser secret can",
     "set Vercel PROMETEO_PRIMARY_HOT_ENDPOINT to the fresh function URL",
     "switch browser ingress endpoint via one public config constant",
     "run one real E2E before considering old Supabase non-critical"
@@ -66,5 +71,12 @@
     "coordination/storage-recovery/private-hot-v1/edge-function/index.ts",
     "Experimentos:worker-lab/api/prometeo-ingress.js supports prometeo.primary-chat-hot-wake/v1 when PROMETEO_PRIMARY_HOT_ENDPOINT is configured",
     "Prometeo browser ingress supports PROMETEO_PRIMARY_HOT_CONFIG_V1 while disabled config preserves the current transport"
-  ]
+  ],
+  "security": {
+    "threat_model_ref": "coordination/storage-recovery/private-hot-v1/THREAT_MODEL.md",
+    "public_invocation_rule": "CORS is browser policy only. Authorization is enforced by the configured SHA-256 workspace-secret allowlist or an unforgeable wake token.",
+    "dependency_pin": "npm:@supabase/supabase-js@2.117.2",
+    "deployment_auth_mode": "CUSTOM_AUTH_VERIFY_JWT_FALSE",
+    "fail_closed_if_workspace_guard_missing": true
+  }
 }

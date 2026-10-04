@@ -1,8 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const WORKSPACE_SECRET_SHA256 = String(Deno.env.get("PROMETEO_PRIMARY_HOT_WORKSPACE_SECRET_SHA256") || "").trim().toLowerCase();
 const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
 const REQUESTS = "prometeo_primary_hot_requests_v1";
@@ -93,11 +94,30 @@ function projectRef() {
   catch { return ""; }
 }
 
+function workspaceGuardConfigured() {
+  return /^[a-f0-9]{64}$/.test(WORKSPACE_SECRET_SHA256);
+}
+
+function timingSafeEqual(a: string, b: string) {
+  const aa = new TextEncoder().encode(a);
+  const bb = new TextEncoder().encode(b);
+  if (aa.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < aa.length; i += 1) diff |= aa[i] ^ bb[i];
+  return diff === 0;
+}
+
 async function workspace(secret: string, createIfMissing = false) {
+  if (!workspaceGuardConfigured()) {
+    throw Object.assign(new Error("WORKSPACE_GUARD_NOT_CONFIGURED"), { status: 503, code: "WORKSPACE_GUARD_NOT_CONFIGURED" });
+  }
   if (secret.length < 32) {
     throw Object.assign(new Error("WORKSPACE_AUTH_FAILED"), { status: 401, code: "WORKSPACE_AUTH_FAILED" });
   }
   const secretHash = await sha256(secret);
+  if (!timingSafeEqual(secretHash, WORKSPACE_SECRET_SHA256)) {
+    throw Object.assign(new Error("WORKSPACE_AUTH_FAILED"), { status: 401, code: "WORKSPACE_AUTH_FAILED" });
+  }
   const q = await db.from(WORKSPACES).select("id,secret_hash").eq("secret_hash", secretHash).maybeSingle();
   if (q.error) throw q.error;
   if (q.data) return q.data;
@@ -269,12 +289,16 @@ async function markQueued(req: Request, body: any) {
 }
 
 async function health(req: Request) {
+  if (!workspaceGuardConfigured()) {
+    throw Object.assign(new Error("WORKSPACE_GUARD_NOT_CONFIGURED"), { status: 503, code: "WORKSPACE_GUARD_NOT_CONFIGURED" });
+  }
   const q = await db.from(WORKSPACES).select("id", { head: true, count: "exact" }).limit(1);
   if (q.error) throw q.error;
   return json(req, {
     schema: "prometeo.primary-hot-health/v1",
     status: "READY",
     project_ref: projectRef(),
+    workspace_guard: "SHA256_ALLOWLIST",
     read_side_effects: false
   });
 }
