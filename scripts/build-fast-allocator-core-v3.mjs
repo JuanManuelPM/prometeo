@@ -238,8 +238,16 @@ export function hasDurableTerminalReturn(job = {}) {
 
 export function durableTerminalBlocksRecovery(job = {}) {
   if (!hasDurableTerminalReturn(job)) return false;
-  const gate = recoveryBasisGate(job);
-  return !(gate.evidence_bound === true && gate.eligible === true);
+  const latest = job?.latest_return && typeof job.latest_return === 'object' ? [job.latest_return] : [];
+  const hasRouteAbortedBoundary = [...returnEvidenceRows(job), ...latest].some(row =>
+    lower(row?.outcome || row?.status || row?.result || row?.terminal_reason) === 'route_aborted'
+  );
+  if (!hasRouteAbortedBoundary) return true;
+  const sourceDebt = recoveryBasisGate(job);
+  if (sourceDebt.evidence_bound === true && sourceDebt.eligible === true) return false;
+  const authority = authorityBoundaryGate(job);
+  if (authority.present === true && authority.eligible === true) return false;
+  return true;
 }
 const collisionEvidenceRows = job => {
   const compact = arr(job?.recent_collision_evidence);
