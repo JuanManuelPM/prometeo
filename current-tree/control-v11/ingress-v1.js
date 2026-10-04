@@ -88,6 +88,14 @@
     return '';
   }
 
+  function primaryHotConfig() {
+    const cfg = global.PROMETEO_PRIMARY_HOT_CONFIG_V1;
+    if (!cfg || cfg.enabled !== true) return null;
+    const endpoint = cleanString(cfg.endpoint, 2048);
+    if (!endpoint || !/^https:\/\/[A-Za-z0-9.-]+\/functions\/v1\/prometeo-primary-hot-v1$/.test(endpoint)) return null;
+    return Object.freeze({ endpoint });
+  }
+
   function isExplicitCanary(text) {
     return /^CANARY:\s*/i.test(String(text || '').trim());
   }
@@ -282,6 +290,72 @@
         const secret = workspaceSecret();
         if (!secret) {
           return Object.freeze({ schema: RESULT_SCHEMA, status: 'BOUNDARY_AUTH_REQUIRED', ref: null, queued: false, error: 'WORKSPACE_NOT_LINKED' });
+        }
+
+        const hot = primaryHotConfig();
+        if (hot && !approval) {
+          let hotStage = 'HOT_SUBMIT';
+          try {
+            const stored = await postJson(hot.endpoint, {
+              action: 'submit',
+              request_id: cleanString(envelope.request_id, 160),
+              page_id: pageId,
+              text
+            }, secret, 15000);
+
+            const hotRequestId = cleanString(stored && stored.request_id, 160);
+            const hotWorkItemId = cleanString(stored && stored.work_item_id, 160);
+            const hotReturnPath = cleanString(stored && stored.return_path, 360);
+            const hotWakeToken = cleanString(stored && stored.wake_token, 256);
+            const hotCorrelation = normalizePrivateCorrelation({
+              work_item_id: hotWorkItemId,
+              return_path: hotReturnPath
+            });
+            if (!stored || stored.schema !== 'prometeo.primary-hot-submit/v1' ||
+                hotRequestId !== cleanString(envelope.request_id, 160) ||
+                !hotCorrelation || !hotWakeToken) {
+              throw Object.assign(new Error('PRIMARY_HOT_SUBMIT_INVALID'), { code: 'PRIMARY_HOT_SUBMIT_INVALID' });
+            }
+
+            hotStage = 'HOT_WAKE';
+            const wake = await postJson(WAKE_ENDPOINT, {
+              schema: 'prometeo.primary-chat-hot-wake/v1',
+              wake_token: hotWakeToken
+            }, '', WAKE_TIMEOUT_MS);
+            const wakeWorkItemId = cleanString(wake && wake.work_item_id, 160);
+            const wakeReturnPath = cleanString(wake && (wake.return_path || wake.ref), 360);
+            if (!wake || wake.schema !== RESULT_SCHEMA || wake.queued !== true ||
+                wakeWorkItemId !== hotCorrelation.work_item_id ||
+                wakeReturnPath !== hotCorrelation.return_path) {
+              throw Object.assign(new Error('PRIMARY_HOT_WAKE_INVALID'), { code: 'PRIMARY_HOT_WAKE_INVALID' });
+            }
+
+            return Object.freeze({
+              schema: RESULT_SCHEMA,
+              status: cleanString(wake.status, 120) || 'QUEUED',
+              ref: hotCorrelation.return_path,
+              queued: true,
+              error: cleanString(wake.error, 240),
+              request_id: hotRequestId,
+              work_item_id: hotCorrelation.work_item_id,
+              return_path: hotCorrelation.return_path,
+              transport_mode: 'PRIMARY_HOT_V1'
+            });
+          } catch (error) {
+            const code = cleanString(error && (error.code || error.message || error.name), 180) || 'PRIMARY_HOT_FAILED';
+            const timeout = code === 'REQUEST_TIMEOUT';
+            return Object.freeze({
+              schema: RESULT_SCHEMA,
+              status: timeout ? ('BOUNDARY_' + hotStage + '_TIMEOUT') : 'BOUNDARY_PRIVATE_STORAGE_UNAVAILABLE',
+              ref: null,
+              queued: false,
+              error: code,
+              request_id: cleanString(envelope && envelope.request_id, 160),
+              stage: hotStage,
+              ambiguous: timeout === true,
+              transport_mode: 'PRIMARY_HOT_V1'
+            });
+          }
         }
 
         let privateStage = 'CAPTURE';
@@ -591,6 +665,39 @@
     const secret = workspaceSecret();
     if (!requestIdValue || !pageId) return Object.freeze({ status:'BOUNDARY_INVALID_INPUT', request_id:requestIdValue, queued:false, error:'REQUEST_ID_AND_PAGE_REQUIRED' });
     if (!secret) return Object.freeze({ status:'BOUNDARY_AUTH_REQUIRED', request_id:requestIdValue, queued:false, error:'WORKSPACE_NOT_LINKED' });
+
+    const hot = primaryHotConfig();
+    if (hot) {
+      try {
+        const data = await postJson(hot.endpoint, { action:'request_status', request_id:requestIdValue }, secret, STATUS_TIMEOUT_MS);
+        const state = cleanString(data && data.status, 120) || 'UNKNOWN';
+        const correlation = state === 'QUEUED'
+          ? normalizePrivateCorrelation({ work_item_id:data && data.work_item_id, return_path:data && data.return_path })
+          : null;
+        return Object.freeze({
+          status: state,
+          request_state: state,
+          request_id: requestIdValue,
+          queued: Boolean(correlation),
+          ref: correlation ? correlation.return_path : null,
+          work_item_id: correlation ? correlation.work_item_id : cleanString(data && data.work_item_id,160),
+          return_path: correlation ? correlation.return_path : cleanString(data && data.return_path,360),
+          result: null,
+          error: null,
+          transport_mode: 'PRIMARY_HOT_V1'
+        });
+      } catch (error) {
+        return Object.freeze({
+          status:'BOUNDARY_REQUEST_STATUS_UNAVAILABLE',
+          request_id:requestIdValue,
+          queued:false,
+          ref:null,
+          error:cleanString(error && (error.code || error.message),180) || 'REQUEST_STATUS_FAILED',
+          transport_mode:'PRIMARY_HOT_V1'
+        });
+      }
+    }
+
     try {
       const data = await postJson(CHANGE_LOOP_ENDPOINT, { action:'request_status', page_id:pageId, request_id:requestIdValue }, secret, STATUS_TIMEOUT_MS);
       const correlation = data && data.work_item_id && data.return_path ? normalizePrivateCorrelation(data) : null;
@@ -631,6 +738,7 @@
     approved_plan_kind: APPROVED_PLAN_KIND,
     transport_schema: RESULT_SCHEMA,
     default_transport_mode: 'PRIVATE_BY_DEFAULT_EXPLICIT_CANARY_PUBLIC_FALLBACK',
+    primary_hot_config: primaryHotConfig,
     private_correlation_schema: 'prometeo.primary-chat-private-correlation/v1',
     privacy: Object.freeze({
       raw_text_public: false,
