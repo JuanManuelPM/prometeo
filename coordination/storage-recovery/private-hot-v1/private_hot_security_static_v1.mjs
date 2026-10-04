@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const edgePath='coordination/storage-recovery/private-hot-v1/edge-function/index.ts';
-const contractPath='coordination/storage-recovery/private-hot-v1/CONTRACT.json';
-const schemaPath='coordination/storage-recovery/private-hot-v1/schema.sql';
+const repoRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..');
+const at=rel=>path.join(repoRoot,rel);
+const edgePath=at('coordination/storage-recovery/private-hot-v1/edge-function/index.ts');
+const contractPath=at('coordination/storage-recovery/private-hot-v1/CONTRACT.json');
+const schemaPath=at('coordination/storage-recovery/private-hot-v1/schema.sql');
 
 const edge=fs.readFileSync(edgePath,'utf8');
 const contract=JSON.parse(fs.readFileSync(contractPath,'utf8'));

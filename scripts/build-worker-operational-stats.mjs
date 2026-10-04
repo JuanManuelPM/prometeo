@@ -234,6 +234,7 @@ export function buildOperationalStats(root, nowIso=new Date().toISOString()) {
     return {
       record_id: recordKey(row.worker_id,beacon,row.job_id),
       worker_id: row.worker_id,
+      job_id: row.job_id,
       launch_nonce: launchNonce,
       campaign_id: campaign,
       root_objective: fact(text(returns[0]?.doc?.root_objective || starts[0]?.doc?.root_objective) || null, allRefs),
