@@ -227,6 +227,14 @@ const returnEvidenceRows = job => {
   const compact = arr(job?.recent_return_evidence);
   return compact.length ? compact : arr(job?.returns);
 };
+const TERMINAL_RETURN_OUTCOMES = new Set(['done','verified','no_action_needed','superseded','route_aborted','error']);
+export function hasDurableTerminalReturn(job = {}) {
+  const latest = job?.latest_return && typeof job.latest_return === 'object' ? [job.latest_return] : [];
+  return [...returnEvidenceRows(job), ...latest].some(row => {
+    const outcome = lower(row?.outcome || row?.status || row?.result || row?.terminal_reason);
+    return TERMINAL_RETURN_OUTCOMES.has(outcome);
+  });
+}
 const collisionEvidenceRows = job => {
   const compact = arr(job?.recent_collision_evidence);
   return compact.length ? compact : arr(job?.collisions);
@@ -1291,6 +1299,7 @@ export function buildFastAllocator(feed = {}, efficiency = {}, { recoveryPolicie
 
   const recovery = jobs
     .filter(job => job.state === 'replaceable')
+    .filter(job => !hasDurableTerminalReturn(job))
     .filter(jobCapabilityRouteable)
     .filter(job => semantic(job).valid && semantic(job).ordinary_next_generation_eligible)
     .filter(job => authorityBoundaryGate(job).eligible)
