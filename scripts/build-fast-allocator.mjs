@@ -205,6 +205,25 @@ const dependencyMaterialSignal = dependency => {
   return successRows[0] || null;
 };
 
+export function readyDependencyGate(job = {}, allJobs = []) {
+  const dependencyIds = uniq(job?.dependency_ids);
+  if (!dependencyIds.length) return { required: false, eligible: true, reason: 'NO_DEPENDENCIES', dependency_ids: [], blockers: [] };
+  const byId = new Map(arr(allJobs).filter(row => row?.job_id).map(row => [String(row.job_id), row]));
+  const blockers = dependencyIds.map(jobId => {
+    const dependency = byId.get(jobId) || null;
+    const signal = dependencyMaterialSignal(dependency);
+    if (dependency && signal) return null;
+    return { job_id: jobId, present: Boolean(dependency), state: dependency?.state || 'missing', reason: dependency ? 'DEPENDENCY_NOT_MATERIAL_SUCCESS' : 'DEPENDENCY_MISSING' };
+  }).filter(Boolean);
+  return {
+    required: true,
+    eligible: blockers.length === 0,
+    reason: blockers.length ? 'WAIT_FOR_DEPENDENCIES' : 'DEPENDENCIES_MATERIALIZED',
+    dependency_ids: dependencyIds,
+    blockers
+  };
+}
+
 export function dependencyRecoveryGate(job = {}, allJobs = []) {
   const dependencyIds = uniq(job?.dependency_ids);
   if (!dependencyIds.length) return { required: false, eligible: true, reason: 'NO_DEPENDENCIES', dependency_ids: [] };
@@ -237,9 +256,24 @@ export function applyDependencyRecoveryGate(feed = {}) {
   const nextProjects = projects.map(project => ({
     ...project,
     jobs: arr(project?.jobs).map(job => {
-      if (String(job?.state || '').toLowerCase() !== 'replaceable' || !arr(job?.dependency_ids).length) return job;
+      const state = String(job?.state || '').toLowerCase();
+      if (state === 'ready' && arr(job?.dependency_ids).length) {
+        const decision = readyDependencyGate(job, allJobs);
+        decisions.push({ job_id: job?.job_id || null, gate: 'READY_DEPENDENCY_GATE', ...decision });
+        if (decision.eligible) return job;
+        return {
+          ...job,
+          state: 'dependency_blocked',
+          dependency_recovery_gate: {
+            reason: decision.reason,
+            dependency_ids: decision.dependency_ids,
+            blockers: decision.blockers
+          }
+        };
+      }
+      if (state !== 'replaceable' || !arr(job?.dependency_ids).length) return job;
       const decision = dependencyRecoveryGate(job, allJobs);
-      decisions.push({ job_id: job?.job_id || null, ...decision });
+      decisions.push({ job_id: job?.job_id || null, gate: 'REPLACEABLE_DEPENDENCY_RECOVERY_GATE', ...decision });
       if (decision.eligible) return job;
       return { ...job, state: 'dependency_blocked', dependency_recovery_gate: { reason: decision.reason, dependency_ids: decision.dependency_ids, boundary_count: decision.boundary_count, latest_boundary_at: decision.latest_boundary_at || 0, unlock_at: decision.unlock_at || 0, unlock_consumed: decision.unlock_consumed === true } };
     })
