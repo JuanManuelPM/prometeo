@@ -40,7 +40,7 @@ const must=(condition,name,evidence,code=name)=>{
 
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8'};
 const server=http.createServer((req,res)=>{
- const u=new URL(req.url,'http://127.0.0.1');
+ const u=new globalThis.URL(req.url,'http://127.0.0.1');
  if(u.pathname!=='/candidate.html'){res.writeHead(404,{'content-type':'text/plain'});res.end('not found');return;}
  res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});
  res.end(candidateBytes);
