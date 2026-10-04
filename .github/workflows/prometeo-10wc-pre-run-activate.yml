@@ -42,16 +42,20 @@ jobs:
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const base='coordination/portfolio/derived/prometeo-autonomous-growth';
+          const graph=JSON.parse(fs.readFileSync('coordination/experiments/PROMETEO-10WC-PRE-RUN-V1/WORK_GRAPH.json','utf8'));
+          const byId=new Map(graph.blocks.map(b=>[b.block_id,b]));
           const read=id=>JSON.parse(fs.readFileSync(`${base}/portfolio-10wc-pre-run-${id.toLowerCase()}.json`,'utf8'));
-          const b1=read('B001'), b25=read('B025'), b64=read('B064');
-          if ((b1.dependency_ids||[]).length!==0) throw new Error('B001 must be initially READY-compatible');
-          if (!(b25.dependency_ids||[]).length) throw new Error('B025 dependencies missing');
-          if (JSON.stringify(b64.dependency_ids||[])!==JSON.stringify(['B060','B061','B062','B063'])) throw new Error('B064 final serial dependency set changed');
           for(let i=1;i<=64;i++){
             const id=`B${String(i).padStart(3,'0')}`;
-            const j=read(id);
+            const b=byId.get(id), j=read(id);
+            if(!b) throw new Error(`${id}: missing graph block`);
+            if(JSON.stringify(j.dependency_ids||[])!==JSON.stringify(b.dependencies||[])) throw new Error(`${id}: dependency_ids diverge from WORK_GRAPH`);
             if(j.worker_id||j.assigned_worker_id||j.reserve_worker) throw new Error(`${id}: worker role/binding leaked into portable block`);
           }
+          const initial=graph.blocks.filter(b=>(b.dependencies||[]).length===0).length;
+          if(initial!==24) throw new Error(`initial dependency-free blocks changed: ${initial}`);
+          const finals=graph.blocks.filter(b=>b.kind==='FINAL_SERIAL');
+          if(finals.length!==1||finals[0].block_id!=='B064') throw new Error('exactly B064 must be the single final serial block');
           NODE
 
       - name: Persist seeded activation state
@@ -64,12 +68,7 @@ jobs:
           const x=JSON.parse(fs.readFileSync(p,'utf8'));
           x.status='ACTIVATED_SEEDED';
           x.activated_at=new Date().toISOString();
-          x.activation_evidence={
-            jobs_seeded:64,
-            initial_dependency_free_blocks:24,
-            worker_model:'10 fungible WC; blocks portable; SUBMIT_NEXT',
-            next_gate:'LIVE_CLAIM_FRONTIER_PUBLICATION'
-          };
+          x.activation_evidence={jobs_seeded:64,initial_dependency_free_blocks:24,worker_model:'10 fungible WC; blocks portable; SUBMIT_NEXT',next_gate:'LIVE_CLAIM_FRONTIER_PUBLICATION'};
           fs.writeFileSync(p,JSON.stringify(x,null,2)+'\n');
           NODE
 
