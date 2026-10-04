@@ -83,6 +83,22 @@
     }
   }
 
+  function recoverPendingRequestId() {
+    const rows = readFlight();
+    const now = Date.now();
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      const row = rows[i];
+      if (!row || row.event !== 'RESPONDER_CLICK' || !row.request_id) continue;
+      const at = Date.parse(String(row.at || ''));
+      if (!Number.isFinite(at) || now - at > 2 * 60 * 60 * 1000) return null;
+      const resolved = rows.slice(i + 1).some(next =>
+        next && next.request_id === row.request_id && next.event === 'QUEUED_CONFIRMED'
+      );
+      return resolved ? null : row.request_id;
+    }
+    return null;
+  }
+
   function validDurableRef(ref) {
     const value = clean(ref, 4096);
     if (!value) return false;
@@ -346,7 +362,7 @@
 
     let destroyed = false;
     let availabilityTimer = null;
-    let pendingRequestId = null;
+    let pendingRequestId = recoverPendingRequestId();
     const notesKey = options.notesKey || 'prometeo.primary-chat.notes.v1';
 
     function readNotes() {
@@ -371,8 +387,11 @@
       return ready;
     }
 
-    recordFlight('COMPOSER_MOUNT', {});
+    recordFlight('COMPOSER_MOUNT', { request_id: pendingRequestId });
     syncAvailability();
+    if (pendingRequestId && transportReady(options.ingress || null)) {
+      setStatus(status, 'RECOVERY READY · ' + pendingRequestId + ' · el próximo RESPONDER reutiliza este request');
+    }
     availabilityTimer = global.setInterval ? global.setInterval(syncAvailability, 5000) : null;
     input.addEventListener('focus', syncAvailability);
 
