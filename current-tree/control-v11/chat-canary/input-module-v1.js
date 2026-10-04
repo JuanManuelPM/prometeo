@@ -4,6 +4,9 @@
   const SCHEMA = 'prometeo.chat-canary-input/v1';
   const KIND = 'CHAT_CANARY_HUMAN_MESSAGE_V1';
   const MAX_TEXT = 65536;
+  const CLIENT_SUBMIT_TIMEOUT_MS = 32000;
+  const FLIGHT_KEY = 'prometeo.control.flight.v1';
+  const FLIGHT_MAX = 1000;
   const PRIVATE_CORRELATION_SCHEMA = 'prometeo.primary-chat-private-correlation/v1';
   const WORKSPACE_SECRET_KEYS = Object.freeze([
     'prometeo.capture.workspace.secret.v2',
@@ -39,6 +42,45 @@
     if (value === undefined || value === null) return null;
     const out = String(value).trim();
     return out ? out.slice(0, max) : null;
+  }
+
+  function newRequestId() {
+    try {
+      if (global.crypto && typeof global.crypto.randomUUID === 'function') {
+        return 'primary-chat-' + global.crypto.randomUUID();
+      }
+    } catch {}
+    return 'primary-chat-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+  }
+
+  function recordFlight(event, detail = {}) {
+    const row = Object.freeze({
+      at: new Date().toISOString(),
+      surface: 'primary-chat',
+      widget: 'chat',
+      event: clean(event, 80) || 'UNKNOWN',
+      request_id: clean(detail.request_id, 160),
+      stage: clean(detail.stage, 40),
+      status: clean(detail.status, 120),
+      text_length: Number.isFinite(detail.text_length) ? detail.text_length : null,
+      elapsed_ms: Number.isFinite(detail.elapsed_ms) ? detail.elapsed_ms : null
+    });
+    try {
+      const parsed = JSON.parse(global.localStorage?.getItem(FLIGHT_KEY) || '[]');
+      const rows = Array.isArray(parsed) ? parsed.slice(-(FLIGHT_MAX - 1)) : [];
+      rows.push(row);
+      global.localStorage?.setItem(FLIGHT_KEY, JSON.stringify(rows));
+    } catch {}
+    return row;
+  }
+
+  function readFlight() {
+    try {
+      const parsed = JSON.parse(global.localStorage?.getItem(FLIGHT_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed.slice(-FLIGHT_MAX) : [];
+    } catch {
+      return [];
+    }
   }
 
   function validDurableRef(ref) {
@@ -329,6 +371,7 @@
       return ready;
     }
 
+    recordFlight('COMPOSER_MOUNT', {});
     syncAvailability();
     availabilityTimer = global.setInterval ? global.setInterval(syncAvailability, 5000) : null;
     input.addEventListener('focus', syncAvailability);
@@ -346,34 +389,101 @@
         if (typeof options.onResult === 'function') options.onResult(blocked);
         return blocked;
       }
+
+      if (!pendingRequestId) pendingRequestId = newRequestId();
+      const requestId = pendingRequestId;
+      const startedAt = Date.now();
+      recordFlight('RESPONDER_CLICK', { request_id: requestId, text_length: preserved.length });
+      recordFlight('SUBMIT_STARTED', { request_id: requestId, stage: 'CLIENT' });
+
       submit.disabled = true;
       recheck.hidden = true;
-      setStatus(status, pendingRequestId ? 'RETRY SAME REQUEST · esperando confirmación durable…' : 'SUBMITTING · esperando confirmación durable…');
+      setStatus(status, 'SUBMITTING · ' + requestId + ' · esperando confirmación durable…');
+
       let result;
+      let timeoutTimer = null;
       const textForSubmit = (options.includeNotesInSubmit === false ? '' : noteContext()) + preserved;
       try {
-        if (typeof options.submitter === 'function') {
-          result = await options.submitter({
-            text: textForSubmit,
-            inputApi: api,
-            page: options.page || DEFAULT_PAGE,
-            request_id: pendingRequestId
-          });
-        } else {
-          result = await submitText({
-            text: textForSubmit,
-            ingress: options.ingress || null,
-            page: options.page || DEFAULT_PAGE,
-            kind: options.kind || KIND,
-            request_id: pendingRequestId
-          });
-        }
+        const submitPromise = typeof options.submitter === 'function'
+          ? options.submitter({
+              text: textForSubmit,
+              inputApi: api,
+              page: options.page || DEFAULT_PAGE,
+              request_id: requestId
+            })
+          : submitText({
+              text: textForSubmit,
+              ingress: options.ingress || null,
+              page: options.page || DEFAULT_PAGE,
+              kind: options.kind || KIND,
+              request_id: requestId
+            });
+
+        const clientTimeout = new Promise(resolve => {
+          timeoutTimer = global.setTimeout ? global.setTimeout(() => resolve(
+            frozenResult(
+              'BOUNDARY_CLIENT_TIMEOUT',
+              false,
+              null,
+              'CLIENT_SUBMIT_TIMEOUT',
+              false,
+              null,
+              { request_id: requestId, stage: 'CLIENT', ambiguous: true }
+            )
+          ), CLIENT_SUBMIT_TIMEOUT_MS) : null;
+        });
+
+        result = await Promise.race([Promise.resolve(submitPromise), clientTimeout]);
+      } catch (error) {
+        result = frozenResult(
+          'BOUNDARY_CLIENT_EXCEPTION',
+          false,
+          null,
+          clean(error && (error.code || error.name || error.message), 240) || 'CLIENT_EXCEPTION',
+          false,
+          null,
+          { request_id: requestId, stage: 'CLIENT', ambiguous: true }
+        );
       } finally {
+        if (timeoutTimer && global.clearTimeout) global.clearTimeout(timeoutTimer);
         syncAvailability();
       }
+
+      recordFlight('SUBMIT_RESULT', {
+        request_id: requestId,
+        stage: result && result.stage,
+        status: result && result.status,
+        elapsed_ms: Date.now() - startedAt
+      });
+
       if (result && result.request_id) pendingRequestId = result.request_id;
+
+      if (result && result.ambiguous === true && pendingRequestId) {
+        const ingressApi = options.ingress || global.PROMETEO_INGRESS_V1;
+        if (ingressApi && typeof ingressApi.requestStatus === 'function') {
+          recordFlight('STATUS_AUTO_CHECK_START', { request_id: pendingRequestId });
+          try {
+            const recovered = await ingressApi.requestStatus({
+              request_id: pendingRequestId,
+              page: options.page || DEFAULT_PAGE
+            });
+            recordFlight('STATUS_AUTO_CHECK_RESULT', {
+              request_id: pendingRequestId,
+              status: recovered && recovered.status
+            });
+            if (recovered && recovered.queued === true && recovered.ref) result = recovered;
+          } catch (error) {
+            recordFlight('STATUS_AUTO_CHECK_ERROR', {
+              request_id: pendingRequestId,
+              status: clean(error && (error.code || error.name || error.message), 120)
+            });
+          }
+        }
+      }
+
       if (result && result.queued === true && validDurableRef(result.ref)) {
         input.value = '';
+        recordFlight('QUEUED_CONFIRMED', { request_id: pendingRequestId || requestId, status: result.status });
         pendingRequestId = null;
         if (options.includeNotesInSubmit !== false) writeNotes([]);
       } else {
@@ -394,6 +504,7 @@
       input.value = '';
       try { input.dispatchEvent(new Event('input', { bubbles:true })); } catch {}
       setStatus(status, 'NOTA LOCAL · guardada · no creó trabajo');
+      recordFlight('NOTE_SAVED', { text_length: value.length });
       if (typeof options.onNote === 'function') options.onNote(Object.freeze({ at:new Date().toISOString(), text:value, count:rows.length }));
     });
 
@@ -402,7 +513,9 @@
       if (!pendingRequestId || !ingressApi || typeof ingressApi.requestStatus !== 'function') return;
       recheck.disabled = true;
       setStatus(status, 'COMPROBANDO · ' + pendingRequestId);
+      recordFlight('STATUS_CHECK_START', { request_id: pendingRequestId });
       const out = await ingressApi.requestStatus({ request_id:pendingRequestId, page:options.page || DEFAULT_PAGE });
+      recordFlight('STATUS_CHECK_RESULT', { request_id: pendingRequestId, status: out && out.status });
       recheck.disabled = false;
       if (out && out.queued === true && out.ref) {
         const correlationApi = await ensurePrivateCorrelationApi();
