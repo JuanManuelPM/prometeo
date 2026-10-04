@@ -16,7 +16,9 @@ assert.match(progress,/function\s+compileContractState\s*\(/,'runtime compiler r
 assert.match(progress,/\['RETURNS_UNCONSUMED',\s*n\(input\.unconsumed_returns_count\)\s*>\s*0\s*&&\s*n\(input\.live_worker_count\)\s*>\s*0\]/,'unconsumed returns require a live consumer');
 assert.match(progress,/\['RECOVERY_PRESSURE',\s*n\(input\.recovery_attention_count\)\s*>\s*0\s*&&\s*n\(input\.live_worker_count\)\s*>\s*0\]/,'recovery pressure requires a live consumer');
 assert.match(progress,/\['REFILL_N',\s*n\(input\.capacity_gap\)\s*>\s*0\s*&&\s*\(n\(input\.claimable_generic_count\)\s*\+\s*n\(input\.claimable_specialized_count\)\)\s*>\s*0\]/,'capacity refill must derive from durable gap + claimable frontier');
-assert.match(progress,/const\s+live\s*=\s*rows\.filter\(row\s*=>\s*!row\.terminal\s*&&\s*row\.age_seconds\s*\*\s*1000\s*<\s*LIVE_MS\)\.length/,'ACTIVE must require a recent durable worker signal');
+assert.match(progress,/const\s+liveFromSignals\s*=\s*rows\.filter\(row\s*=>\s*!row\.terminal\s*&&\s*row\.age_seconds\s*\*\s*1000\s*<\s*LIVE_MS\)\.length/,'signal-derived ACTIVE count must require a recent durable worker signal');
+assert.match(progress,/const\s+explicitLive\s*=\s*Number\(runtime\?\.live_worker_count\)/,'allocator/runtime fallback may provide an explicit projected live count');
+assert.match(progress,/const\s+live\s*=\s*Number\.isFinite\(explicitLive\)\s*\?\s*n\(explicitLive\)\s*:\s*liveFromSignals/,'explicit live count must fall back to recent durable worker signals');
 assert.match(progress,/worker\?\.close\?\.at\s*\|\|\s*worker\?\.last_event_at\s*\|\|\s*worker\?\.claim\?\.at\s*\|\|\s*worker\?\.routed\?\.at\s*\|\|\s*worker\?\.first_event_at/,'worker freshness must derive from durable timestamps');
 assert.match(progress,/runtime\?\.generated_at/,'runtime projection timestamp required');
 assert.match(progress,/frontier\?\.generated_at/,'frontier projection timestamp required');
