@@ -1,0 +1,53 @@
+{
+  "schema": "prometeo.e8-reentry-contradiction-audit/v1",
+  "block_id": "B020",
+  "job_id": "portfolio-10wc-pre-run-b020",
+  "status": "CONFIRMED",
+  "diagnosis": "E8_REQUIRED_WITHOUT_LEGAL_REALLOCATION_SURFACE",
+  "summary": "Finite RUN primary completion is declared nonterminal and E8 is required before close, while PROMETEO-525-20261003-2200-B exposes no reallocation pool or reallocation slots and explicitly forbids POOL. S004 completed and counted its primary unit, proving a worker can reach the mandatory E8 transition with no legal reentry surface.",
+  "source_evidence": [
+    {
+      "path": "coordination/workers/CURRENT_WORKER_REUSE_CONTRACT_V1.json",
+      "blob_sha": "dd61c0379a520136a9357ad30ee34ad634a0b204",
+      "fact": "SUBMIT_NEXT says a counted return normally reallocates in the same chat."
+    },
+    {
+      "path": "coordination/workers/LAUNCH_PACKET_PROTOCOL_V1.json",
+      "blob_sha": "48862af5997c69acff2f8b88b92c653ba94780da",
+      "fact": "RUN primary completion is nonterminal and terminal reply latch requires E8 plus E9 or an explicit durable terminal boundary."
+    },
+    {
+      "path": "coordination/launch-packets/PROMETEO-525-20261003-2200-B/PACKET.json",
+      "blob_sha": "b0e8ede40891054c57c3e5f07dba4458b85c2b34",
+      "fact": "reallocation_pool is null, reallocation_slots is empty, and execution rules forbid POOL."
+    },
+    {
+      "path": "coordination/launch-packets/PROMETEO-525-20261003-2200-B/S004/artifacts/RETURN.json",
+      "blob_sha": "539fad53b764f928633df911adbbce93d841eaa4",
+      "fact": "S004 status DONE, primary_complete=true, productive_unit_counted=true."
+    }
+  ],
+  "derived_facts": {
+    "e8_required_after_counted_primary_return": true,
+    "legal_reentry_surface_present_in_run_b": false,
+    "contradiction_reproduced_by_real_return": true,
+    "primary_work_should_not_be_reclassified_failed": true
+  },
+  "test": {
+    "path": "coordination/portfolio/tests/prometeo_10wc_b020_e8_reentry_contradiction_audit_v1.mjs",
+    "local_result": "B020_E8_REENTRY_CONTRADICTION_CONFIRMED",
+    "local_runtime": "node v22.16.0",
+    "repository_clone_available": false,
+    "repository_clone_boundary": "container DNS could not resolve github.com; source facts were obtained through the connected GitHub repository interface and pinned by blob SHA"
+  },
+  "repair_owner": "portfolio-10wc-pre-run-b036",
+  "repair_requirements": [
+    "Finite RUN must expose one legal post-primary E8 transition or explicitly declare primary completion terminal under a benchmark-specific stricter rule.",
+    "Do not require E8 while simultaneously forbidding every reallocation surface.",
+    "Preserve the counted primary unit when E8 itself is unavailable; classify the failure at the E8 transition rather than falsifying primary completion.",
+    "The repair must not create a general scheduler, queue, CURRENT pointer, worker-specific routing, or fake liveness."
+  ],
+  "scope": "DIAGNOSTIC_ONLY_NO_FIX",
+  "unlocks": ["portfolio-10wc-pre-run-b036"],
+  "privacy": "PUBLIC_ONLY_NO_RAW_PRIVATE_PROMPT"
+}
