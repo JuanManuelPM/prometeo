@@ -299,7 +299,7 @@
     status.setAttribute('aria-live', 'polite');
     setStatus(status, '');
 
-    form.append(note, submit, recheck);
+    form.append(input, note, submit, recheck);
     root.replaceChildren(form, status);
 
     let destroyed = false;
