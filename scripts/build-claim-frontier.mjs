@@ -50,9 +50,7 @@ export function compilePostclaimContext(item = {}) {
   if (!item?.source_path) return null;
   return {
     source_ref:item.source_path,
-    compile:'EXACT_SOURCE_ONLY_AFTER_OWNERSHIP',
-    field_policy:'DECLARED_SOURCE_FIELDS_PLUS_RUNTIME_BINDINGS',
-    forbidden_inherited_fields:[...POSTCLAIM_FORBIDDEN_INHERITED_FIELDS]
+    compile:'EXACT_SOURCE_ONLY_AFTER_OWNERSHIP'
   };
 }
 
@@ -270,6 +268,11 @@ export function buildClaimFrontier(
     recovery_attention_total:arr(allocator.recovery_attention).length,
     recovery_attention:recoveryAttention,
     postclaim_runtime_bindings:[...POSTCLAIM_RUNTIME_BINDINGS],
+    postclaim_context_policy:{
+      compile:'EXACT_SOURCE_ONLY_AFTER_OWNERSHIP',
+      field_policy:'DECLARED_SOURCE_FIELDS_PLUS_RUNTIME_BINDINGS',
+      forbidden_inherited_fields:[...POSTCLAIM_FORBIDDEN_INHERITED_FIELDS]
+    },
     claim_phase_contract:CLAIM_PHASE_CONTRACT,
     transport_bytes_max:effectiveMaxSerializedBytes,
     prepared_burst:preparedBurst.length ? {
