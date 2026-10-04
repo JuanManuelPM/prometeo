@@ -19,8 +19,13 @@ on:
       - 'scripts/lib/primary-chat-mirror-merge.mjs'
       - 'scripts/lib/primary-chat-async-qa-v1.mjs'
       - 'scripts/version-primary-chat-assets.mjs'
+      - 'current-tree/control-v11/ingress-v1.js'
       - 'current-tree/control-v11/chat-canary/index.html'
+      - 'current-tree/control-v11/chat-canary/private-correlation-v1.js'
       - 'current-tree/control-v11/chat-canary/input-module-v1.js'
+      - 'current-tree/control-v11/chat-canary/response-request-v1.js'
+      - 'current-tree/control-v11/chat-canary/rich-response-v1.js'
+      - 'current-tree/control-v11/chat-canary/current-first-v1.js'
       - 'current-tree/control-v11/chat-canary/progress-v1.js'
       - 'current-tree/control-v11/chat-canary/async-qa-browser-fixture-v1.json'
       - '.github/workflows/chat-message-mirror-contract-harness-v1.yml'
@@ -73,11 +78,18 @@ jobs:
         run: |
           set -euo pipefail
           thread_rel='coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
-          page_rel='current-tree/control-v11/chat-canary/index.html'
-          input_rel='current-tree/control-v11/chat-canary/input-module-v1.js'
-          progress_rel='current-tree/control-v11/chat-canary/progress-v1.js'
           fixture_rel='current-tree/control-v11/chat-canary/async-qa-browser-fixture-v1.json'
           state_contract_rel='coordination/guide/PRIMARY_CHAT_STATE_COMMUNICATION_CONTRACT_V1.json'
+          runtime_assets=(
+            'current-tree/control-v11/ingress-v1.js'
+            'current-tree/control-v11/chat-canary/index.html'
+            'current-tree/control-v11/chat-canary/private-correlation-v1.js'
+            'current-tree/control-v11/chat-canary/input-module-v1.js'
+            'current-tree/control-v11/chat-canary/response-request-v1.js'
+            'current-tree/control-v11/chat-canary/rich-response-v1.js'
+            'current-tree/control-v11/chat-canary/current-first-v1.js'
+            'current-tree/control-v11/chat-canary/progress-v1.js'
+          )
           jq -e '
             .schema == "prometeo.primary-chat-state-communication-contract/v1"
             and .authority == "NON_AUTHORITATIVE_DERIVED_PROJECTION"
@@ -91,15 +103,10 @@ jobs:
             and .authority == "NONE_TEST_ONLY"
             and (.privacy | contains("NO_HUMAN_PAYLOAD"))
           ' "$fixture_rel" >/dev/null
-          mkdir -p "/tmp/prometeo-gh-pages/$(dirname "$thread_rel")" "/tmp/prometeo-gh-pages/$(dirname "$page_rel")" "/tmp/prometeo-gh-pages/$(dirname "$input_rel")" "/tmp/prometeo-gh-pages/$(dirname "$progress_rel")" "/tmp/prometeo-gh-pages/$(dirname "$fixture_rel")" "/tmp/prometeo-gh-pages/$(dirname "$state_contract_rel")"
-          cp "$thread_rel" "/tmp/prometeo-gh-pages/$thread_rel"
-          cp "$page_rel" "/tmp/prometeo-gh-pages/$page_rel"
-          cp "$input_rel" "/tmp/prometeo-gh-pages/$input_rel"
-          cp "$progress_rel" "/tmp/prometeo-gh-pages/$progress_rel"
-          cp "$fixture_rel" "/tmp/prometeo-gh-pages/$fixture_rel"
-          cp "$state_contract_rel" "/tmp/prometeo-gh-pages/$state_contract_rel"
-          cmp -s "$fixture_rel" "/tmp/prometeo-gh-pages/$fixture_rel"
-          cmp -s "$state_contract_rel" "/tmp/prometeo-gh-pages/$state_contract_rel"
+          for rel in "$thread_rel" "$fixture_rel" "$state_contract_rel" "${runtime_assets[@]}"; do
+            mkdir -p "/tmp/prometeo-gh-pages/$(dirname "$rel")"
+            cp "$rel" "/tmp/prometeo-gh-pages/$rel"
+          done
           node scripts/version-primary-chat-assets.mjs --root /tmp/prometeo-gh-pages
 
       - name: Run served asset versioning gate
@@ -125,71 +132,47 @@ jobs:
         run: |
           set -euo pipefail
           thread_rel='coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
-          page_rel='current-tree/control-v11/chat-canary/index.html'
-          input_rel='current-tree/control-v11/chat-canary/input-module-v1.js'
-          progress_rel='current-tree/control-v11/chat-canary/progress-v1.js'
           fixture_rel='current-tree/control-v11/chat-canary/async-qa-browser-fixture-v1.json'
           state_contract_rel='coordination/guide/PRIMARY_CHAT_STATE_COMMUNICATION_CONTRACT_V1.json'
-          source_thread="$GITHUB_WORKSPACE/$thread_rel"
-          source_page="$GITHUB_WORKSPACE/$page_rel"
-          source_input="$GITHUB_WORKSPACE/$input_rel"
-          source_progress="$GITHUB_WORKSPACE/$progress_rel"
-          source_fixture="$GITHUB_WORKSPACE/$fixture_rel"
-          source_state_contract="$GITHUB_WORKSPACE/$state_contract_rel"
+          manifest_rel='current-tree/control-v11/control-manifest.json'
+          runtime_assets=(
+            'current-tree/control-v11/ingress-v1.js'
+            'current-tree/control-v11/chat-canary/index.html'
+            'current-tree/control-v11/chat-canary/private-correlation-v1.js'
+            'current-tree/control-v11/chat-canary/input-module-v1.js'
+            'current-tree/control-v11/chat-canary/response-request-v1.js'
+            'current-tree/control-v11/chat-canary/rich-response-v1.js'
+            'current-tree/control-v11/chat-canary/current-first-v1.js'
+            'current-tree/control-v11/chat-canary/progress-v1.js'
+          )
           cd /tmp/prometeo-gh-pages
           git config user.name "prometeo-ci"
           git config user.email "actions@users.noreply.github.com"
           for n in 1 2 3 4; do
-            git fetch origin \
-              main:refs/remotes/origin/main \
-              gh-pages:refs/remotes/origin/gh-pages
-            git show "origin/main:$thread_rel" > /tmp/prometeo-origin-main-thread.json
-            git show "origin/main:$page_rel" > /tmp/prometeo-origin-main-chat-index.html
-            git show "origin/main:$input_rel" > /tmp/prometeo-origin-main-input-module-v1.js
-            git show "origin/main:$progress_rel" > /tmp/prometeo-origin-main-progress-v1.js
-            git show "origin/main:$fixture_rel" > /tmp/prometeo-origin-main-async-qa-browser-fixture-v1.json
-            git show "origin/main:$state_contract_rel" > /tmp/prometeo-origin-main-state-communication-contract.json
-            if ! cmp -s "$source_thread" /tmp/prometeo-origin-main-thread.json; then
-              echo "Main Primary Chat projection advanced; defer gh-pages publication to the newer workflow run."
-              exit 0
-            fi
-            if ! cmp -s "$source_page" /tmp/prometeo-origin-main-chat-index.html; then
-              echo "Main Primary Chat page advanced; defer gh-pages publication to the newer workflow run."
-              exit 0
-            fi
-            if ! cmp -s "$source_input" /tmp/prometeo-origin-main-input-module-v1.js; then
-              echo "Main Primary Chat input asset advanced; defer gh-pages publication to the newer workflow run."
-              exit 0
-            fi
-            if ! cmp -s "$source_progress" /tmp/prometeo-origin-main-progress-v1.js; then
-              echo "Main Primary Chat progress asset advanced; defer gh-pages publication to the newer workflow run."
-              exit 0
-            fi
-            if ! cmp -s "$source_fixture" /tmp/prometeo-origin-main-async-qa-browser-fixture-v1.json; then
-              echo "Main Primary Chat QA browser fixture advanced; defer gh-pages publication to the newer workflow run."
-              exit 0
-            fi
-            if ! cmp -s "$source_state_contract" /tmp/prometeo-origin-main-state-communication-contract.json; then
-              echo "Main Primary Chat state communication contract advanced; defer gh-pages publication to the newer workflow run."
-              exit 0
-            fi
+            git fetch origin main:refs/remotes/origin/main gh-pages:refs/remotes/origin/gh-pages
             git reset --hard origin/gh-pages
-            mkdir -p "$(dirname "$thread_rel")" "$(dirname "$page_rel")" "$(dirname "$input_rel")" "$(dirname "$progress_rel")" "$(dirname "$fixture_rel")" "$(dirname "$state_contract_rel")"
-            cp "$source_thread" "$thread_rel"
-            cp "$source_page" "$page_rel"
-            cp "$source_input" "$input_rel"
-            cp "$source_progress" "$progress_rel"
-            cp "$source_fixture" "$fixture_rel"
-            cp "$source_state_contract" "$state_contract_rel"
-            cmp -s "$source_fixture" "$fixture_rel"
-            cmp -s "$source_state_contract" "$state_contract_rel"
+            for rel in "$thread_rel" "$fixture_rel" "$state_contract_rel" "${runtime_assets[@]}"; do
+              mkdir -p "$(dirname "$rel")"
+              git show "origin/main:$rel" > "$rel"
+            done
             node "$GITHUB_WORKSPACE/scripts/version-primary-chat-assets.mjs" --root /tmp/prometeo-gh-pages
-            git add "$thread_rel" "$page_rel" "$input_rel" "$progress_rel" "$fixture_rel" "$state_contract_rel"
+            mkdir -p "$(dirname "$manifest_rel")"
+            main_sha="$(git rev-parse origin/main)"
+            published_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            ingress_sha="$(sha256sum current-tree/control-v11/ingress-v1.js | cut -d' ' -f1)"
+            chat_sha="$(sha256sum current-tree/control-v11/chat-canary/index.html | cut -d' ' -f1)"
+            input_sha="$(sha256sum current-tree/control-v11/chat-canary/input-module-v1.js | cut -d' ' -f1)"
+            response_sha="$(sha256sum current-tree/control-v11/chat-canary/response-request-v1.js | cut -d' ' -f1)"
+            rich_sha="$(sha256sum current-tree/control-v11/chat-canary/rich-response-v1.js | cut -d' ' -f1)"
+            current_sha="$(sha256sum current-tree/control-v11/chat-canary/current-first-v1.js | cut -d' ' -f1)"
+            progress_sha="$(sha256sum current-tree/control-v11/chat-canary/progress-v1.js | cut -d' ' -f1)"
+            jq -n               --arg version "$main_sha"               --arg published_at "$published_at"               --arg ingress "$ingress_sha"               --arg chat "$chat_sha"               --arg input "$input_sha"               --arg response "$response_sha"               --arg rich "$rich_sha"               --arg current "$current_sha"               --arg progress "$progress_sha"               '{schema:"prometeo.control-manifest/v1",control_version:$version,published_at:$published_at,components:{ingress:$ingress,chat:$chat,input:$input,response_request:$response,rich_response:$rich,current_first:$current,progress:$progress},truth_boundary:"SERVED_GH_PAGES_RUNTIME_BUNDLE"}'               > "$manifest_rel"
+            git add "$thread_rel" "$fixture_rel" "$state_contract_rel" "$manifest_rel" "${runtime_assets[@]}"
             if git diff --cached --quiet; then
               echo "Primary Chat projection already current."
               exit 0
             fi
-            git commit -m "chat: publish validated Primary Chat projection"
+            git commit -m "chat: publish validated Primary Chat runtime bundle"
             if git push origin HEAD:gh-pages; then
               exit 0
             fi
