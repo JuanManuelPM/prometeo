@@ -67,6 +67,14 @@ function unitKey(r) {
   return nstr(r?.job_id) || nstr(r?.block_id) || nstr(r?.mission_id) || 'unscoped';
 }
 
+function latestLifecycleEvidence(records) {
+  for (let i = records.length - 1; i >= 0; i -= 1) {
+    const r = records[i];
+    if (['HEARTBEAT','STARTED','RETURN','CLOSED'].includes(String(r?.type || r?.evidence_type || '').toUpperCase())) return r;
+  }
+  return null;
+}
+
 export function compilePassiveOperationalStats(input={}) {
   const campaign = input?.campaign && typeof input.campaign === 'object' ? input.campaign : {};
   const seen = new Set();
@@ -95,7 +103,7 @@ export function compilePassiveOperationalStats(input={}) {
 
     const runtimeLabels = [...new Set(records.filter(r => String(r?.type || r?.evidence_type).toUpperCase() === 'RUNTIME').map(r => nstr(r?.runtime_status)).filter(Boolean))].sort();
     facts.runtime_labels_observed = fact(runtimeLabels.length ? runtimeLabels : null, records.filter(r => String(r?.type || r?.evidence_type).toUpperCase() === 'RUNTIME').map(sourceRef));
-    const livenessEvidence = records.find(r => ['HEARTBEAT','STARTED','RETURN','CLOSED'].includes(String(r?.type || r?.evidence_type || '').toUpperCase()));
+    const livenessEvidence = latestLifecycleEvidence(records);
     facts.liveness = livenessEvidence ? fact(String(livenessEvidence.type || livenessEvidence.evidence_type).toUpperCase(), [sourceRef(livenessEvidence)]) : fact(null);
 
     const counters = Object.fromEntries(Object.values(COUNT_TYPES).map(name => [name, 0]));
