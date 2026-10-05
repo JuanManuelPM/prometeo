@@ -33,7 +33,32 @@ function productiveUnit(row, kind, ref) {
   const d=row||{};
   if (!d.worker_id || d.productive_unit_counted === false) return null;
   const at=d.returned_at||d.created_at||d.completed_at||d.updated_at||null;
-  if (d.productive_unit_counted === true) return {ref,kind,at,basis:'EXPLICIT_RECEIPT_MARKER'};
+  const rawBranch=String(
+    d.observability_branch ?? d.campaign_branch ?? d.telemetry_v1?.observability_branch ?? ''
+  ).toUpperCase();
+  const branch=({
+    A:'CHAT_VIVO',CHAT:'CHAT_VIVO',CHAT_VIVO:'CHAT_VIVO',
+    B:'METRICAS_VIVAS',METRICS:'METRICAS_VIVAS',METRICAS:'METRICAS_VIVAS',METRICAS_VIVAS:'METRICAS_VIVAS',
+    C:'CRECIMIENTO',GROWTH:'CRECIMIENTO',CRECIMIENTO:'CRECIMIENTO'
+  })[rawBranch]||null;
+  const jumps=asArray(d.telemetry_v1?.block_project_jumps ?? d.block_project_jumps).map(x=>({
+    from:x?.from==null?null:String(x.from),
+    to:x?.to==null?null:String(x.to),
+    crossed_project:x?.crossed_project===true,
+    crossed_block:x?.crossed_block===true || (x?.from!=null && x?.to!=null && String(x.from)!==String(x.to))
+  })).filter(x=>x.from||x.to);
+  const lineage={
+    job_id:d.job_id==null?null:String(d.job_id),
+    project_id:d.project_id==null?null:String(d.project_id),
+    block_id:d.block_id==null?null:String(d.block_id),
+    generation:Number.isFinite(Number(d.generation))?Number(d.generation):null,
+    observability_branch:branch,
+    created_jobs_count:asArray(d.created_jobs).filter(Boolean).length,
+    consumed_returns_count:asArray(d.consumed_returns).filter(Boolean).length,
+    block_project_jumps:jumps
+  };
+  const unit=basis=>({ref,kind,at,basis,lineage});
+  if (d.productive_unit_counted === true) return unit('EXPLICIT_RECEIPT_MARKER');
   const outcome=String(d.outcome||d.status||d.state||'').toUpperCase();
   if (NON_PRODUCTIVE_OUTCOME_RE.test(outcome)) return null;
   const materialPaths=asArray(d.changed_paths).filter(p=>p && !CONTROL_ONLY_PREFIXES.some(prefix=>String(p).startsWith(prefix)));
@@ -42,7 +67,7 @@ function productiveUnit(row, kind, ref) {
   const verification=asArray(d.tests).filter(Boolean).length > 0 &&
     (/(DONE|COMPLETE|COMPLETED|PASS|PASSED|SUCCESS|VERIFIED|RETURNED)/.test(outcome) || kind==='guide-receipt');
   if (!materialPaths.length && !frontierChanges && !integrations && !verification) return null;
-  return {ref,kind,at,basis:'DURABLE_RECEIPT_EVIDENCE'};
+  return unit('DURABLE_RECEIPT_EVIDENCE');
 }
 
 export function parseEventComment(comment) {
@@ -289,6 +314,11 @@ export function compileRuntime(comments, root=null, nowIso=new Date().toISOStrin
         productive_units:productiveCount,
         productive_chain_state:productiveChainState,
         productive_unit_refs:productiveUnits.slice(-8).map(unit=>unit.ref),
+        productive_lineage:productiveUnits.slice(-8).map(unit=>({
+          ref:unit.ref,
+          at:unit.at||null,
+          ...(unit.lineage||{})
+        })),
         close:close
           ?{outcome:close.outcome||durableCloseOutcome||null,job_id_or_null:close.job_id_or_null||close.job_id||close.guide_work_id||null,result_ref_or_null:close.result_ref_or_null||close.return_ref||close.receipt_ref||benchmarkReceipt?.ref||examRef||null,at:close.server_created_at||durableCloseAt,terminal:terminalClose,source:'TELEMETRY_PLUS_DURABLE_EVIDENCE'}
           :(terminalClose?{outcome:durableCloseOutcome||'RUN_TERMINAL',job_id_or_null:null,result_ref_or_null:benchmarkReceipt?.ref||examRef||repo.noalloc.get(w.worker_id)?.ref||null,at:durableCloseAt,terminal:true,source:'DURABLE_EXAM_RECEIPT_OR_BOUNDARY'}:null),
