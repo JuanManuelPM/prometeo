@@ -1,0 +1,69 @@
+name: Primary Chat requestId hotfix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/primary-chat-requestid-hotfix.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: primary-chat-requestid-hotfix
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Bind request_id inside prepareExecution and remove this one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('supabase/functions/prometeo-change-loop-v1/index.ts')
+          text = path.read_text()
+          old = "const pageId=String(body.page_id||'');const approval=executionApproval(body.approval);"
+          new = "const pageId=String(body.page_id||'');const requestId=primaryRequestId(body.request_id);const approval=executionApproval(body.approval);"
+          count = text.count(old)
+          if new not in text:
+              if count != 1:
+                  raise SystemExit(f'expected exactly one prepareExecution insertion point, found {count}')
+              text = text.replace(old, new, 1)
+              path.write_text(text)
+          elif count:
+              raise SystemExit('both patched and unpatched insertion points exist')
+
+          patched = path.read_text()
+          needle = "const requestId=primaryRequestId(body.request_id);const approval=executionApproval(body.approval);"
+          if patched.count(needle) != 1:
+              raise SystemExit('requestId binding is not unique after patch')
+          if "const work=requestId?await workIdForPrimaryRequest(requestId):short('WI')" not in patched:
+              raise SystemExit('expected idempotent work-id expression missing')
+          PY
+          rm -f .github/workflows/primary-chat-requestid-hotfix.yml
+
+      - name: Commit atomic hotfix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "prometeo-ci"
+          git config user.email "72280945+JuanManuelPM@users.noreply.github.com"
+          git add supabase/functions/prometeo-change-loop-v1/index.ts .github/workflows/primary-chat-requestid-hotfix.yml
+          git diff --cached --check
+          git commit -m "primary-chat: bind request_id before execution packet build"
+          for n in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            git fetch origin main
+            git rebase origin/main
+          done
+          exit 1
