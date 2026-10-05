@@ -11,7 +11,7 @@
 .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.m{border:1px solid var(--line);background:var(--panel);padding:8px;min-width:0}.m b{display:block;font-size:21px;line-height:1;font-weight:520}.m span{display:block;margin-top:4px;font-size:7px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .section{margin-top:8px;border:1px solid var(--line);background:var(--panel);padding:8px}.head{display:flex;align-items:center;gap:8px;margin-bottom:7px}.head b{font-size:8px;letter-spacing:.08em}.head span{margin-left:auto;font-size:7px;color:var(--muted)}
 .workers{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:4px}.w{height:22px;border:1px solid #36323c;background:#111114;display:grid;place-items:center;font:7px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#666}.w.live{border-color:var(--ok);color:var(--ok);background:rgba(121,211,157,.08)}.w.done{opacity:.42}.w.bound{border-color:var(--bad);color:var(--bad)}
-.lanes{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.lane{border:1px solid var(--line);padding:7px}.lane b{font-size:12px}.lane small{display:block;color:var(--muted);font-size:7px;margin-top:3px}
+.lanes{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.lane{border:1px solid var(--line);padding:7px}.lane b{font-size:12px}.lane small{display:block;color:var(--muted);font-size:7px;margin-top:3px}.lineageGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.lineageCell{border:1px solid var(--line);padding:7px}.lineageCell b{display:block;font-size:15px}.lineageCell small{display:block;color:var(--muted);font-size:7px;margin-top:3px}.unknown{color:var(--warn)!important}
 .events{display:grid;gap:3px;max-height:132px;overflow:auto}.e{display:grid;grid-template-columns:52px 82px 1fr;gap:6px;font:7px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;border-top:1px solid #17161a;padding-top:4px}.e:first-child{border-top:0}.et{color:#817a86}.ek{color:var(--blue)}.ed{color:#9c95a1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .foot{margin-top:8px;font-size:7px;color:#5f5965;line-height:1.4}
 .campaign{display:grid;gap:7px}.campaignTop{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.campaignTop b{font-size:18px}.campaignTop span{font-size:8px;color:var(--muted)}.campaignRail{height:7px;background:#16151a;border:1px solid var(--line);overflow:hidden}.campaignRail i{display:block;height:100%;background:var(--ok);width:0}.milestones{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}.milestone{padding:5px;border:1px solid var(--line);font:7px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:#666;text-align:center}.milestone.founded{border-color:var(--ok);color:var(--ok)}.milestone.next{border-color:var(--warn);color:var(--warn)}.checkpoint{display:grid;gap:3px;padding-top:5px;border-top:1px solid #17161a;font:8px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:#8e8793}.checkpoint b{color:#bbb4c0}.checkpoint.stale b{color:var(--warn)}
@@ -47,11 +47,22 @@
 </section>
 
 <section class="section">
-  <div class="head"><b>DISTRIBUCIÓN DEL FRONTIER</b><span>clasificación visual, no autoridad</span></div>
+  <div class="head"><b>DISTRIBUCIÓN DEL FRONTIER</b><span>metadata durable explícita; no routing</span></div>
   <div class="lanes">
     <div class="lane"><b id="chatN">0</b><small>A · CHAT VIVO</small></div>
-    <div class="lane"><b id="metricsN">0</b><small>B · MÉTRICAS</small></div>
-    <div class="lane"><b id="growthN">0</b><small>C · CRECIMIENTO / RESTO</small></div>
+    <div class="lane"><b id="metricsN">0</b><small>B · MÉTRICAS VIVAS</small></div>
+    <div class="lane"><b id="growthN">0</b><small>C · CRECIMIENTO</small></div>
+    <div class="lane"><b id="unknownN" class="unknown">0</b><small>UNKNOWN · sin metadata</small></div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="head"><b>LINEAGE PRODUCTIVO</b><span id="lineageState">esperando runtime</span></div>
+  <div class="lineageGrid">
+    <div class="lineageCell"><b id="branchN">—</b><small>branches creados</small></div>
+    <div class="lineageCell"><b id="faninN">—</b><small>returns consumidos / fan-in</small></div>
+    <div class="lineageCell"><b id="blockJumpN">—</b><small>saltos de bloque</small></div>
+    <div class="lineageCell"><b id="projectJumpN">—</b><small>saltos de proyecto</small></div>
   </div>
 </section>
 
@@ -62,13 +73,14 @@
 
 <div class="foot">La UI repinta cada 1 s. Fuentes compactas se consultan cada 3 s y la timeline cada 30 s. Si GitHub no publicó evidencia nueva, el número no “se mueve” por ficción. ACTIVE ≠ ALIVE.</div>
 
-<script>
+<script type="module">
+import { frontierBranchDistribution, deriveProductiveLineage } from './live10-observability-model.mjs';
 (()=>{
 'use strict';
 const ROOT='../../../live/';
 const BATCH='PROMETEO-LIVE10-V1';
 const CAMPAIGN_TARGET=60,MILESTONES=[10,25,50,75,100];
-const S={allocator:null,frontier:null,eff:null,batch:null,timeline:null,lastCompact:0,lastTimeline:0};
+const S={allocator:null,frontier:null,eff:null,batch:null,runtime:null,timeline:null,lastCompact:0,lastTimeline:0};
 const $=id=>document.getElementById(id);
 const n=v=>Number.isFinite(Number(v))?Number(v):null;
 const fmt=v=>v===null||v===undefined?'—':new Intl.NumberFormat('es-AR').format(v);
@@ -77,21 +89,29 @@ const ageSec=iso=>{const t=Date.parse(iso||'');return Number.isFinite(t)?Math.ma
 const ageText=s=>s===null?'sin snapshot':s<60?Math.floor(s)+'s':s<3600?Math.floor(s/60)+'m':Math.floor(s/3600)+'h';
 async function json(path){const r=await fetch(ROOT+path+'?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error(path+' '+r.status);return r.json()}
 async function compact(){
-  const [a,f,e,b]=await Promise.allSettled([json('allocator.json'),json('claim-frontier.json'),json('efficiency.json'),json('batches/'+encodeURIComponent(BATCH)+'.json')]);
-  if(a.status==='fulfilled')S.allocator=a.value;if(f.status==='fulfilled')S.frontier=f.value;if(e.status==='fulfilled')S.eff=e.value;if(b.status==='fulfilled')S.batch=b.value;
+  const [a,f,e,b,r]=await Promise.allSettled([json('allocator.json'),json('claim-frontier.json'),json('efficiency.json'),json('batches/'+encodeURIComponent(BATCH)+'.json'),json('runtime.json')]);
+  if(a.status==='fulfilled')S.allocator=a.value;if(f.status==='fulfilled')S.frontier=f.value;if(e.status==='fulfilled')S.eff=e.value;if(b.status==='fulfilled')S.batch=b.value;if(r.status==='fulfilled')S.runtime=r.value;
   S.lastCompact=Date.now();render();
 }
 async function timeline(){try{S.timeline=await json('activity-timeline.json');S.lastTimeline=Date.now();render()}catch{}}
 function laneCounts(){
-  let chat=0,metrics=0,growth=0;
-  for(const c of (S.frontier?.candidates||[])){
-    const s=((c.job_id||c.role_id||'')+' '+(c.title||'')+' '+(c.mission||'')).toLowerCase();
-    if(/primary-chat|chat vivo|response|ingress|wake/.test(s))chat++;
-    else if(/metric|stats|score|runtime|efficien|timeline|observab/.test(s))metrics++;
-    else growth++;
-  }
-  $('chatN').textContent=chat;$('metricsN').textContent=metrics;$('growthN').textContent=growth;
+  const d=frontierBranchDistribution(S.frontier?.candidates||[]);
+  $('chatN').textContent=d.counts.CHAT_VIVO;
+  $('metricsN').textContent=d.counts.METRICAS_VIVAS;
+  $('growthN').textContent=d.counts.CRECIMIENTO;
+  $('unknownN').textContent=d.counts.UNKNOWN;
+  $('unknownN').classList.toggle('unknown',d.counts.UNKNOWN>0);
 }
+function renderLineage(){
+  const m=deriveProductiveLineage(S.runtime,BATCH);
+  const unknown=m.status!=='GROUNDED';
+  $('lineageState').textContent=unknown?'UNKNOWN · sin lineage publicado':m.evidence_units+' unidades con lineage durable';
+  for(const [id,value] of [['branchN',m.productive_branching],['faninN',m.fan_in],['blockJumpN',m.block_jumps],['projectJumpN',m.project_jumps]]){
+    $(id).textContent=value==null?'UNKNOWN':String(value);
+    $(id).classList.toggle('unknown',value==null);
+  }
+}
+
 function campaignModel(batch,now=Date.now()){
   if(!batch||batch.schema!=='prometeo.worker-batch-status/v1'||batch.batch_id!==BATCH)return null;
   const units=Math.max(0,Number(batch.productive_units_total)||0);
@@ -162,8 +182,8 @@ function render(){
   $('unconsumed').textContent=fmt(n(a?.metabolism?.unconsumed_returns));
   $('allocRate').textContent=e?.metrics?.allocation_rate_percent!=null?e.metrics.allocation_rate_percent+'%':'—';
   $('ttfa').textContent=e?.metrics?.ttfa_p90_ms!=null?Math.round(e.metrics.ttfa_p90_ms/1000)+'s':'—';
-  laneCounts();workerStrip();renderCampaign();recentEvents();
-  const stamps=[a?.generated_at,S.frontier?.generated_at,e?.generated_at,S.batch?.generated_at].filter(Boolean);
+  laneCounts();workerStrip();renderCampaign();renderLineage();recentEvents();
+  const stamps=[a?.generated_at,S.frontier?.generated_at,e?.generated_at,S.batch?.generated_at,S.runtime?.generated_at].filter(Boolean);
   const newest=stamps.sort().at(-1);const age=ageSec(newest);$('age').textContent='snapshot '+ageText(age);
   const dot=$('dot');dot.className='dot '+(age!==null&&age<90?'ok':age!==null&&age>300?'bad':'');
 }
