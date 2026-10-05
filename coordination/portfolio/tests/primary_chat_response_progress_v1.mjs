@@ -1,0 +1,23 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import {compilePrimaryChatResponseProgress} from '../../../scripts/primary-chat-response-progress-v1.mjs';
+const request='rr-c009-regression-001';
+const candidates=Array.from({length:4},(_,i)=>({schema:'prometeo.primary-chat-response-candidate-return-public/v1',request_id:request,candidate_ordinal:i+1,worker_id:`wc-c-${i+1}`,return_ref:`return://c/${i+1}`,durable_return:true,raw_text_public:false}));
+const exams=Array.from({length:2},(_,i)=>({schema:'prometeo.primary-chat-response-exam-return-public/v1',request_id:request,exam_ordinal:i+1,worker_id:`wc-e-${i+1}`,return_ref:`return://e/${i+1}`,durable_return:true,raw_text_public:false}));
+let out=compilePrimaryChatResponseProgress({request_id:request,candidate_returns:[],exam_returns:[]});
+assert.equal(out.progress.counts.candidates,0); assert.equal(out.progress.next_stage,'CANDIDATES'); assert.equal(out.progress.liveness_claimed,false); assert.equal(out.progress.working_workers,null);
+out=compilePrimaryChatResponseProgress({request_id:request,candidate_returns:candidates.slice(0,3),exam_returns:exams});
+assert.equal(out.progress.counts.candidates,3); assert.equal(out.progress.counts.exams,2); assert.equal(out.progress.next_stage,'CANDIDATES');
+const dup=[...candidates,{...candidates[0],candidate_ordinal:4}];
+out=compilePrimaryChatResponseProgress({request_id:request,candidate_returns:dup,exam_returns:exams});
+assert.equal(out.progress.counts.candidates,4,'duplicate worker/ref must not inflate count');
+out=compilePrimaryChatResponseProgress({request_id:request,candidate_returns:candidates,exam_returns:exams,synthesis_return:{request_id:request,return_ref:'return://s/1',durable_return:true}});
+assert.deepEqual(out.progress.counts,{candidates:4,exams:2,synthesis:1});
+assert.equal(out.progress.complete,true); assert.equal(out.progress.next_stage,'COMPLETE');
+assert.equal(out.widget.type,'experiment_stats'); assert.equal(out.widget.metrics.candidatos,'4/4'); assert.equal(out.widget.metrics.examenes,'2/2'); assert.equal(out.widget.metrics.sintesis,'1/1');
+assert.match(out.widget.note,/RETURNs durables/);
+const fakePrepared=candidates.map(x=>({...x,durable_return:false}));
+out=compilePrimaryChatResponseProgress({request_id:request,candidate_returns:fakePrepared,exam_returns:[]});
+assert.equal(out.progress.counts.candidates,0,'prepared/non-durable cards cannot count');
+console.log('PRIMARY_CHAT_RESPONSE_PROGRESS_V1_PASS');
+console.log(JSON.stringify({partial:'3/4',complete:'4/4+2/2+1/1',widget:'experiment_stats',liveness_claimed:false}));
