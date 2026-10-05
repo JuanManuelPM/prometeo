@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prometeo · Ola 60 min</title>
+<style>
+:root{color-scheme:dark;--bg:#09090b;--panel:#0d0d10;--line:#25232b;--text:#ddd9e2;--muted:#756f7b;--ok:#79d39d;--warn:#dfb567;--bad:#ef6c77;--blue:#83c7ff}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}body{padding:10px}
+.top{display:flex;align-items:center;gap:8px;margin-bottom:8px}.dot{width:8px;height:8px;border-radius:50%;background:var(--warn)}.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}.title{font:700 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em}.age{margin-left:auto;font:8px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.m{border:1px solid var(--line);background:var(--panel);padding:8px;min-width:0}.m b{display:block;font-size:21px;line-height:1;font-weight:520}.m span{display:block;margin-top:4px;font-size:7px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.section{margin-top:8px;border:1px solid var(--line);background:var(--panel);padding:8px}.head{display:flex;align-items:center;gap:8px;margin-bottom:7px}.head b{font-size:8px;letter-spacing:.08em}.head span{margin-left:auto;font-size:7px;color:var(--muted)}
+.workers{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:4px}.w{height:22px;border:1px solid #36323c;background:#111114;display:grid;place-items:center;font:7px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#666}.w.live{border-color:var(--ok);color:var(--ok);background:rgba(121,211,157,.08)}.w.done{opacity:.42}.w.bound{border-color:var(--bad);color:var(--bad)}
+.lanes{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.lane{border:1px solid var(--line);padding:7px}.lane b{font-size:12px}.lane small{display:block;color:var(--muted);font-size:7px;margin-top:3px}
+.events{display:grid;gap:3px;max-height:132px;overflow:auto}.e{display:grid;grid-template-columns:52px 82px 1fr;gap:6px;font:7px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;border-top:1px solid #17161a;padding-top:4px}.e:first-child{border-top:0}.et{color:#817a86}.ek{color:var(--blue)}.ed{color:#9c95a1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.foot{margin-top:8px;font-size:7px;color:#5f5965;line-height:1.4}
+@media(max-width:560px){.grid{grid-template-columns:repeat(2,1fr)}.workers{grid-template-columns:repeat(5,1fr)}.lanes{grid-template-columns:1fr}.e{grid-template-columns:48px 72px 1fr}}
+</style>
+</head>
+<body>
+<div class="top"><i class="dot" id="dot"></i><div class="title">OLA · 60 MIN · PROMETEO-LIVE10-V1</div><div class="age" id="age">cargando…</div></div>
+<div class="grid">
+  <div class="m"><b id="working">—</b><span>working real</span></div>
+  <div class="m"><b id="frontier">—</b><span>frontier limpio</span></div>
+  <div class="m"><b id="returns">—</b><span>returns 60m</span></div>
+  <div class="m"><b id="throughput">—</b><span>throughput / h</span></div>
+  <div class="m"><b id="unconsumed">—</b><span>returns sin consumir</span></div>
+  <div class="m"><b id="allocRate">—</b><span>allocation rate</span></div>
+  <div class="m"><b id="ttfa">—</b><span>TTFA p90</span></div>
+  <div class="m"><b id="collisions">—</b><span>collisions recientes</span></div>
+</div>
+
+<section class="section">
+  <div class="head"><b>POOL 10</b><span id="batchState">esperando batch</span></div>
+  <div class="workers" id="workers"></div>
+</section>
+
+<section class="section">
+  <div class="head"><b>DISTRIBUCIÓN DEL FRONTIER</b><span>clasificación visual, no autoridad</span></div>
+  <div class="lanes">
+    <div class="lane"><b id="chatN">0</b><small>A · CHAT VIVO</small></div>
+    <div class="lane"><b id="metricsN">0</b><small>B · MÉTRICAS</small></div>
+    <div class="lane"><b id="growthN">0</b><small>C · CRECIMIENTO / RESTO</small></div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="head"><b>ÚLTIMA HORA</b><span id="eventCount">0 eventos</span></div>
+  <div class="events" id="events"><div class="e"><span class="et">—</span><span class="ek">WAIT</span><span class="ed">esperando evidencia durable…</span></div></div>
+</section>
+
+<div class="foot">La UI repinta cada 1 s. Fuentes compactas se consultan cada 3 s y la timeline cada 30 s. Si GitHub no publicó evidencia nueva, el número no “se mueve” por ficción. ACTIVE ≠ ALIVE.</div>
+
+<script>
+(()=>{
+'use strict';
+const ROOT='../../../live/';
+const BATCH='PROMETEO-LIVE10-V1';
+const S={allocator:null,frontier:null,eff:null,batch:null,timeline:null,lastCompact:0,lastTimeline:0};
+const $=id=>document.getElementById(id);
+const n=v=>Number.isFinite(Number(v))?Number(v):null;
+const fmt=v=>v===null||v===undefined?'—':new Intl.NumberFormat('es-AR').format(v);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ageSec=iso=>{const t=Date.parse(iso||'');return Number.isFinite(t)?Math.max(0,(Date.now()-t)/1000):null};
+const ageText=s=>s===null?'sin snapshot':s<60?Math.floor(s)+'s':s<3600?Math.floor(s/60)+'m':Math.floor(s/3600)+'h';
+async function json(path){const r=await fetch(ROOT+path+'?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error(path+' '+r.status);return r.json()}
+async function compact(){
+  const [a,f,e,b]=await Promise.allSettled([json('allocator.json'),json('claim-frontier.json'),json('efficiency.json'),json('batches/'+encodeURIComponent(BATCH)+'.json')]);
+  if(a.status==='fulfilled')S.allocator=a.value;if(f.status==='fulfilled')S.frontier=f.value;if(e.status==='fulfilled')S.eff=e.value;if(b.status==='fulfilled')S.batch=b.value;
+  S.lastCompact=Date.now();render();
+}
+async function timeline(){try{S.timeline=await json('activity-timeline.json');S.lastTimeline=Date.now();render()}catch{}}
+function laneCounts(){
+  let chat=0,metrics=0,growth=0;
+  for(const c of (S.frontier?.candidates||[])){
+    const s=((c.job_id||c.role_id||'')+' '+(c.title||'')+' '+(c.mission||'')).toLowerCase();
+    if(/primary-chat|chat vivo|response|ingress|wake/.test(s))chat++;
+    else if(/metric|stats|score|runtime|efficien|timeline|observab/.test(s))metrics++;
+    else growth++;
+  }
+  $('chatN').textContent=chat;$('metricsN').textContent=metrics;$('growthN').textContent=growth;
+}
+function recentEvents(){
+  const cutoff=Date.now()-3600000;
+  const ev=(S.timeline?.events||[]).filter(x=>Date.parse(x.at||0)>=cutoff).sort((a,b)=>Date.parse(b.at)-Date.parse(a.at));
+  $('eventCount').textContent=ev.length+' eventos';
+  $('returns').textContent=fmt(ev.filter(x=>x.type==='RESULT').length);
+  $('throughput').textContent=fmt(ev.filter(x=>x.type==='RESULT').length);
+  const col=ev.filter(x=>/COLLISION/i.test(String(x.type||'')+' '+String(x.outcome||''))).length;
+  $('collisions').textContent=fmt(col);
+  const host=$('events');host.innerHTML='';
+  for(const x of ev.slice(0,16)){
+    const d=new Date(x.at);const tm=Number.isNaN(d.getTime())?'—':d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+    const label=x.label||x.outcome||x.work_id||x.actor_id||'';
+    host.insertAdjacentHTML('beforeend','<div class="e"><span class="et">'+esc(tm)+'</span><span class="ek">'+esc(x.type||'EVENT')+'</span><span class="ed">'+esc(label)+'</span></div>');
+  }
+  if(!ev.length)host.innerHTML='<div class="e"><span class="et">—</span><span class="ek">IDLE</span><span class="ed">sin eventos durables en la última hora</span></div>';
+}
+function workerStrip(){
+  const host=$('workers');host.innerHTML='';
+  const rows=S.batch?.workers||[];
+  for(let i=0;i<10;i++){
+    const w=rows[i];let cls='w',txt='WC'+(i+1);
+    if(w){if(w.terminal)cls+=' done';else if((Date.now()-Date.parse(w.last_event_at||0))<600000)cls+=' live';if((w.anomalies||[]).length)cls+=' bound';txt=String(w.productive_units??0)}
+    host.insertAdjacentHTML('beforeend','<div class="'+cls+'" title="'+esc(w?.worker_id||'sin worker')+'">'+esc(txt)+'</div>');
+  }
+  if(S.batch){
+    $('batchState').textContent=(S.batch.status||'—')+' · '+(S.batch.productive_units_total??0)+' unidades · '+(S.batch.workers_terminal??0)+' terminales';
+  }else $('batchState').textContent='esperando '+BATCH;
+}
+function render(){
+  const a=S.allocator,e=S.eff;
+  $('working').textContent=fmt(n(a?.worker_projection?.working));
+  $('frontier').textContent=fmt(n(a?.metabolism?.clean_frontier_total));
+  $('unconsumed').textContent=fmt(n(a?.metabolism?.unconsumed_returns));
+  $('allocRate').textContent=e?.metrics?.allocation_rate_percent!=null?e.metrics.allocation_rate_percent+'%':'—';
+  $('ttfa').textContent=e?.metrics?.ttfa_p90_ms!=null?Math.round(e.metrics.ttfa_p90_ms/1000)+'s':'—';
+  laneCounts();workerStrip();recentEvents();
+  const stamps=[a?.generated_at,S.frontier?.generated_at,e?.generated_at,S.batch?.generated_at].filter(Boolean);
+  const newest=stamps.sort().at(-1);const age=ageSec(newest);$('age').textContent='snapshot '+ageText(age);
+  const dot=$('dot');dot.className='dot '+(age!==null&&age<90?'ok':age!==null&&age>300?'bad':'');
+}
+setInterval(render,1000);
+setInterval(compact,3000);
+setInterval(timeline,30000);
+compact();timeline();
+})();
+</script>
+</body>
+</html>
