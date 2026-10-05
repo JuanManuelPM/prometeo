@@ -121,9 +121,15 @@ function validatePage(contract,html,label){
   assert.match(html,/WAITING/,`${label}: WAITING state must be explicit`);
   assert.doesNotMatch(html,/<(?:form|input|textarea)\b/i,`${label}: approved composer must stay modular; index may not inline raw form/input/textarea markup`);
   assert.match(html,/id=["']chatComposer["']/,`${label}: approved chat composer host is required`);
-  assert.match(html,/src=["']\.\.\/ingress-v1\.js["']/,`${label}: existing ingress facade must load before composer`);
+  const versionedAsset = ref => new RegExp('src=["\\\']' + ref.replace(/[.*+?^$()|[\\]\\]/g,'\\  assert.match(html,/src=["']\.\.\/ingress-v1\.js["']/,`${label}: existing ingress facade must load before composer`);
   assert.match(html,/src=["']\.\/input-module-v1\.js["']/,`${label}: approved fail-closed input module is required`);
-  assert.match(html,/src=["']\.\/progress-v1\.js["']/,`${label}: durable progress module is required`);
+  assert.match(html,/src=["']\.\/progress-v1\.js["']/,`${label}: durable progress module is required`);') + '(?:\\?v=[0-9a-f]{12})?["\\\']');
+  assert.match(html,versionedAsset('../ingress-v1.js'),`${label}: existing ingress facade is required`);
+  assert.match(html,versionedAsset('./input-module-v1.js'),`${label}: approved fail-closed input module is required`);
+  assert.match(html,versionedAsset('./progress-v1.js'),`${label}: durable progress module is required`);
+  const ingressPos=html.indexOf('../ingress-v1.js');
+  const composerModulePos=html.indexOf('./input-module-v1.js');
+  assert.ok(ingressPos>=0 && composerModulePos>ingressPos,`${label}: existing ingress facade must load before composer module`);
   assert.match(html,/PROMETEO_CHAT_CANARY_INPUT_V1/,`${label}: reviewed composer global must be referenced`);
   assert.match(html,/composerApi\.mount/,`${label}: composer must mount through the reviewed module API`);
   assert.match(html,/id=["']chat-canary-progress["']/,`${label}: durable Work Unit progress host is required`);
