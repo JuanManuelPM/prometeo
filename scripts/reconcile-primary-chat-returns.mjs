@@ -2,12 +2,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { reconcilePrimaryChatCanonicalWorkerReplies } from './lib/primary-chat-mirror-merge.mjs';
 import { primaryChatQaUiBlocks } from './lib/primary-chat-async-qa-v1.mjs';
+import { advancePrimaryChatResponsePipeline } from './advance-primary-chat-response-pipeline-v1.mjs';
 
 const root = process.cwd();
 const threadRel = 'coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json';
 const returnsRootRel = 'coordination/portfolio/returns';
 const threadPath = path.join(root, threadRel);
 const returnsRoot = path.join(root, returnsRootRel);
+
+const responsePipeline = advancePrimaryChatResponsePipeline({ repo_root: root });
+console.log(`Primary Chat response pipeline: requests=${responsePipeline.requests_seen} exam_jobs_created=${responsePipeline.exam_jobs_created} final_responses_created=${responsePipeline.final_responses_created} thread_messages_added=${responsePipeline.thread_messages_added}.`);
 
 const thread = JSON.parse(fs.readFileSync(threadPath, 'utf8'));
 if (thread?.schema !== 'prometeo.chat-thread-projection/v1') {
