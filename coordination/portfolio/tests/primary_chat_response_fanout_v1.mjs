@@ -10,6 +10,11 @@ import {
   compilePrimaryChatResponseFanout,
   PRIMARY_CHAT_RESPONSE_CANDIDATE_COUNT
 } from '../../../scripts/primary-chat-response-fanout-v1.mjs';
+import {
+  compilePrimaryChatResponseRootMaterialization,
+  PRIMARY_CHAT_PRIVATE_BINDING_SCHEMA,
+  PRIMARY_CHAT_CANDIDATE_RETURN_SCHEMA
+} from '../../../scripts/materialize-primary-chat-response-root-v1.mjs';
 
 const receiptPath = new URL('../../guide/receipts/portfolio-guide-planner-universal-cognitive-block-v1/RECEIPT-DISPATCH-COMPILER-DOGFOOD-V1.json', import.meta.url);
 const root = JSON.parse(fs.readFileSync(receiptPath, 'utf8')).compiled_dispatch_contract;
@@ -118,6 +123,69 @@ const serialized = JSON.stringify(compiled.contract);
 assert.equal(serialized.includes('THIS MUST NEVER ENTER PUBLIC WORK GRAPH'), false);
 assert.equal(serialized.includes('"workers_claimed":0'), true);
 assert.equal(serialized.includes('"returns_received":0'), true);
+
+
+const privateLiteral = 'PRIVATE_LOOKUP_SECRET_MUST_NOT_SURVIVE';
+const rootMaterialization = compilePrimaryChatResponseRootMaterialization({
+  root_contract: root,
+  root_contract_ref: 'receipt://primary-chat-current#compiled_dispatch_contract',
+  request_projection: requestProjection,
+  request_projection_ref: 'projection://primary-chat/rr-c004-regression-001',
+  template_work_block_id: templateId,
+  private_context_binding: {
+    schema: PRIMARY_CHAT_PRIVATE_BINDING_SCHEMA,
+    work_item_id: 'WI-PRIMARY-ROOT-001',
+    context_transport: 'SUPABASE_CONNECTED_PROJECT',
+    required_capabilities: ['github_repository_write','connected_supabase_prometeo'],
+    private_packet_lookup: {
+      project_id: 'catnohyouxqjjtseaueb',
+      table: 'prometeo_execution_packets',
+      key: 'work_item_id',
+      value: 'WI-PRIMARY-ROOT-001',
+      secret: privateLiteral
+    },
+    hidden_secret: privateLiteral
+  }
+});
+assert.equal(rootMaterialization.pass, true, JSON.stringify(rootMaterialization.errors || [], null, 2));
+assert.equal(rootMaterialization.jobs.length, 4);
+assert.equal(new Set(rootMaterialization.jobs.map(job => job.job_id)).size, 4);
+assert.equal(rootMaterialization.request_artifact.candidate_count_target, 4);
+assert.equal(rootMaterialization.request_artifact.workers_claimed, 0);
+assert.equal(rootMaterialization.request_artifact.returns_received, 0);
+for (const [index, job] of rootMaterialization.jobs.entries()) {
+  assert.equal(job.seed_status, 'ready');
+  assert.equal(job.primary_chat_response.request_id, requestProjection.request_id);
+  assert.equal(job.primary_chat_response.candidate_ordinal, index + 1);
+  assert.equal(job.primary_chat_response.expected_return_schema, PRIMARY_CHAT_CANDIDATE_RETURN_SCHEMA);
+  assert.equal(job.private_context_binding.work_item_id, 'WI-PRIMARY-ROOT-001');
+  assert.equal(job.private_context_binding.resolution, 'POST_CLAIM_ONLY');
+  assert.equal(job.required_capabilities.includes('connected_supabase_prometeo'), true);
+  assert.equal(job.compiled_dispatch_handoff.work_block.block_id, rootMaterialization.fanout.candidate_block_ids[index]);
+}
+const rootMaterializationBytes = JSON.stringify(rootMaterialization);
+assert.equal(rootMaterializationBytes.includes(privateLiteral), false, 'unknown private binding fields must be stripped');
+assert.equal(rootMaterializationBytes.includes('"secret"'), false);
+assert.equal(rootMaterializationBytes.includes('"hidden_secret"'), false);
+assert.throws(() => compilePrimaryChatResponseRootMaterialization({
+  root_contract: root,
+  root_contract_ref: 'receipt://primary-chat-current#compiled_dispatch_contract',
+  request_projection: requestProjection,
+  request_projection_ref: 'projection://primary-chat/rr-c004-regression-001',
+  template_work_block_id: templateId,
+  private_context_binding: {
+    schema: PRIMARY_CHAT_PRIVATE_BINDING_SCHEMA,
+    work_item_id: 'WI-PRIMARY-ROOT-001',
+    context_transport: 'SUPABASE_CONNECTED_PROJECT',
+    required_capabilities: ['github_repository_write','connected_supabase_prometeo'],
+    private_packet_lookup: {
+      project_id: 'catnohyouxqjjtseaueb',
+      table: 'prometeo_execution_packets',
+      key: 'work_item_id',
+      value: 'WI-DIFFERENT'
+    }
+  }
+}), /PRIVATE_LOOKUP_WORK_ITEM_MISMATCH/);
 
 console.log('PRIMARY_CHAT_RESPONSE_FANOUT_V1_PASS');
 console.log(JSON.stringify({
