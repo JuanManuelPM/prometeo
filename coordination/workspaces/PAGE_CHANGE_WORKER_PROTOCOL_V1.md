@@ -84,6 +84,25 @@ Important rules:
 10. Immediately before material mutation, run the CURRENT PREWRITE law: refresh EPOCH/compiled packet as needed, re-fetch the target, reconcile active overlapping writers, and use CAS/blob-SHA/head-aware writes.
 11. After RETURN or a real boundary, release active writer status so completed Page Change work does not become a phantom HARD_WRITE_COLLISION.
 
+## Primary Chat response root branch
+
+When the claimed compact frontier candidate has `kind=PRIMARY_CHAT_RESPONSE_ROOT`, this is not an ordinary single-worker Page Change answer.
+
+The candidate MUST already expose a sanitized `primary_chat_response_request` with schema `prometeo.primary-chat-response-request-public-projection/v1`. Before any materialization:
+
+1. Claim the root through the ordinary atomic opportunity claim. The public root is discovery only.
+2. Resolve exactly the claimed private packet through its declared `context_transport` / `private_packet_lookup`.
+3. Require the private packet to remain READY/unexpired and require `snapshot.intent.primary_chat_response_request.request_id` to equal the public root `request_id`. A mismatch is a bounded stale/private-correlation boundary.
+4. Never publish the packet transcript, capture text, tokens or private envelope. The only public request input is the sanitized projection already carried by the root.
+5. Compile the four-way fanout with `scripts/primary-chat-response-fanout-v1.mjs` and materialize it with `scripts/materialize-primary-chat-response-root-v1.mjs`, reusing the CURRENT compiled-dispatch root and a capability-neutral ready WorkBlock template.
+6. The public private-context binding passed to the materializer contains only `work_item_id`, declared transport, the exact sanitized lookup locator, required capabilities, `raw_text_public=false` and `resolution=POST_CLAIM_ONLY`. Unknown lookup fields are discarded by the materializer.
+7. Persist exactly four deterministic `prometeo.portfolio-derived-job/v1` candidate jobs. Do not invent worker identities or claims. Their ordinary portfolio PIN/claim remains execution authority.
+8. CREATE replay is idempotent: if the same request-specific candidate file already exists, compare it against the deterministic compiled output. Identical means already materialized; divergent bytes are a collision/boundary. Never create a differently named duplicate to escape `CREATE_EXISTS`.
+9. The root worker's own durable RETURN reports only sanitized materialization evidence and the four candidate job refs. It is not one of the four candidate answers and it must not claim that the response was synthesized or served.
+10. Re-enter E8/SUBMIT_NEXT immediately. Candidate RETURNS are consumed incrementally by the existing Guide Integrator and the C006/C007 response contracts; the human is not a routing step.
+
+The root fanout is successful only when four claimable candidate jobs exist durably. `candidates_prepared=4` is not equivalent to four workers alive or four RETURNS.
+
 ## RETURN
 
 The packet supplies the canonical `return_path`.
