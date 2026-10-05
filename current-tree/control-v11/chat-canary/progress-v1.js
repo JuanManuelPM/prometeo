@@ -8,6 +8,9 @@
   const FRONTIER_URL = '../../../live/claim-frontier.json';
   const THREAD_URL = '../../../coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json';
   const CONTRACT_URL = '../../../coordination/guide/PRIMARY_CHAT_STATE_COMMUNICATION_CONTRACT_V1.json';
+  const LIVE10_BATCH_URL = '../../../live/batches/PROMETEO-LIVE10-V1.json';
+  const LIVE10_TARGET_PRODUCTIVE_UNITS = 60;
+  const LIVE10_MILESTONES = Object.freeze([10,25,50,75,100]);
   const WAKE_OWNER_REF = 'coordination/jobs/derived/primary-chat-p0-platform-wake-capacity-v1/OWNER.json';
   const STALE_MS = 120000;
   const LIVE_MS = 600000;
@@ -177,6 +180,84 @@
         result_ref: worker?.close?.result_ref || worker?.result_ref || worker?.return_ref || null
       };
     }).filter(Boolean).sort((a,b)=>new Date(b.last_signal_at)-new Date(a.last_signal_at));
+  }
+
+  function compileLive10Checkpoint(batch, now = Date.now()) {
+    if (!batch || batch.schema !== 'prometeo.worker-batch-status/v1' || batch.batch_id !== 'PROMETEO-LIVE10-V1') return null;
+    const generated = asDate(batch.generated_at);
+    const stale = !generated || Math.max(0, now - generated.getTime()) > STALE_MS;
+    const productiveUnits = Math.max(0, n(batch.productive_units_total));
+    const milestones = LIVE10_MILESTONES.map(pct => {
+      const units = Math.ceil(LIVE10_TARGET_PRODUCTIVE_UNITS * pct / 100);
+      return Object.freeze({pct, units, founded: productiveUnits >= units});
+    });
+    const founded = milestones.filter(row => row.founded);
+    const latest = founded.length ? founded[founded.length - 1] : null;
+    const next = milestones.find(row => !row.founded) || null;
+    const slotsTotal = Math.max(0, n(batch.slots_total));
+    const slotsClaimed = Math.max(0, n(batch.slots_claimed));
+    const refill = String(batch?.action?.kind || '') === 'REFILL_EXACT' ? Math.max(0, n(batch?.action?.count)) : 0;
+    const reason = String(batch?.action?.reason || '');
+    let bottleneck = reason || 'sin cuello durable explícito';
+    if (reason === 'ADMISSION_SHORTFALL') bottleneck = 'admisión ' + slotsClaimed + '/' + slotsTotal + (refill ? ' · refill recomendado ' + refill : '');
+    const automatic = n(batch.live_recent) > 0
+      ? 'workers vivos continúan E8/SUBMIT_NEXT; fan-in/allocator consumen returns sin punto humano'
+      : String(batch.status || '').toUpperCase() === 'COMPLETE'
+        ? 'campaña completa; sin continuación mecánica pendiente'
+        : 'allocator/Guide continúa cuando exista authority y trabajo compatible';
+    return Object.freeze({
+      schema:'prometeo.live10-primary-chat-checkpoint/v1',
+      authority:'DERIVED_PROJECTION_ONLY',
+      generated_at:generated ? generated.toISOString() : null,
+      stale,
+      productive_units:productiveUnits,
+      target_productive_units:LIVE10_TARGET_PRODUCTIVE_UNITS,
+      percent:Math.min(100, Math.floor(productiveUnits / LIVE10_TARGET_PRODUCTIVE_UNITS * 100)),
+      milestones:Object.freeze(milestones),
+      latest_founded_pct:latest?.pct ?? null,
+      next_milestone_pct:next?.pct ?? null,
+      next_milestone_units:next?.units ?? null,
+      changed:'LIVE10 acumula ' + productiveUnits + '/' + LIVE10_TARGET_PRODUCTIVE_UNITS + ' unidades productivas durables',
+      bottleneck,
+      metrics:Object.freeze({
+        live_recent:Math.max(0,n(batch.live_recent)),
+        slots_claimed:slotsClaimed,
+        slots_total:slotsTotal,
+        workers_beaconed:Math.max(0,n(batch.workers_beaconed)),
+        workers_terminal:Math.max(0,n(batch.workers_terminal))
+      }),
+      next_automatic_action:automatic,
+      human_reply_required:false,
+      capacity_refill_recommended:refill
+    });
+  }
+
+  function renderLive10Checkpoint(model) {
+    const wrap = el('div');
+    wrap.setAttribute('data-live10-checkpoint','');
+    wrap.dataset.authority = model.authority;
+    wrap.dataset.stale = model.stale ? 'true' : 'false';
+    wrap.style.cssText = 'margin-top:14px;padding:12px 0;border-top:1px solid #202020;border-bottom:1px solid #171717;display:grid;gap:5px;';
+    const head = el('div','LIVE10 · ' + model.productive_units + '/' + model.target_productive_units + ' · ' + model.percent + '%');
+    head.style.cssText = 'font-size:10px;font-weight:800;letter-spacing:.08em;color:' + (model.stale ? '#d9b45f' : '#d8d8d3') + ';';
+    const milestone = model.latest_founded_pct === null
+      ? 'PRE-HITO · próximo ' + model.next_milestone_pct + '% en ' + model.next_milestone_units
+      : 'CHECKPOINT ' + model.latest_founded_pct + '% FUNDADO' + (model.next_milestone_pct ? ' · próximo ' + model.next_milestone_pct + '% en ' + model.next_milestone_units : ' · objetivo alcanzado');
+    const state = el('div',(model.stale ? 'STALE · ' : '') + milestone);
+    state.style.cssText = 'font-size:9px;font-weight:760;color:' + (model.stale ? '#d9b45f' : '#82d69a') + ';';
+    const changed = el('div','CAMBIÓ · ' + model.changed);
+    const bottleneck = el('div','CUELLO · ' + model.bottleneck);
+    const metrics = el('div','MÉTRICAS · live ' + model.metrics.live_recent + ' · claimed ' + model.metrics.slots_claimed + '/' + model.metrics.slots_total + ' · terminal ' + model.metrics.workers_terminal + ' · beaconed ' + model.metrics.workers_beaconed);
+    const next = el('div','SIGUE SOLO · ' + model.next_automatic_action);
+    for (const row of [changed,bottleneck,metrics,next]) row.style.cssText = 'color:#777772;font-size:9px;line-height:1.35;overflow-wrap:anywhere;';
+    next.style.color = '#a8c9ae';
+    wrap.append(head,state,changed,bottleneck,metrics,next);
+    if (model.capacity_refill_recommended > 0) {
+      const refill = el('div','CAPACIDAD · refill recomendado ' + model.capacity_refill_recommended + ' · no bloquea la continuación mecánica ya autorizada');
+      refill.style.cssText = 'color:#9c8c63;font-size:8px;line-height:1.35;';
+      wrap.append(refill);
+    }
+    return wrap;
   }
 
   function runCapacityHarness() {
@@ -422,7 +503,7 @@
     return wrap;
   }
 
-  function renderCapacity(host, snapshot, harness, contract) {
+  function renderCapacity(host, snapshot, harness, contract, live10 = null) {
     host.replaceChildren();
     host.dataset.state = snapshot.state;
     host.dataset.contract = contract?.schema || 'UNAVAILABLE';
@@ -482,6 +563,8 @@
       host.append(qa);
     }
 
+    if (live10) host.append(renderLive10Checkpoint(live10));
+
     host.append(renderWorkerSignals(snapshot));
 
     const history = el('div','HISTORIA ↓');
@@ -497,10 +580,11 @@
     if (!host) return {ok:false,reason:'CAPACITY_HOST_MISSING'};
     const harness = runCapacityHarness();
     try {
-      const [runtime, frontier, thread, contract] = await Promise.all([getRuntimeForCapacity(), getJson(FRONTIER_URL), getJson(THREAD_URL), getJson(CONTRACT_URL)]);
+      const [runtime, frontier, thread, contract, live10Batch] = await Promise.all([getRuntimeForCapacity(), getJson(FRONTIER_URL), getJson(THREAD_URL), getJson(CONTRACT_URL), getJson(LIVE10_BATCH_URL)]);
       if (contract?.schema !== 'prometeo.primary-chat-state-communication-contract/v1') throw new Error('STATE_CONTRACT_INCOMPATIBLE');
       const snapshot = capacitySnapshot(runtime, frontier, thread, contract);
-      renderCapacity(host, snapshot, harness, contract);
+      const live10 = compileLive10Checkpoint(live10Batch);
+      renderCapacity(host, snapshot, harness, contract, live10);
       delete host.dataset.error;
       return {ok:true,snapshot,harness,contract:contract.schema};
     } catch (error) {
@@ -529,6 +613,8 @@
       frontierUrl:FRONTIER_URL,
       threadUrl:THREAD_URL,
       contractUrl:CONTRACT_URL,
+      live10BatchUrl:LIVE10_BATCH_URL,
+      compileLive10Checkpoint,
       wakeOwnerRef:WAKE_OWNER_REF,
       reserveLowThreshold:RESERVE_LOW_THRESHOLD,
       classify:classifyCapacityState,
