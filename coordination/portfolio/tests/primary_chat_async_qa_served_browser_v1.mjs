@@ -54,6 +54,22 @@ async function fetchBytes(url){
   return Buffer.from(await response.arrayBuffer());
 }
 
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function fetchServedIndexAtVersion(expectedVersion,{attempts=30,delayMs=2000}={}){
+  let observed=null;
+  for(let attempt=1;attempt<=attempts;attempt+=1){
+    const cache=`run=${encodeURIComponent(runKey)}&attempt=${attempt}&t=${Date.now()}`;
+    const bytes=await fetchBytes(`${publicBase}/?${cache}`);
+    const text=bytes.toString('utf8');
+    const match=text.match(/progress-v1\.js\?v=([a-f0-9]{12})/i);
+    observed={bytes,text,match,attempt};
+    if(match?.[1]?.toLowerCase()===expectedVersion) return observed;
+    if(attempt<attempts) await sleep(delayMs);
+  }
+  const actual=observed?.match?.[1]?.toLowerCase() || 'MISSING';
+  throw new Error(`SERVED_INDEX_PROGRESS_VERSION_STALE expected=${expectedVersion} actual=${actual} attempts=${attempts}`);
+}
+
 let browser=null;
 try {
   assert.equal(fixture.schema,'prometeo.chat-thread-projection/v1');
@@ -71,19 +87,20 @@ try {
   assert.deepEqual(message.ui_blocks,primaryChatQaUiBlocks(message.qa));
   evidence.assertions.fixture_contract=true;
 
-  const cache=`run=${encodeURIComponent(runKey)}&t=${Date.now()}`;
-  const servedIndex=await fetchBytes(`${publicBase}/?${cache}`);
-  const servedFixture=await fetchBytes(`${publicBase}/async-qa-browser-fixture-v1.json?${cache}`);
-  const indexText=servedIndex.toString('utf8');
-  const progressMatch=indexText.match(/progress-v1\.js\?v=([a-f0-9]{12})/i);
-  assert.ok(progressMatch,'SERVED_INDEX_PROGRESS_VERSION_MISSING');
   const expectedProgressVersion=sha12(progressSource);
-  assert.equal(progressMatch[1].toLowerCase(),expectedProgressVersion,'SERVED_INDEX_PROGRESS_VERSION_STALE');
+  const servedIndexState=await fetchServedIndexAtVersion(expectedProgressVersion);
+  const cache=`run=${encodeURIComponent(runKey)}&attempt=${servedIndexState.attempt}&t=${Date.now()}`;
+  const servedIndex=servedIndexState.bytes;
+  const servedFixture=await fetchBytes(`${publicBase}/async-qa-browser-fixture-v1.json?${cache}`);
+  const indexText=servedIndexState.text;
+  const progressMatch=servedIndexState.match;
+  assert.ok(progressMatch,'SERVED_INDEX_PROGRESS_VERSION_MISSING');
   const servedProgress=await fetchBytes(`${publicBase}/progress-v1.js?v=${expectedProgressVersion}&${cache}`);
   assert.equal(sha256(servedProgress),sha256(progressSource),'SERVED_PROGRESS_BYTES_DIVERGE');
   assert.equal(sha256(servedFixture),sha256(fixtureSource),'SERVED_QA_FIXTURE_BYTES_DIVERGE');
   evidence.served={
     index_http_200:true,
+    index_freshness_attempt:servedIndexState.attempt,
     progress_reference:`progress-v1.js?v=${progressMatch[1]}`,
     progress_sha256:sha256(servedProgress),
     fixture_sha256:sha256(servedFixture),
