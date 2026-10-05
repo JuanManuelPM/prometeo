@@ -14,6 +14,7 @@
 .lanes{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.lane{border:1px solid var(--line);padding:7px}.lane b{font-size:12px}.lane small{display:block;color:var(--muted);font-size:7px;margin-top:3px}
 .events{display:grid;gap:3px;max-height:132px;overflow:auto}.e{display:grid;grid-template-columns:52px 82px 1fr;gap:6px;font:7px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;border-top:1px solid #17161a;padding-top:4px}.e:first-child{border-top:0}.et{color:#817a86}.ek{color:var(--blue)}.ed{color:#9c95a1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .foot{margin-top:8px;font-size:7px;color:#5f5965;line-height:1.4}
+.campaign{display:grid;gap:7px}.campaignTop{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.campaignTop b{font-size:18px}.campaignTop span{font-size:8px;color:var(--muted)}.campaignRail{height:7px;background:#16151a;border:1px solid var(--line);overflow:hidden}.campaignRail i{display:block;height:100%;background:var(--ok);width:0}.milestones{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}.milestone{padding:5px;border:1px solid var(--line);font:7px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:#666;text-align:center}.milestone.founded{border-color:var(--ok);color:var(--ok)}.milestone.next{border-color:var(--warn);color:var(--warn)}.checkpoint{display:grid;gap:3px;padding-top:5px;border-top:1px solid #17161a;font:8px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:#8e8793}.checkpoint b{color:#bbb4c0}.checkpoint.stale b{color:var(--warn)}
 @media(max-width:560px){.grid{grid-template-columns:repeat(2,1fr)}.workers{grid-template-columns:repeat(5,1fr)}.lanes{grid-template-columns:1fr}.e{grid-template-columns:48px 72px 1fr}}
 </style>
 </head>
@@ -33,6 +34,16 @@
 <section class="section">
   <div class="head"><b>POOL 10</b><span id="batchState">esperando batch</span></div>
   <div class="workers" id="workers"></div>
+</section>
+
+<section class="section">
+  <div class="head"><b>CAMPAÑA · 60 UNIDADES</b><span id="campaignFresh">esperando evidencia</span></div>
+  <div class="campaign">
+    <div class="campaignTop"><b id="campaignUnits">—/60</b><span id="campaignPct">—</span></div>
+    <div class="campaignRail"><i id="campaignFill"></i></div>
+    <div class="milestones" id="milestones"></div>
+    <div class="checkpoint" id="campaignCheckpoint"><b>CHECKPOINT</b><span>sin evidencia durable todavía</span></div>
+  </div>
 </section>
 
 <section class="section">
@@ -56,6 +67,7 @@
 'use strict';
 const ROOT='../../../live/';
 const BATCH='PROMETEO-LIVE10-V1';
+const CAMPAIGN_TARGET=60,MILESTONES=[10,25,50,75,100];
 const S={allocator:null,frontier:null,eff:null,batch:null,timeline:null,lastCompact:0,lastTimeline:0};
 const $=id=>document.getElementById(id);
 const n=v=>Number.isFinite(Number(v))?Number(v):null;
@@ -79,6 +91,41 @@ function laneCounts(){
     else growth++;
   }
   $('chatN').textContent=chat;$('metricsN').textContent=metrics;$('growthN').textContent=growth;
+}
+function campaignModel(batch,now=Date.now()){
+  if(!batch||batch.schema!=='prometeo.worker-batch-status/v1'||batch.batch_id!==BATCH)return null;
+  const units=Math.max(0,Number(batch.productive_units_total)||0);
+  const generated=Date.parse(batch.generated_at||'');
+  const stale=!Number.isFinite(generated)||(now-generated)>120000;
+  const rows=MILESTONES.map(pct=>{const threshold=Math.ceil(CAMPAIGN_TARGET*pct/100);return{pct,threshold,founded:units>=threshold}});
+  const founded=rows.filter(x=>x.founded),latest=founded.at(-1)||null,next=rows.find(x=>!x.founded)||null;
+  const refill=batch.action?.kind==='REFILL_EXACT'?Math.max(0,Number(batch.action.count)||0):0;
+  const bottleneck=batch.action?.reason==='ADMISSION_SHORTFALL'
+    ? 'admisión '+(batch.slots_claimed??0)+'/'+(batch.slots_total??0)+(refill?' · refill '+refill:'')
+    : (batch.action?.reason||'sin cuello durable explícito');
+  const automatic=(Number(batch.live_recent)||0)>0
+    ? 'E8/SUBMIT_NEXT + fan-in/allocator; sin punto humano'
+    : String(batch.status||'').toUpperCase()==='COMPLETE'?'campaña completa':'continuación sólo con trabajo/authority compatible';
+  return{units,stale,rows,latest,next,refill,bottleneck,automatic,pct:Math.min(100,Math.floor(units/CAMPAIGN_TARGET*100)),generated_at:Number.isFinite(generated)?new Date(generated).toISOString():null};
+}
+function renderCampaign(){
+  const m=campaignModel(S.batch);
+  const host=$('campaignCheckpoint'),marks=$('milestones');
+  if(!m){
+    $('campaignUnits').textContent='—/60';$('campaignPct').textContent='UNKNOWN';$('campaignFill').style.width='0%';$('campaignFresh').textContent='sin batch';marks.innerHTML='';host.className='checkpoint';host.innerHTML='<b>CHECKPOINT</b><span>sin evidencia durable todavía</span>';return;
+  }
+  $('campaignUnits').textContent=m.units+'/'+CAMPAIGN_TARGET;
+  $('campaignPct').textContent=m.pct+'%';
+  $('campaignFill').style.width=m.pct+'%';
+  $('campaignFresh').textContent=(m.stale?'STALE · ':'')+ageText(ageSec(m.generated_at));
+  marks.innerHTML=m.rows.map(row=>'<div class="milestone '+(row.founded?'founded':m.next?.pct===row.pct?'next':'')+'">'+row.pct+'%<br>'+row.threshold+'</div>').join('');
+  host.className='checkpoint '+(m.stale?'stale':'');
+  const milestone=m.latest?'hito '+m.latest.pct+'% fundado':('pre-hito · próximo '+m.next.pct+'% en '+m.next.threshold);
+  host.innerHTML='<b>'+(m.stale?'STALE · ':'')+esc(milestone)+'</b>'+
+    '<span>CAMBIÓ · '+esc(m.units+'/'+CAMPAIGN_TARGET+' unidades productivas durables')+'</span>'+
+    '<span>CUELLO · '+esc(m.bottleneck)+'</span>'+
+    '<span>MÉTRICAS · live '+esc(S.batch?.live_recent??0)+' · claimed '+esc(S.batch?.slots_claimed??0)+'/'+esc(S.batch?.slots_total??0)+' · terminal '+esc(S.batch?.workers_terminal??0)+'</span>'+
+    '<span>SIGUE SOLO · '+esc(m.automatic)+'</span>';
 }
 function recentEvents(){
   const cutoff=Date.now()-3600000;
@@ -115,7 +162,7 @@ function render(){
   $('unconsumed').textContent=fmt(n(a?.metabolism?.unconsumed_returns));
   $('allocRate').textContent=e?.metrics?.allocation_rate_percent!=null?e.metrics.allocation_rate_percent+'%':'—';
   $('ttfa').textContent=e?.metrics?.ttfa_p90_ms!=null?Math.round(e.metrics.ttfa_p90_ms/1000)+'s':'—';
-  laneCounts();workerStrip();recentEvents();
+  laneCounts();workerStrip();renderCampaign();recentEvents();
   const stamps=[a?.generated_at,S.frontier?.generated_at,e?.generated_at,S.batch?.generated_at].filter(Boolean);
   const newest=stamps.sort().at(-1);const age=ageSec(newest);$('age').textContent='snapshot '+ageText(age);
   const dot=$('dot');dot.className='dot '+(age!==null&&age<90?'ok':age!==null&&age>300?'bad':'');
