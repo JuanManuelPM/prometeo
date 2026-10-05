@@ -6,6 +6,32 @@ const arr=v=>Array.isArray(v)?v:[];
 const uniq=v=>[...new Set(arr(v).filter(Boolean).map(String))];
 const parseTime=v=>Date.parse(v||'')||0;
 
+function normalizePrimaryChatResponseRequest(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return null;
+  if(value.schema!=='prometeo.primary-chat-response-request-public-projection/v1')return null;
+  const requestId=String(value.request_id||'').trim();
+  if(!requestId||String(value.routing||'')!=='CURRENT_WORK_GRAPH'||String(value.priority||'')!=='HIGH')return null;
+  if(Number(value.requested_candidate_count)!==4||value.counts_are_targets_not_claims!==true||value.raw_text_public!==false)return null;
+  return {
+    schema:'prometeo.primary-chat-response-request-public-projection/v1',
+    request_id:requestId.slice(0,160),
+    created_at:value.created_at?String(value.created_at).slice(0,64):null,
+    request_class:'ANSWER',
+    priority:'HIGH',
+    priority_trigger:String(value.priority_trigger||'EXPLICIT_HUMAN_RESPONDER_ACTION').slice(0,120),
+    routing:'CURRENT_WORK_GRAPH',
+    requested_candidate_count:4,
+    requested_exam_count:Number(value.requested_exam_count||2),
+    requested_synthesizer_count:Number(value.requested_synthesizer_count||1),
+    human_routing_actions_target:0,
+    counts_are_targets_not_claims:true,
+    raw_text_public:false,
+    authority:'SANITIZED_DERIVED_REQUEST_ONLY',
+    chat_object_id:value.chat_object_id?String(value.chat_object_id).slice(0,160):null,
+    public_thread_path:value.public_thread_path?String(value.public_thread_path).slice(0,320):null
+  };
+}
+
 function normalizeItem(item, now=Date.now()){
   if(!item||typeof item!=='object')return null;
   const work=String(item.work_item_id||'').trim();
@@ -22,7 +48,9 @@ function normalizeItem(item, now=Date.now()){
   const privatePacketLookup=item.private_packet_lookup&&typeof item.private_packet_lookup==='object'&&!Array.isArray(item.private_packet_lookup)
     ? item.private_packet_lookup
     : null;
+  const primaryChatResponseRequest=normalizePrimaryChatResponseRequest(item.primary_chat_response_request);
   if(!contextTransport||!privatePacketLookup)return null;
+  if(item.kind==='PRIMARY_CHAT_RESPONSE_ROOT'&&!primaryChatResponseRequest)return null;
   return {
     opportunity_id:opportunity,
     work_item_id:work,
@@ -38,6 +66,7 @@ function normalizeItem(item, now=Date.now()){
     forbidden_worker_ids:uniq(item.forbidden_worker_ids).slice(0,16),
     context_transport:contextTransport,
     private_packet_lookup:privatePacketLookup,
+    ...(primaryChatResponseRequest?{primary_chat_response_request:primaryChatResponseRequest}:{}),
     return_path:item.return_path?String(item.return_path):null,
     expires_at:item.expires_at||null,
     state:'ready',
