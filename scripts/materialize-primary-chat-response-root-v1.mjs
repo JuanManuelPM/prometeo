@@ -41,9 +41,11 @@ function cleanBinding(binding={}){
   if(!transport)throw new Error('PRIMARY_CHAT_ROOT_MATERIALIZER:CONTEXT_TRANSPORT_REQUIRED');
   if(!lookup||typeof lookup!=='object'||Array.isArray(lookup))throw new Error('PRIMARY_CHAT_ROOT_MATERIALIZER:PRIVATE_PACKET_LOOKUP_REQUIRED');
   if(!capabilities.includes('github_repository_write'))throw new Error('PRIMARY_CHAT_ROOT_MATERIALIZER:GITHUB_WRITE_CAPABILITY_REQUIRED');
-  const lookupCopy=clone(lookup);
-  const raw=forbiddenPath(lookupCopy);
-  if(raw)throw new Error(`PRIMARY_CHAT_ROOT_MATERIALIZER:PRIVATE_LOOKUP_FORBIDDEN_FIELD:${raw}`);
+  const lookupCopy={};
+  for(const key of ['project_id','table','resolver','key','value']){
+    if(lookup[key]!==undefined&&lookup[key]!==null&&String(lookup[key]).trim())lookupCopy[key]=String(lookup[key]).trim().slice(0,320);
+  }
+  if(!lookupCopy.key||!lookupCopy.value)throw new Error('PRIMARY_CHAT_ROOT_MATERIALIZER:PRIVATE_PACKET_LOOKUP_KEY_VALUE_REQUIRED');
   if(String(lookupCopy.value||'')!==workItemId)throw new Error('PRIMARY_CHAT_ROOT_MATERIALIZER:PRIVATE_LOOKUP_WORK_ITEM_MISMATCH');
   return Object.freeze({
     schema:PRIMARY_CHAT_PRIVATE_BINDING_SCHEMA,
