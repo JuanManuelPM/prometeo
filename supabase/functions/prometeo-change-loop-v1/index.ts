@@ -140,14 +140,20 @@ function primaryChatResponseEnvelopeFromCaptures(captures:any[],requestId:string
       const envelope=JSON.parse(raw.slice(prefix.length,nl));
       if(envelope?.schema!=='prometeo.primary-chat-response-request/v1'||String(envelope.request_id||'')!==requestId)continue;
       return{
-        schema:envelope.schema,
+        schema:'prometeo.primary-chat-response-request-public-projection/v1',
         request_id:requestId,
+        created_at:String(envelope.created_at||capture?.created_at||''),
+        request_class:'ANSWER',
         priority:String(envelope.priority||'HIGH'),
+        priority_trigger:String(envelope.priority_trigger||'EXPLICIT_HUMAN_RESPONDER_ACTION'),
         routing:String(envelope.routing||'CURRENT_WORK_GRAPH'),
         requested_candidate_count:Number(envelope.requested_candidate_count||4),
         requested_exam_count:Number(envelope.requested_exam_count||2),
         requested_synthesizer_count:Number(envelope.requested_synthesizer_count||1),
+        human_routing_actions_target:Number(envelope.human_routing_actions_target||0),
+        counts_are_targets_not_claims:true,
         raw_text_public:false,
+        authority:'SANITIZED_DERIVED_REQUEST_ONLY',
         chat_object_id:'chat-object-prometeo-chat-control-main',
         public_thread_path:'coordination/portfolio/evidence/prometeo-autonomous-growth/CHAT_THREAD_MIRROR_CANARY_V1.json'
       };
@@ -279,15 +285,18 @@ async function workerFrontier(req:Request){
         opportunity_id:opportunityId,
         project_id:PAGE_CHANGE_PROJECT_ID,
         page_id:p.page_id,
-        title:'Actualizar '+title,
-        mission:'Consumir el Execution Packet privado del Page Change Thread, integrar toda la intención humana seleccionada en su owner real, verificar lo ejecutado, persistir RETURN y actualizar el mismo feed.',
-        kind:'PAGE_CHANGE_EXECUTION',
-        value_class:'PRODUCT_VALUE',
-        priority:96,
+        title:primaryResponse?('Responder '+title):('Actualizar '+title),
+        mission:primaryResponse
+          ? 'Consumir el Execution Packet privado sólo post-claim y materializar la respuesta Primary Chat por el fanout CURRENT C004; no responder como worker único ni publicar prompt crudo. Los RETURNS durables deben continuar por C006/C007 y el mirror existente.'
+          : 'Consumir el Execution Packet privado del Page Change Thread, integrar toda la intención humana seleccionada en su owner real, verificar lo ejecutado, persistir RETURN y actualizar el mismo feed.',
+        kind:primaryResponse?'PRIMARY_CHAT_RESPONSE_ROOT':'PAGE_CHANGE_EXECUTION',
+        value_class:primaryResponse?'SYSTEM_MULTIPLIER':'PRODUCT_VALUE',
+        priority:primaryResponse?980:96,
         source_path:PAGE_CHANGE_WORKER_PROTOCOL,
         required_capabilities:['github_repository_write','connected_supabase_prometeo'],
         context_transport:'SUPABASE_CONNECTED_PROJECT',
         private_packet_lookup:{project_id:'catnohyouxqjjtseaueb',table:'prometeo_execution_packets',key:'work_item_id',value:p.work_item_id},
+        ...(primaryResponse?{primary_chat_response_request:primaryResponse}:{}),
         return_path:p.return_path,
         expires_at:p.expires_at,
         claim_path:claimPath
