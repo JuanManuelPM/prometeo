@@ -9,9 +9,9 @@ export const ASSETS = Object.freeze([
   { ref: '../ingress-v1.js', rel: 'current-tree/control-v11/ingress-v1.js' },
   { ref: './private-correlation-v1.js', rel: 'current-tree/control-v11/chat-canary/private-correlation-v1.js' },
   { ref: './input-module-v1.js', rel: 'current-tree/control-v11/chat-canary/input-module-v1.js' },
+  { ref: './continuity-capsule-v1.js', rel: 'current-tree/control-v11/chat-canary/continuity-capsule-v1.js' },
   { ref: './response-request-v1.js', rel: 'current-tree/control-v11/chat-canary/response-request-v1.js' },
   { ref: './rich-response-v1.js', rel: 'current-tree/control-v11/chat-canary/rich-response-v1.js' },
-  { ref: './current-first-v1.js', rel: 'current-tree/control-v11/chat-canary/current-first-v1.js' },
   { ref: './progress-v1.js', rel: 'current-tree/control-v11/chat-canary/progress-v1.js' }
 ]);
 export const INPUT_REL = ASSETS.find(x => x.ref === './input-module-v1.js').rel;
