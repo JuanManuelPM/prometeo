@@ -28,3 +28,9 @@ Continuar experimentando sobre broker/WorkBlocks sin romper la UI modular.
 - No crear scheduler/dealer/queue paralelos.
 - Trabajar sólo dentro del write scope declarado.
 - Kernel conserva funciones universales.
+
+
+## Continuidad raíz
+Antes de trabajar, leer `CONTINUITY/MASTER_CONTEXT.md`; luego CURRENT y el prompt propio del widget.
+
+EXP-002 está preparado en Drive con `BLOCK-REALCHAT-002` y `CLAIM-REALCHAT-002`; sigue `READY_TO_RUN`, no probado con dos chats reales todavía.

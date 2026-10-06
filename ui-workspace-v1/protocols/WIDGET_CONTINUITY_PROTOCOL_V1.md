@@ -28,3 +28,14 @@ Debe dejar:
 - actualización de continuidad si aprendió algo durable.
 
 No puede borrar historia para “limpiar”.
+## Regla de creación de widgets
+Un widget nuevo NO se considera creado/usable hasta que existan, como mínimo:
+- `versions/vN/` + manifest compatible con Widget API;
+- `messages/`;
+- `references/`;
+- `CONTEXT.md`;
+- `CONTINUITY_PROMPT.txt`;
+- `READINESS_EXAM.json`.
+
+El prompt debe apuntar a `continuity/MASTER_CONTEXT.md`, `current.json`, reglas del kernel y contexto propio. Esto es parte del Definition of Done del widget, no documentación opcional.
+
