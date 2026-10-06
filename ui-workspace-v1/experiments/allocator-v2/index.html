@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prometeo · Allocator V2 Live</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#080808;color:#f4f4f0;font-family:system-ui,-apple-system,sans-serif}
+main{width:min(1100px,100%);margin:auto;padding:18px}.top{display:flex;gap:12px;align-items:end;justify-content:space-between;flex-wrap:wrap}
+h1{margin:0;font-size:clamp(24px,5vw,42px)}.muted{color:#999}.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:16px 0}
+.metric,.worker{border:1px solid #2d2d2d;border-radius:14px;background:#111;padding:12px}.metric b{font-size:24px;display:block}.workers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.worker h2{margin:0 0 8px}.status{display:inline-flex;align-items:center;gap:7px}.dot{width:9px;height:9px;border-radius:50%;background:#666}.busy .dot{animation:pulse 1s infinite;background:#ddd}.done .dot{background:#777}
+.row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px solid #222}.row:first-of-type{border-top:0}.value{text-align:right;word-break:break-word}
+details{border-top:1px solid #292929;padding:8px 0}summary{cursor:pointer}.answer{white-space:pre-wrap;color:#ddd;padding:8px 0}.events{max-height:270px;overflow:auto;font:12px ui-monospace,monospace;color:#bbb}
+.ev{padding:5px 0;border-bottom:1px solid #1e1e1e}.now{font-family:ui-monospace,monospace;font-size:12px;color:#888}
+@media(max-width:700px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}.workers{grid-template-columns:1fr}main{padding:10px}}
+</style>
+</head>
+<body><main>
+<div class="top"><div><div class="muted">PROMETEO · EXP-003</div><h1>Allocator V2 · live</h1></div><div class="now" id="updated">esperando telemetría…</div></div>
+<div class="summary">
+<div class="metric"><span class="muted">Bloques</span><b id="mCompleted">0/10</b></div>
+<div class="metric"><span class="muted">Workers</span><b id="mWorkers">0/2</b></div>
+<div class="metric"><span class="muted">Conflictos</span><b id="mConflicts">0</b></div>
+<div class="metric"><span class="muted">Ops externas</span><b id="mOps">0</b></div>
+</div>
+<div class="workers" id="workers"></div>
+</main>
+<script>
+const BASE='https://raw.githubusercontent.com/JuanManuelPM/prometeo/main/ui-workspace-v1/experiments/allocator-v2/state/';
+const slots=['001','002'];
+function escText(x){return x==null?'—':String(x)}
+function workerCard(w){
+ const busy=['REGISTERED','CLAIMED','READING','WORKING','PUBLISHING','VERIFYING'].includes(w.status);
+ const done=['EMPTY','NO_SLOT','ERROR'].includes(w.status);
+ const c=w.counters||{}, t=w.timing||{}, events=(w.events||[]).slice(-20).reverse();
+ const completed=(w.completed||[]).map(r=>`<details><summary>${r.block_id||r.ticket} · ${r.duration_ms??'—'} ms</summary><div class="answer"></div></details>`).join('');
+ const el=document.createElement('section'); el.className='worker '+(busy?'busy':done?'done':'');
+ el.innerHTML=`<h2>Worker ${w.worker_slot}</h2>
+ <div class="status"><span class="dot"></span><strong>${escText(w.status)}</strong></div>
+ <div class="row"><span class="muted">ID</span><span class="value">${escText(w.worker_id)}</span></div>
+ <div class="row"><span class="muted">Bloque actual</span><span class="value">${escText(w.current_block)}</span></div>
+ <div class="row"><span class="muted">Operación</span><span class="value">${escText(w.current_operation)}</span></div>
+ <div class="row"><span class="muted">Completados</span><span class="value">${c.completed||0}</span></div>
+ <div class="row"><span class="muted">Promedio bloque</span><span class="value">${t.avg_block_ms==null?'—':Math.round(t.avg_block_ms)+' ms'}</span></div>
+ <div class="row"><span class="muted">Conflictos</span><span class="value">${c.revision_conflicts||0}</span></div>
+ <div class="row"><span class="muted">Ops externas</span><span class="value">${c.external_work_ops||0}</span></div>
+ <h3>Respuestas</h3><div class="returns">${completed||'<span class="muted">todavía ninguna</span>'}</div>
+ <h3>Eventos</h3><div class="events">${events.map(e=>`<div class="ev">${escText(e.ts)} · ${escText(e.phase)} · ${escText(e.operation)} · ${escText(e.result||e.target||'')}</div>`).join('')||'sin eventos'}</div>`;
+ const details=el.querySelectorAll('details'); details.forEach((d,i)=>{const a=d.querySelector('.answer'); const r=(w.completed||[])[i]; if(r) a.textContent=(r.response||'')+'\n\n'+(r.mini_resumen||'');});
+ return el;
+}
+async function load(){
+ const states=[];
+ for(const s of slots){
+  try{const r=await fetch(BASE+`worker-${s}.json?t=${Date.now()}`,{cache:'no-store'}); states.push(await r.json())}
+  catch(e){states.push({worker_slot:s,status:'UNAVAILABLE',counters:{},timing:{},completed:[],events:[]})}
+ }
+ document.getElementById('workers').replaceChildren(...states.map(workerCard));
+ const completed=states.reduce((n,w)=>n+(w.counters?.completed||0),0);
+ const workers=states.filter(w=>w.worker_id).length;
+ const conflicts=states.reduce((n,w)=>n+(w.counters?.revision_conflicts||0),0);
+ const ops=states.reduce((n,w)=>n+(w.counters?.external_work_ops||0),0);
+ mCompleted.textContent=completed+'/10';mWorkers.textContent=workers+'/2';mConflicts.textContent=conflicts;mOps.textContent=ops;
+ updated.textContent='actualizado '+new Date().toLocaleTimeString();
+}
+load();setInterval(load,2000);
+</script></body></html>
