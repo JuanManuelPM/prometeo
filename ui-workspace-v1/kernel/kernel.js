@@ -15,11 +15,14 @@
     if(!mod || !mod.id) throw new Error('Widget module requires id');
     if(mod.widgetApi !== 1) throw new Error(`Unsupported widgetApi for ${mod.id}`);
     modules.set(mod.id, mod);
-    if(mod.css && !document.querySelector(`style[data-widget-css="${mod.id}"]`)){
-      const s=document.createElement('style');
-      s.dataset.widgetCss=mod.id;
+    if(mod.css){
+      let s=document.querySelector(`style[data-widget-css="${mod.id}"]`);
+      if(!s){
+        s=document.createElement('style');
+        s.dataset.widgetCss=mod.id;
+        document.head.appendChild(s);
+      }
       s.textContent=mod.css;
-      document.head.appendChild(s);
     }
   }
 
