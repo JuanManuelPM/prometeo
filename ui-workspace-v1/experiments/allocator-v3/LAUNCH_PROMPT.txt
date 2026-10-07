@@ -1,0 +1,126 @@
+PROMETEO · EXP-004 · 2 WORKERS / 10 BLOQUES · TELEMETRY V3
+
+Usá mi Google Drive y GitHub conectados.
+
+IMPORTANTE: este mismo prompt se pega en DOS chats nuevos casi al mismo tiempo.
+
+NO explores Prometeo.
+NO elijas tareas.
+NO leas bloques futuros.
+NO hagas búsquedas ni listados.
+
+=== BOOTSTRAP OBLIGATORIO ===
+
+Generá localmente un worker_id:
+exp004-<UTC>-<6 caracteres aleatorios>
+
+Tu PRIMERA operación externa tiene que ser REGISTER. No leas START_HERE antes.
+
+REGISTRY Drive document_id:
+1eJUVqmVzJwRvIuPLBIkiHtoFvJ2L130tXstOOwEs7Ug
+
+REGISTER:
+1. get_document del registry y conservar revisionId.
+2. leer NEXT_WORKER|NNN.
+3. si NNN > 002: terminar NO_SLOT.
+4. intentar reemplazo condicional:
+   NEXT_WORKER|NNN → NEXT_WORKER|NNN+1
+   usando requiredRevisionId.
+5. si hay revision mismatch: releer registry y repetir.
+6. al ganar, NNN es tu worker_slot fijo.
+
+INMEDIATAMENTE después de ganar, antes de leer protocolo o hacer cualquier otra cosa, publicá tu PRIMER PING en GitHub actualizando TU state.
+
+Repo: JuanManuelPM/prometeo
+Branch: main
+
+slot 001:
+path: ui-workspace-v1/experiments/allocator-v3/state/worker-001.json
+initial SHA: 74d30be4d57e6a3f460451793116c0ac411fe39a
+
+slot 002:
+path: ui-workspace-v1/experiments/allocator-v3/state/worker-002.json
+initial SHA: 5208a515950e1afc1ce34dc6127addae74545f9b
+
+Ese primer state debe conservar el schema PROMETEO_ALLOCATOR_V3_WORKER_STATE y quedar:
+- worker_id = tu worker_id
+- status = REGISTERED
+- connected_worker_at = hora UTC ISO con milisegundos
+- registered_worker_at = misma hora real del registro terminado
+- first_public_ping_worker_at = hora exacta de este write
+- last_event_worker_at = hora exacta
+- current = nulls
+- counters:
+  tickets 0
+  completed 0
+  logical_work_ops 1
+  external_work_calls = cantidad REAL de llamadas Drive usadas por REGISTER
+  telemetry_writes 1
+  revision_conflicts = conflictos reales de REGISTER
+  retries = retries reales de REGISTER
+  errors 0
+  forbidden_ops 0
+- events = un único evento:
+  seq 1
+  phase RESULT
+  operation REGISTER
+  worker_at <ISO UTC ms>
+  status SUCCESS
+  details con attempts, connector_calls y revision_conflicts
+
+Commit message EXACTO:
+EXP004 W<slot> EVT 0001 RESULT REGISTER
+
+Usá el content_sha devuelto por ese update como SHA de tu próximo update. NO releas tu state salvo conflicto real.
+
+=== LEER PROTOCOLO ===
+
+Ahora registrá INTENT PROTOCOL_READ en tu state y recién después leé exactamente una vez:
+
+repo: JuanManuelPM/prometeo
+branch: main
+path:
+ui-workspace-v1/experiments/allocator-v3/START_HERE.md
+
+Registrá RESULT PROTOCOL_READ y ejecutá exactamente ese protocolo.
+
+REGLA CENTRAL:
+GET_NEXT
+→ leer sólo el bloque asignado
+→ redactar TODO localmente, sin ninguna llamada online
+→ publicar RETURN completo en una sola creación
+→ verificarlo una sola vez
+→ GET_NEXT inmediato
+
+No:
+- list_folder
+- search
+- rereads preventivos
+- leer HEAD/branches
+- mover archivos
+- editar RETURN por partes
+- tocar Drive/GitHub mientras redactás
+- procesar varios bloques juntos
+- diseñar arquitectura
+- recuperar tareas abandonadas
+- implementar leases/requeue
+- tocar el state del otro worker
+
+Si una llamada real falla, registrá el error y reintentá SOLAMENTE esa misma operación, máximo 2 veces. No explores alternativas.
+
+Al recibir EMPTY respondé solamente:
+
+worker_id
+worker_slot
+tickets recibidos
+RETURNS creados
+bloques completados
+external_work_calls
+telemetry_writes
+revision_conflicts
+retries
+forbidden_ops
+errores
+primer_ping
+ultimo_evento
+estado final
