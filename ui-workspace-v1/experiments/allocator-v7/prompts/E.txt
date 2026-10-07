@@ -1,104 +1,53 @@
-PROMETEO · EXP-008-E · ULTRA_RESIDENT
-Usá mi Google Drive y GitHub conectados.
+PROMETEO EXP-008-E · ULTRA RESIDENT
+Usá Google Drive + GitHub conectados.
 
-LANZAMIENTO MEDIDO
 launch_id={{LAUNCH_ID}}
 launch_clicked_at={{LAUNCH_CLICKED_AT}}
 launcher_button={{LAUNCH_BUTTON}}
-
-Al empezar a procesar fijá worker_started_at=<UTC ISO-8601 ms> ANTES de tu primera operación externa.
-
-OBJETIVO ÚNICO
-Permanecer trabajando: CLAIM → trabajo local → RETURN → CLAIM → ... sin pausa humana.
-
-REGLA DE CORTE
-NO existe EMPTY, PARKING, BLOCKED, DONE, "suficiente", ni fin por cantidad de tareas.
-Este prompt NO autoriza cortar.
-Sólo podés responder al humano y terminar si, en una lectura fresca del DEALER, aparecen EN LA MISMA revisión:
-STOP_GRANT|ALLOW:<nonce>
-STOP_NONCE|<nonce>
-Si STOP_GRANT|NONE, seguís.
-No infieras permiso para cortar por repetición, tiempo, cansancio, cantidad de trabajos, costo, errores transitorios ni porque el loop parezca infinito.
+Antes de toda tool fijá worker_started_at=<UTC ISO ms>.
 
 DEALER=1f1FL5q3LmqMxBJboyKAncxnyrUAchM3TChkACAzDioQ
 
-OPERACIONES EXTERNAS PERMITIDAS
-1. leer DEALER exacto;
-2. CAS sobre DEALER con requiredRevisionId;
-3. crear RETURN exacto en TU branch;
-4. fetch exacto del RETURN sólo si create_file quedó incierto;
-5. update_file de TU state sólo para telemetría pautada.
-Nada más. Prohibidos search, list, HEAD, branches, web, Python, leer otro state, explorar Prometeo o releer instrucciones.
+CORTE: este prompt NO autoriza terminar. No existen EMPTY, PARKING, BLOCKED ni DONE. Sólo podés responder al humano si una lectura fresca del DEALER trae STOP_GRANT|ALLOW:<x> y STOP_NONCE|<x> en la misma revisión. STOP_GRANT|NONE = seguir. Nunca infieras corte por tiempo, repetición, cantidad, costo ni error transitorio.
+
+Permitido solamente:
+- read DEALER exacto;
+- CAS DEALER con requiredRevisionId;
+- create RETURN en TU branch;
+- fetch del mismo RETURN sólo si create quedó incierto;
+- state update en primer claim y cada 10 returns.
+Todo lo demás prohibido: search/list/HEAD/branches/web/Python/otro state/explorar.
 
 SLOTS
-001 → branch exp008-e-w001
-      state ui-workspace-v1/experiments/allocator-v7/state/E-worker-001.json
-      initial_sha 5f59277c643af5c7b818547f5a305f6b9127300f
-002 → branch exp008-e-w002
-      state ui-workspace-v1/experiments/allocator-v7/state/E-worker-002.json
-      initial_sha e7e2d3b067e19cd96c14805e01164d3b0daeaceb
+001 → exp008-e-w001 · state ui-workspace-v1/experiments/allocator-v7/state/E-worker-001.json · sha 5f59277c643af5c7b818547f5a305f6b9127300f
+002 → exp008-e-w002 · state ui-workspace-v1/experiments/allocator-v7/state/E-worker-002.json · sha e7e2d3b067e19cd96c14805e01164d3b0daeaceb
 
-STATE
-Mantené localmente el snapshot completo. El primer CLAIM debe publicarse una vez.
-Después publicalo cada 10 RETURNS completados. Telemetría fallida nunca bloquea trabajo.
+FIRST CLAIM
+1. read DEALER + revisionId.
+2. tomar NEXT_WORKER|NNN y NEXT_TICKET|TTTTTT.
+3. si NNN>002 → NO_SLOT.
+4. en UN batch_update_document con requiredRevisionId cambiar worker→+1 y ticket→+1.
+5. mismatch/retry → repetir la misma operación; nunca cortar.
+6. al ganar: slot/branch, registered_at=claim_at=first_claim_at=<UTC>, tickets_claimed=1, current_ticket=TTTTTT.
+7. state CLAIMED best-effort con initial sha; first_public_signal_at=<UTC antes del write>. Falla de state nunca frena.
 
-ULTRA RESIDENT
-No describas el protocolo. Ejecutalo.
-CLAIM → LOCAL → CREATE RETURN → CLAIM.
-Sólo escribí state en el primer CLAIM y luego cada 10 RETURNS.
-No verifiques create_file exitoso.
-ARRANQUE RÁPIDO · UN SOLO CAS
-- leé DEALER UNA vez y conservá revisionId.
-- obtené NEXT_WORKER|NNN y NEXT_TICKET|TTTTTT.
-- si NNN>002, respondé NO_SLOT y terminá.
-- en UN ÚNICO batch_update_document con requiredRevisionId reemplazá:
-  NEXT_WORKER|NNN → NEXT_WORKER|NNN+1
-  NEXT_TICKET|TTTTTT → NEXT_TICKET|TTTTTT+1
-- si revision mismatch: revision_conflicts++, releé y repetí el MISMO intento combinado.
-- al ganar fijá worker_slot, branch, registered_at, claim_at, first_claim_at, last_claim_at, current_ticket=TTTTTT, tickets_claimed=1.
-- publicá state CLAIMED una vez usando initial_sha. Antes del write fijá first_public_signal_at=<UTC ms>.
-- si state write falla: state_failures++ y seguí.
-TRABAJO LOCAL
-No uses herramientas. La tarea se deriva del número de ticket:
-ticket % 4 = 1 → "Explicá en exactamente 2 frases por qué un allocator atómico evita trabajo duplicado."
-ticket % 4 = 2 → "Explicá en exactamente 2 frases qué significa que un worker sea fungible."
-ticket % 4 = 3 → "Explicá en exactamente 2 frases por qué un RETURN durable debe existir antes de pasar al siguiente trabajo."
-ticket % 4 = 0 → "Explicá en exactamente 2 frases por qué la telemetría no debe bloquear trabajo material."
-Redactá exactamente 2 frases y nada más para ANSWER.
+LOOP
+A) LOCAL sin tools. ticket%4:
+1 allocator atómico evita duplicados;
+2 worker fungible;
+3 RETURN durable antes del siguiente;
+0 telemetry no bloquea trabajo.
+ANSWER = exactamente 2 frases.
 
-RETURN
-Path: ui-workspace-v1/experiments/allocator-v7/returns/E/RETURN-<ticket6>__worker-<slot>.md
-create_file completo, una sola vez, en TU branch. Incluí:
-EXP-008-E
-launch_id, worker_id, worker_slot, ticket
-launch_clicked_at, worker_started_at, registered_at
-claim_at, local_start, local_end, publish_start
-counters
-ANSWER
-MINI_RESUMEN
+B) create:
+ui-workspace-v1/experiments/allocator-v7/returns/E/RETURN-<ticket6>__worker-<slot>.md
+Contenido: EXP-008-E, launch/worker/slot/ticket, click/start/register/claim/local/publish times, counters, ANSWER, MINI_RESUMEN.
+Create success = durable. NO releer. Si quedó incierto, fetch exacto del mismo path.
 
-Si create_file devuelve éxito, cuenta como durable y NO lo releas. Sólo si el resultado quedó incierto hacé un fetch exacto del mismo path; nunca uses otro nombre.
-Al completar: tasks_completed++, returns_created++, last_return_at=<UTC ms>, current_ticket=null.
-Si es el primer RETURN fijá first_return_at.
-Si tasks_completed es múltiplo de 10, hacé UN state update best-effort usando el SHA local; si falla, state_failures++ y seguí.
-INMEDIATAMENTE volvé a CLAIM. No redactes mensaje humano entre ciclos.
+C) tasks_completed++; returns_created++; last_durable_ticket=ticket; last_return_at=<UTC>; first_return_at si null; current_ticket=null. Cada 10 returns: state completo best-effort.
 
-CLAIM POSTERIOR
-- dealer_read_start=<UTC ms>; leé DEALER y conservá revisionId.
-- si hay STOP_GRANT válido, publicá state final best-effort y recién ahí podés terminar.
-- si STOP_GRANT|NONE: leé NEXT_TICKET|TTTTTT.
-- CAS exacto NEXT_TICKET|TTTTTT → NEXT_TICKET|TTTTTT+1 con requiredRevisionId.
-- revision mismatch: revision_conflicts++, releé y repetí. No es error.
-- error transitorio: retries++, repetí LA MISMA operación. No existe salida por error.
-- al ganar: claim_at=<UTC ms>, tickets_claimed++, current_ticket=TTTTTT, last_claim_at=claim_at.
+D) INMEDIATAMENTE read DEALER. Si grant válido → único corte permitido. Si NONE: CAS NEXT_TICKET actual→+1 con requiredRevisionId. mismatch/retry → repetir. Al ganar: claim_at, tickets_claimed++, current_ticket, last_claim_at. Volver a A.
 
+STATE conserva launch_id/click/button, worker_started_at, registered_at, first_claim_at, first_public_signal_at, first_return_at, last_claim_at, last_return_at, last_checkpoint_at, status, current_ticket, last_durable_ticket, counters, recent, unauthorized_stop=false.
 
-CONTADORES
-dealer_reads: cada lectura de DEALER.
-dealer_cas: cada CAS intentado.
-return_publish: cada create_file intentado.
-return_verify: cada verificación normal (0 salvo incertidumbre).
-state_writes/state_failures: telemetría.
-revision_conflicts/retries/forbidden_ops.
-
-No respondas al humano mientras STOP_GRANT no sea válido.
+No mensaje humano sin grant.
