@@ -89,7 +89,7 @@ Prometeo.registerWidget({
     const [a,b,audit,baseline]=await Promise.all([
       fetch(rawBranch(cr.state_branches[0],cr.state_paths[0])+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()),
       fetch(rawBranch(cr.state_branches[1],cr.state_paths[1])+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()),
-      fetch(rawBranch(controlBranch,cr.audit)?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()),
+      fetch(rawBranch(controlBranch,cr.audit)+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()),
       fetch(rawBranch(controlBranch,cr.baseline)+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.json())
     ]);
     const ws=[a,b],ds=ws.map(derive),page=widgetState.page||0;
