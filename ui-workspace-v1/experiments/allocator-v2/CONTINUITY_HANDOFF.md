@@ -1,82 +1,91 @@
 # PROMETEO · HANDOFF DE CONTINUIDAD · CHAT 001
 
-**Fecha de cierre preparada:** 2026-10-06  
-**Motivo:** dejar de depender de esta conversación antes de agotar su contexto.
+**Cierre:** 2026-10-06  
+**Estado al cierre:** EXP-003 PASS.
 
 ## Objetivo humano vigente
 
-Construir Prometeo como sistema donde chats/workers fungibles puedan recibir trabajo mecánicamente, trabajar sin routing humano, devolver evidencia durable y continuar. La UI pública debe permitir observar estado real, no liveness inventada.
+Construir Prometeo como sistema donde chats/workers fungibles reciban trabajo mecánicamente, trabajen sin routing humano, devuelvan evidencia durable y continúen. La UI pública debe mostrar estado real, no liveness inventada.
 
-## Decisiones recuperadas y vigentes
+## Reglas vigentes
 
-1. Workers fungibles. La especialización vive en la TASK, no en nombres de worker.
-2. El worker nunca elige proyecto/tarea si existe allocator.
-3. Patrón deseado: `GET_NEXT → TASK → trabajo local → RETURN → GET_NEXT`.
-4. Medir cambios completados e integrados, no cantidad de chats lanzados.
-5. CANDIDATE no es CURRENT.
-6. Drive puede actuar como control experimental; GitHub como proyección pública/versionada.
-7. Los workers deben minimizar I/O. La inteligencia pesada ocurre localmente después de recibir un bloque autocontenido.
-8. Un acceso online no debe ocurrir “por las dudas”. En EXP-003 toda operación externa de trabajo se declara y mide.
-9. No crear schedulers/dealers paralelos.
-10. Lease/requeue es siguiente capa, no requisito para probar reparto básico.
+1. Workers fungibles. La especialización vive en la TASK.
+2. El worker no elige tarea: usa `GET_NEXT`.
+3. Loop: `GET_NEXT → TASK → trabajo local → RETURN → GET_NEXT`.
+4. Medir trabajo terminado, I/O, conflictos, retries y tiempos.
+5. Evitar rereads y exploración online innecesaria.
+6. CANDIDATE no es CURRENT.
+7. No crear scheduler/dealer paralelo.
+8. Drive fue control plane experimental; GitHub telemetría/versionado público.
+9. Un worker posee una sola tarea activa.
+10. Lease/requeue es la siguiente capa aislada.
 
 ## EXP-001
 
-Prueba mecánica desde un supervisor: dos escrituras condicionales con el mismo Google Docs `requiredRevisionId`. Una pasó y la otra fue rechazada por revisión obsoleta.
-
-Veredicto: `PARTIAL_PASS` porque probó la primitiva CAS, no dos chats reales.
+`PARTIAL_PASS`. Desde un supervisor se probaron dos escrituras con el mismo `requiredRevisionId`: una pasó y la otra fue rechazada. Probó CAS, no dos chats reales.
 
 ## EXP-002
 
-Dos chats reales compartieron un claim Drive.
-- winner: `exp002-9e7c45e3aaed`
-- loser: `exp002-ffe6050a1216`
-- un solo owner y un solo RETURN;
-- loser observó CLAIMED y no reintentó;
-- `overlap_with_second_chat_verified=false`.
-
-Veredicto: `PARTIAL_PASS`. Probó dos chats reales, pero no carrera simultánea sobre READY.
+`PARTIAL_PASS`. Dos chats reales compartieron un claim. Hubo un owner y un RETURN; el segundo observó CLAIMED. No hubo solapamiento READY verificado.
 
 ## ALLOCATOR TEST V1
 
-Un chat real procesó 10 bloques solo:
-- worker_id: `worker-gpt56-sol-20261006T2036-03A`
-- tickets: 001–010
-- RETURNS: 10
-- bloques: 10
-- allocator terminó `NEXT_TICKET|011`
-- terminal: `EMPTY`
-- 3 errores transitorios recuperados, 0 bloques fallidos.
+Un solo chat consumió 10 bloques:
+- tickets 001–010;
+- 10 RETURNS;
+- terminal EMPTY;
+- allocator final 011.
 
-Lección: el loop básico funciona. También se observó I/O innecesario: rereads, redacción mientras tocaba Drive, pasos redundantes y hasta mención de recuperación de abandonados que V1 no pedía.
+Demostró el loop básico, pero mostró I/O redundante que motivó telemetría explícita.
 
-## EXP-003 · último experimento preparado
+## EXP-003 · RESULTADO FINAL
 
-Dos workers / 10 bloques, slots mecánicos + tickets CAS + telemetría pública.
+`PASS`.
 
-Drive:
-- folder_id: `1rzUDjL46_GhAGPLkM_G1CD9C5iDBLZ7O`
-- registry: `1GlY2PVuA4GvYGGMAWx3QatwFO9c_uqj_L3PgZdundsQ`
-- allocator: `1Kp-qF6YaOPdMELq-5Coya34LERnXD21ts9cgeSVPavc`
+Dos chats reales:
+- se registraron mecánicamente en slots 001 y 002;
+- compartieron un allocator CAS;
+- completaron 10/10 bloques;
+- produjeron 10 RETURNS únicos;
+- no duplicaron tickets;
+- terminaron ambos EMPTY.
 
-GitHub namespace:
-`ui-workspace-v1/experiments/allocator-v2/`
+Worker 001:
+- worker_id: `worker-001-gpt56sol-20261006T2355Z`
+- 6 bloques: 002,004,006,007,009,010
+- 1 revision conflict
+- 27 external work ops
+- 33 telemetry writes
+- avg 44.5 s/bloque
+- 0 errores
 
-La página pública muestra worker 001/002, operación actual, bloque actual, completados, tiempos, counters, eventos y respuestas desplegables.
+Worker 002:
+- worker_id: `ALLOCATOR-V2-W002-20261006T2355Z`
+- 4 bloques: 001,003,005,008
+- 2 revision conflicts
+- 18 external work ops
+- 36 telemetry writes
+- avg 48.181 s/bloque
+- 1 error recuperado
 
-## Lo que sigue después de EXP-003
+Totales:
+- 10/10 completados
+- 0 duplicados
+- 3 revision conflicts
+- 4 retries
+- 45 external work ops
+- 69 telemetry writes
+- Drive registry final `NEXT_WORKER|003`
+- Drive allocator final `NEXT_TICKET|011`
 
-No inventar el próximo sistema desde cero.
+Resultado detallado:
+`ui-workspace-v1/experiments/EXP-003_RESULT.md`
 
-Si EXP-003 PASS/PARTIAL:
-1. analizar distribución y costo I/O;
-2. reducir llamadas redundantes;
-3. agregar lease + expiry + requeue en EXP-004;
-4. simular worker muerto;
-5. luego escalar 2→10 workers y 10→100 bloques.
+## Interpretación
 
-Si FAIL:
-aislar la falla concreta (registro, allocator, estado, RETURN o telemetría) y repetir sólo esa capa.
+La propiedad básica buscada está resuelta: múltiples chats pueden entrar al mismo sistema, recibir identidad y trabajo de forma mecánica y vaciar una cola compartida sin routing humano.
+
+No confundir esto con un allocator de producción completo. Todavía falta recuperar trabajo abandonado.
 
 ## Arquitectura más amplia que debe preservarse
 
@@ -86,15 +95,42 @@ Prometeo UI es modular:
 - widgets versionados;
 - history/messages/references por widget;
 - continuidad por widget;
-- Work Graph/allocator como autoridad de trabajo, no UI específica;
+- allocator/Work Graph como autoridad de trabajo, no una UI específica;
 - storage reemplazable;
 - GitHub como autoridad/versionado público cuando corresponde;
-- privacidad/secrets nunca en repo público.
+- privacidad y secretos nunca en repo público.
 
-## Regla de sucesión
+El worker ideal sigue siendo:
+`register → GET_NEXT → bloque autocontenido → trabajo local → RETURN → GET_NEXT`.
 
-Un chat nuevo NO debe responder “entiendo” y empezar a improvisar. Debe leer el handoff, protocolo vigente, resultados y CURRENT público, responder un readiness gate y recién después actuar.
+Toda operación online de trabajo debe ser justificable y medible. La telemetría no debe auto-telemetrizar sus propias escrituras recursivamente.
 
 ## Exact next
 
-Ejecutar EXP-003 con dos chats usando el mismo prompt de worker. Traer o leer sus estados terminales. Clasificar PASS/PARTIAL_PASS/FAIL y registrar el resultado durablemente.
+Implementar solamente:
+
+`lease + expiry + requeue + fencing`
+
+Prueba siguiente:
+1. worker reclama ticket;
+2. deja de producir RETURN;
+3. vence lease;
+4. bloque vuelve a estar disponible;
+5. otro worker lo reclama;
+6. el owner viejo no puede cerrar tarde como válido.
+
+Después, y sólo después:
+- 2→10 workers;
+- 10→100 bloques;
+- medir throughput, colisiones, latencia de integración, duplicados e I/O.
+
+## Regla de sucesión
+
+El siguiente chat debe leer:
+- este handoff;
+- `EXP-003_RESULT.md`;
+- `START_HERE.md`;
+- `READINESS_GATE.json`;
+- estados terminales de worker 001 y 002.
+
+Debe responder el readiness antes de modificar arquitectura. No reconstruir desde memoria ni volver a experimentar claims básicos ya demostrados.
