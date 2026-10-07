@@ -1,1 +1,89 @@
-PROMPT A PLACEHOLDER
+PROMETEO · EXP-007-A · EXP-006 RECORTADO
+Usá mi Google Drive y GitHub conectados.
+
+LANZAMIENTO MEDIDO
+launch_id={{LAUNCH_ID}}
+launch_clicked_at={{LAUNCH_CLICKED_AT}}
+launcher_button={{LAUNCH_BUTTON}}
+
+Al empezar a procesar este prompt, fijá worker_started_at=<UTC ISO-8601 ms>.
+No respondas al humano hasta EMPTY o ERROR_CRITICAL.
+No search, list_folder, HEAD, branches por curiosidad, web, ni Python durante redacción.
+No toques main ni gh-pages. No leas el state del otro worker.
+Este prompt es todo el protocolo.
+
+REGISTRY=1Ph_VEQjduL1-KJIy5x7ib30yOo8Qg-icvK7FPXOzh4E
+ALLOCATOR=1s2vsA1KpiPa_FgJXahfaa6LGudpOcvbg-FTUe93aNRw
+
+REGISTER:
+- leer registry con revisionId;
+- CAS NEXT_WORKER|NNN → NEXT_WORKER|NNN+1 usando requiredRevisionId;
+- mismatch: revision_conflicts++ y repetir;
+- ganador NNN = worker_slot.
+
+SLOT:
+001 → branch exp007-a-w001
+      state ui-workspace-v1/experiments/allocator-v6/state/A-worker-001.json
+      initial_sha 2fb8e0bb881994d88213a9ed87f3064ba3266295
+002 → branch exp007-a-w002
+      state ui-workspace-v1/experiments/allocator-v6/state/A-worker-002.json
+      initial_sha 5e69e977fecf48eb31bf3243a0ccd538cb331b02
+
+Cada snapshot de state debe conservar launch_id, launch_clicked_at, launcher_button, worker_started_at, registered_at, first_claim_at, first_return_at, empty_at, counters, completed y checkpoints.
+Telemetría es best-effort: un write de state fallido incrementa telemetry_failures y NUNCA frena trabajo.
+
+VARIANTE A · EXP-006 RECORTADO
+Después de REGISTER:
+1) checkpoint REGISTERED best-effort;
+2) GET_NEXT inmediatamente;
+3) checkpoint CLAIMED best-effort tras ganar ticket;
+4) BLOCK → LOCAL → RETURN → VERIFY;
+5) checkpoint RETURNED best-effort;
+6) repetir.
+No hagas ningún paso no listado.
+
+GET_NEXT:
+- get_next_start=<UTC ms>;
+- leer ALLOCATOR con revisionId;
+- si NEXT_TICKET>004 → EMPTY;
+- CAS NEXT_TICKET|NNN → NNN+1;
+- mismatch: revision_conflicts++ y repetir;
+- al ganar: ticket=NNN, assigned_at=<UTC ms>, tickets_received++;
+- si first_claim_at es null, first_claim_at=assigned_at.
+
+BLOCK:
+- fetch exacto desde TU branch:
+  ui-workspace-v1/experiments/allocator-v6/blocks/BLOCK-NNN.md
+- una sola lectura normal.
+
+LOCAL:
+- cero operaciones externas;
+- redactar completa la respuesta pedida por el bloque;
+- respetar OUTPUT y DO_NOT.
+
+RETURN:
+- crear completo, una sola vez, en TU branch:
+  ui-workspace-v1/experiments/allocator-v6/returns/A/RETURN-NNN__worker-<slot>.md
+- incluir EXP-007-A, worker_id, worker_slot, launch_id, ticket, block,
+  launch_clicked_at, worker_started_at, registered_at, assigned_at,
+  block_read_start/end, local_work_start/end, publish_start,
+  counters, ANSWER y MINI_RESUMEN.
+- verificar con un fetch exacto;
+- al verificar: returns_created++, blocks_completed++, completed append;
+- si first_return_at es null, first_return_at=<verify_end>;
+- inmediatamente GET_NEXT.
+
+Operaciones críticas: REGISTER, GET_NEXT, BLOCK_READ, RETURN_PUBLISH, RETURN_VERIFY.
+Error real de connector: retry sólo de la misma operación, máximo 3.
+Sólo después de 3 fallos reales → ERROR_CRITICAL.
+revision mismatch CAS no es error crítico.
+
+EMPTY:
+- empty_at=<UTC ms>;
+- publicar state EMPTY best-effort;
+- responder solamente:
+variant, worker_id, worker_slot, launch_id, tickets recibidos, RETURNS creados,
+bloques completados, external_work_calls, telemetry_writes, telemetry_failures,
+revision_conflicts, retries, forbidden_ops, errores críticos,
+launch_clicked_at, worker_started_at, registered_at, first_claim_at,
+first_return_at, empty_at, estado final.
