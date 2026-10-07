@@ -1,1 +1,16 @@
-# EXPERIMENTS widget context\n\nCURRENT: experiments@v2 · page_version 3.\n\nEXP-001 = PARTIAL_PASS. EXP-002 = PARTIAL_PASS. EXP-003 = PASS.\n\nEXP-003: 2 workers, 10/10 bloques, 0 duplicados, reparto 6/4. Hallazgo: observabilidad live incompleta; WORKERS@v2 separa worker-reported de server-observed.\n\nSiguiente capa: lease + expiry + requeue + fencing.\n
+# EXPERIMENTS widget context
+
+CURRENT: experiments@v4 · page_version 5.
+
+Primera página siempre = experimento actual, no historial.
+
+CURRENT RUN: EXP-004 · Telemetry + Efficiency Benchmark.
+Carga fija: 2 workers / 10 bloques idénticos a EXP-003.
+
+Páginas:
+- ACTUAL: progreso y métricas live;
+- COMPARAR: baseline EXP-003 vs EXP-004;
+- HISTORIAL;
+- CONTINUIDAD.
+
+No escalar workers ni agregar lease/requeue durante EXP-004.

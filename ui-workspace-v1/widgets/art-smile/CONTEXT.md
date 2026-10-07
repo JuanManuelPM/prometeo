@@ -1,0 +1,1 @@
+# ART-SMILE\n\nDecorative image widget. Preserve full image; never crop. No authority/runtime.\n
