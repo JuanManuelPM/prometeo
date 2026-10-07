@@ -1,0 +1,12 @@
+Prometeo.registerWidget({
+id:'experiments',name:'EXPERIMENTOS',version:2,widgetApi:1,defaultHeight:410,
+pages:[{title:'EXPERIMENTOS'},{title:'EXP-001'},{title:'EXP-002'},{title:'EXP-003'},{title:'CONTINUIDAD'}],
+css:`.exp2{width:100%;height:100%;overflow:auto;text-align:left;padding:0 2px 16px}.exp2-row{display:grid;grid-template-columns:72px 1fr auto;gap:9px;padding:9px 0;border-top:1px solid var(--line)}.exp2-row:first-child{border-top:2px solid var(--fg)}.exp2-id,.exp2-title{font-weight:900}.exp2-status{font-size:10px;border:1px solid var(--line);border-radius:99px;padding:2px 6px}.exp2-desc{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.4}.exp2-body{font-size:12px;line-height:1.5}.exp2-link{display:inline-block;margin-top:9px;color:var(--fg)}`,
+render(ctx){
+ if(ctx.page===0)return '<div class="exp2">'+[['EXP-001','PARTIAL_PASS','CAS por revisión','Exclusión probada desde un supervisor.'],['EXP-002','PARTIAL_PASS','Dos chats / mismo claim','Un owner real; sin solapamiento READY.'],['EXP-003','PASS','Allocator V2 · 2 workers','10/10 bloques, 0 duplicados, reparto 6/4.']].map(x=>'<div class="exp2-row"><div class="exp2-id">'+x[0]+'</div><div><div class="exp2-title">'+x[2]+'</div><div class="exp2-desc">'+x[3]+'</div></div><span class="exp2-status">'+x[1]+'</span></div>').join('')+'</div>';
+ if(ctx.page===1)return '<div class="exp2"><div class="exp2-body"><b>EXP-001 · PARTIAL_PASS</b><br><br>CAS funcionó; no fueron dos chats reales.</div><a class="exp2-link" href="experiments/EXP-001_DRIVE_BROKER_ATOMIC_CLAIM.md">nota</a></div>';
+ if(ctx.page===2)return '<div class="exp2"><div class="exp2-body"><b>EXP-002 · PARTIAL_PASS</b><br><br>Dos chats reales; un owner y un loser correcto; sin carrera READY verificada.</div><a class="exp2-link" href="experiments/EXP-002_RESULT.md">resultado</a></div>';
+ if(ctx.page===3)return '<div class="exp2"><div class="exp2-body"><b>EXP-003 · PASS</b><br><br>2 workers, 10/10 bloques, 10 RETURNS, 0 duplicados, 3 conflicts recuperados.<br><br><b>Hallazgo:</b> W001 tardó ~87 s en hacerse visible durablemente. Próxima regla: WRITE FIRST + horas absolutas.</div><a class="exp2-link" href="experiments/EXP-003_RESULT.md">resultado</a></div>';
+ return '<div class="exp2"><div class="exp2-body"><b>Continuidad</b><br><br>EXPERIMENTOS + WORKERS ya viven en la misma página. Siguiente capa: lease + expiry + requeue + fencing.</div><a class="exp2-link" href="experiments/allocator-v2/CONTINUITY_HANDOFF.md">handoff</a></div>';
+}
+});

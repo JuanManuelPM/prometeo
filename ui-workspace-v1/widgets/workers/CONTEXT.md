@@ -1,9 +1,1 @@
-# WORKERS widget context
-
-CURRENT: workers@v1.
-Estado funcional: representación UI; NO debe fingir liveness real.
-La versión V2 corrige etiquetas para dejar claro que no hay runtime adjunto.
-Objetivo futuro: proyectar telemetría autoritativa, nunca inventada.
-
-Funciones shell pertenecen al kernel.
-Write scope normal: `WIDGETS/workers/**` y candidate namespaced.
+# WORKERS widget context\n\nCURRENT: workers@v2 · page_version 3.\n\nWORKERS integra telemetría real: estado, STATS, TIMELINE y RETURNS. EXP-003 = PASS: 2 workers, 10/10 bloques, reparto 6/4, 0 duplicados, 3 conflicts recuperados.\n\nObservabilidad: connected_at/local_work_ms son worker-reported; OBSERVED_STATS usa timestamps de commits GitHub auditados. W001 tuvo ~87 s hasta primera visibilidad durable; W002 ~1.275 s.\n\nRegla futura: WRITE FIRST + horas absolutas; recalcular duraciones externamente.\n
