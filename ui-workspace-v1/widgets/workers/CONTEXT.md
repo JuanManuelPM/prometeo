@@ -1,1 +1,16 @@
-# WORKERS widget context\n\nCURRENT: workers@v2 · page_version 3.\n\nWORKERS integra telemetría real: estado, STATS, TIMELINE y RETURNS. EXP-003 = PASS: 2 workers, 10/10 bloques, reparto 6/4, 0 duplicados, 3 conflicts recuperados.\n\nObservabilidad: connected_at/local_work_ms son worker-reported; OBSERVED_STATS usa timestamps de commits GitHub auditados. W001 tuvo ~87 s hasta primera visibilidad durable; W002 ~1.275 s.\n\nRegla futura: WRITE FIRST + horas absolutas; recalcular duraciones externamente.\n
+# WORKERS widget context
+
+CURRENT: workers@v4 · page_version 5.
+
+Objetivo: observabilidad visual real para EXP-004.
+
+Páginas:
+- WORKERS: dos lanes, 10 bloques, operación actual, último evento y counters;
+- TIEMPO: barra por worker con registro/protocolo/allocator/lectura/trabajo local/publicación/verificación/espera;
+- TIMELINE: horas absolutas;
+- RETURNS.
+
+Durante el run, TIEMPO deriva de worker_at.
+Después del run, AUDITED_TIMELINE debe reemplazarlo con hora servidor de commits GitHub.
+
+Regla crítica: primer ping público inmediatamente después del registro; cero I/O durante trabajo local.

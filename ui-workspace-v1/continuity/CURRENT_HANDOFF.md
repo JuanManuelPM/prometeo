@@ -1,23 +1,40 @@
-# CURRENT HANDOFF · Prometeo UI V4
+# CURRENT HANDOFF · Prometeo UI V5
 
 Fecha: 2026-10-07
 
-CURRENT:
-- page_version 4
+## CURRENT
+- page_version 5
+- experiments@v4
+- workers@v4
+- art-smile@v1
+- art-feast@v1
 - chat@v1
-- experiments@v3
-- workers@v3
-- gallery@v1
 
-Cambios V4:
-- EXPERIMENTOS abre directamente en EXP-003 CURRENT; historial queda en segunda página.
-- WORKERS agrega TIEMPO con desglose server-observed desde primer durable hasta EMPTY.
-- OBSERVED_TIMELINE.json deriva intervalos de commits GitHub del state de cada worker.
-- GALLERY agrega las dos imágenes del usuario sólo como estética, sin autoridad ni telemetría.
-- CHAT queda más compacto mientras siga siendo placeholder.
+## UI
+Las dos imágenes son widgets separados.
+No usan object-fit: cover: se muestran completas, preservando aspecto.
+En pantallas anchas la imagen se limita a su ancho de referencia y puede quedar espacio libre a los costados.
 
-Benchmark vigente:
-EXP-003 PASS · 2 workers · 10/10 bloques · reparto 6/4 · 0 duplicados.
+EXPERIMENTOS abre siempre en el experimento CURRENT.
+WORKERS tiene lanes visuales, progreso, TIEMPO, TIMELINE y RETURNS.
 
-Exact next funcional:
-lease + expiry + requeue + fencing. Mantener 2 workers / 10 tareas como benchmark de comparación antes de escalar.
+## EXP-004
+Benchmark nuevo: 2 workers / 10 bloques, misma carga que EXP-003.
+
+Cambios:
+- REGISTER y ping público primero;
+- timestamps absolutos;
+- commit messages normalizados;
+- una tarea activa;
+- bloque leído una vez;
+- trabajo completamente local;
+- RETURN completo en una sola creación;
+- verificación una vez;
+- prohibidos list/search/exploración/mover archivos/rereads preventivos;
+- se cuentan logical ops, external work calls y telemetry writes por separado.
+
+Drive:
+- registry 1eJUVqmVzJwRvIuPLBIkiHtoFvJ2L130tXstOOwEs7Ug
+- allocator 1UTLjGbt5Wsa2qbZze4H0PJVD89RVhKiqw4fDefx-AZI
+
+Exact next: ejecutar EXP-004 con dos chats simultáneos usando el mismo launch prompt. Después auditar commit timestamps y comparar con EXP-003 antes de tocar lease/requeue.
