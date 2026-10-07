@@ -1,1 +1,23 @@
-# CURRENT HANDOFF · Prometeo UI V3\n\nFecha: 2026-10-07\n\nCURRENT: page 3 · chat@v1 · experiments@v2 · workers@v2.\n\nEXP-001 PARTIAL_PASS · EXP-002 PARTIAL_PASS · EXP-003 PASS.\n\nLas estadísticas del allocator ahora viven en WORKERS, no como página paralela primaria. WORKERS muestra estado, stats, timeline y RETURNS.\n\nObservabilidad: W001 tardó ~87 s desde connected_at declarado hasta primera escritura durable; W002 ~1.275 s. Separar siempre worker-reported de server-observed. Próximos workers: WRITE FIRST + timestamps absolutos.\n\nExact next: lease + expiry + requeue + fencing. No crear otro scheduler/dealer.\n
+# CURRENT HANDOFF · Prometeo UI V4
+
+Fecha: 2026-10-07
+
+CURRENT:
+- page_version 4
+- chat@v1
+- experiments@v3
+- workers@v3
+- gallery@v1
+
+Cambios V4:
+- EXPERIMENTOS abre directamente en EXP-003 CURRENT; historial queda en segunda página.
+- WORKERS agrega TIEMPO con desglose server-observed desde primer durable hasta EMPTY.
+- OBSERVED_TIMELINE.json deriva intervalos de commits GitHub del state de cada worker.
+- GALLERY agrega las dos imágenes del usuario sólo como estética, sin autoridad ni telemetría.
+- CHAT queda más compacto mientras siga siendo placeholder.
+
+Benchmark vigente:
+EXP-003 PASS · 2 workers · 10/10 bloques · reparto 6/4 · 0 duplicados.
+
+Exact next funcional:
+lease + expiry + requeue + fencing. Mantener 2 workers / 10 tareas como benchmark de comparación antes de escalar.
