@@ -1,4 +1,450 @@
-PROMETEO · EXP-006
+PROMETEO · EXP-006 · 2 WORKERS / 10 BLOQUES · SELF-CONTAINED LOOP
 
-PENDING INITIAL STATE SHAS.
-DO NOT RUN THIS PLACEHOLDER.
+Usá mi Google Drive y GitHub conectados.
+
+IMPORTANTE:
+Pegá ESTE MISMO prompt en DOS chats nuevos casi al mismo tiempo.
+
+OBJETIVO:
+completar 10 bloques entre 2 workers, sin duplicados, sin intervención humana y sin que una falla de telemetría pueda frenar trabajo material.
+
+REGLA ABSOLUTA:
+NO respondas al humano ni te detengas entre pasos.
+Después de REGISTER seguí en esta misma ejecución:
+REGISTER → checkpoint best-effort → GET_NEXT → BLOCK_READ → trabajo local → RETURN → VERIFY → GET_NEXT
+hasta EMPTY o un ERROR_CRITICAL real.
+
+ESTE PROMPT ES TODO EL PROTOCOLO.
+NO leas START_HERE.
+NO leas PROTOCOL_ARCHIVE.
+NO busques más instrucciones.
+
+NO:
+- explores Prometeo
+- search
+- list_folder
+- leas HEAD/branches “por las dudas”
+- leas el state del otro worker
+- toques main
+- toques gh-pages
+- muevas archivos
+- crees carpetas
+- leas bloques futuros
+- proceses varios tickets a la vez
+- uses Python durante la redacción
+- hagas rereads preventivos
+- diseñes arquitectura
+- implementes lease/requeue
+
+==================================================
+1. IDENTIDAD LOCAL
+==================================================
+
+Generá localmente:
+
+worker_id = exp006-<UTC>-<6 caracteres aleatorios>
+connect_started_at = <UTC ISO-8601 con milisegundos>
+
+No hagas ninguna operación externa antes de REGISTER.
+
+==================================================
+2. REGISTER · PRIMERA OPERACIÓN EXTERNA
+==================================================
+
+Google Drive REGISTRY document_id:
+14Qew_GFeTEZsxfCjPCvGsT4cSp1t8neGepe028QOEhk
+
+Algoritmo:
+
+1. get_document del registry y conservá revisionId.
+2. leé NEXT_WORKER|NNN.
+3. si NNN > 002 → respondé NO_SLOT y terminá.
+4. intentá CAS:
+   NEXT_WORKER|NNN → NEXT_WORKER|NNN+1
+   usando requiredRevisionId.
+5. revision mismatch NO es error crítico:
+   sumá revision_conflicts + 1,
+   releé registry,
+   repetí el mismo REGISTER.
+6. otro error de connector:
+   reintentá exactamente REGISTER, máximo 3 veces.
+7. al ganar:
+   worker_slot = NNN
+   registered_at = UTC ISO-8601 ms
+
+Mapeo fijo:
+
+slot 001
+branch = exp006-w001
+state_path = ui-workspace-v1/experiments/allocator-v5/state/worker-001.json
+initial_state_sha = 53f398470afc29c58f0feb84dcc15764bb5aa646
+
+slot 002
+branch = exp006-w002
+state_path = ui-workspace-v1/experiments/allocator-v5/state/worker-002.json
+initial_state_sha = 2586bfb2ac128b027c6fdc04e4058209334a9a14
+
+Nunca uses otra branch.
+
+==================================================
+3. CHECKPOINT REGISTERED · BEST-EFFORT
+==================================================
+
+Construí localmente un snapshot completo de tu state.
+
+Debe contener como mínimo:
+
+schema = PROMETEO_ALLOCATOR_V5_WORKER_STATE
+experiment_id = EXP-006
+worker_id
+worker_slot
+branch
+status = REGISTERED
+connect_started_at
+registered_at
+first_public_ping_at
+last_checkpoint_at
+checkpoint = REGISTERED
+
+current:
+  ticket = null
+  block = null
+  assigned_at = null
+
+counters:
+  tickets_received
+  returns_created
+  blocks_completed
+  external_work_calls
+  telemetry_writes
+  telemetry_failures
+  revision_conflicts
+  retries
+  forbidden_ops
+  critical_errors
+
+completed = []
+checkpoints = [{checkpoint:"REGISTERED", worker_at:<UTC ms>}]
+
+Intentá UNA sola update_file de TU state en TU branch usando initial_state_sha.
+
+Si funciona:
+- telemetry_writes += 1
+- state_sha = content_sha devuelto
+- first_public_ping_at = hora del write
+- state_sha_uncertain = false
+
+Si falla:
+- telemetry_failures += 1 localmente
+- state_sha_uncertain = true
+- NO reintentes ahora
+- NO termines
+- NO respondas
+- seguí INMEDIATAMENTE a GET_NEXT
+
+PROHIBIDO terminar por ERROR_TELEMETRY_WRITE.
+
+==================================================
+4. GET_NEXT · INMEDIATO
+==================================================
+
+No leas ningún protocolo antes.
+
+Google Drive ALLOCATOR document_id:
+1tclVHjED7-lyYO39AkMYY2tgDjwJA0hDIB1ebizeeW4
+
+Para cada ticket:
+
+get_next_start = UTC ISO ms
+
+1. get_document del allocator y conservá revisionId.
+2. leé NEXT_TICKET|NNN.
+3. si NNN > 010:
+   get_next_end = UTC ISO ms
+   ejecutá checkpoint EMPTY best-effort
+   respondé el resumen terminal y terminá.
+4. intentá CAS:
+   NEXT_TICKET|NNN → NEXT_TICKET|NNN+1
+   usando requiredRevisionId.
+5. revision mismatch:
+   - revision_conflicts += 1
+   - NO cuenta como error crítico
+   - releé allocator
+   - repetí GET_NEXT hasta ganar o ver >010.
+6. otro error de connector:
+   retry de la MISMA operación, máximo 3.
+7. al ganar:
+   ticket = NNN
+   block = BLOCK-NNN
+   get_next_end = UTC ISO ms
+   assigned_at = get_next_end
+   tickets_received += 1
+
+No elijas tarea. NNN determina exactamente tu bloque.
+
+==================================================
+5. CHECKPOINT TICKET_ASSIGNED · BEST-EFFORT
+==================================================
+
+Actualizá tu snapshot LOCAL:
+
+status = WORKING
+checkpoint = TICKET_ASSIGNED
+current.ticket = NNN
+current.block = BLOCK-NNN
+current.assigned_at = assigned_at
+last_checkpoint_at = ahora
+
+append checkpoints:
+{checkpoint:"TICKET_ASSIGNED",ticket:NNN,worker_at:ahora}
+
+Publicación:
+
+- si state_sha_uncertain = false:
+  intentá UNA update_file con state_sha local.
+- si state_sha_uncertain = true:
+  podés hacer UN fetch exacto de TU propio state para recuperar su SHA;
+  después intentá UNA update_file con el snapshot completo.
+
+Si funciona:
+- telemetry_writes += 1
+- state_sha = content_sha nuevo
+- state_sha_uncertain = false
+
+Si falla:
+- telemetry_failures += 1
+- state_sha_uncertain = true
+- NO bloquees el ticket
+- seguí a BLOCK_READ
+
+==================================================
+6. BLOCK_READ · CRÍTICO
+==================================================
+
+block_read_start = UTC ISO ms
+
+Fetch exacto desde TU branch:
+
+ui-workspace-v1/experiments/allocator-v5/blocks/BLOCK-NNN.md
+
+Una sola lectura normal.
+Si hay error real de connector, retry de la MISMA lectura, máximo 3.
+
+No leas ningún otro bloque.
+
+block_read_end = UTC ISO ms
+local_work_start = block_read_end
+
+==================================================
+7. TRABAJO LOCAL PURO
+==================================================
+
+Desde local_work_start hasta local_work_end:
+
+CERO GitHub
+CERO Drive
+CERO web
+CERO Python
+CERO telemetría online
+CERO rereads
+
+Redactá COMPLETA la respuesta pedida por el bloque, en memoria.
+
+No expliques el protocolo.
+No diseñes Prometeo.
+No hagas trabajo extra.
+Sólo contestá la QUESTION del bloque respetando OUTPUT y DO_NOT.
+
+Cuando la respuesta esté terminada:
+local_work_end = UTC ISO ms
+
+==================================================
+8. RETURN_PUBLISH · CRÍTICO
+==================================================
+
+Path exacto:
+
+ui-workspace-v1/experiments/allocator-v5/returns/RETURN-NNN__worker-<slot>.md
+
+Antes de la primera escritura:
+return_publish_start = UTC ISO ms
+
+Creá el archivo COMPLETO en UNA sola operación, en TU branch.
+
+Contenido obligatorio:
+
+EXP-006
+WORKER_ID|<worker_id>
+WORKER_SLOT|<slot>
+TICKET|NNN
+BLOCK|BLOCK-NNN
+
+TRACE|get_next_start|...
+TRACE|get_next_end|...
+TRACE|assigned_at|...
+TRACE|block_read_start|...
+TRACE|block_read_end|...
+TRACE|local_work_start|...
+TRACE|local_work_end|...
+TRACE|return_publish_start|...
+
+COUNTER|external_work_calls|...
+COUNTER|telemetry_writes|...
+COUNTER|telemetry_failures|...
+COUNTER|revision_conflicts|...
+COUNTER|retries|...
+
+ANSWER
+<respuesta completa>
+
+MINI_RESUMEN|...
+
+Si create_file devuelve éxito:
+return_publish_end = UTC ISO ms
+
+Si create_file falla o queda incierto:
+1. NO crees otro nombre.
+2. hacé un fetch exacto de ESE path.
+3. si existe y contiene tu WORKER_ID + TICKET → tratá publish como SUCCESS.
+4. si no existe → retry de la MISMA creación.
+5. máximo 3 intentos críticos.
+
+==================================================
+9. RETURN_VERIFY · CRÍTICO
+==================================================
+
+return_verify_start = UTC ISO ms
+
+Fetch exacto del RETURN recién creado desde TU branch.
+
+Verificá:
+- WORKER_ID correcto
+- TICKET correcto
+- BLOCK correcto
+- ANSWER presente
+- MINI_RESUMEN presente
+
+Si falla el fetch, retry de la MISMA verificación máximo 3.
+
+return_verify_end = UTC ISO ms
+
+Al verificar:
+- returns_created += 1
+- blocks_completed += 1
+- agregá a completed:
+  {
+    ticket:NNN,
+    block:"BLOCK-NNN",
+    return:"RETURN-NNN__worker-<slot>.md",
+    return_path:<path>,
+    assigned_at,
+    returned_at:return_verify_end,
+    trace:{todos los timestamps}
+  }
+
+==================================================
+10. CHECKPOINT RETURNED · BEST-EFFORT
+==================================================
+
+Snapshot local:
+
+status = REGISTERED
+checkpoint = RETURNED
+current.ticket = null
+current.block = null
+current.assigned_at = null
+last_checkpoint_at = ahora
+
+append checkpoint:
+{checkpoint:"RETURNED",ticket:NNN,worker_at:ahora}
+
+Intentá publicarlo con la misma regla best-effort:
+- UNA update;
+- si SHA incierto, UN fetch exacto propio antes;
+- falla → telemetry_failures local + continuar.
+
+NO esperes.
+NO respondas.
+INMEDIATAMENTE volvé a GET_NEXT.
+
+==================================================
+11. EMPTY
+==================================================
+
+Cuando allocator muestre NEXT_TICKET > 010:
+
+snapshot local:
+status = EMPTY
+checkpoint = EMPTY
+current = nulls
+last_checkpoint_at = ahora
+
+append {checkpoint:"EMPTY",worker_at:ahora}
+
+Intentá checkpoint EMPTY best-effort UNA vez.
+Si falla, igual terminá: el trabajo material ya terminó.
+
+==================================================
+12. ERROR CRÍTICO
+==================================================
+
+Sólo puede existir por:
+REGISTER
+GET_NEXT
+BLOCK_READ
+RETURN_PUBLISH
+RETURN_VERIFY
+
+después de 3 fallos reales de connector de ESA MISMA operación.
+
+Si ocurre:
+- critical_errors += 1
+- preservá ticket actual
+- checkpoint ERROR_CRITICAL_<OP> best-effort
+- terminá.
+
+Una falla de TELEMETRÍA nunca es ERROR_CRITICAL.
+
+==================================================
+13. CONTABILIDAD
+==================================================
+
+external_work_calls cuenta llamadas externas de trabajo:
+REGISTER + GET_NEXT + BLOCK_READ + RETURN_PUBLISH + RETURN_VERIFY
+incluyendo retries.
+
+telemetry_writes cuenta sólo writes exitosos de state.
+
+telemetry_failures cuenta writes de state fallidos.
+
+revision_conflicts cuenta conflictos CAS de registry/allocator.
+
+retries cuenta retries de operaciones de trabajo por error real de connector.
+Los revision mismatch CAS se cuentan en revision_conflicts, no en retries.
+
+forbidden_ops debe permanecer 0.
+
+==================================================
+14. RESPUESTA FINAL ÚNICA
+==================================================
+
+No respondas antes de EMPTY o ERROR_CRITICAL.
+
+Al terminar respondé SOLAMENTE:
+
+worker_id
+worker_slot
+branch
+tickets recibidos
+RETURNS creados
+bloques completados
+external_work_calls
+telemetry_writes
+telemetry_failures
+revision_conflicts
+retries
+forbidden_ops
+errores críticos
+primer_ping
+ultimo_checkpoint
+estado final
