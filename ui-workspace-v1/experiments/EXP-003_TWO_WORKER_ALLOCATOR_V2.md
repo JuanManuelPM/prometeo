@@ -1,58 +1,30 @@
 # EXP-003 · Allocator V2 · 2 workers / 10 bloques
 
-**Estado:** `READY_TO_RUN`  
+**Estado:** `PASS`  
 **Fecha:** 2026-10-06  
-**Objetivo:** probar reparto mecánico real de 10 bloques entre dos chats independientes, con tickets únicos y telemetría visible.
+**Resultado:** `EXP-003_RESULT.md`
 
-## Hipótesis
+## Objetivo
+Probar reparto mecánico real de 10 bloques entre dos chats independientes, con tickets únicos y telemetría visible.
 
-Dos chats pueden registrarse, recibir slots distintos y vaciar una cola de 10 bloques sin elegir tareas ni recibir routing humano.
+## Resultado
+- 2 slots únicos.
+- 10 tickets únicos.
+- 10/10 bloques completados.
+- 10/10 RETURNS únicos.
+- 0 tickets duplicados.
+- worker 001 completó 6 bloques.
+- worker 002 completó 4 bloques.
+- 3 conflictos de revisión recuperados.
+- ambos workers terminaron `EMPTY`.
+- allocator final: `NEXT_TICKET|011`.
+- registry final: `NEXT_WORKER|003`.
 
-## Qué se mide
+## Qué demuestra
+Dos chats reales pueden registrarse mecánicamente y consumir una cola compartida sin elegir tareas ni recibir routing humano.
 
-- registro de cada worker;
-- ticket recibido;
-- bloque actual;
-- duración por operación;
-- duración local por bloque;
-- RETURNS por worker;
-- conflictos de revisión;
-- retries;
-- errores;
-- operaciones externas de trabajo;
-- escrituras de telemetría;
-- respuestas completas, visibles desde el panel.
+## Qué falta
+No hay lease/requeue. Si un worker desaparece después de reclamar un ticket, el bloque puede quedar varado.
 
-## Arquitectura
-
-Google Drive:
-- registry CAS para slots 001–002;
-- allocator CAS para tickets 001–010.
-
-GitHub:
-- bloques estáticos;
-- state separado por worker;
-- RETURNS inmutables;
-- dashboard público.
-
-## Restricción deliberada
-
-No hay lease/requeue todavía. Si un worker muere después de obtener un ticket, ese ticket puede quedar varado. Eso se medirá después, no se “arregla” silenciosamente durante EXP-003.
-
-## PASS
-
-- dos slots únicos;
-- cero ticket duplicado;
-- 10 bloques completados;
-- 10 RETURNS únicos;
-- ambos workers terminan EMPTY;
-- todo acceso de trabajo aparece en telemetría;
-- no hay lecturas exploratorias no justificadas.
-
-## PARTIAL_PASS
-
-La cola se completa sin duplicados pero un worker termina haciendo casi todo, hay fallos de telemetría o aparecen operaciones online innecesarias.
-
-## FAIL
-
-Ticket duplicado, RETURN duplicado, worker elige tareas, worker toca state ajeno, se requiere routing humano o quedan bloques sin completar sin una caída explícita.
+## Exact next
+Implementar y probar solamente `lease + expiry + requeue`.
