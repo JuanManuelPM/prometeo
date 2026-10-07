@@ -1,14 +1,1 @@
-# EXPERIMENTS widget context
-
-CURRENT: experiments@v1.
-Función: cuaderno de laboratorio durable.
-
-EXP-001 = PARTIAL_PASS.
-Prueba transporte Drive->ChatGPT->Drive y exclusión optimista simulada.
-NO probó dos chats reales.
-
-EXP-002 = siguiente prueba.
-Debe enfrentar dos chats reales al mismo claim READY y registrar exactamente un owner.
-
-No convertir inferencias en PASS.
-Cambios de experimentos son append-only/corregibles mediante history.
+# EXPERIMENTS widget context\n\nCURRENT: experiments@v2 · page_version 3.\n\nEXP-001 = PARTIAL_PASS. EXP-002 = PARTIAL_PASS. EXP-003 = PASS.\n\nEXP-003: 2 workers, 10/10 bloques, 0 duplicados, reparto 6/4. Hallazgo: observabilidad live incompleta; WORKERS@v2 separa worker-reported de server-observed.\n\nSiguiente capa: lease + expiry + requeue + fencing.\n
