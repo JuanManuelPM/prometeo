@@ -35,3 +35,6 @@ deleteClass.onclick=()=>{if(editingId){classes=classes.filter(c=>c.id!==editingI
 document.getElementById("cancel").onclick=()=>editor.close();
 prevWeek.onclick=()=>{weekStart=addDays(weekStart,-7);render()};nextWeek.onclick=()=>{weekStart=addDays(weekStart,7);render()};todayWeek.onclick=()=>{weekStart=currentMonday();render()};
 const quickAddDialog=document.getElementById("quickAddDialog"),quickAddForm=document.getElementById("quickAddForm"),shoppingDialog=document.getElementById("shoppingDialog");let quickMode="task";
+
+import("../../shared/finance/v1/finance-calendar-adapter.js?v=20260909-auth1")
+  .catch(error=>console.warn("Prometeo Finance adapter unavailable:",error instanceof Error?error.message:"unknown"));
