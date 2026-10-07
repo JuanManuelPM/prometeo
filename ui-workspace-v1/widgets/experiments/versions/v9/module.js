@@ -33,7 +33,7 @@ Prometeo.registerWidget({
        } else if(page===1){
          host.innerHTML='<div class="ed-head"><div><div class="ed-k">BENCHMARK</div><div class="ed-title">Comparación</div></div></div><div class="ed-grid"><section class="ed-card"><div class="ed-label">EXP-004</div><div class="ed-num">FAIL</div><div class="ed-note">telemetría podía matar trabajo; W002 murió después de tomar ticket 003.</div></section><section class="ed-card"><div class="ed-label">EXP-006</div><div class="ed-num">'+done+'<small>/10</small></div><div class="ed-note">prompt autocontenido; REGISTER → GET_NEXT sin lectura intermedia; telemetry best-effort.</div></section></div>';
        } else {
-         host.innerHTML='<div class="ed-head"><div><div class="ed-k">HISTORY</div><div class="ed-title">Experimentos</div></div></div><div class="ed-history"><b>EXP-003</b><span>allocator 2W/10B</span><span>PASS</span></div><div class="ed-history"><b>EXP-004</b><span>telemetry estricta</span><span>FAIL</span></div><div class="ed-history"><b>EXP-005</b><span>self-contained loop</span><span>'+status+'</span></div>';
+         host.innerHTML='<div class="ed-head"><div><div class="ed-k">HISTORY</div><div class="ed-title">Experimentos</div></div></div><div class="ed-history"><b>EXP-003</b><span>allocator 2W/10B</span><span>PASS</span></div><div class="ed-history"><b>EXP-004</b><span>telemetry estricta</span><span>FAIL</span></div><div class="ed-history"><b>EXP-005</b><span>branch isolation · stall antes de GET_NEXT</span><span>FAIL</span></div><div class="ed-history"><b>EXP-006</b><span>self-contained loop</span><span>'+status+'</span></div>';
        }
      }catch(e){host.innerHTML='<div class="ed-card"><b>Error</b><div class="ed-note">'+esc(e.message)+'</div></div>'}
    }
