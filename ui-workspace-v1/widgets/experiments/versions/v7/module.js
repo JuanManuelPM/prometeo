@@ -29,7 +29,7 @@ Prometeo.registerWidget({
     const [a,b,baseLine]=await Promise.all([
       fetch(rawBranch(cr.state_branches[0],cr.state_paths[0])+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()),
       fetch(rawBranch(cr.state_branches[1],cr.state_paths[1])+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()),
-      fetch(base+cr.baseline+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.json())
+      fetch(rawBranch(controlBranch,cr.baseline)+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.json())
     ]);
     const ws=[a,b],done=ws.reduce((n,w)=>n+(w.counters?.completed||0),0),tickets=ws.flatMap(w=>(w.completed||[]).map(x=>String(x.ticket||x.ticket_id||''))).filter(Boolean);
     const dup=tickets.length-new Set(tickets).size,ext=ws.reduce((n,w)=>n+(w.counters?.external_work_calls||0),0),tele=ws.reduce((n,w)=>n+(w.counters?.telemetry_writes||0),0),forbidden=ws.reduce((n,w)=>n+(w.counters?.forbidden_ops||0),0),errs=ws.reduce((n,w)=>n+(w.counters?.errors||0),0);
