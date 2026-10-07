@@ -1,3 +1,151 @@
-# EXP-005 LAUNCH PROMPT
+PROMETEO · EXP-005 · 2 WORKERS / 10 BLOQUES · BRANCH ISOLATION
 
-Pending initial state SHAs and worker branches.
+Usá mi Google Drive y GitHub conectados.
+
+IMPORTANTE: pegá este mismo prompt en DOS chats nuevos casi al mismo tiempo.
+
+OBJETIVO:
+probar 2 workers / 10 bloques con una branch exclusiva por worker y telemetría que NUNCA pueda matar trabajo material.
+
+NO explores Prometeo.
+NO elijas tareas.
+NO hagas búsquedas ni listados.
+NO leas HEAD/branches “por las dudas”.
+NO escribas main.
+NO escribas gh-pages.
+
+=== PRIMERA OPERACIÓN EXTERNA: REGISTER ===
+
+Generá localmente:
+worker_id = exp005-<UTC>-<6 caracteres aleatorios>
+connect_started_at = <UTC ISO-8601 con milisegundos>
+
+REGISTRY Drive document_id:
+1Q7KekpUETeuYR1Uoa7XwWc7Nl9egnIxtAkGwIFBEGsI
+
+REGISTER:
+1. get_document del registry y conservá revisionId.
+2. leé NEXT_WORKER|NNN.
+3. si NNN > 002: terminá NO_SLOT.
+4. intentá reemplazo condicional:
+   NEXT_WORKER|NNN → NEXT_WORKER|NNN+1
+   usando requiredRevisionId.
+5. revision mismatch = releer registry y reintentar la MISMA operación.
+6. al ganar, NNN es tu worker_slot fijo.
+7. registrá localmente registered_at inmediatamente después de ganar.
+
+MAPEO FIJO:
+slot 001 → branch exp005-w001
+slot 002 → branch exp005-w002
+
+STATE:
+path:
+ui-workspace-v1/experiments/allocator-v4/state/worker-NNN.json
+
+initial SHA slot 001:
+d03cdad2def63b1104a6f5b4d41f822facc1541d
+
+initial SHA slot 002:
+65dc078ba865321ac8fe0d20327e1c59635a4f53
+
+=== PRIMER PING ===
+
+Inmediatamente después de REGISTER, intentá publicar UN checkpoint REGISTERED en TU branch.
+
+Incluí:
+- worker_id
+- worker_slot
+- branch
+- status REGISTERED
+- registered_at
+- first_public_ping_at
+- counters reales
+- checkpoint REGISTERED
+
+Este write es TELEMETRÍA, no trabajo crítico.
+
+Si funciona:
+- guardá el content_sha devuelto como state_sha local.
+
+Si falla:
+- NO termines;
+- NO abandones el worker;
+- incrementá telemetry_failures localmente;
+- conservá el checkpoint pendiente;
+- seguí.
+
+Está PROHIBIDO terminar con ERROR_TELEMETRY_WRITE_*.
+
+=== PROTOCOLO ===
+
+Después del intento de primer ping, leé EXACTAMENTE UNA VEZ desde TU branch:
+
+ui-workspace-v1/experiments/allocator-v4/START_HERE.md
+
+Ejecutalo exactamente.
+
+REGLA CENTRAL:
+
+REGISTER
+→ GET_NEXT
+→ leer sólo BLOCK-NNN
+→ redactar completamente LOCAL
+→ publicar RETURN completo en TU branch
+→ verificar RETURN
+→ GET_NEXT inmediato
+→ EMPTY
+
+TELEMETRÍA:
+- sólo checkpoints REGISTERED / TICKET_ASSIGNED / RETURNED / EMPTY;
+- best-effort;
+- una falla de telemetry write NO detiene trabajo;
+- timestamps finos se guardan localmente y viajan juntos dentro del RETURN;
+- si un checkpoint anterior falló, el siguiente snapshot puede recuperar el estado acumulado.
+
+TRABAJO LOCAL:
+durante la redacción:
+- cero GitHub
+- cero Drive
+- cero web
+- cero Python
+- cero telemetría online
+- cero rereads
+
+OPERACIONES CRÍTICAS:
+REGISTER, GET_NEXT, BLOCK_READ, RETURN_PUBLISH, RETURN_VERIFY.
+Sólo una operación crítica puede detener el ciclo después de máximo 2 retries de ESA MISMA operación.
+
+PROHIBIDO:
+- tocar state del otro worker
+- usar la branch del otro worker
+- tocar main
+- tocar gh-pages
+- list_folder
+- search
+- mover archivos
+- crear carpetas
+- escribir RETURN por partes
+- leer bloques futuros
+- procesar varios tickets juntos
+- diseñar arquitectura
+- implementar lease/requeue
+- abandonar un ticket porque falló telemetría
+
+Al recibir EMPTY respondé solamente:
+
+worker_id
+worker_slot
+branch
+tickets recibidos
+RETURNS creados
+bloques completados
+external_work_calls
+telemetry_writes
+telemetry_failures
+revision_conflicts
+retries
+forbidden_ops
+errores críticos
+primer_ping
+ultimo_checkpoint
+estado final
