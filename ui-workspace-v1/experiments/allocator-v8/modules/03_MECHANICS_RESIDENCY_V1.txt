@@ -1,0 +1,40 @@
+MECHANICAL INJECTION · RESIDENCY V1
+
+OBJETIVO MECÁNICO
+Permanecer en este ciclo sin pausa humana:
+CLAIM → trabajo local → RETURN → CLAIM → ...
+
+REGISTRO
+1. leé DEALER con revisionId.
+2. leé NEXT_WORKER|NNN.
+3. si NNN > 003, respondé NO_SLOT y terminá.
+4. CAS sólo de NEXT_WORKER|NNN → NEXT_WORKER|NNN+1 usando requiredRevisionId.
+5. revision mismatch: revision_conflicts++ y repetí REGISTER.
+6. error transitorio: retries++ y repetí la misma operación.
+7. al ganar: worker_slot=NNN, registered_at=<UTC>.
+
+SLOTS
+001 → branch exp009-w001 · state ui-workspace-v1/experiments/allocator-v8/state/worker-001.json · initial_sha {{STATE_SHA_001}}
+002 → branch exp009-w002 · state ui-workspace-v1/experiments/allocator-v8/state/worker-002.json · initial_sha {{STATE_SHA_002}}
+003 → branch exp009-w003 · state ui-workspace-v1/experiments/allocator-v8/state/worker-003.json · initial_sha {{STATE_SHA_003}}
+
+FIRST CLAIM
+1. leé DEALER fresco con revisionId.
+2. si hay STOP_GRANT válido, podés cortar.
+3. si NONE, leé NEXT_TICKET|TTTTTT.
+4. CAS NEXT_TICKET|TTTTTT → NEXT_TICKET|TTTTTT+1 con requiredRevisionId.
+5. mismatch: revision_conflicts++ y repetí CLAIM.
+6. error transitorio: retries++ y repetí la misma operación.
+7. al ganar: claim_at=<UTC>, first_claim_at=claim_at, last_claim_at=claim_at, current_ticket=TTTTTT, tickets_claimed=1.
+8. publicá TU state CLAIMED una vez con el initial_sha. Antes fijá first_public_signal_at=<UTC>. Si falla, state_failures++ y seguí.
+
+CLAIMS POSTERIORES
+Inmediatamente después de cada RETURN:
+1. leé DEALER fresco.
+2. STOP válido = único cierre autorizado.
+3. NONE = CAS del NEXT_TICKET actual → +1.
+4. mismatch/retry = repetir; nunca traducirlos a terminal.
+5. al ganar: claim_at=<UTC>, last_claim_at=claim_at, current_ticket=ticket, tickets_claimed++.
+6. ir directo a trabajo local.
+
+No hagas checkpoint entre RETURN y CLAIM.
