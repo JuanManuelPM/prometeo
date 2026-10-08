@@ -25,7 +25,7 @@ def loader(template,sha,length,expr):
 
 def main():
     html=SOURCE.read_bytes();sha=hashlib.sha256(html).hexdigest();gz=gzip.compress(html,compresslevel=9,mtime=0);gzsha=hashlib.sha256(gz).hexdigest();b64=base64.b64encode(gz).decode('ascii');chunks=split_b64(b64)
-    text=html.decode('utf-8');required=['loadPageChangeLoop','createTextCaptureForChangeLoop','data-change-unread','__PROMETEO_UNIVERSAL_HOST__','suppressNextClosedClick=true','PROMETEO_DB_CANONICAL_WITH_SYNC_RECOVERY']
+    text=html.decode('utf-8');required=['loadPageChangeLoop','createTextCaptureForChangeLoop','data-change-unread','__PROMETEO_UNIVERSAL_HOST__','suppressNextClosedClick=true','PROMETEO_DB_CANONICAL_WITH_SYNC_RECOVERY','loadContinueChat',"action===\'continue-chat\'",'continue-chat.js?v=1']
     for m in required:
         if m not in text:raise SystemExit(f'missing {m}')
     OUT.mkdir(parents=True,exist_ok=True)
@@ -33,7 +33,7 @@ def main():
     for i,c in enumerate(chunks,1):(OUT/f'chunk-{i}.b64').write_text(c,encoding='ascii')
     t=TEMPLATE.read_text(encoding='utf-8');cand=loader(t,sha,len(b64),"const CHUNKS=[1,2,3,4,5].map(n=>`./chunk-${n}.b64`);");root=loader(t,sha,len(b64),"const CHUNKS=[1,2,3,4,5].map(n=>`./shared/universal-shell/v5/chunk-${n}.b64`);")
     (OUT/'index.html').write_text(cand,encoding='utf-8');(OUT/'root-index.html').write_text(root,encoding='utf-8')
-    m={'schema':'prometeo.universal-shell-served-manifest/v1','source':'shared/universal-shell/v5/candidate/change-loop-source.html','source_sha256':sha,'gzip_sha256':gzsha,'base64_length':len(b64),'chunks':[{'file':f'chunk-{i}.b64','size':len(c)} for i,c in enumerate(chunks,1)],'capabilities':{'single_top_level_shell':True,'nested_root_boot_blocked':True,'page_host_overlay':True,'closed_puck_repeatable_drag':True,'closed_puck_regrab_during_snap':True,'semantic_corner_persistence':True,'durable_favorites':True,'page_change_threads':True,'page_change_feed':True,'disposable_agent_launcher':True,'unread_change_indicator':True,'text_capture_from_thread':True,'private_attachment_intake':True}}
+    m={'schema':'prometeo.universal-shell-served-manifest/v1','source':'shared/universal-shell/v5/candidate/change-loop-source.html','source_sha256':sha,'gzip_sha256':gzsha,'base64_length':len(b64),'chunks':[{'file':f'chunk-{i}.b64','size':len(c)} for i,c in enumerate(chunks,1)],'capabilities':{'single_top_level_shell':True,'nested_root_boot_blocked':True,'page_host_overlay':True,'closed_puck_repeatable_drag':True,'closed_puck_regrab_during_snap':True,'semantic_corner_persistence':True,'durable_favorites':True,'page_change_threads':True,'page_change_feed':True,'disposable_agent_launcher':True,'unread_change_indicator':True,'text_capture_from_thread':True,'private_attachment_intake':True,'continue_chat_launcher':True}}
     (OUT/'manifest.json').write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     decoded=gzip.decompress(base64.b64decode(''.join((OUT/c['file']).read_text() for c in m['chunks']),validate=True))
     if decoded!=html:raise SystemExit('payload mismatch')

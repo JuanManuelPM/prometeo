@@ -1,0 +1,18 @@
+// Prometeo Continue Chat v1
+const VERSION='1.0.0';
+const WORKSPACE_PROMPT='/prometeo/ui-workspace-v1/continuity/persistence-v1/CONTINUE_CHAT_PROMPT.txt';
+const FALLBACK_PROMPT='/prometeo/continuity/CONTINUE_CHAT_PROMPT.txt';
+function asUrl(v){try{return new URL(String(v||''),globalThis.location?.href||'https://juanmanuelpm.github.io/prometeo/')}catch{return null}}
+export function resolvePromptUrl(page=null){
+  const href=page?.href||page?.public_url||globalThis.location?.href||'';
+  const path=asUrl(href)?.pathname||'';
+  if(path.includes('/ui-workspace-v1/'))return WORKSPACE_PROMPT;
+  if(globalThis.location?.pathname?.includes('/prometeo/'))return WORKSPACE_PROMPT;
+  return FALLBACK_PROMPT;
+}
+async function fetchText(url){const r=await fetch(url+(url.includes('?')?'&':'?')+'t='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('Continuity prompt '+r.status);return r.text()}
+function fill(t,page){const href=page?.href||page?.public_url||globalThis.location?.href||'',id=page?.id||'unknown',title=page?.title||id;return String(t).replaceAll('{{PAGE_ID}}',String(id)).replaceAll('{{PAGE_TITLE}}',String(title)).replaceAll('{{PAGE_HREF}}',String(href)).replaceAll('{{COPIED_AT}}',new Date().toISOString())}
+async function copyText(v){if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(v);return}const t=document.createElement('textarea');t.value=v;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();const ok=document.execCommand('copy');t.remove();if(!ok)throw new Error('Clipboard unavailable')}
+export async function buildPrompt({page=null}={}){const promptUrl=resolvePromptUrl(page),template=await fetchText(promptUrl);return{promptUrl,prompt:fill(template,page),version:VERSION}}
+export async function copyAndOpen({page=null,openChat=true}={}){const built=await buildPrompt({page});await copyText(built.prompt);if(openChat)window.open('https://chatgpt.com/','_blank','noopener');return{...built,copied:true,opened:!!openChat}}
+export const CONTINUE_CHAT_VERSION=VERSION;

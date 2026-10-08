@@ -1268,6 +1268,7 @@ function syncRoot(){
     type:'action',action:'favorites',icon:'pin'
   });
   children.push(
+    {id:'continue-chat',label:'Continuar chat',type:'action',action:'continue-chat',icon:'chat'},
     {id:'notes',label:'Notas',type:'action',action:'notes',icon:'notes'},
     {id:'record',label:'Grabar',type:'action',action:'record',icon:'mic'}
   );
@@ -1299,6 +1300,20 @@ const pageRoute=createPageRouteController();
 const pageForNote=note=>note.pageId===currentPage?.id?currentPage:{id:note.pageId,source_repo:'JuanManuelPM/prometeo'};
 const contextProvider=createContextProvider({remote,putNote:note=>putNote(note),pageForNote});
 const captureSync=createCaptureSyncQueue({remote,getNote:id=>getNote(id),listNotes:()=>listNotes(),pageForNote,onState:renderSyncState});
+
+let continueChatPromise=null;
+async function loadContinueChat(){
+  if(continueChatPromise)return continueChatPromise;
+  const url=location.hostname==='juanmanuelpm.github.io'
+    ?'/prometeo/shared/continuity/v1/continue-chat.js?v=1'
+    :'/shared/continuity/v1/continue-chat.js?v=1';
+  continueChatPromise=import(url).catch(error=>{
+    continueChatPromise=null;
+    backendStatus.set('continue-chat','DEGRADED',String(error?.message||error));
+    return null;
+  });
+  return continueChatPromise;
+}
 
 let changeLoopPromise=null;
 function setChangeUnread(count){puck.dataset.changeUnread=Number(count||0)>0?'1':'0'}
@@ -1674,6 +1689,18 @@ async function enter(){
     if(it.action==='favorites-done'){
       if(state.stack.at(-1)?.kind==='favorites-organizer')state.stack.pop();
       refreshFavoritesNodeInStack();state.index=0;render();return;
+    }
+    if(it.action==='continue-chat'){
+      const api=await loadContinueChat();
+      if(!api){showToast('No pude cargar continuidad');return}
+      try{
+        const p=currentPage||window.__PROMETEO_UNIVERSAL_HOST__?.getPage?.()||{id:'prometeo',title:'Prometeo',href:location.href};
+        await api.copyAndOpen({page:p,openChat:true});
+        showToast('Prompt de continuidad copiado');
+      }catch(error){
+        showToast(error?.message||'No pude copiar continuidad');
+      }
+      return;
     }
     if(it.action==='notes'){
       const loop=await loadPageChangeLoop();

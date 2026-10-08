@@ -12,6 +12,10 @@ on:
       - 'shared/universal-shell/v5/SINGLE_SHELL_HOST_CONTRACT_v1.json'
       - 'shared/storage/v1/prometeo-db.js'
       - 'shared/capture/v1/change-loop.js'
+      - 'shared/continuity/v1/continue-chat.js'
+      - 'continuity/CONTINUE_CHAT_PROMPT.txt'
+      - 'ui-workspace-v1/continuity/persistence-v1/**'
+      - 'ui-workspace-v1/continuity/CURRENT_HANDOFF.md'
       - 'shared/prometeo-shell/v1/**'
       - 'shared/prometeo-shell/v2/**'
       - '.github/workflows/publish-universal-shell-v5.yml'
@@ -33,11 +37,21 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Materialize V5 release from source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/package-universal-control-v5-change-loop-release.py
+          cp shared/universal-shell/v5/change-loop-release-candidate/root-index.html index.html
+          cp shared/universal-shell/v5/change-loop-release-candidate/chunk-*.b64 shared/universal-shell/v5/
+          cp shared/universal-shell/v5/change-loop-release-candidate/manifest.json shared/universal-shell/v5/SERVED_MANIFEST.json
+
       - name: Validate complete manifested V5 runtime
         shell: bash
         run: |
           set -euo pipefail
           node --check shared/capture/v1/change-loop.js
+          node --check shared/continuity/v1/continue-chat.js
           python - <<'PY'
           import base64, gzip, hashlib, json, pathlib
           root = pathlib.Path('.')
@@ -70,10 +84,13 @@ jobs:
             'loadPageChangeLoop',
             'createTextCaptureForChangeLoop',
             'data-change-unread',
+            'loadContinueChat',
+            "action==='continue-chat'",
+            'continue-chat.js?v=1',
           ]
           for marker in required: assert marker in text, marker
           caps=m.get('capabilities',{})
-          for cap in ['single_top_level_shell','durable_favorites','page_change_threads','page_change_feed','disposable_agent_launcher','unread_change_indicator','text_capture_from_thread','private_attachment_intake']:
+          for cap in ['single_top_level_shell','durable_favorites','page_change_threads','page_change_feed','disposable_agent_launcher','unread_change_indicator','text_capture_from_thread','private_attachment_intake','continue_chat_launcher']:
               assert caps.get(cap) is True, cap
           assert 'corner-snapping .puck{pointer-events:none}' not in text
           loader=(root/'index.html').read_text()
@@ -106,6 +123,9 @@ jobs:
             /tmp/prometeo-pages/shared/universal-shell/v5 \
             /tmp/prometeo-pages/shared/storage/v1 \
             /tmp/prometeo-pages/shared/capture/v1 \
+            /tmp/prometeo-pages/shared/continuity/v1 \
+            /tmp/prometeo-pages/continuity \
+            /tmp/prometeo-pages/ui-workspace-v1/continuity/persistence-v1 \
             /tmp/prometeo-pages/shared/prometeo-shell/v1 \
             /tmp/prometeo-pages/shared/prometeo-shell/v2
           cp index.html /tmp/prometeo-pages/index.html
@@ -116,6 +136,10 @@ jobs:
           cp shared/universal-shell/v5/SERVED_MANIFEST.json /tmp/prometeo-pages/shared/universal-shell/v5/SERVED_MANIFEST.json
           cp shared/storage/v1/prometeo-db.js /tmp/prometeo-pages/shared/storage/v1/prometeo-db.js
           cp shared/capture/v1/change-loop.js /tmp/prometeo-pages/shared/capture/v1/change-loop.js
+          cp shared/continuity/v1/continue-chat.js /tmp/prometeo-pages/shared/continuity/v1/continue-chat.js
+          cp continuity/CONTINUE_CHAT_PROMPT.txt /tmp/prometeo-pages/continuity/CONTINUE_CHAT_PROMPT.txt
+          cp ui-workspace-v1/continuity/persistence-v1/* /tmp/prometeo-pages/ui-workspace-v1/continuity/persistence-v1/
+          cp ui-workspace-v1/continuity/CURRENT_HANDOFF.md /tmp/prometeo-pages/ui-workspace-v1/continuity/CURRENT_HANDOFF.md
           cp shared/prometeo-shell/v1/*.js /tmp/prometeo-pages/shared/prometeo-shell/v1/
           cp shared/prometeo-shell/v2/*.js /tmp/prometeo-pages/shared/prometeo-shell/v2/
           cd /tmp/prometeo-pages
@@ -124,6 +148,10 @@ jobs:
             shared/universal-shell/v5 \
             shared/storage/v1/prometeo-db.js \
             shared/capture/v1/change-loop.js \
+            shared/continuity/v1/continue-chat.js \
+            continuity/CONTINUE_CHAT_PROMPT.txt \
+            ui-workspace-v1/continuity/persistence-v1 \
+            ui-workspace-v1/continuity/CURRENT_HANDOFF.md \
             shared/prometeo-shell/v1 \
             shared/prometeo-shell/v2
           if git diff --cached --quiet; then
@@ -150,6 +178,10 @@ jobs:
           curl -fsS "https://juanmanuelpm.github.io/prometeo/shared/capture/v1/change-loop.js?v=$SHA" -o /tmp/live-change-loop.js
           grep -q 'mountPageChangeLoop' /tmp/live-change-loop.js
           grep -q 'prepare_execution' /tmp/live-change-loop.js
+          curl -fsS "https://juanmanuelpm.github.io/prometeo/shared/continuity/v1/continue-chat.js?v=$SHA" -o /tmp/live-continue-chat.js
+          grep -q 'copyAndOpen' /tmp/live-continue-chat.js
+          curl -fsS "https://juanmanuelpm.github.io/prometeo/ui-workspace-v1/continuity/persistence-v1/CONTINUE_CHAT_PROMPT.txt?v=$SHA" -o /tmp/live-continue-prompt.txt
+          grep -q 'TAKEOVER DE CONTINUIDAD' /tmp/live-continue-prompt.txt
           python - <<'PY'
           import base64, gzip, hashlib, json, urllib.request
           m=json.load(open('shared/universal-shell/v5/SERVED_MANIFEST.json'))
@@ -170,5 +202,7 @@ jobs:
           assert 'suppressNextClosedClick=true' in text
           assert 'loadPageChangeLoop' in text
           assert 'data-change-unread' in text
+          assert 'loadContinueChat' in text
+          assert "action==='continue-chat'" in text
           print('LIVE V5 PAGE CHANGE LOOP BYTE CANARY PASS',m['source_sha256'])
           PY

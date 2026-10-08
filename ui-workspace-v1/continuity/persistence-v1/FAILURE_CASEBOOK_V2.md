@@ -1,0 +1,16 @@
+# FAILURE CASEBOOK V2
+- PARKING ATTRACTOR: si existe, se usa. Eliminarlo.
+- SUFFICIENT WORK: cantidad hecha nunca autoriza stop.
+- LAST ESSENTIAL BLOCK: worker no decide suficiencia global.
+- WAITING DISGUISED: slot no adquirido no es worker.
+- READY/IDLE RESIDENCE: RETURN es evento y debe saltar a CLAIM.
+- TELEMETRY BLOCK: state write nunca bloquea material work.
+- PREVENTIVE REREAD: no releer publicación exitosa sin incertidumbre.
+- HISTORY REWRITE: state no modifica tiempos canónicos del RETURN.
+- STOP_NONE + TOOL FAILURE: PLATFORM_INTERRUPTION, no DONE.
+- TOOL-CALL CAP: observado en EXP-009; reducir calls/task.
+- FINITE INVOCATION: observado tras 100 RETURNS; recovery externo.
+- ORPHAN CLAIM: tickets 000102 y 000127; lease+generation+requeue.
+- STALE RETURN: generation vieja no integra.
+- GHOST WORKER: métricas sólo desde adquisición durable.
+- SELF-MODIFICATION: observation va a curator, no cambia reglas in-run.
