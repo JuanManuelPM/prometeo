@@ -4,6 +4,9 @@ on:
     branches: [main]
     paths:
       - 'shared/**'
+      - 'continuity/CONTINUE_CHAT_PROMPT.txt'
+      - 'ui-workspace-v1/continuity/persistence-v1/**'
+      - 'ui-workspace-v1/continuity/CURRENT_HANDOFF.md'
       - 'pages/calendar/**'
       - 'projects.json'
       - 'tests/calendar.test.mjs'
@@ -26,6 +29,10 @@ jobs:
         run: |
           set -euo pipefail
           node --check shared/study/v1/components.js
+          node --check shared/continuity/v1/continue-chat.js
+          grep -q 'TAKEOVER DE CONTINUIDAD' shared/continuity/v1/CONTINUE_CHAT_PROMPT.txt
+          test -f ui-workspace-v1/continuity/persistence-v1/00_INDEX.md
+          test -f ui-workspace-v1/continuity/persistence-v1/NEXT_MACRO_EXPERIMENT.md
           node --check shared/calendar/v1/core.js
           node --check shared/calendar/v1/sources.js
           node --check shared/calendar/v1/state.js
@@ -65,12 +72,15 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git fetch origin gh-pages
           git worktree add /tmp/prometeo-pages origin/gh-pages
-          mkdir -p /tmp/prometeo-pages/shared /tmp/prometeo-pages/pages/calendar
+          mkdir -p /tmp/prometeo-pages/shared /tmp/prometeo-pages/pages/calendar /tmp/prometeo-pages/continuity /tmp/prometeo-pages/ui-workspace-v1/continuity/persistence-v1
           rsync -a --delete shared/ /tmp/prometeo-pages/shared/
           rsync -a --delete pages/calendar/ /tmp/prometeo-pages/pages/calendar/
           cp projects.json /tmp/prometeo-pages/projects.json
+          cp continuity/CONTINUE_CHAT_PROMPT.txt /tmp/prometeo-pages/continuity/CONTINUE_CHAT_PROMPT.txt
+          rsync -a ui-workspace-v1/continuity/persistence-v1/ /tmp/prometeo-pages/ui-workspace-v1/continuity/persistence-v1/
+          cp ui-workspace-v1/continuity/CURRENT_HANDOFF.md /tmp/prometeo-pages/ui-workspace-v1/continuity/CURRENT_HANDOFF.md
           cd /tmp/prometeo-pages
-          git add shared pages/calendar projects.json
+          git add shared pages/calendar projects.json continuity/CONTINUE_CHAT_PROMPT.txt ui-workspace-v1/continuity/persistence-v1 ui-workspace-v1/continuity/CURRENT_HANDOFF.md
           if git diff --cached --quiet; then
             echo 'Shared commons and Calendar already current.'
             exit 0
