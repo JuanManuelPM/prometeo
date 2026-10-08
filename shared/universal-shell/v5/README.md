@@ -17,11 +17,11 @@ V5 keeps the approved tactile selector as the single global control, persistent 
 - `Notas / Cambios` is page-scoped and returns execution results into the same Universal Host;
 - Anywhere Notes v3 combines text, recoverable private audio transcription, files and AI-derived notes, with separate `Pensar` and `Trabajar` actions and an expanded pause/resume/save/discard recorder while active;
 - canonical result links use `/?page=<page_id>&changes=<work_item_id>` so raw child pages never become the primary human navigation surface;
-- child pages remain visually/functionally independent and never mount a second global Prometeo control.
+- child pages remain visually/functionally independent and never mount a second global Prometeo control.\n- `Continuar chat` copies a durable takeover prompt and opens ChatGPT without embedding conversation state inside the shell.
 
 ## Deployment invariant
 
-`shared/universal-shell/v5/SERVED_MANIFEST.json` is the only byte-level authority for the current served V5 payload. It records the five chunk sizes, combined Base64 length, gzip SHA-256, decompressed HTML SHA-256 and capability flags. Do not copy historical byte counts or hashes into a second authority.
+`shared/universal-shell/v5/candidate/change-loop-source.html` is the editable source. The release workflow packages it, and the served `SERVED_MANIFEST.json` is the byte-level authority for deployed bytes. It records the five chunk sizes, combined Base64 length, gzip SHA-256, decompressed HTML SHA-256 and capability flags. Do not copy historical byte counts or hashes into a second authority.
 
 The publisher validates every chunk and the decompressed source against that manifest before updating `gh-pages`, then verifies the live GitHub Pages bytes.
 
