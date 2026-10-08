@@ -1,7 +1,7 @@
 // Prometeo Continue Chat v1
 const VERSION='1.1.0';
-const WORKSPACE_PROMPT='/prometeo/ui-workspace-v1/continuity/persistence-v1/CONTINUE_CHAT_PROMPT.txt';
-const FALLBACK_PROMPT='/prometeo/continuity/CONTINUE_CHAT_PROMPT.txt';
+const WORKSPACE_PROMPT='/prometeo/shared/continuity/v1/CONTINUE_CHAT_PROMPT.txt';
+const FALLBACK_PROMPT='/prometeo/shared/continuity/v1/CONTINUE_CHAT_PROMPT.txt';
 function asUrl(v){try{return new URL(String(v||''),globalThis.location?.href||'https://juanmanuelpm.github.io/prometeo/')}catch{return null}}
 export function resolvePromptUrl(page=null){
   const href=page?.href||page?.public_url||globalThis.location?.href||'';
