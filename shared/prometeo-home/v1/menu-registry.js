@@ -4,6 +4,7 @@ export const PROMETEO_MENU = Object.freeze({
   items: [
     { id: 'record', label: 'Grabar una nota', action: 'record' },
     { id: 'notes', label: 'Notas y trabajo', action: 'notes' },
+    { id: 'continue-chat', label: 'Continuar chat', action: 'continue-chat' },
     {
       id: 'pages',
       label: 'Páginas',

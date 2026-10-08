@@ -2,6 +2,7 @@ import { PROMETEO_MENU } from '../v1/menu-registry.js';
 import { mountPageChangeLoop } from '../../capture/v1/change-loop.js';
 import { VoiceQueue } from '../../prometeo-shell/v1/voice.js';
 import { listNotes, getNote } from '../../prometeo-shell/v1/db.js';
+import { copyAndOpen as copyContinuePromptAndOpen } from '../../continuity/v1/continue-chat.js';
 
 const CORNERS=['top-left','top-right','bottom-left','bottom-right'];
 const CORNER_KEY='prometeo.owner-shell.corner.v2';
@@ -110,6 +111,17 @@ async function activate(item){
   closeMenu();
   if(item.action==='record'){await startRecording();return}
   if(item.action==='notes'){updatePageRef();await changeLoop.open(page);return}
+  if(item.action==='continue-chat'){
+    updatePageRef();
+    const f=frameInfo();
+    try{
+      await copyContinuePromptAndOpen({page:{id:'prometeo-home-v2',title:f.title,href:f.href},openChat:true});
+      say('Prompt de continuidad copiado');
+    }catch(error){
+      say(error?.message||'No pude copiar continuidad');
+    }
+    return;
+  }
   if(item.href)navigate(item.href)
 }
 
