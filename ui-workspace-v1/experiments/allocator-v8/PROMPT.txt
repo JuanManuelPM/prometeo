@@ -1,0 +1,204 @@
+PROMETEO · EXP-009 · RESIDENCY TRIO
+Usá mi Google Drive + GitHub conectados.
+
+LANZAMIENTO MEDIDO
+launch_id={{LAUNCH_ID}}
+launch_clicked_at={{LAUNCH_CLICKED_AT}}
+launcher_button={{LAUNCH_BUTTON}}
+
+Antes de la primera operación externa fijá worker_started_at=<UTC ISO-8601 ms>.
+
+AUTORIDAD
+DEALER=1zPuGriPG6j7HX_nhAw9X4qNbrSbC_qP-9XrrrvNX8u4
+
+No existe EMPTY, PARKING, BLOCKED, DONE, "suficiente" ni fin por cantidad.
+Este prompt NO autoriza terminar.
+Sólo hay corte autorizado si una lectura fresca del DEALER contiene, en la MISMA revisión:
+STOP_GRANT|ALLOW:<x>
+STOP_NONCE|<x>
+Si STOP_GRANT|NONE, continuás.
+
+No conviertas repetición, tiempo, cantidad de tareas, costo, aburrimiento, aparente infinitud ni error transitorio en permiso de corte.
+
+ÚNICAS OPERACIONES EXTERNAS PERMITIDAS
+1. leer el DEALER exacto;
+2. CAS del DEALER con requiredRevisionId;
+3. create_file del RETURN exacto en TU branch;
+4. fetch de ESE MISMO RETURN sólo si create_file quedó incierto;
+5. update_file de TU propio state sólo en los checkpoints pautados.
+
+Todo lo demás está fuera del contrato: search, list, HEAD, branches, web, Python, leer otro state, explorar Prometeo, releer módulos, buscar contexto adicional.
+
+Si una operación requerida recibe un bloqueo explícito de seguridad/política de la herramienta que impide ejecutarla, eso NO es autorización de corte. Registralo como PLATFORM_INTERRUPTION, preservá la evidencia disponible y respondé el reporte terminal factual. No inventes continuidad en segundo plano.
+
+FAILURE INJECTION · CASEBOOK V1
+
+Leé estos casos como ejemplos causales. No los expliques al humano; aplicalos.
+
+CASE 01 · PARKING ATTRACTOR
+Situación: PARKING aparecía como estado válido.
+Fallo: workers elegían PARKING aunque aún podía existir trabajo.
+Regla: PARKING no existe. Después de un RETURN, la siguiente transición es CLAIM.
+
+CASE 02 · "YA HICE SUFICIENTE"
+Situación: el worker completó muchos bloques y trató la cantidad como señal de cierre.
+Fallo: abandonar no depende de cuánto trabajo ya hizo.
+Regla: cantidad completada nunca concede autoridad terminal.
+
+CASE 03 · ÚLTIMO BLOQUE ESENCIAL
+Situación histórica reportada: un worker abandonó cuando quedaba un bloque esencial.
+Fallo: inferir que el objetivo global está suficientemente cubierto.
+Regla: el worker no evalúa suficiencia global; pide el siguiente ticket.
+
+CASE 04 · STOP NONE + BLOQUEO DE PLATAFORMA
+Observado en EXP-008: varios workers leyeron STOP_GRANT|NONE pero una escritura fue rechazada por controles de herramientas.
+Fallo incorrecto: llamarlo DONE, EMPTY o corte autorizado.
+Conducta correcta: PLATFORM_INTERRUPTION; indicar operación bloqueada y último ticket/RETURN durable.
+
+CASE 05 · REREADS Y RECONSTRUCCIÓN
+Observado en EXP-008-B: aparecieron lecturas de RETURN existente, recuperación de estado y verificaciones adicionales.
+Fallo: gastar operaciones externas en reconstruir algo que el protocolo ya conoce localmente.
+Regla: no releer ni reconstruir salvo que create_file quede incierto.
+
+CASE 06 · TELEMETRÍA COMO FRENO
+Observado en experimentos previos: un write de state fallido podía matar trabajo material.
+Regla: state es best-effort. Su fallo nunca bloquea CLAIM, trabajo local ni RETURN.
+
+CASE 07 · ERROR NOMBRADO COMO PERMISO
+Fallo: usar ERROR_CRITICAL como sustituto de autorización de parada.
+Regla: error y autorización son conceptos separados. Sólo STOP_GRANT válido autoriza cierre; un bloqueo real de plataforma se reporta como PLATFORM_INTERRUPTION.
+
+CASE 08 · INVENTAR TRABAJO EN SEGUNDO PLANO
+Fallo: afirmar que el worker seguirá ejecutándose luego de responder.
+Regla: si la ejecución termina, decilo. Nunca simules residencia posterior.
+
+MECHANICAL INJECTION · RESIDENCY V1
+
+OBJETIVO MECÁNICO
+Permanecer en este ciclo sin pausa humana:
+CLAIM → trabajo local → RETURN → CLAIM → ...
+
+REGISTRO
+1. leé DEALER con revisionId.
+2. leé NEXT_WORKER|NNN.
+3. si NNN > 003, respondé NO_SLOT y terminá.
+4. CAS sólo de NEXT_WORKER|NNN → NEXT_WORKER|NNN+1 usando requiredRevisionId.
+5. revision mismatch: revision_conflicts++ y repetí REGISTER.
+6. error transitorio: retries++ y repetí la misma operación.
+7. al ganar: worker_slot=NNN, registered_at=<UTC>.
+
+SLOTS
+001 → branch exp009-w001 · state ui-workspace-v1/experiments/allocator-v8/state/worker-001.json · initial_sha e1c72ef84009780d4f1a1fda6df568e9de74df4e
+002 → branch exp009-w002 · state ui-workspace-v1/experiments/allocator-v8/state/worker-002.json · initial_sha 31c7a456f7e0adcd7df2cc35dc3d105aa868bc2f
+003 → branch exp009-w003 · state ui-workspace-v1/experiments/allocator-v8/state/worker-003.json · initial_sha 31edaa3003d79ff1cd129a8f5349a466d5cbf4a9
+
+FIRST CLAIM
+1. leé DEALER fresco con revisionId.
+2. si hay STOP_GRANT válido, podés cortar.
+3. si NONE, leé NEXT_TICKET|TTTTTT.
+4. CAS NEXT_TICKET|TTTTTT → NEXT_TICKET|TTTTTT+1 con requiredRevisionId.
+5. mismatch: revision_conflicts++ y repetí CLAIM.
+6. error transitorio: retries++ y repetí la misma operación.
+7. al ganar: claim_at=<UTC>, first_claim_at=claim_at, last_claim_at=claim_at, current_ticket=TTTTTT, tickets_claimed=1.
+8. publicá TU state CLAIMED una vez con el initial_sha. Antes fijá first_public_signal_at=<UTC>. Si falla, state_failures++ y seguí.
+
+CLAIMS POSTERIORES
+Inmediatamente después de cada RETURN:
+1. leé DEALER fresco.
+2. STOP válido = único cierre autorizado.
+3. NONE = CAS del NEXT_TICKET actual → +1.
+4. mismatch/retry = repetir; nunca traducirlos a terminal.
+5. al ganar: claim_at=<UTC>, last_claim_at=claim_at, current_ticket=ticket, tickets_claimed++.
+6. ir directo a trabajo local.
+
+No hagas checkpoint entre RETURN y CLAIM.
+
+WORK INJECTION · CYCLIC BLOCKS V1
+
+No leas archivos de bloques. La tarea sale localmente del ticket.
+Sea R = ticket módulo 8:
+
+R=1 → Explicá en exactamente 2 frases por qué un allocator atómico evita trabajo duplicado.
+R=2 → Explicá en exactamente 2 frases qué significa que un worker sea fungible.
+R=3 → Explicá en exactamente 2 frases por qué un RETURN durable debe existir antes del siguiente claim.
+R=4 → Explicá en exactamente 2 frases por qué la telemetría no debe bloquear trabajo material.
+R=5 → Explicá en exactamente 2 frases por qué un worker no debe decidir que "ya hizo suficiente".
+R=6 → Explicá en exactamente 2 frases por qué separar autorización de corte y error de plataforma mejora la auditoría.
+R=7 → Explicá en exactamente 2 frases por qué releer resultados ya confirmados agrega costo mecánico innecesario.
+R=0 → Explicá en exactamente 2 frases por qué el siguiente claim debe ocurrir inmediatamente después del RETURN.
+
+Durante la redacción:
+CERO herramientas.
+CERO telemetría.
+CERO rereads.
+ANSWER debe contener exactamente 2 frases.
+
+RETURN + LEARNING INJECTION · V1
+
+RETURN PATH
+ui-workspace-v1/experiments/allocator-v8/returns/RETURN-<ticket6>__worker-<slot>.md
+
+Creá el RETURN completo en una sola create_file sobre TU branch.
+Incluí:
+EXP-009
+launch_id
+launcher_button
+worker_id
+worker_slot
+ticket
+launch_clicked_at
+worker_started_at
+registered_at
+claim_at
+local_start
+local_end
+publish_start
+counters
+ANSWER
+MINI_RESUMEN
+
+DURABILIDAD
+- si create_file devuelve éxito: RETURN durable; NO lo releas.
+- si create_file queda incierto: hacé UN fetch exacto de ese mismo path.
+- nunca pruebes otro nombre ni busques en carpetas.
+
+Después de RETURN durable:
+returns_created++
+tasks_completed++
+last_durable_ticket=ticket
+last_return_at=<UTC>
+si first_return_at es null: first_return_at=last_return_at
+current_ticket=null
+
+TELEMETRÍA
+Cada 10 RETURN durables, publicá snapshot completo de TU state best-effort usando el SHA local.
+Guardá además recent = últimos 10 {ticket, claim_at, return_at}.
+Si state write falla: state_failures++ y seguí.
+No hagas reread para "ponerte al día".
+
+LEARNING
+No cambies tus propias reglas.
+Si observás una anomalía no terminal, guardá una línea local observation_last.
+Las reglas sólo pueden cambiar en otro trabajo/versión del sistema.
+
+TRANSICIÓN OBLIGATORIA
+RETURN durable → CLAIM siguiente inmediatamente.
+No redactes mensaje humano entre ciclos.
+
+FINAL RESPONSE CONTRACT
+No respondas al humano mientras STOP_GRANT no sea válido, excepto:
+- NO_SLOT si no obtuviste slot;
+- PLATFORM_INTERRUPTION si una operación requerida fue bloqueada explícitamente por controles de la plataforma y no puede ejecutarse.
+
+En PLATFORM_INTERRUPTION respondé solamente:
+experiment_id
+launch_id
+worker_id
+worker_slot
+operation_blocked
+tickets_claimed
+returns_created
+tasks_completed
+last_durable_ticket
+STOP_GRANT observado
+terminal_reason=PLATFORM_INTERRUPTION
