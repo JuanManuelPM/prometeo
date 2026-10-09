@@ -25,11 +25,20 @@ h1{font-size:clamp(35px,7vw,56px);letter-spacing:-.05em;line-height:1.03;font-we
 .topline{color:var(--acc);font-size:12px;font-weight:700}
 .detail h3{font-size:23px;letter-spacing:-.025em;line-height:1.2;margin:10px 0 10px}
 .detail p{color:var(--muted);font-size:15px;max-width:680px}
-.action{font:inherit;background:var(--acc);border:none;border-radius:11px;color:#19150f;font-weight:750;min-height:48px;padding:10px 17px;cursor:pointer}
+.action{font:inherit;background:var(--acc);border:none;border-radius:11px;color:#19150f;font-weight:750;min-height:48px;padding:10px 17px;cursor:pointer}.action:disabled{background:#383b33;color:var(--muted);cursor:not-allowed}
 .secondary{font-size:14px;color:var(--muted);margin-left:12px;white-space:nowrap}
 .notice{font-size:13px;color:var(--muted);min-height:20px;margin:10px 0 0}
 footer{border-top:1px solid var(--line);margin-top:65px;padding-top:18px;font-size:12px;color:var(--muted)}
 @media(max-width:530px){main{padding-top:18px}h1{margin-top:50px}.project{flex-basis:76vw}header,.below{padding-left:20px;padding-right:20px}.track{padding-left:20px;padding-right:20px}.intro,h1,.hint{margin-left:20px;margin-right:20px}}
+
+/* Evidencia directa: fuente GitHub, cambios y comparación de bytes SERVED. */
+.proof{margin:18px 0 20px;padding:14px 16px;border:1px solid var(--line);border-radius:15px;background:#181b16}
+.proof h4{font-size:14px;margin:0 0 9px;color:var(--fg)}
+.proof p{font-size:13px;line-height:1.48;margin:7px 0;color:var(--muted);overflow-wrap:anywhere}
+.proof strong{color:var(--fg);font-weight:650}
+.proof a{color:var(--acc);text-underline-offset:3px}
+.proof button{background:transparent;border:1px solid var(--line);border-radius:8px;padding:7px 11px;font:inherit;font-size:13px;color:var(--fg);cursor:pointer}
+.proof .small{font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -44,7 +53,7 @@ footer{border-top:1px solid var(--line);margin-top:65px;padding-top:18px;font-si
 <span class="topline" id="selectedTag">Cargando...</span>
 <h3 id="detailTitle">Continuar</h3>
 <p id="detailDescription">Recuperando el punto de retorno...</p>
-<p id="detailState"></p>
+<p id="detailState"></p><section class="proof" id="relayHistory" hidden aria-label="Historial de relevos"><h4>Resultados recuperados de otros chats</h4><div id="relayRows">Esperando fuente...</div><p class="small">Eventos guardados en el propietario público. No son transcripciones ni prueban publicación o autonomía de chats.</p></section><section class="proof" id="liveProof" aria-label="Evidencia actual"><h4>Fuentes, cambios y versiones</h4><div id="liveProofRows" aria-live="polite">Aguardando selección…</div><button id="verifyAgain" type="button">Volver a comprobar</button><p class="small">Datos públicos de GitHub y bytes de GitHub Pages. Sin acceso a datos privados ni afirmaciones de actividad en segundo plano.</p></section>
 <div><button class="action" id="copy" type="button" disabled>Copiar próximo mensaje</button><a class="secondary" id="source" href="../RETOMAR_V1.md">Ver fuente</a></div>
 <p id="notice" class="notice" role="status"></p>
 </div>
@@ -71,10 +80,136 @@ function dateLabel(date){
  const relative=m<1?'Hace menos de un minuto':m<60?'Hace '+m+' min':m<1440?'Hace '+Math.floor(m/60)+' h':m<43200?'Hace '+Math.floor(m/1440)+' días':'Actualización antigua';
  return relative+' · '+argentineDate(date);
 }
+
+let evidenceRequest=0;
+const commitCache=new Map();
+const proof=document.getElementById('liveProof');
+const proofRows=document.getElementById('liveProofRows');
+const proofRefresh=document.getElementById('verifyAgain');
+const relayPanel=document.getElementById('relayHistory'),relayRows=document.getElementById('relayRows');
+let relayRequest=0;
+function renderRelayHistory(state,turn,i){
+ if(selected!==i||turn!==relayRequest)return;
+ relayRows.replaceChildren();
+ if(!Array.isArray(state.history)){relayRows.textContent='Historial no verificado: fuente inválida.';return;}
+ const records=state.history.slice(-8).reverse().filter(h=>Number.isInteger(h.hop)&&
+  typeof h.episode_ref==='string'&&/^tv\/chat\/relevo\/episodes\/[A-Za-z0-9_.-]+\.md$/.test(h.episode_ref));
+ if(!records.length){relayRows.textContent='No hay episodios públicos comprobables.';return;}
+ records.forEach(h=>{
+  const row=document.createElement('p'),a=document.createElement('a');
+  a.href='/prometeo/'+h.episode_ref;
+  a.textContent='Salto '+h.hop+' · '+dateLabel(h.date_utc);
+  row.append(a);
+  const result=typeof h.result==='string'?h.result:'RESULTADO_NO_VERIFICADO';
+  const lesson=typeof h.lesson==='string'?h.lesson.slice(0,400):'Sin aprendizaje publicado';
+  row.append(document.createTextNode(' · '+result+' · '+lesson));
+  relayRows.append(row);
+ });
+}
+function proofLine(key,value,href){
+ const p=document.createElement('p'),a=document.createElement('strong');
+ a.textContent=key+' ';p.append(a);
+ if(href){const link=document.createElement('a');link.href=href;link.target='_blank';link.rel='noopener noreferrer';link.textContent=String(value);p.append(link);}
+ else p.append(document.createTextNode(String(value)));
+ proofRows.append(p);
+}
+function safeProject(p){
+ return p&&typeof p.source_path==='string'&&/^[a-zA-Z0-9_.\/-]+$/.test(p.source_path)
+   &&!p.source_path.split('/').includes('..')&&['main','gh-pages'].includes(p.source_branch);
+}
+function getProjectCommits(p,force=false){
+ const key=p.source_branch+':'+p.source_path;
+ if(!force&&commitCache.has(key))return commitCache.get(key);
+ const query='commits?sha='+encodeURIComponent(p.source_branch)+'&path='+encodeURIComponent(p.source_path)+'&per_page=3';
+ const pending=githubJson(query);commitCache.set(key,pending);return pending;
+}
+async function githubJson(path){
+ const r=await fetch(api+path,{cache:'no-store',headers:{Accept:'application/vnd.github+json'}});
+ if(!r.ok)throw Error('GitHub HTTP '+r.status);
+ return r.json();
+}
+function hex(bytes){return Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('')}
+async function servedEqualsBlob(path,sha){
+ if(!globalThis.crypto?.subtle)throw Error('SHA-1 no disponible');
+ const url='/prometeo/'+path+'?proof='+Date.now();
+ const r=await fetch(url,{cache:'no-store'});
+ if(!r.ok)throw Error('Pages HTTP '+r.status);
+ const buf=await r.arrayBuffer();
+ if(buf.byteLength>3000000)throw Error('archivo demasiado grande para cotejo');
+ const prefix=new TextEncoder().encode('blob '+buf.byteLength+'\0');
+ const combined=new Uint8Array(prefix.length+buf.byteLength);
+ combined.set(prefix);combined.set(new Uint8Array(buf),prefix.length);
+ const actual=hex(await crypto.subtle.digest('SHA-1',combined));
+ return {same:actual===sha,actual,url};
+}
+function experiencePr(){
+ const ref=oldGame?.candidate?.pull_request;
+ const match=typeof ref==='string'&&ref.match(/^https:\/\/github\.com\/JuanManuelPM\/prometeo\/pull\/([1-9][0-9]*)$/);
+ return match?Number(match[1]):null;
+}
+async function loadEvidence(p,index,force=false){
+ const request=++evidenceRequest;
+ proofRows.replaceChildren();proofLine('Estado','Leyendo directamente propietarios públicos...');
+ proofRefresh.disabled=true;
+ const current=()=>selected===index&&request===evidenceRequest;
+ if(!safeProject(p)){proofRows.replaceChildren();proofLine('Estado','Ruta no autorizada o inválida');proofRefresh.disabled=false;return}
+ const pathParts=p.source_path.split('/').map(encodeURIComponent).join('/');
+ const prNumber=p.id==='experiencias'?experiencePr():null;
+ const result=await Promise.allSettled([
+   getProjectCommits(p,force),
+   githubJson('contents/'+pathParts+'?ref='+encodeURIComponent(p.source_branch)),
+   prNumber?githubJson('pulls/'+prNumber):Promise.resolve(null)
+ ]);
+ if(!current())return;
+ proofRows.replaceChildren();
+ const [commits,source,pr]=result;
+ if(commits.status==='fulfilled'&&Array.isArray(commits.value)&&commits.value.length){
+  const list=commits.value;
+  p._last=list[0]?.commit?.committer?.date||list[0]?.commit?.author?.date||'';
+  const card=nodes.track.children[index]?.querySelector('.carddate');if(card)card.textContent=dateLabel(p._last);
+  if(current()&&p.id!=='persistencia')nodes.state.textContent='Última edición de fuente: '+dateLabel(p._last)+'. No indica versión lista.';
+  proofLine('Cambios recientes del archivo','GitHub · '+list.length+' commits registrados');
+  list.forEach((c,i)=>{
+   const msg=String(c.commit?.message||'Sin descripción').split('\n')[0].slice(0,105);
+   const date=c.commit?.committer?.date||c.commit?.author?.date;
+   proofLine(i===0?'Último cambio:':'Anterior:',msg+' · '+dateLabel(date)+' · '+String(c.sha||'').slice(0,8),
+      c.html_url?.startsWith('https://github.com/JuanManuelPM/prometeo/commit/')?c.html_url:null);
+  });
+ }else proofLine('Cambios','No se pudo consultar historial GitHub'+(commits.status==='rejected'?': '+commits.reason.message:''));
+ if(source.status==='fulfilled'&&typeof source.value.sha==='string'){
+  const blob=source.value.sha;
+  proofLine('Versión de fuente',p.source_branch+' · blob '+blob.slice(0,12),
+   'https://github.com/JuanManuelPM/prometeo/blob/'+encodeURIComponent(p.source_branch)+'/'+p.source_path);
+  try{
+   const served=await servedEqualsBlob(p.source_path,blob);
+   if(!current())return;
+   proofLine('Archivo servido',served.same
+      ?'COINCIDE byte a byte con GitHub ('+blob.slice(0,12)+'). No prueba funcionalidad.'
+      :'DIFIERE del blob actual. Puede estar pendiente de publicar o transformado por Pages.',
+     served.url);
+  }catch(e){if(!current())return;proofLine('Archivo servido','SIN VERIFICAR: '+e.message);}
+ }else proofLine('Versión/Pages','NO VERIFICADOS: GitHub no entregó SHA de fuente ('+
+   (source.status==='rejected'?source.reason.message:'respuesta inválida')+').');
+ if(prNumber){
+  if(pr.status==='fulfilled'){
+   const q=pr.value;
+   const stage=q.merged_at?'FUSIONADO (NO equivale a servido)':q.state==='open'?(q.draft?'CANDIDATO · borrador':'PR abierto · no publicado'):'CERRADO SIN MERGE';
+   proofLine('Experiencia · PR #'+prNumber,stage+' · '+String(q.head?.sha||'').slice(0,12)+
+     ' · '+dateLabel(q.updated_at),'https://github.com/JuanManuelPM/prometeo/pull/'+prNumber);
+   proofLine('Juego servido','NO ACREDITADO: hace falta validar módulo ES, demo V6 y URL de la versión del juego.');
+  }else proofLine('Experiencia · PR #'+prNumber,'Estado en vivo NO VERIFICADO: '+pr.reason.message);
+ }
+ proofLine('Alcance','Se cotejan bytes del archivo de referencia, no una partida, una demo, una versión funcional ni chats privados.');
+ proofRefresh.disabled=false;
+}
+proofRefresh.addEventListener('click',()=>{if(items[selected])loadEvidence(items[selected],selected,true)});
+
 function setSelected(i){
  if(!items[i])return;selected=i;
  [...nodes.track.children].forEach((e,k)=>e.setAttribute('aria-pressed',k===i?'true':'false'));
- const o=items[i];nodes.tag.textContent=o.tag;nodes.title.textContent=o.label;
+ const o=items[i];const relayTurn=++relayRequest;relayPanel.hidden=o.id!=='persistencia';
+ if(o.id==='persistencia')relayRows.textContent='Consultando relevos reales...';
+ loadEvidence(o,i);nodes.tag.textContent=o.tag;nodes.title.textContent=o.label;
  nodes.desc.textContent=o.description;
  nodes.source.href=o.link;nodes.source.textContent='Abrir proyecto';
  nodes.notice.textContent='';
@@ -86,25 +221,15 @@ function setSelected(i){
   nodes.copy.disabled=!(primary&&primary.exact_prompt);
   nodes.state.textContent='Consultando último salto...';
   fetch('../STATE_V1.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error();return r.json()}).then(j=>{
-   if(selected===i)nodes.state.textContent='Último salto registrado: '+j.last_hop+' · '+(j.history?.length?dateLabel(j.history[j.history.length-1].date_utc):'sin hora comprobada')+'. El siguiente debe verificar uno nuevo.';
-  }).catch(()=>{if(selected===i)nodes.state.textContent='Estado de relevo no comprobado. El nuevo chat debe consultarlo.';});
+   if(selected===i&&relayTurn===relayRequest)nodes.state.textContent='Último salto registrado: '+j.last_hop+' · '+(j.history?.length?dateLabel(j.history[j.history.length-1].date_utc):'sin hora comprobada')+'. El siguiente debe verificar uno nuevo.';
+   renderRelayHistory(j,relayTurn,i);
+  }).catch(()=>{if(selected===i&&relayTurn===relayRequest){nodes.state.textContent='Estado de relevo no comprobado. El nuevo chat debe consultarlo.';relayRows.textContent='Historial no verificado: no se pudo leer STATE_V1.json.';}});
  }else{
   nodes.state.textContent='Última edición de fuente: '+(o._last?dateLabel(o._last):'consultando...')+'. No indica versión lista.';
   nodes.copy.disabled=true;nodes.copy.textContent='Sin encargo automático';
   if(o.id==='experiencias'){nodes.copy.disabled=!(oldGame&&oldGame.exact_prompt);nodes.copy.textContent='Copiar experimento opcional';}
  }
- if(o._last===undefined){
-  o._last=null;
-  const u=api+'commits?sha='+encodeURIComponent(o.source_branch)+'&path='+encodeURIComponent(o.source_path)+'&per_page=1';
-  fetch(u).then(r=>{if(!r.ok)throw Error();return r.json()}).then(a=>{
-   o._last=a[0]?.commit?.committer?.date||'';
-   const target=nodes.track.children[i]?.querySelector('.carddate');if(target)target.textContent=dateLabel(o._last);
-   if(selected===i&&o.id!=='persistencia')nodes.state.textContent='Última edición de fuente: '+dateLabel(o._last)+'. No indica versión lista.';
-  }).catch(()=>{
-   o._last='';const target=nodes.track.children[i]?.querySelector('.carddate');if(target)target.textContent='Actualización no comprobada';
-   if(selected===i&&o.id!=='persistencia')nodes.state.textContent='No pude comprobar la última modificación.';
-  });
- }
+
 }
 function draw(){
  nodes.track.replaceChildren();
@@ -114,6 +239,11 @@ function draw(){
   small.className='tag';small.textContent=o.tag;h.textContent=o.label;p.textContent=o.description;
   time.className='carddate';time.textContent='Consultando archivo de referencia...';heading.append(small,h,p);b.append(heading,time);
   b.addEventListener('click',()=>setSelected(i));nodes.track.append(b);
+  if(safeProject(o))getProjectCommits(o).then(list=>{
+   o._last=list[0]?.commit?.committer?.date||list[0]?.commit?.author?.date||'';
+   time.textContent=dateLabel(o._last);
+   if(selected===i&&o.id!=='persistencia')nodes.state.textContent='Última edición de fuente: '+dateLabel(o._last)+'. No indica versión lista.';
+  }).catch(()=>{time.textContent='Fuente no disponible';});
  });
  setSelected(0);
 }
