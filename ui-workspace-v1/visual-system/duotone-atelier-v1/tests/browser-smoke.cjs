@@ -28,14 +28,18 @@ const folder=process.env.ATELIER_EVIDENCE_DIR || 'artifacts/duotone-widget-ateli
   assert.equal(metrics.imgs,true,'images actually load '+width);tests++;
   assert.ok(metrics.meta>=14,'legible note '+width);tests++;
   if(width===390){const visible=(width-35)/(metrics.card+12);assert.ok(visible>=1.2&&visible<=1.5,'1.2..1.5 cards 390 '+visible);tests++;}
+  if(width===390)await page.screenshot({path:path.join(folder,'home-390.png'),fullPage:true});
   await page.locator('.card').first().click();
   assert.equal(await page.locator('#project').isVisible(),true,'project '+width);tests++;
+  if(width===390)await page.screenshot({path:path.join(folder,'project-390.png'),fullPage:true});
   await page.locator('#back').click();
+  await page.locator('#home').waitFor({state:'visible'});
   assert.equal(await page.locator('#home').isVisible(),true,'back '+width);tests++;
   await page.locator('[data-go=chat]').first().click();
   assert.equal(await page.locator('#chat').isVisible(),true,'chat '+width);tests++;
   await page.locator('#chat summary').click();
   assert.equal(await page.locator('#chat details').getAttribute('open'),'','expand response '+width);tests++;
+  if(width===390)await page.screenshot({path:path.join(folder,'conversation-390.png'),fullPage:true});
   await page.locator('#invert').click();
   assert.equal(await page.locator('#invert').getAttribute('aria-pressed'),'true','invert '+width);tests++;
   assert.deepEqual(errors,[],'no JS errors '+width);tests++;
