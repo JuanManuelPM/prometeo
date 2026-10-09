@@ -20,7 +20,7 @@ export function parseFire(raw) {
   const all=[registry.default,...registry.commands];
   const chosen=all.find(x=>(x.aliases||[]).some(a=>fold(a)===token));
   if(chosen){
-    const action=chosen.key==='prometeo' && suffix ? chosen.topic_action : (chosen.action||chosen.kind);
+    const action=chosen.id==='FIRE-13' && suffix ? chosen.topic_action : (chosen.action||chosen.kind);
     return {triggered:true,key:chosen.key,action,topic:suffix,unknown:false,requires_authority:true,requires_prepared_plan:false,skills:chosen.skills||['prometeo-one-turn']};
   }
   return {triggered:true,key:registry.default.key,action:registry.default.kind,topic:rest.trim(),unknown:!!rest.trim(),requires_authority:true,skills:['prometeo-one-turn']};
