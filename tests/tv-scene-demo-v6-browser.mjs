@@ -86,7 +86,11 @@ try {
       const steps=data.events.filter(e=>e.type==='step_end'&&e.action==='showV5');
       assert.equal(steps.length,3,'V6 did not demonstrate every real selector');
       assert.equal(data.events.filter(e=>e.type==='viewport_authority'&&e.owner==='ENGINE').length,1);
-      assert.equal(data.events.filter(e=>e.type==='viewport_authority'&&e.owner==='FREE').length,1);
+      // setRecipe resets the engine and may emit an initial FREE receipt.
+      // What matters is that V6 releases authority AFTER its real playback.
+      const authority=data.events.filter(e=>e.type==='viewport_authority');
+      assert.equal(authority.at(-1)?.owner,'FREE','V6 must release viewport authority');
+      assert.ok(authority.some(e=>e.owner==='ENGINE'),'V6 never acquired viewport authority');
       await page.screenshot({path:output+'/'+vp.name+'-'+phase+'.png',fullPage:true});
       report.proofs.push({viewport:vp.name,phase,engine:data.engineClass,targets:steps.map(e=>e.target),run_complete:true,pageErrors:[...pageErrors],quality:data.quality});
     }
