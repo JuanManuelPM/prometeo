@@ -26,3 +26,6 @@ Escribir `input_receipt` (si existió), `context_revision`, `work/result_receipt
 1 mensaje humano por tarea; 0 transporte manual; input y RETURN recuperables tras muerte de chat; ningún duplicado aceptado; no exposición de privados; rollback; fuente de verdad única; status y liveness honestos.
 
 **Gate actual siguiente:** G1, comprobar implementación del Page Host y el store privado. G0 fuente implementada y requiere ejecutar verificaciones; G1–G8 NO IMPLEMENTADOS NI PROBADOS por este commit.
+
+## Auditoría G1 de código servido
+`coordination/one-turn/v1/G1_EXISTING_BRIDGE_AUDIT_V1.md` identifica código EXISTENTE de guardado local/privado, Page Change, outbox/correlación y separación Guardar/Pensar/Trabajar. G1 lectura del código parcial; **no confirma escritura privada en producción ni single-turn E2E**. Próxima acción material: G1a contrato verdadero de ACK privado; G1b unificar input durable+prepare_execution bajo owner existente; G2 canary autenticado, no tocar plataforma sin scope.
