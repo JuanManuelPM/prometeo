@@ -99,8 +99,8 @@ try{
     assert.ok((await page.locator('#liveProofRows').innerText()).includes('COINCIDE byte a byte'));
     assert.ok(!(await page.locator('#liveProofRows').innerText()).includes('Cotejando respuesta'));
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Body overflow at '+width);
-    for(const label of ['Persistencia','Facultad','Widgets','TV','Experiencias'])
-      assert.equal(await page.getByRole('button',{name:label}).count(),1);
+    assert.deepEqual(await page.locator('#track .project h2').allTextContents(),
+      ['Persistencia','Facultad','Widgets','TV','Experiencias'],'Five distinct project titles');
     if(width<=390){
       assert.ok(await page.locator('#track').evaluate(n=>n.scrollWidth>n.clientWidth),'Horizontal gallery does not scroll');
       await page.locator('#track').evaluate(n=>n.scrollTo({left:n.scrollWidth,behavior:'instant'}));
