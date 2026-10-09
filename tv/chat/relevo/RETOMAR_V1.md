@@ -2,6 +2,10 @@
 
 **Rol:** índice operativo de reingreso, NO nuevo CURRENT, scheduler, asignador de workers, dueño de los 45 EVO ni sustituto de Design DNA. **Lectura desde cualquier chat del Proyecto:** `gh-pages:tv/chat/AGENT_ENTRY_V1.md` → este archivo cuando el humano pregunta «¿qué sigue?», vuelve después de tiempo o teme que se pierdan ideas. **Interfaz de lectura:** `https://juanmanuelpm.github.io/prometeo/tv/chat/relevo/retomar/`. No da acceso a conversaciones privadas y no ejecuta otros chats.
 
+## Contrato de ejecución para cada chat, con o sin comandos
+
+Leer `gh-pages:tv/chat/relevo/CHATGPT_CAPACIDADES_Y_ENTREGA_V1.md` para descubrir herramientas sin `@`, ampliar pedidos imperfectos hacia productos verificables y guardar resultados en su owner. No afirmar que una skill leída está instalada ni que una versión está lista por un commit. Si el mensaje humano pide trabajo en Facultad, ejecutarlo aunque persistencia sea el objetivo estratégico. Si pregunta «¿qué sigue?» sin nueva tarea, continuar el próximo relevo de persistencia salvo prueba de que ya se completó. Todo chat debe diferenciar `candidato`, `probado`, `publicado` y `servido verificado`.
+
 ## El problema que debe sobrevivir aunque el humano se olvide
 Hubo dos ondas de ideas: 24 propiedades sobre el pulpo cerebral (continuidad, memoria, desacuerdos, pruebas y agentes independientes) y 26 ideas del segundo video (calidad vs fragmentación, experiencias completas, variantes Best-of-N y demostraciones). Se registraron ambas, pero **no se garantizaba el siguiente artefacto**. Es un modo de fallo: documento → skill → revisión → otra skill → otro PR, mientras el juego o experiencia que motivó el trabajo nunca aparece. Un usuario ocupado no debe ser el encargado de detectar ese desplazamiento.
 

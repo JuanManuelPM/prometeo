@@ -48,7 +48,7 @@ footer{border-top:1px solid var(--line);margin-top:65px;padding-top:18px;font-si
 <div><button class="action" id="copy" type="button" disabled>Copiar próximo mensaje</button><a class="secondary" id="source" href="../RETOMAR_V1.md">Ver fuente</a></div>
 <p id="notice" class="notice" role="status"></p>
 </div>
-<footer>No inicia chats por sí solo. El progreso se comprueba en fuentes públicas de GitHub. Nada de datos personales en esta página.</footer>
+<footer>Las fechas indican la última modificación comprobada de archivos de referencia, no la disponibilidad de una versión lista. No inicia chats ni conserva aprobaciones privadas. Todo progreso real debe verificarse en su propietario de GitHub.</footer>
 </section>
 </main>
 <script>
@@ -58,14 +58,18 @@ const repo='JuanManuelPM/prometeo';
 const nodes={track:document.getElementById('track'),tag:document.getElementById('selectedTag'),title:document.getElementById('detailTitle'),desc:document.getElementById('detailDescription'),state:document.getElementById('detailState'),source:document.getElementById('source'),copy:document.getElementById('copy'),notice:document.getElementById('notice')};
 let items=[],selected=-1,primary=null,oldGame=null;
 const api='https://api.github.com/repos/'+repo+'/';
+function argentineDate(d){
+ const t=new Date(d);if(!Number.isFinite(t.getTime()))return 'fecha no comprobada';
+ return new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(t)+' (Argentina)';
+}
 function dateLabel(date){
- if(!date)return 'Actualización no comprobada';
- const value=new Date(date),delta=Date.now()-value.getTime();if(!Number.isFinite(delta))return 'Fecha no comprobada';
- if(delta<0)return 'Actualización '+value.toLocaleDateString('es-AR');
- const m=Math.floor(delta/60000);if(m<1)return 'Hace menos de un minuto';if(m<60)return 'Hace '+m+' min';
- const h=Math.floor(m/60);if(h<24)return 'Hace '+h+' h';
- const d=Math.floor(h/24);if(d<30)return 'Hace '+d+' días';
- return 'Actualizado '+value.toLocaleDateString('es-AR');
+ if(!date)return 'Fecha no comprobada';
+ const value=new Date(date),delta=Date.now()-value.getTime();
+ if(!Number.isFinite(value.getTime())||!Number.isFinite(delta))return 'Fecha no comprobada';
+ if(delta<0)return argentineDate(date);
+ const m=Math.floor(delta/60000);
+ const relative=m<1?'Hace menos de un minuto':m<60?'Hace '+m+' min':m<1440?'Hace '+Math.floor(m/60)+' h':m<43200?'Hace '+Math.floor(m/1440)+' días':'Actualización antigua';
+ return relative+' · '+argentineDate(date);
 }
 function setSelected(i){
  if(!items[i])return;selected=i;
@@ -82,10 +86,10 @@ function setSelected(i){
   nodes.copy.disabled=!(primary&&primary.exact_prompt);
   nodes.state.textContent='Consultando último salto...';
   fetch('../STATE_V1.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error();return r.json()}).then(j=>{
-   if(selected===i)nodes.state.textContent='Último salto registrado: '+j.last_hop+'. El siguiente debe verificar y registrar uno nuevo.';
+   if(selected===i)nodes.state.textContent='Último salto registrado: '+j.last_hop+' · '+(j.history?.length?dateLabel(j.history[j.history.length-1].date_utc):'sin hora comprobada')+'. El siguiente debe verificar uno nuevo.';
   }).catch(()=>{if(selected===i)nodes.state.textContent='Estado de relevo no comprobado. El nuevo chat debe consultarlo.';});
  }else{
-  nodes.state.textContent='Última modificación de fuente: '+(o._last?dateLabel(o._last):'consultando...');
+  nodes.state.textContent='Última edición de fuente: '+(o._last?dateLabel(o._last):'consultando...')+'. No indica versión lista.';
   nodes.copy.disabled=true;nodes.copy.textContent='Sin encargo automático';
   if(o.id==='experiencias'){nodes.copy.disabled=!(oldGame&&oldGame.exact_prompt);nodes.copy.textContent='Copiar experimento opcional';}
  }
@@ -95,7 +99,7 @@ function setSelected(i){
   fetch(u).then(r=>{if(!r.ok)throw Error();return r.json()}).then(a=>{
    o._last=a[0]?.commit?.committer?.date||'';
    const target=nodes.track.children[i]?.querySelector('.carddate');if(target)target.textContent=dateLabel(o._last);
-   if(selected===i&&o.id!=='persistencia')nodes.state.textContent='Última modificación de fuente: '+dateLabel(o._last);
+   if(selected===i&&o.id!=='persistencia')nodes.state.textContent='Última edición de fuente: '+dateLabel(o._last)+'. No indica versión lista.';
   }).catch(()=>{
    o._last='';const target=nodes.track.children[i]?.querySelector('.carddate');if(target)target.textContent='Actualización no comprobada';
    if(selected===i&&o.id!=='persistencia')nodes.state.textContent='No pude comprobar la última modificación.';
@@ -108,7 +112,7 @@ function draw(){
   const b=document.createElement('button');b.type='button';b.className='project';b.setAttribute('aria-pressed','false');
   const heading=document.createElement('div'),small=document.createElement('span'),h=document.createElement('h2'),p=document.createElement('p'),time=document.createElement('span');
   small.className='tag';small.textContent=o.tag;h.textContent=o.label;p.textContent=o.description;
-  time.className='carddate';time.textContent='Actualización: consultar';heading.append(small,h,p);b.append(heading,time);
+  time.className='carddate';time.textContent='Consultando archivo de referencia...';heading.append(small,h,p);b.append(heading,time);
   b.addEventListener('click',()=>setSelected(i));nodes.track.append(b);
  });
  setSelected(0);
@@ -125,4 +129,12 @@ nodes.copy.addEventListener('click',async()=>{
  items=d.projects;primary=d.primary_mission;oldGame=d.next_experiment;draw();
  }catch(e){nodes.tag.textContent='Fuente no disponible';nodes.title.textContent='Consultar continuidad en GitHub';nodes.desc.textContent='No se pudo recuperar la información actual. No se inventa el estado.';nodes.state.textContent='';nodes.copy.disabled=true;nodes.notice.textContent='Abrí RETOMAR_V1.md con GitHub conectado.';}
 })();
+setInterval(()=>{
+ items.forEach((o,i)=>{
+  if(o._last){
+   const el=nodes.track.children[i]?.querySelector('.carddate');
+   if(el)el.textContent=dateLabel(o._last);
+  }
+ });
+},60000);
 </script></body></html>

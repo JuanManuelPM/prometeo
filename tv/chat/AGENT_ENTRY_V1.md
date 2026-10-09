@@ -16,6 +16,10 @@ Esta ruta `gh-pages:tv/chat/AGENT_ENTRY_V1.md` es la entrada mínima que ya invo
 
 Esta entrada permite recuperar las tres ramas sin volver a copiar prompts anteriores. No exige recrear arquitectura, memoria privada o scheduler.
 
+## Descubrimiento autónomo de herramientas y entrega por cualquier chat
+
+Ante cualquier tarea concreta en este Proyecto, **no exigir que el usuario escriba `@`, `🔥`, nombre de skill ni un prompt perfecto**. Consultar `gh-pages:tv/chat/relevo/CHATGPT_CAPACIDADES_Y_ENTREGA_V1.md` para recuperar contrato de autodescubrimiento, ampliación profesional, ejecución, pruebas, estado durable de entrega, privacidad y proyección de versiones por proyecto. `@GitHub` y `+` son accesos opcionales a apps conectadas cuando están disponibles, no condiciones de continuidad. Una skill guardada en GitHub no equivale a skill nativa instalada. **La persistencia del organismo es el objetivo estratégico; cumplir la tarea humana actual es la responsabilidad del turno.**
+
 ## Punto de retorno: nunca volver a perder un gran objetivo
 
 Cuando el humano pregunta «¿qué sigue?», vuelve cansado/después de días, teme olvidar planes o pide que un chat nuevo recuerde TODO el trabajo creativo, **priorizar la persistencia del cerebro común, no el juego**, y leer primero `gh-pages:tv/chat/relevo/RETOMAR_V1.md` y su proyección `gh-pages:tv/chat/relevo/retomar/reentrada.json`, además de los owners de ideas necesarios. Mostrar la **próxima experiencia real** y qué evidencia falta; evitar reemplazar productos por nuevas instrucciones. Pantalla humana read-only: `/prometeo/tv/chat/relevo/retomar/`. No invocar este ritual para órdenes rápidas de TV, ni tratar la proyección como fuente de estado live.

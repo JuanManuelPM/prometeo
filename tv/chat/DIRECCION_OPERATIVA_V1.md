@@ -16,6 +16,10 @@ El chat actual funciona como director/editor: conversar, detectar oportunidades,
 4. Leer solo las rutas correspondientes del índice de pendientes `coordination/chat-bootstrap/v1/PENDING_INDEX_V1.json` del PR #73 o su integración actual, y Design DNA únicamente si aplica. El índice no demuestra que sus pendientes siguen abiertos; revalidar.
 5. Responder breve y con decisiones accionables, mostrando quién está trabajando mediante PR/ticket, lo comprobado y lo pendiente.
 
+## Recibos de proyectos y versiones visibles
+
+Cada ejecutor que modifica un proyecto debe seguir `gh-pages:tv/chat/relevo/CHATGPT_CAPACIDADES_Y_ENTREGA_V1.md`, escribir evidencia en su owner existente, y producir una proyección pública sanitizada sólo con autorización. No confundir `last modified` del archivo de referencia con entrega lista. La página común muestra hora argentina y estado basado en evidencia; el usuario no necesita reabrir el chat que hizo el trabajo para encontrar cambios persistidos. Sin mecanismo autenticado, una pantalla pública no puede registrar aprobaciones privadas entre dispositivos.
+
 ## Encargos que el director puede publicar sin modificar otro chat
 - Elegir un **Issue de GitHub** cuando la tarea todavía no tiene PR, o comentar en el **PR existente** cuando sí tiene dueño. No duplicar tickets por sistema, ni crear otra autoridad.
 - Escribir el paquete de trabajo como comentario o body del Issue/PR: `objective`, `owner`, `write_scope`, `source_head` (lectura fresca), `DO/SEE/CHECK`, gates de pruebas/demo/privacidad, evidencias y condición exacta de aceptación. Evitar transcripciones, datos académicos/personales o URLs privadas en GitHub público.
