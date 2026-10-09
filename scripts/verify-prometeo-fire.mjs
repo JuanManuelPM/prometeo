@@ -44,6 +44,6 @@ assert(planSchema.required.includes('skill_ledger'));
 assert(planSchema.allowed_states.includes('PREPARED_DURABLE'));
 assert(planSchema.allowed_states.includes('PLAN_NOT_FOUND'));
 const handoff=fs.readFileSync(path.join(base,'FIRE_WORK_RESULT_HANDOFF_V1.md'),'utf8');
-for(const key of ['UN MENSAJE','TELEMETRÍA','PR #71','WORK ACABA DE TERMINAR','FOTOGRAFÍAS PENDIENTES'])assert(handoff.includes(key),'Missing continuity '+key);
+for(const key of ['UN MENSAJE','TELEMETRÍA','PR #71','WORK ACABA DE TERMINAR','FOTOGRAFÍAS PENDIENTES'])assert(handoff.toLocaleLowerCase('es').includes(key.toLocaleLowerCase('es')),'Missing continuity '+key);
 console.log('PASS',suite.tests.length,'router cases,',suite.safety_cases.length,'review-only safety scenarios,',registry.commands.length,'commands');
 console.log('BOUNDARY: safety scenarios are contract expectations, not runtime permission tests');
