@@ -22,7 +22,7 @@ for(const tc of suite.tests){
   if(tc.unknown)assert.equal(got.unknown,true,tc.input);
   console.log('PASS',JSON.stringify(tc.input),got.key||'no-command');
 }
-for(const name of ['prometeo-fire']){
+for(const name of ['prometeo-fire','prometeo-knowledge']){
   const file=path.resolve('.agents/skills',name,'SKILL.md'),s=fs.readFileSync(file,'utf8');
   assert(s.startsWith('---\n')&&s.includes('name: '+name)&&s.includes('description:'),'Bad skill '+name);
 }
