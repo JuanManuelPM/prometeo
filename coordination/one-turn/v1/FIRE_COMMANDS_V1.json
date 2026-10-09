@@ -1,14 +1,17 @@
 {
   "schema": "prometeo.fire-command-registry/v1",
   "status": "CANDIDATE_STAGED_BRANCH_NOT_INSTALLED",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "canonical_target": "JuanManuelPM/prometeo",
-  "human_intent": "Invocar Prometeo en chats nuevos con un único símbolo inicial 🔥 y una palabra opcional; recuperar contexto, skills y comandos frescos sin repetir prompts, con crítica de fallas e historial durable en la página privada. Exceptional 🔥prometeo now stages skill-aware plan, then '.' executes only eligible prepared plan. One-turn from Prometeo page stays default.",
+  "human_intent": "UN MENSAJE en un nuevo ChatGPT chat con 🔥prometeo <tarea> debe resolver la tarea con herramientas conectadas, verificar fuente y publicar un recibo seguro en TV cuando hay un cambio público. No exigir el segundo punto. 🔥prometeo solo inventaría skills; 🔥preparar <tarea> prepara, y . ejecuta únicamente ese plan. Página GitHub Pages es salida read-only, no entrada ni backend; facultad/widgets primero, Supabase/workers opcionales.",
   "authority": "Dispatcher = parser/context router only, never task allocator, permission grant, private data store, source-of-truth, or release owner.",
   "entry": {
     "trigger": "🔥",
-    "allow_variant_selector": "🔥 / 🔥p = one-turn resync; 🔥prometeo or 🔥proneteo = skill inventory + preparation; standalone . = execute prepared plan if verified",
+    "allow_variant_selector": "🔥prometeo <tarea> ejecuta en un turno; 🔥prometeo solo inventaría skills; 🔥preparar <tarea> + . es inspección optativa.",
     "examples": [
+      "🔥prometeo mejorá el widget calendario",
+      "🔥prometeo agregá un parcial a la página",
+      "🔥preparar auditar widget",
       "🔥prometeo",
       "🔥proneteo",
       "🔥prometeo revisar Work",
@@ -86,13 +89,14 @@
       "action": "PREPARE_SKILLS_AND_PLAN",
       "owner": "Read-only discovery of available runtime-installed skills and current exact Prometeo skill catalog; no alternate scheduler",
       "mutation": "READ_ONLY",
-      "purpose": "Inventory all accessible skills metadata and GitHub declared skills, select relevant ones, read actual selected instructions when available, produce an explicit executable plan and skill usage ledger. Await exact human dot, not execute product changes yet.",
+      "purpose": "With a nonempty task after 🔥prometeo, select and use relevant connected tools NOW in this one chat turn. Without trailing task, inspect available skills and prepare, with no material action. Explicit 🔥preparar opts into a second-step plan.",
       "input_context": "Use trailing words first, else current human task/page or last real open objective. Without case context list essential infrastructure and categorize candidates, never invent a task.",
-      "output": "Numbered relevant skills, source and availability, DISCOVERED/SELECTED/LOADED status, exact use per skill, actions/paths/tools and scope, risks/tests/acceptance, plan_id and persistence receipt if any, dot trigger. Not merely a skill list.",
+      "output": "With task: true action and actual save/commit/evidence or precise blocker. Without task: skills selected and prepared plan. No mandatory dot for normal requests.",
       "selection_rule": "Do not prune skills simply because several are frequently relevant; favor recall and transparent low/medium/high relevance. Include every materially useful candidate with access caveat. Load the instructions of selected accessible skills during PREPARE; note non-loaded skills explicitly. Separate inventory from actual invocation; plan must anticipate concrete tools and tests.",
-      "no_auto_run": true,
-      "execution_confirmation": "Human exact standalone '.' activates the last verified prepared plan under current authorized owner and fresh scope check; not an independent permission grant.",
-      "preparation_contract": "coordination/one-turn/v1/FIRE_PREPARE_DOT_CONTRACT_V1.md"
+      "no_auto_run": false,
+      "execution_confirmation": "A dot is reserved for explicit 🔥preparar or subject-free planning, never a routine concrete task.",
+      "preparation_contract": "coordination/one-turn/v1/FIRE_PREPARE_DOT_CONTRACT_V1.md",
+      "topic_action": "EXECUTE_ONE_TURN_SCOPED"
     },
     {
       "id": "FIRE-01",
@@ -309,6 +313,23 @@
       "owner": "Subject owner, sources and local page context",
       "mutation": "DESIGN_CANDIDATE",
       "purpose": "Investigar fuentes actuales y responder con evidencia, registrando decisiones cuando exista guardado permitido."
+    },
+    {
+      "id": "FIRE-14",
+      "key": "preparar",
+      "aliases": [
+        "preparar",
+        "preflight"
+      ],
+      "domain": "EXPLICIT_PREFLIGHT",
+      "skills": [
+        "prometeo-one-turn",
+        "prometeo-skill-scout"
+      ],
+      "action": "PREPARE_SKILLS_AND_PLAN",
+      "mutation": "NO_MATERIAL_PRODUCT_WRITE",
+      "owner": "Existing task source and private plan owner if accessible",
+      "purpose": "Explicit preparation of real skills, plan and acceptance prior to a later dot. Not required for direct 🔥prometeo task requests."
     }
   ],
   "suffixes": {
@@ -392,5 +413,12 @@
     "cannot_infer_from": "last Git commit, semantic similarity, quotes or previous chat summary",
     "unsafe_or_absent": "PLAN_NOT_FOUND_OR_STALE, NO MATERIAL EXECUTION",
     "idempotency": "one plan_id may be executed once; all retries need normal owner-mediated dedupe"
+  },
+  "public_tv_output": {
+    "url": "https://juanmanuelpm.github.io/prometeo/tv/chat/",
+    "source": "gh-pages:tv/chat/state.json",
+    "visibility": "PUBLIC_SAFE_ONLY",
+    "update_rule": "Only after a verified actual public change; no private class details/transcripts. CAS/readback on gh-pages, never infer status from mere commit.",
+    "input": "human message in a ChatGPT chat, NOT webpage"
   }
 }

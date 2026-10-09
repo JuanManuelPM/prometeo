@@ -1,6 +1,6 @@
 ---
 name: prometeo-skill-scout
-description: "Use when HUMAN message begins with 🔥prometeo or 🔥proneteo. Discover ALL skill metadata reachable from runtime and Prometeo catalog, select/READ pertinent skills and PREPARE a bounded executable plan with verified skill ledger. Do not execute material work until a valid human '.' message."
+description: "Use for `🔥prometeo` without task or explicit `🔥preparar <task>`. Discover ALL skill metadata reachable from runtime and Prometeo catalog, select/READ pertinent skills and PREPARE a bounded executable plan with verified skill ledger. Do not execute material work until a valid human '.' message."
 ---
 
 # Prometeo · Inventario, lectura y preparación verificable de skills
@@ -33,3 +33,6 @@ Present concise but sufficient numbered skills plus for each selected: why, avai
 
 ### 6. Design-gate + after Work
 The user rejected generated dark generic cards as ugly; DO NOT regenerate the page before their forthcoming visual photographs. The latest Work result has NOT YET been supplied; on receipt independently audit its evidence, reconcile branches, inspect one-turn page-input ACK/worker RETURN/feed/fresh chat recovery. This skill must never advertise the local mockup as a production milestone.
+
+## Revision 2026-10-09: do not add dot to normal tasks
+`🔥prometeo <task>` is now a ONE-TURN direct action of `prometeo-fire`. During this turn the scout may inventory/select/load skills, but it must not halt after planning or ask for `.`. Only `🔥prometeo` alone or explicit `🔥preparar` selects the preflight/dot mode. Published evidence goes to `gh-pages:tv/chat/state.json` only if public-safe and truly verified.

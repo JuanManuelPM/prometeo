@@ -34,6 +34,8 @@ assert.equal(registry.execution_confirmation.token,'.');
 assert.equal(parseFire('.').requires_prepared_plan,true);
 assert.equal(parseFire('🔥').action,'RESYNC_AND_CONTINUE');
 assert.equal(parseFire('🔥prometeo').action,'PREPARE_SKILLS_AND_PLAN');
+assert.equal(parseFire('🔥prometeo editar widget').action,'EXECUTE_ONE_TURN_SCOPED');
+assert.equal(parseFire('🔥preparar editar widget').action,'PREPARE_SKILLS_AND_PLAN');
 for(const rel of ['FIRE_PREPARE_DOT_CONTRACT_V1.md','FIRE_WORK_RESULT_HANDOFF_V1.md','FIRE_PREPARED_PLAN_SCHEMA_V1.json'])assert(fs.existsSync(path.join(base,rel)),'Missing '+rel);
 const planSchema=JSON.parse(fs.readFileSync(path.join(base,'FIRE_PREPARED_PLAN_SCHEMA_V1.json'),'utf8'));
 assert(planSchema.required.includes('skill_ledger'));
