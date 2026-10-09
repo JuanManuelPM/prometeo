@@ -69,7 +69,7 @@ try{
     const page=await ctx.newPage();
     page.on('pageerror',e=>errors.push(width+': '+e.message));
     await page.route('https://api.github.com/repos/JuanManuelPM/prometeo/**',async route=>{
-      const u=new URL(route.request().url);
+      const u=new URL(route.request().url());
       const response=(body,status=200)=>route.fulfill({status,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(body)});
       if(faults.api403)return response({message:'Simulated rate limit'},403);
       if(u.pathname.endsWith('/commits'))return response([{
