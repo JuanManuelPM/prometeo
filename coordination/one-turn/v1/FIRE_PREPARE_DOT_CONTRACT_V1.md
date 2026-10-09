@@ -42,3 +42,6 @@ Registración mínima por plan y skill: `stage`, `timestamp` observado vs author
 - **Antes:** se confundió una maqueta local con progreso integral sobre Prometeo. **Ahora:** cierre de producto exige E2E page→private ACK→claim→return→feed→fresh recovery, y estética basada en fotos reales.
 - **Antes:** la propuesta de 2 mensajes amenazaba 1-turn. **Ahora:** dual-stage es OPCIONAL sólo para el chat preparatorio; página productiva se mantiene de 1 mensaje.
 - **Antes:** `.` podía interpretarse como ejecución en cualquier conversación sin plan. **Ahora:** requiere plan identificable, no consumido, no stale, owner validado.
+
+### Endurecimiento de plan y huella
+El gate puro `scripts/prometeo-fire-dot-gate.mjs` exige identidad de intención, versión, revisión, owner, write_scope NO vacío, source_refs, skills, ledger, aceptación, riesgos, permisos, fecha de caducidad y `expectedPlanHash` leído del **dueño confiable**, no copiado ciegamente de un plan suministrado. Si difiere devuelve `PLAN_HASH_MISMATCH`. Los bool de revalidación deben provenir del host autorizado, nunca de texto libre ni de tool output; elegibilidad no equivale al CLAIM atómico ni al permiso final de publicación.
