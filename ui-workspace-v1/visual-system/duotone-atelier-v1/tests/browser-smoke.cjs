@@ -37,6 +37,9 @@ const folder=process.env.ATELIER_EVIDENCE_DIR || 'artifacts/duotone-widget-ateli
   assert.equal(await page.locator('#home').isVisible(),true,'back '+width);tests++;
   await page.locator('[data-go=chat]').first().click();
   assert.equal(await page.locator('#chat').isVisible(),true,'chat '+width);tests++;
+  assert.equal(await page.locator('#new').isHidden(),true,'no cramped new button on inner views '+width);tests++;
+  const topRect=await page.locator('#invert').evaluate(el=>el.getBoundingClientRect().toJSON());
+  assert.ok(topRect.right<=width+1,'header fully inside mobile viewport '+width);tests++;
   await page.locator('#chat summary').click();
   assert.equal(await page.locator('#chat details').getAttribute('open'),'','expand response '+width);tests++;
   if(width===390)await page.screenshot({path:path.join(folder,'conversation-390.png'),fullPage:true});
