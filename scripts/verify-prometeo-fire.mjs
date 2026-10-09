@@ -13,7 +13,7 @@ assert.equal(new Set(registry.commands.map(x=>x.id)).size,registry.commands.leng
 const all=[registry.default,...registry.commands],aliases=new Set();
 for(const command of all){
   for(const a of command.aliases){let f=a.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();assert(!aliases.has(f), 'Alias duplicado: '+a);aliases.add(f)}
-  if(command.skills)for(const skill of command.skills)assert(['prometeo-one-turn','prometeo-web-change','prometeo-verify-release','prometeo-fire'].includes(skill),'Unknown skill '+skill);
+  if(command.skills)for(const skill of command.skills)assert(['prometeo-one-turn','prometeo-web-change','prometeo-verify-release','prometeo-fire','prometeo-knowledge'].includes(skill),'Unknown skill '+skill);
 }
 for(const tc of suite.tests){
   const got=parseFire(tc.input);
