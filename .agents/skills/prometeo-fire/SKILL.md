@@ -1,6 +1,6 @@
 ---
 name: prometeo-fire
-description: "Use when a human message starts with 🔥, 🔥personal, 🔥plan, 🔥web, 🔥publicar, 🔥criticar, 🔥libros, 🔥examen, 🔥estado or 🔥skills. Prometeo one-message command router: fresh scoped context, dispatch to appropriate existing skill, verify and persist without extra user prompts."
+description: "Use when a human message starts with 🔥, 🔥prometeo, 🔥personal, 🔥plan, 🔥web, 🔥publicar, 🔥criticar, 🔥libros, 🔥examen, 🔥estado or 🔥skills. Prometeo one-message command router: fresh scoped context, dispatch to appropriate existing skill, verify and persist without extra user prompts."
 ---
 
 # Prometeo · Fire dispatch
@@ -10,7 +10,7 @@ This skill is an **entrypoint instruction**, not a worker, scheduler, hot-update
 ## At invocation
 1. Parse only an actual human message beginning with `🔥` via `coordination/one-turn/v1/FIRE_COMMANDS_V1.json`; variations `🔥personal` and `🔥 personal` are equivalent. The residual words are task intent.
 2. Refresh the tiny registry from the **exact trusted canonical ref configured in the Project/launcher**. Verify version/schema/owner; GitHub unavailable => mark STALE, no invented update. On a staging branch this is a **candidate**, not globally installed/current.
-3. Select exactly the relevant skill(s): `prometeo-one-turn` universally, optionally `prometeo-web-change`, `prometeo-knowledge` and `prometeo-verify-release`. Do not load the entire repo or all skills.
+3. EXCEPTION: `🔥prometeo` invokes `prometeo-skill-scout` to INVENTORY and ENUMERATE all relevant skills (installed and repo catalog) for this case; DO NOT execute any selection. Otherwise select exactly the relevant skill(s): `prometeo-one-turn` universally, optionally `prometeo-web-change`, `prometeo-knowledge` and `prometeo-verify-release`. Do not load the entire repo or all skills.
 4. Reuse current Constitution, Design DNA, CURRENT, P4 Capture, Page Change Thread/Feed, Context Foundry, Work Graph/Worker Bus and existing owners. Exact CURRENT and active Work Packet decide material authority; the emoji is NOT a valid lease or security approval.
 5. For `🔥personal`, private data stays in private/local owner. Never move private notes/audio/session tokens to public GitHub. For `🔥libros` and `🔥personal libros`, use `prometeo-knowledge` and allowed local-library artifacts or verified bibliographic sources; do not claim to possess a previous chat's HTML file.
 6. Process one human input with multiple internal tool calls if needed; complete all feasible work in this invocation. Record legitimate input/result receipts from authorized private owner or declare `PERSISTENCE_BLOCKED`; no promise of automatic background work.
@@ -18,7 +18,7 @@ This skill is an **entrypoint instruction**, not a worker, scheduler, hot-update
 8. Complete with concise outcome, stored/unstored evidence, Current/Served truth status, and concrete residual. No generic follow-up questions or "send another prompt".
 
 ## Core verbs
-See `coordination/one-turn/v1/FIRE_COMMANDS_V1.json`. `🔥` defaults to safe RESYNC and continuation of already-authorized work. `🔥publicar` always requires release gates. `🔥trabajar` never chooses its own task. `🔥skills` can propose compatible updates but cannot silently mutate accepted rules.
+See `coordination/one-turn/v1/FIRE_COMMANDS_V1.json`. `🔥prometeo` is intentionally distinct from `🔥`: discovery only. `🔥` defaults to safe RESYNC and continuation of already-authorized work. `🔥publicar` always requires release gates. `🔥trabajar` never chooses its own task. `🔥skills` can propose compatible updates but cannot silently mutate accepted rules.
 
 ## Mandatory references on demand
 - `coordination/one-turn/v1/FIRE_ROUTER_CONTRACT_V1.md`: parsing, trust, self-review, limits

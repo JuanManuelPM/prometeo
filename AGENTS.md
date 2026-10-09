@@ -143,3 +143,6 @@ Human input starting with `🔥` is a Prometeo convenience alias when the consum
 - `🔥` = safe resync/continue if authorized; `🔥personal`, `🔥libros`, `🔥examen`, `🔥web`, `🔥plan`, `🔥criticar`, `🔥publicar`, `🔥skills`, `🔥estado`, `🔥guardar` route task intent, not execution permissions.
 - This dispatch must never override OBEY-v2 `/o/` entry and active Work Packet. An emoji is not a lease, a security grant, a private data export license, or an autonomous chat wake.
 - For material changes, load context/skills only on demand, validate against current owners, do evidence-based self-critique and retain explicit return/continuity. A GitHub skill is not an installed ChatGPT skill until configured.
+
+### Especial de inventario 🔥prometeo (candidate, no installed app inference)
+The command `🔥prometeo` (with optional task/topic) is NOT ordinary `🔥` resume. It dispatches to `.agents/skills/prometeo-skill-scout/SKILL.md` and must examine all visible skill metadata, enumerate those relevant to the case with provenance/status and no arbitrary top-N cap. The selection itself is READ ONLY; it never installs, executes, promotes or grants tool authorization.
