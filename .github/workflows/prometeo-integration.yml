@@ -25,6 +25,12 @@ jobs:
           node scripts/verify-prometeo-proof-first.mjs
           node --test coordination/chat-bootstrap/v1/select-and-load.test.mjs
           node tv/chat/scene/tests/verify-scene-regression.mjs tv/chat/scene/index.html
+      - name: GitHub-only cold bootstrap, real pinned skill reads
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node coordination/chat-bootstrap/v1/select-and-load.mjs "🔥prometeo estudiá Piaget" > /tmp/prometeo-cold-gh.json
+          node -e "const r=require('/tmp/prometeo-cold-gh.json'); if(r.plan.mode!=='EXECUTE_THIS_TURN'||!r.skills.some(x=>x.name==='prometeo-fire'&&x.status==='LOADED')||!r.skills.some(x=>x.name==='prometeo-knowledge'&&x.status==='LOADED')||!r.skills.every(x=>x.bytes>100))process.exit(2);console.log('PASS GitHub-only cold process, actual pinned skills',r.skills.map(x=>x.name))"
       - name: V5 reproducible generator and release package
         run: |
           python scripts/build-universal-control-v5-change-loop.py

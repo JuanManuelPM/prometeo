@@ -22,7 +22,7 @@ test('fresh blank context selects and actually reads full selected skills',async
  const reads=[];const loaded=await loadSelected(r,cfg,async(source,path)=>{reads.push([source.ref,path]);const n=path.split('/')[2];return '---\nname: '+n+'\ndescription: test\n---\n\n# Full instructional body\nDO_NOT_CALL_IT_INSTALLED\n';});
  assert.equal(loaded.length,r.skill_names.length);assert.equal(reads.length,loaded.length);
  assert.ok(loaded.every(s=>s.content.includes('DO_NOT_CALL_IT_INSTALLED')));
- assert.ok(loaded.some(s=>s.source==='pr71'));
+ assert.ok(loaded.some(s=>s.source==='integration'));
 });
 test('fails closed on broken source or incomplete skill read',async()=>{
  const r=selectForTask('🔥libros',cfg);
@@ -31,6 +31,6 @@ test('fails closed on broken source or incomplete skill read',async()=>{
 });
 test('no unseen chat authority or publication from source',()=>{
  assert.equal(cfg.status,'CANDIDATE_INTEGRATION_BRANCH_NOT_INSTALLED');
- assert.equal(cfg.sources.pr71.authority,'PR_71_DRAFT_CANDIDATE_NOT_MERGED');
+ assert.equal(cfg.sources.integration.authority,'PR_74_DRAFT_CANDIDATE_NOT_MERGED');
  assert.ok(cfg.mandatory_checks.some(s=>s.includes('No private')));
 });
