@@ -259,19 +259,19 @@ function setSelected(i,push=false){
  [...nodes.track.children].forEach((e,k)=>e.setAttribute('aria-pressed',k===i?'true':'false'));
  const o=items[i];const relayTurn=++relayRequest;relayPanel.hidden=o.id!=='persistencia';
  if(o.id==='persistencia')relayRows.textContent='Consultando relevos reales...';
- loadEvidence(o,i);nodes.tag.textContent=o.tag;nodes.title.textContent=o.label;
+ loadEvidence(o,i);nodes.tag.textContent='Proyecto';nodes.title.textContent=o.label;
  nodes.desc.textContent=o.description;
  nodes.source.href=o.link;nodes.source.textContent='Abrir proyecto';
  nodes.notice.textContent='';
  if(o.id==='persistencia'){
-  nodes.title.textContent='Continuar el cerebro común';
-  nodes.desc.textContent='Seguimos probando que cada chat recupere decisiones, trabajo y aprendizaje del anterior, sin copiar conversaciones.';
-  nodes.source.href='../STATE_V1.json';nodes.source.textContent='Ver continuidad';
+  nodes.title.textContent='Persistencia';
+  nodes.desc.textContent='Resultados y decisiones conservados para seguir desde otro chat.';
+  nodes.source.href='../STATE_V1.json';nodes.source.textContent='Abrir registros ↗';
   nodes.copy.textContent='Copiar próximo relevo';
   nodes.copy.disabled=!(primary&&primary.exact_prompt);
   nodes.state.textContent='Consultando último salto...';
   fetch('../STATE_V1.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error();return r.json()}).then(j=>{
-   if(selected===i&&relayTurn===relayRequest)nodes.state.textContent='Último salto registrado: '+j.last_hop+' · '+(j.history?.length?dateLabel(j.history[j.history.length-1].date_utc):'sin hora comprobada')+'. El siguiente debe verificar uno nuevo.';
+   if(selected===i&&relayTurn===relayRequest)nodes.state.textContent='Último registro: relevo '+j.last_hop+' · '+(j.history?.length?dateLabel(j.history[j.history.length-1].date_utc):'sin hora comprobada')+'.';
    renderRelayHistory(j,relayTurn,i);
   }).catch(()=>{if(selected===i&&relayTurn===relayRequest){nodes.state.textContent='Estado de relevo no comprobado. El nuevo chat debe consultarlo.';relayRows.textContent='Historial no verificado: no se pudo leer STATE_V1.json.';}});
  }else{
@@ -290,7 +290,14 @@ async function refreshActivity(){
  if(state.status==='fulfilled'&&Array.isArray(state.value.history)){
   state.value.history.forEach(h=>{
    if(!Number.isInteger(h.hop)||typeof h.episode_ref!=='string'||!h.episode_ref.startsWith('tv/chat/relevo/episodes/')||!h.episode_ref.endsWith('.md')||h.episode_ref.split('/').some(part=>!part||part==='..')||!/^[a-zA-Z0-9_.-]+$/.test(h.episode_ref.split('/').at(-1)))return;
-   entries.push({at:h.date_utc,title:'Continuidad · Relevo '+h.hop,desc:String(h.lesson||h.result||'Resultado guardado').slice(0,180),url:'/prometeo/'+h.episode_ref,kind:'Relevo público'});
+   const status=typeof h.result==='string'?h.result:'';
+   let topic='Continuidad guardada',summary=String(h.lesson||h.result||'Resultado público disponible').replace(/\s+/g,' ').trim();
+   if(status.includes('CANDIDATE_HTTP_CI_GREEN')){topic='Pruebas y versión pública';summary='Chromium aprobó la candidata por HTTP local; la versión pública comprobada era la anterior.';}
+   else if(status.includes('CHROMIUM')){topic='Pantalla: pruebas de navegador';summary='Se verificó la interfaz en Chromium local. La versión candidata todavía no estaba publicada.';}
+   else if(status.includes('SOURCE_RECOVERY')){topic='Proyectos conectados';summary='La pantalla recuperó cinco proyectos y sus archivos reales de GitHub; la publicación quedaba pendiente.';}
+   else if(status==='VERIFIED_READ_WRITE'){topic='Continuidad entre chats';summary='Se recuperaron y conservaron decisiones de otro chat en GitHub.';}
+   if(summary.length>120){summary=summary.slice(0,117).replace(/\s+\S*$/,'')+'…';}
+   entries.push({at:h.date_utc,title:topic+' · Relevo '+h.hop,desc:summary,url:'/prometeo/'+h.episode_ref,kind:'Resultado guardado'});
   });
  }
  results.slice(1).forEach((response,i)=>{
