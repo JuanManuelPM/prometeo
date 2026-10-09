@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prometeo · Televisor</title>
+<meta name="robots" content="noindex"><meta name="color-scheme" content="dark">
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#101010;color:#f4f4f0}
+*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden}
+body{display:grid;grid-template-rows:60px minmax(0,1fr)}
+header{display:flex;align-items:center;gap:1.3rem;padding:0 1.4rem;border-bottom:1px solid #353535}
+.brand{font-size:clamp(20px,2vw,30px);letter-spacing:-.04em;font-weight:750}
+.context{color:#b3b3ab;font-size:clamp(13px,1.15vw,17px)}
+#connect{margin-left:auto;max-width:38vw;text-align:right;color:#c5c5bc;font-size:clamp(12px,1vw,15px)}
+main{display:grid;grid-template-columns:minmax(0,1fr) clamp(300px,27vw,540px);min-height:0}
+.viewer{display:flex;flex-direction:column;min-width:0;min-height:0;background:#eee}
+.viewer-top{background:#191919;color:#f4f4f0;display:flex;align-items:center;gap:.8rem;padding:.6rem .9rem;min-height:48px}
+#focusTitle{font-size:clamp(15px,1.4vw,22px);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#openFocus{margin-left:auto;color:#f4f4f0;text-underline-offset:3px;white-space:nowrap;font-size:14px}
+iframe{display:block;width:100%;height:100%;border:0;flex:1;background:#f6f3ea}
+aside{min-height:0;display:flex;flex-direction:column;border-left:1px solid #353535}
+.summary{padding:1.2rem 1.3rem 1rem;border-bottom:1px solid #353535}
+.eyebrow{font:700 12px/1.3 ui-monospace,monospace;letter-spacing:.1em;color:#b4b4a8;text-transform:uppercase}
+#headline{font-size:clamp(20px,2.2vw,34px);line-height:1.12;font-weight:670;letter-spacing:-.035em;margin:.65rem 0}
+#revision{font-size:clamp(13px,1.1vw,16px);color:#bcbcb4}
+.feedhead{padding:.9rem 1.3rem .5rem;font-size:clamp(16px,1.3vw,20px);font-weight:650}
+#changes{overflow:auto;padding:0 .9rem .8rem;flex:1;margin:0;list-style:none}
+#changes li{padding:.9rem .4rem .95rem;border-top:1px solid #343434}
+.changetitle{font-size:clamp(17px,1.4vw,22px);font-weight:640;line-height:1.2;margin:.5rem 0}
+.changemeta{color:#bcbcb3;font:600 12px/1.4 ui-monospace,monospace;letter-spacing:.03em}
+.change-note{font-size:clamp(13px,1vw,15px);color:#c9c9c1;margin:.25rem 0 .45rem}
+#changes a{color:#f1f1ec;text-underline-offset:3px;overflow-wrap:anywhere}
+footer{border-top:1px solid #353535;color:#a9a99f;padding:.8rem 1.3rem;font-size:clamp(11px,.9vw,14px);line-height:1.5}
+footer a{color:inherit}
+@media(max-width:740px){html,body{overflow:auto;height:auto;min-height:100%}body{display:block}header{min-height:57px}main{display:block}.viewer{height:60vh;min-height:300px}aside{min-height:360px}.context{display:none}#connect{max-width:48vw}.summary{padding:1rem}#headline{font-size:24px}}
+</style></head><body>
+<header><div class="brand">PROMETEO</div><div class="context">Vista desde los chats · solo lectura</div><div id="connect" role="status" aria-live="polite">Leyendo GitHub Pages…</div></header>
+<main><section class="viewer" aria-label="Página publicada">
+<div class="viewer-top"><span id="focusTitle">Página de Prometeo</span><a id="openFocus" href="../../pages/calendar/" target="_blank" rel="noopener noreferrer">Abrir página ↗</a></div>
+<iframe id="focus" title="Página de Prometeo publicada" src="../../pages/calendar/" loading="eager"></iframe>
+</section><aside><section class="summary"><div class="eyebrow">Lo último guardado</div><div id="headline">Esperando el primer cambio público confirmado</div><div id="revision">No hay resultados cargados</div></section>
+<div class="feedhead">Cambios visibles</div><ul id="changes"><li>El registro todavía está vacío. Los cambios se publican mediante commits de GitHub.</li></ul>
+<footer>Se actualiza automáticamente cada 15 segundos. GitHub Pages puede tardar en servir un commit. Sin Supabase ni workers. <a href="../../ui-workspace-v1/" target="_blank" rel="noopener">Widgets</a> · <a href="../../shared/study-system/" target="_blank" rel="noopener">Estudio</a></footer></aside></main>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const url=new URL('./state.json',location.href);
+let previous=-1,lastOk=0,requesting=false;
+function internal(raw){
+ if(typeof raw!=='string'||!raw.startsWith('/prometeo/'))return null;
+ try {let u=new URL(raw,location.origin);return u.origin===location.origin&&u.pathname.startsWith('/prometeo/')&&u.protocol===location.protocol?u:null}catch(e){return null}
+}
+function sourceLink(raw){
+ if(typeof raw!=='string')return null;
+ try {let u=new URL(raw,location.origin);
+  if(u.protocol==='https:'&&(u.hostname==='github.com'||u.origin===location.origin))return u.href;
+ }catch(e){}return null;
+}
+function show(state){
+ if(!state||state.schema!=='prometeo.tv-from-chat-state/v1'||!Number.isSafeInteger(state.revision)||!Array.isArray(state.changes))throw Error('Estado público inválido');
+ if(state.revision===previous)return;
+ const focus=internal(state.focus&&state.focus.path);
+ if(focus){
+  const selected=$('focus').getAttribute('data-canonical');
+  if(selected!==focus.pathname){
+   $('focus').src=focus.href;
+   $('focus').setAttribute('data-canonical',focus.pathname);
+  } else if(previous>=0 && state.revision!==previous) {
+   // New public commit: refresh the embedded page once, not every poll.
+   $('focus').src=focus.href+(focus.search?'&':'?')+'v='+state.revision;
+  }
+  $('openFocus').href=focus.href;
+  $('focusTitle').textContent=String(state.focus.title||'Página publicada').slice(0,120);
+ }
+ $('headline').textContent=String(state.headline||'Sin resultados públicos').slice(0,220);
+ $('revision').textContent='Registro '+state.revision+' · '+(state.published_at||'sin publicación de trabajos registrada');
+ const container=$('changes');container.replaceChildren();
+ const changes=state.changes.slice(0,20);
+ if(!changes.length){let item=document.createElement('li');item.textContent='Todavía no hay resultados públicos. Las notas privadas no se muestran acá.';container.append(item);}
+ for(const item of changes){
+  if(!item||typeof item!=='object')continue;
+  let li=document.createElement('li'),meta=document.createElement('div'),title=document.createElement('div');
+  meta.className='changemeta';meta.textContent=[item.status||'SIN VERIFICAR',item.date||''].filter(Boolean).join(' · ');
+  title.className='changetitle';title.textContent=String(item.title||'Cambio sin título').slice(0,220);
+  li.append(meta,title);
+  if(item.note){let note=document.createElement('div');note.className='change-note';note.textContent=String(item.note).slice(0,400);li.append(note)}
+  let safe=sourceLink(item.url);if(safe){let a=document.createElement('a');a.href=safe;a.textContent='Ver fuente / resultado ↗';a.target='_blank';a.rel='noopener noreferrer';li.append(a)}
+  container.append(li);
+ }
+ previous=state.revision;
+}
+async function poll(){
+ if(requesting||document.hidden)return;
+ requesting=true;
+ try {
+  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),9000);
+  let response;
+  try {response=await fetch(url.href+'?v='+Date.now(),{cache:'no-store',signal:controller.signal})}finally{clearTimeout(timer)}
+  if(!response.ok)throw Error('HTTP '+response.status);
+  show(await response.json());
+  lastOk=Date.now();$('connect').textContent='GitHub Pages · lectura correcta';
+ }catch(error){$('connect').textContent=lastOk?'Sin actualización reciente · mostrando lo último':'No se pudo leer el registro público';}
+ finally{requesting=false}
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
+poll();setInterval(poll,15000);
+})();
+</script></body></html>
