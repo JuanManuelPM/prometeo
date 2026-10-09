@@ -16,6 +16,10 @@ Esta ruta `gh-pages:tv/chat/AGENT_ENTRY_V1.md` es la entrada mínima que ya invo
 
 Esta entrada permite recuperar las tres ramas sin volver a copiar prompts anteriores. No exige recrear arquitectura, memoria privada o scheduler.
 
+## Prueba de relevo entre chats descartables
+
+Leer `gh-pages:tv/chat/RELEVO_ENTRE_CHATS_V1.md` cuando la tarea sea **recuperar el mismo rol/contexto en un chat nuevo**, no para órdenes rápidas de TV. El estado incremental se conserva en `gh-pages:tv/chat/relevo/STATE_V1.json`. No significa que dos chats sean la misma instancia ni que se compartan memorias privadas.
+
 ## Dirección operativa (consulta a cada tarea relacionada con Prometeo)
 
 Leer `gh-pages:tv/chat/DIRECCION_OPERATIVA_V1.md` para conocer el mecanismo de encargos entre chats descartables. El archivo sólo referencia owners; **no copia estados dinámicos**. Obtener el estado ACTUAL mediante GitHub PRs, commits, branches y Actions; sólo inspeccionar los PR/tareas pertinentes. La fuente de verdad sobre un trabajo es el PR/ticket y sus recibos, no un resumen conversacional ni esta página. Las órdenes rápidas `🔥tv` mantienen prioridad y no deben bloquearse por revisiones de CI ajenas.
